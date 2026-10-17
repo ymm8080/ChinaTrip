@@ -17,6 +17,10 @@ logger = logging.getLogger("chinatrip.usage")
 class TraceIdMiddleware(BaseHTTPMiddleware):
     """Propagates a trace id and logs one structured JSON line per request."""
 
+    def __init__(self, app, region: str = "CN") -> None:
+        super().__init__(app)
+        self._region = region
+
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
@@ -34,6 +38,7 @@ class TraceIdMiddleware(BaseHTTPMiddleware):
                     "trace_id": trace_id,
                     "device_id": device_id,
                     "client_ip": client_ip,
+                    "region": self._region,
                     "method": request.method,
                     "path": request.url.path,
                     "status_code": response.status_code,

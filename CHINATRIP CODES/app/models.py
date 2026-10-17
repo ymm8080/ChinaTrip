@@ -58,6 +58,11 @@ class Poi(Base):
     location: Mapped[WKBElement | None] = mapped_column(
         Geography(geometry_type="POINT", srid=4326, nullable=True)
     )
+    # v1.7: WGS84 twin of `location` (GCJ-02), written in pairs at ingest;
+    # overseas map rendering (Phase 2) reads this to avoid GCJ-02 drift.
+    wgs84_location: Mapped[WKBElement | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, nullable=True)
+    )
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )

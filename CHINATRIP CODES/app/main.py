@@ -11,7 +11,11 @@ from app.middleware.usage import TraceIdMiddleware
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="ChinaTrip API", version=__version__)
+    app = FastAPI(
+        title="自助景点规划助手 API",
+        summary="ChinaTrip backend (设计文档 v1.7.0, 国内区先行)",
+        version=__version__,
+    )
 
     # Starlette: last add_middleware = outermost. TraceIdMiddleware added last
     # so it measures everything, including 429s from the rate limiter.
@@ -20,7 +24,7 @@ def create_app() -> FastAPI:
         per_minute=settings.rate_limit_per_minute,
         per_hour=settings.rate_limit_per_hour,
     )
-    app.add_middleware(TraceIdMiddleware)
+    app.add_middleware(TraceIdMiddleware, region=settings.region)
 
     app.include_router(health_router)
     app.include_router(extract_router)

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from geoalchemy2 import Geography
 from sqlalchemy import ARRAY, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -51,8 +52,15 @@ def test_pois_columns_exact():
         "category",
         "status",
         "location",
+        "wgs84_location",
         "updated_at",
     }
+
+
+def test_pois_dual_coordinates_are_geography():
+    pois = Base.metadata.tables["pois"]
+    for col in ("location", "wgs84_location"):
+        assert isinstance(pois.columns[col].type, Geography), col
 
 
 def test_users_region_is_varchar_10():
@@ -113,6 +121,7 @@ def test_migration_ddl_contains_postgis_and_partitioning():
     assert "PARTITION BY RANGE" in sql
     assert "PARTITION OF execution_events" in sql
     assert "PRIMARY KEY (id, ts)" in sql
+    assert "wgs84_location GEOGRAPHY(POINT, 4326)" in sql
 
 
 def test_migration_downgrade_drops_all_tables():

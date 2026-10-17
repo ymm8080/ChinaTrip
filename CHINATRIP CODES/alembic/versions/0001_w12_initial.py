@@ -41,6 +41,7 @@ def upgrade() -> None:
             category VARCHAR(50),
             status VARCHAR(20) DEFAULT 'active',
             location GEOGRAPHY(POINT, 4326),
+            wgs84_location GEOGRAPHY(POINT, 4326),
             updated_at TIMESTAMP DEFAULT NOW(),
             UNIQUE (source, source_poi_id)
         )
