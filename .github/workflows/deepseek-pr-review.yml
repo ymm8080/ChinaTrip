@@ -1,6 +1,6 @@
 ﻿# =============================================================================
 # CHINATRIP AI PR Review — powered by Zhipu GLM Flash
-# Model: glm-4.7-flash via https://open.bigmodel.cn/api/paas/v4 (OpenAI wire)
+# Model: glm-4.5-flash via https://open.bigmodel.cn/api/paas/v4 (OpenAI wire)
 # API key: stored as repo secret GLM_API_KEY (user 1017 directive)
 # Trigger: PR opened / synchronize / reopened + manual dispatch
 # Fallbacks: DEEPSEEK_API_KEY legacy path. Old primary OpenCode Go quota
@@ -66,9 +66,10 @@ jobs:
       - name: Run AI PR Review
         env:
           # Zhipu GLM Flash — primary provider (user 1017 directive)
-          # Probed live 1017: glm-4.7-flash / glm-4.5-flash / glm-4.6 all 200 on this key
+          # glm-4.7-flash probed 200 but burst 0/4 (HTTP 429 code 1305, load
+          # throttled) — swap back to it when bigmodel load subsides if wanted
           LLM_API_KEY: ${{ secrets.GLM_API_KEY }}
-          LLM_MODEL: glm-4.7-flash
+          LLM_MODEL: glm-4.5-flash
           LLM_BASE_URL: https://open.bigmodel.cn/api/paas/v4
           LLM_PROVIDER: glm
           # Legacy fallback (script reads DEEPSEEK_* if LLM_* absent/empty)
