@@ -1,4 +1,4 @@
-﻿﻿# =============================================================================
+# =============================================================================
 # CHINATRIP A-Share Quant Platform - CI Pipeline
 # Trigger: push/PR all branches
 # Stages: lint -> adr-validate -> test
