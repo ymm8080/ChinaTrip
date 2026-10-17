@@ -1,4 +1,4 @@
-﻿"""AI-powered PR Review for AMINQT.
+"""AI-powered PR Review for AMINQT.
 
 Called by .github/workflows/deepseek-pr-review.yml.
 Reviews the PR diff using an LLM API (DeepSeek or GLM/Zhipu) and posts a
@@ -608,4 +608,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
