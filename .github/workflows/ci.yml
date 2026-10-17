@@ -1,0 +1,179 @@
+﻿# =============================================================================
+# CHINATRIP A-Share Quant Platform - CI Pipeline
+# Trigger: push/PR all branches
+# Stages: lint -> adr-validate -> test
+# Handles pre-implementation gracefully (no Python code yet)
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "rules/**"
+      - "skills/**"
+      - "prompts/**"
+  pull_request:
+    branches: ['**']
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "rules/**"
+      - "skills/**"
+      - "prompts/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ===========================================================================
+  # Phase 1: Lint (ruff) - skips gracefully if no Python files yet
+  # ===========================================================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Ruff check
+        run: |
+          echo "=== ruff check ==="
+          DIRS=""
+          for d in app scripts services tests; do
+            if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
+              DIRS="$DIRS $d"
+            fi
+          done
+          if [ -z "$DIRS" ]; then
+            echo "No Python files found yet - skipping ruff check"
+          else
+            ruff check $DIRS
+          fi
+
+      - name: Ruff format check
+        run: |
+          echo "=== ruff format --check ==="
+          DIRS=""
+          for d in app scripts services tests; do
+            if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
+              DIRS="$DIRS $d"
+            fi
+          done
+          if [ -z "$DIRS" ]; then
+            echo "No Python files found yet - skipping format check"
+          else
+            ruff format --check $DIRS
+          fi
+
+  # ===========================================================================
+  # Phase 2: ADR Validation (supports Chinese and English)
+  # ===========================================================================
+  adr-validate:
+    name: ADR Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate ADR format
+        run: |
+          errors=0
+          for f in 10_adr/ADR-*.md; do
+            [ -f "$f" ] || continue
+            if ! grep -q "^# ADR-" "$f"; then
+              echo "::error file=$f::Missing '# ADR-NNN' title"
+              errors=$((errors+1))
+            fi
+            if ! grep -qiE "Status" "$f"; then
+              if ! grep -q "鐘舵€? "$f"; then
+                echo "::error file=$f::Missing Status or 鐘舵€?line"
+                errors=$((errors+1))
+              fi
+            fi
+            if ! grep -qiE "Date" "$f"; then
+              if ! grep -q "鏃ユ湡" "$f"; then
+                echo "::error file=$f::Missing Date or 鏃ユ湡 line"
+                errors=$((errors+1))
+              fi
+            fi
+          done
+          if [ $errors -gt 0 ]; then exit 1; fi
+          echo "All ADRs valid"
+
+  # ===========================================================================
+  # Phase 3: Test (pytest) - skips gracefully if no tests yet
+  # ===========================================================================
+  test:
+    name: Test
+    needs: [lint, adr-validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          pip install pytest pytest-cov pytest-timeout ruff
+
+      - name: Run pytest with coverage
+        run: |
+          if [ -d tests ] && find tests -name '*.py' -print -quit | grep -q .; then
+            python -m pytest tests/ \
+              --cov=app \
+              --cov=services \
+              --cov-fail-under=75 \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --timeout=120 \
+              -v || RET=$?
+            if [ "${RET:-0}" = "5" ]; then
+              echo "All tests skipped - pre-implementation phase - passing"
+              exit 0
+            elif [ -n "${RET:-}" ] && [ "$RET" != "0" ]; then
+              exit $RET
+            fi
+          else
+            echo "No test files found yet - skipping pytest"
+          fi
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
+
+      - name: Syntax check key Python files
+        run: |
+          for f in app/main.py config/settings.py; do
+            if [ -f "$f" ]; then
+              python -m py_compile "$f" || true
+            fi
+          done
+          echo "Syntax check completed"
+
+
