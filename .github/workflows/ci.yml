@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # CHINATRIP A-Share Quant Platform - CI Pipeline
 # Trigger: push/PR all branches
 # Stages: lint -> adr-validate -> test
@@ -92,24 +92,26 @@ jobs:
 
       - name: Validate ADR format
         run: |
+          shopt -s nullglob
           errors=0
-          for f in 10_adr/ADR-*.md; do
+          adrs=(10_adr/ADR-*.md)
+          if [ ${#adrs[@]} -eq 0 ]; then
+            echo "No ADR files found - skipping validation"
+            exit 0
+          fi
+          for f in "${adrs[@]}"; do
             [ -f "$f" ] || continue
-            if ! grep -q "^# ADR-" "$f"; then
+            if ! grep -qE "^# ADR-" "$f"; then
               echo "::error file=$f::Missing '# ADR-NNN' title"
               errors=$((errors+1))
             fi
-            if ! grep -qiE "Status" "$f"; then
-              if ! grep -q "鐘舵€? "$f"; then
-                echo "::error file=$f::Missing Status or 鐘舵€?line"
-                errors=$((errors+1))
-              fi
+            if ! grep -qiE "Status|状态" "$f"; then
+              echo "::error file=$f::Missing Status/状态 line"
+              errors=$((errors+1))
             fi
-            if ! grep -qiE "Date" "$f"; then
-              if ! grep -q "鏃ユ湡" "$f"; then
-                echo "::error file=$f::Missing Date or 鏃ユ湡 line"
-                errors=$((errors+1))
-              fi
+            if ! grep -qiE "Date|日期" "$f"; then
+              echo "::error file=$f::Missing Date/日期 line"
+              errors=$((errors+1))
             fi
           done
           if [ $errors -gt 0 ]; then exit 1; fi

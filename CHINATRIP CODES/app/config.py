@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
 
+    # Deployment region, stamped onto every usage-log line (v1.7 §3 prebuild
+    # for the Phase-2 overseas amap-via-CN-proxy path; scene follows there).
+    region: str = "CN"
+
     rate_limit_per_minute: int = 60
     rate_limit_per_hour: int = 600
 

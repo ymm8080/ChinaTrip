@@ -12,6 +12,7 @@ USAGE_KEYS = {
     "trace_id",
     "device_id",
     "client_ip",
+    "region",
     "method",
     "path",
     "status_code",
@@ -192,6 +193,7 @@ def test_trace_id_generated_and_logged(caplog):
     assert payload["trace_id"] == trace_id
     assert payload["device_id"] == "-"
     assert payload["client_ip"] == "testclient"
+    assert payload["region"] == "CN"
     assert payload["method"] == "GET"
     assert payload["path"] == "/ping"
     assert payload["status_code"] == 200
