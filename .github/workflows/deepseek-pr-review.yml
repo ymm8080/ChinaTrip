@@ -1,9 +1,10 @@
 ﻿# =============================================================================
-# CHINATRIP AI PR Review — powered by OpenCode Go (DeepSeek V4.1 Flash)
-# Model: deepseek-v4.1-flash via https://opencode.ai/zen/go/v1 (OpenAI wire)
-# API key: stored as repo secret OPENCODE_API_KEY (user 0916 directive)
+# CHINATRIP AI PR Review — powered by Zhipu GLM Flash
+# Model: glm-4.7-flash via https://open.bigmodel.cn/api/paas/v4 (OpenAI wire)
+# API key: stored as repo secret GLM_API_KEY (user 1017 directive)
 # Trigger: PR opened / synchronize / reopened + manual dispatch
-# Fallbacks: GLM_API_KEY (glm-4.6) / DEEPSEEK_API_KEY if OPENCODE is absent
+# Fallbacks: DEEPSEEK_API_KEY legacy path. Old primary OpenCode Go quota
+#   exhausted 0928 (deepseek-v4.1-flash @ https://opencode.ai/zen/go/v1)
 # =============================================================================
 name: AI PR Review
 
@@ -29,7 +30,7 @@ concurrency:
 
 jobs:
   review:
-    name: OpenCode-Go DeepSeek V4.1 Flash Review
+    name: GLM Flash Review
     runs-on: ubuntu-latest
     # 网络瞬断重试 (3 次 + 退避) 最坏 ~16min, 10min 会在重试中途杀掉作业
     timeout-minutes: 20
@@ -64,12 +65,13 @@ jobs:
 
       - name: Run AI PR Review
         env:
-          # OpenCode Go (DeepSeek V4.1 Flash) — primary provider (user 0916 directive)
-          LLM_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          LLM_MODEL: deepseek-v4.1-flash
-          LLM_BASE_URL: https://opencode.ai/zen/go/v1
-          LLM_PROVIDER: opencode
-          # Legacy fallback (used only if GLM_API_KEY is empty)
+          # Zhipu GLM Flash — primary provider (user 1017 directive)
+          # Probed live 1017: glm-4.7-flash / glm-4.5-flash / glm-4.6 all 200 on this key
+          LLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          LLM_MODEL: glm-4.7-flash
+          LLM_BASE_URL: https://open.bigmodel.cn/api/paas/v4
+          LLM_PROVIDER: glm
+          # Legacy fallback (script reads DEEPSEEK_* if LLM_* absent/empty)
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           # GitHub token for posting review comments
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
