@@ -26,3 +26,9 @@ Thumbs.db
 # Data artifacts
 data/
 *.parquet
+
+# Local MCP instance (machine-specific paths, shareable copy in mcp/mcp.json)
+.mcp.json
+
+# Keep example templates committable (the .env.* blanket above eats them)
+!.env.example

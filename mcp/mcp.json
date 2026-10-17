@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "amap-maps": {
+      "command": "C:\\Users\\91454\\AppData\\Local\\Programs\\AutoClaw2\\resources\\vendor\\node\\node.exe",
+      "args": [
+        "C:\\Users\\91454\\AppData\\Roaming\\AutoClaw-official\\accounts\\82efb3bc07ea03ce27db111b73e2b72754128faeaba5bfa758a3c45e2201282a\\projects\\Default\\mcp\\node_modules\\@amap\\amap-maps-mcp-server\\build\\index.js"
+      ]
+    },
+    "sentry": {
+      "command": "C:\\Users\\91454\\AppData\\Local\\Programs\\AutoClaw2\\resources\\vendor\\node\\node.exe",
+      "args": [
+        "C:\\Users\\91454\\AppData\\Roaming\\AutoClaw-official\\accounts\\82efb3bc07ea03ce27db111b73e2b72754128faeaba5bfa758a3c45e2201282a\\projects\\Default\\mcp\\node_modules\\@sentry\\mcp-server\\dist\\index.js"
+      ]
+    },
+    "postgres": {
+      "command": "D:\\dev\\venvs\\postgres-mcp\\Scripts\\postgres-mcp.exe",
+      "args": ["--access-mode", "restricted"]
+    },
+    "dart": {
+      "command": "D:\\dev\\flutter\\bin\\cache\\dart-sdk\\bin\\dart.exe",
+      "args": ["mcp-server"],
+      "env": {
+        "LOCALAPPDATA": "C:\\Users\\91454\\AppData\\Local"
+      }
+    }
+  }
+}

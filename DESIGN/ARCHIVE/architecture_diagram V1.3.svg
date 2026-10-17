@@ -1,0 +1,121 @@
+<svg viewBox="0 0 1000 1080" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .layer { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; rx: 10; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; rx: 6; }
+      .hot { fill: #fff7ed; stroke: #f97316; stroke-width: 1.4; rx: 6; }
+      .title { font-size: 16px; font-weight: 700; fill: #0f172a; }
+      .sub { font-size: 12px; fill: #334155; }
+      .sm { font-size: 11px; fill: #475569; }
+      .star { font-size: 11px; fill: #c2410c; font-weight: 600; }
+      .lbl { font-size: 13px; font-weight: 700; fill: #1e293b; }
+      .link { font-size: 11px; fill: #64748b; }
+    </style>
+  </defs>
+
+  <text x="500" y="30" text-anchor="middle" class="title" font-size="20">随行旅行 Agent — 系统架构图 v1.3（终版）</text>
+
+  <!-- 移动层 -->
+  <rect class="layer" x="20" y="50" width="960" height="180" rx="10"/>
+  <text x="40" y="74" class="lbl">移动层 — Flutter App（一套代码，双渠道发行）</text>
+  <rect class="box" x="40" y="86" width="290" height="130" rx="6"/>
+  <text x="55" y="106" class="sub" font-weight="600">发行渠道</text>
+  <text x="55" y="126" class="sm">海外商店（en/ja）</text>
+  <text x="55" y="144" class="sm">国内商店（zh，资质并行办理）</text>
+  <text x="55" y="162" class="sm">入境后：定位检测 → 执行模式</text>
+  <text x="55" y="180" class="sm">出发前：绑国际卡 / eSIM 引导</text>
+  <rect class="box" x="350" y="86" width="290" height="130" rx="6"/>
+  <text x="365" y="106" class="sub" font-weight="600">六个页面</text>
+  <text x="365" y="126" class="sm">聊天页 · 地图页 · 时间线页 · 收藏页 · 足迹页</text>
+  <text x="365" y="144" class="sm">执行模式页：今日行程卡 · 去这里/打车 · 随行对话</text>
+  <text x="365" y="162" class="sm">时间线：天主轴 Day1/Day2…，跨城交通=日内特殊卡片</text>
+  <rect class="hot" x="660" y="86" width="320" height="130" rx="6"/>
+  <text x="675" y="106" class="star">★ 四适配器按 region 装配：Auth / Pay / Push / LLM</text>
+  <text x="675" y="126" class="star">★ 离线 = 执行模式生存底线</text>
+  <text x="675" y="144" class="sm">行程 + 瓦片 + 讲解文案 预下载到本地</text>
+  <text x="675" y="162" class="sm">定时提醒 / 到点打卡 / 导航：零网络可用</text>
+  <text x="675" y="180" class="sm">重排 / 对话：需网络</text>
+
+  <line x1="500" y1="230" x2="500" y2="258" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="515" y="250" class="link">HTTPS + WebSocket（★境内 WS 流式实测 = P0 验收）</text>
+
+  <!-- 接入层 -->
+  <rect class="layer" x="20" y="262" width="960" height="120" rx="10"/>
+  <text x="40" y="286" class="lbl">接入层（双区域）</text>
+  <rect class="box" x="40" y="298" width="440" height="72" rx="6"/>
+  <text x="55" y="318" class="sub" font-weight="600">海外区 · AWS 新加坡</text>
+  <text x="55" y="336" class="sm">邮箱验证码 + Apple · APNs / Firebase（境内降级）· Stripe/绑卡引导</text>
+  <text x="55" y="354" class="sm">禁 Google OAuth</text>
+  <rect class="box" x="520" y="298" width="440" height="72" rx="6"/>
+  <text x="535" y="318" class="sub" font-weight="600">国内区 · 阿里云 / 腾讯云</text>
+  <text x="535" y="336" class="sm">手机号验证码 + 微信登录 · 厂商推送 / 友盟 · 微信支付 / 支付宝</text>
+  <text x="535" y="354" class="sm">禁 Google OAuth</text>
+
+  <line x1="500" y1="382" x2="500" y2="410" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="515" y="402" class="star">★ 数据驻留铁律：用户数据只落所在区，永不跨境同步 · 全球加速线路（外国人境内执行的生命线）</text>
+
+  <!-- 后端服务层 -->
+  <rect class="layer" x="20" y="414" width="960" height="290" rx="10"/>
+  <text x="40" y="438" class="lbl">后端服务层（核心代码一套，两区同构部署）</text>
+
+  <rect class="box" x="40" y="450" width="350" height="200" rx="6"/>
+  <text x="55" y="472" class="sub" font-weight="600">Agent 编排层</text>
+  <text x="55" y="492" class="sm">规划状态机：澄清（含多城维度）</text>
+  <text x="55" y="510" class="sm">工具循环 · 硬校验铁律 1–12 · 增量 diff 输出</text>
+  <text x="55" y="528" class="sm">多城工具：search_intercity_routes / pacing</text>
+  <text x="55" y="546" class="star">★ 执行模式 Agent（= 双边付费核心）</text>
+  <text x="55" y="564" class="sm">三形态：定时推送(离线) / 主动问(重排) / 到点讲</text>
+  <text x="55" y="582" class="sm">propose_replan = 规划 Agent 受限子调用</text>
+
+  <rect class="box" x="410" y="450" width="250" height="200" rx="6"/>
+  <text x="425" y="472" class="sub" font-weight="600">链接解析服务</text>
+  <text x="425" y="492" class="sm">文字 → 图文 → 视频（三刀分期）</text>
+  <text x="425" y="510" class="sm">粗筛 → 精读</text>
+  <text x="425" y="528" class="sm">确认卡片</text>
+  <text x="425" y="546" class="sm">分级报错</text>
+  <text x="425" y="564" class="sm">成本闸门</text>
+
+  <rect class="box" x="680" y="450" width="300" height="200" rx="6"/>
+  <text x="695" y="472" class="sub" font-weight="600">数据管线（02:00 UTC+8）</text>
+  <text x="695" y="492" class="sm">多源采集 · 仲裁引擎</text>
+  <text x="695" y="510" class="star">★ 源D：头部 POI 官网公告，T-30 抓节假日例外</text>
+  <text x="695" y="528" class="star">★ 变更检测：ETag + 哈希 + LLM 三层</text>
+  <text x="695" y="546" class="sm">班次静态库（周级刷新）</text>
+  <text x="695" y="564" class="sm">车站 → transport_hub POI 入双语库</text>
+  <text x="695" y="582" class="star">★ 讲解生成管线：行程确认时批量生成 + 预下载</text>
+
+  <rect class="hot" x="40" y="660" width="940" height="34" rx="6"/>
+  <text x="55" y="682" class="star">★ LLM 网关：CN → Qwen/GLM（已备案） · 海外 → Claude / GPT-4o ｜ 对话成本闸门 ｜ Agent trace 留痕 → agent_traces</text>
+
+  <line x1="500" y1="704" x2="500" y2="732" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 数据层 -->
+  <rect class="layer" x="20" y="736" width="960" height="180" rx="10"/>
+  <text x="40" y="760" class="lbl">数据层（各区独立实例，schema 一套）</text>
+  <rect class="box" x="40" y="772" width="450" height="130" rx="6"/>
+  <text x="55" y="792" class="sm">users(+region) · user_interests · user_visited</text>
+  <text x="55" y="812" class="sm">pois 双语库（参考数据两区共享，含 transport_hub 类目）</text>
+  <text x="55" y="832" class="sm">itineraries(cities数组, +version, +execution_log)</text>
+  <text x="55" y="852" class="star">★ itinerary_days(base_city = 当晚住宿城市)</text>
+  <text x="55" y="872" class="star">★ intercity_transfers（day 级，UNIQUE(itinerary, day) 一天限一次）</text>
+  <rect class="box" x="510" y="772" width="470" height="130" rx="6"/>
+  <text x="525" y="792" class="sm">itinerary_items(+day，★fractional indexing，★draft 标记)</text>
+  <text x="525" y="812" class="sm">poi_hours_raw · extraction_logs · agent_traces</text>
+  <text x="525" y="832" class="sm">跨区同步白名单：仅 pois / 班次静态库 / 讲解模板（参考数据）</text>
+  <text x="525" y="852" class="sm">用户数据（users/itineraries/traces）：禁止跨区</text>
+
+  <line x1="500" y1="916" x2="500" y2="944" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 依赖层 -->
+  <rect class="layer" x="20" y="948" width="960" height="110" rx="10"/>
+  <text x="40" y="972" class="lbl">依赖层</text>
+  <rect class="hot" x="40" y="984" width="450" height="60" rx="6"/>
+  <text x="55" y="1006" class="star">★ P0：高德开放平台（SDK / 路径规划 / 天气 API / deeplink 打车）</text>
+  <text x="55" y="1026" class="sm">海外主体实测 = 本周必做，唯一可能推翻架构的项</text>
+  <rect class="box" x="510" y="984" width="470" height="60" rx="6"/>
+  <text x="525" y="1006" class="sm">12306 班次查询（开源库，注意合规与稳定性）· LLM 网关 · 开源组件</text>
+  <text x="525" y="1026" class="sm">支付：微信 / 支付宝 ｜ Stripe · OSM ODbL 署名</text>
+</svg>

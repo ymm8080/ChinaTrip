@@ -1,0 +1,14 @@
+[project]
+name = "chinatrip-api"
+version = "0.1.0"
+description = "ChinaTrip travel-agent backend (W1-2 overseas-region minimal loop)"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

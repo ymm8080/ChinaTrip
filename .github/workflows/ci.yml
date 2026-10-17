@@ -54,31 +54,31 @@ jobs:
       - name: Ruff check
         run: |
           echo "=== ruff check ==="
-          DIRS=""
-          for d in app scripts services tests; do
+          DIRS=()
+          for d in app scripts services tests "CHINATRIP CODES/app" "CHINATRIP CODES/services" "CHINATRIP CODES/tests"; do
             if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
-              DIRS="$DIRS $d"
+              DIRS+=("$d")
             fi
           done
-          if [ -z "$DIRS" ]; then
+          if [ ${#DIRS[@]} -eq 0 ]; then
             echo "No Python files found yet - skipping ruff check"
           else
-            ruff check $DIRS
+            ruff check "${DIRS[@]}"
           fi
 
       - name: Ruff format check
         run: |
           echo "=== ruff format --check ==="
-          DIRS=""
-          for d in app scripts services tests; do
+          DIRS=()
+          for d in app scripts services tests "CHINATRIP CODES/app" "CHINATRIP CODES/services" "CHINATRIP CODES/tests"; do
             if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
-              DIRS="$DIRS $d"
+              DIRS+=("$d")
             fi
           done
-          if [ -z "$DIRS" ]; then
+          if [ ${#DIRS[@]} -eq 0 ]; then
             echo "No Python files found yet - skipping format check"
           else
-            ruff format --check $DIRS
+            ruff format --check "${DIRS[@]}"
           fi
 
   # ===========================================================================
@@ -137,14 +137,17 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
+          if [ -f "CHINATRIP CODES/requirements.txt" ]; then
+            pip install -r "CHINATRIP CODES/requirements.txt"
+          fi
           pip install pytest pytest-cov pytest-timeout ruff
 
       - name: Run pytest with coverage
         run: |
-          if [ -d tests ] && find tests -name '*.py' -print -quit | grep -q .; then
+          if [ -d "CHINATRIP CODES/tests" ] && find "CHINATRIP CODES/tests" -name '*.py' -print -quit | grep -q .; then
+            cd "CHINATRIP CODES"
             python -m pytest tests/ \
               --cov=app \
-              --cov=services \
               --cov-fail-under=75 \
               --cov-report=term-missing \
               --cov-report=xml:coverage.xml \
@@ -163,13 +166,13 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.xml
+          file: CHINATRIP CODES/coverage.xml
           fail_ci_if_error: false
         continue-on-error: true
 
       - name: Syntax check key Python files
         run: |
-          for f in app/main.py config/settings.py; do
+          for f in "CHINATRIP CODES/app/main.py" app/main.py config/settings.py; do
             if [ -f "$f" ]; then
               python -m py_compile "$f" || true
             fi
