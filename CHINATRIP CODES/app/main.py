@@ -13,7 +13,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title="自助景点规划助手 API",
-        summary="ChinaTrip backend (设计文档 v1.7.0, 国内区先行)",
+        summary="ChinaTrip backend (设计文档 v1.8.0, 国内区先行)",
         version=__version__,
     )
 
