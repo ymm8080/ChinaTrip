@@ -63,7 +63,12 @@ def get_pr_diff(pr_number: str, repo: str, token: str) -> str:
                     if len(diff) > 50000:
                         diff = diff[:50000] + "\n... [diff truncated for token budget]"
                     return diff
-        except Exception as e:
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            OSError,
+            TimeoutError,
+        ) as e:
             logger.error(f"Error fetching diff (Accept={accept}): {e}")
 
     # --- Strategy 2: gh CLI fallback (authenticated via GH_TOKEN env) ---
@@ -73,6 +78,7 @@ def get_pr_diff(pr_number: str, repo: str, token: str) -> str:
             ["gh", "pr", "diff", pr_number, "--repo", repo],
             capture_output=True,
             text=True,
+            check=False,
             timeout=30,
             env=env,
         )
@@ -84,7 +90,7 @@ def get_pr_diff(pr_number: str, repo: str, token: str) -> str:
         logger.error(
             f"gh pr diff failed (rc={result.returncode}): {result.stderr[:200]}"
         )
-    except Exception as e:
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         logger.error(f"gh pr diff fallback error: {e}")
 
     # --- Strategy 3: List PR files API (handles PRs > 300 files) ---
@@ -120,7 +126,7 @@ def get_pr_diff(pr_number: str, repo: str, token: str) -> str:
             if len(diff) > 30000:
                 diff = diff[:30000] + "\n... [diff truncated for token budget]"
             return diff
-    except Exception as e:
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError) as e:
         logger.error(f"List PR files fallback error: {e}")
 
     return ""
@@ -430,8 +436,8 @@ Keep messages concise (one sentence per issue). Only report real violations.
             body = ""
             try:
                 body = e.read().decode("utf-8", errors="replace")[:500]
-            except Exception:
-                pass
+            except (OSError, UnicodeDecodeError) as body_err:
+                logger.error("Error reading HTTPError body: %s", body_err)
             logger.error("LLM API HTTP %s: %s", e.code, body)
             return {
                 "issues": [],
@@ -458,7 +464,7 @@ Keep messages concise (one sentence per issue). Only report real violations.
                 "summary": f"Review failed: {e}",
                 "error": True,
             }
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             logger.error(f"LLM API error: {e}")
             return {
                 "issues": [],
@@ -566,7 +572,7 @@ def post_comment(pr_number: str, repo: str, token: str, review: dict) -> bool:
         with urllib.request.urlopen(req, timeout=30):
             logger.info(f"Review posted on PR #{pr_number}")
             return True
-    except Exception as e:
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError) as e:
         logger.error(f"Error posting review: {e}")
         return False
 
