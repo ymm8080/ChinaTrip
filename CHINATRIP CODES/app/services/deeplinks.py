@@ -20,6 +20,14 @@ _LAT_MIN, _LAT_MAX = 3.0, 54.0
 _SOURCE = "chinatrip"
 
 
+def _amap_nav_url(name_enc: str, lon: float, lat: float) -> str:
+    """高德网页导航。to= 为位置制解析：[0],[1]=坐标、[2]=名称（名称必须最后）。"""
+    return (
+        f"https://uri.amap.com/navigation"
+        f"?to={lon},{lat},{name_enc}&mode=car&coordinate=gaode&callnative=1"
+    )
+
+
 def _enc(name: str) -> str:
     """query 尾参里的中文名必须整体 URL 编码。"""
     return quote(name, safe="")
@@ -59,10 +67,8 @@ def compose_deeplink(
         return {
             "mode": "taxi",
             "app_deeplink": f"amapuri://drive/taxi/?dlon={lon}&dlat={lat}&dname={name}",
-            "web_fallback": (
-                f"https://common.diditaxi.com.cn/webapp/driverDepart/index"
-                f"?destLng={lon}&destLat={lat}&destName={name}"
-            ),
+            # 滴滴旧 H5(webapp/driverDepart)已 404；网页无法叫车，退高德路线页（叫车走 App deeplink）
+            "web_fallback": _amap_nav_url(name, lon, lat),
             "source": _SOURCE,
         }
 
@@ -72,10 +78,7 @@ def compose_deeplink(
             f"amapuri://route/plan/?sourceApplication={_SOURCE}"
             f"&dlon={lon}&dlat={lat}&dname={name}&dev=0&t=0"
         ),
-        "web_fallback": (
-            f"https://uri.amap.com/navigation"
-            f"?to={lon},{lat},{name}&mode=car&coordinate=gaode&callnative=1"
-        ),
+        "web_fallback": _amap_nav_url(name, lon, lat),
         "ios_alternative": (
             f"https://maps.apple.com/?dname={name}&dlat={lat}&dlon={lon}&dirflg=r"
         ),

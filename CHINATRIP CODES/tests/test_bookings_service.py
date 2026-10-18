@@ -70,19 +70,20 @@ def test_flight_booking_always_empty_with_dual_channel_urls():
     result = flight_booking("北京", "上海", DATE)
     assert result["flights"] == []
     handoff = result["handoff"]
-    assert handoff["channel"] == "qunar"
+    # 去哪儿 onewayList.htm 软 404（1018 验证）→ 携程主渠道
+    assert handoff["channel"] == "ctrip"
     assert handoff["kind"] == "flight"
     url = handoff["url"]
-    assert url.startswith("https://flight.qunar.com/site/onewayList.htm")
-    assert f"fromCity={quote('北京', safe='')}" in url
-    assert f"toCity={quote('上海', safe='')}" in url
-    assert f"fromDate={DATE}" in url
+    assert url.startswith("https://flights.ctrip.com/online/list/oneway-")
+    assert quote("北京", safe="") in url
+    assert quote("上海", safe="") in url
+    assert f"depdate={DATE}" in url
     fallback = handoff["fallback"]
-    assert fallback["channel"] == "ctrip"
-    assert fallback["url"].startswith("https://flights.ctrip.com/online/list/oneway-")
-    assert quote("北京", safe="") in fallback["url"]
-    assert quote("上海", safe="") in fallback["url"]
-    assert f"depdate={DATE}" in fallback["url"]
+    assert fallback["channel"] == "qunar"
+    assert fallback["url"].startswith("https://flight.qunar.com/site/onewayList.htm")
+    assert f"fromCity={quote('北京', safe='')}" in fallback["url"]
+    assert f"toCity={quote('上海', safe='')}" in fallback["url"]
+    assert f"fromDate={DATE}" in fallback["url"]
     assert result["refund_policy"]["source"] == "channel_page"
     _assert_no_key_string(result)
 

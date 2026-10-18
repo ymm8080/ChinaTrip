@@ -36,8 +36,8 @@ def test_flight_returns_empty_with_dual_channels():
     assert resp.status_code == 200
     body = resp.json()
     assert body["flights"] == []
-    assert body["handoff"]["channel"] == "qunar"
-    assert body["handoff"]["fallback"]["channel"] == "ctrip"
+    assert body["handoff"]["channel"] == "ctrip"
+    assert body["handoff"]["fallback"]["channel"] == "qunar"
     assert body["refund_policy"]["summary"]
     assert "key=" not in resp.text
 

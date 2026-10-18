@@ -34,13 +34,15 @@ class TestTaxi:
         assert "%E5%8C%97" in r["app_deeplink"]  # "北"
         assert NAME not in r["app_deeplink"]
 
-    def test_web_fallback_didi(self):
+    def test_web_fallback_amap(self):
+        # 滴滴旧 H5(webapp/driverDepart)已 404；网页无法叫车 → 高德路线页
         r = compose_deeplink("taxi", NAME, LON, LAT)
         fb = r["web_fallback"]
-        assert fb.startswith("https://common.diditaxi.com.cn/webapp/driverDepart/index")
-        assert f"destLng={LON}&destLat={LAT}" in fb
-        assert fb.index("destLng=") < fb.index("destLat=")
-        assert f"destName={NAME_ENC}" in fb
+        assert fb.startswith("https://uri.amap.com/navigation")
+        assert f"to={LON},{LAT},{NAME_ENC}" in fb
+        assert "mode=car" in fb
+        assert "callnative=1" in fb
+        assert NAME not in fb
 
     def test_mode_and_source(self):
         r = compose_deeplink("taxi", NAME, LON, LAT)
