@@ -57,4 +57,13 @@ async def asr_endpoint(
     except AsrError as exc:
         logger.warning("asr error: %s", exc)
         raise HTTPException(status_code=502, detail="asr_error") from exc
+    # 诊断：静音流（OS 级麦克风封锁）与过短录音从日志即可分辨。
+    # WARNING 而非 INFO：uvicorn 默认丢弃 app 级 INFO（root 无 handler）。
+    is_wav = audio[:4] == b"RIFF" and len(audio) >= 28
+    rate = int.from_bytes(audio[24:28], "little") if is_wav else 0
+    dur = (len(audio) - 44) / 2 / rate if rate else 0.0
+    if not text:
+        logger.warning(
+            "asr empty result: %d bytes, %d Hz, %.1fs", len(audio), rate, dur
+        )
     return {"text": text}
