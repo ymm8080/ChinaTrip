@@ -238,3 +238,40 @@ class PaywallRule(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+
+
+class ActionHandoff(Base):
+    # v1.9 §6.11 (design v2.0): booking deeplink handoff trail — conversion
+    # funnel + commission reconciliation. Iron rule 22: handoff only, never
+    # transact on the user's behalf. refund_policy/refund_deadline per v1.9.4
+    # (iron rule 23: no handoff without a refund-policy summary shown first).
+    __tablename__ = "action_handoffs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    action_type: Mapped[str] = mapped_column(
+        String(20)
+    )  # hotel|flight|train|site_ticket
+    channel: Mapped[str] = mapped_column(
+        String(20)
+    )  # ctrip|meituan|qunar|amap|rail12306
+    deeplink: Mapped[str] = mapped_column(Text)
+    h5_fallback: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str | None] = mapped_column(
+        String(20), server_default=text("'opened'")
+    )
+    order_ref: Mapped[str | None] = mapped_column(String(100))
+    # Snapshot of the refund rules shown to the user before handoff.
+    refund_policy: Mapped[dict | None] = mapped_column(JSONB)
+    refund_deadline: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )

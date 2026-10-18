@@ -21,10 +21,20 @@ TABLE_NAMES = [
     "entitlements",
     "iap_transactions",
     "paywall_rules",
+    "action_handoffs",
 ]
+
+W12_TABLE_NAMES = TABLE_NAMES[:-1]  # 0001 created 12; action_handoffs arrives in 0002
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1] / "alembic" / "versions" / "0001_w12_initial.py"
+)
+
+MIGRATION_0002_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "alembic"
+    / "versions"
+    / "0002_v19_action_handoffs.py"
 )
 
 
@@ -81,6 +91,42 @@ def test_paywall_rules_offer_is_jsonb_not_null():
     assert offer.nullable is False
 
 
+def test_action_handoffs_columns_exact():
+    handoffs = Base.metadata.tables["action_handoffs"]
+    assert set(handoffs.columns.keys()) == {
+        "id",
+        "user_id",
+        "itinerary_id",
+        "action_type",
+        "channel",
+        "deeplink",
+        "h5_fallback",
+        "status",
+        "order_ref",
+        "refund_policy",
+        "refund_deadline",
+        "created_at",
+        "updated_at",
+    }
+
+
+def test_action_handoffs_required_columns_not_null():
+    handoffs = Base.metadata.tables["action_handoffs"]
+    for col in ("action_type", "channel", "deeplink"):
+        assert handoffs.columns[col].nullable is False, col
+
+
+def test_action_handoffs_refund_policy_is_jsonb():
+    refund_policy = Base.metadata.tables["action_handoffs"].columns["refund_policy"]
+    assert isinstance(refund_policy.type, JSONB)
+    assert refund_policy.nullable is True
+
+
+def test_action_handoffs_refund_deadline_is_tz_aware():
+    refund_deadline = Base.metadata.tables["action_handoffs"].columns["refund_deadline"]
+    assert refund_deadline.type.timezone is True
+
+
 def test_unique_constraints():
     tables = Base.metadata.tables
     assert frozenset({"source", "source_poi_id"}) in unique_column_sets(tables["pois"])
@@ -127,5 +173,24 @@ def test_migration_ddl_contains_postgis_and_partitioning():
 def test_migration_downgrade_drops_all_tables():
     sql = MIGRATION_PATH.read_text(encoding="utf-8")
     downgrade_sql = sql.split("def downgrade", 1)[1]
-    for name in TABLE_NAMES:
+    for name in W12_TABLE_NAMES:
         assert f"DROP TABLE {name}" in downgrade_sql, name
+
+
+def test_migration_0002_creates_action_handoffs():
+    sql = MIGRATION_0002_PATH.read_text(encoding="utf-8")
+    assert 'revision: str = "w12_0002"' in sql
+    assert 'down_revision: str | None = "w12_0001"' in sql
+    upgrade_sql = sql.split("def upgrade", 1)[1].split("def downgrade", 1)[0]
+    for fragment in (
+        "CREATE TABLE action_handoffs",
+        "action_type VARCHAR(20) NOT NULL",
+        "channel VARCHAR(20) NOT NULL",
+        "deeplink TEXT NOT NULL",
+        "status VARCHAR(20) DEFAULT 'opened'",
+        "refund_policy JSONB",
+        "refund_deadline TIMESTAMPTZ",
+    ):
+        assert fragment in upgrade_sql, fragment
+    downgrade_sql = sql.split("def downgrade", 1)[1]
+    assert "DROP TABLE action_handoffs" in downgrade_sql
