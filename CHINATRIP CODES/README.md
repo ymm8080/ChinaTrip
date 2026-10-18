@@ -42,5 +42,8 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `POST /api/v1/plan/start` · `POST /api/v1/plan/{sid}/message` | 多城规划 Agent：澄清≤2→立即 v0 带假设→对话迭代（DiffOps 过管线，铁律 0/19；自修≤3） |
 | `POST/GET /api/v1/itineraries` · `PUT /{id}` | 行程 CRUD + 变更管线（铁律 1-6 校验；违规 422） |
 | `POST/GET /api/v1/itineraries/{id}/snapshots…/restore` | 快照冻结/恢复（铁律 16 快照不可变；额度走权益服务 402；恢复只写工作副本） |
+| `POST /api/v1/nav/walking` · `POST /api/v1/nav/transit` | 五模式导航（设计 v2.2 §6.13）：步行/公交路径高德 Web API 代理——fast 车道零 LLM，key 不出服务端；偏航重路由 = 携当前位置重调 walking |
+| `POST /api/v1/nav/deeplink` | 出租/自驾 deeplink 合成（高德打车/滴滴 H5/驾车导航+Web 兜底+Apple Maps iOS 备选；无 key；铁律 22 只 handoff 不代叫车） |
+| `POST /api/v1/nav/transport-reminders` · `POST /api/v1/nav/missed-connection` | 火车/飞机行程层：出发前赶车提醒（train 45min / flight 90min 缓冲）+ 误车免费应急兜底（最近班次 + 打车 deeplink，§6.7 永远免费） |
 
 域服务（无路由）：`itinerary` 校验/管线/求解器、`entitlement` 权益+付费墙、`gate` 请求分类闸门、`trains` 车次服务、`restaurants` 餐厅推荐 v1（顺路度×评分，铁律 20 只插用餐空窗）。

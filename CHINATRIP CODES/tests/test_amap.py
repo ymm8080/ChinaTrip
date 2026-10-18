@@ -43,6 +43,109 @@ SUCCESS_BODY = {
 
 ERROR_BODY = {"status": "0", "info": "INVALID_USER_KEY", "infocode": "10001"}
 
+WALKING_BODY = {
+    "status": "1",
+    "info": "OK",
+    "infocode": "10000",
+    "route": {
+        "paths": [
+            {
+                "distance": "350",
+                "duration": "280",
+                "steps": [
+                    {
+                        "instruction": "沿南京西路向东步行120米右转",
+                        "road": "南京西路",
+                        "distance": "120",
+                        "orientation": "东",
+                        "polyline": "121.473667,31.230525;121.475000,31.231000",
+                    },
+                    {
+                        "instruction": "沿西藏中路向南步行230米到达终点",
+                        "road": "西藏中路",
+                        "distance": "230",
+                        "orientation": "南",
+                        "polyline": "121.475000,31.231000;121.475500,31.229000",
+                    },
+                ],
+            }
+        ]
+    },
+}
+
+TRANSIT_BODY = {
+    "status": "1",
+    "info": "OK",
+    "infocode": "10000",
+    "route": {
+        "transits": [
+            {
+                "cost": "4.0",
+                "duration": "1500",
+                "walking_distance": "320",
+                "segments": [
+                    {
+                        "walking": {
+                            "distance": "320",
+                            "duration": "280",
+                            "steps": [
+                                {
+                                    "instruction": "沿人民大道向西步行320米右转",
+                                    "road": "人民大道",
+                                    "step_distance": "320",
+                                    "orientation": "西",
+                                    "polyline": "121.4737,31.2305;121.4720,31.2308",
+                                }
+                            ],
+                        }
+                    },
+                    {
+                        "bus": {
+                            "buslines": [
+                                {
+                                    "name": "地铁2号线(徐泾东--广兰路)",
+                                    "type": "地铁线路",
+                                    "departure_stop": {"name": "人民广场站"},
+                                    "arrival_stop": {"name": "世纪大道站"},
+                                    "via_num": "5",
+                                    "departure_time": "06:00",
+                                }
+                            ]
+                        }
+                    },
+                ],
+            },
+            {
+                "cost": "58.5",
+                "duration": "2700",
+                "walking_distance": "150",
+                "segments": [
+                    {
+                        "walking": {
+                            "distance": "150",
+                            "duration": "120",
+                            "steps": [],
+                        }
+                    },
+                    {
+                        "railway": {
+                            "railways": [
+                                {
+                                    "name": "G7501",
+                                    "departure_stop": {"name": "上海虹桥站"},
+                                    "arrival_stop": {"name": "苏州北站"},
+                                    "via_num": "2",
+                                    "departure_time": "08:30",
+                                }
+                            ]
+                        }
+                    },
+                ],
+            },
+        ]
+    },
+}
+
 
 def make_settings(api_key: str = API_KEY) -> Settings:
     return Settings(
@@ -201,3 +304,145 @@ def test_endpoint_validation_returns_422(params):
     with TestClient(make_app()) as client:
         resp = client.get("/api/v1/amap/poi/search", params=params)
     assert resp.status_code == 422
+
+
+def test_walking_route_success_normalizes_steps_and_polyline():
+    handler, captured = ok_handler(WALKING_BODY)
+    client = make_client(handler)
+    result = asyncio.run(client.walking_route("121.4737,31.2305", "121.4755,31.2290"))
+    params = captured[0].url.params
+    assert params["key"] == API_KEY
+    assert params["origin"] == "121.4737,31.2305"
+    assert params["destination"] == "121.4755,31.2290"
+    assert params["output"] == "JSON"
+    assert result["distance_m"] == 350  # path-level distance is authoritative
+    assert result["duration_s"] == 280  # real v3 walking payload carries duration
+    assert len(result["steps"]) == 2
+    first = result["steps"][0]
+    assert first["instruction"] == "沿南京西路向东步行120米右转"
+    assert first["road"] == "南京西路"
+    assert first["distance_m"] == 120
+    assert first["orientation"] == "东"
+    assert first["polyline"] == [
+        {"lon": 121.473667, "lat": 31.230525},
+        {"lon": 121.475, "lat": 31.231},
+    ]
+    assert result["polyline"] == [
+        {"lon": 121.473667, "lat": 31.230525},
+        {"lon": 121.475, "lat": 31.231},
+        {"lon": 121.475, "lat": 31.231},
+        {"lon": 121.4755, "lat": 31.229},
+    ]
+    assert API_KEY not in json.dumps(result, ensure_ascii=False)
+
+
+def test_walking_route_empty_paths_returns_zero_shape():
+    handler, _ = ok_handler(
+        {"status": "1", "info": "OK", "infocode": "10000", "route": {"paths": []}}
+    )
+    client = make_client(handler)
+    result = asyncio.run(client.walking_route("121.4737,31.2305", "121.4737,31.2305"))
+    assert result == {"distance_m": 0, "duration_s": None, "steps": [], "polyline": []}
+
+
+def test_walking_route_status_zero_raises_amap_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=ERROR_BODY)
+
+    client = make_client(handler)
+    with pytest.raises(AmapError) as excinfo:
+        asyncio.run(client.walking_route("121.4737,31.2305", "121.4755,31.2290"))
+    assert excinfo.value.infocode == "10001"
+    assert "INVALID_USER_KEY" in str(excinfo.value)
+    assert API_KEY not in str(excinfo.value)
+
+
+def test_walking_route_timeout_raises_timeout_error():
+    def handler(request: httpx.Request):
+        raise httpx.ConnectTimeout("connect timed out")
+
+    client = make_client(handler)
+    with pytest.raises(AmapTimeoutError):
+        asyncio.run(client.walking_route("121.4737,31.2305", "121.4755,31.2290"))
+
+
+def test_transit_route_success_normalizes_plans():
+    handler, captured = ok_handler(TRANSIT_BODY)
+    client = make_client(handler)
+    plans = asyncio.run(
+        client.transit_route(
+            "121.4737,31.2305", "120.5853,31.2988", city="上海", cityd="苏州"
+        )
+    )
+    params = captured[0].url.params
+    assert params["key"] == API_KEY
+    assert params["origin"] == "121.4737,31.2305"
+    assert params["destination"] == "120.5853,31.2988"
+    assert params["city"] == "上海"
+    assert params["cityd"] == "苏州"
+    assert len(plans) == 2
+    bus_plan = plans[0]
+    assert bus_plan["cost_yuan"] == 4.0
+    assert bus_plan["duration_s"] == 1500
+    assert bus_plan["walking_distance_m"] == 320
+    walking_seg = bus_plan["segments"][0]["walking"]
+    assert walking_seg["distance_m"] == 320
+    assert walking_seg["duration_s"] == 280
+    assert walking_seg["steps"][0]["road"] == "人民大道"
+    bus_seg = bus_plan["segments"][1]
+    assert bus_seg["walking"] is None
+    ride = bus_seg["rides"][0]
+    assert ride["kind"] == "bus"
+    assert ride["name"] == "地铁2号线(徐泾东--广兰路)"
+    assert ride["type"] == "地铁线路"
+    assert ride["departure_stop"] == "人民广场站"
+    assert ride["arrival_stop"] == "世纪大道站"
+    assert ride["via_stops"] == 5
+    assert ride["departure_time"] == "06:00"
+    rail_plan = plans[1]
+    assert rail_plan["cost_yuan"] == 58.5
+    assert rail_plan["duration_s"] == 2700
+    rail_ride = rail_plan["segments"][1]["rides"][0]
+    assert rail_ride["kind"] == "railway"
+    assert rail_ride["type"] is None
+    assert rail_ride["via_stops"] == 2
+    assert rail_ride["departure_stop"] == "上海虹桥站"
+    assert API_KEY not in json.dumps(plans, ensure_ascii=False)
+
+
+def test_transit_route_without_cityd_omits_param():
+    handler, captured = ok_handler(TRANSIT_BODY)
+    client = make_client(handler)
+    asyncio.run(
+        client.transit_route("121.4737,31.2305", "121.5853,31.2988", city="上海")
+    )
+    params = captured[0].url.params
+    assert "cityd" not in params
+
+
+def test_transit_route_empty_transits_returns_empty_list():
+    handler, _ = ok_handler(
+        {"status": "1", "info": "OK", "infocode": "10000", "route": {"transits": []}}
+    )
+    client = make_client(handler)
+    plans = asyncio.run(
+        client.transit_route("121.4737,31.2305", "121.5853,31.2988", city="上海")
+    )
+    assert plans == []
+
+
+def test_transit_route_caps_at_three_plans():
+    transit = {"cost": "1", "duration": "60", "walking_distance": "0", "segments": []}
+    handler, _ = ok_handler(
+        {
+            "status": "1",
+            "info": "OK",
+            "infocode": "10000",
+            "route": {"transits": [transit] * 4},
+        }
+    )
+    client = make_client(handler)
+    plans = asyncio.run(
+        client.transit_route("121.4737,31.2305", "121.5853,31.2988", city="上海")
+    )
+    assert len(plans) == 3

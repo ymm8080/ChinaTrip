@@ -5,6 +5,7 @@ from app.api.amap import router as amap_router
 from app.api.extract import router as extract_router
 from app.api.health import router as health_router
 from app.api.itineraries import router as itineraries_router
+from app.api.navigation import router as navi_router
 from app.api.plan import router as plan_router
 from app.api.translate import router as translate_router
 from app.config import get_settings
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(translate_router)
     app.include_router(itineraries_router)
     app.include_router(plan_router)
+    app.include_router(navi_router)
     return app
 
 
