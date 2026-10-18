@@ -109,6 +109,57 @@ class TestValidation:
             compose_deeplink("taxi", "   ", LON, LAT)
 
 
+ONAME = "我的位置"
+ONAME_ENC = "%E6%88%91%E7%9A%84%E4%BD%8D%E7%BD%AE"  # quote(ONAME, safe="")
+OLON, OLAT = 116.326, 39.942
+
+
+class TestOrigin:
+    """起点可选：带 origin ⇒ from=/slon 出现；缺省 ⇒ 不带（高德用自身定位）。"""
+
+    def test_web_from_positional(self):
+        # from= 与 to= 同为位置制：[0],[1]=坐标、[2]=名称（名称必须最后）
+        fb = compose_deeplink("driving", NAME, LON, LAT, origin=(ONAME, OLON, OLAT))[
+            "web_fallback"
+        ]
+        assert f"from={OLON},{OLAT},{ONAME_ENC}" in fb
+        assert f"to={LON},{LAT},{NAME_ENC}" in fb
+        assert ONAME not in fb
+
+    def test_app_deeplink_s_params(self):
+        for mode in ("taxi", "driving"):
+            url = compose_deeplink(mode, NAME, LON, LAT, origin=(ONAME, OLON, OLAT))[
+                "app_deeplink"
+            ]
+            assert f"slon={OLON}" in url and f"slat={OLAT}" in url
+            assert f"sname={ONAME_ENC}" in url
+            assert url.index("slon=") < url.index("dlon=")
+
+    def test_taxi_web_from_too(self):
+        fb = compose_deeplink("taxi", NAME, LON, LAT, origin=(ONAME, OLON, OLAT))[
+            "web_fallback"
+        ]
+        assert f"from={OLON},{OLAT},{ONAME_ENC}" in fb
+
+    def test_no_origin_no_from(self):
+        r = compose_deeplink("driving", NAME, LON, LAT)
+        assert "from=" not in r["web_fallback"]
+        assert "slon=" not in r["app_deeplink"]
+
+    def test_origin_out_of_range(self):
+        with pytest.raises(ValueError):
+            compose_deeplink("taxi", NAME, LON, LAT, origin=(ONAME, 200.0, OLAT))
+
+    def test_origin_blank_name(self):
+        with pytest.raises(ValueError):
+            compose_deeplink("taxi", NAME, LON, LAT, origin=("  ", OLON, OLAT))
+
+    def test_origin_no_key_leak(self):
+        r = compose_deeplink("driving", NAME, LON, LAT, origin=(ONAME, OLON, OLAT))
+        for url in _all_urls(r):
+            assert "key=" not in url
+
+
 class TestBoundary:
     def test_china_corner_legal(self):
         r = compose_deeplink("taxi", NAME, 73.0, 54.0)

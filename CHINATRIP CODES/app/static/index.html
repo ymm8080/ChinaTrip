@@ -264,6 +264,7 @@
     .tab{padding:10px}
   }
 </style>
+<script src="qrcode.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -1345,7 +1346,7 @@ function clearLines() { NAV.lines = []; renderOverlays(); }
 function openHandoff(deeplink, web) {
   if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
     if (web) window.open(web, "_blank", "noopener");
-    else toast("高德打车没有网页版：请在手机上打开本页，点「打开高德 App」直接叫车");
+    else toast("电脑无法唤起高德App打车：请用手机扫描下方二维码直达高德打车页");
     return;
   }
   let left = false;

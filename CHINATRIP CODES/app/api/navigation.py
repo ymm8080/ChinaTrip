@@ -54,6 +54,7 @@ class TransitRequest(BaseModel):
 class DeeplinkRequest(BaseModel):
     mode: str = Field(pattern="^(taxi|driving)$")
     destination: Destination
+    origin: Destination | None = None
 
 
 class TransportLeg(BaseModel):
@@ -111,9 +112,15 @@ async def transit(
 
 @router.post("/deeplink")
 async def deeplink(req: DeeplinkRequest) -> dict:
+    origin = (
+        None
+        if req.origin is None
+        else (req.origin.name, req.origin.lon, req.origin.lat)
+    )
     try:
         return compose_deeplink(
-            req.mode, req.destination.name, req.destination.lon, req.destination.lat
+            req.mode, req.destination.name, req.destination.lon, req.destination.lat,
+            origin=origin,
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_destination") from None
