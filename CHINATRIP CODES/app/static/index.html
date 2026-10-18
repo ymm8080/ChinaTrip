@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChinaTrip · 冒烟测试</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#ffffff; --border:#e2e6eb; --text:#1c232b; --muted:#6b7684;
+    --accent:#2f6fed; --accent-soft:#e9f0fd; --user-bg:#2f6fed; --user-text:#ffffff;
+    --ok:#188a4c; --ok-bg:#e7f6ee; --warn:#a3720d; --warn-bg:#fbf3e0;
+    --err:#c23a3a; --err-bg:#fdecec; --code-bg:#eef1f5; --shadow:0 1px 3px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10151c; --panel:#1a212b; --border:#2c3542; --text:#e5eaf1; --muted:#93a0b0;
+      --accent:#5b8df5; --accent-soft:#1f2c44; --user-bg:#3358c9; --user-text:#ffffff;
+      --ok:#4cc38a; --ok-bg:#173227; --warn:#e2b355; --warn-bg:#33290f;
+      --err:#ef7070; --err-bg:#3a1d1d; --code-bg:#232c38; --shadow:0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px;
+  }
+  #app{display:grid;grid-template-columns:220px 1fr;height:100vh}
+
+  /* ---------- 左栏 ---------- */
+  #side{
+    background:var(--panel); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:14px 10px;
+  }
+  .brand{padding:2px 8px 12px;border-bottom:1px solid var(--border)}
+  .brand-name{font-size:19px;font-weight:700;letter-spacing:.5px}
+  .brand-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  #nav{display:flex;flex-direction:column;gap:4px;margin-top:12px;flex:1}
+  .nav-item{
+    display:flex;align-items:center;gap:8px;padding:9px 10px;border:0;border-radius:8px;
+    background:transparent;color:var(--text);font-size:14px;cursor:pointer;text-align:left;
+  }
+  .nav-item:hover{background:var(--code-bg)}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .side-foot{border-top:1px solid var(--border);padding-top:10px;font-size:12px;color:var(--muted)}
+  .side-foot label{display:block;margin-bottom:6px}
+  #apiBase{
+    width:100%;margin-top:3px;padding:4px 6px;font-size:12px;color:var(--text);
+    background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  }
+  .dev code{word-break:break-all;color:var(--text)}
+
+  /* ---------- 右侧主区 ---------- */
+  main{display:flex;flex-direction:column;min-width:0;position:relative;height:100vh}
+  #toast{
+    position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;
+    max-width:min(92vw,640px);padding:9px 14px;border-radius:8px;font-size:13px;
+    background:var(--err-bg);color:var(--err);border:1px solid var(--err);
+    box-shadow:var(--shadow);display:none;word-break:break-all;
+  }
+  .tab{display:none;flex-direction:column;height:100vh;padding:14px 16px;min-width:0}
+  .tab.active{display:flex}
+
+  /* 表单/工具条 */
+  .toolbar{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;margin-bottom:10px;box-shadow:var(--shadow);
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  }
+  .toolbar .grow{flex:1;min-width:120px}
+  .sep{width:1px;align-self:stretch;background:var(--border);margin:0 2px}
+  label.fld{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  select,input[type=text],input[type=number],input[type=datetime-local],textarea{
+    background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;
+  }
+  input[type=number]{width:64px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{
+    padding:5px 12px;border-radius:999px;border:1px solid var(--border);cursor:pointer;
+    background:var(--bg);color:var(--text);font-size:13px;
+  }
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .stepper{display:inline-flex;align-items:center;gap:8px}
+  .stepper button{
+    width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);cursor:pointer;font-size:15px;line-height:1;
+  }
+  .btn{
+    padding:7px 14px;border-radius:8px;border:1px solid var(--accent);
+    background:var(--accent);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap;
+  }
+  .btn:disabled{opacity:.55;cursor:wait}
+  .btn.ghost{background:transparent;color:var(--accent)}
+  .btn.plain{background:var(--bg);border-color:var(--border);color:var(--text)}
+  .btn.mini{padding:4px 10px;font-size:12px;border-radius:6px}
+
+  /* 消息流 */
+  .flow{flex:1;overflow-y:auto;padding:4px 2px 12px;display:flex;flex-direction:column;gap:12px}
+  .msg{display:flex;flex-direction:column;max-width:82%}
+  .msg.sys{align-self:flex-start}
+  .msg.user{align-self:flex-end}
+  .bubble{
+    padding:10px 13px;border-radius:12px;font-size:14px;line-height:1.65;
+    word-break:break-word;white-space:pre-wrap;box-shadow:var(--shadow);
+  }
+  .msg.sys .bubble{background:var(--panel);border:1px solid var(--border);border-top-left-radius:4px}
+  .msg.user .bubble{background:var(--user-bg);color:var(--user-text);border-top-right-radius:4px}
+  .who{font-size:11px;color:var(--muted);margin:0 6px 3px}
+
+  /* 卡片（系统气泡内） */
+  .card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:8px;background:var(--bg);font-size:13px}
+  .card h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
+  .day-h{font-weight:600;margin:8px 0 3px;font-size:13px}
+  .row{display:flex;gap:8px;align-items:baseline;padding:2px 0}
+  .t{font-family:Consolas,monospace;font-size:12px;color:var(--muted);min-width:42px}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;margin-left:6px;vertical-align:1px}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .badge.err{background:var(--err-bg);color:var(--err)}
+  .muted{color:var(--muted);font-size:12px}
+  .violation{padding:4px 8px;border-radius:6px;margin:3px 0;font-size:12px}
+  .violation.error{background:var(--err-bg);color:var(--err)}
+  .violation.warning{background:var(--warn-bg);color:var(--warn)}
+  .paywall{border-color:var(--err);background:var(--err-bg);color:var(--err);font-size:13px}
+  .paywall h4{color:var(--err)}
+  .big{font-size:19px;font-weight:600;line-height:1.5}
+  .step{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px dashed var(--border)}
+  .step:last-child{border-bottom:0}
+  .step .ico{font-size:16px}
+  details{margin-top:6px}
+  summary{cursor:pointer;font-size:12px;color:var(--muted)}
+  a.lnk{color:var(--accent)}
+  .snap-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border)}
+  .snap-row:last-child{border-bottom:0}
+  .snap-row .grow{flex:1}
+
+  /* 底部输入栏 */
+  .composer{
+    display:flex;gap:8px;align-items:flex-end;padding-top:10px;margin-top:8px;
+    border-top:1px solid var(--border);
+  }
+  .composer textarea{
+    flex:1;resize:none;min-height:40px;max-height:120px;padding:9px 10px;border-radius:10px;
+  }
+  .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
+  .dirbar .chip{padding:3px 10px;font-size:12px}
+  .t9n-wrap{display:flex;flex-direction:column;gap:6px}
+
+  /* ---------- 导航：全幅地图 ---------- */
+  #tab-nav{padding:0}
+  #mapWrap{position:relative;flex:1;min-height:0;overflow:hidden;background:#dfe6ee}
+  @media (prefers-color-scheme: dark){ #mapWrap{background:#0d1319} }
+  #mapTiles,#mapSvg,#mapMarkers{position:absolute;inset:0}
+  #mapSvg{pointer-events:none;overflow:visible}
+  #mapMarkers{pointer-events:none}
+  #mapTiles img{position:absolute;width:256px;height:256px;user-select:none;-webkit-user-drag:none}
+  #mapWrap.grab{cursor:grab}
+  #mapWrap.grabbing{cursor:grabbing}
+  .mk{position:absolute;transform:translate(-50%,-100%);pointer-events:none;white-space:nowrap;font-size:12px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+  .mk .pin{font-size:26px;line-height:1}
+  .mk .lbl{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1px 6px;margin-left:2px;color:var(--text)}
+  .mk.me .pin{font-size:20px}
+  #mapSearch{position:absolute;top:10px;left:10px;right:64px;z-index:20;display:flex;gap:6px}
+  #poiKeyword{flex:1;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;box-shadow:var(--shadow)}
+  #poiGo{width:40px;height:38px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow)}
+  #poiDrop{
+    position:absolute;top:46px;left:0;right:46px;z-index:21;max-height:260px;overflow-y:auto;display:none;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
+  }
+  .poi-item{padding:9px 12px;border-bottom:1px dashed var(--border);cursor:pointer;font-size:13px}
+  .poi-item:hover{background:var(--accent-soft)}
+  .poi-item .muted{font-size:11px}
+  #mapIcons{position:absolute;top:10px;right:10px;z-index:20;display:flex;flex-direction:column;gap:6px}
+  #mapIcons button{
+    width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
+    color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow);
+  }
+  #navManeuver{
+    position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:22;display:none;
+    max-width:88%;background:var(--panel);border:2px solid var(--accent);border-radius:12px;
+    padding:10px 16px;font-size:17px;font-weight:600;box-shadow:var(--shadow);text-align:center;
+  }
+  #navManeuver .ico{font-size:26px;margin-right:6px}
+  #navManeuver .sub{font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
+  #navDock{position:absolute;left:0;right:0;bottom:0;z-index:24;display:flex;flex-direction:column}
+  #navDrawer{
+    display:none;max-height:42vh;overflow-y:auto;background:var(--panel);
+    border-top:1px solid var(--border);border-radius:14px 14px 0 0;padding:10px 14px;font-size:13px;
+    box-shadow:0 -2px 8px rgba(16,24,40,.08);
+  }
+  #navDrawer h4{margin:2px 0 6px;font-size:13px;color:var(--accent)}
+  #modeBar{display:flex;gap:0;background:var(--panel);border-top:1px solid var(--border)}
+  #modeBar button{
+    flex:1;padding:10px 4px;border:0;background:transparent;color:var(--text);font-size:13px;cursor:pointer;
+    border-radius:0;
+  }
+  #modeBar button.on{color:var(--accent);font-weight:700;box-shadow:inset 0 -3px 0 var(--accent)}
+  #modeBar button:disabled{opacity:.5;cursor:wait}
+  .nstep{display:flex;gap:8px;align-items:baseline;padding:6px 8px;border-radius:8px}
+  .nstep.cur{background:var(--accent-soft);outline:2px solid var(--accent)}
+  .nstep .ico{font-size:18px}
+  .plan-card{border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin:6px 0;cursor:pointer}
+  .plan-card.sel{border-color:var(--accent);background:var(--accent-soft)}
+  .ride-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+  #remModal{
+    position:absolute;inset:0;z-index:30;display:none;background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  #remModal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,380px)}
+  #remModal h4{margin:0 0 10px}
+
+  /* ---------- 预订 ---------- */
+  .bk-pane{display:none;flex:1;flex-direction:column;min-height:0}
+  .bk-pane.on{display:flex}
+  #bkHotelDays{max-height:36vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px 2px 8px;flex-shrink:0}
+  #bkHotelLon,#bkHotelLat{width:86px}
+  input[type=date]{
+    background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;
+  }
+  #bkConfirm{
+    position:absolute;inset:0;z-index:40;display:none;background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  #bkConfirm .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,420px);box-shadow:var(--shadow)}
+  #bkConfirm h4{margin:0 0 8px}
+
+  /* 窄屏：左栏折叠为顶部横条 */
+  @media (max-width:760px){
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    #side{flex-direction:row;align-items:center;gap:6px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border)}
+    .brand{border:0;padding:0 6px 0 0}
+    .brand-sub{display:none}
+    #nav{flex-direction:row;margin:0;flex:1;gap:2px;overflow-x:auto}
+    .nav-item{padding:7px 9px;font-size:13px;white-space:nowrap}
+    .side-foot{border:0;padding:0;font-size:11px;display:flex;align-items:center;gap:6px}
+    .side-foot label{margin:0;display:flex;align-items:center}
+    #apiBase{width:110px}
+    .dev{display:none}
+    .tab,.msg{max-width:100%}
+    .tab{padding:10px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <div class="brand-name">ChinaTrip</div>
+      <div class="brand-sub">冒烟测试工作台</div>
+    </div>
+    <nav id="nav">
+      <button class="nav-item active" data-tab="plan">📋 规划</button>
+      <button class="nav-item" data-tab="t9n">🔤 翻译</button>
+      <button class="nav-item" data-tab="nav">🧭 导航</button>
+      <button class="nav-item" data-tab="itin">🗓 行程</button>
+      <button class="nav-item" data-tab="book">🎫 预订</button>
+    </nav>
+    <div class="side-foot">
+      <label>API 地址<input id="apiBase" spellcheck="false"></label>
+      <div class="dev">设备 <code id="devId"></code></div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="toast"></div>
+
+    <!-- ============ 规划 ============ -->
+    <section class="tab active" id="tab-plan">
+      <div class="toolbar" id="planSetup">
+        <label class="fld">城市
+          <span class="chips" id="planCities">
+            <button class="chip" data-city="北京">北京</button>
+            <button class="chip" data-city="上海">上海</button>
+            <button class="chip" data-city="杭州">杭州</button>
+            <button class="chip" data-city="西安">西安</button>
+            <button class="chip" data-city="成都">成都</button>
+            <button class="chip" data-city="重庆">重庆</button>
+          </span>
+        </label>
+        <span class="sep"></span>
+        <label class="fld">天数
+          <span class="stepper">
+            <button id="daysMinus" type="button">−</button>
+            <b id="daysVal">3</b>
+            <button id="daysPlus" type="button">＋</button>
+          </span>
+        </label>
+        <label class="fld grow">偏好
+          <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
+        </label>
+        <button class="btn" id="planStart">🚀 开始规划</button>
+      </div>
+      <div class="flow" id="flow-plan"></div>
+      <div class="t9n-wrap">
+        <div class="dirbar" id="planResetBar" style="display:none">
+          <button class="btn ghost mini" id="planNew">↺ 新对话</button>
+          <span class="muted" id="planStateTag"></span>
+        </div>
+        <div class="composer">
+          <textarea id="planInput" placeholder="开始规划后，在这里继续对话，例如：把第二天换成胡同游"></textarea>
+          <button class="btn" id="planSend">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 翻译 ============ -->
+    <section class="tab" id="tab-t9n">
+      <div class="flow" id="flow-t9n"></div>
+      <div class="t9n-wrap">
+        <div class="dirbar" id="t9nDirs">
+          <button class="chip on" data-target="en" data-label="英">中→英</button>
+          <button class="chip" data-target="ja" data-label="日">中→日</button>
+          <button class="chip" data-target="ko" data-label="韩">中→韩</button>
+          <button class="chip" id="t9nSwap" title="切换语向">⇄ 换向</button>
+          <span class="muted" id="t9nCur">当前语向：中 → 英</span>
+        </div>
+        <div class="composer">
+          <textarea id="t9nInput" placeholder="输入原文，回车或点发送翻译"></textarea>
+          <button class="btn" id="t9nSend">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 导航（真地图） ============ -->
+    <section class="tab" id="tab-nav">
+      <div id="mapWrap" class="grab">
+        <div id="mapTiles"></div>
+        <svg id="mapSvg"></svg>
+        <div id="mapMarkers"></div>
+        <div id="mapSearch">
+          <input id="poiKeyword" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false">
+          <button id="poiGo" title="搜索">🔍</button>
+          <div id="poiDrop"></div>
+        </div>
+        <div id="mapIcons">
+          <button id="btnLocate" title="我的位置（失败回退故宫）">📍</button>
+          <button id="btnZoomIn" title="放大">＋</button>
+          <button id="btnZoomOut" title="缩小">－</button>
+          <button id="btnRemind" title="火车/航班提醒">⏰</button>
+        </div>
+        <div id="navManeuver"></div>
+        <div id="navDock">
+          <div id="navDrawer"></div>
+          <div id="modeBar">
+            <button data-mode="walk">🚶 步行</button>
+            <button data-mode="transit">🚇 公交</button>
+            <button data-mode="taxi">🚕 打车</button>
+            <button data-mode="driving">🚗 驾车</button>
+            <button id="btnSimulate" title="沿步行路线模拟前进并语音播报">▶️ 模拟导航</button>
+            <button id="btnOffRoute" title="人为偏移 50 米并重新规划步行路线">🔀 偏航演示</button>
+          </div>
+        </div>
+        <div id="remModal">
+          <div class="box">
+            <h4>⏰ 出行提醒</h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label class="fld">类型
+                <select id="remType"><option value="train">火车</option><option value="flight">航班</option></select>
+              </label>
+              <label class="fld">出发时间 <input type="datetime-local" id="remTime"></label>
+              <label class="fld">车站/机场 <input type="text" id="remStation" placeholder="如：北京南站" style="flex:1"></label>
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn plain" id="remClose">关闭</button>
+                <button class="btn" id="remGo">生成提醒</button>
+              </div>
+              <div id="remOut"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 行程 ============ -->
+    <section class="tab" id="tab-itin">
+      <div class="toolbar">
+        <label class="fld">城市
+          <select id="itinCity">
+            <option>北京</option><option>上海</option><option>杭州</option>
+            <option>西安</option><option>成都</option><option>重庆</option>
+          </select>
+        </label>
+        <label class="fld">天数 <input type="number" id="itinDays" value="3" min="1" max="30"></label>
+        <button class="btn" id="itinCreate">🆕 创建行程</button>
+        <span class="sep"></span>
+        <button class="btn plain" id="itinAdd">➕ 加一天景点（故宫 10:00）</button>
+        <button class="btn plain" id="itinSnap">🧊 冻结快照</button>
+        <button class="btn ghost" id="itinRefresh">🔄 刷新行程与快照</button>
+      </div>
+      <div class="flow" id="flow-itin"></div>
+    </section>
+
+    <!-- ============ 预订（铁律 22 handoff / 铁律 23 退改摘要先行） ============ -->
+    <section class="tab" id="tab-book">
+      <div class="toolbar">
+        <span class="chips" id="bookTabs">
+          <button class="chip on" data-bk="train">🚄 火车票</button>
+          <button class="chip" data-bk="flight">✈️ 机票</button>
+          <button class="chip" data-bk="hotel">🏨 酒店</button>
+        </span>
+        <span class="sep"></span>
+        <label class="fld">行程开始日期 <input type="date" id="bookStartDate" title="行程无真实日历日期，第 N 天 = 开始日期 + N−1 天"></label>
+        <span class="muted">酒店按天卡片吃规划结果</span>
+      </div>
+
+      <div class="bk-pane on" id="bk-train">
+        <div class="toolbar">
+          <label class="fld">出发城市 <input type="text" id="bkTrainFrom" placeholder="如：北京"></label>
+          <label class="fld">到达城市 <input type="text" id="bkTrainTo" placeholder="如：上海"></label>
+          <label class="fld">日期 <input type="date" id="bkTrainDate"></label>
+          <button class="btn" id="bkTrainGo">🔍 查班次</button>
+        </div>
+        <div class="flow" id="flow-book-train"></div>
+      </div>
+
+      <div class="bk-pane" id="bk-flight">
+        <div class="toolbar">
+          <label class="fld">出发城市 <input type="text" id="bkFlightFrom" placeholder="如：北京"></label>
+          <label class="fld">到达城市 <input type="text" id="bkFlightTo" placeholder="如：上海"></label>
+          <label class="fld">日期 <input type="date" id="bkFlightDate"></label>
+          <button class="btn" id="bkFlightGo">🔍 去渠道比价</button>
+        </div>
+        <div class="flow" id="flow-book-flight"></div>
+      </div>
+
+      <div class="bk-pane" id="bk-hotel">
+        <div class="toolbar">
+          <label class="fld">城市 <input type="text" id="bkHotelCity" placeholder="如：北京"></label>
+          <label class="fld grow">锚点景点 <input type="text" id="bkHotelPoi" class="grow" placeholder="如：故宫"></label>
+          <label class="fld">入住 <input type="date" id="bkHotelIn"></label>
+          <label class="fld">退房 <input type="date" id="bkHotelOut"></label>
+          <label class="fld">经度 <input type="number" id="bkHotelLon" step="0.0001" placeholder="116.397"></label>
+          <label class="fld">纬度 <input type="number" id="bkHotelLat" step="0.0001" placeholder="39.917"></label>
+          <button class="btn" id="bkHotelGo">🏨 找酒店</button>
+        </div>
+        <div id="bkHotelDays"></div>
+        <div class="flow" id="flow-book-hotel"></div>
+      </div>
+
+      <!-- 铁律 23：跳转渠道前必须展示退改摘要全文 -->
+      <div id="bkConfirm">
+        <div class="box">
+          <h4 id="bkConfirmTitle">⚠️ 跳转前请阅读退改政策</h4>
+          <div class="card" id="bkConfirmSummary" style="margin-top:8px"></div>
+          <div class="muted" id="bkConfirmUrl" style="margin-top:6px;word-break:break-all"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn plain" id="bkCancel">取消</button>
+            <button class="btn" id="bkGo">仍要前往</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ================= 基础设施 ================= */
+
+// 设备 ID：localStorage，全请求携带
+let DEVICE_ID = localStorage.getItem("chinatrip_device_id");
+if (!DEVICE_ID) {
+  DEVICE_ID = "dev-" + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem("chinatrip_device_id", DEVICE_ID);
+}
+document.getElementById("devId").textContent = DEVICE_ID;
+
+// API 地址：默认同源（被服务时）或本机 8000（file:// 直开时）
+const apiBaseInput = document.getElementById("apiBase");
+apiBaseInput.value = localStorage.getItem("chinatrip_api_base")
+  || (location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000");
+apiBaseInput.addEventListener("change", () => {
+  localStorage.setItem("chinatrip_api_base", apiBaseInput.value.trim());
+});
+
+function toast(text) {
+  const t = document.getElementById("toast");
+  t.textContent = text;
+  t.style.display = "block";
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() => { t.style.display = "none"; }, 5000);
+}
+
+// 错误 detail → 人类语言（422 违规报表 / 402 额度 / 字符串）
+function detailText(d) {
+  if (d == null) return "";
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) return d.map(detailText).join("；");
+  if (d.violations) {
+    return d.violations
+      .map(v => "规则" + v.rule_id + "[" + v.severity + "] " + v.message)
+      .join("；");
+  }
+  if (d.denied_reason) {
+    return "额度不足：" + d.denied_reason + (d.paywall_trigger ? "（" + d.paywall_trigger + "）" : "");
+  }
+  if (d.msg) return d.msg;
+  try { return JSON.stringify(d); } catch (e) { return String(d); }
+}
+
+// 统一请求：POST/PUT JSON + X-Device-ID；非 2xx 抛 {status, detail}
+async function api(path, body, method) {
+  let res;
+  try {
+    res = await fetch(apiBaseInput.value.trim() + path, {
+      method: method || "POST",
+      headers: { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* 空体 */ }
+  if (!res.ok) throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : (data || "http_" + res.status) };
+  return data;
+}
+
+function failToast(err) {
+  toast("HTTP " + (err.status || "?") + " · " + detailText(err.detail));
+}
+
+// 按钮 loading 态包装
+async function busy(btn, fn) {
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "请求中…";
+  try { return await fn(); }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+
+/* ================= 消息流渲染 ================= */
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function el(html) {
+  const d = document.createElement("div");
+  d.innerHTML = html.trim();
+  return d.firstChild;
+}
+// 多顶层节点 → Document Fragment（el() 只回首个节点）
+function frag(html) {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content;
+}
+function addMsg(flowId, who, node) {
+  const flow = document.getElementById(flowId);
+  const wrap = el('<div class="msg ' + who + '"></div>');
+  const tag = el('<div class="who">' + (who === "sys" ? "助手" : "我") + (who === "sys" ? " · " + new Date().toLocaleTimeString("zh-CN", { hour12: false }) : "") + "</div>");
+  const bubble = el('<div class="bubble"></div>');
+  if (typeof node === "string") bubble.textContent = node;
+  else bubble.appendChild(node);
+  if (who === "user") wrap.appendChild(bubble);
+  else { wrap.appendChild(tag); wrap.appendChild(bubble); }
+  flow.appendChild(wrap);
+  flow.scrollTop = flow.scrollHeight;
+  return bubble;
+}
+
+// "HH:MM:SS"（pydantic time 序列化）→ "HH:MM"
+function fmtTime(t) { return t ? String(t).slice(0, 5) : "未排"; }
+function fmtMin(s) { return Math.round(Number(s) / 60); }
+
+// 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
+function planCard(plan) {
+  const box = el('<div class="card"><h4>🧳 行程 ' + esc(plan.itinerary_id) + " · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
+  (plan.days || []).forEach(d => {
+    box.appendChild(el('<div class="day-h">第' + d.day + " 天 · " + esc(d.base_city) + "</div>"));
+    (d.items || []).forEach(it => {
+      if (it.from_city) { // TransferItem
+        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>🚄 跨城 " + esc(it.from_city) + " → " + esc(it.to_city) + "（" + esc(it.mode) + "）</span></div>"));
+      } else { // VisitItem
+        const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
+        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
+      }
+    });
+    if (!d.items || !d.items.length) box.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
+  });
+  if (plan.assumptions && plan.assumptions.length) {
+    const det = el('<details><summary>假设标注 ' + plan.assumptions.length + " 条</summary><ul>" +
+      plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
+    box.appendChild(det);
+  }
+  return box;
+}
+
+// 校验违规清单（RuleViolation: rule_id/severity/message/item_ids/day）
+function violationsNode(vs, title) {
+  if (!vs || !vs.length) return null;
+  const box = el('<div class="card"><h4>' + esc(title || "校验违规") + " · " + vs.length + " 处</h4></div>");
+  vs.forEach(v => {
+    box.appendChild(el('<div class="violation ' + esc(v.severity) + '">规则 ' + v.rule_id + " [" + esc(v.severity) + "] " + esc(v.message) +
+      (v.item_ids && v.item_ids.length ? "（涉及 " + esc(v.item_ids.join(", ")) + "）" : "") +
+      (v.day ? " · 第" + v.day + "天" : "") + "</div>"));
+  });
+  return box;
+}
+
+// ChangeSummary：{change_summary:[], affected_items_count, reasoning}
+function changeNode(ch) {
+  const box = el('<div class="card"><h4>✅ 本次改动（' + (ch.affected_items_count || 0) + " 个条目）</h4></div>");
+  (ch.change_summary || []).forEach(line => box.appendChild(el("<div>· " + esc(line) + "</div>")));
+  if (ch.reasoning) box.appendChild(el('<div class="muted">' + esc(ch.reasoning) + "</div>"));
+  return box;
+}
+
+/* ================= Tab 切换 ================= */
+
+document.querySelectorAll(".nav-item").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === "tab-" + btn.dataset.tab));
+  });
+});
+
+/* ================= Tab 1：规划 ================= */
+
+const planCities = new Set();
+let planDays = 3;
+let planSession = null; // {session_id, state}
+
+document.querySelectorAll("#planCities .chip").forEach(c => {
+  c.addEventListener("click", () => {
+    c.classList.toggle("on");
+    if (c.classList.contains("on")) planCities.add(c.dataset.city);
+    else planCities.delete(c.dataset.city);
+  });
+});
+document.getElementById("daysMinus").onclick = () => { if (planDays > 1) { planDays--; document.getElementById("daysVal").textContent = planDays; } };
+document.getElementById("daysPlus").onclick = () => { if (planDays < 30) { planDays++; document.getElementById("daysVal").textContent = planDays; } };
+
+function planSetSession(s) {
+  planSession = s;
+  document.getElementById("planSetup").style.display = s ? "none" : "flex";
+  document.getElementById("planResetBar").style.display = s ? "flex" : "none";
+  document.getElementById("planInput").disabled = !s;
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "先点上方「开始规划」开始";
+  document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
+}
+
+document.getElementById("planStart").onclick = (e) => busy(e.target, async () => {
+  const cities = [...planCities];
+  const prefs = document.getElementById("planPref").value.trim();
+  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天；偏好：" + (prefs || "无"));
+  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程…");
+  try {
+    const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
+    planSetSession({ session_id: body.session_id, state: body.state });
+    holder.textContent = "";
+    if (body.state === "clarify") {
+      holder.appendChild(frag("<div>还需要补充一点信息：</div>" + (body.clarify || []).map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
+    } else {
+      holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
+      holder.appendChild(planCard(body.plan));
+      holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
+      const vn = violationsNode(body.violations, "硬校验提示");
+      if (vn) holder.appendChild(vn);
+    }
+  } catch (err) {
+    holder.textContent = "❌ 规划失败：" + detailText(err.detail);
+    failToast(err);
+  }
+  holder.parentElement.scrollIntoView({ block: "end" });
+  document.getElementById("flow-plan").scrollTop = 1e9;
+});
+
+async function planSend() {
+  if (!planSession) { toast("先点「开始规划」创建会话"); return; }
+  const input = document.getElementById("planInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  addMsg("flow-plan", "user", text);
+  const holder = addMsg("flow-plan", "sys", "⏳ 思考中…");
+  try {
+    const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
+    planSession.state = body.state;
+    document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + body.state;
+    holder.textContent = "";
+    if (body.state === "clarify" && body.clarify) {
+      holder.appendChild(frag("<div>还需要补充信息：</div>" + body.clarify.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+    } else {
+      holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
+      if (body.change) holder.appendChild(changeNode(body.change));
+      if (body.plan) { holder.appendChild(planCard(body.plan)); holder.appendChild(planBookQuick(body.plan)); }
+      const vn = violationsNode(body.violations, "硬校验提示");
+      if (vn) holder.appendChild(vn);
+    }
+  } catch (err) {
+    holder.textContent = "❌ 发送失败：" + detailText(err.detail);
+    failToast(err);
+  }
+  document.getElementById("flow-plan").scrollTop = 1e9;
+}
+document.getElementById("planSend").onclick = (e) => busy(e.target, planSend);
+document.getElementById("planInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); planSend(); }
+});
+document.getElementById("planNew").onclick = () => {
+  planSetSession(null);
+  addMsg("flow-plan", "sys", "已开启新对话。重新选择参数后点「开始规划」。");
+};
+
+/* ================= Tab 2：翻译 ================= */
+
+const T9N = { src: "zh", target: "en" };
+const t9nName = { zh: "中", en: "英", ja: "日", ko: "韩" };
+
+function t9nRender() {
+  document.querySelectorAll("#t9nDirs .chip[data-target]").forEach(c => {
+    const on = T9N.src === "zh" && c.dataset.target === T9N.target;
+    c.classList.toggle("on", on);
+  });
+  document.getElementById("t9nCur").textContent = "当前语向：" + t9nName[T9N.src] + " → " + t9nName[T9N.target];
+}
+document.querySelectorAll("#t9nDirs .chip[data-target]").forEach(c => {
+  c.onclick = () => { T9N.src = "zh"; T9N.target = c.dataset.target; t9nRender(); };
+});
+document.getElementById("t9nSwap").onclick = () => {
+  const s = T9N.src; T9N.src = T9N.target; T9N.target = s; t9nRender();
+};
+t9nRender();
+
+async function t9nSend() {
+  const input = document.getElementById("t9nInput");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  addMsg("flow-t9n", "user", "[" + t9nName[T9N.src] + "→" + t9nName[T9N.target] + "] " + text);
+  const holder = addMsg("flow-t9n", "sys", "⏳ 翻译中…");
+  try {
+    const body = await api("/api/v1/translate", { text, source_lang: T9N.src, target_lang: T9N.target });
+    holder.textContent = "";
+    holder.appendChild(el('<div class="big">' + esc(body.translated) + "</div>"));
+    const usage = body.usage
+      ? (body.usage.total_tokens != null ? body.usage.total_tokens + " tokens" : JSON.stringify(body.usage))
+      : "";
+    holder.appendChild(el('<div class="muted">' +
+      (body.cached ? '<span class="badge ok">缓存命中</span>' : '<span class="badge">新翻译</span>') +
+      " 模型 " + esc(body.model || "?") + (usage ? " · " + esc(usage) : "") + "</div>"));
+  } catch (err) {
+    holder.textContent = "❌ 翻译失败：" + detailText(err.detail);
+    failToast(err);
+  }
+  document.getElementById("flow-t9n").scrollTop = 1e9;
+}
+document.getElementById("t9nSend").onclick = (e) => busy(e.target, t9nSend);
+document.getElementById("t9nInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); t9nSend(); }
+});
+
+/* ================= Tab 3：导航（真地图） ================= */
+
+/* ---- 瓦片引擎（高德栅格瓦片，GCJ-02，与后端 API 同坐标系，直接用不转换） ---- */
+
+const TILE_TPL = "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}";
+const TILE_SIZE = 256;
+const FALLBACK_POS = { lon: 116.397, lat: 39.917, name: "故宫" }; // 定位失败回退
+
+const MAP = {
+  z: 12, lon: 116.397, lat: 39.917, // 中心（北京）
+  wrap: null, tilesEl: null, svg: null, mkEl: null,
+  w: 0, h: 0, nodes: {}, markers: {},
+};
+
+function lonLatToWorld(lon, lat, z) {
+  const scale = TILE_SIZE * Math.pow(2, z);
+  const x = (lon + 180) / 360 * scale;
+  const s = Math.sin(Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180);
+  const y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * scale;
+  return { x, y };
+}
+function worldToLonLat(x, y, z) {
+  const scale = TILE_SIZE * Math.pow(2, z);
+  const lon = x / scale * 360 - 180;
+  const n = Math.PI - 2 * Math.PI * y / scale;
+  const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return { lon, lat };
+}
+// 经纬度 → 当前视口像素（相对地图容器左上角）
+function toScreen(lon, lat) {
+  const c = lonLatToWorld(MAP.lon, MAP.lat, MAP.z);
+  const p = lonLatToWorld(lon, lat, MAP.z);
+  return { x: p.x - c.x + MAP.w / 2, y: p.y - c.y + MAP.h / 2 };
+}
+
+function clampZ(z) { return Math.max(4, Math.min(18, z)); }
+
+function renderTiles() {
+  const c = lonLatToWorld(MAP.lon, MAP.lat, MAP.z);
+  const x0 = Math.floor((c.x - MAP.w / 2) / TILE_SIZE);
+  const x1 = Math.floor((c.x + MAP.w / 2) / TILE_SIZE);
+  const y0 = Math.floor((c.y - MAP.h / 2) / TILE_SIZE);
+  const y1 = Math.floor((c.y + MAP.h / 2) / TILE_SIZE);
+  const keep = new Set();
+  const n = Math.pow(2, MAP.z);
+  for (let tx = x0; tx <= x1; tx++) {
+    for (let ty = y0; ty <= y1; ty++) {
+      if (ty < 0 || ty >= n) continue;
+      const wx = ((tx % n) + n) % n; // 经度环绕
+      const key = MAP.z + "/" + wx + "/" + ty;
+      keep.add(key);
+      if (MAP.nodes[key]) continue;
+      const s = 1 + ((wx + ty) % 4); // 子域 1-4 轮换
+      const img = document.createElement("img");
+      img.draggable = false;
+      img.alt = "";
+      img.src = TILE_TPL.replace("{s}", s).replace("{x}", wx).replace("{y}", ty).replace("{z}", MAP.z);
+      MAP.nodes[key] = img;
+      MAP.tilesEl.appendChild(img);
+    }
+  }
+  for (const key in MAP.nodes) {
+    if (!keep.has(key)) { MAP.nodes[key].remove(); delete MAP.nodes[key]; }
+  }
+  // 位移而非重建：所有瓦片按当前中心重排
+  for (const key in MAP.nodes) {
+    const [z, tx, ty] = key.split("/").map(Number);
+    const wx = MAP.w / 2 - c.x + tx * TILE_SIZE;
+    const wy = MAP.h / 2 - c.y + ty * TILE_SIZE;
+    MAP.nodes[key].style.transform = "translate(" + Math.round(wx) + "px," + Math.round(wy) + "px)";
+  }
+}
+
+function renderOverlays() {
+  // SVG 覆盖层清空重画（路线数量少，代价可忽略）
+  MAP.svg.setAttribute("width", MAP.w);
+  MAP.svg.setAttribute("height", MAP.h);
+  MAP.svg.innerHTML = NAV.lines.map(o => {
+    const pts = o.points.map(p => { const s = toScreen(p.lon, p.lat); return s.x.toFixed(1) + "," + s.y.toFixed(1); }).join(" ");
+    return '<polyline points="' + pts + '" fill="none" stroke="' + o.color + '" stroke-width="' + (o.width || 5) +
+      '" stroke-linecap="round" stroke-linejoin="round"' +
+      (o.dash ? ' stroke-dasharray="10 8"' : "") + ' opacity="0.9"/>';
+  }).join("");
+  for (const id in MAP.markers) {
+    const m = MAP.markers[id];
+    const s = toScreen(m.lon, m.lat);
+    m.el.style.left = s.x + "px";
+    m.el.style.top = s.y + "px";
+  }
+}
+
+function renderMap() { renderTiles(); renderOverlays(); }
+
+function setCenter(lon, lat, z) {
+  MAP.lon = lon; MAP.lat = lat;
+  if (z !== undefined) MAP.z = clampZ(z);
+  renderMap();
+}
+function flyTo(lon, lat, z) {
+  const s0 = { lon: MAP.lon, lat: MAP.lat, z: MAP.z };
+  const s1 = { lon, lat, z: clampZ(z === undefined ? MAP.z : z) };
+  const t0 = performance.now();
+  function step(t) {
+    const k = Math.min(1, (t - t0) / 450);
+    const e = 1 - Math.pow(1 - k, 3); // easeOutCubic
+    MAP.lon = s0.lon + (s1.lon - s0.lon) * e;
+    MAP.lat = s0.lat + (s1.lat - s0.lat) * e;
+    MAP.z = s0.z + (s1.z - s0.z) * e;
+    renderMap();
+    if (k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+// 让一组点都进视野（留 30% 边距）
+function fitBounds(points) {
+  if (!points || points.length < 2) return;
+  for (let z = 17; z >= 5; z--) {
+    let minX = 1e18, maxX = -1e18, minY = 1e18, maxY = -1e18;
+    points.forEach(p => {
+      const w = lonLatToWorld(p.lon, p.lat, z);
+      if (w.x < minX) minX = w.x; if (w.x > maxX) maxX = w.x;
+      if (w.y < minY) minY = w.y; if (w.y > maxY) maxY = w.y;
+    });
+    if (maxX - minX < MAP.w * 0.7 && maxY - minY < MAP.h * 0.6) {
+      const c = worldToLonLat((minX + maxX) / 2, (minY + maxY) / 2, z);
+      flyTo(c.lon, c.lat, z);
+      return;
+    }
+  }
+}
+
+function addMarker(id, lon, lat, html) {
+  if (MAP.markers[id]) MAP.markers[id].el.remove();
+  const elp = el('<div class="mk">' + html + "</div>");
+  MAP.mkEl.appendChild(elp);
+  MAP.markers[id] = { lon, lat, el: elp };
+  renderOverlays();
+}
+function setMarkerPos(id, lon, lat) {
+  if (!MAP.markers[id]) return;
+  MAP.markers[id].lon = lon;
+  MAP.markers[id].lat = lat;
+  renderOverlays();
+}
+
+// 拖拽 / 缩放交互
+function initMapEvents() {
+  const wrap = MAP.wrap;
+  let drag = null;
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#mapSearch,#mapIcons,#navDock,#remModal")) return;
+    drag = { px: e.clientX, py: e.clientY, lon: MAP.lon, lat: MAP.lat, moved: false };
+    wrap.setPointerCapture(e.pointerId);
+    wrap.classList.replace("grab", "grabbing");
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.px, dy = e.clientY - drag.py;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    // 像素位移 → 世界位移（取中心点做局部线性即可）
+    const c0 = lonLatToWorld(drag.lon, drag.lat, MAP.z);
+    const p = worldToLonLat(c0.x - dx, c0.y - dy, MAP.z);
+    MAP.lon = p.lon; MAP.lat = p.lat;
+    renderMap();
+  });
+  const endDrag = () => {
+    drag = null;
+    wrap.classList.replace("grabbing", "grab");
+  };
+  wrap.addEventListener("pointerup", endDrag);
+  wrap.addEventListener("pointercancel", endDrag);
+  wrap.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    // 以光标为锚点缩放：光标下的地理点缩放前后不动
+    const rect = wrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const c = lonLatToWorld(MAP.lon, MAP.lat, MAP.z);
+    const anchor = worldToLonLat(c.x - MAP.w / 2 + mx, c.y - MAP.h / 2 + my, MAP.z);
+    const dz = e.deltaY < 0 ? 1 : -1;
+    const nz = clampZ(MAP.z + dz);
+    if (nz === MAP.z) return;
+    const a = lonLatToWorld(anchor.lon, anchor.lat, nz);
+    const nc = { x: a.x + MAP.w / 2 - mx, y: a.y + MAP.h / 2 - my };
+    const ctr = worldToLonLat(nc.x, nc.y, nz);
+    MAP.z = nz; MAP.lon = ctr.lon; MAP.lat = ctr.lat;
+    renderMap();
+  }, { passive: false });
+  document.getElementById("btnZoomIn").onclick = () => flyTo(MAP.lon, MAP.lat, MAP.z + 1);
+  document.getElementById("btnZoomOut").onclick = () => flyTo(MAP.lon, MAP.lat, MAP.z - 1);
+  new ResizeObserver(() => {
+    MAP.w = wrap.clientWidth; MAP.h = wrap.clientHeight;
+    renderMap();
+  }).observe(wrap);
+}
+
+/* ---- 导航状态与业务 ---- */
+
+const ORI = [["东北","↗️"],["东南","↘️"],["西南","↙️"],["西北","↖️"],["北","⬆️"],["南","⬇️"],["西","⬅️"],["东","➡️"],["左","↩️"],["右","↪️"],["前","⬆️"],["后","⬇️"],["掉头","↩️"]];
+function oriEmoji(o) {
+  if (!o) return "🧭";
+  for (const [k, e] of ORI) if (String(o).includes(k)) return e;
+  return "🧭";
+}
+const RIDE_COLORS = ["#2f6fed", "#e07b39", "#188a4c", "#8e44ad", "#c23a3a"];
+
+const NAV = {
+  me: { ...FALLBACK_POS },          // 起点 = 我的位置
+  dest: null,                        // {name, lon, lat}（搜索点选设定）
+  mode: null,
+  route: null,                       // 步行路线 {polyline, steps, distance_m, duration_s}
+  lines: [],                         // SVG 线：{points, color, dash, width}
+  sim: null,                         // 模拟导航句柄
+};
+
+function cityGuess(lon) { return lon >= 119 ? "上海" : "北京"; }
+
+function drawer(html) {
+  const d = document.getElementById("navDrawer");
+  d.innerHTML = "";
+  if (html) { d.appendChild(typeof html === "string" ? el(html) : html); d.style.display = "block"; }
+  else d.style.display = "none";
+}
+function setMode(m) {
+  NAV.mode = m;
+  document.querySelectorAll("#modeBar .on").forEach(b => b.classList.remove("on"));
+  const btn = document.querySelector('#modeBar button[data-mode="' + m + '"]');
+  if (btn) btn.classList.add("on");
+}
+function requireDest() {
+  if (!NAV.dest) { toast("先在上方搜索并点选一个终点"); return false; }
+  return true;
+}
+function drawLine(points, color, dash) {
+  NAV.lines.push({ points, color, dash, width: dash ? 4 : 5 });
+  renderOverlays();
+}
+function clearLines() { NAV.lines = []; renderOverlays(); }
+function stopSim() {
+  if (NAV.sim) { clearInterval(NAV.sim.t); NAV.sim = null; }
+  document.getElementById("navManeuver").style.display = "none";
+  const b = document.getElementById("btnSimulate");
+  b.textContent = "▶️ 模拟导航";
+  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+}
+
+/* ---- POI 搜索（后端代理高德，设终点） ---- */
+
+async function poiSearch() {
+  const kw = document.getElementById("poiKeyword").value.trim();
+  if (!kw) { toast("输入关键词再搜索"); return; }
+  const drop = document.getElementById("poiDrop");
+  drop.style.display = "block";
+  drop.innerHTML = '<div class="poi-item muted">搜索中…</div>';
+  try {
+    const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + cityGuess(MAP.lon), undefined, "GET");
+    const items = (body.items || []).filter(i => i.location);
+    if (!items.length) { drop.innerHTML = '<div class="poi-item muted">无结果（或高德未配置）</div>'; return; }
+    drop.innerHTML = "";
+    items.forEach(it => {
+      const row = el('<div class="poi-item"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(it.address || it.city || "") + "</span></div>");
+      row.onclick = () => {
+        drop.style.display = "none";
+        NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
+        addMarker("dest", NAV.dest.lon, NAV.dest.lat,
+          '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
+        flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
+        toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+      };
+      drop.appendChild(row);
+    });
+  } catch (err) {
+    drop.innerHTML = '<div class="poi-item muted">' + esc("HTTP " + (err.status || "?") + " · " + detailText(err.detail)) + "</div>";
+  }
+}
+document.getElementById("poiGo").onclick = poiSearch;
+document.getElementById("poiKeyword").addEventListener("keydown", e => {
+  if (e.key === "Enter") poiSearch();
+});
+document.addEventListener("pointerdown", e => {
+  const drop = document.getElementById("poiDrop");
+  if (drop && drop.style.display === "block" && !e.target.closest("#mapSearch")) drop.style.display = "none";
+});
+
+/* ---- 我的位置 ---- */
+
+document.getElementById("btnLocate").onclick = () => {
+  if (!navigator.geolocation) {
+    NAV.me = { ...FALLBACK_POS };
+    placeMe(); toast("浏览器不支持定位，已回退故宫坐标"); return;
+  }
+  toast("正在定位…");
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // 注：浏览器给 WGS-84，地图/后端是 GCJ-02；冒烟演示不做纠偏（国内偏差约几百米）
+      NAV.me = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
+      placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
+    },
+    () => { NAV.me = { ...FALLBACK_POS }; placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); toast("定位失败，已回退故宫坐标"); },
+    { timeout: 8000 }
+  );
+};
+function placeMe() {
+  addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(NAV.me.name) + "</span>");
+}
+placeMe(); // 初始：默认在故宫
+
+/* ---- 模式：步行 / 公交 / 打车 / 驾车 ---- */
+
+async function doWalk(origin, note) {
+  const body = await api("/api/v1/nav/walking", { origin: { lon: origin.lon, lat: origin.lat }, destination: { lon: NAV.dest.lon, lat: NAV.dest.lat } });
+  const r = body.route || {};
+  NAV.route = { polyline: r.polyline || [], steps: r.steps || [], distance_m: r.distance_m || 0, duration_s: r.duration_s };
+  clearLines();
+  if (NAV.route.polyline.length) drawLine(NAV.route.polyline, "#2f6fed", false);
+  fitBounds([{ lon: origin.lon, lat: origin.lat }, { lon: NAV.dest.lon, lat: NAV.dest.lat }]);
+  const box = el('<div><h4>' + (note || "🚶 步行路线") + " · " + (NAV.route.distance_m / 1000).toFixed(2) + " 公里 · 约 " + (NAV.route.duration_s ? fmtMin(NAV.route.duration_s) : "?") + " 分钟</h4></div>");
+  (NAV.route.steps || []).forEach((s, i) => {
+    box.appendChild(el('<div class="nstep" id="nstep-' + i + '"><span class="ico">' + oriEmoji(s.orientation) + "</span><span>" +
+      (i + 1) + ". " + esc(s.instruction) + (s.road ? "（" + esc(s.road) + "）" : "") +
+      ' <span class="muted">' + (s.distance_m || 0) + " 米</span></span></div>"));
+  });
+  if (!(NAV.route.steps || []).length) box.appendChild(el('<div class="muted">（起终点过近或无路径，无分步）</div>'));
+  drawer(box);
+}
+
+document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
+  btn.onclick = () => busy(btn, async () => {
+    stopSim();
+    const mode = btn.dataset.mode;
+    setMode(mode);
+    if (!requireDest()) return;
+    if (mode === "walk") {
+      try { await doWalk(NAV.me); }
+      catch (err) { failToast(err); drawer('<div class="muted">步行查询失败：' + esc(detailText(err.detail)) + "</div>"); }
+    } else if (mode === "transit") {
+      const city = cityGuess((NAV.me.lon + NAV.dest.lon) / 2);
+      try {
+        const body = await api("/api/v1/nav/transit", { origin: { lon: NAV.me.lon, lat: NAV.me.lat }, destination: { lon: NAV.dest.lon, lat: NAV.dest.lat }, city });
+        const plans = body.plans || [];
+        clearLines();
+        // 公交 API 无几何数据：起终点画虚线示意，选中方案换色
+        drawLine([{ lon: NAV.me.lon, lat: NAV.me.lat }, { lon: NAV.dest.lon, lat: NAV.dest.lat }], "#888", true);
+        const box = el("<div><h4>🚇 公交方案（" + esc(city) + "）· " + plans.length + " 个</h4></div>");
+        if (!plans.length) box.appendChild(el('<div class="muted">无方案（或高德未配置）</div>'));
+        plans.forEach((p, i) => {
+          const card = el('<div class="plan-card"><b>方案 ' + (i + 1) + "</b> · ¥" + esc(p.cost_yuan) + " · 约 " + fmtMin(p.duration_s) + " 分钟 · 步行 " + (p.walking_distance_m || 0) + " 米</div>");
+          let ci = 0;
+          (p.segments || []).forEach(seg => {
+            if (seg.walking && seg.walking.distance_m) {
+              card.appendChild(el('<div class="row"><span class="t">🚶</span><span>步行 ' + seg.walking.distance_m + " 米</span></div>"));
+            }
+            (seg.rides || []).forEach(ride => {
+              const col = RIDE_COLORS[ci % RIDE_COLORS.length]; ci++;
+              card.appendChild(el('<div class="row"><span class="ride-dot" style="background:' + col + '"></span><span><b>' +
+                esc(ride.name) + "</b>：" + esc(ride.departure_stop || "?") + " → " + esc(ride.arrival_stop || "?") +
+                ' <span class="muted">途经 ' + (ride.via_stops || 0) + " 站</span></span></div>"));
+            });
+          });
+          card.onclick = () => {
+            document.querySelectorAll(".plan-card").forEach(c => c.classList.remove("sel"));
+            card.classList.add("sel");
+            clearLines();
+            drawLine([{ lon: NAV.me.lon, lat: NAV.me.lat }, { lon: NAV.dest.lon, lat: NAV.dest.lat }], RIDE_COLORS[0], true);
+          };
+          box.appendChild(card);
+        });
+        box.appendChild(el('<div class="muted">公交接口不含几何轨迹，虚线为起终点示意；各线路用色点区分。</div>'));
+        drawer(box);
+      } catch (err) { failToast(err); }
+    } else { // taxi / driving → deeplink
+      const m = mode === "taxi" ? "taxi" : "driving";
+      try {
+        const body = await api("/api/v1/nav/deeplink", { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } });
+        const box = el('<div><h4>' + (m === "taxi" ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
+        const row = el('<div class="row" style="gap:10px;margin:4px 0"></div>');
+        row.appendChild(el('<a class="btn" style="text-decoration:none;display:inline-block" href="' + esc(body.app_deeplink) + '">📲 打开高德 App</a>'));
+        row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">🌐 网页版</a>'));
+        box.appendChild(row);
+        if (body.ios_alternative) {
+          box.appendChild(el('<div class="muted" style="margin-top:4px">iOS 备用：<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
+        }
+        box.appendChild(el('<div class="muted" style="margin-top:4px;word-break:break-all">' + esc(body.app_deeplink) + "</div>"));
+        drawer(box);
+      } catch (err) { failToast(err); }
+    }
+  });
+});
+
+/* ---- 模拟导航：定位点沿 polyline 前进 + 语音播报 ---- */
+
+document.getElementById("btnSimulate").onclick = (e) => {
+  if (NAV.sim) { stopSim(); return; }
+  if (!NAV.route || !NAV.route.polyline.length) { toast("先查一条步行路线（🚶），再模拟导航"); return; }
+  const pts = NAV.route.polyline;
+  const steps = NAV.route.steps || [];
+  // 每步累计距离 → 找当前位置落在哪一步
+  const stepCut = [];
+  let acc = 0;
+  steps.forEach(s => { acc += (s.distance_m || 0); stepCut.push(acc); });
+  let i = 0, curStep = -1;
+  const man = document.getElementById("navManeuver");
+  man.style.display = "block";
+  e.target.textContent = "⏹️ 停止模拟";
+  const speak = (text) => {
+    try {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "zh-CN";
+      speechSynthesis.speak(u);
+    } catch (err) { /* TTS 不可用则静默 */ }
+  };
+  NAV.sim = { t: setInterval(() => {
+    i += 2; // 每帧推进 2 个折线点（约 20-40 米）
+    if (i >= pts.length) {
+      setMarkerPos("me", pts[pts.length - 1].lon, pts[pts.length - 1].lat);
+      stopSim();
+      man.style.display = "block";
+      man.innerHTML = '<span class="ico">🏁</span>已到达终点<span class="sub">' + esc(NAV.dest.name) + "</span>";
+      speak("已到达终点");
+      toast("模拟导航结束：已到达 " + NAV.dest.name);
+      return;
+    }
+    const p = pts[i];
+    setMarkerPos("me", p.lon, p.lat);
+    // 已走距离（近似按点序比例 × 总距离）
+    const gone = NAV.route.distance_m * (i / pts.length);
+    let si = 0;
+    while (si < stepCut.length - 1 && gone > stepCut[si]) si++;
+    if (si !== curStep) {
+      curStep = si;
+      const s = steps[si];
+      document.querySelectorAll(".nstep").forEach(n => n.classList.remove("cur"));
+      const node = document.getElementById("nstep-" + si);
+      if (node) { node.classList.add("cur"); node.scrollIntoView({ block: "nearest" }); }
+      if (s) {
+        man.innerHTML = '<span class="ico">' + oriEmoji(s.orientation) + "</span>" + esc(s.instruction) +
+          '<span class="sub">第 ' + (si + 1) + "/" + steps.length + " 步 · " + (s.distance_m || 0) + " 米</span>";
+        speak(s.instruction);
+      }
+    }
+  }, 120) };
+};
+
+/* ---- 偏航演示：偏移 50 米重调步行 ---- */
+
+document.getElementById("btnOffRoute").onclick = (e) => busy(e.target, async () => {
+  if (!requireDest()) return;
+  // 50 米 ≈ 0.00045 纬度（按北京纬度再折算经度）
+  const off = {
+    lon: NAV.me.lon + 0.00045 / Math.cos(NAV.me.lat * Math.PI / 180),
+    lat: NAV.me.lat + 0.00045,
+    name: NAV.me.name,
+  };
+  NAV.me = off;
+  placeMe();
+  setMode("walk");
+  try {
+    await doWalk(off, "🔀 偏航后重新规划");
+    toast("已模拟偏航 50 米并重新规划步行路线");
+  } catch (err) { failToast(err); }
+});
+
+/* ---- 火车/航班提醒（右上角 ⏰） ---- */
+
+document.getElementById("btnRemind").onclick = () => {
+  document.getElementById("remModal").style.display = "flex";
+};
+document.getElementById("remClose").onclick = () => {
+  document.getElementById("remModal").style.display = "none";
+};
+document.getElementById("remModal").addEventListener("pointerdown", e => {
+  if (e.target.id === "remModal") e.target.style.display = "none";
+});
+document.getElementById("remGo").onclick = (e) => busy(e.target, async () => {
+  const t = document.getElementById("remTime").value;
+  const station = document.getElementById("remStation").value.trim();
+  const type = document.getElementById("remType").value;
+  if (!t || !station) { toast("先选出发时间、填车站名"); return; }
+  try {
+    const body = await api("/api/v1/nav/transport-reminders", { type, departure_time: t, station_name: station });
+    const out = document.getElementById("remOut");
+    out.innerHTML = "";
+    const box = el('<div class="card"><h4>⏰ 提醒时间轴</h4></div>');
+    (body.reminders || []).forEach(rm => {
+      let at = rm.at;
+      const d = new Date(rm.at);
+      if (!isNaN(d.getTime())) at = d.toLocaleString("zh-CN", { hour12: false });
+      box.appendChild(el('<div class="row"><span class="t">' + esc(at) + '</span><span><span class="badge warn">' + esc(rm.kind) + "</span> " + esc(rm.message) + "</span></div>"));
+    });
+    out.appendChild(box);
+  } catch (err) { failToast(err); }
+});
+
+/* ---- 地图初始化 ---- */
+
+MAP.wrap = document.getElementById("mapWrap");
+MAP.tilesEl = document.getElementById("mapTiles");
+MAP.svg = document.getElementById("mapSvg");
+MAP.mkEl = document.getElementById("mapMarkers");
+MAP.w = MAP.wrap.clientWidth || 800;
+MAP.h = MAP.wrap.clientHeight || 600;
+initMapEvents();
+renderMap();
+
+/* ================= Tab 4：行程 ================= */
+
+const ITIN = { id: null, version: 0, snapshotCount: 0, days: 3, city: "北京", addCount: 0 };
+
+document.getElementById("itinCreate").onclick = (e) => busy(e.target, async () => {
+  const city = document.getElementById("itinCity").value;
+  const days = parseInt(document.getElementById("itinDays").value, 10);
+  if (!days || days < 1) { toast("天数至少 1 天"); return; }
+  addMsg("flow-itin", "user", "创建行程：" + city + " " + days + " 天");
+  const holder = addMsg("flow-itin", "sys", "⏳ 创建中…");
+  try {
+    const s = await api("/api/v1/itineraries", { cities: [city], days });
+    ITIN.id = s.itinerary_id; ITIN.version = s.working_sync_version;
+    ITIN.snapshotCount = s.snapshot_count; ITIN.days = days; ITIN.city = city; ITIN.addCount = 0;
+    holder.textContent = "";
+    holder.appendChild(el('<div>✅ 行程已创建 <code>' + esc(s.itinerary_id) + "</code>（点击「冻结快照」「加一天景点」继续测试）</div>"));
+    holder.appendChild(el('<div class="card"><h4>当前状态</h4><div>版本 v' + s.working_sync_version + ' <span class="badge ok">working_sync_version</span></div><div>快照数 ' + s.snapshot_count + "</div></div>"));
+    itinRefreshList(true);
+  } catch (err) {
+    holder.textContent = "❌ 创建失败：" + detailText(err.detail);
+    failToast(err);
+  }
+  document.getElementById("flow-itin").scrollTop = 1e9;
+});
+
+document.getElementById("itinAdd").onclick = (e) => busy(e.target, async () => {
+  if (!ITIN.id) { toast("先创建行程"); return; }
+  ITIN.addCount += 1;
+  const day = (ITIN.addCount - 1) % ITIN.days + 1;
+  const item = {
+    item_id: "smoke-" + ITIN.addCount,
+    name: "故宫", city: ITIN.city, day,
+    start_time: "10:00", duration_minutes: 120, poi_id: null,
+  };
+  addMsg("flow-itin", "user", "➕ 加一天景点：故宫 · 第 " + day + " 天 10:00 · 120 分钟");
+  const holder = addMsg("flow-itin", "sys", "⏳ 提交 add diff…");
+  const oldVer = ITIN.version;
+  try {
+    const body = await api("/api/v1/itineraries/" + ITIN.id, { diffs: [{ op: "add", item }] }, "PUT");
+    ITIN.version = body.record.working_sync_version;
+    ITIN.snapshotCount = body.record.snapshot_count;
+    holder.textContent = "";
+    const okBadge = body.validation.ok
+      ? '<span class="badge ok">validation.ok ✅</span>'
+      : '<span class="badge err">validation.ok ❌</span>';
+    holder.appendChild(el('<div>✅ 已应用 <b>v' + oldVer + " → v" + ITIN.version + "</b> " + okBadge + "</div>"));
+    holder.appendChild(changeNode(body.change_summary));
+    const vn = violationsNode(body.validation.violations, "校验违规（warning 不阻塞）");
+    if (vn) holder.appendChild(vn);
+  } catch (err) {
+    holder.textContent = "";
+    if (err.status === 422) {
+      holder.appendChild(el("<div>❌ 被硬校验拒绝，版本保持 v" + oldVer + "（需修复后重试）</div>"));
+      const vn = violationsNode(err.detail && err.detail.violations, "违规明细");
+      if (vn) holder.appendChild(vn);
+    } else {
+      holder.textContent = "❌ 修改失败：" + detailText(err.detail);
+    }
+    failToast(err);
+  }
+  document.getElementById("flow-itin").scrollTop = 1e9;
+});
+
+document.getElementById("itinSnap").onclick = (e) => busy(e.target, async () => {
+  if (!ITIN.id) { toast("先创建行程"); return; }
+  addMsg("flow-itin", "user", "🧄 冻结当前版本为快照");
+  const holder = addMsg("flow-itin", "sys", "⏳ 冻结中…");
+  try {
+    const s = await api("/api/v1/itineraries/" + ITIN.id + "/snapshots", {});
+    ITIN.snapshotCount += 1;
+    holder.textContent = "";
+    holder.appendChild(el('<div>🧊 快照 <b>' + esc(s.name) + "</b> 已冻结（版本 v" + s.sync_version + "）<code>" + esc(s.snapshot_id) + "</code></div>"));
+    itinRefreshList(true);
+  } catch (err) {
+    holder.textContent = "";
+    if (err.status === 402) {
+      const d = err.detail || {};
+      const box = el('<div class="card paywall"><h4>💳 免费额度已用完</h4></div>');
+      box.appendChild(el('<div>快照免费额度（3 个）已用完，本次冻结被拒绝。</div>'));
+      box.appendChild(el('<div class="muted">denied_reason：' + esc(d.denied_reason || "?") + " · paywall_trigger：" + esc(d.paywall_trigger || "?") + "</div>"));
+      box.appendChild(el('<div class="muted">恢复既有快照不受额度限制，仍可继续测试。</div>'));
+      holder.appendChild(box);
+      toast("HTTP 402 · 免费额度已用完（" + (d.denied_reason || "") + "）");
+    } else {
+      holder.textContent = "❌ 冻结失败：" + detailText(err.detail);
+      failToast(err);
+    }
+  }
+  document.getElementById("flow-itin").scrollTop = 1e9;
+});
+
+async function itinRefreshList(quiet) {
+  if (!ITIN.id) { if (!quiet) toast("先创建行程"); return; }
+  try {
+    const [rec, snaps] = await Promise.all([
+      api("/api/v1/itineraries/" + ITIN.id, undefined, "GET"),
+      api("/api/v1/itineraries/" + ITIN.id + "/snapshots", undefined, "GET"),
+    ]);
+    ITIN.version = rec.working_sync_version;
+    ITIN.snapshotCount = (rec.snapshots || []).length;
+    const box = el('<div class="card"><h4>🗂 行程状态 · v' + rec.working_sync_version + " · 快照 " + ITIN.snapshotCount + " 个</h4></div>");
+    (snaps || []).forEach(s => {
+      const row = el('<div class="snap-row"><span class="grow"><b>' + esc(s.name) + "</b> · v" + s.sync_version +
+        ' <span class="muted">' + esc(s.created_at) + "</span> " +
+        (rec.active_snapshot_id === s.snapshot_id ? '<span class="badge ok">当前激活</span>' : "") + "</span></div>");
+      const btn = el('<button class="btn mini ghost">⏪ 恢复</button>');
+      btn.onclick = (ev) => busy(ev.target, async () => {
+        addMsg("flow-itin", "user", "⏪ 恢复到快照 " + s.name + "（v" + s.sync_version + "）");
+        const holder = addMsg("flow-itin", "sys", "⏳ 恢复中…");
+        try {
+          const restored = await api("/api/v1/itineraries/" + ITIN.id + "/snapshots/" + s.snapshot_id + "/restore", {});
+          ITIN.version = restored.working_sync_version;
+          ITIN.snapshotCount = (restored.snapshots || []).length;
+          holder.textContent = "";
+          holder.appendChild(el('<div>✅ 已恢复到 <b>' + esc(s.name) + "</b>；当前版本 v" + restored.working_sync_version +
+            " · 激活快照 <code>" + esc(restored.active_snapshot_id || "无") + "</code></div>"));
+        } catch (err2) {
+          holder.textContent = "❌ 恢复失败：" + detailText(err2.detail);
+          failToast(err2);
+        }
+        document.getElementById("flow-itin").scrollTop = 1e9;
+      });
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+    if (!(snaps || []).length) box.appendChild(el('<div class="muted">还没有快照，点「冻结快照」创建第一个。</div>'));
+    addMsg("flow-itin", "sys", box);
+  } catch (err) {
+    failToast(err);
+  }
+}
+document.getElementById("itinRefresh").onclick = (e) => busy(e.target, () => itinRefreshList(false));
+
+/* ================= Tab 5：预订（铁律 22 只 handoff / 铁律 23 退改摘要先行） ================= */
+
+const BOOK = { plan: null }; // 最近一次规划结果（酒店按天卡片吃它）
+
+function bkStartDate() { return document.getElementById("bookStartDate").value || ""; }
+
+// "YYYY-MM-DD" + n 天（本地日期运算，避免 UTC 时区偏移）
+function bkAddDays(iso, n) {
+  const p = x => String(x).padStart(2, "0");
+  const dt = new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10) + n);
+  return dt.getFullYear() + "-" + p(dt.getMonth() + 1) + "-" + p(dt.getDate());
+}
+
+function bkErrMsg(err) {
+  if (err && err.status === 422) return "❌ 参数无效：检查城市名、日期格式（YYYY-MM-DD）与坐标是否在合理范围";
+  return "❌ 查询失败：" + detailText(err.detail);
+}
+
+/* ---- 铁律 23：跳转渠道前弹退改摘要全文；无 refund_policy 一律禁止跳转 ---- */
+
+let bkPendingUrl = null;
+function bkConfirmOpen(channel, url, refund) {
+  if (!refund || !refund.summary) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
+  bkPendingUrl = url;
+  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + channel + " 前，请先阅读退改政策";
+  document.getElementById("bkConfirmSummary").textContent = refund.summary; // 全文，textContent 防注入
+  document.getElementById("bkConfirmUrl").textContent = "即将打开：" + url;
+  document.getElementById("bkConfirm").style.display = "flex";
+}
+function bkConfirmClose() {
+  document.getElementById("bkConfirm").style.display = "none";
+  bkPendingUrl = null;
+}
+document.getElementById("bkGo").onclick = () => {
+  const u = bkPendingUrl;
+  bkConfirmClose();
+  if (u) window.open(u, "_blank");
+};
+document.getElementById("bkCancel").onclick = bkConfirmClose;
+document.getElementById("bkConfirm").addEventListener("pointerdown", e => {
+  if (e.target.id === "bkConfirm") bkConfirmClose();
+});
+
+const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团" };
+
+// 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）
+function bkChannelBtn(channel, url, refund, primary, label) {
+  const b = el('<button class="btn mini' + (primary ? "" : " ghost") + '"></button>');
+  b.textContent = label || ("↗️ 前往 " + (BK_CHANNEL[channel] || channel) + (primary ? "（主）" : "（备）"));
+  if (!url) { b.disabled = true; b.title = "渠道未返回链接"; return b; }
+  if (!refund || !refund.summary) {
+    b.disabled = true;
+    b.title = "响应缺少退改签摘要（铁律 23），禁止跳转";
+    return b;
+  }
+  b.onclick = () => bkConfirmOpen(BK_CHANNEL[channel] || channel, url, refund);
+  return b;
+}
+
+// handoff 卡片：主渠道 + （火车）App 唤起 + 兜底渠道；URL 全部来自后端，前端不拼
+function bkHandoffRow(body) {
+  const h = body.handoff || {};
+  const refund = body.refund_policy;
+  const box = el('<div class="card"><h4>🔗 渠道跳转（handoff，不代下单）</h4></div>');
+  const row = el('<div class="row" style="flex-wrap:wrap;gap:8px"></div>');
+  row.appendChild(bkChannelBtn(h.channel, h.url, refund, true));
+  if (h.app_scheme) row.appendChild(bkChannelBtn(h.channel, h.app_scheme, refund, false, "📲 唤起 12306 App"));
+  if (h.fallback && h.fallback.url) row.appendChild(bkChannelBtn(h.fallback.channel, h.fallback.url, refund, false));
+  box.appendChild(row);
+  if (!refund || !refund.summary) {
+    box.appendChild(el('<div class="violation error">响应缺少退改签摘要（refund_policy）：按铁律 23，渠道跳转已禁用。</div>'));
+  }
+  return box;
+}
+
+/* ---- 三个子分区切换 ---- */
+
+function bkShow(kind) {
+  document.querySelectorAll("#bookTabs .chip").forEach(c => c.classList.toggle("on", c.dataset.bk === kind));
+  document.querySelectorAll("#tab-book .bk-pane").forEach(p => p.classList.toggle("on", p.id === "bk-" + kind));
+  if (kind === "hotel") bkRenderPlanDays();
+}
+document.querySelectorAll("#bookTabs .chip").forEach(c => {
+  c.addEventListener("click", () => bkShow(c.dataset.bk));
+});
+document.getElementById("bookStartDate").addEventListener("change", bkRenderPlanDays);
+
+/* ---- 🚄 火车票 ---- */
+
+async function bkTrainSearch() {
+  const from = document.getElementById("bkTrainFrom").value.trim();
+  const to = document.getElementById("bkTrainTo").value.trim();
+  const date = document.getElementById("bkTrainDate").value;
+  if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
+  addMsg("flow-book-train", "user", "🚄 查火车票：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-train", "sys", "⏳ 查询班次…");
+  try {
+    const body = await api("/api/v1/bookings/train", { from_city: from, to_city: to, date });
+    holder.textContent = "";
+    const trains = body.trains || [];
+    if (trains.length) {
+      const list = el('<div class="card"><h4>🚄 班次 ' + trains.length + " 个</h4></div>");
+      trains.forEach(t => list.appendChild(el('<div class="row"><span class="t">' + fmtTime(t.dep_time) + "</span><span><b>" +
+        esc(t.train_no) + "</b> " + esc(t.from_station) + " → " + esc(t.to_station) + " · " + fmtTime(t.arr_time) +
+        "到 · " + (t.duration_minutes || "?") + " 分钟</span></div>")));
+      holder.appendChild(list);
+    } else {
+      holder.appendChild(el('<div class="card">未查到班次（该城市对暂未覆盖静态时刻表），可直接前往 12306。</div>'));
+    }
+    holder.appendChild(bkHandoffRow(body));
+  } catch (err) {
+    holder.textContent = bkErrMsg(err);
+    failToast(err);
+  }
+  document.getElementById("flow-book-train").scrollTop = 1e9;
+}
+document.getElementById("bkTrainGo").onclick = (e) => busy(e.target, bkTrainSearch);
+
+/* ---- ✈️ 机票（MVP 无航班库，恒空列表，直接渠道比价） ---- */
+
+async function bkFlightSearch() {
+  const from = document.getElementById("bkFlightFrom").value.trim();
+  const to = document.getElementById("bkFlightTo").value.trim();
+  const date = document.getElementById("bkFlightDate").value;
+  if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
+  addMsg("flow-book-flight", "user", "✈️ 查机票：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装渠道链接…");
+  try {
+    const body = await api("/api/v1/bookings/flight", { from_city: from, to_city: to, date });
+    holder.textContent = "";
+    holder.appendChild(el('<div class="card"><h4>✈️ ' + esc(from) + " → " + esc(to) + " · " + esc(date) +
+      '</h4><div>MVP 暂无航班静态库（flights 恒空），去渠道页直接比价。</div></div>'));
+    holder.appendChild(bkHandoffRow(body)); // 去哪儿（主）+ 携程（备）
+  } catch (err) {
+    holder.textContent = bkErrMsg(err);
+    failToast(err);
+  }
+  document.getElementById("flow-book-flight").scrollTop = 1e9;
+}
+document.getElementById("bkFlightGo").onclick = (e) => busy(e.target, bkFlightSearch);
+
+/* ---- 🏨 酒店 ---- */
+
+async function bkHotelSearch() {
+  const city = document.getElementById("bkHotelCity").value.trim();
+  const poi = document.getElementById("bkHotelPoi").value.trim();
+  const lon = parseFloat(document.getElementById("bkHotelLon").value);
+  const lat = parseFloat(document.getElementById("bkHotelLat").value);
+  const ci = document.getElementById("bkHotelIn").value;
+  const co = document.getElementById("bkHotelOut").value;
+  if (!city || !poi || !ci || !co) { toast("城市、锚点景点、入住/退房日期都要填"); return; }
+  if (!isFinite(lon) || !isFinite(lat)) { toast("经纬度必填（点下方按天卡片可自动带入）"); return; }
+  addMsg("flow-book-hotel", "user", "🏨 找酒店：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
+  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装渠道链接…");
+  try {
+    const body = await api("/api/v1/bookings/hotel", { city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
+    holder.textContent = "";
+    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) +
+      (body.near_poi ? ' <span class="muted">（坐标 ' + body.near_poi.lon + ", " + body.near_poi.lat + "）</span>" : "") + "</div></div>"));
+    holder.appendChild(bkHandoffRow(body)); // 携程（主）+ 美团（备）
+  } catch (err) {
+    holder.textContent = bkErrMsg(err);
+    failToast(err);
+  }
+  document.getElementById("flow-book-hotel").scrollTop = 1e9;
+}
+document.getElementById("bkHotelGo").onclick = (e) => busy(e.target, bkHotelSearch);
+
+// 按天卡片：city=该天 base_city，锚点=最后一个带坐标的景点项（VisitItem 判据同 planCard：无 from_city），checkin=开始日期+N−1，checkout=下一天
+function bkRenderPlanDays() {
+  const box = document.getElementById("bkHotelDays");
+  box.innerHTML = "";
+  const plan = BOOK.plan;
+  if (!plan || !plan.days || !plan.days.length) {
+    box.appendChild(el('<div class="card"><h4>🗓 按天订酒店（自动吃规划结果）</h4><div class="muted">当前会话还没有规划行程：先去「📋 规划」生成，回到这里会按天出卡片；也可以直接用上方表单手查。</div></div>'));
+    return;
+  }
+  const start = bkStartDate();
+  (plan.days || []).forEach(d => {
+    let lastVisit = null, anchor = null;
+    (d.items || []).forEach(it => {
+      if (it.from_city || !it.name) return; // 只看景点项（TransferItem 带 from_city）
+      lastVisit = it;
+      if (it.location && isFinite(it.location.lon) && isFinite(it.location.lat)) anchor = it;
+    });
+    const pick = anchor || lastVisit;
+    const card = el('<div class="card bk-day"></div>');
+    card.appendChild(el('<div class="row"><span><b>第' + d.day + " 天 · " + esc(d.base_city) + "</b>" +
+      (pick ? " · 🎯 锚点 " + esc(pick.name) : "") + "</span></div>"));
+    if (!pick) {
+      card.appendChild(el('<div class="muted">本日没有景点项，无法定位锚点；可用上方表单手动查。</div>'));
+      box.appendChild(card);
+      return;
+    }
+    if (pick.location && isFinite(pick.location.lon)) {
+      card.appendChild(el('<div class="muted">锚点坐标 ' + pick.location.lon + " / " + pick.location.lat + "</div>"));
+    } else {
+      card.appendChild(el('<div class="violation warning">该景点无坐标（location 缺失），查询时需手动补经纬度。</div>'));
+    }
+    if (start) {
+      card.appendChild(el("<div>入住 <b>" + bkAddDays(start, d.day - 1) + "</b> → 退房 <b>" + bkAddDays(start, d.day) + "</b></div>"));
+    } else {
+      card.appendChild(el('<div class="muted">顶部未设「行程开始日期」：设置后自动推算第 ' + d.day + " 天的入住/退房。</div>"));
+    }
+    const btn = el('<button class="btn mini">🏨 查这家附近酒店</button>');
+    btn.onclick = () => {
+      document.getElementById("bkHotelCity").value = d.base_city || "";
+      document.getElementById("bkHotelPoi").value = pick.name || "";
+      if (pick.location && isFinite(pick.location.lon)) {
+        document.getElementById("bkHotelLon").value = pick.location.lon;
+        document.getElementById("bkHotelLat").value = pick.location.lat;
+      }
+      if (start) {
+        document.getElementById("bkHotelIn").value = bkAddDays(start, d.day - 1);
+        document.getElementById("bkHotelOut").value = bkAddDays(start, d.day);
+      }
+      busy(btn, bkHotelSearch);
+    };
+    card.appendChild(btn);
+    box.appendChild(card);
+  });
+}
+
+/* ---- 规划结果尾部快捷按钮 → 切到预订并预填 ---- */
+
+function switchTab(name) {
+  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === "tab-" + name));
+}
+
+function planBookQuick(plan) {
+  BOOK.plan = plan; // 记住最新规划，供酒店按天卡片消费
+  const bar = el('<div class="dirbar"></div>');
+  const days = plan.days || [];
+  const d0 = days[0];
+  const from = (d0 && d0.base_city) || (plan.cities || [])[0] || "";
+  const cs = plan.cities || [];
+  let to = cs.length > 1 ? cs[1] : ""; // 第二个城市；单城行程拿不到就留空让用户填
+  if (!to && days.length) {
+    const dl = days[days.length - 1];
+    if (dl && dl.base_city && dl.base_city !== from) to = dl.base_city; // 回程城市兜底
+  }
+  const prefill = (prefix, tab) => {
+    switchTab("book");
+    bkShow(tab);
+    document.getElementById(prefix + "From").value = from;
+    document.getElementById(prefix + "To").value = to;
+    if (bkStartDate()) document.getElementById(prefix + "Date").value = bkStartDate();
+    toast(to ? "已预填 " + from + " → " + to + "，补好日期即可查" : "已预填出发城市 " + from + "；到达城市请补填");
+  };
+  const bTrain = el('<button class="btn mini ghost">🚄 订火车票</button>');
+  bTrain.onclick = () => prefill("bkTrain", "train");
+  const bFlight = el('<button class="btn mini ghost">✈️ 订机票</button>');
+  bFlight.onclick = () => prefill("bkFlight", "flight");
+  const bHotel = el('<button class="btn mini ghost">🏨 订酒店</button>');
+  bHotel.onclick = () => {
+    switchTab("book");
+    bkShow("hotel"); // bkRenderPlanDays 消费 BOOK.plan 出按天卡片
+    const first = document.querySelector("#bkHotelDays .bk-day");
+    if (first) first.scrollIntoView({ block: "nearest" });
+    toast("已按行程生成按天酒店卡片：点卡片按钮查当天锚点附近酒店");
+  };
+  bar.appendChild(bTrain);
+  bar.appendChild(bFlight);
+  bar.appendChild(bHotel);
+  return bar;
+}
+
+/* ================= 欢迎语 ================= */
+
+addMsg("flow-plan", "sys", "选城市（可不选）和天数后点「🚀 开始规划」；信息不全时我会追问。拿到初版行程后，直接在下方输入框继续对话修改（可多轮）。");
+addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
+addMsg("flow-itin", "sys", "先「创建行程」，然后依次试：加一天景点（看版本号变化 + validation）、冻结快照 ×4（第 4 次会触发 402 免费额度已用完）、恢复快照。");
+addMsg("flow-book-train", "sys", "规划完成后可从结果尾部快捷进入；或在此填城市/日期查询。跳转 12306 / 去哪儿 / 携程 / 美团 前会先展示退改签摘要（铁律 23）。");
+
+planSetSession(null);
+</script>
+</body>
+</html>
