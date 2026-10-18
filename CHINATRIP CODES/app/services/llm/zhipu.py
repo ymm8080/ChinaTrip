@@ -104,6 +104,10 @@ class ZhipuGLMAdapter:
                 resp = await client.post(path, json=payload)
         except httpx.TimeoutException as exc:
             raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc
+        except httpx.HTTPError as exc:
+            # Connect/Read/Write failures must surface as LLMError too —
+            # raw httpx exceptions bypass every retry/degrade handler.
+            raise LLMError(f"zhipu request failed: {type(exc).__name__}") from exc
         if resp.status_code != 200:
             raise LLMError(f"zhipu http status {resp.status_code}")
         try:
@@ -133,6 +137,8 @@ class ZhipuGLMAdapter:
                 resp = await client.post("/chat/completions", json=payload)
         except httpx.TimeoutException as exc:
             raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc
+        except httpx.HTTPError as exc:
+            raise LLMError(f"zhipu request failed: {type(exc).__name__}") from exc
         if resp.status_code != 200:
             raise LLMError(f"zhipu http status {resp.status_code}")
         try:

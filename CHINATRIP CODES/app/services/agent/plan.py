@@ -348,6 +348,10 @@ class PlanningAgent:
     async def message(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
+        # Deep-copy: the caller's stored session must never see partial
+        # mutations (v0 flips state to "planning" before a plan exists —
+        # an exception there used to poison the session for good).
+        session = session.model_copy(deep=True)
         session.history.append(ChatMessage(role="user", content=text))
         if session.state == "clarify":
             return await self._answer_clarification(session, text)

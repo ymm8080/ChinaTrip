@@ -275,6 +275,18 @@ def test_zhipu_timeout_raises_llm_error():
         asyncio.run(zhipu_adapter(handler).extract("x"))
 
 
+def test_zhipu_connect_error_raises_llm_error():
+    # Non-timeout transport failures must be wrapped too — raw httpx
+    # exceptions used to bypass every retry/degrade handler upstream.
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("no route to host")
+
+    adapter = zhipu_adapter(handler)
+    with pytest.raises(LLMError) as exc_info:
+        asyncio.run(adapter.extract("x"))
+    assert "ConnectError" in str(exc_info.value)
+
+
 def test_zhipu_invalid_json_content_raises_llm_error():
     adapter = zhipu_adapter(lambda req: zhipu_ok_response("我想想……这不是JSON"))
     with pytest.raises(LLMError):

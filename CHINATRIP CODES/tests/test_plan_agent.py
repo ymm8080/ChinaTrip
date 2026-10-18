@@ -9,6 +9,8 @@ import asyncio
 import json
 from datetime import time
 
+import pytest
+
 from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     PlanningAgent,
@@ -581,3 +583,33 @@ def test_message_edit_llm_retry_then_success():
     assert "已删除" in reply
     assert change is not None
     assert all(i.item_id != "v1" for d in session.plan.days for i in d.items)
+
+
+def test_message_raw_exception_leaves_stored_session_intact():
+    # 1018h incident: an unclassified exception mid-message used to poison
+    # the caller's session (state="planning", plan=None) -> every later
+    # message hit the plan-not-None assert with a 500.
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    hist_len = len(session.history)
+
+    class RawBoomLLM:
+        name = "raw-boom"
+
+        async def chat(self, messages, *, temperature=0.3, max_tokens=None):
+            raise RuntimeError("unclassified backend crash")
+
+    with pytest.raises(RuntimeError):
+        run(PlanningAgent(RawBoomLLM()).message(session, "改一下"))
+
+    assert len(session.history) == hist_len  # stored session untouched
+    assert session.state == "ready"
+    assert session.plan is not None
