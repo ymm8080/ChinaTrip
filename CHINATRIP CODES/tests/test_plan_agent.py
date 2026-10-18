@@ -186,6 +186,61 @@ def test_clarify_exhausted_forces_v0_on_default_assumptions():
     assert reply2
 
 
+# --- sightseeing preference round (one ask before v0) -----------------------
+
+
+def test_start_complete_without_preferences_asks_preference():
+    agent = PlanningAgent(ExplodingLLM())  # the round must not burn the LLM
+    session = run(agent.start(device_id="d1", cities=["上海"], days=3))
+    assert session.state == "clarify"
+    assert session.clarify_count == 1
+    assert session.pref_asked is True
+    questions = clarify_questions(session)
+    assert any(
+        ("偏好" in q or "观光" in q) and "无特别要求" in q for q in questions
+    )
+    assert any("博物馆人文" in q and "慢慢逛" in q for q in questions)
+
+
+def test_preference_answer_is_stored_and_generates_v0():
+    agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]))
+    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    assert session.state == "clarify"
+    session, reply, change = run(agent.message(session, "喜欢博物馆和美食"))
+    assert session.state == "ready"
+    assert session.preferences == "喜欢博物馆和美食"
+    assert session.pref_asked is False
+    assert session.plan is not None and session.plan.days
+    assert "初版行程" in reply
+    assert change is None
+
+
+def test_preference_skip_word_keeps_preferences_empty_and_generates_v0():
+    agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]))
+    session = run(agent.start(device_id="d1", cities=["上海"], days=2))
+    session, reply, _ = run(agent.message(session, "无特别要求"))
+    assert session.state == "ready"
+    assert session.preferences == ""
+    assert session.pref_asked is False
+    assert session.plan is not None and session.plan.days
+    assert session.assumptions
+    assert "初版行程" in reply
+
+
+def test_start_with_preferences_generates_v0_without_preference_round():
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=2, preferences="亲子")
+    )
+    assert session.state == "ready"
+    assert session.pref_asked is False
+    assert session.clarify_count == 0
+    assistant_texts = [m.content for m in session.history if m.role == "assistant"]
+    assert not any("无特别要求" in t for t in assistant_texts)
+    assert llm.calls == 1  # straight to v0, no preference detour
+
+
 # --- v0 generation ---------------------------------------------------------
 
 
@@ -193,7 +248,14 @@ def test_v0_amap_transfer_and_solved_schedule():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     amap = StubAmap(AMAP_POIS)
     agent = PlanningAgent(llm, amap_client=amap)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     assert session.state == "ready"
     plan = session.plan
     assert len(plan.days) == 2
@@ -237,7 +299,14 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
         ]
     )
     agent = PlanningAgent(llm, amap_client=StubAmap(exc=RuntimeError("amap down")))
-    session = run(agent.start(device_id="d1", cities=["北京"], days=1))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["北京"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
     assert session.state == "ready"
     assert any("占位" in a for a in session.assumptions)
     assert len(session.plan.days[0].items) == 2
@@ -267,7 +336,14 @@ def test_v0_uncovered_pair_degrades_to_car_transfer():
         ]
     )
     agent = PlanningAgent(llm)  # mock timetable has no 敦煌→兰州 pair
-    session = run(agent.start(device_id="d1", cities=["敦煌", "兰州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["敦煌", "兰州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     transfers = all_transfers(session)
     assert transfers[0].mode == "car"
     assert transfers[0].duration_minutes == 90
@@ -279,7 +355,14 @@ def test_v0_uncovered_pair_degrades_to_car_transfer():
 def test_v0_solver_failure_delivers_unscheduled_with_assumption():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm, solver=lambda plan, **kw: None)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     assert session.state == "ready"
     assert any("求解器未收敛" in a for a in session.assumptions)
     assert all(v.start_time is None for v in all_visits(session))
@@ -290,7 +373,14 @@ def test_v0_solver_failure_delivers_unscheduled_with_assumption():
 
 def test_v0_llm_down_degrades_to_placeholder_plan():
     agent = PlanningAgent(ExplodingLLM())
-    session = run(agent.start(device_id="d1", cities=["上海"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     assert session.state == "ready"
     assert any("LLM 不可用" in a for a in session.assumptions)
     visits = all_visits(session)
@@ -303,7 +393,14 @@ def test_v0_llm_down_degrades_to_placeholder_plan():
 def test_v0_bad_json_retries_once_then_degrades():
     llm = ScriptedLLM(["完全不是 JSON", "也不是什么合法 {JSON"])
     agent = PlanningAgent(llm)
-    session = run(agent.start(device_id="d1", cities=["上海"], days=1))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
     assert llm.calls == 2  # one attempt + one retry
     assert any("LLM 不可用" in a for a in session.assumptions)
     assert session.plan.days[0].items
@@ -322,7 +419,14 @@ def test_message_move_diff_changes_plan_and_reports_change():
         ]
     )
     agent = PlanningAgent(llm)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     session, reply, change = run(agent.message(session, "把豫园挪到第二天"))
     assert "豫园" in reply
     assert change is not None
@@ -348,7 +452,14 @@ def test_selfrepair_recovers_from_hard_violation():
         ]
     )
     agent = PlanningAgent(llm)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     session, reply, change = run(agent.message(session, "外滩改到九点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
@@ -367,7 +478,14 @@ def test_selfrepair_exhausted_delivers_half_product():
     ]
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), bad_edit] + bad_repairs)
     agent = PlanningAgent(llm)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     session, reply, change = run(agent.message(session, "外滩改到九点开始"))
     assert llm.calls == 2 + MAX_REPAIR_ROUNDS  # v0 + edit + 3 repairs
     assert "半成品" in reply
@@ -388,7 +506,14 @@ def test_message_unknown_item_keeps_plan_unchanged():
         ]
     )
     agent = PlanningAgent(llm)
-    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
     before = session.plan.model_copy(deep=True)
     session, reply, change = run(agent.message(session, "随便挪一个"))
     assert "未能生效" in reply

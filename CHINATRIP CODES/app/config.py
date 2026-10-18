@@ -16,10 +16,10 @@ class Settings(BaseSettings):
     llm_backend: str = "mock"  # "mock" | "zhipu"
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    glm_model: str = "glm-4.6"
+    glm_model: str = "glm-5.3-flash"
     # Flash tier for the classification gate / short translation fast lane
     # (design §6.12: >=80% requests must not reach the main model).
-    glm_model_flash: str = "glm-4.5-flash"
+    glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
 
     # Amap personal developer key. Server-side only - never reaches the client.

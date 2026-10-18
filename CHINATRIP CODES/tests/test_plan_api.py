@@ -136,6 +136,18 @@ def test_start_200_clarify_when_info_missing():
     assert "plan" not in body
 
 
+def test_start_200_clarify_asks_preference_when_info_complete():
+    agent = PlanningAgent(StubAdapter([]))  # no LLM call expected
+    resp = start(client_for(agent), {"cities": ["上海"], "days": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "clarify"
+    assert any(
+        ("偏好" in q or "观光" in q) and "无特别要求" in q for q in body["clarify"]
+    )
+    assert "plan" not in body
+
+
 def test_start_missing_device_id_returns_400():
     agent = PlanningAgent(StubAdapter([]))
     resp = client_for(agent).post(
@@ -151,9 +163,10 @@ def test_start_missing_device_id_returns_400():
 def test_message_200_applies_diff_and_returns_change():
     agent = PlanningAgent(StubAdapter([V0_JSON, EDIT_JSON]))
     client = client_for(agent)
-    session_id = start(client, {"cities": ["上海", "杭州"], "days": 2}).json()[
-        "session_id"
-    ]
+    session_id = start(
+        client,
+        {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"},
+    ).json()["session_id"]
     resp = message(client, session_id, "把豫园挪到第二天")
     assert resp.status_code == 200
     body = resp.json()
@@ -183,7 +196,7 @@ def test_message_other_device_returns_404():
 def test_message_llm_error_maps_to_502():
     agent = PlanningAgent(ExplodingAdapter())
     client = client_for(agent)
-    first = start(client, {"cities": ["北京"], "days": 1})
+    first = start(client, {"cities": ["北京"], "days": 1, "preferences": "博物馆"})
     assert first.status_code == 200  # v0 degrades to a placeholder, not 502
     assert any("LLM 不可用" in a for a in first.json()["assumptions"])
     resp = message(client, first.json()["session_id"], "改一下")

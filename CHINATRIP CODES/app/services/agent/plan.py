@@ -60,6 +60,14 @@ DEFAULT_DAYS = 3
 DEFAULT_CITY = "北京"
 MAX_CLARIFY_ROUNDS = 2  # §6.1: at most two questions, then v0 on assumptions
 MAX_REPAIR_ROUNDS = 3  # §6.4: LLM self-repair cap, then half-product
+PREFERENCE_SKIP_WORDS = frozenset(
+    {"无特别要求", "没有特别", "没有", "随便", "都行", "跳过", "无所谓", "无"}
+)
+PREF_QUESTION = (
+    "这次观光偏好哪类玩法？可以回复：博物馆人文 / 自然风光 / 美食街区 / "
+    "亲子休闲 / 暴走走透 / 慢慢逛，也可以直接用自己的话描述；"
+    "没有特别要求的话回复「无特别要求」跳过。"
+)
 LLM_ATTEMPTS = 2  # one structured-output call + one retry, then degrade
 HISTORY_WINDOW = 12
 PACE_ASSUMPTION = "假设中等节奏、不早起"
@@ -215,6 +223,7 @@ class PlanSession(BaseModel):
     days: int = 0
     state: Literal["clarify", "planning", "ready"] = "clarify"
     clarify_count: int = 0
+    pref_asked: bool = False
     plan: ItineraryPlan | None = None
     history: list[ChatMessage] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
@@ -222,12 +231,14 @@ class PlanSession(BaseModel):
 
 
 def clarify_questions(session: PlanSession) -> list[str]:
-    """§6.1: only the two questions that block a v0 (days, cities)."""
+    """§6.1: the two v0 blockers (days, cities) + the preference round."""
     questions: list[str] = []
     if session.days <= 0:
         questions.append("这次计划玩几天？")
     if not session.cities:
         questions.append("想去哪几个城市？例如：上海、杭州")
+    if session.pref_asked:
+        questions.append(PREF_QUESTION)
     return questions
 
 
@@ -324,6 +335,16 @@ class PlanningAgent:
                 )
             )
             return session
+        if not session.preferences:
+            # Complete request but no sightseeing preference yet: one
+            # preference round before v0 (product ask), still §6.1 envelope.
+            session.state = "clarify"
+            session.clarify_count = 1
+            session.pref_asked = True
+            session.history.append(
+                ChatMessage(role="assistant", content=PREF_QUESTION)
+            )
+            return session
         return await self._generate_v0(session)
 
     async def message(
@@ -339,6 +360,13 @@ class PlanningAgent:
     async def _answer_clarification(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
+        if session.pref_asked:
+            # Preference round: any non-empty answer counts as the
+            # preference, skip words keep it empty; never a second ask.
+            session.pref_asked = False
+            answer = text.strip()
+            if answer and answer not in PREFERENCE_SKIP_WORDS:
+                session.preferences = answer
         if session.days <= 0:
             days = _parse_days(text)
             if days is not None:
@@ -467,8 +495,12 @@ class PlanningAgent:
                 data = parse_json_content(result.content)
                 items = self._coerce_v0_items(data, days)
                 return items, [str(a) for a in (data.get("assumptions") or [])], True
-            except (LLMError, ValueError, TypeError, KeyError):
-                logger.warning("plan: v0 structured output failed, retrying")
+            except (LLMError, ValueError, TypeError, KeyError) as exc:
+                logger.warning(
+                    "plan: v0 structured output failed (%s: %s), retrying",
+                    type(exc).__name__,
+                    exc,
+                )
                 continue
         return [], [], False
 
