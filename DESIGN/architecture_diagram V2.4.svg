@@ -1,0 +1,150 @@
+<svg viewBox="0 0 1000 1225" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .layer { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; rx: 10; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; rx: 6; }
+      .hot { fill: #fff7ed; stroke: #f97316; stroke-width: 1.4; rx: 6; }
+      .phase2 { fill: #f1f5f9; stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 5 3; rx: 6; }
+      .title { font-size: 16px; font-weight: 700; fill: #0f172a; }
+      .sub { font-size: 12px; fill: #334155; }
+      .sm { font-size: 11px; fill: #475569; }
+      .star { font-size: 11px; fill: #c2410c; font-weight: 600; }
+      .lbl { font-size: 13px; font-weight: 700; fill: #1e293b; }
+      .link { font-size: 11px; fill: #64748b; }
+    </style>
+  </defs>
+
+  <text x="500" y="30" text-anchor="middle" class="title" font-size="20">自助景点规划助手（暂名）— 系统架构图 v2.4（国内区先行 · MVP 最小成本 · 行程中心 + 全局 Agent · 五模式导航 · 转链交易中心）</text>
+
+  <!-- 移动层 -->
+  <rect class="layer" x="20" y="50" width="960" height="180" rx="10"/>
+  <text x="40" y="74" class="lbl">移动层 — Flutter App（一套代码双端 · 原生模块经平台通道：ASR/OCR/TTS/推送/支付 · 铁律21 不出设备 · §5.0）</text>
+  <rect class="box" x="40" y="86" width="290" height="132" rx="6"/>
+  <text x="55" y="106" class="sub" font-weight="600">发行渠道（两阶段）</text>
+  <text x="55" y="124" class="star">★ Phase1 国内区先行（上架待备案）</text>
+  <text x="55" y="142" class="sm">Phase2 海外商店（en/ja，复制即用）</text>
+  <text x="55" y="160" class="sm">入境定位检测 → 执行模式</text>
+  <text x="55" y="178" class="sm">紧急卡：110/120/使领馆（纯本地）</text>
+  <text x="55" y="196" class="sm">手动拖拽编辑 = diff op（零 LLM）</text>
+  <rect class="box" x="350" y="86" width="290" height="132" rx="6"/>
+  <text x="365" y="106" class="sub" font-weight="600">七个页面 + 版本入口</text>
+  <text x="365" y="124" class="sm">聊天 · 地图 · 行程中心 · 收藏 · 足迹 · 执行 · 翻译 · 个人主页</text>
+  <text x="365" y="142" class="star">★ 翻译页双模：按住说话 + 拍照 OCR（§6.10）</text>
+  <text x="365" y="160" class="sm">渐进式规划：澄清≤2问 → v0 首版 &lt;60s</text>
+  <text x="365" y="178" class="sm">版本：保存 / 恢复 / 设为执行版（N=3/10）</text>
+  <text x="365" y="196" class="star">★ 行动确认卡片（含退改签摘要）→ deeplink 手off（§6.11）</text>
+  <rect class="hot" x="660" y="86" width="320" height="132" rx="6"/>
+  <text x="675" y="106" class="star">★ 四适配器按 region 装配：Auth/Pay/Push/LLM</text>
+  <text x="675" y="124" class="star">★ 离线 = 执行模式生存底线</text>
+  <text x="675" y="142" class="sm">OSM/MapTiler 瓦片 2km 走廊 ≤150MB</text>
+  <text x="675" y="160" class="sm">讲解文案离线 · 预合成音频可选 +30MB</text>
+  <text x="675" y="178" class="sm">手动编辑本地校验（Dart 移植铁律）</text>
+  <text x="675" y="196" class="sm">时区铁律：一切以行程城市时区为准</text>
+
+  <line x1="500" y1="230" x2="500" y2="258" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="515" y="250" class="link">HTTPS + WebSocket（握手鉴权 · 心跳 · seq/resume 断线补发）</text>
+
+  <!-- 接入层 -->
+  <rect class="layer" x="20" y="262" width="960" height="120" rx="10"/>
+  <text x="40" y="286" class="lbl">接入层（v1.6.1：国内区 = Phase 1 先行 ｜ 海外区 = Phase 2）</text>
+  <rect class="phase2" x="40" y="298" width="440" height="72" rx="6"/>
+  <text x="55" y="318" class="sub" font-weight="600">海外区 · AWS 新加坡 · Phase 2</text>
+  <text x="55" y="336" class="sm">邮箱验证码 + Apple 登录 · APNs · 消耗型 IAP $6.99/行程</text>
+  <text x="55" y="354" class="sm">服务端收据校验 + webhook 退款回收 · 调高德走大陆代理层（无 PII，Phase 2）</text>
+  <rect class="hot" x="520" y="298" width="440" height="72" rx="6"/>
+  <text x="535" y="318" class="sub" font-weight="600">国内区 · 阿里云 ★ Phase 1 先行（内测先行 · 上架待备案）</text>
+  <text x="535" y="336" class="sm">手机号 + 微信 · 厂商推送/友盟 · ¥39–68 订阅档位</text>
+  <text x="535" y="354" class="sm">Android 支付：微信 + 支付宝双通道（0.6%）· iOS 数字商品仅 IAP</text>
+
+  <line x1="500" y1="382" x2="500" y2="410" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="515" y="402" class="star">★ 数据驻留铁律：用户数据只落本区 · CDN 仅缓存静态资源 · 参考数据 CN 主库单向复制</text>
+
+  <!-- 后端服务层 -->
+  <rect class="layer" x="20" y="414" width="960" height="352" rx="10"/>
+  <text x="40" y="438" class="lbl">后端服务层（核心代码一套，两区同构部署）</text>
+
+  <rect class="box" x="40" y="450" width="300" height="180" rx="6"/>
+  <text x="55" y="472" class="sub" font-weight="600">Agent 编排层</text>
+  <text x="55" y="492" class="sm">渐进式规划 · 工具循环 + solve_itinerary</text>
+  <text x="55" y="510" class="sm">执行模式 Agent：三形态 · 重排一键确认</text>
+  <text x="55" y="528" class="star">★ 行动编排/转链交易中心：比价卡片组 · handoff · 退改前置 · Memory 四层（v2.4）</text>
+  <text x="55" y="546" class="sm">酒店=携程/美团 · 机票=去哪儿/美团 · 火车=12306</text>
+  <text x="55" y="564" class="sm">免费应急兜底 · 付费墙后移 30 分钟转化</text>
+  <text x="55" y="582" class="sm">上下文滚动摘要 · token 上限处理</text>
+  <text x="55" y="600" class="star">★ 权益服务：付费点全开关化（远程配置）</text>
+  <text x="55" y="618" class="sm">餐饮/票务：顺路餐厅 · 购票领券 deeplink（v1.7）</text>
+
+  <rect class="hot" x="360" y="450" width="300" height="180" rx="6"/>
+  <text x="375" y="472" class="star">★ 行程变更管线（独立域服务）</text>
+  <text x="375" y="492" class="star">铁律 0：LLM/手动/快照恢复 统一 diff+校验</text>
+  <text x="375" y="510" class="sm">硬校验铁律 1–23（纯函数，100% 单测）</text>
+  <text x="375" y="528" class="sm">节奏量化：步行≤15km · 爬升 · 游览占比≥55%</text>
+  <text x="375" y="546" class="sm">最小改动原则 · affected_items_count</text>
+  <text x="375" y="564" class="sm">自修 ≤3 次 → 降级：半成品+人工标注</text>
+  <text x="375" y="582" class="sm">快照恢复 = 受限重排（复用校验）</text>
+  <text x="375" y="600" class="star">★ 求解器：CP-SAT 排期/排序（v1.8）</text>
+
+  <rect class="box" x="680" y="450" width="300" height="180" rx="6"/>
+  <text x="695" y="472" class="sub" font-weight="600">链接解析 · 快照服务</text>
+  <text x="695" y="492" class="sm">三刀分期 · 确认卡片 · 分级报错</text>
+  <text x="695" y="510" class="star">★ 解析期 LLM 零写权限（防注入）</text>
+  <text x="695" y="528" class="sm">不可信内容 quarantine 标记 · 红队评估集</text>
+  <text x="695" y="546" class="sm">快照：不可变 · 免费3版/付费10版</text>
+  <text x="695" y="564" class="sm">active_snapshot = 执行版唯一事实源</text>
+  <text x="695" y="582" class="sm">执行中切版 = 受限重排（只动当天及之后）</text>
+
+  <!-- 快慢双车道（v1.9.1 §6.12） -->
+  <rect class="hot" x="40" y="644" width="940" height="40" rx="6"/>
+  <text x="55" y="660" class="star">★ 快慢双车道（§6.12，v1.9.1）：请求分类闸门（规则→缓存→Flash）· ≥80% 请求不触达主力模型</text>
+  <text x="55" y="678" class="sm">快车道 = 翻译（语音+拍照 · 端侧 OCR+菜单缓存，§6.10）/ 导航外壳 / 餐厅推荐 / 讲解缓存 ｜ 慢车道 = 结构重排 / 批量解析 / 讲解生成 → 异步队列+推送 ｜ 流式 TTFT：快 &lt;1s · 受理 &lt;3s</text>
+
+  <rect class="box" x="40" y="696" width="560" height="56" rx="6"/>
+  <text x="55" y="716" class="sub" font-weight="600">数据管线（02:00 UTC+8 · 合规抓取 robots.txt）</text>
+  <text x="55" y="734" class="sm">多源仲裁 · 稳定键 upsert · poi_status → 行前体检推送 · 讲解 CN 区生成（P2 起同步海外） · 缓存命中率≥90%</text>
+
+  <rect class="hot" x="620" y="696" width="360" height="66" rx="6"/>
+  <text x="635" y="713" class="star">★ LLM 接入（LiteLLM 路由）：MVP = 智谱云 GLM API（零 capex·已备案）</text>
+  <text x="635" y="730" class="sm">规模化 = 本区 GPU vLLM 自部署（GLM-4.6/Air·4.5V·Flash，量触发 W11+）</text>
+  <text x="635" y="747" class="sm">语音：MVP 端侧 OS 引擎（ASR/TTS）· 升级 = Qwen3-ASR + CosyVoice3 全本地</text>
+
+  <line x1="500" y1="766" x2="500" y2="794" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 数据层 -->
+  <rect class="layer" x="20" y="798" width="960" height="180" rx="10"/>
+  <text x="40" y="822" class="lbl">数据层（各区独立实例，schema 一套）</text>
+  <rect class="box" x="40" y="834" width="450" height="130" rx="6"/>
+  <text x="55" y="854" class="sm">users(region VARCHAR(10)) · 全表 updated_at</text>
+  <text x="55" y="874" class="sm">pois：稳定键 upsert · status · wgs84_location 副本（v1.7）</text>
+  <text x="55" y="894" class="sm">poi_hours 规则表：standard/holiday/special</text>
+  <text x="55" y="914" class="star">★ 许可隔离：高德数据与 OSM 数据物理分库（ODbL 署名）</text>
+  <text x="55" y="934" class="sm">瓦片=OSM/MapTiler（可缓存）· 高德仅 API 实时调用</text>
+  <text x="55" y="954" class="star">★ 语音翻译：音频不出区不落盘（铁律 21，v1.9）</text>
+  <rect class="box" x="510" y="834" width="470" height="130" rx="6"/>
+  <text x="525" y="854" class="sm">itineraries(working_sync_version · active_snapshot_id)</text>
+  <text x="525" y="874" class="sm">三张行程表 + snapshot_id（NULL = 工作副本）</text>
+  <text x="525" y="894" class="sm">itinerary_snapshots：不可变 · 溯源 sync_version</text>
+  <text x="525" y="914" class="star">★ execution_events 分区：轨迹敏感 · 加密 · 30 天 · 双人审批</text>
+  <text x="525" y="934" class="sm">entitlements + iap_transactions（基建前置，收费后置）</text>
+  <text x="525" y="952" class="star">★ action_handoffs：预订漏斗 + 佣金对账 + 退改快照（v1.9.4）</text>
+
+  <line x1="500" y1="978" x2="500" y2="1006" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 依赖层 -->
+  <rect class="layer" x="20" y="1010" width="960" height="184" rx="10"/>
+  <text x="40" y="1034" class="lbl">依赖层</text>
+  <rect class="hot" x="40" y="1046" width="450" height="64" rx="6"/>
+  <text x="55" y="1066" class="star">★ P0 高德：服务端代理调用（Key 永不进客户端）</text>
+  <text x="55" y="1084" class="sm">书面确认四问：商用范围 / POI 存储与双语加工 /</text>
+  <text x="55" y="1100" class="sm">瓦片禁存确认 / 海外 SLA · 用量埋点作谈判筹码</text>
+  <rect class="box" x="510" y="1046" width="470" height="64" rx="6"/>
+  <text x="525" y="1066" class="star">★ 预订渠道 deeplink（v1.9 行动编排 · 注册表配置 · 退改规则前置 v1.9.4）</text>
+  <text x="525" y="1084" class="sm">候选卡片组 2–4 渠道比价（v2.3 转链交易中心）· 佣金不入卡片 · 排序佣金权重为零</text>
+  <text x="525" y="1100" class="sm">佣金通道：CPS 转链+订单同步（无代客下单 API·铁律 22）· ACP/UCP 扩展位（代客交易合规正路）· T+30 月结</text>
+  <rect class="box" x="40" y="1118" width="940" height="68" rx="6"/>
+  <text x="55" y="1136" class="star">★ 支付（v1.9）：iOS 数字商品仅 IAP（中国区 25%/12%）· Android 微信+支付宝双通道（0.6% · 商户号需执照）</text>
+  <text x="55" y="1154" class="sm">支付宝要点：notify 8次/25h · 对账 T+1 · 退款幂等 12 个月 · Sentry + 云监控 + trace_id 贯穿 · 蓝绿发布 · 备份演练</text>
+  <text x="55" y="1172" class="star">★ 开发阶段（§9.0，v1.9.7）：M0 基座 W0-2 → M1 规划核心+翻译钩子 W3-6 → M2 执行留存+CPS 转链 W7-10 → M3 变现上架 W11+ → M4 规模化</text>
+</svg>
