@@ -69,9 +69,7 @@ def test_happy_path_returns_text_and_forwards_upstream():
 def test_missing_device_id_rejected():
     app = make_app(captured_handler({}))
     client = TestClient(app)
-    r = client.post(
-        "/api/v1/asr", files={"file": ("s.wav", b"RIFF123", "audio/wav")}
-    )
+    r = client.post("/api/v1/asr", files={"file": ("s.wav", b"RIFF123", "audio/wav")})
     assert r.status_code == 400
     assert r.json()["detail"] == "missing_device_id"
 
