@@ -64,6 +64,23 @@ def _parse_polyline(value: str | None) -> list[dict]:
     return [p for p in points if p is not None]
 
 
+def _normalize_regeo(data: dict) -> dict:
+    regeocode = data.get("regeocode")
+    reg = regeocode if isinstance(regeocode, dict) else {}
+    comp = reg.get("addressComponent")
+    comp = comp if isinstance(comp, dict) else {}
+    province = _as_str(comp.get("province"))
+    # Municipalities answer city=[] (empty list, not string); province carries it.
+    city = _as_str(comp.get("city")) or province
+    return {
+        "country": _as_str(comp.get("country")),
+        "province": province,
+        "city": city,
+        "district": _as_str(comp.get("district")),
+        "address": _as_str(reg.get("formatted_address")),
+    }
+
+
 def _normalize_poi(poi: dict) -> dict:
     city = _as_str(poi.get("cityname")) or _as_str(poi.get("pname"))
     return {
@@ -217,6 +234,16 @@ class AmapClient:
         if not isinstance(pois, list):
             return []
         return [_normalize_poi(p) for p in pois if isinstance(p, dict)]
+
+    async def regeo(self, *, lon: float, lat: float) -> dict:
+        params = {
+            "key": self._key,
+            "location": f"{lon:.6f},{lat:.6f}",
+            "output": "JSON",
+            "extensions": "base",
+        }
+        data = await self._request_json("/geocode/regeo", params)
+        return _normalize_regeo(data)
 
     async def walking_route(self, origin: str, destination: str) -> dict:
         params = {

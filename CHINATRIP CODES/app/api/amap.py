@@ -36,3 +36,22 @@ async def search_poi(
         logger.warning("amap error: infocode=%s info=%s", exc.infocode, exc)
         raise HTTPException(status_code=502, detail="amap_error") from exc
     return {"items": items, "page": page}
+
+
+@router.get("/regeo")
+async def regeo(
+    lon: float = Query(ge=-180.0, le=180.0),
+    lat: float = Query(ge=-90.0, le=90.0),
+    settings: Settings = Depends(get_settings),
+    client: AmapClient = Depends(get_amap_client),
+) -> dict:
+    if settings.amap_api_key == "":
+        raise HTTPException(status_code=503, detail="amap_not_configured")
+    try:
+        info = await client.regeo(lon=lon, lat=lat)
+    except AmapTimeoutError:
+        raise HTTPException(status_code=504, detail="amap_timeout") from None
+    except AmapError as exc:
+        logger.warning("amap error: infocode=%s info=%s", exc.infocode, exc)
+        raise HTTPException(status_code=502, detail="amap_error") from exc
+    return info

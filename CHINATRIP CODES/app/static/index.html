@@ -92,6 +92,8 @@
   }
   .btn:disabled{opacity:.55;cursor:wait}
   .btn.ghost{background:transparent;color:var(--accent)}
+  #t9nMic.rec{background:#e5484d;color:#fff;animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
   .btn.plain{background:var(--bg);border-color:var(--border);color:var(--text)}
   .btn.mini{padding:4px 10px;font-size:12px;border-radius:6px}
 
@@ -161,11 +163,29 @@
   .mk .pin{font-size:26px;line-height:1}
   .mk .lbl{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1px 6px;margin-left:2px;color:var(--text)}
   .mk.me .pin{font-size:20px}
-  #mapSearch{position:absolute;top:10px;left:10px;right:64px;z-index:20;display:flex;gap:6px}
-  #poiKeyword{flex:1;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;box-shadow:var(--shadow)}
-  #poiGo{width:40px;height:38px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow)}
+  #navPlan{
+    position:absolute;top:10px;left:10px;z-index:20;width:min(360px,calc(100% - 74px));
+    display:flex;flex-direction:column;gap:6px;padding:10px;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
+  }
+  #navCity{
+    padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);
+    color:var(--text);font-size:13px;font-family:inherit;max-width:150px;cursor:pointer;
+  }
+  .np-row{display:flex;align-items:center;gap:8px}
+  .np-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .np-dot.me{background:#188a4c}
+  .np-dot.dest{background:#c23a3a}
+  .np-row input{
+    flex:1;min-width:0;padding:8px 12px;border-radius:999px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);font-size:14px;
+  }
+  .np-btn{
+    width:34px;height:34px;border-radius:999px;border:1px solid var(--border);background:var(--bg);
+    color:var(--text);font-size:14px;cursor:pointer;flex-shrink:0;
+  }
   #poiDrop{
-    position:absolute;top:46px;left:0;right:46px;z-index:21;max-height:260px;overflow-y:auto;display:none;
+    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:21;max-height:260px;overflow-y:auto;display:none;
     background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
   }
   .poi-item{padding:9px 12px;border-bottom:1px dashed var(--border);cursor:pointer;font-size:13px}
@@ -177,7 +197,7 @@
     color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow);
   }
   #navManeuver{
-    position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:22;display:none;
+    position:absolute;top:150px;left:50%;transform:translateX(-50%);z-index:22;display:none;
     max-width:88%;background:var(--panel);border:2px solid var(--accent);border-radius:12px;
     padding:10px 16px;font-size:17px;font-weight:600;box-shadow:var(--shadow);text-align:center;
   }
@@ -285,12 +305,20 @@
             <button class="chip" data-city="北京">北京</button>
             <button class="chip" data-city="上海">上海</button>
             <button class="chip" data-city="杭州">杭州</button>
+            <button class="chip" data-city="苏州">苏州</button>
             <button class="chip" data-city="西安">西安</button>
             <button class="chip" data-city="成都">成都</button>
             <button class="chip" data-city="重庆">重庆</button>
+            <button class="chip" data-city="厦门">厦门</button>
+            <button class="chip" data-city="三亚">三亚</button>
+            <button class="chip" data-city="哈尔滨">哈尔滨</button>
           </span>
         </label>
+        <input type="text" id="planCityInput" placeholder="也可输入城市，多个用、分隔" style="width:180px">
         <span class="sep"></span>
+        <label class="fld">开始日期
+          <input type="date" id="planStartDate">
+        </label>
         <label class="fld">天数
           <span class="stepper">
             <button id="daysMinus" type="button">−</button>
@@ -328,7 +356,8 @@
           <span class="muted" id="t9nCur">当前语向：中 → 英</span>
         </div>
         <div class="composer">
-          <textarea id="t9nInput" placeholder="输入原文，回车或点发送翻译"></textarea>
+          <textarea id="t9nInput" placeholder="输入原文，或点 🎤 语音输入"></textarea>
+          <button class="btn ghost" id="t9nMic" title="语音输入（Chrome/Edge 支持）">🎤</button>
           <button class="btn" id="t9nSend">发送</button>
         </div>
       </div>
@@ -340,9 +369,18 @@
         <div id="mapTiles"></div>
         <svg id="mapSvg"></svg>
         <div id="mapMarkers"></div>
-        <div id="mapSearch">
-          <input id="poiKeyword" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false">
-          <button id="poiGo" title="搜索">🔍</button>
+        <div id="navPlan">
+          <select id="navCity" title="当前城市（定位成功后自动切换）"></select>
+          <div class="np-row">
+            <span class="np-dot me"></span>
+            <input id="originKw" value="我的位置" placeholder="起点：默认我的位置，可搜索地点改设" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="originReset" title="恢复为我的位置">↺</button>
+          </div>
+          <div class="np-row">
+            <span class="np-dot dest"></span>
+            <input id="destKw" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="poiGo" title="搜索">🔍</button>
+          </div>
           <div id="poiDrop"></div>
         </div>
         <div id="mapIcons">
@@ -700,7 +738,8 @@ function fmtMin(s) { return Math.round(Number(s) / 60); }
 function planCard(plan) {
   const box = el('<div class="card"><h4>🧳 行程 ' + esc(plan.itinerary_id) + " · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
-    box.appendChild(el('<div class="day-h">第' + d.day + " 天 · " + esc(d.base_city) + "</div>"));
+    const dt = planDateIso(d.day);
+    box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
     (d.items || []).forEach(it => {
       if (it.from_city) { // TransferItem
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>🚄 跨城 " + esc(it.from_city) + " → " + esc(it.to_city) + "（" + esc(it.mode) + "）</span></div>"));
@@ -752,6 +791,22 @@ document.querySelectorAll(".nav-item").forEach(btn => {
 
 const planCities = new Set();
 let planDays = 3;
+const PLAN = { startDate: "" };
+
+// chips 选择 ∪ 自由输入（顿号/逗号/空格分隔），去重保序
+function planCitiesAll() {
+  const extra = (document.getElementById("planCityInput").value || "")
+    .split(/[、,，;；\s]+/).map(s => s.trim()).filter(Boolean);
+  return [...new Set([...planCities, ...extra])];
+}
+// 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
+function planDateIso(n) {
+  if (!PLAN.startDate) return "";
+  const d = new Date(PLAN.startDate + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + (n - 1));
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 let planSession = null; // {session_id, state}
 
 document.querySelectorAll("#planCities .chip").forEach(c => {
@@ -774,23 +829,41 @@ function planSetSession(s) {
 }
 
 document.getElementById("planStart").onclick = (e) => busy(e.target, async () => {
-  const cities = [...planCities];
+  const cities = planCitiesAll();
   const prefs = document.getElementById("planPref").value.trim();
-  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天；偏好：" + (prefs || "无"));
-  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程…");
+  PLAN.startDate = document.getElementById("planStartDate").value || "";
+  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
+  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
     const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
     planSetSession({ session_id: body.session_id, state: body.state });
     holder.textContent = "";
-    if (body.state === "clarify") {
-      holder.appendChild(frag("<div>还需要补充一点信息：</div>" + (body.clarify || []).map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
-    } else {
-      holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
-      holder.appendChild(planCard(body.plan));
-      holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
-      const vn = violationsNode(body.violations, "硬校验提示");
-      if (vn) holder.appendChild(vn);
+    if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
+    try {
+      if (body.state === "clarify") {
+        const qs = (body.clarify || []);
+        holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+        if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+          const row = el('<div class="chips"></div>');
+          ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+            const b = el('<button class="chip">' + p + "</button>");
+            b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+            row.appendChild(b);
+          });
+          holder.appendChild(row);
+        } else {
+          holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
+        }
+      } else {
+        holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
+        holder.appendChild(planCard(body.plan));
+        holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
+        const vn = violationsNode(body.violations, "硬校验提示");
+        if (vn) holder.appendChild(vn);
+      }
+    } catch (re) {
+      console.error("plan render failed", re);
+      holder.appendChild(el('<div class="violation error">⚠ 数据已返回但渲染中断：' + esc(re && re.message || String(re)) + "（可截图反馈）</div>"));
     }
   } catch (err) {
     holder.textContent = "❌ 规划失败：" + detailText(err.detail);
@@ -815,6 +888,15 @@ async function planSend() {
     holder.textContent = "";
     if (body.state === "clarify" && body.clarify) {
       holder.appendChild(frag("<div>还需要补充信息：</div>" + body.clarify.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+      if (body.clarify.join("").indexOf("偏好") >= 0 || body.clarify.join("").indexOf("观光") >= 0) {
+        const row = el('<div class="chips"></div>');
+        ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+          const b = el('<button class="chip">' + p + "</button>");
+          b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+          row.appendChild(b);
+        });
+        holder.appendChild(row);
+      }
     } else {
       holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
       if (body.change) holder.appendChild(changeNode(body.change));
@@ -856,6 +938,30 @@ document.getElementById("t9nSwap").onclick = () => {
   const s = T9N.src; T9N.src = T9N.target; T9N.target = s; t9nRender();
 };
 t9nRender();
+
+// 语音输入：Web Speech API（平台原生，零依赖）；识别语向跟随当前源语言
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SR_LANG = { zh: "zh-CN", en: "en-US", ja: "ja-JP", ko: "ko-KR" };
+let t9nRec = null;
+document.getElementById("t9nMic").onclick = () => {
+  const mic = document.getElementById("t9nMic");
+  if (!SR) { toast("此浏览器不支持语音输入（Chrome / Edge 可用）"); return; }
+  if (t9nRec) { t9nRec.stop(); return; } // 再点一次结束
+  t9nRec = new SR();
+  t9nRec.lang = SR_LANG[T9N.src] || "zh-CN";
+  t9nRec.interimResults = true;
+  const input = document.getElementById("t9nInput");
+  const base = input.value;
+  mic.classList.add("rec");
+  t9nRec.onresult = (ev) => {
+    let s = "";
+    for (const r of ev.results) s += r[0].transcript;
+    input.value = base + s;
+  };
+  t9nRec.onend = () => { t9nRec = null; mic.classList.remove("rec"); };
+  t9nRec.onerror = (ev) => { toast("语音识别失败：" + (ev.error || "未知原因")); t9nRec = null; mic.classList.remove("rec"); };
+  try { t9nRec.start(); toast("正在聆听…说完再点 🎤 结束"); } catch (e) { t9nRec = null; mic.classList.remove("rec"); }
+};
 
 async function t9nSend() {
   const input = document.getElementById("t9nInput");
@@ -1035,7 +1141,7 @@ function initMapEvents() {
   const wrap = MAP.wrap;
   let drag = null;
   wrap.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#mapSearch,#mapIcons,#navDock,#remModal")) return;
+    if (e.target.closest("#navPlan,#mapIcons,#navDock,#remModal")) return;
     drag = { px: e.clientX, py: e.clientY, lon: MAP.lon, lat: MAP.lat, moved: false };
     wrap.setPointerCapture(e.pointerId);
     wrap.classList.replace("grab", "grabbing");
@@ -1091,15 +1197,53 @@ function oriEmoji(o) {
 const RIDE_COLORS = ["#2f6fed", "#e07b39", "#188a4c", "#8e44ad", "#c23a3a"];
 
 const NAV = {
-  me: { ...FALLBACK_POS },          // 起点 = 我的位置
+  me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设）
+  myPos: { ...FALLBACK_POS, name: "我的位置" }, // 定位/回退得到的位置，↺ 恢复用
   dest: null,                        // {name, lon, lat}（搜索点选设定）
   mode: null,
+  city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
   route: null,                       // 步行路线 {polyline, steps, distance_m, duration_s}
   lines: [],                         // SVG 线：{points, color, dash, width}
   sim: null,                         // 模拟导航句柄
 };
 
-function cityGuess(lon) { return lon >= 119 ? "上海" : "北京"; }
+/* ---- 城市下拉（POI 搜索/公交按此城市） ---- */
+
+const CITYS = [
+  ["北京",116.407,39.904],["上海",121.473,31.231],["广州",113.264,23.129],["深圳",114.058,22.543],
+  ["杭州",120.155,30.274],["成都",104.066,30.572],["重庆",106.55,29.563],["西安",108.94,34.341],
+  ["南京",118.797,32.06],["武汉",114.31,30.593],["长沙",112.94,28.23],["郑州",113.63,34.75],
+  ["天津",117.19,39.13],["苏州",120.585,31.299],["厦门",118.09,24.48],["昆明",102.83,24.88],
+  ["三亚",109.51,18.25],["桂林",110.29,25.27],
+];
+const citySel = document.getElementById("navCity");
+CITYS.forEach(([n]) => { const o = document.createElement("option"); o.value = n; o.textContent = n; citySel.appendChild(o); });
+citySel.value = NAV.city;
+citySel.onchange = () => {
+  NAV.city = citySel.value;
+  const c = CITYS.find(x => x[0] === NAV.city);
+  if (c) flyTo(c[1], c[2], 11);
+};
+function shortCity(s) { return String(s || "").replace(/(市|省)$/, ""); }
+function setCity(name, fly) {
+  if (!name) return;
+  const c = shortCity(name);
+  if (![...citySel.options].some(o => o.value === c)) {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c + "（当前）";
+    citySel.appendChild(o);
+  }
+  citySel.value = c; NAV.city = c;
+  const hit = CITYS.find(x => x[0] === c);
+  if (fly && hit) flyTo(hit[1], hit[2], 11);
+}
+async function regeoCity(lon, lat) {
+  try {
+    const b = await api("/api/v1/amap/regeo?lon=" + lon + "&lat=" + lat, undefined, "GET");
+    setCity(b.city || b.province, false);
+    toast("当前城市：" + NAV.city);
+  } catch (err) { /* 城市保持手动选择 */ }
+}
 
 function drawer(html) {
   const d = document.getElementById("navDrawer");
@@ -1130,16 +1274,37 @@ function stopSim() {
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
 }
 
-/* ---- POI 搜索（后端代理高德，设终点） ---- */
+/* ---- POI 搜索（后端代理高德；起点/终点共用结果下拉） ---- */
+
+const originKw = document.getElementById("originKw");
+const destKw = document.getElementById("destKw");
+let poiField = "dest"; // 当前搜索写入哪个字段：origin | dest
+
+function setOrigin(p) {
+  NAV.me = p;
+  placeMe();
+  originKw.value = p.name;
+  flyTo(p.lon, p.lat, Math.max(MAP.z, 13));
+  toast("起点已设：" + p.name);
+}
+function setDest(it) {
+  NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
+  destKw.value = it.name;
+  addMarker("dest", NAV.dest.lon, NAV.dest.lat,
+    '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
+  flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
+  toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+}
 
 async function poiSearch() {
-  const kw = document.getElementById("poiKeyword").value.trim();
-  if (!kw) { toast("输入关键词再搜索"); return; }
+  const isOrigin = poiField === "origin";
+  const kw = (isOrigin ? originKw : destKw).value.trim();
+  if (!kw || kw === "我的位置") { toast(isOrigin ? "起点输入地点关键词（留默认即我的位置）" : "输入终点关键词再搜索"); return; }
   const drop = document.getElementById("poiDrop");
   drop.style.display = "block";
   drop.innerHTML = '<div class="poi-item muted">搜索中…</div>';
   try {
-    const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + cityGuess(MAP.lon), undefined, "GET");
+    const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + encodeURIComponent(NAV.city), undefined, "GET");
     const items = (body.items || []).filter(i => i.location);
     if (!items.length) { drop.innerHTML = '<div class="poi-item muted">无结果（或高德未配置）</div>'; return; }
     drop.innerHTML = "";
@@ -1147,11 +1312,8 @@ async function poiSearch() {
       const row = el('<div class="poi-item"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(it.address || it.city || "") + "</span></div>");
       row.onclick = () => {
         drop.style.display = "none";
-        NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
-        addMarker("dest", NAV.dest.lon, NAV.dest.lat,
-          '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
-        flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
-        toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+        if (isOrigin) setOrigin({ name: it.name, lon: it.location.lon, lat: it.location.lat });
+        else setDest(it);
       };
       drop.appendChild(row);
     });
@@ -1159,30 +1321,42 @@ async function poiSearch() {
     drop.innerHTML = '<div class="poi-item muted">' + esc("HTTP " + (err.status || "?") + " · " + detailText(err.detail)) + "</div>";
   }
 }
-document.getElementById("poiGo").onclick = poiSearch;
-document.getElementById("poiKeyword").addEventListener("keydown", e => {
-  if (e.key === "Enter") poiSearch();
+document.getElementById("poiGo").onclick = () => { poiField = "dest"; poiSearch(); };
+originKw.addEventListener("keydown", e => {
+  if (e.key === "Enter") { poiField = "origin"; poiSearch(); }
 });
+destKw.addEventListener("keydown", e => {
+  if (e.key === "Enter") { poiField = "dest"; poiSearch(); }
+});
+document.getElementById("originReset").onclick = () => setOrigin({ ...NAV.myPos });
 document.addEventListener("pointerdown", e => {
   const drop = document.getElementById("poiDrop");
-  if (drop && drop.style.display === "block" && !e.target.closest("#mapSearch")) drop.style.display = "none";
+  if (drop && drop.style.display === "block" && !e.target.closest("#navPlan")) drop.style.display = "none";
 });
 
 /* ---- 我的位置 ---- */
 
 document.getElementById("btnLocate").onclick = () => {
   if (!navigator.geolocation) {
-    NAV.me = { ...FALLBACK_POS };
-    placeMe(); toast("浏览器不支持定位，已回退故宫坐标"); return;
+    NAV.myPos = { ...FALLBACK_POS, name: "我的位置" };
+    NAV.me = { ...NAV.myPos };
+    placeMe(); originKw.value = NAV.me.name; toast("浏览器不支持定位，已回退故宫坐标"); return;
   }
   toast("正在定位…");
   navigator.geolocation.getCurrentPosition(
     pos => {
       // 注：浏览器给 WGS-84，地图/后端是 GCJ-02；冒烟演示不做纠偏（国内偏差约几百米）
-      NAV.me = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
+      NAV.myPos = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
+      if (NAV.me.name === "我的位置") { NAV.me = { ...NAV.myPos }; originKw.value = NAV.me.name; }
       placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
+      regeoCity(pos.coords.longitude, pos.coords.latitude);
     },
-    () => { NAV.me = { ...FALLBACK_POS }; placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); toast("定位失败，已回退故宫坐标"); },
+    () => {
+      NAV.myPos = { ...FALLBACK_POS, name: "我的位置" };
+      NAV.me = { ...NAV.myPos };
+      placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); originKw.value = NAV.me.name;
+      toast("定位失败，已回退故宫坐标");
+    },
     { timeout: 8000 }
   );
 };
@@ -1190,6 +1364,7 @@ function placeMe() {
   addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(NAV.me.name) + "</span>");
 }
 placeMe(); // 初始：默认在故宫
+originKw.value = NAV.me.name;
 
 /* ---- 模式：步行 / 公交 / 打车 / 驾车 ---- */
 
@@ -1220,7 +1395,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       try { await doWalk(NAV.me); }
       catch (err) { failToast(err); drawer('<div class="muted">步行查询失败：' + esc(detailText(err.detail)) + "</div>"); }
     } else if (mode === "transit") {
-      const city = cityGuess((NAV.me.lon + NAV.dest.lon) / 2);
+      const city = NAV.city;
       try {
         const body = await api("/api/v1/nav/transit", { origin: { lon: NAV.me.lon, lat: NAV.me.lat }, destination: { lon: NAV.dest.lon, lat: NAV.dest.lat }, city });
         const plans = body.plans || [];

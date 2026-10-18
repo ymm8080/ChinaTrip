@@ -446,3 +446,91 @@ def test_transit_route_caps_at_three_plans():
         client.transit_route("121.4737,31.2305", "121.5853,31.2988", city="上海")
     )
     assert len(plans) == 3
+
+
+REGEO_BODY = {
+    "status": "1",
+    "info": "OK",
+    "infocode": "10000",
+    "regeocode": {
+        "formatted_address": "北京市东城区景山前街4号",
+        "addressComponent": {
+            "country": "中国",
+            "province": "北京市",
+            "city": [],
+            "district": "东城区",
+        },
+    },
+}
+
+
+def test_client_regeo_municipality_city_falls_back_to_province():
+    handler, captured = ok_handler(REGEO_BODY)
+    info = asyncio.run(make_client(handler).regeo(lon=116.397, lat=39.917))
+    params = captured[0].url.params
+    assert captured[0].url.path.endswith("/geocode/regeo")
+    assert params["key"] == API_KEY
+    assert params["location"] == "116.397000,39.917000"
+    assert info["city"] == "北京市"
+    assert info["province"] == "北京市"
+    assert info["district"] == "东城区"
+    assert info["address"] == "北京市东城区景山前街4号"
+    assert API_KEY not in json.dumps(info, ensure_ascii=False)
+
+
+def test_client_regeo_prefers_city_over_province():
+    body = {
+        "status": "1",
+        "info": "OK",
+        "infocode": "10000",
+        "regeocode": {
+            "formatted_address": "江苏省苏州市姑苏区",
+            "addressComponent": {
+                "country": "中国",
+                "province": "江苏省",
+                "city": "苏州市",
+                "district": [],
+            },
+        },
+    }
+    handler, _ = ok_handler(body)
+    info = asyncio.run(make_client(handler).regeo(lon=120.585, lat=31.299))
+    assert info["city"] == "苏州市"
+    assert info["province"] == "江苏省"
+    assert info["district"] is None
+
+
+def test_endpoint_regeo_success():
+    handler, _ = ok_handler(REGEO_BODY)
+    with TestClient(make_app(handler)) as client:
+        resp = client.get(
+            "/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917}
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["city"] == "北京市"
+    assert body["address"] == "北京市东城区景山前街4号"
+    assert API_KEY not in resp.text
+
+
+def test_endpoint_regeo_not_configured_returns_503():
+    with TestClient(make_app(api_key="")) as client:
+        resp = client.get(
+            "/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917}
+        )
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": "amap_not_configured"}
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"lon": 200, "lat": 39.9},
+        {"lon": 116.4, "lat": 100},
+        {"lon": 116.4},
+    ],
+)
+def test_endpoint_regeo_validation_returns_422(params):
+    with TestClient(make_app()) as client:
+        resp = client.get("/api/v1/amap/regeo", params=params)
+    assert resp.status_code == 422
