@@ -10,6 +10,7 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import DiffOp, PipelineError, PoiHours
 from app.services.itinerary_store import (
@@ -18,6 +19,11 @@ from app.services.itinerary_store import (
     ItineraryService,
     ItineraryStore,
     QuotaExceededError,
+)
+from app.services.state_persist import (
+    PersistentItineraryStore,
+    db_path_from_url,
+    get_state_backend,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["itineraries"])
@@ -46,11 +52,14 @@ _entitlement_singleton: EntitlementService | None = None
 
 
 def get_store() -> ItineraryStore:
-    """Process-wide singleton: itinerary state must survive across requests
-    (same reason the translate phrase cache is a singleton)."""
+    """Process-wide persistent singleton: itinerary state must survive
+    across requests AND across uvicorn restarts (write-through SQLite)."""
     global _store_singleton
     if _store_singleton is None:
-        _store_singleton = InMemoryItineraryStore()
+        settings = get_settings()
+        _store_singleton = PersistentItineraryStore(
+            get_state_backend(db_path_from_url(settings.state_db_url))
+        )
     return _store_singleton
 
 

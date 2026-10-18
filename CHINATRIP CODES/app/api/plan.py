@@ -22,12 +22,16 @@ from app.services.agent.plan import (
     PlanSessionStore,
     clarify_questions,
     current_violations,
-    get_plan_session_store,
 )
 from app.services.amap_client import AmapClient
 from app.services.itinerary_store import ItineraryRecord
 from app.services.llm import get_llm_adapter
 from app.services.llm.zhipu import LLMError
+from app.services.state_persist import (
+    PersistentPlanSessionStore,
+    db_path_from_url,
+    get_state_backend,
+)
 from app.services.trains import get_train_service
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
@@ -45,6 +49,7 @@ class PlanMessageRequest(BaseModel):
 
 
 _agent_singleton: PlanningAgent | None = None
+_sessions_singleton: PersistentPlanSessionStore | None = None
 
 
 def get_planning_agent(
@@ -73,7 +78,14 @@ def get_planning_agent(
 
 
 def get_plan_sessions() -> PlanSessionStore:
-    return get_plan_session_store()
+    """Process-wide persistent store: sessions survive uvicorn restarts."""
+    global _sessions_singleton
+    if _sessions_singleton is None:
+        settings = get_settings()
+        _sessions_singleton = PersistentPlanSessionStore(
+            get_state_backend(db_path_from_url(settings.state_db_url))
+        )
+    return _sessions_singleton
 
 
 def _persist_plan(device_id: str, session, store) -> None:

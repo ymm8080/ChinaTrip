@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
     train_cache_url: str = "sqlite:///data/train_cache.db"
     train_cache_ttl_hours: float = 24.0
+    # 规划会话+行程记录的写穿透落盘（app/services/state_persist.py），
+    # 重启 uvicorn 不再清空进行中会话与已存行程。
+    state_db_url: str = "sqlite:///data/h5_state.db"
 
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0
