@@ -1266,6 +1266,7 @@ const RIDE_COLORS = ["#2f6fed", "#e07b39", "#188a4c", "#8e44ad", "#c23a3a"];
 const NAV = {
   me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设）
   myPos: { ...FALLBACK_POS, name: "我的位置" }, // 定位/回退得到的位置，↺ 恢复用
+  meAuto: true,                       // 起点未手动改设 ⇒ 跟随定位（regeo 回填地址）
   dest: null,                        // {name, lon, lat}（搜索点选设定）
   mode: null,
   city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
@@ -1308,6 +1309,10 @@ async function regeoCity(lon, lat) {
     const b = await api("/api/v1/amap/regeo?lon=" + lon + "&lat=" + lat, undefined, "GET");
     setCity(b.city || b.province, false);
     toast("当前城市：" + NAV.city);
+    if (b.address && NAV.meAuto) { // 定位成功 ⇒ 起点字段回填实际地址
+      NAV.me.name = b.address; NAV.myPos.name = b.address;
+      originKw.value = b.address; placeMe();
+    }
   } catch (err) { /* 城市保持手动选择 */ }
 }
 
@@ -1354,6 +1359,7 @@ let poiField = "dest"; // 当前搜索写入哪个字段：origin | dest
 
 function setOrigin(p) {
   NAV.me = p;
+  NAV.meAuto = false; // 手动改设后不再跟随定位地址
   placeMe();
   originKw.value = p.name;
   flyTo(p.lon, p.lat, Math.max(MAP.z, 13));
@@ -1400,7 +1406,7 @@ originKw.addEventListener("keydown", e => {
 destKw.addEventListener("keydown", e => {
   if (e.key === "Enter") { poiField = "dest"; poiSearch(); }
 });
-document.getElementById("originReset").onclick = () => setOrigin({ ...NAV.myPos });
+document.getElementById("originReset").onclick = () => { setOrigin({ ...NAV.myPos }); NAV.meAuto = true; };
 document.addEventListener("pointerdown", e => {
   const drop = document.getElementById("poiDrop");
   if (drop && drop.style.display === "block" && !e.target.closest("#navPlan")) drop.style.display = "none";
@@ -1426,7 +1432,7 @@ function locateMe(silent) {
     pos => {
       // 注：浏览器给 WGS-84，地图/后端是 GCJ-02；冒烟演示不做纠偏（国内偏差约几百米）
       NAV.myPos = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
-      if (NAV.me.name === "我的位置") { NAV.me = { ...NAV.myPos }; originKw.value = NAV.me.name; }
+      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; originKw.value = NAV.me.name; }
       placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
       regeoCity(pos.coords.longitude, pos.coords.latitude);
     },
@@ -1515,6 +1521,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       try {
         const body = await api("/api/v1/nav/deeplink", { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } });
         const box = el('<div><h4>' + (m === "taxi" ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
+        box.appendChild(el('<div class="muted">起点：' + esc(NAV.me.name) + ' → 终点：' + esc(NAV.dest.name) + "</div>"));
         const row = el('<div class="row" style="gap:10px;margin:4px 0"></div>');
         const appBtn = el('<button class="btn">📲 打开高德 App</button>');
         appBtn.onclick = () => openHandoff(body.app_deeplink, body.web_fallback);
