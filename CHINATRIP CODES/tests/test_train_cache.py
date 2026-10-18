@@ -34,8 +34,7 @@ def _option(train_no: str, dep: time = time(8, 0), arr: time = time(12, 0)):
         train_no=train_no,
         dep_time=dep,
         arr_time=arr,
-        duration_minutes=(arr.hour * 60 + arr.minute)
-        - (dep.hour * 60 + dep.minute),
+        duration_minutes=(arr.hour * 60 + arr.minute) - (dep.hour * 60 + dep.minute),
         from_station="北京南",
         to_station="上海虹桥",
         from_city="北京",

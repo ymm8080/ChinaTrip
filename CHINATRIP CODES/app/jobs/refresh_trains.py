@@ -20,9 +20,7 @@ def _parse_pairs(raw: str) -> list[tuple[str, str]]:
     for chunk in raw.split(";"):
         cities = [city.strip() for city in chunk.split(",")]
         if len(cities) != 2 or not all(cities):
-            raise SystemExit(
-                f"--pairs 片段格式错误（应为 城市,城市）: {chunk!r}"
-            )
+            raise SystemExit(f"--pairs 片段格式错误（应为 城市,城市）: {chunk!r}")
         pairs.append((cities[0], cities[1]))
     return pairs
 
@@ -36,9 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         help="分号分隔 pair、逗号分隔城市（如 北京,上海;上海,杭州）；"
         "缺省=库内已有 pair ∪ mock 核心 8 对",
     )
-    parser.add_argument(
-        "--date", help="查询日期 YYYY-MM-DD；缺省=今日+3"
-    )
+    parser.add_argument("--date", help="查询日期 YYYY-MM-DD；缺省=今日+3")
     args = parser.parse_args(argv)
 
     pairs = _parse_pairs(args.pairs) if args.pairs else None

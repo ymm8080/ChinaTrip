@@ -125,9 +125,7 @@ class PersistentItineraryStore(InMemoryItineraryStore):
 
     def put(self, record: ItineraryRecord) -> None:
         super().put(record)
-        self._backend.save_itinerary(
-            record.itinerary_id, record.model_dump_json()
-        )
+        self._backend.save_itinerary(record.itinerary_id, record.model_dump_json())
 
     def delete(self, itinerary_id: str) -> bool:
         existed = super().delete(itinerary_id)

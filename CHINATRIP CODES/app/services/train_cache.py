@@ -230,7 +230,7 @@ def get_train_cache_engine(settings) -> Engine:
     if _train_cache_engine is None:
         url = settings.train_cache_url
         if url.startswith("sqlite:///"):
-            db_path = Path(url[len("sqlite:///"):])
+            db_path = Path(url[len("sqlite:///") :])
             db_path.parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
             url,

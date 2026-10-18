@@ -764,9 +764,7 @@ def test_message_edit_parse_failure_retried_then_success():
 
 def test_message_edit_parse_failure_exhausted_keeps_conversation_alive():
     # Both edit draws unparseable -> friendly in-band reply, plan untouched.
-    llm = ScriptedLLM(
-        [v0_reply(SH_HZ_ITEMS), "走神第一次", "走神第二次"]
-    )
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), "走神第一次", "走神第二次"])
     agent = PlanningAgent(llm)
     session = run(
         agent.start(

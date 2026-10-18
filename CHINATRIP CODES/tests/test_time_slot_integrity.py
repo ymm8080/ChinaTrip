@@ -41,8 +41,10 @@ DEVICE_HEADERS = {"X-Device-ID": "device-tsi"}
 def _visit(item_id, name, city, day, duration=90, start=None, pinned=False):
     end = None
     if start is not None:
-        end = time((start.hour * 60 + start.minute + duration) // 60 % 24,
-                   (start.hour * 60 + start.minute + duration) % 60)
+        end = time(
+            (start.hour * 60 + start.minute + duration) // 60 % 24,
+            (start.hour * 60 + start.minute + duration) % 60,
+        )
     return VisitItem(
         item_id=item_id,
         name=name,
@@ -76,20 +78,36 @@ def _xiamen_chongqing_plan():
         itinerary_id="it-tsi-1",
         cities=["厦门", "重庆"],
         days=[
-            DayPlan(day=1, base_city="厦门", items=[
-                _visit("v1", "鼓浪屿", "厦门", 1, 120, time(9, 0)),
-            ]),
-            DayPlan(day=2, base_city="厦门", items=[
-                _visit("v2", "南普陀寺", "厦门", 2, 90, time(9, 0)),
-            ]),
-            DayPlan(day=3, base_city="厦门", items=[
-                _visit("v3", "曾厝垵", "厦门", 3, 90),  # untimed + wrong city
-                _transfer("t1", 3, 1, "厦门", "重庆", time(9, 0), time(12, 0)),
-                _visit("v4", "洪崖洞", "重庆", 3, 120),  # untimed arrival visit
-            ]),
-            DayPlan(day=4, base_city="重庆", items=[
-                _visit("v5", "磁器口", "重庆", 4, 120, time(10, 0)),
-            ]),
+            DayPlan(
+                day=1,
+                base_city="厦门",
+                items=[
+                    _visit("v1", "鼓浪屿", "厦门", 1, 120, time(9, 0)),
+                ],
+            ),
+            DayPlan(
+                day=2,
+                base_city="厦门",
+                items=[
+                    _visit("v2", "南普陀寺", "厦门", 2, 90, time(9, 0)),
+                ],
+            ),
+            DayPlan(
+                day=3,
+                base_city="厦门",
+                items=[
+                    _visit("v3", "曾厝垵", "厦门", 3, 90),  # untimed + wrong city
+                    _transfer("t1", 3, 1, "厦门", "重庆", time(9, 0), time(12, 0)),
+                    _visit("v4", "洪崖洞", "重庆", 3, 120),  # untimed arrival visit
+                ],
+            ),
+            DayPlan(
+                day=4,
+                base_city="重庆",
+                items=[
+                    _visit("v5", "磁器口", "重庆", 4, 120, time(10, 0)),
+                ],
+            ),
         ],
     )
 
@@ -101,7 +119,8 @@ def test_untimed_visit_on_transfer_day_is_error():
     plan = _xiamen_chongqing_plan()
     report = validate_plan(plan, poi_hours=[])
     untimed_errors = [
-        v for v in report.violations
+        v
+        for v in report.violations
         if v.severity == "error" and "没有起止时间" in v.message
     ]
     assert untimed_errors, "untimed transfer-day visit must hard-fail"
@@ -164,9 +183,7 @@ def test_fallback_sequences_untimed_visits_around_transfer():
         for item in day.items:
             assert item.start_time is not None, f"{item.item_id} left untimed"
     # Arrival-city visit on the flight day must start after landing + buffer.
-    hongyadong = next(
-        i for d in plan.days for i in d.items if i.item_id == "v4"
-    )
+    hongyadong = next(i for d in plan.days for i in d.items if i.item_id == "v4")
     start_min = hongyadong.start_time.hour * 60 + hongyadong.start_time.minute
     assert start_min >= 12 * 60 + 90  # 12:00 landing + 90min iron-rule-4 buffer
     report = validate_plan(plan, poi_hours=[])
@@ -179,10 +196,20 @@ def test_fallback_sequences_untimed_visits_around_transfer():
 V0_JSON = json.dumps(
     {
         "items": [
-            {"name": "外滩", "city": "上海", "category": "sight", "day": 1,
-             "duration_minutes": 90},
-            {"name": "西湖", "city": "杭州", "category": "sight", "day": 2,
-             "duration_minutes": 120},
+            {
+                "name": "外滩",
+                "city": "上海",
+                "category": "sight",
+                "day": 1,
+                "duration_minutes": 90,
+            },
+            {
+                "name": "西湖",
+                "city": "杭州",
+                "category": "sight",
+                "day": 2,
+                "duration_minutes": 120,
+            },
         ],
         "assumptions": [],
     },
@@ -236,8 +263,11 @@ def test_plan_start_persists_itinerary_for_h5_tab():
 
 def test_plan_message_updates_working_copy_version():
     edit_json = json.dumps(
-        {"reply": "ok", "diffs": [{"op": "move", "item_id": "v1", "new_day": 2}],
-         "need_clarification": []},
+        {
+            "reply": "ok",
+            "diffs": [{"op": "move", "item_id": "v1", "new_day": 2}],
+            "need_clarification": [],
+        },
         ensure_ascii=False,
     )
     agent = PlanningAgent(StubAdapter([V0_JSON, edit_json]))

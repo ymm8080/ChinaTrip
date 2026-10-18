@@ -53,9 +53,7 @@ def test_sessions_survive_store_reinstantiation(tmp_path):
 def test_itineraries_roundtrip_and_delete_honored_on_disk(tmp_path):
     backend = _backend(tmp_path)
     store1 = PersistentItineraryStore(backend)
-    record = ItineraryRecord(
-        itinerary_id="it-p1", owner_device_id="d1", plan=_plan()
-    )
+    record = ItineraryRecord(itinerary_id="it-p1", owner_device_id="d1", plan=_plan())
     store1.put(record)
 
     store2 = PersistentItineraryStore(backend)

@@ -349,9 +349,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             s = start.hour * 60 + start.minute
             e = _item_end_minutes(item)
             has_transfer = isinstance(item, TransferItem)
-            fixed.append(
-                (s - buf, e + buf) if has_transfer else (s - 30, e + 30)
-            )
+            fixed.append((s - buf, e + buf) if has_transfer else (s - 30, e + 30))
         fixed.sort()
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None

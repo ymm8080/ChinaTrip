@@ -181,9 +181,7 @@ class CtripTrainSource:
     def __init__(self, *, timeout_seconds: float = 5.0) -> None:
         self._timeout_seconds = timeout_seconds  # 预留：真实实现接入时使用
 
-    async def fetch(
-        self, from_city: str, to_city: str, date: str
-    ) -> list[TrainOption]:
+    async def fetch(self, from_city: str, to_city: str, date: str) -> list[TrainOption]:
         raise TrainSourceError(f"ctrip source unavailable ({_CTRIP_PROBE_EVIDENCE})")
 
 
@@ -207,9 +205,7 @@ class MeituanTrainSource:
     def __init__(self, *, timeout_seconds: float = 5.0) -> None:
         self._timeout_seconds = timeout_seconds  # 预留：真实实现接入时使用
 
-    async def fetch(
-        self, from_city: str, to_city: str, date: str
-    ) -> list[TrainOption]:
+    async def fetch(self, from_city: str, to_city: str, date: str) -> list[TrainOption]:
         raise TrainSourceError(
             f"meituan source unavailable ({_MEITUAN_PROBE_EVIDENCE})"
         )
@@ -230,7 +226,7 @@ _HHMM_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 
 def _parse_hhmm(value: str) -> time | None:
-    """"07:00" -> time(7, 0)。12306 用 24:00 表次日零点，截到 23:59。"""
+    """ "07:00" -> time(7, 0)。12306 用 24:00 表次日零点，截到 23:59。"""
     match = _HHMM_RE.match(value.strip())
     if match is None:
         return None
@@ -256,7 +252,7 @@ def _redirect_hint(response: httpx.Response) -> str | None:
         return None
     c_url = payload.get("c_url")
     if isinstance(c_url, str) and c_url.startswith("leftTicket/"):
-        tail = c_url[len("leftTicket/"):].strip("/")
+        tail = c_url[len("leftTicket/") :].strip("/")
         return tail or None
     return None
 
@@ -390,9 +386,7 @@ class Train12306Source:
         self._stations: dict[str, str] | None = None
         self._active_path: str | None = None  # 记住本进程命中的查询路径
 
-    async def fetch(
-        self, from_city: str, to_city: str, date: str
-    ) -> list[TrainOption]:
+    async def fetch(self, from_city: str, to_city: str, date: str) -> list[TrainOption]:
         # 规划场景可能传空日期：班次表日内基本稳定，用 today+3 占位查询。
         query_date = date.strip() or (_date.today() + timedelta(days=3)).isoformat()
         if from_city == to_city:
@@ -477,9 +471,7 @@ class Train12306Source:
                 continue
             tried.add(path)
             try:
-                response = await client.get(
-                    f"/otn/leftTicket/{path}", params=params
-                )
+                response = await client.get(f"/otn/leftTicket/{path}", params=params)
             except httpx.TimeoutException as exc:
                 raise TrainSourceError("12306 query timed out") from exc
             if response.status_code != 200:
@@ -510,9 +502,7 @@ class RemoteTrainService(TrainService):
     这里消化，绝不穿出到规划链。
     """
 
-    def __init__(
-        self, fallback: TrainService, *, sources: list[TrainSource]
-    ) -> None:
+    def __init__(self, fallback: TrainService, *, sources: list[TrainSource]) -> None:
         self._fallback = fallback
         self._sources = tuple(sources)
         # 最近一次 search 的命中来源标记：源名 / "mock"（降级兜底）/

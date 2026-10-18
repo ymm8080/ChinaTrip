@@ -302,12 +302,26 @@ STATION_JS = (
     "@hzh|杭州|HZH|hangzhou|hzh|0|0357|10579|1|||';"
 )
 
+
 # 真实 result 行格式：下标 3=车次、6/7=站名（本行为所查区间=全程）、
 # 8/9=时刻、10=历时（HH:MM 形状，是锚定解析的干扰项）。
 def _result_row(code: str, from_st: str, to_st: str, dep: str, arr: str, lushi: str):
     return "|".join(
-        ["", "预订", "2400000" + code, code, "VAP", "AOH", from_st, to_st,
-         dep, arr, lushi, "Y"] + [""] * 8
+        [
+            "",
+            "预订",
+            "2400000" + code,
+            code,
+            "VAP",
+            "AOH",
+            from_st,
+            to_st,
+            dep,
+            arr,
+            lushi,
+            "Y",
+        ]
+        + [""] * 8
     )
 
 
@@ -376,13 +390,26 @@ def test_12306_source_parses_rows_via_station_anchor():
                     json={
                         "data": {
                             "result": [
-                                _result_row("G103", "北京北", "上海虹桥",
-                                            "06:20", "12:08", "05:48"),
-                                _result_row("D311", "北京北", "上海虹桥",
-                                            "21:15", "06:40", "09:25"),
+                                _result_row(
+                                    "G103",
+                                    "北京北",
+                                    "上海虹桥",
+                                    "06:20",
+                                    "12:08",
+                                    "05:48",
+                                ),
+                                _result_row(
+                                    "D311",
+                                    "北京北",
+                                    "上海虹桥",
+                                    "21:15",
+                                    "06:40",
+                                    "09:25",
+                                ),
                                 # 历时字段形状的干扰：锚不到相邻时刻对的行被跳过
-                                _result_row("X99", "天津", "南京",
-                                            "01:00", "02:00", "01:00"),
+                                _result_row(
+                                    "X99", "天津", "南京", "01:00", "02:00", "01:00"
+                                ),
                             ]
                         }
                     },
@@ -398,7 +425,9 @@ def test_12306_source_parses_rows_via_station_anchor():
     assert [o.train_no for o in options] == ["G103", "D311"]  # 按出发时刻排序
     g103, d311 = options
     assert (g103.dep_time, g103.arr_time, g103.duration_minutes) == (
-        time(6, 20), time(12, 8), 348,
+        time(6, 20),
+        time(12, 8),
+        348,
     )
     assert d311.duration_minutes == 565  # 21:15->06:40 跨零点补 24h
     assert g103.from_station == "北京北" and g103.to_station == "上海虹桥"
@@ -420,9 +449,15 @@ def test_12306_source_follows_c_url_redirect_hint():
             if request.url.path.endswith("/queryG"):
                 return httpx.Response(
                     200,
-                    json={"data": {"result": [
-                        _result_row("G1", "北京", "上海", "07:00", "11:30", "04:30")
-                    ]}},
+                    json={
+                        "data": {
+                            "result": [
+                                _result_row(
+                                    "G1", "北京", "上海", "07:00", "11:30", "04:30"
+                                )
+                            ]
+                        }
+                    },
                 )
             return httpx.Response(403, text="forbidden")
         return _station_ok(request)
@@ -459,14 +494,22 @@ def test_remote_service_falls_back_to_mock_on_empty_or_unanchorable():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.startswith("/otn/leftTicket/query"):
             params = request.url.params
-            if (params.get("leftTicketDTO.from_station"),
-                    params.get("leftTicketDTO.to_station")) == ("BJP", "SHH"):
+            if (
+                params.get("leftTicketDTO.from_station"),
+                params.get("leftTicketDTO.to_station"),
+            ) == ("BJP", "SHH"):
                 # 行内只有全程站名（天津->南京），锚不到 北京/上海
                 return httpx.Response(
                     200,
-                    json={"data": {"result": [
-                        _result_row("K21", "天津", "南京", "08:00", "19:00", "11:00")
-                    ]}},
+                    json={
+                        "data": {
+                            "result": [
+                                _result_row(
+                                    "K21", "天津", "南京", "08:00", "19:00", "11:00"
+                                )
+                            ]
+                        }
+                    },
                 )
             return httpx.Response(200, json={"data": {"result": []}})
         return _station_ok(request)
@@ -510,11 +553,19 @@ def test_source_chain_first_with_trains_wins_and_short_circuits():
     empty = _stub_source("empty", options=[])
     ok = _stub_source(
         "ok",
-        options=[TrainOption(
-            train_no="G999", dep_time=time(8, 0), arr_time=time(12, 0),
-            duration_minutes=240, from_station="北京南", to_station="上海虹桥",
-            from_city="北京", to_city="上海", date=DATE,
-        )],
+        options=[
+            TrainOption(
+                train_no="G999",
+                dep_time=time(8, 0),
+                arr_time=time(12, 0),
+                duration_minutes=240,
+                from_station="北京南",
+                to_station="上海虹桥",
+                from_city="北京",
+                to_city="上海",
+                date=DATE,
+            )
+        ],
     )
     never = _stub_source("never", options=[])
     service = RemoteTrainService(MockTrainService(), sources=[empty, ok, never])
@@ -527,11 +578,19 @@ def test_source_chain_skips_failing_sources():
     broken = _stub_source("broken", error=TrainSourceError("probe blocked"))
     ok = _stub_source(
         "ok",
-        options=[TrainOption(
-            train_no="T11", dep_time=time(9, 0), arr_time=time(23, 0),
-            duration_minutes=840, from_station="北京", to_station="上海",
-            from_city="北京", to_city="上海", date=DATE,
-        )],
+        options=[
+            TrainOption(
+                train_no="T11",
+                dep_time=time(9, 0),
+                arr_time=time(23, 0),
+                duration_minutes=840,
+                from_station="北京",
+                to_station="上海",
+                from_city="北京",
+                to_city="上海",
+                date=DATE,
+            )
+        ],
     )
     service = RemoteTrainService(MockTrainService(), sources=[broken, ok])
     options = asyncio.run(service.search("北京", "上海", DATE))
@@ -554,11 +613,19 @@ def test_ctrip_and_meituan_are_placeholder_providers():
 
     ok = _stub_source(
         "12306-stub",
-        options=[TrainOption(
-            train_no="G7", dep_time=time(10, 0), arr_time=time(14, 30),
-            duration_minutes=270, from_station="北京南", to_station="上海虹桥",
-            from_city="北京", to_city="上海", date=DATE,
-        )],
+        options=[
+            TrainOption(
+                train_no="G7",
+                dep_time=time(10, 0),
+                arr_time=time(14, 30),
+                duration_minutes=270,
+                from_station="北京南",
+                to_station="上海虹桥",
+                from_city="北京",
+                to_city="上海",
+                date=DATE,
+            )
+        ],
     )
     service = RemoteTrainService(
         MockTrainService(),

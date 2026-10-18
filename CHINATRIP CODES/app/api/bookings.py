@@ -47,7 +47,9 @@ async def train(
 ) -> dict:
     try:
         return await train_booking(
-            req.from_city, req.to_city, req.date,
+            req.from_city,
+            req.to_city,
+            req.date,
             train_service=get_train_service(settings),
         )
     except ValueError as exc:
