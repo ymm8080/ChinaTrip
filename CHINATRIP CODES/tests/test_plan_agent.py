@@ -196,9 +196,7 @@ def test_start_complete_without_preferences_asks_preference():
     assert session.clarify_count == 1
     assert session.pref_asked is True
     questions = clarify_questions(session)
-    assert any(
-        ("偏好" in q or "观光" in q) and "无特别要求" in q for q in questions
-    )
+    assert any(("偏好" in q or "观光" in q) and "无特别要求" in q for q in questions)
     assert any("博物馆人文" in q and "慢慢逛" in q for q in questions)
 
 

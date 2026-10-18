@@ -341,9 +341,7 @@ class PlanningAgent:
             session.state = "clarify"
             session.clarify_count = 1
             session.pref_asked = True
-            session.history.append(
-                ChatMessage(role="assistant", content=PREF_QUESTION)
-            )
+            session.history.append(ChatMessage(role="assistant", content=PREF_QUESTION))
             return session
         return await self._generate_v0(session)
 

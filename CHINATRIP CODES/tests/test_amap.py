@@ -503,9 +503,7 @@ def test_client_regeo_prefers_city_over_province():
 def test_endpoint_regeo_success():
     handler, _ = ok_handler(REGEO_BODY)
     with TestClient(make_app(handler)) as client:
-        resp = client.get(
-            "/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917}
-        )
+        resp = client.get("/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917})
     assert resp.status_code == 200
     body = resp.json()
     assert body["city"] == "北京市"
@@ -515,9 +513,7 @@ def test_endpoint_regeo_success():
 
 def test_endpoint_regeo_not_configured_returns_503():
     with TestClient(make_app(api_key="")) as client:
-        resp = client.get(
-            "/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917}
-        )
+        resp = client.get("/api/v1/amap/regeo", params={"lon": 116.397, "lat": 39.917})
     assert resp.status_code == 503
     assert resp.json() == {"detail": "amap_not_configured"}
 
