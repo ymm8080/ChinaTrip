@@ -196,13 +196,6 @@
     width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
     color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow);
   }
-  #navManeuver{
-    position:absolute;top:150px;left:50%;transform:translateX(-50%);z-index:22;display:none;
-    max-width:88%;background:var(--panel);border:2px solid var(--accent);border-radius:12px;
-    padding:10px 16px;font-size:17px;font-weight:600;box-shadow:var(--shadow);text-align:center;
-  }
-  #navManeuver .ico{font-size:26px;margin-right:6px}
-  #navManeuver .sub{font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
   #navDock{position:absolute;left:0;right:0;bottom:0;z-index:24;display:flex;flex-direction:column}
   #navDrawer{
     display:none;max-height:42vh;overflow-y:auto;background:var(--panel);
@@ -389,7 +382,6 @@
           <button id="btnZoomOut" title="缩小">－</button>
           <button id="btnRemind" title="火车/航班提醒">⏰</button>
         </div>
-        <div id="navManeuver"></div>
         <div id="navDock">
           <div id="navDrawer"></div>
           <div id="modeBar">
@@ -397,8 +389,6 @@
             <button data-mode="transit">🚇 公交</button>
             <button data-mode="taxi">🚕 打车</button>
             <button data-mode="driving">🚗 驾车</button>
-            <button id="btnSimulate" title="沿步行路线模拟前进并语音播报">▶️ 模拟导航</button>
-            <button id="btnOffRoute" title="人为偏移 50 米并重新规划步行路线">🔀 偏航演示</button>
           </div>
         </div>
         <div id="remModal">
@@ -949,8 +939,11 @@ document.getElementById("t9nMic").onclick = () => {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     toast("此浏览器不支持语音输入"); return;
   }
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+  navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  }).then(async stream => {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} } // 自动播放策略：挂起态不触发采集
     const src = ctx.createMediaStreamSource(stream);
     const node = ctx.createScriptProcessor(4096, 1, 1);
     const zero = ctx.createGain(); zero.gain.value = 0; // 防 回声：不外放，仅驱动采集
@@ -972,6 +965,11 @@ async function t9nStop() {
   const rate = rec.ctx.sampleRate;
   try { await rec.ctx.close(); } catch (e) {}
   if (!rec.chunks.length) { toast("没有采集到音频"); return; }
+  let n = 0, peak = 0;
+  for (const c of rec.chunks) { n += c.length; for (let i = 0; i < c.length; i++) { const a = Math.abs(c[i]); if (a > peak) peak = a; } }
+  const dur = n / rate;
+  if (dur < 0.5) { toast("录音太短（" + dur.toFixed(1) + "s），请说完再点结束"); return; }
+  if (peak < 0.006) { toast("麦克风没有声音：请检查系统静音 / Windows 设置→隐私→麦克风→允许桌面应用"); return; }
   const wav = t9nWav(rec.chunks, rate);
   toast("识别中…");
   try {
@@ -982,7 +980,7 @@ async function t9nStop() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "http_" + res.status);
     const text = (body.text || "").trim();
-    if (!text) { toast("没有识别到内容，请再试一次"); return; }
+    if (!text) { toast("没有识别到内容（录了 " + dur.toFixed(1) + "s），请靠近麦克风、稍大声再试"); return; }
     document.getElementById("t9nInput").value = rec.base + text;
   } catch (err) { toast("语音识别失败：" + (err.message || err)); }
 }
@@ -1244,7 +1242,6 @@ const NAV = {
   city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
   route: null,                       // 步行路线 {polyline, steps, distance_m, duration_s}
   lines: [],                         // SVG 线：{points, color, dash, width}
-  sim: null,                         // 模拟导航句柄
 };
 
 /* ---- 城市下拉（POI 搜索/公交按此城市） ---- */
@@ -1306,12 +1303,18 @@ function drawLine(points, color, dash) {
   renderOverlays();
 }
 function clearLines() { NAV.lines = []; renderOverlays(); }
-function stopSim() {
-  if (NAV.sim) { clearInterval(NAV.sim.t); NAV.sim = null; }
-  document.getElementById("navManeuver").style.display = "none";
-  const b = document.getElementById("btnSimulate");
-  b.textContent = "▶️ 模拟导航";
-  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+/* 高德 handoff：手机先唤 App（amapuri://），2 秒仍在本页=未装 App，自动落网页版；桌面直接网页版 */
+function openHandoff(deeplink, web) {
+  if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) { window.open(web, "_blank", "noopener"); return; }
+  let left = false;
+  const mark = () => { left = true; };
+  document.addEventListener("visibilitychange", mark, { once: true });
+  window.addEventListener("pagehide", mark, { once: true });
+  location.href = deeplink;
+  setTimeout(() => {
+    document.removeEventListener("visibilitychange", mark);
+    if (!left) window.open(web, "_blank", "noopener");
+  }, 2000);
 }
 
 /* ---- POI 搜索（后端代理高德；起点/终点共用结果下拉） ---- */
@@ -1437,7 +1440,6 @@ async function doWalk(origin, note) {
 
 document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
   btn.onclick = () => busy(btn, async () => {
-    stopSim();
     const mode = btn.dataset.mode;
     setMode(mode);
     if (!requireDest()) return;
@@ -1485,7 +1487,9 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
         const body = await api("/api/v1/nav/deeplink", { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } });
         const box = el('<div><h4>' + (m === "taxi" ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
         const row = el('<div class="row" style="gap:10px;margin:4px 0"></div>');
-        row.appendChild(el('<a class="btn" style="text-decoration:none;display:inline-block" href="' + esc(body.app_deeplink) + '">📲 打开高德 App</a>'));
+        const appBtn = el('<button class="btn">📲 打开高德 App</button>');
+        appBtn.onclick = () => openHandoff(body.app_deeplink, body.web_fallback);
+        row.appendChild(appBtn);
         row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">🌐 网页版</a>'));
         box.appendChild(row);
         if (body.ios_alternative) {
@@ -1496,80 +1500,6 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       } catch (err) { failToast(err); }
     }
   });
-});
-
-/* ---- 模拟导航：定位点沿 polyline 前进 + 语音播报 ---- */
-
-document.getElementById("btnSimulate").onclick = (e) => {
-  if (NAV.sim) { stopSim(); return; }
-  if (!NAV.route || !NAV.route.polyline.length) { toast("先查一条步行路线（🚶），再模拟导航"); return; }
-  const pts = NAV.route.polyline;
-  const steps = NAV.route.steps || [];
-  // 每步累计距离 → 找当前位置落在哪一步
-  const stepCut = [];
-  let acc = 0;
-  steps.forEach(s => { acc += (s.distance_m || 0); stepCut.push(acc); });
-  let i = 0, curStep = -1;
-  const man = document.getElementById("navManeuver");
-  man.style.display = "block";
-  e.target.textContent = "⏹️ 停止模拟";
-  const speak = (text) => {
-    try {
-      if (!window.speechSynthesis) return;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "zh-CN";
-      speechSynthesis.speak(u);
-    } catch (err) { /* TTS 不可用则静默 */ }
-  };
-  NAV.sim = { t: setInterval(() => {
-    i += 2; // 每帧推进 2 个折线点（约 20-40 米）
-    if (i >= pts.length) {
-      setMarkerPos("me", pts[pts.length - 1].lon, pts[pts.length - 1].lat);
-      stopSim();
-      man.style.display = "block";
-      man.innerHTML = '<span class="ico">🏁</span>已到达终点<span class="sub">' + esc(NAV.dest.name) + "</span>";
-      speak("已到达终点");
-      toast("模拟导航结束：已到达 " + NAV.dest.name);
-      return;
-    }
-    const p = pts[i];
-    setMarkerPos("me", p.lon, p.lat);
-    // 已走距离（近似按点序比例 × 总距离）
-    const gone = NAV.route.distance_m * (i / pts.length);
-    let si = 0;
-    while (si < stepCut.length - 1 && gone > stepCut[si]) si++;
-    if (si !== curStep) {
-      curStep = si;
-      const s = steps[si];
-      document.querySelectorAll(".nstep").forEach(n => n.classList.remove("cur"));
-      const node = document.getElementById("nstep-" + si);
-      if (node) { node.classList.add("cur"); node.scrollIntoView({ block: "nearest" }); }
-      if (s) {
-        man.innerHTML = '<span class="ico">' + oriEmoji(s.orientation) + "</span>" + esc(s.instruction) +
-          '<span class="sub">第 ' + (si + 1) + "/" + steps.length + " 步 · " + (s.distance_m || 0) + " 米</span>";
-        speak(s.instruction);
-      }
-    }
-  }, 120) };
-};
-
-/* ---- 偏航演示：偏移 50 米重调步行 ---- */
-
-document.getElementById("btnOffRoute").onclick = (e) => busy(e.target, async () => {
-  if (!requireDest()) return;
-  // 50 米 ≈ 0.00045 纬度（按北京纬度再折算经度）
-  const off = {
-    lon: NAV.me.lon + 0.00045 / Math.cos(NAV.me.lat * Math.PI / 180),
-    lat: NAV.me.lat + 0.00045,
-    name: NAV.me.name,
-  };
-  NAV.me = off;
-  placeMe();
-  setMode("walk");
-  try {
-    await doWalk(off, "🔀 偏航后重新规划");
-    toast("已模拟偏航 50 米并重新规划步行路线");
-  } catch (err) { failToast(err); }
 });
 
 /* ---- 火车/航班提醒（右上角 ⏰） ---- */
