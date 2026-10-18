@@ -226,6 +226,15 @@
   #bkConfirm .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,420px);box-shadow:var(--shadow)}
   #bkConfirm h4{margin:0 0 8px}
 
+  /* ---------- 行程中心 / 个人主页 / 订单回填 ---------- */
+  .zone{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow)}
+  .zone h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
+  .tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg);font-size:13px}
+  .tile .ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
+  .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
+  .sug{opacity:.65}
+
   /* 窄屏：左栏折叠为顶部横条 */
   @media (max-width:760px){
     #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
@@ -255,7 +264,9 @@
       <button class="nav-item" data-tab="t9n">🔤 翻译</button>
       <button class="nav-item" data-tab="nav">🧭 导航</button>
       <button class="nav-item" data-tab="itin">🗓 行程</button>
+      <button class="nav-item" data-tab="trips">🗂 行程中心</button>
       <button class="nav-item" data-tab="book">🎫 预订</button>
+      <button class="nav-item" data-tab="me">👤 个人主页</button>
     </nav>
     <div class="side-foot">
       <label>API 地址<input id="apiBase" spellcheck="false"></label>
@@ -391,6 +402,105 @@
       <div class="flow" id="flow-itin"></div>
     </section>
 
+    <!-- ============ 行程中心（trip-items 三态看板，铁律 0：手动/对话/粘贴同一张表） ============ -->
+    <section class="tab" id="tab-trips">
+      <div class="toolbar">
+        <label class="fld">行程ID过滤 <input type="text" id="tcItinId" placeholder="可选"></label>
+        <span class="sep"></span>
+        <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
+        <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
+        <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
+        <button class="btn" id="tcAdd">➕ 加心愿</button>
+        <span class="sep"></span>
+        <button class="btn plain" id="tcRefresh">🔄 刷新看板</button>
+      </div>
+      <div class="muted" style="margin:0 2px 8px">手动 / 对话 / 粘贴写入同一张 trip-items 表（铁律 0）；状态流：wishlist → scheduled（需第几天）→ booked（需订单号），回 wishlist = 撤销并清排期。</div>
+      <div class="flow" id="flow-trips"></div>
+    </section>
+
+    <!-- ============ 个人主页（画像 / 蒸馏试验台 / 链接历史） ============ -->
+    <section class="tab" id="tab-me">
+      <div class="flow" id="flow-me">
+        <div class="zone">
+          <h4>👤 个人画像 <span class="muted" id="prUpdatedAt" style="font-weight:400"></span></h4>
+          <div class="row" style="flex-wrap:wrap;gap:10px">
+            <label class="fld">预算档
+              <select id="prBudget">
+                <option value="">（未设）</option>
+                <option value="economy">经济</option>
+                <option value="comfort">舒适</option>
+                <option value="luxury">豪华</option>
+              </select>
+            </label>
+            <label class="fld">同行
+              <select id="prComp">
+                <option value="">（未设）</option>
+                <option value="solo">独自</option>
+                <option value="couple">情侣</option>
+                <option value="family">家庭</option>
+                <option value="group">团体</option>
+              </select>
+            </label>
+            <label class="fld">体力
+              <select id="prStamina">
+                <option value="">（未设）</option>
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+          </div>
+          <div class="row" style="margin-top:8px;align-items:flex-start;flex-wrap:wrap;gap:10px">
+            <label class="fld">旅行风格
+              <span style="display:inline-flex;gap:6px;align-items:center">
+                <input type="text" id="prStyleIn" placeholder="如：博物馆">
+                <button class="btn mini plain" id="prStyleAdd">＋</button>
+              </span>
+            </label>
+            <div class="chips" id="prStyleChips"></div>
+            <label class="fld">饮食限制
+              <span style="display:inline-flex;gap:6px;align-items:center">
+                <input type="text" id="prDietIn" placeholder="如：不吃辣">
+                <button class="btn mini plain" id="prDietAdd">＋</button>
+              </span>
+            </label>
+            <div class="chips" id="prDietChips"></div>
+          </div>
+          <div style="margin-top:8px"><b style="font-size:13px">📝 备注（只读）</b><div id="prNotes" class="muted"></div></div>
+          <div style="margin-top:8px"><button class="btn" id="prSave">💾 保存画像（PUT）</button></div>
+        </div>
+
+        <div class="zone">
+          <h4>🧪 蒸馏试验台</h4>
+          <div class="muted">手改过的字段蒸馏不覆盖；confidence &lt; 0.8 只进建议区不落库。</div>
+          <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
+            <label class="fld">key <input type="text" id="dsKey" placeholder="budget_level"></label>
+            <label class="fld grow">value <input type="text" id="dsValue" class="grow" placeholder="comfort"></label>
+            <label class="fld">confidence <input type="number" id="dsConf" min="0" max="1" step="0.05" value="0.9"></label>
+            <label class="fld">provenance <input type="text" id="dsProv" placeholder="chat"></label>
+            <button class="btn" id="dsGo">🧪 蒸馏</button>
+          </div>
+          <div id="dsOut" style="margin-top:8px"></div>
+        </div>
+
+        <div class="zone">
+          <h4>🔗 链接历史</h4>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <label class="fld grow">URL <input type="text" id="lkUrl" class="grow" placeholder="http/https 链接"></label>
+            <label class="fld">来源
+              <select id="lkSource">
+                <option value="user_paste">user_paste</option>
+                <option value="agent_recommend">agent_recommend</option>
+              </select>
+            </label>
+            <button class="btn" id="lkAdd">➕ 添加</button>
+            <button class="btn plain" id="lkRefresh">🔄 刷新</button>
+          </div>
+          <div id="lkList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ 预订（铁律 22 handoff / 铁律 23 退改摘要先行） ============ -->
     <section class="tab" id="tab-book">
       <div class="toolbar">
@@ -436,6 +546,27 @@
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
+      </div>
+
+      <!-- 📋 订单回填（跳转埋点闭环，状态机 opened→user_confirmed→alliance_verified→settled） -->
+      <div id="bkBackfill" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;flex-shrink:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b>📋 订单回填</b>
+          <button class="btn mini plain" id="bfRefresh">🔄 刷新跳转记录</button>
+          <button class="btn mini ghost" id="bfAlliance">🤝 联盟同步演示</button>
+          <span class="muted">状态机：opened → user_confirmed → alliance_verified → settled（returned 退款逆向）</span>
+        </div>
+        <div id="bfList" style="max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+        <div class="toolbar" id="bfOps" style="display:none;margin:8px 0 0">
+          <label class="fld grow">订单短信原文
+            <textarea id="bfPaste" rows="2" class="grow" placeholder="粘贴确认短信，如：您已购票 G101 北京南→上海虹桥 订单号 E123456789 票款 553 元"></textarea>
+          </label>
+          <button class="btn mini" id="bfParse">🧾 解析回填</button>
+          <span class="sep"></span>
+          <label class="fld">手动订单号 <input type="text" id="bfOrderRef" placeholder="E123456789"></label>
+          <button class="btn mini plain" id="bfManual">✍️ 手动标记</button>
+        </div>
+        <div id="bfOut" style="margin-top:6px"></div>
       </div>
 
       <!-- 铁律 23：跳转渠道前必须展示退改摘要全文 -->
@@ -1412,21 +1543,30 @@ function bkErrMsg(err) {
 /* ---- 铁律 23：跳转渠道前弹退改摘要全文；无 refund_policy 一律禁止跳转 ---- */
 
 let bkPendingUrl = null;
-function bkConfirmOpen(channel, url, refund) {
-  if (!refund || !refund.summary) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
+let bkPendingAction = null; // {action_type, channel, url, refund_summary}：铁律 22 跳转埋点
+function bkConfirmOpen(channel, url, refund, actionType) {
+  const summ = refund && refund.summary ? refund.summary : (typeof refund === "string" ? refund : "");
+  if (!summ) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
   bkPendingUrl = url;
-  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + channel + " 前，请先阅读退改政策";
-  document.getElementById("bkConfirmSummary").textContent = refund.summary; // 全文，textContent 防注入
+  bkPendingAction = actionType ? { action_type: actionType, channel: channel, url: url, refund_summary: summ } : null;
+  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + (BK_CHANNEL[channel] || channel) + " 前，请先阅读退改政策";
+  document.getElementById("bkConfirmSummary").textContent = summ; // 全文，textContent 防注入
   document.getElementById("bkConfirmUrl").textContent = "即将打开：" + url;
   document.getElementById("bkConfirm").style.display = "flex";
 }
 function bkConfirmClose() {
   document.getElementById("bkConfirm").style.display = "none";
   bkPendingUrl = null;
+  bkPendingAction = null;
 }
 document.getElementById("bkGo").onclick = () => {
   const u = bkPendingUrl;
+  const act = bkPendingAction;
   bkConfirmClose();
+  if (act) {
+    // 铁律 22：先埋点 backfill/handoffs 再跳转；埋点尽力而为，失败不打断跳转
+    api("/api/v1/backfill/handoffs", act).then(bfLoadQuiet).catch(() => {});
+  }
   if (u) window.open(u, "_blank");
 };
 document.getElementById("bkCancel").onclick = bkConfirmClose;
@@ -1436,8 +1576,8 @@ document.getElementById("bkConfirm").addEventListener("pointerdown", e => {
 
 const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团" };
 
-// 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）
-function bkChannelBtn(channel, url, refund, primary, label) {
+// 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）；actionType → 铁律 22 埋点
+function bkChannelBtn(channel, url, refund, primary, label, actionType) {
   const b = el('<button class="btn mini' + (primary ? "" : " ghost") + '"></button>');
   b.textContent = label || ("↗️ 前往 " + (BK_CHANNEL[channel] || channel) + (primary ? "（主）" : "（备）"));
   if (!url) { b.disabled = true; b.title = "渠道未返回链接"; return b; }
@@ -1446,23 +1586,62 @@ function bkChannelBtn(channel, url, refund, primary, label) {
     b.title = "响应缺少退改签摘要（铁律 23），禁止跳转";
     return b;
   }
-  b.onclick = () => bkConfirmOpen(BK_CHANNEL[channel] || channel, url, refund);
+  b.onclick = () => bkConfirmOpen(channel, url, refund, actionType);
   return b;
 }
 
-// handoff 卡片：主渠道 + （火车）App 唤起 + 兜底渠道；URL 全部来自后端，前端不拼
-function bkHandoffRow(body) {
-  const h = body.handoff || {};
-  const refund = body.refund_policy;
-  const box = el('<div class="card"><h4>🔗 渠道跳转（handoff，不代下单）</h4></div>');
-  const row = el('<div class="row" style="flex-wrap:wrap;gap:8px"></div>');
-  row.appendChild(bkChannelBtn(h.channel, h.url, refund, true));
-  if (h.app_scheme) row.appendChild(bkChannelBtn(h.channel, h.app_scheme, refund, false, "📲 唤起 12306 App"));
-  if (h.fallback && h.fallback.url) row.appendChild(bkChannelBtn(h.fallback.channel, h.fallback.url, refund, false));
-  box.appendChild(row);
-  if (!refund || !refund.summary) {
-    box.appendChild(el('<div class="violation error">响应缺少退改签摘要（refund_policy）：按铁律 23，渠道跳转已禁用。</div>'));
+/* ---- 转链交易中心卡片组（/api/v1/offers/cards，铁律 22/23 流程不变） ---- */
+
+function bkPriceText(card) {
+  const v = Number(card.price_yuan);
+  return "¥" + (Number.isInteger(v) ? v : v.toFixed(1));
+}
+
+// 单张渠道卡：渠道名 + 价格/tag + 退改摘要 + 前往预订（过铁律 23 浮层）
+function bkOfferCard(card, kind, primary, sameGroup) {
+  const chan = BK_CHANNEL[card.channel] || card.channel;
+  const box = el(primary ? '<div class="tile" style="border-color:var(--accent);border-width:2px"></div>' : '<div class="tile"></div>');
+  const head = el('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>');
+  head.appendChild(el('<b style="font-size:' + (primary ? "15px" : "13px") + '">' + esc(chan) + "</b>"));
+  if (card.unified_price) {
+    head.appendChild(el('<span class="badge ok">全国统一价</span>')); // 12306：不显示价格
+  } else if (card.price_yuan != null) {
+    head.appendChild(el('<b style="font-size:' + (primary ? "17px" : "14px") + '">' + bkPriceText(card) + "</b>"));
+  } else {
+    head.appendChild(el('<span class="badge">价格未知</span>'));
   }
+  const tag = card.tag || (sameGroup && sameGroup.indexOf(card.channel) >= 0 ? "同价" : null);
+  if (tag && tag !== "全国统一价") head.appendChild(el('<span class="badge warn">' + esc(tag) + "</span>"));
+  box.appendChild(head);
+  box.appendChild(el('<div class="muted" style="margin:4px 0">退改：' + esc(card.refund_summary || "（无摘要）") + "</div>"));
+  const url = card.url || card.fallback_url;
+  const btn = bkChannelBtn(card.channel, url, { summary: card.refund_summary }, primary,
+    "↗️ 前往预订" + (primary ? "（主推）" : ""), kind);
+  box.appendChild(btn);
+  return box;
+}
+
+// 卡片组：disclaimer 大字 → 主推大卡 → 折叠全部渠道 → 说明
+function bkOffersCards(body) {
+  const kind = body.kind;
+  const box = el('<div class="card"><h4>🛒 转链交易中心 · ' +
+    ({ train: "🚄 火车票", flight: "✈️ 机票", hotel: "🏨 酒店" }[kind] || esc(kind)) + "</h4></div>");
+  if (body.disclaimer) {
+    box.appendChild(el('<div class="violation warning" style="font-size:15px">' + esc(body.disclaimer) + "</div>"));
+  }
+  const sg = body.same_price_group || [];
+  const cards = body.cards || [];
+  const prim = body.primary;
+  if (prim) box.appendChild(bkOfferCard(prim, kind, true, sg));
+  const rest = prim ? cards.filter(c => c.channel !== prim.channel) : cards;
+  if (rest.length) {
+    const det = el('<details' + (prim ? "" : " open") + '><summary>展开全部 ' + cards.length + " 渠道</summary></details>");
+    const wrap = el('<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>');
+    rest.forEach(c => wrap.appendChild(bkOfferCard(c, kind, false, sg)));
+    det.appendChild(wrap);
+    box.appendChild(det);
+  }
+  box.appendChild(el('<div class="muted">比价为 mock 数据仅供展示；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转。</div>'));
   return box;
 }
 
@@ -1485,22 +1664,12 @@ async function bkTrainSearch() {
   const to = document.getElementById("bkTrainTo").value.trim();
   const date = document.getElementById("bkTrainDate").value;
   if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-train", "user", "🚄 查火车票：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-train", "sys", "⏳ 查询班次…");
+  addMsg("flow-book-train", "user", "🚄 火车票转链：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-train", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/train", { from_city: from, to_city: to, date });
+    const body = await api("/api/v1/offers/cards", { kind: "train", from_city: from, to_city: to, date });
     holder.textContent = "";
-    const trains = body.trains || [];
-    if (trains.length) {
-      const list = el('<div class="card"><h4>🚄 班次 ' + trains.length + " 个</h4></div>");
-      trains.forEach(t => list.appendChild(el('<div class="row"><span class="t">' + fmtTime(t.dep_time) + "</span><span><b>" +
-        esc(t.train_no) + "</b> " + esc(t.from_station) + " → " + esc(t.to_station) + " · " + fmtTime(t.arr_time) +
-        "到 · " + (t.duration_minutes || "?") + " 分钟</span></div>")));
-      holder.appendChild(list);
-    } else {
-      holder.appendChild(el('<div class="card">未查到班次（该城市对暂未覆盖静态时刻表），可直接前往 12306。</div>'));
-    }
-    holder.appendChild(bkHandoffRow(body));
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1516,14 +1685,12 @@ async function bkFlightSearch() {
   const to = document.getElementById("bkFlightTo").value.trim();
   const date = document.getElementById("bkFlightDate").value;
   if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-flight", "user", "✈️ 查机票：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装渠道链接…");
+  addMsg("flow-book-flight", "user", "✈️ 机票转链：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/flight", { from_city: from, to_city: to, date });
+    const body = await api("/api/v1/offers/cards", { kind: "flight", from_city: from, to_city: to, date });
     holder.textContent = "";
-    holder.appendChild(el('<div class="card"><h4>✈️ ' + esc(from) + " → " + esc(to) + " · " + esc(date) +
-      '</h4><div>MVP 暂无航班静态库（flights 恒空），去渠道页直接比价。</div></div>'));
-    holder.appendChild(bkHandoffRow(body)); // 去哪儿（主）+ 携程（备）
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1543,14 +1710,13 @@ async function bkHotelSearch() {
   const co = document.getElementById("bkHotelOut").value;
   if (!city || !poi || !ci || !co) { toast("城市、锚点景点、入住/退房日期都要填"); return; }
   if (!isFinite(lon) || !isFinite(lat)) { toast("经纬度必填（点下方按天卡片可自动带入）"); return; }
-  addMsg("flow-book-hotel", "user", "🏨 找酒店：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
-  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装渠道链接…");
+  addMsg("flow-book-hotel", "user", "🏨 酒店转链：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
+  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/hotel", { city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
+    const body = await api("/api/v1/offers/cards", { kind: "hotel", city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
     holder.textContent = "";
-    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) +
-      (body.near_poi ? ' <span class="muted">（坐标 ' + body.near_poi.lon + ", " + body.near_poi.lat + "）</span>" : "") + "</div></div>"));
-    holder.appendChild(bkHandoffRow(body)); // 携程（主）+ 美团（备）
+    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) + "</div></div>"));
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1659,12 +1825,419 @@ function planBookQuick(plan) {
   return bar;
 }
 
+/* ================= Tab 6：行程中心（trip-items 三态看板） ================= */
+
+const TRIP = { loaded: false };
+const TC_SRC = { manual: "手动", chat: "对话", paste: "粘贴", agent_recommend: "推荐" };
+
+function tcPatch(item, fields, btn) {
+  return busy(btn, async () => {
+    try {
+      await api("/api/v1/trip-items/" + item.id, fields, "PATCH");
+      await tcLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+function tcDelete(item, btn) {
+  return busy(btn, async () => {
+    try {
+      await api("/api/v1/trip-items/" + item.id, undefined, "DELETE");
+      await tcLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）
+function tcTile(item) {
+  const t = el('<div class="tile"></div>');
+  const head = el('<div><b>' + esc(item.name) + "</b>" +
+    (item.city ? " · " + esc(item.city) : "") +
+    (item.note ? ' <span class="muted">' + esc(item.note) + "</span>" : "") +
+    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
+  if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
+  if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  t.appendChild(head);
+  const ops = el('<div class="ops"></div>');
+  const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
+  if (item.status === "wishlist") {
+    mk("📅 排期", (b) => {
+      const d = prompt("排到第几天？（整数 ≥ 1）", "1");
+      if (d == null) return;
+      const n = parseInt(d, 10);
+      if (!n || n < 1) { toast("天数须为 ≥1 的整数"); return; }
+      tcPatch(item, { status: "scheduled", day: n }, b);
+    });
+    mk("🗑 删除", (b) => tcDelete(item, b));
+  } else if (item.status === "scheduled") {
+    mk("✅ 标记已订", (b) => {
+      const bid = prompt("订单号 booking_id？", "");
+      if (bid == null) return;
+      if (!bid.trim()) { toast("booking_id 不能为空（scheduled→booked 必填）"); return; }
+      tcPatch(item, { status: "booked", booking_id: bid.trim() }, b);
+    });
+    mk("↩️ 撤销排期", (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk("🗑 删除", (b) => tcDelete(item, b));
+  } else if (item.status === "booked") {
+    mk("↩️ 撤销（回心愿单）", (b) => tcPatch(item, { status: "wishlist" }, b));
+    t.appendChild(el('<div class="muted" style="margin-top:4px">booked 不可删除（422），可撤销回心愿单。</div>'));
+  }
+  t.appendChild(ops);
+  return t;
+}
+
+function tcZone(icon, title, count, hint) {
+  const z = el('<div class="zone"><h4>' + icon + " " + title + " · " + count +
+    (hint ? ' <span class="muted" style="font-weight:400">' + hint + "</span>" : "") + "</h4></div>");
+  const cards = el('<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>');
+  z.appendChild(cards);
+  return { z, cards };
+}
+
+async function tcLoad() {
+  const box = document.getElementById("flow-trips");
+  box.innerHTML = "";
+  try {
+    const q = document.getElementById("tcItinId").value.trim();
+    const body = await api("/api/v1/trip-items" + (q ? "?itinerary_id=" + encodeURIComponent(q) : ""), undefined, "GET");
+    TRIP.loaded = true;
+    const bookings = body.bookings || [], scheduled = body.scheduled || [], wishlist = body.wishlist || [];
+    const z1 = tcZone("✅", "已预订（Bookings 置顶）", bookings.length, "");
+    if (!bookings.length) z1.cards.appendChild(el('<div class="muted">暂无已预订条目。</div>'));
+    bookings.forEach(it => z1.cards.appendChild(tcTile(it)));
+    box.appendChild(z1.z);
+    const z2 = tcZone("📅", "已排期（按天分组）", scheduled.length, "");
+    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」。</div>'));
+    const byDay = {};
+    scheduled.forEach(it => { const d = it.day || 0; (byDay[d] = byDay[d] || []).push(it); });
+    Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach(d => {
+      z2.cards.appendChild(el('<div class="day-h">第 ' + d + " 天</div>"));
+      byDay[d].forEach(it => z2.cards.appendChild(tcTile(it)));
+    });
+    box.appendChild(z2.z);
+    const z3 = tcZone("💡", "心愿单（新的在前）", wishlist.length, "");
+    if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
+    wishlist.forEach(it => z3.cards.appendChild(tcTile(it)));
+    box.appendChild(z3.z);
+  } catch (err) {
+    failToast(err);
+    box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));
+  }
+}
+document.getElementById("tcRefresh").onclick = (e) => busy(e.target, tcLoad);
+document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
+  const name = document.getElementById("tcName").value.trim();
+  if (!name) { toast("心愿名必填"); return; }
+  const city = document.getElementById("tcCity").value.trim();
+  const note = document.getElementById("tcNote").value.trim();
+  const itin = document.getElementById("tcItinId").value.trim();
+  const body = { name, source: "manual" };
+  if (city) body.city = city;
+  if (note) body.note = note;
+  if (itin) body.itinerary_id = itin;
+  try {
+    await api("/api/v1/trip-items", body);
+    document.getElementById("tcName").value = "";
+    document.getElementById("tcCity").value = "";
+    document.getElementById("tcNote").value = "";
+    toast("心愿已加入（status=wishlist）");
+    await tcLoad();
+  } catch (err) { failToast(err); }
+});
+
+/* ================= Tab 7：个人主页（画像 / 蒸馏试验台 / 链接历史） ================= */
+
+const ME = { loaded: false, style: new Set(), diet: new Set() };
+
+function meChips(containerId, set) {
+  const box = document.getElementById(containerId);
+  box.innerHTML = "";
+  if (!set.size) { box.appendChild(el('<span class="muted">（空）</span>')); return; }
+  set.forEach(v => {
+    const c = el('<button class="chip on" title="点一下移除">' + esc(v) + " ✕</button>");
+    c.onclick = () => { set.delete(v); meChips(containerId, set); };
+    box.appendChild(c);
+  });
+}
+
+async function prLoad() {
+  try {
+    const body = await api("/api/v1/profile", undefined, "GET");
+    const p = body.profile || {};
+    ME.loaded = true;
+    ME.style = new Set(p.travel_style || []);
+    ME.diet = new Set(p.dietary_restrictions || []);
+    document.getElementById("prBudget").value = p.budget_level || "";
+    document.getElementById("prComp").value = p.companions || "";
+    document.getElementById("prStamina").value = p.stamina || "";
+    meChips("prStyleChips", ME.style);
+    meChips("prDietChips", ME.diet);
+    const notes = p.notes || [];
+    const nb = document.getElementById("prNotes");
+    nb.innerHTML = "";
+    if (!notes.length) nb.textContent = "（暂无备注）";
+    notes.forEach(n => nb.appendChild(el("<div>· " + esc(n.text != null ? n.text : n) +
+      (n.provenance ? ' <span class="badge">' + esc(n.provenance) + "</span>" : "") + "</div>")));
+    document.getElementById("prUpdatedAt").textContent = body.updated_at ? "更新于 " + body.updated_at : "";
+  } catch (err) { failToast(err); }
+}
+
+document.getElementById("prStyleAdd").onclick = () => {
+  const i = document.getElementById("prStyleIn");
+  const v = i.value.trim();
+  if (v) { ME.style.add(v); i.value = ""; meChips("prStyleChips", ME.style); }
+};
+document.getElementById("prDietAdd").onclick = () => {
+  const i = document.getElementById("prDietIn");
+  const v = i.value.trim();
+  if (v) { ME.diet.add(v); i.value = ""; meChips("prDietChips", ME.diet); }
+};
+
+document.getElementById("prSave").onclick = (e) => busy(e.target, async () => {
+  const b = document.getElementById("prBudget").value;
+  const c = document.getElementById("prComp").value;
+  const s = document.getElementById("prStamina").value;
+  if (!b && !c && !s && !ME.style.size && !ME.diet.size) { toast("没有可保存的改动"); return; }
+  const body = { travel_style: [...ME.style], dietary_restrictions: [...ME.diet] };
+  if (b) body.budget_level = b;
+  if (c) body.companions = c;
+  if (s) body.stamina = s;
+  try {
+    const r = await api("/api/v1/profile", body, "PUT");
+    toast("画像已保存" + (r && r.updated_at ? " · " + r.updated_at : ""));
+    await prLoad();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
+  const key = document.getElementById("dsKey").value.trim();
+  const value = document.getElementById("dsValue").value.trim();
+  const conf = parseFloat(document.getElementById("dsConf").value);
+  const prov = document.getElementById("dsProv").value.trim();
+  if (!key || !value) { toast("key / value 必填"); return; }
+  try {
+    const body = await api("/api/v1/profile/distill",
+      { facts: [{ key, value, confidence: isNaN(conf) ? 1 : conf, provenance: prov || "manual_test" }] });
+    const out = document.getElementById("dsOut");
+    out.innerHTML = "";
+    const applied = body.applied || [];
+    const sug = body.suggestions || [];
+    const ab = el('<div class="card"><h4>已应用 ' + applied.length + " 条</h4></div>");
+    if (!applied.length) ab.appendChild(el('<div class="muted">（无：可能被手改保护或字段非法）</div>'));
+    applied.forEach(a => {
+      const row = el('<div class="row"><span style="flex:1">' + esc(a.key) + " = " + esc(a.value) +
+        ' <span class="badge ok">applied ' + esc(a.applied_id) + "</span></span></div>");
+      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      ub.onclick = (ev) => busy(ev.target, async () => {
+        try {
+          await api("/api/v1/profile/distill/" + a.applied_id + "/undo", {});
+          toast("已撤销 " + a.key);
+          await prLoad();
+        } catch (err) { failToast(err); }
+      });
+      row.appendChild(ub);
+      ab.appendChild(row);
+    });
+    out.appendChild(ab);
+    if (sug.length) {
+      const sb = el('<div class="card sug"><h4>建议（confidence &lt; 0.8，未落库）</h4></div>');
+      sug.forEach(s2 => sb.appendChild(el("<div>· " + esc(s2.key) + " = " + esc(s2.value) +
+        ' <span class="badge">' + Number(s2.confidence).toFixed(2) + "</span></div>")));
+      out.appendChild(sb);
+    }
+    await prLoad();
+  } catch (err) { failToast(err); }
+});
+
+async function lkLoad() {
+  const box = document.getElementById("lkList");
+  box.innerHTML = '<div class="muted">加载中…</div>';
+  try {
+    const body = await api("/api/v1/links", undefined, "GET");
+    const items = body.links || body.items || (Array.isArray(body) ? body : []);
+    box.innerHTML = "";
+    if (!items.length) { box.appendChild(el('<div class="muted">还没有链接记录。</div>')); return; }
+    items.forEach(l => {
+      const row = el('<div class="tile"></div>');
+      const badge = l.status === "parsed"
+        ? '<span class="badge ok">parsed</span>'
+        : '<span class="badge warn">' + esc(l.status || "?") + "</span>";
+      row.appendChild(el('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted" style="word-break:break-all;flex:1">' +
+        esc(l.url || "") + "</span>" + badge + "</div>"));
+      const ops = el('<div class="ops"></div>');
+      const bRep = el('<button class="btn mini plain">🔁 重新解析</button>');
+      bRep.onclick = (ev) => busy(ev.target, async () => {
+        try { await api("/api/v1/links/" + l.id + "/reparse", {}); toast("已重新解析"); await lkLoad(); }
+        catch (err) { failToast(err); }
+      });
+      const bWish = el('<button class="btn mini ghost">💡 加入心愿单</button>');
+      bWish.onclick = (ev) => busy(ev.target, async () => {
+        try {
+          const name = prompt("心愿名（可留空，由链接解析）", "");
+          const body2 = {};
+          if (name && name.trim()) body2.name = name.trim();
+          const it = await api("/api/v1/links/" + l.id + "/to-wishlist", body2);
+          const item = it && it.item ? it.item : it;
+          toast("已进心愿单：" + ((item && item.name) || "去「🗂 行程中心」查看"));
+          TRIP.loaded = false; // 下次进行程中心自动刷新
+        } catch (err) { failToast(err); }
+      });
+      ops.appendChild(bRep);
+      ops.appendChild(bWish);
+      row.appendChild(ops);
+      box.appendChild(row);
+    });
+  } catch (err) {
+    box.innerHTML = "";
+    box.appendChild(el('<div class="card">❌ 链接列表加载失败：' + esc(detailText(err.detail)) + "</div>"));
+    failToast(err);
+  }
+}
+document.getElementById("lkAdd").onclick = (e) => busy(e.target, async () => {
+  const url = document.getElementById("lkUrl").value.trim();
+  if (!/^https?:\/\//.test(url)) { toast("URL 必须以 http:// 或 https:// 开头"); return; }
+  try {
+    await api("/api/v1/links", { url, source: document.getElementById("lkSource").value });
+    document.getElementById("lkUrl").value = "";
+    toast("链接已添加（status=pending）");
+    await lkLoad();
+  } catch (err) { failToast(err); }
+});
+document.getElementById("lkRefresh").onclick = (e) => busy(e.target, lkLoad);
+
+/* ================= 订单回填（预订 tab 底部，铁律 22 跳转埋点闭环） ================= */
+
+const BF = { loaded: false, map: {}, sel: null };
+
+function bfRecords() {
+  return Object.values(BF.map).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+}
+function bfLoadQuiet() { if (BF.loaded) bfLoad(); }
+
+async function bfLoad() {
+  try {
+    const body = await api("/api/v1/backfill/handoffs?status=opened", undefined, "GET");
+    const rows = body.handoffs || body.records || body.items || (Array.isArray(body) ? body : []);
+    rows.forEach(r => { if (r && r.id != null) BF.map[r.id] = r; });
+    BF.loaded = true;
+    bfRender();
+  } catch (err) { failToast(err); }
+}
+
+function bfRender() {
+  const box = document.getElementById("bfList");
+  box.innerHTML = "";
+  const rows = bfRecords();
+  if (!rows.length) {
+    box.appendChild(el('<div class="muted">暂无跳转记录：在上方查卡并点「前往预订 → 仍要前往」即产生一条 opened 记录。</div>'));
+    document.getElementById("bfOps").style.display = "none";
+    BF.sel = null;
+    return;
+  }
+  rows.forEach(r => {
+    const row = el('<div class="bf-row' + (BF.sel === r.id ? " sel" : "") + '"></div>');
+    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : "🏨");
+    row.appendChild(el('<span style="flex:1">' + ico + " " + esc(BK_CHANNEL[r.channel] || r.channel || "?") +
+      (r.order_ref ? " · <b>" + esc(r.order_ref) + "</b>" : "") + "</span>"));
+    const cls = r.status === "opened" ? "warn" : (r.status === "user_confirmed" ? "ok" : "err");
+    row.appendChild(el('<span class="badge ' + cls + '">' + esc(r.status || "?") + "</span>"));
+    row.appendChild(el('<span class="muted">' + esc(r.created_at || "") + "</span>"));
+    row.onclick = () => { BF.sel = r.id; bfRender(); };
+    if (r.status === "user_confirmed") {
+      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      ub.onclick = (ev) => { ev.stopPropagation(); bfUndo(r.id, ev.target); };
+      row.appendChild(ub);
+    }
+    box.appendChild(row);
+  });
+  document.getElementById("bfOps").style.display = BF.sel != null ? "flex" : "none";
+}
+
+function bfUndo(id, btn) {
+  return busy(btn, async () => {
+    try {
+      const resp = await api("/api/v1/backfill/handoffs/" + id + "/undo", {});
+      if (resp && resp.record) BF.map[id] = resp.record;
+      else if (BF.map[id]) BF.map[id].status = "opened";
+      toast("已撤销，记录回到 opened");
+      bfRender();
+      bfLoadQuiet();
+    } catch (err) { failToast(err); }
+  });
+}
+
+document.getElementById("bfRefresh").onclick = (e) => busy(e.target, bfLoad);
+
+document.getElementById("bfParse").onclick = (e) => busy(e.target, async () => {
+  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  const text = document.getElementById("bfPaste").value.trim();
+  if (!text) { toast("先粘贴订单短信原文"); return; }
+  const out = document.getElementById("bfOut");
+  out.innerHTML = "";
+  try {
+    const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/paste-return", { text });
+    if (body.record) BF.map[BF.sel] = body.record;
+    const p = body.parsed || {};
+    const info = el('<div class="card"><h4>🧾 解析结果</h4></div>');
+    info.appendChild(el("<div>订单号 <b>" + esc(p.order_ref || "（未识别）") + "</b> · 渠道 " + esc(p.channel || "?") +
+      " · 金额 " + (p.amount_yuan != null ? "¥" + p.amount_yuan : "?") +
+      " · 置信度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "?") + "</div>"));
+    if (body.applied) {
+      info.appendChild(el('<div class="muted">✅ 已落库：记录进入 user_confirmed。</div>'));
+      document.getElementById("bfPaste").value = "";
+    } else if (body.reason === "needs_confirm") {
+      info.appendChild(el('<div class="violation warning">置信度低，不落库（needs_confirm）：请用右侧「手动标记」补订单号。</div>'));
+    } else {
+      info.appendChild(el('<div class="violation warning">未应用：' + esc(body.reason || "?") + "</div>"));
+    }
+    out.appendChild(info);
+    bfRender();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("bfManual").onclick = (e) => busy(e.target, async () => {
+  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  const ref = document.getElementById("bfOrderRef").value.trim();
+  if (!ref) { toast("订单号必填"); return; }
+  try {
+    const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/manual", { order_ref: ref });
+    if (body && body.record) BF.map[BF.sel] = body.record;
+    else if (BF.map[BF.sel]) { BF.map[BF.sel].order_ref = ref; BF.map[BF.sel].status = "user_confirmed"; }
+    toast("已手动标记 user_confirmed");
+    document.getElementById("bfOrderRef").value = "";
+    bfRender();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("bfAlliance").onclick = (e) => busy(e.target, async () => {
+  const orders = bfRecords().filter(r => r.status === "user_confirmed" && r.order_ref)
+    .map(r => ({ order_ref: r.order_ref, outcome: "settled" }));
+  if (!orders.length) { toast("当前列表没有 user_confirmed 且带订单号的记录"); return; }
+  try {
+    const body = await api("/api/v1/backfill/alliance-sync", { orders });
+    const out = document.getElementById("bfOut");
+    out.innerHTML = "";
+    out.appendChild(el('<div class="card"><h4>🤝 联盟同步</h4><div>matched ' + (body.matched != null ? body.matched : "?") +
+      " · advanced " + (body.advanced != null ? body.advanced : "?") +
+      " · skipped " + (body.skipped != null ? body.skipped : "?") + "</div></div>"));
+    await bfLoad();
+  } catch (err) { failToast(err); }
+});
+
+/* ---- 新入口首开自动加载 ---- */
+document.querySelector('.nav-item[data-tab="trips"]').addEventListener("click", () => { if (!TRIP.loaded) tcLoad(); });
+document.querySelector('.nav-item[data-tab="me"]').addEventListener("click", () => {
+  if (!ME.loaded) prLoad();
+  if (!document.getElementById("lkList").childElementCount) lkLoad();
+});
+document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", () => { if (!BF.loaded) bfLoad(); });
+
 /* ================= 欢迎语 ================= */
 
 addMsg("flow-plan", "sys", "选城市（可不选）和天数后点「🚀 开始规划」；信息不全时我会追问。拿到初版行程后，直接在下方输入框继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-itin", "sys", "先「创建行程」，然后依次试：加一天景点（看版本号变化 + validation）、冻结快照 ×4（第 4 次会触发 402 免费额度已用完）、恢复快照。");
-addMsg("flow-book-train", "sys", "规划完成后可从结果尾部快捷进入；或在此填城市/日期查询。跳转 12306 / 去哪儿 / 携程 / 美团 前会先展示退改签摘要（铁律 23）。");
+addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
+addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
 
 planSetSession(null);
 </script>

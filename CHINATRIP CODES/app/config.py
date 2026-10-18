@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     amap_base_url: str = "https://restapi.amap.com/v3"
     amap_timeout_seconds: float = 5.0
 
+    # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
+    # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;
+    # empty by default = no params appended, URLs pass through untouched.
+    alliance_id: str = ""
+    alliance_sid: str = ""
+
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
 
