@@ -737,6 +737,54 @@ def test_message_edit_llm_timeout_keeps_conversation_alive():
     assert session.history[-1].role == "assistant"
 
 
+def test_message_edit_parse_failure_retried_then_success():
+    # Edit draw 1 is unparseable prose -> resampled (v0 loop shape), draw 2
+    # delivers a valid diff and it lands. No "请再发一次" punt.
+    llm = ScriptedLLM(
+        [
+            v0_reply(SH_HZ_ITEMS),
+            "抱歉我走神了这不是 JSON",
+            edit_reply("已删除", [{"op": "remove", "item_id": "v1"}]),
+        ]
+    )
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    session, reply, change = run(agent.message(session, "删掉外滩"))
+    assert llm.calls == 3  # v0 one + edit two (first unparseable)
+    assert "已删除" in reply
+    assert change is not None
+
+
+def test_message_edit_parse_failure_exhausted_keeps_conversation_alive():
+    # Both edit draws unparseable -> friendly in-band reply, plan untouched.
+    llm = ScriptedLLM(
+        [v0_reply(SH_HZ_ITEMS), "走神第一次", "走神第二次"]
+    )
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    before = session.plan.model_copy(deep=True)
+    session, reply, change = run(agent.message(session, "随便改改"))
+    assert llm.calls == 3
+    assert "没能解析" in reply
+    assert session.plan == before
+    assert change is None
+    assert session.history[-1].role == "assistant"
+
+
 def test_message_edit_llm_retry_then_success():
     # v0 burns attempts 1-2 (placeholder plan), attempt 3 still stalls,
     # attempt 4 delivers a valid edit -> the diff lands normally.

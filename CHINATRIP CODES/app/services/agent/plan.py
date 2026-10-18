@@ -922,29 +922,40 @@ class PlanningAgent:
             *session.history[-HISTORY_WINDOW:],
         ]
         result = None
+        data = None
+        reply = ""
+        diffs: list[DiffOp] = []
         for _ in range(LLM_ATTEMPTS):
             try:
                 result = await self._llm.chat(messages, temperature=0.2)
-                break
             except LLMError as exc:
                 logger.warning(
                     "plan: edit llm call failed (%s: %s), retrying",
                     type(exc).__name__,
                     exc,
                 )
-        if result is None:
-            # Both attempts stalled (glm flash ReadTimeout seen in prod logs):
-            # keep the conversation alive in-band instead of a 502 dead end.
-            reply = "模型暂时无响应，这轮没有改动行程，请再发一次。"
-            session.history.append(ChatMessage(role="assistant", content=reply))
-            return session, reply, None
-        try:
-            data = parse_json_content(result.content)
-            reply = str(data.get("reply") or "已处理你的消息。")
-            diffs = self._coerce_diffs(data.get("diffs"))
-        except (ValueError, TypeError) as exc:
-            logger.warning("plan: edit structured output failed: %s", exc)
-            reply = "刚才模型回复没能解析，请再发一次。"
+                continue
+            try:
+                data = parse_json_content(result.content)
+                reply = str(data.get("reply") or "已处理你的消息。")
+                diffs = self._coerce_diffs(data.get("diffs"))
+                break
+            except (ValueError, TypeError) as exc:
+                # Same loop shape as v0: an unparseable draw is resampled,
+                # not punted back to the user on the first bad output.
+                logger.warning(
+                    "plan: edit structured output failed (%s: %s), retrying",
+                    type(exc).__name__,
+                    exc,
+                )
+                continue
+        if data is None:
+            if result is None:
+                # All attempts stalled (glm flash ReadTimeout in prod logs):
+                # keep the conversation alive in-band instead of a 502 dead end.
+                reply = "模型暂时无响应，这轮没有改动行程，请再发一次。"
+            else:
+                reply = "刚才模型回复没能解析，已自动重试仍未成功，请再发一次。"
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         if not diffs:
