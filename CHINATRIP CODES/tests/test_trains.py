@@ -56,9 +56,7 @@ def test_mock_covers_all_pairs_with_three_trains_each():
             assert opt.from_station
             assert opt.to_station
             assert opt.arr_time > opt.dep_time  # all mock trains are same-day
-            assert opt.duration_minutes == minutes(opt.arr_time) - minutes(
-                opt.dep_time
-            )
+            assert opt.duration_minutes == minutes(opt.arr_time) - minutes(opt.dep_time)
 
 
 def test_mock_beijing_shanghai_plausible_duration():
