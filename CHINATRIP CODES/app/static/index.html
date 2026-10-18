@@ -1376,8 +1376,16 @@ document.addEventListener("pointerdown", e => {
 
 /* ---- 我的位置 ---- */
 
+async function ipCity(fly) {
+  // 浏览器定位不可用/被拒时的兜底：高德 IP 定位（服务端出口 IP 即用户网络）
+  try {
+    const b = await api("/api/v1/amap/ip", undefined, "GET");
+    setCity(b.city || b.province, fly);
+  } catch (err) { /* 保持默认城市 */ }
+}
 function locateMe(silent) {
   if (!navigator.geolocation) {
+    ipCity(silent);
     if (!silent) toast("浏览器不支持定位，已回退故宫坐标");
     return;
   }
@@ -1391,12 +1399,13 @@ function locateMe(silent) {
       regeoCity(pos.coords.longitude, pos.coords.latitude);
     },
     () => {
+      ipCity(silent); // 定位失败/被拒：IP 定位仍能拿到当前城市
       if (!silent) {
         NAV.myPos = { ...FALLBACK_POS, name: "我的位置" };
         NAV.me = { ...NAV.myPos };
         placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); originKw.value = NAV.me.name;
-        toast("定位失败，已回退故宫坐标");
-      } // 静默模式（页面加载）失败则保持初始北京/故宫，不打扰
+        toast("定位失败，已回退故宫坐标（城市按 IP 估计）");
+      }
     },
     { timeout: 8000, maximumAge: 300000 }
   );
@@ -1405,9 +1414,7 @@ document.getElementById("btnLocate").onclick = () => locateMe(false);
 function placeMe() {
   addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(NAV.me.name) + "</span>");
 }
-placeMe(); // 初始：默认在故宫
-originKw.value = NAV.me.name;
-locateMe(true); // 打开即自动定位：城市默认跟随真实定位城市（regeo 反查），失败静默保持北京
+// 初始定位标记与自动定位在「地图初始化」之后执行（addMarker/flyTo 依赖 MAP DOM 已绑定）
 
 /* ---- 模式：步行 / 公交 / 打车 / 驾车 ---- */
 
@@ -1606,6 +1613,9 @@ MAP.w = MAP.wrap.clientWidth || 800;
 MAP.h = MAP.wrap.clientHeight || 600;
 initMapEvents();
 renderMap();
+placeMe(); // 初始：默认在故宫（必须在地图初始化后：addMarker 依赖 MAP.mkEl）
+originKw.value = NAV.me.name;
+locateMe(true); // 打开即自动定位：城市默认跟随真实定位城市（regeo 反查），失败走 IP 定位兜底
 
 /* ================= Tab 4：行程 ================= */
 

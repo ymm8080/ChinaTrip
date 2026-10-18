@@ -245,6 +245,18 @@ class AmapClient:
         data = await self._request_json("/geocode/regeo", params)
         return _normalize_regeo(data)
 
+    async def ip_locate(self) -> dict:
+        # Amap resolves the caller by source IP; our server's egress IP is the
+        # user's network, so no ip param is passed on purpose.
+        params = {"key": self._key, "output": "JSON"}
+        data = await self._request_json("/ip", params)
+        province = _as_str(data.get("province"))
+        return {
+            "province": province,
+            "city": _as_str(data.get("city")) or province,
+            "adcode": _as_str(data.get("adcode")),
+        }
+
     async def walking_route(self, origin: str, destination: str) -> dict:
         params = {
             "key": self._key,

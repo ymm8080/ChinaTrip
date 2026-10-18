@@ -55,3 +55,20 @@ async def regeo(
         logger.warning("amap error: infocode=%s info=%s", exc.infocode, exc)
         raise HTTPException(status_code=502, detail="amap_error") from exc
     return info
+
+
+@router.get("/ip")
+async def ip_locate(
+    settings: Settings = Depends(get_settings),
+    client: AmapClient = Depends(get_amap_client),
+) -> dict:
+    if settings.amap_api_key == "":
+        raise HTTPException(status_code=503, detail="amap_not_configured")
+    try:
+        info = await client.ip_locate()
+    except AmapTimeoutError:
+        raise HTTPException(status_code=504, detail="amap_timeout") from None
+    except AmapError as exc:
+        logger.warning("amap error: infocode=%s info=%s", exc.infocode, exc)
+        raise HTTPException(status_code=502, detail="amap_error") from exc
+    return info

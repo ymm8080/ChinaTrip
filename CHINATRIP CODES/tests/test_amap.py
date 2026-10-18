@@ -530,3 +530,55 @@ def test_endpoint_regeo_validation_returns_422(params):
     with TestClient(make_app()) as client:
         resp = client.get("/api/v1/amap/regeo", params=params)
     assert resp.status_code == 422
+
+
+IP_BODY = {
+    "status": "1",
+    "info": "OK",
+    "infocode": "10000",
+    "province": "上海市",
+    "city": "上海市",
+    "adcode": "310000",
+    "rectangle": "121.3159,30.7567;121.8084,31.4379",
+}
+
+
+def test_client_ip_locate_success():
+    handler, captured = ok_handler(IP_BODY)
+    info = asyncio.run(make_client(handler).ip_locate())
+    assert captured[0].url.path.endswith("/ip")
+    assert captured[0].url.params["key"] == API_KEY
+    assert "ip" not in captured[0].url.params
+    assert info == {"province": "上海市", "city": "上海市", "adcode": "310000"}
+    assert API_KEY not in json.dumps(info, ensure_ascii=False)
+
+
+def test_client_ip_locate_unknown_city_falls_back_to_province():
+    handler, _ = ok_handler(
+        {
+            "status": "1",
+            "info": "OK",
+            "infocode": "10000",
+            "province": "江苏省",
+            "city": "",
+        }
+    )
+    info = asyncio.run(make_client(handler).ip_locate())
+    assert info["city"] == "江苏省"
+    assert info["adcode"] is None
+
+
+def test_endpoint_ip_locate_success():
+    handler, _ = ok_handler(IP_BODY)
+    with TestClient(make_app(handler)) as client:
+        resp = client.get("/api/v1/amap/ip")
+    assert resp.status_code == 200
+    assert resp.json()["city"] == "上海市"
+    assert API_KEY not in resp.text
+
+
+def test_endpoint_ip_locate_not_configured_returns_503():
+    with TestClient(make_app(api_key="")) as client:
+        resp = client.get("/api/v1/amap/ip")
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": "amap_not_configured"}
