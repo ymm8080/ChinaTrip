@@ -119,7 +119,10 @@ async def deeplink(req: DeeplinkRequest) -> dict:
     )
     try:
         return compose_deeplink(
-            req.mode, req.destination.name, req.destination.lon, req.destination.lat,
+            req.mode,
+            req.destination.name,
+            req.destination.lon,
+            req.destination.lat,
             origin=origin,
         )
     except ValueError:
