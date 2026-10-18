@@ -73,6 +73,13 @@ def _fmt(t: time | None) -> str:
     return t.strftime("%H:%M") if t is not None else "?"
 
 
+def _norm_city(name: str) -> str:
+    # LLM 写 POI city 常带后缀（"杭州市"/"上海市"），用户输入行程城市不带——
+    # 归一化后再比较，否则规则 3 对合法行程满屏假警告。
+    name = name.strip()
+    return name[:-1] if name.endswith("市") else name
+
+
 def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     lat1, lat2 = radians(a.lat), radians(b.lat)
     dlat, dlon = lat2 - lat1, radians(b.lon) - radians(a.lon)
@@ -299,8 +306,9 @@ def _check_visit_cities(
     plan: ItineraryPlan, day: DayPlan, visits: list[VisitItem]
 ) -> list[RuleViolation]:
     out = []
+    plan_cities = {_norm_city(c) for c in plan.cities}
     for v in visits:
-        if v.city not in plan.cities:
+        if _norm_city(v.city) not in plan_cities:
             out.append(
                 RuleViolation(
                     rule_id=3,
@@ -319,9 +327,13 @@ def _check_visit_cities(
 def _check_base_city_jumps(plan: ItineraryPlan) -> list[RuleViolation]:
     out = []
     for prev, cur in zip(plan.days, plan.days[1:]):
-        if cur.base_city != prev.base_city and not any(
+        # 跨城交通可以在 base 切换的前一天（出发日）或当天（到达日）——
+        # 只看"变化当日"会把前一天已乘车的正常行程误报为跳变。
+        jumped = _norm_city(cur.base_city) != _norm_city(prev.base_city)
+        has_transfer = any(isinstance(i, TransferItem) for i in prev.items) or any(
             isinstance(i, TransferItem) for i in cur.items
-        ):
+        )
+        if jumped and not has_transfer:
             out.append(
                 RuleViolation(
                     rule_id=3,
