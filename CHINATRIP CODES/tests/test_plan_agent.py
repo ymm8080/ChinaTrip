@@ -331,7 +331,23 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
     assert len(session.plan.days[0].items) == 2
 
 
-def test_v0_uncovered_pair_degrades_to_car_transfer():
+class PerCityAmap:
+    """Different canned POIs per city (real-ish coordinates)."""
+
+    def __init__(self, pois_by_city: dict[str, list[dict]]) -> None:
+        self.pois_by_city = pois_by_city
+        self.calls: list[str | None] = []
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        self.calls.append(city)
+        return self.pois_by_city.get(city, [])
+
+
+def _poi(name: str, lon: float, lat: float) -> dict:
+    return {"name": name, "location": {"lon": lon, "lat": lat}}
+
+
+def test_v0_uncovered_pair_without_coords_degrades_to_flight():
     llm = ScriptedLLM(
         [
             v0_reply(
@@ -354,7 +370,7 @@ def test_v0_uncovered_pair_degrades_to_car_transfer():
             )
         ]
     )
-    agent = PlanningAgent(llm)  # mock timetable has no 敦煌→兰州 pair
+    agent = PlanningAgent(llm)  # no amap → no anchors → distance unknown
     session = run(
         agent.start(
             device_id="d1",
@@ -364,11 +380,156 @@ def test_v0_uncovered_pair_degrades_to_car_transfer():
         )
     )
     transfers = all_transfers(session)
-    assert transfers[0].mode == "car"
-    assert transfers[0].duration_minutes == 90
+    # 敦煌→兰州 is ~1000km: a 90-minute drive is nonsense, placeholder as flight
+    assert transfers[0].mode == "flight"
+    assert transfers[0].duration_minutes == 180
     assert any("无班次" in a for a in session.assumptions)
-    # the fixed 09:00 car window still lets the solver place everything
+    # the fixed 09:00 flight window still lets the solver place everything
     assert all(v.start_time is not None for v in all_visits(session))
+
+
+def test_v0_far_pair_with_coords_is_flight_placeholder():
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "天涯海角",
+                        "city": "三亚",
+                        "category": "sight",
+                        "day": 1,
+                        "duration_minutes": 120,
+                    },
+                    {
+                        "name": "中央大街",
+                        "city": "哈尔滨",
+                        "category": "sight",
+                        "day": 2,
+                        "duration_minutes": 90,
+                    },
+                ]
+            )
+        ]
+    )
+    amap = PerCityAmap(
+        {
+            "三亚": [_poi("天涯海角", 109.22, 18.24)],
+            "哈尔滨": [_poi("中央大街", 126.62, 45.76)],
+        }
+    )
+    agent = PlanningAgent(llm, amap_client=amap)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["三亚", "哈尔滨"],
+            days=4,
+            preferences="海岛与冰雪",
+        )
+    )
+    transfers = all_transfers(session)
+    assert transfers[0].mode == "flight"
+    assert transfers[0].duration_minutes == 180
+    assert any("航班" in a and "公里" in a for a in session.assumptions)
+
+
+def test_v0_near_pair_with_coords_is_car_placeholder():
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "外滩",
+                        "city": "上海",
+                        "category": "sight",
+                        "day": 1,
+                        "duration_minutes": 90,
+                    },
+                    {
+                        "name": "拙政园",
+                        "city": "苏州",
+                        "category": "sight",
+                        "day": 2,
+                        "duration_minutes": 90,
+                    },
+                ]
+            )
+        ]
+    )
+    amap = PerCityAmap(
+        {
+            "上海": [_poi("外滩", 121.49, 31.24)],
+            "苏州": [_poi("拙政园", 120.62, 31.33)],  # ~85km from 上海
+        }
+    )
+    agent = PlanningAgent(llm, amap_client=amap)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "苏州"],
+            days=2,
+            preferences="园林",
+        )
+    )
+    transfers = all_transfers(session)
+    assert transfers[0].mode == "car"
+    assert 60 <= transfers[0].duration_minutes <= 180
+    assert any("驾车" in a for a in session.assumptions)
+
+
+def test_v0_poi_day_outside_city_window_is_clamped():
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "天涯海角",
+                        "city": "三亚",
+                        "category": "sight",
+                        "day": 3,  # wrong: 三亚 window is day 1 only
+                        "duration_minutes": 120,
+                    },
+                    {
+                        "name": "中央大街",
+                        "city": "哈尔滨",
+                        "category": "sight",
+                        "day": 2,
+                        "duration_minutes": 90,
+                    },
+                ]
+            )
+        ]
+    )
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["三亚", "哈尔滨"],
+            days=4,
+            preferences="经典",
+        )
+    )
+    sanya = [v for v in all_visits(session) if v.city == "三亚"]
+    assert sanya and all(v.day == 1 for v in sanya)
+    assert any("城市日程" in a for a in session.assumptions)
+
+
+def test_v0_placeholder_selection_respects_city_windows():
+    agent = PlanningAgent(
+        ExplodingLLM(), amap_client=StubAmap(exc=RuntimeError("amap down"))
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["三亚", "哈尔滨"],
+            days=4,
+            preferences="无",
+        )
+    )
+    visits = all_visits(session)
+    sanya = [v for v in visits if v.city == "三亚"]
+    haerbin = [v for v in visits if v.city == "哈尔滨"]
+    assert sanya and all(v.day == 1 for v in sanya)
+    assert haerbin and all(2 <= v.day <= 4 for v in haerbin)
 
 
 def test_v0_solver_failure_delivers_unscheduled_with_assumption():

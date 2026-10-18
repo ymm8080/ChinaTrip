@@ -80,7 +80,7 @@ def _norm_city(name: str) -> str:
     return name[:-1] if name.endswith("市") else name
 
 
-def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
+def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     lat1, lat2 = radians(a.lat), radians(b.lat)
     dlat, dlon = lat2 - lat1, radians(b.lon) - radians(a.lon)
     h = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
@@ -251,7 +251,7 @@ def _check_pace(
     # walking distance: adjacent same-day visits, straight-line (haversine)
     # approximation; segments touching a location-less item are skipped.
     km = sum(
-        _haversine_km(a.location, b.location)
+        haversine_km(a.location, b.location)
         for a, b in zip(visits, visits[1:])
         if a.location is not None and b.location is not None
     )

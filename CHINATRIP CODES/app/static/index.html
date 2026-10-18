@@ -724,6 +724,8 @@ function addMsg(flowId, who, node) {
 // "HH:MM:SS"（pydantic time 序列化）→ "HH:MM"
 function fmtTime(t) { return t ? String(t).slice(0, 5) : "未排"; }
 function fmtMin(s) { return Math.round(Number(s) / 60); }
+const MODE_CN = { train: ["🚄", "火车"], flight: ["✈️", "飞机"], car: ["🚗", "驾车"], bus: ["🚌", "大巴"] };
+function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "跨城"; }
 
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
@@ -733,7 +735,7 @@ function planCard(plan) {
     box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
     (d.items || []).forEach(it => {
       if (it.from_city) { // TransferItem
-        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>🚄 跨城 " + esc(it.from_city) + " → " + esc(it.to_city) + "（" + esc(it.mode) + "）</span></div>"));
+        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
       } else { // VisitItem
         const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));

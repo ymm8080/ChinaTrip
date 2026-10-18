@@ -38,6 +38,7 @@ from app.services.itinerary import (
     ValidationReport,
     VisitItem,
     apply_diffs,
+    haversine_km,
     mutate,
     summarize_changes,
     validate_pinned,
@@ -55,7 +56,9 @@ POI_KEYWORD = "景点"
 POI_CANDIDATES_PER_CITY = 8
 PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
 DEFAULT_VISIT_MINUTES = 60
-CAR_TRANSFER_MINUTES = 90
+FLIGHT_TRANSFER_MINUTES = 180  # door-to-door placeholder for uncovered long legs
+CAR_MAX_KM = 300  # no-schedule legs beyond this are flights, never drives
+CAR_KMH = 70  # intercity road pace behind the car placeholder duration
 DEFAULT_DAYS = 3
 DEFAULT_CITY = "北京"
 MAX_CLARIFY_ROUNDS = 2  # §6.1: at most two questions, then v0 on assumptions
@@ -132,6 +135,26 @@ _CN_DIGITS = {
     "八": 8,
     "九": 9,
 }
+
+
+def _city_day_ranges(cities: list[str], days: int) -> dict[str, tuple[int, int]]:
+    """Per-city day window implied by the transfer schedule (move on the
+    first day of the next city): city c spans [start_c, start_{c+1} - 1];
+    the last city runs to ``days``."""
+    starts = [1] + [min(j + 2, days) for j in range(len(cities) - 1)]
+    ranges: dict[str, tuple[int, int]] = {}
+    for c, city in enumerate(cities):
+        start = starts[c]
+        end = starts[c + 1] - 1 if c + 1 < len(cities) else days
+        ranges[city] = (start, max(start, end))
+    return ranges
+
+
+def _schedule_text(ranges: dict[str, tuple[int, int]]) -> str:
+    parts = []
+    for city, (lo, hi) in ranges.items():
+        parts.append(f"{city}=第{lo}天" if lo == hi else f"{city}=第{lo}-{hi}天")
+    return "；".join(parts)
 
 
 _V0_SYSTEM_PROMPT = (
@@ -415,11 +438,12 @@ class PlanningAgent:
     ) -> PlanSession:
         session.state = "planning"
         candidates, poi_assumptions = await self._collect_candidates(session.cities)
+        ranges = _city_day_ranges(session.cities, session.days)
         picked, llm_assumptions, llm_ok = await self._select_pois(
-            candidates, session.days, session.preferences
+            candidates, session.days, session.preferences, ranges
         )
         if not llm_ok:
-            picked = self._placeholder_selection(candidates, session.days)
+            picked = self._placeholder_selection(candidates, session.days, ranges)
             llm_assumptions = ["LLM 不可用，按候选顺序生成占位计划"]
         assumptions = (
             [PACE_ASSUMPTION]
@@ -461,9 +485,11 @@ class PlanningAgent:
                         city,
                         exc_info=True,
                     )
-            pois = [p for p in pois if isinstance(p, dict) and p.get("name")][
-                :POI_CANDIDATES_PER_CITY
-            ]
+            pois = [
+                {**p, "city": city}
+                for p in pois
+                if isinstance(p, dict) and p.get("name")
+            ][:POI_CANDIDATES_PER_CITY]
             if not pois:
                 pois = [
                     {
@@ -480,13 +506,22 @@ class PlanningAgent:
         return candidates, assumptions
 
     async def _select_pois(
-        self, candidates: list[dict], days: int, preferences: str
+        self,
+        candidates: list[dict],
+        days: int,
+        preferences: str,
+        ranges: dict[str, tuple[int, int]],
     ) -> tuple[list[dict], list[str], bool]:
         listing = "\n".join(
             f"- {c['name']}（{c.get('city') or '?'}｜{c.get('category') or '未分类'}）"
             for c in candidates
         )
-        user = f"总天数：{days}\n用户偏好：{preferences or '无'}\n候选景点：\n{listing}"
+        user = (
+            f"总天数：{days}\n用户偏好：{preferences or '无'}\n"
+            f"城市日程：{_schedule_text(ranges)}；"
+            "每个景点的 day 必须落在其所在城市对应的天数内\n"
+            f"候选景点：\n{listing}"
+        )
         messages = [
             ChatMessage(role="system", content=_V0_SYSTEM_PROMPT),
             ChatMessage(role="user", content=user),
@@ -538,25 +573,34 @@ class PlanningAgent:
         return items
 
     @staticmethod
-    def _placeholder_selection(candidates: list[dict], days: int) -> list[dict]:
-        """Deterministic fallback: spread candidates in order across days."""
-        total = max(len(candidates), 1)
+    def _placeholder_selection(
+        candidates: list[dict], days: int, ranges: dict[str, tuple[int, int]]
+    ) -> list[dict]:
+        """Deterministic fallback: spread each city's candidates in order
+        across that city's day window."""
+        groups: dict[str, list[dict]] = {}
+        for cand in candidates:
+            groups.setdefault(cand.get("city") or "未标注", []).append(cand)
         items = []
-        for idx, cand in enumerate(candidates):
-            day = min(days, idx * days // total + 1)
-            items.append(
-                {
-                    "name": cand["name"],
-                    "city": cand.get("city") or "未标注",
-                    "category": cand.get("category") or "sight",
-                    "day": day,
-                    "duration_minutes": DEFAULT_VISIT_MINUTES,
-                }
-            )
+        for city, group in groups.items():
+            lo, hi = ranges.get(city, (1, days))
+            span = max(hi - lo + 1, 1)
+            total = max(len(group), 1)
+            for idx, cand in enumerate(group):
+                day = min(hi, lo + idx * span // total)
+                items.append(
+                    {
+                        "name": cand["name"],
+                        "city": cand.get("city") or "未标注",
+                        "category": cand.get("category") or "sight",
+                        "day": day,
+                        "duration_minutes": DEFAULT_VISIT_MINUTES,
+                    }
+                )
         return items
 
     async def _build_transfers(
-        self, cities: list[str], days: int
+        self, cities: list[str], days: int, anchors: dict[str, GeoPoint]
     ) -> tuple[list[TransferItem], list[str]]:
         transfers: list[TransferItem] = []
         assumptions: list[str] = []
@@ -581,21 +625,47 @@ class PlanningAgent:
             except Exception:
                 transfer = None
             if transfer is None:
+                dist_km: float | None = None
+                a = anchors.get(from_city)
+                b = anchors.get(to_city)
+                if a is not None and b is not None:
+                    dist_km = haversine_km(a, b)
+                if dist_km is not None and dist_km <= CAR_MAX_KM:
+                    # Same-region leg: a drive scaled to real distance.
+                    mode = "car"
+                    duration = max(60, round(dist_km / CAR_KMH * 60) + 30)
+                    note = (
+                        f"{from_city}→{to_city} 无班次，直线约 "
+                        f"{dist_km:.0f} 公里，按驾车约 {duration} 分钟占位"
+                    )
+                else:
+                    # Cross-region leg: a 90-minute drive across 4000 km is
+                    # nonsense — placeholder as a flight instead.
+                    mode = "flight"
+                    duration = FLIGHT_TRANSFER_MINUTES
+                    if dist_km is None:
+                        note = (
+                            f"{from_city}→{to_city} 无班次且距离未知，"
+                            "按航班约 3 小时占位"
+                        )
+                    else:
+                        note = (
+                            f"{from_city}→{to_city} 无班次，直线约 "
+                            f"{dist_km:.0f} 公里，按航班约 3 小时占位"
+                        )
+                end_min = min(9 * 60 + duration, 23 * 60 + 59)
                 transfer = TransferItem(
                     item_id=item_id,
                     day=day,
                     seq=seq_by_day[day],
                     from_city=from_city,
                     to_city=to_city,
-                    mode="car",
+                    mode=mode,
                     start_time=time(9, 0),
-                    end_time=time(10, 30),
-                    duration_minutes=CAR_TRANSFER_MINUTES,
+                    end_time=time(end_min // 60, end_min % 60),
+                    duration_minutes=duration,
                 )
-                assumptions.append(
-                    f"{from_city}→{to_city} 无班次，按驾车约 "
-                    f"{CAR_TRANSFER_MINUTES} 分钟占位"
-                )
+                assumptions.append(note)
             transfers.append(transfer)
         return transfers, assumptions
 
@@ -608,6 +678,24 @@ class PlanningAgent:
         assumptions: list[str],
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
+        ranges = _city_day_ranges(cities, days)
+        clamped = 0
+        for spec in picked:
+            city = str(spec.get("city") or "")
+            rng = ranges.get(city) or ranges.get(city.removesuffix("市"))
+            if rng is None:
+                continue
+            lo, hi = rng
+            if not lo <= spec["day"] <= hi:
+                spec["day"] = min(max(spec["day"], lo), hi)
+                clamped += 1
+        if clamped:
+            assumptions.append(f"{clamped} 个景点日期不在其城市日程内，已就近调整")
+        anchors: dict[str, GeoPoint] = {}
+        for cand in candidates:
+            city = cand.get("city")
+            if city and city not in anchors and isinstance(cand.get("location"), dict):
+                anchors[city] = GeoPoint(**cand["location"])
         visits: list[VisitItem] = []
         for spec in picked:
             cand = cand_by_name.get(spec["name"])
@@ -627,7 +715,9 @@ class PlanningAgent:
                     duration_minutes=spec["duration_minutes"],
                 )
             )
-        transfers, transfer_assumptions = await self._build_transfers(cities, days)
+        transfers, transfer_assumptions = await self._build_transfers(
+            cities, days, anchors
+        )
 
         transfers_by_day: dict[int, list[TransferItem]] = {}
         for transfer in transfers:
