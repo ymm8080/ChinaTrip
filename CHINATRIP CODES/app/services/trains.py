@@ -515,6 +515,10 @@ class RemoteTrainService(TrainService):
     ) -> None:
         self._fallback = fallback
         self._sources = tuple(sources)
+        # 最近一次 search 的命中来源标记：源名 / "mock"（降级兜底）/
+        # None（尚未搜索）。缓存层落库时取它标注每行 provenance
+        # （app/services/train_cache.py）。
+        self.last_source: str | None = None
 
     async def search(
         self, from_city: str, to_city: str, date: str
@@ -526,8 +530,10 @@ class RemoteTrainService(TrainService):
                 logger.warning("train source %s failed: %s", source.name, exc)
                 continue
             if options:
+                self.last_source = source.name
                 return options
             logger.info("train source %s returned no trains", source.name)
+        self.last_source = "mock"
         return await self._fallback.search(from_city, to_city, date)
 
 
@@ -537,28 +543,40 @@ _SOURCE_FACTORIES = {
     "12306": Train12306Source,
 }
 
-_train_service_singleton: RemoteTrainService | None = None
+_train_service_singleton: TrainService | None = None
+
+
+def _build_remote_chain(settings) -> RemoteTrainService:
+    """按 settings.travel_train_source_order 组装数据源链。
+
+    get_train_service 与 train_cache 刷新作业共用同一套装配规则，
+    避免两处各写一份源顺序逻辑。
+    """
+    sources = [
+        _SOURCE_FACTORIES[name](timeout_seconds=settings.train_query_timeout_seconds)
+        for name in settings.travel_train_source_order
+        if name in _SOURCE_FACTORIES
+    ]
+    return RemoteTrainService(MockTrainService(), sources=sources)
 
 
 def get_train_service(settings) -> TrainService:
     """统一注入点（api/plan、api/navigation、api/bookings、offer_cards）。
 
     settings 只需携带 train_remote_enabled / train_query_timeout_seconds /
-    travel_train_source_order 三个字段（app.config.Settings 及测试替身皆可）。
-    enabled=False 直接 mock、零网络；远程链按进程级缓存构造一次。
+    travel_train_source_order / train_cache_url / train_cache_ttl_hours
+    （app.config.Settings 及测试替身皆可）。enabled=False 直接 mock、
+    零网络零 DB IO；开启时远程链外包日批次缓存
+    （app.services.train_cache.CachedTrainService），按进程级单例构造一次。
     """
     if not settings.train_remote_enabled:
         return MockTrainService()
     global _train_service_singleton
     if _train_service_singleton is None:
-        sources = [
-            _SOURCE_FACTORIES[name](timeout_seconds=settings.train_query_timeout_seconds)
-            for name in settings.travel_train_source_order
-            if name in _SOURCE_FACTORIES
-        ]
-        _train_service_singleton = RemoteTrainService(
-            MockTrainService(), sources=sources
-        )
+        # 延迟导入：train_cache 复用本模块的时刻表与链装配，模块级互导成环。
+        from app.services.train_cache import create_cached_train_service
+
+        _train_service_singleton = create_cached_train_service(settings)
     return _train_service_singleton
 
 

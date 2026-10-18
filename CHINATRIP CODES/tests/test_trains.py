@@ -6,6 +6,7 @@ from datetime import time, timedelta
 
 import httpx
 
+import app.services.train_cache as train_cache_module
 import app.services.trains as trains_module
 from app.config import Settings
 from app.services.itinerary.models import TransferItem
@@ -571,19 +572,29 @@ def test_ctrip_and_meituan_are_placeholder_providers():
     assert [o.train_no for o in options] == ["G7"]
 
 
-def test_get_train_service_gating_and_singleton():
+def test_get_train_service_gating_and_singleton(tmp_path):
+    train_cache_module._train_cache_engine = None
     disabled = get_train_service(Settings(train_remote_enabled=False))
     assert isinstance(disabled, MockTrainService)
+    assert train_cache_module._train_cache_engine is None  # 关闭即零 DB IO
 
     trains_module._train_service_singleton = None
     try:
         enabled = Settings(
             train_remote_enabled=True,
             travel_train_source_order=["ctrip", "meituan", "12306"],
+            train_cache_url=f"sqlite:///{tmp_path}/train_cache.db",
         )
         first = get_train_service(enabled)
-        assert isinstance(first, RemoteTrainService)
-        assert [s.name for s in first._sources] == ["ctrip", "meituan", "12306"]
+        # 开启时 = 日缓存装饰器包住远程链（app.services.train_cache）。
+        assert isinstance(first, train_cache_module.CachedTrainService)
+        assert isinstance(first._inner, RemoteTrainService)
+        assert [s.name for s in first._inner._sources] == [
+            "ctrip",
+            "meituan",
+            "12306",
+        ]
         assert get_train_service(enabled) is first  # 进程级缓存
     finally:
         trains_module._train_service_singleton = None
+        train_cache_module._train_cache_engine = None

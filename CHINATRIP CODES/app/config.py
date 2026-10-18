@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     train_remote_enabled: bool = True  # False => 纯 mock，零网络
     train_query_timeout_seconds: float = 5.0
     travel_train_source_order: list[str] = ["ctrip", "meituan", "12306"]
+    # 火车班次日批次缓存（app/services/train_cache.py）：独立 SQLite 落库
+    # （app/db.py 的 PG 本机不存在，业务 store 均为内存实现）；换 PG 时改
+    # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
+    train_cache_url: str = "sqlite:///data/train_cache.db"
+    train_cache_ttl_hours: float = 24.0
 
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0
