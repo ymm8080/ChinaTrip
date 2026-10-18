@@ -1,6 +1,11 @@
 """Deterministic mock LLM adapter: line-rule parsing, zero network."""
 
-from app.services.llm.base import ExtractResult, POICandidate
+from app.services.llm.base import (
+    ChatMessage,
+    ChatResult,
+    ExtractResult,
+    POICandidate,
+)
 
 
 class MockLLMAdapter:
@@ -27,4 +32,23 @@ class MockLLMAdapter:
             model="mock",
             tokens_in=len(text) // 4,
             tokens_out=50,
+        )
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.3,
+        max_tokens: int | None = None,
+    ) -> ChatResult:
+        # Deterministic echo: unit tests steer behavior with their own stub
+        # adapters; this keeps app-level smoke tests zero-network.
+        last_user = next(
+            (m.content for m in reversed(messages) if m.role == "user"), ""
+        )
+        return ChatResult(
+            content=f"mock-chat:{last_user[-64:]}",
+            model="mock",
+            tokens_in=sum(len(m.content) for m in messages) // 4,
+            tokens_out=32,
         )

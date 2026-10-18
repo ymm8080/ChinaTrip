@@ -1,0 +1,125 @@
+"""Itinerary domain schema (design v2.0 §4/§6.0/§6.4).
+
+Shared vocabulary for the mutation pipeline (iron rules 0-23), the CP-SAT
+solver (§6.9), the planning agent (§6.1-6.3) and restaurant insertion
+(§6.2 v1.7). Pure pydantic — no DB, no LLM, no I/O.
+"""
+
+from datetime import time
+from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+# --- pace / buffer constants (iron rule 6 quantified, §6.4) ---
+
+WALK_KM_PER_DAY_MAX = 15.0  # x crowd coefficient 0.6-1.2
+CROWD_COEF_MIN = 0.6
+CROWD_COEF_MAX = 1.2
+VALID_TOUR_RATIO_MIN = 0.55  # effective sightseeing time ratio >= 55%
+INTERCITY_BUFFER_MINUTES = 90  # iron rule 4: cross-city connection buffer
+
+
+class GeoPoint(BaseModel):
+    lon: float
+    lat: float
+
+
+class VisitItem(BaseModel):
+    """A POI visit inside one day (food items reuse this, category=food)."""
+
+    item_id: str
+    name: str
+    poi_id: str | None = None
+    category: str | None = None  # sight|food|...
+    city: str
+    location: GeoPoint | None = None
+    day: int  # 1-based day number
+    start_time: time | None = None
+    end_time: time | None = None
+    duration_minutes: int | None = None
+    # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
+    pinned: bool = False
+
+
+class TransferItem(BaseModel):
+    """An intercity transfer segment (iron rule 5: seq-ordered, buffered)."""
+
+    item_id: str
+    day: int
+    seq: int  # order among that day's transfers
+    from_city: str
+    to_city: str
+    mode: Literal["train", "flight", "car", "bus"] = "train"
+    start_time: time | None = None
+    end_time: time | None = None
+    duration_minutes: int | None = None
+    train_no: str | None = None  # TrainService static-lib hit, if any
+
+
+class DayPlan(BaseModel):
+    day: int
+    base_city: str  # city the user wakes up in
+    items: list[VisitItem | TransferItem] = Field(default_factory=list)
+
+
+class ItineraryPlan(BaseModel):
+    """Working copy of an itinerary (snapshots freeze this, iron rule 16)."""
+
+    itinerary_id: str
+    cities: list[str]
+    days: list[DayPlan]
+    assumptions: list[str] = Field(default_factory=list)
+
+
+class PoiHours(BaseModel):
+    """Opening-hours rule used by iron rule 2 (validation input)."""
+
+    poi_id: str
+    opens: time
+    closes: time
+
+
+class RuleSeverity(str, Enum):
+    error = "error"  # hard: plan is invalid, must be repaired
+    warning = "warning"  # soft: surfaced to the user
+
+
+class RuleViolation(BaseModel):
+    rule_id: int  # iron rule number 0-23
+    severity: RuleSeverity
+    message: str
+    item_ids: list[str] = Field(default_factory=list)
+    day: int | None = None
+
+
+class ValidationReport(BaseModel):
+    ok: bool  # no error-severity violations
+    violations: list[RuleViolation] = Field(default_factory=list)
+
+
+class DiffOp(BaseModel):
+    """Unified change op (iron rule 0): LLM rerank / manual drag / snapshot
+    restore / solver output all speak this."""
+
+    op: Literal["add", "remove", "move", "retime"]
+    item_id: str | None = None
+    item: VisitItem | TransferItem | None = None  # for add
+    new_day: int | None = None  # for move
+    new_start_time: time | None = None  # for retime/move
+
+
+class ChangeSummary(BaseModel):
+    """Iron rule 19: minimal-change principle output."""
+
+    change_summary: list[str] = Field(default_factory=list)
+    affected_items_count: int = 0
+    reasoning: str | None = None
+
+
+class CrowdProfile(str, Enum):
+    """Crowd coefficient band for the pace rule (iron rule 6)."""
+
+    slow = "slow"  # 0.6 - families with kids / elderly
+    normal = "normal"  # 1.0
+    fast = "fast"  # 1.2 - solo / sporty
