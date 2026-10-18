@@ -818,6 +818,47 @@ function planSetSession(s) {
   document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
 }
 
+// 渲染 /plan/start 或 /plan/{id}/message 的响应（clarify 追问 / 行程卡 / 快捷条 / 违规）。
+function planRenderReply(holder, body, opts) {
+  holder.textContent = "";
+  if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
+  if (body.state === "clarify" && (body.clarify || []).length) {
+    const qs = body.clarify;
+    holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+    if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+      const row = el('<div class="chips"></div>');
+      ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+        const b = el('<button class="chip">' + p + "</button>");
+        b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+        row.appendChild(b);
+      });
+      holder.appendChild(row);
+    } else if (opts && opts.first) {
+      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
+    }
+  } else {
+    if (opts && opts.first) holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
+    if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
+    if (body.change) holder.appendChild(changeNode(body.change));
+    if (body.plan) {
+      holder.appendChild(planCard(body.plan));
+      holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
+    } else if (!body.reply) {
+      holder.appendChild(el('<div class="muted">（本轮没有返回行程数据）</div>'));
+    }
+    const vn = violationsNode(body.violations, "硬校验提示");
+    if (vn) holder.appendChild(vn);
+  }
+}
+function planRenderSafe(holder, body, opts) {
+  try {
+    planRenderReply(holder, body, opts);
+  } catch (re) {
+    console.error("plan render failed", re);
+    holder.appendChild(el('<div class="violation error">⚠ 数据已返回但渲染中断：' + esc(re && re.message || String(re)) + "（可截图反馈）</div>"));
+  }
+}
+
 document.getElementById("planStart").onclick = (e) => busy(e.target, async () => {
   const cities = planCitiesAll();
   const prefs = document.getElementById("planPref").value.trim();
@@ -826,35 +867,10 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, async () =>
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
     const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
-    planSetSession({ session_id: body.session_id, state: body.state });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities, days: planDays, preferences: prefs } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
-    try {
-      if (body.state === "clarify") {
-        const qs = (body.clarify || []);
-        holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-        if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
-          const row = el('<div class="chips"></div>');
-          ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
-            const b = el('<button class="chip">' + p + "</button>");
-            b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
-            row.appendChild(b);
-          });
-          holder.appendChild(row);
-        } else {
-          holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
-        }
-      } else {
-        holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
-        holder.appendChild(planCard(body.plan));
-        holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
-        const vn = violationsNode(body.violations, "硬校验提示");
-        if (vn) holder.appendChild(vn);
-      }
-    } catch (re) {
-      console.error("plan render failed", re);
-      holder.appendChild(el('<div class="violation error">⚠ 数据已返回但渲染中断：' + esc(re && re.message || String(re)) + "（可截图反馈）</div>"));
-    }
+    planRenderSafe(holder, body, { first: true });
   } catch (err) {
     holder.textContent = "❌ 规划失败：" + detailText(err.detail);
     failToast(err);
@@ -875,30 +891,36 @@ async function planSend() {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = body.state;
     document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + body.state;
-    holder.textContent = "";
-    if (body.state === "clarify" && body.clarify) {
-      holder.appendChild(frag("<div>还需要补充信息：</div>" + body.clarify.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-      if (body.clarify.join("").indexOf("偏好") >= 0 || body.clarify.join("").indexOf("观光") >= 0) {
-        const row = el('<div class="chips"></div>');
-        ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
-          const b = el('<button class="chip">' + p + "</button>");
-          b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
-          row.appendChild(b);
-        });
-        holder.appendChild(row);
-      }
-    } else {
-      holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
-      if (body.change) holder.appendChild(changeNode(body.change));
-      if (body.plan) { holder.appendChild(planCard(body.plan)); holder.appendChild(planBookQuick(body.plan)); }
-      const vn = violationsNode(body.violations, "硬校验提示");
-      if (vn) holder.appendChild(vn);
-    }
+    planRenderSafe(holder, body);
   } catch (err) {
-    holder.textContent = "❌ 发送失败：" + detailText(err.detail);
-    failToast(err);
+    if (err && err.detail === "session_not_found" && planSession && planSession.origin) {
+      await planResendAfterRestart(holder, text, input); // 服务重启清空内存会话：按原参数重建并自动重发
+    } else {
+      holder.textContent = "❌ 发送失败：" + detailText(err.detail);
+      failToast(err);
+    }
   }
   document.getElementById("flow-plan").scrollTop = 1e9;
+}
+// 会话存后端进程内存，服务重启即丢；此处按原参数重建会话并自动重发本轮消息。
+async function planResendAfterRestart(holder, text, input) {
+  const orig = planSession.origin;
+  holder.textContent = "⚠ 会话因服务重启丢失，正在按原参数重建并自动重发你刚才的话…";
+  try {
+    const nb = await api("/api/v1/plan/start", orig);
+    planSetSession({ session_id: nb.session_id, state: nb.state, origin: orig });
+    planRenderSafe(holder, nb, { first: true, banner: "已重建会话（原会话因服务重启丢失），你刚才的话已自动重发：" });
+    const h2 = addMsg("flow-plan", "sys", "⏳ 重发中…");
+    const b2 = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
+    planSession.state = b2.state;
+    document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + b2.state;
+    planRenderSafe(h2, b2);
+  } catch (e2) {
+    planSetSession(null);
+    input.value = text;
+    holder.textContent = "❌ 会话已过期且重建失败：" + detailText(e2.detail) + "；你的话已放回输入框，请重新点「开始规划」。";
+    failToast(e2);
+  }
 }
 document.getElementById("planSend").onclick = (e) => busy(e.target, planSend);
 document.getElementById("planInput").addEventListener("keydown", e => {
@@ -931,28 +953,35 @@ t9nRender();
 
 // 语音输入：麦克风采 PCM → 前端合成 WAV → 服务端 /asr（智谱 GLM-ASR）。
 // 不用 Web Speech API：Chrome 识别走谷歌服务，大陆网络 onerror=network 必挂。
-let t9nRec = null; // {stream, ctx, node, zero, chunks, base, timer}
+let t9nRec = null, t9nStarting = false; // t9nRec: {stream, ctx, node, zero, chunks, base, timer}
 document.getElementById("t9nMic").onclick = () => {
   if (t9nRec) { t9nStop(); return; } // 再点一次结束并识别
+  if (t9nStarting) return; // 授权/resume 异步间隙连点会并行建多套采音图：旧流泄漏、只停最后一段
   const mic = document.getElementById("t9nMic");
   const base = document.getElementById("t9nInput").value;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     toast("此浏览器不支持语音输入"); return;
   }
+  t9nStarting = true;
   navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
   }).then(async stream => {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} } // 自动播放策略：挂起态不触发采集
-    const src = ctx.createMediaStreamSource(stream);
-    const node = ctx.createScriptProcessor(4096, 1, 1);
-    const zero = ctx.createGain(); zero.gain.value = 0; // 防 回声：不外放，仅驱动采集
-    const chunks = [];
-    node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    src.connect(node); node.connect(zero); zero.connect(ctx.destination);
-    t9nRec = { stream, ctx, node, zero, chunks, base, timer: setTimeout(t9nStop, 25000) };
-    mic.classList.add("rec");
-    toast("正在聆听…说完再点 🎤 结束");
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} } // 自动播放策略：挂起态不触发采集
+      const src = ctx.createMediaStreamSource(stream);
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      const zero = ctx.createGain(); zero.gain.value = 0; // 防 回声：不外放，仅驱动采集
+      const chunks = [];
+      node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      src.connect(node); node.connect(zero); zero.connect(ctx.destination);
+      t9nRec = { stream, ctx, node, zero, chunks, base, timer: setTimeout(t9nStop, 25000) };
+      mic.classList.add("rec");
+      toast("正在聆听…说完再点 🎤 结束");
+    } catch (e) {
+      stream.getTracks().forEach(t => t.stop());
+      toast("启动录音失败：" + (e.message || e));
+    } finally { t9nStarting = false; }
   }).catch(() => toast("无法访问麦克风：请在浏览器地址栏允许麦克风权限"));
 };
 async function t9nStop() {
@@ -1492,6 +1521,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
         row.appendChild(appBtn);
         row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">🌐 网页版</a>'));
         box.appendChild(row);
+        if (m === "taxi") box.appendChild(el('<div class="muted" style="margin-top:4px">网页版为高德路线页（网页无法叫车）；叫车请在手机上点「打开高德 App」</div>'));
         if (body.ios_alternative) {
           box.appendChild(el('<div class="muted" style="margin-top:4px">iOS 备用：<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
         }
