@@ -1,7 +1,11 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api.amap import router as amap_router
+from app.api.bookings import router as bookings_router
 from app.api.extract import router as extract_router
 from app.api.health import router as health_router
 from app.api.itineraries import router as itineraries_router
@@ -37,6 +41,10 @@ def create_app() -> FastAPI:
     app.include_router(itineraries_router)
     app.include_router(plan_router)
     app.include_router(navi_router)
+    app.include_router(bookings_router)
+
+    static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/h5", StaticFiles(directory=static_dir, html=True), name="h5")
     return app
 
 
