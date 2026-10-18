@@ -3,9 +3,11 @@
 POST /api/v1/plan/start          — <=2 clarifications or an immediate v0
 POST /api/v1/plan/{id}/message   — conversational diff iterations
 
-X-Device-ID is required on both routes. LLM failures on the conversational
-path map to 502 (extract.py style); the v0 path degrades to a placeholder
-plan instead of failing (§6.1 time-to-first-itinerary contract).
+X-Device-ID is required on both routes. Transient LLM failures degrade
+in-conversation (one retry, then a friendly reply — the session and plan
+survive); the v0 path degrades to a placeholder plan instead of failing
+(§6.1 time-to-first-itinerary contract). 502 stays as the safety net for
+anything the agent still raises.
 """
 
 import logging

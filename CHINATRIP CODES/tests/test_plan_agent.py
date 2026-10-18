@@ -48,6 +48,25 @@ class ExplodingLLM:
         raise LLMError("backend down")
 
 
+class FlakyLLM:
+    """First ``failures`` calls raise (backend stall), then one canned reply."""
+
+    name = "flaky"
+
+    def __init__(self, failures: int, then: str) -> None:
+        self.failures = failures
+        self.then = then
+        self.calls = 0
+
+    async def chat(
+        self, messages, *, temperature: float = 0.3, max_tokens=None
+    ) -> ChatResult:
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise LLMError("zhipu request timeout: ReadTimeout")
+        return ChatResult(content=self.then, model="flaky")
+
+
 class StubAmap:
     def __init__(self, pois=None, exc: Exception | None = None) -> None:
         self.pois = pois or []
@@ -517,3 +536,48 @@ def test_message_unknown_item_keeps_plan_unchanged():
     assert "未能生效" in reply
     assert session.plan == before
     assert change is None  # nothing was applied
+
+
+def test_message_edit_llm_timeout_keeps_conversation_alive():
+    # v0 burns attempts 1-2 (placeholder plan), the edit turn burns 3-4:
+    # every chat() raises ReadTimeout -> friendly in-band reply, no 502.
+    llm = FlakyLLM(failures=4, then="never reached")
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
+    before = session.plan.model_copy(deep=True)
+    session, reply, change = run(agent.message(session, "把豫园挪到第二天"))
+    assert llm.calls == 4  # v0 two attempts + edit two attempts
+    assert "模型暂时无响应" in reply
+    assert session.plan == before
+    assert change is None
+    assert session.history[-1].role == "assistant"
+
+
+def test_message_edit_llm_retry_then_success():
+    # v0 burns attempts 1-2 (placeholder plan), attempt 3 still stalls,
+    # attempt 4 delivers a valid edit -> the diff lands normally.
+    llm = FlakyLLM(
+        failures=3,
+        then=edit_reply("已删除", [{"op": "remove", "item_id": "v1"}]),
+    )
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
+    session, reply, change = run(agent.message(session, "删掉第一个景点"))
+    assert llm.calls == 4
+    assert "已删除" in reply
+    assert change is not None
+    assert all(i.item_id != "v1" for d in session.plan.days for i in d.items)

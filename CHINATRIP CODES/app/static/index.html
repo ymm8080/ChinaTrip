@@ -896,6 +896,7 @@ async function planSend() {
     if (err && err.detail === "session_not_found" && planSession && planSession.origin) {
       await planResendAfterRestart(holder, text, input); // 服务重启清空内存会话：按原参数重建并自动重发
     } else {
+      input.value = text; // 发送失败把话放回输入框，用户不用重打
       holder.textContent = "❌ 发送失败：" + detailText(err.detail);
       failToast(err);
     }
@@ -1267,6 +1268,8 @@ const NAV = {
   me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设）
   myPos: { ...FALLBACK_POS, name: "我的位置" }, // 定位/回退得到的位置，↺ 恢复用
   meAuto: true,                       // 起点未手动改设 ⇒ 跟随定位（regeo 回填地址）
+  geolocOk: false,                    // 浏览器定位成功过（myPos 是真实坐标非回退）
+  meReal: false,                      // 起点是真实位置（定位成功或 POI 点选）；false=故宫回退 ⇒ handoff 不带起点
   dest: null,                        // {name, lon, lat}（搜索点选设定）
   mode: null,
   city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
@@ -1368,6 +1371,7 @@ let poiField = "dest"; // 当前搜索写入哪个字段：origin | dest
 function setOrigin(p) {
   NAV.me = p;
   NAV.meAuto = false; // 手动改设后不再跟随定位地址
+  NAV.meReal = true;  // POI 点选 ⇒ 真实起点
   placeMe();
   originKw.value = p.name;
   flyTo(p.lon, p.lat, Math.max(MAP.z, 13));
@@ -1414,7 +1418,7 @@ originKw.addEventListener("keydown", e => {
 destKw.addEventListener("keydown", e => {
   if (e.key === "Enter") { poiField = "dest"; poiSearch(); }
 });
-document.getElementById("originReset").onclick = () => { setOrigin({ ...NAV.myPos }); NAV.meAuto = true; };
+document.getElementById("originReset").onclick = () => { setOrigin({ ...NAV.myPos }); NAV.meAuto = true; NAV.meReal = NAV.geolocOk; };
 document.addEventListener("pointerdown", e => {
   const drop = document.getElementById("poiDrop");
   if (drop && drop.style.display === "block" && !e.target.closest("#navPlan")) drop.style.display = "none";
@@ -1429,6 +1433,32 @@ async function ipCity(fly) {
     setCity(b.city || b.province, fly);
   } catch (err) { /* 保持默认城市 */ }
 }
+/* WGS-84（浏览器定位）→ GCJ-02（高德坐标系）纠偏：公共算法，境外坐标直返 */
+function wgs2gcj(lon, lat) {
+  const A = 6378245.0, EE = 0.00669342162296594323;
+  function tLat(x, y) {
+    let r = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+    r += (20 * Math.sin(y * Math.PI) + 40 * Math.sin(y / 3 * Math.PI)) * 2 / 3;
+    r += (160 * Math.sin(y / 12 * Math.PI) + 320 * Math.sin(y * Math.PI / 30)) * 2 / 3;
+    return r;
+  }
+  function tLon(x, y) {
+    let r = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+    r += (20 * Math.sin(x * Math.PI) + 40 * Math.sin(x / 3 * Math.PI)) * 2 / 3;
+    r += (150 * Math.sin(x / 12 * Math.PI) + 300 * Math.sin(x / 30 * Math.PI)) * 2 / 3;
+    return r;
+  }
+  if (lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271) return { lon, lat };
+  let dLat = tLat(lon - 105, lat - 35), dLon = tLon(lon - 105, lat - 35);
+  const radLat = lat / 180 * Math.PI;
+  let magic = 1 - EE * Math.sin(radLat) * Math.sin(radLat);
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((A * (1 - EE)) / (magic * sqrtMagic) * Math.PI);
+  dLon = (dLon * 180) / (A / sqrtMagic * Math.cos(radLat) * Math.PI);
+  return { lon: lon + dLon, lat: lat + dLat };
+}
 function locateMe(silent) {
   if (!navigator.geolocation) {
     ipCity(silent);
@@ -1438,11 +1468,12 @@ function locateMe(silent) {
   if (!silent) toast("正在定位…");
   navigator.geolocation.getCurrentPosition(
     pos => {
-      // 注：浏览器给 WGS-84，地图/后端是 GCJ-02；冒烟演示不做纠偏（国内偏差约几百米）
-      NAV.myPos = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
-      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; originKw.value = NAV.me.name; }
+      const g = wgs2gcj(pos.coords.longitude, pos.coords.latitude); // 浏览器 WGS-84 → 高德 GCJ-02，源头一次转换
+      NAV.myPos = { lon: g.lon, lat: g.lat, name: "我的位置" };
+      NAV.geolocOk = true;
+      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; NAV.meReal = true; originKw.value = NAV.me.name; }
       placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
-      regeoCity(pos.coords.longitude, pos.coords.latitude);
+      regeoCity(g.lon, g.lat);
     },
     () => {
       ipCity(silent); // 定位失败/被拒：IP 定位仍能拿到当前城市
@@ -1526,8 +1557,10 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       } catch (err) { failToast(err); }
     } else { // taxi / driving → deeplink
       const m = mode === "taxi" ? "taxi" : "driving";
+      const dlBody = { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } };
+      if (NAV.meReal) dlBody.origin = { name: NAV.me.name, lon: NAV.me.lon, lat: NAV.me.lat }; // 起点一并带入（from=/slon）；回退坐标不算
       try {
-        const body = await api("/api/v1/nav/deeplink", { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } });
+        const body = await api("/api/v1/nav/deeplink", dlBody);
         const isTaxi = m === "taxi";
         const box = el('<div><h4>' + (isTaxi ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
         box.appendChild(el('<div class="muted">起点：' + esc(NAV.me.name) + ' → 终点：' + esc(NAV.dest.name) + "</div>"));
@@ -1537,7 +1570,18 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
         row.appendChild(appBtn);
         row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">' + (isTaxi ? "🗺 驾车路线预览" : "🌐 网页版") + '</a>'));
         box.appendChild(row);
-        if (isTaxi) box.appendChild(el('<div class="muted" style="margin-top:4px">高德打车没有网页版：电脑端仅供路线预览，叫车请在手机上点「打开高德 App」</div>'));
+        if (isTaxi) { // 高德打车无网页版（1018 八域名内容级探明）⇒ 二维码桥接：手机扫码直达高德App打车页
+          const qrBox = el('<div style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff;display:inline-block"></div>');
+          qrBox.appendChild(el('<div id="taxiQr" style="margin:0 auto"></div>'));
+          qrBox.appendChild(el('<div class="muted" style="text-align:center;margin-top:4px">手机扫码 → 高德App 打车页（起终点已带入）</div>'));
+          box.appendChild(qrBox);
+          drawer(box);
+          if (typeof QRCode !== "undefined") {
+            try { new QRCode(document.getElementById("taxiQr"), { text: body.app_deeplink, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M }); }
+            catch (e) { /* 码生成失败不挡面板 */ }
+          }
+          return;
+        }
         if (body.ios_alternative) {
           box.appendChild(el('<div class="muted" style="margin-top:4px">iOS 备用：<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
         }

@@ -678,7 +678,23 @@ class PlanningAgent:
             ChatMessage(role="system", content=self._edit_system_prompt(session)),
             *session.history[-HISTORY_WINDOW:],
         ]
-        result = await self._llm.chat(messages, temperature=0.2)
+        result = None
+        for _ in range(LLM_ATTEMPTS):
+            try:
+                result = await self._llm.chat(messages, temperature=0.2)
+                break
+            except LLMError as exc:
+                logger.warning(
+                    "plan: edit llm call failed (%s: %s), retrying",
+                    type(exc).__name__,
+                    exc,
+                )
+        if result is None:
+            # Both attempts stalled (glm flash ReadTimeout seen in prod logs):
+            # keep the conversation alive in-band instead of a 502 dead end.
+            reply = "模型暂时无响应，这轮没有改动行程，请再发一次。"
+            session.history.append(ChatMessage(role="assistant", content=reply))
+            return session, reply, None
         try:
             data = parse_json_content(result.content)
             reply = str(data.get("reply") or "已处理你的消息。")

@@ -193,12 +193,18 @@ def test_message_other_device_returns_404():
     assert resp.json() == {"detail": "session_not_found"}
 
 
-def test_message_llm_error_maps_to_502():
+def test_message_llm_error_degrades_in_conversation():
+    # Prod incident 1018: glm flash ReadTimeout on the edit turn -> 502
+    # dead end. Contract now: retry once, then a friendly in-band reply;
+    # the session and the plan survive.
     agent = PlanningAgent(ExplodingAdapter())
     client = client_for(agent)
     first = start(client, {"cities": ["北京"], "days": 1, "preferences": "博物馆"})
     assert first.status_code == 200  # v0 degrades to a placeholder, not 502
     assert any("LLM 不可用" in a for a in first.json()["assumptions"])
     resp = message(client, first.json()["session_id"], "改一下")
-    assert resp.status_code == 502
-    assert resp.json() == {"detail": "llm_error"}
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "模型暂时无响应" in body["reply"]
+    assert body["state"] == "ready"
+    assert body["plan"]  # plan untouched, still delivered

@@ -204,9 +204,12 @@ def flight_offer_cards(
     region: str = "cn",
     settings: Settings,
 ) -> dict:
-    """机票候选卡（步骤1 查询）：去哪儿+携程（机票无美团卡）。"""
+    """机票候选卡（步骤1 查询）：携程主渠道+去哪儿兜底（机票无美团卡）。"""
     handoff = flight_booking(from_city, to_city, date)["handoff"]
-    channel_urls = {"qunar": handoff["url"], "ctrip": handoff["fallback"]["url"]}
+    channel_urls = {
+        handoff["channel"]: handoff["url"],
+        handoff["fallback"]["channel"]: handoff["fallback"]["url"],
+    }
     norm = _norm_query(
         "flight",
         {"from": from_city, "to": to_city, "date": date, "region": region},
