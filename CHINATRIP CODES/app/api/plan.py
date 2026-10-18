@@ -15,6 +15,7 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.itineraries import get_store
 from app.config import Settings, get_settings
 from app.services.agent.plan import (
     PlanningAgent,
@@ -24,6 +25,7 @@ from app.services.agent.plan import (
     get_plan_session_store,
 )
 from app.services.amap_client import AmapClient
+from app.services.itinerary_store import ItineraryRecord
 from app.services.llm import get_llm_adapter
 from app.services.llm.zhipu import LLMError
 from app.services.trains import get_train_service
@@ -74,12 +76,35 @@ def get_plan_sessions() -> PlanSessionStore:
     return get_plan_session_store()
 
 
+def _persist_plan(device_id: str, session, store) -> None:
+    """Mirror the working plan into the itinerary store so /itineraries
+    endpoints and the H5 行程 tab see agent-produced plans (§5.4 working
+    copy; +1 sync version on every change)."""
+    plan = session.plan
+    if plan is None:
+        return
+    record = store.get(plan.itinerary_id)
+    if record is None:
+        store.put(
+            ItineraryRecord(
+                itinerary_id=plan.itinerary_id,
+                owner_device_id=device_id,
+                plan=plan,
+            )
+        )
+    else:
+        record.plan = plan
+        record.working_sync_version += 1
+        store.put(record)
+
+
 @router.post("/plan/start")
 async def start_plan(
     request: PlanStartRequest,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
+    itinerary_store=Depends(get_store),
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -95,6 +120,7 @@ async def start_plan(
         logger.exception("plan/start llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
+    _persist_plan(x_device_id, session, itinerary_store)
     body: dict = {"session_id": session.session_id, "state": session.state}
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
@@ -112,6 +138,7 @@ async def message_plan(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
+    itinerary_store=Depends(get_store),
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -124,6 +151,7 @@ async def message_plan(
         logger.exception("plan/message llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
+    _persist_plan(x_device_id, session, itinerary_store)
     body: dict = {"reply": reply, "state": session.state}
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)

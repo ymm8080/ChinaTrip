@@ -173,8 +173,13 @@ def test_message_200_applies_diff_and_returns_change():
     assert body["state"] == "ready"
     assert "豫园" in body["reply"]
     assert body["change"]["affected_items_count"] == 1
-    moved = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
-    assert moved
+    # Day 2 is the 上海→杭州 transfer day with no morning slot before the
+    # 07:15 train (minus 90min buffer), so the Shanghai POI is reconciled
+    # back to day 1 with an assumption note instead of stranding it.
+    day1 = [i for i in body["plan"]["days"][0]["items"] if i["item_id"] == "v2"]
+    day2 = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
+    assert day1 and not day2
+    assert any("豫园" in a for a in body["plan"]["assumptions"])
 
 
 def test_message_unknown_session_returns_404():

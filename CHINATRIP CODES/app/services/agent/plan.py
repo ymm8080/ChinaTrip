@@ -44,6 +44,7 @@ from app.services.itinerary import (
     validate_pinned,
     validate_plan,
 )
+from app.services.itinerary.models import INTERCITY_BUFFER_MINUTES
 from app.services.itinerary.solver import solve_plan
 from app.services.llm import ChatMessage, LLMError, parse_json_content
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
@@ -74,7 +75,7 @@ PREF_QUESTION = (
 LLM_ATTEMPTS = 2  # one structured-output call + one retry, then degrade
 HISTORY_WINDOW = 12
 PACE_ASSUMPTION = "假设中等节奏、不早起"
-SOLVER_DEGRADED_ASSUMPTION = "求解器未收敛，时间为未排"
+SOLVER_DEGRADED_ASSUMPTION = "求解器未收敛，时间已按顺序兜底排列"
 
 KNOWN_CITIES = (
     "北京",
@@ -235,6 +236,148 @@ def _item_line(item: VisitItem | TransferItem) -> str:
 
 def _plan_digest(plan: ItineraryPlan) -> str:
     return "\n".join(_item_line(i) for d in plan.days for i in d.items)
+
+
+def _item_end_minutes(item: VisitItem | TransferItem) -> int | None:
+    if item.start_time is None:
+        return None
+    end = item.end_time
+    if end is None:
+        dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+        return item.start_time.hour * 60 + item.start_time.minute + dur
+    return end.hour * 60 + end.minute
+
+
+def _reconcile_transfer_days(plan: ItineraryPlan) -> list[str]:
+    """Deterministic repair for transfer-day layout conflicts (rule 4).
+
+    The LLM edit path can strand departure-city visits on the day their
+    city is being left (e.g. Xiamen POIs on the 9am-flight day). Move any
+    non-pinned departure-city visit back to the latest earlier day based
+    in that city; drop it with an assumption note when no such day exists
+    or the target day's evening is already full.
+    """
+    notes: list[str] = []
+    day_start = 8 * 60
+    for idx, day in enumerate(plan.days):
+        transfers = [t for t in day.items if isinstance(t, TransferItem)]
+        leaving = {t.from_city.strip() for t in transfers}
+        if not leaving:
+            continue
+        timed_starts = [
+            t.start_time.hour * 60 + t.start_time.minute
+            for t in transfers
+            if t.start_time is not None
+        ]
+        # A departure-city visit is only stranded when it cannot fit in
+        # the morning window before the earliest transfer minus the
+        # iron-rule-4 buffer; with no timed transfer we cannot verify
+        # anything, so treat every departure-city visit as stranded.
+        morning_capacity = (
+            min(timed_starts) - INTERCITY_BUFFER_MINUTES - day_start
+            if timed_starts
+            else -1
+        )
+        stranded = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and not v.pinned
+            and v.city.strip() in leaving
+            and (v.duration_minutes or DEFAULT_VISIT_MINUTES) > morning_capacity
+        ]
+        for visit in stranded:
+            target = next(
+                (
+                    d
+                    for d in reversed(plan.days[:idx])
+                    if d.base_city.strip() == visit.city.strip()
+                ),
+                None,
+            )
+            moved = False
+            if target is not None:
+                tail = max(
+                    (
+                        e
+                        for e in (_item_end_minutes(i) for i in target.items)
+                        if e is not None
+                    ),
+                    default=8 * 60,
+                )
+                dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+                start = max(tail + 30, 8 * 60)
+                if start + dur <= 21 * 60 + 30:
+                    visit.day = target.day
+                    visit.start_time = time(start // 60, start % 60)
+                    visit.end_time = time((start + dur) // 60, (start + dur) % 60)
+                    day.items.remove(visit)
+                    target.items.append(visit)
+                    moved = True
+                    notes.append(
+                        f"「{visit.name}」与第{day.day}天离城交通冲突，"
+                        f"已移至第{target.day}天 {_fmt_hm(visit.start_time)}"
+                    )
+            if not moved:
+                day.items.remove(visit)
+                notes.append(
+                    f"「{visit.name}」在离城当天无法安排，已从第{day.day}天移除"
+                )
+    return notes
+
+
+def _fmt_hm(t: time) -> str:
+    return f"{t.hour:02d}:{t.minute:02d}"
+
+
+def _fallback_sequence_times(plan: ItineraryPlan) -> None:
+    """Solver-degraded fallback: sequence untimed visits into the free
+    gaps around fixed items so no item ships without a time slot.
+
+    Transfer windows are respected with the iron-rule-4 buffer on both
+    sides; visits that fit nowhere stay untimed and are flagged by
+    validation instead of silently passing.
+    """
+    day_start, day_end = 8 * 60, 21 * 60 + 30
+    buf = INTERCITY_BUFFER_MINUTES
+    for day in plan.days:
+        fixed: list[tuple[int, int]] = []
+        for item in day.items:
+            start = item.start_time
+            if start is None:
+                continue
+            s = start.hour * 60 + start.minute
+            e = _item_end_minutes(item)
+            has_transfer = isinstance(item, TransferItem)
+            fixed.append(
+                (s - buf, e + buf) if has_transfer else (s - 30, e + 30)
+            )
+        fixed.sort()
+        untimed = [
+            v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
+        ]
+        for visit in untimed:
+            dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+            cursor = day_start
+            placed = False
+            for fs, fe in fixed:
+                if cursor + dur <= fs:
+                    break
+                cursor = max(cursor, fe)
+            if cursor + dur <= day_end and all(
+                cursor + dur <= fs or cursor >= fe for fs, fe in fixed
+            ):
+                visit.start_time = time(cursor // 60, cursor % 60)
+                visit.end_time = time((cursor + dur) // 60, (cursor + dur) % 60)
+                fixed.append((cursor - 30, cursor + dur + 30))
+                fixed.sort()
+                placed = True
+            if not placed:
+                logger.warning(
+                    "plan: fallback sequencing could not place %s on day %d",
+                    visit.name,
+                    day.day,
+                )
 
 
 class PlanSession(BaseModel):
@@ -744,10 +887,12 @@ class PlanningAgent:
             days=day_plans,
             assumptions=assumptions + transfer_assumptions,
         )
+        plan.assumptions.extend(_reconcile_transfer_days(plan))
         solved = self._solve(plan)
         if solved is not None:
             plan = solved
         else:
+            _fallback_sequence_times(plan)
             plan.assumptions.append(SOLVER_DEGRADED_ASSUMPTION)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
@@ -893,9 +1038,12 @@ class PlanningAgent:
         path like any other candidate.
         """
         candidate = apply_diffs(plan, diffs)
+        candidate.assumptions.extend(_reconcile_transfer_days(candidate))
         solved = self._solve(candidate)
         if solved is not None:
             candidate = solved
+        else:
+            _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:

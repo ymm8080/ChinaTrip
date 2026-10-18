@@ -540,7 +540,7 @@ def test_v0_placeholder_selection_respects_city_windows():
     assert haerbin and all(2 <= v.day <= 4 for v in haerbin)
 
 
-def test_v0_solver_failure_delivers_unscheduled_with_assumption():
+def test_v0_solver_failure_delivers_sequenced_with_assumption():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm, solver=lambda plan, **kw: None)
     session = run(
@@ -553,7 +553,9 @@ def test_v0_solver_failure_delivers_unscheduled_with_assumption():
     )
     assert session.state == "ready"
     assert any("求解器未收敛" in a for a in session.assumptions)
-    assert all(v.start_time is None for v in all_visits(session))
+    # Degraded solver still ships timed items (fallback sequencing) —
+    # 未排 items are invisible to validation and broke transfer-day checks.
+    assert all(v.start_time is not None for v in all_visits(session))
 
 
 # --- LLM degradation (parse retry -> placeholder plan) ---------------------
@@ -621,7 +623,11 @@ def test_message_move_diff_changes_plan_and_reports_change():
     assert change.affected_items_count == 1
     assert change.change_summary
     moved = next(i for d in session.plan.days for i in d.items if i.item_id == "v2")
-    assert moved.day == 2
+    # Day 2 is the 上海→杭州 transfer day (earliest train 07:15 minus the
+    # 90min buffer leaves no morning slot): a Shanghai POI is physically
+    # impossible there, so reconcile moves it back to day 1 with a note.
+    assert moved.day == 1
+    assert any("豫园" in a and "移至第1天" in a for a in session.plan.assumptions)
     assert not hard_errors(session)
 
 

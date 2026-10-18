@@ -174,6 +174,22 @@ def _check_transfer_buffer(
         tr_end_window = tr_end if tr_end is not None else tr_start
         for v in visits:
             if v.start_time is None or v.end_time is None:
+                # Untimed visits are invisible to every downstream check, so
+                # a "day 3 in Xiamen + 9am flight" layout ships silently.
+                # Hard-fail it: the caller must time or relocate the visit.
+                out.append(
+                    RuleViolation(
+                        rule_id=4,
+                        severity=RuleSeverity.error,
+                        message=(
+                            f"第{day_no}天 跨城交通 {tr.from_city}→{tr.to_city}"
+                            f" 当天的景点「{v.name}」没有起止时间，无法校验衔接，"
+                            "请安排时间或移动到其他天"
+                        ),
+                        item_ids=[v.item_id],
+                        day=day_no,
+                    )
+                )
                 continue
             vs, ve = _minutes(v.start_time), _minutes(v.end_time)
             if vs < tr_end_window + buf and ve > tr_start - buf:
