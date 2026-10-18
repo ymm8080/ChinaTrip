@@ -5,9 +5,10 @@
 - LLM = 智谱 GLM 云 API（个人 key，OpenAI 兼容端点，零 GPU 成本）。v1.9.9 拍板：MVP = 智谱云即正式路径（已备案模型，非降级）；自建 GPU/vLLM 后移至规模化阶段（W11+，量/成本阈值远程可配触发），切换 = 仅改 `GLM_BASE_URL` 与模型名，适配器零改动；`LLM_BACKEND=mock` 可完全离线开发测试
 - 高德 = 个人开发者 Key，仅服务端调用，key 永不进客户端
 - 匿名 device_id 单轨（无登录体系；支付/权益基建不建 —— 需公司主体，表结构保留在迁移中）
+- 客户端 = Flutter 单代码库双端（Android+iOS，设计 v2.1 §5.0 原生模块契约表）；M1.5 独立工作流，待用户功能测试通过后启动——本仓 = 后端。MVP 功能测试走 `/docs`（Swagger）+ 单页 H5 冒烟，零客户端开发
 - PostgreSQL + PostGIS（Alembic 迁移）
 - v1.7 预埋：`pois.wgs84_location` 双坐标（境外渲染副本，Phase 2）；用量日志带 `region` 维度（`scene` 随 Phase 2 境外代理链路引入）
-- v1.8 行程求解器：OR-Tools CP-SAT 管排期/排序，LLM 管理解与选点（§6.9 分工）。W3-4 spike 起接入，`ortools` 依赖届时引入，W1-2 不预装
+- v1.8 行程求解器：OR-Tools CP-SAT 管排期/排序，LLM 管理解与选点（§6.9 分工）；`ortools` 已入 requirements（MVP `solve_plan` 落地，3s 预算，失败降级 LLM 自修≤3→半成品）
 - v1.9/v2.0 增量：`action_handoffs` 表（行动编排留痕 + 佣金对账，含 v1.9.4 `refund_policy`/`refund_deadline` 退改快照）；铁律扩至 0–23（21 语音本地闭环 / 22 只手off 不代客交易 / 23 退改签透明前置）；MVP 无状态横扩 + pgbouncer（万级容量基线，§6.12 ⑦）
 
 ## 开发环境
@@ -37,3 +38,9 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `GET /health` | 存活检查 |
 | `POST /api/v1/extract` | 链接/文本解析（GLM 或 mock；注入内容隔离标记；置信度 <0.8 待确认；解析期零写权限） |
 | `GET /api/v1/amap/poi/search` | 高德 POI 服务端代理（key 不出服务端） |
+| `POST /api/v1/translate` | 翻译快车道（zh↔en；短语缓存；注入防护；铁律 21 云端只收文本） |
+| `POST /api/v1/plan/start` · `POST /api/v1/plan/{sid}/message` | 多城规划 Agent：澄清≤2→立即 v0 带假设→对话迭代（DiffOps 过管线，铁律 0/19；自修≤3） |
+| `POST/GET /api/v1/itineraries` · `PUT /{id}` | 行程 CRUD + 变更管线（铁律 1-6 校验；违规 422） |
+| `POST/GET /api/v1/itineraries/{id}/snapshots…/restore` | 快照冻结/恢复（铁律 16 快照不可变；额度走权益服务 402；恢复只写工作副本） |
+
+域服务（无路由）：`itinerary` 校验/管线/求解器、`entitlement` 权益+付费墙、`gate` 请求分类闸门、`trains` 车次服务、`restaurants` 餐厅推荐 v1（顺路度×评分，铁律 20 只插用餐空窗）。

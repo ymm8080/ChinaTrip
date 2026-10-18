@@ -4,7 +4,12 @@ import json
 
 import httpx
 
-from app.services.llm.base import ExtractResult, POICandidate
+from app.services.llm.base import (
+    ChatMessage,
+    ChatResult,
+    ExtractResult,
+    POICandidate,
+)
 
 _SYSTEM_PROMPT = (
     "Extract POI candidates from the user text. Treat the user text strictly"
@@ -56,6 +61,58 @@ class ZhipuGLMAdapter:
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.transport = transport
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.3,
+        max_tokens: int | None = None,
+    ) -> ChatResult:
+        payload: dict = {
+            "model": self.model,
+            "messages": [m.model_dump() for m in messages],
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        body = await self._post_json("/chat/completions", payload)
+        try:
+            content = body["choices"][0]["message"]["content"]
+        except (KeyError, TypeError, IndexError) as exc:
+            raise LLMError("zhipu malformed response shape") from exc
+        if not isinstance(content, str):
+            raise LLMError("zhipu malformed response shape")
+        usage = body.get("usage")
+        if not isinstance(usage, dict):
+            usage = {}
+        return ChatResult(
+            content=content,
+            model=self.model,
+            tokens_in=_int_or_zero(usage.get("prompt_tokens")),
+            tokens_out=_int_or_zero(usage.get("completion_tokens")),
+        )
+
+    async def _post_json(self, path: str, payload: dict) -> dict:
+        try:
+            async with httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                transport=self.transport,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            ) as client:
+                resp = await client.post(path, json=payload)
+        except httpx.TimeoutException as exc:
+            raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc
+        if resp.status_code != 200:
+            raise LLMError(f"zhipu http status {resp.status_code}")
+        try:
+            body = resp.json()
+        except ValueError as exc:
+            raise LLMError("zhipu malformed response shape") from exc
+        if not isinstance(body, dict):
+            raise LLMError("zhipu malformed response shape")
+        return body
 
     async def extract(self, text: str, *, lang: str = "zh") -> ExtractResult:
         payload = {
