@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
 
+    # 火车时刻（v2.4 行程中心）：数据源链 携程>美团>12306，任一源返回有效
+    # 班次即用，全失败降级 MockTrainService（app/services/trains.py）。
+    # 携程/美团对个人开发者无公开火车票 API（H5 探测见模块内证据常量），
+    # 当前为占位源、链内自动跳过；12306 无需 key，是实际主力源。
+    train_remote_enabled: bool = True  # False => 纯 mock，零网络
+    train_query_timeout_seconds: float = 5.0
+    travel_train_source_order: list[str] = ["ctrip", "meituan", "12306"]
+
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0
 

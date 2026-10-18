@@ -26,7 +26,7 @@ from app.services.bookings import (
     hotel_booking,
     train_booking,
 )
-from app.services.trains import MockTrainService
+from app.services.trains import get_train_service
 
 __all__ = ["flight_offer_cards", "hotel_offer_cards", "train_offer_cards"]
 
@@ -225,7 +225,9 @@ async def train_offer_cards(
     URL 复用 bookings.train_booking 的 12306 拼法（电报码缺失时城市双写槽位）。
     """
     handoff = (
-        await train_booking(from_city, to_city, date, train_service=MockTrainService())
+        await train_booking(
+            from_city, to_city, date, train_service=get_train_service(settings)
+        )
     )["handoff"]
     card = {
         "channel": handoff["channel"],

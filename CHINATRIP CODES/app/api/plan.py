@@ -26,7 +26,7 @@ from app.services.agent.plan import (
 from app.services.amap_client import AmapClient
 from app.services.llm import get_llm_adapter
 from app.services.llm.zhipu import LLMError
-from app.services.trains import MockTrainService
+from app.services.trains import get_train_service
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def get_planning_agent(
         _agent_singleton = PlanningAgent(
             get_llm_adapter(settings),
             amap_client=amap,
-            train_service=MockTrainService(),
+            train_service=get_train_service(settings),
             time_budget_seconds=settings.solver_time_budget_seconds,
         )
     return _agent_singleton

@@ -9,11 +9,12 @@ channel order page. All endpoints are fast-lane: no LLM involved.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.config import Settings, get_settings
 from app.services.bookings import flight_booking, hotel_booking, train_booking
-from app.services.trains import MockTrainService
+from app.services.trains import get_train_service
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,14 @@ class HotelRequest(BaseModel):
 
 
 @router.post("/train")
-async def train(req: TrainRequest) -> dict:
+async def train(
+    req: TrainRequest,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     try:
         return await train_booking(
-            req.from_city, req.to_city, req.date, train_service=MockTrainService()
+            req.from_city, req.to_city, req.date,
+            train_service=get_train_service(settings),
         )
     except ValueError as exc:
         logger.warning("train booking handoff rejected: %s", exc)
