@@ -180,6 +180,14 @@ def test_start_incomplete_request_clarifies_without_llm():
     assert any("城市" in q for q in questions)
 
 
+def test_clarify_asks_origin_and_destination_first():
+    agent = PlanningAgent(ExplodingLLM())
+    session = run(agent.start(device_id="d1", cities=[], days=0))
+    questions = clarify_questions(session)
+    # 城市问题排第一，且明确问出发地/目的地（用户令 1018）
+    assert "出发" in questions[0] and "目的地" in questions[0]
+
+
 def test_clarify_answer_completes_then_generates_v0():
     agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]))
     session = run(agent.start(device_id="d1", cities=[], days=0))

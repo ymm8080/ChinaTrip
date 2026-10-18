@@ -254,12 +254,16 @@ class PlanSession(BaseModel):
 
 
 def clarify_questions(session: PlanSession) -> list[str]:
-    """§6.1: the two v0 blockers (days, cities) + the preference round."""
+    """§6.1: the two v0 blockers (cities first: origin/destination, then
+    days) + the preference round."""
     questions: list[str] = []
+    if not session.cities:
+        questions.append(
+            "从哪个城市出发、目的地是哪座城市？（中途想停留的城市也可以一起说，"
+            "例如：从三亚出发去哈尔滨，途经广州）"
+        )
     if session.days <= 0:
         questions.append("这次计划玩几天？")
-    if not session.cities:
-        questions.append("想去哪几个城市？例如：上海、杭州")
     if session.pref_asked:
         questions.append(PREF_QUESTION)
     return questions
