@@ -428,6 +428,7 @@
         <button class="btn plain" id="itinSnap">🧊 冻结快照</button>
         <button class="btn ghost" id="itinRefresh">🔄 刷新行程与快照</button>
       </div>
+      <div class="card" id="itinSavedWrap"><h4>📌 我的行程（含规划页保存的行程）</h4><div id="itinSavedList" class="muted">切到本页时自动加载…</div></div>
       <div class="flow" id="flow-itin"></div>
     </section>
 
@@ -729,7 +730,7 @@ function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "�
 
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
-  const box = el('<div class="card"><h4>🧳 行程 ' + esc(plan.itinerary_id) + " · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
+  const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
     box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
@@ -751,7 +752,25 @@ function planCard(plan) {
   return box;
 }
 
-// 校验违规清单（RuleViolation: rule_id/severity/message/item_ids/day）
+// 满意了点保存：工作副本服务端已实时落库，这里冻结一个不可变快照并回报行程编号
+function planSaveBar(plan) {
+  const bar = el('<div class="dirbar"></div>');
+  const btn = el('<button class="btn">💾 保存行程</button>');
+  btn.onclick = () => busy(btn, async () => {
+    const name = (plan.cities || []).join("→") + (planDateIso(1) ? " " + planDateIso(1) : "") + " 保存";
+    try {
+      const s = await api("/api/v1/itineraries/" + plan.itinerary_id + "/snapshots", { name });
+      bar.textContent = "";
+      bar.appendChild(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
+      toast("行程已保存：" + plan.itinerary_id);
+    } catch (err) {
+      if (err.status === 402) toast("免费快照额度（3 个）已用完——可到「行程」页恢复旧快照");
+      else failToast(err);
+    }
+  });
+  bar.appendChild(btn);
+  return bar;
+}
 function violationsNode(vs, title) {
   if (!vs || !vs.length) return null;
   const box = el('<div class="card"><h4>' + esc(title || "校验违规") + " · " + vs.length + " 处</h4></div>");
@@ -845,6 +864,7 @@ function planRenderReply(holder, body, opts) {
     if (body.change) holder.appendChild(changeNode(body.change));
     if (body.plan) {
       holder.appendChild(planCard(body.plan));
+      holder.appendChild(planSaveBar(body.plan)); // 满意了就保存（冻结为快照，行程编号可查）
       holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
     } else if (!body.reply) {
       holder.appendChild(el('<div class="muted">（本轮没有返回行程数据）</div>'));
@@ -1772,6 +1792,28 @@ async function itinRefreshList(quiet) {
   }
 }
 document.getElementById("itinRefresh").onclick = (e) => busy(e.target, () => itinRefreshList(false));
+
+// 我的行程列表：规划页/本页产生的每个行程都按行程编号列出（每次进页刷新）
+async function itinSavedLoad() {
+  const listEl = document.getElementById("itinSavedList");
+  try {
+    const rows = await api("/api/v1/itineraries", undefined, "GET");
+    listEl.textContent = "";
+    if (!rows || !rows.length) {
+      listEl.className = "muted";
+      listEl.textContent = "还没有行程——到「规划」页生成并保存，或上方「创建行程」。";
+      return;
+    }
+    rows.forEach(r => {
+      listEl.appendChild(el('<div class="row"><span class="t"><code>' + esc(r.itinerary_id) + '</code></span><span>' +
+        esc((r.cities || []).join(" → ")) + " · 快照 " + (r.snapshot_count || 0) + " 个 · v" + (r.working_sync_version || 0) + "</span></div>"));
+    });
+  } catch (err) {
+    listEl.className = "muted";
+    listEl.textContent = "加载失败：" + detailText(err.detail);
+  }
+}
+document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", () => itinSavedLoad());
 
 /* ================= Tab 5：预订（铁律 22 只 handoff / 铁律 23 退改摘要先行） ================= */
 
