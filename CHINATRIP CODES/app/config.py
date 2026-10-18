@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # (design §6.12: >=80% requests must not reach the main model).
     glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
+    # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
+    asr_model: str = "glm-asr-2512"
 
     # Amap personal developer key. Server-side only - never reaches the client.
     amap_api_key: str = ""

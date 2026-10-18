@@ -939,29 +939,69 @@ document.getElementById("t9nSwap").onclick = () => {
 };
 t9nRender();
 
-// 语音输入：Web Speech API（平台原生，零依赖）；识别语向跟随当前源语言
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const SR_LANG = { zh: "zh-CN", en: "en-US", ja: "ja-JP", ko: "ko-KR" };
-let t9nRec = null;
+// 语音输入：麦克风采 PCM → 前端合成 WAV → 服务端 /asr（智谱 GLM-ASR）。
+// 不用 Web Speech API：Chrome 识别走谷歌服务，大陆网络 onerror=network 必挂。
+let t9nRec = null; // {stream, ctx, node, zero, chunks, base, timer}
 document.getElementById("t9nMic").onclick = () => {
+  if (t9nRec) { t9nStop(); return; } // 再点一次结束并识别
   const mic = document.getElementById("t9nMic");
-  if (!SR) { toast("此浏览器不支持语音输入（Chrome / Edge 可用）"); return; }
-  if (t9nRec) { t9nRec.stop(); return; } // 再点一次结束
-  t9nRec = new SR();
-  t9nRec.lang = SR_LANG[T9N.src] || "zh-CN";
-  t9nRec.interimResults = true;
-  const input = document.getElementById("t9nInput");
-  const base = input.value;
-  mic.classList.add("rec");
-  t9nRec.onresult = (ev) => {
-    let s = "";
-    for (const r of ev.results) s += r[0].transcript;
-    input.value = base + s;
-  };
-  t9nRec.onend = () => { t9nRec = null; mic.classList.remove("rec"); };
-  t9nRec.onerror = (ev) => { toast("语音识别失败：" + (ev.error || "未知原因")); t9nRec = null; mic.classList.remove("rec"); };
-  try { t9nRec.start(); toast("正在聆听…说完再点 🎤 结束"); } catch (e) { t9nRec = null; mic.classList.remove("rec"); }
+  const base = document.getElementById("t9nInput").value;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast("此浏览器不支持语音输入"); return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const node = ctx.createScriptProcessor(4096, 1, 1);
+    const zero = ctx.createGain(); zero.gain.value = 0; // 防 回声：不外放，仅驱动采集
+    const chunks = [];
+    node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(node); node.connect(zero); zero.connect(ctx.destination);
+    t9nRec = { stream, ctx, node, zero, chunks, base, timer: setTimeout(t9nStop, 25000) };
+    mic.classList.add("rec");
+    toast("正在聆听…说完再点 🎤 结束");
+  }).catch(() => toast("无法访问麦克风：请在浏览器地址栏允许麦克风权限"));
 };
+async function t9nStop() {
+  const mic = document.getElementById("t9nMic");
+  if (!t9nRec) return;
+  const rec = t9nRec; t9nRec = null;
+  clearTimeout(rec.timer); mic.classList.remove("rec");
+  try { rec.node.disconnect(); rec.zero.disconnect(); } catch (e) {}
+  rec.stream.getTracks().forEach(t => t.stop());
+  const rate = rec.ctx.sampleRate;
+  try { await rec.ctx.close(); } catch (e) {}
+  if (!rec.chunks.length) { toast("没有采集到音频"); return; }
+  const wav = t9nWav(rec.chunks, rate);
+  toast("识别中…");
+  try {
+    const fd = new FormData();
+    fd.append("file", new Blob([wav], { type: "audio/wav" }), "speech.wav");
+    const res = await fetch(apiBaseInput.value.trim() + "/api/v1/asr",
+      { method: "POST", headers: { "X-Device-ID": DEVICE_ID }, body: fd });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "http_" + res.status);
+    const text = (body.text || "").trim();
+    if (!text) { toast("没有识别到内容，请再试一次"); return; }
+    document.getElementById("t9nInput").value = rec.base + text;
+  } catch (err) { toast("语音识别失败：" + (err.message || err)); }
+}
+// Float32 采样块 → 16bit 单声道 WAV
+function t9nWav(chunks, rate) {
+  let n = 0; for (const c of chunks) n += c.length;
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); ws(8, "WAVE"); ws(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); ws(36, "data"); v.setUint32(40, n * 2, true);
+  let o = 44;
+  for (const c of chunks) for (let i = 0; i < c.length; i++, o += 2) {
+    const s = Math.max(-1, Math.min(1, c[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return buf;
+}
 
 async function t9nSend() {
   const input = document.getElementById("t9nInput");
