@@ -25,6 +25,8 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel
 
+from app.services.video_reader import VideoReader
+
 URL_RE = re.compile(r"https?://[^\s<>\"'`（）【】「」『』《》〈〉，。；、！？：]+")
 MAX_LINKS_PER_MESSAGE = 2
 FETCH_TIMEOUT_SECONDS = 6.0
@@ -65,6 +67,9 @@ _VIDEO_SHELL_HOSTS = (
     # articles are server-rendered and keep the generic body-text branch.
     "channels.weixin.qq.com",
     "channels.qq.com",
+    # xiaohongshu notes: only the mobile-UA SSR carries the media; the
+    # resolver refetches as iPhone (short xhslink.com links redirect in).
+    "xiaohongshu.com",
 )
 
 _META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.I)
@@ -195,8 +200,14 @@ class HttpLinkReader:
     """Fetches one user-pasted URL into a LinkDigest; every failure mode is
     an error digest so the chat flow degrades instead of raising."""
 
-    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+        video: VideoReader | None = None,
+    ) -> None:
         self.transport = transport
+        self._video = video
 
     async def read(self, url: str) -> LinkDigest:
         try:
@@ -226,7 +237,23 @@ class HttpLinkReader:
             return LinkDigest(url=url, error="非网页内容")
         if len(resp.text) > MAX_HTML_CHARS:
             return LinkDigest(url=url, error="页面过大")
-        return _extract(str(resp.url), resp.text)
+        digest = _extract(str(resp.url), resp.text)
+        return await self._maybe_watch(str(resp.url), resp.text, digest)
+
+    async def _maybe_watch(
+        self, url: str, page_html: str, digest: LinkDigest
+    ) -> LinkDigest:
+        """Video shells only expose the caption; when a video reader is
+        wired in, let it watch frames/audio and append what it learned."""
+        if self._video is None or not digest.ok:
+            return digest
+        host = (urlparse(url).hostname or "").lower()
+        if not any(h in host for h in _VIDEO_SHELL_HOSTS):
+            return digest
+        extra = await self._video.enrich(url, page_html)
+        if extra:
+            digest.text = f"{digest.text}\n{extra}".strip()[:MAX_TEXT_CHARS]
+        return digest
 
     async def _retry_mobile(self, final_url: str) -> LinkDigest | None:
         """One phone-UA retry against the m-site; None = stay with the
@@ -250,6 +277,7 @@ class HttpLinkReader:
         if len(resp.text) > MAX_HTML_CHARS:
             return None
         digest = _extract(str(resp.url), resp.text)
+        digest = await self._maybe_watch(str(resp.url), resp.text, digest)
         return digest if digest.ok else None
 
 

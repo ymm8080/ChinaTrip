@@ -8,7 +8,12 @@ from fastapi.testclient import TestClient
 
 from app.api.amap import get_amap_client, router
 from app.config import Settings, get_settings
-from app.services.amap_client import AmapClient, AmapError, AmapTimeoutError
+from app.services.amap_client import (
+    AmapClient,
+    AmapError,
+    AmapTimeoutError,
+    _normalize_poi,
+)
 
 API_KEY = "test-key-123"
 BASE_URL = "https://restapi.amap.test/v3"
@@ -27,6 +32,7 @@ SUCCESS_BODY = {
             "location": "121.473667,31.230525",
             "pname": "上海市",
             "cityname": "上海市",
+            "biz_ext": {"opening": "全年 周一至周日 05:00-23:00", "rating": "4.7"},
         },
         {
             "id": "B0FFI9BOII",
@@ -37,6 +43,7 @@ SUCCESS_BODY = {
             "location": "",
             "pname": "江苏省",
             "cityname": [],
+            "biz_ext": [],
         },
     ],
 }
@@ -203,9 +210,13 @@ def test_client_success_normalizes_and_carries_key():
     assert first["category"] == "风景名胜;公园广场;城市广场"
     assert first["address"] == "人民大道120号"
     assert first["location"] == {"lon": 121.473667, "lat": 31.230525}
+    assert first["opening_hours"] == "全年 周一至周日 05:00-23:00"
+    assert first["rating"] == "4.7"
     second = items[1]
     assert second["location"] is None
     assert second["city"] == "江苏省"
+    assert second["opening_hours"] is None
+    assert second["rating"] is None
     assert API_KEY not in json.dumps(items, ensure_ascii=False)
 
 
@@ -582,3 +593,49 @@ def test_endpoint_ip_locate_not_configured_returns_503():
         resp = client.get("/api/v1/amap/ip")
     assert resp.status_code == 503
     assert resp.json() == {"detail": "amap_not_configured"}
+
+
+def test_normalize_poi_accepts_v5_style_top_level_hours():
+    poi = {
+        "id": "B001",
+        "name": "某景点",
+        "location": "121.47,31.23",
+        "opentime_today": "08:00-18:00",
+    }
+    assert _normalize_poi(poi)["opening_hours"] == "08:00-18:00"
+
+
+def test_normalize_poi_prefers_biz_ext_over_v5_fields():
+    poi = {
+        "name": "某景点",
+        "biz_ext": {"opening": "全年 全天开放"},
+        "opentime_today": "08:00-18:00",
+    }
+    assert _normalize_poi(poi)["opening_hours"] == "全年 全天开放"
+
+
+def test_distance_parses_walking_results():
+    body = {
+        "status": "1",
+        "info": "OK",
+        "infocode": "10000",
+        "count": "2",
+        "results": [
+            {"origin_id": "1", "dest_id": "1", "distance": "1234", "duration": "900"},
+            {"origin_id": "2", "dest_id": "1", "distance": "0", "duration": "0"},
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/distance")
+        assert request.url.params["type"] == "1"
+        assert request.url.params["origins"].count("|") == 1
+        return httpx.Response(200, json=body)
+
+    out = asyncio.run(
+        make_client(handler).distance(["116.4,39.9", "116.5,39.9"], "116.6,39.9")
+    )
+    assert out == [
+        {"distance_m": 1234, "duration_s": 900},
+        {"distance_m": 0, "duration_s": 0},
+    ]

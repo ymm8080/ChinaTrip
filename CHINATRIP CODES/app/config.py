@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     glm_timeout_seconds: float = 60.0
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
+    # 视频链接理解（web_reader 视频壳）：GLM-4.6V-Flash 看画面（免费）+
+    # GLM-ASR 转写音轨（imageio-ffmpeg 自带二进制抽音轨，无需系统 ffmpeg）。
+    glm_model_vision: str = "glm-4.6v-flash"
+    video_vision_enabled: bool = True
 
     # Amap personal developer key. Server-side only - never reaches the client.
     amap_api_key: str = ""
@@ -66,6 +70,16 @@ class Settings(BaseSettings):
     # text; server translates via GLM; phrase/menu cache hit = zero LLM).
     translate_max_chars: int = 2_000
     translate_phrase_cache_max_entries: int = 4_096
+
+    # SMTP for email verification codes (app/services/mailer.py). All
+    # optional; empty smtp_host = dev mode: no mail is sent, the code is
+    # echoed in a WARNING log + API response so registration works locally.
+    # Port 465 = implicit SSL, anything else (587) = STARTTLS.
+    smtp_host: str = ""
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""  # envelope From; defaults to smtp_user
 
     # Deployment region, stamped onto every usage-log line (v1.7 §3 prebuild
     # for the Phase-2 overseas amap-via-CN-proxy path; scene follows there).

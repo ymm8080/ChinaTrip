@@ -256,6 +256,7 @@
     flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;
     color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;
   }
+  #authModal .fld .btn{flex-shrink:0}
   #authErr{display:none;margin-top:8px;font-size:12px;background:var(--err-bg);color:var(--err);border-radius:6px;padding:6px 8px}
 
   /* ---------- 行程中心 / 个人主页 / 订单回填 ---------- */
@@ -303,7 +304,7 @@
       <button class="nav-item" data-tab="me">👤 个人主页</button>
     </nav>
     <div class="side-foot">
-      <label>API 地址<input id="apiBase" spellcheck="false"></label>
+      <label>API 地址<input id="apiBase" spellcheck="false" placeholder="留空=当前站点"></label>
       <div class="dev">设备 <code id="devId"></code></div>
       <div id="authArea"></div>
     </div>
@@ -312,53 +313,68 @@
   <main>
     <div id="toast"></div>
 
-    <!-- ============ 账号登录/注册弹层（登录 ⇄ 注册双模式） ============ -->
+    <!-- ============ 账号弹层（登录 / 注册 / 重置密码三模式） ============ -->
     <div id="authModal">
       <div class="box">
         <h4 id="authTitle">🔑 登录</h4>
-        <label class="fld">用户名 <input type="text" id="authUser" placeholder="2–30 个字符" autocomplete="username" spellcheck="false"></label>
-        <label class="fld">密码 <input type="password" id="authPass" placeholder="至少 6 位"></label>
+        <label class="fld">邮箱 <input type="text" id="authEmail" placeholder="邮箱 / 用户名" autocomplete="email" spellcheck="false"></label>
+        <label class="fld" id="authPassFld">密码 <input type="password" id="authPass" placeholder="至少 6 位"></label>
+        <label class="fld" id="authCodeFld">验证码 <input type="text" id="authCode" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false"></label>
+        <div class="fld" id="authSendRow" style="justify-content:flex-end"><button class="btn mini plain" id="authSendCode">发送验证码</button></div>
+        <label class="fld" id="authNewFld">新密码 <input type="password" id="authNewPass" placeholder="至少 6 位"></label>
         <div id="authErr"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
           <button class="btn plain" id="authClose">取消</button>
           <button class="btn" id="authGo">登录</button>
         </div>
-        <div style="margin-top:6px"><button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button></div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn mini ghost" id="authForgot">忘记密码？</button>
+          <button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button>
+        </div>
       </div>
     </div>
 
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
-      <div class="toolbar" id="planSetup">
-        <label class="fld">城市（首=出发地，末=目的地）
-          <span class="chips" id="planCities">
-            <button class="chip" data-city="北京">北京</button>
-            <button class="chip" data-city="上海">上海</button>
-            <button class="chip" data-city="杭州">杭州</button>
-            <button class="chip" data-city="苏州">苏州</button>
-            <button class="chip" data-city="西安">西安</button>
-            <button class="chip" data-city="成都">成都</button>
-            <button class="chip" data-city="重庆">重庆</button>
-            <button class="chip" data-city="厦门">厦门</button>
-            <button class="chip" data-city="三亚">三亚</button>
-            <button class="chip" data-city="哈尔滨">哈尔滨</button>
+      <div class="toolbar" id="planSetup" style="flex-wrap:wrap">
+        <label class="fld">起始城市
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planStartCity"></select>
+            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算">
           </span>
         </label>
-        <input type="text" id="planCityInput" placeholder="出发地、途经、目的地，用、分隔" style="width:180px">
+        <label class="fld">中间城市1
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia1"></select>
+            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">中间城市2
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia2"></select>
+            <input type="number" id="planVia2Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">中间城市3
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia3"></select>
+            <input type="number" id="planVia3Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">结束城市
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planEndCity"></select>
+            <input type="number" id="planEndDays" min="1" max="30" value="6" style="width:3.2em">天
+          </span>
+        </label>
         <span class="sep"></span>
         <label class="fld">开始日期
           <input type="date" id="planStartDate">
         </label>
-        <label class="fld">天数
-          <span class="stepper">
-            <button id="daysMinus" type="button">−</button>
-            <b id="daysVal">6</b>
-            <button id="daysPlus" type="button">＋</button>
-          </span>
-        </label>
         <label class="fld grow">偏好
           <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
         </label>
+        <span class="fld">合计 <b id="planDaysTotal">6</b> 天</span>
         <button class="btn" id="planStart">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
@@ -476,6 +492,7 @@
         <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
         <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
         <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
+        <label class="fld">营业时间 <input type="text" id="tcHours" placeholder="可选"></label>
         <button class="btn" id="tcAdd">➕ 加心愿</button>
         <span class="sep"></span>
         <button class="btn plain" id="tcRefresh">🔄 刷新看板</button>
@@ -663,12 +680,22 @@ if (!DEVICE_ID) {
 }
 document.getElementById("devId").textContent = DEVICE_ID;
 
-// API 地址：默认同源（被服务时）或本机 8000（file:// 直开时）
+// API 地址：默认同源（被服务时）或本机 8000（file:// 直开时）。
+// 误粘的地址/链接文字绝不拼进请求路径（曾把 /h5/<地址>/api/... 打到静态挂载上 → 405），
+// 只认 http(s):// 开头的值，其余一律按同源访问。
 const apiBaseInput = document.getElementById("apiBase");
-apiBaseInput.value = localStorage.getItem("chinatrip_api_base")
+function validBase(v) {
+  v = String(v || "").trim().replace(/\/+$/, "");
+  return /^https?:\/\//i.test(v) ? v : "";
+}
+const rawBase = localStorage.getItem("chinatrip_api_base")
   || (location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000");
+apiBaseInput.value = validBase(rawBase);
+if (rawBase && !apiBaseInput.value) localStorage.removeItem("chinatrip_api_base"); // 自愈历史脏值
+function apiBase() { return validBase(apiBaseInput.value); }
 apiBaseInput.addEventListener("change", () => {
   localStorage.setItem("chinatrip_api_base", apiBaseInput.value.trim());
+  if (apiBaseInput.value.trim() && !apiBase()) toast("「API 地址」只接受 http:// 或 https:// 开头，已按当前站点访问");
 });
 
 function toast(text) {
@@ -702,7 +729,7 @@ async function api(path, body, method) {
   const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID };
   const token = localStorage.getItem("chinatrip_token");
   if (token) headers["Authorization"] = "Bearer " + token; // 登录后行程等接口按账号返回
-  const doFetch = () => fetch(apiBaseInput.value.trim() + path, {
+  const doFetch = () => fetch(apiBase() + path, {
     method: method || "POST",
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -732,9 +759,10 @@ async function busy(btn, fn) {
   finally { btn.disabled = false; btn.textContent = old; }
 }
 
-/* ================= 账号（登录 / 注册 / 退出） ================= */
+/* =====
+/* ================= 账号（登录 / 注册 / 忘记密码） ================= */
 
-const AUTH = { user: null }; // user=登录用户名；null=未登录（行程挂设备 ID）
+const AUTH = { user: null }; // user=登录身份（邮箱或旧用户名）；null=未登录（行程挂设备 ID）
 
 // 侧栏身份区：未登录给「登录 / 注册」；已登录给用户名 + 退出
 function authRender() {
@@ -755,8 +783,21 @@ function authRender() {
 // 后端 detail → 中文文案
 const AUTH_ERR_CN = {
   username_taken: "用户名已被占用，换一个试试",
-  invalid_credentials: "用户名或密码错误",
-  invalid_username_or_password: "用户名或密码格式不合规（用户名 2–30 字符，密码至少 6 位）",
+  invalid_credentials: "邮箱/用户名或密码错误",
+  invalid_username_or_password: "用户名或密码不符合要求（2–30 字符 / 至少 6 位）",
+  username_or_email_required: "请输入邮箱或用户名",
+  email_taken: "该邮箱已注册，可直接登录或找回密码",
+  email_not_found: "该邮箱尚未注册",
+  invalid_email: "邮箱格式不正确",
+  invalid_email_or_password: "邮箱或密码不符合要求（密码至少 6 位）",
+  invalid_password: "新密码需至少 6 位",
+  email_code_required: "请先获取邮箱验证码",
+  email_code_invalid: "验证码错误",
+  email_code_expired: "验证码已过期，请重新获取",
+  invalid_purpose: "验证码用途不合法，请刷新页面重试",
+  code_cooldown: "发送太频繁，请稍后再试",
+  code_rate_limited: "该邮箱验证码发送次数已达上限，请一小时后再试",
+  mail_send_failed: "邮件发送失败，请稍后重试",
 };
 function authErrMsg(err) {
   if (err && err.status === 0) return "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）";
@@ -765,48 +806,156 @@ function authErrMsg(err) {
   return "HTTP " + ((err && err.status) || "?") + "：" + detailText(d);
 }
 
-let authMode = "login"; // login | register
+let authMode = "login"; // login | register | reset
+let authCountdownTimer = null;
 function authErr(msg) {
   const e = document.getElementById("authErr");
   e.textContent = msg || "";
   e.style.display = msg ? "block" : "none";
 }
+
+// 三模式字段可见性：登录=邮箱+密码；注册=邮箱+验证码+密码；重置=邮箱+验证码+新密码
 function authModeRender() {
-  const login = authMode === "login";
-  document.getElementById("authTitle").textContent = login ? "🔑 登录" : "🆕 注册";
-  document.getElementById("authGo").textContent = login ? "登录" : "注册";
-  document.getElementById("authSwitch").textContent = login ? "没有账号？去注册 →" : "已有账号？去登录 →";
-  document.getElementById("authPass").autocomplete = login ? "current-password" : "new-password";
+  const TITLES = { login: "🔑 登录", register: "🆕 注册", reset: "🔒 重置密码" };
+  const GOS = { login: "登录", register: "注册", reset: "重置密码" };
+  const SWITCH = {
+    login: "没有账号？去注册 →",
+    register: "已有账号？去登录 →",
+    reset: "想起来了？去登录 →",
+  };
+  const visible = {
+    login: ["authPassFld"],
+    register: ["authPassFld", "authCodeFld", "authSendRow"],
+    reset: ["authNewFld", "authCodeFld", "authSendRow"],
+  };
+  ["authPassFld", "authCodeFld", "authSendRow", "authNewFld"].forEach(id => {
+    document.getElementById(id).style.display = visible[authMode].includes(id) ? "" : "none";
+  });
+  document.getElementById("authTitle").textContent = TITLES[authMode];
+  document.getElementById("authGo").textContent = GOS[authMode];
+  document.getElementById("authSwitch").textContent = SWITCH[authMode];
+  document.getElementById("authPass").autocomplete = authMode === "login" ? "current-password" : "new-password";
+  document.getElementById("authNewPass").autocomplete = "new-password";
 }
+
 function authOpen(mode) {
   authMode = mode;
   authErr("");
-  document.getElementById("authUser").value = "";
-  document.getElementById("authPass").value = "";
+  ["authEmail", "authPass", "authCode", "authNewPass"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
   authModeRender();
   document.getElementById("authModal").style.display = "flex";
-  document.getElementById("authUser").focus();
+  document.getElementById("authEmail").focus();
 }
 function authClose() { document.getElementById("authModal").style.display = "none"; }
 
-// 前端轻校验不过不发请求；成功后存 token、关弹层、刷身份区、重拉行程列表（账号全量）
-async function authSubmit() {
-  const u = document.getElementById("authUser").value.trim();
-  const p = document.getElementById("authPass").value;
-  if (u.length < 2 || u.length > 30) { authErr("用户名需 2–30 个字符"); return; }
-  if (p.length < 6) { authErr("密码至少 6 位"); return; }
+// 邮箱轻校验：同后端 _normalize_email 口径
+const AUTH_EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+function authEmailOk() {
+  const v = document.getElementById("authEmail").value.trim();
+  return v.length <= 254 && AUTH_EMAIL_RE.test(v);
+}
+
+// 发送按钮 60s 冷却倒计时
+function authStartCountdown(seconds) {
+  const btn = document.getElementById("authSendCode");
+  if (authCountdownTimer) clearInterval(authCountdownTimer);
+  btn.disabled = true;
+  let left = seconds;
+  const tick = () => {
+    btn.textContent = left > 0 ? left + "s 后重发" : "发送验证码";
+    if (left <= 0) {
+      clearInterval(authCountdownTimer);
+      authCountdownTimer = null;
+      btn.disabled = false;
+    }
+    left -= 1;
+  };
+  tick();
+  authCountdownTimer = setInterval(tick, 1000);
+}
+
+async function authSendCode() {
+  if (!authEmailOk()) { authErr("请先填写正确的邮箱地址"); return; }
+  const email = document.getElementById("authEmail").value.trim();
+  const purpose = authMode === "reset" ? "reset_password" : "register";
   authErr("");
+  const btn = document.getElementById("authSendCode");
   try {
-    const r = await api("/api/v1/auth/" + (authMode === "login" ? "login" : "register"), { username: u, password: p });
-    localStorage.setItem("chinatrip_token", r.token);
-    AUTH.user = r.username || u;
-    authClose();
-    authRender();
-    toast((authMode === "login" ? "已登录：" : "注册成功，已登录：") + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
-    itinSavedLoad(); // 带 token 重拉：返回账号名下全部行程（跨设备）
+    await busy(btn, async () => {
+      const r = await api("/api/v1/auth/email/code", { email, purpose });
+      if (r && r.dev_code) {
+        // 开发模式（未配 SMTP）：后端回显验证码，直接填入
+        document.getElementById("authCode").value = r.dev_code;
+        toast("开发模式验证码：" + r.dev_code + "（配置 SMTP 后将真实发信）");
+      } else {
+        toast("验证码已发送至 " + email + "，请查收邮件");
+      }
+    });
+    authStartCountdown(60);
   } catch (err) {
     authErr(authErrMsg(err));
   }
+}
+
+// 前端轻校验不过不发请求；成功后存 token、关弹层、刷身份区、重拉行程列表（账号全量）
+async function authSubmit() {
+  const mode = authMode;
+  const email = document.getElementById("authEmail").value.trim();
+  const pass = document.getElementById("authPass").value;
+  const code = document.getElementById("authCode").value.trim();
+  const newPass = document.getElementById("authNewPass").value;
+  if (mode === "login") {
+    let body;
+    if (!email) { authErr("请输入邮箱或用户名"); return; }
+    if (email.includes("@")) {
+      if (!authEmailOk()) { authErr("邮箱格式不正确"); return; }
+      body = { email, password: pass };
+    } else {
+      if (email.length < 2 || email.length > 30) { authErr("用户名需 2–30 个字符"); return; }
+      body = { username: email, password: pass };
+    }
+    if (pass.length < 6) { authErr("密码至少 6 位"); return; }
+    authErr("");
+    try {
+      const r = await api("/api/v1/auth/login", body);
+      localStorage.setItem("chinatrip_token", r.token);
+      AUTH.user = r.username || email;
+      authClose();
+      authRender();
+      toast("已登录：" + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+      itinSavedLoad(); // 带 token 重拉：返回账号名下全部行程（跨设备）
+    } catch (err) { authErr(authErrMsg(err)); }
+    return;
+  }
+  if (mode === "register") {
+    if (!authEmailOk()) { authErr("请输入正确的邮箱地址"); return; }
+    if (!/^\d{6}$/.test(code)) { authErr("请输入 6 位数字验证码"); return; }
+    if (pass.length < 6) { authErr("密码至少 6 位"); return; }
+    authErr("");
+    try {
+      const r = await api("/api/v1/auth/email/register", { email, code, password: pass });
+      localStorage.setItem("chinatrip_token", r.token);
+      AUTH.user = r.username || email;
+      authClose();
+      authRender();
+      toast("注册成功，已登录：" + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+      itinSavedLoad();
+    } catch (err) { authErr(authErrMsg(err)); }
+    return;
+  }
+  // mode === "reset"
+  if (!authEmailOk()) { authErr("请输入正确的邮箱地址"); return; }
+  if (!/^\d{6}$/.test(code)) { authErr("请输入 6 位数字验证码"); return; }
+  if (newPass.length < 6) { authErr("新密码至少 6 位"); return; }
+  authErr("");
+  try {
+    await api("/api/v1/auth/password/reset", { email, code, new_password: newPass });
+    toast("密码已重置，请用新密码登录");
+    authOpen("login");
+    document.getElementById("authEmail").value = email; // 回填邮箱，直接登录
+  } catch (err) { authErr(authErrMsg(err)); }
 }
 
 async function authLogout() {
@@ -836,15 +985,15 @@ async function authBoot() {
 
 document.getElementById("authClose").onclick = authClose;
 document.getElementById("authSwitch").onclick = () => {
-  authMode = authMode === "login" ? "register" : "login";
-  authErr("");
-  authModeRender();
+  authOpen(authMode === "login" ? "register" : "login"); // 切模式清空输入，防验证码串用
 };
+document.getElementById("authForgot").onclick = () => authOpen("reset");
+document.getElementById("authSendCode").onclick = () => authSendCode();
 document.getElementById("authGo").onclick = (e) => busy(e.target, authSubmit);
 document.getElementById("authModal").addEventListener("pointerdown", e => {
   if (e.target.id === "authModal") authClose();
 });
-["authUser", "authPass"].forEach(id => {
+["authEmail", "authPass", "authCode", "authNewPass"].forEach(id => {
   document.getElementById(id).addEventListener("keydown", e => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -905,6 +1054,14 @@ function planCard(plan) {
       } else { // VisitItem
         const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
+        const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
+        if (typeof it.distance_to_next_km === "number") {
+          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" +
+            (it.next_walk_minutes != null ? " · 步行约 " + it.next_walk_minutes + " 分钟" : "") +
+            (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
+          box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(leg) + "</div>"));
+        }
+        if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
       }
     });
     if (!d.items || !d.items.length) box.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
@@ -966,16 +1123,50 @@ document.querySelectorAll(".nav-item").forEach(btn => {
 
 /* ================= Tab 1：规划 ================= */
 
-const planCities = new Set();
-let planDays = 6;
+// 城市五控件：起始/中间1-3/结束下拉 + 每城天数；[中文, 英文] 与后端 KNOWN_CITIES/CITY_ALIASES 保持一致
+const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangzhou"],["苏州","Suzhou"],["南京","Nanjing"],["西安","Xi'an"],["成都","Chengdu"],["重庆","Chongqing"],["广州","Guangzhou"],["深圳","Shenzhen"],["天津","Tianjin"],["武汉","Wuhan"],["长沙","Changsha"],["厦门","Xiamen"],["青岛","Qingdao"],["大连","Dalian"],["三亚","Sanya"],["丽江","Lijiang"],["桂林","Guilin"],["洛阳","Luoyang"],["敦煌","Dunhuang"],["兰州","Lanzhou"],["拉萨","Lhasa"],["昆明","Kunming"],["大理","Dali"],["张家界","Zhangjiajie"],["黄山","Huangshan"],["无锡","Wuxi"],["绍兴","Shaoxing"],["嘉兴","Jiaxing"],["舟山","Zhoushan"],["哈尔滨","Harbin"],["沈阳","Shenyang"],["长春","Changchun"],["郑州","Zhengzhou"],["济南","Jinan"],["福州","Fuzhou"],["泉州","Quanzhou"],["威海","Weihai"],["珠海","Zhuhai"]];
 const PLAN = { startDate: "" };
 
-// chips 选择 ∪ 自由输入（顿号/逗号/空格分隔），去重保序
-function planCitiesAll() {
-  const extra = (document.getElementById("planCityInput").value || "")
-    .split(/[、,，;；\s]+/).map(s => s.trim()).filter(Boolean);
-  return [...new Set([...planCities, ...extra])];
+// 路线 = 起始 → 中间1-3（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
+// （起始城市只排出发交通不排活动，其天数框仅占位不参与计算）
+function planRouteForm() {
+  const start = document.getElementById("planStartCity").value;
+  const end = document.getElementById("planEndCity").value;
+  const num = id => { const n = parseInt(document.getElementById(id).value, 10); return isNaN(n) ? 0 : n; };
+  const seen = new Set([start, end]);
+  const mids = [];
+  for (let i = 1; i <= 3; i++) {
+    const c = document.getElementById("planVia" + i).value;
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    mids.push({ city: c, days: Math.max(1, num("planVia" + i + "Days")) });
+  }
+  const endDays = Math.max(1, num("planEndDays"));
+  const cityDays = {};
+  mids.forEach(m => { cityDays[m.city] = m.days; });
+  cityDays[end] = endDays;
+  return {
+    cities: [start, ...mids.map(m => m.city), end],
+    cityDays,
+    total: mids.reduce((s, m) => s + m.days, 0) + endDays,
+  };
 }
+(function planCityInit() {
+  const opts = PLAN_CITIES.map(([c, en]) => '<option value="' + c + '">' + c + " " + en + "</option>").join("");
+  const viaOpts = '<option value="">（不经过）</option>' + opts;
+  const s = document.getElementById("planStartCity");
+  const e = document.getElementById("planEndCity");
+  s.innerHTML = opts; s.value = "北京";
+  e.innerHTML = opts; e.value = "上海";
+  const total = () => { document.getElementById("planDaysTotal").textContent = planRouteForm().total; };
+  ["planStartDays", "planEndDays", "planEndCity"].forEach(id => document.getElementById(id).addEventListener("change", total));
+  for (let i = 1; i <= 3; i++) {
+    const sel = document.getElementById("planVia" + i);
+    sel.innerHTML = viaOpts;
+    [sel, document.getElementById("planVia" + i + "Days")].forEach(x => x.addEventListener("change", total));
+  }
+  total();
+})();
 // 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
 function planDateIso(n) {
   if (!PLAN.startDate) return "";
@@ -985,16 +1176,6 @@ function planDateIso(n) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 let planSession = null; // {session_id, state}
-
-document.querySelectorAll("#planCities .chip").forEach(c => {
-  c.addEventListener("click", () => {
-    c.classList.toggle("on");
-    if (c.classList.contains("on")) planCities.add(c.dataset.city);
-    else planCities.delete(c.dataset.city);
-  });
-});
-document.getElementById("daysMinus").onclick = () => { if (planDays > 1) { planDays--; document.getElementById("daysVal").textContent = planDays; } };
-document.getElementById("daysPlus").onclick = () => { if (planDays < 30) { planDays++; document.getElementById("daysVal").textContent = planDays; } };
 
 function planSetSession(s) {
   planSession = s;
@@ -1037,17 +1218,59 @@ function planRenderReply(holder, body, opts) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
     if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+      // 多选累积，一次提交：点选不逐条发消息，攒够偏好再开始规划
+      holder.appendChild(frag("<div class='muted'>可多选，选好点确认，一次提交：</div>"));
       const row = el('<div class="chips"></div>');
-      ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+      const picked = new Set();
+      const PREFS = ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"];
+      PREFS.forEach(p => {
         const b = el('<button class="chip">' + p + "</button>");
-        b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+        b.onclick = () => {
+          if (picked.has(p)) { picked.delete(p); b.style.background = ""; b.style.color = ""; }
+          else { picked.add(p); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+        };
         row.appendChild(b);
       });
       holder.appendChild(row);
+      const row2 = el('<div class="chips"></div>');
+      const ok = el('<button class="chip">✅ 选好了，开始规划</button>');
+      ok.onclick = () => {
+        const sel = PREFS.filter(p => picked.has(p));
+        document.getElementById("planInput").value = "偏好：" + (sel.length ? sel.join("、") : "无特别要求");
+        planSend();
+      };
+      row2.appendChild(ok);
+      holder.appendChild(row2);
     } else if (opts && opts.first) {
       holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
     }
   } else {
+    if (body.state === "resto_confirm" && (body.restos || []).length) {
+      // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
+      holder.appendChild(frag("<div>这几家餐饮店离行程里的景点都超过 5 公里，点一下改为「不安排」（再点恢复），然后确认：</div>"));
+      const row = el('<div class="chips"></div>');
+      const skip = new Set();
+      body.restos.forEach(r => {
+        const b = el('<button class="chip">🍽 ' + esc(r.name) + "（最近约 " + (r.nearest_km == null ? "?" : r.nearest_km) + "km）</button>");
+        b.style.background = "#2563eb"; b.style.color = "#fff";
+        b.onclick = () => {
+          if (skip.has(r.name)) { skip.delete(r.name); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+          else { skip.add(r.name); b.style.background = ""; b.style.color = ""; }
+        };
+        row.appendChild(b);
+      });
+      holder.appendChild(row);
+      const row2 = el('<div class="chips"></div>');
+      const ok = el('<button class="chip">✅ 确认</button>');
+      ok.onclick = () => {
+        const keep = body.restos.filter(r => !skip.has(r.name)).map(r => r.name);
+        const drop = body.restos.filter(r => skip.has(r.name)).map(r => r.name);
+        document.getElementById("planInput").value = "要安排：" + (keep.join("、") || "无") + "；不安排：" + (drop.join("、") || "无");
+        planSend();
+      };
+      row2.appendChild(ok);
+      holder.appendChild(row2);
+    }
     if (opts && opts.first) holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
     if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
     if (body.change) holder.appendChild(changeNode(body.change));
@@ -1073,14 +1296,14 @@ function planRenderSafe(holder, body, opts) {
 
 // extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
 async function planStartCore(extraPref) {
-  const cities = planCitiesAll();
+  const r = planRouteForm();
   const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
-  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
+  addMsg("flow-plan", "user", "开始规划：" + r.cities.join("→") + "，共 " + r.total + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
-    const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities, days: planDays, preferences: prefs } }); // origin 供会话丢失后自动重建
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
@@ -1227,7 +1450,7 @@ async function t9nStop() {
   try {
     const fd = new FormData();
     fd.append("file", new Blob([wav], { type: "audio/wav" }), "speech.wav");
-    const res = await fetch(apiBaseInput.value.trim() + "/api/v1/asr",
+    const res = await fetch(apiBase() + "/api/v1/asr",
       { method: "POST", headers: { "X-Device-ID": DEVICE_ID }, body: fd });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "http_" + res.status);
@@ -2348,6 +2571,8 @@ function tcTile(item) {
     ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
   if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
   if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("　");
+  if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
   const ops = el('<div class="ops"></div>');
   const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
@@ -2421,16 +2646,19 @@ document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
   if (!name) { toast("心愿名必填"); return; }
   const city = document.getElementById("tcCity").value.trim();
   const note = document.getElementById("tcNote").value.trim();
+  const hours = document.getElementById("tcHours").value.trim();
   const itin = document.getElementById("tcItinId").value.trim();
   const body = { name, source: "manual" };
   if (city) body.city = city;
   if (note) body.note = note;
+  if (hours) body.opening_hours = hours;
   if (itin) body.itinerary_id = itin;
   try {
     await api("/api/v1/trip-items", body);
     document.getElementById("tcName").value = "";
     document.getElementById("tcCity").value = "";
     document.getElementById("tcNote").value = "";
+    document.getElementById("tcHours").value = "";
     toast("心愿已加入（status=wishlist）");
     await tcLoad();
   } catch (err) { failToast(err); }

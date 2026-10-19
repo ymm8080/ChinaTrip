@@ -68,6 +68,8 @@ class TripItemService:
         city: str | None = None,
         note: str | None = None,
         poi_id: str | None = None,
+        address: str | None = None,
+        opening_hours: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         if source not in SOURCES:
@@ -82,6 +84,8 @@ class TripItemService:
             "status": STATUS_WISHLIST,
             "source": source,
             "poi_id": poi_id,
+            "address": address,
+            "opening_hours": opening_hours,
             "day": None,
             "position": None,
             "booking_id": None,

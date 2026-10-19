@@ -83,6 +83,8 @@ def _normalize_regeo(data: dict) -> dict:
 
 def _normalize_poi(poi: dict) -> dict:
     city = _as_str(poi.get("cityname")) or _as_str(poi.get("pname"))
+    biz = poi.get("biz_ext")
+    biz = biz if isinstance(biz, dict) else {}
     return {
         "source": "amap",
         "source_poi_id": _as_str(poi.get("id")),
@@ -91,6 +93,14 @@ def _normalize_poi(poi: dict) -> dict:
         "category": _as_str(poi.get("type")),
         "address": _as_str(poi.get("address")),
         "location": _parse_location(_as_str(poi.get("location"))),
+        # v3 carries hours in biz_ext.opening; v5-style payloads put
+        # them at the top level — accept both before giving up.
+        "opening_hours": (
+            _as_str(biz.get("opening"))
+            or _as_str(poi.get("opentime_today"))
+            or _as_str(poi.get("opentime"))
+        ),
+        "rating": _as_str(biz.get("rating")),
     }
 
 
@@ -205,7 +215,7 @@ class AmapClient:
             "offset": 10,
             "page": page,
             "output": "JSON",
-            "extensions": "base",
+            "extensions": "all",
         }
         if city:
             params["city"] = city
@@ -287,6 +297,37 @@ class AmapClient:
             "steps": steps,
             "polyline": [point for step in steps for point in step["polyline"]],
         }
+
+    async def distance(
+        self, origins: list[str], destination: str, *, type_: int = 1
+    ) -> list[dict]:
+        """Measure each origin -> destination pair (/distance).
+
+        type_=1 walking. Up to 100 origins share one destination per call;
+        results come back in origin order as {"distance_m", "duration_s"}.
+        """
+        params = {
+            "key": self._key,
+            "origins": "|".join(origins),
+            "destination": destination,
+            "type": str(type_),
+            "output": "JSON",
+        }
+        data = await self._request_json("/distance", params)
+        rows = data.get("results")
+        if not isinstance(rows, list):
+            return []
+        out: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            out.append(
+                {
+                    "distance_m": _parse_int(row.get("distance")),
+                    "duration_s": _parse_int(row.get("duration")),
+                }
+            )
+        return out
 
     async def transit_route(
         self,

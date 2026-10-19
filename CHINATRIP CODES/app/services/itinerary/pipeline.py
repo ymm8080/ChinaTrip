@@ -7,6 +7,7 @@ Pure functions only: no I/O, no LLM, no DB; inputs are never mutated.
 
 from datetime import time
 
+from app.services.itinerary.legs import annotate_legs
 from app.services.itinerary.models import (
     ChangeSummary,
     CrowdProfile,
@@ -161,5 +162,6 @@ def mutate(
         combined = list(report.violations) + extra
         has_error = any(v.severity == RuleSeverity.error for v in combined)
         report = ValidationReport(ok=not has_error, violations=combined)
+    annotate_legs(new_plan)
     summary = summarize_changes(diffs, plan=old_plan or new_plan)
     return new_plan, report, summary

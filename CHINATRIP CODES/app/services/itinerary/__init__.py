@@ -5,6 +5,7 @@ one-shot mutate pipeline (pipeline.py), all pure functions over the shared
 domain models.
 """
 
+from app.services.itinerary.legs import annotate_legs, leg_pairs
 from app.services.itinerary.models import (
     ChangeSummary,
     CrowdProfile,
@@ -48,8 +49,10 @@ __all__ = [
     "TransferItem",
     "ValidationReport",
     "VisitItem",
+    "annotate_legs",
     "apply_diffs",
     "haversine_km",
+    "leg_pairs",
     "mutate",
     "summarize_changes",
     "validate_change_scope",

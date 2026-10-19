@@ -43,6 +43,7 @@ class PlanStartRequest(BaseModel):
     cities: list[str] | None = None
     days: int | None = None
     preferences: str = ""
+    city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
 
 
 class PlanMessageRequest(BaseModel):
@@ -128,6 +129,7 @@ async def start_plan(
             cities=request.cities or [],
             days=request.days or 0,
             preferences=request.preferences or "",
+            city_days=request.city_days,
         )
     except LLMError as exc:
         # LLMError messages are sanitized (never contain the API key).
@@ -145,6 +147,10 @@ async def start_plan(
             body["reply"] = session.history[-1].content
         body["clarify"] = clarify_questions(session)
         return body
+    if session.state == "resto_confirm":
+        body["restos"] = [r.model_dump() for r in session.pending_restos]
+        if session.history and session.history[-1].role == "assistant":
+            body["reply"] = session.history[-1].content
     body["plan"] = session.plan
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
@@ -175,6 +181,8 @@ async def message_plan(
     body: dict = {"reply": reply, "state": session.state}
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
+    if session.state == "resto_confirm":
+        body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:

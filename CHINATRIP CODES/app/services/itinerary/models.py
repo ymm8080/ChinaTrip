@@ -34,10 +34,21 @@ class VisitItem(BaseModel):
     category: str | None = None  # sight|food|...
     city: str
     location: GeoPoint | None = None
+    # Concrete address + opening hours shown with every recommendation
+    # (product rule 2026-10-19); None when amap data is unavailable.
+    address: str | None = None
+    opening_hours: str | None = None
     day: int  # 1-based day number
     start_time: time | None = None
     end_time: time | None = None
     duration_minutes: int | None = None
+    # Display-only leg to the next stop of the same day (v2.4.3 §5
+    # 行程时间轴, product rule 2026-10-19): straight-line distance + walk
+    # estimate, computed by itinerary.legs.annotate_legs after every plan
+    # mutation; never user input.
+    distance_to_next_km: float | None = None
+    next_walk_minutes: int | None = None
+    leg_source: Literal["estimate", "amap"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
 

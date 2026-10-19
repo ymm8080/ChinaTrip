@@ -82,6 +82,24 @@ class StubAmap:
         return self.pois
 
 
+class DistanceAmap(StubAmap):
+    """StubAmap + amap-style leg measurement (v2.4.3 enrich path)."""
+
+    def __init__(self, pois=None, meters=1100, seconds=900, exc=None):
+        super().__init__(pois, exc=exc)
+        self.meters = meters
+        self.seconds = seconds
+        self.distance_calls = []
+
+    async def distance(self, origins, destination, *, type_=1):
+        self.distance_calls.append((list(origins), destination, type_))
+        if self.exc is not None:
+            raise self.exc
+        return [
+            {"distance_m": self.meters, "duration_s": self.seconds} for _ in origins
+        ]
+
+
 def run(coro):
     return asyncio.run(coro)
 
@@ -134,6 +152,8 @@ AMAP_POIS = [
         "category": "风景名胜",
         "source_poi_id": "B000A7BD6C",
         "location": {"lon": 121.49, "lat": 31.24},
+        "address": "中山东一路",
+        "opening_hours": "全年 全天开放",
     },
     {
         "name": "豫园",
@@ -141,6 +161,8 @@ AMAP_POIS = [
         "category": "风景名胜",
         "source_poi_id": "B000A7U3C8",
         "location": {"lon": 121.49, "lat": 31.23},
+        "address": "文昌路",
+        "opening_hours": "09:00-17:00",
     },
     {
         "name": "东方明珠",
@@ -272,34 +294,149 @@ def test_start_with_preferences_generates_v0_without_preference_round():
 
 
 def test_v0_amap_transfer_and_solved_schedule():
-    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    items = [
+        # 出发城市的景点按产品规则 2026-10-19 被丢弃并写假设
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "豫园",
+            "city": "杭州",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 60,
+        },
+        {
+            "name": "拙政园",
+            "city": "苏州",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 90,
+        },
+        # 返程占位 17:00，最后一天仍装得下活动
+        {
+            "name": "留园",
+            "city": "苏州",
+            "category": "sight",
+            "day": 3,
+            "duration_minutes": 60,
+        },
+    ]
+    llm = ScriptedLLM([v0_reply(items)])
     amap = StubAmap(AMAP_POIS)
     agent = PlanningAgent(llm, amap_client=amap)
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州"],
-            days=2,
+            cities=["上海", "杭州", "苏州"],
+            days=3,
             preferences="博物馆",
         )
     )
     assert session.state == "ready"
     plan = session.plan
-    assert len(plan.days) == 2
+    assert len(plan.days) == 3
     visits = all_visits(session)
     transfers = all_transfers(session)
-    assert len(visits) == 3
-    assert len(transfers) == 1
-    assert transfers[0].mode == "train"
-    assert transfers[0].train_no == "G7351"
-    assert (transfers[0].from_city, transfers[0].to_city) == ("上海", "杭州")
-    assert [city for _, city in amap.calls] == ["上海", "杭州"]
+    assert len(visits) == 3  # 外滩位于出发城市，未列入行程
+    assert "外滩" not in {v.name for v in visits}
+    assert any(
+        "出发城市 上海" in a and "出发日只安排交通" in a for a in session.assumptions
+    )
+    # 交通段 = 目的地数 + 1（出发段、城际段、返程段）
+    assert len(transfers) == 3
+    dep, hop, ret = transfers
+    assert (dep.from_city, dep.to_city, dep.day) == ("上海", "杭州", 1)
+    assert dep.mode == "train"
+    assert dep.train_no == "G7351"
+    assert (hop.from_city, hop.to_city, hop.day) == ("杭州", "苏州", 2)
+    assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
+    assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
+    # 出发城市不再抓 POI 候选（产品规则 2026-10-19）
+    assert [city for _, city in amap.calls] == ["杭州", "苏州"]
     # solver placed every visit (§6.9 pipeline backend)
     assert all(v.start_time is not None for v in visits)
+    # 最后一天仍有活动（返程段晚出发的收益）
+    assert any(v.name == "留园" and v.day == 3 for v in visits)
     # amap enrichment: matched candidate name carries the source poi_id
     by_name = {v.name: v for v in visits}
-    assert by_name["外滩"].poi_id == "B000A7BD6C"
+    assert by_name["豫园"].poi_id == "B000A7U3C8"
+    # every recommendation carries its concrete address + opening hours
+    assert by_name["豫园"].address == "文昌路"
+    assert by_name["豫园"].opening_hours == "09:00-17:00"
     assert "假设中等节奏、不早起" in session.assumptions
+
+
+def _two_stop_items():
+    return [
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 60,
+        },
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 90,
+        },
+    ]
+
+
+def _day2_visits(session):
+    by_day = {}
+    for v in all_visits(session):
+        by_day.setdefault(v.day, []).append(v)
+    return by_day.get(2, [])
+
+
+def test_v0_adjacent_stops_enriched_by_amap_distance():
+    """v2.4.3: measured walking legs replace the straight-line estimate."""
+    llm = ScriptedLLM([v0_reply(_two_stop_items())])
+    amap = DistanceAmap(AMAP_POIS)
+    agent = PlanningAgent(llm, amap_client=amap)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    day2 = _day2_visits(session)
+    assert {v.name for v in day2} == {"豫园", "外滩"}
+    first = day2[0]
+    # measured, not estimated: leg_source flips and the stub's numbers win
+    assert first.leg_source == "amap"
+    assert first.distance_to_next_km == pytest.approx(1.1, abs=0.01)
+    assert first.next_walk_minutes == 15
+    assert amap.distance_calls and amap.distance_calls[0][2] == 1
+
+
+def test_v0_leg_enrich_degrades_to_estimate():
+    """No measurement capability -> the straight-line estimate stays."""
+    llm = ScriptedLLM([v0_reply(_two_stop_items())])
+    agent = PlanningAgent(llm, amap_client=StubAmap(AMAP_POIS))
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    first = _day2_visits(session)[0]
+    assert first.leg_source == "estimate"
+    assert first.distance_to_next_km == pytest.approx(1.11, abs=0.05)
 
 
 def test_v0_amap_failure_falls_back_to_placeholder_candidates():
@@ -429,14 +566,20 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["三亚", "哈尔滨"],
+            cities=["北京", "三亚", "哈尔滨"],
             days=4,
             preferences="海岛与冰雪",
         )
     )
     transfers = all_transfers(session)
-    assert transfers[0].mode == "flight"
-    assert transfers[0].duration_minutes == 180
+    assert len(transfers) == 3  # 出发段 + 城际段 + 返程段
+    # 三亚→哈尔滨 两端都有坐标锚点（均为目的地，出发城市不抓候选），
+    # 直线约 3400 公里：90 分钟车程不合理，占位为航班
+    hop = transfers[1]
+    assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 2)
+    assert hop.mode == "flight"
+    assert hop.duration_minutes == 180
+    assert [c for c in amap.calls] == ["三亚", "哈尔滨"]  # origin 无 amap 调用
     assert any("航班" in a and "公里" in a for a in session.assumptions)
 
 
@@ -473,14 +616,19 @@ def test_v0_near_pair_with_coords_is_car_placeholder():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "苏州"],
-            days=2,
+            cities=["南京", "上海", "苏州"],
+            days=3,
             preferences="园林",
         )
     )
     transfers = all_transfers(session)
-    assert transfers[0].mode == "car"
-    assert 60 <= transfers[0].duration_minutes <= 180
+    assert len(transfers) == 3
+    # 上海→苏州 两端都有坐标锚点（同为目的地），~85km 同域腿按驾车占位
+    hop = transfers[1]
+    assert (hop.from_city, hop.to_city, hop.day) == ("上海", "苏州", 2)
+    assert hop.mode == "car"
+    assert 60 <= hop.duration_minutes <= 180
+    assert [c for c in amap.calls] == ["上海", "苏州"]  # origin 无 amap 调用
     assert any("驾车" in a for a in session.assumptions)
 
 
@@ -490,15 +638,15 @@ def test_v0_poi_day_outside_city_window_is_clamped():
             v0_reply(
                 [
                     {
-                        "name": "天涯海角",
-                        "city": "三亚",
+                        "name": "西湖",
+                        "city": "杭州",
                         "category": "sight",
-                        "day": 3,  # wrong: 三亚 window is day 1 only
+                        "day": 3,  # wrong: 杭州 window is day 1 only
                         "duration_minutes": 120,
                     },
                     {
-                        "name": "中央大街",
-                        "city": "哈尔滨",
+                        "name": "拙政园",
+                        "city": "苏州",
                         "category": "sight",
                         "day": 2,
                         "duration_minutes": 90,
@@ -511,13 +659,13 @@ def test_v0_poi_day_outside_city_window_is_clamped():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["三亚", "哈尔滨"],
-            days=4,
+            cities=["北京", "杭州", "苏州"],
+            days=3,
             preferences="经典",
         )
     )
-    sanya = [v for v in all_visits(session) if v.city == "三亚"]
-    assert sanya and all(v.day == 1 for v in sanya)
+    hangzhou = [v for v in all_visits(session) if v.city == "杭州"]
+    assert hangzhou and all(v.day == 1 for v in hangzhou)
     assert any("城市日程" in a for a in session.assumptions)
 
 
@@ -528,16 +676,18 @@ def test_v0_placeholder_selection_respects_city_windows():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["三亚", "哈尔滨"],
+            cities=["上海", "杭州", "苏州"],
             days=4,
             preferences="无",
         )
     )
     visits = all_visits(session)
-    sanya = [v for v in visits if v.city == "三亚"]
-    haerbin = [v for v in visits if v.city == "哈尔滨"]
-    assert sanya and all(v.day == 1 for v in sanya)
-    assert haerbin and all(2 <= v.day <= 4 for v in haerbin)
+    hangzhou = [v for v in visits if v.city == "杭州"]
+    suzhou = [v for v in visits if v.city == "苏州"]
+    assert hangzhou and all(v.day == 1 for v in hangzhou)
+    assert suzhou and all(2 <= v.day <= 4 for v in suzhou)
+    # 出发城市不再产生任何占位候选（产品规则 2026-10-19）
+    assert not [v for v in visits if v.city == "上海"]
 
 
 def test_v0_solver_failure_delivers_sequenced_with_assumption():
@@ -600,11 +750,34 @@ def test_v0_bad_json_retries_once_then_degrades():
 
 
 def test_message_move_diff_changes_plan_and_reports_change():
+    items = [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },  # 出发城市：装配时丢弃
+        {
+            "name": "故宫",
+            "city": "北京",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "天坛",
+            "city": "北京",
+            "category": "sight",
+            "day": 3,
+            "duration_minutes": 60,
+        },  # v2
+    ]
     llm = ScriptedLLM(
         [
-            v0_reply(SH_HZ_ITEMS),
+            v0_reply(items),
             edit_reply(
-                "已把豫园挪到第二天", [{"op": "move", "item_id": "v2", "new_day": 2}]
+                "已把天坛挪到最后一天", [{"op": "move", "item_id": "v2", "new_day": 4}]
             ),
         ]
     )
@@ -612,36 +785,52 @@ def test_message_move_diff_changes_plan_and_reports_change():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州"],
-            days=2,
+            cities=["上海", "杭州", "北京"],
+            days=4,
             preferences="博物馆",
         )
     )
-    session, reply, change = run(agent.message(session, "把豫园挪到第二天"))
-    assert "豫园" in reply
+    session, reply, change = run(agent.message(session, "把天坛挪到最后一天"))
+    assert "天坛" in reply
     assert change is not None
     assert change.affected_items_count == 1
     assert change.change_summary
     moved = next(i for d in session.plan.days for i in d.items if i.item_id == "v2")
-    # Day 2 is the 上海→杭州 transfer day (earliest train 07:15 minus the
-    # 90min buffer leaves no morning slot): a Shanghai POI is physically
-    # impossible there, so reconcile moves it back to day 1 with a note.
-    assert moved.day == 1
-    assert any("豫园" in a and "移至第1天" in a for a in session.plan.assumptions)
+    # Day 4 carries the 北京→上海 return leg in the evening (no in-window
+    # train → 17:00 placeholder), so the moved POI keeps the morning slot:
+    # 末日 = 活动 + 返程.
+    assert moved.day == 4
     assert not hard_errors(session)
 
 
 def test_selfrepair_recovers_from_hard_violation():
-    # v0 solves day1 as 外滩 08:00-09:30, 豫园 09:30-10:30; the first diff
-    # retimes 外滩 to 09:00 -> rule-1 overlap -> repair round fixes it.
+    # Day 1 carries the 上海→杭州 train (07:15-08:16 + 90min buffer ⇒ 西湖
+    # can only start ≥09:46); the first diff retimes 西湖 to 09:00 -> rule-4
+    # buffer violation -> repair round fixes it.
+    items = [
+        {
+            "name": "西湖",
+            "city": "杭州",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 120,
+        },
+        {
+            "name": "拙政园",
+            "city": "苏州",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 90,
+        },
+    ]
     llm = ScriptedLLM(
         [
-            v0_reply(SH_HZ_ITEMS),
+            v0_reply(items),
             edit_reply(
                 "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
             ),
             repair_reply(
-                [{"op": "retime", "item_id": "v1", "new_start_time": "08:00"}]
+                [{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}]
             ),
         ]
     )
@@ -649,20 +838,36 @@ def test_selfrepair_recovers_from_hard_violation():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州"],
-            days=2,
+            cities=["上海", "杭州", "苏州"],
+            days=3,
             preferences="博物馆",
         )
     )
-    session, reply, change = run(agent.message(session, "外滩改到九点开始"))
+    session, reply, change = run(agent.message(session, "西湖改到九点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
-    assert item.start_time == time(8, 0)
+    assert item.start_time == time(10, 0)
     assert change is not None
     assert not hard_errors(session)
 
 
 def test_selfrepair_exhausted_delivers_half_product():
+    items = [
+        {
+            "name": "西湖",
+            "city": "杭州",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 120,
+        },
+        {
+            "name": "拙政园",
+            "city": "苏州",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 90,
+        },
+    ]
     bad_edit = edit_reply(
         "试试", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
     )
@@ -670,21 +875,21 @@ def test_selfrepair_exhausted_delivers_half_product():
         repair_reply([{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}])
         for _ in range(MAX_REPAIR_ROUNDS)
     ]
-    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), bad_edit] + bad_repairs)
+    llm = ScriptedLLM([v0_reply(items), bad_edit] + bad_repairs)
     agent = PlanningAgent(llm)
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州"],
-            days=2,
+            cities=["上海", "杭州", "苏州"],
+            days=3,
             preferences="博物馆",
         )
     )
-    session, reply, change = run(agent.message(session, "外滩改到九点开始"))
+    session, reply, change = run(agent.message(session, "西湖改到九点开始"))
     assert llm.calls == 2 + MAX_REPAIR_ROUNDS  # v0 + edit + 3 repairs
     assert "半成品" in reply
     assert change is not None  # the applied-but-invalid diffs still reported
-    assert hard_errors(session)  # rule-1 overlap shipped, annotated
+    assert hard_errors(session)  # rule-4 buffer violation shipped, annotated
 
 
 def test_message_unknown_item_keeps_plan_unchanged():
@@ -740,9 +945,25 @@ def test_message_edit_llm_timeout_keeps_conversation_alive():
 def test_message_edit_parse_failure_retried_then_success():
     # Edit draw 1 is unparseable prose -> resampled (v0 loop shape), draw 2
     # delivers a valid diff and it lands. No "请再发一次" punt.
+    items = [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 60,
+        },
+    ]
     llm = ScriptedLLM(
         [
-            v0_reply(SH_HZ_ITEMS),
+            v0_reply(items),
             "抱歉我走神了这不是 JSON",
             edit_reply("已删除", [{"op": "remove", "item_id": "v1"}]),
         ]
@@ -751,8 +972,8 @@ def test_message_edit_parse_failure_retried_then_success():
     session = run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州"],
-            days=2,
+            cities=["上海"],
+            days=1,
             preferences="博物馆",
         )
     )

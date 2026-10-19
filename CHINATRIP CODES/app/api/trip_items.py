@@ -39,6 +39,8 @@ class CreateTripItemRequest(BaseModel):
     city: str | None = Field(default=None, max_length=64)
     note: str | None = Field(default=None, max_length=2000)
     poi_id: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=200)
+    opening_hours: str | None = Field(default=None, max_length=200)
 
 
 class PatchTripItemRequest(BaseModel):
@@ -63,6 +65,8 @@ async def create_trip_item(
             city=request.city,
             note=request.note,
             poi_id=request.poi_id,
+            address=request.address,
+            opening_hours=request.opening_hours,
         )
     except InvalidSourceError:
         raise HTTPException(status_code=422, detail="invalid_source") from None

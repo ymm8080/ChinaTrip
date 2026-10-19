@@ -229,6 +229,8 @@ def test_trip_items_columns_exact():
         "status",
         "source",
         "poi_id",
+        "address",
+        "opening_hours",
         "day",
         "position",
         "booking_id",
