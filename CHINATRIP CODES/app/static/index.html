@@ -984,7 +984,10 @@ document.getElementById("t9nMic").onclick = () => {
   const mic = document.getElementById("t9nMic");
   const base = document.getElementById("t9nInput").value;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    toast("此浏览器不支持语音输入"); return;
+    // 非安全上下文（http://IP 访问）浏览器不暴露麦克风 API，动态给出本机 https 入口
+    toast(window.isSecureContext ? "此浏览器不支持语音输入"
+      : "语音需 HTTPS 访问，请改用 https://" + location.hostname + ":8443/h5/");
+    return;
   }
   t9nStarting = true;
   navigator.mediaDevices.getUserMedia({
