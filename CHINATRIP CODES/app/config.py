@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # 视频链接理解（web_reader 视频壳）：GLM-4.6V-Flash 看画面（免费）+
     # GLM-ASR 转写音轨（imageio-ffmpeg 自带二进制抽音轨，无需系统 ffmpeg）。
     glm_model_vision: str = "glm-4.6v-flash"
+    # 4.6v-flash 的免费池在晚高峰整段 429（code 1305）；旧免费模型
+    # glm-4v-flash 是独立容量池，同一时刻可用（探针 2026-10-19）。
+    glm_vision_fallback_models: str = "glm-4v-flash"
     video_vision_enabled: bool = True
 
     # Amap personal developer key. Server-side only - never reaches the client.

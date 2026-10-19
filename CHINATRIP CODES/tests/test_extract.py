@@ -267,6 +267,28 @@ def test_zhipu_http_401_raises_llm_error_without_key():
     assert "secret-key" not in str(exc_info.value)
 
 
+def test_zhipu_429_backs_off_then_succeeds(monkeypatch):
+    # free-tier flash pools 429 at evening peak; the adapter itself must
+    # retry with spacing instead of letting callers burn instant attempts
+    async def _no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("app.services.llm.zhipu.asyncio.sleep", _no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(
+                429, json={"error": {"code": "1305", "message": "overloaded"}}
+            )
+        return zhipu_ok_response(GOOD_ZHIPU_JSON)
+
+    result = asyncio.run(zhipu_adapter(handler).extract("去上海"))
+    assert calls["n"] == 2
+    assert result.candidates[0].name == "外滩"
+
+
 def test_zhipu_timeout_raises_llm_error():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timed out")

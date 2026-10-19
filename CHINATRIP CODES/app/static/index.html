@@ -374,7 +374,7 @@
         <label class="fld grow">偏好
           <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
         </label>
-        <span class="fld">合计 <b id="planDaysTotal">6</b> 天</span>
+        <span class="fld">合计 <b id="planDaysTotal">6</b> 天 · 结束日期 <b id="planEndDate">（未设开始日期）</b></span>
         <button class="btn" id="planStart">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
@@ -384,7 +384,7 @@
           <span class="muted" id="planStateTag"></span>
         </div>
         <div class="composer">
-          <textarea id="planInput" placeholder="直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆"></textarea>
+          <textarea id="planInput" placeholder="规划开始后在这里继续对话调整；例如：把第二天的景点挪到第三天"></textarea>
           <button class="btn" id="planSend">发送</button>
         </div>
       </div>
@@ -1055,13 +1055,13 @@ function planCard(plan) {
         const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
         const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
+        if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" +
             (it.next_walk_minutes != null ? " · 步行约 " + it.next_walk_minutes + " 分钟" : "") +
             (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
           box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(leg) + "</div>"));
         }
-        if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
       }
     });
     if (!d.items || !d.items.length) box.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
@@ -1158,8 +1158,35 @@ function planRouteForm() {
   const e = document.getElementById("planEndCity");
   s.innerHTML = opts; s.value = "北京";
   e.innerHTML = opts; e.value = "上海";
-  const total = () => { document.getElementById("planDaysTotal").textContent = planRouteForm().total; };
-  ["planStartDays", "planEndDays", "planEndCity"].forEach(id => document.getElementById(id).addEventListener("change", total));
+  // 浏览器表单恢复可能带回 0/空天数：初始化时归位默认值
+  // （起始城市 0 天是设计如此——只排出发交通不计入合计）
+  const num = (id) => parseInt(document.getElementById(id).value, 10);
+  if (!(num("planStartDays") >= 0)) document.getElementById("planStartDays").value = 0;
+  if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 6;
+  for (let i = 1; i <= 3; i++) {
+    if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
+  }
+  // 产品规则 2026-10-19：开始日期默认今天（原默认为空）
+  const _now = new Date();
+  document.getElementById("planStartDate").value = _now.getFullYear() + "-" +
+    String(_now.getMonth() + 1).padStart(2, "0") + "-" +
+    String(_now.getDate()).padStart(2, "0");
+  const total = () => {
+    const r = planRouteForm();
+    document.getElementById("planDaysTotal").textContent = r.total;
+    const sd = document.getElementById("planStartDate").value;
+    const d = sd ? new Date(sd + "T00:00:00") : null;
+    const endEl = document.getElementById("planEndDate");
+    if (d && !isNaN(d.getTime())) {
+      d.setDate(d.getDate() + (r.total - 1)); // 行程最后一天（第 total 天）
+      endEl.textContent = d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0");
+    } else {
+      endEl.textContent = "（未设开始日期）";
+    }
+  };
+  ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", total));
   for (let i = 1; i <= 3; i++) {
     const sel = document.getElementById("planVia" + i);
     sel.innerHTML = viaOpts;
@@ -1181,7 +1208,7 @@ function planSetSession(s) {
   planSession = s;
   document.getElementById("planSetup").style.display = s ? "none" : "flex";
   document.getElementById("planResetBar").style.display = s ? "flex" : "none";
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆";
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "先点上方「🚀 开始规划」；开始后在这里继续对话调整行程";
   document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
 }
 
@@ -1321,9 +1348,8 @@ async function planSend() {
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
-  if (!planSession) { // 先输入后规划：无会话时发送 = 以输入内容为需求直接开始规划
-    input.value = "";
-    await planStartCore(text);
+  if (!planSession) { // 产品规则 2026-10-19：只有点「🚀 开始规划」才开规划
+    addMsg("flow-plan", "sys", "请先在上方选好路线，点「🚀 开始规划」；你输入的内容已保留，开始后可直接发送。");
     return;
   }
   input.value = "";

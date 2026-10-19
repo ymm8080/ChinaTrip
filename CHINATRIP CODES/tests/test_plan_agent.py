@@ -20,6 +20,7 @@ from app.services.agent.plan import (
 from app.services.itinerary import RuleSeverity, TransferItem, VisitItem
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
+from app.services.poi_details import PoiDetailStore
 
 
 class ScriptedLLM:
@@ -89,15 +90,39 @@ class DistanceAmap(StubAmap):
         super().__init__(pois, exc=exc)
         self.meters = meters
         self.seconds = seconds
-        self.distance_calls = []
+        self.route_calls = []
+        self.hours_calls = []
+        self.search_calls = []
 
-    async def distance(self, origins, destination, *, type_=1):
-        self.distance_calls.append((list(origins), destination, type_))
+    async def walking_route(
+        self, origin, destination, *, origin_id=None, destination_id=None
+    ):
+        self.route_calls.append((origin, destination, origin_id, destination_id))
         if self.exc is not None:
             raise self.exc
-        return [
-            {"distance_m": self.meters, "duration_s": self.seconds} for _ in origins
-        ]
+        return {
+            "distance_m": self.meters,
+            "duration_s": self.seconds,
+            "steps": [],
+            "polyline": [],
+        }
+
+    async def place_hours(self, poi_id):
+        self.hours_calls.append(poi_id)
+        if self.exc is not None:
+            raise self.exc
+        return {"opening_hours": "09:00-17:00", "rating": "4.8"}
+
+    async def search_hours(self, keyword, city=None):
+        self.search_calls.append((keyword, city))
+        if self.exc is not None:
+            raise self.exc
+        return {
+            "opening_hours": "09:00-21:00",
+            "rating": None,
+            "matched": keyword,
+            "poi_id": "B00TEST01",
+        }
 
 
 def run(coro):
@@ -418,7 +443,183 @@ def test_v0_adjacent_stops_enriched_by_amap_distance():
     assert first.leg_source == "amap"
     assert first.distance_to_next_km == pytest.approx(1.1, abs=0.01)
     assert first.next_walk_minutes == 15
-    assert amap.distance_calls and amap.distance_calls[0][2] == 1
+    assert amap.route_calls, "legs must be measured via walking_route"
+    assert amap.route_calls[0][2] and amap.route_calls[0][3], (
+        "POI ids should ride along for route snapping"
+    )
+
+
+class CtripStub:
+    """ctrip_hours reader stub (agent-injected, no network)."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def hours_for(self, city, name):
+        self.calls.append((city, name))
+        return "全年全天开放"
+
+
+class NullCtrip:
+    async def hours_for(self, city, name):
+        return None
+
+
+def test_v0_store_hit_fills_without_live_calls():
+    """v2.4.4: a store hit fills the card with zero live calls."""
+    store = PoiDetailStore()  # memory mode
+    store.upsert(
+        "B000A7U3C8",
+        city="上海",
+        name="豫园",
+        address="文昌路",
+        opening_hours="09:00-17:00",
+        hours_source="amap_v5_detail",
+    )
+    amap = DistanceAmap(AMAP_POIS)
+    ctrip = CtripStub()
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(_two_stop_items())]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=ctrip,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    visits = {v.name: v for v in all_visits(session)}
+    assert visits["豫园"].opening_hours == "09:00-17:00"
+    assert visits["豫园"].address == "文昌路"
+    assert ctrip.calls == []  # 库命中 → 不触网
+    assert amap.hours_calls == []
+
+
+def test_v0_store_miss_runs_ctrip_first_then_appends():
+    """v2.4.4 修订: 库未命中当场走链，携程先命中即 APPEND 入库。"""
+    pois = [
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": "B000A7U3C8",
+            "location": {"lon": 121.49, "lat": 31.23},
+            "address": "文昌路",
+            "opening_hours": None,
+        },
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": "B000A7BD6C",
+            "location": {"lon": 121.49, "lat": 31.24},
+            "address": "中山东一路",
+            "opening_hours": None,
+        },
+    ]
+    store = PoiDetailStore()
+    amap = DistanceAmap(pois)
+    ctrip = CtripStub()
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(_two_stop_items())]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=ctrip,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    assert ctrip.calls, "携程应先于高德被问询"
+    assert amap.hours_calls == [], "携程命中后高德不应再被问询"
+    got = store.get("B000A7U3C8")
+    assert got["opening_hours"] == "全年全天开放"
+    assert got["hours_source"] == "ctrip"
+
+
+def test_v0_store_miss_no_poi_id_search_appends():
+    """v2.4.4 修订: 无 poi_id 条目走 携程(miss)→关键词搜索 并按 amap id 入库。"""
+    pois = [
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "风景名胜",
+            "location": {"lon": 121.49, "lat": 31.23},
+            "address": "文昌路",
+            "opening_hours": None,
+        },
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "风景名胜",
+            "location": {"lon": 121.49, "lat": 31.24},
+            "address": "中山东一路",
+            "opening_hours": None,
+        },
+    ]
+    store = PoiDetailStore()
+    amap = DistanceAmap(pois)
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(_two_stop_items())]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=NullCtrip(),
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    assert amap.search_calls, "关键词搜索是高德侧兜底"
+    filled = [v for v in all_visits(session) if v.opening_hours == "09:00-21:00"]
+    assert filled, "无 poi_id 条目应被关键词搜索回填"
+    assert store.get("B00TEST01") is not None, "命中应 APPEND 入库"
+
+
+def test_v0_poi_details_read_from_store():
+    """v2.4.4: planning reads address/hours from the poi detail store."""
+    store = PoiDetailStore()  # memory mode (no session factory)
+    store.upsert(
+        "B000A7U3C8",
+        city="上海",
+        name="豫园",
+        address="文昌路",
+        opening_hours="09:00-17:00",
+        hours_source="amap_v5_detail",
+    )
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(_two_stop_items())]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=store,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    visits = {v.name: v for v in all_visits(session)}
+    assert visits["豫园"].opening_hours == "09:00-17:00"
+    assert visits["豫园"].address == "文昌路"
+    # 外滩 carries v3 payload hours → written through as a job seed
+    assert store.get("B000A7BD6C") is not None
 
 
 def test_v0_leg_enrich_degrades_to_estimate():

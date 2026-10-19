@@ -52,9 +52,16 @@ def _vision_response(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, text=_VISION_REPLY)
 
 
+def _small_media(_request: httpx.Request) -> httpx.Response:
+    # the size probe before the video_url path: small file, keep video_url
+    return httpx.Response(206, headers={"content-range": "bytes 0-1/1024000"})
+
+
 def _dy_handler(request: httpx.Request) -> httpx.Response:
     if request.url.host == "www.iesdouyin.com":
         return httpx.Response(200, text=_DY_PAGE)
+    if request.url.host == "v.douyin.com":
+        return _small_media(request)
     if request.url.host == _LLM:
         return _vision_response(request)
     raise AssertionError(f"unexpected host {request.url.host}")
@@ -106,11 +113,43 @@ def test_vision_429_backoff_then_success(monkeypatch):
                     429, json={"error": {"code": "1305", "message": "overloaded"}}
                 )
             return _vision_response(request)
+        if request.url.host == "v.douyin.com":
+            return _small_media(request)
         return httpx.Response(200, text=_DY_PAGE)
 
     reader = _reader(httpx.MockTransport(handler))
     out = run(reader.enrich("https://www.douyin.com/video/123456789"))
     assert calls["n"] == 2
+    assert "外滩" in out
+
+
+def test_vision_429_falls_back_to_spare_model(monkeypatch):
+    # 4.6v-flash's pool saturates at peak; glm-4v-flash answers instead
+    # (probe 2026-10-19). One 429 on the primary must not burn a backoff.
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == _LLM:
+            model = json.loads(request.content)["model"]
+            seen.append(model)
+            if model == "glm-4.6v-flash":
+                return httpx.Response(
+                    429, json={"error": {"code": "1305", "message": "overloaded"}}
+                )
+            assert model == "glm-4v-flash"
+            return httpx.Response(200, text=_VISION_REPLY)
+        if request.url.host == "v.douyin.com":
+            return _small_media(request)
+        return httpx.Response(200, text=_DY_PAGE)
+
+    reader = VideoReader(
+        api_key="k",
+        base_url=f"https://{_LLM}/v4",
+        transport=httpx.MockTransport(handler),
+        fallback_models=["glm-4v-flash"],
+    )
+    out = run(reader.enrich("https://www.douyin.com/video/123456789"))
+    assert seen == ["glm-4.6v-flash", "glm-4v-flash"]
     assert "外滩" in out
 
 
@@ -146,6 +185,8 @@ def test_bilibili_wbi_resolution():
             return httpx.Response(
                 200, json={"data": {"durl": [{"url": _BILI_MEDIA, "size": 1}]}}
             )
+        if host == "upos.bilivideo.com":
+            return _small_media(request)
         if host == _LLM:
             return _vision_response(request)
         raise AssertionError(f"unexpected {request.url}")
@@ -228,6 +269,8 @@ def test_xhs_video_note_flows_into_vision():
             seen["kinds"] = [p["type"] for p in parts]
             seen["url"] = parts[0]["video_url"]["url"]
             return httpx.Response(200, text=_VISION_REPLY)
+        if request.url.host == "sns-video.xhscdn.com":
+            return _small_media(request)
         return httpx.Response(200, text=_XHS_VIDEO_PAGE)
 
     reader = _reader(httpx.MockTransport(handler))
@@ -269,6 +312,161 @@ def test_xhs_image_note_uses_image_parts():
 def test_xhs_shell_without_note_data_degrades():
     reader = _reader(httpx.MockTransport(_xhs_handler("<html>empty</html>")))
     assert run(reader.enrich("https://www.xiaohongshu.com/explore/none")) == ""
+
+
+def test_big_video_switches_to_frame_images(monkeypatch):
+    # a 28.8MB mp4 draws 400 code 1210 through video_url (probe 2026-10-19):
+    # the size gate must reroute it to locally sampled frames, sent as raw
+    # base64 image parts (no data-uri prefix).
+    seen: dict = {}
+
+    async def fake_sample(_self, _media):
+        return ["QUJD"]
+
+    monkeypatch.setattr(VideoReader, "_sample_frames", fake_sample)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "sns-video.xhscdn.com":
+            cr = "bytes 0-1/28883835"
+            return httpx.Response(206, headers={"content-range": cr})
+        if request.url.host == _LLM:
+            parts = json.loads(request.content)["messages"][0]["content"]
+            seen["kinds"] = [p["type"] for p in parts]
+            seen["url"] = parts[0]["image_url"]["url"]
+            return httpx.Response(200, text=_VISION_REPLY)
+        return httpx.Response(200, text=_XHS_VIDEO_PAGE)
+
+    reader = _reader(httpx.MockTransport(handler))
+    out = run(reader.enrich("https://www.xiaohongshu.com/explore/big"))
+    assert seen["kinds"] == ["image_url", "text"]
+    assert seen["url"] == "QUJD"  # raw base64, no data:image prefix
+    assert "[视频画面]" in out
+
+
+# --- instagram (crawler-UA pages carry og tags + post JSON) -------------
+
+_IG_VIDEO_PAGE = (
+    "<html><head>"
+    '<meta property="og:image" '
+    'content="https://s.cdninstagram.com/v/a.jpg?stp=1&amp;w=640">'
+    '<meta property="og:description" '
+    'content="695 likes - brock11johnson: &quot;BIG NEWS in Tokyo&quot;">'
+    "</head><body>"
+    r'"video_versions":[{"type":101,"url":"https:\/\/s.cdninstagram.com\/v\/t2\/x.mp4?efg=1"}'
+    "</body></html>"
+)
+
+_IG_IMAGE_PAGE = (
+    "<html><head>"
+    '<meta property="og:image" content="https://s.cdninstagram.com/v/b.jpg">'
+    '<meta property="og:description" content="Kyoto day trip guide &amp; spots">'
+    "</head></html>"
+)
+
+
+def test_ig_video_post_flows_into_vision():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == _LLM:
+            parts = json.loads(request.content)["messages"][0]["content"]
+            seen["kinds"] = [p["type"] for p in parts]
+            seen["url"] = parts[0]["video_url"]["url"]
+            return httpx.Response(200, text=_VISION_REPLY)
+        if request.url.host == "s.cdninstagram.com":
+            return _small_media(request)
+        assert request.url.host == "www.instagram.com"
+        assert "facebookexternalhit" in request.headers["User-Agent"]
+        return httpx.Response(200, text=_IG_VIDEO_PAGE)
+
+    reader = _reader(httpx.MockTransport(handler))
+    out = run(reader.enrich("https://www.instagram.com/p/DWmNnlKIK4l/"))
+    assert seen["kinds"] == ["video_url", "text"]
+    assert seen["url"] == "https://s.cdninstagram.com/v/t2/x.mp4?efg=1"
+    assert out.startswith('[笔记文字] 695 likes - brock11johnson: "BIG NEWS')
+    assert "[视频画面]" in out
+
+
+def test_ig_image_post_uses_og_image_and_caption():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == _LLM:
+            parts = json.loads(request.content)["messages"][0]["content"]
+            seen["urls"] = [
+                p["image_url"]["url"] for p in parts if p["type"] == "image_url"
+            ]
+            return httpx.Response(200, text=_VISION_REPLY)
+        return httpx.Response(200, text=_IG_IMAGE_PAGE)
+
+    reader = _reader(httpx.MockTransport(handler))
+    out = run(reader.enrich("https://www.instagram.com/p/DcCGNEuG2Aa/"))
+    assert seen["urls"] == ["https://s.cdninstagram.com/v/b.jpg"]
+    assert out.startswith("[笔记文字] Kyoto day trip guide & spots")
+    assert "[笔记图片]" in out
+
+
+# --- tiktok (playAddr is header-gated: frames sampled locally) ----------
+
+_TT_MEDIA = "https://v16-webapp-prime.tiktok.com/video/tos/useast2a/x.mp4"
+_TT_COVER = "https://p16-sign-va.tiktokcdn.com/obj/tos-cover/x.jpeg"
+_TT_PAGE = (
+    '<html><script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">'
+    '{"__DEFAULT_SCOPE__":{"webapp.video-detail":{"itemInfo":{"itemStruct":'
+    '{"desc":"Tokyo tower view #tokyo","video":{"playAddr":"' + _TT_MEDIA + '",'
+    '"cover":"' + _TT_COVER + '"}}}}}}'
+    "</script></html>"
+)
+
+
+def test_tiktok_marks_frames_and_keeps_download_headers():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "www.tiktok.com"
+        return httpx.Response(
+            200,
+            text=_TT_PAGE,
+            headers={"set-cookie": "tt_webid=42; Path=/; Domain=.tiktok.com"},
+        )
+
+    reader = _reader(httpx.MockTransport(handler))
+    media = run(reader._resolve("https://www.tiktok.com/@u/video/123", ""))
+    assert media is not None
+    assert media.url == _TT_MEDIA
+    assert media.headers["Referer"] == "https://www.tiktok.com/"
+    assert "tt_webid=42" in media.headers["Cookie"]  # CDN needs session cookies
+    assert media.text == "Tokyo tower view #tokyo"
+    assert media.images == [_TT_COVER]
+    assert media.frames is True
+
+
+def test_tiktok_cover_fallback_without_ffmpeg():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == _LLM:
+            parts = json.loads(request.content)["messages"][0]["content"]
+            seen["kinds"] = [p["type"] for p in parts]
+            seen["urls"] = [
+                p["image_url"]["url"] for p in parts if p["type"] == "image_url"
+            ]
+            return httpx.Response(200, text=_VISION_REPLY)
+        return httpx.Response(200, text=_TT_PAGE)
+
+    reader = _reader(httpx.MockTransport(handler))
+    reader._ffmpeg = None  # frame sampling unavailable
+    out = run(reader.enrich("https://www.tiktok.com/@u/video/123"))
+    assert seen["kinds"] == ["image_url", "text"]
+    assert seen["urls"] == [_TT_COVER]  # never the Referer-gated playAddr
+    assert out.startswith("[笔记文字] Tokyo tower view #tokyo")
+    assert "[视频画面]" in out  # video post: label follows media.url
+
+
+def test_tiktok_shell_without_universal_data_degrades():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>login wall</html>")
+
+    reader = _reader(httpx.MockTransport(handler))
+    assert run(reader.enrich("https://www.tiktok.com/@u/video/123")) == ""
 
 
 def test_web_reader_gates_xiaohongshu_into_video_reader():

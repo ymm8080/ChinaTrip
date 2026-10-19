@@ -1,5 +1,7 @@
 """Zhipu GLM cloud adapter (OpenAI-compatible chat/completions, httpx only)."""
 
+import asyncio
+
 import httpx
 
 from app.services.llm.base import (
@@ -90,7 +92,14 @@ class ZhipuGLMAdapter:
                 transport=self.transport,
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as client:
-                resp = await client.post(path, json=payload)
+                resp = None
+                for attempt in range(3):
+                    resp = await client.post(path, json=payload)
+                    # Free-tier flash pools 429-saturate at evening peak; two
+                    # spaced retries usually squeeze through (probe 2026-10-19)
+                    if resp.status_code != 429 or attempt == 2:
+                        break
+                    await asyncio.sleep(2 * (attempt + 1))
         except httpx.TimeoutException as exc:
             raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc
         except httpx.HTTPError as exc:
@@ -116,24 +125,10 @@ class ZhipuGLMAdapter:
             ],
             "temperature": 0.1,
         }
+        body = await self._post_json("/chat/completions", payload)
         try:
-            async with httpx.AsyncClient(
-                base_url=self.base_url,
-                timeout=self.timeout_seconds,
-                transport=self.transport,
-                headers={"Authorization": f"Bearer {self.api_key}"},
-            ) as client:
-                resp = await client.post("/chat/completions", json=payload)
-        except httpx.TimeoutException as exc:
-            raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc
-        except httpx.HTTPError as exc:
-            raise LLMError(f"zhipu request failed: {type(exc).__name__}") from exc
-        if resp.status_code != 200:
-            raise LLMError(f"zhipu http status {resp.status_code}")
-        try:
-            body = resp.json()
             content = body["choices"][0]["message"]["content"]
-        except (ValueError, TypeError, KeyError, IndexError) as exc:
+        except (TypeError, KeyError, IndexError) as exc:
             raise LLMError("zhipu malformed response shape") from exc
         if not isinstance(content, str):
             raise LLMError("zhipu malformed response shape")
