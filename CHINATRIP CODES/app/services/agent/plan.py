@@ -421,11 +421,7 @@ class PlanSession(BaseModel):
 
 def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
     tokens = [t for t in re.split(r"[、,，\s]+", fragment.strip()) if t]
-    return [
-        site
-        for site in sites
-        if any(tok in site or site in tok for tok in tokens)
-    ]
+    return [site for site in sites if any(tok in site or site in tok for tok in tokens)]
 
 
 def _parse_site_answer(
@@ -663,11 +659,9 @@ class PlanningAgent:
                 raw = data.get("sites")
                 if not isinstance(raw, list):
                     raise ValueError("sites is not a list")
-                return [
-                    site
-                    for site in (str(item).strip() for item in raw)
-                    if site
-                ][:MAX_LINK_SITES]
+                return [site for site in (str(item).strip() for item in raw) if site][
+                    :MAX_LINK_SITES
+                ]
             except (LLMError, ValueError, TypeError) as exc:
                 logger.warning("plan: link site extraction failed (%s)", exc)
                 continue
@@ -709,9 +703,7 @@ class PlanningAgent:
         )
         change: ChangeSummary | None = None
         if session.plan is not None and mandatory:
-            session, change, add_note = await self._add_must_visits(
-                session, mandatory
-            )
+            session, change, add_note = await self._add_must_visits(session, mandatory)
             if add_note:
                 notes.append(add_note)
         if session.plan is None and session.cities and session.days > 0:
@@ -782,9 +774,7 @@ class PlanningAgent:
         paste is the link origin, same as /links/{id}/to-wishlist)."""
         if self._trip_items is None:
             return
-        itinerary_id = (
-            session.plan.itinerary_id if session.plan is not None else None
-        )
+        itinerary_id = session.plan.itinerary_id if session.plan is not None else None
         city = session.cities[0] if len(session.cities) == 1 else None
         tagged = [(site, "必去") for site in mandatory] + [
             (site, "可选") for site in optional
@@ -973,17 +963,11 @@ class PlanningAgent:
             poi: dict | None = None
             if self._amap is not None:
                 try:
-                    poi = next(
-                        iter(await self._amap.search_poi(name)), None
-                    )
+                    poi = next(iter(await self._amap.search_poi(name)), None)
                 except Exception:
-                    logger.warning(
-                        "plan: amap must-visit lookup failed for %s", name
-                    )
+                    logger.warning("plan: amap must-visit lookup failed for %s", name)
             if poi and isinstance(poi, dict) and poi.get("name"):
-                candidates.append(
-                    {**poi, "city": poi.get("city") or fallback_city}
-                )
+                candidates.append({**poi, "city": poi.get("city") or fallback_city})
             else:
                 candidates.append(
                     {

@@ -126,7 +126,9 @@ def test_two_site_link_asks_then_lands_in_wishlist():
     )
     assert session.state == "ready"
 
-    session, reply, _ = run(agent.message(session, "看看这个视频 https://www.douyin.com/video/7389001"))
+    session, reply, _ = run(
+        agent.message(session, "看看这个视频 https://www.douyin.com/video/7389001")
+    )
     assert session.state == "site_confirm"
     assert session.pending_sites == ["总统府", "夫子庙", "老门东"]
     assert "必去" in reply and "可选" in reply
@@ -217,9 +219,7 @@ def test_first_message_link_in_preferences_goes_site_round_then_v0():
 
 
 def test_single_site_link_does_not_ask():
-    reader = StubReader(
-        LinkDigest(url="https://x/1", title="t", text="只有颐和园")
-    )
+    reader = StubReader(LinkDigest(url="https://x/1", title="t", text="只有颐和园"))
     trip_items = TripItemService()
     llm, agent = _ready_agent(
         [
@@ -255,6 +255,8 @@ def test_site_extraction_failure_degrades_to_normal_edit():
     session = run(
         agent.start(device_id="d", cities=["南京"], days=2, preferences="博物馆")
     )
-    session, reply, _ = run(agent.message(session, "https://www.douyin.com/video/7389001"))
+    session, reply, _ = run(
+        agent.message(session, "https://www.douyin.com/video/7389001")
+    )
     assert session.state == "ready"
     assert reply == "已参考。"

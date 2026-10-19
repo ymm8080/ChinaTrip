@@ -228,9 +228,7 @@ def test_read_wechat_channels_video_from_description_field():
     reader = HttpLinkReader(
         transport=httpx.MockTransport(lambda request: httpx.Response(200, text=page))
     )
-    digest = run(
-        reader.read("https://channels.weixin.qq.com/web-shortcut/abc123")
-    )
+    digest = run(reader.read("https://channels.weixin.qq.com/web-shortcut/abc123"))
     assert digest.ok
     assert digest.title == "西安两日游"
     assert "兵马俑和回民街" in digest.text
