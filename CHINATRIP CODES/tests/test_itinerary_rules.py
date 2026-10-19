@@ -340,6 +340,43 @@ def test_rule3_base_city_jump_with_transfer_clean():
     assert rep.ok
 
 
+def test_rule3_city_suffix_shi_normalized_clean():
+    # LLM 写 "上海市"，行程城市是 "上海" —— 同城不得报警
+    d = DayPlan(
+        day=1, base_city="上海", items=[visit("a", 1, time(9), time(10), city="上海市")]
+    )
+    rep = validate_plan(plan([d], cities=("上海",)), poi_hours=[])
+    assert rule_hits(rep, 3) == []
+
+
+def test_rule3_base_city_jump_transfer_on_departure_day_clean():
+    # 跨城交通在切换前一天（出发日）：day1 乘车离开上海，day2 base=苏州，合法
+    days = [
+        DayPlan(
+            day=1,
+            base_city="上海",
+            items=[
+                transfer("t", 1, 1, time(10), time(12)),
+                visit("a", 1, time(14), time(15), city="苏州"),
+            ],
+        ),
+        DayPlan(day=2, base_city="苏州", items=[visit("b", 2, time(9), time(10))]),
+    ]
+    rep = validate_plan(plan(days), poi_hours=[])
+    assert rule_hits(rep, 3) == []
+    assert rep.ok
+
+
+def test_rule3_base_city_suffix_only_not_a_jump():
+    # "上海市" → "上海" 只是后缀差异，不是城市跳变
+    days = [
+        DayPlan(day=1, base_city="上海市", items=[visit("a", 1, time(9), time(10))]),
+        DayPlan(day=2, base_city="上海", items=[visit("b", 2, time(9), time(10))]),
+    ]
+    rep = validate_plan(plan(days), poi_hours=[])
+    assert rule_hits(rep, 3) == []
+
+
 # --- iron rule 10: change scope ---------------------------------------------
 
 

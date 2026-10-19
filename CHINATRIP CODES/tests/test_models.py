@@ -22,9 +22,15 @@ TABLE_NAMES = [
     "iap_transactions",
     "paywall_rules",
     "action_handoffs",
+    "trip_items",
+    "user_profiles",
+    "link_history",
 ]
 
-W12_TABLE_NAMES = TABLE_NAMES[:-1]  # 0001 created 12; action_handoffs arrives in 0002
+W12_TABLE_NAMES = TABLE_NAMES[:12]  # 0001 created 12; action_handoffs arrives in 0002
+
+# 0003 (design v2.4 §4): trip center agent tables.
+V24_TABLE_NAMES = TABLE_NAMES[-3:]
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1] / "alembic" / "versions" / "0001_w12_initial.py"
@@ -35,6 +41,13 @@ MIGRATION_0002_PATH = (
     / "alembic"
     / "versions"
     / "0002_v19_action_handoffs.py"
+)
+
+MIGRATION_0003_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "alembic"
+    / "versions"
+    / "0003_v24_trip_center_tables.py"
 )
 
 
@@ -103,6 +116,7 @@ def test_action_handoffs_columns_exact():
         "h5_fallback",
         "status",
         "order_ref",
+        "source_channel",
         "refund_policy",
         "refund_deadline",
         "created_at",
@@ -194,3 +208,117 @@ def test_migration_0002_creates_action_handoffs():
         assert fragment in upgrade_sql, fragment
     downgrade_sql = sql.split("def downgrade", 1)[1]
     assert "DROP TABLE action_handoffs" in downgrade_sql
+
+
+def test_action_handoffs_source_channel_column():
+    source_channel = Base.metadata.tables["action_handoffs"].columns["source_channel"]
+    assert isinstance(source_channel.type, String)
+    assert source_channel.type.length == 20
+    assert source_channel.nullable is True
+
+
+def test_trip_items_columns_exact():
+    trip_items = Base.metadata.tables["trip_items"]
+    assert set(trip_items.columns.keys()) == {
+        "id",
+        "itinerary_id",
+        "user_id",
+        "name",
+        "city",
+        "note",
+        "status",
+        "source",
+        "poi_id",
+        "day",
+        "position",
+        "booking_id",
+        "created_at",
+        "updated_at",
+    }
+
+
+def test_trip_items_status_defaults_to_wishlist():
+    status = Base.metadata.tables["trip_items"].columns["status"]
+    assert status.nullable is False
+    assert status.server_default.arg.text == "'wishlist'"
+
+
+def test_trip_items_foreign_keys():
+    trip_items = Base.metadata.tables["trip_items"]
+
+    def fk_targets(col):
+        return {fk.target_fullname for fk in trip_items.columns[col].foreign_keys}
+
+    assert fk_targets("itinerary_id") == {"itineraries.id"}
+    assert fk_targets("user_id") == {"users.id"}
+    assert fk_targets("poi_id") == {"pois.id"}
+    assert fk_targets("booking_id") == {"action_handoffs.id"}
+
+
+def test_user_profiles_pk_is_user_id_with_users_fk():
+    profiles = Base.metadata.tables["user_profiles"]
+    assert [col.name for col in profiles.primary_key.columns] == ["user_id"]
+    assert {fk.target_fullname for fk in profiles.columns["user_id"].foreign_keys} == {
+        "users.id"
+    }
+
+
+def test_user_profiles_profile_is_jsonb_not_null():
+    profile = Base.metadata.tables["user_profiles"].columns["profile"]
+    assert isinstance(profile.type, JSONB)
+    assert profile.nullable is False
+
+
+def test_user_profiles_embedding_is_jsonb_placeholder():
+    embedding = Base.metadata.tables["user_profiles"].columns["embedding"]
+    assert isinstance(embedding.type, JSONB)
+
+
+def test_link_history_columns_exact():
+    link_history = Base.metadata.tables["link_history"]
+    assert set(link_history.columns.keys()) == {
+        "id",
+        "user_id",
+        "url",
+        "source",
+        "origin",
+        "itinerary_id",
+        "extract_id",
+        "status",
+        "created_at",
+    }
+
+
+def test_link_history_status_defaults_to_pending():
+    status = Base.metadata.tables["link_history"].columns["status"]
+    assert status.nullable is True
+    assert status.server_default.arg.text == "'pending'"
+
+
+def test_migration_0003_creates_v24_tables():
+    sql = MIGRATION_0003_PATH.read_text(encoding="utf-8")
+    assert 'revision: str = "w12_0003"' in sql
+    assert 'down_revision: str | None = "w12_0002"' in sql
+    upgrade_sql = sql.split("def upgrade", 1)[1].split("def downgrade", 1)[0]
+    for name in V24_TABLE_NAMES:
+        assert f"CREATE TABLE {name}" in upgrade_sql, name
+    for fragment in (
+        "status VARCHAR(20) NOT NULL DEFAULT 'wishlist'",
+        "booking_id UUID REFERENCES action_handoffs(id)",
+        "profile JSONB NOT NULL",
+        "embedding JSONB",
+        "url TEXT NOT NULL",
+        "status VARCHAR(20) DEFAULT 'pending'",
+        "ALTER TABLE action_handoffs ADD COLUMN source_channel VARCHAR(20)",
+    ):
+        assert fragment in upgrade_sql, fragment
+    downgrade_sql = sql.split("def downgrade", 1)[1]
+    for name in reversed(V24_TABLE_NAMES):
+        assert f"DROP TABLE {name}" in downgrade_sql, name
+    assert "ALTER TABLE action_handoffs DROP COLUMN source_channel" in downgrade_sql
+
+
+def test_migration_0003_documents_pgvector_placeholder():
+    sql = MIGRATION_0003_PATH.read_text(encoding="utf-8")
+    assert "pgvector vector(1024)" in sql
+    assert "CREATE EXTENSION" not in sql  # no new extension dependency in 0003

@@ -262,10 +262,15 @@ class ActionHandoff(Base):
     )  # ctrip|meituan|qunar|amap|rail12306
     deeplink: Mapped[str] = mapped_column(Text)
     h5_fallback: Mapped[str | None] = mapped_column(Text)
+    # v2.4 state machine: opened -> user_confirmed (user backfills order_ref)
+    # -> alliance_verified (affiliate order-sync match) -> settled (commission
+    # payout); returned is the refund reverse path.
     status: Mapped[str | None] = mapped_column(
         String(20), server_default=text("'opened'")
     )
     order_ref: Mapped[str | None] = mapped_column(String(100))
+    # v2.4: surface that issued this handoff (chat|wishlist|booking_cards).
+    source_channel: Mapped[str | None] = mapped_column(String(20))
     # Snapshot of the refund rules shown to the user before handoff.
     refund_policy: Mapped[dict | None] = mapped_column(JSONB)
     refund_deadline: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
@@ -273,5 +278,82 @@ class ActionHandoff(Base):
         TIMESTAMP, server_default=text("NOW()")
     )
     updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class TripItem(Base):
+    # v2.4 §4: user-owned trip card — the agent's read/write source of truth;
+    # status lifecycle wishlist -> scheduled -> booked.
+    __tablename__ = "trip_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(50))
+    note: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(20), server_default=text("'wishlist'")
+    )  # wishlist|scheduled|booked
+    source: Mapped[str] = mapped_column(String(20))  # manual|chat|paste|agent_recommend
+    poi_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pois.id")
+    )
+    day: Mapped[int | None] = mapped_column(Integer)
+    position: Mapped[float | None] = mapped_column(Float)
+    booking_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("action_handoffs.id")
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class UserProfile(Base):
+    # v2.4 §4: per-user preference memory backing the trip-center agent.
+    __tablename__ = "user_profiles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
+    profile: Mapped[dict] = mapped_column(JSONB)
+    # Production schema is pgvector vector(1024); shipped as a JSONB float-array
+    # placeholder because 0001 provisions only postgis and we add no extension
+    # here (see 0003 migration column comment).
+    embedding: Mapped[list[float] | None] = mapped_column(JSONB)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class LinkHistory(Base):
+    # v2.4 §4: every user-pasted / agent-recommended link and its parse outcome.
+    __tablename__ = "link_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    url: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(20))  # user_paste|agent_recommend
+    origin: Mapped[str | None] = mapped_column(
+        String(20)
+    )  # chat|wishlist_boost|booking_cards
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    extract_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    status: Mapped[str | None] = mapped_column(
+        String(20), server_default=text("'pending'")
+    )  # pending|parsed|failed
+    created_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )

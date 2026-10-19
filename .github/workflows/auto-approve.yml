@@ -107,12 +107,11 @@ jobs:
           done
 
           # Post approval comment
-          gh pr comment "$PR" --body "## All CI Checks Passed
+          gh pr comment "$PR" --body "## All Core CI Checks Passed
 
           - Lint (ruff): passed
           - ADR validation: passed
           - Tests (pytest): passed
-          - DeepSeek review: completed
 
           Merge button is now available.
 

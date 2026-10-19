@@ -136,6 +136,18 @@ def test_start_200_clarify_when_info_missing():
     assert "plan" not in body
 
 
+def test_start_200_clarify_asks_preference_when_info_complete():
+    agent = PlanningAgent(StubAdapter([]))  # no LLM call expected
+    resp = start(client_for(agent), {"cities": ["上海"], "days": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "clarify"
+    assert any(
+        ("偏好" in q or "观光" in q) and "无特别要求" in q for q in body["clarify"]
+    )
+    assert "plan" not in body
+
+
 def test_start_missing_device_id_returns_400():
     agent = PlanningAgent(StubAdapter([]))
     resp = client_for(agent).post(
@@ -151,17 +163,23 @@ def test_start_missing_device_id_returns_400():
 def test_message_200_applies_diff_and_returns_change():
     agent = PlanningAgent(StubAdapter([V0_JSON, EDIT_JSON]))
     client = client_for(agent)
-    session_id = start(client, {"cities": ["上海", "杭州"], "days": 2}).json()[
-        "session_id"
-    ]
+    session_id = start(
+        client,
+        {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"},
+    ).json()["session_id"]
     resp = message(client, session_id, "把豫园挪到第二天")
     assert resp.status_code == 200
     body = resp.json()
     assert body["state"] == "ready"
     assert "豫园" in body["reply"]
     assert body["change"]["affected_items_count"] == 1
-    moved = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
-    assert moved
+    # Day 2 is the 上海→杭州 transfer day with no morning slot before the
+    # 07:15 train (minus 90min buffer), so the Shanghai POI is reconciled
+    # back to day 1 with an assumption note instead of stranding it.
+    day1 = [i for i in body["plan"]["days"][0]["items"] if i["item_id"] == "v2"]
+    day2 = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
+    assert day1 and not day2
+    assert any("豫园" in a for a in body["plan"]["assumptions"])
 
 
 def test_message_unknown_session_returns_404():
@@ -180,12 +198,18 @@ def test_message_other_device_returns_404():
     assert resp.json() == {"detail": "session_not_found"}
 
 
-def test_message_llm_error_maps_to_502():
+def test_message_llm_error_degrades_in_conversation():
+    # Prod incident 1018: glm flash ReadTimeout on the edit turn -> 502
+    # dead end. Contract now: retry once, then a friendly in-band reply;
+    # the session and the plan survive.
     agent = PlanningAgent(ExplodingAdapter())
     client = client_for(agent)
-    first = start(client, {"cities": ["北京"], "days": 1})
+    first = start(client, {"cities": ["北京"], "days": 1, "preferences": "博物馆"})
     assert first.status_code == 200  # v0 degrades to a placeholder, not 502
     assert any("LLM 不可用" in a for a in first.json()["assumptions"])
     resp = message(client, first.json()["session_id"], "改一下")
-    assert resp.status_code == 502
-    assert resp.json() == {"detail": "llm_error"}
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "模型暂时无响应" in body["reply"]
+    assert body["state"] == "ready"
+    assert body["plan"]  # plan untouched, still delivered

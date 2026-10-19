@@ -1,4 +1,4 @@
-﻿# =============================================================================
+﻿﻿# =============================================================================
 # CHINATRIP Auto-Fix Loop — triggered on PR, auto-fixes lint errors
 # Then optionally runs full CatPaw auto-fix on self-hosted runner
 # =============================================================================
@@ -89,15 +89,33 @@ jobs:
         if: steps.check-skip.outputs.skip != 'true'
         run: |
           echo "=== ruff format ==="
-          ruff format app/ scripts/ services/ tests/ || \
-            echo "::warning::ruff format errors — continuing"
+          DIRS=()
+          for d in app scripts services tests "CHINATRIP CODES/app" "CHINATRIP CODES/services" "CHINATRIP CODES/tests"; do
+            if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
+              DIRS+=("$d")
+            fi
+          done
+          if [ ${#DIRS[@]} -eq 0 ]; then
+            echo "No Python files found - skipping ruff format"
+          else
+            ruff format "${DIRS[@]}" || echo "::warning::ruff format errors — continuing"
+          fi
 
       - name: Run ruff check --fix
         if: steps.check-skip.outputs.skip != 'true'
         run: |
           echo "=== ruff check --fix ==="
-          ruff check --fix --unsafe-fixes app/ scripts/ services/ tests/ || \
-            echo "::warning::ruff check errors — continuing"
+          DIRS=()
+          for d in app scripts services tests "CHINATRIP CODES/app" "CHINATRIP CODES/services" "CHINATRIP CODES/tests"; do
+            if [ -d "$d" ] && find "$d" -name '*.py' -print -quit | grep -q .; then
+              DIRS+=("$d")
+            fi
+          done
+          if [ ${#DIRS[@]} -eq 0 ]; then
+            echo "No Python files found - skipping ruff check"
+          else
+            ruff check --fix --unsafe-fixes "${DIRS[@]}" || echo "::warning::ruff check errors — continuing"
+          fi
 
       - name: Check for changes and commit
         id: check-changes

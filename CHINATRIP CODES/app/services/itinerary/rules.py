@@ -73,7 +73,14 @@ def _fmt(t: time | None) -> str:
     return t.strftime("%H:%M") if t is not None else "?"
 
 
-def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
+def _norm_city(name: str) -> str:
+    # LLM 写 POI city 常带后缀（"杭州市"/"上海市"），用户输入行程城市不带——
+    # 归一化后再比较，否则规则 3 对合法行程满屏假警告。
+    name = name.strip()
+    return name[:-1] if name.endswith("市") else name
+
+
+def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     lat1, lat2 = radians(a.lat), radians(b.lat)
     dlat, dlon = lat2 - lat1, radians(b.lon) - radians(a.lon)
     h = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
@@ -167,6 +174,22 @@ def _check_transfer_buffer(
         tr_end_window = tr_end if tr_end is not None else tr_start
         for v in visits:
             if v.start_time is None or v.end_time is None:
+                # Untimed visits are invisible to every downstream check, so
+                # a "day 3 in Xiamen + 9am flight" layout ships silently.
+                # Hard-fail it: the caller must time or relocate the visit.
+                out.append(
+                    RuleViolation(
+                        rule_id=4,
+                        severity=RuleSeverity.error,
+                        message=(
+                            f"第{day_no}天 跨城交通 {tr.from_city}→{tr.to_city}"
+                            f" 当天的景点「{v.name}」没有起止时间，无法校验衔接，"
+                            "请安排时间或移动到其他天"
+                        ),
+                        item_ids=[v.item_id],
+                        day=day_no,
+                    )
+                )
                 continue
             vs, ve = _minutes(v.start_time), _minutes(v.end_time)
             if vs < tr_end_window + buf and ve > tr_start - buf:
@@ -244,7 +267,7 @@ def _check_pace(
     # walking distance: adjacent same-day visits, straight-line (haversine)
     # approximation; segments touching a location-less item are skipped.
     km = sum(
-        _haversine_km(a.location, b.location)
+        haversine_km(a.location, b.location)
         for a, b in zip(visits, visits[1:])
         if a.location is not None and b.location is not None
     )
@@ -299,8 +322,9 @@ def _check_visit_cities(
     plan: ItineraryPlan, day: DayPlan, visits: list[VisitItem]
 ) -> list[RuleViolation]:
     out = []
+    plan_cities = {_norm_city(c) for c in plan.cities}
     for v in visits:
-        if v.city not in plan.cities:
+        if _norm_city(v.city) not in plan_cities:
             out.append(
                 RuleViolation(
                     rule_id=3,
@@ -319,9 +343,13 @@ def _check_visit_cities(
 def _check_base_city_jumps(plan: ItineraryPlan) -> list[RuleViolation]:
     out = []
     for prev, cur in zip(plan.days, plan.days[1:]):
-        if cur.base_city != prev.base_city and not any(
+        # 跨城交通可以在 base 切换的前一天（出发日）或当天（到达日）——
+        # 只看"变化当日"会把前一天已乘车的正常行程误报为跳变。
+        jumped = _norm_city(cur.base_city) != _norm_city(prev.base_city)
+        has_transfer = any(isinstance(i, TransferItem) for i in prev.items) or any(
             isinstance(i, TransferItem) for i in cur.items
-        ):
+        )
+        if jumped and not has_transfer:
             out.append(
                 RuleViolation(
                     rule_id=3,

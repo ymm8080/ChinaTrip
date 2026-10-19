@@ -92,6 +92,8 @@
   }
   .btn:disabled{opacity:.55;cursor:wait}
   .btn.ghost{background:transparent;color:var(--accent)}
+  #t9nMic.rec{background:#e5484d;color:#fff;animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
   .btn.plain{background:var(--bg);border-color:var(--border);color:var(--text)}
   .btn.mini{padding:4px 10px;font-size:12px;border-radius:6px}
 
@@ -143,6 +145,9 @@
   .composer textarea{
     flex:1;resize:none;min-height:40px;max-height:120px;padding:9px 10px;border-radius:10px;
   }
+  /* 规划输入框恒白底（深色主题下也保持白，用户要求） */
+  .composer textarea#planInput{background:#ffffff;color:#1c232b;border-color:#c9d1da}
+  .composer textarea#planInput::placeholder{color:#8a94a3}
   .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
   .dirbar .chip{padding:3px 10px;font-size:12px}
   .t9n-wrap{display:flex;flex-direction:column;gap:6px}
@@ -161,11 +166,29 @@
   .mk .pin{font-size:26px;line-height:1}
   .mk .lbl{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:1px 6px;margin-left:2px;color:var(--text)}
   .mk.me .pin{font-size:20px}
-  #mapSearch{position:absolute;top:10px;left:10px;right:64px;z-index:20;display:flex;gap:6px}
-  #poiKeyword{flex:1;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:14px;box-shadow:var(--shadow)}
-  #poiGo{width:40px;height:38px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow)}
+  #navPlan{
+    position:absolute;top:10px;left:10px;z-index:20;width:min(360px,calc(100% - 74px));
+    display:flex;flex-direction:column;gap:6px;padding:10px;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
+  }
+  #navCity{
+    padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);
+    color:var(--text);font-size:13px;font-family:inherit;max-width:150px;cursor:pointer;
+  }
+  .np-row{display:flex;align-items:center;gap:8px}
+  .np-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .np-dot.me{background:#188a4c}
+  .np-dot.dest{background:#c23a3a}
+  .np-row input{
+    flex:1;min-width:0;padding:8px 12px;border-radius:999px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);font-size:14px;
+  }
+  .np-btn{
+    width:34px;height:34px;border-radius:999px;border:1px solid var(--border);background:var(--bg);
+    color:var(--text);font-size:14px;cursor:pointer;flex-shrink:0;
+  }
   #poiDrop{
-    position:absolute;top:46px;left:0;right:46px;z-index:21;max-height:260px;overflow-y:auto;display:none;
+    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:21;max-height:260px;overflow-y:auto;display:none;
     background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
   }
   .poi-item{padding:9px 12px;border-bottom:1px dashed var(--border);cursor:pointer;font-size:13px}
@@ -176,13 +199,6 @@
     width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
     color:var(--text);font-size:16px;cursor:pointer;box-shadow:var(--shadow);
   }
-  #navManeuver{
-    position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:22;display:none;
-    max-width:88%;background:var(--panel);border:2px solid var(--accent);border-radius:12px;
-    padding:10px 16px;font-size:17px;font-weight:600;box-shadow:var(--shadow);text-align:center;
-  }
-  #navManeuver .ico{font-size:26px;margin-right:6px}
-  #navManeuver .sub{font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
   #navDock{position:absolute;left:0;right:0;bottom:0;z-index:24;display:flex;flex-direction:column}
   #navDrawer{
     display:none;max-height:42vh;overflow-y:auto;background:var(--panel);
@@ -226,6 +242,31 @@
   #bkConfirm .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,420px);box-shadow:var(--shadow)}
   #bkConfirm h4{margin:0 0 8px}
 
+  /* ---------- 账号登录/注册 ---------- */
+  #authArea{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+  #authArea .whoami{color:var(--text);word-break:break-all}
+  #authModal{
+    position:absolute;inset:0;z-index:45;display:none;background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  #authModal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,340px);box-shadow:var(--shadow)}
+  #authModal h4{margin:0 0 10px}
+  #authModal .fld{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--muted)}
+  #authModal .fld input{
+    flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;
+  }
+  #authErr{display:none;margin-top:8px;font-size:12px;background:var(--err-bg);color:var(--err);border-radius:6px;padding:6px 8px}
+
+  /* ---------- 行程中心 / 个人主页 / 订单回填 ---------- */
+  .zone{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow)}
+  .zone h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
+  .tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg);font-size:13px}
+  .tile .ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
+  .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
+  .sug{opacity:.65}
+
   /* 窄屏：左栏折叠为顶部横条 */
   @media (max-width:760px){
     #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
@@ -238,10 +279,12 @@
     .side-foot label{margin:0;display:flex;align-items:center}
     #apiBase{width:110px}
     .dev{display:none}
+    #authArea{margin-top:0}
     .tab,.msg{max-width:100%}
     .tab{padding:10px}
   }
 </style>
+<script src="qrcode.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -255,35 +298,61 @@
       <button class="nav-item" data-tab="t9n">🔤 翻译</button>
       <button class="nav-item" data-tab="nav">🧭 导航</button>
       <button class="nav-item" data-tab="itin">🗓 行程</button>
+      <button class="nav-item" data-tab="trips">🗂 行程中心</button>
       <button class="nav-item" data-tab="book">🎫 预订</button>
+      <button class="nav-item" data-tab="me">👤 个人主页</button>
     </nav>
     <div class="side-foot">
       <label>API 地址<input id="apiBase" spellcheck="false"></label>
       <div class="dev">设备 <code id="devId"></code></div>
+      <div id="authArea"></div>
     </div>
   </aside>
 
   <main>
     <div id="toast"></div>
 
+    <!-- ============ 账号登录/注册弹层（登录 ⇄ 注册双模式） ============ -->
+    <div id="authModal">
+      <div class="box">
+        <h4 id="authTitle">🔑 登录</h4>
+        <label class="fld">用户名 <input type="text" id="authUser" placeholder="2–30 个字符" autocomplete="username" spellcheck="false"></label>
+        <label class="fld">密码 <input type="password" id="authPass" placeholder="至少 6 位"></label>
+        <div id="authErr"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button class="btn plain" id="authClose">取消</button>
+          <button class="btn" id="authGo">登录</button>
+        </div>
+        <div style="margin-top:6px"><button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button></div>
+      </div>
+    </div>
+
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
       <div class="toolbar" id="planSetup">
-        <label class="fld">城市
+        <label class="fld">城市（首=出发地，末=目的地）
           <span class="chips" id="planCities">
             <button class="chip" data-city="北京">北京</button>
             <button class="chip" data-city="上海">上海</button>
             <button class="chip" data-city="杭州">杭州</button>
+            <button class="chip" data-city="苏州">苏州</button>
             <button class="chip" data-city="西安">西安</button>
             <button class="chip" data-city="成都">成都</button>
             <button class="chip" data-city="重庆">重庆</button>
+            <button class="chip" data-city="厦门">厦门</button>
+            <button class="chip" data-city="三亚">三亚</button>
+            <button class="chip" data-city="哈尔滨">哈尔滨</button>
           </span>
         </label>
+        <input type="text" id="planCityInput" placeholder="出发地、途经、目的地，用、分隔" style="width:180px">
         <span class="sep"></span>
+        <label class="fld">开始日期
+          <input type="date" id="planStartDate">
+        </label>
         <label class="fld">天数
           <span class="stepper">
             <button id="daysMinus" type="button">−</button>
-            <b id="daysVal">3</b>
+            <b id="daysVal">6</b>
             <button id="daysPlus" type="button">＋</button>
           </span>
         </label>
@@ -299,7 +368,7 @@
           <span class="muted" id="planStateTag"></span>
         </div>
         <div class="composer">
-          <textarea id="planInput" placeholder="开始规划后，在这里继续对话，例如：把第二天换成胡同游"></textarea>
+          <textarea id="planInput" placeholder="直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆"></textarea>
           <button class="btn" id="planSend">发送</button>
         </div>
       </div>
@@ -317,7 +386,8 @@
           <span class="muted" id="t9nCur">当前语向：中 → 英</span>
         </div>
         <div class="composer">
-          <textarea id="t9nInput" placeholder="输入原文，回车或点发送翻译"></textarea>
+          <textarea id="t9nInput" placeholder="输入原文，或点 🎤 语音输入"></textarea>
+          <button class="btn ghost" id="t9nMic" title="语音输入（Chrome/Edge 支持）">🎤</button>
           <button class="btn" id="t9nSend">发送</button>
         </div>
       </div>
@@ -329,9 +399,18 @@
         <div id="mapTiles"></div>
         <svg id="mapSvg"></svg>
         <div id="mapMarkers"></div>
-        <div id="mapSearch">
-          <input id="poiKeyword" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false">
-          <button id="poiGo" title="搜索">🔍</button>
+        <div id="navPlan">
+          <select id="navCity" title="当前城市（定位成功后自动切换）"></select>
+          <div class="np-row">
+            <span class="np-dot me"></span>
+            <input id="originKw" value="我的位置" placeholder="起点：默认我的位置，可搜索地点改设" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="originReset" title="恢复为我的位置">↺</button>
+          </div>
+          <div class="np-row">
+            <span class="np-dot dest"></span>
+            <input id="destKw" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="poiGo" title="搜索">🔍</button>
+          </div>
           <div id="poiDrop"></div>
         </div>
         <div id="mapIcons">
@@ -340,7 +419,6 @@
           <button id="btnZoomOut" title="缩小">－</button>
           <button id="btnRemind" title="火车/航班提醒">⏰</button>
         </div>
-        <div id="navManeuver"></div>
         <div id="navDock">
           <div id="navDrawer"></div>
           <div id="modeBar">
@@ -348,8 +426,6 @@
             <button data-mode="transit">🚇 公交</button>
             <button data-mode="taxi">🚕 打车</button>
             <button data-mode="driving">🚗 驾车</button>
-            <button id="btnSimulate" title="沿步行路线模拟前进并语音播报">▶️ 模拟导航</button>
-            <button id="btnOffRoute" title="人为偏移 50 米并重新规划步行路线">🔀 偏航演示</button>
           </div>
         </div>
         <div id="remModal">
@@ -388,7 +464,107 @@
         <button class="btn plain" id="itinSnap">🧊 冻结快照</button>
         <button class="btn ghost" id="itinRefresh">🔄 刷新行程与快照</button>
       </div>
+      <div class="card" id="itinSavedWrap"><h4>📌 我的行程（含规划页保存的行程）</h4><div id="itinSavedList" class="muted">切到本页时自动加载…</div></div>
       <div class="flow" id="flow-itin"></div>
+    </section>
+
+    <!-- ============ 行程中心（trip-items 三态看板，铁律 0：手动/对话/粘贴同一张表） ============ -->
+    <section class="tab" id="tab-trips">
+      <div class="toolbar">
+        <label class="fld">行程ID过滤 <input type="text" id="tcItinId" placeholder="可选"></label>
+        <span class="sep"></span>
+        <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
+        <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
+        <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
+        <button class="btn" id="tcAdd">➕ 加心愿</button>
+        <span class="sep"></span>
+        <button class="btn plain" id="tcRefresh">🔄 刷新看板</button>
+      </div>
+      <div class="muted" style="margin:0 2px 8px">手动 / 对话 / 粘贴写入同一张 trip-items 表（铁律 0）；状态流：wishlist → scheduled（需第几天）→ booked（需订单号），回 wishlist = 撤销并清排期。</div>
+      <div class="flow" id="flow-trips"></div>
+    </section>
+
+    <!-- ============ 个人主页（画像 / 蒸馏试验台 / 链接历史） ============ -->
+    <section class="tab" id="tab-me">
+      <div class="flow" id="flow-me">
+        <div class="zone">
+          <h4>👤 个人画像 <span class="muted" id="prUpdatedAt" style="font-weight:400"></span></h4>
+          <div class="row" style="flex-wrap:wrap;gap:10px">
+            <label class="fld">预算档
+              <select id="prBudget">
+                <option value="">（未设）</option>
+                <option value="economy">经济</option>
+                <option value="comfort">舒适</option>
+                <option value="luxury">豪华</option>
+              </select>
+            </label>
+            <label class="fld">同行
+              <select id="prComp">
+                <option value="">（未设）</option>
+                <option value="solo">独自</option>
+                <option value="couple">情侣</option>
+                <option value="family">家庭</option>
+                <option value="group">团体</option>
+              </select>
+            </label>
+            <label class="fld">体力
+              <select id="prStamina">
+                <option value="">（未设）</option>
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
+          </div>
+          <div class="row" style="margin-top:8px;align-items:flex-start;flex-wrap:wrap;gap:10px">
+            <label class="fld">旅行风格
+              <span style="display:inline-flex;gap:6px;align-items:center">
+                <input type="text" id="prStyleIn" placeholder="如：博物馆">
+                <button class="btn mini plain" id="prStyleAdd">＋</button>
+              </span>
+            </label>
+            <div class="chips" id="prStyleChips"></div>
+            <label class="fld">饮食限制
+              <span style="display:inline-flex;gap:6px;align-items:center">
+                <input type="text" id="prDietIn" placeholder="如：不吃辣">
+                <button class="btn mini plain" id="prDietAdd">＋</button>
+              </span>
+            </label>
+            <div class="chips" id="prDietChips"></div>
+          </div>
+          <div style="margin-top:8px"><b style="font-size:13px">📝 备注（只读）</b><div id="prNotes" class="muted"></div></div>
+          <div style="margin-top:8px"><button class="btn" id="prSave">💾 保存画像（PUT）</button></div>
+        </div>
+
+        <div class="zone">
+          <h4>🧪 蒸馏试验台</h4>
+          <div class="muted">手改过的字段蒸馏不覆盖；confidence &lt; 0.8 只进建议区不落库。</div>
+          <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
+            <label class="fld">key <input type="text" id="dsKey" placeholder="budget_level"></label>
+            <label class="fld grow">value <input type="text" id="dsValue" class="grow" placeholder="comfort"></label>
+            <label class="fld">confidence <input type="number" id="dsConf" min="0" max="1" step="0.05" value="0.9"></label>
+            <label class="fld">provenance <input type="text" id="dsProv" placeholder="chat"></label>
+            <button class="btn" id="dsGo">🧪 蒸馏</button>
+          </div>
+          <div id="dsOut" style="margin-top:8px"></div>
+        </div>
+
+        <div class="zone">
+          <h4>🔗 链接历史</h4>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <label class="fld grow">URL <input type="text" id="lkUrl" class="grow" placeholder="http/https 链接"></label>
+            <label class="fld">来源
+              <select id="lkSource">
+                <option value="user_paste">user_paste</option>
+                <option value="agent_recommend">agent_recommend</option>
+              </select>
+            </label>
+            <button class="btn" id="lkAdd">➕ 添加</button>
+            <button class="btn plain" id="lkRefresh">🔄 刷新</button>
+          </div>
+          <div id="lkList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ 预订（铁律 22 handoff / 铁律 23 退改摘要先行） ============ -->
@@ -436,6 +612,27 @@
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
+      </div>
+
+      <!-- 📋 订单回填（跳转埋点闭环，状态机 opened→user_confirmed→alliance_verified→settled） -->
+      <div id="bkBackfill" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;flex-shrink:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b>📋 订单回填</b>
+          <button class="btn mini plain" id="bfRefresh">🔄 刷新跳转记录</button>
+          <button class="btn mini ghost" id="bfAlliance">🤝 联盟同步演示</button>
+          <span class="muted">状态机：opened → user_confirmed → alliance_verified → settled（returned 退款逆向）</span>
+        </div>
+        <div id="bfList" style="max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+        <div class="toolbar" id="bfOps" style="display:none;margin:8px 0 0">
+          <label class="fld grow">订单短信原文
+            <textarea id="bfPaste" rows="2" class="grow" placeholder="粘贴确认短信，如：您已购票 G101 北京南→上海虹桥 订单号 E123456789 票款 553 元"></textarea>
+          </label>
+          <button class="btn mini" id="bfParse">🧾 解析回填</button>
+          <span class="sep"></span>
+          <label class="fld">手动订单号 <input type="text" id="bfOrderRef" placeholder="E123456789"></label>
+          <button class="btn mini plain" id="bfManual">✍️ 手动标记</button>
+        </div>
+        <div id="bfOut" style="margin-top:6px"></div>
       </div>
 
       <!-- 铁律 23：跳转渠道前必须展示退改摘要全文 -->
@@ -499,17 +696,23 @@ function detailText(d) {
   try { return JSON.stringify(d); } catch (e) { return String(d); }
 }
 
-// 统一请求：POST/PUT JSON + X-Device-ID；非 2xx 抛 {status, detail}
+// 统一请求：POST/PUT JSON + X-Device-ID（已登录附 Authorization）；非 2xx 抛 {status, detail}
 async function api(path, body, method) {
   let res;
+  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token; // 登录后行程等接口按账号返回
+  const doFetch = () => fetch(apiBaseInput.value.trim() + path, {
+    method: method || "POST",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   try {
-    res = await fetch(apiBaseInput.value.trim() + path, {
-      method: method || "POST",
-      headers: { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    res = await doFetch();
   } catch (e) {
-    throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+    await new Promise(r => setTimeout(r, 1500)); // 撞上服务重启死窗（连不上）：延迟后自动重试一次
+    try { res = await doFetch(); }
+    catch (e2) { throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" }; }
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
@@ -528,6 +731,129 @@ async function busy(btn, fn) {
   try { return await fn(); }
   finally { btn.disabled = false; btn.textContent = old; }
 }
+
+/* ================= 账号（登录 / 注册 / 退出） ================= */
+
+const AUTH = { user: null }; // user=登录用户名；null=未登录（行程挂设备 ID）
+
+// 侧栏身份区：未登录给「登录 / 注册」；已登录给用户名 + 退出
+function authRender() {
+  const box = document.getElementById("authArea");
+  box.textContent = "";
+  if (AUTH.user) {
+    box.appendChild(el('<span class="whoami" title="已登录：行程挂账号，换设备登录同一账号即可看到同一批行程">👤 ' + esc(AUTH.user) + "</span>"));
+    const out = el('<button class="btn mini ghost">退出</button>');
+    out.onclick = authLogout;
+    box.appendChild(out);
+  } else {
+    const b = el('<button class="btn mini">登录 / 注册</button>');
+    b.onclick = () => authOpen("login");
+    box.appendChild(b);
+  }
+}
+
+// 后端 detail → 中文文案
+const AUTH_ERR_CN = {
+  username_taken: "用户名已被占用，换一个试试",
+  invalid_credentials: "用户名或密码错误",
+  invalid_username_or_password: "用户名或密码格式不合规（用户名 2–30 字符，密码至少 6 位）",
+};
+function authErrMsg(err) {
+  if (err && err.status === 0) return "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）";
+  const d = err && err.detail;
+  if (typeof d === "string" && AUTH_ERR_CN[d]) return AUTH_ERR_CN[d];
+  return "HTTP " + ((err && err.status) || "?") + "：" + detailText(d);
+}
+
+let authMode = "login"; // login | register
+function authErr(msg) {
+  const e = document.getElementById("authErr");
+  e.textContent = msg || "";
+  e.style.display = msg ? "block" : "none";
+}
+function authModeRender() {
+  const login = authMode === "login";
+  document.getElementById("authTitle").textContent = login ? "🔑 登录" : "🆕 注册";
+  document.getElementById("authGo").textContent = login ? "登录" : "注册";
+  document.getElementById("authSwitch").textContent = login ? "没有账号？去注册 →" : "已有账号？去登录 →";
+  document.getElementById("authPass").autocomplete = login ? "current-password" : "new-password";
+}
+function authOpen(mode) {
+  authMode = mode;
+  authErr("");
+  document.getElementById("authUser").value = "";
+  document.getElementById("authPass").value = "";
+  authModeRender();
+  document.getElementById("authModal").style.display = "flex";
+  document.getElementById("authUser").focus();
+}
+function authClose() { document.getElementById("authModal").style.display = "none"; }
+
+// 前端轻校验不过不发请求；成功后存 token、关弹层、刷身份区、重拉行程列表（账号全量）
+async function authSubmit() {
+  const u = document.getElementById("authUser").value.trim();
+  const p = document.getElementById("authPass").value;
+  if (u.length < 2 || u.length > 30) { authErr("用户名需 2–30 个字符"); return; }
+  if (p.length < 6) { authErr("密码至少 6 位"); return; }
+  authErr("");
+  try {
+    const r = await api("/api/v1/auth/" + (authMode === "login" ? "login" : "register"), { username: u, password: p });
+    localStorage.setItem("chinatrip_token", r.token);
+    AUTH.user = r.username || u;
+    authClose();
+    authRender();
+    toast((authMode === "login" ? "已登录：" : "注册成功，已登录：") + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+    itinSavedLoad(); // 带 token 重拉：返回账号名下全部行程（跨设备）
+  } catch (err) {
+    authErr(authErrMsg(err));
+  }
+}
+
+async function authLogout() {
+  try { await api("/api/v1/auth/logout", undefined, "POST"); } catch (err) { /* 服务端失败也继续本地退出 */ }
+  localStorage.removeItem("chinatrip_token");
+  AUTH.user = null;
+  authRender();
+  toast("已退出登录：行程恢复按本设备 ID 显示");
+  itinSavedLoad();
+}
+
+// 页面加载：有存量 token 则 /me 探活——200 显示用户名，401 清 token 按未登录渲染
+async function authBoot() {
+  const tk = localStorage.getItem("chinatrip_token");
+  if (tk) {
+    try {
+      const me = await api("/api/v1/auth/me", undefined, "GET");
+      AUTH.user = me && me.username ? me.username : null;
+    } catch (err) {
+      if (err && err.status === 401) localStorage.removeItem("chinatrip_token");
+      // 其他失败（网络错等）：保留 token 待下次探活，本页按未登录渲染
+      AUTH.user = null;
+    }
+  }
+  authRender();
+}
+
+document.getElementById("authClose").onclick = authClose;
+document.getElementById("authSwitch").onclick = () => {
+  authMode = authMode === "login" ? "register" : "login";
+  authErr("");
+  authModeRender();
+};
+document.getElementById("authGo").onclick = (e) => busy(e.target, authSubmit);
+document.getElementById("authModal").addEventListener("pointerdown", e => {
+  if (e.target.id === "authModal") authClose();
+});
+["authUser", "authPass"].forEach(id => {
+  document.getElementById(id).addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const b = document.getElementById("authGo");
+      if (!b.disabled) busy(b, authSubmit);
+    }
+  });
+});
+authBoot();
 
 /* ================= 消息流渲染 ================= */
 
@@ -564,15 +890,18 @@ function addMsg(flowId, who, node) {
 // "HH:MM:SS"（pydantic time 序列化）→ "HH:MM"
 function fmtTime(t) { return t ? String(t).slice(0, 5) : "未排"; }
 function fmtMin(s) { return Math.round(Number(s) / 60); }
+const MODE_CN = { train: ["🚄", "火车"], flight: ["✈️", "飞机"], car: ["🚗", "驾车"], bus: ["🚌", "大巴"] };
+function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "跨城"; }
 
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
-  const box = el('<div class="card"><h4>🧳 行程 ' + esc(plan.itinerary_id) + " · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
+  const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
-    box.appendChild(el('<div class="day-h">第' + d.day + " 天 · " + esc(d.base_city) + "</div>"));
+    const dt = planDateIso(d.day);
+    box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
     (d.items || []).forEach(it => {
       if (it.from_city) { // TransferItem
-        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>🚄 跨城 " + esc(it.from_city) + " → " + esc(it.to_city) + "（" + esc(it.mode) + "）</span></div>"));
+        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
       } else { // VisitItem
         const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
@@ -588,7 +917,25 @@ function planCard(plan) {
   return box;
 }
 
-// 校验违规清单（RuleViolation: rule_id/severity/message/item_ids/day）
+// 满意了点保存：工作副本服务端已实时落库，这里冻结一个不可变快照并回报行程编号
+function planSaveBar(plan) {
+  const bar = el('<div class="dirbar"></div>');
+  const btn = el('<button class="btn">💾 保存行程</button>');
+  btn.onclick = () => busy(btn, async () => {
+    const name = (plan.cities || []).join("→") + (planDateIso(1) ? " " + planDateIso(1) : "") + " 保存";
+    try {
+      const s = await api("/api/v1/itineraries/" + plan.itinerary_id + "/snapshots", { name });
+      bar.textContent = "";
+      bar.appendChild(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
+      toast("行程已保存：" + plan.itinerary_id);
+    } catch (err) {
+      if (err.status === 402) toast("免费快照额度（3 个）已用完——可到「行程」页恢复旧快照");
+      else failToast(err);
+    }
+  });
+  bar.appendChild(btn);
+  return bar;
+}
 function violationsNode(vs, title) {
   if (!vs || !vs.length) return null;
   const box = el('<div class="card"><h4>' + esc(title || "校验违规") + " · " + vs.length + " 处</h4></div>");
@@ -620,7 +967,23 @@ document.querySelectorAll(".nav-item").forEach(btn => {
 /* ================= Tab 1：规划 ================= */
 
 const planCities = new Set();
-let planDays = 3;
+let planDays = 6;
+const PLAN = { startDate: "" };
+
+// chips 选择 ∪ 自由输入（顿号/逗号/空格分隔），去重保序
+function planCitiesAll() {
+  const extra = (document.getElementById("planCityInput").value || "")
+    .split(/[、,，;；\s]+/).map(s => s.trim()).filter(Boolean);
+  return [...new Set([...planCities, ...extra])];
+}
+// 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
+function planDateIso(n) {
+  if (!PLAN.startDate) return "";
+  const d = new Date(PLAN.startDate + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + (n - 1));
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 let planSession = null; // {session_id, state}
 
 document.querySelectorAll("#planCities .chip").forEach(c => {
@@ -637,43 +1000,109 @@ function planSetSession(s) {
   planSession = s;
   document.getElementById("planSetup").style.display = s ? "none" : "flex";
   document.getElementById("planResetBar").style.display = s ? "flex" : "none";
-  document.getElementById("planInput").disabled = !s;
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "先点上方「开始规划」开始";
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆";
   document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
 }
 
-document.getElementById("planStart").onclick = (e) => busy(e.target, async () => {
-  const cities = [...planCities];
-  const prefs = document.getElementById("planPref").value.trim();
-  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天；偏好：" + (prefs || "无"));
-  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程…");
+// 渲染 /plan/start 或 /plan/{id}/message 的响应（clarify 追问 / 行程卡 / 快捷条 / 违规）。
+function planRenderReply(holder, body, opts) {
+  holder.textContent = "";
+  if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
+  if (body.state === "site_confirm" && (body.sites || []).length) {
+    // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
+    holder.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」（不点=可选），然后确认：</div>"));
+    const row = el('<div class="chips"></div>');
+    const must = new Set();
+    body.sites.forEach(s => {
+      const b = el('<button class="chip">' + esc(s) + "</button>");
+      b.onclick = () => {
+        if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }
+        else { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+      };
+      row.appendChild(b);
+    });
+    holder.appendChild(row);
+    const row2 = el('<div class="chips"></div>');
+    const ok = el('<button class="chip">✅ 确认</button>');
+    ok.onclick = () => {
+      const mand = body.sites.filter(s => must.has(s));
+      const opt = body.sites.filter(s => !must.has(s));
+      document.getElementById("planInput").value = "必去：" + (mand.join("、") || "无") + "；可选：" + opt.join("、");
+      planSend();
+    };
+    row2.appendChild(ok);
+    holder.appendChild(row2);
+    if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
+  } else if (body.state === "clarify" && (body.clarify || []).length) {
+    const qs = body.clarify;
+    holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+    if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+      const row = el('<div class="chips"></div>');
+      ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+        const b = el('<button class="chip">' + p + "</button>");
+        b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+        row.appendChild(b);
+      });
+      holder.appendChild(row);
+    } else if (opts && opts.first) {
+      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
+    }
+  } else {
+    if (opts && opts.first) holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
+    if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
+    if (body.change) holder.appendChild(changeNode(body.change));
+    if (body.plan) {
+      holder.appendChild(planCard(body.plan));
+      holder.appendChild(planSaveBar(body.plan)); // 满意了就保存（冻结为快照，行程编号可查）
+      holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
+    } else if (!body.reply) {
+      holder.appendChild(el('<div class="muted">（本轮没有返回行程数据）</div>'));
+    }
+    const vn = violationsNode(body.violations, "硬校验提示");
+    if (vn) holder.appendChild(vn);
+  }
+}
+function planRenderSafe(holder, body, opts) {
+  try {
+    planRenderReply(holder, body, opts);
+  } catch (re) {
+    console.error("plan render failed", re);
+    holder.appendChild(el('<div class="violation error">⚠ 数据已返回但渲染中断：' + esc(re && re.message || String(re)) + "（可截图反馈）</div>"));
+  }
+}
+
+// extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
+async function planStartCore(extraPref) {
+  const cities = planCitiesAll();
+  const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
+  PLAN.startDate = document.getElementById("planStartDate").value || "";
+  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
+  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
     const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
-    planSetSession({ session_id: body.session_id, state: body.state });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities, days: planDays, preferences: prefs } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
-    if (body.state === "clarify") {
-      holder.appendChild(frag("<div>还需要补充一点信息：</div>" + (body.clarify || []).map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
-    } else {
-      holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
-      holder.appendChild(planCard(body.plan));
-      holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
-      const vn = violationsNode(body.violations, "硬校验提示");
-      if (vn) holder.appendChild(vn);
-    }
+    if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
+    planRenderSafe(holder, body, { first: true });
   } catch (err) {
+    if (extraPref) document.getElementById("planInput").value = extraPref; // 失败把输入框的话放回去，不用重打
     holder.textContent = "❌ 规划失败：" + detailText(err.detail);
     failToast(err);
   }
   holder.parentElement.scrollIntoView({ block: "end" });
   document.getElementById("flow-plan").scrollTop = 1e9;
-});
+}
+document.getElementById("planStart").onclick = (e) => busy(e.target, () => planStartCore(""));
 
 async function planSend() {
-  if (!planSession) { toast("先点「开始规划」创建会话"); return; }
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
+  if (!planSession) { // 先输入后规划：无会话时发送 = 以输入内容为需求直接开始规划
+    input.value = "";
+    await planStartCore(text);
+    return;
+  }
   input.value = "";
   addMsg("flow-plan", "user", text);
   const holder = addMsg("flow-plan", "sys", "⏳ 思考中…");
@@ -681,21 +1110,37 @@ async function planSend() {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = body.state;
     document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + body.state;
-    holder.textContent = "";
-    if (body.state === "clarify" && body.clarify) {
-      holder.appendChild(frag("<div>还需要补充信息：</div>" + body.clarify.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-    } else {
-      holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
-      if (body.change) holder.appendChild(changeNode(body.change));
-      if (body.plan) { holder.appendChild(planCard(body.plan)); holder.appendChild(planBookQuick(body.plan)); }
-      const vn = violationsNode(body.violations, "硬校验提示");
-      if (vn) holder.appendChild(vn);
-    }
+    planRenderSafe(holder, body);
   } catch (err) {
-    holder.textContent = "❌ 发送失败：" + detailText(err.detail);
-    failToast(err);
+    if (err && err.detail === "session_not_found" && planSession && planSession.origin) {
+      await planResendAfterRestart(holder, text, input); // 服务重启清空内存会话：按原参数重建并自动重发
+    } else {
+      input.value = text; // 发送失败把话放回输入框，用户不用重打
+      holder.textContent = "❌ 发送失败：" + detailText(err.detail);
+      failToast(err);
+    }
   }
   document.getElementById("flow-plan").scrollTop = 1e9;
+}
+// 会话存后端进程内存，服务重启即丢；此处按原参数重建会话并自动重发本轮消息。
+async function planResendAfterRestart(holder, text, input) {
+  const orig = planSession.origin;
+  holder.textContent = "⚠ 会话因服务重启丢失，正在按原参数重建并自动重发你刚才的话…";
+  try {
+    const nb = await api("/api/v1/plan/start", orig);
+    planSetSession({ session_id: nb.session_id, state: nb.state, origin: orig });
+    planRenderSafe(holder, nb, { first: true, banner: "已重建会话（原会话因服务重启丢失），你刚才的话已自动重发：" });
+    const h2 = addMsg("flow-plan", "sys", "⏳ 重发中…");
+    const b2 = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
+    planSession.state = b2.state;
+    document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + b2.state;
+    planRenderSafe(h2, b2);
+  } catch (e2) {
+    planSetSession(null);
+    input.value = text;
+    holder.textContent = "❌ 会话已过期且重建失败：" + detailText(e2.detail) + "；你的话已放回输入框，请重新点「开始规划」。";
+    failToast(e2);
+  }
 }
 document.getElementById("planSend").onclick = (e) => busy(e.target, planSend);
 document.getElementById("planInput").addEventListener("keydown", e => {
@@ -725,6 +1170,88 @@ document.getElementById("t9nSwap").onclick = () => {
   const s = T9N.src; T9N.src = T9N.target; T9N.target = s; t9nRender();
 };
 t9nRender();
+
+// 语音输入：麦克风采 PCM → 前端合成 WAV → 服务端 /asr（智谱 GLM-ASR）。
+// 不用 Web Speech API：Chrome 识别走谷歌服务，大陆网络 onerror=network 必挂。
+let t9nRec = null, t9nStarting = false; // t9nRec: {stream, ctx, node, zero, chunks, base, timer}
+document.getElementById("t9nMic").onclick = () => {
+  if (t9nRec) { t9nStop(); return; } // 再点一次结束并识别
+  if (t9nStarting) return; // 授权/resume 异步间隙连点会并行建多套采音图：旧流泄漏、只停最后一段
+  const mic = document.getElementById("t9nMic");
+  const base = document.getElementById("t9nInput").value;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    // 非安全上下文（http://IP 访问）浏览器不暴露麦克风 API，动态给出本机 https 入口
+    toast(window.isSecureContext ? "此浏览器不支持语音输入"
+      : "语音需 HTTPS 访问，请改用 https://" + location.hostname + ":8443/h5/");
+    return;
+  }
+  t9nStarting = true;
+  navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  }).then(async stream => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} } // 自动播放策略：挂起态不触发采集
+      const src = ctx.createMediaStreamSource(stream);
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      const zero = ctx.createGain(); zero.gain.value = 0; // 防 回声：不外放，仅驱动采集
+      const chunks = [];
+      node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      src.connect(node); node.connect(zero); zero.connect(ctx.destination);
+      t9nRec = { stream, ctx, node, zero, chunks, base, timer: setTimeout(t9nStop, 25000) };
+      mic.classList.add("rec");
+      toast("正在聆听…说完再点 🎤 结束");
+    } catch (e) {
+      stream.getTracks().forEach(t => t.stop());
+      toast("启动录音失败：" + (e.message || e));
+    } finally { t9nStarting = false; }
+  }).catch(() => toast("无法访问麦克风：请在浏览器地址栏允许麦克风权限"));
+};
+async function t9nStop() {
+  const mic = document.getElementById("t9nMic");
+  if (!t9nRec) return;
+  const rec = t9nRec; t9nRec = null;
+  clearTimeout(rec.timer); mic.classList.remove("rec");
+  try { rec.node.disconnect(); rec.zero.disconnect(); } catch (e) {}
+  rec.stream.getTracks().forEach(t => t.stop());
+  const rate = rec.ctx.sampleRate;
+  try { await rec.ctx.close(); } catch (e) {}
+  if (!rec.chunks.length) { toast("没有采集到音频"); return; }
+  let n = 0, peak = 0;
+  for (const c of rec.chunks) { n += c.length; for (let i = 0; i < c.length; i++) { const a = Math.abs(c[i]); if (a > peak) peak = a; } }
+  const dur = n / rate;
+  if (dur < 0.5) { toast("录音太短（" + dur.toFixed(1) + "s），请说完再点结束"); return; }
+  if (peak < 0.006) { toast("麦克风没有声音：请检查系统静音 / Windows 设置→隐私→麦克风→允许桌面应用"); return; }
+  const wav = t9nWav(rec.chunks, rate);
+  toast("识别中…");
+  try {
+    const fd = new FormData();
+    fd.append("file", new Blob([wav], { type: "audio/wav" }), "speech.wav");
+    const res = await fetch(apiBaseInput.value.trim() + "/api/v1/asr",
+      { method: "POST", headers: { "X-Device-ID": DEVICE_ID }, body: fd });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "http_" + res.status);
+    const text = (body.text || "").trim();
+    if (!text) { toast("没有识别到内容（录了 " + dur.toFixed(1) + "s），请靠近麦克风、稍大声再试"); return; }
+    document.getElementById("t9nInput").value = rec.base + text;
+  } catch (err) { toast("语音识别失败：" + (err.message || err)); }
+}
+// Float32 采样块 → 16bit 单声道 WAV
+function t9nWav(chunks, rate) {
+  let n = 0; for (const c of chunks) n += c.length;
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); ws(8, "WAVE"); ws(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); ws(36, "data"); v.setUint32(40, n * 2, true);
+  let o = 44;
+  for (const c of chunks) for (let i = 0; i < c.length; i++, o += 2) {
+    const s = Math.max(-1, Math.min(1, c[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return buf;
+}
 
 async function t9nSend() {
   const input = document.getElementById("t9nInput");
@@ -904,7 +1431,7 @@ function initMapEvents() {
   const wrap = MAP.wrap;
   let drag = null;
   wrap.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#mapSearch,#mapIcons,#navDock,#remModal")) return;
+    if (e.target.closest("#navPlan,#mapIcons,#navDock,#remModal")) return;
     drag = { px: e.clientX, py: e.clientY, lon: MAP.lon, lat: MAP.lat, moved: false };
     wrap.setPointerCapture(e.pointerId);
     wrap.classList.replace("grab", "grabbing");
@@ -960,15 +1487,59 @@ function oriEmoji(o) {
 const RIDE_COLORS = ["#2f6fed", "#e07b39", "#188a4c", "#8e44ad", "#c23a3a"];
 
 const NAV = {
-  me: { ...FALLBACK_POS },          // 起点 = 我的位置
+  me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设）
+  myPos: { ...FALLBACK_POS, name: "我的位置" }, // 定位/回退得到的位置，↺ 恢复用
+  meAuto: true,                       // 起点未手动改设 ⇒ 跟随定位（regeo 回填地址）
+  geolocOk: false,                    // 浏览器定位成功过（myPos 是真实坐标非回退）
+  meReal: false,                      // 起点是真实位置（定位成功或 POI 点选）；false=故宫回退 ⇒ handoff 不带起点
   dest: null,                        // {name, lon, lat}（搜索点选设定）
   mode: null,
+  city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
   route: null,                       // 步行路线 {polyline, steps, distance_m, duration_s}
   lines: [],                         // SVG 线：{points, color, dash, width}
-  sim: null,                         // 模拟导航句柄
 };
 
-function cityGuess(lon) { return lon >= 119 ? "上海" : "北京"; }
+/* ---- 城市下拉（POI 搜索/公交按此城市） ---- */
+
+const CITYS = [
+  ["北京",116.407,39.904],["上海",121.473,31.231],["广州",113.264,23.129],["深圳",114.058,22.543],
+  ["杭州",120.155,30.274],["成都",104.066,30.572],["重庆",106.55,29.563],["西安",108.94,34.341],
+  ["南京",118.797,32.06],["武汉",114.31,30.593],["长沙",112.94,28.23],["郑州",113.63,34.75],
+  ["天津",117.19,39.13],["苏州",120.585,31.299],["厦门",118.09,24.48],["昆明",102.83,24.88],
+  ["三亚",109.51,18.25],["桂林",110.29,25.27],
+];
+const citySel = document.getElementById("navCity");
+CITYS.forEach(([n]) => { const o = document.createElement("option"); o.value = n; o.textContent = n; citySel.appendChild(o); });
+citySel.value = NAV.city;
+citySel.onchange = () => {
+  NAV.city = citySel.value;
+  const c = CITYS.find(x => x[0] === NAV.city);
+  if (c) flyTo(c[1], c[2], 11);
+};
+function shortCity(s) { return String(s || "").replace(/(市|省)$/, ""); }
+function setCity(name, fly) {
+  if (!name) return;
+  const c = shortCity(name);
+  if (![...citySel.options].some(o => o.value === c)) {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c + "（当前）";
+    citySel.appendChild(o);
+  }
+  citySel.value = c; NAV.city = c;
+  const hit = CITYS.find(x => x[0] === c);
+  if (fly && hit) flyTo(hit[1], hit[2], 11);
+}
+async function regeoCity(lon, lat) {
+  try {
+    const b = await api("/api/v1/amap/regeo?lon=" + lon + "&lat=" + lat, undefined, "GET");
+    setCity(b.city || b.province, false);
+    toast("当前城市：" + NAV.city);
+    if (b.address && NAV.meAuto) { // 定位成功 ⇒ 起点字段回填实际地址
+      NAV.me.name = b.address; NAV.myPos.name = b.address;
+      originKw.value = b.address; placeMe();
+    }
+  } catch (err) { /* 城市保持手动选择 */ }
+}
 
 function drawer(html) {
   const d = document.getElementById("navDrawer");
@@ -991,24 +1562,61 @@ function drawLine(points, color, dash) {
   renderOverlays();
 }
 function clearLines() { NAV.lines = []; renderOverlays(); }
-function stopSim() {
-  if (NAV.sim) { clearInterval(NAV.sim.t); NAV.sim = null; }
-  document.getElementById("navManeuver").style.display = "none";
-  const b = document.getElementById("btnSimulate");
-  b.textContent = "▶️ 模拟导航";
-  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+/* 高德 handoff：手机先唤 App（amapuri://），2 秒仍在本页=未装 App，自动落网页版；桌面直接网页版。
+   web=null 表示该模式无网页版（打车已探明全网无 H5）⇒ 桌面/未装 App 都改为提示，不弹冒牌页 */
+function openHandoff(deeplink, web) {
+  if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+    if (web) window.open(web, "_blank", "noopener");
+    else toast("电脑无法唤起高德App打车：请用手机扫描下方二维码直达高德打车页");
+    return;
+  }
+  let left = false;
+  const mark = () => { left = true; };
+  document.addEventListener("visibilitychange", mark, { once: true });
+  window.addEventListener("pagehide", mark, { once: true });
+  location.href = deeplink;
+  setTimeout(() => {
+    document.removeEventListener("visibilitychange", mark);
+    if (!left) {
+      if (web) window.open(web, "_blank", "noopener");
+      else toast("未唤起高德 App：请先安装高德 App，或点「驾车路线预览」查看路线");
+    }
+  }, 2000);
 }
 
-/* ---- POI 搜索（后端代理高德，设终点） ---- */
+/* ---- POI 搜索（后端代理高德；起点/终点共用结果下拉） ---- */
+
+const originKw = document.getElementById("originKw");
+const destKw = document.getElementById("destKw");
+let poiField = "dest"; // 当前搜索写入哪个字段：origin | dest
+
+function setOrigin(p) {
+  NAV.me = p;
+  NAV.meAuto = false; // 手动改设后不再跟随定位地址
+  NAV.meReal = true;  // POI 点选 ⇒ 真实起点
+  placeMe();
+  originKw.value = p.name;
+  flyTo(p.lon, p.lat, Math.max(MAP.z, 13));
+  toast("起点已设：" + p.name);
+}
+function setDest(it) {
+  NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
+  destKw.value = it.name;
+  addMarker("dest", NAV.dest.lon, NAV.dest.lat,
+    '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
+  flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
+  toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+}
 
 async function poiSearch() {
-  const kw = document.getElementById("poiKeyword").value.trim();
-  if (!kw) { toast("输入关键词再搜索"); return; }
+  const isOrigin = poiField === "origin";
+  const kw = (isOrigin ? originKw : destKw).value.trim();
+  if (!kw || kw === "我的位置") { toast(isOrigin ? "起点输入地点关键词（留默认即我的位置）" : "输入终点关键词再搜索"); return; }
   const drop = document.getElementById("poiDrop");
   drop.style.display = "block";
   drop.innerHTML = '<div class="poi-item muted">搜索中…</div>';
   try {
-    const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + cityGuess(MAP.lon), undefined, "GET");
+    const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + encodeURIComponent(NAV.city), undefined, "GET");
     const items = (body.items || []).filter(i => i.location);
     if (!items.length) { drop.innerHTML = '<div class="poi-item muted">无结果（或高德未配置）</div>'; return; }
     drop.innerHTML = "";
@@ -1016,11 +1624,8 @@ async function poiSearch() {
       const row = el('<div class="poi-item"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(it.address || it.city || "") + "</span></div>");
       row.onclick = () => {
         drop.style.display = "none";
-        NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
-        addMarker("dest", NAV.dest.lon, NAV.dest.lat,
-          '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
-        flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
-        toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+        if (isOrigin) setOrigin({ name: it.name, lon: it.location.lon, lat: it.location.lat });
+        else setDest(it);
       };
       drop.appendChild(row);
     });
@@ -1028,37 +1633,87 @@ async function poiSearch() {
     drop.innerHTML = '<div class="poi-item muted">' + esc("HTTP " + (err.status || "?") + " · " + detailText(err.detail)) + "</div>";
   }
 }
-document.getElementById("poiGo").onclick = poiSearch;
-document.getElementById("poiKeyword").addEventListener("keydown", e => {
-  if (e.key === "Enter") poiSearch();
+document.getElementById("poiGo").onclick = () => { poiField = "dest"; poiSearch(); };
+originKw.addEventListener("keydown", e => {
+  if (e.key === "Enter") { poiField = "origin"; poiSearch(); }
 });
+destKw.addEventListener("keydown", e => {
+  if (e.key === "Enter") { poiField = "dest"; poiSearch(); }
+});
+document.getElementById("originReset").onclick = () => { setOrigin({ ...NAV.myPos }); NAV.meAuto = true; NAV.meReal = NAV.geolocOk; };
 document.addEventListener("pointerdown", e => {
   const drop = document.getElementById("poiDrop");
-  if (drop && drop.style.display === "block" && !e.target.closest("#mapSearch")) drop.style.display = "none";
+  if (drop && drop.style.display === "block" && !e.target.closest("#navPlan")) drop.style.display = "none";
 });
 
 /* ---- 我的位置 ---- */
 
-document.getElementById("btnLocate").onclick = () => {
-  if (!navigator.geolocation) {
-    NAV.me = { ...FALLBACK_POS };
-    placeMe(); toast("浏览器不支持定位，已回退故宫坐标"); return;
+async function ipCity(fly) {
+  // 浏览器定位不可用/被拒时的兜底：高德 IP 定位（服务端出口 IP 即用户网络）
+  try {
+    const b = await api("/api/v1/amap/ip", undefined, "GET");
+    setCity(b.city || b.province, fly);
+  } catch (err) { /* 保持默认城市 */ }
+}
+/* WGS-84（浏览器定位）→ GCJ-02（高德坐标系）纠偏：公共算法，境外坐标直返 */
+function wgs2gcj(lon, lat) {
+  const A = 6378245.0, EE = 0.00669342162296594323;
+  function tLat(x, y) {
+    let r = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+    r += (20 * Math.sin(y * Math.PI) + 40 * Math.sin(y / 3 * Math.PI)) * 2 / 3;
+    r += (160 * Math.sin(y / 12 * Math.PI) + 320 * Math.sin(y * Math.PI / 30)) * 2 / 3;
+    return r;
   }
-  toast("正在定位…");
+  function tLon(x, y) {
+    let r = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+    r += (20 * Math.sin(x * Math.PI) + 40 * Math.sin(x / 3 * Math.PI)) * 2 / 3;
+    r += (150 * Math.sin(x / 12 * Math.PI) + 300 * Math.sin(x / 30 * Math.PI)) * 2 / 3;
+    return r;
+  }
+  if (lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271) return { lon, lat };
+  let dLat = tLat(lon - 105, lat - 35), dLon = tLon(lon - 105, lat - 35);
+  const radLat = lat / 180 * Math.PI;
+  let magic = 1 - EE * Math.sin(radLat) * Math.sin(radLat);
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180) / ((A * (1 - EE)) / (magic * sqrtMagic) * Math.PI);
+  dLon = (dLon * 180) / (A / sqrtMagic * Math.cos(radLat) * Math.PI);
+  return { lon: lon + dLon, lat: lat + dLat };
+}
+function locateMe(silent) {
+  if (!navigator.geolocation) {
+    ipCity(silent);
+    if (!silent) toast("浏览器不支持定位，已回退故宫坐标");
+    return;
+  }
+  if (!silent) toast("正在定位…");
   navigator.geolocation.getCurrentPosition(
     pos => {
-      // 注：浏览器给 WGS-84，地图/后端是 GCJ-02；冒烟演示不做纠偏（国内偏差约几百米）
-      NAV.me = { lon: pos.coords.longitude, lat: pos.coords.latitude, name: "我的位置" };
+      const g = wgs2gcj(pos.coords.longitude, pos.coords.latitude); // 浏览器 WGS-84 → 高德 GCJ-02，源头一次转换
+      NAV.myPos = { lon: g.lon, lat: g.lat, name: "我的位置" };
+      NAV.geolocOk = true;
+      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; NAV.meReal = true; originKw.value = NAV.me.name; }
       placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
+      regeoCity(g.lon, g.lat);
     },
-    () => { NAV.me = { ...FALLBACK_POS }; placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); toast("定位失败，已回退故宫坐标"); },
-    { timeout: 8000 }
+    () => {
+      ipCity(silent); // 定位失败/被拒：IP 定位仍能拿到当前城市
+      if (!silent) {
+        NAV.myPos = { ...FALLBACK_POS, name: "我的位置" };
+        NAV.me = { ...NAV.myPos };
+        placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); originKw.value = NAV.me.name;
+        toast("定位失败，已回退故宫坐标（城市按 IP 估计）");
+      }
+    },
+    { timeout: 8000, maximumAge: 300000 }
   );
-};
+}
+document.getElementById("btnLocate").onclick = () => locateMe(false);
 function placeMe() {
   addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(NAV.me.name) + "</span>");
 }
-placeMe(); // 初始：默认在故宫
+// 初始定位标记与自动定位在「地图初始化」之后执行（addMarker/flyTo 依赖 MAP DOM 已绑定）
 
 /* ---- 模式：步行 / 公交 / 打车 / 驾车 ---- */
 
@@ -1081,7 +1736,6 @@ async function doWalk(origin, note) {
 
 document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
   btn.onclick = () => busy(btn, async () => {
-    stopSim();
     const mode = btn.dataset.mode;
     setMode(mode);
     if (!requireDest()) return;
@@ -1089,7 +1743,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       try { await doWalk(NAV.me); }
       catch (err) { failToast(err); drawer('<div class="muted">步行查询失败：' + esc(detailText(err.detail)) + "</div>"); }
     } else if (mode === "transit") {
-      const city = cityGuess((NAV.me.lon + NAV.dest.lon) / 2);
+      const city = NAV.city;
       try {
         const body = await api("/api/v1/nav/transit", { origin: { lon: NAV.me.lon, lat: NAV.me.lat }, destination: { lon: NAV.dest.lon, lat: NAV.dest.lat }, city });
         const plans = body.plans || [];
@@ -1125,13 +1779,31 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       } catch (err) { failToast(err); }
     } else { // taxi / driving → deeplink
       const m = mode === "taxi" ? "taxi" : "driving";
+      const dlBody = { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } };
+      if (NAV.meReal) dlBody.origin = { name: NAV.me.name, lon: NAV.me.lon, lat: NAV.me.lat }; // 起点一并带入（from=/slon）；回退坐标不算
       try {
-        const body = await api("/api/v1/nav/deeplink", { mode: m, destination: { name: NAV.dest.name, lon: NAV.dest.lon, lat: NAV.dest.lat } });
-        const box = el('<div><h4>' + (m === "taxi" ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
+        const body = await api("/api/v1/nav/deeplink", dlBody);
+        const isTaxi = m === "taxi";
+        const box = el('<div><h4>' + (isTaxi ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
+        box.appendChild(el('<div class="muted">起点：' + esc(NAV.me.name) + ' → 终点：' + esc(NAV.dest.name) + "</div>"));
         const row = el('<div class="row" style="gap:10px;margin:4px 0"></div>');
-        row.appendChild(el('<a class="btn" style="text-decoration:none;display:inline-block" href="' + esc(body.app_deeplink) + '">📲 打开高德 App</a>'));
-        row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">🌐 网页版</a>'));
+        const appBtn = el('<button class="btn">📲 打开高德 App</button>');
+        appBtn.onclick = () => openHandoff(body.app_deeplink, isTaxi ? null : body.web_fallback); // 打车无网页版，勿拿驾车路线页冒充
+        row.appendChild(appBtn);
+        row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">' + (isTaxi ? "🗺 驾车路线预览" : "🌐 网页版") + '</a>'));
         box.appendChild(row);
+        if (isTaxi) { // 高德打车无网页版（1018 八域名内容级探明）⇒ 二维码桥接：手机扫码直达高德App打车页
+          const qrBox = el('<div style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff;display:inline-block"></div>');
+          qrBox.appendChild(el('<div id="taxiQr" style="margin:0 auto"></div>'));
+          qrBox.appendChild(el('<div class="muted" style="text-align:center;margin-top:4px">手机扫码 → 高德App 打车页（起终点已带入）</div>'));
+          box.appendChild(qrBox);
+          drawer(box);
+          if (typeof QRCode !== "undefined") {
+            try { new QRCode(document.getElementById("taxiQr"), { text: body.app_deeplink, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M }); }
+            catch (e) { /* 码生成失败不挡面板 */ }
+          }
+          return;
+        }
         if (body.ios_alternative) {
           box.appendChild(el('<div class="muted" style="margin-top:4px">iOS 备用：<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
         }
@@ -1140,80 +1812,6 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       } catch (err) { failToast(err); }
     }
   });
-});
-
-/* ---- 模拟导航：定位点沿 polyline 前进 + 语音播报 ---- */
-
-document.getElementById("btnSimulate").onclick = (e) => {
-  if (NAV.sim) { stopSim(); return; }
-  if (!NAV.route || !NAV.route.polyline.length) { toast("先查一条步行路线（🚶），再模拟导航"); return; }
-  const pts = NAV.route.polyline;
-  const steps = NAV.route.steps || [];
-  // 每步累计距离 → 找当前位置落在哪一步
-  const stepCut = [];
-  let acc = 0;
-  steps.forEach(s => { acc += (s.distance_m || 0); stepCut.push(acc); });
-  let i = 0, curStep = -1;
-  const man = document.getElementById("navManeuver");
-  man.style.display = "block";
-  e.target.textContent = "⏹️ 停止模拟";
-  const speak = (text) => {
-    try {
-      if (!window.speechSynthesis) return;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "zh-CN";
-      speechSynthesis.speak(u);
-    } catch (err) { /* TTS 不可用则静默 */ }
-  };
-  NAV.sim = { t: setInterval(() => {
-    i += 2; // 每帧推进 2 个折线点（约 20-40 米）
-    if (i >= pts.length) {
-      setMarkerPos("me", pts[pts.length - 1].lon, pts[pts.length - 1].lat);
-      stopSim();
-      man.style.display = "block";
-      man.innerHTML = '<span class="ico">🏁</span>已到达终点<span class="sub">' + esc(NAV.dest.name) + "</span>";
-      speak("已到达终点");
-      toast("模拟导航结束：已到达 " + NAV.dest.name);
-      return;
-    }
-    const p = pts[i];
-    setMarkerPos("me", p.lon, p.lat);
-    // 已走距离（近似按点序比例 × 总距离）
-    const gone = NAV.route.distance_m * (i / pts.length);
-    let si = 0;
-    while (si < stepCut.length - 1 && gone > stepCut[si]) si++;
-    if (si !== curStep) {
-      curStep = si;
-      const s = steps[si];
-      document.querySelectorAll(".nstep").forEach(n => n.classList.remove("cur"));
-      const node = document.getElementById("nstep-" + si);
-      if (node) { node.classList.add("cur"); node.scrollIntoView({ block: "nearest" }); }
-      if (s) {
-        man.innerHTML = '<span class="ico">' + oriEmoji(s.orientation) + "</span>" + esc(s.instruction) +
-          '<span class="sub">第 ' + (si + 1) + "/" + steps.length + " 步 · " + (s.distance_m || 0) + " 米</span>";
-        speak(s.instruction);
-      }
-    }
-  }, 120) };
-};
-
-/* ---- 偏航演示：偏移 50 米重调步行 ---- */
-
-document.getElementById("btnOffRoute").onclick = (e) => busy(e.target, async () => {
-  if (!requireDest()) return;
-  // 50 米 ≈ 0.00045 纬度（按北京纬度再折算经度）
-  const off = {
-    lon: NAV.me.lon + 0.00045 / Math.cos(NAV.me.lat * Math.PI / 180),
-    lat: NAV.me.lat + 0.00045,
-    name: NAV.me.name,
-  };
-  NAV.me = off;
-  placeMe();
-  setMode("walk");
-  try {
-    await doWalk(off, "🔀 偏航后重新规划");
-    toast("已模拟偏航 50 米并重新规划步行路线");
-  } catch (err) { failToast(err); }
 });
 
 /* ---- 火车/航班提醒（右上角 ⏰） ---- */
@@ -1257,6 +1855,9 @@ MAP.w = MAP.wrap.clientWidth || 800;
 MAP.h = MAP.wrap.clientHeight || 600;
 initMapEvents();
 renderMap();
+placeMe(); // 初始：默认在故宫（必须在地图初始化后：addMarker 依赖 MAP.mkEl）
+originKw.value = NAV.me.name;
+locateMe(true); // 打开即自动定位：城市默认跟随真实定位城市（regeo 反查），失败走 IP 定位兜底
 
 /* ================= Tab 4：行程 ================= */
 
@@ -1391,6 +1992,28 @@ async function itinRefreshList(quiet) {
 }
 document.getElementById("itinRefresh").onclick = (e) => busy(e.target, () => itinRefreshList(false));
 
+// 我的行程列表：规划页/本页产生的每个行程都按行程编号列出（每次进页刷新）
+async function itinSavedLoad() {
+  const listEl = document.getElementById("itinSavedList");
+  try {
+    const rows = await api("/api/v1/itineraries", undefined, "GET");
+    listEl.textContent = "";
+    if (!rows || !rows.length) {
+      listEl.className = "muted";
+      listEl.textContent = "还没有行程——到「规划」页生成并保存，或上方「创建行程」。";
+      return;
+    }
+    rows.forEach(r => {
+      listEl.appendChild(el('<div class="row"><span class="t"><code>' + esc(r.itinerary_id) + '</code></span><span>' +
+        esc((r.cities || []).join(" → ")) + " · 快照 " + (r.snapshot_count || 0) + " 个 · v" + (r.working_sync_version || 0) + "</span></div>"));
+    });
+  } catch (err) {
+    listEl.className = "muted";
+    listEl.textContent = "加载失败：" + detailText(err.detail);
+  }
+}
+document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", () => itinSavedLoad());
+
 /* ================= Tab 5：预订（铁律 22 只 handoff / 铁律 23 退改摘要先行） ================= */
 
 const BOOK = { plan: null }; // 最近一次规划结果（酒店按天卡片吃它）
@@ -1412,21 +2035,30 @@ function bkErrMsg(err) {
 /* ---- 铁律 23：跳转渠道前弹退改摘要全文；无 refund_policy 一律禁止跳转 ---- */
 
 let bkPendingUrl = null;
-function bkConfirmOpen(channel, url, refund) {
-  if (!refund || !refund.summary) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
+let bkPendingAction = null; // {action_type, channel, url, refund_summary}：铁律 22 跳转埋点
+function bkConfirmOpen(channel, url, refund, actionType) {
+  const summ = refund && refund.summary ? refund.summary : (typeof refund === "string" ? refund : "");
+  if (!summ) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
   bkPendingUrl = url;
-  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + channel + " 前，请先阅读退改政策";
-  document.getElementById("bkConfirmSummary").textContent = refund.summary; // 全文，textContent 防注入
+  bkPendingAction = actionType ? { action_type: actionType, channel: channel, url: url, refund_summary: summ } : null;
+  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + (BK_CHANNEL[channel] || channel) + " 前，请先阅读退改政策";
+  document.getElementById("bkConfirmSummary").textContent = summ; // 全文，textContent 防注入
   document.getElementById("bkConfirmUrl").textContent = "即将打开：" + url;
   document.getElementById("bkConfirm").style.display = "flex";
 }
 function bkConfirmClose() {
   document.getElementById("bkConfirm").style.display = "none";
   bkPendingUrl = null;
+  bkPendingAction = null;
 }
 document.getElementById("bkGo").onclick = () => {
   const u = bkPendingUrl;
+  const act = bkPendingAction;
   bkConfirmClose();
+  if (act) {
+    // 铁律 22：先埋点 backfill/handoffs 再跳转；埋点尽力而为，失败不打断跳转
+    api("/api/v1/backfill/handoffs", act).then(bfLoadQuiet).catch(() => {});
+  }
   if (u) window.open(u, "_blank");
 };
 document.getElementById("bkCancel").onclick = bkConfirmClose;
@@ -1436,8 +2068,8 @@ document.getElementById("bkConfirm").addEventListener("pointerdown", e => {
 
 const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团" };
 
-// 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）
-function bkChannelBtn(channel, url, refund, primary, label) {
+// 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）；actionType → 铁律 22 埋点
+function bkChannelBtn(channel, url, refund, primary, label, actionType) {
   const b = el('<button class="btn mini' + (primary ? "" : " ghost") + '"></button>');
   b.textContent = label || ("↗️ 前往 " + (BK_CHANNEL[channel] || channel) + (primary ? "（主）" : "（备）"));
   if (!url) { b.disabled = true; b.title = "渠道未返回链接"; return b; }
@@ -1446,23 +2078,62 @@ function bkChannelBtn(channel, url, refund, primary, label) {
     b.title = "响应缺少退改签摘要（铁律 23），禁止跳转";
     return b;
   }
-  b.onclick = () => bkConfirmOpen(BK_CHANNEL[channel] || channel, url, refund);
+  b.onclick = () => bkConfirmOpen(channel, url, refund, actionType);
   return b;
 }
 
-// handoff 卡片：主渠道 + （火车）App 唤起 + 兜底渠道；URL 全部来自后端，前端不拼
-function bkHandoffRow(body) {
-  const h = body.handoff || {};
-  const refund = body.refund_policy;
-  const box = el('<div class="card"><h4>🔗 渠道跳转（handoff，不代下单）</h4></div>');
-  const row = el('<div class="row" style="flex-wrap:wrap;gap:8px"></div>');
-  row.appendChild(bkChannelBtn(h.channel, h.url, refund, true));
-  if (h.app_scheme) row.appendChild(bkChannelBtn(h.channel, h.app_scheme, refund, false, "📲 唤起 12306 App"));
-  if (h.fallback && h.fallback.url) row.appendChild(bkChannelBtn(h.fallback.channel, h.fallback.url, refund, false));
-  box.appendChild(row);
-  if (!refund || !refund.summary) {
-    box.appendChild(el('<div class="violation error">响应缺少退改签摘要（refund_policy）：按铁律 23，渠道跳转已禁用。</div>'));
+/* ---- 转链交易中心卡片组（/api/v1/offers/cards，铁律 22/23 流程不变） ---- */
+
+function bkPriceText(card) {
+  const v = Number(card.price_yuan);
+  return "¥" + (Number.isInteger(v) ? v : v.toFixed(1));
+}
+
+// 单张渠道卡：渠道名 + 价格/tag + 退改摘要 + 前往预订（过铁律 23 浮层）
+function bkOfferCard(card, kind, primary, sameGroup) {
+  const chan = BK_CHANNEL[card.channel] || card.channel;
+  const box = el(primary ? '<div class="tile" style="border-color:var(--accent);border-width:2px"></div>' : '<div class="tile"></div>');
+  const head = el('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>');
+  head.appendChild(el('<b style="font-size:' + (primary ? "15px" : "13px") + '">' + esc(chan) + "</b>"));
+  if (card.unified_price) {
+    head.appendChild(el('<span class="badge ok">全国统一价</span>')); // 12306：不显示价格
+  } else if (card.price_yuan != null) {
+    head.appendChild(el('<b style="font-size:' + (primary ? "17px" : "14px") + '">' + bkPriceText(card) + "</b>"));
+  } else {
+    head.appendChild(el('<span class="badge">价格未知</span>'));
   }
+  const tag = card.tag || (sameGroup && sameGroup.indexOf(card.channel) >= 0 ? "同价" : null);
+  if (tag && tag !== "全国统一价") head.appendChild(el('<span class="badge warn">' + esc(tag) + "</span>"));
+  box.appendChild(head);
+  box.appendChild(el('<div class="muted" style="margin:4px 0">退改：' + esc(card.refund_summary || "（无摘要）") + "</div>"));
+  const url = card.url || card.fallback_url;
+  const btn = bkChannelBtn(card.channel, url, { summary: card.refund_summary }, primary,
+    "↗️ 前往预订" + (primary ? "（主推）" : ""), kind);
+  box.appendChild(btn);
+  return box;
+}
+
+// 卡片组：disclaimer 大字 → 主推大卡 → 折叠全部渠道 → 说明
+function bkOffersCards(body) {
+  const kind = body.kind;
+  const box = el('<div class="card"><h4>🛒 转链交易中心 · ' +
+    ({ train: "🚄 火车票", flight: "✈️ 机票", hotel: "🏨 酒店" }[kind] || esc(kind)) + "</h4></div>");
+  if (body.disclaimer) {
+    box.appendChild(el('<div class="violation warning" style="font-size:15px">' + esc(body.disclaimer) + "</div>"));
+  }
+  const sg = body.same_price_group || [];
+  const cards = body.cards || [];
+  const prim = body.primary;
+  if (prim) box.appendChild(bkOfferCard(prim, kind, true, sg));
+  const rest = prim ? cards.filter(c => c.channel !== prim.channel) : cards;
+  if (rest.length) {
+    const det = el('<details' + (prim ? "" : " open") + '><summary>展开全部 ' + cards.length + " 渠道</summary></details>");
+    const wrap = el('<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>');
+    rest.forEach(c => wrap.appendChild(bkOfferCard(c, kind, false, sg)));
+    det.appendChild(wrap);
+    box.appendChild(det);
+  }
+  box.appendChild(el('<div class="muted">比价为 mock 数据仅供展示；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转。</div>'));
   return box;
 }
 
@@ -1485,22 +2156,12 @@ async function bkTrainSearch() {
   const to = document.getElementById("bkTrainTo").value.trim();
   const date = document.getElementById("bkTrainDate").value;
   if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-train", "user", "🚄 查火车票：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-train", "sys", "⏳ 查询班次…");
+  addMsg("flow-book-train", "user", "🚄 火车票转链：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-train", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/train", { from_city: from, to_city: to, date });
+    const body = await api("/api/v1/offers/cards", { kind: "train", from_city: from, to_city: to, date });
     holder.textContent = "";
-    const trains = body.trains || [];
-    if (trains.length) {
-      const list = el('<div class="card"><h4>🚄 班次 ' + trains.length + " 个</h4></div>");
-      trains.forEach(t => list.appendChild(el('<div class="row"><span class="t">' + fmtTime(t.dep_time) + "</span><span><b>" +
-        esc(t.train_no) + "</b> " + esc(t.from_station) + " → " + esc(t.to_station) + " · " + fmtTime(t.arr_time) +
-        "到 · " + (t.duration_minutes || "?") + " 分钟</span></div>")));
-      holder.appendChild(list);
-    } else {
-      holder.appendChild(el('<div class="card">未查到班次（该城市对暂未覆盖静态时刻表），可直接前往 12306。</div>'));
-    }
-    holder.appendChild(bkHandoffRow(body));
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1516,14 +2177,12 @@ async function bkFlightSearch() {
   const to = document.getElementById("bkFlightTo").value.trim();
   const date = document.getElementById("bkFlightDate").value;
   if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-flight", "user", "✈️ 查机票：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装渠道链接…");
+  addMsg("flow-book-flight", "user", "✈️ 机票转链：" + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/flight", { from_city: from, to_city: to, date });
+    const body = await api("/api/v1/offers/cards", { kind: "flight", from_city: from, to_city: to, date });
     holder.textContent = "";
-    holder.appendChild(el('<div class="card"><h4>✈️ ' + esc(from) + " → " + esc(to) + " · " + esc(date) +
-      '</h4><div>MVP 暂无航班静态库（flights 恒空），去渠道页直接比价。</div></div>'));
-    holder.appendChild(bkHandoffRow(body)); // 去哪儿（主）+ 携程（备）
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1543,14 +2202,13 @@ async function bkHotelSearch() {
   const co = document.getElementById("bkHotelOut").value;
   if (!city || !poi || !ci || !co) { toast("城市、锚点景点、入住/退房日期都要填"); return; }
   if (!isFinite(lon) || !isFinite(lat)) { toast("经纬度必填（点下方按天卡片可自动带入）"); return; }
-  addMsg("flow-book-hotel", "user", "🏨 找酒店：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
-  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装渠道链接…");
+  addMsg("flow-book-hotel", "user", "🏨 酒店转链：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
+  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装转链卡片…");
   try {
-    const body = await api("/api/v1/bookings/hotel", { city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
+    const body = await api("/api/v1/offers/cards", { kind: "hotel", city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
     holder.textContent = "";
-    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) +
-      (body.near_poi ? ' <span class="muted">（坐标 ' + body.near_poi.lon + ", " + body.near_poi.lat + "）</span>" : "") + "</div></div>"));
-    holder.appendChild(bkHandoffRow(body)); // 携程（主）+ 美团（备）
+    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) + "</div></div>"));
+    holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
@@ -1659,12 +2317,419 @@ function planBookQuick(plan) {
   return bar;
 }
 
+/* ================= Tab 6：行程中心（trip-items 三态看板） ================= */
+
+const TRIP = { loaded: false };
+const TC_SRC = { manual: "手动", chat: "对话", paste: "粘贴", agent_recommend: "推荐" };
+
+function tcPatch(item, fields, btn) {
+  return busy(btn, async () => {
+    try {
+      await api("/api/v1/trip-items/" + item.id, fields, "PATCH");
+      await tcLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+function tcDelete(item, btn) {
+  return busy(btn, async () => {
+    try {
+      await api("/api/v1/trip-items/" + item.id, undefined, "DELETE");
+      await tcLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）
+function tcTile(item) {
+  const t = el('<div class="tile"></div>');
+  const head = el('<div><b>' + esc(item.name) + "</b>" +
+    (item.city ? " · " + esc(item.city) : "") +
+    (item.note ? ' <span class="muted">' + esc(item.note) + "</span>" : "") +
+    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
+  if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
+  if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  t.appendChild(head);
+  const ops = el('<div class="ops"></div>');
+  const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
+  if (item.status === "wishlist") {
+    mk("📅 排期", (b) => {
+      const d = prompt("排到第几天？（整数 ≥ 1）", "1");
+      if (d == null) return;
+      const n = parseInt(d, 10);
+      if (!n || n < 1) { toast("天数须为 ≥1 的整数"); return; }
+      tcPatch(item, { status: "scheduled", day: n }, b);
+    });
+    mk("🗑 删除", (b) => tcDelete(item, b));
+  } else if (item.status === "scheduled") {
+    mk("✅ 标记已订", (b) => {
+      const bid = prompt("订单号 booking_id？", "");
+      if (bid == null) return;
+      if (!bid.trim()) { toast("booking_id 不能为空（scheduled→booked 必填）"); return; }
+      tcPatch(item, { status: "booked", booking_id: bid.trim() }, b);
+    });
+    mk("↩️ 撤销排期", (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk("🗑 删除", (b) => tcDelete(item, b));
+  } else if (item.status === "booked") {
+    mk("↩️ 撤销（回心愿单）", (b) => tcPatch(item, { status: "wishlist" }, b));
+    t.appendChild(el('<div class="muted" style="margin-top:4px">booked 不可删除（422），可撤销回心愿单。</div>'));
+  }
+  t.appendChild(ops);
+  return t;
+}
+
+function tcZone(icon, title, count, hint) {
+  const z = el('<div class="zone"><h4>' + icon + " " + title + " · " + count +
+    (hint ? ' <span class="muted" style="font-weight:400">' + hint + "</span>" : "") + "</h4></div>");
+  const cards = el('<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>');
+  z.appendChild(cards);
+  return { z, cards };
+}
+
+async function tcLoad() {
+  const box = document.getElementById("flow-trips");
+  box.innerHTML = "";
+  try {
+    const q = document.getElementById("tcItinId").value.trim();
+    const body = await api("/api/v1/trip-items" + (q ? "?itinerary_id=" + encodeURIComponent(q) : ""), undefined, "GET");
+    TRIP.loaded = true;
+    const bookings = body.bookings || [], scheduled = body.scheduled || [], wishlist = body.wishlist || [];
+    const z1 = tcZone("✅", "已预订（Bookings 置顶）", bookings.length, "");
+    if (!bookings.length) z1.cards.appendChild(el('<div class="muted">暂无已预订条目。</div>'));
+    bookings.forEach(it => z1.cards.appendChild(tcTile(it)));
+    box.appendChild(z1.z);
+    const z2 = tcZone("📅", "已排期（按天分组）", scheduled.length, "");
+    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」。</div>'));
+    const byDay = {};
+    scheduled.forEach(it => { const d = it.day || 0; (byDay[d] = byDay[d] || []).push(it); });
+    Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach(d => {
+      z2.cards.appendChild(el('<div class="day-h">第 ' + d + " 天</div>"));
+      byDay[d].forEach(it => z2.cards.appendChild(tcTile(it)));
+    });
+    box.appendChild(z2.z);
+    const z3 = tcZone("💡", "心愿单（新的在前）", wishlist.length, "");
+    if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
+    wishlist.forEach(it => z3.cards.appendChild(tcTile(it)));
+    box.appendChild(z3.z);
+  } catch (err) {
+    failToast(err);
+    box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));
+  }
+}
+document.getElementById("tcRefresh").onclick = (e) => busy(e.target, tcLoad);
+document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
+  const name = document.getElementById("tcName").value.trim();
+  if (!name) { toast("心愿名必填"); return; }
+  const city = document.getElementById("tcCity").value.trim();
+  const note = document.getElementById("tcNote").value.trim();
+  const itin = document.getElementById("tcItinId").value.trim();
+  const body = { name, source: "manual" };
+  if (city) body.city = city;
+  if (note) body.note = note;
+  if (itin) body.itinerary_id = itin;
+  try {
+    await api("/api/v1/trip-items", body);
+    document.getElementById("tcName").value = "";
+    document.getElementById("tcCity").value = "";
+    document.getElementById("tcNote").value = "";
+    toast("心愿已加入（status=wishlist）");
+    await tcLoad();
+  } catch (err) { failToast(err); }
+});
+
+/* ================= Tab 7：个人主页（画像 / 蒸馏试验台 / 链接历史） ================= */
+
+const ME = { loaded: false, style: new Set(), diet: new Set() };
+
+function meChips(containerId, set) {
+  const box = document.getElementById(containerId);
+  box.innerHTML = "";
+  if (!set.size) { box.appendChild(el('<span class="muted">（空）</span>')); return; }
+  set.forEach(v => {
+    const c = el('<button class="chip on" title="点一下移除">' + esc(v) + " ✕</button>");
+    c.onclick = () => { set.delete(v); meChips(containerId, set); };
+    box.appendChild(c);
+  });
+}
+
+async function prLoad() {
+  try {
+    const body = await api("/api/v1/profile", undefined, "GET");
+    const p = body.profile || {};
+    ME.loaded = true;
+    ME.style = new Set(p.travel_style || []);
+    ME.diet = new Set(p.dietary_restrictions || []);
+    document.getElementById("prBudget").value = p.budget_level || "";
+    document.getElementById("prComp").value = p.companions || "";
+    document.getElementById("prStamina").value = p.stamina || "";
+    meChips("prStyleChips", ME.style);
+    meChips("prDietChips", ME.diet);
+    const notes = p.notes || [];
+    const nb = document.getElementById("prNotes");
+    nb.innerHTML = "";
+    if (!notes.length) nb.textContent = "（暂无备注）";
+    notes.forEach(n => nb.appendChild(el("<div>· " + esc(n.text != null ? n.text : n) +
+      (n.provenance ? ' <span class="badge">' + esc(n.provenance) + "</span>" : "") + "</div>")));
+    document.getElementById("prUpdatedAt").textContent = body.updated_at ? "更新于 " + body.updated_at : "";
+  } catch (err) { failToast(err); }
+}
+
+document.getElementById("prStyleAdd").onclick = () => {
+  const i = document.getElementById("prStyleIn");
+  const v = i.value.trim();
+  if (v) { ME.style.add(v); i.value = ""; meChips("prStyleChips", ME.style); }
+};
+document.getElementById("prDietAdd").onclick = () => {
+  const i = document.getElementById("prDietIn");
+  const v = i.value.trim();
+  if (v) { ME.diet.add(v); i.value = ""; meChips("prDietChips", ME.diet); }
+};
+
+document.getElementById("prSave").onclick = (e) => busy(e.target, async () => {
+  const b = document.getElementById("prBudget").value;
+  const c = document.getElementById("prComp").value;
+  const s = document.getElementById("prStamina").value;
+  if (!b && !c && !s && !ME.style.size && !ME.diet.size) { toast("没有可保存的改动"); return; }
+  const body = { travel_style: [...ME.style], dietary_restrictions: [...ME.diet] };
+  if (b) body.budget_level = b;
+  if (c) body.companions = c;
+  if (s) body.stamina = s;
+  try {
+    const r = await api("/api/v1/profile", body, "PUT");
+    toast("画像已保存" + (r && r.updated_at ? " · " + r.updated_at : ""));
+    await prLoad();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
+  const key = document.getElementById("dsKey").value.trim();
+  const value = document.getElementById("dsValue").value.trim();
+  const conf = parseFloat(document.getElementById("dsConf").value);
+  const prov = document.getElementById("dsProv").value.trim();
+  if (!key || !value) { toast("key / value 必填"); return; }
+  try {
+    const body = await api("/api/v1/profile/distill",
+      { facts: [{ key, value, confidence: isNaN(conf) ? 1 : conf, provenance: prov || "manual_test" }] });
+    const out = document.getElementById("dsOut");
+    out.innerHTML = "";
+    const applied = body.applied || [];
+    const sug = body.suggestions || [];
+    const ab = el('<div class="card"><h4>已应用 ' + applied.length + " 条</h4></div>");
+    if (!applied.length) ab.appendChild(el('<div class="muted">（无：可能被手改保护或字段非法）</div>'));
+    applied.forEach(a => {
+      const row = el('<div class="row"><span style="flex:1">' + esc(a.key) + " = " + esc(a.value) +
+        ' <span class="badge ok">applied ' + esc(a.applied_id) + "</span></span></div>");
+      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      ub.onclick = (ev) => busy(ev.target, async () => {
+        try {
+          await api("/api/v1/profile/distill/" + a.applied_id + "/undo", {});
+          toast("已撤销 " + a.key);
+          await prLoad();
+        } catch (err) { failToast(err); }
+      });
+      row.appendChild(ub);
+      ab.appendChild(row);
+    });
+    out.appendChild(ab);
+    if (sug.length) {
+      const sb = el('<div class="card sug"><h4>建议（confidence &lt; 0.8，未落库）</h4></div>');
+      sug.forEach(s2 => sb.appendChild(el("<div>· " + esc(s2.key) + " = " + esc(s2.value) +
+        ' <span class="badge">' + Number(s2.confidence).toFixed(2) + "</span></div>")));
+      out.appendChild(sb);
+    }
+    await prLoad();
+  } catch (err) { failToast(err); }
+});
+
+async function lkLoad() {
+  const box = document.getElementById("lkList");
+  box.innerHTML = '<div class="muted">加载中…</div>';
+  try {
+    const body = await api("/api/v1/links", undefined, "GET");
+    const items = body.links || body.items || (Array.isArray(body) ? body : []);
+    box.innerHTML = "";
+    if (!items.length) { box.appendChild(el('<div class="muted">还没有链接记录。</div>')); return; }
+    items.forEach(l => {
+      const row = el('<div class="tile"></div>');
+      const badge = l.status === "parsed"
+        ? '<span class="badge ok">parsed</span>'
+        : '<span class="badge warn">' + esc(l.status || "?") + "</span>";
+      row.appendChild(el('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted" style="word-break:break-all;flex:1">' +
+        esc(l.url || "") + "</span>" + badge + "</div>"));
+      const ops = el('<div class="ops"></div>');
+      const bRep = el('<button class="btn mini plain">🔁 重新解析</button>');
+      bRep.onclick = (ev) => busy(ev.target, async () => {
+        try { await api("/api/v1/links/" + l.id + "/reparse", {}); toast("已重新解析"); await lkLoad(); }
+        catch (err) { failToast(err); }
+      });
+      const bWish = el('<button class="btn mini ghost">💡 加入心愿单</button>');
+      bWish.onclick = (ev) => busy(ev.target, async () => {
+        try {
+          const name = prompt("心愿名（可留空，由链接解析）", "");
+          const body2 = {};
+          if (name && name.trim()) body2.name = name.trim();
+          const it = await api("/api/v1/links/" + l.id + "/to-wishlist", body2);
+          const item = it && it.item ? it.item : it;
+          toast("已进心愿单：" + ((item && item.name) || "去「🗂 行程中心」查看"));
+          TRIP.loaded = false; // 下次进行程中心自动刷新
+        } catch (err) { failToast(err); }
+      });
+      ops.appendChild(bRep);
+      ops.appendChild(bWish);
+      row.appendChild(ops);
+      box.appendChild(row);
+    });
+  } catch (err) {
+    box.innerHTML = "";
+    box.appendChild(el('<div class="card">❌ 链接列表加载失败：' + esc(detailText(err.detail)) + "</div>"));
+    failToast(err);
+  }
+}
+document.getElementById("lkAdd").onclick = (e) => busy(e.target, async () => {
+  const url = document.getElementById("lkUrl").value.trim();
+  if (!/^https?:\/\//.test(url)) { toast("URL 必须以 http:// 或 https:// 开头"); return; }
+  try {
+    await api("/api/v1/links", { url, source: document.getElementById("lkSource").value });
+    document.getElementById("lkUrl").value = "";
+    toast("链接已添加（status=pending）");
+    await lkLoad();
+  } catch (err) { failToast(err); }
+});
+document.getElementById("lkRefresh").onclick = (e) => busy(e.target, lkLoad);
+
+/* ================= 订单回填（预订 tab 底部，铁律 22 跳转埋点闭环） ================= */
+
+const BF = { loaded: false, map: {}, sel: null };
+
+function bfRecords() {
+  return Object.values(BF.map).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+}
+function bfLoadQuiet() { if (BF.loaded) bfLoad(); }
+
+async function bfLoad() {
+  try {
+    const body = await api("/api/v1/backfill/handoffs?status=opened", undefined, "GET");
+    const rows = body.handoffs || body.records || body.items || (Array.isArray(body) ? body : []);
+    rows.forEach(r => { if (r && r.id != null) BF.map[r.id] = r; });
+    BF.loaded = true;
+    bfRender();
+  } catch (err) { failToast(err); }
+}
+
+function bfRender() {
+  const box = document.getElementById("bfList");
+  box.innerHTML = "";
+  const rows = bfRecords();
+  if (!rows.length) {
+    box.appendChild(el('<div class="muted">暂无跳转记录：在上方查卡并点「前往预订 → 仍要前往」即产生一条 opened 记录。</div>'));
+    document.getElementById("bfOps").style.display = "none";
+    BF.sel = null;
+    return;
+  }
+  rows.forEach(r => {
+    const row = el('<div class="bf-row' + (BF.sel === r.id ? " sel" : "") + '"></div>');
+    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : "🏨");
+    row.appendChild(el('<span style="flex:1">' + ico + " " + esc(BK_CHANNEL[r.channel] || r.channel || "?") +
+      (r.order_ref ? " · <b>" + esc(r.order_ref) + "</b>" : "") + "</span>"));
+    const cls = r.status === "opened" ? "warn" : (r.status === "user_confirmed" ? "ok" : "err");
+    row.appendChild(el('<span class="badge ' + cls + '">' + esc(r.status || "?") + "</span>"));
+    row.appendChild(el('<span class="muted">' + esc(r.created_at || "") + "</span>"));
+    row.onclick = () => { BF.sel = r.id; bfRender(); };
+    if (r.status === "user_confirmed") {
+      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      ub.onclick = (ev) => { ev.stopPropagation(); bfUndo(r.id, ev.target); };
+      row.appendChild(ub);
+    }
+    box.appendChild(row);
+  });
+  document.getElementById("bfOps").style.display = BF.sel != null ? "flex" : "none";
+}
+
+function bfUndo(id, btn) {
+  return busy(btn, async () => {
+    try {
+      const resp = await api("/api/v1/backfill/handoffs/" + id + "/undo", {});
+      if (resp && resp.record) BF.map[id] = resp.record;
+      else if (BF.map[id]) BF.map[id].status = "opened";
+      toast("已撤销，记录回到 opened");
+      bfRender();
+      bfLoadQuiet();
+    } catch (err) { failToast(err); }
+  });
+}
+
+document.getElementById("bfRefresh").onclick = (e) => busy(e.target, bfLoad);
+
+document.getElementById("bfParse").onclick = (e) => busy(e.target, async () => {
+  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  const text = document.getElementById("bfPaste").value.trim();
+  if (!text) { toast("先粘贴订单短信原文"); return; }
+  const out = document.getElementById("bfOut");
+  out.innerHTML = "";
+  try {
+    const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/paste-return", { text });
+    if (body.record) BF.map[BF.sel] = body.record;
+    const p = body.parsed || {};
+    const info = el('<div class="card"><h4>🧾 解析结果</h4></div>');
+    info.appendChild(el("<div>订单号 <b>" + esc(p.order_ref || "（未识别）") + "</b> · 渠道 " + esc(p.channel || "?") +
+      " · 金额 " + (p.amount_yuan != null ? "¥" + p.amount_yuan : "?") +
+      " · 置信度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "?") + "</div>"));
+    if (body.applied) {
+      info.appendChild(el('<div class="muted">✅ 已落库：记录进入 user_confirmed。</div>'));
+      document.getElementById("bfPaste").value = "";
+    } else if (body.reason === "needs_confirm") {
+      info.appendChild(el('<div class="violation warning">置信度低，不落库（needs_confirm）：请用右侧「手动标记」补订单号。</div>'));
+    } else {
+      info.appendChild(el('<div class="violation warning">未应用：' + esc(body.reason || "?") + "</div>"));
+    }
+    out.appendChild(info);
+    bfRender();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("bfManual").onclick = (e) => busy(e.target, async () => {
+  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  const ref = document.getElementById("bfOrderRef").value.trim();
+  if (!ref) { toast("订单号必填"); return; }
+  try {
+    const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/manual", { order_ref: ref });
+    if (body && body.record) BF.map[BF.sel] = body.record;
+    else if (BF.map[BF.sel]) { BF.map[BF.sel].order_ref = ref; BF.map[BF.sel].status = "user_confirmed"; }
+    toast("已手动标记 user_confirmed");
+    document.getElementById("bfOrderRef").value = "";
+    bfRender();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("bfAlliance").onclick = (e) => busy(e.target, async () => {
+  const orders = bfRecords().filter(r => r.status === "user_confirmed" && r.order_ref)
+    .map(r => ({ order_ref: r.order_ref, outcome: "settled" }));
+  if (!orders.length) { toast("当前列表没有 user_confirmed 且带订单号的记录"); return; }
+  try {
+    const body = await api("/api/v1/backfill/alliance-sync", { orders });
+    const out = document.getElementById("bfOut");
+    out.innerHTML = "";
+    out.appendChild(el('<div class="card"><h4>🤝 联盟同步</h4><div>matched ' + (body.matched != null ? body.matched : "?") +
+      " · advanced " + (body.advanced != null ? body.advanced : "?") +
+      " · skipped " + (body.skipped != null ? body.skipped : "?") + "</div></div>"));
+    await bfLoad();
+  } catch (err) { failToast(err); }
+});
+
+/* ---- 新入口首开自动加载 ---- */
+document.querySelector('.nav-item[data-tab="trips"]').addEventListener("click", () => { if (!TRIP.loaded) tcLoad(); });
+document.querySelector('.nav-item[data-tab="me"]').addEventListener("click", () => {
+  if (!ME.loaded) prLoad();
+  if (!document.getElementById("lkList").childElementCount) lkLoad();
+});
+document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", () => { if (!BF.loaded) bfLoad(); });
+
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "选城市（可不选）和天数后点「🚀 开始规划」；信息不全时我会追问。拿到初版行程后，直接在下方输入框继续对话修改（可多轮）。");
+addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从北京到上海 6 天，喜欢博物馆）回车即开始规划；也可在上方选城市/天数/偏好后点「🚀 开始规划」。信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-itin", "sys", "先「创建行程」，然后依次试：加一天景点（看版本号变化 + validation）、冻结快照 ×4（第 4 次会触发 402 免费额度已用完）、恢复快照。");
-addMsg("flow-book-train", "sys", "规划完成后可从结果尾部快捷进入；或在此填城市/日期查询。跳转 12306 / 去哪儿 / 携程 / 美团 前会先展示退改签摘要（铁律 23）。");
+addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
+addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
 
 planSetSession(null);
 </script>

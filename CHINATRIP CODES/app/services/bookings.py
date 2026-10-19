@@ -85,25 +85,28 @@ async def train_booking(
 
 
 def flight_booking(from_city: str, to_city: str, date: str) -> dict:
-    """机票 handoff：MVP 无航班静态库，恒空列表 + 去哪儿主渠道/携程兜底。"""
+    """机票 handoff：MVP 无航班静态库，恒空列表 + 航程兜底。
+
+    去哪儿 onewayList.htm 已软 404（1018 抓包+无头复核）→ 携程主渠道/去哪儿兜底。
+    """
     return {
         "flights": [],
         "handoff": {
-            "channel": "qunar",
+            "channel": "ctrip",
             "kind": "flight",
             "url": (
-                "https://flight.qunar.com/site/onewayList.htm"
-                f"?fromCity={_enc(from_city)}&toCity={_enc(to_city)}&fromDate={date}"
+                "https://flights.ctrip.com/online/list/oneway-"
+                f"{_enc(from_city)}-{_enc(to_city)}?depdate={date}"
             ),
             "fallback": {
-                "channel": "ctrip",
+                "channel": "qunar",
                 "url": (
-                    "https://flights.ctrip.com/online/list/oneway-"
-                    f"{_enc(from_city)}-{_enc(to_city)}?depdate={date}"
+                    "https://flight.qunar.com/site/onewayList.htm"
+                    f"?fromCity={_enc(from_city)}&toCity={_enc(to_city)}&fromDate={date}"
                 ),
             },
         },
-        "refund_policy": _refund_channel_page("qunar"),
+        "refund_policy": _refund_channel_page("ctrip"),
     }
 
 

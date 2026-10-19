@@ -27,6 +27,7 @@ from app.services.itinerary.pipeline import (
 )
 from app.services.itinerary.rules import (
     CROWD_COEFFICIENTS,
+    haversine_km,
     validate_change_scope,
     validate_pinned,
     validate_plan,
@@ -48,6 +49,7 @@ __all__ = [
     "ValidationReport",
     "VisitItem",
     "apply_diffs",
+    "haversine_km",
     "mutate",
     "summarize_changes",
     "validate_change_scope",

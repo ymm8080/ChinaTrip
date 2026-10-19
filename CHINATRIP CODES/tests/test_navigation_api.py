@@ -247,6 +247,36 @@ def test_deeplink_driving_includes_fallbacks():
     assert "key=" not in resp.text
 
 
+def test_deeplink_with_origin_passes_from_and_s_params():
+    with TestClient(make_app()) as client:
+        resp = client.post(
+            "/api/v1/nav/deeplink",
+            json={
+                "mode": "taxi",
+                "destination": {"name": "北京南站", "lon": 116.378, "lat": 39.865},
+                "origin": {"name": "我的位置", "lon": 116.326, "lat": 39.942},
+            },
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "from=116.326,39.942," in body["web_fallback"]
+    assert "slon=116.326" in body["app_deeplink"]
+    assert "slat=39.942" in body["app_deeplink"]
+
+
+def test_deeplink_origin_out_of_range_422():
+    with TestClient(make_app()) as client:
+        resp = client.post(
+            "/api/v1/nav/deeplink",
+            json={
+                "mode": "driving",
+                "destination": {"name": "故宫", "lon": 116.397, "lat": 39.918},
+                "origin": {"name": "x", "lon": 200.0, "lat": 39.0},
+            },
+        )
+    assert resp.status_code == 422
+
+
 def test_deeplink_out_of_range_coords_returns_422():
     with TestClient(make_app()) as client:
         resp = client.post(

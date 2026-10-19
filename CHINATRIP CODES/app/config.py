@@ -16,19 +16,43 @@ class Settings(BaseSettings):
     llm_backend: str = "mock"  # "mock" | "zhipu"
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    glm_model: str = "glm-4.6"
+    glm_model: str = "glm-5.3-flash"
     # Flash tier for the classification gate / short translation fast lane
     # (design §6.12: >=80% requests must not reach the main model).
-    glm_model_flash: str = "glm-4.5-flash"
+    glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
+    # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
+    asr_model: str = "glm-asr-2512"
 
     # Amap personal developer key. Server-side only - never reaches the client.
     amap_api_key: str = ""
     amap_base_url: str = "https://restapi.amap.com/v3"
     amap_timeout_seconds: float = 5.0
 
+    # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
+    # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;
+    # empty by default = no params appended, URLs pass through untouched.
+    alliance_id: str = ""
+    alliance_sid: str = ""
+
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
+
+    # 火车时刻（v2.4 行程中心）：数据源链 携程>美团>12306，任一源返回有效
+    # 班次即用，全失败降级 MockTrainService（app/services/trains.py）。
+    # 携程/美团对个人开发者无公开火车票 API（H5 探测见模块内证据常量），
+    # 当前为占位源、链内自动跳过；12306 无需 key，是实际主力源。
+    train_remote_enabled: bool = True  # False => 纯 mock，零网络
+    train_query_timeout_seconds: float = 5.0
+    travel_train_source_order: list[str] = ["ctrip", "meituan", "12306"]
+    # 火车班次日批次缓存（app/services/train_cache.py）：独立 SQLite 落库
+    # （app/db.py 的 PG 本机不存在，业务 store 均为内存实现）；换 PG 时改
+    # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
+    train_cache_url: str = "sqlite:///data/train_cache.db"
+    train_cache_ttl_hours: float = 24.0
+    # 规划会话+行程记录的写穿透落盘（app/services/state_persist.py），
+    # 重启 uvicorn 不再清空进行中会话与已存行程。
+    state_db_url: str = "sqlite:///data/h5_state.db"
 
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0

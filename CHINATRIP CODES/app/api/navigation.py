@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.services.amap_client import AmapClient, AmapError, AmapTimeoutError
 from app.services.deeplinks import compose_deeplink
-from app.services.trains import MockTrainService
+from app.services.trains import get_train_service
 from app.services.transport_reminders import (
     build_departure_reminders,
     missed_connection_fallback,
@@ -54,6 +54,7 @@ class TransitRequest(BaseModel):
 class DeeplinkRequest(BaseModel):
     mode: str = Field(pattern="^(taxi|driving)$")
     destination: Destination
+    origin: Destination | None = None
 
 
 class TransportLeg(BaseModel):
@@ -111,9 +112,18 @@ async def transit(
 
 @router.post("/deeplink")
 async def deeplink(req: DeeplinkRequest) -> dict:
+    origin = (
+        None
+        if req.origin is None
+        else (req.origin.name, req.origin.lon, req.origin.lat)
+    )
     try:
         return compose_deeplink(
-            req.mode, req.destination.name, req.destination.lon, req.destination.lat
+            req.mode,
+            req.destination.name,
+            req.destination.lon,
+            req.destination.lat,
+            origin=origin,
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_destination") from None
@@ -129,14 +139,17 @@ async def transport_reminders(req: TransportLeg) -> dict:
 
 
 @router.post("/missed-connection")
-async def missed_connection(req: TransportLeg) -> dict:
+async def missed_connection(
+    req: TransportLeg,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     def _taxi(station_name: str, lon: float, lat: float) -> dict:
         return compose_deeplink("taxi", station_name, lon, lat)
 
     try:
         return await missed_connection_fallback(
             req.model_dump(),
-            train_service=MockTrainService(),
+            train_service=get_train_service(settings),
             taxi_deeplink_builder=_taxi,
             now=datetime.now(),
         )

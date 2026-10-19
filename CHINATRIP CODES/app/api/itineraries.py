@@ -10,6 +10,8 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
+from app.services.accounts import AccountService, parse_bearer_token
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import DiffOp, PipelineError, PoiHours
 from app.services.itinerary_store import (
@@ -18,6 +20,11 @@ from app.services.itinerary_store import (
     ItineraryService,
     ItineraryStore,
     QuotaExceededError,
+)
+from app.services.state_persist import (
+    PersistentItineraryStore,
+    db_path_from_url,
+    get_state_backend,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["itineraries"])
@@ -43,14 +50,18 @@ class CreateSnapshotRequest(BaseModel):
 
 _store_singleton: InMemoryItineraryStore | None = None
 _entitlement_singleton: EntitlementService | None = None
+_account_service_singleton: AccountService | None = None
 
 
 def get_store() -> ItineraryStore:
-    """Process-wide singleton: itinerary state must survive across requests
-    (same reason the translate phrase cache is a singleton)."""
+    """Process-wide persistent singleton: itinerary state must survive
+    across requests AND across uvicorn restarts (write-through SQLite)."""
     global _store_singleton
     if _store_singleton is None:
-        _store_singleton = InMemoryItineraryStore()
+        settings = get_settings()
+        _store_singleton = PersistentItineraryStore(
+            get_state_backend(db_path_from_url(settings.state_db_url))
+        )
     return _store_singleton
 
 
@@ -64,6 +75,21 @@ def get_entitlement_service() -> EntitlementService:
             store=InMemoryQuotaStore(), rules=[]
         )
     return _entitlement_singleton
+
+
+def get_account_service() -> AccountService:
+    """Process-wide singleton: account rows live in the same SQLite file
+    as the itinerary store, and claiming must mutate the SAME in-memory
+    store instance the routes use — hence built on ``get_store()``. The
+    factory lives here (not in api/auth.py) so auth.py can import it
+    without a circular import."""
+    global _account_service_singleton
+    if _account_service_singleton is None:
+        _account_service_singleton = AccountService(
+            get_state_backend(db_path_from_url(get_settings().state_db_url)),
+            get_store(),
+        )
+    return _account_service_singleton
 
 
 def get_itinerary_service(
@@ -82,12 +108,33 @@ def _require_device(x_device_id: str | None) -> str:
     return x_device_id
 
 
+def _account_from_auth(
+    authorization: str | None = Header(default=None),
+    service: AccountService = Depends(get_account_service),
+) -> str | None:
+    """Bearer token -> username, or None. Anonymous/invalid tokens stay
+    anonymous — the device-scoped behavior is untouched."""
+    token = parse_bearer_token(authorization)
+    if token is None:
+        return None
+    return service.verify_token(token)
+
+
 def _owned_record(
-    store: ItineraryStore, itinerary_id: str, owner_device_id: str
+    store: ItineraryStore,
+    itinerary_id: str,
+    owner_device_id: str,
+    account: str | None = None,
 ) -> ItineraryRecord:
     record = store.get(itinerary_id)
     # 404 for foreign owners too — never confirm someone else's id exists.
-    if record is None or record.owner_device_id != owner_device_id:
+    # Logged-in accounts also own itineraries claimed by/created for them,
+    # regardless of which device made them.
+    if record is None:
+        raise HTTPException(status_code=404, detail="itinerary_not_found")
+    if record.owner_device_id != owner_device_id and not (
+        account is not None and record.owner_account_id == account
+    ):
         raise HTTPException(status_code=404, detail="itinerary_not_found")
     return record
 
@@ -109,10 +156,17 @@ def _summary(record: ItineraryRecord) -> dict:
 async def create_itinerary(
     request: CreateItineraryRequest,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
     service: ItineraryService = Depends(get_itinerary_service),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     device = _require_device(x_device_id)
     record = service.create(device, request.cities, days_count=request.days)
+    if account is not None:
+        # Logged-in: the new itinerary belongs to the account immediately,
+        # so it shows up on every device of that account.
+        record.owner_account_id = account
+        store.put(record)
     return _summary(record)
 
 
@@ -120,8 +174,11 @@ async def create_itinerary(
 async def list_itineraries(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> list[dict]:
     device = _require_device(x_device_id)
+    if account is not None:
+        return [_summary(r) for r in store.list_by_account(account)]
     return [_summary(r) for r in store.list_by_owner(device)]
 
 
@@ -130,9 +187,10 @@ async def get_itinerary(
     itinerary_id: str,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> ItineraryRecord:
     device = _require_device(x_device_id)
-    return _owned_record(store, itinerary_id, device)
+    return _owned_record(store, itinerary_id, device, account)
 
 
 @router.put("/itineraries/{itinerary_id}")
@@ -142,9 +200,10 @@ async def mutate_itinerary(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
     service: ItineraryService = Depends(get_itinerary_service),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     device = _require_device(x_device_id)
-    record = _owned_record(store, itinerary_id, device)
+    record = _owned_record(store, itinerary_id, device, account)
     try:
         record, report, summary = service.mutate(
             record, request.diffs, poi_hours=request.poi_hours
@@ -169,9 +228,10 @@ async def create_snapshot(
     store: ItineraryStore = Depends(get_store),
     service: ItineraryService = Depends(get_itinerary_service),
     entitlement: EntitlementService = Depends(get_entitlement_service),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     device = _require_device(x_device_id)
-    record = _owned_record(store, itinerary_id, device)
+    record = _owned_record(store, itinerary_id, device, account)
     try:
         snapshot = service.create_snapshot(
             record,
@@ -198,9 +258,10 @@ async def list_snapshots(
     itinerary_id: str,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> list[dict]:
     device = _require_device(x_device_id)
-    record = _owned_record(store, itinerary_id, device)
+    record = _owned_record(store, itinerary_id, device, account)
     return [s.model_dump(exclude={"plan"}) for s in record.snapshots]
 
 
@@ -211,9 +272,10 @@ async def restore_snapshot(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
     service: ItineraryService = Depends(get_itinerary_service),
+    account: str | None = Depends(_account_from_auth),
 ) -> ItineraryRecord:
     device = _require_device(x_device_id)
-    record = _owned_record(store, itinerary_id, device)
+    record = _owned_record(store, itinerary_id, device, account)
     try:
         record = service.restore(record, snapshot_id)
     except KeyError as exc:

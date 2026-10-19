@@ -47,5 +47,10 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `POST /api/v1/nav/transport-reminders` · `POST /api/v1/nav/missed-connection` | 火车/飞机行程层：出发前赶车提醒（train 45min / flight 90min 缓冲）+ 误车免费应急兜底（最近班次 + 打车 deeplink，§6.7 永远免费） |
 | `POST /api/v1/bookings/train` · `POST /api/v1/bookings/flight` · `POST /api/v1/bookings/hotel` | 行程后预订 handoff（设计 v2.2 §6.11）：12306 余票页带参 / 去哪儿主+携程备 / 携程酒店列表+美团备——铁律 22 只 handoff 不代客交易，铁律 23 每个 handoff 必带 refund_policy 退改摘要，无摘要=禁止跳转 |
 | `GET /h5/` | 单页 H5 冒烟页（App 式交互测试面）：左栏 规划/翻译/导航/行程/预订 五模块 + 手写瓦片地图（高德栅格瓦片，无 SDK 无 key）+ 模拟导航/偏航重路由 + 预订确认浮层（退改摘要先行） |
+| `POST/GET/PATCH/DELETE /api/v1/trip-items…` | 行程中心三态（设计 v2.4 §5/铁律 0 同源）：wishlist→scheduled（须 day）→booked（须 booking_id）状态机 + 撤销；手动/对话/粘贴写同一张表；Bookings 置顶 + Wishlist 流 |
+| `POST /api/v1/offers/cards` | 转链交易中心（设计 v2.3 §6.11）：候选卡片组 2–4 渠道确定性比价 workflow——排序佣金权重为零、12306 全国统一价、同价按稳定性标「同价」、国外隐藏美团、深链服务端注入（alliance_id/sid 占位）、disclaimer 恒挂 |
+| `POST /api/v1/backfill/handoffs…` · `/paste-return` · `/undo` · `/manual` · `/alliance-sync` | 订单回填三层管道（设计 v2.4）：粘贴回填为主（conf<0.8 不落库进待确认）+ 手动标记兜底 + 联盟订单同步 mock；双源验证状态机 opened→user_confirmed→alliance_verified→settled（returned 逆向）；paste/manual 可撤销 |
+| `GET/PUT /api/v1/profile` · `POST /distill…/undo` | 全局 Agent 画像层（设计 v2.4 §6.14）：可查看可修正（手改字段蒸馏不覆盖）+ 确定性蒸馏 MVP（零 LLM，conf≥0.8 应用带 applied_id 可撤销，<0.8 进 suggestions） |
+| `POST/GET /api/v1/links…` · `/{id}/reparse` · `/{id}/to-wishlist` | 个人主页链接历史（双来源 user_paste/agent_recommend）：重新解析 + 加入心愿单（写同一张 trip_items） |
 
 域服务（无路由）：`itinerary` 校验/管线/求解器、`entitlement` 权益+付费墙、`gate` 请求分类闸门、`trains` 车次服务、`restaurants` 餐厅推荐 v1（顺路度×评分，铁律 20 只插用餐空窗）。
