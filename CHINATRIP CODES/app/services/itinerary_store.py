@@ -66,6 +66,8 @@ class ItineraryRecord(BaseModel):
     working_sync_version: int = 1
     snapshots: list[Snapshot] = Field(default_factory=list)
     active_snapshot_id: str | None = None
+    # set when claimed by / created for a logged-in account
+    owner_account_id: str | None = None
 
 
 class ItineraryStore(Protocol):
@@ -85,6 +87,7 @@ class ItineraryStore(Protocol):
 
     def delete(self, itinerary_id: str) -> bool: ...
     def list_by_owner(self, owner_device_id: str) -> list[ItineraryRecord]: ...
+    def list_by_account(self, username: str) -> list[ItineraryRecord]: ...
 
 
 class InMemoryItineraryStore:
@@ -118,6 +121,9 @@ class InMemoryItineraryStore:
         return [
             r for r in self._records.values() if r.owner_device_id == owner_device_id
         ]
+
+    def list_by_account(self, username: str) -> list[ItineraryRecord]:
+        return [r for r in self._records.values() if r.owner_account_id == username]
 
 
 class ItineraryService:

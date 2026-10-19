@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app.api.amap import router as amap_router
 from app.api.asr import router as asr_router
+from app.api.auth import router as auth_router
 from app.api.backfill import router as backfill_router
 from app.api.bookings import router as bookings_router
 from app.api.extract import router as extract_router
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(extract_router)
     app.include_router(amap_router)
     app.include_router(asr_router)
+    app.include_router(auth_router)
     app.include_router(translate_router)
     app.include_router(itineraries_router)
     app.include_router(plan_router)

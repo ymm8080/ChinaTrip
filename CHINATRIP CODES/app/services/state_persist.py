@@ -34,6 +34,12 @@ CREATE TABLE IF NOT EXISTS itineraries (
     itinerary_id TEXT PRIMARY KEY,
     payload      TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS accounts (
+    username      TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    token_hash    TEXT UNIQUE,
+    created_at    TEXT NOT NULL
+);
 """
 
 
@@ -80,6 +86,51 @@ class SqliteStateBackend:
         with self._lock:
             self._conn.execute(
                 "DELETE FROM itineraries WHERE itinerary_id = ?", (itinerary_id,)
+            )
+            self._conn.commit()
+
+    # --- accounts (custom username+password login) ---------------------------
+
+    def save_account(
+        self, username: str, password_hash: str, token_hash: str, created_at: str
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO accounts "
+                "(username, password_hash, token_hash, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (username, password_hash, token_hash, created_at),
+            )
+            self._conn.commit()
+
+    def get_account(self, username: str) -> tuple[str, str | None, str] | None:
+        """Row as ``(password_hash, token_hash, created_at)`` or None."""
+        row = self._conn.execute(
+            "SELECT password_hash, token_hash, created_at FROM accounts "
+            "WHERE username = ?",
+            (username,),
+        ).fetchone()
+        return tuple(row) if row else None
+
+    def get_username_by_token(self, token_hash: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT username FROM accounts WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+        return row[0] if row else None
+
+    def update_account_token(self, username: str, token_hash: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE accounts SET token_hash = ? WHERE username = ?",
+                (token_hash, username),
+            )
+            self._conn.commit()
+
+    def clear_account_token(self, token_hash: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE accounts SET token_hash = NULL WHERE token_hash = ?",
+                (token_hash,),
             )
             self._conn.commit()
 

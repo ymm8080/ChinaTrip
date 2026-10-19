@@ -239,6 +239,22 @@
   #bkConfirm .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,420px);box-shadow:var(--shadow)}
   #bkConfirm h4{margin:0 0 8px}
 
+  /* ---------- 账号登录/注册 ---------- */
+  #authArea{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+  #authArea .whoami{color:var(--text);word-break:break-all}
+  #authModal{
+    position:absolute;inset:0;z-index:45;display:none;background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  #authModal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,340px);box-shadow:var(--shadow)}
+  #authModal h4{margin:0 0 10px}
+  #authModal .fld{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--muted)}
+  #authModal .fld input{
+    flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;
+  }
+  #authErr{display:none;margin-top:8px;font-size:12px;background:var(--err-bg);color:var(--err);border-radius:6px;padding:6px 8px}
+
   /* ---------- 行程中心 / 个人主页 / 订单回填 ---------- */
   .zone{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow)}
   .zone h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
@@ -260,6 +276,7 @@
     .side-foot label{margin:0;display:flex;align-items:center}
     #apiBase{width:110px}
     .dev{display:none}
+    #authArea{margin-top:0}
     .tab,.msg{max-width:100%}
     .tab{padding:10px}
   }
@@ -285,11 +302,27 @@
     <div class="side-foot">
       <label>API 地址<input id="apiBase" spellcheck="false"></label>
       <div class="dev">设备 <code id="devId"></code></div>
+      <div id="authArea"></div>
     </div>
   </aside>
 
   <main>
     <div id="toast"></div>
+
+    <!-- ============ 账号登录/注册弹层（登录 ⇄ 注册双模式） ============ -->
+    <div id="authModal">
+      <div class="box">
+        <h4 id="authTitle">🔑 登录</h4>
+        <label class="fld">用户名 <input type="text" id="authUser" placeholder="2–30 个字符" autocomplete="username" spellcheck="false"></label>
+        <label class="fld">密码 <input type="password" id="authPass" placeholder="至少 6 位"></label>
+        <div id="authErr"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button class="btn plain" id="authClose">取消</button>
+          <button class="btn" id="authGo">登录</button>
+        </div>
+        <div style="margin-top:6px"><button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button></div>
+      </div>
+    </div>
 
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
@@ -660,17 +693,23 @@ function detailText(d) {
   try { return JSON.stringify(d); } catch (e) { return String(d); }
 }
 
-// 统一请求：POST/PUT JSON + X-Device-ID；非 2xx 抛 {status, detail}
+// 统一请求：POST/PUT JSON + X-Device-ID（已登录附 Authorization）；非 2xx 抛 {status, detail}
 async function api(path, body, method) {
   let res;
+  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token; // 登录后行程等接口按账号返回
+  const doFetch = () => fetch(apiBaseInput.value.trim() + path, {
+    method: method || "POST",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   try {
-    res = await fetch(apiBaseInput.value.trim() + path, {
-      method: method || "POST",
-      headers: { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    res = await doFetch();
   } catch (e) {
-    throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+    await new Promise(r => setTimeout(r, 1500)); // 撞上服务重启死窗（连不上）：延迟后自动重试一次
+    try { res = await doFetch(); }
+    catch (e2) { throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" }; }
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
@@ -689,6 +728,129 @@ async function busy(btn, fn) {
   try { return await fn(); }
   finally { btn.disabled = false; btn.textContent = old; }
 }
+
+/* ================= 账号（登录 / 注册 / 退出） ================= */
+
+const AUTH = { user: null }; // user=登录用户名；null=未登录（行程挂设备 ID）
+
+// 侧栏身份区：未登录给「登录 / 注册」；已登录给用户名 + 退出
+function authRender() {
+  const box = document.getElementById("authArea");
+  box.textContent = "";
+  if (AUTH.user) {
+    box.appendChild(el('<span class="whoami" title="已登录：行程挂账号，换设备登录同一账号即可看到同一批行程">👤 ' + esc(AUTH.user) + "</span>"));
+    const out = el('<button class="btn mini ghost">退出</button>');
+    out.onclick = authLogout;
+    box.appendChild(out);
+  } else {
+    const b = el('<button class="btn mini">登录 / 注册</button>');
+    b.onclick = () => authOpen("login");
+    box.appendChild(b);
+  }
+}
+
+// 后端 detail → 中文文案
+const AUTH_ERR_CN = {
+  username_taken: "用户名已被占用，换一个试试",
+  invalid_credentials: "用户名或密码错误",
+  invalid_username_or_password: "用户名或密码格式不合规（用户名 2–30 字符，密码至少 6 位）",
+};
+function authErrMsg(err) {
+  if (err && err.status === 0) return "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）";
+  const d = err && err.detail;
+  if (typeof d === "string" && AUTH_ERR_CN[d]) return AUTH_ERR_CN[d];
+  return "HTTP " + ((err && err.status) || "?") + "：" + detailText(d);
+}
+
+let authMode = "login"; // login | register
+function authErr(msg) {
+  const e = document.getElementById("authErr");
+  e.textContent = msg || "";
+  e.style.display = msg ? "block" : "none";
+}
+function authModeRender() {
+  const login = authMode === "login";
+  document.getElementById("authTitle").textContent = login ? "🔑 登录" : "🆕 注册";
+  document.getElementById("authGo").textContent = login ? "登录" : "注册";
+  document.getElementById("authSwitch").textContent = login ? "没有账号？去注册 →" : "已有账号？去登录 →";
+  document.getElementById("authPass").autocomplete = login ? "current-password" : "new-password";
+}
+function authOpen(mode) {
+  authMode = mode;
+  authErr("");
+  document.getElementById("authUser").value = "";
+  document.getElementById("authPass").value = "";
+  authModeRender();
+  document.getElementById("authModal").style.display = "flex";
+  document.getElementById("authUser").focus();
+}
+function authClose() { document.getElementById("authModal").style.display = "none"; }
+
+// 前端轻校验不过不发请求；成功后存 token、关弹层、刷身份区、重拉行程列表（账号全量）
+async function authSubmit() {
+  const u = document.getElementById("authUser").value.trim();
+  const p = document.getElementById("authPass").value;
+  if (u.length < 2 || u.length > 30) { authErr("用户名需 2–30 个字符"); return; }
+  if (p.length < 6) { authErr("密码至少 6 位"); return; }
+  authErr("");
+  try {
+    const r = await api("/api/v1/auth/" + (authMode === "login" ? "login" : "register"), { username: u, password: p });
+    localStorage.setItem("chinatrip_token", r.token);
+    AUTH.user = r.username || u;
+    authClose();
+    authRender();
+    toast((authMode === "login" ? "已登录：" : "注册成功，已登录：") + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+    itinSavedLoad(); // 带 token 重拉：返回账号名下全部行程（跨设备）
+  } catch (err) {
+    authErr(authErrMsg(err));
+  }
+}
+
+async function authLogout() {
+  try { await api("/api/v1/auth/logout", undefined, "POST"); } catch (err) { /* 服务端失败也继续本地退出 */ }
+  localStorage.removeItem("chinatrip_token");
+  AUTH.user = null;
+  authRender();
+  toast("已退出登录：行程恢复按本设备 ID 显示");
+  itinSavedLoad();
+}
+
+// 页面加载：有存量 token 则 /me 探活——200 显示用户名，401 清 token 按未登录渲染
+async function authBoot() {
+  const tk = localStorage.getItem("chinatrip_token");
+  if (tk) {
+    try {
+      const me = await api("/api/v1/auth/me", undefined, "GET");
+      AUTH.user = me && me.username ? me.username : null;
+    } catch (err) {
+      if (err && err.status === 401) localStorage.removeItem("chinatrip_token");
+      // 其他失败（网络错等）：保留 token 待下次探活，本页按未登录渲染
+      AUTH.user = null;
+    }
+  }
+  authRender();
+}
+
+document.getElementById("authClose").onclick = authClose;
+document.getElementById("authSwitch").onclick = () => {
+  authMode = authMode === "login" ? "register" : "login";
+  authErr("");
+  authModeRender();
+};
+document.getElementById("authGo").onclick = (e) => busy(e.target, authSubmit);
+document.getElementById("authModal").addEventListener("pointerdown", e => {
+  if (e.target.id === "authModal") authClose();
+});
+["authUser", "authPass"].forEach(id => {
+  document.getElementById(id).addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const b = document.getElementById("authGo");
+      if (!b.disabled) busy(b, authSubmit);
+    }
+  });
+});
+authBoot();
 
 /* ================= 消息流渲染 ================= */
 
