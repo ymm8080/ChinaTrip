@@ -145,6 +145,9 @@
   .composer textarea{
     flex:1;resize:none;min-height:40px;max-height:120px;padding:9px 10px;border-radius:10px;
   }
+  /* 规划输入框恒白底（深色主题下也保持白，用户要求） */
+  .composer textarea#planInput{background:#ffffff;color:#1c232b;border-color:#c9d1da}
+  .composer textarea#planInput::placeholder{color:#8a94a3}
   .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
   .dirbar .chip{padding:3px 10px;font-size:12px}
   .t9n-wrap{display:flex;flex-direction:column;gap:6px}
@@ -365,7 +368,7 @@
           <span class="muted" id="planStateTag"></span>
         </div>
         <div class="composer">
-          <textarea id="planInput" placeholder="开始规划后，在这里继续对话，例如：把第二天换成胡同游"></textarea>
+          <textarea id="planInput" placeholder="直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆"></textarea>
           <button class="btn" id="planSend">发送</button>
         </div>
       </div>
@@ -997,8 +1000,7 @@ function planSetSession(s) {
   planSession = s;
   document.getElementById("planSetup").style.display = s ? "none" : "flex";
   document.getElementById("planResetBar").style.display = s ? "flex" : "none";
-  document.getElementById("planInput").disabled = !s;
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "先点上方「开始规划」开始";
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "直接输入需求即开始规划，例如：从北京到上海 6 天，喜欢博物馆";
   document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
 }
 
@@ -1044,9 +1046,10 @@ function planRenderSafe(holder, body, opts) {
   }
 }
 
-document.getElementById("planStart").onclick = (e) => busy(e.target, async () => {
+// extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
+async function planStartCore(extraPref) {
   const cities = planCitiesAll();
-  const prefs = document.getElementById("planPref").value.trim();
+  const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
   addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
@@ -1057,18 +1060,24 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, async () =>
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
   } catch (err) {
+    if (extraPref) document.getElementById("planInput").value = extraPref; // 失败把输入框的话放回去，不用重打
     holder.textContent = "❌ 规划失败：" + detailText(err.detail);
     failToast(err);
   }
   holder.parentElement.scrollIntoView({ block: "end" });
   document.getElementById("flow-plan").scrollTop = 1e9;
-});
+}
+document.getElementById("planStart").onclick = (e) => busy(e.target, () => planStartCore(""));
 
 async function planSend() {
-  if (!planSession) { toast("先点「开始规划」创建会话"); return; }
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
+  if (!planSession) { // 先输入后规划：无会话时发送 = 以输入内容为需求直接开始规划
+    input.value = "";
+    await planStartCore(text);
+    return;
+  }
   input.value = "";
   addMsg("flow-plan", "user", text);
   const holder = addMsg("flow-plan", "sys", "⏳ 思考中…");
@@ -2691,7 +2700,7 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "选城市（可不选）和天数后点「🚀 开始规划」；信息不全时我会追问。拿到初版行程后，直接在下方输入框继续对话修改（可多轮）。");
+addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从北京到上海 6 天，喜欢博物馆）回车即开始规划；也可在上方选城市/天数/偏好后点「🚀 开始规划」。信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-itin", "sys", "先「创建行程」，然后依次试：加一天景点（看版本号变化 + validation）、冻结快照 ×4（第 4 次会触发 402 免费额度已用完）、恢复快照。");
 addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
