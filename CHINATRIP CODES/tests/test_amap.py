@@ -621,10 +621,8 @@ def test_distance_parses_walking_results():
         "infocode": "10000",
         "count": "2",
         "results": [
-            {"origin_id": "1", "dest_id": "1",
-             "distance": "1234", "duration": "900"},
-            {"origin_id": "2", "dest_id": "1",
-             "distance": "0", "duration": "0"},
+            {"origin_id": "1", "dest_id": "1", "distance": "1234", "duration": "900"},
+            {"origin_id": "2", "dest_id": "1", "distance": "0", "duration": "0"},
         ],
     }
 
@@ -635,9 +633,7 @@ def test_distance_parses_walking_results():
         return httpx.Response(200, json=body)
 
     out = asyncio.run(
-        make_client(handler).distance(
-            ["116.4,39.9", "116.5,39.9"], "116.6,39.9"
-        )
+        make_client(handler).distance(["116.4,39.9", "116.5,39.9"], "116.6,39.9")
     )
     assert out == [
         {"distance_m": 1234, "duration_s": 900},

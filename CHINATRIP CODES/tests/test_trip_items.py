@@ -112,6 +112,7 @@ def test_create_requires_name():
         )
         assert resp.status_code == 422
 
+
 def test_create_carries_address_and_opening_hours():
     """v2.4.3: the trip center keeps the plan's display fields."""
     with TestClient(make_app()) as client:
