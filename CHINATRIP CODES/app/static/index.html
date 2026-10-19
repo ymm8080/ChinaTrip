@@ -1008,7 +1008,32 @@ function planSetSession(s) {
 function planRenderReply(holder, body, opts) {
   holder.textContent = "";
   if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
-  if (body.state === "clarify" && (body.clarify || []).length) {
+  if (body.state === "site_confirm" && (body.sites || []).length) {
+    // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
+    holder.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」（不点=可选），然后确认：</div>"));
+    const row = el('<div class="chips"></div>');
+    const must = new Set();
+    body.sites.forEach(s => {
+      const b = el('<button class="chip">' + esc(s) + "</button>");
+      b.onclick = () => {
+        if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }
+        else { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+      };
+      row.appendChild(b);
+    });
+    holder.appendChild(row);
+    const row2 = el('<div class="chips"></div>');
+    const ok = el('<button class="chip">✅ 确认</button>');
+    ok.onclick = () => {
+      const mand = body.sites.filter(s => must.has(s));
+      const opt = body.sites.filter(s => !must.has(s));
+      document.getElementById("planInput").value = "必去：" + (mand.join("、") || "无") + "；可选：" + opt.join("、");
+      planSend();
+    };
+    row2.appendChild(ok);
+    holder.appendChild(row2);
+    if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
+  } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
     if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {

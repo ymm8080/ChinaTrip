@@ -44,6 +44,29 @@ _BROWSER_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
+# Anti-bot fallback: bilibili/douyin risk-control (HTTP 412) the desktop
+# UA but bilibili serves full og: meta to the m-site for a phone UA.
+_MOBILE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+        "Mobile/15E148 Safari/604.1"
+    ),
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+}
+_MOBILE_HOST_REWRITES = {"www.bilibili.com": "m.bilibili.com"}
+
+_VIDEO_SHELL_HOSTS = (
+    "douyin.com",
+    "bilibili.com",
+    # WeChat Channels (视频号): share links live on channels.weixin.qq.com /
+    # channels.qq.com. Bare weixin.qq.com stays out — mp.weixin.qq.com
+    # articles are server-rendered and keep the generic body-text branch.
+    "channels.weixin.qq.com",
+    "channels.qq.com",
+)
+
 _META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.I)
 _ATTR_RE = re.compile(r"([\w:-]+)\s*=\s*[\"']([^\"']*)[\"']")
 _SCRIPT_STYLE_RE = re.compile(r"<(script|style)\b.*?</\1\s*>", re.I | re.S)
@@ -130,13 +153,24 @@ def _extract(url: str, page_html: str) -> LinkDigest:
     is_note_shell = any(
         h in lowered_host for h in ("xiaohongshu.com", "xhslink.com", "instagram.com")
     )
-    if is_note_shell:
-        # Note/post pages are JS shells: the readable body lives in the
+    is_video_shell = any(h in lowered_host for h in _VIDEO_SHELL_HOSTS)
+    if is_note_shell or is_video_shell:
+        # Note/video pages are JS shells: the readable body lives in the
         # embedded state JSON / og:description (IG captions arrive as
-        # og:description), not in the tag-stripped markup.
-        text = _json_string_field(page_html, "desc") or og_desc
+        # og:description), not in the tag-stripped markup. Video captions
+        # on douyin/bilibili arrive the same way (_ROUTER_DATA /
+        # __INITIAL_STATE__), and the keywords meta carries the place tags.
+        text = (
+            _json_string_field(page_html, "desc")
+            or _json_string_field(page_html, "description")
+            or og_desc
+        )
         if not title:
             title = _json_string_field(page_html, "title")
+        if is_video_shell:
+            keywords = metas.get("keywords", "")
+            if keywords and keywords not in text:
+                text = f"{text} {keywords}".strip()
     else:
         # Content pages: the article body beats the og summary; JS shells
         # without a note branch still win via a longer og:description.
@@ -146,6 +180,15 @@ def _extract(url: str, page_html: str) -> LinkDigest:
     if not text:
         return LinkDigest(url=url, title=title, error="未能从页面提取到正文")
     return LinkDigest(url=url, title=title, text=text)
+
+
+def _mobile_variant(url: str) -> str:
+    """Same URL with a known anti-bot host swapped for its m-site."""
+    host = urlparse(url).hostname or ""
+    target = _MOBILE_HOST_REWRITES.get(host)
+    if target is None:
+        return url
+    return url.replace(f"://{host}", f"://{target}", 1)
 
 
 class HttpLinkReader:
@@ -172,6 +215,10 @@ class HttpLinkReader:
                 resp = await client.get(url)
         except httpx.HTTPError as exc:
             return LinkDigest(url=url, error=f"网络错误 {type(exc).__name__}")
+        if resp.status_code == 412:
+            digest = await self._retry_mobile(str(resp.url))
+            if digest is not None:
+                return digest
         if resp.status_code != 200:
             return LinkDigest(url=url, error=f"HTTP {resp.status_code}")
         content_type = resp.headers.get("content-type", "")
@@ -180,6 +227,30 @@ class HttpLinkReader:
         if len(resp.text) > MAX_HTML_CHARS:
             return LinkDigest(url=url, error="页面过大")
         return _extract(str(resp.url), resp.text)
+
+    async def _retry_mobile(self, final_url: str) -> LinkDigest | None:
+        """One phone-UA retry against the m-site; None = stay with the
+        original error so callers degrade exactly as before."""
+        retry_url = _mobile_variant(final_url)
+        try:
+            async with httpx.AsyncClient(
+                follow_redirects=True,
+                timeout=FETCH_TIMEOUT_SECONDS,
+                headers=_MOBILE_HEADERS,
+                transport=self.transport,
+            ) as client:
+                resp = await client.get(retry_url)
+        except httpx.HTTPError:
+            return None
+        if resp.status_code != 200:
+            return None
+        content_type = resp.headers.get("content-type", "")
+        if not any(t in content_type for t in ("html", "text", "json")):
+            return None
+        if len(resp.text) > MAX_HTML_CHARS:
+            return None
+        digest = _extract(str(resp.url), resp.text)
+        return digest if digest.ok else None
 
 
 def format_digest_block(digests: list[LinkDigest]) -> str | None:

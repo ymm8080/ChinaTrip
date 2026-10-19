@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.itineraries import get_store
+from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.services.agent.plan import (
     PlanningAgent,
@@ -73,6 +74,7 @@ def get_planning_agent(
             amap_client=amap,
             train_service=get_train_service(settings),
             time_budget_seconds=settings.solver_time_budget_seconds,
+            trip_items=get_trip_item_service(),
         )
     return _agent_singleton
 
@@ -137,6 +139,12 @@ async def start_plan(
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
         return body
+    if session.state == "site_confirm":
+        body["sites"] = session.pending_sites
+        if session.history and session.history[-1].role == "assistant":
+            body["reply"] = session.history[-1].content
+        body["clarify"] = clarify_questions(session)
+        return body
     body["plan"] = session.plan
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
@@ -165,6 +173,8 @@ async def message_plan(
     store.save(session)
     _persist_plan(x_device_id, session, itinerary_store)
     body: dict = {"reply": reply, "state": session.state}
+    if session.state == "site_confirm":
+        body["sites"] = session.pending_sites
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:

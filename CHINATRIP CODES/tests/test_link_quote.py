@@ -166,6 +166,118 @@ def test_read_instagram_post_caption_from_og_meta():
     assert "webpackChunk" not in digest.text
 
 
+def test_read_douyin_video_caption_from_router_data():
+    page = (
+        '<html><head><meta property="og:title" content="南京两日游">'
+        '<meta name="keywords" content="南京旅游,总统府,夫子庙,老门东">'
+        "</head><body><script>window._ROUTER_DATA="
+        '{"loaderData":{"video_page":{"desc":"这趟南京去了总统府和老门东，'
+        '夫子庙晚上去更好看"}}}</script><div>首页 推荐 关注 登录</div></body></html>'
+    )
+    reader = HttpLinkReader(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=page))
+    )
+    digest = run(reader.read("https://www.douyin.com/video/738900123456789"))
+    assert digest.ok
+    assert digest.title == "南京两日游"
+    assert "总统府和老门东" in digest.text
+    assert "夫子庙" in digest.text  # keywords meta appended
+    assert "首页" not in digest.text
+
+
+def test_read_b23_redirect_uses_video_shell_extraction():
+    bili_page = (
+        '<html><head><meta property="og:title" content="厦门vlog">'
+        '<meta property="og:description" content="厦门鼓浪屿环岛一日">'
+        '<meta name="keywords" content="厦门,鼓浪屿,旅行">'
+        "</head><body><script>window.__INITIAL_STATE__="
+        '{"videoData":{"desc":"鼓浪屿钢琴码头与日光岩，日落回程"}}'
+        "</script><div>番剧 电影 直播</div></body></html>"
+    )
+
+    def handler(request):
+        if "b23.tv" in str(request.url):
+            return httpx.Response(
+                302, headers={"Location": "https://www.bilibili.com/video/BV1xx411"}
+            )
+        return httpx.Response(200, text=bili_page)
+
+    digest = run(
+        HttpLinkReader(transport=httpx.MockTransport(handler)).read(
+            "https://b23.tv/abc123"
+        )
+    )
+    assert digest.ok
+    assert digest.title == "厦门vlog"
+    assert "日光岩" in digest.text
+    assert "鼓浪屿,旅行" in digest.text  # keywords appended once, no dup wording
+    assert "番剧" not in digest.text
+
+
+def test_read_wechat_channels_video_from_description_field():
+    # 视频号 share pages embed the caption under "description" (not "desc")
+    # in the router-state JSON; host is channels.weixin.qq.com.
+    page = (
+        '<html><head><meta property="og:title" content="西安两日游">'
+        '<meta name="keywords" content="西安旅游,兵马俑,回民街,大唐不夜城">'
+        "</head><body><script>window.__ROUTER_DATA__="
+        '{"finderFeed":{"object":{"description":"西安去了兵马俑和回民街，'
+        '晚上大唐不夜城一定要去"}}}</script>'
+        "<div>微信 视频号 登录</div></body></html>"
+    )
+    reader = HttpLinkReader(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=page))
+    )
+    digest = run(
+        reader.read("https://channels.weixin.qq.com/web-shortcut/abc123")
+    )
+    assert digest.ok
+    assert digest.title == "西安两日游"
+    assert "兵马俑和回民街" in digest.text
+    assert "大唐不夜城" in digest.text  # keywords appended
+    assert "视频号" not in digest.text
+
+
+def test_read_bilibili_412_retries_mobile_m_site():
+    # www risk-controls the desktop UA (412); the retry hits m.bilibili.com
+    # with a phone UA and gets the og: meta shell.
+    m_page = (
+        '<html><head><meta property="og:title" content="南京两日游">'
+        '<meta property="og:description" content="去了总统府和夫子庙，'
+        '老门东晚上逛">'
+        "</head><body><script>var a = 1;</script><div>首页 热门</div></body></html>"
+    )
+
+    def handler(request):
+        url = str(request.url)
+        if url.startswith("https://m.bilibili.com/"):
+            return httpx.Response(200, text=m_page)
+        return httpx.Response(412, text="risk control")
+
+    digest = run(
+        HttpLinkReader(transport=httpx.MockTransport(handler)).read(
+            "https://www.bilibili.com/video/BV1f9fKYTEAe"
+        )
+    )
+    assert digest.ok
+    assert digest.title == "南京两日游"
+    assert "总统府和夫子庙" in digest.text
+    assert "首页" not in digest.text
+
+
+def test_read_412_without_mobile_rescue_keeps_error():
+    def handler(request):
+        return httpx.Response(412, text="risk control")
+
+    digest = run(
+        HttpLinkReader(transport=httpx.MockTransport(handler)).read(
+            "https://example.com/video/1"
+        )
+    )
+    assert not digest.ok
+    assert digest.error == "HTTP 412"
+
+
 def test_read_generic_js_shell_prefers_og_description():
     page = (
         '<html><head><meta property="og:description" content='
@@ -330,7 +442,9 @@ def _ready_session(agent):
 
 def test_agent_injects_link_digest_after_user_message():
     reader = StubReader(LinkDigest(url="https://x/1", title="路线", text="颐和园清晨"))
-    llm, agent = _ready_agent(reader)
+    # v0 + site-extraction round (empty: nothing to ask) + the edit turn.
+    llm = RecordingLLM([_v0_reply(), json.dumps({"sites": []}), _edit_reply()])
+    agent = PlanningAgent(llm, amap_client=StubAmap(), link_reader=reader)
     session = _ready_session(agent)
     assert llm.calls == 1
 
