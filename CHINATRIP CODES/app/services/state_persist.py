@@ -3,11 +3,17 @@
 
 ``PlanSessionStore`` and ``InMemoryItineraryStore`` are plain dicts, so
 every uvicorn relaunch (the dev workflow restarts on each code change)
-wiped in-flight planning sessions and saved itineraries — surfacing as
+wiped in-flight planning sessions and saved itineraries - surfacing as
 ``session_not_found`` 404s on follow-up messages and an empty H5 行程
 tab. This module keeps the dict as the hot path and adds: load-all on
 boot, one-row upsert/delete per mutation. A corrupt row is skipped with
-a warning — a poisoned row must never take the service down.
+a warning - a poisoned row must never take the service down.
+
+Accounts (2026-10-19): the ``accounts`` table gained an optional unique
+``email`` column plus two email-code tables (``email_codes`` holds the
+one pending code per (email, purpose); ``email_code_log`` counts sends
+for the hourly cap). Existing databases are migrated in-place via
+``ALTER TABLE`` on boot.
 """
 
 from __future__ import annotations
@@ -40,6 +46,21 @@ CREATE TABLE IF NOT EXISTS accounts (
     token_hash    TEXT UNIQUE,
     created_at    TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS email_codes (
+    email      TEXT NOT NULL,
+    purpose    TEXT NOT NULL,
+    code_hash  TEXT NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    issued_at  REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    PRIMARY KEY (email, purpose)
+);
+CREATE TABLE IF NOT EXISTS email_code_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    email     TEXT NOT NULL,
+    purpose   TEXT NOT NULL,
+    issued_at REAL NOT NULL
+);
 """
 
 
@@ -52,8 +73,22 @@ class SqliteStateBackend:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._conn.commit()
         self._lock = threading.Lock()
+
+    def _migrate(self) -> None:
+        """2026-10-19: accounts gained an optional unique email column
+        (email-code register / password reset). Existing databases get
+        it via ALTER TABLE; the partial unique index is created after
+        the column is guaranteed to exist."""
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(accounts)")}
+        if "email" not in cols:
+            self._conn.execute("ALTER TABLE accounts ADD COLUMN email TEXT")
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_email "
+            "ON accounts(email) WHERE email IS NOT NULL"
+        )
 
     def _load(self, table: str, key_col: str) -> dict[str, str]:
         rows = self._conn.execute(
@@ -92,14 +127,22 @@ class SqliteStateBackend:
     # --- accounts (custom username+password login) ---------------------------
 
     def save_account(
-        self, username: str, password_hash: str, token_hash: str, created_at: str
+        self,
+        username: str,
+        password_hash: str,
+        token_hash: str,
+        created_at: str,
+        email: str | None = None,
     ) -> None:
         with self._lock:
+            # Plain INSERT (not OR REPLACE): the email unique index must
+            # fail loudly instead of silently swallowing a conflicting
+            # row; callers check existence before creating.
             self._conn.execute(
-                "INSERT OR REPLACE INTO accounts "
-                "(username, password_hash, token_hash, created_at) "
-                "VALUES (?, ?, ?, ?)",
-                (username, password_hash, token_hash, created_at),
+                "INSERT INTO accounts "
+                "(username, password_hash, token_hash, created_at, email) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (username, password_hash, token_hash, created_at, email),
             )
             self._conn.commit()
 
@@ -109,6 +152,18 @@ class SqliteStateBackend:
             "SELECT password_hash, token_hash, created_at FROM accounts "
             "WHERE username = ?",
             (username,),
+        ).fetchone()
+        return tuple(row) if row else None
+
+    def get_account_by_email(
+        self, email: str
+    ) -> tuple[str, str, str | None, str] | None:
+        """Row as ``(username, password_hash, token_hash, created_at)``
+        or None. NULL emails never match."""
+        row = self._conn.execute(
+            "SELECT username, password_hash, token_hash, created_at "
+            "FROM accounts WHERE email = ?",
+            (email,),
         ).fetchone()
         return tuple(row) if row else None
 
@@ -126,11 +181,95 @@ class SqliteStateBackend:
             )
             self._conn.commit()
 
+    def update_account_password(self, username: str, password_hash: str) -> None:
+        """Store the new hash and drop the session token (a password
+        reset invalidates every active session of the account)."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE accounts SET password_hash = ?, token_hash = NULL "
+                "WHERE username = ?",
+                (password_hash, username),
+            )
+            self._conn.commit()
+
     def clear_account_token(self, token_hash: str) -> None:
         with self._lock:
             self._conn.execute(
                 "UPDATE accounts SET token_hash = NULL WHERE token_hash = ?",
                 (token_hash,),
+            )
+            self._conn.commit()
+
+    # --- email verification codes (register / password reset) ----------------
+
+    def upsert_email_code(
+        self,
+        email: str,
+        purpose: str,
+        code_hash: str,
+        issued_at: float,
+        expires_at: float,
+    ) -> None:
+        """One pending code per (email, purpose); a resend replaces it
+        and resets the attempt counter."""
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO email_codes "
+                "(email, purpose, code_hash, attempts, issued_at, expires_at) "
+                "VALUES (?, ?, ?, 0, ?, ?)",
+                (email, purpose, code_hash, issued_at, expires_at),
+            )
+            self._conn.commit()
+
+    def get_email_code(
+        self, email: str, purpose: str
+    ) -> tuple[str, int, float, float] | None:
+        """Row as ``(code_hash, attempts, issued_at, expires_at)`` or None."""
+        row = self._conn.execute(
+            "SELECT code_hash, attempts, issued_at, expires_at "
+            "FROM email_codes WHERE email = ? AND purpose = ?",
+            (email, purpose),
+        ).fetchone()
+        return tuple(row) if row else None
+
+    def bump_email_code_attempts(self, email: str, purpose: str) -> int:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE email_codes SET attempts = attempts + 1 "
+                "WHERE email = ? AND purpose = ?",
+                (email, purpose),
+            )
+            self._conn.commit()
+        row = self.get_email_code(email, purpose)
+        return row[1] if row else 0
+
+    def log_email_code(self, email: str, purpose: str, issued_at: float) -> None:
+        """Append to the send log (hourly-cap source) and prune entries
+        older than a day so the table stays tiny."""
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO email_code_log (email, purpose, issued_at) "
+                "VALUES (?, ?, ?)",
+                (email, purpose, issued_at),
+            )
+            self._conn.execute(
+                "DELETE FROM email_code_log WHERE issued_at < ?",
+                (issued_at - 86_400.0,),
+            )
+            self._conn.commit()
+
+    def count_email_code_log_since(self, email: str, since: float) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM email_code_log WHERE email = ? AND issued_at >= ?",
+            (email, since),
+        ).fetchone()
+        return int(row[0])
+
+    def delete_email_code(self, email: str, purpose: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM email_codes WHERE email = ? AND purpose = ?",
+                (email, purpose),
             )
             self._conn.commit()
 

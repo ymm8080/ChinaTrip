@@ -21,6 +21,7 @@ from app.services.itinerary_store import (
     ItineraryStore,
     QuotaExceededError,
 )
+from app.services.mailer import get_mailer
 from app.services.state_persist import (
     PersistentItineraryStore,
     db_path_from_url,
@@ -88,6 +89,7 @@ def get_account_service() -> AccountService:
         _account_service_singleton = AccountService(
             get_state_backend(db_path_from_url(get_settings().state_db_url)),
             get_store(),
+            mailer=get_mailer(),
         )
     return _account_service_singleton
 

@@ -67,6 +67,16 @@ class Settings(BaseSettings):
     translate_max_chars: int = 2_000
     translate_phrase_cache_max_entries: int = 4_096
 
+    # SMTP for email verification codes (app/services/mailer.py). All
+    # optional; empty smtp_host = dev mode: no mail is sent, the code is
+    # echoed in a WARNING log + API response so registration works locally.
+    # Port 465 = implicit SSL, anything else (587) = STARTTLS.
+    smtp_host: str = ""
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""  # envelope From; defaults to smtp_user
+
     # Deployment region, stamped onto every usage-log line (v1.7 §3 prebuild
     # for the Phase-2 overseas amap-via-CN-proxy path; scene follows there).
     region: str = "CN"
