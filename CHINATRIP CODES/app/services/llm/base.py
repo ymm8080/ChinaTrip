@@ -51,14 +51,35 @@ def strip_code_fences(content: str) -> str:
 
 
 def parse_json_content(content: str) -> dict:
-    """Parse a JSON object out of an LLM reply (tolerates code fences).
+    """Parse a JSON object out of an LLM reply.
 
-    Raises ValueError when the reply is not a JSON object.
+    Tolerates code fences and prose around the object: glm flash narrates
+    a friendly sentence before emitting the required JSON (production
+    2026-10-19), which made plain json.loads fail at char 0.
+
+    Raises ValueError when the reply contains no JSON object.
     """
-    raw = json.loads(strip_code_fences(content))
+    text = strip_code_fences(content)
+    try:
+        raw = json.loads(text)
+    except ValueError:
+        raw = _first_json_object(text)
     if not isinstance(raw, dict):
         raise ValueError("not a json object")
     return raw
+
+
+def _first_json_object(text: str) -> object:
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text, idx)
+        except ValueError:
+            continue
+        return obj
+    raise ValueError("no json object in reply")
 
 
 class LLMAdapter(Protocol):

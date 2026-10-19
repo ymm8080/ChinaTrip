@@ -1,7 +1,5 @@
 """Zhipu GLM cloud adapter (OpenAI-compatible chat/completions, httpx only)."""
 
-import json
-
 import httpx
 
 from app.services.llm.base import (
@@ -9,6 +7,7 @@ from app.services.llm.base import (
     ChatResult,
     ExtractResult,
     POICandidate,
+    parse_json_content,
 )
 
 _SYSTEM_PROMPT = (
@@ -32,16 +31,6 @@ def _int_or_zero(value: object) -> int:
         return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0
-
-
-def _strip_code_fences(content: str) -> str:
-    text = content.strip()
-    if text.startswith("```"):
-        newline = text.find("\n")
-        text = text[newline + 1 :] if newline != -1 else ""
-        if text.endswith("```"):
-            text = text[:-3]
-    return text.strip()
 
 
 class ZhipuGLMAdapter:
@@ -149,7 +138,7 @@ class ZhipuGLMAdapter:
         if not isinstance(content, str):
             raise LLMError("zhipu malformed response shape")
         try:
-            raw = json.loads(_strip_code_fences(content))
+            raw = parse_json_content(content)
         except (TypeError, ValueError) as exc:
             raise LLMError("zhipu invalid json content") from exc
         if not isinstance(raw, dict):
