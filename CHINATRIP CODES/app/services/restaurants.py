@@ -62,6 +62,8 @@ class RestaurantCandidate(BaseModel):
     name: str
     poi_id: str | None = None
     location: GeoPoint | None = None
+    address: str | None = None
+    opening_hours: str | None = None
     walk_minutes: int | None = None  # to the search anchor, if provided
     detour_score: float = 0.0  # km to nearest route point; smaller = better
     rating: float | None = None  # amap extension field, often missing
@@ -137,6 +139,8 @@ async def search_restaurants(
                 name=name,
                 poi_id=poi.get("source_poi_id"),
                 location=location,
+                address=poi.get("address"),
+                opening_hours=poi.get("opening_hours"),
                 walk_minutes=walk_minutes,
                 rating=_as_float(poi.get("rating")),
                 biz_type=poi.get("category"),
@@ -239,6 +243,8 @@ def build_food_item(
         category="food",
         city=city,
         location=candidate.location,
+        address=candidate.address,
+        opening_hours=candidate.opening_hours,
         day=day,
         start_time=_time_of(mid),
         end_time=_time_of(mid + MEAL_DURATION_MINUTES),

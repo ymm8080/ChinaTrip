@@ -336,36 +336,45 @@
 
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
-      <div class="toolbar" id="planSetup">
-        <label class="fld">城市（首=出发地，末=目的地）
-          <span class="chips" id="planCities">
-            <button class="chip" data-city="北京">北京</button>
-            <button class="chip" data-city="上海">上海</button>
-            <button class="chip" data-city="杭州">杭州</button>
-            <button class="chip" data-city="苏州">苏州</button>
-            <button class="chip" data-city="西安">西安</button>
-            <button class="chip" data-city="成都">成都</button>
-            <button class="chip" data-city="重庆">重庆</button>
-            <button class="chip" data-city="厦门">厦门</button>
-            <button class="chip" data-city="三亚">三亚</button>
-            <button class="chip" data-city="哈尔滨">哈尔滨</button>
+      <div class="toolbar" id="planSetup" style="flex-wrap:wrap">
+        <label class="fld">起始城市
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planStartCity"></select>
+            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算">
           </span>
         </label>
-        <input type="text" id="planCityInput" placeholder="出发地、途经、目的地，用、分隔" style="width:180px">
+        <label class="fld">中间城市1
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia1"></select>
+            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">中间城市2
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia2"></select>
+            <input type="number" id="planVia2Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">中间城市3
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia3"></select>
+            <input type="number" id="planVia3Days" min="1" max="30" value="1" style="width:3.2em">天
+          </span>
+        </label>
+        <label class="fld">结束城市
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planEndCity"></select>
+            <input type="number" id="planEndDays" min="1" max="30" value="6" style="width:3.2em">天
+          </span>
+        </label>
         <span class="sep"></span>
         <label class="fld">开始日期
           <input type="date" id="planStartDate">
         </label>
-        <label class="fld">天数
-          <span class="stepper">
-            <button id="daysMinus" type="button">−</button>
-            <b id="daysVal">6</b>
-            <button id="daysPlus" type="button">＋</button>
-          </span>
-        </label>
         <label class="fld grow">偏好
           <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
         </label>
+        <span class="fld">合计 <b id="planDaysTotal">6</b> 天</span>
         <button class="btn" id="planStart">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
@@ -483,6 +492,7 @@
         <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
         <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
         <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
+        <label class="fld">营业时间 <input type="text" id="tcHours" placeholder="可选"></label>
         <button class="btn" id="tcAdd">➕ 加心愿</button>
         <span class="sep"></span>
         <button class="btn plain" id="tcRefresh">🔄 刷新看板</button>
@@ -1044,6 +1054,14 @@ function planCard(plan) {
       } else { // VisitItem
         const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
+        const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
+        if (typeof it.distance_to_next_km === "number") {
+          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" +
+            (it.next_walk_minutes != null ? " · 步行约 " + it.next_walk_minutes + " 分钟" : "") +
+            (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
+          box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(leg) + "</div>"));
+        }
+        if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
       }
     });
     if (!d.items || !d.items.length) box.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
@@ -1105,16 +1123,50 @@ document.querySelectorAll(".nav-item").forEach(btn => {
 
 /* ================= Tab 1：规划 ================= */
 
-const planCities = new Set();
-let planDays = 6;
+// 城市五控件：起始/中间1-3/结束下拉 + 每城天数；[中文, 英文] 与后端 KNOWN_CITIES/CITY_ALIASES 保持一致
+const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangzhou"],["苏州","Suzhou"],["南京","Nanjing"],["西安","Xi'an"],["成都","Chengdu"],["重庆","Chongqing"],["广州","Guangzhou"],["深圳","Shenzhen"],["天津","Tianjin"],["武汉","Wuhan"],["长沙","Changsha"],["厦门","Xiamen"],["青岛","Qingdao"],["大连","Dalian"],["三亚","Sanya"],["丽江","Lijiang"],["桂林","Guilin"],["洛阳","Luoyang"],["敦煌","Dunhuang"],["兰州","Lanzhou"],["拉萨","Lhasa"],["昆明","Kunming"],["大理","Dali"],["张家界","Zhangjiajie"],["黄山","Huangshan"],["无锡","Wuxi"],["绍兴","Shaoxing"],["嘉兴","Jiaxing"],["舟山","Zhoushan"],["哈尔滨","Harbin"],["沈阳","Shenyang"],["长春","Changchun"],["郑州","Zhengzhou"],["济南","Jinan"],["福州","Fuzhou"],["泉州","Quanzhou"],["威海","Weihai"],["珠海","Zhuhai"]];
 const PLAN = { startDate: "" };
 
-// chips 选择 ∪ 自由输入（顿号/逗号/空格分隔），去重保序
-function planCitiesAll() {
-  const extra = (document.getElementById("planCityInput").value || "")
-    .split(/[、,，;；\s]+/).map(s => s.trim()).filter(Boolean);
-  return [...new Set([...planCities, ...extra])];
+// 路线 = 起始 → 中间1-3（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
+// （起始城市只排出发交通不排活动，其天数框仅占位不参与计算）
+function planRouteForm() {
+  const start = document.getElementById("planStartCity").value;
+  const end = document.getElementById("planEndCity").value;
+  const num = id => { const n = parseInt(document.getElementById(id).value, 10); return isNaN(n) ? 0 : n; };
+  const seen = new Set([start, end]);
+  const mids = [];
+  for (let i = 1; i <= 3; i++) {
+    const c = document.getElementById("planVia" + i).value;
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    mids.push({ city: c, days: Math.max(1, num("planVia" + i + "Days")) });
+  }
+  const endDays = Math.max(1, num("planEndDays"));
+  const cityDays = {};
+  mids.forEach(m => { cityDays[m.city] = m.days; });
+  cityDays[end] = endDays;
+  return {
+    cities: [start, ...mids.map(m => m.city), end],
+    cityDays,
+    total: mids.reduce((s, m) => s + m.days, 0) + endDays,
+  };
 }
+(function planCityInit() {
+  const opts = PLAN_CITIES.map(([c, en]) => '<option value="' + c + '">' + c + " " + en + "</option>").join("");
+  const viaOpts = '<option value="">（不经过）</option>' + opts;
+  const s = document.getElementById("planStartCity");
+  const e = document.getElementById("planEndCity");
+  s.innerHTML = opts; s.value = "北京";
+  e.innerHTML = opts; e.value = "上海";
+  const total = () => { document.getElementById("planDaysTotal").textContent = planRouteForm().total; };
+  ["planStartDays", "planEndDays", "planEndCity"].forEach(id => document.getElementById(id).addEventListener("change", total));
+  for (let i = 1; i <= 3; i++) {
+    const sel = document.getElementById("planVia" + i);
+    sel.innerHTML = viaOpts;
+    [sel, document.getElementById("planVia" + i + "Days")].forEach(x => x.addEventListener("change", total));
+  }
+  total();
+})();
 // 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
 function planDateIso(n) {
   if (!PLAN.startDate) return "";
@@ -1124,16 +1176,6 @@ function planDateIso(n) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 let planSession = null; // {session_id, state}
-
-document.querySelectorAll("#planCities .chip").forEach(c => {
-  c.addEventListener("click", () => {
-    c.classList.toggle("on");
-    if (c.classList.contains("on")) planCities.add(c.dataset.city);
-    else planCities.delete(c.dataset.city);
-  });
-});
-document.getElementById("daysMinus").onclick = () => { if (planDays > 1) { planDays--; document.getElementById("daysVal").textContent = planDays; } };
-document.getElementById("daysPlus").onclick = () => { if (planDays < 30) { planDays++; document.getElementById("daysVal").textContent = planDays; } };
 
 function planSetSession(s) {
   planSession = s;
@@ -1176,17 +1218,59 @@ function planRenderReply(holder, body, opts) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
     if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+      // 多选累积，一次提交：点选不逐条发消息，攒够偏好再开始规划
+      holder.appendChild(frag("<div class='muted'>可多选，选好点确认，一次提交：</div>"));
       const row = el('<div class="chips"></div>');
-      ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"].forEach(p => {
+      const picked = new Set();
+      const PREFS = ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"];
+      PREFS.forEach(p => {
         const b = el('<button class="chip">' + p + "</button>");
-        b.onclick = () => { document.getElementById("planInput").value = p; planSend(); };
+        b.onclick = () => {
+          if (picked.has(p)) { picked.delete(p); b.style.background = ""; b.style.color = ""; }
+          else { picked.add(p); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+        };
         row.appendChild(b);
       });
       holder.appendChild(row);
+      const row2 = el('<div class="chips"></div>');
+      const ok = el('<button class="chip">✅ 选好了，开始规划</button>');
+      ok.onclick = () => {
+        const sel = PREFS.filter(p => picked.has(p));
+        document.getElementById("planInput").value = "偏好：" + (sel.length ? sel.join("、") : "无特别要求");
+        planSend();
+      };
+      row2.appendChild(ok);
+      holder.appendChild(row2);
     } else if (opts && opts.first) {
       holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
     }
   } else {
+    if (body.state === "resto_confirm" && (body.restos || []).length) {
+      // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
+      holder.appendChild(frag("<div>这几家餐饮店离行程里的景点都超过 5 公里，点一下改为「不安排」（再点恢复），然后确认：</div>"));
+      const row = el('<div class="chips"></div>');
+      const skip = new Set();
+      body.restos.forEach(r => {
+        const b = el('<button class="chip">🍽 ' + esc(r.name) + "（最近约 " + (r.nearest_km == null ? "?" : r.nearest_km) + "km）</button>");
+        b.style.background = "#2563eb"; b.style.color = "#fff";
+        b.onclick = () => {
+          if (skip.has(r.name)) { skip.delete(r.name); b.style.background = "#2563eb"; b.style.color = "#fff"; }
+          else { skip.add(r.name); b.style.background = ""; b.style.color = ""; }
+        };
+        row.appendChild(b);
+      });
+      holder.appendChild(row);
+      const row2 = el('<div class="chips"></div>');
+      const ok = el('<button class="chip">✅ 确认</button>');
+      ok.onclick = () => {
+        const keep = body.restos.filter(r => !skip.has(r.name)).map(r => r.name);
+        const drop = body.restos.filter(r => skip.has(r.name)).map(r => r.name);
+        document.getElementById("planInput").value = "要安排：" + (keep.join("、") || "无") + "；不安排：" + (drop.join("、") || "无");
+        planSend();
+      };
+      row2.appendChild(ok);
+      holder.appendChild(row2);
+    }
     if (opts && opts.first) holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
     if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
     if (body.change) holder.appendChild(changeNode(body.change));
@@ -1212,14 +1296,14 @@ function planRenderSafe(holder, body, opts) {
 
 // extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
 async function planStartCore(extraPref) {
-  const cities = planCitiesAll();
+  const r = planRouteForm();
   const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
-  addMsg("flow-plan", "user", "开始规划：" + (cities.join("、") || "（城市未定）") + "，" + planDays + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
+  addMsg("flow-plan", "user", "开始规划：" + r.cities.join("→") + "，共 " + r.total + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
-    const body = await api("/api/v1/plan/start", { cities, days: planDays, preferences: prefs });
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities, days: planDays, preferences: prefs } }); // origin 供会话丢失后自动重建
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
@@ -2487,6 +2571,8 @@ function tcTile(item) {
     ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
   if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
   if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("　");
+  if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
   const ops = el('<div class="ops"></div>');
   const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
@@ -2560,16 +2646,19 @@ document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
   if (!name) { toast("心愿名必填"); return; }
   const city = document.getElementById("tcCity").value.trim();
   const note = document.getElementById("tcNote").value.trim();
+  const hours = document.getElementById("tcHours").value.trim();
   const itin = document.getElementById("tcItinId").value.trim();
   const body = { name, source: "manual" };
   if (city) body.city = city;
   if (note) body.note = note;
+  if (hours) body.opening_hours = hours;
   if (itin) body.itinerary_id = itin;
   try {
     await api("/api/v1/trip-items", body);
     document.getElementById("tcName").value = "";
     document.getElementById("tcCity").value = "";
     document.getElementById("tcNote").value = "";
+    document.getElementById("tcHours").value = "";
     toast("心愿已加入（status=wishlist）");
     await tcLoad();
   } catch (err) { failToast(err); }

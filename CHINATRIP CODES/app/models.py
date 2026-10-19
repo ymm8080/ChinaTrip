@@ -306,6 +306,9 @@ class TripItem(Base):
     )
     day: Mapped[int | None] = mapped_column(Integer)
     position: Mapped[float | None] = mapped_column(Float)
+    # v2.4.3: display fields kept from the plan (product rule 2026-10-19).
+    address: Mapped[str | None] = mapped_column(String(200))
+    opening_hours: Mapped[str | None] = mapped_column(String(200))
     booking_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("action_handoffs.id")
     )

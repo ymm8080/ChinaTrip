@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     glm_timeout_seconds: float = 60.0
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
+    # 视频链接理解（web_reader 视频壳）：GLM-4.6V-Flash 看画面（免费）+
+    # GLM-ASR 转写音轨（imageio-ffmpeg 自带二进制抽音轨，无需系统 ffmpeg）。
+    glm_model_vision: str = "glm-4.6v-flash"
+    video_vision_enabled: bool = True
 
     # Amap personal developer key. Server-side only - never reaches the client.
     amap_api_key: str = ""

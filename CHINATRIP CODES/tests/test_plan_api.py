@@ -12,7 +12,12 @@ from fastapi.testclient import TestClient
 from app.api.plan import get_plan_sessions, get_planning_agent
 from app.api.plan import router as plan_router
 from app.config import Settings, get_settings
-from app.services.agent.plan import PlanningAgent, PlanSessionStore
+from app.services.agent.plan import (
+    PlanningAgent,
+    PlanSessionStore,
+    _normalize_city,
+    _parse_cities,
+)
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 
@@ -22,25 +27,18 @@ V0_JSON = json.dumps(
     {
         "items": [
             {
-                "name": "外滩",
-                "city": "上海",
-                "category": "sight",
-                "day": 1,
-                "duration_minutes": 90,
-            },
-            {
-                "name": "豫园",
-                "city": "上海",
-                "category": "sight",
-                "day": 1,
-                "duration_minutes": 60,
-            },
-            {
                 "name": "西湖",
                 "city": "杭州",
                 "category": "sight",
-                "day": 2,
+                "day": 1,
                 "duration_minutes": 120,
+            },
+            {
+                "name": "雷峰塔",
+                "city": "杭州",
+                "category": "sight",
+                "day": 2,
+                "duration_minutes": 60,
             },
         ],
         "assumptions": [],
@@ -50,8 +48,8 @@ V0_JSON = json.dumps(
 
 EDIT_JSON = json.dumps(
     {
-        "reply": "已把豫园挪到第二天",
-        "diffs": [{"op": "move", "item_id": "v2", "new_day": 2}],
+        "reply": "已把雷峰塔挪到第三天",
+        "diffs": [{"op": "move", "item_id": "v2", "new_day": 3}],
         "need_clarification": [],
     },
     ensure_ascii=False,
@@ -111,19 +109,20 @@ def test_start_200_ready_with_plan_assumptions_and_violations():
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     resp = start(
         client_for(agent),
-        {"cities": ["上海", "杭州"], "days": 2, "preferences": "喜欢走路"},
+        {"cities": ["上海", "杭州"], "days": 3, "preferences": "喜欢走路"},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert body["state"] == "ready"
     assert body["session_id"]
-    assert len(body["plan"]["days"]) == 2
+    assert len(body["plan"]["days"]) == 3
     assert any("节奏" in a for a in body["assumptions"])
     assert isinstance(body["violations"], list)
     modes = [
         i.get("mode") for d in body["plan"]["days"] for i in d["items"] if "mode" in i
     ]
-    assert modes == ["train"]  # cross-city TransferItem via the train service
+    # 出发段（第1天）+ 返程段（第3天）都经车次服务成行 = 目的地数+1 段
+    assert modes == ["train", "train"]
 
 
 def test_start_200_clarify_when_info_missing():
@@ -165,21 +164,21 @@ def test_message_200_applies_diff_and_returns_change():
     client = client_for(agent)
     session_id = start(
         client,
-        {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"},
+        {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"},
     ).json()["session_id"]
-    resp = message(client, session_id, "把豫园挪到第二天")
+    resp = message(client, session_id, "把雷峰塔挪到第三天")
     assert resp.status_code == 200
     body = resp.json()
     assert body["state"] == "ready"
-    assert "豫园" in body["reply"]
+    assert "雷峰塔" in body["reply"]
     assert body["change"]["affected_items_count"] == 1
-    # Day 2 is the 上海→杭州 transfer day with no morning slot before the
-    # 07:15 train (minus 90min buffer), so the Shanghai POI is reconciled
-    # back to day 1 with an assumption note instead of stranding it.
-    day1 = [i for i in body["plan"]["days"][0]["items"] if i["item_id"] == "v2"]
+    # Day 3 is the 杭州→上海 return day, but the return leg departs in the
+    # evening (no in-window train → 17:00 placeholder), so the moved POI
+    # keeps the last-day morning slot: 末日 = 活动 + 返程.
     day2 = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
-    assert day1 and not day2
-    assert any("豫园" in a for a in body["plan"]["assumptions"])
+    day3 = [i for i in body["plan"]["days"][2]["items"] if i["item_id"] == "v2"]
+    assert day3 and not day2
+    assert any(i.get("mode") == "train" for i in body["plan"]["days"][2]["items"])
 
 
 def test_message_unknown_session_returns_404():
@@ -213,3 +212,127 @@ def test_message_llm_error_degrades_in_conversation():
     assert "模型暂时无响应" in body["reply"]
     assert body["state"] == "ready"
     assert body["plan"]  # plan untouched, still delivered
+
+
+# --- bilingual city input (H5 typed "Shanghai" used to fall back to Beijing) ---
+
+
+def test_parse_cities_accepts_english_aliases_in_order():
+    assert _parse_cities("Shanghai 5 days") == ["上海"]
+    assert _parse_cities("Beijing to Chengdu via Xi'an") == ["北京", "成都", "西安"]
+    assert _parse_cities("北京到shanghai，途经 suzhou") == ["北京", "上海", "苏州"]
+    assert _parse_cities("no city here") == []
+
+
+def test_normalize_city_maps_alias_and_keeps_chinese():
+    assert _normalize_city("SHANGHAI") == "上海"
+    assert _normalize_city("Xi'an") == "西安"
+    assert _normalize_city("上海") == "上海"
+    assert _normalize_city("  hangzhou ") == "杭州"
+
+
+def test_start_parses_english_cities_from_preferences():
+    # H5 no-session composer sends free text as preferences with no cities;
+    # the English names must still start the plan instead of clarify→default.
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = start(
+        client_for(agent), {"days": 2, "preferences": "Shanghai then Hangzhou, museums"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["session_id"]
+
+
+def test_message_clarify_answer_with_english_city_generates_plan():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    session_id = start(client, {}).json()["session_id"]  # clarify: info missing
+    resp = message(client, session_id, "Shanghai and Hangzhou, 2 days, museums")
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "ready"
+
+
+# --- far link restaurant round: /message payload carries restos + plan -----
+
+
+class _GeoAmap:
+    def __init__(self, food_lat: float) -> None:
+        self.food_lat = food_lat
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        if keywords == "景点":
+            return [
+                {
+                    "name": "夫子庙",
+                    "city": city or "南京",
+                    "category": "风景名胜;古迹",
+                    "source_poi_id": "B1",
+                    "location": {"lon": 118.78, "lat": 32.00},
+                }
+            ]
+        return [
+            {
+                "name": keywords,
+                "city": city or "南京",
+                "category": "餐饮服务;小吃店",
+                "source_poi_id": "F1",
+                "location": {"lon": 118.78, "lat": self.food_lat},
+            }
+        ]
+
+
+class _Reader:
+    def __init__(self, digest) -> None:
+        self.digest = digest
+
+    async def read(self, url: str):
+        return self.digest
+
+
+def test_message_food_link_far_returns_resto_confirm_payload():
+    from app.services.trip_items import TripItemService
+    from app.services.web_reader import LinkDigest
+
+    v0 = json.dumps(
+        {
+            "items": [
+                {"name": "夫子庙", "city": "南京", "category": "sight", "day": 1},
+            ],
+            "assumptions": [],
+        },
+        ensure_ascii=False,
+    )
+    sites = json.dumps(
+        {"sites": [{"name": "李记锅贴", "kind": "food"}]}, ensure_ascii=False
+    )
+    agent = PlanningAgent(
+        StubAdapter([sites, v0]),
+        amap_client=_GeoAmap(food_lat=32.10),
+        link_reader=_Reader(
+            LinkDigest(
+                url="https://xhslink.com/abc", title="南京必吃", text="李记锅贴绝了"
+            )
+        ),
+        trip_items=TripItemService(),
+    )
+    client = client_for(agent)
+    session_id = start(
+        client, {"preferences": "按这个吃 https://xhslink.com/abc 规划"}
+    ).json()["session_id"]
+
+    resp = message(client, session_id, "南京 2 天")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "resto_confirm"
+    assert [r["name"] for r in body["restos"]] == ["李记锅贴"]
+    assert body["restos"][0]["nearest_km"] > 5
+    assert "超过 5 公里" in body["reply"]
+    assert any(d["items"] for d in body["plan"]["days"])  # v0 still delivered
+
+    resp = message(client, session_id, "不安排")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    names = [i["name"] for d in body["plan"]["days"] for i in d["items"]]
+    assert "李记锅贴" not in names

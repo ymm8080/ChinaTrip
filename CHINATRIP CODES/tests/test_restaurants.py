@@ -41,6 +41,8 @@ def make_poi(name, lon=0.0, lat=0.0, rating=None, poi_id=None, no_location=False
         "name": name,
         "city": "杭州",
         "category": "餐饮服务;中餐厅",
+        "address": f"{name}地址1号",
+        "opening_hours": "周一至周日 10:00-22:00",
         "location": None if no_location else {"lon": lon, "lat": lat},
         **({} if rating is None else {"rating": rating}),
     }
@@ -209,6 +211,8 @@ def test_search_restaurants_maps_pois_and_tolerates_missing_rating():
     assert stub.calls == [("餐厅", "杭州")]
     assert [c.name for c in out] == ["近餐厅", "无评分餐厅", "无坐标餐厅", "字符串评分"]
     assert out[0].poi_id == "poi-近餐厅"
+    assert out[0].address == "近餐厅地址1号"
+    assert out[0].opening_hours == "周一至周日 10:00-22:00"
     assert out[0].biz_type == "餐饮服务;中餐厅"
     assert out[0].rating == 4.5
     assert out[1].rating is None
@@ -261,6 +265,8 @@ def test_recommend_restaurants_builds_food_items_inside_window():
         assert item.end_time == time(13, 30)
     assert len({i.item_id for i in items}) == 3
     assert items[2].location is None  # location-less candidate stays addable
+    assert items[0].address == "顺路餐厅地址1号"  # address rides along to the item
+    assert items[0].opening_hours == "周一至周日 10:00-22:00"
 
 
 def test_recommend_restaurants_city_override_beats_base_city():

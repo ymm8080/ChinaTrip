@@ -272,9 +272,12 @@ def test_plan_message_updates_working_copy_version():
     )
     agent = PlanningAgent(StubAdapter([V0_JSON, edit_json]))
     client = TestClient(make_app(agent))
+    # Single-city session: under the 2026-10-19 origin rule the two-city
+    # variant would drop 外滩 (origin) and strand 西湖 on the return-train
+    # day, leaving no v1 to move. Here v1=外滩 exists and the move lands.
     start = client.post(
         "/api/v1/plan/start",
-        json={"cities": ["上海", "杭州"], "days": 2, "preferences": "地标美食"},
+        json={"cities": ["上海"], "days": 2, "preferences": "地标美食"},
         headers=DEVICE_HEADERS,
     )
     sid = start.json()["session_id"]

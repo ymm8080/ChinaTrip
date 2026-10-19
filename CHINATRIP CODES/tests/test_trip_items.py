@@ -18,6 +18,8 @@ CONTRACT_KEYS = {
     "status",
     "source",
     "poi_id",
+    "address",
+    "opening_hours",
     "day",
     "position",
     "booking_id",
@@ -109,6 +111,17 @@ def test_create_requires_name():
             "/api/v1/trip-items", json={"name": "x" * 201, "source": "manual"}
         )
         assert resp.status_code == 422
+
+def test_create_carries_address_and_opening_hours():
+    """v2.4.3: the trip center keeps the plan's display fields."""
+    with TestClient(make_app()) as client:
+        item = create_item(
+            client,
+            address="上海市黄浦区中山东一路",
+            opening_hours="全天开放",
+        )
+    assert item["address"] == "上海市黄浦区中山东一路"
+    assert item["opening_hours"] == "全天开放"
 
 
 # --- list ----------------------------------------------------------------------
