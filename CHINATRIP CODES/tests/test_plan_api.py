@@ -26,6 +26,7 @@ from app.services.agent.plan import (
     _parse_cities,
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
+from app.services.itinerary import VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -612,3 +613,149 @@ def test_from_itinerary_missing_device_id_returns_400():
     resp = client.post("/api/v1/plan/from-itinerary/it_none", json={})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "missing_device_id"
+
+
+# --- POST /plan/{id}/items/{item_id}/pin + /delete（2026-10-20）-------------
+
+
+class UnwantRecorder:
+    """trip-item service stub: only mark_unwanted is exercised here."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None, str | None]] = []
+
+    def mark_unwanted(self, name, *, itinerary_id=None, city=None):
+        self.calls.append((name, itinerary_id, city))
+        return {"name": name, "status": "unwanted"}
+
+
+def _visit(body: dict, name: str) -> dict:
+    return next(
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if i.get("name") == name and "mode" not in i
+    )
+
+
+def test_pin_and_unpin_flip_pinned_in_plan():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{body['session_id']}/items/{vid}/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reply"] == "已钉住 西湖"
+    assert _visit(data, "西湖")["pinned"] is True
+    resp = client.post(
+        f"/api/v1/plan/{body['session_id']}/items/{vid}/pin",
+        json={"pinned": False},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reply"] == "已取消钉住 西湖"
+    assert _visit(data, "西湖")["pinned"] is False
+
+
+def test_pin_guard_chain_400_404():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    # missing device header
+    resp = client.post(f"/api/v1/plan/{sid}/items/v1/pin", json={"pinned": True})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "missing_device_id"}
+    # foreign/unknown session
+    resp = client.post(
+        "/api/v1/plan/no-such/items/v1/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "session_not_found"}
+    # unknown item
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v_none/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "item_not_found"}
+
+
+def test_pin_requires_time_returns_422():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "博物馆"}
+    ).json()
+    session = store.get(body["session_id"], device_id="device-1")
+    item = next(
+        i for d in session.plan.days for i in d.items if isinstance(i, VisitItem)
+    )
+    item.start_time = None
+    item.end_time = None
+    resp = client.post(
+        f"/api/v1/plan/{body['session_id']}/items/{item.item_id}/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "pinned_requires_time"}
+
+
+def test_delete_removes_pinned_item_and_marks_unwanted():
+    svc = UnwantRecorder()
+    agent = PlanningAgent(StubAdapter([V0_JSON]), trip_items=svc)
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid, iid = body["session_id"], body["plan"]["itinerary_id"]
+    vid = _visit(body, "雷峰塔")["item_id"]
+    pinned = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert pinned.status_code == 200
+    resp = client.post(f"/api/v1/plan/{sid}/items/{vid}/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()
+    names = [i.get("name") for d in data["plan"]["days"] for i in d["items"]]
+    assert "雷峰塔" not in names  # pinned item is NOT blocked by rule 19
+    assert data["reply"] == "已删除 雷峰塔，已记入不想去"
+    assert svc.calls == [("雷峰塔", iid, "杭州")]
+
+
+def test_delete_guard_chain_400_404():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    resp = client.post(f"/api/v1/plan/{sid}/items/v1/delete")
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "missing_device_id"}
+    resp = client.post("/api/v1/plan/no-such/items/v1/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "session_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v_none/delete", headers=DEVICE_HEADERS
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "item_not_found"}

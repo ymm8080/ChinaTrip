@@ -82,9 +82,9 @@ def test_create_returns_201_with_wishlist_defaults():
     assert item["position"] is None
     assert item["booking_id"] is None
     assert item["created_at"] == item["updated_at"]
-    # iron rule 0: all four origins accepted, same shape
+    # iron rule 0: all five origins accepted, same shape
     with TestClient(make_app()) as client:
-        for source in ("manual", "chat", "paste", "agent_recommend"):
+        for source in ("manual", "chat", "paste", "agent_recommend", "plan_delete"):
             resp = client.post(
                 "/api/v1/trip-items", json={"name": "x", "source": source}
             )
@@ -151,7 +151,7 @@ def test_list_groups_and_orders_three_states():
         resp = client.get("/api/v1/trip-items", params={"itinerary_id": "t1"})
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body) == {"bookings", "wishlist", "scheduled"}
+    assert set(body) == {"bookings", "wishlist", "scheduled", "unwanted"}
     assert [i["name"] for i in body["bookings"]] == ["b-day1", "b-day2"]
     assert [i["name"] for i in body["scheduled"]] == [
         "s-day1-a",
@@ -267,6 +267,77 @@ def test_unschedule_from_booked_also_clears_booking_id():
     assert body["day"] is None
     assert body["position"] is None
     assert body["booking_id"] is None
+
+
+# --- transitions: mark unwanted --------------------------------------------------
+
+
+def test_unwanted_from_any_state_clears_fields():
+    with TestClient(make_app()) as client:
+        sched = create_item(client, itinerary_id="t1", name="s")
+        schedule(client, sched["id"], day=2)
+        r_sched = client.patch(
+            f"/api/v1/trip-items/{sched['id']}", json={"status": "unwanted"}
+        )
+        booked = create_item(client, itinerary_id="t1", name="b")
+        schedule(client, booked["id"], day=1)
+        book(client, booked["id"], "BK-U")
+        r_booked = client.patch(
+            f"/api/v1/trip-items/{booked['id']}", json={"status": "unwanted"}
+        )
+        wish = create_item(client, itinerary_id="t1", name="w")
+        r_wish = client.patch(
+            f"/api/v1/trip-items/{wish['id']}", json={"status": "unwanted"}
+        )
+    for resp in (r_sched, r_booked, r_wish):
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "unwanted"
+        assert body["day"] is None
+        assert body["position"] is None
+        assert body["booking_id"] is None
+
+
+def test_unwanted_restore_to_wishlist_then_reschedule():
+    with TestClient(make_app()) as client:
+        item = create_item(client, itinerary_id="t1")
+        schedule(client, item["id"], day=1)
+        client.patch(f"/api/v1/trip-items/{item['id']}", json={"status": "unwanted"})
+        resp = client.patch(
+            f"/api/v1/trip-items/{item['id']}", json={"status": "wishlist"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "wishlist"
+        rescheduled = schedule(client, item["id"], day=3)
+    assert rescheduled["position"] == 1.0
+
+
+def test_unwanted_walkback_to_timeline_stays_422():
+    with TestClient(make_app()) as client:
+        item = create_item(client)
+        client.patch(f"/api/v1/trip-items/{item['id']}", json={"status": "unwanted"})
+        to_sched = client.patch(
+            f"/api/v1/trip-items/{item['id']}", json={"status": "scheduled", "day": 1}
+        )
+        to_booked = client.patch(
+            f"/api/v1/trip-items/{item['id']}",
+            json={"status": "booked", "booking_id": "BK-1"},
+        )
+    assert to_sched.status_code == 422
+    assert to_booked.status_code == 422
+
+
+def test_list_groups_unwanted_sorted_newest_first():
+    with TestClient(make_app()) as client:
+        a = create_item(client, itinerary_id="t1", name="u-a")
+        b = create_item(client, itinerary_id="t1", name="u-b")
+        time.sleep(0.005)
+        client.patch(f"/api/v1/trip-items/{a['id']}", json={"status": "unwanted"})
+        time.sleep(0.005)
+        client.patch(f"/api/v1/trip-items/{b['id']}", json={"status": "unwanted"})
+        resp = client.get("/api/v1/trip-items", params={"itinerary_id": "t1"})
+    assert resp.status_code == 200
+    assert [i["name"] for i in resp.json()["unwanted"]] == ["u-b", "u-a"]
 
 
 # --- illegal transitions ---------------------------------------------------------
@@ -397,6 +468,46 @@ def test_service_transition_rules_direct():
     assert cleared["booking_id"] is None and cleared["day"] is None
     service.delete(item["id"])  # wishlist deletes cleanly
     assert service.get(item["id"]) is None
+
+
+def test_mark_unwanted_parks_matching_item_and_clears_fields():
+    service = TripItemService()
+    item = service.create(
+        "西湖", source="agent_recommend", itinerary_id="t1", city="杭州"
+    )
+    service.update(item["id"], status="scheduled", day=2)
+    parked = service.mark_unwanted("西湖", itinerary_id="t1")
+    assert parked["id"] == item["id"]
+    assert parked["status"] == "unwanted"
+    assert parked["day"] is None
+    assert parked["position"] is None
+    assert parked["booking_id"] is None
+
+
+def test_mark_unwanted_already_unwanted_returns_as_is():
+    service = TripItemService()
+    first = service.mark_unwanted("外滩", itinerary_id="t1")
+    again = service.mark_unwanted("外滩", itinerary_id="t1")
+    assert again["id"] == first["id"]
+    assert again["updated_at"] == first["updated_at"]
+
+
+def test_mark_unwanted_not_found_creates_plan_delete_entry():
+    service = TripItemService()
+    parked = service.mark_unwanted("新天地", itinerary_id="t1", city="上海")
+    assert parked["source"] == "plan_delete"
+    assert parked["status"] == "unwanted"
+    assert parked["name"] == "新天地"
+    assert parked["city"] == "上海"
+    assert [i["name"] for i in service.list_groups("t1")["unwanted"]] == ["新天地"]
+
+
+def test_mark_unwanted_scopes_to_itinerary_and_exact_name():
+    service = TripItemService()
+    other_trip = service.create("外滩", source="manual", itinerary_id="t2")
+    parked = service.mark_unwanted("外滩", itinerary_id="t1")
+    assert parked["itinerary_id"] == "t1"
+    assert service.get(other_trip["id"])["status"] == "wishlist"
 
 
 def test_router_wires_all_five_paths():

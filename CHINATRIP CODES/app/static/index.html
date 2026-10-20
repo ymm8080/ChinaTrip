@@ -264,6 +264,9 @@
   .zone h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
   .tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg);font-size:13px}
   .tile .ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .tile-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.tile-city{margin-left:auto;color:#888;white-space:nowrap}
+  .site-link{color:var(--accent);text-decoration:underline;cursor:pointer}
+  .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
@@ -1032,25 +1035,46 @@ function fmtMin(s) { return Math.round(Number(s) / 60); }
 const MODE_CN = { train: ["🚄", "火车"], flight: ["✈️", "飞机"], car: ["🚗", "驾车"], bus: ["🚌", "大巴"] };
 function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "跨城"; }
 
+// 高德 URI API 步行导航：起点参数缺省 = 高德自动以"我的位置"为起点，
+// 终点 = 下一站坐标（GCJ-02，与站点数据同源），打开即自动规划步行路线
+function amapWalkUrl(to) {
+  return "https://uri.amap.com/navigation?to=" + to.location.lon + "," + to.location.lat +
+    "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
     box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
-    (d.items || []).forEach(it => {
+    (d.items || []).forEach((it, idx) => {
       if (it.from_city) { // TransferItem
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
       } else { // VisitItem
-        const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
-        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
+        let tail = "";
+        if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
+          tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? "📌 已钉住" : "📌 钉住") + "</button>" +
+            ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">🗑</button>';
+        } else { // 已保存行程回看：仅静态徽标
+          tail = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
+        }
+        const briefBits = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : ""].filter(Boolean).join(" · ");
+        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div>"));
         const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
         if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
-          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" +
-            (it.next_walk_minutes != null ? " · 步行约 " + it.next_walk_minutes + " 分钟" : "") +
+          let walkSeg = "";
+          if (it.next_walk_minutes != null) {
+            let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
+            for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
+            walkSeg = (nxt && nxt.location)
+              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="在高德地图打开步行导航（起点=我的位置，终点=' + esc(nxt.name) + "）\">步行约 " + it.next_walk_minutes + " 分钟</a>"
+              : " · 步行约 " + it.next_walk_minutes + " 分钟";
+          }
+          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" + walkSeg +
             (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
-          box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(leg) + "</div>"));
+          box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + leg + "</div>"));
         }
       }
     });
@@ -1061,6 +1085,42 @@ function planCard(plan) {
       plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
     box.appendChild(det);
   }
+  // 卡内交互：站点名=简介链接（悬停 title / 点击入对话气泡）；钉住/删除仅会话内可点，命中后原地换新卡（不新增聊天气泡）
+  box.addEventListener("click", (ev) => {
+    const link = ev.target.closest ? ev.target.closest('a.site-link') : null;
+    if (link && box.contains(link)) {
+      if (!document.getElementById("flow-plan")) return;
+      const bits = [];
+      if (link.getAttribute("data-addr")) bits.push("📍 地址：" + link.getAttribute("data-addr"));
+      if (link.getAttribute("data-hours")) bits.push("🕐 开放时间：" + link.getAttribute("data-hours"));
+      const info = el('<div><b>' + esc(link.getAttribute("data-name")) + '</b>（' + esc(link.getAttribute("data-city")) + "）</div>");
+      info.appendChild(el('<div class="muted">' + esc(bits.join("　") || "暂无更多简介信息") + "</div>"));
+      addMsg("flow-plan", "sys", info);
+      return;
+    }
+    const btn = ev.target.closest ? ev.target.closest('button[data-item-id]') : null;
+    if (!btn || !box.contains(btn)) return;
+    if (!planSession || !planSession.session_id) return;
+      const id = btn.getAttribute("data-item-id");
+      const action = btn.getAttribute("data-action");
+      const sid = planSession.session_id;
+      if (action === "pin") {
+        const cur = btn.getAttribute("data-pinned") === "1";
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/pin", { pinned: !cur }, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); }
+        });
+      } else if (action === "del") {
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/delete", undefined, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); }
+        });
+      }
+    });
   return box;
 }
 
@@ -2535,15 +2595,25 @@ function tcDelete(item, btn) {
   });
 }
 
-// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）
+// note 里的 URL 渲染成可点链接，其余文本照常转义
+function noteHtml(note) {
+  if (!note) return "";
+  return String(note).split(/(https?:\/\/[^\s（）()，,]+)/).map(seg => {
+    if (/^https?:\/\//.test(seg)) return '<a href="' + esc(seg) + '" target="_blank" rel="noopener">🔗 链接</a>';
+    return esc(seg);
+  }).join("");
+}
+
+// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）· unwanted（恢复/删除）
 function tcTile(item) {
   const t = el('<div class="tile"></div>');
-  const head = el('<div><b>' + esc(item.name) + "</b>" +
-    (item.city ? " · " + esc(item.city) : "") +
-    (item.note ? ' <span class="muted">' + esc(item.note) + "</span>" : "") +
-    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
-  if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
-  if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  const head = el('<div class="tile-head"><span><b>' + esc(item.name) + "</b>" +
+    (item.note ? ' <span class="muted">' + noteHtml(item.note) + "</span>" : "") +
+    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></span>" +
+    (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>" : "") + "</div>");
+  const headLeft = head.firstChild; // 状态徽标并入左侧文本段（右侧留给城市）
+  if (item.status === "booked") headLeft.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
+  if (item.status === "scheduled") headLeft.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
   const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("　");
   if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
@@ -2570,6 +2640,9 @@ function tcTile(item) {
   } else if (item.status === "booked") {
     mk("↩️ 撤销（回心愿单）", (b) => tcPatch(item, { status: "wishlist" }, b));
     t.appendChild(el('<div class="muted" style="margin-top:4px">booked 不可删除（422），可撤销回心愿单。</div>'));
+  } else if (item.status === "unwanted") {
+    mk("💡 恢复", (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk("🗑 删除", (b) => tcDelete(item, b));
   }
   t.appendChild(ops);
   return t;
@@ -2608,6 +2681,11 @@ async function tcLoad() {
     if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
     wishlist.forEach(it => z3.cards.appendChild(tcTile(it)));
     box.appendChild(z3.z);
+    const unwanted = body.unwanted || [];
+    const z4 = tcZone("🚫", "不想去", unwanted.length, "");
+    if (!unwanted.length) z4.cards.appendChild(el('<div class="muted">暂无「不想去」条目。</div>'));
+    unwanted.forEach(it => z4.cards.appendChild(tcTile(it)));
+    box.appendChild(z4.z);
   } catch (err) {
     failToast(err);
     box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));

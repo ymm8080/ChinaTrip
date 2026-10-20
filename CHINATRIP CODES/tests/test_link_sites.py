@@ -560,3 +560,189 @@ def test_confirm_sites_records_only_picked():
     assert names == ["总统府"]
     assert "未点选的 2 个地点没有写入心愿单" in reply
     assert llm.calls == 2  # v0 + extraction; no text round-trip burned
+
+
+# --- video city understanding (重庆 wishlist regression, 2026-10-20) ------
+# A video titled 重庆 must classify its sites as 重庆 even in a multi-city
+# session — never from session.cities, never scattered round-robin.
+
+
+class CityAmap(StubAmap):
+    """One amap-style POI per keyword; records (keywords, city) calls."""
+
+    def __init__(self, city_by_name=None):
+        self.city_by_name = city_by_name or {}
+        self.calls: list[tuple[str, str | None]] = []
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        self.calls.append((keywords, city))
+        poi_city = self.city_by_name.get(keywords)
+        if poi_city is None:
+            return []
+        return [
+            {
+                "source": "amap",
+                "source_poi_id": f"B-{keywords}",
+                "name": keywords,
+                "city": poi_city,
+                "category": "风景名胜;风景名胜",
+                "address": None,
+                "location": {"lon": 106.57, "lat": 29.55},
+                "opening_hours": None,
+                "rating": None,
+            }
+        ]
+
+
+def _cq_video_digest() -> LinkDigest:
+    return LinkDigest(
+        url="https://www.douyin.com/video/7389002",
+        title="重庆3天2夜攻略！十八梯、长江索道、大足石刻全打卡",
+        text="这趟重庆玩了十八梯和长江索道，还包车去了大足石刻",
+    )
+
+
+def _cq_v0_reply() -> str:
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "name": "洪崖洞",
+                    "city": "重庆",
+                    "category": "sight",
+                    "day": 1,
+                    "duration_minutes": 90,
+                },
+                {
+                    "name": "宽窄巷子",
+                    "city": "成都",
+                    "category": "sight",
+                    "day": 2,
+                    "duration_minutes": 90,
+                },
+                {
+                    "name": "兵马俑",
+                    "city": "西安",
+                    "category": "sight",
+                    "day": 3,
+                    "duration_minutes": 90,
+                },
+            ],
+            "assumptions": [],
+        },
+        ensure_ascii=False,
+    )
+
+
+def _multi_city_session(agent):
+    return run(
+        agent.start(
+            device_id="d", cities=["重庆", "成都", "西安"], days=6, preferences="博物馆"
+        )
+    )
+
+
+def _plan_visit(session, name):
+    for day in session.plan.days:
+        for item in day.items:
+            if isinstance(item, VisitItem) and item.name == name:
+                return item, day
+    return None, None
+
+
+def test_video_city_wins_over_multi_city_session():
+    reader = StubReader(_cq_video_digest())
+    trip_items = TripItemService()
+    amap = CityAmap()  # no POI hits: the video-derived city must stand alone
+    llm, agent = _ready_agent(
+        [
+            _cq_v0_reply(),
+            json.dumps(
+                {
+                    "sites": [
+                        {"name": "十八梯", "kind": "sight", "city": "重庆"},
+                        {"name": "长江索道", "kind": "sight", "city": "重庆"},
+                        {"name": "大足石刻", "kind": "sight", "city": "重庆"},
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+        ],
+        reader,
+        trip_items,
+        amap=amap,
+    )
+    session = _multi_city_session(agent)
+    session, _, _ = run(
+        agent.message(session, "看这个 https://www.douyin.com/video/7389002")
+    )
+    assert session.state == "site_confirm"
+    session, _, _ = run(agent.message(session, "必去：十八梯、长江索道、大足石刻"))
+    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    assert {n: wishlist[n]["city"] for n in wishlist} == {
+        "十八梯": "重庆",
+        "长江索道": "重庆",
+        "大足石刻": "重庆",
+    }
+    for name in ("十八梯", "长江索道", "大足石刻"):
+        item, day = _plan_visit(session, name)
+        assert item is not None, name
+        assert item.city == "重庆"
+        assert day.base_city == "重庆"  # not scattered onto 成都/西安 days
+    must_lookups = [c for c in amap.calls if c[0] in ("十八梯", "长江索道", "大足石刻")]
+    assert must_lookups == [
+        ("十八梯", "重庆"),
+        ("长江索道", "重庆"),
+        ("大足石刻", "重庆"),
+    ]
+
+
+def test_title_city_fallback_when_llm_omits_city():
+    reader = StubReader(_cq_video_digest())
+    trip_items = TripItemService()
+    llm, agent = _ready_agent(
+        [_cq_v0_reply(), json.dumps({"sites": ["十八梯", "长江索道"]})],
+        reader,
+        trip_items,
+    )
+    session = _multi_city_session(agent)
+    session, _, _ = run(
+        agent.message(session, "看这个 https://www.douyin.com/video/7389002")
+    )
+    session, _, _ = run(agent.message(session, "必去：十八梯、长江索道"))
+    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    assert wishlist["十八梯"]["city"] == "重庆"
+    assert wishlist["长江索道"]["city"] == "重庆"
+    item, day = _plan_visit(session, "十八梯")
+    assert item is not None and item.city == "重庆"
+    assert day.base_city == "重庆"
+
+
+def test_amap_city_overrides_wrong_extracted_city():
+    reader = StubReader(_cq_video_digest())
+    trip_items = TripItemService()
+    # LLM misread the video as 西安; amap knows the POI is 重庆市.
+    amap = CityAmap({"十八梯": "重庆市"})
+    llm, agent = _ready_agent(
+        [
+            _cq_v0_reply(),
+            json.dumps(
+                {"sites": [{"name": "十八梯", "kind": "sight", "city": "西安"}]},
+                ensure_ascii=False,
+            ),
+        ],
+        reader,
+        trip_items,
+        amap=amap,
+    )
+    session = _multi_city_session(agent)
+    # Single-site link: auto-must, no confirm round — one message does it all.
+    session, _, _ = run(
+        agent.message(session, "看这个 https://www.douyin.com/video/7389002")
+    )
+    assert ("十八梯", "西安") in amap.calls  # lookup scoped to the guess…
+    item, day = _plan_visit(session, "十八梯")
+    assert item is not None and item.city == "重庆"  # …amap truth wins
+    assert day.base_city == "重庆"
+    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    assert wishlist["十八梯"]["city"] == "重庆"
