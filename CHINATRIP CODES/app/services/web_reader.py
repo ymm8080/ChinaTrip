@@ -69,7 +69,11 @@ _VIDEO_SHELL_HOSTS = (
     "channels.qq.com",
     # xiaohongshu notes: only the mobile-UA SSR carries the media; the
     # resolver refetches as iPhone (short xhslink.com links redirect in).
+    # Instagram posts need a crawler-UA refetch; TikTok videos get frame-
+    # sampled locally (its CDN rejects the vision API's fetches).
     "xiaohongshu.com",
+    "instagram.com",
+    "tiktok.com",
 )
 
 _META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.I)

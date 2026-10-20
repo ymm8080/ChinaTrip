@@ -19,6 +19,11 @@ def get_engine():
     return engine
 
 
+def get_session_factory() -> sessionmaker[Session]:
+    _, factory = _engine_and_factory()
+    return factory
+
+
 def get_db() -> Iterator[Session]:
     _, factory = _engine_and_factory()
     session = factory()

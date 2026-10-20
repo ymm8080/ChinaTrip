@@ -15,6 +15,7 @@ we cannot read must not break the plan conversation.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -23,6 +24,7 @@ import subprocess
 import tempfile
 import time
 from functools import reduce
+from html import unescape
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
@@ -61,6 +63,23 @@ _XHS_IMAGE_RE = re.compile(r'"urlDefault":"((?:[^"\\]|\\.)*)"')
 _XHS_TITLE_RE = re.compile(r'"title":"((?:[^"\\]|\\.)*)"')
 _XHS_DESC_RE = re.compile(r'"desc":"((?:[^"\\]|\\.)*)"')
 MAX_NOTE_IMAGES = 4
+
+# instagram crawler-UA pages carry og tags + escaped post JSON; tiktok
+# desktop pages inline the full item in a rehydration script (probes
+# 2026-10-19).
+_CRAWLER_UA = (
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+)
+_IG_VIDEO_RE = re.compile(r'"video_versions":\[\{"type":\d+,"url":"((?:[^"\\]|\\.)*)"')
+_OG_IMAGE_RE = re.compile(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"')
+_OG_DESC_RE = re.compile(r'<meta[^>]+property="og:description"[^>]+content="([^"]+)"')
+_TT_UNIVERSAL_RE = re.compile(
+    r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', re.S
+)
+MAX_VIDEO_FRAMES = 8
+# video_url uploads past this size draw 400 code 1210 from the vision
+# model (28.8MB xiaohongshu probe 2026-10-19); watch stills instead.
+VIDEO_URL_MAX_BYTES = 10 * 1024 * 1024
 
 
 def _json_unescape(raw: str) -> str:
@@ -169,7 +188,7 @@ _IMAGE_PROMPT = (
 
 
 class _MediaRef:
-    __slots__ = ("url", "headers", "text", "images")
+    __slots__ = ("url", "headers", "text", "images", "frames", "data")
 
     def __init__(
         self,
@@ -177,11 +196,14 @@ class _MediaRef:
         headers: dict[str, str] | None = None,
         text: str = "",
         images: list[str] | None = None,
+        frames: bool = False,
     ) -> None:
         self.url = url
         self.headers = headers or {}
         self.text = text
         self.images = images or []
+        self.frames = frames
+        self.data: bytes | None = None  # download cache: frames + ASR share it
 
 
 def _walk_play_urls(node, out: list[str]) -> None:
@@ -212,12 +234,16 @@ class VideoReader:
         vision_model: str = "glm-4.6v-flash",
         asr: AsrClient | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        fallback_models: list[str] | None = None,
     ) -> None:
         self._key = api_key
         self._base_url = base_url.rstrip("/")
         self._vision_model = vision_model
         self._asr = asr
         self._transport = transport
+        # 4.6v-flash's free pool 429-saturates for whole evening peaks while
+        # the older free vision models sit in separate pools (probe 2026-10-19)
+        self._fallback_models = fallback_models or []
         self._ffmpeg: str | None = None
         try:
             import imageio_ffmpeg
@@ -263,9 +289,88 @@ class VideoReader:
             return await self._resolve_douyin(url, page_html)
         if "xiaohongshu.com" in host or "xhslink.com" in host:
             return await self._resolve_xiaohongshu(url)
+        if "instagram.com" in host:
+            return await self._resolve_instagram(url, page_html)
+        if "tiktok.com" in host:
+            return await self._resolve_tiktok(url, page_html)
         # 视频号 (channels.weixin.qq.com) is login-walled.
         logger.info("video_reader: no media resolver for host %s", host)
         return None
+
+    async def _resolve_instagram(self, url: str, page_html: str) -> _MediaRef | None:
+        # Chrome-UA pages are JS shells; crawler UAs get og tags + post
+        # JSON, though the video node only appears on some responses
+        # (probe 2026-10-19). scontent CDN media is bare-fetchable, so
+        # the vision API can stream it directly.
+        html = page_html
+        if _IG_VIDEO_RE.search(html) is None and _OG_IMAGE_RE.search(html) is None:
+            async with httpx.AsyncClient(
+                headers={"User-Agent": _CRAWLER_UA},
+                timeout=RESOLVE_TIMEOUT_SECONDS,
+                follow_redirects=True,
+                transport=self._transport,
+            ) as client:
+                resp = await client.get(url)
+                html = resp.text
+        video_m = _IG_VIDEO_RE.search(html)
+        image_m = _OG_IMAGE_RE.search(html)
+        desc_m = _OG_DESC_RE.search(html)
+        video = _json_unescape(video_m.group(1)) if video_m else ""
+        images = [unescape(image_m.group(1))] if image_m else []
+        text = unescape(desc_m.group(1)) if desc_m else ""
+        if not video and not images and not text:
+            logger.warning("video_reader: instagram page gave no post data (%s)", url)
+            return None
+        return _MediaRef(url=video, text=text, images=images)
+
+    async def _resolve_tiktok(self, url: str, page_html: str) -> _MediaRef | None:
+        # playAddr serves the CDN only with a Referer plus the session
+        # cookies from the page fetch, so the vision API cannot stream it:
+        # sample frames locally and send them as images. The page is always
+        # refetched here to capture those cookies.
+        async with httpx.AsyncClient(
+            headers={
+                "User-Agent": _DESKTOP_UA,
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            timeout=RESOLVE_TIMEOUT_SECONDS,
+            follow_redirects=True,
+            transport=self._transport,
+        ) as client:
+            resp = await client.get(url)
+            html = resp.text
+            cookie = "; ".join(f"{k}={v}" for k, v in client.cookies.items())
+        m = _TT_UNIVERSAL_RE.search(html)
+        if m is None:
+            logger.warning("video_reader: tiktok page has no UNIVERSAL_DATA (%s)", url)
+            return None
+        try:
+            tree = json.loads(m.group(1))
+        except ValueError:
+            logger.warning("video_reader: tiktok UNIVERSAL_DATA is not JSON (%s)", url)
+            return None
+        item = (
+            (tree.get("__DEFAULT_SCOPE__") or {})
+            .get("webapp.video-detail", {})
+            .get("itemInfo", {})
+            .get("itemStruct", {})
+        )
+        if not item:
+            logger.warning("video_reader: tiktok page gave no itemStruct (%s)", url)
+            return None
+        video = item.get("video") or {}
+        play = str(video.get("playAddr") or "")
+        cover = str(video.get("cover") or "")
+        headers = {"User-Agent": _DESKTOP_UA, "Referer": "https://www.tiktok.com/"}
+        if cookie:
+            headers["Cookie"] = cookie
+        return _MediaRef(
+            url=play,
+            headers=headers,
+            text=str(item.get("desc") or ""),
+            images=[cover] if cover else [],
+            frames=bool(play),
+        )
 
     async def _resolve_xiaohongshu(self, url: str) -> _MediaRef | None:
         headers = {
@@ -410,52 +515,141 @@ class VideoReader:
 
     # --- vision ------------------------------------------------------------
 
+    @staticmethod
+    def _image_content(urls: list[str], prompt: str = _IMAGE_PROMPT) -> list[dict]:
+        content = [
+            {"type": "image_url", "image_url": {"url": u}}
+            for u in urls[:MAX_NOTE_IMAGES]
+        ]
+        content.append({"type": "text", "text": prompt})
+        return content
+
     async def _describe(self, media: _MediaRef) -> str:
-        if not media.url and not media.images:
+        if media.frames:
+            if self._ffmpeg is not None:
+                frames = await self._sample_frames(media)
+                if frames:
+                    return await self._vision_call(self._image_content(frames))
+            if media.images:  # no ffmpeg: the cover still carries title text
+                return await self._vision_call(self._image_content(media.images))
             return ""
         if media.url:
-            content: list[dict] = [
-                {"type": "video_url", "video_url": {"url": media.url}},
-                {"type": "text", "text": _VISION_PROMPT},
-            ]
-        else:  # image notes: watch the stills instead of a video track
-            content = [
-                {"type": "image_url", "image_url": {"url": u}}
-                for u in media.images[:MAX_NOTE_IMAGES]
-            ]
-            content.append({"type": "text", "text": _IMAGE_PROMPT})
-        body = {
-            "model": self._vision_model,
-            "messages": [{"role": "user", "content": content}],
-            "thinking": {"type": "disabled"},
-        }
+            if self._ffmpeg is not None and await self._oversize(media):
+                frames = await self._sample_frames(media)
+                if frames:
+                    return await self._vision_call(self._image_content(frames))
+            return await self._vision_call(
+                [
+                    {"type": "video_url", "video_url": {"url": media.url}},
+                    {"type": "text", "text": _VISION_PROMPT},
+                ]
+            )
+        if media.images:  # image notes: watch the stills instead of a track
+            return await self._vision_call(self._image_content(media.images))
+        return ""
+
+    async def _oversize(self, media: _MediaRef) -> bool:
+        """True when the mp4 is too big for the video_url upload path.
+        Unknown size counts as fine: the model fetches video URLs itself,
+        so a failed probe should not preempt the cheaper direct path."""
+        headers = {"Range": "bytes=0-0", **(media.headers or {})}
+        try:
+            async with httpx.AsyncClient(
+                timeout=RESOLVE_TIMEOUT_SECONDS,
+                follow_redirects=True,
+                transport=self._transport,
+            ) as client:
+                async with client.stream("GET", media.url, headers=headers) as resp:
+                    cr = resp.headers.get("content-range", "")
+                    if "/" in cr and cr.rsplit("/", 1)[1].isdigit():
+                        return int(cr.rsplit("/", 1)[1]) > VIDEO_URL_MAX_BYTES
+                    cl = resp.headers.get("content-length", "")
+                    return cl.isdigit() and int(cl) > VIDEO_URL_MAX_BYTES
+        except httpx.HTTPError:
+            return False
+
+    async def _vision_call(self, content: list[dict]) -> str:
+        models = [self._vision_model, *self._fallback_models]
         async with httpx.AsyncClient(
             timeout=VISION_TIMEOUT_SECONDS, transport=self._transport
         ) as client:
-            resp = None
             for attempt in range(3):
-                resp = await client.post(
-                    f"{self._base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {self._key}"},
-                    json=body,
-                )
-                # Free-tier vision gets 429 "model overloaded" at peak; a
-                # short backoff usually squeezes through (probe 2026-10-19).
-                if resp.status_code != 429 or attempt == 2:
-                    break
-                await asyncio.sleep(3 * (attempt + 1))
-        assert resp is not None
-        if resp.status_code != 200:
-            logger.warning(
-                "video_reader: vision status %s body %s",
-                resp.status_code,
-                resp.text[:200],
-            )
-            return ""
+                for model in models:
+                    resp = await client.post(
+                        f"{self._base_url}/chat/completions",
+                        headers={"Authorization": f"Bearer {self._key}"},
+                        json={
+                            "model": model,
+                            "messages": [{"role": "user", "content": content}],
+                            "thinking": {"type": "disabled"},
+                        },
+                    )
+                    if resp.status_code == 200:
+                        return self._content_text(resp)
+                    if resp.status_code != 429:
+                        logger.warning(
+                            "video_reader: vision[%s] status %s body %s",
+                            model,
+                            resp.status_code,
+                            resp.text[:200],
+                        )
+                        return ""
+                # every pool is rate-limited: back off, then re-try the chain
+                if attempt < 2:
+                    await asyncio.sleep(3 * (attempt + 1))
+        logger.warning("video_reader: vision 429 across %s", models)
+        return ""
+
+    @staticmethod
+    def _content_text(resp: httpx.Response) -> str:
         content = resp.json()["choices"][0]["message"].get("content")
         if isinstance(content, list):
             content = "".join(p.get("text", "") for p in content if isinstance(p, dict))
         return content if isinstance(content, str) else ""
+
+    async def _sample_frames(self, media: _MediaRef) -> list[str]:
+        """Evenly-spaced JPEG frames as data URIs (TikTok's CDN rejects
+        headerless fetchers, so the vision API cannot stream the mp4)."""
+        try:
+            video = await self._download(media)
+        except httpx.HTTPError as exc:
+            logger.warning("video_reader: frame download failed %s", type(exc).__name__)
+            return []
+        with tempfile.TemporaryDirectory(prefix="ctframe") as tmp:
+            src = Path(tmp) / "in.mp4"
+            src.write_bytes(video)
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                [
+                    self._ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(src),
+                    "-vf",
+                    "fps=1/3,scale=640:-2",
+                    "-frames:v",
+                    str(MAX_VIDEO_FRAMES),
+                    "-q:v",
+                    "5",
+                    str(Path(tmp) / "f%02d.jpg"),
+                ],
+                capture_output=True,
+                timeout=120,
+            )
+            if proc.returncode != 0:
+                logger.warning(
+                    "video_reader: ffmpeg frame sample failed %s",
+                    proc.stderr.decode("utf-8", "replace")[:200],
+                )
+                return []
+            # GLM-4.6V expects the bare base64 string, no data-URI prefix
+            # (docs.bigmodel.cn example; a prefix drew 400 code 1210).
+            return [
+                base64.b64encode(p.read_bytes()).decode("ascii")
+                for p in sorted(Path(tmp).glob("f*.jpg"))
+            ]
 
     # --- audio -------------------------------------------------------------
 
@@ -515,6 +709,8 @@ class VideoReader:
         return " ".join(texts)
 
     async def _download(self, media: _MediaRef) -> bytes:
+        if media.data is not None:
+            return media.data
         chunks: list[bytes] = []
         size = 0
         async with httpx.AsyncClient(
@@ -530,7 +726,8 @@ class VideoReader:
                     if size > MAX_DOWNLOAD_BYTES:
                         raise httpx.HTTPError("video exceeds download cap")
                     chunks.append(chunk)
-        return b"".join(chunks)
+        media.data = b"".join(chunks)
+        return media.data
 
 
 def build_video_reader(settings=None):
@@ -545,6 +742,11 @@ def build_video_reader(settings=None):
         api_key=settings.glm_api_key,
         base_url=settings.glm_base_url,
         vision_model=settings.glm_model_vision,
+        fallback_models=[
+            m.strip()
+            for m in settings.glm_vision_fallback_models.split(",")
+            if m.strip()
+        ],
         asr=AsrClient(
             key=settings.glm_api_key,
             base_url=settings.glm_base_url,

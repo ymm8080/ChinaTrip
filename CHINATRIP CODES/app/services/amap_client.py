@@ -182,6 +182,8 @@ class AmapClient:
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
         self._transport = transport
+        # v5 endpoints (richer business hours) live beside the v3 base
+        self._v5_base = self._base_url.rsplit("/v3", 1)[0] + "/v5"
 
     async def _request_json(self, path: str, params: dict[str, str]) -> dict:
         async with httpx.AsyncClient(
@@ -267,13 +269,27 @@ class AmapClient:
             "adcode": _as_str(data.get("adcode")),
         }
 
-    async def walking_route(self, origin: str, destination: str) -> dict:
+    async def walking_route(
+        self,
+        origin: str,
+        destination: str,
+        *,
+        origin_id: str | None = None,
+        destination_id: str | None = None,
+    ) -> dict:
+        # origin_id/destination_id (POI ids) are amap-recommended accuracy
+        # boosters when the endpoints are POIs — measured: they snap the
+        # route to doors/entrances instead of the raw coordinate.
         params = {
             "key": self._key,
             "origin": origin,
             "destination": destination,
             "output": "JSON",
         }
+        if origin_id:
+            params["origin_id"] = origin_id
+        if destination_id:
+            params["destination_id"] = destination_id
         data = await self._request_json("/direction/walking", params)
         route = data.get("route")
         paths = route.get("paths") if isinstance(route, dict) else None
@@ -328,6 +344,80 @@ class AmapClient:
                 }
             )
         return out
+
+    async def place_hours(self, poi_id: str) -> dict:
+        """Fetch business hours for one POI (v5 place/detail).
+
+        v5 carries far richer hours than the v3 search payload —
+        opentime_week includes closing days, last entry and holiday
+        windows (e.g. 三峡博物馆 "周二–周日 09:00–17:00 …周一不开放").
+        Returns {"opening_hours": str | None, "rating": str | None}.
+        """
+        data = await self._request_json(
+            f"{self._v5_base}/place/detail",
+            {
+                "key": self._key,
+                "id": poi_id,
+                "show_fields": "business",
+                "output": "JSON",
+            },
+        )
+        poi = data.get("poi") if isinstance(data.get("poi"), dict) else None
+        if poi is None:
+            pois = data.get("pois")
+            if isinstance(pois, list) and pois and isinstance(pois[0], dict):
+                poi = pois[0]
+        if poi is None:
+            return {"opening_hours": None, "rating": None}
+        biz = poi.get("business") if isinstance(poi.get("business"), dict) else {}
+        hours = (
+            _as_str(biz.get("opentime_week"))
+            or _as_str(biz.get("opentime_today"))
+            or _as_str(biz.get("opentime"))
+        )
+        return {
+            "opening_hours": hours,
+            "rating": _as_str(biz.get("rating")),
+            "address": _as_str(poi.get("address")),
+        }
+
+    async def search_hours(self, keyword: str, city: str | None = None) -> dict:
+        """Last-resort opening-hours lookup by name (v5 place/text).
+
+        Covers items without a poi_id (manual adds, link-extracted
+        sites): one keyword query, first hit only. Same shape as
+        place_hours() plus the matched POI name.
+        """
+        params = {
+            "key": self._key,
+            "keywords": keyword,
+            "page_size": "1",
+            "show_fields": "business",
+            "output": "JSON",
+        }
+        if city:
+            params["city"] = city
+            params["city_limit"] = "true"
+        data = await self._request_json(f"{self._v5_base}/place/text", params)
+        pois = data.get("pois")
+        poi = None
+        if isinstance(pois, list) and pois and isinstance(pois[0], dict):
+            poi = pois[0]
+        if poi is None:
+            return {"opening_hours": None, "rating": None, "matched": None}
+        biz = poi.get("business") if isinstance(poi.get("business"), dict) else {}
+        hours = (
+            _as_str(biz.get("opentime_week"))
+            or _as_str(biz.get("opentime_today"))
+            or _as_str(biz.get("opentime"))
+        )
+        return {
+            "opening_hours": hours,
+            "rating": _as_str(biz.get("rating")),
+            "matched": _as_str(poi.get("name")),
+            "address": _as_str(poi.get("address")),
+            "poi_id": _as_str(poi.get("id")),
+        }
 
     async def transit_route(
         self,

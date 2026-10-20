@@ -9,8 +9,9 @@ leg. Pure function: no I/O, no LLM; idempotent, so it can run after every
 plan mutation (solver output and LLM reranks never carry the fields).
 
 leg_pairs() exposes the same chain to the agent's amap enrichment
-(/distance type=1 replaces the estimate with measured walking legs;
-leg_source flips to "amap").
+(/v3/direction/walking — the nav module's engine, with POI-id snapping —
+replaces the estimate with measured walking legs; leg_source flips to
+"amap").
 """
 
 from app.services.itinerary.models import (

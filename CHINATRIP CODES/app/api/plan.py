@@ -25,9 +25,11 @@ from app.services.agent.plan import (
     current_violations,
 )
 from app.services.amap_client import AmapClient
+from app.services.ctrip_hours import get_ctrip_hours
 from app.services.itinerary_store import ItineraryRecord
 from app.services.llm import get_llm_adapter
 from app.services.llm.zhipu import LLMError
+from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
     db_path_from_url,
@@ -76,6 +78,8 @@ def get_planning_agent(
             train_service=get_train_service(settings),
             time_budget_seconds=settings.solver_time_budget_seconds,
             trip_items=get_trip_item_service(),
+            poi_details=get_poi_detail_store(),
+            ctrip_hours=get_ctrip_hours(),
         )
     return _agent_singleton
 

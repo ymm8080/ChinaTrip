@@ -58,6 +58,12 @@ class Poi(Base):
     location: Mapped[WKBElement | None] = mapped_column(
         Geography(geometry_type="POINT", srid=4326, nullable=True)
     )
+    # v2.4.4: display details maintained by the daily refresh job
+    # (app.jobs.refresh_pois); planning reads them, never fetches live.
+    address: Mapped[str | None] = mapped_column(String(200))
+    opening_hours: Mapped[str | None] = mapped_column(String(500))
+    hours_source: Mapped[str | None] = mapped_column(String(20))
+    hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     # v1.7: WGS84 twin of `location` (GCJ-02), written in pairs at ingest;
     # overseas map rendering (Phase 2) reads this to avoid GCJ-02 drift.
     wgs84_location: Mapped[WKBElement | None] = mapped_column(

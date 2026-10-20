@@ -27,6 +27,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.services.ctrip_hours import CtripHoursReader
 from app.services.itinerary import (
     ChangeSummary,
     DayPlan,
@@ -51,6 +52,7 @@ from app.services.itinerary import (
 from app.services.itinerary.models import INTERCITY_BUFFER_MINUTES
 from app.services.itinerary.solver import solve_plan
 from app.services.llm import ChatMessage, LLMError, parse_json_content
+from app.services.poi_details import PoiDetailStore
 from app.services.restaurants import MEAL_DURATION_MINUTES, MEAL_WINDOWS, meal_window
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
 from app.services.video_reader import build_video_reader
@@ -671,11 +673,15 @@ class PlanningAgent:
         time_budget_seconds: float = 3.0,
         link_reader: HttpLinkReader | None = None,
         trip_items=None,
+        poi_details: PoiDetailStore | None = None,
+        ctrip_hours: CtripHoursReader | None = None,
     ) -> None:
         self._llm = llm_adapter
         self._amap = amap_client
         # Measured-leg cache: POI pairs are stable across re-solves.
         self._leg_cache: dict[tuple[str, str], tuple[float, int]] = {}
+        self._poi_details = poi_details
+        self._ctrip_hours = ctrip_hours
         self._link_reader = (
             link_reader
             if link_reader is not None
@@ -1950,6 +1956,7 @@ class PlanningAgent:
             )
         annotate_legs(plan)
         await self._enrich_legs(plan)
+        await self._enrich_hours(plan)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -1961,16 +1968,17 @@ class PlanningAgent:
     async def _enrich_legs(self, plan: ItineraryPlan) -> None:
         """Upgrade straight-line legs to measured amap walking legs.
 
-        /distance type=1 (official docs: <=100 origins per call, one
-        destination, results[].distance meters / .duration seconds),
-        cached per coordinate pair — re-solves move times, not POIs, so
-        cache hits dominate. Silent degrade: no client, a stub without
-        measurement, or any failure keeps the estimate (leg_source).
+        /v3/direction/walking — the same engine the nav module proxies —
+        with origin_id/destination_id POI snapping (amap-recommended).
+        /v3/distance type=1 was measured to return DRIVING-scale numbers
+        (e.g. 三峡博物馆→洪崖洞 5.4km/16min ≈ 20km/h) — it does NOT honor
+        the walking type, so it is NOT used for legs. Cached per
+        coordinate pair; silent degrade keeps the estimate (leg_source).
         """
         if self._amap is None:
             return
-        distance_fn = getattr(self._amap, "distance", None)
-        if not callable(distance_fn):
+        route_fn = getattr(self._amap, "walking_route", None)
+        if not callable(route_fn):
             return
 
         def coord_str(point: GeoPoint) -> str:
@@ -1982,43 +1990,161 @@ class PlanningAgent:
             item.next_walk_minutes = value[1]
             item.leg_source = "amap"
 
-        by_dest: dict[str, list[tuple[VisitItem, str, tuple[str, str]]]] = {}
+        todo: list[tuple[VisitItem, VisitItem, tuple[str, str]]] = []
         for a, b, _km in leg_pairs(plan)[:LEG_ENRICH_MAX_PAIRS]:
             key = (coord_str(a.location), coord_str(b.location))
             cached = self._leg_cache.get(key)
             if cached is not None:
                 apply_measured(a, cached)
                 continue
-            by_dest.setdefault(coord_str(b.location), []).append(
-                (a, coord_str(a.location), key)
-            )
-        if not by_dest:
+            todo.append((a, b, key))
+        if not todo:
             return
-        outcomes = await asyncio.gather(
-            *[
-                distance_fn([origin for _a, origin, _k in group], dest)
-                for dest, group in by_dest.items()
-            ],
-            return_exceptions=True,
-        )
-        for (_dest, group), outcome in zip(by_dest.items(), outcomes):
+        # small chunks stay under per-key QPS limits on amap
+        done: list[tuple[tuple[VisitItem, VisitItem, tuple[str, str]], object]] = []
+        for i in range(0, len(todo), 6):
+            chunk = todo[i : i + 6]
+            outcomes = await asyncio.gather(
+                *[
+                    route_fn(
+                        coord_str(a.location),
+                        coord_str(b.location),
+                        origin_id=a.poi_id,
+                        destination_id=b.poi_id,
+                    )
+                    for a, b, _k in chunk
+                ],
+                return_exceptions=True,
+            )
+            done.extend(zip(chunk, outcomes))
+            await asyncio.sleep(0.35)
+        for (item, _b, key), outcome in done:
             if isinstance(outcome, BaseException):
-                logger.warning("plan: leg distance enrich failed: %s", outcome)
+                logger.warning("plan: leg walking route failed: %s", outcome)
                 continue
-            if not isinstance(outcome, list):
+            if not isinstance(outcome, dict):
                 continue
-            for (item, _origin, key), row in zip(group, outcome):
-                if not isinstance(row, dict):
+            meters = outcome.get("distance_m")
+            seconds = outcome.get("duration_s")
+            if not isinstance(meters, (int, float)) or meters <= 0:
+                continue
+            if not isinstance(seconds, (int, float)) or seconds <= 0:
+                continue
+            value = (meters / 1000.0, max(1, round(seconds / 60.0)))
+            self._leg_cache[key] = value
+            apply_measured(item, value)
+
+    async def _enrich_hours(self, plan: ItineraryPlan) -> None:
+        """POI 详情：先读库；库未命中当场走链并 APPEND 入库（v2.4.4 修订）。
+
+        用户拍板 2026-10-19: 规划优先读 pois 详情（地址/营业时间）；数据
+        库没有的条目才当场回源——顺序 = 携程 sight 页先、高德 v5 后
+        （detail 按 poi_id，无 poi_id 走关键词搜索），命中即填充行程项并
+        upsert 回库（下次直接读库）。全程缓存 + 预算上限，失败静默降级
+        「以现场为准」。
+        """
+        if self._poi_details is None:
+            return
+        missing: list[VisitItem] = []
+        for day in plan.days:
+            for item in day.items:
+                if not isinstance(item, VisitItem):
                     continue
-                meters = row.get("distance_m")
-                seconds = row.get("duration_s")
-                if not isinstance(meters, (int, float)) or meters <= 0:
+                detail = None
+                if item.poi_id:
+                    detail = self._poi_details.get(item.poi_id)
+                if detail is None and item.city and item.name:
+                    detail = self._poi_details.get_by_name(item.city, item.name)
+                if detail:
+                    if not item.poi_id and detail.get("poi_id"):
+                        item.poi_id = detail["poi_id"]
+                    if not item.address and detail.get("address"):
+                        item.address = detail["address"]
+                    if not item.opening_hours and detail.get("opening_hours"):
+                        item.opening_hours = detail["opening_hours"]
                     continue
-                if not isinstance(seconds, (int, float)) or seconds <= 0:
-                    continue
-                value = (meters / 1000.0, max(1, round(seconds / 60.0)))
-                self._leg_cache[key] = value
-                apply_measured(item, value)
+                if item.poi_id and (item.opening_hours or item.address):
+                    # v3 payload 免费值 write-through 作种子
+                    self._poi_details.upsert(
+                        item.poi_id,
+                        city=item.city,
+                        name=item.name,
+                        address=item.address,
+                        opening_hours=item.opening_hours,
+                        hours_source=("amap_v3" if item.opening_hours else None),
+                    )
+                if not item.opening_hours:
+                    missing.append(item)
+        if not missing:
+            return
+        ctrip_fn = (
+            getattr(self._ctrip_hours, "hours_for", None)
+            if self._ctrip_hours is not None
+            else None
+        )
+        detail_fn = (
+            getattr(self._amap, "place_hours", None) if self._amap is not None else None
+        )
+        search_fn = (
+            getattr(self._amap, "search_hours", None)
+            if self._amap is not None
+            else None
+        )
+        for item in missing[:LEG_ENRICH_MAX_PAIRS]:
+            hours = address = None
+            source = None
+            # ① 携程先（用户拍板）
+            if callable(ctrip_fn):
+                try:
+                    hours = await ctrip_fn(item.city or "", item.name)
+                except Exception:
+                    logger.warning("plan: ctrip hours failed", exc_info=True)
+                    hours = None
+                if hours:
+                    source = "ctrip"
+            # ② 高德V5：detail 按 poi_id，无 id 走关键词搜索
+            if not hours and item.poi_id and callable(detail_fn):
+                try:
+                    out = await detail_fn(item.poi_id)
+                except Exception:
+                    out = None
+                if isinstance(out, dict):
+                    hours = out.get("opening_hours")
+                    address = out.get("address")
+                    if hours:
+                        source = "amap_v5_detail"
+            if not hours and callable(search_fn):
+                try:
+                    out = await search_fn(item.name, item.city or None)
+                except Exception:
+                    out = None
+                if isinstance(out, dict):
+                    hours = out.get("opening_hours")
+                    address = address or out.get("address")
+                    if hours:
+                        source = "amap_v5_search"
+                    if not item.poi_id and out.get("poi_id"):
+                        item.poi_id = out["poi_id"]
+            if not hours:
+                continue
+            item.opening_hours = hours
+            if address and not item.address:
+                item.address = address
+            # APPEND 入库：下次直接读库（用户拍板）；无 amap id 的携程
+            # 命中以合成键落库，get_by_name 可再命中。
+            key = item.poi_id or (
+                f"ctrip:{item.city or ''}:{item.name}" if source == "ctrip" else None
+            )
+            if key:
+                self._poi_details.upsert(
+                    key,
+                    city=item.city,
+                    name=item.name,
+                    address=item.address,
+                    opening_hours=hours,
+                    hours_source=source,
+                    source="ctrip" if source == "ctrip" else "amap",
+                )
 
     def _solve(self, plan: ItineraryPlan) -> ItineraryPlan | None:
         try:
@@ -2077,6 +2203,11 @@ class PlanningAgent:
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         if not diffs:
+            if session.plan is not None:
+                # re-annotate/re-measure so stale leg values never linger
+                annotate_legs(session.plan)
+                await self._enrich_legs(session.plan)
+                await self._enrich_hours(session.plan)
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
 
@@ -2155,6 +2286,7 @@ class PlanningAgent:
             )
         annotate_legs(plan)
         await self._enrich_legs(plan)
+        await self._enrich_hours(plan)
         return plan, summary, notes
 
     def _apply_structural(
