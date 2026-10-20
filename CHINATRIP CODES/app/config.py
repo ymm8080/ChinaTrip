@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     amap_api_key: str = ""
     amap_base_url: str = "https://restapi.amap.com/v3"
     amap_timeout_seconds: float = 5.0
+    # 路线规划接口（walking/transit）单独放宽：高德 direction 偶发 >5s
+    # （2026-10-20 日志实测 504 后同参数重试即 200），5s 全局超时会误杀。
+    amap_route_timeout_seconds: float = 10.0
 
     # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
     # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;

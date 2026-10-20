@@ -39,8 +39,8 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `POST /api/v1/extract` | 链接/文本解析（GLM 或 mock；注入内容隔离标记；置信度 <0.8 待确认；解析期零写权限） |
 | `GET /api/v1/amap/poi/search` | 高德 POI 服务端代理（key 不出服务端） |
 | `POST /api/v1/translate` | 翻译快车道（zh↔en；短语缓存；注入防护；铁律 21 云端只收文本） |
-| `POST /api/v1/plan/start` · `POST /api/v1/plan/{sid}/message` | 多城规划 Agent：澄清≤2→立即 v0 带假设→对话迭代（DiffOps 过管线，铁律 0/19；自修≤3） |
-| `POST/GET /api/v1/itineraries` · `PUT /{id}` | 行程 CRUD + 变更管线（铁律 1-6 校验；违规 422） |
+| `POST /api/v1/plan/start` · `POST /api/v1/plan/{sid}/message` · `POST /api/v1/plan/{sid}/save` · `POST /api/v1/plan/from-itinerary/{id}` | 多城规划 Agent：澄清≤2→立即 v0 带假设→对话迭代（DiffOps 过管线，铁律 0/19；自修≤3）；save = 点「💾 保存行程」才落库+冻结快照（2026-10-20 起规划不自动写行程库；快照额度 402）；from-itinerary = 「行程」页「✏️ 修改」用工作副本开修改会话（跨归属/未知 404） |
+| `POST/GET /api/v1/itineraries` · `PUT/DELETE /{id}` | 行程 CRUD（DELETE 连同其快照删除；行程中心 trip-items 不受影响；列表含 created_at/updated_at——UTC 存储、端侧本地时区渲染；updated_at 随每次保存/变更/恢复刷新（改完再存时间跟着走））+ 变更管线（铁律 1-6 校验；违规 422） |
 | `POST/GET /api/v1/itineraries/{id}/snapshots…/restore` | 快照冻结/恢复（铁律 16 快照不可变；额度走权益服务 402；恢复只写工作副本） |
 | `POST /api/v1/nav/walking` · `POST /api/v1/nav/transit` | 五模式导航（设计 v2.2 §6.13）：步行/公交路径高德 Web API 代理——fast 车道零 LLM，key 不出服务端；偏航重路由 = 携当前位置重调 walking |
 | `POST /api/v1/nav/deeplink` | 出租/自驾 deeplink 合成（高德打车/滴滴 H5/驾车导航+Web 兜底+Apple Maps iOS 备选；无 key；铁律 22 只 handoff 不代叫车） |

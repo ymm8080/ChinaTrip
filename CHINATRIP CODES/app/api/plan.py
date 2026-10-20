@@ -2,8 +2,13 @@
 
 POST /api/v1/plan/start          — <=2 clarifications or an immediate v0
 POST /api/v1/plan/{id}/message   — conversational diff iterations
+POST /api/v1/plan/{id}/sites/confirm — H5 点选必去确认直插心愿单
+POST /api/v1/plan/{id}/save      — explicit save: upsert the working
+                                   copy into the itinerary store and
+                                   freeze a snapshot (2026-10-20:
+                                   planning NEVER auto-persists)
 
-X-Device-ID is required on both routes. Transient LLM failures degrade
+X-Device-ID is required on all routes. Transient LLM failures degrade
 in-conversation (one retry, then a friendly reply — the session and plan
 survive); the v0 path degrades to a placeholder plan instead of failing
 (§6.1 time-to-first-itinerary contract). 502 stays as the safety net for
@@ -11,23 +16,38 @@ anything the agent still raises.
 """
 
 import logging
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.itineraries import get_store
+from app.api.itineraries import (
+    _account_from_auth,
+    _owned_record,
+    get_entitlement_service,
+    get_itinerary_service,
+    get_store,
+)
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.services.agent.plan import (
     PlanningAgent,
+    PlanSession,
     PlanSessionStore,
     clarify_questions,
     current_violations,
 )
 from app.services.amap_client import AmapClient
 from app.services.ctrip_hours import get_ctrip_hours
-from app.services.itinerary_store import ItineraryRecord
+from app.services.entitlement import EntitlementService
+from app.services.itinerary_store import (
+    ItineraryRecord,
+    ItineraryService,
+    QuotaExceededError,
+)
 from app.services.llm import get_llm_adapter
+from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import LLMError
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
@@ -50,6 +70,10 @@ class PlanStartRequest(BaseModel):
 
 class PlanMessageRequest(BaseModel):
     text: str = Field(min_length=1)
+
+
+class PlanSitesConfirmRequest(BaseModel):
+    mandatory: list[str] = Field(default_factory=list)  # 点选的必去地点名
 
 
 _agent_singleton: PlanningAgent | None = None
@@ -95,26 +119,111 @@ def get_plan_sessions() -> PlanSessionStore:
     return _sessions_singleton
 
 
-def _persist_plan(device_id: str, session, store) -> None:
-    """Mirror the working plan into the itinerary store so /itineraries
-    endpoints and the H5 行程 tab see agent-produced plans (§5.4 working
-    copy; +1 sync version on every change)."""
+class PlanSaveRequest(BaseModel):
+    name: str | None = None
+    note: str | None = None
+
+
+@router.post("/plan/{session_id}/save", status_code=201)
+async def save_plan(
+    session_id: str,
+    request: PlanSaveRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    itinerary_store=Depends(get_store),
+    service: ItineraryService = Depends(get_itinerary_service),
+    entitlement: EntitlementService = Depends(get_entitlement_service),
+    account: str | None = Depends(_account_from_auth),
+) -> dict:
+    """Explicit save (2026-10-20 product rule: 行程只在用户点「💾 保存行程」
+    时写入行程库). Upserts the session's working plan into the itinerary
+    store (owner = device; a Bearer account claims it) and freezes one
+    immutable snapshot — quota denial answers 402 with the paywall
+    trigger, while the working copy stays persisted."""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="nothing_to_save")
     plan = session.plan
-    if plan is None:
-        return
-    record = store.get(plan.itinerary_id)
+    record = itinerary_store.get(plan.itinerary_id)
     if record is None:
-        store.put(
-            ItineraryRecord(
-                itinerary_id=plan.itinerary_id,
-                owner_device_id=device_id,
-                plan=plan,
-            )
+        record = ItineraryRecord(
+            itinerary_id=plan.itinerary_id,
+            owner_device_id=x_device_id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            plan=plan,
         )
     else:
         record.plan = plan
         record.working_sync_version += 1
-        store.put(record)
+        record.updated_at = datetime.now(timezone.utc)
+    if account is not None and not record.owner_account_id:
+        record.owner_account_id = account
+    itinerary_store.put(record)
+    try:
+        snapshot = service.create_snapshot(
+            record,
+            name=request.name,
+            note=request.note,
+            entitlement=entitlement,
+            subject_id=x_device_id,
+        )
+    except QuotaExceededError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "denied_reason": exc.denied_reason or "quota_exhausted",
+                "paywall_trigger": exc.paywall_trigger,
+            },
+        ) from exc
+    return snapshot.model_dump(exclude={"plan"})
+
+
+@router.post("/plan/from-itinerary/{itinerary_id}", status_code=201)
+async def start_plan_from_itinerary(
+    itinerary_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    itinerary_store=Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> dict:
+    """继续修改已有行程（2026-10-20：「行程」页 ✏️ 修改）——deep-copy 该
+    行程的工作副本开一个新规划会话（state=ready），对话改动照走铁律
+    管线；「💾 保存行程」按原 itinerary_id 覆盖并冻结新快照。Unknown /
+    foreign-owner ids answer 404（itineraries 同款防枚举）。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    record = _owned_record(itinerary_store, itinerary_id, x_device_id, account)
+    plan = record.plan.model_copy(deep=True)
+    session = PlanSession(
+        session_id=uuid.uuid4().hex,
+        device_id=x_device_id,
+        cities=list(plan.cities),
+        days=len(plan.days),
+        state="ready",
+        plan=plan,
+        assumptions=list(plan.assumptions),
+        history=[
+            ChatMessage(
+                role="assistant",
+                content=(
+                    f"已载入行程 {itinerary_id}（{':'.join(plan.cities)}，"
+                    f"{len(plan.days)} 天）。直接说要怎么改（例如：把第二天的"
+                    "景点挪到第三天、加一天）；改完点「💾 保存行程」覆盖保存。"
+                ),
+            )
+        ],
+    )
+    store.save(session)
+    body: dict = {"session_id": session.session_id, "state": session.state}
+    body["plan"] = session.plan
+    body["assumptions"] = session.assumptions
+    body["violations"] = current_violations(session)
+    return body
 
 
 @router.post("/plan/start")
@@ -123,7 +232,6 @@ async def start_plan(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
-    itinerary_store=Depends(get_store),
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -140,7 +248,6 @@ async def start_plan(
         logger.exception("plan/start llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
-    _persist_plan(x_device_id, session, itinerary_store)
     body: dict = {"session_id": session.session_id, "state": session.state}
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
@@ -168,7 +275,6 @@ async def message_plan(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
-    itinerary_store=Depends(get_store),
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -181,7 +287,11 @@ async def message_plan(
         logger.exception("plan/message llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
-    _persist_plan(x_device_id, session, itinerary_store)
+    return _plan_turn_body(session, reply, change)
+
+
+def _plan_turn_body(session, reply: str, change) -> dict:
+    """Shared response envelope for message + sites/confirm turns."""
     body: dict = {"reply": reply, "state": session.state}
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
@@ -195,3 +305,30 @@ async def message_plan(
     if change is not None:
         body["change"] = change
     return body
+
+
+@router.post("/plan/{session_id}/sites/confirm")
+async def confirm_plan_sites(
+    session_id: str,
+    request: PlanSitesConfirmRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """H5 点选「必去」确认（product rule 2026-10-20）：the picked names
+    ride straight to the wishlist write + pipeline — no composed text
+    to re-parse; unpicked candidates are never recorded."""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.state != "site_confirm" or not session.pending_sites:
+        raise HTTPException(status_code=409, detail="not_awaiting_sites")
+    try:
+        session, reply, change = await agent.confirm_sites(session, request.mandatory)
+    except LLMError as exc:
+        logger.exception("plan/sites_confirm llm_error: %s", exc)
+        raise HTTPException(status_code=502, detail="llm_error") from exc
+    store.save(session)
+    return _plan_turn_body(session, reply, change)

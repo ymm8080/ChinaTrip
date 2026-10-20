@@ -1,8 +1,10 @@
 """Video/note link -> trip-list tests (§6.5 extension): a pasted link that
 names >=2 visitable sites pauses the plan conversation for one
 mandatory/optional round; a single-site link IS the must-have site (no
-round). Every site lands in the trip-center wishlist and mandatory sites
-ride the v0/plan pipeline pinned (iron rule 19).
+round). Only the user-picked mandatory sites land in the trip-center
+wishlist (product rule 2026-10-20); optional/unpicked candidates stay
+out of the DB. Mandatory sites ride the v0/plan pipeline pinned (iron
+rule 19).
 
 All offline: RecordingLLM for GLM, StubReader for the fetch, StubAmap with
 no results (placeholder candidates), real CP-SAT on tiny plans.
@@ -144,10 +146,10 @@ def test_two_site_link_asks_then_lands_in_wishlist():
     assert session.state == "ready"
     assert session.must_visits == ["总统府", "夫子庙"]
     names = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
-    assert set(names) == {"总统府", "夫子庙", "老门东"}
+    assert set(names) == {"总统府", "夫子庙"}  # picked 必去 only
     assert names["总统府"]["source"] == "paste"
     assert "必去" in names["总统府"]["note"]
-    assert "可选" in names["老门东"]["note"]
+    assert "老门东" not in names  # 未点选不入库
     plan_names = {
         item.name
         for day in session.plan.days
@@ -178,8 +180,9 @@ def test_site_answer_via_llm_fallback():
     session, _, _ = run(agent.message(session, "https://www.douyin.com/video/7389001"))
     session, reply, _ = run(agent.message(session, "总统府一定要去，其他随便"))
     assert session.must_visits == ["总统府"]
-    assert "必去：总统府" in reply
-    assert len(trip_items.list_groups()["wishlist"]) == 3
+    assert "总统府" in reply
+    names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    assert names == ["总统府"]  # picked 必去 only; unpicked stay out
 
 
 def test_first_message_link_in_preferences_goes_site_round_then_v0():
@@ -218,7 +221,8 @@ def test_first_message_link_in_preferences_goes_site_round_then_v0():
         if isinstance(item, VisitItem) and item.pinned
     ]
     assert [v.name for v in pinned] == ["总统府"]
-    assert len(trip_items.list_groups()["wishlist"]) == 3
+    wishlist_names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    assert wishlist_names == ["总统府"]  # picked only
 
 
 def test_single_site_link_is_auto_must_visit():
@@ -483,3 +487,76 @@ def test_parse_resto_answer_shapes():
     assert _parse_resto_answer("keep", ["李记锅贴"]) == (["李记锅贴"], [])
     assert _parse_resto_answer("skip", ["李记锅贴"]) == ([], ["李记锅贴"])
     assert _parse_resto_answer("第二天改成下午出发", names) is None
+
+
+# --- product rule 2026-10-20: wishlist holds only the picked 必去 -------
+
+
+def test_unparseable_site_answer_keeps_round_open():
+    """No recognizable pick: the round stays open (re-ask), nothing is
+    recorded — the old fallback wrote the whole candidate list."""
+    reader = StubReader(_video_digest())
+    trip_items = TripItemService()
+    llm, agent = _ready_agent(
+        [
+            _v0_reply(),
+            _sites_reply(["总统府", "夫子庙", "老门东"]),
+            "not json",
+            "still not json",
+        ],
+        reader,
+        trip_items,
+    )
+    session = run(
+        agent.start(device_id="d", cities=["南京"], days=2, preferences="博物馆")
+    )
+    url = "https://www.douyin.com/video/7389001"
+    session, _, _ = run(agent.message(session, url))
+    session, reply, _ = run(agent.message(session, "随便走走"))
+    assert session.state == "site_confirm"  # round open, pick not lost
+    assert session.pending_sites == ["总统府", "夫子庙", "老门东"]
+    assert trip_items.list_groups()["wishlist"] == []
+    assert "必去" in reply
+
+
+def test_drop_answer_ends_round_with_empty_wishlist():
+    reader = StubReader(_video_digest())
+    trip_items = TripItemService()
+    llm, agent = _ready_agent(
+        [_v0_reply(), _sites_reply(["总统府", "夫子庙", "老门东"])],
+        reader,
+        trip_items,
+    )
+    session = run(
+        agent.start(device_id="d", cities=["南京"], days=2, preferences="博物馆")
+    )
+    url = "https://www.douyin.com/video/7389001"
+    session, _, _ = run(agent.message(session, url))
+    session, reply, _ = run(agent.message(session, "都不要了"))
+    assert session.state == "ready"
+    assert trip_items.list_groups()["wishlist"] == []
+    assert "心愿单没有新增" in reply
+
+
+def test_confirm_sites_records_only_picked():
+    """confirm_sites (H5 chip path): picked 必去 ride straight to the
+    wishlist write; unpicked candidates are never recorded."""
+    reader = StubReader(_video_digest())
+    trip_items = TripItemService()
+    llm, agent = _ready_agent(
+        [_v0_reply(), _sites_reply(["总统府", "夫子庙", "老门东"])],
+        reader,
+        trip_items,
+    )
+    session = run(
+        agent.start(device_id="d", cities=["南京"], days=2, preferences="博物馆")
+    )
+    url = "https://www.douyin.com/video/7389001"
+    session, _, _ = run(agent.message(session, url))
+    session, reply, _ = run(agent.confirm_sites(session, ["总统府"]))
+    assert session.state == "ready"
+    assert session.must_visits == ["总统府"]
+    names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    assert names == ["总统府"]
+    assert "未点选的 2 个地点没有写入心愿单" in reply
+    assert llm.calls == 2  # v0 + extraction; no text round-trip burned

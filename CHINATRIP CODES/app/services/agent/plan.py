@@ -23,6 +23,7 @@ import re
 import uuid
 from collections.abc import Callable
 from datetime import time
+from time import perf_counter
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -73,6 +74,8 @@ PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
 DEFAULT_VISIT_MINUTES = 60
 FLIGHT_TRANSFER_MINUTES = 180  # door-to-door placeholder for uncovered long legs
 LEG_ENRICH_MAX_PAIRS = 24  # amap leg measurements per delivery
+AMAP_CONCURRENCY = 6  # shared amap call cap across legs+hours (QPS)
+HOURS_CHUNK = 6  # hours-chain items fetched concurrently per chunk
 CAR_MAX_KM = 300  # no-schedule legs beyond this are flights, never drives
 CAR_KMH = 70  # intercity road pace behind the car placeholder duration
 DEFAULT_DAYS = 6
@@ -547,6 +550,9 @@ def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
     return [site for site in sites if any(tok in site or site in tok for tok in tokens)]
 
 
+_SITE_SKIP_RE = re.compile(r"不要了|不去了|不加了|都不要")
+
+
 def _parse_site_answer(
     text: str, sites: list[str]
 ) -> tuple[list[str], list[str]] | None:
@@ -555,6 +561,10 @@ def _parse_site_answer(
         return [], list(sites)
     match = _SITE_SPLIT_RE.search(text)
     if match is None:
+        if _SITE_SKIP_RE.search(text):
+            # Explicit drop (product rule 2026-10-20): the round
+            # ends with nothing selected and nothing recorded.
+            return [], []
         return None
     if match.group(1) is not None:
         mandatory = _match_site_names(match.group(1), sites)
@@ -837,15 +847,7 @@ class PlanningAgent:
         session.site_kinds.update(dict(sites))
         session.pending_link_url = url
         session.state = "site_confirm"
-        listing = "、".join(
-            f"（{i}）{site}" for i, site in enumerate(session.pending_sites, 1)
-        )
-        question = (
-            f"链接里认出了这些地点：{listing}。哪些是这次必去、哪些可选？"
-            "回复例如「必去：总统府、夫子庙；可选：老门东」，全部可选就回「都可选」。"
-        )
-        if not session.cities or session.days <= 0:
-            question += " 另外：" + " ".join(clarify_questions(session))
+        question = self._site_confirm_question(session)
         session.history.append(ChatMessage(role="assistant", content=question))
         return True
 
@@ -882,21 +884,51 @@ class PlanningAgent:
                 continue
         return []
 
+    def _site_confirm_question(
+        self, session: PlanSession, *, reask: bool = False
+    ) -> str:
+        """The 必去/可选 round question; reask heads the retry after an
+        unparseable answer (the round stays open)."""
+        listing = "、".join(
+            f"（{i}）{site}" for i, site in enumerate(session.pending_sites, 1)
+        )
+        if reask:
+            question = (
+                f"没认出你点了哪些必去。链接里的地点：{listing}。"
+                "哪些必去？回复「必去：总统府、夫子庙」；"
+                "全部可选回「都可选」；都不要回「不要了」。"
+            )
+        else:
+            question = (
+                f"链接里认出了这些地点：{listing}。哪些是这次必去、哪些可选？"
+                "回复例如「必去：总统府、夫子庙；可选：老门东」，"
+                "全部可选就回「都可选」，都不要就回「不要了」。"
+            )
+        if not session.cities or session.days <= 0:
+            question += " 另外：" + " ".join(clarify_questions(session))
+        return question
+
     async def _answer_site_confirm(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
+        self._absorb_days_cities(session, text)
         sites = list(session.pending_sites)
+        mandatory, optional, parsed = await self._split_site_answer(text, sites)
+        if not parsed:
+            # Product rule 2026-10-20: an unrecognizable answer keeps the
+            # round open instead of the old "record everything as 可选"
+            # fallback that flooded the wishlist with unpicked entries.
+            question = self._site_confirm_question(session, reask=True)
+            session.history.append(ChatMessage(role="assistant", content=question))
+            return session, question, None
         url = session.pending_link_url
         session.pending_sites = []
         session.pending_link_url = ""
-        # A combined reply like「6 天，看看这个视频…」must not lose its
-        # days/cities content to the site round.
-        self._absorb_days_cities(session, text)
-        mandatory, optional, parsed = await self._split_site_answer(text, sites)
         notes: list[str] = []
-        if not parsed:
-            mandatory, optional = [], sites
-            notes.append("没有认出必去/可选的划分，先全部按可选记入清单")
+        mentioned = set(mandatory) | set(optional)
+        unmentioned = [s for s in sites if s not in mentioned]
+        if unmentioned:
+            notes.append(f"未提到的 {len(unmentioned)} 个地点没有写入心愿单")
         return await self._finish_link_sites(session, mandatory, optional, url, notes)
 
     @staticmethod
@@ -925,7 +957,7 @@ class PlanningAgent:
         must-visit pinning + plan/v0/clarify continuation."""
         notes = notes or []
         kinds = kinds or {}
-        self._record_link_sites(session, mandatory, optional, url, kinds)
+        self._record_link_sites(session, mandatory, url, kinds)
         if mandatory:
             session.must_visits = [
                 *(s for s in session.must_visits if s not in mandatory),
@@ -934,10 +966,14 @@ class PlanningAgent:
             session.site_kinds.update({n: kinds.get(n, "sight") for n in mandatory})
         mand_text = "、".join(mandatory) or "无"
         opt_text = "、".join(optional) or "无"
-        reply = (
-            "链接里的地点已记入清单（行程中心可见）："
-            f"必去：{mand_text}；可选：{opt_text}。"
-        )
+        if mandatory:
+            reply = f"必去的 {mand_text} 已记入行程中心心愿单"
+            if optional:
+                reply += f"；可选的 {opt_text} 只留在对话里，想加随时说"
+            reply += "。"
+        else:
+            reply = "这一轮没有必去地点，心愿单没有新增"
+            reply += f"（可选：{opt_text}）。" if optional else "。"
         change: ChangeSummary | None = None
         if session.plan is not None and mandatory:
             session, change, add_note = await self._add_must_visits(session, mandatory)
@@ -964,6 +1000,31 @@ class PlanningAgent:
             reply += f"（{'；'.join(notes)}）"
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, change
+
+    async def confirm_sites(
+        self, session: PlanSession, mandatory: list[str]
+    ) -> tuple[PlanSession, str, ChangeSummary | None]:
+        """H5 chip-confirm path (product rule 2026-10-20): the picked
+        必去 names ride straight to the wishlist write + pipeline —
+        no composed text, no re-parsing; unpicked sites never land."""
+        session = session.model_copy(deep=True)
+        all_sites = list(session.pending_sites)
+        picked = [s for s in all_sites if s in set(mandatory)]
+        session.history.append(
+            ChatMessage(
+                role="user",
+                content="必去：" + ("、".join(picked) if picked else "（未选）"),
+            )
+        )
+        url = session.pending_link_url
+        kinds = dict(session.site_kinds)
+        session.pending_sites = []
+        session.pending_link_url = ""
+        notes: list[str] = []
+        skipped = [s for s in all_sites if s not in set(picked)]
+        if skipped:
+            notes.append(f"未点选的 {len(skipped)} 个地点没有写入心愿单")
+        return await self._finish_link_sites(session, picked, [], url, notes, kinds)
 
     async def _split_site_answer(
         self, text: str, sites: list[str]
@@ -1012,22 +1073,19 @@ class PlanningAgent:
         self,
         session: PlanSession,
         mandatory: list[str],
-        optional: list[str],
         url: str,
         kinds: dict[str, str] | None = None,
     ) -> None:
-        """Every link-named site lands in the trip-center list (v2.4 §5:
-        paste is the link origin, same as /links/{id}/to-wishlist)."""
+        """Product rule 2026-10-20: only the user-picked mandatory sites
+        land in the trip-center wishlist; optional/unpicked candidates
+        stay out of the DB (one「必去：…」away if wanted later)."""
         if self._trip_items is None:
             return
         kinds = kinds or {}
         itinerary_id = session.plan.itinerary_id if session.plan is not None else None
         city = session.cities[0] if len(session.cities) == 1 else None
-        tagged = [(site, "必去") for site in mandatory] + [
-            (site, "可选") for site in optional
-        ]
-        for site, tag in tagged:
-            label = f"{tag}·餐饮" if kinds.get(site) == "food" else tag
+        for site in mandatory:
+            label = "必去·餐饮" if kinds.get(site) == "food" else "必去"
             try:
                 self._trip_items.create(
                     site,
@@ -1427,12 +1485,20 @@ class PlanningAgent:
         extra_assumptions: list[str] | None = None,
     ) -> PlanSession:
         session.state = "planning"
+        t0 = perf_counter()
         candidates, poi_assumptions = await self._collect_candidates(
             session.cities, session.must_visits, kinds=session.site_kinds
         )
+        t1 = perf_counter()
         ranges = _city_day_ranges(session.cities, session.days, session.city_days)
         picked, llm_assumptions, llm_ok = await self._select_pois(
             candidates, session.days, session.preferences, ranges
+        )
+        logger.info(
+            "plan: v0 candidates %.2fs + llm select %.2fs (%d candidates)",
+            t1 - t0,
+            perf_counter() - t1,
+            len(candidates),
         )
         if not llm_ok:
             picked = self._placeholder_selection(candidates, session.days, ranges)
@@ -1955,8 +2021,7 @@ class PlanningAgent:
                 "必去景点（来自链接）已锁定时间，后续修改不会移动它们"
             )
         annotate_legs(plan)
-        await self._enrich_legs(plan)
-        await self._enrich_hours(plan)
+        await self._enrich_parallel(plan)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -1965,7 +2030,9 @@ class PlanningAgent:
             )
         return plan
 
-    async def _enrich_legs(self, plan: ItineraryPlan) -> None:
+    async def _enrich_legs(
+        self, plan: ItineraryPlan, *, amap_slots: asyncio.Semaphore | None = None
+    ) -> None:
         """Upgrade straight-line legs to measured amap walking legs.
 
         /v3/direction/walking — the same engine the nav module proxies —
@@ -2000,17 +2067,29 @@ class PlanningAgent:
             todo.append((a, b, key))
         if not todo:
             return
+        started = perf_counter()
+
+        async def route_slot(origin: str, destination: str, *, oid, did):
+            if amap_slots is not None:
+                async with amap_slots:
+                    return await route_fn(
+                        origin, destination, origin_id=oid, destination_id=did
+                    )
+            return await route_fn(
+                origin, destination, origin_id=oid, destination_id=did
+            )
+
         # small chunks stay under per-key QPS limits on amap
         done: list[tuple[tuple[VisitItem, VisitItem, tuple[str, str]], object]] = []
         for i in range(0, len(todo), 6):
             chunk = todo[i : i + 6]
             outcomes = await asyncio.gather(
                 *[
-                    route_fn(
+                    route_slot(
                         coord_str(a.location),
                         coord_str(b.location),
-                        origin_id=a.poi_id,
-                        destination_id=b.poi_id,
+                        oid=a.poi_id,
+                        did=b.poi_id,
                     )
                     for a, b, _k in chunk
                 ],
@@ -2033,18 +2112,13 @@ class PlanningAgent:
             value = (meters / 1000.0, max(1, round(seconds / 60.0)))
             self._leg_cache[key] = value
             apply_measured(item, value)
+        logger.info(
+            "plan: legs %d route calls in %.2fs", len(done), perf_counter() - started
+        )
 
-    async def _enrich_hours(self, plan: ItineraryPlan) -> None:
-        """POI 详情：先读库；库未命中当场走链并 APPEND 入库（v2.4.4 修订）。
-
-        用户拍板 2026-10-19: 规划优先读 pois 详情（地址/营业时间）；数据
-        库没有的条目才当场回源——顺序 = 携程 sight 页先、高德 v5 后
-        （detail 按 poi_id，无 poi_id 走关键词搜索），命中即填充行程项并
-        upsert 回库（下次直接读库）。全程缓存 + 预算上限，失败静默降级
-        「以现场为准」。
-        """
-        if self._poi_details is None:
-            return
+    def _hours_db_pass(self, plan: ItineraryPlan) -> list[VisitItem]:
+        """读库填充地址/营业时间；同步 DB 调用，须在 to_thread 里跑
+        （避免阻塞事件循环——2026-10-19 服务器僵死事故）。"""
         missing: list[VisitItem] = []
         for day in plan.days:
             for item in day.items:
@@ -2075,6 +2149,42 @@ class PlanningAgent:
                     )
                 if not item.opening_hours:
                     missing.append(item)
+        return missing
+
+    async def _enrich_parallel(self, plan: ItineraryPlan) -> None:
+        """Legs + hours enrichment overlapped (2026-10-20 latency fix).
+
+        The two passes touch disjoint item fields and used to run
+        strictly sequentially; the cold-start hours chain dominated v0
+        latency (measured 208s per turn on 2026-10-20). Both sides draw
+        amap calls from one loop-bound semaphore so the combined burst
+        stays QPS-friendly.
+        """
+        started = perf_counter()
+        amap_slots = asyncio.Semaphore(AMAP_CONCURRENCY)
+        await asyncio.gather(
+            self._enrich_legs(plan, amap_slots=amap_slots),
+            self._enrich_hours(plan, amap_slots=amap_slots),
+        )
+        logger.info("plan: enrich done in %.2fs", perf_counter() - started)
+
+    async def _enrich_hours(
+        self, plan: ItineraryPlan, *, amap_slots: asyncio.Semaphore | None = None
+    ) -> None:
+        """POI 详情：先读库；库未命中当场走链并 APPEND 入库（v2.4.4 修订）。
+
+        用户拍板 2026-10-19: 规划优先读 pois 详情（地址/营业时间）；数据库
+        没有的条目才当场回源——顺序 = 携程 sight 页先、高德 v5 后（detail
+        按 poi_id，无 poi_id 走关键词搜索），命中即填充行程项并 upsert 回库
+        （下次直接读库）。全程缓存 + 预算上限，失败静默降级「以现场为准」。
+        2026-10-20 延迟修订：条目间按 HOURS_CHUNK 并发分块（单条目内部
+        链序不变）；amap 调用走 amap_slots 限并发（与腿距测量共享）。
+        """
+        if self._poi_details is None:
+            return
+        db_started = perf_counter()
+        missing = await asyncio.to_thread(self._hours_db_pass, plan)
+        db_seconds = perf_counter() - db_started
         if not missing:
             return
         ctrip_fn = (
@@ -2090,61 +2200,112 @@ class PlanningAgent:
             if self._amap is not None
             else None
         )
-        for item in missing[:LEG_ENRICH_MAX_PAIRS]:
-            hours = address = None
-            source = None
-            # ① 携程先（用户拍板）
-            if callable(ctrip_fn):
-                try:
-                    hours = await ctrip_fn(item.city or "", item.name)
-                except Exception:
-                    logger.warning("plan: ctrip hours failed", exc_info=True)
-                    hours = None
-                if hours:
-                    source = "ctrip"
-            # ② 高德V5：detail 按 poi_id，无 id 走关键词搜索
-            if not hours and item.poi_id and callable(detail_fn):
-                try:
-                    out = await detail_fn(item.poi_id)
-                except Exception:
-                    out = None
-                if isinstance(out, dict):
-                    hours = out.get("opening_hours")
-                    address = out.get("address")
-                    if hours:
-                        source = "amap_v5_detail"
-            if not hours and callable(search_fn):
-                try:
-                    out = await search_fn(item.name, item.city or None)
-                except Exception:
-                    out = None
-                if isinstance(out, dict):
-                    hours = out.get("opening_hours")
-                    address = address or out.get("address")
-                    if hours:
-                        source = "amap_v5_search"
-                    if not item.poi_id and out.get("poi_id"):
-                        item.poi_id = out["poi_id"]
-            if not hours:
-                continue
-            item.opening_hours = hours
-            if address and not item.address:
-                item.address = address
-            # APPEND 入库：下次直接读库（用户拍板）；无 amap id 的携程
-            # 命中以合成键落库，get_by_name 可再命中。
-            key = item.poi_id or (
-                f"ctrip:{item.city or ''}:{item.name}" if source == "ctrip" else None
+        todo = missing[:LEG_ENRICH_MAX_PAIRS]
+        chain_started = perf_counter()
+        filled = 0
+        for i in range(0, len(todo), HOURS_CHUNK):
+            chunk = todo[i : i + HOURS_CHUNK]
+            outcomes = await asyncio.gather(
+                *[
+                    self._hours_chain(item, ctrip_fn, detail_fn, search_fn, amap_slots)
+                    for item in chunk
+                ],
+                return_exceptions=True,
             )
-            if key:
-                self._poi_details.upsert(
-                    key,
-                    city=item.city,
-                    name=item.name,
-                    address=item.address,
-                    opening_hours=hours,
-                    hours_source=source,
-                    source="ctrip" if source == "ctrip" else "amap",
+            for item, outcome in zip(chunk, outcomes):
+                if isinstance(outcome, BaseException):
+                    logger.warning(
+                        "plan: hours chain failed for %s: %s", item.name, outcome
+                    )
+                    continue
+                if outcome is None:
+                    continue
+                hours, address, source = outcome
+                item.opening_hours = hours
+                if address and not item.address:
+                    item.address = address
+                filled += 1
+                # APPEND 入库：下次直接读库（用户拍板）；无 amap id 的携程
+                # 命中以合成键落库，get_by_name 可再命中。
+                key = item.poi_id or (
+                    f"ctrip:{item.city or ''}:{item.name}"
+                    if source == "ctrip"
+                    else None
                 )
+                if key:
+                    await asyncio.to_thread(
+                        self._poi_details.upsert,
+                        key,
+                        city=item.city,
+                        name=item.name,
+                        address=item.address,
+                        opening_hours=hours,
+                        hours_source=source,
+                        source="ctrip" if source == "ctrip" else "amap",
+                    )
+            if i + HOURS_CHUNK < len(todo):
+                await asyncio.sleep(0.35)
+        logger.info(
+            "plan: hours db pass %.2fs; chain filled %d/%d in %.2fs",
+            db_seconds,
+            filled,
+            len(todo),
+            perf_counter() - chain_started,
+        )
+
+    async def _hours_chain(
+        self, item: VisitItem, ctrip_fn, detail_fn, search_fn, amap_slots
+    ) -> tuple[str, str | None, str] | None:
+        """单条目回源链：携程先 → 高德 v5 detail → 高德 v5 关键词搜索。
+
+        返回 (hours, address, source)；全链未命中返回 None。"""
+        hours: str | None = None
+        address: str | None = None
+        source: str | None = None
+        # ① 携程先（用户拍板）
+        if callable(ctrip_fn):
+            try:
+                hours = await ctrip_fn(item.city or "", item.name)
+            except Exception:
+                logger.warning("plan: ctrip hours failed", exc_info=True)
+                hours = None
+            if hours:
+                source = "ctrip"
+        # ② 高德V5：detail 按 poi_id
+        if not hours and item.poi_id and callable(detail_fn):
+            try:
+                if amap_slots is not None:
+                    async with amap_slots:
+                        out = await detail_fn(item.poi_id)
+                else:
+                    out = await detail_fn(item.poi_id)
+            except Exception:
+                out = None
+            if isinstance(out, dict):
+                hours = out.get("opening_hours")
+                address = out.get("address")
+                if hours:
+                    source = "amap_v5_detail"
+        # ③ 仍未命中：高德 v5 关键词搜索兜底
+        if not hours and callable(search_fn):
+            try:
+                if amap_slots is not None:
+                    async with amap_slots:
+                        out = await search_fn(item.name, item.city or None)
+                else:
+                    out = await search_fn(item.name, item.city or None)
+            except Exception:
+                out = None
+            if isinstance(out, dict):
+                hours = out.get("opening_hours")
+                address = address or out.get("address")
+                if hours:
+                    source = "amap_v5_search"
+                if not item.poi_id and out.get("poi_id"):
+                    item.poi_id = out["poi_id"]
+        if not hours:
+            return None
+        return hours, address, source
 
     def _solve(self, plan: ItineraryPlan) -> ItineraryPlan | None:
         try:
@@ -2206,8 +2367,7 @@ class PlanningAgent:
             if session.plan is not None:
                 # re-annotate/re-measure so stale leg values never linger
                 annotate_legs(session.plan)
-                await self._enrich_legs(session.plan)
-                await self._enrich_hours(session.plan)
+                await self._enrich_parallel(session.plan)
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
 
@@ -2285,8 +2445,7 @@ class PlanningAgent:
                 f"行程仍有 {hard_count} 处校验问题，已按半成品交付：{error_text}"
             )
         annotate_legs(plan)
-        await self._enrich_legs(plan)
-        await self._enrich_hours(plan)
+        await self._enrich_parallel(plan)
         return plan, summary, notes
 
     def _apply_structural(

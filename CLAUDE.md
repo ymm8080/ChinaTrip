@@ -22,7 +22,20 @@ and `DESIGN/architecture_diagram.png`; operational notes in `DAILY OPERATION/`.
 - Keep secrets (.env, API keys, tokens) out of the repository - .gitignore covers them.
 - Dates in ISO 8601 (2026-10-17); amounts in CNY where relevant.
 
+## Local dev server (Windows)
+
+Do NOT run uvicorn with --reload on this machine: its Windows reloader
+leaves zombie spawn workers that keep serving stale code (the reload
+log says reloading while responses stay old). Use the managed watcher
+instead - single uvicorn process plus forced tree-kill restarts:
+
+    dev_server.cmd watch     # hot reload; Ctrl+C stops (repo root)
+    dev_server.cmd stop | start | restart | status
+
+Detached-mode logs land in devlogs/ (gitignored).
+
 ## Pull-request flow
+
 
 Branch from main, open a PR. The automated gate blocks merge until CI passes;
 an AI review comments on the diff; auto-fix applies lint fixes. See README.md.

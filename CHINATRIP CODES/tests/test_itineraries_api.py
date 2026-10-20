@@ -4,6 +4,8 @@ App assembly mirrors tests/test_translate_api.py: fresh store + entitlement
 per app via dependency_overrides, so quota counters never leak across tests.
 """
 
+from datetime import datetime
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -262,3 +264,100 @@ def test_missing_device_id_returns_400():
 def test_unknown_itinerary_returns_404():
     client = make_app()
     assert client.get("/api/v1/itineraries/it_none", headers=DEV_A).status_code == 404
+
+
+# --- delete -----------------------------------------------------------------------
+
+
+def test_delete_removes_itinerary_with_its_snapshots():
+    client = make_app()
+    record = create_itinerary(client)
+    iid = record["itinerary_id"]
+    assert (
+        client.post(
+            f"/api/v1/itineraries/{iid}/snapshots", json={}, headers=DEV_A
+        ).status_code
+        == 201
+    )
+    assert client.delete(f"/api/v1/itineraries/{iid}", headers=DEV_A).status_code == 204
+    # Record + snapshots are gone; a second delete answers 404 (not 204).
+    assert client.get(f"/api/v1/itineraries/{iid}", headers=DEV_A).status_code == 404
+    assert (
+        client.get(f"/api/v1/itineraries/{iid}/snapshots", headers=DEV_A).status_code
+        == 404
+    )
+    assert client.delete(f"/api/v1/itineraries/{iid}", headers=DEV_A).status_code == 404
+    assert client.get("/api/v1/itineraries", headers=DEV_A).json() == []
+
+
+def test_put_bumps_updated_at():
+    client = make_app()
+    record = create_itinerary(client)
+    iid = record["itinerary_id"]
+    resp = client.put(
+        f"/api/v1/itineraries/{iid}",
+        json={"diffs": [add_diff("a")]},
+        headers=DEV_A,
+    )
+    assert resp.status_code == 200
+    summary = resp.json()["record"]
+    assert summary["created_at"] is not None
+    assert summary["updated_at"] is not None
+    created = datetime.fromisoformat(summary["created_at"])
+    updated = datetime.fromisoformat(summary["updated_at"])
+    assert updated >= created
+
+
+def test_delete_foreign_owner_gets_404_and_record_survives():
+    client = make_app()
+    iid = create_itinerary(client, DEV_A)["itinerary_id"]
+    assert client.delete(f"/api/v1/itineraries/{iid}", headers=DEV_B).status_code == 404
+    assert client.get(f"/api/v1/itineraries/{iid}", headers=DEV_A).status_code == 200
+
+
+def test_delete_missing_device_id_returns_400():
+    client = make_app()
+    iid = create_itinerary(client)["itinerary_id"]
+    resp = client.delete(f"/api/v1/itineraries/{iid}")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "missing_device_id"
+
+
+# --- created_at（列表显示生成时间；端侧本地时区渲染）-------------------------
+
+
+def test_list_summary_includes_created_at_utc():
+    client = make_app()
+    create_itinerary(client)
+    body = client.get("/api/v1/itineraries", headers=DEV_A).json()
+    assert len(body) == 1
+    created = body[0]["created_at"]
+    assert created is not None
+    parsed = datetime.fromisoformat(created)
+    assert parsed.tzinfo is not None  # UTC 存储，端侧转本地时区渲染
+
+
+def test_created_at_falls_back_to_earliest_snapshot_for_legacy():
+    store = InMemoryItineraryStore()
+    entitlement = EntitlementService(
+        InMemoryQuotaStore(), rules=[], quotas={"snapshot_limit": 3}
+    )
+    app = FastAPI()
+    app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_entitlement_service] = lambda: entitlement
+    app.include_router(itineraries_router)
+    client = TestClient(app)
+    record = create_itinerary(client)
+    # 模拟 created_at 字段出现前落库的存量记录。
+    stored = store.get(record["itinerary_id"])
+    stored.created_at = None
+    store.put(stored)
+    body = client.get("/api/v1/itineraries", headers=DEV_A).json()
+    assert body[0]["created_at"] is None  # 尚无快照 -> 不显示
+    client.post(
+        f"/api/v1/itineraries/{record['itinerary_id']}/snapshots",
+        json={},
+        headers=DEV_A,
+    )
+    body = client.get("/api/v1/itineraries", headers=DEV_A).json()
+    assert body[0]["created_at"] is not None  # 兜底取最早快照时间

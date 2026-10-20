@@ -15,6 +15,7 @@ def get_amap_client(settings: Settings = Depends(get_settings)) -> AmapClient:
         key=settings.amap_api_key,
         base_url=settings.amap_base_url,
         timeout_seconds=settings.amap_timeout_seconds,
+        route_timeout_seconds=settings.amap_route_timeout_seconds,
     )
 
 

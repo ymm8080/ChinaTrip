@@ -1256,3 +1256,54 @@ def test_message_raw_exception_leaves_stored_session_intact():
     assert len(session.history) == hist_len  # stored session untouched
     assert session.state == "ready"
     assert session.plan is not None
+
+
+def test_v0_hours_chain_fills_every_item_across_chunks():
+    """2026-10-20 latency fix: more than HOURS_CHUNK missing items run
+    in concurrent chunks — every item must still be filled and
+    appended to the store."""
+    pois = [
+        {
+            "name": f"景点{idx}",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": f"B0000{idx:02d}",
+            "location": {"lon": 121.49 + idx * 0.01, "lat": 31.23},
+            "address": f"路{idx}",
+            "opening_hours": None,
+        }
+        for idx in range(8)
+    ]
+    items = [
+        {
+            "name": f"景点{idx}",
+            "city": "上海",
+            "day": idx // 2 + 1,
+            "duration_minutes": 60,
+        }
+        for idx in range(8)
+    ]
+    store = PoiDetailStore()
+    amap = DistanceAmap(pois)
+    ctrip = CtripStub()
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=ctrip,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=4,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    visits = all_visits(session)
+    assert len(visits) == 8
+    assert all(v.opening_hours == "全年全天开放" for v in visits)
+    assert len(ctrip.calls) == 8
+    assert amap.hours_calls == []  # ctrip hit → v5 never asked
+    assert all(store.get(f"B0000{idx:02d}") for idx in range(8))

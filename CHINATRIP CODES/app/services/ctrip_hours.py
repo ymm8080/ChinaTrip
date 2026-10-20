@@ -20,6 +20,7 @@ API at W9-10):
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 import httpx
@@ -27,6 +28,17 @@ import httpx
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 _LIST_URL = "https://gs.ctrip.com/html5/you/sight/{slug}.html?pageIndex={page}"
 _SITE = "https://gs.ctrip.com"
+
+# Windowed directory fetch (2026-10-20 latency fix): list pages are
+# fetched _CRAWL_WINDOW at a time and scanned in page order. The
+# per-lookup budget (4) and per-city hard cap (12) are UNCHANGED —
+# worst-case volume per lookup is the same; an early hit may pull up
+# to window-1 extra pages once, after which the process-wide index
+# cache serves everything. Concurrent fetches to gs.ctrip.com are
+# capped at _FETCH_CONCURRENCY (minimal-volume PoC discipline,
+# DESIGN v2.4.4 备查 2026-10-20).
+_CRAWL_WINDOW = 2
+_FETCH_CONCURRENCY = 2
 
 # Title-verified slugs (a wrong slug lands on a different city's list).
 CITY_SLUGS = {
@@ -112,6 +124,11 @@ class CtripHoursReader:
         self._exhausted: set[str] = set()
         self._hours: dict[str, str | None] = {}
         self._misses: set[tuple[str, str]] = set()
+        # Lazy loop-bound primitives: created on first use inside a
+        # running loop (tests reuse a reader across asyncio.run calls;
+        # never share a loop-bound semaphore/lock across loops).
+        self._fetch_slots: asyncio.Semaphore | None = None
+        self._city_locks: dict[str, asyncio.Lock] = {}
 
     async def hours_for(self, city: str, poi_name: str) -> str | None:
         slug = CITY_SLUGS.get(_norm_city(city))
@@ -121,44 +138,80 @@ class CtripHoursReader:
         index = self._index.setdefault(slug, {})
         ctrip_name = match_name(index, poi_name)
         if ctrip_name is None:
-            ctrip_name = await self._crawl_until_found(slug, poi_name)
+            async with self._city_lock(slug):
+                # re-check: a sibling item may have crawled while we waited
+                ctrip_name = match_name(index, poi_name)
+                if ctrip_name is None:
+                    ctrip_name = await self._crawl_until_found(slug, poi_name)
         if ctrip_name is None:
             self._misses.add(key)
             return None
         return await self._detail_hours(index[ctrip_name])
 
+    def _slots(self) -> asyncio.Semaphore:
+        if self._fetch_slots is None:
+            self._fetch_slots = asyncio.Semaphore(_FETCH_CONCURRENCY)
+        return self._fetch_slots
+
+    def _city_lock(self, slug: str) -> asyncio.Lock:
+        lock = self._city_locks.get(slug)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._city_locks[slug] = lock
+        return lock
+
+    async def _fetch_page(self, slug: str, page: int) -> tuple[bool, str | None]:
+        """One directory page: (False, None) = transport error (transient);
+        (True, None) = non-200 (caller marks the city exhausted); else the
+        page body."""
+        try:
+            async with self._slots():
+                r = await self._client.get(_LIST_URL.format(slug=slug, page=page))
+        except Exception:
+            return False, None
+        if r.status_code != 200:
+            return True, None
+        return True, r.text
+
     async def _crawl_until_found(self, slug: str, poi_name: str) -> str | None:
         index = self._index.setdefault(slug, {})
         budget = self._max_pages_per_lookup
         while budget > 0 and slug not in self._exhausted:
-            page = self._pages_done.get(slug, 0) + 1
-            if page > self._max_total_pages_per_city:
+            window = min(budget, _CRAWL_WINDOW)
+            first = self._pages_done.get(slug, 0) + 1
+            pages = [
+                p
+                for p in range(first, first + window)
+                if p <= self._max_total_pages_per_city
+            ]
+            if not pages:
                 self._exhausted.add(slug)
                 return None
-            try:
-                r = await self._client.get(_LIST_URL.format(slug=slug, page=page))
-            except Exception:
-                return None
-            if r.status_code != 200:
-                self._exhausted.add(slug)
-                return None
-            self._pages_done[slug] = page
-            entries = parse_list(r.text)
-            if not entries:
-                self._exhausted.add(slug)
-                return None
-            index.update(entries)
-            budget -= 1
-            hit = match_name(index, poi_name)
-            if hit is not None:
-                return hit
+            htmls = await asyncio.gather(*[self._fetch_page(slug, p) for p in pages])
+            for page, (ok, html) in zip(pages, htmls):
+                if not ok:  # transport error — transient, stop this lookup
+                    return None
+                if html is None:  # non-200 — treat the city as exhausted
+                    self._exhausted.add(slug)
+                    return None
+                self._pages_done[slug] = page
+                entries = parse_list(html)
+                if not entries:
+                    self._exhausted.add(slug)
+                    return None
+                index.update(entries)
+                hit = match_name(index, poi_name)
+                if hit is not None:
+                    return hit
+            budget -= window
         return None
 
     async def _detail_hours(self, url: str) -> str | None:
         if url in self._hours:
             return self._hours[url]
         try:
-            r = await self._client.get(url)
+            async with self._slots():
+                r = await self._client.get(url)
         except Exception:
             return None
         hours = parse_hours(r.text) if r.status_code == 200 else None

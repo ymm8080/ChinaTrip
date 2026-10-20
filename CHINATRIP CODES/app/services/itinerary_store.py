@@ -68,6 +68,12 @@ class ItineraryRecord(BaseModel):
     active_snapshot_id: str | None = None
     # set when claimed by / created for a logged-in account
     owner_account_id: str | None = None
+    # 行程生成时间（2026-10-20 产品规则：列表/详情显示生成时间，端侧
+    # 本地时区渲染）：UTC；存量旧记录为 None（列表接口回退最早快照时间）。
+    created_at: datetime | None = None
+    # 最近一次保存/变更/恢复时间（2026-10-20 用户拍板：改完再存，
+    # 时间要跟着走）；created_at 保留为首存/创建时间。
+    updated_at: datetime | None = None
 
 
 class ItineraryStore(Protocol):
@@ -150,6 +156,8 @@ class ItineraryService:
         record = ItineraryRecord(
             itinerary_id=itinerary_id,
             owner_device_id=owner_device_id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
             plan=ItineraryPlan(
                 itinerary_id=itinerary_id, cities=list(cities), days=days
             ),
@@ -182,6 +190,7 @@ class ItineraryService:
         if report.ok:
             record.plan = new_plan
             record.working_sync_version += 1
+            record.updated_at = datetime.now(timezone.utc)
             self._store.put(record)
         return record, report, summary
 
@@ -237,5 +246,6 @@ class ItineraryService:
         record.plan = snapshot.plan.model_copy(deep=True)
         record.working_sync_version += 1
         record.active_snapshot_id = snapshot.snapshot_id
+        record.updated_at = datetime.now(timezone.utc)
         self._store.put(record)
         return record

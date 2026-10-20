@@ -142,12 +142,21 @@ def _owned_record(
 
 
 def _summary(record: ItineraryRecord) -> dict:
+    # 行程生成时间（2026-10-20）：created_at 为 None 的存量旧记录回退到
+    # 最早快照的 created_at（记录里唯一真实历史时间戳），都没有则 None。
+    created_at = record.created_at
+    if created_at is None and record.snapshots:
+        created_at = min(s.created_at for s in record.snapshots)
+    # 更新时间（2026-10-20）：随保存/变更/恢复刷新；旧记录回退创建时间。
+    updated_at = record.updated_at or record.created_at or created_at
     return {
         "itinerary_id": record.itinerary_id,
         "working_sync_version": record.working_sync_version,
         "cities": record.plan.cities,
         "active_snapshot_id": record.active_snapshot_id,
         "snapshot_count": len(record.snapshots),
+        "created_at": created_at,
+        "updated_at": updated_at,
     }
 
 
@@ -283,3 +292,20 @@ async def restore_snapshot(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="snapshot_not_found") from exc
     return record
+
+
+@router.delete("/itineraries/{itinerary_id}", status_code=204)
+async def delete_itinerary(
+    itinerary_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> None:
+    """Delete an owned itinerary together with its snapshots (2026-10-20:
+    「行程」页 per-trip 查看/删除 buttons). Unknown / foreign-owner ids
+    answer 404 like every other route (no enumeration). trip_items are
+    intentionally untouched — the 行程中心 kanban is its own source of
+    truth (铁律 0); deleting a trip never destroys wishlist data."""
+    device = _require_device(x_device_id)
+    _owned_record(store, itinerary_id, device, account)
+    store.delete(itinerary_id)
