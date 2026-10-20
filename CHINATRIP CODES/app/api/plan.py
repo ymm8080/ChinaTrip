@@ -41,6 +41,7 @@ from app.services.agent.plan import (
 from app.services.amap_client import AmapClient
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
+from app.services.itinerary import DiffOp, VisitItem, mutate
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -74,6 +75,10 @@ class PlanMessageRequest(BaseModel):
 
 class PlanSitesConfirmRequest(BaseModel):
     mandatory: list[str] = Field(default_factory=list)  # 点选的必去地点名
+
+
+class PlanPinRequest(BaseModel):
+    pinned: bool
 
 
 _agent_singleton: PlanningAgent | None = None
@@ -332,3 +337,68 @@ async def confirm_plan_sites(
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
     return _plan_turn_body(session, reply, change)
+
+
+def _find_visit_item(plan, item_id: str) -> VisitItem | None:
+    for day in plan.days:
+        for item in day.items:
+            if isinstance(item, VisitItem) and item.item_id == item_id:
+                return item
+    return None
+
+
+@router.post("/plan/{session_id}/items/{item_id}/pin")
+async def pin_plan_item(
+    session_id: str,
+    item_id: str,
+    request: PlanPinRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """钉住/取消钉住（iron rule 19）：pinned 的项目引擎不重排时间。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    item = _find_visit_item(session.plan, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    if request.pinned and item.start_time is None:
+        raise HTTPException(status_code=422, detail="pinned_requires_time")
+    item.pinned = request.pinned
+    store.save(session)
+    reply = f"已钉住 {item.name}" if request.pinned else f"已取消钉住 {item.name}"
+    return _plan_turn_body(session, reply, None)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/delete")
+async def delete_plan_item(
+    session_id: str,
+    item_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """删除按钮 = 用户对这一项的明确同意：mutate 不带 old_plan，rule 19
+    不拦按钮删除；删除结果回写行程中心（记入「不想去」）。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    item = _find_visit_item(session.plan, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    plan_before = session.plan
+    diff = DiffOp(op="remove", item_id=item_id)
+    new_plan, _, _ = mutate(plan_before, [diff], poi_hours=[])
+    session.plan = new_plan
+    agent.sync_removals_to_trip_items(plan_before, [diff])
+    store.save(session)
+    reply = f"已删除 {item.name}，已记入不想去"
+    return _plan_turn_body(session, reply, None)
