@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """ChinaTrip dev server manager (Windows-zombie-proof hot reload).
 
 Why: uvicorn --reload on this Windows box leaves spawn-worker zombies that
@@ -16,6 +15,7 @@ Usage (run with the repo venv python, or just use dev_server.cmd):
   python scripts/dev_watch.py status    # serving? who owns the port?
 Optional: --port 8000 (default 8000)
 """
+
 import socket
 import subprocess
 import sys
@@ -36,14 +36,18 @@ def ps(command: str) -> str:
         ["powershell", "-NoProfile", "-Command", command],
         capture_output=True,
         text=True,
+        check=False,
     ).stdout
 
 
 def port_owner_pids(port: int) -> list[int]:
-    out = ps(
-        "(Get-NetTCPConnection -LocalPort %d -State Listen "
-        "-ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique" % port
+    query = (
+        "(Get-NetTCPConnection -LocalPort "
+        + str(port)
+        + " -State Listen -ErrorAction SilentlyContinue)"
+        + ".OwningProcess | Select-Object -Unique"
     )
+    out = ps(query)
     return [int(x) for x in out.split() if x.strip().isdigit()]
 
 
@@ -52,9 +56,11 @@ def uvicorn_pids(port: int) -> list[int]:
     spawn_main children (the zombie worker class)."""
     roots = ps(
         "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
-        "Where-Object { $_.CommandLine -match 'uvicorn' "
-        "-and $_.CommandLine -match '--port\\s+%d' } | "
-        "Select-Object -ExpandProperty ProcessID" % port
+        + "Where-Object { $_.CommandLine -match 'uvicorn' "
+        + "-and $_.CommandLine -match '--port\\s+"
+        + str(port)
+        + "' } | "
+        + "Select-Object -ExpandProperty ProcessID"
     )
     root_ids = [int(x) for x in roots.split() if x.strip().isdigit()]
     if not root_ids:
@@ -62,23 +68,25 @@ def uvicorn_pids(port: int) -> list[int]:
     id_list = ",".join(str(i) for i in root_ids)
     kids = ps(
         "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
-        "Where-Object { $_.CommandLine -match 'spawn_main' "
-        "-and ($_.ParentProcessId -in %s) } | "
-        "Select-Object -ExpandProperty ProcessID" % id_list
+        + "Where-Object { $_.CommandLine -match 'spawn_main' "
+        + "-and ($_.ParentProcessId -in "
+        + id_list
+        + ") } | "
+        + "Select-Object -ExpandProperty ProcessID"
     )
     return root_ids + [int(x) for x in kids.split() if x.strip().isdigit()]
 
 
 def kill_tree(pid: int) -> None:
     subprocess.run(
-        ["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True
+        ["taskkill", "/PID", str(pid), "/T", "/F"], check=False, capture_output=True
     )
 
 
 def stop_all(port: int) -> None:
     roots = sorted(set(port_owner_pids(port)) | set(uvicorn_pids(port)))
     for pid in roots:
-        print("[dev_watch] killing tree %d" % pid, flush=True)
+        print(f"[dev_watch] killing tree {pid}", flush=True)
         kill_tree(pid)
     if roots:
         time.sleep(1.0)
@@ -87,13 +95,13 @@ def stop_all(port: int) -> None:
 def port_free(port: int, timeout: float = 15.0) -> bool:
     deadline = time.time() + timeout
     while True:
-        s = socket.socket()
+        sock = socket.socket()
         try:
-            s.bind((HOST, port))
-            s.close()
+            sock.bind((HOST, port))
+            sock.close()
             return True
         except OSError:
-            s.close()
+            sock.close()
             if time.time() >= deadline:
                 return False
             time.sleep(0.3)
@@ -118,21 +126,25 @@ def spawn_child() -> subprocess.Popen:
 
 def spawn_detached() -> None:
     LOGS.mkdir(exist_ok=True)
-    log_path = LOGS / ("uvicorn-%d.log" % PORT)
-    log = open(log_path, "ab")
-    log.write(
-        ("\n===== start %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode()
-    )
-    log.flush()
-    flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-    proc = subprocess.Popen(
-        uvicorn_cmd(),
-        cwd=str(CODES),
-        stdout=log,
-        stderr=subprocess.STDOUT,
-        creationflags=flags,
-    )
-    print("started detached pid=%d (log: %s)" % (proc.pid, log_path))
+    log_path = LOGS / f"uvicorn-{PORT}.log"
+    # The detached child inherits the log handle; closing the parent's copy
+    # after Popen does not affect it.
+    with open(log_path, "ab") as log:
+        log.write(
+            (
+                "\n===== start " + time.strftime("%Y-%m-%d %H:%M:%S") + " =====\n"
+            ).encode()
+        )
+        log.flush()
+        flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        proc = subprocess.Popen(
+            uvicorn_cmd(),
+            cwd=str(CODES),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=flags,
+        )
+    print(f"started detached pid={proc.pid} (log: {log_path})")
 
 
 def status(port: int) -> None:
@@ -140,15 +152,15 @@ def status(port: int) -> None:
     import urllib.request
 
     owners = port_owner_pids(port)
-    print("port %d owners: %s" % (port, owners or "none"))
+    print(f"port {port} owners: {owners or 'none'}")
     try:
         with urllib.request.urlopen(
-            "http://127.0.0.1:%d/openapi.json" % port, timeout=3
+            f"http://127.0.0.1:{port}/openapi.json", timeout=3
         ) as resp:
             data = json.load(resp)
-        print("serving: %d routes" % len(data.get("paths", {})))
+        print(f"serving: {len(data.get('paths', {}))} routes")
     except Exception as exc:  # noqa: BLE001 - status probe reports anything
-        print("serving: NO (%s)" % exc.__class__.__name__)
+        print(f"serving: NO ({exc.__class__.__name__})")
 
 
 def watch_mode(port: int) -> None:
@@ -156,11 +168,11 @@ def watch_mode(port: int) -> None:
 
     stop_all(port)
     if not port_free(port):
-        print("FATAL: port %d still busy; refusing to start" % port, flush=True)
+        print(f"FATAL: port {port} still busy; refusing to start", flush=True)
         sys.exit(1)
     proc = spawn_child()
     print(
-        "[dev_watch] uvicorn pid=%d single-process (no --reload)" % proc.pid,
+        f"[dev_watch] uvicorn pid={proc.pid} single-process (no --reload)",
         flush=True,
     )
     try:
@@ -174,25 +186,20 @@ def watch_mode(port: int) -> None:
             try:
                 if proc.poll() is not None:
                     print(
-                        "[dev_watch] child exited rc=%s; respawning"
-                        % proc.returncode,
+                        f"[dev_watch] child exited rc={proc.returncode}; respawning",
                         flush=True,
                     )
                     stop_all(port)
                     proc = spawn_child()
-                    print("[dev_watch] uvicorn pid=%d" % proc.pid, flush=True)
+                    print(f"[dev_watch] uvicorn pid={proc.pid}", flush=True)
                     continue
                 if not changes:
                     continue
                 # watchfiles >=1.0 yields (Change, path) tuples.
-                py_changed = [
-                    str(p) for c, p in changes if Path(p).suffix == ".py"
-                ]
+                py_changed = [str(p) for c, p in changes if Path(p).suffix == ".py"]
                 if not py_changed:
                     continue
-                print(
-                    "[dev_watch] changed: %s" % "; ".join(py_changed), flush=True
-                )
+                print(f"[dev_watch] changed: {'; '.join(py_changed)}", flush=True)
                 kill_tree(proc.pid)
                 try:
                     proc.wait(timeout=10)
@@ -209,10 +216,10 @@ def watch_mode(port: int) -> None:
                     sys.exit(1)
                 time.sleep(0.2)
                 proc = spawn_child()
-                print("[dev_watch] uvicorn pid=%d" % proc.pid, flush=True)
-            except Exception as exc:  # watcher must survive handler bugs
+                print(f"[dev_watch] uvicorn pid={proc.pid}", flush=True)
+            except Exception as exc:  # noqa: BLE001 - watcher must survive handler bugs
                 print(
-                    "[dev_watch] handler error (watcher stays up): %r" % exc,
+                    f"[dev_watch] handler error (watcher stays up): {exc!r}",
                     flush=True,
                 )
                 continue
@@ -236,7 +243,7 @@ def main() -> None:
     elif action in ("start", "restart"):
         stop_all(port)
         if not port_free(port):
-            print("FATAL: port %d still busy; not starting" % port)
+            print(f"FATAL: port {port} still busy; not starting")
             sys.exit(1)
         spawn_detached()
     elif action == "status":
