@@ -85,3 +85,91 @@ def test_reader_unknown_city_degrades_without_network():
         timeout_seconds=2.0, transport=httpx.MockTransport(handler)
     )
     assert asyncio.run(reader.hours_for("吐鲁番", "火焰山")) is None
+
+
+# ---------------------------------------------------------------------
+# 2026-10-20 windowed directory fetch: pages ride out _CRAWL_WINDOW at a
+# time, scanned in page order; per-lookup budget (4) and per-city cap
+# (12) unchanged; a per-city lock keeps concurrent lookups from
+# double-crawling one city.
+
+from app.services.ctrip_hours import _CRAWL_WINDOW  # noqa: E402
+
+_MISS_HTML = (
+    '<a href="https://gs.ctrip.com/html5/you/sight/Chongqing158/9.html" '
+    'title="解放碑">解放碑</a>\n'
+)
+
+
+def _list_page(idx: int) -> str:
+    return f"https://gs.ctrip.com/html5/you/sight/chongqing158.html?pageIndex={idx}"
+
+
+def _detail(idx: int) -> str:
+    return f"https://gs.ctrip.com/html5/you/sight/Chongqing158/{idx}.html"
+
+
+def _pages_with_details() -> dict[str, str]:
+    """List pages 1-2 plus the two detail pages LIST_HTML links to."""
+    return {
+        _list_page(1): LIST_HTML,
+        _list_page(2): LIST_HTML,
+        _detail(10377): DETAIL_HTML,  # 洪崖洞民俗风貌区
+        _detail(10378): DETAIL_HTML,  # 解放碑步行街
+    }
+
+
+def _counting_reader(pages: dict[str, str], served: list[str]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url in pages:
+            served.append(url)
+            return httpx.Response(200, text=pages[url])
+        return httpx.Response(404, text="nope")
+
+    return CtripHoursReader(timeout_seconds=2.0, transport=httpx.MockTransport(handler))
+
+
+def test_window_hit_on_first_page_never_fetches_beyond_window():
+    served: list[str] = []
+    reader = _counting_reader(_pages_with_details(), served)
+    assert asyncio.run(reader.hours_for("重庆市", "洪崖洞")) is not None
+    list_fetches = [u for u in served if "pageIndex=" in u]
+    assert len(list_fetches) == _CRAWL_WINDOW
+
+
+def test_miss_stops_at_lookup_budget_then_miss_caches():
+    served: list[str] = []
+    pages = {_list_page(i): f"<div>{_MISS_HTML}</div>" for i in range(1, 7)}
+    reader = _counting_reader(pages, served)
+    assert asyncio.run(reader.hours_for("重庆", "长江索道")) is None
+    assert len([u for u in served if "pageIndex=" in u]) == 4  # budget 4
+    before = len(served)
+    assert asyncio.run(reader.hours_for("重庆", "长江索道")) is None
+    assert len(served) == before  # miss cache → zero new requests
+
+
+def test_city_cap_twelve_pages_then_exhausted():
+    served: list[str] = []
+    pages = {_list_page(i): f"<div>{_MISS_HTML}</div>" for i in range(1, 15)}
+    reader = _counting_reader(pages, served)
+    for _ in range(3):  # 3 lookups × budget 4 = the 12-page city cap
+        assert asyncio.run(reader.hours_for("重庆", "长江索道")) is None
+    before = len(served)
+    assert asyncio.run(reader.hours_for("重庆", "长江索道")) is None
+    assert len(served) == before  # exhausted → no more requests
+
+
+def test_concurrent_lookups_share_one_crawl_via_city_lock():
+    served: list[str] = []
+    reader = _counting_reader(_pages_with_details(), served)
+
+    async def scenario():
+        return await asyncio.gather(
+            reader.hours_for("重庆", "洪崖洞"),
+            reader.hours_for("重庆", "解放碑"),
+        )
+
+    got = asyncio.run(scenario())
+    assert got[0] is not None and got[1] is not None
+    assert len([u for u in served if "pageIndex=" in u]) == _CRAWL_WINDOW

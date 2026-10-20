@@ -11,6 +11,7 @@ planning keeps working; the next job run against the DB repopulates it.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -19,6 +20,10 @@ from app.models import Poi
 logger = logging.getLogger(__name__)
 
 _STALE_AFTER = timedelta(hours=24)
+# After a failed DB call, skip DB attempts for this long (memory
+# serves instead). Bounds the down-db cost to ONE connect_timeout
+# stall per window instead of one per call (2026-10-20 latency fix).
+_DB_DOWN_COOLDOWN_SECONDS = 300.0
 
 
 class PoiDetailStore:
@@ -27,11 +32,18 @@ class PoiDetailStore:
     def __init__(self, session_factory=None) -> None:
         self._factory = session_factory
         self._memory: dict[str, dict] = {}
+        self._db_down_until = 0.0  # time.monotonic() deadline
+
+    def _db_available(self) -> bool:
+        return self._factory is not None and (time.monotonic() >= self._db_down_until)
+
+    def _note_db_failure(self) -> None:
+        self._db_down_until = time.monotonic() + _DB_DOWN_COOLDOWN_SECONDS
 
     # --- read ---------------------------------------------------------------
 
     def get(self, source_poi_id: str) -> dict | None:
-        if self._factory is not None:
+        if self._db_available():
             try:
                 with self._factory() as session:
                     row = (
@@ -53,6 +65,7 @@ class PoiDetailStore:
                         ),
                     }
             except Exception:
+                self._note_db_failure()
                 logger.warning(
                     "poi_details: db read failed, memory fallback",
                     exc_info=True,
@@ -64,7 +77,7 @@ class PoiDetailStore:
     ) -> list[tuple[str, str | None, str | None]]:
         """POIs whose hours are missing or older than 24h (job targets)."""
         cutoff = datetime.now(timezone.utc) - _STALE_AFTER
-        if self._factory is not None:
+        if self._db_available():
             try:
                 with self._factory() as session:
                     rows = (
@@ -78,6 +91,7 @@ class PoiDetailStore:
                     )
                     return [(r.source_poi_id, r.city, r.name_zh) for r in rows]
             except Exception:
+                self._note_db_failure()
                 logger.warning(
                     "poi_details: db unreachable, memory fallback",
                     exc_info=True,
@@ -92,11 +106,14 @@ class PoiDetailStore:
         return out
 
     def ping(self) -> bool:
+        # Explicit probe: ignores the down-latch so the daily job and
+        # a mid-session db start recover without a process restart.
         if self._factory is None:
             return False
         try:
             with self._factory() as session:
                 session.query(Poi.id).first()
+            self._db_down_until = 0.0
             return True
         except Exception:
             return False
@@ -108,7 +125,7 @@ class PoiDetailStore:
         name = (name or "").strip()
         if not name:
             return None
-        if self._factory is not None:
+        if self._db_available():
             try:
                 with self._factory() as session:
                     row = session.query(Poi).filter(Poi.name_zh == name).first()
@@ -121,6 +138,7 @@ class PoiDetailStore:
                         "hours_source": row.hours_source,
                     }
             except Exception:
+                self._note_db_failure()
                 logger.warning("poi_details: db get_by_name failed", exc_info=True)
         for key, v in self._memory.items():
             if v.get("name") == name:
@@ -153,7 +171,7 @@ class PoiDetailStore:
             mem["hours_source"] = hours_source
         if opening_hours:
             mem["hours_updated_at"] = now
-        if self._factory is None:
+        if self._factory is None or not self._db_available():
             return True
         try:
             with self._factory() as session:
@@ -191,6 +209,7 @@ class PoiDetailStore:
                 session.commit()
             return True
         except Exception:
+            self._note_db_failure()
             logger.warning("poi_details: db upsert failed (memory kept)", exc_info=True)
             return True
 

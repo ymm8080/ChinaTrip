@@ -14,7 +14,10 @@ from datetime import time
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.itineraries import get_store
+from app.api.itineraries import (
+    get_entitlement_service,
+    get_store,
+)
 from app.api.itineraries import router as itineraries_router
 from app.api.plan import get_plan_sessions, get_planning_agent
 from app.api.plan import router as plan_router
@@ -25,6 +28,7 @@ from app.services.agent.plan import (
     _fallback_sequence_times,
     _reconcile_transfer_days,
 )
+from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import (
     DayPlan,
     ItineraryPlan,
@@ -190,7 +194,7 @@ def test_fallback_sequences_untimed_visits_around_transfer():
     assert report.ok, [v.message for v in report.violations]
 
 
-# --- persistence: agent plans land in the itinerary store -----------------
+# --- persistence: 行程只在显式 save 时落库（2026-10-20 产品规则） ----------
 
 
 V0_JSON = json.dumps(
@@ -236,12 +240,15 @@ def make_app(agent):
     app.dependency_overrides[get_planning_agent] = lambda: agent
     app.dependency_overrides[get_plan_sessions] = lambda: sessions
     app.dependency_overrides[get_store] = lambda: itineraries
+    app.dependency_overrides[get_entitlement_service] = lambda: EntitlementService(
+        InMemoryQuotaStore(), rules=[]
+    )
     app.include_router(plan_router)
     app.include_router(itineraries_router)
     return app
 
 
-def test_plan_start_persists_itinerary_for_h5_tab():
+def test_plan_start_does_not_autopersist_and_save_persists():
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     client = TestClient(make_app(agent))
     resp = client.post(
@@ -250,18 +257,30 @@ def test_plan_start_persists_itinerary_for_h5_tab():
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
-    plan = resp.json()["plan"]
-    iid = plan["itinerary_id"]
+    sid = resp.json()["session_id"]
+    iid = resp.json()["plan"]["itinerary_id"]
 
+    # No auto-mirror: the working copy is invisible to /itineraries.
+    assert (
+        client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS).status_code
+        == 404
+    )
+    listed = client.get("/api/v1/itineraries", headers=DEVICE_HEADERS)
+    assert listed.json() == []
+
+    # Explicit save creates the record + first snapshot.
+    saved = client.post(f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS)
+    assert saved.status_code == 201
+    meta = saved.json()
+    assert meta["sync_version"] == 1
+    assert "plan" not in meta
     got = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS)
-    assert got.status_code == 200, "phantom itinerary_id must be retrievable"
-    assert got.json()["itinerary_id"] == iid
-
+    assert got.status_code == 200
     listed = client.get("/api/v1/itineraries", headers=DEVICE_HEADERS)
     assert iid in [r["itinerary_id"] for r in listed.json()]
 
 
-def test_plan_message_updates_working_copy_version():
+def test_plan_message_then_save_freezes_latest_plan():
     edit_json = json.dumps(
         {
             "reply": "ok",
@@ -282,13 +301,30 @@ def test_plan_message_updates_working_copy_version():
     )
     sid = start.json()["session_id"]
     iid = start.json()["plan"]["itinerary_id"]
-
     msg = client.post(
         f"/api/v1/plan/{sid}/message",
         json={"text": "把外滩挪到第二天"},
         headers=DEVICE_HEADERS,
     )
     assert msg.status_code == 200
+    # Still nothing in the store until the user clicks save.
+    assert (
+        client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS).status_code
+        == 404
+    )
+
+    saved = client.post(f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS)
+    assert saved.status_code == 201
     got = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS)
     assert got.status_code == 200
-    assert got.json()["working_sync_version"] >= 2
+    body = got.json()
+    assert body["working_sync_version"] == 1
+    items = [i for d in body["plan"]["days"] for i in d["items"]]
+    moved = next(i for i in items if i["item_id"] == "v1")
+    assert moved["day"] == 2  # frozen copy holds the latest plan
+    assert body["snapshots"]  # one immutable snapshot frozen
+
+    # Second save: upsert bumps the working copy, freezes another snapshot.
+    second = client.post(f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS)
+    assert second.status_code == 201
+    assert second.json()["sync_version"] == 2

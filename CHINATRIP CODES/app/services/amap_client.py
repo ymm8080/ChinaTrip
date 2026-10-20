@@ -176,19 +176,24 @@ class AmapClient:
         key: str,
         base_url: str = "https://restapi.amap.com/v3",
         timeout_seconds: float = 5.0,
+        route_timeout_seconds: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._key = key
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
+        # 路线规划（direction/*）比 POI/地理编码慢，允许单独放宽
+        self._route_timeout_seconds = route_timeout_seconds or timeout_seconds
         self._transport = transport
         # v5 endpoints (richer business hours) live beside the v3 base
         self._v5_base = self._base_url.rsplit("/v3", 1)[0] + "/v5"
 
-    async def _request_json(self, path: str, params: dict[str, str]) -> dict:
+    async def _request_json(
+        self, path: str, params: dict[str, str], *, timeout_seconds: float | None = None
+    ) -> dict:
         async with httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=self._timeout_seconds,
+            timeout=timeout_seconds or self._timeout_seconds,
             transport=self._transport,
         ) as http:
             try:
@@ -290,7 +295,9 @@ class AmapClient:
             params["origin_id"] = origin_id
         if destination_id:
             params["destination_id"] = destination_id
-        data = await self._request_json("/direction/walking", params)
+        data = await self._request_json(
+            "/direction/walking", params, timeout_seconds=self._route_timeout_seconds
+        )
         route = data.get("route")
         paths = route.get("paths") if isinstance(route, dict) else None
         if not isinstance(paths, list) or not paths or not isinstance(paths[0], dict):
@@ -436,7 +443,11 @@ class AmapClient:
         }
         if cityd:
             params["cityd"] = cityd
-        data = await self._request_json("/direction/transit/integrated", params)
+        data = await self._request_json(
+            "/direction/transit/integrated",
+            params,
+            timeout_seconds=self._route_timeout_seconds,
+        )
         route = data.get("route")
         transits = route.get("transits") if isinstance(route, dict) else None
         if not isinstance(transits, list):

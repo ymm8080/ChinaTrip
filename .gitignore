@@ -38,3 +38,6 @@ data/
 
 # Office lock files
 ~$*
+
+# Local dev server logs (dev_watch.py detached mode)
+devlogs/

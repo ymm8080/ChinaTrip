@@ -5,10 +5,17 @@ PlanSessionStore per app, dependency overrides only.
 """
 
 import json
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.itineraries import (
+    _account_from_auth,
+    get_entitlement_service,
+    get_store,
+)
+from app.api.itineraries import router as itineraries_router
 from app.api.plan import get_plan_sessions, get_planning_agent
 from app.api.plan import router as plan_router
 from app.config import Settings, get_settings
@@ -18,6 +25,8 @@ from app.services.agent.plan import (
     _normalize_city,
     _parse_cities,
 )
+from app.services.entitlement import EntitlementService, InMemoryQuotaStore
+from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 
@@ -77,10 +86,15 @@ class ExplodingAdapter:
 def make_app(agent: PlanningAgent) -> FastAPI:
     app = FastAPI()
     store = PlanSessionStore()  # one store per app, like the prod singleton
+    itineraries = InMemoryItineraryStore()
+    entitlement = EntitlementService(InMemoryQuotaStore(), rules=[])
     app.dependency_overrides[get_settings] = lambda: Settings(llm_backend="mock")
     app.dependency_overrides[get_planning_agent] = lambda: agent
     app.dependency_overrides[get_plan_sessions] = lambda: store
+    app.dependency_overrides[get_store] = lambda: itineraries
+    app.dependency_overrides[get_entitlement_service] = lambda: entitlement
     app.include_router(plan_router)
+    app.include_router(itineraries_router)
     return app
 
 
@@ -336,3 +350,265 @@ def test_message_food_link_far_returns_resto_confirm_payload():
     assert body["state"] == "ready"
     names = [i["name"] for d in body["plan"]["days"] for i in d["items"]]
     assert "李记锅贴" not in names
+
+
+# --- product rule 2026-10-20: sites/confirm endpoint --------------------
+
+
+class NoPoiAmap:
+    async def search_poi(self, keywords, *, city=None, page=1):
+        return []
+
+
+class LinkReaderStub:
+    def __init__(self, digest):
+        self.digest = digest
+
+    async def read(self, url):
+        return self.digest
+
+
+def test_sites_confirm_endpoint_writes_only_picked():
+    from app.services.trip_items import TripItemService
+    from app.services.web_reader import LinkDigest
+
+    svc = TripItemService()
+    digest = LinkDigest(url="https://x/1", title="杭州两日", text="西湖灵隐寺西溪")
+    agent = PlanningAgent(
+        StubAdapter(
+            [
+                V0_JSON,
+                json.dumps(
+                    {"sites": ["西湖", "灵隐寺", "西溪湿地"]}, ensure_ascii=False
+                ),
+            ]
+        ),
+        amap_client=NoPoiAmap(),
+        link_reader=LinkReaderStub(digest),
+        trip_items=svc,
+    )
+    client = client_for(agent)
+    started = start(
+        client, {"cities": ["杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    assert started["state"] == "ready"
+    sid = started["session_id"]
+    body = message(client, sid, "https://x/1 参考").json()
+    assert body["state"] == "site_confirm"
+    assert body["sites"] == ["西湖", "灵隐寺", "西溪湿地"]
+
+    # another device cannot confirm someone else's session
+    r = client.post(
+        f"/api/v1/plan/{sid}/sites/confirm",
+        json={"mandatory": ["西湖"]},
+        headers={"X-Device-ID": "device-2"},
+    )
+    assert r.status_code == 404
+
+    r = client.post(
+        f"/api/v1/plan/{sid}/sites/confirm",
+        json={"mandatory": ["西湖"]},
+        headers=DEVICE_HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["state"] == "ready"
+    assert data["plan"] is not None
+    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["西湖"]
+    assert "未点选的 2 个地点没有写入心愿单" in data["reply"]
+
+    # the round is closed: a second confirm is a 409
+    r = client.post(
+        f"/api/v1/plan/{sid}/sites/confirm",
+        json={"mandatory": ["灵隐寺"]},
+        headers=DEVICE_HEADERS,
+    )
+    assert r.status_code == 409
+
+
+# --- POST /plan/{id}/save：显式落库（2026-10-20 产品规则） -------------------
+
+
+def test_save_upserts_record_and_freezes_snapshot():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "地标美食"}
+    ).json()
+    sid = body["session_id"]
+    iid = body["plan"]["itinerary_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/save", json={"name": "江浙两日"}, headers=DEVICE_HEADERS
+    )
+    assert resp.status_code == 201
+    meta = resp.json()
+    assert meta["name"] == "江浙两日"
+    assert meta["sync_version"] == 1
+    assert "plan" not in meta
+    got = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS)
+    assert got.status_code == 200
+    assert got.json()["snapshots"][0]["name"] == "江浙两日"
+
+
+def test_save_before_any_plan_returns_400():
+    agent = PlanningAgent(StubAdapter([]))
+    client = client_for(agent)
+    resp = start(client, {})  # no cities -> clarify, plan stays None
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "clarify"
+    sid = resp.json()["session_id"]
+    resp = client.post(f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "nothing_to_save"
+
+
+def test_save_unknown_or_foreign_session_404():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    sid = start(client, {"cities": ["上海"], "days": 1}).json()["session_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/save", json={}, headers={"X-Device-ID": "device-2"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/plan/snap_unknown/save", json={}, headers=DEVICE_HEADERS
+        ).status_code
+        == 404
+    )
+
+
+def test_save_quota_denied_returns_402_with_trigger():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    app.dependency_overrides[get_entitlement_service] = lambda: EntitlementService(
+        InMemoryQuotaStore(), rules=[], quotas={"snapshot_limit": 0}
+    )
+    client = TestClient(app)
+    sid = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "地标美食"}
+    ).json()["session_id"]
+    resp = client.post(f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS)
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["paywall_trigger"] == "snapshot_limit_hit"
+
+
+def test_save_claims_to_account_via_auth_dependency():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    app.dependency_overrides[_account_from_auth] = lambda: "acc-1"
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "地标美食"}
+    ).json()
+    sid, iid = body["session_id"], body["plan"]["itinerary_id"]
+    # 认证依赖已被 override：设备头即可触发账号认领断言
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/save", json={}, headers=DEVICE_HEADERS
+        ).status_code
+        == 201
+    )
+    got = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS)
+    assert got.status_code == 200
+    assert got.json()["owner_account_id"] == "acc-1"
+
+
+# --- POST /plan/from-itinerary/{id}：「行程」页 ✏️ 修改（2026-10-20）------
+
+
+def test_from_itinerary_opens_ready_session_and_round_trips_save():
+    agent = PlanningAgent(StubAdapter([V0_JSON, EDIT_JSON]))
+    app = make_app(agent)
+    app.dependency_overrides[get_entitlement_service] = lambda: EntitlementService(
+        InMemoryQuotaStore(), rules=[], quotas={"snapshot_limit": 3}
+    )
+    client = TestClient(app)
+    saved = start(
+        client, {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"}
+    ).json()
+    iid = saved["plan"]["itinerary_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{saved['session_id']}/save",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 201
+    )
+    resp = client.post(
+        f"/api/v1/plan/from-itinerary/{iid}", json={}, headers=DEVICE_HEADERS
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["session_id"]
+    assert body["plan"]["itinerary_id"] == iid  # 同一行程：保存覆盖原记录
+    assert body["plan"]["cities"] == ["上海", "杭州"]
+    # 载入后可继续对话修改，再保存 = 同一条行程的新版本 + 新快照。
+    edited = message(client, body["session_id"], "把雷峰塔挪到第三天")
+    assert edited.status_code == 200
+    assert edited.json()["plan"]["itinerary_id"] == iid
+    assert (
+        client.post(
+            f"/api/v1/plan/{body['session_id']}/save",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 201
+    )
+    rec = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS).json()
+    assert rec["working_sync_version"] == 2
+    assert len(rec["snapshots"]) == 2
+    # 时间戳语义（2026-10-20）：created_at 是首存时间，updated_at 随再保存刷新。
+    created = datetime.fromisoformat(rec["created_at"])
+    updated = datetime.fromisoformat(rec["updated_at"])
+    assert updated >= created
+
+
+def test_from_itinerary_unknown_or_foreign_id_404():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    saved = start(
+        client, {"cities": ["上海"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    iid = saved["plan"]["itinerary_id"]
+    client.post(
+        f"/api/v1/plan/{saved['session_id']}/save",
+        json={},
+        headers=DEVICE_HEADERS,
+    )
+    foreign = {"X-Device-ID": "device-2"}
+    assert (
+        client.post(
+            f"/api/v1/plan/from-itinerary/{iid}", json={}, headers=foreign
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/plan/from-itinerary/it_none",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 404
+    )
+    # 原行程不受伤：物主仍可打开。
+    assert (
+        client.post(
+            f"/api/v1/plan/from-itinerary/{iid}",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 201
+    )
+
+
+def test_from_itinerary_missing_device_id_returns_400():
+    agent = PlanningAgent(StubAdapter([]))
+    client = client_for(agent)
+    resp = client.post("/api/v1/plan/from-itinerary/it_none", json={})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "missing_device_id"

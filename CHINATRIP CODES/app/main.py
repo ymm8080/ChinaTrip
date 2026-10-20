@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -25,6 +26,11 @@ from app.middleware.usage import TraceIdMiddleware
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # settings.log_level existed but was never applied — the root
+    # logger stayed at WARNING, so app INFO diagnostics (plan stage
+    # timings, degrade warnings) never reached the console.
+    # 2026-10-20: wire it once at app creation.
+    logging.basicConfig(level=settings.log_level.upper(), force=True)
     app = FastAPI(
         title="自助景点规划助手 API",
         summary="ChinaTrip backend (设计文档 v2.0, 国内区先行 · MVP 最小成本)",

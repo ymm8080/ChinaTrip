@@ -132,3 +132,36 @@ def test_refresh_miss_keeps_stale_for_next_run():
 class _NullCtrip:
     async def hours_for(self, city, name):
         return None
+
+
+def test_db_down_latch_skips_subsequent_attempts(monkeypatch):
+    """2026-10-20 latency fix: one failed connect latches DB attempts
+    off for the cooldown — a down docker db costs ONE connect_timeout
+    stall, not one per call; memory keeps serving and ping() clears
+    the latch."""
+    import app.services.poi_details as mod
+
+    class DownFactory:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self):
+            self.calls += 1
+            raise RuntimeError("connection refused")
+
+    down = DownFactory()
+    store = mod.PoiDetailStore(session_factory=down)
+    # tiny cooldown, patched BEFORE the first failure (the deadline
+    # is computed at failure time from the then-current constant)
+    monkeypatch.setattr(mod, "_DB_DOWN_COOLDOWN_SECONDS", 0.05)
+    assert store.get("B001") is None  # stall once, then memory
+    store.upsert("B001", name="豫园", opening_hours="09:00-17:00")
+    assert store.get("B001")["opening_hours"] == "09:00-17:00"
+    assert down.calls == 1, "latch must suppress the second DB attempt"
+
+    # cooldown expiry: attempts resume (and fail → memory still wins)
+    import time as _time
+
+    _time.sleep(0.06)
+    assert store.get("B001")["opening_hours"] == "09:00-17:00"
+    assert down.calls == 2
