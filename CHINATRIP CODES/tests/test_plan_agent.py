@@ -1307,3 +1307,111 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
     assert len(ctrip.calls) == 8
     assert amap.hours_calls == []  # ctrip hit → v5 never asked
     assert all(store.get(f"B0000{idx:02d}") for idx in range(8))
+
+
+# --- rule 19 carve-out: named edits release pins; deletes hit trip center ---
+
+
+class UnwantRecorder:
+    """trip-item service stub capturing mark_unwanted calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None, str | None]] = []
+
+    def mark_unwanted(self, name, *, itinerary_id=None, city=None):
+        self.calls.append((name, itinerary_id, city))
+        return {"name": name, "status": "unwanted"}
+
+
+def _ready_hz_session(agent):
+    """上海→杭州 2 days: departure day is travel-only, so the plan's
+    surviving visit is 西湖 (day 2)."""
+    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    assert session.state == "clarify"
+    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    assert session.state == "ready"
+    return session
+
+
+def test_named_retime_on_pinned_item_applies_and_stays_pinned():
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm)
+    session = _ready_hz_session(agent)
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    westlake.pinned = True
+    llm.replies.append(
+        edit_reply(
+            "已调整",
+            [
+                {
+                    "op": "retime",
+                    "item_id": westlake.item_id,
+                    "new_start_time": "10:00",
+                }
+            ],
+        )
+    )
+    session, reply, _ = run(agent.message(session, "把西湖改到 10:00 开始"))
+    assert session.state == "ready"
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    assert westlake.start_time == time(10, 0)
+    assert westlake.pinned is True  # re-pin follows the item to its new slot
+    assert not hard_errors(session)
+    assert "未能生效" not in reply
+
+
+def test_unnamed_retime_on_pinned_item_rejected_by_rule_19():
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm)
+    session = _ready_hz_session(agent)
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    westlake.pinned = True
+    llm.replies.append(
+        edit_reply(
+            "已调整",
+            [
+                {
+                    "op": "retime",
+                    "item_id": westlake.item_id,
+                    "new_start_time": "10:00",
+                }
+            ],
+        )
+    )
+    llm.replies.append(repair_reply([]))  # repair gives up -> half-product
+    session, reply, _ = run(agent.message(session, "把那里改到 10:00 开始"))
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    # Rule 19 fired: the diff was rejected in-pipeline and the violation
+    # rides the half-product annotation (exhaustion ships warnings, not
+    # silence); the pin itself survives the failed carve-out.
+    assert "已被用户确认" in reply
+    assert westlake.pinned is True
+
+
+def test_conversational_remove_syncs_trip_items_only_on_success():
+    recorder = UnwantRecorder()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=recorder)
+    session = _ready_hz_session(agent)
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    westlake.pinned = True  # user names it in the message -> pin release applies
+    iid = session.plan.itinerary_id
+    llm.replies.append(
+        edit_reply("已删除", [{"op": "remove", "item_id": westlake.item_id}])
+    )
+    session, _, _ = run(agent.message(session, "删掉西湖"))
+    assert "西湖" not in {v.name for v in all_visits(session)}
+    assert recorder.calls == [("西湖", iid, "杭州")]
+
+
+def test_failed_removal_never_syncs_trip_items():
+    recorder = UnwantRecorder()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=recorder)
+    session = _ready_hz_session(agent)
+    llm.replies.append(edit_reply("已删除", [{"op": "remove", "item_id": "v_none"}]))
+    llm.replies.append(repair_reply([]))  # no usable repair -> diff never applied
+    session, reply, _ = run(agent.message(session, "删掉西湖"))
+    assert "未能生效" in reply
+    assert "西湖" in {v.name for v in all_visits(session)}
+    assert recorder.calls == []
