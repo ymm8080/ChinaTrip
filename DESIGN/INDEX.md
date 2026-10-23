@@ -9,15 +9,17 @@
 
 ---
 
-## 📄 当前版本（v2.4.4）
+## 📄 当前版本（v2.5）
 
-- [设计文档 v2.4](travel_agent_system_design%20V2.4.md) — 国内区先行 · MVP 最小成本（**§6.14 全局 Agent 四组件 + Memory 四层 + 写表权限分级 / §5 行程中心三态 + 个人主页·链接历史 / §6.11 转链交易中心** / §6.13 入境五模式导航 / §6.12 快慢双车道 + 万级容量基线 / §9.0 阶段安排 M0–M4 · M1.5 / 铁律 0–23 · LLM 分阶段：MVP 智谱云 → 规模化自建；**v2.4.1 MVP 冒烟期自定义账号（多设备单身份）** / **v2.4.3 行程时间轴相邻站点距离 + 营业时间前置展示** / **v2.4.4 POI 详情入库 + 每日回源作业（携程先→高德V5；规划只读库）**）
-- [系统架构图 v2.4](architecture_diagram%20V2.4.svg) — 五层架构：移动层（Flutter 双端 + 端侧引擎 + 步行导航 + 个人主页）→ 接入层（国内区 Phase 1）→ 后端服务（Agent + Memory 四层 + 变更管线 + CP-SAT + 转链交易中心 + 快慢双车道）→ 数据层（trip_items / user_profiles / link_history）→ 依赖层
+- [设计文档 v2.5](travel_agent_system_design%20V2.5.md) — 国内区先行 · MVP 最小成本（**§6.14 全局 Agent 四组件 + Memory 四层 + 写表权限分级 / §5 行程中心三态 + 个人主页·链接历史 / §6.11 转链交易中心** / §6.13 入境五模式导航 / §6.12 快慢双车道 + 万级容量基线 / §9.0 阶段安排 M0–M4 · M1.5 / 铁律 0–23 · LLM 分阶段：MVP 智谱云 → 规模化自建；v2.4.x = MVP 冒烟期账号（多设备单身份→邮箱认证）/ 行程时间轴相邻站点距离+营业时间前置 / POI 详情入库+每日回源作业（携程先→高德V5；规划只读库）；**v2.5 城市 POI 底库：多源导入（ChinaTravel/OSM/5A/UNESCO）+ 回源铁律（外部源仅候选、高德/携程为真相）+ restaurants 独立表 + 简介照片/时段（best_visit_time）回填 + 米其林/黑珍珠品质标签 + 心愿单吸收必去（\_absorb_wishlist）+ 站点同一性去重（\_same_site）+ 行程条目钉住/删除回写「不想去」+ h5_keepalive v2；solver 消费 best_visit_time（夜景自动排晚上）待接线**）
+- [系统架构图 v2.5](architecture_diagram%20V2.5.svg) — 五层架构：移动层（Flutter 双端 + 端侧引擎 + 步行导航 + 个人主页）→ 接入层（国内区 Phase 1）→ 后端服务（Agent + Memory 四层 + 变更管线 + CP-SAT + 转链交易中心 + 快慢双车道 + POI 底库导入/回填/标签管线）→ 数据层（trip_items / user_profiles / link_history / pois 扩展字段 + restaurants）→ 依赖层
+- [功能缺口与开发计划 2026-10-23](feature_gap_and_dev_plan_2026-10-23.md) — vs 16 个热门 OSS 仓库 + 主流消费级 AI 旅行产品 + pypitravel：18+5 项缺口清单（重要度×成本）+ P0–P3 排序（导出/分享/拖拽/打包清单 → 拖拽编辑/天气/PWA/推送/地图增强/POI 底库）+ POI 底库数据源矩阵与自建路径 + 圆周旅迹导入探活结论
+- [数据库设计](database_design.md) — v1.1（纯设计口径，无代码）：PG 17 表五域（含 v2.5 pois 15 列扩容 + restaurants 新表）+ 本机 SQLite 6 表；**数据源×刷新矩阵**（L0–L4 优先级分层、14 源频率/时机/模式、字段链序、刷新模式词汇表）；稳定键/双坐标/溯源/快照不可变等铁律 9 条；迁移史速查
 - [UPGRADE COST](UPGRADE%20COST.md) — 阿里云 GPU 自建 vLLM 最低成本估算与升级触发条件（v2.0 配套）
 
 ## 🗄 历史版本
 
-- `ARCHIVE/` — v1.0 → V2.3 全部旧版（V2.3 = 转链交易中心，2026-10-18 v2.4 升版归档）
+- `ARCHIVE/` — v1.0 → V2.4 全部旧版（V2.4 = 行程中心 + 全局 Agent + POI 详情入库 v2.4.0–v2.4.4，2026-10-23 v2.5 升版归档）
 - `archive_v1/`（AutoClaw 工作区副本侧）
 
 ## 🧭 仓库导航

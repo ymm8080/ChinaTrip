@@ -57,9 +57,7 @@ def _download(url: str, dest: Path) -> None:
             fh.write(chunk)
 
 
-def fetch_pending(
-    index_html: str, state_path: Path, dest_dir: Path
-) -> list[Path]:
+def fetch_pending(index_html: str, state_path: Path, dest_dir: Path) -> list[Path]:
     """下载全部待应用 .osc.gz（已存在则复用），返回本地路径列表。"""
     pending = pending_hrefs(list_osc_hrefs(index_html), last_applied(state_path))
     out: list[Path] = []

@@ -17,7 +17,7 @@
     </style>
   </defs>
 
-  <text x="500" y="30" text-anchor="middle" class="title" font-size="20">自助景点规划助手（暂名）— 系统架构图 v2.2（国内区先行 · MVP 最小成本 · 多城规划 · 入境五模式导航 · 万级容量就绪）</text>
+  <text x="500" y="30" text-anchor="middle" class="title" font-size="20">自助景点规划助手（暂名）— 系统架构图 v2.5（国内区先行 · MVP 最小成本 · 行程中心 + 全局 Agent · 五模式导航 · 转链交易中心 · POI 城市底库）</text>
 
   <!-- 移动层 -->
   <rect class="layer" x="20" y="50" width="960" height="180" rx="10"/>
@@ -31,7 +31,7 @@
   <text x="55" y="196" class="sm">手动拖拽编辑 = diff op（零 LLM）</text>
   <rect class="box" x="350" y="86" width="290" height="132" rx="6"/>
   <text x="365" y="106" class="sub" font-weight="600">七个页面 + 版本入口</text>
-  <text x="365" y="124" class="sm">聊天 · 地图 · 时间线 · 收藏 · 足迹 · 执行 · 翻译（语音+拍照）</text>
+  <text x="365" y="124" class="sm">聊天 · 地图 · 行程中心 · 收藏 · 足迹 · 执行 · 翻译 · 个人主页</text>
   <text x="365" y="142" class="star">★ 翻译页双模：按住说话 + 拍照 OCR（§6.10）</text>
   <text x="365" y="160" class="sm">渐进式规划：澄清≤2问 → v0 首版 &lt;60s</text>
   <text x="365" y="178" class="sm">版本：保存 / 恢复 / 设为执行版（N=3/10）</text>
@@ -70,7 +70,7 @@
   <text x="55" y="472" class="sub" font-weight="600">Agent 编排层</text>
   <text x="55" y="492" class="sm">渐进式规划 · 工具循环 + solve_itinerary</text>
   <text x="55" y="510" class="sm">执行模式 Agent：三形态 · 重排一键确认</text>
-  <text x="55" y="528" class="star">★ 行动编排（v1.9）：deeplink 手off · 退改前置（v1.9.4）</text>
+  <text x="55" y="528" class="star">★ 行动编排/转链交易中心：比价卡片组 · handoff · 退改前置 · Memory 四层（v2.4）</text>
   <text x="55" y="546" class="sm">酒店=携程/美团 · 机票=去哪儿/美团 · 火车=12306</text>
   <text x="55" y="564" class="sm">免费应急兜底 · 付费墙后移 30 分钟转化</text>
   <text x="55" y="582" class="sm">上下文滚动摘要 · token 上限处理</text>
@@ -101,9 +101,10 @@
   <text x="55" y="660" class="star">★ 快慢双车道（§6.12，v1.9.1）：请求分类闸门（规则→缓存→Flash）· ≥80% 请求不触达主力模型</text>
   <text x="55" y="678" class="sm">快车道 = 翻译（语音+拍照 · 端侧 OCR+菜单缓存，§6.10）/ 导航外壳 / 餐厅推荐 / 讲解缓存 ｜ 慢车道 = 结构重排 / 批量解析 / 讲解生成 → 异步队列+推送 ｜ 流式 TTFT：快 &lt;1s · 受理 &lt;3s</text>
 
-  <rect class="box" x="40" y="696" width="560" height="56" rx="6"/>
+  <rect class="box" x="40" y="696" width="560" height="70" rx="6"/>
   <text x="55" y="716" class="sub" font-weight="600">数据管线（02:00 UTC+8 · 合规抓取 robots.txt）</text>
   <text x="55" y="734" class="sm">多源仲裁 · 稳定键 upsert · poi_status → 行前体检推送 · 讲解 CN 区生成（P2 起同步海外） · 缓存命中率≥90%</text>
+  <text x="55" y="752" class="star">★ POI 城市底库（v2.5）：ChinaTravel/OSM/5A 导入 · 简介照片/时段回填 · 米其林/黑珍珠标签 · 回源铁律：高德/携程为真相</text>
 
   <rect class="hot" x="620" y="696" width="360" height="66" rx="6"/>
   <text x="635" y="713" class="star">★ LLM 接入（LiteLLM 路由）：MVP = 智谱云 GLM API（零 capex·已备案）</text>
@@ -117,8 +118,8 @@
   <text x="40" y="822" class="lbl">数据层（各区独立实例，schema 一套）</text>
   <rect class="box" x="40" y="834" width="450" height="130" rx="6"/>
   <text x="55" y="854" class="sm">users(region VARCHAR(10)) · 全表 updated_at</text>
-  <text x="55" y="874" class="sm">pois：稳定键 upsert · status · wgs84_location 副本（v1.7）</text>
-  <text x="55" y="894" class="sm">poi_hours 规则表：standard/holiday/special</text>
+  <text x="55" y="874" class="sm">pois：稳定键 upsert · wgs84 副本 · v2.5 扩 rating/tags/intro/photos/best_visit_time（带 source 溯源）</text>
+  <text x="55" y="894" class="sm">poi_hours 规则表 · restaurants 独立表（v2.5：骨架同构 + cuisine/avg_cost）</text>
   <text x="55" y="914" class="star">★ 许可隔离：高德数据与 OSM 数据物理分库（ODbL 署名）</text>
   <text x="55" y="934" class="sm">瓦片=OSM/MapTiler（可缓存）· 高德仅 API 实时调用</text>
   <text x="55" y="954" class="star">★ 语音翻译：音频不出区不落盘（铁律 21，v1.9）</text>
@@ -141,7 +142,7 @@
   <text x="55" y="1100" class="sm">瓦片禁存确认 / 海外 SLA · 用量埋点作谈判筹码</text>
   <rect class="box" x="510" y="1046" width="470" height="64" rx="6"/>
   <text x="525" y="1066" class="star">★ 预订渠道 deeplink（v1.9 行动编排 · 注册表配置 · 退改规则前置 v1.9.4）</text>
-  <text x="525" y="1084" class="sm">酒店：携程/美团 · 机票：去哪儿/美团 · 火车票：12306 官方（无佣金）· H5 兜底</text>
+  <text x="525" y="1084" class="sm">候选卡片组 2–4 渠道比价（v2.3 转链交易中心）· 佣金不入卡片 · 排序佣金权重为零</text>
   <text x="525" y="1100" class="sm">佣金通道：CPS 转链+订单同步（无代客下单 API·铁律 22）· ACP/UCP 扩展位（代客交易合规正路）· T+30 月结</text>
   <rect class="box" x="40" y="1118" width="940" height="68" rx="6"/>
   <text x="55" y="1136" class="star">★ 支付（v1.9）：iOS 数字商品仅 IAP（中国区 25%/12%）· Android 微信+支付宝双通道（0.6% · 商户号需执照）</text>
