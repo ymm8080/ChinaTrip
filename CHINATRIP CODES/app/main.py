@@ -16,9 +16,12 @@ from app.api.itineraries import router as itineraries_router
 from app.api.navigation import router as navi_router
 from app.api.offers import router as offers_router
 from app.api.plan import router as plan_router
+from app.api.pois import router as pois_router
 from app.api.profile import links_router, profile_router
+from app.api.share import router as share_router
 from app.api.translate import router as translate_router
 from app.api.trip_items import router as trip_items_router
+from app.api.weather import router as weather_router
 from app.config import get_settings
 from app.middleware.ratelimit import RateLimitMiddleware
 from app.middleware.usage import TraceIdMiddleware
@@ -43,6 +46,7 @@ def create_app() -> FastAPI:
         RateLimitMiddleware,
         per_minute=settings.rate_limit_per_minute,
         per_hour=settings.rate_limit_per_hour,
+        exempt_paths=("/health", "/docs", "/redoc", "/openapi.json", "/robots.txt"),
     )
     app.add_middleware(TraceIdMiddleware, region=settings.region)
 
@@ -54,13 +58,16 @@ def create_app() -> FastAPI:
     app.include_router(translate_router)
     app.include_router(itineraries_router)
     app.include_router(plan_router)
+    app.include_router(pois_router)
     app.include_router(navi_router)
     app.include_router(bookings_router)
     app.include_router(trip_items_router)
+    app.include_router(share_router)
     app.include_router(backfill_router)
     app.include_router(offers_router)
     app.include_router(profile_router)
     app.include_router(links_router)
+    app.include_router(weather_router)
 
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/h5", StaticFiles(directory=static_dir, html=True), name="h5")

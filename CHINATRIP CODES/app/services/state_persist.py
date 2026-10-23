@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-"""SQLite write-through persistence for the two in-process stores.
+"""SQLite write-through persistence for the in-process stores.
 
-``PlanSessionStore`` and ``InMemoryItineraryStore`` are plain dicts, so
-every uvicorn relaunch (the dev workflow restarts on each code change)
-wiped in-flight planning sessions and saved itineraries - surfacing as
-``session_not_found`` 404s on follow-up messages and an empty H5 行程
-tab. This module keeps the dict as the hot path and adds: load-all on
+``PlanSessionStore``, ``InMemoryItineraryStore`` and ``TripItemService``
+are plain dicts, so every uvicorn relaunch (the dev workflow restarts on
+each code change) wiped in-flight planning sessions, saved itineraries
+and the trip-center wishlist - surfacing as ``session_not_found`` 404s
+on follow-up messages, an empty H5 行程 tab, and 心愿单 entries
+vanishing overnight (2026-10-23: trip_items was the last volatile
+store). This module keeps the dict as the hot path and adds: load-all on
 boot, one-row upsert/delete per mutation. A corrupt row is skipped with
 a warning - a poisoned row must never take the service down.
 
@@ -18,6 +20,7 @@ for the hourly cap). Existing databases are migrated in-place via
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -28,6 +31,7 @@ from app.services.itinerary_store import (
     InMemoryItineraryStore,
     ItineraryRecord,
 )
+from app.services.trip_items import TripItemService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,10 @@ CREATE TABLE IF NOT EXISTS plan_sessions (
 CREATE TABLE IF NOT EXISTS itineraries (
     itinerary_id TEXT PRIMARY KEY,
     payload      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS trip_items (
+    item_id  TEXT PRIMARY KEY,
+    payload  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS accounts (
     username      TEXT PRIMARY KEY,
@@ -102,6 +110,9 @@ class SqliteStateBackend:
     def load_itineraries(self) -> dict[str, str]:
         return self._load("itineraries", "itinerary_id")
 
+    def load_trip_items(self) -> dict[str, str]:
+        return self._load("trip_items", "item_id")
+
     def _upsert(self, table: str, key_col: str, key: str, payload: str) -> None:
         with self._lock:
             self._conn.execute(
@@ -122,6 +133,16 @@ class SqliteStateBackend:
             self._conn.execute(
                 "DELETE FROM itineraries WHERE itinerary_id = ?", (itinerary_id,)
             )
+            self._conn.commit()
+
+    # --- trip items (trip-center wishlist/scheduled/booked/unwanted) ---------
+
+    def save_trip_item(self, item_id: str, payload: str) -> None:
+        self._upsert("trip_items", "item_id", item_id, payload)
+
+    def delete_trip_item(self, item_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM trip_items WHERE item_id = ?", (item_id,))
             self._conn.commit()
 
     # --- accounts (custom username+password login) ---------------------------
@@ -322,6 +343,38 @@ class PersistentItineraryStore(InMemoryItineraryStore):
         if existed:
             self._backend.delete_itinerary(itinerary_id)
         return existed
+
+
+class PersistentTripItemService(TripItemService):
+    """Trip-center items survive restarts. ``mark_unwanted`` rides the
+    overridden create/update, so three overrides cover every mutation."""
+
+    def __init__(self, backend: SqliteStateBackend) -> None:
+        super().__init__()
+        self._backend = backend
+        for item_id, payload in backend.load_trip_items().items():
+            try:
+                self._items[item_id] = json.loads(payload)
+            except Exception:
+                logger.warning(
+                    "state_persist: dropping corrupt trip item %s",
+                    item_id,
+                    exc_info=True,
+                )
+
+    def create(self, name: str, *, source: str, **kwargs) -> dict:
+        item = super().create(name, source=source, **kwargs)
+        self._backend.save_trip_item(item["id"], json.dumps(item, ensure_ascii=False))
+        return item
+
+    def update(self, item_id: str, **kwargs) -> dict:
+        item = super().update(item_id, **kwargs)
+        self._backend.save_trip_item(item_id, json.dumps(item, ensure_ascii=False))
+        return item
+
+    def delete(self, item_id: str) -> None:
+        super().delete(item_id)
+        self._backend.delete_trip_item(item_id)
 
 
 _backend_singleton: SqliteStateBackend | None = None

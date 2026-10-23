@@ -4,8 +4,9 @@ One table absorbs every write path — manual form, chat dialog, paste box,
 agent recommendation (iron rule 0: single source of truth). An item walks
 Wishlist -> Scheduled -> Booked; walking back to wishlist unschedules it.
 Pure logic only (store + transition rules): no HTTP imports, so the state
-machine is unit-testable directly. Storage is an in-process dict — process
-restart wipes it (MVP consensus, same as the itinerary store).
+machine is unit-testable directly. Storage is a plain dict;
+``state_persist.PersistentTripItemService`` subclasses it with SQLite
+write-through so items survive restarts (itinerary-store pattern).
 """
 
 from __future__ import annotations

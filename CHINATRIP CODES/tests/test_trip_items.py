@@ -520,3 +520,61 @@ def test_router_wires_all_five_paths():
         route.methods for route in router.routes if route.path == "/api/v1/trip-items"
     ]
     assert {"POST", "GET"} <= set().union(*collection)
+
+
+# --- persistence (2026-10-23 心愿单蒸发 fix) ------------------------------------
+
+
+def test_persistent_service_survives_reinstall(tmp_path):
+    """A fresh service over the same DB sees prior writes: create/schedule
+    round-trip, delete is honored, corrupt rows are skipped not fatal."""
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    svc = PersistentTripItemService(SqliteStateBackend(db))
+    item = svc.create("外滩", source="manual", itinerary_id="t1", city="上海")
+    svc.update(item["id"], status="scheduled", day=2)
+    keeper = svc.create("留着的", source="chat", itinerary_id="t1")
+
+    reloaded = PersistentTripItemService(SqliteStateBackend(db))
+    loaded = reloaded.get(item["id"])
+    assert loaded["name"] == "外滩"
+    assert loaded["status"] == "scheduled"
+    assert loaded["day"] == 2
+    assert reloaded.get(keeper["id"])["status"] == "wishlist"
+
+    reloaded.delete(keeper["id"])
+    again = PersistentTripItemService(SqliteStateBackend(db))
+    assert again.get(keeper["id"]) is None
+    assert again.get(item["id"])["status"] == "scheduled"
+
+
+def test_persistent_service_skips_corrupt_row(tmp_path):
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    backend = SqliteStateBackend(db)
+    backend.save_trip_item("bad", "{not json")
+    service = PersistentTripItemService(backend)
+    assert service.get("bad") is None
+    assert "bad" in backend.load_trip_items()  # row left on disk, not fatal
+
+
+def test_persistent_mark_unwanted_write_through(tmp_path):
+    """mark_unwanted rides create/update internally — both land on disk."""
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    svc = PersistentTripItemService(SqliteStateBackend(db))
+    svc.mark_unwanted("新天地", itinerary_id="t1", city="上海")
+    reloaded = PersistentTripItemService(SqliteStateBackend(db))
+    assert [i["name"] for i in reloaded.list_groups("t1")["unwanted"]] == ["新天地"]

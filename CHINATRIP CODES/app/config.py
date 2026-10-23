@@ -94,6 +94,11 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     rate_limit_per_hour: int = 600
 
+    # 公开分享端点（/s/{token}、/api/v1/public/trips/{token}）在全局
+    # 限流之上按裸 IP 再收一档：防爬虫扫 token、防公开页被刷。
+    share_public_rate_per_minute: int = 30
+    share_public_rate_per_hour: int = 200
+
     log_level: str = "INFO"
 
 

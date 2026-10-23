@@ -363,6 +363,34 @@ def _norm_city(text: str) -> str:
     return found[0] if len(found) == 1 else ""
 
 
+_SITE_NAME_JUNK = r"[\s（）()\[\]【】「」·、，,。.\-—_'\"”]"
+
+# venue-type tails that add nothing to identity (「大足石刻景区」==「大足石刻」)
+_SITE_TAILS = ("旅游风景区", "风景名胜区", "旅游景区", "风景区", "景区", "旅游区")
+
+
+def _norm_site_name(name: str) -> str:
+    s = re.sub(_SITE_NAME_JUNK, "", name or "")
+    stripped = True
+    while stripped:
+        stripped = False
+        for tail in _SITE_TAILS:
+            if s.endswith(tail) and len(s) - len(tail) >= 2:
+                s = s[: -len(tail)]
+                stripped = True
+    return s
+
+
+def _same_site(a: str, b: str) -> bool:
+    """Loose site identity: plans hold POI-canonical names while video
+    extraction yields variants (「大足石刻」 vs 「重庆大足石刻景区」);
+    every exact-name dedupe between the two leaked duplicates."""
+    na, nb = _norm_site_name(a), _norm_site_name(b)
+    if not na or not nb:
+        return na == nb
+    return na == nb or ((na in nb or nb in na) and min(len(na), len(nb)) >= 2)
+
+
 def _item_line(item: VisitItem | TransferItem) -> str:
     clock = item.start_time.strftime("%H:%M") if item.start_time else "未排"
     if isinstance(item, VisitItem):
@@ -851,10 +879,8 @@ class PlanningAgent:
             if digest.ok:
                 sites.extend(await self._extract_sites(digest))
         deduped: list[tuple[str, str, str]] = []
-        seen: set[str] = set()
         for name, kind, city in sites:
-            if name not in seen:
-                seen.add(name)
+            if not any(_same_site(name, kept[0]) for kept in deduped):
                 deduped.append((name, kind, city))
         sites = deduped[:MAX_LINK_SITES]
         if not sites and any(d.ok for d in digests):
@@ -1002,7 +1028,11 @@ class PlanningAgent:
         )
         if mandatory:
             session.must_visits = [
-                *(s for s in session.must_visits if s not in mandatory),
+                *(
+                    s
+                    for s in session.must_visits
+                    if not any(_same_site(m, s) for m in mandatory)
+                ),
                 *mandatory,
             ]
             session.site_kinds.update({n: kinds.get(n, "sight") for n in mandatory})
@@ -1016,6 +1046,18 @@ class PlanningAgent:
         else:
             reply = "这一轮没有必去地点，心愿单没有新增"
             reply += f"（可选：{opt_text}）。" if optional else "。"
+        # Snapshot BEFORE the add: sites this turn itself places into the
+        # plan are new, not duplicates — only pre-existing ones get the note.
+        pre_planned = (
+            [
+                item.name
+                for day in session.plan.days
+                for item in day.items
+                if isinstance(item, VisitItem)
+            ]
+            if session.plan is not None
+            else []
+        )
         change: ChangeSummary | None = None
         if session.plan is not None and mandatory:
             session, change, add_note = await self._add_must_visits(session, mandatory)
@@ -1024,6 +1066,9 @@ class PlanningAgent:
         # After the pipeline so POI ground-truth cities (site_cities) are
         # in before the wishlist rows are written.
         self._record_link_sites(session, mandatory, url, kinds)
+        dupes = [m for m in mandatory if any(_same_site(m, p) for p in pre_planned)]
+        if dupes:
+            notes.append("、".join(dupes) + " 已在行程里，未重复排入")
         if session.state == "resto_confirm":
             # A far-away restaurant is holding the floor: its question IS
             # this turn's reply, the normal wrap-up would bury it.
@@ -1154,14 +1199,33 @@ class PlanningAgent:
         pinned; farther than RESTO_ASK_KM from every located sight and not
         asked yet -> held out for the resto_confirm round instead of added
         (far_check=False is the accepted-by-user re-entry from that round)."""
-        existing = {
+        existing = [
             item.name
             for day in session.plan.days
             for item in day.items
             if isinstance(item, VisitItem)
-        }
-        missing = [name for name in names if name not in existing]
+        ]
+        missing = [
+            name for name in names if not any(_same_site(name, e) for e in existing)
+        ]
         if not missing:
+            # Already planned under a name variant: still honor the 必去
+            # intent by pinning the existing entries (same as the add path
+            # does post-solve), just without duplicating the row.
+            pinned = set()
+            for day in session.plan.days:
+                for item in day.items:
+                    if (
+                        isinstance(item, VisitItem)
+                        and not item.pinned
+                        and any(_same_site(n, item.name) for n in names)
+                    ):
+                        item.pinned = True
+                        pinned.add(item.name)
+            if pinned:
+                session.plan.assumptions.append(
+                    "必去景点（已在行程中）已锁定时间，后续修改不会移动它们"
+                )
             return session, None, ""
         default_city = session.cities[0] if len(session.cities) == 1 else "未标注"
         sight_pts = [
@@ -1554,6 +1618,28 @@ class PlanningAgent:
 
     # --- v0 generation ----------------------------------------------------
 
+    def _absorb_wishlist(self, session: PlanSession) -> list[str]:
+        """Trip-center wishlist entries for this trip's cities become
+        must-visits (engine schedules + pins them). Runs at the single
+        v0 chokepoint so start/confirm/clarify paths all absorb."""
+        if self._trip_items is None:
+            return []
+        absorbed: list[str] = []
+        for it in self._trip_items.list_groups().get("wishlist", []):
+            name = (it.get("name") or "").strip()
+            if not name or name.startswith(("http://", "https://")):
+                continue
+            city = it.get("city")
+            if city and city not in session.cities:
+                continue
+            if any(_same_site(name, m) for m in session.must_visits):
+                continue
+            session.must_visits.append(name)
+            if city:
+                session.site_cities.setdefault(name, city)
+            absorbed.append(name)
+        return absorbed
+
     async def _generate_v0(
         self,
         session: PlanSession,
@@ -1561,6 +1647,11 @@ class PlanningAgent:
         extra_assumptions: list[str] | None = None,
     ) -> PlanSession:
         session.state = "planning"
+        absorbed = self._absorb_wishlist(session)
+        if absorbed:
+            extra_assumptions = list(extra_assumptions or []) + [
+                "已从行程中心心愿单带入必去：" + "、".join(absorbed)
+            ]
         t0 = perf_counter()
         candidates, poi_assumptions = await self._collect_candidates(
             session.cities,
@@ -1672,7 +1763,7 @@ class PlanningAgent:
         fallback_city = cities[0] if len(cities) == 1 else "未标注"
         site_cities = site_cities or {}
         for name in must_visits:
-            if any(c["name"] == name for c in candidates):
+            if any(_same_site(name, c["name"]) for c in candidates):
                 continue
             kind = "food" if kinds.get(name) == "food" else "sight"
             # A video-extracted city beats the session-level fallback: the
@@ -1692,6 +1783,17 @@ class PlanningAgent:
                     )
                 except Exception:
                     logger.warning("plan: amap must-visit lookup failed for %s", name)
+            if poi and isinstance(poi, dict) and poi.get("city"):
+                # amap fuzzy search happily returns POIs from other
+                # provinces (junk input once resolved to a HK office in
+                # 将军澳); a POI outside the trip's cities never enters
+                # the plan - fall through to the placeholder branch.
+                poi_city = str(poi["city"])
+                if not any(c in poi_city for c in cities):
+                    assumptions.append(
+                        f"必去 {name} 在高德定位到行程外城市（{poi_city}），未纳入"
+                    )
+                    poi = None
             if poi and isinstance(poi, dict) and poi.get("name"):
                 category = poi.get("category")
                 if kind == "food" or _amap_category_is_food(category):
@@ -1735,17 +1837,16 @@ class PlanningAgent:
         if not must:
             return picked
         kinds = kinds or {}
-        must_set = set(must)
-        for spec in picked:
-            if spec["name"] in must_set:
-                spec["must"] = True
-                if kinds.get(spec["name"]) == "food":
-                    spec["category"] = "food"
-        have = {spec["name"] for spec in picked}
         site_cities = site_cities or {}
         default_city = cities[0] if len(cities) == 1 else "未标注"
         for idx, name in enumerate(must):
-            if name in have:
+            match = next(
+                (spec for spec in picked if _same_site(name, spec["name"])), None
+            )
+            if match is not None:
+                match["must"] = True
+                if kinds.get(name) == "food":
+                    match["category"] = "food"
                 continue
             # A must-visit lands on a day based in its own city — never
             # round-robined across the whole trip (multi-city videos).

@@ -619,10 +619,13 @@ def test_from_itinerary_missing_device_id_returns_400():
 
 
 class UnwantRecorder:
-    """trip-item service stub: only mark_unwanted is exercised here."""
+    """trip-item service stub: mark_unwanted + an empty wishlist."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None, str | None]] = []
+
+    def list_groups(self, itinerary_id: str | None = None) -> dict:
+        return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
 
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):
         self.calls.append((name, itinerary_id, city))

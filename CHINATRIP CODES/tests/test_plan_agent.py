@@ -13,6 +13,7 @@ import pytest
 
 from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
+    POI_KEYWORD,
     PlanningAgent,
     clarify_questions,
     current_violations,
@@ -21,6 +22,7 @@ from app.services.itinerary import RuleSeverity, TransferItem, VisitItem
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 from app.services.poi_details import PoiDetailStore
+from app.services.trip_items import TripItemService
 
 
 class ScriptedLLM:
@@ -1318,6 +1320,9 @@ class UnwantRecorder:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None, str | None]] = []
 
+    def list_groups(self, itinerary_id: str | None = None) -> dict:
+        return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
+
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "unwanted"}
@@ -1415,3 +1420,114 @@ def test_failed_removal_never_syncs_trip_items():
     assert "未能生效" in reply
     assert "西湖" in {v.name for v in all_visits(session)}
     assert recorder.calls == []
+
+
+# --- wishlist absorption at v0 (2026-10-23 心愿单被规划吸收) -----------------
+
+
+def _wishlist_agent(items):
+    """Agent whose trip-center wishlist holds ``[(name, city)]`` entries."""
+    svc = TripItemService()
+    for name, city in items:
+        svc.create(name, source="manual", city=city)
+    return PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]), trip_items=svc)
+
+
+def test_v0_absorbs_cityless_wishlist_into_must_visits():
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.state == "ready"
+    assert "李子坝站" in session.must_visits
+    assert "李子坝站" in {v.name for v in all_visits(session)}
+    assert any("心愿单" in a and "李子坝站" in a for a in session.assumptions)
+
+
+def test_v0_absorbed_wishlist_is_pinned():
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    absorbed = next(v for v in all_visits(session) if v.name == "李子坝站")
+    assert absorbed.pinned is True
+
+
+def test_absorb_wishlist_dedupes_same_site():
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.must_visits == ["李子坝站"]
+    assert agent._absorb_wishlist(session) == []  # rerun absorbs nothing new
+
+
+def test_absorb_wishlist_skips_items_from_other_cities():
+    agent = _wishlist_agent([("故宫", "北京")])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.must_visits == []
+    assert not any("心愿单" in a for a in session.assumptions)
+    assert "故宫" not in {v.name for v in all_visits(session)}
+
+
+def test_v0_absorbs_only_matching_city_tags():
+    agent = _wishlist_agent([("李子坝站", "重庆"), ("西湖", "杭州")])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.must_visits == ["西湖"]
+    assert "李子坝站" not in {v.name for v in all_visits(session)}
+    assert any("心愿单" in a and "西湖" in a for a in session.assumptions)
+
+
+# --- must-visit POI resolution must stay inside the trip's cities -----------
+
+
+class MustVisitOnlyAmap(StubAmap):
+    """Answers only the must-visit lookup; per-city keyword search is empty."""
+
+    def __init__(self, poi: dict) -> None:
+        super().__init__(pois=[poi])
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        self.calls.append((keywords, city))
+        if keywords == POI_KEYWORD:
+            return []  # per-city sight search: no results
+        return self.pois
+
+
+def test_must_visit_resolving_outside_trip_cities_is_rejected():
+    """Junk input (a URL) once fuzzy-matched a HK office (将军澳) into a
+    Chongqing plan; POIs outside the trip's cities must become placeholders."""
+    amap = MustVisitOnlyAmap(
+        {
+            "name": "NTT Com Asia Limited",
+            "city": "香港特别行政区",
+            "source_poi_id": "B0FFHF2C40",
+            "location": {"lon": 114.27739, "lat": 22.282694},
+        }
+    )
+    agent = PlanningAgent(ScriptedLLM([]), amap_client=amap)
+    candidates, assumptions = run(agent._collect_candidates(["重庆"], ["李子坝站"]))
+    names = [c["name"] for c in candidates]
+    assert "NTT Com Asia Limited" not in names
+    assert "李子坝站" in names  # placeholder kept under its own name
+    assert any("行程外城市" in a and "香港" in a for a in assumptions)
+
+
+def test_must_visit_resolving_inside_trip_cities_is_kept():
+    amap = MustVisitOnlyAmap(
+        {
+            "name": "李子坝(地铁站)",
+            "city": "重庆市",
+            "source_poi_id": "BV10045690",
+            "location": {"lon": 106.53766, "lat": 29.552892},
+        }
+    )
+    agent = PlanningAgent(ScriptedLLM([]), amap_client=amap)
+    candidates, assumptions = run(agent._collect_candidates(["重庆"], ["李子坝站"]))
+    resolved = [c for c in candidates if c["name"] == "李子坝(地铁站)"]
+    assert resolved and resolved[0]["source_poi_id"] == "BV10045690"
+    assert not any("行程外城市" in a for a in assumptions)

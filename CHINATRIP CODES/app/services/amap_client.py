@@ -147,6 +147,50 @@ def _normalize_rides(container: object, keys: tuple[str, ...], kind: str) -> lis
     return []
 
 
+def _normalize_live(live: dict) -> dict:
+    return {
+        "kind": "live",
+        "city": _as_str(live.get("city")),
+        "adcode": _as_str(live.get("adcode")),
+        "report_time": _as_str(live.get("reporttime")),
+        "payload": {
+            "weather": _as_str(live.get("weather")),
+            "temperature": _as_str(live.get("temperature")),
+            "wind_direction": _as_str(live.get("winddirection")),
+            "wind_power": _as_str(live.get("windpower")),
+            "humidity": _as_str(live.get("humidity")),
+        },
+    }
+
+
+def _normalize_forecast(forecast: dict) -> dict:
+    raw_casts = forecast.get("casts")
+    casts = (
+        [
+            {
+                "date": _as_str(c.get("date")),
+                "day_weather": _as_str(c.get("dayweather")),
+                "night_weather": _as_str(c.get("nightweather")),
+                "day_temp": _as_str(c.get("daytemp")),
+                "night_temp": _as_str(c.get("nighttemp")),
+                "day_wind": _as_str(c.get("daywind")),
+                "day_wind_power": _as_str(c.get("daypower")),
+            }
+            for c in raw_casts
+            if isinstance(c, dict)
+        ]
+        if isinstance(raw_casts, list)
+        else []
+    )
+    return {
+        "kind": "forecast",
+        "city": _as_str(forecast.get("city")),
+        "adcode": _as_str(forecast.get("adcode")),
+        "report_time": _as_str(forecast.get("reporttime")),
+        "payload": {"casts": casts},
+    }
+
+
 def _normalize_transit_segment(segment: dict) -> dict:
     walking = segment.get("walking")
     walking_part = None
@@ -273,6 +317,33 @@ class AmapClient:
             "city": _as_str(data.get("city")) or province,
             "adcode": _as_str(data.get("adcode")),
         }
+
+    async def get_weather(self, adcode: str, *, extensions: str = "all") -> dict:
+        """City weather (/weather/weatherInfo) — upstream is 中国气象局.
+
+        extensions="base" -> live conditions (lives); "all" -> 3-day
+        forecast (casts, today included). Amap updates live hourly and
+        the forecast around 8/11/18 each day; callers schedule after
+        those points. Returns {"kind","city","adcode","report_time",
+        "payload"} or {} when Amap answers OK with no rows (some
+        adcodes have no station).
+        """
+        data = await self._request_json(
+            "/weather/weatherInfo",
+            {
+                "key": self._key,
+                "city": adcode,
+                "extensions": extensions,
+                "output": "JSON",
+            },
+        )
+        lives = data.get("lives")
+        if isinstance(lives, list) and lives and isinstance(lives[0], dict):
+            return _normalize_live(lives[0])
+        forecasts = data.get("forecasts")
+        if isinstance(forecasts, list) and forecasts and isinstance(forecasts[0], dict):
+            return _normalize_forecast(forecasts[0])
+        return {}
 
     async def walking_route(
         self,

@@ -73,37 +73,45 @@ class PoiDetailStore:
         return self._memory.get(source_poi_id)
 
     def stale_pois(
-        self, *, limit: int = 200
-    ) -> list[tuple[str, str | None, str | None]]:
-        """POIs whose hours are missing or older than 24h (job targets)."""
+        self,
+        *,
+        limit: int = 200,
+        sources: tuple[str, ...] | None = None,
+    ) -> list[tuple[str, str | None, str | None, str | None]]:
+        """POIs whose hours are missing or older than 24h (job targets).
+
+        返回 (source_poi_id, city, name_zh, source) 四元组；sources 非
+        None 时只返回指定 source 的行（骨架行按渠道分批回源用）。
+        """
         cutoff = datetime.now(timezone.utc) - _STALE_AFTER
         if self._db_available():
             try:
                 with self._factory() as session:
-                    rows = (
-                        session.query(Poi)
-                        .filter(
-                            Poi.hours_updated_at.is_(None)
-                            | (Poi.hours_updated_at < cutoff)
-                        )
-                        .limit(limit)
-                        .all()
+                    q = session.query(Poi).filter(
+                        Poi.hours_updated_at.is_(None) | (Poi.hours_updated_at < cutoff)
                     )
-                    return [(r.source_poi_id, r.city, r.name_zh) for r in rows]
+                    if sources is not None:
+                        q = q.filter(Poi.source.in_(list(sources)))
+                    rows = q.limit(limit).all()
+                    return [
+                        (r.source_poi_id, r.city, r.name_zh, r.source) for r in rows
+                    ]
             except Exception:
                 self._note_db_failure()
                 logger.warning(
                     "poi_details: db unreachable, memory fallback",
                     exc_info=True,
                 )
-        out: list[tuple[str, str | None, str | None]] = []
+        out: list[tuple[str, str | None, str | None, str | None]] = []
         for pid, v in self._memory.items():
             ts = v.get("hours_updated_at")
             if ts is None or ts < cutoff:
-                out.append((pid, v.get("city"), v.get("name")))
-            if len(out) >= limit:
-                break
-        return out
+                out.append(
+                    (pid, v.get("city"), v.get("name"), v.get("source") or "amap")
+                )
+        if sources is not None:
+            out = [t for t in out if (t[3] or "") in sources]
+        return out[:limit]
 
     def ping(self) -> bool:
         # Explicit probe: ignores the down-latch so the daily job and
@@ -163,6 +171,8 @@ class PoiDetailStore:
             mem["city"] = city
         if name and not mem.get("name"):
             mem["name"] = name
+        if source and not mem.get("source"):
+            mem["source"] = source
         if address:
             mem["address"] = address
         if opening_hours:
@@ -177,7 +187,7 @@ class PoiDetailStore:
             with self._factory() as session:
                 row = (
                     session.query(Poi)
-                    .filter_by(source="amap", source_poi_id=source_poi_id)
+                    .filter_by(source=source, source_poi_id=source_poi_id)
                     .one_or_none()
                 )
                 if row is None:

@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -69,6 +70,25 @@ class Poi(Base):
     wgs84_location: Mapped[WKBElement | None] = mapped_column(
         Geography(geometry_type="POINT", srid=4326, nullable=True)
     )
+    # v2.5 POI 底库 (DESIGN §4.2): 铁律——外部源仅写骨架（名称/坐标/类别），
+    # 时间敏感字段（hours/price/duration）只信高德/携程回源链。
+    phone: Mapped[str | None] = mapped_column(String(50))
+    website: Mapped[str | None] = mapped_column(String(300))
+    rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    rating_source: Mapped[str | None] = mapped_column(String(20))
+    tags: Mapped[list | None] = mapped_column(JSONB)
+    tags_source: Mapped[str | None] = mapped_column(String(20))
+    intro: Mapped[str | None] = mapped_column(Text)
+    intro_source: Mapped[str | None] = mapped_column(String(20))
+    photos: Mapped[list | None] = mapped_column(JSONB)
+    photos_source: Mapped[str | None] = mapped_column(String(20))
+    best_visit_time: Mapped[str | None] = mapped_column(
+        String(10), server_default=text("'any'")
+    )
+    best_visit_time_source: Mapped[str | None] = mapped_column(String(20))
+    suggested_duration_min: Mapped[int | None] = mapped_column(Integer)
+    # source 升级为 amap（回源真相）后，origin 保留初始发现渠道。
+    origin: Mapped[str | None] = mapped_column(String(20))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -83,6 +103,75 @@ class PoiHour(Base):
     )
     rule_type: Mapped[str] = mapped_column(String(20))
     payload: Mapped[dict] = mapped_column(JSONB)
+
+
+class Restaurant(Base):
+    # v2.5 POI 底库：餐厅独立表（用户拍板 2026-10-23），骨架列与 pois 同构。
+    __tablename__ = "restaurants"
+    __table_args__ = (
+        UniqueConstraint("source", "source_poi_id"),
+        Index("idx_restaurants_location", "location", postgresql_using="gist"),
+        Index("idx_restaurants_city", "city"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    source: Mapped[str] = mapped_column(String(20))
+    source_poi_id: Mapped[str] = mapped_column(String(100))
+    city: Mapped[str] = mapped_column(String(50))
+    name_zh: Mapped[str | None] = mapped_column(String(200))
+    name_en: Mapped[str | None] = mapped_column(String(200))
+    cuisine: Mapped[str | None] = mapped_column(String(50))
+    status: Mapped[str | None] = mapped_column(
+        String(20), server_default=text("'active'")
+    )
+    location: Mapped[WKBElement | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, nullable=True)
+    )
+    wgs84_location: Mapped[WKBElement | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, nullable=True)
+    )
+    address: Mapped[str | None] = mapped_column(String(200))
+    opening_hours: Mapped[str | None] = mapped_column(String(500))
+    hours_source: Mapped[str | None] = mapped_column(String(20))
+    hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    phone: Mapped[str | None] = mapped_column(String(50))
+    website: Mapped[str | None] = mapped_column(String(300))
+    avg_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    rating_source: Mapped[str | None] = mapped_column(String(20))
+    tags: Mapped[list | None] = mapped_column(JSONB)
+    tags_source: Mapped[str | None] = mapped_column(String(20))
+    intro: Mapped[str | None] = mapped_column(Text)
+    intro_source: Mapped[str | None] = mapped_column(String(20))
+    photos: Mapped[list | None] = mapped_column(JSONB)
+    photos_source: Mapped[str | None] = mapped_column(String(20))
+    origin: Mapped[str | None] = mapped_column(String(20))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class WeatherReport(Base):
+    # v2.5 参考数据域：城市天气快照（高德天气 API，上游中国气象局）。
+    # latest-wins：每 (source, adcode, kind) 仅存最新一行——report_time 是
+    # 高德侧数据时间（实况每小时更、预报每日约 8/11/18 时更），fetched_at
+    # 是本侧拉取时间；不堆历史，见 DESIGN/database_design.md §6.2 矩阵行。
+    __tablename__ = "weather_reports"
+    __table_args__ = (
+        UniqueConstraint("source", "adcode", "kind"),
+        Index("idx_weather_reports_city", "city"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    source: Mapped[str] = mapped_column(String(20))
+    adcode: Mapped[str] = mapped_column(String(10))
+    city: Mapped[str] = mapped_column(String(50))
+    kind: Mapped[str] = mapped_column(String(10))  # live|forecast
+    report_time: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    fetched_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
 
 
 class Itinerary(Base):
