@@ -730,9 +730,12 @@ async function api(path, body, method) {
   try {
     res = await doFetch();
   } catch (e) {
-    await new Promise(r => setTimeout(r, 1500)); // 撞上服务重启死窗（连不上）：延迟后自动重试一次
-    try { res = await doFetch(); }
-    catch (e2) { throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" }; }
+    // 撞上服务重启/崩溃死窗（连不上）：退避重试 1.5s/4s，覆盖 keepalive 拉起窗口
+    for (const w of [1500, 4000]) {
+      await new Promise(r => setTimeout(r, w));
+      try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
+    }
+    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
