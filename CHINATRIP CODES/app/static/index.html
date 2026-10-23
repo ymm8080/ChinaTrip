@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ChinaTrip · 冒烟测试</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#2f6fed">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ChinaTrip">
 <style>
   :root{
     --bg:#f4f6f8; --panel:#ffffff; --border:#e2e6eb; --text:#1c232b; --muted:#6b7684;
@@ -265,6 +274,11 @@
   .tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg);font-size:13px}
   .tile .ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .tile-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.tile-city{margin-left:auto;color:#888;white-space:nowrap}
+  .drag-handle{cursor:grab;touch-action:none;color:#b0b0b0;user-select:none;-webkit-user-select:none;padding:0 5px 0 0;font-size:14px}
+  .drag-handle:active{cursor:grabbing}
+  .sortable-ghost{opacity:.35;border-style:dashed}
+  .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
+  .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
   .site-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
@@ -289,6 +303,7 @@
   }
 </style>
 <script src="qrcode.min.js"></script>
+<script src="sortable.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -755,6 +770,45 @@ async function busy(btn, fn) {
   finally { btn.disabled = false; btn.textContent = old; }
 }
 
+// 二进制/文件请求（行程导出）：与 api() 同头（设备号+登录态）+ 同款断线退避，返回原始 Response
+async function apiRaw(path) {
+  const headers = { "X-Device-ID": DEVICE_ID };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const doFetch = () => fetch(apiBase() + path, { headers });
+  let res;
+  try { res = await doFetch(); }
+  catch (e) {
+    for (const w of [1500, 4000]) {
+      await new Promise(r => setTimeout(r, w));
+      try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
+    }
+    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+  }
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* 空体 */ }
+    throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : ("http_" + res.status) };
+  }
+  return res;
+}
+
+// 触发浏览器下载；revoke 延迟 100ms（Firefox/Safari 提前 revoke 会取消下载）
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+// 从 Content-Disposition 的 filename*=UTF-8'' 取文件名，失败回退
+function cdFilename(res, fallback) {
+  const m = /\*=UTF-8''([^;]+)/i.exec(res.headers.get("Content-Disposition") || "");
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) { /* 回退 */ } }
+  return fallback;
+}
+
 /* =====
 /* ================= 账号（登录 / 注册 / 忘记密码） ================= */
 
@@ -1099,6 +1153,7 @@ function planCard(plan) {
       const info = el('<div><b>' + esc(link.getAttribute("data-name")) + '</b>（' + esc(link.getAttribute("data-city")) + "）</div>");
       info.appendChild(el('<div class="muted">' + esc(bits.join("　") || "暂无更多简介信息") + "</div>"));
       addMsg("flow-plan", "sys", info);
+      enrichBrief(info, link.getAttribute("data-city"), link.getAttribute("data-name"));
       return;
     }
     const btn = ev.target.closest ? ev.target.closest('button[data-item-id]') : null;
@@ -1127,6 +1182,30 @@ function planCard(plan) {
   return box;
 }
 
+// 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
+// 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
+const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
+function briefTag(t) {
+  const m = /^black_pearl_(\d+)diamond$/.exec(t || "");
+  return m ? "黑珍珠" + m[1] + "钻" : (BRIEF_TAGS[t] || t);
+}
+function enrichBrief(info, city, name) {
+  api("/api/pois/detail?city=" + encodeURIComponent(city || "") + "&name=" + encodeURIComponent(name || ""), undefined, "GET").then(p => {
+    const bits = [];
+    if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">（来源：' + esc(p.intro_source) + "）</span>" : ""));
+    if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(briefTag).filter(Boolean).join(" / "));
+    if (p.phone) bits.push("☎ " + esc(p.phone));
+    const photo = p.photos && p.photos[0] && p.photos[0].url;
+    if (!bits.length && !photo) return;
+    if (photo) {
+      const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0" src="' + esc(photo) + '">');
+      img.onerror = () => img.remove(); // 挂图隐藏，占位不留
+      info.appendChild(img);
+    }
+    if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
+  }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
+}
+
 // 满意了点保存才落库（2026-10-20：规划不再自动写行程库）：写库 + 冻结一个不可变快照
 function planSaveBar(plan) {
   const bar = el('<div class="dirbar"></div>');
@@ -1145,6 +1224,27 @@ function planSaveBar(plan) {
     }
   });
   bar.appendChild(btn);
+  // 重新规划：按 origin 原参数重开一局新会话（服务重启自动重建同款），当前会话未保存的修改即弃。
+  // 修改类会话没有 origin，不显示这个按钮。
+  if (planSession && planSession.origin) {
+    const re = el('<button class="btn">🔄 重新规划</button>');
+    re.onclick = () => busy(re, async () => {
+      const holder = addMsg("flow-plan", "sys", "🔄 按原参数重新规划中…");
+      try {
+        const orig = planSession.origin;
+        const body = await api("/api/v1/plan/start", orig);
+        planSetSession({ session_id: body.session_id, state: body.state, origin: orig });
+        holder.textContent = "";
+        planRenderSafe(holder, body);
+        toast("已重新规划");
+      } catch (err) {
+        holder.textContent = "❌ 重新规划失败：" + detailText(err.detail);
+        failToast(err);
+      }
+      document.getElementById("flow-plan").scrollTop = 1e9;
+    });
+    bar.appendChild(re);
+  }
   return bar;
 }
 function violationsNode(vs, title) {
@@ -1266,13 +1366,26 @@ function planSetSession(s) {
   document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
 }
 
+// 链接必去确认 chips：一轮只开一次——回合关闭（确认成功/文字回答/新链接轮）
+// 后旧 chips 就地失效，防止再点打出 409 not_awaiting_sites 吓到用户。
+let siteChipBoxes = [];
+function closeSiteChipBoxes() {
+  siteChipBoxes.forEach(box => box.querySelectorAll("button").forEach(b => {
+    b.disabled = true; b.style.opacity = ".45"; b.onclick = null;
+    if (b.textContent === "请求中…") b.textContent = "✅ 已确认"; // busy() 的 finally 不再复活它
+  }));
+  siteChipBoxes = [];
+}
+
 // 渲染 /plan/start 或 /plan/{id}/message 的响应（clarify 追问 / 行程卡 / 快捷条 / 违规）。
 function planRenderReply(holder, body, opts) {
   holder.textContent = "";
+  if (!(body.state === "site_confirm" && (body.sites || []).length)) closeSiteChipBoxes();
   if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
   if (body.state === "site_confirm" && (body.sites || []).length) {
     // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
-    holder.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：</div>"));
+    const box = el('<div class="site-confirm-box"></div>');
+    box.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：</div>"));
     const row = el('<div class="chips"></div>');
     const must = new Set();
     body.sites.forEach(s => {
@@ -1283,12 +1396,14 @@ function planRenderReply(holder, body, opts) {
       };
       row.appendChild(b);
     });
-    holder.appendChild(row);
+    box.appendChild(row);
     const row2 = el('<div class="chips"></div>');
     const ok = el('<button class="chip">✅ 确认</button>');
     ok.onclick = (e) => busy(e.target, () => planConfirmSites(body.sites, must));
     row2.appendChild(ok);
-    holder.appendChild(row2);
+    box.appendChild(row2);
+    holder.appendChild(box);
+    siteChipBoxes.push(box);
     if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
@@ -1415,14 +1530,22 @@ async function planConfirmSites(allSites, must) {
   addMsg("flow-plan", "user", "✅ 必去：" + (mand.join("、") || "（未选）"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在写入心愿单…");
   try {
+    if (planSession.state !== "site_confirm") throw { status: 409, detail: "not_awaiting_sites" };
     const body = await api("/api/v1/plan/" + planSession.session_id + "/sites/confirm", { mandatory: mand });
     planSession.state = body.state;
     document.getElementById("planStateTag").textContent =
       "会话 " + planSession.session_id.slice(0, 8) + "… · 状态:" + body.state;
-    planRenderSafe(holder, body);
+    planRenderSafe(holder, body); // 非 site_confirm 状态会顺手关掉旧 chips
   } catch (err) {
-    holder.textContent = "❌ 确认失败：" + detailText(err.detail);
-    failToast(err);
+    if (err && err.detail === "not_awaiting_sites") {
+      // 迟到的确认（已确认过/文字已回答/服务重启换新会话）：不是故障，
+      // 提示改走对话，别再吓用户，也不弹红色 toast。
+      holder.textContent = "ℹ️ 这轮必去确认已经结束（可能已确认过）。想加的地点直接在下面发消息告诉我即可。";
+      closeSiteChipBoxes();
+    } else {
+      holder.textContent = "❌ 确认失败：" + detailText(err.detail);
+      failToast(err);
+    }
   }
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
@@ -2232,6 +2355,9 @@ async function itinSavedLoad() {
         ops.appendChild(b);
       };
       mk("✏️ 修改", (b) => itinEdit(r, b));
+      mk("⬇️ 导出", (b) => itinExport(r, b));
+      mk(r.share_enabled ? "🔗 复制链接" : "🔗 分享", (b) => itinShareOn(r, b));
+      if (r.share_enabled) mk("🚫 关闭分享", (b) => itinShareOff(r, b));
       mk("🗑 删除", (b) => {
         const label = (r.cities || []).join(" → ") || r.itinerary_id;
         if (!confirm("确定删除行程「" + label + "」（" + r.itinerary_id + "）？将连同它的全部快照一起删除，操作不可恢复。")) return;
@@ -2269,6 +2395,156 @@ async function itinEdit(r, btn) {
       toast("已载入到规划页：直接说要怎么改；改完点「💾 保存行程」覆盖保存");
     } catch (err) { failToast(err); }
   });
+}
+
+/* ---- 🔗 公开分享：开关 + 复制 + 只读视图（/s/{token} 跳到 ?share=） ---- */
+
+// 复制文本：clipboard API 只在 https/localhost 放行，局域网 HTTP 页面走 textarea 兜底
+async function copyText(t) {
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch (e) { /* 兜底 */ }
+  const ta = document.createElement("textarea");
+  ta.value = t;
+  ta.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+// 开分享 / 复制链接共用（幂等：重复开不变 token、不换链接）
+async function itinShareOn(r, btn) {
+  await busy(btn, async () => {
+    try {
+      const body = await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: true });
+      const url = (apiBase() || location.origin) + "/s/" + body.share_token;
+      const ok = await copyText(url);
+      toast(ok ? "✅ 分享链接已复制，发给朋友即可查看（只读）：" + url : "分享链接（手动复制）：" + url);
+      await itinSavedLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+async function itinShareOff(r, btn) {
+  if (!confirm("关闭后分享链接立即失效（再次开启还是同一个链接）。确定关闭？")) return;
+  await busy(btn, async () => {
+    try {
+      await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: false });
+      toast("已关闭分享，公开链接已失效");
+      await itinSavedLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+// 只读分享视图：全屏浮层，逐天逐站列出（不含预订/账号等隐私字段，公开接口只回白名单）
+async function shareOpen(token) {
+  const ov = el('<div id="shareView" style="position:fixed;inset:0;z-index:9999;background:#f6f7fb;overflow:auto;padding:16px"></div>');
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:60px 0">行程加载中…</div>'));
+  document.body.appendChild(ov);
+  let d;
+  try {
+    d = await api("/api/v1/public/trips/" + encodeURIComponent(token), undefined, "GET");
+  } catch (err) {
+    ov.textContent = "";
+    const box = el('<div class="card" style="max-width:520px;margin:60px auto;text-align:center"></div>');
+    if (err.status === 404) {
+      box.appendChild(el('<h3>🔗 链接已失效</h3>'));
+      box.appendChild(el('<div class="muted">行程不存在，或作者已关闭分享。</div>'));
+    } else {
+      box.appendChild(el('<h3>⚠️ 加载失败</h3>'));
+      box.appendChild(el('<div class="muted">' + esc(detailText(err.detail)) + "</div>"));
+    }
+    ov.appendChild(box);
+    return;
+  }
+  ov.textContent = "";
+  const head = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
+  head.appendChild(el('<h3 style="margin:0 0 6px">🗺 ' + esc(d.title) + "</h3>"));
+  head.appendChild(el('<div class="muted">共 ' + d.days_count + " 天 · " + d.stops_count + " 个行程点 · 只读分享</div>"));
+  ov.appendChild(head);
+  (d.days || []).forEach(day => {
+    const card = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
+    card.appendChild(el('<h4 style="margin:0 0 8px">Day ' + day.day + " · " + esc(shortCity(day.base_city)) + "</h4>"));
+    const list = el('<div style="display:flex;flex-direction:column;gap:6px"></div>');
+    (day.items || []).forEach(it => {
+      const t = (it.start_time || "").slice(0, 5);
+      if (it.kind === "transfer") {
+        list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
+          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(shortCity(it.from_city)) + " → " + esc(shortCity(it.to_city)) +
+          (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + " 分钟" : "") + "</span></div>"));
+      } else {
+        list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +
+          (it.address || it.opening_hours
+            ? '<div class="muted" style="font-size:12px">' + (it.address ? "📍 " + esc(it.address) : "") +
+              (it.opening_hours ? (it.address ? " · " : "") + "🕐 " + esc(it.opening_hours) : "") + "</div>"
+            : "") + "</span></div>"));
+      }
+    });
+    if (!(day.items || []).length) list.appendChild(el('<div class="muted">（当天无安排）</div>'));
+    card.appendChild(list);
+    ov.appendChild(card);
+  });
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:12px 0 24px">由 ChinaTrip 行程助手生成 · <a href="/h5/">我也想做一个行程</a></div>'));
+}
+
+// 首开带 ?share={token}：只读视图直接盖在最上层（接收者无需登录/设备号）
+const shareParam = new URLSearchParams(location.search).get("share");
+if (shareParam) shareOpen(shareParam);
+
+// ⬇️ 导出（2026-10-23）：单弹窗选格式（照 TREK TripExportModal 收敛为一个入口）。
+// PDF = 后端打印 HTML → 沙箱 iframe → 浏览器打印对话框选「另存为 PDF」（零依赖矢量方案）；
+// Word/Excel = 后端 python-docx/openpyxl 生成的二进制，走 blob 下载，文件名取自 Content-Disposition。
+function itinExport(r, btn) {
+  const label = (r.cities || []).join(" → ") || r.itinerary_id;
+  const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
+    '<div class="card" style="min-width:280px;max-width:90vw;padding:16px">' +
+    "<h4 style=\"margin:0 0 12px\">导出行程「" + esc(label) + "」</h4>" +
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+    '<button class="btn" data-fmt="pdf">📄 PDF（打印后选「另存为 PDF」）</button>' +
+    '<button class="btn" data-fmt="docx">📝 Word 文档</button>' +
+    '<button class="btn" data-fmt="xlsx">📊 Excel 表格</button>' +
+    '<button class="btn ghost" data-fmt="close">取消</button>' +
+    "</div></div></div>");
+  mask.addEventListener("click", (ev) => {
+    const b = ev.target.closest ? ev.target.closest("button[data-fmt]") : null;
+    if (!b || !mask.contains(b)) return;
+    const fmt = b.getAttribute("data-fmt");
+    if (fmt === "close") { mask.remove(); return; }
+    busy(b, async () => {
+      try {
+        if (fmt === "pdf") await exportPrint(r.itinerary_id);
+        else await exportDownload(r.itinerary_id, fmt);
+        toast("已生成「" + label + "」导出");
+      } catch (err) { failToast(err); }
+      mask.remove();
+    });
+  });
+  document.body.appendChild(mask);
+}
+
+// PDF：取打印 HTML → 沙箱 iframe → contentWindow.print()；iframe 延迟移除以免打印内容被提前回收
+async function exportPrint(itinId) {
+  const res = await apiRaw("/api/v1/itineraries/" + encodeURIComponent(itinId) + "/export?format=pdf");
+  const html = await res.text();
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  frame.sandbox = "allow-same-origin allow-modals";
+  frame.srcdoc = html;
+  frame.onload = () => {
+    try { frame.contentWindow.print(); }
+    finally { setTimeout(() => frame.remove(), 60000); }
+  };
+  document.body.appendChild(frame);
+}
+
+async function exportDownload(itinId, fmt) {
+  const res = await apiRaw("/api/v1/itineraries/" + encodeURIComponent(itinId) + "/export?format=" + fmt);
+  const blob = await res.blob();
+  saveBlob(blob, cdFilename(res, "行程." + fmt));
 }
 
 document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", () => itinSavedLoad());
@@ -2609,8 +2885,10 @@ function noteHtml(note) {
 
 // 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）· unwanted（恢复/删除）
 function tcTile(item) {
-  const t = el('<div class="tile"></div>');
-  const head = el('<div class="tile-head"><span><b>' + esc(item.name) + "</b>" +
+  const t = el('<div class="tile" data-id="' + esc(item.id) + '"></div>');
+  const drag = (item.status === "scheduled" || item.status === "wishlist")
+    ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
+  const head = el('<div class="tile-head"><span>' + drag + '<b>' + esc(item.name) + "</b>" +
     (item.note ? ' <span class="muted">' + noteHtml(item.note) + "</span>" : "") +
     ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></span>" +
     (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>" : "") + "</div>");
@@ -2666,32 +2944,92 @@ async function tcLoad() {
     const q = document.getElementById("tcItinId").value.trim();
     const body = await api("/api/v1/trip-items" + (q ? "?itinerary_id=" + encodeURIComponent(q) : ""), undefined, "GET");
     TRIP.loaded = true;
+    TRIP.byId = {};
+    const reg = (it) => { TRIP.byId[it.id] = it; return it; };
     const bookings = body.bookings || [], scheduled = body.scheduled || [], wishlist = body.wishlist || [];
     const z1 = tcZone("✅", "已预订（Bookings 置顶）", bookings.length, "");
     if (!bookings.length) z1.cards.appendChild(el('<div class="muted">暂无已预订条目。</div>'));
-    bookings.forEach(it => z1.cards.appendChild(tcTile(it)));
+    bookings.forEach(it => z1.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z1.z);
-    const z2 = tcZone("📅", "已排期（按天分组）", scheduled.length, "");
-    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」。</div>'));
+    const z2 = tcZone("📅", "已排期（按天分组 · 拖 ⠿ 排序/跨天）", scheduled.length, "");
+    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」或拖心愿卡进某天。</div>'));
     const byDay = {};
     scheduled.forEach(it => { const d = it.day || 0; (byDay[d] = byDay[d] || []).push(it); });
     Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach(d => {
-      z2.cards.appendChild(el('<div class="day-h">第 ' + d + " 天</div>"));
-      byDay[d].forEach(it => z2.cards.appendChild(tcTile(it)));
+      const blk = el('<div><div class="day-h">第 ' + d + " 天</div></div>");
+      const tiles = el('<div class="day-tiles" data-day="' + d + '"></div>');
+      byDay[d].forEach(it => tiles.appendChild(tcTile(reg(it))));
+      blk.appendChild(tiles);
+      z2.cards.appendChild(blk);
     });
     box.appendChild(z2.z);
     const z3 = tcZone("💡", "心愿单（新的在前）", wishlist.length, "");
     if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
-    wishlist.forEach(it => z3.cards.appendChild(tcTile(it)));
+    z3.cards.classList.add("day-tiles");
+    z3.cards.dataset.wishlist = "1";
+    wishlist.forEach(it => z3.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z3.z);
     const unwanted = body.unwanted || [];
     const z4 = tcZone("🚫", "不想去", unwanted.length, "");
     if (!unwanted.length) z4.cards.appendChild(el('<div class="muted">暂无「不想去」条目。</div>'));
-    unwanted.forEach(it => z4.cards.appendChild(tcTile(it)));
+    unwanted.forEach(it => z4.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z4.z);
+    tcInitSortables();
   } catch (err) {
     failToast(err);
     box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));
+  }
+}
+
+// 拖拽排序：⠿ 把手即拖（Wanderlog 式）。同天重排 / 跨天移动 / 心愿单拖入即排期。
+// position 走中点插入法，落库只需单条 PATCH（后端 day+position 原生支持）。
+let tcSortables = [];
+function tcInitSortables() {
+  tcSortables.forEach(s => s.destroy());
+  tcSortables = [];
+  if (typeof Sortable === "undefined") return; // sortable.min.js 缺失时降级为纯按钮操作
+  const common = {
+    handle: ".drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+  };
+  document.querySelectorAll("#flow-trips .day-tiles[data-day]").forEach(box => {
+    tcSortables.push(new Sortable(box, Object.assign({}, common, {
+      group: "tcday",
+      onEnd: tcOnDrop,
+    })));
+  });
+  const wish = document.querySelector('#flow-trips .day-tiles[data-wishlist]');
+  if (wish) tcSortables.push(new Sortable(wish, Object.assign({}, common, {
+    group: { name: "tcday", pull: true, put: false }, // 只出不进：撤销排期仍走按钮
+    onEnd: tcOnDrop,
+  })));
+}
+async function tcOnDrop(evt) {
+  const item = (TRIP.byId || {})[evt.item.dataset.id];
+  const day = parseInt(evt.to.dataset.day, 10);
+  if (!item || !day) { tcLoad(); return; } // 拖回心愿单内部等无效落点 → 按服务端顺序重渲
+  const fromWish = evt.from.hasAttribute("data-wishlist");
+  const tiles = Array.from(evt.to.querySelectorAll(":scope > .tile"));
+  const idx = tiles.indexOf(evt.item);
+  const posOf = (n) => { const o = TRIP.byId[tiles[n].dataset.id]; return o ? o.position : null; };
+  const prev = idx > 0 ? posOf(idx - 1) : null;
+  const next = idx < tiles.length - 1 ? posOf(idx + 1) : null;
+  let position;
+  if (prev != null && next != null) position = (prev + next) / 2;
+  else if (prev != null) position = prev + 1;
+  else if (next != null) position = Math.max(next - 1, 0.001);
+  else position = 1.0;
+  if (!fromWish && evt.from === evt.to && item.day === day && item.position === position) return;
+  try {
+    const fields = fromWish ? { status: "scheduled", day, position } : { day, position };
+    await api("/api/v1/trip-items/" + item.id, fields, "PATCH");
+    toast(fromWish ? "已排到第 " + day + " 天" : "顺序已更新（第 " + day + " 天）");
+    await tcLoad();
+  } catch (err) {
+    failToast(err);
+    tcLoad(); // PATCH 失败回滚到服务端权威顺序
   }
 }
 document.getElementById("tcRefresh").onclick = (e) => busy(e.target, tcLoad);
@@ -3013,6 +3351,13 @@ addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」�
 addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
 
 planSetSession(null);
+
+/* ---- PWA：注册 service worker（离线缓存，surmai 同款 app-shell 策略） ---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
