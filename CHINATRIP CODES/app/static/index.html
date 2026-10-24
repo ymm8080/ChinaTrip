@@ -1241,12 +1241,6 @@ function planCard(plan) {
         const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div></div>");
         const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
-        if (planSession && planSession.session_id && it.alternatives && it.alternatives.length) {
-          const chips = it.alternatives.map(a =>
-            '<button class="btn mini ghost" data-action="swap" data-item-id="' + esc(it.item_id) + '" data-alt="' + esc(a.name) + '" title="换入备选' + (a.address ? "：" + a.address : "") + '">↔ ' + esc(a.name) + (a.distance_km != null ? " " + a.distance_km.toFixed(1) + "km" : "") + "</button>"
-          ).join(" ");
-          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">备选：' + chips + "</div>"));
-        }
         if (typeof it.distance_to_next_km === "number") {
           let walkSeg = "";
           if (it.next_walk_minutes != null) {
@@ -1328,14 +1322,6 @@ function planCard(plan) {
             box.replaceWith(planCard(body.plan));
           } catch (err) { failToast(err); }
         });
-      } else if (action === "swap") {
-        const alt = btn.getAttribute("data-alt");
-        busy(btn, async () => {
-          try {
-            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/swap", { name: alt }, "POST");
-            box.replaceWith(planCard(body.plan));
-          } catch (err) { failToast(err); }
-        });
       }
     });
   initPlanDrag(box, plan);
@@ -1375,8 +1361,8 @@ function planSaveBar(plan) {
     if (!planSession || !planSession.session_id) { toast("会话已失效：请重新规划后再保存"); return; }
     try {
       const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name });
-      bar.textContent = "";
-      bar.appendChild(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
+      btn.remove(); // 只撤保存键，导出/分享/重新规划留在原行（2026-10-24 修复：整行清空会连三键一起抹掉）
+      bar.after(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
       toast("行程已保存：" + plan.itinerary_id);
     } catch (err) {
       if (err.status === 402) toast("免费快照额度（3 个）已用完——行程已存入「行程」页（本次未冻结快照）");
