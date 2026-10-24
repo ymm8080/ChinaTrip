@@ -1,61 +1,75 @@
-"""osm_fetch 下载器：链接解析 / 水位推进 / 续传复用."""
+"""app.jobs.osm_fetch 纯逻辑单测（不发网络请求）."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from app.jobs.osm_fetch import (
-    fetch_pending,
-    last_applied,
-    list_osc_hrefs,
-    pending_hrefs,
-)
+import app.jobs.osm_fetch as mod
+from app.jobs.osm_fetch import last_serial, pending_serials, serial_path
 
-_HTML = (
-    '<html><a href="000/002/001.osc.gz">1</a>'
-    '<A HREF="000/002/002.osc.gz">2</A>'
-    '<a href="000/002/001.osc.gz.md5">md5</a></html>'
-)
+_EPOCH = datetime(2012, 9, 12, 8, 15, 45, tzinfo=timezone.utc)
 
 
-def test_list_osc_hrefs_filters_and_sorts() -> None:
-    assert list_osc_hrefs(_HTML) == ["000/002/001.osc.gz", "000/002/002.osc.gz"]
+# ---------- serial_path：序号 -> 三段相对路径 ----------
 
 
-def test_pending_hrefs_watermark() -> None:
-    hrefs = ["000/002/001.osc.gz", "000/002/002.osc.gz"]
-    assert pending_hrefs(hrefs, None) == ["000/002/002.osc.gz"]
-    assert pending_hrefs(hrefs, "001.osc.gz") == ["000/002/002.osc.gz"]
-    assert pending_hrefs(hrefs, "002.osc.gz") == []
-    # 水位滑出保留窗口：只追最新
-    assert pending_hrefs(hrefs, "000/001/999.osc.gz") == ["000/002/002.osc.gz"]
+def test_serial_path_zero_padded() -> None:
+    assert serial_path(123717) == "000/123/717"
+    assert serial_path(1) == "000/000/001"
 
 
-def test_last_applied_missing_or_broken(tmp_path: Path) -> None:
-    assert last_applied(tmp_path / "absent.json") is None
-    state = tmp_path / "state.json"
-    state.write_text("not json", encoding="utf-8")
-    assert last_applied(state) is None
-    state.write_text('{"last_osc": "002.osc.gz"}', encoding="utf-8")
-    assert last_applied(state) == "002.osc.gz"
+# ---------- last_serial：共用水位文件解析 ----------
 
 
-def test_fetch_pending_downloads_and_reuses(
-    tmp_path: Path, monkeypatch: object
-) -> None:
-    import app.jobs.osm_fetch as mod
-
+def test_last_serial_reads_planet_name(tmp_path: Path) -> None:
     state = tmp_path / "osm_state.json"
-    dest_dir = tmp_path / "osm"
-    calls: list[str] = []
+    state.write_text('{"last_osc": "planet_hour_000123717.osc.gz"}', encoding="utf-8")
+    assert last_serial(state) == 123717
 
-    def fake_download(url: str, dest: Path) -> None:
-        calls.append(url)
-        dest.write_bytes(b"fake-osc")
 
-    monkeypatch.setattr(mod, "_download", fake_download)  # type: ignore[attr-defined]
-    first = fetch_pending(_HTML, state, dest_dir)
-    assert [p.name for p in first] == ["002.osc.gz"]
-    assert len(calls) == 1
-    # 已下载但未应用（水位未动）：复用文件不再下载
-    again = fetch_pending(_HTML, state, dest_dir)
-    assert [p.name for p in again] == ["002.osc.gz"]
-    assert len(calls) == 1
+def test_last_serial_none_for_missing_or_foreign_state(tmp_path: Path) -> None:
+    assert last_serial(tmp_path / "absent.json") is None
+    state = tmp_path / "s.json"
+    state.write_text('{"last_osc": "china-250930.osc.gz"}', encoding="utf-8")
+    assert last_serial(state) is None  # 旧 Geofabrik 命名不识别
+
+
+# ---------- pending_serials：水位推进与追补上限 ----------
+
+
+def test_pending_serials_after_watermark() -> None:
+    assert pending_serials(123717, 123719) == [123718, 123719]
+
+
+def test_pending_serials_none_takes_latest_only() -> None:
+    assert pending_serials(None, 123719) == [123719]
+
+
+def test_pending_serials_capped_catchup() -> None:
+    # 停跑 100 小时只追补最近 MAX_CATCHUP 个
+    latest = 123717
+    got = pending_serials(latest - 100, latest)
+    assert got == list(range(latest - mod.MAX_CATCHUP + 1, latest + 1))
+
+
+def test_pending_serials_empty_when_caught_up() -> None:
+    assert pending_serials(123719, 123719) == []
+
+
+# ---------- probe_latest_serial：探测逻辑（注入假网络） ----------
+
+
+def test_probe_latest_serial_walks_through_gap(monkeypatch) -> None:
+    # 猜 101（+1 过冲探测失败），向下回退到 99 -> 最新是 99（时钟偏快兜底）
+    monkeypatch.setattr(mod, "fetch_serial_state", lambda s: s <= 99)
+    assert mod.probe_latest_serial(_EPOCH + timedelta(hours=100)) == 99
+
+
+def test_probe_latest_serial_none_when_nothing_exists(monkeypatch) -> None:
+    monkeypatch.setattr(mod, "fetch_serial_state", lambda s: False)
+    assert mod.probe_latest_serial(_EPOCH + timedelta(hours=100)) is None
+
+
+def test_probe_latest_serial_walks_up_past_hole(monkeypatch) -> None:
+    # 猜 101，102/103 存在 -> 上探到 103
+    monkeypatch.setattr(mod, "fetch_serial_state", lambda s: s <= 103)
+    assert mod.probe_latest_serial(_EPOCH + timedelta(hours=100)) == 103

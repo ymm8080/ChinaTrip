@@ -3,6 +3,7 @@ rem 每周 POI 回填（schtasks 周日 03:30）：时段属性（启发式全�
 rem 日志: devlogs\poi_weekly.log
 cd /d "D:\CHINATRIP\CHINATRIP CODES"
 set "PY=%~dp0..\.venv\Scripts\python.exe"
+call "%~dp0db_up.cmd"
 set "LOG=devlogs\poi_weekly.log"
 if not exist devlogs mkdir devlogs
 echo [%date% %time%] === poi weekly start === >> "%LOG%"

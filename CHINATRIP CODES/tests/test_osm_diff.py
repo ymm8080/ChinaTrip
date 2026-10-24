@@ -47,7 +47,9 @@ class MarkStub:
 
 
 def _wkt_coords(geom) -> tuple[float, float]:
-    """WKTElement -> (lon, lat)。"""
+    """(lon, lat) 元组（seed_upsert 契约）-> 直接返回。"""
+    if isinstance(geom, tuple):
+        return float(geom[0]), float(geom[1])
     text = str(geom)
     inner = text[text.index("(") + 1 : text.index(")")]
     lon, lat = inner.split()

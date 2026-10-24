@@ -4,6 +4,7 @@ rem --rotate 按 weekday 城轮转（每天约 1/7 城市负载，防风控）�
 rem 日志: devlogs\poi_refresh_daily.log
 cd /d "D:\CHINATRIP\CHINATRIP CODES"
 set "PY=%~dp0..\.venv\Scripts\python.exe"
+call "%~dp0db_up.cmd"
 set "LOG=devlogs\poi_refresh_daily.log"
 if not exist devlogs mkdir devlogs
 echo [%date% %time%] === refresh daily start === >> "%LOG%"

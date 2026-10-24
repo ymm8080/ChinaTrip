@@ -1,11 +1,15 @@
-"""Geofabrik 中国区日增 .osc.gz 下载器（配合 app.jobs.osm_diff 使用）.
+"""OSM planet 小时复制增量下载器（配合 app.jobs.osm_diff 使用）.
 
-Geofabrik 更新目录（china-updates）用零填充序号子目录逐日递增，本 job
-抓 index 页全部 .osc.gz 链接，对照水位文件（--state，与 osm_diff 共用
-data/osm_state.json 的 last_osc 键）只取未应用过的文件：下载到 --dir
-后 stdout 每行输出一个路径供 cmd for /f 消费；无新文件输出 NONE、
-退出 0。真正落库仍归 osm_diff（应用成功才写水位，下载失败/中断下次
-自动续传或复用已下载文件）。
+源实测（2026-10-24）：download.geofabrik.de 本机 TCP 死（连 VPN 也超时），
+planet.openstreetmap.org 可达（需 VPN）。planet 的 replication/hour 没有
+索引页，序号按固定纪元（2012-09-12T08:15:45Z）每小时 +1，只能探测：
+先按时间猜一个序号，向上探测穿过空洞，最后一个能拿到 .state.txt 的即最新。
+
+水位复用 osm_diff 的 data/osm_state.json last_osc 键（值形如
+planet_hour_000123717.osc.gz，应用成功才写）。下载到 --dir 后 stdout
+每行输出一个路径供 poi_daily.cmd 的 for /f 消费；无新文件输出 NONE、
+退出 0。真正落库归 osm_diff。追补上限 MAX_CATCHUP 个小时文件，防止
+长期停跑后第一次运行变成无界批量下载。
 
 用法：
     python -m app.jobs.osm_fetch [--dir data/osm] [--state data/osm_state.json]
@@ -18,61 +22,86 @@ import json
 import re
 import sys
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin
 
-INDEX_URL = "https://download.geofabrik.de/asia/china-updates/"
+BASE_URL = "https://planet.openstreetmap.org/replication/hour/"
 _UA = "ChinaTrip-POI-library/0.1 (contact: dev@chinatrip.local)"
-_OSC_HREF = re.compile(r'href="([^"]+\.osc\.gz)"', re.IGNORECASE)
+_EPOCH = datetime(2012, 9, 12, 8, 15, 45, tzinfo=timezone.utc)
+_LAST_OSC = re.compile(r"^planet_hour_(\d{9})\.osc\.gz$")
+MAX_CATCHUP = 48  # 最多追补 48 个小时增量（约 86MB）
 
 
-def list_osc_hrefs(index_html: str) -> list[str]:
-    """index 页里全部 .osc.gz 链接（去重、按零填充序号升序）。"""
-    return sorted(set(_OSC_HREF.findall(index_html)))
+def serial_path(serial: int) -> str:
+    """序号 -> 三段相对路径（123717 -> 000/123/717）。"""
+    s = f"{serial:09d}"
+    return f"{s[:3]}/{s[3:6]}/{s[6:]}"
 
 
-def pending_hrefs(hrefs: list[str], last_name: str | None) -> list[str]:
-    """水位之后的待应用文件；水位 None 取最新一个，滑出窗口只追最新。"""
-    if not hrefs:
-        return []
-    names = [Path(h).name for h in hrefs]
-    if last_name is not None and last_name in names:
-        return list(hrefs[names.index(last_name) + 1 :])
-    return [hrefs[-1]]
+def fetch_serial_state(serial: int, timeout: int = 30) -> bool:
+    """探测某序号的 .state.txt 是否存在（存在即该小时已产出）。"""
+    url = f"{BASE_URL}{serial_path(serial)}.state.txt"
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            resp.read()
+        return True
+    except Exception:
+        return False
 
 
-def last_applied(state_path: Path) -> str | None:
+def probe_latest_serial(now: datetime | None = None) -> int | None:
+    """按时间猜序号，向上穿洞再向下兜时钟偏斜 -> 最新已产出序号；全失败 None。"""
+    t = now or datetime.now(timezone.utc)
+    serial = int((t - _EPOCH).total_seconds() // 3600) + 1
+    for _ in range(10):
+        if fetch_serial_state(serial + 1):
+            serial += 1
+        else:
+            break
+    for _ in range(5):  # 猜测超过实际最新（本机时钟偏快）时向下回退
+        if fetch_serial_state(serial):
+            return serial
+        serial -= 1
+    return None
+
+
+def last_serial(state_path: Path) -> int | None:
+    """从共用水位文件读 last_osc 里的 planet 序号；无/非 planet 命名 -> None。"""
     try:
         data = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     value = data.get("last_osc")
-    return value if isinstance(value, str) else None
+    if not isinstance(value, str):
+        return None
+    m = _LAST_OSC.match(value)
+    return int(m.group(1)) if m else None
 
 
-def _download(url: str, dest: Path) -> None:
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=120) as resp, dest.open("wb") as fh:
-        while chunk := resp.read(1 << 20):
-            fh.write(chunk)
+def pending_serials(last: int | None, latest: int) -> list[int]:
+    """水位之后的序号列表；水位 None 只取最新一个（与旧 Geofabrik 行为一致）。"""
+    if last is None:
+        return [latest]
+    start = max(last + 1, latest - MAX_CATCHUP + 1)
+    return list(range(start, latest + 1))
 
 
-def fetch_pending(index_html: str, state_path: Path, dest_dir: Path) -> list[Path]:
-    """下载全部待应用 .osc.gz（已存在则复用），返回本地路径列表。"""
-    pending = pending_hrefs(list_osc_hrefs(index_html), last_applied(state_path))
-    out: list[Path] = []
-    for href in pending:
-        dest = dest_dir / Path(href).name
-        if not dest.exists():
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            _download(urljoin(INDEX_URL, href), dest)
-        out.append(dest)
-    return out
+def _download(serial: int, dest_dir: Path) -> Path:
+    url = f"{BASE_URL}{serial_path(serial)}.osc.gz"
+    dest = dest_dir / f"planet_hour_{serial:09d}.osc.gz"
+    if not dest.exists():
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=300) as resp, dest.open("wb") as fh:
+            while chunk := resp.read(1 << 20):
+                fh.write(chunk)
+    return dest
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="下载 Geofabrik 中国区未应用的日增 .osc.gz"
+        description="下载 OSM planet 未应用的小时增量 .osc.gz"
     )
     parser.add_argument("--dir", default="data/osm", help="下载目录")
     parser.add_argument(
@@ -81,12 +110,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        req = urllib.request.Request(INDEX_URL, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            index_html = resp.read().decode("utf-8", errors="replace")
-        downloaded = fetch_pending(index_html, Path(args.state), Path(args.dir))
+        latest = probe_latest_serial()
+        if latest is None:
+            raise RuntimeError("planet replication unreachable (no state file)")
+        pending = pending_serials(last_serial(Path(args.state)), latest)
+        downloaded = [_download(s, Path(args.dir)) for s in pending]
     except Exception as exc:
-        print(json.dumps({"error": str(exc)[:200]}, ensure_ascii=True))
+        # 错误只进 stderr——stdout 是 poi_daily.cmd for /f 的文件清单通道，
+        # 混入错误文本会被当路径传给 osm_diff --osc（2026-10-24 实录）
+        print(json.dumps({"error": str(exc)[:200]}, ensure_ascii=True), file=sys.stderr)
         return 1
     if not downloaded:
         print("NONE")

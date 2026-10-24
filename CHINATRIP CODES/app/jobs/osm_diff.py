@@ -34,7 +34,7 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 
 from app.models import Poi
-from app.services.coords import make_point, wgs84_to_gcj02
+from app.services.coords import wgs84_to_gcj02
 from app.services.poi_seed import mark_status, seed_upsert
 
 try:  # pyosmium 是可选重依赖（requirements.txt 已声明 osmium>=4.0）
@@ -138,8 +138,10 @@ def handle_change(
         city=city,
         name_zh=tags.get("name"),
         category=category,
-        lonlat=make_point(gcj_lon, gcj_lat),
-        wgs84_lonlat=make_point(wgs_lon, wgs_lat),
+        # seed_upsert 契约是裸 (lon, lat) 元组，内部自转 make_point；
+        # 传 WKTElement 会在 make_point(*lonlat) 崩（2026-10-24 实录）
+        lonlat=(gcj_lon, gcj_lat),
+        wgs84_lonlat=(wgs_lon, wgs_lat),
         name_en=tags.get("name:en") or None,
         origin="osm",
     )
