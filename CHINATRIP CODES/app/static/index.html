@@ -1358,6 +1358,17 @@ function planSaveBar(plan) {
     try {
       const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name });
       btn.remove(); // 只撤保存键，导出/分享/重新规划留在原行（2026-10-24 修复：整行清空会连三键一起抹掉）
+      // 新规划会话保存前没有导出/分享两键（只有已存行程载入的会话才有）：保存后行程已落库，当场补上
+      if (!bar.querySelector('[data-role="itin-export"]')) {
+        const rLike = { itinerary_id: plan.itinerary_id, cities: plan.cities || [] };
+        const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
+        ex.onclick = () => itinExport(rLike, ex);
+        const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
+        sh.onclick = () => itinShareOn(rLike, sh);
+        const re = bar.querySelector('[data-role="plan-replan"]');
+        if (re) { bar.insertBefore(ex, re); bar.insertBefore(sh, re); } // 保持 导出/分享/重新规划 顺序
+        else { bar.appendChild(ex); bar.appendChild(sh); }
+      }
       bar.after(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
       toast("行程已保存：" + plan.itinerary_id);
     } catch (err) {
@@ -1368,7 +1379,7 @@ function planSaveBar(plan) {
   bar.appendChild(btn);
   // 重新规划（全新规划会话）：按 origin 原参数重开一局（服务重启自动重建同款），未保存的修改即弃。
   if (planSession && planSession.origin) {
-    const re = el('<button class="btn">🔄 重新规划</button>');
+    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
     re.onclick = () => busy(re, async () => {
       const holder = addMsg("flow-plan", "sys", "🔄 按原参数重新规划中…");
       try {
@@ -1390,7 +1401,7 @@ function planSaveBar(plan) {
   // 修改回到全新规划表单；导出/分享直接吃行程号（2026-10-24 规划页三键）。
   if (planSession && planSession.itin_id) {
     const rLike = { itinerary_id: planSession.itin_id, cities: planSession.itin_cities || (plan.cities || []) };
-    const re = el('<button class="btn">🔄 重新规划</button>');
+    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
     re.onclick = () => {
       if (!confirm("回到全新规划？当前未保存的修改会丢弃。")) return;
       planSetSession(null);
@@ -1399,9 +1410,9 @@ function planSaveBar(plan) {
       toast("已回到全新规划：上方填城市/天数后点「🚀 开始规划」");
       document.getElementById("flow-plan").scrollTop = 0;
     };
-    const ex = el('<button class="btn">⬇️ 导出</button>');
+    const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
     ex.onclick = () => itinExport(rLike, ex);
-    const sh = el('<button class="btn">🔗 分享</button>');
+    const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
     sh.onclick = () => itinShareOn(rLike, sh);
     bar.appendChild(ex);
     bar.appendChild(sh);
