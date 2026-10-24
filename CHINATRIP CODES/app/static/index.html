@@ -160,6 +160,7 @@
   .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
   .dirbar .chip{padding:3px 10px;font-size:12px}
   .t9n-wrap{display:flex;flex-direction:column;gap:6px;flex-shrink:0} /* 硬保护：矮视口/系统缩放下输入框永不被 flex 挤出屏幕（2026-10-24） */
+  #planSetup{max-height:45vh;overflow-y:auto} /* 硬保护：无会话表单全展开时，超矮视口下表单内部滚动而不是把输入框挤出屏幕（2026-10-24 v21） */
 
   /* ---------- 导航：全幅地图 ---------- */
   #tab-nav{padding:0}
