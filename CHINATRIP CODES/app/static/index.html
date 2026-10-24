@@ -385,7 +385,7 @@
         <label class="fld">结束城市
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planEndCity"></select>
-            <input type="number" id="planEndDays" min="1" max="30" value="6" style="width:3.2em">天
+            <input type="number" id="planEndDays" min="1" max="30" value="1" style="width:3.2em">天
           </span>
         </label>
         <span class="sep"></span>
@@ -1496,7 +1496,7 @@ function planRouteForm() {
   // （起始城市 0 天是设计如此——只排出发交通不计入合计）
   const num = (id) => parseInt(document.getElementById(id).value, 10);
   if (!(num("planStartDays") >= 0)) document.getElementById("planStartDays").value = 0;
-  if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 6;
+  if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 1;
   for (let i = 1; i <= 3; i++) {
     if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
   }
