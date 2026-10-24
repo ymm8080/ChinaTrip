@@ -3,6 +3,7 @@
 import asyncio
 
 from app.jobs.refresh_pois import refresh_pois
+from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.poi_details import PoiDetailStore
 
 
@@ -74,8 +75,8 @@ class FakeAmap:
             "address": "某路1号",
         }
 
-    async def search_hours(self, keyword, city=None):
-        self.search_calls.append((keyword, city))
+    async def search_hours(self, keyword, city=None, location=None):
+        self.search_calls.append((keyword, city, location))
         return {
             "opening_hours": self._search_hours,
             "rating": None,
@@ -120,13 +121,63 @@ def test_refresh_search_is_final_amap_fallback():
     assert stats["amap_v5_search"] == 1
     assert store.get("B7")["opening_hours"] == "09:00-21:00"
     assert store.get("B7")["hours_source"] == "amap_v5_search"
+    # location 透传（无坐标行 None；有坐标行 "lon,lat" 供 around 降级）
+    assert amap.search_calls == [("景点D", "重庆", None)]
 
 
-def test_refresh_miss_keeps_stale_for_next_run():
+def test_refresh_miss_cools_down_24h_without_writing_hours():
     store = PoiDetailStore()
     store.upsert("B8", city="重庆", name="景点E")
     stats = asyncio.run(refresh_pois(store, _NullCtrip(), None, limit=10))
-    assert stats["miss"] == 1 and stats["total"] == 1
+    assert stats["miss"] == 1 and stats["miss_cooldown"] == 1
+    got = store.get("B8")
+    assert got.get("opening_hours") is None  # 冷却不写 hours
+    assert got.get("hours_source") is None
+    assert store.stale_pois() == []  # 盖戳后 24h 内不再进 stale 窗口
+
+
+def test_stale_pois_returns_amap_location_string():
+    store = PoiDetailStore()
+    store.upsert("L1", city="重庆", name="有坐标", location=(106.578, 29.5628))
+    store.upsert("L2", city="重庆", name="无坐标")
+    rows = {t[0]: t for t in store.stale_pois()}
+    assert rows["L1"][4] == "106.578,29.5628"
+    assert rows["L2"][4] is None
+
+
+class _PickCtrip:
+    """按名称给 hours 的携程 stub：quota 熔断下携程链必须照跑。"""
+
+    def __init__(self, hits):
+        self._hits = hits
+        self.calls = []
+
+    async def hours_for(self, city, name):
+        self.calls.append(name)
+        return self._hits.get(name)
+
+
+class _QuotaAmap(FakeAmap):
+    async def place_hours(self, poi_id):
+        self.detail_calls.append(poi_id)
+        raise AmapQuotaExhaustedError("10021: USER_DAILY_QUERY_OVER_LIMIT")
+
+
+def test_refresh_quota_exhausted_fails_fast_ctrip_keeps_running():
+    store = PoiDetailStore()
+    store.upsert("A1", city="重庆", name="甲景点")
+    store.upsert("A2", city="重庆", name="乙景点")
+    store.upsert("A3", city="重庆", name="丙景点")
+    ctrip = _PickCtrip({"乙景点": "09:00-18:00"})
+    amap = _QuotaAmap()
+    stats = asyncio.run(refresh_pois(store, ctrip, amap, limit=10))
+    assert stats["amap_quota_exhausted"] is True
+    assert stats["amap_v5_detail"] == 0 and stats["amap_v5_search"] == 0
+    assert stats["ctrip"] == 1  # 携程链不被熔断
+    assert ctrip.calls == ["甲景点", "乙景点", "丙景点"]
+    assert amap.detail_calls == ["A1"] and amap.search_calls == []
+    assert stats["amap_skipped"] == 3  # 甲链③ + 丙链② + 丙链③
+    assert stats["miss"] == 2 and stats["miss_cooldown"] == 2
 
 
 class _NullCtrip:

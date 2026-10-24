@@ -4,8 +4,9 @@ One table absorbs every write path — manual form, chat dialog, paste box,
 agent recommendation (iron rule 0: single source of truth). An item walks
 Wishlist -> Scheduled -> Booked; walking back to wishlist unschedules it.
 Pure logic only (store + transition rules): no HTTP imports, so the state
-machine is unit-testable directly. Storage is an in-process dict — process
-restart wipes it (MVP consensus, same as the itinerary store).
+machine is unit-testable directly. Storage is a plain dict;
+``state_persist.PersistentTripItemService`` subclasses it with SQLite
+write-through so items survive restarts (itinerary-store pattern).
 """
 
 from __future__ import annotations
@@ -19,9 +20,12 @@ logger = logging.getLogger(__name__)
 STATUS_WISHLIST = "wishlist"
 STATUS_SCHEDULED = "scheduled"
 STATUS_BOOKED = "booked"
-STATUSES = frozenset({STATUS_WISHLIST, STATUS_SCHEDULED, STATUS_BOOKED})
+STATUS_UNWANTED = "unwanted"
+STATUSES = frozenset(
+    {STATUS_WISHLIST, STATUS_SCHEDULED, STATUS_BOOKED, STATUS_UNWANTED}
+)
 
-SOURCES = frozenset({"manual", "chat", "paste", "agent_recommend"})
+SOURCES = frozenset({"manual", "chat", "paste", "agent_recommend", "plan_delete"})
 
 # Statuses that occupy a (day, position) slot on the timeline.
 _TIMELINE_STATUSES = frozenset({STATUS_SCHEDULED, STATUS_BOOKED})
@@ -43,6 +47,12 @@ def _iso_now(now: datetime | None) -> str:
     return (now if now is not None else datetime.now(timezone.utc)).isoformat()
 
 
+def _norm(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.strip().casefold() or None
+
+
 class TripItemService:
     """In-memory trip-item store + Wishlist/Scheduled/Booked state machine.
 
@@ -50,6 +60,7 @@ class TripItemService:
       * wishlist  -> day/position/booking_id are None
       * scheduled -> day/position set, booking_id None
       * booked    -> day/position/booking_id set
+      * unwanted  -> day/position/booking_id are None
     day/position/booking_id are owned by the state machine: values supplied
     for them while the item ends up in wishlist are discarded.
     """
@@ -72,8 +83,20 @@ class TripItemService:
         opening_hours: str | None = None,
         now: datetime | None = None,
     ) -> dict:
+        """Idempotent create: returns the existing row instead of a new one
+        when this trip already holds the same poi_id / name+city."""
         if source not in SOURCES:
             raise InvalidSourceError(f"invalid_source:{source}")
+        duplicate = self._find_duplicate(
+            name, itinerary_id=itinerary_id, city=city, poi_id=poi_id
+        )
+        if duplicate is not None:
+            logger.info(
+                "trip_item_deduplicated id=%s name=%s",
+                duplicate["id"],
+                duplicate["name"],
+            )
+            return dict(duplicate)
         stamp = _iso_now(now)
         item = {
             "id": uuid4().hex,
@@ -124,6 +147,11 @@ class TripItemService:
                 (dict(i) for i in items if i["status"] == STATUS_SCHEDULED),
                 key=timeline_key,
             ),
+            "unwanted": sorted(
+                (dict(i) for i in items if i["status"] == STATUS_UNWANTED),
+                key=lambda i: i["updated_at"],
+                reverse=True,
+            ),
         }
 
     # --- update / delete -----------------------------------------------------
@@ -167,7 +195,7 @@ class TripItemService:
                 position = self._next_position(item["itinerary_id"], day)
 
         item["status"] = target
-        if target == STATUS_WISHLIST:
+        if target in (STATUS_WISHLIST, STATUS_UNWANTED):
             item["day"] = None
             item["position"] = None
             item["booking_id"] = None
@@ -197,15 +225,35 @@ class TripItemService:
         del self._items[item_id]
         logger.info("trip_item_deleted id=%s", item_id)
 
+    def mark_unwanted(
+        self,
+        name: str,
+        *,
+        itinerary_id: str | None = None,
+        city: str | None = None,
+    ) -> dict:
+        """Plan-delete path: park the item in the unwanted group (or file a
+        fresh unwanted entry when the plan never had one)."""
+        for item in self._items.values():
+            if item["itinerary_id"] == itinerary_id and item["name"] == name:
+                if item["status"] != STATUS_UNWANTED:
+                    return self.update(item["id"], status=STATUS_UNWANTED)
+                return dict(item)
+        created = self.create(
+            name, source="plan_delete", itinerary_id=itinerary_id, city=city
+        )
+        return self.update(created["id"], status=STATUS_UNWANTED)
+
     # --- rules ----------------------------------------------------------------
 
     @staticmethod
     def _check_transition(
         current: str, target: str, *, day: int | None, booking_id: str | None
     ) -> None:
-        """Legal edges of the three-state machine (everything else 422):
+        """Legal edges of the state machine (everything else 422):
         wishlist->scheduled (day required), scheduled->booked (booking_id
-        required), scheduled/booked->wishlist (un-schedule clears fields).
+        required), scheduled/booked->wishlist (un-schedule clears fields),
+        wishlist/scheduled/booked->unwanted, unwanted->wishlist (restore).
         """
         if current == STATUS_WISHLIST and target == STATUS_SCHEDULED:
             if day is None or day < 1:
@@ -214,6 +262,10 @@ class TripItemService:
             if booking_id is None or not booking_id.strip():
                 raise InvalidTransitionError("booking_id_required")
         elif target == STATUS_WISHLIST and current in _TIMELINE_STATUSES:
+            pass
+        elif target == STATUS_UNWANTED and current != STATUS_UNWANTED:
+            pass
+        elif current == STATUS_UNWANTED and target == STATUS_WISHLIST:
             pass
         else:
             raise InvalidTransitionError(f"{current}_to_{target}")
@@ -236,3 +288,34 @@ class TripItemService:
             and item["position"] is not None
         ]
         return max(positions) + 1.0 if positions else 1.0
+
+    def _find_duplicate(
+        self,
+        name: str,
+        *,
+        itinerary_id: str | None,
+        city: str | None,
+        poi_id: str | None,
+    ) -> dict | None:
+        """Same trip + same thing = one row: poi_id is authoritative when
+        both sides carry it, else normalized name+city. Unwanted rows never
+        match — re-adding a rejected item starts a fresh wishlist entry
+        (the wish-sync path flips unwanted back on its own)."""
+        if poi_id:
+            for item in self._items.values():
+                if (
+                    item["itinerary_id"] == itinerary_id
+                    and item["status"] != STATUS_UNWANTED
+                    and item["poi_id"] == poi_id
+                ):
+                    return item
+        key_name, key_city = _norm(name), _norm(city)
+        for item in self._items.values():
+            if (
+                item["itinerary_id"] == itinerary_id
+                and item["status"] != STATUS_UNWANTED
+                and _norm(item["name"]) == key_name
+                and _norm(item["city"]) == key_city
+            ):
+                return item
+        return None

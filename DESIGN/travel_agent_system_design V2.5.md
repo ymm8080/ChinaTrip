@@ -1,6 +1,14 @@
-# 自助景点规划助手（暂名）— 设计文档 v2.2（国内区先行 · MVP 最小成本 · 多城规划 · 入境五模式导航 · 万级容量就绪）
+# 自助景点规划助手（暂名）— 设计文档 v2.5（国内区先行 · MVP 最小成本 · 行程中心 + 全局 Agent · 五模式导航 · 转链交易中心 · POI 城市底库）
 
-> 版本：v2.2 ｜ 状态：可直接开工（**国内区先行 · MVP 最小成本**）  
+> 版本：v2.5 ｜ 状态：可直接开工（**国内区先行 · MVP 最小成本**）  
+> v2.5 增量：**城市 POI 底库——多源导入 + 回源铁律 + 品质标签 + best_visit 时段 + 规划接入心愿单吸收（2026-10-20 ~ 10-23；代码在 feat/v24-trip-center，相关 269 测全绿 + ruff 干净）**——①**总原则（用户拍板 2026-10-23）**：所有外部源（ChinaTravel/OSM/5A/米其林/黑珍珠/UNESCO 及后续任何源）仅作候选与骨架，入库前（或入库后首轮回填时）必须经高德/携程回源校验——存在性（关店/闭园剔除）、名称匹配（CITY_ALIASES+模糊）、坐标校准（GCJ-02 对齐高德）、时间敏感字段（开放时间/门票/建议时长）一律以回源链为准；外部源只管「发现」，存活性与详情真相归回源链路。**day-by-day 模板可做但优先级低（用户拍板 2026-10-23：非不能做，是暂不排期）**（合法可商用现成源经三路调研不存在——ChinaTravel 是排程评测查询非成品行程、TravelPlanner 纯英文非中国、马蜂窝/携程/穷游路书 UGC 版权+反爬+ToS 禁抓勿碰；自建路径现成——POI 底库 + CP-SAT 现算产出即模板、未来快照飞轮沉淀高表现行程，均排 P2/P3），近期仍以城市→SITE 清单 + 时段属性达标，day-by-day 由 CP-SAT 地理聚类现算（§6.9 既有强项，比抄模板更贴合天数/体力/交通实况）。②**数据模型（迁移 0006_poi_base_library）**：pois 扩 15 列——phone/website/rating+source/tags+source/intro+source/photos+source/**best_visit_time**+source（枚举 morning/afternoon/evening/sunset/sunrise/any，默认 any）/suggested_duration_min/origin（初始发现渠道；source 升级 amap 回源真相后保留出身）——**每个富化字段带 *\_source 溯源列**；新增 **restaurants 独立表**（用户拍板：不再 pois.category=food 复用；骨架列与 pois 同构 + cuisine/avg_cost，GiST location + city 索引）；坐标铁律：location 统一 GCJ-02（高德系）、wgs84_location 存原始 WGS84，app/services/coords.py 双向转换（迭代逆推 ~1m 精度，仅中国境内有效）+ haversine 匹配阈值。③**多源导入管线（app/jobs/）**：import_chinatravel（ChinaTravel 沙盒 10 城 3,413 景点冷启动种子，代码 MIT/数据 CC BY 4.0，**仅取名称+坐标+类别**，开放时间/门票/时长不采信；POI 名无别名机制，入库套自家 CITY_ALIASES）+ osm_diff（Geofabrik china.pbf 日更增量，osmium tags-filter 本地过滤——Overpass 国内不稳一律弃用在线查询；WGS84→GCJ-02；含 OSM 数据的库本体若对外再分发须 ODbL 开放，业务代码与服务不受影响）+ 文旅部 5A 名录 373 处权威校准（必保白名单 + 查全率告警：5A 不在合并后底库=采集漏了，直接告警补采）+ UNESCO 59 处国际补充（官方 XLSX 为 Non-Commercial 许可，仅取事实性字段）。④**详情回填作业**：backfill_intro（Wikidata wbsearchentities→EntityData→zh.wikipedia REST summary 简介；P18 图→Wikimedia FilePath 800px 缩略；UA 带 contact 合规 Wikimedia 政策；已有值一律不覆盖；短 extract 不采；intro_source 统一标 wikidata；**简介随回源周期持续更新**）+ backfill_best_visit（**时段属性三层**：类别启发式【夜市/夜街/酒吧街→evening，山岳/观景台→sunset/sunrise】→ LLM 常识批量标注【外滩夜景/泰山日出等知名 POI 可靠性高】→ 携程 sight 页回源校验（复用 CtripHoursReader），best_visit_time_source 标注层级）+ tag_quality（**米其林**：ngshiheng/michelin-my-maps CSV→中国过滤→名称+坐标匹配→michelin/bib_gourmand 标签，每月重拉【每月 1 日凌晨，各城错峰发榜月内入库】，**必比登优先展示**——平价更贴大众游客定位，品质是「加分层」非门槛；**黑珍珠**：black_pearl 含钻级，每月检查重拉【上游年度发榜】，只采店名/钻级/城市等事实字段不采信页面简介；两者数据本体爬自官网的商用合规风险已知悉接受）。refresh_pois 同步升级：从「只补 hours」扩为按城全量发现 + 高德/携程回源补评分/营业时间的自我更新闭环（OSM 日更增量 + 回源实时）。⑤**规划接入（plan.py）**：**心愿单吸收 \_absorb_wishlist**——行程中心 wishlist 中本次行程城市的条目在 v0 生成唯一咽喉统一吸收为必去（start/confirm/clarify 三路全覆盖），引擎排期+钉住，吸收记入规划假设——「行程中心点『想去』→ 下次规划自动带上」闭环落地；**站点同一性 \_same_site**（去标点/剥「景区」类尾缀/双向包含且短名 ≥2 字）——视频抽取「重庆大足石刻景区」vs 库/行程「大足石刻」全链（链接去重/必去合并/钉住/心愿单/候选匹配）不再因名字变体漏判重复，已在行程中的必去改为钉住既有条目不重复排入并提示；**必去高德模糊搜索防跨省**（POI 定位到行程外城市→落假设不入计划，防垃圾输入定位到省外/境外）；api/pois.py 只读详情端点（city「市」容错 + name_zh 精确→模糊，intro/照片/标签/电话带字段级 source 标注，H5 站点简介气泡数据源；geography 列不加载规避序列化坑）。**solver 消费 best_visit_time（夜景自动排晚上）待接线**——字段/回填/API 就绪，§6.9 约束建模为下一步（行程中心「夜景自动钉晚上」悬案的最后一块）。⑥**行程条目钉住/删除（2026-10-20）**：行程条目新增 📌 钉住/🗑 删除——pinned 条目引擎不重排（聊天点名修改仍放行），删除回写行程中心「不想去」分组；链接地点抽取带 city 字段+标题城市兜底，心愿单/行程/POI 查询全链按视频城市归类（高德真实城市可纠正 LLM 误判，多城会话不再散落）；必去条目落自己城市的日期并 solve 后 pin；离城日必去不再被静默删除，改为保留+假设提示。⑦**运维加固（2026-10-23）**：h5_keepalive v2——端口在但 /health 失败（15s 超时）判定僵死，taskkill /F /T 杀树后重启（覆盖 10-19 冻结类故障），事件记 keepalive.log；计划任务轮询 5min→1min（本机 PT1M 已验证）；H5 api() 网络错误退避重试（1.5s/4s 两次）覆盖 keepalive 拉起窗口。  
+> v2.4.4 增量：**POI 详情入库 + 每日回源作业——规划只读库不当场抓取（用户拍板 2026-10-19）**——①数据落库：pois 表增 address/opening_hours(500)/hours_source/hours_updated_at 四列（迁移 w12_0005，pgvector 顺延 0006），PoiDetailStore 统一读写（DB 不可达自动降级进程内存，规划不因库挂而停）；②每日作业 app.jobs.refresh_pois（CLI python -m app.jobs.refresh_pois \[--limit\]\[--city]，配 pois_refresh.cmd 供任务计划程序）：链序按用户拍板 **携程 sight 页（先）→ 高德 v5 place/detail（poi_id）→ 高德 v5 关键词搜索（最终兜底）**，逐 POI 回源 upsert（hours_source 标注 ctrip/amap_v5_detail/amap_v5_search），仅刷 stale（无时间或 >24h）；③规划端 \_enrich_hours 改为只读 store（v3 payload 免费值 write-through 作种子），**不再当场抓取**——规划零爬虫延迟、零 ToS 暴露，新 POI 未命中时**当场走链（携程→高德V5）并 APPEND 入库**（同日修订：下次直接读库；无 poi_id 条目由关键词搜索返回的 amap id 落库，携程命中以合成键落库并可按名再命中）；④回源链（v3→v5detail→携程→v5搜索→待确认）整体移入作业侧。另（2026-10-20）：「行程」页「我的行程」每行新增 👁 查看（就地展开逐天逐站详情：跨城段/地址/营业时间/规划假设，可收起）与 🗑 删除（confirm 后连同全部快照删除，不可恢复；行程中心 trip-items 心愿/排期条目不受影响）；后端新增 DELETE /api/v1/itineraries/{id}（204；未知/跨归属 id 仍 404 防枚举，缺 X-Device-ID 400）。另（同日）：**规划不再自动落库**——移除 /plan/start、/plan/message、/plan/sites/confirm 的 \_persist_plan 自动镜像，「我的行程」只列显式保存/显式创建的行程；新增 POST /api/v1/plan/{session_id}/save（点「💾 保存行程」才调用）：upsert 工作副本（owner=设备，Bearer 登录则认领账号）+ 冻结不可变快照（快照额度超限 402，工作副本已入库），无 plan 会话 400 nothing_to_save。另（同日）：「行程」页顶部试验工具条（城市/天数、🆕 创建行程、➕ 加一天景点、🧊 冻结快照、🔄 刷新行程与快照）整体移除——该页只留「我的行程」列表（每行 👁 查看 / 🗑 删除），创建/快照仅经规划页「💾 保存行程」与 API 层。另（2026-10-20）：「我的行程」列表与查看详情显示行程生成时间——ItineraryRecord 增 created_at（UTC 存储；ItineraryService.create 与 /plan/{sid}/save 新建时落值；存量旧记录无值时回退最早快照 created_at 兜底，快照也没有则不显示），H5 按查看者本地时区渲染为 YYYY-MM-DD HH:MM。另（2026-10-20）：「行程」页行按钮「👁 查看」升级为「✏️ 修改」——新增 POST /api/v1/plan/from-itinerary/{id}（201：该行程工作副本深拷贝开新规划会话，state=ready + 种子 assistant 指引；跨归属/未知 id 404 防枚举，缺 X-Device-ID 400），跳转规划页直接对话修改；「💾 保存行程」按原 itinerary_id 覆盖并冻结新快照（额度 402 时工作副本仍覆盖入库）；修改类会话无自动重建 origin，会话丢失提示回「行程」页重新进入。又（2026-10-20 时间戳）：ItineraryRecord 增 updated_at——四个刷新点（/plan/{sid}/save 新建与覆盖、PUT /itineraries/{id} 变更成功、快照恢复成功），created_at 保留为首存/创建时间；列表 \_summary 返回 updated_at（回退 created_at/最早快照 created_at），H5 行程行「🗓」时间改用 updated_at，用户拍板「改完再存，时间要跟着走」。§4 pois/§6.2 数据流口径补记。又（2026-10-20 产品拍板）：**行程中心心愿单只收被点选的必去条目**——H5 候选点选「确认」改调 POST /api/v1/plan/{sid}/sites/confirm 直插 trip_items（不再拼「必去/可选」长文本回传重解析），仅 mandatory 入库、未点选不入库；文本回答仍可解析但同样只录必去，认不出必去时反问不落库（废除旧兜底「全部按可选记入清单」），都可选=全部不入库，「不要了」结束本轮。又（同日）：**规划输入框「先输入、后开始」内容不再丢失**——点「🚀 开始规划」时：输入框纯文字并入偏好一起生成初版行程；链接（http/https/www，视频/笔记链接）在会话建立后自动作为第一条消息发送走链接识别轮（开规划失败原文留在输入框，不自动发送）；仅 H5 index.html，无后端变更。又（2026-10-20 性能）：**规划回合延迟修复（同流程实测 207.9s → 22.1s）**——①腿距测量与营业时间回源并发重叠（共享高德并发闸 6，QPS 友好），营业时间条目间分块并发（块 6；单条目内链序不变：携程先→高德V5 后，拍板不动）；②携程目录页窗口并行取（窗口 ≤2、按页序扫描；每查 4 页/每城 12 页帽不变，城级锁防同城并发重复爬）；③PoiDetailStore 库不可达降级闩：一次连接失败后 300s 内直接走内存——库未启动时每次读写都吃 psycopg connect_timeout（实测单回合白等 168.5s）即此根因，ping() 显式探测成功即解除；④Settings.log_level 接线 basicConfig，规划各阶段耗时进日志。  
+> v2.4.3 增量：**行程时间轴展示补全——相邻站点距离（直线估算基线 + 高德实测升档）+ 营业时间前置（用户拍板 2026-10-19）**——①规划引擎输出即带「站间腿」：同日相邻两个 VisitItem 显示距离 + 步行估时；基线 = 直线 haversine（×1.3 绕行系数 ÷ 80m/min，<50m 同址不标；离线/无 Key 必达）；升档 = 高德步行路径 /v3/direction/walking 实测（与 §6.13 导航同引擎，origin_id/destination_id POI 吸附；/v3/distance type=1 实测弃用——该批量接口 type 未生效返回驾车口径（4.5–6 m/s），三峡博物馆→洪崖洞给 5.4km/16min，direction/walking+POI 吸附给 2.5km/34min 与 App 2.8km/50min 同口径；逐腿调用分批并发）。营业时间回源核查（同日）：美团 Web（JS/定位门禁、无公开 POI API）与大众点评（滑块验证码墙）不可直连；携程 gs.ctrip.com 景点页公开含「开放时间」但名称→页面发现链路无稳定公开解（trip.com guide URL 非确定性、站内搜索 JS 渲染）→ 渠道结构化营业时间归入 W9-10 联盟/开放平台实测（携程景点玩乐开放平台已证实存在）；携程先行 PoC 已落地（用户拍板 2026-10-19）：gs html5 目录页服务端渲染、可分页早停发现——城市 slug 白名单 9 城标题校验（slug 盲猜会跳错城市，如 wuhan83→宁波），详情页「开放时间」标签解析 + 进程内索引/详情缓存 + 早停页数上限，仅承接 v5 未命中项、失败静默降级「以现场为准」；抓取属 ToS 灰区以最小量运行，正路仍为 W9-10 联盟 API。短期落地 = 高德 v5 place/detail 按需补充（opentime_week 含闭馆日/最晚入场/节假日——实测洪崖洞「24小时营业」、三峡博物馆含周一闭馆；v3 biz_ext.opening 对此全空），缺小时且有 poi_id 时逐条回源：缓存 + 限量 + 静默降级，「以现场为准」兜底不变；最终兜底 = 高德 v5 关键词搜索（名称+城市取首条）——覆盖无 poi_id 条目（手动添加/链接识别/未匹配候选），按坐标对缓存（重排只动时间不动 POI，命中为主）、单次计划限量 24 腿、asyncio 并发 + 短超时，任何失败静默降级回直线估算；leg_source=estimate|amap，H5 据此标「直线估算/高德实测」；跨城 TransferItem 打断腿链（跨城距离由车次卡片描述）；字段 distance_to_next_km / next_walk_minutes / leg_source 由 itinerary.legs（annotate_legs/leg_pairs 单一链逻辑）产出，幂等、非用户输入；②营业时间不缺位：高德 biz_ext.opening 主源（v5 顶层 opentime_today/opentime 兜底），行程卡片缺失时明示「🕐 营业时间待确认（以现场为准）」不虚构（对齐铁律 23 C 级口径）；③行程中心承接：trip_items 增 address/opening_hours 两列（迁移 w12_0004，pgvector 顺延 0005），创建 API + H5 手动表单可带，三态卡片展示——计划点入心愿单不再丢失地址与营业时间。§5 时间线页口径补记。另（同日产品规则）：规划页交互收紧——仅「🚀 开始规划」按钮触发规划，无会话时输入框发送只提示不自动开规划（服务重启后的会话重建续发保留）；开始日期默认今天（原默认为空）、合计行按开始日期+合计天数推算显示结束日期并随日期/天数联动，天数初始化兜底归位（浏览器表单恢复带回 0/空时重置默认）；卡片版式（用户定稿）：景点名 → 地址/营业时间 → 距下一站距离与步行时间（自上而下）。>   
+> v2.4.2 增量：**账号升级为邮箱验证码标准认证（用户拍板）**——v2.4.1 的用户名+密码当日升级：注册 = 邮箱+密码+**邮箱确认码激活**；登录 = 邮箱+密码；找回密码 = 确认码+新密码（标准三件套）。验证码 6 位 / TTL 10min / 重发冷却 60s / 错码 5 次封顶 / 哈希落库（明码不存）；发信 = stdlib SMTP（**SMTP 未配置 = 开发态：验证码接口回显 + WARNING 日志，填 SMTP 配置即自动真发信**——公司主体落地前零外部依赖零资质门槛）；身份键 = email（owner_account_id 存邮箱）；邮箱验证码即 §3 海外轨同形态，未来接正式认证零概念切换。  
+> v2.4.1 增量：**MVP 冒烟期自定义账号——多设备单身份（用户拍板）**——背景：H5 冒烟载体原按匿名设备 ID（X-Device-ID）挂行程，换浏览器/清存储即不可见（2026-10-19 实际踩坑）；支付宝/微信 OAuth 登录需企业认证资质（2026-10 官方规则核实：「获取会员信息」能力仅企业/个体工商户主体可申请），公司主体落地前不可用。定案：H5 冒烟期补最轻账号层——自定义用户名+密码（pbkdf2_hmac 口令哈希 + Bearer token，token 落库仅存 sha256 摘要，纯标准库零外部依赖零资质门槛）；**登录/注册即把当前匿名设备名下行程认领到账号**（itineraries 增 owner_account_id 字段；匿名设备路径保留为零摩擦默认态）；多设备登录同一账号共享同一行程列表（跨设备读取与变更均放行，跨归属仍 404 防枚举）。§3 登录双轨（海外邮箱/Apple · 国内手机号/微信）仍为正式载体不动；公司主体落地后将认领关系平滑迁移至正式身份。
+>
+> v2.4 增量：**行程中心 + 全局 Agent 架构 + 订单回填三层管道 + 个人主页（用户拍板）**——①新增 §6.14 全局 Agent 四组件（Profile/Memory/Planning/Action 全服务整个 App）：**Memory 四层**（Trip State 事实层 / User Profile 画像层 / 会话记忆 / 偏好摘要蒸馏——行程数据全部结构化存储、永不只存对话历史；画像蒸馏 = 会话后异步 workflow，二刷「记得你不想早起」= 复购价值的技术来源）；**写表权限分级**（用户拍板：行程变更先方案后写表【可逆建议】；纯增量直接写 + 可撤销——按副作用大小对号入座）；②**行程中心**（§5 时间线页升级三态：Wishlist→Scheduled→Booked，Bookings 置顶 + Wishlist 流 + 拖拽排期；手动/对话/粘贴写同一张 trip_items——铁律 0 同源）；③**订单回填三层管道**（主：粘贴回填——订单短信/截图 Agent 解析可撤销；辅：返回询问 + 手动标记；自动：联盟订单同步轮询 → 双源验证状态机 opened→user_confirmed→alliance_verified→settled；拒绝：通知监听/剪贴板嗅探/账号密码聚合）；④**个人主页（第 8 页）**：画像可查看可修正 + **链接历史**（用户粘贴进 Agent 的链接 + Agent 推荐的链接，双来源 link_history 表，可重新解析/加入 wishlist）+ 设置；⑤§4 加 trip_items/user_profiles/link_history 三表 + action_handoffs 状态机扩展；联动场景四例；§4/§5/§6.2/§6.11/§7/§9/§10 同步  
+> v2.3 增量：**转链交易中心（Booking Handoff，用户拍板：App 内不下单，做「候选链接选择器」）**——§6.11 新增同名子节：①**候选卡片组**（同一商品 2–4 渠道报价：平台名 + 实时报价 + 退改摘要；**不显示佣金**；顶部固定小字「价格以跳转后页面为准」；12306 卡单独标「全国统一价」纯服务价值；**不足 2 渠道只显示 1 张不硬凑**；**默认单个主推 + 可展开全部**（A/B 备选：平铺））；②**生成逻辑 = 确定性 workflow 非 agent 循环**（查询→去重比价→排序→生成深链→展示五步；比价从二期提前落地）；③排序**佣金权重为零**（强化 v1.9.6 L1 伦理）；④深链/追踪参数全部服务端注入、前端只拿成品 URL；归因窗口按联盟规则签约确认（占位）；兕底链 App未装→H5→手动复制；⑤边界表（价格偏差>10% 重拉 / 免费期内下单佣金照收两层独立 / 多平台同价按稳定性排序标「同价」/ 国外场景隐藏美团卡）；⑥指标：跳转率/流失率/佣金转化率/GMV·用户 vs 订阅 ARPU；L1 比价从二期提前落地；M2 W9-10 落地  
 > v2.2 增量：**入境五模式导航（用户拍板：外国人在华步行/出租/火车/飞机/自驾全部覆盖，不装高德 App 直接用）**——新增 §6.13 五模式覆盖矩阵：**步行 = 应用内实时导航**（高德步行路径 Web API 后端代理 + OSM 瓦片自绘 + GPS 追踪 + 偏航 >35m 重路由 + 端侧 TTS 多语播报）；**出租/自驾 = deeplink 高德 App**（英文版 2025-01 已发布，官方源核实；带参目的地预填）；**火车/飞机 = 行程层管理**（12306 静态库/航班时刻、跨城卡片、geofence 赶车提醒、误车免费应急兜底，§6.7 既有）；不嵌高德导航 SDK（架构零变更仍 Web 服务 Key）；差异化 = 多语语音 + **偏航联动行程重排**（propose_replan→CP-SAT，地图 App 做不到）+ 行程上下文 + 离线走廊；导航态前台持续定位（审核声明），非导航态回归 geofence；§5/§6.12/§7/§9/§10 同步；M2 W9-10 落地  
 > v2.1 增量：**客户端工程架构成节（回答「Android / iOS 需要开发吗」）**——YES，原生 App 自始是既定载体（铁律 21 端侧引擎 / IAP·双通道支付 / 厂商推送 / 渠道 deeplink 均以原生端为前提），新增 **§5.0 客户端工程架构**：双端策略（Flutter 单代码库 → Android+iOS；微信小程序 = M4 复用同一 API；H5 仅落地页/冒烟）、四层架构（UI/Domain/Data/Platform）、**原生模块契约表**（ASR/OCR/TTS/推送/支付/deeplink/地图 × Android/iOS × 铁律映射，platform channels 薄壳）、端上零业务规则（本地 Dart 校验 = 前置预检，生效以服务端 ValidationReport 为准）、铁律 Dart/Python **同源测试用例**；§2 移动端行指向 §5.0；§9 插 **M1.5 客户端工作流**（后端 M1 域服务已提前完成——2026-10-18 PR#5 交付 M0+M1 全部后端 283 测；**用户功能测试通过 = 客户端开工信号**，与 M2 并行）+ §9.0 矩阵加客户端行；§10 加客户端风险行（单人带宽/双端差异/送审周期）；**MVP 功能测试期形态定档 = Swagger `/docs` + 单页 H5 冒烟，零客户端开发**；补：**转向导航 = deeplink 跳高德 App 显式入 §6.12 快车道**（不嵌高德 SDK——Key 不进客户端/许可隔离/离线底线，应用内画线 = OSM + 高德 Web API）  
 > v2.0 增量：**万级用户容量基线（容量审查采纳项）**——§6.12 新增 ⑦ 容量基线：直接操作刻意做轻（手动编辑端上校验/翻译端侧引擎/讲解缓存），压力集中在「生成」且已被双车道治理；四压力点与对策（云 API 配额与成本 / API 层横扩路径 / PG 连接池 / CP-SAT worker 池并发吞吐）；§2 部署行修正 v1.9.9 遗留（MVP 单云主机无 GPU 节点 + 无状态横扩路径 + pgbouncer）；W7-8 压测改云 API 万级容量演练（修正本地 vLLM 遗留表述，本地联调随底座 W11+）；§10 加万级 × 云 API 配额风险行  
@@ -24,105 +32,8 @@
 > 合并范围：v1.3 全部内容 + 五轮评审裁决 + 行程快照版本功能。  
 > 核心变更：**①发布顺序：v1.5 定海外先行，v1.6.1 反转为国内区先行（最大决策）②北极星指标改为行程时间预测准确率 ③行程快照版本功能 ④铁律 0 统一变更管线 + 铁律扩充至 23 条 ⑤地图许可隔离（高德/OSM 不混库）⑥注入防御架构化 ⑦付费墙后移 + 免费应急兜底 ⑧轨迹数据单列敏感级 ⑨渐进式规划 ⑩节奏量化建模 ⑪LLM 全面本地化（自部署 GLM，v1.6）⑫语音翻译全本地链路（v1.9）⑬行动编排：预订只做 deeplink 手off + 支付宝双通道（v1.9）⑭退改签保障：所有预订默认可退改 + 规则前置明示（v1.9.4）**
 
----
-
-## §1 产品定义
-
-### §1.1 四象限用户场景 + 发布顺序
-
-|          | 境外规划                  | 境内执行           |
-| -------- | --------------------- | -------------- |
-| **外国用户** | 海外区注册（邮箱/Apple），出发前规划 | 入境后定位检测 → 执行模式 |
-| **国内用户** | 国内区注册（手机号/微信），无入境检测   | 直接执行           |
-
-- **发布顺序决策（v1.6.1 反转）：国内区先行。** Phase 1 = CN 区（阿里云）把基本功能做通并内测；海外区（AWS 新加坡）降为 Phase 2。理由：高德数据源、POI/讲解主库、团队协作都在国内，开发摩擦最小；本地 GLM 的 GPU 在国内采购/托管更成熟；数据驻留铁律使后上海外区零数据迁移成本。**注意：备案链仍是国内区「公开上架 + 收费」的前置**——策略 = 备案链本周照常启动、与开发并行；开发期内测不受阻；若备案进度理想国内区直接首发，否则海外区可反超首发（双区同构，切换成本低）。
-- **范围声明**：国内用户出境游一期不做（四象限之外，避免定位检测与 region 逻辑歧义）。
-
-### §1.2 核心差异点
-
-执行模式随行 Agent（重排 / 讲解——截图带不走的价值）+ **吃饭不愁**（每天午餐/晚餐时段自动插入顺路餐厅：评分排序 + 步行距离；一键领餐厅优惠、购景点门票含优惠——高德/美团 deeplink，佣金通路）+ **语音 + 拍照翻译（v1.9 · v1.9.5）**（按住说话 → 流式转写 → GLM 翻译 → TTS 播报；拍照/相册 → 端侧 OCR → 缓存/Flash/GLM-4.5V 分流，全本地不出区，P95<2s——入境游客问路/点菜/看菜单的高频刚需，免费钩子）+ **一键预订手off（v1.9）**（酒店/机票/火车票/门票：Agent 带参 deeplink 跳渠道 App 完成交易，我们只做行程上下文预填与确认卡片，不代客下单不碰资金——铁律 22）+ **退改无忧（v1.9.4）**（所有预订默认可退改选项优先，确认卡片在跳转前明示退改签规则摘要与免费退窗口截止——铁律 23：无摘要不跳转）+ **紧急卡**（110/120/119/最近警局医院/使领馆信息，纯静态本地数据，离线可用，零合规风险）。
-
-### §1.3 商业模式
-
-- **规划免费**（获客锚点）。
-- **海外（Phase 2）**：执行期**消耗型 IAP $6.99/行程**（重排 + 完整讲解 + 误车跨天改），服务端收据校验 + webhook 退款回收权益。Stripe 仅保留给未来非数字商品，一期不上。
-- **国内（Phase 1 先行）**：门票/餐厅佣金 + 增值订阅 **¥39–68/行程**（IAP 档位）。**支付通道（v1.9 定案）**：国内 Android = **微信支付 + 支付宝 App 支付双通道**（一般行业费率均约 0.6%；商户号均需企业/个体工商户营业执照——公司注册即前置，无「注册前个人收款过渡」，央行 259 号文禁止个人收款码经营性收款）；**iOS 数字商品一律 IAP**（Apple 3.1.1：中国区禁止 App 内第三方支付引导，外链授权仅美/欧/韩/日不含中国）。支付宝工程要点：异步通知 25 小时内 8 次重发须返回纯 success · 对账单 T+1（下载链接 30 秒失效）· 退款按 out_request_no 幂等、窗口一般 12 个月、退款不触发通知须主动查询。**佣金分销选型 W11 前必须完成**：国内走美团/携程联盟（Phase 1，美团联盟需企业资质），海外用户走 Trip.com affiliate（Phase 2）——这是商业模式支柱，不是可选项。
-- **佣金现金流周期（v1.9.2）**：渠道佣金 **T+30 起步月度结算**（酒店佣金多为离店后结算，票务更长），而 GPU/云成本实时发生——账面盈利 ≠ 现金流健康；**预留 3–6 个月运营资金缓冲**；变现主序列 = 订阅/IAP（微信/支付宝 T+1 结算）在前、佣金（T+30+）在后；佣金收入不进一期毛利模型的保守口径不变（§6.11）。
-- **付费开关化（v1.5.1 决策）**：付费基建（IAP、收据校验、权益系统）一期建成，但**何时开始收费是运营决策，全部远程配置**——付费墙总开关（支持分地区/分用户群灰度）、免费额度数、快照上限、触发时机均为服务端配置；默认策略 = 全免费，可随时灰度开启，**不需要发版**。
-- **免费额度 = 每行程 1 次重排**（绑定 itinerary，不绑日历月）。
-- **免费应急兜底（v1.5 新增，永远免费）**：误车/错过时免费给出「最近替代班次 + 打车 deeplink」——静态数据 + deeplink，成本近零，慌张时刻救命不收费。
-- **付费墙后移（v1.5 修正）**：慌张时刻只做价值展示（免费应急兜底），付费转化推送放在**慌张解决后 30 分钟**（情绪平复 + 感激峰值）。卖「安心」（下次提前预警 + 全程自动重排），不卖「救命」——防止「绑架行程」差评反噬，评分是旅行产品的获客引擎。
-- **快照版本额度**：免费 **3 版** / 付费 **10 版**（服务端配置化，不写死）。
-- **iOS 必须申请 App Store Small Business Program**——2026-03-15 起中国区佣金调整：标准 30%→**25%**、Small Business/次年自动续订 15%→**12%**（Apple 官方公告，无需重签协议）；iOS 毛利建模按 12%–25% 区间。
-- **单位经济硬指标（v1.5 量化）**：毛利底线 **≥65%**；**讲解缓存命中率 ≥90% 升格为核心经营指标**（缓存与否 = 亏损边缘 vs 70% 毛利的分水岭）；月度成本复核。
-
----
-
-## §2 技术选型
-
-| 层               | 选型                                                                                                                                                                                                                                                                                                     |                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| 移动端             | Flutter 3.x + Riverpod 2 + drift（SQLite）；**单代码库双端（Android + iOS）**，原生模块经 platform channels 薄壳装配（契约表与四层架构见 **§5.0**，v2.1）；微信小程序 = M4 复用同一后端 API                                                                                                                            |                                               |
-| 后端              | Python FastAPI                                                                                                                                                                                                                                                                                         |                                               |
-| 数据库             | PostgreSQL + PostGIS（Alembic 迁移）                                                                                                                                                                                                                                                                       |                                               |
-| 缓存/状态           | Redis（会话状态、成本闸门计数、WS 连接注册表、**慢车道异步任务队列** §6.12）                                                                                                                                                                                                                                                        |                                               |
-| 实时              | WebSocket（FastAPI 原生）：**握手鉴权 + 心跳 + seq/resume 断线补发**；SSE 备选降级                                                                                                                                                                                                                                         |                                               |
-| 行程求解器           | **OR-Tools CP-SAT**（Apache-2.0，免费商用，Python 原生）                                                                                                                                                                                                                                                         | 排期/排序/餐饮最优插入的确定性求解：LLM 管理解与选点，求解器管可行与最优（§6.9） |
-| LLM 接入          | **全本地 GLM 自部署**：区内 vLLM 自托管（OpenAI 兼容）+ LiteLLM 本区路由；GLM-4.6 / 4.5-Air 主力 · GLM-4.5V 视觉 · GLM-4.7-Flash 轻量；**不再调用 Claude / GPT / Qwen 云 API**（详见 §2.1）                                                                                                                                                 |                                               |
-| 语音（v1.9）        | **全本地 ASR + TTS**（与 GLM 同节点独立容器）：**Qwen3-ASR-0.6B**（vLLM 原生流式，zh/en/ja/ko/yue 全覆盖，精度不足升 1.7B）+ **Fun-CosyVoice3-0.5B-2512**（Bi-Streaming 首包低至 150ms；9 语 + 18 中文方言含粤语）；均 Apache-2.0 可商用；降级链 ASR=paraformer-zh-streaming（600ms chunk 确定性）/ TTS=Qwen3-TTS-12Hz（首包 97ms，无粤语）；XTTS-v2 因 CPML 禁商用直接排除（§6.10） |                                               |
-| 支付（v1.9 定案）     | iOS：数字商品仅 IAP（中国区 25%/12%）· 国内 Android：微信支付 + 支付宝 App 支付（一般行业 0.6%，商户号需执照）· 佣金通路：携程/美团联盟 deeplink（§6.11）                                                                                                                                                                                               |                                               |
-| API 网关          | 云厂商现成，不自建                                                                                                                                                                                                                                                                                              |                                               |
-| 部署              | Docker Compose，**MVP = CN 区（阿里云）一台云主机起步（云 GLM API，无 GPU 节点）**——无状态 FastAPI + Redis 会话/WS 注册表 → SLB 多实例横扩路径天然就绪，pgbouncer 连接池前置；**规模化阶段 + CN GPU 推理节点**（vLLM 容器，同 VPC，量触发，§2.1）；海外区随 Phase 2 开通；**蓝绿发布（双 compose + nginx 切换）**；每日快照 + WAL 归档，**备份季度恢复演练**                                               |                                               |
-| 高德 Key          | **企业认证 Key（乘风计划，免费）+ 服务端代理调用，Key 永不进客户端**；公司注册下来前可用个人 Key 过渡验证、下来立即切；技术服务许可（基础版 5 万/年档）**不预付**——拿真实用量数据上线前再谈；Key 只绑「Web 服务」平台 + IP 白名单 + 90% 用量告警                                                                                                                                                      |                                               |
-| 地图分层（v1.5 许可隔离） | **瓦片 = OSM/MapTiler（允许离线缓存，ODbL 署名）｜ POI/路径 = 高德 API 实时调用（不存瓦片）。两库物理隔离，禁止混库**——ODbL Share-Alike 传染性 + 高德禁止批量缓存，混库 = 许可炸弹                                                                                                                                                                               |                                               |
-| CDN/加速          | **只缓存静态资源**（瓦片/讲解模板/App 包），用户 API 响应一律 `no-store`——否则全球加速与数据驻留铁律自相矛盾                                                                                                                                                                                                                                   |                                               |
-| 观测              | Sentry（崩溃/性能）+ 云监控告警 + **trace_id 贯穿 App→API→LLM**                                                                                                                                                                                                                                                     |                                               |
-
-### §2.1 本地 GLM 推理底座（v1.6 新增）
-
-| 角色    | 模型（开源权重）                                 | 说明                                                                       |
-| ----- | ---------------------------------------- | ------------------------------------------------------------------------ |
-| 主力    | **GLM-4.6 / GLM-4.5-Air**（106B-A12B MoE） | 规划、重排、讲解、抽取、翻译；128K+ 上下文；原生 function calling；官方 tool parser（vLLM/SGLang） |
-| 视觉    | **GLM-4.5V**（106B-A12B，GLM-V 开源系列）       | 链接图文精读、店招/路牌识别、截图 OCR（§6.5 第二刀起用）                                        |
-| 轻量    | **GLM-4.7-Flash**（30B-A3B）               | 意图分类、澄清改写、低清图粗筛、讲解缓存未命中兑底                                                |
-| 嵌入/重排 | **bge-m3 + bge-reranker-v2-m3**          | POI 检索与候选排序，本地部署                                                         |
 
 
-- **部署形态（v1.9.9 分阶段）**：**MVP = 智谱云 GLM API**（LiteLLM 路由/限流/用量统计照建，云 API 按价目表按 token 付费，零 capex；模型家族与规模化阶段自部署 GLM 同谱系，prompt/tool parser 平滑迁移）；**规模化 = 本区 GPU 自部署 vLLM**（OpenAI 兼容 `/v1`，量/成本阈值触发——token 成本 × DAU 曲线月度复核，阈值远程可配），跨区零 LLM 流量原则不变，海外区节点随 Phase 2 开通（海外区 LLM 选型 = Phase 2 决策点，见 §10）。
-- **硬件档位（渐进扩容，只换网关 model 名）**：起步 1×24G（RTX 4090：GLM-4.7-Flash 量化 + bge 系列）→ 生产 2–4×24–48G（GLM-4.5-Air AWQ/INT4 量化 + GLM-4.5V 量化）→ 规模化 8×H100/H200 云租（GLM-4.6/4.7 FP8 官方全功能配置）。
-- **吞吐**：System Prompt + 候选上下文高度固定 → prefix caching；continuous batching；思考模式按请求开关（重排/规划开，分类/粗筛关）；**语音负载计入容量规划（v1.9.3）**：对话密集日 30–60 分钟/用户 → ASR/TTS 并发 + GLM 短翻译请求，靠 §6.10 会话限额与短语/菜单缓存削峰。
-- **降级链**：主力过载/超时 → GLM-4.7-Flash 接管轻任务 → 排队 +「稍后重试」；§6.6 成本闸门触顶降级逻辑不变，只是「小模型」从云 API 换成本区 Flash；GPU 故障只影响生成，不影响已存行程/导航/紧急卡。
-- **成本模型**：按 token 计费（线性）→ GPU 固定成本（阶梯）；§1.3 毛利复核口径改为 **GPU 摊销 + 租金/电费**；夜间空闲算力跑批量翻译 / POI 回填 / 评估回归。
-
----
-
-## §3 接入设计
-
-- 登录双轨：海外（邮箱验证码 + Apple，禁 Google OAuth）｜ 国内（手机号验证码 + 微信）。
-- **数据驻留铁律**：用户数据只落所在区，永不跨境同步。
-- **参考数据同步方向定案（v1.5）**：**CN 区为参考数据主库，单向复制到海外区**（POI 几乎全是中国城市，CN 区靠近数据源）。白名单 = pois / 班次静态库 / 讲解模板 / **匿名化行程模板**（二期）。讲解文案判定为参考数据（不含用户信息），在 CN 区生成后经白名单同步，判定依据写入本节备查。
-- **推送（v1.6.1 调整）**：Phase 1 国内区 = 厂商推送通道（华为/小米/OPPO/vivo 聚合或友盟），资质未齐前开发期用 App 内 WS 长连/轮询兑底；APNs/Firebase（海外区）随 Phase 2 接入。
-- **境外高德可达性（v1.7 预埋，Phase 2 启用）**：高德 Web 服务 API 是平台级大陆限制（境外发起直接拒绝），海外区后端调高德必须经**大陆代理层**（阿里云大陆区，仅对海外后端 IP 白名单开放，只传查询参数不传 PII），用量日志加 `region`+`scene` 维度与 `overseas_planning_via_cn_proxy` 场景；高德 SDK 在境外设备**图面为空** → 境外规划期**不渲染地图**，用时间轴 + 列表承载（文字抽取/行程编排不碰地图服务）；`pois` 双坐标（GCJ-02 主存 + `wgs84_location` 副本）防境外地图渲染漂移。
-- **多设备策略（v1.5 明确）**：last-write-wins + WS 互踢通知（「另一设备已更新行程」）。
-
-### §3.3 合规清单（串行关键路径，本周启动，与开发并行）
-
-> 这条链是**串联**的，任何一环卡住国内区「公开上架 + 收费」整体停摆（v1.6.1 国内区先行后它直接决定 Phase 1 首发时间）；**它只卡发布，不卡开发**——基本功能做通、内测照常。
-
-1. **高德书面确认四问一次发工单**（本周最高杠杆动作）：①商用授权范围 ②**POI 数据持久化存储与二次加工（双语翻译）许可** ③瓦片任何形式缓存的禁止确认（佐证瓦片选型）④海外访问 SLA 与计费。漏问一条 = 工期 +1 个月。
-2. 国内公司注册 → ICP 备案 → App 备案（1–3 个月）→ 软著 → 上架；备案号 App 内展示。
-3. **生成式 AI 服务备案/登记（v1.9.9 反转回简化路径）**：MVP 接**智谱云 GLM API（已备案模型）→ 走登记简化路径**（v1.5 原口径回归，取代 v1.6 自建口径）；产品义务不变：**AI 生成内容标注 + 投诉举报入口 + 安全评估**；**本地 GPU 底座启动时（W11+ 量触发）再按自建口径补备案**，切换期云 API 过渡并行，双轨无断档。
-4. **微信支付 + 支付宝商户号（v1.9 双通道）**：均需企业/个体工商户营业执照，公司执照下来当天双申请（支付宝入驻签约审核约 1 小时 / 企业认证 ≤3 工作日；微信 1–2 工作日）；无「公司注册前个人收款」合规路径（央行 259 号文）。iOS 双区 IAP（数字商品强制，中国区禁第三方支付引导）。**语音输入按敏感个人信息对待（v1.9）**：首次使用明示同意 + 系统设置单独开关 + 音频不落盘（铁律 21）。
-5. **隐私清单（Privacy Manifest）**：第三方 SDK 清单 + required reason API 声明，提审前统一检查。
-6. **账号删除入口 + 数据导出**（App Store / Google Play / 个保法 / GDPR 四方强制）；删除级联 itineraries/traces/snapshots。
-7. **数据分级保护（v1.5 升格）**：
-   - **轨迹级（最高）**：`execution_events` 含外国人在华行踪轨迹——静态加密 + 独立密钥 + **保留期 30 天** + **员工访问双人审批 + 审计日志**（客服只看聚合偏差，不看原始轨迹）；
-   - 用户位置 TLS 1.3 传输加密；支付信息不存储；行为数据匿名化。
-8. 未成年人条款与退款申诉流程。
-9. **抓取合规**：遵守 robots.txt、频率白名单、优先官方公告页。
-10. 术语：**双主体** = 国内/海外两个法律主体的分工（W7 前完成决策）。
-
----
 
 ## §4 数据模型
 
@@ -148,6 +59,17 @@ CREATE TABLE pois (
   status VARCHAR(20) DEFAULT 'active', -- 关停/搬迁 → 行前体检联动
   location GEOGRAPHY(POINT, 4326),
   wgs84_location GEOGRAPHY(POINT, 4326), -- v1.7：境外地图渲染副本（Phase 2），入库时与 GCJ-02 成对写入
+  -- v2.5 POI 底库扩展（迁移 0006_poi_base_library）——铁律：外部源仅写骨架（名称/坐标/类别），
+  -- 时间敏感字段（hours/price/duration）只信高德/携程回源链；每个富化字段带 *_source 溯源
+  phone VARCHAR(50), website VARCHAR(300),
+  rating NUMERIC(3,1), rating_source VARCHAR(20),
+  tags JSONB, tags_source VARCHAR(20),       -- 品质标签层：michelin/bib_gourmand/black_pearl(含钻级)/unesco
+  intro TEXT, intro_source VARCHAR(20),      -- Wikidata/维基百科回填（CC BY-SA），随回源周期持续更新
+  photos JSONB, photos_source VARCHAR(20),   -- Wikimedia P18 → FilePath 800px
+  best_visit_time VARCHAR(10) DEFAULT 'any', -- morning/afternoon/evening/sunset/sunrise/any
+  best_visit_time_source VARCHAR(20),        -- 三层标注：heuristic/llm/ctrip
+  suggested_duration_min INT,
+  origin VARCHAR(20), -- 初始发现渠道（chinatravel/osm/5a/...）；source 升级 amap（回源真相）后保留出身
   updated_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX idx_pois_location ON pois USING GIST (location);
@@ -159,6 +81,32 @@ CREATE TABLE poi_hours ( -- 营业时间规则表（粒度补齐）
   rule_type VARCHAR(20) NOT NULL, -- standard | holiday | special（淡旺季/午间闭馆）
   payload JSONB NOT NULL
 );
+
+CREATE TABLE restaurants ( -- ★ v2.5 新增：餐厅独立表（用户拍板 2026-10-23，不再 pois.category=food 复用）
+  -- 骨架列与 pois 同构；cuisine/avg_cost 餐饮专属；米其林（含必比登）/黑珍珠品质标签挂 tags
+  id UUID PRIMARY KEY,
+  source VARCHAR(20) NOT NULL,
+  source_poi_id VARCHAR(100) NOT NULL,
+  UNIQUE(source, source_poi_id),
+  city VARCHAR(50) NOT NULL,
+  name_zh VARCHAR(200), name_en VARCHAR(200),
+  cuisine VARCHAR(50),
+  status VARCHAR(20) DEFAULT 'active',
+  location GEOGRAPHY(POINT, 4326),
+  wgs84_location GEOGRAPHY(POINT, 4326),
+  address VARCHAR(200), opening_hours VARCHAR(500),
+  hours_source VARCHAR(20), hours_updated_at TIMESTAMP,
+  phone VARCHAR(50), website VARCHAR(300),
+  avg_cost NUMERIC(10,2),
+  rating NUMERIC(3,1), rating_source VARCHAR(20),
+  tags JSONB, tags_source VARCHAR(20),
+  intro TEXT, intro_source VARCHAR(20),
+  photos JSONB, photos_source VARCHAR(20),
+  origin VARCHAR(20),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_restaurants_location ON restaurants USING GIST (location);
+CREATE INDEX idx_restaurants_city ON restaurants (city);
 
 CREATE TABLE itineraries (
   id UUID PRIMARY KEY,
@@ -264,12 +212,48 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
   channel VARCHAR(20) NOT NULL, -- ctrip | meituan | qunar | amap | rail12306
   deeplink TEXT NOT NULL,
   h5_fallback TEXT,
-  status VARCHAR(20) DEFAULT 'opened', -- opened | returned | converted（渠道报表回填）
-  order_ref VARCHAR(100), -- 渠道订单号（对账期回填，可空）
+  status VARCHAR(20) DEFAULT 'opened', -- 状态机 v2.4：opened → user_confirmed（用户回填）→ alliance_verified（联盟订单同步匹配）→ settled（佣金结算）；returned（退款逆向）
+  order_ref VARCHAR(100), -- 渠道订单号（双源验证键：用户粘贴解析 vs 联盟同步）
+  source_channel VARCHAR(20), -- v2.4：回填来源 paste_return | manual | alliance_api | callback
   refund_policy JSONB, -- v1.9.4：退改规则展示快照（用户看过什么，争议可回溯）
   refund_deadline TIMESTAMPTZ, -- v1.9.4：免费退/改窗口截止（可计算时；供窗口临近提醒）
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE trip_items (            -- ★ v2.4：行程中心三态单一事实源（铁律 0 同源）
+  id UUID PRIMARY KEY,
+  itinerary_id UUID REFERENCES itineraries(id),
+  user_id UUID REFERENCES users(id),
+  name VARCHAR(200) NOT NULL,
+  city VARCHAR(50),
+  note TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'wishlist', -- wishlist | scheduled | booked
+  source VARCHAR(20) NOT NULL,                    -- manual | chat | paste | agent_recommend
+  poi_id UUID REFERENCES pois(id),
+  day INT, position FLOAT,                        -- scheduled 后填写
+  booking_id UUID REFERENCES action_handoffs(id), -- booked 后关联
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE user_profiles (         -- ★ v2.4：画像层（跨旅行沉淀，§6.14 Memory）
+  user_id UUID PRIMARY KEY REFERENCES users(id),
+  profile JSONB NOT NULL,            -- 预算档/偏好/饮食禁忌/同行人/体力（可查看可修正）
+  embedding vector(1024),            -- 偏好摘要向量（bge-m3，pgvector）
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE link_history (          -- ★ v2.4：个人主页链接历史（双来源，§6.14）
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  url TEXT NOT NULL,
+  source VARCHAR(20) NOT NULL,      -- user_paste | agent_recommend
+  origin VARCHAR(20),               -- chat | wishlist_boost | booking_cards
+  itinerary_id UUID REFERENCES itineraries(id),
+  extract_id UUID,                  -- 关联 extraction_logs（§6.5）
+  status VARCHAR(20) DEFAULT 'pending', -- pending | parsed | failed
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- 其他：itinerary_members（协作预留）· extraction_logs · agent_traces · user_interests · user_visited
@@ -295,21 +279,20 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
   3. **Data 层**：drift（SQLite）本地工作副本 + 快照只读缓存（§5.4）；API client（匿名 X-Device-ID → 登录后双轨）；WS 客户端（seq/resume 断线补发）。
   4. **Platform 层**（原生模块经 platform channels 装配，全部薄壳、零业务逻辑）：
 
-| 原生模块 | Android | iOS | 约束 / 铁律 |
-|---|---|---|---|
-| ASR 语音识别 | SpeechRecognizer → ML Kit | SFSpeechRecognizer | 铁律 21：音频不出设备 |
-| OCR 文本识别 | ML Kit 文本识别（离线） | Vision 框架 | 铁律 21：内存即弃、默认不落盘 |
-| TTS 播报 | 系统 TTS | AVSpeechSynthesizer | 铁律 21 |
-| 推送 | 厂商通道（华为/小米/OPPO/vivo 聚合） | APNs | 铁律 13：时区以行程城市折算 |
-| 支付（M3） | 微信支付 + 支付宝 SDK | StoreKit IAP | 铁律 22/23：只手off、退改前置 |
-| deeplink 出跳 | App scheme | Universal Link | 铁律 22：确认卡片后才跳 |
-| 地图渲染 | OSM/MapTiler 瓦片（离线走廊）+ 高德经服务端代理 | 同左 | §2 地图许可隔离（两库不混） |
+| 原生模块        | Android                         | iOS                 | 约束 / 铁律             |
+| ----------- | ------------------------------- | ------------------- | ------------------- |
+| ASR 语音识别    | SpeechRecognizer → ML Kit       | SFSpeechRecognizer  | 铁律 21：音频不出设备        |
+| OCR 文本识别    | ML Kit 文本识别（离线）                 | Vision 框架           | 铁律 21：内存即弃、默认不落盘    |
+| TTS 播报      | 系统 TTS                          | AVSpeechSynthesizer | 铁律 21               |
+| 推送          | 厂商通道（华为/小米/OPPO/vivo 聚合）        | APNs                | 铁律 13：时区以行程城市折算     |
+| 支付（M3）      | 微信支付 + 支付宝 SDK                  | StoreKit IAP        | 铁律 22/23：只手off、退改前置 |
+| deeplink 出跳 | App scheme                      | Universal Link      | 铁律 22：确认卡片后才跳       |
+| 地图渲染        | OSM/MapTiler 瓦片（离线走廊）+ 高德经服务端代理 | 同左                  | §2 地图许可隔离（两库不混）     |
 
 - **端上零业务规则原则**：一切**生效**的行程变更 = DiffOp → 服务端统一管线（铁律 0）；本地 Dart 校验只是**前置预检**（离线可用、零等待），服务端 ValidationReport 永远是最终裁决。付费墙 = 统一 PaywallGate 组件只渲染不决策（§6.8 ④）。
 - **启动时点（v2.1 定档）**：M1.5 客户端工作流（§9）= 后端 M1 交付并通过用户功能测试后立即开工；首周脚手架（Riverpod + drift + WS 骨架 + 铁律 Dart 移植同源测试跑通）→ 时间线页 → 版本 UI → 翻译页（端侧 ASR/OCR/TTS 实机 POC = §6.10 定档数据源）→ 内测包（衔接 M2 W7-8 分发）。
 - **上架前置（复用 §3.3 合规链）**：ICP 备案 → App 备案 → 软著 → 双端开发者账号；内测分发不受阻（TestFlight / Android 安装包直装）。
-
-- 七页（v1.9 新增翻译页，v1.9.5 扩拍照输入）：聊天页 · 地图页 · 时间线页（天主轴 Day1/Day2…，跨城交通 = 日内特殊卡片）· 收藏页 · 足迹页 · 执行模式页 · **翻译页（语音 + 拍照双模）**——按住说话大按钮 + **拍照/相册按钮（v1.9.5：菜单/路牌/店招/票据，端侧 OCR 起步，§6.10）**、双语大字卡（嘈杂环境/听障友好）、可复读/复制/一键换语言对；**主链路需联网**（模型在服务端 GPU）；离线/弱网降级 = 端侧短语包 + 平台离线引擎（§6.10 端侧降级层，v1.9.3，POC 后定档）——页面分级标注在线/离线能力。
+- 八页（v2.4 新增个人主页；v1.9 新增翻译页）：聊天页 · 地图页 · **行程中心页（v2.4，时间线页升级三态，见下）** · 收藏页 · 足迹页 · 执行模式页 · **个人主页（v2.4：画像可查看可修正 + 链接历史 + 设置）** · **翻译页（语音 + 拍照双模）**——按住说话大按钮 + **拍照/相册按钮（v1.9.5：菜单/路牌/店招/票据，端侧 OCR 起步，§6.10）**、双语大字卡（嘈杂环境/听障友好）、可复读/复制/一键换语言对；**主链路需联网**（模型在服务端 GPU）；离线/弱网降级 = 端侧短语包 + 平台离线引擎（§6.10 端侧降级层，v1.9.3，POC 后定档）——页面分级标注在线/离线能力。
 - **版本入口（v1.5）**：时间线页/行程详情 → 保存此版（自动命名 + 备注 + LLM 差异摘要）/ 版本列表 / 基于此版继续改 / 设为执行版。恢复前工作副本有未保存改动 → 弹窗「先存一版 / 丢弃并恢复」。
 - **手动编辑（v1.5）**：时间线拖拽/改时间 = 本地生成 diff op，**与 LLM 同管线校验**（铁律函数的 Dart 移植版，纯函数移植成本可控）——改个时间零 LLM 成本、零 3 秒等待，离线可用。
 - **离线 = 执行模式生存底线**：行程 + **OSM/MapTiler 瓦片**（2km 走廊 ≤150MB）+ 讲解文案预下载；音频 = 预合成包可选下载（+30MB）或系统 on-device TTS 降级（解决「TTS 在线 vs 离线底线」矛盾）。
@@ -342,18 +325,18 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 
 ### §6.2–6.3 工具循环 + 增量 diff
 
-- 会话状态存 Redis（滚动摘要 + 单会话 token 上限触顶处理）；structured output，JSON Schema 约束。
+- 会话状态存 Redis（滚动摘要 + 单会话 token 上限触顶处理；= §6.14 Memory 四层之「会话记忆」层）；structured output，JSON Schema 约束。
 - **Agent 运行时：工具循环自研，不引入 agent 框架**（harness 类产品经评估不采纳：定位 = 个人/开发者 agent 底座而非多租户服务端编排；工具循环刻意做薄，核心资产 = 铁律管线/CP-SAT/快照/权益皆自研域逻辑）。
 - **餐饮与票务工具（v1.7）**：`recommend_restaurants(day_plan, meal_slot)`——午餐/晚餐空窗 × 顺路度 × 高德评分 × 步行距离，插入为 food 类行程项（`pois.category=food` 复用，零新表）；`get_ticket_deeplink(poi)` / 领券 deeplink——高德/美团渠道，佣金入 §1.3 分销通路；餐厅营业时间同样过 `poi_hours` 校验。
 - **行程求解器（v1.8，§6.9）**：LLM 不再自己“排时间表”——新建行程 / 结构性重排 / 硬校验失败修复时调用 `solve_itinerary`（变更管线内置 CP-SAT 求解），返回可行且优化的 diff；LLM 负责把它讲成人话。
 - **行动编排工具（v1.9，§6.11）**：`handoff_book_hotel(city, dates, budget_hint)` / `handoff_book_flight(from, to, date)` / `handoff_book_train(from, to, date, time_window)`（12306 静态库查询 + 官方 App deeplink）/ `get_ticket_deeplink(poi)`（v1.7）——工具返回「渠道 deeplink + 带参预填 + H5 兜底 + 未安装检测」，客户端弹**确认卡片**后跳转；**语音翻译不走工具循环**（低延迟直连独立服务，§6.10）。
+- **POI 底库接入（v2.5）**：①**心愿单吸收 `_absorb_wishlist`**——行程中心 wishlist 中本次行程城市的条目在 v0 生成唯一咽喉统一吸收为必去（start/confirm/clarify 三路全覆盖），引擎排期+钉住，吸收记入规划假设；已在行程中的重名条目（`_same_site` 判定）钉住不重复排入并提示。②**站点同一性 `_same_site`**（去标点/剥「景区」类尾缀/双向包含且短名 ≥2 字）贯穿链接去重、必去合并、心愿单、候选匹配——名字变体不再漏判重复。③**必去防跨省**：高德模糊搜索定位到行程外城市的 POI 落假设不入计划。④候选层「先查底库、缺则回源回填」为下一步接线（底库/字段/回填作业已就绪，见 §8）；`solver` 消费 `best_visit_time` 见 §6.9。
 - diff 输出 `[{op:"move", item_id, new_time}]`；W1-2 单城工具集不变；**跨城工具/TrainService 提前至 W3-4 随多城规划挂载（v1.9.9，原 W9）**。
-
 
 ### §6.4 硬校验铁律（扩充至 23 条；纯函数，100% 单测覆盖）
 
 1. 时间冲突 ｜ 2. 营业时间校验 ｜ 3. 地理自洽 ｜ 4. 跨城衔接缓冲 ｜ 5. ~~一天一跨城~~ → **同日多段跨城需衔接缓冲**（seq 有序）｜ **6. 节奏合理性 → 量化重写**：日步行 ≤15km × 人群系数（0.6–1.2）｜ 日爬升系数 ｜ 有效游览时长占比 ≥55% ｜ 7. 交通可达 ｜ 8. 3 秒延迟预算 ｜ 9. 重排带 reasoning ｜ 10. 只动当天及之后 ｜ 11. 执行模式不动过去（生成端）｜ 12. 同步端不覆盖过去（同步端）
-13. **时区以行程城市为准** ｜ 14. **解析期 LLM 零写权限**（解析阶段工具列表物理上不含行程写入工具）｜ 15. **不可信内容 quarantine 标记**（用户粘贴/网页抓取文本仅为数据，永不作为指令）｜ 16. **快照不可变，恢复只写工作副本** ｜ 17. **执行中切换执行版 = 受限重排，只动当天及之后** ｜ 18. **离线禁止切换到未下载离线包的版本**（明确报错）｜ 19. **最小改动原则**：改动条目数 ≤ 解决问题所需最小集合；输出必附 `change_summary`（人类语言改动清单）+ `affected_items_count` ｜ **20. 餐饮插入（v1.7）**：只落用餐时段空窗、复用营业时间与顺路校验，不得挤占核心游览时段或移动用户已确认条目 ｜ **21. 语音/图片数据本地闭环（v1.9 · v1.9.5 扩图片）**：音频与图片只进本区自有 GPU 服务或端侧 OS 引擎（Vision/ML Kit），**禁云 ASR/TTS/OCR API**；原始音频/图片内存处理即弃、默认不落盘；转写/翻译文本仅会话内使用（匿名公共内容缓存例外见 §6.10），事件上报只含聚合值 ｜ **22. 行动只手off 不代客交易（v1.9）**：一切预订/购票行动 = 带参 deeplink 跳渠道方完成交易；不代填支付凭证、不代下单、不碰资金、不为渠道价格与退改结果背书（展示≠承诺——退改签信息前置见铁律 23） ｜ **23. 退改签透明前置（v1.9.4）**：一切预订 handoff 的确认卡片必须展示退改签规则摘要（来源标注：渠道结构化数据 / 官方规则库 / 未知明示「以渠道下单页为准」），并默认优先可退改选项（用户显式选低价不可退除外，切换时强提示）；**无退改摘要 = 禁止跳转**
+2. **时区以行程城市为准** ｜ 14. **解析期 LLM 零写权限**（解析阶段工具列表物理上不含行程写入工具）｜ 15. **不可信内容 quarantine 标记**（用户粘贴/网页抓取文本仅为数据，永不作为指令）｜ 16. **快照不可变，恢复只写工作副本** ｜ 17. **执行中切换执行版 = 受限重排，只动当天及之后** ｜ 18. **离线禁止切换到未下载离线包的版本**（明确报错）｜ 19. **最小改动原则**：改动条目数 ≤ 解决问题所需最小集合；输出必附 `change_summary`（人类语言改动清单）+ `affected_items_count` ｜ **20. 餐饮插入（v1.7）**：只落用餐时段空窗、复用营业时间与顺路校验，不得挤占核心游览时段或移动用户已确认条目 ｜ **21. 语音/图片数据本地闭环（v1.9 · v1.9.5 扩图片）**：音频与图片只进本区自有 GPU 服务或端侧 OS 引擎（Vision/ML Kit），**禁云 ASR/TTS/OCR API**；原始音频/图片内存处理即弃、默认不落盘；转写/翻译文本仅会话内使用（匿名公共内容缓存例外见 §6.10），事件上报只含聚合值 ｜ **22. 行动只手off 不代客交易（v1.9）**：一切预订/购票行动 = 带参 deeplink 跳渠道方完成交易；不代填支付凭证、不代下单、不碰资金、不为渠道价格与退改结果背书（展示≠承诺——退改签信息前置见铁律 23） ｜ **23. 退改签透明前置（v1.9.4）**：一切预订 handoff 的确认卡片必须展示退改签规则摘要（来源标注：渠道结构化数据 / 官方规则库 / 未知明示「以渠道下单页为准」），并默认优先可退改选项（用户显式选低价不可退除外，切换时强提示）；**无退改摘要 = 禁止跳转**
 
 **自修循环上限**：硬校验失败打回 LLM 自修 **≤3 次**，超限降级为「半成品行程 + 人工标注」——防烧钱死循环。
 
@@ -439,7 +422,7 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 
 - **位置**：`solve_itinerary` 是**行程变更管线（§6.0）的内置求解后端**，不是旁路——LLM diff（轻改动）与 CP-SAT 解（结构性变动）都从同一入口过铁律 0-23 硬校验，solver 解**不是免检通道**。
 - **触发**：① 新建行程 v0 ② 结构性重排（跨天/多点移动/执行模式 propose_replan）③ 硬校验失败修复（替代 LLM 自修循环的第一优先级）④ 餐饮插入的最优位置计算（铁律 20）。
-- **建模要点**：区间变量 = 行程项（start/duration 可选域）；硬约束 = 营业时间窗、不重叠、跨城缓冲（铁律 6/7）、节奏上限（铁律 6 量化）、住宿城市；软目标 = 总绕行最小 × 用户钉死点不动（铁律 19）× 高分餐厅优先（v1.7）。
+- **建模要点**：区间变量 = 行程项（start/duration 可选域）；硬约束 = 营业时间窗、不重叠、跨城缓冲（铁律 6/7）、节奏上限（铁律 6 量化）、住宿城市；软目标 = 总绕行最小 × 用户钉死点不动（铁律 19）× 高分餐厅优先（v1.7）。**best_visit_time 时段约束（v2.5 待接线）**：pois.best_visit_time 已落库+三层回填（§8），solver 消费（夜景/夜市→evening 时段、山岳/观景台→sunset 临近时段）为下一步——行程中心「夜景自动钉晚上」悬案的最后一块；接线前 pinned+聊天点名仍是唯一定时手段。
 - **降级链**：CP-SAT 超时（预算 3s，铁律 8）/ 不可行 → 回落现有 LLM 自修 ≤3 → 半成品 + 人工标注（原路径不变）；求解器故障只影响“生成”，不影响已存行程（与 GPU 故障同级降级）。
 - **收益**：可行性由数学保证（不再靠 LLM 试错）；自修循环触发率下降 → **直接省本地 GLM GPU 吞吐**（呼应 §2.1 成本模型）；“顺路”从启发式变成可优化目标。
 
@@ -463,6 +446,7 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 - **语言**：一期 zh↔en；二期 ja/ko/粤语（模型已覆盖；粤语在 CV3 走方言 instruct 非正式语言标签，质量 POC 验证）。
 - **隐私与合规（铁律 21）**：音频不出区、禁云 ASR/TTS API；原始音频内存处理即弃、默认不落盘；语音按敏感个人信息对待（个保法）——首次使用明示同意 + 系统设置单独开关；事件上报只含聚合值（语言对/时长档，`voice_translated`）。
 - **商业定位**：免费高频钩子（入境游客问路/点菜核心痛点）；不进付费墙（规则引擎可配、默认全关）；成本走 §6.6 成本闸门（语音会话独立限额，防 GPU 敞口）。**变现闭环（v1.9.3 显性化）**：翻译 = 行程期最高频触点 → 「附近评分高的餐厅，帮我订一个」→ 餐饮 handoff 佣金（§6.11）——一次 ¥80 晚餐 ~6% 佣金 ≈ ¥5，覆盖该用户数月翻译边际成本（本地 GPU 摊销口径更低）；**翻译按「零成本基础设施」设计**：用户感知到的是好用，不是翻译本身。
+
 
 ### §6.11 行动编排（v1.9 新增：从「说给你听」到「带你去办」）
 
@@ -496,7 +480,6 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 | **B 官方规则库**   | 火车票                   | 12306 官方退改费率入服务端规则库（现行依据：国铁集团铁客〔2021〕15号——退票费 开车前≥8天 0% · 48h–8天 5% · 24–48h 10% · <24h 20%，最低按 2 元计收；改签 开车前≥48h 可免费改预售期内列车，改签以后日期列车按 5%/15%/40% 梯次核收；另 12306 平台购票 30 分钟内且距开车 ≥4h 每天 1 单免费退）；官方公告变更触发规则库更新 |
 | **C 未知明示**    | 机票（舱位规则繁杂）及 A/B 未覆盖商品 | 卡片显著标注「该渠道未提供结构化退改数据，以下单页展示为准」+ 引导下单前核对；**不虚构规则**                                                                                                                                                          |
 
-
 - **默认可退改优先**：酒店链接默认带「免费取消」筛选参数；门票优先「随时退」商品；机票默认展示可退改舱位标识（渠道支持时）；价格敏感用户可显式切换「最低价（可能不可退）」并强提示差异。
 - **确认卡片 v2**：退改摘要块 = 费率梯次表（B 级）或规则原文（A 级）或明示标注（C 级）+「查看完整规则」链接 + **免费退窗口截止时间**（可计算时：火车票 = 开车前 8 天、酒店 = 免费取消截止时点）。
 - **留痕与售后**：`action_handoffs.refund_policy` 存展示内容快照（争议可回溯「给用户看过什么」）；`refund_deadline` 供提醒；行程卡常驻「退改」入口跳渠道订单管理页（deeplink 注册表配置，可得性实测；未证实时引导打开渠道 App 订单中心；火车票引导 12306 App「我的车票」）。
@@ -504,18 +487,49 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 - **边界重申**：我们展示规则、不为渠道执行结果背书；退改操作与手续费在渠道方/官方规则下完成（铁律 22/23 并行不悖）。
 - **工程现实（2026-10-18 调研）**：去哪儿/12306/美团安卓 scheme 均无官方公开带参规范（社区清单非官方承诺，微信内 scheme 另有拦截）→ **W9-10 真机实测**（iOS 查 Info.plist `CFBundleURLTypes` / Android `adb shell dumpsys package`）；实测不通过 → 该渠道退化为「打开渠道首页/搜索页 + 行程关键信息卡片（可复制）」；携程 UL + H5 兜底链路最完整，**佣金优先落地携程联盟**。
 - **deeplink 注册表远程配置化**：渠道 scheme/带参模板/H5 兜底/优先级 = 服务端配置（deeplink_registry，渠道改版不发版）；健康监控 = 打开失败率告警。
-- **体验**：手off 前确认卡片（渠道 logo · 预填项清单 · **退改签摘要块（铁律 23）** · 「价格以渠道为准」）；跳转后回 App 轻量回填「已完成预订？同步到行程」（用户手点，不自动抓取渠道数据）；跨城交通生成后一键 handoff；酒店按 base_city 连住推荐；预订条目卡常驻「退改」入口（见上退改签保障）。
+- **体验**：手off 前确认卡片（渠道 logo · 预填项清单 · **退改签摘要块（铁律 23）** · 「价格以渠道为准」）；跳转后回 App 回填（**v2.4 升级三层管道：粘贴回填为主**——订单短信/截图 Agent 解析入档可撤销；**返回询问为辅**；手动标记兜底；不自动抓取渠道数据不变；双源验证状态机 opened→user_confirmed→alliance_verified→settled，§5 行程中心/§6.14）；跨城交通生成后一键 handoff；酒店按 base_city 连住推荐；预订条目卡常驻「退改」入口（见上退改签保障）。
 - **归因与对账**：联盟链接带分账参数；`action_handoffs` 落库（action_type/channel/status/order_ref）；佣金依赖渠道后台报表**月度人工对账**一期，佣金收入不进一期毛利模型（保守口径）。**结算周期与佣金率（v1.9.2）**：佣金 T+30 起月结（酒店多在离店后结算）→ 现金流错配按 §1.3 缓冲；酒店佣金率区间 = 携程二手线索 ~4% / 美团联盟 5–10%（以联盟后台实际发布为准）；**Trip.com 费率（v1.9.6 已核实，Phase 2）**：酒店上限 5.5% · 机+酒 2.25%–2.5% · 国际机票 1% · 火车票 1.8%（Travelpayouts 官方 offer + trip.com 官方 FAQ）。
 
 **佣金通道架构（v1.9.6：四层管线，来源「佣金通道」调研经独立核查修正）**：
 
 > **现实边界（截至 2026-10 调研，渠道商务确认）**：美团/携程/去哪儿对第三方 agent 仅开放 **CPS 转链 + 订单同步**，无代客下单 API——与铁律 22「只手off 不代客交易」天然一致：我们本来就不该代客下单，这是约束不是损失。**国际方向（已核实）**：ACP = Stripe 与 OpenAI 2025-09-29 发布的开源规范（Apache-2.0，商户保持 record of record；Visa/Mastercard/PayPal 建并行轨道）；UCP = Google 同类开放标准（ucp.dev，Mastercard Agent Pay 采用）——中国 OTA 均未接入，**供应链适配层预留 ACP/UCP 扩展位**：接入后可从「跳转归因」升级为「agent 闭环交易」而不换架构。
 
-- **L1 Agent 编排（供应链选择）**：①**品类路由**（渠道映射 v1.9.0 内的选择逻辑）：高星/商旅 → 携程系 · 经济型/本地生活 → 美团 · 出境/外国用户 → Trip.com（Phase 2）——各家优势库存区间；②**并发比价**（二期形态，一期单渠道）：同一查询并发打多家，单渠道超时/挂掉只降级返回其余结果（对齐 §6.12 降级哲学，禁整体失败）；③**佣金推荐伦理**：排序不得按佣金高低（价格相近而佣金不同时选高佣 = 短期多赚长期毁信任）——对齐「评分只是排序信号」原则；渠道间差价幅度以实测为准。
+- **L1 Agent 编排（供应链选择）**：①**品类路由**（渠道映射 v1.9.0 内的选择逻辑）：高星/商旅 → 携程系 · 经济型/本地生活 → 美团 · 出境/外国用户 → Trip.com（Phase 2）——各家优势库存区间；②**并发比价（v2.3 提前落地，原二期形态）**：同一查询并发打多家，单渠道超时/挂掉只降级返回其余结果（对齐 §6.12 降级哲学，禁整体失败）；③**佣金推荐伦理**：排序不得按佣金高低（价格相近而佣金不同时选高佣 = 短期多赚长期毁信任）——对齐「评分只是排序信号」原则；渠道间差价幅度以实测为准。
 - **L2 供应链适配层**：统一抽象接口 `searchHotel / getDetail / generatePromoLink / queryOrder / getCommission`（对齐 §8 TrainService 抽象先例）；各家字段/签名/状态机差异在适配器内抹平（签名规则以各联盟官方文档为准，实现期核对）；新增渠道 = 新增 adapter 不动核心逻辑；ACP/UCP 扩展位预留（上）。
 - **L3 订单归因（佣金能否落袋的关键）**：①**一切展示给用户的可点击链接必须经转链接口处理**（带推广位/归因参数），禁止直接放原始商家链接；②**跨 App 归因断链**：用户「先点我们的链接、后自己打开美团/携程 App 下单」是漏损主场景（携程系用户直接开 App 下单比例高），W9-10 deeplink 实测同步验证归因有效性；归因窗口参考 Trip.com 官方值 **web 30 天 / App 仅 7 天**（App 端更短 = 漏损重点，签约前逐家确认）；③**订单同步**：轮询起步（量小且稳）→ 回调推送（需公网 HTTPS 回调地址，FastAPI 现成）；酒店订单状态机长（预订→支付→入住→离店→结算→退款），每步都要接住。
 - **L4 结算对账**：①**计佣基数** = 用户实际消费且核对无误的订单总额（取消单/未入住不计佣）；②**预估佣金 ≠ 实结算**（技术服务费/审核扣减），以结算佣金字段为准，签约前索要到手比例测算表；③**退款逆向跨月追踪**：酒店取消链路可能跨周跨月，佣金回收等上游状态回传——action_handoffs 状态机扩展（v1.9.4 退改字段已备），对账表支持跨月；④佣金不进一期毛利（保守口径不变，§1.3）。
 - **与既有模块关系**：12306 班次静态库照旧只读查询，购票动作 = handoff（交易分离不变）；`get_ticket_deeplink`（v1.7）并入同一编排层；紧急卡打车 deeplink 同模式；行动不进行程变更管线（无 diff，只落 action_handoffs 埋点）。
+
+**转链交易中心（Booking Handoff，v2.3 新增：App 内不下单，做「候选链接选择器」）**——L1–L4 管线的用户面落地：
+
+**① 用户流程**：Agent 推荐（「这家酒店离景点近，评分 4.7」）→ **弹出候选卡片组**（2–4 张，同一商品在不同平台的报价）→ 用户点选卡片 → 深链跳转目标 App（参数已预填）→ 用户在目标平台完成支付 → 归因窗口期内成交 → 佣金入账。
+
+**② 卡片交互细则**：卡片显示平台名 + 实时报价 + 退改条款摘要，**不显示佣金**（用户不关心也不该关心）；卡片顶部固定一行小字「**\*价格以跳转后页面为准\***」（目标平台价格波动是常态，此句指掉 80% 的「为什么价格不一样」客诉）；火车票卡片（12306）单独标注「**全国统一价**」——无佣金但行程需要，纯服务价值要传达到位；**不足 2 个渠道只显示 1 张，不硬凑**；**默认形态 = 单个主推 + 可展开全部**（转化路径短、贴「帮我决定」人设；A/B 备选 = 平铺 2–4 张比价感强——先按主推写，上线后 A/B）。
+
+**③ 生成逻辑 = 确定性 workflow，非 agent 循环**（路径确定：查询→比价→生成深链，对齐 §9.0 原则 1）：
+
+| 步骤     | 动作                           | 数据源                                      |
+| ------ | ---------------------------- | ---------------------------------------- |
+| ① 查询   | 按行程节点拉取候选商品                  | 携程联盟 API（酒店/机票/门票）+ 12306 静态时刻表 + 高德 POI |
+| ② 去重比价 | 同一商品跨平台价格对齐（按酒店 ID/航班号匹配）    | 内存计算                                     |
+| ③ 排序   | 价格 + 用户偏好优先，**佣金权重为零**       | 规则引擎                                     |
+| ④ 生成深链 | 服务端拼接追踪参数                    | 归因服务                                     |
+| ⑤ 展示   | 输出 2–4 张卡片，不足 2 渠道只显示 1 张不硬凑 | 前端                                       |
+
+**③ 排序佣金权重为零**是产品原则写死：一旦用户发现高佣金的贵选项排前面，「智能规划」信任即崩——信任是获客成本里最贵的部分（强化 v1.9.6 L1 伦理）。
+
+**④ 深链与归因**：深链在**服务端**生成（复用 Web 服务 Key 的后端），追踪参数（携程 AllianceID+SID、联盟平台点击 ID）服务端注入，**前端只拿成品 URL**；归因窗口以各联盟规则为准（携程联盟按 cookie/设备窗口，具体天数签约时确认——design 留占位）；兕底链：目标 App 未装 → H5 页面（同样带归因参数）→ H5 不通 → 展示手动复制链接。
+
+**⑤ 边界情况表**：
+
+| 情况           | 处理                                           |
+| ------------ | -------------------------------------------- |
+| 用户点进去价格变了    | 卡片小字已提示；价格偏差 >10% 时卡片重新拉取                    |
+| 用户 7 天免费期内下单 | 佣金照收，免费策略不影响交易层——两层商业模型独立（订阅/付费墙 vs 佣金，§1.3） |
+| 多平台同价        | 按平台稳定性排序（携程 > 去哪儿 > 美团），标注「同价」               |
+| 用户在国外点美团链接   | 美团配送强依赖大陆手机号，国外场景隐藏美团卡片                      |
+
+**⑥ 成功指标**（归 §7 行动漏斗行）：跳转率（卡片曝光→点击）/ 跳转流失率（点击→未成交，高 = 深链预填没做好）/ 佣金转化率（点击→归因成交）/ 佣金 GMV/用户（与订阅 ARPU 对比，验证「佣金 cover 成本」假设）。
 
 ### §6.12 延迟与并发治理：快慢双车道（v1.9.1 新增）
 
@@ -525,12 +539,12 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 
 **② 快车道（秒级——用户站在街头的那一瞬间，永远只碰快车道）**：
 
-| 请求类型          | 频率    | lane 方案                                                                                             |
-| ------------- | ----- | --------------------------------------------------------------------------------------------------- |
-| 翻译（菜单/路牌/对话）  | 最高频   | §6.10 全本地流式管线（P95<2s，不走工具循环）+ **端侧降级层与短语/菜单缓存（v1.9.3：命中零 LLM、离线可用）** + **拍照输入 = 端侧 OCR 起步（v1.9.5）** |
-| 「我在哪 / 怎么去酒店」 | 高频    | **步行实时导航应用内（§6.13 v2.2：高德步行 API 后端代理 + OSM 自绘 + 端侧 TTS 多语播报 + 偏航重路由）**；LLM 只做自然语言外壳（Flash 一轮直答，禁工具循环）；出租/自驾 = deeplink 高德 App（英文版 2025-01 已发布；不嵌高德 SDK——Key 永不进客户端 + 许可隔离 + 离线底线，§2）                                                        |
-| 「附近有什么好吃的」    | 中频    | 缓存 + 推荐排序（§6.2 `recommend_restaurants`），LLM 只理解意图                                                   |
-| 到点讲解          | 执行期高频 | 讲解缓存命中 ≥90%（§6.6）+ 离线预下载（§5）——命中 = 零 LLM 延迟                                                         |
+| 请求类型          | 频率    | lane 方案                                                                                                                                                                              |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 翻译（菜单/路牌/对话）  | 最高频   | §6.10 全本地流式管线（P95<2s，不走工具循环）+ **端侧降级层与短语/菜单缓存（v1.9.3：命中零 LLM、离线可用）** + **拍照输入 = 端侧 OCR 起步（v1.9.5）**                                                                                  |
+| 「我在哪 / 怎么去酒店」 | 高频    | **步行实时导航应用内（§6.13 v2.2：高德步行 API 后端代理 + OSM 自绘 + 端侧 TTS 多语播报 + 偏航重路由）**；LLM 只做自然语言外壳（Flash 一轮直答，禁工具循环）；出租/自驾 = deeplink 高德 App（英文版 2025-01 已发布；不嵌高德 SDK——Key 永不进客户端 + 许可隔离 + 离线底线，§2） |
+| 「附近有什么好吃的」    | 中频    | 缓存 + 推荐排序（§6.2 `recommend_restaurants`），LLM 只理解意图                                                                                                                                    |
+| 到点讲解          | 执行期高频 | 讲解缓存命中 ≥90%（§6.6）+ 离线预下载（§5）——命中 = 零 LLM 延迟                                                                                                                                          |
 
 **③ 慢车道（分钟级可接受——异步任务化 + 完成通知）**：结构性重排（跨天/多点移动/执行模式 `propose_replan`）、批量链接解析、讲解全量生成、行前体检扫描 → **Redis 异步任务队列 +「规划中，完成后通知你」+ 厂商推送**。用户对后台任务的耐心阈值完全不同——不会站在 ATM 前等一份年报。边界：**v0 生成仍走交互式**（TTI<60s 激活指标不变，§6.1——渐进式 + 流式 + CP-SAT 兜住）；执行模式重排推送的是**确认卡片**，不静默生效（§6.7 不变）；夜间空闲算力优先消化慢车道批量任务（§2.1）。
 
@@ -553,13 +567,13 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 
 **五模式覆盖矩阵**：
 
-| 模式 | 频率 | 方案 |
-|---|---|---|
-| **步行（含公交/火车/机场接驳段）** | 高频 | **应用内实时导航**：高德步行路径 Web API（后端代理）+ OSM 瓦片自绘 + GPS 追踪 + **偏航检测（偏离走廊 >35m → 重路由）** + **端侧 TTS 多语播报**（铁律 21：不出设备）；v1 = 转向点距离/方向提示 + 语音，不做车道级/路口放大图（步行不需要） |
-| **公交/地铁** | 高频 | 换乘 Web API + **geofence 到站提醒**（「下一站 X · 还有 N 站」）+ 接驳段自动进入步行导航 |
-| **出租/打车** | 中频 | **deeplink 高德打车/滴滴**（目的地行程上下文预填；应急打车兜底 §1.3 既有；不代叫车——铁律 22 同源边界） |
-| **火车/飞机（跨城）** | 中频（行程节点） | **行程层管理，非导航**：12306 静态库/航班时刻进时间轴跨城卡片 → 出发前 geofence/推送赶车提醒（含缓冲 §6.4 铁律 4）→ 误车 → **免费应急兜底**（最近班次 + 打车 deeplink，§6.7）；车站/机场内导航不做（跟随标识） |
-| **自驾** | 低频（游客需中国驾照） | **deeplink 高德 App（英文版）**带参目的地；Apple Maps（中国数据即高德）为 iOS 备选；停车后自动切回应用内步行导航（停车点 → 景区接驳） |
+| 模式                   | 频率          | 方案                                                                                                                                                    |
+| -------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **步行（含公交/火车/机场接驳段）** | 高频          | **应用内实时导航**：高德步行路径 Web API（后端代理）+ OSM 瓦片自绘 + GPS 追踪 + **偏航检测（偏离走廊 >35m → 重路由）** + **端侧 TTS 多语播报**（铁律 21：不出设备）；v1 = 转向点距离/方向提示 + 语音，不做车道级/路口放大图（步行不需要） |
+| **公交/地铁**            | 高频          | 换乘 Web API + **geofence 到站提醒**（「下一站 X · 还有 N 站」）+ 接驳段自动进入步行导航                                                                                         |
+| **出租/打车**            | 中频          | **deeplink 高德打车/滴滴**（目的地行程上下文预填；应急打车兜底 §1.3 既有；不代叫车——铁律 22 同源边界）                                                                                      |
+| **火车/飞机（跨城）**        | 中频（行程节点）    | **行程层管理，非导航**：12306 静态库/航班时刻进时间轴跨城卡片 → 出发前 geofence/推送赶车提醒（含缓冲 §6.4 铁律 4）→ 误车 → **免费应急兜底**（最近班次 + 打车 deeplink，§6.7）；车站/机场内导航不做（跟随标识）                  |
+| **自驾**               | 低频（游客需中国驾照） | **deeplink 高德 App（英文版）**&#x5E26;参目的地；Apple Maps（中国数据即高德）为 iOS 备选；停车后自动切回应用内步行导航（停车点 → 景区接驳）                                                           |
 
 **差异化（对高德英文版——外国人为什么用我们）**：①**多语语音**（端侧 TTS + §6.10 翻译链路天然 en/ja/ko）；②**偏航联动行程重排**：绕路/走错/误车 → 时间轴变了 → `propose_replan`（§6.7 受限重排 + CP-SAT §6.9）自动跟上下午——**这是地图 App 做不到的**，也是「执行模式随行 Agent」的本体；③**行程上下文**：下一站长在时间轴里，不是搜索出来的；④**离线走廊**（OSM 瓦片 ≤150MB，§5；境外漫游/弱网可用）。
 
@@ -578,7 +592,8 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 - 评估飞轮：执行偏差按城市/POI 类目/时段聚合 → 校准 `estimate_travel_time` 与节奏量化阈值。
 - **求解器指标（v1.8）**：solver 触发占比 / 求解成功率 / 3s 超时率 / 自修循环触发率下降幅度——验证“求解器省 GPU”假设。
 - **语音翻译指标（v1.9）**：端到端 P95<2s 达成率 / 语音翻译周活跃使用率（免费钩子看使用深度不看转化）/ ASR CER 与翻译质量抽检（每语对 100 句人工评）/ 粤语二期质量门槛 / 翻译→餐饮 handoff 转化率（v1.9.3，变现闭环验证）/ **拍照翻译占比与 OCR 升舱率（v1.9.5：端侧 OCR → GLM-4.5V 分流比例，验证端侧覆盖假设）**/ 步行导航完成率 / 偏航重路由触发率与延迟 / **导航中 propose_replan 采纳率（v2.2 差异化验证）** / 导航语音语言分布。
-- **行动漏斗指标（v1.9）**：handoff 打开率（action_type × channel）/ 渠道转化率（报表回填）/ 佣金 GMV 与对账差异率 / deeplink 打开失败率（渠道健康监控）/ **归因有效率与漏损率（v1.9.6：点击→归因订单比例、预估 vs 实结算差异、跨 App 断链占比——W9-10 实测基线）**。
+- **行动漏斗指标（v1.9）**：handoff 打开率（action_type × channel）/ 渠道转化率（报表回填）/ 佣金 GMV 与对账差异率 / deeplink 打开失败率（渠道健康监控）/ **归因有效率与漏损率（v1.9.6：点击→归因订单比例、预估 vs 实结算差异、跨 App 断链占比——W9-10 实测基线）** / **转链交易中心指标（v2.3）：跳转率（卡片曝光→点击）/ 跳转流失率（点击→未成交）/ 佣金转化率（点击→归因成交）/ 佣金 GMV/用户 vs 订阅 ARPU（双轨商业假设验证）**。
+- **行程中心与记忆指标（v2.4）**：三态漏斗转化（wishlist→scheduled→booked——wishlist 长度 = 转链机会漏斗）/ 订单粘贴解析成功率（解析错误率护栏，可撤销兜底）/ 画像蒸馏命中率（二刷个性化命中）/ 链接历史再利用率。
 - **退改签指标（v1.9.4）**：handoff 前退改摘要展示覆盖率（目标 100%，铁律 23 达成率）/ A 级结构化规则数据占比 / 免费退窗口提醒打开率 / 退改纠纷客诉率（护栏指标——若上升说明展示误导）。
 - **双车道指标（v1.9.1）**：**快车道占比**（不触达主力模型的请求比例，目标 ≥80%）/ **TTFT P95**（快车道 <1s · 慢车道受理反馈 <3s）/ GPU 队列等待 P95（联动 §6.6 队列深度告警）/ 异步任务完成时长 P95 与推送到达率 / 分类闸门误判率（误路由负反馈）/ **翻译短语+菜单缓存命中率（v1.9.3，目标 ≥60%——集中度假设验证）**。
 - **单位经济指标（v1.9.2）**：**佣金盈亏平衡下单转化率**（阈值 = 日均推理成本 ÷ 单均佣金）动态监控——本地 GPU 固定摊销口径下固定成本随 DAU 摊薄、阈值随规模下降（与 API 线性计费相反）；单均佣金基准 = 国内酒店 ¥14–18/单（客单 ¥350 × 4–5% 常态，美团联盟上限 10%），混合口径按 §6.11 渠道映射加权；联动 handoff 打开率 × 渠道转化漏斗（行动漏斗指标）。
@@ -593,7 +608,24 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 - **行前体检（v1.5）**：`poi_status` 变更（关停/搬迁/营业时间调整）→ 执行前一天服务端扫描受影响行程 → 推送预警，不等到现场才发现。
 - 班次静态库：周级刷新，只读展示，购票跳 12306 deeplink；`TrainService` 抽象层不变。
 - **讲解生成在 CN 区**（v1.6 起由本区自部署 GLM 生成——GPU 固定成本 + 靠近 CN 主库；英文质量 W5-6 抽样验证为 Phase 2 备料）；v1.6.1 国内区先行后讲解先只服务 CN 区，海外区上线后再经白名单单向同步。
-- **餐饮数据（v1.7）**：餐厅 = pois(category=food) 入主库，评分/营业时间走同一条多源仲裁管线（高德主源 + 用户报错闭环）；**评分只是排序信号不是事实断言**（App 文案注明"评分来自高德，以到店为准"）。
+- **餐饮数据（v1.7）**：餐厅 = pois(category=food) 入主库，评分/营业时间走同一条多源仲裁管线（高德主源 + 用户报错闭环）；**评分只是排序信号不是事实断言**（App 文案注明"评分来自高德，以到店为准"）。**v2.5 修订**：餐厅独立 `restaurants` 表（骨架与 pois 同构 + cuisine/avg_cost），不再 category=food 复用。
+- **POI 城市底库（v2.5）**：冷启动 = ChinaTravel 10 城 3,413 条（代码 MIT/数据 CC BY 4.0，**仅取名称+坐标+类别**，时间/门票/时长不采信）+ OSM 日更增量（osmium tags-filter 本地过滤，WGS84→GCJ-02 对齐高德）+ 5A 名录 373 处权威校准（必保白名单 + 查全率告警）+ UNESCO 59 处补充（仅事实字段）。**回源铁律（用户拍板）：外部源仅候选与骨架，入库前/首轮回填必经高德/携程校验（存在性/名称 CITY_ALIASES+模糊/GCJ-02 坐标/时间敏感字段），存活性与详情真相归回源链路**。day-by-day 模板可做但优先级低（合法可商用现成源不存在；自建 = POI 底库 + CP-SAT 现算 / 快照飞轮沉淀，暂不排期），day-by-day 由 CP-SAT 地理聚类现算（§6.9）。
+- **底库回填作业（v2.5，app/jobs/）**：backfill_intro（Wikidata→zh.wikipedia summary 简介 + P18→Wikimedia 800px 图；UA 带 contact；已有不覆盖；**随回源周期持续更新**）+ backfill_best_visit（时段三层：类别启发式→LLM 常识→携程 sight 回源校验）+ tag_quality（米其林 michelin-my-maps **每月**重拉【**必比登优先展示**】+ 黑珍珠**每月**检查【只采事实字段，上游年度发榜】）；refresh_pois 升级为按城全量发现 + 回源补评分/营业时间的自我更新闭环。品质标签是「加分层」非门槛，排序加权不设硬过滤。
+- **数据源刷新节奏总览（v2.5 定稿口径 2026-10-23；完整矩阵见数据库设计文档 §6）**：
+
+| 源 | 频率 | 时机 | 刷新模式 |
+| --- | --- | --- | --- |
+| 高德 / 携程回源 | 每日 + 实时 | 02:00–05:00 分城轮转 | 过期即刷 upsert（超 24h 才刷） |
+| OSM | 日更 | 每日 03:00 | 增量差异 upsert |
+| Tripadvisor 兜底 | 每日 | 04:30 | upsert + 署名（未上线） |
+| 米其林 | 每月 | 每月 1 日凌晨 | 并集打标（必比登优先展示） |
+| 黑珍珠 | 每月 | 月初错峰 | 并集打标（只采事实字段） |
+| FSQ | 月更 | 月初 | upsert（后置可选） |
+| 5A / UNESCO | 每季度 | 季初（错峰） | 校准 + 查全率告警 |
+| 维基系（简介 / 照片） | 每季度 | 季初错峰 | 只填空 + 随回源周期持续更新 |
+| ChinaTravel | 一次性 | 冷启动 | 稳定键 upsert，仅骨架 |
+
+  分级原则：热数据（时间敏感字段、兜底条目）按日，冷数据（骨架 / 标签 / 简介 / 校准）按月季；一切批刷只 upsert 差异（DIFF UPDATE），全量仅限冷启动与灾难恢复。
 - **票务分销（v1.7）**：购票/领券走高德 deeplink 一期、美团开放平台/携程渠道二期（对应 §1.3 佣金分销选型），不自建交易、不碰资金。
 - **预订渠道注册表（v1.9）**：酒店/机票/火车票/门票的渠道 deeplink、带参模板、H5 兜底、优先级全部**远程配置**（渠道改版不发版）+ 打开失败率监控（§6.11）；渠道切换（如机票去哪儿→携程）只改配置；**佣金通道配置（v1.9.6）**：转链模板/订单同步方式（轮询/回调）/佣金率与归因窗口随注册表管理；订单归一化落 action_handoffs（各家字段统一到自有 schema，跨月可追）。
 - **退改规则库（v1.9.4）**：火车票官方退改费率表入服务端规则库（依据铁客〔2021〕15号，官方公告页监控变更）；渠道商品退改标签（免费取消/随时退）随商品数据快照入 deeplink 注册表；A 级字段可得性 W9-10 实测后定数据契约。
@@ -602,6 +634,7 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 ---
 
 ## §9 路线图与阶段安排（国内区先行；人力假设 2–3 人：1 Flutter + 1 后端/Agent + 0.5 数据/合规）
+
 
 ### §9.0 阶段划分逻辑（v1.9.7 新增：必要性 × 运营成本收益 × 开发难度）
 
@@ -631,7 +664,7 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 | 11 | 登录 + WS 同步                                                   | 账号体系/多设备/推送前提                              | 近零 → 内测与付费的用户载体                                                       | 中                  | M2 · W7-8         |
 | 12 | 执行模式三形态 + 离线包 + 紧急卡                                          | 护城河：截图带不走的价值；付费点载体                         | 离线一次性成本；紧急卡纯静态零成本                                                     | 中–高                | M2 · W9-10        |
 | 13 | 多城解锁 + 慢车道异步化                                                | 规模化与高峰并发治理                                 | 削峰省 GPU → 高峰体验与成本双赢                                                   | 中                  | M2 · W9-10        |
-| 14 | 行动编排 v1 + 退改 v1 + 门票/餐饮 CPS 转链                               | 变现起步（零现金流风险）                               | CPS 转链近零 → 佣金漏斗起量；对账一期人工                                              | 中–高（渠道实测 + 退改规则库）  | M2 · W9-10        |
+| 14 | 行动编排 v1 + 退改 v1 + **转链交易中心（比价卡片组 + 深链归因）** + 门票/餐饮 CPS 转链                               | 变现起步（零现金流风险）                               | CPS 转链近零 → 佣金漏斗起量；对账一期人工                                              | 中–高（渠道实测 + 退改规则库）  | M2 · W9-10        |
 | 15 | 支付双通道 + 联盟签约 + 公开上架                                          | 变现闭环与规模化发行                                 | 重开发；订阅 T+1 在前、佣金 T+30 在后（§1.3 现金流主序列）                                 | 高                  | M3 · W11+         |
 | 16 | 佣金订单同步自动化 · ACP/UCP 对接 · 模板飞轮等                               | 收益增强，非生存必需                                 | 人工对账一期够用；ACP 等 OTA 接入                                                 | 高                  | M4 · 二期           |
 | 17 | **客户端工程（Flutter 双端，v2.1）** | 一切功能面世的载体（§5.0）                         | 单代码库双端，人月最省 → 与后端并行的独立工作流                                     | 中（原生模块集成）       | M1.5 · 与 M2 并行     |
@@ -653,9 +686,9 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 | **M0 · W1-2** | **CN 区**最小闭环：FastAPI 骨架 + `/extract` + **建表全量**（含快照表/execution_events 分区/POI 稳定键/poi_hours）+ 高德服务端代理 + 用量日志 + device_id+IP 限额。匿名 device_id；中文单语 |
 | **M1 · W3-4** | 规划 Agent **多城（v1.9.9 拍板：跨城工具/TrainService 提前挂载）**（渐进式澄清）+ **行程变更管线域服务（铁律 0–23，100% 单测）** + **快照 API** + 四适配器接口与 mock + **权益服务（含远程配置，默认全免费）** + **CP-SAT spike（单城日排程 + 跨城衔接缓冲建模验证，CP-SAT Primer 为教材）** + **语音链路 POC（v1.9.9 MVP 形态：端侧 ASR/TTS（Speech/ML Kit + 系统 TTS）质量与延迟 + 云 GLM 首句延迟；全本地流式三数随本地底座补测）** + **请求分类闸门 v1（v1.9.1 §6.12）** |
 | **M1 · W5-6** | 多源仲裁（合规抓取）+ POI（CN 主库；name_en 后置到 W11）+ 时间线页 + **版本 UI + 差异摘要** + **餐厅推荐 v1（顺路度 × 评分，插入午/晚餐空窗）**；**CP-SAT 正式接管排序/排期与餐饮最优插入（§6.9）** + **翻译 MVP（v1.9.9 形态：语音 = 端侧 ASR/TTS + 云 GLM；拍照 = 端侧 OCR + 缓存/云 Flash；P95 目标 POC 定）**；讲解生成后置 M3（v1.9.9） |
-| **M1.5 · 客户端启动（v2.1，与 M2 并行）** | **Flutter 脚手架**（Riverpod + drift + WS 骨架 + X-Device-ID 接入）+ **铁律 Dart 移植版 + 同源测试用例跑通**（§5.0；W5-6 行的时间线页/版本 UI 客户端条目因后端提前完成，整体顺延进本工作流）→ **时间线页**（天主轴 + 跨城卡片 + 手动拖拽编辑本地预检）→ **版本 UI + 差异摘要** → **翻译页**（端侧 ASR/OCR/TTS 实机 POC = §6.10 定档数据源）→ 内测包出舱（衔接 M2 W7-8 分发） |
+| **M1.5 · 客户端启动（v2.1，与 M2 并行）** | **Flutter 脚手架**（Riverpod + drift + WS 骨架 + X-Device-ID 接入）+ **铁律 Dart 移植版 + 同源测试用例跑通**（§5.0；W5-6 行的时间线页/版本 UI 客户端条目因后端提前完成，整体顺延进本工作流）→ **行程中心页 v1（v2.4：时间线升级三态 + Bookings 置顶 + Wishlist 流）**（天主轴 + 跨城卡片 + 手动拖拽编辑本地预检）→ **版本 UI + 差异摘要** → **个人主页壳（v2.4：画像可视化 + 链接历史列表）** → **翻译页**（端侧 ASR/OCR/TTS 实机 POC = §6.10 定档数据源）→ 内测包出舱（衔接 M2 W7-8 分发） |
 | **M2 · W7-8** | 手机号验证码登录（微信登录待开放平台资质）+ **云 GLM API 全链路压测（万级容量演练：分类闸门命中率 / TPM 配额与限流排队深度 / 降级链切换；本地 vLLM 联调随底座后移 W11+，§6.12 ⑦）** + WS（鉴权+seq/resume）联调 + **国内内测分发（TestFlight/内测包）** |
-| **M2 · W9-10** | 执行模式三形态 + 离线包（OSM 瓦片）+ **执行版绑定 + 铁律 17/18** + 多城解锁 + **紧急卡** + **购票/领券 deeplink（高德渠道）**；**Timefold 增量重排评估（对标 CP-SAT 全量重解，§6.9）** + **行动编排 v1（v1.9：handoff 工具 + 确认卡片 + action_handoffs 埋点 + 渠道 deeplink 真机实测——去哪儿/12306/美团带参 scheme）** + **退改签保障 v1（v1.9.4：确认卡片退改摘要块 + 12306 官方规则库 + A 级字段与「免费取消」「随时退」筛选参数实测 + 渠道订单页 deeplink）** + **慢车道异步化（v1.9.1 §6.12：重任务后台队列 + 完成推送——高峰削峰 + 夜间算力消化）** + **拍照复杂版面（GLM-4.5V 精读，随生产档 GPU（2–4×48G）就位，§6.10）** + **实时导航 v1（v2.2 §6.13 五模式：步行导航 + 公交到站 + 出租/自驾 deeplink + 跨城行程提醒 + 偏航重排联动 propose_replan——执行模式核心能力）** |
+| **M2 · W9-10** | 执行模式三形态 + 离线包（OSM 瓦片）+ **执行版绑定 + 铁律 17/18** + 多城解锁 + **紧急卡** + **购票/领券 deeplink（高德渠道）**；**Timefold 增量重排评估（对标 CP-SAT 全量重解，§6.9）** + **行动编排 v1（v1.9：handoff 工具 + 确认卡片 + action_handoffs 埋点 + 渠道 deeplink 真机实测——去哪儿/12306/美团带参 scheme）** + **退改签保障 v1（v1.9.4：确认卡片退改摘要块 + 12306 官方规则库 + A 级字段与「免费取消」「随时退」筛选参数实测 + 渠道订单页 deeplink）** + **慢车道异步化（v1.9.1 §6.12：重任务后台队列 + 完成推送——高峰削峰 + 夜间算力消化）** + **拍照复杂版面（GLM-4.5V 精读，随生产档 GPU（2–4×48G）就位，§6.10）** + **实时导航 v1（v2.2 §6.13 五模式：步行导航 + 公交到站 + 出租/自驾 deeplink + 跨城行程提醒 + 偏航重排联动 propose_replan——执行模式核心能力）** + **转链交易中心 v1（v2.3：候选卡片组 2–4 渠道比价 + 确定性 workflow 生成深链 + 归因埋点；排序佣金权重为零）** + **订单回填三层管道 v1（v2.4：粘贴回填解析 + 返回询问 + 联盟订单同步轮询 + 双源验证状态机）+ 画像蒸馏任务（异步 workflow，§6.14）** |
 | **M3 · W11+** | 重排 Agent + **微信支付 + 支付宝双通道对接（v1.9）** + **携程/美团联盟签约（v1.9.6 CPS 转链先行）** → **国内区公开上架（备案通过后；默认全免费）**；**本地 GPU 底座启动（v1.9.9：量/成本阈值触发——token 成本 × DAU 月度复核；vLLM 部署 GLM-4.7-Flash/4.5-Air 量化版）→ 全本地语音流式管线升级（Qwen3-ASR + CosyVoice3，§6.10）+ 拍照复杂版面（GLM-4.5V）+ 讲解管线 v1（后置段：全量生成 + 缓存 ≥90%；讲解类付费规则灰度开）+ 自建口径生成式 AI 备案补办（云 API 过渡并行）** → 随后启动 **Phase 2 海外区**（AWS + APNs + 消耗型 IAP + name_en 补全；**海外区 LLM 选型决策点：海外用户数据 × 中国云 API = 跨境冲突，本地自建 or 区域合规 API，§10**） |
 | **M4 · 二期** | 海外区放量（合规链已完成，复制即用）· **佣金通道深化（订单同步自动化 · 回调推送 · 自动对账 + ACP/UCP 接入观察——OTA 接入后切换）** · 误车跨天 · 实时排队 · 协作 · **模板飞轮（opt-in）** · 微信小程序 |
 
@@ -694,6 +727,7 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 | 双主体决策 | 中 | W7 前完成 |
 | 单机故障 | 中 | 蓝绿发布 + 每日快照 + 季度恢复演练 |
 | **步行导航质量（GPS 漂移/提示时机，v2.2）** | 中 | v1 只做转向点距离/方向提示（不做车道级）；偏航 >35m 重路由；降级 = 无语音卡片模式（方向+距离+剩余时间）；高德英文版兜底；导航偏航样本进评估飞轮校准 |
+| **订单解析错误（v2.4）** | 低–中 | 置信度 <0.8 进待确认（对齐 §6.5 模式）；写入可撤销；双源验证（联盟订单号匹配）兜底；解析错误样本进蒸馏评估集 |
 | **云 LLM API 依赖（MVP 阶段，v1.9.9）** | 中 | 智谱云单一供应商（涨价/限流/合规变化）：LiteLLM 路由架构不变可切换；token 成本 × DAU 月度复核，量/成本阈值触发本地底座（阈值远程可配）；CN 用户数据 → 中国境内云，不出境满足驻留铁律 |
 | **Phase 2 海外区 × 云 LLM（v1.9.9）** | 中（Phase 2） | 海外用户数据调中国云 API = 跨境违反驻留铁律 → Phase 2 决策点：海外区 GPU 自建 or 区域合规 API；双区同构 + LiteLLM 路由使切换不动核心架构 |
 | **万级 DAU × 云 API 配额/成本（v1.9.10）** | 中 | 分级模型（主力/Flash）+ 缓存 + 慢车道削峰；TPM/并发配额商务谈判（真实用量作筹码）；LiteLLM 多供应商可切换（不碰 Claude/GPT/Qwen 红线）；量/成本阈值触发本地底座（v1.9.9）；W7-8 万级演练验收（§6.12 ⑦） |
@@ -714,10 +748,15 @@ CREATE TABLE action_handoffs ( -- ★ v1.9：行动编排手off留痕（转化�
 ---
 
 
+
+
 ## §变更记录
 
 | 版本 | 变更 | 影响 |
 |---|---|---|
+| v2.5 | **城市 POI 底库（多源导入 + 回源铁律 + 品质标签 + best_visit 时段）+ 规划接入心愿单吸收**：①总原则（用户拍板）——外部源（ChinaTravel/OSM/5A/米其林/黑珍珠/UNESCO）仅作候选与骨架，入库前/首轮回填必经高德/携程回源校验，存活性与详情真相归回源链；day-by-day 模板可做但优先级低（合法现成源不存在，自建路径暂不排期），CP-SAT 地理聚类现算；②§4 pois 扩 15 列（rating/tags/intro/photos/best_visit_time/suggested_duration_min 等，每个富化字段带 \*_source 溯源）+ 新增 restaurants 独立表（不再 category=food 复用）+ coords.py WGS84↔GCJ-02；③导入管线 import_chinatravel（10 城 3,413 种子）/osm_diff（日更）/5A 373 处校准/UNESCO 补充；④回填 backfill_intro（Wikidata+维基百科+Wikimedia P18）/backfill_best_visit（三层：启发式→LLM→携程回源）/tag_quality（米其林每月【必比登优先】+黑珍珠每月检查）+ refresh_pois 升级自我更新闭环；⑤plan.py：\_absorb_wishlist 心愿单→必去 v0 三路吸收+钉住、\_same_site 站点同一性全链去重、必去防跨省、api/pois.py 只读详情端点；**solver 消费 best_visit_time（夜景自动排晚上）待接线**；⑥行程条目 📌 钉住（引擎不重排）/🗑 删除（回写「不想去」）+ 链接抽取带 city 全链归类 + 离城日必去保留+假设提示；⑦运维：h5_keepalive v2 僵死探测杀树重启（轮询 5min→1min）+ H5 网络错误退避重试 | §4 / §6.2 / §6.9 / §8 / 架构图 / INDEX |
+| v2.4 | **行程中心 + 全局 Agent 架构 + 订单回填 + 个人主页（用户拍板）**：新增 §6.14 全局 Agent 四组件（Profile/Memory 四层【Trip State/画像/会话/偏好蒸馏——结构化存储为唯一事实源，蒸馏 = 会话后异步 workflow】/Planning【开放推理；查询比价转链走 workflow】/Action【工具集收口】）+ 写表权限分级（行程变更先方案后写表；纯增量直接写+可撤销，按副作用对号入座）+ 订单回填三层管道（粘贴回填为主/返回询问/联盟同步自动 + 双源验证状态机 opened→user_confirmed→alliance_verified→settled；拒绝通知监听/剪贴板嗅探/账号聚合）+ §4 三新表（trip_items 三态单一事实源 / user_profiles 画像 / link_history 链接历史双来源）+ §5 行程中心（时间线升级三态，八页制新增个人主页）+ 联动场景四例 + 边界表；§6.2 指针；§7 行程中心与记忆指标；M1.5 行程中心+个人主页壳、M2 回填+蒸馏；§10 订单解析错误（低–中） | §4 / §5 / §6.2 / §6.11 / §6.14 / §7 / §9 / §10 |
+| v2.3 | **转链交易中心（Booking Handoff，用户拍板：App 内不下单，做「候选链接选择器」）**：§6.11 新增同名子节——候选卡片组（同一商品 2–4 渠道报价：平台名/实时报价/退改摘要，不显示佣金，顶部「价格以跳转后页面为准」，12306 标「全国统一价」，不足 2 渠道只显示 1 张不硬凑，默认单个主推+可展开【A/B 备选平铺】）；生成逻辑 = 确定性 workflow 非 agent 循环（查询→去重比价→排序【佣金权重为零】→服务端生成深链→展示）；深链/追踪参数服务端注入前端只拿成品 URL，归因窗口签约确认（占位），兕底链 App→H5→手动复制；边界表（价格偏差>10% 重拉/免费期内下单佣金照收两层独立/多平台同价按稳定性排序标「同价」/国外隐藏美团卡）；指标：跳转率/流失率/佣金转化率/GMV·用户 vs 订阅 ARPU；L1 并发比价从二期提前落地；M2 W9-10 转链交易中心 v1 | §6.11 / §7 / §9.0 / §9 / 架构图 |
 | v2.2 | **入境五模式导航（用户拍板：步行/出租/火车/飞机/自驾全覆盖，不装高德 App 直接用）**：新增 §6.13 五模式覆盖矩阵——步行（含接驳段）= 应用内实时导航（高德步行 Web API 后端代理 + OSM 自绘 + GPS 追踪 + 偏航 >35m 重路由 + 端侧 TTS 多语播报）；公交 = 换乘 API + geofence 到站提醒；出租 = deeplink 高德打车/滴滴（带参预填，不代叫车）；火车/飞机 = 行程层管理（时刻表跨城卡片 + 赶车提醒 + 误车免费应急兜底，非导航）；自驾 = deeplink 高德 App 英文版（2025-01 已发布，官方源核实；Apple Maps 为 iOS 备选）+ 停车切回步行导航——不嵌高德导航 SDK（架构零变更仍 Web 服务 Key）；差异化 = 多语语音 + 偏航联动行程重排（propose_replan→CP-SAT）+ 行程上下文 + 离线走廊；导航态前台持续定位（审核声明）非导航态回归 geofence；§5 导航态定位行 / §6.12 快车道行 / §7 导航指标 / §9 M2 W9-10 实时导航 v1 / §10 步行导航质量风险（中） | §5 / §6.12 / §6.13 / §7 / §9 / §10 |
 | v2.1 | **客户端工程架构成节（回答「Android / iOS 需要开发吗」= YES）**：新增 §5.0——双端策略（Flutter 单代码库双端 · 小程序 M4 复用 API · H5 仅落地/冒烟）、四层架构（UI/Domain/Data/Platform）、原生模块契约表（ASR/OCR/TTS/推送/支付/deeplink/地图 × Android/iOS × 铁律映射，platform channels 薄壳）、端上零业务规则（本地 Dart 校验=前置预检，生效以服务端 ValidationReport 为准）、铁律 Dart/Python 同源测试用例；§2 移动端行指向 §5.0；§9 阶段定义与周表插入 **M1.5 客户端工作流**（后端 M1 已提前完成——2026-10-18 PR#5 交付 M0+M1 全部后端 283 测；用户功能测试通过即开工，与 M2 并行）+ §9.0 矩阵加行 17；§10 加客户端风险行（单人带宽/双端差异/送审周期）；MVP 功能测试期形态定档 = Swagger /docs + 单页 H5 冒烟，零客户端开发；补：转向导航 = deeplink 跳高德 App 显式入 §6.12 快车道（不嵌高德 SDK：Key 不进客户端/许可隔离/离线底线） | §2 / §5 / §5.0 / §6.12 / §9 / §9.0 / §10 / 架构图 / INDEX |
 | v1.9.10 | **万级用户容量基线（容量审查采纳项）**：§6.12 新增 ⑦ 容量基线——直接操作刻意做轻（手动编辑端上校验/翻译端侧/讲解缓存），压力集中在生成且已被双车道治理；万级量级推演（峰值在线 1–2k WS / 主力调用日万级以内 / Flash 日数万）+ 四压力点对策（云 API 配额与成本：商务谈判+限流排队+阈值触发本地底座；API 层横扩：无状态+Redis 注册表+SLB；PG：pgbouncer+分区已备；CP-SAT：CPU worker 池+W3-4 并发吞吐实测）；§2 部署行修正 v1.9.9 遗留（MVP 单云主机无 GPU 节点 + 横扩路径 + pgbouncer）；W7-8 改云 API 万级容量演练（修正本地 vLLM 遗留表述）；§10 加万级 × 云 API 配额风险（中） | §2 / §6.12 / §9 / §10 |

@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ChinaTrip · 冒烟测试</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#2f6fed">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ChinaTrip">
 <style>
   :root{
     --bg:#f4f6f8; --panel:#ffffff; --border:#e2e6eb; --text:#1c232b; --muted:#6b7684;
@@ -58,8 +67,8 @@
     background:var(--err-bg);color:var(--err);border:1px solid var(--err);
     box-shadow:var(--shadow);display:none;word-break:break-all;
   }
-  .tab{display:none;flex-direction:column;height:100vh;padding:14px 16px;min-width:0}
-  .tab.active{display:flex}
+  .tab{display:none;flex-direction:column;padding:14px 16px;min-width:0}
+  .tab.active{display:flex;flex:1;min-height:0}
 
   /* 表单/工具条 */
   .toolbar{
@@ -150,7 +159,8 @@
   .composer textarea#planInput::placeholder{color:#8a94a3}
   .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
   .dirbar .chip{padding:3px 10px;font-size:12px}
-  .t9n-wrap{display:flex;flex-direction:column;gap:6px}
+  .t9n-wrap{display:flex;flex-direction:column;gap:6px;flex-shrink:0} /* 硬保护：矮视口/系统缩放下输入框永不被 flex 挤出屏幕（2026-10-24） */
+  #planSetup{max-height:45vh;overflow-y:auto} /* 硬保护：无会话表单全展开时，超矮视口下表单内部滚动而不是把输入框挤出屏幕（2026-10-24 v21） */
 
   /* ---------- 导航：全幅地图 ---------- */
   #tab-nav{padding:0}
@@ -264,13 +274,24 @@
   .zone h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
   .tile{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg);font-size:13px}
   .tile .ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .tile-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.tile-city{margin-left:auto;color:#888;white-space:nowrap}
+  .drag-handle{cursor:grab;touch-action:none;color:#b0b0b0;user-select:none;-webkit-user-select:none;padding:0 5px 0 0;font-size:14px}
+  .drag-handle:active{cursor:grabbing}
+  .t-edit{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline dotted}
+  .t-edit input{font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 2px;background:#fff;max-width:96px}
+  .sortable-ghost{opacity:.35;border-style:dashed}
+  .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
+  .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
+  .site-link{color:var(--accent);text-decoration:underline;cursor:pointer}
+  .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
 
   /* 窄屏：左栏折叠为顶部横条 */
   @media (max-width:760px){
-    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    #app{display:flex;flex-direction:column;height:100vh}
+    main{height:auto;flex:1;min-height:0}
     #side{flex-direction:row;align-items:center;gap:6px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border)}
     .brand{border:0;padding:0 6px 0 0}
     .brand-sub{display:none}
@@ -286,6 +307,7 @@
   }
 </style>
 <script src="qrcode.min.js"></script>
+<script src="sortable.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -336,6 +358,9 @@
 
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
+      <div class="dirbar" id="planSummaryBar" style="display:none">
+        <button class="btn ghost mini" id="planSummaryToggle" title="展开/收起参数表单">✏️ <span id="planSummaryText"></span> ▾</button>
+      </div>
       <div class="toolbar" id="planSetup" style="flex-wrap:wrap">
         <label class="fld">起始城市
           <span style="display:flex;gap:4px;align-items:center">
@@ -364,7 +389,7 @@
         <label class="fld">结束城市
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planEndCity"></select>
-            <input type="number" id="planEndDays" min="1" max="30" value="6" style="width:3.2em">天
+            <input type="number" id="planEndDays" min="1" max="30" value="1" style="width:3.2em">天
           </span>
         </label>
         <span class="sep"></span>
@@ -379,12 +404,8 @@
       </div>
       <div class="flow" id="flow-plan"></div>
       <div class="t9n-wrap">
-        <div class="dirbar" id="planResetBar" style="display:none">
-          <button class="btn ghost mini" id="planNew">↺ 新对话</button>
-          <span class="muted" id="planStateTag"></span>
-        </div>
         <div class="composer">
-          <textarea id="planInput" placeholder="可先粘贴视频/笔记链接或输入要求，点「🚀 开始规划」会自动带上；开始后在这里继续对话调整"></textarea>
+          <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整"></textarea>
           <button class="btn" id="planSend">发送</button>
         </div>
       </div>
@@ -475,7 +496,11 @@
         <label class="fld">行程ID过滤 <input type="text" id="tcItinId" placeholder="可选"></label>
         <span class="sep"></span>
         <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
-        <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
+        <label class="fld">城市 <input type="text" id="tcCity" list="tcCityList" placeholder="必选：城市或都可以" autocomplete="off"></label>
+        <datalist id="tcCityList">
+          <option value="都可以"></option>
+          <option value="北京"></option><option value="上海"></option><option value="杭州"></option><option value="苏州"></option><option value="南京"></option><option value="西安"></option><option value="成都"></option><option value="重庆"></option><option value="广州"></option><option value="深圳"></option><option value="天津"></option><option value="武汉"></option><option value="长沙"></option><option value="厦门"></option><option value="青岛"></option><option value="大连"></option><option value="三亚"></option><option value="丽江"></option><option value="桂林"></option><option value="洛阳"></option><option value="敦煌"></option><option value="兰州"></option><option value="拉萨"></option><option value="昆明"></option><option value="大理"></option><option value="张家界"></option><option value="黄山"></option><option value="无锡"></option><option value="绍兴"></option><option value="嘉兴"></option><option value="舟山"></option><option value="哈尔滨"></option><option value="沈阳"></option><option value="长春"></option><option value="郑州"></option><option value="济南"></option><option value="福州"></option><option value="泉州"></option><option value="威海"></option><option value="珠海"></option>
+        </datalist>
         <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
         <label class="fld">营业时间 <input type="text" id="tcHours" placeholder="可选"></label>
         <button class="btn" id="tcAdd">➕ 加心愿</button>
@@ -727,9 +752,12 @@ async function api(path, body, method) {
   try {
     res = await doFetch();
   } catch (e) {
-    await new Promise(r => setTimeout(r, 1500)); // 撞上服务重启死窗（连不上）：延迟后自动重试一次
-    try { res = await doFetch(); }
-    catch (e2) { throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" }; }
+    // 撞上服务重启/崩溃死窗（连不上）：退避重试 1.5s/4s，覆盖 keepalive 拉起窗口
+    for (const w of [1500, 4000]) {
+      await new Promise(r => setTimeout(r, w));
+      try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
+    }
+    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
@@ -747,6 +775,45 @@ async function busy(btn, fn) {
   btn.disabled = true; btn.textContent = "请求中…";
   try { return await fn(); }
   finally { btn.disabled = false; btn.textContent = old; }
+}
+
+// 二进制/文件请求（行程导出）：与 api() 同头（设备号+登录态）+ 同款断线退避，返回原始 Response
+async function apiRaw(path) {
+  const headers = { "X-Device-ID": DEVICE_ID };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const doFetch = () => fetch(apiBase() + path, { headers });
+  let res;
+  try { res = await doFetch(); }
+  catch (e) {
+    for (const w of [1500, 4000]) {
+      await new Promise(r => setTimeout(r, w));
+      try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
+    }
+    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+  }
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* 空体 */ }
+    throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : ("http_" + res.status) };
+  }
+  return res;
+}
+
+// 触发浏览器下载；revoke 延迟 100ms（Firefox/Safari 提前 revoke 会取消下载）
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+// 从 Content-Disposition 的 filename*=UTF-8'' 取文件名，失败回退
+function cdFilename(res, fallback) {
+  const m = /\*=UTF-8''([^;]+)/i.exec(res.headers.get("Content-Disposition") || "");
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) { /* 回退 */ } }
+  return fallback;
 }
 
 /* =====
@@ -1032,36 +1099,257 @@ function fmtMin(s) { return Math.round(Number(s) / 60); }
 const MODE_CN = { train: ["🚄", "火车"], flight: ["✈️", "飞机"], car: ["🚗", "驾车"], bus: ["🚌", "大巴"] };
 function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "跨城"; }
 
+// 高德 URI API 步行导航：起点参数缺省 = 高德自动以"我的位置"为起点，
+// 终点 = 下一站坐标（GCJ-02，与站点数据同源），打开即自动规划步行路线
+function amapWalkUrl(to) {
+  return "https://uri.amap.com/navigation?to=" + to.location.lon + "," + to.location.lat +
+    "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
+}
+
+// 天气：高德天气文本 → 图标；/api/weather 无数据（抓取作业未跑/城市未收录）时静默跳过
+function wxIcon(text) {
+  const t = String(text || "");
+  if (/雷/.test(t)) return "⛈️";
+  if (/雨夹雪/.test(t)) return "🌨️";
+  if (/雪/.test(t)) return "❄️";
+  if (/雨/.test(t)) return "🌧️";
+  if (/雾/.test(t)) return "🌫️";
+  if (/霾/.test(t)) return "😷";
+  if (/阴/.test(t)) return "☁️";
+  if (/多云/.test(t)) return "⛅";
+  if (/晴/.test(t)) return "☀️";
+  return "🌤️";
+}
+const WX = { cache: {} };
+function wxFor(city, force) {
+  if (!city) return Promise.resolve(null);
+  const key = city.replace(/市$/, "");
+  if (force) delete WX.cache[key];
+  if (!WX.cache[key]) {
+    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => null);
+  }
+  return WX.cache[key];
+}
+// 摄氏→华氏整数值；库里 casts 带 day_temp_f/night_temp_f（upsert 派生），
+// 旧行还没有 _f 字段时前端现算兜底
+function c2f(c) {
+  const n = Number(c);
+  return Number.isFinite(n) ? Math.round((n * 9) / 5 + 32) : null;
+}
+// 天头占位 span 回填「图标 高温/低温 双温标」：按该天日期匹配——0-3 天走高德
+// forecast，4-14 天回退 Open-Meteo forecast14（casts 同构）；无数据/无日期不显示
+// span 带 data-wx-city/data-wx-date，wxSync 刷新后可按属性重绘
+function wxFill(span, city, dateIso, force) {
+  wxFor(city, force).then(w => {
+    if (!w || !dateIso || !span.isConnected) return;
+    let cast = null;
+    if (w.forecast && w.forecast.casts) cast = w.forecast.casts.find(c => c.date === dateIso);
+    if (!cast && w.forecast14 && w.forecast14.casts) cast = w.forecast14.casts.find(c => c.date === dateIso);
+    if (cast) {
+      const fd = cast.day_temp_f != null ? Number(cast.day_temp_f) : c2f(cast.day_temp);
+      const fn = cast.night_temp_f != null ? Number(cast.night_temp_f) : c2f(cast.night_temp);
+      span.textContent = "  " + wxIcon(cast.day_weather) + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
+        (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "");
+    }
+  });
+}
+// 开站新鲜度巡检：后端判行程城市 fetched_at 非今天（北京时间）即内联刷新
+// （高德 0-3 天 + Open-Meteo 14 天），刷新过的城市清缓存重绘已挂载的天头；
+// 天气是纯参考数据，刷新即生效，无需保存动作
+async function wxSync() {
+  try {
+    const res = await api("/api/weather/sync", { cities: [] }, "POST");
+    const refreshed = (res.cities || []).filter(c => c.refreshed).map(c => c.city);
+    if (!refreshed.length) return;
+    refreshed.forEach(c => { delete WX.cache[c]; });
+    document.querySelectorAll(".wx[data-wx-city]").forEach(sp => {
+      wxFill(sp, sp.getAttribute("data-wx-city"), sp.getAttribute("data-wx-date"), true);
+    });
+    const at = (res.cities || []).find(c => c.refreshed);
+    const hhmm = at && at.fetched_at ? itinFmtLocal(at.fetched_at).slice(11) : "";
+    toast("🌤 天气已自动刷新 · " + hhmm + (refreshed.length > 1 ? "（" + refreshed.length + " 城）" : "（" + refreshed[0] + "）"));
+  } catch (err) { /* 巡检失败不影响首开 */ }
+}
+
+// 规划页拖拽（2026-10-24）：同天重排 / 跨天移动。drop 后算新锚点
+// （目标天 + 前一个 visit 的 id），位置没变就不请求；后端按用户顺序重排
+// 时链，成功换新卡（自动重挂 Sortable），失败按原 plan 还原。
+function initPlanDrag(box, plan) {
+  if (!planSession || !planSession.session_id || !window.Sortable) return;
+  const sid = planSession.session_id;
+  box.querySelectorAll(":scope .day-items").forEach(cont => {
+    new Sortable(cont, {
+      group: "plan-visits",
+      handle: ".drag-handle",
+      draggable: ".visit-block",
+      filter: "button, a",
+      preventOnFilter: false,
+      animation: 150,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      onEnd: (evt) => {
+        const id = evt.item.getAttribute("data-id");
+        const to = evt.to;
+        const blocks = Array.prototype.slice.call(to.querySelectorAll(":scope > .visit-block"));
+        const pos = blocks.indexOf(evt.item);
+        const afterId = pos > 0 ? blocks[pos - 1].getAttribute("data-id") : null;
+        const newDay = parseInt(to.getAttribute("data-day"), 10);
+        const origDay = (plan.days || []).find(dd => (dd.items || []).some(i => i.item_id === id));
+        if (!origDay) return;
+        const origVisits = (origDay.items || []).filter(i => !i.from_city);
+        const oi = origVisits.findIndex(i => i.item_id === id);
+        const origAfter = oi > 0 ? origVisits[oi - 1].item_id : null;
+        if (origDay.day === newDay && origAfter === afterId) return;
+        api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/move",
+            { day: newDay, after_item_id: afterId }, "POST")
+          .then(body => box.replaceWith(planCard(body.plan)))
+          .catch(err => { box.replaceWith(planCard(plan)); failToast(err); });
+      }
+    });
+  });
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
-    box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
-    (d.items || []).forEach(it => {
-      if (it.from_city) { // TransferItem
-        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
+    const dayHead = el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) +
+      '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
+    box.appendChild(dayHead);
+    wxFill(dayHead.querySelector(".wx"), d.base_city, dt);
+    const dayItems = el('<div class="day-items" data-day="' + d.day + '"></div>');
+    box.appendChild(dayItems);
+    (d.items || []).forEach((it, idx) => {
+      if (it.from_city) { // TransferItem：不可拖
+        dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
       } else { // VisitItem
-        const pin = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
-        box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + esc(it.name) + '（' + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + pin + "</span></div>"));
-        const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
-        if (meta) box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(meta) + "</div>"));
-        if (typeof it.distance_to_next_km === "number") {
-          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" +
-            (it.next_walk_minutes != null ? " · 步行约 " + it.next_walk_minutes + " 分钟" : "") +
-            (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
-          box.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px">' + esc(leg) + "</div>"));
+        let tail = "";
+        if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
+          tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? "📌 已钉住" : "📌 钉住") + "</button>" +
+            ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">🗑</button>';
+        } else { // 已保存行程回看：仅静态徽标
+          tail = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         }
+        const briefBits = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : ""].filter(Boolean).join(" · ");
+        const handle = (planSession && planSession.session_id && !it.pinned)
+          ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
+        const ind = handle ? "74px" : "56px";
+        const timeCell = (planSession && planSession.session_id)
+          ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="点击修改开始时间">' + fmtTime(it.start_time) + "</button>"
+          : '<span class="t">' + fmtTime(it.start_time) + "</span>";
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div></div>");
+        const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
+        if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
+        if (typeof it.distance_to_next_km === "number") {
+          let walkSeg = "";
+          if (it.next_walk_minutes != null) {
+            let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
+            for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
+            walkSeg = (nxt && nxt.location)
+              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="在高德地图打开步行导航（起点=我的位置，终点=' + esc(nxt.name) + "）\">步行约 " + it.next_walk_minutes + " 分钟</a>"
+              : " · 步行约 " + it.next_walk_minutes + " 分钟";
+          }
+          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" + walkSeg +
+            (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
+          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
+        }
+        dayItems.appendChild(blk);
       }
     });
-    if (!d.items || !d.items.length) box.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
+    if (!d.items || !d.items.length) dayItems.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
   });
   if (plan.assumptions && plan.assumptions.length) {
     const det = el('<details><summary>假设标注 ' + plan.assumptions.length + " 条</summary><ul>" +
       plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
     box.appendChild(det);
   }
+  // 卡内交互：站点名=简介链接（悬停 title / 点击入对话气泡）；钉住/删除仅会话内可点，命中后原地换新卡（不新增聊天气泡）
+  box.addEventListener("click", (ev) => {
+    const link = ev.target.closest ? ev.target.closest('a.site-link') : null;
+    if (link && box.contains(link)) {
+      if (!document.getElementById("flow-plan")) return;
+      const bits = [];
+      if (link.getAttribute("data-addr")) bits.push("📍 地址：" + link.getAttribute("data-addr"));
+      if (link.getAttribute("data-hours")) bits.push("🕐 开放时间：" + link.getAttribute("data-hours"));
+      const info = el('<div><b>' + esc(link.getAttribute("data-name")) + '</b>（' + esc(link.getAttribute("data-city")) + "）</div>");
+      info.appendChild(el('<div class="muted">' + esc(bits.join("　") || "暂无更多简介信息") + "</div>"));
+      addMsg("flow-plan", "sys", info);
+      enrichBrief(info, link.getAttribute("data-city"), link.getAttribute("data-name"));
+      return;
+    }
+    const btn = ev.target.closest ? ev.target.closest('button[data-item-id]') : null;
+    if (!btn || !box.contains(btn)) return;
+    if (!planSession || !planSession.session_id) return;
+      const id = btn.getAttribute("data-item-id");
+      const action = btn.getAttribute("data-action");
+      const sid = planSession.session_id;
+      if (action === "retime") {
+        // 时间戳原地换成原生 time 输入：change 提交、blur 还原（防双触发）
+        if (btn.querySelector("input")) return;
+        const input = document.createElement("input");
+        input.type = "time";
+        input.value = btn.getAttribute("data-cur") || "";
+        btn.textContent = "";
+        btn.appendChild(input);
+        input.focus();
+        let done = false;
+        input.addEventListener("change", () => {
+          if (done) return;
+          done = true;
+          const v = input.value;
+          if (!v) { box.replaceWith(planCard(plan)); return; }
+          input.disabled = true;
+          api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/retime", { start_time: v }, "POST")
+            .then(body => box.replaceWith(planCard(body.plan)))
+            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+        });
+        input.addEventListener("blur", () => {
+          if (!done) { done = true; box.replaceWith(planCard(plan)); }
+        });
+      } else if (action === "pin") {
+        const cur = btn.getAttribute("data-pinned") === "1";
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/pin", { pinned: !cur }, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); }
+        });
+      } else if (action === "del") {
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/delete", undefined, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); }
+        });
+      }
+    });
+  initPlanDrag(box, plan);
   return box;
+}
+
+// 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
+// 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
+const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
+function briefTag(t) {
+  const m = /^black_pearl_(\d+)diamond$/.exec(t || "");
+  return m ? "黑珍珠" + m[1] + "钻" : (BRIEF_TAGS[t] || t);
+}
+function enrichBrief(info, city, name) {
+  api("/api/pois/detail?city=" + encodeURIComponent(city || "") + "&name=" + encodeURIComponent(name || ""), undefined, "GET").then(p => {
+    const bits = [];
+    if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">（来源：' + esc(p.intro_source) + "）</span>" : ""));
+    if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(briefTag).filter(Boolean).join(" / "));
+    if (p.phone) bits.push("☎ " + esc(p.phone));
+    const photo = p.photos && p.photos[0] && p.photos[0].url;
+    if (!bits.length && !photo) return;
+    if (photo) {
+      const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0" src="' + esc(photo) + '">');
+      img.onerror = () => img.remove(); // 挂图隐藏，占位不留
+      info.appendChild(img);
+    }
+    if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
+  }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
 }
 
 // 满意了点保存才落库（2026-10-20：规划不再自动写行程库）：写库 + 冻结一个不可变快照
@@ -1073,8 +1361,19 @@ function planSaveBar(plan) {
     if (!planSession || !planSession.session_id) { toast("会话已失效：请重新规划后再保存"); return; }
     try {
       const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name });
-      bar.textContent = "";
-      bar.appendChild(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
+      btn.remove(); // 只撤保存键，导出/分享/重新规划留在原行（2026-10-24 修复：整行清空会连三键一起抹掉）
+      // 新规划会话保存前没有导出/分享两键（只有已存行程载入的会话才有）：保存后行程已落库，当场补上
+      if (!bar.querySelector('[data-role="itin-export"]')) {
+        const rLike = { itinerary_id: plan.itinerary_id, cities: plan.cities || [] };
+        const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
+        ex.onclick = () => itinExport(rLike, ex);
+        const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
+        sh.onclick = () => itinShareOn(rLike, sh);
+        const re = bar.querySelector('[data-role="plan-replan"]');
+        if (re) { bar.insertBefore(ex, re); bar.insertBefore(sh, re); } // 保持 导出/分享/重新规划 顺序
+        else { bar.appendChild(ex); bar.appendChild(sh); }
+      }
+      bar.after(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
       toast("行程已保存：" + plan.itinerary_id);
     } catch (err) {
       if (err.status === 402) toast("免费快照额度（3 个）已用完——行程已存入「行程」页（本次未冻结快照）");
@@ -1082,6 +1381,47 @@ function planSaveBar(plan) {
     }
   });
   bar.appendChild(btn);
+  // 重新规划（全新规划会话）：按 origin 原参数重开一局（服务重启自动重建同款），未保存的修改即弃。
+  if (planSession && planSession.origin) {
+    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
+    re.onclick = () => busy(re, async () => {
+      const holder = addMsg("flow-plan", "sys", "🔄 按原参数重新规划中…");
+      try {
+        const orig = planSession.origin;
+        const body = await api("/api/v1/plan/start", orig);
+        planSetSession({ session_id: body.session_id, state: body.state, origin: orig });
+        holder.textContent = "";
+        planRenderSafe(holder, body);
+        toast("已重新规划");
+      } catch (err) {
+        holder.textContent = "❌ 重新规划失败：" + detailText(err.detail);
+        failToast(err);
+      }
+      document.getElementById("flow-plan").scrollTop = 1e9;
+    });
+    bar.appendChild(re);
+  }
+  // 已存行程的修改会话（itinEdit 载入，origin 为 null）：重新规划 = 丢掉未保存
+  // 修改回到全新规划表单；导出/分享直接吃行程号（2026-10-24 规划页三键）。
+  if (planSession && planSession.itin_id) {
+    const rLike = { itinerary_id: planSession.itin_id, cities: planSession.itin_cities || (plan.cities || []) };
+    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
+    re.onclick = () => {
+      if (!confirm("回到全新规划？当前未保存的修改会丢弃。")) return;
+      planSetSession(null);
+      document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
+      addMsg("flow-plan", "sys", "已回到全新规划：上方填城市/天数后点「🚀 开始规划」。");
+      toast("已回到全新规划：上方填城市/天数后点「🚀 开始规划」");
+      document.getElementById("flow-plan").scrollTop = 0;
+    };
+    const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
+    ex.onclick = () => itinExport(rLike, ex);
+    const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
+    sh.onclick = () => itinShareOn(rLike, sh);
+    bar.appendChild(ex);
+    bar.appendChild(sh);
+    bar.appendChild(re); // 重新规划紧跟分享右边（2026-10-24，不钉最右）
+  }
   return bar;
 }
 function violationsNode(vs, title) {
@@ -1147,13 +1487,13 @@ function planRouteForm() {
   const viaOpts = '<option value="">（不经过）</option>' + opts;
   const s = document.getElementById("planStartCity");
   const e = document.getElementById("planEndCity");
-  s.innerHTML = opts; s.value = "北京";
-  e.innerHTML = opts; e.value = "上海";
+  s.innerHTML = opts; s.value = "上海";
+  e.innerHTML = opts; e.value = "杭州";
   // 浏览器表单恢复可能带回 0/空天数：初始化时归位默认值
   // （起始城市 0 天是设计如此——只排出发交通不计入合计）
   const num = (id) => parseInt(document.getElementById(id).value, 10);
   if (!(num("planStartDays") >= 0)) document.getElementById("planStartDays").value = 0;
-  if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 6;
+  if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 1;
   for (let i = 1; i <= 3; i++) {
     if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
   }
@@ -1195,21 +1535,70 @@ function planDateIso(n) {
 }
 let planSession = null; // {session_id, state}
 
+const PLAN_SESSION_KEY = "chinatrip_plan_session";
+function planSummaryRefresh() {
+  try {
+    const r = planRouteForm();
+    document.getElementById("planSummaryText").textContent =
+      r.cities.join("→") + " · 共 " + r.total + " 天" + (PLAN.startDate ? " · " + PLAN.startDate.slice(5) : "");
+  } catch (_) { document.getElementById("planSummaryText").textContent = "改参数"; }
+}
 function planSetSession(s) {
+  // 会话激活时参数表单收成一行摘要（2026-10-24 实测：矮视口/系统缩放下表单+输入框最小高度超出可视区，
+  // flex 会把输入框挤出屏幕——收起表单把空间还给对话流；点摘要随时展开改参数）
   planSession = s;
-  document.getElementById("planSetup").style.display = s ? "none" : "flex";
-  document.getElementById("planResetBar").style.display = s ? "flex" : "none";
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天" : "可先粘贴链接或输入要求，点上方「🚀 开始规划」会自动带上；开始后在这里继续对话调整";
-  document.getElementById("planStateTag").textContent = s ? "会话 " + s.session_id.slice(0, 8) + "… · 状态 " + s.state : "";
+  try { // 会话指针持久化（2026-10-24 用户规则：已有行程的对话要继续下去——刷新不能把它变回全新规划）
+    if (s) localStorage.setItem(PLAN_SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(PLAN_SESSION_KEY);
+  } catch (_) {}
+  const form = document.getElementById("planSetup");
+  const bar = document.getElementById("planSummaryBar");
+  if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
+  else { form.style.display = "flex"; bar.style.display = "none"; }
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
+}
+document.getElementById("planSummaryToggle").onclick = () => {
+  const form = document.getElementById("planSetup");
+  const opening = form.style.display === "none";
+  form.style.display = opening ? "flex" : "none";
+  document.getElementById("planSummaryToggle").lastChild.textContent = opening ? " ▴" : " ▾";
+  if (!opening) planSummaryRefresh(); // 收起时刷新摘要
+};
+
+// 启动恢复上次规划会话（2026-10-24 用户规则）：后端会话本来就在
+// data/h5_state.db 里活着，指针 restored 后打字/回车照走 /message 继续对话；
+// 会话真被清了走既有 session_not_found 分支（有 origin 自动重建，itin 会话
+// 提示去「行程」页重新修改）。想全新开始：改参数点「🚀 开始规划」即开新局。
+try {
+  const savedSess = JSON.parse(localStorage.getItem(PLAN_SESSION_KEY) || "null");
+  if (savedSess && savedSess.session_id) {
+    planSetSession(savedSess);
+    const label = savedSess.itin_id ? "载入的行程"
+      : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.join("→") : "上次的规划");
+    addMsg("flow-plan", "sys", "已恢复上次的规划对话（" + label + "）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。");
+  }
+} catch (_) {}
+
+// 链接必去确认 chips：一轮只开一次——回合关闭（确认成功/文字回答/新链接轮）
+// 后旧 chips 就地失效，防止再点打出 409 not_awaiting_sites 吓到用户。
+let siteChipBoxes = [];
+function closeSiteChipBoxes() {
+  siteChipBoxes.forEach(box => box.querySelectorAll("button").forEach(b => {
+    b.disabled = true; b.style.opacity = ".45"; b.onclick = null;
+    if (b.textContent === "请求中…") b.textContent = "✅ 已确认"; // busy() 的 finally 不再复活它
+  }));
+  siteChipBoxes = [];
 }
 
 // 渲染 /plan/start 或 /plan/{id}/message 的响应（clarify 追问 / 行程卡 / 快捷条 / 违规）。
 function planRenderReply(holder, body, opts) {
   holder.textContent = "";
+  if (!(body.state === "site_confirm" && (body.sites || []).length)) closeSiteChipBoxes();
   if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
   if (body.state === "site_confirm" && (body.sites || []).length) {
     // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
-    holder.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：</div>"));
+    const box = el('<div class="site-confirm-box"></div>');
+    box.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：</div>"));
     const row = el('<div class="chips"></div>');
     const must = new Set();
     body.sites.forEach(s => {
@@ -1220,12 +1609,14 @@ function planRenderReply(holder, body, opts) {
       };
       row.appendChild(b);
     });
-    holder.appendChild(row);
+    box.appendChild(row);
     const row2 = el('<div class="chips"></div>');
     const ok = el('<button class="chip">✅ 确认</button>');
     ok.onclick = (e) => busy(e.target, () => planConfirmSites(body.sites, must));
     row2.appendChild(ok);
-    holder.appendChild(row2);
+    box.appendChild(row2);
+    holder.appendChild(box);
+    siteChipBoxes.push(box);
     if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
@@ -1289,8 +1680,8 @@ function planRenderReply(holder, body, opts) {
     if (body.change) holder.appendChild(changeNode(body.change));
     if (body.plan) {
       holder.appendChild(planCard(body.plan));
-      holder.appendChild(planSaveBar(body.plan)); // 满意了点保存才写库+冻结快照（不自动保存）
       holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
+      holder.appendChild(planSaveBar(body.plan)); // 保存/重新规划/导出/分享整行压在预订行下面（2026-10-24）
     } else if (!body.reply) {
       holder.appendChild(el('<div class="muted">（本轮没有返回行程数据）</div>'));
     }
@@ -1315,7 +1706,7 @@ async function planStartCore(extraPref) {
   addMsg("flow-plan", "user", "开始规划：" + r.cities.join("→") + "，共 " + r.total + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays });
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined });
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
@@ -1352,14 +1743,20 @@ async function planConfirmSites(allSites, must) {
   addMsg("flow-plan", "user", "✅ 必去：" + (mand.join("、") || "（未选）"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在写入心愿单…");
   try {
+    if (planSession.state !== "site_confirm") throw { status: 409, detail: "not_awaiting_sites" };
     const body = await api("/api/v1/plan/" + planSession.session_id + "/sites/confirm", { mandatory: mand });
     planSession.state = body.state;
-    document.getElementById("planStateTag").textContent =
-      "会话 " + planSession.session_id.slice(0, 8) + "… · 状态:" + body.state;
-    planRenderSafe(holder, body);
+    planRenderSafe(holder, body); // 非 site_confirm 状态会顺手关掉旧 chips
   } catch (err) {
-    holder.textContent = "❌ 确认失败：" + detailText(err.detail);
-    failToast(err);
+    if (err && err.detail === "not_awaiting_sites") {
+      // 迟到的确认（已确认过/文字已回答/服务重启换新会话）：不是故障，
+      // 提示改走对话，别再吓用户，也不弹红色 toast。
+      holder.textContent = "ℹ️ 这轮必去确认已经结束（可能已确认过）。想加的地点直接在下面发消息告诉我即可。";
+      closeSiteChipBoxes();
+    } else {
+      holder.textContent = "❌ 确认失败：" + detailText(err.detail);
+      failToast(err);
+    }
   }
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
@@ -1368,8 +1765,8 @@ async function planSend() {
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
-  if (!planSession) { // 产品规则 2026-10-19：只有点「🚀 开始规划」才开规划
-    addMsg("flow-plan", "sys", "请先在上方选好路线，点「🚀 开始规划」；你输入的内容已保留，点开始规划时会自动带上。");
+  if (!planSession) { // 自由对话（2026-10-24）：无会话打字即开规划，文字并入偏好，与「开始规划」按钮同路
+    await planStartButton();
     return;
   }
   input.value = "";
@@ -1378,7 +1775,6 @@ async function planSend() {
   try {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = body.state;
-    document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + body.state;
     planRenderSafe(holder, body);
   } catch (err) {
     if (err && err.detail === "session_not_found" && planSession && planSession.origin) {
@@ -1406,7 +1802,6 @@ async function planResendAfterRestart(holder, text, input) {
     const h2 = addMsg("flow-plan", "sys", "⏳ 重发中…");
     const b2 = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = b2.state;
-    document.getElementById("planStateTag").textContent = "会话 " + planSession.session_id.slice(0, 8) + "… · 状态 " + b2.state;
     planRenderSafe(h2, b2);
   } catch (e2) {
     planSetSession(null);
@@ -1419,10 +1814,6 @@ document.getElementById("planSend").onclick = (e) => busy(e.target, planSend);
 document.getElementById("planInput").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); planSend(); }
 });
-document.getElementById("planNew").onclick = () => {
-  planSetSession(null);
-  addMsg("flow-plan", "sys", "已开启新对话。重新选择参数后点「开始规划」。");
-};
 
 /* ================= Tab 2：翻译 ================= */
 
@@ -2169,6 +2560,9 @@ async function itinSavedLoad() {
         ops.appendChild(b);
       };
       mk("✏️ 修改", (b) => itinEdit(r, b));
+      mk("⬇️ 导出", (b) => itinExport(r, b));
+      mk(r.share_enabled ? "🔗 复制链接" : "🔗 分享", (b) => itinShareOn(r, b));
+      if (r.share_enabled) mk("🚫 关闭分享", (b) => itinShareOff(r, b));
       mk("🗑 删除", (b) => {
         const label = (r.cities || []).join(" → ") || r.itinerary_id;
         if (!confirm("确定删除行程「" + label + "」（" + r.itinerary_id + "）？将连同它的全部快照一起删除，操作不可恢复。")) return;
@@ -2196,7 +2590,11 @@ async function itinEdit(r, btn) {
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
-      planSetSession({ session_id: body.session_id, state: body.state, origin: null }); // 无 origin：会话丢失提示重新修改，不做自动重建
+      // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准
+      PLAN.startDate = (body.plan && body.plan.start_date) || "";
+      if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
+      // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
+      planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");
       addMsg("flow-plan", "user", "✏️ 修改行程：" + (r.cities || []).join(" → ") + "（" + r.itinerary_id + "）");
       const holder = addMsg("flow-plan", "sys", "");
@@ -2206,6 +2604,195 @@ async function itinEdit(r, btn) {
       toast("已载入到规划页：直接说要怎么改；改完点「💾 保存行程」覆盖保存");
     } catch (err) { failToast(err); }
   });
+}
+
+// 进页默认打开最新行程（2026-10-24）：挑 updated_at 最新的一张走 ✏️ 修改
+// 的载入链路落到规划页；分享视图（?share= 只读覆盖层在上）跳过，接口失败
+// 静默留在空白规划页。本设备零行程时 toast 点明（设备隔离，换浏览器/手机
+// 不共享——排障时别把它误判成功能没生效）。
+async function autoOpenLatestItin() {
+  if (shareParam) { console.info("[itin] share view, skip auto-open"); return; }
+  try {
+    const rows = await api("/api/v1/itineraries", undefined, "GET");
+    if (!rows || !rows.length) {
+      toast("本设备暂无已存行程——换浏览器/手机不共享，可在「行程」页确认");
+      return;
+    }
+    const latest = rows.reduce((a, b) =>
+      ((b.updated_at || b.created_at || "") > (a.updated_at || a.created_at || "") ? b : a));
+    console.info("[itin] auto-open latest:", latest.itinerary_id);
+    await itinEdit(latest, el("<span></span>")); // 假按钮：busy 只改 textContent
+  } catch (e) { console.warn("[itin] auto-open failed:", e); }
+}
+
+/* ---- 🔗 公开分享：开关 + 复制 + 只读视图（/s/{token} 跳到 ?share=） ---- */
+
+// 复制文本：clipboard API 只在 https/localhost 放行，局域网 HTTP 页面走 textarea 兜底
+async function copyText(t) {
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch (e) { /* 兜底 */ }
+  const ta = document.createElement("textarea");
+  ta.value = t;
+  ta.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+// 开分享 / 复制链接共用（幂等：重复开不变 token、不换链接）
+async function itinShareOn(r, btn) {
+  await busy(btn, async () => {
+    try {
+      const body = await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: true });
+      const url = (apiBase() || location.origin) + "/s/" + body.share_token;
+      await copyText(url);
+      shareLinkCard(url); // 链接做成真超链卡片（toast 是纯文本点不了）
+      await itinSavedLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+// 分享链接卡片：可点击的 <a>（新标签打开）+ 复制按钮，替代纯文本 toast
+function shareLinkCard(url) {
+  const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
+    '<div class="card" style="min-width:280px;max-width:90vw;padding:16px">' +
+    "<h4 style=\"margin:0 0 10px\">🔗 分享链接（只读，已复制到剪贴板）</h4>" +
+    '<div style="margin-bottom:12px;word-break:break-all"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></div>" +
+    '<div style="display:flex;gap:8px">' +
+    '<button class="btn" data-a="copy">📋 再复制一次</button>' +
+    '<button class="btn ghost" data-a="close">关闭</button>' +
+    "</div></div></div>");
+  mask.addEventListener("click", (ev) => {
+    const b = ev.target.closest ? ev.target.closest("button[data-a]") : null;
+    if (!b || !mask.contains(b)) return;
+    if (b.getAttribute("data-a") === "copy") {
+      busy(b, async () => { await copyText(url); toast("已复制"); });
+    } else mask.remove();
+  });
+  document.body.appendChild(mask);
+}
+
+async function itinShareOff(r, btn) {
+  if (!confirm("关闭后分享链接立即失效（再次开启还是同一个链接）。确定关闭？")) return;
+  await busy(btn, async () => {
+    try {
+      await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: false });
+      toast("已关闭分享，公开链接已失效");
+      await itinSavedLoad();
+    } catch (err) { failToast(err); }
+  });
+}
+
+// 只读分享视图：全屏浮层，逐天逐站列出（不含预订/账号等隐私字段，公开接口只回白名单）
+async function shareOpen(token) {
+  const ov = el('<div id="shareView" style="position:fixed;inset:0;z-index:9999;background:#f6f7fb;overflow:auto;padding:16px"></div>');
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:60px 0">行程加载中…</div>'));
+  document.body.appendChild(ov);
+  let d;
+  try {
+    d = await api("/api/v1/public/trips/" + encodeURIComponent(token), undefined, "GET");
+  } catch (err) {
+    ov.textContent = "";
+    const box = el('<div class="card" style="max-width:520px;margin:60px auto;text-align:center"></div>');
+    if (err.status === 404) {
+      box.appendChild(el('<h3>🔗 链接已失效</h3>'));
+      box.appendChild(el('<div class="muted">行程不存在，或作者已关闭分享。</div>'));
+    } else {
+      box.appendChild(el('<h3>⚠️ 加载失败</h3>'));
+      box.appendChild(el('<div class="muted">' + esc(detailText(err.detail)) + "</div>"));
+    }
+    ov.appendChild(box);
+    return;
+  }
+  ov.textContent = "";
+  const head = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
+  head.appendChild(el('<h3 style="margin:0 0 6px">🗺 ' + esc(d.title) + "</h3>"));
+  head.appendChild(el('<div class="muted">共 ' + d.days_count + " 天 · " + d.stops_count + " 个行程点 · 只读分享</div>"));
+  ov.appendChild(head);
+  (d.days || []).forEach(day => {
+    const card = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
+    card.appendChild(el('<h4 style="margin:0 0 8px">Day ' + day.day + " · " + esc(shortCity(day.base_city)) + "</h4>"));
+    const list = el('<div style="display:flex;flex-direction:column;gap:6px"></div>');
+    (day.items || []).forEach(it => {
+      const t = (it.start_time || "").slice(0, 5);
+      if (it.kind === "transfer") {
+        list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
+          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(shortCity(it.from_city)) + " → " + esc(shortCity(it.to_city)) +
+          (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + " 分钟" : "") + "</span></div>"));
+      } else {
+        list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +
+          (it.address || it.opening_hours
+            ? '<div class="muted" style="font-size:12px">' + (it.address ? "📍 " + esc(it.address) : "") +
+              (it.opening_hours ? (it.address ? " · " : "") + "🕐 " + esc(it.opening_hours) : "") + "</div>"
+            : "") + "</span></div>"));
+      }
+    });
+    if (!(day.items || []).length) list.appendChild(el('<div class="muted">（当天无安排）</div>'));
+    card.appendChild(list);
+    ov.appendChild(card);
+  });
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:12px 0 24px">由 ChinaTrip 行程助手生成 · <a href="/h5/">我也想做一个行程</a></div>'));
+}
+
+// 首开带 ?share={token}：只读视图直接盖在最上层（接收者无需登录/设备号）
+const shareParam = new URLSearchParams(location.search).get("share");
+if (shareParam) shareOpen(shareParam);
+
+// ⬇️ 导出（2026-10-23）：单弹窗选格式（照 TREK TripExportModal 收敛为一个入口）。
+// PDF = 后端打印 HTML → 沙箱 iframe → 浏览器打印对话框选「另存为 PDF」（零依赖矢量方案）；
+// Word/Excel = 后端 python-docx/openpyxl 生成的二进制，走 blob 下载，文件名取自 Content-Disposition。
+function itinExport(r, btn) {
+  const label = (r.cities || []).join(" → ") || r.itinerary_id;
+  const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
+    '<div class="card" style="min-width:280px;max-width:90vw;padding:16px">' +
+    "<h4 style=\"margin:0 0 12px\">导出行程「" + esc(label) + "」</h4>" +
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+    '<button class="btn" data-fmt="pdf">📄 PDF（打印后选「另存为 PDF」）</button>' +
+    '<button class="btn" data-fmt="docx">📝 Word 文档</button>' +
+    '<button class="btn" data-fmt="xlsx">📊 Excel 表格</button>' +
+    '<button class="btn ghost" data-fmt="close">取消</button>' +
+    "</div></div></div>");
+  mask.addEventListener("click", (ev) => {
+    const b = ev.target.closest ? ev.target.closest("button[data-fmt]") : null;
+    if (!b || !mask.contains(b)) return;
+    const fmt = b.getAttribute("data-fmt");
+    if (fmt === "close") { mask.remove(); return; }
+    busy(b, async () => {
+      try {
+        if (fmt === "pdf") await exportPrint(r.itinerary_id);
+        else await exportDownload(r.itinerary_id, fmt);
+        toast("已生成「" + label + "」导出");
+      } catch (err) { failToast(err); }
+      mask.remove();
+    });
+  });
+  document.body.appendChild(mask);
+}
+
+// PDF：取打印 HTML → 沙箱 iframe → contentWindow.print()；iframe 延迟移除以免打印内容被提前回收
+async function exportPrint(itinId) {
+  const res = await apiRaw("/api/v1/itineraries/" + encodeURIComponent(itinId) + "/export?format=pdf");
+  const html = await res.text();
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  frame.sandbox = "allow-same-origin allow-modals";
+  frame.srcdoc = html;
+  frame.onload = () => {
+    try { frame.contentWindow.print(); }
+    finally { setTimeout(() => frame.remove(), 60000); }
+  };
+  document.body.appendChild(frame);
+}
+
+async function exportDownload(itinId, fmt) {
+  const res = await apiRaw("/api/v1/itineraries/" + encodeURIComponent(itinId) + "/export?format=" + fmt);
+  const blob = await res.blob();
+  saveBlob(blob, cdFilename(res, "行程." + fmt));
 }
 
 document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", () => itinSavedLoad());
@@ -2535,15 +3122,28 @@ function tcDelete(item, btn) {
   });
 }
 
-// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）
+// note 里的 URL 渲染成可点链接，其余文本照常转义
+function noteHtml(note) {
+  if (!note) return "";
+  return String(note).split(/(https?:\/\/[^\s（）()，,]+)/).map(seg => {
+    if (/^https?:\/\//.test(seg)) return '<a href="' + esc(seg) + '" target="_blank" rel="noopener">🔗 链接</a>';
+    return esc(seg);
+  }).join("");
+}
+
+// 三态卡：wishlist（排期/删除）· scheduled（标记已订/撤销排期/删除）· booked（撤销回心愿单，不可删）· unwanted（恢复/删除）
 function tcTile(item) {
-  const t = el('<div class="tile"></div>');
-  const head = el('<div><b>' + esc(item.name) + "</b>" +
-    (item.city ? " · " + esc(item.city) : "") +
-    (item.note ? ' <span class="muted">' + esc(item.note) + "</span>" : "") +
-    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></div>");
-  if (item.status === "booked") head.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
-  if (item.status === "scheduled") head.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
+  const t = el('<div class="tile" data-id="' + esc(item.id) + '"></div>');
+  const drag = (item.status === "scheduled" || item.status === "wishlist")
+    ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
+  const head = el('<div class="tile-head"><span>' + drag + '<b>' + esc(item.name) + "</b>" +
+    (item.note ? ' <span class="muted">' + noteHtml(item.note) + "</span>" : "") +
+    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></span>" +
+    (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>"
+      : (item.source === "manual" ? '<span class="tile-city">都可以</span>' : "")) + "</div>");
+  const headLeft = head.firstChild; // 状态徽标并入左侧文本段（右侧留给城市）
+  if (item.status === "booked") headLeft.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
+  if (item.status === "scheduled") headLeft.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
   const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("　");
   if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
@@ -2570,6 +3170,9 @@ function tcTile(item) {
   } else if (item.status === "booked") {
     mk("↩️ 撤销（回心愿单）", (b) => tcPatch(item, { status: "wishlist" }, b));
     t.appendChild(el('<div class="muted" style="margin-top:4px">booked 不可删除（422），可撤销回心愿单。</div>'));
+  } else if (item.status === "unwanted") {
+    mk("💡 恢复", (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk("🗑 删除", (b) => tcDelete(item, b));
   }
   t.appendChild(ops);
   return t;
@@ -2590,27 +3193,92 @@ async function tcLoad() {
     const q = document.getElementById("tcItinId").value.trim();
     const body = await api("/api/v1/trip-items" + (q ? "?itinerary_id=" + encodeURIComponent(q) : ""), undefined, "GET");
     TRIP.loaded = true;
+    TRIP.byId = {};
+    const reg = (it) => { TRIP.byId[it.id] = it; return it; };
     const bookings = body.bookings || [], scheduled = body.scheduled || [], wishlist = body.wishlist || [];
     const z1 = tcZone("✅", "已预订（Bookings 置顶）", bookings.length, "");
     if (!bookings.length) z1.cards.appendChild(el('<div class="muted">暂无已预订条目。</div>'));
-    bookings.forEach(it => z1.cards.appendChild(tcTile(it)));
+    bookings.forEach(it => z1.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z1.z);
-    const z2 = tcZone("📅", "已排期（按天分组）", scheduled.length, "");
-    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」。</div>'));
+    const z2 = tcZone("📅", "已排期（按天分组 · 拖 ⠿ 排序/跨天）", scheduled.length, "");
+    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」或拖心愿卡进某天。</div>'));
     const byDay = {};
     scheduled.forEach(it => { const d = it.day || 0; (byDay[d] = byDay[d] || []).push(it); });
     Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach(d => {
-      z2.cards.appendChild(el('<div class="day-h">第 ' + d + " 天</div>"));
-      byDay[d].forEach(it => z2.cards.appendChild(tcTile(it)));
+      const blk = el('<div><div class="day-h">第 ' + d + " 天</div></div>");
+      const tiles = el('<div class="day-tiles" data-day="' + d + '"></div>');
+      byDay[d].forEach(it => tiles.appendChild(tcTile(reg(it))));
+      blk.appendChild(tiles);
+      z2.cards.appendChild(blk);
     });
     box.appendChild(z2.z);
     const z3 = tcZone("💡", "心愿单（新的在前）", wishlist.length, "");
     if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
-    wishlist.forEach(it => z3.cards.appendChild(tcTile(it)));
+    z3.cards.classList.add("day-tiles");
+    z3.cards.dataset.wishlist = "1";
+    wishlist.forEach(it => z3.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z3.z);
+    const unwanted = body.unwanted || [];
+    const z4 = tcZone("🚫", "不想去", unwanted.length, "");
+    if (!unwanted.length) z4.cards.appendChild(el('<div class="muted">暂无「不想去」条目。</div>'));
+    unwanted.forEach(it => z4.cards.appendChild(tcTile(reg(it))));
+    box.appendChild(z4.z);
+    tcInitSortables();
   } catch (err) {
     failToast(err);
     box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));
+  }
+}
+
+// 拖拽排序：⠿ 把手即拖（Wanderlog 式）。同天重排 / 跨天移动 / 心愿单拖入即排期。
+// position 走中点插入法，落库只需单条 PATCH（后端 day+position 原生支持）。
+let tcSortables = [];
+function tcInitSortables() {
+  tcSortables.forEach(s => s.destroy());
+  tcSortables = [];
+  if (typeof Sortable === "undefined") return; // sortable.min.js 缺失时降级为纯按钮操作
+  const common = {
+    handle: ".drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+  };
+  document.querySelectorAll("#flow-trips .day-tiles[data-day]").forEach(box => {
+    tcSortables.push(new Sortable(box, Object.assign({}, common, {
+      group: "tcday",
+      onEnd: tcOnDrop,
+    })));
+  });
+  const wish = document.querySelector('#flow-trips .day-tiles[data-wishlist]');
+  if (wish) tcSortables.push(new Sortable(wish, Object.assign({}, common, {
+    group: { name: "tcday", pull: true, put: false }, // 只出不进：撤销排期仍走按钮
+    onEnd: tcOnDrop,
+  })));
+}
+async function tcOnDrop(evt) {
+  const item = (TRIP.byId || {})[evt.item.dataset.id];
+  const day = parseInt(evt.to.dataset.day, 10);
+  if (!item || !day) { tcLoad(); return; } // 拖回心愿单内部等无效落点 → 按服务端顺序重渲
+  const fromWish = evt.from.hasAttribute("data-wishlist");
+  const tiles = Array.from(evt.to.querySelectorAll(":scope > .tile"));
+  const idx = tiles.indexOf(evt.item);
+  const posOf = (n) => { const o = TRIP.byId[tiles[n].dataset.id]; return o ? o.position : null; };
+  const prev = idx > 0 ? posOf(idx - 1) : null;
+  const next = idx < tiles.length - 1 ? posOf(idx + 1) : null;
+  let position;
+  if (prev != null && next != null) position = (prev + next) / 2;
+  else if (prev != null) position = prev + 1;
+  else if (next != null) position = Math.max(next - 1, 0.001);
+  else position = 1.0;
+  if (!fromWish && evt.from === evt.to && item.day === day && item.position === position) return;
+  try {
+    const fields = fromWish ? { status: "scheduled", day, position } : { day, position };
+    await api("/api/v1/trip-items/" + item.id, fields, "PATCH");
+    toast(fromWish ? "已排到第 " + day + " 天" : "顺序已更新（第 " + day + " 天）");
+    await tcLoad();
+  } catch (err) {
+    failToast(err);
+    tcLoad(); // PATCH 失败回滚到服务端权威顺序
   }
 }
 document.getElementById("tcRefresh").onclick = (e) => busy(e.target, tcLoad);
@@ -2618,11 +3286,12 @@ document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
   const name = document.getElementById("tcName").value.trim();
   if (!name) { toast("心愿名必填"); return; }
   const city = document.getElementById("tcCity").value.trim();
+  if (!city) { toast("城市必选（不限城市就填「都可以」）"); return; }
   const note = document.getElementById("tcNote").value.trim();
   const hours = document.getElementById("tcHours").value.trim();
   const itin = document.getElementById("tcItinId").value.trim();
   const body = { name, source: "manual" };
-  if (city) body.city = city;
+  if (city !== "都可以") body.city = city;
   if (note) body.note = note;
   if (hours) body.opening_hours = hours;
   if (itin) body.itinerary_id = itin;
@@ -2926,12 +3595,21 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从北京到上海 6 天，喜欢博物馆）回车即开始规划；也可在上方选城市/天数/偏好后点「🚀 开始规划」。信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
+addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
 addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
 
 planSetSession(null);
+autoOpenLatestItin();
+wxSync();
+
+/* ---- PWA：注册 service worker（离线缓存，surmai 同款 app-shell 策略） ---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

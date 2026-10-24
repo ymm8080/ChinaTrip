@@ -6,11 +6,14 @@ registered in app/main.py — the orchestrator wires it.
 """
 
 import logging
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.services import trip_export
 from app.services.accounts import AccountService, parse_bearer_token
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import DiffOp, PipelineError, PoiHours
@@ -157,6 +160,7 @@ def _summary(record: ItineraryRecord) -> dict:
         "snapshot_count": len(record.snapshots),
         "created_at": created_at,
         "updated_at": updated_at,
+        "share_enabled": record.share_enabled,
     }
 
 
@@ -292,6 +296,44 @@ async def restore_snapshot(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="snapshot_not_found") from exc
     return record
+
+
+@router.get("/itineraries/{itinerary_id}/export")
+async def export_itinerary(
+    itinerary_id: str,
+    fmt: str = Query("pdf", alias="format", pattern="^(pdf|docx|xlsx)$"),
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> Response:
+    """行程导出（2026-10-23，gap #2 行程的出口）：pdf = 打印 HTML（前端
+    iframe 调浏览器「另存为 PDF」，TREK 零依赖方案）；docx / xlsx = 服务端
+    生成二进制。鉴权与其余路由一致：跨 owner 一律 404。"""
+    device = _require_device(x_device_id)
+    record = _owned_record(store, itinerary_id, device, account)
+    filename = quote(trip_export.safe_filename(record.plan))
+    if fmt == "pdf":
+        return HTMLResponse(
+            trip_export.render_html(record.plan),
+            headers={
+                "Content-Disposition": f"inline; filename*=UTF-8''{filename}.html"
+            },
+        )
+    if fmt == "docx":
+        data = trip_export.render_docx(record.plan)
+        media = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    else:
+        data = trip_export.render_xlsx(record.plan)
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return Response(
+        content=data,
+        media_type=media,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}.{fmt}"
+        },
+    )
 
 
 @router.delete("/itineraries/{itinerary_id}", status_code=204)

@@ -11,6 +11,7 @@ from app.config import Settings, get_settings
 from app.services.amap_client import (
     AmapClient,
     AmapError,
+    AmapQuotaExhaustedError,
     AmapTimeoutError,
     _normalize_poi,
 )
@@ -33,6 +34,10 @@ SUCCESS_BODY = {
             "pname": "上海市",
             "cityname": "上海市",
             "biz_ext": {"opening": "全年 周一至周日 05:00-23:00", "rating": "4.7"},
+            "photos": [
+                {"title": "人民广场全景", "url": "https://aos-comment.amap.com/1.jpg"},
+                {"title": "无链接图", "url": []},
+            ],
         },
         {
             "id": "B0FFI9BOII",
@@ -212,11 +217,15 @@ def test_client_success_normalizes_and_carries_key():
     assert first["location"] == {"lon": 121.473667, "lat": 31.230525}
     assert first["opening_hours"] == "全年 周一至周日 05:00-23:00"
     assert first["rating"] == "4.7"
+    assert first["photos"] == [
+        {"url": "https://aos-comment.amap.com/1.jpg", "title": "人民广场全景"}
+    ]
     second = items[1]
     assert second["location"] is None
     assert second["city"] == "江苏省"
     assert second["opening_hours"] is None
     assert second["rating"] is None
+    assert "photos" not in second  # 无 photos 键不炸、不落空键
     assert API_KEY not in json.dumps(items, ensure_ascii=False)
 
 
@@ -229,6 +238,14 @@ def test_client_status_zero_raises_amap_error():
     assert excinfo.value.infocode == "10001"
     assert "INVALID_USER_KEY" in str(excinfo.value)
     assert API_KEY not in str(excinfo.value)
+
+
+def test_client_quota_exhausted_raises_quota_error():
+    # v3 text 的 10021 须浮出专用异常，match_and_enrich 熔断才有信号
+    handler, _ = ok_handler(QUOTA_BODY)
+    with pytest.raises(AmapQuotaExhaustedError) as excinfo:
+        asyncio.run(make_client(handler).search_poi("food"))
+    assert excinfo.value.infocode == "10021"
 
 
 def test_client_connect_timeout_raises_timeout_error():
@@ -605,6 +622,28 @@ def test_normalize_poi_accepts_v5_style_top_level_hours():
     assert _normalize_poi(poi)["opening_hours"] == "08:00-18:00"
 
 
+def test_normalize_poi_photos_v3_v5_shapes_and_missing_key():
+    v3 = _normalize_poi(
+        {
+            "name": "A",
+            "photos": [
+                {"title": "全景", "url": "https://x/1.jpg"},
+                {"title": [], "url": []},  # 空 url 丢弃
+                {"title": "缺链接"},
+                "junk",  # 非字典丢弃
+            ],
+        }
+    )
+    assert v3["photos"] == [{"url": "https://x/1.jpg", "title": "全景"}]
+    v5 = _normalize_poi(
+        {"name": "B", "photos": [{"title": [], "url": "https://x/2.jpg"}]}
+    )
+    assert v5["photos"] == [{"url": "https://x/2.jpg", "title": None}]
+    assert "photos" not in _normalize_poi({"name": "C"})
+    assert "photos" not in _normalize_poi({"name": "D", "photos": []})
+    assert "photos" not in _normalize_poi({"name": "E", "photos": "not-a-list"})
+
+
 def test_normalize_poi_prefers_biz_ext_over_v5_fields():
     poi = {
         "name": "某景点",
@@ -639,3 +678,125 @@ def test_distance_parses_walking_results():
         {"distance_m": 1234, "duration_s": 900},
         {"distance_m": 0, "duration_s": 0},
     ]
+
+
+QUOTA_BODY = {
+    "status": "0",
+    "info": "USER_DAILY_QUERY_OVER_LIMIT",
+    "infocode": "10021",
+}
+
+V5_AROUND_OK_BODY = {
+    "status": "1",
+    "info": "OK",
+    "infocode": "10000",
+    "pois": [
+        {
+            "id": "B000A8UIN8",
+            "name": "故宫博物院",
+            "address": "景山前街4号",
+            "business": {
+                "opentime_week": "周二-周日 08:30-17:00（16:00停止入院）",
+                "rating": "4.9",
+            },
+        }
+    ],
+}
+
+
+def test_search_hours_text_quota_raises_quota_error():
+    # 10021 从 _request_json 路径浮出为专用异常（AmapError 子类）
+    handler, captured = ok_handler(QUOTA_BODY)
+    with pytest.raises(AmapQuotaExhaustedError) as excinfo:
+        asyncio.run(make_client(handler).search_hours("故宫博物院"))
+    assert isinstance(excinfo.value, AmapError)
+    assert excinfo.value.infocode == "10021"
+    assert captured[0].url.path.endswith("/v5/place/text")
+
+
+def test_search_hours_without_location_no_around_fallback():
+    handler, captured = ok_handler(QUOTA_BODY)
+    with pytest.raises(AmapQuotaExhaustedError):
+        asyncio.run(make_client(handler).search_hours("故宫博物院"))
+    assert len(captured) == 1  # 无 location 不做 around 兜底
+
+
+def test_search_hours_quota_falls_back_to_around_and_returns_hit():
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.path.endswith("/v5/place/text"):
+            return httpx.Response(200, json=QUOTA_BODY)
+        return httpx.Response(200, json=V5_AROUND_OK_BODY)
+
+    result = asyncio.run(
+        make_client(handler).search_hours(
+            "故宫博物院", "北京", location="116.397,39.917"
+        )
+    )
+    assert calls[0].url.path.endswith("/v5/place/text")
+    assert calls[1].url.path.endswith("/v5/place/around")
+    around_params = calls[1].url.params
+    assert around_params["keywords"] == "故宫博物院"
+    assert around_params["location"] == "116.397,39.917"
+    assert around_params["radius"] == "3000"
+    assert around_params["page_size"] == "1"
+    assert around_params["show_fields"] == "business,photos"
+    assert "city" not in around_params
+    assert "city_limit" not in around_params
+    assert result == {
+        "opening_hours": "周二-周日 08:30-17:00（16:00停止入院）",
+        "rating": "4.9",
+        "matched": "故宫博物院",
+        "address": "景山前街4号",
+        "poi_id": "B000A8UIN8",
+    }
+
+
+def test_search_hours_around_also_quota_reraises_original_text_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=QUOTA_BODY)
+
+    with pytest.raises(AmapQuotaExhaustedError) as excinfo:
+        asyncio.run(
+            make_client(handler).search_hours(
+                "故宫博物院", "北京", location="116.397,39.917"
+            )
+        )
+    assert excinfo.value.infocode == "10021"
+    assert API_KEY not in str(excinfo.value)
+
+
+def test_search_hours_non_quota_error_stays_plain_amap_error():
+    handler, captured = ok_handler(ERROR_BODY)
+    with pytest.raises(AmapError) as excinfo:
+        asyncio.run(
+            make_client(handler).search_hours(
+                "故宫博物院", "北京", location="116.397,39.917"
+            )
+        )
+    assert not isinstance(excinfo.value, AmapQuotaExhaustedError)
+    assert excinfo.value.infocode == "10001"
+    assert len(captured) == 1  # 非 10021 不触发 around 兜底
+
+
+def test_search_hours_over_limit_info_without_infocode_still_quota_error():
+    # amap 空串字段会以 [] 顶替 —— infocode 缺失时靠 info 兜底判配额
+    handler, _ = ok_handler(
+        {"status": "0", "info": "USER_DAILY_QUERY_OVER_LIMIT", "infocode": []}
+    )
+    with pytest.raises(AmapQuotaExhaustedError):
+        asyncio.run(make_client(handler).search_hours("故宫博物院"))
+
+
+def test_search_poi_around_quota_raises_quota_error():
+    # _pois_from_response 路径（v3 /place/around）同样浮出专用异常
+    handler, _ = ok_handler(QUOTA_BODY)
+    with pytest.raises(AmapQuotaExhaustedError) as excinfo:
+        asyncio.run(
+            make_client(handler).search_poi_around(
+                "故宫博物院", location="116.397,39.917"
+            )
+        )
+    assert excinfo.value.infocode == "10021"
