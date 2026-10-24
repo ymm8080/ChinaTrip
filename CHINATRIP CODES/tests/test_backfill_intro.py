@@ -108,7 +108,7 @@ def make_handler(
     qid: str | None = "Q123",
     claims: dict | None = None,
     zhwiki_title: str | None = "洪崖洞",
-    extract: str | None = LONG_EXTRACT,
+    wikitext: str | None = LONG_EXTRACT,
     calls: list | None = None,
 ):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -133,10 +133,10 @@ def make_handler(
                 ),
             }
             return httpx.Response(200, json={"entities": {qid: entity}})
-        if url.host == "zh.wikipedia.org" and url.path.startswith(
-            "/api/rest_v1/page/summary/"
+        if url.host == "api.wikimedia.org" and url.path.startswith(
+            "/core/v1/wikipedia/zh/page/"
         ):
-            return httpx.Response(200, json={"extract": extract})
+            return httpx.Response(200, json={"source": wikitext})
         return httpx.Response(404, json={"error": f"unexpected {url}"})
 
     return handler
@@ -164,13 +164,14 @@ def test_full_hit_fills_intro_and_photos():
         "intro_filled": 1,
         "photos_filled": 1,
         "no_entity": 0,
+        "no_sitelink": 0,
         "no_extract": 0,
         "no_p18": 0,
         "errors": 0,
     }
     assert row.intro == LONG_EXTRACT
-    # intro_source 统一标 wikidata（实为 zh.wikipedia extract，见 docstring）
-    assert row.intro_source == "wikidata"
+    # intro 取自 api.wikimedia.org 页面 wikitext 抽取（标题来自 sitelink）
+    assert row.intro_source == "wikimedia_api"
     assert row.photos_source == "wikimedia"
     assert row.photos == [
         {
@@ -184,10 +185,10 @@ def test_full_hit_fills_intro_and_photos():
     ]
     for entry in row.photos:
         assert set(entry) == {"url", "source", "license"}
-    # 请求顺序：搜索 → 实体 → summary，且都打到预期主机
+    # 请求顺序：搜索 → 实体 → zh 页面，且都打到预期主机
     assert "action=wbsearchentities" in calls[0]
     assert "Special:EntityData/Q123.json" in calls[1]
-    assert urlsplit(calls[2]).hostname == "zh.wikipedia.org"
+    assert urlsplit(calls[2]).hostname == "api.wikimedia.org"
 
 
 def test_existing_intro_not_overwritten():
@@ -235,7 +236,7 @@ def test_no_entity():
 def test_short_extract_not_used():
     row = make_poi()
     client = make_client(
-        make_handler(claims=p18_claims(P18_FILE), extract=SHORT_EXTRACT)
+        make_handler(claims=p18_claims(P18_FILE), wikitext=SHORT_EXTRACT)
     )
     stats = backfill_intro(fake_factory([row]), client, sleep_seconds=0.0)
 
@@ -300,4 +301,4 @@ def test_empty_intro_string_is_a_target():
 def test_user_agent_constant_has_contact():
     # Wikimedia UA 政策要求带联系方式
     assert "ChinaTrip-POI-library" in job.USER_AGENT
-    assert "contact:" in job.USER_AGENT
+    assert "mailto:" in job.USER_AGENT
