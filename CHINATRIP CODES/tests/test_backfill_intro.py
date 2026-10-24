@@ -109,6 +109,7 @@ def make_handler(
     claims: dict | None = None,
     zhwiki_title: str | None = "洪崖洞",
     wikitext: str | None = LONG_EXTRACT,
+    pages: dict[str, str] | None = None,
     calls: list | None = None,
 ):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -136,6 +137,9 @@ def make_handler(
         if url.host == "api.wikimedia.org" and url.path.startswith(
             "/core/v1/wikipedia/zh/page/"
         ):
+            title = unquote(url.path.removeprefix("/core/v1/wikipedia/zh/page/"))
+            if pages is not None and title in pages:
+                return httpx.Response(200, json={"source": pages[title]})
             return httpx.Response(200, json={"source": wikitext})
         return httpx.Response(404, json={"error": f"unexpected {url}"})
 
@@ -167,6 +171,7 @@ def test_full_hit_fills_intro_and_photos():
         "no_sitelink": 0,
         "no_extract": 0,
         "no_p18": 0,
+        "redirects": 0,
         "errors": 0,
     }
     assert row.intro == LONG_EXTRACT
@@ -245,6 +250,62 @@ def test_short_extract_not_used():
     assert row.intro_source is None
     # extract 不合格不影响 photos 回填
     assert stats["photos_filled"] == 1
+
+
+def test_redirect_page_follows_to_target():
+    # 「北京」是重定向页 → 跟到「北京市」拿真文（2026-10-24 实测漏抓场景）
+    row = make_poi()
+    calls: list[str] = []
+    client = make_client(
+        make_handler(
+            claims=p18_claims(P18_FILE),
+            zhwiki_title="北京",
+            pages={"北京": "#重定向[[北京市]]", "北京市": LONG_EXTRACT},
+            calls=calls,
+        )
+    )
+    stats = backfill_intro(fake_factory([row]), client, sleep_seconds=0.0)
+
+    assert row.intro == LONG_EXTRACT
+    assert row.intro_source == "wikimedia_api"
+    assert stats["intro_filled"] == 1
+    assert stats["redirects"] == 1
+    assert stats["no_extract"] == 0
+    # 两次页面请求，第二次打到重定向目标「北京市」
+    page_calls = [c for c in calls if "api.wikimedia.org" in c]
+    assert len(page_calls) == 2
+    assert unquote(urlsplit(page_calls[0]).path).endswith("/北京")
+    assert unquote(urlsplit(page_calls[1]).path).endswith("/北京市")
+
+
+def test_double_redirect_gives_up():
+    # 二跳仍是重定向 → 放弃计 no_extract，不炸、不再追第三跳（避免环）
+    row = make_poi()
+    calls: list[str] = []
+    client = make_client(
+        make_handler(
+            claims=p18_claims(P18_FILE),
+            zhwiki_title="北京",
+            pages={
+                "北京": "#REDIRECT [[北京市]]",
+                "北京市": "#重定向:[[首都]]",
+                "首都": "#重定向[[北京]]",
+            },
+            calls=calls,
+        )
+    )
+    stats = backfill_intro(fake_factory([row]), client, sleep_seconds=0.0)
+
+    assert stats["errors"] == 0
+    assert stats["redirects"] == 0
+    assert stats["intro_filled"] == 0
+    assert stats["no_extract"] == 1
+    assert row.intro is None
+    assert row.intro_source is None
+    # 只跳一跳：北京 → 北京市，没有再追 首都
+    page_calls = [c for c in calls if "api.wikimedia.org" in c]
+    assert len(page_calls) == 2
+    assert unquote(urlsplit(page_calls[1]).path).endswith("/北京市")
 
 
 def test_no_p18():

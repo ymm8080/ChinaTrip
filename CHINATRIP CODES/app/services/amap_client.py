@@ -96,11 +96,26 @@ def _normalize_regeo(data: dict) -> dict:
     }
 
 
+def _normalize_photos(photos: object) -> list[dict]:
+    # v3/v5 photos 形状一致：[{title, url}]；无 url（含空串/[]）的元素丢弃。
+    if not isinstance(photos, list):
+        return []
+    out: list[dict] = []
+    for item in photos:
+        if not isinstance(item, dict):
+            continue
+        url = _as_str(item.get("url"))
+        if not url:
+            continue
+        out.append({"url": url, "title": _as_str(item.get("title"))})
+    return out
+
+
 def _normalize_poi(poi: dict) -> dict:
     city = _as_str(poi.get("cityname")) or _as_str(poi.get("pname"))
     biz = poi.get("biz_ext")
     biz = biz if isinstance(biz, dict) else {}
-    return {
+    normalized = {
         "source": "amap",
         "source_poi_id": _as_str(poi.get("id")),
         "name": _as_str(poi.get("name")),
@@ -119,6 +134,11 @@ def _normalize_poi(poi: dict) -> dict:
         # /place/around 带回的直线距离（米，字符串）；text 结果无此字段
         "distance": _as_str(poi.get("distance")),
     }
+    # 空列表不落键：回源侧 hit.get("photos") 判空即可，不覆盖已有 wikimedia 照片
+    photos = _normalize_photos(poi.get("photos"))
+    if photos:
+        normalized["photos"] = photos
+    return normalized
 
 
 def _hours_result(poi: dict | None) -> dict:
@@ -538,7 +558,7 @@ class AmapClient:
             {
                 "key": self._key,
                 "id": poi_id,
-                "show_fields": "business",
+                "show_fields": "business,photos",
                 "output": "JSON",
             },
         )
@@ -578,7 +598,7 @@ class AmapClient:
             "key": self._key,
             "keywords": keyword,
             "page_size": "1",
-            "show_fields": "business",
+            "show_fields": "business,photos",
             "output": "JSON",
         }
         if city:
@@ -608,7 +628,7 @@ class AmapClient:
             "location": location,
             "radius": "3000",
             "page_size": "1",
-            "show_fields": "business",
+            "show_fields": "business,photos",
             "output": "JSON",
         }
         data = await self._request_json(f"{self._v5_base}/place/around", params)

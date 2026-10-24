@@ -161,8 +161,25 @@ def _photos_from_p18(filename: str) -> list[dict]:
     ]
 
 
-def _fetch_zh_page_wikitext(http: httpx.Client, title: str) -> str | None:
-    """api.wikimedia.org 页面正文（wikitext）；403/429 等 2s 重试一次。"""
+# 重定向页：source 以 #重定向 / #REDIRECT 开头（不区分大小写，允许 # 后
+# 跟空白或 : 的变体），正文即 [[目标标题]]
+_REDIRECT_PREFIX_RE = re.compile(r"\s*#\s*:?\s*(?:重定向|REDIRECT\b)", re.IGNORECASE)
+_REDIRECT_TARGET_RE = re.compile(r"\[\[\s*:?\s*([^|\]]+?)\s*(?:\|[^\]]*)?\]\]")
+
+
+def _redirect_target(source: str) -> str | None:
+    """重定向页返回目标标题（取 | 前主名）；非重定向返回 None。"""
+    if not _REDIRECT_PREFIX_RE.match(source):
+        return None
+    link = _REDIRECT_TARGET_RE.search(source)
+    if not link:
+        return None
+    target = link.group(1).split("|", 1)[0].strip().lstrip(":").strip()
+    return target or None
+
+
+def _fetch_page_source(http: httpx.Client, title: str) -> str | None:
+    """单次抓页 source；403/429 等 2s 重试一次。"""
     url = _WIKIMEDIA_ZH_PAGE.format(quote(title, safe=""))
     for attempt in (1, 2):
         resp = http.get(url)
@@ -174,6 +191,25 @@ def _fetch_zh_page_wikitext(http: httpx.Client, title: str) -> str | None:
     data = resp.json()
     source = data.get("source") if isinstance(data, dict) else None
     return source if isinstance(source, str) and source else None
+
+
+def _fetch_zh_page_wikitext(
+    http: httpx.Client, title: str, stats: dict | None = None
+) -> str | None:
+    """页面 wikitext；重定向页跟到目标只跳一跳（2026-10-24 实测「北京」等
+    重定向页 source 为 #重定向[[北京市]]，不跟会漏抓）。第二跳仍是重定向
+    就返回 None 放弃（调用方计 no_extract），避免环。stats["redirects"]
+    记成功跳转数。"""
+    source = _fetch_page_source(http, title)
+    target = _redirect_target(source) if source else None
+    if target is None:
+        return source
+    second = _fetch_page_source(http, target)
+    if second is not None and _redirect_target(second) is None:
+        if stats is not None:
+            stats["redirects"] += 1
+        return second
+    return None
 
 
 # --- wikitext → 首段纯文本（纯 stdlib re） -----------------------------------
@@ -249,7 +285,7 @@ def _backfill_row(
             stats["no_sitelink"] += 1
         else:
             time.sleep(sleep_seconds)
-            wikitext = _fetch_zh_page_wikitext(http, zh_title)
+            wikitext = _fetch_zh_page_wikitext(http, zh_title, stats)
             intro = _wikitext_intro(wikitext) if wikitext else None
             if intro:
                 row.intro = intro
@@ -276,6 +312,7 @@ def backfill_intro(
         "no_sitelink": 0,
         "no_extract": 0,
         "no_p18": 0,
+        "redirects": 0,
         "errors": 0,
     }
     own_client = client is None

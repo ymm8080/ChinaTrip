@@ -31,6 +31,7 @@ from typing import Any
 
 from geoalchemy2.elements import WKBElement, WKTElement
 
+from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.coords import haversine_m
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,9 @@ def _point_lonlat(geom: Any) -> tuple[float, float] | None:
                 return None
             return float(parts[0]), float(parts[1])
         if isinstance(geom, WKBElement):
-            raw = bytes.fromhex(geom.data)
+            data = geom.data
+            # psycopg2 给 hex str，psycopg3 给 bytes（真实 PostGIS 路径）
+            raw = bytes.fromhex(data) if isinstance(data, str) else bytes(data)
             bo = "<" if raw[0] else ">"  # 首字节：字节序标记
             gtype = struct.unpack(bo + "I", raw[1:5])[0]
             if gtype & 0xFF != 1:  # 非 POINT
@@ -100,20 +103,30 @@ async def match_and_enrich(
     判 name_similar + haversine 距离 → 首个全过的候选升级该行
     （source→amap、source_poi_id→高德 ID、只填空的 address/phone/
     rating/photos）。任一侧缺坐标 → 候选无法确认距离 → 不过。
-    amap=None → 全部 error；单行异常 → 该行 error 后继续。
+    amap=None → 全部 error；单行异常 → 该行 error 后继续；
+    quota 尽（AmapQuotaExhaustedError/10021）→ stats["quota_exhausted"]=1
+    并中止剩余行（别再逐行硬敲烧尽配额，2026-10-24 实测）。
     """
     stats = {"matched": 0, "duplicate": 0, "miss": 0, "error": 0}
     if amap is None:
         stats["error"] = len(rows)
         return stats
+    quota_dead = False
     for row in rows:
+        if quota_dead:
+            break
         try:
             name = (row.name_zh or "").strip()
             city = (row.city or "").removesuffix("市")
             if not name:
                 stats["error"] += 1
                 continue
-            candidates = await amap.search_poi(f"{city}{name}", city=city or None)
+            try:
+                candidates = await amap.search_poi(f"{city}{name}", city=city or None)
+            except AmapQuotaExhaustedError:
+                quota_dead = True
+                stats["quota_exhausted"] = 1
+                break
             row_ll = _point_lonlat(row.location)
             hit: dict | None = None
             for cand in candidates:

@@ -12,6 +12,7 @@ from geoalchemy2.elements import WKBElement
 
 from app.jobs.refresh_pois import refresh_pois, rotate_cities
 from app.models import Poi, Restaurant
+from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.coords import haversine_m, make_point
 from app.services.poi_backfill import (
     match_and_enrich,
@@ -110,8 +111,8 @@ class StubAmap:
         self.detail_calls.append(poi_id)
         return {"opening_hours": "09:00-17:00", "rating": None, "address": "某路1号"}
 
-    async def search_hours(self, keyword, city=None):
-        self.search_calls.append((keyword, city))
+    async def search_hours(self, keyword, city=None, location=None):
+        self.search_calls.append((keyword, city, location))
         return {
             "opening_hours": "09:00-21:00",
             "rating": None,
@@ -266,6 +267,22 @@ def test_match_search_exception_row_error_continues():
     assert bad_row.source == "chinatravel"
 
 
+def test_match_quota_exhausted_aborts_remaining_rows():
+    rows = [make_row() for _ in range(3)]
+
+    class _QuotaAmap(StubAmap):
+        async def search_poi(self, keywords, *, city=None, page=1):
+            self.calls.append((keywords, city))
+            raise AmapQuotaExhaustedError("10021: USER_DAILY_QUERY_OVER_LIMIT")
+
+    amap = _QuotaAmap()
+    stats = asyncio.run(match_and_enrich(FakeFactory(rows), Poi, rows, amap))
+    assert stats["quota_exhausted"] == 1  # 熔断标记（常规键不出现，形状不变）
+    assert stats["matched"] == 0 and stats["error"] == 0
+    assert len(amap.calls) == 1  # 首行触发后剩余行不再打高德
+    assert all(r.source == "chinatravel" for r in rows)  # 行原样保留
+
+
 def test_match_missing_coordinates_is_miss():
     row = make_row(location=None)  # 骨架行无坐标 → 无法确认距离 → 宁缺勿错
     stats = asyncio.run(
@@ -340,8 +357,8 @@ def test_refresh_source_filter_and_skeleton_skips_v5_detail():
     store = PoiDetailStore()
     store.upsert("B1", city="重庆", name="景点A")  # amap 行
     store.upsert("C1", city="北京", name="骨架B", source="chinatravel")  # 骨架行
-    # stale_pois 四元组 + sources 过滤
-    assert ("C1", "北京", "骨架B", "chinatravel") in store.stale_pois()
+    # stale_pois 五元组（location 无坐标 None）+ sources 过滤
+    assert ("C1", "北京", "骨架B", "chinatravel", None) in store.stale_pois()
     assert [t[0] for t in store.stale_pois(sources=("chinatravel",))] == ["C1"]
 
     amap = StubAmap()
@@ -410,12 +427,23 @@ def test_refresh_match_without_amap_counts_error_not_crash():
 
 
 def test_refresh_cities_filter_for_rotate_subset():
-    store = PoiDetailStore()
-    store.upsert("B1", city="重庆", name="景点A")
-    store.upsert("B2", city="北京", name="景点B")
-    stats = asyncio.run(refresh_pois(store, _NullCtrip(), None, cities=["重庆"]))
+    def fresh_store():
+        s = PoiDetailStore()
+        s.upsert("B1", city="重庆", name="景点A")
+        s.upsert("B2", city="北京", name="景点B")
+        return s
+
+    stats = asyncio.run(
+        refresh_pois(fresh_store(), _NullCtrip(), None, cities=["重庆"])
+    )
     assert stats["total"] == 1
-    stats_bj = asyncio.run(refresh_pois(store, _NullCtrip(), None, cities=["北京市"]))
+    stats_bj = asyncio.run(
+        refresh_pois(fresh_store(), _NullCtrip(), None, cities=["北京市"])
+    )
     assert stats_bj["total"] == 1  # 去「市」后缀同口径
-    stats_none = asyncio.run(refresh_pois(store, _NullCtrip(), None))
+    stats_none = asyncio.run(refresh_pois(fresh_store(), _NullCtrip(), None))
     assert stats_none["total"] == 2  # 缺省不过滤 = 现状行为
+    # miss 冷却（2026-10-24 新语义）：同一 store 第二轮不再重查已 miss 行
+    store = fresh_store()
+    asyncio.run(refresh_pois(store, _NullCtrip(), None))
+    assert asyncio.run(refresh_pois(store, _NullCtrip(), None))["total"] == 0

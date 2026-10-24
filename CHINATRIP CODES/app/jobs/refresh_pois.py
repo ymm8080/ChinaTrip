@@ -7,9 +7,16 @@
   ①携程 sight 页（CtripHoursReader，slug 白名单 + 早停）
   ②高德 v5 place/detail（poi_id 直查，opentime_week）——仅
     source=="amap" 的行（骨架行 poi_id 非高德 ID，直查无意义）
-  ③高德 v5 place/text 关键词搜索（首条）
+  ③高德 v5 place/text 关键词搜索（首条；带行 GCJ-02 "lon,lat" 坐标，
+    text 配额尽时 client 侧透明降级 v5 around-search）
 命中即 upsert 进 pois（address/opening_hours/hours_source/hours_updated_at）；
 规划端只读库（PoiDetailStore），不当场抓取。
+
+防烧配额（2026-10-24 实测 200 连续超限）：
+  quota 熔断——链②③任一遇 AmapQuotaExhaustedError(10021) 即熔断，
+    本轮剩余行跳过一切高德调用（携程链照跑），跳过数计 amap_skipped
+  miss 冷却——未命中行 touch hours_updated_at=now（不写 hours/source），
+    24h 静默，永久缺 hours 的行不再每轮重复查询
 
 防风控：--rotate 无 --city 时按 weekday 城轮转——库内 DISTINCT city
 里第 weekday%N 个起每隔 7 取 1（一周覆盖全城、每天负载 1/7）。
@@ -28,7 +35,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.models import Poi
-from app.services.amap_client import AmapClient
+from app.services.amap_client import AmapClient, AmapQuotaExhaustedError
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.poi_backfill import match_and_enrich
 from app.services.poi_details import get_poi_detail_store
@@ -109,7 +116,7 @@ async def refresh_pois(
 ) -> dict:
     targets = [
         t
-        for t in store.stale_pois(limit=limit, sources=sources)
+        for t in store.stale_pois(limit=limit, sources=sources, city=city)
         if _city_ok(t[1], city, cities)
     ]
     stats = {
@@ -118,20 +125,27 @@ async def refresh_pois(
         "amap_v5_detail": 0,
         "amap_v5_search": 0,
         "miss": 0,
+        "amap_skipped": 0,
+        "miss_cooldown": 0,
     }
     upgrades: dict[tuple[str, str], tuple[str, str]] = {}
+    quota_dead = False
     if match:
         upgrades, mstats = await _match_skeletons(session_factory, Poi, targets, amap)
         stats["matched"] = mstats["matched"]
         stats["duplicate"] = mstats["duplicate"]
-    for poi_id, poi_city, name, poi_source in targets:
+        if mstats.get("quota_exhausted"):
+            # --match 阶段已烧尽配额：主循环直接进熔断态
+            quota_dead = True
+            stats["amap_quota_exhausted"] = True
+    for poi_id, poi_city, name, poi_source, location in targets:
         upgraded = upgrades.get((poi_source or "", poi_id))
         if upgraded is not None:
             # 回源命中：骨架行已是高德 ID，链② 可直查
             poi_source, poi_id = upgraded
         hours = address = None
         source = None
-        # ① 携程先（用户拍板 2026-10-19）
+        # ① 携程先（用户拍板 2026-10-19；不同供应商，quota 熔断不波及）
         try:
             hours = await ctrip.hours_for(poi_city or "", name or "")
         except Exception:
@@ -140,26 +154,42 @@ async def refresh_pois(
             source = "ctrip"
         # ② 高德 v5 detail（poi_id 直查；仅高德行——骨架行直查无意义）
         if not hours and amap is not None and (poi_source or "amap") == "amap":
-            try:
-                out = await amap.place_hours(poi_id)
-            except Exception:
+            if quota_dead:
+                stats["amap_skipped"] += 1
+            else:
                 out = None
-            if isinstance(out, dict):
-                hours = out.get("opening_hours")
-                address = out.get("address")
-                if hours:
-                    source = "amap_v5_detail"
-        # ③ 高德 v5 关键词搜索（最终兜底）
+                try:
+                    out = await amap.place_hours(poi_id)
+                except AmapQuotaExhaustedError:
+                    quota_dead = True
+                    stats["amap_quota_exhausted"] = True
+                except Exception:
+                    pass
+                if isinstance(out, dict):
+                    hours = out.get("opening_hours")
+                    address = out.get("address")
+                    if hours:
+                        source = "amap_v5_detail"
+        # ③ 高德 v5 关键词搜索（最终兜底；location 供 10021 降级 around）
         if not hours and amap is not None:
-            try:
-                out = await amap.search_hours(name or "", poi_city or None)
-            except Exception:
+            if quota_dead:
+                stats["amap_skipped"] += 1
+            else:
                 out = None
-            if isinstance(out, dict):
-                hours = out.get("opening_hours")
-                address = address or out.get("address")
-                if hours:
-                    source = "amap_v5_search"
+                try:
+                    out = await amap.search_hours(
+                        name or "", poi_city or None, location=location
+                    )
+                except AmapQuotaExhaustedError:
+                    quota_dead = True
+                    stats["amap_quota_exhausted"] = True
+                except Exception:
+                    pass
+                if isinstance(out, dict):
+                    hours = out.get("opening_hours")
+                    address = address or out.get("address")
+                    if hours:
+                        source = "amap_v5_search"
         if hours:
             store.upsert(
                 poi_id,
@@ -172,6 +202,9 @@ async def refresh_pois(
             stats[source] += 1
         else:
             stats["miss"] += 1
+            # miss 冷却：盖戳进 24h 静默，别下轮再烧 text 配额
+            store.touch_hours_checked(poi_id)
+            stats["miss_cooldown"] += 1
     return stats
 
 
