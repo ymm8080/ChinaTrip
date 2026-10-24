@@ -30,7 +30,6 @@ from pydantic import BaseModel, Field
 
 from app.services.ctrip_hours import CtripHoursReader
 from app.services.itinerary import (
-    AlternativePoi,
     ChangeSummary,
     DayPlan,
     DiffOp,
@@ -712,28 +711,35 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
+        # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，游标只前进，
+        # 时间严格跟列表顺序单调；排不下的项留空并由校验提示，后续项不回插。
+        cursor = day_start
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-            cursor = day_start
-            placed = False
-            for fs, fe in fixed:
-                if cursor + dur <= fs:
-                    break
-                cursor = max(cursor, fe)
-            if cursor + dur <= day_end and all(
-                cursor + dur <= fs or cursor >= fe for fs, fe in fixed
-            ):
-                visit.start_time = time(cursor // 60, cursor % 60)
-                visit.end_time = time((cursor + dur) // 60, (cursor + dur) % 60)
-                fixed.append((cursor - 30, cursor + dur + 30))
+            t = cursor
+            advanced = True
+            while advanced:
+                advanced = False
+                for fs, fe in fixed:
+                    if t < fe and t + dur > fs:
+                        t = fe
+                        advanced = True
+                        break
+            if t + dur <= day_end:
+                visit.start_time = time(t // 60, t % 60)
+                visit.end_time = time((t + dur) // 60, (t + dur) % 60)
+                fixed.append((t - 30, t + dur + 30))
                 fixed.sort()
-                placed = True
-            if not placed:
+                cursor = t + dur
+            else:
+                cursor = t
                 logger.warning(
                     "plan: fallback sequencing could not place %s on day %d",
                     visit.name,
                     day.day,
                 )
+        # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
+        day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
 class PendingResto(BaseModel):
@@ -2473,95 +2479,6 @@ class PlanningAgent:
             transfers.append(transfer)
         return transfers, assumptions
 
-    async def _alternatives_for(
-        self,
-        spec: dict,
-        location: GeoPoint | None,
-        candidates: list[dict],
-        picked_names: set[str],
-    ) -> list[AlternativePoi]:
-        """每时段备选（v2.5.1 gap #17）：选点落选的同城同类候选，按到主选
-        的直线距离取最近 3 个；不足 3 个时从 POI 底库补足（用户拍板
-        2026-10-24「备选不依赖高德」——高德配额尽、候选降级占位时底库
-        顶上）。主选自身无坐标（占位）也照出备选：换入即治愈占位，此时
-        距离留空。到场发现关门/下雨/排队时一键换入，动线扰动最小。"""
-        city = str(spec.get("city") or "").removesuffix("市")
-        spec_is_food = spec.get("category") == "food"
-        alts: list[AlternativePoi] = []
-        seen = set(picked_names)
-
-        def _add(c: dict, pt: GeoPoint, km: float | None) -> None:
-            alts.append(
-                AlternativePoi(
-                    name=str(c["name"]),
-                    poi_id=c.get("source_poi_id"),
-                    category=(
-                        "food" if spec_is_food else spec.get("category") or "sight"
-                    ),
-                    city=str(c.get("city") or city),
-                    location=pt,
-                    address=c.get("address"),
-                    opening_hours=c.get("opening_hours"),
-                    distance_km=round(km, 2) if km is not None else None,
-                )
-            )
-            seen.add(str(c["name"]))
-
-        ranked: list[tuple[float, dict, GeoPoint]] = []
-        if location is not None:
-            for c in candidates:
-                name = str(c.get("name") or "")
-                if not name or name in seen:
-                    continue
-                if str(c.get("city") or "").removesuffix("市") != city:
-                    continue
-                # 候选 category 是高德原文（风景名胜/餐饮服务…），选点是
-                # sight/food——按 food 性归类匹配，不能字符串等值。
-                if _amap_category_is_food(c.get("category")) != spec_is_food:
-                    continue
-                if not isinstance(c.get("location"), dict):
-                    continue
-                pt = GeoPoint(**c["location"])
-                ranked.append((haversine_km(location, pt), c, pt))
-            ranked.sort(key=lambda t: t[0])
-            for km, c, pt in ranked:
-                if len(alts) >= 3:
-                    break
-                _add(c, pt, km)
-        if len(alts) < 3 and self._poi_details is not None:
-            # 底库补足：sync Session 必须 to_thread（2026-10-19 僵死纪律）。
-            # 测试里的极简 poi 桩可能没有该方法——缺席即跳过。
-            fn = getattr(self._poi_details, "nearest_in_city", None)
-            if fn is not None:
-                try:
-                    hits = await asyncio.to_thread(
-                        fn,
-                        city,
-                        location.lon if location else None,
-                        location.lat if location else None,
-                    )
-                except Exception:
-                    logger.warning(
-                        "plan: poi library alternatives top-up failed", exc_info=True
-                    )
-                    hits = []
-                for h in hits:
-                    if len(alts) >= 3:
-                        break
-                    name = str(h.get("name") or "")
-                    if not name or name in seen:
-                        continue
-                    if any(_same_site(name, p) for p in picked_names):
-                        continue
-                    if _amap_category_is_food(h.get("category")) != spec_is_food:
-                        continue
-                    loc = h.get("location")
-                    if not (isinstance(loc, (tuple, list)) and len(loc) == 2):
-                        continue
-                    pt = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
-                    _add(h, pt, haversine_km(location, pt) if location else None)
-        return alts
-
     async def _assemble_plan(
         self,
         cities: list[str],
@@ -2611,7 +2528,6 @@ class PlanningAgent:
                 anchors[city] = GeoPoint(**cand["location"])
         visits: list[VisitItem] = []
         food_by_day: dict[int, int] = {}
-        picked_names = {spec["name"] for spec in picked}
         for spec in picked:
             cand = cand_by_name.get(spec["name"])
             location = None
@@ -2652,9 +2568,6 @@ class PlanningAgent:
                     end_time=end_time,
                     duration_minutes=duration,
                     pinned=pinned,
-                    alternatives=await self._alternatives_for(
-                        spec, location, candidates, picked_names
-                    ),
                 )
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
@@ -3207,6 +3120,62 @@ class PlanningAgent:
         cross = f" 移到第{new_day}天" if new_day != src_no else ""
         summary = ChangeSummary(
             change_summary=[f"第{new_day}天 移动 {visit.name}{cross}"],
+            affected_items_count=1,
+        )
+        return report, summary, notes
+
+    def retime_item(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        start: time,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """规划页手动改时间（2026-10-24）：用户显式设时即最高优先——pinned
+        也允许改（pin 冻结的是引擎重排，不是用户本人）。被改项成固定锚点，
+        当天其余非 pinned 景点清空时间后按顺序游标重排并按时间排序。纯计算。"""
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        visit = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if visit is None:
+            raise ValueError("item_not_found")
+
+        candidate = plan.model_copy(deep=True)
+        edited = next(
+            i
+            for d in candidate.days
+            for i in d.items
+            if isinstance(i, VisitItem) and i.item_id == item_id
+        )
+        day_no = edited.day
+        dur = edited.duration_minutes or DEFAULT_VISIT_MINUTES
+        start_min = start.hour * 60 + start.minute
+        end_min = start_min + dur
+        edited.start_time = start
+        edited.end_time = (
+            time(end_min // 60, end_min % 60) if end_min < 24 * 60 else None
+        )
+        day = next(d for d in candidate.days if d.day == day_no)
+        for it in day.items:
+            if isinstance(it, VisitItem) and it.item_id != item_id and not it.pinned:
+                it.start_time = None
+                it.end_time = None
+        notes = _reconcile_transfer_days(candidate)
+        _fallback_sequence_times(candidate)
+        report = validate_plan(candidate, poi_hours=[])
+        annotate_legs(candidate)
+        session.plan = candidate
+        summary = ChangeSummary(
+            change_summary=[f"第{day_no}天 {visit.name} 改到 {_fmt_hm(start)}"],
             affected_items_count=1,
         )
         return report, summary, notes

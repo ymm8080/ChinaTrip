@@ -25,25 +25,6 @@ class GeoPoint(BaseModel):
     lat: float
 
 
-class AlternativePoi(BaseModel):
-    """A same-city backup for one scheduled item (v2.5.1 每时段备选).
-
-    Losers of candidate selection kept beside the winner so the traveler
-    can one-tap swap on the ground (closed / rain / queue). Carries the
-    minimum needed to build a VisitItem at swap time; day/times inherit
-    the replaced item's slot. distance_km = straight-line to the primary.
-    """
-
-    name: str
-    poi_id: str | None = None
-    category: str | None = None
-    city: str
-    location: GeoPoint | None = None
-    address: str | None = None
-    opening_hours: str | None = None
-    distance_km: float | None = None
-
-
 class VisitItem(BaseModel):
     """A POI visit inside one day (food items reuse this, category=food)."""
 
@@ -57,10 +38,6 @@ class VisitItem(BaseModel):
     # (product rule 2026-10-19); None when amap data is unavailable.
     address: str | None = None
     opening_hours: str | None = None
-    # One-tap backups for this slot; empty when no same-city un-picked
-    # candidate had coordinates. The replaced item rides along as an
-    # alternative after a swap, so 换回 is the same one-tap gesture.
-    alternatives: list[AlternativePoi] = Field(default_factory=list)
     day: int  # 1-based day number
     start_time: time | None = None
     end_time: time | None = None

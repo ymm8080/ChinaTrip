@@ -16,9 +16,8 @@ anything the agent still raises.
 """
 
 import logging
-import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -42,7 +41,7 @@ from app.services.agent.plan import (
 from app.services.amap_client import AmapClient
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
-from app.services.itinerary import AlternativePoi, DiffOp, VisitItem, mutate
+from app.services.itinerary import DiffOp, VisitItem, mutate
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -81,10 +80,6 @@ class PlanSitesConfirmRequest(BaseModel):
 
 class PlanPinRequest(BaseModel):
     pinned: bool
-
-
-class PlanSwapRequest(BaseModel):
-    name: str  # 备选名，须在该条目 alternatives 里
 
 
 _agent_singleton: PlanningAgent | None = None
@@ -354,16 +349,6 @@ def _find_visit_item(plan, item_id: str) -> VisitItem | None:
     return None
 
 
-def _next_visit_id(plan) -> str:
-    mx = 0
-    for day in plan.days:
-        for item in day.items:
-            m = re.fullmatch(r"v(\d+)", item.item_id)
-            if m:
-                mx = max(mx, int(m.group(1)))
-    return f"v{mx + 1}"
-
-
 @router.post("/plan/{session_id}/items/{item_id}/pin")
 async def pin_plan_item(
     session_id: str,
@@ -421,67 +406,6 @@ async def delete_plan_item(
     return _plan_turn_body(session, reply, None)
 
 
-@router.post("/plan/{session_id}/items/{item_id}/swap")
-async def swap_plan_item(
-    session_id: str,
-    item_id: str,
-    request: PlanSwapRequest,
-    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
-    store: PlanSessionStore = Depends(get_plan_sessions),
-) -> dict:
-    """备选一键换入（v2.5.1 gap #17）：同槽位 remove+add 走 mutate 校验
-    管线。新条目继承原条目的 day/时间/时长/钉住状态，当日动线扰动最小；
-    被换下的原条目回到备选列表，换回是同一个一键动作。"""
-    if not x_device_id:
-        raise HTTPException(status_code=400, detail="missing_device_id")
-    session = store.get(session_id, device_id=x_device_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="session_not_found")
-    if session.plan is None:
-        raise HTTPException(status_code=400, detail="no_plan")
-    item = _find_visit_item(session.plan, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="item_not_found")
-    alt = next((a for a in item.alternatives if a.name == request.name), None)
-    if alt is None:
-        raise HTTPException(status_code=404, detail="alternative_not_found")
-    replacement = VisitItem(
-        item_id=_next_visit_id(session.plan),
-        name=alt.name,
-        poi_id=alt.poi_id,
-        category=alt.category or item.category,
-        city=alt.city or item.city,
-        location=alt.location,
-        address=alt.address,
-        opening_hours=alt.opening_hours,
-        day=item.day,
-        start_time=item.start_time,
-        end_time=item.end_time,
-        duration_minutes=item.duration_minutes,
-        pinned=item.pinned,
-        alternatives=[
-            AlternativePoi(
-                name=item.name,
-                poi_id=item.poi_id,
-                category=item.category,
-                city=item.city,
-                location=item.location,
-                address=item.address,
-                opening_hours=item.opening_hours,
-            )
-        ]
-        + [a for a in item.alternatives if a.name != alt.name],
-    )
-    diffs = [
-        DiffOp(op="remove", item_id=item_id),
-        DiffOp(op="add", item=replacement),
-    ]
-    new_plan, _, _ = mutate(session.plan, diffs, poi_hours=[])
-    session.plan = new_plan
-    store.save(session)
-    return _plan_turn_body(session, f"已将 {item.name} 换成 {alt.name}", None)
-
-
 class PlanMoveRequest(BaseModel):
     day: int = Field(ge=1)
     after_item_id: str | None = Field(default=None, max_length=32)
@@ -517,4 +441,42 @@ async def move_plan_item(
         raise HTTPException(status_code=422, detail=code) from None
     store.save(session)
     reply = "已按你的顺序调整" + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanRetimeRequest(BaseModel):
+    start_time: time  # "HH:MM"
+
+
+@router.post("/plan/{session_id}/items/{item_id}/retime")
+async def retime_plan_item(
+    session_id: str,
+    item_id: str,
+    request: PlanRetimeRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """规划页点时间戳改时间（2026-10-24）：用户显式设时最高优先（pinned
+    也允许改）；改后该景点成固定锚点，当天其余非 pinned 景点围绕它按
+    顺序游标重排并按时间排序。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = agent.retime_item(
+            session, item_id, start=request.start_time
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    store.save(session)
+    base = summary.change_summary[0] if summary.change_summary else "已调整时间"
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)
