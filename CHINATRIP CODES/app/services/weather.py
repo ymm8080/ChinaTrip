@@ -86,6 +86,32 @@ def parse_report_time(value: str | None) -> datetime | None:
         return None
 
 
+def _f_str(celsius: object) -> str | None:
+    try:
+        return str(round(float(celsius) * 9 / 5 + 32))
+    except (TypeError, ValueError):
+        return None
+
+
+def _with_fahrenheit(payload: dict | None) -> dict | None:
+    """入库时按摄氏派生华氏（口径 2026-10-24：库里 C/F 双存）——casts 补
+    day_temp_f/night_temp_f，实况补 temperature_f。高德/OM 两源都过这个
+    写入闸口，一处补齐；非数字派生失败留空，不阻断入库。"""
+    if not isinstance(payload, dict):
+        return payload
+    if payload.get("temperature"):
+        temp_f = _f_str(payload["temperature"])
+        if temp_f is not None:
+            payload["temperature_f"] = temp_f
+    for cast in payload.get("casts") or []:
+        for ckey, fkey in (("day_temp", "day_temp_f"), ("night_temp", "night_temp_f")):
+            if cast.get(ckey):
+                temp_f = _f_str(cast[ckey])
+                if temp_f is not None:
+                    cast[fkey] = temp_f
+    return payload
+
+
 def upsert_weather(session, report: dict, *, source: str = WEATHER_SOURCE) -> str:
     """latest-wins 落库；返回 "updated" | "inserted"。"""
     existing = (
@@ -98,7 +124,7 @@ def upsert_weather(session, report: dict, *, source: str = WEATHER_SOURCE) -> st
     )
     row.city = report.get("city") or row.city or ""
     row.report_time = parse_report_time(report.get("report_time"))
-    row.payload = report.get("payload")
+    row.payload = _with_fahrenheit(report.get("payload"))
     # 每次刷新盖最新时间戳——server_default 只在 INSERT 生效，UPDATE 不触发；
     # 漏掉会让 fetched_at 停在首次入库时间，7 天清理会误删活跃行
     row.fetched_at = datetime.utcnow()

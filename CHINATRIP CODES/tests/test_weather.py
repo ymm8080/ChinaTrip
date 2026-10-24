@@ -228,6 +228,7 @@ def test_upsert_insert_then_update():
     row = session.rows[0]
     assert row.city == "北京市"
     assert row.payload["temperature"] == "18"
+    assert row.payload["temperature_f"] == "64"  # 18×9/5+32=64.4→64
     assert row.fetched_at is not None
 
     # 同键二次写入 → 覆盖，不堆历史
@@ -248,6 +249,34 @@ def test_upsert_refreshes_fetched_at_on_update():
 
     assert upsert_weather(session, _report(temp="22")) == "updated"
     assert row.fetched_at > datetime.utcnow() - timedelta(minutes=1)
+
+
+def test_upsert_adds_fahrenheit_to_casts_and_live():
+    session = FakeSession()
+    report = _report()
+    report["payload"]["casts"] = [
+        {"day_temp": "17", "night_temp": "10"},
+        {"day_temp": "12", "night_temp": "9"},
+    ]
+    upsert_weather(session, report)
+    session.commit()
+    payload = session.rows[0].payload
+    assert payload["casts"][0]["day_temp_f"] == "63"  # 17×9/5+32=62.6→63
+    assert payload["casts"][0]["night_temp_f"] == "50"
+    assert payload["casts"][1]["day_temp_f"] == "54"  # 12→53.6→54
+    assert payload["casts"][1]["night_temp_f"] == "48"  # 9→48.2→48
+
+
+def test_upsert_fahrenheit_skips_non_numeric():
+    session = FakeSession()
+    report = _report(temp="")
+    report["payload"]["casts"] = [{"day_temp": "n/a", "night_temp": None}]
+    upsert_weather(session, report)
+    session.commit()
+    payload = session.rows[0].payload
+    assert "temperature_f" not in payload
+    assert "day_temp_f" not in payload["casts"][0]
+    assert "night_temp_f" not in payload["casts"][0]
 
 
 def test_upsert_missing_report_time_keeps_none():
