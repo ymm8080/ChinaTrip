@@ -219,6 +219,12 @@ CITY_ALIASES = {
     "quanzhou": "泉州",
     "weihai": "威海",
     "zhuhai": "珠海",
+    "hong kong": "香港",
+    "macau": "澳门",
+    "macao": "澳门",
+    "taipei": "台北",
+    "taichung": "台中",
+    "kaohsiung": "高雄",
 }
 # Longest first so "zhangjiajie" wins over any shorter prefix hit. ASCII-only
 # guards, not \b: CJK counts as \w, so「北京到shanghai」has no \b before "s".
