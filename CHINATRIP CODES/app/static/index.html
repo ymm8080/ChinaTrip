@@ -401,7 +401,7 @@
       <div class="flow" id="flow-plan"></div>
       <div class="t9n-wrap">
         <div class="composer">
-          <textarea id="planInput" placeholder="可先粘贴视频/笔记链接或输入要求，点「🚀 开始规划」会自动带上；开始后在这里继续对话调整"></textarea>
+          <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整"></textarea>
           <button class="btn" id="planSend">发送</button>
         </div>
       </div>
@@ -1533,7 +1533,7 @@ let planSession = null; // {session_id, state}
 
 function planSetSession(s) {
   planSession = s; // 参数表单恒显示（2026-10-24：不再随会话隐藏——随时改参数点「开始规划」即开新局）
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；或改上方参数再点「开始规划」" : "可先粘贴链接或输入要求，点上方「🚀 开始规划」会自动带上；开始后在这里继续对话调整";
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；或改上方参数再点「开始规划」" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
 }
 
 // 链接必去确认 chips：一轮只开一次——回合关闭（确认成功/文字回答/新链接轮）
@@ -1722,8 +1722,8 @@ async function planSend() {
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
-  if (!planSession) { // 产品规则 2026-10-19：只有点「🚀 开始规划」才开规划
-    addMsg("flow-plan", "sys", "请先在上方选好路线，点「🚀 开始规划」；你输入的内容已保留，点开始规划时会自动带上。");
+  if (!planSession) { // 自由对话（2026-10-24）：无会话打字即开规划，文字并入偏好，与「开始规划」按钮同路
+    await planStartButton();
     return;
   }
   input.value = "";
@@ -3552,7 +3552,7 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），点上方「🚀 开始规划」会自动带上；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
+addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
 addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
