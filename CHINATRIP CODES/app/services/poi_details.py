@@ -283,6 +283,61 @@ class PoiDetailStore:
         hits.sort(key=rank, reverse=True)
         return hits[:limit]
 
+    def nearest_in_city(
+        self,
+        city: str,
+        lon: float | None = None,
+        lat: float | None = None,
+        *,
+        limit: int = 60,
+    ) -> list[dict]:
+        """同城最近 POI——每时段备选的兜底源（用户拍板 2026-10-24「备选
+        不依赖高德」：高德配额尽、候选降级占位时，底库顶上）。
+
+        city 三态匹配 + 有坐标；lon/lat 齐时按 geography 球面距离 KNN
+        升序（PostGIS 3 无 ST_GeogFromText(text,int4) 重载——SRID 写进
+        EWKT），任一缺席时（占位主选无坐标）按 id 稳定序取行，距离由
+        调用方留空。food/景点归类不在 SQL 层做——调用方用
+        _amap_category_is_food 过滤，关键字表只有一份防漂移。返回 amap
+        形状 dict（同 search_keyword，location 为 (lon, lat) tuple）。
+        内存兜底无城市索引，DB 不可达时空表（备选诚实降级）；查询异常
+        只降级本次，不盖 DB-down 冷却（勿把其它读路径一并打入 300s）。"""
+        c = (city or "").strip()
+        city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
+        if not city_names or not self._db_available():
+            return []
+        try:
+            with self._factory() as session:
+                q = session.query(
+                    Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                ).filter(Poi.city.in_(city_names), Poi.location.is_not(None))
+                if lon is None or lat is None:
+                    q = q.order_by(Poi.id)
+                else:
+                    point = func.ST_GeogFromText(f"SRID=4326;POINT({lon!r} {lat!r})")
+                    q = q.order_by(func.ST_Distance(Poi.location, point))
+                rows = q.limit(limit).all()
+        except Exception:
+            logger.warning("poi_details: nearest_in_city failed", exc_info=True)
+            return []
+        hits = []
+        for row, loc_txt in rows:
+            m = _POINT_WKT_RE.match(loc_txt or "")
+            hits.append(
+                {
+                    "source_poi_id": row.source_poi_id,
+                    "name": row.name_zh,
+                    "city": row.city,
+                    "category": row.category,
+                    "address": row.address,
+                    "opening_hours": row.opening_hours,
+                    "source": row.source,
+                    "rating": None,
+                    "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+                }
+            )
+        return hits
+
     def upsert(
         self,
         source_poi_id: str,

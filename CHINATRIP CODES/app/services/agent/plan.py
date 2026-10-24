@@ -2467,50 +2467,94 @@ class PlanningAgent:
             transfers.append(transfer)
         return transfers, assumptions
 
-    @staticmethod
-    def _alternatives_for(
+    async def _alternatives_for(
+        self,
         spec: dict,
         location: GeoPoint | None,
         candidates: list[dict],
         picked_names: set[str],
     ) -> list[AlternativePoi]:
         """每时段备选（v2.5.1 gap #17）：选点落选的同城同类候选，按到主选
-        的直线距离取最近 3 个。候选池选点时本就存在，零额外 LLM 调用；
-        到场发现关门/下雨/排队时一键换入，动线扰动最小。"""
-        if location is None:
-            return []
+        的直线距离取最近 3 个；不足 3 个时从 POI 底库补足（用户拍板
+        2026-10-24「备选不依赖高德」——高德配额尽、候选降级占位时底库
+        顶上）。主选自身无坐标（占位）也照出备选：换入即治愈占位，此时
+        距离留空。到场发现关门/下雨/排队时一键换入，动线扰动最小。"""
         city = str(spec.get("city") or "").removesuffix("市")
         spec_is_food = spec.get("category") == "food"
-        ranked: list[tuple[float, dict, GeoPoint, bool]] = []
-        for c in candidates:
-            name = str(c.get("name") or "")
-            if not name or name in picked_names:
-                continue
-            if str(c.get("city") or "").removesuffix("市") != city:
-                continue
-            # 候选 category 是高德原文（风景名胜/餐饮服务…），选点是
-            # sight/food——按 food 性归类匹配，不能字符串等值。
-            cand_is_food = _amap_category_is_food(c.get("category"))
-            if cand_is_food != spec_is_food:
-                continue
-            if not isinstance(c.get("location"), dict):
-                continue
-            pt = GeoPoint(**c["location"])
-            ranked.append((haversine_km(location, pt), c, pt, cand_is_food))
-        ranked.sort(key=lambda t: t[0])
-        return [
-            AlternativePoi(
-                name=c["name"],
-                poi_id=c.get("source_poi_id"),
-                category="food" if is_food else spec.get("category") or "sight",
-                city=str(c.get("city") or city),
-                location=pt,
-                address=c.get("address"),
-                opening_hours=c.get("opening_hours"),
-                distance_km=round(km, 2),
+        alts: list[AlternativePoi] = []
+        seen = set(picked_names)
+
+        def _add(c: dict, pt: GeoPoint, km: float | None) -> None:
+            alts.append(
+                AlternativePoi(
+                    name=str(c["name"]),
+                    poi_id=c.get("source_poi_id"),
+                    category=(
+                        "food" if spec_is_food else spec.get("category") or "sight"
+                    ),
+                    city=str(c.get("city") or city),
+                    location=pt,
+                    address=c.get("address"),
+                    opening_hours=c.get("opening_hours"),
+                    distance_km=round(km, 2) if km is not None else None,
+                )
             )
-            for km, c, pt, is_food in ranked[:3]
-        ]
+            seen.add(str(c["name"]))
+
+        ranked: list[tuple[float, dict, GeoPoint]] = []
+        if location is not None:
+            for c in candidates:
+                name = str(c.get("name") or "")
+                if not name or name in seen:
+                    continue
+                if str(c.get("city") or "").removesuffix("市") != city:
+                    continue
+                # 候选 category 是高德原文（风景名胜/餐饮服务…），选点是
+                # sight/food——按 food 性归类匹配，不能字符串等值。
+                if _amap_category_is_food(c.get("category")) != spec_is_food:
+                    continue
+                if not isinstance(c.get("location"), dict):
+                    continue
+                pt = GeoPoint(**c["location"])
+                ranked.append((haversine_km(location, pt), c, pt))
+            ranked.sort(key=lambda t: t[0])
+            for km, c, pt in ranked:
+                if len(alts) >= 3:
+                    break
+                _add(c, pt, km)
+        if len(alts) < 3 and self._poi_details is not None:
+            # 底库补足：sync Session 必须 to_thread（2026-10-19 僵死纪律）。
+            # 测试里的极简 poi 桩可能没有该方法——缺席即跳过。
+            fn = getattr(self._poi_details, "nearest_in_city", None)
+            if fn is not None:
+                try:
+                    hits = await asyncio.to_thread(
+                        fn,
+                        city,
+                        location.lon if location else None,
+                        location.lat if location else None,
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: poi library alternatives top-up failed", exc_info=True
+                    )
+                    hits = []
+                for h in hits:
+                    if len(alts) >= 3:
+                        break
+                    name = str(h.get("name") or "")
+                    if not name or name in seen:
+                        continue
+                    if any(_same_site(name, p) for p in picked_names):
+                        continue
+                    if _amap_category_is_food(h.get("category")) != spec_is_food:
+                        continue
+                    loc = h.get("location")
+                    if not (isinstance(loc, (tuple, list)) and len(loc) == 2):
+                        continue
+                    pt = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+                    _add(h, pt, haversine_km(location, pt) if location else None)
+        return alts
 
     async def _assemble_plan(
         self,
@@ -2602,7 +2646,7 @@ class PlanningAgent:
                     end_time=end_time,
                     duration_minutes=duration,
                     pinned=pinned,
-                    alternatives=self._alternatives_for(
+                    alternatives=await self._alternatives_for(
                         spec, location, candidates, picked_names
                     ),
                 )

@@ -1752,11 +1752,14 @@ def test_alternatives_skip_candidates_without_coordinates():
         },  # 无坐标 → 不当备选
     ]
     spec = {"name": "外滩", "city": "上海", "category": "sight"}
-    alts = PlanningAgent._alternatives_for(
-        spec,
-        GeoPoint(lon=121.49, lat=31.24),
-        [{**p, "city": p["city"]} for p in pois],
-        {"外滩"},
+    agent = PlanningAgent(ExplodingLLM(), poi_details=None)
+    alts = run(
+        agent._alternatives_for(
+            spec,
+            GeoPoint(lon=121.49, lat=31.24),
+            [{**p, "city": p["city"]} for p in pois],
+            {"外滩"},
+        )
     )
     assert alts == []
 
@@ -1764,8 +1767,11 @@ def test_alternatives_skip_candidates_without_coordinates():
 def test_alternatives_empty_without_primary_location():
     # 占位候选（高德不可用）没有坐标：主选自身无位置 → 不生成备选
     spec = {"name": "城隍庙", "city": "上海", "category": "sight"}
-    alts = PlanningAgent._alternatives_for(
-        spec, None, [{"name": "豫园", "city": "上海", "location": None}], set()
+    agent = PlanningAgent(ExplodingLLM(), poi_details=None)
+    alts = run(
+        agent._alternatives_for(
+            spec, None, [{"name": "豫园", "city": "上海", "location": None}], set()
+        )
     )
     assert alts == []
 
@@ -1786,11 +1792,143 @@ def test_alternatives_food_spec_only_matches_food_candidates():
         },
     ]
     food_spec = {"name": "外滩", "city": "上海", "category": "food"}
-    alts = PlanningAgent._alternatives_for(
-        food_spec, GeoPoint(lon=121.49, lat=31.24), candidates, {"外滩"}
+    agent = PlanningAgent(ExplodingLLM(), poi_details=None)
+    alts = run(
+        agent._alternatives_for(
+            food_spec, GeoPoint(lon=121.49, lat=31.24), candidates, {"外滩"}
+        )
     )
     assert [a.name for a in alts] == ["南翔馒头店"]
     assert alts[0].category == "food"
+
+
+class AltLibraryStub:
+    """PoiDetailStore 替身：只暴露 nearest_in_city（备选兜底源）。"""
+
+    def __init__(self, hits):
+        self.hits = hits
+        self.calls: list[tuple[str, float, float]] = []
+
+    def nearest_in_city(self, city, lon, lat, *, limit=60):
+        self.calls.append((city, lon, lat))
+        return list(self.hits)
+
+
+def test_alternatives_top_up_from_poi_library_when_candidates_short():
+    # 高德配额尽 → 候选降级占位（无坐标），备选从 POI 底库按距离补足
+    # （用户拍板 2026-10-24「备选不依赖高德」）
+    lib = AltLibraryStub(
+        [
+            {
+                "source_poi_id": "B-FOOD-1",
+                "name": "楼外楼",
+                "city": "杭州",
+                "category": "餐饮服务;中餐厅",
+                "address": "孤山路30号",
+                "opening_hours": "10:30-20:00",
+                "location": (120.145, 30.255),
+            },
+            {  # 景点类 → food spec 不要
+                "source_poi_id": "B-SIGHT-1",
+                "name": "灵隐寺",
+                "city": "杭州",
+                "category": "风景名胜",
+                "location": (120.10, 30.24),
+            },
+            {  # 无坐标行 → 跳过
+                "source_poi_id": "B-X",
+                "name": "无坐标行",
+                "city": "杭州",
+                "location": None,
+            },
+            {  # 底库骨架行直接存 food（_amap_category_is_food 认得）
+                "source_poi_id": "B-FOOD-2",
+                "name": "知味观",
+                "city": "杭州",
+                "category": "food",
+                "location": (120.16, 30.26),
+            },
+            {  # 已选名 → seen 排除
+                "source_poi_id": "B-FOOD-3",
+                "name": "外婆家",
+                "city": "杭州",
+                "category": "food",
+                "location": (120.16, 30.26),
+            },
+        ]
+    )
+    agent = PlanningAgent(ExplodingLLM(), poi_details=lib)
+    spec = {"name": "外婆家", "city": "杭州", "category": "food"}
+    alts = run(
+        agent._alternatives_for(spec, GeoPoint(lon=120.15, lat=30.25), [], {"外婆家"})
+    )
+    assert [a.name for a in alts] == ["楼外楼", "知味观"]
+    a = alts[0]
+    assert a.poi_id == "B-FOOD-1"
+    assert a.category == "food"
+    assert a.city == "杭州"
+    assert a.address == "孤山路30号"
+    assert a.opening_hours == "10:30-20:00"
+    assert a.location is not None
+    assert a.distance_km is not None and a.distance_km >= 0
+    assert lib.calls == [("杭州", 120.15, 30.25)]
+
+
+def test_alternatives_top_up_without_primary_location_from_library():
+    # 占位主选（高德配额尽，无坐标）也照出底库备选——换入即治愈占位；
+    # 无锚点 → nearest_in_city 收 None 坐标，distance_km 留空
+    lib = AltLibraryStub(
+        [
+            {
+                "source_poi_id": "B-SIGHT-1",
+                "name": "西湖",
+                "city": "杭州",
+                "category": "风景名胜",
+                "address": "龙井路1号",
+                "opening_hours": "全天",
+                "location": (120.15, 30.25),
+            },
+            {  # 无坐标行 → 跳过
+                "source_poi_id": "B-X",
+                "name": "无坐标行",
+                "city": "杭州",
+                "category": "风景名胜",
+                "location": None,
+            },
+        ]
+    )
+    agent = PlanningAgent(ExplodingLLM(), poi_details=lib)
+    spec = {"name": "杭州博物馆", "city": "杭州", "category": "sight"}
+    alts = run(agent._alternatives_for(spec, None, [], set()))
+    assert [a.name for a in alts] == ["西湖"]
+    a = alts[0]
+    assert a.location is not None
+    assert a.distance_km is None
+    assert a.address == "龙井路1号"
+    assert lib.calls == [("杭州", None, None)]
+
+
+def test_alternatives_full_from_candidates_skip_library():
+    # 候选已给足 3 个 → 不查底库（happy path 零 DB 开销）
+    candidates = [
+        {
+            "name": f"店{i}",
+            "city": "上海",
+            "category": "餐饮服务",
+            "location": {"lon": 121.5, "lat": 31.2 + i * 0.01},
+        }
+        for i in range(3)
+    ]
+    lib = AltLibraryStub([])
+    agent = PlanningAgent(ExplodingLLM(), poi_details=lib)
+    spec = {"name": "主店", "city": "上海", "category": "food"}
+    alts = run(
+        agent._alternatives_for(
+            spec, GeoPoint(lon=121.5, lat=31.2), candidates, {"主店"}
+        )
+    )
+    assert [a.name for a in alts] == ["店0", "店1", "店2"]
+    assert lib.calls == []
 
 
 # --- 品类愿望全城落实（2026-10-24 「我想茶馆喝茶」）--------------------------
