@@ -1531,10 +1531,29 @@ function planDateIso(n) {
 }
 let planSession = null; // {session_id, state}
 
+const PLAN_SESSION_KEY = "chinatrip_plan_session";
 function planSetSession(s) {
   planSession = s; // 参数表单恒显示（2026-10-24：不再随会话隐藏——随时改参数点「开始规划」即开新局）
+  try { // 会话指针持久化（2026-10-24 用户规则：已有行程的对话要继续下去——刷新不能把它变回全新规划）
+    if (s) localStorage.setItem(PLAN_SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(PLAN_SESSION_KEY);
+  } catch (_) {}
   document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；或改上方参数再点「开始规划」" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
 }
+
+// 启动恢复上次规划会话（2026-10-24 用户规则）：后端会话本来就在
+// data/h5_state.db 里活着，指针 restored 后打字/回车照走 /message 继续对话；
+// 会话真被清了走既有 session_not_found 分支（有 origin 自动重建，itin 会话
+// 提示去「行程」页重新修改）。想全新开始：改参数点「🚀 开始规划」即开新局。
+try {
+  const savedSess = JSON.parse(localStorage.getItem(PLAN_SESSION_KEY) || "null");
+  if (savedSess && savedSess.session_id) {
+    planSetSession(savedSess);
+    const label = savedSess.itin_id ? "载入的行程"
+      : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.join("→") : "上次的规划");
+    addMsg("flow-plan", "sys", "已恢复上次的规划对话（" + label + "）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。");
+  }
+} catch (_) {}
 
 // 链接必去确认 chips：一轮只开一次——回合关闭（确认成功/文字回答/新链接轮）
 // 后旧 chips 就地失效，防止再点打出 409 not_awaiting_sites 吓到用户。
