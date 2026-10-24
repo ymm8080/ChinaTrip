@@ -2,7 +2,7 @@
    策略对齐 surmai (github.com/rohitkumbhar/surmai) 的 workbox 配置：
    app-shell 缓存优先+后台刷新，autoUpdate（skipWaiting+claim）；
    API NetworkFirst + 3s 超时回落缓存，离线可看最近一次成功的数据。 */
-const VERSION = 'v8'; // v8 2026-10-24: 手动加心愿城市必选（datalist 都可以）+ 城市徽标（外壳资产变更必须 +1，否则受控页面一直吃旧缓存）
+const VERSION = 'v11'; // v11 2026-10-24: 已存行程点「重新规划」清空 flow-plan 旧消息流，回真·全新规划页（外壳资产变更必须 +1，否则受控页面一直吃旧缓存）
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest',

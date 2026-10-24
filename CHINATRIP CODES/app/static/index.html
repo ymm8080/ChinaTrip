@@ -67,8 +67,8 @@
     background:var(--err-bg);color:var(--err);border:1px solid var(--err);
     box-shadow:var(--shadow);display:none;word-break:break-all;
   }
-  .tab{display:none;flex-direction:column;height:100vh;padding:14px 16px;min-width:0}
-  .tab.active{display:flex}
+  .tab{display:none;flex-direction:column;padding:14px 16px;min-width:0}
+  .tab.active{display:flex;flex:1;min-height:0}
 
   /* 表单/工具条 */
   .toolbar{
@@ -276,6 +276,8 @@
   .tile-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.tile-city{margin-left:auto;color:#888;white-space:nowrap}
   .drag-handle{cursor:grab;touch-action:none;color:#b0b0b0;user-select:none;-webkit-user-select:none;padding:0 5px 0 0;font-size:14px}
   .drag-handle:active{cursor:grabbing}
+  .t-edit{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline dotted}
+  .t-edit input{font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 2px;background:#fff;max-width:96px}
   .sortable-ghost{opacity:.35;border-style:dashed}
   .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
   .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
@@ -287,7 +289,8 @@
 
   /* 窄屏：左栏折叠为顶部横条 */
   @media (max-width:760px){
-    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    #app{display:flex;flex-direction:column;height:100vh}
+    main{height:auto;flex:1;min-height:0}
     #side{flex-direction:row;align-items:center;gap:6px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border)}
     .brand{border:0;padding:0 6px 0 0}
     .brand-sub{display:none}
@@ -1232,7 +1235,10 @@ function planCard(plan) {
         const handle = (planSession && planSession.session_id && !it.pinned)
           ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + '<span class="t">' + fmtTime(it.start_time) + "</span><span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div></div>");
+        const timeCell = (planSession && planSession.session_id)
+          ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="点击修改开始时间">' + fmtTime(it.start_time) + "</button>"
+          : '<span class="t">' + fmtTime(it.start_time) + "</span>";
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div></div>");
         const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (planSession && planSession.session_id && it.alternatives && it.alternatives.length) {
@@ -1284,7 +1290,30 @@ function planCard(plan) {
       const id = btn.getAttribute("data-item-id");
       const action = btn.getAttribute("data-action");
       const sid = planSession.session_id;
-      if (action === "pin") {
+      if (action === "retime") {
+        // 时间戳原地换成原生 time 输入：change 提交、blur 还原（防双触发）
+        if (btn.querySelector("input")) return;
+        const input = document.createElement("input");
+        input.type = "time";
+        input.value = btn.getAttribute("data-cur") || "";
+        btn.textContent = "";
+        btn.appendChild(input);
+        input.focus();
+        let done = false;
+        input.addEventListener("change", () => {
+          if (done) return;
+          done = true;
+          const v = input.value;
+          if (!v) { box.replaceWith(planCard(plan)); return; }
+          input.disabled = true;
+          api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/retime", { start_time: v }, "POST")
+            .then(body => box.replaceWith(planCard(body.plan)))
+            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+        });
+        input.addEventListener("blur", () => {
+          if (!done) { done = true; box.replaceWith(planCard(plan)); }
+        });
+      } else if (action === "pin") {
         const cur = btn.getAttribute("data-pinned") === "1";
         busy(btn, async () => {
           try {
@@ -1383,6 +1412,8 @@ function planSaveBar(plan) {
     re.onclick = () => {
       if (!confirm("回到全新规划？当前未保存的修改会丢弃。")) return;
       planSetSession(null);
+      document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
+      addMsg("flow-plan", "sys", "已回到全新规划：上方填城市/天数后点「🚀 开始规划」。");
       toast("已回到全新规划：上方填城市/天数后点「🚀 开始规划」");
       document.getElementById("flow-plan").scrollTop = 0;
     };
