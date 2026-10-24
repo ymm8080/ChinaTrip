@@ -26,7 +26,7 @@ from app.services.agent.plan import (
     _parse_cities,
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
-from app.services.itinerary import VisitItem
+from app.services.itinerary import AlternativePoi, GeoPoint, VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -771,3 +771,244 @@ def test_delete_guard_chain_400_404():
     )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "item_not_found"}
+
+
+# --- POST /plan/{id}/items/{item_id}/swap（v2.5.1 gap #17 备选换入）----------
+
+
+def _seed_alternatives(app: FastAPI, session_id: str, name: str, alts):
+    store = app.dependency_overrides[get_plan_sessions]()
+    session = store.get(session_id, device_id="device-1")
+    item = next(
+        i
+        for d in session.plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.name == name
+    )
+    item.alternatives = list(alts)
+    return item
+
+
+def test_swap_replaces_item_keeps_slot_and_offers_undo():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    old = _seed_alternatives(
+        app,
+        body["session_id"],
+        "西湖",
+        [
+            AlternativePoi(
+                name="断桥残雪",
+                category="sight",
+                city="杭州",
+                location=GeoPoint(lon=120.15, lat=30.27),
+                address="北山街",
+                opening_hours="全天开放",
+                distance_km=1.2,
+            ),
+            AlternativePoi(
+                name="苏堤春晓",
+                category="sight",
+                city="杭州",
+                location=GeoPoint(lon=120.14, lat=30.25),
+                distance_km=2.5,
+            ),
+        ],
+    )
+    old.pinned = True  # 钉住状态随槽位带到新条目
+    resp = client.post(
+        f"/api/v1/plan/{body['session_id']}/items/{old.item_id}/swap",
+        json={"name": "断桥残雪"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reply"] == "已将 西湖 换成 断桥残雪"
+    names = [i.get("name") for d in data["plan"]["days"] for i in d["items"]]
+    assert "断桥残雪" in names and "西湖" not in names
+    new = _visit(data, "断桥残雪")
+    assert new["day"] == old.day
+    assert new["pinned"] is True
+    assert new["duration_minutes"] == old.duration_minutes
+    assert new["address"] == "北山街"
+    # 换回是同一个一键动作：原主选回到备选首位，另一备选保留
+    alt_names = [a["name"] for a in new["alternatives"]]
+    assert alt_names == ["西湖", "苏堤春晓"]
+
+
+def test_swap_guard_chain_400_404():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海"], "days": 1, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    resp = client.post(f"/api/v1/plan/{sid}/items/v1/swap", json={"name": "x"})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "missing_device_id"}
+    resp = client.post(
+        "/api/v1/plan/no-such/items/v1/swap",
+        json={"name": "x"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "session_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v_none/swap",
+        json={"name": "x"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "item_not_found"}
+    # 条目存在但没有这个备选
+    item = _seed_alternatives(app, sid, "西湖", [])
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{item.item_id}/swap",
+        json={"name": "断桥残雪"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "alternative_not_found"}
+
+
+# --- POST /plan/{id}/items/{item_id}/move（2026-10-24 规划页拖拽）-----------
+
+
+def _append_day1_visit(session, item_id: str, name: str, h: int, m: int, dur: int):
+    from datetime import time as dtime
+
+    day1 = next(d for d in session.plan.days if d.day == 1)
+    day1.items.append(
+        VisitItem(
+            item_id=item_id,
+            name=name,
+            city="杭州",
+            day=1,
+            start_time=dtime(h, m),
+            end_time=dtime(h + dur // 60, m + dur % 60),
+            duration_minutes=dur,
+        )
+    )
+
+
+def _day_visits(body: dict, day_no: int) -> list[dict]:
+    day = next(d for d in body["plan"]["days"] if d["day"] == day_no)
+    return [i for i in day["items"] if "mode" not in i]
+
+
+def test_move_same_day_reorder_resequences_times():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    store = app.dependency_overrides[get_plan_sessions]()
+    session = store.get(sid, device_id="device-1")
+    _append_day1_visit(session, "v2", "灵隐寺", 13, 0, 90)
+    _append_day1_visit(session, "v3", "河坊街", 16, 0, 60)
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v3/move",
+        json={"day": 1, "after_item_id": "v1"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    visits = _day_visits(data, 1)
+    assert [v["item_id"] for v in visits] == ["v1", "v3", "v2"]
+    slots = [(v["start_time"], v["end_time"]) for v in visits]
+    assert all(s[0] and s[1] for s in slots)  # 全部重排后有时间
+    assert all(a[1] <= b[0] for a, b in zip(slots, slots[1:]))  # 时链单调不重叠
+
+
+def test_move_cross_day_to_head():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v2/move",
+        json={"day": 1, "after_item_id": None},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert _visit(data, "雷峰塔")["day"] == 1
+    assert not _day_visits(data, 2)  # 原天不再有景点
+    names1 = [v["item_id"] for v in _day_visits(data, 1)]
+    assert names1 == ["v2", "v1"]  # after=None → 插到当天第一个景点前
+    slots = {
+        v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 1)
+    }
+    assert all(s[0] and s[1] for s in slots.values())
+    assert slots["v2"][1] <= slots["v1"][0]  # 时链单调
+
+
+def test_move_pinned_item_returns_422():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid, vid = body["session_id"], _visit(body, "西湖")["item_id"]
+    pinned = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/pin",
+        json={"pinned": True},
+        headers=DEVICE_HEADERS,
+    )
+    assert pinned.status_code == 200
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/move",
+        json={"day": 1, "after_item_id": None},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "pinned_locked"}
+
+
+def test_move_guard_chain_400_404_422():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    resp = client.post(f"/api/v1/plan/{sid}/items/v1/move", json={"day": 1})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "missing_device_id"}
+    resp = client.post(
+        "/api/v1/plan/no-such/items/v1/move",
+        json={"day": 1},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "session_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v_none/move",
+        json={"day": 1},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "item_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v1/move",
+        json={"day": 99},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "day_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v1/move",
+        json={"day": 1, "after_item_id": "v_none"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "after_not_found"}

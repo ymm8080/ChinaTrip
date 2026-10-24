@@ -3015,6 +3015,97 @@ class PlanningAgent:
                     released.append((item.item_id, op))
         return released
 
+    def move_item(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        new_day: int,
+        after_item_id: str | None = None,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """规划页拖拽（2026-10-24）：把一个 VisitItem 移到第 new_day 天、
+        after_item_id 之后（None = 当天第一个景点）。用户顺序权威——不跑
+        solver 重优化（solver 会按自己的目标重排，拖了等于白拖），改为清空
+        受影响两天的非 pinned 景点时间后用 _fallback_sequence_times 按列表
+        顺序重排时链；pinned 项与城际交通保持原时间为固定锚点。纯计算，
+        不调 LLM。item 被 pinned 时拒绝（422 pinned_locked，前端把手禁拖）。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        visit = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if visit is None:
+            raise ValueError("item_not_found")
+        if visit.pinned:
+            raise ValueError("pinned_locked")
+        target = next((d for d in plan.days if d.day == new_day), None)
+        if target is None:
+            raise ValueError("day_not_found")
+        if after_item_id is not None and after_item_id not in {
+            i.item_id for i in target.items if isinstance(i, VisitItem)
+        }:
+            raise ValueError("after_not_found")
+
+        candidate = plan.model_copy(deep=True)
+        target = next(d for d in candidate.days if d.day == new_day)
+        src_day = next(
+            d for d in candidate.days for i in d.items if i.item_id == item_id
+        )
+        src_no = src_day.day
+        moved = next(
+            i
+            for i in src_day.items
+            if isinstance(i, VisitItem) and i.item_id == item_id
+        )
+        src_day.items.remove(moved)
+        moved.day = new_day
+        if after_item_id is None:
+            pos = next(
+                (k for k, i in enumerate(target.items) if isinstance(i, VisitItem)),
+                len(target.items),
+            )
+        else:
+            pos = (
+                next(
+                    k for k, i in enumerate(target.items) if i.item_id == after_item_id
+                )
+                + 1
+            )
+        target.items.insert(pos, moved)
+
+        # 重排时间链：受影响天的非 pinned 景点时间清空，按新顺序重排
+        for day in candidate.days:
+            if day.day not in (src_no, new_day):
+                continue
+            for it in day.items:
+                if isinstance(it, VisitItem) and not it.pinned:
+                    it.start_time = None
+                    it.end_time = None
+        notes = _reconcile_transfer_days(candidate)
+        _fallback_sequence_times(candidate)
+        report = validate_plan(candidate, poi_hours=[])
+        pinned = validate_pinned(plan, candidate)
+        if pinned.violations:
+            combined = list(report.violations) + pinned.violations
+            has_error = any(v.severity == RuleSeverity.error for v in combined)
+            report = ValidationReport(ok=not has_error, violations=combined)
+        annotate_legs(candidate)
+        session.plan = candidate
+        cross = f" 移到第{new_day}天" if new_day != src_no else ""
+        summary = ChangeSummary(
+            change_summary=[f"第{new_day}天 移动 {visit.name}{cross}"],
+            affected_items_count=1,
+        )
+        return report, summary, notes
+
     def sync_removals_to_trip_items(
         self, plan_before: ItineraryPlan, diffs: list[DiffOp]
     ) -> None:

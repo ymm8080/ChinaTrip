@@ -7,6 +7,7 @@ domain models.
 
 from app.services.itinerary.legs import annotate_legs, leg_pairs
 from app.services.itinerary.models import (
+    AlternativePoi,
     ChangeSummary,
     CrowdProfile,
     DayPlan,
@@ -36,6 +37,7 @@ from app.services.itinerary.rules import (
 
 __all__ = [
     "CROWD_COEFFICIENTS",
+    "AlternativePoi",
     "ChangeSummary",
     "CrowdProfile",
     "DayPlan",
