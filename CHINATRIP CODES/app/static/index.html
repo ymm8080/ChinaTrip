@@ -159,7 +159,7 @@
   .composer textarea#planInput::placeholder{color:#8a94a3}
   .dirbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px}
   .dirbar .chip{padding:3px 10px;font-size:12px}
-  .t9n-wrap{display:flex;flex-direction:column;gap:6px}
+  .t9n-wrap{display:flex;flex-direction:column;gap:6px;flex-shrink:0} /* 硬保护：矮视口/系统缩放下输入框永不被 flex 挤出屏幕（2026-10-24） */
 
   /* ---------- 导航：全幅地图 ---------- */
   #tab-nav{padding:0}
@@ -357,6 +357,9 @@
 
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
+      <div class="dirbar" id="planSummaryBar" style="display:none">
+        <button class="btn ghost mini" id="planSummaryToggle" title="展开/收起参数表单">✏️ <span id="planSummaryText"></span> ▾</button>
+      </div>
       <div class="toolbar" id="planSetup" style="flex-wrap:wrap">
         <label class="fld">起始城市
           <span style="display:flex;gap:4px;align-items:center">
@@ -1532,14 +1535,34 @@ function planDateIso(n) {
 let planSession = null; // {session_id, state}
 
 const PLAN_SESSION_KEY = "chinatrip_plan_session";
+function planSummaryRefresh() {
+  try {
+    const r = planRouteForm();
+    document.getElementById("planSummaryText").textContent =
+      r.cities.join("→") + " · 共 " + r.total + " 天" + (PLAN.startDate ? " · " + PLAN.startDate.slice(5) : "");
+  } catch (_) { document.getElementById("planSummaryText").textContent = "改参数"; }
+}
 function planSetSession(s) {
-  planSession = s; // 参数表单恒显示（2026-10-24：不再随会话隐藏——随时改参数点「开始规划」即开新局）
+  // 会话激活时参数表单收成一行摘要（2026-10-24 实测：矮视口/系统缩放下表单+输入框最小高度超出可视区，
+  // flex 会把输入框挤出屏幕——收起表单把空间还给对话流；点摘要随时展开改参数）
+  planSession = s;
   try { // 会话指针持久化（2026-10-24 用户规则：已有行程的对话要继续下去——刷新不能把它变回全新规划）
     if (s) localStorage.setItem(PLAN_SESSION_KEY, JSON.stringify(s));
     else localStorage.removeItem(PLAN_SESSION_KEY);
   } catch (_) {}
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；或改上方参数再点「开始规划」" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
+  const form = document.getElementById("planSetup");
+  const bar = document.getElementById("planSummaryBar");
+  if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
+  else { form.style.display = "flex"; bar.style.display = "none"; }
+  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
 }
+document.getElementById("planSummaryToggle").onclick = () => {
+  const form = document.getElementById("planSetup");
+  const opening = form.style.display === "none";
+  form.style.display = opening ? "flex" : "none";
+  document.getElementById("planSummaryToggle").lastChild.textContent = opening ? " ▴" : " ▾";
+  if (!opening) planSummaryRefresh(); // 收起时刷新摘要
+};
 
 // 启动恢复上次规划会话（2026-10-24 用户规则）：后端会话本来就在
 // data/h5_state.db 里活着，指针 restored 后打字/回车照走 /message 继续对话；
