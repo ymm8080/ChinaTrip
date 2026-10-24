@@ -1490,8 +1490,8 @@ function planRouteForm() {
   const viaOpts = '<option value="">（不经过）</option>' + opts;
   const s = document.getElementById("planStartCity");
   const e = document.getElementById("planEndCity");
-  s.innerHTML = opts; s.value = "北京";
-  e.innerHTML = opts; e.value = "上海";
+  s.innerHTML = opts; s.value = "上海";
+  e.innerHTML = opts; e.value = "杭州";
   // 浏览器表单恢复可能带回 0/空天数：初始化时归位默认值
   // （起始城市 0 天是设计如此——只排出发交通不计入合计）
   const num = (id) => parseInt(document.getElementById(id).value, 10);
@@ -3570,7 +3570,7 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从北京到上海 6 天，喜欢博物馆）回车即开始规划；也可在上方选城市/天数/偏好后点「🚀 开始规划」。信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
+addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可在上方选城市/天数/偏好后点「🚀 开始规划」。信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
 addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
 addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
 addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
