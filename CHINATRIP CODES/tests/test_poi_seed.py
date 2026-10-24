@@ -17,6 +17,7 @@ class FakeSession:
         self.commits = 0
         self._fail_on = fail_on  # "query" | "commit"
         self._kw: dict = {}
+        self._crit: list = []
 
     def __enter__(self):
         return self
@@ -27,17 +28,37 @@ class FakeSession:
     def query(self, model):
         if self._fail_on == "query":
             raise RuntimeError("db down")
+        self._kw = {}
+        self._crit = []
         return self
 
     def filter_by(self, **kw):
         self._kw = kw
         return self
 
+    def filter(self, *crit):
+        self._crit = list(crit)
+        return self
+
+    def _crit_match(self, row):
+        """评估简单等值表达式（col.key == param.value）。"""
+        for c in self._crit:
+            left, right = getattr(c, "left", None), getattr(c, "right", None)
+            key = getattr(left, "key", None) if left is not None else None
+            if key is None:
+                return False
+            if getattr(row, key, None) != getattr(right, "value", None):
+                return False
+        return True
+
     def one_or_none(self):
         for row in self.rows:
             if all(getattr(row, k, None) == v for k, v in self._kw.items()):
                 return row
         return None
+
+    def all(self):
+        return [row for row in self.rows if self._crit_match(row)]
 
     def add(self, obj):
         self.added.append(obj)
@@ -174,6 +195,54 @@ def test_seed_upsert_duplicate_exists_no_overwrite():
     assert existing.name_zh == "旧名"
     assert existing.city == "北京"
     assert existing.status == "inactive"
+
+
+def test_seed_upsert_chinatravel_skips_when_upgraded_twin_exists():
+    """ct_* 骨架被升级成 amap（老升级 origin 留 NULL）→ 重导入视为 exists，不造影子."""
+    existing = Poi(
+        id=uuid4(),
+        source="amap",
+        source_poi_id="ct_北京_4",
+        city="北京",
+        name_zh="旧名",
+        status="active",
+    )
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="chinatravel",
+        source_poi_id="ct_北京_4",
+        city="北京",
+        name_zh="颐和园",
+    )
+    assert out == "exists"
+    assert factory.session.added == []
+    assert existing.name_zh == "旧名"
+
+
+def test_seed_upsert_lineage_guard_only_for_chinatravel():
+    """非 chinatravel 源不受血统闸影响：同 id 异源照常 create（跨源共存按设计）."""
+    existing = Poi(
+        id=uuid4(),
+        source="amap",
+        source_poi_id="5a_001",
+        city="北京",
+        name_zh="故宫",
+        status="active",
+    )
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="5a",
+        source_poi_id="5a_001",
+        city="北京",
+        name_zh="故宫",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.source == "5a"
 
 
 def test_seed_upsert_second_call_after_commit_is_exists():

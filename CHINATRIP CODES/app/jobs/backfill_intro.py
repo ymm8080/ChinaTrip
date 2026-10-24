@@ -3,17 +3,23 @@
 链路（用户拍板 2026-10-23，不引商业 API）：
   ①Wikidata wbsearchentities(language=zh) 找实体 id
   ②Special:EntityData/{id}.json 取 claims：P18 图片文件名 → Wikimedia
-    Commons Special:FilePath 外链（?width=800，只存外链不下载）
-  ③zh.wikipedia REST summary 取 extract（>30 字才用）做简介
+    Commons Special:FilePath 外链（?width=800，只存外链不下载）；顺带拿
+    sitelinks.zhwiki.title
+  ③用②现成的 zhwiki 标题打 api.wikimedia.org core/v1/wikipedia/zh/page/
+    {title} 取 wikitext，纯 stdlib re 抽首段纯文本做简介。2026-10-24 实测：
+    zh.wikipedia.org 被墙必超时，api.wikimedia.org 直连可达但要求合规
+    UA（否则 403 robot policy）。
 
 铁律：只填空字段——intro/intro_source、photos/photos_source 已有值绝不
-覆盖。intro_source 统一标 "wikidata" 方便按源统计（值实为 zh.wikipedia
-summary 的 extract，见 _backfill_row 注释）；photos 条目格式
+覆盖。intro_source 标 "wikimedia_api"（api.wikimedia.org 页面正文抽取，
+页面本身仍由 Wikidata sitelink 链出）；photos 条目格式
 [{"url", "source", "license"}]，license 简化写 "CC"（Commons 外链服务
 自带署名跳转）。
 
 限速：串行 + 每请求间 sleep 0.5s（礼貌抓取，Wikimedia UA 政策）。
-User-Agent: "ChinaTrip-POI-library/0.1 (contact: dev@chinatrip.local)"。
+User-Agent / Api-User-Agent 同串：
+    ChinaTrip-POI-library/0.1
+    (https://github.com/chinatrip; mailto:dev@chinatrip.local)
 
 注：--with-amap-photos 目前是预留空开关（no-op）——AmapClient 现有方法
 均不透出 photos 数组（v3 search_poi 经 _normalize_poi 丢弃 photos，v5
@@ -27,6 +33,7 @@ AmapClient 增加返回 photos 的方法后再接；不改 amap_client.py。
 
 import argparse
 import json
+import re
 import sys
 import time
 from urllib.parse import quote
@@ -37,11 +44,20 @@ from sqlalchemy import or_
 from app.db import get_session_factory
 from app.models import Poi
 
-USER_AGENT = "ChinaTrip-POI-library/0.1 (contact: dev@chinatrip.local)"
+USER_AGENT = (
+    "ChinaTrip-POI-library/0.1 "
+    "(https://github.com/chinatrip; mailto:dev@chinatrip.local)"
+)
+# api.wikimedia.org 要求 Api-User-Agent 头；与 UA 同串，wikidata 侧带上无害
+API_USER_AGENT = USER_AGENT
 _WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+_WIKIMEDIA_ZH_PAGE = "https://api.wikimedia.org/core/v1/wikipedia/zh/page/{}"
 _REQUEST_GAP_SECONDS = 0.5
-# extract 长于 30 字才用（过短的多为消歧义/占位文本）
-_MIN_EXTRACT_CHARS = 30
+_RETRY_DELAY_SECONDS = 2.0
+# 首个文本块长于 50 字才用（过短的多为消歧义/占位文本）
+_MIN_INTRO_CHARS = 50
+# Poi.intro 列是 Text（无列长限制）；截到 500 字保持 H5 载荷轻量
+_MAX_INTRO_CHARS = 500
 
 
 # --- 目标行选取 -------------------------------------------------------------
@@ -73,7 +89,7 @@ def select_targets(
     return rows
 
 
-# --- Wikidata / Wikipedia 客户端（httpx.Client 可注入） ----------------------
+# --- Wikidata / Wikimedia 客户端（httpx.Client 可注入） ----------------------
 
 
 def _search_entity(http: httpx.Client, name_zh: str) -> str | None:
@@ -145,13 +161,56 @@ def _photos_from_p18(filename: str) -> list[dict]:
     ]
 
 
-def _wiki_extract(http: httpx.Client, title: str) -> str | None:
-    resp = http.get(f"https://zh.wikipedia.org/api/rest_v1/page/summary/{quote(title)}")
+def _fetch_zh_page_wikitext(http: httpx.Client, title: str) -> str | None:
+    """api.wikimedia.org 页面正文（wikitext）；403/429 等 2s 重试一次。"""
+    url = _WIKIMEDIA_ZH_PAGE.format(quote(title, safe=""))
+    for attempt in (1, 2):
+        resp = http.get(url)
+        if resp.status_code in (403, 429) and attempt == 1:
+            time.sleep(_RETRY_DELAY_SECONDS)
+            continue
+        break
     resp.raise_for_status()
     data = resp.json()
-    extract = data.get("extract") if isinstance(data, dict) else None
-    if isinstance(extract, str) and len(extract.strip()) > _MIN_EXTRACT_CHARS:
-        return extract.strip()
+    source = data.get("source") if isinstance(data, dict) else None
+    return source if isinstance(source, str) and source else None
+
+
+# --- wikitext → 首段纯文本（纯 stdlib re） -----------------------------------
+
+_REF_RE = re.compile(r"<ref\b[^>]*/>|<ref\b[^>]*>.*?</ref>", re.DOTALL | re.IGNORECASE)
+_HEADING_RE = re.compile(r"={2,}[^=\n]*={2,}")
+_FILE_LINK_RE = re.compile(r"\[\[(?:File|Image|文件|图像):[^]]*\]\]", re.IGNORECASE)
+_WIKILINK_NAMED_RE = re.compile(r"\[\[[^|\]]*\|([^]]*)\]\]")
+_WIKILINK_PLAIN_RE = re.compile(r"\[\[([^]]*)\]\]")
+_EXT_LINK_NAMED_RE = re.compile(r"\[https?://\S+\s+([^\]]*)\]")
+_EXT_LINK_BARE_RE = re.compile(r"\[https?://\S*\]")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _wikitext_intro(wikitext: str) -> str | None:
+    """wikitext 抽首段纯文本；不足 _MIN_INTRO_CHARS 字返回 None。"""
+    text = _REF_RE.sub(" ", wikitext)
+    # 嵌套模板 {{...}} 与表格 {|...|} 由内向外迭代剥离
+    while True:
+        stripped = re.sub(r"\{\{[^{}]*\}\}", " ", text)
+        stripped = re.sub(r"\{\|[^{}]*\|\}", " ", stripped)
+        if stripped == text:
+            break
+        text = stripped
+    # 标题换成段落分隔符——首段天然落在首个 == 标题之前
+    text = _HEADING_RE.sub("\n\n", text)
+    text = _FILE_LINK_RE.sub(" ", text)
+    text = _WIKILINK_NAMED_RE.sub(r"\1", text)
+    text = _WIKILINK_PLAIN_RE.sub(r"\1", text)
+    text = _EXT_LINK_NAMED_RE.sub(r"\1", text)
+    text = _EXT_LINK_BARE_RE.sub(" ", text)
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = text.replace("'''", "").replace("''", "")
+    for block in re.split(r"\n\s*\n", text):
+        flat = " ".join(block.split())
+        if len(flat) >= _MIN_INTRO_CHARS:
+            return flat[:_MAX_INTRO_CHARS]
     return None
 
 
@@ -183,16 +242,21 @@ def _backfill_row(
         else:
             stats["no_p18"] += 1
     if needs_intro:
-        # intro_source 统一标 "wikidata" 方便统计；值实为 zh.wikipedia
-        # summary 的 extract（该页面本身由 Wikidata 链出，口径归一）。
-        time.sleep(sleep_seconds)
-        extract = _wiki_extract(http, zh_title or name)
-        if extract:
-            row.intro = extract
-            row.intro_source = "wikidata"
-            stats["intro_filled"] += 1
+        # 简介：复用②拿到的 sitelinks.zhwiki.title（零额外查找）；无
+        # sitelink 计 no_sitelink 跳过（zh.wikipedia.org 被墙，不再拿
+        # POI 名兜底去试）。
+        if not zh_title:
+            stats["no_sitelink"] += 1
         else:
-            stats["no_extract"] += 1
+            time.sleep(sleep_seconds)
+            wikitext = _fetch_zh_page_wikitext(http, zh_title)
+            intro = _wikitext_intro(wikitext) if wikitext else None
+            if intro:
+                row.intro = intro
+                row.intro_source = "wikimedia_api"
+                stats["intro_filled"] += 1
+            else:
+                stats["no_extract"] += 1
 
 
 def backfill_intro(
@@ -209,12 +273,16 @@ def backfill_intro(
         "intro_filled": 0,
         "photos_filled": 0,
         "no_entity": 0,
+        "no_sitelink": 0,
         "no_extract": 0,
         "no_p18": 0,
         "errors": 0,
     }
     own_client = client is None
-    http = client or httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10.0)
+    http = client or httpx.Client(
+        headers={"User-Agent": USER_AGENT, "Api-User-Agent": API_USER_AGENT},
+        timeout=10.0,
+    )
     try:
         with session_factory() as session:
             rows = _query_targets(session, limit=limit)
@@ -235,7 +303,7 @@ def backfill_intro(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="回填 POI 简介+图片（Wikidata+中文维基百科，只填空字段）"
+        description="回填 POI 简介+图片（Wikidata+api.wikimedia.org，只填空字段）"
     )
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--city", help="只刷指定城市（如 重庆）")

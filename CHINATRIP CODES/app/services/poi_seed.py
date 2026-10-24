@@ -109,6 +109,20 @@ def seed_upsert(
             )
             if row is not None:
                 return "exists"  # 骨架不覆盖：已有行原样保留
+            if source == "chinatravel":
+                # 血统防影子：ct_* 骨架被回源升级后 source 变 "amap"
+                # （2026-10 前的老升级连 origin 都留空，可靠血统标记只剩
+                # source_poi_id 本身——amap 原生 ID 不会长成 ct_<city>_<n>）。
+                # 同一 source_poi_id 只要在其它 source 下已存在即视为已导入，
+                # 不重建 data-poor 影子行。仅对 chinatravel 生效，unesco/5a
+                # 跨源共存按设计不动。
+                twins = (
+                    session.query(model)
+                    .filter(model.source_poi_id == source_poi_id)
+                    .all()
+                )
+                if any(r.source != source for r in twins):
+                    return "exists"
             kwargs: dict[str, Any] = {
                 "id": uuid4(),
                 "source": source,
