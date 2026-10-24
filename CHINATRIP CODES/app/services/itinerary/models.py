@@ -81,6 +81,9 @@ class ItineraryPlan(BaseModel):
     cities: list[str]
     days: list[DayPlan]
     assumptions: list[str] = Field(default_factory=list)
+    # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
+    # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
+    start_date: str | None = None
 
 
 class PoiHours(BaseModel):

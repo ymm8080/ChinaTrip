@@ -1,7 +1,7 @@
 """weather 服务层测试（FakeSession 离线 + MockTransport，不连真库/不出网）."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -13,6 +13,16 @@ from app.services.weather import (
     parse_report_time,
     trip_cities,
     upsert_weather,
+)
+from app.services.weather_open_meteo import (
+    CITY_COORDS,
+    FORECAST14_KIND,
+    OPEN_METEO_SOURCE,
+    STALE_DAYS,
+    fetch_forecast14,
+    normalize_daily,
+    purge_stale,
+    wmo_text,
 )
 
 
@@ -218,6 +228,7 @@ def test_upsert_insert_then_update():
     row = session.rows[0]
     assert row.city == "北京市"
     assert row.payload["temperature"] == "18"
+    assert row.fetched_at is not None
 
     # 同键二次写入 → 覆盖，不堆历史
     second = _report(report_time="2026-10-23 11:05:00", temp="22")
@@ -225,6 +236,18 @@ def test_upsert_insert_then_update():
     assert len(session.rows) == 1
     assert row.payload["temperature"] == "22"
     assert row.report_time == datetime(2026, 10, 23, 11, 5)
+
+
+def test_upsert_refreshes_fetched_at_on_update():
+    session = FakeSession()
+    assert upsert_weather(session, _report()) == "inserted"
+    session.commit()
+    row = session.rows[0]
+    # 模拟旧行：上次刷新是 3 天前 → 本次更新必须盖新时间戳
+    row.fetched_at = datetime.utcnow() - timedelta(days=3)
+
+    assert upsert_weather(session, _report(temp="22")) == "updated"
+    assert row.fetched_at > datetime.utcnow() - timedelta(minutes=1)
 
 
 def test_upsert_missing_report_time_keeps_none():
@@ -273,3 +296,117 @@ def test_trip_cities_dedup_and_sort():
         }
     )
     assert trip_cities(session) == ["北京", "西安", "重庆"]
+
+
+# --- Open-Meteo 14 天预报（TREK 双轨第二源）-----------------------------------
+
+
+def test_wmo_text_mapping():
+    assert wmo_text(0) == "晴"
+    assert wmo_text(3) == "阴"
+    assert wmo_text(61) == "小雨"
+    assert wmo_text(95) == "雷阵雨"
+    assert wmo_text(75) == "大雪"
+    assert wmo_text(999) == ""
+    assert wmo_text(None) == ""
+
+
+def test_normalize_daily_same_shape_as_amap():
+    data = {
+        "daily": {
+            "time": ["2026-10-24", "2026-11-06"],
+            "weather_code": [61, 0],
+            "temperature_2m_max": [17.26, 8.0],
+            "temperature_2m_min": [8.7, 0.4],
+        }
+    }
+    report = normalize_daily("北京", "110000", data)
+    assert report["kind"] == FORECAST14_KIND
+    casts = report["payload"]["casts"]
+    assert len(casts) == 2
+    assert casts[0] == {
+        "date": "2026-10-24",
+        "day_weather": "小雨",
+        "day_temp": "17",  # 四舍五入，与高德整数字符串同构
+        "night_temp": "9",
+    }
+    assert casts[1]["day_weather"] == "晴"
+
+
+def test_city_coords_cover_all_40():
+    from app.services.weather import CITY_ADCODES
+
+    assert set(CITY_COORDS) == set(CITY_ADCODES)
+    assert all(len(v) == 2 for v in CITY_COORDS.values())
+
+
+def _om_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "daily": {
+                "time": ["2026-10-24", "2026-11-06"],
+                "weather_code": [2, 95],
+                "temperature_2m_max": [17.2, 14.0],
+                "temperature_2m_min": [8.7, 3.0],
+            }
+        },
+    )
+
+
+def test_fetch_forecast14_stats():
+    session = FakeSession()
+    transport = httpx.MockTransport(_om_handler)
+
+    async def run(cities):
+        client = httpx.AsyncClient(transport=transport)  # 服务内 async with 会关闭它
+        return await fetch_forecast14(FakeFactory(session), cities, client=client)
+
+    stats = asyncio.run(run(["北京", "亚特兰蒂斯"]))
+    assert stats["cities"] == 1
+    assert stats["fetched"] == 1
+    assert stats["inserted"] == 1
+    assert stats["skipped"] == 1
+    assert stats["errors"] == 0
+    row = session.rows[0]
+    assert row.source == OPEN_METEO_SOURCE
+    assert row.kind == FORECAST14_KIND
+    assert len(row.payload["casts"]) == 2
+
+
+def test_fetch_forecast14_upsert_updates_existing():
+    session = FakeSession()
+    transport = httpx.MockTransport(_om_handler)
+
+    async def run():
+        client = httpx.AsyncClient(transport=transport)
+        return await fetch_forecast14(FakeFactory(session), ["北京"], client=client)
+
+    asyncio.run(run())
+    stats = asyncio.run(run())
+    assert stats["updated"] == 1
+    assert len(session.rows) == 1  # latest-wins 不堆历史
+
+
+class ExecSession(FakeSession):
+    """补 execute()（purge_stale 走 delete 语句）。"""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a)
+        self.executed = []
+
+    def execute(self, stmt):
+        self.executed.append(stmt)
+
+        class _R:
+            rowcount = 3
+
+        return _R()
+
+
+def test_purge_stale_deletes_old_rows():
+    assert STALE_DAYS == 7  # 用户口径：旧记录一周前删
+    session = ExecSession()
+    deleted = asyncio.run(purge_stale(FakeFactory(session), days=7))
+    assert deleted == 3
+    assert len(session.executed) == 1

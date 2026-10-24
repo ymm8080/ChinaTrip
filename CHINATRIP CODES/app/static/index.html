@@ -1099,12 +1099,69 @@ function amapWalkUrl(to) {
     "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
 }
 
+// 天气：高德天气文本 → 图标；/api/weather 无数据（抓取作业未跑/城市未收录）时静默跳过
+function wxIcon(text) {
+  const t = String(text || "");
+  if (/雷/.test(t)) return "⛈️";
+  if (/雨夹雪/.test(t)) return "🌨️";
+  if (/雪/.test(t)) return "❄️";
+  if (/雨/.test(t)) return "🌧️";
+  if (/雾/.test(t)) return "🌫️";
+  if (/霾/.test(t)) return "😷";
+  if (/阴/.test(t)) return "☁️";
+  if (/多云/.test(t)) return "⛅";
+  if (/晴/.test(t)) return "☀️";
+  return "🌤️";
+}
+const WX = { cache: {} };
+function wxFor(city, force) {
+  if (!city) return Promise.resolve(null);
+  const key = city.replace(/市$/, "");
+  if (force) delete WX.cache[key];
+  if (!WX.cache[key]) {
+    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => null);
+  }
+  return WX.cache[key];
+}
+// 天头占位 span 回填「图标 高温°/低温°」：按该天日期匹配——0-3 天走高德
+// forecast，4-14 天回退 Open-Meteo forecast14（casts 同构）；无数据/无日期不显示
+// span 带 data-wx-city/data-wx-date，wxSync 刷新后可按属性重绘
+function wxFill(span, city, dateIso, force) {
+  wxFor(city, force).then(w => {
+    if (!w || !dateIso || !span.isConnected) return;
+    let cast = null;
+    if (w.forecast && w.forecast.casts) cast = w.forecast.casts.find(c => c.date === dateIso);
+    if (!cast && w.forecast14 && w.forecast14.casts) cast = w.forecast14.casts.find(c => c.date === dateIso);
+    if (cast) span.textContent = "  " + wxIcon(cast.day_weather) + " " + cast.day_temp + "°/" + cast.night_temp + "°";
+  });
+}
+// 开站新鲜度巡检：后端判行程城市 fetched_at 非今天（北京时间）即内联刷新
+// （高德 0-3 天 + Open-Meteo 14 天），刷新过的城市清缓存重绘已挂载的天头；
+// 天气是纯参考数据，刷新即生效，无需保存动作
+async function wxSync() {
+  try {
+    const res = await api("/api/weather/sync", { cities: [] }, "POST");
+    const refreshed = (res.cities || []).filter(c => c.refreshed).map(c => c.city);
+    if (!refreshed.length) return;
+    refreshed.forEach(c => { delete WX.cache[c]; });
+    document.querySelectorAll(".wx[data-wx-city]").forEach(sp => {
+      wxFill(sp, sp.getAttribute("data-wx-city"), sp.getAttribute("data-wx-date"), true);
+    });
+    const at = (res.cities || []).find(c => c.refreshed);
+    const hhmm = at && at.fetched_at ? itinFmtLocal(at.fetched_at).slice(11) : "";
+    toast("🌤 天气已自动刷新 · " + hhmm + (refreshed.length > 1 ? "（" + refreshed.length + " 城）" : "（" + refreshed[0] + "）"));
+  } catch (err) { /* 巡检失败不影响首开 */ }
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
-    box.appendChild(el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) + "</div>"));
+    const dayHead = el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) +
+      '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
+    box.appendChild(dayHead);
+    wxFill(dayHead.querySelector(".wx"), d.base_city, dt);
     (d.items || []).forEach((it, idx) => {
       if (it.from_city) { // TransferItem
         box.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
@@ -1493,7 +1550,7 @@ async function planStartCore(extraPref) {
   addMsg("flow-plan", "user", "开始规划：" + r.cities.join("→") + "，共 " + r.total + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
   const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
   try {
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays });
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined });
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
@@ -2385,6 +2442,9 @@ async function itinEdit(r, btn) {
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
+      // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准
+      PLAN.startDate = (body.plan && body.plan.start_date) || "";
+      if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
       planSetSession({ session_id: body.session_id, state: body.state, origin: null }); // 无 origin：会话丢失提示重新修改，不做自动重建
       switchTab("plan");
       addMsg("flow-plan", "user", "✏️ 修改行程：" + (r.cities || []).join(" → ") + "（" + r.itinerary_id + "）");
@@ -3351,6 +3411,7 @@ addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」�
 addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
 
 planSetSession(null);
+wxSync();
 
 /* ---- PWA：注册 service worker（离线缓存，surmai 同款 app-shell 策略） ---- */
 if ('serviceWorker' in navigator) {

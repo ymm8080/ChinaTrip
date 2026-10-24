@@ -528,9 +528,16 @@ def test_from_itinerary_opens_ready_session_and_round_trips_save():
     )
     client = TestClient(app)
     saved = start(
-        client, {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"}
+        client,
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "博物馆",
+            "start_date": "2026-10-25",
+        },
     ).json()
     iid = saved["plan"]["itinerary_id"]
+    assert saved["plan"]["start_date"] == "2026-10-25"
     assert (
         client.post(
             f"/api/v1/plan/{saved['session_id']}/save",
@@ -548,6 +555,8 @@ def test_from_itinerary_opens_ready_session_and_round_trips_save():
     assert body["session_id"]
     assert body["plan"]["itinerary_id"] == iid  # 同一行程：保存覆盖原记录
     assert body["plan"]["cities"] == ["上海", "杭州"]
+    # 出发日期随快照持久化：保存→重开一路带回（行程卡日期/天气基准）
+    assert body["plan"]["start_date"] == "2026-10-25"
     # 载入后可继续对话修改，再保存 = 同一条行程的新版本 + 新快照。
     edited = message(client, body["session_id"], "把雷峰塔挪到第三天")
     assert edited.status_code == 200

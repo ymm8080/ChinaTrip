@@ -1472,6 +1472,33 @@ def test_absorb_wishlist_skips_items_from_other_cities():
     assert "故宫" not in {v.name for v in all_visits(session)}
 
 
+# --- start_date 出发日期持久化（2026-10-24，行程卡日期/天气基准）--------------
+
+
+def test_start_date_flows_into_plan():
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海", "杭州"],
+            days=2,
+            preferences="亲子",
+            start_date="2026-10-25",
+        )
+    )
+    assert session.state == "ready"
+    assert session.start_date == "2026-10-25"
+    assert session.plan.start_date == "2026-10-25"  # 随快照持久化的载体
+
+
+def test_start_date_defaults_to_none():
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.plan.start_date is None
+
+
 def test_v0_absorbs_only_matching_city_tags():
     agent = _wishlist_agent([("李子坝站", "重庆"), ("西湖", "杭州")])
     session = run(

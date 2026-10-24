@@ -67,6 +67,7 @@ class PlanStartRequest(BaseModel):
     days: int | None = None
     preferences: str = ""
     city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
+    start_date: str | None = None  # 出发日期 ISO（可空）——随快照持久化
 
 
 class PlanMessageRequest(BaseModel):
@@ -247,6 +248,7 @@ async def start_plan(
             days=request.days or 0,
             preferences=request.preferences or "",
             city_days=request.city_days,
+            start_date=request.start_date,
         )
     except LLMError as exc:
         # LLMError messages are sanitized (never contain the API key).

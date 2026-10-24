@@ -584,6 +584,8 @@ class PlanSession(BaseModel):
     days: int = 0
     # 城市名 → 停留天数（仅目的地）
     city_days: dict[str, int] = Field(default_factory=dict)
+    # 出发日期（ISO，可空）——落到 ItineraryPlan.start_date 随快照持久化
+    start_date: str | None = None
     state: Literal["clarify", "planning", "ready", "site_confirm", "resto_confirm"] = (
         "clarify"
     )
@@ -772,6 +774,7 @@ class PlanningAgent:
         days: int,
         preferences: str = "",
         city_days: dict[str, int] | None = None,
+        start_date: str | None = None,
     ) -> PlanSession:
         session = PlanSession(
             session_id=uuid.uuid4().hex,
@@ -779,6 +782,7 @@ class PlanningAgent:
             cities=[_normalize_city(c) for c in cities if c and c.strip()],
             days=days if days and days > 0 else 0,
             preferences=preferences or "",
+            start_date=start_date or None,
             city_days={
                 _normalize_city(k): v
                 for k, v in (city_days or {}).items()
@@ -1695,6 +1699,7 @@ class PlanningAgent:
             candidates,
             assumptions,
             city_days=session.city_days,
+            start_date=session.start_date,
         )
         session.plan = plan
         session.assumptions = list(plan.assumptions)
@@ -2084,6 +2089,7 @@ class PlanningAgent:
         assumptions: list[str],
         *,
         city_days: dict[str, int] | None = None,
+        start_date: str | None = None,
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
         ranges = _city_day_ranges(cities, days, city_days)
@@ -2189,6 +2195,7 @@ class PlanningAgent:
             cities=list(cities),
             days=day_plans,
             assumptions=assumptions + transfer_assumptions,
+            start_date=start_date,
         )
         plan.assumptions.extend(_reconcile_transfer_days(plan))
         solved = self._solve(plan)

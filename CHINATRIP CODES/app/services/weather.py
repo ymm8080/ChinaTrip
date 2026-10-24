@@ -99,6 +99,9 @@ def upsert_weather(session, report: dict, *, source: str = WEATHER_SOURCE) -> st
     row.city = report.get("city") or row.city or ""
     row.report_time = parse_report_time(report.get("report_time"))
     row.payload = report.get("payload")
+    # 每次刷新盖最新时间戳——server_default 只在 INSERT 生效，UPDATE 不触发；
+    # 漏掉会让 fetched_at 停在首次入库时间，7 天清理会误删活跃行
+    row.fetched_at = datetime.utcnow()
     if existing is None:
         session.add(row)
     return "updated" if existing is not None else "inserted"
