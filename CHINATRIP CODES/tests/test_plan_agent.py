@@ -15,10 +15,13 @@ from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     POI_KEYWORD,
     PlanningAgent,
+    _category_search_keyword,
+    _dedupe_visit_keepers,
+    _site_dup,
     clarify_questions,
     current_violations,
 )
-from app.services.itinerary import RuleSeverity, TransferItem, VisitItem
+from app.services.itinerary import GeoPoint, RuleSeverity, TransferItem, VisitItem
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 from app.services.poi_details import PoiDetailStore
@@ -137,11 +140,11 @@ def v0_reply(items, assumptions=None) -> str:
     )
 
 
-def edit_reply(reply: str, diffs, need=None) -> str:
-    return json.dumps(
-        {"reply": reply, "diffs": diffs, "need_clarification": need or []},
-        ensure_ascii=False,
-    )
+def edit_reply(reply: str, diffs, need=None, wishes=None) -> str:
+    payload = {"reply": reply, "diffs": diffs, "need_clarification": need or []}
+    if wishes is not None:
+        payload["wishes"] = wishes
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def repair_reply(diffs) -> str:
@@ -1422,6 +1425,133 @@ def test_failed_removal_never_syncs_trip_items():
     assert recorder.calls == []
 
 
+# --- chat wishes land in the trip-center wishlist verbatim (2026-10-24) -----
+
+
+_ADD_FACE_SHOW = {
+    "op": "add",
+    "item": {
+        "name": "川剧变脸表演（蜀风雅韵）",
+        "city": "杭州",
+        "category": "sight",
+        "day": 2,
+        "duration_minutes": 90,
+    },
+}
+
+
+def test_conversational_wish_stored_verbatim_not_model_name():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("已加入", [_ADD_FACE_SHOW], wishes=["看变脸表演"]))
+    session, _, _ = run(agent.message(session, "我想看变脸表演"))
+    # Plan holds the model-resolved venue…
+    assert "川剧变脸表演（蜀风雅韵）" in {v.name for v in all_visits(session)}
+    # …but the wishlist keeps the user's own words (rule 2026-10-24).
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["source"], i["note"]) for i in wish] == [
+        ("看变脸表演", "chat", "来自聊天")
+    ]
+
+
+def test_conversational_wish_syncs_for_english_input():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    english = "watch the face-changing show"
+    llm.replies.append(edit_reply("Added.", [], wishes=[english]))
+    msg = "I want to watch the face-changing show"
+    session, _, _ = run(agent.message(session, msg))
+    # Wishlist keeps the English verbatim…
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["source"]) for i in wish] == [(english, "chat")]
+    # …and coverage rides it into the itinerary (pinned), same as Chinese.
+    added = next(v for v in all_visits(session) if v.name == english)
+    assert added.pinned is True
+
+
+def test_wish_captured_without_plan_diff():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    # 大熊猫 message-1 scenario: reply says it's covered, no diff emitted,
+    # the wish alone must still reach the wishlist.
+    llm.replies.append(edit_reply("已包含大熊猫", [], wishes=["看大熊猫"]))
+    session, _, _ = run(agent.message(session, "我想看大熊猫"))
+    assert session.state == "ready"
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["source"]) for i in wish] == [("看大熊猫", "chat")]
+
+
+def test_user_named_venue_stored_verbatim():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("已加入", [_ADD_FACE_SHOW], wishes=["蜀风雅韵"]))
+    run(agent.message(session, "我要去蜀风雅韵"))
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["source"]) for i in wish] == [("蜀风雅韵", "chat")]
+
+
+def test_repeated_wish_reuses_row_and_restores_unwanted():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    svc.create("灵隐寺", source="manual", city="杭州", itinerary_id=iid)
+    llm.replies.append(edit_reply("好的", [], wishes=["去灵隐寺"]))
+    run(agent.message(session, "我想去灵隐寺"))
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [i["name"] for i in wish].count("灵隐寺") == 1
+    assert [(i["name"], i["source"]) for i in wish] == [("灵隐寺", "manual")]
+
+    row = svc.list_groups(iid)["wishlist"][0]
+    svc.update(row["id"], status="unwanted")
+    llm.replies.append(edit_reply("好的", [], wishes=["灵隐寺"]))
+    run(agent.message(session, "还是想去灵隐寺"))
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["source"]) for i in wish] == [("灵隐寺", "manual")]
+    assert svc.list_groups(iid)["unwanted"] == []
+
+
+def test_wishlist_coverage_adds_missing_site_to_plan():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    svc.create("看变脸表演", source="chat", itinerary_id=iid, note="来自聊天")
+    # A turn with no diffs and no fresh wishes still must close the gap.
+    llm.replies.append(edit_reply("好的", []))
+    session, _, _ = run(agent.message(session, "谢谢"))
+    added = next(v for v in all_visits(session) if v.name == "看变脸表演")
+    assert added.pinned is True
+    assert session.state == "ready"
+    assert svc.list_groups(iid)["wishlist"][0]["name"] == "看变脸表演"
+
+
+def test_wishlist_coverage_skips_already_covered_wish():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    # 「看变脸表演」 is covered by plan item 「川剧变脸表演（蜀风雅韵）」
+    # once the wish core (变脸表演) substring-matches — no duplicate add.
+    llm.replies.append(edit_reply("已加入", [_ADD_FACE_SHOW], wishes=["看变脸表演"]))
+    session, _, _ = run(agent.message(session, "我想看变脸表演"))
+    assert [v.name for v in all_visits(session)].count("川剧变脸表演（蜀风雅韵）") == 1
+
+
 # --- wishlist absorption at v0 (2026-10-23 心愿单被规划吸收) -----------------
 
 
@@ -1558,3 +1688,360 @@ def test_must_visit_resolving_inside_trip_cities_is_kept():
     resolved = [c for c in candidates if c["name"] == "李子坝(地铁站)"]
     assert resolved and resolved[0]["source_poi_id"] == "BV10045690"
     assert not any("行程外城市" in a for a in assumptions)
+
+
+# --- 每时段备选 POI（v2.5.1 gap #17）----------------------------------------
+
+
+def test_v0_attaches_nearby_unpicked_candidates_as_alternatives():
+    # StubAmap 对每个检索城市返回同一批 POI 并打上该城市标签；出发城市
+    # 不抓候选（产品规则 2026-10-19），故候选城市只有杭州
+    items = [
+        {
+            "name": "外滩",
+            "city": "杭州",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "豫园",
+            "city": "杭州",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 60,
+        },
+    ]
+    llm = ScriptedLLM([v0_reply(items)])
+    agent = PlanningAgent(llm, amap_client=StubAmap(AMAP_POIS))
+    session = run(
+        agent.start(
+            device_id="d1", cities=["上海", "杭州"], days=2, preferences="博物馆"
+        )
+    )
+    assert session.state == "ready"
+    by_name = {v.name: v for v in all_visits(session)}
+    # 落选候选东方明珠成为两个已选点的备选；类别归一 sight、带坐标/距离
+    for name in ("外滩", "豫园"):
+        alt = by_name[name].alternatives
+        assert [a.name for a in alt] == ["东方明珠"]
+        a = alt[0]
+        assert a.poi_id == "B000A8UIN8"
+        assert a.category == "sight"
+        assert a.city == "杭州"
+        assert a.location is not None
+        assert a.distance_km is not None and a.distance_km > 0
+    # 已选点互不为备选
+    assert "外滩" not in {x.name for x in by_name["豫园"].alternatives}
+
+
+def test_alternatives_skip_candidates_without_coordinates():
+    pois = [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": "B000A7BD6C",
+            "location": {"lon": 121.49, "lat": 31.24},
+        },
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": "B000A7U3C8",
+        },  # 无坐标 → 不当备选
+    ]
+    spec = {"name": "外滩", "city": "上海", "category": "sight"}
+    alts = PlanningAgent._alternatives_for(
+        spec,
+        GeoPoint(lon=121.49, lat=31.24),
+        [{**p, "city": p["city"]} for p in pois],
+        {"外滩"},
+    )
+    assert alts == []
+
+
+def test_alternatives_empty_without_primary_location():
+    # 占位候选（高德不可用）没有坐标：主选自身无位置 → 不生成备选
+    spec = {"name": "城隍庙", "city": "上海", "category": "sight"}
+    alts = PlanningAgent._alternatives_for(
+        spec, None, [{"name": "豫园", "city": "上海", "location": None}], set()
+    )
+    assert alts == []
+
+
+def test_alternatives_food_spec_only_matches_food_candidates():
+    candidates = [
+        {
+            "name": "南翔馒头店",
+            "city": "上海",
+            "category": "餐饮服务;中餐厅",
+            "location": {"lon": 121.49, "lat": 31.23},
+        },
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "风景名胜",
+            "location": {"lon": 121.49, "lat": 31.23},
+        },
+    ]
+    food_spec = {"name": "外滩", "city": "上海", "category": "food"}
+    alts = PlanningAgent._alternatives_for(
+        food_spec, GeoPoint(lon=121.49, lat=31.24), candidates, {"外滩"}
+    )
+    assert [a.name for a in alts] == ["南翔馒头店"]
+    assert alts[0].category == "food"
+
+
+# --- 品类愿望全城落实（2026-10-24 「我想茶馆喝茶」）--------------------------
+# 茶馆/咖啡这类愿望不是店名：拿品类关键词走 /place/around 全城拉候选，
+# 评分最高（无评分保高德综合序）的一家落实进行程，骨架 APPEND 进 pois。
+
+
+class AroundAmap(StubAmap):
+    """StubAmap + /place/around（关键字+坐标+半径）。"""
+
+    def __init__(self, pois=None, around=None, exc=None):
+        super().__init__(pois, exc=exc)
+        self._around = around or []
+        self.around_calls: list[tuple[str, str, int]] = []
+
+    async def search_poi_around(
+        self, keywords, *, location, radius=30000, page=1, offset=25
+    ):
+        self.around_calls.append((keywords, location, radius))
+        return list(self._around)
+
+
+_TEA_FAMOUS = {
+    "name": "湖畔居茶楼",
+    "city": "杭州",
+    "category": "餐饮服务;茶艺馆;茶艺馆",
+    "source_poi_id": "B-TEA-TOP",
+    "location": {"lon": 120.15, "lat": 30.25},
+    "address": "北山街",
+    "rating": "4.7",
+}
+
+_TEA_PLAIN = {
+    "name": "巷口茶馆",
+    "city": "杭州",
+    "category": "餐饮服务;茶艺馆;茶艺馆",
+    "source_poi_id": "B-TEA-LOW",
+    "location": {"lon": 120.10, "lat": 30.20},
+    "address": "某路1号",
+    "rating": "4.2",
+}
+
+
+def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
+    """Ready session（默认上海→杭州）；西湖带坐标充当搜索圆心，心愿单
+    里有 ``wish``，下一轮 edit 回复已就位。"""
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
+    session = run(agent.start(device_id="d1", cities=list(cities), days=2))
+    assert session.state == "clarify"
+    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    assert session.state == "ready"
+    westlake = next(v for v in all_visits(session) if v.name == "西湖")
+    westlake.location = GeoPoint(lon=120.15, lat=30.25)
+    svc.create(wish, source="chat", itinerary_id=session.plan.itinerary_id)
+    llm.replies.append(edit_reply("好的", []))
+    return agent, session
+
+
+def test_category_search_keyword_detection():
+    assert _category_search_keyword("喝茶") == "茶馆"
+    assert _category_search_keyword("我想去喝咖啡") == "咖啡馆"
+    assert _category_search_keyword("泡茶") == "茶馆"
+    assert _category_search_keyword("找家茶馆坐坐") == "茶馆"
+    # 专名/非品类愿望不走全城搜索
+    assert _category_search_keyword("看变脸表演") is None
+    assert _category_search_keyword("蜀风雅韵") is None
+
+
+# --- 行程单模糊去重 (2026-10-24) -------------------------------------------
+
+
+def _dup_visit(
+    name: str,
+    *,
+    day: int = 2,
+    poi: str | None = None,
+    pinned: bool = False,
+    city: str = "成都",
+) -> VisitItem:
+    return VisitItem(
+        item_id=f"v-{name}",
+        name=name,
+        city=city,
+        day=day,
+        poi_id=poi,
+        pinned=pinned,
+        category="sight",
+        duration_minutes=60,
+    )
+
+
+def test_site_dup_strips_intent_verbs_on_both_sides():
+    # 线上事故对：变脸表演（川剧） vs 看变脸表演 —— 裸 _same_site 漏判
+    assert _site_dup("看变脸表演", "变脸表演（川剧）")
+    assert _site_dup("去喝茶", "茶馆喝茶")
+    # 不同城市的具体站点不许误伤
+    assert not _site_dup("成都博物馆", "重庆博物馆")
+    assert not _site_dup("西湖", "外滩")
+
+
+def test_dedupe_visit_keepers_merges_verb_and_venue_variants():
+    first = _dup_visit("变脸表演（川剧）", pinned=True, city="成都")
+    second = _dup_visit("看变脸表演", pinned=True, city="未标注")
+    keepers, dropped = _dedupe_visit_keepers([first, second])
+    assert [k.name for k in keepers] == ["变脸表演（川剧）"]
+    assert dropped == ["看变脸表演"]
+
+
+def test_dedupe_visit_keepers_richer_twin_wins_either_order():
+    poor = _dup_visit("变脸表演", city="未标注")
+    rich = _dup_visit("看变脸表演", poi="B-1", city="成都")
+    keepers, dropped = _dedupe_visit_keepers([poor, rich])
+    assert [k.item_id for k in keepers] == [rich.item_id]
+    assert dropped == ["变脸表演"]
+    keepers2, dropped2 = _dedupe_visit_keepers([rich, poor])
+    assert [k.item_id for k in keepers2] == [rich.item_id]
+    assert dropped2 == ["变脸表演"]
+
+
+def test_dedupe_visit_keepers_keeps_distinct_sites():
+    a = _dup_visit("成都博物馆", city="成都")
+    b = _dup_visit("重庆博物馆", day=1, city="重庆")
+    c = _dup_visit("重庆老街", day=1, city="重庆")
+    keepers, dropped = _dedupe_visit_keepers([a, b, c])
+    assert len(keepers) == 3
+    assert dropped == []
+
+
+def test_category_wish_resolves_city_famous_teahouse():
+    svc = TripItemService()
+    amap = AroundAmap(around=[_TEA_PLAIN, _TEA_FAMOUS])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(amap, store, svc, "喝茶")
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    # 圆心=西湖坐标，关键词=茶馆
+    assert amap.around_calls == [("茶馆", "120.150000,30.250000", 30000)]
+    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    assert added.category == "food"
+    assert added.pinned is True
+    assert added.poi_id == "B-TEA-TOP"
+    assert (added.location.lon, added.location.lat) == (120.15, 30.25)
+    assert "湖畔居茶楼" in reply
+    # 喝茶优选成都不在本次行程 → 回复提示
+    assert "成都" in reply
+    # 落实出的城市写回心愿单城市列
+    iid = session.plan.itinerary_id
+    assert svc.list_groups(iid)["wishlist"][0]["city"] == "杭州"
+    # 骨架 APPEND 进 pois（store 内存态）：名称/坐标/类别，food 归类
+    row = store._memory.get("B-TEA-TOP")
+    assert row is not None
+    assert row["name"] == "湖畔居茶楼"
+    assert row["city"] == "杭州"
+    assert row["category"] == "food"
+    assert row["location"] == (120.15, 30.25)
+
+
+def test_category_wish_without_ratings_keeps_amap_order():
+    # 两家都无评分：max 取首位 → 保持高德综合排序（权重≈知名度）自然序
+    plain = {**_TEA_PLAIN, "rating": None}
+    famous = {**_TEA_FAMOUS, "rating": None}
+    amap = AroundAmap(around=[plain, famous])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(amap, store, TripItemService(), "喝茶")
+    session, _, _ = run(agent.message(session, "谢谢"))
+    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    assert added.poi_id == "B-TEA-LOW"
+
+
+def test_category_wish_falls_back_to_text_search_when_around_misses():
+    amap = AroundAmap(pois=[_TEA_FAMOUS], around=[])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(amap, store, TripItemService(), "喝茶")
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    assert amap.around_calls  # around 先试，未命中
+    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    assert added.poi_id == "B-TEA-TOP"
+    assert "湖畔居茶楼" in reply
+    assert store._memory.get("B-TEA-TOP", {}).get("category") == "food"
+
+
+def test_named_wish_skips_citywide_search():
+    amap = AroundAmap(around=[_TEA_FAMOUS])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(amap, store, TripItemService(), "看变脸表演")
+    session, _, _ = run(agent.message(session, "谢谢"))
+    assert amap.around_calls == []
+    assert any(v.name == "看变脸表演" for v in all_visits(session))
+    assert store._memory.get("B-TEA-TOP") is None
+
+
+def test_wish_city_hint_routes_teahouse_to_chengdu_in_trip():
+    # 喝茶优选成都：成都本次行程含 → 落成都（严格模式，不走跨城圆心）
+    tea_cd = {**_TEA_FAMOUS, "city": "成都", "source_poi_id": "B-TEA-CD"}
+    svc = TripItemService()
+    amap = AroundAmap(pois=[tea_cd])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(
+        amap, store, svc, "喝茶", cities=("上海", "成都")
+    )
+    session, _, _ = run(agent.message(session, "谢谢"))
+    assert amap.around_calls == []  # 成都无坐标站点 → 不硬拉跨城 around
+    assert ("茶馆", "成都") in amap.calls
+    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    assert added.category == "food"
+    assert added.city == "成都"
+    assert added.poi_id == "B-TEA-CD"
+    iid = session.plan.itinerary_id
+    assert svc.list_groups(iid)["wishlist"][0]["city"] == "成都"
+
+
+def test_named_wish_city_hint_routes_to_chengdu():
+    # 变脸一般是成都：专名愿望同样吃到城市提示
+    opera = {
+        "name": "蜀风雅韵剧院",
+        "city": "成都",
+        "category": "风景名胜",
+        "source_poi_id": "B-OPERA-1",
+        "location": {"lon": 104.06, "lat": 30.57},
+    }
+    amap = AroundAmap(pois=[opera])
+    store = PoiDetailStore()
+    agent, session = _teahouse_session(
+        amap, store, TripItemService(), "看变脸表演", cities=("上海", "成都")
+    )
+    session, _, _ = run(agent.message(session, "谢谢"))
+    assert amap.around_calls == []
+    added = next(v for v in all_visits(session) if v.name == "看变脸表演")
+    assert added.city == "成都"
+    assert added.poi_id == "B-OPERA-1"
+
+
+def test_poi_library_hit_skips_amap():
+    # 「先去POIS里找」：底库已收录的茶馆直接用，不打高德
+    store = PoiDetailStore()
+    store._memory["B-TEA-LIB"] = {
+        "city": "杭州",
+        "name": "湖畔居茶楼",
+        "category": "food",
+        "location": (120.15, 30.25),
+        "source": "amap",
+    }
+    svc = TripItemService()
+    amap = AroundAmap(around=[_TEA_FAMOUS])
+    agent, session = _teahouse_session(amap, store, svc, "喝茶")
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    assert amap.around_calls == []
+    assert all(k == POI_KEYWORD for k, _ in amap.calls)  # 仅 v0 景点拉取
+    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    assert added.poi_id == "B-TEA-LIB"
+    assert added.pinned is True
+    assert "POI 底库" in reply
+    iid = session.plan.itinerary_id
+    assert svc.list_groups(iid)["wishlist"][0]["city"] == "杭州"
