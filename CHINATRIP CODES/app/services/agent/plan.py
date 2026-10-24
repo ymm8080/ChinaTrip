@@ -518,6 +518,43 @@ def _wish_city_hint(name: str) -> str | None:
     return None
 
 
+# 心愿城市答复的确定性解析（用户拍板 2026-10-24：查不到→问用户）。
+_WISH_ANY_RE = re.compile(
+    r"都可以|随便|都行|不限|无所谓|没讲究|anywhere|any\b", re.IGNORECASE
+)
+_WISH_DROP_RE = re.compile(
+    r"不要了?|不去了?|不加了?|算了|去掉|删除|移除|cancel|remove", re.IGNORECASE
+)
+_WISH_SEG_TRIM = "，。、；！？!?.,;：:~～ \t「」『』的在是的了吧嗯哈哦呢就归到记给放和"
+
+
+def _match_city_token(text: str) -> str | None:
+    """答复片段里认城市：英文走 CITY_ALIASES，中文对 KNOWN_CITIES 最长
+    包含匹配（「杭州市」「在杭州」都吃）。返回去「市」尾的标准名。"""
+    s = (text or "").strip()
+    if not s:
+        return None
+    m = _ALIAS_RE.search(s)
+    if m:
+        return CITY_ALIASES[m.group(1).lower()]
+    best = None
+    for c in KNOWN_CITIES:
+        if (c in s or f"{c}市" in s) and (best is None or len(c) > len(best)):
+            best = c
+    return best
+
+
+def wish_city_question(names: list[str]) -> str:
+    names = [n for n in names if n]
+    if not names:
+        return ""
+    listing = "、".join(f"「{n}」" for n in names)
+    return (
+        f"{listing}还没确定是哪个城市：回复城市名我就记上（如「成都」）；"
+        "不限城市回「都可以」，不想要了回「不要了」"
+    )
+
+
 def _item_line(item: VisitItem | TransferItem) -> str:
     clock = item.start_time.strftime("%H:%M") if item.start_time else "未排"
     if isinstance(item, VisitItem):
@@ -729,6 +766,8 @@ class PlanSession(BaseModel):
     site_cities: dict[str, str] = Field(default_factory=dict)  # name -> city
     pending_restos: list[PendingResto] = Field(default_factory=list)
     resto_asked: list[str] = Field(default_factory=list)  # anti re-ask loop
+    # 心愿城市追问队列（2026-10-24）：解析落空的专名心愿，等用户下一条消息
+    pending_wish_cities: list[str] = Field(default_factory=list)
 
 
 def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
@@ -984,6 +1023,10 @@ class PlanningAgent:
             # question was born from this very message, or a single-site
             # link already rode the pipeline as a must-visit.
             return session, session.history[-1].content, None
+        if session.pending_wish_cities:
+            answered = await self._answer_wish_city(session, text)
+            if answered is not None:
+                return answered
         if session.state == "clarify":
             return await self._answer_clarification(session, text)
         return await self._apply_conversation(session, text)
@@ -2966,10 +3009,18 @@ class PlanningAgent:
             return session, reply, None
         if not diffs:
             reply = reply or "已处理你的消息。"
-            self.sync_wishes_to_trip_items(session, wishes)
+            sync_notes, unresolved = await self.sync_wishes_to_trip_items(
+                session, wishes
+            )
+            extras = list(sync_notes)
             note = await self._ensure_wishlist_coverage(session)
             if note:
-                reply = f"{reply}（{note}）"
+                extras.append(note)
+            pending_note = self._finalize_wish_cities(session, unresolved)
+            if pending_note:
+                extras.append(pending_note)
+            if extras:
+                reply = f"{reply}（{'；'.join(extras)}）"
             if session.plan is not None:
                 # re-annotate/re-measure so stale leg values never linger
                 annotate_legs(session.plan)
@@ -2980,10 +3031,14 @@ class PlanningAgent:
         new_plan, summary, notes = await self._apply_with_repair(session, diffs, text)
         session.plan = new_plan
         session.state = "ready"
-        self.sync_wishes_to_trip_items(session, wishes)
+        sync_notes, unresolved = await self.sync_wishes_to_trip_items(session, wishes)
+        notes.extend(sync_notes)
         coverage_note = await self._ensure_wishlist_coverage(session)
         if coverage_note:
             notes.append(coverage_note)
+        pending_note = self._finalize_wish_cities(session, unresolved)
+        if pending_note:
+            notes.append(pending_note)
         if notes:
             reply = f"{reply}（{'；'.join(notes)}）"
         session.history.append(ChatMessage(role="assistant", content=reply))
@@ -3144,40 +3199,184 @@ class PlanningAgent:
             return []
         return [w for w in (str(x).strip() for x in raw) if w]
 
-    def sync_wishes_to_trip_items(
+    async def _resolve_wish_city(self, name: str) -> str | None:
+        """专名愿望的城市解析（用户拍板 2026-10-24）：POIS 底库（全库
+        不限城市，精确同名唯一才收）→ 高德全国 text（未标注=全国）。
+        都落空返回 None，由上层记入追问队列问用户。品类愿望不走这里
+        ——品类没有确定的「在哪个城市」，维持提示+就近落实的已拍板
+        语义。"""
+        hint = _wish_city_hint(name)
+        if hint:
+            return hint
+        if self._poi_details is not None:
+            try:
+                hits = await asyncio.to_thread(
+                    self._poi_details.search_keyword, None, [name]
+                )
+            except Exception:
+                logger.warning("plan: poi library city search failed for %s", name)
+                hits = []
+            cities = {
+                (h.get("city") or "").strip().removesuffix("市")
+                for h in hits
+                if (h.get("name") or "").strip() == name.strip()
+                and (h.get("city") or "").strip()
+            }
+            cities.discard("")
+            if len(cities) == 1:
+                return cities.pop()
+        poi = await self._lookup_poi(name, "未标注")
+        if poi is not None:
+            city = (poi.get("city") or "").strip().removesuffix("市")
+            if city:
+                return city
+        return None
+
+    async def sync_wishes_to_trip_items(
         self, session: PlanSession, wishes: list[str]
-    ) -> None:
+    ) -> tuple[list[str], list[tuple[str, dict]]]:
         """Wish phrases land in the trip center verbatim (2026-10-24):
         what the user said — activity「看变脸表演」or named venue
         「蜀风雅韵」— is the wishlist row, never the model-resolved
         plan-item name. Duplicate wishes reuse the existing row; an
-        unwanted row for the same wish flips back to wishlist. Best-
-        effort — service errors never block the plan turn."""
+        unwanted row for the same wish flips back to wishlist.
+
+        城市解析（用户拍板 2026-10-24）：专名愿望入库前先定城市
+        （提示表→POIS 底库→高德全国）；定出的城市不在本次行程→不跨城
+        硬塞，只记心愿单并提示；品类愿望不定城市（提示+就近落实是已
+        拍板语义）。落空的进 unresolved 返回给调用方，coverage 之后
+        决定是否追问用户。返回 (notes, unresolved)。
+        Best-effort — service errors never block the plan turn."""
         if self._trip_items is None or not wishes:
-            return
+            return [], []
         itinerary_id = session.plan.itinerary_id if session.plan else None
         known: list[dict] = [
             it
             for group in self._trip_items.list_groups(itinerary_id).values()
             for it in group
         ]
+        trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}
+        notes: list[str] = []
+        unresolved: list[tuple[str, dict]] = []
         for wish in wishes:
             try:
                 existing = next(
                     (it for it in known if _site_dup(it["name"], wish)), None
                 )
                 if existing is None:
-                    self._trip_items.create(
+                    city = None
+                    if _category_search_keyword(wish) is None:
+                        city = await self._resolve_wish_city(wish)
+                    row = self._trip_items.create(
                         wish,
                         source="chat",
                         itinerary_id=itinerary_id,
                         note="来自聊天",
+                        city=city,
                     )
-                    known.append({"id": "", "name": wish, "status": STATUS_WISHLIST})
+                    known.append(
+                        {
+                            "id": row["id"],
+                            "name": wish,
+                            "status": STATUS_WISHLIST,
+                            "city": city,
+                        }
+                    )
+                    if city:
+                        bare = _norm_city(city).removesuffix("市")
+                        if trip_cities and bare not in trip_cities:
+                            notes.append(
+                                f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）"
+                            )
+                    else:
+                        unresolved.append((wish, row))
                 elif existing["status"] == STATUS_UNWANTED:
                     self._trip_items.update(existing["id"], status=STATUS_WISHLIST)
             except ValueError:
                 logger.warning("plan: trip wish sync failed for %s", wish)
+        return notes, unresolved
+
+    def _finalize_wish_cities(
+        self, session: PlanSession, unresolved: list[tuple[str, dict]]
+    ) -> str:
+        """coverage 之后的追问收尾：落实写回已补上城市的剔除；仍空着
+        的并入 pending_wish_cities（与旧 pending 去重），返回追问文本。"""
+        if self._trip_items is None or not unresolved:
+            return ""
+        pending = list(session.pending_wish_cities)
+        for wish, row in unresolved:
+            fresh = self._trip_items.get(row["id"]) if row.get("id") else None
+            if fresh is not None and (fresh.get("city") or "").strip():
+                pending = [p for p in pending if p != wish]
+                continue
+            if wish not in pending:
+                pending.append(wish)
+        session.pending_wish_cities = pending
+        return wish_city_question(pending)
+
+    async def _answer_wish_city(
+        self, session: PlanSession, text: str
+    ) -> tuple[PlanSession, str, ChangeSummary | None] | None:
+        """心愿城市追问的答复轮：确定性解析不烧 LLM。点名的心愿按名字
+        之后的片段取答复；只挂一条时整句话都算。可辨「都可以」（不绑
+        城市）与「不要了」（转 unwanted）。解析不出返回 None，正常走
+        对话流程，不困住用户。"""
+        if self._trip_items is None or not session.pending_wish_cities:
+            return None
+        itinerary_id = session.plan.itinerary_id if session.plan else None
+        groups = self._trip_items.list_groups(itinerary_id)
+        rows = {
+            it["name"]: it for group in groups.values() for it in group if it.get("id")
+        }
+        pending = list(session.pending_wish_cities)
+        parts: list[str] = []
+        answered: set[str] = set()
+        for name in pending:
+            seg: str | None = None
+            if name in text:
+                seg = text[text.index(name) + len(name) :]
+                for other in pending:
+                    if other != name and other in seg:
+                        seg = seg[: seg.index(other)]
+            elif len(pending) == 1:
+                seg = text
+            if seg is None:
+                continue
+            row = rows.get(name)
+            if row is None:
+                answered.add(name)  # 行已不在：追问自然解除
+                continue
+            seg = seg.strip().strip(_WISH_SEG_TRIM)
+            if _WISH_DROP_RE.search(seg):
+                try:
+                    self._trip_items.update(row["id"], status=STATUS_UNWANTED)
+                except Exception:
+                    logger.warning("plan: wish drop failed for %s", name)
+                parts.append(f"「{name}」已从心愿单移除")
+                answered.add(name)
+            elif _WISH_ANY_RE.search(seg):
+                parts.append(f"「{name}」按不限城市记")
+                answered.add(name)
+            else:
+                city = _match_city_token(seg) or (
+                    _match_city_token(text) if len(pending) == 1 else None
+                )
+                if city:
+                    try:
+                        self._trip_items.update(row["id"], city=city)
+                    except Exception:
+                        logger.warning("plan: wish city set failed for %s", name)
+                    parts.append(f"「{name}」已记到{city}")
+                    answered.add(name)
+        if not answered:
+            return None
+        session.pending_wish_cities = [n for n in pending if n not in answered]
+        reply = "；".join(parts)
+        remaining = wish_city_question(session.pending_wish_cities)
+        if remaining:
+            reply = f"{reply}。{remaining}" if reply else remaining
+        session.history.append(ChatMessage(role="assistant", content=reply))
+        return session, reply, None
 
     async def _ensure_wishlist_coverage(self, session: PlanSession) -> str:
         """Rule 2026-10-24: the itinerary must contain every wishlist

@@ -2045,3 +2045,130 @@ def test_poi_library_hit_skips_amap():
     assert "POI 底库" in reply
     iid = session.plan.itinerary_id
     assert svc.list_groups(iid)["wishlist"][0]["city"] == "杭州"
+
+
+# --- 聊天心愿城市解析：提示表→POIS 底库→高德全国→问用户（2026-10-24）--------
+
+
+def _wish_sync_session(wishes, *, amap=None, store=None, cities=("上海", "杭州")):
+    """Ready session，下一轮 edit 回复带 wishes（走 sync 链路，非直接
+    svc.create），返回 (agent, session, svc, llm)。"""
+    amap = amap if amap is not None else AroundAmap(pois=[])
+    store = store if store is not None else PoiDetailStore()
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), edit_reply("好的", [], wishes=wishes)])
+    agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
+    session = run(agent.start(device_id="d1", cities=list(cities), days=2))
+    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    assert session.state == "ready"
+    return agent, session, svc, llm
+
+
+def _wish_row(svc, iid, name):
+    rows = [r for g in svc.list_groups(iid).values() for r in g if r["name"] == name]
+    return rows[0] if rows else None
+
+
+def test_chat_name_wish_hint_out_of_trip_recorded_not_forced():
+    # 专名愿望「看变脸表演」聊天入库：提示表定成都；成都不在行程 →
+    # 不跨城硬塞，心愿单挂成都并回复提示
+    agent, session, svc, _ = _wish_sync_session(["看变脸表演"])
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    iid = session.plan.itinerary_id
+    assert _wish_row(svc, iid, "看变脸表演")["city"] == "成都"
+    assert all(v.name != "看变脸表演" for v in all_visits(session))
+    assert "已记入心愿单（成都" in reply
+    assert "未含成都" in reply
+
+
+def test_chat_category_wish_keeps_nearby_fallback():
+    # 品类愿望不定城市（已拍板语义）：喝茶提示成都但照旧就近落实杭州
+    amap = AroundAmap(pois=[_TEA_FAMOUS])
+    agent, session, svc, _ = _wish_sync_session(["喝茶"], amap=amap)
+    session, _, _ = run(agent.message(session, "谢谢"))
+    iid = session.plan.itinerary_id
+    assert any(v.name == "喝茶" for v in all_visits(session))
+    assert _wish_row(svc, iid, "喝茶")["city"] == "杭州"
+    assert session.pending_wish_cities == []
+
+
+def test_chat_name_wish_resolved_from_poi_library_unique_city():
+    # POIS 底库全库精确同名唯一（福州三坊七巷）→ 直接定福州，不打高德
+    store = PoiDetailStore()
+    store._memory["B-SFQX-FZ"] = {
+        "city": "福州",
+        "name": "三坊七巷",
+        "category": "attraction",
+        "location": (119.29, 26.07),
+        "source": "amap",
+    }
+    amap = AroundAmap(pois=[])
+    agent, session, svc, _ = _wish_sync_session(["三坊七巷"], amap=amap, store=store)
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    iid = session.plan.itinerary_id
+    assert _wish_row(svc, iid, "三坊七巷")["city"] == "福州"
+    assert ("三坊七巷", None) not in amap.calls  # POIS 已定，没烧全国配额
+    assert "未含福州" in reply
+
+
+def test_chat_name_wish_falls_back_to_nationwide_amap():
+    # POIS 未收 → 高德全国 text（city=None）兜底；「杭州市」去尾记杭州
+    amap = AroundAmap(
+        pois=[
+            {
+                "name": "灵隐寺",
+                "city": "杭州市",
+                "category": "风景名胜",
+                "source_poi_id": "B-LYS-1",
+                "location": {"lon": 120.09, "lat": 30.24},
+            }
+        ]
+    )
+    agent, session, svc, _ = _wish_sync_session(["灵隐寺"], amap=amap)
+    session, _, _ = run(agent.message(session, "谢谢"))
+    iid = session.plan.itinerary_id
+    assert ("灵隐寺", None) in amap.calls
+    assert _wish_row(svc, iid, "灵隐寺")["city"] == "杭州"
+    assert session.pending_wish_cities == []
+
+
+def test_chat_wish_unresolved_asks_then_binds_city_without_llm():
+    # 全部落空 → 记追问队列并问用户；下一轮「成都」确定性入账不烧 LLM
+    agent, session, svc, llm = _wish_sync_session(["人民公园"])
+    session, reply, _ = run(agent.message(session, "谢谢"))
+    assert session.pending_wish_cities == ["人民公园"]
+    assert "人民公园" in reply and "哪个城市" in reply
+    calls = llm.calls
+    session, reply2, _ = run(agent.message(session, "成都"))
+    iid = session.plan.itinerary_id
+    assert llm.calls == calls  # 答复轮不烧 LLM
+    assert _wish_row(svc, iid, "人民公园")["city"] == "成都"
+    assert session.pending_wish_cities == []
+    assert "已记到成都" in reply2
+
+
+def test_chat_wish_answers_any_and_drop():
+    # 「都可以」= 不绑城市（保持放空语义）；「不要了」= 转 unwanted
+    agent, session, svc, _ = _wish_sync_session(["人民公园", "银河系景观台"])
+    session, _, _ = run(agent.message(session, "谢谢"))
+    assert sorted(session.pending_wish_cities) == ["人民公园", "银河系景观台"]
+    session, reply, _ = run(agent.message(session, "人民公园都可以"))
+    iid = session.plan.itinerary_id
+    assert _wish_row(svc, iid, "人民公园")["city"] in (None, "")
+    assert "不限城市" in reply
+    assert session.pending_wish_cities == ["银河系景观台"]
+    session, reply2, _ = run(agent.message(session, "银河系景观台不要了"))
+    assert _wish_row(svc, iid, "银河系景观台")["status"] == "unwanted"
+    assert session.pending_wish_cities == []
+    assert "移除" in reply2
+
+
+def test_chat_wish_answer_unrecognized_falls_through():
+    # 答复认不出（不是城市/都可以/不要了）→ 不吃消息，正常走对话
+    agent, session, svc, llm = _wish_sync_session(["人民公园"])
+    session, _, _ = run(agent.message(session, "谢谢"))
+    calls = llm.calls
+    llm.replies.append(edit_reply("好的", []))
+    session, reply, _ = run(agent.message(session, "帮我加一天"))
+    assert llm.calls > calls  # 走了正常对话流程
+    assert session.pending_wish_cities == ["人民公园"]  # 追问保持

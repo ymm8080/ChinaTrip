@@ -493,7 +493,11 @@
         <label class="fld">行程ID过滤 <input type="text" id="tcItinId" placeholder="可选"></label>
         <span class="sep"></span>
         <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
-        <label class="fld">城市 <input type="text" id="tcCity" placeholder="如：北京"></label>
+        <label class="fld">城市 <input type="text" id="tcCity" list="tcCityList" placeholder="必选：城市或都可以" autocomplete="off"></label>
+        <datalist id="tcCityList">
+          <option value="都可以"></option>
+          <option value="北京"></option><option value="上海"></option><option value="杭州"></option><option value="苏州"></option><option value="南京"></option><option value="西安"></option><option value="成都"></option><option value="重庆"></option><option value="广州"></option><option value="深圳"></option><option value="天津"></option><option value="武汉"></option><option value="长沙"></option><option value="厦门"></option><option value="青岛"></option><option value="大连"></option><option value="三亚"></option><option value="丽江"></option><option value="桂林"></option><option value="洛阳"></option><option value="敦煌"></option><option value="兰州"></option><option value="拉萨"></option><option value="昆明"></option><option value="大理"></option><option value="张家界"></option><option value="黄山"></option><option value="无锡"></option><option value="绍兴"></option><option value="嘉兴"></option><option value="舟山"></option><option value="哈尔滨"></option><option value="沈阳"></option><option value="长春"></option><option value="郑州"></option><option value="济南"></option><option value="福州"></option><option value="泉州"></option><option value="威海"></option><option value="珠海"></option>
+        </datalist>
         <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
         <label class="fld">营业时间 <input type="text" id="tcHours" placeholder="可选"></label>
         <button class="btn" id="tcAdd">➕ 加心愿</button>
@@ -3079,7 +3083,8 @@ function tcTile(item) {
   const head = el('<div class="tile-head"><span>' + drag + '<b>' + esc(item.name) + "</b>" +
     (item.note ? ' <span class="muted">' + noteHtml(item.note) + "</span>" : "") +
     ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></span>" +
-    (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>" : "") + "</div>");
+    (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>"
+      : (item.source === "manual" ? '<span class="tile-city">都可以</span>' : "")) + "</div>");
   const headLeft = head.firstChild; // 状态徽标并入左侧文本段（右侧留给城市）
   if (item.status === "booked") headLeft.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
   if (item.status === "scheduled") headLeft.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
@@ -3225,11 +3230,12 @@ document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
   const name = document.getElementById("tcName").value.trim();
   if (!name) { toast("心愿名必填"); return; }
   const city = document.getElementById("tcCity").value.trim();
+  if (!city) { toast("城市必选（不限城市就填「都可以」）"); return; }
   const note = document.getElementById("tcNote").value.trim();
   const hours = document.getElementById("tcHours").value.trim();
   const itin = document.getElementById("tcItinId").value.trim();
   const body = { name, source: "manual" };
-  if (city) body.city = city;
+  if (city !== "都可以") body.city = city;
   if (note) body.note = note;
   if (hours) body.opening_hours = hours;
   if (itin) body.itinerary_id = itin;
