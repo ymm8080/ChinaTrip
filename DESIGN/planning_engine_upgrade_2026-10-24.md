@@ -2,7 +2,7 @@
 
 日期：2026-10-24
 基准：本仓库代码现状（feat/v24-trip-center, c1a7dfd + 未提交 WIP）× 11 家竞品调研（Wanderlog / Trip Planner AI / Layla / TripAdvisor / 携程问道 / 马蜂窝 AI / 小红书点点 / Instagram / TREK / AdventureLog / LetsFG / 圆周旅迹）+ 本仓代码核查（哪些数据已到手在丢）
-状态：**待用户审查**（未开工；迁移号、字段名、作业名均为提案）
+状态：**待用户审查**（v1.4 二轮外部对照完成；P0 已实施中——以 [PROGRESS 活文档](planning_engine_upgrade_PROGRESS.md) 为准，本文档不再同步逐项状态）
 
 开发量标尺（单人开发）：S ≤ 2 天；M ≤ 1 周；L > 1 周。
 重要度：高 = 直接决定推荐质量 / 规划可用性 / 用户信任；中 = 体验增强；低 = 锦上添花或依赖远期条件。
@@ -281,6 +281,7 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 
 | 版本 | 内容 |
 | --- | --- |
+| v1.4 | 2026-10-24 §14 第二轮外部对照审查（用户定调：优化面向外国游客的引擎能力）——三路调研（GitHub 开源/商业主流/入境产品）：① 架构论点获外部验证（四件套无开源全占、TravelPlanner GPT-4 通过率 0.6%→8.1.5 评测集升 P0 硬闸门、纯优化器商业全灭→信任角标+预订深链是另一半）；② 新增六缺口 G1-G6：预约制门票约束（入境第一实操痛）、240h 免签行程校验（独家信任功能）、多窗营业时间（solver 单窗实锤）、拖拽后时间重算、行程离线可开（西方规划器被墙的结构性优势兑现）、交通腿结构化 payload；③ 语言层明确排除（用户后做）；④ §3.6-② 触发器补 affiliate 代抢覆盖度实测；⑤ 工作区漂移快照（top_pois_in_city 已接线、8.2.1 已落） |
 | v1.3 | 2026-10-24 §3.6 增 VPN 可达性说明（用户补充：开发机有 VPN）——可达 ≠ 权限：Google/Yelp/Reddit 逐家重判仍出局（ToS 存储禁令/零中国数据/商用条款）；MVP 阶段外国源抓取可行（作业跑开发机，OSM 已 VPN 依赖）；规模化迁阿里云后 ⛴ 标注源需复核 |
 | v1.2 | 2026-10-24 新增 §3.6 入境游客评论源（用户定调：主要客户=外国人，优先级反转）——TripAdvisor 从 L4 兜底升为「主体落地即申请的第一批」（唯一结构化外国人评论 API）；Klook/Trip.com/GetYourGuide affiliate 评分字段实测路径；自产评论=外国人视角独家资产；review_tags 增入境专属标签（外卡支付/英文服务/护照预订/免签）；§3.5 C 档 TA 行与 §10 触发器清单同步；审查版格式 docx→PDF（横版 A4，表格优化） |
 | v1.1 | 2026-10-24 §3.5 扩为数据源连通性五档总矩阵（A 已在用 / B 申请即连【FSQ·携程开放平台·淘宝联盟飞猪·美团推客层·Klook affiliate·高德企业认证】/ C 需企业+流量【TripAdvisor Content API 等】/ D 基本连不上 / E 无通道）+ "现在就能办的三件事"行动项（逐家申请通道查证） |
@@ -343,3 +344,71 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 - §2 措辞修正：travel matrix 与 poi_hours 是「已建未接线」而非「没有」——这直接影响工作量直觉（接线 S vs 重造 M）。
 - §3.5 B 档各家「个人可注册/约 1 天审过」是 2026-10-24 时点结论，动手注册当天逐家复核（平台政策变动快）。
 - §1「没有一家靠 LLM 更聪明赢」是修辞性归纳（样本有幸存者偏差：赢在渠道/品牌者不在样本内）；作为资源分配论据成立，且 8.1 的做法本身并未否定 LLM，口径自洽——无需改，留此备查。
+
+---
+
+## 14. 第二轮外部对照审查（2026-10-24，GitHub 开源 × 商业主流 × 入境产品三路调研）
+
+> 审查方式：三路并行调研（① GitHub 开源行程规划器与学术基准；② Google/Wanderlog/Sygic/携程/马蜂窝等商业产品引擎能力；③ 入境游客在华真实痛点与在售产品）× 工作区实测。目的（用户定调）：**优化面向外国游客的规划引擎能力**——本节按此重排权重。语言层（英文输出/翻译）**明确不在本节范围**（用户指示语言后做，此处不列缺口）。
+
+### 14.1 架构论点外部验证（本设计押对了什么）
+
+| # | 外部证据 | 对本设计的意义 |
+| --- | --- | --- |
+| 1 | 开源侧无可信工程范式共识：**LLM 选点/聚类 → 时间窗 VRP/TOPTW 排程 → 真实地图矩阵 → 校验闸门** 四件套，**没有任何单一开源项目全占**（route-compass 缺真实矩阵、I-Sheng 缺多日、CrewAI 系零求解器、Swiss planner 最接近） | 本设计目标位恰好是四件套全占（LLM 两段式 + CP-SAT + 高德矩阵回灌 + validate_plan）——差异化成立，照做 |
+| 2 | TravelPlanner 基准（ICML'24 Spotlight）：GPT-4 全约束通过率 **0.6%**，最常挂的是**饭点吃饭/酒店城市一致**类常识约束；行业研究 ~90% 裸 LLM 行程含事实错误 | ① 选点层 grounding（8.1.1-8.1.3）论点坐实；② 8.2.4 餐厅插入与 hotel anchor 恰好打在最弱环；③ **8.1.5 评测集从 P2 提 P0 前置**（与 §13.3-1 合并升格为硬闸门：8.1 动手前进 CI） |
+| 3 | 纯优化器商业先例全灭：Inspirock（Klarna 收购后关停）、Utrip（卖给 DMO 后沉寂）——但它们的引擎特性（营业时间感知/交通时间/防过载）活在 Wanderlog/Sygic 血统里 | 引擎质量是必要非充分；对外国人场景，**信任角标 + 预订深链**是商业侧另一半（14.3-G1、§3.6-②） |
+| 4 | 携程 AI 行程助手 2025-09 已上**地图拖拽重排路线、实时同步**；Wanderlog 拖拽后自动重算时间是用户最高频表扬点 | §6.2 拖拽联动方向正确，但需补「拖后时间重算」（14.3-G4）——拖拽排序本仓已有、时间联动未接 |
+| 5 | Voyaiger 等 2026 新入场的中国游 AI 规划器**被 GFW 墙**，西方规划器在华境内全灭；Amap Global 14 语言 + 离线地图 | 我们 H5 + 高德栈**境内可达是结构性优势**，但必须落地「行程离线可开」（14.3-G5）才兑现 |
+| 6 | 开源侧矩阵缓存无人做（逐请求重算是常态）；OSRM 只有车行、Valhalla 是唯一时间感知开源引擎 | 8.2.2 两段式（v0 估 + `_enrich_legs` 高德实耗反灌）+ 缓存复用即是差异化，坚持；§13.4-8 分段速写修正照旧 |
+| 7 | 多窗营业时间是 OR-Tools 社区公认的建模难题（单点多时间窗反复出现在 issues/StackOverflow）；opening_hours.js 是唯一严肃解析器，多数项目存字符串裸查 | **实测本仓同样受限**：PoiHours 单窗 `opens/closes`（solver.py:85-88 单次相交），**国内场馆午休闭馆（12:00-13:30）无法表达**——14.3-G3 |
+
+### 14.2 入境痛点 → 引擎能力映射（r/ChinaTravel 等 2024-2026 高频排序）
+
+| 痛感排名 | 痛点 | 本设计现状 | 判定 |
+| --- | --- | --- | --- |
+| 1 | 支付（Alipay/WeChat 国际绑卡） | 点评标签已排（外卡支付可用） | ✅ 已覆盖（行前内容层面） |
+| 2 | 地图/GFW | 高德栈 + PWA | ✅ 结构性优势，差离线兜底（G5） |
+| 3 | **预约制景点**（故宫提前 7 天 8:00 微信小程序秒光；国博/陕历博同类；外国手机号常失败→Trip.com/Klook 代抢是标准解法） | **零覆盖**——只有营业时间约束与 B3 门票价 | ❌ **G1，本节最高优先新增** |
+| 4 | 火车票（12306 外照可用但 14 天窗+难用→Trip.com 代理是主流） | 12306 已接（查询）；预订深链未排 | ⚠️ §3.6-② affiliate 落地时顺带，不单列 |
+| 5 | **240h 免签过境**（57 国/65 口岸/24 省、须第三国联程票；游客普遍反映"官方答案互相矛盾"） | 仅「免签适用」点评标签 | ❌ **G2，独家信任功能**（14.3） |
+| 6 | 语言 | 输入双语已有；输出层全中文 | ⏸ 用户明确后做，本节不列 |
+| 7 | 酒店拒外宾（2024-05 已令整改，Trip.com 有"接待外宾"角标） | 住宿未入规划域 | ⏸ 住宿入域时再加标志位，记挂账 |
+
+### 14.3 新增引擎缺口清单（按入境痛感排序；G=Gap）
+
+| # | 项 | 内容 | 证据/来源 | 重要度 | 开发量 | 落点 |
+| --- | --- | --- | --- | --- | --- | --- |
+| G1 | **预约制门票约束** | pois 增 `reservation_required BOOL` + `reservation_advance_days INT` + `booking_url`（0010 增列，0009 已落地不再改）；solver 软约束：需预约 POI 卡片亮「现在就订·提前 N 天·放票 08:00」；booking_url 缺省落 §3.6-② affiliate 转链（Klook/Trip.com 代抢即外国人标准解法） | 故宫/国博/陕历博微信小程序秒光是入境第一实操痛；Klook/GetYourGuide/Viator 靠代抢英文化赚这个钱 | **高** | S-M | 随 0010；名单 v0 人工录入 top 预约制场馆（数十家）+ 携程 sight 页「需预约」标识回源补量 |
+| G2 | **240h 免签行程可行性校验** | 确定性规则引擎（零 LLM）：入境/出境口岸对 + 允许省份范围 × 行程城市集合 + 停留时钟 ≤240h + 第三国联程票提醒 → 行程页绿/红横幅 +「以边检为准」免责 | 游客"答案互相矛盾"是普遍吐槽；**无一家规划器有权威校验**（Voyaiger 宣称有 visa 逻辑但被墙）；政策快变→快照日期 + 数据表可热更 | **高** | S | `services/itinerary/visa_check.py`；政策快照表（生效日期/口岸/省份 JSON） |
+| G3 | **多窗营业时间** | PoiHours 增 `windows`（多段开窗）；solver 用可选区间逐窗建模（OR-Tools optional intervals，社区成熟解法）；回源解析「12:00-13:30 午休」分段 | solver.py:85-88 单窗实锤；OR-Tools 多窗是公认难题但有标准答案；**国内场馆午休是常态不是边角** | 中-高 | M | P1 solver 改造同批（与 8.2.1-8.2.3 同批动刀） |
+| G4 | **拖拽后时间自动重算** | trip center 拖拽排序已有（⠿ 把手）；补：拖后触发 validate_plan + `_enrich_legs` 增量重算当日时间线，改完即存 | Wanderlog 最高频表扬点；携程 2025-09 已上同款；无重算的拖拽=只是改顺序不是改计划 | 中 | S-M | H5 + 端点复用，§6.2 拖拽联动的引擎半边 |
+| G5 | **行程离线可开** | PWA 已有（HTTPS/8443）；补：sw 缓存当前会话行程 JSON，断网/无 VPN 打开不白屏；ICS/GPX 导出已有兜底 | 西方 AI 规划器在华全灭反衬价值；外国人漫游常无 VPN；手机信号差的景区（山里/地铁）实用 | 中 | S | H5 sw 策略一项（记得 VERSION+1） |
+| G6 | 交通腿结构化 payload | legs 数据已有；补结构化字段（线路名/站名/出口号/打车地址串）——**只做结构，语言渲染后置**（用户语言层统一做） | 外国人换乘踩坑主因是「哪条线哪个口」；数据结构先行不依赖语言决定 | 低 | S | P2；`_enrich_legs` 返回体扩字段 |
+
+**明确不做（本轮）**：语言输出层（用户自做，2026-10-24 指示）；酒店「接待外宾」标志（住宿未入域，挂账）；人工专家转接（马蜂窝指路人模式，不适用）。
+
+### 14.4 对排期的影响（叠加在 §13 修正之上）
+
+1. **P0 修正**：8.1.5 评测集升格为「8.1 动手前一天」硬闸门（§13.3-1 结论获 TravelPlanner 0.6% 外部证据加持，从"建议"改"必须"）。
+2. **P1 新增**：G1（预约制约束）+ G2（免签校验）作为**入境信任双件套**插 P1 前段——两个都是 S 级，是外国人场景下"竞品没有/我们独有"密度最高的两项；G3/G4 并入 P1 solver/地图批。
+3. **P2**：G5 可提前（S 级一行 sw 策略）；G6 随语言层一起做更顺。
+4. **§3.6-② 触发器补强**：Klook/Trip.com affiliate 注册后，第一件事从「实测评分字段」扩为「实测评分字段 + **预约制门票代抢商品覆盖度**（故宫/国博等 top 场景有没有货）」——affiliate 的真正价值一半在 G1 的 booking_url 兜底。
+
+### 14.5 工作区漂移快照（§13 之后的增量，2026-10-24 下午）
+
+- `top_pois_in_city` **已接线**：plan.py:2159（库优先 8.1.1 半落——库存≥10 跳过高德的分支待确认）；
+- 8.2.1 best_visit 开窗**已完成**（PROGRESS #13，solver/time_slot/rules 48 测试过）；
+- poi_hours 仍全链 `[]`（plan.py 896/2790/3078/3279/3341/3647/3731 七处 validate/solve 调用）、travel matrix 仍在并行开发（PROGRESS #14）——§13.4-11「接线项提 P0」维持。
+- 本节不重复 §13 的 P0 状态表，以 PROGRESS 活文档为准。
+
+### 14.6 杂项风险注记
+
+- Google Play 已有同名 "ChinaTrip" AI 规划器 App（2025-12 更新）——出海命名/商店 SEO 需差异化，记入远期品牌清单。
+- Amap Global（14 语言、2025-07）与我们是同源底库的官方国际化版：其存在证明高德数据撑得起外国人场景，也意味着**纯导航层不要重复造**——我们的差异化在规划器+校验（G1/G2）不在地图。
+
+### 14.7 主要来源（2026-10-24 查证）
+
+- 开源/学术：[TravelPlanner 基准 (OSU-NLP, ICML'24)](https://github.com/OSU-NLP-Group/TravelPlanner)、[route-compass TOPTW](https://github.com/DENGYUFAN0/route-compass)、[I-Sheng GPTs+OR-Tools+学习时长](https://github.com/I-Sheng/Travel-Itinerary-Planning-System-Using-GPTs-as-the-Core)、[Swiss-AI-Travel-Planner](https://github.com/mirkokeller/Swiss-AI-Travel-Planner)、[OR-Tools 多窗讨论](https://github.com/google/or-tools/discussions/3385)、[opening_hours.js](https://github.com/opening-hours/opening_hours.js)、[PyVRP](https://github.com/PyVRP/PyVRP)
+- 商业：[Google AI Mode Canvas 行程](https://blog.google/products-and-platforms/products/search/agentic-plans-booking-travel-canvas-ai-mode)、[Wanderlog](https://wanderlog.com)、[Sygic Travel](https://www.sygic.com/travel)、[Klarna 收购 Inspirock](https://www.klarna.com/international/press/klarna-acquires-inspirock-bringing-smooth-travel-planning-to-its-90m-global-consumers)、[携程 AI 行程助手 (2025-09)](http://www.caacnews.com.cn/1/7/202509/t20250916_1389990.html)、[Trip.com Trip.Planner](https://www.trip.com/blog/trip-planner-tool)、[AI 行程 90% 含错研究](https://www.thrillist.com/news/nation/ai-travel-itineraries-wrong-incorrect-study)
+- 入境：[240h 免签过境官方公告 (2024-12)](https://english.www.gov.cn/news/202412/17/content_WS6760e5eac6d0868f4e8ee0b8.html)、[故宫微信小程序抢票攻略](https://hellochinatrip.com/how-to-book-forbidden-city-tickets-on-wechat-miniprogram)、[12306 外照购票 vs Trip.com](https://dolphinunion.com/post/china-train-ticket-booking-for-foreigners-12306-vs-trip-com)、[酒店须接待外宾令 (2024-05)](https://www.pekingnology.com/p/china-now-asking-all-hotels-to-accept)、[Voyaiger 中国游 AI 评测（被墙）](https://voyaige.to/blog/best-ai-travel-planner-for-china-2026)、[Amap Global 14 语言](https://apps.apple.com/us/app/amap-global/id461703208)、r/ChinaTravel·r/travelchina 2024-2026 高频帖
