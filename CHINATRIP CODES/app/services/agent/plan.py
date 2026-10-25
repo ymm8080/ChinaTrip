@@ -1740,9 +1740,7 @@ class PlanningAgent:
                     )
                 )
             return session, None, ""
-        default_city = (
-            session.cities[0] if len(session.cities) == 1 else _unspecified()
-        )
+        default_city = session.cities[0] if len(session.cities) == 1 else _unspecified()
         sight_pts = [
             item.location
             for day in session.plan.days
@@ -1778,21 +1776,39 @@ class PlanningAgent:
                         allow_redirect = False
                     else:
                         notes.append(
-                            f"「{name}」一般在{hint}更出名，本次行程未含{hint}，"
-                            "已按行程空闲落实，需要调整请说"
+                            L(
+                                f"「{name}」一般在{hint}更出名，本次行程未含{hint}，"
+                                "已按行程空闲落实，需要调整请说",
+                                f'"{name}" is usually a {hint} highlight, and '
+                                f"{hint} isn't on this trip — placed into a "
+                                "free slot for now; tell me if you want it "
+                                "changed",
+                            )
                         )
             search_kw = _category_search_keyword(name)
             anchor, anchor_city = self._search_anchor(session, city, allow_redirect)
             # 候选先查 POIS 底库（用户拍板 2026-10-24），未命中再打高德
             poi = await self._poi_library_lookup(session, name, search_kw, anchor_city)
             if poi is not None:
-                notes.append(f"「{name}」取自 POI 底库「{poi.get('name')}」")
+                notes.append(
+                    L(
+                        f"「{name}」取自 POI 底库「{poi.get('name')}」",
+                        f'"{name}" matched to the POI library entry '
+                        f'"{poi.get("name")}"',
+                    )
+                )
             elif search_kw is not None:
                 poi = await self._search_city_famous(
                     session, search_kw, city, anchor=(anchor, anchor_city)
                 )
                 if poi is not None:
-                    notes.append(f"「{name}」按全城口碑落实为「{poi.get('name')}」")
+                    notes.append(
+                        L(
+                            f"「{name}」按全城口碑落实为「{poi.get('name')}」",
+                            f'"{name}" placed as the city\'s best-known pick '
+                            f'"{poi.get("name")}"',
+                        )
+                    )
             else:
                 poi = await self._lookup_poi(name, city)
             location = None
@@ -1867,7 +1883,12 @@ class PlanningAgent:
                     )
                 )
             if location is None and kind == "food":
-                notes.append(f"餐饮店 {name} 未能定位，距离未校验")
+                notes.append(
+                    L(
+                        f"餐饮店 {name} 未能定位，距离未校验",
+                        f"Restaurant {name} could not be located; distance unchecked",
+                    )
+                )
         summary: ChangeSummary | None = None
         if diffs:
             new_plan, summary, repair_notes = await self._apply_with_repair(
@@ -1886,7 +1907,11 @@ class PlanningAgent:
                         pinned_any = True
             if pinned_any:
                 session.plan.assumptions.append(
-                    "必去景点（来自链接）已锁定时间，后续修改不会移动它们"
+                    L(
+                        "必去景点（来自链接）已锁定时间，后续修改不会移动它们",
+                        "Must-visit sights (from your link) are time-locked; "
+                        "later edits won't move them",
+                    )
                 )
             notes.extend(repair_notes)
         if far:
@@ -1903,7 +1928,7 @@ class PlanningAgent:
             return next(
                 iter(
                     await self._amap.search_poi(
-                        name, city=city if city != "未标注" else None
+                        name, city=None if _is_unspecified(city) else city
                     )
                 ),
                 None,
@@ -2129,14 +2154,23 @@ class PlanningAgent:
     def _resto_question(restos: list[PendingResto]) -> str:
         parts = []
         for resto in restos:
-            day_bit = f"第{resto.day}天、" if resto.day else ""
+            day_bit = L(f"第{resto.day}天、", f"day {resto.day}, ") if resto.day else ""
             km = f"{resto.nearest_km}" if resto.nearest_km is not None else "?"
-            parts.append(f"「{resto.name}」（{day_bit}距最近景点约 {km} 公里）")
-        listing = "、".join(parts)
-        return (
+            parts.append(
+                L(
+                    f"「{resto.name}」（{day_bit}距最近景点约 {km} 公里）",
+                    f'"{resto.name}" ({day_bit}about {km} km from the nearest sight)',
+                )
+            )
+        listing = L("、".join(parts), ", ".join(parts))
+        return L(
             f"链接里的餐饮店 {listing}，距离行程里的景点都超过 5 公里，"
             "还要安排吗？回复例如「要安排：A；不安排：B」，"
-            "都安排回「都安排」，都不安排回「都不安排」。"
+            "都安排回「都安排」，都不安排回「都不安排」。",
+            f"Restaurants from your link — {listing} — are all more than 5 km "
+            'from the sights on this plan. Keep them? Reply like "keep: A; '
+            'skip: B", "keep all" to keep every one, or "skip all" to drop '
+            "them all.",
         )
 
     def _far_foods(self, session: PlanSession) -> list[PendingResto]:
@@ -2201,7 +2235,12 @@ class PlanningAgent:
             include = [n for n in names if n in in_plan]
             skip = [n for n in names if n not in in_plan]
             notes.append(
-                "没认出要不要安排：已在行程里的先保留，没排进去的先不排，要改再跟我说"
+                L(
+                    "没认出要不要安排：已在行程里的先保留，没排进去的先不排，要改再跟我说",
+                    "Couldn't tell what to keep: ones already on the itinerary "
+                    "stay on, the rest stay off for now — tell me to change "
+                    "anything",
+                )
             )
         change: ChangeSummary | None = None
         if skip:
@@ -2241,12 +2280,14 @@ class PlanningAgent:
                 if add_note:
                     notes.append(add_note)
         session.state = "ready"
-        reply = (
-            f"好的——要安排：{'、'.join(include) or '无'}；"
-            f"不安排：{'、'.join(skip) or '无'}。"
+        inc = L("、".join(include) or "无", ", ".join(include) or "none")
+        skp = L("、".join(skip) or "无", ", ".join(skip) or "none")
+        reply = L(
+            f"好的——要安排：{inc}；不安排：{skp}。",
+            f"Got it — keep: {inc}; skip: {skp}.",
         )
         if notes:
-            reply += f"（{'；'.join(notes)}）"
+            reply += L(f"（{'；'.join(notes)}）", f" ({'; '.join(notes)})")
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, change
 
@@ -2315,31 +2356,51 @@ class PlanningAgent:
             session = await self._generate_v0(session)
             if session.state == "resto_confirm":
                 return session, session.history[-1].content, None
-            reply = (
+            reply = L(
                 f"已按 {session.days} 天、{'、'.join(session.cities)} 生成初版行程，"
-                "下面的假设标注可以直接告诉我要改哪里。"
+                "下面的假设标注可以直接告诉我要改哪里。",
+                f"Draft itinerary ready for {session.days} days in "
+                f"{', '.join(session.cities)} — tell me what to change under "
+                "the assumptions below.",
             )
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         if session.clarify_count < MAX_CLARIFY_ROUNDS:
             session.clarify_count += 1
-            reply = "还差一点信息：" + " ".join(clarify_questions(session))
+            reply = L("还差一点信息：", "A few details missing: ") + " ".join(
+                clarify_questions(session)
+            )
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         # Questions exhausted (§6.1): v0 on visible default assumptions.
         extra: list[str] = []
         if session.days <= 0:
             session.days = DEFAULT_DAYS
-            extra.append(f"未获得天数答复，默认按 {DEFAULT_DAYS} 天规划")
+            extra.append(
+                L(
+                    f"未获得天数答复，默认按 {DEFAULT_DAYS} 天规划",
+                    f"No day-count answer — defaulted to {DEFAULT_DAYS} days",
+                )
+            )
         if not session.cities:
             history_text = " ".join(m.content for m in session.history)
             fallback = _parse_cities(history_text) or [DEFAULT_CITY]
             session.cities = fallback
-            extra.append(f"未识别城市，默认按 {'、'.join(fallback)} 规划")
+            extra.append(
+                L(
+                    f"未识别城市，默认按 {'、'.join(fallback)} 规划",
+                    f"No cities recognized — defaulted to {', '.join(fallback)}",
+                )
+            )
         session = await self._generate_v0(session, extra_assumptions=extra)
         if session.state == "resto_confirm":
             return session, session.history[-1].content, None
-        reply = "信息不全，已按默认假设生成初版行程（见假设标注），要改哪里直接说。"
+        reply = L(
+            "信息不全，已按默认假设生成初版行程（见假设标注），要改哪里直接说。",
+            "Some details were missing — a draft itinerary was generated on "
+            "default assumptions (see the assumptions notes); tell me what "
+            "to change.",
+        )
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, None
 
@@ -2377,7 +2438,11 @@ class PlanningAgent:
         absorbed = self._absorb_wishlist(session)
         if absorbed:
             extra_assumptions = list(extra_assumptions or []) + [
-                "已从行程中心心愿单带入必去：" + "、".join(absorbed)
+                L(
+                    "已从行程中心心愿单带入必去：" + "、".join(absorbed),
+                    "Must-visits brought in from the trip-center wishlist: "
+                    + ", ".join(absorbed),
+                )
             ]
         t0 = perf_counter()
         candidates, poi_assumptions = await self._collect_candidates(
@@ -2409,9 +2474,15 @@ class PlanningAgent:
         )
         if premium_gap:
             llm_assumptions.append(
-                "白名单未排（可选加）："
-                + "、".join(
-                    f"{g['name']}（{'/'.join(g['tags'])}）" for g in premium_gap
+                L(
+                    "白名单未排（可选加）："
+                    + "、".join(
+                        f"{g['name']}（{'/'.join(g['tags'])}）" for g in premium_gap
+                    ),
+                    "Top picks not scheduled (add if you like): "
+                    + ", ".join(
+                        f"{g['name']} ({'/'.join(g['tags'])})" for g in premium_gap
+                    ),
                 )
             )
         logger.info(
@@ -2422,7 +2493,13 @@ class PlanningAgent:
         )
         if not llm_ok:
             picked = self._placeholder_selection(candidates, session.days, ranges)
-            llm_assumptions = ["LLM 不可用，按候选顺序生成占位计划"]
+            llm_assumptions = [
+                L(
+                    "LLM 不可用，按候选顺序生成占位计划",
+                    "LLM unavailable — placeholder plan generated in candidate "
+                    "order",
+                )
+            ]
         # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
         # >4 裁到 4——过载日既走不完也过不了铁律 6；放在 must 合并前，
         # 用户点名必去不受限（愿超载是用户的决定）。
@@ -2435,14 +2512,23 @@ class PlanningAgent:
                 continue
             bucket = per_day.setdefault(spec["day"], 0)
             if bucket >= 4:
-                dropped_overload.append(f"第{spec['day']}天 {spec['name']}")
+                dropped_overload.append(
+                    L(
+                        f"第{spec['day']}天 {spec['name']}",
+                        f"day {spec['day']} {spec['name']}",
+                    )
+                )
                 continue
             per_day[spec["day"]] = bucket + 1
             kept_specs.append(spec)
         if dropped_overload:
             picked = kept_specs
             llm_assumptions.append(
-                "每日最多保留 4 个景点，已裁：" + "、".join(dropped_overload)
+                L(
+                    "每日最多保留 4 个景点，已裁：" + "、".join(dropped_overload),
+                    "Capped at 4 sights per day; dropped: "
+                    + ", ".join(dropped_overload),
+                )
             )
         picked = self._merge_must_visits(
             picked,
@@ -2474,9 +2560,13 @@ class PlanningAgent:
         session.history.append(
             ChatMessage(
                 role="assistant",
-                content=(
+                content=L(
                     f"初版行程已生成（{session.days} 天）。"
-                    f"假设：{'；'.join(plan.assumptions)}"
+                    f"假设：{'；'.join(plan.assumptions)}",
+                    f"Draft itinerary ready ({session.days} days). "
+                    f"Assumptions: {'；'.join(plan.assumptions)}".replace(
+                        "；", "; "
+                    ),
                 ),
             )
         )
