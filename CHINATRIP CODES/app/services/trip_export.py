@@ -14,21 +14,36 @@ import re
 from datetime import time
 
 from app.services.itinerary.models import ItineraryPlan, TransferItem
+from app.services.lang_ctx import L, is_en
 
-MODE_ZH = {"train": "火车/高铁", "flight": "飞机", "car": "驾车", "bus": "大巴"}
 
-_TITLE_PREFIX = "行程单"
+def _mode_label(mode: str) -> str:
+    return {
+        "train": L("火车/高铁", "Train/High-speed rail"),
+        "flight": L("飞机", "Flight"),
+        "car": L("驾车", "Drive"),
+        "bus": L("大巴", "Bus"),
+    }.get(mode, mode)
+
+
+def _pin_label() -> str:
+    return L("📌 已钉住", "📌 Pinned")
+
+
+def _paren(inner: str) -> str:
+    """成对括号：zh 全角，EN 半角。"""
+    return f"（{inner}）" if not is_en() else f"({inner})"
 
 
 def plan_title(plan: ItineraryPlan) -> str:
-    return _TITLE_PREFIX + "：" + " → ".join(plan.cities)
+    return L("行程单", "Itinerary") + L("：", ": ") + " → ".join(plan.cities)
 
 
 def safe_filename(plan: ItineraryPlan) -> str:
     """下载文件名：城市路由 + 行程编号，去掉 Windows 非法字符。"""
-    raw = "-".join(plan.cities) + "-行程-" + plan.itinerary_id
+    raw = "-".join(plan.cities) + L("-行程-", "-itinerary-") + plan.itinerary_id
     cleaned = re.sub(r'[\\/:*?"<>|\s]+', "", raw)
-    return cleaned[:80] or "行程"
+    return cleaned[:80] or L("行程", "Itinerary")
 
 
 def _fmt_time(t: time | None) -> str:
@@ -44,12 +59,19 @@ def _visit_note(
 ) -> str:
     notes = []
     if pinned:
-        notes.append("📌 已钉住")
+        notes.append(_pin_label())
     if isinstance(distance_km, (int, float)):
-        seg = f"距下一站 {distance_km:.1f} km"
+        seg = L(
+            f"距下一站 {distance_km:.1f} km",
+            f"{distance_km:.1f} km to next stop",
+        )
         if walk_min is not None:
-            seg += f" · 步行约 {walk_min} 分钟"
-        seg += "（高德实测）" if leg_source == "amap" else "（直线估算）"
+            seg += L(f" · 步行约 {walk_min} 分钟", f" · about {walk_min} min walk")
+        seg += (
+            L("（高德实测）", " (Amap measured)")
+            if leg_source == "amap"
+            else L("（直线估算）", " (straight-line estimate)")
+        )
         notes.append(seg)
     return " · ".join(notes)
 
@@ -61,7 +83,7 @@ def display_rows(plan: ItineraryPlan) -> list[dict]:
         rows = []
         for it in d.items:
             if isinstance(it, TransferItem):
-                mode = MODE_ZH.get(it.mode, it.mode)
+                mode = _mode_label(it.mode)
                 rows.append(
                     {
                         "kind": "transfer",
@@ -102,6 +124,14 @@ def visit_count(plan: ItineraryPlan) -> int:
     )
 
 
+def _meta_line(plan: ItineraryPlan) -> str:
+    return (
+        L(f"共 {len(plan.days)} 天", f"{len(plan.days)} days")
+        + " · "
+        + L(f"{visit_count(plan)} 个站点", f"{visit_count(plan)} stops")
+    )
+
+
 # --- PDF：打印 HTML -------------------------------------------------------------
 
 
@@ -122,33 +152,44 @@ def render_html(plan: ItineraryPlan) -> str:
                 continue
             sub = []
             if r["minutes"]:
-                sub.append(f"约 {r['minutes']} 分钟")
+                sub.append(L(f"约 {r['minutes']} 分钟", f"About {r['minutes']} min"))
             if r["note"]:
                 sub.append(esc(r["note"]))
             sub_html = f'<div class="sub">{" · ".join(sub)}</div>' if sub else ""
             badge = ""
-            if "已钉住" in r["note"]:
-                badge = ' <span class="badge">已钉住</span>'
+            if _pin_label() in r["note"]:
+                badge = f' <span class="badge">{L("已钉住", "Pinned")}</span>'
             body.append(
                 f'<tr><td class="t">{esc(r["time"]) or "—"}</td>'
-                f"<td>{esc(r['title'])}{badge}（{esc(r['city'])}）{sub_html}</td>"
+                f"<td>{esc(r['title'])}{badge}{_paren(esc(r['city']))}{sub_html}</td>"
                 f"<td>{esc(r['address']) or '—'}</td>"
                 f"<td>{esc(r['hours']) or '—'}</td></tr>"
             )
-        empty_row = '<tr><td colspan="4" class="sub">（本日暂无安排）</td></tr>'
+        empty_row = (
+            '<tr><td colspan="4" class="sub">'
+            f"{L('（本日暂无安排）', '(No plans for this day)')}</td></tr>"
+        )
         body_html = "".join(body) or empty_row
+        day_head = (
+            L(f"第 {d['day']} 天", f"Day {d['day']}") + f" · {esc(d['base_city'])}"
+        )
         days_html.append(
-            f'<div class="day"><h2>第 {d["day"]} 天 · {esc(d["base_city"])}</h2>'
-            "<table><thead><tr><th>时间</th><th>安排</th>"
-            "<th>地址</th><th>开放时间</th></tr></thead>"
+            f'<div class="day"><h2>{day_head}</h2>'
+            "<table><thead><tr>"
+            f"<th>{L('时间', 'Time')}</th><th>{L('安排', 'Itinerary')}</th>"
+            f"<th>{L('地址', 'Address')}</th><th>{L('开放时间', 'Opening hours')}</th>"
+            "</tr></thead>"
             f"<tbody>{body_html}</tbody></table></div>"
         )
     assumptions = ""
     if plan.assumptions:
         items = "".join(f"<li>{esc(a)}</li>" for a in plan.assumptions)
-        assumptions = f'<h2>假设标注</h2><ul class="assume">{items}</ul>'
+        assumptions = (
+            f'<h2>{L("假设标注", "Assumptions")}</h2><ul class="assume">{items}</ul>'
+        )
+    page_lang = "en" if is_en() else "zh-CN"
     return (
-        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        f'<!doctype html><html lang="{page_lang}"><head><meta charset="utf-8">'
         f"<title>{esc(plan_title(plan))}</title><style>"
         'body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;'
         "margin:0;padding:28px;color:#1a1a1a;font-size:13px}"
@@ -175,13 +216,19 @@ def render_html(plan: ItineraryPlan) -> str:
         "border:1px solid #e6d87a;border-radius:6px;padding:8px 12px;"
         "margin-bottom:14px;font-size:12px;color:#6b5900}}"
         "</style></head><body>"
-        '<div class="no-print">💡 打印对话框中请选择「另存为 PDF」'
-        "（目标打印机），即可得到 PDF 文件。</div>"
+        '<div class="no-print">'
+        + L(
+            "💡 打印对话框中请选择「另存为 PDF」（目标打印机），即可得到 PDF 文件。",
+            '💡 In the print dialog, choose "Save as PDF" as the '
+            "destination to get a PDF file.",
+        )
+        + "</div>"
         f"<h1>{esc(plan_title(plan))}</h1>"
-        f'<div class="meta">行程编号 <code>{esc(plan.itinerary_id)}</code>'
-        f" · 共 {len(plan.days)} 天 · {visit_count(plan)} 个站点</div>"
+        f'<div class="meta">{L("行程编号", "Itinerary ID")} '
+        f"<code>{esc(plan.itinerary_id)}</code> · {_meta_line(plan)}</div>"
         f"{''.join(days_html)}{assumptions}"
-        "<footer>由 ChinaTrip 生成</footer></body></html>"
+        f"<footer>{L('由 ChinaTrip 生成', 'Generated by ChinaTrip')}"
+        "</footer></body></html>"
     )
 
 
@@ -212,34 +259,37 @@ def render_docx(plan: ItineraryPlan) -> bytes:
 
     meta = doc.add_paragraph()
     meta_run = meta.add_run(
-        f"行程编号 {plan.itinerary_id} · 共 {len(plan.days)} 天 · "
-        f"{visit_count(plan)} 个站点"
+        f"{L('行程编号', 'Itinerary ID')} {plan.itinerary_id} · {_meta_line(plan)}"
     )
     meta_run.font.size = Pt(9)
     meta_run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
     for d in display_rows(plan):
-        doc.add_heading(f"第 {d['day']} 天 · {d['base_city']}", level=1)
+        doc.add_heading(
+            L(f"第 {d['day']} 天", f"Day {d['day']}") + f" · {d['base_city']}", level=1
+        )
         for r in d["rows"]:
             if r["kind"] == "transfer":
-                extra = f"（{r['address']}）" if r["address"] else ""
+                extra = _paren(r["address"]) if r["address"] else ""
                 doc.add_paragraph(f"{r['time'] or '—'}  {r['title']}{extra}")
                 continue
             head = doc.add_paragraph()
-            bits = [r["time"] or "—", r["title"], f"（{r['city']}）"]
+            bits = [r["time"] or "—", r["title"], _paren(r["city"])]
             run = head.add_run("  ".join(bits))
             run.bold = True
-            if "已钉住" in r["note"]:
-                head.add_run("  📌 已钉住")
+            if _pin_label() in r["note"]:
+                head.add_run(f"  {_pin_label()}")
             details = []
             if r["address"]:
-                details.append("地址：" + r["address"])
+                details.append(L("地址：", "Address: ") + r["address"])
             if r["hours"]:
-                details.append("开放时间：" + r["hours"])
+                details.append(L("开放时间：", "Opening hours: ") + r["hours"])
             if r["minutes"]:
-                details.append(f"约 {r['minutes']} 分钟")
+                details.append(
+                    L(f"约 {r['minutes']} 分钟", f"About {r['minutes']} min")
+                )
             rest_note = " · ".join(
-                n for n in r["note"].split(" · ") if "已钉住" not in n
+                n for n in r["note"].split(" · ") if _pin_label() not in n
             )
             if rest_note:
                 details.append(rest_note)
@@ -250,7 +300,7 @@ def render_docx(plan: ItineraryPlan) -> bytes:
                 sub.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
     if plan.assumptions:
-        doc.add_heading("假设标注", level=1)
+        doc.add_heading(L("假设标注", "Assumptions"), level=1)
         for a in plan.assumptions:
             doc.add_paragraph(a, style="List Bullet")
 
@@ -269,7 +319,7 @@ def render_xlsx(plan: ItineraryPlan) -> bytes:
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "行程"
+    ws.title = L("行程", "Itinerary")
 
     header_fill = PatternFill("solid", fgColor="333333")
     day_fill = PatternFill("solid", fgColor="FFF2CC")
@@ -277,11 +327,19 @@ def render_xlsx(plan: ItineraryPlan) -> bytes:
     bold = Font(bold=True)
     wrap = Alignment(wrap_text=True, vertical="top")
 
-    title = f"{plan_title(plan)}（{plan.itinerary_id}）"
+    title = f"{plan_title(plan)}{_paren(plan.itinerary_id)}"
     ws.cell(row=1, column=1, value=title).font = Font(bold=True, size=14)
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=7)
 
-    headers = ["时间", "安排", "城市", "地址", "开放时间", "时长(分钟)", "备注"]
+    headers = [
+        L("时间", "Time"),
+        L("安排", "Itinerary"),
+        L("城市", "City"),
+        L("地址", "Address"),
+        L("开放时间", "Opening hours"),
+        L("时长(分钟)", "Duration (min)"),
+        L("备注", "Notes"),
+    ]
     for col, name in enumerate(headers, start=1):
         cell = ws.cell(row=2, column=col, value=name)
         cell.font = header_font
@@ -289,7 +347,7 @@ def render_xlsx(plan: ItineraryPlan) -> bytes:
 
     row = 3
     for d in display_rows(plan):
-        label = f"第 {d['day']} 天 · {d['base_city']}"
+        label = L(f"第 {d['day']} 天", f"Day {d['day']}") + f" · {d['base_city']}"
         ws.cell(row=row, column=1, value=label).font = bold
         for col in range(1, 8):
             ws.cell(row=row, column=col).fill = day_fill

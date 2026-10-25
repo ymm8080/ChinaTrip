@@ -30,6 +30,7 @@ from app.api.trip_items import router as trip_items_router
 from app.api.visa import router as visa_router
 from app.api.weather import router as weather_router
 from app.config import get_settings
+from app.middleware.lang import LangMiddleware
 from app.middleware.ratelimit import RateLimitMiddleware
 from app.middleware.usage import TraceIdMiddleware
 
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
         exempt_paths=("/health", "/docs", "/redoc", "/openapi.json", "/robots.txt"),
     )
     app.add_middleware(TraceIdMiddleware, region=settings.region)
+    app.add_middleware(LangMiddleware)
 
     app.include_router(health_router)
     app.include_router(extract_router)

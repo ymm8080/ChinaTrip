@@ -31,6 +31,7 @@ import httpx
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.services.lang_ctx import L
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,18 @@ DEFAULT_REFUND_SUMMARY = (
     "未支付可随时取消；支付成功后退改以订单页为准，退款请联系客服。"
     "Refunds after payment: contact support; terms per order page."
 )
+
+_REFUND_SUMMARY_EN = (
+    "Cancel anytime before payment; after payment, changes and refunds "
+    "follow the order page - contact support for refunds."
+)
+
+
+def default_refund_summary() -> str:
+    """按请求语言取默认退款文案（pydantic 字段默认是 import 期恒定 zh，
+    请求期创建记录走本函数）。"""
+    return L(DEFAULT_REFUND_SUMMARY, _REFUND_SUMMARY_EN)
+
 
 PAY_STATUS_PENDING = "pending"
 PAY_STATUS_SUCCEEDED = "succeeded"
@@ -189,7 +202,7 @@ class MockGateway:
             kind=KIND_PAY_NOW,
             amount_yuan=amount_yuan,
             currency=source.currency,
-            description=description or "代订扣款（mock）",
+            description=description or L("代订扣款（mock）", "Concierge charge (mock)"),
             refund_summary=source.refund_summary,
             status=PAY_STATUS_SUCCEEDED,
             provider=self.provider,
@@ -427,7 +440,7 @@ class PaymentService:
             currency=curr,
             description=description or "",
             email=email,
-            refund_summary=refund_summary or DEFAULT_REFUND_SUMMARY,
+            refund_summary=refund_summary or default_refund_summary(),
             provider=self.gateway.provider,
             handoff_id=handoff_id,
             trip_item_id=trip_item_id,

@@ -17,6 +17,7 @@ import secrets
 
 from app.services.itinerary.models import ItineraryPlan, VisitItem
 from app.services.itinerary_store import ItineraryRecord
+from app.services.lang_ctx import L, is_en
 
 # /s/{token} always serves the same HTML to every User-Agent: chat-app
 # crawlers (WeChat/WhatsApp/Twitter/Telegram) don't run JS and read the
@@ -70,8 +71,8 @@ def share_enabled_record(record: ItineraryRecord) -> ItineraryRecord:
 
 
 def trip_title(plan: ItineraryPlan) -> str:
-    cities = " → ".join(plan.cities) if plan.cities else "我的行程"
-    return f"{cities} · {len(plan.days)}天行程"
+    cities = " → ".join(plan.cities) if plan.cities else L("我的行程", "My Trip")
+    return f"{cities} · " + L(f"{len(plan.days)}天行程", f"{len(plan.days)}-Day Trip")
 
 
 def public_trip_payload(record: ItineraryRecord) -> dict:
@@ -109,13 +110,17 @@ def og_share_html(token: str, plan: ItineraryPlan, og_image_url: str) -> str:
     title = html.escape(trip_title(plan), quote=True)
     stops = sum(len(d.items) for d in plan.days)
     description = html.escape(
-        f"共 {len(plan.days)} 天 · {stops} 个行程点 · 来自 ChinaTrip 行程助手",
+        L(
+            f"共 {len(plan.days)} 天 · {stops} 个行程点 · 来自 ChinaTrip 行程助手",
+            f"{len(plan.days)} days · {stops} stops · ChinaTrip Trip Planner",
+        ),
         quote=True,
     )
     target = html.escape(f"/h5/?share={token}", quote=True)
     image = html.escape(og_image_url, quote=True)
+    page_lang = "en" if is_en() else "zh-CN"
     return (
-        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        f'<!doctype html><html lang="{page_lang}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
         '<meta property="og:type" content="website">'
@@ -126,6 +131,7 @@ def og_share_html(token: str, plan: ItineraryPlan, og_image_url: str) -> str:
         f'<script>location.replace("{target}")</script>'
         f'<noscript><meta http-equiv="refresh" content="0;url={target}"></noscript>'
         "</head><body>"
-        f'<p>正在打开行程… <a href="{target}">点此进入</a></p>'
+        f"<p>{L('正在打开行程… ', 'Opening your trip… ')}"
+        f'<a href="{target}">{L("点此进入", "Tap to open")}</a></p>'
         "</body></html>"
     )

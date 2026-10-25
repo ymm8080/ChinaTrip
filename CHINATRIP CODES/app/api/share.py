@@ -28,6 +28,7 @@ from app.api.itineraries import (
 from app.config import get_settings
 from app.middleware.ratelimit import RateLimiter
 from app.services.itinerary_store import ItineraryRecord, ItineraryStore
+from app.services.lang_ctx import set_lang
 from app.services.trip_share import (
     og_share_html,
     public_trip_payload,
@@ -132,6 +133,10 @@ async def share_landing(
     record = store.find_by_share_token(token)
     if record is None:
         raise HTTPException(status_code=404, detail="not_found")
+    # /s/ is a standalone public page with no app shell, so no X-Lang
+    # header ever arrives: language rides on ?lang=en instead, and the
+    # normalizer falls back to zh for anything absent or unrecognized.
+    set_lang(request.query_params.get("lang"))
     base = str(request.base_url).rstrip("/")
     html = og_share_html(token, record.plan, og_image_url=f"{base}/h5/og-default.png")
     return HTMLResponse(

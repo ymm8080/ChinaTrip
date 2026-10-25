@@ -35,4 +35,4 @@ def test_i18n_city_dict_and_helper():
         assert '"' + zh + '"' in js, zh
     # index.html 卡片城市可见文本走 I18N.city
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert 'I18N.city(it.city)' in html
+    assert "I18N.city(it.city)" in html

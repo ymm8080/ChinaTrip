@@ -18,6 +18,7 @@ from app.services.booking_auto import (
     build_reservation_tasks,
     check_availability,
 )
+from app.services.lang_ctx import L
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,10 @@ async def order_intent(
             action_type="site_ticket",
             channel=_channel_of(intent.authorization_url),
             url=intent.authorization_url,
-            refund_summary="人工渠道预订，退改以下单页为准（铁律 23 C 级）",
+            refund_summary=L(
+                "人工渠道预订，退改以下单页为准（铁律 23 C 级）",
+                "Manual-channel booking; changes and refunds follow the checkout page",
+            ),
         )
         handoff_id = record.id
     except Exception:  # 失败留日志，不阻塞跳转（回填仍可手动建单）

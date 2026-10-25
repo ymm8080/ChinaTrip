@@ -25,11 +25,18 @@ from email.utils import formataddr
 from typing import Protocol
 
 from app.config import Settings, get_settings
+from app.services.lang_ctx import L
 
 logger = logging.getLogger(__name__)
 
 _SMTP_TIMEOUT_SECONDS = 10.0
-_PURPOSE_CN = {"register": "注册", "reset_password": "密码重置"}
+
+
+def _purpose_label(purpose: str) -> str:
+    return {
+        "register": L("注册", "Sign-up"),
+        "reset_password": L("密码重置", "Password reset"),
+    }.get(purpose, L("验证", "Verification"))
 
 
 class MailerError(Exception):
@@ -66,16 +73,28 @@ class SmtpMailer:
 
     def _message(self, to_email: str, code: str, purpose: str) -> MIMEText:
         s = self._settings
-        scene = _PURPOSE_CN.get(purpose, "验证")
-        body = (
+        scene = _purpose_label(purpose)
+        body = L(
             f"您的{scene}验证码是：{code}\n"
             "\n"
             "验证码 10 分钟内有效。若非本人操作，请忽略本邮件。\n"
             "\n"
-            "- ChinaTrip 自助景点规划助手\n"
+            "- ChinaTrip 自助景点规划助手\n",
+            f"Your {scene} verification code is: {code}\n"
+            "\n"
+            "This code is valid for 10 minutes. If this wasn't you, "
+            "please ignore this email.\n"
+            "\n"
+            "- ChinaTrip Attraction Planner\n",
         )
         msg = MIMEText(body, "plain", "utf-8")
-        msg["Subject"] = Header(f"【ChinaTrip】{scene}验证码 {code}", "utf-8")
+        msg["Subject"] = Header(
+            L(
+                f"【ChinaTrip】{scene}验证码 {code}",
+                f"[ChinaTrip] {scene} verification code {code}",
+            ),
+            "utf-8",
+        )
         sender = s.smtp_from or s.smtp_user
         msg["From"] = formataddr((str(Header("ChinaTrip", "utf-8")), sender))
         msg["To"] = to_email

@@ -21,6 +21,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.services.lang_ctx import L
+
 # 政策快照（可热更：改这里不动引擎；生效日期随公告刷新）
 VISA_POLICY: dict = {
     # 官方源校订 2026-10-25（第二轮，口岸全表）：240h 政策 2024-12-17
@@ -292,7 +294,12 @@ def check_240h_transit(
     计算）；口岸缺省 → 提醒不硬卡；所有结论恒附「以边检为准」。
     """
     p = policy or VISA_POLICY
-    messages: list[str] = [f"政策口径 {p['effective_date']}（{p['source']}）"]
+    messages: list[str] = [
+        L(
+            f"政策口径 {p['effective_date']}（{p['source']}）",
+            f"Policy basis {p['effective_date']} ({p['source']})",
+        )
+    ]
     problems: list[str] = []
     warns: list[str] = []
 
@@ -312,18 +319,43 @@ def check_240h_transit(
         if prov is None:
             unknown.append(city)
         elif prov not in p["provinces_allowed"]:
-            bad_cities.append(f"{city}（{prov}）")
+            bad_cities.append(L(f"{city}（{prov}）", f"{city} ({prov})"))
         elif prov in city_scope and city not in city_scope[prov]:
-            scope = "、".join(sorted(city_scope[prov])[:6])
-            bad_cities.append(f"{city}不在 {prov} 允许活动范围（限 {scope} 等）")
+            scope_zh = "、".join(sorted(city_scope[prov])[:6])
+            scope_en = ", ".join(sorted(city_scope[prov])[:6])
+            bad_cities.append(
+                L(
+                    f"{city}不在 {prov} 允许活动范围（限 {scope_zh} 等）",
+                    f"{city} is outside the allowed area of {prov} "
+                    f"(limited to {scope_en} etc.)",
+                )
+            )
     if bad_cities:
-        problems.append("以下城市不在 240h 免签允许省域：" + "、".join(bad_cities))
+        problems.append(
+            L(
+                "以下城市不在 240h 免签允许省域：" + "、".join(bad_cities),
+                "The following cities are outside the provinces allowed by the "
+                "240h visa-free transit policy: " + ", ".join(bad_cities),
+            )
+        )
     if unknown:
-        warns.append("城市省份未收录，请自查：" + "、".join(unknown))
+        warns.append(
+            L(
+                "城市省份未收录，请自查：" + "、".join(unknown),
+                "Province unknown for these cities - please verify: "
+                + ", ".join(unknown),
+            )
+        )
     if non_mainland:
         warns.append(
-            "行程含港澳台城市（" + "、".join(non_mainland) + "），"
-            "240h 过境政策不覆盖，需各自签注/证件口径"
+            L(
+                "行程含港澳台城市（" + "、".join(non_mainland) + "），"
+                "240h 过境政策不覆盖，需各自签注/证件口径",
+                "Itinerary includes Hong Kong/Macau/Taiwan cities ("
+                + ", ".join(non_mainland)
+                + "), which the 240h transit policy "
+                "does not cover - each needs its own permit/entry documents",
+            )
         )
 
     # ② 停留时钟
@@ -333,38 +365,82 @@ def check_240h_transit(
             entry = datetime.strptime(entry_date, "%Y-%m-%d")
             exit_ = datetime.strptime(exit_date, "%Y-%m-%d")
         except ValueError:
-            warns.append("出入境日期格式应为 YYYY-MM-DD，停留时长未校验")
+            warns.append(
+                L(
+                    "出入境日期格式应为 YYYY-MM-DD，停留时长未校验",
+                    "Entry/exit dates must be in YYYY-MM-DD format; "
+                    "stay duration not checked",
+                )
+            )
         else:
             stay_hours = int((exit_ - entry).total_seconds() // 3600)
             limit: int = p["max_stay_hours"]
             if stay_hours > limit:
                 problems.append(
-                    f"停留 {stay_hours}h 超过 {limit}h 上限"
-                    "（注意入境次日 00:00 起算的官方口径差异）"
+                    L(
+                        f"停留 {stay_hours}h 超过 {limit}h 上限"
+                        "（注意入境次日 00:00 起算的官方口径差异）",
+                        f"Stay of {stay_hours}h exceeds the {limit}h limit "
+                        "(note: the official count starts at 00:00 the day "
+                        "after entry)",
+                    )
                 )
     else:
-        warns.append("未填出入境日期，240h 停留时钟未校验")
+        warns.append(
+            L(
+                "未填出入境日期，240h 停留时钟未校验",
+                "Entry/exit dates not provided; 240h stay clock not checked",
+            )
+        )
 
     # ③ 口岸（全表 65 已校订 2026-10-25；命名差异以边检现场为准）
     if entry_port:
         if entry_port not in p["entry_ports"]:
             problems.append(
-                f"入境口岸「{entry_port}」不在名单"
-                "（名录为 2026-10 校订快照，请以官方为准）"
+                L(
+                    f"入境口岸「{entry_port}」不在名单"
+                    "（名录为 2026-10 校订快照，请以官方为准）",
+                    f'Entry port "{entry_port}" is not on the list '
+                    "(the list is a 2026-10 verified snapshot; "
+                    "official sources prevail)",
+                )
             )
     else:
-        warns.append("未指定入境口岸（须为名单口岸，如上海浦东/北京首都）")
+        warns.append(
+            L(
+                "未指定入境口岸（须为名单口岸，如上海浦东/北京首都）",
+                "Entry port not specified (it must be a listed port, "
+                "e.g. 上海浦东/北京首都)",
+            )
+        )
     if exit_port and exit_port not in p["entry_ports"]:
         # 出境口岸与入境可不同口岸；共用同一名单
         problems.append(
-            f"出境口岸「{exit_port}」不在名单（名录为 2026-10 校订快照，请以官方为准）"
+            L(
+                f"出境口岸「{exit_port}」不在名单"
+                "（名录为 2026-10 校订快照，请以官方为准）",
+                f'Exit port "{exit_port}" is not on the list '
+                "(the list is a 2026-10 verified snapshot; "
+                "official sources prevail)",
+            )
         )
 
     # ④ 联程票提醒 + 免责（恒挂）
-    messages.append("须持 240h 内离境前往第三国的联程客票（登机牌/行程单备查）")
+    messages.append(
+        L(
+            "须持 240h 内离境前往第三国的联程客票（登机牌/行程单备查）",
+            "You must hold an onward ticket to a third country leaving within "
+            "240h (boarding pass/itinerary ready for inspection)",
+        )
+    )
     messages.extend(problems)
     messages.extend(warns)
-    messages.append("最终以边检现场认定为准")
+    messages.append(
+        L(
+            "最终以边检现场认定为准",
+            "Final decision rests with border inspection on site",
+        )
+    )
 
     status: Literal["ok", "warning", "fail"] = (
         "fail" if problems else ("warning" if warns else "ok")

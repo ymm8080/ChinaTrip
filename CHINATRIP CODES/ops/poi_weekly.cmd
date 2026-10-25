@@ -14,4 +14,8 @@ rem LLM 层有成本，每周小批推进（需 llm_backend=zhipu + glm_api_key�
 "%PY%" -m app.jobs.backfill_best_visit --stage llm --limit 50 >> "%LOG%" 2>&1
 rem Wikidata 简介+图片（只填空字段，串行限速 0.5s/请求）
 "%PY%" -m app.jobs.backfill_intro --limit 100 >> "%LOG%" 2>&1
+rem Qunar duration enrich: detail pages have no bot wall, upgrades heuristic floors
+"%PY%" -m app.jobs.enrich_qunar_duration --limit 300 >> "%LOG%" 2>&1
+rem Ctrip detail enrich: duration may now upgrade heuristic floors too
+"%PY%" -m app.jobs.enrich_ctrip_detail --limit 100 >> "%LOG%" 2>&1
 echo [%date% %time%] === poi weekly done === >> "%LOG%"

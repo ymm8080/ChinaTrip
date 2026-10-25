@@ -19,11 +19,20 @@ from typing import Protocol
 
 from app.config import Settings, get_settings
 from app.services.call_store import CallStore
+from app.services.lang_ctx import L
 
 _REFUND_SUMMARY_TMPL = (
     "通话分钟为预付费虚拟权益：通话开始后按分钟消耗；提前挂断退回未用"
     "整分钟；下单未接通（{timeout} 秒无人接听）全额原路退回；到点自动结束"
     "不退当次已选时长中已消耗部分。"
+)
+
+_REFUND_SUMMARY_TMPL_EN = (
+    "Call minutes are prepaid credits: minutes are consumed once the call "
+    "starts; hanging up early refunds unused whole minutes; if no one "
+    "answers within {timeout} seconds you get a full refund to your "
+    "original payment method; minutes already used are non-refundable when "
+    "the call ends at its scheduled time."
 )
 
 
@@ -119,7 +128,7 @@ class CallService:
     # -- 套餐与余额 -----------------------------------------------------------
 
     def refund_summary(self) -> str:
-        return _REFUND_SUMMARY_TMPL.format(
+        return L(_REFUND_SUMMARY_TMPL, _REFUND_SUMMARY_TMPL_EN).format(
             timeout=self.settings.call_waiting_timeout_seconds
         )
 

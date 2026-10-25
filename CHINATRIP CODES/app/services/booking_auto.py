@@ -23,6 +23,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.services.lang_ctx import L
 from app.services.reservation_seeds import RESERVATION_V0
 
 
@@ -99,15 +100,24 @@ def resolve_tier(requested: str | BookingTier) -> tuple[BookingTier, str | None]
     ):
         return (
             BookingTier.L1,
-            "L2 降级 L1：库存 provider key 未配置"
-            "（携程联盟/同程/美团为主力，任一配好即活）",
+            L(
+                "L2 降级 L1：库存 provider key 未配置"
+                "（携程联盟/同程/美团为主力，任一配好即活）",
+                "L2 downgraded to L1: no inventory provider key configured "
+                "(Ctrip union / Tongcheng / Meituan are the main providers - "
+                "any one key activates L2)",
+            ),
         )
     if req == BookingTier.L3:
         # 非 ACP 主案（2026-10-25 定调）：预填下单→渠道支付→粘贴回填，
         # 三段闭环即完整形态——不是等待 ACP 的过渡态
         return (
             BookingTier.L3,
-            "L3 标准闭环：预填下单 → 渠道支付 → 回「订单」粘贴确认自动记录",
+            L(
+                "L3 标准闭环：预填下单 → 渠道支付 → 回「订单」粘贴确认自动记录",
+                "L3 standard loop: pre-filled order → pay on the channel → "
+                "paste the confirmation under 'Orders' to auto-record it",
+            ),
         )
     return req, None
 

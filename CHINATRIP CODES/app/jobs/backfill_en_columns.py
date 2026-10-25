@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from typing import Any
 
@@ -94,6 +95,29 @@ def validate_translation(text: str, *, source: str) -> str | None:
     cjk = sum(1 for ch in trimmed if "一" <= ch <= "鿿")
     if src and cjk > len(src) * 0.5:
         return "not_translated"
+    return None
+
+
+def validate_hours_en(text: str, *, source: str) -> str | None:
+    """hours 专用验收（宽松于通用闸门）。
+
+    硬关：无 CJK（防回中文）、拉丁主体、时间数字保真（@HH:MM 集合
+    一致，防 LLM 改错时刻——真实危害远大于长度）。
+    长度 2-300（原 600 对 hours 常态过松、20 过严）。
+    """
+    t = (text or "").strip()
+    if not (2 <= len(t) <= 300):
+        return "too_short" if len(t) < 2 else "too_long"
+    if _CJK(t):
+        return "no_latin"
+    # hours 含大量数字/时间标点：按"非 CJK 即接受"口径（拉丁比率失真）
+    src_times = set(re.findall(r"\d{1,2}:\d{2}", source or ""))
+    out_times = set(re.findall(r"\d{1,2}:\d{2}", t))
+    if src_times and src_times != out_times:
+        return "time_drift"
+    lowered = t.lower()
+    if "http" in lowered or "```" in t:
+        return "meta"
     return None
 
 
@@ -278,6 +302,15 @@ async def _process_row(
                     stats["rejected"] += 1
                     continue
                 updates[en_col] = parsed
+            elif en_col == "opening_hours_en":
+                reason = validate_hours_en(content, source=str(source))
+                if reason is not None:
+                    stats["rejected"] += 1
+                    stats["rejected_by_reason"][reason] = (
+                        stats["rejected_by_reason"].get(reason, 0) + 1
+                    )
+                    continue
+                updates[en_col] = content
             else:
                 reason = validate_translation(content, source=str(source))
                 if reason is not None:

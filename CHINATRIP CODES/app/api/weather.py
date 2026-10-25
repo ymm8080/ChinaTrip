@@ -24,13 +24,14 @@ from app.db import get_session_factory
 from app.models import WeatherReport
 from app.services.agent.plan import CITY_ALIASES
 from app.services.amap_client import AmapClient
+from app.services.lang_ctx import L, is_en
 from app.services.weather import (
     city_to_adcode,
     fetch_and_store,
     store_cities,
     trip_cities,
 )
-from app.services.weather_open_meteo import fetch_forecast14
+from app.services.weather_open_meteo import day_text_en, fetch_forecast14
 
 router = APIRouter(prefix="/api/weather", tags=["weather"])
 
@@ -72,8 +73,37 @@ def _resolve_adcode(city: str) -> str:
     normalized = CITY_ALIASES.get(city.strip().lower(), city)
     adcode = city_to_adcode(normalized)
     if not adcode:
-        raise HTTPException(status_code=404, detail=f"未收录城市: {city}")
+        raise HTTPException(
+            status_code=404,
+            detail=L(f"未收录城市: {city}", f"City not covered: {city}"),
+        )
     return adcode
+
+
+def _payload_en(payload: dict | None) -> dict | None:
+    """EN 请求读侧翻译：库里天气文案恒 zh（抓取作业无请求上下文），
+    day_weather/night_weather 用 day_text_en 反查；未命中（高德上游独有
+    zh 文案等）原样透传。zh 请求 payload 原样返回。"""
+    if payload is None or not is_en():
+        return payload
+    out = dict(payload)
+    if isinstance(out.get("casts"), list):
+        out["casts"] = [
+            {
+                **cast,
+                **{
+                    key: day_text_en(cast[key])
+                    for key in ("day_weather", "night_weather")
+                    if isinstance(cast.get(key), str)
+                },
+            }
+            if isinstance(cast, dict)
+            else cast
+            for cast in out["casts"]
+        ]
+    if isinstance(out.get("weather"), str):  # 高德 live 实况文案同一词汇表
+        out["weather"] = day_text_en(out["weather"])
+    return out
 
 
 @router.get("", response_model=WeatherView)
@@ -87,7 +117,11 @@ def get_weather(
         rows = session.query(WeatherReport).filter(WeatherReport.adcode == adcode).all()
     if not rows:
         raise HTTPException(
-            status_code=404, detail=f"暂无天气数据: {city}（等抓取作业跑完）"
+            status_code=404,
+            detail=L(
+                f"暂无天气数据: {city}（等抓取作业跑完）",
+                f"No weather data yet: {city} (waiting for the fetch job)",
+            ),
         )
     live = next((r for r in rows if r.kind == "live"), None)
     forecast = next((r for r in rows if r.kind == "forecast"), None)
@@ -97,11 +131,11 @@ def get_weather(
     return WeatherView(
         city=(present[0]).city,
         adcode=adcode,
-        live=live.payload if live else None,
+        live=_payload_en(live.payload) if live else None,
         live_report_time=live.report_time if live else None,
-        forecast=forecast.payload if forecast else None,
+        forecast=_payload_en(forecast.payload) if forecast else None,
         forecast_report_time=forecast.report_time if forecast else None,
-        forecast14=forecast14.payload if forecast14 else None,
+        forecast14=_payload_en(forecast14.payload) if forecast14 else None,
         fetched_at=max(fetched) if fetched else None,
     )
 

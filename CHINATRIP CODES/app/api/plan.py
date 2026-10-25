@@ -48,6 +48,7 @@ from app.services.itinerary_store import (
     ItineraryService,
     QuotaExceededError,
 )
+from app.services.lang_ctx import L
 from app.services.llm import get_llm_adapter
 from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import LLMError
@@ -226,9 +227,15 @@ async def start_plan_from_itinerary(
             ChatMessage(
                 role="assistant",
                 content=(
-                    f"已载入行程 {itinerary_id}（{':'.join(plan.cities)}，"
-                    f"{len(plan.days)} 天）。直接说要怎么改（例如：把第二天的"
-                    "景点挪到第三天、加一天）；改完点「💾 保存行程」覆盖保存。"
+                    L(
+                        f"已载入行程 {itinerary_id}（{':'.join(plan.cities)}，"
+                        f"{len(plan.days)} 天）。直接说要怎么改（例如：把第二天的"
+                        "景点挪到第三天、加一天）；改完点「💾 保存行程」覆盖保存。",
+                        f"Itinerary {itinerary_id} loaded ({':'.join(plan.cities)}, "
+                        f"{len(plan.days)} days). Just say what to change (e.g. move "
+                        "day-2 sights to day 3, or add a day); tap '💾 Save Itinerary' "
+                        "to overwrite when done.",
+                    )
                 ),
             )
         ],
@@ -393,7 +400,11 @@ async def pin_plan_item(
         raise HTTPException(status_code=422, detail="pinned_requires_time")
     item.pinned = request.pinned
     store.save(session)
-    reply = f"已钉住 {item.name}" if request.pinned else f"已取消钉住 {item.name}"
+    reply = (
+        L(f"已钉住 {item.name}", f"Pinned {item.name}")
+        if request.pinned
+        else L(f"已取消钉住 {item.name}", f"Unpinned {item.name}")
+    )
     return _plan_turn_body(session, reply, None)
 
 
@@ -423,7 +434,10 @@ async def delete_plan_item(
     session.plan = new_plan
     agent.sync_removals_to_trip_items(plan_before, [diff])
     store.save(session)
-    reply = f"已删除 {item.name}，已记入不想去"
+    reply = L(
+        f"已删除 {item.name}，已记入不想去",
+        f"Deleted {item.name} — recorded under 'not interested'",
+    )
     return _plan_turn_body(session, reply, None)
 
 
@@ -461,7 +475,9 @@ async def move_plan_item(
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
     store.save(session)
-    reply = "已按你的顺序调整" + (f"（{'；'.join(notes)}）" if notes else "")
+    reply = L("已按你的顺序调整", "Reordered to your sequence") + (
+        f"（{'；'.join(notes)}）" if notes else ""
+    )
     return _plan_turn_body(session, reply, None)
 
 
@@ -498,6 +514,10 @@ async def retime_plan_item(
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
     store.save(session)
-    base = summary.change_summary[0] if summary.change_summary else "已调整时间"
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("已调整时间", "Time updated")
+    )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)

@@ -26,6 +26,7 @@ from app.services.bookings import (
     hotel_booking,
     train_booking,
 )
+from app.services.lang_ctx import L
 from app.services.trains import get_train_service
 
 __all__ = ["flight_offer_cards", "hotel_offer_cards", "train_offer_cards"]
@@ -38,15 +39,36 @@ _BASE_PRICE_YUAN: dict[str, float] = {"hotel": 350.0, "flight": 760.0}
 _PRICE_BAND = 0.12  # 各渠道在基价 ±12% 内偏移
 _SAME_PRICE_EPS = 0.005  # |a-b| < eps 视为同价
 
-_DISCLAIMER = "*价格以跳转后页面为准*"
+_DISCLAIMER = "*价格以跳转后页面为准*"  # zh 原文（EN 见 _disclaimer）
 _LAYOUT = "primary_plus_expand"  # 默认形态：单个主推 + 可展开全部
 
-_UNIFIED_TAG = "全国统一价"
-_SAME_PRICE_TAG = "同价"
+_UNIFIED_TAG = "全国统一价"  # zh 原文（EN 见 _unified_tag）
+_SAME_PRICE_TAG = "同价"  # zh 原文（EN 见 _same_price_tag）
+
+
+def _disclaimer() -> str:
+    return L(_DISCLAIMER, "*Final price as shown on the destination page*")
+
+
+def _unified_tag() -> str:
+    return L(_UNIFIED_TAG, "Same price nationwide")
+
+
+def _same_price_tag() -> str:
+    return L(_SAME_PRICE_TAG, "Same price")
+
 
 # meituan 不在 bookings.py 的退改摘要表内（那里携程文案已连带美团）；
 # 卡片按渠道单列时给美团自己的铁律 23 兜底文案
 _MEITUAN_REFUND_SUMMARY = "退改政策以美团下单页展示为准；建议选「免费取消」房型"
+
+
+def _meituan_refund_summary() -> str:
+    return L(
+        _MEITUAN_REFUND_SUMMARY,
+        "Refund policy per the Meituan checkout page; pick a 'free "
+        "cancellation' room when possible",
+    )
 
 
 def _norm_query(kind: str, parts: dict[str, object]) -> str:
@@ -118,7 +140,7 @@ def _inject_tracking(url: str, settings: Settings) -> str:
 def _refund_summary(channel: str) -> str:
     """铁律 23：每张卡必带退改摘要；复用 bookings.py 的渠道文案。"""
     if channel == "meituan":
-        return _MEITUAN_REFUND_SUMMARY
+        return _meituan_refund_summary()
     return _refund_channel_page(channel)["summary"]
 
 
@@ -126,7 +148,7 @@ def _present(kind: str, cards: list[dict], group: list[str] | None) -> dict:
     """步骤5 展示：主推=排序后第一张；cards 含全部（≥1，不足 2 渠道=1 张）。"""
     return {
         "kind": kind,
-        "disclaimer": _DISCLAIMER,
+        "disclaimer": _disclaimer(),
         "layout": _LAYOUT,
         "primary": cards[0],
         "cards": cards,
@@ -146,7 +168,7 @@ def _assemble(
             "channel": channel,
             "price_yuan": price,
             "unified_price": False,
-            "tag": _SAME_PRICE_TAG if group and channel in group else None,
+            "tag": _same_price_tag() if group and channel in group else None,
             "refund_summary": _refund_summary(channel),
             "url": channel_urls[channel],
         }
@@ -233,7 +255,7 @@ async def train_offer_cards(
         "channel": handoff["channel"],
         "price_yuan": None,
         "unified_price": True,
-        "tag": _UNIFIED_TAG,
+        "tag": _unified_tag(),
         "refund_summary": _refund_summary(handoff["channel"]),
         "url": _inject_tracking(handoff["url"], settings),
     }

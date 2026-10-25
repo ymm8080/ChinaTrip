@@ -821,7 +821,7 @@ function detailText(d) {
 // 统一请求：POST/PUT JSON + X-Device-ID（已登录附 Authorization）；非 2xx 抛 {status, detail}
 async function api(path, body, method) {
   let res;
-  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID };
+  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() === "en" ? "en" : "zh" };
   const token = localStorage.getItem("chinatrip_token");
   if (token) headers["Authorization"] = "Bearer " + token; // 登录后行程等接口按账号返回
   const doFetch = () => fetch(apiBase() + path, {
@@ -2907,7 +2907,7 @@ async function itinShareOn(r, btn) {
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: true });
-      const url = (apiBase() || location.origin) + "/s/" + body.share_token;
+      const url = (apiBase() || location.origin) + "/s/" + body.share_token + (I18N.locale() === "en" ? "?lang=en" : "");
       await copyText(url);
       shareLinkCard(url); // 链接做成真超链卡片（toast 是纯文本点不了）
       await itinSavedLoad();
@@ -3146,7 +3146,7 @@ function bkOfferCard(card, kind, primary, sameGroup) {
     head.appendChild(el('<span class="badge">' + I18N.tf("bk.priceUnknown", "价格未知") + "</span>"));
   }
   const tag = card.tag || (sameGroup && sameGroup.indexOf(card.channel) >= 0 ? I18N.tf("bk.samePrice", "同价") : null);
-  if (tag && tag !== "全国统一价") head.appendChild(el('<span class="badge warn">' + esc(tag) + "</span>"));
+  if (tag && tag !== "全国统一价" && tag !== I18N.tf("bk.unified", "全国统一价")) head.appendChild(el('<span class="badge warn">' + esc(tag) + "</span>"));
   box.appendChild(head);
   box.appendChild(el('<div class="muted" style="margin:4px 0">' + I18N.tf("bk.refundColon", "退改：") + esc(card.refund_summary || I18N.tf("bk.noSummary", "（无摘要）")) + "</div>"));
   const url = card.url || card.fallback_url;

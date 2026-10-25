@@ -113,6 +113,53 @@ def wmo_text(code) -> str:
         return ""
 
 
+# WMO_TEXT 的 EN 孪生表（读侧用）。抓取作业无请求上下文 → 库里恒存 zh；
+# EN 请求在出口处用 day_text_en 反查（api.weather），本表不进库。
+WMO_TEXT_EN: dict[int, str] = {
+    0: "Sunny",
+    1: "Sunny",
+    2: "Cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Fog",
+    51: "Light rain",
+    53: "Light rain",
+    55: "Light rain",
+    56: "Freezing rain",
+    57: "Freezing rain",
+    66: "Freezing rain",
+    67: "Freezing rain",
+    61: "Light rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Moderate snow",
+    75: "Heavy snow",
+    77: "Light snow",
+    80: "Light rain",
+    81: "Moderate rain",
+    82: "Heavy rain",
+    85: "Light snow",
+    86: "Moderate snow",
+    95: "Thunderstorm",
+    96: "Thunderstorm",
+    99: "Thunderstorm",
+}
+
+# 存量 zh day_text → EN 反查表（day_text_en 用；未命中原样返回）
+_ZH_DAY_TEXT_TO_EN: dict[str, str] = {
+    zh: WMO_TEXT_EN[code] for code, zh in WMO_TEXT.items() if code in WMO_TEXT_EN
+}
+
+
+def day_text_en(zh_text: str) -> str:
+    """库里存的 zh day_text → EN（读侧翻译，作业存储口径不变）。
+
+    未命中的文本（如高德上游独有 zh 文案）原样返回——透传即可接受。
+    """
+    return _ZH_DAY_TEXT_TO_EN.get(zh_text, zh_text)
+
+
 def _temp_str(values: list, i: int) -> str:
     """浮点温度 → 整数字符串（与高德口径一致）；缺值/越界返回空串。"""
     if i < len(values) and values[i] is not None:

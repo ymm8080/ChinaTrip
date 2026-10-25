@@ -54,10 +54,12 @@ from app.services.itinerary.coverage import premium_coverage_gaps
 from app.services.itinerary.geo import area_labels, cluster_days
 from app.services.itinerary.models import INTERCITY_BUFFER_MINUTES, PoiHours
 from app.services.itinerary.solver import solve_plan
+from app.services.lang_ctx import L, is_en
 from app.services.llm import ChatMessage, LLMError, parse_json_content
 from app.services.poi_details import PoiDetailStore
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
+    FOREIGNER_TIP_EN,
     RESERVATION_V0,
 )
 from app.services.restaurants import (
@@ -105,6 +107,17 @@ def _clamp_plan_duration(minutes) -> int | None:
     return min(int(minutes), _PLAN_DURATION_MAX_MIN)
 
 
+def _unspecified() -> str:
+    """「未标注」city placeholder — call-time so it follows the request lang
+    (a module constant would freeze at import)."""
+    return L("未标注", "Unspecified")
+
+
+def _is_unspecified(city: str | None) -> bool:
+    """Both scripts count: old rows hold zh, EN requests write "Unspecified"."""
+    return (city or "").strip() in ("未标注", "Unspecified")
+
+
 DEFAULT_VISIT_MINUTES = 60
 FLIGHT_TRANSFER_MINUTES = 180  # door-to-door placeholder for uncovered long legs
 LEG_ENRICH_MAX_PAIRS = 24  # amap leg measurements per delivery
@@ -119,15 +132,33 @@ MAX_REPAIR_ROUNDS = 3  # §6.4: LLM self-repair cap, then half-product
 PREFERENCE_SKIP_WORDS = frozenset(
     {"无特别要求", "没有特别", "没有", "随便", "都行", "跳过", "无所谓", "无"}
 )
-PREF_QUESTION = (
-    "这次观光偏好哪类玩法？可以回复：博物馆人文 / 自然风光 / 美食街区 / "
-    "亲子休闲 / 暴走走透 / 慢慢逛，也可以直接用自己的话描述；"
-    "没有特别要求的话回复「无特别要求」跳过。"
-)
 LLM_ATTEMPTS = 2  # one structured-output call + one retry, then degrade
 HISTORY_WINDOW = 12
-PACE_ASSUMPTION = "假设中等节奏、不早起"
-SOLVER_DEGRADED_ASSUMPTION = "求解器未收敛，时间已按顺序兜底排列"
+
+
+def _pref_question() -> str:
+    # call-time L()：模块常量会在 import 时冻结语言（双语 P3 纪律）
+    return L(
+        "这次观光偏好哪类玩法？可以回复：博物馆人文 / 自然风光 / 美食街区 / "
+        "亲子休闲 / 暴走走透 / 慢慢逛，也可以直接用自己的话描述；"
+        "没有特别要求的话回复「无特别要求」跳过。",
+        "What kind of sightseeing do you prefer? Museums & history / natural "
+        "scenery / food streets / family fun / see-it-all / take it slow — "
+        'or describe it your own way; reply "no preference" to skip.',
+    )
+
+
+def _pace_assumption() -> str:
+    return L("假设中等节奏、不早起", "Assumes a moderate pace without early starts")
+
+
+def _solver_degraded_assumption() -> str:
+    return L(
+        "求解器未收敛，时间已按顺序兜底排列",
+        "Solver didn't converge; times were laid out in visit order as a fallback",
+    )
+
+
 MAX_LINK_SITES = 10  # §6.5: sites surfaced from one pasted link
 RESTO_ASK_KM = 5.0  # link food spot farther than this from every sight -> ask
 # 双语 P2：会话 lang=en 时注入到各系统提示词尾部（面向用户的输出
@@ -499,7 +530,7 @@ def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int]:
     return (
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
-        1 if (item.city or "").strip() not in ("", "未标注") else 0,
+        1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
     )
 
 
@@ -614,10 +645,16 @@ def wish_city_question(names: list[str]) -> str:
     names = [n for n in names if n]
     if not names:
         return ""
-    listing = "、".join(f"「{n}」" for n in names)
-    return (
+    listing = L(
+        "、".join(f"「{n}」" for n in names),
+        ", ".join(f'"{n}"' for n in names),
+    )
+    return L(
         f"{listing}还没确定是哪个城市：回复城市名我就记上（如「成都」）；"
-        "不限城市回「都可以」，不想要了回「不要了」"
+        "不限城市回「都可以」，不想要了回「不要了」",
+        f"{listing} still need a city: reply with a city name and I'll note "
+        'it down (e.g. "Chengdu"); "anywhere" if the city doesn\'t matter, '
+        '"drop it" to remove.',
     )
 
 
@@ -727,19 +764,36 @@ def _reconcile_transfer_days(
                     target.items.append(visit)
                     moved = True
                     notes.append(
-                        f"「{visit.name}」与第{day.day}天离城交通冲突，"
-                        f"已移至第{target.day}天 {_fmt_hm(visit.start_time)}"
+                        L(
+                            f"「{visit.name}」与第{day.day}天离城交通冲突，"
+                            f"已移至第{target.day}天 {_fmt_hm(visit.start_time)}",
+                            f'"{visit.name}" clashed with the day-{day.day} '
+                            f"outbound transfer; moved to day {target.day} "
+                            f"{_fmt_hm(visit.start_time)}",
+                        )
                     )
             if not moved:
                 day.items.remove(visit)
                 notes.append(
-                    f"「{visit.name}」在离城当天无法安排，已从第{day.day}天移除"
+                    L(
+                        f"「{visit.name}」在离城当天无法安排，已从第{day.day}天移除",
+                        f'"{visit.name}" could not fit on the departure day '
+                        f"and was removed from day {day.day}",
+                    )
                 )
         if protected_stranded:
-            names = "、".join(f"「{n}」" for n in protected_stranded)
+            names = L(
+                "、".join(f"「{n}」" for n in protected_stranded),
+                ", ".join(f'"{n}"' for n in protected_stranded),
+            )
             notes.append(
-                f"必去 {names} 安排在第{day.day}天（离城日），"
-                "与当天城际交通衔接较紧；要调整可以直接告诉我"
+                L(
+                    f"必去 {names} 安排在第{day.day}天（离城日），"
+                    "与当天城际交通衔接较紧；要调整可以直接告诉我",
+                    f"Must-visits {names} sit on day {day.day} (departure "
+                    "day) — a tight fit with that day's intercity transfer; "
+                    "tell me if you'd like that changed",
+                )
             )
     return notes
 
@@ -750,15 +804,26 @@ def _fmt_hm(t: time) -> str:
 
 def _reservation_hint(name: str, cand: dict) -> str | None:
     """G1（§14.3）：预约制提示——库列优先，名单 v0 兜底（_same_site
-    容错匹配，覆盖「故宫博物院」vs 库存「故宫」类名字变体）。"""
+    容错匹配，覆盖「故宫博物院」vs 库存「故宫」类名字变体）。
+    EN 走 reservation_seeds 的 note_en/FOREIGNER_TIP_EN。"""
     adv = cand.get("reservation_advance_days")
     if cand.get("reservation_required") or adv:
-        return (
-            f"需提前 {adv} 天预约" if adv else "需预约"
-        ) + "（建议 Trip.com/Klook 代抢）"
+        return L(
+            (f"需提前 {adv} 天预约" if adv else "需预约")
+            + "（建议 Trip.com/Klook 代抢）",
+            (f"Book {adv} days ahead" if adv else "Reservation required")
+            + " (Trip.com/Klook can secure it for you)",
+        )
     for seed_name, meta in RESERVATION_V0.items():
         if _same_site(name, seed_name) or seed_name in (name or ""):
-            return f"需提前 {meta['days']} 天预约（{meta['note']}）——{FOREIGNER_TIP}"
+            note = meta.get("note") or ""
+            if is_en() and meta.get("note_en"):
+                note = meta["note_en"]
+            tip = L(FOREIGNER_TIP, FOREIGNER_TIP_EN)
+            return L(
+                f"需提前 {meta['days']} 天预约（{note}）——{tip}",
+                f"Book {meta['days']} days ahead ({note}) — {tip}",
+            )
     return None
 
 
@@ -1039,13 +1104,18 @@ def clarify_questions(session: PlanSession) -> list[str]:
     questions: list[str] = []
     if not session.cities:
         questions.append(
-            "从哪个城市出发、目的地是哪座城市？（中途想停留的城市也可以一起说，"
-            "例如：从三亚出发去哈尔滨，途经广州）"
+            L(
+                "从哪个城市出发、目的地是哪座城市？（中途想停留的城市也可以一起说，"
+                "例如：从三亚出发去哈尔滨，途经广州）",
+                "Which city are you departing from, and where are you headed? "
+                "(Stopover cities welcome too — e.g. Sanya to Harbin via "
+                "Guangzhou)",
+            )
         )
     if session.days <= 0:
-        questions.append("这次计划玩几天？")
+        questions.append(L("这次计划玩几天？", "How many days is this trip?"))
     if session.pref_asked:
-        questions.append(PREF_QUESTION)
+        questions.append(_pref_question())
     return questions
 
 
@@ -1190,7 +1260,9 @@ class PlanningAgent:
             session.state = "clarify"
             session.clarify_count = 1
             session.pref_asked = True
-            session.history.append(ChatMessage(role="assistant", content=PREF_QUESTION))
+            session.history.append(
+                ChatMessage(role="assistant", content=_pref_question())
+            )
             return session
         return await self._generate_v0(session)
 
@@ -1331,23 +1403,36 @@ class PlanningAgent:
     ) -> str:
         """The 必去/可选 round question; reask heads the retry after an
         unparseable answer (the round stays open)."""
-        listing = "、".join(
-            f"（{i}）{site}" for i, site in enumerate(session.pending_sites, 1)
+        listing = L(
+            "、".join(
+                f"（{i}）{site}" for i, site in enumerate(session.pending_sites, 1)
+            ),
+            ", ".join(
+                f"({i}) {site}" for i, site in enumerate(session.pending_sites, 1)
+            ),
         )
         if reask:
-            question = (
+            question = L(
                 f"没认出你点了哪些必去。链接里的地点：{listing}。"
                 "哪些必去？回复「必去：总统府、夫子庙」；"
-                "全部可选回「都可选」；都不要回「不要了」。"
+                "全部可选回「都可选」；都不要回「不要了」。",
+                f"Couldn't tell which ones are must-visits. Places from the "
+                f"link: {listing}. Which are must-visits? Reply like "
+                '"must: 总统府、夫子庙"; "all optional" if none are musts; '
+                '"drop all" to skip them all.',
             )
         else:
-            question = (
+            question = L(
                 f"链接里认出了这些地点：{listing}。哪些是这次必去、哪些可选？"
                 "回复例如「必去：总统府、夫子庙；可选：老门东」，"
-                "全部可选就回「都可选」，都不要就回「不要了」。"
+                "全部可选就回「都可选」，都不要就回「不要了」。",
+                f"Found these places in your link: {listing}. Which are "
+                "must-visits this trip, and which are optional? Reply like "
+                '"must: 总统府、夫子庙; optional: 老门东"; "all optional" if '
+                'none are musts, "drop all" to skip them all.',
             )
         if not session.cities or session.days <= 0:
-            question += " 另外：" + " ".join(clarify_questions(session))
+            question += L(" 另外：", " Also: ") + " ".join(clarify_questions(session))
         return question
 
     async def _answer_site_confirm(
@@ -1370,7 +1455,13 @@ class PlanningAgent:
         mentioned = set(mandatory) | set(optional)
         unmentioned = [s for s in sites if s not in mentioned]
         if unmentioned:
-            notes.append(f"未提到的 {len(unmentioned)} 个地点没有写入心愿单")
+            notes.append(
+                L(
+                    f"未提到的 {len(unmentioned)} 个地点没有写入心愿单",
+                    f"{len(unmentioned)} places you didn't mention were left "
+                    "off the wishlist",
+                )
+            )
         return await self._finish_link_sites(session, mandatory, optional, url, notes)
 
     @staticmethod
@@ -1413,16 +1504,30 @@ class PlanningAgent:
                 *mandatory,
             ]
             session.site_kinds.update({n: kinds.get(n, "sight") for n in mandatory})
-        mand_text = "、".join(mandatory) or "无"
-        opt_text = "、".join(optional) or "无"
+        mand_text = L("、".join(mandatory) or "无", ", ".join(mandatory) or "none")
+        opt_text = L("、".join(optional) or "无", ", ".join(optional) or "none")
         if mandatory:
-            reply = f"必去的 {mand_text} 已记入行程中心心愿单"
+            reply = L(
+                f"必去的 {mand_text} 已记入行程中心心愿单",
+                f"Must-visits {mand_text} saved to your trip-center wishlist",
+            )
             if optional:
-                reply += f"；可选的 {opt_text} 只留在对话里，想加随时说"
-            reply += "。"
+                reply += L(
+                    f"；可选的 {opt_text} 只留在对话里，想加随时说",
+                    f"; optional ones ({opt_text}) stay in this chat — say "
+                    "the word to add them",
+                )
+            reply += L("。", ".")
         else:
-            reply = "这一轮没有必去地点，心愿单没有新增"
-            reply += f"（可选：{opt_text}）。" if optional else "。"
+            reply = L(
+                "这一轮没有必去地点，心愿单没有新增",
+                "No must-visits this round; nothing added to the wishlist",
+            )
+            reply += (
+                L(f"（可选：{opt_text}）。", f" (optional: {opt_text}).")
+                if optional
+                else L("。", ".")
+            )
         # Snapshot BEFORE the add: sites this turn itself places into the
         # plan are new, not duplicates — only pre-existing ones get the note.
         pre_planned = (
@@ -1445,7 +1550,13 @@ class PlanningAgent:
         self._record_link_sites(session, mandatory, url, kinds)
         dupes = [m for m in mandatory if any(_same_site(m, p) for p in pre_planned)]
         if dupes:
-            notes.append("、".join(dupes) + " 已在行程里，未重复排入")
+            notes.append(
+                L("、".join(dupes), ", ".join(dupes))
+                + L(
+                    " 已在行程里，未重复排入",
+                    " already on the itinerary — not added again",
+                )
+            )
         if session.state == "resto_confirm":
             # A far-away restaurant is holding the floor: its question IS
             # this turn's reply, the normal wrap-up would bury it.
@@ -1456,15 +1567,17 @@ class PlanningAgent:
             session = await self._generate_v0(session)
             if session.state == "resto_confirm":
                 return session, session.history[-1].content, change
-            reply += " 初版行程已生成。"
+            reply += L(" 初版行程已生成。", " Draft itinerary generated.")
         elif not session.cities or session.days <= 0:
             session.state = "clarify"
             session.clarify_count += 1
-            reply += " 还差一点信息：" + " ".join(clarify_questions(session))
+            reply += L(" 还差一点信息：", " A few details missing: ") + " ".join(
+                clarify_questions(session)
+            )
         else:
             session.state = "ready"
         if notes:
-            reply += f"（{'；'.join(notes)}）"
+            reply += L(f"（{'；'.join(notes)}）", f" ({'; '.join(notes)})")
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, change
 
@@ -1490,7 +1603,12 @@ class PlanningAgent:
         notes: list[str] = []
         skipped = [s for s in all_sites if s not in set(picked)]
         if skipped:
-            notes.append(f"未点选的 {len(skipped)} 个地点没有写入心愿单")
+            notes.append(
+                L(
+                    f"未点选的 {len(skipped)} 个地点没有写入心愿单",
+                    f"{len(skipped)} unselected places were left off the wishlist",
+                )
+            )
         return await self._finish_link_sites(session, picked, [], url, notes, kinds)
 
     async def _split_site_answer(
@@ -1551,7 +1669,11 @@ class PlanningAgent:
         kinds = kinds or {}
         itinerary_id = session.plan.itinerary_id if session.plan is not None else None
         for site in mandatory:
-            label = "必去·餐饮" if kinds.get(site) == "food" else "必去"
+            label = (
+                L("必去·餐饮", "Must-visit · food")
+                if kinds.get(site) == "food"
+                else L("必去", "Must-visit")
+            )
             city = session.site_cities.get(site) or (
                 session.cities[0] if len(session.cities) == 1 else None
             )
@@ -1561,7 +1683,10 @@ class PlanningAgent:
                     source="paste",
                     itinerary_id=itinerary_id,
                     city=city,
-                    note=f"来自链接 {url}（{label}）",
+                    note=L(
+                        f"来自链接 {url}（{label}）",
+                        f"From a shared link {url} ({label})",
+                    ),
                 )
             except ValueError:
                 logger.warning("plan: trip item create failed for %s", site)
@@ -1608,10 +1733,16 @@ class PlanningAgent:
                         pinned.add(item.name)
             if pinned:
                 session.plan.assumptions.append(
-                    "必去景点（已在行程中）已锁定时间，后续修改不会移动它们"
+                    L(
+                        "必去景点（已在行程中）已锁定时间，后续修改不会移动它们",
+                        "Must-visit sights (already on the plan) are time-locked; "
+                        "later edits won't move them",
+                    )
                 )
             return session, None, ""
-        default_city = session.cities[0] if len(session.cities) == 1 else "未标注"
+        default_city = (
+            session.cities[0] if len(session.cities) == 1 else _unspecified()
+        )
         sight_pts = [
             item.location
             for day in session.plan.days
@@ -2323,7 +2454,7 @@ class PlanningAgent:
             site_cities=session.site_cities,
         )
         assumptions = (
-            [PACE_ASSUMPTION]
+            [_pace_assumption()]
             + poi_assumptions
             + list(llm_assumptions)
             + list(extra_assumptions or [])
@@ -3077,7 +3208,7 @@ class PlanningAgent:
             plan = solved
         else:
             _fallback_sequence_times(plan)
-            plan.assumptions.append(SOLVER_DEGRADED_ASSUMPTION)
+            plan.assumptions.append(_solver_degraded_assumption())
         must_names = {spec["name"] for spec in picked if spec.get("must")}
         if must_names:
             # Pin after the solve: pinned items need concrete times for the
