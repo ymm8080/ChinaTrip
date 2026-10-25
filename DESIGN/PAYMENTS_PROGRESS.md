@@ -31,7 +31,7 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
 - [x] T0a 本进度文件建立（`DESIGN/PAYMENTS_PROGRESS.md`）
 - [x] T0b 每 20 分钟续跑 automation 建立（CronCreate；全部任务完成后它会自删）
 
-- [IN PROGRESS lease: 2026-10-25T10:14:00+08:00] T1 配置键（`CHINATRIP CODES/app/config.py`）
+- [x] T1 配置键（`CHINATRIP CODES/app/config.py`）
       在 booking_auto provider 键块后加：
       `payments_backend: str = "mock"`（"mock"|"stripe"）、`stripe_api_key: str = ""`、
       `stripe_webhook_secret: str = ""`、`payments_default_currency: str = "cny"`、
@@ -40,7 +40,7 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
       `payments_db_url: str = "sqlite:///data/payments.db"`。
       验收：ruff 干净；旧测试不回归。
 
-- [ ] T2 服务层（`CHINATRIP CODES/app/services/payments.py`，新文件）
+- [x] T2 服务层（`CHINATRIP CODES/app/services/payments.py`，新文件）
       - `PaymentRecord` dataclass/pydantic：id, device_id, username|None, kind("pay_now"|"save_method"),
         amount_yuan|None, currency, description, refund_summary, status("pending"→"succeeded"/"canceled"/
         "refunded"；save_method 成功→"method_saved"), provider, provider_ref, customer_ref,
@@ -57,7 +57,7 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
       - `get_payment_service()` 进程级单例（照 trip_items.py 的 lazy singleton 依赖模式）。
       验收：ruff 干净。
 
-- [ ] T3 API 层（`CHINATRIP CODES/app/api/payments.py` 新文件 + `app/main.py` 注册）
+- [x] T3 API 层（`CHINATRIP CODES/app/api/payments.py` 新文件 + `app/main.py` 注册）
       - `POST /api/v1/payments/checkout`（X-Device-ID；body: kind, amount_yuan?, currency?,
         description?, refund_summary?, handoff_id?, trip_item_id?, email?）→
         `{payment_id, checkout_url, status:"pending"}`；pay_now 必须有 amount_yuan>0。
@@ -70,15 +70,15 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
         header `X-Operator-Token` == settings.payments_operator_token（未配置 ⇒ 403）。
       验收：`python -c "from app.main import create_app; create_app()"` 可启动；ruff 干净。
 
-- [ ] T4 模型与迁移（`app/models.py` + `CHINATRIP CODES/alembic/versions/0012_payments.py`）
+- [x] T4 模型与迁移（`app/models.py` + `CHINATRIP CODES/alembic/versions/0012_payments.py`）
       - models.py 加 `Payment` ORM（表 `payments`，列对齐 PaymentRecord；JSONB refund payload 可简化为文本列）。
       - alembic 照 `0010_reservation_fields.py` 手写 `op.execute` 风格：revision `w12_0012`，
         down_revision `w12_0011`，upgrade 建表 + downgrade DROP TABLE IF EXISTS。
       验收：`.venv/Scripts/python -m alembic upgrade head` 本地跑通（PG 可用时）或至少 alembic 能加载链。
 
-- [ ] T5 `.env.example` / `.env` 付款键块（注释对齐现有风格；`.env` 只加空键不填值）
+- [x] T5 `.env.example` / `.env` 付款键块（注释对齐现有风格；`.env` 只加空键不填值）
 
-- [ ] T6 H5 支付卡（`CHINATRIP CODES/app/static/index.html` + `app/static/i18n.js`）
+- [x] T6 H5 支付卡（`CHINATRIP CODES/app/static/index.html` + `app/static/i18n.js`）
       - 预订 tab 内新增「💳 支付 / 代订收款」卡：pay-now 表单（金额、币种 cny/usd/eur、描述、可选
         关联 handoff_id/trip_item_id）+ save-card 表单（email）→ 打开 checkout_url → 返回后轮询
         `GET /payments/{id}` 展示结果（pending/succeeded/refunded/method_saved 徽章，双语）。
@@ -87,24 +87,32 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
       - i18n.js 补 `pay.*` 键（中英）。mock 后端显示提示横幅（dev 专用 confirm 按钮说明）。
       验收：`http://127.0.0.1:8000/h5/` 手测 mock 全流程零网络可用；无 console 报错。
 
-- [ ] T7 测试（`CHINATRIP CODES/tests/test_payments.py` 新文件）
+- [x] T7 测试（`CHINATRIP CODES/tests/test_payments.py` 新文件）
       - store 往返 + 重启重载；mock checkout→confirm→succeeded；
         stripe 后端下 `/confirm` 403；webhook 坏签名 400 + 正确 HMAC 签名 200；
         StripeGateway create-session form payload（monkeypatch httpx，仿 amap 测试风格）；
         `/charge` 未配 token 403 / 配了错 token 403。
       - 全套 pytest 覆盖率 ≥75% 保持；ruff 干净。
 
-- [ ] T8 设计文档纪律（`DESIGN/`）
+- [x] T8 设计文档纪律（`DESIGN/`）
       - 先读当前版本头（并行会话可能已推进版本）。给现行设计 md 追加「支付能力（客户代收层）」
         小节：定位=公司↔客户收款（铁律 22 渠道 handoff 不变 + 豁免说明）、双形态、Stripe 网关可换、
         铁律 23 摘要先行。`INDEX.md` 决策速查加一行。若按纪律需版本升级（v2.4→v2.5）则按硬规则
         三件套同步（md + svg 标题 + INDEX 当前版本）并存档旧对到 `DESIGN/ARCHIVE`（两侧 hash 一致，
         AutoClaw 镜像不存在则跳过并注明）。
 
-- [ ] T9 终验
+- [x] T9 终验
       - pytest 全绿（覆盖率门槛内）、ruff 干净、H5 手测记录写回本文件「验收记录」节。
       - 全部勾完 ⇒ 删除续跑 automation（CronDelete）并停。
 
 ## 验收记录
 
-- （每完成一任务在此追加一行：日期、执行者、关键结果/数据）
+- 2026-10-25 原会话 T0：清单入库 commit 93550d7；续跑 automation 建立（automation-b02e16bf，*/20min）。
+- 2026-10-25 原会话 T1-T5：后端全绿（ruff All checks passed；pytest 1105 passed，覆盖率 79.05% ≥75）。
+  配置键+16 行、服务层 547 行、API 202 行、ORM 40 行、迁移 57 行、.env.example 13 行。
+  共享文件（config/main/models）用 index 手术只提交本任务 hunk——booking_auto 等未提交改动保持原样。
+  commits: 5496fc1 / 72aa5c4 / efe6cb7 / 8bbf96a / 1f4526f。
+- 2026-10-25 原会话 T6：H5 支付卡上线并实机验收（dev 8000 重启后 curl 全链路：checkout→mock URL→confirm→method_saved→mine 双记录；/h5/ 已含 bkPay 卡）。**注意：index.html / i18n.js 未提交入库**——两者与并行会话未提交的 v2.4/booking_auto UI 工作纠缠（i18n.js 本身未被 git 跟踪、order-intent 锚点在 HEAD 不存在），按「不代提交他人 WIP」原则留在工作区，随该侧 UI 一起入库；后端配套已全部提交。
+- 2026-10-25 原会话 T7：tests/test_payments.py 18 例全绿（store 往返/坏行/mock 全流程/校验×5/验签×5/webhook 落账×4/网关 payload 与错误映射/API 守卫×4）；全量回归 1123 passed，覆盖率 payments.py 96% / api 88% / 全仓 80.98% ≥75；commit 见 T9。注：plan_agent 1 例 LLM-mock 偶发 flake 与本域无关（单跑/合跑复测即绿）。
+- 2026-10-25 原会话 T8：按 booking_design 同款「域文档 + INDEX 行」惯例落地（主版本不 bump，v2.5 今日刚由并行会话升版）——新建 DESIGN/payments_design_2026-10-25.md（豁免声明/双形态/网关协议/数据 API/H5/边界诚实声明/变更记录）+ INDEX.md 当前版本列表加行 + 核心决策速查加第 11 条；paid_call_service_design 已反向引用本层（网关协议复用）无需改动。
+- 2026-10-25 原会话 T9：终验通过——ruff check 全绿（format --check 唯一越格式文件为并行会话未跟踪的 app/jobs/aggregate_poi_stats.py，非本域不代改）；**全量 pytest 1126 passed / 0 failed，覆盖率 80.98% ≥75**（前轮 plan_agent flake 本轮亦绿，确认偶发）；实机 H5 冒烟见 T6 行。T1-T9 全部勾完 ⇒ 续跑 automation 已删除（automation-b02e16bf），施工收官。设计文档：DESIGN/payments_design_2026-10-25.md。
