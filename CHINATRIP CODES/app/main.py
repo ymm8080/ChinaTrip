@@ -15,6 +15,7 @@ from app.api.health import router as health_router
 from app.api.itineraries import router as itineraries_router
 from app.api.navigation import router as navi_router
 from app.api.offers import router as offers_router
+from app.api.payments import router as payments_router
 from app.api.plan import router as plan_router
 from app.api.pois import router as pois_router
 from app.api.profile import links_router, profile_router
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(share_router)
     app.include_router(backfill_router)
     app.include_router(offers_router)
+    app.include_router(payments_router)
     app.include_router(profile_router)
     app.include_router(links_router)
     app.include_router(weather_router)
