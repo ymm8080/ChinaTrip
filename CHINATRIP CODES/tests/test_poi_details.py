@@ -282,6 +282,21 @@ def test_top_pois_tier_priority_5a_over_raw_rating():
     assert "5a" in by_name["灵隐飞来峰景区"]["tags"]
 
 
+def test_top_pois_intl_pick_tier_over_raw_rating():
+    """2026-10-25 intl 种子：TA/LP 人气榜行与 5A 同档（tier 3），
+    标签注入打 intl 而非 5a，压过裸高分边缘点。"""
+    store = PoiDetailStore()
+    store.upsert("A1", city="上海", name="武康路", rating=4.3)
+    store.upsert("A2", city="上海", name="城市边缘点", rating=4.8)
+    store._memory["A1"]["tags"] = ["intl", "lp"]
+    top = store.top_pois_in_city("上海")
+    names = [h["name"] for h in top]
+    assert names.index("武康路") < names.index("城市边缘点")
+    tags = {h["name"]: h["tags"] for h in top}
+    assert "intl" in tags["武康路"]
+    assert "5a" not in tags["武康路"]
+
+
 # --- 0009：top_pois_in_city 确定性排序（内存态） ---
 
 

@@ -517,6 +517,10 @@ class PoiDetailStore:
                 return 4
             if "5a" in tags or h.get("source") == "5a":
                 return 3
+            # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
+            # 外国游客，2026-10-25 intl 种子导入）
+            if "intl" in tags or h.get("source") == "intl":
+                return 3
             if "4a" in tags:
                 return 2
             if "3a" in tags:
@@ -531,6 +535,8 @@ class PoiDetailStore:
             tier = tier_of(h)
             h["_tier"] = tier
             tag = _TIER_TAG.get(tier)
+            if tier == 3 and "intl" in h["tags"] and "5a" not in h["tags"]:
+                tag = "intl"
             if tag and tag not in h["tags"]:
                 h["tags"] = [*h["tags"], tag]
         rows_out.sort(key=score, reverse=True)
