@@ -90,11 +90,11 @@ def make_client(rows, store=None, trip_item_svc=None):
     app.include_router(weather_router)
     app.dependency_overrides[get_weather_session_factory] = lambda: FakeFactory(rows)
     # H5 状态域缺省空内存实现：单测不背真实 SQLite/PG 进程单例
-    app.dependency_overrides[weather_api.get_h5_store] = (
-        lambda: store if store is not None else InMemoryItineraryStore()
+    app.dependency_overrides[weather_api.get_h5_store] = lambda: (
+        store if store is not None else InMemoryItineraryStore()
     )
-    app.dependency_overrides[weather_api.get_h5_trip_item_service] = (
-        lambda: trip_item_svc if trip_item_svc is not None else TripItemService()
+    app.dependency_overrides[weather_api.get_h5_trip_item_service] = lambda: (
+        trip_item_svc if trip_item_svc is not None else TripItemService()
     )
     return TestClient(app)
 
