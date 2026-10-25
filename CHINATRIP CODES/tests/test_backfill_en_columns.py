@@ -161,14 +161,14 @@ def test_process_row_rejects_garbage():
 def test_template_hours_en():
     from app.jobs.backfill_en_columns import template_hours_en
 
-    assert template_hours_en("周一至周日 08:30-17:00") == "Mon–Sun 08:30-17:00"
-    assert template_hours_en("周一闭馆") == "Mon Closed"
+    assert template_hours_en("周一至周日 08:30-17:00") == "Monday–Sunday 08:30-17:00"
+    assert template_hours_en("周一闭馆") == "Monday Closed"
     assert (
         template_hours_en("周二至周日 09:00-16:30，周一闭馆")
-        == "Tue–Sun 09:00-16:30, Mon Closed"
+        == "Tuesday–Sunday 09:00-16:30, Monday Closed"
     )
-    assert template_hours_en("星期一 不开放") == "Mon Closed"
-    assert template_hours_en("周日全天") == "Sun All day"
+    assert template_hours_en("星期一 不开放") == "Monday Closed"
+    assert template_hours_en("周日全天") == "Sunday All day"
     assert template_hours_en("法定节假日除外") == "except public holidays"
     assert template_hours_en("旺季（4月-10月）08:00") is None  # 残句→LLM 兜底
     assert template_hours_en(None) is None
@@ -184,7 +184,7 @@ def test_process_row_template_path_zero_llm():
     merged = {}
     for w in writes:
         merged.update(w)
-    assert merged["opening_hours_en"] == "Mon–Sun 08:30-17:00"
+    assert merged["opening_hours_en"] == "Monday–Sunday 08:30-17:00"
 
 
 def test_process_row_rejects_overlong_for_varchar_column():

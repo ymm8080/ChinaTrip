@@ -117,15 +117,15 @@ def parse_tags_json(text: str | None) -> list[str] | None:
 
 
 _DAY_EN = {
-    "一": "Mon",
-    "二": "Tue",
-    "三": "Wed",
-    "四": "Thu",
-    "五": "Fri",
-    "六": "Sat",
-    "日": "Sun",
-    "天": "Sun",
-}
+    "一": "Monday",
+    "二": "Tuesday",
+    "三": "Wednesday",
+    "四": "Thursday",
+    "五": "Friday",
+    "六": "Saturday",
+    "日": "Sunday",
+    "天": "Sunday",
+}  # 用户定案（2026-10-25）：不用简写，全称
 
 
 # 模板可覆盖的中文残句判定（转换后仍含 CJK → 走 LLM 兜底）
@@ -136,8 +136,8 @@ def _CJK(t: str) -> bool:
 def template_hours_en(text: str | None) -> str | None:
     """中文营业时间 → EN 模板转换（确定性，数字零风险）。
 
-    用户定案用词（2026-10-25）：周一闭馆 → "Mon Closed"；
-    周一至周日 → "Mon–Sun"。转换后仍含中文 → None（调用方走 LLM）。
+    用户定案用词（2026-10-25）：周一闭馆 → "Monday Closed"；
+    周一至周日 → "Monday–Sunday"。转换后仍含中文 → None（调用方走 LLM）。
     """
     if not text:
         return None

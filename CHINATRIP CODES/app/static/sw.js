@@ -2,7 +2,7 @@
    策略对齐 surmai (github.com/rohitkumbhar/surmai) 的 workbox 配置：
    app-shell 缓存优先+后台刷新，autoUpdate（skipWaiting+claim）；
    API NetworkFirst + 3s 超时回落缓存，离线可看最近一次成功的数据。 */
-const VERSION = 'v32'; // v32 2026-10-25: 旧行程打开缺省今天出发日期（日期+天气立现，保存落库自愈）；v31 2026-10-25: 语言开关白屏永久修复——tab 切换只挂 .nav-item[data-tab]（.nav-item 仅样式）+ call.no_hotline_fallback 词条入壳；v30 修复 localeToggle 无 data-tab 被当页签致全 .tab 失活 + 抢票直达链接引号 + call.slogan 词条；v28 预订 tab 新增「💳 支付 / 代订收款」卡（pay_now + save_method + 我的付款，i18n pay.*）入壳；v27 通话咨询 tab（tab-call + 覆盖层 + 通话记录）+ agent.html 坐席台入壳；v26 双语 P1（i18n.js 入壳 + locale 开关）
+const VERSION = 'v33'; // v33 2026-10-25: 全量 EN 迁移（JS 动态文案 477 处 I18N.tf + en 词典 ~700 条 + 守门 C 门）+ 规划会话 lang 透传（EN 模式 LLM 英文回复）+ 登录弹窗 3 按钮补 data-i18n；v32 2026-10-25: 旧行程打开缺省今天出发日期（日期+天气立现，保存落库自愈）；v31 2026-10-25: 语言开关白屏永久修复——tab 切换只挂 .nav-item[data-tab]（.nav-item 仅样式）+ call.no_hotline_fallback 词条入壳；v30 修复 localeToggle 无 data-tab 被当页签致全 .tab 失活 + 抢票直达链接引号 + call.slogan 词条；v28 预订 tab 新增「💳 支付 / 代订收款」卡（pay_now + save_method + 我的付款，i18n pay.*）入壳；v27 通话咨询 tab（tab-call + 覆盖层 + 通话记录）+ agent.html 坐席台入壳；v26 双语 P1（i18n.js 入壳 + locale 开关）
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

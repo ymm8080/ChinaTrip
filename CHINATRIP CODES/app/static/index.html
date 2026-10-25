@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ChinaTrip · 冒烟测试</title>
+<title data-i18n="app.title">ChinaTrip · 冒烟测试</title>
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#2f6fed">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151c">
 <link rel="manifest" href="manifest.webmanifest">
@@ -345,16 +345,16 @@
         <label class="fld"><span data-i18n="auth.email">邮箱</span> <input type="text" id="authEmail" placeholder="邮箱 / 用户名" data-i18n-ph="auth.email.ph" autocomplete="email" spellcheck="false"></label>
         <label class="fld" id="authPassFld"><span data-i18n="auth.pass">密码</span> <input type="password" id="authPass" placeholder="至少 6 位" data-i18n-ph="auth.pass.ph"></label>
         <label class="fld" id="authCodeFld"><span data-i18n="auth.code">验证码</span> <input type="text" id="authCode" placeholder="6 位数字" data-i18n-ph="auth.code.ph" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false"></label>
-        <div class="fld" id="authSendRow" style="justify-content:flex-end"><button class="btn mini plain" id="authSendCode">发送验证码</button></div>
+        <div class="fld" id="authSendRow" style="justify-content:flex-end"><button class="btn mini plain" id="authSendCode" data-i18n="auth.sendCode">发送验证码</button></div>
         <label class="fld" id="authNewFld"><span data-i18n="auth.newPass">新密码</span> <input type="password" id="authNewPass" placeholder="至少 6 位" data-i18n-ph="auth.pass.ph"></label>
         <div id="authErr"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
           <button class="btn plain" id="authClose" data-i18n="auth.cancel">取消</button>
-          <button class="btn" id="authGo">登录</button>
+          <button class="btn" id="authGo" data-i18n="auth.loginBtn">登录</button>
         </div>
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn mini ghost" id="authForgot" data-i18n="auth.forgot">忘记密码？</button>
-          <button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button>
+          <button class="btn mini ghost" id="authSwitch" data-i18n="auth.switch">没有账号？去注册 →</button>
         </div>
       </div>
     </div>
@@ -608,7 +608,7 @@
         <div class="dirbar">
           <label class="chip"><input type="radio" name="callMode" value="direct" checked> <span data-i18n="call.mode.direct">立即拨打坐席</span></label>
           <label class="chip"><input type="radio" name="callMode" value="callback"> <span data-i18n="call.mode.callback">等坐席回拨</span></label>
-          <input id="callPhone" class="fld" spellcheck="false" placeholder="手机号 / phone (回拨用)" style="flex:1;min-width:150px">
+          <input id="callPhone" class="fld" spellcheck="false" placeholder="手机号 / phone (回拨用)" data-i18n-ph="call.phone.ph" style="flex:1;min-width:150px">
         </div>
         <div class="dirbar">
           <button class="btn" id="btnCallStart">📞 <span data-i18n="call.start">实时通话</span></button>
@@ -641,44 +641,44 @@
     <section class="tab" id="tab-book">
       <div class="toolbar">
         <span class="chips" id="bookTabs">
-          <button class="chip on" data-bk="train">🚄 火车票</button>
-          <button class="chip" data-bk="flight">✈️ 机票</button>
-          <button class="chip" data-bk="hotel">🏨 酒店</button>
+          <button class="chip on" data-bk="train" data-i18n="book.train">🚄 火车票</button>
+          <button class="chip" data-bk="flight" data-i18n="book.flight">✈️ 机票</button>
+          <button class="chip" data-bk="hotel" data-i18n="book.hotel">🏨 酒店</button>
         </span>
         <span class="sep"></span>
-        <label class="fld">行程开始日期 <input type="date" id="bookStartDate" title="行程无真实日历日期，第 N 天 = 开始日期 + N−1 天"></label>
-        <span class="muted">酒店按天卡片吃规划结果</span>
+        <label class="fld"><span data-i18n="book.startDate">行程开始日期</span> <input type="date" id="bookStartDate" title="行程无真实日历日期，第 N 天 = 开始日期 + N−1 天" data-i18n-title="book.startDate.title"></label>
+        <span class="muted" data-i18n="book.hotelNote">酒店按天卡片吃规划结果</span>
       </div>
 
       <div class="bk-pane on" id="bk-train">
         <div class="toolbar">
-          <label class="fld">出发城市 <input type="text" id="bkTrainFrom" placeholder="如：北京"></label>
-          <label class="fld">到达城市 <input type="text" id="bkTrainTo" placeholder="如：上海"></label>
-          <label class="fld">日期 <input type="date" id="bkTrainDate"></label>
-          <button class="btn" id="bkTrainGo">🔍 查班次</button>
+          <label class="fld"><span data-i18n="book.from">出发城市</span> <input type="text" id="bkTrainFrom" placeholder="如：北京" data-i18n-ph="book.phBj"></label>
+          <label class="fld"><span data-i18n="book.to">到达城市</span> <input type="text" id="bkTrainTo" placeholder="如：上海" data-i18n-ph="book.phSh"></label>
+          <label class="fld"><span data-i18n="book.date">日期</span> <input type="date" id="bkTrainDate"></label>
+          <button class="btn" id="bkTrainGo" data-i18n="book.trainGo">🔍 查班次</button>
         </div>
         <div class="flow" id="flow-book-train"></div>
       </div>
 
       <div class="bk-pane" id="bk-flight">
         <div class="toolbar">
-          <label class="fld">出发城市 <input type="text" id="bkFlightFrom" placeholder="如：北京"></label>
-          <label class="fld">到达城市 <input type="text" id="bkFlightTo" placeholder="如：上海"></label>
-          <label class="fld">日期 <input type="date" id="bkFlightDate"></label>
-          <button class="btn" id="bkFlightGo">🔍 去渠道比价</button>
+          <label class="fld"><span data-i18n="book.from">出发城市</span> <input type="text" id="bkFlightFrom" placeholder="如：北京" data-i18n-ph="book.phBj"></label>
+          <label class="fld"><span data-i18n="book.to">到达城市</span> <input type="text" id="bkFlightTo" placeholder="如：上海" data-i18n-ph="book.phSh"></label>
+          <label class="fld"><span data-i18n="book.date">日期</span> <input type="date" id="bkFlightDate"></label>
+          <button class="btn" id="bkFlightGo" data-i18n="book.flightGo">🔍 去渠道比价</button>
         </div>
         <div class="flow" id="flow-book-flight"></div>
       </div>
 
       <div class="bk-pane" id="bk-hotel">
         <div class="toolbar">
-          <label class="fld">城市 <input type="text" id="bkHotelCity" placeholder="如：北京"></label>
-          <label class="fld grow">锚点景点 <input type="text" id="bkHotelPoi" class="grow" placeholder="如：故宫"></label>
-          <label class="fld">入住 <input type="date" id="bkHotelIn"></label>
-          <label class="fld">退房 <input type="date" id="bkHotelOut"></label>
-          <label class="fld">经度 <input type="number" id="bkHotelLon" step="0.0001" placeholder="116.397"></label>
-          <label class="fld">纬度 <input type="number" id="bkHotelLat" step="0.0001" placeholder="39.917"></label>
-          <button class="btn" id="bkHotelGo">🏨 找酒店</button>
+          <label class="fld"><span data-i18n="trips.city">城市</span> <input type="text" id="bkHotelCity" placeholder="如：北京" data-i18n-ph="book.phBj"></label>
+          <label class="fld grow"><span data-i18n="book.anchor">锚点景点</span> <input type="text" id="bkHotelPoi" class="grow" placeholder="如：故宫" data-i18n-ph="book.phPoi"></label>
+          <label class="fld"><span data-i18n="book.checkin">入住</span> <input type="date" id="bkHotelIn"></label>
+          <label class="fld"><span data-i18n="book.checkout">退房</span> <input type="date" id="bkHotelOut"></label>
+          <label class="fld"><span data-i18n="book.lon">经度</span> <input type="number" id="bkHotelLon" step="0.0001" placeholder="116.397"></label>
+          <label class="fld"><span data-i18n="book.lat">纬度</span> <input type="number" id="bkHotelLat" step="0.0001" placeholder="39.917"></label>
+          <button class="btn" id="bkHotelGo" data-i18n="book.hotelGo">🏨 找酒店</button>
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
@@ -687,20 +687,20 @@
       <!-- 📋 订单回填（跳转埋点闭环，状态机 opened→user_confirmed→alliance_verified→settled） -->
       <div id="bkBackfill" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;flex-shrink:0">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <b>📋 订单回填</b>
-          <button class="btn mini plain" id="bfRefresh">🔄 刷新跳转记录</button>
-          <button class="btn mini ghost" id="bfAlliance">🤝 联盟同步演示</button>
-          <span class="muted">状态机：opened → user_confirmed → alliance_verified → settled（returned 退款逆向）</span>
+          <b data-i18n="bk.backfill">📋 订单回填</b>
+          <button class="btn mini plain" id="bfRefresh" data-i18n="bk.refresh">🔄 刷新跳转记录</button>
+          <button class="btn mini ghost" id="bfAlliance" data-i18n="bk.alliance">🤝 联盟同步演示</button>
+          <span class="muted" data-i18n="bk.stateFlow">状态机：opened → user_confirmed → alliance_verified → settled（returned 退款逆向）</span>
         </div>
         <div id="bfList" style="max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
         <div class="toolbar" id="bfOps" style="display:none;margin:8px 0 0">
-          <label class="fld grow">订单短信原文
-            <textarea id="bfPaste" rows="2" class="grow" placeholder="粘贴确认短信，如：您已购票 G101 北京南→上海虹桥 订单号 E123456789 票款 553 元"></textarea>
+          <label class="fld grow"><span data-i18n="bk.sms">订单短信原文</span>
+            <textarea id="bfPaste" rows="2" class="grow" placeholder="粘贴确认短信，如：您已购票 G101 北京南→上海虹桥 订单号 E123456789 票款 553 元" data-i18n-ph="bk.sms.ph"></textarea>
           </label>
-          <button class="btn mini" id="bfParse">🧾 解析回填</button>
+          <button class="btn mini" id="bfParse" data-i18n="bk.parse">🧾 解析回填</button>
           <span class="sep"></span>
-          <label class="fld">手动订单号 <input type="text" id="bfOrderRef" placeholder="E123456789"></label>
-          <button class="btn mini plain" id="bfManual">✍️ 手动标记</button>
+          <label class="fld"><span data-i18n="bk.manualRef">手动订单号</span> <input type="text" id="bfOrderRef" placeholder="E123456789"></label>
+          <button class="btn mini plain" id="bfManual" data-i18n="bk.manual">✍️ 手动标记</button>
         </div>
         <div id="bfOut" style="margin-top:6px"></div>
       </div>
@@ -713,22 +713,22 @@
           <span class="muted" data-i18n="pay.note">Visa/Mastercard/Amex/JCB · 支付宝 · 微信支付</span>
         </div>
         <div class="toolbar" style="margin:8px 0 0">
-          <label class="fld">类型
+          <label class="fld"><span data-i18n="bk.kind">类型</span>
             <select id="payKind">
               <option value="pay_now" data-i18n="pay.kind.pay_now">立即支付报价</option>
               <option value="save_method" data-i18n="pay.kind.save_method">保存银行卡（代订扣款）</option>
             </select>
           </label>
-          <label class="fld">金额 <input type="number" id="payAmount" min="1" step="0.01" placeholder="553.00"></label>
-          <label class="fld">币种
+          <label class="fld"><span data-i18n="bk.amount">金额</span> <input type="number" id="payAmount" min="1" step="0.01" placeholder="553.00"></label>
+          <label class="fld"><span data-i18n="bk.currency">币种</span>
             <select id="payCurrency">
               <option value="cny">CNY ¥</option>
               <option value="usd">USD $</option>
               <option value="eur">EUR €</option>
             </select>
           </label>
-          <label class="fld grow">说明 <input type="text" id="payDesc" class="grow" placeholder="如：故宫门票代订（单号 E123456789）"></label>
-          <label class="fld">关联跳转单 <input type="text" id="payHandoff" placeholder="可选 handoff_id"></label>
+          <label class="fld grow"><span data-i18n="bk.desc">说明</span> <input type="text" id="payDesc" class="grow" placeholder="如：故宫门票代订（单号 E123456789）" data-i18n-ph="bk.desc.ph"></label>
+          <label class="fld"><span data-i18n="bk.handoff">关联跳转单</span> <input type="text" id="payHandoff" placeholder="可选 handoff_id" data-i18n-ph="bk.handoff.ph"></label>
           <button class="btn" id="payGo" data-i18n="pay.go">💳 去支付 / 存卡</button>
         </div>
         <div id="payOut" style="margin-top:8px"></div>
@@ -737,12 +737,12 @@
       <!-- 铁律 23：跳转渠道前必须展示退改摘要全文 -->
       <div id="bkConfirm">
         <div class="box">
-          <h4 id="bkConfirmTitle">⚠️ 跳转前请阅读退改政策</h4>
+          <h4 id="bkConfirmTitle" data-i18n="bk.confirmTitle">⚠️ 跳转前请阅读退改政策</h4>
           <div class="card" id="bkConfirmSummary" style="margin-top:8px"></div>
           <div class="muted" id="bkConfirmUrl" style="margin-top:6px;word-break:break-all"></div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-            <button class="btn plain" id="bkCancel">取消</button>
-            <button class="btn" id="bkGo">仍要前往</button>
+            <button class="btn plain" id="bkCancel" data-i18n="bk.cancel">取消</button>
+            <button class="btn" id="bkGo" data-i18n="bk.go">仍要前往</button>
           </div>
         </div>
       </div>
@@ -783,7 +783,7 @@ if (rawBase && !apiBaseInput.value) localStorage.removeItem("chinatrip_api_base"
 function apiBase() { return validBase(apiBaseInput.value); }
 apiBaseInput.addEventListener("change", () => {
   localStorage.setItem("chinatrip_api_base", apiBaseInput.value.trim());
-  if (apiBaseInput.value.trim() && !apiBase()) toast("「API 地址」只接受 http:// 或 https:// 开头，已按当前站点访问");
+  if (apiBaseInput.value.trim() && !apiBase()) toast(I18N.tf("infra.err.apiBase", "「API 地址」只接受 http:// 或 https:// 开头，已按当前站点访问"));
 });
 
 function toast(text) {
@@ -802,15 +802,17 @@ const AMAP_DETAIL_ZH = {
 };
 function detailText(d) {
   if (d == null) return "";
-  if (typeof d === "string") return AMAP_DETAIL_ZH[d] || d;
-  if (Array.isArray(d)) return d.map(detailText).join("；");
+  if (typeof d === "string") { const z = AMAP_DETAIL_ZH[d]; return z ? I18N.tf("infra." + d, z) : d; }
+  if (Array.isArray(d)) return d.map(detailText).join(I18N.tf("infra.sep", "；"));
   if (d.violations) {
     return d.violations
-      .map(v => "规则" + v.rule_id + "[" + v.severity + "] " + v.message)
-      .join("；");
+      .map(v => I18N.tf("infra.rules", "规则{id}[{sev}] {msg}").replace("{id}", v.rule_id).replace("{sev}", v.severity).replace("{msg}", v.message))
+      .join(I18N.tf("infra.sep", "；"));
   }
   if (d.denied_reason) {
-    return "额度不足：" + d.denied_reason + (d.paywall_trigger ? "（" + d.paywall_trigger + "）" : "");
+    return I18N.tf("infra.quota", "额度不足：{reason}{trigger}")
+      .replace("{reason}", d.denied_reason)
+      .replace("{trigger}", d.paywall_trigger ? I18N.tf("infra.quotaTrigger", "（{t}）").replace("{t}", d.paywall_trigger) : "");
   }
   if (d.msg) return d.msg;
   try { return JSON.stringify(d); } catch (e) { return String(d); }
@@ -835,7 +837,7 @@ async function api(path, body, method) {
       await new Promise(r => setTimeout(r, w));
       try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
     }
-    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") };
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
@@ -850,7 +852,7 @@ function failToast(err) {
 // 按钮 loading 态包装
 async function busy(btn, fn) {
   const old = btn.textContent;
-  btn.disabled = true; btn.textContent = "请求中…";
+  btn.disabled = true; btn.textContent = I18N.tf("infra.requesting", "请求中…");
   try { return await fn(); }
   finally { btn.disabled = false; btn.textContent = old; }
 }
@@ -868,7 +870,7 @@ async function apiRaw(path) {
       await new Promise(r => setTimeout(r, w));
       try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
     }
-    if (!res) throw { status: 0, detail: "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）" };
+    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") };
   }
   if (!res.ok) {
     let data = null;
@@ -904,18 +906,18 @@ function authRender() {
   const box = document.getElementById("authArea");
   box.textContent = "";
   if (AUTH.user) {
-    box.appendChild(el('<span class="whoami" title="已登录：行程挂账号，换设备登录同一账号即可看到同一批行程">👤 ' + esc(AUTH.user) + "</span>"));
-    const out = el('<button class="btn mini ghost">退出</button>');
+    box.appendChild(el('<span class="whoami" title="' + esc(I18N.tf("auth.whoami.title", "已登录：行程挂账号，换设备登录同一账号即可看到同一批行程")) + '">👤 ' + esc(AUTH.user) + "</span>"));
+    const out = el('<button class="btn mini ghost">' + esc(I18N.tf("auth.logout", "退出")) + "</button>");
     out.onclick = authLogout;
     box.appendChild(out);
   } else {
-    const b = el('<button class="btn mini">登录 / 注册</button>');
+    const b = el('<button class="btn mini">' + esc(I18N.tf("auth.loginBtn", "登录 / 注册")) + "</button>");
     b.onclick = () => authOpen("login");
     box.appendChild(b);
   }
 }
 
-// 后端 detail → 中文文案
+// 后端 detail → 中文文案（zh 值同时作为 tf 的内联回退；en 词条见 i18n.js）
 const AUTH_ERR_CN = {
   username_taken: "用户名已被占用，换一个试试",
   invalid_credentials: "邮箱/用户名或密码错误",
@@ -935,10 +937,10 @@ const AUTH_ERR_CN = {
   mail_send_failed: "邮件发送失败，请稍后重试",
 };
 function authErrMsg(err) {
-  if (err && err.status === 0) return "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）";
+  if (err && err.status === 0) return I18N.tf("auth.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）");
   const d = err && err.detail;
-  if (typeof d === "string" && AUTH_ERR_CN[d]) return AUTH_ERR_CN[d];
-  return "HTTP " + ((err && err.status) || "?") + "：" + detailText(d);
+  if (typeof d === "string" && AUTH_ERR_CN[d]) return I18N.tf("auth.err." + d, AUTH_ERR_CN[d]);
+  return "HTTP " + ((err && err.status) || "?") + I18N.tf("auth.err.colon", "：") + detailText(d);
 }
 
 let authMode = "login"; // login | register | reset
@@ -951,12 +953,12 @@ function authErr(msg) {
 
 // 三模式字段可见性：登录=邮箱+密码；注册=邮箱+验证码+密码；重置=邮箱+验证码+新密码
 function authModeRender() {
-  const TITLES = { login: "🔑 登录", register: "🆕 注册", reset: "🔒 重置密码" };
-  const GOS = { login: "登录", register: "注册", reset: "重置密码" };
+  const TITLES = { login: I18N.tf("auth.title.login", "🔑 登录"), register: I18N.tf("auth.title.register", "🆕 注册"), reset: I18N.tf("auth.title.reset", "🔒 重置密码") };
+  const GOS = { login: I18N.tf("auth.go.login", "登录"), register: I18N.tf("auth.go.register", "注册"), reset: I18N.tf("auth.go.reset", "重置密码") };
   const SWITCH = {
-    login: "没有账号？去注册 →",
-    register: "已有账号？去登录 →",
-    reset: "想起来了？去登录 →",
+    login: I18N.tf("auth.switch.login", "没有账号？去注册 →"),
+    register: I18N.tf("auth.switch.register", "已有账号？去登录 →"),
+    reset: I18N.tf("auth.switch.reset", "想起来了？去登录 →"),
   };
   const visible = {
     login: ["authPassFld"],
@@ -999,7 +1001,7 @@ function authStartCountdown(seconds) {
   btn.disabled = true;
   let left = seconds;
   const tick = () => {
-    btn.textContent = left > 0 ? left + "s 后重发" : "发送验证码";
+    btn.textContent = left > 0 ? I18N.tf("auth.sendCode.again", "{s}s 后重发").replace("{s}", left) : I18N.tf("auth.sendCode", "发送验证码");
     if (left <= 0) {
       clearInterval(authCountdownTimer);
       authCountdownTimer = null;
@@ -1012,7 +1014,7 @@ function authStartCountdown(seconds) {
 }
 
 async function authSendCode() {
-  if (!authEmailOk()) { authErr("请先填写正确的邮箱地址"); return; }
+  if (!authEmailOk()) { authErr(I18N.tf("auth.err.emailNeeded", "请先填写正确的邮箱地址")); return; }
   const email = document.getElementById("authEmail").value.trim();
   const purpose = authMode === "reset" ? "reset_password" : "register";
   authErr("");
@@ -1023,9 +1025,9 @@ async function authSendCode() {
       if (r && r.dev_code) {
         // 开发模式（未配 SMTP）：后端回显验证码，直接填入
         document.getElementById("authCode").value = r.dev_code;
-        toast("开发模式验证码：" + r.dev_code + "（配置 SMTP 后将真实发信）");
+        toast(I18N.tf("auth.ok.devCode", "开发模式验证码：{c}（配置 SMTP 后将真实发信）").replace("{c}", r.dev_code));
       } else {
-        toast("验证码已发送至 " + email + "，请查收邮件");
+        toast(I18N.tf("auth.ok.codeSent", "验证码已发送至 {e}，请查收邮件").replace("{e}", email));
       }
     });
     authStartCountdown(60);
@@ -1043,15 +1045,15 @@ async function authSubmit() {
   const newPass = document.getElementById("authNewPass").value;
   if (mode === "login") {
     let body;
-    if (!email) { authErr("请输入邮箱或用户名"); return; }
+    if (!email) { authErr(I18N.tf("auth.err.username_or_email_required", "请输入邮箱或用户名")); return; }
     if (email.includes("@")) {
-      if (!authEmailOk()) { authErr("邮箱格式不正确"); return; }
+      if (!authEmailOk()) { authErr(I18N.tf("auth.err.emailFormat", "邮箱格式不正确")); return; }
       body = { email, password: pass };
     } else {
-      if (email.length < 2 || email.length > 30) { authErr("用户名需 2–30 个字符"); return; }
+      if (email.length < 2 || email.length > 30) { authErr(I18N.tf("auth.err.userLen", "用户名需 2–30 个字符")); return; }
       body = { username: email, password: pass };
     }
-    if (pass.length < 6) { authErr("密码至少 6 位"); return; }
+    if (pass.length < 6) { authErr(I18N.tf("auth.err.passLen", "密码至少 6 位")); return; }
     authErr("");
     try {
       const r = await api("/api/v1/auth/login", body);
@@ -1059,15 +1061,15 @@ async function authSubmit() {
       AUTH.user = r.username || email;
       authClose();
       authRender();
-      toast("已登录：" + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+      toast(I18N.tf("auth.ok.loggedIn", "已登录：{u}{claimed}").replace("{u}", AUTH.user).replace("{claimed}", r.claimed ? I18N.tf("auth.ok.claimed", "（本设备的行程已并入账号）") : ""));
       itinSavedLoad(); // 带 token 重拉：返回账号名下全部行程（跨设备）
     } catch (err) { authErr(authErrMsg(err)); }
     return;
   }
   if (mode === "register") {
-    if (!authEmailOk()) { authErr("请输入正确的邮箱地址"); return; }
-    if (!/^\d{6}$/.test(code)) { authErr("请输入 6 位数字验证码"); return; }
-    if (pass.length < 6) { authErr("密码至少 6 位"); return; }
+    if (!authEmailOk()) { authErr(I18N.tf("auth.err.emailFormat2", "请输入正确的邮箱地址")); return; }
+    if (!/^\d{6}$/.test(code)) { authErr(I18N.tf("auth.err.codeSix", "请输入 6 位数字验证码")); return; }
+    if (pass.length < 6) { authErr(I18N.tf("auth.err.passLen", "密码至少 6 位")); return; }
     authErr("");
     try {
       const r = await api("/api/v1/auth/email/register", { email, code, password: pass });
@@ -1075,19 +1077,19 @@ async function authSubmit() {
       AUTH.user = r.username || email;
       authClose();
       authRender();
-      toast("注册成功，已登录：" + AUTH.user + (r.claimed ? "（本设备的行程已并入账号）" : ""));
+    toast(I18N.tf("auth.ok.registered", "注册成功，已登录：{u}{claimed}").replace("{u}", AUTH.user).replace("{claimed}", r.claimed ? I18N.tf("auth.ok.claimed", "（本设备的行程已并入账号）") : ""));
       itinSavedLoad();
     } catch (err) { authErr(authErrMsg(err)); }
     return;
   }
   // mode === "reset"
-  if (!authEmailOk()) { authErr("请输入正确的邮箱地址"); return; }
-  if (!/^\d{6}$/.test(code)) { authErr("请输入 6 位数字验证码"); return; }
-  if (newPass.length < 6) { authErr("新密码至少 6 位"); return; }
+  if (!authEmailOk()) { authErr(I18N.tf("auth.err.emailFormat2", "请输入正确的邮箱地址")); return; }
+  if (!/^\d{6}$/.test(code)) { authErr(I18N.tf("auth.err.codeSix", "请输入 6 位数字验证码")); return; }
+    if (newPass.length < 6) { authErr(I18N.tf("auth.err.newPassLen", "新密码至少 6 位")); return; }
   authErr("");
   try {
     await api("/api/v1/auth/password/reset", { email, code, new_password: newPass });
-    toast("密码已重置，请用新密码登录");
+    toast(I18N.tf("auth.ok.reset", "密码已重置，请用新密码登录"));
     authOpen("login");
     document.getElementById("authEmail").value = email; // 回填邮箱，直接登录
   } catch (err) { authErr(authErrMsg(err)); }
@@ -1098,7 +1100,7 @@ async function authLogout() {
   localStorage.removeItem("chinatrip_token");
   AUTH.user = null;
   authRender();
-  toast("已退出登录：行程恢复按本设备 ID 显示");
+  toast(I18N.tf("auth.ok.loggedOut", "已退出登录：行程恢复按本设备 ID 显示"));
   itinSavedLoad();
 }
 
@@ -1160,7 +1162,7 @@ function frag(html) {
 function addMsg(flowId, who, node) {
   const flow = document.getElementById(flowId);
   const wrap = el('<div class="msg ' + who + '"></div>');
-  const tag = el('<div class="who">' + (who === "sys" ? "助手" : "我") + (who === "sys" ? " · " + new Date().toLocaleTimeString("zh-CN", { hour12: false }) : "") + "</div>");
+  const tag = el('<div class="who">' + (who === "sys" ? I18N.tf("flow.who.sys", "助手") : I18N.tf("flow.who.me", "我")) + (who === "sys" ? " · " + new Date().toLocaleTimeString("zh-CN", { hour12: false }) : "") + "</div>");
   const bubble = el('<div class="bubble"></div>');
   if (typeof node === "string") bubble.textContent = node;
   else bubble.appendChild(node);
@@ -1172,10 +1174,10 @@ function addMsg(flowId, who, node) {
 }
 
 // "HH:MM:SS"（pydantic time 序列化）→ "HH:MM"
-function fmtTime(t) { return t ? String(t).slice(0, 5) : "未排"; }
+function fmtTime(t) { return t ? String(t).slice(0, 5) : I18N.tf("plan.unscheduled", "未排"); }
 function fmtMin(s) { return Math.round(Number(s) / 60); }
 const MODE_CN = { train: ["🚄", "火车"], flight: ["✈️", "飞机"], car: ["🚗", "驾车"], bus: ["🚌", "大巴"] };
-function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + v[1] : "跨城"; }
+function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + I18N.tf("flow.mode." + m, v[1]) : I18N.tf("plan.mode.cross", "跨城"); }
 
 // 高德 URI API 步行导航：起点参数缺省 = 高德自动以"我的位置"为起点，
 // 终点 = 下一站坐标（GCJ-02，与站点数据同源），打开即自动规划步行路线
@@ -1246,9 +1248,9 @@ function wxRainBar(span, cast) {
   const outdoor = visits.filter(i => i.rain_ok === "no");
   if (!wet || !outdoor.length) return;
   const indoor = visits.filter(i => i.rain_ok === "yes").map(i => esc(i.name));
-  const swap = indoor.length ? "（可与 " + indoor.slice(0, 2).join("、") + " 对调）" : "";
-  head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">🌧️ 预报有雨：' +
-    outdoor.slice(0, 3).map(i => esc(i.name)).join("、") + " 为露天点位" + swap + "——回复「雨天调整」可帮你重排</div>"));
+  const swap = indoor.length ? I18N.tf("flow.rain.swapPre", "（可与 ") + indoor.slice(0, 2).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.swapSuf", " 对调）") : "";
+  head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">' + I18N.tf("flow.rain.banner", "🌧️ 预报有雨：") +
+    outdoor.slice(0, 3).map(i => esc(i.name)).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.outdoorSuf", " 为露天点位") + swap + I18N.tf("flow.rain.hint", "——回复「雨天调整」可帮你重排") + "</div>"));
 }
 // 开站新鲜度巡检：后端判行程城市 fetched_at 非今天（北京时间）即内联刷新
 // （高德 0-3 天 + Open-Meteo 14 天），刷新过的城市清缓存重绘已挂载的天头；
@@ -1264,7 +1266,7 @@ async function wxSync() {
     });
     const at = (res.cities || []).find(c => c.refreshed);
     const hhmm = at && at.fetched_at ? itinFmtLocal(at.fetched_at).slice(11) : "";
-    toast("🌤 天气已自动刷新 · " + hhmm + (refreshed.length > 1 ? "（" + refreshed.length + " 城）" : "（" + refreshed[0] + "）"));
+    toast(I18N.tf("flow.wx.refreshed", "🌤 天气已自动刷新 · ") + hhmm + (refreshed.length > 1 ? I18N.tf("flow.wx.cities", "（{n} 城）").replace("{n}", refreshed.length) : I18N.tf("flow.wx.city", "（{c}）").replace("{c}", I18N.city(refreshed[0]))));
   } catch (err) { /* 巡检失败不影响首开 */ }
 }
 
@@ -1308,10 +1310,10 @@ function initPlanDrag(box, plan) {
 
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
-  const box = el('<div class="card"><h4>🧳 行程编号 <code>' + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).join(" → ")) + "</h4></div>");
+  const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
-    const dayHead = el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) +
+    const dayHead = el('<div class="day-h">' + I18N.tf("card.day.pre","第") + d.day + I18N.tf("card.day.suf"," 天") + (dt ? I18N.tf("card.paren.pre","（") + dt + I18N.tf("card.paren.suf","）") : "") + " · " + esc(I18N.city(d.base_city)) +
       '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
     box.appendChild(dayHead);
     const wxSpan = dayHead.querySelector(".wx");
@@ -1321,24 +1323,24 @@ function planCard(plan) {
     box.appendChild(dayItems);
     (d.items || []).forEach((it, idx) => {
       if (it.from_city) { // TransferItem：不可拖
-        dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(it.from_city) + " → " + esc(it.to_city) + "</span></div>"));
+        dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + "</span></div>"));
       } else { // VisitItem
         let tail = "";
         if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
           tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">🗑</button>';
         } else { // 已保存行程回看：仅静态徽标
-          tail = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
+          tail = it.pinned ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
         }
         const briefBits = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ""].filter(Boolean).join(" · ");
         const handle = (planSession && planSession.session_id && !it.pinned)
-          ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
+          ? '<span class="drag-handle" title="' + I18N.tf("card.drag.title","拖 ⠿ 排序 / 跨天") + '">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
         const timeCell = (planSession && planSession.session_id)
-          ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="点击修改开始时间">' + fmtTime(it.start_time) + "</button>"
+          ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>（" + esc(I18N.city(it.city)) + "）" + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
-        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join("　");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join(" ");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let walkSeg = "";
@@ -1346,7 +1348,7 @@ function planCard(plan) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
             for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
             walkSeg = (nxt && nxt.location)
-              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="在高德地图打开步行导航（起点=我的位置，终点=' + esc(nxt.name) + "）\">步行约 " + it.next_walk_minutes + " 分钟</a>"
+              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="' + I18N.tf("card.walk.titlePre","在高德地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
               : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
           }
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + walkSeg +
@@ -1357,12 +1359,12 @@ function planCard(plan) {
         blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
-          '<a class="fb-btn" data-kind="visit" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">✅ 到了</a> ' +
-          '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">✍️ 点评</a></div>'));
+          '<a class="fb-btn" data-kind="visit" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.visited","✅ 到了") + "</a> " +
+          '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></div>"));
         dayItems.appendChild(blk);
       }
     });
-    if (!d.items || !d.items.length) dayItems.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
+    if (!d.items || !d.items.length) dayItems.appendChild(el('<div class="muted">' + I18N.tf("card.day.empty","（本日暂无安排）") + "</div>"));
   });
   // G2 免签横幅（240h 过境校验，红/绿/黄）：行程城市+起止日 → 确定性规则引擎
   if ((plan.cities || []).length) {
@@ -1373,9 +1375,9 @@ function planCard(plan) {
       .then(v => {
         if (!v || !v.status) return;
         const color = v.status === "ok" ? "#e8f5e9" : v.status === "warning" ? "#fff8e1" : "#ffebee";
-        const icon = v.status === "ok" ? "✅ 240h 免签校验通过" : v.status === "warning" ? "⚠️ 免签信息不全" : "⛔ 240h 免签校验未过";
+        const icon = v.status === "ok" ? I18N.tf("plan.visa.ok","✅ 240h 免签校验通过") : v.status === "warning" ? I18N.tf("plan.visa.warn","⚠️ 免签信息不全") : I18N.tf("plan.visa.fail","⛔ 240h 免签校验未过");
         const bar = el('<div class="muted" style="background:' + color + ';border:1px solid #ccc;border-radius:6px;padding:6px 10px;margin:4px 0"><b>' + icon + "</b>" +
-          (v.stay_hours != null ? " · 停留 " + v.stay_hours + "h" : "") + "<ul style=\"margin:4px 0 0 16px\">" +
+          (v.stay_hours != null ? I18N.tf("plan.visa.stay"," · 停留 ") + v.stay_hours + "h" : "") + "<ul style=\"margin:4px 0 0 16px\">" +
           v.messages.slice(1).map(m => "<li>" + esc(m) + "</li>").join("") + "</ul></div>");
         box.insertBefore(bar, box.firstChild);
       }).catch(() => {});
@@ -1391,12 +1393,12 @@ function planCard(plan) {
         const tasks = (t && t.tasks) || [];
         if (!tasks.length) return;
         const card = el('<div style="border:1px solid #e0b25a;border-radius:8px;padding:8px 10px;margin:4px 0;background:#fffbe8"></div>');
-        card.appendChild(el("<div><b>🎫 抢票日历（出发前必办）</b></div>"));
+        card.appendChild(el("<div><b>" + I18N.tf("plan.rsv.title","🎫 抢票日历（出发前必办）") + "</b></div>"));
         tasks.forEach(tk => {
           const row = el('<div style="margin:3px 0;font-size:13px"></div>');
-          row.appendChild(el("<span>📅 <b>" + esc(tk.open_date || "日期待定") + " " + esc(tk.release_time) + "</b> 开抢 · " +
-            esc(tk.name) + "（提前 " + tk.advance_days + " 天，游 " + esc(tk.visit_date || "?") + "） </span>"));
-          const go = el('<a class="fb-btn" data-kind="book" data-name="' + esc(tk.name) + '" data-city="' + esc(tk.city || "") + '">直达 →</a>');
+          row.appendChild(el("<span>📅 <b>" + esc(tk.open_date || I18N.tf("plan.rsv.dateTbd","日期待定")) + " " + esc(tk.release_time) + "</b>" + I18N.tf("plan.rsv.release"," 开抢 · ") +
+            esc(tk.name) + I18N.tf("plan.rsv.advancePre","（提前 ") + tk.advance_days + I18N.tf("plan.rsv.advanceMid"," 天，游 ") + esc(tk.visit_date || "?") + I18N.tf("plan.rsv.advanceClose","）") + " </span>"));
+          const go = el('<a class="fb-btn" data-kind="book" data-name="' + esc(tk.name) + '" data-city="' + esc(tk.city || "") + '">' + I18N.tf("plan.rsv.go","直达 →") + "</a>");
           row.appendChild(go);
           card.appendChild(row);
         });
@@ -1404,7 +1406,7 @@ function planCard(plan) {
       }).catch(() => {});
   }
   if (plan.assumptions && plan.assumptions.length) {
-    const det = el('<details><summary>假设标注 ' + plan.assumptions.length + " 条</summary><ul>" +
+    const det = el('<details><summary>' + I18N.tf("plan.assumptions.pre","假设标注 ") + plan.assumptions.length + I18N.tf("plan.assumptions.suf"," 条") + "</summary><ul>" +
       plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
     box.appendChild(det);
   }
@@ -1418,11 +1420,11 @@ function planCard(plan) {
         try {
           const intent = await api("/api/v1/booking-auto/order-intent", { name: nm, city: ct, tier: "L3" });
           if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
-          toast(intent.requires_user_confirmation ? "已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录" : "已打开");
+          toast(intent.requires_user_confirmation ? I18N.tf("plan.bookIntent.confirm","已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录") : I18N.tf("plan.bookIntent.opened","已打开"));
           if (intent.handoff_id) {
             // 代订收款预填：预订页「💳 支付」选「保存银行卡」即可挂这条跳转单
             document.getElementById("payHandoff").value = intent.handoff_id;
-            toast("已预填代订收款关联单号 " + intent.handoff_id + "（预订页 💳 支付可直接发起）");
+            toast(I18N.tf("plan.handoff.pre","已预填代订收款关联单号 ") + intent.handoff_id + I18N.tf("plan.handoff.suf","（预订页 💳 支付可直接发起）"));
           }
         } catch (e) { failToast(e); }
         return;
@@ -1430,7 +1432,7 @@ function planCard(plan) {
       try {
         if (kind === "visit") await api("/api/v1/feedback/visit", { name: nm, city: ct });
         else await api("/api/v1/feedback/vote", { name: nm, city: ct, up: kind === "up" });
-        toast(kind === "visit" ? "已打卡「" + nm + "」" : "已记录，谢谢反馈");
+        toast(kind === "visit" ? I18N.tf("plan.fb.checkedPre","已打卡「") + nm + I18N.tf("plan.fb.checkedSuf","」") : I18N.tf("plan.fb.recorded","已记录，谢谢反馈"));
         fb.style.opacity = 0.4;
       } catch (e) { failToast(e); }
       return;
@@ -1439,10 +1441,10 @@ function planCard(plan) {
     if (link && box.contains(link)) {
       if (!document.getElementById("flow-plan")) return;
       const bits = [];
-      if (link.getAttribute("data-addr")) bits.push("📍 地址：" + link.getAttribute("data-addr"));
-      if (link.getAttribute("data-hours")) bits.push("🕐 开放时间：" + link.getAttribute("data-hours"));
-      const info = el('<div><b>' + esc(link.getAttribute("data-name")) + '</b>（' + esc(link.getAttribute("data-city")) + "）</div>");
-      info.appendChild(el('<div class="muted">' + esc(bits.join("　") || "暂无更多简介信息") + "</div>"));
+      if (link.getAttribute("data-addr")) bits.push(I18N.tf("brief.addr","📍 地址：") + link.getAttribute("data-addr"));
+      if (link.getAttribute("data-hours")) bits.push(I18N.tf("brief.hours","🕐 开放时间：") + link.getAttribute("data-hours"));
+      const info = el('<div><b>' + esc(link.getAttribute("data-name")) + "</b>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(link.getAttribute("data-city"))) + I18N.tf("card.paren.suf","）") + "</div>");
+      info.appendChild(el('<div class="muted">' + esc(bits.join("\u3000") || I18N.tf("brief.none","暂无更多简介信息")) + "</div>"));
       addMsg("flow-plan", "sys", info);
       enrichBrief(info, link.getAttribute("data-city"), link.getAttribute("data-name"));
       return;
@@ -1502,13 +1504,13 @@ function planCard(plan) {
 const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
 function briefTag(t) {
   const m = /^black_pearl_(\d+)diamond$/.exec(t || "");
-  return m ? "黑珍珠" + m[1] + "钻" : (BRIEF_TAGS[t] || t);
+  return m ? I18N.tf("brief.blackPearl","黑珍珠") + m[1] + I18N.tf("brief.diamond","钻") : (BRIEF_TAGS[t] || t);
 }
 function enrichBrief(info, city, name) {
   api("/api/pois/detail?city=" + encodeURIComponent(city || "") + "&name=" + encodeURIComponent(name || ""), undefined, "GET").then(p => {
     const bits = [];
-    if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">（来源：' + esc(p.intro_source) + "）</span>" : ""));
-    if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(briefTag).filter(Boolean).join(" / "));
+    if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">' + I18N.tf("brief.sourcePre","（来源：") + esc(p.intro_source) + I18N.tf("brief.sourceClose","）") + "</span>" : ""));
+    if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(t => I18N.tf("brief.tag." + t, briefTag(t))).filter(Boolean).join(" / "));
     if (p.phone) bits.push("☎ " + esc(p.phone));
     const photo = p.photos && p.photos[0] && p.photos[0].url;
     if (!bits.length && !photo) return;
@@ -1524,46 +1526,46 @@ function enrichBrief(info, city, name) {
 // 满意了点保存才落库（2026-10-20：规划不再自动写行程库）：写库 + 冻结一个不可变快照
 function planSaveBar(plan) {
   const bar = el('<div class="dirbar"></div>');
-  const btn = el('<button class="btn">💾 保存行程</button>');
+  const btn = el('<button class="btn">' + I18N.tf("plan.save","💾 保存行程") + "</button>");
   btn.onclick = () => busy(btn, async () => {
-    const name = (plan.cities || []).join("→") + (planDateIso(1) ? " " + planDateIso(1) : "") + " 保存";
-    if (!planSession || !planSession.session_id) { toast("会话已失效：请重新规划后再保存"); return; }
+    const name = (plan.cities || []).join("→") + (planDateIso(1) ? " " + planDateIso(1) : "") + I18N.tf("plan.save.suf"," 保存");
+    if (!planSession || !planSession.session_id) { toast(I18N.tf("plan.save.noSession","会话已失效：请重新规划后再保存")); return; }
     try {
       const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name, start_date: PLAN.startDate || undefined });
       btn.remove(); // 只撤保存键，导出/分享/重新规划留在原行（2026-10-24 修复：整行清空会连三键一起抹掉）
       // 新规划会话保存前没有导出/分享两键（只有已存行程载入的会话才有）：保存后行程已落库，当场补上
       if (!bar.querySelector('[data-role="itin-export"]')) {
         const rLike = { itinerary_id: plan.itinerary_id, cities: plan.cities || [] };
-        const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
+        const ex = el('<button class="btn" data-role="itin-export">' + I18N.tf("plan.export","⬇️ 导出") + "</button>");
         ex.onclick = () => itinExport(rLike, ex);
-        const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
+        const sh = el('<button class="btn" data-role="itin-share">' + I18N.tf("plan.share","🔗 分享") + "</button>");
         sh.onclick = () => itinShareOn(rLike, sh);
         const re = bar.querySelector('[data-role="plan-replan"]');
         if (re) { bar.insertBefore(ex, re); bar.insertBefore(sh, re); } // 保持 导出/分享/重新规划 顺序
         else { bar.appendChild(ex); bar.appendChild(sh); }
       }
-      bar.after(el('<div class="card">✅ 已保存 · 行程编号 <code>' + esc(plan.itinerary_id) + '</code> · 快照 v' + s.sync_version + '「' + esc(s.name) + '」——「行程」页可查看与恢复</div>'));
-      toast("行程已保存：" + plan.itinerary_id);
+      bar.after(el('<div class="card">' + I18N.tf("plan.saved.pre","✅ 已保存 · 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code>" + I18N.tf("plan.saved.snap"," · 快照 v") + s.sync_version + I18N.tf("plan.saved.qOpen","「") + esc(s.name) + I18N.tf("plan.saved.tail","」——「行程」页可查看与恢复") + "</div>"));
+      toast(I18N.tf("plan.saved.toast","行程已保存：") + plan.itinerary_id);
     } catch (err) {
-      if (err.status === 402) toast("免费快照额度（3 个）已用完——行程已存入「行程」页（本次未冻结快照）");
+      if (err.status === 402) toast(I18N.tf("plan.saved.quota","免费快照额度（3 个）已用完——行程已存入「行程」页（本次未冻结快照）"));
       else failToast(err);
     }
   });
   bar.appendChild(btn);
   // 重新规划（全新规划会话）：按 origin 原参数重开一局（服务重启自动重建同款），未保存的修改即弃。
   if (planSession && planSession.origin) {
-    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
+    const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => busy(re, async () => {
-      const holder = addMsg("flow-plan", "sys", "🔄 按原参数重新规划中…");
+      const holder = addMsg("flow-plan", "sys", I18N.tf("plan.replan.running","🔄 按原参数重新规划中…"));
       try {
         const orig = planSession.origin;
-        const body = await api("/api/v1/plan/start", orig);
+        const body = await api("/api/v1/plan/start", { ...orig, lang: I18N.locale() === "en" ? "en" : "zh" });
         planSetSession({ session_id: body.session_id, state: body.state, origin: orig });
         holder.textContent = "";
         planRenderSafe(holder, body);
-        toast("已重新规划");
+        toast(I18N.tf("plan.replan.done","已重新规划"));
       } catch (err) {
-        holder.textContent = "❌ 重新规划失败：" + detailText(err.detail);
+        holder.textContent = I18N.tf("plan.replan.fail","❌ 重新规划失败：") + detailText(err.detail);
         failToast(err);
       }
       document.getElementById("flow-plan").scrollTop = 1e9;
@@ -1574,18 +1576,18 @@ function planSaveBar(plan) {
   // 修改回到全新规划表单；导出/分享直接吃行程号（2026-10-24 规划页三键）。
   if (planSession && planSession.itin_id) {
     const rLike = { itinerary_id: planSession.itin_id, cities: planSession.itin_cities || (plan.cities || []) };
-    const re = el('<button class="btn" data-role="plan-replan">🔄 重新规划</button>');
+    const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
-      if (!confirm("回到全新规划？当前未保存的修改会丢弃。")) return;
+      if (!confirm(I18N.tf("plan.replan.confirm","回到全新规划？当前未保存的修改会丢弃。"))) return;
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
-      addMsg("flow-plan", "sys", "已回到全新规划：上方填城市/天数后点「🚀 开始规划」。");
-      toast("已回到全新规划：上方填城市/天数后点「🚀 开始规划」");
+      addMsg("flow-plan", "sys", I18N.tf("plan.replan.reset","已回到全新规划：上方填城市/天数后点「🚀 开始规划」。"));
+      toast(I18N.tf("plan.replan.reset","已回到全新规划：上方填城市/天数后点「🚀 开始规划」。"));
       document.getElementById("flow-plan").scrollTop = 0;
     };
-    const ex = el('<button class="btn" data-role="itin-export">⬇️ 导出</button>');
+    const ex = el('<button class="btn" data-role="itin-export">' + I18N.tf("plan.export","⬇️ 导出") + "</button>");
     ex.onclick = () => itinExport(rLike, ex);
-    const sh = el('<button class="btn" data-role="itin-share">🔗 分享</button>');
+    const sh = el('<button class="btn" data-role="itin-share">' + I18N.tf("plan.share","🔗 分享") + "</button>");
     sh.onclick = () => itinShareOn(rLike, sh);
     bar.appendChild(ex);
     bar.appendChild(sh);
@@ -1595,18 +1597,18 @@ function planSaveBar(plan) {
 }
 function violationsNode(vs, title) {
   if (!vs || !vs.length) return null;
-  const box = el('<div class="card"><h4>' + esc(title || "校验违规") + " · " + vs.length + " 处</h4></div>");
+  const box = el('<div class="card"><h4>' + esc(title || I18N.tf("vio.title","校验违规")) + " · " + vs.length + I18N.tf("vio.count"," 处") + "</h4></div>");
   vs.forEach(v => {
-    box.appendChild(el('<div class="violation ' + esc(v.severity) + '">规则 ' + v.rule_id + " [" + esc(v.severity) + "] " + esc(v.message) +
-      (v.item_ids && v.item_ids.length ? "（涉及 " + esc(v.item_ids.join(", ")) + "）" : "") +
-      (v.day ? " · 第" + v.day + "天" : "") + "</div>"));
+    box.appendChild(el('<div class="violation ' + esc(v.severity) + '">' + I18N.tf("vio.rule","规则 ") + v.rule_id + " [" + esc(v.severity) + "] " + esc(v.message) +
+      (v.item_ids && v.item_ids.length ? I18N.tf("vio.items","（涉及 ") + esc(v.item_ids.join(", ")) + I18N.tf("vio.itemsClose","）") : "") +
+      (v.day ? I18N.tf("vio.dayPre"," · 第") + v.day + I18N.tf("vio.daySuf","天") : "") + "</div>"));
   });
   return box;
 }
 
 // ChangeSummary：{change_summary:[], affected_items_count, reasoning}
 function changeNode(ch) {
-  const box = el('<div class="card"><h4>✅ 本次改动（' + (ch.affected_items_count || 0) + " 个条目）</h4></div>");
+  const box = el('<div class="card"><h4>' + I18N.tf("change.pre","✅ 本次改动（") + (ch.affected_items_count || 0) + I18N.tf("change.suf"," 个条目）") + "</h4></div>");
   (ch.change_summary || []).forEach(line => box.appendChild(el("<div>· " + esc(line) + "</div>")));
   if (ch.reasoning) box.appendChild(el('<div class="muted">' + esc(ch.reasoning) + "</div>"));
   return box;
@@ -1654,7 +1656,7 @@ function planRouteForm() {
 }
 (function planCityInit() {
   const opts = PLAN_CITIES.map(([c, en]) => '<option value="' + c + '">' + c + " " + en + "</option>").join("");
-  const viaOpts = '<option value="">（不经过）</option>' + opts;
+  const viaOpts = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts;
   const s = document.getElementById("planStartCity");
   const e = document.getElementById("planEndCity");
   s.innerHTML = opts; s.value = "上海";
@@ -1684,7 +1686,7 @@ function planRouteForm() {
         String(d.getMonth() + 1).padStart(2, "0") + "-" +
         String(d.getDate()).padStart(2, "0");
     } else {
-      endEl.textContent = "（未设开始日期）";
+      endEl.textContent = I18N.tf("plan.noStart","（未设开始日期）");
     }
   };
   ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", total));
@@ -1715,8 +1717,8 @@ function planSummaryRefresh() {
   try {
     const r = planRouteForm();
     document.getElementById("planSummaryText").textContent =
-      r.cities.join("→") + " · 共 " + r.total + " 天" + (PLAN.startDate ? " · " + PLAN.startDate.slice(5) : "");
-  } catch (_) { document.getElementById("planSummaryText").textContent = "改参数"; }
+      r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.sum.totalPre"," · 共 ") + r.total + I18N.tf("plan.sum.totalSuf"," 天") + (PLAN.startDate ? " · " + PLAN.startDate.slice(5) : "");
+  } catch (_) { document.getElementById("planSummaryText").textContent = I18N.tf("plan.sum.edit","改参数"); }
 }
 function planSetSession(s) {
   // 会话激活时参数表单收成一行摘要（2026-10-24 实测：矮视口/系统缩放下表单+输入框最小高度超出可视区，
@@ -1730,7 +1732,7 @@ function planSetSession(s) {
   const bar = document.getElementById("planSummaryBar");
   if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
   else { form.style.display = "flex"; bar.style.display = "none"; }
-  document.getElementById("planInput").placeholder = s ? "继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数" : "自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整";
+  document.getElementById("planInput").placeholder = s ? I18N.tf("plan.input.phActive","继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数") : I18N.tf("plan.input.phIdle","自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整");
 }
 document.getElementById("planSummaryToggle").onclick = () => {
   const form = document.getElementById("planSetup");
@@ -1748,9 +1750,9 @@ try {
   const savedSess = JSON.parse(localStorage.getItem(PLAN_SESSION_KEY) || "null");
   if (savedSess && savedSess.session_id) {
     planSetSession(savedSess);
-    const label = savedSess.itin_id ? "载入的行程"
-      : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.join("→") : "上次的规划");
-    addMsg("flow-plan", "sys", "已恢复上次的规划对话（" + label + "）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。");
+    const label = savedSess.itin_id ? I18N.tf("plan.restore.itin","载入的行程")
+      : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.map(c => I18N.city(c)).join("→") : I18N.tf("plan.restore.last","上次的规划"));
+    addMsg("flow-plan", "sys", I18N.tf("plan.restore.msgPre","已恢复上次的规划对话（") + label + I18N.tf("plan.restore.msgTail","）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。"));
   }
 } catch (_) {}
 
@@ -1760,7 +1762,7 @@ let siteChipBoxes = [];
 function closeSiteChipBoxes() {
   siteChipBoxes.forEach(box => box.querySelectorAll("button").forEach(b => {
     b.disabled = true; b.style.opacity = ".45"; b.onclick = null;
-    if (b.textContent === "请求中…") b.textContent = "✅ 已确认"; // busy() 的 finally 不再复活它
+    if (b.textContent === I18N.tf("infra.requesting","请求中…")) b.textContent = I18N.tf("plan.chipConfirmed","✅ 已确认"); // busy() 的 finally 不再复活它
   }));
   siteChipBoxes = [];
 }
@@ -1773,7 +1775,7 @@ function planRenderReply(holder, body, opts) {
   if (body.state === "site_confirm" && (body.sites || []).length) {
     // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
     const box = el('<div class="site-confirm-box"></div>');
-    box.appendChild(frag("<div>链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：</div>"));
+    box.appendChild(frag("<div>" + I18N.tf("plan.sites.intro","链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：") + "</div>"));
     const row = el('<div class="chips"></div>');
     const must = new Set();
     body.sites.forEach(s => {
@@ -1786,7 +1788,7 @@ function planRenderReply(holder, body, opts) {
     });
     box.appendChild(row);
     const row2 = el('<div class="chips"></div>');
-    const ok = el('<button class="chip">✅ 确认</button>');
+    const ok = el('<button class="chip">' + I18N.tf("plan.chipConfirm","✅ 确认") + "</button>");
     ok.onclick = (e) => busy(e.target, () => planConfirmSites(body.sites, must));
     row2.appendChild(ok);
     box.appendChild(row2);
@@ -1795,15 +1797,15 @@ function planRenderReply(holder, body, opts) {
     if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
-    holder.appendChild(frag("<div>还需要补充一点信息：</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
+    holder.appendChild(frag("<div>" + I18N.tf("plan.clarify.title","还需要补充一点信息：") + "</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
     if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
       // 多选累积，一次提交：点选不逐条发消息，攒够偏好再开始规划
-      holder.appendChild(frag("<div class='muted'>可多选，选好点确认，一次提交：</div>"));
+      holder.appendChild(frag("<div class='muted'>" + I18N.tf("plan.clarify.multi","可多选，选好点确认，一次提交：") + "</div>"));
       const row = el('<div class="chips"></div>');
       const picked = new Set();
       const PREFS = ["博物馆人文", "自然风光", "美食街区", "亲子休闲", "暴走走透", "慢慢逛", "无特别要求"];
       PREFS.forEach(p => {
-        const b = el('<button class="chip">' + p + "</button>");
+        const b = el('<button class="chip">' + I18N.tf("plan.pref." + p, p) + "</button>");
         b.onclick = () => {
           if (picked.has(p)) { picked.delete(p); b.style.background = ""; b.style.color = ""; }
           else { picked.add(p); b.style.background = "#2563eb"; b.style.color = "#fff"; }
@@ -1812,7 +1814,7 @@ function planRenderReply(holder, body, opts) {
       });
       holder.appendChild(row);
       const row2 = el('<div class="chips"></div>');
-      const ok = el('<button class="chip">✅ 选好了，开始规划</button>');
+      const ok = el('<button class="chip">' + I18N.tf("plan.clarify.go","✅ 选好了，开始规划") + "</button>");
       ok.onclick = () => {
         const sel = PREFS.filter(p => picked.has(p));
         document.getElementById("planInput").value = "偏好：" + (sel.length ? sel.join("、") : "无特别要求");
@@ -1821,16 +1823,16 @@ function planRenderReply(holder, body, opts) {
       row2.appendChild(ok);
       holder.appendChild(row2);
     } else if (opts && opts.first) {
-      holder.appendChild(el('<div class="muted">直接在下方输入框回答，例如「4 天，去杭州和上海」。</div>'));
+      holder.appendChild(el('<div class="muted">' + I18N.tf("plan.clarify.hint","直接在下方输入框回答，例如「4 天，去杭州和上海」。") + "</div>"));
     }
   } else {
     if (body.state === "resto_confirm" && (body.restos || []).length) {
       // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
-      holder.appendChild(frag("<div>这几家餐饮店离行程里的景点都超过 5 公里，点一下改为「不安排」（再点恢复），然后确认：</div>"));
+      holder.appendChild(frag("<div>" + I18N.tf("plan.restos.intro","这几家餐饮店离行程里的景点都超过 5 公里，点一下改为「不安排」（再点恢复），然后确认：") + "</div>"));
       const row = el('<div class="chips"></div>');
       const skip = new Set();
       body.restos.forEach(r => {
-        const b = el('<button class="chip">🍽 ' + esc(r.name) + "（最近约 " + (r.nearest_km == null ? "?" : r.nearest_km) + "km）</button>");
+        const b = el('<button class="chip">🍽 ' + esc(r.name) + I18N.tf("plan.restos.nearPre","（最近约 ") + (r.nearest_km == null ? "?" : r.nearest_km) + I18N.tf("plan.restos.nearClose","km）") + "</button>");
         b.style.background = "#2563eb"; b.style.color = "#fff";
         b.onclick = () => {
           if (skip.has(r.name)) { skip.delete(r.name); b.style.background = "#2563eb"; b.style.color = "#fff"; }
@@ -1840,7 +1842,7 @@ function planRenderReply(holder, body, opts) {
       });
       holder.appendChild(row);
       const row2 = el('<div class="chips"></div>');
-      const ok = el('<button class="chip">✅ 确认</button>');
+      const ok = el('<button class="chip">' + I18N.tf("plan.chipConfirm","✅ 确认") + "</button>");
       ok.onclick = () => {
         const keep = body.restos.filter(r => !skip.has(r.name)).map(r => r.name);
         const drop = body.restos.filter(r => skip.has(r.name)).map(r => r.name);
@@ -1850,7 +1852,7 @@ function planRenderReply(holder, body, opts) {
       row2.appendChild(ok);
       holder.appendChild(row2);
     }
-    if (opts && opts.first) holder.appendChild(el("<div>初版行程已生成 ✅ 可直接对话修改（可多轮）。</div>"));
+    if (opts && opts.first) holder.appendChild(el("<div>" + I18N.tf("plan.first.done","初版行程已生成 ✅ 可直接对话修改（可多轮）。") + "</div>"));
     if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
     if (body.change) holder.appendChild(changeNode(body.change));
     if (body.plan) {
@@ -1858,9 +1860,9 @@ function planRenderReply(holder, body, opts) {
       holder.appendChild(planBookQuick(body.plan)); // 预订快捷入口（订火车票/机票/酒店）
       holder.appendChild(planSaveBar(body.plan)); // 保存/重新规划/导出/分享整行压在预订行下面（2026-10-24）
     } else if (!body.reply) {
-      holder.appendChild(el('<div class="muted">（本轮没有返回行程数据）</div>'));
+      holder.appendChild(el('<div class="muted">' + I18N.tf("plan.noPlan","（本轮没有返回行程数据）") + "</div>"));
     }
-    const vn = violationsNode(body.violations, "硬校验提示");
+    const vn = violationsNode(body.violations, I18N.tf("vio.hard","硬校验提示"));
     if (vn) holder.appendChild(vn);
   }
 }
@@ -1869,7 +1871,7 @@ function planRenderSafe(holder, body, opts) {
     planRenderReply(holder, body, opts);
   } catch (re) {
     console.error("plan render failed", re);
-    holder.appendChild(el('<div class="violation error">⚠ 数据已返回但渲染中断：' + esc(re && re.message || String(re)) + "（可截图反馈）</div>"));
+    holder.appendChild(el('<div class="violation error">' + I18N.tf("plan.renderFailPre","⚠ 数据已返回但渲染中断：") + esc(re && re.message || String(re)) + I18N.tf("plan.renderFailTail","（可截图反馈）") + "</div>"));
   }
 }
 
@@ -1878,17 +1880,17 @@ async function planStartCore(extraPref) {
   const r = planRouteForm();
   const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
-  addMsg("flow-plan", "user", "开始规划：" + r.cities.join("→") + "，共 " + r.total + " 天" + (PLAN.startDate ? "，" + PLAN.startDate + " 出发" : "") + "；偏好：" + (prefs || "无"));
-  const holder = addMsg("flow-plan", "sys", "⏳ 正在生成初版行程（通常 10 秒内）…");
+  addMsg("flow-plan", "user", I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（通常 10 秒内）…"));
   try {
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined });
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, lang: I18N.locale() === "en" ? "en" : "zh" });
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
   } catch (err) {
     if (extraPref) document.getElementById("planInput").value = extraPref; // 失败把输入框的话放回去，不用重打
-    holder.textContent = "❌ 规划失败：" + detailText(err.detail);
+    holder.textContent = I18N.tf("plan.gen.fail","❌ 规划失败：") + detailText(err.detail);
     failToast(err);
   }
   holder.parentElement.scrollIntoView({ block: "end" });
@@ -1915,8 +1917,8 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, planStartBu
 async function planConfirmSites(allSites, must) {
   if (!planSession) return;
   const mand = allSites.filter(s => must.has(s));
-  addMsg("flow-plan", "user", "✅ 必去：" + (mand.join("、") || "（未选）"));
-  const holder = addMsg("flow-plan", "sys", "⏳ 正在写入心愿单…");
+  addMsg("flow-plan", "user", I18N.tf("plan.sites.echo","✅ 必去：") + (mand.join("、") || I18N.tf("plan.sites.none","（未选）")));
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.sites.writing","⏳ 正在写入心愿单…"));
   try {
     if (planSession.state !== "site_confirm") throw { status: 409, detail: "not_awaiting_sites" };
     const body = await api("/api/v1/plan/" + planSession.session_id + "/sites/confirm", { mandatory: mand });
@@ -1926,10 +1928,10 @@ async function planConfirmSites(allSites, must) {
     if (err && err.detail === "not_awaiting_sites") {
       // 迟到的确认（已确认过/文字已回答/服务重启换新会话）：不是故障，
       // 提示改走对话，别再吓用户，也不弹红色 toast。
-      holder.textContent = "ℹ️ 这轮必去确认已经结束（可能已确认过）。想加的地点直接在下面发消息告诉我即可。";
+      holder.textContent = I18N.tf("plan.sites.late","ℹ️ 这轮必去确认已经结束（可能已确认过）。想加的地点直接在下面发消息告诉我即可。");
       closeSiteChipBoxes();
     } else {
-      holder.textContent = "❌ 确认失败：" + detailText(err.detail);
+      holder.textContent = I18N.tf("plan.sites.fail","❌ 确认失败：") + detailText(err.detail);
       failToast(err);
     }
   }
@@ -1940,9 +1942,9 @@ async function planConfirmSites(allSites, must) {
 const REVIEW_TAGS = ["人多", "出片", "一般", "亲子友好", "不值", "外卡支付可用", "英文菜单/服务", "护照预订友好", "免签适用"];
 function openReviewBubble(name, city) {
   const flow = document.getElementById("flow-plan");
-  if (!flow) { toast("请在规划页点评"); return; }
+  if (!flow) { toast(I18N.tf("review.needPlan","请在规划页点评")); return; }
   const card = el('<div class="muted" style="border:1px solid #ccc;border-radius:8px;padding:8px"></div>');
-  card.appendChild(el("<div><b>点评「" + esc(name) + "」</b></div>"));
+  card.appendChild(el("<div><b>" + I18N.tf("review.pre","点评「") + esc(name) + I18N.tf("review.suf","」") + "</b></div>"));
   const stars = el('<div style="margin:4px 0"></div>');
   let rating = 0;
   for (let i = 1; i <= 5; i++) {
@@ -1954,22 +1956,22 @@ function openReviewBubble(name, city) {
   const tagRow = el('<div style="margin:4px 0"></div>');
   const picked = new Set();
   REVIEW_TAGS.forEach(t => {
-    const tg = el('<a class="chip" style="margin:0 4px 4px 0">' + esc(t) + "</a>");
+    const tg = el('<a class="chip" style="margin:0 4px 4px 0">' + esc(I18N.tf("review.tag." + t, t)) + "</a>");
     tg.addEventListener("click", () => { picked.has(t) ? picked.delete(t) : picked.add(t); tg.style.outline = picked.has(t) ? "2px solid #2E5E8C" : "none"; });
     tagRow.appendChild(tg);
   });
   card.appendChild(tagRow);
-  const ta = el('<textarea style="width:96%;min-height:44px" placeholder="一句话（可选）"></textarea>');
+  const ta = el('<textarea style="width:96%;min-height:44px" placeholder="' + I18N.tf("review.text.ph","一句话（可选）") + '"></textarea>');
   card.appendChild(ta);
-  const btn = el('<button class="btn">提交点评</button>');
+  const btn = el('<button class="btn">' + I18N.tf("review.submit","提交点评") + "</button>");
   card.appendChild(btn);
   addMsg("flow-plan", "sys", card);
   flow.scrollTop = 1e9;
   btn.addEventListener("click", async () => {
     try {
       await api("/api/v1/feedback/review", { name, city, rating: rating || null, tags: [...picked], text: ta.value.trim() || null });
-      card.textContent = "✅ 已收到对「" + name + "」的点评，谢谢！";
-      toast("点评已提交");
+      card.textContent = I18N.tf("review.thanksPre","✅ 已收到对「") + name + I18N.tf("review.thanksSuf","」的点评，谢谢！");
+      toast(I18N.tf("review.done","点评已提交"));
     } catch (e) { failToast(e); }
   });
 }
@@ -1979,16 +1981,16 @@ const _URL_RE = /https?:\/\/[^\s，,。；;]+/g;
 async function planBatchImport(holder, urls) {
   let batch = { accepted: [], rejected: [] };
   try { batch = await api("/api/v1/links/batch", { urls }); } catch (e) { /* 历史落库失败不阻塞解析 */ }
-  holder.textContent = "📥 批量导入 " + urls.length + " 条链接（入库 " + batch.accepted.length + "，坏链 " + (batch.rejected ? batch.rejected.length : 0) + "），逐条解析中…";
+  holder.textContent = I18N.tf("plan.batch.pre","📥 批量导入 ") + urls.length + I18N.tf("plan.batch.mid1"," 条链接（入库 ") + batch.accepted.length + I18N.tf("plan.batch.mid2","，坏链 ") + (batch.rejected ? batch.rejected.length : 0) + I18N.tf("plan.batch.close","），逐条解析中…");
   let lastBody = null;
   for (const u of urls) {
     addMsg("flow-plan", "user", u);
-    const h = addMsg("flow-plan", "sys", "⏳ 解析中…");
+    const h = addMsg("flow-plan", "sys", I18N.tf("plan.batch.parsing","⏳ 解析中…"));
     try {
       const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text: u });
       planSession.state = body.state;
       lastBody = [h, body];
-    } catch (err) { h.textContent = "❌ 解析失败：" + detailText(err && err.detail); }
+    } catch (err) { h.textContent = I18N.tf("plan.batch.fail","❌ 解析失败：") + detailText(err && err.detail); }
   }
   if (lastBody) planRenderSafe(lastBody[0], lastBody[1]);
   document.getElementById("flow-plan").scrollTop = 1e9;
@@ -2005,13 +2007,13 @@ async function planSend() {
   const urls = text.match(_URL_RE) || [];
   if (urls.length >= 2) { // §5.2 批量收藏导入：多链接一次灌入
     input.value = "";
-    const holder = addMsg("flow-plan", "sys", "⏳ 准备批量导入…");
+    const holder = addMsg("flow-plan", "sys", I18N.tf("plan.batch.preparing","⏳ 准备批量导入…"));
     await planBatchImport(holder, urls);
     return;
   }
   input.value = "";
   addMsg("flow-plan", "user", text);
-  const holder = addMsg("flow-plan", "sys", "⏳ 思考中…");
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.thinking","⏳ 思考中…"));
   try {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = body.state;
@@ -2022,10 +2024,10 @@ async function planSend() {
     } else if (err && err.detail === "session_not_found") { // 修改类会话（无 origin）不能自动重建
       planSetSession(null);
       input.value = text;
-      holder.textContent = "❌ 会话已失效：请到「行程」页重新点「✏️ 修改」。你的话已放回输入框。";
+      holder.textContent = I18N.tf("plan.err.sessionLost","❌ 会话已失效：请到「行程」页重新点「✏️ 修改」。你的话已放回输入框。");
     } else {
       input.value = text; // 发送失败把话放回输入框，用户不用重打
-      holder.textContent = "❌ 发送失败：" + detailText(err.detail);
+      holder.textContent = I18N.tf("plan.err.send","❌ 发送失败：") + detailText(err.detail);
       failToast(err);
     }
   }
@@ -2034,19 +2036,19 @@ async function planSend() {
 // 会话存后端进程内存，服务重启即丢；此处按原参数重建会话并自动重发本轮消息。
 async function planResendAfterRestart(holder, text, input) {
   const orig = planSession.origin;
-  holder.textContent = "⚠ 会话因服务重启丢失，正在按原参数重建并自动重发你刚才的话…";
+  holder.textContent = I18N.tf("plan.restart.rebuilding","⚠ 会话因服务重启丢失，正在按原参数重建并自动重发你刚才的话…");
   try {
     const nb = await api("/api/v1/plan/start", orig);
     planSetSession({ session_id: nb.session_id, state: nb.state, origin: orig });
-    planRenderSafe(holder, nb, { first: true, banner: "已重建会话（原会话因服务重启丢失），你刚才的话已自动重发：" });
-    const h2 = addMsg("flow-plan", "sys", "⏳ 重发中…");
+    planRenderSafe(holder, nb, { first: true, banner: I18N.tf("plan.restart.banner","已重建会话（原会话因服务重启丢失），你刚才的话已自动重发：") });
+    const h2 = addMsg("flow-plan", "sys", I18N.tf("plan.restart.resend","⏳ 重发中…"));
     const b2 = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = b2.state;
     planRenderSafe(h2, b2);
   } catch (e2) {
     planSetSession(null);
     input.value = text;
-    holder.textContent = "❌ 会话已过期且重建失败：" + detailText(e2.detail) + "；你的话已放回输入框，请重新点「开始规划」。";
+    holder.textContent = I18N.tf("plan.restart.failPre","❌ 会话已过期且重建失败：") + detailText(e2.detail) + I18N.tf("plan.restart.failTail","；你的话已放回输入框，请重新点「开始规划」。");
     failToast(e2);
   }
 }
@@ -2065,7 +2067,7 @@ function t9nRender() {
     const on = T9N.src === "zh" && c.dataset.target === T9N.target;
     c.classList.toggle("on", on);
   });
-  document.getElementById("t9nCur").textContent = "当前语向：" + t9nName[T9N.src] + " → " + t9nName[T9N.target];
+  document.getElementById("t9nCur").textContent = I18N.tf("t9n.cur.pre","当前语向：") + I18N.tf("t9n.lang." + T9N.src, t9nName[T9N.src]) + " → " + I18N.tf("t9n.lang." + T9N.target, t9nName[T9N.target]);
 }
 document.querySelectorAll("#t9nDirs .chip[data-target]").forEach(c => {
   c.onclick = () => { T9N.src = "zh"; T9N.target = c.dataset.target; t9nRender(); };
@@ -2085,8 +2087,8 @@ document.getElementById("t9nMic").onclick = () => {
   const base = document.getElementById("t9nInput").value;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     // 非安全上下文（http://IP 访问）浏览器不暴露麦克风 API，动态给出本机 https 入口
-    toast(window.isSecureContext ? "此浏览器不支持语音输入"
-      : "语音需 HTTPS 访问，请改用 https://" + location.hostname + ":8443/h5/");
+    toast(window.isSecureContext ? I18N.tf("t9n.mic.unsupported","此浏览器不支持语音输入")
+      : I18N.tf("t9n.mic.https","语音需 HTTPS 访问，请改用 https://") + location.hostname + ":8443/h5/");
     return;
   }
   t9nStarting = true;
@@ -2104,12 +2106,12 @@ document.getElementById("t9nMic").onclick = () => {
       src.connect(node); node.connect(zero); zero.connect(ctx.destination);
       t9nRec = { stream, ctx, node, zero, chunks, base, timer: setTimeout(t9nStop, 25000) };
       mic.classList.add("rec");
-      toast("正在聆听…说完再点 🎤 结束");
+      toast(I18N.tf("t9n.mic.listening","正在聆听…说完再点 🎤 结束"));
     } catch (e) {
       stream.getTracks().forEach(t => t.stop());
-      toast("启动录音失败：" + (e.message || e));
+      toast(I18N.tf("t9n.mic.startFail","启动录音失败：") + (e.message || e));
     } finally { t9nStarting = false; }
-  }).catch(() => toast("无法访问麦克风：请在浏览器地址栏允许麦克风权限"));
+  }).catch(() => toast(I18N.tf("t9n.mic.denied","无法访问麦克风：请在浏览器地址栏允许麦克风权限")));
 };
 async function t9nStop() {
   const mic = document.getElementById("t9nMic");
@@ -2120,14 +2122,14 @@ async function t9nStop() {
   rec.stream.getTracks().forEach(t => t.stop());
   const rate = rec.ctx.sampleRate;
   try { await rec.ctx.close(); } catch (e) {}
-  if (!rec.chunks.length) { toast("没有采集到音频"); return; }
+  if (!rec.chunks.length) { toast(I18N.tf("t9n.mic.noAudio","没有采集到音频")); return; }
   let n = 0, peak = 0;
   for (const c of rec.chunks) { n += c.length; for (let i = 0; i < c.length; i++) { const a = Math.abs(c[i]); if (a > peak) peak = a; } }
   const dur = n / rate;
-  if (dur < 0.5) { toast("录音太短（" + dur.toFixed(1) + "s），请说完再点结束"); return; }
-  if (peak < 0.006) { toast("麦克风没有声音：请检查系统静音 / Windows 设置→隐私→麦克风→允许桌面应用"); return; }
+  if (dur < 0.5) { toast(I18N.tf("t9n.mic.shortPre","录音太短（") + dur.toFixed(1) + I18N.tf("t9n.mic.shortSuf","s），请说完再点结束")); return; }
+  if (peak < 0.006) { toast(I18N.tf("t9n.mic.silent","麦克风没有声音：请检查系统静音 / Windows 设置→隐私→麦克风→允许桌面应用")); return; }
   const wav = t9nWav(rec.chunks, rate);
-  toast("识别中…");
+  toast(I18N.tf("t9n.mic.asr","识别中…"));
   try {
     const fd = new FormData();
     fd.append("file", new Blob([wav], { type: "audio/wav" }), "speech.wav");
@@ -2136,9 +2138,9 @@ async function t9nStop() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "http_" + res.status);
     const text = (body.text || "").trim();
-    if (!text) { toast("没有识别到内容（录了 " + dur.toFixed(1) + "s），请靠近麦克风、稍大声再试"); return; }
+    if (!text) { toast(I18N.tf("t9n.mic.emptyPre","没有识别到内容（录了 ") + dur.toFixed(1) + I18N.tf("t9n.mic.emptySuf","s），请靠近麦克风、稍大声再试")); return; }
     document.getElementById("t9nInput").value = rec.base + text;
-  } catch (err) { toast("语音识别失败：" + (err.message || err)); }
+  } catch (err) { toast(I18N.tf("t9n.mic.asrFail","语音识别失败：") + (err.message || err)); }
 }
 // Float32 采样块 → 16bit 单声道 WAV
 function t9nWav(chunks, rate) {
@@ -2162,8 +2164,8 @@ async function t9nSend() {
   const text = input.value.trim();
   if (!text) return;
   input.value = "";
-  addMsg("flow-t9n", "user", "[" + t9nName[T9N.src] + "→" + t9nName[T9N.target] + "] " + text);
-  const holder = addMsg("flow-t9n", "sys", "⏳ 翻译中…");
+  addMsg("flow-t9n", "user", "[" + I18N.tf("t9n.lang." + T9N.src, t9nName[T9N.src]) + "→" + I18N.tf("t9n.lang." + T9N.target, t9nName[T9N.target]) + "] " + text);
+  const holder = addMsg("flow-t9n", "sys", I18N.tf("t9n.translating","⏳ 翻译中…"));
   try {
     const body = await api("/api/v1/translate", { text, source_lang: T9N.src, target_lang: T9N.target });
     holder.textContent = "";
@@ -2172,10 +2174,10 @@ async function t9nSend() {
       ? (body.usage.total_tokens != null ? body.usage.total_tokens + " tokens" : JSON.stringify(body.usage))
       : "";
     holder.appendChild(el('<div class="muted">' +
-      (body.cached ? '<span class="badge ok">缓存命中</span>' : '<span class="badge">新翻译</span>') +
-      " 模型 " + esc(body.model || "?") + (usage ? " · " + esc(usage) : "") + "</div>"));
+      (body.cached ? '<span class="badge ok">' + I18N.tf("t9n.cached","缓存命中") + "</span>" : '<span class="badge">' + I18N.tf("t9n.fresh","新翻译") + "</span>") +
+      I18N.tf("t9n.model"," 模型 ") + esc(body.model || "?") + (usage ? " · " + esc(usage) : "") + "</div>"));
   } catch (err) {
-    holder.textContent = "❌ 翻译失败：" + detailText(err.detail);
+    holder.textContent = I18N.tf("t9n.fail","❌ 翻译失败：") + detailText(err.detail);
     failToast(err);
   }
   document.getElementById("flow-t9n").scrollTop = 1e9;
@@ -2391,17 +2393,20 @@ function oriEmoji(o) {
 const RIDE_COLORS = ["#2f6fed", "#e07b39", "#188a4c", "#8e44ad", "#c23a3a"];
 
 const NAV = {
-  me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设）
+  me: { ...FALLBACK_POS, name: "我的位置" },  // 起点（默认我的位置，可搜索改设；数据值，渲染处 posName() 转标签）
   myPos: { ...FALLBACK_POS, name: "我的位置" }, // 定位/回退得到的位置，↺ 恢复用
   meAuto: true,                       // 起点未手动改设 ⇒ 跟随定位（regeo 回填地址）
   geolocOk: false,                    // 浏览器定位成功过（myPos 是真实坐标非回退）
   meReal: false,                      // 起点是真实位置（定位成功或 POI 点选）；false=故宫回退 ⇒ handoff 不带起点
   dest: null,                        // {name, lon, lat}（搜索点选设定）
   mode: null,
-  city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换）
+  city: "北京",                      // 当前城市（下拉；定位成功后 regeo 自动切换；值为中文规范市名=API 契约）
+  cityExtra: null,                   // 定位得到、CITYS 之外的城市（下拉附加项；citySelRender 重建时补回）
   route: null,                       // 步行路线 {polyline, steps, distance_m, duration_s}
   lines: [],                         // SVG 线：{points, color, dash, width}
 };
+/* "我的位置" 数据值 → 展示标签（其它名称多为 regeo 真实地址，原样返回） */
+function posName(n) { return n === "我的位置" ? I18N.tf("navmap.me", "我的位置") : n; }
 
 /* ---- 城市下拉（POI 搜索/公交按此城市） ---- */
 
@@ -2413,8 +2418,21 @@ const CITYS = [
   ["三亚",109.51,18.25],["桂林",110.29,25.27],
 ];
 const citySel = document.getElementById("navCity");
-CITYS.forEach(([n]) => { const o = document.createElement("option"); o.value = n; o.textContent = n; citySel.appendChild(o); });
-citySel.value = NAV.city;
+/* 城市下拉按语言重建：option value 恒为中文规范市名（后端 API 契约），label 走 I18N.city；
+   NAV.cityExtra 记录定位得到的列表外城市，重建时补回并保留当前选中。i18n:change 时整体重绘。 */
+function citySelRender() {
+  const cur = citySel.value || NAV.city;
+  citySel.textContent = "";
+  CITYS.forEach(([n]) => { const o = document.createElement("option"); o.value = n; o.textContent = I18N.city(n); citySel.appendChild(o); });
+  if (NAV.cityExtra && !CITYS.some(x => x[0] === NAV.cityExtra)) {
+    const o = document.createElement("option");
+    o.value = NAV.cityExtra; o.textContent = I18N.city(NAV.cityExtra) + I18N.tf("navmap.cityCur", "（当前）");
+    citySel.appendChild(o);
+  }
+  citySel.value = cur;
+}
+citySelRender();
+window.addEventListener("i18n:change", citySelRender);
 citySel.onchange = () => {
   NAV.city = citySel.value;
   const c = CITYS.find(x => x[0] === NAV.city);
@@ -2424,11 +2442,8 @@ function shortCity(s) { return String(s || "").replace(/(市|省)$/, ""); }
 function setCity(name, fly) {
   if (!name) return;
   const c = shortCity(name);
-  if (![...citySel.options].some(o => o.value === c)) {
-    const o = document.createElement("option");
-    o.value = c; o.textContent = c + "（当前）";
-    citySel.appendChild(o);
-  }
+  if (!CITYS.some(x => x[0] === c)) NAV.cityExtra = c; // 列表外城市：记下，由 citySelRender 补回（带（当前）标记）
+  citySelRender();
   citySel.value = c; NAV.city = c;
   const hit = CITYS.find(x => x[0] === c);
   if (fly && hit) flyTo(hit[1], hit[2], 11);
@@ -2437,7 +2452,7 @@ async function regeoCity(lon, lat) {
   try {
     const b = await api("/api/v1/amap/regeo?lon=" + lon + "&lat=" + lat, undefined, "GET");
     setCity(b.city || b.province, false);
-    toast("当前城市：" + NAV.city);
+    toast(I18N.tf("navmap.cityNow", "当前城市：") + I18N.city(NAV.city));
     if (b.address && NAV.meAuto) { // 定位成功 ⇒ 起点字段回填实际地址
       NAV.me.name = b.address; NAV.myPos.name = b.address;
       originKw.value = b.address; placeMe();
@@ -2458,7 +2473,7 @@ function setMode(m) {
   if (btn) btn.classList.add("on");
 }
 function requireDest() {
-  if (!NAV.dest) { toast("先在上方搜索并点选一个终点"); return false; }
+  if (!NAV.dest) { toast(I18N.tf("navmap.needDest", "先在上方搜索并点选一个终点")); return false; }
   return true;
 }
 function drawLine(points, color, dash) {
@@ -2471,7 +2486,7 @@ function clearLines() { NAV.lines = []; renderOverlays(); }
 function openHandoff(deeplink, web) {
   if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
     if (web) window.open(web, "_blank", "noopener");
-    else toast("电脑无法唤起高德App打车：请用手机扫描下方二维码直达高德打车页");
+    else toast(I18N.tf("navmap.taxiDesktop", "电脑无法唤起高德App打车：请用手机扫描下方二维码直达高德打车页"));
     return;
   }
   let left = false;
@@ -2483,7 +2498,7 @@ function openHandoff(deeplink, web) {
     document.removeEventListener("visibilitychange", mark);
     if (!left) {
       if (web) window.open(web, "_blank", "noopener");
-      else toast("未唤起高德 App：请先安装高德 App，或点「驾车路线预览」查看路线");
+      else toast(I18N.tf("navmap.appNotLaunched", "未唤起高德 App：请先安装高德 App，或点「驾车路线预览」查看路线"));
     }
   }, 2000);
 }
@@ -2499,9 +2514,9 @@ function setOrigin(p) {
   NAV.meAuto = false; // 手动改设后不再跟随定位地址
   NAV.meReal = true;  // POI 点选 ⇒ 真实起点
   placeMe();
-  originKw.value = p.name;
+  originKw.value = posName(p.name);
   flyTo(p.lon, p.lat, Math.max(MAP.z, 13));
-  toast("起点已设：" + p.name);
+  toast(I18N.tf("navmap.originSet", "起点已设：") + posName(p.name));
 }
 function setDest(it) {
   NAV.dest = { name: it.name, lon: it.location.lon, lat: it.location.lat };
@@ -2509,20 +2524,20 @@ function setDest(it) {
   addMarker("dest", NAV.dest.lon, NAV.dest.lat,
     '<span class="pin">🏁</span><span class="lbl">' + esc(NAV.dest.name) + "</span>");
   flyTo(NAV.dest.lon, NAV.dest.lat, Math.max(MAP.z, 14));
-  toast("终点已设：" + NAV.dest.name + "，点底部模式开始导航");
+  toast(I18N.tf("navmap.destSet", "终点已设：") + NAV.dest.name + I18N.tf("navmap.destSetTip", "，点底部模式开始导航"));
 }
 
 async function poiSearch() {
   const isOrigin = poiField === "origin";
   const kw = (isOrigin ? originKw : destKw).value.trim();
-  if (!kw || kw === "我的位置") { toast(isOrigin ? "起点输入地点关键词（留默认即我的位置）" : "输入终点关键词再搜索"); return; }
+  if (!kw || kw === "我的位置") { toast(isOrigin ? I18N.tf("navmap.originHint", "起点输入地点关键词（留默认即我的位置）") : I18N.tf("navmap.destHint", "输入终点关键词再搜索")); return; }
   const drop = document.getElementById("poiDrop");
   drop.style.display = "block";
-  drop.innerHTML = '<div class="poi-item muted">搜索中…</div>';
+  drop.innerHTML = '<div class="poi-item muted">' + I18N.tf("navmap.searching", "搜索中…") + "</div>";
   try {
     const body = await api("/api/v1/amap/poi/search?keywords=" + encodeURIComponent(kw) + "&city=" + encodeURIComponent(NAV.city), undefined, "GET");
     const items = (body.items || []).filter(i => i.location);
-    if (!items.length) { drop.innerHTML = '<div class="poi-item muted">无结果（或高德未配置）</div>'; return; }
+    if (!items.length) { drop.innerHTML = '<div class="poi-item muted">' + I18N.tf("navmap.noPoi", "无结果（或高德未配置）") + "</div>"; return; }
     drop.innerHTML = "";
     items.forEach(it => {
       const row = el('<div class="poi-item"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(it.address || it.city || "") + "</span></div>");
@@ -2588,16 +2603,16 @@ function wgs2gcj(lon, lat) {
 function locateMe(silent) {
   if (!navigator.geolocation) {
     ipCity(silent);
-    if (!silent) toast("浏览器不支持定位，已回退故宫坐标");
+    if (!silent) toast(I18N.tf("navmap.noGeo", "浏览器不支持定位，已回退故宫坐标"));
     return;
   }
-  if (!silent) toast("正在定位…");
+  if (!silent) toast(I18N.tf("navmap.locating", "正在定位…"));
   navigator.geolocation.getCurrentPosition(
     pos => {
       const g = wgs2gcj(pos.coords.longitude, pos.coords.latitude); // 浏览器 WGS-84 → 高德 GCJ-02，源头一次转换
       NAV.myPos = { lon: g.lon, lat: g.lat, name: "我的位置" };
       NAV.geolocOk = true;
-      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; NAV.meReal = true; originKw.value = NAV.me.name; }
+      if (NAV.meAuto) { NAV.me = { ...NAV.myPos }; NAV.meReal = true; originKw.value = posName(NAV.me.name); }
       placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 16);
       regeoCity(g.lon, g.lat);
     },
@@ -2606,8 +2621,8 @@ function locateMe(silent) {
       if (!silent) {
         NAV.myPos = { ...FALLBACK_POS, name: "我的位置" };
         NAV.me = { ...NAV.myPos };
-        placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); originKw.value = NAV.me.name;
-        toast("定位失败，已回退故宫坐标（城市按 IP 估计）");
+        placeMe(); flyTo(NAV.me.lon, NAV.me.lat, 14); originKw.value = posName(NAV.me.name);
+        toast(I18N.tf("navmap.geoFail", "定位失败，已回退故宫坐标（城市按 IP 估计）"));
       }
     },
     { timeout: 8000, maximumAge: 300000 }
@@ -2615,7 +2630,7 @@ function locateMe(silent) {
 }
 document.getElementById("btnLocate").onclick = () => locateMe(false);
 function placeMe() {
-  addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(NAV.me.name) + "</span>");
+  addMarker("me", NAV.me.lon, NAV.me.lat, '<span class="pin">🔵</span><span class="lbl">' + esc(posName(NAV.me.name)) + "</span>");
 }
 // 初始定位标记与自动定位在「地图初始化」之后执行（addMarker/flyTo 依赖 MAP DOM 已绑定）
 
@@ -2628,13 +2643,13 @@ async function doWalk(origin, note) {
   clearLines();
   if (NAV.route.polyline.length) drawLine(NAV.route.polyline, "#2f6fed", false);
   fitBounds([{ lon: origin.lon, lat: origin.lat }, { lon: NAV.dest.lon, lat: NAV.dest.lat }]);
-  const box = el('<div><h4>' + (note || "🚶 步行路线") + " · " + (NAV.route.distance_m / 1000).toFixed(2) + " 公里 · 约 " + (NAV.route.duration_s ? fmtMin(NAV.route.duration_s) : "?") + " 分钟</h4></div>");
+  const box = el('<div><h4>' + (note || I18N.tf("navmap.walkTitle", "🚶 步行路线")) + " · " + (NAV.route.distance_m / 1000).toFixed(2) + I18N.tf("navmap.kmUnit", " 公里") + " · " + I18N.tf("navmap.aboutPre", "约 ") + (NAV.route.duration_s ? fmtMin(NAV.route.duration_s) : "?") + I18N.tf("card.minutes", " 分钟") + "</h4></div>");
   (NAV.route.steps || []).forEach((s, i) => {
     box.appendChild(el('<div class="nstep" id="nstep-' + i + '"><span class="ico">' + oriEmoji(s.orientation) + "</span><span>" +
-      (i + 1) + ". " + esc(s.instruction) + (s.road ? "（" + esc(s.road) + "）" : "") +
-      ' <span class="muted">' + (s.distance_m || 0) + " 米</span></span></div>"));
+      (i + 1) + ". " + esc(s.instruction) + (s.road ? I18N.tf("card.paren.pre","（") + esc(s.road) + I18N.tf("card.paren.suf","）") : "") +
+      ' <span class="muted">' + (s.distance_m || 0) + I18N.tf("navmap.mUnit", " 米") + "</span></span></div>"));
   });
-  if (!(NAV.route.steps || []).length) box.appendChild(el('<div class="muted">（起终点过近或无路径，无分步）</div>'));
+  if (!(NAV.route.steps || []).length) box.appendChild(el('<div class="muted">' + I18N.tf("navmap.noSteps", "（起终点过近或无路径，无分步）") + "</div>"));
   drawer(box);
 }
 
@@ -2645,7 +2660,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
     if (!requireDest()) return;
     if (mode === "walk") {
       try { await doWalk(NAV.me); }
-      catch (err) { failToast(err); drawer('<div class="muted">步行查询失败：' + esc(detailText(err.detail)) + "</div>"); }
+      catch (err) { failToast(err); drawer('<div class="muted">' + I18N.tf("navmap.walkFail", "步行查询失败：") + esc(detailText(err.detail)) + "</div>"); }
     } else if (mode === "transit") {
       const city = NAV.city;
       try {
@@ -2654,20 +2669,20 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
         clearLines();
         // 公交 API 无几何数据：起终点画虚线示意，选中方案换色
         drawLine([{ lon: NAV.me.lon, lat: NAV.me.lat }, { lon: NAV.dest.lon, lat: NAV.dest.lat }], "#888", true);
-        const box = el("<div><h4>🚇 公交方案（" + esc(city) + "）· " + plans.length + " 个</h4></div>");
-        if (!plans.length) box.appendChild(el('<div class="muted">无方案（或高德未配置）</div>'));
+        const box = el("<div><h4>" + I18N.tf("navmap.transitPre", "🚇 公交方案（") + esc(I18N.city(city)) + I18N.tf("navmap.transitMid", "）· ") + plans.length + I18N.tf("navmap.countSuf", " 个") + "</h4></div>");
+        if (!plans.length) box.appendChild(el('<div class="muted">' + I18N.tf("navmap.noTransit", "无方案（或高德未配置）") + "</div>"));
         plans.forEach((p, i) => {
-          const card = el('<div class="plan-card"><b>方案 ' + (i + 1) + "</b> · ¥" + esc(p.cost_yuan) + " · 约 " + fmtMin(p.duration_s) + " 分钟 · 步行 " + (p.walking_distance_m || 0) + " 米</div>");
+          const card = el('<div class="plan-card"><b>' + I18N.tf("navmap.planNo", "方案 ") + (i + 1) + "</b> · ¥" + esc(p.cost_yuan) + " · " + I18N.tf("navmap.aboutPre", "约 ") + fmtMin(p.duration_s) + I18N.tf("card.minutes", " 分钟") + I18N.tf("navmap.walkSeg", " · 步行 ") + (p.walking_distance_m || 0) + I18N.tf("navmap.mUnit", " 米") + "</div>");
           let ci = 0;
           (p.segments || []).forEach(seg => {
             if (seg.walking && seg.walking.distance_m) {
-              card.appendChild(el('<div class="row"><span class="t">🚶</span><span>步行 ' + seg.walking.distance_m + " 米</span></div>"));
+              card.appendChild(el('<div class="row"><span class="t">🚶</span><span>' + I18N.tf("navmap.walkPre", "步行 ") + seg.walking.distance_m + I18N.tf("navmap.mUnit", " 米") + "</span></div>"));
             }
             (seg.rides || []).forEach(ride => {
               const col = RIDE_COLORS[ci % RIDE_COLORS.length]; ci++;
               card.appendChild(el('<div class="row"><span class="ride-dot" style="background:' + col + '"></span><span><b>' +
-                esc(ride.name) + "</b>：" + esc(ride.departure_stop || "?") + " → " + esc(ride.arrival_stop || "?") +
-                ' <span class="muted">途经 ' + (ride.via_stops || 0) + " 站</span></span></div>"));
+                esc(ride.name) + "</b>" + I18N.tf("navmap.nameColon","：") + esc(ride.departure_stop || "?") + " → " + esc(ride.arrival_stop || "?") +
+                ' <span class="muted">' + I18N.tf("navmap.viaPre", "途经 ") + (ride.via_stops || 0) + I18N.tf("navmap.stopsSuf", " 站") + "</span></span></div>"));
             });
           });
           card.onclick = () => {
@@ -2678,7 +2693,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
           };
           box.appendChild(card);
         });
-        box.appendChild(el('<div class="muted">公交接口不含几何轨迹，虚线为起终点示意；各线路用色点区分。</div>'));
+        box.appendChild(el('<div class="muted">' + I18N.tf("navmap.transitGeomNote", "公交接口不含几何轨迹，虚线为起终点示意；各线路用色点区分。") + "</div>"));
         drawer(box);
       } catch (err) { failToast(err); }
     } else { // taxi / driving → deeplink
@@ -2688,18 +2703,19 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
       try {
         const body = await api("/api/v1/nav/deeplink", dlBody);
         const isTaxi = m === "taxi";
-        const box = el('<div><h4>' + (isTaxi ? "🚕 打车" : "🚗 驾车") + " · " + esc(NAV.dest.name) + "</h4></div>");
-        box.appendChild(el('<div class="muted">起点：' + esc(NAV.me.name) + ' → 终点：' + esc(NAV.dest.name) + "</div>"));
+        const navTitle = isTaxi ? I18N.tf("navmap.taxi", "🚕 打车") : I18N.tf("navmap.driving", "🚗 驾车");
+        const box = el('<div><h4>' + navTitle + " · " + esc(NAV.dest.name) + "</h4></div>");
+        box.appendChild(el('<div class="muted">' + I18N.tf("navmap.originColon", "起点：") + esc(posName(NAV.me.name)) + " → " + I18N.tf("navmap.destColon", "终点：") + esc(NAV.dest.name) + "</div>"));
         const row = el('<div class="row" style="gap:10px;margin:4px 0"></div>');
-        const appBtn = el('<button class="btn">📲 打开高德 App</button>');
+        const appBtn = el('<button class="btn">' + I18N.tf("navmap.openAmap", "📲 打开高德 App") + "</button>");
         appBtn.onclick = () => openHandoff(body.app_deeplink, isTaxi ? null : body.web_fallback); // 打车无网页版，勿拿驾车路线页冒充
         row.appendChild(appBtn);
-        row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">' + (isTaxi ? "🗺 驾车路线预览" : "🌐 网页版") + '</a>'));
+        row.appendChild(el('<a class="btn ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(body.web_fallback) + '">' + (isTaxi ? I18N.tf("navmap.drivePreview", "🗺 驾车路线预览") : I18N.tf("navmap.webVer", "🌐 网页版")) + '</a>'));
         box.appendChild(row);
         if (isTaxi) { // 高德打车无网页版（1018 八域名内容级探明）⇒ 二维码桥接：手机扫码直达高德App打车页
           const qrBox = el('<div style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff;display:inline-block"></div>');
           qrBox.appendChild(el('<div id="taxiQr" style="margin:0 auto"></div>'));
-          qrBox.appendChild(el('<div class="muted" style="text-align:center;margin-top:4px">手机扫码 → 高德App 打车页（起终点已带入）</div>'));
+          qrBox.appendChild(el('<div class="muted" style="text-align:center;margin-top:4px">' + I18N.tf("navmap.qrHint", "手机扫码 → 高德App 打车页（起终点已带入）") + "</div>"));
           box.appendChild(qrBox);
           drawer(box);
           if (typeof QRCode !== "undefined") {
@@ -2709,7 +2725,7 @@ document.querySelectorAll("#modeBar button[data-mode]").forEach(btn => {
           return;
         }
         if (body.ios_alternative) {
-          box.appendChild(el('<div class="muted" style="margin-top:4px">iOS 备用：<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
+          box.appendChild(el('<div class="muted" style="margin-top:4px">' + I18N.tf("navmap.iosAlt", "iOS 备用：") + '<a class="lnk" target="_blank" rel="noopener" href="' + esc(body.ios_alternative) + '">' + esc(body.ios_alternative) + "</a></div>"));
         }
         box.appendChild(el('<div class="muted" style="margin-top:4px;word-break:break-all">' + esc(body.app_deeplink) + "</div>"));
         drawer(box);
@@ -2733,16 +2749,16 @@ document.getElementById("remGo").onclick = (e) => busy(e.target, async () => {
   const t = document.getElementById("remTime").value;
   const station = document.getElementById("remStation").value.trim();
   const type = document.getElementById("remType").value;
-  if (!t || !station) { toast("先选出发时间、填车站名"); return; }
+  if (!t || !station) { toast(I18N.tf("rem.needInput", "先选出发时间、填车站名")); return; }
   try {
     const body = await api("/api/v1/nav/transport-reminders", { type, departure_time: t, station_name: station });
     const out = document.getElementById("remOut");
     out.innerHTML = "";
-    const box = el('<div class="card"><h4>⏰ 提醒时间轴</h4></div>');
+    const box = el('<div class="card"><h4>' + I18N.tf("rem.timeline", "⏰ 提醒时间轴") + "</h4></div>");
     (body.reminders || []).forEach(rm => {
       let at = rm.at;
       const d = new Date(rm.at);
-      if (!isNaN(d.getTime())) at = d.toLocaleString("zh-CN", { hour12: false });
+      if (!isNaN(d.getTime())) at = d.toLocaleString(I18N.locale() === "en" ? "en-US" : "zh-CN", { hour12: false });
       box.appendChild(el('<div class="row"><span class="t">' + esc(at) + '</span><span><span class="badge warn">' + esc(rm.kind) + "</span> " + esc(rm.message) + "</span></div>"));
     });
     out.appendChild(box);
@@ -2760,7 +2776,7 @@ MAP.h = MAP.wrap.clientHeight || 600;
 initMapEvents();
 renderMap();
 placeMe(); // 初始：默认在故宫（必须在地图初始化后：addMarker 依赖 MAP.mkEl）
-originKw.value = NAV.me.name;
+originKw.value = posName(NAV.me.name);
 locateMe(true); // 打开即自动定位：城市默认跟随真实定位城市（regeo 反查），失败走 IP 定位兜底
 
 /* ============ Tab 4：行程（我的行程列表：每行 查看 / 删除） ============ */
@@ -2785,13 +2801,13 @@ async function itinSavedLoad() {
     listEl.textContent = "";
     if (!rows || !rows.length) {
       listEl.className = "muted";
-      listEl.textContent = "还没有行程——到「规划」页生成后点「💾 保存行程」。";
+      listEl.textContent = I18N.tf("itin.empty", "还没有行程——到「规划」页生成后点「💾 保存行程」。");
       return;
     }
     listEl.className = "";
     rows.forEach(r => {
       const row = el('<div class="row"><span class="t"><code>' + esc(r.itinerary_id) + '</code></span><span style="flex:1;min-width:0">' +
-        esc((r.cities || []).join(" → ")) + " · 快照 " + (r.snapshot_count || 0) + " 个 · v" + (r.working_sync_version || 0) +
+        esc((r.cities || []).map(c => I18N.city(c)).join(" → ")) + I18N.tf("itin.snapPre", " · 快照 ") + (r.snapshot_count || 0) + I18N.tf("itin.snapSuf", " 个 · v") + (r.working_sync_version || 0) +
         (itinFmtLocal(r.updated_at || r.created_at) ? " · 🗓 " + itinFmtLocal(r.updated_at || r.created_at) : "") + "</span></div>");
       const ops = el('<div class="ops" style="display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"></div>');
       const mk = (label, fn) => {
@@ -2799,17 +2815,17 @@ async function itinSavedLoad() {
         b.onclick = (ev) => fn(ev.target);
         ops.appendChild(b);
       };
-      mk("✏️ 修改", (b) => itinEdit(r, b));
-      mk("⬇️ 导出", (b) => itinExport(r, b));
-      mk(r.share_enabled ? "🔗 复制链接" : "🔗 分享", (b) => itinShareOn(r, b));
-      if (r.share_enabled) mk("🚫 关闭分享", (b) => itinShareOff(r, b));
-      mk("🗑 删除", (b) => {
-        const label = (r.cities || []).join(" → ") || r.itinerary_id;
-        if (!confirm("确定删除行程「" + label + "」（" + r.itinerary_id + "）？将连同它的全部快照一起删除，操作不可恢复。")) return;
+      mk(I18N.tf("itin.edit", "✏️ 修改"), (b) => itinEdit(r, b));
+      mk(I18N.tf("itin.export", "⬇️ 导出"), (b) => itinExport(r, b));
+      mk(r.share_enabled ? I18N.tf("itin.copyLink", "🔗 复制链接") : I18N.tf("itin.share", "🔗 分享"), (b) => itinShareOn(r, b));
+      if (r.share_enabled) mk(I18N.tf("itin.shareOff", "🚫 关闭分享"), (b) => itinShareOff(r, b));
+      mk(I18N.tf("itin.del", "🗑 删除"), (b) => {
+        const label = (r.cities || []).map(c => I18N.city(c)).join(" → ") || r.itinerary_id;
+        if (!confirm(I18N.tf("itin.delConfirmPre", "确定删除行程「") + label + I18N.tf("itin.delConfirmMid", "」（") + r.itinerary_id + I18N.tf("itin.delConfirmSuf", "）？将连同它的全部快照一起删除，操作不可恢复。"))) return;
         busy(b, async () => {
           try {
             await api("/api/v1/itineraries/" + r.itinerary_id, undefined, "DELETE");
-            toast("已删除行程 " + r.itinerary_id);
+            toast(I18N.tf("itin.deleted", "已删除行程 ") + r.itinerary_id);
             await itinSavedLoad();
           } catch (err) { failToast(err); }
         });
@@ -2819,7 +2835,7 @@ async function itinSavedLoad() {
     });
   } catch (err) {
     listEl.className = "muted";
-    listEl.textContent = "加载失败：" + detailText(err.detail);
+    listEl.textContent = I18N.tf("itin.loadFail", "加载失败：") + detailText(err.detail);
   }
 }
 
@@ -2838,12 +2854,12 @@ async function itinEdit(r, btn) {
       // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
       planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");
-      addMsg("flow-plan", "user", "✏️ 修改行程：" + (r.cities || []).join(" → ") + "（" + r.itinerary_id + "）");
+      addMsg("flow-plan", "user", I18N.tf("itin.editMsgPre", "✏️ 修改行程：") + (r.cities || []).map(c => I18N.city(c)).join(" → ") + I18N.tf("itin.parenPre", "（") + r.itinerary_id + I18N.tf("itin.parenSuf", "）"));
       const holder = addMsg("flow-plan", "sys", "");
       holder.textContent = "";
       planRenderSafe(holder, body, { first: true });
       document.getElementById("flow-plan").scrollTop = 1e9;
-      toast("已载入到规划页：直接说要怎么改；改完点「💾 保存行程」覆盖保存");
+      toast(I18N.tf("itin.editLoaded", "已载入到规划页：直接说要怎么改；改完点「💾 保存行程」覆盖保存"));
     } catch (err) { failToast(err); }
   });
 }
@@ -2857,7 +2873,7 @@ async function autoOpenLatestItin() {
   try {
     const rows = await api("/api/v1/itineraries", undefined, "GET");
     if (!rows || !rows.length) {
-      toast("本设备暂无已存行程——换浏览器/手机不共享，可在「行程」页确认");
+      toast(I18N.tf("itin.noneOnDevice", "本设备暂无已存行程——换浏览器/手机不共享，可在「行程」页确认"));
       return;
     }
     const latest = rows.reduce((a, b) =>
@@ -2903,28 +2919,28 @@ async function itinShareOn(r, btn) {
 function shareLinkCard(url) {
   const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
     '<div class="card" style="min-width:280px;max-width:90vw;padding:16px">' +
-    "<h4 style=\"margin:0 0 10px\">🔗 分享链接（只读，已复制到剪贴板）</h4>" +
+    "<h4 style=\"margin:0 0 10px\">" + I18N.tf("share.title", "🔗 分享链接（只读，已复制到剪贴板）") + "</h4>" +
     '<div style="margin-bottom:12px;word-break:break-all"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></div>" +
     '<div style="display:flex;gap:8px">' +
-    '<button class="btn" data-a="copy">📋 再复制一次</button>' +
-    '<button class="btn ghost" data-a="close">关闭</button>' +
+    '<button class="btn" data-a="copy">' + I18N.tf("share.copyAgain", "📋 再复制一次") + "</button>" +
+    '<button class="btn ghost" data-a="close">' + I18N.tf("rem.close", "关闭") + "</button>" +
     "</div></div></div>");
   mask.addEventListener("click", (ev) => {
     const b = ev.target.closest ? ev.target.closest("button[data-a]") : null;
     if (!b || !mask.contains(b)) return;
     if (b.getAttribute("data-a") === "copy") {
-      busy(b, async () => { await copyText(url); toast("已复制"); });
+      busy(b, async () => { await copyText(url); toast(I18N.tf("share.copied", "已复制")); });
     } else mask.remove();
   });
   document.body.appendChild(mask);
 }
 
 async function itinShareOff(r, btn) {
-  if (!confirm("关闭后分享链接立即失效（再次开启还是同一个链接）。确定关闭？")) return;
+  if (!confirm(I18N.tf("share.offConfirm", "关闭后分享链接立即失效（再次开启还是同一个链接）。确定关闭？"))) return;
   await busy(btn, async () => {
     try {
       await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: false });
-      toast("已关闭分享，公开链接已失效");
+      toast(I18N.tf("share.offDone", "已关闭分享，公开链接已失效"));
       await itinSavedLoad();
     } catch (err) { failToast(err); }
   });
@@ -2933,7 +2949,7 @@ async function itinShareOff(r, btn) {
 // 只读分享视图：全屏浮层，逐天逐站列出（不含预订/账号等隐私字段，公开接口只回白名单）
 async function shareOpen(token) {
   const ov = el('<div id="shareView" style="position:fixed;inset:0;z-index:9999;background:#f6f7fb;overflow:auto;padding:16px"></div>');
-  ov.appendChild(el('<div class="muted" style="text-align:center;padding:60px 0">行程加载中…</div>'));
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:60px 0">' + I18N.tf("share.loading", "行程加载中…") + "</div>"));
   document.body.appendChild(ov);
   let d;
   try {
@@ -2942,10 +2958,10 @@ async function shareOpen(token) {
     ov.textContent = "";
     const box = el('<div class="card" style="max-width:520px;margin:60px auto;text-align:center"></div>');
     if (err.status === 404) {
-      box.appendChild(el('<h3>🔗 链接已失效</h3>'));
-      box.appendChild(el('<div class="muted">行程不存在，或作者已关闭分享。</div>'));
+      box.appendChild(el("<h3>" + I18N.tf("share.expired", "🔗 链接已失效") + "</h3>"));
+      box.appendChild(el('<div class="muted">' + I18N.tf("share.notFound", "行程不存在，或作者已关闭分享。") + "</div>"));
     } else {
-      box.appendChild(el('<h3>⚠️ 加载失败</h3>'));
+      box.appendChild(el("<h3>" + I18N.tf("share.loadFail", "⚠️ 加载失败") + "</h3>"));
       box.appendChild(el('<div class="muted">' + esc(detailText(err.detail)) + "</div>"));
     }
     ov.appendChild(box);
@@ -2954,18 +2970,18 @@ async function shareOpen(token) {
   ov.textContent = "";
   const head = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
   head.appendChild(el('<h3 style="margin:0 0 6px">🗺 ' + esc(d.title) + "</h3>"));
-  head.appendChild(el('<div class="muted">共 ' + d.days_count + " 天 · " + d.stops_count + " 个行程点 · 只读分享</div>"));
+  head.appendChild(el('<div class="muted">' + I18N.tf("share.daysPre", "共 ") + d.days_count + I18N.tf("share.daysMid", " 天 · ") + d.stops_count + I18N.tf("share.stopsMid", " 个行程点 · 只读分享") + "</div>"));
   ov.appendChild(head);
   (d.days || []).forEach(day => {
     const card = el('<div class="card" style="max-width:720px;margin:0 auto 12px"></div>');
-    card.appendChild(el('<h4 style="margin:0 0 8px">Day ' + day.day + " · " + esc(shortCity(day.base_city)) + "</h4>"));
+    card.appendChild(el('<h4 style="margin:0 0 8px">Day ' + day.day + " · " + esc(I18N.city(shortCity(day.base_city))) + "</h4>"));
     const list = el('<div style="display:flex;flex-direction:column;gap:6px"></div>');
     (day.items || []).forEach(it => {
       const t = (it.start_time || "").slice(0, 5);
       if (it.kind === "transfer") {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
-          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(shortCity(it.from_city)) + " → " + esc(shortCity(it.to_city)) +
-          (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + " 分钟" : "") + "</span></div>"));
+          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
+          (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + I18N.tf("card.minutes", " 分钟") : "") + "</span></div>"));
       } else {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +
           (it.address || it.opening_hours
@@ -2974,11 +2990,11 @@ async function shareOpen(token) {
             : "") + "</span></div>"));
       }
     });
-    if (!(day.items || []).length) list.appendChild(el('<div class="muted">（当天无安排）</div>'));
+    if (!(day.items || []).length) list.appendChild(el('<div class="muted">' + I18N.tf("share.dayEmpty", "（当天无安排）") + "</div>"));
     card.appendChild(list);
     ov.appendChild(card);
   });
-  ov.appendChild(el('<div class="muted" style="text-align:center;padding:12px 0 24px">由 ChinaTrip 行程助手生成 · <a href="/h5/">我也想做一个行程</a></div>'));
+  ov.appendChild(el('<div class="muted" style="text-align:center;padding:12px 0 24px">' + I18N.tf("share.footerPre", "由 ChinaTrip 行程助手生成 · ") + '<a href="/h5/">' + I18N.tf("share.footerCta", "我也想做一个行程") + "</a></div>"));
 }
 
 // 首开带 ?share={token}：只读视图直接盖在最上层（接收者无需登录/设备号）
@@ -2989,15 +3005,15 @@ if (shareParam) shareOpen(shareParam);
 // PDF = 后端打印 HTML → 沙箱 iframe → 浏览器打印对话框选「另存为 PDF」（零依赖矢量方案）；
 // Word/Excel = 后端 python-docx/openpyxl 生成的二进制，走 blob 下载，文件名取自 Content-Disposition。
 function itinExport(r, btn) {
-  const label = (r.cities || []).join(" → ") || r.itinerary_id;
+  const label = (r.cities || []).map(c => I18N.city(c)).join(" → ") || r.itinerary_id;
   const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
     '<div class="card" style="min-width:280px;max-width:90vw;padding:16px">' +
-    "<h4 style=\"margin:0 0 12px\">导出行程「" + esc(label) + "」</h4>" +
+    "<h4 style=\"margin:0 0 12px\">" + I18N.tf("export.titlePre", "导出行程「") + esc(label) + I18N.tf("export.titleSuf", "」") + "</h4>" +
     '<div style="display:flex;flex-direction:column;gap:8px">' +
-    '<button class="btn" data-fmt="pdf">📄 PDF（打印后选「另存为 PDF」）</button>' +
-    '<button class="btn" data-fmt="docx">📝 Word 文档</button>' +
-    '<button class="btn" data-fmt="xlsx">📊 Excel 表格</button>' +
-    '<button class="btn ghost" data-fmt="close">取消</button>' +
+    '<button class="btn" data-fmt="pdf">' + I18N.tf("export.pdf", "📄 PDF（打印后选「另存为 PDF」）") + "</button>" +
+    '<button class="btn" data-fmt="docx">' + I18N.tf("export.docx", "📝 Word 文档") + "</button>" +
+    '<button class="btn" data-fmt="xlsx">' + I18N.tf("export.xlsx", "📊 Excel 表格") + "</button>" +
+    '<button class="btn ghost" data-fmt="close">' + I18N.tf("auth.cancel", "取消") + "</button>" +
     "</div></div></div>");
   mask.addEventListener("click", (ev) => {
     const b = ev.target.closest ? ev.target.closest("button[data-fmt]") : null;
@@ -3008,7 +3024,7 @@ function itinExport(r, btn) {
       try {
         if (fmt === "pdf") await exportPrint(r.itinerary_id);
         else await exportDownload(r.itinerary_id, fmt);
-        toast("已生成「" + label + "」导出");
+        toast(I18N.tf("export.donePre", "已生成「") + label + I18N.tf("export.doneSuf", "」导出"));
       } catch (err) { failToast(err); }
       mask.remove();
     });
@@ -3034,7 +3050,7 @@ async function exportPrint(itinId) {
 async function exportDownload(itinId, fmt) {
   const res = await apiRaw("/api/v1/itineraries/" + encodeURIComponent(itinId) + "/export?format=" + fmt);
   const blob = await res.blob();
-  saveBlob(blob, cdFilename(res, "行程." + fmt));
+  saveBlob(blob, cdFilename(res, I18N.tf("itin.filePrefix", "行程.") + fmt));
 }
 
 document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", () => itinSavedLoad());
@@ -3053,8 +3069,8 @@ function bkAddDays(iso, n) {
 }
 
 function bkErrMsg(err) {
-  if (err && err.status === 422) return "❌ 参数无效：检查城市名、日期格式（YYYY-MM-DD）与坐标是否在合理范围";
-  return "❌ 查询失败：" + detailText(err.detail);
+  if (err && err.status === 422) return I18N.tf("bk.err422", "❌ 参数无效：检查城市名、日期格式（YYYY-MM-DD）与坐标是否在合理范围");
+  return I18N.tf("bk.errQuery", "❌ 查询失败：") + detailText(err.detail);
 }
 
 /* ---- 铁律 23：跳转渠道前弹退改摘要全文；无 refund_policy 一律禁止跳转 ---- */
@@ -3063,12 +3079,12 @@ let bkPendingUrl = null;
 let bkPendingAction = null; // {action_type, channel, url, refund_summary}：铁律 22 跳转埋点
 function bkConfirmOpen(channel, url, refund, actionType) {
   const summ = refund && refund.summary ? refund.summary : (typeof refund === "string" ? refund : "");
-  if (!summ) { toast("缺少退改签摘要（铁律 23），禁止跳转"); return; }
+  if (!summ) { toast(I18N.tf("bk.noRefundNoGo", "缺少退改签摘要（铁律 23），禁止跳转")); return; }
   bkPendingUrl = url;
   bkPendingAction = actionType ? { action_type: actionType, channel: channel, url: url, refund_summary: summ } : null;
-  document.getElementById("bkConfirmTitle").textContent = "⚠️ 跳转 " + (BK_CHANNEL[channel] || channel) + " 前，请先阅读退改政策";
+  document.getElementById("bkConfirmTitle").textContent = I18N.tf("bk.confirmPre", "⚠️ 跳转 ") + I18N.tf("bk.chan." + channel, BK_CHANNEL[channel] || channel) + I18N.tf("bk.confirmSuf", " 前，请先阅读退改政策");
   document.getElementById("bkConfirmSummary").textContent = summ; // 全文，textContent 防注入
-  document.getElementById("bkConfirmUrl").textContent = "即将打开：" + url;
+  document.getElementById("bkConfirmUrl").textContent = I18N.tf("bk.willOpen", "即将打开：") + url;
   document.getElementById("bkConfirm").style.display = "flex";
 }
 function bkConfirmClose() {
@@ -3096,11 +3112,11 @@ const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", 
 // 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）；actionType → 铁律 22 埋点
 function bkChannelBtn(channel, url, refund, primary, label, actionType) {
   const b = el('<button class="btn mini' + (primary ? "" : " ghost") + '"></button>');
-  b.textContent = label || ("↗️ 前往 " + (BK_CHANNEL[channel] || channel) + (primary ? "（主）" : "（备）"));
-  if (!url) { b.disabled = true; b.title = "渠道未返回链接"; return b; }
+  b.textContent = label || (I18N.tf("bk.goPre", "↗️ 前往 ") + I18N.tf("bk.chan." + channel, BK_CHANNEL[channel] || channel) + (primary ? I18N.tf("bk.primary", "（主）") : I18N.tf("bk.backup", "（备）")));
+  if (!url) { b.disabled = true; b.title = I18N.tf("bk.noUrl", "渠道未返回链接"); return b; }
   if (!refund || !refund.summary) {
     b.disabled = true;
-    b.title = "响应缺少退改签摘要（铁律 23），禁止跳转";
+    b.title = I18N.tf("bk.noRefundTitle", "响应缺少退改签摘要（铁律 23），禁止跳转");
     return b;
   }
   b.onclick = () => bkConfirmOpen(channel, url, refund, actionType);
@@ -3109,6 +3125,8 @@ function bkChannelBtn(channel, url, refund, primary, label, actionType) {
 
 /* ---- 转链交易中心卡片组（/api/v1/offers/cards，铁律 22/23 流程不变） ---- */
 
+const BK_KIND_ZH = { train: "🚄 火车票", flight: "✈️ 机票", hotel: "🏨 酒店" }; // kind→中文兜底表，消费点 tf("bk.kind."+kind, BK_KIND_ZH[kind])
+
 function bkPriceText(card) {
   const v = Number(card.price_yuan);
   return "¥" + (Number.isInteger(v) ? v : v.toFixed(1));
@@ -3116,24 +3134,24 @@ function bkPriceText(card) {
 
 // 单张渠道卡：渠道名 + 价格/tag + 退改摘要 + 前往预订（过铁律 23 浮层）
 function bkOfferCard(card, kind, primary, sameGroup) {
-  const chan = BK_CHANNEL[card.channel] || card.channel;
+  const chan = I18N.tf("bk.chan." + card.channel, BK_CHANNEL[card.channel] || card.channel);
   const box = el(primary ? '<div class="tile" style="border-color:var(--accent);border-width:2px"></div>' : '<div class="tile"></div>');
   const head = el('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>');
   head.appendChild(el('<b style="font-size:' + (primary ? "15px" : "13px") + '">' + esc(chan) + "</b>"));
   if (card.unified_price) {
-    head.appendChild(el('<span class="badge ok">全国统一价</span>')); // 12306：不显示价格
+    head.appendChild(el('<span class="badge ok">' + I18N.tf("bk.unified", "全国统一价") + "</span>")); // 12306：不显示价格
   } else if (card.price_yuan != null) {
     head.appendChild(el('<b style="font-size:' + (primary ? "17px" : "14px") + '">' + bkPriceText(card) + "</b>"));
   } else {
-    head.appendChild(el('<span class="badge">价格未知</span>'));
+    head.appendChild(el('<span class="badge">' + I18N.tf("bk.priceUnknown", "价格未知") + "</span>"));
   }
-  const tag = card.tag || (sameGroup && sameGroup.indexOf(card.channel) >= 0 ? "同价" : null);
+  const tag = card.tag || (sameGroup && sameGroup.indexOf(card.channel) >= 0 ? I18N.tf("bk.samePrice", "同价") : null);
   if (tag && tag !== "全国统一价") head.appendChild(el('<span class="badge warn">' + esc(tag) + "</span>"));
   box.appendChild(head);
-  box.appendChild(el('<div class="muted" style="margin:4px 0">退改：' + esc(card.refund_summary || "（无摘要）") + "</div>"));
+  box.appendChild(el('<div class="muted" style="margin:4px 0">' + I18N.tf("bk.refundColon", "退改：") + esc(card.refund_summary || I18N.tf("bk.noSummary", "（无摘要）")) + "</div>"));
   const url = card.url || card.fallback_url;
   const btn = bkChannelBtn(card.channel, url, { summary: card.refund_summary }, primary,
-    "↗️ 前往预订" + (primary ? "（主推）" : ""), kind);
+    I18N.tf("bk.goBook", "↗️ 前往预订") + (primary ? I18N.tf("bk.primaryRec", "（主推）") : ""), kind);
   box.appendChild(btn);
   return box;
 }
@@ -3141,8 +3159,9 @@ function bkOfferCard(card, kind, primary, sameGroup) {
 // 卡片组：disclaimer 大字 → 主推大卡 → 折叠全部渠道 → 说明
 function bkOffersCards(body) {
   const kind = body.kind;
-  const box = el('<div class="card"><h4>🛒 转链交易中心 · ' +
-    ({ train: "🚄 火车票", flight: "✈️ 机票", hotel: "🏨 酒店" }[kind] || esc(kind)) + "</h4></div>");
+  const kindZh = BK_KIND_ZH[kind];
+  const box = el('<div class="card"><h4>' + I18N.tf("bk.center", "🛒 转链交易中心 · ") +
+    (kindZh ? I18N.tf("bk.kind." + kind, kindZh) : esc(kind)) + "</h4></div>");
   if (body.disclaimer) {
     box.appendChild(el('<div class="violation warning" style="font-size:15px">' + esc(body.disclaimer) + "</div>"));
   }
@@ -3152,13 +3171,13 @@ function bkOffersCards(body) {
   if (prim) box.appendChild(bkOfferCard(prim, kind, true, sg));
   const rest = prim ? cards.filter(c => c.channel !== prim.channel) : cards;
   if (rest.length) {
-    const det = el('<details' + (prim ? "" : " open") + '><summary>展开全部 ' + cards.length + " 渠道</summary></details>");
+    const det = el('<details' + (prim ? "" : " open") + '><summary>' + I18N.tf("bk.expandPre", "展开全部 ") + cards.length + I18N.tf("bk.expandSuf", " 渠道") + "</summary></details>");
     const wrap = el('<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>');
     rest.forEach(c => wrap.appendChild(bkOfferCard(c, kind, false, sg)));
     det.appendChild(wrap);
     box.appendChild(det);
   }
-  box.appendChild(el('<div class="muted">比价为 mock 数据仅供展示；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转。</div>'));
+  box.appendChild(el('<div class="muted">' + I18N.tf("bk.disclaimer", "比价为 mock 数据仅供展示；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转。") + "</div>"));
   return box;
 }
 
@@ -3176,16 +3195,16 @@ document.getElementById("bookStartDate").addEventListener("change", bkRenderPlan
 
 /* ---- 💳 客户付款层（/api/v1/payments；公司↔客户收款，铁律 22 渠道 handoff 不变） ---- */
 
+const PAY_STATUS_ZH = { // status→[class, 中文兜底]，消费点 tf("pay.st."+status, m[1])
+  pending: ["badge warn", "待支付 Pending"],
+  succeeded: ["badge ok", "已支付 Paid"],
+  canceled: ["badge", "已取消 Canceled"],
+  refunded: ["badge", "已退款 Refunded"],
+  method_saved: ["badge ok", "已存卡 Saved"]
+};
 function payStatusBadge(status) {
-  const map = {
-    pending: ["badge warn", "待支付 Pending"],
-    succeeded: ["badge ok", "已支付 Paid"],
-    canceled: ["badge", "已取消 Canceled"],
-    refunded: ["badge", "已退款 Refunded"],
-    method_saved: ["badge ok", "已存卡 Saved"]
-  };
-  const m = map[status] || ["badge", status];
-  return '<span class="' + m[0] + '">' + esc(m[1]) + "</span>";
+  const m = PAY_STATUS_ZH[status] || ["badge", status];
+  return '<span class="' + m[0] + '">' + esc(map[status] ? I18N.tf("pay.st." + status, m[1]) : status) + "</span>";
 }
 
 // 单条付款记录：类型+金额/卡标签 + 状态徽章 + 说明 + 退改摘要（铁律 23）
@@ -3195,13 +3214,13 @@ function payRow(r) {
     : (r.saved_method_label ? "💳 " + esc(r.saved_method_label) : "—");
   const tile = el('<div class="tile"></div>');
   const head = el('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>');
-  head.appendChild(el("<b>" + (r.kind === "pay_now" ? "立即支付" : "存卡") + " · " + amt + "</b>"));
+  head.appendChild(el("<b>" + (r.kind === "pay_now" ? I18N.tf("pay.payNow", "立即支付") : I18N.tf("pay.saveCard", "存卡")) + " · " + amt + "</b>"));
   head.insertAdjacentHTML("beforeend", payStatusBadge(r.status));
   tile.appendChild(head);
   const bits = [r.description, r.provider === "mock" ? "mock" : null, r.paid_at,
-    r.handoff_id ? "单 " + esc(r.handoff_id) : null].filter(Boolean).join(" · ");
+    r.handoff_id ? I18N.tf("pay.handoffPre", "单 ") + esc(r.handoff_id) : null].filter(Boolean).join(" · ");
   if (bits) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + bits + "</div>"));
-  tile.appendChild(el('<div class="muted" style="font-size:12px">退改：' + esc(r.refund_summary || "（无摘要）") + "</div>"));
+  tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(r.refund_summary || I18N.tf("bk.noSummary", "（无摘要）")) + "</div>"));
   return tile;
 }
 
@@ -3211,7 +3230,7 @@ async function payLoadMine() {
     const body = await api("/api/v1/payments/mine");
     const rows = body.payments || [];
     out.innerHTML = "";
-    if (!rows.length) { out.appendChild(el('<div class="muted">暂无付款记录 / No payments yet</div>')); return; }
+    if (!rows.length) { out.appendChild(el('<div class="muted">' + I18N.tf("pay.none", "暂无付款记录 / No payments yet") + "</div>")); return; }
     const wrap = el('<div style="display:flex;flex-direction:column;gap:6px"></div>');
     rows.forEach(r => wrap.appendChild(payRow(r)));
     out.appendChild(wrap);
@@ -3226,8 +3245,8 @@ function payPoll(pid, left) {
   api("/api/v1/payments/" + pid).then(r => {
     if (r.status !== "pending") {
       payLoadMine();
-      toast(r.status === "succeeded" ? "✅ 支付成功" :
-        (r.status === "method_saved" ? "✅ 支付方式已保存" : "付款状态：" + r.status));
+      toast(r.status === "succeeded" ? I18N.tf("pay.okPaid", "✅ 支付成功") :
+        (r.status === "method_saved" ? I18N.tf("pay.okSaved", "✅ 支付方式已保存") : I18N.tf("pay.statusColon", "付款状态：") + r.status));
       return;
     }
     payPollTimer = setTimeout(() => payPoll(pid, left - 1), 5000);
@@ -3238,16 +3257,16 @@ function payPoll(pid, left) {
 function payMockSheet(pid) {
   const overlay = el('<div id="payMock" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60">' +
     '<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,380px);box-shadow:var(--shadow)">' +
-    "<h4>🧪 Mock 收银台（dev）</h4>" +
-    '<div class="muted" style="margin:8px 0">payment: ' + esc(pid) + "<br>模拟 hosted Checkout——外卡/支付宝/微信支付在此确认。</div>" +
+    "<h4>" + I18N.tf("pay.mockTitle", "🧪 Mock 收银台（dev）") + "</h4>" +
+    '<div class="muted" style="margin:8px 0">payment: ' + esc(pid) + "<br>" + I18N.tf("pay.mockNote", "模拟 hosted Checkout——外卡/支付宝/微信支付在此确认。") + "</div>" +
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
-    '<button class="btn plain" id="payMockCancel">取消</button>' +
-    '<button class="btn" id="payMockOk">✅ 模拟支付成功</button></div></div></div>');
+    '<button class="btn plain" id="payMockCancel">' + I18N.tf("pay.mockCancel", "取消") + "</button>" +
+    '<button class="btn" id="payMockOk">' + I18N.tf("pay.mockOk", "✅ 模拟支付成功") + "</button></div></div></div>");
   document.body.appendChild(overlay);
   overlay.querySelector("#payMockCancel").onclick = () => overlay.remove();
   overlay.querySelector("#payMockOk").onclick = () => {
     api("/api/v1/payments/" + pid + "/confirm", undefined, "POST")
-      .then(() => { overlay.remove(); toast("✅ 已确认"); payLoadMine(); })
+      .then(() => { overlay.remove(); toast(I18N.tf("pay.confirmed", "✅ 已确认")); payLoadMine(); })
       .catch(failToast);
   };
 }
@@ -3267,7 +3286,7 @@ document.getElementById("payGo").onclick = (e) => busy(e.target, async () => {
   const body = { kind, currency: document.getElementById("payCurrency").value };
   const amt = parseFloat(document.getElementById("payAmount").value);
   if (kind === "pay_now") {
-    if (!(amt > 0)) { toast("请输入大于 0 的金额"); return; }
+    if (!(amt > 0)) { toast(I18N.tf("pay.amtPos", "请输入大于 0 的金额")); return; }
     body.amount_yuan = amt;
   }
   const desc = document.getElementById("payDesc").value.trim();
@@ -3275,7 +3294,7 @@ document.getElementById("payGo").onclick = (e) => busy(e.target, async () => {
   const hid = document.getElementById("payHandoff").value.trim();
   if (hid) body.handoff_id = hid;
   const created = await api("/api/v1/payments/checkout", body, "POST");
-  toast("收银台已创建，正在打开…");
+  toast(I18N.tf("pay.opening", "收银台已创建，正在打开…"));
   window.open(created.checkout_url, "_blank");
   payPoll(created.payment_id, 12);
   payLoadMine();
@@ -3287,9 +3306,9 @@ async function bkTrainSearch() {
   const from = document.getElementById("bkTrainFrom").value.trim();
   const to = document.getElementById("bkTrainTo").value.trim();
   const date = document.getElementById("bkTrainDate").value;
-  if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-train", "user", "🚄 火车票转链：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-train", "sys", "⏳ 组装转链卡片…");
+  if (!from || !to || !date) { toast(I18N.tf("bk.needFromToDate", "出发城市、到达城市、日期都要填")); return; }
+  addMsg("flow-book-train", "user", I18N.tf("bk.trainEcho", "🚄 火车票转链：") + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-train", "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
   try {
     const body = await api("/api/v1/offers/cards", { kind: "train", from_city: from, to_city: to, date });
     holder.textContent = "";
@@ -3308,9 +3327,9 @@ async function bkFlightSearch() {
   const from = document.getElementById("bkFlightFrom").value.trim();
   const to = document.getElementById("bkFlightTo").value.trim();
   const date = document.getElementById("bkFlightDate").value;
-  if (!from || !to || !date) { toast("出发城市、到达城市、日期都要填"); return; }
-  addMsg("flow-book-flight", "user", "✈️ 机票转链：" + from + " → " + to + " · " + date);
-  const holder = addMsg("flow-book-flight", "sys", "⏳ 组装转链卡片…");
+  if (!from || !to || !date) { toast(I18N.tf("bk.needFromToDate", "出发城市、到达城市、日期都要填")); return; }
+  addMsg("flow-book-flight", "user", I18N.tf("bk.flightEcho", "✈️ 机票转链：") + from + " → " + to + " · " + date);
+  const holder = addMsg("flow-book-flight", "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
   try {
     const body = await api("/api/v1/offers/cards", { kind: "flight", from_city: from, to_city: to, date });
     holder.textContent = "";
@@ -3332,14 +3351,14 @@ async function bkHotelSearch() {
   const lat = parseFloat(document.getElementById("bkHotelLat").value);
   const ci = document.getElementById("bkHotelIn").value;
   const co = document.getElementById("bkHotelOut").value;
-  if (!city || !poi || !ci || !co) { toast("城市、锚点景点、入住/退房日期都要填"); return; }
-  if (!isFinite(lon) || !isFinite(lat)) { toast("经纬度必填（点下方按天卡片可自动带入）"); return; }
-  addMsg("flow-book-hotel", "user", "🏨 酒店转链：" + city + " · " + poi + " 附近 · " + ci + " → " + co);
-  const holder = addMsg("flow-book-hotel", "sys", "⏳ 组装转链卡片…");
+  if (!city || !poi || !ci || !co) { toast(I18N.tf("bk.hotelNeedAll", "城市、锚点景点、入住/退房日期都要填")); return; }
+  if (!isFinite(lon) || !isFinite(lat)) { toast(I18N.tf("bk.needLonLat", "经纬度必填（点下方按天卡片可自动带入）")); return; }
+  addMsg("flow-book-hotel", "user", I18N.tf("bk.hotelEcho", "🏨 酒店转链：") + city + " · " + poi + I18N.tf("bk.near", " 附近 · ") + ci + " → " + co);
+  const holder = addMsg("flow-book-hotel", "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
   try {
     const body = await api("/api/v1/offers/cards", { kind: "hotel", city, near_poi_name: poi, lon, lat, checkin: ci, checkout: co });
     holder.textContent = "";
-    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + " · 锚点 " + esc(poi) + "</h4><div>入住 " + esc(ci) + " → 退房 " + esc(co) + "</div></div>"));
+    holder.appendChild(el('<div class="card"><h4>🏨 ' + esc(city) + I18N.tf("bk.anchorMid", " · 锚点 ") + esc(poi) + '</h4><div>' + I18N.tf("bk.hdrCiPre", "入住 ") + esc(ci) + I18N.tf("bk.hdrCoMid", " → 退房 ") + esc(co) + "</div></div>"));
     holder.appendChild(bkOffersCards(body));
   } catch (err) {
     holder.textContent = bkErrMsg(err);
@@ -3355,7 +3374,7 @@ function bkRenderPlanDays() {
   box.innerHTML = "";
   const plan = BOOK.plan;
   if (!plan || !plan.days || !plan.days.length) {
-    box.appendChild(el('<div class="card"><h4>🗓 按天订酒店（自动吃规划结果）</h4><div class="muted">当前会话还没有规划行程：先去「📋 规划」生成，回到这里会按天出卡片；也可以直接用上方表单手查。</div></div>'));
+    box.appendChild(el('<div class="card"><h4>' + I18N.tf("bk.daysTitle", "🗓 按天订酒店（自动吃规划结果）") + '</h4><div class="muted">' + I18N.tf("bk.daysEmpty", "当前会话还没有规划行程：先去「📋 规划」生成，回到这里会按天出卡片；也可以直接用上方表单手查。") + "</div></div>"));
     return;
   }
   const start = bkStartDate();
@@ -3368,24 +3387,24 @@ function bkRenderPlanDays() {
     });
     const pick = anchor || lastVisit;
     const card = el('<div class="card bk-day"></div>');
-    card.appendChild(el('<div class="row"><span><b>第' + d.day + " 天 · " + esc(d.base_city) + "</b>" +
-      (pick ? " · 🎯 锚点 " + esc(pick.name) : "") + "</span></div>"));
+    card.appendChild(el('<div class="row"><span><b>' + I18N.tf("tc.dayN", "第 {d} 天").replace("{d}", d.day) + " · " + esc(d.base_city) + "</b>" +
+      (pick ? I18N.tf("bk.anchorDot", " · 🎯 锚点 ") + esc(pick.name) : "") + "</span></div>"));
     if (!pick) {
-      card.appendChild(el('<div class="muted">本日没有景点项，无法定位锚点；可用上方表单手动查。</div>'));
+      card.appendChild(el('<div class="muted">' + I18N.tf("bk.noAnchor", "本日没有景点项，无法定位锚点；可用上方表单手动查。") + "</div>"));
       box.appendChild(card);
       return;
     }
     if (pick.location && isFinite(pick.location.lon)) {
-      card.appendChild(el('<div class="muted">锚点坐标 ' + pick.location.lon + " / " + pick.location.lat + "</div>"));
+      card.appendChild(el('<div class="muted">' + I18N.tf("bk.anchorCoord", "锚点坐标 ") + pick.location.lon + " / " + pick.location.lat + "</div>"));
     } else {
-      card.appendChild(el('<div class="violation warning">该景点无坐标（location 缺失），查询时需手动补经纬度。</div>'));
+      card.appendChild(el('<div class="violation warning">' + I18N.tf("bk.noCoord", "该景点无坐标（location 缺失），查询时需手动补经纬度。") + "</div>"));
     }
     if (start) {
-      card.appendChild(el("<div>入住 <b>" + bkAddDays(start, d.day - 1) + "</b> → 退房 <b>" + bkAddDays(start, d.day) + "</b></div>"));
+      card.appendChild(el("<div>" + I18N.tf("bk.ciPre", "入住 <b>") + bkAddDays(start, d.day - 1) + I18N.tf("bk.coMid", "</b> → 退房 <b>") + bkAddDays(start, d.day) + "</b></div>"));
     } else {
-      card.appendChild(el('<div class="muted">顶部未设「行程开始日期」：设置后自动推算第 ' + d.day + " 天的入住/退房。</div>"));
+      card.appendChild(el('<div class="muted">' + I18N.tf("bk.hotelNoDate", "顶部未设「行程开始日期」：设置后自动推算第 {d} 天的入住/退房。").replace("{d}", d.day) + "</div>"));
     }
-    const btn = el('<button class="btn mini">🏨 查这家附近酒店</button>');
+    const btn = el('<button class="btn mini">' + I18N.tf("bk.hotelThis", "🏨 查这家附近酒店") + "</button>");
     btn.onclick = () => {
       document.getElementById("bkHotelCity").value = d.base_city || "";
       document.getElementById("bkHotelPoi").value = pick.name || "";
@@ -3429,19 +3448,19 @@ function planBookQuick(plan) {
     document.getElementById(prefix + "From").value = from;
     document.getElementById(prefix + "To").value = to;
     if (bkStartDate()) document.getElementById(prefix + "Date").value = bkStartDate();
-    toast(to ? "已预填 " + from + " → " + to + "，补好日期即可查" : "已预填出发城市 " + from + "；到达城市请补填");
+    toast(to ? I18N.tf("bk.prefillTo", "已预填 {f} → {t}，补好日期即可查").replace("{f}", from).replace("{t}", to) : I18N.tf("bk.prefillFrom", "已预填出发城市 {f}；到达城市请补填").replace("{f}", from));
   };
-  const bTrain = el('<button class="btn mini ghost">🚄 订火车票</button>');
+  const bTrain = el('<button class="btn mini ghost">' + I18N.tf("bk.trainBtn", "🚄 订火车票") + "</button>");
   bTrain.onclick = () => prefill("bkTrain", "train");
-  const bFlight = el('<button class="btn mini ghost">✈️ 订机票</button>');
+  const bFlight = el('<button class="btn mini ghost">' + I18N.tf("bk.flightBtn", "✈️ 订机票") + "</button>");
   bFlight.onclick = () => prefill("bkFlight", "flight");
-  const bHotel = el('<button class="btn mini ghost">🏨 订酒店</button>');
+  const bHotel = el('<button class="btn mini ghost">' + I18N.tf("bk.hotelBtn", "🏨 订酒店") + "</button>");
   bHotel.onclick = () => {
     switchTab("book");
     bkShow("hotel"); // bkRenderPlanDays 消费 BOOK.plan 出按天卡片
     const first = document.querySelector("#bkHotelDays .bk-day");
     if (first) first.scrollIntoView({ block: "nearest" });
-    toast("已按行程生成按天酒店卡片：点卡片按钮查当天锚点附近酒店");
+    toast(I18N.tf("bk.hotelDaysOk", "已按行程生成按天酒店卡片：点卡片按钮查当天锚点附近酒店"));
   };
   bar.appendChild(bTrain);
   bar.appendChild(bFlight);
@@ -3452,7 +3471,8 @@ function planBookQuick(plan) {
 /* ================= Tab 6：行程中心（trip-items 三态看板） ================= */
 
 const TRIP = { loaded: false };
-const TC_SRC = { manual: "手动", chat: "对话", paste: "粘贴", agent_recommend: "推荐" };
+const TC_SRC = { manual: ["tc.src.manual", "手动"], chat: ["tc.src.chat", "对话"], paste: ["tc.src.paste", "粘贴"], agent_recommend: ["tc.src.recommend", "推荐"] };
+function tcSrcLabel(s) { const v = TC_SRC[s]; return v ? I18N.tf(v[0], v[1]) : (s || "?"); }
 
 function tcPatch(item, fields, btn) {
   return busy(btn, async () => {
@@ -3475,7 +3495,7 @@ function tcDelete(item, btn) {
 function noteHtml(note) {
   if (!note) return "";
   return String(note).split(/(https?:\/\/[^\s（）()，,]+)/).map(seg => {
-    if (/^https?:\/\//.test(seg)) return '<a href="' + esc(seg) + '" target="_blank" rel="noopener">🔗 链接</a>';
+    if (/^https?:\/\//.test(seg)) return '<a href="' + esc(seg) + '" target="_blank" rel="noopener">' + I18N.tf("me.noteLink","🔗 链接") + "</a>";
     return esc(seg);
   }).join("");
 }
@@ -3484,44 +3504,44 @@ function noteHtml(note) {
 function tcTile(item) {
   const t = el('<div class="tile" data-id="' + esc(item.id) + '"></div>');
   const drag = (item.status === "scheduled" || item.status === "wishlist")
-    ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
+    ? '<span class="drag-handle" title="' + esc(I18N.tf("tc.drag.title", "拖 ⠿ 排序 / 跨天")) + '">⠿</span>' : "";
   const head = el('<div class="tile-head"><span>' + drag + '<b>' + esc(item.name) + "</b>" +
     (item.note ? ' <span class="muted">' + noteHtml(item.note) + "</span>" : "") +
-    ' <span class="badge">' + esc(TC_SRC[item.source] || item.source || "?") + "</span></span>" +
+    ' <span class="badge">' + esc(tcSrcLabel(item.source)) + "</span></span>" +
     (item.city ? '<span class="tile-city">' + esc(item.city) + "</span>"
-      : (item.source === "manual" ? '<span class="tile-city">都可以</span>' : "")) + "</div>");
+      : (item.source === "manual" ? '<span class="tile-city">' + esc(I18N.tf("tc.anyCity", "都可以")) + "</span>" : "")) + "</div>");
   const headLeft = head.firstChild; // 状态徽标并入左侧文本段（右侧留给城市）
-  if (item.status === "booked") headLeft.appendChild(el('<span class="badge ok">已订 ' + esc(item.booking_id || "") + "</span>"));
-  if (item.status === "scheduled") headLeft.appendChild(el('<span class="badge warn">第 ' + (item.day || "?") + " 天</span>"));
-  const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("　");
+  if (item.status === "booked") headLeft.appendChild(el('<span class="badge ok">' + I18N.tf("tc.booked", "已订") + " " + esc(item.booking_id || "") + "</span>"));
+  if (item.status === "scheduled") headLeft.appendChild(el('<span class="badge warn">' + I18N.tf("tc.dayN", "第 {d} 天").replace("{d}", item.day || "?") + "</span>"));
+  const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("\u3000");
   if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
   const ops = el('<div class="ops"></div>');
   const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
   if (item.status === "wishlist") {
-    mk("📅 排期", (b) => {
-      const d = prompt("排到第几天？（整数 ≥ 1）", "1");
+    mk(I18N.tf("tc.schedule", "📅 排期"), (b) => {
+      const d = prompt(I18N.tf("tc.schedulePrompt", "排到第几天？（整数 ≥ 1）"), "1");
       if (d == null) return;
       const n = parseInt(d, 10);
-      if (!n || n < 1) { toast("天数须为 ≥1 的整数"); return; }
+      if (!n || n < 1) { toast(I18N.tf("tc.badDay", "天数须为 ≥1 的整数")); return; }
       tcPatch(item, { status: "scheduled", day: n }, b);
     });
-    mk("🗑 删除", (b) => tcDelete(item, b));
+    mk(I18N.tf("tc.delete", "🗑 删除"), (b) => tcDelete(item, b));
   } else if (item.status === "scheduled") {
-    mk("✅ 标记已订", (b) => {
-      const bid = prompt("订单号 booking_id？", "");
+    mk(I18N.tf("tc.markBooked", "✅ 标记已订"), (b) => {
+      const bid = prompt(I18N.tf("tc.bookedPrompt", "订单号 booking_id？"), "");
       if (bid == null) return;
-      if (!bid.trim()) { toast("booking_id 不能为空（scheduled→booked 必填）"); return; }
+      if (!bid.trim()) { toast(I18N.tf("tc.bookedNeedId", "booking_id 不能为空（scheduled→booked 必填）")); return; }
       tcPatch(item, { status: "booked", booking_id: bid.trim() }, b);
     });
-    mk("↩️ 撤销排期", (b) => tcPatch(item, { status: "wishlist" }, b));
-    mk("🗑 删除", (b) => tcDelete(item, b));
+    mk(I18N.tf("tc.unschedule", "↩️ 撤销排期"), (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk(I18N.tf("tc.delete", "🗑 删除"), (b) => tcDelete(item, b));
   } else if (item.status === "booked") {
-    mk("↩️ 撤销（回心愿单）", (b) => tcPatch(item, { status: "wishlist" }, b));
-    t.appendChild(el('<div class="muted" style="margin-top:4px">booked 不可删除（422），可撤销回心愿单。</div>'));
+    mk(I18N.tf("tc.undoToWish", "↩️ 撤销（回心愿单）"), (b) => tcPatch(item, { status: "wishlist" }, b));
+    t.appendChild(el('<div class="muted" style="margin-top:4px">' + I18N.tf("tc.bookedNoDelete", "booked 不可删除（422），可撤销回心愿单。") + "</div>"));
   } else if (item.status === "unwanted") {
-    mk("💡 恢复", (b) => tcPatch(item, { status: "wishlist" }, b));
-    mk("🗑 删除", (b) => tcDelete(item, b));
+    mk(I18N.tf("tc.restore", "💡 恢复"), (b) => tcPatch(item, { status: "wishlist" }, b));
+    mk(I18N.tf("tc.delete", "🗑 删除"), (b) => tcDelete(item, b));
   }
   t.appendChild(ops);
   return t;
@@ -3545,37 +3565,37 @@ async function tcLoad() {
     TRIP.byId = {};
     const reg = (it) => { TRIP.byId[it.id] = it; return it; };
     const bookings = body.bookings || [], scheduled = body.scheduled || [], wishlist = body.wishlist || [];
-    const z1 = tcZone("✅", "已预订（Bookings 置顶）", bookings.length, "");
-    if (!bookings.length) z1.cards.appendChild(el('<div class="muted">暂无已预订条目。</div>'));
+    const z1 = tcZone("✅", I18N.tf("tc.zoneBooked", "已预订（Bookings 置顶）"), bookings.length, "");
+    if (!bookings.length) z1.cards.appendChild(el('<div class="muted">' + I18N.tf("tc.zoneBookedEmpty", "暂无已预订条目。") + "</div>"));
     bookings.forEach(it => z1.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z1.z);
-    const z2 = tcZone("📅", "已排期（按天分组 · 拖 ⠿ 排序/跨天）", scheduled.length, "");
-    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">暂无排期条目：从心愿单点「📅 排期」或拖心愿卡进某天。</div>'));
+    const z2 = tcZone("📅", I18N.tf("tc.zoneScheduled", "已排期（按天分组 · 拖 ⠿ 排序/跨天）"), scheduled.length, "");
+    if (!scheduled.length) z2.cards.appendChild(el('<div class="muted">' + I18N.tf("tc.zoneScheduledEmpty", "暂无排期条目：从心愿单点「📅 排期」或拖心愿卡进某天。") + "</div>"));
     const byDay = {};
     scheduled.forEach(it => { const d = it.day || 0; (byDay[d] = byDay[d] || []).push(it); });
     Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach(d => {
-      const blk = el('<div><div class="day-h">第 ' + d + " 天</div></div>");
+      const blk = el('<div><div class="day-h">' + I18N.tf("tc.dayN", "第 {d} 天").replace("{d}", d) + "</div></div>");
       const tiles = el('<div class="day-tiles" data-day="' + d + '"></div>');
       byDay[d].forEach(it => tiles.appendChild(tcTile(reg(it))));
       blk.appendChild(tiles);
       z2.cards.appendChild(blk);
     });
     box.appendChild(z2.z);
-    const z3 = tcZone("💡", "心愿单（新的在前）", wishlist.length, "");
-    if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">暂无心愿：用顶部「➕ 加心愿」添加。</div>'));
+    const z3 = tcZone("💡", I18N.tf("tc.zoneWish", "心愿单（新的在前）"), wishlist.length, "");
+    if (!wishlist.length) z3.cards.appendChild(el('<div class="muted">' + I18N.tf("tc.zoneWishEmpty", "暂无心愿：用顶部「➕ 加心愿」添加。") + "</div>"));
     z3.cards.classList.add("day-tiles");
     z3.cards.dataset.wishlist = "1";
     wishlist.forEach(it => z3.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z3.z);
     const unwanted = body.unwanted || [];
-    const z4 = tcZone("🚫", "不想去", unwanted.length, "");
-    if (!unwanted.length) z4.cards.appendChild(el('<div class="muted">暂无「不想去」条目。</div>'));
+    const z4 = tcZone("🚫", I18N.tf("tc.zoneUnwanted", "不想去"), unwanted.length, "");
+    if (!unwanted.length) z4.cards.appendChild(el('<div class="muted">' + I18N.tf("tc.zoneUnwantedEmpty", "暂无「不想去」条目。") + "</div>"));
     unwanted.forEach(it => z4.cards.appendChild(tcTile(reg(it))));
     box.appendChild(z4.z);
     tcInitSortables();
   } catch (err) {
     failToast(err);
-    box.appendChild(el('<div class="card">❌ 看板加载失败：' + esc(detailText(err.detail)) + "</div>"));
+    box.appendChild(el('<div class="card">❌ ' + I18N.tf("tc.loadFail", "看板加载失败：") + esc(detailText(err.detail)) + "</div>"));
   }
 }
 
@@ -3623,7 +3643,7 @@ async function tcOnDrop(evt) {
   try {
     const fields = fromWish ? { status: "scheduled", day, position } : { day, position };
     await api("/api/v1/trip-items/" + item.id, fields, "PATCH");
-    toast(fromWish ? "已排到第 " + day + " 天" : "顺序已更新（第 " + day + " 天）");
+    toast(fromWish ? I18N.tf("tc.droppedDay", "已排到第 {d} 天").replace("{d}", day) : I18N.tf("tc.reordered", "顺序已更新（第 {d} 天）").replace("{d}", day));
     await tcLoad();
   } catch (err) {
     failToast(err);
@@ -3633,9 +3653,9 @@ async function tcOnDrop(evt) {
 document.getElementById("tcRefresh").onclick = (e) => busy(e.target, tcLoad);
 document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
   const name = document.getElementById("tcName").value.trim();
-  if (!name) { toast("心愿名必填"); return; }
+  if (!name) { toast(I18N.tf("tc.nameRequired", "心愿名必填")); return; }
   const city = document.getElementById("tcCity").value.trim();
-  if (!city) { toast("城市必选（不限城市就填「都可以」）"); return; }
+  if (!city) { toast(I18N.tf("tc.cityRequired", "城市必选（不限城市就填「都可以」）")); return; }
   const note = document.getElementById("tcNote").value.trim();
   const hours = document.getElementById("tcHours").value.trim();
   const itin = document.getElementById("tcItinId").value.trim();
@@ -3650,7 +3670,7 @@ document.getElementById("tcAdd").onclick = (e) => busy(e.target, async () => {
     document.getElementById("tcCity").value = "";
     document.getElementById("tcNote").value = "";
     document.getElementById("tcHours").value = "";
-    toast("心愿已加入（status=wishlist）");
+    toast(I18N.tf("tc.added", "心愿已加入（status=wishlist）"));
     await tcLoad();
   } catch (err) { failToast(err); }
 });
@@ -3662,9 +3682,9 @@ const ME = { loaded: false, style: new Set(), diet: new Set() };
 function meChips(containerId, set) {
   const box = document.getElementById(containerId);
   box.innerHTML = "";
-  if (!set.size) { box.appendChild(el('<span class="muted">（空）</span>')); return; }
+  if (!set.size) { box.appendChild(el('<span class="muted">' + I18N.tf("me.empty", "（空）") + "</span>")); return; }
   set.forEach(v => {
-    const c = el('<button class="chip on" title="点一下移除">' + esc(v) + " ✕</button>");
+    const c = el('<button class="chip on" title="' + esc(I18N.tf("me.chipRemove", "点一下移除")) + '">' + esc(v) + " ✕</button>");
     c.onclick = () => { set.delete(v); meChips(containerId, set); };
     box.appendChild(c);
   });
@@ -3685,10 +3705,10 @@ async function prLoad() {
     const notes = p.notes || [];
     const nb = document.getElementById("prNotes");
     nb.innerHTML = "";
-    if (!notes.length) nb.textContent = "（暂无备注）";
+    if (!notes.length) nb.textContent = I18N.tf("me.noNotes", "（暂无备注）");
     notes.forEach(n => nb.appendChild(el("<div>· " + esc(n.text != null ? n.text : n) +
       (n.provenance ? ' <span class="badge">' + esc(n.provenance) + "</span>" : "") + "</div>")));
-    document.getElementById("prUpdatedAt").textContent = body.updated_at ? "更新于 " + body.updated_at : "";
+    document.getElementById("prUpdatedAt").textContent = body.updated_at ? I18N.tf("me.updatedAt", "更新于 ") + body.updated_at : "";
   } catch (err) { failToast(err); }
 }
 
@@ -3707,14 +3727,14 @@ document.getElementById("prSave").onclick = (e) => busy(e.target, async () => {
   const b = document.getElementById("prBudget").value;
   const c = document.getElementById("prComp").value;
   const s = document.getElementById("prStamina").value;
-  if (!b && !c && !s && !ME.style.size && !ME.diet.size) { toast("没有可保存的改动"); return; }
+  if (!b && !c && !s && !ME.style.size && !ME.diet.size) { toast(I18N.tf("me.nothingToSave", "没有可保存的改动")); return; }
   const body = { travel_style: [...ME.style], dietary_restrictions: [...ME.diet] };
   if (b) body.budget_level = b;
   if (c) body.companions = c;
   if (s) body.stamina = s;
   try {
     const r = await api("/api/v1/profile", body, "PUT");
-    toast("画像已保存" + (r && r.updated_at ? " · " + r.updated_at : ""));
+    toast(I18N.tf("me.saved", "画像已保存") + (r && r.updated_at ? " · " + r.updated_at : ""));
     await prLoad();
   } catch (err) { failToast(err); }
 });
@@ -3724,7 +3744,7 @@ document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
   const value = document.getElementById("dsValue").value.trim();
   const conf = parseFloat(document.getElementById("dsConf").value);
   const prov = document.getElementById("dsProv").value.trim();
-  if (!key || !value) { toast("key / value 必填"); return; }
+  if (!key || !value) { toast(I18N.tf("me.kvRequired", "key / value 必填")); return; }
   try {
     const body = await api("/api/v1/profile/distill",
       { facts: [{ key, value, confidence: isNaN(conf) ? 1 : conf, provenance: prov || "manual_test" }] });
@@ -3732,16 +3752,16 @@ document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
     out.innerHTML = "";
     const applied = body.applied || [];
     const sug = body.suggestions || [];
-    const ab = el('<div class="card"><h4>已应用 ' + applied.length + " 条</h4></div>");
-    if (!applied.length) ab.appendChild(el('<div class="muted">（无：可能被手改保护或字段非法）</div>'));
+    const ab = el('<div class="card"><h4>' + I18N.tf("me.appliedN", "已应用 {n} 条").replace("{n}", applied.length) + "</h4></div>");
+    if (!applied.length) ab.appendChild(el('<div class="muted">' + I18N.tf("me.appliedNone", "（无：可能被手改保护或字段非法）") + "</div>"));
     applied.forEach(a => {
       const row = el('<div class="row"><span style="flex:1">' + esc(a.key) + " = " + esc(a.value) +
         ' <span class="badge ok">applied ' + esc(a.applied_id) + "</span></span></div>");
-      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      const ub = el('<button class="btn mini ghost">' + I18N.tf("me.undo", "↩️ 撤销") + "</button>");
       ub.onclick = (ev) => busy(ev.target, async () => {
         try {
           await api("/api/v1/profile/distill/" + a.applied_id + "/undo", {});
-          toast("已撤销 " + a.key);
+          toast(I18N.tf("me.undone", "已撤销 ") + a.key);
           await prLoad();
         } catch (err) { failToast(err); }
       });
@@ -3750,7 +3770,7 @@ document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
     });
     out.appendChild(ab);
     if (sug.length) {
-      const sb = el('<div class="card sug"><h4>建议（confidence &lt; 0.8，未落库）</h4></div>');
+      const sb = el('<div class="card sug"><h4>' + I18N.tf("me.suggestions", "建议（confidence &lt; 0.8，未落库）") + "</h4></div>");
       sug.forEach(s2 => sb.appendChild(el("<div>· " + esc(s2.key) + " = " + esc(s2.value) +
         ' <span class="badge">' + Number(s2.confidence).toFixed(2) + "</span></div>")));
       out.appendChild(sb);
@@ -3761,12 +3781,12 @@ document.getElementById("dsGo").onclick = (e) => busy(e.target, async () => {
 
 async function lkLoad() {
   const box = document.getElementById("lkList");
-  box.innerHTML = '<div class="muted">加载中…</div>';
+  box.innerHTML = '<div class="muted">' + I18N.tf("me.loading", "加载中…") + "</div>";
   try {
     const body = await api("/api/v1/links", undefined, "GET");
     const items = body.links || body.items || (Array.isArray(body) ? body : []);
     box.innerHTML = "";
-    if (!items.length) { box.appendChild(el('<div class="muted">还没有链接记录。</div>')); return; }
+    if (!items.length) { box.appendChild(el('<div class="muted">' + I18N.tf("me.noLinks", "还没有链接记录。") + "</div>")); return; }
     items.forEach(l => {
       const row = el('<div class="tile"></div>');
       const badge = l.status === "parsed"
@@ -3775,20 +3795,20 @@ async function lkLoad() {
       row.appendChild(el('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted" style="word-break:break-all;flex:1">' +
         esc(l.url || "") + "</span>" + badge + "</div>"));
       const ops = el('<div class="ops"></div>');
-      const bRep = el('<button class="btn mini plain">🔁 重新解析</button>');
+      const bRep = el('<button class="btn mini plain">' + I18N.tf("me.reparse", "🔁 重新解析") + "</button>");
       bRep.onclick = (ev) => busy(ev.target, async () => {
-        try { await api("/api/v1/links/" + l.id + "/reparse", {}); toast("已重新解析"); await lkLoad(); }
+        try { await api("/api/v1/links/" + l.id + "/reparse", {}); toast(I18N.tf("me.reparsed", "已重新解析")); await lkLoad(); }
         catch (err) { failToast(err); }
       });
-      const bWish = el('<button class="btn mini ghost">💡 加入心愿单</button>');
+      const bWish = el('<button class="btn mini ghost">' + I18N.tf("me.toWish", "💡 加入心愿单") + "</button>");
       bWish.onclick = (ev) => busy(ev.target, async () => {
         try {
-          const name = prompt("心愿名（可留空，由链接解析）", "");
+          const name = prompt(I18N.tf("me.wishPrompt", "心愿名（可留空，由链接解析）"), "");
           const body2 = {};
           if (name && name.trim()) body2.name = name.trim();
           const it = await api("/api/v1/links/" + l.id + "/to-wishlist", body2);
           const item = it && it.item ? it.item : it;
-          toast("已进心愿单：" + ((item && item.name) || "去「🗂 行程中心」查看"));
+          toast(I18N.tf("me.inWish", "已进心愿单：") + ((item && item.name) || I18N.tf("me.seeTrips", "去「🗂 行程中心」查看")));
           TRIP.loaded = false; // 下次进行程中心自动刷新
         } catch (err) { failToast(err); }
       });
@@ -3799,17 +3819,17 @@ async function lkLoad() {
     });
   } catch (err) {
     box.innerHTML = "";
-    box.appendChild(el('<div class="card">❌ 链接列表加载失败：' + esc(detailText(err.detail)) + "</div>"));
+    box.appendChild(el('<div class="card">❌ ' + I18N.tf("me.linkLoadFail", "链接列表加载失败：") + esc(detailText(err.detail)) + "</div>"));
     failToast(err);
   }
 }
 document.getElementById("lkAdd").onclick = (e) => busy(e.target, async () => {
   const url = document.getElementById("lkUrl").value.trim();
-  if (!/^https?:\/\//.test(url)) { toast("URL 必须以 http:// 或 https:// 开头"); return; }
+  if (!/^https?:\/\//.test(url)) { toast(I18N.tf("me.badUrl", "URL 必须以 http:// 或 https:// 开头")); return; }
   try {
     await api("/api/v1/links", { url, source: document.getElementById("lkSource").value });
     document.getElementById("lkUrl").value = "";
-    toast("链接已添加（status=pending）");
+    toast(I18N.tf("me.linkAdded", "链接已添加（status=pending）"));
     await lkLoad();
   } catch (err) { failToast(err); }
 });
@@ -3839,7 +3859,7 @@ function bfRender() {
   box.innerHTML = "";
   const rows = bfRecords();
   if (!rows.length) {
-    box.appendChild(el('<div class="muted">暂无跳转记录：在上方查卡并点「前往预订 → 仍要前往」即产生一条 opened 记录。</div>'));
+    box.appendChild(el('<div class="muted">' + I18N.tf("bf.empty", "暂无跳转记录：在上方查卡并点「前往预订 → 仍要前往」即产生一条 opened 记录。") + "</div>"));
     document.getElementById("bfOps").style.display = "none";
     BF.sel = null;
     return;
@@ -3854,7 +3874,7 @@ function bfRender() {
     row.appendChild(el('<span class="muted">' + esc(r.created_at || "") + "</span>"));
     row.onclick = () => { BF.sel = r.id; bfRender(); };
     if (r.status === "user_confirmed") {
-      const ub = el('<button class="btn mini ghost">↩️ 撤销</button>');
+      const ub = el('<button class="btn mini ghost">' + I18N.tf("me.undo", "↩️ 撤销") + "</button>");
       ub.onclick = (ev) => { ev.stopPropagation(); bfUndo(r.id, ev.target); };
       row.appendChild(ub);
     }
@@ -3869,7 +3889,7 @@ function bfUndo(id, btn) {
       const resp = await api("/api/v1/backfill/handoffs/" + id + "/undo", {});
       if (resp && resp.record) BF.map[id] = resp.record;
       else if (BF.map[id]) BF.map[id].status = "opened";
-      toast("已撤销，记录回到 opened");
+      toast(I18N.tf("bf.undone", "已撤销，记录回到 opened"));
       bfRender();
       bfLoadQuiet();
     } catch (err) { failToast(err); }
@@ -3879,26 +3899,26 @@ function bfUndo(id, btn) {
 document.getElementById("bfRefresh").onclick = (e) => busy(e.target, bfLoad);
 
 document.getElementById("bfParse").onclick = (e) => busy(e.target, async () => {
-  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  if (BF.sel == null) { toast(I18N.tf("bf.pickFirst", "先在列表点选一条跳转记录")); return; }
   const text = document.getElementById("bfPaste").value.trim();
-  if (!text) { toast("先粘贴订单短信原文"); return; }
+  if (!text) { toast(I18N.tf("bf.pasteFirst", "先粘贴订单短信原文")); return; }
   const out = document.getElementById("bfOut");
   out.innerHTML = "";
   try {
     const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/paste-return", { text });
     if (body.record) BF.map[BF.sel] = body.record;
     const p = body.parsed || {};
-    const info = el('<div class="card"><h4>🧾 解析结果</h4></div>');
-    info.appendChild(el("<div>订单号 <b>" + esc(p.order_ref || "（未识别）") + "</b> · 渠道 " + esc(p.channel || "?") +
-      " · 金额 " + (p.amount_yuan != null ? "¥" + p.amount_yuan : "?") +
-      " · 置信度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "?") + "</div>"));
+    const info = el('<div class="card"><h4>' + I18N.tf("bf.parseResult", "🧾 解析结果") + "</h4></div>");
+    info.appendChild(el("<div>" + I18N.tf("bf.orderRef", "订单号") + " <b>" + esc(p.order_ref || I18N.tf("bf.unrecognized", "（未识别）")) + "</b> · " + I18N.tf("bf.channel", "渠道") + " " + esc(p.channel || "?") +
+      " · " + I18N.tf("bf.amount", "金额") + " " + (p.amount_yuan != null ? "¥" + p.amount_yuan : "?") +
+      " · " + I18N.tf("bf.confidence", "置信度") + " " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "?") + "</div>"));
     if (body.applied) {
-      info.appendChild(el('<div class="muted">✅ 已落库：记录进入 user_confirmed。</div>'));
+      info.appendChild(el('<div class="muted">' + I18N.tf("bf.applied", "✅ 已落库：记录进入 user_confirmed。") + "</div>"));
       document.getElementById("bfPaste").value = "";
     } else if (body.reason === "needs_confirm") {
-      info.appendChild(el('<div class="violation warning">置信度低，不落库（needs_confirm）：请用右侧「手动标记」补订单号。</div>'));
+      info.appendChild(el('<div class="violation warning">' + I18N.tf("bf.needsConfirm", "置信度低，不落库（needs_confirm）：请用右侧「手动标记」补订单号。") + "</div>"));
     } else {
-      info.appendChild(el('<div class="violation warning">未应用：' + esc(body.reason || "?") + "</div>"));
+      info.appendChild(el('<div class="violation warning">' + I18N.tf("bf.notApplied", "未应用：") + esc(body.reason || "?") + "</div>"));
     }
     out.appendChild(info);
     bfRender();
@@ -3906,14 +3926,14 @@ document.getElementById("bfParse").onclick = (e) => busy(e.target, async () => {
 });
 
 document.getElementById("bfManual").onclick = (e) => busy(e.target, async () => {
-  if (BF.sel == null) { toast("先在列表点选一条跳转记录"); return; }
+  if (BF.sel == null) { toast(I18N.tf("bf.needSelect","先在列表点选一条跳转记录")); return; }
   const ref = document.getElementById("bfOrderRef").value.trim();
-  if (!ref) { toast("订单号必填"); return; }
+  if (!ref) { toast(I18N.tf("bf.refRequired", "订单号必填")); return; }
   try {
     const body = await api("/api/v1/backfill/handoffs/" + BF.sel + "/manual", { order_ref: ref });
     if (body && body.record) BF.map[BF.sel] = body.record;
     else if (BF.map[BF.sel]) { BF.map[BF.sel].order_ref = ref; BF.map[BF.sel].status = "user_confirmed"; }
-    toast("已手动标记 user_confirmed");
+    toast(I18N.tf("bf.manualMarked", "已手动标记 user_confirmed"));
     document.getElementById("bfOrderRef").value = "";
     bfRender();
   } catch (err) { failToast(err); }
@@ -3922,12 +3942,12 @@ document.getElementById("bfManual").onclick = (e) => busy(e.target, async () => 
 document.getElementById("bfAlliance").onclick = (e) => busy(e.target, async () => {
   const orders = bfRecords().filter(r => r.status === "user_confirmed" && r.order_ref)
     .map(r => ({ order_ref: r.order_ref, outcome: "settled" }));
-  if (!orders.length) { toast("当前列表没有 user_confirmed 且带订单号的记录"); return; }
+  if (!orders.length) { toast(I18N.tf("bf.noConfirmed", "当前列表没有 user_confirmed 且带订单号的记录")); return; }
   try {
     const body = await api("/api/v1/backfill/alliance-sync", { orders });
     const out = document.getElementById("bfOut");
     out.innerHTML = "";
-    out.appendChild(el('<div class="card"><h4>🤝 联盟同步</h4><div>matched ' + (body.matched != null ? body.matched : "?") +
+    out.appendChild(el('<div class="card"><h4>' + I18N.tf("bf.allianceSync", "🤝 联盟同步") + "</h4><div>matched " + (body.matched != null ? body.matched : "?") +
       " · advanced " + (body.advanced != null ? body.advanced : "?") +
       " · skipped " + (body.skipped != null ? body.skipped : "?") + "</div></div>"));
     await bfLoad();
@@ -3944,10 +3964,10 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。");
-addMsg("flow-t9n", "sys", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。");
-addMsg("flow-book-train", "sys", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。");
-addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。");
+addMsg("flow-plan", "sys", I18N.tf("welcome.plan", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。"));
+addMsg("flow-t9n", "sys", I18N.tf("welcome.t9n", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。"));
+addMsg("flow-book-train", "sys", I18N.tf("welcome.book", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。"));
+addMsg("flow-trips", "sys", I18N.tf("welcome.trips", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。"));
 
 planSetSession(null);
 autoOpenLatestItin();
@@ -4131,7 +4151,7 @@ async function callLoadRecords() {
     const line = el('<div class="dirbar" style="justify-content:space-between"></div>');
     line.innerHTML = '<span>' + (stTxt[s.status] || "") + " " + when
       + " · " + (s.duration_label || mmss(s.consumed_seconds))
-      + ' <span class="muted">' + (s.mode === "direct" ? "直拨" : "回拨") + (reason ? " · " + reason : "") + "</span></span>"
+      + ' <span class="muted">' + (s.mode === "direct" ? callT("call.rec.direct", "直拨") : callT("call.rec.callback", "回拨")) + (reason ? " · " + reason : "") + "</span></span>"
       + '<span class="muted">' + (s.refund_minutes > 0 ? "↩︎ +" + s.refund_minutes : "−" + Math.ceil(s.consumed_seconds / 60)) + callT("call.unit.min", " 分钟") + "</span>";
     box.appendChild(line);
   });
