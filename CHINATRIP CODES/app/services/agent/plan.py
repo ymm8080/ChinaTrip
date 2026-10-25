@@ -2496,8 +2496,7 @@ class PlanningAgent:
             llm_assumptions = [
                 L(
                     "LLM 不可用，按候选顺序生成占位计划",
-                    "LLM unavailable — placeholder plan generated in candidate "
-                    "order",
+                    "LLM unavailable — placeholder plan generated in candidate order",
                 )
             ]
         # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
@@ -2563,10 +2562,8 @@ class PlanningAgent:
                 content=L(
                     f"初版行程已生成（{session.days} 天）。"
                     f"假设：{'；'.join(plan.assumptions)}",
-                    f"Draft itinerary ready ({session.days} days). "
-                    f"Assumptions: {'；'.join(plan.assumptions)}".replace(
-                        "；", "; "
-                    ),
+                    f"Draft itinerary ready ({session.days} days). Assumptions: "
+                    + "; ".join(plan.assumptions),
                 ),
             )
         )
