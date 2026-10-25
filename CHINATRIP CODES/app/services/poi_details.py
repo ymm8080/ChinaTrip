@@ -40,6 +40,21 @@ _DB_DOWN_COOLDOWN_SECONDS = 300.0
 # connect_timeout per request while down.
 _DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 
+# A 级优先（用户拍板 2026-10-25：unesco > 5A > 4A > 3A）。名单在库里
+# 以 source='unesco'/'5a' 骨架行存在（tags 列 0 覆盖——boost 从未生效
+# 过，2026-10-25 城市阳台事件）；读时按 source + 全库名单互含判定层级，
+# 并把层级标签注入候选 tags（LLM 选点层同享信号）。
+_TIER_BOOST = {4: 1.8, 3: 1.5, 2: 1.3, 1: 1.15}
+_TIER_TAG = {4: "unesco", 3: "5a", 2: "4a", 1: "3a"}
+
+
+def _name_overlap(a: str | None, b: str | None) -> bool:
+    """名单互含匹配（灵隐飞来峰 ↔ 灵隐飞来峰景区）；短名防泛名误伤。"""
+    a, b = (a or "").strip(), (b or "").strip()
+    if len(a) < 3 or len(b) < 3:
+        return False
+    return a in b or b in a
+
 
 class PoiDetailStore:
     """Read/upsert POI display details; DB-backed with memory fallback."""
@@ -308,6 +323,27 @@ class PoiDetailStore:
         c = (category or "").strip()
         return any(mark in c for mark in cls._FOOD_CATEGORY_MARKS)
 
+    def _heritage_names(self) -> list[tuple[str, int]]:
+        """全库 unesco/5A 名单行 (name_zh, tier)——读时并档用，不限城。"""
+        out: list[tuple[str, int]] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    rows = (
+                        session.query(Poi.name_zh, Poi.source)
+                        .filter(Poi.source.in_(["unesco", "5a"]))
+                        .all()
+                    )
+                    return [(name, 4 if src == "unesco" else 3) for name, src in rows]
+            except Exception:
+                self._note_db_failure()
+                logger.warning("poi_details: heritage list query failed", exc_info=True)
+        for v in self._memory.values():
+            src = v.get("source")
+            if src in ("unesco", "5a"):
+                out.append((v.get("name") or "", 4 if src == "unesco" else 3))
+        return out
+
     def top_pois_in_city(
         self, city: str, limit: int = 30, *, exclude_food: bool = True
     ) -> list[dict]:
@@ -362,14 +398,20 @@ class PoiDetailStore:
             }
 
         def score(h: dict) -> tuple:
+            # A 级优先（2026-10-25 用户拍板）：tier 在前——无评分的 5A/
+            # unesco 名单行也要压过裸 4.8 的边缘点（城市阳台事件）。
             rating = h.get("rating") or 0.0
             count = h.get("rating_count") or 0
             quality = rating * (1 + (log2(1 + count) if count else 0))
-            tags = {str(t) for t in (h.get("tags") or [])}
-            boost = 1.5 if tags & {"unesco", "5a", "michelin", "black_pearl"} else 1.0
+            tier = h.get("_tier") or 0
+            boost = _TIER_BOOST.get(tier, 1.0)
+            if not tier:
+                tags = {str(t) for t in (h.get("tags") or [])}
+                if tags & {"michelin", "black_pearl"}:
+                    boost = 1.5
             return (
+                tier,
                 round(quality * boost, 3),
-                1 if tags & {"unesco", "5a"} else 0,
                 1 if h.get("location") else 0,
             )
 
@@ -467,7 +509,33 @@ class PoiDetailStore:
                 loc = v.get("location")
                 h = build(r, f"POINT({loc[0]} {loc[1]})" if loc else None)
                 rows_out.append(h)
+        heritage = self._heritage_names()
+
+        def tier_of(h: dict) -> int:
+            tags = {str(t) for t in (h.get("tags") or [])}
+            if "unesco" in tags or h.get("source") == "unesco":
+                return 4
+            if "5a" in tags or h.get("source") == "5a":
+                return 3
+            if "4a" in tags:
+                return 2
+            if "3a" in tags:
+                return 1
+            name = h.get("name") or ""
+            for ref, tier in heritage:
+                if _name_overlap(name, ref):
+                    return tier
+            return 0
+
+        for h in rows_out:
+            tier = tier_of(h)
+            h["_tier"] = tier
+            tag = _TIER_TAG.get(tier)
+            if tag and tag not in h["tags"]:
+                h["tags"] = [*h["tags"], tag]
         rows_out.sort(key=score, reverse=True)
+        for h in rows_out:  # 私有排序键，出库前剥掉
+            h.pop("_tier", None)
         return rows_out[:limit]
 
     def upsert(

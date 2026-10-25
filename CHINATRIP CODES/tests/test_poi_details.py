@@ -266,6 +266,22 @@ def test_db_down_empty_memory_short_cooldown_and_degraded_flag():
     assert not no_db.db_degraded()
 
 
+def test_top_pois_tier_priority_5a_over_raw_rating():
+    """2026-10-25 用户拍板 unesco>5A>4A>3A：名单行与名单互含命中行压过
+    裸高分边缘点（城市阳台事件），tier 标签注入候选 tags 供 LLM 同享。"""
+    store = PoiDetailStore()
+    store.upsert("A1", city="杭州", name="城市阳台", rating=4.8)
+    store.upsert("A2", city="杭州", name="灵隐飞来峰景区", rating=4.6)
+    store.upsert("A3", city="杭州", name="灵隐飞来峰", source="5a")
+    store.upsert("A4", city="杭州", name="杭州西湖文化景观", source="unesco")
+    top = store.top_pois_in_city("杭州")
+    names = [h["name"] for h in top]
+    assert names.index("杭州西湖文化景观") < names.index("城市阳台")
+    assert names.index("灵隐飞来峰景区") < names.index("城市阳台")
+    by_name = {h["name"]: h for h in top}
+    assert "5a" in by_name["灵隐飞来峰景区"]["tags"]
+
+
 # --- 0009：top_pois_in_city 确定性排序（内存态） ---
 
 
@@ -305,6 +321,9 @@ def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
     assert "餐厅" not in names and "别城" not in names
     assert names.index("评分高点评多") < names.index("评分同但点评少")
     assert "UNESCO 无评分" in names  # 无评分不埋没
-    top = hits[0]
+    # 2026-10-25 用户拍板 unesco>5A>4A>3A：tier 居首压过裸评分，
+    # tier 内部再按 quality 排（P1 先于 P2）
+    assert names[0] == "UNESCO 无评分"
+    top = hits[1]
     assert top["best_visit_time"] == "any"
     assert top["location"] == (106.5, 29.5)
