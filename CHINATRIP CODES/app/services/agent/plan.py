@@ -1917,9 +1917,9 @@ class PlanningAgent:
         if far:
             session.pending_restos.extend(far)
             session.state = "resto_confirm"
-            return session, summary, "；".join(notes)
+            return session, summary, L("；".join(notes), "; ".join(notes))
         session.state = "ready"
-        return session, summary, "；".join(notes)
+        return session, summary, L("；".join(notes), "; ".join(notes))
 
     async def _lookup_poi(self, name: str, city: str) -> dict | None:
         if self._amap is None:
@@ -2694,9 +2694,15 @@ class PlanningAgent:
                     }
                     for label in PLACEHOLDER_POI_LABELS
                 ]
-                assumptions.append(f"{city} 的 POI 候选为占位（未获取到高德数据）")
+                assumptions.append(
+                    L(
+                        f"{city} 的 POI 候选为占位（未获取到高德数据）",
+                        f"{city} POI candidates are placeholders (no map data "
+                        "available)",
+                    )
+                )
             candidates.extend(pois)
-        fallback_city = cities[0] if len(cities) == 1 else "未标注"
+        fallback_city = cities[0] if len(cities) == 1 else _unspecified()
         site_cities = site_cities or {}
         for name in must_visits:
             if any(_same_site(name, c["name"]) for c in candidates):
@@ -2712,7 +2718,7 @@ class PlanningAgent:
                         iter(
                             await self._amap.search_poi(
                                 name,
-                                city=hint if hint != "未标注" else None,
+                                city=None if _is_unspecified(hint) else hint,
                             )
                         ),
                         None,
@@ -2727,7 +2733,11 @@ class PlanningAgent:
                 poi_city = str(poi["city"])
                 if not any(c in poi_city for c in cities):
                     assumptions.append(
-                        f"必去 {name} 在高德定位到行程外城市（{poi_city}），未纳入"
+                        L(
+                            f"必去 {name} 在高德定位到行程外城市（{poi_city}），未纳入",
+                            f"Must-visit {name} resolved to a city outside this "
+                            f"trip ({poi_city}) and was left out",
+                        )
                     )
                     poi = None
             if poi and isinstance(poi, dict) and poi.get("name"):
@@ -2744,7 +2754,9 @@ class PlanningAgent:
                     }
                 )
             else:
-                label = "餐饮店" if kind == "food" else "地点"
+                label = (
+                    L("餐饮店", "restaurant") if kind == "food" else L("地点", "place")
+                )
                 logger.warning(
                     "plan: must-visit %s not located, placeholder by name", name
                 )
@@ -2757,7 +2769,13 @@ class PlanningAgent:
                         "location": None,
                     }
                 )
-                assumptions.append(f"必去{label} {name} 未能定位，按名称占位")
+                assumptions.append(
+                    L(
+                        f"必去{label} {name} 未能定位，按名称占位",
+                        f"Must-visit {label} {name} could not be located — "
+                        "placeholder by name",
+                    )
+                )
         return candidates, assumptions
 
     @staticmethod
@@ -2777,7 +2795,7 @@ class PlanningAgent:
             return picked
         kinds = kinds or {}
         site_cities = site_cities or {}
-        default_city = cities[0] if len(cities) == 1 else "未标注"
+        default_city = cities[0] if len(cities) == 1 else _unspecified()
         for idx, name in enumerate(must):
             match = next(
                 (spec for spec in picked if _same_site(name, spec["name"])), None
@@ -2928,10 +2946,20 @@ class PlanningAgent:
                             cand["suggested_duration_min"]
                         )
                     if item.get("reason"):
-                        reasons.append(f"{item['name']}：{item['reason']}")
+                        reasons.append(
+                            L(
+                                f"{item['name']}：{item['reason']}",
+                                f"{item['name']}: {item['reason']}",
+                            )
+                        )
                 extra = [str(a) for a in (data.get("assumptions") or [])]
                 if reasons:
-                    extra.append("选点理由：" + "；".join(reasons[:5]))
+                    extra.append(
+                        L(
+                            "选点理由：" + "；".join(reasons[:5]),
+                            "Why picked: " + "; ".join(reasons[:5]),
+                        )
+                    )
                 return items, extra, True
             except (LLMError, ValueError, TypeError, KeyError) as exc:
                 logger.warning(
@@ -2974,7 +3002,7 @@ class PlanningAgent:
             items.append(
                 {
                     "name": name,
-                    "city": str(raw.get("city") or "").strip() or "未标注",
+                    "city": str(raw.get("city") or "").strip() or _unspecified(),
                     "category": str(raw.get("category") or "sight"),
                     "day": day,
                     "duration_minutes": duration or DEFAULT_VISIT_MINUTES,
@@ -2991,7 +3019,7 @@ class PlanningAgent:
         across that city's day window."""
         groups: dict[str, list[dict]] = {}
         for cand in candidates:
-            groups.setdefault(cand.get("city") or "未标注", []).append(cand)
+            groups.setdefault(cand.get("city") or _unspecified(), []).append(cand)
         items = []
         for city, group in groups.items():
             lo, hi = ranges.get(city, (1, days))
@@ -3002,7 +3030,7 @@ class PlanningAgent:
                 items.append(
                     {
                         "name": cand["name"],
-                        "city": cand.get("city") or "未标注",
+                        "city": cand.get("city") or _unspecified(),
                         "category": cand.get("category") or "sight",
                         "day": day,
                         "duration_minutes": DEFAULT_VISIT_MINUTES,
@@ -3071,9 +3099,12 @@ class PlanningAgent:
                     # Same-region leg: a drive scaled to real distance.
                     mode = "car"
                     duration = max(60, round(dist_km / CAR_KMH * 60) + 30)
-                    note = (
+                    note = L(
                         f"{from_city}→{to_city} 无班次，直线约 "
-                        f"{dist_km:.0f} 公里，按驾车约 {duration} 分钟占位"
+                        f"{dist_km:.0f} 公里，按驾车约 {duration} 分钟占位",
+                        f"{from_city}→{to_city} no schedules; ~{dist_km:.0f} km "
+                        f"straight-line, placeholder as a {duration}-minute "
+                        "drive",
                     )
                 else:
                     # Cross-region leg: a 90-minute drive across 4000 km is
@@ -3081,14 +3112,18 @@ class PlanningAgent:
                     mode = "flight"
                     duration = FLIGHT_TRANSFER_MINUTES
                     if dist_km is None:
-                        note = (
+                        note = L(
                             f"{from_city}→{to_city} 无班次且距离未知，"
-                            "按航班约 3 小时占位"
+                            "按航班约 3 小时占位",
+                            f"{from_city}→{to_city} no schedules and distance "
+                            "unknown; placeholder as a ~3-hour flight",
                         )
                     else:
-                        note = (
+                        note = L(
                             f"{from_city}→{to_city} 无班次，直线约 "
-                            f"{dist_km:.0f} 公里，按航班约 3 小时占位"
+                            f"{dist_km:.0f} 公里，按航班约 3 小时占位",
+                            f"{from_city}→{to_city} no schedules; ~{dist_km:.0f} "
+                            "km straight-line, placeholder as a ~3-hour flight",
                         )
                 start_min = depart_h * 60
                 end_min = min(start_min + duration, 23 * 60 + 59)
@@ -3134,8 +3169,13 @@ class PlanningAgent:
             if dropped_names:
                 picked = kept
                 assumptions.append(
-                    f"{'、'.join(dropped_names)} 位于出发城市 {cities[0]}，"
-                    "出发日只安排交通，未列入行程"
+                    L(
+                        f"{'、'.join(dropped_names)} 位于出发城市 {cities[0]}，"
+                        "出发日只安排交通，未列入行程",
+                        f"{', '.join(dropped_names)} is in the departure city "
+                        f"{cities[0]}; the departure day is travel-only, so it "
+                        "was left off the itinerary",
+                    )
                 )
         clamped = 0
         for spec in picked:
@@ -3148,7 +3188,13 @@ class PlanningAgent:
                 spec["day"] = min(max(spec["day"], lo), hi)
                 clamped += 1
         if clamped:
-            assumptions.append(f"{clamped} 个景点日期不在其城市日程内，已就近调整")
+            assumptions.append(
+                L(
+                    f"{clamped} 个景点日期不在其城市日程内，已就近调整",
+                    f"{clamped} sights fell outside their city's day window and "
+                    "were moved to the nearest day",
+                )
+            )
         anchors: dict[str, GeoPoint] = {}
         for cand in candidates:
             city = cand.get("city")
@@ -3210,12 +3256,21 @@ class PlanningAgent:
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
         if dup_dropped:
-            assumptions.append(f"已合并重复站点：{'、'.join(dup_dropped)}")
+            assumptions.append(
+                L(
+                    f"已合并重复站点：{'、'.join(dup_dropped)}",
+                    f"Merged duplicate stops: {', '.join(dup_dropped)}",
+                )
+            )
         resv = [(v.name, v.reservation_hint) for v in visits if v.reservation_hint]
         if resv:
             # G1：预约制场馆在假设区亮出（卡片层另有 hint 字段）
             assumptions.append(
-                "预约提醒：" + "；".join(f"「{n}」{h}" for n, h in resv[:4])
+                L(
+                    "预约提醒：" + "；".join(f"「{n}」{h}" for n, h in resv[:4]),
+                    "Reservation reminders: "
+                    + "; ".join(f'"{n}" {h}' for n, h in resv[:4]),
+                )
             )
         transfers, transfer_assumptions = await self._build_transfers(
             cities, days, anchors, dest_starts=[ranges[c][0] for c in cities[1:]]
@@ -3278,7 +3333,11 @@ class PlanningAgent:
                     inserted_restos += 1
             if inserted_restos:
                 assumptions.append(
-                    f"已自动安排 {inserted_restos} 家顺路餐厅（回复可换/删）"
+                    L(
+                        f"已自动安排 {inserted_restos} 家顺路餐厅（回复可换/删）",
+                        f"Auto-added {inserted_restos} convenient restaurant(s) "
+                        "for dinner (reply to swap or remove)",
+                    )
                 )
 
         plan = ItineraryPlan(
@@ -3306,7 +3365,11 @@ class PlanningAgent:
                     if isinstance(item, VisitItem) and item.name in must_names:
                         item.pinned = True
             plan.assumptions.append(
-                "必去景点（来自链接）已锁定时间，后续修改不会移动它们"
+                L(
+                    "必去景点（来自链接）已锁定时间，后续修改不会移动它们",
+                    "Must-visit sights (from your link) are time-locked; later "
+                    "edits won't move them",
+                )
             )
         annotate_legs(plan)
         await self._enrich_parallel(plan)
@@ -3670,7 +3733,7 @@ class PlanningAgent:
                 diffs = self._coerce_diffs(data.get("diffs"))
                 wishes = self._coerce_wishes(data.get("wishes"))
                 if diffs or reply or wishes:
-                    reply = reply or "已处理你的消息。"
+                    reply = reply or L("已处理你的消息。", "Your message is handled.")
                     break
                 # Degenerate draw (empty reply AND no diffs): glm flash
                 # sometimes answers a clear add request this way — accept
@@ -3691,13 +3754,21 @@ class PlanningAgent:
             if result is None:
                 # All attempts stalled (glm flash ReadTimeout in prod logs):
                 # keep the conversation alive in-band instead of a 502 dead end.
-                reply = "模型暂时无响应，这轮没有改动行程，请再发一次。"
+                reply = L(
+                    "模型暂时无响应，这轮没有改动行程，请再发一次。",
+                    "The model isn't responding right now; the itinerary is "
+                    "unchanged — please send again.",
+                )
             else:
-                reply = "刚才模型回复没能解析，已自动重试仍未成功，请再发一次。"
+                reply = L(
+                    "刚才模型回复没能解析，已自动重试仍未成功，请再发一次。",
+                    "The model's last reply couldn't be parsed and the retry "
+                    "failed too — please send again.",
+                )
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         if not diffs:
-            reply = reply or "已处理你的消息。"
+            reply = reply or L("已处理你的消息。", "Your message is handled.")
             sync_notes, unresolved = await self.sync_wishes_to_trip_items(
                 session, wishes
             )
@@ -3709,7 +3780,10 @@ class PlanningAgent:
             if pending_note:
                 extras.append(pending_note)
             if extras:
-                reply = f"{reply}（{'；'.join(extras)}）"
+                reply = L(
+                    f"{reply}（{'；'.join(extras)}）",
+                    f"{reply} ({'; '.join(extras)})",
+                )
             if session.plan is not None:
                 # re-annotate/re-measure so stale leg values never linger
                 annotate_legs(session.plan)
@@ -3729,7 +3803,10 @@ class PlanningAgent:
         if pending_note:
             notes.append(pending_note)
         if notes:
-            reply = f"{reply}（{'；'.join(notes)}）"
+            reply = L(
+                f"{reply}（{'；'.join(notes)}）",
+                f"{reply} ({'; '.join(notes)})",
+            )
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, summary
 
@@ -3844,9 +3921,16 @@ class PlanningAgent:
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
         session.plan = candidate
-        cross = f" 移到第{new_day}天" if new_day != src_no else ""
+        cross = (
+            L(f" 移到第{new_day}天", f" to day {new_day}") if new_day != src_no else ""
+        )
         summary = ChangeSummary(
-            change_summary=[f"第{new_day}天 移动 {visit.name}{cross}"],
+            change_summary=[
+                L(
+                    f"第{new_day}天 移动 {visit.name}{cross}",
+                    f"Day {new_day}: moved {visit.name}{cross}",
+                )
+            ],
             affected_items_count=1,
         )
         return report, summary, notes
@@ -3903,7 +3987,12 @@ class PlanningAgent:
         self._replay_measured_legs(candidate)
         session.plan = candidate
         summary = ChangeSummary(
-            change_summary=[f"第{day_no}天 {visit.name} 改到 {_fmt_hm(start)}"],
+            change_summary=[
+                L(
+                    f"第{day_no}天 {visit.name} 改到 {_fmt_hm(start)}",
+                    f"Day {day_no}: {visit.name} moved to {_fmt_hm(start)}",
+                )
+            ],
             affected_items_count=1,
         )
         return report, summary, notes
@@ -3972,7 +4061,7 @@ class PlanningAgent:
             cities.discard("")
             if len(cities) == 1:
                 return cities.pop()
-        poi = await self._lookup_poi(name, "未标注")
+        poi = await self._lookup_poi(name, _unspecified())
         if poi is not None:
             city = (poi.get("city") or "").strip().removesuffix("市")
             if city:
@@ -4018,7 +4107,7 @@ class PlanningAgent:
                         wish,
                         source="chat",
                         itinerary_id=itinerary_id,
-                        note="来自聊天",
+                        note=L("来自聊天", "From chat"),
                         city=city,
                     )
                     known.append(
@@ -4033,7 +4122,11 @@ class PlanningAgent:
                         bare = _norm_city(city).removesuffix("市")
                         if trip_cities and bare not in trip_cities:
                             notes.append(
-                                f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）"
+                                L(
+                                    f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
+                                    f'"{wish}" saved to your wishlist ({city}, not '
+                                    f"part of this trip)",
+                                )
                             )
                     else:
                         unresolved.append((wish, row))
@@ -4099,10 +4192,20 @@ class PlanningAgent:
                     self._trip_items.update(row["id"], status=STATUS_UNWANTED)
                 except Exception:
                     logger.warning("plan: wish drop failed for %s", name)
-                parts.append(f"「{name}」已从心愿单移除")
+                parts.append(
+                    L(
+                        f"「{name}」已从心愿单移除",
+                        f'"{name}" removed from your wishlist',
+                    )
+                )
                 answered.add(name)
             elif _WISH_ANY_RE.search(seg):
-                parts.append(f"「{name}」按不限城市记")
+                parts.append(
+                    L(
+                        f"「{name}」按不限城市记",
+                        f'"{name}" noted with no city preference',
+                    )
+                )
                 answered.add(name)
             else:
                 city = _match_city_token(seg) or (
@@ -4113,15 +4216,21 @@ class PlanningAgent:
                         self._trip_items.update(row["id"], city=city)
                     except Exception:
                         logger.warning("plan: wish city set failed for %s", name)
-                    parts.append(f"「{name}」已记到{city}")
+                    parts.append(
+                        L(f"「{name}」已记到{city}", f'"{name}" noted under {city}')
+                    )
                     answered.add(name)
         if not answered:
             return None
         session.pending_wish_cities = [n for n in pending if n not in answered]
-        reply = "；".join(parts)
+        reply = L("；".join(parts), "; ".join(parts))
         remaining = wish_city_question(session.pending_wish_cities)
         if remaining:
-            reply = f"{reply}。{remaining}" if reply else remaining
+            reply = (
+                L(f"{reply}。{remaining}", f"{reply}. {remaining}")
+                if reply
+                else remaining
+            )
         session.history.append(ChatMessage(role="assistant", content=reply))
         return session, reply, None
 
@@ -4212,7 +4321,7 @@ class PlanningAgent:
                 applied, summary, error_text, hard_count = (
                     None,
                     None,
-                    f"diff 无法应用：{exc}",
+                    L(f"diff 无法应用：{exc}", f"diff could not be applied: {exc}"),
                     0,
                 )
             else:
@@ -4220,7 +4329,10 @@ class PlanningAgent:
                     v for v in report.violations if v.severity == RuleSeverity.error
                 ]
                 hard_count = len(hard)
-                error_text = "；".join(v.message for v in hard)
+                error_text = L(
+                    "；".join(v.message for v in hard),
+                    "; ".join(v.message for v in hard),
+                )
             if not error_text:
                 break
             if round_no == MAX_REPAIR_ROUNDS:
@@ -4255,14 +4367,29 @@ class PlanningAgent:
                         for i in d.items
                         if not isinstance(i, VisitItem) or i.item_id in keep_ids
                     ]
-                plan.assumptions.append(f"已合并重复站点：{'、'.join(dup_dropped)}")
+                plan.assumptions.append(
+                    L(
+                        f"已合并重复站点：{'、'.join(dup_dropped)}",
+                        f"Merged duplicate stops: {', '.join(dup_dropped)}",
+                    )
+                )
         elif applied is None:
             plan = session.plan.model_copy(deep=True)
-            notes.append(f"这次修改未能生效（{error_text}），行程保持原样")
+            notes.append(
+                L(
+                    f"这次修改未能生效（{error_text}），行程保持原样",
+                    f"This change didn't take effect ({error_text}); the "
+                    "itinerary is unchanged",
+                )
+            )
         else:
             plan = applied
             notes.append(
-                f"行程仍有 {hard_count} 处校验问题，已按半成品交付：{error_text}"
+                L(
+                    f"行程仍有 {hard_count} 处校验问题，已按半成品交付：{error_text}",
+                    f"The itinerary still has {hard_count} validation issues "
+                    f"and ships as a draft: {error_text}",
+                )
             )
         annotate_legs(plan)
         await self._enrich_parallel(plan)
@@ -4409,7 +4536,7 @@ class PlanningAgent:
             item_id=item_id,
             name=name,
             category=str(item.get("category") or "sight"),
-            city=str(item.get("city") or "").strip() or "未标注",
+            city=str(item.get("city") or "").strip() or _unspecified(),
             day=day,
             duration_minutes=duration or DEFAULT_VISIT_MINUTES,
         )

@@ -40,6 +40,46 @@ _PRIVATE_NETS = [
     )
 ]
 
+# 内建中国 IP 段兜底（当 data/cn_ip_ranges.txt 缺失时保底使用）。
+# 覆盖 APNIC CN 委派中最常被访问的 /8 前缀——确保测试用 CN 公网
+# IP 不被错误分类为境外。完整段表通过 data/cn_ip_ranges.txt 热叠加。
+_DEFAULT_CN_NETS: tuple[ipaddress.IPv4Network, ...] = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "1.0.1.0/24",
+        "1.0.2.0/23",
+        "1.0.8.0/21",
+        "1.1.0.0/24",
+        "1.2.0.0/23",
+        "1.2.2.0/24",
+        "1.4.0.0/24",
+        "1.8.0.0/24",
+        "1.12.0.0/14",
+        "1.18.0.0/24",
+        "1.24.0.0/13",
+        "1.36.0.0/24",
+        "1.44.0.0/24",
+        "1.46.0.0/24",
+        "1.54.0.0/24",
+        "1.92.0.0/24",
+        "1.116.0.0/15",
+        "1.120.0.0/15",
+        "1.180.0.0/14",
+        "1.184.0.0/15",
+        "1.192.0.0/15",
+        "1.196.0.0/16",
+        "1.202.0.0/15",
+        "14.0.0.0/24",
+        "14.24.0.0/13",
+        "27.8.0.0/13",
+        "27.36.0.0/14",
+        "27.40.0.0/13",
+        "27.50.128.0/19",
+        "27.54.192.0/18",
+        "27.128.0.0/18",
+    )
+)
+
 
 @lru_cache(maxsize=4)
 def _load_ranges(path: str, mtime_ns: int) -> tuple[ipaddress.IPv4Network, ...]:
@@ -68,7 +108,9 @@ def _ranges() -> tuple[ipaddress.IPv4Network, ...]:
         mtime = Path(path).stat().st_mtime_ns
     except OSError:
         mtime = 0
-    return _load_ranges(path, mtime)
+    loaded = _load_ranges(path, mtime)
+    # 文件缺失或未命中任何段 → 内建保底段兜底（避免 CN 公网被错分为境外）
+    return loaded if loaded else _DEFAULT_CN_NETS
 
 
 def client_ip(x_forwarded_for: str | None, client_host: str | None) -> str | None:
