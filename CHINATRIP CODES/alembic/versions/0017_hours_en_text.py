@@ -23,15 +23,11 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute("ALTER TABLE pois ALTER COLUMN opening_hours_en TYPE TEXT")
-    op.execute(
-        "ALTER TABLE restaurants ALTER COLUMN opening_hours_en TYPE TEXT"
-    )
+    op.execute("ALTER TABLE restaurants ALTER COLUMN opening_hours_en TYPE TEXT")
 
 
 def downgrade() -> None:
     op.execute(
         "ALTER TABLE restaurants ALTER COLUMN opening_hours_en TYPE VARCHAR(500)"
     )
-    op.execute(
-        "ALTER TABLE pois ALTER COLUMN opening_hours_en TYPE VARCHAR(500)"
-    )
+    op.execute("ALTER TABLE pois ALTER COLUMN opening_hours_en TYPE VARCHAR(500)")

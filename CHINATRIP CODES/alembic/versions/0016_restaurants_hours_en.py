@@ -21,12 +21,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE restaurants ADD COLUMN opening_hours_en VARCHAR(500)"
-    )
+    op.execute("ALTER TABLE restaurants ADD COLUMN opening_hours_en VARCHAR(500)")
 
 
 def downgrade() -> None:
-    op.execute(
-        "ALTER TABLE restaurants DROP COLUMN IF EXISTS opening_hours_en"
-    )
+    op.execute("ALTER TABLE restaurants DROP COLUMN IF EXISTS opening_hours_en")

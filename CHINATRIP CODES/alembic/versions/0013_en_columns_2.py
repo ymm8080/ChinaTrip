@@ -31,9 +31,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "ALTER TABLE restaurants DROP COLUMN IF EXISTS signature_dishes_en"
-    )
+    op.execute("ALTER TABLE restaurants DROP COLUMN IF EXISTS signature_dishes_en")
     op.execute("ALTER TABLE restaurants DROP COLUMN IF EXISTS cuisine_en")
     op.execute("ALTER TABLE restaurants DROP COLUMN IF EXISTS review_tags_en")
     op.execute("ALTER TABLE pois DROP COLUMN IF EXISTS review_summary_en")

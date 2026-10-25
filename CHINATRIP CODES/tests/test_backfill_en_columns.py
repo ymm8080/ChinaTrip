@@ -228,3 +228,27 @@ def test_process_row_write_failure_isolated():
         mod._write_row = old
     assert stats["errors"] == 1
     assert stats["rows_filled"] == 0
+
+
+def test_validate_hours_en_time_drift():
+    from app.jobs.backfill_en_columns import validate_hours_en
+
+    # 时刻数字必须保真
+    assert (
+        validate_hours_en("Mon-Sun 09:00-17:00", source="周一至周日 09:00-17:00")
+        is None
+    )
+    assert (
+        validate_hours_en("Mon-Sun 09:00-18:00", source="周一至周日 09:00-17:00")
+        == "time_drift"
+    )
+    assert validate_hours_en("Monday Closed", source="周一闭馆") is None
+    # 残句意译：禁中文回退
+    assert validate_hours_en("今天开放", source="今天开放") == "no_latin"
+    assert (
+        validate_hours_en(
+            "Open today 09:00-17:00; last entry 16:00",
+            source="今天09:00-17:00开放（16:00停止入园）",
+        )
+        is None
+    )

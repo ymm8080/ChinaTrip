@@ -171,8 +171,7 @@ def run_job(spec: JobSpec, st: JobState, *, now: float, log) -> JobState:
         ok = proc.returncode == 0
         if not ok:
             log(
-                f"[{spec.name}] FAIL rc={proc.returncode} "
-                f"stderr={proc.stderr[-300:]!r}"
+                f"[{spec.name}] FAIL rc={proc.returncode} stderr={proc.stderr[-300:]!r}"
             )
     except subprocess.TimeoutExpired:
         ok = False
