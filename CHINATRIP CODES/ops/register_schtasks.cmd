@@ -17,6 +17,10 @@ schtasks /Create /F /TN "ChinaTrip\POI monthly tags"    /TR "\"%OPS%\poi_monthly
 schtasks /Create /F /TN "ChinaTrip\POI blackpearl check" /TR "\"%OPS%\poi_blackpearl.cmd\""   /SC MONTHLY /MO 1 /D 2 /ST 04:30
 schtasks /Create /F /TN "ChinaTrip\POI quarterly intro" /TR "\"%OPS%\poi_quarterly.cmd\""     /SC MONTHLY /M JAN,APR,JUL,OCT /D 1 /ST 03:00
 schtasks /Create /F /TN "ChinaTrip\POI intro monthly"   /TR "\"%OPS%\poi_intro_monthly.cmd\"" /SC MONTHLY /MO 1 /D 1 /ST 05:10
+rem poi_stats aggregate: full rebuild from trip_items + feedback, idempotent
+schtasks /Create /F /TN "ChinaTrip\POI stats nightly"   /TR "\"%OPS%\poi_stats_nightly.cmd\"" /SC DAILY   /ST 03:40
+rem _en translation: nightly fill-empty batch (bilingual P1)
+schtasks /Create /F /TN "ChinaTrip\POI en nightly"      /TR "\"%OPS%\poi_en_nightly.cmd\"" /SC DAILY   /ST 04:10
 
 rem ===== Weather (amap weather API; upstream CMA; 08/11/18 forecasts, +1h derived) =====
 schtasks /Create /F /TN "ChinaTrip\Weather morning"   /TR "\"%OPS%\weather_fetch.cmd\"" /SC DAILY /ST 08:10

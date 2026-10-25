@@ -462,8 +462,8 @@ def test_tag_restaurants_english_city_normalized_before_append():
     assert row.wgs84_location is not None
 
 
-def test_tag_restaurants_hong_kong_macau_taipei_always_covered():
-    # 港澳台进表（用户拍板 2026-10-24）：空库也放行，不受底库闸门限制
+def test_tag_restaurants_gang_aotai_not_exempted():
+    # 港澳台不豁免（用户拍板 2026-10-25 推翻前令）：与其它海外城市一致被闸门挡住
     factory = _fake_factory([])
     jobs = [
         {
@@ -490,16 +490,6 @@ def test_tag_restaurants_hong_kong_macau_taipei_always_covered():
             },
             "tags": ["michelin_1star"],
         },
-    ]
-    stats = tag_restaurants(factory, jobs, kind="black_pearl")
-    assert stats["appended"] == 3
-    assert [r.city for r in factory.created[0].added] == ["香港", "澳门", "台北"]
-
-
-def test_tag_restaurants_taichung_kaohsiung_always_covered():
-    # 港澳台全口径（2026-10-24）：米其林台中/高雄指南同样豁免闸门
-    factory = _fake_factory([])
-    jobs = [
         {
             "entry": {
                 "name": "Forchetta",
@@ -511,18 +501,14 @@ def test_tag_restaurants_taichung_kaohsiung_always_covered():
             "tags": ["michelin_1star"],
         },
         {
-            "entry": {
-                "name": "Haili",
-                "city": "Kaohsiung",
-                "lat": None,
-                "lon": None,
-            },
+            "entry": {"name": "Haili", "city": "Kaohsiung", "lat": None, "lon": None},
             "tags": ["michelin_bib"],
         },
     ]
-    stats = tag_restaurants(factory, jobs, kind="michelin")
-    assert stats["appended"] == 2
-    assert [r.city for r in factory.created[0].added] == ["台中", "高雄"]
+    stats = tag_restaurants(factory, jobs, kind="black_pearl")
+    assert stats["appended"] == 0
+    assert all(d["reason"] == "city_not_covered" for d in stats["unmatched_detail"])
+    assert factory.created[0].added == []
 
 
 def test_tag_restaurants_other_overseas_still_blocked():

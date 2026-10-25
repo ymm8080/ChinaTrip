@@ -67,11 +67,6 @@ _NAME_THRESHOLD = 0.75  # 有坐标路径的名称相似度下限
 _NAME_THRESHOLD_STRICT = 0.85  # 无坐标源（黑珍珠）名称相似度下限
 _MAX_DISTANCE_M = 200.0  # 坐标距离上限（米）
 
-# 港澳台进表（用户拍板 2026-10-24）：品质榜单的港澳台店不受底库
-# 城市闸门限制，照常打标/补骨架行（底库 10 城不含它们）。
-# 高雄/台中：米其林在台另有指南（2026-10-24 补齐「港澳台」全口径）。
-_ALWAYS_COVERED = {"香港", "澳门", "台北", "高雄", "台中"}
-
 _BRACKET_RE = re.compile(r"\([^)]*\)|【[^】]*】|\[[^\]]*\]")
 _WKT_POINT_RE = re.compile(r"(?i)POINT\s*\(\s*([-\d.eE+]+)\s+([-\d.eE+]+)\s*\)")
 _AWARD_STAR_RE = re.compile(r"^([123])\s+Stars?$")
@@ -394,7 +389,7 @@ def tag_restaurants(
                 )
                 continue
             city_stem = normalize_entry_city(city)
-            if city_stem not in covered and city_stem not in _ALWAYS_COVERED:
+            if city_stem not in covered:
                 stats["unmatched"] += 1
                 add_detail(
                     "unmatched_detail",
