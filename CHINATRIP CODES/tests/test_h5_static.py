@@ -18,11 +18,15 @@ def test_h5_static_gate():
         import pytest
 
         pytest.skip("node 不可用，跳过 H5 静态守门")
+    # Windows 中文 locale 下 text=True 默认按 GBK 解码，守门脚本输出 UTF-8 会导致
+    # 读线程抛 UnicodeDecodeError、stdout 变 None——必须显式指定 utf-8。
     r = subprocess.run(
         [node, str(CHECKER)],
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
     )
     assert r.returncode == 0, (

@@ -366,6 +366,7 @@
       "itin.editLoaded": "Loaded into Plan — just say what to change; tap '💾 Save Itinerary' to overwrite",
       "itin.editMsgPre": "✏️ Edit itinerary: ",
       "itin.empty": "No itineraries yet — create one in the Plan tab, then tap '💾 Save Itinerary'.",
+      "itin.loading": "Loading automatically when you open this page…",
       "itin.export": "⬇️ Export",
       "itin.filePrefix": "itinerary.",
       "itin.loadFail": "Load failed: ",
