@@ -192,9 +192,18 @@ async def list_itineraries(
     account: str | None = Depends(_account_from_auth),
 ) -> list[dict]:
     device = _require_device(x_device_id)
-    if account is not None:
-        return [_summary(r) for r in store.list_by_account(account)]
-    return [_summary(r) for r in store.list_by_owner(device)]
+    records = (
+        store.list_by_account(account)
+        if account is not None
+        else store.list_by_owner(device)
+    )
+    # 行程页按时间倒序（新的在前）：store 恢复后是 DB 行序/插入序，不保证
+    # 时间序；_summary 已把旧记录回退到创建时间，None（无任何时间戳）垫底。
+    summaries = [_summary(r) for r in records]
+    summaries.sort(
+        key=lambda s: (s["updated_at"] is None, s["updated_at"]), reverse=True
+    )
+    return summaries
 
 
 @router.get("/itineraries/{itinerary_id}")
