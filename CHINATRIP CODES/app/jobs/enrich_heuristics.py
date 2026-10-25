@@ -8,6 +8,11 @@
   3. duration 地板值（--with-duration 才启用）：类别/名称→分钟下限。
      **必须最后跑**——先跑会占坑挡住携程/高德的真实时长（只填空语义）。
 
+2026-10-25 词典扩容：在线两路当日皆断（GLM coding 端点静默忽略
+web_search，实测 40 目标仅 1 填上；携程目录页 98.7% miss，2126 目标
+仅 1 条时长），时长缺口 1568 行只能走确定性地板——补 乐园/动物园/
+宫庙塔陵故居/园/路街巷/游船码头 等高置信词，仍守宁缺毋滥。
+
 映射原则（宁缺毋滥）：
   * indoor=True 仅限明确的室内馆；indoor=False 仅限明确户外；
     混合体（古镇/街区/寺庙群）一律留 None 给未来真数据。
@@ -54,6 +59,43 @@ _INDOOR_HINTS = (
     " Planetarium",
     "蜡像馆",
     "规划馆",
+    "博物院",
+)
+_THEME_HINTS = (
+    "乐园",
+    "游乐园",
+    "动物园",
+    "野生动物",
+    "欢乐谷",
+    "方特",
+    "水上世界",
+    "海洋公园",
+    "文旅城",
+)
+_HERITAGE_HINTS = (
+    "宫",
+    "庙",
+    "廟",
+    "寺",
+    "道观",
+    "祠",
+    "庵",
+    "塔",
+    "陵",
+    "墓",
+    "碑",
+    "故居",
+    "故里",
+    "遗址",
+    "遗迹",
+    "牌坊",
+    "教堂",
+    "清真寺",
+    "大学",
+    "酒庄",
+    "温泉",
+    "阁",
+    "閣",
 )
 _OUTDOOR_HINTS = (
     "山",
@@ -72,18 +114,31 @@ _OUTDOOR_HINTS = (
     "雪场",
     "滑雪",
     "热雪",
+    "雪山",
+    "长城",
 )
-_CAVE_HINTS = ("溶洞", "洞窟", "石窟")
+_CAVE_HINTS = ("溶洞", "洞窟", "石窟", "窟")
+_PARK_HINTS = ("公园", "园林", "园", "園")
 _URBAN_HINTS = (
     "古镇",
     "古街",
     "街区",
     "步行街",
     "老街",
+    "街",
+    "路",
+    "巷",
     "城墙",
     "大道",
     "大桥",
     "广场",
+    "游船",
+    "码头",
+    "夜游",
+    "轮渡",
+    "村",
+    "小火车",
+    "游艇",
 )  # noqa: E501
 _DURATION_FLOOR = {
     "museum": 90,
@@ -108,10 +163,16 @@ def _classify(
         # 高置信室内：名称带明确馆字
         if any(h in name for h in _INDOOR_HINTS):
             cat, indoor, rain_ok = "museum", True, True
+        elif any(h in name for h in _THEME_HINTS):
+            cat, indoor, rain_ok = "theme_park", False, False
+        elif any(h in name for h in _HERITAGE_HINTS):
+            cat, indoor, rain_ok = "attraction", False, None
         elif any(h in name for h in _CAVE_HINTS):
             cat, indoor, rain_ok = "nature", False, True
         elif any(h in name for h in _OUTDOOR_HINTS):
             cat, indoor, rain_ok = "nature", False, False
+        elif any(h in name for h in _PARK_HINTS):
+            cat, indoor, rain_ok = "park", False, None
         elif any(h in name for h in _URBAN_HINTS):
             cat, indoor, rain_ok = "attraction", False, None
     if cat is not None:
