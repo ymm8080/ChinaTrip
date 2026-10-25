@@ -4144,7 +4144,7 @@ window.addEventListener("i18n:change", () => { if (CALL.cfg) callRender(); });
 /* ---- PWA：注册 service worker（离线缓存，surmai 同款 app-shell 策略） ---- */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   });
 }
 </script>
