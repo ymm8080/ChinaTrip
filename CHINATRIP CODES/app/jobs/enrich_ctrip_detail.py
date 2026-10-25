@@ -23,6 +23,7 @@ unesco/5a/amap 优先 + rating 降序——规划器最先挑出的行先富化�
 import argparse
 import asyncio
 import json
+import logging
 import re
 import sys
 from typing import NamedTuple
@@ -38,6 +39,8 @@ from app.services.ctrip_hours import (
     parse_detail_fields,
     parse_hours,
 )
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_LIMIT = 100
 _DEFAULT_CONCURRENCY = 8
@@ -105,6 +108,11 @@ class RichCtripReader(CtripHoursReader):
             async with self._slots():
                 r = await self._client.get(url)
         except Exception:
+            logger.warning(
+                "enrich_ctrip_detail: detail page fetch failed, url=%s",
+                url,
+                exc_info=True,
+            )
             return None
         fields: dict | None = None
         if r.status_code == 200:

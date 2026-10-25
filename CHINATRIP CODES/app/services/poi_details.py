@@ -663,6 +663,10 @@ def get_poi_detail_store() -> PoiDetailStore:
         try:
             factory = get_session_factory()
         except Exception:
+            logger.error(
+                "poi_details: session factory unavailable, in-memory only",
+                exc_info=True,
+            )
             factory = None
         _store_singleton = PoiDetailStore(session_factory=factory)
     return _store_singleton

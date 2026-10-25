@@ -123,6 +123,11 @@ def main(argv: list[str] | None = None) -> int:
 
         session_factory = get_session_factory()
     except Exception:
+        logger.warning(
+            "aggregate_poi_stats: session_factory unavailable, "
+            "aggregating in-memory data only (partial data)",
+            exc_info=True,
+        )
         session_factory = None
     stats = aggregate_poi_stats(trip_items, feedback, session_factory=session_factory)
     print(json.dumps(stats, ensure_ascii=True))

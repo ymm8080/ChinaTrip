@@ -1,4 +1,8 @@
+import logging
+
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class AmapError(Exception):
@@ -631,10 +635,19 @@ class AmapClient:
         except AmapQuotaExhaustedError as exc:
             if not location:
                 raise
+            logger.warning(
+                "amap: text quota exhausted for hours, degrading to around, keyword=%s",
+                keyword,
+            )
             try:
                 return await self._search_hours_around(keyword, location)
             except Exception:
                 # around 失败（含其配额也尽/超时）一律回抛 text 原始异常
+                logger.warning(
+                    "amap: around fallback failed for hours, keyword=%s",
+                    keyword,
+                    exc_info=True,
+                )
                 raise exc
         pois = data.get("pois")
         poi = None

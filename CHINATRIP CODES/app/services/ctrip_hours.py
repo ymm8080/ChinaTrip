@@ -21,9 +21,12 @@ API at W9-10):
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 _LIST_URL = "https://gs.ctrip.com/html5/you/sight/{slug}.html?pageIndex={page}"
@@ -271,6 +274,12 @@ class CtripHoursReader:
             async with self._slots():
                 r = await self._client.get(_LIST_URL.format(slug=slug, page=page))
         except Exception:
+            logger.warning(
+                "ctrip_hours: list page fetch failed slug=%s page=%d",
+                slug,
+                page,
+                exc_info=True,
+            )
             return False, None
         if r.status_code != 200:
             return True, None
@@ -316,6 +325,9 @@ class CtripHoursReader:
             async with self._slots():
                 r = await self._client.get(url)
         except Exception:
+            logger.warning(
+                "ctrip_hours: detail page fetch failed url=%s", url, exc_info=True
+            )
             return None
         fields: dict | None = None
         if r.status_code == 200:

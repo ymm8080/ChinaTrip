@@ -1551,7 +1551,7 @@ class PlanningAgent:
 
                 get_poi_feedback_store().note_link_mention(site, city)
             except Exception:
-                pass
+                logger.warning("plan: note_link_mention failed", exc_info=True)
 
     async def _add_must_visits(
         self, session: PlanSession, names: list[str], *, far_check: bool = True
@@ -2432,6 +2432,11 @@ class PlanningAgent:
                 len(pois),
             )
             if not pois:
+                logger.warning(
+                    "plan: no candidates for %s (library+amap both empty), "
+                    "falling back to placeholder POIs",
+                    city,
+                )
                 pois = [
                     {
                         "name": f"{city}{label}",
@@ -2493,6 +2498,9 @@ class PlanningAgent:
                 )
             else:
                 label = "餐饮店" if kind == "food" else "地点"
+                logger.warning(
+                    "plan: must-visit %s not located, placeholder by name", name
+                )
                 candidates.append(
                     {
                         "name": name,
@@ -2700,10 +2708,18 @@ class PlanningAgent:
             try:
                 day = max(1, min(int(raw.get("day") or 1), days))
             except (TypeError, ValueError):
+                logger.info(
+                    "plan: v0 item %s bad day %r, coerced to 1", name, raw.get("day")
+                )
                 day = 1
             try:
                 duration = max(30, min(int(raw.get("duration_minutes") or 0), 480))
             except (TypeError, ValueError):
+                logger.info(
+                    "plan: v0 item %s bad duration %r, coerced to default",
+                    name,
+                    raw.get("duration_minutes"),
+                )
                 duration = DEFAULT_VISIT_MINUTES
             reason = str(raw.get("reason") or "").strip()[:30]
             items.append(
@@ -2789,6 +2805,12 @@ class PlanningAgent:
                     preferred_window=window,
                 )
             except Exception:
+                logger.warning(
+                    "plan: build_transfer_item failed %s→%s",
+                    from_city,
+                    to_city,
+                    exc_info=True,
+                )
                 transfer = None
             if transfer is None:
                 dist_km: float | None = None
@@ -2967,8 +2989,8 @@ class PlanningAgent:
 
         # 8.2.4 餐厅 v0 自动插入（2026-10-24）：无 food 的日子（≥2 景点）
         # 晚餐窗插 1 家顺路餐厅；每天最多 1 次调用、全程最多 3 次（防慢防
-        # 配额烧穿——AmapQuotaExhaustedError 等一切异常静默降级，配额比
-        # 餐厅重要）；铁律 20 由 recommend_restaurants 的空窗校验保证。
+        # 配额烧穿——AmapQuotaExhaustedError 等一切异常降级留日志，配额
+        # 比餐厅重要）；铁律 20 由 recommend_restaurants 的空窗校验保证。
         inserted_restos = 0
         if self._auto_restaurants and self._amap is not None:
             for day_plan in day_plans:
@@ -2990,6 +3012,12 @@ class PlanningAgent:
                         self._amap, day_plan, "dinner", city=day_plan.base_city
                     )
                 except Exception:
+                    logger.warning(
+                        "plan: auto restaurant insert failed day=%d city=%s",
+                        day_plan.day,
+                        day_plan.base_city,
+                        exc_info=True,
+                    )
                     recs = []
                 if recs:
                     # 铁律 20 守卫：build_food_item 按 apply_diffs 契约造
@@ -3304,6 +3332,7 @@ class PlanningAgent:
                 else:
                     out = await detail_fn(item.poi_id)
             except Exception:
+                logger.warning("plan: amap v5 detail hours failed, poi=%s", item.poi_id)
                 out = None
             if isinstance(out, dict):
                 hours = out.get("opening_hours")
@@ -3319,6 +3348,7 @@ class PlanningAgent:
                 else:
                     out = await search_fn(item.name, item.city or None)
             except Exception:
+                logger.warning("plan: amap v5 search hours failed, name=%s", item.name)
                 out = None
             if isinstance(out, dict):
                 hours = out.get("opening_hours")
@@ -4047,7 +4077,8 @@ class PlanningAgent:
             return []
         try:
             return self._coerce_diffs(data.get("diffs"))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            logger.info("plan: repair diffs unparseable, dropped: %s", exc)
             return []
 
     @staticmethod
@@ -4118,6 +4149,12 @@ class PlanningAgent:
             day = max(1, int(item.get("day") or 1))
             duration = max(30, min(int(item.get("duration_minutes") or 0), 480))
         except (TypeError, ValueError):
+            logger.info(
+                "plan: edit item %s bad day/duration %r/%r, coerced",
+                name,
+                item.get("day"),
+                item.get("duration_minutes"),
+            )
             day, duration = 1, DEFAULT_VISIT_MINUTES
         return VisitItem(
             item_id=item_id,

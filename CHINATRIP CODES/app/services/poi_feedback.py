@@ -217,6 +217,10 @@ def get_poi_feedback_store() -> PoiFeedbackStore:
         try:
             factory = get_session_factory()
         except Exception:
+            logger.error(
+                "poi_feedback: session factory unavailable, in-memory only",
+                exc_info=True,
+            )
             factory = None
         _store_singleton = PoiFeedbackStore(session_factory=factory)
     return _store_singleton

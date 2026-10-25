@@ -7,6 +7,8 @@ POST /booking-auto/order-intent    L3：预填下单链接（支付动作永远�
 POST /booking-auto/select          档位选择（设备级记忆，客户自选）
 """
 
+import logging
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -16,6 +18,8 @@ from app.services.booking_auto import (
     build_reservation_tasks,
     check_availability,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/booking-auto", tags=["booking-auto"])
 
@@ -127,8 +131,14 @@ async def order_intent(
             refund_summary="人工渠道预订，退改以下单页为准（铁律 23 C 级）",
         )
         handoff_id = record.id
-    except Exception:  # 留痕失败不阻塞跳转（回填仍可手动建单）
-        pass
+    except Exception:  # 失败留日志，不阻塞跳转（回填仍可手动建单）
+        logger.warning(
+            "order_intent: handoff create failed, name=%s city=%s url=%s",
+            request.name,
+            request.city,
+            intent.authorization_url,
+            exc_info=True,
+        )
     return {
         **intent.model_dump(),
         "handoff_id": handoff_id,

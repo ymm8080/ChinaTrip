@@ -335,6 +335,10 @@ class StripeGateway:
         try:
             pm = self._get(f"/payment_methods/{payment_method_id}")
         except PaymentError:
+            logger.info(
+                "payments: describe_payment_method failed for %s",
+                payment_method_id,
+            )
             return None
         card = pm.get("card") or {}
         brand = card.get("brand") or "card"

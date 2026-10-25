@@ -152,6 +152,11 @@ async def refresh_pois(
         try:
             fields = await ctrip.detail_fields_for(poi_city or "", name or "")
         except Exception:
+            logger.warning(
+                "refresh_pois: ctrip detail_fields_for failed, name=%s",
+                name,
+                exc_info=True,
+            )
             fields = None
         if fields:
             hours = fields.get("opening_hours")
@@ -189,7 +194,12 @@ async def refresh_pois(
                     quota_dead = True
                     stats["amap_quota_exhausted"] = True
                 except Exception:
-                    pass
+                    logger.warning(
+                        "refresh_pois: amap place_hours failed, name=%s poi_id=%s",
+                        name,
+                        poi_id,
+                        exc_info=True,
+                    )
                 if isinstance(out, dict):
                     hours = out.get("opening_hours")
                     address = out.get("address")
@@ -222,7 +232,12 @@ async def refresh_pois(
                     quota_dead = True
                     stats["amap_quota_exhausted"] = True
                 except Exception:
-                    pass
+                    logger.warning(
+                        "refresh_pois: amap search_hours failed, name=%s city=%s",
+                        name,
+                        poi_city,
+                        exc_info=True,
+                    )
                 if isinstance(out, dict):
                     hours = out.get("opening_hours")
                     address = address or out.get("address")

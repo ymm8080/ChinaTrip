@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import statistics
 import sys
 from pathlib import Path
@@ -38,6 +39,8 @@ import pandas as pd
 from app.models import Poi, Restaurant
 from app.services.coords import haversine_m, out_of_china, wgs84_to_gcj02
 from app.services.poi_seed import seed_upsert
+
+logger = logging.getLogger(__name__)
 
 #: haversine 中位数阈值（米）：低于判 GCJ-02，高于判 WGS84，之间 uncertain
 GCJ02_MAX_M = 50.0
@@ -135,6 +138,7 @@ async def _judge_coords(samples: list[tuple[str, str, float, float]], amap: Any)
         try:
             hits = await amap.search_poi(f"{city}{name}", city=city)
         except Exception:
+            logger.info("import_chinatravel: coord probe search failed, name=%s", name)
             continue
         loc = hits[0].get("location") if hits else None
         if not isinstance(loc, dict):
