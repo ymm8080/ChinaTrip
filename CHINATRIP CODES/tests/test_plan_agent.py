@@ -683,6 +683,45 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
     assert len(session.plan.days[0].items) == 2
 
 
+def test_v0_degraded_store_refuses_placeholder_candidates():
+    """2026-10-25 占位事故门禁：库 DB 锁存中（空内存）+ 高德也挂 →
+    拒绝占位假点出货（PoiStoreUnavailableError），不再 2/2/1/0 假行程。"""
+    import app.services.poi_details as poi_mod
+    from app.services.agent.plan import PoiStoreUnavailableError
+
+    class DownFactory:
+        def __call__(self):
+            raise RuntimeError("connection refused")
+
+    store = poi_mod.PoiDetailStore(session_factory=DownFactory())
+    assert store.top_pois_in_city("苏州") == []  # 内部吞掉 DB 错 → 锁存
+    assert store.db_degraded()
+    agent = PlanningAgent(
+        ScriptedLLM([]),
+        amap_client=StubAmap(exc=RuntimeError("amap quota down")),
+        poi_details=store,
+    )
+    with pytest.raises(PoiStoreUnavailableError):
+        run(agent._collect_candidates(["苏州"]))
+
+
+def test_v0_candidate_durations_clamped_to_180():
+    """240 分钟的库时长按 180 上料（治 49%≥180min 把行程压到每天 2 点）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "P1",
+        city="重庆",
+        name="超长时长景点",
+        category="attraction",
+        location=(106.5, 29.5),
+        suggested_duration_min=240,
+    )
+    agent = PlanningAgent(ScriptedLLM([]), amap_client=None, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["重庆"]))
+    by_name = {c["name"]: c for c in candidates}
+    assert by_name["超长时长景点"]["suggested_duration_min"] == 180
+
+
 class PerCityAmap:
     """Different canned POIs per city (real-ish coordinates)."""
 

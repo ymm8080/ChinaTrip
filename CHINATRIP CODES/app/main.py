@@ -1,4 +1,6 @@
 import logging
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -31,6 +33,43 @@ from app.config import get_settings
 from app.middleware.ratelimit import RateLimitMiddleware
 from app.middleware.usage import TraceIdMiddleware
 
+logger = logging.getLogger(__name__)
+
+# Dev/live db lives in WSL, which idle-sleeps ~1min without traffic and
+# takes PG (and the whole plan pipeline) with it (2026-10-25 placeholder
+# incident). A 30s ping keeps the VM awake and clears the store's
+# down-latch the moment PG answers again.
+_PG_KEEPALIVE_INTERVAL_SECONDS = 30.0
+
+
+def _pg_keepalive(stop: threading.Event) -> None:
+    from app.services.poi_details import get_poi_detail_store
+
+    store = get_poi_detail_store()
+    last_ok: bool | None = None
+    while True:
+        ok = store.ping()
+        if ok != last_ok:
+            if ok:
+                logger.info("pg keepalive: db up (latch cleared)")
+            else:
+                logger.warning("pg keepalive: db unreachable")
+            last_ok = ok
+        if stop.wait(_PG_KEEPALIVE_INTERVAL_SECONDS):
+            return
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    stop = threading.Event()
+    threading.Thread(
+        target=_pg_keepalive, args=(stop,), daemon=True, name="pg-keepalive"
+    ).start()
+    try:
+        yield
+    finally:
+        stop.set()
+
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -43,6 +82,7 @@ def create_app() -> FastAPI:
         title="自助景点规划助手 API",
         summary="ChinaTrip backend (设计文档 v2.0, 国内区先行 · MVP 最小成本)",
         version=__version__,
+        lifespan=_lifespan,
     )
 
     # Starlette: last add_middleware = outermost. TraceIdMiddleware added last

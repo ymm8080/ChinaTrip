@@ -85,6 +85,26 @@ POI_CANDIDATES_PER_CITY = 8
 # 8.1.1：底库候选不足此数才打高德补量（省配额；2026-10-24 配额紧张）
 LIBRARY_MIN_CANDIDATES = 10
 PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
+# 规划期时长上限（2026-10-25）：库时长 p50=120、49%≥180min，240+ 的
+# 大点把真实行程压到每天 2 个——上料钳到 180，库值不动。
+_PLAN_DURATION_MAX_MIN = 180
+
+
+class PoiStoreUnavailableError(RuntimeError):
+    """POI 底库 DB 失败锁存中（内存兜底为空）——拒绝占位假点出货。
+
+    2026-10-25 占位行程事故：PG 瞬断+高德配额尽双断时静默出了 5 个
+    零坐标假点（2/2/1/0 每天）。门禁只拦「库降级」这一种；库健康但
+    该城真没数据的占位仍是扩城兜底，照常出货。
+    """
+
+
+def _clamp_plan_duration(minutes) -> int | None:
+    if not minutes:
+        return None
+    return min(int(minutes), _PLAN_DURATION_MAX_MIN)
+
+
 DEFAULT_VISIT_MINUTES = 60
 FLIGHT_TRANSFER_MINUTES = 180  # door-to-door placeholder for uncovered long legs
 LEG_ENRICH_MAX_PAIRS = 24  # amap leg measurements per delivery
@@ -2392,7 +2412,9 @@ class PlanningAgent:
                             "rating_count": h.get("rating_count"),
                             "tags": h.get("tags"),
                             "best_visit_time": h.get("best_visit_time"),
-                            "suggested_duration_min": h.get("suggested_duration_min"),
+                            "suggested_duration_min": _clamp_plan_duration(
+                                h.get("suggested_duration_min")
+                            ),
                             "indoor": h.get("indoor"),
                             "rain_ok": h.get("rain_ok"),
                             "review_tags": h.get("review_tags"),
@@ -2432,6 +2454,13 @@ class PlanningAgent:
                 len(pois),
             )
             if not pois:
+                if self._poi_details is not None and self._poi_details.db_degraded():
+                    logger.error(
+                        "plan: poi store degraded for %s (db latch active, "
+                        "memory empty), refusing placeholder candidates",
+                        city,
+                    )
+                    raise PoiStoreUnavailableError(f"poi store degraded for {city}")
                 logger.warning(
                     "plan: no candidates for %s (library+amap both empty), "
                     "falling back to placeholder POIs",
@@ -2677,7 +2706,9 @@ class PlanningAgent:
                         and cand.get("suggested_duration_min")
                         and item.get("duration_minutes") == DEFAULT_VISIT_MINUTES
                     ):
-                        item["duration_minutes"] = int(cand["suggested_duration_min"])
+                        item["duration_minutes"] = _clamp_plan_duration(
+                            cand["suggested_duration_min"]
+                        )
                     if item.get("reason"):
                         reasons.append(f"{item['name']}：{item['reason']}")
                 extra = [str(a) for a in (data.get("assumptions") or [])]

@@ -35,6 +35,7 @@ from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
     PlanSessionStore,
+    PoiStoreUnavailableError,
     clarify_questions,
     current_violations,
 )
@@ -259,6 +260,11 @@ async def start_plan(
             start_date=request.start_date,
             lang=request.lang,
         )
+    except PoiStoreUnavailableError:
+        # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
+        # 提示稍后重试（2026-10-25 占位事故门禁）。
+        logger.warning("plan/start poi_store_unavailable")
+        raise HTTPException(status_code=503, detail="poi_store_unavailable")
     except LLMError as exc:
         # LLMError messages are sanitized (never contain the API key).
         logger.exception("plan/start llm_error: %s", exc)
@@ -299,6 +305,9 @@ async def message_plan(
         raise HTTPException(status_code=404, detail="session_not_found")
     try:
         session, reply, change = await agent.message(session, request.text)
+    except PoiStoreUnavailableError:
+        logger.warning("plan/message poi_store_unavailable")
+        raise HTTPException(status_code=503, detail="poi_store_unavailable")
     except LLMError as exc:
         logger.exception("plan/message llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
@@ -343,6 +352,9 @@ async def confirm_plan_sites(
         raise HTTPException(status_code=409, detail="not_awaiting_sites")
     try:
         session, reply, change = await agent.confirm_sites(session, request.mandatory)
+    except PoiStoreUnavailableError:
+        logger.warning("plan/sites_confirm poi_store_unavailable")
+        raise HTTPException(status_code=503, detail="poi_store_unavailable")
     except LLMError as exc:
         logger.exception("plan/sites_confirm llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
