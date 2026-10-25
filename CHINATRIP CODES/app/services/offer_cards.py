@@ -51,7 +51,9 @@ def _disclaimer() -> str:
 
 
 def _unified_tag() -> str:
-    return L(_UNIFIED_TAG, "Same price nationwide")
+    # EN wording must stay identical to i18n.js bk.unified: the H5 card
+    # renderer suppresses the badge by exact string match.
+    return L(_UNIFIED_TAG, "Nationwide flat price")
 
 
 def _same_price_tag() -> str:
