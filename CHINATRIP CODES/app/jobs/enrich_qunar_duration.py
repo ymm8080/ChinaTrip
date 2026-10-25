@@ -50,7 +50,16 @@ _DURATION_MIN, _DURATION_MAX = 15, 600
 _MINUTES_PER_DAY = 480  # 「天」按 8 小时算（0.5-1天 → 中值 360 分）
 _RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 _MAX_ATTEMPTS = 4
-_SOURCE_PRIORITY = ("unesco", "5a", "amap", "chinatravel", "osm")
+_SOURCE_PRIORITY = (
+    "unesco",
+    "5a",
+    "museum1",
+    "museum2",
+    "museum3",
+    "amap",
+    "chinatravel",
+    "osm",
+)
 
 _LIST_URL = "https://sight.qunar.com/list?city={slug}&page={page}"
 _DETAIL_URL = "https://sight.qunar.com/{poi_id}"
@@ -346,11 +355,17 @@ def _source_rank():
 
 
 def select_targets(session_factory, *, limit: int) -> list[Poi]:
-    """active 且时长可升级（NULL 或 heuristic 来源），unesco/5a/amap 优先。"""
+    """active 且时长可升级（NULL 或 heuristic 来源），unesco/5a/amap 优先。
+
+    只选 QUNAR_CITY_SLUGS 覆盖城市的行（对齐 enrich_ctrip_detail 的
+    CITY_SLUGS 闸门）——museum1/2/3 行 city 存省名（山东/江苏…），
+    qunar 无省列表页，不滤掉会把 limit 全烧在永不可匹配行上
+    （2026-10-25 首跑实录：30 目标 0 城市）。
+    """
     with session_factory() as session:
         return (
             session.query(Poi)
-            .filter(Poi.status == "active")
+            .filter(Poi.status == "active", Poi.city.in_(list(QUNAR_CITY_SLUGS)))
             .filter(
                 or_(
                     Poi.suggested_duration_min.is_(None),
