@@ -99,6 +99,22 @@ class Settings(BaseSettings):
     share_public_rate_per_minute: int = 30
     share_public_rate_per_hour: int = 200
 
+    # 客户付款层（DESIGN/PAYMENTS_PROGRESS.md，2026-10-25）：公司↔客户收款，
+    # 铁律 22 的渠道 handoff 不变。Stripe 一个集成覆盖外卡 + 支付宝 + 微信
+    # 支付（hosted Checkout，原始卡号不经过本服务器）；mock 后端零网络可跑
+    # 全流程（LLM_BACKEND=mock 同款离线开发哲学）。金额 yuan float（repo 惯例），
+    # 只在 Stripe adapter 内转 cents。
+    payments_backend: str = "mock"  # "mock" | "stripe"
+    stripe_api_key: str = ""
+    stripe_webhook_secret: str = ""
+    payments_default_currency: str = "cny"
+    # 空 = 从请求 base_url 推导（本机 dev 即 127.0.0.1:8000）；生产填绝对地址。
+    payments_success_url: str = ""
+    payments_cancel_url: str = ""
+    # 运营侧对已存卡扣款的共享密钥；空 = 扣款端点整体禁用（403）。
+    payments_operator_token: str = ""
+    payments_db_url: str = "sqlite:///data/payments.db"
+
     log_level: str = "INFO"
 
 
