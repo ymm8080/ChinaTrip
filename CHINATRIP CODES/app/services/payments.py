@@ -399,8 +399,9 @@ class PaymentService:
         handoff_id: str | None,
         trip_item_id: str | None,
         email: str | None,
-        success_url: str,
-        cancel_url: str,
+        success_url: str | None,
+        cancel_url: str | None,
+        base_url: str = "",
     ) -> tuple[PaymentRecord, str]:
         if kind not in (KIND_PAY_NOW, KIND_SAVE_METHOD):
             raise InvalidPaymentRequest("invalid_kind")
@@ -429,6 +430,12 @@ class PaymentService:
             created_at=now,
             updated_at=now,
         )
+        # 默认回跳带 pay_return=<id>：Stripe 跳回 H5 后前端据此轮询状态；
+        # 生产在 settings 配绝对地址覆盖。
+        if not success_url:
+            success_url = base_url.rstrip("/") + "/h5/?pay_return=" + record.id
+        if not cancel_url:
+            cancel_url = base_url.rstrip("/") + "/h5/"
         checkout_url = self.gateway.create_checkout(record, success_url, cancel_url)
         self.store.put(record)
         return record, checkout_url

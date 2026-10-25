@@ -67,13 +67,16 @@ def _require_device(x_device_id: str | None) -> str:
     return x_device_id
 
 
-def _return_urls(request: Request) -> tuple[str, str]:
-    """空配置时从请求 base_url 推导（本机 dev 即 127.0.0.1:8000）。"""
+def _return_urls(request: Request) -> tuple[str | None, str | None, str]:
+    """settings 配置优先；空则传 None 由服务层按 base_url 生成默认回跳
+    （success 带 pay_return=<payment_id> 供前端轮询）。"""
     settings = get_settings()
     base = str(request.base_url).rstrip("/")
-    success = settings.payments_success_url or f"{base}/h5/"
-    cancel = settings.payments_cancel_url or f"{base}/h5/"
-    return success, cancel
+    return (
+        settings.payments_success_url or None,
+        settings.payments_cancel_url or None,
+        base,
+    )
 
 
 @router.post("/checkout")
@@ -85,7 +88,7 @@ async def create_checkout(
     service=Depends(get_payments_service),
 ) -> dict:
     device_id = _require_device(x_device_id)
-    success_url, cancel_url = _return_urls(request)
+    success_url, cancel_url, base_url = _return_urls(request)
     try:
         record, checkout_url = service.create_checkout(
             device_id=device_id,
@@ -100,6 +103,7 @@ async def create_checkout(
             email=body.email,
             success_url=success_url,
             cancel_url=cancel_url,
+            base_url=base_url,
         )
     except InvalidPaymentRequest as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
