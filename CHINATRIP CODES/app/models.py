@@ -65,8 +65,8 @@ class Poi(Base):
     address: Mapped[str | None] = mapped_column(String(200))
     address_en: Mapped[str | None] = mapped_column(String(200))
     opening_hours: Mapped[str | None] = mapped_column(String(500))
-    # 双语 P1.6：EN 营业时间（只填空；源列 1841/1899 为中文表述）
-    opening_hours_en: Mapped[str | None] = mapped_column(String(500))
+    # 双语 P1.6：EN 营业时间（只填空；翻译较 zh 膨胀 2-3 倍故用 TEXT，0017）
+    opening_hours_en: Mapped[str | None] = mapped_column(Text)
     hours_source: Mapped[str | None] = mapped_column(String(20))
     hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     # v1.7: WGS84 twin of `location` (GCJ-02), written in pairs at ingest;
@@ -165,8 +165,8 @@ class Restaurant(Base):
     address: Mapped[str | None] = mapped_column(String(200))
     address_en: Mapped[str | None] = mapped_column(String(200))
     opening_hours: Mapped[str | None] = mapped_column(String(500))
-    # 双语 P1.6：EN 营业时间（只填空；源列 1841/1899 为中文表述）
-    opening_hours_en: Mapped[str | None] = mapped_column(String(500))
+    # 双语 P1.6：EN 营业时间（只填空；翻译较 zh 膨胀 2-3 倍故用 TEXT，0017）
+    opening_hours_en: Mapped[str | None] = mapped_column(Text)
     hours_source: Mapped[str | None] = mapped_column(String(20))
     hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     phone: Mapped[str | None] = mapped_column(String(50))

@@ -32,6 +32,7 @@ data/
 
 # Keep example templates committable (the .env.* blanket above eats them)
 !.env.example
+!.env.example.*
 
 # Obsidian (personal vault config, not for repo)
 .obsidian/
