@@ -1,6 +1,9 @@
-"""enrich_heuristics._classify 词典行为锁定（含 2026-10-25 扩容词）。"""
+"""poi_classify 词典行为锁定（含 2026-10-25 扩容词与类别地板表）。"""
 
-from app.jobs.enrich_heuristics import _classify
+from types import SimpleNamespace
+
+from app.services.poi_classify import classify as _classify
+from app.services.poi_classify import duration_upgradable
 
 
 def _c(name, cat=None):
@@ -71,3 +74,39 @@ def test_low_confidence_stays_none():
 def test_existing_category_short_circuits():
     cat, indoor, _, floor = _c("某某馆", "theme_park")
     assert cat == "theme_park" and indoor is False and floor == 240
+
+
+def test_extended_category_floors():
+    """受控类别（seed 层 normalize_category 产物）也直接有地板。"""
+    cases = {
+        ("大昭寺", "temple"): ("temple", 60),
+        ("北京海洋馆西郊分馆", "zoo"): ("zoo", 180),
+        ("乌镇", "ancient_town"): ("ancient_town", 180),
+        ("圣约瑟夫教堂", "church"): ("church", 30),
+        ("某某遗址公园", "ruins"): ("ruins", 90),
+        ("某某艺廊", "gallery"): ("gallery", 60),
+    }
+    for (name, cat_in), (want_cat, want_floor) in cases.items():
+        cat, _, _, floor = _c(name, cat_in)
+        assert cat == want_cat and floor == want_floor, name
+
+
+def test_other_category_no_floor():
+    cat, indoor, rain_ok, floor = _c("某某综合体", "other")
+    assert cat == "other" and indoor is None and rain_ok is None and floor is None
+
+
+def test_duration_upgradable_semantics():
+    """真值源升级闸：空值/启发式可写，其它真值不互覆（2026-10-25 拍板）。"""
+    assert duration_upgradable(
+        SimpleNamespace(suggested_duration_min=None, duration_source=None)
+    )
+    assert duration_upgradable(
+        SimpleNamespace(suggested_duration_min=240, duration_source="heuristic")
+    )
+    assert not duration_upgradable(
+        SimpleNamespace(suggested_duration_min=120, duration_source="ctrip")
+    )
+    assert not duration_upgradable(
+        SimpleNamespace(suggested_duration_min=120, duration_source="qunar")
+    )

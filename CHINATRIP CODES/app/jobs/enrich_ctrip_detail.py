@@ -11,6 +11,8 @@ unesco/5a/amap 优先 + rating 降序——规划器最先挑出的行先富化�
 
 铁律：
   * 逐列只填空——写前复查该列仍为空才写该列，来源标记 *_source='ctrip'；
+    duration 例外（2026-10-25 拍板）：heuristic 地板可升级覆盖（只覆
+    duration_source='heuristic' 或空值，真值源之间不互覆）；
   * 数值过闸门（时长 15-600 分 / 门票 0-2000 元 / 评分 0-5 / 点评数
     ≤1000 万 / 标签≤8 个且每个≤20 字），不合格当 None 处理；
   * reader 自带目录页与并发硬顶（4 页/查询、12 页/城），本作业不放大；
@@ -39,6 +41,7 @@ from app.services.ctrip_hours import (
     parse_detail_fields,
     parse_hours,
 )
+from app.services.poi_classify import duration_upgradable
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +162,9 @@ _TARGET_COLS = (
     Poi.review_tags.is_(None),
     Poi.opening_hours.is_(None),
     Poi.rating.is_(None),
+    # 2026-10-25 拍板：heuristic 时长地板可被 ctrip 真值升级（update），
+    # 只填空的行也要回头重富化
+    Poi.duration_source == "heuristic",
 )
 
 
@@ -227,7 +233,8 @@ def _write_row(factory, poi_id, f: dict) -> list[str]:
             row.hours_source = "ctrip"
             written.append("opening_hours")
         d = _gate_int(f.get("suggested_duration_min"), _DURATION_MIN, _DURATION_MAX)
-        if row.suggested_duration_min is None and d is not None:
+        # heuristic 地板可升级；其它真值源只填空不互覆
+        if d is not None and duration_upgradable(row):
             row.suggested_duration_min = d
             row.duration_source = "ctrip"
             written.append("duration")

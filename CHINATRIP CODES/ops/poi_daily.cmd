@@ -18,4 +18,7 @@ for /f "usebackq delims=" %%f in (`type "%FETCHED%"`) do (
     if not errorlevel 1 del "%%f"
   )
 )
+rem Heuristic sweep: classify rows inserted outside seed_upsert + duration floors
+rem (real sources ctrip/qunar may upgrade heuristic values, no fill-only block)
+"%PY%" -m app.jobs.enrich_heuristics --with-duration --limit 2000 >> "%LOG%" 2>&1
 echo [%date% %time%] === osm daily done === >> "%LOG%"

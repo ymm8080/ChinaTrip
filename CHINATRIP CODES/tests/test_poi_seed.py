@@ -151,6 +151,76 @@ def test_seed_upsert_creates_poi_row():
     assert row.location.srid == 4326
 
 
+def test_seed_upsert_classifies_new_poi_at_insert():
+    """2026-10-25 拍板：Poi 新行插入即分类，category/indoor/rain_ok+时长地板。"""
+    factory = FakeFactory()
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="osm",
+        source_poi_id="n7",
+        city="上海",
+        name_zh="上海迪士尼乐园",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.category == "theme_park"
+    assert row.indoor is False
+    assert row.rain_ok is False
+    assert row.suggested_duration_min == 240
+    assert row.duration_source == "heuristic"
+
+
+def test_seed_upsert_normalized_category_gets_floor():
+    """外部源给了类别（归一产物）也直接落属性+地板，不依赖名称关键词。"""
+    factory = FakeFactory()
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="chinatravel",
+        source_poi_id="ct-9",
+        city="成都",
+        name_zh="成都大熊猫繁育研究基地",
+        category="动物园/植物园",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.category == "zoo"
+    assert row.suggested_duration_min == 180
+    assert row.duration_source == "heuristic"
+
+
+def test_seed_upsert_low_confidence_name_stays_skeleton():
+    """分类不出的名称不硬塞：地板/类别全空（清扫链后续兜底）。"""
+    factory = FakeFactory()
+    out = seed_upsert(
+        factory, Poi, source="osm", source_poi_id="n8", city="苏州", name_zh="昆曲茶社"
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.category is None
+    assert row.suggested_duration_min is None
+    assert row.duration_source is None
+
+
+def test_seed_upsert_restaurant_unaffected_by_classification():
+    """Restaurant 无时长列：走 cuisine 映射，分类器不掺和。"""
+    factory = FakeFactory()
+    out = seed_upsert(
+        factory,
+        Restaurant,
+        source="chinatravel",
+        source_poi_id="r-9",
+        city="成都市",
+        name_zh="蜀九香",
+        category="其他",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.cuisine == "other"
+    assert getattr(row, "suggested_duration_min", None) is None
+
+
 def test_seed_upsert_restaurant_maps_to_cuisine():
     factory = FakeFactory()
     out = seed_upsert(

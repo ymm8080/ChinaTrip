@@ -220,8 +220,11 @@ def test_db_down_latch_skips_subsequent_attempts(monkeypatch):
     down = DownFactory()
     store = mod.PoiDetailStore(session_factory=down)
     # tiny cooldown, patched BEFORE the first failure (the deadline
-    # is computed at failure time from the then-current constant)
+    # is computed at failure time from the then-current constant).
+    # Empty-retry constant too: the FIRST failure hits while memory is
+    # still empty, so it latches _DB_DOWN_EMPTY_RETRY_SECONDS (2026-10-25)
     monkeypatch.setattr(mod, "_DB_DOWN_COOLDOWN_SECONDS", 0.05)
+    monkeypatch.setattr(mod, "_DB_DOWN_EMPTY_RETRY_SECONDS", 0.05)
     assert store.get("B001") is None  # stall once, then memory
     store.upsert("B001", name="豫园", opening_hours="09:00-17:00")
     assert store.get("B001")["opening_hours"] == "09:00-17:00"
@@ -233,6 +236,34 @@ def test_db_down_latch_skips_subsequent_attempts(monkeypatch):
     _time.sleep(0.06)
     assert store.get("B001")["opening_hours"] == "09:00-17:00"
     assert down.calls == 2
+
+
+def test_db_down_empty_memory_short_cooldown_and_degraded_flag():
+    """2026-10-25 占位事故修复：空内存失败走短冷却档（不再 5 分钟空
+    候选窗口）；有数据仍走 300s 长档；无 DB 部署不算降级。"""
+    import time as _time
+
+    import app.services.poi_details as mod
+
+    class DownFactory:
+        def __call__(self):
+            raise RuntimeError("connection refused")
+
+    empty = mod.PoiDetailStore(session_factory=DownFactory())
+    assert empty.top_pois_in_city("苏州") == []
+    wait = empty._db_down_until - _time.monotonic()
+    assert wait <= mod._DB_DOWN_EMPTY_RETRY_SECONDS
+    assert wait < mod._DB_DOWN_COOLDOWN_SECONDS
+    assert empty.db_degraded()
+
+    loaded = mod.PoiDetailStore(session_factory=DownFactory())
+    loaded.upsert("B1", city="苏州", name="拙政园")
+    loaded._note_db_failure()
+    wait_loaded = loaded._db_down_until - _time.monotonic()
+    assert wait_loaded > mod._DB_DOWN_EMPTY_RETRY_SECONDS
+
+    no_db = mod.PoiDetailStore(session_factory=None)
+    assert not no_db.db_degraded()
 
 
 # --- 0009：top_pois_in_city 确定性排序（内存态） ---

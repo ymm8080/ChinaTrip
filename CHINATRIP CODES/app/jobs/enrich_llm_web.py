@@ -19,6 +19,10 @@ unesco/5a/amap 优先 + rating 降序——规划器 top_pois_in_city 最先
 
 用法：
     python -m app.jobs.enrich_llm_web [--limit 100] [--concurrency 4] [--dry-run]
+
+2026-10-25 实测：coding 端点静默忽略 web_search（模型自述无搜索，
+40 目标仅 1 填上、29 诚实回 null；详见 enrich_ctrip_detail.py 头注）。
+本作业暂勿排期，待端点支持联网再启用。
 """
 
 import argparse
@@ -36,6 +40,7 @@ from sqlalchemy import case
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
+from app.services.poi_classify import duration_upgradable
 
 _DEFAULT_LIMIT = 100
 _MAX_TOKENS = 1024
@@ -206,7 +211,8 @@ def _write(
         if row is None:
             return False, False
         d_ok = a_ok = False
-        if duration is not None and row.suggested_duration_min is None:
+        # heuristic 地板可升级（2026-10-25 拍板），其它真值源只填空
+        if duration is not None and duration_upgradable(row):
             row.suggested_duration_min = duration
             row.duration_source = "llm_web"
             d_ok = True

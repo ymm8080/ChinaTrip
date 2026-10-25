@@ -2,10 +2,13 @@
 
 铁律（DESIGN/feature_gap_and_dev_plan_2026-10-23.md §4.2）：外部源
 （ChinaTravel/OSM/5A）只写「骨架」——名称/坐标/类别；时间敏感字段
-（hours/price/duration/phone）绝不在此层写，只信后续高德/携程回源链
-（app.jobs.refresh_pois → poi_details store）。判重键
-(source, source_poi_id)，已存在的行不覆盖任何字段。DB 异常降级为
-log warning + "skipped"，导入 job 继续跑。
+（hours/price/phone）绝不在此层写，只信后续高德/携程回源链
+（app.jobs.refresh_pois → poi_details store）。**duration 例外**
+（2026-10-25 用户拍板）：新 Poi 行插入即按名称/类别打 heuristic
+地板值（duration_source='heuristic'），真值源（ctrip/qunar）可
+升级覆盖——见 app.services.poi_classify.duration_upgradable。
+判重键 (source, source_poi_id)，已存在的行不覆盖任何字段。DB 异常
+降级为 log warning + "skipped"，导入 job 继续跑。
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.services.coords import make_point, wgs84_to_gcj02
+from app.services.poi_classify import classify
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +94,9 @@ def seed_upsert(
     后缀；category 经 normalize_category 归一（Poi→category，
     Restaurant→cuisine）；location 恒存 GCJ-02，仅给 WGS84 时自动
     派生，wgs84_location 存原始 WGS84。时间敏感字段（hours/price/
-    duration/phone）绝不在此层写。
+    phone）绝不在此层写；duration 地板例外——Poi 新行插入即分类
+    填 suggested_duration_min + duration_source='heuristic'（2026-10-25
+    拍板，真值源可升级），Restaurant 不受影响。
     """
     name_zh = (name_zh or "").strip()
     if not name_zh:
@@ -98,6 +104,9 @@ def seed_upsert(
     city = (city or "").strip().removesuffix("市")
     name_en = (name_en or "").strip() or None
     cat = normalize_category(category)
+    indoor = rain_ok = floor = None
+    if hasattr(model, "suggested_duration_min"):  # Poi：插入即分类填列
+        cat, indoor, rain_ok, floor = classify(name_zh, cat)
     if lonlat is None and wgs84_lonlat is not None:
         lonlat = wgs84_to_gcj02(*wgs84_lonlat)
     try:
@@ -137,6 +146,13 @@ def seed_upsert(
                     kwargs["category"] = cat
                 elif hasattr(model, "cuisine"):
                     kwargs["cuisine"] = cat
+            if indoor is not None and hasattr(model, "indoor"):
+                kwargs["indoor"] = indoor
+            if rain_ok is not None and hasattr(model, "rain_ok"):
+                kwargs["rain_ok"] = rain_ok
+            if floor is not None and hasattr(model, "suggested_duration_min"):
+                kwargs["suggested_duration_min"] = floor
+                kwargs["duration_source"] = "heuristic"
             if name_en is not None:
                 kwargs["name_en"] = name_en
             if lonlat is not None:

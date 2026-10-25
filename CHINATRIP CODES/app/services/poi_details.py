@@ -21,6 +21,7 @@ from sqlalchemy import and_, func, or_
 
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
+from app.services.poi_classify import duration_upgradable
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,12 @@ _STALE_AFTER = timedelta(hours=24)
 # serves instead). Bounds the down-db cost to ONE connect_timeout
 # stall per window instead of one per call (2026-10-20 latency fix).
 _DB_DOWN_COOLDOWN_SECONDS = 300.0
+# Empty memory has nothing to serve: a long latch would ship empty
+# candidate lists for minutes (2026-10-25 placeholder incident — one
+# connect failure while the dev WSL db slept poisoned planning for the
+# 300s window). Empty store retries the DB quickly instead; cost is one
+# connect_timeout per request while down.
+_DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 
 
 class PoiDetailStore:
@@ -46,7 +53,17 @@ class PoiDetailStore:
         return self._factory is not None and (time.monotonic() >= self._db_down_until)
 
     def _note_db_failure(self) -> None:
-        self._db_down_until = time.monotonic() + _DB_DOWN_COOLDOWN_SECONDS
+        cooldown = (
+            _DB_DOWN_COOLDOWN_SECONDS if self._memory else _DB_DOWN_EMPTY_RETRY_SECONDS
+        )
+        self._db_down_until = time.monotonic() + cooldown
+
+    def db_degraded(self) -> bool:
+        """DB 配置存在且刚失败、处于锁存窗口（规划占位出货门禁用）。
+
+        factory=None（无 DB 部署的内存模式）不算降级——那是设计内形态。
+        """
+        return self._factory is not None and (time.monotonic() < self._db_down_until)
 
     # --- read ---------------------------------------------------------------
 
@@ -527,8 +544,6 @@ class PoiDetailStore:
             ("website", website),
             ("district", district),
             ("business_area", business_area),
-            ("suggested_duration_min", suggested_duration_min),
-            ("duration_source", duration_source),
             ("review_tags", review_tags),
             ("review_tags_source", review_tags_source),
             ("ticket_price_min", ticket_price_min),
@@ -541,6 +556,15 @@ class PoiDetailStore:
                 mem[key] = value  # 回源真相：随刷新
             elif not mem.get(key):
                 mem[key] = value  # 富化：只填空
+        # duration 特例（2026-10-25 拍板）：真值可升级 heuristic 地板，
+        # 真值之间仍只填空；与下方 DB 写法保持同语义
+        if suggested_duration_min is not None and (
+            mem.get("suggested_duration_min") is None
+            or mem.get("duration_source") == "heuristic"
+        ):
+            mem["suggested_duration_min"] = suggested_duration_min
+            if duration_source:
+                mem["duration_source"] = duration_source
         if photos and not mem.get("photos"):
             mem["photos"] = photos
             if photos_source:
@@ -607,8 +631,6 @@ class PoiDetailStore:
                     ("website", website),
                     ("district", district),
                     ("business_area", business_area),
-                    ("suggested_duration_min", suggested_duration_min),
-                    ("duration_source", duration_source),
                     ("review_tags", review_tags),
                     ("review_tags_source", review_tags_source),
                     ("ticket_price_min", ticket_price_min),
@@ -618,6 +640,11 @@ class PoiDetailStore:
                     if value is None or getattr(row, attr) is not None:
                         continue
                     setattr(row, attr, value)
+                # duration 特例（同内存层语义）：真值升级 heuristic 地板
+                if suggested_duration_min is not None and duration_upgradable(row):
+                    row.suggested_duration_min = suggested_duration_min
+                    if duration_source:
+                        row.duration_source = duration_source
                 session.commit()
             return True
         except Exception:

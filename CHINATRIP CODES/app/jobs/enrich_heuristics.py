@@ -1,24 +1,18 @@
 """POI 富化·类别启发式（indoor/rain_ok + duration 地板值，零联网）。
 
-0009 流 item 11 落地（本会话代做，PROGRESS 已注记）。三段：
+词典与判定逻辑在 app/services/poi_classify.py（与 poi_seed 插入即
+分类共用）。三段：
   1. 有 category 的行：类别→indoor/rain_ok 直接映射；
   2. category 为空的行：name_zh 关键词保守分类，高置信才落 category
      （category 无 source 列，落错的代价=分类元数据不准，可接受；
      置信不足的一律不碰）；
-  3. duration 地板值（--with-duration 才启用）：类别/名称→分钟下限。
-     **必须最后跑**——先跑会占坑挡住携程/高德的真实时长（只填空语义）。
+  3. duration 地板值（--with-duration 才启用）：类别/名称→分钟下限，
+     duration_source='heuristic'。
 
-2026-10-25 词典扩容：在线两路当日皆断（GLM coding 端点静默忽略
-web_search，实测 40 目标仅 1 填上；携程目录页 98.7% miss，2126 目标
-仅 1 条时长），时长缺口 1568 行只能走确定性地板——补 乐园/动物园/
-宫庙塔陵故居/园/路街巷/游船码头 等高置信词，仍守宁缺毋滥。
-
-映射原则（宁缺毋滥）：
-  * indoor=True 仅限明确的室内馆；indoor=False 仅限明确户外；
-    混合体（古镇/街区/寺庙群）一律留 None 给未来真数据。
-  * rain_ok=True=雨天可游（室内/溶洞）；False=雨天体验受损；
-    拿不准留 None。
-  * duration 地板值是"规划下限"不是事实主张，标 duration_source='heuristic'。
+2026-10-25 拍板（用户指令）：地板是"规划下限"不是事实主张，真值源
+（ctrip/qunar/llm_web）可升级覆盖 heuristic 值——本作业不再是
+"必须最后跑"的占坑者，新行插入（poi_seed）即打地板，本作业做存量
+清扫（poi_daily 链尾）。
 
 用法：
     python -m app.jobs.enrich_heuristics [--limit 5000] [--with-duration] [--dry-run]
@@ -32,152 +26,9 @@ from sqlalchemy import or_
 
 from app.db import get_session_factory
 from app.models import Poi
+from app.services.poi_classify import classify as _classify
 
 _DEFAULT_LIMIT = 5000
-
-# 类别 → (indoor, rain_ok)；None=拿不准不填
-_CATEGORY_MAP = {
-    "museum": (True, True),
-    "theme_park": (False, False),
-    "park": (False, False),
-    "nature": (False, False),
-    "viewpoint": (False, None),
-    "attraction": (None, None),
-}
-
-# 名称关键词 → 判定；顺序即优先级（首个命中即停）
-_INDOOR_HINTS = (
-    "博物馆",
-    "纪念馆",
-    "美术馆",
-    "科技馆",
-    "海洋馆",
-    "水族馆",
-    "展览馆",
-    "陈列馆",
-    "天文馆",
-    " Planetarium",
-    "蜡像馆",
-    "规划馆",
-    "博物院",
-)
-_THEME_HINTS = (
-    "乐园",
-    "游乐园",
-    "动物园",
-    "野生动物",
-    "欢乐谷",
-    "方特",
-    "水上世界",
-    "海洋公园",
-    "文旅城",
-)
-_HERITAGE_HINTS = (
-    "宫",
-    "庙",
-    "廟",
-    "寺",
-    "道观",
-    "祠",
-    "庵",
-    "塔",
-    "陵",
-    "墓",
-    "碑",
-    "故居",
-    "故里",
-    "遗址",
-    "遗迹",
-    "牌坊",
-    "教堂",
-    "清真寺",
-    "大学",
-    "酒庄",
-    "温泉",
-    "阁",
-    "閣",
-)
-_OUTDOOR_HINTS = (
-    "山",
-    "峡",
-    "谷",
-    "岛",
-    "湖",
-    "海",
-    "滩",
-    "草原",
-    "湿地",
-    "花海",
-    "漂流",
-    "瀑布",
-    "森林公园",
-    "雪场",
-    "滑雪",
-    "热雪",
-    "雪山",
-    "长城",
-)
-_CAVE_HINTS = ("溶洞", "洞窟", "石窟", "窟")
-_PARK_HINTS = ("公园", "园林", "园", "園")
-_URBAN_HINTS = (
-    "古镇",
-    "古街",
-    "街区",
-    "步行街",
-    "老街",
-    "街",
-    "路",
-    "巷",
-    "城墙",
-    "大道",
-    "大桥",
-    "广场",
-    "游船",
-    "码头",
-    "夜游",
-    "轮渡",
-    "村",
-    "小火车",
-    "游艇",
-)  # noqa: E501
-_DURATION_FLOOR = {
-    "museum": 90,
-    "theme_park": 240,
-    "park": 90,
-    "nature": 180,
-    "viewpoint": 30,
-    "attraction": 90,
-}
-
-
-def _classify(
-    name: str, category: str | None
-) -> tuple[str | None, bool | None, bool | None, int | None]:
-    """返回 (category, indoor, rain_ok, duration_floor)；拿不准的为 None。"""
-    cat = category
-    indoor = rain_ok = None
-    floor = None
-    if cat in _CATEGORY_MAP:
-        indoor, rain_ok = _CATEGORY_MAP[cat]
-    if indoor is None and cat is None:
-        # 高置信室内：名称带明确馆字
-        if any(h in name for h in _INDOOR_HINTS):
-            cat, indoor, rain_ok = "museum", True, True
-        elif any(h in name for h in _THEME_HINTS):
-            cat, indoor, rain_ok = "theme_park", False, False
-        elif any(h in name for h in _HERITAGE_HINTS):
-            cat, indoor, rain_ok = "attraction", False, None
-        elif any(h in name for h in _CAVE_HINTS):
-            cat, indoor, rain_ok = "nature", False, True
-        elif any(h in name for h in _OUTDOOR_HINTS):
-            cat, indoor, rain_ok = "nature", False, False
-        elif any(h in name for h in _PARK_HINTS):
-            cat, indoor, rain_ok = "park", False, None
-        elif any(h in name for h in _URBAN_HINTS):
-            cat, indoor, rain_ok = "attraction", False, None
-    if cat is not None:
-        floor = _DURATION_FLOOR.get(cat)
-    return cat, indoor, rain_ok, floor
 
 
 def select_targets(session_factory, *, limit: int, with_duration: bool) -> list[Poi]:
