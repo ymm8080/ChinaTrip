@@ -431,7 +431,7 @@ def test_v0_adjacent_stops_enriched_by_amap_distance():
     """v2.4.3: measured walking legs replace the straight-line estimate."""
     llm = ScriptedLLM([v0_reply(_two_stop_items())])
     amap = DistanceAmap(AMAP_POIS)
-    agent = PlanningAgent(llm, amap_client=amap)
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -488,6 +488,7 @@ def test_v0_store_hit_fills_without_live_calls():
         amap_client=amap,
         poi_details=store,
         ctrip_hours=ctrip,
+        auto_restaurants=False,
     )
     session = run(
         agent.start(
@@ -630,7 +631,7 @@ def test_v0_poi_details_read_from_store():
 def test_v0_leg_enrich_degrades_to_estimate():
     """No measurement capability -> the straight-line estimate stays."""
     llm = ScriptedLLM([v0_reply(_two_stop_items())])
-    agent = PlanningAgent(llm, amap_client=StubAmap(AMAP_POIS))
+    agent = PlanningAgent(llm, amap_client=StubAmap(AMAP_POIS), auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -1296,6 +1297,7 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
         amap_client=amap,
         poi_details=store,
         ctrip_hours=ctrip,
+        auto_restaurants=False,  # 8.2.4：腿/小时链断言条目数，不插餐厅
     )
     session = run(
         agent.start(
@@ -2072,3 +2074,249 @@ def test_chat_wish_answer_unrecognized_falls_through():
     session, reply, _ = run(agent.message(session, "帮我加一天"))
     assert llm.calls > calls  # 走了正常对话流程
     assert session.pending_wish_cities == ["人民公园"]  # 追问保持
+
+
+# --- 0009：候选库优先 / reason / 餐厅 v0 插入 -------------------------------
+
+
+class LibraryStore(PoiDetailStore):
+    """top_pois_in_city 桩：返回 12 条带富化字段的库候选。"""
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        return [
+            {
+                "source_poi_id": f"L{i:03d}",
+                "name": f"库景点{i}",
+                "city": "上海",
+                "category": "attraction",
+                "address": f"库路{i}",
+                "opening_hours": "09:00-17:00",
+                "source": "amap",
+                "rating": 4.5,
+                "rating_count": 1200 + i,
+                "tags": ["5a"] if i == 0 else [],
+                "best_visit_time": "evening" if i == 0 else "any",
+                "suggested_duration_min": 90 if i == 0 else None,
+                "indoor": None,
+                "rain_ok": None,
+                "review_tags": [],
+                "intro": "简介" if i == 0 else None,
+                "location": (121.4 + i * 0.01, 31.2),
+            }
+            for i in range(12)
+        ]
+
+
+def test_v0_library_first_skips_amap_when_stocked():
+    amap = StubAmap(AMAP_POIS)
+    items = [
+        {"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "库景点1", "city": "上海", "day": 1, "duration_minutes": 60},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=LibraryStore(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    # 库存 12 ≥ LIBRARY_MIN_CANDIDATES → 城市候选不烧 amap text
+    assert amap.calls == []
+    visits = all_visits(session)
+    assert {v.name for v in visits} >= {"库景点0", "库景点1"}
+    # 库候选的时段属性透传进 VisitItem（solver 8.2.1 联动）
+    v0 = next(v for v in visits if v.name == "库景点0")
+    assert v0.best_visit_time == "evening"
+
+
+def test_v0_reason_rolls_into_assumptions():
+    items = [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "day": 1,
+            "duration_minutes": 120,
+            "reason": "夜景代表",
+        }
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]), amap_client=StubAmap(AMAP_POIS)
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    assert any("选点理由" in a and "夜景代表" in a for a in session.assumptions)
+
+
+def test_v0_auto_inserts_restaurant_for_foodless_day():
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]), amap_client=StubAmap(AMAP_POIS)
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    assert len(foods) == 1  # 无 food 的日子晚餐窗插 1 家
+    assert any("顺路餐厅" in a for a in session.assumptions)
+
+
+# --- G1：预约制门票提示（名单 v0 兜底） -------------------------------------
+
+
+def test_reservation_hint_from_seed_list():
+    items = [
+        {"name": "故宫", "city": "北京", "day": 1, "duration_minutes": 180},
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]), amap_client=StubAmap(AMAP_POIS)
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "北京"], days=2, preferences="随便")
+    )
+    gugong = [v for v in all_visits(session) if "故宫" in v.name]
+    assert gugong and gugong[0].reservation_hint
+    assert "提前 7 天" in gugong[0].reservation_hint
+    assert any("预约提醒" in a for a in session.assumptions)
+
+
+# --- 8.1.4：露天属性透传（H5 雨天横幅数据源） -------------------------------
+
+
+def test_rain_ok_passthrough_for_rain_banner():
+    class RainyStore(LibraryStore):
+        def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+            rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
+            rows[0]["rain_ok"] = "no"
+            rows[1]["rain_ok"] = "yes"
+            return rows
+
+    items = [
+        {"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "库景点1", "city": "上海", "day": 1, "duration_minutes": 60},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=RainyStore(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    visits = all_visits(session)
+    assert next(v for v in visits if v.name == "库景点0").rain_ok == "no"
+    assert next(v for v in visits if v.name == "库景点1").rain_ok == "yes"
+
+
+def test_en_fields_passthrough_for_bilingual_cards():
+    """双语 P1：候选库 _en 字段 → VisitItem 并出（空则 None 前端回退）。"""
+
+    class EnStore(LibraryStore):
+        def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+            rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
+            rows[0]["name_en"] = "Gugong Palace"
+            rows[0]["address_en"] = "4 Jingshan Front St"
+            rows[0]["intro_en"] = "Imperial palace of Ming and Qing"
+            # rows[1] 不给 _en——回退中文路径
+            return rows
+
+    items = [
+        {"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "库景点1", "city": "上海", "day": 1, "duration_minutes": 60},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=EnStore(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    visits = all_visits(session)
+    v0 = next(v for v in visits if v.name == "库景点0")
+    assert v0.name_en == "Gugong Palace"
+    assert v0.address_en == "4 Jingshan Front St"
+    assert v0.intro_en == "Imperial palace of Ming and Qing"
+    v1 = next(v for v in visits if v.name == "库景点1")
+    assert v1.name_en is None and v1.address_en is None
+
+
+def test_lang_param_persists_on_session():
+    """双语 P2：lang=en 落会话；非法 lang 忽略回中文默认。"""
+    items = [{"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60}]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=LibraryStore(),
+        auto_restaurants=False,
+    )
+    s = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="随便",
+            lang="en",
+        )
+    )
+    assert s.lang == "en"
+    s2 = run(agent.start(device_id="d2", cities=["上海"], days=1, lang="fr"))
+    assert s2.lang is None  # 非法值忽略
+
+
+class RecordingLLM(ScriptedLLM):
+    """捕获 system 消息，验证 lang 指令真正到达 LLM（双语 P2 T4）。"""
+
+    def __init__(self, replies):
+        super().__init__(replies)
+        self.system_msgs: list[str] = []
+
+    async def chat(self, messages, *, temperature=0.3, max_tokens=None):
+        for m in messages:
+            if getattr(m, "role", "") == "system":
+                self.system_msgs.append(m.content)
+        return await super().chat(
+            messages, temperature=temperature, max_tokens=max_tokens
+        )
+
+
+def test_lang_en_directive_reaches_llm_system_prompt():
+    """lang=en 时 EN 指令进系统提示词；lang 缺省则完全不出现。"""
+    items = [{"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60}]
+    reply = v0_reply(items)
+
+    rec = RecordingLLM([reply])
+    agent = PlanningAgent(
+        rec,
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=LibraryStore(),
+        auto_restaurants=False,
+    )
+    run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="随便",
+            lang="en",
+        )
+    )
+    assert any("LANGUAGE:" in m for m in rec.system_msgs), "EN 指令未达 LLM"
+
+    rec2 = RecordingLLM([reply])
+    agent2 = PlanningAgent(
+        rec2,
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=LibraryStore(),
+        auto_restaurants=False,
+    )
+    run(agent2.start(device_id="d2", cities=["上海"], days=1, preferences="随便"))
+    assert not any("LANGUAGE:" in m for m in rec2.system_msgs), "zh 路径不应注入指令"

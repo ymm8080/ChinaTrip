@@ -52,12 +52,22 @@ def test_store_db_failure_keeps_memory():
 
 
 class FakeCtrip:
+    """0009 接口：detail_fields_for 返回全字段 dict。"""
+
     def __init__(self):
         self.calls = []
 
-    async def hours_for(self, city, name):
+    async def detail_fields_for(self, city, name):
         self.calls.append((city, name))
-        return "全年全天开放"
+        return {
+            "opening_hours": "全年全天开放",
+            "suggested_duration_min": 210,
+            "rating": 4.7,
+            "rating_count": 16000,
+            "review_tags": ["亲子同乐"],
+            "ticket_price_min": 24,
+            "ticket_price_max": None,
+        }
 
 
 class FakeAmap:
@@ -99,6 +109,12 @@ def test_refresh_chain_ctrip_first_and_wins():
     got = store.get("B1")
     assert got["opening_hours"] == "全年全天开放"
     assert got["hours_source"] == "ctrip"
+    # 0009 富化字段随链写回（内存态同键）
+    assert got.get("suggested_duration_min") == 210
+    assert got.get("rating") == 4.7
+    assert got.get("rating_count") == 16000
+    assert got.get("review_tags") == ["亲子同乐"]
+    assert got.get("ticket_price_min") == 24
 
 
 def test_refresh_falls_to_v5_detail_then_search_not_needed():
@@ -152,9 +168,10 @@ class _PickCtrip:
         self._hits = hits
         self.calls = []
 
-    async def hours_for(self, city, name):
+    async def detail_fields_for(self, city, name):
         self.calls.append(name)
-        return self._hits.get(name)
+        hours = self._hits.get(name)
+        return {"opening_hours": hours} if hours else None
 
 
 class _QuotaAmap(FakeAmap):
@@ -181,7 +198,7 @@ def test_refresh_quota_exhausted_fails_fast_ctrip_keeps_running():
 
 
 class _NullCtrip:
-    async def hours_for(self, city, name):
+    async def detail_fields_for(self, city, name):
         return None
 
 
@@ -216,3 +233,47 @@ def test_db_down_latch_skips_subsequent_attempts(monkeypatch):
     _time.sleep(0.06)
     assert store.get("B001")["opening_hours"] == "09:00-17:00"
     assert down.calls == 2
+
+
+# --- 0009：top_pois_in_city 确定性排序（内存态） ---
+
+
+def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
+    store = PoiDetailStore()
+    store.upsert(
+        "P1",
+        city="重庆",
+        name="评分高点评多",
+        category="attraction",
+        rating=4.8,
+        rating_count=10000,
+        location=(106.5, 29.5),
+    )
+    store.upsert(
+        "P2",
+        city="重庆",
+        name="评分同但点评少",
+        category="attraction",
+        rating=4.8,
+        rating_count=100,
+        location=(106.5, 29.5),
+    )
+    store.upsert(
+        "P3",
+        city="重庆",
+        name="UNESCO 无评分",
+        category="attraction",
+        location=(106.6, 29.6),
+    )
+    store.upsert("P4", city="重庆", name="餐厅", category="food")
+    store.upsert("P5", city="北京", name="别城", category="attraction")
+    # tags 不在 upsert 签名内（导入作业走 ORM）——内存态直塞测加成
+    store._memory["P3"]["tags"] = ["unesco"]
+    hits = store.top_pois_in_city("重庆市", 10)
+    names = [h["name"] for h in hits]
+    assert "餐厅" not in names and "别城" not in names
+    assert names.index("评分高点评多") < names.index("评分同但点评少")
+    assert "UNESCO 无评分" in names  # 无评分不埋没
+    top = hits[0]
+    assert top["best_visit_time"] == "any"
+    assert top["location"] == (106.5, 29.5)

@@ -14,9 +14,10 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from math import log2
 from uuid import uuid4
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
@@ -242,7 +243,7 @@ class PoiDetailStore:
                                 "address": row.address,
                                 "opening_hours": row.opening_hours,
                                 "source": row.source,
-                                "rating": None,
+                                "rating": float(row.rating) if row.rating else None,
                                 "location": (
                                     (float(m.group(1)), float(m.group(2)))
                                     if m
@@ -283,6 +284,175 @@ class PoiDetailStore:
         hits.sort(key=rank, reverse=True)
         return hits[:limit]
 
+    _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
+
+    @classmethod
+    def _row_is_food(cls, category: str | None) -> bool:
+        c = (category or "").strip()
+        return any(mark in c for mark in cls._FOOD_CATEGORY_MARKS)
+
+    def top_pois_in_city(
+        self, city: str, limit: int = 30, *, exclude_food: bool = True
+    ) -> list[dict]:
+        """引擎候选主池（DESIGN 8.1.1，2026-10-24）：同城确定性排序取 top N。
+
+        score = rating × log2(1 + rating_count) × 标签加成（tags 含
+        unesco/5A 乘 1.5）；有坐标优先；无评分行按（有标签、有坐标）
+        垫底但保留——5A/UNESCO 骨架可能尚未回源评分，不能因冷启动被
+        埋没。返回 search_keyword 同形状 + 富化字段（rating_count/
+        tags/best_visit_time/suggested_duration_min/indoor/rain_ok/
+        review_tags/intro 摘要 ≤60 字）；location 为 (lon, lat) 元组。
+        """
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+
+        def build(row, loc_txt: str | None) -> dict:
+            m = _POINT_WKT_RE.match(loc_txt or "")
+            # rating 可能是 Decimal/str/float（DB 列 vs amap 原文），统一安全转
+            try:
+                rating = float(row.rating) if row.rating else None
+            except (TypeError, ValueError):
+                rating = None
+            return {
+                "source_poi_id": row.source_poi_id,
+                "name": row.name_zh,
+                # 双语 P1：_en 并出（空时前端回退中文）
+                "name_en": row.name_en,
+                "address_en": row.address_en,
+                "intro_en": (row.intro_en or "")[:60] or None,
+                "opening_hours_en": row.opening_hours_en,
+                "review_tags_en": row.review_tags_en or [],
+                "city": row.city,
+                "category": row.category,
+                "address": row.address,
+                "opening_hours": row.opening_hours,
+                "source": row.source,
+                "rating": rating,
+                "rating_count": row.rating_count,
+                "tags": row.tags or [],
+                "best_visit_time": row.best_visit_time or "any",
+                "suggested_duration_min": row.suggested_duration_min,
+                "indoor": row.indoor,
+                "rain_ok": row.rain_ok,
+                "review_tags": row.review_tags or [],
+                "intro": (row.intro or "")[:60] or None,
+                "reservation_required": row.reservation_required,
+                "reservation_advance_days": row.reservation_advance_days,
+                "booking_url": row.booking_url,
+                "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+            }
+
+        def score(h: dict) -> tuple:
+            rating = h.get("rating") or 0.0
+            count = h.get("rating_count") or 0
+            quality = rating * (1 + (log2(1 + count) if count else 0))
+            tags = {str(t) for t in (h.get("tags") or [])}
+            boost = 1.5 if tags & {"unesco", "5a", "michelin", "black_pearl"} else 1.0
+            return (
+                round(quality * boost, 3),
+                1 if tags & {"unesco", "5a"} else 0,
+                1 if h.get("location") else 0,
+            )
+
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                    )
+                    if exclude_food:
+                        q = q.filter(
+                            Poi.category.is_(None)
+                            | and_(
+                                *[
+                                    ~Poi.category.like(f"%{mark}%")
+                                    for mark in self._FOOD_CATEGORY_MARKS
+                                ]
+                            )
+                        )
+                    q = q.limit(2000)
+                    rows_out = [build(r, t) for r, t in q.all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: top_pois_in_city db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+
+            class _MemRow:  # memory rows mimic ORM attrs for build()
+                __slots__ = (
+                    "source_poi_id",
+                    "name_zh",
+                    "city",
+                    "category",
+                    "address",
+                    "opening_hours",
+                    "source",
+                    "rating",
+                    "rating_count",
+                    "tags",
+                    "best_visit_time",
+                    "suggested_duration_min",
+                    "indoor",
+                    "rain_ok",
+                    "review_tags",
+                    "intro",
+                    "name_en",
+                    "address_en",
+                    "intro_en",
+                    "opening_hours_en",
+                    "review_tags_en",
+                    "reservation_required",
+                    "reservation_advance_days",
+                    "booking_url",
+                )
+
+            for pid, v in self._memory.items():
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                if exclude_food and self._row_is_food(v.get("category")):
+                    continue
+                r = _MemRow()
+                for slot in _MemRow.__slots__:
+                    setattr(r, slot, None)
+                r.source_poi_id = pid
+                r.name_zh = v.get("name")
+                r.city = v.get("city")
+                r.category = v.get("category")
+                r.address = v.get("address")
+                r.opening_hours = v.get("opening_hours")
+                r.source = v.get("source") or "amap"
+                r.rating = v.get("rating")
+                r.rating_count = v.get("rating_count")
+                r.tags = v.get("tags")
+                r.best_visit_time = v.get("best_visit_time")
+                r.suggested_duration_min = v.get("suggested_duration_min")
+                r.indoor = v.get("indoor")
+                r.rain_ok = v.get("rain_ok")
+                r.review_tags = v.get("review_tags")
+                r.intro = v.get("intro")
+                r.name_en = v.get("name_en")
+                r.address_en = v.get("address_en")
+                r.intro_en = v.get("intro_en")
+                r.opening_hours_en = v.get("opening_hours_en")
+                r.review_tags_en = v.get("review_tags_en")
+                r.reservation_required = v.get("reservation_required")
+                r.reservation_advance_days = v.get("reservation_advance_days")
+                r.booking_url = v.get("booking_url")
+                loc = v.get("location")
+                h = build(r, f"POINT({loc[0]} {loc[1]})" if loc else None)
+                rows_out.append(h)
+        rows_out.sort(key=score, reverse=True)
+        return rows_out[:limit]
+
     def upsert(
         self,
         source_poi_id: str,
@@ -295,6 +465,22 @@ class PoiDetailStore:
         source: str = "amap",
         category: str | None = None,
         location: tuple[float, float] | None = None,
+        rating: float | None = None,
+        rating_source: str | None = None,
+        rating_count: int | None = None,
+        photos: list | None = None,
+        photos_source: str | None = None,
+        phone: str | None = None,
+        website: str | None = None,
+        district: str | None = None,
+        business_area: str | None = None,
+        suggested_duration_min: int | None = None,
+        duration_source: str | None = None,
+        review_tags: list | None = None,
+        review_tags_source: str | None = None,
+        ticket_price_min: int | None = None,
+        ticket_price_max: int | None = None,
+        ticket_source: str | None = None,
     ) -> bool:
         """Persist display details; memory always written, DB best-effort.
 
@@ -302,6 +488,12 @@ class PoiDetailStore:
         用户拍板 2026-10-24：关键字搜到的店 APPEND 进 pois，沿用现有
         food/attraction 归类）；location 为 GCJ-02 (lon, lat)，入库按
         v1.7 铁律成对写 wgs84 副本。
+
+        0009 富化字段写入语义（A/B 组，DESIGN §3.1/3.2）：rating/
+        rating_count 随回源**刷新**（时间敏感值，高德/携程是真相）；
+        photos/phone/website/district/business_area/suggested_duration/
+        review_tags/ticket_price 只填空（已有值不覆盖——wikimedia 照片、
+        ctrip 时长优先于 amap 兜底值）。
         """
         # 列宽 varchar(500)（高德多季节营业时间串可超长，2026-10-23 实测
         # 114/200 行因 StringDataRightTruncation 丢写），入库前截断
@@ -327,6 +519,32 @@ class PoiDetailStore:
             mem["hours_source"] = hours_source
         if opening_hours:
             mem["hours_updated_at"] = now
+        for key, value in (
+            ("rating", rating),
+            ("rating_source", rating_source),
+            ("rating_count", rating_count),
+            ("phone", phone),
+            ("website", website),
+            ("district", district),
+            ("business_area", business_area),
+            ("suggested_duration_min", suggested_duration_min),
+            ("duration_source", duration_source),
+            ("review_tags", review_tags),
+            ("review_tags_source", review_tags_source),
+            ("ticket_price_min", ticket_price_min),
+            ("ticket_price_max", ticket_price_max),
+            ("ticket_source", ticket_source),
+        ):
+            if value is None:
+                continue
+            if key in ("rating", "rating_source", "rating_count"):
+                mem[key] = value  # 回源真相：随刷新
+            elif not mem.get(key):
+                mem[key] = value  # 富化：只填空
+        if photos and not mem.get("photos"):
+            mem["photos"] = photos
+            if photos_source:
+                mem["photos_source"] = photos_source
         if self._factory is None or not self._db_available():
             return True
         point = make_point(*location) if location else None
@@ -373,6 +591,33 @@ class PoiDetailStore:
                         row.hours_source = hours_source
                     if opening_hours:
                         row.hours_updated_at = now
+                # 0009 富化字段（新旧行同规则：rating 系刷新，其余只填空）
+                if rating is not None:
+                    row.rating = rating
+                if rating_source:
+                    row.rating_source = rating_source
+                if rating_count:
+                    row.rating_count = rating_count
+                if photos and row.photos is None:
+                    row.photos = photos
+                    if photos_source:
+                        row.photos_source = photos_source
+                for attr, value in (
+                    ("phone", phone),
+                    ("website", website),
+                    ("district", district),
+                    ("business_area", business_area),
+                    ("suggested_duration_min", suggested_duration_min),
+                    ("duration_source", duration_source),
+                    ("review_tags", review_tags),
+                    ("review_tags_source", review_tags_source),
+                    ("ticket_price_min", ticket_price_min),
+                    ("ticket_price_max", ticket_price_max),
+                    ("ticket_source", ticket_source),
+                ):
+                    if value is None or getattr(row, attr) is not None:
+                        continue
+                    setattr(row, attr, value)
                 session.commit()
             return True
         except Exception:

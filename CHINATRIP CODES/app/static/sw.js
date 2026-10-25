@@ -2,10 +2,10 @@
    策略对齐 surmai (github.com/rohitkumbhar/surmai) 的 workbox 配置：
    app-shell 缓存优先+后台刷新，autoUpdate（skipWaiting+claim）；
    API NetworkFirst + 3s 超时回落缓存，离线可看最近一次成功的数据。 */
-const VERSION = 'v21'; // v21 2026-10-24: #planSetup max-height:45vh 内部滚动——无会话表单全展开时超矮视口也不挤掉输入框；v20 表单收成摘要+flex-shrink:0（外壳资产变更必须 +1，否则受控页面一直吃旧缓存）
+const VERSION = 'v30'; // v30 2026-10-25: 修复语言开关点击后全部 .tab 失活白屏（localeToggle 无 data-tab 被当成页签）+ 抢票直达链接引号 + call.slogan 词条；v28 预订 tab 新增「💳 支付 / 代订收款」卡（pay_now + save_method + 我的付款，i18n pay.*）入壳；v27 通话咨询 tab（tab-call + 覆盖层 + 通话记录）+ agent.html 坐席台入壳；v26 双语 P1（i18n.js 入壳 + locale 开关）
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
-  './', './index.html', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest',
+  './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 

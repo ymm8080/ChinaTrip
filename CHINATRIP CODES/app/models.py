@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -62,7 +63,10 @@ class Poi(Base):
     # v2.4.4: display details maintained by the daily refresh job
     # (app.jobs.refresh_pois); planning reads them, never fetches live.
     address: Mapped[str | None] = mapped_column(String(200))
+    address_en: Mapped[str | None] = mapped_column(String(200))
     opening_hours: Mapped[str | None] = mapped_column(String(500))
+    # 双语 P1.6：EN 营业时间（只填空；源列 1841/1899 为中文表述）
+    opening_hours_en: Mapped[str | None] = mapped_column(String(500))
     hours_source: Mapped[str | None] = mapped_column(String(20))
     hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     # v1.7: WGS84 twin of `location` (GCJ-02), written in pairs at ingest;
@@ -80,6 +84,8 @@ class Poi(Base):
     tags_source: Mapped[str | None] = mapped_column(String(20))
     intro: Mapped[str | None] = mapped_column(Text)
     intro_source: Mapped[str | None] = mapped_column(String(20))
+    # 双语 P1（DESIGN language_dual_system §5.2）：*_en 只填空，NULL 回退中文
+    intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB)
     photos_source: Mapped[str | None] = mapped_column(String(20))
     best_visit_time: Mapped[str | None] = mapped_column(
@@ -89,6 +95,31 @@ class Poi(Base):
     suggested_duration_min: Mapped[int | None] = mapped_column(Integer)
     # source 升级为 amap（回源真相）后，origin 保留初始发现渠道。
     origin: Mapped[str | None] = mapped_column(String(20))
+    # 规划引擎升级 0009（DESIGN planning_engine_upgrade_2026-10-24）：
+    # A/B/C 组富化列——全部只填空/带溯源，时间敏感字段仍只信回源链。
+    rating_count: Mapped[int | None] = mapped_column(Integer)
+    review_tags: Mapped[list | None] = mapped_column(JSONB)
+    review_tags_source: Mapped[str | None] = mapped_column(String(20))
+    review_tags_en: Mapped[list | None] = mapped_column(JSONB)
+    ticket_price_min: Mapped[int | None] = mapped_column(Integer)
+    ticket_price_max: Mapped[int | None] = mapped_column(Integer)
+    ticket_source: Mapped[str | None] = mapped_column(String(20))
+    district: Mapped[str | None] = mapped_column(String(50))
+    business_area: Mapped[str | None] = mapped_column(String(50))
+    indoor: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
+    rain_ok: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
+    name_aliases: Mapped[list | None] = mapped_column(JSONB)
+    duration_source: Mapped[str | None] = mapped_column(String(20))
+    review_summary: Mapped[str | None] = mapped_column(Text)
+    review_summary_source: Mapped[str | None] = mapped_column(String(20))
+    # 双语 P1.5：口碑摘要 EN（只填空，回退中文）
+    review_summary_en: Mapped[str | None] = mapped_column(Text)
+    # G1（§14.3）：预约制门票约束——故宫/国博类提前 N 天 8:00 放票秒光，
+    # 入境第一实操痛；booking_url 缺省落 affiliate 转链（Klook/Trip.com
+    # 代抢 = 外国人标准解法）
+    reservation_required: Mapped[bool | None] = mapped_column(Boolean)
+    reservation_advance_days: Mapped[int | None] = mapped_column(Integer)
+    booking_url: Mapped[str | None] = mapped_column(String(500))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -121,6 +152,7 @@ class Restaurant(Base):
     name_zh: Mapped[str | None] = mapped_column(String(200))
     name_en: Mapped[str | None] = mapped_column(String(200))
     cuisine: Mapped[str | None] = mapped_column(String(50))
+    cuisine_en: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str | None] = mapped_column(
         String(20), server_default=text("'active'")
     )
@@ -131,7 +163,10 @@ class Restaurant(Base):
         Geography(geometry_type="POINT", srid=4326, nullable=True)
     )
     address: Mapped[str | None] = mapped_column(String(200))
+    address_en: Mapped[str | None] = mapped_column(String(200))
     opening_hours: Mapped[str | None] = mapped_column(String(500))
+    # 双语 P1.6：EN 营业时间（只填空；源列 1841/1899 为中文表述）
+    opening_hours_en: Mapped[str | None] = mapped_column(String(500))
     hours_source: Mapped[str | None] = mapped_column(String(20))
     hours_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     phone: Mapped[str | None] = mapped_column(String(50))
@@ -143,9 +178,81 @@ class Restaurant(Base):
     tags_source: Mapped[str | None] = mapped_column(String(20))
     intro: Mapped[str | None] = mapped_column(Text)
     intro_source: Mapped[str | None] = mapped_column(String(20))
+    intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB)
     photos_source: Mapped[str | None] = mapped_column(String(20))
     origin: Mapped[str | None] = mapped_column(String(20))
+    # 规划引擎升级 0009：restaurants 专属富化列（C 组 + 评论域）。
+    rating_count: Mapped[int | None] = mapped_column(Integer)
+    review_tags: Mapped[list | None] = mapped_column(JSONB)
+    review_tags_source: Mapped[str | None] = mapped_column(String(20))
+    review_tags_en: Mapped[list | None] = mapped_column(JSONB)
+    signature_dishes: Mapped[list | None] = mapped_column(JSONB)
+    signature_dishes_en: Mapped[list | None] = mapped_column(JSONB)
+    taste_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    env_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    service_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    price_level: Mapped[str | None] = mapped_column(String(10))  # <=50/50-100/...
+    meal_periods: Mapped[list | None] = mapped_column(JSONB)  # 早茶/正餐/夜宵
+    district: Mapped[str | None] = mapped_column(String(50))
+    business_area: Mapped[str | None] = mapped_column(String(50))
+    name_aliases: Mapped[list | None] = mapped_column(JSONB)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class PoiReview(Base):
+    """自产评论（DESIGN §3.4 D1 / §4 互动闭环）。
+
+    外部合法评论负责展示与初排；本表只收我们自己的用户（主要客户
+    =外国入境游客，2026-10-24 定调）产生的评价——外国人视角的独家
+    资产：外卡支付/英文服务/护照预订这类标签只有外国游客会给。
+    """
+
+    __tablename__ = "poi_reviews"
+    __table_args__ = (
+        Index("idx_poi_reviews_poi", "poi_id"),
+        Index("idx_poi_reviews_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    poi_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("pois.id"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    device_id: Mapped[str | None] = mapped_column(String(64))
+    rating: Mapped[int | None] = mapped_column(SmallInteger)  # 1-5
+    tags: Mapped[list | None] = mapped_column(JSONB)  # 人多/出片/外卡支付...
+    # 属性名必须避开 sqlalchemy.text——DB 列名仍为 text
+    body: Mapped[str | None] = mapped_column("text", Text)
+    visited_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    source: Mapped[str | None] = mapped_column(
+        String(20)
+    )  # post_visit | card_thumbs | chat
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
+class PoiStat(Base):
+    """POI 行为热度聚合（DESIGN §3.4 D2，夜作业全量重建）。
+
+    trip_items 每天产生的行为（wishlist=wish、scheduled/plan、unwanted
+    =dislike）+ 卡片反馈/打卡/链接提及计数——竞品拿不到的自有热度源。
+    """
+
+    __tablename__ = "poi_stats"
+
+    poi_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pois.id"), primary_key=True
+    )
+    wish_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    plan_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    visit_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    dislike_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    thumbs_up: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    xhs_mentions: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )

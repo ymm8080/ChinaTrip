@@ -145,13 +145,38 @@ async def refresh_pois(
             poi_source, poi_id = upgraded
         hours = address = None
         source = None
+        # 0009 富化字段（DESIGN §3.1/3.2）：跨链合并——携程给
+        # 时长/点评数/标签/门票，高德给评分/照片/电话/商圈
+        rich: dict = {}
         # ① 携程先（用户拍板 2026-10-19；不同供应商，quota 熔断不波及）
         try:
-            hours = await ctrip.hours_for(poi_city or "", name or "")
+            fields = await ctrip.detail_fields_for(poi_city or "", name or "")
         except Exception:
-            hours = None
-        if hours:
-            source = "ctrip"
+            fields = None
+        if fields:
+            hours = fields.get("opening_hours")
+            if hours:
+                source = "ctrip"
+            rich.update(
+                {
+                    "suggested_duration_min": fields.get("suggested_duration_min"),
+                    "duration_source": (
+                        "ctrip" if fields.get("suggested_duration_min") else None
+                    ),
+                    "rating": fields.get("rating"),
+                    "rating_source": "ctrip" if fields.get("rating") else None,
+                    "rating_count": fields.get("rating_count"),
+                    "review_tags": fields.get("review_tags"),
+                    "review_tags_source": (
+                        "ctrip" if fields.get("review_tags") else None
+                    ),
+                    "ticket_price_min": fields.get("ticket_price_min"),
+                    "ticket_price_max": fields.get("ticket_price_max"),
+                    "ticket_source": (
+                        "ctrip" if fields.get("ticket_price_min") else None
+                    ),
+                }
+            )
         # ② 高德 v5 detail（poi_id 直查；仅高德行——骨架行直查无意义）
         if not hours and amap is not None and (poi_source or "amap") == "amap":
             if quota_dead:
@@ -170,6 +195,19 @@ async def refresh_pois(
                     address = out.get("address")
                     if hours:
                         source = "amap_v5_detail"
+                    if out.get("rating"):
+                        rich.update({"rating": out["rating"], "rating_source": "amap"})
+                    rich.update(
+                        {
+                            k: v
+                            for k, v in (
+                                ("photos", out.get("photos")),
+                                ("phone", out.get("tel")),
+                                ("business_area", out.get("business_area")),
+                            )
+                            if v
+                        }
+                    )
         # ③ 高德 v5 关键词搜索（最终兜底；location 供 10021 降级 around）
         if not hours and amap is not None:
             if quota_dead:
@@ -190,6 +228,19 @@ async def refresh_pois(
                     address = address or out.get("address")
                     if hours:
                         source = "amap_v5_search"
+                    if out.get("rating") and not rich.get("rating"):
+                        rich.update({"rating": out["rating"], "rating_source": "amap"})
+                    rich.update(
+                        {
+                            k: v
+                            for k, v in (
+                                ("photos", out.get("photos")),
+                                ("phone", out.get("tel")),
+                                ("business_area", out.get("business_area")),
+                            )
+                            if v and not rich.get(k)
+                        }
+                    )
         if hours:
             store.upsert(
                 poi_id,
@@ -198,8 +249,19 @@ async def refresh_pois(
                 address=address,
                 opening_hours=hours,
                 hours_source=source,
+                **{k: v for k, v in rich.items() if v is not None},
             )
             stats[source] += 1
+        elif any(v is not None and v for v in rich.values()):
+            # 小时未命中但富化字段有值（携程页面无开放时间块）——也别丢
+            store.upsert(
+                poi_id,
+                city=poi_city,
+                name=name,
+                **{k: v for k, v in rich.items() if v is not None},
+            )
+            stats["enrich_only"] = stats.get("enrich_only", 0) + 1
+            store.touch_hours_checked(poi_id)
         else:
             stats["miss"] += 1
             # miss 冷却：盖戳进 24h 静默，别下轮再烧 text 配额

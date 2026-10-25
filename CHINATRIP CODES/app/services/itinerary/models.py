@@ -38,6 +38,12 @@ class VisitItem(BaseModel):
     # (product rule 2026-10-19); None when amap data is unavailable.
     address: str | None = None
     opening_hours: str | None = None
+    # 双语 P1（DESIGN language_dual_system §6）：_en 并出，空回退中文，
+    # H5 按 locale 取值；来源候选库 pois._en 列，amap 路径为 None
+    name_en: str | None = None
+    address_en: str | None = None
+    intro_en: str | None = None
+    opening_hours_en: str | None = None
     day: int  # 1-based day number
     start_time: time | None = None
     end_time: time | None = None
@@ -51,6 +57,16 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 0009 / 8.2.1：库候选携带的时段属性（morning/afternoon/evening/
+    # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
+    # None = 无信号（老数据/占位），按全天窗处理。
+    best_visit_time: str | None = None
+    # G1（§14.3）：预约制门票提示（展示层，solver 不约束——预约是用户
+    # 侧动作；「现在就订·提前 N 天·放票 08:00」在卡片亮出）
+    reservation_hint: str | None = None
+    # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
+    # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
+    rain_ok: str | None = None
 
 
 class TransferItem(BaseModel):
@@ -87,11 +103,17 @@ class ItineraryPlan(BaseModel):
 
 
 class PoiHours(BaseModel):
-    """Opening-hours rule used by iron rule 2 (validation input)."""
+    """Opening-hours rule used by iron rule 2 (validation input).
+
+    G3（§14.3）：多段开窗（国内场馆午休闭馆 12:00-13:30 常态）——
+    windows 非空时 opens/closes 仅为兜底显示值，solver 按 windows
+    条件开窗建模。
+    """
 
     poi_id: str
     opens: time
     closes: time
+    windows: list[tuple[time, time]] | None = None
 
 
 class RuleSeverity(str, Enum):

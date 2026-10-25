@@ -9,8 +9,11 @@ from app.api.amap import router as amap_router
 from app.api.asr import router as asr_router
 from app.api.auth import router as auth_router
 from app.api.backfill import router as backfill_router
+from app.api.booking_auto import router as booking_auto_router
 from app.api.bookings import router as bookings_router
+from app.api.call import router as call_router
 from app.api.extract import router as extract_router
+from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
 from app.api.itineraries import router as itineraries_router
 from app.api.navigation import router as navi_router
@@ -22,6 +25,7 @@ from app.api.profile import links_router, profile_router
 from app.api.share import router as share_router
 from app.api.translate import router as translate_router
 from app.api.trip_items import router as trip_items_router
+from app.api.visa import router as visa_router
 from app.api.weather import router as weather_router
 from app.config import get_settings
 from app.middleware.ratelimit import RateLimitMiddleware
@@ -66,10 +70,14 @@ def create_app() -> FastAPI:
     app.include_router(share_router)
     app.include_router(backfill_router)
     app.include_router(offers_router)
-    app.include_router(payments_router)
     app.include_router(profile_router)
     app.include_router(links_router)
     app.include_router(weather_router)
+    app.include_router(visa_router)
+    app.include_router(feedback_router)
+    app.include_router(booking_auto_router)
+    app.include_router(payments_router)
+    app.include_router(call_router)
 
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/h5", StaticFiles(directory=static_dir, html=True), name="h5")

@@ -84,6 +84,7 @@
 | **B 申请即连** | **FSQ OS Places** | [Places Portal](https://docs.foursquare.com/data-products/docs/access-fsq-os-places) 自助注册→生成 token；免费档（新 Pro 结构约 500 次/月，另有 HuggingFace 数据集走批量不经 API） | 全球 POI/餐厅骨架，补餐厅密度 | **现在就能办**；数据库设计已排 L2 月更 20 日（delta 文件契合 DIFF UPDATE） |
 | **B 申请即连** | **携程开放平台/联盟** | [u.ctrip.com](http://u.ctrip.com) 个人身份证实名即可（2020 年起对 KOC/小 B 开放）；注册→资质认证→媒体/推广位 | 转链 + 商品库（酒店/门票/火车票），佣金结算通道 | **现在就能办**；API 结构化权限注册后按媒体分级再升 |
 | **B 申请即连（有前置）** | **淘宝联盟→飞猪** | [pub.alimama.com](https://pub.alimama.com) 个人推客可注册；**API 调用需媒体备案**（网站型：域名+ICP 备案，约 1 天审过）→推广位 PID→appkey→API 权限 | 飞猪商品转链/订单/佣金（酒店机票门票） | 我们 H5 有域名即可办网站型备案；飞猪"问一问"为 2025 国内 AI 助手评测第一，商品覆盖值得接 |
+| **B/C 待查资质** | **飞猪 FlyAI**（AI 开放平台） | [flyai.open.fliggy.com](https://flyai.open.fliggy.com)——机/酒/门票/度假全品类 AI 接入（OpenClaw 协议，MCP 化）；资质门槛待查（阿里系大概率要企业主体，与携程联盟同批申请） | **L2/L3 库存腿候选**：国内票务 MCP 化的真通道（第九批查证 2026-10-25） | 中文+国内支付生态→角色=我们后端的库存 API（非外国人下单面）；外国人下单面仍归 Trip.com/Klook |
 | **B 申请即连** | **美团联盟（推客层）** | [media.meituan.com](https://media.meituan.com) 个人：身份证+实名、18-60 岁 | 美团系转链（外卖/酒店/门票） | **注意**：推客转链个人可用，**API/媒体接口层需企业营业执照**（设计 v1.9 判据仍成立）；先注册占位，API 等主体 |
 | **B 申请即连** | **Klook affiliate** | [affiliate.klook.com](https://affiliate.klook.com) 申请（或走 Travelpayouts）；[Open API 文档](https://klook.gitbook.io/openapi)公开 | 中国门票/活动覆盖最强的海外平台商品+佣金（2–5%） | 入境游方向（Phase 2 友好）；affiliate 链接级个人可申请 |
 | **B 升级现有** | **高德企业认证** | 营业执照落地当天申请（设计 v1.7 既定动作） | 免费配额提升+商用合规确认 | 公司主体落地即办 |
@@ -100,6 +101,7 @@
 
 | 层 | 源 | 通道 | 能拿到什么 | 重要度 | 开发量 | 评论 |
 | --- | --- | --- | --- | --- | --- | --- |
+| ⓪ 观察触发 | **agentic commerce 双通道**（第九批 2026-10-25）：Mastercard×Trip.com（TripGenie+MC 支付技术，2026-09 官宣，UCP 阵营）+ 支付宝「AI付」/支付 MCP Server（收单语义，未来订阅收款用）——季度扫接入公告；**飞猪 FlyAI** 资质查证后入库存腿 | — | 行业事件 | **高**（触发即升级 L3） | — | L3 非 ACP 主案不变；OrderChannel 扩展位换实现不动架构 |
 | ① 提前申请 | **TripAdvisor Content API / Terra** | C 档（企业+流量，商务个案审批） | 中国 POI 的外国游客评论/评分/照片 + **信任角标**（外国用户认 TA 的星标） | **高**（客户=外国人） | M | **原 L4 兜底升级为「主体落地即申请的第一批」**；对入境用户，TA 星标同时是转化手段（display 合规=署名+logo+回链） |
 | ② affiliate 实测 | **Klook affiliate / Trip.com（Travelpayouts）/ GetYourGuide·Viator partner** | B~C 档（Klook/Travelpayouts 个人可申请） | 商品+转链是确定项；**部分 affiliate/distribution API 返回产品评分**（Klook 产品卡带 rating）——评论本体不开放 | 中 | S-M（实测） | 注册后第一件事=实测评分字段可得性；拿得到就进 `rating`（source=klook 等），拿不到就只做转链 |
 | ③ 自产（最契合） | **我们自己的用户** | 无需申请 | `poi_reviews` 由外国游客产生——**天然就是"外国人视角"评论库**（英文菜单？外卡支付？护照预订？这些只有外国游客会评） | **高** | S（表已设计 §3.4） | 冷启动用 TA/affiliate 评分，自产积累后成为独家资产：国内平台拿不到、外国平台没覆盖的第四方视角 |
@@ -281,6 +283,7 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 
 | 版本 | 内容 |
 | --- | --- |
+| v1.5 | 2026-10-25 §15 落地收口与运维管道（执行日）——G1-G6 全落地（全量 1051→1105 绿）；名单二轮校订（17 馆 7 处修正 + 240h 65 口岸全表/24 省勘误/市级范围/哈尔滨修复）；评测集扩样 10→15 抓修铁律 20 真回归（餐厅被 solve 重排出餐窗→v0 插入路径 pin）；数据真跑约 1400 行；运维三件（poi_stats 每日 03:40、预约规则每周日 21:00 周更+五关校验+表刷新、免签只读对账）；环境澄清（WSL PG18 / glm_api_key，双阻塞均误诊） |
 | v1.4 | 2026-10-24 §14 第二轮外部对照审查（用户定调：优化面向外国游客的引擎能力）——三路调研（GitHub 开源/商业主流/入境产品）：① 架构论点获外部验证（四件套无开源全占、TravelPlanner GPT-4 通过率 0.6%→8.1.5 评测集升 P0 硬闸门、纯优化器商业全灭→信任角标+预订深链是另一半）；② 新增六缺口 G1-G6：预约制门票约束（入境第一实操痛）、240h 免签行程校验（独家信任功能）、多窗营业时间（solver 单窗实锤）、拖拽后时间重算、行程离线可开（西方规划器被墙的结构性优势兑现）、交通腿结构化 payload；③ 语言层明确排除（用户后做）；④ §3.6-② 触发器补 affiliate 代抢覆盖度实测；⑤ 工作区漂移快照（top_pois_in_city 已接线、8.2.1 已落） |
 | v1.3 | 2026-10-24 §3.6 增 VPN 可达性说明（用户补充：开发机有 VPN）——可达 ≠ 权限：Google/Yelp/Reddit 逐家重判仍出局（ToS 存储禁令/零中国数据/商用条款）；MVP 阶段外国源抓取可行（作业跑开发机，OSM 已 VPN 依赖）；规模化迁阿里云后 ⛴ 标注源需复核 |
 | v1.2 | 2026-10-24 新增 §3.6 入境游客评论源（用户定调：主要客户=外国人，优先级反转）——TripAdvisor 从 L4 兜底升为「主体落地即申请的第一批」（唯一结构化外国人评论 API）；Klook/Trip.com/GetYourGuide affiliate 评分字段实测路径；自产评论=外国人视角独家资产；review_tags 增入境专属标签（外卡支付/英文服务/护照预订/免签）；§3.5 C 档 TA 行与 §10 触发器清单同步；审查版格式 docx→PDF（横版 A4，表格优化） |
@@ -379,7 +382,7 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 
 | # | 项 | 内容 | 证据/来源 | 重要度 | 开发量 | 落点 |
 | --- | --- | --- | --- | --- | --- | --- |
-| G1 | **预约制门票约束** | pois 增 `reservation_required BOOL` + `reservation_advance_days INT` + `booking_url`（0010 增列，0009 已落地不再改）；solver 软约束：需预约 POI 卡片亮「现在就订·提前 N 天·放票 08:00」；booking_url 缺省落 §3.6-② affiliate 转链（Klook/Trip.com 代抢即外国人标准解法） | 故宫/国博/陕历博微信小程序秒光是入境第一实操痛；Klook/GetYourGuide/Viator 靠代抢英文化赚这个钱 | **高** | S-M | 随 0010；名单 v0 人工录入 top 预约制场馆（数十家）+ 携程 sight 页「需预约」标识回源补量 |
+| G1 | **预约制门票约束** → **已落地并升格为「预约自动化三档栈」**（§14.7，2026-10-25 全链交付）：pois 增 `reservation_required/reservation_advance_days/booking_url`（迁移 0010 ✅）+ 名单 v0 17 馆结构化 {days, release, note}（三轮官方核对 ✅）+ solver 提示 chip/假设 ✅；**升格部分**：`services/booking_auto.py` 三档（L1 抢票日历+直达 / L2 渠道可订性【国内联盟主力：携程联盟/同程/美团，预约馆诚实返回 official_quota】/ L3 下单闭环【**非 ACP 主案**：发起埋点→渠道支付→粘贴回填→联盟对账】）+ 五端点 + H5 抢票日历/直达按钮（sw v26） | 故宫/国博/陕历博微信小程序秒光是入境第一实操痛；Klook/GetYourGuide/Viator 靠代抢英文化赚这个钱 | **高** | ~~S-M~~ ✅ | services/booking_auto.py + api/booking_auto.py + reservation_seeds.py + 迁移 0010；详见 §14.7 |
 | G2 | **240h 免签行程可行性校验** | 确定性规则引擎（零 LLM）：入境/出境口岸对 + 允许省份范围 × 行程城市集合 + 停留时钟 ≤240h + 第三国联程票提醒 → 行程页绿/红横幅 +「以边检为准」免责 | 游客"答案互相矛盾"是普遍吐槽；**无一家规划器有权威校验**（Voyaiger 宣称有 visa 逻辑但被墙）；政策快变→快照日期 + 数据表可热更 | **高** | S | `services/itinerary/visa_check.py`；政策快照表（生效日期/口岸/省份 JSON） |
 | G3 | **多窗营业时间** | PoiHours 增 `windows`（多段开窗）；solver 用可选区间逐窗建模（OR-Tools optional intervals，社区成熟解法）；回源解析「12:00-13:30 午休」分段 | solver.py:85-88 单窗实锤；OR-Tools 多窗是公认难题但有标准答案；**国内场馆午休是常态不是边角** | 中-高 | M | P1 solver 改造同批（与 8.2.1-8.2.3 同批动刀） |
 | G4 | **拖拽后时间自动重算** | trip center 拖拽排序已有（⠿ 把手）；补：拖后触发 validate_plan + `_enrich_legs` 增量重算当日时间线，改完即存 | Wanderlog 最高频表扬点；携程 2025-09 已上同款；无重算的拖拽=只是改顺序不是改计划 | 中 | S-M | H5 + 端点复用，§6.2 拖拽联动的引擎半边 |
@@ -395,7 +398,47 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 3. **P2**：G5 可提前（S 级一行 sw 策略）；G6 随语言层一起做更顺。
 4. **§3.6-② 触发器补强**：Klook/Trip.com affiliate 注册后，第一件事从「实测评分字段」扩为「实测评分字段 + **预约制门票代抢商品覆盖度**（故宫/国博等 top 场景有没有货）」——affiliate 的真正价值一半在 G1 的 booking_url 兜底。
 
+### 14.7 预约自动化三档栈（G1 落地定稿）→ **技术定稿已独立成册 [booking_design_2026-10-25.md](booking_design_2026-10-25.md)**）；下文为定稿前的过程稿，以专册为准
+
+> 用户三连拍板：①L1/L2/L3 全建、**档位由我们或客户自选**（五端点含 /select 设备级记忆）；②**中国票务库存不依赖 Klook/Trip.com**（两轮纠偏：L2 库存主力=携程联盟/同程/美团；Klook/Trip.com 降为外国人下单面）；③**非 ACP 闭环为主案**（ACP 不可用就走非 ACP 解——ACP/UCP 降为观察项）。
+
+#### 14.7.1 三档定义与降级链
+
+| 档 | 形态 | 现状 | 升级条件 |
+| --- | --- | --- | --- |
+| **L1 提醒+直达** | 放票任务（开抢日=游玩日−提前N天，含放票时刻）+ 联盟带参直达（alliance_id/sid 双非空才附加） | ✅ 全功能（零依赖恒可用） | — |
+| **L2 渠道可订性** | `AvailabilityProvider` 协议+注册表 | 框架就绪；无 key 诚实降级 L1 | **国内联盟 key 任一配好即活**（携程联盟/同程/美团，config 五键任一判定）；**Klook/Trip.com 不作库存主源** |
+| **L3 下单闭环** | order-intent（预填 authorization_url + `action_handoffs` 埋点）→ 渠道支付（归用户，铁律 22）→ 粘贴回填 user_confirmed → 联盟对账 alliance_verified | ✅ **全链路通（非 ACP 主案）** | ACP/Mastercard-agentic 被开放给第三方 agent 时换 channel 实现（OrderChannel 扩展位） |
+
+降级链：请求档不可用自动回落并注明原因（L3→L2→L1，永不为空）。**语义纠偏两则**：①预约制馆（故宫/国博免费票）真实配额在官方微信小程序，**任何联盟 API 都查不到**（Klook/Trip.com 卖的是代抢服务商品非官方库存）→ L2 对名单命中馆短路返回 `official_quota`（不编造）；商业付费 SKU 才查渠道。②自产数据飞轮（远期）：poi_reviews「抢到/没抢到」标签 → official_quota 场馆的经验售罄规律——独家数据，渠道拿不到。
+
+#### 14.7.2 落地清单（代码/端点/UI）
+
+| 件 | 位置 | 状态 |
+| --- | --- | --- |
+| 三档服务 + 降级链 + 档位目录 | `services/booking_auto.py`（BookingTier/resolve_tier/build_reservation_tasks/check_availability/build_order_intent） | ✅ |
+| 五端点 | `api/booking_auto.py`：GET /tiers（含降级注记的选择器数据源）、POST /tasks（L1 行前抢票日历）、POST /check（L2）、POST /order-intent（L3+handoff 埋点）、POST /select+GET /selected（客户自选档位） | ✅ |
+| 名单 v0 | `services/reservation_seeds.py` 17 馆结构化 {days, release, note}——故宫 7天/20:00、国博 7天/17:00、陕历博 5天/17:00、三星堆 5天/20:00（已核）；恭王府 10 天、莫高窟 30 天、熊猫基地 14 天（巡检层三轮官方核对） | ✅ |
+| 迁移 0010 | pois +3 列（reservation_required/advance_days/booking_url），已在真库执行 | ✅ |
+| H5 | 行前抢票日历（金黄卡：📅 开抢日 时刻 · 馆名 · 直达→）+ 站点行「🎫 提示 + 抢票直达」+ 付款后回填 toast 引导；sw v26 | ✅ |
+| 引擎接入 | 选点 listing「需预约·提前N天」chip + 卡片 reservation_hint（库列优先/名单 _same_site 兜底）+ 假设区预约提醒 | ✅ |
+| 测试 | test_booking_auto.py 12 用例（降级链/日期数学/联盟参数条件/official_quota 分流/支付永归用户/伪闭环 handoff） | ✅（全量 1099 绿） |
+
+#### 14.7.3 外部通道事实核查（2026-10-25，第九批）
+
+| 通道 | 判定 |
+| --- | --- |
+| 支付宝支付 MCP Server /「AI付」 | **收单语义**（商户收用户的钱）——适用未来订阅/自营收款（需企业主体+商户号）；**不适用代客向第三方付票钱**（资金过手=二清） |
+| 飞猪 FlyAI（flyai.open.fliggy.com） | 机/酒/门票/度假全品类 AI 接入（OpenClaw，MCP 化）——**L2/L3 库存腿候选**（B/C 档资质待查，阿里系大概率要企业主体）；角色=后端库存 API 非外国人下单面 |
+| Trip.com agentic | **不走 Stripe/OpenAI ACP，走 Mastercard 轨**（2026-09 Mastercard×Trip.com 官宣，TripGenie+MC 技术，UCP 阵营）——中国系 OTA 首次进场；对外国人：机/酒=真库存即时确认 ✅；景点票=护照可订官方价 SKU+含票导览，但同受官方配额约束（放票同为 20:00/提前7天，售罄兜底=当天护照窗口购票）——**定位=外国人最顺通道，非保证抢到** |
+| 高德 MCP | 行程/地图（非交易）——规划生态参考 |
+
+**观察触发器（季度扫）**：Mastercard×Trip.com agentic 开放进度、支付宝智能体交易开放（国内真正的 ACP 时刻大概率在此）、飞猪 FlyAI 资质与 API 细则、携程/美团开放平台 agent 下单 API——任一落地即评估 L3 channel 升级，架构不动。
+
 ### 14.5 工作区漂移快照（§13 之后的增量，2026-10-24 下午）
+
+
+
 
 - `top_pois_in_city` **已接线**：plan.py:2159（库优先 8.1.1 半落——库存≥10 跳过高德的分支待确认）；
 - 8.2.1 best_visit 开窗**已完成**（PROGRESS #13，solver/time_slot/rules 48 测试过）；
@@ -412,3 +455,47 @@ C1-C4 餐厅深字段、7 表格 M 级项（Atlas 足迹/预算汇总）、8.1.5
 - 开源/学术：[TravelPlanner 基准 (OSU-NLP, ICML'24)](https://github.com/OSU-NLP-Group/TravelPlanner)、[route-compass TOPTW](https://github.com/DENGYUFAN0/route-compass)、[I-Sheng GPTs+OR-Tools+学习时长](https://github.com/I-Sheng/Travel-Itinerary-Planning-System-Using-GPTs-as-the-Core)、[Swiss-AI-Travel-Planner](https://github.com/mirkokeller/Swiss-AI-Travel-Planner)、[OR-Tools 多窗讨论](https://github.com/google/or-tools/discussions/3385)、[opening_hours.js](https://github.com/opening-hours/opening_hours.js)、[PyVRP](https://github.com/PyVRP/PyVRP)
 - 商业：[Google AI Mode Canvas 行程](https://blog.google/products-and-platforms/products/search/agentic-plans-booking-travel-canvas-ai-mode)、[Wanderlog](https://wanderlog.com)、[Sygic Travel](https://www.sygic.com/travel)、[Klarna 收购 Inspirock](https://www.klarna.com/international/press/klarna-acquires-inspirock-bringing-smooth-travel-planning-to-its-90m-global-consumers)、[携程 AI 行程助手 (2025-09)](http://www.caacnews.com.cn/1/7/202509/t20250916_1389990.html)、[Trip.com Trip.Planner](https://www.trip.com/blog/trip-planner-tool)、[AI 行程 90% 含错研究](https://www.thrillist.com/news/nation/ai-travel-itineraries-wrong-incorrect-study)
 - 入境：[240h 免签过境官方公告 (2024-12)](https://english.www.gov.cn/news/202412/17/content_WS6760e5eac6d0868f4e8ee0b8.html)、[故宫微信小程序抢票攻略](https://hellochinatrip.com/how-to-book-forbidden-city-tickets-on-wechat-miniprogram)、[12306 外照购票 vs Trip.com](https://dolphinunion.com/post/china-train-ticket-booking-for-foreigners-12306-vs-trip-com)、[酒店须接待外宾令 (2024-05)](https://www.pekingnology.com/p/china-now-asking-all-hotels-to-accept)、[Voyaiger 中国游 AI 评测（被墙）](https://voyaige.to/blog/best-ai-travel-planner-for-china-2026)、[Amap Global 14 语言](https://apps.apple.com/us/app/amap-global/id461703208)、r/ChinaTravel·r/travelchina 2024-2026 高频帖
+
+---
+
+## 15. 落地收口与运维管道（2026-10-25 执行日）
+
+> §13/§14 审查定调后的执行日总账。全量测试 1051 → 1105，每个增量独立验证；细节以 PROGRESS 活文档为准。
+
+### 15.1 G1-G6 落地总账（全部 ✅）
+
+| 缺口 | 落地 | 验证 |
+| --- | --- | --- |
+| G1 预约制 | 17 馆名单（`reservation_seeds.py`）+ 迁移 0010 三列 + 卡片 hint/假设区 | seam 批次 114 绿；官方口径二轮核对 7 处修正留档 |
+| G2 240h 免签 | 确定性规则引擎 + `/api/v1/visa/240h` + H5 红绿横幅 | 二轮校订后 13 测绿（含官方事实钉回归） |
+| G3 多窗营业时间 | `PoiHours.windows` + 条件开窗 ExactlyOne + 午休补集解析 | solver 批次绿；评测集「午休 gap 不排站」端到端钉死 |
+| G4 拖拽重算 | move/retime 校验+时链 + 实测腿回放 | 既有 API 测试绿 |
+| G5 离线可开 | SW v24（外壳变更随互动闭环） | PWA 测试过 |
+| G6 腿结构化 | legs payload 结构层 | 语言渲染按用户指示后置 |
+
+### 15.2 名单事实二轮校订（官方源直核，报告留档可审计）
+
+- **17 馆预约规则**：天安门（1-7 天/12:00 放第 7 天票）、布达拉宫（**提前 10 天**，票务预订系统小程序+人脸认证）、熊猫基地（**提前 14 天**，携程为授权渠道）、湖南博物院（5→7 天/20:00）、秦汉馆（17:30 放票）、八达岭（「长城内外旅游」小程序）、雍和宫（「雍和宫游客信众服务」）7 处修正；外籍友好渠道差异化单列（陕历博仅二代身份证必须代订）。→ `reservation_seeds_核对_2026-10-25.md`
+- **240h 免签**：口岸 20→**65 全表**（航空 47+水运 14+铁路 2+公路 2）；24 省勘误（**删吉林/补贵州**）；新增市级活动范围 city_scope（晋太原大同/赣南昌景德镇/桂 12 市/川 11 市/滇 9 市州）——阿坝·九寨沟由假绿变正确 fail；哈尔滨映射修复（吉林→黑龙江）。→ `visa_check_核对_2026-10-25.md`
+
+### 15.3 评测集扩样与铁律 20 真回归修复（闸门价值的实证）
+
+评测集 10→15 用例：晚餐窗挂窗 / evening 开窗端到端 / 多窗午休 gap 不排站 / 时链不缩水 / 预约 hint 不干扰求解。**扩样当场抓到真回归**：8.2.4 自动餐厅经 `build_food_item` 落窗后未 pin，紧跟的全量 solve 把餐厅自由重排出餐窗（实测 10:30 排晚餐）。修复 = v0 插入路径当场 pin 空窗中点（不动 `restaurants.py` 的 apply_diffs/unpinned 契约）。闸门语义再次验证：改红了不可合入。
+
+### 15.4 数据真跑与环境澄清
+
+- review_summary 蒸馏 + indoor/rain LLM 补量约 **1400 行**入库（与并发会话 enrich 作业幂等互填，残留 74 行系目标查询有意排除）
+- 环境澄清：DB 为 **WSL Ubuntu PG18**（`alembic current` = w12_0010 head），LLM key 一直可用（`glm_api_key`）——此前「docker/API key 双阻塞」均为误诊
+
+### 15.5 运维管道三件（schtasks 就绪）
+
+| 任务 | 节奏 | 内容 |
+| --- | --- | --- |
+| `ChinaTrip_poi_stats_nightly` | 每日 03:40 | poi_stats 聚合全量重建 |
+| `ChinaTrip_reservation_rules_weekly` | **每周日 21:00** | 17 馆预约规则 web_search 逐馆核对 → 五关校验 → 快照 JSON + diff 报告（名单改码留人工评审）+ `pois` 表三列覆盖刷新（官方 URL 落 booking_url）；`--with-visa` 附免签口岸数量只读对账；别名条目继承主馆不重复烧 LLM |
+| 免签快照 | 随周更只读 | 数量漂移即报告，人工核对公告后更新 `visa_check.py` |
+
+### 15.6 剩余边界
+
+- booking 三档栈（L1 提醒/L2 库存/L3 下单意图）与 payments/enrich 作业族/timing_engine：并发会话主责，本侧交叉回归保绿（接缝零漂移）
+- 语言层：按用户指示后置；G6 渲染同步后置

@@ -141,6 +141,24 @@ def _normalize_poi(poi: dict) -> dict:
     return normalized
 
 
+def _extras(poi: dict) -> dict:
+    """0009 富化字段（A2/A3/B1）：photos/tel/business_area——空值不落键，
+    回源侧 hit.get(...) 判空即可（只填空语义在 store.upsert 兜底）。"""
+    out: dict = {}
+    photos = _normalize_photos(poi.get("photos"))
+    if photos:
+        out["photos"] = photos
+    tel = _as_str(poi.get("tel"))
+    if tel:
+        out["tel"] = tel
+    ba = poi.get("business_area")
+    if isinstance(ba, list) and ba:
+        first = _as_str(ba[0])
+        if first:
+            out["business_area"] = first
+    return out
+
+
 def _hours_result(poi: dict | None) -> dict:
     # v5 business 字段 -> search_hours 结果；无命中时保持三键旧形状。
     if poi is None:
@@ -151,13 +169,15 @@ def _hours_result(poi: dict | None) -> dict:
         or _as_str(biz.get("opentime_today"))
         or _as_str(biz.get("opentime"))
     )
-    return {
+    result = {
         "opening_hours": hours,
         "rating": _as_str(biz.get("rating")),
         "matched": _as_str(poi.get("name")),
         "address": _as_str(poi.get("address")),
         "poi_id": _as_str(poi.get("id")),
     }
+    result.update(_extras(poi))
+    return result
 
 
 def _normalize_walking_step(step: dict) -> dict:
@@ -575,11 +595,13 @@ class AmapClient:
             or _as_str(biz.get("opentime_today"))
             or _as_str(biz.get("opentime"))
         )
-        return {
+        result = {
             "opening_hours": hours,
             "rating": _as_str(biz.get("rating")),
             "address": _as_str(poi.get("address")),
         }
+        result.update(_extras(poi))
+        return result
 
     async def search_hours(
         self, keyword: str, city: str | None = None, *, location: str | None = None

@@ -98,6 +98,15 @@ class LinkCreate(BaseModel):
     itinerary_id: str | None = Field(default=None, max_length=64)
 
 
+class LinkBatchCreate(BaseModel):
+    """§5.2 批量收藏导入（圆周旅迹主打卖点）：一次粘贴 ≤30 条。"""
+
+    urls: list[str] = Field(min_length=1, max_length=30)
+    source: str = Field(default="user_paste", min_length=1, max_length=32)
+    origin: str | None = Field(default=None, max_length=32)
+    itinerary_id: str | None = Field(default=None, max_length=64)
+
+
 # --- profile routes ------------------------------------------------------------
 
 
@@ -174,6 +183,32 @@ async def create_link(
         )
     except LinkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@links_router.post("/batch")
+async def create_links_batch(
+    request: LinkBatchCreate,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: LinkStore = Depends(get_link_store),
+) -> dict:
+    """逐条入库（坏链接逐条拒绝不拖垮整批），H5 再把 accepted 逐条送规划。"""
+    device = _require_device(x_device_id)
+    accepted: list[dict] = []
+    rejected: list[dict] = []
+    for url in request.urls:
+        try:
+            accepted.append(
+                store.add_link(
+                    device,
+                    url.strip(),
+                    request.source,
+                    origin=request.origin,
+                    itinerary_id=request.itinerary_id,
+                )
+            )
+        except LinkValidationError as exc:
+            rejected.append({"url": url, "reason": str(exc)})
+    return {"accepted": accepted, "rejected": rejected}
 
 
 @links_router.get("")

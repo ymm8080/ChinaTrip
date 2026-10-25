@@ -308,6 +308,7 @@
 </style>
 <script src="qrcode.min.js"></script>
 <script src="sortable.min.js"></script>
+<script src="i18n.js"></script>
 </head>
 <body>
 <div id="app">
@@ -317,13 +318,15 @@
       <div class="brand-sub">冒烟测试工作台</div>
     </div>
     <nav id="nav">
-      <button class="nav-item active" data-tab="plan">📋 规划</button>
-      <button class="nav-item" data-tab="t9n">🔤 翻译</button>
-      <button class="nav-item" data-tab="nav">🧭 导航</button>
-      <button class="nav-item" data-tab="itin">🗓 行程</button>
-      <button class="nav-item" data-tab="trips">🗂 行程中心</button>
-      <button class="nav-item" data-tab="book">🎫 预订</button>
-      <button class="nav-item" data-tab="me">👤 个人主页</button>
+      <button class="nav-item active" data-tab="plan" data-i18n="nav.plan">📋 规划</button>
+      <button class="nav-item" data-tab="t9n" data-i18n="nav.t9n">🔤 翻译</button>
+      <button class="nav-item" data-tab="nav" data-i18n="nav.nav">🧭 导航</button>
+      <button class="nav-item" data-tab="itin" data-i18n="nav.itin">🗓 行程</button>
+      <button class="nav-item" data-tab="trips" data-i18n="nav.trips">🗂 行程中心</button>
+      <button class="nav-item" data-tab="book" data-i18n="nav.book">🎫 预订</button>
+      <button class="nav-item" data-tab="call" data-i18n="nav.call">📞 咨询</button>
+      <button class="nav-item" data-tab="me" data-i18n="nav.me">👤 个人主页</button>
+      <button class="nav-item" id="localeToggle" title="切换界面语言 / UI language">🌐 EN</button>
     </nav>
     <div class="side-foot">
       <label>API 地址<input id="apiBase" spellcheck="false" placeholder="留空=当前站点"></label>
@@ -400,13 +403,13 @@
           <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
         </label>
         <span class="fld">合计 <b id="planDaysTotal">6</b> 天 · 结束日期 <b id="planEndDate">（未设开始日期）</b></span>
-        <button class="btn" id="planStart">🚀 开始规划</button>
+        <button class="btn" id="planStart" data-i18n="plan.start">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
       <div class="t9n-wrap">
         <div class="composer">
           <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整"></textarea>
-          <button class="btn" id="planSend">发送</button>
+          <button class="btn" id="planSend" data-i18n="plan.send">发送</button>
         </div>
       </div>
     </section>
@@ -594,6 +597,46 @@
       </div>
     </section>
 
+    <!-- ============ 通话咨询（DESIGN paid_call_service_2026-10-25：预付费分钟 + 服务端权威会话） ============ -->
+    <section class="tab" id="tab-call">
+      <div class="card">
+        <h3>📞 <span data-i18n="call.title">通话咨询</span> <span class="chip" id="callBalance">💰 –</span></h3>
+        <div class="muted" data-i18n="call.slogan">付费与真人坐席实时通话；$1=5 分钟，余额可累积，到点自动结束</div>
+        <div class="dirbar" id="callPackages"></div>
+        <div class="muted" id="callHotlineNote"></div>
+        <div class="dirbar" id="callDurationBar"></div>
+        <div class="dirbar">
+          <label class="chip"><input type="radio" name="callMode" value="direct" checked> <span data-i18n="call.mode.direct">立即拨打坐席</span></label>
+          <label class="chip"><input type="radio" name="callMode" value="callback"> <span data-i18n="call.mode.callback">等坐席回拨</span></label>
+          <input id="callPhone" class="fld" spellcheck="false" placeholder="手机号 / phone (回拨用)" style="flex:1;min-width:150px">
+        </div>
+        <div class="dirbar">
+          <button class="btn" id="btnCallStart">📞 <span data-i18n="call.start">实时通话</span></button>
+          <button class="btn ghost mini" id="btnCallRefresh">🔄</button>
+        </div>
+        <details><summary data-i18n="call.refund.title">退款规则（下单前必读）</summary>
+          <div class="muted" id="callRefundText"></div>
+        </details>
+      </div>
+      <div class="card">
+        <h3 data-i18n="call.records.title">通话记录</h3>
+        <div id="callRecords"></div>
+      </div>
+    </section>
+
+    <!-- 通话覆盖层（服务端权威计时；direct=一键 tel: 直拨 / callback=等回拨） -->
+    <div id="callOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:60;align-items:center;justify-content:center">
+      <div class="card" style="width:min(420px,92vw);text-align:center;padding:18px">
+        <div id="callOvStatus" style="font-size:15px;font-weight:600;margin-bottom:6px"></div>
+        <div class="muted" id="callOvTimes" style="line-height:1.7"></div>
+        <a id="callOvDial" class="btn" style="display:none;margin:10px auto;font-size:16px" href="#">📞 <span data-i18n="call.dial">立即拨打坐席</span></a>
+        <div class="dirbar" style="justify-content:center">
+          <button class="btn ghost" id="btnCallEnd">📞 <span data-i18n="call.end">挂断 / 结束</span></button>
+          <button class="btn ghost mini" id="btnCallClose" style="display:none" data-i18n="call.close">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ============ 预订（铁律 22 handoff / 铁律 23 退改摘要先行） ============ -->
     <section class="tab" id="tab-book">
       <div class="toolbar">
@@ -662,6 +705,35 @@
         <div id="bfOut" style="margin-top:6px"></div>
       </div>
 
+      <!-- 💳 客户付款层（公司↔客户收款；铁律 22 渠道 handoff 不变，铁律 23 退改摘要随记录展示） -->
+      <div id="bkPay" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;flex-shrink:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b data-i18n="pay.title">💳 支付 / 代订收款</b>
+          <button class="btn mini plain" id="payRefresh" data-i18n="pay.mine">🔄 我的付款</button>
+          <span class="muted" data-i18n="pay.note">Visa/Mastercard/Amex/JCB · 支付宝 · 微信支付</span>
+        </div>
+        <div class="toolbar" style="margin:8px 0 0">
+          <label class="fld">类型
+            <select id="payKind">
+              <option value="pay_now" data-i18n="pay.kind.pay_now">立即支付报价</option>
+              <option value="save_method" data-i18n="pay.kind.save_method">保存银行卡（代订扣款）</option>
+            </select>
+          </label>
+          <label class="fld">金额 <input type="number" id="payAmount" min="1" step="0.01" placeholder="553.00"></label>
+          <label class="fld">币种
+            <select id="payCurrency">
+              <option value="cny">CNY ¥</option>
+              <option value="usd">USD $</option>
+              <option value="eur">EUR €</option>
+            </select>
+          </label>
+          <label class="fld grow">说明 <input type="text" id="payDesc" class="grow" placeholder="如：故宫门票代订（单号 E123456789）"></label>
+          <label class="fld">关联跳转单 <input type="text" id="payHandoff" placeholder="可选 handoff_id"></label>
+          <button class="btn" id="payGo" data-i18n="pay.go">💳 去支付 / 存卡</button>
+        </div>
+        <div id="payOut" style="margin-top:8px"></div>
+      </div>
+
       <!-- 铁律 23：跳转渠道前必须展示退改摘要全文 -->
       <div id="bkConfirm">
         <div class="box">
@@ -678,6 +750,12 @@
   </main>
 </div>
 
+<script>
+  // 双语 P1：语言开关（i18n.js 已在 DOMContentLoaded 时 apply）
+  document.addEventListener("click", function (ev) {
+    if (ev.target && ev.target.id === "localeToggle") { window.I18N && I18N.toggle(); }
+  });
+</script>
 <script>
 "use strict";
 /* ================= 基础设施 ================= */
@@ -1150,8 +1228,27 @@ function wxFill(span, city, dateIso, force) {
       const fn = cast.night_temp_f != null ? Number(cast.night_temp_f) : c2f(cast.night_temp);
       span.textContent = "  " + wxIcon(cast.day_weather) + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
         (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "");
+      wxRainBar(span, cast);
     }
   });
+}
+// 8.1.4 雨天横幅：当日预报含雨 × 当天有露天点（条目 rain_ok=no）→「对调室内」
+// 建议（coverage.rain_swap_advice 的 H5 镜像，只提示不自动改）；无雨/无露天点
+// 时撤旧横幅，wxSync 刷新后随 wxFill 重绘。day 对象由 planCard 挂到 span._day。
+function wxRainBar(span, cast) {
+  const day = span._day;
+  const head = span.closest(".day-h");
+  if (!day || !head) return;
+  const old = head.parentElement.querySelector('.rain-bar[data-rain-day="' + day.day + '"]');
+  if (old) old.remove();
+  const wet = /雨/.test(String(cast.day_weather || "") + String(cast.night_weather || ""));
+  const visits = (day.items || []).filter(i => !i.from_city);
+  const outdoor = visits.filter(i => i.rain_ok === "no");
+  if (!wet || !outdoor.length) return;
+  const indoor = visits.filter(i => i.rain_ok === "yes").map(i => esc(i.name));
+  const swap = indoor.length ? "（可与 " + indoor.slice(0, 2).join("、") + " 对调）" : "";
+  head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">🌧️ 预报有雨：' +
+    outdoor.slice(0, 3).map(i => esc(i.name)).join("、") + " 为露天点位" + swap + "——回复「雨天调整」可帮你重排</div>"));
 }
 // 开站新鲜度巡检：后端判行程城市 fetched_at 非今天（北京时间）即内联刷新
 // （高德 0-3 天 + Open-Meteo 14 天），刷新过的城市清缓存重绘已挂载的天头；
@@ -1217,7 +1314,9 @@ function planCard(plan) {
     const dayHead = el('<div class="day-h">第' + d.day + " 天" + (dt ? "（" + dt + "）" : "") + " · " + esc(d.base_city) +
       '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
     box.appendChild(dayHead);
-    wxFill(dayHead.querySelector(".wx"), d.base_city, dt);
+    const wxSpan = dayHead.querySelector(".wx");
+    wxSpan._day = d; // 8.1.4：当日行程挂到天气 span，雨天横幅据此生成/重绘
+    wxFill(wxSpan, d.base_city, dt);
     const dayItems = el('<div class="day-items" data-day="' + d.day + '"></div>');
     box.appendChild(dayItems);
     (d.items || []).forEach((it, idx) => {
@@ -1226,20 +1325,20 @@ function planCard(plan) {
       } else { // VisitItem
         let tail = "";
         if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
-          tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? "📌 已钉住" : "📌 钉住") + "</button>" +
+          tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">🗑</button>';
         } else { // 已保存行程回看：仅静态徽标
           tail = it.pinned ? ' <span class="badge warn">已钉住</span>' : "";
         }
-        const briefBits = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : ""].filter(Boolean).join(" · ");
+        const briefBits = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ""].filter(Boolean).join(" · ");
         const handle = (planSession && planSession.session_id && !it.pinned)
           ? '<span class="drag-handle" title="拖 ⠿ 排序 / 跨天">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
         const timeCell = (planSession && planSession.session_id)
           ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="点击修改开始时间">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(it.name) + "</a>（" + esc(it.city) + "）" + (it.duration_minutes || 0) + " 分钟" + tail + "</span></div></div>");
-        const meta = [it.address ? "📍 " + it.address : "", it.opening_hours ? "🕐 " + it.opening_hours : "🕐 营业时间待确认（以现场为准）"].filter(Boolean).join("　");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>（" + esc(I18N.city(it.city)) + "）" + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join("　");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let walkSeg = "";
@@ -1248,24 +1347,94 @@ function planCard(plan) {
             for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
             walkSeg = (nxt && nxt.location)
               ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="在高德地图打开步行导航（起点=我的位置，终点=' + esc(nxt.name) + "）\">步行约 " + it.next_walk_minutes + " 分钟</a>"
-              : " · 步行约 " + it.next_walk_minutes + " 分钟";
+              : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
           }
-          const leg = "↓ 距下一站 " + it.distance_to_next_km.toFixed(1) + " km" + walkSeg +
-            (it.leg_source === "amap" ? "（高德实测）" : "（直线估算）");
+          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + walkSeg +
+            (it.leg_source === "amap" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
+        if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.t("card.grab") + "</a></div>"));
+        blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
+          '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
+          '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
+          '<a class="fb-btn" data-kind="visit" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">✅ 到了</a> ' +
+          '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">✍️ 点评</a></div>'));
         dayItems.appendChild(blk);
       }
     });
     if (!d.items || !d.items.length) dayItems.appendChild(el('<div class="muted">（本日暂无安排）</div>'));
   });
+  // G2 免签横幅（240h 过境校验，红/绿/黄）：行程城市+起止日 → 确定性规则引擎
+  if ((plan.cities || []).length) {
+    const entry = plan.start_date || null;
+    const exit = entry ? new Date(new Date(entry).getTime() + (plan.days.length || 1) * 864e5).toISOString().slice(0, 10) : null;
+    api("/api/v1/visa/240h?cities=" + encodeURIComponent(plan.cities.filter(c => !["香港", "澳门"].includes(c)).join(",")) +
+      (entry ? "&entry_date=" + entry : "") + (exit ? "&exit_date=" + exit : ""), undefined, "GET")
+      .then(v => {
+        if (!v || !v.status) return;
+        const color = v.status === "ok" ? "#e8f5e9" : v.status === "warning" ? "#fff8e1" : "#ffebee";
+        const icon = v.status === "ok" ? "✅ 240h 免签校验通过" : v.status === "warning" ? "⚠️ 免签信息不全" : "⛔ 240h 免签校验未过";
+        const bar = el('<div class="muted" style="background:' + color + ';border:1px solid #ccc;border-radius:6px;padding:6px 10px;margin:4px 0"><b>' + icon + "</b>" +
+          (v.stay_hours != null ? " · 停留 " + v.stay_hours + "h" : "") + "<ul style=\"margin:4px 0 0 16px\">" +
+          v.messages.slice(1).map(m => "<li>" + esc(m) + "</li>").join("") + "</ul></div>");
+        box.insertBefore(bar, box.firstChild);
+      }).catch(() => {});
+  }
+  // L1 行前放票日历（booking-auto/tasks）：预约制馆开抢日提醒
+  const rsvVisits = [];
+  (plan.days || []).forEach(d => (d.items || []).forEach(it => {
+    if (!it.from_city) rsvVisits.push({ name: it.name, city: it.city, day: d.day });
+  }));
+  if (rsvVisits.length && plan.start_date) {
+    api("/api/v1/booking-auto/tasks", { visits: rsvVisits.slice(0, 60), start_date: plan.start_date })
+      .then(t => {
+        const tasks = (t && t.tasks) || [];
+        if (!tasks.length) return;
+        const card = el('<div style="border:1px solid #e0b25a;border-radius:8px;padding:8px 10px;margin:4px 0;background:#fffbe8"></div>');
+        card.appendChild(el("<div><b>🎫 抢票日历（出发前必办）</b></div>"));
+        tasks.forEach(tk => {
+          const row = el('<div style="margin:3px 0;font-size:13px"></div>');
+          row.appendChild(el("<span>📅 <b>" + esc(tk.open_date || "日期待定") + " " + esc(tk.release_time) + "</b> 开抢 · " +
+            esc(tk.name) + "（提前 " + tk.advance_days + " 天，游 " + esc(tk.visit_date || "?") + "） </span>"));
+          const go = el('<a class="fb-btn" data-kind="book" data-name="' + esc(tk.name) + '" data-city="' + esc(tk.city || "") + '">直达 →</a>');
+          row.appendChild(go);
+          card.appendChild(row);
+        });
+        box.insertBefore(card, box.firstChild);
+      }).catch(() => {});
+  }
   if (plan.assumptions && plan.assumptions.length) {
     const det = el('<details><summary>假设标注 ' + plan.assumptions.length + " 条</summary><ul>" +
       plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
     box.appendChild(det);
   }
   // 卡内交互：站点名=简介链接（悬停 title / 点击入对话气泡）；钉住/删除仅会话内可点，命中后原地换新卡（不新增聊天气泡）
-  box.addEventListener("click", (ev) => {
+  box.addEventListener("click", async (ev) => {
+    const fb = ev.target.closest ? ev.target.closest('a.fb-btn') : null;
+    if (fb && box.contains(fb)) {
+      const kind = fb.getAttribute("data-kind"), nm = fb.getAttribute("data-name"), ct = fb.getAttribute("data-city");
+      if (kind === "review") { openReviewBubble(nm, ct); return; }
+      if (kind === "book") {
+        try {
+          const intent = await api("/api/v1/booking-auto/order-intent", { name: nm, city: ct, tier: "L3" });
+          if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
+          toast(intent.requires_user_confirmation ? "已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录" : "已打开");
+          if (intent.handoff_id) {
+            // 代订收款预填：预订页「💳 支付」选「保存银行卡」即可挂这条跳转单
+            document.getElementById("payHandoff").value = intent.handoff_id;
+            toast("已预填代订收款关联单号 " + intent.handoff_id + "（预订页 💳 支付可直接发起）");
+          }
+        } catch (e) { failToast(e); }
+        return;
+      }
+      try {
+        if (kind === "visit") await api("/api/v1/feedback/visit", { name: nm, city: ct });
+        else await api("/api/v1/feedback/vote", { name: nm, city: ct, up: kind === "up" });
+        toast(kind === "visit" ? "已打卡「" + nm + "」" : "已记录，谢谢反馈");
+        fb.style.opacity = 0.4;
+      } catch (e) { failToast(e); }
+      return;
+    }
     const link = ev.target.closest ? ev.target.closest('a.site-link') : null;
     if (link && box.contains(link)) {
       if (!document.getElementById("flow-plan")) return;
@@ -1445,9 +1614,10 @@ function changeNode(ch) {
 
 /* ================= Tab 切换 ================= */
 
-document.querySelectorAll(".nav-item").forEach(btn => {
+/* 只给带 data-tab 的按钮挂页签切换：.nav-item 只负责样式（语言开关等无 data-tab 的按钮混在导航里，点了不能动 .tab） */
+document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".nav-item[data-tab]").forEach(b => b.classList.toggle("active", b === btn));
     document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === "tab-" + btn.dataset.tab));
   });
 });
@@ -1761,12 +1931,77 @@ async function planConfirmSites(allSites, must) {
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
 
+// §4-④ 行后点评气泡：星级 + 标签 chips + 一句话 → POST /feedback/review
+const REVIEW_TAGS = ["人多", "出片", "一般", "亲子友好", "不值", "外卡支付可用", "英文菜单/服务", "护照预订友好", "免签适用"];
+function openReviewBubble(name, city) {
+  const flow = document.getElementById("flow-plan");
+  if (!flow) { toast("请在规划页点评"); return; }
+  const card = el('<div class="muted" style="border:1px solid #ccc;border-radius:8px;padding:8px"></div>');
+  card.appendChild(el("<div><b>点评「" + esc(name) + "」</b></div>"));
+  const stars = el('<div style="margin:4px 0"></div>');
+  let rating = 0;
+  for (let i = 1; i <= 5; i++) {
+    const st = el('<a class="chip" data-r="' + i + '" style="margin-right:4px">' + i + "★</a>");
+    st.addEventListener("click", () => { rating = i; stars.querySelectorAll("a").forEach(a => a.style.opacity = a.dataset.r <= i ? 1 : 0.4); });
+    stars.appendChild(st);
+  }
+  card.appendChild(stars);
+  const tagRow = el('<div style="margin:4px 0"></div>');
+  const picked = new Set();
+  REVIEW_TAGS.forEach(t => {
+    const tg = el('<a class="chip" style="margin:0 4px 4px 0">' + esc(t) + "</a>");
+    tg.addEventListener("click", () => { picked.has(t) ? picked.delete(t) : picked.add(t); tg.style.outline = picked.has(t) ? "2px solid #2E5E8C" : "none"; });
+    tagRow.appendChild(tg);
+  });
+  card.appendChild(tagRow);
+  const ta = el('<textarea style="width:96%;min-height:44px" placeholder="一句话（可选）"></textarea>');
+  card.appendChild(ta);
+  const btn = el('<button class="btn">提交点评</button>');
+  card.appendChild(btn);
+  addMsg("flow-plan", "sys", card);
+  flow.scrollTop = 1e9;
+  btn.addEventListener("click", async () => {
+    try {
+      await api("/api/v1/feedback/review", { name, city, rating: rating || null, tags: [...picked], text: ta.value.trim() || null });
+      card.textContent = "✅ 已收到对「" + name + "」的点评，谢谢！";
+      toast("点评已提交");
+    } catch (e) { failToast(e); }
+  });
+}
+
+// §5.2 批量链接导入：多链接一次粘贴 → /links/batch 落历史 + 逐条送规划
+const _URL_RE = /https?:\/\/[^\s，,。；;]+/g;
+async function planBatchImport(holder, urls) {
+  let batch = { accepted: [], rejected: [] };
+  try { batch = await api("/api/v1/links/batch", { urls }); } catch (e) { /* 历史落库失败不阻塞解析 */ }
+  holder.textContent = "📥 批量导入 " + urls.length + " 条链接（入库 " + batch.accepted.length + "，坏链 " + (batch.rejected ? batch.rejected.length : 0) + "），逐条解析中…";
+  let lastBody = null;
+  for (const u of urls) {
+    addMsg("flow-plan", "user", u);
+    const h = addMsg("flow-plan", "sys", "⏳ 解析中…");
+    try {
+      const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text: u });
+      planSession.state = body.state;
+      lastBody = [h, body];
+    } catch (err) { h.textContent = "❌ 解析失败：" + detailText(err && err.detail); }
+  }
+  if (lastBody) planRenderSafe(lastBody[0], lastBody[1]);
+  document.getElementById("flow-plan").scrollTop = 1e9;
+}
+
 async function planSend() {
   const input = document.getElementById("planInput");
   const text = input.value.trim();
   if (!text) return;
   if (!planSession) { // 自由对话（2026-10-24）：无会话打字即开规划，文字并入偏好，与「开始规划」按钮同路
     await planStartButton();
+    return;
+  }
+  const urls = text.match(_URL_RE) || [];
+  if (urls.length >= 2) { // §5.2 批量收藏导入：多链接一次灌入
+    input.value = "";
+    const holder = addMsg("flow-plan", "sys", "⏳ 准备批量导入…");
+    await planBatchImport(holder, urls);
     return;
   }
   input.value = "";
@@ -2932,6 +3167,113 @@ document.querySelectorAll("#bookTabs .chip").forEach(c => {
 });
 document.getElementById("bookStartDate").addEventListener("change", bkRenderPlanDays);
 
+/* ---- 💳 客户付款层（/api/v1/payments；公司↔客户收款，铁律 22 渠道 handoff 不变） ---- */
+
+function payStatusBadge(status) {
+  const map = {
+    pending: ["badge warn", "待支付 Pending"],
+    succeeded: ["badge ok", "已支付 Paid"],
+    canceled: ["badge", "已取消 Canceled"],
+    refunded: ["badge", "已退款 Refunded"],
+    method_saved: ["badge ok", "已存卡 Saved"]
+  };
+  const m = map[status] || ["badge", status];
+  return '<span class="' + m[0] + '">' + esc(m[1]) + "</span>";
+}
+
+// 单条付款记录：类型+金额/卡标签 + 状态徽章 + 说明 + 退改摘要（铁律 23）
+function payRow(r) {
+  const amt = r.amount_yuan != null
+    ? r.currency.toUpperCase() + " " + Number(r.amount_yuan).toFixed(2)
+    : (r.saved_method_label ? "💳 " + esc(r.saved_method_label) : "—");
+  const tile = el('<div class="tile"></div>');
+  const head = el('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>');
+  head.appendChild(el("<b>" + (r.kind === "pay_now" ? "立即支付" : "存卡") + " · " + amt + "</b>"));
+  head.insertAdjacentHTML("beforeend", payStatusBadge(r.status));
+  tile.appendChild(head);
+  const bits = [r.description, r.provider === "mock" ? "mock" : null, r.paid_at,
+    r.handoff_id ? "单 " + esc(r.handoff_id) : null].filter(Boolean).join(" · ");
+  if (bits) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + bits + "</div>"));
+  tile.appendChild(el('<div class="muted" style="font-size:12px">退改：' + esc(r.refund_summary || "（无摘要）") + "</div>"));
+  return tile;
+}
+
+async function payLoadMine() {
+  const out = document.getElementById("payOut");
+  try {
+    const body = await api("/api/v1/payments/mine");
+    const rows = body.payments || [];
+    out.innerHTML = "";
+    if (!rows.length) { out.appendChild(el('<div class="muted">暂无付款记录 / No payments yet</div>')); return; }
+    const wrap = el('<div style="display:flex;flex-direction:column;gap:6px"></div>');
+    rows.forEach(r => wrap.appendChild(payRow(r)));
+    out.appendChild(wrap);
+  } catch (err) { failToast(err); }
+}
+
+// 收银台侧完成后的兜底轮询（Stripe 跳回 / mock 确认都会终结 pending）
+let payPollTimer = null;
+function payPoll(pid, left) {
+  clearTimeout(payPollTimer);
+  if (!left) return;
+  api("/api/v1/payments/" + pid).then(r => {
+    if (r.status !== "pending") {
+      payLoadMine();
+      toast(r.status === "succeeded" ? "✅ 支付成功" :
+        (r.status === "method_saved" ? "✅ 支付方式已保存" : "付款状态：" + r.status));
+      return;
+    }
+    payPollTimer = setTimeout(() => payPoll(pid, left - 1), 5000);
+  }).catch(() => {});
+}
+
+// mock 收银台（dev 零网络联调）：?mockpay=<id> 弹假支付层，确认走 /confirm（仅 mock 后端开放）
+function payMockSheet(pid) {
+  const overlay = el('<div id="payMock" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60">' +
+    '<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;width:min(92%,380px);box-shadow:var(--shadow)">' +
+    "<h4>🧪 Mock 收银台（dev）</h4>" +
+    '<div class="muted" style="margin:8px 0">payment: ' + esc(pid) + "<br>模拟 hosted Checkout——外卡/支付宝/微信支付在此确认。</div>" +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+    '<button class="btn plain" id="payMockCancel">取消</button>' +
+    '<button class="btn" id="payMockOk">✅ 模拟支付成功</button></div></div></div>');
+  document.body.appendChild(overlay);
+  overlay.querySelector("#payMockCancel").onclick = () => overlay.remove();
+  overlay.querySelector("#payMockOk").onclick = () => {
+    api("/api/v1/payments/" + pid + "/confirm", undefined, "POST")
+      .then(() => { overlay.remove(); toast("✅ 已确认"); payLoadMine(); })
+      .catch(failToast);
+  };
+}
+
+// 回跳处理：?mockpay=（mock 收银台）/ ?pay_return=<id>（Stripe 跳回后轮询）；处理后清参防刷新重放
+(function payUrlHook() {
+  const q = new URLSearchParams(location.search);
+  const mp = q.get("mockpay");
+  if (mp) { history.replaceState(null, "", location.pathname); payMockSheet(mp); return; }
+  const ret = q.get("pay_return");
+  if (ret) { history.replaceState(null, "", location.pathname); payPoll(ret, 24); }
+})();
+
+document.getElementById("payRefresh").onclick = (e) => busy(e.target, payLoadMine);
+document.getElementById("payGo").onclick = (e) => busy(e.target, async () => {
+  const kind = document.getElementById("payKind").value;
+  const body = { kind, currency: document.getElementById("payCurrency").value };
+  const amt = parseFloat(document.getElementById("payAmount").value);
+  if (kind === "pay_now") {
+    if (!(amt > 0)) { toast("请输入大于 0 的金额"); return; }
+    body.amount_yuan = amt;
+  }
+  const desc = document.getElementById("payDesc").value.trim();
+  if (desc) body.description = desc;
+  const hid = document.getElementById("payHandoff").value.trim();
+  if (hid) body.handoff_id = hid;
+  const created = await api("/api/v1/payments/checkout", body, "POST");
+  toast("收银台已创建，正在打开…");
+  window.open(created.checkout_url, "_blank");
+  payPoll(created.payment_id, 12);
+  payLoadMine();
+});
+
 /* ---- 🚄 火车票 ---- */
 
 async function bkTrainSearch() {
@@ -3603,6 +3945,201 @@ addMsg("flow-trips", "sys", "三态看板：✅ 已预订置顶 · 📅 已排�
 planSetSession(null);
 autoOpenLatestItin();
 wxSync();
+
+/* ================= Tab：通话咨询（DESIGN paid_call_service_2026-10-25） ================= */
+
+const CALL = { cfg: null, balance: 0, minutes: 0, sessionId: null, pollT: null };
+
+function callT(k, fb) { try { const v = I18N.t(k); return v === k ? fb : v; } catch (e) { return fb; } }
+
+function mmss(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+}
+
+async function callRefresh() {
+  try {
+    const [pk, bal] = await Promise.all([
+      api("/api/v1/call/packages", undefined, "GET"),
+      api("/api/v1/call/balance", undefined, "GET"),
+    ]);
+    CALL.cfg = pk; CALL.balance = bal.minutes;
+    if (!CALL.minutes) CALL.minutes = 0;
+    callRender();
+    document.getElementById("callRefundText").textContent = "";
+  } catch (e) { failToast(e); }
+}
+
+function callRender() {
+  const cfg = CALL.cfg || {};
+  document.getElementById("callBalance").textContent =
+    "💰 " + CALL.balance + callT("call.unit.min", " 分钟");
+  const pk = document.getElementById("callPackages"); pk.innerHTML = "";
+  (cfg.packages || []).forEach(p => {
+    const b = el('<button class="btn mini ghost"></button>');
+    b.textContent = p.minutes + " min · ¥" + p.price_cny + " / $" + p.price_usd;
+    b.onclick = () => busy(b, () => callBuy(p));
+    pk.appendChild(b);
+  });
+  const db = document.getElementById("callDurationBar"); db.innerHTML = "";
+  const lo = cfg.min_minutes || 5, hi = cfg.max_minutes || 60;
+  const cap = Math.min(hi, CALL.balance);
+  for (let m = lo; m <= cap; m += lo) {
+    const c = el('<button class="chip"></button>');
+    c.textContent = m + " min";
+    if (m === CALL.minutes) { c.style.background = "var(--accent-soft)"; c.style.color = "var(--accent)"; }
+    c.onclick = () => { CALL.minutes = m; callRender(); };
+    db.appendChild(c);
+  }
+  if (cap < lo) db.appendChild(el('<span class="muted">' + callT("call.need_topup", "余额不足，请先买分钟") + "</span>"));
+  const direct = document.querySelector('input[name="callMode"][value="direct"]');
+  direct.disabled = !cfg.direct_dial_enabled;
+  document.getElementById("callHotlineNote").textContent = cfg.hotline
+    ? callT("call.hotline", "坐席热线") + " " + cfg.hotline
+    : callT("call.no_hotline", "坐席未配置热线，请用「等坐席回拨」");
+}
+
+async function callBuy(p) {
+  const currency = (window.I18N && I18N.locale() === "en") ? "usd" : "cny";
+  const r = await api("/api/v1/call/orders", { package_code: p.code, currency });
+  if (r.pay && r.pay.type === "redirect" && r.pay.url) {
+    window.open(r.pay.url, "_blank");
+    toast(callT("call.pay_redirect", "已打开收银台，支付完成后余额自动到账"));
+    return;
+  }
+  // mock_confirm：dev 一键确认（零网络全流程）
+  const done = await api("/api/v1/call/orders/" + r.order_id + "/confirm");
+  toast(callT("call.buy_ok", "购买成功") + " +" + done.minutes + callT("call.unit.min", " 分钟"));
+  await callRefresh();
+}
+
+async function callStart() {
+  const mode = document.querySelector('input[name="callMode"]:checked').value;
+  const phone = document.getElementById("callPhone").value.trim();
+  const body = { duration_minutes: CALL.minutes, mode };
+  if (mode === "callback") body.phone = phone;
+  if (!body.duration_minutes) { toast(callT("call.pick_duration", "先选通话时长")); return; }
+  let s;
+  try {
+    s = await api("/api/v1/call/sessions", body);
+  } catch (e) {
+    if (e.status === 422 && e.detail === "hotline_not_configured") {
+      document.querySelector('input[name="callMode"][value="callback"]').checked = true;
+      toast(callT("call.no_hotline_fallback", "坐席热线未配置，已切换为「等坐席回拨」"));
+      return;
+    }
+    failToast(e); return;
+  }
+  CALL.sessionId = s.session_id;
+  document.getElementById("callOverlay").style.display = "flex";
+  document.getElementById("btnCallEnd").style.display = "";
+  document.getElementById("btnCallClose").style.display = "none";
+  callRenderView(s);
+  callPoll(); // 立即首轮
+  CALL.pollT = setInterval(callPoll, 3000);
+  callRefresh(); // 余额已划入会话
+}
+
+function callPoll() {
+  if (!CALL.sessionId) return;
+  api("/api/v1/call/sessions/" + CALL.sessionId, undefined, "GET").then(v => {
+    callRenderView(v);
+    if (["ended", "expired", "failed"].includes(v.status)) {
+      callStopPoll();
+      callRefresh(); callLoadRecords();
+    }
+  }).catch(e => { callStopPoll(); failToast(e); });
+}
+
+function callStopPoll() { if (CALL.pollT) { clearInterval(CALL.pollT); CALL.pollT = null; } }
+
+function callRenderView(v) {
+  const st = document.getElementById("callOvStatus");
+  const times = document.getElementById("callOvTimes");
+  const dial = document.getElementById("callOvDial");
+  const stTxt = {
+    waiting: callT("call.st.waiting", "🟡 等待接听…"),
+    active: callT("call.st.active", "🟢 通话中"),
+    ended: callT("call.st.ended", "⚫ 通话已结束"),
+    expired: callT("call.st.expired", "⚪ 未接通已退款"),
+    failed: callT("call.st.failed", "🔴 会话异常"),
+  }[v.status] || v.status;
+  st.textContent = stTxt;
+  const startAt = v.started_at ? v.started_at.replace("T", " ") : "–";
+  if (v.status === "active" || v.status === "waiting") {
+    times.innerHTML = callT("call.start.at", "开始时刻") + " " + startAt
+      + "<br>" + callT("call.elapsed", "已用时") + " " + mmss(v.consumed_seconds)
+      + " · " + callT("call.remaining", "剩余") + " " + mmss(v.remaining_seconds)
+      + "<br><span class='muted'>" + callT("call.autoend", "到点自动结束（服务端计时）") + "</span>";
+  } else {
+    times.innerHTML = callT("call.start.at", "开始时刻") + " " + startAt
+      + "<br>" + callT("call.end.at", "结束时刻") + " " + (v.ended_at || "").replace("T", " ")
+      + "<br>" + callT("call.actual", "本次实际时长") + " " + mmss(v.consumed_seconds)
+      + (v.refund_minutes > 0 ? "<br>↩️ " + callT("call.refunded", "已退回") + " " + v.refund_minutes + callT("call.unit.min", " 分钟") : "");
+  }
+  if (v.dial && (v.status === "waiting" || v.status === "active")) {
+    dial.style.display = "";
+    dial.href = "tel:" + v.dial.number;
+  } else {
+    dial.style.display = "none";
+  }
+  if (["ended", "expired", "failed"].includes(v.status)) {
+    document.getElementById("btnCallEnd").style.display = "none";
+    document.getElementById("btnCallClose").style.display = "";
+  }
+}
+
+async function callEnd() {
+  if (!CALL.sessionId) return;
+  try { await api("/api/v1/call/sessions/" + CALL.sessionId + "/end"); }
+  catch (e) { if (e.status !== 404) failToast(e); }
+  callPoll();
+}
+
+async function callLoadRecords() {
+  const box = document.getElementById("callRecords");
+  let rec;
+  try { rec = await api("/api/v1/call/records", undefined, "GET"); }
+  catch (e) { failToast(e); return; }
+  box.innerHTML = "";
+  document.getElementById("callBalance").textContent =
+    "💰 " + rec.balance + callT("call.unit.min", " 分钟");
+  if (!rec.sessions.length) {
+    box.appendChild(el('<div class="muted">' + callT("call.records.empty", "还没有通话记录") + "</div>"));
+    return;
+  }
+  const stTxt = {
+    waiting: "🟡", active: "🟢", ended: "⚫", expired: "⚪", failed: "🔴",
+  };
+  const reasonTxt = {
+    exhausted: callT("call.r.exhausted", "到点自动结束"),
+    user: callT("call.r.user", "旅客挂断"),
+    agent: callT("call.r.agent", "坐席挂断"),
+    timeout: callT("call.r.timeout", "未接通全退"),
+    error: callT("call.r.error", "异常"),
+  };
+  rec.sessions.forEach(s => {
+    const when = (s.started_at || s.created_at || "").replace("T", " ");
+    const reason = reasonTxt[s.end_reason] || s.end_reason || "";
+    const line = el('<div class="dirbar" style="justify-content:space-between"></div>');
+    line.innerHTML = '<span>' + (stTxt[s.status] || "") + " " + when
+      + " · " + (s.duration_label || mmss(s.consumed_seconds))
+      + ' <span class="muted">' + (s.mode === "direct" ? "直拨" : "回拨") + (reason ? " · " + reason : "") + "</span></span>"
+      + '<span class="muted">' + (s.refund_minutes > 0 ? "↩︎ +" + s.refund_minutes : "−" + Math.ceil(s.consumed_seconds / 60)) + callT("call.unit.min", " 分钟") + "</span>";
+    box.appendChild(line);
+  });
+}
+
+document.getElementById("btnCallStart").addEventListener("click", () => busy(document.getElementById("btnCallStart"), callStart));
+document.getElementById("btnCallEnd").addEventListener("click", () => busy(document.getElementById("btnCallEnd"), callEnd));
+document.getElementById("btnCallClose").addEventListener("click", () => {
+  document.getElementById("callOverlay").style.display = "none";
+  CALL.sessionId = null;
+});
+document.getElementById("btnCallRefresh").addEventListener("click", () => { callRefresh(); callLoadRecords(); });
+callRefresh();
+callLoadRecords();
+window.addEventListener("i18n:change", () => { if (CALL.cfg) callRender(); });
 
 /* ---- PWA：注册 service worker（离线缓存，surmai 同款 app-shell 策略） ---- */
 if ('serviceWorker' in navigator) {
