@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.db import get_session_factory
 from app.services import trip_export
 from app.services.accounts import AccountService, parse_bearer_token
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
@@ -25,8 +26,8 @@ from app.services.itinerary_store import (
     QuotaExceededError,
 )
 from app.services.mailer import get_mailer
+from app.services.pg_state import PgItineraryStore
 from app.services.state_persist import (
-    PersistentItineraryStore,
     db_path_from_url,
     get_state_backend,
 )
@@ -59,13 +60,12 @@ _account_service_singleton: AccountService | None = None
 
 def get_store() -> ItineraryStore:
     """Process-wide persistent singleton: itinerary state must survive
-    across requests AND across uvicorn restarts (write-through SQLite)."""
+    across requests AND across uvicorn restarts（2026-10-25 起写穿 PG——
+    行程保存即入库，pg_state.PgItineraryStore；PG 不可达时自动降级纯
+    内存，SQLite 状态库停写、文件保留为备份）."""
     global _store_singleton
     if _store_singleton is None:
-        settings = get_settings()
-        _store_singleton = PersistentItineraryStore(
-            get_state_backend(db_path_from_url(settings.state_db_url))
-        )
+        _store_singleton = PgItineraryStore(get_session_factory())
     return _store_singleton
 
 

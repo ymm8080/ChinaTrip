@@ -302,6 +302,17 @@ class Itinerary(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+    # v2.5.2（2026-10-25）：H5 行程状态落 PG——plan 是 ItineraryRecord 整体
+    # 文档（ItineraryPlan + snapshots 分存 snapshots 表）；cities 列喂
+    # weather.trip_cities，owner/share 列喂设备/账号归属与分享查询。
+    plan: Mapped[dict | None] = mapped_column(JSONB)
+    owner_device_id: Mapped[str | None] = mapped_column(String(100), index=True)
+    # 账号名字符串（SQLite accounts 域），不是 users.id 外键——账号仍留 SQLite。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
+    share_enabled: Mapped[bool | None] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    share_token: Mapped[str | None] = mapped_column(String(64))
 
 
 class ItinerarySnapshot(Base):
@@ -317,6 +328,8 @@ class ItinerarySnapshot(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+    # 快照冻结的完整 ItineraryPlan 文档（restore 的数据源）
+    plan: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class ItineraryDay(Base):
@@ -520,6 +533,9 @@ class TripItem(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+    # 心愿单条目全量文档（dict 原样，含自由字符串 id）；列化的字段只是
+    # 给 PG 侧查询用的投影（trip_cities 按 city 扫）
+    payload: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class UserProfile(Base):
