@@ -451,6 +451,28 @@ def test_save_upserts_record_and_freezes_snapshot():
     assert got.json()["snapshots"][0]["name"] == "江浙两日"
 
 
+def test_save_persists_start_date_for_old_itineraries():
+    # 旧行程自愈（2026-10-25）：itinEdit 对没存过出发日期的行程缺省今天，
+    # 保存时随请求落库——下次打开不再日期/天气双盲
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "地标美食"}
+    ).json()
+    sid, iid = body["session_id"], body["plan"]["itinerary_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/save",
+        json={"name": "自愈", "start_date": "2026-11-01"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 201
+    reopened = client.post(
+        f"/api/v1/plan/from-itinerary/{iid}", json={}, headers=DEVICE_HEADERS
+    )
+    assert reopened.status_code == 201
+    assert reopened.json()["plan"]["start_date"] == "2026-11-01"
+
+
 def test_save_before_any_plan_returns_400():
     agent = PlanningAgent(StubAdapter([]))
     client = client_for(agent)

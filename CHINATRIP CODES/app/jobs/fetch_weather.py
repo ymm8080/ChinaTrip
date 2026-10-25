@@ -24,7 +24,12 @@ import sys
 
 from app.config import get_settings
 from app.services.amap_client import AmapClient
-from app.services.weather import CITY_ADCODES, fetch_and_store, trip_cities
+from app.services.weather import (
+    CITY_ADCODES,
+    fetch_and_store,
+    store_cities,
+    trip_cities,
+)
 from app.services.weather_open_meteo import CITY_COORDS, fetch_forecast14, purge_stale
 
 
@@ -33,7 +38,14 @@ def resolve_targets(session, *, cities: list[str], fetch_all: bool) -> list[str]
         return cities
     if fetch_all:
         return list(CITY_ADCODES)
-    return trip_cities(session)
+    # PG 三表 + H5 状态域并集：api 层单例（PG 不可达时 store 自降级为空）。
+    # 惰性导入——作业进程不在 import 时背起 FastAPI/存储栈。
+    from app.api.itineraries import get_store
+    from app.api.trip_items import get_trip_item_service
+
+    names = set(trip_cities(session))
+    names.update(store_cities(get_store(), get_trip_item_service()))
+    return sorted(names)
 
 
 def _ping(factory) -> bool:

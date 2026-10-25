@@ -128,6 +128,9 @@ def get_plan_sessions() -> PlanSessionStore:
 class PlanSaveRequest(BaseModel):
     name: str | None = None
     note: str | None = None
+    # 2026-10-25 旧行程自愈：itinEdit 对没存过出发日期的行程缺省「今天」，
+    # 随保存落库（None = 不改 plan 里已有的值）
+    start_date: str | None = None
 
 
 @router.post("/plan/{session_id}/save", status_code=201)
@@ -154,6 +157,10 @@ async def save_plan(
     if session.plan is None:
         raise HTTPException(status_code=400, detail="nothing_to_save")
     plan = session.plan
+    if request.start_date and request.start_date != plan.start_date:
+        plan = plan.model_copy(update={"start_date": request.start_date})
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(

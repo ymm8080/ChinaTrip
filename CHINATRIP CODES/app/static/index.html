@@ -315,7 +315,7 @@
   <aside id="side">
     <div class="brand">
       <div class="brand-name">ChinaTrip</div>
-      <div class="brand-sub">冒烟测试工作台</div>
+      <div class="brand-sub" data-i18n="app.subtitle">冒烟测试工作台</div>
     </div>
     <nav id="nav">
       <button class="nav-item active" data-tab="plan" data-i18n="nav.plan">📋 规划</button>
@@ -326,11 +326,11 @@
       <button class="nav-item" data-tab="book" data-i18n="nav.book">🎫 预订</button>
       <button class="nav-item" data-tab="call" data-i18n="nav.call">📞 咨询</button>
       <button class="nav-item" data-tab="me" data-i18n="nav.me">👤 个人主页</button>
-      <button class="nav-item" id="localeToggle" title="切换界面语言 / UI language">🌐 EN</button>
+      <button class="nav-item" id="localeToggle" title="切换界面语言 / UI language" data-i18n-title="locale.toggle.title">🌐 EN</button>
     </nav>
     <div class="side-foot">
-      <label>API 地址<input id="apiBase" spellcheck="false" placeholder="留空=当前站点"></label>
-      <div class="dev">设备 <code id="devId"></code></div>
+      <label><span data-i18n="side.api">API 地址</span><input id="apiBase" spellcheck="false" placeholder="留空=当前站点" data-i18n-ph="side.api.ph"></label>
+      <div class="dev"><span data-i18n="side.device">设备</span> <code id="devId"></code></div>
       <div id="authArea"></div>
     </div>
   </aside>
@@ -342,18 +342,18 @@
     <div id="authModal">
       <div class="box">
         <h4 id="authTitle">🔑 登录</h4>
-        <label class="fld">邮箱 <input type="text" id="authEmail" placeholder="邮箱 / 用户名" autocomplete="email" spellcheck="false"></label>
-        <label class="fld" id="authPassFld">密码 <input type="password" id="authPass" placeholder="至少 6 位"></label>
-        <label class="fld" id="authCodeFld">验证码 <input type="text" id="authCode" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false"></label>
+        <label class="fld"><span data-i18n="auth.email">邮箱</span> <input type="text" id="authEmail" placeholder="邮箱 / 用户名" data-i18n-ph="auth.email.ph" autocomplete="email" spellcheck="false"></label>
+        <label class="fld" id="authPassFld"><span data-i18n="auth.pass">密码</span> <input type="password" id="authPass" placeholder="至少 6 位" data-i18n-ph="auth.pass.ph"></label>
+        <label class="fld" id="authCodeFld"><span data-i18n="auth.code">验证码</span> <input type="text" id="authCode" placeholder="6 位数字" data-i18n-ph="auth.code.ph" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false"></label>
         <div class="fld" id="authSendRow" style="justify-content:flex-end"><button class="btn mini plain" id="authSendCode">发送验证码</button></div>
-        <label class="fld" id="authNewFld">新密码 <input type="password" id="authNewPass" placeholder="至少 6 位"></label>
+        <label class="fld" id="authNewFld"><span data-i18n="auth.newPass">新密码</span> <input type="password" id="authNewPass" placeholder="至少 6 位" data-i18n-ph="auth.pass.ph"></label>
         <div id="authErr"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-          <button class="btn plain" id="authClose">取消</button>
+          <button class="btn plain" id="authClose" data-i18n="auth.cancel">取消</button>
           <button class="btn" id="authGo">登录</button>
         </div>
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn mini ghost" id="authForgot">忘记密码？</button>
+          <button class="btn mini ghost" id="authForgot" data-i18n="auth.forgot">忘记密码？</button>
           <button class="btn mini ghost" id="authSwitch">没有账号？去注册 →</button>
         </div>
       </div>
@@ -362,53 +362,53 @@
     <!-- ============ 规划 ============ -->
     <section class="tab active" id="tab-plan">
       <div class="dirbar" id="planSummaryBar" style="display:none">
-        <button class="btn ghost mini" id="planSummaryToggle" title="展开/收起参数表单">✏️ <span id="planSummaryText"></span> ▾</button>
+        <button class="btn ghost mini" id="planSummaryToggle" title="展开/收起参数表单" data-i18n-title="plan.summaryToggle.title">✏️ <span id="planSummaryText"></span> ▾</button>
       </div>
       <div class="toolbar" id="planSetup" style="flex-wrap:wrap">
-        <label class="fld">起始城市
+        <label class="fld"><span data-i18n="plan.cityStart">起始城市</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planStartCity"></select>
-            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算">
+            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
           </span>
         </label>
-        <label class="fld">中间城市1
+        <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planVia1"></select>
-            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em">天
+            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
           </span>
         </label>
-        <label class="fld">中间城市2
+        <label class="fld"><span data-i18n="plan.via2">中间城市2</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planVia2"></select>
-            <input type="number" id="planVia2Days" min="1" max="30" value="1" style="width:3.2em">天
+            <input type="number" id="planVia2Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
           </span>
         </label>
-        <label class="fld">中间城市3
+        <label class="fld"><span data-i18n="plan.via3">中间城市3</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planVia3"></select>
-            <input type="number" id="planVia3Days" min="1" max="30" value="1" style="width:3.2em">天
+            <input type="number" id="planVia3Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
           </span>
         </label>
-        <label class="fld">结束城市
+        <label class="fld"><span data-i18n="plan.cityEnd">结束城市</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planEndCity"></select>
-            <input type="number" id="planEndDays" min="1" max="30" value="1" style="width:3.2em">天
+            <input type="number" id="planEndDays" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
           </span>
         </label>
         <span class="sep"></span>
-        <label class="fld">开始日期
+        <label class="fld"><span data-i18n="plan.startDate">开始日期</span>
           <input type="date" id="planStartDate">
         </label>
-        <label class="fld grow">偏好
-          <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣">
+        <label class="fld grow"><span data-i18n="plan.pref">偏好</span>
+          <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣" data-i18n-ph="plan.pref.ph">
         </label>
-        <span class="fld">合计 <b id="planDaysTotal">6</b> 天 · 结束日期 <b id="planEndDate">（未设开始日期）</b></span>
+        <span class="fld"><span data-i18n="plan.totalPre">合计</span> <b id="planDaysTotal">6</b> <span data-i18n="plan.totalMid">天 · 结束日期</span> <b id="planEndDate">（未设开始日期）</b></span>
         <button class="btn" id="planStart" data-i18n="plan.start">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
       <div class="t9n-wrap">
         <div class="composer">
-          <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整"></textarea>
+          <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整" data-i18n-ph="plan.input.ph"></textarea>
           <button class="btn" id="planSend" data-i18n="plan.send">发送</button>
         </div>
       </div>
@@ -419,16 +419,16 @@
       <div class="flow" id="flow-t9n"></div>
       <div class="t9n-wrap">
         <div class="dirbar" id="t9nDirs">
-          <button class="chip on" data-target="en" data-label="英">中→英</button>
-          <button class="chip" data-target="ja" data-label="日">中→日</button>
-          <button class="chip" data-target="ko" data-label="韩">中→韩</button>
-          <button class="chip" id="t9nSwap" title="切换语向">⇄ 换向</button>
+          <button class="chip on" data-target="en" data-label="英" data-i18n="t9n.zh2en">中→英</button>
+          <button class="chip" data-target="ja" data-label="日" data-i18n="t9n.zh2ja">中→日</button>
+          <button class="chip" data-target="ko" data-label="韩" data-i18n="t9n.zh2ko">中→韩</button>
+          <button class="chip" id="t9nSwap" title="切换语向" data-i18n="t9n.swap" data-i18n-title="t9n.swap.title">⇄ 换向</button>
           <span class="muted" id="t9nCur">当前语向：中 → 英</span>
         </div>
         <div class="composer">
-          <textarea id="t9nInput" placeholder="输入原文，或点 🎤 语音输入"></textarea>
-          <button class="btn ghost" id="t9nMic" title="语音输入（Chrome/Edge 支持）">🎤</button>
-          <button class="btn" id="t9nSend">发送</button>
+          <textarea id="t9nInput" placeholder="输入原文，或点 🎤 语音输入" data-i18n-ph="t9n.input.ph"></textarea>
+          <button class="btn ghost" id="t9nMic" title="语音输入（Chrome/Edge 支持）" data-i18n-title="t9n.mic.title">🎤</button>
+          <button class="btn" id="t9nSend" data-i18n="t9n.send">发送</button>
         </div>
       </div>
     </section>
@@ -440,46 +440,46 @@
         <svg id="mapSvg"></svg>
         <div id="mapMarkers"></div>
         <div id="navPlan">
-          <select id="navCity" title="当前城市（定位成功后自动切换）"></select>
+          <select id="navCity" title="当前城市（定位成功后自动切换）" data-i18n-title="navmap.city.title"></select>
           <div class="np-row">
             <span class="np-dot me"></span>
-            <input id="originKw" value="我的位置" placeholder="起点：默认我的位置，可搜索地点改设" spellcheck="false" autocomplete="off">
-            <button class="np-btn" id="originReset" title="恢复为我的位置">↺</button>
+            <input id="originKw" value="我的位置" placeholder="起点：默认我的位置，可搜索地点改设" data-i18n-ph="navmap.origin.ph" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="originReset" title="恢复为我的位置" data-i18n-title="navmap.originReset.title">↺</button>
           </div>
           <div class="np-row">
             <span class="np-dot dest"></span>
-            <input id="destKw" placeholder="搜地点设终点，如：天坛、外滩" spellcheck="false" autocomplete="off">
-            <button class="np-btn" id="poiGo" title="搜索">🔍</button>
+            <input id="destKw" placeholder="搜地点设终点，如：天坛、外滩" data-i18n-ph="navmap.dest.ph" spellcheck="false" autocomplete="off">
+            <button class="np-btn" id="poiGo" title="搜索" data-i18n-title="navmap.search">🔍</button>
           </div>
           <div id="poiDrop"></div>
         </div>
         <div id="mapIcons">
-          <button id="btnLocate" title="我的位置（失败回退故宫）">📍</button>
-          <button id="btnZoomIn" title="放大">＋</button>
-          <button id="btnZoomOut" title="缩小">－</button>
-          <button id="btnRemind" title="火车/航班提醒">⏰</button>
+          <button id="btnLocate" title="我的位置（失败回退故宫）" data-i18n-title="navmap.locate.title">📍</button>
+          <button id="btnZoomIn" title="放大" data-i18n-title="navmap.zoomIn">＋</button>
+          <button id="btnZoomOut" title="缩小" data-i18n-title="navmap.zoomOut">－</button>
+          <button id="btnRemind" title="火车/航班提醒" data-i18n-title="navmap.remind">⏰</button>
         </div>
         <div id="navDock">
           <div id="navDrawer"></div>
           <div id="modeBar">
-            <button data-mode="walk">🚶 步行</button>
-            <button data-mode="transit">🚇 公交</button>
-            <button data-mode="taxi">🚕 打车</button>
-            <button data-mode="driving">🚗 驾车</button>
+            <button data-mode="walk" data-i18n="navmap.walk">🚶 步行</button>
+            <button data-mode="transit" data-i18n="navmap.transit">🚇 公交</button>
+            <button data-mode="taxi" data-i18n="navmap.taxi">🚕 打车</button>
+            <button data-mode="driving" data-i18n="navmap.driving">🚗 驾车</button>
           </div>
         </div>
         <div id="remModal">
           <div class="box">
-            <h4>⏰ 出行提醒</h4>
+            <h4 data-i18n="rem.title">⏰ 出行提醒</h4>
             <div style="display:flex;flex-direction:column;gap:8px">
-              <label class="fld">类型
-                <select id="remType"><option value="train">火车</option><option value="flight">航班</option></select>
+              <label class="fld"><span data-i18n="rem.type">类型</span>
+                <select id="remType"><option value="train" data-i18n="rem.train">火车</option><option value="flight" data-i18n="rem.flight">航班</option></select>
               </label>
-              <label class="fld">出发时间 <input type="datetime-local" id="remTime"></label>
-              <label class="fld">车站/机场 <input type="text" id="remStation" placeholder="如：北京南站" style="flex:1"></label>
+              <label class="fld"><span data-i18n="rem.time">出发时间</span> <input type="datetime-local" id="remTime"></label>
+              <label class="fld"><span data-i18n="rem.station">车站/机场</span> <input type="text" id="remStation" placeholder="如：北京南站" data-i18n-ph="rem.station.ph" style="flex:1"></label>
               <div style="display:flex;gap:8px;justify-content:flex-end">
-                <button class="btn plain" id="remClose">关闭</button>
-                <button class="btn" id="remGo">生成提醒</button>
+                <button class="btn plain" id="remClose" data-i18n="rem.close">关闭</button>
+                <button class="btn" id="remGo" data-i18n="rem.go">生成提醒</button>
               </div>
               <div id="remOut"></div>
             </div>
@@ -490,27 +490,27 @@
 
     <!-- ============ 行程 ============ -->
     <section class="tab" id="tab-itin">
-      <div class="card" id="itinSavedWrap"><h4>📌 我的行程（点「💾 保存行程」后出现在这里；每行可查看 / 删除）</h4><div id="itinSavedList" class="muted">切到本页时自动加载…</div></div>
+      <div class="card" id="itinSavedWrap"><h4 data-i18n="itin.title">📌 我的行程（点「💾 保存行程」后出现在这里；每行可查看 / 删除）</h4><div id="itinSavedList" class="muted">切到本页时自动加载…</div></div>
     </section>
 
     <!-- ============ 行程中心（trip-items 三态看板，铁律 0：手动/对话/粘贴同一张表） ============ -->
     <section class="tab" id="tab-trips">
       <div class="toolbar">
-        <label class="fld">行程ID过滤 <input type="text" id="tcItinId" placeholder="可选"></label>
+        <label class="fld"><span data-i18n="trips.filter">行程ID过滤</span> <input type="text" id="tcItinId" placeholder="可选" data-i18n-ph="trips.phOptional"></label>
         <span class="sep"></span>
-        <label class="fld">心愿名 <input type="text" id="tcName" placeholder="如：国家博物馆"></label>
-        <label class="fld">城市 <input type="text" id="tcCity" list="tcCityList" placeholder="必选：城市或都可以" autocomplete="off"></label>
+        <label class="fld"><span data-i18n="trips.name">心愿名</span> <input type="text" id="tcName" placeholder="如：国家博物馆" data-i18n-ph="trips.name.ph"></label>
+        <label class="fld"><span data-i18n="trips.city">城市</span> <input type="text" id="tcCity" list="tcCityList" placeholder="必选：城市或都可以" data-i18n-ph="trips.city.ph" autocomplete="off"></label>
         <datalist id="tcCityList">
           <option value="都可以"></option>
           <option value="北京"></option><option value="上海"></option><option value="杭州"></option><option value="苏州"></option><option value="南京"></option><option value="西安"></option><option value="成都"></option><option value="重庆"></option><option value="广州"></option><option value="深圳"></option><option value="天津"></option><option value="武汉"></option><option value="长沙"></option><option value="厦门"></option><option value="青岛"></option><option value="大连"></option><option value="三亚"></option><option value="丽江"></option><option value="桂林"></option><option value="洛阳"></option><option value="敦煌"></option><option value="兰州"></option><option value="拉萨"></option><option value="昆明"></option><option value="大理"></option><option value="张家界"></option><option value="黄山"></option><option value="无锡"></option><option value="绍兴"></option><option value="嘉兴"></option><option value="舟山"></option><option value="哈尔滨"></option><option value="沈阳"></option><option value="长春"></option><option value="郑州"></option><option value="济南"></option><option value="福州"></option><option value="泉州"></option><option value="威海"></option><option value="珠海"></option>
         </datalist>
-        <label class="fld grow">备注 <input type="text" id="tcNote" class="grow" placeholder="可选"></label>
-        <label class="fld">营业时间 <input type="text" id="tcHours" placeholder="可选"></label>
-        <button class="btn" id="tcAdd">➕ 加心愿</button>
+        <label class="fld grow"><span data-i18n="trips.note">备注</span> <input type="text" id="tcNote" class="grow" placeholder="可选" data-i18n-ph="trips.phOptional"></label>
+        <label class="fld"><span data-i18n="trips.hours">营业时间</span> <input type="text" id="tcHours" placeholder="可选" data-i18n-ph="trips.phOptional"></label>
+        <button class="btn" id="tcAdd" data-i18n="trips.add">➕ 加心愿</button>
         <span class="sep"></span>
-        <button class="btn plain" id="tcRefresh">🔄 刷新看板</button>
+        <button class="btn plain" id="tcRefresh" data-i18n="trips.refresh">🔄 刷新看板</button>
       </div>
-      <div class="muted" style="margin:0 2px 8px">手动 / 对话 / 粘贴写入同一张 trip-items 表（铁律 0）；状态流：wishlist → scheduled（需第几天）→ booked（需订单号），回 wishlist = 撤销并清排期。</div>
+      <div class="muted" style="margin:0 2px 8px" data-i18n="trips.explain">手动 / 对话 / 粘贴写入同一张 trip-items 表（铁律 0）；状态流：wishlist → scheduled（需第几天）→ booked（需订单号），回 wishlist = 撤销并清排期。</div>
       <div class="flow" id="flow-trips"></div>
     </section>
 
@@ -518,79 +518,79 @@
     <section class="tab" id="tab-me">
       <div class="flow" id="flow-me">
         <div class="zone">
-          <h4>👤 个人画像 <span class="muted" id="prUpdatedAt" style="font-weight:400"></span></h4>
+          <h4>👤 <span data-i18n="me.profile">个人画像</span> <span class="muted" id="prUpdatedAt" style="font-weight:400"></span></h4>
           <div class="row" style="flex-wrap:wrap;gap:10px">
-            <label class="fld">预算档
+            <label class="fld"><span data-i18n="me.budget">预算档</span>
               <select id="prBudget">
-                <option value="">（未设）</option>
-                <option value="economy">经济</option>
-                <option value="comfort">舒适</option>
-                <option value="luxury">豪华</option>
+                <option value="" data-i18n="me.unset">（未设）</option>
+                <option value="economy" data-i18n="me.economy">经济</option>
+                <option value="comfort" data-i18n="me.comfort">舒适</option>
+                <option value="luxury" data-i18n="me.luxury">豪华</option>
               </select>
             </label>
-            <label class="fld">同行
+            <label class="fld"><span data-i18n="me.company">同行</span>
               <select id="prComp">
-                <option value="">（未设）</option>
-                <option value="solo">独自</option>
-                <option value="couple">情侣</option>
-                <option value="family">家庭</option>
-                <option value="group">团体</option>
+                <option value="" data-i18n="me.unset">（未设）</option>
+                <option value="solo" data-i18n="me.solo">独自</option>
+                <option value="couple" data-i18n="me.couple">情侣</option>
+                <option value="family" data-i18n="me.family">家庭</option>
+                <option value="group" data-i18n="me.group">团体</option>
               </select>
             </label>
-            <label class="fld">体力
+            <label class="fld"><span data-i18n="me.stamina">体力</span>
               <select id="prStamina">
-                <option value="">（未设）</option>
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
+                <option value="" data-i18n="me.unset">（未设）</option>
+                <option value="low" data-i18n="me.low">低</option>
+                <option value="medium" data-i18n="me.medium">中</option>
+                <option value="high" data-i18n="me.high">高</option>
               </select>
             </label>
           </div>
           <div class="row" style="margin-top:8px;align-items:flex-start;flex-wrap:wrap;gap:10px">
-            <label class="fld">旅行风格
+            <label class="fld"><span data-i18n="me.style">旅行风格</span>
               <span style="display:inline-flex;gap:6px;align-items:center">
-                <input type="text" id="prStyleIn" placeholder="如：博物馆">
+                <input type="text" id="prStyleIn" placeholder="如：博物馆" data-i18n-ph="me.style.ph">
                 <button class="btn mini plain" id="prStyleAdd">＋</button>
               </span>
             </label>
             <div class="chips" id="prStyleChips"></div>
-            <label class="fld">饮食限制
+            <label class="fld"><span data-i18n="me.diet">饮食限制</span>
               <span style="display:inline-flex;gap:6px;align-items:center">
-                <input type="text" id="prDietIn" placeholder="如：不吃辣">
+                <input type="text" id="prDietIn" placeholder="如：不吃辣" data-i18n-ph="me.diet.ph">
                 <button class="btn mini plain" id="prDietAdd">＋</button>
               </span>
             </label>
             <div class="chips" id="prDietChips"></div>
           </div>
-          <div style="margin-top:8px"><b style="font-size:13px">📝 备注（只读）</b><div id="prNotes" class="muted"></div></div>
-          <div style="margin-top:8px"><button class="btn" id="prSave">💾 保存画像（PUT）</button></div>
+          <div style="margin-top:8px"><b style="font-size:13px" data-i18n="me.notes">📝 备注（只读）</b><div id="prNotes" class="muted"></div></div>
+          <div style="margin-top:8px"><button class="btn" id="prSave" data-i18n="me.save">💾 保存画像（PUT）</button></div>
         </div>
 
         <div class="zone">
-          <h4>🧪 蒸馏试验台</h4>
-          <div class="muted">手改过的字段蒸馏不覆盖；confidence &lt; 0.8 只进建议区不落库。</div>
+          <h4 data-i18n="me.distill">🧪 蒸馏试验台</h4>
+          <div class="muted" data-i18n="me.distill.note">手改过的字段蒸馏不覆盖；confidence &lt; 0.8 只进建议区不落库。</div>
           <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
             <label class="fld">key <input type="text" id="dsKey" placeholder="budget_level"></label>
             <label class="fld grow">value <input type="text" id="dsValue" class="grow" placeholder="comfort"></label>
             <label class="fld">confidence <input type="number" id="dsConf" min="0" max="1" step="0.05" value="0.9"></label>
             <label class="fld">provenance <input type="text" id="dsProv" placeholder="chat"></label>
-            <button class="btn" id="dsGo">🧪 蒸馏</button>
+            <button class="btn" id="dsGo" data-i18n="me.distill.go">🧪 蒸馏</button>
           </div>
           <div id="dsOut" style="margin-top:8px"></div>
         </div>
 
         <div class="zone">
-          <h4>🔗 链接历史</h4>
+          <h4 data-i18n="me.links">🔗 链接历史</h4>
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <label class="fld grow">URL <input type="text" id="lkUrl" class="grow" placeholder="http/https 链接"></label>
-            <label class="fld">来源
+            <label class="fld grow">URL <input type="text" id="lkUrl" class="grow" placeholder="http/https 链接" data-i18n-ph="me.link.ph"></label>
+            <label class="fld"><span data-i18n="me.source">来源</span>
               <select id="lkSource">
                 <option value="user_paste">user_paste</option>
                 <option value="agent_recommend">agent_recommend</option>
               </select>
             </label>
-            <button class="btn" id="lkAdd">➕ 添加</button>
-            <button class="btn plain" id="lkRefresh">🔄 刷新</button>
+            <button class="btn" id="lkAdd" data-i18n="me.add">➕ 添加</button>
+            <button class="btn plain" id="lkRefresh" data-i18n="me.refresh">🔄 刷新</button>
           </div>
           <div id="lkList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
         </div>
@@ -1529,7 +1529,7 @@ function planSaveBar(plan) {
     const name = (plan.cities || []).join("→") + (planDateIso(1) ? " " + planDateIso(1) : "") + " 保存";
     if (!planSession || !planSession.session_id) { toast("会话已失效：请重新规划后再保存"); return; }
     try {
-      const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name });
+      const s = await api("/api/v1/plan/" + planSession.session_id + "/save", { name, start_date: PLAN.startDate || undefined });
       btn.remove(); // 只撤保存键，导出/分享/重新规划留在原行（2026-10-24 修复：整行清空会连三键一起抹掉）
       // 新规划会话保存前没有导出/分享两键（只有已存行程载入的会话才有）：保存后行程已落库，当场补上
       if (!bar.querySelector('[data-role="itin-export"]')) {
@@ -1696,6 +1696,11 @@ function planRouteForm() {
   total();
 })();
 // 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
+function todayBeijingIso() {
+  // 北京时间今天（口径同后端 _today_beijing）：东八区偏移后取 ISO 日期
+  return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+}
+
 function planDateIso(n) {
   if (!PLAN.startDate) return "";
   const d = new Date(PLAN.startDate + "T00:00:00");
@@ -2825,9 +2830,11 @@ async function itinEdit(r, btn) {
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
-      // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准
-      PLAN.startDate = (body.plan && body.plan.start_date) || "";
-      if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
+      // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准。
+      // 旧行程没存过出发日期 → 缺省今天（北京时间），打开即有日期+天气；
+      // 保存时随 /plan/{id}/save 的 start_date 落库自愈
+      PLAN.startDate = (body.plan && body.plan.start_date) || todayBeijingIso();
+      document.getElementById("bookStartDate").value = PLAN.startDate;
       // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
       planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");

@@ -100,6 +100,10 @@ class ItineraryStore(Protocol):
     def list_by_account(self, username: str) -> list[ItineraryRecord]: ...
     def find_by_share_token(self, token: str) -> ItineraryRecord | None: ...
 
+    def list_all(self) -> list[ItineraryRecord]:
+        """All records regardless of owner — weather.store_cities walks the
+        whole domain for city discovery (默认天气抓取范围)."""
+
 
 class InMemoryItineraryStore:
     """dict-backed Protocol implementation + uuid4 id allocation.
@@ -146,6 +150,9 @@ class InMemoryItineraryStore:
             ),
             None,
         )
+
+    def list_all(self) -> list[ItineraryRecord]:
+        return list(self._records.values())
 
 
 class ItineraryService:

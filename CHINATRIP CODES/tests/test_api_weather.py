@@ -15,6 +15,9 @@ from fastapi.testclient import TestClient
 from app.api import weather as weather_api
 from app.api.weather import get_weather_session_factory
 from app.api.weather import router as weather_router
+from app.services.itinerary import DayPlan, ItineraryPlan
+from app.services.itinerary_store import InMemoryItineraryStore, ItineraryRecord
+from app.services.trip_items import TripItemService
 
 
 class FakeQuery:
@@ -82,10 +85,17 @@ def make_row(**over) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-def make_client(rows):
+def make_client(rows, store=None, trip_item_svc=None):
     app = FastAPI()
     app.include_router(weather_router)
     app.dependency_overrides[get_weather_session_factory] = lambda: FakeFactory(rows)
+    # H5 状态域缺省空内存实现：单测不背真实 SQLite/PG 进程单例
+    app.dependency_overrides[weather_api.get_h5_store] = (
+        lambda: store if store is not None else InMemoryItineraryStore()
+    )
+    app.dependency_overrides[weather_api.get_h5_trip_item_service] = (
+        lambda: trip_item_svc if trip_item_svc is not None else TripItemService()
+    )
     return TestClient(app)
 
 
@@ -180,10 +190,40 @@ def test_sync_unknown_city_silently_skipped(monkeypatch):
 def test_sync_empty_cities_uses_trip_cities(monkeypatch):
     amap_calls, om_calls = [], []
     patch_fetchers(monkeypatch, amap_calls, om_calls)
-    # 行程库为空（FakeSession 无预置行）→ 无目标 → 只读返回
+    # 行程库为空（FakeSession 无预置行 + 空内存状态域）→ 无目标 → 只读返回
     client = make_client([])
 
     resp = client.post("/api/weather/sync", json={"cities": []})
     assert resp.status_code == 200
     assert resp.json()["cities"] == []
     assert amap_calls == [] and om_calls == []
+
+
+def test_sync_empty_cities_merges_store_cities(monkeypatch):
+    """PG 三表为空时也要能从 H5 状态域发现行程城市（2026-10-25 根因：
+    旧行程都在状态库里，只查 trip_cities 永远为空）。"""
+    amap_calls, om_calls = [], []
+    patch_fetchers(monkeypatch, amap_calls, om_calls)
+    store = InMemoryItineraryStore()
+    store.put(
+        ItineraryRecord(
+            itinerary_id="it_x",
+            owner_device_id="d1",
+            plan=ItineraryPlan(
+                itinerary_id="it_x",
+                cities=["杭州"],
+                days=[DayPlan(day=1, base_city="上海市")],
+            ),
+        )
+    )
+    svc = TripItemService()
+    svc.create("外滩", source="manual", city="上海")
+    client = make_client([], store=store, trip_item_svc=svc)
+
+    resp = client.post("/api/weather/sync", json={"cities": []})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [c["city"] for c in body["cities"]] == ["上海", "杭州"]
+    assert set(amap_calls) == {"上海", "杭州"}  # 无缓存行 → 内联刷新
+    assert om_calls == amap_calls
+    assert all(c["refreshed"] for c in body["cities"])

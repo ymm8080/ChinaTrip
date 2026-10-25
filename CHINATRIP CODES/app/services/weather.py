@@ -153,6 +153,24 @@ def _raw_trip_city_names(session) -> list[str]:
     return names
 
 
+def store_cities(store, trip_item_svc) -> list[str]:
+    """H5 状态域（行程记录 + 行程中心条目）涉及城市——与 trip_cities
+    （PG 三表）并集后作为默认抓取范围：H5 行程实际落状态库（SQLite，
+    2026-10 起迁 PG），不在 PG 三表里，只查 trip_cities 永远为空
+    （2026-10-25 排障）。store 侧取 plan.cities + days[].base_city
+    （ItineraryStore.list_all），条目侧取 list_groups(None) 各组 city；
+    去「市」后缀去重，口径与 trip_cities 一致。"""
+    names: list[str] = []
+    for record in store.list_all():
+        names.extend(record.plan.cities or [])
+        for day in record.plan.days:
+            names.append(day.base_city)
+    for group in trip_item_svc.list_groups(None).values():
+        for item in group:
+            names.append(item.get("city"))
+    return sorted({n.removesuffix("市") for n in names if n})
+
+
 async def fetch_and_store(
     session_factory,
     client,

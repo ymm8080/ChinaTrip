@@ -17,12 +17,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.itineraries import get_store
+from app.api.trip_items import get_trip_item_service
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import WeatherReport
 from app.services.agent.plan import CITY_ALIASES
 from app.services.amap_client import AmapClient
-from app.services.weather import city_to_adcode, fetch_and_store, trip_cities
+from app.services.weather import (
+    city_to_adcode,
+    fetch_and_store,
+    store_cities,
+    trip_cities,
+)
 from app.services.weather_open_meteo import fetch_forecast14
 
 router = APIRouter(prefix="/api/weather", tags=["weather"])
@@ -35,6 +42,16 @@ def get_weather_session_factory() -> sessionmaker[Session]:
     """Indirection over db.get_session_factory so tests can override
     (dependency_overrides) without touching the lru_cache'd engine."""
     return get_session_factory()
+
+
+def get_h5_store():
+    """Indirection over the itinerary-store singleton so tests can inject
+    an empty in-memory store instead of booting the real state domain."""
+    return get_store()
+
+
+def get_h5_trip_item_service():
+    return get_trip_item_service()
 
 
 class WeatherView(BaseModel):
@@ -114,9 +131,16 @@ def _today_beijing() -> str:
 def sync_weather(
     body: SyncRequest,
     session_factory: sessionmaker[Session] = Depends(get_weather_session_factory),
+    store=Depends(get_h5_store),
+    trip_item_svc=Depends(get_h5_trip_item_service),
 ) -> SyncResult:
-    with session_factory() as session:
-        names = body.cities or trip_cities(session)
+    if body.cities:
+        names = body.cities
+    else:
+        with session_factory() as session:
+            names = trip_cities(session)
+        # PG 三表 + H5 状态域并集：旧行程都在状态库里，只查三表永远为空
+        names = sorted({*names, *store_cities(store, trip_item_svc)})
 
     adcode_city: dict[str, str] = {}
     for name in names:

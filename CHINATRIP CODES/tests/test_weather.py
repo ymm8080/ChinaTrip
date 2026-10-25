@@ -7,10 +7,13 @@ import httpx
 
 from app.models import Itinerary, ItineraryDay, TripItem, WeatherReport
 from app.services.amap_client import AmapClient
+from app.services.itinerary import DayPlan, ItineraryPlan
+from app.services.itinerary_store import ItineraryRecord
 from app.services.weather import (
     city_to_adcode,
     fetch_and_store,
     parse_report_time,
+    store_cities,
     trip_cities,
     upsert_weather,
 )
@@ -325,6 +328,68 @@ def test_trip_cities_dedup_and_sort():
         }
     )
     assert trip_cities(session) == ["北京", "西安", "重庆"]
+
+
+# --- store_cities（H5 状态域城市发现）----------------------------------------
+
+
+class FakeStore:
+    """ItineraryStore 的城市发现最小面：list_all()。"""
+
+    def __init__(self, records):
+        self._records = records
+
+    def list_all(self):
+        return self._records
+
+
+class FakeTripItemSvc:
+    def __init__(self, groups):
+        self._groups = groups
+
+    def list_groups(self, itinerary_id=None):
+        return self._groups
+
+
+def _it_record(cities, base_cities):
+    return ItineraryRecord(
+        itinerary_id="it_test",
+        owner_device_id="d1",
+        plan=ItineraryPlan(
+            itinerary_id="it_test",
+            cities=cities,
+            days=[DayPlan(day=i + 1, base_city=b) for i, b in enumerate(base_cities)],
+        ),
+    )
+
+
+def test_store_cities_merges_records_and_items():
+    """旧行程都在状态库、PG 三表为空——只查 trip_cities 永远为空
+    （2026-10-25 排障）。store 侧 plan.cities + days[].base_city，条目侧
+    list_groups(None) 各组 city，去「市」后缀去重。"""
+    store = FakeStore(
+        [
+            _it_record(["北京", "西安"], ["北京市", "西安"]),
+            _it_record(["上海"], ["杭州"]),
+        ]
+    )
+    svc = FakeTripItemSvc(
+        {
+            "bookings": [{"city": "苏州"}],
+            "wishlist": [{"city": "重庆市"}, {"city": None}],
+            "scheduled": [],
+            "unwanted": [{"city": "成都"}],
+        }
+    )
+    assert store_cities(store, svc) == [
+        "上海",
+        "北京",
+        "成都",
+        "杭州",
+        "苏州",
+        "西安",
+        "重庆",
+    ]
 
 
 # --- Open-Meteo 14 天预报（TREK 双轨第二源）-----------------------------------
