@@ -26,9 +26,9 @@
 | 适配器 | 状态 | 说明 |
 | --- | --- | --- |
 | `mock`（默认） | ✅ 已落地 | 假收银台 `/h5/?mockpay=<id>` + `/confirm` dev 确认（SMTP echo 同款豁免），**零网络全流程** |
-| `stripe` | ✅ 已落地（待 key） | hosted Checkout（`mode=payment`/`mode=setup`）+ payment_intents off-session + webhook 验签；httpx 手写 REST 无新依赖。**启用只需 .env 填 `STRIPE_API_KEY`**（需境外主体：HK/US/SG…） |
-| 支付宝直连 | 留位 | 个体工商户可开手机网站支付；外国游客 Visa/MC/Amex/JCB 可绑支付宝钱包（≤¥200 免手续费、以上约 3%，单笔上限 $5,000 量级）——见 paid_call §4 联网核查，走同一协议并列 |
-| Airwallex 等跨境 PSP | 留位 | 同一协议替换；仅主体资质差异 |
+| `alipay`（alipay_wap） | **生产主通道（待个体工商户资质）** | 手机网站支付：个体工商户即可申请；外国游客经支付宝钱包绑 Visa/MC/Amex/JCB 支付（≤¥200 免费/以上约 3%，单笔上限 $5,000 量级）——一个通道覆盖国内 + 大多数外国游客。RSA2 签名需引入 `cryptography` 依赖（首个新增依赖，接资质后实施） |
+| `stripe` | ✅ 已落地 · ⏸ **搁置（2026-10-25 用户拍板：Visa/MC 直连渠道开发取消——无境外主体，Stripe 不受理大陆主体）** | 代码保留为预留位（`payments_backend` 默认 mock 不变，不配 key 即零网络零风险），不再分配上线计划；日后若设境外实体可一键复用 |
+| Airwallex 等跨境 PSP | 留位（同样需大陆公司实体，暂不 pursue） | 同一协议替换；仅主体资质差异 |
 
 Visa/MC 等外卡**不绑定 Stripe**：卡组织之上任选收单方，换网关只改一个 adapter。
 
@@ -60,3 +60,4 @@ pay_now 表单（金额/币种 cny·usd·eur/说明/关联单号）+ save_card �
 ## 变更记录
 
 - 2026-10-25 v1：初版（pay_now/save_method 双形态 + mock/stripe 双网关 + 验签 + 运营扣款；T1-T7 落地，T6 H5 实机验收，T7 18 例 + 80.98%）。
+- 2026-10-25 v1.1：**用户拍板取消 Visa/Mastercard 直连渠道开发**（无境外主体；Stripe 不受理大陆主体）——生产主通道定为**支付宝 wap 直连**（个体工商户即可，外国卡经支付宝钱包绑卡支付）；stripe adapter 保留为预留代码但不上线（`payments_backend` 默认 mock 不变）。代订扣款配套调整：优先走支付宝「按单付款链接」（客户点链接钱包支付），存卡代扣（save_method 运营扣款）留待日后接卡类 PSP 时启用。

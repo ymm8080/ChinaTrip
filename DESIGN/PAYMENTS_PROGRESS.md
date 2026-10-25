@@ -117,3 +117,4 @@ H5 站点要能向外国客户收款：Visa/Mastercard/Amex/JCB 信用卡 + Alip
 - 2026-10-25 原会话 T8：按 booking_design 同款「域文档 + INDEX 行」惯例落地（主版本不 bump，v2.5 今日刚由并行会话升版）——新建 DESIGN/payments_design_2026-10-25.md（豁免声明/双形态/网关协议/数据 API/H5/边界诚实声明/变更记录）+ INDEX.md 当前版本列表加行 + 核心决策速查加第 11 条；paid_call_service_design 已反向引用本层（网关协议复用）无需改动。
 - 2026-10-25 原会话 T9：终验通过——ruff check 全绿（format --check 唯一越格式文件为并行会话未跟踪的 app/jobs/aggregate_poi_stats.py，非本域不代改）；**全量 pytest 1126 passed / 0 failed，覆盖率 80.98% ≥75**（前轮 plan_agent flake 本轮亦绿，确认偶发）；实机 H5 冒烟见 T6 行。设计文档：DESIGN/payments_design_2026-10-25.md。
 - 2026-10-25 原会话 备注：T1-T9 全部勾完，施工收官。续跑 automation（automation-b02e16bf「支付功能施工续跑」，已被调为 */2min）**本会话无 CronDelete 工具未能删除**——但清单已全勾，其每轮触发都命中「全部勾选→收尾」分支，为无害空转；请在 Automations 页手动删除「支付功能施工续跑」即可（其余三条 automation 属并行会话，勿动）。
+- 2026-10-25 原会话 渠道拍板：**用户取消 Visa/Mastercard 直连渠道开发**（无境外主体）——生产主通道定为支付宝 wap 直连（个体工商户资质即可）；stripe adapter 保留为预留代码不上线（默认 mock 不变）；代订扣款优先「按单付款链接」形态。已同步 payments_design v1.1 + INDEX 决策速查 #11，无代码改动。
