@@ -455,3 +455,43 @@ class LinkHistory(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+
+
+class Payment(Base):
+    # 2026-10-25 客户付款层（DESIGN/PAYMENTS_PROGRESS.md）: company<->client
+    # collection layer — pay_now checkout + save_method vault (tokenised;
+    # raw card data never touches this server). Iron rule 22 channel handoff
+    # stays untouched; iron rule 23 refund_summary always carried.
+    # id is the service id "pay_<hex>" (String, not UUID) — the SQLite
+    # write-through store (app/services/payments.py) is the hot path.
+    __tablename__ = "payments"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(100))
+    username: Mapped[str | None] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(20))  # pay_now|save_method
+    amount_yuan: Mapped[float | None] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(8), server_default=text("'cny'"))
+    description: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(String(254))
+    refund_summary: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str | None] = mapped_column(
+        String(20), server_default=text("'pending'")
+    )  # pending|succeeded|canceled|refunded|method_saved
+    provider: Mapped[str | None] = mapped_column(
+        String(20), server_default=text("'mock'")
+    )  # mock|stripe
+    provider_ref: Mapped[str | None] = mapped_column(String(255))
+    charge_ref: Mapped[str | None] = mapped_column(String(255))
+    customer_ref: Mapped[str | None] = mapped_column(String(255))
+    payment_method_ref: Mapped[str | None] = mapped_column(String(255))
+    saved_method_label: Mapped[str | None] = mapped_column(String(60))
+    handoff_id: Mapped[str | None] = mapped_column(String(128))
+    trip_item_id: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
