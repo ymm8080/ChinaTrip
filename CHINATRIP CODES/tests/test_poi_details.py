@@ -297,6 +297,19 @@ def test_top_pois_intl_pick_tier_over_raw_rating():
     assert "5a" not in tags["武康路"]
 
 
+def test_top_pois_injected_tier_tag_respects_source_order():
+    """2026-10-26 打标序：读路径注入的 unesco 排国外榜单之后，
+    不垫到其它标签（如博物馆分级）后面。"""
+    store = PoiDetailStore()
+    store.upsert("A1", city="北京", name="故宫博物院", rating=4.5)
+    store._memory["A1"]["source"] = "unesco"
+    store._memory["A1"]["tags"] = ["ta", "lp", "intl", "国家一级博物馆"]
+    top = store.top_pois_in_city("北京")
+    tags = next(h["tags"] for h in top if h["name"] == "故宫博物院")
+    assert tags[:3] == ["ta", "lp", "intl"]
+    assert tags.index("unesco") < tags.index("国家一级博物馆")
+
+
 # --- 0009：top_pois_in_city 确定性排序（内存态） ---
 
 

@@ -122,6 +122,24 @@ def test_legacy_intl_rows_upgraded_to_site_source():
     assert legacy.tags_source == "tripadvisor"
 
 
+def test_tags_ordered_intl_sites_first():
+    """2026-10-26 用户标准：多来源全打上，国外榜单置前
+    （ta/lp → intl → unesco → 5A → 其余）。"""
+    row = _row(
+        "北京",
+        "故宫博物院",
+        source="ctrip",
+        tags=["unesco", "5a", "国家一级博物馆"],
+    )
+    s = FakeSession([row])
+    job.apply_picks(s)
+    t = row.tags
+    assert t[:2] == ["ta", "lp"]
+    assert t.index("intl") < t.index("unesco") < t.index("5a")
+    assert t[-1] == "国家一级博物馆"
+    assert row.tags_source == "tripadvisor"
+
+
 def test_dry_run_rolls_back():
     s = FakeSession()
     stats = job.apply_picks(s, dry_run=True)

@@ -47,6 +47,24 @@ _DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 _TIER_BOOST = {4: 1.8, 3: 1.5, 2: 1.3, 1: 1.15}
 _TIER_TAG = {4: "unesco", 3: "5a", 2: "4a", 1: "3a"}
 
+# 多来源打标序（用户 2026-10-26 标准：多个来源都打上、国外榜单放前，
+# 例 ta/lp → unesco → 5A → 其余）；import_intl_picks 同用此序
+_SOURCE_TAG_ORDER = {
+    "ta": 0,
+    "lp": 1,
+    "viator": 2,
+    "intl": 3,
+    "curated": 4,
+    "unesco": 5,
+    "5a": 6,
+    "4a": 7,
+    "3a": 8,
+}
+
+
+def order_source_tags(tags: list[str]) -> list[str]:
+    return sorted(tags, key=lambda t: _SOURCE_TAG_ORDER.get(t, 99))
+
 
 def _name_overlap(a: str | None, b: str | None) -> bool:
     """名单互含匹配（灵隐飞来峰 ↔ 灵隐飞来峰景区）；短名防泛名误伤。"""
@@ -545,7 +563,7 @@ class PoiDetailStore:
             if tier == 3 and "intl" in h["tags"] and "5a" not in h["tags"]:
                 tag = "intl"
             if tag and tag not in h["tags"]:
-                h["tags"] = [*h["tags"], tag]
+                h["tags"] = order_source_tags([*h["tags"], tag])
         rows_out.sort(key=score, reverse=True)
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)

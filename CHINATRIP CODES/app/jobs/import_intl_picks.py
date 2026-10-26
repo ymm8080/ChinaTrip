@@ -19,7 +19,9 @@ enrich_amap_detail 只处理 source='amap' 行、tier 名单互含读
 source in (unesco,5a)、refresh 升级键绑定 (source, source_poi_id)，
 覆写会断三条活链；明细站点落在 tags（ta/lp/viator）+ tags_source。
 查无 → 插入 source=主站点 骨架行（主站点优先级 ta>lp>viator>
-curated）；旧版 source='intl' 行重跑时自动升级为明细站点。
+curated）；旧版 source='intl' 行重跑时自动升级为明细站点。tags 打标
+序统一：国外榜单在前（ta/lp/viator → intl/curated → unesco/5a/4a/
+3a → 其余原序垫后；2026-10-26 用户标准：多来源全打、国外榜置前）。
 子场所行（如「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行
 另行插入。他源作业整覆 tags 掉了 intl 标时重跑本作业即修复。
 
@@ -36,6 +38,7 @@ import sys
 import uuid
 
 from app.models import Poi
+from app.services.poi_details import order_source_tags
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +318,9 @@ def _primary_source(sites: list[str]) -> str:
     return "curated"
 
 
+_order_tags = order_source_tags  # 多来源打标序（poi_details 单一实现）
+
+
 def apply_picks(session, *, dry_run: bool = False) -> dict:
     """对全部 INTL_PICKS 做幂等 merge/insert，返回统计。"""
     rows = session.query(Poi).all()
@@ -337,10 +343,14 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                         hit.source_poi_id = f"{primary}:{city}:{name_zh}"[:100]
                         changed = True
                     merged = [t for t in add_tags if t not in (hit.tags or [])]
-                    if not merged and hit.tags_source == primary:
+                    desired = _order_tags([*(hit.tags or []), *merged])
+                    if (
+                        not merged
+                        and hit.tags_source == primary
+                        and desired == (hit.tags or [])
+                    ):
                         continue
-                    if merged:
-                        hit.tags = [*(hit.tags or []), *merged]
+                    hit.tags = desired
                     hit.tags_source = primary
                     changed = True
                     logger.info(
@@ -361,7 +371,7 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                     name_en=name_en,
                     category="attraction",
                     status="active",
-                    tags=add_tags,
+                    tags=_order_tags(add_tags),
                     tags_source=primary,
                 )
                 session.add(row)
