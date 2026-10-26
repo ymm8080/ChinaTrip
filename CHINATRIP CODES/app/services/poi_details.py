@@ -518,8 +518,15 @@ class PoiDetailStore:
             if "5a" in tags or h.get("source") == "5a":
                 return 3
             # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
-            # 外国游客，2026-10-25 intl 种子导入）
-            if "intl" in tags or h.get("source") == "intl":
+            # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
+            # 改明细站点名，枚举同步扩）
+            if "intl" in tags or h.get("source") in (
+                "intl",
+                "tripadvisor",
+                "lonelyplanet",
+                "viator",
+                "curated",
+            ):
                 return 3
             if "4a" in tags:
                 return 2

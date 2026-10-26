@@ -12,9 +12,16 @@ pois 库，并逐条标注推荐来源。铁律 #9：外部源仅写骨架（名
   curated = 榜单只点到城市（LP「苏州园林运河」「重庆赛博朋克」），
             具体点位按国际游客通识补全，待回源链核实后转正
 
-行内动作：库内已有正名/别名行 → 追加 intl+来源 tags（不覆盖原
-source）；查无 → 插入 source='intl' 骨架行。子场所行（如
-「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行另行插入。
+行内动作：库内已有正名/别名行 → 追加 intl+来源 tags，tags_source 写
+主站点（2026-10-26 用户指令：source 要明细站点名 tripadvisor/
+lonelyplanet 等，不要笼统 intl）。既有行的 source 列保留原值——
+enrich_amap_detail 只处理 source='amap' 行、tier 名单互含读
+source in (unesco,5a)、refresh 升级键绑定 (source, source_poi_id)，
+覆写会断三条活链；明细站点落在 tags（ta/lp/viator）+ tags_source。
+查无 → 插入 source=主站点 骨架行（主站点优先级 ta>lp>viator>
+curated）；旧版 source='intl' 行重跑时自动升级为明细站点。
+子场所行（如「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行
+另行插入。他源作业整覆 tags 掉了 intl 标时重跑本作业即修复。
 
 用法：
     python -m app.jobs.import_intl_picks [--dry-run]
@@ -290,6 +297,24 @@ def _same_city(row_city: str | None, want: str) -> bool:
     return bool(rc) and (want in rc or rc in want)
 
 
+_SITE_SOURCE = {
+    "ta": "tripadvisor",
+    "lp": "lonelyplanet",
+    "viator": "viator",
+    "curated": "curated",
+}
+_SITE_PRIORITY = ("ta", "lp", "viator", "curated")
+
+
+def _primary_source(sites: list[str]) -> str:
+    """多站同荐时 source/tags_source 取主站点（ta > lp > viator >
+    curated；用户 2026-10-26 指令：明细站点名，不要笼统 intl）。"""
+    for s in _SITE_PRIORITY:
+        if s in sites:
+            return _SITE_SOURCE[s]
+    return "curated"
+
+
 def apply_picks(session, *, dry_run: bool = False) -> dict:
     """对全部 INTL_PICKS 做幂等 merge/insert，返回统计。"""
     rows = session.query(Poi).all()
@@ -297,39 +322,47 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
     for city, name_zh, name_en, sites, aliases in _INTL_PICKS:
         try:
             names = {name_zh, *aliases}
-            hit = next(
-                (r for r in rows if _same_city(r.city, city) and r.name_zh in names),
-                None,
-            )
+            hits = [r for r in rows if _same_city(r.city, city) and r.name_zh in names]
             add_tags = ["intl", *sites]
-            if hit is not None:
-                merged = [t for t in add_tags if t not in (hit.tags or [])]
-                if not merged:
-                    stats["skip"] += 1
-                    continue
-                hit.tags = [*(hit.tags or []), *merged]
-                if hit.tags_source is None:
-                    hit.tags_source = "intl"
-                stats["merge"] += 1
-                logger.info(
-                    "intl merge %s/%s onto source=%s tags+=%s",
-                    city,
-                    hit.name_zh,
-                    hit.source,
-                    merged,
-                )
+            primary = _primary_source(sites)
+            if hits:
+                # 同名孪生行（天坛 amap + 天坛公园 5a 等）全部统一打标
+                # ——只标 next() 首行会因行序漂移漏标孪生
+                changed = False
+                for hit in hits:
+                    if hit.source == "intl":
+                        # 旧版（2026-10-25）导入行 source='intl' → 升级为
+                        # 明细站点名（2026-10-26 用户指令）
+                        hit.source = primary
+                        hit.source_poi_id = f"{primary}:{city}:{name_zh}"[:100]
+                        changed = True
+                    merged = [t for t in add_tags if t not in (hit.tags or [])]
+                    if not merged and hit.tags_source == primary:
+                        continue
+                    if merged:
+                        hit.tags = [*(hit.tags or []), *merged]
+                    hit.tags_source = primary
+                    changed = True
+                    logger.info(
+                        "intl merge %s/%s onto source=%s tags+=%s",
+                        city,
+                        hit.name_zh,
+                        hit.source,
+                        merged,
+                    )
+                stats["merge" if changed else "skip"] += 1
             else:
                 row = Poi(
                     id=uuid.uuid4(),
-                    source="intl",
-                    source_poi_id=f"intl:{city}:{name_zh}"[:100],
+                    source=primary,
+                    source_poi_id=f"{primary}:{city}:{name_zh}"[:100],
                     city=city,
                     name_zh=name_zh,
                     name_en=name_en,
                     category="attraction",
                     status="active",
                     tags=add_tags,
-                    tags_source="intl",
+                    tags_source=primary,
                 )
                 session.add(row)
                 rows.append(row)  # 同批去重：别名重复项不会二次插入

@@ -42,10 +42,17 @@ TripAdvisor 页面有 bot 墙（直抓 403/空壳），全国榜 + 城市摘要�
 
 ## 导入设计（app/jobs/import_intl_picks.py）
 
-- **source 标注**：新骨架行 `source='intl'`、`source_poi_id='intl:{城市}:{正名}'`
-  （幂等键）；tags 携带 `['intl', 'ta'/'lp'/'viator'/'curated', …]`，
-  双榜推荐双标（如外滩 = `intl+ta+lp`）。既有行只并 tags、不改 source
-  （原 source 是更上游的 provenance，不覆盖）。
+- **source 标注（2026-10-26 用户指令改版：明细站点名，不要笼统 intl）**：
+  新骨架行 `source=主站点`（`tripadvisor`/`lonelyplanet`/`viator`/
+  `curated`，多站同荐优先级 ta>lp>viator>curated）、`source_poi_id=
+  '{主站点}:{城市}:{正名}'`（幂等键）；tags 携带
+  `['intl', 'ta'/'lp'/'viator'/'curated', …]` 双榜双标（外滩 =
+  `intl+ta+lp`），`tags_source=主站点`。既有行 source 保留原值——
+  enrich_amap_detail 只处理 source='amap' 行、tier 名单互含读
+  source in (unesco,5a)、refresh 升级键绑定 (source, source_poi_id)，
+  覆写断三条活链；明细站点落在 tags + tags_source。旧版（2026-10-25）
+  source='intl' 行重跑自动升级为明细站点。同名孪生行（天坛 amap +
+  天坛公园 5a）全部统一打标——只标首行会因 PG 行序漂移漏标孪生。
 - **铁律 #9 合规**：外部源只写骨架（名称/城市/类别/标签），不写坐标、
   营业时间、票价。新行无 opening_hours → 自动进入 refresh_pois 的
   stale 窗口，由高德/携程回源链补全并校验存在性（不存在则被淘汰）。
@@ -53,7 +60,8 @@ TripAdvisor 页面有 bot 墙（直抓 403/空壳），全国榜 + 城市摘要�
   unesco > 5A > 4A > 3A 未含 intl，但引擎面向外国游客，TA/LP 榜就是
   这类用户的「5A 名单」；且多数双榜点位同时本就是 5A/unesco，intl 档
   主要抬升非 A 级国际人气点（田子坊/武康路/798/潘家园）。
-  `poi_details.tier_of` 读时判 `source=='intl' or 'intl' in tags`；
+  `poi_details.tier_of` 读时判 `'intl' in tags or source in
+  (intl/tripadvisor/lonelyplanet/viator/curated)`；
   标签注入对 intl-only 行打 `intl` 而非 `5a`（不虚标 A 级）。
 - **v0 prompt** 同步：「带 unesco/5A/4A/3A/intl 标签的优先…intl=国际
   旅行网站人气榜，对外国游客优先」。
