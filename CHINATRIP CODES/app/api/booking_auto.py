@@ -101,6 +101,10 @@ async def _catalog(
     不可用 → 503 诚实失败（铁律：失败必须留日志，不静默编造空列表）。
     """
     from app.api.pois import _city_variants
+    from app.services.agent.plan import CITY_ALIASES
+
+    # 双语输入：英文城市名（beijing / xi'an）先归一中文再匹配
+    city = CITY_ALIASES.get((city or "").strip().lower(), city)
 
     try:
         with factory() as session:

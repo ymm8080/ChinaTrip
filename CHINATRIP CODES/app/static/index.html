@@ -3422,9 +3422,9 @@ document.getElementById("bkHotelGo").onclick = (e) => busy(e.target, bkHotelSear
 /* ---- 🎫 景点 / 🎭 演出（POI 底库目录：直达 SKU 或 geo 分流模板） ---- */
 
 function showRefundSummary(kind) {
-  const label = kind === "site" ? "门票" : "演出票";
-  return I18N.tf(kind === "site" ? "bk.siteRefund" : "bk.showRefund",
-    label + "人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
+  if (kind === "site")
+    return I18N.tf("bk.siteRefund", "门票人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
+  return I18N.tf("bk.showRefund", "演出票人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
 }
 function bkShowCard(s, city, kind) {
   const tile = el('<div class="tile"></div>');
@@ -3443,31 +3443,38 @@ function bkShowCard(s, city, kind) {
   return tile;
 }
 const BK_CATALOG = {
-  show: {
-    path: "/api/v1/booking-auto/shows", cityEl: "bkShowCity", kwEl: "bkShowKw", flow: "flow-book-show",
-    echo: "🎭 演出票查询：", empty: "该城市暂无演出库数据（04 CSV 覆盖有限），可换城市试试。", listSuf: " · 演出票务"
-  },
-  site: {
-    path: "/api/v1/booking-auto/sites", cityEl: "bkSiteCity", kwEl: "bkSiteKw", flow: "flow-book-site",
-    echo: "🎫 门票查询：", empty: "该城市暂无匹配景点：换个关键词，或留空看热门榜。", listSuf: " · 景点门票"
-  }
+  show: { path: "/api/v1/booking-auto/shows", cityEl: "bkShowCity", kwEl: "bkShowKw", flow: "flow-book-show" },
+  site: { path: "/api/v1/booking-auto/sites", cityEl: "bkSiteCity", kwEl: "bkSiteKw", flow: "flow-book-site" }
 };
+// 中文兜底必须逐 kind 独立 tf() 字面量（C 门：CJK 串恰为 tf 第二参才豁免）
+function bkCatalogEcho(kind) {
+  if (kind === "site") return I18N.tf("bk.siteEcho", "🎫 门票查询：");
+  return I18N.tf("bk.showEcho", "🎭 演出票查询：");
+}
+function bkCatalogEmpty(kind) {
+  if (kind === "site") return I18N.tf("bk.siteEmpty", "该城市暂无匹配景点：换个关键词，或留空看热门榜。");
+  return I18N.tf("bk.showEmpty", "该城市暂无演出库数据（04 CSV 覆盖有限），可换城市试试。");
+}
+function bkCatalogListSuf(kind) {
+  if (kind === "site") return I18N.tf("bk.siteListSuf", " · 景点门票");
+  return I18N.tf("bk.showListSuf", " · 演出票务");
+}
 async function bkCatalogSearch(kind) {
   const cfg = BK_CATALOG[kind];
   const city = document.getElementById(cfg.cityEl).value.trim();
   const kw = document.getElementById(cfg.kwEl).value.trim();
   if (!city) { toast(I18N.tf("bk.needCity", "城市必填")); return; }
-  addMsg(cfg.flow, "user", I18N.tf("bk." + kind + "Echo", cfg.echo) + city + (kw ? " · " + kw : ""));
+  addMsg(cfg.flow, "user", bkCatalogEcho(kind) + city + (kw ? " · " + kw : ""));
   const holder = addMsg(cfg.flow, "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
   try {
     const body = await api(cfg.path + "?city=" + encodeURIComponent(city) + (kw ? "&q=" + encodeURIComponent(kw) : ""), undefined, "GET");
     holder.textContent = "";
     const shows = (body && body.shows) || [];
     if (!shows.length) {
-      holder.appendChild(el('<div class="muted">' + I18N.tf("bk." + kind + "Empty", cfg.empty) + "</div>"));
+      holder.appendChild(el('<div class="muted">' + bkCatalogEmpty(kind) + "</div>"));
       return;
     }
-    const wrap = el('<div class="card"><h4>' + (kind === "site" ? "🎫" : "🎭") + " " + esc(city) + I18N.tf("bk." + kind + "ListSuf", cfg.listSuf) + "</h4></div>");
+    const wrap = el('<div class="card"><h4>' + (kind === "site" ? "🎫" : "🎭") + " " + esc(city) + bkCatalogListSuf(kind) + "</h4></div>");
     shows.forEach(s => wrap.appendChild(bkShowCard(s, city, kind)));
     holder.appendChild(wrap);
   } catch (err) {
