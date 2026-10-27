@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # （2026-10-20 日志实测 504 后同参数重试即 200），5s 全局超时会误杀。
     amap_route_timeout_seconds: float = 10.0
 
+    # 地图 WebService 提供方（2026-10-27 高德 5 万商用费转百度）：
+    # "amap"（默认，存量行为零变化）| "baidu"（个人认证免费配额）。
+    # 两个提供方共用上面两个超时配置；BaiduClient 与 AmapClient 方法
+    # 同构，工厂见 app.services.map_provider。
+    map_provider: str = "amap"
+    baidu_ak: str = ""
+    baidu_base_url: str = "https://api.map.baidu.com"
+
     # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
     # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;
     # empty by default = no params appended, URLs pass through untouched.
@@ -71,6 +79,14 @@ class Settings(BaseSettings):
     # cache -> Flash classify. Cache is in-process for MVP (Redis W7-8).
     intent_cache_ttl_seconds: int = 300
     intent_cache_max_entries: int = 10_000
+
+    # 快慢双车道（design §6.12）：快车道答案缓存（短 TTL，命中零计算）
+    # 与慢车道任务队列。队列落 SQLite（无 Redis，照 call_store/state_persist
+    # 模式），进程内 asyncio worker 轮询消化；取舍见 task_queue.py 模块头。
+    fast_lane_answer_ttl_seconds: float = 60.0
+    fast_lane_answer_max_entries: int = 4_096
+    task_db_url: str = "sqlite:///data/tasks.db"
+    task_worker_poll_seconds: float = 0.5
 
     # Translation fast lane (design §6.10 MVP: on-device ASR/OCR produces
     # text; server translates via GLM; phrase/menu cache hit = zero LLM).
@@ -136,6 +152,11 @@ class Settings(BaseSettings):
     # 运营侧对已存卡扣款的共享密钥；空 = 扣款端点整体禁用（403）。
     payments_operator_token: str = ""
     payments_db_url: str = "sqlite:///data/payments.db"
+
+    # 出行人资料（DESIGN/CLIENT_DATA_REQUIREMENTS.md，2026-10-27）：代客预订
+    # 实名档案。证件号/手机号 Fernet 加密落库，密钥在 db 同目录 .traveler_key
+    # 首次自动生成；列表响应只回脱敏形，明文唯一出口是 /export（审计留痕）。
+    travelers_db_url: str = "sqlite:///data/travelers.db"
 
     # 真人通话咨询（DESIGN/paid_call_service_design_2026-10-25，2026-10-25）：
     # 预付费分钟账本 + 服务端权威通话会话（$1=5 分钟，到点强结）。收款走

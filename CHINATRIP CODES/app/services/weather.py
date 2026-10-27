@@ -177,6 +177,7 @@ async def fetch_and_store(
     cities: list[str],
     *,
     kinds: tuple[str, ...] = ("live", "forecast"),
+    source: str | None = None,
 ) -> dict:
     """逐城拉取实况+预报并 latest-wins 落库；失败降级为 warning 不中断。"""
     stats = {
@@ -208,7 +209,11 @@ async def fetch_and_store(
                 continue
             report["adcode"] = report.get("adcode") or adcode
             with session_factory() as session:
-                action = upsert_weather(session, report)
+                action = (
+                    upsert_weather(session, report, source=source)
+                    if source
+                    else upsert_weather(session, report)
+                )
                 session.commit()
             stats["fetched"] += 1
             stats[action] += 1

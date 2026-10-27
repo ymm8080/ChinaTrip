@@ -264,7 +264,7 @@ function findZhViolations(tokens) {
  * → 行号零漂移。返回 {code, found}：found 为本次命中的声明名集合。 */
 const ZH_DATA_NAMES = ["CITYS", "PLAN_CITIES", "ORI", "AMAP_DETAIL_ZH", "AUTH_ERR_CN",
   "MODE_CN", "BRIEF_TAGS", "PREFS", "REVIEW_TAGS", "t9nName",
-  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH"]; // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹
+  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH", "TV_DOC_ZH"]; // TV_DOC_ZH 证件类型 code→中文兜底，tvDocLabel 调用点 tf(key, 表[code]) 动态包裹 // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹
 const ZH_DATA_DECL_RE = new RegExp("(?:var|const|let)\\s+(" + ZH_DATA_NAMES.join("|") + ")\\s*=\\s*([\\[{])", "g");
 function stripZhDataArrays(code) {
   const found = new Set();

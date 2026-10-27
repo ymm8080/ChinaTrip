@@ -45,7 +45,17 @@ from app.services.poi_classify import duration_upgradable
 _DEFAULT_LIMIT = 100
 _MAX_TOKENS = 1024
 _MAX_CONCURRENCY = 4
-_SOURCE_PRIORITY = ("unesco", "5a", "amap", "chinatravel", "osm")
+_SOURCE_PRIORITY = (
+    "unesco",
+    "5a",
+    "museum1",
+    "museum2",
+    "museum3",
+    "artmuseum",
+    "amap",
+    "chinatravel",
+    "osm",
+)
 _DURATION_MIN, _DURATION_MAX = 15, 600
 _RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 _MAX_ATTEMPTS = 6

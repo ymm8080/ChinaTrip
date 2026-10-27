@@ -13,7 +13,7 @@ def _c(name, cat=None):
 def test_indoor_hints_first_hit_wins():
     cat, indoor, rain_ok, floor = _c("北京故宫博物院")
     assert (cat, indoor, rain_ok) == ("museum", True, True)
-    assert floor == 90
+    assert floor == 120
 
 
 def test_theme_park_hints():

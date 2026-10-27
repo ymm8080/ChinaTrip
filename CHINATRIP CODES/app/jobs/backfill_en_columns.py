@@ -200,7 +200,9 @@ def _messages(kind: str, source: Any, name: str) -> list:
     ]
 
 
-def select_targets(session_factory, table: str, *, limit: int) -> list[Any]:
+def select_targets(
+    session_factory, table: str, *, limit: int, source: str | None = None
+) -> list[Any]:
     """目标行：任一目标 _en 列为空且对应源列非空的 active 行。
 
     selectinload 无必要——单表直查；排序 name_en 优先（名称最值钱）。
@@ -215,10 +217,15 @@ def select_targets(session_factory, table: str, *, limit: int) -> list[Any]:
             getattr(model, en_col).is_(None) & getattr(model, src_col).isnot(None)
         )
     with session_factory() as session:
+        query = session.query(model).filter(
+            or_(*conds), (model.status.is_(None)) | (model.status == "active")
+        )
+        if source:
+            query = query.filter(model.source == source)  # 定向回填（如 museum1）
         rows = (
-            session.query(model)
-            .filter(or_(*conds), (model.status.is_(None)) | (model.status == "active"))
-            .order_by(model.name_en.is_(None), model.rating_count.desc().nullslast())
+            query.order_by(
+                model.name_en.is_(None), model.rating_count.desc().nullslast()
+            )
             .limit(limit)
             .all()
         )
@@ -341,11 +348,12 @@ async def backfill_en(
     table: str = "pois",
     limit: int = 200,
     concurrency: int = 4,
+    source: str | None = None,
 ) -> dict:
     if table not in FIELD_SPECS:
         raise ValueError(f"unknown table: {table}")
     concurrency = max(1, min(concurrency, _MAX_CONCURRENCY))
-    rows = select_targets(session_factory, table, limit=limit)
+    rows = select_targets(session_factory, table, limit=limit, source=source)
     stats: dict = {
         "table": table,
         "targets": len(rows),
@@ -382,6 +390,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--table", choices=sorted(FIELD_SPECS), default="pois")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--concurrency", type=int, default=4, help="并发，上限 8")
+    parser.add_argument(
+        "--source", default=None, help="只处理指定 source（如 museum1）"
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -393,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"error": "database unreachable"}))
         return 1
     if args.dry_run:
-        rows = select_targets(factory, args.table, limit=args.limit)
+        rows = select_targets(factory, args.table, limit=args.limit, source=args.source)
         print(json.dumps({"dry_run": True, "targets": len(rows)}))
         for r in rows[:5]:
             print(json.dumps({"name": r.name_zh, "has_intro": bool(r.intro)}))
@@ -417,6 +428,7 @@ def main(argv: list[str] | None = None) -> int:
             table=args.table,
             limit=args.limit,
             concurrency=args.concurrency,
+            source=args.source,
         )
     )
     print(json.dumps(stats, ensure_ascii=True))

@@ -17,6 +17,15 @@ DESIGN/reservation_seeds_核对_2026-10-25.md。
 
 双语补丁 2026-10-25：每条 note 增补 note_en（H5 英文态渲染），
 FOREIGNER_TIP 配套 FOREIGNER_TIP_EN；中文键值字节不变，只加字段。
+
+扩充 10 项（2026-10-26，用户点名「扩充的10项要的」，官方口径本轮直核）：
+兵马俑（官方票务 bmy.albatrip.cn，平日 7 天/节假日 10 天，未授权第三方）、
+上海天文馆（前 7 天含当日 9:30 开售）、中国科学技术馆（官网实名购票，
+预售期未注明）、国家自然博物馆（提前 3 天每日 11:00）、苏州博物馆
+（提前 7 天每日凌晨 0 点）、上海博物馆（14 天每日 12:00；东馆常设展
+试行免预约）、湖北省博物馆（5 天每日 17:18）、河南博物院（官方未注明
+——note 注明以公众号为准）、甘肃省博物馆（3 天每日 17:00）、梵净山
+（当天 07:00 三轮投放，days=0=当天票）。
 """
 
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
@@ -123,6 +132,72 @@ RESERVATION_V0: dict[str, dict] = {
         "release": "00:00",
         "note": "「布达拉宫票务预订系统」小程序提前 10 天，须本人微信端购票+人脸认证",
         "note_en": "'Potala Palace Ticket Booking System' mini-program, book 10 days ahead; must be purchased on the visitor's own WeChat account with facial-recognition verification",  # noqa: E501
+    },
+    "秦始皇帝陵博物院": {
+        "days": 7,
+        "release": "00:00",
+        "note": "官方票务系统 bmy.albatrip.cn/官方公众号：平日提前 7 天、节假日提前 10 天；博物院未授权任何第三方销售",  # noqa: E501
+        "note_en": "Official ticketing system bmy.albatrip.cn / official WeChat: 7 days ahead (10 days on holidays); no third-party sellers are authorized",  # noqa: E501
+    },
+    "兵马俑": {
+        "days": 7,
+        "release": "00:00",
+        "note": "同「秦始皇帝陵博物院」",
+        "note_en": "Same as the Emperor Qinshihuang's Mausoleum Site Museum",
+    },
+    "上海天文馆": {
+        "days": 7,
+        "release": "09:30",
+        "note": "参观票前 7 天（含当日）9:30 开售、电影票 10:00（官方公告口径）；暑期秒光，参观日前一天 23:30 前可退",  # noqa: E501
+        "note_en": "Visit tickets go on sale 7 days ahead (including the visit day) at 09:30, movie tickets at 10:00; sells out instantly in summer; refunds until 23:30 the day before",  # noqa: E501
+    },
+    "中国科学技术馆": {
+        "days": 7,
+        "release": "00:00",
+        "note": "官网 pcticket.cstm.org.cn 实名购票；官方预售期未注明，以官网为准（OTA 有当日/次日票）",  # noqa: E501
+        "note_en": "Real-name purchase on the official site pcticket.cstm.org.cn; official presale window not stated — follow the official site",  # noqa: E501
+    },
+    "国家自然博物馆": {
+        "days": 3,
+        "release": "11:00",
+        "note": "官网/微信公众号提前 3 日预约，每日 11:00 更新（官方口径）；免费，团体提前 4 日",  # noqa: E501
+        "note_en": "Book free tickets 3 days ahead on the official site/WeChat, refreshed daily at 11:00; groups 4 days ahead",  # noqa: E501
+    },
+    "苏州博物馆": {
+        "days": 7,
+        "release": "00:00",
+        "note": "本馆全预约制：提前 7 天（含当天）官网/公众号/「苏州博物馆全预约」小程序，每日凌晨 0 点放票；当日有余票可当日约",  # noqa: E501
+        "note_en": "Full reservation system: book 7 days ahead (including the visit day) via the official site/WeChat/'Suzhou Museum Full Reservation' mini-program, released at midnight daily; same-day slots possible if any remain",  # noqa: E501
+    },
+    "上海博物馆": {
+        "days": 14,
+        "release": "12:00",
+        "note": "预约制期间散客提前 14 天、每日 12:00 放票（2024-04 起）；东馆常设展 2024-09 起试行免预约凭证入馆，特展以官方小程序为准",  # noqa: E501
+        "note_en": "During reservation periods individuals book 14 days ahead, released daily at 12:00 (since 2024-04); the East Hall's permanent galleries have piloted walk-in entry since 2024-09 — special exhibitions follow the official mini-program",  # noqa: E501
+    },
+    "湖北省博物馆": {
+        "days": 5,
+        "release": "17:18",
+        "note": "官方微信公众号/官网提前 5 天，每日 17:18 放票；免费，每单最多 5 张，周一闭馆（节假日除外）",  # noqa: E501
+        "note_en": "Book free tickets 5 days ahead via the official WeChat account/site, released daily at 17:18; up to 5 per order; closed Mondays (except holidays)",  # noqa: E501
+    },
+    "河南博物院": {
+        "days": 2,
+        "release": "00:00",
+        "note": "官方微信公众号分时段实名预约（免费）；官方提前天数/放票时刻本轮未核到，以公众号《参观指南》为准",  # noqa: E501
+        "note_en": "Free timed-entry reservation via the official WeChat account; the official advance window/release time was not verified this round — follow the museum's visitor guide",  # noqa: E501
+    },
+    "甘肃省博物馆": {
+        "days": 3,
+        "release": "17:00",
+        "note": "微信公众号「甘肃省博物馆」提前 3 天（含当天）实名预约，每日 17:00 放票；免费，日限额 12000 人、4 场次",  # noqa: E501
+        "note_en": "Book free tickets 3 days ahead (including the visit day) on the official WeChat account, released daily at 17:00; daily cap 12,000 across 4 time slots",  # noqa: E501
+    },
+    "梵净山": {
+        "days": 0,
+        "release": "07:00",
+        "note": "官方 fanjingshan.gz.cn 实名分时预约：线上 5800 张/日三轮投放，散客票 07:00 起（节假日或提前至 06:30），当天 6:30-15:00 售当天票，22:00 后不售票；现场无售票窗口，旺季建议提前 1-3 天",  # noqa: E501
+        "note_en": "Official fanjingshan.gz.cn timed reservation: 5,800 online tickets/day in three rounds, individual tickets from 07:00 (possibly 06:30 on holidays), same-day tickets sold 06:30-15:00, none after 22:00; no on-site ticket windows — book 1-3 days ahead in peak season",  # noqa: E501
     },
 }
 

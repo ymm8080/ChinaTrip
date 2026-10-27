@@ -44,7 +44,17 @@ _DEFAULT_LIMIT = 5000
 _MAX_TOKENS = 1024
 _MAX_CONCURRENCY = 8
 # source 优先级：名气大的先补，未知源排最后
-_SOURCE_PRIORITY = ("unesco", "5a", "amap", "chinatravel", "osm")
+_SOURCE_PRIORITY = (
+    "unesco",
+    "5a",
+    "museum1",
+    "museum2",
+    "museum3",
+    "artmuseum",
+    "amap",
+    "chinatravel",
+    "osm",
+)
 
 _SYSTEM_PROMPT = (
     "你是旅游百科编辑，为中国景点地点写一句话中文简介。铁律："

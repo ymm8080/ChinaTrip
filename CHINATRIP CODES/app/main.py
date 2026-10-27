@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -18,6 +19,7 @@ from app.api.extract import router as extract_router
 from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
 from app.api.itineraries import router as itineraries_router
+from app.api.metrics import router as metrics_router
 from app.api.navigation import router as navi_router
 from app.api.offers import router as offers_router
 from app.api.payments import router as payments_router
@@ -25,7 +27,9 @@ from app.api.plan import router as plan_router
 from app.api.pois import router as pois_router
 from app.api.profile import links_router, profile_router
 from app.api.share import router as share_router
+from app.api.tasks import router as tasks_router
 from app.api.translate import router as translate_router
+from app.api.travelers import router as travelers_router
 from app.api.trip_items import router as trip_items_router
 from app.api.visa import router as visa_router
 from app.api.weather import router as weather_router
@@ -66,10 +70,15 @@ async def _lifespan(_app: FastAPI):
     threading.Thread(
         target=_pg_keepalive, args=(stop,), daemon=True, name="pg-keepalive"
     ).start()
+    # §6.12 慢车道 worker：进程内 asyncio 任务，逐条消化队列（空转 sleep）。
+    from app.services.task_queue import get_task_worker
+
+    worker_task = asyncio.create_task(get_task_worker().run_forever())
     try:
         yield
     finally:
         stop.set()
+        worker_task.cancel()
 
 
 def create_app() -> FastAPI:
@@ -120,6 +129,9 @@ def create_app() -> FastAPI:
     app.include_router(booking_auto_router)
     app.include_router(payments_router)
     app.include_router(call_router)
+    app.include_router(travelers_router)
+    app.include_router(tasks_router)
+    app.include_router(metrics_router)
 
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/h5", StaticFiles(directory=static_dir, html=True), name="h5")

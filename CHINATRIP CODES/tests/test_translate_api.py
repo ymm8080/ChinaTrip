@@ -158,7 +158,16 @@ def test_llm_error_maps_to_502():
 # --- factory wiring (mock backend default: no network) ---
 
 
-def test_dependency_default_builds_service_from_settings():
+def test_dependency_default_builds_service_from_settings(monkeypatch):
+    # 2026-10-25 fast_lane 零参直调改造后，get_translation_service 经模块级
+    # get_settings() 取配置（不进 FastAPI 依赖图）——patch 必须落在模块属性上，
+    # 并重置单例防环境真实 key 泄漏（glm-5.3-flash 事故 2026-10-27）。
+    import app.api.translate as translate_api
+
+    monkeypatch.setattr(
+        translate_api, "get_settings", lambda: base_settings(), raising=False
+    )
+    monkeypatch.setattr(translate_api, "_service_singleton", None, raising=False)
     resp = post(
         client_for(base_settings()),
         {"text": "你好", "source_lang": "zh", "target_lang": "en"},

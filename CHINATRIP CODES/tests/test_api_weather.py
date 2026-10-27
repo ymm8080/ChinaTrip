@@ -114,10 +114,16 @@ def patch_fetchers(monkeypatch, amap_calls, om_calls):
         weather_api,
         "get_settings",
         lambda: SimpleNamespace(
-            amap_api_key="test-key", amap_base_url="http://x", amap_timeout_seconds=1
+            amap_api_key="test-key",
+            amap_base_url="http://x",
+            amap_timeout_seconds=1,
+            map_provider="amap",
         ),
     )
-    monkeypatch.setattr(weather_api, "AmapClient", lambda **kw: SimpleNamespace())
+    # 2026-10-27 工厂化后 weather.py 经 build_map_client 构造客户端
+    monkeypatch.setattr(
+        weather_api, "build_map_client", lambda settings: SimpleNamespace()
+    )
 
 
 # --- GET /api/weather ---------------------------------------------------------

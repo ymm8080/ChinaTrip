@@ -5,6 +5,7 @@ from uuid import uuid4
 from geoalchemy2.elements import WKTElement
 
 from app.models import Poi, Restaurant
+from app.services.coords import make_point
 from app.services.poi_seed import mark_status, normalize_category, seed_upsert
 
 
@@ -364,3 +365,149 @@ def test_mark_status_sets_and_reports_missing():
     assert mark_status(factory, Poi, "osm", "d1", "inactive") is True
     assert row.status == "inactive"
     assert mark_status(factory, Poi, "osm", "nope", "inactive") is False
+
+
+# ---------- 同馆去重闸（2026-10-26 用户令：所有入表行先过同馆去重） ----------
+
+
+def _gate_row(**kw):
+    base: dict = {
+        "id": uuid4(),
+        "source": "museum1",
+        "source_poi_id": "m1_x",
+        "city": "上海",
+        "name_zh": "上海博物馆",
+        "status": "active",
+        "category": "museum",
+    }
+    base.update(kw)
+    return Poi(**base)
+
+
+def test_gate_same_name_same_city_merges_into_existing():
+    existing = _gate_row()
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="amap",
+        source_poi_id="amap_1",
+        city="上海",
+        name_zh="上海博物馆",
+        lonlat=(121.47, 31.23),
+    )
+    assert out == "exists"
+    assert factory.session.added == []  # 不建第二行
+    assert existing.location is not None  # 骨架坐标只填空回填
+    assert existing.suggested_duration_min == 120  # heuristic 地板
+    assert existing.duration_source == "heuristic"
+
+
+def test_gate_same_name_diff_city_both_city_level_creates():
+    # 孙中山纪念馆（南京/广州）——同名不同场馆，必须正常建行
+    existing = _gate_row(
+        source="chinatravel",
+        source_poi_id="ct_nj_1",
+        city="南京",
+        name_zh="孙中山纪念馆",
+    )
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="chinatravel",
+        source_poi_id="ct_gz_1",
+        city="广州",
+        name_zh="孙中山纪念馆",
+    )
+    assert out == "created"
+    assert len(factory.session.added) == 1
+    assert existing.status == "active"
+
+
+def test_gate_cross_granularity_merges_and_adopts_city():
+    # museum1 省级回退 city=浙江 vs 渠道行 city=杭州 —— 同馆并入并采纳市名
+    existing = _gate_row(city="浙江", name_zh="中国丝绸博物馆")
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="amap",
+        source_poi_id="amap_2",
+        city="杭州",
+        name_zh="中国丝绸博物馆",
+    )
+    assert out == "exists"
+    assert existing.city == "杭州"
+    assert factory.session.added == []
+
+
+def test_gate_curated_incoming_absorbs_channel_twin():
+    # curated（museum1）来行 + 渠道孪生在库：curated 建行吸收骨架、孪生退役
+    twin = _gate_row(
+        source="chinatravel",
+        source_poi_id="ct_hz_1",
+        city="杭州",
+        name_zh="中国丝绸博物馆",
+        location=make_point(120.1, 30.2),
+    )
+    factory = FakeFactory(FakeSession(rows=[twin]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="museum1",
+        source_poi_id="m1_c",
+        city="浙江",
+        name_zh="中国丝绸博物馆",
+        tags=["国家一级博物馆"],
+        tags_source="cma",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.source == "museum1"
+    assert row.location is not None  # 吸收孪生坐标
+    assert row.city == "杭州"  # 采纳精确市名
+    assert twin.status == "retired"
+
+
+def test_gate_alias_forward_match_merges():
+    existing = _gate_row(city="江苏", name_zh="南京博物院")
+    factory = FakeFactory(FakeSession(rows=[existing]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="chinatravel",
+        source_poi_id="ct_nj_9",
+        city="南京",
+        name_zh="南京博物馆",
+        name_aliases=["南京博物院"],
+    )
+    assert out == "exists"
+    assert factory.session.added == []
+    assert existing.city == "南京"  # 跨粒度并入并采纳市名
+    # 别名=目标行名本身时不入 aliases
+    assert existing.name_aliases in (None, [])
+
+
+def test_gate_key_conflict_shadow_wins_venue():
+    # 血统影子（同键异源）是最强同馆信号：museum1 来行吸收影子骨架后建行
+    shadow = _gate_row(
+        source="amap",
+        source_poi_id="m1_d",
+        name_zh="上海科技馆",
+        location=make_point(121.5, 31.2),
+    )
+    factory = FakeFactory(FakeSession(rows=[shadow]))
+    out = seed_upsert(
+        factory,
+        Poi,
+        source="museum1",
+        source_poi_id="m1_d",
+        city="上海",
+        name_zh="上海科技馆",
+    )
+    assert out == "created"
+    (row,) = factory.session.added
+    assert row.source == "museum1"
+    assert row.location is not None
+    assert shadow.status == "retired"

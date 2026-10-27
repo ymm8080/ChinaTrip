@@ -35,7 +35,7 @@ _CATEGORY_META: dict[str, tuple[bool | None, bool | None]] = {
 }
 
 _DURATION_FLOOR: dict[str, int] = {
-    "museum": 90,
+    "museum": 120,
     "gallery": 60,
     "theme_park": 240,
     "zoo": 180,

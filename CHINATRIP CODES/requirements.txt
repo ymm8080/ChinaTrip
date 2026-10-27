@@ -15,3 +15,4 @@ pyarrow>=16
 osmium>=4.0
 python-docx>=1.1
 openpyxl>=3.1
+cryptography>=42.0

@@ -16,7 +16,13 @@ from app.api.itineraries import (
     get_store,
 )
 from app.api.itineraries import router as itineraries_router
-from app.api.plan import get_plan_sessions, get_planning_agent
+from app.api.plan import (
+    get_fast_lane,
+    get_plan_sessions,
+    get_planning_agent,
+    get_request_gate,
+    get_task_store,
+)
 from app.api.plan import router as plan_router
 from app.config import Settings, get_settings
 from app.services.agent.plan import (
@@ -26,6 +32,7 @@ from app.services.agent.plan import (
     _parse_cities,
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
+from app.services.gate import RequestGate
 from app.services.itinerary import VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
@@ -94,9 +101,43 @@ def make_app(agent: PlanningAgent) -> FastAPI:
     app.dependency_overrides[get_plan_sessions] = lambda: store
     app.dependency_overrides[get_store] = lambda: itineraries
     app.dependency_overrides[get_entitlement_service] = lambda: entitlement
+    # §6.12 双车道依赖（2026-10-27）：不 override 会在全套联跑时命中
+    # 进程级单例（真实 zhipu 适配器/真任务库）——消息用例必须确定性离线。
+    app.dependency_overrides[get_request_gate] = lambda: RequestGate(
+        ExplodingAdapter()
+    )  # Flash 不可用 → escalate → main，与旧行为一致
+    from app.services.fast_lane import FastLane
+
+    app.dependency_overrides[get_fast_lane] = lambda: FastLane(
+        poi_details=_NoopPoi(),
+        trip_items=_NoopTrip(),
+        translate=_NoopTranslate(),
+    )
+    from app.services.task_queue import TaskStore
+
+    _task_store = TaskStore(":memory:")
+    app.dependency_overrides[get_task_store] = lambda: _task_store
     app.include_router(plan_router)
     app.include_router(itineraries_router)
     return app
+
+
+class _NoopPoi:
+    def get_by_name(self, city, name):
+        return None
+
+    def search_keyword(self, city, tokens, *, limit=5):
+        return []
+
+
+class _NoopTrip:
+    def list_groups(self, itinerary_id=None):
+        return {"wishlist": []}
+
+
+class _NoopTranslate:
+    async def translate(self, text, *, source_lang, target_lang):
+        raise AssertionError("translate fast lane not expected in plan_api tests")
 
 
 def client_for(agent: PlanningAgent) -> TestClient:

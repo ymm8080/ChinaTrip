@@ -69,3 +69,19 @@ paid_call 进度文档 T6 记录过并行编辑写坏 `index.html` 引号、整�
 
 *结论：一个真阻塞（A，并行会话正在收敛）、一个潜在数据一致性核查（B1 跟进项）、
 一个轻微未兑现的设计承诺（B2）、卫生/automation 清理（B3–B5）。*
+
+---
+
+## 核销注记（2026-10-27 审计轮追加）
+
+- **B1**：本轮环境无 PG 连接（postgres MCP 凭据未配置），`pois.hours_en` 是否残留
+  "Monday–Sunday" 全称**待查**；夜间作业 04:10 时点未变，大概率 0 行受影响。
+- **B2**：核销——call_orders / call_sessions / call_minutes_entries 三表按设计 v1.2
+  只存 SQLite 侧库 `app/services/call_store.py`；原「预留 0013」槽位注释早已过期
+  （链现至 w12_0018），alembic 不再补 call 表迁移，该承诺不再追踪。
+- **B3**：核销——过期 automation `automation-5452734a` 已不存在。
+- **B4**：核销——真人通话咨询全套已提交入库（app/api/call.py 等均为 tracked）。
+- **B5**：卫生清单移交 [audit_hygiene_2026-10-27.md](audit_hygiene_2026-10-27.md)
+  持续登记，删除与否待用户裁决（本审计铁律：只登记不删除）。
+- **A（H5 守门）**：核销——2026-10-27 23:42 复查 `ops/check_h5_static.js` 全 ok
+  （en 词典 662 key 全覆盖），pytest 全量 1383 passed / 0 failed。

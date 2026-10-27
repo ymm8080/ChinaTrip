@@ -1,8 +1,11 @@
 """城市天气抓取作业（高德天气 API，上游中国气象局；DESIGN §6.2 矩阵行）。
 
 两源流水：
-  1. 高德（实况 + 3 天预报）——0-3 天权威口径，个人 key 约 100 次/日配额，
-     每城每次 2 次调用；40 城全量×3 次/日 = 240 次/日会超，--all 仅限手动。
+  1. 0-3 天源（默认跟随 settings.map_provider，--src 可显式覆盖）：
+     - 高德（实况 + 3 天预报）——个人 key 约 100 次/日配额，每城每次 2 次
+       调用；40 城全量×3 次/日 = 240 次/日会超，--all 仅限手动。
+     - 百度天气（实况 + 5 天预报）——个人认证免配额量大（日 3 万级），
+       district_id 与高德 adcode 同为 6 位行政区划码直接复用。
   2. Open-Meteo（14 天逐日，免 key 无配额）——4-14 天补齐（TREK 双轨方案），
      每次运行全量 40 城；重跑可用 --skip-amap 只补这一段。
 末尾统一清理：fetched_at 超 7 天的行删除（不再抓取的城市滞留数据）。
@@ -24,6 +27,7 @@ import sys
 
 from app.config import get_settings
 from app.services.amap_client import AmapClient
+from app.services.baidu_client import BaiduClient
 from app.services.weather import (
     CITY_ADCODES,
     fetch_and_store,
@@ -74,10 +78,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="跳过高德（省配额），只跑 Open-Meteo 14 天 + 清理",
     )
+    parser.add_argument(
+        "--src",
+        choices=("amap", "baidu"),
+        default=None,
+        help="0-3 天源（默认跟随 settings.map_provider）",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    if not settings.amap_api_key:
+    src = args.src or settings.map_provider
+    if src == "baidu":
+        if not settings.baidu_ak:
+            print(json.dumps({"error": "BAIDU_AK empty — set it in .env"}))
+            return 1
+    elif not settings.amap_api_key:
         print(json.dumps({"error": "AMAP_API_KEY empty — set it in .env"}))
         return 1
 
@@ -109,12 +124,22 @@ def main(argv: list[str] | None = None) -> int:
 
     stats: dict = {}
     if targets and not args.skip_amap:
-        client = AmapClient(
-            key=settings.amap_api_key,
-            base_url=settings.amap_base_url,
-            timeout_seconds=settings.amap_timeout_seconds,
-        )
-        stats = asyncio.run(fetch_and_store(factory, client, targets))
+        if src == "baidu":
+            client = BaiduClient(
+                ak=settings.baidu_ak,
+                base_url=settings.baidu_base_url,
+                timeout_seconds=settings.amap_timeout_seconds,
+            )
+            stats = asyncio.run(
+                fetch_and_store(factory, client, targets, source="baidu")
+            )
+        else:
+            client = AmapClient(
+                key=settings.amap_api_key,
+                base_url=settings.amap_base_url,
+                timeout_seconds=settings.amap_timeout_seconds,
+            )
+            stats = asyncio.run(fetch_and_store(factory, client, targets))
 
     stats["forecast14"] = asyncio.run(fetch_forecast14(factory, targets14))
     stats["stale_deleted"] = asyncio.run(purge_stale(factory))

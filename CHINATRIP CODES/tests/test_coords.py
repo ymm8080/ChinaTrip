@@ -6,6 +6,8 @@ import pytest
 from geoalchemy2.elements import WKTElement
 
 from app.services.coords import (
+    bd09_to_gcj02,
+    gcj02_to_bd09,
     gcj02_to_wgs84,
     haversine_m,
     make_point,
@@ -83,3 +85,31 @@ def test_zero_coords_no_crash() -> None:
     assert out_of_china(0.0, 0.0) is True
     assert wgs84_to_gcj02(0.0, 0.0) == (0.0, 0.0)
     assert gcj02_to_wgs84(0.0, 0.0) == (0.0, 0.0)
+
+
+# ---------- BD-09 ↔ GCJ-02（2026-10-27 百度接入） ----------
+
+
+@pytest.mark.parametrize("lon, lat", CHINA_POINTS)
+def test_bd09_roundtrip_within_1e5(lon: float, lat: float) -> None:
+    """BD09↔GCJ02 往返误差 < 1e-5 度（亚米级）。"""
+    b_lon, b_lat = gcj02_to_bd09(lon, lat)
+    r_lon, r_lat = bd09_to_gcj02(b_lon, b_lat)
+    assert abs(r_lon - lon) < 1e-5
+    assert abs(r_lat - lat) < 1e-5
+
+
+def test_bd09_offset_toward_northeast() -> None:
+    """GCJ→BD 应向东北偏（百度在火星坐标上叠加固定偏移）。"""
+    g_lon, g_lat = 116.40, 39.90
+    b_lon, b_lat = gcj02_to_bd09(g_lon, g_lat)
+    assert 0.003 < b_lon - g_lon < 0.009
+    assert 0.002 < b_lat - g_lat < 0.008
+
+
+def test_bd09_known_reference_pair() -> None:
+    """公开参照值量级校验：GCJ(116.404, 39.915) ≈ BD(116.41035, 39.921)。
+    参照表本身 ±5e-4 级散布，按方向+量级断言（往返精度另有专测）。"""
+    b_lon, b_lat = gcj02_to_bd09(116.404, 39.915)
+    assert abs(b_lon - 116.41035) < 5e-4
+    assert abs(b_lat - 39.92100) < 5e-4

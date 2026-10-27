@@ -219,21 +219,23 @@ def test_db_down_latch_skips_subsequent_attempts(monkeypatch):
 
     down = DownFactory()
     store = mod.PoiDetailStore(session_factory=down)
-    # tiny cooldown, patched BEFORE the first failure (the deadline
-    # is computed at failure time from the then-current constant).
-    # Empty-retry constant too: the FIRST failure hits while memory is
-    # still empty, so it latches _DB_DOWN_EMPTY_RETRY_SECONDS (2026-10-25)
-    monkeypatch.setattr(mod, "_DB_DOWN_COOLDOWN_SECONDS", 0.05)
-    monkeypatch.setattr(mod, "_DB_DOWN_EMPTY_RETRY_SECONDS", 0.05)
+    # cooldown patched BEFORE the first failure (the deadline is
+    # computed at failure time from the then-current constant).
+    # 30s 而非更短的 0.05s：抑制窗断言要求首败到第二次 get 的间隔落在
+    # 冷却窗内——0.05s 在满载测试进程里会被调度/GC 抖动击穿（2026-10-28
+    # 全量跑偶发 down.calls==2）；30s 留足余量。
+    monkeypatch.setattr(mod, "_DB_DOWN_COOLDOWN_SECONDS", 30.0)
+    monkeypatch.setattr(mod, "_DB_DOWN_EMPTY_RETRY_SECONDS", 30.0)
     assert store.get("B001") is None  # stall once, then memory
     store.upsert("B001", name="豫园", opening_hours="09:00-17:00")
     assert store.get("B001")["opening_hours"] == "09:00-17:00"
     assert down.calls == 1, "latch must suppress the second DB attempt"
 
-    # cooldown expiry: attempts resume (and fail → memory still wins)
+    # cooldown expiry: attempts resume (and fail → memory still wins).
+    # 直接回拨 deadline，不赌真实睡眠时长。
     import time as _time
 
-    _time.sleep(0.06)
+    store._db_down_until = _time.monotonic() - 0.01
     assert store.get("B001")["opening_hours"] == "09:00-17:00"
     assert down.calls == 2
 

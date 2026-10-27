@@ -23,8 +23,8 @@ from app.config import get_settings
 from app.db import get_session_factory
 from app.models import WeatherReport
 from app.services.agent.plan import CITY_ALIASES
-from app.services.amap_client import AmapClient
 from app.services.lang_ctx import L, is_en
+from app.services.map_provider import build_map_client, map_ready
 from app.services.weather import (
     city_to_adcode,
     fetch_and_store,
@@ -207,12 +207,8 @@ def sync_weather(
     if stale:
         targets = [adcode_city[a] for a in stale][:MAX_SYNC_CITIES]
         settings = get_settings()
-        if settings.amap_api_key:
-            client = AmapClient(
-                key=settings.amap_api_key,
-                base_url=settings.amap_base_url,
-                timeout_seconds=settings.amap_timeout_seconds,
-            )
+        if map_ready(settings):
+            client = build_map_client(settings)
             asyncio.run(fetch_and_store(session_factory, client, targets))
         asyncio.run(fetch_forecast14(session_factory, targets))
         refreshed = set(adcode_city[a] for a in stale[:MAX_SYNC_CITIES])

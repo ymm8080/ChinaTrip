@@ -151,7 +151,19 @@ def _gate_tags(v) -> list[str]:
 def _source_rank():
     whens = [
         (Poi.source == src, rank)
-        for rank, src in enumerate(("unesco", "5a", "amap", "chinatravel", "osm"))
+        for rank, src in enumerate(
+            (
+                "unesco",
+                "5a",
+                "museum1",
+                "museum2",
+                "museum3",
+                "artmuseum",
+                "amap",
+                "chinatravel",
+                "osm",
+            )
+        )
     ]
     return case(*whens, else_=5)
 

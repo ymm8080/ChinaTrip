@@ -403,6 +403,9 @@
           <input type="text" id="planPref" class="grow" placeholder="例如：喜欢博物馆、不吃辣" data-i18n-ph="plan.pref.ph">
         </label>
         <span class="fld"><span data-i18n="plan.totalPre">合计</span> <b id="planDaysTotal">6</b> <span data-i18n="plan.totalMid">天 · 结束日期</span> <b id="planEndDate">（未设开始日期）</b></span>
+        <span class="sep"></span>
+        <button class="btn ghost" id="planBkShow" data-i18n="plan.bkShow" title="跳到预订 tab 的 🎭 演出分区，自动带入起始城市查询">🎭 演出票</button>
+        <button class="btn ghost" id="planBkSite" data-i18n="plan.bkSite" title="跳到预订 tab 的 🎫 景点分区，自动带入起始城市查询">🎫 景点票</button>
         <button class="btn" id="planStart" data-i18n="plan.start">🚀 开始规划</button>
       </div>
       <div class="flow" id="flow-plan"></div>
@@ -564,6 +567,49 @@
           </div>
           <div style="margin-top:8px"><b style="font-size:13px" data-i18n="me.notes">📝 备注（只读）</b><div id="prNotes" class="muted"></div></div>
           <div style="margin-top:8px"><button class="btn" id="prSave" data-i18n="me.save">💾 保存画像（PUT）</button></div>
+        </div>
+
+        <div class="zone">
+          <h4 data-i18n="me.tv.title">🪪 出行人资料（代客预订）</h4>
+          <div class="muted" id="tvNotice" data-i18n="me.tv.notice">仅用于代客预订实名登记；证件号/手机号加密保存、页面脱敏显示，可随时删除（导出明文需点「⬇️ 导出」）。</div>
+          <div id="tvList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+          <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+            <label class="fld"><span data-i18n="me.tv.label">备注名</span> <input type="text" id="tvLabel" placeholder="本人护照" data-i18n-ph="me.tv.label.ph" style="width:110px"></label>
+            <label class="fld"><span data-i18n="me.tv.nameEn">拼音姓名</span> <input type="text" id="tvNameEn" placeholder="SMITH JOHN" style="width:130px"></label>
+            <label class="fld"><span data-i18n="me.tv.nameZh">中文姓名</span> <input type="text" id="tvNameZh" placeholder="可选" style="width:100px"></label>
+            <label class="fld"><span data-i18n="me.tv.docType">证件类型</span>
+              <select id="tvDocType">
+                <option value="passport" data-i18n="me.tv.dt.passport">护照</option>
+                <option value="mainland_id" data-i18n="me.tv.dt.mainland">身份证（大陆）</option>
+                <option value="hkmo_passport" data-i18n="me.tv.dt.hkmo">港澳通行证</option>
+                <option value="tw_passport" data-i18n="me.tv.dt.tw">台湾通行证</option>
+                <option value="foreign_perm_id" data-i18n="me.tv.dt.perm">外国人永居证</option>
+              </select>
+            </label>
+            <label class="fld"><span data-i18n="me.tv.docNo">证件号</span> <input type="text" id="tvDocNo" autocomplete="off" style="width:150px"></label>
+            <label class="fld"><span data-i18n="me.tv.docExp">有效期</span> <input type="date" id="tvDocExp" style="width:140px"></label>
+            <label class="fld"><span data-i18n="me.tv.nat">国籍</span> <input type="text" id="tvNat" placeholder="US" style="width:70px"></label>
+            <label class="fld"><span data-i18n="me.tv.dob">出生日期</span> <input type="date" id="tvDob" style="width:140px"></label>
+            <label class="fld"><span data-i18n="me.tv.gender">性别</span>
+              <select id="tvGender">
+                <option value="" data-i18n="me.unset">（未设）</option>
+                <option value="m" data-i18n="me.tv.g.m">男</option>
+                <option value="f" data-i18n="me.tv.g.f">女</option>
+                <option value="x" data-i18n="me.tv.g.x">其他</option>
+              </select>
+            </label>
+            <label class="fld"><span data-i18n="me.tv.phone">手机号</span> <input type="tel" id="tvPhone" autocomplete="off" style="width:130px"></label>
+            <label class="fld"><span data-i18n="me.tv.email">邮箱</span> <input type="email" id="tvEmail" style="width:160px"></label>
+          </div>
+          <label class="chip" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px">
+            <input type="checkbox" id="tvConsent"> <span data-i18n="me.tv.consent">我已阅读并同意上述资料仅用于代客预订（加密保存，可随时删除）</span>
+          </label>
+          <div class="row" style="gap:8px;margin-top:8px">
+            <button class="btn" id="tvSave" data-i18n="me.tv.save">💾 保存出行人</button>
+            <button class="btn plain" id="tvRefresh" data-i18n="me.refresh">🔄 刷新</button>
+            <button class="btn plain" id="tvExport" data-i18n="me.tv.export">⬇️ 导出明文</button>
+            <button class="btn ghost" id="tvWipe" data-i18n="me.tv.wipe">🗑 清空全部</button>
+          </div>
         </div>
 
         <div class="zone">
@@ -1360,7 +1406,7 @@ function planCard(plan) {
           ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
         const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
-        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join(" ");
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let walkSeg = "";
@@ -1380,7 +1426,6 @@ function planCard(plan) {
         blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
-          '<a class="fb-btn" data-kind="visit" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.visited","✅ 到了") + "</a> " +
           '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></div>"));
         dayItems.appendChild(blk);
       }
@@ -1456,9 +1501,8 @@ function planCard(plan) {
         return;
       }
       try {
-        if (kind === "visit") await api("/api/v1/feedback/visit", { name: nm, city: ct });
-        else await api("/api/v1/feedback/vote", { name: nm, city: ct, up: kind === "up" });
-        toast(kind === "visit" ? I18N.tf("plan.fb.checkedPre","已打卡「") + nm + I18N.tf("plan.fb.checkedSuf","」") : I18N.tf("plan.fb.recorded","已记录，谢谢反馈"));
+        await api("/api/v1/feedback/vote", { name: nm, city: ct, up: kind === "up" });
+        toast(I18N.tf("plan.fb.recorded","已记录，谢谢反馈"));
         fb.style.opacity = 0.4;
       } catch (e) { failToast(e); }
       return;
@@ -2043,6 +2087,11 @@ async function planSend() {
   try {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
     planSession.state = body.state;
+    if (body.lane && body.lane.lane === "slow" && body.lane.task_id) {
+      // §6.12 慢车道：重排后台跑，这里轮询任务直到完成再渲染（2 分钟封顶）
+      await planPollSlowTask(holder, body.lane.task_id);
+      return;
+    }
     planRenderSafe(holder, body);
   } catch (err) {
     if (err && err.detail === "session_not_found" && planSession && planSession.origin) {
@@ -2058,6 +2107,30 @@ async function planSend() {
     }
   }
   document.getElementById("flow-plan").scrollTop = 1e9;
+}
+// §6.12 慢车道任务轮询：每 3s 查一次 /tasks/{id}，done 渲染结果，
+// failed/超时降级为提示（重排失败不改已存行程，会话不受影响）。
+async function planPollSlowTask(holder, taskId) {
+  const MAX_POLLS = 40; // 3s × 40 = 2 分钟
+  for (let i = 0; i < MAX_POLLS; i++) {
+    holder.textContent = I18N.tf("plan.slow.waiting","⏳ 重排后台进行中（已受理，完成后自动展示）…") + " (" + (i + 1) + ")";
+    let task = null;
+    try { task = await api("/api/v1/tasks/" + taskId, undefined, "GET"); } catch (e) { /* 轮询失败不中断 */ }
+    if (task && task.status === "done") {
+      planSession.state = (task.result && task.result.state) || planSession.state;
+      holder.textContent = "";
+      planRenderSafe(holder, task.result || {});
+      toast(I18N.tf("plan.slow.done","✅ 后台重排完成"));
+      document.getElementById("flow-plan").scrollTop = 1e9;
+      return;
+    }
+    if (task && task.status === "failed") {
+      holder.textContent = I18N.tf("plan.slow.fail","⚠ 后台重排失败：") + detailText(task.error) + I18N.tf("plan.slow.retry","；行程未改动，可换个说法再试。");
+      return;
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  holder.textContent = I18N.tf("plan.slow.timeout","⚠ 后台重排仍在进行（超过 2 分钟）；稍后回到本页刷新，或到「行程」页查看最新保存版本。");
 }
 // 会话存后端进程内存，服务重启即丢；此处按原参数重建会话并自动重发本轮消息。
 async function planResendAfterRestart(holder, text, input) {
@@ -3486,6 +3559,21 @@ async function bkCatalogSearch(kind) {
 document.getElementById("bkShowGo").onclick = (e) => busy(e.target, () => bkCatalogSearch("show"));
 document.getElementById("bkSiteGo").onclick = (e) => busy(e.target, () => bkCatalogSearch("site"));
 
+/* ---- 规划页直达：🎭/🎫 按钮切到预订 tab 对应分区，带入起始城市并自动查询 ---- */
+function planGotoBk(kind, city) {
+  switchTab("book");
+  bkShow(kind);
+  const inp = document.getElementById(BK_CATALOG[kind].cityEl);
+  if (inp && city) inp.value = city; // 行程单入口传行程首城；工具条入口走 bkShow 的回退（规划首城/起始城市下拉）
+  if (inp && !inp.value.trim()) {
+    const sc = document.getElementById("planStartCity");
+    if (sc && sc.value) inp.value = sc.value;
+  }
+  if (inp && inp.value.trim()) bkCatalogSearch(kind);
+}
+document.getElementById("planBkShow").onclick = () => planGotoBk("show");
+document.getElementById("planBkSite").onclick = () => planGotoBk("site");
+
 // 按天卡片：city=该天 base_city，锚点=最后一个带坐标的景点项（VisitItem 判据同 planCard：无 from_city），checkin=开始日期+N−1，checkout=下一天
 function bkRenderPlanDays() {
   const box = document.getElementById("bkHotelDays");
@@ -3580,9 +3668,15 @@ function planBookQuick(plan) {
     if (first) first.scrollIntoView({ block: "nearest" });
     toast(I18N.tf("bk.hotelDaysOk", "已按行程生成按天酒店卡片：点卡片按钮查当天锚点附近酒店"));
   };
+  const bSite = el('<button class="btn mini ghost">' + I18N.tf("bk.siteBtn", "🎫 景点票") + "</button>");
+  bSite.onclick = () => planGotoBk("site", from);
+  const bShow = el('<button class="btn mini ghost">' + I18N.tf("bk.showBtn", "🎭 演出票") + "</button>");
+  bShow.onclick = () => planGotoBk("show", from);
   bar.appendChild(bTrain);
   bar.appendChild(bFlight);
   bar.appendChild(bHotel);
+  bar.appendChild(bSite);
+  bar.appendChild(bShow);
   return bar;
 }
 
@@ -3953,6 +4047,150 @@ document.getElementById("lkAdd").onclick = (e) => busy(e.target, async () => {
 });
 document.getElementById("lkRefresh").onclick = (e) => busy(e.target, lkLoad);
 
+/* ================= 出行人资料（代客预订实名档案；敏感字段脱敏显示） ================= */
+
+const TV = { loaded: false, editing: null }; // editing = 正在修改的 traveler_id
+
+const TV_DOC_ZH = {
+  passport: ["me.tv.dt.passport", "护照"],
+  mainland_id: ["me.tv.dt.mainland", "身份证（大陆）"],
+  hkmo_passport: ["me.tv.dt.hkmo", "港澳通行证"],
+  tw_passport: ["me.tv.dt.tw", "台湾通行证"],
+  foreign_perm_id: ["me.tv.dt.perm", "外国人永居证"],
+};
+
+function tvDocLabel(t) {
+  const key = TV_DOC_ZH[t.doc_type];
+  return key ? I18N.tf(key[0], key[1]) : t.doc_type;
+}
+
+function tvFormReset() {
+  TV.editing = null;
+  ["tvLabel", "tvNameEn", "tvNameZh", "tvDocNo", "tvNat", "tvPhone", "tvEmail"].forEach(id => document.getElementById(id).value = "");
+  ["tvDocExp", "tvDob"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("tvGender").value = "";
+  document.getElementById("tvDocType").value = "passport";
+  document.getElementById("tvConsent").checked = false;
+  document.getElementById("tvSave").textContent = I18N.tf("me.tv.save", "💾 保存出行人");
+}
+
+function tvFormFill(t) {
+  TV.editing = t.id;
+  document.getElementById("tvLabel").value = t.label || "";
+  document.getElementById("tvNameEn").value = t.full_name_en || "";
+  document.getElementById("tvNameZh").value = t.full_name_zh || "";
+  document.getElementById("tvDocType").value = t.doc_type || "passport";
+  document.getElementById("tvDocNo").value = ""; // 脱敏形不回填；留空=不修改证件号
+  document.getElementById("tvDocExp").value = t.doc_expiry || "";
+  document.getElementById("tvNat").value = t.nationality || "";
+  document.getElementById("tvDob").value = t.date_of_birth || "";
+  document.getElementById("tvGender").value = t.gender || "";
+  document.getElementById("tvPhone").value = "";
+  document.getElementById("tvEmail").value = t.email || "";
+  document.getElementById("tvConsent").checked = true;
+  document.getElementById("tvSave").textContent = I18N.tf("me.tv.saving.edit", "💾 保存修改");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function tvLoad() {
+  const box = document.getElementById("tvList");
+  box.innerHTML = '<div class="muted">' + I18N.tf("me.loading", "加载中…") + "</div>";
+  try {
+    const body = await api("/api/v1/travelers", undefined, "GET");
+    TV.loaded = true;
+    const notice = document.getElementById("tvNotice");
+    if (body.consent_notice) notice.textContent = body.consent_notice;
+    box.innerHTML = "";
+    const items = body.travelers || [];
+    if (!items.length) {
+      box.appendChild(el('<div class="muted">' + I18N.tf("me.tv.empty", "还没有出行人。填好下方表单并勾选同意后保存。") + "</div>"));
+      return;
+    }
+    items.forEach(t => {
+      const row = el('<div class="tile"></div>');
+      row.appendChild(el("<div><b>" + esc(t.label || t.full_name_en) + "</b> · " + esc(t.full_name_en) +
+        (t.full_name_zh ? " / " + esc(t.full_name_zh) : "") +
+        ' <span class="badge">' + esc(tvDocLabel(t)) + " " + esc(t.doc_number_masked || "") + "</span>" +
+        (t.doc_expiry ? ' <span class="muted">' + I18N.tf("me.tv.exp", "有效期至 ") + esc(t.doc_expiry) + "</span>" : "") + "</div>"));
+      row.appendChild(el('<div class="muted">' + I18N.tf("me.tv.nat", "国籍") + " " + esc(t.nationality || "?") +
+        (t.date_of_birth ? " · " + t.date_of_birth : "") +
+        (t.gender ? " · " + t.gender.toUpperCase() : "") +
+        (t.phone_masked ? " · 📱 " + esc(t.phone_masked) : "") +
+        (t.email ? " · ✉️ " + esc(t.email) : "") + "</div>"));
+      const ops = el('<div class="ops"></div>');
+      const bEdit = el('<button class="btn mini plain">' + I18N.tf("me.tv.edit", "✏️ 编辑") + "</button>");
+      bEdit.onclick = () => tvFormFill(t);
+      const bDel = el('<button class="btn mini ghost">' + I18N.tf("me.tv.delete", "🗑 删除") + "</button>");
+      bDel.onclick = (ev) => busy(ev.target, async () => {
+        try {
+          await api("/api/v1/travelers/" + t.id, {}, "DELETE");
+          toast(I18N.tf("me.tv.deleted", "已删除（物理删除，不可恢复）"));
+          if (TV.editing === t.id) tvFormReset();
+          await tvLoad();
+        } catch (err) { failToast(err); }
+      });
+      ops.appendChild(bEdit);
+      ops.appendChild(bDel);
+      row.appendChild(ops);
+      box.appendChild(row);
+    });
+  } catch (err) { failToast(err); }
+}
+
+document.getElementById("tvSave").onclick = (e) => busy(e.target, async () => {
+  const docNo = document.getElementById("tvDocNo").value.trim();
+  const editing = TV.editing != null;
+  if (!editing && docNo.length < 4) { toast(I18N.tf("me.tv.needDoc", "证件号至少 4 位")); return; }
+  if (editing && docNo && docNo.length < 4) { toast(I18N.tf("me.tv.needDoc", "证件号至少 4 位")); return; }
+  if (!document.getElementById("tvConsent").checked) { toast(I18N.tf("me.tv.needConsent", "请先勾选同意书")); return; }
+  const body = {
+    label: document.getElementById("tvLabel").value.trim(),
+    full_name_en: document.getElementById("tvNameEn").value.trim(),
+    full_name_zh: document.getElementById("tvNameZh").value.trim() || null,
+    doc_type: document.getElementById("tvDocType").value,
+    doc_number: docNo,
+    doc_expiry: document.getElementById("tvDocExp").value || null,
+    nationality: document.getElementById("tvNat").value.trim(),
+    date_of_birth: document.getElementById("tvDob").value || null,
+    gender: document.getElementById("tvGender").value || null,
+    phone: document.getElementById("tvPhone").value.trim() || null,
+    email: document.getElementById("tvEmail").value.trim() || null,
+    consent: true,
+  };
+  if (!body.full_name_en) { toast(I18N.tf("me.tv.needName", "拼音姓名必填")); return; }
+  if (!body.nationality) { toast(I18N.tf("me.tv.needNat", "国籍必填")); return; }
+  if (editing && !docNo) { toast(I18N.tf("me.tv.needDocOnEdit", "编辑模式请重填证件号（脱敏形不可回填）")); return; }
+  try {
+    if (editing) await api("/api/v1/travelers/" + TV.editing, body, "PUT");
+    else await api("/api/v1/travelers", body, "POST");
+    toast(I18N.tf("me.tv.saved", "出行人已保存（证件号已加密）"));
+    tvFormReset();
+    await tvLoad();
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("tvRefresh").onclick = (e) => busy(e.target, tvLoad);
+
+document.getElementById("tvExport").onclick = (e) => busy(e.target, async () => {
+  try {
+    const body = await api("/api/v1/travelers/export", undefined, "GET");
+    const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+    const a = el('<a href="' + URL.createObjectURL(blob) + '" download="travelers.json"></a>');
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(I18N.tf("me.tv.exported", "已导出明文 JSON（本次导出已记录审计）"));
+  } catch (err) { failToast(err); }
+});
+
+document.getElementById("tvWipe").onclick = (e) => busy(e.target, async () => {
+  if (!confirm(I18N.tf("me.tv.wipeConfirm", "确认删除全部出行人资料？物理删除，不可恢复。"))) return;
+  try {
+    const r = await api("/api/v1/travelers", {}, "DELETE");
+    toast(I18N.tf("me.tv.wiped", "已清空 ") + (r.deleted || 0));
+    tvFormReset();
+    await tvLoad();
+  } catch (err) { failToast(err); }
+});
+
 /* ================= 订单回填（预订 tab 底部，铁律 22 跳转埋点闭环） ================= */
 
 const BF = { loaded: false, map: {}, sel: null };
@@ -4077,6 +4315,7 @@ document.querySelector('.nav-item[data-tab="trips"]').addEventListener("click", 
 document.querySelector('.nav-item[data-tab="me"]').addEventListener("click", () => {
   if (!ME.loaded) prLoad();
   if (!document.getElementById("lkList").childElementCount) lkLoad();
+  if (!TV.loaded) tvLoad();
 });
 document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", () => { if (!BF.loaded) bfLoad(); });
 
