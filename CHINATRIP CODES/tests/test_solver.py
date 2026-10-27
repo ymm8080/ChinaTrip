@@ -384,3 +384,69 @@ def test_plan_poi_hours_parses_lunch_break_complement():
     assert len(hours) == 1 and hours[0].windows
     ws = [(o.hour * 60 + o.minute, c.hour * 60 + c.minute) for o, c in hours[0].windows]
     assert ws == [(9 * 60, 12 * 60), (13 * 60 + 30, 17 * 60)]
+
+
+# --- S5 演出晚间档（show_booking_design §4，2026-10-26） ----------------------
+
+
+def test_show_slot_starts_2010_and_may_pass_day_end():
+    """场演事件：20:10-20:45 开演域，可越常规日终 21:00（散场 21:30 后）。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("v_show", poi_id="p_all", dur=80, best_visit_time="show")],
+    )
+    # 无营业时间条目（种子行未回源 hours 前的常态）→ 开演域 20:10-20:45
+    solved = solve_day(day, poi_hours=[])
+    assert solved is not None
+    start = _minutes(solved.items[0].start_time)
+    assert 20 * 60 + 10 <= start <= 20 * 60 + 45
+    assert _minutes(solved.items[0].end_time) > 21 * 60  # 场演即当日收尾
+
+
+def test_show_slot_with_show_hours_pinned_to_2010():
+    """带场演营业时间（19:00-21:30）时收窄为 20:10 整点开演、21:30 散场。"""
+    hours = [PoiHours(poi_id="p_show", opens=time(19, 0), closes=time(21, 30))]
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("v_show", poi_id="p_show", dur=80, best_visit_time="show")],
+    )
+    solved = solve_day(day, poi_hours=hours)
+    assert solved is not None
+    assert _minutes(solved.items[0].start_time) == 20 * 60 + 10
+    assert _minutes(solved.items[0].end_time) == 21 * 60 + 30
+
+
+def test_show_slot_triggers_on_entertainment_category():
+    """库行 category=entertainment 同样进晚间档（import_shows 种子路径）。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("v_show", poi_id="p_show", dur=80, category="entertainment")],
+    )
+    solved = solve_day(day, poi_hours=[])
+    assert solved is not None
+    assert _minutes(solved.items[0].start_time) >= 20 * 60 + 10
+
+
+def test_show_and_daytime_visit_share_day_without_overlap():
+    """经典耦合（兵马俑白天 + 长恨歌晚场）：同日共存互不挤压。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("v_day", poi_id="p_day", dur=150, best_visit_time="morning"),
+            _visit("v_show", poi_id="p_show", dur=80, best_visit_time="show"),
+        ],
+    )
+    hours = [
+        PoiHours(poi_id="p_day", opens=time(8, 0), closes=time(18, 0)),
+        PoiHours(poi_id="p_show", opens=time(19, 0), closes=time(21, 30)),
+    ]
+    solved = solve_day(day, poi_hours=hours)
+    assert solved is not None
+    show = next(i for i in solved.items if i.item_id == "v_show")
+    dayt = next(i for i in solved.items if i.item_id == "v_day")
+    assert _minutes(dayt.end_time) <= _minutes(show.start_time)
+    assert _minutes(show.start_time) == 20 * 60 + 10

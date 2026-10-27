@@ -1355,7 +1355,8 @@ function planCard(plan) {
             (it.leg_source === "amap" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
-        if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.t("card.grab") + "</a></div>"));
+        if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
+        else if (it.booking_url) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-url="' + esc(it.booking_url) + '"' + (it.category === "entertainment" || it.best_visit_time === "show" ? ' data-show="1"' : "") + '>' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
         blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
@@ -1418,9 +1419,14 @@ function planCard(plan) {
       if (kind === "review") { openReviewBubble(nm, ct); return; }
       if (kind === "book") {
         try {
-          const intent = await api("/api/v1/booking-auto/order-intent", { name: nm, city: ct, tier: "L3" });
+          const bkUrl = fb.getAttribute("data-url"), isShow = fb.getAttribute("data-show") === "1";
+          const intent = await api("/api/v1/booking-auto/order-intent", { name: nm, city: ct, tier: "L3", ...(bkUrl ? { booking_url: bkUrl } : {}) });
           if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
-          toast(intent.requires_user_confirmation ? I18N.tf("plan.bookIntent.confirm","已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录") : I18N.tf("plan.bookIntent.opened","已打开"));
+          // 锁单确认窗文案（show_booking_design §2 路径 A）：提交订单后库存
+          // 仅锁 4–15 分钟（热门更短）——热门票明示窗口紧，不宣传犹豫期
+          toast(intent.requires_user_confirmation
+            ? (isShow ? I18N.tf("plan.bookIntent.showLock","已打开预填下单页——提交订单后库存仅锁定约 4–15 分钟（热门演出更短），请在窗口内完成支付；支付后回「订单」页粘贴订单号自动记录") : I18N.tf("plan.bookIntent.confirm","已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录"))
+            : I18N.tf("plan.bookIntent.opened","已打开"));
           if (intent.handoff_id) {
             // 代订收款预填：预订页「💳 支付」选「保存银行卡」即可挂这条跳转单
             document.getElementById("payHandoff").value = intent.handoff_id;

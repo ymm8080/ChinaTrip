@@ -312,3 +312,19 @@ ACP（Agent Commerce Protocol）= Stripe×OpenAI 2025-09 发布的开源支付�
 - 自锁机制：enrich_ctrip_detail 内置 DESIGN/ctrip_enrich.lock（<90min 让位），
   45 分钟巡检 automation-636cd8c4 与主会话可安全共存/接管
 - 剩余封存：website（无携程/高德源，wiki 弃用）、business_area（仅高德有）
+
+## 演出预订 P0 落地（2026-10-27）✅
+
+> show_booking_design v1.2：04 CSV 入库 + S5 晚间场演档 + 路径 A 预填卡。
+
+| 动作 | 结果 |
+| --- | --- |
+| import_shows 作业（等值匹配防景区误合） | 50 行 → 新插 46（source=show/bvt=show/duration=80）+ 并入 4；重跑全 skip 幂等 |
+| 迁移 0018（ck_pois_best_visit_time 扩 'show'） | 库上枚举原无 show，首插 CheckViolation 实测复现→扩后通过 |
+| solver _SHOW_STARTS 20:10–20:45 | 场演直排域（绕开 21:00 日终钳制），营业时间仍再收紧；PoiHours 19:00–21:30 → 定 20:10 |
+| 路径 A 预填（booking_url 透传） | pois→候选投影→VisitItem→H5 卡片「订票直达」；演出 toast 换锁单窗文案（4–15min） |
+| i18n + sw v36 | en 词典补 plan.bookIntent.showLock / card.showPref / card.showGo；守门通过 |
+
+- 测试：全量 **1300 passed**（本批 +14：import_shows 9 / solver 4 / 透传 1）；ruff 绿。
+- 环境：WSL VM 空闲即整机退出导致 localhost:5432 转发间歇断（残留 wslrelay 霸端口）——
+  长任务须挂 `wsl sleep` 钉住 VM；根因待根治（keepalive 计划项）。

@@ -2288,6 +2288,35 @@ def test_en_fields_passthrough_for_bilingual_cards():
     assert v1.name_en is None and v1.address_en is None
 
 
+def test_show_fields_passthrough_for_prefill_card():
+    """演出预订 P0（show_booking_design 路径 A）：库行 booking_url（携程
+    sight SKU 页）+ entertainment 类别 + show 时段随条目并出——H5 订票
+    直达直开成品页，solver 晚间场演档触发。"""
+
+    class ShowStore(LibraryStore):
+        def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+            rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
+            rows[0]["booking_url"] = "https://gs.ctrip.com/html5/you/sight/xian7/136558.html"  # noqa: E501
+            rows[0]["category"] = "entertainment"
+            rows[0]["best_visit_time"] = "show"
+            return rows
+
+    items = [{"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60}]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=ShowStore(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    v0 = next(v for v in all_visits(session) if v.name == "库景点0")
+    assert v0.booking_url == "https://gs.ctrip.com/html5/you/sight/xian7/136558.html"
+    assert v0.category == "entertainment"  # 演出库行类别以库为准
+    assert v0.best_visit_time == "show"
+
+
 def test_lang_param_persists_on_session():
     """双语 P2：lang=en 落会话；非法 lang 忽略回中文默认。"""
     items = [{"name": "库景点0", "city": "上海", "day": 1, "duration_minutes": 60}]

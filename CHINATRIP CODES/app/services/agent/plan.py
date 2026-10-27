@@ -2875,6 +2875,8 @@ class PlanningAgent:
                 "evening": "宜傍晚",
                 "sunset": "宜日落",
                 "sunrise": "宜清晨",
+                # S5 演出：晚间场演事件，作当日收尾（solver 固定 20:10 档）
+                "show": "晚间演出（当日收尾）",
             }.get(bvt)
             if bvt_zh:
                 parts.append(bvt_zh)
@@ -3234,7 +3236,13 @@ class PlanningAgent:
                     item_id=f"v{self._item_seq}",
                     name=spec["name"],
                     poi_id=(cand or {}).get("source_poi_id"),
-                    category=spec.get("category"),
+                    # S5（show_booking_design §4）：演出库行的 entertainment
+                    # 类别以库为准（solver 晚间场演档触发键之一）
+                    category=(
+                        "entertainment"
+                        if (cand or {}).get("category") == "entertainment"
+                        else spec.get("category")
+                    ),
                     city=spec["city"],
                     location=location,
                     address=(cand or {}).get("address"),
@@ -3246,6 +3254,9 @@ class PlanningAgent:
                     opening_hours=(cand or {}).get("opening_hours"),
                     # 8.2.1 联动：库候选的时段属性随条目进 solver 开窗
                     best_visit_time=(cand or {}).get("best_visit_time"),
+                    # 路径 A 预填（show_booking_design §2）：poi.booking_url
+                    # （演出=携程 sight SKU 页）随条目并出，H5 票务直达直开
+                    booking_url=(cand or {}).get("booking_url"),
                     reservation_hint=_reservation_hint(spec["name"], cand or {}),
                     # 8.1.4：露天属性透传（H5 雨天横幅用）
                     rain_ok=(cand or {}).get("rain_ok"),

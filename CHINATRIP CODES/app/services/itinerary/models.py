@@ -61,6 +61,10 @@ class VisitItem(BaseModel):
     # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
     # None = 无信号（老数据/占位），按全天窗处理。
     best_visit_time: str | None = None
+    # 路径 A 预填（show_booking_design §2，2026-10-26）：库行 booking_url
+    # （演出=携程 sight SKU 页）并出——H5 票务直达直开成品页，跳过搜索；
+    # None=无库链接，H5 走 order-intent 的 geo 模板兜底。
+    booking_url: str | None = None
     # G1（§14.3）：预约制门票提示（展示层，solver 不约束——预约是用户
     # 侧动作；「现在就订·提前 N 天·放票 08:00」在卡片亮出）
     reservation_hint: str | None = None

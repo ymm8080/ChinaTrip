@@ -45,6 +45,16 @@ _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
     "sunrise": (8 * 60, 10 * 60 + 30),  # 08:00-10:30 近似窗
 }
 
+#: S5（show_booking_design §4，2026-10-26）：演出=晚间场演事件——
+#: 开演域 20:10-20:45（散场至 21:30 前后），允许越常规日终 21:00
+#: （场演即当日收尾事件，后续无排项）。触发：库行 best_visit_time="show"
+#: （import_shows 种子）或 category=entertainment。
+_SHOW_STARTS = (20 * 60 + 10, 20 * 60 + 45)
+
+
+def _is_show(item: VisitItem) -> bool:
+    return item.best_visit_time == "show" or item.category == "entertainment"
+
 _MINUTES_PER_DAY = 24 * 60
 
 
@@ -81,10 +91,15 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
     # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理
     # 不约束（防御库脏数据）；food 类条目不带该字段（plan.py 走 pinned 餐
     # 窗），天然不受影响。
-    best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
-    if best is not None:
-        lo = max(lo, best[0])
-        hi = min(hi, best[1] - dur)
+    if _is_show(item):
+        # S5 场演窗：直接替换默认域（不看 _BEST_VISIT_WINDOWS——其 hi 会
+        # 被 21:00 日终钳掉 20:10 开演）；营业时间窗仍照常再收紧。
+        lo, hi = _SHOW_STARTS
+    else:
+        best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
+        if best is not None:
+            lo = max(lo, best[0])
+            hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
     multi: list[tuple[int, int]] | None = None
     if window is not None and window.windows:
