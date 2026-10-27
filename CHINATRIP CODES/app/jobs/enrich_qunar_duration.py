@@ -57,6 +57,8 @@ _SOURCE_PRIORITY = (
     "museum2",
     "museum3",
     "artmuseum",
+    "street",
+    "histown",
     "amap",
     "chinatravel",
     "osm",

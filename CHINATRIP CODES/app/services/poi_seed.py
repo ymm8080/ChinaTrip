@@ -33,7 +33,16 @@ logger = logging.getLogger(__name__)
 
 #: curated 名单源——同馆去重时权威行优先（curated 行吸收渠道孪生）
 CURATED_SOURCES = frozenset(
-    {"museum1", "museum2", "museum3", "artmuseum", "unesco", "5a"}
+    {
+        "museum1",
+        "museum2",
+        "museum3",
+        "artmuseum",
+        "unesco",
+        "5a",
+        "street",
+        "histown",
+    }
 )
 
 #: 省级行政区名（直辖市兼市名）——museum/unesco 等 curated 骨架 city

@@ -321,3 +321,77 @@ def test_run_import_ungraded_no_tag(monkeypatch):
     assert kw["tags"] is None
     assert kw["tags_source"] is None
     assert kw["origin"] == "curated"
+
+
+# ---------- street / histown：街区与名镇体系（2026-10-28 并入） ----------
+
+
+def test_grade_source_street_histown():
+    assert job.grade_source("国家级旅游休闲街区") == "street"
+    assert job.grade_source("旅游休闲街区") == "street"  # 简写容忍
+    assert job.grade_source("中国历史文化名镇") == "histown"
+    assert job.grade_source("历史文化名镇") == "histown"
+    assert job.grade_source("中国历史文化名村") is None  # 名村未并入
+
+
+def test_load_rows_street_and_histown(tmp_path):
+    p = tmp_path / "s.csv"
+    p.write_text(
+        "name_zh,province,city,grade,batch,alias_zh,source_url\n"
+        "前门大街,北京,北京,国家级旅游休闲街区,第一批(2022),,http://x\n"
+        "周庄镇,江苏,苏州,中国历史文化名镇,第一批(2003),,\n",
+        encoding="utf-8",
+    )
+    rows, invalid = job.load_rows(str(p))
+    assert invalid == 0 and len(rows) == 2
+    street, town = rows
+    assert street["source"] == "street"
+    assert street["source_poi_id"].startswith("st_")
+    assert street["label"] == "国家级旅游休闲街区"
+    assert street["origin"] == "mct"
+    assert street["batch"] == "第一批(2022)"
+    assert town["source"] == "histown"
+    assert town["source_poi_id"].startswith("ht_")
+    assert town["origin"] == "mohurd"
+
+
+def test_run_import_street_and_histown_skeleton(monkeypatch):
+    seen = []
+
+    def fake_seed(factory, model, **kw):
+        seen.append(kw)
+        return "created"
+
+    monkeypatch.setattr(job, "seed_upsert", fake_seed)
+    job.run_import(
+        _FakeFactory(),
+        [
+            {
+                "source": "street",
+                "source_poi_id": "st_x",
+                "city": "北京",
+                "name_zh": "前门大街",
+                "label": "国家级旅游休闲街区",
+                "origin": "mct",
+                "batch": "第一批(2022)",
+                "aliases": [],
+            },
+            {
+                "source": "histown",
+                "source_poi_id": "ht_y",
+                "city": "苏州",
+                "name_zh": "周庄镇",
+                "label": "中国历史文化名镇",
+                "origin": "mohurd",
+                "batch": "第一批(2003)",
+                "aliases": [],
+            },
+        ],
+    )
+    street_kw, town_kw = seen
+    assert street_kw["category"] == "历史遗迹"
+    assert street_kw["tags"] == ["国家级旅游休闲街区"]
+    assert street_kw["tags_source"] == "mct"
+    assert town_kw["category"] == "文化村/古镇"
+    assert town_kw["tags"] == ["中国历史文化名镇"]
+    assert town_kw["tags_source"] == "mohurd"
