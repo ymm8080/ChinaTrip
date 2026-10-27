@@ -354,3 +354,16 @@ def test_shows_db_down_returns_503():
         "/api/v1/booking-auto/shows", params={"city": "西安"}
     )
     assert resp.status_code == 503
+
+
+def test_sites_catalog_route_wired_same_shape():
+    """🎫 景点分区走 /sites：与 /shows 同构（ShowCard 投影 + 复合市名匹配复用）。"""
+    rows = [_show_row(name_zh="故宫博物院", city="北京", booking_url=None), _show_row()]
+    resp = _shows_app(_ShowSession(rows)).get(
+        "/api/v1/booking-auto/sites", params={"city": "北京"}
+    )
+    assert resp.status_code == 200
+    shows = resp.json()["shows"]
+    assert len(shows) == 2
+    assert shows[0]["name"] == "故宫博物院"
+    assert shows[0]["has_direct"] is False

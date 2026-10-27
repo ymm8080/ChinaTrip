@@ -69,11 +69,36 @@ async def shows(
     limit: int = Query(default=30, ge=1, le=100),
     factory: Callable[[], Session] = Depends(get_show_session_factory),
 ) -> dict:
-    """演出票务目录：H5 预订页「🎭 演出」分区数据源（show_booking §2）。
+    """演出票务目录：H5 预订页「🎭 演出」分区数据源（show_booking §2）。"""
+    return await _catalog("show", city, q, limit, factory)
 
-    筛选 category=entertainment 或 best_visit_time=show；带 booking_url
-    （携程 sight SKU 直达）的排前。DB 不可用 → 503 诚实失败（铁律：
-    失败必须留日志，不静默编造空列表）。
+
+@router.get("/sites")
+async def sites(
+    city: str | None = Query(default=None, max_length=50),
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=30, ge=1, le=100),
+    factory: Callable[[], Session] = Depends(get_show_session_factory),
+) -> dict:
+    """景点门票目录：H5 预订页「🎫 景点」分区数据源（/shows 同构）。"""
+    return await _catalog("site", city, q, limit, factory)
+
+
+# 「🎫 景点」候选集：可售门票的旅游品类（entertainment 归 🎭 演出分区）
+_SITE_CATEGORIES = ("attraction", "museum", "theme_park", "park", "nature", "viewpoint")
+
+
+async def _catalog(
+    kind: str,
+    city: str | None,
+    q: str | None,
+    limit: int,
+    factory: Callable[[], Session],
+) -> dict:
+    """kind=show：category=entertainment 或 bvt=show；kind=site：旅游品类全量。
+
+    带 booking_url（渠道直达 SKU）的排前；site 再按 rating 热度。DB
+    不可用 → 503 诚实失败（铁律：失败必须留日志，不静默编造空列表）。
     """
     from app.api.pois import _city_variants
 
@@ -87,15 +112,15 @@ async def shows(
                         Poi.name_en,
                         Poi.city,
                         Poi.booking_url,
+                        Poi.rating,
                         Poi.intro,
                         Poi.intro_en,
                     )
                 )
                 .filter(
-                    or_(
-                        Poi.category == "entertainment",
-                        Poi.best_visit_time == "show",
-                    )
+                    or_(Poi.category == "entertainment", Poi.best_visit_time == "show")
+                    if kind == "show"
+                    else Poi.category.in_(_SITE_CATEGORIES)
                 )
             )
             variants = _city_variants(city or "")
@@ -111,13 +136,18 @@ async def shows(
                 query = query.filter(
                     or_(Poi.name_zh.ilike(like), Poi.name_en.ilike(like))
                 )
-            rows = (
-                query.order_by(Poi.booking_url.is_(None), Poi.name_zh)
-                .limit(limit)
-                .all()
+            order = (
+                [Poi.booking_url.is_(None), Poi.name_zh]
+                if kind == "show"
+                else [
+                    Poi.booking_url.is_(None),
+                    Poi.rating.desc().nullslast(),
+                    Poi.name_zh,
+                ]
             )
+            rows = query.order_by(*order).limit(limit).all()
     except Exception:
-        logger.error("shows: poi store unavailable", exc_info=True)
+        logger.error("%s: poi store unavailable", kind, exc_info=True)
         raise HTTPException(status_code=503, detail="poi store unavailable") from None
     cards = [
         ShowCard(

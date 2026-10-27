@@ -644,6 +644,7 @@
           <button class="chip on" data-bk="train" data-i18n="book.train">🚄 火车票</button>
           <button class="chip" data-bk="flight" data-i18n="book.flight">✈️ 机票</button>
           <button class="chip" data-bk="hotel" data-i18n="book.hotel">🏨 酒店</button>
+          <button class="chip" data-bk="site" data-i18n="book.site">🎫 景点</button>
           <button class="chip" data-bk="show" data-i18n="book.show">🎭 演出</button>
         </span>
         <span class="sep"></span>
@@ -683,6 +684,15 @@
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
+      </div>
+
+      <div class="bk-pane" id="bk-site">
+        <div class="toolbar">
+          <label class="fld"><span data-i18n="trips.city">城市</span> <input type="text" id="bkSiteCity" placeholder="如：北京" data-i18n-ph="book.phSiteCity"></label>
+          <label class="fld grow"><span data-i18n="book.siteKw">景点名</span> <input type="text" id="bkSiteKw" class="grow" placeholder="如：故宫（可留空看热门）" data-i18n-ph="book.phSiteKw"></label>
+          <button class="btn" id="bkSiteGo" data-i18n="book.siteGoBtn">🎫 查景点票</button>
+        </div>
+        <div class="flow" id="flow-book-site"></div>
       </div>
 
       <div class="bk-pane" id="bk-show">
@@ -3224,8 +3234,8 @@ function bkShow(kind) {
   document.querySelectorAll("#bookTabs .chip").forEach(c => c.classList.toggle("on", c.dataset.bk === kind));
   document.querySelectorAll("#tab-book .bk-pane").forEach(p => p.classList.toggle("on", p.id === "bk-" + kind));
   if (kind === "hotel") bkRenderPlanDays();
-  if (kind === "show") {
-    const inp = document.getElementById("bkShowCity");
+  if (kind === "show" || kind === "site") {
+    const inp = document.getElementById(BK_CATALOG[kind].cityEl);
     if (inp && !inp.value.trim() && BOOK.plan && BOOK.plan.cities && BOOK.plan.cities[0]) inp.value = BOOK.plan.cities[0];
   }
 }
@@ -3409,51 +3419,65 @@ async function bkHotelSearch() {
 }
 document.getElementById("bkHotelGo").onclick = (e) => busy(e.target, bkHotelSearch);
 
-/* ---- 🎭 演出（04 CSV 底库，show_booking P0：直达 SKU 或 geo 分流模板） ---- */
+/* ---- 🎫 景点 / 🎭 演出（POI 底库目录：直达 SKU 或 geo 分流模板） ---- */
 
-function showRefundSummary() {
-  return I18N.tf("bk.showRefund", "演出票人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
+function showRefundSummary(kind) {
+  const label = kind === "site" ? "门票" : "演出票";
+  return I18N.tf(kind === "site" ? "bk.siteRefund" : "bk.showRefund",
+    label + "人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
 }
-function bkShowCard(s, city) {
+function bkShowCard(s, city, kind) {
   const tile = el('<div class="tile"></div>');
   const head = el('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>');
   head.appendChild(el('<b style="font-size:14px">' + esc(I18N.pick(s, "name", "name_en")) + "</b>"));
   head.appendChild(el('<span class="badge ' + (s.has_direct ? "ok" : "") + '">' + (s.has_direct ? I18N.tf("bk.showDirect", "直达票页") : I18N.tf("bk.showSearch", "渠道搜索")) + "</span>"));
   tile.appendChild(head);
   if (s.note) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + esc(s.note) + "</div>"));
-  tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(showRefundSummary()) + "</div>"));
+  tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(showRefundSummary(kind)) + "</div>"));
   const btn = el('<button class="btn mini ghost"></button>');
   btn.textContent = I18N.tf("card.showGo", "订票直达 →");
   if (!s.has_direct) btn.title = I18N.tf("bk.showNoDirect", "库内无直达票页：确认后按网络环境跳渠道搜索页");
-  btn.onclick = () => bkConfirmOpen(null, s.booking_url, { summary: showRefundSummary() }, null,
+  btn.onclick = () => bkConfirmOpen(null, s.booking_url, { summary: showRefundSummary(kind) }, null,
     { name: s.name, city: s.city || city, booking_url: s.booking_url });
   tile.appendChild(btn);
   return tile;
 }
-async function bkShowSearch() {
-  const city = document.getElementById("bkShowCity").value.trim();
-  const kw = document.getElementById("bkShowKw").value.trim();
+const BK_CATALOG = {
+  show: {
+    path: "/api/v1/booking-auto/shows", cityEl: "bkShowCity", kwEl: "bkShowKw", flow: "flow-book-show",
+    echo: "🎭 演出票查询：", empty: "该城市暂无演出库数据（04 CSV 覆盖有限），可换城市试试。", listSuf: " · 演出票务"
+  },
+  site: {
+    path: "/api/v1/booking-auto/sites", cityEl: "bkSiteCity", kwEl: "bkSiteKw", flow: "flow-book-site",
+    echo: "🎫 门票查询：", empty: "该城市暂无匹配景点：换个关键词，或留空看热门榜。", listSuf: " · 景点门票"
+  }
+};
+async function bkCatalogSearch(kind) {
+  const cfg = BK_CATALOG[kind];
+  const city = document.getElementById(cfg.cityEl).value.trim();
+  const kw = document.getElementById(cfg.kwEl).value.trim();
   if (!city) { toast(I18N.tf("bk.needCity", "城市必填")); return; }
-  addMsg("flow-book-show", "user", I18N.tf("bk.showEcho", "🎭 演出票查询：") + city + (kw ? " · " + kw : ""));
-  const holder = addMsg("flow-book-show", "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
+  addMsg(cfg.flow, "user", I18N.tf("bk." + kind + "Echo", cfg.echo) + city + (kw ? " · " + kw : ""));
+  const holder = addMsg(cfg.flow, "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
   try {
-    const body = await api("/api/v1/booking-auto/shows?city=" + encodeURIComponent(city) + (kw ? "&q=" + encodeURIComponent(kw) : ""), undefined, "GET");
+    const body = await api(cfg.path + "?city=" + encodeURIComponent(city) + (kw ? "&q=" + encodeURIComponent(kw) : ""), undefined, "GET");
     holder.textContent = "";
     const shows = (body && body.shows) || [];
     if (!shows.length) {
-      holder.appendChild(el('<div class="muted">' + I18N.tf("bk.showEmpty", "该城市暂无演出库数据（04 CSV 覆盖有限），可换城市试试。") + "</div>"));
+      holder.appendChild(el('<div class="muted">' + I18N.tf("bk." + kind + "Empty", cfg.empty) + "</div>"));
       return;
     }
-    const wrap = el('<div class="card"><h4>🎭 ' + esc(city) + I18N.tf("bk.showListSuf", " · 演出票务") + "</h4></div>");
-    shows.forEach(s => wrap.appendChild(bkShowCard(s, city)));
+    const wrap = el('<div class="card"><h4>' + (kind === "site" ? "🎫" : "🎭") + " " + esc(city) + I18N.tf("bk." + kind + "ListSuf", cfg.listSuf) + "</h4></div>");
+    shows.forEach(s => wrap.appendChild(bkShowCard(s, city, kind)));
     holder.appendChild(wrap);
   } catch (err) {
     holder.textContent = bkErrMsg(err);
     failToast(err);
   }
-  document.getElementById("flow-book-show").scrollTop = 1e9;
+  document.getElementById(cfg.flow).scrollTop = 1e9;
 }
-document.getElementById("bkShowGo").onclick = (e) => busy(e.target, bkShowSearch);
+document.getElementById("bkShowGo").onclick = (e) => busy(e.target, () => bkCatalogSearch("show"));
+document.getElementById("bkSiteGo").onclick = (e) => busy(e.target, () => bkCatalogSearch("site"));
 
 // 按天卡片：city=该天 base_city，锚点=最后一个带坐标的景点项（VisitItem 判据同 planCard：无 from_city），checkin=开始日期+N−1，checkout=下一天
 function bkRenderPlanDays() {
