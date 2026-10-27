@@ -55,6 +55,7 @@ _SHOW_STARTS = (20 * 60 + 10, 20 * 60 + 45)
 def _is_show(item: VisitItem) -> bool:
     return item.best_visit_time == "show" or item.category == "entertainment"
 
+
 _MINUTES_PER_DAY = 24 * 60
 
 

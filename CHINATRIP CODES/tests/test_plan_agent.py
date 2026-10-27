@@ -2296,7 +2296,9 @@ def test_show_fields_passthrough_for_prefill_card():
     class ShowStore(LibraryStore):
         def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
             rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
-            rows[0]["booking_url"] = "https://gs.ctrip.com/html5/you/sight/xian7/136558.html"  # noqa: E501
+            rows[0]["booking_url"] = (
+                "https://gs.ctrip.com/html5/you/sight/xian7/136558.html"  # noqa: E501
+            )
             rows[0]["category"] = "entertainment"
             rows[0]["best_visit_time"] = "show"
             return rows
