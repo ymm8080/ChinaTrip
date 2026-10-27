@@ -63,7 +63,7 @@ class WeatherView(BaseModel):
     forecast: dict | None = None
     forecast_report_time: datetime | None = None
     # Open-Meteo 14 天逐日（source=open-meteo, kind=forecast14），payload 与
-    # forecast 同构（casts 数组）；0-3 天两源都有，前端先高德后此源
+    # forecast 同构（casts 数组）；0-7 天两源都有，前端先短轨（百度）后此源
     forecast14: dict | None = None
     fetched_at: datetime | None = None
 

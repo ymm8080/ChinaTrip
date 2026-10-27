@@ -169,6 +169,8 @@ def test_city_to_adcode():
     assert city_to_adcode("北京") == "110000"
     assert city_to_adcode("重庆市") == "500000"  # 「市」后缀容错
     assert city_to_adcode("110000") == "110000"  # adcode 直传
+    assert city_to_adcode("SHANGHAI") == "310000"  # 英文别名归一(2026-10-28)
+    assert city_to_adcode("shanghai") == "310000"
     assert city_to_adcode(" Atlantis ") is None
     assert city_to_adcode("") is None
     assert city_to_adcode(None) is None

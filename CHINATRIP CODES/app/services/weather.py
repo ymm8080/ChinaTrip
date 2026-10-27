@@ -66,6 +66,17 @@ CITY_ADCODES = {
 }
 
 
+def normalize_city_name(city: str) -> str:
+    """「市」后缀容错 + 英文别名归一（SHANGHAI→上海，2026-10-28 流水线日志
+    实测行程城市含英文名）。CITY_ALIASES 惰性导入防循环依赖。"""
+    s = city.strip().removesuffix("市")
+    if s not in CITY_ADCODES:
+        from app.services.agent.plan import CITY_ALIASES
+
+        s = CITY_ALIASES.get(s.lower(), s)
+    return s
+
+
 def city_to_adcode(city: str | None) -> str | None:
     """城市名 → adcode；「市」后缀容错；6 位数字直接视为 adcode 透传。"""
     if not city:
@@ -73,7 +84,7 @@ def city_to_adcode(city: str | None) -> str | None:
     s = city.strip()
     if s.isdigit() and len(s) == 6:
         return s
-    return CITY_ADCODES.get(s.removesuffix("市"))
+    return CITY_ADCODES.get(normalize_city_name(s))
 
 
 def parse_report_time(value: str | None) -> datetime | None:

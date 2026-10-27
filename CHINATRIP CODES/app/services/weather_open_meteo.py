@@ -203,7 +203,7 @@ async def fetch_forecast14(
 
     client 可注入（测试 MockTransport）；缺省自建。
     """
-    from app.services.weather import city_to_adcode, upsert_weather
+    from app.services.weather import city_to_adcode, normalize_city_name, upsert_weather
 
     stats = {
         "cities": 0,
@@ -215,7 +215,7 @@ async def fetch_forecast14(
     }
     async with client or httpx.AsyncClient(timeout=timeout_seconds) as http:
         for city in cities:
-            coords = CITY_COORDS.get(city.removesuffix("市"))
+            coords = CITY_COORDS.get(normalize_city_name(city))
             adcode = city_to_adcode(city)
             if not coords or not adcode:
                 stats["skipped"] += 1
