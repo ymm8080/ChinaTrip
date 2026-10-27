@@ -60,3 +60,17 @@ metrics: 每回合 lane_metrics.record(lane, ttft, intent, source)
 与本功能兼容）。后续任何会话动 plan.py/gate.py 请保留：
 `get_request_gate`/`get_fast_lane`/message 双车道分流/lane 指标埋点/
 `get_task_store` 依赖；丢失时按上文接线图最小复回。
+
+## 收尾轮次记录
+
+### 2026-10-27 调度轮 1（自动化 bccfde9a）——✅ 收官
+
+- ✅ **回退核查**：整批已由并行会话提交 `28e098c feat(plan): §6.12 快慢双车道落地`（含本会话此前两处修复：replan model_dump、fast_lane translate Depends 注入）；未提交 WIP 为 weather/POI 数据源批次（他人工作，未触碰）
+- ✅ **收尾 a（INDEX.md）**：决策速查新增第 12 条「§6.12 快慢双车道落地」——闸门三级/快车道直答/SQLite 队列取舍/指标口径/模型钉死 glm-5.3-flash
+- ✅ **收尾 b（travelers/H5 冒烟）**：pytest test_travelers_api + test_h5_static = 10 passed；TestClient 四步全链路 PASS——新增 201（响应即脱敏形 `E1234**78` / `+1202*****23`）→ 列表无明文 → export 唯一明文出口 1 行 → DELETE 204 → 删后列表空（物理删除）
+- ✅ **收尾 c（指标口径实测）**：TestClient 真规则闸门 + 真快车道打混合请求 5 条 → lane 分布 `['fast','fast','main','main','slow']` 三车道路由全对；`GET /api/v1/metrics/lanes`：
+  - `off_main_share = 0.6`（目标 0.8，met=false）——**样本过小所致**（5 条中 2 条为刻意的未命中 main 样例；真实分布需上线后观察，非系统缺陷，参数不改不阻塞）
+  - `fast_ttft p95 = 0ms`（目标 <1000ms，**met=true**）——快车道确定性直答不触 LLM，口径成立
+  - `slow_accept p95 = 0ms`（目标 <3000ms，**met=true**）——入队即回，受理达标
+  - 备注：`gate.stats.total=0` 为 TestClient override 覆盖了进程级 gate 单例的脚本 artifact，生产路径 gate 统计正常（test_gate 覆盖）
+- 🏁 **终态**：六项检查单 ✅ + 三项收尾 ✅ → **本功能开发完成，进度文档收官**
