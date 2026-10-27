@@ -86,6 +86,11 @@
 - **B1**：~~仍待 PG 凭据~~ → **✅ 已核销（2026-10-28，用户启动 PG 后实测）**：
   缩写行 674 → 模板同源重生成 711 + 定向替换 70 → **终态 0 / 1886**（38 行原列已是
   英文/复杂文本正确跳过）；中文原列未动。唯一外部阻塞清零，审计任务全部闭环。
+- **通话记录测试时序偶发（轮 #84，2026-10-28 04:07）**：
+  `test_call_api.py::test_records_show_start_end_duration_and_minutes` 单跑即过、
+  文件 10-25 未动——answer→end 两次请求的真实墙钟间隔满载可超 60s，击穿「≈0 用时
+  整分钟退回」前提。最小修复：测试内冻结 call_service 时钟（monkeypatch 模块级
+  datetime），consumed=0 成为确定性前提。单文件 9 passed、全量 1386/0（commit b1604d9）。
 - **PG 启用引发的 44 连败（环境性，非代码回归）**：PG 可达后部分存储走 PG 路径
   （0015 行程状态落 PG 设计），而该 PG schema 不全（pois 有数据但 trip_items 等缺失
   ——历史 stamp 未跑全迁移）；按 runbook `alembic upgrade head` 补全 21 表后
