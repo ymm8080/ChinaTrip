@@ -74,10 +74,12 @@ paid_call 进度文档 T6 记录过并行编辑写坏 `index.html` 引号、整�
 
 ## 核销注记（2026-10-27 审计轮追加）
 
-- **B1**：口径已在 2026-10-25 定案为**全称**（"Monday–Sunday"，用户拍板，代码与测试均已
-  实现，language_dual 设计 v1.5 已回写）。待查项相应变为：PG `pois.hours_en` 是否残留
-  **早期缩写行**（"Mon–Sun …"）——有则用 `--source` 定向回填统一。本轮环境无 PG 连接
-  （postgres MCP 凭据未配置），维持待查。
+- **B1**：✅ **已核销（2026-10-28）**。PG 连接可用后实测：pois opening_hours_en 共 1886 行，
+  其中缩写行 **674**（"Mon–Sun …" 等，口径定案前夜间作业产物，只填空语义导致从未被统一）。
+  修复：复用 `backfill_en_columns.template_hours_en` 同源模板定向重生成 711 行 +
+  缩写→全称定向替换 67 行 + 词边界补齐 3 行；模板出不了全称的 38 行（原列已是英文/
+  复杂 LLM 文本，如苏州博物馆分段公告）正确跳过不覆盖。**终态：缩写行 0 / 1886，
+  全称行 1416**。中文原列 opening_hours 全程未动，可再推导。 restaurants 表 EN 行为 0，无涉及。
 - **B2**：核销——call_orders / call_sessions / call_minutes_entries 三表按设计 v1.2
   只存 SQLite 侧库 `app/services/call_store.py`；原「预留 0013」槽位注释早已过期
   （链现至 w12_0018），alembic 不再补 call 表迁移，该承诺不再追踪。
