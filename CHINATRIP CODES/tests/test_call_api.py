@@ -213,7 +213,21 @@ def test_device_header_required_and_device_isolation():
 # --- 记录（v1.2 评审要求：日期时间/时长/状态/分钟流水） ------------------------
 
 
-def test_records_show_start_end_duration_and_minutes():
+def test_records_show_start_end_duration_and_minutes(monkeypatch):
+    # 冻结 call_service 的时钟：answer→end 的真实墙钟间隔在全量跑满载时若
+    # 超过 60s，「≈0 用时整分钟退回」前提被击穿（2026-10-28 偶发 balance 9）。
+    # 冻结后 started_at == ended_at，consumed=0 成为确定性前提。
+    from datetime import datetime as _dt
+
+    import app.services.call_service as call_mod
+
+    class _FrozenDT(_dt):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 28, 12, 0, 0)
+
+    monkeypatch.setattr(call_mod, "datetime", _FrozenDT)
+
     order_id = _buy(10)
     s = _open(10)
     client.post(
