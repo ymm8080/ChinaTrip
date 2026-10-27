@@ -11,6 +11,11 @@ name_aliases 带曾用名（湖南博物院 ← 湖南省博物馆）。
 grade=国家重点美术馆 → tags=[国家重点美术馆]（origin=mct）；
 grade=未评级 → 仅骨架、无等级标签（origin=curated，如浦东美术馆）。
 
+国家级旅游休闲街区（文旅部+发改委）与中国历史文化名镇（住建部+
+文物局）自 2026-10-28 起同作业收录：source=street / histown
+（data/streets.csv、data/hist_towns.csv），tags=[体系名]，
+origin/tags_source=mct / mohurd，category=历史遗迹 / 文化村古镇。
+
 铁律对齐：只写骨架（名称/城市/类别/标签/别名），不写 hours/price
 等时间敏感字段；坐标留空，由回源链（refresh_pois / enrich_*）后续
 补齐。权威口径见工作区调研《博物馆分级数据源调研.md》（2026-10-25）：
@@ -20,7 +25,8 @@ grade=未评级 → 仅骨架、无等级标签（origin=curated，如浦东美�
 数据文件 data/museum_grades.csv（UTF-8），列：
     name_zh,province,city,grade,batch,alias_zh,source_url
 grade ∈ 国家一级博物馆/国家二级博物馆/国家三级博物馆/国家重点美术馆/
-未评级（容忍「一级」等简写）；alias_zh 多别名用 ';' 分隔；city 缺省
+未评级/国家级旅游休闲街区/中国历史文化名镇（容忍「一级」等简写）；
+alias_zh 多别名用 ';' 分隔；city 缺省
 回退 province（直辖市省市同名）。判重键 (source, source_poi_id)，
 source_poi_id = source 前缀 + 名称 SHA1——幂等重跑只补新增，不覆盖
 已有行（骨架铁律，同 poi_seed）。
@@ -51,6 +57,8 @@ _GRADE_SOURCE: dict[str, str] = {
     "国家三级博物馆": "museum3",
     "国家重点美术馆": "artmuseum",  # 文旅部美术馆评估体系（2026-10-26 并入）
     "未评级": "artmuseum",  # 无全国性等级的策展馆：只进骨架，无标签
+    "国家级旅游休闲街区": "street",  # 文旅部+发改委（2026-10-28 并入）
+    "中国历史文化名镇": "histown",  # 住建部+文物局（2026-10-28 并入）
 }
 _SOURCE_LABEL: dict[str, str] = {v: k for k, v in _GRADE_SOURCE.items()}
 _SOURCE_SLUG: dict[str, str] = {
@@ -58,8 +66,30 @@ _SOURCE_SLUG: dict[str, str] = {
     "museum2": "m2",
     "museum3": "m3",
     "artmuseum": "a1",
+    "street": "st",
+    "histown": "ht",
 }
 _TAGGED_GRADES = frozenset(_GRADE_SOURCE) - {"未评级"}
+
+#: 体系主管机构 → 有等级标签行的 origin / tags_source；未评级行仍 curated
+_SOURCE_AUTHORITY: dict[str, str] = {
+    "museum1": "cma",
+    "museum2": "cma",
+    "museum3": "cma",
+    "artmuseum": "mct",
+    "street": "mct",
+    "histown": "mohurd",
+}
+
+#: source → 骨架 category（seed_upsert 内经 normalize_category 归一）
+_SOURCE_CATEGORY: dict[str, str] = {
+    "museum1": "博物馆/纪念馆",
+    "museum2": "博物馆/纪念馆",
+    "museum3": "博物馆/纪念馆",
+    "artmuseum": "博物馆/纪念馆",
+    "street": "历史遗迹",  # → historic
+    "histown": "文化村/古镇",  # → ancient_town
+}
 
 
 def grade_source(grade: str | None) -> str | None:
@@ -110,9 +140,7 @@ def load_rows(csv_path: str) -> tuple[list[dict], int]:
                     "name_zh": name,
                     "label": grade if grade in _TAGGED_GRADES else None,
                     "origin": (
-                        "cma"
-                        if src.startswith("museum")
-                        else ("mct" if grade in _TAGGED_GRADES else "curated")
+                        _SOURCE_AUTHORITY[src] if grade in _TAGGED_GRADES else "curated"
                     ),
                     "batch": (raw.get("batch") or "").strip(),
                     "aliases": aliases,
@@ -149,10 +177,10 @@ def run_import(factory, rows: list[dict], *, dry_run: bool = False) -> dict:
             source_poi_id=r["source_poi_id"],
             city=r["city"],
             name_zh=r["name_zh"],
-            category="博物馆/纪念馆",
+            category=_SOURCE_CATEGORY[r["source"]],
             origin=r.get("origin", "cma"),
             tags=[label] if label else None,
-            tags_source="cma" if label else None,
+            tags_source=_SOURCE_AUTHORITY[r["source"]] if label else None,
             name_aliases=r["aliases"] or None,
         )
         stats[out] += 1
