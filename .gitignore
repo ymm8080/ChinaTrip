@@ -59,3 +59,6 @@ _tmp_grep*.txt
 tmp_t/
 trains_refresh.log
 uvicorn_h5*.log
+
+# POIS import runtime state marker (machine-local)
+.import_batch1_done.flag
