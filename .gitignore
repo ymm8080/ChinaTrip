@@ -42,3 +42,20 @@ data/
 
 # Local dev server logs (dev_watch.py detached mode)
 devlogs/
+
+# Agent tool dirs (machine-local, not for repo)
+.zcode/
+CHINATRIP CODES/.claude/
+
+# One-off op scripts & result logs (mic/net/tls 排障脚本，问题结案即弃)
+mic*.ps1
+mic*_result.txt
+netfix*
+tlsfix*
+dualtest.ps1
+epenum.ps1
+run_hidden.vbs
+_tmp_grep*.txt
+tmp_t/
+trains_refresh.log
+uvicorn_h5*.log

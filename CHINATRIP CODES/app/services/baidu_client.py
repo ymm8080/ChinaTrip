@@ -242,7 +242,9 @@ class BaiduClient:
         与高德体系对齐）。
         """
         district_id = (
-            adcode[:-4] + "0100" if len(adcode) == 6 and adcode.endswith("0000") else adcode
+            adcode[:-4] + "0100"
+            if len(adcode) == 6 and adcode.endswith("0000")
+            else adcode
         )
         data = await self._request_json(
             "/weather/v1/",

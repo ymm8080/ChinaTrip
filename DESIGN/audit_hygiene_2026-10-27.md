@@ -1,7 +1,8 @@
 # 仓库卫生登记 — 2026-10-27（审计轮）
 
-> 来源：`git status` 全量未跟踪文件筛查（审计自动化每轮覆盖更新本文件）。
-> **只登记不删除**——是否清理由用户裁决。未列出的 untracked 文件
+> **状态更新（2026-10-28 01:00）：用户授权「全部办了」——A 节 42 项已全部删除、
+> B 节已写入 .gitignore、C 节已随审计 commit 提交（见 G 节）。本文件转为备查档案。**
+> 来源：`git status` 全量未跟踪文件筛查。未列出的 untracked 文件
 > （POIS DATASOURCE CSV/`_src/`、各设计 docx/pdf、`CLIENT_DATA_REQUIREMENTS.md`、
 > `fast_slow_lane_PROGRESS.md` 等）为待验收工作成果，不属于垃圾。
 
@@ -71,3 +72,15 @@
   计划/提案两份、README API 表、数据库表清单——均已核验并同步。剩余两项外部阻塞：
   B1 需 PG 凭据（查 hours_en 缩写行残留）；baidu_client.py 两处风格项属并行会话
   活跃 WIP 不代改。pytest 稳定 1383/0，H5 守门全绿。
+
+## G. 收尾执行（2026-10-28 01:00，用户授权「全部办了」）
+
+- **A 节清理已执行**：42 项全部删除（根目录 16 + CODES 临时产物 15 + tmp_t/ 目录 +
+  DESIGN 日志 6 + Office 锁/.wbk 3 + 乱码名文件 1）。真实工作成果（POIS CSV、设计
+  docx/pdf、进度 md）一概未动。
+- **B 节已执行**：`.gitignore` 追加 `.zcode/`、`CHINATRIP CODES/.claude/`、
+  一次性运维脚本模式（mic*/netfix*/tlsfix* 等）。
+- **风格项收口**：baidu_client.py E501（adcode 三元拆行）+ 格式化——ruff check/format
+  **全树清零**（226 文件）；test_baidu/poi_details/translate 38 测全过。该文件仍归并行
+  会话所有，未纳入本审计 commit。
+- **B1**：仍待 PG 凭据（唯一遗留，影响极小）。
