@@ -8,10 +8,14 @@ POST /booking-auto/select          档位选择（设备级记忆，客户自选
 """
 
 import logging
+from collections.abc import Callable
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, load_only, sessionmaker
 
+from app.models import Poi
 from app.services.booking_auto import (
     availability_tiers_safe,
     build_order_intent,
@@ -37,6 +41,96 @@ def _device(x_device_id: str | None) -> str:
 @router.get("/tiers")
 async def tiers() -> dict:
     return {"tiers": availability_tiers_safe()}
+
+
+def get_show_session_factory() -> sessionmaker[Session]:
+    """Indirection over db.get_session_factory so tests can override
+    (dependency_overrides) without touching the lru_cache'd engine."""
+    from app.db import get_session_factory
+
+    return get_session_factory()
+
+
+class ShowCard(BaseModel):
+    """预订页 🎭 分区单条演出（04 CSV 底库投影）。"""
+
+    name: str
+    name_en: str | None = None
+    city: str | None = None
+    booking_url: str | None = None
+    note: str | None = None
+    has_direct: bool = False
+
+
+@router.get("/shows")
+async def shows(
+    city: str | None = Query(default=None, max_length=50),
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=30, ge=1, le=100),
+    factory: Callable[[], Session] = Depends(get_show_session_factory),
+) -> dict:
+    """演出票务目录：H5 预订页「🎭 演出」分区数据源（show_booking §2）。
+
+    筛选 category=entertainment 或 best_visit_time=show；带 booking_url
+    （携程 sight SKU 直达）的排前。DB 不可用 → 503 诚实失败（铁律：
+    失败必须留日志，不静默编造空列表）。
+    """
+    from app.api.pois import _city_variants
+
+    try:
+        with factory() as session:
+            query = (
+                session.query(Poi)
+                .options(
+                    load_only(
+                        Poi.name_zh,
+                        Poi.name_en,
+                        Poi.city,
+                        Poi.booking_url,
+                        Poi.intro,
+                        Poi.intro_en,
+                    )
+                )
+                .filter(
+                    or_(
+                        Poi.category == "entertainment",
+                        Poi.best_visit_time == "show",
+                    )
+                )
+            )
+            variants = _city_variants(city or "")
+            if variants:
+                # 04 CSV 库的 city 多为复合形态（酒泉（敦煌）/郑州（中牟）），
+                # 精确 in_ 会漏；补 contains 让「敦煌」命中「酒泉（敦煌）」。
+                bare = variants[0]
+                query = query.filter(
+                    or_(Poi.city.in_(variants), Poi.city.ilike(f"%{bare}%"))
+                )
+            if q and q.strip():
+                like = f"%{q.strip()}%"
+                query = query.filter(
+                    or_(Poi.name_zh.ilike(like), Poi.name_en.ilike(like))
+                )
+            rows = (
+                query.order_by(Poi.booking_url.is_(None), Poi.name_zh)
+                .limit(limit)
+                .all()
+            )
+    except Exception:
+        logger.error("shows: poi store unavailable", exc_info=True)
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+    cards = [
+        ShowCard(
+            name=r.name_zh or "",
+            name_en=r.name_en,
+            city=r.city,
+            booking_url=r.booking_url,
+            note=(r.intro or r.intro_en or "")[:120] or None,
+            has_direct=bool(r.booking_url),
+        ).model_dump()
+        for r in rows
+    ]
+    return {"shows": cards}
 
 
 class TasksRequest(BaseModel):

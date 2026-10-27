@@ -390,6 +390,7 @@ _V0_SYSTEM_PROMPT = (
     "点评多、带 unesco/5A/4A/3A/intl 标签的优先（级别从高到低，"
     "intl=国际旅行网站人气榜，对外国游客优先），"
     "「宜傍晚」类景点排到对应半天，"
+    "候选含「晚间演出」类（entertainment）时每城优先安排一场作当日收尾，"
     "duration_minutes 优先采用候选行的「建议X分钟」。reason 可选，"
     "说明为什么选它/适合什么时候去。"
     "候选里 category 为 food 的"

@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/backfill", tags=["backfill"])
 
-_ACTION_TYPE_PATTERN = "^(train|flight|hotel)$"
-_CHANNEL_PATTERN = "^(12306|qunar|ctrip|meituan)$"
+_ACTION_TYPE_PATTERN = "^(train|flight|hotel|site_ticket)$"
+_CHANNEL_PATTERN = "^(12306|qunar|ctrip|meituan|klook|other)$"
 _STATUS_PATTERN = "^(opened|user_confirmed|alliance_verified|settled|returned)$"
 
 
@@ -58,10 +58,17 @@ _store_singleton: HandoffStore | None = None
 
 
 def get_handoff_store() -> HandoffStore:
-    """进程级懒单例：回填状态必须跨请求存活（translate 短语缓存同款理由）。"""
+    """进程级懒单例：回填状态必须跨请求存活（translate 短语缓存同款理由）。
+
+    挂 persist_handoff 写穿钩子：状态推进同步落 PG action_handoffs
+    （重启不丢账）；DB 缺席时钩子内部留日志降级，不影响内存态。
+    """
     global _store_singleton
     if _store_singleton is None:
+        from app.services.backfill import persist_handoff
+
         _store_singleton = HandoffStore()
+        _store_singleton.attach_persistence(persist_handoff)
     return _store_singleton
 
 

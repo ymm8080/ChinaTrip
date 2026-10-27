@@ -644,6 +644,7 @@
           <button class="chip on" data-bk="train" data-i18n="book.train">🚄 火车票</button>
           <button class="chip" data-bk="flight" data-i18n="book.flight">✈️ 机票</button>
           <button class="chip" data-bk="hotel" data-i18n="book.hotel">🏨 酒店</button>
+          <button class="chip" data-bk="show" data-i18n="book.show">🎭 演出</button>
         </span>
         <span class="sep"></span>
         <label class="fld"><span data-i18n="book.startDate">行程开始日期</span> <input type="date" id="bookStartDate" title="行程无真实日历日期，第 N 天 = 开始日期 + N−1 天" data-i18n-title="book.startDate.title"></label>
@@ -682,6 +683,15 @@
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
+      </div>
+
+      <div class="bk-pane" id="bk-show">
+        <div class="toolbar">
+          <label class="fld"><span data-i18n="trips.city">城市</span> <input type="text" id="bkShowCity" placeholder="如：西安" data-i18n-ph="book.phShowCity"></label>
+          <label class="fld grow"><span data-i18n="book.showKw">演出名</span> <input type="text" id="bkShowKw" class="grow" placeholder="如：长恨歌（可留空）" data-i18n-ph="book.phShowKw"></label>
+          <button class="btn" id="bkShowGo" data-i18n="book.showGoBtn">🎭 查演出票</button>
+        </div>
+        <div class="flow" id="flow-book-show"></div>
       </div>
 
       <!-- 📋 订单回填（跳转埋点闭环，状态机 opened→user_confirmed→alliance_verified→settled） -->
@@ -1356,7 +1366,7 @@ function planCard(plan) {
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
-        else if (it.booking_url) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-url="' + esc(it.booking_url) + '"' + (it.category === "entertainment" || it.best_visit_time === "show" ? ' data-show="1"' : "") + '>' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
+        else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
         blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
@@ -3082,15 +3092,19 @@ function bkErrMsg(err) {
 /* ---- 铁律 23：跳转渠道前弹退改摘要全文；无 refund_policy 一律禁止跳转 ---- */
 
 let bkPendingUrl = null;
-let bkPendingAction = null; // {action_type, channel, url, refund_summary}：铁律 22 跳转埋点
-function bkConfirmOpen(channel, url, refund, actionType) {
+let bkPendingAction = null; // {action_type, channel, url, refund_summary}：铁律 22 跳转埋点；{intent:{name,city,booking_url}}：演出走 order-intent
+function bkConfirmOpen(channel, url, refund, actionType, intent) {
   const summ = refund && refund.summary ? refund.summary : (typeof refund === "string" ? refund : "");
   if (!summ) { toast(I18N.tf("bk.noRefundNoGo", "缺少退改签摘要（铁律 23），禁止跳转")); return; }
-  bkPendingUrl = url;
-  bkPendingAction = actionType ? { action_type: actionType, channel: channel, url: url, refund_summary: summ } : null;
-  document.getElementById("bkConfirmTitle").textContent = I18N.tf("bk.confirmPre", "⚠️ 跳转 ") + I18N.tf("bk.chan." + channel, BK_CHANNEL[channel] || channel) + I18N.tf("bk.confirmSuf", " 前，请先阅读退改政策");
+  bkPendingUrl = url || null;
+  bkPendingAction = intent
+    ? { intent: intent }
+    : (actionType ? { action_type: actionType, channel: channel, url: url, refund_summary: summ } : null);
+  const target = intent ? I18N.tf("bk.showTicket", "🎭 演出票务") : I18N.tf("bk.chan." + channel, BK_CHANNEL[channel] || channel);
+  document.getElementById("bkConfirmTitle").textContent = I18N.tf("bk.confirmPre", "⚠️ 跳转 ") + target + I18N.tf("bk.confirmSuf", " 前，请先阅读退改政策");
   document.getElementById("bkConfirmSummary").textContent = summ; // 全文，textContent 防注入
-  document.getElementById("bkConfirmUrl").textContent = I18N.tf("bk.willOpen", "即将打开：") + url;
+  document.getElementById("bkConfirmUrl").textContent = I18N.tf("bk.willOpen", "即将打开：") +
+    (url || I18N.tf("bk.urlAuto", "确认后按网络环境自动选渠道（境内美团 / 境外 Trip.com）"));
   document.getElementById("bkConfirm").style.display = "flex";
 }
 function bkConfirmClose() {
@@ -3098,10 +3112,27 @@ function bkConfirmClose() {
   bkPendingUrl = null;
   bkPendingAction = null;
 }
-document.getElementById("bkGo").onclick = () => {
+document.getElementById("bkGo").onclick = async () => {
   const u = bkPendingUrl;
   const act = bkPendingAction;
   bkConfirmClose();
+  if (act && act.intent) {
+    // 演出路径 A：order-intent 服务端解析最终 URL（booking_url 直达 SKU 优先，
+    // 缺省 geo 分流模板）并落 handoff 留痕；支付永远在渠道侧（铁律 22）
+    try {
+      const conf = act.intent;
+      const intent = await api("/api/v1/booking-auto/order-intent", { name: conf.name, city: conf.city, tier: "L3", ...(conf.booking_url ? { booking_url: conf.booking_url } : {}) });
+      if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
+      toast(I18N.tf("plan.bookIntent.showLock", "已打开预填下单页——提交订单后库存仅锁定约 4–15 分钟（热门演出更短），请在窗口内完成支付；支付后回「订单」页粘贴订单号自动记录"));
+      if (intent.handoff_id) {
+        // 代订收款预填：预订页「💳 支付」可直接挂这条跳转单
+        document.getElementById("payHandoff").value = intent.handoff_id;
+        toast(I18N.tf("plan.handoff.pre", "已预填代订收款关联单号 ") + intent.handoff_id + I18N.tf("plan.handoff.suf", "（预订页 💳 支付可直接发起）"));
+      }
+      bfLoadQuiet();
+    } catch (e) { failToast(e); }
+    return;
+  }
   if (act) {
     // 铁律 22：先埋点 backfill/handoffs 再跳转；埋点尽力而为，失败不打断跳转
     api("/api/v1/backfill/handoffs", act).then(bfLoadQuiet).catch(() => {});
@@ -3113,7 +3144,7 @@ document.getElementById("bkConfirm").addEventListener("pointerdown", e => {
   if (e.target.id === "bkConfirm") bkConfirmClose();
 });
 
-const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团" };
+const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团", "klook": "Klook", "other": "官方/其他" };
 
 // 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）；actionType → 铁律 22 埋点
 function bkChannelBtn(channel, url, refund, primary, label, actionType) {
@@ -3193,6 +3224,10 @@ function bkShow(kind) {
   document.querySelectorAll("#bookTabs .chip").forEach(c => c.classList.toggle("on", c.dataset.bk === kind));
   document.querySelectorAll("#tab-book .bk-pane").forEach(p => p.classList.toggle("on", p.id === "bk-" + kind));
   if (kind === "hotel") bkRenderPlanDays();
+  if (kind === "show") {
+    const inp = document.getElementById("bkShowCity");
+    if (inp && !inp.value.trim() && BOOK.plan && BOOK.plan.cities && BOOK.plan.cities[0]) inp.value = BOOK.plan.cities[0];
+  }
 }
 document.querySelectorAll("#bookTabs .chip").forEach(c => {
   c.addEventListener("click", () => bkShow(c.dataset.bk));
@@ -3373,6 +3408,52 @@ async function bkHotelSearch() {
   document.getElementById("flow-book-hotel").scrollTop = 1e9;
 }
 document.getElementById("bkHotelGo").onclick = (e) => busy(e.target, bkHotelSearch);
+
+/* ---- 🎭 演出（04 CSV 底库，show_booking P0：直达 SKU 或 geo 分流模板） ---- */
+
+function showRefundSummary() {
+  return I18N.tf("bk.showRefund", "演出票人工渠道预订，退改以下单页为准（铁律 23 C 级）；提交订单后库存仅锁定约 4–15 分钟，请在窗口内完成支付。");
+}
+function bkShowCard(s, city) {
+  const tile = el('<div class="tile"></div>');
+  const head = el('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>');
+  head.appendChild(el('<b style="font-size:14px">' + esc(I18N.pick(s, "name", "name_en")) + "</b>"));
+  head.appendChild(el('<span class="badge ' + (s.has_direct ? "ok" : "") + '">' + (s.has_direct ? I18N.tf("bk.showDirect", "直达票页") : I18N.tf("bk.showSearch", "渠道搜索")) + "</span>"));
+  tile.appendChild(head);
+  if (s.note) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + esc(s.note) + "</div>"));
+  tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(showRefundSummary()) + "</div>"));
+  const btn = el('<button class="btn mini ghost"></button>');
+  btn.textContent = I18N.tf("card.showGo", "订票直达 →");
+  if (!s.has_direct) btn.title = I18N.tf("bk.showNoDirect", "库内无直达票页：确认后按网络环境跳渠道搜索页");
+  btn.onclick = () => bkConfirmOpen(null, s.booking_url, { summary: showRefundSummary() }, null,
+    { name: s.name, city: s.city || city, booking_url: s.booking_url });
+  tile.appendChild(btn);
+  return tile;
+}
+async function bkShowSearch() {
+  const city = document.getElementById("bkShowCity").value.trim();
+  const kw = document.getElementById("bkShowKw").value.trim();
+  if (!city) { toast(I18N.tf("bk.needCity", "城市必填")); return; }
+  addMsg("flow-book-show", "user", I18N.tf("bk.showEcho", "🎭 演出票查询：") + city + (kw ? " · " + kw : ""));
+  const holder = addMsg("flow-book-show", "sys", I18N.tf("bk.assembling", "⏳ 组装转链卡片…"));
+  try {
+    const body = await api("/api/v1/booking-auto/shows?city=" + encodeURIComponent(city) + (kw ? "&q=" + encodeURIComponent(kw) : ""), undefined, "GET");
+    holder.textContent = "";
+    const shows = (body && body.shows) || [];
+    if (!shows.length) {
+      holder.appendChild(el('<div class="muted">' + I18N.tf("bk.showEmpty", "该城市暂无演出库数据（04 CSV 覆盖有限），可换城市试试。") + "</div>"));
+      return;
+    }
+    const wrap = el('<div class="card"><h4>🎭 ' + esc(city) + I18N.tf("bk.showListSuf", " · 演出票务") + "</h4></div>");
+    shows.forEach(s => wrap.appendChild(bkShowCard(s, city)));
+    holder.appendChild(wrap);
+  } catch (err) {
+    holder.textContent = bkErrMsg(err);
+    failToast(err);
+  }
+  document.getElementById("flow-book-show").scrollTop = 1e9;
+}
+document.getElementById("bkShowGo").onclick = (e) => busy(e.target, bkShowSearch);
 
 // 按天卡片：city=该天 base_city，锚点=最后一个带坐标的景点项（VisitItem 判据同 planCard：无 from_city），checkin=开始日期+N−1，checkout=下一天
 function bkRenderPlanDays() {
@@ -3872,7 +3953,7 @@ function bfRender() {
   }
   rows.forEach(r => {
     const row = el('<div class="bf-row' + (BF.sel === r.id ? " sel" : "") + '"></div>');
-    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : "🏨");
+    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : (r.action_type === "site_ticket" ? "🎭" : "🏨"));
     row.appendChild(el('<span style="flex:1">' + ico + " " + esc(BK_CHANNEL[r.channel] || r.channel || "?") +
       (r.order_ref ? " · <b>" + esc(r.order_ref) + "</b>" : "") + "</span>"));
     const cls = r.status === "opened" ? "warn" : (r.status === "user_confirmed" ? "ok" : "err");

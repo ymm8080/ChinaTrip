@@ -244,3 +244,113 @@ def test_order_intent_geo_routes_by_request_ip():
         headers={**DEVICE, "X-Forwarded-For": "1.0.1.5"},
     ).json()
     assert r3["authorization_url"] == "https://mp.weixin.qq.com/x"
+
+
+# --- 🎭 演出目录（GET /shows：04 CSV 底库 → 预订页分区数据源） ------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+from fastapi import FastAPI  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+
+from app.api.booking_auto import get_show_session_factory  # noqa: E402
+from app.api.booking_auto import router as booking_auto_router  # noqa: E402
+
+
+class _ShowQuery:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def options(self, *a, **k):
+        return self
+
+    def filter(self, *a, **k):
+        return self
+
+    def order_by(self, *a, **k):
+        return self
+
+    def limit(self, n):
+        return self
+
+    def all(self):
+        return list(self._rows)
+
+
+class _ShowSession:
+    def __init__(self, rows, exc=None):
+        self._rows = rows
+        self._exc = exc
+        self.calls = 0
+
+    def query(self, *a, **k):
+        self.calls += 1
+        if self._exc is not None:
+            raise self._exc
+        return _ShowQuery(self._rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _show_row(**over):
+    base = dict(
+        name_zh="长恨歌",
+        name_en=None,
+        city="西安市",
+        booking_url="https://m.ctrip.com/webapp/cw/sku/x",
+        intro="每年冬季例行停演，行前请确认档期",
+        intro_en=None,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+def _shows_app(session) -> TestClient:
+    app = FastAPI()
+    app.dependency_overrides[get_show_session_factory] = lambda: lambda: session
+    app.include_router(booking_auto_router)
+    return TestClient(app)
+
+
+def test_shows_catalog_flags_direct_and_passes_note():
+    rows = [
+        _show_row(),
+        _show_row(
+            name_zh="西安千古情",
+            booking_url=None,
+            intro=None,
+            intro_en="Nightly immersive show",
+        ),
+        _show_row(name_zh="秦俑情", booking_url=None, intro=None, intro_en=None),
+    ]
+    resp = _shows_app(_ShowSession(rows)).get(
+        "/api/v1/booking-auto/shows", params={"city": "西安"}
+    )
+    assert resp.status_code == 200
+    shows = resp.json()["shows"]
+    assert len(shows) == 3
+    assert shows[0]["name"] == "长恨歌" and shows[0]["has_direct"] is True
+    assert all(s["has_direct"] is False for s in shows[1:])
+    assert shows[0]["note"] == "每年冬季例行停演，行前请确认档期"
+    assert shows[1]["note"] == "Nightly immersive show"  # intro 空回退 intro_en
+    assert shows[2]["note"] is None
+
+
+def test_shows_empty_city_still_200():
+    resp = _shows_app(_ShowSession([])).get(
+        "/api/v1/booking-auto/shows", params={"city": "廊坊"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["shows"] == []
+
+
+def test_shows_db_down_returns_503():
+    session = _ShowSession([], exc=OperationalError("stmt", {}, Exception("conn")))
+    resp = _shows_app(session).get(
+        "/api/v1/booking-auto/shows", params={"city": "西安"}
+    )
+    assert resp.status_code == 503
