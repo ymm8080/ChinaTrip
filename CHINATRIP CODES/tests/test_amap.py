@@ -164,6 +164,8 @@ def make_settings(api_key: str = API_KEY) -> Settings:
         amap_api_key=api_key,
         amap_base_url=BASE_URL,
         amap_timeout_seconds=1.0,
+        # 钉死提供方:pydantic 会读真实 .env,地图切 baidu 时不得影响本测试
+        map_provider="amap",
     )
 
 

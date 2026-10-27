@@ -1,6 +1,6 @@
 # 双语双部署架构方案（CN / EN 双系统）
 
-> 版本 v1.4 ｜ 2026-10-25 ｜ 决策：一仓·一 schema·两部署·分库·参考表加 `_en` 列
+> 版本 v1.5 ｜ 2026-10-25 ｜ 决策：一仓·一 schema·两部署·分库·参考表加 `_en` 列
 > 上游讨论：产品最终形态为**两套系统**（中文版 + 英文版），服务器位于**不同国家**；
 > 英文版面向入境游客（Inbound），即《规划引擎升级》§14 的「入境视角」。
 > 本文档为该决策的定稿设计与实施依据，后续会话以本文为准。
@@ -60,12 +60,12 @@
 
 ## 5. 数据层设计
 
-### 5.1 表分类（23 张表全量归类）
+### 5.1 表分类（21 张表全量归类）
 
 | 类别 | 表 | 同步策略 |
 | --- | --- | --- |
-| 参考表（共享实体，CN 生产） | pois, poi_hours, restaurants, poi_reviews, poi_stats, weather_reports | CN→海外**单向同步**；加 `_en` 列 |
-| 用户表（区域私有） | users, user_profiles, entitlements, iap_transactions, paywall_rules, link_history | 不同步 |
+| 参考表（共享实体，CN 生产） | pois, poi_hours, restaurants, poi_reviews, poi_stats, weather_reports | CN→海外**单向同步**；加 `_en` 列（weather 按 v1.2 移出同步链，海外自取） |
+| 用户表（区域私有） | users, user_profiles, entitlements, iap_transactions, paywall_rules, link_history, **payments**（0012 客户付款层，2026-10-25 审计补录） | 不同步 |
 | 业务表（区域私有） | itineraries*, itinerary_days/items, intercity_transfers, execution_events, action_handoffs, trip_items, itinerary_snapshots | 不同步 |
 
 ### 5.2 `_en` 列设计（延续既有模式）
@@ -78,7 +78,7 @@
 | --- | --- | --- |
 | pois | intro_en, address_en, review_tags_en | GLM 翻译 backfill（复用 `app/services/translate.py` 快车道 + 短语缓存，§6.10） |
 | restaurants | address_en, intro_en | 同上 |
-| poi_hours/营业时间文本 | hours_en（若原文为中文表述） | 模板化转换（「周一至周日」→ "Mon–Sun"）优先，LLM 兜底 |
+| poi_hours/营业时间文本 | hours_en（若原文为中文表述） | 模板化转换（「周一至周日」→ "Monday–Sunday" 全称，2026-10-25 用户定案）优先，LLM 兜底 |
 | 类目/标签枚举 | 不加列 | 代码内 i18n 字典（枚举集合有限且稳定） |
 
 语义约定：`*_en` 列**只填空、不覆盖**（同 upsert 的 fill-empty 语义）；`NULL` 时前端回退中文——保证翻译未跑完时功能完整可用。
@@ -152,3 +152,4 @@
 
 - **v1.1（2026-10-25 晚）**：P1 已实施——迁移 0011（pois/restaurants `_en` 列）落库 w12_0011；`backfill_en_columns` 翻译作业+单测+真跑（pois 396 行/841 字段， restaurants 批次进行中，夜间作业 04:10 常态化）；`top_pois_in_city`/`_collect_candidates`/`VisitItem` 三级 `_en` 透传 + H5 i18n 骨架（i18n.js + locale 开关 + 卡片回退，sw v26）；ops poi_en_nightly 注册。P1 出口判据达成：CN 站切英文可预览全流程骨架、`_en` 并出与回退均有 pytest 覆盖（1091 全绿）。P2（海外部署/参考同步）未启动。
 - **v1.2（2026-10-25 晚）**：P2 代码侧全部就绪——`reference_sync` 纯逻辑 + `export_reference`（真实全量导出 16922 行验通）/`import_reference`（幂等 upsert/_en 保留播种/墓碑传播，dry-run 0 错）；`.env.example.intl`；会话级 `lang` 参数三路 EN 指令注入；H5 微文案 i18n 扩面。**范围修订：weather_reports 移出同步链**——海外侧 Open-Meteo 全球可达自取，跨境同步无增益（§5.1 同步表从此不含 weather）。P2 剩余仅部署侧动作（服务器/域名/代理隧道/海外 PG/对象存储通道），待用户决策。- **v1.3（2026-10-25）**：P2 同步链本地全链路实测通过（无服务器功能闭环）——本地 chinatrip_intl 模拟库 16,922 行真实导入 0 错误；修复导入缺 id 与 restaurants 白名单两 bug（dry-run 测不出、双库实测抓出）；变异测试验证 CN 覆盖/本地 _en 保留/幂等三语义 + 墓碑传播；lang 指令达 LLM 与 H5 i18n 均有回归钉。部署侧动作清单不变，待服务器信息。- **v1.4（2026-10-25）**：P1.5 列缺口补齐——§5.2 表扩展：pois+review_summary_en；restaurants+review_tags_en/cuisine_en/signature_dishes_en（迁移 0013，双库 head）；翻译作业与同步白名单同步扩展；INTL 库播种链实测。city 名明确不加列（前端字典）。
+- **v1.5（2026-10-27 审计补录）**：①hours_en 星期口径定案回写——用户 2026-10-25 拍板**全称**（"Monday–Sunday" / "Monday Closed"），`backfill_en_columns` 模板映射与 `test_backfill_en_columns` 均已按全称实现，§5.2 旧缩写示例 "Mon–Sun" 更正；库中如有早期缩写行可用 `--source` 定向回填统一（B1 待查）。②§5.1 表分类 23→21 张（实数 models.py）：补 payments 入用户表（区域私有不同步），weather 行按 v1.2 修订加注。

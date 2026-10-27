@@ -19,7 +19,7 @@
 - [规划引擎升级与底库富化设计 2026-10-24](planning_engine_upgrade_2026-10-24.md) — **待审查**：三层问题定位（候选层 8 条/城、选点层 LLM 盲选、排期层 solver 裸跑）× 11 家竞品调研吸收清单；底库字段补全 A-D 四组（**已到手在丢**：高德 v5 rating/photos 每次回源返回但落库丢弃、携程 sight 页建议时长/点评数/点评标签同页未解析）+ 评论域新表 poi_reviews/poi_stats（trip_items 行为聚合=自有热度源）+ 四层互动闭环（问卷/卡片反馈/打卡/行后点评）+ 小红书四路径（无官方内容 API，批量导入+图文解析）+ 地理规划器（商圈聚类分日+地图增强）+ 迁移 0009 与 P0-P2 计划——每项带重要度×开发量评级
 - [系统架构图 v2.5](architecture_diagram%20V2.5.svg) — 五层架构：移动层（Flutter 双端 + 端侧引擎 + 步行导航 + 个人主页）→ 接入层（国内区 Phase 1）→ 后端服务（Agent + Memory 四层 + 变更管线 + CP-SAT + 转链交易中心 + 快慢双车道 + POI 底库导入/回填/标签管线）→ 数据层（trip_items / user_profiles / link_history / pois 扩展字段 + restaurants）→ 依赖层
 - [功能缺口与开发计划 2026-10-23](feature_gap_and_dev_plan_2026-10-23.md) — vs 16 个热门 OSS 仓库 + 主流消费级 AI 旅行产品 + pypitravel：18+5 项缺口清单（重要度×成本）+ P0–P3 排序（导出/分享/拖拽/打包清单 → 拖拽编辑/天气/PWA/推送/地图增强/POI 底库）+ POI 底库数据源矩阵与自建路径 + 圆周旅迹导入探活结论
-- [数据库设计](database_design.md) — v1.16（纯设计口径，无代码）：PG 表五域（v2.5 pois 15 列扩容 + restaurants + weather_reports + 评论域 poi_reviews/poi_stats + payments + 行程 PG 状态；迁移史 0001–0018）+ 本机 SQLite 6 表；**数据源×刷新矩阵**（L0–L4 优先级分层、14 源频率/时机/模式、字段链序、刷新模式词汇表）；稳定键/双坐标/溯源/快照不可变等铁律 9 条；迁移史速查
+- [数据库设计](database_design.md) — v1.17（纯设计口径，无代码）：PG 表五域（v2.5 pois 15 列扩容 + restaurants + weather_reports + 评论域 poi_reviews/poi_stats + payments + 行程 PG 状态；迁移史 0001–0018）+ 本机 SQLite 6 表；**数据源×刷新矩阵**（L0–L4 优先级分层、14 源频率/时机/模式、字段链序、刷新模式词汇表）；稳定键/双坐标/溯源/快照不可变等铁律 9 条；迁移史速查
 - [UPGRADE COST](UPGRADE%20COST.md) — 阿里云 GPU 自建 vLLM 最低成本估算与升级触发条件（v2.0 配套）
 
 ## 🗄 历史版本
@@ -31,6 +31,7 @@
 
 - [README](../README.md) — 仓库说明与 Claude Code 集成
 - [CLAUDE.md](../CLAUDE.md) — Claude Code 项目约定
+- [审计卫生登记 2026-10-27](audit_hygiene_2026-10-27.md)（[PDF 版](audit_hygiene_2026-10-27.pdf)）— 代码与设计全量审计：守门终态 + 修复清单 + 仓库卫生待清理清单（审计自动化每轮覆盖更新 md；PDF 为快照版，需手动重生成）
 - `CHINATRIP CODES/` · `DAILY OPERATION/` · `mcp/` · `scripts/` — 代码与运维目录
 
 ---

@@ -183,10 +183,11 @@ def test_get_weather_live_shape():
     )
     report = asyncio.run(make_client(handler).get_weather("110000", extensions="base"))
     assert captured[0].url.params["data_type"] == "now"
-    assert captured[0].url.params["district_id"] == "110000"
+    # 省级码归一：110000 → 110100（2026-10-28 实测百度不收 XX0000）
+    assert captured[0].url.params["district_id"] == "110100"
     assert report["kind"] == "live"
     assert report["city"] == "北京市"
-    assert report["adcode"] == "110000"
+    assert report["adcode"] == "110000"  # 落库键保持原始码
     assert report["payload"] == {
         "weather": "晴",
         "temperature": "-2",

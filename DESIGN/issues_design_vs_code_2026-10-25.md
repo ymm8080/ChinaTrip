@@ -74,8 +74,10 @@ paid_call 进度文档 T6 记录过并行编辑写坏 `index.html` 引号、整�
 
 ## 核销注记（2026-10-27 审计轮追加）
 
-- **B1**：本轮环境无 PG 连接（postgres MCP 凭据未配置），`pois.hours_en` 是否残留
-  "Monday–Sunday" 全称**待查**；夜间作业 04:10 时点未变，大概率 0 行受影响。
+- **B1**：口径已在 2026-10-25 定案为**全称**（"Monday–Sunday"，用户拍板，代码与测试均已
+  实现，language_dual 设计 v1.5 已回写）。待查项相应变为：PG `pois.hours_en` 是否残留
+  **早期缩写行**（"Mon–Sun …"）——有则用 `--source` 定向回填统一。本轮环境无 PG 连接
+  （postgres MCP 凭据未配置），维持待查。
 - **B2**：核销——call_orders / call_sessions / call_minutes_entries 三表按设计 v1.2
   只存 SQLite 侧库 `app/services/call_store.py`；原「预留 0013」槽位注释早已过期
   （链现至 w12_0018），alembic 不再补 call 表迁移，该承诺不再追踪。

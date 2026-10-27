@@ -45,3 +45,29 @@
   第二次 get，满载进程调度/GC 抖动可击穿）。最小修复：冷却 patch 0.05→30s 留余量、
   过期路径改为直接回拨 `_db_down_until`（不赌真实睡眠）。修复后单文件 15 passed、
   全量复跑 **1383 passed / 0 failed**。服务实现（实例级闩）无任何改动。
+
+## F. 扩围审计（用户指令：全项目代码 vs 全部设计文件，轮 #8–#9）
+
+- **README.md API 表补齐**：三向 diff 证实 ~74 条路由未记载（auth/asr/weather/visa/
+  feedback/booking-auto/payments/call/travelers/tasks/metrics/plan 条目操作/share/pois detail/
+  amap regeo·ip），已按原表风格补 16 行 + 域服务行 + 头部版本 v2.0→v2.5。
+- **铁律 0–23 落点核验**：14/15/16/19/22/23 + 成本闸门 + §6.8 付费墙规则引擎全部有
+  代码实证；铁律 21 一处登记性张力（H5 冒烟页 asr 走智谱云——测试面例外，产品正解
+  =原生端侧引擎，M1.5 未到期）。
+- **database_design.md** 表清单 18→21（补 poi_reviews/poi_stats/payments）+ 迁移史
+  0009–0018 + v1.17 补录行。
+- **language_dual_system_design.md** v1.5：hours_en 星期口径定案回写（全称，2026-10-25
+  用户拍板，代码/测试早已实现而文档未记）；§5.1 表分类 23→21 + payments 补录。
+- **planning_engine_upgrade「已到手在丢」指控失效**：rating/photos（poi_backfill.py 只填空
+  +溯源）与携程时长/点评数/点评标签（ctrip_hours.py）均已解析落库。
+- **pytest 503 五连败**（轮 #8）：并行会话 map provider 重构中间态，其自行修复，
+  轮 #9 复跑全绿 1383/0。
+- **show_booking S1–S5 分期核验（轮 #10）**：P0 五件全实证（04 CSV 入库 import_shows /
+  迁移 0018 'show' 枚举 / S5 solver `_SHOW_STARTS` 场演窗 / 路径 A 预填卡 booking_url 透传 /
+  S1 放票任务复用 build_reservation_tasks）；S4 档期守护=既有 hours 24h stale 刷新链；
+  S2 实名托管=P1、S3 回流蹲守=P2——外部前置（联盟 key / 商务签约）未到期，非缺口。
+  **五份子设计核验至此全部通过**。
+- **✅ 扩围审计（全项目代码 vs 全部设计文件）核验面完成**：主设计铁律 0–23、五份子设计、
+  计划/提案两份、README API 表、数据库表清单——均已核验并同步。剩余两项外部阻塞：
+  B1 需 PG 凭据（查 hours_en 缩写行残留）；baidu_client.py 两处风格项属并行会话
+  活跃 WIP 不代改。pytest 稳定 1383/0，H5 守门全绿。

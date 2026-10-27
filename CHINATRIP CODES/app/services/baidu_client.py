@@ -234,13 +234,22 @@ class BaiduClient:
         """/weather/v1 —— district_id 即 6 位行政区划码（GB/T 2260，
         与高德 adcode 同源）；extensions="base"→实况(now)，"all"→
         未来 5 天预报(fc，基础服务档)。返回形状与 AmapClient 一致。
+
+        2026-10-28 实测：百度不收省级码（XX0000 →「查询的区域编码
+        无效」），收市/区级；高德 CITY_ADCODES 直辖市用省级码，故入口
+        归一 XX0000→XX0100（GB/T 2260 市辖区惯例码），落库仍用原始
+        adcode（weather_reports 以 (source, adcode, kind) 为键，保持
+        与高德体系对齐）。
         """
+        district_id = (
+            adcode[:-4] + "0100" if len(adcode) == 6 and adcode.endswith("0000") else adcode
+        )
         data = await self._request_json(
             "/weather/v1/",
             {
                 "ak": self._ak,
                 "output": "json",
-                "district_id": adcode,
+                "district_id": district_id,
                 "data_type": "now" if extensions == "base" else "fc",
             },
         )
