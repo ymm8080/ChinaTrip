@@ -237,6 +237,7 @@ async def save_plan(
 async def start_plan_from_itinerary(
     itinerary_id: str,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
     itinerary_store=Depends(get_store),
     account: str | None = Depends(_account_from_auth),
@@ -274,12 +275,35 @@ async def start_plan_from_itinerary(
             )
         ],
     )
+    await agent.refresh_legs(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
     body["plan"] = session.plan
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
+
+
+@router.get("/plan/{session_id}")
+async def get_plan_session(
+    session_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """规划会话读取（2026-10-28）：H5 刷新/重开页面恢复行程卡用。返回前跑
+    一遍实测腿刷新（annotate → 缺坐标回填 → 缓存回放 → 新对高德/百度实测），
+    旧行程打开即有距离与步行信息，无需先做一次编辑。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    await agent.refresh_legs(session)
+    store.save(session)
+    return _plan_turn_body(session, None, None)
 
 
 @router.post("/plan/start")

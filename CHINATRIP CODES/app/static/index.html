@@ -1830,6 +1830,16 @@ try {
     const label = savedSess.itin_id ? I18N.tf("plan.restore.itin","载入的行程")
       : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.map(c => I18N.city(c)).join("→") : I18N.tf("plan.restore.last","上次的规划"));
     addMsg("flow-plan", "sys", I18N.tf("plan.restore.msgPre","已恢复上次的规划对话（") + label + I18N.tf("plan.restore.msgTail","）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。"));
+    // 刷新后重取行程（2026-10-28）：GET 会话顺带实测腿刷新（缺坐标回填+
+    // 高德/百度实测），旧行程打开即有距离/步行信息；失败静默留在本地状态。
+    api("/api/v1/plan/" + encodeURIComponent(savedSess.session_id), undefined, "GET")
+      .then((body) => {
+        if (body && body.plan) {
+          const holder = addMsg("flow-plan", "sys", document.createElement("div"));
+          planRenderSafe(holder, body, { banner: I18N.tf("plan.refresh.banner", "🔄 已重新载入行程，距离/步行已实测刷新") });
+        }
+      })
+      .catch(() => {});
   }
 } catch (_) {}
 

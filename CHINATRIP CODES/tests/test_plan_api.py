@@ -1289,3 +1289,44 @@ def test_refresh_legs_backfills_missing_locations():
     )
     measured = [v for v in visits if v.get("leg_source") == "amap"]
     assert measured, "backfilled pair must carry a measured leg"
+
+def test_get_plan_session_returns_refreshed_plan():
+    """GET /plan/{id}：读路径也跑实测腿刷新——刷新页面即有距离/步行。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    fake = _FakeWalkingAmap()
+    agent._amap = fake  # type: ignore[assignment]
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    # 前置：强制清空坐标模拟旧行程
+    store = app.dependency_overrides[get_plan_sessions]()
+    session = store.get(sid, device_id="device-1")
+    assert session is not None and session.plan is not None
+    for day in session.plan.days:
+        for it in day.items:
+            if isinstance(it, VisitItem):
+                it.location = None
+    store.save(session)
+
+    resp = client.get(f"/api/v1/plan/{sid}", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "ready" and data["plan"]["days"]
+    visits = [
+        i for d in data["plan"]["days"] for i in d["items"] if "mode" not in i
+    ]
+    assert visits and all(v.get("location") for v in visits), (
+        "GET must backfill missing coordinates"
+    )
+
+
+def test_get_plan_session_guards():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    assert (
+        client.get("/api/v1/plan/no-such", headers=DEVICE_HEADERS).status_code == 404
+    )
+    assert client.get("/api/v1/plan/x").status_code == 400
