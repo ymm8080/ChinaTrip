@@ -248,6 +248,18 @@ RESERVATION_V0: dict[str, dict] = {
         "note": "实名制售检票（2024-06-01 起）：公众号「殷墟博物馆」/官网/OTA 可预约购买 3 日内门票，二维码入馆凭本人身份证；新馆 80 元，联票两日内有效",  # noqa: E501
         "note_en": "Real-name booking and ticket checks (since 2024-06-01): book tickets within the next 3 days on the 'Yinxu Museum' WeChat account, official site or OTA; enter with QR code + your own ID; new museum CNY 80, combo ticket valid 2 days",  # noqa: E501
     },
+    "中山陵": {
+        "days": 7,
+        "release": "16:00",
+        "note": "陵寝免费但必须实名预约（提前 1-7 天，日限约 8 万）：服务号「中山陵园票务中心」/小程序「钟山风景区」，放票约每日 16:00（以公众号公告为准）；节假日提前 7 天零点蹲守；音乐台 10 元另购",  # noqa: E501
+        "note_en": "The mausoleum is free but requires a real-name reservation (1-7 days ahead, ~80k daily cap) via the 'Zhongshan Mausoleum Ticket Center' service account or 'Zhongshan Scenic Area' mini-program; tickets release ~16:00 daily (check the official account); grab slots 7 days out on holidays; Music Stage CNY 10 separately",  # noqa: E501
+    },
+    "侵华日军南京大屠杀遇难同胞纪念馆": {
+        "days": 7,
+        "release": "08:00",
+        "note": "免费但必须实名预约（提前 1-7 天）：公众号/小程序「侵华日军南京大屠杀遇难同胞纪念馆」，每日 8:00 放票（主史实展 17:00 补放）；三个展馆分开预约，凭二维码+证件原件入馆；周一闭馆",  # noqa: E501
+        "note_en": "Free but mandatory real-name reservation (1-7 days ahead) via the memorial's official WeChat account; tickets release 08:00 daily (history exhibit re-releases at 17:00); the three exhibition halls book separately; enter with QR code + original ID; closed Mondays",  # noqa: E501
+    },
 }
 
 FOREIGNER_TIP = (
