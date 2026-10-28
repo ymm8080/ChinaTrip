@@ -190,6 +190,9 @@ class _FakeResult:
     def first(self):
         return self._rows[0] if self._rows else None
 
+    def all(self):
+        return list(self._rows)
+
 
 class _TxSession:
     """boot 段 query()→空表；create 段 execute() 按 SQL 分流（锁语句返回
@@ -237,11 +240,11 @@ class _TxFactory:
         return session
 
 
-def _wish_payload():
+def _wish_payload(name="西湖", city="杭州"):
     return {
         "id": "abc123def456abc123def456abc12345",
-        "name": "西湖",
-        "city": "杭州",
+        "name": name,
+        "city": city,
         "status": "wishlist",
         "source": "paste",
         "itinerary_id": "it-1",
@@ -277,3 +280,16 @@ def test_pg_create_miss_inserts_inside_locked_transaction():
     assert len(writer.inserted) == 1
     assert writer.inserted[0].name == "西湖"
     assert any("pg_advisory_xact_lock" in sql for sql, _ in writer.executed)
+
+
+def test_pg_create_hit_on_rephrased_variant_shares_base_predicate():
+    """2026-10-28 变脸补报：库内 变脸表演（川剧），新提交 看变脸 —— 基类
+    谓词的规范化匹配收口，命中不重插，别名入 note。"""
+    payload = _wish_payload(name="变脸表演（川剧）", city="成都")
+    factory = _TxFactory(dup_payload=payload)
+    svc = PgTripItemService(factory)
+    item = svc.create("看变脸", source="chat", itinerary_id="it-1", city="成都")
+    assert item["id"] == payload["id"]
+    assert item["note"] == "别名：看变脸"
+    writer = factory.sessions[1]
+    assert writer.inserted == []

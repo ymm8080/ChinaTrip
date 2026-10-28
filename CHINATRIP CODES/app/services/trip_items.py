@@ -12,6 +12,8 @@ write-through so items survive restarts (itinerary-store pattern).
 from __future__ import annotations
 
 import logging
+import re
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -51,6 +53,70 @@ def _norm(value: str | None) -> str | None:
     if not value:
         return None
     return value.strip().casefold() or None
+
+
+# 2026-10-28 心愿单去重模糊层：同一意愿的不同写法（看变脸 /
+# 变脸表演（川剧）/ 川剧变脸）必须收成一张卡。键 = 剥括号注 + 意图动词
+# 前缀 + 通用活动后缀；匹配 = 键相等 或 双向包含（短侧 >= 2 字，POIS
+# 数据集同款包含规则）。
+_WISH_PAREN_RE = re.compile(r"[（(【\[][^\n（）()【\][]*[）)】\]]")
+_WISH_VERB_PREFIX = (
+    "想要",
+    "想看",
+    "想去",
+    "想逛",
+    "想吃",
+    "想喝",
+    "想玩",
+    "想体验",
+    "看看",
+    "逛逛",
+    "试试",
+    "尝尝",
+    "参观",
+    "游览",
+    "打卡",
+    "体验",
+    "品尝",
+    "看",
+    "去",
+    "吃",
+    "喝",
+    "逛",
+    "游",
+    "玩",
+)
+_WISH_GENERIC_SUFFIX = ("表演", "演出", "体验", "秀", "之旅")
+
+
+def _wish_key(value: str | None) -> str:
+    name = _norm(value)
+    if not name:
+        return ""
+    name = _WISH_PAREN_RE.sub("", name)
+    name = re.sub(r"\s+", "", name)
+    for _ in range(3):  # 前缀/后缀交替剥，三轮收敛（看看变脸表演→变脸）
+        changed = False
+        for prefix in _WISH_VERB_PREFIX:
+            if name.startswith(prefix) and len(name) > len(prefix):
+                name = name[len(prefix) :]
+                changed = True
+        for suffix in _WISH_GENERIC_SUFFIX:
+            if name.endswith(suffix) and len(name) > len(suffix):
+                name = name[: -len(suffix)]
+                changed = True
+        if not changed:
+            break
+    return name
+
+
+def _wish_match(left: str, right: str) -> bool:
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    short, other = (left, right) if len(left) <= len(right) else (right, left)
+    return len(short) >= 2 and short in other
 
 
 class TripItemService:
@@ -103,6 +169,7 @@ class TripItemService:
             # with everything the second submission knew.
             self._enrich_duplicate(
                 duplicate,
+                name=name,
                 note=note,
                 city=city,
                 poi_id=poi_id,
@@ -142,6 +209,7 @@ class TripItemService:
     def _enrich_duplicate(
         item: dict,
         *,
+        name: str | None = None,
         note: str | None,
         city: str | None,
         poi_id: str | None,
@@ -149,9 +217,10 @@ class TripItemService:
         opening_hours: str | None,
         now: datetime | None,
     ) -> None:
-        """Merge-in place: only fill fields the existing row lacks; bump
-        updated_at when anything changed (subclass persistence rides the
-        caller's write-through)."""
+        """Merge-in place: only fill fields the existing row lacks; record
+        a rephrased alias (看变脸 vs 变脸表演（川剧）) in note so a fuzzy
+        merge leaves visible trace; bump updated_at when anything changed
+        (subclass persistence rides the caller's write-through)."""
         changed = False
         for field, value in (
             ("note", note),
@@ -162,6 +231,13 @@ class TripItemService:
         ):
             if value and not item.get(field):
                 item[field] = value
+                changed = True
+        alias = (name or "").strip()
+        if alias and _norm(alias) != _norm(item.get("name")):
+            current = item.get("note") or ""
+            if alias not in current:
+                merged = f"{current}；别名：{alias}" if current else f"别名：{alias}"
+                item["note"] = merged
                 changed = True
         if changed:
             item["updated_at"] = _iso_now(now)
@@ -344,22 +420,28 @@ class TripItemService:
         itinerary_id: str | None,
         city: str | None,
         poi_id: str | None,
+        items: Iterable[dict] | None = None,
     ) -> dict | None:
         """Same trip + same thing = one row: poi_id is authoritative when
-        both sides carry it, else normalized name + city — where a missing
-        city never contradicts a known one (chat adds a bare 西湖, paste
-        adds 西湖+杭州: same wish). Unwanted rows never match — re-adding
-        a rejected item starts a fresh wishlist entry. 2026-10-28 user
-        report (the global board showed 西湖 once per trip): a same-name
-        WISHLIST row from another trip is the same wish too, so the stream
-        keeps one card per distinct wish. Scheduled/booked rows of other
-        trips never match (a new trip files its own wish — timeline rows
-        stay per-trip), and the plan_delete bookkeeping write never
-        global-merges (un-parking trip B must not flip trip A's wish).
-        PgTripItemService mirrors this predicate in SQL under an advisory
-        lock — keep the two in sync."""
+        both sides carry it, else the wish key (see _wish_key) matched by
+        equality or bidirectional containment + city compatibility — a
+        missing city never contradicts a known one (chat adds a bare 西湖,
+        paste adds 西湖+杭州: same wish). Unwanted rows never match —
+        re-adding a rejected item starts a fresh wishlist entry.
+        2026-10-28 user report (the global board showed 西湖 once per
+        trip): a same-name WISHLIST row from another trip is the same wish
+        too. Same-day follow-up (变脸 twice on the board): 看变脸 /
+        变脸表演（川剧）/ 川剧变脸 are one wish phrased three ways — hence
+        the normalized key + containment layer instead of raw equality.
+        Scheduled/booked rows of other trips never match (a new trip files
+        its own wish — timeline rows stay per-trip), and the plan_delete
+        bookkeeping write never global-merges (un-parking trip B must not
+        flip trip A's wish). PgTripItemService feeds advisory-locked DB
+        rows straight into this predicate — single implementation, no SQL
+        mirror."""
+        active = self._items.values() if items is None else items
         if poi_id:
-            for item in self._items.values():
+            for item in active:
                 if (
                     item["itinerary_id"] == itinerary_id
                     and item["status"] != STATUS_UNWANTED
@@ -367,10 +449,14 @@ class TripItemService:
                 ):
                     return item
         key_name, key_city = _norm(name), _norm(city)
-        for item in self._items.values():
+        wish_key = _wish_key(name)
+        for item in active:
             if item["status"] == STATUS_UNWANTED:
                 continue
-            if _norm(item["name"]) != key_name:
+            if not (
+                _norm(item["name"]) == key_name
+                or _wish_match(wish_key, _wish_key(item["name"]))
+            ):
                 continue
             item_city = _norm(item["city"])
             if key_city is not None and item_city is not None and item_city != key_city:

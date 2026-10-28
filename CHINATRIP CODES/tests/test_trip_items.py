@@ -189,6 +189,44 @@ def test_create_dedup_cityless_matches_named_city_both_orders():
     assert bare2["id"] == named2["id"]
 
 
+def test_create_dedup_catches_rephrased_wish_variants():
+    """2026-10-28 用户报告：看变脸 与 变脸表演（川剧） 同板两张卡。
+    规范化键（剥括号注/意图动词/通用后缀）相等 → 合并成一张，别名入 note。"""
+    service = TripItemService()
+    first = service.create(
+        "变脸表演（川剧）", source="chat", itinerary_id="t1", city="成都"
+    )
+    again = service.create("看变脸", source="chat", itinerary_id="t1", city="成都")
+    assert again["id"] == first["id"]
+    assert "看变脸" in (service.get(first["id"])["note"] or "")
+
+    flipped = TripItemService()
+    bare = flipped.create("看变脸", source="chat", city="成都")
+    full = flipped.create("变脸表演（川剧）", source="paste", city="成都")
+    assert full["id"] == bare["id"]
+
+
+def test_create_dedup_containment_merges_reordered_variant():
+    """词序变体（川剧变脸 vs 变脸）：键互不相等，靠双向包含（短侧≥2字）
+    收口；别名写进 note 留痕。"""
+    service = TripItemService()
+    first = service.create("变脸", source="chat", itinerary_id="t1", city="成都")
+    again = service.create("川剧变脸", source="chat", itinerary_id="t1", city="成都")
+    assert again["id"] == first["id"]
+    assert "川剧变脸" in (service.get(first["id"])["note"] or "")
+
+
+def test_create_dedup_containment_still_respects_city_and_states():
+    """模糊层不放松既有闸门：已知不同城市=不同地点；他行程已排期=新行。"""
+    service = TripItemService()
+    cd = service.create("变脸", source="chat", itinerary_id="t1", city="成都")
+    cq = service.create("看变脸", source="chat", itinerary_id="t2", city="重庆")
+    assert cq["id"] != cd["id"]
+    service.update(cd["id"], status="scheduled", day=1)
+    fresh = service.create("川剧变脸", source="manual", itinerary_id="t3", city="成都")
+    assert fresh["id"] != cd["id"]
+
+
 def test_create_dedup_ignores_unwanted_rows():
     """A rejected item does not block re-adding: fresh wishlist row."""
     service = TripItemService()
