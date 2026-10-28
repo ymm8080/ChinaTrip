@@ -32,7 +32,11 @@ FOREIGNER_TIP 配套 FOREIGNER_TIP_EN；中文键值字节不变，只加字段�
 分开买）并入，西湖/朱家角/黄浦江游览/平江路/七里山塘/虎丘/周庄 7 行 无需预约。
 批 3（广深）：大梅沙海滨公园（旺季 5-10 月免费实名预约提前 7 天，淡季免约）
 并入，广州塔/沙面岛/长隆/珠江夜游/陈家祠/光孝寺/世界之窗/OCT-LOFT/深圳湾公园
-9 行 无需预约。差异项与批次明细见 DESIGN/reservation_seeds_核对_2026-10-25.md。
+9 行 无需预约。批 4（渝汉西安）10 行全 无需预约。批 5（丽江/哈尔滨/闽/黄山/
+港/鄂西北/晋中）：黄山风景区（强实名分时预约至少提前 1 天，现场不售票）
+并入，丽江古城/冰雪大世界/圣索菲亚/鼓浪屿（船票瓶颈）/永定土楼/太平山顶/
+武当山/平遥古城/西递宏村 9 行 无需预约。差异项与批次明细见
+DESIGN/reservation_seeds_核对_2026-10-25.md。
 """
 
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
@@ -231,6 +235,12 @@ RESERVATION_V0: dict[str, dict] = {
         "release": "00:00",
         "note": "旺季（每年 5-10 月）免费实名预约入园：小程序「大梅沙旅游」提前 7 天约，日限流约 8 万，凭身份证/手机号；淡季（11-4 月）无需预约直接入园；免费，谨防第三方收费代订",  # noqa: E501
         "note_en": "Peak season (May-Oct): free real-name reservation required via the 'Dameisha Tourism' mini-program, bookable 7 days ahead, ~80k daily cap, ID/phone needed; off-season (Nov-Apr) walk in free; beware paid third-party resellers",  # noqa: E501
+    },
+    "黄山风景区": {
+        "days": 1,
+        "release": "00:00",
+        "note": "强实名分时预约，现场不售票：小程序「黄山旅游官方平台」至少提前 1 天（当日不可约当日）；旺季 3-11 月建议提前 3 天、节假日提前 3-7 天抢热门时段；首次检票后 3 天内可多次入园",  # noqa: E501
+        "note_en": "Strict real-name timed reservation, no on-site ticket sales: book on the 'Huangshan Tourism Official Platform' mini-program at least 1 day ahead (no same-day booking); in peak season (Mar-Nov) book 3 days ahead, 3-7 days for holidays to catch popular slots; re-entry allowed within 3 days of first ticket check",  # noqa: E501
     },
 }
 
