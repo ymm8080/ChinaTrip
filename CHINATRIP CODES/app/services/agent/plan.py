@@ -4200,7 +4200,8 @@ class PlanningAgent:
                 if outcome is None:
                     continue
                 hours, address, source = outcome
-                item.opening_hours = hours
+                if hours:
+                    item.opening_hours = hours
                 if address and not item.address:
                     item.address = address
                 filled += 1
@@ -4237,7 +4238,8 @@ class PlanningAgent:
     ) -> tuple[str, str | None, str] | None:
         """单条目回源链：携程先 → 高德 v5 detail → 高德 v5 关键词搜索。
 
-        返回 (hours, address, source)；全链未命中返回 None。"""
+        返回 (hours, address, source)；hours 未命中但 address 命中时
+        hours=None 照常返回；全链未命中返回 None。"""
         hours: str | None = None
         address: str | None = None
         source: str | None = None
@@ -4284,7 +4286,10 @@ class PlanningAgent:
                     source = "amap_v5_search"
                 if not item.poi_id and out.get("poi_id"):
                     item.poi_id = out["poi_id"]
-        if not hours:
+        # hours 全链未命中但 address 已到手（开放型点位无营业时间块
+        # 常见）：地址照常带回，别跟着 hours 一起丢（2026-10-28 用户
+        # 报告行程单地址不显示的根因之一）。
+        if not hours and not address:
             return None
         return hours, address, source
 
@@ -4654,8 +4659,8 @@ class PlanningAgent:
         """专名愿望的城市解析（用户拍板 2026-10-24）：POIS 底库（全库
         不限城市，精确同名唯一才收）→ 高德全国 text（未标注=全国）。
         都落空返回 None，由上层记入追问队列问用户。品类愿望不走这里
-        ——品类没有确定的「在哪个城市」，维持提示+就近落实的已拍板
-        语义。"""
+        ——单城行程在 sync 侧直接记该城（2026-10-28 泛称自动落地），
+        多城/未定留空就近落实。"""
         hint = _wish_city_hint(name)
         if hint:
             return hint
@@ -4707,10 +4712,11 @@ class PlanningAgent:
         plan-item name. Duplicate wishes reuse the existing row; an
         unwanted row for the same wish flips back to wishlist.
 
-        城市解析（用户拍板 2026-10-24）：专名愿望入库前先定城市
-        （提示表→POIS 底库→高德全国）；定出的城市不在本次行程→不跨城
-        硬塞，只记心愿单并提示；品类愿望不定城市（提示+就近落实是已
-        拍板语义）。落空的进 unresolved 返回给调用方，coverage 之后
+        城市解析（用户拍板 2026-10-24；2026-10-28 泛称自动落地收口）：
+        专名愿望入库前先定城市（提示表→POIS 底库→高德全国）；定出的城市
+        不在本次行程→不跨城硬塞，只记心愿单并提示；泛称愿望行程城市
+        已定且唯一→直接记该城不再追问，多城/未定→留空就近落实（2026-10-24
+        拍板语义）。落空的专名进 unresolved 返回给调用方，coverage 之后
         决定是否追问用户。返回 (notes, unresolved)。
         Best-effort — service errors never block the plan turn."""
         if self._trip_items is None or not wishes:
@@ -4730,8 +4736,23 @@ class PlanningAgent:
                     (it for it in known if _name_dup(it["name"], wish)), None
                 )
                 if existing is None:
+                    is_category = _category_search_keyword(wish) is not None
                     city = None
-                    if _category_search_keyword(wish) is None:
+                    if is_category:
+                        # 泛称愿望自动落地（2026-10-28 用户拍板，去除每轮
+                        # 冒烟最后一处 clarify 摩擦）：行程城市已定且唯一→行
+                        # 直接记该城，不再追问「哪个城市」；多城/未定→留空，
+                        # 维持 2026-10-24 就近落实语义。落实为同类最佳由规划
+                        # 期 POIS 底库（tier 优先）→全城口碑决定；行名维持
+                        # 用户原话（2026-10-24 逐字拍板不变）。
+                        bare_cities = {
+                            (c or "").strip().removesuffix("市")
+                            for c in session.cities
+                            if (c or "").strip()
+                        }
+                        if len(bare_cities) == 1:
+                            city = session.cities[0]
+                    else:
                         city = await self._resolve_wish_city(wish)
                     row = self._trip_items.create(
                         wish,
@@ -4749,16 +4770,21 @@ class PlanningAgent:
                         }
                     )
                     if city:
-                        bare = _norm_city(city).removesuffix("市")
-                        if trip_cities and bare not in trip_cities:
-                            notes.append(
-                                L(
-                                    f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
-                                    f'"{wish}" saved to your wishlist ({city}, not '
-                                    f"part of this trip)",
+                        if not is_category:
+                            # 泛称行自带的城取自本次行程，必在城内，不走
+                            # 「行程未含」提示；专名行维持原判。
+                            bare = _norm_city(city).removesuffix("市")
+                            if trip_cities and bare not in trip_cities:
+                                notes.append(
+                                    L(
+                                        f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
+                                        f'"{wish}" saved to your wishlist ({city}, not '
+                                        f"part of this trip)",
+                                    )
                                 )
-                            )
-                    else:
+                    elif not is_category:
+                        # 泛称愿望不定城也不再进追问队列——多城/未定时就近
+                        # 落实是既定语义，问城只会白耗一轮。
                         unresolved.append((wish, row))
                 elif existing["status"] == STATUS_UNWANTED:
                     self._trip_items.update(existing["id"], status=STATUS_WISHLIST)

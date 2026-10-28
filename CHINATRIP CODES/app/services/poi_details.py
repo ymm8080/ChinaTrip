@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
 _POINT_WKT_RE = re.compile(r"POINT\((\S+) (\S+)\)")
 
-_STALE_AFTER = timedelta(hours=24)
+# 回源刷新目标窗口（2026-10-28 用户拍板：地址/营业时间一行一月）——
+# hours_updated_at 距今超 30 天（或 NULL）才进 stale_pois；每日作业照跑，
+# 只是每行最多一月被碰一次（命中/未命中盖戳同权），配额烧耗降一个量级
+_STALE_AFTER = timedelta(days=30)
 # After a failed DB call, skip DB attempts for this long (memory
 # serves instead). Bounds the down-db cost to ONE connect_timeout
 # stall per window instead of one per call (2026-10-20 latency fix).
@@ -137,7 +140,8 @@ class PoiDetailStore:
         sources: tuple[str, ...] | None = None,
         city: str | None = None,
     ) -> list[tuple[str, str | None, str | None, str | None, str | None]]:
-        """POIs whose hours are missing or older than 24h (job targets).
+        """POIs whose hours are missing or older than 30 days (job targets;
+        _STALE_AFTER 月度节奏 2026-10-28 定稿).
 
         返回 (source_poi_id, city, name_zh, source, location) 五元组；
         location 为 amap-ready "lon,lat"（GCJ-02，无坐标行 None）——链③
@@ -250,7 +254,10 @@ class PoiDetailStore:
         2026-10-24）。city 匹配同 stale_pois 三态；tokens 对 name_zh/
         category 做 LIKE。返回 amap 形状的骨架 dict（name/city/category/
         source_poi_id/location/address/opening_hours/source/rating），
-        按（名字精确命中，有坐标，类别命中）降序。"""
+        按（名字精确命中，有坐标，类别命中，tier: unesco>5A）降序——tier
+        只作同档并列裁决（2026-10-28 泛称愿望落地要同类最佳；专名精确命中
+        仍稳居首位不受影响）。"""
+
         toks = [t for t in (tokens or []) if t]
         if not toks:
             return []
@@ -258,13 +265,15 @@ class PoiDetailStore:
         if city:
             c = city.strip()
             city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
+        tier_of = {"unesco": 2, "5a": 1}
 
-        def rank(h: dict) -> tuple[bool, bool, bool]:
+        def rank(h: dict) -> tuple[bool, bool, bool, int]:
             n = (h.get("name") or "").strip()
             return (
                 any(n == t for t in toks),
                 h.get("location") is not None,
                 any(t in (h.get("category") or "") for t in toks),
+                tier_of.get((h.get("source") or "").strip().lower(), 0),
             )
 
         if self._db_available():
@@ -280,7 +289,10 @@ class PoiDetailStore:
                         pat = f"%{t}%"
                         conds.append(Poi.name_zh.like(pat))
                         conds.append(Poi.category.like(pat))
-                    rows = q.filter(or_(*conds)).limit(limit * 3).all()
+                    # 取 10× 再 Python 排序：LIMIT 内没有 tier 概念，取太少
+                    # 会把同类的 unesco/5A 行截在排序之前（内存回退全库扫，
+                    # 两路池深对齐）。
+                    rows = q.filter(or_(*conds)).limit(limit * 10).all()
                     hits = []
                     for row, loc_txt in rows:
                         m = _POINT_WKT_RE.match(loc_txt or "")
@@ -755,9 +767,10 @@ class PoiDetailStore:
         """MISS 冷却：只盖 hours_updated_at=now，不写 hours/source。
 
         永久缺 hours 的行（骨架不可匹配等）原本每轮重复查询、一天
-        多次烧 text 配额（2026-10-24 实测 200 连续超限）；盖戳即进
-        24h 静默（stale_pois 窗口外）。内存同步盖；DB UPDATE 失败只
-        记日志不抛（冷却失败无害，下轮多查一次而已）。
+        多次烧 text 配额（2026-10-24 实测 200 连续超限）；盖戳即出
+        stale_pois 窗口（2026-10-28 起窗口 30 天，未命中同样静默一月）。
+        内存同步盖；DB UPDATE 失败只记日志不抛（冷却失败无害，下轮
+        多查一次而已）。
         """
         now = datetime.now(timezone.utc)
         mem = self._memory.get(source_poi_id)

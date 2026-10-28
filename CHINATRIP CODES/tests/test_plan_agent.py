@@ -1365,6 +1365,65 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
     assert all(store.get(f"B0000{idx:02d}") for idx in range(8))
 
 
+class _SkeletonAmap(DistanceAmap):
+    """TABLE 骨架形态：detail 只带回地址，search 什么都没有。"""
+
+    async def place_hours(self, poi_id):
+        self.hours_calls.append(poi_id)
+        return {"opening_hours": None, "address": f"回填路{int(poi_id[-2:])}"}
+
+    async def search_hours(self, keyword, city=None):
+        self.search_calls.append((keyword, city))
+        return {"opening_hours": None, "rating": None}
+
+
+def test_v0_hours_chain_keeps_address_when_hours_miss():
+    """2026-10-28 根因：hours 全链未命中但高德带回地址——地址必须
+    回填行程项并落库，不能随 hours 一起丢（TABLE 骨架行库里无地址，
+    行程单地址全靠这条链）。"""
+    pois = [
+        {
+            "name": f"景点{idx}",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": f"B0000{idx:02d}",
+            "location": {"lon": 121.49 + idx * 0.01, "lat": 31.23},
+            "address": None,
+            "opening_hours": None,
+        }
+        for idx in range(2)
+    ]
+    items = [
+        {"name": f"景点{idx}", "city": "上海", "day": 1, "duration_minutes": 60}
+        for idx in range(2)
+    ]
+    store = PoiDetailStore()
+    amap = _SkeletonAmap(pois)
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=NullCtrip(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=4,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    visits = all_visits(session)
+    assert len(visits) == 2
+    for v in visits:
+        idx = int(v.name[-1])
+        assert v.address == f"回填路{idx}"  # 链上地址未被 hours 未命中丢弃
+        assert v.opening_hours is None
+        assert store.get(f"B0000{idx:02d}")["address"] == f"回填路{idx}"
+
+
 # --- rule 19 carve-out: named edits release pins; deletes hit trip center ---
 
 
@@ -1601,6 +1660,78 @@ def test_wishlist_coverage_skips_already_covered_wish():
     llm.replies.append(edit_reply("已加入", [_ADD_FACE_SHOW], wishes=["看变脸表演"]))
     session, _, _ = run(agent.message(session, "我想看变脸表演"))
     assert [v.name for v in all_visits(session)].count("川剧变脸表演（蜀风雅韵）") == 1
+
+
+# --- 泛称愿望自动落地 (2026-10-28): single-city trips never ask which city ---
+
+
+def _single_city_items():
+    return [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 60,
+        },
+    ]
+
+
+def _ready_single_city_session(agent):
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=2, preferences="亲子")
+    )
+    assert session.state == "ready"
+    return session
+
+
+def test_category_wish_single_city_records_city_without_asking():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(_single_city_items())])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_single_city_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
+    session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
+    # 泛称愿望自动记唯一行程城市，行名维持用户原话
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", "上海")]
+    # 不追问：待答复队列为空，回复里没有城市问句
+    assert session.pending_wish_cities == []
+    assert "还没确定是哪个城市" not in reply
+
+
+def test_category_wish_multi_city_stays_cityless_without_asking():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
+    session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
+    # 多城留空（就近落实语义），但同样不再追问
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", None)]
+    assert session.pending_wish_cities == []
+    assert "还没确定是哪个城市" not in reply
+
+
+def test_named_wish_without_city_still_asks():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    llm.replies.append(edit_reply("好的", [], wishes=["蜀风雅韵"]))
+    session, reply, _ = run(agent.message(session, "我想去蜀风雅韵"))
+    # 专名愿望定不出城维持追问——泛称自动落地不外溢到专名
+    assert "还没确定是哪个城市" in reply
 
 
 # --- wishlist absorption at v0 (2026-10-23 心愿单被规划吸收) -----------------

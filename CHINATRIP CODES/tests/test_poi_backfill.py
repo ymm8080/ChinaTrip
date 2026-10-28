@@ -447,3 +447,58 @@ def test_refresh_cities_filter_for_rotate_subset():
     store = fresh_store()
     asyncio.run(refresh_pois(store, _NullCtrip(), None))
     assert asyncio.run(refresh_pois(store, _NullCtrip(), None))["total"] == 0
+
+
+# --- search_keyword tier tiebreak (2026-10-28 泛称愿望落地同类最佳) ----------
+
+
+def test_search_keyword_prefers_tier_on_category_tie():
+    store = PoiDetailStore()
+    store.upsert(
+        "B1",
+        city="成都",
+        name="成都博物馆",
+        category="博物馆",
+        location=(104.06, 30.65),
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    store.upsert(
+        "B3",
+        city="成都",
+        name="四川博物院",
+        category="博物馆",
+        location=(104.08, 30.66),
+        source="unesco",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    # 同档并列（类别命中+有坐标）时 tier 在前：unesco > 5A > 裸行
+    assert [h["source_poi_id"] for h in hits][:2] == ["B3", "B2"]
+
+
+def test_search_keyword_exact_name_still_beats_tier():
+    store = PoiDetailStore()
+    store.upsert(
+        "B1",
+        city="成都",
+        name="博物馆",
+        category="博物馆",
+        location=(104.06, 30.65),
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    # 专名精确命中稳居首位，tier 只作并列裁决不越位
+    assert hits[0]["source_poi_id"] == "B1"
