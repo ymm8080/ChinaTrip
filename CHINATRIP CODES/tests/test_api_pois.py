@@ -133,10 +133,11 @@ def test_exact_hit_returns_200_with_new_fields():
     ):
         assert field in body
     assert body["rating"] == 4.6  # Decimal coerced to float
-    assert body["tags"] == ["michelin_1star", "black_pearl_1diamond"]
+    assert body["tags"] == ["michelin_1star", "black_pearl_1diamond"]  # tier 0 不加标签
     assert body["best_visit_time"] == "night"
     assert body["suggested_duration_min"] == 90
-    assert session.calls == 1  # exact hit: fuzzy stage never queried
+    # exact hit: fuzzy stage never queried; 读侧 tier 接线后多一次名单查询
+    assert session.calls == 2
 
 
 # --- fuzzy hit -----------------------------------------------------------------
@@ -151,7 +152,7 @@ def test_fuzzy_hit_parenthesized_and_spaced_variant():
     )
     assert resp.status_code == 200
     assert resp.json()["name_zh"] == "洪崖洞民俗风貌区"
-    assert session.calls == 2  # exact missed, fuzzy stage fetched
+    assert session.calls == 3  # exact missed → fuzzy fetched → tier 名单查询
 
 
 # --- miss / db down -------------------------------------------------------------
@@ -184,3 +185,38 @@ def test_photos_jsonb_structure_passes_through_unchanged():
     )
     assert resp.status_code == 200
     assert resp.json()["photos"] == PHOTOS
+
+
+# --- 读侧 tier 接线 (2026-10-28)：5A/unesco 名单行 tags 列 0 覆盖，出参前判级 ---
+
+
+def test_tier_tag_injected_for_skeleton_5a_row():
+    """source='5a' 骨架行（tags 空）→ 出参 tags 注入 '5a'，H5 徽章可见。"""
+    session = FakeSession([[make_row(source="5a", tags=None)], []])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tags"] == ["5a"]
+
+
+def test_tier_tag_injected_via_heritage_overlap():
+    """裸 amap 行名 ⊂ 名单行名 → 按互含判级注入（灵隐飞来峰 ⊂ 灵隐飞来峰景区）。"""
+    row = make_row(name_zh="灵隐飞来峰", tags=[])
+    session = FakeSession([[row], [("灵隐飞来峰景区", "5a")]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "杭州", "name": "灵隐飞来峰"}
+    )
+    assert resp.status_code == 200
+    assert "5a" in resp.json()["tags"]
+
+
+def test_already_tier_tagged_row_skips_heritage_query():
+    """行内已有层级标签：不再查名单（出参原样，少一次查询）。"""
+    session = FakeSession([[make_row(tags=["unesco"])]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tags"] == ["unesco"]
+    assert session.calls == 1

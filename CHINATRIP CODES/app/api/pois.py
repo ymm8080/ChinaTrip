@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, load_only, sessionmaker
 
 from app.db import get_session_factory
 from app.models import Poi
+from app.services.poi_details import apply_tier_tag
 
 router = APIRouter(prefix="/api/pois", tags=["pois"])
 
@@ -97,7 +98,7 @@ def _norm_name(name: str) -> str:
     return re.sub(r"\s+", "", re.sub(r"[（(][^（）()]*[)）]", "", name))
 
 
-def _to_model(row: Poi) -> PoiDetail:
+def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
     rating = row.rating  # Numeric → Decimal on real rows
     return PoiDetail(
         poi_id=str(row.id) if row.id else None,
@@ -115,7 +116,7 @@ def _to_model(row: Poi) -> PoiDetail:
         website=row.website,
         rating=float(rating) if rating is not None else None,
         rating_source=row.rating_source,
-        tags=row.tags,
+        tags=tags if tags is not None else row.tags,
         tags_source=row.tags_source,
         intro=row.intro,
         intro_source=row.intro_source,
@@ -148,8 +149,24 @@ async def poi_detail(
                     if variants:
                         fq = fq.filter(Poi.city.in_(variants))
                     row = fq.filter(Poi.name_zh.contains(norm)).first()
+            if row is None:
+                raise HTTPException(status_code=404, detail="poi not found")
+            # 读侧 tier 接线（2026-10-28）：5A/unesco 名单行 tags 列 0 覆盖
+            # （名单以骨架行存在），H5 徽章按行内 tags 永远看不到层级——出参
+            # 前按 共用 hit_tier 判级并入 tags；已有层级标签的行跳过名单查询。
+            tags = list(row.tags or [])
+            if not {"unesco", "5a", "4a", "3a", "intl"} & set(tags):
+                heritage = [
+                    (hz, 4 if src == "unesco" else 3)
+                    for hz, src in session.query(Poi.name_zh, Poi.source)
+                    .filter(Poi.source.in_(["unesco", "5a"]))
+                    .all()
+                ]
+                h = {"name": row.name_zh, "source": row.source, "tags": tags}
+                apply_tier_tag(h, heritage)
+                tags = h["tags"]
+            return _to_model(row, tags=tags)
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=503, detail="poi store unavailable") from None
-    if row is None:
-        raise HTTPException(status_code=404, detail="poi not found")
-    return _to_model(row)

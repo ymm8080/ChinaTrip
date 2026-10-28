@@ -69,6 +69,52 @@ def order_source_tags(tags: list[str]) -> list[str]:
     return sorted(tags, key=lambda t: _SOURCE_TAG_ORDER.get(t, 99))
 
 
+def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
+    """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
+    tags → source（intl 系与 5A 同档，2026-10-25/26 拍板）→ 全库名单互含。"""
+    tags = {str(t) for t in (h.get("tags") or [])}
+    if "unesco" in tags or h.get("source") == "unesco":
+        return 4
+    if "5a" in tags or h.get("source") == "5a":
+        return 3
+    # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
+    # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
+    # 改明细站点名，枚举同步扩）
+    if "intl" in tags or h.get("source") in (
+        "intl",
+        "tripadvisor",
+        "lonelyplanet",
+        "viator",
+        "curated",
+    ):
+        return 3
+    if "4a" in tags:
+        return 2
+    if "3a" in tags:
+        return 1
+    name = h.get("name") or ""
+    for ref, tier in heritage:
+        if _name_overlap(name, ref):
+            return tier
+    return 0
+
+
+def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
+    """判定层级并把层级标签并入 tags（intl 档打 intl 牌不打 5a 牌），
+    返回层级。读侧（top_pois_in_city / search_keyword / api/pois）共用。"""
+    tier = hit_tier(h, heritage)
+    tag = _TIER_TAG.get(tier)
+    if (
+        tier == 3
+        and "intl" in (h.get("tags") or [])
+        and "5a" not in (h.get("tags") or [])
+    ):
+        tag = "intl"
+    if tag and tag not in (h.get("tags") or []):
+        h["tags"] = order_source_tags([*(h.get("tags") or []), tag])
+    return tier
+
+
 def _name_overlap(a: str | None, b: str | None) -> bool:
     """名单互含匹配（灵隐飞来峰 ↔ 灵隐飞来峰景区）；短名防泛名误伤。"""
     a, b = (a or "").strip(), (b or "").strip()
@@ -254,9 +300,10 @@ class PoiDetailStore:
         2026-10-24）。city 匹配同 stale_pois 三态；tokens 对 name_zh/
         category 做 LIKE。返回 amap 形状的骨架 dict（name/city/category/
         source_poi_id/location/address/opening_hours/source/rating），
-        按（名字精确命中，有坐标，类别命中，tier: unesco>5A）降序——tier
-        只作同档并列裁决（2026-10-28 泛称愿望落地要同类最佳；专名精确命中
-        仍稳居首位不受影响）。"""
+        按（名字精确命中，有坐标，类别命中，hit_tier: unesco>5A/intl>4A>3A
+        >名单互含）降序——tier 只作同档并列裁决（2026-10-28 泛称愿望落地
+        要同类最佳，与 top_pois_in_city 同一套层级判定；专名精确命中仍稳居
+        首位不受影响）。"""
 
         toks = [t for t in (tokens or []) if t]
         if not toks:
@@ -265,15 +312,14 @@ class PoiDetailStore:
         if city:
             c = city.strip()
             city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
-        tier_of = {"unesco": 2, "5a": 1}
 
-        def rank(h: dict) -> tuple[bool, bool, bool, int]:
+        def rank(h: dict, heritage: list[tuple[str, int]]) -> tuple:
             n = (h.get("name") or "").strip()
             return (
                 any(n == t for t in toks),
                 h.get("location") is not None,
                 any(t in (h.get("category") or "") for t in toks),
-                tier_of.get((h.get("source") or "").strip().lower(), 0),
+                hit_tier(h, heritage),
             )
 
         if self._db_available():
@@ -313,7 +359,8 @@ class PoiDetailStore:
                                 ),
                             }
                         )
-                    hits.sort(key=rank, reverse=True)
+                    heritage = self._heritage_names() if hits else []
+                    hits.sort(key=lambda h: rank(h, heritage), reverse=True)
                     return hits[:limit]
             except Exception:
                 self._note_db_failure()
@@ -343,7 +390,8 @@ class PoiDetailStore:
                     "location": tuple(loc) if loc else None,
                 }
             )
-        hits.sort(key=rank, reverse=True)
+        heritage = self._heritage_names() if hits else []
+        hits.sort(key=lambda h: rank(h, heritage), reverse=True)
         return hits[:limit]
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
@@ -541,41 +589,9 @@ class PoiDetailStore:
                 rows_out.append(h)
         heritage = self._heritage_names()
 
-        def tier_of(h: dict) -> int:
-            tags = {str(t) for t in (h.get("tags") or [])}
-            if "unesco" in tags or h.get("source") == "unesco":
-                return 4
-            if "5a" in tags or h.get("source") == "5a":
-                return 3
-            # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
-            # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
-            # 改明细站点名，枚举同步扩）
-            if "intl" in tags or h.get("source") in (
-                "intl",
-                "tripadvisor",
-                "lonelyplanet",
-                "viator",
-                "curated",
-            ):
-                return 3
-            if "4a" in tags:
-                return 2
-            if "3a" in tags:
-                return 1
-            name = h.get("name") or ""
-            for ref, tier in heritage:
-                if _name_overlap(name, ref):
-                    return tier
-            return 0
-
         for h in rows_out:
-            tier = tier_of(h)
+            tier = apply_tier_tag(h, heritage)
             h["_tier"] = tier
-            tag = _TIER_TAG.get(tier)
-            if tier == 3 and "intl" in h["tags"] and "5a" not in h["tags"]:
-                tag = "intl"
-            if tag and tag not in h["tags"]:
-                h["tags"] = order_source_tags([*h["tags"], tag])
         rows_out.sort(key=score, reverse=True)
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)
