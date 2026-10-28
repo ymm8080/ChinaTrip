@@ -59,6 +59,8 @@ class ZhipuGLMAdapter:
         *,
         temperature: float = 0.3,
         max_tokens: int | None = None,
+        thinking: bool | None = None,
+        timeout_seconds: float | None = None,
     ) -> ChatResult:
         payload: dict = {
             "model": self.model,
@@ -67,7 +69,13 @@ class ZhipuGLMAdapter:
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
-        body = await self._post_json("/chat/completions", payload)
+        if thinking is False:
+            # glm 思考关断（2026-10-28 探针：select 场景 37.9s→7.5s）；
+            # 端点不支持该参数时会忽略，无副作用
+            payload["thinking"] = {"type": "disabled"}
+        body = await self._post_json(
+            "/chat/completions", payload, timeout_seconds=timeout_seconds
+        )
         try:
             content = body["choices"][0]["message"]["content"]
         except (KeyError, TypeError, IndexError) as exc:
@@ -84,11 +92,14 @@ class ZhipuGLMAdapter:
             tokens_out=_int_or_zero(usage.get("completion_tokens")),
         )
 
-    async def _post_json(self, path: str, payload: dict) -> dict:
+    async def _post_json(
+        self, path: str, payload: dict, *, timeout_seconds: float | None = None
+    ) -> dict:
+        timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
-                timeout=self.timeout_seconds,
+                timeout=timeout,
                 transport=self.transport,
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as client:
