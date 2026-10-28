@@ -314,3 +314,32 @@ def test_zhipu_extract_thinking_disabled():
     adapter, captured = _capture_adapter()
     asyncio.run(adapter.extract("看看这段文本", lang="zh"))
     assert captured[0].get("thinking") == {"type": "disabled"}
+
+
+def test_transfer_day_budget_reduced():
+    """转场日（车票/机票钉死）预算扣 180：满额天放得下的量在转场日放不下。"""
+    cands = [
+        _cand("甲", "成都", suggested=120, loc=(104.06, 30.66)),
+        _cand("乙", "成都", suggested=120, loc=(104.06, 30.66)),
+        _cand("丙", "成都", suggested=120, loc=(104.06, 30.66)),
+    ]
+    full = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
+    assert len(full) == 3  # 120×3=360 恰好满额全放
+    pinned = PlanningAgent._deterministic_selection(
+        cands, 1, {"成都": (1, 1)}, transfer_days={1}
+    )
+    # 转场日预算 360-180=180：第一个 120 放得下，第二个 240>180 出局
+    assert len(pinned) == 1
+
+
+def test_transfer_days_only_deduct_listed_days():
+    cands = [_cand(f"点{i}", "成都", suggested=60) for i in range(6)]
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, transfer_days={1}
+    )
+    by_day = {}
+    for it in items:
+        by_day.setdefault(it["day"], set()).add(it["name"])
+    # day1 预算 180：3 个；day2 满额：3 个（池 span*4=8 全放，各 3）
+    assert len(by_day[1]) == 3
+    assert len(by_day.get(2, set())) == 3

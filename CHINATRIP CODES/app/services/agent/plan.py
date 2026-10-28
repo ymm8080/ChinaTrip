@@ -2667,7 +2667,19 @@ class PlanningAgent:
         else:
             # 确定性选点（默认，2026-10-28 用户拍板）：不调 LLM、不评分，
             # 候选库序+分日规则，见 _deterministic_selection。
-            picked = self._deterministic_selection(candidates, session.days, ranges)
+            # 转场日（车票/机票时刻地点钉死）：到达日=各目的城市窗口首日，
+            # 返程日=末日；这些天预算扣减，避免堆出游览时长硬违规。
+            transfer_days: set[int] = set()
+            if len(session.cities) > 1:
+                for city in session.cities[1:]:
+                    clo, _chi = ranges.get(
+                        (city or "").removesuffix("市"), (1, session.days)
+                    )
+                    transfer_days.add(clo)
+                transfer_days.add(session.days)
+            picked = self._deterministic_selection(
+                candidates, session.days, ranges, transfer_days
+            )
             llm_assumptions = [
                 L(
                     "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
@@ -3282,7 +3294,10 @@ class PlanningAgent:
 
     @staticmethod
     def _deterministic_selection(
-        candidates: list[dict], days: int, ranges: dict[str, tuple[int, int]]
+        candidates: list[dict],
+        days: int,
+        ranges: dict[str, tuple[int, int]],
+        transfer_days: set[int] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -3291,7 +3306,9 @@ class PlanningAgent:
         ②分日=cluster_days 地理聚拢（同片区同天）+ 每日参访时长预算
         DAY_VISIT_BUDGET_MINUTES + 4 个/日闸，簇满溢出到余量最大天；
         ③日内=最近邻链（solver 再按 travel 矩阵+开放时间窗精排）；
-        ④演出钉城市末日收尾、餐饮锚点全保留摊到窗口各天。
+        ④演出钉城市末日收尾、餐饮锚点全保留摊到窗口各天；⑤转场日
+        （到达日/返程日，transfer_days）预算扣 FLIGHT_TRANSFER_MINUTES——
+        火车/机票时刻与车站机场天然钉死，游览只能排它前后的剩余时间窗。
         不评分、同输入同输出。
         """
 
@@ -3355,6 +3372,13 @@ class PlanningAgent:
             pool = ordered[: span * 4]
             clusters = cluster_days([c for _, c in pool], span)
             day_loads = {d: [0, 0] for d in range(lo, hi + 1)}  # [minutes, count]
+
+            def _budget(d: int) -> int:
+                # 转场日扣减：车票/机票时刻地点钉死，当天可用参访时间少一段
+                if transfer_days and d in transfer_days:
+                    return DAY_VISIT_BUDGET_MINUTES - FLIGHT_TRANSFER_MINUTES
+                return DAY_VISIT_BUDGET_MINUTES
+
             cluster_rank: dict[int, tuple] = {}
             for pos, (_idx, cand) in enumerate(pool):
                 cid = clusters[pos]
@@ -3384,10 +3408,10 @@ class PlanningAgent:
                 cid = clusters[pos]
                 day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
                 load = day_loads[day]
-                if load[0] + minutes > DAY_VISIT_BUDGET_MINUTES or load[1] >= 4:
+                if load[0] + minutes > _budget(day) or load[1] >= 4:
                     day = _emptiest_day()  # 簇满→溢出余量最大天（保地理优先、不空天）
                     load = day_loads[day]
-                    if load[0] + minutes > DAY_VISIT_BUDGET_MINUTES or load[1] >= 4:
+                    if load[0] + minutes > _budget(day) or load[1] >= 4:
                         continue  # 全满才出局（tier 低者先出）
                 load[0] += minutes
                 load[1] += 1
