@@ -156,20 +156,88 @@ class PgItineraryStore(InMemoryItineraryStore):
 
     def _boot_load(self) -> None:
         try:
-            with self._session_factory() as session:
-                for row in session.query(Itinerary).all():
-                    if not row.plan:
-                        continue
-                    try:
-                        record = ItineraryRecord.model_validate(row.plan)
-                        self._records[record.itinerary_id] = record
-                    except Exception:
-                        logger.warning(
-                            "pg_state: itinerary %s payload 解析失败，跳过", row.id
-                        )
+            self._pg_reload()
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，行程 store 降级纯内存: %s", exc)
+
+    # ---- 读穿透（2026-10-28 双进程事故重构）：PG 是读权威 -----------------
+    # 内存层降级为「PG 不可达兜底 + 写穿缓存」。get/list 每次回库取新，
+    # 旁路写入（运维脚本 / 另一端口进程 :8000/:8443）立即可见，save 端点
+    # 不再冻结到陈旧内存（当天 12:01 错快照事故根治）。
+
+    def _pg_reload(self) -> None:
+        """全量重载进内存（boot 与 list 读穿透共用）。"""
+        records: dict[str, ItineraryRecord] = {}
+        with self._session_factory() as session:
+            for row in session.query(Itinerary).all():
+                if not row.plan:
+                    continue
+                try:
+                    record = ItineraryRecord.model_validate(row.plan)
+                except Exception:
+                    logger.warning(
+                        "pg_state: itinerary %s payload 解析失败，跳过", row.id
+                    )
+                    continue
+                records[record.itinerary_id] = record
+        self._records = records
+
+    def _try_refresh(self) -> None:
+        if not self._pg_ok:
+            return
+        try:
+            self._pg_reload()
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 读降级（纯内存兜底）: %s", exc)
+        except Exception:
+            logger.warning("pg_state: PG 读穿透失败，本轮用内存", exc_info=True)
+
+    def _pg_get(self, itinerary_id: str) -> ItineraryRecord | None | object:
+        uid = _pg_uuid_loose(itinerary_id, "it_")
+        if uid is None:
+            return None
+        with self._session_factory() as session:
+            row = session.get(Itinerary, uid)
+            if row is None or not row.plan:
+                return None
+            return ItineraryRecord.model_validate(row.plan)
+
+    def get(self, itinerary_id: str) -> ItineraryRecord | None:
+        if self._pg_ok:
+            try:
+                record = self._pg_get(itinerary_id)
+            except OperationalError as exc:
+                self._pg_ok = False
+                logger.warning("pg_state: PG 读降级（纯内存兜底）: %s", exc)
+            except Exception:
+                logger.warning(
+                    "pg_state: 行程 %s 读穿透失败，本轮用内存",
+                    itinerary_id,
+                    exc_info=True,
+                )
+            else:
+                if record is not None:
+                    self._records[itinerary_id] = record
+                return record
+        return super().get(itinerary_id)
+
+    def list_by_owner(self, owner_device_id: str) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_by_owner(owner_device_id)
+
+    def list_by_account(self, username: str) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_by_account(username)
+
+    def find_by_share_token(self, token: str) -> ItineraryRecord | None:
+        self._try_refresh()
+        return super().find_by_share_token(token)
+
+    def list_all(self) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_all()
 
     def put(self, record: ItineraryRecord) -> None:
         super().put(record)

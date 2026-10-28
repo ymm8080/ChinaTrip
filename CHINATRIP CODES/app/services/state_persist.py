@@ -107,6 +107,15 @@ class SqliteStateBackend:
     def load_sessions(self) -> dict[str, str]:
         return self._load("plan_sessions", "session_id")
 
+    def load_session(self, session_id: str) -> str | None:
+        """单行读（读穿透用）：payload 或 None。"""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM plan_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        return row[0] if row else None
+
     def load_itineraries(self) -> dict[str, str]:
         return self._load("itineraries", "itinerary_id")
 
@@ -315,9 +324,37 @@ class PersistentPlanSessionStore(PlanSessionStore):
         super().save(session)
         self._backend.save_session(session.session_id, session.model_dump_json())
 
+    def get(self, session_id: str, *, device_id: str) -> PlanSession | None:
+        """读穿透（2026-10-28 双进程事故重构）：SQLite 是会话权威，每次
+        回库取新——旁路写入（运维脚本/另一端口进程）立即可见，save 端点
+        不再吃到陈旧内存冻结错快照；库读失败/单行损坏才退内存缓存。"""
+        try:
+            payload = self._backend.load_session(session_id)
+        except Exception:
+            logger.warning("state_persist: session %s 读库失败，回退内存", session_id)
+            payload = None
+        if payload is not None:
+            try:
+                session = PlanSession.model_validate_json(payload)
+            except Exception:
+                logger.warning(
+                    "state_persist: session %s payload 损坏，回退内存", session_id
+                )
+            else:
+                self._sessions[session_id] = session
+                if session.device_id != device_id:
+                    return None
+                return session
+        return super().get(session_id, device_id=device_id)
+
 
 class PersistentItineraryStore(InMemoryItineraryStore):
-    """Itinerary records survive restarts; delete is honored on disk."""
+    """LEGACY（2026-10-25 起未接线）：行程活库已切 PG（pg_state.
+    PgItineraryStore，见 api/itineraries.get_store），SQLite itineraries
+    表只是停写的备份镜像——运维脚本勿再读写此镜像修数据，一律走
+    PgItineraryStore.put（当天 12:0x 旁路 SQL 写坏 plan 列形状导致
+    boot-load 跳行 404 的事故记录在此）。保留类仅为旧备份可读。
+    """
 
     def __init__(self, backend: SqliteStateBackend) -> None:
         super().__init__()
