@@ -30,6 +30,7 @@ import sys
 from app.config import get_settings
 from app.services.amap_client import AmapClient
 from app.services.baidu_client import BaiduClient
+from app.services.map_provider import map_ready
 from app.services.weather import (
     CITY_ADCODES,
     fetch_and_store,
@@ -125,7 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     targets14 = targets or list(CITY_COORDS)
 
     stats: dict = {}
-    if targets and not args.skip_amap:
+    # weather 源轴（--src 缺省=map_provider）与图商键独立双轴设计（2026-10-27 双轨）。
+    if targets and not args.skip_amap and map_ready(settings):
         if src == "baidu":
             client = BaiduClient(
                 ak=settings.baidu_ak,

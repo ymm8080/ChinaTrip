@@ -1630,7 +1630,7 @@ def test_absorb_wishlist_dedupes_same_site():
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
     assert session.must_visits == ["李子坝站"]
-    assert agent._absorb_wishlist(session) == []  # rerun absorbs nothing new
+    assert run(agent._absorb_wishlist(session)) == []  # rerun absorbs nothing new
 
 
 def test_absorb_wishlist_skips_items_from_other_cities():
@@ -2390,3 +2390,157 @@ def test_lang_en_directive_reaches_llm_system_prompt():
     )
     run(agent2.start(device_id="d2", cities=["上海"], days=1, preferences="随便"))
     assert not any("LANGUAGE:" in m for m in rec2.system_msgs), "zh 路径不应注入指令"
+
+
+# --- 2026-10-28 心愿单定城（西湖漏进重庆行程事故门禁）------------------------
+
+
+def _city_probe_agent(poi_hits, items):
+    """带 POI 库定城 stub 的 wishlist agent（[(name, city)] 行）。"""
+
+    class Lib(PoiDetailStore):
+        def __init__(self, hits):
+            super().__init__(None)  # 无 DB：管线其余方法走降级默认
+            self.hits = hits
+
+        def search_keyword(self, *args, **kwargs):
+            # city=None = _resolve_wish_city 定城查询（返回库命中）；
+            # 带城市 = 候选拉取（返回空，不干扰行程内容）。
+            city = args[0] if args else kwargs.get("city")
+            return list(self.hits) if city is None else []
+
+        def top_pois_in_city(self, *a, **k):
+            return []
+
+    svc = TripItemService()
+
+    for name, city in items:
+        svc.create(name, source="manual", city=city)
+
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(SH_HZ_ITEMS)]),
+        trip_items=svc,
+        poi_details=Lib(list(poi_hits)),
+    )
+
+    return agent, svc
+
+
+def test_absorb_named_null_city_resolves_outside_trip_skipped():
+    """空城专名行（故宫）：库命中同名行→定城北京；不在行程→跳过且行已回填。"""
+
+    agent, svc = _city_probe_agent(
+        [{"name": "故宫博物院", "city": "北京市"}],
+        [("故宫", None)],
+    )
+
+    session = run(
+        agent.start(
+            device_id="d1", cities=["上海", "杭州"], days=2, preferences="无特别要求"
+        )
+    )
+
+    assert "故宫" not in session.must_visits
+
+    assert not any("故宫" in v.name for v in all_visits(session))
+
+    assert svc.list_groups()["wishlist"][0]["city"] == "北京"
+
+
+def test_absorb_named_null_city_resolves_inside_trip_kept():
+    """空城专名行（灵隐寺）：定城杭州在行程内→照常吸收且行已回填。"""
+
+    agent, svc = _city_probe_agent(
+        [{"name": "灵隐寺", "city": "杭州市"}],
+        [("灵隐寺", None)],
+    )
+
+    session = run(
+        agent.start(
+            device_id="d1", cities=["上海", "杭州"], days=2, preferences="无特别要求"
+        )
+    )
+
+    assert "灵隐寺" in session.must_visits
+
+    assert session.site_cities.get("灵隐寺") == "杭州"
+
+    assert svc.list_groups()["wishlist"][0]["city"] == "杭州"
+
+
+def test_resolve_wish_city_library_containment():
+    """库名精确未中→双向包含同城唯一即收（西湖→西湖区西湖风景区/杭州）。"""
+
+    class Lib:
+        def search_keyword(self, city, names):
+
+            assert names == ["西湖"]
+
+            return [{"name": "西湖区西湖风景区", "city": "杭州市"}]
+
+    agent = PlanningAgent(ScriptedLLM([]), poi_details=Lib())
+
+    assert run(agent._resolve_wish_city("西湖")) == "杭州"
+
+
+class WestlakeOnlyAmap(StubAmap):
+    """只答 must-visit 名查（西湖→杭州真身）；城内候选搜索一律空。"""
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+
+        self.calls.append((keywords, city))
+
+        if keywords != "西湖":
+            return []
+
+        return [
+            {
+                "name": "杭州市西湖风景名胜区",
+                "city": "杭州市",
+                "source_poi_id": "B001WESTLAKE",
+                "location": {"lon": 120.14, "lat": 30.24},
+            }
+        ]
+
+
+def test_collect_candidates_same_site_outside_trip_excluded():
+    """必去专名真身确在行程外（西湖→杭州，行程重庆）：真排除，不再落名称占位。"""
+
+    agent = PlanningAgent(ScriptedLLM([]), amap_client=WestlakeOnlyAmap())
+
+    candidates, assumptions = run(agent._collect_candidates(["重庆"], ["西湖"]))
+
+    names = [c["name"] for c in candidates]
+
+    assert "西湖" not in names
+
+    assert "杭州市西湖风景名胜区" not in names
+
+    assert any("行程外城市" in a and "杭州" in a for a in assumptions)
+
+    assert not any("按名称占位" in a for a in assumptions)
+
+
+def test_v0_leg_source_follows_vendor_attr():
+    """2026-10-28 一键切图商：客户端标 vendor=baidu 时实测腿不再硬编 amap。"""
+
+    amap = DistanceAmap(AMAP_POIS)
+
+    amap.vendor = "baidu"
+
+    llm = ScriptedLLM([v0_reply(_two_stop_items())])
+
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
+
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+
+    day2 = _day2_visits(session)
+
+    assert day2 and day2[0].leg_source == "baidu"

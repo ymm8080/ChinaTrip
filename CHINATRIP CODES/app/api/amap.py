@@ -17,6 +17,15 @@ def get_amap_client(settings: Settings = Depends(get_settings)) -> AmapClient:
     return build_map_client(settings)
 
 
+@router.get("/provider")
+async def map_provider_info(settings: Settings = Depends(get_settings)) -> dict:
+    """当前图商与就绪态（2026-10-28 一键切图商）。
+
+    前端步行/路线外链按 provider 组装；key 永不出服务端（铁律 22 同源）。
+    """
+    return {"provider": settings.map_provider, "ready": map_ready(settings)}
+
+
 @router.get("/poi/search")
 async def search_poi(
     keywords: str = Query(min_length=1, max_length=64),

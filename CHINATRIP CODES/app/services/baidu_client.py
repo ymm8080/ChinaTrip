@@ -83,6 +83,9 @@ def _gcj_polyline(path: object) -> list[dict]:
 
 
 class BaiduClient:
+    # 图商标识（与 AmapClient.vendor 同构；方法级鸭子类型复用）。
+    vendor = "baidu"
+
     def __init__(
         self,
         *,

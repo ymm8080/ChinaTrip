@@ -294,6 +294,9 @@ def _normalize_transit_segment(segment: dict) -> dict:
 
 
 class AmapClient:
+    # 图商标识（2026-10-28 一键切图商）：leg_source 等按真实 vendor 标注。
+    vendor = "amap"
+
     def __init__(
         self,
         *,

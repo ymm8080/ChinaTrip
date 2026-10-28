@@ -8,6 +8,13 @@ i18n 文案不动。返回类型注解写 AmapClient 仅为兼容既有引用。
 批量作业（refresh_pois / enrich_amap_detail）刻意不走此工厂：POI
 底库 source/amap_id 列语义绑定高德，作业仍直连 AmapClient；高德
 key 真失效时它们是下一片迁移（届时 BaiduClient.uid → source_poi_id）。
+2026-10-28 全量收口（一键切图商）：API 平面（amap/weather/plan/navigation 代理）、
+规划器注入、天气抓取（--src 缺省=map_provider）、chinatravel 导入定位、
+deeplinks（provider 参数，baidumap:// 系）、前端步行外链（/api/v1/amap/provider
+预取）全部走本工厂或 settings.map_provider；leg_source 按客户端 vendor 属性
+标注（amap/baidu），心愿单条目定城亦走注入客户端。仍有意直连 AmapClient 的
+仅剩：refresh_pois / enrich_amap_detail / poi_backfill（POI 库 source/amap_id
+列语义绑定高德；百度切换时它们是下一片迁移：BaiduClient.uid → source_poi_id）。
 """
 
 from __future__ import annotations

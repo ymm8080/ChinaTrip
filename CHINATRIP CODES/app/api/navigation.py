@@ -112,7 +112,10 @@ async def transit(
 
 
 @router.post("/deeplink")
-async def deeplink(req: DeeplinkRequest) -> dict:
+async def deeplink(
+    req: DeeplinkRequest,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     origin = (
         None
         if req.origin is None
@@ -125,6 +128,7 @@ async def deeplink(req: DeeplinkRequest) -> dict:
             req.destination.lon,
             req.destination.lat,
             origin=origin,
+            provider=settings.map_provider,
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_destination") from None
@@ -145,7 +149,9 @@ async def missed_connection(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     def _taxi(station_name: str, lon: float, lat: float) -> dict:
-        return compose_deeplink("taxi", station_name, lon, lat)
+        return compose_deeplink(
+            "taxi", station_name, lon, lat, provider=settings.map_provider
+        )
 
     try:
         return await missed_connection_fallback(

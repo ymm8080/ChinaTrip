@@ -577,6 +577,8 @@ CATEGORY_SEARCH_KEYWORDS: dict[str, str] = {
     "奶茶": "奶茶店",
     "酒吧": "酒吧",
     "夜市": "夜市",
+    "博物馆": "博物馆",
+    "博物馆人文": "博物馆",
 }
 
 
@@ -597,6 +599,7 @@ def _category_search_keyword(name: str) -> str | None:
 # 心愿单；不在行程→回复里提示用户（不确定再问）；推断不出→城市留空，
 # 由搜索圆心回退就近落实。
 WISH_CITY_HINTS: dict[str, str] = {
+    "西湖": "杭州",
     "变脸": "成都",
     "川剧": "成都",
     "喝茶": "成都",
@@ -2409,10 +2412,43 @@ class PlanningAgent:
 
     # --- v0 generation ----------------------------------------------------
 
-    def _absorb_wishlist(self, session: PlanSession) -> list[str]:
+    def _backfill_wish_city(self, name: str, city: str) -> None:
+        """心愿单定城补写（2026-10-28 拍板：心愿单条目尽量带城市）。
+
+        只写回空城行，不覆盖用户手填/已定城市；模糊同站行写回一条即止。
+        Best-effort——任何失败只留日志，绝不阻塞规划回合。"""
+        if self._trip_items is None or not (city or "").strip():
+            return
+        city = (city or "").strip().removesuffix("市")
+        try:
+            for group in self._trip_items.list_groups().values():
+                for it in group:
+                    if (it.get("city") or "").strip():
+                        continue
+                    if _site_dup(it.get("name") or "", name):
+                        try:
+                            self._trip_items.update(it["id"], city=city)
+                        except Exception:
+                            logger.warning(
+                                "plan: wish city write-back failed for %s",
+                                name,
+                                exc_info=True,
+                            )
+                        return
+        except Exception:
+            logger.warning(
+                "plan: wish city backfill failed for %s", name, exc_info=True
+            )
+
+    async def _absorb_wishlist(self, session: PlanSession) -> list[str]:
         """Trip-center wishlist entries for this trip's cities become
         must-visits (engine schedules + pins them). Runs at the single
-        v0 chokepoint so start/confirm/clarify paths all absorb."""
+        v0 chokepoint so start/confirm/clarify paths all absorb.
+
+        2026-10-28 事故门禁（西湖漏进重庆行程）：空城行不再无条件吸收——
+        专名愿望先 `_resolve_wish_city` 定城；行程外→写回城市并跳过（行已
+        自愈，下次城市过滤直接生效）；品类愿望（喝杯咖啡等）保持空城就近
+        落实语义（2026-10-24 拍板）；解析仍失败→保持原吸收行为。"""
         if self._trip_items is None:
             return []
         absorbed: list[str] = []
@@ -2423,6 +2459,14 @@ class PlanningAgent:
             city = it.get("city")
             if city and city not in session.cities:
                 continue
+            if not city and _category_search_keyword(name) is None:
+                resolved = await self._resolve_wish_city(name)
+                if resolved:
+                    self._backfill_wish_city(name, resolved)
+                    if resolved not in session.cities:
+                        continue
+                    city = resolved
+                    session.site_cities.setdefault(name, resolved)
             if any(_same_site(name, m) for m in session.must_visits):
                 continue
             session.must_visits.append(name)
@@ -2438,7 +2482,7 @@ class PlanningAgent:
         extra_assumptions: list[str] | None = None,
     ) -> PlanSession:
         session.state = "planning"
-        absorbed = self._absorb_wishlist(session)
+        absorbed = await self._absorb_wishlist(session)
         if absorbed:
             extra_assumptions = list(extra_assumptions or []) + [
                 L(
@@ -2737,11 +2781,18 @@ class PlanningAgent:
                 if not any(c in poi_city for c in cities):
                     assumptions.append(
                         L(
-                            f"必去 {name} 在高德定位到行程外城市（{poi_city}），未纳入",
+                            f"必去 {name} 定位到行程外城市（{poi_city}），未纳入",
                             f"Must-visit {name} resolved to a city outside this "
                             f"trip ({poi_city}) and was left out",
                         )
                     )
+                    if _same_site(str(poi.get("name") or ""), name):
+                        # 2026-10-28 事故门禁：专名真身确在行程外（西湖→杭州）——
+                        # 真排除＋心愿单定城；旧行为落穿「按名称占位」支，
+                        # 让被排除的西湖以占位名混进候选（day1 junk）。
+                        self._backfill_wish_city(name, poi_city)
+                        continue
+                    # 模糊错配（junk 输入→NTT 香港）：保留用户原词占位（既有拍板）。
                     poi = None
             if poi and isinstance(poi, dict) and poi.get("name"):
                 category = poi.get("category")
@@ -2749,6 +2800,7 @@ class PlanningAgent:
                     category = "food"
                 elif not category:
                     category = "sight"
+                self._backfill_wish_city(name, str(poi.get("city") or ""))
                 candidates.append(
                     {
                         **poi,
@@ -3408,6 +3460,27 @@ class PlanningAgent:
             )
         return plan
 
+    async def refresh_legs(self, session: PlanSession) -> None:
+        """规划页条目变更后的实测腿刷新（用户拍板 2026-10-28）。
+
+        拖拽移动/删除会改变相邻对：annotate 基线（纯数学，覆盖变更后全部
+        相邻对）→ _leg_cache 回放（零网络）→ 缓存未命中的新对补一轮高德
+        /direction/walking 实测。每对每进程至多实测一次（缓存键=坐标对），
+        LEG_ENRICH_MAX_PAIRS 封顶；pin/retime 不改相邻对 → 全缓存命中零
+        网络。amap 不可用或单腿失败静默保留直线估算（leg_source=estimate）。
+        """
+        if session.plan is None:
+            return
+
+        annotate_legs(session.plan)
+
+        self._replay_measured_legs(session.plan)
+
+        if self._amap is None:
+            return
+
+        await self._enrich_legs(session.plan)
+
     async def _enrich_legs(
         self, plan: ItineraryPlan, *, amap_slots: asyncio.Semaphore | None = None
     ) -> None:
@@ -3433,7 +3506,8 @@ class PlanningAgent:
         def apply_measured(item: VisitItem, value: tuple[float, int]) -> None:
             item.distance_to_next_km = round(value[0], 2)
             item.next_walk_minutes = value[1]
-            item.leg_source = "amap"
+            # 按真实图商标注（2026-10-28 一键切图商）；stub 无 vendor 属性回 amap。
+            item.leg_source = getattr(self._amap, "vendor", "amap")
 
         todo: list[tuple[VisitItem, VisitItem, tuple[str, str]]] = []
         for a, b, _km in leg_pairs(plan)[:LEG_ENRICH_MAX_PAIRS]:
@@ -3701,7 +3775,7 @@ class PlanningAgent:
             if hit is not None:
                 a.distance_to_next_km = round(hit[0], 2)
                 a.next_walk_minutes = hit[1]
-                a.leg_source = "amap"
+                a.leg_source = getattr(self._amap, "vendor", "amap")
 
     def _solve(self, plan: ItineraryPlan) -> ItineraryPlan | None:
         # 8.2.2/8.2.3（2026-10-24）：solver 喂饱——travel matrix（高德实测
@@ -4075,6 +4149,21 @@ class PlanningAgent:
             cities.discard("")
             if len(cities) == 1:
                 return cities.pop()
+            # 2026-10-28 补：库名精确未中→双向包含（短名≥2 字）同城唯一即收——
+            # 「西湖」库内行名「西湖区西湖风景区」不再因名字不等而漏定城。
+            near: set[str] = set()
+            probe = name.strip()
+            for h in hits:
+                hname = (h.get("name") or "").strip()
+                hcity = (h.get("city") or "").strip().removesuffix("市")
+                if not hname or not hcity:
+                    continue
+                if (probe in hname or hname in probe) and min(
+                    len(probe), len(hname)
+                ) >= 2:
+                    near.add(hcity)
+            if len(near) == 1:
+                return near.pop()
         poi = await self._lookup_poi(name, _unspecified())
         if poi is not None:
             city = (poi.get("city") or "").strip().removesuffix("市")

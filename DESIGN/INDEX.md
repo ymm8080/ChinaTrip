@@ -1,4 +1,4 @@
-# 📌 自助景点规划助手 — 项目知识库首页
+﻿# 📌 自助景点规划助手 — 项目知识库首页
 
 > 本仓库（`D:\CHINATRIP`）同时是 **Obsidian Vault**：安装 Obsidian（obsidian.md，免费）→ 「打开本地文件夹作为仓库」→ 选择 `D:\CHINATRIP` 即可。
 >
@@ -50,3 +50,4 @@
 10. **行程时间轴展示（v2.4.3）**：同日相邻站点显示距离 + 步行估时——直线估算为基线（离线/无 Key 必达），高德 /v3/direction/walking 步行实测升档（POI 吸附 + 坐标对缓存 + 限量 24 腿 + 静默降级，leg_source=estimate|amap 标注口径）；营业时间高德主源（v3 搜索缺失时 v5 place/detail 按需补充回源——opentime_week 含闭馆日/节假日；携程 sight 页 PoC 兜底——slug 白名单 9 城 + 早停索引；高德 v5 关键词搜索为最终兜底（覆盖无 poi_id 条目）；库未命中当场走链并 APPEND 入库；美团/点评不可直连，联盟 API 归入 W9-10 渠道实测）、缺失明示「以现场为准」不虚构；trip_items 增 address/opening_hours（迁移 w12_0004）
 11. **客户付款层（2026-10-25）**：公司↔客户收款 = 独立收款层（**铁律 22 渠道 handoff 不变**，渠道侧支付永不代做）；双形态 pay_now 立即支付 + save_method 存卡代订扣款（concierge）；网关协议 mock 先行（零网络联调）；**生产主通道 = 支付宝 wap 直连（2026-10-25 用户拍板）**——个体工商户即可申请，外国卡（Visa/MC/Amex/JCB）绑支付宝钱包支付，≤¥200 免费/以上约 3%；**Visa/MC 直连渠道开发取消**（无境外主体；stripe adapter 保留为预留代码不上线）；**原始卡号/CVV 永不经服务器不落库**（酒店式「代录卡号」明确不做）；运营扣款走 X-Operator-Token 共享密钥守卫，未配置=禁用
 12. **§6.12 快慢双车道落地（2026-10-27）**：请求分类闸门三级（规则→意图缓存 TTL→Flash 兜底，失败 escalate 主车道）+ 快车道确定性直答（poi_hours/wishlist/translate/restaurant，答不出回主车道宁缺毋错）+ 慢车道异步队列（`task_queue.py` SQLite 持久化 + asyncio worker + 崩溃恢复 requeue；POST /tasks 202 即回「已受理」，H5 3s×40 轮询）+ 车道指标（`/api/v1/metrics/lanes`：off_main_share≥0.8 / fast p95<1s / slow 受理<3s 给 met 布尔）；**取舍：设计书 Redis → 本仓库无 Redis 用 SQLite 持久化队列**（换 TaskStore 实现即可上 Redis，协议与端点不变）；LLM 主力/Flash 均钉死 glm-5.3-flash（用户拍板，分级靠闸门+温度/长度）；28e098c 入库
+13. **一键切图商 + 心愿单定城（2026-10-28）**：MAP_PROVIDER=amap|baidu 单开关——map_provider 工厂唯一分派，deeplinks 百度 URI、leg_source 按真实 vendor 标注、前端步行外链 /api/v1/amap/provider 预取、天气源轴与 chinatravel 导入全跟随；仅 POI 库 source/amap_id 批量作业仍绑高德（清单见 map_provider.py）。心愿单条目尽量带城市：空城专名行先定城、行程外跳过+回填，品类愿望空城就近落实不变（西湖漏进重庆行程事故门禁）——map_vendor_cut_2026-10-28.md

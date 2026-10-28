@@ -236,19 +236,15 @@ def _import_rows(
 
 
 def _default_amap() -> Any | None:
-    """从 settings 构建高德客户端；无 key/构建失败 → None."""
+    """从 settings 构建图商客户端（2026-10-28 走 map_provider 工厂）；未就绪 → None."""
     try:
         from app.config import get_settings
-        from app.services.amap_client import AmapClient
+        from app.services.map_provider import build_map_client, map_ready
 
         settings = get_settings()
-        if not settings.amap_api_key:
+        if not map_ready(settings):
             return None
-        return AmapClient(
-            key=settings.amap_api_key,
-            base_url=settings.amap_base_url,
-            timeout_seconds=settings.amap_timeout_seconds,
-        )
+        return build_map_client(settings)
     except Exception:
         return None
 

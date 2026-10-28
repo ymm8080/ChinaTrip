@@ -68,8 +68,8 @@ def _visit_note(
         if walk_min is not None:
             seg += L(f" · 步行约 {walk_min} 分钟", f" · about {walk_min} min walk")
         seg += (
-            L("（高德实测）", " (Amap measured)")
-            if leg_source == "amap"
+            L("（地图实测）", " (Map measured)")
+            if leg_source in ("amap", "baidu")
             else L("（直线估算）", " (straight-line estimate)")
         )
         notes.append(seg)

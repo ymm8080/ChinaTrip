@@ -1247,7 +1247,14 @@ function modeLabel(m) { const v = MODE_CN[m]; return v ? v[0] + " " + I18N.tf("f
 
 // 高德 URI API 步行导航：起点参数缺省 = 高德自动以"我的位置"为起点，
 // 终点 = 下一站坐标（GCJ-02，与站点数据同源），打开即自动规划步行路线
+let MAP_VENDOR = "amap"; // 2026-10-28 一键切图商：启动预取 /api/v1/amap/provider
 function amapWalkUrl(to) {
+  if (MAP_VENDOR === "baidu") {
+    // 百度步行网页版 direction 需 region 等地名参数——落 marker 页（目的地 pin，含「到这去」）
+    return "https://api.map.baidu.com/marker?location=" + to.location.lat + "," + to.location.lon +
+      "&title=" + encodeURIComponent(to.name) + "&content=" + encodeURIComponent(to.name) +
+      "&output=html&coord_type=gcj02&src=chinatrip";
+  }
   return "https://uri.amap.com/navigation?to=" + to.location.lon + "," + to.location.lat +
     "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
 }
@@ -1414,11 +1421,11 @@ function planCard(plan) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
             for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
             walkSeg = (nxt && nxt.location)
-              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="' + I18N.tf("card.walk.titlePre","在高德地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
+              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="' + I18N.tf("card.walk.titlePre","在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
               : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
           }
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + walkSeg +
-            (it.leg_source === "amap" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
+            (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
@@ -4531,6 +4538,12 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   });
 }
+// 图商预取（静默失败保持 amap 缺省；步行/路线外链按 provider 组装）
+try {
+  api("/api/v1/amap/provider", undefined, "GET").then(
+    (r) => { if (r && r.provider) MAP_VENDOR = r.provider; }
+  ).catch(() => {});
+} catch (e) { /* api 未就绪等：保持缺省 */ }
 </script>
 </body>
 </html>
