@@ -24,7 +24,8 @@ import os
 import re
 import uuid
 from collections.abc import Callable
-from datetime import time
+from datetime import date as _date
+from datetime import time, timedelta
 from time import perf_counter
 from typing import Literal
 
@@ -203,6 +204,21 @@ def _source_tier(cand: dict) -> int:
     if source == "scenic" or "风景名胜" in joined:
         return 8
     return 9
+
+
+def _leg_date_iso(start_date: str | None, day: int) -> str:
+    """行程日 → 绝对日期（ISO）：start_date + (day-1) 天。
+
+    火车/机票按真实乘车日查询（2026-10-28 用户拍板：日期+城市落定票务
+    查询就开跑）；start_date 缺失/非法回空串——12306 源的 today+3 占位
+    语义保持不变。"""
+    if not start_date:
+        return ""
+    try:
+        base = _date.fromisoformat(str(start_date)[:10])
+    except ValueError:
+        return ""
+    return (base + timedelta(days=max(day, 1) - 1)).isoformat()
 
 
 def _pref_question() -> str:
@@ -1364,6 +1380,14 @@ class PlanningAgent:
             },
             lang=lang if lang in ("en", "zh") else None,
         )
+        # 票务预热（2026-10-28 用户拍板）：开始日期落定且城市齐（起止+中间）
+        # 就开跑火车查询，不等行程生成——CachedTrainService 命中后组装零等待。
+        if session.start_date and len(session.cities) > 1:
+            self._transfer_prefetch_task = asyncio.create_task(
+                self.prefetch_transfer_schedules(
+                    session.cities, session.days or 1, session.start_date
+                )
+            )
         if not session.cities:
             # H5 composer text ("Shanghai 5 days, museums") carries the
             # cities when the plan starts from free text instead of the
@@ -3466,12 +3490,40 @@ class PlanningAgent:
                 )
         return items
 
+    async def prefetch_transfer_schedules(
+        self, cities: list[str], days: int, start_date: str | None
+    ) -> None:
+        """开始日期落定即预热火车票缓存（2026-10-28 用户拍板）。
+
+        与 _build_transfers 同一套转场腿公式（进城日=各目的城市窗口首日、
+        返程日=末日）；逐腿按绝对日期查 CachedTrainService，TTL 内命中，
+        生成期 _build_transfers 零 12306 往返。失败只记日志（生成期会再试）。
+        """
+        if not start_date or len(cities) < 2:
+            return
+        try:
+            ranges = _city_day_ranges(cities, days, None)
+            origin = cities[0]
+            dests = cities[1:]
+            starts = [ranges.get(c, (1, days))[0] for c in dests]
+            legs: list[tuple[str, str, int]] = [(origin, dests[0], 1)]
+            for k in range(1, len(dests)):
+                legs.append((dests[k - 1], dests[k], min(starts[k], days)))
+            legs.append((dests[-1], origin, days))
+            for from_city, to_city, day in legs:
+                await self._trains.search(
+                    from_city, to_city, _leg_date_iso(start_date, day)
+                )
+        except Exception:
+            logger.warning("plan: transfer schedule prefetch failed", exc_info=True)
+
     async def _build_transfers(
         self,
         cities: list[str],
         days: int,
         anchors: dict[str, GeoPoint],
         dest_starts: list[int] | None = None,
+        start_date: str | None = None,
     ) -> tuple[list[TransferItem], list[str]]:
         transfers: list[TransferItem] = []
         assumptions: list[str] = []
@@ -3503,7 +3555,7 @@ class PlanningAgent:
                     self._trains,
                     from_city=from_city,
                     to_city=to_city,
-                    date="",
+                    date=_leg_date_iso(start_date, day),  # 真实乘车日（2026-10-28）
                     day=day,
                     seq=seq_by_day[day],
                     item_id=item_id,
@@ -3710,7 +3762,11 @@ class PlanningAgent:
                 )
             )
         transfers, transfer_assumptions = await self._build_transfers(
-            cities, days, anchors, dest_starts=[ranges[c][0] for c in cities[1:]]
+            cities,
+            days,
+            anchors,
+            dest_starts=[ranges[c][0] for c in cities[1:]],
+            start_date=start_date,
         )
 
         transfers_by_day: dict[int, list[TransferItem]] = {}
