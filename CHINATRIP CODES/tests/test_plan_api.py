@@ -1126,3 +1126,166 @@ def test_retime_guard_chain_400_404():
     )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "item_not_found"}
+
+
+# --- 条目变更触发实测腿刷新（用户拍板 2026-10-28）--------------------------
+
+
+class _FakeWalkingAmap:
+    """Only walking_route; every other amap surface degrades like None."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._n = 0
+
+    async def walking_route(
+        self, origin: str, destination: str, origin_id=None, destination_id=None
+    ):
+        self.calls.append((origin, destination))
+        return {"distance_m": 1200, "duration_s": 900, "steps": [], "polyline": []}
+
+    async def search_poi(self, name: str, city=None):
+        self._n += 1
+        return [
+            {
+                "source": "baidu",
+                "source_poi_id": f"uid-{self._n}",
+                "name": name,
+                "city": city or "上海",
+                "category": "景点",
+                "address": "",
+                "location": {"lon": 121.4 + 0.01 * self._n, "lat": 31.2},
+            }
+        ]
+
+
+def test_item_mutations_trigger_leg_refresh():
+    """pin/retime/move/delete 每个条目变更端点都必须调用 refresh_legs。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON] * 4))
+    calls: list[str] = []
+
+    async def _spy(session) -> None:
+        calls.append("refresh")
+
+    agent.refresh_legs = _spy  # type: ignore[method-assign]
+    client = client_for(agent)
+    prefs = {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+
+    def new_session():
+        b = start(client, prefs).json()
+        return b["session_id"], _visit(b, "西湖")["item_id"]
+
+    sid, vid = new_session()
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/{vid}/pin",
+            json={"pinned": True},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 200
+    )
+    sid, vid = new_session()
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/{vid}/retime",
+            json={"start_time": "09:00"},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 200
+    )
+    sid, vid = new_session()
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/{vid}/move",
+            json={"day": 2, "after_item_id": None},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 200
+    )
+    sid, vid = new_session()
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/{vid}/delete", headers=DEVICE_HEADERS
+        ).status_code
+        == 200
+    )
+    assert len(calls) == 4
+
+
+def test_refresh_legs_measures_new_pairs_after_move():
+    """移动产生的新同日相邻对在响应里就带高德实测腿（leg_source=amap）。"""
+    from app.services.itinerary.models import GeoPoint
+
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    fake = _FakeWalkingAmap()
+    agent._amap = fake  # type: ignore[assignment]
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    store = app.dependency_overrides[get_plan_sessions]()
+    session = store.get(sid, device_id="device-1")
+    assert session is not None and session.plan is not None
+    n = 0
+    for day in session.plan.days:
+        for it in day.items:
+            if isinstance(it, VisitItem) and it.location is None:
+                it.location = GeoPoint(lon=120.15 + 0.05 * n, lat=30.25)
+                n += 1
+    store.save(session)
+
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/move",
+        json={"day": 2, "after_item_id": None},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    assert fake.calls, "new same-day pair must be measured via amap"
+    visits = [
+        i for d in resp.json()["plan"]["days"] for i in d["items"] if "mode" not in i
+    ]
+    measured = [v for v in visits if v.get("leg_source") == "amap"]
+    assert measured, "the new pair must carry a measured leg"
+    assert measured[0]["distance_to_next_km"] == 1.2
+    assert measured[0]["next_walk_minutes"] == 15
+
+
+def test_refresh_legs_backfills_missing_locations():
+    """旧行程条目缺坐标（loc=None）→ 变更时先回填坐标再实测腿。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    fake = _FakeWalkingAmap()
+    agent._amap = fake  # type: ignore[assignment]
+    app = make_app(agent)
+    client = TestClient(app)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    # 前置：强制清空坐标模拟旧行程（生成期可能已回填）
+    store = app.dependency_overrides[get_plan_sessions]()
+    session = store.get(sid, device_id="device-1")
+    assert session is not None and session.plan is not None
+    for day in session.plan.days:
+        for it in day.items:
+            if isinstance(it, VisitItem):
+                it.location = None
+    store.save(session)
+
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/move",
+        json={"day": 2, "after_item_id": None},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    visits = [
+        i for d in resp.json()["plan"]["days"] for i in d["items"] if "mode" not in i
+    ]
+    assert visits and all(v.get("location") for v in visits), (
+        "backfill must fill coordinates for every missing item"
+    )
+    measured = [v for v in visits if v.get("leg_source") == "amap"]
+    assert measured, "backfilled pair must carry a measured leg"

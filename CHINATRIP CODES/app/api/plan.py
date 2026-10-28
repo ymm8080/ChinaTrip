@@ -484,6 +484,7 @@ async def pin_plan_item(
     item_id: str,
     request: PlanPinRequest,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
 ) -> dict:
     """钉住/取消钉住（iron rule 19）：pinned 的项目引擎不重排时间。"""
@@ -500,6 +501,7 @@ async def pin_plan_item(
     if request.pinned and item.start_time is None:
         raise HTTPException(status_code=422, detail="pinned_requires_time")
     item.pinned = request.pinned
+    await agent.refresh_legs(session)
     store.save(session)
     reply = (
         L(f"已钉住 {item.name}", f"Pinned {item.name}")
@@ -534,6 +536,7 @@ async def delete_plan_item(
     new_plan, _, _ = mutate(plan_before, [diff], poi_hours=[])
     session.plan = new_plan
     agent.sync_removals_to_trip_items(plan_before, [diff])
+    await agent.refresh_legs(session)
     store.save(session)
     reply = L(
         f"已删除 {item.name}，已记入不想去",
@@ -575,6 +578,7 @@ async def move_plan_item(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
     store.save(session)
     reply = L("已按你的顺序调整", "Reordered to your sequence") + (
         f"（{'；'.join(notes)}）" if notes else ""
@@ -614,6 +618,7 @@ async def retime_plan_item(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
     store.save(session)
     base = (
         summary.change_summary[0]
