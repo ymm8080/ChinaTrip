@@ -15,6 +15,7 @@ survive); the v0 path degrades to a placeholder plan instead of failing
 anything the agent still raises.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, time, timezone
@@ -163,6 +164,9 @@ def get_fast_lane(
     return _fast_lane_singleton
 
 
+_BG_PREFETCH_TASKS: set[asyncio.Task] = set()  # 防后台任务被 GC
+
+
 class PlanSaveRequest(BaseModel):
     name: str | None = None
     note: str | None = None
@@ -181,6 +185,7 @@ async def save_plan(
     service: ItineraryService = Depends(get_itinerary_service),
     entitlement: EntitlementService = Depends(get_entitlement_service),
     account: str | None = Depends(_account_from_auth),
+    agent: PlanningAgent = Depends(get_planning_agent),
 ) -> dict:
     """Explicit save (2026-10-20 product rule: 行程只在用户点「💾 保存行程」
     时写入行程库). Upserts the session's working plan into the itinerary
@@ -199,6 +204,15 @@ async def save_plan(
         plan = plan.model_copy(update={"start_date": request.start_date})
         session.plan = plan
         store.save(session)
+        # 出发日期变更即预热票务（2026-10-28）：城市在计划里已齐，火车查询
+        # 立刻开跑，下一次组装/重排直接吃缓存。
+        _warm = asyncio.create_task(
+            agent.prefetch_transfer_schedules(
+                plan.cities, len(plan.days), request.start_date
+            )
+        )
+        _BG_PREFETCH_TASKS.add(_warm)
+        _warm.add_done_callback(_BG_PREFETCH_TASKS.discard)
     # 入库终闸（2026-10-28 变脸 x4 事故）：冻结快照前强制同站合并——
     # 任何来源（旧代码进程编辑/历史脏会话）的重复站点从此进不了行程库；
     # 合并发生时把工作副本一并存回会话。
