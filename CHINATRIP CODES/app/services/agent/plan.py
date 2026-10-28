@@ -32,6 +32,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.services.ctrip_hours import CtripHoursReader
+from app.services.flights import FlightService, MockFlightService, pick_best_flight
 from app.services.itinerary import (
     ChangeSummary,
     DayPlan,
@@ -1322,6 +1323,7 @@ class PlanningAgent:
         *,
         amap_client=None,
         train_service: TrainService | None = None,
+        flight_service: FlightService | None = None,
         solver: Callable[..., ItineraryPlan | None] = solve_plan,
         time_budget_seconds: float = 3.0,
         link_reader: HttpLinkReader | None = None,
@@ -1348,6 +1350,11 @@ class PlanningAgent:
         self._auto_restaurants = auto_restaurants
         self._trains: TrainService = (
             train_service if train_service is not None else MockTrainService()
+        )
+        # 航班与火车同构（2026-10-28 用户拍板）：暂以确定性 mock 顶位，
+        # 真实数据源接入只换 search inner。
+        self._flights: FlightService = (
+            flight_service if flight_service is not None else MockFlightService()
         )
         self._solver = solver
         self._time_budget_seconds = time_budget_seconds
@@ -3514,6 +3521,10 @@ class PlanningAgent:
                 await self._trains.search(
                     from_city, to_city, _leg_date_iso(start_date, day)
                 )
+                # 航班腿一并预热（mock 即时返回；真实源接入后此处即生效）
+                await self._flights.search(
+                    from_city, to_city, _leg_date_iso(start_date, day)
+                )
         except Exception:
             logger.warning("plan: transfer schedule prefetch failed", exc_info=True)
 
@@ -3605,7 +3616,30 @@ class PlanningAgent:
                             f"{from_city}→{to_city} no schedules; ~{dist_km:.0f} "
                             "km straight-line, placeholder as a ~3-hour flight",
                         )
+                # 航班时刻走 FlightService（2026-10-28 与火车同构：真实
+                # 乘车日+窗口偏好；mock 9:00/17:00/180min 与旧占位逐位一致，
+                # 窗内无班回退 depart_h 占位）。
                 start_min = depart_h * 60
+                if mode == "flight":
+                    try:
+                        flight = await pick_best_flight(
+                            self._flights,
+                            from_city,
+                            to_city,
+                            _leg_date_iso(start_date, day),
+                            preferred_window=window,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "plan: flight lookup failed %s→%s",
+                            from_city,
+                            to_city,
+                            exc_info=True,
+                        )
+                        flight = None
+                    if flight is not None:
+                        start_min = flight.dep_time.hour * 60 + flight.dep_time.minute
+                        duration = flight.duration_minutes or duration
                 end_min = min(start_min + duration, 23 * 60 + 59)
                 transfer = TransferItem(
                     item_id=item_id,
