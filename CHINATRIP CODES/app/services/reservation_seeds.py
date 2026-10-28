@@ -266,6 +266,12 @@ RESERVATION_V0: dict[str, dict] = {
         "note": "澄江化石地世界自然遗产博物馆（云南省自然博物馆）免费开放，须预约：公众号「澄江化石地自然博物馆」提前约或现场扫码，凭码入馆；周一闭馆（法定假日除外）16:00 停止入场",  # noqa: E501
         "note_en": "The Chengjiang Fossil Site World Natural Heritage Museum (Yunnan Natural Museum) is free with reservation: book on the official WeChat account or scan on site; closed Mondays (open on statutory holidays), last entry 16:00",  # noqa: E501
     },
+    "景德镇中国陶瓷博物馆": {
+        "days": 1,
+        "release": "00:00",
+        "note": "免费但必须提前预约：小程序「畅游景德镇」/「景博预约」或官方公众号（唯一官方渠道，谨防收费代约）；周一闭馆；镇馆之宝「无语菩萨」（沉思罗汉）；境外游客凭护照享免预约入馆便利，热门时段名额紧张",  # noqa: E501
+        "note_en": "Free with mandatory advance booking via the 'Changyou Jingdezhen' or 'Jingbo Yuyue' mini-programs (the only official channels); closed Mondays; home of the viral 'Speechless Bodhisattva'; foreign visitors may enter on passport without booking; hot periods sell out",  # noqa: E501
+    },
 }
 
 FOREIGNER_TIP = (
