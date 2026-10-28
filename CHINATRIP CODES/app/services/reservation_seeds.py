@@ -260,6 +260,12 @@ RESERVATION_V0: dict[str, dict] = {
         "note": "免费但必须实名预约（提前 1-7 天）：公众号/小程序「侵华日军南京大屠杀遇难同胞纪念馆」，每日 8:00 放票（主史实展 17:00 补放）；三个展馆分开预约，凭二维码+证件原件入馆；周一闭馆",  # noqa: E501
         "note_en": "Free but mandatory real-name reservation (1-7 days ahead) via the memorial's official WeChat account; tickets release 08:00 daily (history exhibit re-releases at 17:00); the three exhibition halls book separately; enter with QR code + original ID; closed Mondays",  # noqa: E501
     },
+    "澄江化石地": {
+        "days": 1,
+        "release": "00:00",
+        "note": "澄江化石地世界自然遗产博物馆（云南省自然博物馆）免费开放，须预约：公众号「澄江化石地自然博物馆」提前约或现场扫码，凭码入馆；周一闭馆（法定假日除外）16:00 停止入场",  # noqa: E501
+        "note_en": "The Chengjiang Fossil Site World Natural Heritage Museum (Yunnan Natural Museum) is free with reservation: book on the official WeChat account or scan on site; closed Mondays (open on statutory holidays), last entry 16:00",  # noqa: E501
+    },
 }
 
 FOREIGNER_TIP = (
