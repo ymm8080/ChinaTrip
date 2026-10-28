@@ -69,9 +69,10 @@ class ZhipuGLMAdapter:
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
-        if thinking is False:
-            # glm 思考关断（2026-10-28 探针：select 场景 37.9s→7.5s）；
-            # 端点不支持该参数时会忽略，无副作用
+        if thinking is not True:
+            # glm 思考关断默认开（2026-10-28 用户拍板）：探针实测 select 场景
+            # 37.9s→7.5s、小请求 11.4s→2.3s；端点不支持该参数时会忽略，
+            # 无副作用；thinking=True 可显式恢复端点默认。
             payload["thinking"] = {"type": "disabled"}
         body = await self._post_json(
             "/chat/completions", payload, timeout_seconds=timeout_seconds
@@ -135,6 +136,7 @@ class ZhipuGLMAdapter:
                 {"role": "user", "content": text},
             ],
             "temperature": 0.1,
+            "thinking": {"type": "disabled"},
         }
         body = await self._post_json("/chat/completions", payload)
         try:

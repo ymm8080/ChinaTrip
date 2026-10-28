@@ -5,8 +5,10 @@ PlanSessionStore per app, dependency overrides only.
 """
 
 import json
+import os
 from datetime import datetime
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -1290,6 +1292,7 @@ def test_refresh_legs_backfills_missing_locations():
     measured = [v for v in visits if v.get("leg_source") == "amap"]
     assert measured, "backfilled pair must carry a measured leg"
 
+
 def test_get_plan_session_returns_refreshed_plan():
     """GET /plan/{id}：读路径也跑实测腿刷新——刷新页面即有距离/步行。"""
     agent = PlanningAgent(StubAdapter([V0_JSON]))
@@ -1315,9 +1318,7 @@ def test_get_plan_session_returns_refreshed_plan():
     assert resp.status_code == 200
     data = resp.json()
     assert data["state"] == "ready" and data["plan"]["days"]
-    visits = [
-        i for d in data["plan"]["days"] for i in d["items"] if "mode" not in i
-    ]
+    visits = [i for d in data["plan"]["days"] for i in d["items"] if "mode" not in i]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
     )
@@ -1326,7 +1327,13 @@ def test_get_plan_session_returns_refreshed_plan():
 def test_get_plan_session_guards():
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     client = client_for(agent)
-    assert (
-        client.get("/api/v1/plan/no-such", headers=DEVICE_HEADERS).status_code == 404
-    )
+    assert client.get("/api/v1/plan/no-such", headers=DEVICE_HEADERS).status_code == 404
     assert client.get("/api/v1/plan/x").status_code == 400
+
+
+@pytest.fixture(autouse=True)
+def _llm_select_mode():
+    """本文件守护 LLM 选点（备用模式）语义；算法主路径见 test_algo_v0.py。"""
+    os.environ["PLAN_SELECT_MODE"] = "llm"
+    yield
+    os.environ.pop("PLAN_SELECT_MODE", None)

@@ -13,11 +13,9 @@ import json
 from types import SimpleNamespace
 
 from app.services.agent.plan import (
-    SELECT_MAX_CANDIDATES,
     SELECT_MAX_TOKENS,
     SELECT_TIMEOUT_SECONDS,
     PlanningAgent,
-    _cap_select_candidates,
 )
 from app.services.llm import LLMError
 from app.services.llm.base import ChatResult
@@ -84,35 +82,6 @@ class LegacyLLM:
     async def chat(self, messages, *, temperature=0.3, max_tokens=None) -> ChatResult:
         self.called += 1
         return ChatResult(content=self.reply, model="legacy")
-
-
-def test_cap_keeps_food_premium_and_city_balance():
-    cands = []
-    for city in ("成都", "重庆", "上海"):
-        for i in range(30):
-            cands.append(_cand(i, city, rating=3.0 + (i % 10) / 20))
-    cands.append(_cand(99, "成都", cat="food", rating=4.8))
-    cands.append(_cand(98, "重庆", rating=3.2, tags=["5A景区"]))
-    assert len(cands) > SELECT_MAX_CANDIDATES
-    pool = _cap_select_candidates(cands, SELECT_MAX_CANDIDATES)
-    names = [c["name"] for c in pool]
-    assert len(pool) <= SELECT_MAX_CANDIDATES
-    # 餐饮锚点全保
-    assert "成都景点99" in names
-    # premium（5A）加权胜过同城高分普通候选
-    assert "重庆景点98" in names
-    # 城市均衡：每个城市都有代表
-    assert {c["city"] for c in pool} == {"成都", "重庆", "上海"}
-    # 确定性
-    assert [
-        c["name"] for c in _cap_select_candidates(cands, SELECT_MAX_CANDIDATES)
-    ] == names
-
-
-def test_cap_noop_below_limit():
-    cands = [_cand(i, "成都") for i in range(5)]
-    pool = _cap_select_candidates(cands, 30)
-    assert pool == cands
 
 
 def test_select_index_output_maps_back():

@@ -7,6 +7,7 @@ network or the real amap/zhipu backends.
 
 import asyncio
 import json
+import os
 from datetime import time
 
 import pytest
@@ -132,6 +133,14 @@ class DistanceAmap(StubAmap):
 
 def run(coro):
     return asyncio.run(coro)
+
+
+@pytest.fixture(autouse=True)
+def _llm_select_mode():
+    """本文件守护 LLM 选点（备用模式）语义；算法主路径见 test_algo_v0.py。"""
+    os.environ["PLAN_SELECT_MODE"] = "llm"
+    yield
+    os.environ.pop("PLAN_SELECT_MODE", None)
 
 
 def v0_reply(items, assumptions=None) -> str:

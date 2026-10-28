@@ -11,6 +11,7 @@ App deeplink in the action-orchestration layer, never here. This module is
 read-only — no bookings, no funds, no credentials.
 """
 
+import asyncio
 import logging
 import re
 from datetime import date as _date
@@ -408,15 +409,33 @@ class Train12306Source:
             if not from_names or not to_names:
                 return []
             combos = list(product(from_names, to_names))[:_MAX_QUERY_COMBOS]
+            # 2026-10-28 探针实测：并发 x3 全 200、4.8s→2.6s、复测无封锁；
+            # 单组合失败降级跳过（原先一个组合抛错拖垮整个 fetch）。
+            sem = asyncio.Semaphore(3)
+
+            async def _rows(pair: tuple[str, str]) -> list[list[str]]:
+                async with sem:
+                    return await self._query_rows(
+                        client,
+                        query_date,
+                        stations[pair[0]],
+                        stations[pair[1]],
+                    )
+
+            rows_by_combo = await asyncio.gather(
+                *(_rows(pair) for pair in combos), return_exceptions=True
+            )
             options: list[TrainOption] = []
             seen: set[tuple[str, time, str]] = set()
-            for from_station, to_station in combos:
-                rows = await self._query_rows(
-                    client,
-                    query_date,
-                    stations[from_station],
-                    stations[to_station],
-                )
+            for (from_station, to_station), rows in zip(combos, rows_by_combo):
+                if isinstance(rows, BaseException):
+                    logger.warning(
+                        "train combo %s→%s failed: %s",
+                        from_station,
+                        to_station,
+                        rows,
+                    )
+                    continue
                 for row in rows:
                     option = _row_to_option(
                         row, from_station, to_station, from_city, to_city, query_date

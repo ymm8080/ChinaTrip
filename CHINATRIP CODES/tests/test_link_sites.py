@@ -12,7 +12,10 @@ no results (placeholder candidates), real CP-SAT on tiny plans.
 
 import asyncio
 import json
+import os
 from datetime import time
+
+import pytest
 
 from app.services.agent.plan import (
     PlanningAgent,
@@ -803,3 +806,11 @@ def test_planned_site_repicked_from_video_not_duplicated():
     # 产品规则 2026-10-20：点选必去照写心愿单（仅计划层去重）
     wishlist = [i["name"] for i in trip_items.list_groups()["wishlist"]]
     assert wishlist == ["大足石刻景区"]
+
+
+@pytest.fixture(autouse=True)
+def _llm_select_mode():
+    """本文件守护 LLM 选点（备用模式）语义；算法主路径见 test_algo_v0.py。"""
+    os.environ["PLAN_SELECT_MODE"] = "llm"
+    yield
+    os.environ.pop("PLAN_SELECT_MODE", None)

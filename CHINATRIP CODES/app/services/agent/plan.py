@@ -20,7 +20,7 @@ import asyncio
 import inspect
 import json
 import logging
-import math
+import os
 import re
 import uuid
 from collections.abc import Callable
@@ -135,58 +135,74 @@ PREFERENCE_SKIP_WORDS = frozenset(
     {"无特别要求", "没有特别", "没有", "随便", "都行", "跳过", "无所谓", "无"}
 )
 LLM_ATTEMPTS = 2  # one structured-output call + one retry, then degrade
-# LLM 选点瘦身（2026-10-28 ReadTimeout 收口）：多城 session 候选 60-94 条时
-# glm-5.3-flash 思考+生成 38-60s+ 贴着 60s 超时线，上游一抖即两次超时→占位降质。
-SELECT_MAX_CANDIDATES = 30  # 选点候选上限（餐饮锚点全保+premium 加权+城市均衡）
+# 选点模式（2026-10-28 用户拍板：规划=特定算法，非通用 LLM）：
+# algorithm=确定性选点（库序+分日规则，默认，PLAN_SELECT_MODE 切换）；
+# llm=_select_pois 备用回滚路径（全量候选不 cap；SELECT_* 仅该路径使用——
+# glm-5.3-flash 生成贴近超时线，超时重试砍半候选池+预算封顶）。
 SELECT_TIMEOUT_SECONDS = 45  # select 单次尝试超时（适配器支持该参数时生效）
 SELECT_BUDGET_SECONDS = 95.0  # select 总预算，超预算不再发起新尝试直接降级
 SELECT_MAX_TOKENS = 1600  # 索引式输出 JSON 的生成上限（防长尾拖爆超时）
 HISTORY_WINDOW = 12
+DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径；走行由 solver 计）
+
+_INTL_SITE_SOURCES = {"tripadvisor", "lonelyplanet", "viator"}
+_INTL_PLATFORM_SOURCES = {
+    "sygic",
+    "klook",
+    "tui",
+    "kkday",
+    "waug",
+    "mindtrip",
+    "layla",
+    "tiktok",
+    "jtb",
+    "his",
+}
+_INTL_SITE_TAGS = {"ta", "lp", "viator"}
+_INTL_PLATFORM_TAGS = {
+    "intl",
+    "sygic",
+    "klook",
+    "tui",
+    "kkday",
+    "waug",
+    "mindtrip",
+    "layla",
+    "tiktok",
+}
 
 
-def _cap_select_candidates(candidates: list[dict], limit: int) -> list[dict]:
-    """选点候选瘦身（2026-10-28）：prompt 从 60-94 行砍到 limit 行。
+def _source_tier(cand: dict) -> int:
+    """首次到访候选优先级（2026-10-28 用户拍板）：
 
-    规则：餐饮锚点全保（同天选点靠它们就近）、premium 标签（unesco/5A/
-    一级博物馆等）加权、rating×热度打分、城市轮转均衡采样保证每城都有
-    代表。确定性：同输入同输出。
+    08 UNESCO > 02 5A > 05 国际旅行网站 > 10 国际平台 > 04 演艺演出 >
+    12 小红书 > 01 国家级旅游休闲街区 > 国家级风景名胜区 > 其他（库序）。
+    source 列为主，跨源并库的 tags（ta/lp/intl/sygic…）兜底。
     """
-    if len(candidates) <= limit:
-        return list(candidates)
-
-    def _score(c: dict) -> float:
-        try:
-            rating = float(c.get("rating") or 0.0)
-        except (TypeError, ValueError):
-            rating = 0.0
-        try:
-            heat = math.log10(max(int(c.get("rating_count") or 0), 10))
-        except (TypeError, ValueError):
-            heat = 1.0
-        joined = " ".join(str(t) for t in (c.get("tags") or [])).lower()
-        premium = 0.0
-        if "unesco" in joined or "世界遗产" in joined:
-            premium = 2.5
-        elif "5a" in joined:
-            premium = 2.0
-        elif "4a" in joined or "国家一级博物馆" in joined or "国家级" in joined:
-            premium = 0.8
-        return rating * 2.0 + heat + premium
-
-    foods = [c for c in candidates if c.get("category") == "food"]
-    rest_limit = max(limit - len(foods), 8)
-    by_city: dict[str, list[dict]] = {}
-    for c in candidates:
-        if c.get("category") != "food":
-            by_city.setdefault((c.get("city") or "").removesuffix("市"), []).append(c)
-    groups = [sorted(group, key=_score, reverse=True) for group in by_city.values()]
-    groups.sort(key=lambda g: _score(g[0]) if g else 0.0, reverse=True)
-    picked: list[dict] = []
-    while len(picked) < rest_limit and any(groups):
-        for group in groups:
-            if group and len(picked) < rest_limit:
-                picked.append(group.pop(0))
-    return foods + picked
+    source = str(cand.get("source") or "").strip().lower()
+    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
+    joined = " ".join(tags)
+    if source == "unesco" or "unesco" in tags or "世界遗产" in joined:
+        return 1
+    if source == "5a" or "5a" in tags:
+        return 2
+    if source in _INTL_SITE_SOURCES or tags & _INTL_SITE_TAGS:
+        return 3
+    if source in _INTL_PLATFORM_SOURCES or tags & _INTL_PLATFORM_TAGS:
+        return 4
+    if (
+        cand.get("category") == "entertainment"
+        or cand.get("best_visit_time") == "show"
+        or source == "show"
+    ):
+        return 5
+    if source == "xiaohongshu" or "xiaohongshu" in tags or "小红书" in joined:
+        return 6
+    if source == "street" or "街区" in joined:
+        return 7
+    if source == "scenic" or "风景名胜" in joined:
+        return 8
+    return 9
 
 
 def _pref_question() -> str:
@@ -2635,10 +2651,30 @@ class PlanningAgent:
             for c, cid in zip(group, clusters):
                 if cid is not None:
                     c["area"] = labels.get(cid)
-        select_pool = _cap_select_candidates(candidates, SELECT_MAX_CANDIDATES)
-        picked, llm_assumptions, llm_ok = await self._select_pois(
-            select_pool, session.days, session.preferences, ranges, session.lang
-        )
+        select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
+        if select_mode == "llm":
+            picked, llm_assumptions, llm_ok = await self._select_pois(
+                candidates, session.days, session.preferences, ranges, session.lang
+            )
+            if not llm_ok:
+                picked = self._placeholder_selection(candidates, session.days, ranges)
+                llm_assumptions = [
+                    L(
+                        "LLM 不可用，按候选顺序生成占位计划",
+                        "LLM unavailable — placeholder plan in candidate order",
+                    )
+                ]
+        else:
+            # 确定性选点（默认，2026-10-28 用户拍板）：不调 LLM、不评分，
+            # 候选库序+分日规则，见 _deterministic_selection。
+            picked = self._deterministic_selection(candidates, session.days, ranges)
+            llm_assumptions = [
+                L(
+                    "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+                    "Picks generated by library order and day-split rules "
+                    "(deterministic algorithm, no general LLM)",
+                )
+            ]
         # §8.2.6 计划级查全率：候选池 5A/UNESCO 未入选 → 假设区告警
         premium_gap = premium_coverage_gaps(
             [spec["name"] for spec in picked], candidates, same_site=_same_site
@@ -2657,20 +2693,12 @@ class PlanningAgent:
                 )
             )
         logger.info(
-            "plan: v0 candidates %.2fs + llm select %.2fs (%d candidates, pool %d)",
+            "plan: v0 candidates %.2fs + select[%s] %.2fs (%d candidates)",
             t1 - t0,
+            select_mode,
             perf_counter() - t1,
             len(candidates),
-            len(select_pool),
         )
-        if not llm_ok:
-            picked = self._placeholder_selection(candidates, session.days, ranges)
-            llm_assumptions = [
-                L(
-                    "LLM 不可用，按候选顺序生成占位计划",
-                    "LLM unavailable — placeholder plan generated in candidate order",
-                )
-            ]
         # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
         # >4 裁到 4——过载日既走不完也过不了铁律 6；放在 must 合并前，
         # 用户点名必去不受限（愿超载是用户的决定）。
@@ -3250,6 +3278,141 @@ class PlanningAgent:
                     "reason": reason or None,
                 }
             )
+        return items
+
+    @staticmethod
+    def _deterministic_selection(
+        candidates: list[dict], days: int, ranges: dict[str, tuple[int, int]]
+    ) -> list[dict]:
+        """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
+
+        TTDP 通行四段式（研究结论 2026-10-28）的确定性实现：
+        ①选点=首次到访 tier 序（_source_tier），同 tier 保库序；
+        ②分日=cluster_days 地理聚拢（同片区同天）+ 每日参访时长预算
+        DAY_VISIT_BUDGET_MINUTES + 4 个/日闸，簇满溢出到余量最大天；
+        ③日内=最近邻链（solver 再按 travel 矩阵+开放时间窗精排）；
+        ④演出钉城市末日收尾、餐饮锚点全保留摊到窗口各天。
+        不评分、同输入同输出。
+        """
+
+        def _cxy(cand: dict) -> tuple[float, float] | None:
+            loc = cand.get("location")
+            try:
+                if isinstance(loc, dict) and "lon" in loc and "lat" in loc:
+                    return (float(loc["lon"]), float(loc["lat"]))
+                if isinstance(loc, (tuple, list)) and len(loc) == 2:
+                    return (float(loc[0]), float(loc[1]))
+            except (TypeError, ValueError):
+                return None
+            return None
+
+        def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
+            return haversine_km(
+                GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1])
+            )
+
+        groups: dict[str, list[dict]] = {}
+        for cand in candidates:
+            city = (cand.get("city") or _unspecified()).removesuffix("市")
+            groups.setdefault(city, []).append(cand)
+        items: list[dict] = []
+
+        def _minutes(cand: dict, default_minutes: int) -> int:
+            duration = cand.get("suggested_duration_min")
+            try:
+                return (
+                    _clamp_plan_duration(int(duration)) if duration else default_minutes
+                )
+            except (TypeError, ValueError):
+                return default_minutes
+
+        def _item(cand: dict, day: int, minutes: int) -> dict:
+            return {
+                "name": cand["name"],
+                "city": cand.get("city") or _unspecified(),
+                "category": cand.get("category") or "sight",
+                "day": max(1, min(day, days)),
+                "duration_minutes": minutes,
+            }
+
+        for city, group in groups.items():
+            lo, hi = ranges.get(city, (1, days))
+            span = max(hi - lo + 1, 1)
+            sights: list[tuple[int, dict]] = []
+            shows: list[tuple[int, dict]] = []
+            foods: list[dict] = []
+            for idx, cand in enumerate(group):
+                if cand.get("category") == "food":
+                    foods.append(cand)
+                elif (
+                    cand.get("category") == "entertainment"
+                    or cand.get("best_visit_time") == "show"
+                ):
+                    shows.append((idx, cand))
+                else:
+                    sights.append((idx, cand))
+            ordered = sorted(sights, key=lambda p: (_source_tier(p[1]), p[0]))
+            pool = ordered[: span * 4]
+            clusters = cluster_days([c for _, c in pool], span)
+            day_loads = {d: [0, 0] for d in range(lo, hi + 1)}  # [minutes, count]
+            cluster_rank: dict[int, tuple] = {}
+            for pos, (_idx, cand) in enumerate(pool):
+                cid = clusters[pos]
+                if cid is None:
+                    continue
+                key = (_source_tier(cand), pos)
+                if cid not in cluster_rank or key < cluster_rank[cid]:
+                    cluster_rank[cid] = key
+            cluster_day = {
+                cid: lo + rank
+                for rank, cid in enumerate(
+                    sorted(cluster_rank, key=lambda c: cluster_rank[c])
+                )
+            }
+
+            def _emptiest_day() -> int:
+                return sorted(
+                    range(lo, hi + 1),
+                    key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                )[0]
+
+            placed: dict[int, list[tuple[int, dict]]] = {
+                d: [] for d in range(lo, hi + 1)
+            }
+            for pos, (idx, cand) in enumerate(pool):
+                minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
+                cid = clusters[pos]
+                day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
+                load = day_loads[day]
+                if load[0] + minutes > DAY_VISIT_BUDGET_MINUTES or load[1] >= 4:
+                    day = _emptiest_day()  # 簇满→溢出余量最大天（保地理优先、不空天）
+                    load = day_loads[day]
+                    if load[0] + minutes > DAY_VISIT_BUDGET_MINUTES or load[1] >= 4:
+                        continue  # 全满才出局（tier 低者先出）
+                load[0] += minutes
+                load[1] += 1
+                placed[day].append((pos, cand))
+            for day, seq in placed.items():
+                if not seq:
+                    continue
+                seq.sort(key=lambda p: p[0])  # tier 序为基底
+                anchored = [p for p in seq if _cxy(p[1])]
+                floating = [p for p in seq if not _cxy(p[1])]
+                chain: list[tuple[int, dict]] = anchored[:1]
+                rest = anchored[1:]
+                while rest:
+                    cur = _cxy(chain[-1][1])
+                    rest.sort(key=lambda p: _km(cur, _cxy(p[1])))
+                    chain.append(rest.pop(0))
+                for _pos, cand in chain + floating:
+                    items.append(
+                        _item(cand, day, _minutes(cand, DEFAULT_VISIT_MINUTES))
+                    )
+            if shows:
+                best = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][1]
+                items.append(_item(best, hi, _minutes(best, 90)))
+            for idx, cand in enumerate(foods):
+                items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         return items
 
     @staticmethod

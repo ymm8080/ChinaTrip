@@ -6,7 +6,10 @@
 约束回归 = 改动不可合入。
 """
 
+import os
 from datetime import time as dtime
+
+import pytest
 
 from app.services.agent.plan import PlanningAgent
 from app.services.itinerary import VisitItem
@@ -286,3 +289,11 @@ def test_eval_reservation_hint_does_not_distort_schedule():
     assert timed, "预约制候选不得导致时间悬空"
     for (s1, e1), (s2, _e2) in zip(timed, timed[1:]):
         assert e1 <= s2
+
+
+@pytest.fixture(autouse=True)
+def _llm_select_mode():
+    """本文件守护 LLM 选点（备用模式）语义；算法主路径见 test_algo_v0.py。"""
+    os.environ["PLAN_SELECT_MODE"] = "llm"
+    yield
+    os.environ.pop("PLAN_SELECT_MODE", None)
