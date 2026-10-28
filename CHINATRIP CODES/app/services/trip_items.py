@@ -84,13 +84,32 @@ class TripItemService:
         now: datetime | None = None,
     ) -> dict:
         """Idempotent create: returns the existing row instead of a new one
-        when this trip already holds the same poi_id / name+city."""
+        when this trip already holds the same poi_id / name+city (an empty
+        city matches any). 2026-10-28 user report (multiple 西湖 on the
+        global board): a same-name wishlist row from another trip is the
+        same wish too — see _find_duplicate for the exact predicate."""
         if source not in SOURCES:
             raise InvalidSourceError(f"invalid_source:{source}")
         duplicate = self._find_duplicate(
-            name, itinerary_id=itinerary_id, city=city, poi_id=poi_id
+            name,
+            source=source,
+            itinerary_id=itinerary_id,
+            city=city,
+            poi_id=poi_id,
         )
         if duplicate is not None:
+            # Same wish, richer info: fill ONLY empty fields of the existing
+            # row (a deliberate 杭州 never becomes 苏州); the row survives
+            # with everything the second submission knew.
+            self._enrich_duplicate(
+                duplicate,
+                note=note,
+                city=city,
+                poi_id=poi_id,
+                address=address,
+                opening_hours=opening_hours,
+                now=now,
+            )
             logger.info(
                 "trip_item_deduplicated id=%s name=%s",
                 duplicate["id"],
@@ -118,6 +137,34 @@ class TripItemService:
         self._items[item["id"]] = item
         logger.info("trip_item_created source=%s", source)
         return dict(item)
+
+    @staticmethod
+    def _enrich_duplicate(
+        item: dict,
+        *,
+        note: str | None,
+        city: str | None,
+        poi_id: str | None,
+        address: str | None,
+        opening_hours: str | None,
+        now: datetime | None,
+    ) -> None:
+        """Merge-in place: only fill fields the existing row lacks; bump
+        updated_at when anything changed (subclass persistence rides the
+        caller's write-through)."""
+        changed = False
+        for field, value in (
+            ("note", note),
+            ("city", city),
+            ("poi_id", poi_id),
+            ("address", address),
+            ("opening_hours", opening_hours),
+        ):
+            if value and not item.get(field):
+                item[field] = value
+                changed = True
+        if changed:
+            item["updated_at"] = _iso_now(now)
 
     def get(self, item_id: str) -> dict | None:
         item = self._items.get(item_id)
@@ -293,14 +340,24 @@ class TripItemService:
         self,
         name: str,
         *,
+        source: str,
         itinerary_id: str | None,
         city: str | None,
         poi_id: str | None,
     ) -> dict | None:
         """Same trip + same thing = one row: poi_id is authoritative when
-        both sides carry it, else normalized name+city. Unwanted rows never
-        match — re-adding a rejected item starts a fresh wishlist entry
-        (the wish-sync path flips unwanted back on its own)."""
+        both sides carry it, else normalized name + city — where a missing
+        city never contradicts a known one (chat adds a bare 西湖, paste
+        adds 西湖+杭州: same wish). Unwanted rows never match — re-adding
+        a rejected item starts a fresh wishlist entry. 2026-10-28 user
+        report (the global board showed 西湖 once per trip): a same-name
+        WISHLIST row from another trip is the same wish too, so the stream
+        keeps one card per distinct wish. Scheduled/booked rows of other
+        trips never match (a new trip files its own wish — timeline rows
+        stay per-trip), and the plan_delete bookkeeping write never
+        global-merges (un-parking trip B must not flip trip A's wish).
+        PgTripItemService mirrors this predicate in SQL under an advisory
+        lock — keep the two in sync."""
         if poi_id:
             for item in self._items.values():
                 if (
@@ -311,11 +368,15 @@ class TripItemService:
                     return item
         key_name, key_city = _norm(name), _norm(city)
         for item in self._items.values():
-            if (
-                item["itinerary_id"] == itinerary_id
-                and item["status"] != STATUS_UNWANTED
-                and _norm(item["name"]) == key_name
-                and _norm(item["city"]) == key_city
-            ):
+            if item["status"] == STATUS_UNWANTED:
+                continue
+            if _norm(item["name"]) != key_name:
+                continue
+            item_city = _norm(item["city"])
+            if key_city is not None and item_city is not None and item_city != key_city:
+                continue
+            if item["itinerary_id"] == itinerary_id:
+                return item
+            if source != "plan_delete" and item["status"] == STATUS_WISHLIST:
                 return item
         return None

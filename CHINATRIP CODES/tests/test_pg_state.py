@@ -1,6 +1,8 @@
 """pg_state 映射纯函数 + PG 不可达降级测试（CI 无 PostgreSQL，不出网）."""
 
+import contextlib
 from datetime import datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import OperationalError
@@ -176,3 +178,102 @@ def test_import_item_memory_fallback_without_pg():
         is False
     )
     assert svc.get(item_id)["name"] == "灵隐寺"
+
+
+# --- 2026-10-28 跨进程查重（advisory 锁内 SQL 查重 + 命中不重插） -------------
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def first(self):
+        return self._rows[0] if self._rows else None
+
+
+class _TxSession:
+    """boot 段 query()→空表；create 段 execute() 按 SQL 分流（锁语句返回
+    空、查重语句返回预置命中行）。"""
+
+    def __init__(self, dup_payload=None):
+        self.dup_payload = dup_payload
+        self.executed = []
+        self.inserted = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def begin(self):
+        return self
+
+    def begin_nested(self):
+        return contextlib.nullcontext()
+
+    def query(self, model):
+        return SimpleNamespace(all=lambda: [])
+
+    def execute(self, stmt, params=None):
+        sql = str(stmt)
+        self.executed.append((sql, params))
+        if "pg_advisory_xact_lock" in sql:
+            return _FakeResult([])
+        return _FakeResult([(self.dup_payload,)] if self.dup_payload else [])
+
+    def add(self, row):
+        self.inserted.append(row)
+
+
+class _TxFactory:
+    def __init__(self, dup_payload=None):
+        self.dup_payload = dup_payload
+        self.sessions = []
+
+    def __call__(self):
+        session = _TxSession(self.dup_payload)
+        self.sessions.append(session)
+        return session
+
+
+def _wish_payload():
+    return {
+        "id": "abc123def456abc123def456abc12345",
+        "name": "西湖",
+        "city": "杭州",
+        "status": "wishlist",
+        "source": "paste",
+        "itinerary_id": "it-1",
+        "poi_id": None,
+        "note": None,
+        "day": None,
+        "position": None,
+        "address": None,
+        "opening_hours": None,
+        "booking_id": None,
+        "created_at": "2026-10-28T08:00:00+00:00",
+        "updated_at": "2026-10-28T08:00:00+00:00",
+    }
+
+
+def test_pg_create_hit_returns_other_process_row_without_reinsert():
+    factory = _TxFactory(dup_payload=_wish_payload())
+    svc = PgTripItemService(factory)
+    item = svc.create("西湖", source="chat", itinerary_id="it-1", city=None)
+    assert item["id"] == "abc123def456abc123def456abc12345"
+    assert svc._items[item["id"]]["name"] == "西湖"  # 命中行回灌内存
+    writer = factory.sessions[1]
+    assert writer.inserted == []  # 不重插
+    assert any("pg_advisory_xact_lock" in sql for sql, _ in writer.executed)
+
+
+def test_pg_create_miss_inserts_inside_locked_transaction():
+    factory = _TxFactory()
+    svc = PgTripItemService(factory)
+    item = svc.create("西湖", source="paste", itinerary_id="it-1", city="杭州")
+    assert item["status"] == "wishlist"
+    writer = factory.sessions[1]
+    assert len(writer.inserted) == 1
+    assert writer.inserted[0].name == "西湖"
+    assert any("pg_advisory_xact_lock" in sql for sql, _ in writer.executed)

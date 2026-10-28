@@ -151,12 +151,42 @@ def test_create_dedups_by_poi_id_even_when_name_differs():
     assert second["id"] == first["id"]
 
 
-def test_create_dedup_scopes_to_itinerary_and_city():
+def test_create_dedup_merges_cross_trip_wishlist_but_respects_states():
+    """2026-10-28 用户报告：全局心愿板每个行程各出一张 西湖 卡。跨行程的
+    wishlist 同名行=同一个愿，合并成一张；他行程已排期 → 新行程自建一行；
+    已知不同城市 = 不同地点，永不合并。"""
     service = TripItemService()
-    a = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
-    b = service.create("西湖", source="manual", itinerary_id="t2", city="杭州")
-    c = service.create("西湖", source="manual", itinerary_id="t1", city="苏州")
-    assert len({a["id"], b["id"], c["id"]}) == 3
+    hz = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
+    again = service.create("西湖", source="paste", itinerary_id="t2", city="杭州")
+    assert again["id"] == hz["id"]
+    service.update(hz["id"], status="scheduled", day=1)
+    fresh = service.create("西湖", source="manual", itinerary_id="t3", city="杭州")
+    assert fresh["id"] != hz["id"]
+    su = service.create("西湖", source="manual", itinerary_id="t3", city="苏州")
+    assert su["id"] != fresh["id"]
+
+
+def test_create_dedup_plan_delete_never_merges_across_trips():
+    """trip B 删除 西湖 只在 trip B 落 unwanted，不翻 trip A 的愿。"""
+    service = TripItemService()
+    wish = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
+    parked = service.mark_unwanted("西湖", itinerary_id="t2", city="杭州")
+    assert parked["id"] != wish["id"]
+    assert wish["status"] == "wishlist"
+    assert parked["status"] == "unwanted"
+
+
+def test_create_dedup_cityless_matches_named_city_both_orders():
+    """chat 只带名字、paste 带城市：同一心愿，谁先谁后都合并。"""
+    first = TripItemService()
+    bare = first.create("西湖", source="chat")
+    named = first.create("西湖", source="paste", city="杭州")
+    assert named["id"] == bare["id"]
+
+    second = TripItemService()
+    named2 = second.create("西湖", source="paste", city="杭州")
+    bare2 = second.create("西湖", source="chat")
+    assert bare2["id"] == named2["id"]
 
 
 def test_create_dedup_ignores_unwanted_rows():
@@ -471,7 +501,8 @@ def test_patch_updates_note_city_and_bumps_updated_at():
 def test_delete_wishlist_and_scheduled_returns_204():
     with TestClient(make_app()) as client:
         wish = create_item(client)
-        sched = create_item(client, itinerary_id="t1")
+        sched = create_item(client, itinerary_id="t1", name="灵隐寺")
+        # 2026-10-28 起跨行程同名 wishlist 合并 → DELETE 用例改用不同名
         schedule(client, sched["id"], day=1)
         for item_id in (wish["id"], sched["id"]):
             resp = client.delete(f"/api/v1/trip-items/{item_id}")

@@ -15,10 +15,12 @@ PG 的 itineraries/itinerary_snapshots/trip_items 三表自 alembic 0001 建表�
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid as uuid_mod
 from datetime import datetime
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models import Itinerary, ItineraryDay, ItinerarySnapshot, TripItem
@@ -27,9 +29,14 @@ from app.services.itinerary_store import (
     ItineraryRecord,
     Snapshot,
 )
-from app.services.trip_items import STATUS_WISHLIST, TripItemService
+from app.services.trip_items import STATUS_WISHLIST, TripItemService, _norm
 
 logger = logging.getLogger(__name__)
+
+# 跨进程心愿查重锁（2026-10-28）：:8000 与 :8443 两个 uvicorn 进程共写一张
+# trip_items 表，各自内存查重互相看不见 → 同名心愿重复入库（用户实报心愿单
+# 多条 西湖）。任意 bigint 常量即可，全库仅此一处使用。
+_TRIP_ITEMS_ADVISORY_KEY = 8633722
 
 
 def _pg_uuid(stored_id: str | None, prefix: str = "") -> uuid_mod.UUID | None:
@@ -261,9 +268,144 @@ class PgTripItemService(TripItemService):
             logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
 
     def create(self, name: str, *, source: str, **kwargs) -> dict:
-        item = super().create(name, source=source, **kwargs)
-        self._write_through(item["id"])
-        return item
+        """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与
+        :8443 两个 uvicorn 进程共写一张 trip_items 表，各自内存查重互相看
+        不见 → 同名心愿各插一行。改为在 PG advisory 事务锁内做 SQL 查重
+        （谓词与基类 _find_duplicate 一致）+ 未命中才插入，两进程在该锁上
+        串行化；命中即回灌内存并返回既有行。PG 不可达时熔断降级为纯内存
+        语义（与 update/delete 一致）。"""
+        if not self._pg_ok:
+            return super().create(name, source=source, **kwargs)
+        try:
+            with self._session_factory() as session, session.begin():
+                session.execute(
+                    text("select pg_advisory_xact_lock(:key)"),
+                    {"key": _TRIP_ITEMS_ADVISORY_KEY},
+                )
+                existing = self._db_find_duplicate(session, name, source, kwargs)
+                if existing is not None:
+                    payload = dict(existing)
+                    # 与基类 create 的补空位语义一致（第二次带更全信息）。
+                    self._enrich_duplicate(
+                        payload,
+                        note=kwargs.get("note"),
+                        city=kwargs.get("city"),
+                        poi_id=kwargs.get("poi_id"),
+                        address=kwargs.get("address"),
+                        opening_hours=kwargs.get("opening_hours"),
+                        now=kwargs.get("now"),
+                    )
+                    self._items[str(payload["id"])] = payload
+                    self._write_through(payload["id"])
+                    logger.info(
+                        "trip_item_deduplicated_pg id=%s name=%s",
+                        payload["id"],
+                        payload.get("name"),
+                    )
+                    return payload
+                item = super().create(name, source=source, **kwargs)
+                values = item_to_row_values(item)
+                if values["id"] is not None:
+                    self._insert_on(session, values)
+                return item
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
+            return super().create(name, source=source, **kwargs)
+
+    @staticmethod
+    def _db_find_duplicate(
+        session, name: str, source: str, kwargs: dict
+    ) -> dict | None:
+        """基类 _find_duplicate 的 SQL 版（跨进程查重）。谓词必须与基类保持
+        一致：poi_id 同行程精确匹配；否则规范化名字 + 城市兼容（任一侧缺
+        城市=不矛盾）；跨行程仅合并双方都是 wishlist 的行，且 plan_delete
+        记账写入永不全局合并。PG 故障期的纯内存行仍由 super().create() 的
+        内存查重兜底。"""
+        # psycopg3 服务端绑定：裸参数与裸字面量比较/IS NOT NULL 会得到
+        # "could not determine data type of parameter"——凡参数要么与列比较
+        # （类型可推导），要么显式 CAST(:x AS text)；poi 分支仅在带 poi_id
+        # 时拼入 SQL，避免 NULL 参数。
+        poi_id = kwargs.get("poi_id")
+        poi_branch = ""
+        order_poi = ""
+        params = {
+            "name": _norm(name) or "",
+            "it": kwargs.get("itinerary_id") or "",
+            "city": _norm(kwargs.get("city")) or "",
+            "source": source,
+        }
+        if poi_id:
+            poi_branch = (
+                "(payload->>'poi_id' = CAST(:poi AS text)"
+                " AND COALESCE(payload->>'itinerary_id', '')"
+                " = CAST(:it AS text)) OR "
+            )
+            order_poi = "COALESCE(payload->>'poi_id' = CAST(:poi AS text), false) DESC,"
+            params["poi"] = poi_id
+        row = session.execute(
+            text(
+                f"""
+                SELECT payload FROM trip_items
+                WHERE status <> 'unwanted'
+                  AND (
+                        {poi_branch}
+                        (
+                          lower(trim(name)) = CAST(:name AS text)
+                          AND (
+                            COALESCE(payload->>'itinerary_id', '')
+                              = CAST(:it AS text)
+                            OR (
+                              status = 'wishlist'
+                              AND CAST(:source AS text) <> 'plan_delete'
+                              AND (
+                                COALESCE(NULLIF(lower(trim(city)), ''), '')
+                                  = CAST(:city AS text)
+                                OR COALESCE(NULLIF(lower(trim(city)), ''), '')
+                                  = ''
+                                OR CAST(:city AS text) = ''
+                              )
+                            )
+                          )
+                        )
+                      )
+                ORDER BY {order_poi} created_at ASC NULLS LAST
+                LIMIT 1
+                """
+            ),
+            params,
+        ).first()
+        if row is None:
+            return None
+        payload = row[0]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return payload if isinstance(payload, dict) and payload.get("id") else None
+
+    def _insert_on(self, session, values: dict) -> None:
+        """advisory 锁内同事务落库。FK 目标不存在时清空 FK 列在 savepoint
+        里重试一次（外层事务与锁不受影响，原值仍在 payload）；其余写失败
+        仅告警——内存条目保留，降级语义与 _write_through 一致。"""
+        try:
+            with session.begin_nested():
+                session.add(TripItem(**values))
+        except IntegrityError:
+            for fk in ("itinerary_id", "poi_id", "booking_id"):
+                values[fk] = None
+            try:
+                with session.begin_nested():
+                    session.add(TripItem(**values))
+            except Exception as exc:
+                logger.warning(
+                    "pg_state: 条目 %s 锁内落库失败(FK 回退): %s",
+                    values["id"],
+                    exc,
+                )
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 写穿熔断（trip items 降级纯内存）: %s", exc)
+        except Exception as exc:
+            logger.warning("pg_state: 条目 %s 锁内落库失败: %s", values["id"], exc)
 
     def update(self, item_id: str, **kwargs) -> dict:
         item = super().update(item_id, **kwargs)
