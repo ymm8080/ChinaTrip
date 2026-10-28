@@ -982,6 +982,7 @@ function authRender() {
     box.appendChild(b);
   }
 }
+window.addEventListener("i18n:change", authRender); // 身份区按钮跟随语言切换重绘
 
 // 后端 detail → 中文文案（zh 值同时作为 tf 的内联回退；en 词条见 i18n.js）
 const AUTH_ERR_CN = {
@@ -1731,13 +1732,27 @@ function planRouteForm() {
     total: mids.reduce((s, m) => s + m.days, 0) + endDays,
   };
 }
-(function planCityInit() {
-  const opts = PLAN_CITIES.map(([c, en]) => '<option value="' + c + '">' + c + " " + en + "</option>").join("");
-  const viaOpts = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts;
+/* 规划城市下拉：按 locale 重建（value 恒为中文规范市名=API 契约；zh 显示「中文 英文」双语标签，
+ * en 只显示英文名）；i18n:change 时重绘并保留当前选中。 */
+function planCityRender() {
   const s = document.getElementById("planStartCity");
   const e = document.getElementById("planEndCity");
-  s.innerHTML = opts; s.value = "上海";
-  e.innerHTML = opts; e.value = "杭州";
+  const en = I18N.locale() === "en";
+  const label = ([c, enName]) => en ? enName : (c + " " + enName);
+  const opts = PLAN_CITIES.map(p => '<option value="' + p[0] + '">' + label(p) + "</option>").join("");
+  const cur = { s: s.value || "上海", e: e.value || "杭州",
+    via: [1, 2, 3].map(i => document.getElementById("planVia" + i).value || "") };
+  s.innerHTML = opts; s.value = cur.s;
+  e.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts; e.value = cur.e;
+  for (let i = 1; i <= 3; i++) {
+    const v = document.getElementById("planVia" + i);
+    v.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts;
+    v.value = cur.via[i - 1] || "";
+  }
+}
+window.addEventListener("i18n:change", planCityRender);
+(function planCityInit() {
+  planCityRender();
   // 浏览器表单恢复可能带回 0/空天数：初始化时归位默认值
   // （起始城市 0 天是设计如此——只排出发交通不计入合计）
   const num = (id) => parseInt(document.getElementById(id).value, 10);
@@ -4338,10 +4353,24 @@ document.querySelector('.nav-item[data-tab="book"]').addEventListener("click", (
 
 /* ================= 欢迎语 ================= */
 
-addMsg("flow-plan", "sys", I18N.tf("welcome.plan", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。"));
-addMsg("flow-t9n", "sys", I18N.tf("welcome.t9n", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。"));
-addMsg("flow-book-train", "sys", I18N.tf("welcome.book", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。"));
-addMsg("flow-trips", "sys", I18N.tf("welcome.trips", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。"));
+/* 欢迎语气泡：引用存 WELCOME，i18n:change 时重写气泡文本与「助手」标签（对话历史消息不跟随，
+ * 与 LLM 回复同属会话记录；仅这四条引导语算 UI 文案）。 */
+const WELCOME = [
+  ["flow-plan", "welcome.plan", "直接在下方输入框写需求（如：从上海到杭州 3 天，喜欢博物馆），回车或点「🚀 开始规划」即开始；信息不全时我会追问，拿到初版后可继续对话修改（可多轮）。"],
+  ["flow-t9n", "welcome.t9n", "输入原文、选好语向（中↔英/日/韩，点 ⇄ 换向），回车或点发送即翻译。"],
+  ["flow-book-train", "welcome.book", "填城市/日期 → 「转链交易中心」卡片组：disclaimer → 主推大卡 + 展开全部渠道；点「前往预订」先展示退改签摘要（铁律 23），确认后埋点跳转；底部「📋 订单回填」做闭环。"],
+  ["flow-trips", "welcome.trips", "三态看板：✅ 已预订置顶 · 📅 已排期按天分组 · 💡 心愿单流。排期要填第几天、标记已订要填订单号；手动/对话/粘贴写同一张表（铁律 0）。点上方「🔄 刷新看板」开始。"],
+].map(([flow, key, zh]) => {
+  const bubble = addMsg(flow, "sys", I18N.tf(key, zh));
+  const who = bubble.parentNode.querySelector(".who");
+  return { key, zh, bubble, who, at: who.textContent.split(" · ")[1] || "" };
+});
+window.addEventListener("i18n:change", () => {
+  WELCOME.forEach(w => {
+    w.who.textContent = I18N.tf("flow.who.sys", "助手") + (w.at ? " · " + w.at : "");
+    w.bubble.textContent = I18N.tf(w.key, w.zh);
+  });
+});
 
 planSetSession(null);
 autoOpenLatestItin();
