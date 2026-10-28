@@ -32,6 +32,7 @@ data/
 
 # Keep example templates committable (the .env.* blanket above eats them)
 !.env.example
+!.env.example.*
 
 # Obsidian (personal vault config, not for repo)
 .obsidian/
@@ -41,3 +42,23 @@ data/
 
 # Local dev server logs (dev_watch.py detached mode)
 devlogs/
+
+# Agent tool dirs (machine-local, not for repo)
+.zcode/
+CHINATRIP CODES/.claude/
+
+# One-off op scripts & result logs (mic/net/tls 排障脚本，问题结案即弃)
+mic*.ps1
+mic*_result.txt
+netfix*
+tlsfix*
+dualtest.ps1
+epenum.ps1
+run_hidden.vbs
+_tmp_grep*.txt
+tmp_t/
+trains_refresh.log
+uvicorn_h5*.log
+
+# POIS import runtime state marker (machine-local)
+.import_batch1_done.flag

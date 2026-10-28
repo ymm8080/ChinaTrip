@@ -1,0 +1,168 @@
+﻿name_zh,alias_zh,province,city,ticket_type,official_channel,advance_days,release_time,price_note,source_status,source_url,remark
+故宫博物院,故宫,北京,北京,付费预约,微信小程序「故宫博物院」,7,20:00,旺季60/淡季40,已官方直核,../reservation_seeds_核对_2026-10-25.md,护照可约；20:00 放 7 天后票，秒光
+中国国家博物馆,,北京,北京,免费预约,官网/小程序「国家博物馆」,7,17:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,
+天安门广场,,北京,北京,免费预约,小程序「天安门广场预约参观」,1-7,12:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,每日 12:00 放第 7 天票
+毛主席纪念堂,,北京,北京,免费预约,小程序「毛主席纪念堂预约」,1-6,00:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,红色题材——POIS 口径默认排除，仅 booking 放票任务侧保留；仅上午开放
+陕西历史博物馆,,陕西,西安,免费预约,官方微信公众号,5,17:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,秒光；仅二代身份证，外籍需代订
+陕西历史博物馆秦汉馆,,陕西,西安,免费预约,官方微信公众号,5,17:30,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,较主馆晚半小时放票
+三星堆博物馆,,四川,德阳（广汉）,付费预约,官方小程序,5,20:00,通票72,已官方直核,../reservation_seeds_核对_2026-10-25.md,设境外游客单独预约通道
+湖南博物院,,湖南,长沙,免费预约,官方微信公众号/小程序,7,20:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,以公众号最新《预约说明》为准
+南京博物院,,江苏,南京,免费预约,官方小程序,7,18:00,免费,已官方直核,../reservation_seeds_核对_2026-10-25.md,
+八达岭长城,,北京,北京（延庆）,付费预约,小程序「长城内外旅游」/badaling.cn,7,00:00,40,已官方直核,../reservation_seeds_核对_2026-10-25.md,分时预约，现场不售票
+雍和宫,,北京,北京,付费预约,公众号/小程序「雍和宫游客信众服务」,1-7,00:00,25,已官方直核,../reservation_seeds_核对_2026-10-25.md,未授权任何第三方渠道
+恭王府,,北京,北京,付费预约,官网 pgm.org.cn,10,20:00,40,已官方直核,../reservation_seeds_核对_2026-10-25.md,文旅部 2019-12 全网售票公告口径
+四川大熊猫繁育研究基地,成都大熊猫繁育研究基地,四川,成都,付费预约,官方小程序/美团/携程,14,00:00,55,已官方直核,../reservation_seeds_核对_2026-10-25.md,分上下午票；携程=官方授权渠道（OTA 可订，非 official_quota）
+敦煌莫高窟,,甘肃,酒泉（敦煌）,付费限量预约,「莫高窟参观预约网」mgk.org.cn,30,00:00,旺季238/淡季140（A类正常票）,已官方直核,../reservation_seeds_核对_2026-10-25.md,旺季秒光；有应急票（B类）兜底；官网口径=敦煌市政府 2025 公告/新华网
+布达拉宫,,西藏,拉萨,付费预约,小程序「布达拉宫票务预订系统」,10,00:00,旺季200/淡季100,已官方直核,../reservation_seeds_核对_2026-10-25.md,须本人微信端购票+人脸认证
+秦始皇帝陵博物院,兵马俑,陕西,西安,付费预约,官方票务系统 bmy.albatrip.cn/官方公众号,7（节假日10）,00:00,120,已官方直核,https://bmy.albatrip.cn/,未授权任何第三方销售；提前期=本地宝 2026-02 口径
+上海天文馆,,上海,上海,付费预约,官方小程序/公众号,7（含当日）,09:30,主展厅 30（电影另购）,已官方直核,https://www.sstm-sam.org.cn/,官方公告：参观票前 7 天含当日 9:30 开售、电影票 10:00；暑期秒光，前一天 23:30 前可退
+中国科学技术馆,,北京,北京,付费预约,官网 pcticket.cstm.org.cn,7,00:00,主展厅 30 起,已官方直核,https://pcticket.cstm.org.cn/,实名购票；官方预售期未注明——以官网为准（OTA 有当日/次日票）
+国家自然博物馆,,北京,北京,免费预约,官网/微信公众号,3,11:00,免费,已官方直核,https://www.nnhm.org.cn/cgzx/cgxx/index.shtml,官方口径：个人提前 3 日、每日 11:00 更新；团体提前 4 日
+苏州博物馆,,江苏,苏州,免费预约,官网/公众号/「苏州博物馆全预约」小程序,7（含当天）,00:00,免费,已官方直核,https://www.szmuseum.com/Other/ReservationTip,本馆全预约制；每日凌晨 0 点放票（官方留言回复口径）；当日有余票可当日约
+上海博物馆,上博东馆,上海,上海,免费预约,小程序「上海博物馆参观预约」,14,12:00,免费（特展另购）,已官方直核,https://www.shanghaimuseum.net/,2024-04 起提前 14 天、每日 12:00 放票；东馆常设展 2024-09 试行免预约凭证入馆，特展以官方小程序为准
+湖北省博物馆,,湖北,武汉,免费预约,官方微信公众号/官网,5,17:18,免费,已官方直核,http://wh.bendibao.com/tour/2025724/189584.shtm,官方指南口径：每日 17:18 放票、最多提前 5 天；每单最多 5 张；周一闭馆（节假日除外）
+河南博物院,,河南,郑州,免费预约,官方微信公众号,2,00:00,免费,已官方直核,,官方未注明提前天数/放票时刻（本轮未核到）——以公众号《参观指南》为准，种子 days=2 为提醒用近似值
+甘肃省博物馆,,甘肃,兰州,免费预约,微信公众号「甘肃省博物馆」,3（含当天）,17:00,免费,已官方直核,https://www.gansumuseum.com/,官方口径：提前 3 天实名预约、每日 17:00 放票；日限额 12000 人、4 场次
+梵净山,,贵州,铜仁,付费限量预约,官方 fanjingshan.gz.cn,0（当天票为主）,07:00,门票+车索约 120-180,已官方直核,https://fanjingshan.gz.cn/?page_id=1188,官方购票须知：线上 5800 张/日三轮投放，散客票 07:00 起（节假日或提前至 06:30），当天 6:30-15:00 售当天票，22:00 后不售票；现场无售票窗口，旺季建议提前 1-3 天
+慕田峪长城,,北京市,北京,需购票,慕田峪长城官方公众号,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Mutianyu Great Wall
+颐和园,颐和园景区,北京市,北京,需购票,颐和园官方公众号,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Summer Palace
+天坛公园,天坛,北京市,北京,需购票,天坛公园官方公众号,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Temple of Heaven Park
+景山公园,,北京市,北京,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Jingshan Park
+钟鼓楼,鼓楼,北京市,北京,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Drum & Bell Towers
+南锣鼓巷,,北京市,北京,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Nanluoguxiang Hutong
+明十三陵,十三陵,北京市,北京,需购票,明十三陵景区官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Ming Tombs
+潘家园旧货市场,潘家园,北京市,北京,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Panjiayuan Antique Market
+798艺术区,,北京市,北京,免费（部分场馆购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: 798 Art District
+外滩,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: The Bund
+豫园,,上海市,上海,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Yu Garden
+东方明珠,东方明珠广播电视塔,上海市,上海,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Oriental Pearl TV Tower
+上海中心大厦,,上海市,上海,需购票（观光厅）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Shanghai Tower
+田子坊,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Tianzifang
+新天地,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Xintiandi
+武康路,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Wukang Road & Former French Concession
+静安寺,,上海市,上海,需购票（香花券）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Jing'an Temple
+南京东路步行街,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: East Nanjing Rd Pedestrian Street
+M50创意园,,上海市,上海,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: M50 Art District
+上海迪士尼乐园,,上海市,上海,需购票（实名）,上海迪士尼度假区官方App/官网,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Shanghai Disneyland
+中共一大纪念馆,中国共产党一大·二大·四大纪念馆景区,上海市,上海,需预约（免费实名）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Site of the First CPC National Congress
+朱家角古镇,朱家角古镇景区,上海市,上海,免费（景点联票购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Zhujiajiao Water Town
+黄浦江游览,黄浦江游览（东方明珠码头）,上海市,上海,需购票（船票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Huangpu River Cruise
+拙政园,,江苏省,苏州,需预约（实名购票）,苏州园林旅游官方平台（实名预约）,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Humble Administrator's Garden
+平江路历史街区,,江苏省,苏州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Pingjiang Road Historic Block
+七里山塘,山塘街,江苏省,苏州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Shantang Street
+虎丘山风景名胜区,虎丘,江苏省,苏州,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Tiger Hill Scenic Area
+周庄古镇,周庄,江苏省,苏州,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Zhouzhuang Water Town
+西湖风景名胜区,杭州西湖文化景观|西湖,浙江省,杭州,免费（部分景点购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: West Lake
+灵隐飞来峰,飞来峰|灵隐飞来峰景区|灵隐寺,浙江省,杭州,需购票（飞来峰门票+香花券）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Lingyin Temple & Feilai Peak
+龙井村,龙井问茶,浙江省,杭州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Longjing Tea Village
+清河坊历史街区,清河坊街|河坊街,浙江省,杭州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Qinghefang (Hefang St) Historic Block
+拱宸桥·桥西历史文化街区,,浙江省,杭州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Grand Canal: Gongchen Bridge & Qiaoxi Block
+西溪国家湿地公园,西溪湿地,浙江省,杭州,需购票（部分区域免费）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Xixi National Wetland Park
+中山陵园风景区,中山陵景区|中山陵,江苏省,南京,需预约（免费实名）,中山陵园风景区实名预约平台,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Sun Yat-sen Mausoleum
+明孝陵,,江苏省,南京,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Ming Xiaoling Mausoleum
+夫子庙秦淮风光带,南京夫子庙-秦淮风光带-长干里|夫子庙,江苏省,南京,免费（部分展馆购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Confucius Temple & Qinhuai River
+南京城墙（中华门）,中华门瓮城|南京城墙,江苏省,南京,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Nanjing City Wall (Zhonghua Gate)
+南京总统府,总统府,江苏省,南京,需购票（实名）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Presidential Palace
+侵华日军南京大屠杀遇难同胞纪念馆,,江苏省,南京,需预约（免费实名）,纪念馆官方微信公众号,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Nanjing Massacre Memorial Hall
+广州塔,,广东省,广州,需购票,广州塔官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Canton Tower
+沙面岛,沙面|沙面公园,广东省,广州,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Shamian Island
+长隆野生动物世界,长隆野生动物园,广东省,广州,需购票,长隆官方App/官网,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Chimelong Safari Park
+珠江夜游,珠江夜游广州塔财富码头,广东省,广州,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Pearl River Night Cruise
+陈家祠,陈家祠旅游区,广东省,广州,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Chen Clan Ancestral Hall
+光孝寺,,广东省,广州,需购票（香花券）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Guangxiao Temple
+世界之窗,,广东省,深圳,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Window of the World
+华侨城创意文化园,,广东省,深圳,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: OCT-LOFT Creative Culture Park
+深圳湾公园,,广东省,深圳,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Shenzhen Bay Park
+大梅沙海滨公园,大梅沙海滨浴场,广东省,深圳,需预约（免费，旺季预约制）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Dameisha Beach
+宽窄巷子,,四川省,成都,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Kuanzhai Alley (Wide & Narrow Alleys)
+锦里古街,锦里,四川省,成都,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Jinli Ancient Street
+武侯祠,成都武侯祠,四川省,成都,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Wuhou Shrine
+杜甫草堂,成都杜甫草堂,四川省,成都,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Du Fu Thatched Cottage
+成都市人民公园,人民公园,四川省,成都,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: People's Park (Heming Teahouse)
+金沙遗址博物馆,成都金沙遗址博物馆,四川省,成都,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Jinsha Site Museum
+都江堰景区,都江堰水利工程|都江堰风景区,四川省,成都,需购票,都江堰景区官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Dujiangyan Irrigation System
+洪崖洞民俗风貌区,洪崖洞,重庆市,重庆,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Hongyadong (Hongya Cave)
+长江索道,重庆长江索道,重庆市,重庆,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Yangtze River Cableway
+磁器口古镇,磁器口,重庆市,重庆,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Ciqikou Ancient Town
+李子坝轻轨站,李子坝站,重庆市,重庆,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Liziba Station (Metro through Building)
+两江夜游,朝天门两江夜游,重庆市,重庆,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Two Rivers Night Cruise
+黄鹤楼,黄鹤楼公园,湖北省,武汉,需购票（实名）,黄鹤楼公园官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Yellow Crane Tower
+东湖生态旅游风景区,武汉东湖|东湖风景区,湖北省,武汉,免费（部分园区购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: East Lake Scenic Area
+昙华林,昙华林历史文化街区,湖北省,武汉,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Tanhualin Historic Block
+西安城墙,西安明城墙,陕西省,西安,需购票,西安城墙官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Xi'an City Wall
+大雁塔,大雁塔大唐芙蓉园景区,陕西省,西安,免费（登塔购票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Giant Wild Goose Pagoda
+回民街,北院门历史文化街区,陕西省,西安,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Muslim Quarter (Beiyuanmen)
+西安钟楼,钟楼,陕西省,西安,待核,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Xi'an Bell Tower
+华清宫,华清池,陕西省,西安,需购票,华清宫官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=curated；EN: Huaqing Palace
+乐山大佛,市中区乐山大佛景区|乐山大佛景区,四川省,乐山,需购票（实名）,乐山大佛景区官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Leshan Giant Buddha
+张掖七彩丹霞景区,七彩丹霞|张掖丹霞,甘肃省,张掖,需购票（含观光车）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Zhangye Rainbow Danxia
+嘉峪关,嘉峪关文物景区,甘肃省,嘉峪关,需购票（联票）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Jiayuguan Fort
+漓江,漓江风景区,广西壮族自治区,桂林,需购票（游船/竹筏）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;lp；EN: Li River
+龙脊梯田,龙胜龙脊梯田,广西壮族自治区,桂林,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Longji Rice Terraces
+遇龙河,阳朔遇龙河,广西壮族自治区,阳朔,需购票（竹筏）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Yulong River
+阳朔西街,西街,广西壮族自治区,阳朔,免费,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: West Street (Yangshuo)
+张家界国家森林公园,武陵源,湖南省,张家界,需购票（实名）,张家界景区官方平台,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;viator；EN: Zhangjiajie National Forest Park
+天门山,武陵源天门山旅游区,湖南省,张家界,需预约（分时段实名购票）,天门山官方渠道（分时段预约）,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Tianmen Mountain
+虎跳峡,,云南省,丽江,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Tiger Leaping Gorge
+丽江古城,古城区丽江古城景区|大研古城,云南省,丽江,需购票（古城维护费）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Lijiang Old Town
+哈尔滨冰雪大世界,冰雪大世界,黑龙江省,哈尔滨,需购票（实名，旺季分时段）,冰雪大世界官方渠道,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Harbin Ice and Snow World
+圣索菲亚大教堂,圣索菲亚教堂,黑龙江省,哈尔滨,需购票（外观免费）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Saint Sophia Cathedral
+鼓浪屿,思明区鼓浪屿风景名胜区,福建省,厦门,需购票（轮渡实名）,厦门轮渡官方（实名购票）,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Gulangyu Island
+福建土楼（永定高北土楼群）,福建土楼|永定土楼|高北土楼群,福建省,厦门,需购票,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=lp；EN: Fujian Tulou (Gaobei Cluster)
+黄山风景区,黄山区黄山风景区,安徽省,黄山,需预约（分时段实名购票）,黄山旅游官方平台（分时段实名）,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta;viator；EN: Yellow Mountains (Huangshan)
+太平山顶,太平山,香港特别行政区,香港,需购票（山顶缆车）,,,,,待核（2026-10-27 自 05_国际旅行网站荐点扩充）,,05扩充 sites=ta；EN: Victoria Peak (The Peak)
+武当山古建筑群,,湖北省,十堰,需购票,武当山官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=705 1994 文化遗产｜EN: Ancient Building Complex in the Wudang Mountains
+平遥古城,,山西省,晋中,免费（古城；通票景点购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=812 1997 文化遗产｜EN: Ancient City of Ping Yao
+皖南古村落—西递、宏村,,安徽省,黄山,需购票,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1002 2000 文化遗产｜EN: Ancient Villages in Southern Anhui – Xidi and Hongcun
+良渚古城遗址,,浙江省,杭州,需预约（实名，个人提前1-7天，每证每日1张参访券）,「良渚古城」微信公众号/小程序（预约购票）,7,,,已核（2026-10-27 线上核查：已核：杭州新闻2019-07+官方小程序2026-10）,,08扩充 UNESCO id=1592 2019 文化遗产｜EN: Archaeological Ruins of Liangzhu City
+高句丽王城、王陵及贵族墓葬,,吉林省,通化,需购票,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1135 2004 文化遗产｜EN: Capital Cities and Tombs of the Ancient Koguryo Kingdom
+红河哈尼梯田文化景观,,云南省,红河州,需购票,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1111 2013 文化遗产｜EN: Cultural Landscape of Honghe Hani Rice Terraces
+普洱景迈山古茶林文化景观,,云南省,普洱,需预约（免费入园，以车辆为单位）,「景迈山预约服务」微信小程序,30,,,已核（2026-10-27 线上核查：已核：云南文旅报2025-09-21（10月1日起免费预约入园，可提前30天））,,08扩充 UNESCO id=1665 2023 文化遗产｜EN: Cultural Landscape of Old Tea Forests of the Jingmai Mountain in Pu’er
+大足石刻,,重庆市,重庆,需购票,大足石刻官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=912 1999 文化遗产｜EN: Dazu Rock Carvings
+登封“天地之中”历史建筑群,,河南省,郑州,系列遗产（嵩山各点独立购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1305 2010 文化遗产｜EN: Historic Monuments of Dengfeng in “The Centre of Heaven and Earth”
+明清皇家陵寝,,多省,多省,系列遗产（各陵独立购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,"08扩充 UNESCO id=1004 2000, 2003,  2004 文化遗产｜成分：明显陵/清东陵/清西陵/明孝陵/明十三陵/盛京三陵｜EN: Imperial Tombs of the Ming and Qing Dynasties"
+景德镇手工瓷业遗存,,江西省,景德镇,系列遗产（御窑厂等购票/免费混合）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1765 2026 文化遗产｜EN: Jingdezhen Handicraft Porcelain Industry Sites
+开平碉楼与村落,,广东省,江门,需购票（碉楼联票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1112 2007 文化遗产｜EN: Kaiping Diaolou and Villages
+龙门石窟,,河南省,洛阳,需购票,龙门石窟官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1003 2000 文化遗产｜EN: Longmen Grottoes
+庐山国家公园,,江西省,九江,需购票（大门票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=778 1996 文化遗产｜EN: Lushan National Park
+五台山,,山西省,忻州,需购票（进山费+寺庙）,五台山官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1279 2009 文化遗产｜EN: Mount Wutai
+承德避暑山庄及其周围寺庙,,河北省,承德,需购票,避暑山庄官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,"08扩充 UNESCO id=703 1994 文化遗产｜EN: Mountain Resort and its Outlying Temples, Chengde"
+周口店北京人遗址,,北京市,北京,需购票（遗址公园）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=449 1987 文化遗产｜EN: Peking Man Site at Zhoukoudian
+泉州：宋元中国的世界海洋商贸中心,,福建省,泉州,系列遗产（各点免费/购票混合）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1561 2021 文化遗产｜EN: Quanzhou: Emporium of the World in Song-Yuan China
+丝绸之路：长安—天山廊道的路网,,多省,多省,系列遗产（各遗产点独立购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1442 2014 文化遗产｜EN: Silk Roads: the Routes Network of Chang'an-Tianshan Corridor
+元上都遗址,,内蒙古自治区,锡林郭勒盟,需购票（待核）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1389 2012 文化遗产｜EN: Site of Xanadu
+曲阜孔庙、孔林和孔府,,山东省,济宁,需购票（三孔联票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=704 1994 文化遗产｜EN: Temple and Cemetery of Confucius and the Kong Family Mansion in Qufu
+大运河,,多省,多省,系列遗产（沿岸点段免费/各段管理）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1443 2014 文化遗产｜EN: The Grand Canal
+土司遗址,,多省,湖南/湖北/贵州,系列遗产（海龙屯购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1474 2015 文化遗产｜成分：永顺老司城/唐崖土司城/海龙屯｜EN: Tusi Sites
+西夏陵,,宁夏回族自治区,银川,需购票（预约安排待核）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1736 2025 文化遗产｜EN: Xixia Imperial Tombs
+殷墟,,河南省,安阳,需购票（实名）,殷墟景区官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1114 2006 文化遗产｜EN: Yin Xu
+云冈石窟,,山西省,大同,需购票,云冈石窟官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1039 2001 文化遗产｜EN: Yungang Grottoes
+左江花山岩画艺术文化景观,,广西壮族自治区,崇左,需购票（花山岩画景区）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1508 2016 文化遗产｜EN: Zuojiang Huashan Rock Art Cultural Landscape
+巴丹吉林沙漠—沙山湖泊群,,内蒙古自治区,阿拉善盟,需购票（待核）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1638 2024 自然遗产｜EN: Badain Jaran Desert - Towers of Sand and Lakes
+澄江化石地,,云南省,玉溪,免费（澄江化石地自然博物馆）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1388 2012 自然遗产｜EN: Chengjiang Fossil Site
+中国丹霞,,多省,多省,系列遗产（崀山/丹霞山/龙虎山/赤水等独立购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1335 2010 自然遗产｜EN: China Danxia
+黄龙风景名胜区,,四川省,阿坝州,需购票,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=638 1992 自然遗产｜EN: Huanglong Scenic and Historic Interest Area
+湖北神农架,,湖北省,神农架林区,需购票（景区联票）,神农架官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1509 2016 自然遗产｜EN: Hubei Shennongjia
+九寨沟风景名胜区,,四川省,阿坝州,需购票（实名限额）,九寨沟官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=637 1992 自然遗产｜旺季限流｜EN: Jiuzhaigou Valley Scenic and Historic Interest Area
+三清山国家公园,,江西省,上饶,需购票,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1292 2008 自然遗产｜EN: Mount Sanqingshan National Park
+可可西里,,青海省,玉树州,免费（自然保护区，无门票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1540 2017 自然遗产｜EN: Qinghai Hoh Xil
+四川大熊猫栖息地,,四川省,四川多地,系列遗产（含多处保护区/景区）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,"08扩充 UNESCO id=1213 2006 自然遗产｜EN: Sichuan Giant Panda Sanctuaries - Wolong, Mt Siguniang and Jiajin Mountains"
+中国南方喀斯特,,多省,多省,系列遗产（荔波/石林/武隆/金佛山等独立购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,"08扩充 UNESCO id=1248 2007, 2014 自然遗产｜成分：云南石林/贵州荔波/重庆武隆/广西桂林/贵州施秉/重庆金佛山/广西环江｜EN: South China Karst"
+云南三江并流保护区,,云南省,云南多州,系列遗产（无统一门票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1083 2003 自然遗产｜EN: Three Parallel Rivers of Yunnan Protected Areas
+新疆天山,,新疆维吾尔自治区,新疆多地,系列遗产（博格达/巴音布鲁克等）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1414 2013 自然遗产｜EN: Xinjiang Tianshan
+峨眉山—乐山大佛,,四川省,乐山,需购票（峨眉山票；乐山大佛已在09）,峨眉山官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,"08扩充 UNESCO id=779 1996 复合遗产｜EN: Mount Emei Scenic Area, including Leshan Giant Buddha Scenic Area"
+泰山,,山东省,泰安,需购票（实名）,泰山景区官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=437 1987 复合遗产｜EN: Mount Taishan
+武夷山,,福建省,南平,需购票（主景区+竹筏）,武夷山官方渠道,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=911 1999 复合遗产｜EN: Mount Wuyi
+北京中轴线——中国理想都城秩序的杰作,北京中轴线,北京市,北京,系列遗产（故宫/天坛/钟鼓楼已入库；万宁桥免费；先农坛购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO 2024 文化遗产｜成分：钟鼓楼/万宁桥/前门/天安门/故宫/社稷坛/太庙/天坛/先农坛等
+澳门历史城区,,澳门特别行政区,澳门,免费（部分展馆购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1110 2005 文化遗产｜EN: Historic Centre of Macao
+中国黄（渤）海候鸟栖息地,盐城湿地,江苏省,盐城,系列遗产（盐城湿地各园区购票）,,,,,待核（2026-10-27 自 08_UNESCO 扩充）,,08扩充 UNESCO id=1606 2019/2024 自然遗产（第一期+第二期扩区）｜EN: Migratory Bird Sanctuaries
+景德镇中国陶瓷博物馆,,江西省,景德镇,免费（预约安排待核）,,,,,待核（2026-10-27 小红书榜单扩充·二手转写；「无语菩萨」热点场馆）,,12扩充 xiaohongshu｜EN: Jingdezhen China Ceramics Museum
+采石矶,采石矶文化生态旅游区（含太白楼）,安徽省,马鞍山,需购票,,,,,待核（2026-10-27 自《2026小红书兴趣游趋势报告》扩充：搜索 +160%）,,11/12扩充 xiaohongshu 2026 人文古建增速王｜EN: Caishiji (Taibai Tower)
+晋祠,晋祠博物馆,山西省,太原,需购票,晋祠博物馆官方渠道,,,,待核（2026-10-27 自《2026小红书兴趣游趋势报告》扩充：2026 受欢迎古建筑）,,12扩充 xiaohongshu 2026｜EN: Jinci Temple
+华严寺,大同华严寺,山西省,大同,需购票,,,,,待核（2026-10-27 自《2026小红书兴趣游趋势报告》扩充：2026 受欢迎古建筑）,,12扩充 xiaohongshu 2026｜EN: Huayan Temple
+个园,扬州个园,江苏省,扬州,需购票,,,,,待核（2026-10-27 自《2026小红书兴趣游趋势报告》扩充：2026 受欢迎古建筑）,,12扩充 xiaohongshu 2026｜EN: Ge Garden
+地坛公园,,北京市,北京,需购票（2元；庙会期间另计）,,,,,待核（2026-10-27 自 12_小红书榜单扩充）,,12扩充 xiaohongshu citywalk/人文古建｜EN: Ditan Park
+历代帝王庙,,北京市,北京,需购票,,,,,待核（2026-10-27 自 12_小红书榜单扩充）,,12扩充 xiaohongshu citywalk/人文古建｜EN: Temple of Ancient Monarchs
+妙应寺白塔,,北京市,北京,需购票,,,,,待核（2026-10-27 自 12_小红书榜单扩充）,,12扩充 xiaohongshu citywalk/人文古建｜EN: Miaoying Temple White Stupa
+兰亭,,浙江省,绍兴,需购票,,,,,待核（2026-10-27 自 12_小红书榜单扩充）,,12扩充 xiaohongshu citywalk/人文古建｜EN: Lanting (Orchid Pavilion)
+永乐宫,,山西省,运城,需购票,,,,,待核（2026-10-27 自 12_小红书榜单扩充）,,12扩充 xiaohongshu citywalk/人文古建｜EN: Yongle Palace

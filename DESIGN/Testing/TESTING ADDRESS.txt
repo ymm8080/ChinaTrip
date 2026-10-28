@@ -1,0 +1,2 @@
+H5 main: http://localhost:8000/h5/
+  - PWA/HTTPS: https://localhost:8443/h5/ (required for service-worker/PWA offline testing)

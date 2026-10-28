@@ -10,6 +10,8 @@ The router is NOT registered in app/main.py — the orchestrator wires it.
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.db import get_session_factory
+from app.services.pg_state import PgTripItemService
 from app.services.trip_items import (
     InvalidSourceError,
     InvalidTransitionError,
@@ -25,10 +27,12 @@ _service_singleton: TripItemService | None = None
 
 
 def get_trip_item_service() -> TripItemService:
-    """Process-wide singleton: trip items must survive across requests."""
+    """Process-wide singleton: trip items must survive across requests —
+    and across uvicorn restarts（2026-10-25 起写穿 PG，pg_state.PgTripItemService
+    混合列 + payload；PG 不可达时自动降级纯内存）."""
     global _service_singleton
     if _service_singleton is None:
-        _service_singleton = TripItemService()
+        _service_singleton = PgTripItemService(get_session_factory())
     return _service_singleton
 
 

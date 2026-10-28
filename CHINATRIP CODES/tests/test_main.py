@@ -7,7 +7,7 @@ from app.main import create_app
 def make_client() -> TestClient:
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: Settings(
-        llm_backend="mock", amap_api_key=""
+        llm_backend="mock", amap_api_key="", map_provider="amap"
     )
     return TestClient(app)
 

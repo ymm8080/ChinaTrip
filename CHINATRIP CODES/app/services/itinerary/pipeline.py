@@ -25,6 +25,7 @@ from app.services.itinerary.rules import (
     validate_pinned,
     validate_plan,
 )
+from app.services.lang_ctx import L
 
 _MINUTES_PER_DAY = 24 * 60
 
@@ -35,12 +36,12 @@ class PipelineError(ValueError):
 
 def _find_item(plan: ItineraryPlan, item_id: str | None) -> VisitItem | TransferItem:
     if item_id is None:
-        raise PipelineError("op 缺少 item_id")
+        raise PipelineError(L("op 缺少 item_id", "op is missing item_id"))
     for d in plan.days:
         for i in d.items:
             if i.item_id == item_id:
                 return i
-    raise PipelineError(f"item 不存在: {item_id}")
+    raise PipelineError(L(f"item 不存在: {item_id}", f"item not found: {item_id}"))
 
 
 def _recompute_end_times(plan: ItineraryPlan) -> None:
@@ -59,21 +60,33 @@ def apply_diffs(plan: ItineraryPlan, diffs: list[DiffOp]) -> ItineraryPlan:
     for op in diffs:
         if op.op == "add":
             if op.item is None:
-                raise PipelineError("add op 缺少 item")
+                raise PipelineError(L("add op 缺少 item", "add op is missing item"))
             target = day_by_no.get(op.item.day)
             if target is None:
-                raise PipelineError(f"add op 目标第 {op.item.day} 天不存在")
+                raise PipelineError(
+                    L(
+                        f"add op 目标第 {op.item.day} 天不存在",
+                        f"add op target day {op.item.day} does not exist",
+                    )
+                )
             target.items.append(op.item.model_copy(deep=True))
         elif op.op == "remove":
             item = _find_item(new_plan, op.item_id)
             day_by_no[item.day].items.remove(item)
         elif op.op == "move":
             if op.new_day is None:
-                raise PipelineError("move op 缺少 new_day")
+                raise PipelineError(
+                    L("move op 缺少 new_day", "move op is missing new_day")
+                )
             item = _find_item(new_plan, op.item_id)
             target = day_by_no.get(op.new_day)
             if target is None:
-                raise PipelineError(f"move op 目标第 {op.new_day} 天不存在")
+                raise PipelineError(
+                    L(
+                        f"move op 目标第 {op.new_day} 天不存在",
+                        f"move op target day {op.new_day} does not exist",
+                    )
+                )
             if op.new_start_time is not None:
                 item.start_time = op.new_start_time
             if op.new_day != item.day:
@@ -82,11 +95,16 @@ def apply_diffs(plan: ItineraryPlan, diffs: list[DiffOp]) -> ItineraryPlan:
                 target.items.append(item)
         elif op.op == "retime":
             if op.new_start_time is None:
-                raise PipelineError("retime op 缺少 new_start_time")
+                raise PipelineError(
+                    L(
+                        "retime op 缺少 new_start_time",
+                        "retime op is missing new_start_time",
+                    )
+                )
             item = _find_item(new_plan, op.item_id)
             item.start_time = op.new_start_time
         else:  # pragma: no cover - DiffOp literal makes this unreachable
-            raise PipelineError(f"未知 op: {op.op}")
+            raise PipelineError(L(f"未知 op: {op.op}", f"unknown op: {op.op}"))
     _recompute_end_times(new_plan)
     return new_plan
 
@@ -115,25 +133,52 @@ def summarize_changes(
         if oid is not None:
             seen.add(oid)
         if op.op == "add" and op.item is not None:
-            lines.append(f"第{op.item.day}天 新增 {_item_name(op.item)}")
+            lines.append(
+                L(
+                    f"第{op.item.day}天 新增 {_item_name(op.item)}",
+                    f"Day {op.item.day}: added {_item_name(op.item)}",
+                )
+            )
         elif op.op == "remove":
             day_part = f"第{days[oid]}天 " if oid in days else ""
-            lines.append(f"{day_part}移除 {names.get(oid, oid)}")
+            en_day_part = f"Day {days[oid]}: " if oid in days else ""
+            lines.append(
+                L(
+                    f"{day_part}移除 {names.get(oid, oid)}",
+                    f"{en_day_part}removed {names.get(oid, oid)}",
+                )
+            )
         elif op.op == "move":
             tm = (
                 f" 到 {op.new_start_time.strftime('%H:%M')}"
                 if op.new_start_time is not None
                 else ""
             )
-            lines.append(f"第{op.new_day}天 移动 {names.get(oid, oid)}{tm}")
+            tm_en = (
+                f" to {op.new_start_time.strftime('%H:%M')}"
+                if op.new_start_time is not None
+                else ""
+            )
+            lines.append(
+                L(
+                    f"第{op.new_day}天 移动 {names.get(oid, oid)}{tm}",
+                    f"Day {op.new_day}: moved {names.get(oid, oid)}{tm_en}",
+                )
+            )
         elif op.op == "retime":
             day_part = f"第{days[oid]}天 " if oid in days else ""
+            en_day_part = f"Day {days[oid]}: " if oid in days else ""
             tm = (
                 op.new_start_time.strftime("%H:%M")
                 if op.new_start_time is not None
-                else "未指定"
+                else L("未指定", "unspecified")
             )
-            lines.append(f"{day_part}调整 {names.get(oid, oid)} 时间到 {tm}")
+            lines.append(
+                L(
+                    f"{day_part}调整 {names.get(oid, oid)} 时间到 {tm}",
+                    f"{en_day_part}adjusted {names.get(oid, oid)} time to {tm}",
+                )
+            )
     return ChangeSummary(change_summary=lines, affected_items_count=len(seen))
 
 

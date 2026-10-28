@@ -3,15 +3,23 @@
 
 parse_order_text 纯函数独立单测（含无订单号/纯数字噪声边界）+
 状态机全弧（opened→user_confirmed→settled/returned、undo 回退、
-alliance_api 不可撤、conf<0.8 不写、联盟匹配/跳过）。
+alliance_api 不可撤、conf<0.8 不写、联盟匹配/跳过）+
+PG 写穿钩子（create/推进后 best-effort 落 action_handoffs）。
 """
+
+import uuid as _uuid
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.backfill import get_handoff_store
 from app.api.backfill import router as backfill_router
-from app.services.backfill import HandoffStore, parse_order_text
+from app.services.backfill import (
+    AllianceFeedItem,
+    HandoffStore,
+    parse_order_text,
+    persist_handoff,
+)
 
 TRAIN_SMS = "【铁路客服中心】您已购12月05日G101次列车，订单号E123456789，请提前到站。"
 CTRIP_SMS = "携程订单确认：订单号1234567890，实付¥358.00，出票成功。"
@@ -131,6 +139,28 @@ def test_create_handoff_invalid_channel_returns_422():
             json={"action_type": "boat", "channel": "fliggy", "url": "https://x"},
         )
     assert resp.status_code == 422
+
+
+def test_create_handoff_accepts_show_flavour_types_and_channels():
+    """演出路径 A（show_booking P0+）：site_ticket / klook / other 放行。"""
+    with TestClient(make_app()) as client:
+        r1 = client.post(
+            "/api/v1/backfill/handoffs",
+            json={
+                "action_type": "site_ticket",
+                "channel": "klook",
+                "url": "https://www.klook.com/x",
+                "refund_summary": "以下单页为准",
+            },
+        )
+        assert r1.status_code == 201
+        assert r1.json()["action_type"] == "site_ticket"
+        assert r1.json()["channel"] == "klook"
+        r2 = client.post(
+            "/api/v1/backfill/handoffs",
+            json={"action_type": "site_ticket", "channel": "other", "url": "https://x"},
+        )
+        assert r2.status_code == 201
 
 
 # --- 主通道：粘贴回填 ------------------------------------------------------------
@@ -376,3 +406,113 @@ def test_router_wires_all_six_endpoints():
         "/api/v1/backfill/handoffs/{record_id}/manual",
         "/api/v1/backfill/alliance-sync",
     } <= paths
+
+
+# --- PG 写穿钩子（action_handoffs 账本，2026-10-27 演出预订补全） ---------------
+
+
+def test_persistence_hook_called_on_create_and_transitions():
+    store = HandoffStore()
+    seen: list = []
+    store.attach_persistence(seen.append)
+    rec = store.create(
+        action_type="site_ticket", channel="ctrip", url="https://x", refund_summary="s"
+    )
+    assert seen[-1].id == rec.id and seen[-1].status == "opened"
+    store.apply_manual(rec.id, "AB12CD34")
+    assert seen[-1].status == "user_confirmed"
+    store.undo(rec.id)
+    assert seen[-1].status == "opened"
+    store.apply_manual(rec.id, "AB12CD34")
+    store.alliance_sync([AllianceFeedItem(order_ref="AB12CD34", outcome="settled")])
+    assert seen[-1].status == "settled"
+
+
+def test_persistence_hook_failure_logged_and_swallowed(caplog):
+    """DB 缺席：钩子异常只留日志（铁律），内存态照常推进。"""
+    store = HandoffStore()
+
+    def boom(record):
+        raise RuntimeError("pg down")
+
+    store.attach_persistence(boom)
+    rec = store.create(action_type="site_ticket", channel="klook", url="https://x")
+    assert rec.status == "opened"
+    with caplog.at_level("WARNING"):
+        store.apply_manual(rec.id, "AB12CD34")
+    assert rec.status == "user_confirmed"
+    assert any("handoff_persist_failed" in r.message for r in caplog.records)
+
+
+def test_persist_handoff_insert_then_update(monkeypatch):
+    import app.db as db_mod
+
+    class FakeSession:
+        def __init__(self):
+            self.store: dict = {}
+            self._added: list = []
+
+        def get(self, model, rid):
+            return self.store.get(rid)
+
+        def add(self, obj):
+            self._added.append(obj)
+
+        def commit(self):
+            for o in self._added:
+                self.store[o.id] = o
+            self._added.clear()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    sess = FakeSession()
+    monkeypatch.setattr(db_mod, "get_session_factory", lambda: lambda: sess)
+    rec = HandoffStore().create(
+        action_type="site_ticket",
+        channel="ctrip",
+        url="https://u",
+        refund_summary="退改以下单页为准",
+    )
+    persist_handoff(rec)
+    rid = _uuid.UUID(rec.id)
+    assert rid in sess.store
+    row = sess.store[rid]
+    assert row.action_type == "site_ticket"
+    assert row.deeplink == "https://u"
+    assert row.status == "opened"
+    assert row.refund_policy == {"summary": "退改以下单页为准"}
+    # 推进后再写穿 → 走 update 分支（不新增行）
+    rec.status = "user_confirmed"
+    rec.order_ref = "AB12CD34"
+    rec.source_channel = "paste_return"
+    persist_handoff(rec)
+    assert len(sess.store) == 1
+    assert sess.store[rid].status == "user_confirmed"
+    assert sess.store[rid].order_ref == "AB12CD34"
+
+
+# --- 演出渠道别名（klook 关键词 / trip.com 记录命中） ----------------------------
+
+
+def test_parse_klook_keyword_lowercase():
+    parsed = parse_order_text("Klook预订成功 订单号KL12345678")
+    assert parsed.order_ref == "KL12345678"
+    assert parsed.channel == "klook"
+    assert parsed.confidence == 0.9
+
+
+def test_record_channel_tripcom_alias_boosts_confidence():
+    store = HandoffStore()
+    rec = store.create(
+        action_type="site_ticket", channel="ctrip", url="https://trip.com/x"
+    )
+    record, parsed, applied, reason = store.apply_paste_return(
+        rec.id, "Trip.com order confirmed 订单号AB12CD34EF"
+    )
+    assert applied is True
+    assert parsed.confidence == 0.9
+    assert record.status == "user_confirmed"

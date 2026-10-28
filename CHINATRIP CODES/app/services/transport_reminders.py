@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
+from app.services.lang_ctx import L
 from app.services.trains import TrainService
 
 TRAIN_LEAVE_BUFFER_MINUTES = 45  # lead time to get to the railway station
@@ -67,17 +68,23 @@ def build_departure_reminders(leg: dict, *, now: datetime | None = None) -> list
         (
             "heads_up",
             departure - timedelta(hours=24),
-            f"明天从{station_name}出发",
+            L(f"明天从{station_name}出发", f"Departing tomorrow from {station_name}"),
         ),
         (
             "prepare",
             departure - timedelta(hours=2),
-            f"2小时后从{station_name}出发",
+            L(
+                f"2小时后从{station_name}出发",
+                f"Departing in 2 hours from {station_name}",
+            ),
         ),
         (
             "leave_now",
             departure - timedelta(minutes=buffer_minutes),
-            f"现在出发去{station_name}（预留{buffer_minutes}分钟缓冲）",
+            L(
+                f"现在出发去{station_name}（预留{buffer_minutes}分钟缓冲）",
+                f"Leave now for {station_name} ({buffer_minutes} min buffer)",
+            ),
         ),
     )
     reminders = [
@@ -137,7 +144,11 @@ async def missed_connection_fallback(
             "leg_type": "flight",
             "next_departures": [],
             "taxi": taxi,
-            "note": "MVP 无航班静态库，请改签或联系航司；打车前往机场兜底",
+            "note": L(
+                "MVP 无航班静态库，请改签或联系航司；打车前往机场兜底",
+                "No flight timetable in MVP - rebook or contact your "
+                "airline; take a taxi to the airport as a fallback",
+            ),
         }
 
     from_city = leg.get("from_city")
@@ -157,5 +168,5 @@ async def missed_connection_fallback(
         "leg_type": "train",
         "next_departures": [o.model_dump() for o in options],
         "taxi": taxi,
-        "note": "误车应急兜底永远免费",
+        "note": L("误车应急兜底永远免费", "Missed-train rescue is always free"),
     }

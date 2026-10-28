@@ -12,6 +12,8 @@ import math
 import re
 from urllib.parse import quote
 
+from app.services.lang_ctx import L
+
 __all__ = ["flight_booking", "hotel_booking", "train_booking"]
 
 # 中国范围（境外坐标交给渠道没有意义；同 deeplinks.py 口径）
@@ -21,15 +23,25 @@ _LAT_MIN, _LAT_MAX = 3.0, 54.0
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # 铁律 23 兜底文案：渠道无结构化退改数据 ⇒ 明示以渠道下单页为准
+# 值 = (zh, en)，_refund_channel_page 按请求语言取文
 _REFUND_SUMMARIES = {
     "12306": (
         "退改签以 12306 下单页展示为准"
-        "（开车前8天以上退票免费，48小时~8天5%，24~48小时10%，<24小时20%——以页面实收为准）"
+        "（开车前8天以上退票免费，48小时~8天5%，24~48小时10%，<24小时20%——以页面实收为准）",
+        "Refunds/changes per the 12306 checkout page (free 8+ days before "
+        "departure; 5% for 48h-8d, 10% for 24-48h, 20% under 24h - final "
+        "fee per page)",
     ),
     "qunar": (
-        "机票退改签以去哪儿/携程下单页展示为准（各航班舱位规则不同，以页面实收为准）"
+        "机票退改签以去哪儿/携程下单页展示为准（各航班舱位规则不同，以页面实收为准）",
+        "Flight refunds/changes per the Qunar/Ctrip checkout page (rules "
+        "vary by flight and fare class - final fee per page)",
     ),
-    "ctrip": "退改政策以携程/美团下单页展示为准；建议选「免费取消」房型",
+    "ctrip": (
+        "退改政策以携程/美团下单页展示为准；建议选「免费取消」房型",
+        "Refund policy per the Ctrip/Meituan checkout page; pick a 'free "
+        "cancellation' room when possible",
+    ),
 }
 
 
@@ -40,7 +52,8 @@ def _enc(name: str) -> str:
 
 def _refund_channel_page(channel: str) -> dict:
     """退改签摘要（铁律 23）：渠道无结构化数据时明示以渠道下单页为准。"""
-    return {"summary": _REFUND_SUMMARIES[channel], "source": "channel_page"}
+    zh, en = _REFUND_SUMMARIES[channel]
+    return {"summary": L(zh, en), "source": "channel_page"}
 
 
 def _validate_hotel(lon: float, lat: float, checkin: str, checkout: str) -> None:

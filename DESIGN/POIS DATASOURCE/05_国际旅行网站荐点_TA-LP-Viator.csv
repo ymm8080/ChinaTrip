@@ -1,0 +1,99 @@
+﻿city,name_zh,name_en,sites,site_sources,alias_zh
+北京,故宫博物院,The Palace Museum (Forbidden City),ta|lp,tripadvisor|lonelyplanet,
+北京,慕田峪长城,Mutianyu Great Wall,ta|lp,tripadvisor|lonelyplanet,
+北京,八达岭长城,Badaling Great Wall,ta|lp,tripadvisor|lonelyplanet,
+北京,颐和园,Summer Palace,ta|lp,tripadvisor|lonelyplanet,颐和园景区
+北京,天坛公园,Temple of Heaven Park,ta|lp,tripadvisor|lonelyplanet,天坛
+北京,天安门广场,Tiananmen Square,ta|lp,tripadvisor|lonelyplanet,
+北京,景山公园,Jingshan Park,lp,lonelyplanet,
+北京,钟鼓楼,Drum & Bell Towers,lp,lonelyplanet,鼓楼
+北京,南锣鼓巷,Nanluoguxiang Hutong,lp,lonelyplanet,
+北京,明十三陵,Ming Tombs,lp,lonelyplanet,十三陵
+北京,潘家园旧货市场,Panjiayuan Antique Market,lp,lonelyplanet,潘家园
+北京,798艺术区,798 Art District,ta,tripadvisor,
+上海,外滩,The Bund,ta|lp,tripadvisor|lonelyplanet,
+上海,豫园,Yu Garden,ta|lp,tripadvisor|lonelyplanet,
+上海,东方明珠,Oriental Pearl TV Tower,ta|lp,tripadvisor|lonelyplanet,东方明珠广播电视塔
+上海,上海中心大厦,Shanghai Tower,lp,lonelyplanet,
+上海,田子坊,Tianzifang,lp,lonelyplanet,
+上海,新天地,Xintiandi,lp,lonelyplanet,
+上海,武康路,Wukang Road & Former French Concession,lp,lonelyplanet,
+上海,静安寺,Jing'an Temple,lp,lonelyplanet,
+上海,南京东路步行街,East Nanjing Rd Pedestrian Street,lp,lonelyplanet,
+上海,上海博物馆,Shanghai Museum,lp,lonelyplanet,
+上海,M50创意园,M50 Art District,lp,lonelyplanet,
+上海,上海迪士尼乐园,Shanghai Disneyland,lp,lonelyplanet,
+上海,中共一大纪念馆,Site of the First CPC National Congress,lp,lonelyplanet,中国共产党一大·二大·四大纪念馆景区
+上海,朱家角古镇,Zhujiajiao Water Town,lp,lonelyplanet,朱家角古镇景区
+上海,黄浦江游览,Huangpu River Cruise,lp,lonelyplanet,黄浦江游览（东方明珠码头）
+苏州,拙政园,Humble Administrator's Garden,lp,lonelyplanet,
+苏州,苏州博物馆,Suzhou Museum,curated,curated,
+苏州,平江路历史街区,Pingjiang Road Historic Block,curated,curated,
+苏州,七里山塘,Shantang Street,curated,curated,山塘街
+苏州,虎丘山风景名胜区,Tiger Hill Scenic Area,curated,curated,虎丘
+苏州,周庄古镇,Zhouzhuang Water Town,curated,curated,周庄
+杭州,西湖风景名胜区,West Lake,ta|lp,tripadvisor|lonelyplanet,杭州西湖文化景观|西湖
+杭州,灵隐飞来峰,Lingyin Temple & Feilai Peak,curated,curated,飞来峰|灵隐飞来峰景区|灵隐寺
+杭州,龙井村,Longjing Tea Village,lp,lonelyplanet,龙井问茶
+杭州,清河坊历史街区,Qinghefang (Hefang St) Historic Block,curated,curated,清河坊街|河坊街
+杭州,拱宸桥·桥西历史文化街区,Grand Canal: Gongchen Bridge & Qiaoxi Block,curated,curated,
+杭州,西溪国家湿地公园,Xixi National Wetland Park,curated,curated,西溪湿地
+南京,中山陵园风景区,Sun Yat-sen Mausoleum,curated,curated,中山陵景区|中山陵
+南京,明孝陵,Ming Xiaoling Mausoleum,curated,curated,
+南京,夫子庙秦淮风光带,Confucius Temple & Qinhuai River,ta,tripadvisor,南京夫子庙-秦淮风光带-长干里|夫子庙
+南京,南京城墙（中华门）,Nanjing City Wall (Zhonghua Gate),curated,curated,中华门瓮城|南京城墙
+南京,南京总统府,Presidential Palace,curated,curated,总统府
+南京,南京博物院,Nanjing Museum,curated,curated,
+南京,侵华日军南京大屠杀遇难同胞纪念馆,Nanjing Massacre Memorial Hall,ta,tripadvisor,
+广州,广州塔,Canton Tower,ta,tripadvisor,
+广州,沙面岛,Shamian Island,ta,tripadvisor,沙面|沙面公园
+广州,长隆野生动物世界,Chimelong Safari Park,ta,tripadvisor,长隆野生动物园
+广州,珠江夜游,Pearl River Night Cruise,ta|lp,tripadvisor|lonelyplanet,珠江夜游广州塔财富码头
+广州,陈家祠,Chen Clan Ancestral Hall,curated,curated,陈家祠旅游区
+广州,光孝寺,Guangxiao Temple,lp,lonelyplanet,
+深圳,世界之窗,Window of the World,curated,curated,
+深圳,华侨城创意文化园,OCT-LOFT Creative Culture Park,lp,lonelyplanet,
+深圳,深圳湾公园,Shenzhen Bay Park,curated,curated,
+深圳,大梅沙海滨公园,Dameisha Beach,curated,curated,大梅沙海滨浴场
+成都,成都大熊猫繁育研究基地,Chengdu Research Base of Giant Panda Breeding,ta|lp,tripadvisor|lonelyplanet,大熊猫繁育研究基地
+成都,宽窄巷子,Kuanzhai Alley (Wide & Narrow Alleys),lp,lonelyplanet,
+成都,锦里古街,Jinli Ancient Street,curated,curated,锦里
+成都,武侯祠,Wuhou Shrine,curated,curated,成都武侯祠
+成都,杜甫草堂,Du Fu Thatched Cottage,curated,curated,成都杜甫草堂
+成都,成都市人民公园,People's Park (Heming Teahouse),lp,lonelyplanet,人民公园
+成都,金沙遗址博物馆,Jinsha Site Museum,lp,lonelyplanet,成都金沙遗址博物馆
+成都,都江堰景区,Dujiangyan Irrigation System,curated,curated,都江堰水利工程|都江堰风景区
+重庆,洪崖洞民俗风貌区,Hongyadong (Hongya Cave),ta|lp,tripadvisor|lonelyplanet,洪崖洞
+重庆,长江索道,Yangtze River Cableway,ta,tripadvisor,重庆长江索道
+重庆,磁器口古镇,Ciqikou Ancient Town,curated,curated,磁器口
+重庆,李子坝轻轨站,Liziba Station (Metro through Building),curated,curated,李子坝站
+重庆,两江夜游,Two Rivers Night Cruise,curated,curated,朝天门两江夜游
+武汉,黄鹤楼,Yellow Crane Tower,curated,curated,黄鹤楼公园
+武汉,湖北省博物馆,Hubei Provincial Museum,curated,curated,
+武汉,东湖生态旅游风景区,East Lake Scenic Area,curated,curated,武汉东湖|东湖风景区
+武汉,昙华林,Tanhualin Historic Block,curated,curated,昙华林历史文化街区
+西安,秦始皇帝陵博物院（兵马俑）,Terracotta Warriors,ta|lp,tripadvisor|lonelyplanet,秦始皇兵马俑博物馆|兵马俑
+西安,西安城墙,Xi'an City Wall,lp,lonelyplanet,西安明城墙
+西安,大雁塔,Giant Wild Goose Pagoda,lp,lonelyplanet,大雁塔大唐芙蓉园景区
+西安,回民街,Muslim Quarter (Beiyuanmen),lp,lonelyplanet,北院门历史文化街区
+西安,西安钟楼,Xi'an Bell Tower,lp,lonelyplanet,钟楼
+西安,华清宫,Huaqing Palace,curated,curated,华清池
+乐山,乐山大佛,Leshan Giant Buddha,lp,lonelyplanet,市中区乐山大佛景区|乐山大佛景区
+敦煌,莫高窟,Mogao Grottoes,lp,lonelyplanet,敦煌莫高窟
+张掖,张掖七彩丹霞景区,Zhangye Rainbow Danxia,lp,lonelyplanet,七彩丹霞|张掖丹霞
+嘉峪关,嘉峪关,Jiayuguan Fort,lp,lonelyplanet,嘉峪关文物景区
+桂林,漓江,Li River,ta|lp,tripadvisor|lonelyplanet,漓江风景区
+桂林,龙脊梯田,Longji Rice Terraces,lp,lonelyplanet,龙胜龙脊梯田
+阳朔,遇龙河,Yulong River,lp,lonelyplanet,阳朔遇龙河
+阳朔,阳朔西街,West Street (Yangshuo),lp,lonelyplanet,西街
+张家界,张家界国家森林公园,Zhangjiajie National Forest Park,ta|viator,tripadvisor|viator,武陵源
+张家界,天门山,Tianmen Mountain,lp,lonelyplanet,武陵源天门山旅游区
+丽江,虎跳峡,Tiger Leaping Gorge,lp,lonelyplanet,
+丽江,丽江古城,Lijiang Old Town,lp,lonelyplanet,古城区丽江古城景区|大研古城
+哈尔滨,哈尔滨冰雪大世界,Harbin Ice and Snow World,lp,lonelyplanet,冰雪大世界
+哈尔滨,圣索菲亚大教堂,Saint Sophia Cathedral,lp,lonelyplanet,圣索菲亚教堂
+厦门,鼓浪屿,Gulangyu Island,lp,lonelyplanet,思明区鼓浪屿风景名胜区
+厦门,福建土楼（永定高北土楼群）,Fujian Tulou (Gaobei Cluster),lp,lonelyplanet,福建土楼|永定土楼|高北土楼群
+黄山,黄山风景区,Yellow Mountains (Huangshan),ta|viator,tripadvisor|viator,黄山区黄山风景区
+拉萨,布达拉宫,Potala Palace,ta|viator,tripadvisor|viator,城关区布达拉宫景区
+香港,太平山顶,Victoria Peak (The Peak),ta,tripadvisor,太平山

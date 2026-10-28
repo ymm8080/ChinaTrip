@@ -80,6 +80,26 @@ def test_list_returns_only_callers_own_itineraries():
     assert {s["cities"][0] for s in summaries} == {"北京", "上海"}
 
 
+def test_list_orders_by_updated_at_desc():
+    client = make_app()
+    older = create_itinerary(client)
+    newer = create_itinerary(client, cities=["上海"])
+    # 动先建的这张 → updated_at 反超后建的 → 列表新的在前（行程页排序契约）
+    resp = client.put(
+        f"/api/v1/itineraries/{older['itinerary_id']}",
+        json={"diffs": [add_diff("a")]},
+        headers=DEV_A,
+    )
+    assert resp.status_code == 200
+    resp = client.get("/api/v1/itineraries", headers=DEV_A)
+    summaries = resp.json()
+    assert [s["itinerary_id"] for s in summaries] == [
+        older["itinerary_id"],
+        newer["itinerary_id"],
+    ]
+    assert summaries[0]["updated_at"] >= summaries[1]["updated_at"]
+
+
 def test_get_returns_full_record_with_snapshot_metadata():
     client = make_app()
     record = create_itinerary(client)

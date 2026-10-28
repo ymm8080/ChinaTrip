@@ -24,7 +24,9 @@ GateSource = Literal["rule", "cache", "flash", "escalate"]
 # matches without a contiguous-substring requirement.
 _RULE_TRANSLATE = re.compile(r"翻译|translate|怎么说", re.IGNORECASE)
 _RULE_NAVIGATE = re.compile(r"怎么去|在哪|导航")
+_RULE_POI_HOURS = re.compile(r"几点开门|营业时间|开放时间|营业到几点|几点关门")
 _RULE_RESTAURANT = re.compile(r"吃什么|餐厅|好吃")
+_RULE_WISHLIST = re.compile(r"心愿单|想去的地方")
 _RULE_REPLAN = re.compile(r"重排|改行程|换个顺序|跨天")
 
 _SHORT_TEXT_MAX_CHARS = 80
@@ -83,8 +85,12 @@ def _match_rule(text: str) -> tuple[Lane, str] | None:
         return Lane.fast, "translate"
     if _RULE_NAVIGATE.search(text):
         return Lane.fast, "navigation"
+    if _RULE_POI_HOURS.search(text):
+        return Lane.fast, "poi_hours"
     if _RULE_RESTAURANT.search(text):
         return Lane.fast, "restaurant"
+    if _RULE_WISHLIST.search(text):
+        return Lane.fast, "wishlist"
     if _RULE_REPLAN.search(text):
         return Lane.slow, "replan"
     return None

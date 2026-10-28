@@ -74,6 +74,10 @@ class ItineraryRecord(BaseModel):
     # 最近一次保存/变更/恢复时间（2026-10-20 用户拍板：改完再存，
     # 时间要跟着走）；created_at 保留为首存/创建时间。
     updated_at: datetime | None = None
+    # 公开分享（2026-10-23）：share_enabled 打开后 /s/{share_token} 可只读
+    # 查看。token 与 itinerary_id 相互独立——链接可关可换，真实 id 不外泄。
+    share_enabled: bool = False
+    share_token: str | None = None
 
 
 class ItineraryStore(Protocol):
@@ -94,6 +98,11 @@ class ItineraryStore(Protocol):
     def delete(self, itinerary_id: str) -> bool: ...
     def list_by_owner(self, owner_device_id: str) -> list[ItineraryRecord]: ...
     def list_by_account(self, username: str) -> list[ItineraryRecord]: ...
+    def find_by_share_token(self, token: str) -> ItineraryRecord | None: ...
+
+    def list_all(self) -> list[ItineraryRecord]:
+        """All records regardless of owner — weather.store_cities walks the
+        whole domain for city discovery (默认天气抓取范围)."""
 
 
 class InMemoryItineraryStore:
@@ -130,6 +139,20 @@ class InMemoryItineraryStore:
 
     def list_by_account(self, username: str) -> list[ItineraryRecord]:
         return [r for r in self._records.values() if r.owner_account_id == username]
+
+    def find_by_share_token(self, token: str) -> ItineraryRecord | None:
+        """Linear scan is fine at MVP scale (dict, no index needed)."""
+        return next(
+            (
+                r
+                for r in self._records.values()
+                if r.share_token == token and r.share_enabled
+            ),
+            None,
+        )
+
+    def list_all(self) -> list[ItineraryRecord]:
+        return list(self._records.values())
 
 
 class ItineraryService:

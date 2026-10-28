@@ -1,0 +1,1084 @@
+{
+  "source_name": "省级文旅部门正式认定增补（2026-09-11核验）",
+  "source_type": "official",
+  "retrieved_at": "2026-09-11",
+  "as_of": null,
+  "coverage_note": "对历史基础名录增补湖南39条、山西11条、陕西13条、福建4条正式认定，共67条。逐条日期是正式认定日期；并非各省完整现行名录，未纳入拟评定公示或旅游度假区。与4a-official.json共同加载，独立保存以免重建历史基表时丢失更新。",
+  "coverage_sources": [
+    {
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "count": 22,
+      "sha256": "beb2675479cd85d82751763c9cf0922204f32c2377593a1a0121b385107f2a3a",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202410/t20241008_33469433.html",
+      "source_name": "湖南省人民政府转载：确定4家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-09-30",
+      "count": 4,
+      "sha256": "5870b7f0b724f4c07b028d18fe21522a3184c6258d4714235be3447477003cca",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "count": 5,
+      "sha256": "2bb2fa006b43055a78b84b7abface3907b420d896b86ca312b461f94b329f74b",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "count": 8,
+      "sha256": "eb3d6f908373d449d240fe5367472d46767a400929c7b71e21a76ca07384a5c1",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "count": 11,
+      "sha256": "5e1584e1d4cc306df58e36a9e6a61a627c099232b8c9afedce5d07dce67cccac",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "count": 13,
+      "sha256": "82692f86a11c7715f6b5105a3f3f2c1f687aa926262f26ebd72a6f80305bbf3c",
+      "retrieval": "下载官方HTML，逐段提取正式公告名单并核对正文声明数量。"
+    },
+    {
+      "source_url": "https://wlt.fujian.gov.cn/zwgk/tzgg/gggs/202603/t20260330_7117179.htm",
+      "source_name": "福建省文化和旅游厅：福建省新增4家国家4A级旅游景区、4家省级旅游度假区",
+      "as_of": "2026-03-26",
+      "published_at": "2026-03-30",
+      "count": 4,
+      "retrieval": "web工具读取省厅公告正文；仅收录4个A级景区，不纳入同文4个省级度假区。"
+    }
+  ],
+  "items": [
+    {
+      "name": "长沙园林生态园景区",
+      "province": "湖南省",
+      "city": "长沙市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "园林生态园景区"
+      ]
+    },
+    {
+      "name": "长沙隆平水稻文化园景区",
+      "province": "湖南省",
+      "city": "长沙市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "隆平水稻文化园景区"
+      ]
+    },
+    {
+      "name": "长沙浏阳市周洛大峡谷景区",
+      "province": "湖南省",
+      "city": "长沙市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "浏阳市周洛大峡谷景区"
+      ]
+    },
+    {
+      "name": "株洲醴陵市渌江书院文化旅游区",
+      "province": "湖南省",
+      "city": "株洲市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "醴陵市渌江书院文化旅游区"
+      ]
+    },
+    {
+      "name": "邵阳塘田战时讲学院旧址景区",
+      "province": "湖南省",
+      "city": "邵阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "塘田战时讲学院旧址景区"
+      ]
+    },
+    {
+      "name": "岳阳临湘市五尖山森林生态文化旅游区",
+      "province": "湖南省",
+      "city": "岳阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "临湘市五尖山森林生态文化旅游区"
+      ]
+    },
+    {
+      "name": "常德汉寿县湖南常德野生动物世界景区",
+      "province": "湖南省",
+      "city": "常德市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "湖南常德野生动物世界景区"
+      ],
+      "city_aliases": [
+        "汉寿县"
+      ]
+    },
+    {
+      "name": "常德西湖牧业景区",
+      "province": "湖南省",
+      "city": "常德市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "西湖牧业景区"
+      ]
+    },
+    {
+      "name": "常德津市灵犀茶油庄园景区",
+      "province": "湖南省",
+      "city": "常德市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "津市灵犀茶油庄园景区"
+      ]
+    },
+    {
+      "name": "益阳安化县青云洞·云上九歌溶洞景区",
+      "province": "湖南省",
+      "city": "益阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "青云洞·云上九歌溶洞景区"
+      ],
+      "city_aliases": [
+        "安化县"
+      ]
+    },
+    {
+      "name": "益阳桃江县桃花江竹海景区",
+      "province": "湖南省",
+      "city": "益阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "桃花江竹海景区"
+      ],
+      "city_aliases": [
+        "桃江县"
+      ]
+    },
+    {
+      "name": "益阳南县洞庭罗文涂鸦艺术景区",
+      "province": "湖南省",
+      "city": "益阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "洞庭罗文涂鸦艺术景区"
+      ],
+      "city_aliases": [
+        "南县"
+      ]
+    },
+    {
+      "name": "永州江永县千家峒景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "千家峒景区"
+      ],
+      "city_aliases": [
+        "江永县"
+      ]
+    },
+    {
+      "name": "永州市森林植物园景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "森林植物园景区"
+      ]
+    },
+    {
+      "name": "永州双牌县花千谷·月湖景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "花千谷·月湖景区"
+      ],
+      "city_aliases": [
+        "双牌县"
+      ]
+    },
+    {
+      "name": "永州祁阳市唐家山景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "祁阳市唐家山景区"
+      ]
+    },
+    {
+      "name": "永州零陵区周家大院景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "周家大院景区"
+      ],
+      "city_aliases": [
+        "零陵区"
+      ]
+    },
+    {
+      "name": "怀化洪江市安江农校杂交水稻纪念园景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "洪江市安江农校杂交水稻纪念园景区"
+      ]
+    },
+    {
+      "name": "怀化芷江县唯楚酒庄观光体验园景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "芷江县唯楚酒庄观光体验园景区"
+      ]
+    },
+    {
+      "name": "娄底涟源市博盛生态体验园景区",
+      "province": "湖南省",
+      "city": "娄底市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "涟源市博盛生态体验园景区"
+      ]
+    },
+    {
+      "name": "湘西龙山县乌龙山大峡谷景区",
+      "province": "湖南省",
+      "city": "湘西土家族苗族自治州",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "乌龙山大峡谷景区"
+      ],
+      "city_aliases": [
+        "龙山县"
+      ]
+    },
+    {
+      "name": "湘西花垣县古苗河百瀑大峡谷景区",
+      "province": "湖南省",
+      "city": "湘西土家族苗族自治州",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202312/t20231222_32607894.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定22家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2023-12-22",
+      "aliases": [
+        "古苗河百瀑大峡谷景区"
+      ],
+      "city_aliases": [
+        "花垣县"
+      ]
+    },
+    {
+      "name": "衡阳耒阳市蔡伦纪念园景区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202410/t20241008_33469433.html",
+      "source_name": "湖南省人民政府转载：确定4家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-09-30",
+      "aliases": [
+        "耒阳市蔡伦纪念园景区"
+      ]
+    },
+    {
+      "name": "衡阳珠晖区湘南学联纪念馆景区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202410/t20241008_33469433.html",
+      "source_name": "湖南省人民政府转载：确定4家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-09-30",
+      "aliases": [
+        "湘南学联纪念馆景区"
+      ],
+      "city_aliases": [
+        "珠晖区"
+      ]
+    },
+    {
+      "name": "衡阳雁峰区回雁峰旅游区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202410/t20241008_33469433.html",
+      "source_name": "湖南省人民政府转载：确定4家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-09-30",
+      "aliases": [
+        "回雁峰旅游区"
+      ],
+      "city_aliases": [
+        "雁峰区"
+      ]
+    },
+    {
+      "name": "衡阳衡南县岐山旅游区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202410/t20241008_33469433.html",
+      "source_name": "湖南省人民政府转载：确定4家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-09-30",
+      "aliases": [
+        "岐山旅游区"
+      ],
+      "city_aliases": [
+        "衡南县"
+      ]
+    },
+    {
+      "name": "永州双牌县青龙岩景区",
+      "province": "湖南省",
+      "city": "永州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "aliases": [
+        "青龙岩景区"
+      ],
+      "city_aliases": [
+        "双牌县"
+      ]
+    },
+    {
+      "name": "怀化中方县荆坪古村景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "aliases": [
+        "荆坪古村景区"
+      ],
+      "city_aliases": [
+        "中方县"
+      ]
+    },
+    {
+      "name": "怀化会同县高椅古村景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "aliases": [
+        "高椅古村景区"
+      ],
+      "city_aliases": [
+        "会同县"
+      ]
+    },
+    {
+      "name": "怀化沅陵县二酉山景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "aliases": [
+        "二酉山景区"
+      ],
+      "city_aliases": [
+        "沅陵县"
+      ]
+    },
+    {
+      "name": "怀化辰溪县酉庄·大酉书院景区",
+      "province": "湖南省",
+      "city": "怀化市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://www.hunan.gov.cn/zqt/zcsd/202510/t20251009_33820697.html",
+      "source_name": "湖南省人民政府转载：确定5家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-09-30",
+      "aliases": [
+        "酉庄·大酉书院景区"
+      ],
+      "city_aliases": [
+        "辰溪县"
+      ]
+    },
+    {
+      "name": "长沙市清水塘景区",
+      "province": "湖南省",
+      "city": "长沙市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "清水塘景区"
+      ]
+    },
+    {
+      "name": "衡阳市祁东县四明山景区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "四明山景区"
+      ],
+      "city_aliases": [
+        "祁东县"
+      ]
+    },
+    {
+      "name": "衡阳市衡阳县岣嵝峰景区",
+      "province": "湖南省",
+      "city": "衡阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "岣嵝峰景区"
+      ],
+      "city_aliases": [
+        "衡阳县"
+      ]
+    },
+    {
+      "name": "湘潭市韶山银田银河景区",
+      "province": "湖南省",
+      "city": "湘潭市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "韶山银田银河景区"
+      ]
+    },
+    {
+      "name": "邵阳市城步县玉龙景区",
+      "province": "湖南省",
+      "city": "邵阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "城步县玉龙景区"
+      ]
+    },
+    {
+      "name": "益阳市箴言书院景区",
+      "province": "湖南省",
+      "city": "益阳市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "箴言书院景区"
+      ]
+    },
+    {
+      "name": "郴州市桂东县万洋山景区",
+      "province": "湖南省",
+      "city": "郴州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "万洋山景区"
+      ],
+      "city_aliases": [
+        "桂东县"
+      ]
+    },
+    {
+      "name": "湘西州龙山县惹巴拉景区",
+      "province": "湖南省",
+      "city": "湘西土家族苗族自治州",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.hunan.gov.cn/whhlyt/xxgk2019/xxgkml/tzgg/202608/t20260803_34038645.html",
+      "source_name": "湖南省旅游景区质量等级评定委员会关于确定8家旅游景区为4A级旅游景区的公告",
+      "as_of": "2026-08-03",
+      "aliases": [
+        "惹巴拉景区"
+      ],
+      "city_aliases": [
+        "龙山县"
+      ]
+    },
+    {
+      "name": "娄烦县高君宇故居纪念馆景区",
+      "province": "山西省",
+      "city": "太原市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "高君宇故居纪念馆景区"
+      ],
+      "city_aliases": [
+        "娄烦县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "灵丘县车河有机社区",
+      "province": "山西省",
+      "city": "大同市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "车河有机社区"
+      ],
+      "city_aliases": [
+        "灵丘县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "代县代州古城景区",
+      "province": "山西省",
+      "city": "忻州市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "代州古城景区"
+      ],
+      "city_aliases": [
+        "代县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "离石区大东沟景区",
+      "province": "山西省",
+      "city": "吕梁市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "大东沟景区"
+      ],
+      "city_aliases": [
+        "离石区"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "武乡县八路军总部王家峪旧址景区",
+      "province": "山西省",
+      "city": "长治市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "八路军总部王家峪旧址景区"
+      ],
+      "city_aliases": [
+        "武乡县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "黎城县丹泉小镇景区",
+      "province": "山西省",
+      "city": "长治市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "丹泉小镇景区"
+      ],
+      "city_aliases": [
+        "黎城县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "潞州区漳泽湖国家城市湿地公园",
+      "province": "山西省",
+      "city": "长治市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "漳泽湖国家城市湿地公园"
+      ],
+      "city_aliases": [
+        "潞州区"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "高平市釜山景区",
+      "province": "山西省",
+      "city": "晋城市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "浮山县寨圪塔康养景区",
+      "province": "山西省",
+      "city": "临汾市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "寨圪塔康养景区"
+      ],
+      "city_aliases": [
+        "浮山县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "洪洞县中镇霍山兴唐寺景区",
+      "province": "山西省",
+      "city": "临汾市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "中镇霍山兴唐寺景区"
+      ],
+      "city_aliases": [
+        "洪洞县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "万荣县飞云楼景区",
+      "province": "山西省",
+      "city": "运城市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.shanxi.gov.cn/xwzx/tzgg/202512/t20251229_10022708.shtml",
+      "source_name": "山西省文化和旅游厅关于确定11家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2025-12-29",
+      "aliases": [
+        "飞云楼景区"
+      ],
+      "city_aliases": [
+        "万荣县"
+      ],
+      "location_note": "公告明确县区名称；地级市归属按项目china_province_cities.json统计区划代码前四位解析。"
+    },
+    {
+      "name": "西安市南五台景区",
+      "province": "陕西省",
+      "city": "西安市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "南五台景区"
+      ]
+    },
+    {
+      "name": "宝鸡市千阳县千湖生态旅游景区",
+      "province": "陕西省",
+      "city": "宝鸡市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "千湖生态旅游景区"
+      ],
+      "city_aliases": [
+        "千阳县"
+      ]
+    },
+    {
+      "name": "铜川市耀州窑博物馆景区",
+      "province": "陕西省",
+      "city": "铜川市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "耀州窑博物馆景区"
+      ]
+    },
+    {
+      "name": "渭南市白水县仓颉庙景区",
+      "province": "陕西省",
+      "city": "渭南市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "仓颉庙景区"
+      ],
+      "city_aliases": [
+        "白水县"
+      ]
+    },
+    {
+      "name": "延安市宝塔区南泥湾景区",
+      "province": "陕西省",
+      "city": "延安市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "南泥湾景区"
+      ],
+      "city_aliases": [
+        "宝塔区"
+      ]
+    },
+    {
+      "name": "延安市志丹县保安革命旧址景区",
+      "province": "陕西省",
+      "city": "延安市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "保安革命旧址景区"
+      ],
+      "city_aliases": [
+        "志丹县"
+      ]
+    },
+    {
+      "name": "榆林市佳县赤牛坬民俗文化村景区",
+      "province": "陕西省",
+      "city": "榆林市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "赤牛坬民俗文化村景区"
+      ],
+      "city_aliases": [
+        "佳县"
+      ]
+    },
+    {
+      "name": "榆林市米脂县杨家沟革命旧址景区",
+      "province": "陕西省",
+      "city": "榆林市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "杨家沟革命旧址景区"
+      ],
+      "city_aliases": [
+        "米脂县"
+      ]
+    },
+    {
+      "name": "榆林市靖边县波浪谷景区",
+      "province": "陕西省",
+      "city": "榆林市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "波浪谷景区"
+      ],
+      "city_aliases": [
+        "靖边县"
+      ]
+    },
+    {
+      "name": "榆林市清涧县北国风光景区",
+      "province": "陕西省",
+      "city": "榆林市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "北国风光景区"
+      ],
+      "city_aliases": [
+        "清涧县"
+      ]
+    },
+    {
+      "name": "安康市平利县蒋家坪景区",
+      "province": "陕西省",
+      "city": "安康市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "蒋家坪景区"
+      ],
+      "city_aliases": [
+        "平利县"
+      ]
+    },
+    {
+      "name": "安康市汉阴县双河口古镇景区",
+      "province": "陕西省",
+      "city": "安康市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "双河口古镇景区"
+      ],
+      "city_aliases": [
+        "汉阴县"
+      ]
+    },
+    {
+      "name": "安康市紫阳县陕甘茶马古道景区",
+      "province": "陕西省",
+      "city": "安康市",
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/lzyj/tzgg/202410/t20241010_3342284.html",
+      "source_name": "陕西省文化和旅游厅关于确定13家旅游景区为国家4A级旅游景区的公告",
+      "as_of": "2024-10-10",
+      "aliases": [
+        "陕甘茶马古道景区"
+      ],
+      "city_aliases": [
+        "紫阳县"
+      ]
+    },
+    {
+      "name": "漳州市龙海白塘湾景区",
+      "province": "福建省",
+      "city": "漳州市",
+      "aliases": [
+        "白塘湾景区"
+      ],
+      "city_aliases": [
+        "龙海区"
+      ],
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.fujian.gov.cn/zwgk/tzgg/gggs/202603/t20260330_7117179.htm",
+      "source_name": "福建省文化和旅游厅：福建省新增4家国家4A级旅游景区、4家省级旅游度假区",
+      "as_of": "2026-03-26"
+    },
+    {
+      "name": "漳州市龙海鹭凯生态庄园景区",
+      "province": "福建省",
+      "city": "漳州市",
+      "aliases": [
+        "鹭凯生态庄园景区"
+      ],
+      "city_aliases": [
+        "龙海区"
+      ],
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.fujian.gov.cn/zwgk/tzgg/gggs/202603/t20260330_7117179.htm",
+      "source_name": "福建省文化和旅游厅：福建省新增4家国家4A级旅游景区、4家省级旅游度假区",
+      "as_of": "2026-03-26"
+    },
+    {
+      "name": "莆田市仙游仙水洋景区",
+      "province": "福建省",
+      "city": "莆田市",
+      "aliases": [
+        "仙水洋景区"
+      ],
+      "city_aliases": [
+        "仙游县"
+      ],
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.fujian.gov.cn/zwgk/tzgg/gggs/202603/t20260330_7117179.htm",
+      "source_name": "福建省文化和旅游厅：福建省新增4家国家4A级旅游景区、4家省级旅游度假区",
+      "as_of": "2026-03-26"
+    },
+    {
+      "name": "南平市建瓯建州古城景区",
+      "province": "福建省",
+      "city": "南平市",
+      "aliases": [
+        "建州古城景区"
+      ],
+      "city_aliases": [
+        "建瓯市"
+      ],
+      "rating": "4A",
+      "source_type": "official",
+      "source_url": "https://wlt.fujian.gov.cn/zwgk/tzgg/gggs/202603/t20260330_7117179.htm",
+      "source_name": "福建省文化和旅游厅：福建省新增4家国家4A级旅游景区、4家省级旅游度假区",
+      "as_of": "2026-03-26"
+    }
+  ]
+}

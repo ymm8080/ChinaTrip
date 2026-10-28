@@ -566,6 +566,7 @@ class VideoReader:
                     cl = resp.headers.get("content-length", "")
                     return cl.isdigit() and int(cl) > VIDEO_URL_MAX_BYTES
         except httpx.HTTPError:
+            logger.info("video_reader: size probe failed, assuming under limit")
             return False
 
     async def _vision_call(self, content: list[dict]) -> str:

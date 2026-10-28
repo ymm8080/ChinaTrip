@@ -54,6 +54,7 @@ from app.services.itinerary.models import (
     ValidationReport,
     VisitItem,
 )
+from app.services.lang_ctx import L
 
 # Iron rule 6 crowd coefficient band (models.py pins the 0.6-1.2 bounds).
 CROWD_COEFFICIENTS: dict[CrowdProfile, float] = {
@@ -116,10 +117,13 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
                 RuleViolation(
                     rule_id=1,
                     severity=RuleSeverity.error,
-                    message=(
+                    message=L(
                         f"第{day_no}天 {prev.name}({_fmt(prev.start_time)}-"
                         f"{_fmt(prev.end_time)}) 与 {cur.name}({_fmt(cur.start_time)}-"
-                        f"{_fmt(cur.end_time)}) 时间区间重叠"
+                        f"{_fmt(cur.end_time)}) 时间区间重叠",
+                        f"Day {day_no}: {prev.name}({_fmt(prev.start_time)}-"
+                        f"{_fmt(prev.end_time)}) and {cur.name}({_fmt(cur.start_time)}-"
+                        f"{_fmt(cur.end_time)}) time ranges overlap",
                     ),
                     item_ids=[prev.item_id, cur.item_id],
                     day=day_no,
@@ -146,10 +150,13 @@ def _check_opening_hours(
                 RuleViolation(
                     rule_id=2,
                     severity=RuleSeverity.error,
-                    message=(
+                    message=L(
                         f"第{day_no}天 {v.name}"
                         f"({_fmt(v.start_time)}-{_fmt(v.end_time)})"
-                        f"超出营业时间 {_fmt(h.opens)}-{_fmt(h.closes)}"
+                        f"超出营业时间 {_fmt(h.opens)}-{_fmt(h.closes)}",
+                        f"Day {day_no}: {v.name}({_fmt(v.start_time)}-"
+                        f"{_fmt(v.end_time)}) is outside opening hours "
+                        f"{_fmt(h.opens)}-{_fmt(h.closes)}",
                     ),
                     item_ids=[v.item_id],
                     day=day_no,
@@ -181,10 +188,14 @@ def _check_transfer_buffer(
                     RuleViolation(
                         rule_id=4,
                         severity=RuleSeverity.error,
-                        message=(
+                        message=L(
                             f"第{day_no}天 跨城交通 {tr.from_city}→{tr.to_city}"
                             f" 当天的景点「{v.name}」没有起止时间，无法校验衔接，"
-                            "请安排时间或移动到其他天"
+                            "请安排时间或移动到其他天",
+                            f'Day {day_no}: sight "{v.name}" on the day of the '
+                            f"intercity transfer {tr.from_city}→{tr.to_city} has no "
+                            "start/end time, so the connection cannot be checked. "
+                            "Schedule a time or move it to another day",
                         ),
                         item_ids=[v.item_id],
                         day=day_no,
@@ -197,11 +208,15 @@ def _check_transfer_buffer(
                     RuleViolation(
                         rule_id=4,
                         severity=RuleSeverity.error,
-                        message=(
+                        message=L(
                             f"第{day_no}天 {v.name} 与跨城交通"
                             f"{tr.from_city}→{tr.to_city}"
                             f"({_fmt(tr.start_time)}-{_fmt(tr.end_time)})"
-                            f"衔接缓冲不足 {buf} 分钟"
+                            f"衔接缓冲不足 {buf} 分钟",
+                            f"Day {day_no}: {v.name} and intercity transfer "
+                            f"{tr.from_city}→{tr.to_city}"
+                            f"({_fmt(tr.start_time)}-{_fmt(tr.end_time)}) have "
+                            f"less than {buf} minutes of connection buffer",
                         ),
                         item_ids=[v.item_id, tr.item_id],
                         day=day_no,
@@ -225,7 +240,11 @@ def _check_transfer_sequence(
             RuleViolation(
                 rule_id=5,
                 severity=RuleSeverity.error,
-                message=f"第{day_no}天 多段跨城交通 seq 必须递增且唯一，实际为 {seqs}",
+                message=L(
+                    f"第{day_no}天 多段跨城交通 seq 必须递增且唯一，实际为 {seqs}",
+                    f"Day {day_no}: multiple same-day intercity transfers must "
+                    f"have strictly increasing unique seq, got {seqs}",
+                ),
                 item_ids=[t.item_id for t in transfers],
                 day=day_no,
             )
@@ -242,10 +261,14 @@ def _check_transfer_sequence(
                 RuleViolation(
                     rule_id=5,
                     severity=RuleSeverity.error,
-                    message=(
+                    message=L(
                         f"第{day_no}天 跨城交通 {prev.from_city}→{prev.to_city} 与 "
                         f"{cur.from_city}→{cur.to_city} 衔接缓冲 {gap} 分钟 < "
-                        f"{INTERCITY_BUFFER_MINUTES} 分钟（含时间重叠 / seq 顺序颠倒）"
+                        f"{INTERCITY_BUFFER_MINUTES} 分钟（含时间重叠 / seq 顺序颠倒）",
+                        f"Day {day_no}: intercity transfers {prev.from_city}→"
+                        f"{prev.to_city} and {cur.from_city}→{cur.to_city} "
+                        f"connection buffer {gap} min < {INTERCITY_BUFFER_MINUTES} "
+                        "min (includes time overlap / seq out of order)",
                     ),
                     item_ids=[prev.item_id, cur.item_id],
                     day=day_no,
@@ -278,9 +301,12 @@ def _check_pace(
             RuleViolation(
                 rule_id=6,
                 severity=RuleSeverity.warning,
-                message=(
+                message=L(
                     f"第{day_no}天 步行距离约 {km:.1f} km（直线距离近似）超过 "
-                    f"{limit:.1f} km 上限（{crowd_profile.value} 人群系数）"
+                    f"{limit:.1f} km 上限（{crowd_profile.value} 人群系数）",
+                    f"Day {day_no}: estimated walking distance ~{km:.1f} km "
+                    f"(straight-line approximation) exceeds the {limit:.1f} km "
+                    f"limit ({crowd_profile.value} crowd coefficient)",
                 ),
                 item_ids=[v.item_id for v in located],
                 day=day_no,
@@ -302,9 +328,11 @@ def _check_pace(
                 RuleViolation(
                     rule_id=6,
                     severity=RuleSeverity.warning,
-                    message=(
+                    message=L(
                         f"第{day_no}天 有效游览时长占比 {total / span:.0%} 低于 "
-                        f"{VALID_TOUR_RATIO_MIN:.0%}"
+                        f"{VALID_TOUR_RATIO_MIN:.0%}",
+                        f"Day {day_no}: effective sightseeing ratio "
+                        f"{total / span:.0%} is below {VALID_TOUR_RATIO_MIN:.0%}",
                     ),
                     item_ids=[
                         v.item_id for v in visits if v.duration_minutes is not None
@@ -329,9 +357,11 @@ def _check_visit_cities(
                 RuleViolation(
                     rule_id=3,
                     severity=RuleSeverity.warning,
-                    message=(
+                    message=L(
                         f"第{day.day}天 {v.name} 所在城市 {v.city} "
-                        f"不在行程城市 {plan.cities} 中"
+                        f"不在行程城市 {plan.cities} 中",
+                        f"Day {day.day}: {v.name} is in city {v.city}, which is "
+                        f"not among the itinerary cities {plan.cities}",
                     ),
                     item_ids=[v.item_id],
                     day=day.day,
@@ -354,9 +384,11 @@ def _check_base_city_jumps(plan: ItineraryPlan) -> list[RuleViolation]:
                 RuleViolation(
                     rule_id=3,
                     severity=RuleSeverity.warning,
-                    message=(
+                    message=L(
                         f"第{cur.day}天 基准城市从 {prev.base_city} 跳变到 "
-                        f"{cur.base_city} 但当日无跨城交通"
+                        f"{cur.base_city} 但当日无跨城交通",
+                        f"Day {cur.day}: base city jumps from {prev.base_city} to "
+                        f"{cur.base_city} with no intercity transfer that day",
                     ),
                     day=cur.day,
                 )
@@ -410,9 +442,12 @@ def validate_change_scope(
                 RuleViolation(
                     rule_id=10,
                     severity=RuleSeverity.error,
-                    message=(
+                    message=L(
                         f"第{day_no}天 早于 from_day={from_day} 却与原计划不一致"
-                        "（铁律 10：只动当天及之后）"
+                        "（铁律 10：只动当天及之后）",
+                        f"Day {day_no} is before from_day={from_day} but differs "
+                        "from the original plan (iron rule 10: only change the "
+                        "current day onward)",
                     ),
                     item_ids=[i.item_id for i in old_d.items],
                     day=day_no,
@@ -437,8 +472,10 @@ def validate_pinned(
                     RuleViolation(
                         rule_id=19,
                         severity=RuleSeverity.error,
-                        message=(
-                            f"第{d.day}天 {old.name} 已被用户确认（pinned）却被删除"
+                        message=L(
+                            f"第{d.day}天 {old.name} 已被用户确认（pinned）却被删除",
+                            f"Day {d.day}: {old.name} was user-confirmed (pinned) "
+                            "but got deleted",
                         ),
                         item_ids=[old.item_id],
                         day=d.day,
@@ -453,9 +490,11 @@ def validate_pinned(
                     RuleViolation(
                         rule_id=19,
                         severity=RuleSeverity.error,
-                        message=(
+                        message=L(
                             f"第{d.day}天 {old.name} 已被用户确认（pinned）"
-                            "却被移动或改时间"
+                            "却被移动或改时间",
+                            f"Day {d.day}: {old.name} was user-confirmed (pinned) "
+                            "but got moved or retimed",
                         ),
                         item_ids=[old.item_id],
                         day=d.day,

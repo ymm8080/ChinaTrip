@@ -35,6 +35,26 @@ DAY_END_MINUTES = 21 * 60
 DEFAULT_VISIT_MINUTES = 60
 #: Fallback when the travel matrix has no entry for an ordered pair.
 DEFAULT_TRAVEL_MINUTES = 30
+#: 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
+#: "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
+_BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
+    "morning": (8 * 60, 12 * 60),  # 08:00-12:00
+    "afternoon": (12 * 60, 17 * 60),  # 12:00-17:00
+    "evening": (17 * 60, 21 * 60),  # 17:00-21:00（夜景自动排晚上）
+    "sunset": (16 * 60, 19 * 60),  # 16:00-19:00 近似窗
+    "sunrise": (8 * 60, 10 * 60 + 30),  # 08:00-10:30 近似窗
+}
+
+#: S5（show_booking_design §4，2026-10-26）：演出=晚间场演事件——
+#: 开演域 20:10-20:45（散场至 21:30 前后），允许越常规日终 21:00
+#: （场演即当日收尾事件，后续无排项）。触发：库行 best_visit_time="show"
+#: （import_shows 种子）或 category=entertainment。
+_SHOW_STARTS = (20 * 60 + 10, 20 * 60 + 45)
+
+
+def _is_show(item: VisitItem) -> bool:
+    return item.best_visit_time == "show" or item.category == "entertainment"
+
 
 _MINUTES_PER_DAY = 24 * 60
 
@@ -46,6 +66,9 @@ class _VisitSpec(NamedTuple):
     lo: int  # earliest feasible start (minutes)
     hi: int  # latest feasible start (minutes)
     dur: int  # interval size (minutes)
+    # G3 多段开窗（午休闭馆）：非 None 时 start 必须落其中一段
+    # （solve_day 用条件约束 + ExactlyOne 建模，段外不可行）。
+    windows: list[tuple[int, int]] | None = None
 
 
 def _to_minutes(value: time) -> int:
@@ -65,8 +88,37 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
         return None
 
     lo, hi = DAY_START_MINUTES, DAY_END_MINUTES - dur
+    # 8.2.1：时段属性先收窄开窗（lo=max(窗起, 08:00)、hi=min(窗止, 21:00)-
+    # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理
+    # 不约束（防御库脏数据）；food 类条目不带该字段（plan.py 走 pinned 餐
+    # 窗），天然不受影响。
+    if _is_show(item):
+        # S5 场演窗：直接替换默认域（不看 _BEST_VISIT_WINDOWS——其 hi 会
+        # 被 21:00 日终钳掉 20:10 开演）；营业时间窗仍照常再收紧。
+        lo, hi = _SHOW_STARTS
+    else:
+        best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
+        if best is not None:
+            lo = max(lo, best[0])
+            hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
-    if window is not None:
+    multi: list[tuple[int, int]] | None = None
+    if window is not None and window.windows:
+        # G3：多段（如 09:00-12:00 + 13:30-17:00）——逐段与全天/best 窗
+        # 相交，段内可行起点域 [seg_lo, seg_hi-dur]；存活段 >1 才多段建模。
+        multi = []
+        for opens, closes in window.windows:
+            seg_lo = max(_to_minutes(opens), lo)
+            seg_hi = min(_to_minutes(closes), hi + dur)
+            if seg_lo <= seg_hi - dur:
+                multi.append((seg_lo, seg_hi - dur))
+        if not multi:
+            return None
+        lo, hi = min(s[0] for s in multi), max(s[1] for s in multi)
+        if len(multi) == 1:
+            lo, hi = multi[0]
+            multi = None
+    elif window is not None:
         lo = max(lo, _to_minutes(window.opens))
         hi = min(hi, _to_minutes(window.closes) - dur)
 
@@ -74,13 +126,17 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
-        if not lo <= pin <= hi:
+        if multi is not None:
+            if not any(s[0] <= pin <= s[1] for s in multi):
+                return None
+        elif not lo <= pin <= hi:
             return None
         lo = hi = pin
+        multi = None
 
     if lo > hi:
         return None
-    return _VisitSpec(item, lo, hi, dur)
+    return _VisitSpec(item, lo, hi, dur, multi)
 
 
 def _fixed_transfer_window(item: TransferItem) -> tuple[int, int] | None:
@@ -207,6 +263,16 @@ def solve_day(
     for spec in specs:
         start = model.NewIntVar(spec.lo, spec.hi, f"start_{spec.item.item_id}")
         starts.append(start)
+        if spec.windows:
+            # G3 多段开窗：start 必落其中一段（条件约束 + ExactlyOne，
+            # 标准解法——不引入 optional intervals，模型更简）
+            presences = []
+            for j, (wlo, whi) in enumerate(spec.windows):
+                in_win = model.NewBoolVar(f"inwin_{spec.item.item_id}_{j}")
+                model.Add(start >= wlo).OnlyEnforceIf(in_win)
+                model.Add(start <= whi).OnlyEnforceIf(in_win)
+                presences.append(in_win)
+            model.AddExactlyOne(presences)
         intervals.append(
             model.NewIntervalVar(
                 start, spec.dur, start + spec.dur, f"visit_{spec.item.item_id}"

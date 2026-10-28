@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # （2026-10-20 日志实测 504 后同参数重试即 200），5s 全局超时会误杀。
     amap_route_timeout_seconds: float = 10.0
 
+    # 地图 WebService 提供方（2026-10-27 高德 5 万商用费转百度）：
+    # "amap"（默认，存量行为零变化）| "baidu"（个人认证免费配额）。
+    # 两个提供方共用上面两个超时配置；BaiduClient 与 AmapClient 方法
+    # 同构，工厂见 app.services.map_provider。
+    map_provider: str = "amap"
+    baidu_ak: str = ""
+    baidu_base_url: str = "https://api.map.baidu.com"
+
     # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
     # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;
     # empty by default = no params appended, URLs pass through untouched.
@@ -72,6 +80,14 @@ class Settings(BaseSettings):
     intent_cache_ttl_seconds: int = 300
     intent_cache_max_entries: int = 10_000
 
+    # 快慢双车道（design §6.12）：快车道答案缓存（短 TTL，命中零计算）
+    # 与慢车道任务队列。队列落 SQLite（无 Redis，照 call_store/state_persist
+    # 模式），进程内 asyncio worker 轮询消化；取舍见 task_queue.py 模块头。
+    fast_lane_answer_ttl_seconds: float = 60.0
+    fast_lane_answer_max_entries: int = 4_096
+    task_db_url: str = "sqlite:///data/tasks.db"
+    task_worker_poll_seconds: float = 0.5
+
     # Translation fast lane (design §6.10 MVP: on-device ASR/OCR produces
     # text; server translates via GLM; phrase/menu cache hit = zero LLM).
     translate_max_chars: int = 2_000
@@ -93,6 +109,83 @@ class Settings(BaseSettings):
 
     rate_limit_per_minute: int = 60
     rate_limit_per_hour: int = 600
+
+    # 公开分享端点（/s/{token}、/api/v1/public/trips/{token}）在全局
+    # 限流之上按裸 IP 再收一档：防爬虫扫 token、防公开页被刷。
+    share_public_rate_per_minute: int = 30
+    share_public_rate_per_hour: int = 200
+
+    # 预约自动化三档（booking_auto.py，2026-10-25）。L2 库存感知的
+    # provider 分家（用户纠偏 2026-10-25）：国内票务库存主力=携程联
+    # 盟/同程/美团（B 档个人可申请，国内库存最深）；Klook/Trip.com
+    # 是外国人下单面（L1/L3 直达与代抢），不作 L2 库存主源。任一
+    # provider key 配好 L2 即活（未配诚实降级 L1）。
+    ctrip_union_api_key: str = ""
+    tongcheng_api_key: str = ""
+    meituan_api_key: str = ""
+    klook_api_key: str = ""
+    tripcom_api_key: str = ""
+    # booking 按钮 geo 分流（2026-10-25 用户拍板）：境外 IP→Trip.com、
+    # 国内 IP→美团。region_file = 纯文本 IP 段表（CIDR 一行一段，可热
+    # 更，免装 geoip 库——用 updatechen/toolong-ssr 类公开 CN 段表或
+    # apnic 委派数据自筛；缺文件=全部按境外处理，宁绕国际站不错推国内站）。
+    booking_search_template: str = (
+        "https://www.trip.com/attractions/search?keyword={keyword}"
+    )
+    booking_search_template_domestic: str = (
+        "https://www.meituan.com/xiuxianyule/{keyword}"
+    )
+    booking_region_file: str = "data/cn_ip_ranges.txt"
+
+    # 客户付款层（DESIGN/PAYMENTS_PROGRESS.md，2026-10-25）：公司↔客户收款，
+    # 铁律 22 的渠道 handoff 不变。Stripe 一个集成覆盖外卡 + 支付宝 + 微信
+    # 支付（hosted Checkout，原始卡号不经过本服务器）；mock 后端零网络可跑
+    # 全流程（LLM_BACKEND=mock 同款离线开发哲学）。金额 yuan float（repo 惯例），
+    # 只在 Stripe adapter 内转 cents。
+    payments_backend: str = "mock"  # "mock" | "stripe"
+    stripe_api_key: str = ""
+    stripe_webhook_secret: str = ""
+    payments_default_currency: str = "cny"
+    # 空 = 从请求 base_url 推导（本机 dev 即 127.0.0.1:8000）；生产填绝对地址。
+    payments_success_url: str = ""
+    payments_cancel_url: str = ""
+    # 运营侧对已存卡扣款的共享密钥；空 = 扣款端点整体禁用（403）。
+    payments_operator_token: str = ""
+    payments_db_url: str = "sqlite:///data/payments.db"
+
+    # 出行人资料（DESIGN/CLIENT_DATA_REQUIREMENTS.md，2026-10-27）：代客预订
+    # 实名档案。证件号/手机号 Fernet 加密落库，密钥在 db 同目录 .traveler_key
+    # 首次自动生成；列表响应只回脱敏形，明文唯一出口是 /export（审计留痕）。
+    travelers_db_url: str = "sqlite:///data/travelers.db"
+
+    # 真人通话咨询（DESIGN/paid_call_service_design_2026-10-25，2026-10-25）：
+    # 预付费分钟账本 + 服务端权威通话会话（$1=5 分钟，到点强结）。收款走
+    # 网关协议，MVP=mock 零网络全流程；支付宝 wap（主通道，个体工商户可办）
+    # 与 Stripe（需境外主体）为门控 stub——未配键诚实 503。stripe_api_key/
+    # webhook_secret 与上方客户付款层共用，此处不重复。
+    call_db_url: str = "sqlite:///data/call_state.db"
+    # 套餐目录（JSON str：code/minutes/price_cny/price_usd；service 解析）。
+    call_packages_json: str = (
+        '[{"code":"call_m5","minutes":5,"price_cny":8.0,"price_usd":1.0},'
+        '{"code":"call_m10","minutes":10,"price_cny":16.0,"price_usd":2.0},'
+        '{"code":"call_m20","minutes":20,"price_cny":30.0,"price_usd":4.0},'
+        '{"code":"call_m60","minutes":60,"price_cny":90.0,"price_usd":12.0}]'
+    )
+    call_provider: str = "mock"  # "mock" | "alipay" | "stripe"
+    # 坐席热线（tel: 一键拨号目标）；空 = direct 直拨降级为展示文案并引导 callback。
+    call_hotline_number: str = ""
+    call_min_minutes: int = 5
+    call_max_minutes: int = 60
+    call_waiting_timeout_seconds: int = 120
+    # 仅展示换算（售价签 ¥→$）；订单落库锁定单币种，不做动态汇率结算。
+    usd_cny_rate: float = 7.2
+    # 坐席台共享密钥（X-Agent-Key）；空 = 坐席端点整体禁用（503）。
+    agent_console_key: str = ""
+    # 支付宝手机网站支付 stub 位（个体工商户签约后填入即活）。
+    alipay_app_id: str = ""
+    alipay_private_key: str = ""
+    alipay_alipay_public_key: str = ""
+    alipay_gateway: str = "https://openapi.alipay.com/gateway.do"
 
     log_level: str = "INFO"
 

@@ -1,0 +1,139 @@
+{
+  "reviewed_at": "2026-09-10",
+  "record_count": 4612,
+  "province_counts": {
+    "浙江省": 223,
+    "辽宁省": 160,
+    "河北省": 173,
+    "黑龙江省": 120,
+    "福建省": 117,
+    "山东省": 254,
+    "广东省": 225,
+    "陕西省": 162,
+    "新疆维吾尔自治区": 152,
+    "吉林省": 88,
+    "河南省": 260,
+    "四川省": 349,
+    "贵州省": 159,
+    "西藏自治区": 47,
+    "甘肃省": 140,
+    "宁夏回族自治区": 33,
+    "青海省": 53,
+    "广西壮族自治区": 307,
+    "上海市": 71,
+    "江西省": 216,
+    "北京市": 66,
+    "天津市": 33,
+    "湖北省": 237,
+    "重庆市": 165,
+    "山西省": 152,
+    "内蒙古自治区": 156,
+    "云南省": 197,
+    "湖南省": 152,
+    "安徽省": 50,
+    "海南省": 41,
+    "江苏省": 54
+  },
+  "official_declared_counts_verified": {
+    "上海市": 71,
+    "重庆市": 165,
+    "湖南省": 152,
+    "云南省": 197,
+    "海南省": 41
+  },
+  "invalid_name_count": 0,
+  "invalid_date_count": 0,
+  "missing_provinces": [],
+  "partial_provinces": [
+    "安徽省",
+    "江苏省"
+  ],
+  "suspected_5a_upgrades": [
+    {
+      "province": "黑龙江省",
+      "city_4a": "齐齐哈尔市",
+      "name_4a": "扎龙生态旅游区",
+      "as_of_4a": "2023-12-31",
+      "source_url_4a": "https://wlt.hlj.gov.cn/wlt/c114268/202405/c00_31737191.shtml",
+      "name_5a": "齐齐哈尔市扎龙生态旅游区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    },
+    {
+      "province": "陕西省",
+      "city_4a": "延安市",
+      "name_4a": "延川黄河乾坤湾景区",
+      "as_of_4a": "2024-09-03",
+      "source_url_4a": "https://whhlyt.shaanxi.gov.cn/zfxxgk/fdzdgknr/tjxx/202401/t20240103_2578364.html",
+      "name_5a": "延安市延川黄河乾坤湾景区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    },
+    {
+      "province": "河南省",
+      "city_4a": "信阳市",
+      "name_4a": "鸡公山风景区",
+      "as_of_4a": "2020-12-31",
+      "source_url_4a": "https://hct.henan.gov.cn/2019/11-06/992871.html",
+      "name_5a": "信阳市鸡公山景区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    },
+    {
+      "province": "宁夏回族自治区",
+      "city_4a": "固原市",
+      "name_4a": "六盘山红军长征景区",
+      "as_of_4a": "2024-12-12",
+      "source_url_4a": "https://whhlyt.nx.gov.cn/wlgz/202412/t20241212_4756344.html",
+      "name_5a": "固原市六盘山红军长征旅游区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    },
+    {
+      "province": "广西壮族自治区",
+      "city_4a": "贺州市",
+      "name_4a": "黄姚古镇景区",
+      "as_of_4a": "2021-12-31",
+      "source_url_4a": "https://wlt.gxzf.gov.cn/zfxxgk/fdzdgknr/tzgg/t11739994.shtml",
+      "name_5a": "贺州市黄姚古镇景区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    },
+    {
+      "province": "内蒙古自治区",
+      "city_4a": "呼和浩特市",
+      "name_4a": "老牛湾黄河大峡谷旅游区",
+      "as_of_4a": "2024-02-26",
+      "source_url_4a": "https://wlt.nmg.gov.cn/zfxxgk/zfxxglzl/fdzdgknr/zdlyxx/zyml/202402/t20240226_2472006.html",
+      "name_5a": "呼和浩特市老牛湾黄河大峡谷旅游区",
+      "as_of_5a": "2025-03-11",
+      "source_url_5a": "https://sjfw.mct.gov.cn/site/dataservice/rural?type=10",
+      "status": "needs_identity_review",
+      "basis": "同省，去明确行政区前缀后名称包含或去景区通用后缀后的核心同名；仅候选，未据此合并或覆盖。"
+    }
+  ],
+  "corrections": [
+    {
+      "original_name": "浙江省杭州市富阳区景区名称杭州野生动物世界景区",
+      "corrected_name": "富阳区杭州野生动物世界景区",
+      "reason": "2024原始Excel A8混入列头文字；用同一省厅2019名录校正名称，4A等级仍依据2024表。",
+      "verification_url": "https://ct.zj.gov.cn/art/2020/11/6/art_1229678764_4984197.html"
+    }
+  ],
+  "limits": [
+    "安徽、江苏仅有部分官方记录，不表示取得全省完整名录。",
+    "历史表可能包含后续升级、撤销、改名记录；疑似同名不等于同一景区范围。",
+    "青海原表地址只明确县级时保留该县名；无法确定归属时省略city。",
+    "新疆兵团独立名录尚未完成全量核验。"
+  ]
+}
