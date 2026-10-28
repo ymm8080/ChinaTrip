@@ -3460,6 +3460,56 @@ class PlanningAgent:
             )
         return plan
 
+    async def _backfill_locations(
+        self, plan: ItineraryPlan, *, limit: int = 12
+    ) -> None:
+        """条目缺坐标时回填（2026-10-28 线上实例：旧行程条目 loc=None，
+        annotate/legs 全空——删/拖后「距离与步行」无从谈起）。顺序=POI 库
+        get_by_name（零配额）→ map search_poi（baidu/amap 同构，_lookup_poi
+        包裹）。失败静默保留 None；每轮 limit 封顶，后续变更继续补。回填
+        坐标同时惠及 solver 动线矩阵与卡片导航链接。"""
+        missing = [
+            item
+            for day in plan.days
+            for item in day.items
+            if isinstance(item, VisitItem) and item.location is None and item.name
+        ]
+        if not missing:
+            return
+
+        async def fill(item: VisitItem) -> None:
+            poi = None
+            if self._poi_details is not None:
+                try:
+                    poi = self._poi_details.get_by_name(item.city, item.name)
+                except Exception:
+                    logger.warning(
+                        "plan: poi library lookup failed for %s", item.name
+                    )
+            if poi is None and self._amap is not None:
+                poi = await self._lookup_poi(item.name, item.city)
+            loc = poi.get("location") if isinstance(poi, dict) else None
+            point: GeoPoint | None = None
+            if isinstance(loc, dict):
+                try:
+                    point = GeoPoint(**loc)
+                except Exception:
+                    logger.warning("plan: bad location for %s: %s", item.name, loc)
+            elif isinstance(loc, (tuple, list)) and len(loc) == 2:
+                try:
+                    point = GeoPoint(lon=loc[0], lat=loc[1])
+                except Exception:
+                    logger.warning("plan: bad location for %s: %s", item.name, loc)
+            if point is not None:
+                item.location = point
+
+        todo = missing[:limit]
+        for i in range(0, len(todo), 6):
+            await asyncio.gather(
+                *[fill(item) for item in todo[i : i + 6]],
+                return_exceptions=True,
+            )
+
     async def refresh_legs(self, session: PlanSession) -> None:
         """规划页条目变更后的实测腿刷新（用户拍板 2026-10-28）。
 
@@ -3472,6 +3522,7 @@ class PlanningAgent:
         if session.plan is None:
             return
 
+        await self._backfill_locations(session.plan)
         annotate_legs(session.plan)
 
         self._replay_measured_legs(session.plan)
@@ -3614,6 +3665,8 @@ class PlanningAgent:
         """
         started = perf_counter()
         amap_slots = asyncio.Semaphore(AMAP_CONCURRENCY)
+        # 条目缺坐标先回填（旧行程/占位 POI 无 location 时 legs 全空）
+        await self._backfill_locations(plan)
         await asyncio.gather(
             self._enrich_legs(plan, amap_slots=amap_slots),
             self._enrich_hours(plan, amap_slots=amap_slots),

@@ -691,11 +691,10 @@ def test_video_city_wins_over_multi_city_session():
         assert item.city == "重庆"
         assert day.base_city == "重庆"  # not scattered onto 成都/西安 days
     must_lookups = [c for c in amap.calls if c[0] in ("十八梯", "长江索道", "大足石刻")]
-    assert must_lookups == [
-        ("十八梯", "重庆"),
-        ("长江索道", "重庆"),
-        ("大足石刻", "重庆"),
-    ]
+    # 每个确认景点都按确认城市解析；条目缺坐标回填（backfill 2026-10-28）
+    # 会复用同款专名查询，故不断言次数与顺序。
+    for site in ("十八梯", "长江索道", "大足石刻"):
+        assert (site, "重庆") in must_lookups, site
 
 
 def test_title_city_fallback_when_llm_omits_city():

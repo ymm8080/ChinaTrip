@@ -387,7 +387,8 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
     assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
     # 出发城市不再抓 POI 候选（产品规则 2026-10-19）
-    assert [city for _, city in amap.calls] == ["杭州", "苏州"]
+    # v0 候选拉取按城市序；条目缺坐标回填的专名查询（backfill）不计入
+    assert [city for k, city in amap.calls if k == POI_KEYWORD] == ["杭州", "苏州"]
     # solver placed every visit (§6.9 pipeline backend)
     assert all(v.start_time is not None for v in visits)
     # 最后一天仍有活动（返程段晚出发的收益）
@@ -1979,7 +1980,11 @@ def test_poi_library_hit_skips_amap():
     agent, session = _teahouse_session(amap, store, svc, "喝茶")
     session, reply, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
-    assert all(k == POI_KEYWORD for k, _ in amap.calls)  # 仅 v0 景点拉取
+    # 仅 v0 景点拉取 + 条目缺坐标回填的专名查询（backfill 2026-10-28）
+    assert all(
+        k == POI_KEYWORD or k in {v.name for v in all_visits(session)}
+        for k, _ in amap.calls
+    )
     added = next(v for v in all_visits(session) if v.name == "喝茶")
     assert added.poi_id == "B-TEA-LIB"
     assert added.pinned is True
