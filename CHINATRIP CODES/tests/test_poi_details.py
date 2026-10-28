@@ -141,7 +141,7 @@ def test_refresh_search_is_final_amap_fallback():
     assert amap.search_calls == [("景点D", "重庆", None)]
 
 
-def test_refresh_miss_cools_down_24h_without_writing_hours():
+def test_refresh_miss_cools_down_without_writing_hours():
     store = PoiDetailStore()
     store.upsert("B8", city="重庆", name="景点E")
     stats = asyncio.run(refresh_pois(store, _NullCtrip(), None, limit=10))
@@ -149,7 +149,7 @@ def test_refresh_miss_cools_down_24h_without_writing_hours():
     got = store.get("B8")
     assert got.get("opening_hours") is None  # 冷却不写 hours
     assert got.get("hours_source") is None
-    assert store.stale_pois() == []  # 盖戳后 24h 内不再进 stale 窗口
+    assert store.stale_pois() == []  # 盖戳后 30 天窗口内不再回源（一行一月）
 
 
 def test_stale_pois_returns_amap_location_string():

@@ -1,14 +1,19 @@
-"""POI 地址/营业时间每日刷新作业（CLI，v2.4.4 用户拍板）。
+"""POI 地址/营业时间刷新作业（CLI，v2.4.4 用户拍板；2026-10-28 起一行一月）。
+
+节奏（2026-10-28 定稿）：作业仍每日跑（schtasks 02:00，照旧嚼积压），
+但 stale 窗口 30 天（poi_details._STALE_AFTER）——**每行最多一月被
+回源碰一次**，命中/未命中盖戳同权，配额烧耗较 24h 窗口降一个量级。
 
 链序（用户拍板：携程先，高德V5后）：
   ⓪回源匹配（--match）：source!="amap" 的骨架行先走高德关键词匹配
     （名称相似度 + 距离双闸，app.services.poi_backfill）——命中则
     升级 source→"amap"、source_poi_id→高德 ID，链② 才有意义
   ①携程 sight 页（CtripHoursReader，slug 白名单 + 早停）
-  ②高德 v5 place/detail（poi_id 直查，opentime_week）——仅
-    source=="amap" 的行（骨架行 poi_id 非高德 ID，直查无意义）
-  ③高德 v5 place/text 关键词搜索（首条；带行 GCJ-02 "lon,lat" 坐标，
-    text 配额尽时 client 侧透明降级 v5 around-search）
+  ②place/detail（poi_id 直查）——仅 poi_id 属当前图商命名空间的行
+    （2026-10-29 图商转百度：MAP_PROVIDER=baidu 时客户端走工厂
+    BaiduClient，命名空间 source=="baidu"（uid）；高德行直查无意义）
+  ③place/text 关键词搜索（首条；location 供高德 text/around 降级，
+    百度收下不用）
 命中即 upsert 进 pois（address/opening_hours/hours_source/hours_updated_at）；
 规划端只读库（PoiDetailStore），不当场抓取。
 
@@ -16,7 +21,7 @@
   quota 熔断——链②③任一遇 AmapQuotaExhaustedError(10021) 即熔断，
     本轮剩余行跳过一切高德调用（携程链照跑），跳过数计 amap_skipped
   miss 冷却——未命中行 touch hours_updated_at=now（不写 hours/source），
-    24h 静默，永久缺 hours 的行不再每轮重复查询
+    30 天静默（与月度刷新节奏一致），永久缺 hours 的行不再每轮重复查询
 
 防风控：--rotate 无 --city 时按 weekday 城轮转——库内 DISTINCT city
 里第 weekday%N 个起每隔 7 取 1（一周覆盖全城、每天负载 1/7）。

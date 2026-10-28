@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
     train_cache_url: str = "sqlite:///data/train_cache.db"
     train_cache_ttl_hours: float = 24.0
+    # 航班时刻（2026-10-28 骨架）：VariFlight 个人开发者 key，注册后填入；
+    # 空（默认）→ MockFlightService 确定性占位，零网络零行为变化。API 契约
+    # 在 key 注册后按 open.variflight.com 文档校正（app/services/
+    # flights_variflight.py，解析/缓存/降级已就位，届时只改 _fetch 一处）。
+    flight_api_key: str = ""
+    flight_api_timeout_seconds: float = 5.0
     # 规划会话+行程记录的写穿透落盘（app/services/state_persist.py），
     # 重启 uvicorn 不再清空进行中会话与已存行程。
     state_db_url: str = "sqlite:///data/h5_state.db"

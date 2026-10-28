@@ -1326,21 +1326,16 @@ function wxRainBar(span, cast) {
   head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">' + I18N.tf("flow.rain.banner", "🌧️ 预报有雨：") +
     outdoor.slice(0, 3).map(i => esc(i.name)).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.outdoorSuf", " 为露天点位") + swap + I18N.tf("flow.rain.hint", "——回复「雨天调整」可帮你重排") + "</div>"));
 }
-// 开站新鲜度巡检：后端判行程城市 fetched_at 非今天（北京时间）即内联刷新
-// （高德 0-3 天 + Open-Meteo 14 天），刷新过的城市清缓存重绘已挂载的天头；
-// 天气是纯参考数据，刷新即生效，无需保存动作
+// 开站新鲜度巡检（2026-10-28 定稿：纯读表，后端从不出网）——行程城市逐城
+// 回报表内数据状态；全部有数据就静默（新鲜度由每日管线 08:10 全量保证），
+// 有城市还没有表数据（新城市等下一班管线）才轻提示一次
 async function wxSync() {
   try {
     const res = await api("/api/weather/sync", { cities: [] }, "POST");
-    const refreshed = (res.cities || []).filter(c => c.refreshed).map(c => c.city);
-    if (!refreshed.length) return;
-    refreshed.forEach(c => { delete WX.cache[c]; });
-    document.querySelectorAll(".wx[data-wx-city]").forEach(sp => {
-      wxFill(sp, sp.getAttribute("data-wx-city"), sp.getAttribute("data-wx-date"), true);
-    });
-    const at = (res.cities || []).find(c => c.refreshed);
-    const hhmm = at && at.fetched_at ? itinFmtLocal(at.fetched_at).slice(11) : "";
-    toast(I18N.tf("flow.wx.refreshed", "🌤 天气已自动刷新 · ") + hhmm + (refreshed.length > 1 ? I18N.tf("flow.wx.cities", "（{n} 城）").replace("{n}", refreshed.length) : I18N.tf("flow.wx.city", "（{c}）").replace("{c}", I18N.city(refreshed[0]))));
+    const missing = (res.cities || []).filter(c => !c.has_data).map(c => c.city);
+    if (!missing.length) return;
+    toast(I18N.tf("flow.wx.pending", "🌤 部分城市天气等每日管线生成（08:10 后自动补齐）· ")
+      + missing.map(c => I18N.city(c)).join(I18N.tf("flow.wx.sep", "、")));
   } catch (err) { /* 巡检失败不影响首开 */ }
 }
 

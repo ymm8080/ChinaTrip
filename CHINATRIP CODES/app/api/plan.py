@@ -46,6 +46,7 @@ from app.services.agent.plan import (
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
 from app.services.fast_lane import FastLane
+from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, VisitItem, mutate
 from app.services.itinerary_store import (
@@ -110,6 +111,9 @@ def get_planning_agent(
             get_llm_adapter(settings),
             amap_client=amap,
             train_service=get_train_service(settings),
+            # 航班与火车同构（2026-10-28）：flight_api_key 空 → Mock 占位，
+            # 配置 key → VariFlight 适配器（管线零改动）。
+            flight_service=build_flight_service(settings),
             time_budget_seconds=settings.solver_time_budget_seconds,
             trip_items=get_trip_item_service(),
             poi_details=get_poi_detail_store(),
