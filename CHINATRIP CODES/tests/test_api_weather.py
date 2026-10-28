@@ -1,8 +1,8 @@
 """Tests for GET /api/weather + POST /api/weather/sync.
 
 App assembly mirrors tests/test_api_pois.py: fresh app +
-dependency_overrides, no real DB. Fetch functions are monkeypatched at
-the app.api.weather namespace so no network happens; rows are
+dependency_overrides, no real DB. 2026-10-28 起 sync 是纯读表巡检
+（从不出网），测试无需 monkeypatch 抓取函数；rows are
 SimpleNamespaces shaped like WeatherReport.
 """
 
@@ -99,31 +99,11 @@ def make_client(rows, store=None, trip_item_svc=None):
     return TestClient(app)
 
 
-def patch_fetchers(monkeypatch, amap_calls, om_calls):
-    async def fake_amap(factory, client, cities, **kw):
-        amap_calls.extend(cities)
-        return {}
-
-    async def fake_om(factory, cities, **kw):
-        om_calls.extend(cities)
-        return {}
-
-    monkeypatch.setattr(weather_api, "fetch_and_store", fake_amap)
-    monkeypatch.setattr(weather_api, "fetch_forecast14", fake_om)
-    monkeypatch.setattr(
-        weather_api,
-        "get_settings",
-        lambda: SimpleNamespace(
-            amap_api_key="test-key",
-            amap_base_url="http://x",
-            amap_timeout_seconds=1,
-            map_provider="amap",
-        ),
-    )
-    # 2026-10-27 工厂化后 weather.py 经 build_map_client 构造客户端
-    monkeypatch.setattr(
-        weather_api, "build_map_client", lambda settings: SimpleNamespace()
-    )
+def test_sync_module_has_no_fetchers():
+    """纯读表保证（2026-10-28 定稿）：sync 模块不得引用任何抓取设施——
+    API 调用只属于每日管线作业（app.jobs.fetch_weather）。"""
+    for name in ("fetch_and_store", "fetch_forecast14", "build_map_client"):
+        assert not hasattr(weather_api, name)
 
 
 # --- GET /api/weather ---------------------------------------------------------
@@ -145,12 +125,10 @@ def test_get_weather_unknown_city_404():
     assert resp.status_code == 404
 
 
-# --- POST /api/weather/sync ----------------------------------------------------
+# --- POST /api/weather/sync（纯读表巡检：只回报，从不出网）----------------------
 
 
-def test_sync_fresh_city_skips_refresh(monkeypatch):
-    amap_calls, om_calls = [], []
-    patch_fetchers(monkeypatch, amap_calls, om_calls)
+def test_sync_fresh_city_reports_fresh():
     # fetched_at 锚定北京时间今天中午（=UTC 04:00），任何时刻跑都判「新鲜」
     bj_noon = datetime.strptime(weather_api._today_beijing(), "%Y-%m-%d") + timedelta(
         hours=12
@@ -160,56 +138,60 @@ def test_sync_fresh_city_skips_refresh(monkeypatch):
     resp = client.post("/api/weather/sync", json={"cities": ["北京"]})
     assert resp.status_code == 200
     body = resp.json()
-    assert amap_calls == [] and om_calls == []  # 新鲜 → 不出网
     assert len(body["cities"]) == 1
     assert body["cities"][0]["city"] == "北京"
-    assert body["cities"][0]["refreshed"] is False
+    assert body["cities"][0]["has_data"] is True
+    assert body["cities"][0]["fresh"] is True
     assert body["cities"][0]["fetched_at"] is not None
 
 
-def test_sync_stale_city_refreshes(monkeypatch):
-    amap_calls, om_calls = [], []
-    patch_fetchers(monkeypatch, amap_calls, om_calls)
+def test_sync_stale_city_reports_without_fetching():
+    """隔日数据只如实回报 fresh=False——刷新是每日管线的事，请求路径零 API。"""
     stale_row = make_row(fetched_at=datetime.utcnow() - timedelta(days=3))
     client = make_client([stale_row])
 
     resp = client.post("/api/weather/sync", json={"cities": ["北京"]})
     assert resp.status_code == 200
     body = resp.json()
-    assert amap_calls == ["北京"]  # 高德 + Open-Meteo 都要刷
-    assert om_calls == ["北京"]
-    assert body["cities"][0]["refreshed"] is True
-    assert body["cities"][0]["fetched_at"] is not None
+    assert body["cities"][0]["has_data"] is True
+    assert body["cities"][0]["fresh"] is False
 
 
-def test_sync_unknown_city_silently_skipped(monkeypatch):
-    amap_calls, om_calls = [], []
-    patch_fetchers(monkeypatch, amap_calls, om_calls)
+def test_sync_new_city_reports_no_data():
+    """新行程城市第一次 sync：表里还没有（等每日管线全量班）→ has_data=False，
+    不报错也不出网。"""
+    client = make_client([])
+
+    resp = client.post("/api/weather/sync", json={"cities": ["北京"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["cities"]) == 1
+    assert body["cities"][0]["city"] == "北京"
+    assert body["cities"][0]["has_data"] is False
+    assert body["cities"][0]["fresh"] is False
+    assert body["cities"][0]["fetched_at"] is None
+
+
+def test_sync_unknown_city_silently_skipped():
     client = make_client([])
 
     resp = client.post("/api/weather/sync", json={"cities": ["亚特兰蒂斯"]})
     assert resp.status_code == 200
     assert resp.json()["cities"] == []
-    assert amap_calls == [] and om_calls == []
 
 
-def test_sync_empty_cities_uses_trip_cities(monkeypatch):
-    amap_calls, om_calls = [], []
-    patch_fetchers(monkeypatch, amap_calls, om_calls)
+def test_sync_empty_cities_uses_trip_cities():
     # 行程库为空（FakeSession 无预置行 + 空内存状态域）→ 无目标 → 只读返回
     client = make_client([])
 
     resp = client.post("/api/weather/sync", json={"cities": []})
     assert resp.status_code == 200
     assert resp.json()["cities"] == []
-    assert amap_calls == [] and om_calls == []
 
 
-def test_sync_empty_cities_merges_store_cities(monkeypatch):
+def test_sync_empty_cities_merges_store_cities():
     """PG 三表为空时也要能从 H5 状态域发现行程城市（2026-10-25 根因：
     旧行程都在状态库里，只查 trip_cities 永远为空）。"""
-    amap_calls, om_calls = [], []
-    patch_fetchers(monkeypatch, amap_calls, om_calls)
     store = InMemoryItineraryStore()
     store.put(
         ItineraryRecord(
@@ -230,6 +212,5 @@ def test_sync_empty_cities_merges_store_cities(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert [c["city"] for c in body["cities"]] == ["上海", "杭州"]
-    assert set(amap_calls) == {"上海", "杭州"}  # 无缓存行 → 内联刷新
-    assert om_calls == amap_calls
-    assert all(c["refreshed"] for c in body["cities"])
+    # 表里没有这两城的数据 → 如实回报 has_data=False（等管线，不出网）
+    assert all(c["has_data"] is False for c in body["cities"])

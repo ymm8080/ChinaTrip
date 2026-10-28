@@ -10,6 +10,7 @@ from app.services.amap_client import AmapClient
 from app.services.itinerary import DayPlan, ItineraryPlan
 from app.services.itinerary_store import ItineraryRecord
 from app.services.weather import (
+    CITY_ADCODES,
     city_to_adcode,
     fetch_and_store,
     parse_report_time,
@@ -392,6 +393,25 @@ def test_store_cities_merges_records_and_items():
         "西安",
         "重庆",
     ]
+
+
+# --- fetch_weather 管线抓取范围（2026-10-28 定稿：默认全量 40 城）--------------
+
+
+def test_resolve_targets_defaults_to_all_cities():
+    """每日一班全量 40 城：新行程城市开站第一次 /sync 就有隔夜表数据，
+    不再有「先有行程后补数据」的空窗（管线是唯一连天气 API 的地方）。"""
+    from app.jobs.fetch_weather import resolve_targets
+
+    targets = resolve_targets()
+    assert sorted(targets) == sorted(CITY_ADCODES)
+    assert len(targets) == 40
+
+
+def test_resolve_targets_explicit_cities_passthrough():
+    from app.jobs.fetch_weather import resolve_targets
+
+    assert resolve_targets(cities=["北京", "上海"]) == ["北京", "上海"]
 
 
 # --- Open-Meteo 14 天预报（TREK 双轨第二源）-----------------------------------

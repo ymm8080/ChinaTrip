@@ -4,8 +4,9 @@
 免 key、forecast_days 上限 16、逐日数据覆盖中国（模式推算，精度低于高德
 的气象局实况口径——所以 0-3 天仍以高德为准，4-14 天用本源补齐）。
 
-无配额压力（免费档 1 万次/日）：40 城每次运行 40 次调用，可随三班调度
-每次全量。写入复用 weather_reports 表 latest-wins：
+无配额压力（免费档 1 万次/日）：40 城每次运行 40 次调用，随每日
+08:10 管线一班全量（2026-10-28 起一天一次）。写入复用 weather_reports
+表 latest-wins：
 source="open-meteo"、kind="forecast14"、payload 与高德 forecast 同构
 （casts 数组，date/day_weather/day_temp/night_temp），前端按日期匹配时
 两源无差别。
