@@ -26,6 +26,12 @@ FOREIGNER_TIP 配套 FOREIGNER_TIP_EN；中文键值字节不变，只加字段�
 试行免预约）、湖北省博物馆（5 天每日 17:18）、河南博物院（官方未注明
 ——note 注明以公众号为准）、甘肃省博物馆（3 天每日 17:00）、梵净山
 （当天 07:00 三轮投放，days=0=当天票）。
+
+批量核查并入（2026-10-29 起，data/reservation_pois.csv 待核行分批线上直核）：
+中共一大纪念馆（免费，1-7 天实名全预约，周一闭馆）、拙政园（7 天/零点放票，
+现场无售票）、灵隐飞来峰（分时预约，提前 1 天；门票+香花券分开买）——
+同批 7 行（西湖/朱家角/黄浦江游览/平江路/七里山塘/虎丘/周庄）判 无需预约
+不进本名单。差异项与批次明细见 DESIGN/reservation_seeds_核对_2026-10-25.md。
 """
 
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
@@ -198,6 +204,26 @@ RESERVATION_V0: dict[str, dict] = {
         "release": "07:00",
         "note": "官方 fanjingshan.gz.cn 实名分时预约：线上 5800 张/日三轮投放，散客票 07:00 起（节假日或提前至 06:30），当天 6:30-15:00 售当天票，22:00 后不售票；现场无售票窗口，旺季建议提前 1-3 天",  # noqa: E501
         "note_en": "Official fanjingshan.gz.cn timed reservation: 5,800 online tickets/day in three rounds, individual tickets from 07:00 (possibly 06:30 on holidays), same-day tickets sold 06:30-15:00, none after 22:00; no on-site ticket windows — book 1-3 days ahead in peak season",  # noqa: E501
+    },
+    # 批量核查并入（2026-10-29，data/reservation_pois.csv 待核 05 荐点批线上
+    # 直核：人民网/上海本地宝、苏州园林旅游官方口径、搜狐/大河票务预约指南）
+    "中共一大纪念馆": {
+        "days": 7,
+        "release": "00:00",
+        "note": "免费参观：公众号/小程序「中共一大纪念馆」实名全预约（提前 1-7 天，护照可约），分时段入馆；周一闭馆（国定假日除外）；一大会址与纪念馆两个入口分开预约",  # noqa: E501
+        "note_en": "Free entry by mandatory timed reservation (1-7 days ahead) on the official WeChat mini-program; passports accepted; closed Mondays; the CPC founding site and the memorial hall book separately",  # noqa: E501
+    },
+    "拙政园": {
+        "days": 7,
+        "release": "00:00",
+        "note": "全网实名分时预约（现场无售票窗口）：公众号「苏州园林旅游」/官网最多提前 7 天，热门日零点放票秒空；护照可约；夜游《拙政问雅》单独购票",  # noqa: E501
+        "note_en": "Mandatory real-name timed reservation (no on-site ticket windows) via the 'Suzhou Gardens Tourism' WeChat account or website, up to 7 days ahead; hot dates sell out at midnight release; passports accepted; night show ticketed separately",  # noqa: E501
+    },
+    "灵隐飞来峰": {
+        "days": 1,
+        "release": "00:00",
+        "note": "线上预约入园（上午场 7:30-12:00 / 下午场 12:00-17:00，可提前 1 天约）：官方公众号或「西湖旅游」；飞来峰门票 45 元与灵隐寺香花券 30 元分开购买",  # noqa: E501
+        "note_en": "Online timed reservation required (morning 7:30-12:00 / afternoon 12:00-17:00 sessions, bookable 1 day ahead) via the official WeChat account; Feilai Peak admission (CNY 45) and Lingyin Temple incense ticket (CNY 30) are sold separately",  # noqa: E501
     },
 }
 
