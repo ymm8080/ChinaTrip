@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.db import get_session_factory
 from app.services import trip_export
 from app.services.accounts import AccountService, parse_bearer_token
+from app.services.agent.plan import dedupe_plan_visits
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import DiffOp, PipelineError, PoiHours
 from app.services.itinerary_store import (
@@ -304,6 +305,10 @@ async def restore_snapshot(
         record = service.restore(record, snapshot_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="snapshot_not_found") from exc
+    # 恢复闸（2026-10-28 变脸 x4 事故）：旧快照可能冻结着重复站点，恢复
+    # 即合并——service.restore 已 put 过一次，合并非空时补一次 put 持久化。
+    if dedupe_plan_visits(record.plan):
+        store.put(record)
     return record
 
 

@@ -40,6 +40,7 @@ from app.services.agent.plan import (
     PoiStoreUnavailableError,
     clarify_questions,
     current_violations,
+    dedupe_plan_visits,
 )
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
@@ -198,6 +199,12 @@ async def save_plan(
         plan = plan.model_copy(update={"start_date": request.start_date})
         session.plan = plan
         store.save(session)
+    # 入库终闸（2026-10-28 变脸 x4 事故）：冻结快照前强制同站合并——
+    # 任何来源（旧代码进程编辑/历史脏会话）的重复站点从此进不了行程库；
+    # 合并发生时把工作副本一并存回会话。
+    if dedupe_plan_visits(plan):
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(
@@ -250,6 +257,9 @@ async def start_plan_from_itinerary(
         raise HTTPException(status_code=400, detail="missing_device_id")
     record = _owned_record(itinerary_store, itinerary_id, x_device_id, account)
     plan = record.plan.model_copy(deep=True)
+    # 同站合并开档闸（2026-10-28）：旧行程带出的重复站点（如变脸 x4）
+    # 开档即合并；行程库本体由 save 终闸兜住。
+    dedupe_plan_visits(plan)
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,
@@ -301,6 +311,9 @@ async def get_plan_session(
         raise HTTPException(status_code=404, detail="session_not_found")
     if session.plan is None:
         raise HTTPException(status_code=400, detail="no_plan")
+    # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
+    # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
+    dedupe_plan_visits(session.plan)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
