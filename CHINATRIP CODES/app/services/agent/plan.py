@@ -1181,6 +1181,8 @@ class PlanningAgent:
         self._amap = amap_client
         # Measured-leg cache: POI pairs are stable across re-solves.
         self._leg_cache: dict[tuple[str, str], tuple[float, int]] = {}
+        # 缺坐标专名解析失败的负例缓存（(city, name)）：本进程内不再重试，防刷新空烧配额
+        self._loc_misses: set[tuple[str, str]] = set()
         self._poi_details = poi_details
         self._ctrip_hours = ctrip_hours
         self._link_reader = (
@@ -3478,6 +3480,9 @@ class PlanningAgent:
             return
 
         async def fill(item: VisitItem) -> None:
+            miss_key = (item.city or "", item.name)
+            if miss_key in self._loc_misses:
+                return
             poi = None
             if self._poi_details is not None:
                 try:
@@ -3486,9 +3491,18 @@ class PlanningAgent:
                     logger.warning(
                         "plan: poi library lookup failed for %s", item.name
                     )
-            if poi is None and self._amap is not None:
-                poi = await self._lookup_poi(item.name, item.city)
             loc = poi.get("location") if isinstance(poi, dict) else None
+            # 库命中但行本身无坐标（博物馆骨架行常态）→ 继续地图兜底
+            if not (
+                isinstance(loc, dict)
+                or (isinstance(loc, (tuple, list)) and len(loc) == 2)
+            ):
+                poi = (
+                    await self._lookup_poi(item.name, item.city)
+                    if self._amap is not None
+                    else None
+                )
+                loc = poi.get("location") if isinstance(poi, dict) else None
             point: GeoPoint | None = None
             if isinstance(loc, dict):
                 try:
@@ -3502,6 +3516,9 @@ class PlanningAgent:
                     logger.warning("plan: bad location for %s: %s", item.name, loc)
             if point is not None:
                 item.location = point
+            else:
+                # 进程内记负例：刷新/连点不反复烧地图配额（重启即重试）
+                self._loc_misses.add(miss_key)
 
         todo = missing[:limit]
         for i in range(0, len(todo), 6):
