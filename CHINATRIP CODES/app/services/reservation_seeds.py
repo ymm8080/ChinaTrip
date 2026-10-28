@@ -242,6 +242,12 @@ RESERVATION_V0: dict[str, dict] = {
         "note": "强实名分时预约，现场不售票：小程序「黄山旅游官方平台」至少提前 1 天（当日不可约当日）；旺季 3-11 月建议提前 3 天、节假日提前 3-7 天抢热门时段；首次检票后 3 天内可多次入园",  # noqa: E501
         "note_en": "Strict real-name timed reservation, no on-site ticket sales: book on the 'Huangshan Tourism Official Platform' mini-program at least 1 day ahead (no same-day booking); in peak season (Mar-Nov) book 3 days ahead, 3-7 days for holidays to catch popular slots; re-entry allowed within 3 days of first ticket check",  # noqa: E501
     },
+    "殷墟": {
+        "days": 3,
+        "release": "00:00",
+        "note": "实名制售检票（2024-06-01 起）：公众号「殷墟博物馆」/官网/OTA 可预约购买 3 日内门票，二维码入馆凭本人身份证；新馆 80 元，联票两日内有效",  # noqa: E501
+        "note_en": "Real-name booking and ticket checks (since 2024-06-01): book tickets within the next 3 days on the 'Yinxu Museum' WeChat account, official site or OTA; enter with QR code + your own ID; new museum CNY 80, combo ticket valid 2 days",  # noqa: E501
+    },
 }
 
 FOREIGNER_TIP = (
