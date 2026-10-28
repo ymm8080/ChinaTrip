@@ -55,7 +55,7 @@
 | 7 | **UNESCO 刷新** | 教科文 | 59 项 | 83 行旧版对齐 | `unesco`（已有） | 待做（P2） |
 | 8 | **二级博物馆六省补缺** | 文物局 | 约 34 家（天津/吉林/贵州/青海/宁夏/新疆） | 补 museum2 缺口 | `museum2`（续） | 待做（P2） |
 | 9 | 国家级旅游度假区 | 文旅部 | 约 85 家 | 度假型，中等 | `resort` | 备选 |
-| 10 | 4A 旅游景区 | 文旅部/省评 | 3000+ | 量大价值密度低；读侧 tier 已预留 '4a' 标签 | `4a` | 备选（分批） |
+| 10 | **4A 旅游景区** | 文旅部/省评 | 3000+ | 量大价值密度低；读侧 tier 已预留 '4a' 标签 | `4a` | **审阅包 13 已备（2026-10-28，4,674 行官方汇编；未审不进库）** |
 | 11 | **旅游演艺（大型驻场演出）** | 无国家级评级（市场供给） | 头部约 50 驻场（33 城） | ⭐夜游经济/行程晚间档王牌（长恨歌/千古情/只有系列/印象系列）；携程 sight 目录同构可回源 | `show` | **审阅包 04 已备（2026-10-26；红色题材 3 行待拍板）** |
 
 ### 3.3 排除体系（与产品规则冲突/价值密度低）
@@ -116,3 +116,15 @@
 | v1.1 | 2026-10-26 演出数据源：§3.2 加「旅游演艺」体系行；新审阅包 `POIS DATASOURCE/04_演艺演出_主要旅游城市.csv`（50 行/33 城，西安 7+洛阳 1 行带实测 ctrip sight URL）；数据源盘点：携程 sight 目录+详情（主，ctrip_hours.py 同构）、trip.com（EN）、大麦/猫眼（场次）、演出方官网（档期权威）；slug 白名单覆盖 28/43 演出城市、缺 15 需 title-verified 逐一补 |
 | v1.2 | 2026-10-26 国际荐点归档：§2/§3.1 补 tripadvisor/lonelyplanet/viator 行（98 荐点，7230f26 已入库）；审阅包新增 `05_国际旅行网站荐点_TA-LP-Viator.csv`（`_INTL_PICKS` 导出快照；schema 城市制 city,name_zh,name_en,sites,site_sources,alias_zh，非评级体系制） |
 | v1.3 | 2026-10-28 街区/名镇第一批入库：`01_国家级旅游休闲街区_全四批204.csv` 仅第一批(2022) 54 行 + `05_中国历史文化名镇_312.csv` 仅第一批(2003) 10 行 → data/streets.csv、data/hist_towns.csv（city 统一地级市口径）；source=street/histown（slug st_/ht_，_GRADE_SOURCE/_SOURCE_SLUG 新映射，CURATED_SOURCES 与 enrich _SOURCE_PRIORITY 并入，category=historic/ancient_town，origin/tags_source=mct/mohurd）；中英文名 64/64 全填（backfill_en_columns 定向回填 + 人工补 1）；运维 ops/poi_street_histown.cmd；二~四批 / 名镇二~七批待后续拍板并入 |
+| v1.4 | 2026-10-29 4A 审阅包 + 出圈 park 清理：`POIS DATASOURCE/13_4A级旅游景区_官方汇编4674.csv`（官方省级名录 4,612+正式认定增补 67−取消/降级仍处状态 5=4,674；生成脚本 _src/build_4a_review_csv.py；未审不进库）；用户拍板 tier 链末位补 4A（…>01街区第一批>风景名胜区>4A）；新作业 app/jobs/prune_outofscope_parks 按链清理 category='park' 471→83（删 388，全量清单+回灌备份 data/parks_excluded_2026-10-29.csv，pois 4,846→4,458）；**库定位澄清：在库真相=WSL PostgreSQL 18（localhost:5432），docker chinatripcodes-db-1 系旧快照已停用关自启** |
+
+## museum3 三级博物馆入库（2026-10-29，第五批 240 家）
+
+- 来源：中国博物馆协会官网《第五批全国博物馆定级评估二、三级博物馆评估结果公布》
+  （contentId=13806，2024-08-23 博博会公布；名单正文为 PNG 名单图，baike/wiki 文字版
+  均不可达）——两张名单图下载后按切片逐段人工转录，省份数核对 127+113=240 家全。
+- 落库：data/museum_grades3.csv（name_zh,province,grade=国家三级博物馆,batch=第五批,
+  source_url=CMA 原文）→ import_museum_grades 同作业导入，source=museum3 骨架 240 行
+  （dry-run/live 均 created=240 exists=0），DB 现状 museum1=246 / museum2=344 / museum3=240。
+- 坐标留空由回源链补齐（骨架铁律）；第一批~第四批三级名单（约 565 家）待后续批次
+  从 CMA 历史公告补采（第四批 2020 名单亦为图片版，同法可转录）。
