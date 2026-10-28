@@ -27,11 +27,12 @@ FOREIGNER_TIP 配套 FOREIGNER_TIP_EN；中文键值字节不变，只加字段�
 ——note 注明以公众号为准）、甘肃省博物馆（3 天每日 17:00）、梵净山
 （当天 07:00 三轮投放，days=0=当天票）。
 
-批量核查并入（2026-10-29 起，data/reservation_pois.csv 待核行分批线上直核）：
-中共一大纪念馆（免费，1-7 天实名全预约，周一闭馆）、拙政园（7 天/零点放票，
-现场无售票）、灵隐飞来峰（分时预约，提前 1 天；门票+香花券分开买）——
-同批 7 行（西湖/朱家角/黄浦江游览/平江路/七里山塘/虎丘/周庄）判 无需预约
-不进本名单。差异项与批次明细见 DESIGN/reservation_seeds_核对_2026-10-25.md。
+批 2（沪苏杭）：中共一大纪念馆（免费，1-7 天实名全预约，周一闭馆）、拙政园
+（7 天/零点放票，现场无售票）、灵隐飞来峰（分时预约，提前 1 天；门票+香花券
+分开买）并入，西湖/朱家角/黄浦江游览/平江路/七里山塘/虎丘/周庄 7 行 无需预约。
+批 3（广深）：大梅沙海滨公园（旺季 5-10 月免费实名预约提前 7 天，淡季免约）
+并入，广州塔/沙面岛/长隆/珠江夜游/陈家祠/光孝寺/世界之窗/OCT-LOFT/深圳湾公园
+9 行 无需预约。差异项与批次明细见 DESIGN/reservation_seeds_核对_2026-10-25.md。
 """
 
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
@@ -224,6 +225,12 @@ RESERVATION_V0: dict[str, dict] = {
         "release": "00:00",
         "note": "线上预约入园（上午场 7:30-12:00 / 下午场 12:00-17:00，可提前 1 天约）：官方公众号或「西湖旅游」；飞来峰门票 45 元与灵隐寺香花券 30 元分开购买",  # noqa: E501
         "note_en": "Online timed reservation required (morning 7:30-12:00 / afternoon 12:00-17:00 sessions, bookable 1 day ahead) via the official WeChat account; Feilai Peak admission (CNY 45) and Lingyin Temple incense ticket (CNY 30) are sold separately",  # noqa: E501
+    },
+    "大梅沙海滨公园": {
+        "days": 7,
+        "release": "00:00",
+        "note": "旺季（每年 5-10 月）免费实名预约入园：小程序「大梅沙旅游」提前 7 天约，日限流约 8 万，凭身份证/手机号；淡季（11-4 月）无需预约直接入园；免费，谨防第三方收费代订",  # noqa: E501
+        "note_en": "Peak season (May-Oct): free real-name reservation required via the 'Dameisha Tourism' mini-program, bookable 7 days ahead, ~80k daily cap, ID/phone needed; off-season (Nov-Apr) walk in free; beware paid third-party resellers",  # noqa: E501
     },
 }
 
