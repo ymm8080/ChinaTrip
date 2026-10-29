@@ -41,11 +41,12 @@ def test_zh_fields_unchanged_and_present():
     for name, meta in RESERVATION_V0.items():
         assert set(("days", "release", "note", "note_en")) <= set(meta), name
         assert meta["note"], name
-    # 抽样：中文口径锚点未被英文补丁改动
+    # 抽样：中文口径锚点未被英文补丁改动（陕历博 2026-10-29 官网护照预约口径修正）
     assert RESERVATION_V0["故宫"]["note"] == (
         "微信小程序「故宫博物院」每日 20:00 放 7 天后门票，护照可约"
     )
-    assert RESERVATION_V0["陕西历史博物馆"]["note"].endswith("仅二代身份证，外籍需代订")
+    sxhm_note = RESERVATION_V0["陕西历史博物馆"]["note"]
+    assert sxhm_note.endswith("外籍走官网票务系统护照预约、到馆人工窗口换票")
 
 
 def test_reservation_meta_for_carries_note_en():
