@@ -19,11 +19,16 @@
 - HandoffStore 为进程内 dict，API 层用 translate.py 式懒单例接法。
 """
 
+import logging
 import re
+import uuid as _uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "AllianceFeedItem",
@@ -33,6 +38,7 @@ __all__ = [
     "InvalidTransitionError",
     "ParsedOrder",
     "parse_order_text",
+    "persist_handoff",
 ]
 
 # --- §4 action_handoffs 状态机常量 -------------------------------------------
@@ -72,20 +78,23 @@ _AMOUNT_RE = re.compile(
     r"|(\d+(?:\.\d{1,2})?)\s*元"
 )
 
-# 渠道关键词（纯函数侧只认这四个；小写渠道字面量留给「记录原 channel 命中」）
+# 渠道关键词（纯函数侧；小写渠道字面量留给「记录原 channel 命中」）
 _CHANNEL_KEYWORDS: dict[str, str] = {
     "12306": "12306",
     "ctrip": "携程",
     "qunar": "去哪儿",
     "meituan": "美团",
+    "klook": "klook",
 }
 
 # 记录原 channel 的别名集（apply 时与粘贴文本小写不敏感比对）
 _CHANNEL_ALIASES: dict[str, tuple[str, ...]] = {
     "12306": ("12306",),
-    "ctrip": ("携程", "ctrip"),
+    "ctrip": ("携程", "ctrip", "trip.com", "tripcom"),
     "qunar": ("去哪儿", "qunar"),
     "meituan": ("美团", "meituan"),
+    "klook": ("klook",),
+    "other": ("飞猪", "fliggy"),
 }
 
 
@@ -134,8 +143,9 @@ def _extract_order_ref(text: str) -> str | None:
 
 
 def _detect_channel(text: str) -> str | None:
+    low = text.lower()
     for channel, keyword in _CHANNEL_KEYWORDS.items():
-        if keyword in text:
+        if keyword in text or keyword in low:
             return channel
     return None
 
@@ -163,8 +173,8 @@ class HandoffRecord(BaseModel):
     """§4 action_handoffs 单条记录（进程内；id = uuid4 hex）。"""
 
     id: str
-    action_type: str  # train | flight | hotel
-    channel: str  # 12306 | qunar | ctrip | meituan
+    action_type: str  # train | flight | hotel | site_ticket
+    channel: str  # 12306 | qunar | ctrip | meituan | klook | other
     url: str
     status: str = STATUS_OPENED
     order_ref: str | None = None
@@ -191,10 +201,32 @@ class InvalidTransitionError(ValueError):
 
 class HandoffStore:
     """进程内 store + 状态机规则。API 层单例接法（懒初始化），
-    多进程部署需换共享存储——规则全在本类，替换不动端点。"""
+    多进程部署需换共享存储——规则全在本类，替换不动端点。
+
+    可选 persistence 钩子（attach_persistence）：每次状态推进后
+    best-effort 写穿 PG action_handoffs（重启不丢账）；钩子异常只留
+    日志不回滚内存态（内存是运行时真相，PG 是留痕账本）。
+    """
 
     def __init__(self) -> None:
         self._records: dict[str, HandoffRecord] = {}
+        self._persist: Callable[[HandoffRecord], None] | None = None
+
+    def attach_persistence(self, fn: Callable[[HandoffRecord], None]) -> None:
+        self._persist = fn
+
+    def _persist_safe(self, record: HandoffRecord) -> None:
+        if self._persist is None:
+            return
+        try:
+            self._persist(record)
+        except Exception:
+            logger.warning(
+                "handoff_persist_failed id=%s status=%s",
+                record.id,
+                record.status,
+                exc_info=True,
+            )
 
     # -- 基础读写 -------------------------------------------------------------
 
@@ -219,6 +251,7 @@ class HandoffStore:
             updated_at=now,
         )
         self._records[record.id] = record
+        self._persist_safe(record)
         return record
 
     def get(self, record_id: str) -> HandoffRecord | None:
@@ -271,6 +304,7 @@ class HandoffStore:
         record.source_channel = SOURCE_PASTE_RETURN
         record.order_ref = parsed.order_ref
         self._touch(record)
+        self._persist_safe(record)
         return record, parsed, True, None
 
     # -- 兜底通道：手动标记 ----------------------------------------------------
@@ -284,6 +318,7 @@ class HandoffStore:
         record.source_channel = SOURCE_MANUAL
         record.order_ref = order_ref
         self._touch(record)
+        self._persist_safe(record)
         return record
 
     # -- 可撤销 ---------------------------------------------------------------
@@ -306,6 +341,7 @@ class HandoffStore:
         record.order_ref = None
         record.source_channel = None
         self._touch(record)
+        self._persist_safe(record)
         return record
 
     # -- 自动通道：联盟订单同步（MVP 确定性 mock） -----------------------------
@@ -339,5 +375,44 @@ class HandoffStore:
             )
             record.source_channel = SOURCE_ALLIANCE_API
             self._touch(record)
+            self._persist_safe(record)
             advanced.append(record.id)
         return {"matched": matched, "advanced": advanced, "skipped": skipped}
+
+
+def persist_handoff(record: HandoffRecord) -> None:
+    """写穿 PG action_handoffs（database_design §4.4 账本表）。
+
+    insert-or-update by id（record.id = uuid4 hex 可直接 UUID() 解析）。
+    DB 缺席时由调用方（_persist_safe）留日志降级——服务器重启前内存
+    态仍在，账本尽力而为。
+    """
+    from app.db import get_session_factory
+    from app.models import ActionHandoff
+
+    row_id = _uuid.UUID(record.id)
+    with get_session_factory()() as session:
+        row = session.get(ActionHandoff, row_id)
+        if row is None:
+            session.add(
+                ActionHandoff(
+                    id=row_id,
+                    action_type=record.action_type,
+                    channel=record.channel,
+                    deeplink=record.url,
+                    status=record.status,
+                    order_ref=record.order_ref,
+                    source_channel=record.source_channel,
+                    refund_policy=(
+                        {"summary": record.refund_summary}
+                        if record.refund_summary
+                        else None
+                    ),
+                )
+            )
+        else:
+            row.status = record.status
+            row.order_ref = record.order_ref
+            row.source_channel = record.source_channel
+            row.updated_at = datetime.now(timezone.utc)
+        session.commit()

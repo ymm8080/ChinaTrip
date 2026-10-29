@@ -18,6 +18,7 @@ from app.services.agent.plan import (
     PlanningAgent,
     _parse_resto_answer,
     _parse_site_answer,
+    _same_site,
 )
 from app.services.itinerary import VisitItem
 from app.services.llm.base import ChatResult
@@ -746,3 +747,60 @@ def test_amap_city_overrides_wrong_extracted_city():
     assert day.base_city == "重庆"
     wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
     assert wishlist["十八梯"]["city"] == "重庆"
+
+
+# --- variant-name dedupe (plan already holds the site) ---------------------
+
+
+def test_same_site_variants():
+    assert _same_site("大足石刻", "大足石刻")
+    assert _same_site("大足石刻", "重庆大足石刻景区")
+    assert _same_site("大足石刻", "大足石刻（宝顶山）")
+    assert not _same_site("大足石刻", "洪崖洞")
+    assert not _same_site("", "大足石刻")
+
+
+def test_planned_site_repicked_from_video_not_duplicated():
+    """Plan already holds 大足石刻; the video pick names a variant
+    (大足石刻景区): no second plan row, no wishlist row, and the existing
+    entry is pinned so the 必去 intent still lands."""
+    reader = StubReader(LinkDigest(url="https://x/2", title="t", text="只有大足石刻"))
+    trip_items = TripItemService()
+    llm, agent = _ready_agent(
+        [
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "name": "大足石刻",
+                            "city": "重庆",
+                            "category": "sight",
+                            "day": 1,
+                        },
+                    ],
+                    "assumptions": [],
+                },
+                ensure_ascii=False,
+            ),
+            _sites_reply(["大足石刻景区"]),
+        ],
+        reader,
+        trip_items,
+    )
+    session = run(
+        agent.start(device_id="d", cities=["重庆"], days=2, preferences="石刻")
+    )
+    session, reply, _ = run(agent.message(session, "https://x/2 参考"))
+    assert session.state == "ready"
+    assert "未重复" in reply
+    visits = [
+        item
+        for day in session.plan.days
+        for item in day.items
+        if isinstance(item, VisitItem) and _same_site(item.name, "大足石刻")
+    ]
+    assert len(visits) == 1
+    assert visits[0].pinned
+    # 产品规则 2026-10-20：点选必去照写心愿单（仅计划层去重）
+    wishlist = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    assert wishlist == ["大足石刻景区"]

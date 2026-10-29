@@ -4,8 +4,9 @@ One table absorbs every write path — manual form, chat dialog, paste box,
 agent recommendation (iron rule 0: single source of truth). An item walks
 Wishlist -> Scheduled -> Booked; walking back to wishlist unschedules it.
 Pure logic only (store + transition rules): no HTTP imports, so the state
-machine is unit-testable directly. Storage is an in-process dict — process
-restart wipes it (MVP consensus, same as the itinerary store).
+machine is unit-testable directly. Storage is a plain dict;
+``state_persist.PersistentTripItemService`` subclasses it with SQLite
+write-through so items survive restarts (itinerary-store pattern).
 """
 
 from __future__ import annotations
@@ -46,6 +47,12 @@ def _iso_now(now: datetime | None) -> str:
     return (now if now is not None else datetime.now(timezone.utc)).isoformat()
 
 
+def _norm(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.strip().casefold() or None
+
+
 class TripItemService:
     """In-memory trip-item store + Wishlist/Scheduled/Booked state machine.
 
@@ -76,8 +83,20 @@ class TripItemService:
         opening_hours: str | None = None,
         now: datetime | None = None,
     ) -> dict:
+        """Idempotent create: returns the existing row instead of a new one
+        when this trip already holds the same poi_id / name+city."""
         if source not in SOURCES:
             raise InvalidSourceError(f"invalid_source:{source}")
+        duplicate = self._find_duplicate(
+            name, itinerary_id=itinerary_id, city=city, poi_id=poi_id
+        )
+        if duplicate is not None:
+            logger.info(
+                "trip_item_deduplicated id=%s name=%s",
+                duplicate["id"],
+                duplicate["name"],
+            )
+            return dict(duplicate)
         stamp = _iso_now(now)
         item = {
             "id": uuid4().hex,
@@ -269,3 +288,34 @@ class TripItemService:
             and item["position"] is not None
         ]
         return max(positions) + 1.0 if positions else 1.0
+
+    def _find_duplicate(
+        self,
+        name: str,
+        *,
+        itinerary_id: str | None,
+        city: str | None,
+        poi_id: str | None,
+    ) -> dict | None:
+        """Same trip + same thing = one row: poi_id is authoritative when
+        both sides carry it, else normalized name+city. Unwanted rows never
+        match — re-adding a rejected item starts a fresh wishlist entry
+        (the wish-sync path flips unwanted back on its own)."""
+        if poi_id:
+            for item in self._items.values():
+                if (
+                    item["itinerary_id"] == itinerary_id
+                    and item["status"] != STATUS_UNWANTED
+                    and item["poi_id"] == poi_id
+                ):
+                    return item
+        key_name, key_city = _norm(name), _norm(city)
+        for item in self._items.values():
+            if (
+                item["itinerary_id"] == itinerary_id
+                and item["status"] != STATUS_UNWANTED
+                and _norm(item["name"]) == key_name
+                and _norm(item["city"]) == key_city
+            ):
+                return item
+        return None

@@ -19,6 +19,7 @@ Degradation contract: a missing or raising amap client yields [] — an
 empty recommendation never breaks the main planning flow.
 """
 
+import logging
 import math
 from datetime import time
 from typing import Literal, Protocol
@@ -26,6 +27,8 @@ from typing import Literal, Protocol
 from pydantic import BaseModel
 
 from app.services.itinerary.models import DayPlan, GeoPoint, VisitItem
+
+logger = logging.getLogger(__name__)
 
 MealSlot = Literal["lunch", "dinner"]
 
@@ -117,6 +120,9 @@ async def search_restaurants(
     try:
         pois = await amap_client.search_poi(_RESTAURANT_KEYWORD, city=city)
     except Exception:
+        logger.warning(
+            "restaurants: search failed for %s, returning []", city, exc_info=True
+        )
         return []  # degraded empty recommendation, never raise upstream
     candidates: list[RestaurantCandidate] = []
     for poi in pois[:limit]:

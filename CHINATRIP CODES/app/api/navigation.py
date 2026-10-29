@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.services.amap_client import AmapClient, AmapError, AmapTimeoutError
 from app.services.deeplinks import compose_deeplink
+from app.services.map_provider import map_ready
 from app.services.trains import get_train_service
 from app.services.transport_reminders import (
     build_departure_reminders,
@@ -77,7 +78,7 @@ async def walking(
     settings: Settings = Depends(get_settings),
     client: AmapClient = Depends(get_amap_client),
 ) -> dict:
-    if settings.amap_api_key == "":
+    if not map_ready(settings):
         raise HTTPException(status_code=503, detail="amap_not_configured")
     try:
         route = await client.walking_route(_fmt(req.origin), _fmt(req.destination))
@@ -95,7 +96,7 @@ async def transit(
     settings: Settings = Depends(get_settings),
     client: AmapClient = Depends(get_amap_client),
 ) -> dict:
-    if settings.amap_api_key == "":
+    if not map_ready(settings):
         raise HTTPException(status_code=503, detail="amap_not_configured")
     cityd = req.cityd if req.cityd else None
     try:

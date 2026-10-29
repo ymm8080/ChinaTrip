@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import Settings, get_settings
 from app.services.amap_client import AmapClient, AmapError, AmapTimeoutError
+from app.services.map_provider import build_map_client, map_ready
 
 logger = logging.getLogger(__name__)
 
@@ -11,12 +12,9 @@ router = APIRouter(prefix="/api/v1/amap", tags=["amap"])
 
 
 def get_amap_client(settings: Settings = Depends(get_settings)) -> AmapClient:
-    return AmapClient(
-        key=settings.amap_api_key,
-        base_url=settings.amap_base_url,
-        timeout_seconds=settings.amap_timeout_seconds,
-        route_timeout_seconds=settings.amap_route_timeout_seconds,
-    )
+    """按 settings.map_provider 分流（baidu 时返回方法同构的 BaiduClient，
+    共用 AmapError 异常体系——返回注解写 AmapClient 仅为类型兼容）。"""
+    return build_map_client(settings)
 
 
 @router.get("/poi/search")
@@ -27,7 +25,7 @@ async def search_poi(
     settings: Settings = Depends(get_settings),
     client: AmapClient = Depends(get_amap_client),
 ) -> dict:
-    if settings.amap_api_key == "":
+    if not map_ready(settings):
         raise HTTPException(status_code=503, detail="amap_not_configured")
     try:
         items = await client.search_poi(keywords, city=city, page=page)
@@ -46,7 +44,7 @@ async def regeo(
     settings: Settings = Depends(get_settings),
     client: AmapClient = Depends(get_amap_client),
 ) -> dict:
-    if settings.amap_api_key == "":
+    if not map_ready(settings):
         raise HTTPException(status_code=503, detail="amap_not_configured")
     try:
         info = await client.regeo(lon=lon, lat=lat)
@@ -63,7 +61,7 @@ async def ip_locate(
     settings: Settings = Depends(get_settings),
     client: AmapClient = Depends(get_amap_client),
 ) -> dict:
-    if settings.amap_api_key == "":
+    if not map_ready(settings):
         raise HTTPException(status_code=503, detail="amap_not_configured")
     try:
         info = await client.ip_locate()

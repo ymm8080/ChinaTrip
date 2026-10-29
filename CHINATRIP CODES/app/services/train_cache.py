@@ -18,6 +18,7 @@
 """
 
 import asyncio
+import logging
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, time, timedelta, timezone
@@ -44,6 +45,8 @@ from app.services.trains import (
     TrainService,
     _build_remote_chain,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -152,6 +155,13 @@ class CachedTrainService(TrainService):
             # 返回的 TrainOption.date 也即 qdate，读缓存/落库键一致。
             options = await self._inner.search(from_city, to_city, qdate)
         except Exception:
+            logger.warning(
+                "train_cache: inner source failed %s→%s %s, serving stale batch",
+                from_city,
+                to_city,
+                qdate,
+                exc_info=True,
+            )
             if stale:
                 return [_record_to_option(record) for record in stale]
             raise

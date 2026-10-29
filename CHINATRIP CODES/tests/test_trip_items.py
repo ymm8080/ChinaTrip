@@ -86,7 +86,7 @@ def test_create_returns_201_with_wishlist_defaults():
     with TestClient(make_app()) as client:
         for source in ("manual", "chat", "paste", "agent_recommend", "plan_delete"):
             resp = client.post(
-                "/api/v1/trip-items", json={"name": "x", "source": source}
+                "/api/v1/trip-items", json={"name": f"x-{source}", "source": source}
             )
             assert resp.status_code == 201
             assert resp.json()["source"] == source
@@ -123,6 +123,80 @@ def test_create_carries_address_and_opening_hours():
         )
     assert item["address"] == "上海市黄浦区中山东一路"
     assert item["opening_hours"] == "全天开放"
+
+
+# --- dedup (idempotent create) -------------------------------------------------
+
+
+def test_create_dedups_same_name_city_within_itinerary_across_sources():
+    """manual + agent_recommend of the same thing -> one row, existing wins."""
+    service = TripItemService()
+    first = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
+    second = service.create(
+        "  西湖 ", source="agent_recommend", itinerary_id="t1", city="杭州"
+    )
+    assert second["id"] == first["id"]
+    assert second["source"] == "manual"
+    assert [i["name"] for i in service.list_groups("t1")["wishlist"]] == ["西湖"]
+
+
+def test_create_dedups_by_poi_id_even_when_name_differs():
+    service = TripItemService()
+    first = service.create(
+        "西湖", source="manual", itinerary_id="t1", city="杭州", poi_id="B001"
+    )
+    second = service.create(
+        "West Lake", source="chat", itinerary_id="t1", city="杭州", poi_id="B001"
+    )
+    assert second["id"] == first["id"]
+
+
+def test_create_dedup_scopes_to_itinerary_and_city():
+    service = TripItemService()
+    a = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
+    b = service.create("西湖", source="manual", itinerary_id="t2", city="杭州")
+    c = service.create("西湖", source="manual", itinerary_id="t1", city="苏州")
+    assert len({a["id"], b["id"], c["id"]}) == 3
+
+
+def test_create_dedup_ignores_unwanted_rows():
+    """A rejected item does not block re-adding: fresh wishlist row."""
+    service = TripItemService()
+    parked = service.mark_unwanted("西湖", itinerary_id="t1", city="杭州")
+    fresh = service.create("西湖", source="manual", itinerary_id="t1", city="杭州")
+    assert fresh["id"] != parked["id"]
+    assert fresh["status"] == "wishlist"
+    groups = service.list_groups("t1")
+    assert [i["name"] for i in groups["unwanted"]] == ["西湖"]
+    assert [i["name"] for i in groups["wishlist"]] == ["西湖"]
+
+
+def test_create_dedup_over_api_returns_201_with_existing_id():
+    with TestClient(make_app()) as client:
+        first = create_item(client, itinerary_id="t1", city="上海")
+        resp = client.post(
+            "/api/v1/trip-items",
+            json={
+                "name": "外滩夜景",
+                "source": "chat",
+                "itinerary_id": "t1",
+                "city": "上海",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["id"] == first["id"]
+        board = client.get("/api/v1/trip-items", params={"itinerary_id": "t1"}).json()
+        assert len(board["wishlist"]) == 1
+
+
+def test_mark_unwanted_fallback_absorbs_normalized_active_match():
+    """Loop misses (exact name), create-level dedup catches (normalized):
+    the active row is parked instead of a shadow unwanted twin."""
+    service = TripItemService()
+    item = service.create("West Lake", source="manual", itinerary_id="t1")
+    parked = service.mark_unwanted("west lake", itinerary_id="t1")
+    assert parked["id"] == item["id"]
+    assert parked["status"] == "unwanted"
 
 
 # --- list ----------------------------------------------------------------------
@@ -175,9 +249,9 @@ def test_list_groups_and_orders_three_states():
 
 def test_schedule_appends_position_within_day_and_honors_explicit():
     with TestClient(make_app()) as client:
-        a = create_item(client, itinerary_id="t1")
-        b = create_item(client, itinerary_id="t1")
-        c = create_item(client, itinerary_id="t1")
+        a = create_item(client, itinerary_id="t1", name="a")
+        b = create_item(client, itinerary_id="t1", name="b")
+        c = create_item(client, itinerary_id="t1", name="c")
         first = schedule(client, a["id"], day=1)
         second = schedule(client, b["id"], day=1)
         explicit = schedule(client, c["id"], day=1, position=9.5)
@@ -520,3 +594,61 @@ def test_router_wires_all_five_paths():
         route.methods for route in router.routes if route.path == "/api/v1/trip-items"
     ]
     assert {"POST", "GET"} <= set().union(*collection)
+
+
+# --- persistence (2026-10-23 心愿单蒸发 fix) ------------------------------------
+
+
+def test_persistent_service_survives_reinstall(tmp_path):
+    """A fresh service over the same DB sees prior writes: create/schedule
+    round-trip, delete is honored, corrupt rows are skipped not fatal."""
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    svc = PersistentTripItemService(SqliteStateBackend(db))
+    item = svc.create("外滩", source="manual", itinerary_id="t1", city="上海")
+    svc.update(item["id"], status="scheduled", day=2)
+    keeper = svc.create("留着的", source="chat", itinerary_id="t1")
+
+    reloaded = PersistentTripItemService(SqliteStateBackend(db))
+    loaded = reloaded.get(item["id"])
+    assert loaded["name"] == "外滩"
+    assert loaded["status"] == "scheduled"
+    assert loaded["day"] == 2
+    assert reloaded.get(keeper["id"])["status"] == "wishlist"
+
+    reloaded.delete(keeper["id"])
+    again = PersistentTripItemService(SqliteStateBackend(db))
+    assert again.get(keeper["id"]) is None
+    assert again.get(item["id"])["status"] == "scheduled"
+
+
+def test_persistent_service_skips_corrupt_row(tmp_path):
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    backend = SqliteStateBackend(db)
+    backend.save_trip_item("bad", "{not json")
+    service = PersistentTripItemService(backend)
+    assert service.get("bad") is None
+    assert "bad" in backend.load_trip_items()  # row left on disk, not fatal
+
+
+def test_persistent_mark_unwanted_write_through(tmp_path):
+    """mark_unwanted rides create/update internally — both land on disk."""
+    from app.services.state_persist import (
+        PersistentTripItemService,
+        SqliteStateBackend,
+    )
+
+    db = str(tmp_path / "state.db")
+    svc = PersistentTripItemService(SqliteStateBackend(db))
+    svc.mark_unwanted("新天地", itinerary_id="t1", city="上海")
+    reloaded = PersistentTripItemService(SqliteStateBackend(db))
+    assert [i["name"] for i in reloaded.list_groups("t1")["unwanted"]] == ["新天地"]

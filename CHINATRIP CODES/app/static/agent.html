@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>坐席台 · Agent Console — ChinaTrip 通话咨询</title>
+<style>
+  :root { --bg:#f5f7fa; --border:#d9e2ec; --accent:#2c5fa8; --accent-soft:#e3ecf7;
+          --muted:#5f6b7a; --ok:#1c7c43; --warn:#b7791f; --bad:#b3352c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+         background:var(--bg); color:#1a1a1a; font-size:14px; padding:14px; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:10px;
+          padding:12px 14px; margin:0 auto 12px; max-width:640px; }
+  h1 { font-size:17px; margin:0 0 6px; color:var(--accent); }
+  h2 { font-size:14px; margin:4px 0; }
+  .muted { color:var(--muted); font-size:12px; }
+  input { border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+          font-size:14px; flex:1; min-width:0; }
+  button { border:1px solid var(--border); background:var(--accent-soft); color:var(--accent);
+           border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  button:hover { filter:brightness(.97); }
+  button.danger { background:#fbeaea; color:var(--bad); border-color:#e6b8b4; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 0; }
+  .sess { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  .sess.waiting { border-left:4px solid var(--warn); }
+  .sess.active { border-left:4px solid var(--ok); }
+  .badge { font-size:12px; padding:2px 8px; border-radius:99px; background:var(--accent-soft); }
+  .timer { font-variant-numeric:tabular-nums; font-size:16px; font-weight:600; }
+  .beep { background:#fff3cd; }
+</style>
+</head>
+<body>
+
+<div class="card" id="loginCard">
+  <h1>🎧 坐席台 · Agent Console</h1>
+  <div class="muted">真人通话咨询（paid_call_service_design_2026-10-25）· 员工键由管理员配置（AGENT_CONSOLE_KEY）</div>
+  <div class="row">
+    <input id="agentKey" type="password" spellcheck="false" placeholder="员工键 / agent key">
+    <input id="agentName" spellcheck="false" placeholder="坐席名 / your name" style="max-width:140px">
+    <button id="btnLogin">进入 / Enter</button>
+  </div>
+  <div class="muted" id="loginMsg"></div>
+</div>
+
+<div class="card" id="mainCard" style="display:none">
+  <div class="row" style="justify-content:space-between">
+    <h1 style="margin:0">🎧 坐席台 <span class="badge" id="agentWho"></span></h1>
+    <div class="row">
+      <a class="muted" id="hotlineLink" href="#" style="display:none"></a>
+      <button id="btnLogout" style="padding:4px 10px;font-size:12px">退出</button>
+    </div>
+  </div>
+  <div class="muted">等待中的旅客呼入（direct=旅客正拨打热线，callback=需外呼）；5 秒自动刷新</div>
+  <div id="queue"></div>
+</div>
+
+<script>
+"use strict";
+const KEY_STORE = "chinatrip_agent_key";
+const NAME_STORE = "chinatrip_agent_name";
+let pollT = null;
+
+function $(id) { return document.getElementById(id); }
+function hdrs() {
+  return { "Content-Type": "application/json", "X-Agent-Key": localStorage.getItem(KEY_STORE) || "",
+           "X-Agent-Name": localStorage.getItem(NAME_STORE) || "agent" };
+}
+async function req(path, body, method) {
+  const res = await fetch("/api/v1/call" + path, {
+    method: method || "GET",
+    headers: hdrs(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (res.status === 401 || res.status === 503) { logout(res.status); throw new Error("auth"); }
+  if (!res.ok) throw new Error((data && data.detail) || ("http_" + res.status));
+  return data;
+}
+function mmss(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+}
+
+async function refreshQueue() {
+  let q;
+  try { q = await req("/agent/queue"); } catch (e) { if (e.message !== "auth") $("queue").textContent = "刷新失败: " + e.message; return; }
+  if (q.hotline) { $("hotlineLink").style.display = ""; $("hotlineLink").href = "tel:" + q.hotline;
+                   $("hotlineLink").textContent = "☎️ 热线 " + q.hotline; }
+  const box = $("queue"); box.innerHTML = "";
+  if (!q.sessions.length) { box.innerHTML = '<div class="muted" style="padding:8px 0">暂无等待/进行中的通话 · No calls waiting</div>'; }
+  q.sessions.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "sess " + (s.status === "active" ? "active" : "waiting");
+    const modeTxt = s.mode === "direct"
+      ? "📲 旅客直拨呼入（请接听热线）"
+      : "📞 回拨 <a href='tel:" + (s.phone || "") + "'>" + (s.phone || "–") + "</a>";
+    if (s.status === "waiting") {
+      const btn = document.createElement("button");
+      btn.textContent = "✅ 接听 / Answer";
+      btn.onclick = async () => {
+        try {
+          await req("/agent/sessions/" + s.id + "/answer", {});
+          refreshQueue();
+        } catch (e) { alert("接听失败: " + e.message); }
+      };
+      div.appendChild(Object.assign(document.createElement("div"), { innerHTML:
+        "<b>⏳ 等待中</b> · 已等 " + mmss(s.wait_seconds) + " · " + s.granted_minutes + " 分钟 <span class='muted'>#" + s.id.slice(0, 6) + "</span>" }));
+      div.appendChild(Object.assign(document.createElement("div"), { innerHTML: modeTxt }));
+      div.appendChild(btn);
+      if (s.wait_seconds > 90) div.classList.add("beep"); // 超过 90s 高亮提醒
+    } else {
+      const btn = document.createElement("button");
+      btn.className = "danger";
+      btn.textContent = "⛔ 挂断 / End";
+      btn.onclick = async () => {
+        if (!confirm("确认挂断该通话？未用整分钟将退回旅客余额。")) return;
+        try { await req("/agent/sessions/" + s.id + "/end", {}); refreshQueue(); }
+        catch (e) { alert("挂断失败: " + e.message); }
+      };
+      div.appendChild(Object.assign(document.createElement("div"), { innerHTML:
+        "<b>🟢 通话中</b> · <span class='timer'>" + mmss(s.consumed_seconds) + "</span> 已用 · 剩余 " + mmss(s.remaining_seconds)
+        + " · " + s.granted_minutes + " 分钟 <span class='muted'>#" + s.id.slice(0, 6) + " · " + (s.agent || "") + "</span>" }));
+      div.appendChild(btn);
+    }
+    box.appendChild(div);
+  });
+}
+
+function startPolling() {
+  if (pollT) clearInterval(pollT);
+  refreshQueue();
+  pollT = setInterval(refreshQueue, 5000);
+}
+
+function login() {
+  const key = $("agentKey").value.trim();
+  const name = $("agentName").value.trim() || "agent";
+  if (!key) { $("loginMsg").textContent = "请输入员工键"; return; }
+  localStorage.setItem(KEY_STORE, key);
+  localStorage.setItem(NAME_STORE, name);
+  enter();
+}
+function logout(code) {
+  if (code === 503) $("loginMsg").textContent = "服务端未启用坐席台（AGENT_CONSOLE_KEY 未配置）";
+  else if (code === 401) $("loginMsg").textContent = "员工键不正确";
+  localStorage.removeItem(KEY_STORE);
+  $("loginCard").style.display = ""; $("mainCard").style.display = "none";
+  if (pollT) { clearInterval(pollT); pollT = null; }
+}
+function enter() {
+  $("loginCard").style.display = "none";
+  $("mainCard").style.display = "";
+  $("agentWho").textContent = localStorage.getItem(NAME_STORE) || "agent";
+  startPolling();
+}
+
+$("btnLogin").addEventListener("click", login);
+$("agentKey").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+$("btnLogout").addEventListener("click", () => logout(0));
+(function init() {
+  if (localStorage.getItem(KEY_STORE)) { $("agentKey").value = localStorage.getItem(KEY_STORE); enter(); }
+})();
+</script>
+</body>
+</html>

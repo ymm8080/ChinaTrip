@@ -9,21 +9,29 @@
 
 ---
 
-## 📄 当前版本（v2.4.4）
+## 📄 当前版本（v2.5）
 
-- [设计文档 v2.4](travel_agent_system_design%20V2.4.md) — 国内区先行 · MVP 最小成本（**§6.14 全局 Agent 四组件 + Memory 四层 + 写表权限分级 / §5 行程中心三态 + 个人主页·链接历史 / §6.11 转链交易中心** / §6.13 入境五模式导航 / §6.12 快慢双车道 + 万级容量基线 / §9.0 阶段安排 M0–M4 · M1.5 / 铁律 0–23 · LLM 分阶段：MVP 智谱云 → 规模化自建；**v2.4.1 MVP 冒烟期自定义账号（多设备单身份）** / **v2.4.3 行程时间轴相邻站点距离 + 营业时间前置展示** / **v2.4.4 POI 详情入库 + 每日回源作业（携程先→高德V5；规划只读库）**）
-- [系统架构图 v2.4](architecture_diagram%20V2.4.svg) — 五层架构：移动层（Flutter 双端 + 端侧引擎 + 步行导航 + 个人主页）→ 接入层（国内区 Phase 1）→ 后端服务（Agent + Memory 四层 + 变更管线 + CP-SAT + 转链交易中心 + 快慢双车道）→ 数据层（trip_items / user_profiles / link_history）→ 依赖层
+- [设计文档 v2.5](travel_agent_system_design%20V2.5.md) — 国内区先行 · MVP 最小成本（**§6.14 全局 Agent 四组件 + Memory 四层 + 写表权限分级 / §5 行程中心三态 + 个人主页·链接历史 / §6.11 转链交易中心** / §6.13 入境五模式导航 / §6.12 快慢双车道 + 万级容量基线 / §9.0 阶段安排 M0–M4 · M1.5 / 铁律 0–23 · LLM 分阶段：MVP 智谱云 → 规模化自建；v2.4.x = MVP 冒烟期账号（多设备单身份→邮箱认证）/ 行程时间轴相邻站点距离+营业时间前置 / POI 详情入库+每日回源作业（携程先→高德V5；规划只读库）；**v2.5 城市 POI 底库：多源导入（ChinaTravel/OSM/5A/UNESCO/博物馆分级）+ 回源铁律（外部源仅候选、高德/携程为真相）+ restaurants 独立表 + 简介照片/时段（best_visit_time）回填 + 米其林/黑珍珠品质标签 + 博物馆分级名单入库（museum1/2/3 骨架+等级标签）+ 心愿单吸收必去（\_absorb_wishlist）+ 站点同一性去重（\_same_site）+ 行程条目钉住/删除回写「不想去」+ h5_keepalive v2；solver 消费 best_visit_time（夜景自动排晚上）已接线：_BEST_VISIT_WINDOWS 时段窗 + 营业时间窗收紧 + S5 场演窗（2026-10-26）**）
+- [预约与预订设计 2026-10-25](booking_design_2026-10-25.md) — **与代码同步**：预约自动化三档栈（L1 抢票日历/L2 渠道可订性/L3 下单闭环非 ACP 主案，档位自选+降级链）+ 语义纠偏（国内库存=携程联盟/同程/美团；预约馆 official_quota）+ 17 馆名单 + 回填收口 + 渠道矩阵 + 自产热度飞轮（含客户速览 §8）
+- [演出预订与代下单设计 2026-10-26](show_booking_design_2026-10-26.md) — **目标态拍板：机器代下单、客户自己付款**：F1–F7 事实（锁单窗 4–15min/无共享付款链接/强实名）→ 双路径（A=今日 L3 预填秒确认 / B=签约分销代订待付+自定 30min 窗口）+ 合规红线（不批量占单/铁律 22·23）+ S1–S5 演出特化（放票任务/实名托管/回流蹲守/档期守护/晚间档 solver）+ P0–P2 分期 + §7 全品类推广（住宿=到店付原生免收款资质/机票=占位-出票分离 TMC/演出最严）
+- [客户付款层设计 2026-10-25](payments_design_2026-10-25.md) — **与代码同步**：公司↔客户收款（pay_now 立即支付 + save_method 存卡代订扣款）· 网关协议 mock 先行 · **生产主通道=支付宝 wap 直连（待个体工商户资质）；Visa/MC 直连渠道开发经用户拍板取消（2026-10-25，无境外主体）——stripe adapter 保留为预留不上线** · webhook 验签 + 运营扣款 X-Operator-Token 守卫 · **原始卡号/CVV 永不经服务器**（酒店式代录明确不做）· 铁律 22 渠道 handoff 不变的收款豁免层（paid_call 通话咨询复用同协议）
+- [真人通话咨询服务设计 2026-10-25](paid_call_service_design_2026-10-25.md) — **与代码同步**：预付费分钟账本（$1=5 分钟 / ¥8=5 分钟，套餐 5/10/20/60，余额可累积）+ 服务端权威通话会话（**v1.1 旅客 tel: 直拨坐席为主路径**/留号回拨备选；**v1.2 计时三要素全程可见 + 通话记录**；到点强结 exhausted、提前挂断退整分钟、120s 未接通全退）+ 网关可替换收款（mock 零网络先行；支付宝 wap 为主/Stripe 预留——与付款层同协议同键）+ 坐席台 `agent.html`（X-Agent-Key 守卫）+ SQLite 侧库三表（call_orders/call_sessions/call_minutes_entries，provider_ref 幂等）+ 施工清单 `paid_call_service_PROGRESS.md`
+- [规划引擎升级与底库富化设计 2026-10-24](planning_engine_upgrade_2026-10-24.md) — **待审查**：三层问题定位（候选层 8 条/城、选点层 LLM 盲选、排期层 solver 裸跑）× 11 家竞品调研吸收清单；底库字段补全 A-D 四组（**已到手在丢**：高德 v5 rating/photos 每次回源返回但落库丢弃、携程 sight 页建议时长/点评数/点评标签同页未解析）+ 评论域新表 poi_reviews/poi_stats（trip_items 行为聚合=自有热度源）+ 四层互动闭环（问卷/卡片反馈/打卡/行后点评）+ 小红书四路径（无官方内容 API，批量导入+图文解析）+ 地理规划器（商圈聚类分日+地图增强）+ 迁移 0009 与 P0-P2 计划——每项带重要度×开发量评级
+- [系统架构图 v2.5](architecture_diagram%20V2.5.svg) — 五层架构：移动层（Flutter 双端 + 端侧引擎 + 步行导航 + 个人主页）→ 接入层（国内区 Phase 1）→ 后端服务（Agent + Memory 四层 + 变更管线 + CP-SAT + 转链交易中心 + 快慢双车道 + POI 底库导入/回填/标签管线）→ 数据层（trip_items / user_profiles / link_history / pois 扩展字段 + restaurants）→ 依赖层
+- [功能缺口与开发计划 2026-10-23](feature_gap_and_dev_plan_2026-10-23.md) — vs 16 个热门 OSS 仓库 + 主流消费级 AI 旅行产品 + pypitravel：18+5 项缺口清单（重要度×成本）+ P0–P3 排序（导出/分享/拖拽/打包清单 → 拖拽编辑/天气/PWA/推送/地图增强/POI 底库）+ POI 底库数据源矩阵与自建路径 + 圆周旅迹导入探活结论
+- [数据库设计](database_design.md) — v1.17（纯设计口径，无代码）：PG 表五域（v2.5 pois 15 列扩容 + restaurants + weather_reports + 评论域 poi_reviews/poi_stats + payments + 行程 PG 状态；迁移史 0001–0018）+ 本机 SQLite 6 表；**数据源×刷新矩阵**（L0–L4 优先级分层、14 源频率/时机/模式、字段链序、刷新模式词汇表）；稳定键/双坐标/溯源/快照不可变等铁律 9 条；迁移史速查
 - [UPGRADE COST](UPGRADE%20COST.md) — 阿里云 GPU 自建 vLLM 最低成本估算与升级触发条件（v2.0 配套）
 
 ## 🗄 历史版本
 
-- `ARCHIVE/` — v1.0 → V2.3 全部旧版（V2.3 = 转链交易中心，2026-10-18 v2.4 升版归档）
+- `ARCHIVE/` — v1.0 → V2.4 全部旧版（V2.4 = 行程中心 + 全局 Agent + POI 详情入库 v2.4.0–v2.4.4，2026-10-23 v2.5 升版归档）
 - `archive_v1/`（AutoClaw 工作区副本侧）
 
 ## 🧭 仓库导航
 
 - [README](../README.md) — 仓库说明与 Claude Code 集成
 - [CLAUDE.md](../CLAUDE.md) — Claude Code 项目约定
+- [审计卫生登记 2026-10-27](audit_hygiene_2026-10-27.md)（[PDF 版](audit_hygiene_2026-10-27.pdf)）— 代码与设计全量审计：守门终态 + 修复清单 + 仓库卫生待清理清单（审计自动化每轮覆盖更新 md；PDF 为快照版，需手动重生成）
 - `CHINATRIP CODES/` · `DAILY OPERATION/` · `mcp/` · `scripts/` — 代码与运维目录
 
 ---
@@ -40,3 +48,5 @@
 8. **行程中心 + 全局 Agent（v2.4）**：Wishlist→Scheduled→Booked 三态单一事实源（trip_items，手动/对话/粘贴同表同管线）；Memory 四层（Trip State/画像/会话/偏好蒸馏——结构化存储永不只存对话历史）；**写表权限分级：行程变更先方案后写表，纯增量直接写+可撤销**；订单回填三层管道（粘贴回填为主/返回询问/联盟同步双源验证；拒绝通知监听与剪贴板嗅探）
 9. **MVP 冒烟期自定义账号（v2.4.1 起，v2.4.2 升级邮箱认证）**：注册=邮箱+密码+邮箱确认码激活，登录=邮箱+密码，找回密码=确认码+新密码（多设备单身份，零外部依赖；SMTP 未配置=开发态回显验证码；登录/注册即认领当前设备行程，owner_account_id=邮箱）；OAuth（支付宝/微信）待企业主体落地后启用，认领关系届时迁移至正式身份；匿名设备 ID 路径保留为默认态
 10. **行程时间轴展示（v2.4.3）**：同日相邻站点显示距离 + 步行估时——直线估算为基线（离线/无 Key 必达），高德 /v3/direction/walking 步行实测升档（POI 吸附 + 坐标对缓存 + 限量 24 腿 + 静默降级，leg_source=estimate|amap 标注口径）；营业时间高德主源（v3 搜索缺失时 v5 place/detail 按需补充回源——opentime_week 含闭馆日/节假日；携程 sight 页 PoC 兜底——slug 白名单 9 城 + 早停索引；高德 v5 关键词搜索为最终兜底（覆盖无 poi_id 条目）；库未命中当场走链并 APPEND 入库；美团/点评不可直连，联盟 API 归入 W9-10 渠道实测）、缺失明示「以现场为准」不虚构；trip_items 增 address/opening_hours（迁移 w12_0004）
+11. **客户付款层（2026-10-25）**：公司↔客户收款 = 独立收款层（**铁律 22 渠道 handoff 不变**，渠道侧支付永不代做）；双形态 pay_now 立即支付 + save_method 存卡代订扣款（concierge）；网关协议 mock 先行（零网络联调）；**生产主通道 = 支付宝 wap 直连（2026-10-25 用户拍板）**——个体工商户即可申请，外国卡（Visa/MC/Amex/JCB）绑支付宝钱包支付，≤¥200 免费/以上约 3%；**Visa/MC 直连渠道开发取消**（无境外主体；stripe adapter 保留为预留代码不上线）；**原始卡号/CVV 永不经服务器不落库**（酒店式「代录卡号」明确不做）；运营扣款走 X-Operator-Token 共享密钥守卫，未配置=禁用
+12. **§6.12 快慢双车道落地（2026-10-27）**：请求分类闸门三级（规则→意图缓存 TTL→Flash 兜底，失败 escalate 主车道）+ 快车道确定性直答（poi_hours/wishlist/translate/restaurant，答不出回主车道宁缺毋错）+ 慢车道异步队列（`task_queue.py` SQLite 持久化 + asyncio worker + 崩溃恢复 requeue；POST /tasks 202 即回「已受理」，H5 3s×40 轮询）+ 车道指标（`/api/v1/metrics/lanes`：off_main_share≥0.8 / fast p95<1s / slow 受理<3s 给 met 布尔）；**取舍：设计书 Redis → 本仓库无 Redis 用 SQLite 持久化队列**（换 TaskStore 实现即可上 Redis，协议与端点不变）；LLM 主力/Flash 均钉死 glm-5.3-flash（用户拍板，分级靠闸门+温度/长度）；28e098c 入库

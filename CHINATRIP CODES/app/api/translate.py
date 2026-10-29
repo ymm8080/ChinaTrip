@@ -33,7 +33,9 @@ def get_translation_service(
 ) -> TranslationService:
     """Process-wide singleton: FastAPI re-evaluates plain dependencies per
     request, and a fresh service per request would empty the phrase cache
-    every time — the cache must persist across requests (§6.10)."""
+    every time — the cache must persist across requests (§6.10).
+    直接调用（不经 FastAPI）时须显式传 settings——Depends 默认值只在
+    DI 解析时求值（fast_lane 曾因此拿到裸 Depends 对象）。"""
     global _service_singleton
     if _service_singleton is None:
         _service_singleton = TranslationService(

@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "retrieved_at": "2026-09-10",
+  "coverage_note": "已核验的取消/降级更正共15条：原安徽7条为报道转述；新增北京2条、辽宁1条、广东5条来自主管部门正式公告。仅抑制旧4A/5A，不把取消评级等同于景区闭园；未声称全国撤销记录全量。",
+  "items": [
+    {
+      "name": "玉博园",
+      "province": "安徽省",
+      "city": "六安市",
+      "aliases": [
+        "金寨县大别山玉博园景区"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级；维基历史条目使用简称“玉博园”。"
+    },
+    {
+      "name": "小南京乡村旅游扶贫示范区",
+      "province": "安徽省",
+      "city": "六安市",
+      "aliases": [
+        "小南京乡村旅游景区"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级；旧表名为小南京乡村旅游扶贫示范区，所在地为金寨县。"
+    },
+    {
+      "name": "桐城活海旅游区",
+      "province": "安徽省",
+      "city": "安庆市",
+      "aliases": [
+        "桐城市活海欢乐水世界景区"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级；维基历史条目名为桐城活海旅游区。"
+    },
+    {
+      "name": "肥西县老母鸡家园",
+      "province": "安徽省",
+      "city": "合肥市",
+      "aliases": [
+        "合肥市肥西老母鸡家园"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级。"
+    },
+    {
+      "name": "岱山湖旅游度假区",
+      "province": "安徽省",
+      "city": "合肥市",
+      "aliases": [
+        "肥东县岱山湖旅游景区"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级；维基历史条目名为岱山湖旅游度假区。"
+    },
+    {
+      "name": "怀宁孔雀东南飞旅游景区",
+      "province": "安徽省",
+      "city": "安庆市",
+      "aliases": [
+        "怀宁县孔雀东南飞景区"
+      ],
+      "action": "removed",
+      "effective_date": "2026-09-07",
+      "current_rating": "",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定取消该景区4A级旅游景区质量等级。"
+    },
+    {
+      "name": "安庆巨石山生态文化旅游区",
+      "province": "安徽省",
+      "city": "安庆市",
+      "aliases": [
+        "安庆市宜秀区巨石山生态文化旅游区"
+      ],
+      "action": "downgraded",
+      "effective_date": "2026-09-07",
+      "current_rating": "3A",
+      "source_url": "https://www.cqn.com.cn/zj/content/2026-09/08/content_9171802.htm",
+      "source_name": "中国质量新闻网：安徽6家景区被取消4A等级",
+      "source_type": "reported_official",
+      "note": "报道转述省文旅厅决定将该景区由4A级降为3A级；本修正用于停止旧4A匹配，不将其视为未曾评级。"
+    },
+    {
+      "name": "北京龙脉温泉景区",
+      "province": "北京市",
+      "city": "北京市",
+      "aliases": [
+        "龙脉温泉",
+        "龙脉温泉度假村"
+      ],
+      "action": "removed",
+      "effective_date": "2026-08-26",
+      "current_rating": "",
+      "source_type": "official",
+      "source_url": "https://whlyj.beijing.gov.cn/zwgk/tzgg/202608/t20260826_4837878.html",
+      "source_name": "北京市文化和旅游局关于取消北京龙脉温泉景区国家4A级旅游景区质量等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "北京八达岭世界葡萄博览中心景区",
+      "province": "北京市",
+      "city": "北京市",
+      "aliases": [
+        "八达岭世界葡萄博览中心",
+        "世界葡萄博览园"
+      ],
+      "action": "removed",
+      "effective_date": "2025-12-17",
+      "current_rating": "",
+      "source_type": "official",
+      "source_url": "https://whlyj.beijing.gov.cn/zwgk/tzgg/202512/t20251217_4347148.html",
+      "source_name": "北京市文化和旅游局关于取消北京八达岭世界葡萄博览中心景区4A级旅游景区质量等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "大连香洲田园城旅游景区",
+      "province": "辽宁省",
+      "city": "大连市",
+      "aliases": [],
+      "action": "removed",
+      "effective_date": "2025-12-22",
+      "current_rating": "",
+      "source_type": "official",
+      "source_url": "https://whly.ln.gov.cn/whly/zwgk/tzgg/2025122218063272881/index.shtml",
+      "source_name": "辽宁省文化和旅游厅关于取消大连香洲田园城旅游景区国家AAAA级旅游景区等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "河源市客天下水晶温泉国际旅游度假区",
+      "province": "广东省",
+      "city": "河源市",
+      "aliases": [],
+      "action": "downgraded",
+      "effective_date": "2025-10-30",
+      "current_rating": "3A",
+      "source_type": "official",
+      "source_url": "https://whly.gd.gov.cn/open_newggl/content/post_4792377.html",
+      "source_name": "广东省文化和旅游厅关于对部分4A级旅游景区予以降低和取消等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "汕尾市凤山祖庙旅游区",
+      "province": "广东省",
+      "city": "汕尾市",
+      "aliases": [],
+      "action": "downgraded",
+      "effective_date": "2025-10-30",
+      "current_rating": "3A",
+      "source_type": "official",
+      "source_url": "https://whly.gd.gov.cn/open_newggl/content/post_4792377.html",
+      "source_name": "广东省文化和旅游厅关于对部分4A级旅游景区予以降低和取消等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "潮州市紫莲森林度假村景区",
+      "province": "广东省",
+      "city": "潮州市",
+      "aliases": [],
+      "action": "downgraded",
+      "effective_date": "2025-10-30",
+      "current_rating": "3A",
+      "source_type": "official",
+      "source_url": "https://whly.gd.gov.cn/open_newggl/content/post_4792377.html",
+      "source_name": "广东省文化和旅游厅关于对部分4A级旅游景区予以降低和取消等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "韶关市南岭国家森林公园",
+      "province": "广东省",
+      "city": "韶关市",
+      "aliases": [],
+      "action": "removed",
+      "effective_date": "2025-10-30",
+      "current_rating": "",
+      "source_type": "official",
+      "source_url": "https://whly.gd.gov.cn/open_newggl/content/post_4792377.html",
+      "source_name": "广东省文化和旅游厅关于对部分4A级旅游景区予以降低和取消等级的公告",
+      "verified_at": "2026-09-11"
+    },
+    {
+      "name": "江门市金山温泉旅游度假区",
+      "province": "广东省",
+      "city": "江门市",
+      "aliases": [],
+      "action": "removed",
+      "effective_date": "2025-10-30",
+      "current_rating": "",
+      "source_type": "official",
+      "source_url": "https://whly.gd.gov.cn/open_newggl/content/post_4792377.html",
+      "source_name": "广东省文化和旅游厅关于对部分4A级旅游景区予以降低和取消等级的公告",
+      "verified_at": "2026-09-11"
+    }
+  ],
+  "updated_at": "2026-09-11"
+}

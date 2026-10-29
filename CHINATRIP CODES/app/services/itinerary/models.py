@@ -38,6 +38,12 @@ class VisitItem(BaseModel):
     # (product rule 2026-10-19); None when amap data is unavailable.
     address: str | None = None
     opening_hours: str | None = None
+    # 双语 P1（DESIGN language_dual_system §6）：_en 并出，空回退中文，
+    # H5 按 locale 取值；来源候选库 pois._en 列，amap 路径为 None
+    name_en: str | None = None
+    address_en: str | None = None
+    intro_en: str | None = None
+    opening_hours_en: str | None = None
     day: int  # 1-based day number
     start_time: time | None = None
     end_time: time | None = None
@@ -51,6 +57,20 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 0009 / 8.2.1：库候选携带的时段属性（morning/afternoon/evening/
+    # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
+    # None = 无信号（老数据/占位），按全天窗处理。
+    best_visit_time: str | None = None
+    # 路径 A 预填（show_booking_design §2，2026-10-26）：库行 booking_url
+    # （演出=携程 sight SKU 页）并出——H5 票务直达直开成品页，跳过搜索；
+    # None=无库链接，H5 走 order-intent 的 geo 模板兜底。
+    booking_url: str | None = None
+    # G1（§14.3）：预约制门票提示（展示层，solver 不约束——预约是用户
+    # 侧动作；「现在就订·提前 N 天·放票 08:00」在卡片亮出）
+    reservation_hint: str | None = None
+    # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
+    # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
+    rain_ok: str | None = None
 
 
 class TransferItem(BaseModel):
@@ -81,14 +101,23 @@ class ItineraryPlan(BaseModel):
     cities: list[str]
     days: list[DayPlan]
     assumptions: list[str] = Field(default_factory=list)
+    # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
+    # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
+    start_date: str | None = None
 
 
 class PoiHours(BaseModel):
-    """Opening-hours rule used by iron rule 2 (validation input)."""
+    """Opening-hours rule used by iron rule 2 (validation input).
+
+    G3（§14.3）：多段开窗（国内场馆午休闭馆 12:00-13:30 常态）——
+    windows 非空时 opens/closes 仅为兜底显示值，solver 按 windows
+    条件开窗建模。
+    """
 
     poi_id: str
     opens: time
     closes: time
+    windows: list[tuple[time, time]] | None = None
 
 
 class RuleSeverity(str, Enum):
