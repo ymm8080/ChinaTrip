@@ -15,7 +15,8 @@ day4-6，唯一干日 day4 恰是到达日（转场预算 360-180=180min）—�
 测试口径：suggested_duration_min 被 _clamp_plan_duration 封顶 180、
 日预算含 _leg_min 步行腿分钟——用共址点（腿=0）+ ≤180 时长精确
 控制预算，先手算初始落位再断言兜底动作；软余量周专门不共址，
-锁「腿噪声级超额不再卡死对调」。
+锁「腿噪声级超额不再卡死对调」；回填周锁「露天补位干日优先」
+与「只余雨日时点名披露」。
 """
 
 from app.services.agent.plan import PlanningAgent
@@ -135,3 +136,56 @@ def test_slack_tolerates_leg_noise_when_transfer_budget_tight():
     # 雨日6：干日已无室内点 → 四面山/神龙峡保留但留痕
     assert day_of["四面山"] == 6 and day_of["神龙峡"] == 6
     assert any("四面山" in n and "保持原排" in n for n in notes)
+
+
+def test_refill_prefers_dry_day_for_outdoor():
+    # 回填层雨天感知：露天补位点干日优先——即便雨日更近（腿 0）也去
+    # 干日。池 cap=span*4=8：甲乙丙(室内60)聚北→day1(雨)180/3；
+    # 丁戊己(露天60)聚南→day2(干)180/3；庚辛(180)两天都装不下→池内
+    # 出局；壬峰(露天60)在北锚点旁（day1 腿 0）但属池外第 9 位→回填。
+    # 旧序 (腿,负载,日) 会落 day1（雨、腿 0）；新序雨 flag 前置→day2
+    cands = [
+        _cand("甲馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("乙馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("丙馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("丁峰", "成都", "no", lat=30.5, dur=60),
+        _cand("戊岭", "成都", "no", lat=30.5, dur=60),
+        _cand("己山", "成都", "no", lat=30.5, dur=60),
+        _cand("庚岭", "成都", "no", lat=30.9, dur=180),
+        _cand("辛峰", "成都", "no", lat=30.9, dur=180),
+        _cand("壬峰", "成都", "no", lat=31.5, dur=60),
+    ]
+    notes: list[str] = []
+    picked = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
+    )
+    day_of = {p["name"]: p["day"] for p in picked}
+    # 干日装得下（180+60+腿120=360）→ 露天补位去干日，零披露
+    assert day_of["壬峰"] == 2
+    assert not any("壬峰" in n for n in notes)
+
+
+def test_refill_forced_onto_rainy_day_disclosed():
+    # 只余雨日有位（干日 4 个/日闸满）→ 露天补位落雨日但点名留痕
+    cands = [
+        _cand("甲馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("乙馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("丙馆", "成都", "yes", lat=31.5, dur=60),
+        _cand("丁峰", "成都", "no", lat=30.5, dur=60),
+        _cand("戊岭", "成都", "no", lat=30.5, dur=60),
+        _cand("己山", "成都", "no", lat=30.5, dur=60),
+        _cand("庚岭", "成都", "no", lat=30.5, dur=180),
+        _cand("辛峰", "成都", "no", lat=30.9, dur=180),
+        _cand("壬峰", "成都", "no", lat=31.5, dur=60),
+    ]
+    notes: list[str] = []
+    picked = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
+    )
+    day_of = {p["name"]: p["day"] for p in picked}
+    # day2（干）被丁戊己+庚填满 4 个闸 → 壬峰只能落 day1（雨）并留痕
+    assert day_of["壬峰"] == 1
+    assert any(
+        "壬峰" in n and "补位排入" in n and "第1天预报有雨" in n
+        for n in notes
+    )

@@ -156,17 +156,33 @@ HISTORY_WINDOW = 12
 DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径）
 # 走行计预算（2026-10-30「第一天三站时间明显不够」）：选点层预算原本只算
 # 参访时长、不算点间走行——塞满 360 分钟的天给 solver 的是排不下的日程
-# （回落背靠背=物理不可能的时间表）。每腿按步行估算（同 legs 口径）计入
-# 当日负载，上限 120 分钟：跨城级长腿（50km 步行≈800 分钟）按打车/一日
-# 游口径封顶，不让估算把负载顶爆成空天。
-_TRAVEL_LEG_CAP_MIN = 120
+# （回落背靠背=物理不可能的时间表）。
+# 出行模型（用户拍板 2026-10-31「打车时间=车程+半小时叫车时间」）：
+# 车程=直线×1.3 绕行 ÷ 35km/h 均混车速，另加 30 分钟叫车/等待；≤1.5km
+# 近距共址按步行（不白付叫车开销）；单腿上限 180 分钟（跨区一日游量级，
+# 替代旧 120 步行封顶）。选点腿费/必去放日/solver 矩阵基线三处共用
+# _taxi_leg_min；卡片展示的「步行约Y分钟」仍为步行口径（标注即口径）。
+_TRAVEL_LEG_CAP_MIN = 180
+_TAXI_HAIL_MINUTES = 30  # 每腿叫车/等待固定开销
+_TAXI_MIN_PER_KM = 1.3 / 35 * 60  # ≈2.23 分钟/公里（直线×绕行÷车速）
+_TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
 # 雨天对调软余量（用户拍板 2026-10-30 深夜「差18分钟没有关系」）：
 # 雨日救援的预算闸允许噪声级超额——走行腿估算留在日载荷里的十几分
 # 钟，不该把「有雨自动排室内」卡死在「点名不排/保持原排」上。
 RAIN_SWAP_BUDGET_SLACK_MIN = 30
-#: 步行估算分钟/公里（同 legs 口径 ×1.3 绕行 / 80m/min）——选点腿费与
-#: 必去放日腿费共用，避免两处口径漂移。
+#: 步行估算分钟/公里（同 legs 口径 ×1.3 绕行 / 80m/min）——近距腿与
+#: 卡片展示步行口径共用。
 _TRAVEL_MIN_PER_KM = 1000.0 * 1.3 / 80.0
+
+
+def _taxi_leg_min(km: float) -> int:
+    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程+半小时叫车；
+    ≤1.5km 近距退步行口径；封顶 _TRAVEL_LEG_CAP_MIN。选点腿费/必去
+    放日/solver 矩阵基线共用，调用点不得另算口径。"""
+    if km <= _TAXI_WALK_MAX_KM:
+        return round(km * _TRAVEL_MIN_PER_KM)
+    return min(_TRAVEL_LEG_CAP_MIN, round(km * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES)
+
 
 _INTL_SITE_SOURCES = {"tripadvisor", "lonelyplanet", "viator"}
 _INTL_PLATFORM_SOURCES = {
@@ -1375,16 +1391,11 @@ def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
 ) -> dict[tuple[str, str], int]:
-    """8.2.2 solver 动线矩阵：haversine×1.3÷80m/min 基线（legs.py 同口径），
-
-    已有的高德实测腿（_enrich_legs 写入 leg_cache，键=坐标对）覆写基线
-    ——用户拍板 2026-10-25：步行换算能从高德取的就用高德实测。矩阵键
+    """8.2.2 solver 动线矩阵（打车模型，用户拍板 2026-10-31：车程+半小时
+    叫车）：距离经 _taxi_leg_min 折算分钟；高德/百度实测腿只取**距离**
+    （实测步行分钟不再沿用——日程口径统一打车）。矩阵键
     与 solver._travel_cost 查找序一致：双方有 poi_id 用 poi_id 对，否则
     item_id 对；跨天键无害（solver 按天取用）。"""
-    from app.services.itinerary.legs import (
-        DETOUR_FACTOR,
-        WALK_METERS_PER_MINUTE,
-    )
 
     def _coord(pt: GeoPoint) -> str:
         return f"{pt.lon:.6f},{pt.lat:.6f}"
@@ -1400,16 +1411,14 @@ def _travel_matrix(
         for b in visits:
             if a is b:
                 continue
-            minutes: int | None = None
+            km: float | None = None
             if leg_cache:
                 hit = leg_cache.get((_coord(a.location), _coord(b.location)))
                 if hit is not None:
-                    minutes = max(1, hit[1])  # 高德实测优先
-            if minutes is None:
+                    km = hit[0]  # 实测距离优先（打车模型自己折时间）
+            if km is None:
                 km = haversine_km(a.location, b.location)
-                minutes = max(
-                    1, round(km * 1000 * DETOUR_FACTOR / WALK_METERS_PER_MINUTE)
-                )
+            minutes = max(1, _taxi_leg_min(km))
             key = (
                 (a.poi_id, b.poi_id)
                 if a.poi_id and b.poi_id
@@ -3608,8 +3617,8 @@ class PlanningAgent:
             )
 
         def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
-            # 与选点同口径：必去入排当日与最近已放点位的步行估算腿（封顶
-            # _TRAVEL_LEG_CAP_MIN）——「第二天看不完」的走行债在这里就计入。
+            # 与选点同口径（打车模型）：必去入排当日与最近已放点位的腿费
+            # ——「第二天看不完」的走行债在这里就计入。
             if xy is None or not day_xy.get(d):
                 return 0
             km = min(
@@ -3618,7 +3627,7 @@ class PlanningAgent:
                 )
                 for p in day_xy[d]
             )
-            return min(_TRAVEL_LEG_CAP_MIN, round(km * _TRAVEL_MIN_PER_KM))
+            return _taxi_leg_min(km)
 
         def _must_day(
             lo: int, hi: int, minutes: int, xy: tuple[float, float] | None = None
@@ -3660,6 +3669,33 @@ class PlanningAgent:
                 match["must"] = True
                 if kinds.get(name) == "food":
                     match["category"] = "food"
+                # 匹配必去的地理纠偏（2026-10-31）：候选路径下选点聚类可能
+                # 把必去真身跟远区点放同天（熊猫基地↔都江堰 45km）；有坐标
+                # 且其城市窗口内存在「更近又有余量」的天时挪过去——只挪非
+                # 食物匹配项，容量含走行腿。
+                if kinds.get(name) != "food":
+                    m_loc = match.get("location")
+                    m_xy = (
+                        (float(m_loc["lon"]), float(m_loc["lat"]))
+                        if isinstance(m_loc, dict) and m_loc.get("lon") is not None
+                        else None
+                    )
+                    try:
+                        cur = int(match.get("day") or 1)
+                    except (TypeError, ValueError):
+                        cur = None
+                    if m_xy is not None and cur is not None:
+                        m_city = str(match.get("city") or "").removesuffix("市")
+                        w_lo, w_hi = ranges.get(m_city, (1, days))
+                        m_min = int(match.get("duration_minutes") or 60)
+                        target = _must_day(w_lo, w_hi, m_min, m_xy)
+                        if target != cur and _leg_min(m_xy, target) < _leg_min(
+                            m_xy, cur
+                        ):
+                            day_load[cur] = max(0, day_load.get(cur, 0) - m_min)
+                            match["day"] = target
+                            day_xy.setdefault(target, []).append(m_xy)
+                            day_load[target] = day_load.get(target, 0) + m_min
                 continue
             bound = (bindings or {}).get(name)
             if bound is not None and bound.get("name"):
@@ -4373,14 +4409,11 @@ class PlanningAgent:
             }
 
             def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
-                # 走行腿计预算：入排点与当日已放点位的最近步行估算（近似动线
-                # 增量）；共址=0、跨城级封顶 _TRAVEL_LEG_CAP_MIN。
+                # 走行腿计预算（打车模型）：入排点与当日已放点位的最近腿，
+                # _taxi_leg_min 统一口径（近距步行、远距车程+叫车半小时）。
                 if xy is None or not day_coords[d]:
                     return 0
-                return min(
-                    _TRAVEL_LEG_CAP_MIN,
-                    min(round(_km(xy, p) * _travel_min_per_km) for p in day_coords[d]),
-                )
+                return min(_taxi_leg_min(_km(xy, p)) for p in day_coords[d])
 
             def _budget(d: int) -> int:
                 # 转场日扣减：车票/机票时刻地点钉死，当天可用参访时间少一段
@@ -4580,16 +4613,34 @@ class PlanningAgent:
                             break
             # 稀疏天回填（2026-10-31 用户拍板「第三天非常空」）：全满出局
             # 与池外（tier 13+）的好点此前从不回头看——金沙/杜甫草堂级 90 分
-            # 钟点被丢在池外而 day3 只有 180/360。按 tier 序把未放置点回补到
-            # 最空天（腿费、4 个/日闸照收），最空优先直到无可回填。
+            # 钟点被丢在池外而 day3 只有 180/360。按 tier 序回补：先地理最近
+            # 的可用天（腿小=同片区=动线连贯），全远再退最空天；腿费、4 个/日
+            # 闸照收；露天补位干日优先（雨天感知，无干位才落雨日并留痕）。
             placed_pos = {pos for seq in placed.values() for pos, _ in seq}
-            for pos, (_idx, cand) in enumerate(pool):
-                if pos in placed_pos:
-                    continue
+
+            def _rainy_for(cand: dict, d: int) -> bool:
+                # 回填层雨天感知（2026-10-31 接「有雨自动排室内」补
+                # 漏：此前按 (腿,负载,日) 选天，露天补位点会就近落
+                # 进雨天——线上李子坝/云阳龙缸案）。三轮口径沿用：
+                # 普通露天点看白天窗，夜间露天点只看夜间窗。
+                if cand.get("rain_ok") != "no":
+                    return False
+                if _night_cand(cand):
+                    return d in night_rainy
+                return d in rainy_here
+
+            def _refill(pos: int, cand: dict) -> None:
                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                 xy = _cxy(cand)
+                # 露天点干日优先（雨 flag 前置）；只余雨日时放行并留痕
                 for day in sorted(
-                    range(lo, hi + 1), key=lambda d: (day_loads[d][0], d)
+                    range(lo, hi + 1),
+                    key=lambda d: (
+                        _rainy_for(cand, d),
+                        _leg_min(xy, d),
+                        day_loads[d][0],
+                        d,
+                    ),
                 ):
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
@@ -4600,26 +4651,25 @@ class PlanningAgent:
                     if xy is not None:
                         day_coords[day].append(xy)
                     placed[day].append((pos, cand))
+                    if _rainy_for(cand, day) and notes is not None:
+                        night = _night_cand(cand)
+                        when = "夜间有雨" if night else "预报有雨"
+                        kind = "夜间露天" if night else "露天"
+                        full = "干夜已满" if night else "干日已满"
+                        notes.append(
+                            f"第{day}天{when}：{cand['name']}（{kind}）"
+                            f"补位排入（{full}）；要调整请说"
+                        )
                     break
+
+            for pos, (_idx, cand) in enumerate(pool):
+                if pos not in placed_pos:
+                    _refill(pos, cand)
             # 池外补充回填（pool 截断在 span*4，池外仍有序可用点）
             for pos, (idx, cand) in enumerate(ordered[len(pool) :], start=len(pool)):
                 if cand.get("category") == "food" or _cand_is_show(cand):
                     continue
-                minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
-                xy = _cxy(cand)
-                for day in sorted(
-                    range(lo, hi + 1), key=lambda d: (day_loads[d][0], d)
-                ):
-                    load = day_loads[day]
-                    leg = _leg_min(xy, day)
-                    if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
-                        continue
-                    load[0] += minutes + leg
-                    load[1] += 1
-                    if xy is not None:
-                        day_coords[day].append(xy)
-                    placed[day].append((pos, cand))
-                    break
+                _refill(pos, cand)
             for day, seq in placed.items():
                 if not seq:
                     continue
@@ -5980,11 +6030,42 @@ class PlanningAgent:
         Best-effort — service errors never block the plan turn."""
         if self._trip_items is None or not wishes:
             return [], []
+        # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——
+        # 这里直接落语义绑定与行收口：行程里已有正主时按 poi_id 对上即翻
+        # 已排期（note 写「已安排：X 第N天 日期 时间」），没有 plan 时只
+        # 记绑定，等规划回合收口。
+        try:
+            for wish in wishes:
+                bound = (session.wish_bindings or {}).get(wish)
+                if bound is None:
+                    rows = [
+                        it
+                        for group in self._trip_items.list_groups(None).values()
+                        for it in group
+                        if _name_dup(str(it.get("name") or ""), wish)
+                    ]
+                    bind_city = next(
+                        (
+                            str(r.get("city") or "").strip()
+                            for r in rows
+                            if (r.get("city") or "").strip()
+                        ),
+                        None,
+                    ) or next(
+                        (c for c in session.cities if (c or "").strip()),
+                        _unspecified(),
+                    )
+                    bound = await self._bind_wish_poi(wish, bind_city)
+                if bound is not None:
+                    session.wish_bindings[wish] = bound
+                    self._wish_bindings[wish] = bound
+            if session.plan is not None:
+                self._sync_wish_rows(session)
+        except Exception:
+            logger.warning("plan: wish sync-time bind failed", exc_info=True)
         itinerary_id = session.plan.itinerary_id if session.plan else None
         known: list[dict] = [
-            it
-            for group in self._trip_items.list_groups(itinerary_id).values()
-            for it in group
+            it for group in self._trip_items.list_groups(None).values() for it in group
         ]
         trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}
         notes: list[str] = []
