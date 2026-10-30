@@ -280,6 +280,12 @@ async def recommend_restaurants(
         return []
     city_used = city or day_plan.base_city
     candidates = await search_restaurants(amap_client, city_used)
+    # 当天已排的 POI 不再当餐厅推荐（同站景点不是用餐点；2026-10-31
+    # 外滩案：松散候选源把已排景点又排成晚餐，造成同天双卡）
+    planned_pids = {
+        i.poi_id for i in day_plan.items if isinstance(i, VisitItem) and i.poi_id
+    }
+    candidates = [c for c in candidates if c.poi_id not in planned_pids]
     route_points = [
         item.location
         for item in day_plan.items
