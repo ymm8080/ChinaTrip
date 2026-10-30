@@ -66,6 +66,14 @@ def _pg_keepalive(stop: threading.Event) -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    # 2026-10-30 事故：.env 被改成 LLM_BACKEND=mock 后重启，会话编辑轮
+    # （mock chat 永远回 mock-chat:原文，无 JSON）100% 解析失败，用户端
+    # 表现为「刚才模型回复没能解析」。boot 时大声示警，别再静默降级。
+    if get_settings().llm_backend == "mock":
+        logger.warning(
+            "main: LLM_BACKEND=mock —— 对话/抽取走 Mock 适配器，"
+            "会话编辑轮必然解析失败（生产环境应配 zhipu）"
+        )
     stop = threading.Event()
     threading.Thread(
         target=_pg_keepalive, args=(stop,), daemon=True, name="pg-keepalive"

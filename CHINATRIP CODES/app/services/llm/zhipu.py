@@ -119,7 +119,11 @@ class ZhipuGLMAdapter:
             # raw httpx exceptions bypass every retry/degrade handler.
             raise LLMError(f"zhipu request failed: {type(exc).__name__}") from exc
         if resp.status_code != 200:
-            raise LLMError(f"zhipu http status {resp.status_code}")
+            # 400/429 响应正文带 error.code/message（如 1210 该模型始终
+            # 思考不支持关闭、1113 余额不足）——丢掉正文会让排障只能瞎猜
+            # （2026-10-30 事故里的 400 即无正文盲区）。
+            snippet = (resp.text or "")[:200].replace("\n", " ")
+            raise LLMError(f"zhipu http status {resp.status_code}: {snippet}")
         try:
             body = resp.json()
         except ValueError as exc:

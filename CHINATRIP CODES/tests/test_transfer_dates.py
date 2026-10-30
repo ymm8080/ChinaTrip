@@ -98,3 +98,37 @@ def test_start_schedules_prefetch_when_date_and_cities_known():
 
     session = asyncio.run(scenario())
     assert session.start_date == "2026-11-10"
+
+
+# --- 2026-10-30 往返闭合：幽灵腿治理 ----------------------------------------
+
+
+def test_build_transfers_round_trip_closure_drops_phantom_leg():
+    """cities 首尾同城（上海..上海）：尾部重复是返程标记不是第四目的地——
+    不得出现「上海→上海 0 公里驾车」幽灵腿，返程窗偏好挂真实返程腿。"""
+    trains = RecordingTrains()
+    agent = _agent(trains)
+    transfers, _assumptions = asyncio.run(
+        agent._build_transfers(
+            ["上海", "成都", "重庆", "上海"], 7, {}, start_date="2026-11-02"
+        )
+    )
+    pairs = [(t.from_city, t.to_city) for t in transfers]
+    assert pairs == [("上海", "成都"), ("成都", "重庆"), ("重庆", "上海")]
+    assert all(f != to for f, to in pairs)
+    ret = transfers[-1]
+    assert ret.day == 7
+    # mock 班次表不覆盖 → 占位航班的出发小时即返程窗偏好（17 点档）
+    assert ret.start_time.hour >= 15
+
+
+def test_prefetch_closure_cities_skip_phantom_leg():
+    trains = RecordingTrains()
+    agent = _agent(trains)
+    asyncio.run(
+        agent.prefetch_transfer_schedules(
+            ["上海", "成都", "重庆", "上海"], 7, "2026-11-02"
+        )
+    )
+    pairs = {(f, t) for f, t, _d in trains.queries}
+    assert pairs == {("上海", "成都"), ("成都", "重庆"), ("重庆", "上海")}

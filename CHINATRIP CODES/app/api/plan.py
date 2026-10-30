@@ -19,6 +19,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, time, timezone
+from functools import partial
 from time import monotonic
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -34,6 +35,7 @@ from app.api.itineraries import (
 from app.api.translate import get_translation_service
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
+from app.db import get_session_factory
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
@@ -55,7 +57,7 @@ from app.services.itinerary_store import (
     QuotaExceededError,
 )
 from app.services.lane_metrics import get_lane_metrics
-from app.services.lang_ctx import L
+from app.services.lang_ctx import L, get_lang
 from app.services.llm import get_flash_adapter, get_llm_adapter
 from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import LLMError
@@ -73,6 +75,7 @@ from app.services.state_persist import (
 from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
+from app.services.weather import daily_weather_text
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
 logger = logging.getLogger(__name__)
@@ -124,6 +127,10 @@ def get_planning_agent(
             trip_items=get_trip_item_service(),
             poi_details=get_poi_detail_store(),
             ctrip_hours=get_ctrip_hours(),
+            # 雨天感知（2026-10-30）：纯 DB 读 weather_reports（每日
+            # 08:10 管线全量 40 城），请求路径零外呼；读失败在
+            # _rain_map 内降级为无雨，规划不受影响
+            weather_lookup=partial(daily_weather_text, get_session_factory()),
         )
     return _agent_singleton
 
@@ -287,6 +294,11 @@ async def start_plan_from_itinerary(
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,
+        # 双语 P2 补漏（2026-10-30）：会话语言随 X-Lang 请求头
+        # （LangMiddleware 写入的 contextvar，与端内 L() 同源）。
+        # 漏传时英文界面下「✏️ 修改」会话的编辑回合恒中文——
+        # _with_lang 的英文输出指令只认 session.lang。
+        lang=get_lang(),
         cities=list(plan.cities),
         days=len(plan.days),
         state="ready",
@@ -478,6 +490,11 @@ async def message_plan(
         intent=decision.intent,
         source=decision.source,
     )
+    # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：对话式
+    # 增删改与按钮端点（pin/delete/move/retime）同款——变更后实测腿刷新
+    # （缓存对零网络回放，新对走图商链，配额死降级估算不阻塞回合）。
+    if session.plan is not None:
+        await agent.refresh_legs(session)
     store.save(session)
     body = _plan_turn_body(session, reply, change)
     body["lane"] = {"lane": "main", "intent": decision.intent}

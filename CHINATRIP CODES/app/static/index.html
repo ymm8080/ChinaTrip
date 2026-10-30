@@ -4722,6 +4722,16 @@ window.addEventListener("i18n:change", () => { if (CALL.cfg) callRender(); });
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+    // SW 接管自愈（2026-10-30 六轮）：sw.js 是 skipWaiting+claim 型，新 SW
+    // 激活只换控制器不换已渲染页面——旧壳会一直赖到下一次手动刷新
+    // （v43 起多次实测事故根因）。controllerchange=新 SW claim 瞬间，
+    // 守卫标志防循环，重载一次换新壳：今后发版一次刷新即自动更新
+    var swReloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (swReloading) return;
+      swReloading = true;
+      location.reload();
+    });
   });
 }
 // 图商预取（静默失败保持 amap 缺省；步行/路线外链按 provider 组装）

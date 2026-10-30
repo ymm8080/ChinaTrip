@@ -338,6 +338,27 @@ class TripItemService:
         item["updated_at"] = _iso_now(now)
         return dict(item)
 
+    def link_itinerary(
+        self, item_id: str, itinerary_id: str, *, force: bool = False
+    ) -> dict | None:
+        """补挂/重挂行程归属（2026-10-30 深夜：聊天建行时 plan 未定 →
+        itinerary_id=None，行程落定后回挂，行程中心按行程过滤才可见；
+        重组行程会换 id，force=True 允许从旧 id 重挂）。只写内存 dict，
+        PG 子类通过 _write_through 钩子写穿。"""
+        item = self._items.get(item_id)
+        if item is None or not itinerary_id:
+            return None
+        if item.get("itinerary_id") and not force:
+            return dict(item)
+        if item.get("itinerary_id") == itinerary_id:
+            return dict(item)
+        item["itinerary_id"] = itinerary_id
+        item["updated_at"] = _iso_now(None)
+        hook = getattr(self, "_write_through", None)
+        if callable(hook):
+            hook(item_id)
+        return dict(item)
+
     def delete(self, item_id: str) -> None:
         item = self._items.get(item_id)
         if item is None:

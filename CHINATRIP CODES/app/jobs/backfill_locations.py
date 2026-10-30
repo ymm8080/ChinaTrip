@@ -135,7 +135,9 @@ def select_rows(limit: int) -> list[Poi]:
     return rows[:limit]
 
 
-async def backfill_rows(store, clients, rows, *, dry_run: bool = False) -> dict:
+async def backfill_rows(
+    store, clients, rows, *, dry_run: bool = False, geocoder=None
+) -> dict:
     """逐行走检索链补坐标（2026-10-30 vendor_policy：amap>tencent>baidu）。
 
     任一家配额死即 latch 到下一家；全死才停（幂等可续）。by_vendor 记录
@@ -148,7 +150,82 @@ async def backfill_rows(store, clients, rows, *, dry_run: bool = False) -> dict:
         "by_vendor": {},
     }
     dead: set[str] = set()
+    geocode_dead = False
+    stats["geocode_filled"] = 0
     for row in rows:
+        # ④ 地址优先（2026-10-30 用户拍板「有地址就该有坐标」）：有门址的行
+        # 先走正地理（百度 geocoding，独立配额池，不烧检索配额），命中即落库；
+        # 未命中/配额死再走检索链按名搜。
+        row_address = getattr(row, "address", None)
+        if (
+            geocoder is not None
+            and not geocode_dead
+            and row_address
+            and not getattr(row, "location", None)
+        ):
+            try:
+                geo = await geocoder.geocode(
+                    row_address, city=_bare_city(row.city)
+                )
+            except AmapQuotaExhaustedError:
+                geocode_dead = True
+                stats["geocode_quota_stopped"] = 1
+                logger.warning(
+                    "backfill_locations: geocode quota exhausted, "
+                    "falling to search chain"
+                )
+            except Exception:  # noqa: BLE001 — 单行失败不掀批次
+                logger.warning(
+                    "backfill_locations: geocode failed for %s",
+                    row.name_zh,
+                    exc_info=True,
+                )
+            else:
+                near = False
+                if (
+                    isinstance(geo, dict)
+                    and geo.get("lon") is not None
+                ):
+                    from app.services.coords import haversine_m
+                    from app.services.weather_open_meteo import CITY_COORDS
+
+                    center = CITY_COORDS.get(_bare_city(row.city))
+                    near = center is None or (
+                        haversine_m(
+                            float(geo["lon"]),
+                            float(geo["lat"]),
+                            center[1],
+                            center[0],
+                        )
+                        / 1000.0
+                        <= 500.0
+                    )
+                if near:
+                    if dry_run:
+                        stats["filled"] += 1
+                        stats["geocode_filled"] += 1
+                        stats["by_vendor"]["baidu_geocode"] = (
+                            stats["by_vendor"].get("baidu_geocode", 0) + 1
+                        )
+                        logger.info(
+                            "[dry-run] would geocode-fill %s (%s)",
+                            row.name_zh,
+                            row.city,
+                        )
+                        continue
+                    store.upsert(
+                        row.source_poi_id,
+                        source=row.source,
+                        name=row.name_zh,
+                        city=row.city,
+                        location=(float(geo["lon"]), float(geo["lat"])),
+                    )
+                    stats["filled"] += 1
+                    stats["geocode_filled"] += 1
+                    stats["by_vendor"]["baidu_geocode"] = (
+                        stats["by_vendor"].get("baidu_geocode", 0) + 1
+                    )
+                    continue
         hit = None
         hit_vendor = None
         for client in clients:
@@ -215,11 +292,15 @@ async def backfill(
 ) -> dict:
     # 检索链走 FUNCTION_PROVIDER_PRIORITY["search"]（amap>tencent>baidu）；
     # 单家配额烧尽自动 latch 到下一家，三家全尽才停（幂等可续跑）。
+    settings = get_settings()
     if clients is None:
-        clients = build_client_chain(get_settings(), "search")
+        clients = build_client_chain(settings, "search")
+    # 地址优先轨道：百度 geocoding（独立配额池；2026-10-30 实测检索
+    # 配额烧尽时仍可用）——检索三家全灭时仍能靠门址补坐标。
+    geocoder = build_vendor("baidu", settings)
     store = PoiDetailStore(session_factory=get_session_factory())
     rows = select_rows(limit)
-    return await backfill_rows(store, clients, rows, dry_run=dry_run)
+    return await backfill_rows(store, clients, rows, dry_run=dry_run, geocoder=geocoder)
 
 
 def main() -> None:

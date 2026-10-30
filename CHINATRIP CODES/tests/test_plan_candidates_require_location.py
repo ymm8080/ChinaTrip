@@ -149,3 +149,72 @@ def test_amap_remote_results_without_location_are_dropped_too():
     names = {c["name"] for c in candidates}
     assert "好行" in names
     assert "坏行" not in names
+
+
+# --- 2026-10-30 day4 单点事故：坐标闸先于 30 行窗口截断 --------------------
+
+
+class _DeepStore:
+    """库桩：tier 序把 40 行无坐标骨架顶到前排，有坐标行排在 30 名外。"""
+
+    def __init__(self):
+        self.calls: list[tuple[str, int]] = []
+
+    def top_pois_in_city(self, city, limit, *, exclude_food=True):
+        self.calls.append((city, limit))
+        rows = [
+            {
+                "name": f"骨架{i:02d}",
+                "city": city,
+                "category": "attraction",
+                "location": None,
+            }
+            for i in range(40)
+        ]
+        rows += [
+            {
+                "name": f"真点{i}",
+                "city": city,
+                "category": "attraction",
+                "location": (104.0 + i * 0.01, 30.6),
+            }
+            for i in range(5)
+        ]
+        return rows[:limit]
+
+
+def test_library_window_cuts_after_location_gate():
+    """深取后先滤坐标再截窗：30 名外的有坐标行仍能入池（重庆 top30 滤后
+    只剩 3 个可用候选、每天 1 点的根因）。"""
+    store = _DeepStore()
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["成都"]))
+    names = {c["name"] for c in candidates}
+    assert names == {f"真点{i}" for i in range(5)}
+    assert store.calls and store.calls[0][1] > 30  # 深取，不是直取 30
+
+
+def test_origin_closure_city_collects_no_candidates():
+    """往返闭合（上海..上海）尾部重复城不收候选：必被 _assemble_plan 出发
+    城闸丢弃，收了白付一次全城扫描。"""
+
+    class RecStore(_DeepStore):
+        def __init__(self):
+            super().__init__()
+            self.cities: list[str] = []
+
+        def top_pois_in_city(self, city, limit, *, exclude_food=True):
+            self.cities.append(city)
+            return [
+                {
+                    "name": f"{city}点",
+                    "city": city,
+                    "category": "attraction",
+                    "location": (104.0, 30.6),
+                }
+            ][:limit]
+
+    store = RecStore()
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    run(agent._collect_candidates(["上海", "成都", "重庆", "上海"]))
+    assert store.cities == ["成都", "重庆"]

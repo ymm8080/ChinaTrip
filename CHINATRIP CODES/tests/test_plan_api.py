@@ -27,6 +27,7 @@ from app.api.plan import (
 )
 from app.api.plan import router as plan_router
 from app.config import Settings, get_settings
+from app.middleware.lang import LangMiddleware
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSessionStore,
@@ -641,6 +642,47 @@ def test_from_itinerary_opens_ready_session_and_round_trips_save():
     created = datetime.fromisoformat(rec["created_at"])
     updated = datetime.fromisoformat(rec["updated_at"])
     assert updated >= created
+
+
+def test_from_itinerary_session_lang_follows_x_lang_header():
+    """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
+    编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    app.add_middleware(LangMiddleware)  # 生产在 app/main.py 挂载，同链路
+    client = TestClient(app)
+    saved = start(
+        client, {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"}
+    ).json()
+    iid = saved["plan"]["itinerary_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{saved['session_id']}/save",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 201
+    )
+    en = client.post(
+        f"/api/v1/plan/from-itinerary/{iid}",
+        json={},
+        headers={**DEVICE_HEADERS, "X-Lang": "en"},
+    )
+    assert en.status_code == 201
+    store = app.dependency_overrides[get_plan_sessions]()
+    session_en = store.get(en.json()["session_id"], device_id="device-1")
+    assert session_en.lang == "en"
+    assert "MUST be natural English" in PlanningAgent._edit_system_prompt(session_en)
+    # 不带头的默认（中文站）行为不变：无英文输出指令
+    zh = client.post(
+        f"/api/v1/plan/from-itinerary/{iid}", json={}, headers=DEVICE_HEADERS
+    )
+    assert zh.status_code == 201
+    session_zh = store.get(zh.json()["session_id"], device_id="device-1")
+    assert session_zh.lang != "en"
+    assert "MUST be natural English" not in PlanningAgent._edit_system_prompt(
+        session_zh
+    )
 
 
 def test_from_itinerary_unknown_or_foreign_id_404():

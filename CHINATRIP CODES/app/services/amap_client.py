@@ -142,6 +142,11 @@ def _normalize_poi(poi: dict) -> dict:
     photos = _normalize_photos(poi.get("photos"))
     if photos:
         normalized["photos"] = photos
+    # 英文官方名（v3/place/text 的 ename 字段，部分 POI 有值）——
+    # name_en 回填的权威源（2026-10-30 双语补链）；空值不落键
+    ename = _as_str(poi.get("ename"))
+    if ename:
+        normalized["ename"] = ename
     return normalized
 
 

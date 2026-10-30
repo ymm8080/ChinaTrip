@@ -862,3 +862,25 @@ def _clear_amap_vendor_latches():
     yield
     amap_api._SEARCH_LATCH.clear()
     amap_api._REGEO_LATCH.clear()
+
+# --- _normalize_poi ename（双语 P1 补链 2026-10-30）-----------------------
+
+
+def test_normalize_poi_keeps_ename():
+    poi = _normalize_poi(
+        {
+            "id": "B000A7",
+            "name": "东方明珠广播电视塔",
+            "ename": "Oriental Pearl Radio and TV Tower",
+            "cityname": "上海市",
+            "type": "风景名胜;地标",
+            "address": "世纪大道1号",
+            "location": "121.499809,31.239666",
+        }
+    )
+    assert poi["ename"] == "Oriental Pearl Radio and TV Tower"
+
+
+def test_normalize_poi_without_ename_omits_key():
+    poi = _normalize_poi({"id": "B1", "name": "无名点", "cityname": "上海市"})
+    assert "ename" not in poi

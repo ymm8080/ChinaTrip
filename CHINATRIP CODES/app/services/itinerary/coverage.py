@@ -64,6 +64,6 @@ def rain_swap_advice(
     indoor_like = [v["name"] for v in day_visits if v.get("rain_ok") == "yes"]
     swap_hint = f"（可与 {'、'.join(indoor_like[:2])} 对调）" if indoor_like else ""
     return (
-        f"预报有雨：{'、'.join(outdoor[:3])} 为露天点位{swap_hint}——"
-        "回复「雨天调整」可帮你重排"
+        f"预报有雨：{'、'.join(outdoor[:3])} 为露天点位{swap_hint}，"
+        "雨天行程已自动优先室内，建议备伞"
     )

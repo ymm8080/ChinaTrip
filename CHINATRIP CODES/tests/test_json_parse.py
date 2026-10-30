@@ -12,8 +12,8 @@ import asyncio
 import httpx
 import pytest
 
-from app.services.llm.base import parse_json_content
-from app.services.llm.zhipu import ZhipuGLMAdapter
+from app.services.llm.base import ChatMessage, parse_json_content
+from app.services.llm.zhipu import LLMError, ZhipuGLMAdapter
 
 EDIT_REPLY = (
     "已把你笔记里的三家江湖菜加入第1天：14:30 老甘家、16:30 憨邓、"
@@ -77,6 +77,30 @@ def _prose_then_extract_json(request: httpx.Request) -> httpx.Response:
             "usage": {},
         },
     )
+
+
+def _http_400_with_body(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        400,
+        json={"error": {"code": "1210", "message": "该模型始终思考，不支持关闭思考"}},
+    )
+
+
+def test_zhipu_error_carries_status_and_body():
+    """2026-10-30：无正文的「zhipu http status 400」让根因（thinking
+    参数在标准端点被拒）完全不可见——错误消息必须带响应正文片段。"""
+    adapter = ZhipuGLMAdapter(
+        api_key="k",
+        base_url="https://example.invalid",
+        model="m",
+        timeout_seconds=5,
+        transport=httpx.MockTransport(_http_400_with_body),
+    )
+    with pytest.raises(LLMError) as exc_info:
+        asyncio.run(adapter.chat([ChatMessage(role="user", content="hi")]))
+    msg = str(exc_info.value)
+    assert "400" in msg
+    assert "1210" in msg
 
 
 def test_zhipu_extract_tolerates_prose_prefix():

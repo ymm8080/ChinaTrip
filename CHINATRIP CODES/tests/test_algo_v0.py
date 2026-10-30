@@ -343,3 +343,195 @@ def test_transfer_days_only_deduct_listed_days():
     # day1 预算 180：3 个；day2 满额：3 个（池 span*4=8 全放，各 3）
     assert len(by_day[1]) == 3
     assert len(by_day.get(2, set())) == 3
+
+
+# --- 2026-10-30 过载优化：走行计预算 + 必去容量感知放日 --------------------
+
+
+def test_travel_legs_count_into_day_budget():
+    """远距两点的走行腿（封顶 120）计入当日预算：150+150+120=420>360，
+    第二点出局——旧口径只算参访时长（300≤360）两个都放，solver 只能
+    排出物理不可能的背靠背日程。"""
+    cands = [
+        _cand("甲", "成都", suggested=150, loc=(104.06, 30.66)),
+        _cand("乙", "成都", suggested=150, loc=(104.90, 31.20)),  # ~90km
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
+    assert [it["name"] for it in items] == ["甲"]
+
+
+def test_travel_legs_zero_for_colocated_sites():
+    """共址点腿=0：不回归时长预算语义（180+180 恰满照放）。"""
+    cands = [
+        _cand("甲", "成都", suggested=180, loc=(104.06, 30.66)),
+        _cand("乙", "成都", suggested=180, loc=(104.06, 30.66)),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
+    assert len(items) == 2
+
+
+def test_far_pair_spreads_when_second_day_exists():
+    """窗口两天时远距点不再挤同一天：走行腿把第二点推到次日（保不空天）。"""
+    cands = [
+        _cand("近甲", "成都", suggested=150, loc=(104.06, 30.66)),
+        _cand("远乙", "成都", suggested=150, loc=(104.90, 31.20)),
+        _cand("近丙", "成都", suggested=60, loc=(104.07, 30.67)),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["近甲"] == day_of["近丙"]  # 同片同天
+    assert day_of["远乙"] != day_of["近甲"]  # 跨城级远点分开
+
+
+def test_must_visit_skips_full_and_transfer_days():
+    """必去不再轮转乱放：满额天/转场日（360-180）让位给有余量的天。"""
+    picked = [
+        {
+            "name": "满日点",
+            "city": "成都",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 180,
+        },
+        {
+            "name": "次日点",
+            "city": "成都",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 120,
+        },
+    ]
+    out = PlanningAgent._merge_must_visits(
+        picked,
+        ["新必去"],
+        ["成都"],
+        2,
+        {"成都": (1, 2)},
+        transfer_days={1},
+    )
+    must = next(s for s in out if s["name"] == "新必去")
+    # day1 转场预算 180 已被占满 → 必去落 day2（120+60≤360）
+    assert must["day"] == 2
+
+
+def test_must_visit_never_dropped_when_all_days_full():
+    """全窗满额：必去落最空天也不丢（用户点名愿超载是用户的决定）。"""
+    picked = [
+        {
+            "name": "满甲",
+            "city": "成都",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 360,
+        },
+        {
+            "name": "半乙",
+            "city": "成都",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 300,
+        },
+    ]
+    out = PlanningAgent._merge_must_visits(
+        picked, ["挤也要进"], ["成都"], 2, {"成都": (1, 2)}
+    )
+    must = next(s for s in out if s["name"] == "挤也要进")
+    assert must["must"] is True
+    assert must["day"] == 2  # 300 < 360 → 最空天
+
+
+# --- 2026-10-31 地理放日 + 稀疏天回填 ---------------------------------------
+
+
+def test_must_prefers_geo_near_day_over_earlier_far_day():
+    """熊猫基地（北郊）不跟都江堰同天：有坐标必去优先落「距当日已放点
+    ≤15km」的天，而不是最早有余量的天。"""
+    # day2 已放：都江堰片区（~103.6, 30.9）；day3 已放：市中心两点
+    picked = [
+        {
+            "name": "都江堰点",
+            "city": "成都",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 180,
+            "location": {"lon": 103.62, "lat": 30.90},
+        },
+        {
+            "name": "市中心甲",
+            "city": "成都",
+            "category": "sight",
+            "day": 3,
+            "duration_minutes": 90,
+            "location": {"lon": 104.06, "lat": 30.66},
+        },
+        {
+            "name": "市中心乙",
+            "city": "成都",
+            "category": "sight",
+            "day": 3,
+            "duration_minutes": 90,
+            "location": {"lon": 104.07, "lat": 30.67},
+        },
+    ]
+    panda = {
+        "name": "成都大熊猫繁育研究基地",
+        "city": "成都",
+        "category": "attraction",
+        "location": {"lon": 104.15, "lat": 30.74},  # 北郊：市中心 ~10km、都江堰 ~50km
+        "suggested_duration_min": 60,
+    }
+    out = PlanningAgent._merge_must_visits(
+        picked, ["看熊猫"], ["成都"], 3, {"成都": (2, 3)}, bindings={"看熊猫": panda}
+    )
+    placed = next(s for s in out if s.get("must"))
+    assert placed["day"] == 3  # 地理近距天，不是更早的都江堰天
+
+
+def test_unlocated_must_goes_to_emptiest_day():
+    """无坐标必去落最空天（不再 earliest-fit 堆进城窗口头一天）。"""
+    picked = [
+        {
+            "name": "重日点",
+            "city": "成都",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 300,
+        },
+        {
+            "name": "轻日点",
+            "city": "成都",
+            "category": "sight",
+            "day": 3,
+            "duration_minutes": 90,
+        },
+    ]
+    out = PlanningAgent._merge_must_visits(
+        picked, ["无名占位"], ["成都"], 3, {"成都": (2, 3)}
+    )
+    must = next(s for s in out if s["name"] == "无名占位")
+    assert must["day"] == 3  # 最空天（90 < 300）
+
+
+def test_sparse_day_refills_from_beyond_pool():
+    """池外候选回填稀疏天：跨区腿出局的大点不回填，同片区小点补进空天。"""
+    g1 = (104.06, 30.66)  # 市中心
+    g2 = (103.62, 30.90)  # 都江堰（远区）
+    cands = [
+        _cand("市1", "成都", suggested=180, loc=g1),
+        _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
+        _cand("都1", "成都", suggested=90, loc=g2),
+    ]
+    cands += [
+        _cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)
+    ]  # 池内：day2 90+180+120(跨区腿)=390 出局
+    cands += [
+        _cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)
+    ]  # 池外同片区小点：回填 day2
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    by_day = {}
+    for it in items:
+        by_day.setdefault(it["day"], []).append(it["name"])
+    assert "都1" in by_day.get(2, [])
+    refilled = [n for n in by_day.get(2, []) if n.startswith("补")]
+    assert len(refilled) >= 2  # 稀疏天被池外同片区点回填
+    assert not any(n.startswith("远填") for n in by_day.get(2, []))  # 跨区大点不硬塞

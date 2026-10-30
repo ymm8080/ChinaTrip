@@ -405,7 +405,8 @@ def test_resolve_targets_defaults_to_all_cities():
 
     targets = resolve_targets()
     assert sorted(targets) == sorted(CITY_ADCODES)
-    assert len(targets) == 40
+    # 2026-10-30 扩容 40→226（POI∪预约缺口全量，高德政区表口径）
+    assert len(targets) == len(CITY_ADCODES) == 226
 
 
 def test_resolve_targets_explicit_cities_passthrough():

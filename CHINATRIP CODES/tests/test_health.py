@@ -5,3 +5,4 @@ def test_health(client):
     assert body["status"] == "ok"
     assert body["service"] == "chinatrip-api"
     assert body["version"] == "0.1.0"
+    assert "llm_backend" in body  # 2026-10-30: mock 泄漏可监控

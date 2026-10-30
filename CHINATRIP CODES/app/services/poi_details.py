@@ -200,6 +200,11 @@ class PoiDetailStore:
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
+                        # 双语 P1 补链（2026-10-30）：_en 并出（空回退中文）
+                        "name_en": row.name_en,
+                        "address_en": row.address_en,
+                        "intro_en": row.intro_en,
+                        "opening_hours_en": row.opening_hours_en,
                         "hours_updated_at": (
                             row.hours_updated_at.isoformat()
                             if row.hours_updated_at
@@ -311,14 +316,33 @@ class PoiDetailStore:
         if self._db_available():
             try:
                 with self._factory() as session:
-                    row = session.query(Poi).filter(Poi.name_zh == name).first()
-                    if row is None:
+                    pair = (
+                        session.query(
+                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                        )
+                        .filter(Poi.name_zh == name)
+                        .first()
+                    )
+                    if pair is None:
                         return None
+                    row, loc_txt = pair
+                    m = _POINT_WKT_RE.match(loc_txt or "")
                     return {
                         "poi_id": row.source_poi_id,
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
+                        # 双语 P1 补链（2026-10-30）：_en 并出（空回退中文）
+                        "name_en": row.name_en,
+                        "address_en": row.address_en,
+                        "intro_en": row.intro_en,
+                        "opening_hours_en": row.opening_hours_en,
+                        # 2026-10-30 补坐标（零配额治愈路径）：条目缺坐标时
+                        # _backfill_locations 靠本跳直接拿库内坐标自愈，
+                        # 不必烧图商配额（坐标 GCJ-02 (lon, lat) 或 None）。
+                        "location": (
+                            (float(m.group(1)), float(m.group(2))) if m else None
+                        ),
                     }
             except Exception:
                 self._note_db_failure()
@@ -538,10 +562,15 @@ class PoiDetailStore:
                 tags = {str(t) for t in (h.get("tags") or [])}
                 if tags & {"michelin", "black_pearl"}:
                     boost = 1.5
+            # 2026-10-30 拍板（修「距下一站距离/步行不显示」第二刀）：有坐标
+            # 行整体压过无坐标骨架行——top-N 截断发生在排序后，若骨架行靠
+            # tier 挤进前 30，消费端坐标闸剔除后池子只剩 3-6 行，检索配额
+            # 一死整城落占位（10-30 成都/上海/重庆实录 no_loc_skipped=24-27）。
+            # 骨架行垫底保留，backfill 补齐坐标后自动回到前列。
             return (
+                1 if h.get("location") else 0,
                 tier,
                 round(quality * boost, 3),
-                1 if h.get("location") else 0,
             )
 
         rows_out: list[dict] = []

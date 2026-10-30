@@ -124,3 +124,72 @@ def test_hit_lonlat_accepts_dict_string_and_tuple():
     assert hit_lonlat({"location": (104.06, 30.65)}) == (104.06, 30.65)
     assert hit_lonlat({"location": {"lng": 1, "lat": 2}}) is None  # 非约定键
     assert hit_lonlat({"location": None}) is None
+
+
+class StubGeocoder:
+    """geocode 桩（地址→坐标）。"""
+
+    def __init__(self, *, vendor="baidu", ok=True, quota=False):
+        self.vendor = vendor
+        self.ok = ok
+        self.quota = quota
+        self.calls = 0
+
+    async def geocode(self, address: str, *, city: str | None = None) -> dict:
+        self.city_seen = city
+        self.calls += 1
+        if self.quota:
+            from app.services.amap_client import AmapQuotaExhaustedError
+
+            raise AmapQuotaExhaustedError("quota", "302")
+        if not self.ok:
+            return {"lon": None, "lat": None, "level": None}
+        return {"lon": 104.06, "lat": 30.65, "level": "门址"}
+
+
+def _addr_row(i, name="九龙沟", address="四川省成都市某路 1 号"):
+    r = _row(i, name)
+    r.address = address
+    return r
+
+
+def test_geocode_track_fills_address_rows_without_search():
+    from app.jobs.backfill_locations import backfill_rows
+
+    store = StoreStub()
+    geo = StubGeocoder()
+    search = StubSearch("never", hits=[])
+    stats = asyncio.run(backfill_rows(store, [search], [_addr_row(1)], geocoder=geo))
+    assert stats["filled"] == 1
+    assert stats["geocode_filled"] == 1
+    assert stats["by_vendor"] == {"baidu_geocode": 1}
+    assert search.calls == 0  # 地址命中即短路，不烧检索配额
+    assert store.upserts[0][1]["location"] == (104.06, 30.65)
+    assert geo.city_seen == "成都"  # 行城市作为地理编码上下文
+
+
+def test_geocode_quota_death_falls_to_search_chain():
+    from app.jobs.backfill_locations import backfill_rows
+
+    store = StoreStub()
+    geo = StubGeocoder(quota=True)
+    hit = [{"name": "九龙沟", "city": "成都", "location": "104.0,30.6"}]
+    search = StubSearch("amap", hits=hit)
+    stats = asyncio.run(
+        backfill_rows(store, [search], [_addr_row(1), _addr_row(2)], geocoder=geo)
+    )
+    assert stats["geocode_quota_stopped"] == 1
+    assert stats["filled"] == 2
+    assert stats["by_vendor"] == {"amap": 2}
+    assert geo.calls == 1  # latch：第二行不再撞 geocode
+
+
+def test_addressless_rows_skip_geocode():
+    from app.jobs.backfill_locations import backfill_rows
+
+    geo = StubGeocoder()
+    hit = [{"name": "九龙沟", "city": "成都", "location": "104.0,30.6"}]
+    search = StubSearch("amap", hits=hit)
+    stats = asyncio.run(backfill_rows(StoreStub(), [search], [_row(1)], geocoder=geo))
+    assert geo.calls == 0  # 无地址行直接走检索链
+    assert stats["by_vendor"] == {"amap": 1}

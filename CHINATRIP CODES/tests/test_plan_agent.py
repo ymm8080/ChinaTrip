@@ -2100,7 +2100,8 @@ def test_named_wish_city_hint_routes_to_chengdu():
     )
     session, _, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
-    added = next(v for v in all_visits(session) if v.name == "看变脸表演")
+    # 2026-10-30 深夜拍板：落实为真实 POI 的专名心愿，条目用 POI 正名
+    added = next(v for v in all_visits(session) if v.name == "蜀风雅韵剧院")
     assert added.city == "成都"
     assert added.poi_id == "B-OPERA-1"
 
@@ -2753,3 +2754,55 @@ def test_keyword_label_tokens():
     assert _category_label_tokens("古镇") == ["historical_town"]
     assert _category_label_tokens("茶馆") == []
     assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇"}
+
+# --- refresh_legs 双语 P1 补链（2026-10-30）--------------------------------
+
+
+class _EnDetailStore:
+    """鸭子类型 poi_details：get_by_name 带 _en 字段（库回填后的形态）。"""
+
+    def get(self, source_poi_id):
+        return None
+
+    def get_by_name(self, city, name):
+        return {
+            "poi_id": "B000A7U3C8",
+            "address": "文昌路",
+            "opening_hours": "09:00-17:00",
+            "name_en": "Yu Garden",
+            "address_en": "Wenchang Road",
+            "intro_en": None,
+            "opening_hours_en": None,
+        }
+
+    def upsert(self, *args, **kwargs):
+        return True
+
+
+def test_refresh_legs_stamps_en_fields_from_detail_store():
+    """打开/重开旧行程（refresh_legs）库读详情把 name_en/address_en 只填空
+    并出——英文界面结果卡出英文站名/地址，不回填已有中文 address 语义不变。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    agent = PlanningAgent(
+        ScriptedLLM([]), amap_client=None, poi_details=_EnDetailStore()
+    )
+    item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
+    session = PlanSession(
+        session_id="s1",
+        device_id="d1",
+        cities=["上海"],
+        days=1,
+        state="ready",
+        plan=ItineraryPlan(
+            itinerary_id="it_t",
+            cities=["上海"],
+            days=[DayPlan(day=1, base_city="上海", items=[item])],
+        ),
+    )
+    run(agent.refresh_legs(session))
+    assert item.name_en == "Yu Garden"
+    assert item.address_en == "Wenchang Road"
+    assert item.address == "文昌路"
+    assert item.opening_hours == "09:00-17:00"
