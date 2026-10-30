@@ -157,6 +157,101 @@ def test_wish_llm_miss_placeholder_and_negative_cache(monkeypatch):
     assert "看外星人遗址" in [v.name for v in _visits(session)]
 
 
+def test_sync_heals_stale_binding_to_real_poi(monkeypatch):
+    """绑定毒成次优（小熊猫）但行程里已是正主（基地）：绑定自愈+行翻已排期。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = PandaStore()
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    stale = {
+        "name": "小熊猫森林公园",
+        "city": "成都",
+        "source_poi_id": "ct_成都_103",
+        "location": (104.1, 30.7),
+    }
+    agent._wish_bindings["看熊猫"] = stale
+    session.wish_bindings["看熊猫"] = stale
+    agent._sync_wish_rows(session)
+    assert session.wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
+    assert agent._wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
+    rows = svc.list_groups(session.plan.itinerary_id)
+    row = next(r for r in rows["scheduled"] if r["name"] == "看熊猫")
+    assert "成都大熊猫繁育研究基地" in (row.get("note") or "")
+
+
+def test_sync_time_arrange_skips_when_name_match_exists(monkeypatch):
+    """行程里已有名字对得上的正主：不再为次优绑定点加第二个点。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = PandaStore()
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    stale = {
+        "name": "小熊猫森林公园",
+        "city": "成都",
+        "source_poi_id": "ct_成都_103",
+        "location": (104.1, 30.7),
+    }
+    session.wish_bindings["看熊猫"] = stale
+    agent._wish_bindings["看熊猫"] = stale
+    calls: list[list[str]] = []
+
+    async def fake_add(sess, names, **kwargs):
+        calls.append(list(names))
+        return sess, None, ""
+
+    agent._add_must_visits = fake_add
+    notes, unresolved = asyncio.run(
+        agent.sync_wishes_to_trip_items(session, ["看熊猫"])
+    )
+    assert calls == []
+    assert llm.calls == 0
+
+
+def test_wish_binds_out_of_pool_library_row(monkeypatch):
+    """正主被挤出候选 top 窗口（在库不在池）：库内绑定兜底+入池落排。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = WaterStore(named=True, in_pool=False)
+    svc = TripItemService()
+    svc.create("看成都附近的水利工程", source="chat", city="成都")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    names = [v.name for v in _visits(session)]
+    assert "都江堰水利工程" in names
+    assert "看成都附近的水利工程" not in names
+    assert llm.calls == 0
+    itin = session.plan.itinerary_id
+    row = next(
+        (
+            r
+            for g in ("wishlist", "scheduled")
+            for r in svc.list_groups(itin).get(g, [])
+            if r["name"] == "看成都附近的水利工程"
+        ),
+        None,
+    )
+    assert row is not None and row["status"] == "scheduled"
+    assert "都江堰水利工程" in (row.get("note") or "")
+
+
 def test_absorb_reopens_scheduled_row_for_new_trip(monkeypatch):
     """已排期（挂在旧行程）的心愿行：新行程重新吸收+换绑+刷新便签。"""
     monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
@@ -273,11 +368,13 @@ _DUJIANGYAN_NAMED = {
 
 
 class WaterStore(PoiDetailStore):
-    """水利工程场景桩：named=False 库内无「水利工程」命名行（逼 LLM）。"""
+    """水利工程场景桩：named=False 库内无「水利工程」命名行（逼 LLM）。
+    in_pool=False 时命名行不进城 top 窗口（候选池窗外正主场景）。"""
 
-    def __init__(self, named: bool = False):
+    def __init__(self, named: bool = False, in_pool: bool = True):
         super().__init__(None)
         self.named = named
+        self.in_pool = in_pool
 
     def search_keyword(self, city, tokens, *, limit=5):
         rows = [
@@ -290,7 +387,10 @@ class WaterStore(PoiDetailStore):
     def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
         if (city or "").removesuffix("市") != "成都":
             return []
-        head = [dict(_DUJIANGYAN_NAMED)] if self.named else [dict(_DUJIANGYAN_REAL)]
+        if self.named:
+            head = [dict(_DUJIANGYAN_NAMED)] if self.in_pool else []
+        else:
+            head = [dict(_DUJIANGYAN_REAL)]
         return (head + [dict(_KUANZHAI)])[:limit]
 
 
