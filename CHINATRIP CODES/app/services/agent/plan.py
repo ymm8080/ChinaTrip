@@ -988,10 +988,20 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     """Full same-stop test for plan-level dedupe (2026-10-28)：名字等价
     （containment + 演出内核）之外，poi_id 双方非空且相等也算同一站——
     「青蓝湾茶楼(…店)」与心愿落实的「茶馆喝茶」落在同一 poi 上，两卡并存
-    即重复。poi_id 一方为 None（历史行常态）不参与，交给名字判定。"""
+    即重复。poi_id 一方为 None（历史行常态）不参与，交给名字判定。
+
+    地理闸（2026-10-31 青城山误并事故）：包含匹配会把泛名山岳「青城山」
+    与同山不同场馆「青城山skydive跳伞基地」判同站（实测相距 ~6km，
+    day3 被整天空掉）。双方有坐标且相距 >2km = 名字撞衫的不同场馆，
+    不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。"""
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
-    return _name_dup(a.name, b.name)
+    if _name_dup(a.name, b.name):
+        if a.location is not None and b.location is not None:
+            if haversine_km(a.location, b.location) > 2.0:
+                return False
+        return True
+    return False
 
 
 def _dedupe_visit_keepers(
@@ -2378,13 +2388,23 @@ class PlanningAgent:
                         )
                     )
             else:
-                poi = await self._lookup_poi(name, city)
+                bound0 = self._wish_bindings.get(name) or (
+                    session.wish_bindings or {}
+                ).get(name)
+                # 已有绑定时不再烧图商检索（POIS 已定就没配额事）
+                poi = (
+                    bound0
+                    if isinstance(bound0, dict) and bound0.get("location")
+                    else await self._lookup_poi(name, city)
+                )
                 if poi is None or not isinstance(poi, dict) or not poi.get("location"):
                     # 2026-10-30 拍板（精确→模糊→LLM，水利工程事故）：图商
                     # 未命中/无坐标命中不直接占位——先语义绑定（库内纯核心
                     # 词最佳→LLM 从城市顶库接地挑选），命中即真实 POI，落空
                     # 回退原 poi/占位语义。
-                    bound = await self._bind_wish_poi(name, city)
+                    bound = bound0
+                    if bound is None:
+                        bound = await self._bind_wish_poi(name, city)
                     if bound is not None:
                         poi = bound
                         session.wish_bindings[name] = bound
@@ -3099,7 +3119,17 @@ class PlanningAgent:
         if self._trip_items is None:
             return []
         absorbed: list[str] = []
-        for it in self._trip_items.list_groups().get("wishlist", []):
+        cur_itin = session.plan.itinerary_id if session.plan else None
+        rows = list(self._trip_items.list_groups().get("wishlist", []))
+        # 2026-10-31（用户实报「新行程不抓心愿单」）：已排期但挂在别的行
+        # 程上的心愿行，对新行程视同心愿单重新吸收；安排后 _sync_wish_rows
+        # 会把行换绑到当前行程并刷新 note/天序。
+        rows += [
+            r
+            for r in self._trip_items.list_groups().get("scheduled", [])
+            if r.get("itinerary_id") != cur_itin
+        ]
+        for it in rows:
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue
@@ -3866,19 +3896,19 @@ class PlanningAgent:
         )
         if not names:
             return
-        known_itins = {itin, *(session.linked_itins or [])}
         try:
             groups = self._trip_items.list_groups()
         except Exception:
             return
         rows = groups.get("wishlist", []) + groups.get("scheduled", [])
         for it in rows:
+            # 2026-10-30 深夜：行按名字全局去重（跨会话共享）——凡命中本会
+            # 话心愿名的行即本用户当前心愿行，无条件换绑当前行程；旧 id 记
+            # 入 linked_itins 供追溯。
             name = str(it.get("name") or "")
             if not name or not any(_name_dup(name, n) for n in names):
                 continue
             row_itin = it.get("itinerary_id")
-            if row_itin not in (None,) and row_itin not in known_itins:
-                continue  # 别的行程的行不动
             bound = self._wish_bindings.get(name) or (session.wish_bindings or {}).get(
                 name
             )
@@ -3903,18 +3933,23 @@ class PlanningAgent:
                     self._trip_items.link_itinerary(it["id"], itin, force=True)
                     if row_itin:
                         session.linked_itins.append(row_itin)
-                if (
-                    target is not None
-                    and target.poi_id
-                    and it.get("status") != STATUS_SCHEDULED
+                if target is not None and target.poi_id and (
+                    it.get("status") != STATUS_SCHEDULED
+                    or row_itin != itin
+                    or it.get("day") != target.day
                 ):
                     when = _wish_when_text(session, target)
                     note = L(
                         f"已安排：{target.name}（第{target.day}天{when[0]}）",
                         f"Scheduled: {target.name} (day {target.day}{when[1]})",
                     )
-                    base = str(it.get("note") or "").strip()
-                    if base and "已安排：" not in base:
+                    raw_note = str(it.get("note") or "")
+                    base = (
+                        raw_note.split("｜已安排：")[0]
+                        .split(" | Scheduled:")[0]
+                        .strip()
+                    )
+                    if base:
                         note = L(f"{base}｜{note}", f"{base} | {note}")
                     self._trip_items.update(
                         it["id"],
@@ -4615,7 +4650,8 @@ class PlanningAgent:
             # 与池外（tier 13+）的好点此前从不回头看——金沙/杜甫草堂级 90 分
             # 钟点被丢在池外而 day3 只有 180/360。按 tier 序回补：先地理最近
             # 的可用天（腿小=同片区=动线连贯），全远再退最空天；腿费、4 个/日
-            # 闸照收；露天补位干日优先（雨天感知，无干位才落雨日并留痕）。
+            # 闸照收；露天补位干日优先（雨天感知，无干位不补——5A
+            # 级未排由白名单「可选加」披露）。
             placed_pos = {pos for seq in placed.values() for pos, _ in seq}
 
             def _rainy_for(cand: dict, d: int) -> bool:
@@ -4632,7 +4668,11 @@ class PlanningAgent:
             def _refill(pos: int, cand: dict) -> None:
                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                 xy = _cxy(cand)
-                # 露天点干日优先（雨 flag 前置）；只余雨日时放行并留痕
+                # 露天点干日优先（雨 flag 前置）；雨日一律不补露天
+                # （2026-10-31 用户拍板：整段有雨也不把露天塞进已有
+                # 安排的雨日——让位室内，排不进就不排，5A 级由白名单
+                # 「可选加」披露。空天无忧：主选点溢出兜底已保证每天
+                # 非空）
                 for day in sorted(
                     range(lo, hi + 1),
                     key=lambda d: (
@@ -4642,6 +4682,8 @@ class PlanningAgent:
                         d,
                     ),
                 ):
+                    if _rainy_for(cand, day):
+                        continue
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
                     if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
@@ -4651,15 +4693,6 @@ class PlanningAgent:
                     if xy is not None:
                         day_coords[day].append(xy)
                     placed[day].append((pos, cand))
-                    if _rainy_for(cand, day) and notes is not None:
-                        night = _night_cand(cand)
-                        when = "夜间有雨" if night else "预报有雨"
-                        kind = "夜间露天" if night else "露天"
-                        full = "干夜已满" if night else "干日已满"
-                        notes.append(
-                            f"第{day}天{when}：{cand['name']}（{kind}）"
-                            f"补位排入（{full}）；要调整请说"
-                        )
                     break
 
             for pos, (_idx, cand) in enumerate(pool):
@@ -5587,11 +5620,13 @@ class PlanningAgent:
         for a, _b, _km in leg_pairs(plan):
             if a.location is None or _b.location is None:
                 continue
-            key = (
+            fwd = (
                 f"{a.location.lon:.6f},{a.location.lat:.6f}",
                 f"{_b.location.lon:.6f},{_b.location.lat:.6f}",
             )
-            hit = self._leg_cache.get(key)
+            # 双向匹配（2026-10-31）：步行距离无向；二次求解（打车矩阵值
+            # 打破平局）可能翻转游览序，实测缓存只存了一个方向——反向同用。
+            hit = self._leg_cache.get(fwd) or self._leg_cache.get((fwd[1], fwd[0]))
             if hit is not None:
                 a.distance_to_next_km = round(hit[0], 2)
                 a.next_walk_minutes = hit[1]
@@ -6059,6 +6094,26 @@ class PlanningAgent:
                 if bound is not None:
                     session.wish_bindings[wish] = bound
                     self._wish_bindings[wish] = bound
+                    trip_cities = {
+                        (c or "").strip().removesuffix("市")
+                        for c in session.cities
+                        if (c or "").strip()
+                    }
+                    bound_city = str(bound.get("city") or "").removesuffix("市")
+                    if (
+                        session.plan is not None
+                        and (not trip_cities or bound_city in trip_cities)
+                        and not any(
+                            item.poi_id
+                            and item.poi_id == str(bound.get("source_poi_id") or "")
+                            for day in session.plan.days
+                            for item in day.items
+                            if isinstance(item, VisitItem)
+                        )
+                    ):
+                        if wish not in session.must_visits:
+                            session.must_visits.append(wish)
+                        await self._add_must_visits(session, [wish])
             if session.plan is not None:
                 self._sync_wish_rows(session)
         except Exception:
