@@ -535,3 +535,33 @@ def test_sparse_day_refills_from_beyond_pool():
     refilled = [n for n in by_day.get(2, []) if n.startswith("补")]
     assert len(refilled) >= 2  # 稀疏天被池外同片区点回填
     assert not any(n.startswith("远填") for n in by_day.get(2, []))  # 跨区大点不硬塞
+
+
+# --- 2026-10-31 打车出行模型：车程+半小时叫车 --------------------------------
+
+
+def test_taxi_leg_model_drive_plus_hail():
+    from app.services.agent.plan import (
+        _TAXI_HAIL_MINUTES,
+        _TAXI_MIN_PER_KM,
+        _TRAVEL_LEG_CAP_MIN,
+        _TRAVEL_MIN_PER_KM,
+        _taxi_leg_min,
+    )
+
+    # 近距（≤1.5km）步行口径，不付叫车开销
+    assert _taxi_leg_min(0.8) == round(0.8 * _TRAVEL_MIN_PER_KM)
+    # 远距：车程（km×绕行/车速）+ 半小时叫车
+    assert _taxi_leg_min(5.0) == round(5.0 * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES
+    assert _taxi_leg_min(50.0) == round(50.0 * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES
+    # 跨区一日游量级封顶
+    assert _taxi_leg_min(300.0) == _TRAVEL_LEG_CAP_MIN
+
+
+def test_taxi_model_allows_midrange_same_day():
+    """10km 级市内点对按打车 ≈52 分钟计费：150+150+52 ≤ 360 同天可排
+    （旧步行口径 10km≈162 分钟→封顶 120→420 出局）。"""
+    a = _cand("甲", "成都", suggested=150, loc=(104.06, 30.66))
+    b = _cand("乙", "成都", suggested=150, loc=(104.165, 30.66))  # ~10km
+    items = PlanningAgent._deterministic_selection([a, b], 1, {"成都": (1, 1)})
+    assert len(items) == 2

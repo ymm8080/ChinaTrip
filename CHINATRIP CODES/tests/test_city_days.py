@@ -75,10 +75,12 @@ def transfers_of(session):
 
 
 def test_city_day_ranges_split():
-    # no city_days: every non-last destination gets one day (legacy split)
+    # no city_days: activity days split evenly across destinations
+    # （2026-10-30 修复：旧版「非末位目的地各 1 天、末位吃掉余天」把闭合
+    # 行程的归程上海当成末位目的地占走 day3-7，day3-6 全空）
     assert _city_day_ranges(["上海", "杭州", "苏州"], 4) == {
-        "杭州": (1, 1),
-        "苏州": (2, 4),
+        "杭州": (1, 2),
+        "苏州": (3, 4),
     }
     # 杭州 stays 2 → 杭州 [1,2], 苏州 [3,5]
     assert _city_day_ranges(["上海", "杭州", "苏州"], 5, {"杭州": 2}) == {

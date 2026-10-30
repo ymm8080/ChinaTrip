@@ -66,6 +66,7 @@ from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
     RESERVATION_V0,
+    reservation_meta_for,
 )
 from app.services.restaurants import (
     MEAL_DURATION_MINUTES,
@@ -240,6 +241,24 @@ def _night_cand(cand: dict) -> bool:
         return True
     name = str(cand.get("name") or "")
     return any(m in name for m in _NIGHT_NAME_MARKS)
+
+
+def _rain_exposed(cand: dict) -> bool:
+    """雨天受暴露点（2026-10-31 用户拍板：partial 视同露天参与全套
+    雨天避险——动物园/野生动物园类半露天点雨天也换干日/点名披露，
+    不再中性放行）。"""
+    return (cand.get("rain_ok") or "") in ("no", "partial")
+
+
+def _rain_exposure_label(cand: dict) -> str:
+    return "半露天" if (cand.get("rain_ok") or "") == "partial" else "露天"
+
+
+def _rain_heavy(text: str | None) -> bool:
+    """强降雨口径（2026-10-31 用户拍板按雨强分级）：文本含「大雨/暴雨」
+    （大暴雨/特大暴雨经「暴雨」子串命中）才触发 ④兜底升级为「雨日不排」；
+    小雨/中雨/雷阵雨/冻雨等维持「保持原排+留痕」不删点。"""
+    return bool(text) and ("大雨" in text or "暴雨" in text)
 
 
 def _source_tier(cand: dict) -> int:
@@ -713,22 +732,66 @@ def _city_day_ranges(
 ) -> dict[str, tuple[int, int]]:
     """Per-city activity-day window. cities[0] is the origin: departure day
     is travel-only, never gets activity days (product rule 2026-10-19).
-    Destination d spans [start_d, start_{next d} - 1]; the last destination
-    runs to ``days``. city_days (destination → stay days) drives the split
-    when present; otherwise every non-last destination gets one day."""
+    city_days (destination → stay days) drives the split when present;
+    otherwise both closed and open trips split activity days evenly across
+    the real destinations.
+
+    2026-10-30 修复（2026-11-04 空天事故）：无 city_days 时旧版给每个非末位
+    目的地只分 1 天、末位目的地吃掉全部余天——闭合行程（上海→成都→重庆→
+    上海）把归程上海当成末位目的地占走 day3-7，成都/重庆各只剩 1 天，
+    day3-6 全空。修复：闭合行程尾城只作返程日不参与均分，真实目的地均分
+    活动天，余数给前面的目的地（8 天 上海→杭州→苏州→上海 = 杭州4+苏州3，
+    test_ranges_closed_trip_uneven_split 锚）。非闭合行程同样均分（同日
+    拍板：4 天 2 目的地不再「杭州只给 1 天」，test_v0_placeholder_
+    selection_respects_city_windows 锚），但余数给后面的目的地——3 天
+    南京→上海→苏州 = 上海1+苏州2，上海→苏州 站间腿落 day2（2026-10-31
+    收库门禁核：余数给前面会把该腿挪到 day3，推翻 v0 排日契约）。"""
     dests = cities[1:] if len(cities) > 1 else cities
-    starts = [1]
-    for city in dests[:-1]:
-        stay = 1
-        if city_days:
+    if len(dests) <= 1:
+        return {dests[0]: (1, days)} if dests else {}
+    closed = _norm_city(dests[-1]) == _norm_city(cities[0])
+    if city_days:
+        starts = [1]
+        for city in dests[:-1]:
+            stay = 1
             d = city_days.get(city) or city_days.get(city.removesuffix("市"))
             if isinstance(d, int) and d >= 1:
                 stay = d
+            starts.append(max(starts[-1] + 1, min(starts[-1] + stay, days)))
+        ranges: dict[str, tuple[int, int]] = {}
+        for c, city in enumerate(dests):
+            start = starts[c]
+            end = starts[c + 1] - 1 if c + 1 < len(dests) else days
+            ranges[city] = (start, max(start, end))
+        return ranges
+    if not closed:
+        base = days // len(dests)
+        rem = days % len(dests)
+        starts = [1]
+        for k, _city in enumerate(dests[:-1]):
+            stay = base + (1 if k >= len(dests) - rem else 0)
+            starts.append(max(starts[-1] + 1, min(starts[-1] + stay, days)))
+        ranges = {}
+        for c, city in enumerate(dests):
+            start = starts[c]
+            end = starts[c + 1] - 1 if c + 1 < len(dests) else days
+            ranges[city] = (start, max(start, end))
+        return ranges
+    real = dests[:-1]
+    activity = max(days - 1, len(real))
+    base = activity // len(real)
+    rem = activity % len(real)
+    starts = [1]
+    for k, _city in enumerate(real[:-1]):
+        # 余数天给前面的目的地（闭合锚：8 天 = 杭州4+苏州3）
+        stay = base + (1 if k < rem else 0)
         starts.append(max(starts[-1] + 1, min(starts[-1] + stay, days)))
-    ranges: dict[str, tuple[int, int]] = {}
-    for c, city in enumerate(dests):
+    starts.append(days)  # 尾城=归程日起点
+    seq = list(real) + [dests[-1]]
+    ranges = {}
+    for c, city in enumerate(seq):
         start = starts[c]
-        end = starts[c + 1] - 1 if c + 1 < len(dests) else days
+        end = starts[c + 1] - 1 if c + 1 < len(seq) else days
         ranges[city] = (start, max(start, end))
     return ranges
 
@@ -2271,12 +2334,6 @@ class PlanningAgent:
         pinned; farther than RESTO_ASK_KM from every located sight and not
         asked yet -> held out for the resto_confirm round instead of added
         (far_check=False is the accepted-by-user re-entry from that round)."""
-        existing = [
-            item.name
-            for day in session.plan.days
-            for item in day.items
-            if isinstance(item, VisitItem)
-        ]
         existing_poi_ids = {
             item.poi_id
             for day in session.plan.days
@@ -2288,10 +2345,16 @@ class PlanningAgent:
             bound = self._wish_bindings.get(n) or (session.wish_bindings or {}).get(n)
             return str((bound or {}).get("source_poi_id") or "")
 
+        existing_real = [
+            item.name
+            for day in session.plan.days
+            for item in day.items
+            if isinstance(item, VisitItem) and item.poi_id
+        ]
         missing = [
             name
             for name in names
-            if not any(_name_dup(name, e) for e in existing)
+            if not any(_name_dup(name, e) for e in existing_real)
             and not (_bound_pid(name) and _bound_pid(name) in existing_poi_ids)
         ]
         if not missing:
@@ -2644,7 +2707,10 @@ class PlanningAgent:
                 if len(core) >= 2 and core != name.strip():
                     try:
                         chits = await asyncio.to_thread(
-                            self._poi_details.search_keyword, city, [core]
+                            self._poi_details.search_keyword,
+                            city,
+                            [core],
+                            limit=20,
                         )
                     except Exception:
                         chits = []
@@ -2661,7 +2727,15 @@ class PlanningAgent:
                                 rt = float(h.get("rating") or 0)
                             except (TypeError, ValueError):
                                 rt = 0.0
-                            return (rt, -len(str(h.get("name") or "")))
+                            try:
+                                sd = (
+                                    1
+                                    if reservation_meta_for(str(h.get("name") or ""))
+                                    else 0
+                                )
+                            except Exception:
+                                sd = 0
+                            return (sd, rt, -len(str(h.get("name") or "")))
 
                         hits = [max(hits, key=_bind_key)]
         existing = [
@@ -3184,7 +3258,7 @@ class PlanningAgent:
         # 三轮拍板：白天/夜间双窗——夜间雨只影响游船观景等夜间露天
         # 活动）：出发日期落定才有绝对日历；无 start_date / 无
         # lookup / 无数据 → 空表，选点行为与旧版完全一致
-        rain_map, night_rain_map = self._rain_map(session, ranges)
+        rain_map, night_rain_map, heavy_rain_map = self._rain_map(session, ranges)
         rain_notes: list[str] = []
         # §6.1 片区提示：候选按城市地理聚类（k=该城天数窗），area 标注
         # 进 listing（LLM 分日时少横穿城；聚类只给提示不硬替分日）
@@ -3232,6 +3306,7 @@ class PlanningAgent:
                 transfer_days,
                 rain_days=rain_map,
                 night_rain_days=night_rain_map,
+                heavy_rain_days=heavy_rain_map,
                 notes=rain_notes,
             )
             llm_assumptions = [
@@ -3245,23 +3320,6 @@ class PlanningAgent:
             # 雨天自动调整留痕（假设区可见；不打断、不向用户提问）
             llm_assumptions.append(
                 L("；".join(rain_notes[:4]), "; ".join(rain_notes[:4]))
-            )
-        # §8.2.6 计划级查全率：候选池 5A/UNESCO 未入选 → 假设区告警
-        premium_gap = premium_coverage_gaps(
-            [spec["name"] for spec in picked], candidates, same_site=_same_site
-        )
-        if premium_gap:
-            llm_assumptions.append(
-                L(
-                    "白名单未排（可选加）："
-                    + "、".join(
-                        f"{g['name']}（{'/'.join(g['tags'])}）" for g in premium_gap
-                    ),
-                    "Top picks not scheduled (add if you like): "
-                    + ", ".join(
-                        f"{g['name']} ({'/'.join(g['tags'])})" for g in premium_gap
-                    ),
-                )
             )
         logger.info(
             "plan: v0 candidates %.2fs + select[%s] %.2fs (%d candidates)",
@@ -3311,6 +3369,36 @@ class PlanningAgent:
             bindings={**session.wish_bindings, **self._wish_bindings},
             transfer_days=transfer_days,
         )
+        # 全局跨天均衡（2026-10-30 用户拍板）：选点/必去都是逐城贪心，
+        # 空天与超载天可能并存；整段行程视角回填+分流后再算白名单。
+        picked, rebalance_notes = self._rebalance_days(
+            picked,
+            candidates,
+            session.days,
+            ranges,
+            transfer_days=transfer_days,
+            rain_days=rain_map,
+            origin_city=session.cities[0] if len(session.cities) > 1 else None,
+        )
+        for zh_note, en_note in rebalance_notes:
+            llm_assumptions.append(L(zh_note, en_note))
+        # §8.2.6 计划级查全率：候选池 5A/UNESCO 未入选 → 假设区告警
+        premium_gap = premium_coverage_gaps(
+            [spec["name"] for spec in picked], candidates, same_site=_same_site
+        )
+        if premium_gap:
+            llm_assumptions.append(
+                L(
+                    "白名单未排（可选加）："
+                    + "、".join(
+                        f"{g['name']}（{'/'.join(g['tags'])}）" for g in premium_gap
+                    ),
+                    "Top picks not scheduled (add if you like): "
+                    + ", ".join(
+                        f"{g['name']} ({'/'.join(g['tags'])})" for g in premium_gap
+                    ),
+                )
+            )
         assumptions = (
             [_pace_assumption()]
             + poi_assumptions
@@ -3451,7 +3539,14 @@ class PlanningAgent:
                         continue
                     if not p.get("location"):
                         continue  # 图商命中偶发无坐标：同款坐标闸（2026-10-30）
-                    pois.append({**p, "city": city})
+                    entry = {**p, "city": city}
+                    poi_city = str(p.get("city") or "").removesuffix("市")
+                    if poi_city and poi_city != city.removesuffix("市"):
+                        # 图商本地检索返回了异地 POI（stub 松散返回同款）：
+                        # 保留进池供 spec 按名解析，但不许进均衡回填（防
+                        # 「已丢弃出发城市景点的复活卡」2026-10-31）。
+                        entry["cross_city_hit"] = True
+                    pois.append(entry)
             logger.info(
                 "plan: city %s candidates library=%d no_loc_skipped=%d total=%d",
                 city,
@@ -3561,10 +3656,25 @@ class PlanningAgent:
                 # 2026-10-30 拍板：心愿语义匹配——确定性核心词→LLM 接地挑
                 # 选，命中即绑定池内真实 POI（行程显示熊猫基地本体），全落
                 # 空才保持占位语义。
-                bound = self._wish_bind_candidate(
-                    name, candidates
-                ) or await self._llm_bind_wish(name, candidates)
+                bound = self._wish_bind_candidate(name, candidates)
+                if bound is None:
+                    # 2026-10-31：库内模糊先于 LLM（精确→模糊→LLM 拍板
+                    # 序）；候选池窗口外的正主（基地被新数据挤出 top30）
+                    # 也由此兜住。
+                    bound = await self._bind_wish_poi(name, hint)
+                if bound is None:
+                    bound = await self._llm_bind_wish(name, candidates)
                 if bound is not None:
+                    if not any(c.get("name") == bound.get("name") for c in candidates):
+                        # 组装层 poi_id/坐标按 cand_by_name 回查——窗外正主
+                        # 必须同时入池才能落成真实条目。
+                        candidates.append(
+                            {
+                                **bound,
+                                "category": bound.get("category") or "sight",
+                                "city": bound.get("city") or hint,
+                            }
+                        )
                     self._wish_bindings[name] = bound
                     self._backfill_wish_city(name, str(bound.get("city") or ""))
                     assumptions.append(
@@ -3821,12 +3931,23 @@ class PlanningAgent:
             except (TypeError, ValueError):
                 return 0.0
 
+        def _seed(c: dict) -> int:
+            # 预约名单（重大场馆策展表）命中优先（2026-10-31 看熊猫平局
+            # 事故：基地 4.6 vs 大熊猫1号别墅 4.6，短名规则选中了园区内
+            # 设施；正主天然在预约名单里）。
+            try:
+                return 1 if reservation_meta_for(str(c.get("name") or "")) else 0
+            except Exception:
+                return 0
+
         exact = [c for c in pool if _norm_site_name(str(c["name"])) == ncore]
         if exact:
-            return max(exact, key=lambda c: (_rating(c), -len(str(c["name"]))))
+            return max(
+                exact, key=lambda c: (_seed(c), _rating(c), -len(str(c["name"])))
+            )
         near = [c for c in pool if _same_site(core, str(c["name"]))]
         if near:
-            return max(near, key=lambda c: (_rating(c), -len(str(c["name"]))))
+            return max(near, key=lambda c: (_seed(c), _rating(c), -len(str(c["name"]))))
         return None
 
     async def _bind_wish_poi(self, name: str, city: str) -> dict | None:
@@ -3841,7 +3962,7 @@ class PlanningAgent:
             for scope in scopes:
                 try:
                     hits = await asyncio.to_thread(
-                        self._poi_details.search_keyword, scope, [core]
+                        self._poi_details.search_keyword, scope, [core], limit=20
                     )
                 except Exception:
                     hits = []
@@ -3924,19 +4045,43 @@ class PlanningAgent:
                     ):
                         target = item
                         break
-                    if target is None and _name_dup(name, item.name):
+                    if target is None and item.poi_id and _name_dup(name, item.name):
                         target = item
                 if target is not None:
                     break
+            if (
+                target is not None
+                and target.poi_id
+                and str((bound or {}).get("source_poi_id") or "") != target.poi_id
+            ):
+                # 2026-10-31（看熊猫案）：绑定落在次优（小熊猫森林公园）而
+                # 行程里已是正主（基地）——绑定自愈为实际安排，防后续回合
+                # 把次优当第二个点加进排期。
+                healed = {
+                    "name": target.name,
+                    "city": target.city,
+                    "source_poi_id": target.poi_id,
+                    "location": (
+                        {"lon": target.location.lon, "lat": target.location.lat}
+                        if target.location is not None
+                        else None
+                    ),
+                }
+                self._wish_bindings[name] = healed
+                session.wish_bindings[name] = healed
             try:
                 if row_itin != itin:
                     self._trip_items.link_itinerary(it["id"], itin, force=True)
                     if row_itin:
                         session.linked_itins.append(row_itin)
-                if target is not None and target.poi_id and (
-                    it.get("status") != STATUS_SCHEDULED
-                    or row_itin != itin
-                    or it.get("day") != target.day
+                if (
+                    target is not None
+                    and target.poi_id
+                    and (
+                        it.get("status") != STATUS_SCHEDULED
+                        or row_itin != itin
+                        or it.get("day") != target.day
+                    )
                 ):
                     when = _wish_when_text(session, target)
                     note = L(
@@ -4284,9 +4429,11 @@ class PlanningAgent:
 
     def _rain_map(
         self, session: PlanSession, ranges: dict[str, tuple[int, int]]
-    ) -> tuple[dict[str, set[int]], dict[str, set[int]]]:
-        """按城市 × 行程日产出（白天雨, 夜间雨）两个日集（用户拍板：
-        有雨自动排室内，不问用户）。
+    ) -> tuple[dict[str, set[int]], dict[str, set[int]], dict[str, set[int]]]:
+        """按城市 × 行程日产出（白天雨, 夜间雨, 白天大雨/暴雨）三个日集
+        （用户拍板：有雨自动排室内，不问用户；2026-10-31 雨强分级——
+        大雨/暴雨日 ④兜底升级为「雨日不排」，强雨集只看白天窗，夜间
+        窗无④兜底暂不分级）。
 
         三轮拍板（2026-10-30 深夜）：避免露头的活动与下雨时间段
         一致——白天雨管白天露天点，夜间雨只影响夜间露天活动（游船
@@ -4297,9 +4444,10 @@ class PlanningAgent:
         空表。
         """
         if self._weather_lookup is None or not session.start_date:
-            return {}, {}
+            return {}, {}, {}
         day_out: dict[str, set[int]] = {}
         night_out: dict[str, set[int]] = {}
+        heavy_out: dict[str, set[int]] = {}
         for city, (lo, hi) in ranges.items():
             key = city.removesuffix("市")
             for day in range(lo, hi + 1):
@@ -4315,9 +4463,11 @@ class PlanningAgent:
                 day_text, night_text = windows
                 if day_text and "雨" in str(day_text):
                     day_out.setdefault(key, set()).add(day)
+                    if _rain_heavy(str(day_text)):
+                        heavy_out.setdefault(key, set()).add(day)
                 if night_text and "雨" in str(night_text):
                     night_out.setdefault(key, set()).add(day)
-        return day_out, night_out
+        return day_out, night_out, heavy_out
 
     @staticmethod
     def _deterministic_selection(
@@ -4327,6 +4477,7 @@ class PlanningAgent:
         transfer_days: set[int] | None = None,
         rain_days: dict[str, set[int]] | None = None,
         night_rain_days: dict[str, set[int]] | None = None,
+        heavy_rain_days: dict[str, set[int]] | None = None,
         notes: list[str] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
@@ -4343,7 +4494,10 @@ class PlanningAgent:
         排室内，不问用户」+三轮「避免露天活动与下雨时间段一致」）：
         白天窗——整段有雨→白天露天降权室内优先入池；部分日有雨→
         雨天露天点逐级兜底（单点对调→干日室内整组腾挪→雨日就地改
-        排未入选室内点（露天不排、点名披露）→保留但留痕，不静默）；
+        排未入选室内点（露天不排、点名披露）→保留但留痕，不静默；
+        ④保留仅限小雨/中雨——大雨/暴雨（heavy_rain_days，2026-10-31
+        雨强分级拍板）升级为「雨日不排」移出行程，回填层再替它在
+        干日找位、找不到由白名单「可选加」披露）；
         夜间窗——雨夜里的夜间露天点（游船观景/夜游等 evening 点，
         _night_cand）换到干夜；H5 横幅分窗兜底（notes 留痕）。
         不评分、同输入同输出。
@@ -4409,6 +4563,9 @@ class PlanningAgent:
                     sights.append((idx, cand))
             ordered = sorted(sights, key=lambda p: (_source_tier(p[1]), p[0]))
             rainy_here = {d for d in (rain_days or {}).get(city, ()) if lo <= d <= hi}
+            heavy_here = {
+                d for d in (heavy_rain_days or {}).get(city, ()) if lo <= d <= hi
+            }
             night_rainy = {
                 d for d in (night_rain_days or {}).get(city, ()) if lo <= d <= hi
             }
@@ -4423,8 +4580,7 @@ class PlanningAgent:
                     sights,
                     key=lambda p: (
                         1
-                        if p[1].get("rain_ok") == "no"
-                        and (night_all or not _night_cand(p[1]))
+                        if _rain_exposed(p[1]) and (night_all or not _night_cand(p[1]))
                         else 0,
                         _source_tier(p[1]),
                         p[0],
@@ -4432,7 +4588,7 @@ class PlanningAgent:
                 )
                 if (
                     notes is not None
-                    and any(p[1].get("rain_ok") == "no" for p in ordered)
+                    and any(_rain_exposed(p[1]) for p in ordered)
                     and any(p[1].get("rain_ok") == "yes" for p in ordered)
                 ):
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
@@ -4541,7 +4697,7 @@ class PlanningAgent:
                                 if notes is not None:
                                     notes.append(
                                         f"第{rd}天预报有雨：{cand['name']}"
-                                        f"（露天）与{c2['name']}（室内）已对调"
+                                        f"（{_rain_exposure_label(cand)}）与{c2['name']}（室内）已对调"
                                     )
                                 return
                     # ② 整组腾挪：干日室内点累积搬来雨日，直到干日装
@@ -4571,7 +4727,7 @@ class PlanningAgent:
                                     names = "、".join(mc["name"] for _, mc, _ in moved)
                                     notes.append(
                                         f"第{rd}天预报有雨：{cand['name']}"
-                                        f"（露天）移到第{dd}天，{names}"
+                                        f"（{_rain_exposure_label(cand)}）移到第{dd}天，{names}"
                                         f"（室内）移来雨日"
                                     )
                                 return
@@ -4588,20 +4744,34 @@ class PlanningAgent:
                         day_loads[rd][0] += in_min - out_min
                         if notes is not None:
                             notes.append(
-                                f"第{rd}天预报有雨：{cand['name']}（露天）"
-                                f"本轮不排，改排{c3['name']}（室内）；要保留请说"
+                                f"第{rd}天预报有雨：{cand['name']}"
+                                f"（{_rain_exposure_label(cand)}）本轮不排，"
+                                f"改排{c3['name']}（室内）；要保留请说"
                             )
                         return
-                    # ④ 无可替代：保持原排但留痕（旧版静默）
-                    if notes is not None:
+                    # ④ 无可替代：小雨/中雨保持原排但留痕（旧版静默）；
+                    #   大雨/暴雨按雨强分级升级为「也不排」（2026-10-31
+                    #   用户拍板）——移出行程，载荷同步扣减；5A/UNESCO
+                    #   由白名单「可选加」自然披露，回填层还会替它在
+                    #   干日找位（找不到则点名+白名单双账）
+                    if rd in heavy_here:
+                        placed[rd].remove((pos, cand))
+                        day_loads[rd][0] -= out_min
+                        day_loads[rd][1] -= 1
+                        if notes is not None:
+                            notes.append(
+                                f"第{rd}天预报大雨：{cand['name']}"
+                                f"（{_rain_exposure_label(cand)}）雨日不排；要保留请说"
+                            )
+                    elif notes is not None:
                         notes.append(
-                            f"第{rd}天预报有雨：{cand['name']}（露天）"
-                            f"无可替代点位，保持原排"
+                            f"第{rd}天预报有雨：{cand['name']}"
+                            f"（{_rain_exposure_label(cand)}）无可替代点位，保持原排"
                         )
 
                 for rd in sorted(rainy_here):
                     for pos, cand in list(placed[rd]):
-                        if cand.get("rain_ok") != "no":
+                        if not _rain_exposed(cand):
                             continue
                         if _night_cand(cand) and rd not in night_rainy:
                             continue  # 夜间点只受夜间窗影响（三轮口径）
@@ -4614,7 +4784,7 @@ class PlanningAgent:
                 dry_nights = [d for d in range(lo, hi + 1) if d not in night_rainy]
                 for rd in sorted(night_rainy):
                     for pos, cand in list(placed[rd]):
-                        if cand.get("rain_ok") != "no" or not _night_cand(cand):
+                        if not _rain_exposed(cand) or not _night_cand(cand):
                             continue
                         out_min = _minutes(cand, DEFAULT_VISIT_MINUTES)
                         for dd in dry_nights:
@@ -4658,8 +4828,9 @@ class PlanningAgent:
                 # 回填层雨天感知（2026-10-31 接「有雨自动排室内」补
                 # 漏：此前按 (腿,负载,日) 选天，露天补位点会就近落
                 # 进雨天——线上李子坝/云阳龙缸案）。三轮口径沿用：
-                # 普通露天点看白天窗，夜间露天点只看夜间窗。
-                if cand.get("rain_ok") != "no":
+                # 普通露天点看白天窗，夜间露天点只看夜间窗；partial
+                # （半露天，如动物园）视同露天（用户拍板 2026-10-31）。
+                if not _rain_exposed(cand):
                     return False
                 if _night_cand(cand):
                     return d in night_rainy
@@ -4673,6 +4844,7 @@ class PlanningAgent:
                 # 安排的雨日——让位室内，排不进就不排，5A 级由白名单
                 # 「可选加」披露。空天无忧：主选点溢出兜底已保证每天
                 # 非空）
+                feasible_rainy = False
                 for day in sorted(
                     range(lo, hi + 1),
                     key=lambda d: (
@@ -4682,11 +4854,12 @@ class PlanningAgent:
                         d,
                     ),
                 ):
-                    if _rainy_for(cand, day):
-                        continue
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
                     if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
+                        continue
+                    if _rainy_for(cand, day):
+                        feasible_rainy = True
                         continue
                     load[0] += minutes + leg
                     load[1] += 1
@@ -4694,6 +4867,13 @@ class PlanningAgent:
                         day_coords[day].append(xy)
                     placed[day].append((pos, cand))
                     break
+                else:
+                    # 本可排但逢雨：点名留痕（不依赖白名单兜披露）
+                    if feasible_rainy and notes is not None:
+                        notes.append(
+                            f"{cand['name']}（{_rain_exposure_label(cand)}）无干日可排，"
+                            f"逢雨暂不排入；要保留请说"
+                        )
 
             for pos, (_idx, cand) in enumerate(pool):
                 if pos not in placed_pos:
@@ -4725,6 +4905,280 @@ class PlanningAgent:
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         return items
+
+    @staticmethod
+    def _rebalance_days(
+        picked: list[dict],
+        candidates: list[dict],
+        days: int,
+        ranges: dict[str, tuple[int, int]],
+        *,
+        transfer_days: set[int] | None = None,
+        rain_days: dict[str, set[int]] | None = None,
+        origin_city: str | None = None,
+    ) -> tuple[list[dict], list[tuple[str, str]]]:
+        """全局跨天均衡（2026-10-30 用户拍板「做全局跨天优化」）。
+
+        选点与必去合并都是逐城贪心：簇满溢出、必去堆头，同城窗口内会
+        出现空天/欠载天与超载天并存（2026-11-04 空天：day2 单点、day3
+        全空、老君山 5A 躺白名单）。本 pass 站在整段行程视角补两张账：
+        ① 空/欠载天回填——按 tier 序从全量候选（含池外）补位，露天只进
+           干日（全雨窗口不硬塞，白名单披露兜底），预算含打车腿、每日
+           4 点闸；NOLOC 占位心愿的真身候选允许补入（组装层去重按
+           keep-rank 让真身胜出）。
+        ② 超载天分流——非必去的点挪到同城窗口内更空且放得下的天，地理
+           腿优先。
+        确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
+        transfer_days = transfer_days or set()
+        # 出发城市 spec 组装层必丢（2026-10-19 产品规则）；NOLOC 同名 spec
+        # 不被 _twin_blocks 拦（留真身升级通道），但其真身候选若被回填，
+        # spec 丢弃后真身就漏网成「已丢弃景点的复活卡」——回填前按名单拦。
+        origin_dropped: list[str] = []
+        if origin_city:
+            oc = origin_city.removesuffix("市")
+            origin_dropped = [
+                str(spec.get("name") or "")
+                for spec in picked
+                if str(spec.get("city") or "").removesuffix("市") == oc
+            ]
+        day_specs: dict[int, list[dict]] = {}
+        day_load = {d: 0 for d in range(1, days + 1)}
+        day_xy: dict[int, list[tuple[float, float]]] = {
+            d: [] for d in range(1, days + 1)
+        }
+
+        def _xy(entry: dict) -> tuple[float, float] | None:
+            loc = entry.get("location")
+            if isinstance(loc, dict) and loc.get("lon") is not None:
+                try:
+                    return (float(loc["lon"]), float(loc["lat"]))
+                except (TypeError, ValueError):
+                    return None
+            return None
+
+        # 有效点记账：孪生 spec（安仁古镇 vs 安仁古镇景区）要到组装层
+        # dedupe 才丢一个，选点层却已双双计入预算——day2 假满、老君山
+        # 出局躺白名单（2026-11-04 空天同源问题）。均衡只数孪生胜者
+        # （有坐标者优先，平手先到先得，与 _dedupe_visit_keepers 同义）；
+        # 败者留在 picked，组装层照旧丢弃并「已合并重复站点」留痕。
+        def _spec_twin(a: dict, b: dict) -> bool:
+            # 与 _same_visit 同义（含地理闸）：名字撞衫但相距 >2km 的不同
+            # 场馆（青城山 vs 青城山skydive跳伞基地，实测 ~6km）不是孪生
+            # ——spec 层只按名字折叠会把它误判 phantom、低估当日负载、
+            # 超预算回填。
+            na, nb = a.get("name") or "", b.get("name") or ""
+            if not (na and nb and _name_dup(na, nb)):
+                return False
+            axy, bxy = _xy(a), _xy(b)
+            if axy is not None and bxy is not None:
+                if (
+                    haversine_km(
+                        GeoPoint(lon=axy[0], lat=axy[1]),
+                        GeoPoint(lon=bxy[0], lat=bxy[1]),
+                    )
+                    > 2.0
+                ):
+                    return False
+            return True
+
+        keepers: list[dict] = []
+        phantom: set[int] = set()
+        for pos, spec in enumerate(picked):
+            twin = next((k for k in keepers if _spec_twin(spec, k)), None)
+            if twin is None:
+                keepers.append(spec)
+                continue
+            if _xy(spec) is not None and _xy(twin) is None:
+                phantom.add(id(twin))
+                keepers.remove(twin)
+                keepers.append(spec)
+            else:
+                phantom.add(id(spec))
+        for spec in keepers:
+            try:
+                d = int(spec.get("day") or 1)
+            except (TypeError, ValueError):
+                continue
+            day_specs.setdefault(d, []).append(spec)
+            day_load[d] += int(spec.get("duration_minutes") or 0)
+            xy = _xy(spec)
+            if xy is not None:
+                day_xy[d].append(xy)
+
+        def _budget(d: int) -> int:
+            if d in transfer_days:
+                return DAY_VISIT_BUDGET_MINUTES - FLIGHT_TRANSFER_MINUTES
+            return DAY_VISIT_BUDGET_MINUTES
+
+        def _cap(d: int) -> int:
+            return sum(1 for s in day_specs.get(d, []) if s.get("category") != "food")
+
+        def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
+            if xy is None or not day_xy[d]:
+                return 0
+            return min(
+                _taxi_leg_min(
+                    haversine_km(
+                        GeoPoint(lon=xy[0], lat=xy[1]),
+                        GeoPoint(lon=p[0], lat=p[1]),
+                    )
+                )
+                for p in day_xy[d]
+            )
+
+        notes: list[tuple[str, str]] = []
+        by_city: dict[str, list[tuple[int, dict]]] = {}
+        for idx, cand in enumerate(candidates):
+            if cand.get("cross_city_hit"):
+                continue  # 异地命中只许按名解析，不进回填池（2026-10-31）
+            city = (cand.get("city") or "").removesuffix("市")
+            if cand.get("category") == "food" or _amap_category_is_food(
+                cand.get("category")
+            ):
+                # 餐饮（含 amap 裸类别「餐饮服务;…」）不进回填池：当景点补卡
+                # 会与顺路餐厅/心愿落实双卡撞车（2026-10-31 湖畔居茶楼案）
+                continue
+            by_city.setdefault(city, []).append((idx, cand))
+
+        def _twin_blocks(cand: dict) -> bool:
+            # 已有「同站真身」在排 → 不再补第二个（含地理闸，与组装层
+            # 去重同义）；NOLOC 占位（心愿未定位）不拦——真身补入后组装
+            # 层去重按 keep-rank 让真身胜出。但精确同名例外：LLM 按候选
+            # 序号选中的 spec 在均衡时还无坐标，同候选再回填就是纯重复
+            # （2026-10-31 外滩双卡案）；模糊同名的升级通道不受影响。
+            cand_name = cand.get("name") or ""
+            for spec in picked:
+                if (spec.get("name") or "") == cand_name and cand_name:
+                    return True
+                if _spec_twin(cand, spec) and _xy(spec) is not None:
+                    return True
+            return False
+
+        day_city: dict[int, str] = {}
+        for city, (lo, hi) in ranges.items():
+            for d in range(lo, hi + 1):
+                day_city.setdefault(d, (city or "").removesuffix("市"))
+        city_rain = {c: set(v or ()) for c, v in (rain_days or {}).items()}
+
+        # ① 空/欠载天回填（空天优先：按进入本 pass 时的负载升序遍历）
+        filled: list[str] = []
+        for d in sorted(range(1, days + 1), key=lambda dd: (day_load[dd], dd)):
+            city = day_city.get(d)
+            if city is None or city not in by_city:
+                continue
+            guard = 0
+            while (
+                (day_load[d] < _budget(d) // 2 or _cap(d) < 2)
+                and _cap(d) < 4
+                and guard < 4
+            ):
+                guard += 1
+                choice = None
+                for idx, cand in sorted(
+                    by_city[city], key=lambda p: (_source_tier(p[1]), p[0])
+                ):
+                    name = cand.get("name") or ""
+                    if not name or cand.get("location") is None:
+                        continue
+                    if any(_name_dup(name, dn) for dn in origin_dropped if dn):
+                        continue
+                    if _cand_is_show(cand) or _twin_blocks(cand):
+                        continue
+                    minutes = cand.get("suggested_duration_min")
+                    try:
+                        minutes = (
+                            _clamp_plan_duration(int(minutes))
+                            if minutes
+                            else DEFAULT_VISIT_MINUTES
+                        )
+                    except (TypeError, ValueError):
+                        minutes = DEFAULT_VISIT_MINUTES
+                    xy = _xy(cand)
+                    leg = _leg_min(xy, d)
+                    if day_load[d] + minutes + leg > _budget(d):
+                        continue
+                    if cand.get("rain_ok") == "no" and d in city_rain.get(city, set()):
+                        continue  # 露天不进雨天（与选点口径一致）
+                    choice = (cand, minutes, xy, leg)
+                    break
+                if choice is None:
+                    break
+                cand, minutes, xy, leg = choice
+                spec = {
+                    "name": cand["name"],
+                    "city": cand.get("city"),
+                    "category": cand.get("category") or "sight",
+                    "day": d,
+                    "duration_minutes": minutes,
+                    "location": cand.get("location"),
+                }
+                picked.append(spec)
+                day_specs.setdefault(d, []).append(spec)
+                day_load[d] += minutes + leg
+                if xy is not None:
+                    day_xy[d].append(xy)
+                filled.append(f"day {d} +{spec['name']}")
+        if filled:
+            notes.append(
+                (
+                    "跨天均衡：空闲天已回填——" + "、".join(filled[:8]),
+                    "Cross-day rebalance: filled thin days — " + ", ".join(filled[:8]),
+                )
+            )
+
+        # ② 超载天分流
+        moved: list[str] = []
+        for d in sorted(range(1, days + 1), key=lambda dd: -day_load[dd]):
+            if day_load[d] <= _budget(d):
+                continue
+            city = day_city.get(d)
+            if city is None:
+                continue
+            lo, hi = ranges.get(city, (d, d))
+            movables = [
+                s
+                for s in day_specs.get(d, [])
+                if not s.get("must")
+                and s.get("category") not in ("food", "entertainment")
+            ]
+            for spec in movables:
+                if day_load[d] <= _budget(d):
+                    break
+                try:
+                    minutes = int(spec.get("duration_minutes") or 0)
+                except (TypeError, ValueError):
+                    continue
+                xy = _xy(spec)
+                targets = [
+                    t
+                    for t in range(lo, hi + 1)
+                    if t != d
+                    and _cap(t) < 4
+                    and day_load[t] + minutes + _leg_min(xy, t) <= _budget(t)
+                ]
+                if not targets:
+                    continue
+                tgt = min(targets, key=lambda t: (_leg_min(xy, t), day_load[t], t))
+                day_specs[d].remove(spec)
+                picked.remove(spec)
+                spec["day"] = tgt
+                picked.append(spec)
+                day_specs.setdefault(tgt, []).append(spec)
+                day_load[d] -= minutes
+                day_load[tgt] += minutes + _leg_min(xy, tgt)
+                if xy is not None and xy in day_xy[d]:
+                    day_xy[d].remove(xy)
+                    day_xy[tgt].append(xy)
+                moved.append(f"{spec.get('name')} -> day {tgt}")
+        if moved:
+            notes.append(
+                (
+                    "跨天均衡：超载天已分流——" + "、".join(moved[:8]),
+                    "Cross-day rebalance: spilled overloaded days — "
+                    + ", ".join(moved[:8]),
+                )
+            )
+        return picked, notes
 
     @staticmethod
     def _placeholder_selection(
@@ -6071,6 +6525,10 @@ class PlanningAgent:
         # 记绑定，等规划回合收口。
         try:
             for wish in wishes:
+                if _category_search_keyword(wish) is not None:
+                    # 品类愿望（喝茶/咖啡等）走全城口碑与就近落实语义，
+                    # 不做专名语义绑定（也省一次脚本化 LLM 调用）。
+                    continue
                 bound = (session.wish_bindings or {}).get(wish)
                 if bound is None:
                     rows = [
@@ -6106,6 +6564,13 @@ class PlanningAgent:
                         and not any(
                             item.poi_id
                             and item.poi_id == str(bound.get("source_poi_id") or "")
+                            for day in session.plan.days
+                            for item in day.items
+                            if isinstance(item, VisitItem)
+                        )
+                        and not any(
+                            # 占位卡（无 poi_id）不算已安排（看熊猫案）
+                            item.poi_id and _name_dup(wish, item.name)
                             for day in session.plan.days
                             for item in day.items
                             if isinstance(item, VisitItem)
@@ -6185,6 +6650,22 @@ class PlanningAgent:
                     self._trip_items.update(existing["id"], status=STATUS_WISHLIST)
             except ValueError:
                 logger.warning("plan: trip wish sync failed for %s", wish)
+        # 2026-10-31（看熊猫案）：本回合新建的行此刻才存在——头部 76d 块
+        # 收口不到它们（行程已安排而行仍 wishlist/无城市/未挂行程）。此处
+        # 补：绑定城市回填空城行 + 行收口（翻已排期/note/挂行程）。
+        try:
+            for wish in wishes:
+                bound = (session.wish_bindings or {}).get(
+                    wish
+                ) or self._wish_bindings.get(wish)
+                if bound is not None:
+                    bcity = str(bound.get("city") or "").removesuffix("市").strip()
+                    if bcity:
+                        self._backfill_wish_city(wish, bcity)
+            if session.plan is not None:
+                self._sync_wish_rows(session)
+        except Exception:
+            logger.warning("plan: wish post-create sync failed", exc_info=True)
         return notes, unresolved
 
     def _finalize_wish_cities(

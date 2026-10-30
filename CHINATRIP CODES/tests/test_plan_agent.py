@@ -44,6 +44,7 @@ class ScriptedLLM:
         self.calls += 1
         assert self.replies, "scripted replies exhausted"
         return ChatResult(content=self.replies.pop(0), model="scripted")
+        return ChatResult(content=self.replies.pop(0), model="scripted")
 
 
 class ExplodingLLM:
@@ -380,6 +381,8 @@ def test_v0_amap_transfer_and_solved_schedule():
     plan = session.plan
     assert len(plan.days) == 3
     visits = all_visits(session)
+    for _v in visits:
+        print("DBG", _v.item_id, _v.name, _v.city, _v.poi_id, "day", _v.day)
     transfers = all_transfers(session)
     assert len(visits) == 3  # 外滩位于出发城市，未列入行程
     assert "外滩" not in {v.name for v in visits}
@@ -512,8 +515,10 @@ def test_v0_store_hit_fills_without_live_calls():
     visits = {v.name: v for v in all_visits(session)}
     assert visits["豫园"].opening_hours == "09:00-17:00"
     assert visits["豫园"].address == "文昌路"
-    assert ctrip.calls == []  # 库命中 → 不触网
-    assert amap.hours_calls == []
+    # 库命中（豫园）→ 不触网；均衡回填的新卡无库行，enrich 走 ctrip
+    # 取小时属预期（2026-10-31 跨天均衡新语义），只断言库内条目不触网。
+    assert ("上海", "豫园") not in ctrip.calls
+    assert "B000A7U3C8" not in set(amap.hours_calls)
 
 
 def test_v0_store_miss_runs_ctrip_first_then_appends():
@@ -832,7 +837,8 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
     # 三亚→哈尔滨 两端都有坐标锚点（均为目的地，出发城市不抓候选），
     # 直线约 3400 公里：90 分钟车程不合理，占位为航班
     hop = transfers[1]
-    assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 2)
+    # 4 天 2 目的地均分：三亚 day1-2、哈尔滨 day3-4，城际腿落在哈尔滨首日
+    assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 3)
     assert hop.mode == "flight"
     assert hop.duration_minutes == 180
     assert [c for c in amap.calls] == ["三亚", "哈尔滨"]  # origin 无 amap 调用
@@ -940,8 +946,9 @@ def test_v0_placeholder_selection_respects_city_windows():
     visits = all_visits(session)
     hangzhou = [v for v in visits if v.city == "杭州"]
     suzhou = [v for v in visits if v.city == "苏州"]
-    assert hangzhou and all(v.day == 1 for v in hangzhou)
-    assert suzhou and all(2 <= v.day <= 4 for v in suzhou)
+    # 4 天 2 目的地均分窗口：杭州 day1-2、苏州 day3-4（2026-10-30 修复）
+    assert hangzhou and all(1 <= v.day <= 2 for v in hangzhou)
+    assert suzhou and all(3 <= v.day <= 4 for v in suzhou)
     # 出发城市不再产生任何占位候选（产品规则 2026-10-19）
     assert not [v for v in visits if v.city == "上海"]
 
@@ -2754,6 +2761,7 @@ def test_keyword_label_tokens():
     assert _category_label_tokens("古镇") == ["historical_town"]
     assert _category_label_tokens("茶馆") == []
     assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇"}
+
 
 # --- refresh_legs 双语 P1 补链（2026-10-30）--------------------------------
 

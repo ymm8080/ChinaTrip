@@ -9,7 +9,9 @@ best_visit_time=evening 点））。
 小雨），既出现「横幅说有雨、图标晴天」的错位，也让夜间雨误触发了
 白天的避露天安排。三轮后：横幅/图标/规划全部分窗。本组锁三层：
 ① _rain_map：注入 weather_lookup（回 (day, night) 双窗）按城×日产出
-   （白天雨, 夜间雨）两个日集（异常降级、无 start_date/lookup 空表）；
+   （白天雨, 夜间雨, 白天大雨/暴雨）三个日集（异常降级、无
+   start_date/lookup 空表；2026-10-31 雨强分级——强雨集供④兜底
+   升级「雨日不排」用）；
 ② _deterministic_selection：白天窗——整段有雨→白天露天降权室内优先
    入池、部分日有雨→雨天露天↔干燥日室内对调；夜间窗——雨夜里的夜间
    露天点换到干夜；白天雨不动夜间点（notes 留痕）；
@@ -57,9 +59,31 @@ def test_rain_map_builds_day_and_night_sets_from_lookup():
         )
     )
     session = SimpleNamespace(start_date="2026-11-02", cities=["成都"])
-    day_rain, night_rain = agent._rain_map(session, {"成都": (1, 3)})
+    day_rain, night_rain, heavy_rain = agent._rain_map(session, {"成都": (1, 3)})
     assert day_rain == {"成都": {2}}
     assert night_rain == {"成都": {3}}
+    # 小雨/中雨不进强雨集
+    assert heavy_rain == {}
+
+
+def test_rain_map_collects_day_window_heavy_rain():
+    # 雨强分级（2026-10-31 拍板）：白天窗大雨/暴雨单列强雨集（④兜底
+    # 升级「雨日不排」用）；小雨/中雨/雷阵雨不列；夜间强雨不列（夜间
+    # 窗无④兜底，暂不分级）
+    agent = _agent(
+        lambda city, iso: (
+            ("雷阵雨", "晴")
+            if iso == "2026-11-01"
+            else ("大雨", "晴")
+            if iso == "2026-11-02"
+            else ("小雨", "暴雨")
+        )
+    )
+    session = SimpleNamespace(start_date="2026-11-01", cities=["成都"])
+    day_rain, night_rain, heavy_rain = agent._rain_map(session, {"成都": (1, 3)})
+    assert day_rain == {"成都": {1, 2, 3}}
+    assert night_rain == {"成都": {3}}
+    assert heavy_rain == {"成都": {2}}
 
 
 def test_rain_map_empty_without_start_date_or_lookup():
@@ -67,11 +91,12 @@ def test_rain_map_empty_without_start_date_or_lookup():
     assert _agent(lambda *a: ("暴雨", "暴雨"))._rain_map(session, {"成都": (1, 2)}) == (
         {},
         {},
+        {},
     )
     no_lookup = _agent()
     assert no_lookup._rain_map(
         SimpleNamespace(start_date="2026-11-02", cities=["成都"]), {"成都": (1, 2)}
-    ) == ({}, {})
+    ) == ({}, {}, {})
 
 
 def test_rain_map_degrades_on_lookup_error():
@@ -79,10 +104,10 @@ def test_rain_map_degrades_on_lookup_error():
         raise RuntimeError("db down")
 
     agent = _agent(boom)
-    day_rain, night_rain = agent._rain_map(
+    day_rain, night_rain, heavy_rain = agent._rain_map(
         SimpleNamespace(start_date="2026-11-02", cities=["成都"]), {"成都": (1, 1)}
     )
-    assert day_rain == {} and night_rain == {}
+    assert day_rain == {} and night_rain == {} and heavy_rain == {}
 
 
 # ---------- ② _deterministic_selection 雨天感知（白天窗 + 夜间窗） ----------

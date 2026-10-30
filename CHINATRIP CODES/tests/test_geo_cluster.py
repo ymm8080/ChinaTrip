@@ -66,3 +66,15 @@ def test_rain_swap_advice_only_when_rain_and_outdoor():
     assert "对调" in rain_swap_advice("小雨", day)
     assert rain_swap_advice("晴", day) is None  # 无雨不提
     assert rain_swap_advice("小雨", [{"name": "馆", "rain_ok": "yes"}]) is None
+
+
+def test_premium_coverage_gaps_shows_all_by_default():
+    # 2026-10-31 用户拍板：白名单只显示前 3 条被质疑——默认全量，
+    # max_missing 仅供测试收窄
+    from app.services.itinerary.coverage import premium_coverage_gaps
+
+    candidates = [{"name": f"5a景区{i}", "tags": ["5a"]} for i in range(1, 6)]
+    gaps = premium_coverage_gaps(["外滩"], candidates)
+    assert [g["name"] for g in gaps] == [f"5a景区{i}" for i in range(1, 6)]
+    # 收窄参数仍可用
+    assert len(premium_coverage_gaps(["外滩"], candidates, max_missing=2)) == 2
