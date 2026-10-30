@@ -368,3 +368,48 @@ def test_restore_merges_working_copy_keeps_snapshot_frozen():
     # 快照本体冻结不动（WORM）：重复站点原样保留
     frozen = merged.snapshots[0]
     assert len(_visit_names(frozen.plan)) == 5
+
+
+# --- 2026-10-31 青城山误并事故：同站判定的地理闸 ----------------------------
+
+
+def test_same_visit_geo_guard_blocks_same_name_far_apart():
+    """泛名包含吞下同山不同场馆（青城山 ↔ 青城山skydive跳伞基地，实测
+    相距 ~6km）：双方有坐标且 >2km 不并；近距同名照并；缺坐标维持名字
+    判定（心愿别名路径无坐标可依）。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary import GeoPoint
+
+    mountain = _visit("v1", "青城山", location=GeoPoint(lon=103.5949, lat=30.8995))
+    skydive = _visit(
+        "v2", "青城山skydive跳伞基地", location=GeoPoint(lon=103.6215, lat=30.8479)
+    )
+    assert _same_visit(skydive, mountain) is False  # ~6km：不同场馆不并
+
+    near_twin = _visit("v3", "青城山景区", location=GeoPoint(lon=103.595, lat=30.900))
+    assert _same_visit(mountain, near_twin) is True  # 同点近距：照并
+
+    no_loc = _visit("v4", "青城山景区")
+    assert _same_visit(mountain, no_loc) is True  # 缺坐标：名字判定不变
+
+
+def test_dedupe_plan_keeps_far_apart_same_name_pair():
+    """端到端：两个名字包含但相距 >2km 的场馆都留在行程里，去重零合并。"""
+    from app.services.itinerary import GeoPoint
+
+    plan = _dup_plan()
+    day2 = plan.days[1]
+    day2.items.append(
+        _visit("v6", "青城山", location=GeoPoint(lon=103.5949, lat=30.8995))
+    )
+    day2.items.append(
+        _visit(
+            "v7",
+            "青城山skydive跳伞基地",
+            location=GeoPoint(lon=103.6215, lat=30.8479),
+        )
+    )
+    dropped = dedupe_plan_visits(plan)
+    names = _visit_names(plan)
+    assert "青城山" in names and "青城山skydive跳伞基地" in names
+    assert "青城山skydive跳伞基地" not in dropped
