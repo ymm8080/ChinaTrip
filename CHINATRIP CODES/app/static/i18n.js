@@ -547,6 +547,7 @@
       "plan.replan": "🔄 Replan",
       "plan.replan.confirm": "Start over with a fresh plan? Unsaved changes will be discarded.",
       "plan.replan.toForm": "Back to setup — parameters prefilled from your last input; tweak them and tap “🚀 Start Planning” to regenerate.",
+      "plan.replan.toFormBlank": "Back to setup — fill in the parameters above and tap “🚀 Start Planning”.",
       "plan.restart.banner": "Session rebuilt (the previous one was lost to a server restart); your message was resent automatically:",
       "plan.restart.failPre": "❌ Session expired and rebuild failed: ",
       "plan.restart.failTail": "; your message is back in the input box — tap Start Planning again.",

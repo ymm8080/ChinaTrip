@@ -51,7 +51,7 @@
   }
   .nav-item:hover{background:var(--code-bg)}
   .nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
-  #menuBtn{display:none} /* 桌面端隐藏移动端抽屉开关 */
+  #menuBtn,#scrim{display:none} /* 桌面端隐藏移动端抽屉开关与遮罩；#scrim 不藏会占掉 grid 第一格，把侧栏挤进右区、主内容挤到左下（2026-10-30 修复 v42 桌面排版错乱） */
   .side-foot{border-top:1px solid var(--border);padding-top:10px;font-size:12px;color:var(--muted)}
   .side-foot label{display:block;margin-bottom:6px}
   #apiBase{
@@ -289,8 +289,9 @@
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
 
-  /* 窄屏：左栏改为左侧抽屉，左上角 ☰ 开关 */
-  @media (max-width:760px){
+  /* 两套布局按设备区分（2026-10-30 用户规则）：桌面设备（精确指针）任何窗口宽度都用
+     左栏+右区 grid；触屏设备窄屏才进抽屉布局——断点叠加 pointer:coarse，桌面窄窗不再误入移动布局 */
+  @media (max-width:760px) and (pointer:coarse){
     #app{display:flex;flex-direction:column;height:100vh}
     main{height:auto;flex:1;min-height:0}
     #menuBtn{display:flex;align-items:center;justify-content:center;
@@ -1718,6 +1719,30 @@ function planSaveBar(plan) {
     bar.appendChild(sh);
     bar.appendChild(re); // 重新规划紧跟分享右边（2026-10-24，不钉最右）
   }
+  // 兜底（2026-10-30 用户规则：保存行程右边必须有重新规划）：会话既无 origin 又无
+  // itin_id（含会话指针失效的异常态）也照样给重新规划——预填退化为从当前行程卡反推
+  // 城市/逐城天数/出发日期，偏好保留输入框现状；不绑行程号，保存仍按会话校验。
+  if (!planSession || (!planSession.origin && !planSession.itin_id)) {
+    const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
+    re.onclick = () => {
+      const perCity = {};
+      (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
+      planSetSession(null);
+      document.getElementById("flow-plan").textContent = ""; // 旧消息流整段清掉，才是真·全新页
+      const ok = planFormPrefill({
+        cities: plan.cities || [],
+        cityDays: perCity,
+        startDate: plan.start_date || PLAN.startDate || "",
+        prefs: null, // 行程卡反推不出原始偏好，保留偏好输入框现状
+      });
+      const msg = ok ? I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。")
+                     : I18N.tf("plan.replan.toFormBlank","已回到全新规划：请填好上方参数后点「🚀 开始规划」。");
+      addMsg("flow-plan", "sys", msg);
+      toast(msg);
+      document.getElementById("flow-plan").scrollTop = 0;
+    };
+    bar.appendChild(re); // 保存行程右边永远有重新规划（2026-10-30）
+  }
   return bar;
 }
 function violationsNode(vs, title) {
@@ -1860,7 +1885,6 @@ function planDateIso(n) {
 }
 let planSession = null; // {session_id, state}
 
-const PLAN_SESSION_KEY = "chinatrip_plan_session";
 function planSummaryRefresh() {
   try {
     const r = planRouteForm();
@@ -1872,10 +1896,9 @@ function planSetSession(s) {
   // 会话激活时参数表单收成一行摘要（2026-10-24 实测：矮视口/系统缩放下表单+输入框最小高度超出可视区，
   // flex 会把输入框挤出屏幕——收起表单把空间还给对话流；点摘要随时展开改参数）
   planSession = s;
-  try { // 会话指针持久化（2026-10-24 用户规则：已有行程的对话要继续下去——刷新不能把它变回全新规划）
-    if (s) localStorage.setItem(PLAN_SESSION_KEY, JSON.stringify(s));
-    else localStorage.removeItem(PLAN_SESSION_KEY);
-  } catch (_) {}
+  // 会话指针不再持久化到 localStorage（2026-10-30 用户规则）：打开页面一律以「行程」页
+  // 最近行程为准自动载入（页末 autoOpenLatestItin），没有行程就留在空白规划页——
+  // 不再恢复上次的规划会话；旧版本残留指针在启动清理处一次清掉。
   const form = document.getElementById("planSetup");
   const bar = document.getElementById("planSummaryBar");
   if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
@@ -1925,29 +1948,10 @@ document.getElementById("planSummaryToggle").onclick = () => {
   if (!opening) planSummaryRefresh(); // 收起时刷新摘要
 };
 
-// 启动恢复上次规划会话（2026-10-24 用户规则）：后端会话本来就在
-// data/h5_state.db 里活着，指针 restored 后打字/回车照走 /message 继续对话；
-// 会话真被清了走既有 session_not_found 分支（有 origin 自动重建，itin 会话
-// 提示去「行程」页重新修改）。想全新开始：改参数点「🚀 开始规划」即开新局。
-try {
-  const savedSess = JSON.parse(localStorage.getItem(PLAN_SESSION_KEY) || "null");
-  if (savedSess && savedSess.session_id) {
-    planSetSession(savedSess);
-    const label = savedSess.itin_id ? I18N.tf("plan.restore.itin","载入的行程")
-      : (savedSess.origin && savedSess.origin.cities && savedSess.origin.cities.length ? savedSess.origin.cities.map(c => I18N.city(c)).join("→") : I18N.tf("plan.restore.last","上次的规划"));
-    addMsg("flow-plan", "sys", I18N.tf("plan.restore.msgPre","已恢复上次的规划对话（") + label + I18N.tf("plan.restore.msgTail","）。继续说要怎么改；想全新开始就改上方参数点「🚀 开始规划」。"));
-    // 刷新后重取行程（2026-10-28）：GET 会话顺带实测腿刷新（缺坐标回填+
-    // 高德/百度实测），旧行程打开即有距离/步行信息；失败静默留在本地状态。
-    api("/api/v1/plan/" + encodeURIComponent(savedSess.session_id), undefined, "GET")
-      .then((body) => {
-        if (body && body.plan) {
-          const holder = addMsg("flow-plan", "sys", document.createElement("div"));
-          planRenderSafe(holder, body, { banner: I18N.tf("plan.refresh.banner", "🔄 已重新载入行程，距离/步行已实测刷新") });
-        }
-      })
-      .catch(() => {});
-  }
-} catch (_) {}
+// （2026-10-30 用户规则）打开页面不再恢复 localStorage 里的上次规划会话：一律由页末
+// autoOpenLatestItin() 打开「行程」页最近行程；本设备没有行程就不显示，留在空白规划页
+// （起始/结束城市表单照常在）。旧版本残留的会话指针在这里一次性清掉。
+try { localStorage.removeItem("chinatrip_plan_session"); } catch (_) {}
 
 // 链接必去确认 chips：一轮只开一次——回合关闭（确认成功/文字回答/新链接轮）
 // 后旧 chips 就地失效，防止再点打出 409 not_awaiting_sites 吓到用户。
@@ -4463,6 +4467,8 @@ window.addEventListener("i18n:change", () => {
   });
 });
 
+// 打开页面 = 打开「行程」页最近行程（2026-10-30 用户规则，取代 10-24 的 localStorage
+// 会话恢复）：最近行程自动载入规划页；本设备没有行程就不显示，留在空白规划页（分享视图跳过）。
 planSetSession(null);
 autoOpenLatestItin();
 wxSync();
