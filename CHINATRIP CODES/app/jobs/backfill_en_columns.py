@@ -158,8 +158,18 @@ def _CJK(t: str) -> bool:
 
 
 _MONTH_EN = {
-    "1": "Jan", "2": "Feb", "3": "Mar", "4": "Apr", "5": "May", "6": "Jun",
-    "7": "Jul", "8": "Aug", "9": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
+    "1": "Jan",
+    "2": "Feb",
+    "3": "Mar",
+    "4": "Apr",
+    "5": "May",
+    "6": "Jun",
+    "7": "Jul",
+    "8": "Aug",
+    "9": "Sep",
+    "10": "Oct",
+    "11": "Nov",
+    "12": "Dec",
 }  # 日期用月缩写（全称过长）；星期仍按用户定案用全称
 
 
@@ -187,8 +197,33 @@ def template_hours_en(text: str | None) -> str | None:
     for _zw in ("\u200b", "\u200c", "\u200d", "\ufeff"):  # 零宽字符污染（实测有）
         out = out.replace(_zw, "")
     out = out.replace("今天", "today ")
+    out = out.replace("夜间", " evening").replace("夜游", "night tour ")
     out = out.replace("不闭馆", " open")  # 须先于「闭馆→Closed」
     out = out.replace("全天关闭", "Closed all day")
+    # —— 残句第四批（2026-10-30 收尾）：整句/短语精确映射，零附带风险 ——
+    out = out.replace(
+        "游船每天两班，上午10:00和下午14:00各一班（开船前半小时停止换票）",
+        "boat service: two departures daily at 10:00 and 14:00 "
+        "(ticket exchange closes 30 min before departure)",
+    )
+    out = out.replace("展览期间", " during exhibition period")
+    out = out.replace("固定闭园", " Closed (fixed)").replace(
+        "正常营业", " open as usual"
+    )
+    out = out.replace("开放至", " open until ")
+    out = out.replace("最后一天", " last day")
+    out = out.replace("上午", "morning ").replace("下午", "afternoon ")
+    out = out.replace("特殊日期", "special dates ")
+    out = out.replace("具体以景区当天披露为准", "subject to same-day announcement")
+    out = out.replace("夜场时间", "evening session ").replace(
+        "夜场", "evening session "
+    )
+    out = out.replace("和", " and ")
+    out = out.replace("景区", "scenic area ")
+    out = out.replace("演出场次", "Show times ").replace("周末", "weekends ")
+    out = out.replace("仅供参考", " for reference only")
+    out = out.replace("具体以景区当天披露为准", "subject to same-day announcement")
+    out = out.replace("关灯", " lights out")
     out = _re.sub(  # "18点"/"9点30分" → "18:00"/"9:30"（数字零风险）
         r"(\d{1,2})点(?:(\d{1,2})分?)?",
         lambda m: f"{m.group(1)}:{m.group(2) or '00'}",
@@ -200,13 +235,12 @@ def template_hours_en(text: str | None) -> str | None:
     out = out.replace("法定节假日除外", "except public holidays")
     out = out.replace("法定节假日", "public holidays")
     # —— 残句高频表述扩充（2026-10-30）：保数字，吃不下仍由 CJK 安全网回落 ——
-    out = _re.sub(
-        r"最晚(?:进入|入场|入园)\s*(\d{1,2}:\d{2})", r"last entry \1", out
-    )
+    out = _re.sub(r"最晚(?:进入|入场|入园)\s*(\d{1,2}:\d{2})", r"last entry \1", out)
     out = _re.sub(r"最晚售票\s*(\d{1,2}:\d{2})", r"last tickets \1", out)
+    # 区间尾：08:00-16:30停止入园 → 08:00-16:30, last entry 16:30
     out = _re.sub(
         r"-(\d{1,2}:\d{2})停止(?:入园|入场|检票|进馆|入馆|参观)+",
-        r"-\1, last entry \1",  # 区间尾：08:00-16:30停止入园 → 08:00-16:30, last entry 16:30
+        r"-\1, last entry \1",
         out,
     )
     out = _re.sub(
@@ -239,15 +273,17 @@ def template_hours_en(text: str | None) -> str | None:
         ("春节", "Spring Festival"),
     ):
         out = out.replace(_zh, _en)
-    out = out.replace("具体营业状态以当天开放情况为准", "hours subject to same-day opening status")
+    out = out.replace(
+        "具体营业状态以当天开放情况为准", "hours subject to same-day opening status"
+    )
     out = out.replace("具体开放时间以官方通知为准", "hours subject to official notice")
     out = _re.sub(r"(\d{1,2}月\d{1,2}日)前", r"before \1", out)
     out = _re.sub(r"(\d{1,2}月\d{1,2}日)后", r"after \1", out)
     out = _re.sub(
         r"(\d{1,2})月(\d{1,2})日",
-        lambda m: f"{_month_en(m)} {m.group(2)}"
-        if _month_en(m) != m.group(0)
-        else m.group(0),
+        lambda m: (
+            f"{_month_en(m)} {m.group(2)}" if _month_en(m) != m.group(0) else m.group(0)
+        ),
         out,
     )
     out = _re.sub(r"(\d{1,2})月", _month_en, out)
@@ -260,6 +296,7 @@ def template_hours_en(text: str | None) -> str | None:
     out = out.replace("（", " (").replace("）", ")")
     out = out.replace("：", ": ")
     out = out.replace("、", ", ")
+    out = out.replace("时间", " hours")  # 裸「时间」兜底（组合词均已在前面先行替换）
     out = out.replace("；", "; ").replace("，", ", ")
     out = out.replace("（）", "").replace("()", "")
     out = _re.sub(r"  +", " ", out).strip()

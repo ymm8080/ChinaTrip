@@ -20,7 +20,7 @@
 | 10_国际平台中国荐点_AI规划师与各国Agency.csv | 国际平台中国荐点（AI 规划师+内容平台+各国本地 Agency） | **316** | 24 个平台全覆盖结论（无中国内容的平台也有结论行）；**已入库 2026-10-27：67 组去重后 POI = 新插 15 + 并入既有 52**（作业 app/jobs/import_intl_platforms，幂等）；另：毛主席纪念堂/人民大会堂经用户 2026-10-27 指令放行，并入既有 amap 行（tags+[intl,sygic]） | 同左＋落库详情见文末「落库记录」 |
 | 11_短视频与社媒中国荐点_TikTok-Instagram-YouTube.csv | 短视频/社媒的榜单与网红推荐（TikTok/Instagram/YouTube） | **51** | 51 行（YouTube 20/TikTok 18/Instagram 13）；**已入库 2026-10-27：仅 POI 级 6 条（WatchMojo 4 + TikTok 宝峰湖/春熙路）随 10 号一并处理；频道/账号/hashtag/行程行非 POI 不入** | 同左＋落库详情见文末「落库记录」 |
 
-**既有文件（此前批次产出，本轮未触碰）**：04_演艺演出_主要旅游城市.csv、05_国际旅行网站荐点_TA-LP-Viator.csv。
+**既有文件（此前批次产出）**：04_演艺演出_主要旅游城市.csv、05_国际旅行网站荐点_TA-LP-Viator.csv。04 于 2026-10-29 扩列 `trip_url`/`fliggy_url`（境外预订双通道，列位在 ctrip_url 与 source_url 之间）：`trip_url` = 境外可订直链，Trip.com 国际站优先（WebSearch 逐条查证回填 **48/50 行**：42 行 attraction 稳定页、5 行 things-to-do 产品页与 1 行黄金版已在 remark 标注）；trip.com 无页行按用户指令用 Klook 替代——《只有峨眉山》= Klook 票务页 `klook.com/en-GB/activity/112422-only-ems`；《丝路花雨》补得 trip.com 演出页 `lanzhou-silk-road-dance-show-99051`（档期随巡演变动）；空缺仅《吉祥颂》1 行（演出场次须微信小程序/公众号「无锡灵山胜境」预约，景区地址/电话已写入 remark，无 web 直链）；`fliggy_url` = 飞猪链接（**49 行空**——`detail.fliggy.com/item.htm?id=…` 动态链接 2026-10-29 实测搜索引擎零收录、`s.alitrip.com/scenic/list.htm` 为 JS 壳；可收录例外=景区 sid 模式 `s.alitrip.com/scenic/detail.htm?sid=…`，吉祥颂行已填灵山胜境 sid=1308 景区门票页——非演出场次直链，remark 已注；渠道层可循 sid 模式或 App/接口实时检索扩量）。URL 均归一为 `https://www.trip.com/...`（区域子域 us./hk./sg. 等同页归一），全程只收录搜索结果中真实出现的链接、未构任何 id。回填终态备份：`_src/04_演艺演出_主要旅游城市.trip_url_2026-10-29.backup.csv`（未跟踪，防并行会话重置工作区）。
 
 原始网页存档：`_src/`（zwgk 街区公告×3、baike 5A 全文、wkdate 遗址公园、国保转载页、UNESCO 英文页）。
 

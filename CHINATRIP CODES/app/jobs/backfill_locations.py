@@ -128,8 +128,14 @@ def select_rows(limit: int) -> list[Poi]:
             or_(Poi.status.is_(None), Poi.status == "active"),
             Poi.city.in_(cities),
         )
-        for mark in _FOOD_MARKS:
-            q = q.filter(~Poi.category.ilike(f"%{mark}%"))
+        # 非餐饮：NOT ILIKE 遇 category NULL 求值为 NULL，会把无类别骨架行
+        # 整批误排除（2026-10-30 修正）——NULL 类别不是餐饮，须保留。
+        q = q.filter(
+            or_(
+                Poi.category.is_(None),
+                *[~Poi.category.ilike(f"%{mark}%") for mark in _FOOD_MARKS],
+            )
+        )
         rows = q.all()
     rows.sort(key=lambda r: _SOURCE_RANK.get(r.source or "", 99))
     return rows[:limit]

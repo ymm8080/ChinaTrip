@@ -62,3 +62,16 @@ uvicorn_h5*.log
 
 # POIS import runtime state marker (machine-local)
 .import_batch1_done.flag
+
+# POI backfill runtime artifacts (machine-local, 结案即弃)
+CHINATRIP CODES/h5_state.db
+CHINATRIP CODES/dump_plan_init.txt
+CHINATRIP CODES/ops/*.log
+CHINATRIP CODES/ops/*.bak
+CHINATRIP CODES/ops/*.bak-*
+CHINATRIP CODES/ops/backfill_coords_missed.txt
+DESIGN/POIS DATASOURCE/_src/*.backup.csv
+DESIGN/POIS DATASOURCE/~WRL*.tmp
+DESIGN/POIS DATASOURCE/*.wbk
+DESIGN/Testing/_overlay_backup_*/
+DESIGN/Testing/refresh_pois_address_only_fix_*.patch

@@ -30,18 +30,41 @@ from app.services.poi_classify import classify as _classify
 
 _DEFAULT_LIMIT = 5000
 
+#: 餐饮骨架行不参与分类（与 backfill_locations 的 _FOOD_MARKS 同口径；
+#: 这些行 category 为空，得按名称拦——分支名括号里的 解放碑/春熙路
+#: 会误触发 heritage/urban 提示词）
+_FOOD_NAME_MARKS = (
+    "餐厅",
+    "餐饮",
+    "美食",
+    "菜馆",
+    "酒楼",
+    "饭馆",
+    "火锅",
+    "烧烤",
+    "小吃",
+    "咖啡",
+    "茶餐厅",
+    "菜",
+)
+
+
+def _is_food(name: str) -> bool:
+    return any(mark in name for mark in _FOOD_NAME_MARKS)
+
 
 def select_targets(session_factory, *, limit: int, with_duration: bool) -> list[Poi]:
     with session_factory() as session:
         conds = [Poi.category.is_(None)]
         if with_duration:
             conds.append(Poi.suggested_duration_min.is_(None))
-        return (
+        rows = (
             session.query(Poi)
             .filter(Poi.status == "active", or_(*conds))
             .limit(limit)
             .all()
         )
+    return [r for r in rows if not _is_food((r.name_zh or "").strip())][:limit]
 
 
 def _write_row(factory, poi_id, *, indoor, rain_ok, category, floor) -> list[str]:

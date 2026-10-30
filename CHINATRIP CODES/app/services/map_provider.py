@@ -64,7 +64,7 @@ FUNCTION_PROVIDER_PRIORITY: dict[str, tuple[str, ...]] = {
     "regeo": ("baidu", "amap", "tencent"),
     "walking": ("baidu", "amap"),
     "transit": ("baidu", "amap"),  # 公交同 walking，tencent 无 transit_route
-  # tencent 无 walking_route，不入链
+    # tencent 无 walking_route，不入链
 }
 
 

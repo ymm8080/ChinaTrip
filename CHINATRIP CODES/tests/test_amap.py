@@ -863,6 +863,7 @@ def _clear_amap_vendor_latches():
     amap_api._SEARCH_LATCH.clear()
     amap_api._REGEO_LATCH.clear()
 
+
 # --- _normalize_poi ename（双语 P1 补链 2026-10-30）-----------------------
 
 
