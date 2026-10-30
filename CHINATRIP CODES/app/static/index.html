@@ -1267,6 +1267,19 @@ function amapWalkUrl(to) {
     "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
 }
 
+// 驾车导航（打车模型 2026-10-31）：起点=当前站点，终点=下一站；高德 mode=car、百度 mode=driving
+function navDriveUrl(from, to) {
+  if (MAP_VENDOR === "baidu") {
+    return "https://api.map.baidu.com/direction?origin=" + from.location.lat + "," + from.location.lon +
+      "&destination=" + to.location.lat + "," + to.location.lon +
+      "&mode=driving&region=" + encodeURIComponent(to.city || from.city || "") +
+      "&output=html&coord_type=gcj02&src=chinatrip";
+  }
+  return "https://uri.amap.com/navigation?from=" + from.location.lon + "," + from.location.lat +
+    "," + encodeURIComponent(from.name || "") + "&to=" + to.location.lon + "," + to.location.lat +
+    "," + encodeURIComponent(to.name) + "&mode=car&src=chinatrip&coordinate=gaode&callnative=0";
+}
+
 // 天气：高德天气文本 → 图标；/api/weather 无数据（抓取作业未跑/城市未收录）时静默跳过
 function wxIcon(text) {
   const t = String(text || "");
@@ -1462,13 +1475,21 @@ function planCard(plan) {
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
-          let walkSeg = "";
+          let legSeg = "";
           if (it.next_walk_minutes != null) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
             for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
-            walkSeg = (nxt && nxt.location)
-              ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="' + I18N.tf("card.walk.titlePre","在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
-              : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
+            const km = it.distance_to_next_km;
+            if (km <= 1.5) {
+              // 打车模型：≤1.5km 近距步行口径（不付叫车开销，与后端 _taxi_leg_min 同式）
+              legSeg = (nxt && nxt.location)
+                ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + amapWalkUrl(nxt) + '" title="' + I18N.tf("card.walk.titlePre","在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
+                : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
+            } else if (nxt && nxt.location) {
+              // 打车（默认出行）：车程=直线×1.3 绕行÷35km/h + 半小时叫车，封顶 180 分钟
+              const taxiMin = Math.min(180, Math.round(km * 1.3 / 35 * 60) + 30);
+              legSeg = ' · <a class="leg-link" target="_blank" rel="noopener" href="' + navDriveUrl(it, nxt) + '" title="' + I18N.tf("card.drive.titlePre","在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose","）") + '">' + I18N.t("card.taxi") + taxiMin + I18N.t("card.taxi_min") + "</a>";
+            }
           }
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + walkSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
