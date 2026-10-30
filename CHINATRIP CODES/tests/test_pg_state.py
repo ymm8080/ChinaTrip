@@ -102,6 +102,111 @@ def test_record_to_row_values_and_boot_round_trip():
     assert ItineraryRecord.model_validate(values["plan"]) == record
 
 
+# --- 删除写穿透（2026-10-30 删除复活事故）--------------------------------------
+
+
+class _RecordingQuery:
+    """记账 filter 条款，delete() 只记账不动真库。"""
+
+    def __init__(self, log, model):
+        self._log, self._model = log, model
+
+    def filter(self, criteria):
+        self._log.append((self._model.__name__, criteria))
+        return self
+
+    def all(self):
+        return []  # boot/reload 全量重载：空表
+
+    def delete(self):
+        return 1
+
+
+class _RecordingSession:
+    """put/delete 都过的假会话：query 记账、get 恒 None、add 收行。"""
+
+    def __init__(self, log):
+        self._log = log
+        self.added = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def query(self, model):
+        return _RecordingQuery(self._log, model)
+
+    def get(self, model, key):
+        return None
+
+    def add(self, row):
+        self.added.append(row)
+
+    def commit(self):
+        pass
+
+
+class _RecordingFactory:
+    def __init__(self):
+        self.log = []
+        self.sessions = []
+
+    def __call__(self):
+        session = _RecordingSession(self.log)
+        self.sessions.append(session)
+        return session
+
+
+def test_itinerary_delete_targets_loose_proxy_row_for_legacy_ids():
+    """存量行程业务 id 是 it-<8hex> 短格式，写库走 loose uuid5 代理键；
+    delete 曾用严格 _pg_uuid 解析成 None 整段跳过 PG 删除——接口照样
+    204/「已删除」toast，下次 list 读穿透又把行从 PG 复活（用户实报
+    「行程页删除按钮不生效」）。delete 必须用与写库同款的 loose 键。"""
+    legacy_id = "it-7bd56f89"
+    record = ItineraryRecord(
+        itinerary_id=legacy_id,
+        owner_device_id="dev-1",
+        plan=_plan(legacy_id),
+        created_at=datetime(2026, 10, 30, 8, 0, 0),
+        updated_at=datetime(2026, 10, 30, 8, 0, 0),
+    )
+    factory = _RecordingFactory()
+    store = PgItineraryStore(factory)
+    store.put(record)
+    put_uid = next(
+        s.added[0].id for s in factory.sessions if s.added
+    )  # _write_pg 首个 add = Itinerary 行
+    assert put_uid == _pg_uuid_loose(legacy_id, "it_")  # 短 id → uuid5 代理键
+
+    factory.log.clear()
+    assert store.delete(legacy_id) is True
+    assert [name for name, _ in factory.log] == [
+        "ItineraryDay",
+        "ItinerarySnapshot",
+        "Itinerary",
+    ]
+    for _, criteria in factory.log:
+        # 严格版这里取到 None → 三表删除整段跳过，行复活
+        assert criteria.right.value == put_uid
+
+
+def test_itinerary_delete_targets_hex_id_row_unchanged():
+    """新格式 it_<32hex> 行为不变：delete 命中与写库同一条严格 UUID 行。"""
+    record = _record()
+    factory = _RecordingFactory()
+    store = PgItineraryStore(factory)
+    store.put(record)
+    put_uid = next(s.added[0].id for s in factory.sessions if s.added)
+    assert put_uid == UUID(hex=record.itinerary_id[3:])
+
+    factory.log.clear()
+    assert store.delete(record.itinerary_id) is True
+    for _, criteria in factory.log:
+        assert criteria.right.value == put_uid
+
+
 def test_snapshot_to_row_values_freezes_plan():
     record = _record()
     snapshot = Snapshot(
@@ -178,6 +283,39 @@ def test_import_item_memory_fallback_without_pg():
         is False
     )
     assert svc.get(item_id)["name"] == "灵隐寺"
+
+
+def test_release_itinerary_writes_wishlist_through_to_pg():
+    """删行程释放心愿（2026-10-31）：内存行翻回 wishlist，PG 行同款写穿
+    （status/day/position/booking_id 全部落列）。"""
+    factory = _RecordingFactory()
+    svc = PgTripItemService(factory)
+    svc._pg_ok = True
+    row = {
+        "id": uuid4().hex,
+        "itinerary_id": "it-1",
+        "name": "灵隐寺",
+        "city": "杭州",
+        "status": "scheduled",
+        "source": "chat",
+        "day": 2,
+        "position": 3.0,
+        "booking_id": None,
+        "created_at": "2026-10-31T08:00:00+00:00",
+        "updated_at": "2026-10-31T08:00:00+00:00",
+    }
+    svc._items[row["id"]] = dict(row)
+
+    released = svc.release_itinerary("it-1")
+
+    assert [r["id"] for r in released] == [row["id"]]
+    healed = svc.get(row["id"])
+    assert healed["status"] == "wishlist"
+    assert healed["day"] is None and healed["position"] is None
+    written = [r for s in factory.sessions for r in s.added]
+    assert written and written[-1].status == "wishlist"
+    assert written[-1].day is None and written[-1].position is None
+    assert written[-1].booking_id is None
 
 
 # --- 2026-10-28 跨进程查重（advisory 锁内 SQL 查重 + 命中不重插） -------------

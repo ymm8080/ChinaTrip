@@ -246,7 +246,11 @@ class PgItineraryStore(InMemoryItineraryStore):
     def delete(self, itinerary_id: str) -> bool:
         removed = super().delete(itinerary_id)
         if removed and self._pg_ok:
-            uid = _pg_uuid(itinerary_id, "it_")
+            # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
+            # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
+            # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
+            # 行从 PG 复活。键必须与写库一致。
+            uid = _pg_uuid_loose(itinerary_id, "it_")
             if uid is not None:
                 try:
                     with self._session_factory() as session:

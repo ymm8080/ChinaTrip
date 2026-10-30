@@ -6,7 +6,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.itineraries import _trip_items_service, get_store
+from app.api.itineraries import router as itineraries_router
 from app.api.trip_items import get_trip_item_service, router
+from app.services.itinerary_store import InMemoryItineraryStore, ItineraryService
 from app.services.trip_items import InvalidTransitionError, TripItemService
 
 CONTRACT_KEYS = {
@@ -310,6 +313,134 @@ def test_list_groups_and_orders_three_states():
         resp = client.get("/api/v1/trip-items")
     assert resp.status_code == 200
     assert len(resp.json()["wishlist"]) == 1
+
+
+# --- list 回填行程名（2026-10-30：已排期心愿看板标注行程ID+行程名） -------------
+
+
+def make_app_with_store() -> tuple[FastAPI, InMemoryItineraryStore]:
+    """List enrichment resolves 行程名 from the itinerary store — same
+    mini-app pattern, both dependencies pinned to per-test instances.
+    itineraries 路由同挂（删行程释放心愿的端点测试复用）：_trip_items_service
+    指向与 trip-items 路由同一个 service 实例。"""
+    app = FastAPI()
+    app.include_router(router)
+    app.include_router(itineraries_router)
+    service = TripItemService()
+    store = InMemoryItineraryStore()
+    app.dependency_overrides[get_trip_item_service] = lambda: service
+    app.dependency_overrides[_trip_items_service] = lambda: service
+    app.dependency_overrides[get_store] = lambda: store
+    return app, store
+
+
+def test_list_attaches_itinerary_name_from_store():
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["杭州", "苏州"], days_count=2)
+    with TestClient(app) as client:
+        scheduled_item = create_item(client, itinerary_id=record.itinerary_id, name="s")
+        schedule(client, scheduled_item["id"], 1)
+        booked_item = create_item(client, itinerary_id=record.itinerary_id, name="b")
+        schedule(client, booked_item["id"], 2)
+        book(client, booked_item["id"])
+        create_item(client, itinerary_id=record.itinerary_id, name="w")
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert body["scheduled"][0]["itinerary_name"] == "杭州 → 苏州"
+    assert body["bookings"][0]["itinerary_name"] == "杭州 → 苏州"
+    assert body["wishlist"][0]["itinerary_name"] == "杭州 → 苏州"
+
+
+def test_list_itinerary_name_none_when_itinerary_unknown():
+    """行程已删/查无记录 → 名字置 None，卡上只显示 ID。"""
+    app, _store = make_app_with_store()
+    with TestClient(app) as client:
+        item = create_item(client, itinerary_id="ghost-trip")
+        schedule(client, item["id"], 2)
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert body["scheduled"][0]["itinerary_name"] is None
+
+
+def test_list_items_without_itinerary_id_skip_name_field():
+    app, _store = make_app_with_store()
+    with TestClient(app) as client:
+        item = create_item(client)  # no itinerary_id
+        schedule(client, item["id"], 1)
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert "itinerary_name" not in body["scheduled"][0]
+
+
+# --- 行程删除释放心愿（2026-10-31：删行程 → 已排期心愿回心愿单栏） -------------
+
+
+def test_release_itinerary_moves_scheduled_back_to_wishlist_and_spares_booked():
+    svc = TripItemService()
+    wish = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
+    svc.update(wish["id"], status="scheduled", day=2, position=3.0)
+    booked = svc.create("宋城", source="manual", itinerary_id="t1")
+    svc.update(booked["id"], status="scheduled", day=1)
+    svc.update(booked["id"], status="booked", booking_id="BK-9")
+    other = svc.create("外滩", source="manual", itinerary_id="t2")
+    svc.update(other["id"], status="scheduled", day=1)
+    stray = svc.create("随手记", source="manual")  # 不挂行程
+    svc.update(stray["id"], status="scheduled", day=1)
+
+    released = svc.release_itinerary("t1")
+
+    assert [r["id"] for r in released] == [wish["id"]]
+    row = svc.get(wish["id"])
+    assert row["status"] == "wishlist"
+    assert row["day"] is None and row["position"] is None
+    assert row["booking_id"] is None
+    # booked 保留真实订单；他行程与无行程的 scheduled 行不受牵连
+    assert svc.get(booked["id"])["status"] == "booked"
+    assert svc.get(other["id"])["status"] == "scheduled"
+    assert svc.get(stray["id"])["status"] == "scheduled"
+    assert wish["id"] in {r["id"] for r in svc.list_groups()["wishlist"]}
+
+
+def test_release_itinerary_without_rows_or_id_is_noop():
+    svc = TripItemService()
+    assert svc.release_itinerary("ghost-trip") == []
+    assert svc.release_itinerary("") == []
+
+
+def test_delete_itinerary_releases_scheduled_wishes_endpoint():
+    """行程页 🗑 删除：行程连同快照删除，名下 scheduled 心愿自动回心愿单
+    栏（day/position 清空）；booked 保留真实订单；trip_items 不物理删。"""
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["杭州"], days_count=2)
+    with TestClient(app) as client:
+        scheduled_item = create_item(client, itinerary_id=record.itinerary_id, name="s")
+        schedule(client, scheduled_item["id"], 1)
+        booked_item = create_item(client, itinerary_id=record.itinerary_id, name="b")
+        schedule(client, booked_item["id"], 2)
+        book(client, booked_item["id"])
+
+        resp = client.delete(
+            f"/api/v1/itineraries/{record.itinerary_id}",
+            headers={"X-Device-ID": "dev-1"},
+        )
+        assert resp.status_code == 204
+
+        body = client.get("/api/v1/trip-items").json()
+        assert body["scheduled"] == []
+        released = next(r for r in body["wishlist"] if r["name"] == "s")
+        assert released["day"] is None and released["position"] is None
+        assert [r["name"] for r in body["bookings"]] == ["b"]
+        # 行程本身确已删除（释放没有挡住删除）
+        assert (
+            client.get(
+                f"/api/v1/itineraries/{record.itinerary_id}",
+                headers={"X-Device-ID": "dev-1"},
+            ).status_code
+            == 404
+        )
 
 
 # --- transitions: wishlist -> scheduled ---------------------------------------

@@ -10,7 +10,9 @@ The router is NOT registered in app/main.py — the orchestrator wires it.
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.itineraries import get_store
 from app.db import get_session_factory
+from app.services.itinerary_store import ItineraryStore
 from app.services.pg_state import PgTripItemService
 from app.services.trip_items import (
     InvalidSourceError,
@@ -80,8 +82,23 @@ async def create_trip_item(
 async def list_trip_items(
     itinerary_id: str | None = None,
     service: TripItemService = Depends(get_trip_item_service),
+    store: ItineraryStore = Depends(get_store),
 ) -> dict:
-    return service.list_groups(itinerary_id or None)
+    body = service.list_groups(itinerary_id or None)
+    # 2026-10-30 看板卡标注所属行程（行程ID + 行程名）：行程名 = 城市链
+    # （H5 行程页同款展示），行程已删/查无记录 → None（前端只显示 ID）；
+    # 同一行程只查一次 store。
+    names: dict[str, str | None] = {}
+    for group in body.values():
+        for item in group:
+            trip_id = item.get("itinerary_id")
+            if not trip_id:
+                continue
+            if trip_id not in names:
+                record = store.get(trip_id)
+                names[trip_id] = " → ".join(record.plan.cities) if record else None
+            item["itinerary_name"] = names[trip_id]
+    return body
 
 
 @router.get("/{item_id}")

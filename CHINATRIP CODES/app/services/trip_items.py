@@ -369,6 +369,26 @@ class TripItemService:
         del self._items[item_id]
         logger.info("trip_item_deleted id=%s", item_id)
 
+    def release_itinerary(
+        self, itinerary_id: str, *, now: datetime | None = None
+    ) -> list[dict]:
+        """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
+        不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
+        booking_id 清空）。itinerary_id 留痕：吸收/_sync_wish_rows 按名字
+        force 换绑新行程。booked 行保留真实订单不动；wishlist/unwanted 行
+        本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。"""
+        if not itinerary_id:
+            return []
+        targets = [
+            item["id"]
+            for item in self._items.values()
+            if item["itinerary_id"] == itinerary_id
+            and item["status"] == STATUS_SCHEDULED
+        ]
+        return [
+            self.update(item_id, status=STATUS_WISHLIST, now=now) for item_id in targets
+        ]
+
     def mark_unwanted(
         self,
         name: str,

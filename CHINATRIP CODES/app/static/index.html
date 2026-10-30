@@ -1491,7 +1491,7 @@ function planCard(plan) {
               legSeg = ' · <a class="leg-link" target="_blank" rel="noopener" href="' + navDriveUrl(it, nxt) + '" title="' + I18N.tf("card.drive.titlePre","在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose","）") + '">' + I18N.t("card.taxi") + taxiMin + I18N.t("card.taxi_min") + "</a>";
             }
           }
-          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + walkSeg +
+          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
@@ -3118,7 +3118,7 @@ async function itinSavedLoad() {
       if (r.share_enabled) mk(I18N.tf("itin.shareOff", "🚫 关闭分享"), (b) => itinShareOff(r, b));
       mk(I18N.tf("itin.del", "🗑 删除"), (b) => {
         const label = (r.cities || []).map(c => I18N.city(c)).join(" → ") || r.itinerary_id;
-        if (!confirm(I18N.tf("itin.delConfirmPre", "确定删除行程「") + label + I18N.tf("itin.delConfirmMid", "」（") + r.itinerary_id + I18N.tf("itin.delConfirmSuf", "）？将连同它的全部快照一起删除，操作不可恢复。"))) return;
+        if (!confirm(I18N.tf("itin.delConfirmPre", "确定删除行程「") + label + I18N.tf("itin.delConfirmMid", "」（") + r.itinerary_id + I18N.tf("itin.delConfirmSuf", "）？将连同它的全部快照一起删除，已排期心愿自动回到心愿单，操作不可恢复。"))) return;
         busy(b, async () => {
           try {
             await api("/api/v1/itineraries/" + r.itinerary_id, undefined, "DELETE");
@@ -3926,6 +3926,12 @@ function tcTile(item) {
   const tcm = [item.address ? "📍 " + item.address : "", item.opening_hours ? "🕐 " + item.opening_hours : ""].filter(Boolean).join("\u3000");
   if (tcm) t.appendChild(el('<div class="muted" style="margin-top:4px">' + esc(tcm) + "</div>"));
   t.appendChild(head);
+  // 已排期/已订卡标注所属行程（🧳 ID·行程名；itinerary_name 由 list 接口回填，行程已删只留 ID）
+  if ((item.status === "scheduled" || item.status === "booked") && item.itinerary_id) {
+    t.appendChild(el('<div class="muted" style="margin-top:4px">🧳 ' + I18N.tf("tc.tripRef", "行程 ") +
+      '<code>' + esc(item.itinerary_id) + "</code>" +
+      (item.itinerary_name ? " · " + esc(item.itinerary_name) : "") + "</div>"));
+  }
   const ops = el('<div class="ops"></div>');
   const mk = (label, fn) => { const b = el('<button class="btn mini ghost">' + label + "</button>"); b.onclick = (ev) => fn(ev.target); ops.appendChild(b); };
   if (item.status === "wishlist") {

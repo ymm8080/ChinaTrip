@@ -32,6 +32,7 @@ from app.services.state_persist import (
     db_path_from_url,
     get_state_backend,
 )
+from app.services.trip_items import TripItemService
 
 router = APIRouter(prefix="/api/v1", tags=["itineraries"])
 logger = logging.getLogger(__name__)
@@ -103,6 +104,15 @@ def get_itinerary_service(
 ) -> ItineraryService:
     # Stateless wrapper; all persistent state lives in the store singleton.
     return ItineraryService(store)
+
+
+def _trip_items_service() -> TripItemService:
+    """行程删除时释放名下已排期心愿用（2026-10-31）。函数内延迟导入：
+    app.api.trip_items 顶部 import 本模块 get_store，模块级互相导入两个
+    方向都炸（get_account_service 工厂同款防环考量）。"""
+    from app.api.trip_items import get_trip_item_service
+
+    return get_trip_item_service()
 
 
 # --- helpers -----------------------------------------------------------------
@@ -355,13 +365,16 @@ async def delete_itinerary(
     itinerary_id: str,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: ItineraryStore = Depends(get_store),
+    trip_items: TripItemService = Depends(_trip_items_service),
     account: str | None = Depends(_account_from_auth),
 ) -> None:
     """Delete an owned itinerary together with its snapshots (2026-10-20:
     「行程」页 per-trip 查看/删除 buttons). Unknown / foreign-owner ids
-    answer 404 like every other route (no enumeration). trip_items are
-    intentionally untouched — the 行程中心 kanban is its own source of
-    truth (铁律 0); deleting a trip never destroys wishlist data."""
+    answer 404 like every other route (no enumeration). 2026-10-31（用户
+    拍板）：删行程前名下 scheduled 行先回心愿单栏（day/position/booking_id
+    清空；booked 保留真实订单不动）——先释放后删除，释放失败行程仍在，
+    可重试。trip_items 依旧不物理删除：看板自有真相（铁律 0）。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
+    trip_items.release_itinerary(itinerary_id)
     store.delete(itinerary_id)
