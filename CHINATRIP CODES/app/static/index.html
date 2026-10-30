@@ -1291,6 +1291,18 @@ function wxFor(city, force) {
   }
   return WX.cache[key];
 }
+// 雨判定（2026-10-30 二轮收口；五轮补注）：白天口径只看 day_weather——
+// 夜间雨不进白天横幅/自动室内/主图标（用户拍板「避免露天活动与下雨
+// 时间段一致」），横幅/自动室内/图标三处同口径；EN 读侧翻译后文案含
+// rain/thunder 同样命中。wxWetText 是文本级判定，白天横幅（wxWet）、
+// 夜间横幅与天气右侧的夜间雨标注（wxFill）共用同一口径
+function wxWetText(t) {
+  const s = String(t || "");
+  return /雨/.test(s) || /rain|thunder/i.test(s);
+}
+function wxWet(cast) {
+  return wxWetText(cast.day_weather);
+}
 // 摄氏→华氏整数值；库里 casts 带 day_temp_f/night_temp_f（upsert 派生），
 // 旧行还没有 _f 字段时前端现算兜底
 function c2f(c) {
@@ -1309,29 +1321,60 @@ function wxFill(span, city, dateIso, force) {
     if (cast) {
       const fd = cast.day_temp_f != null ? Number(cast.day_temp_f) : c2f(cast.day_temp);
       const fn = cast.night_temp_f != null ? Number(cast.night_temp_f) : c2f(cast.night_temp);
-      span.textContent = "  " + wxIcon(cast.day_weather) + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
-        (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "");
+      // 图标只看白天窗（与横幅/自动室内同口径，2026-10-30 二轮拍板：
+      // 夜间雨不影响白天行程——白天无雨就按白天天气显示，不出雨图标）。
+      // 五轮（同日晚）：夜间雨不并入主图标，但也不完全忽略——在天气
+      // 右侧补「🌙夜间<夜间天气文本>」小标注（如 🌙夜间小雨）；触发口径
+      // 与 wxRainBar 夜间横幅一致（wxWetText），夜间无雨不占位
+      const icon = wxIcon(cast.day_weather);
+      const nt = String(cast.night_weather || "").trim();
+      const nightChip = nt && wxWetText(nt)
+        ? " · 🌙" + I18N.tf("flow.rain.nightWin", "夜间") + nt
+        : "";
+      span.textContent = "  " + icon + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
+        (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "") + nightChip;
       wxRainBar(span, cast);
     }
   });
 }
-// 8.1.4 雨天横幅：当日预报含雨 × 当天有露天点（条目 rain_ok=no）→「对调室内」
-// 建议（coverage.rain_swap_advice 的 H5 镜像，只提示不自动改）；无雨/无露天点
-// 时撤旧横幅，wxSync 刷新后随 wxFill 重绘。day 对象由 planCard 挂到 span._day。
+// 8.1.4 雨天横幅（双窗，2026-10-30 三轮拍板「避免露天活动与下雨
+// 时间段一致」；四轮：雨文案带时段与量级——「白天小雨」「夜间
+// 小雨」）：白天雨 × 白天露天点 → 白天横幅；夜间雨 × 夜间露天点
+// （游船观景/夜游/夜市等，wxNightItem）→ 夜间横幅。选点层已按窗
+// 自动对调（plan.py ⑥），此处只剩必去钉死、无可换点等残余场景
+// ——不引导用户回复重排。无对应窗的雨/无对应露天点时撤旧横幅，
+// wxSync 刷新后随 wxFill 重绘。day 对象由 planCard 挂到 span._day。
+function wxNightItem(i) {
+  const bvt = String(i.best_visit_time || "").toLowerCase();
+  if (bvt === "evening" || bvt === "night" || bvt === "show") return true;
+  if ((i.category || "") === "entertainment") return true;
+  return /夜游|夜市|夜景|灯光秀|夜航|夜场/.test(String(i.name || ""));
+}
 function wxRainBar(span, cast) {
   const day = span._day;
   const head = span.closest(".day-h");
   if (!day || !head) return;
-  const old = head.parentElement.querySelector('.rain-bar[data-rain-day="' + day.day + '"]');
-  if (old) old.remove();
-  const wet = /雨/.test(String(cast.day_weather || "") + String(cast.night_weather || ""));
+  head.parentElement.querySelectorAll('.rain-bar[data-rain-day="' + day.day + '"]').forEach(b => b.remove());
   const visits = (day.items || []).filter(i => !i.from_city);
   const outdoor = visits.filter(i => i.rain_ok === "no");
-  if (!wet || !outdoor.length) return;
+  if (!outdoor.length) return;
   const indoor = visits.filter(i => i.rain_ok === "yes").map(i => esc(i.name));
-  const swap = indoor.length ? I18N.tf("flow.rain.swapPre", "（可与 ") + indoor.slice(0, 2).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.swapSuf", " 对调）") : "";
-  head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">' + I18N.tf("flow.rain.banner", "🌧️ 预报有雨：") +
-    outdoor.slice(0, 3).map(i => esc(i.name)).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.outdoorSuf", " 为露天点位") + swap + I18N.tf("flow.rain.hint", "——回复「雨天调整」可帮你重排") + "</div>"));
+  const swap = indoor.length ? I18N.tf("flow.rain.swapPre", "（当天室内：") + indoor.slice(0, 2).join(I18N.tf("flow.rain.sep", "、")) + I18N.tf("flow.rain.swapSuf", "）") : "";
+  const sep = I18N.tf("flow.rain.sep", "、");
+  const box = (win, html) => head.after(el('<div class="muted rain-bar" data-rain-day="' + day.day + '" data-rain-window="' + win + '" style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;margin:4px 0">' + html + "</div>"));
+  if (wxWet(cast)) {
+    const outDay = outdoor.filter(i => !wxNightItem(i));
+    const dt = String(cast.day_weather || "").trim();
+    if (outDay.length) box("day", "🌧️ " + I18N.tf("flow.rain.dayWin", "白天") + dt + I18N.tf("flow.rain.colon", "：") +
+      outDay.slice(0, 3).map(i => esc(i.name)).join(sep) + I18N.tf("flow.rain.outdoorSuf", " 为露天点位") + swap + I18N.tf("flow.rain.hint", "——雨天行程已自动优先室内，露天点建议备伞"));
+  }
+  const nt = String(cast.night_weather || "").trim();
+  const nightRain = wxWetText(nt);
+  if (nightRain) {
+    const outNight = outdoor.filter(wxNightItem);
+    if (outNight.length) box("night", "🌙 " + I18N.tf("flow.rain.nightWin", "夜间") + nt + I18N.tf("flow.rain.colon", "：") +
+      outNight.slice(0, 3).map(i => esc(i.name)).join(sep) + I18N.tf("flow.rain.nightSuf", " 为夜间露天活动，请备伞或改到晴夜"));
+  }
 }
 // 开站新鲜度巡检（2026-10-28 定稿：纯读表，后端从不出网）——行程城市逐城
 // 回报表内数据状态；全部有数据就静默（新鲜度由每日管线 08:10 全量保证），
@@ -1404,7 +1447,7 @@ function planCard(plan) {
         let tail = "";
         if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
           tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
-            ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">🗑</button>';
+            ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标
           tail = it.pinned ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
         }
@@ -1995,7 +2038,10 @@ function planRenderReply(holder, body, opts) {
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>" + I18N.tf("plan.clarify.title","还需要补充一点信息：") + "</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
-    if (qs.join("").indexOf("偏好") >= 0 || qs.join("").indexOf("观光") >= 0) {
+    const qAll = qs.join("");
+    // 英文版后端问 "What kind of sightseeing do you prefer?"——只认中文关键词会连选项带
+    // 确认键全没渲染（2026-10-30 英文版卡死修复）：中英关键词都认。
+    if (/偏好|观光/.test(qAll) || /prefer|sightsee/i.test(qAll)) {
       // 多选累积，一次提交：点选不逐条发消息，攒够偏好再开始规划
       holder.appendChild(frag("<div class='muted'>" + I18N.tf("plan.clarify.multi","可多选，选好点确认，一次提交：") + "</div>"));
       const row = el('<div class="chips"></div>');
@@ -2014,12 +2060,16 @@ function planRenderReply(holder, body, opts) {
       const ok = el('<button class="chip">' + I18N.tf("plan.clarify.go","✅ 选好了，开始规划") + "</button>");
       ok.onclick = () => {
         const sel = PREFS.filter(p => picked.has(p));
-        document.getElementById("planInput").value = "偏好：" + (sel.length ? sel.join("、") : "无特别要求");
+        const en = I18N.locale() === "en"; // 英文会话发英文偏好文本，与后端会话语言一致
+        const labels = sel.map(p => I18N.tf("plan.pref." + p, p));
+        document.getElementById("planInput").value = (en ? "Preferences: " : "偏好：") + (sel.length ? labels.join(en ? ", " : "、") : I18N.tf("plan.pref.无特别要求", "无特别要求"));
         planSend();
       };
       row2.appendChild(ok);
       holder.appendChild(row2);
-    } else if (opts && opts.first) {
+    } else {
+      // 非偏好轮（含英文版追问）：永远给「在下方输入框回答」提示，不再只限首轮——
+      // 否则英文用户既没选项也没提示，会以为卡死（2026-10-30）
       holder.appendChild(el('<div class="muted">' + I18N.tf("plan.clarify.hint","直接在下方输入框回答，例如「4 天，去杭州和上海」。") + "</div>"));
     }
   } else {
