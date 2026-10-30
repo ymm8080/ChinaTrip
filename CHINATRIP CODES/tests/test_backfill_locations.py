@@ -184,12 +184,14 @@ def test_geocode_quota_death_falls_to_search_chain():
     assert geo.calls == 1  # latch：第二行不再撞 geocode
 
 
-def test_addressless_rows_skip_geocode():
+def test_addressless_rows_geocode_by_city_and_name():
+    # 无门址行（宽窄巷子类纯名字骨架）用 城市+名字 geocode（2026-10-30）。
     from app.jobs.backfill_locations import backfill_rows
 
     geo = StubGeocoder()
-    hit = [{"name": "九龙沟", "city": "成都", "location": "104.0,30.6"}]
-    search = StubSearch("amap", hits=hit)
-    stats = asyncio.run(backfill_rows(StoreStub(), [search], [_row(1)], geocoder=geo))
-    assert geo.calls == 0  # 无地址行直接走检索链
-    assert stats["by_vendor"] == {"amap": 1}
+    stats = asyncio.run(
+        backfill_rows(StoreStub(), [StubSearch("amap")], [_row(1)], geocoder=geo)
+    )
+    assert geo.calls == 1
+    assert geo.city_seen == "成都"
+    assert stats["by_vendor"] == {"baidu_geocode": 1}

@@ -157,16 +157,21 @@ async def backfill_rows(
         # 先走正地理（百度 geocoding，独立配额池，不烧检索配额），命中即落库；
         # 未命中/配额死再走检索链按名搜。
         row_address = getattr(row, "address", None)
+        # 无门址行退一级：城市+名字作为 geocode 查询（百度对地标名+城市
+        # 解析可用；命中仍受下方距城心 500km 闸约束，错配不采）。
+        geocode_query = row_address or (
+            f"{_bare_city(row.city)}{row.name_zh or ''}"
+            if (row.name_zh and _bare_city(row.city))
+            else None
+        )
         if (
             geocoder is not None
             and not geocode_dead
-            and row_address
+            and geocode_query
             and not getattr(row, "location", None)
         ):
             try:
-                geo = await geocoder.geocode(
-                    row_address, city=_bare_city(row.city)
-                )
+                geo = await geocoder.geocode(geocode_query, city=_bare_city(row.city))
             except AmapQuotaExhaustedError:
                 geocode_dead = True
                 stats["geocode_quota_stopped"] = 1
@@ -182,10 +187,7 @@ async def backfill_rows(
                 )
             else:
                 near = False
-                if (
-                    isinstance(geo, dict)
-                    and geo.get("lon") is not None
-                ):
+                if isinstance(geo, dict) and geo.get("lon") is not None:
                     from app.services.coords import haversine_m
                     from app.services.weather_open_meteo import CITY_COORDS
 
