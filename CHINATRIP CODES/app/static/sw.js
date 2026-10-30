@@ -2,7 +2,7 @@
    策略对齐 surmai (github.com/rohitkumbhar/surmai) 的 workbox 配置：
    app-shell 缓存优先+后台刷新，autoUpdate（skipWaiting+claim）；
    API NetworkFirst + 3s 超时回落缓存，离线可看最近一次成功的数据。 */
-const VERSION = 'v41'; // v41 2026-10-27: 行程卡片删除「✅ 到了」打卡按钮（fb-btn data-kind=visit），仅留 👍/👎/✍️ 点评；清理 visit 分支与 card.visited/plan.fb.checked* 文案
+const VERSION = 'v42'; // v42 2026-10-30: 移动端（≤760px）左栏改抽屉菜单：左上角 ☰ 开关 + 遮罩，桌面端不变 // v41 2026-10-27: 行程卡片删除「✅ 到了」打卡按钮（fb-btn data-kind=visit），仅留 👍/👎/✍️ 点评；清理 visit 分支与 card.visited/plan.fb.checked* 文案
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

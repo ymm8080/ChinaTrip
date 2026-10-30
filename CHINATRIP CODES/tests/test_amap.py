@@ -6,7 +6,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.amap import get_amap_client, router
+from app.api.amap import (
+    get_amap_client,
+    get_regeo_chain,
+    get_search_chain,
+    router,
+)
 from app.config import Settings, get_settings
 from app.services.amap_client import (
     AmapClient,
@@ -185,6 +190,8 @@ def make_app(handler=None, api_key: str = API_KEY) -> FastAPI:
     app.dependency_overrides[get_settings] = lambda: settings
     if handler is not None:
         amap = make_client(handler)
+        app.dependency_overrides[get_search_chain] = lambda: [amap]
+        app.dependency_overrides[get_regeo_chain] = lambda: [amap]
         app.dependency_overrides[get_amap_client] = lambda: amap
     return app
 
@@ -802,3 +809,56 @@ def test_search_poi_around_quota_raises_quota_error():
             )
         )
     assert excinfo.value.infocode == "10021"
+
+
+def test_client_connect_error_raises_amap_error():
+    def handler(request: httpx.Request):
+        raise httpx.ConnectError("getaddrinfo failed")
+
+    with pytest.raises(AmapError) as excinfo:
+        asyncio.run(make_client(handler).search_poi("food"))
+    assert "network error" in str(excinfo.value)
+
+
+def test_endpoint_search_falls_back_when_first_vendor_quota_dead():
+    def dead(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=QUOTA_BODY)
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=SUCCESS_BODY)
+
+    app = make_app()
+    ok_client = make_client(ok)
+    ok_client.vendor = "baidu"  # vendor 需不同，否则首个配额死 latch 会连带跳过它
+    app.dependency_overrides[get_search_chain] = lambda: [
+        make_client(dead),
+        ok_client,
+    ]
+    with TestClient(app) as client:
+        resp = client.get("/api/v1/amap/poi/search", params={"keywords": "food"})
+    assert resp.status_code == 200
+    assert len(resp.json()["items"]) == 2
+
+
+def test_endpoint_poi_search_connect_error_returns_502():
+    def broken(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("getaddrinfo failed")
+
+    app = make_app()
+    app.dependency_overrides[get_search_chain] = lambda: [make_client(broken)]
+    with TestClient(app) as client:
+        resp = client.get("/api/v1/amap/poi/search", params={"keywords": "food"})
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "amap_error"
+
+
+@pytest.fixture(autouse=True)
+def _clear_amap_vendor_latches():
+    """配额 latch 是模块级状态，测试间必须清零防串扰。"""
+    from app.api import amap as amap_api
+
+    amap_api._SEARCH_LATCH.clear()
+    amap_api._REGEO_LATCH.clear()
+    yield
+    amap_api._SEARCH_LATCH.clear()
+    amap_api._REGEO_LATCH.clear()

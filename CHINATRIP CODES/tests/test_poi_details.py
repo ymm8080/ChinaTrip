@@ -455,3 +455,43 @@ def test_search_keyword_heritage_overlap_gives_tier():
     hits = store.search_keyword("杭州", ["灵隐"])
     ids = [h["source_poi_id"] for h in hits]
     assert ids.index("C2") < ids.index("C1")  # 互含 tier 4 压过裸行
+
+
+# --- search_keyword 功能标签检索（2026-10-29 批打接线） -----------------------
+
+
+def test_search_keyword_label_token_hits_tagged_row():
+    """愿望词「演出」按 tags=['show'] 命中——《驼铃传奇》秀 名称无
+    「演出」二字，靠功能标签吃到（label_pois 批打后读侧接线）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1",
+        city="西安",
+        name="《驼铃传奇》秀",
+        category="entertainment",
+        location=(109.07, 34.37),
+    )
+    store._memory["S1"]["tags"] = ["show"]
+    hits = store.search_keyword("西安", ["演出"])
+    assert [h["source_poi_id"] for h in hits] == ["S1"]
+    assert hits[0]["tags"] == ["show"]
+
+
+def test_search_keyword_label_rank_beats_plain_hit():
+    """标签命中排前：同类裸行（名含演出二字）让位给 tags=show 的正主——
+    不对，同名层并列时精确名仍优先；此处验证标签命中优先于无标签同名。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1", city="成都", name="蜀风雅韵", category="娱乐", location=(104.05, 30.66)
+    )
+    store._memory["S1"]["tags"] = ["show"]
+    store.upsert(
+        "N1",
+        city="成都",
+        name="成都演出中心",
+        category="娱乐",
+        location=(104.06, 30.65),
+    )
+    hits = store.search_keyword("成都", ["演出"])
+    ids = [h["source_poi_id"] for h in hits]
+    assert ids.index("S1") < ids.index("N1")

@@ -415,3 +415,12 @@ def test_distance_rejects_non_walking():
                 ["116.391,39.907"], "116.40,39.91", type_=2
             )
         )
+
+
+def test_network_error_maps_to_amap_error():
+    def handler(request: httpx.Request):
+        raise httpx.ConnectError("[Errno 11001] getaddrinfo failed")
+
+    with pytest.raises(AmapError) as excinfo:
+        asyncio.run(make_client(handler).search_poi("food", city="\u5317\u4eac"))
+    assert "network error" in str(excinfo.value)

@@ -2689,3 +2689,67 @@ def test_v0_leg_source_follows_vendor_attr():
     day2 = _day2_visits(session)
 
     assert day2 and day2[0].leg_source == "baidu"
+
+
+def test_v0_hours_chain_source_follows_vendor_attr():
+    """2026-10-29 一键切图商 hours_source 收口：vendor=baidu 时 hours 链
+    ②/③ 标签写 baidu_detail/baidu_search（与 refresh_pois detail/search_tag
+    同径），store 行 source 随 vendor——不再硬编 amap_v5_*。"""
+    pois = [
+        {
+            "name": "景点0",
+            "city": "上海",
+            "category": "风景名胜",
+            "source": "baidu",
+            "source_poi_id": "B00000000",
+            "location": {"lon": 121.49, "lat": 31.23},
+            "address": "路0",
+            "opening_hours": None,
+        }
+    ]
+    items = [{"name": "景点0", "city": "上海", "day": 1, "duration_minutes": 60}]
+    store = PoiDetailStore()
+    amap = DistanceAmap(pois)
+    amap.vendor = "baidu"
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=NullCtrip(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="博物馆")
+    )
+    assert session.state == "ready"
+    visits = all_visits(session)
+    assert visits and visits[0].opening_hours == "09:00-17:00"
+    row = store.get("B00000000")
+    assert row["hours_source"] == "baidu_detail"
+    assert row["source"] == "baidu"
+
+
+# --- 功能标签愿望词（2026-10-29 批打接线） ------------------------------------
+
+
+def test_category_search_keyword_show_citywalk_town():
+    """玩法愿望 → 高德检索词（演出/步行街/古镇）；变脸类专名愿原样走
+    底库名称精确匹配，不吃品类词（既有拍板保持）。"""
+    assert _category_search_keyword("看演出") == "演出"
+    assert _category_search_keyword("citywalk") == "步行街"
+    assert _category_search_keyword("压马路") == "步行街"
+    assert _category_search_keyword("逛古镇") == "古镇"
+    assert _category_search_keyword("看变脸表演") is None  # 既有拍板不动
+    assert _category_search_keyword("蜀风雅韵") is None
+
+
+def test_keyword_label_tokens():
+    """检索词 → 底库功能标签内核（演出→show、步行街→citywalk、
+    古镇→historical_town）；_poi_library_lookup 用它拼标签 tokens。"""
+    from app.services.agent.plan import KEYWORD_LABEL_TOKENS, _category_label_tokens
+
+    assert _category_label_tokens("演出") == ["show"]
+    assert _category_label_tokens("步行街") == ["citywalk"]
+    assert _category_label_tokens("古镇") == ["historical_town"]
+    assert _category_label_tokens("茶馆") == []
+    assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇"}

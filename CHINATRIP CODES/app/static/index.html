@@ -51,6 +51,7 @@
   }
   .nav-item:hover{background:var(--code-bg)}
   .nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  #menuBtn{display:none} /* 桌面端隐藏移动端抽屉开关 */
   .side-foot{border-top:1px solid var(--border);padding-top:10px;font-size:12px;color:var(--muted)}
   .side-foot label{display:block;margin-bottom:6px}
   #apiBase{
@@ -288,18 +289,21 @@
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
 
-  /* 窄屏：左栏折叠为顶部横条 */
+  /* 窄屏：左栏改为左侧抽屉，左上角 ☰ 开关 */
   @media (max-width:760px){
     #app{display:flex;flex-direction:column;height:100vh}
     main{height:auto;flex:1;min-height:0}
-    #side{flex-direction:row;align-items:center;gap:6px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border)}
-    .brand{border:0;padding:0 6px 0 0}
+    #menuBtn{display:flex;align-items:center;justify-content:center;
+      position:fixed;z-index:60;
+      top:calc(6px + env(safe-area-inset-top,0px));left:calc(6px + env(safe-area-inset-left,0px));
+      width:38px;height:38px;border-radius:10px;border:1px solid var(--border);
+      background:var(--panel);color:var(--text);font-size:20px;cursor:pointer;box-shadow:var(--shadow)}
+    #side{position:fixed;z-index:55;top:0;bottom:0;left:0;width:min(78vw,300px);
+      transform:translateX(-102%);transition:transform .2s ease;overflow-y:auto}
+    #side.open{transform:none;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    #scrim{position:fixed;inset:0;z-index:54;background:rgba(0,0,0,.35);display:none}
+    #scrim.show{display:block}
     .brand-sub{display:none}
-    #nav{flex-direction:row;margin:0;flex:1;gap:2px;overflow-x:auto}
-    .nav-item{padding:7px 9px;font-size:13px;white-space:nowrap}
-    .side-foot{border:0;padding:0;font-size:11px;display:flex;align-items:center;gap:6px}
-    .side-foot label{margin:0;display:flex;align-items:center}
-    #apiBase{width:110px}
     .dev{display:none}
     #authArea{margin-top:0}
     .tab,.msg{max-width:100%}
@@ -312,6 +316,8 @@
 </head>
 <body>
 <div id="app">
+  <button id="menuBtn" aria-label="菜单 / Menu">☰</button>
+  <div id="scrim"></div>
   <aside id="side">
     <div class="brand">
       <div class="brand-name">ChinaTrip</div>
@@ -1485,24 +1491,7 @@ function planCard(plan) {
     if (fb && box.contains(fb)) {
       const kind = fb.getAttribute("data-kind"), nm = fb.getAttribute("data-name"), ct = fb.getAttribute("data-city");
       if (kind === "review") { openReviewBubble(nm, ct); return; }
-      if (kind === "book") {
-        try {
-          const bkUrl = fb.getAttribute("data-url"), isShow = fb.getAttribute("data-show") === "1";
-          const intent = await api("/api/v1/booking-auto/order-intent", { name: nm, city: ct, tier: "L3", ...(bkUrl ? { booking_url: bkUrl } : {}) });
-          if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
-          // 锁单确认窗文案（show_booking_design §2 路径 A）：提交订单后库存
-          // 仅锁 4–15 分钟（热门更短）——热门票明示窗口紧，不宣传犹豫期
-          toast(intent.requires_user_confirmation
-            ? (isShow ? I18N.tf("plan.bookIntent.showLock","已打开预填下单页——提交订单后库存仅锁定约 4–15 分钟（热门演出更短），请在窗口内完成支付；支付后回「订单」页粘贴订单号自动记录") : I18N.tf("plan.bookIntent.confirm","已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录"))
-            : I18N.tf("plan.bookIntent.opened","已打开"));
-          if (intent.handoff_id) {
-            // 代订收款预填：预订页「💳 支付」选「保存银行卡」即可挂这条跳转单
-            document.getElementById("payHandoff").value = intent.handoff_id;
-            toast(I18N.tf("plan.handoff.pre","已预填代订收款关联单号 ") + intent.handoff_id + I18N.tf("plan.handoff.suf","（预订页 💳 支付可直接发起）"));
-          }
-        } catch (e) { failToast(e); }
-        return;
-      }
+      if (kind === "book") { bookDirect(nm, ct, fb.getAttribute("data-url"), fb.getAttribute("data-show") === "1"); return; }
       try {
         await api("/api/v1/feedback/vote", { name: nm, city: ct, up: kind === "up" });
         toast(I18N.tf("plan.fb.recorded","已记录，谢谢反馈"));
@@ -1572,6 +1561,26 @@ function planCard(plan) {
   return box;
 }
 
+// 抢票直达（G1 L3 order-intent）：行程卡 fb-btn 委托与站点简介气泡共用同一条
+// 下单路径——气泡挂在 flow-plan 对话流、不在卡容器内，卡上委托监听收不到，
+// 气泡侧直接绑 onclick（bookDirect 由两处调用）
+async function bookDirect(name, city, url, isShow) {
+  try {
+    const intent = await api("/api/v1/booking-auto/order-intent", { name, city, tier: "L3", ...(url ? { booking_url: url } : {}) });
+    if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
+    // 锁单确认窗文案（show_booking_design §2 路径 A）：提交订单后库存
+    // 仅锁 4–15 分钟（热门更短）——热门票明示窗口紧，不宣传犹豫期
+    toast(intent.requires_user_confirmation
+      ? (isShow ? I18N.tf("plan.bookIntent.showLock","已打开预填下单页——提交订单后库存仅锁定约 4–15 分钟（热门演出更短），请在窗口内完成支付；支付后回「订单」页粘贴订单号自动记录") : I18N.tf("plan.bookIntent.confirm","已打开预填抢票页——支付后回「订单」页粘贴确认单号即可自动记录"))
+      : I18N.tf("plan.bookIntent.opened","已打开"));
+    if (intent.handoff_id) {
+      // 代订收款预填：预订页「💳 支付」选「保存银行卡」即可挂这条跳转单
+      document.getElementById("payHandoff").value = intent.handoff_id;
+      toast(I18N.tf("plan.handoff.pre","已预填代订收款关联单号 ") + intent.handoff_id + I18N.tf("plan.handoff.suf","（预订页 💳 支付可直接发起）"));
+    }
+  } catch (e) { failToast(e); }
+}
+
 // 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
 // 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
 const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
@@ -1582,11 +1591,43 @@ function briefTag(t) {
 function enrichBrief(info, city, name) {
   api("/api/pois/detail?city=" + encodeURIComponent(city || "") + "&name=" + encodeURIComponent(name || ""), undefined, "GET").then(p => {
     const bits = [];
+    // 预约/订票情况（2026-10-29 读侧接线）：行程卡有 🎫 提示而站点简介气泡
+    // 反而看不到——G1 第一痛在详情环节断链。琥珀色块与行程卡同款；
+    // 库列优先（refresh_reservation_rules 周检回写），RESERVATION_V0 兜底
+    const book = [];
+    let head = "";
+    if (p.reservation_required) {
+      const d = p.reservation_advance_days, rel = p.reservation_release_time;
+      head = I18N.tf("brief.reserveHead", "🎫 需预约");
+      head += d > 0 ? I18N.tf("brief.reserveDaysPre", " · 提前 ") + d + I18N.tf("brief.reserveDaysSuf", " 天") : (d === 0 ? I18N.tf("brief.reserveSameDay", " · 当日票") : "");
+      if (rel) head += I18N.tf("brief.reserveRelPre", " · 每日 ") + rel + I18N.tf("brief.reserveRelSuf", " 放票");
+      const note = I18N.pick(p, "reservation_note", "reservation_note_en");
+      if (note) book.push("ⓘ " + esc(note));
+    }
+    if (p.ticket_price_min != null || p.ticket_price_max != null) {
+      const lo = p.ticket_price_min, hi = p.ticket_price_max;
+      const price = lo != null && hi != null && lo !== hi ? "¥" + lo + "-" + hi : "¥" + (lo != null ? lo : hi);
+      book.push("💰 " + esc(price) + (p.ticket_source ? '<span class="muted">' + I18N.tf("brief.sourcePre", "（来源：") + esc(p.ticket_source) + I18N.tf("brief.sourceClose", "）") + "</span>" : ""));
+    }
     if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">' + I18N.tf("brief.sourcePre","（来源：") + esc(p.intro_source) + I18N.tf("brief.sourceClose","）") + "</span>" : ""));
     if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(t => I18N.tf("brief.tag." + t, briefTag(t))).filter(Boolean).join(" / "));
     if (p.phone) bits.push("☎ " + esc(p.phone));
     const photo = p.photos && p.photos[0] && p.photos[0].url;
-    if (!bits.length && !photo) return;
+    if (!bits.length && !book.length && !head && !photo) return;
+    if (head || book.length) {
+      const bd = el('<div style="margin:4px 0 0;color:#b26a00"></div>');
+      if (head) {
+        const l1 = el('<span>' + esc(head) + " </span>");
+        const grab = el('<a class="fb-btn">' + I18N.tf("card.grab", "抢票直达 →") + "</a>");
+        grab.onclick = (e) => { e.preventDefault(); bookDirect(name, city || "", p.booking_url || "", false); };
+        l1.appendChild(grab);
+        bd.appendChild(l1);
+      }
+      for (const b of book) bd.appendChild(el("<div>" + b + "</div>"));
+      const tip = p.reservation_required ? I18N.pick(p, "foreigner_tip", "foreigner_tip_en") : null;
+      if (tip) bd.appendChild(el('<div class="muted" style="margin:2px 0 0">🛂 ' + esc(tip) + "</div>"));
+      info.appendChild(bd);
+    }
     if (photo) {
       const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0" src="' + esc(photo) + '">');
       img.onerror = () => img.remove(); // 挂图隐藏，占位不留
@@ -1625,24 +1666,24 @@ function planSaveBar(plan) {
     }
   });
   bar.appendChild(btn);
-  // 重新规划（全新规划会话）：按 origin 原参数重开一局（服务重启自动重建同款），未保存的修改即弃。
+  // 重新规划（全新规划会话）：回到初始参数表单并预填上次输入（origin 含城市/天数/偏好/出发日期），
+  // 改完点「🚀 开始规划」重开一局，未保存的修改即弃（2026-10-28 用户规则：不再静默自动重规划）。
   if (planSession && planSession.origin) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
-    re.onclick = () => busy(re, async () => {
-      const holder = addMsg("flow-plan", "sys", I18N.tf("plan.replan.running","🔄 按原参数重新规划中…"));
-      try {
-        const orig = planSession.origin;
-        const body = await api("/api/v1/plan/start", { ...orig, lang: I18N.locale() === "en" ? "en" : "zh" });
-        planSetSession({ session_id: body.session_id, state: body.state, origin: orig });
-        holder.textContent = "";
-        planRenderSafe(holder, body);
-        toast(I18N.tf("plan.replan.done","已重新规划"));
-      } catch (err) {
-        holder.textContent = I18N.tf("plan.replan.fail","❌ 重新规划失败：") + detailText(err.detail);
-        failToast(err);
-      }
-      document.getElementById("flow-plan").scrollTop = 1e9;
-    });
+    re.onclick = () => {
+      const orig = planSession.origin || {};
+      planSetSession(null);
+      document.getElementById("flow-plan").textContent = ""; // 旧对话流整段清掉，才是真·全新页
+      planFormPrefill({
+        cities: orig.cities || [],
+        cityDays: orig.city_days || {},
+        startDate: orig.start_date || PLAN.startDate || "",
+        prefs: orig.preferences || "",
+      });
+      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
+      toast(I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
+      document.getElementById("flow-plan").scrollTop = 0;
+    };
     bar.appendChild(re);
   }
   // 已存行程的修改会话（itinEdit 载入，origin 为 null）：重新规划 = 丢掉未保存
@@ -1654,8 +1695,19 @@ function planSaveBar(plan) {
       if (!confirm(I18N.tf("plan.replan.confirm","回到全新规划？当前未保存的修改会丢弃。"))) return;
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
-      addMsg("flow-plan", "sys", I18N.tf("plan.replan.reset","已回到全新规划：上方填城市/天数后点「🚀 开始规划」。"));
-      toast(I18N.tf("plan.replan.reset","已回到全新规划：上方填城市/天数后点「🚀 开始规划」。"));
+      // 预填上次参数（2026-10-28 用户规则）：城市取行程城市；各城天数按行程卡逐日
+      // base_city 反推（转场日计入其到达城，与原表单或有 ±1 出入，反正用户可改再点开始）；
+      // 出发日期用行程快照 start_date（itinEdit 已把基准还原进 PLAN.startDate）
+      const perCity = {};
+      (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
+      planFormPrefill({
+        cities: rLike.cities, // planSetSession(null) 已清 planSession，城市用建 bar 时捕获的 rLike.cities
+        cityDays: perCity,
+        startDate: plan.start_date || PLAN.startDate || "",
+        prefs: null, // 行程会话没有原始偏好，保留偏好输入框现状
+      });
+      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
+      toast(I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
       document.getElementById("flow-plan").scrollTop = 0;
     };
     const ex = el('<button class="btn" data-role="itin-export">' + I18N.tf("plan.export","⬇️ 导出") + "</button>");
@@ -1689,6 +1741,15 @@ function changeNode(ch) {
 
 /* ================= Tab 切换 ================= */
 
+// 移动端抽屉菜单：☰ 打开/收起左栏浮层，点遮罩或选完页签自动收起
+const sideEl = document.getElementById("side"), scrimEl = document.getElementById("scrim");
+const closeSide = () => { sideEl.classList.remove("open"); scrimEl.classList.remove("show"); };
+document.getElementById("menuBtn").addEventListener("click", () => {
+  const open = !sideEl.classList.contains("open");
+  sideEl.classList.toggle("open", open); scrimEl.classList.toggle("show", open);
+});
+scrimEl.addEventListener("click", closeSide);
+document.querySelectorAll("#nav .nav-item[data-tab]").forEach(b => b.addEventListener("click", closeSide));
 /* 只给带 data-tab 的按钮挂页签切换：.nav-item 只负责样式（语言开关等无 data-tab 的按钮混在导航里，点了不能动 .tab） */
 document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -1727,6 +1788,22 @@ function planRouteForm() {
     total: mids.reduce((s, m) => s + m.days, 0) + endDays,
   };
 }
+// 合计天数 + 结束日期随表单刷新（顶层函数：重新规划预填表单后也要手动刷一次）
+function planTotalRefresh() {
+  const r = planRouteForm();
+  document.getElementById("planDaysTotal").textContent = r.total;
+  const sd = document.getElementById("planStartDate").value;
+  const d = sd ? new Date(sd + "T00:00:00") : null;
+  const endEl = document.getElementById("planEndDate");
+  if (d && !isNaN(d.getTime())) {
+    d.setDate(d.getDate() + (r.total - 1)); // 行程最后一天（第 total 天）
+    endEl.textContent = d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  } else {
+    endEl.textContent = I18N.tf("plan.noStart","（未设开始日期）");
+  }
+}
 /* 规划城市下拉：按 locale 重建（value 恒为中文规范市名=API 契约；zh 显示「中文 英文」双语标签，
  * en 只显示英文名）；i18n:change 时重绘并保留当前选中。 */
 function planCityRender() {
@@ -1761,28 +1838,12 @@ window.addEventListener("i18n:change", planCityRender);
   document.getElementById("planStartDate").value = _now.getFullYear() + "-" +
     String(_now.getMonth() + 1).padStart(2, "0") + "-" +
     String(_now.getDate()).padStart(2, "0");
-  const total = () => {
-    const r = planRouteForm();
-    document.getElementById("planDaysTotal").textContent = r.total;
-    const sd = document.getElementById("planStartDate").value;
-    const d = sd ? new Date(sd + "T00:00:00") : null;
-    const endEl = document.getElementById("planEndDate");
-    if (d && !isNaN(d.getTime())) {
-      d.setDate(d.getDate() + (r.total - 1)); // 行程最后一天（第 total 天）
-      endEl.textContent = d.getFullYear() + "-" +
-        String(d.getMonth() + 1).padStart(2, "0") + "-" +
-        String(d.getDate()).padStart(2, "0");
-    } else {
-      endEl.textContent = I18N.tf("plan.noStart","（未设开始日期）");
-    }
-  };
-  ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", total));
+  ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", planTotalRefresh));
   for (let i = 1; i <= 3; i++) {
-    const sel = document.getElementById("planVia" + i);
-    sel.innerHTML = viaOpts;
-    [sel, document.getElementById("planVia" + i + "Days")].forEach(x => x.addEventListener("change", total));
+    const sel = document.getElementById("planVia" + i); // 选项已由 planCityRender() 建好；旧 viaOpts 引用未定义，会让整段脚本加载即中断
+    [sel, document.getElementById("planVia" + i + "Days")].forEach(x => x.addEventListener("change", planTotalRefresh));
   }
-  total();
+  planTotalRefresh();
 })();
 // 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
 function todayBeijingIso() {
@@ -1820,6 +1881,41 @@ function planSetSession(s) {
   if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
   else { form.style.display = "flex"; bar.style.display = "none"; }
   document.getElementById("planInput").placeholder = s ? I18N.tf("plan.input.phActive","继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数") : I18N.tf("plan.input.phIdle","自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整");
+}
+// 预填参数表单（2026-10-28 用户规则：重新规划=回到初始设置并带上次输入）：
+// cities=[起始,…中间0-3,结束]，cityDays 城市→天数（只读中间/结束城），startDate 出发日期，
+// prefs 偏好（null=保留偏好输入框现状）。写回后刷新合计/结束日期。
+function planFormPrefill(o) {
+  const cities = (o && o.cities) || [];
+  if (!cities.length) return false;
+  const setSel = (id, v) => { // 城市不在 40 城下拉里（自由对话进来的小城）就跳过不动；v 为空且下拉有空选项（中间/结束城的「不经过」）则清空，别留上一次的残值
+    const s = document.getElementById(id);
+    if (!s) return;
+    if (!v) { if (s.querySelector('option[value=""]')) s.value = ""; return; }
+    if (s.querySelector('option[value="' + v + '"]')) s.value = v;
+  };
+  setSel("planStartCity", cities[0]);
+  document.getElementById("planStartDays").value = 0; // 出发城市天数不参与计算，归位占位值
+  const cd = (o && o.cityDays) || {};
+  if (cities.length >= 2) {
+    const end = cities[cities.length - 1];
+    const mids = cities.slice(1, -1).slice(0, 3);
+    setSel("planEndCity", end);
+    document.getElementById("planEndDays").value = Math.max(1, parseInt(cd[end], 10) || 1);
+    for (let i = 1; i <= 3; i++) {
+      const c = mids[i - 1] || "";
+      setSel("planVia" + i, c);
+      document.getElementById("planVia" + i + "Days").value = c ? Math.max(1, parseInt(cd[c], 10) || 1) : 1;
+    }
+  } else {
+    setSel("planEndCity", "");
+    for (let i = 1; i <= 3; i++) { setSel("planVia" + i, ""); document.getElementById("planVia" + i + "Days").value = 1; }
+  }
+  if (o.startDate) document.getElementById("planStartDate").value = o.startDate;
+  if (typeof o.prefs === "string") document.getElementById("planPref").value = o.prefs;
+  PLAN.startDate = document.getElementById("planStartDate").value || "";
+  planTotalRefresh();
+  return true;
 }
 document.getElementById("planSummaryToggle").onclick = () => {
   const form = document.getElementById("planSetup");
@@ -1981,7 +2077,7 @@ async function planStartCore(extraPref) {
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（通常 10 秒内）…"));
   try {
     const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, lang: I18N.locale() === "en" ? "en" : "zh" });
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays } }); // origin 供会话丢失后自动重建
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
@@ -3355,7 +3451,7 @@ const PAY_STATUS_ZH = { // status→[class, 中文兜底]，消费点 tf("pay.st
 };
 function payStatusBadge(status) {
   const m = PAY_STATUS_ZH[status] || ["badge", status];
-  return '<span class="' + m[0] + '">' + esc(map[status] ? I18N.tf("pay.st." + status, m[1]) : status) + "</span>";
+  return '<span class="' + m[0] + '">' + esc(I18N.tf("pay.st." + status, m[1])) + "</span>";
 }
 
 // 单条付款记录：类型+金额/卡标签 + 状态徽章 + 说明 + 退改摘要（铁律 23）
@@ -3378,7 +3474,7 @@ function payRow(r) {
 async function payLoadMine() {
   const out = document.getElementById("payOut");
   try {
-    const body = await api("/api/v1/payments/mine");
+    const body = await api("/api/v1/payments/mine", undefined, "GET");
     const rows = body.payments || [];
     out.innerHTML = "";
     if (!rows.length) { out.appendChild(el('<div class="muted">' + I18N.tf("pay.none", "暂无付款记录 / No payments yet") + "</div>")); return; }
@@ -3393,7 +3489,7 @@ let payPollTimer = null;
 function payPoll(pid, left) {
   clearTimeout(payPollTimer);
   if (!left) return;
-  api("/api/v1/payments/" + pid).then(r => {
+  api("/api/v1/payments/" + pid, undefined, "GET").then(r => {
     if (r.status !== "pending") {
       payLoadMine();
       toast(r.status === "succeeded" ? I18N.tf("pay.okPaid", "✅ 支付成功") :

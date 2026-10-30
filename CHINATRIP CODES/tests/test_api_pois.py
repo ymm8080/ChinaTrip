@@ -55,6 +55,12 @@ def make_row(**over) -> SimpleNamespace:
         best_visit_time="night",
         best_visit_time_source="manual",
         suggested_duration_min=90,
+        reservation_required=None,
+        reservation_advance_days=None,
+        booking_url=None,
+        ticket_price_min=None,
+        ticket_price_max=None,
+        ticket_source=None,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -130,6 +136,17 @@ def test_exact_hit_returns_200_with_new_fields():
         "best_visit_time",
         "best_visit_time_source",
         "suggested_duration_min",
+        "reservation_required",
+        "reservation_advance_days",
+        "reservation_release_time",
+        "reservation_note",
+        "reservation_note_en",
+        "foreigner_tip",
+        "foreigner_tip_en",
+        "booking_url",
+        "ticket_price_min",
+        "ticket_price_max",
+        "ticket_source",
     ):
         assert field in body
     assert body["rating"] == 4.6  # Decimal coerced to float
@@ -220,3 +237,96 @@ def test_already_tier_tagged_row_skips_heritage_query():
     assert resp.status_code == 200
     assert resp.json()["tags"] == ["unesco"]
     assert session.calls == 1
+
+
+# --- 预约/订票出参 (2026-10-29)：库列优先，RESERVATION_V0 兜底 -------------------
+
+
+def test_non_reservation_site_booking_fields_all_null():
+    """非预约制景点（洪崖洞不在名单、库列空）→ 预约组全 null，不出提示。"""
+    session = FakeSession([[make_row()]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["reservation_required"] is None
+    assert body["reservation_advance_days"] is None
+    assert body["reservation_release_time"] is None
+    assert body["reservation_note"] is None
+    assert body["foreigner_tip"] is None
+    assert body["booking_url"] is None
+
+
+def test_reservation_fields_from_seeds_fallback():
+    """库列全空的名单馆（故宫博物院）→ 名单兜底：天数/放票时刻/双语提示。"""
+    session = FakeSession(
+        [[make_row(name_zh="故宫博物院", source="5a", tags=None)], []]
+    )
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "北京", "name": "故宫博物院"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["reservation_required"] is True
+    assert body["reservation_advance_days"] == 7
+    assert body["reservation_release_time"] == "20:00"
+    assert "小程序" in body["reservation_note"]
+    assert "passport" in body["reservation_note_en"]
+    assert body["foreigner_tip"]
+    assert body["foreigner_tip_en"]
+    assert body["booking_url"] is None  # 名单无 URL；H5 走 order-intent geo 分流
+    assert "5a" in body["tags"]  # 名单行 tags 空 → tier 接线照常注入
+
+
+def test_reservation_db_columns_win_over_seeds():
+    """库列有值（refresh_reservation_rules 回写）→ 天数/URL 以库列为准
+    （名单同馆 10 天不改写 12 天库列值），名单提示不再覆盖
+    （plan._reservation_hint 同语义）；release 无库列恒由名单补时刻。"""
+    session = FakeSession(
+        [
+            [
+                make_row(
+                    name_zh="恭王府博物馆",
+                    reservation_required=True,
+                    reservation_advance_days=12,
+                    booking_url="https://pgm.org.cn",
+                )
+            ]
+        ]
+    )
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "北京", "name": "恭王府博物馆"}
+    )
+    body = resp.json()
+    assert body["reservation_required"] is True
+    assert body["reservation_advance_days"] == 12
+    assert body["booking_url"] == "https://pgm.org.cn"
+    assert body["reservation_note"] is None
+    assert body["reservation_release_time"] == "20:00"  # 名单「恭王府」release 补时刻
+    assert body["foreigner_tip"]
+
+
+def test_reservation_seed_name_containment_match():
+    """互含容错：库存「敦煌莫高窟景区」⊂ 名单键「敦煌莫高窟」（_same_site 同款）。"""
+    session = FakeSession([[make_row(name_zh="敦煌莫高窟景区")]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "敦煌", "name": "敦煌莫高窟景区"}
+    )
+    body = resp.json()
+    assert body["reservation_required"] is True
+    assert body["reservation_advance_days"] == 30
+    assert body["reservation_release_time"] is None  # 名单 "00:00"=未注明 → 出参 None
+
+
+def test_ticket_price_passthrough():
+    """ctrip 刷新链回填的票价列 → 出参 int 原样（此前无任何 API 暴露票价）。"""
+    session = FakeSession(
+        [[make_row(ticket_price_min=40, ticket_price_max=60, ticket_source="ctrip")]]
+    )
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["ticket_price_min"] == 40
+    assert body["ticket_price_max"] == 60
+    assert body["ticket_source"] == "ctrip"

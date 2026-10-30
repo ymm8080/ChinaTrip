@@ -174,6 +174,52 @@ def test_template_hours_en():
     assert template_hours_en(None) is None
 
 
+def test_template_hours_en_extended_vocab():
+    """2026-10-30 扩词表：残句高频表述确定性覆盖，数字零改动。"""
+    from app.jobs.backfill_en_columns import template_hours_en as t
+
+    # 停止入园/检票/最晚进入 → last entry
+    assert (
+        t("周一至周日 08:30-17:00 最晚进入15:30")
+        == "Monday–Sunday 08:30-17:00 last entry 15:30"
+    )
+    assert t("09:00-17:00（16:00停止入园）") == "09:00-17:00 (last entry 16:00)"
+    assert t("周二至周日 09:00-17:00 16:30停止检票入馆").startswith(
+        "Tuesday–Sunday 09:00-17:00 last entry 16:30"
+    )
+    assert t("10:00-22:00 21:30停止售票") == "10:00-22:00 last tickets 21:30"
+    # 开放家族 / 全年
+    assert t("全年全天开放") == "Open year-round, all day"
+    assert t("全年开放") == "Open year-round"
+    assert t("周一至周五 10:00-17:00开放") == "Monday–Friday 10:00-17:00 open"
+    assert t("开放时间:09:00-17:00") == "Opening hours:09:00-17:00"
+    # 节假日 / 关闭 / 公示
+    assert t("周一关闭(法定节假日除外)") == "Monday Closed(except public holidays)"
+    assert t("周一至周日 09:00-17:00，节假日除外") is None  # "除外"无映射→CJK 回落 LLM
+    assert t("周一至周日 00:00-24:00；具体开放时间以现场公示为准") == (
+        "Monday–Sunday 00:00-24:00; hours subject to on-site notice"
+    )
+    # 月日日期（保数字）
+    assert t("11月至12月 周一至周日 08:00-16:30") == "Nov–Dec Monday–Sunday 08:00-16:30"
+    assert t("2026年2月16日闭馆") == "2026 Feb 16 Closed"
+    assert t("1月1日-1月3日:10:00-22:00") == "Jan 1-Jan 3:10:00-22:00"
+    # 2026-10-30 第二批：今天/每日/夜游/国家法定/点时刻/全天关闭/日期前后
+    assert t("今天09:00-17:00开放（16:00停止入园）") == (
+        "today 09:00-17:00 open (last entry 16:00)"
+    )
+    assert t("夜游开放时间为每日17:30-22:00（21:45停止入场）") == (
+        "night tour Opening hours daily 17:30-22:00 (last entry 21:45)"
+    )
+    assert t("周一关闭(国家法定节假日除外)") == (
+        "Monday Closed(except national public holidays)"
+    )
+    assert t("周一 全天关闭") == "Monday Closed all day"
+    assert t("5月1日前 08:00-16:30停止入园") == (
+        "before May 1 08:00-16:30, last entry 16:30"
+    )
+    assert t("09:00-18点") == "09:00-18:00"
+
+
 def test_process_row_template_path_zero_llm():
     """hours 模板可转换 → 零 LLM 调用（省 token 路径）。"""
     adapter = _FakeAdapter({})

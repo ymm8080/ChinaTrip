@@ -327,6 +327,8 @@ class AmapClient:
                 response = await http.get(path, params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:
@@ -368,6 +370,8 @@ class AmapClient:
                 response = await http.get("/place/text", params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:
@@ -420,6 +424,8 @@ class AmapClient:
                 response = await http.get("/place/around", params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         return self._pois_from_response(response)
 
     @staticmethod

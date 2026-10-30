@@ -59,7 +59,11 @@ from app.services.lang_ctx import L
 from app.services.llm import get_flash_adapter, get_llm_adapter
 from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import LLMError
-from app.services.map_provider import build_map_client, map_ready
+from app.services.map_provider import (
+    build_client_chain,
+    build_map_client,
+    map_ready,
+)
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
@@ -110,6 +114,8 @@ def get_planning_agent(
         _agent_singleton = PlanningAgent(
             get_llm_adapter(settings),
             amap_client=amap,
+            # 检索链（2026-10-30 vendor_policy）：amap>tencent>baidu，缺 key 自动跳过
+            search_chain=build_client_chain(settings, "search"),
             train_service=get_train_service(settings),
             # 航班与火车同构（2026-10-28）：flight_api_key 空 → Mock 占位，
             # 配置 key → VariFlight 适配器（管线零改动）。

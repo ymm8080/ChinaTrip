@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """backfill_locations 纯函数层：命中校验 / 同城相容 / source 优先档."""
 
+import asyncio
+
 from app.jobs.backfill_locations import (
     _SOURCE_RANK,
     city_compatible,
@@ -47,6 +49,71 @@ def test_city_compatible_tolerates_suffix_and_prefix():
 def test_source_rank_orders_named_lists_first():
     assert _SOURCE_RANK["unesco"] < _SOURCE_RANK["5a"] < _SOURCE_RANK["scenic"]
     assert _SOURCE_RANK["5a"] < _SOURCE_RANK["amap"]
+
+
+class StubSearch:
+    def __init__(self, vendor, *, hits=None, quota_after=None):
+        self.vendor = vendor
+        self.hits = hits or []
+        self.quota_after = quota_after
+        self.calls = 0
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        self.calls += 1
+        if self.quota_after is not None and self.calls >= self.quota_after:
+            from app.services.amap_client import AmapQuotaExhaustedError
+
+            raise AmapQuotaExhaustedError("quota", "302")
+        return self.hits
+
+
+class StoreStub:
+    def __init__(self):
+        self.upserts = []
+
+    def upsert(self, poi_id, **kw):
+        self.upserts.append((poi_id, kw))
+
+
+class _Row:
+    source_poi_id = ""
+    name_zh = ""
+    city = ""
+    source = "5a"
+
+
+def _row(i, name="九龙沟"):
+    r = _Row()
+    r.source_poi_id = f"P{i}"
+    r.name_zh = name
+    r.city = "成都"
+    return r
+
+
+def test_backfill_rows_latches_dead_vendor_and_falls_over():
+    from app.jobs.backfill_locations import backfill_rows
+
+    store = StoreStub()
+    hit = [{"name": "九龙沟", "city": "成都", "location": "104.0,30.6"}]
+    v1 = StubSearch("first", hits=hit, quota_after=2)
+    v2 = StubSearch("second", hits=hit)
+    stats = asyncio.run(backfill_rows(store, [v1, v2], [_row(1), _row(2), _row(3)]))
+    assert stats["filled"] == 3
+    assert stats["quota_stopped"] == 1
+    assert stats["by_vendor"] == {"first": 1, "second": 2}
+    assert v1.calls == 2  # latch：配额死后不再撞死家
+    assert len(store.upserts) == 3
+
+
+def test_backfill_rows_stops_when_all_vendors_dead():
+    from app.jobs.backfill_locations import backfill_rows
+
+    v1 = StubSearch("first", quota_after=0)
+    v2 = StubSearch("second", quota_after=0)
+    stats = asyncio.run(backfill_rows(StoreStub(), [v1, v2], [_row(1), _row(2)]))
+    assert stats["filled"] == 0
+    assert stats.get("stopped_no_channel") == 1
+    assert stats["missed"] == 1  # 只处理第一行即停
 
 
 def test_hit_lonlat_accepts_dict_string_and_tuple():

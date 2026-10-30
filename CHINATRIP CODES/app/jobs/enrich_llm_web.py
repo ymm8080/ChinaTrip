@@ -131,9 +131,8 @@ def select_targets(session_factory, *, limit: int) -> list[Poi]:
     with session_factory() as session:
         return (
             session.query(Poi)
-            .filter(Poi.status == "active")
-            .filter(Poi.suggested_duration_min.is_(None))
-            .order_by(_source_rank(), Poi.rating.desc().nullslast(), Poi.id)
+            .filter(Poi.status == "active", Poi.name_aliases.is_(None))
+            .order_by(Poi.rating.desc().nullslast(), Poi.id)
             .limit(limit)
             .all()
         )

@@ -8,5 +8,5 @@ call "%~dp0db_up.cmd"
 set "LOG=devlogs\poi_refresh_daily.log"
 if not exist devlogs mkdir devlogs
 echo [%date% %time%] === refresh daily start === >> "%LOG%"
-"%PY%" -m app.jobs.refresh_pois --rotate --match --limit 200 >> "%LOG%" 2>&1
+"%PY%" -m app.jobs.refresh_pois --match --limit 2500 >> "%LOG%" 2>&1
 echo [%date% %time%] === refresh daily done rc=%errorlevel% === >> "%LOG%"

@@ -31,6 +31,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.ctrip_hours import CtripHoursReader
 from app.services.flights import FlightService, MockFlightService, pick_best_flight
 from app.services.itinerary import (
@@ -174,12 +175,26 @@ _INTL_PLATFORM_TAGS = {
 }
 
 
+def _cand_is_show(cand: dict) -> bool:
+    """演出候选判定（2026-10-29 功能标签批打后认 tags）：04 演艺源 /
+    娱乐类 / 宜演出时段之外，标签 show 同样算——amap 源的川剧院等
+    （label_pois 名称内核补判）按同一场晚间档参与提案。"""
+    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
+    return (
+        cand.get("category") == "entertainment"
+        or cand.get("best_visit_time") == "show"
+        or str(cand.get("source") or "").strip().lower() == "show"
+        or "show" in tags
+    )
+
+
 def _source_tier(cand: dict) -> int:
     """首次到访候选优先级（2026-10-28 用户拍板）：
 
     08 UNESCO > 02 5A > 05 国际旅行网站 > 10 国际平台 > 04 演艺演出 >
     12 小红书 > 01 国家级旅游休闲街区 > 国家级风景名胜区 > 其他（库序）。
-    source 列为主，跨源并库的 tags（ta/lp/intl/sygic…）兜底。
+    source 列为主，跨源并库的 tags（ta/lp/intl/sygic…）兜底；
+    演出档判定走 _cand_is_show（tags show 同档，2026-10-29）。
     """
     source = str(cand.get("source") or "").strip().lower()
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
@@ -192,11 +207,7 @@ def _source_tier(cand: dict) -> int:
         return 3
     if source in _INTL_PLATFORM_SOURCES or tags & _INTL_PLATFORM_TAGS:
         return 4
-    if (
-        cand.get("category") == "entertainment"
-        or cand.get("best_visit_time") == "show"
-        or source == "show"
-    ):
+    if _cand_is_show(cand):
         return 5
     if source == "xiaohongshu" or "xiaohongshu" in tags or "小红书" in joined:
         return 6
@@ -478,7 +489,8 @@ _V0_SYSTEM_PROMPT = (
     "点评多、带 unesco/5A/4A/3A/intl 标签的优先（级别从高到低，"
     "intl=国际旅行网站人气榜，对外国游客优先），"
     "「宜傍晚」类景点排到对应半天，"
-    "候选含「晚间演出」类（entertainment）时每城优先安排一场作当日收尾，"
+    "候选含「晚间演出」类（category=entertainment、best_visit_time=show 或"
+    " tags 含 show）时每城优先安排一场作当日收尾，"
     "duration_minutes 优先采用候选行的「建议X分钟」。reason 可选，"
     "说明为什么选它/适合什么时候去。"
     "候选里 category 为 food 的"
@@ -733,7 +745,33 @@ CATEGORY_SEARCH_KEYWORDS: dict[str, str] = {
     "夜市": "夜市",
     "博物馆": "博物馆",
     "博物馆人文": "博物馆",
+    # 玩法愿望（2026-10-29 功能标签批打）：愿望词 → 高德检索词；底库
+    # 检索另带标签内核（KEYWORD_LABEL_TOKENS），演出/街区类先吃
+    # 标签池（04 演艺 / 01 街区 / histown）再落高德。
+    "看演出": "演出",
+    "演出": "演出",
+    "看秀": "演出",
+    "show": "演出",
+    "城市漫步": "步行街",
+    "citywalk": "步行街",
+    "city walk": "步行街",
+    "压马路": "步行街",
+    "逛古镇": "古镇",
+    "古镇": "古镇",
 }
+
+# 检索词 → 底库功能标签内核（poi_details._LABEL_TOKENS 同词表）：品类
+# 愿望先按标签吃精池——「看演出」不能只 LIKE 名称（蜀风雅韵 无演出二字），
+# 「citywalk」高德搜不到但 01 街区行就在库里。
+KEYWORD_LABEL_TOKENS: dict[str, list[str]] = {
+    "演出": ["show"],
+    "步行街": ["citywalk"],
+    "古镇": ["historical_town"],
+}
+
+
+def _category_label_tokens(keyword: str | None) -> list[str]:
+    return KEYWORD_LABEL_TOKENS.get((keyword or "").strip(), [])
 
 
 def _category_search_keyword(name: str) -> str | None:
@@ -1331,9 +1369,16 @@ class PlanningAgent:
         poi_details: PoiDetailStore | None = None,
         ctrip_hours: CtripHoursReader | None = None,
         auto_restaurants: bool = True,
+        search_chain: list | None = None,
     ) -> None:
         self._llm = llm_adapter
         self._amap = amap_client
+        # 检索链（2026-10-30 vendor_policy：search=amap>tencent>baidu）：候选
+        # 补量/专名解析/必去定位统一走 _search_poi，配额死逐家 latch。
+        # 显式传入固定；缺省 None → _search_chain 动态回落注入的 _amap
+        # （存量测试事后替换 agent._amap 的注入方式不受影响）。
+        self._search_chain_override = search_chain
+        self._search_quota_dead: set[str] = set()
         # Measured-leg cache: POI pairs are stable across re-solves.
         self._leg_cache: dict[tuple[str, str], tuple[float, int]] = {}
         # 缺坐标专名解析失败的负例缓存（(city, name)）：本进程内不再重试，防刷新空烧配额
@@ -1359,6 +1404,13 @@ class PlanningAgent:
         self._solver = solver
         self._time_budget_seconds = time_budget_seconds
         self._item_seq = 0
+
+    @property
+    def _search_chain(self) -> list:
+        """检索链：显式传入固定，否则动态回落单客户端（兼容事后替换 _amap）。"""
+        if self._search_chain_override is not None:
+            return [c for c in self._search_chain_override if c is not None]
+        return [self._amap] if self._amap is not None else []
 
     # --- public API -------------------------------------------------------
 
@@ -2097,21 +2149,37 @@ class PlanningAgent:
         session.state = "ready"
         return session, summary, L("；".join(notes), "; ".join(notes))
 
+    async def _search_poi(self, keywords: str, *, city: str | None) -> list[dict]:
+        """检索走 vendor_policy 链（map_provider.FUNCTION_PROVIDER_PRIORITY
+        ["search"]=amap>tencent>baidu）；配额死 latch 到下一家，失败行跳过。"""
+        for client in self._search_chain:
+            vendor = getattr(client, "vendor", "amap")
+            if vendor in self._search_quota_dead:
+                continue
+            try:
+                hits = await client.search_poi(keywords, city=city)
+            except AmapQuotaExhaustedError:
+                self._search_quota_dead.add(vendor)
+                logger.warning(
+                    "plan: %s search quota exhausted, falling to next vendor", vendor
+                )
+                continue
+            except Exception:
+                logger.warning(
+                    "plan: %s search failed for %s", vendor, keywords, exc_info=True
+                )
+                continue
+            if hits:
+                return hits
+        return []
+
     async def _lookup_poi(self, name: str, city: str) -> dict | None:
-        if self._amap is None:
+        if not self._search_chain:
             return None
-        try:
-            return next(
-                iter(
-                    await self._amap.search_poi(
-                        name, city=None if _is_unspecified(city) else city
-                    )
-                ),
-                None,
-            )
-        except Exception:
-            logger.warning("plan: amap must-visit lookup failed for %s", name)
-            return None
+        hits = await self._search_poi(
+            name, city=None if _is_unspecified(city) else city
+        )
+        return next(iter(hits), None)
 
     def _search_anchor(
         self, session: PlanSession, city: str, allow_redirect: bool
@@ -2145,9 +2213,11 @@ class PlanningAgent:
     ) -> dict | None:
         """心愿落实先查 POIS 底库（用户拍板 2026-10-24「先去POIS里找」）。
 
-        品类愿望按关键词（含去尾字变体：茶馆→茶）搜 name/category；
-        专名愿望只收 name 精确相等的行（LIKE 部分命中如「豫园商城」
-        不能顶替 amap 对「豫园」的精确查找）。已在行程里的名字跳过。
+        品类愿望按关键词（含去尾字变体：茶馆→茶）搜 name/category，演出/
+        citywalk 等玩法词另按功能标签检索（KEYWORD_LABEL_TOKENS →
+        poi_details._LABEL_TOKENS，tags 命中如 蜀风雅韵@show）；专名愿望
+        只收 name 精确相等的行（LIKE 部分命中如「豫园商城」不能顶替 amap
+        对「豫园」的精确查找）。已在行程里的名字跳过。
         """
         if self._poi_details is None:
             return None
@@ -2156,6 +2226,7 @@ class PlanningAgent:
             short = search_kw.rstrip("馆楼店")
             if short and short != search_kw:
                 tokens.append(short)
+            tokens += [t for t in _category_label_tokens(search_kw) if t not in tokens]
         else:
             tokens = [name]
         try:
@@ -2839,6 +2910,7 @@ class PlanningAgent:
         for city in cities[1:] if len(cities) > 1 else cities:
             pois: list[dict] = []
             lib_count = 0
+            no_loc = 0  # 库命中无坐标骨架行剔除数（坐标闸，2026-10-30）
             if self._poi_details is not None:
                 try:
                     lib_hits = await asyncio.to_thread(
@@ -2854,6 +2926,15 @@ class PlanningAgent:
                 lib_count = len(lib_hits)
                 for h in lib_hits:
                     if not h.get("name"):
+                        continue
+                    # 2026-10-30 修复「两个 SITE 间距离/步行不显示」：无坐标骨架行
+                    # （5A/amap/show 骨架；西安、三亚等非十城池整库无坐标）不可
+                    # 规划——选进行程后 annotate_legs/实测腿全缺位，卡片「距下一
+                    # 站 X km · 步行约 Y 分钟」整段消失，导航外链也没坐标。跳过，
+                    # 等 backfill_locations 补齐坐标后自动回池；滤空城市走下方
+                    # <10 高德补量（含占位降级）。
+                    if not h.get("location"):
+                        no_loc += 1
                         continue
                     loc = h.get("location")  # (lon, lat) 元组 → amap dict 形状
                     pois.append(
@@ -2890,28 +2971,24 @@ class PlanningAgent:
                             ),
                         }
                     )
-            if len(pois) < LIBRARY_MIN_CANDIDATES and self._amap is not None:
-                remote: list[dict] = []
-                try:
-                    remote = await self._amap.search_poi(POI_KEYWORD, city=city)
-                except Exception:
-                    # Any amap failure degrades to placeholders (§6.1).
-                    logger.warning(
-                        "plan: amap candidate fetch failed for %s",
-                        city,
-                        exc_info=True,
-                    )
+            if len(pois) < LIBRARY_MIN_CANDIDATES and self._search_chain:
+                # 检索链（2026-10-30 vendor_policy amap>tencent>baidu）：失败/
+                # 配额死在 _search_poi 内逐家降级，空手归占位（§6.1）。
+                remote: list[dict] = await self._search_poi(POI_KEYWORD, city=city)
                 lib_names = [p["name"] for p in pois]
                 for p in remote:
                     if not isinstance(p, dict) or not p.get("name"):
                         continue
                     if any(_same_site(p["name"], n) for n in lib_names):
                         continue
+                    if not p.get("location"):
+                        continue  # 图商命中偶发无坐标：同款坐标闸（2026-10-30）
                     pois.append({**p, "city": city})
             logger.info(
-                "plan: city %s candidates library=%d total=%d",
+                "plan: city %s candidates library=%d no_loc_skipped=%d total=%d",
                 city,
                 lib_count,
+                no_loc,
                 len(pois),
             )
             if not pois:
@@ -2955,19 +3032,8 @@ class PlanningAgent:
             # POI search must be scoped to where the site actually is.
             hint = site_cities.get(name) or fallback_city
             poi: dict | None = None
-            if self._amap is not None:
-                try:
-                    poi = next(
-                        iter(
-                            await self._amap.search_poi(
-                                name,
-                                city=None if _is_unspecified(hint) else hint,
-                            )
-                        ),
-                        None,
-                    )
-                except Exception:
-                    logger.warning("plan: amap must-visit lookup failed for %s", name)
+            if self._search_chain:
+                poi = await self._lookup_poi(name, hint)
             if poi and isinstance(poi, dict) and poi.get("city"):
                 # amap fuzzy search happily returns POIs from other
                 # provinces (junk input once resolved to a HK office in
@@ -3392,10 +3458,7 @@ class PlanningAgent:
             for idx, cand in enumerate(group):
                 if cand.get("category") == "food":
                     foods.append(cand)
-                elif (
-                    cand.get("category") == "entertainment"
-                    or cand.get("best_visit_time") == "show"
-                ):
+                elif _cand_is_show(cand):
                     shows.append((idx, cand))
                 else:
                     sights.append((idx, cand))
@@ -4123,6 +4186,7 @@ class PlanningAgent:
                         address=item.address,
                         opening_hours=item.opening_hours,
                         hours_source=("amap_v3" if item.opening_hours else None),
+                        source=getattr(self._amap, "vendor", "amap"),
                     )
                 if not item.opening_hours:
                     missing.append(item)
@@ -4221,7 +4285,9 @@ class PlanningAgent:
                         address=item.address,
                         opening_hours=hours,
                         hours_source=source,
-                        source="ctrip" if source == "ctrip" else "amap",
+                        source="ctrip"
+                        if source == "ctrip"
+                        else getattr(self._amap, "vendor", "amap"),
                     )
             if i + HOURS_CHUNK < len(todo):
                 await asyncio.sleep(0.35)
@@ -4236,13 +4302,18 @@ class PlanningAgent:
     async def _hours_chain(
         self, item: VisitItem, ctrip_fn, detail_fn, search_fn, amap_slots
     ) -> tuple[str, str | None, str] | None:
-        """单条目回源链：携程先 → 高德 v5 detail → 高德 v5 关键词搜索。
+        """单条目回源链：携程先 → 图商 detail → 图商关键词搜索。
 
         返回 (hours, address, source)；hours 未命中但 address 命中时
         hours=None 照常返回；全链未命中返回 None。"""
         hours: str | None = None
         address: str | None = None
         source: str | None = None
+        # hours_source 按真实图商标注（与 refresh_pois detail/search_tag
+        # 同径；leg_source vendor 模式同款）——amap 保旧标签兼容存量
+        vendor = getattr(self._amap, "vendor", "amap")
+        detail_tag = f"{vendor}_v5_detail" if vendor == "amap" else f"{vendor}_detail"
+        search_tag = f"{vendor}_v5_search" if vendor == "amap" else f"{vendor}_search"
         # ① 携程先（用户拍板）
         if callable(ctrip_fn):
             try:
@@ -4267,7 +4338,7 @@ class PlanningAgent:
                 hours = out.get("opening_hours")
                 address = out.get("address")
                 if hours:
-                    source = "amap_v5_detail"
+                    source = detail_tag
         # ③ 仍未命中：高德 v5 关键词搜索兜底
         if not hours and callable(search_fn):
             try:
@@ -4283,7 +4354,7 @@ class PlanningAgent:
                 hours = out.get("opening_hours")
                 address = address or out.get("address")
                 if hours:
-                    source = "amap_v5_search"
+                    source = search_tag
                 if not item.poi_id and out.get("poi_id"):
                     item.poi_id = out["poi_id"]
         # hours 全链未命中但 address 已到手（开放型点位无营业时间块

@@ -101,12 +101,12 @@ def validate_translation(text: str, *, source: str) -> str | None:
 def validate_hours_en(text: str, *, source: str) -> str | None:
     """hours 专用验收（宽松于通用闸门）。
 
-    硬关：无 CJK（防回中文）、拉丁主体、时间数字保真（@HH:MM 集合
-    一致，防 LLM 改错时刻——真实危害远大于长度）。
-    长度 2-300（原 600 对 hours 常态过松、20 过严）。
+    硬关：无 CJK（防回中文）、时间数字保真（HH:MM 集合一致，防 LLM
+    改错时刻——真实危害远大于长度）。
+    长度 2-1200（多季长 schedules 源 492 字，EN 冗长可达 2 倍+；巡检二次放宽）。
     """
     t = (text or "").strip()
-    if not (2 <= len(t) <= 300):
+    if not (2 <= len(t) <= 1200):
         return "too_short" if len(t) < 2 else "too_long"
     if _CJK(t):
         return "no_latin"
@@ -157,11 +157,24 @@ def _CJK(t: str) -> bool:
     return any("一" <= ch <= "鿿" for ch in t)
 
 
+_MONTH_EN = {
+    "1": "Jan", "2": "Feb", "3": "Mar", "4": "Apr", "5": "May", "6": "Jun",
+    "7": "Jul", "8": "Aug", "9": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
+}  # 日期用月缩写（全称过长）；星期仍按用户定案用全称
+
+
+def _month_en(m):  # "06月"等零填充/越界月份 → 缩写；非法则原样保留
+    n = int(m.group(1))
+    return _MONTH_EN[str(n)] if 1 <= n <= 12 else m.group(0)
+
+
 def template_hours_en(text: str | None) -> str | None:
     """中文营业时间 → EN 模板转换（确定性，数字零风险）。
 
     用户定案用词（2026-10-25）：周一闭馆 → "Monday Closed"；
-    周一至周日 → "Monday–Sunday"。转换后仍含中文 → None（调用方走 LLM）。
+    周一至周日 → "Monday–Sunday"。2026-10-30 扩词表：停止入园/检票/
+    最晚进入、开放/全年/全天、节假日、月日日期、关闭——残句高频表述
+    确定性覆盖。转换后仍含中文 → None（调用方走 LLM 兜底，如 旺季/淡季）。
     """
     if not text:
         return None
@@ -171,10 +184,82 @@ def template_hours_en(text: str | None) -> str | None:
         r"[周星][期]?([一二三四五六日天])", lambda m: _DAY_EN[m.group(1)], text
     )
     out = out.replace("至", "–").replace("—", "–")
+    for _zw in ("\u200b", "\u200c", "\u200d", "\ufeff"):  # 零宽字符污染（实测有）
+        out = out.replace(_zw, "")
+    out = out.replace("今天", "today ")
+    out = out.replace("不闭馆", " open")  # 须先于「闭馆→Closed」
+    out = out.replace("全天关闭", "Closed all day")
+    out = _re.sub(  # "18点"/"9点30分" → "18:00"/"9:30"（数字零风险）
+        r"(\d{1,2})点(?:(\d{1,2})分?)?",
+        lambda m: f"{m.group(1)}:{m.group(2) or '00'}",
+        out,
+    )
     out = out.replace("闭馆", " Closed").replace("不开放", " Closed")
+    out = out.replace("国家法定节假日除外", "except national public holidays")
+    out = out.replace("国家法定节假日", "national public holidays")
     out = out.replace("法定节假日除外", "except public holidays")
     out = out.replace("法定节假日", "public holidays")
+    # —— 残句高频表述扩充（2026-10-30）：保数字，吃不下仍由 CJK 安全网回落 ——
+    out = _re.sub(
+        r"最晚(?:进入|入场|入园)\s*(\d{1,2}:\d{2})", r"last entry \1", out
+    )
+    out = _re.sub(r"最晚售票\s*(\d{1,2}:\d{2})", r"last tickets \1", out)
+    out = _re.sub(
+        r"-(\d{1,2}:\d{2})停止(?:入园|入场|检票|进馆|入馆|参观)+",
+        r"-\1, last entry \1",  # 区间尾：08:00-16:30停止入园 → 08:00-16:30, last entry 16:30
+        out,
+    )
+    out = _re.sub(
+        r"(\d{1,2}:\d{2})停止(?:入园|入场|检票|进馆|入馆|参观)+",
+        r"last entry \1",
+        out,
+    )
+    out = _re.sub(r"(\d{1,2}:\d{2})停止售票", r"last tickets \1", out)
+    out = out.replace("具体开放时间以现场公示为准", "hours subject to on-site notice")
+    out = out.replace("全年全天开放", "Open year-round, all day")
+    out = out.replace("全年开放", "Open year-round")
+    out = out.replace("全天开放", "Open all day")
+    out = out.replace("夜间", " evening").replace("夜游", "night tour ")
+    out = out.replace("开放时间为", "Opening hours ")
+    out = out.replace("开放时间", "Opening hours").replace("营业时间", "Opening hours")
+    out = out.replace("以现场公示为准", "subject to on-site notice")
+    out = out.replace("以现场公告为准", "subject to on-site notice")
+    out = out.replace("以景区公告为准", "subject to scenic-area notice")
+    out = out.replace("节假日", "public holidays")  # 法定变体已在上面先行替换
+    # 节日名（词频实测高频；全部保数字）
+    for _zh, _en in (
+        ("国庆节", "National Day"),
+        ("国庆", "National Day"),
+        ("劳动节", "Labor Day"),
+        ("中秋节", "Mid-Autumn Festival"),
+        ("端午节", "Dragon Boat Festival"),
+        ("清明节", "Qingming Festival"),
+        ("元旦节", "New Year's Day"),
+        ("元旦", "New Year's Day"),
+        ("春节", "Spring Festival"),
+    ):
+        out = out.replace(_zh, _en)
+    out = out.replace("具体营业状态以当天开放情况为准", "hours subject to same-day opening status")
+    out = out.replace("具体开放时间以官方通知为准", "hours subject to official notice")
+    out = _re.sub(r"(\d{1,2}月\d{1,2}日)前", r"before \1", out)
+    out = _re.sub(r"(\d{1,2}月\d{1,2}日)后", r"after \1", out)
+    out = _re.sub(
+        r"(\d{1,2})月(\d{1,2})日",
+        lambda m: f"{_month_en(m)} {m.group(2)}"
+        if _month_en(m) != m.group(0)
+        else m.group(0),
+        out,
+    )
+    out = _re.sub(r"(\d{1,2})月", _month_en, out)
+    out = out.replace("年", " ")
+    out = out.replace("每日", "daily ").replace("每天", "daily ")
+    out = out.replace("五一", "May Day").replace("十一", "National Day")
+    out = out.replace("关闭", " Closed")
+    out = out.replace("开放", " open")
     out = out.replace("全天", " All day")
+    out = out.replace("（", " (").replace("）", ")")
+    out = out.replace("：", ": ")
+    out = out.replace("、", ", ")
     out = out.replace("；", "; ").replace("，", ", ")
     out = out.replace("（）", "").replace("()", "")
     out = _re.sub(r"  +", " ", out).strip()

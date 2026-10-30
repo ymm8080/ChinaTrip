@@ -18,8 +18,6 @@ import json
 import sys
 from typing import NamedTuple
 
-from sqlalchemy import func
-
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
@@ -61,7 +59,6 @@ def select_targets(session_factory, *, limit: int) -> list[Poi]:
             .filter(
                 Poi.status == "active",
                 Poi.review_tags.isnot(None),
-                func.jsonb_array_length(Poi.review_tags) > 0,
                 Poi.review_summary.is_(None),
             )
             .order_by(Poi.rating.desc().nullslast(), Poi.id)
@@ -140,7 +137,7 @@ async def enrich(factory, adapter, *, limit: int, concurrency: int) -> dict:
             r.id,
             (r.name_zh or "").strip(),
             (r.city or "").strip(),
-            list(r.review_tags or []),
+            list(r.review_tags) if isinstance(r.review_tags, list) and r.review_tags else [],
         )
         for r in rows
         if (r.name_zh or "").strip() and r.review_tags

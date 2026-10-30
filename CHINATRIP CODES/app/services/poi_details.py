@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from math import log2
 from uuid import uuid4
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import String, and_, cast, func, or_
 
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
@@ -63,6 +63,41 @@ _SOURCE_TAG_ORDER = {
     "4a": 7,
     "3a": 8,
 }
+
+
+# 功能标签愿望词 → tags 内核（2026-10-29 功能标签批打后的读侧接线）：
+# 「看演出 / citywalk / 逛古镇」按玩法标签检索，不再只 LIKE 名称/类别——
+# 《驼铃传奇》秀 名称无「演出」二字，靠 tags=['show'] 命中。
+_LABEL_TOKENS: dict[str, str] = {
+    "演出": "show",
+    "看演出": "show",
+    "show": "show",
+    "citywalk": "citywalk",
+    "city walk": "citywalk",
+    "压马路": "citywalk",
+    "古镇": "historical_town",
+    "名镇": "historical_town",
+    "历史名镇": "historical_town",
+    "世界遗产": "unesco",
+    "unesco": "unesco",
+    "5a": "5a",
+    "5a级": "5a",
+}
+
+
+def _token_label(token: str) -> str | None:
+    return _LABEL_TOKENS.get((token or "").strip().lower())
+
+
+def _norm_label_tag(t: object) -> str:
+    return str(t).strip().lower()
+
+
+def _hit_has_label(h: dict, label: str | None) -> bool:
+    """命中行 tags 是否带某功能标签（愿望词→标签后的读侧判定）。"""
+    if not label:
+        return False
+    return label in {_norm_label_tag(t) for t in (h.get("tags") or [])}
 
 
 def order_source_tags(tags: list[str]) -> list[str]:
@@ -298,12 +333,14 @@ class PoiDetailStore:
     ) -> list[dict]:
         """POI 底库关键字搜索（心愿落实先查库再打高德，用户拍板
         2026-10-24）。city 匹配同 stale_pois 三态；tokens 对 name_zh/
-        category 做 LIKE。返回 amap 形状的骨架 dict（name/city/category/
-        source_poi_id/location/address/opening_hours/source/rating），
-        按（名字精确命中，有坐标，类别命中，hit_tier: unesco>5A/intl>4A>3A
-        >名单互含）降序——tier 只作同档并列裁决（2026-10-28 泛称愿望落地
-        要同类最佳，与 top_pois_in_city 同一套层级判定；专名精确命中仍稳居
-        首位不受影响）。"""
+        category 做 LIKE，愿望词另按功能标签检索（2026-10-29：演出→show、
+        citywalk、古镇→historical_town…打在 tags，名称无内核词的行如
+        《驼铃传奇》秀 也能命中）。返回 amap 形状的骨架 dict（name/city/
+        category/tags/source_poi_id/location/address/opening_hours/source/
+        rating），按（名字精确命中，标签命中，有坐标，类别命中，hit_tier:
+        unesco>5A/intl>4A>3A>名单互含）降序——tier 只作同档并列裁决
+        （2026-10-28 泛称愿望落地要同类最佳，与 top_pois_in_city 同一套
+        层级判定；专名精确命中仍稳居首位不受影响）。"""
 
         toks = [t for t in (tokens or []) if t]
         if not toks:
@@ -315,8 +352,10 @@ class PoiDetailStore:
 
         def rank(h: dict, heritage: list[tuple[str, int]]) -> tuple:
             n = (h.get("name") or "").strip()
+            labels = [_token_label(t) for t in toks]
             return (
                 any(n == t for t in toks),
+                any(_hit_has_label(h, lb) for lb in labels),
                 h.get("location") is not None,
                 any(t in (h.get("category") or "") for t in toks),
                 hit_tier(h, heritage),
@@ -335,6 +374,11 @@ class PoiDetailStore:
                         pat = f"%{t}%"
                         conds.append(Poi.name_zh.like(pat))
                         conds.append(Poi.category.like(pat))
+                        label = _token_label(t)
+                        if label:
+                            # JSONB tags 文本化匹配功能标签（"show" 子串唯一，
+                            # 词表无前缀碰撞）；tags 为 NULL 的行不命中该条件
+                            conds.append(cast(Poi.tags, String).like(f'%"{label}"%'))
                     # 取 10× 再 Python 排序：LIMIT 内没有 tier 概念，取太少
                     # 会把同类的 unesco/5A 行截在排序之前（内存回退全库扫，
                     # 两路池深对齐）。
@@ -348,6 +392,7 @@ class PoiDetailStore:
                                 "name": row.name_zh,
                                 "city": row.city,
                                 "category": row.category,
+                                "tags": row.tags or [],
                                 "address": row.address,
                                 "opening_hours": row.opening_hours,
                                 "source": row.source,
@@ -369,12 +414,17 @@ class PoiDetailStore:
                     exc_info=True,
                 )
         hits = []
+        tok_labels = [(t, _token_label(t)) for t in toks]
         for pid, v in self._memory.items():
             if city_names and v.get("city") not in city_names:
                 continue
             name = v.get("name") or ""
             hay = f"{name} {v.get('category') or ''}"
-            if not any(t in hay for t in toks):
+            vtags = {_norm_label_tag(t) for t in (v.get("tags") or [])}
+            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签
+            if not any(
+                t in hay or (lb is not None and lb in vtags) for t, lb in tok_labels
+            ):
                 continue
             loc = v.get("location")
             hits.append(
@@ -383,6 +433,7 @@ class PoiDetailStore:
                     "name": name,
                     "city": v.get("city"),
                     "category": v.get("category"),
+                    "tags": list(v.get("tags") or []),
                     "address": v.get("address"),
                     "opening_hours": v.get("opening_hours"),
                     "source": v.get("source") or "amap",

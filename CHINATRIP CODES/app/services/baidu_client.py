@@ -114,6 +114,8 @@ class BaiduClient:
                 response = await http.get(path, params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("baidu request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"baidu network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:

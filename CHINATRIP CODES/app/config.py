@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     glm_timeout_seconds: float = 60.0
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
+    # ASR 后端开关（translation_pipeline_design_2026-10-30 P0）：
+    # zhipu = 智谱 glm-asr（现状默认）；baidu_voice_trans = 百度翻译语音翻译API；
+    # sensevoice = 本地开源（P1 预留）。对应后端键为空时 503 asr_not_configured。
+    asr_backend: str = "zhipu"
+    baidu_fanyi_appid: str = ""
+    baidu_fanyi_key: str = ""
+    baidu_vt_from: str = "auto"
+    baidu_vt_to: str = "en"
+    baidu_vt_endpoint: str = "https://aip.baidubce.com/rpc/2.0/mt/v2/speech-translation"
+    baidu_vt_oauth_url: str = "https://aip.baidubce.com/oauth/2.0/token"
+    baidu_bce_api_key: str = ""
+    baidu_bce_secret_key: str = ""
     # 视频链接理解（web_reader 视频壳）：GLM-4.6V-Flash 看画面（免费）+
     # GLM-ASR 转写音轨（imageio-ffmpeg 自带二进制抽音轨，无需系统 ffmpeg）。
     glm_model_vision: str = "glm-4.6v-flash"
@@ -46,6 +58,10 @@ class Settings(BaseSettings):
     map_provider: str = "amap"
     baidu_ak: str = ""
     baidu_base_url: str = "https://api.map.baidu.com"
+    # 腾讯位置服务 WebService key（2026-10-30：refresh_pois 链④ 第三兜底
+    # ——坐标行 regeo 第三层 + 无坐标行按名搜地址；有意不进 map_provider 工厂）
+    tencent_map_key: str = ""
+    tencent_base_url: str = "https://apis.map.qq.com"
 
     # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
     # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;

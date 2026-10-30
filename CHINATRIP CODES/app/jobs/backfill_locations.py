@@ -28,7 +28,7 @@ from app.db import get_session_factory
 from app.models import Poi
 from app.services.agent.plan import KNOWN_CITIES
 from app.services.amap_client import AmapQuotaExhaustedError
-from app.services.map_provider import build_map_client
+from app.services.map_provider import build_client_chain, build_vendor
 from app.services.poi_details import PoiDetailStore
 
 logger = logging.getLogger(__name__)
@@ -135,34 +135,66 @@ def select_rows(limit: int) -> list[Poi]:
     return rows[:limit]
 
 
-async def backfill(*, limit: int, dry_run: bool = False) -> dict:
-    # 走图商抽象（search_poi 同签名同 GCJ-02 出参）：MAP_PROVIDER 跟随
-    # .env——amap 被 WAF 拒（bixi punish 页）时可切 baidu 续跑
-    amap = build_map_client(get_settings())
-    store = PoiDetailStore(session_factory=get_session_factory())
-    rows = select_rows(limit)
-    stats = {"selected": len(rows), "filled": 0, "missed": 0, "quota_stopped": 0}
+async def backfill_rows(store, clients, rows, *, dry_run: bool = False) -> dict:
+    """逐行走检索链补坐标（2026-10-30 vendor_policy：amap>tencent>baidu）。
+
+    任一家配额死即 latch 到下一家；全死才停（幂等可续）。by_vendor 记录
+    每家落地域次。"""
+    stats: dict = {
+        "selected": len(rows),
+        "filled": 0,
+        "missed": 0,
+        "quota_stopped": 0,
+        "by_vendor": {},
+    }
+    dead: set[str] = set()
     for row in rows:
-        try:
-            hits = await amap.search_poi(row.name_zh or "", city=_bare_city(row.city))
-        except AmapQuotaExhaustedError:
-            # 当日配额尽即停——剩余留给 22h 抓取链，明日续跑
-            stats["quota_stopped"] = 1
-            logger.warning("backfill_locations: amap daily quota exhausted, stopping")
-            break
-        except Exception:  # noqa: BLE001 — 单行失败不掀批次
-            logger.warning(
-                "backfill_locations: search failed for %s", row.name_zh, exc_info=True
-            )
-            stats["missed"] += 1
-            continue
-        hit = pick_hit(hits, row.name_zh or "", row.city)
+        hit = None
+        hit_vendor = None
+        for client in clients:
+            vendor = getattr(client, "vendor", "amap")
+            if vendor in dead:
+                continue
+            try:
+                hits = await client.search_poi(
+                    row.name_zh or "", city=_bare_city(row.city)
+                )
+            except AmapQuotaExhaustedError:
+                dead.add(vendor)
+                stats["quota_stopped"] += 1
+                logger.warning(
+                    "backfill_locations: %s quota exhausted, falling to next vendor",
+                    vendor,
+                )
+                continue
+            except Exception:  # noqa: BLE001 — 单行失败不掀批次
+                logger.warning(
+                    "backfill_locations: %s search failed for %s",
+                    vendor,
+                    row.name_zh,
+                    exc_info=True,
+                )
+                continue
+            hit = pick_hit(hits, row.name_zh or "", row.city)
+            if hit is not None:
+                hit_vendor = vendor
+                break
         if hit is None:
             stats["missed"] += 1
+            if clients and all(getattr(c, "vendor", "amap") in dead for c in clients):
+                # 全链配额死：剩余行零网络也全 miss，停（幂等可续）
+                stats["stopped_no_channel"] = 1
+                break
             continue
         if dry_run:
             stats["filled"] += 1
-            logger.info("[dry-run] would fill %s (%s)", row.name_zh, row.city)
+            stats["by_vendor"][hit_vendor] = stats["by_vendor"].get(hit_vendor, 0) + 1
+            logger.info(
+                "[dry-run] would fill %s (%s) via %s",
+                row.name_zh,
+                row.city,
+                hit_vendor,
+            )
             continue
         lon, lat = hit_lonlat(hit)
         store.upsert(
@@ -174,16 +206,41 @@ async def backfill(*, limit: int, dry_run: bool = False) -> dict:
             location=(float(lon), float(lat)),
         )
         stats["filled"] += 1
+        stats["by_vendor"][hit_vendor] = stats["by_vendor"].get(hit_vendor, 0) + 1
     return stats
+
+
+async def backfill(
+    *, limit: int, dry_run: bool = False, clients: list | None = None
+) -> dict:
+    # 检索链走 FUNCTION_PROVIDER_PRIORITY["search"]（amap>tencent>baidu）；
+    # 单家配额烧尽自动 latch 到下一家，三家全尽才停（幂等可续跑）。
+    if clients is None:
+        clients = build_client_chain(get_settings(), "search")
+    store = PoiDetailStore(session_factory=get_session_factory())
+    rows = select_rows(limit)
+    return await backfill_rows(store, clients, rows, dry_run=dry_run)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--provider",
+        help="强制单家图商（amap/tencent/baidu）；缺省按 vendor_policy 检索链",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    stats = asyncio.run(backfill(limit=args.limit, dry_run=args.dry_run))
+    clients = None
+    if args.provider:
+        one = build_vendor(args.provider, get_settings())
+        if one is None:
+            raise SystemExit(f"provider {args.provider}: key 未配置，无法建客户端")
+        clients = [one]
+    stats = asyncio.run(
+        backfill(limit=args.limit, dry_run=args.dry_run, clients=clients)
+    )
     print(stats)
 
 

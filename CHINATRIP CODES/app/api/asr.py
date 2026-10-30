@@ -9,7 +9,12 @@ import logging
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 
 from app.config import Settings, get_settings
-from app.services.asr_client import AsrClient, AsrError, AsrTimeoutError
+from app.services.asr_client import (
+    AsrClient,
+    AsrError,
+    AsrTimeoutError,
+    BaiduVoiceTranslateClient,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["asr"])
 logger = logging.getLogger(__name__)
@@ -23,11 +28,23 @@ _client_singleton: AsrClient | None = None
 def get_asr_client(settings: Settings = Depends(get_settings)) -> AsrClient:
     global _client_singleton
     if _client_singleton is None:
-        _client_singleton = AsrClient(
-            key=settings.glm_api_key,
-            model=settings.asr_model,
-            timeout_seconds=settings.glm_timeout_seconds,
-        )
+        backend = (settings.asr_backend or "zhipu").strip().lower()
+        if backend == "baidu_voice_trans":
+            _client_singleton = BaiduVoiceTranslateClient(
+                api_key=settings.baidu_bce_api_key,
+                secret_key=settings.baidu_bce_secret_key,
+                endpoint=settings.baidu_vt_endpoint,
+                oauth_url=settings.baidu_vt_oauth_url,
+                from_lang=settings.baidu_vt_from,
+                to_lang=settings.baidu_vt_to,
+                timeout_seconds=settings.glm_timeout_seconds,
+            )
+        else:
+            _client_singleton = AsrClient(
+                key=settings.glm_api_key,
+                model=settings.asr_model,
+                timeout_seconds=settings.glm_timeout_seconds,
+            )
     return _client_singleton
 
 
@@ -40,7 +57,9 @@ async def asr_endpoint(
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
-    if settings.glm_api_key == "":
+    if isinstance(client, AsrClient) and settings.glm_api_key == "":
+        raise HTTPException(status_code=503, detail="asr_not_configured")
+    if not getattr(client, "configured", True):
         raise HTTPException(status_code=503, detail="asr_not_configured")
     name = (file.filename or "").lower()
     if not name.endswith(_ALLOWED_EXT):
@@ -51,7 +70,13 @@ async def asr_endpoint(
     if len(audio) > MAX_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="audio_too_large")
     try:
-        text = await client.transcribe(audio, filename=name)
+        if hasattr(client, "transcribe_full"):
+            result = await client.transcribe_full(audio, filename=name)
+            text = result.get("text", "")
+            translated = result.get("translated")
+        else:
+            text = await client.transcribe(audio, filename=name)
+            translated = None
     except AsrTimeoutError:
         raise HTTPException(status_code=504, detail="asr_timeout") from None
     except AsrError as exc:
@@ -66,4 +91,7 @@ async def asr_endpoint(
         logger.warning(
             "asr empty result: %d bytes, %d Hz, %.1fs", len(audio), rate, dur
         )
-    return {"text": text}
+    out = {"text": text}
+    if translated:
+        out["translated"] = translated
+    return out

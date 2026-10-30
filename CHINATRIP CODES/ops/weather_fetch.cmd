@@ -19,4 +19,8 @@ start "wx-keepalive" /min cmd /c "wsl.exe -d Ubuntu -e sleep 420"
 echo [%date% %time%] === weather fetch start === >> "%LOG%"
 call "%~dp0db_up.cmd"
 "%PY%" -m app.jobs.fetch_weather >> "%LOG%" 2>&1
-echo [%date% %time%] === weather fetch done (exit %errorlevel%) === >> "%LOG%"
+rem 2026-10-30: echo resets errorlevel, so schtasks showed Result=0 even on
+rem job failure (10-30 08:10 died on AMAP_API_KEY empty but looked green).
+set "RC=%errorlevel%"
+echo [%date% %time%] === weather fetch done (exit %RC%) === >> "%LOG%"
+exit /b %RC%
