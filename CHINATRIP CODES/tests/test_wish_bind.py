@@ -157,6 +157,45 @@ def test_wish_llm_miss_placeholder_and_negative_cache(monkeypatch):
     assert "看外星人遗址" in [v.name for v in _visits(session)]
 
 
+def test_absorb_reopens_scheduled_row_for_new_trip(monkeypatch):
+    """已排期（挂在旧行程）的心愿行：新行程重新吸收+换绑+刷新便签。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = WaterStore(named=True)
+    svc = TripItemService()
+    svc.create("看成都附近的水利工程", source="chat", city="成都")
+    row = next(
+        r for r in svc.list_groups()["wishlist"] if r["name"] == "看成都附近的水利工程"
+    )
+    # 旧行程已安排过：行翻 scheduled、挂旧行程、note 带旧「已安排」
+    svc.update(
+        row["id"],
+        status="scheduled",
+        day=3,
+        note="来自聊天｜已安排：旧行程（第3天 09:00）",
+    )
+    svc.link_itinerary(row["id"], "it-old-trip")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    assert "看成都附近的水利工程" in session.must_visits
+    names = [v.name for v in _visits(session)]
+    assert "都江堰水利工程" in names
+    itin = session.plan.itinerary_id
+    row2 = next(
+        r
+        for r in svc.list_groups(itin)["scheduled"]
+        if r["name"] == "看成都附近的水利工程"
+    )
+    assert row2["itinerary_id"] == itin
+    assert "旧行程" not in (row2["note"] or "")
+    assert "都江堰水利工程" in (row2["note"] or "")
+    assert row2["day"] in (1, 2)
+
+
 def test_merge_must_visits_binding_appends_real_poi():
     """merge 绑定支：算法没选中的绑定 POI 以真实候选规格强制进排期。"""
     picked = [
