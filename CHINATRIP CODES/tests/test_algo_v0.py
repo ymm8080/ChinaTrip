@@ -593,3 +593,42 @@ def test_taxi_model_allows_midrange_same_day():
     b = _cand("乙", "成都", suggested=150, loc=(104.165, 30.66))  # ~10km
     items = PlanningAgent._deterministic_selection([a, b], 1, {"成都": (1, 1)})
     assert len(items) == 2
+
+
+def test_fallback_shifts_lunch_for_oversize_morning_visit():
+    # 顺序兜底同口径（用户拍板「午餐可以延后」）：240 分钟大点 09:00-13:00
+    # 落上午，午餐顺延到其后，不再被 12 点锚挤到下午
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    lunch = VisitItem(
+        item_id="l1",
+        name="午饭",
+        city="北京",
+        day=1,
+        category="food",
+        duration_minutes=60,
+        start_time=_t(12, 0),
+        end_time=_t(13, 0),
+        pinned=True,
+    )
+    big = VisitItem(
+        item_id="v1",
+        name="大点",
+        city="北京",
+        day=1,
+        duration_minutes=240,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[lunch, big])],
+        assumptions=[],
+    )
+    _fallback_sequence_times(plan)
+    assert big.start_time is not None and big.start_time.hour == 9
+    assert big.end_time is not None and big.end_time.hour == 13
+    assert lunch.start_time is not None
+    assert _t(13, 0) <= lunch.start_time

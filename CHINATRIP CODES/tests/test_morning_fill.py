@@ -196,7 +196,10 @@ def test_fallback_failure_does_not_poison_cursor():
         duration_minutes=60,
         pinned=True,
     )
-    big = _visit("big", dur=180)
+    # 2026-10-31 午餐可顺延（用户拍板）后 180 分钟已能穿过 12 点午餐锚
+    # 落位——本例改 300 分钟保持「真排不下」语义：航班缓冲夹死、
+    # small 仍要回填（游标不被前面失败顶飞）。
+    big = _visit("big", dur=300)
     small = _visit("small", dur=80)
     flight = TransferItem(
         day=1,

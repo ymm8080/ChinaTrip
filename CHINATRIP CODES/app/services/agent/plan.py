@@ -2168,6 +2168,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
         fixed: list[tuple[int, int]] = []
+        flex_lunches: list[tuple[VisitItem, int, int]] = []
         for item in day.items:
             start = item.start_time
             if start is None:
@@ -2176,10 +2177,18 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             e = _item_end_minutes(item)
             if isinstance(item, TransferItem):
                 fixed.append((s - buf, e + buf))
+            elif getattr(item, "category", "") == "food" and s < 15 * 60:
+                # 午餐软钉（2026-10-31 用户拍板「午餐可以延后」）：不进固定
+                # 窗挡上午——参访排完后从原时刻起顺延落位；>180 分钟的上午
+                # 大点（240 分钟华清池 09:00-13:00 类）不再被 12 点午餐锚
+                # 挤到下午。
+                dur = (
+                    e - s if e is not None and e > s else (item.duration_minutes or 60)
+                )
+                flex_lunches.append((item, s, int(dur)))
             elif getattr(item, "category", "") == "food":
-                # 餐位可紧贴（与 solver NoOverlap 同语义）：午餐 12 点占位挂
-                # ±30 缓冲会把 9:00-12:00 的三小时景点整个挤出上午
-                # （2026-10-31 上午空排事故）
+                # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
+                # 傍晚时段挤没（2026-10-31 上午空排事故）
                 fixed.append((s, e))
             else:
                 fixed.append((s - 30, e + 30))
@@ -2233,6 +2242,23 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             fixed.append((t - 30, t + dur + 30))
             fixed.sort()
             cursor = max(cursor, t + dur)
+        # 午餐顺延落位（用户拍板「午餐可以延后」）：从原时刻起找第一个能
+        # 容纳时长的空档（紧贴语义、不早于原时刻）；排不下保留原时刻。
+        for meal, ms, mdur in flex_lunches:
+            t = ms
+            advanced = True
+            while advanced:
+                advanced = False
+                for fs, fe in fixed:
+                    if t < fe and t + mdur > fs:
+                        t = fe
+                        advanced = True
+                        break
+            if t + mdur <= day_end:
+                meal.start_time = time(t // 60, t % 60)
+                meal.end_time = time((t + mdur) // 60, (t + mdur) % 60)
+                fixed.append((t, t + mdur))
+                fixed.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
@@ -6563,6 +6589,22 @@ class PlanningAgent:
                 heavy_rain_days=heavy_rain_days,
             )
             if added:
+                # 白名单披露同步收口：被保底补排的名字不再留在
+                # 「白名单未排」行里（大明宫案：既已排又挂着「未排可选加」）
+                keep = []
+                for line in plan.assumptions:
+                    if ("白名单未排" in line or "Top picks not scheduled" in line) and (
+                        added in line
+                    ):
+                        sep = "：" if "：" in line else ": "
+                        head, _, rest = line.partition(sep)
+                        parts = [p for p in rest.split("、") if added not in p]
+                        if parts:
+                            keep.append(head + sep + "、".join(parts))
+                        # 全剥空=整行撤下
+                    else:
+                        keep.append(line)
+                plan.assumptions = keep
                 plan.assumptions.append(
                     L(
                         f"第{day_plan.day}天上午空窗保底：已补排「{added}」",
@@ -6676,7 +6718,9 @@ class PlanningAgent:
                 continue
             if str(cand.get("best_visit_time") or "any") not in ("any", "morning", ""):
                 continue
-            if rainy and str(cand.get("rain_ok") or "") not in ("yes", "true"):
+            if rainy and str(cand.get("rain_ok") or "") in ("no", "partial", "false"):
+                # 与 _rain_exposed 同口径：unknown(None/'')不算露天，
+                # 只拦明确露天/半露天/false（比系统更严会误杀无标记行）
                 continue
             if any(
                 _same_site(name, i.name)
