@@ -2513,13 +2513,15 @@ def test_v0_foodless_day_without_restaurants_gets_lunch_placeholder():
     assert any("午饭时段" in a for a in session.assumptions)
 
 
-def test_plan_lunch_slot_base_is_late_half_of_window():
+def test_plan_lunch_slot_base_is_noon():
+    # 终版拍板：基准 12 点开饭（2026-10-31）
     slot, cont = _plan_lunch_slot(DayPlan(day=1, base_city="上海", items=[]))
-    assert slot == (time(12, 30), time(13, 30)) and cont is None
+    assert slot == (time(12, 0), time(13, 0)) and cont is None
 
 
-def test_plan_lunch_slot_shifts_after_transfer_buffer():
-    # 交通优先级最高：transfer 09:00–12:00 + 90min 衔接缓冲 → 13:30 开餐
+def test_plan_lunch_slot_skips_when_transfer_pushes_past_latest():
+    # 交通优先级最高：transfer 09:00–12:00 + 90min 缓冲 → 13:30 起餐
+    # 越过 12:30 最晚上限 → 当天不插午餐占位（过午到站不算午饭）
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -2536,8 +2538,7 @@ def test_plan_lunch_slot_shifts_after_transfer_buffer():
             )
         ],
     )
-    slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(13, 30), time(14, 30)) and cont is None
+    assert _plan_lunch_slot(day) is None
 
 
 def test_plan_lunch_slot_skips_when_shift_too_late():
@@ -2562,7 +2563,8 @@ def test_plan_lunch_slot_skips_when_shift_too_late():
 
 
 def test_plan_lunch_slot_splits_overrunning_pinned_visit():
-    # 上个行程 11:00–13:00 跨过 12:30 → 截到 12:30，下半段 13:30 续排
+    # 上个行程 11:00–13:00 收尾超 12:30 上限 → 从基准头 12:00 切分，
+    # 下半段 13:00 续排
     visit = VisitItem(
         item_id="v1",
         name="博物馆",
@@ -2575,17 +2577,16 @@ def test_plan_lunch_slot_splits_overrunning_pinned_visit():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(12, 30), time(13, 30))
-    assert visit.end_time == time(12, 30) and visit.duration_minutes == 90
+    assert slot == (time(12, 0), time(13, 0))
+    assert visit.end_time == time(12, 0) and visit.duration_minutes == 60
     assert cont is not None
     assert cont.item_id == "v1-p2" and cont.name == "博物馆"
-    assert (cont.start_time, cont.end_time) == (time(13, 30), time(14, 0))
-    assert cont.duration_minutes == 30 and cont.pinned
+    assert (cont.start_time, cont.end_time) == (time(13, 0), time(14, 0))
+    assert cont.duration_minutes == 60 and cont.pinned
 
 
 def test_plan_lunch_slot_pulls_earlier_when_prev_ends_early():
-    # 二次拍板（2026-10-31）：前一件早结束 → 午餐最多提前半小时
-    # （跟随上一件结束时刻，不早于 12:00）
+    # 终版拍板（2026-10-31）：前一件早结束 → 跟随提前，最早 11:30
     visit = VisitItem(
         item_id="v1",
         name="博物馆",
@@ -2598,7 +2599,24 @@ def test_plan_lunch_slot_pulls_earlier_when_prev_ends_early():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(12, 0), time(13, 0)) and cont is None
+    assert slot == (time(11, 30), time(12, 30)) and cont is None
+
+
+def test_plan_lunch_slot_follows_prev_end_inside_early_band():
+    # 前一件 11:45 结束（11:30–12:00 提前带内）→ 贴其结束开饭
+    visit = VisitItem(
+        item_id="v1",
+        name="美术馆",
+        city="上海",
+        day=1,
+        start_time=time(10, 30),
+        end_time=time(11, 45),
+        duration_minutes=75,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(11, 45), time(12, 45)) and cont is None
 
 
 def test_plan_lunch_slot_follows_prev_end_within_half_hour():

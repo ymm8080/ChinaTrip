@@ -28,21 +28,23 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 
-#: Visits may be placed anywhere in [08:00, 21:00] (minutes since midnight).
-DAY_START_MINUTES = 8 * 60
+#: Visits may be placed anywhere in [09:00, 21:00] (minutes since midnight).
+# 2026-10-31 拍板：景点活动一天 9 点开始（8 点太早）；交通除外——
+# 车次/航班时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
+DAY_START_MINUTES = 9 * 60
 DAY_END_MINUTES = 21 * 60
 #: Fallback when an item carries no duration.
 DEFAULT_VISIT_MINUTES = 60
 #: Fallback when the travel matrix has no entry for an ordered pair.
 DEFAULT_TRAVEL_MINUTES = 30
-#: 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
-#: "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
+# 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
+# "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
 _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
-    "morning": (8 * 60, 12 * 60),  # 08:00-12:00
+    "morning": (9 * 60, 12 * 60),  # 09:00-12:00（随日始 9 点，2026-10-31）
     "afternoon": (12 * 60, 17 * 60),  # 12:00-17:00
     "evening": (17 * 60, 21 * 60),  # 17:00-21:00（夜景自动排晚上）
     "sunset": (16 * 60, 19 * 60),  # 16:00-19:00 近似窗
-    "sunrise": (8 * 60, 10 * 60 + 30),  # 08:00-10:30 近似窗
+    "sunrise": (9 * 60, 10 * 60 + 30),  # 09:00-10:30 近似窗（随日始）
 }
 
 #: S5（show_booking_design §4，2026-10-26）：演出=晚间场演事件——
@@ -126,6 +128,10 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
+        # 日始 9 点（2026-10-31）是排程默认而非用户约束：用户自钉的
+        # 早于日始的时刻照常生效（铁律 19 优先，validate_plan 另行提示）
+        if pin < lo:
+            lo = pin
         if multi is not None:
             if not any(s[0] <= pin <= s[1] for s in multi):
                 return None

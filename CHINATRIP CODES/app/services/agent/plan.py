@@ -58,7 +58,7 @@ from app.services.itinerary import (
 from app.services.itinerary.coverage import premium_coverage_gaps
 from app.services.itinerary.geo import area_labels, cluster_days
 from app.services.itinerary.models import INTERCITY_BUFFER_MINUTES, PoiHours
-from app.services.itinerary.solver import solve_plan
+from app.services.itinerary.solver import DAY_START_MINUTES, solve_plan
 from app.services.lang_ctx import L, is_en
 from app.services.llm import ChatMessage, LLMError, parse_json_content
 from app.services.poi_details import PoiDetailStore
@@ -223,6 +223,17 @@ def _cand_is_show(cand: dict) -> bool:
         or str(cand.get("source") or "").strip().lower() == "show"
         or "show" in tags
     )
+
+
+def _show_night_only(cand: dict) -> bool:
+    """演出是否仅夜场（2026-10-31 04源场次扩列）：opening_hours 含「多场/
+    全天/日场」→ 含下午场，可作常规景点任意时段排；其余（仅夜场/傍晚场/
+    夜场为主/场次随排期/无数据）兜底按夜档收尾——沿用 2026-10-29 起的
+    晚场行为，数据缺失不改变现状。"""
+    hours = str(cand.get("opening_hours") or "")
+    if not hours:
+        return True
+    return not any(m in hours for m in ("多场", "全天", "日场"))
 
 
 _NIGHT_NAME_MARKS = ("夜游", "夜市", "夜景", "灯光秀", "夜航", "夜场")
@@ -1309,28 +1320,29 @@ def _time_of(minutes: int) -> time:
 def _plan_lunch_slot(
     day_plan: DayPlan,
 ) -> tuple[tuple[time, time], VisitItem | None] | None:
-    """午餐占位落位（2026-10-31 拍板：默认午饭时间贴着上一件排）。
+    """午餐占位落位（2026-10-31 终版拍板：基准 12 点开饭，早最多
+    11:30、晚最多 12:30）。
 
-    基准位 = 午餐窗内尽量靠后（meal_times 钳制 → 12:30–13:30，「推后
-    午餐」）。二次拍板：前一件（pinned visit/带时刻 transfer 之外最早
-    可依的结束时刻）早结束（≤基准位）时，午餐最多提前半小时跟随——
-    start = clamp(上一件结束, 12:00, 12:30)，上一件 11:00 结束则
-    12:00 开饭、12:15 结束则 12:15 开饭；无带时刻前件维持 12:30 基准。
-    交通优先级最高——transfer 的 90 分钟衔接缓冲（铁律 4）内不许提前，
-    缓冲边界 clamp 进 earliest。transfer 车次本体+缓冲压基准位则顺延到
-    te+90 之后（顺延起点最晚 14:00，再晚不算午饭 → 不插当天占位）。
-    pinned visit 压住落位（无 transfer 冲突时）：
-    - 前段压线（start < 落位且 end 越过落位头）→ 从落位头切分：原件
-      截到落位头，下半段（原 end−落位头分钟）落位尾起续排在午餐之后
-      ——续件沿用原件身份（名称/poi/坐标），item_id 加 -p2 后缀；
-    - 整段压窗 → 午餐顺延到它结束之后（同样 14:00 封顶）。
-    返回 (槽位, 切分续件)；None = 当天无午餐位（过挤/纯过境），不强插
-    （铁律 20）。solver 层面对无具体时间的超长景点的「跨午切分」不做
-    （visit 是原子区间，solver 只能整体排午餐前后）。
+    基准槽 = 12:00–13:00。前一件（带时刻 pinned visit）早结束（≤12:00）
+    → 跟随提前：start = clamp(前件结束, 11:30, 12:00)——前件 10:00 结束
+    则 11:30 开饭、11:45 结束则 11:45 开饭。前件跨基准收尾：
+    - 结束 ≤12:30（最晚上限内）→ 贴尾开饭（e ≤12:30 保证收餐 ≤13:30）；
+    - 结束 >12:30 且前段压线（start <12:00）→ 从 12:00 切分：原件截到
+      12:00，下半段（原 end−12:00 分钟）13:00 起续排在午餐之后——续件
+      沿用原件身份（名称/poi/坐标），item_id 加 -p2 后缀；
+    - 整段压窗（start ≥12:00 且 end >12:30）→ 午餐无位（顺延会破
+      12:30 上限），不插（铁律 20）。
+    交通优先级最高——transfer 的 90 分钟衔接缓冲（铁律 4）连同车次本
+    体都算占用：缓冲把基准槽推后时，起点 ≤12:30 才贴后开饭，>12:30
+    当天不插（过午到站不算午饭）。
+    返回 (槽位, 切分续件)；None = 当天无午餐位，不强插。solver 层面对
+    无具体时间的超长景点不做跨午切分（visit 是原子区间，solver 只能
+    整体排午餐前后）。
     """
-    base_start, base_end = meal_times(MEAL_WINDOWS["lunch"])
-    bs, be = _minutes_of(base_start), _minutes_of(base_end)
-    ws = _minutes_of(MEAL_WINDOWS["lunch"][0])  # 窗起 12:00：提前的下限
+    base_s = 12 * 60  # 基准 12:00 开饭
+    slot_s, slot_e = base_s, base_s + MEAL_DURATION_MINUTES
+    earliest = 11 * 60 + 30  # 最早 11:30
+    latest = 12 * 60 + 30  # 最晚 12:30
     transfers: list[tuple[int, int]] = []
     pinned_visits: list[tuple[int, int, VisitItem]] = []
     for item in day_plan.items:
@@ -1352,8 +1364,8 @@ def _plan_lunch_slot(
             if end is None:
                 continue
             pinned_visits.append((_minutes_of(item.start_time), _minutes_of(end), item))
-    slot_s, slot_e = bs, be
     # 交通优先级最高：transfer 车次本体 + 前后 90 分钟衔接缓冲都算占用
+    # （基准槽 12:00–13:00；被缓冲推后时起点须 ≤12:30）
     for ts, te in transfers:
         if (
             slot_s < te + INTERCITY_BUFFER_MINUTES
@@ -1361,29 +1373,25 @@ def _plan_lunch_slot(
         ):
             slot_s = te + INTERCITY_BUFFER_MINUTES
             slot_e = slot_s + MEAL_DURATION_MINUTES
-    if slot_s > 14 * 60:
-        return None
+            earliest = max(earliest, slot_s)
+    if slot_s > latest:
+        return None  # 交通顺延越过 12:30 上限：当天不插午餐占位
     blocker = next(
         ((s, e, it) for s, e, it in pinned_visits if s < slot_e and e > slot_s), None
     )
     if blocker is None:
-        # 二次拍板：前一件早结束 → 午餐最多提前半小时（跟随上一件结束
-        # 时刻，不早于窗起 12:00；transfer 衔接缓冲边界内不提前）
+        # 前一件早结束 → 跟随提前（clamp 进 [11:30, 12:00]，缓冲内不提前）
         prev_end = max((e for _, e, _ in pinned_visits if e <= slot_s), default=None)
         if prev_end is not None:
-            earliest = max(
-                ws,
-                max(
-                    (te + INTERCITY_BUFFER_MINUTES for _, te in transfers),
-                    default=0,
-                ),
-            )
             start = min(slot_s, max(earliest, prev_end))
             return (_time_of(start), _time_of(start + MEAL_DURATION_MINUTES)), None
         return (_time_of(slot_s), _time_of(slot_e)), None
     s, e, it = blocker
+    if e <= latest:
+        # 前件最晚上限内收尾 → 贴尾开饭（e ≤12:30 → 收餐 ≤13:30）
+        return (_time_of(e), _time_of(e + MEAL_DURATION_MINUTES)), None
     if s < slot_s:
-        # 下半段切给午餐之后：原件截到槽位头，续件槽位尾续排
+        # 前段压线且收尾超上限 → 从基准头切分，下半段槽位尾续排
         tail = e - slot_s
         it.end_time = _time_of(slot_s)
         it.duration_minutes = slot_s - s
@@ -1396,10 +1404,8 @@ def _plan_lunch_slot(
             }
         )
         return (_time_of(slot_s), _time_of(slot_e)), cont
-    # 整段压窗的 pinned visit：午餐顺延到它结束之后（同样 14:00 封顶）
-    if e > 14 * 60:
-        return None
-    return (_time_of(e), _time_of(e + MEAL_DURATION_MINUTES)), None
+    # 整段压窗且收尾超上限：午餐无位
+    return None
 
 
 def _lunch_placeholder(day_plan: DayPlan, slot: tuple[time, time]) -> VisitItem:
@@ -1440,7 +1446,9 @@ def _reconcile_transfer_days(
     an assumption note tells the user the day is tight.
     """
     notes: list[str] = []
-    day_start = 8 * 60
+    # 景点日始 9 点（2026-10-31 拍板）：离城日上午容量按 9 点起算；
+    # 交通（火车 8 点出发）不受此限
+    day_start = DAY_START_MINUTES
     for idx, day in enumerate(plan.days):
         transfers = [t for t in day.items if isinstance(t, TransferItem)]
         leaving = {t.from_city.strip() for t in transfers}
@@ -1491,10 +1499,10 @@ def _reconcile_transfer_days(
                         for e in (_item_end_minutes(i) for i in target.items)
                         if e is not None
                     ),
-                    default=8 * 60,
+                    default=DAY_START_MINUTES,
                 )
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-                start = max(tail + 30, 8 * 60)
+                start = max(tail + 30, DAY_START_MINUTES)
                 if start + dur <= 21 * 60 + 30:
                     visit.day = target.day
                     visit.start_time = time(start // 60, start % 60)
@@ -1661,7 +1669,8 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     sides; visits that fit nowhere stay untimed and are flagged by
     validation instead of silently passing.
     """
-    day_start, day_end = 8 * 60, 21 * 60 + 30
+    # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
+    day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
         fixed: list[tuple[int, int]] = []
@@ -4761,7 +4770,9 @@ class PlanningAgent:
             for idx, cand in enumerate(group):
                 if cand.get("category") == "food":
                     foods.append(cand)
-                elif _cand_is_show(cand):
+                elif _cand_is_show(cand) and _show_night_only(cand):
+                    # 仅夜场/傍晚场 → 晚档收尾桶；含下午场/全天滚动（2026-10-31
+                    # 场次扩列）→ 落回 sights 按常规时段排
                     shows.append((idx, cand))
                 else:
                     sights.append((idx, cand))
@@ -5084,7 +5095,9 @@ class PlanningAgent:
                     _refill(pos, cand)
             # 池外补充回填（pool 截断在 span*4，池外仍有序可用点）
             for pos, (idx, cand) in enumerate(ordered[len(pool) :], start=len(pool)):
-                if cand.get("category") == "food" or _cand_is_show(cand):
+                if cand.get("category") == "food" or (
+                    _cand_is_show(cand) and _show_night_only(cand)
+                ):
                     continue
                 _refill(pos, cand)
             for day, seq in placed.items():
@@ -5286,7 +5299,9 @@ class PlanningAgent:
                         continue
                     if any(_name_dup(name, dn) for dn in origin_dropped if dn):
                         continue
-                    if _cand_is_show(cand) or _twin_blocks(cand):
+                    if (_cand_is_show(cand) and _show_night_only(cand)) or _twin_blocks(
+                        cand
+                    ):
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
