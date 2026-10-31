@@ -335,7 +335,8 @@ class _GeoAmap:
                 "name": keywords,
                 "city": city or "南京",
                 "category": "餐饮服务;小吃店",
-                "source_poi_id": "F1",
+                # poi id 随关键词走：自动午餐搜索与必吃店名检索是不同店
+                "source_poi_id": f"F-{keywords}",
                 "location": {"lon": 118.78, "lat": self.food_lat},
             }
         ]
@@ -902,7 +903,12 @@ def _append_day1_visit(session, item_id: str, name: str, h: int, m: int, dur: in
 
 def _day_visits(body: dict, day_no: int) -> list[dict]:
     day = next(d for d in body["plan"]["days"] if d["day"] == day_no)
-    return [i for i in day["items"] if "mode" not in i]
+    # 午饭占位件是餐窗不是景点（2026-10-31 午餐保底）：行程形状断言排除
+    return [
+        i
+        for i in day["items"]
+        if "mode" not in i and not i.get("item_id", "").startswith("food-lunch-ph")
+    ]
 
 
 def test_move_same_day_reorder_resequences_times():
@@ -1326,7 +1332,12 @@ def test_refresh_legs_backfills_missing_locations():
     )
     assert resp.status_code == 200
     visits = [
-        i for d in resp.json()["plan"]["days"] for i in d["items"] if "mode" not in i
+        i
+        for d in resp.json()["plan"]["days"]
+        for i in d["items"]
+        if "mode" not in i
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）
+        and not str(i.get("item_id", "")).startswith("food-lunch-ph")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -1360,7 +1371,14 @@ def test_get_plan_session_returns_refreshed_plan():
     assert resp.status_code == 200
     data = resp.json()
     assert data["state"] == "ready" and data["plan"]["days"]
-    visits = [i for d in data["plan"]["days"] for i in d["items"] if "mode" not in i]
+    visits = [
+        i
+        for d in data["plan"]["days"]
+        for i in d["items"]
+        if "mode" not in i
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）
+        and not str(i.get("item_id", "")).startswith("food-lunch-ph")
+    ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
     )

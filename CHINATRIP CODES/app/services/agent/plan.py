@@ -69,10 +69,16 @@ from app.services.reservation_seeds import (
     reservation_meta_for,
 )
 from app.services.restaurants import (
+    LUNCH_PLACEHOLDER_ID_PREFIX,
     MEAL_DURATION_MINUTES,
     MEAL_WINDOWS,
+    is_lunch_placeholder,
+    meal_times,
     meal_window,
     recommend_restaurants,
+)
+from app.services.restaurants import (
+    amap_category_is_food as _amap_category_is_food,
 )
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
 from app.services.trip_items import STATUS_SCHEDULED, STATUS_UNWANTED, STATUS_WISHLIST
@@ -843,6 +849,12 @@ _EDIT_SYSTEM_PROMPT = (
     "「分享—复制文本」直接粘贴文字。标注 [已确认勿动] 的项目引擎不会"
     "重排时间；但若用户消息中明确点名要修改或删除该项目，仍按用户要求"
     "输出对应 diff。"
+    "回复纪律（2026-10-31 看熊猫案拍板）：wishes 里的愿望由系统自动语义"
+    "绑定并排期——同类候选（如多个熊猫基地）默认只安排最经典（知名度最"
+    "高）、与行程地理上最顺路的一个。reply 先注释结果：安排了什么、第几"
+    "天、可替换项（如「都江堰熊猫谷可替换」）；之后允许问偏好类选择问题"
+    "（如「倾向去哪个基地？」）——用户回答想换时再出 diff 换绑。注意"
+    "注释在前、提问在后：先让用户看到已经安排上了，再谈要不要换。"
 )
 
 
@@ -1066,6 +1078,10 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     与同山不同场馆「青城山skydive跳伞基地」判同站（实测相距 ~6km，
     day3 被整天空掉）。双方有坐标且相距 >2km = 名字撞衫的不同场馆，
     不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。"""
+    # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
+    # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
+    if is_lunch_placeholder(a) or is_lunch_placeholder(b):
+        return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
     if _name_dup(a.name, b.name):
@@ -1280,6 +1296,115 @@ def _item_end_minutes(item: VisitItem | TransferItem) -> int | None:
         dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
         return item.start_time.hour * 60 + item.start_time.minute + dur
     return end.hour * 60 + end.minute
+
+
+def _minutes_of(t: time) -> int:
+    return t.hour * 60 + t.minute
+
+
+def _time_of(minutes: int) -> time:
+    return time(minutes // 60, minutes % 60)
+
+
+def _plan_lunch_slot(
+    day_plan: DayPlan,
+) -> tuple[tuple[time, time], VisitItem | None] | None:
+    """午餐占位落位（2026-10-31 拍板：默认午饭时间贴着上一件排）。
+
+    基准位 = 午餐窗内尽量靠后（meal_times 钳制 → 12:30–13:30，「推后
+    午餐」：上一件 12:30 前结束也不提前开饭）。交通优先级最高——
+    transfer 的 90 分钟衔接缓冲（铁律 4）连同车次本体都算占用，基准位
+    撞上即顺延到 te+90 之后（顺延起点最晚 14:00，再晚不算午饭 → 不插
+    当天占位）。pinned visit 压住基准位（无 transfer 冲突时）：
+    - 前段压线（start < 12:30 且 end 越过 12:30）→ 从 12:30 切分：原件
+      截到 12:30，下半段（原 end−12:30 分钟）13:30 起续排在午餐之后
+      ——续件沿用原件身份（名称/poi/坐标），item_id 加 -p2 后缀；
+    - 整段压窗 → 午餐顺延到它结束之后（同样 14:00 封顶）。
+    返回 (槽位, 切分续件)；None = 当天无午餐位（过挤/纯过境），不强插
+    （铁律 20）。solver 层面对无具体时间的超长景点的「跨午切分」不做
+    （visit 是原子区间，solver 只能整体排午餐前后）。
+    """
+    base_start, base_end = meal_times(MEAL_WINDOWS["lunch"])
+    bs, be = _minutes_of(base_start), _minutes_of(base_end)
+    transfers: list[tuple[int, int]] = []
+    pinned_visits: list[tuple[int, int, VisitItem]] = []
+    for item in day_plan.items:
+        if isinstance(item, TransferItem):
+            if item.start_time is None:
+                continue
+            end = item.end_time
+            if end is None and item.duration_minutes is not None:
+                end = _time_of(_minutes_of(item.start_time) + item.duration_minutes)
+            if end is None:
+                continue
+            transfers.append((_minutes_of(item.start_time), _minutes_of(end)))
+        elif (
+            isinstance(item, VisitItem) and item.pinned and item.start_time is not None
+        ):
+            end = item.end_time
+            if end is None and item.duration_minutes is not None:
+                end = _time_of(_minutes_of(item.start_time) + item.duration_minutes)
+            if end is None:
+                continue
+            pinned_visits.append((_minutes_of(item.start_time), _minutes_of(end), item))
+    slot_s, slot_e = bs, be
+    # 交通优先级最高：transfer 车次本体 + 前后 90 分钟衔接缓冲都算占用
+    for ts, te in transfers:
+        if (
+            slot_s < te + INTERCITY_BUFFER_MINUTES
+            and slot_e > ts - INTERCITY_BUFFER_MINUTES
+        ):
+            slot_s = te + INTERCITY_BUFFER_MINUTES
+            slot_e = slot_s + MEAL_DURATION_MINUTES
+    if slot_s > 14 * 60:
+        return None
+    blocker = next(
+        ((s, e, it) for s, e, it in pinned_visits if s < slot_e and e > slot_s), None
+    )
+    if blocker is None:
+        return (_time_of(slot_s), _time_of(slot_e)), None
+    s, e, it = blocker
+    if s < slot_s:
+        # 下半段切给午餐之后：原件截到槽位头，续件槽位尾续排
+        tail = e - slot_s
+        it.end_time = _time_of(slot_s)
+        it.duration_minutes = slot_s - s
+        cont = it.model_copy(
+            update={
+                "item_id": f"{it.item_id}-p2",
+                "start_time": _time_of(slot_e),
+                "end_time": _time_of(slot_e + tail),
+                "duration_minutes": tail,
+            }
+        )
+        return (_time_of(slot_s), _time_of(slot_e)), cont
+    # 整段压窗的 pinned visit：午餐顺延到它结束之后（同样 14:00 封顶）
+    if e > 14 * 60:
+        return None
+    return (_time_of(e), _time_of(e + MEAL_DURATION_MINUTES)), None
+
+
+def _lunch_placeholder(day_plan: DayPlan, slot: tuple[time, time]) -> VisitItem:
+    """午餐占位件（2026-10-31 拍板：默认午饭时间，没餐厅就占位）。
+
+    「午饭（自由安排）」钉在午餐落位（_plan_lunch_slot 给出的槽位，
+    meal_times 钳制）——pinned：不 pin 会被紧跟的全量 solve 自由重排
+    出餐窗（rule 19 需具体时间）。name 随请求语言（L()），识别走
+    item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
+    小时链须跳过（否则烧配额搜「午饭」）。
+    """
+    start, end = meal_times(slot)
+    return VisitItem(
+        item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
+        name=L("午饭（自由安排）", "Lunch (on your own)"),
+        category="food",
+        city=day_plan.base_city,
+        day=day_plan.day,
+        start_time=start,
+        end_time=end,
+        duration_minutes=MEAL_DURATION_MINUTES,
+        pinned=True,
+    )
 
 
 def _reconcile_transfer_days(
@@ -1646,18 +1771,6 @@ def _parse_site_answer(
     if not mandatory and not optional:
         return None
     return mandatory, optional
-
-
-def _amap_category_is_food(category: object) -> bool:
-    """amap typecode strings look like「餐饮服务;中餐厅;…」; POI 底库
-    骨架行直接存 food/attraction（底库落实链路 2026-10-24）。"""
-    if not isinstance(category, str):
-        return False
-    if category.strip().lower() == "food":
-        return True
-    if category.strip().lower() == "attraction":
-        return False
-    return any(k in category for k in ("餐饮", "美食", "餐厅"))
 
 
 def _parse_resto_answer(
@@ -2584,11 +2697,19 @@ class PlanningAgent:
             # Pin after the solve (mirrors v0, rule 19): the solve assigns
             # concrete times first; the pin keeps later reconcile/edit
             # rounds from silently moving or dropping the must-visit.
+            # 名字孪生匹配（非精确名）：add 件可能与已在行程的同站孪生
+            # 去重合并（谁活下来取决于 solver 排序），必去意图必须钉在
+            # 幸存件上——2026-10-31 午餐占底回归：占位件改变 solver 排序
+            # 后新增件被并走，精确名 pin 落空。
             added = {op.item.name for op in diffs if op.op == "add"}
             pinned_any = False
             for day in session.plan.days:
                 for item in day.items:
-                    if isinstance(item, VisitItem) and item.name in added:
+                    if (
+                        isinstance(item, VisitItem)
+                        and not item.pinned
+                        and any(_name_dup(n, item.name) for n in added)
+                    ):
                         item.pinned = True
                         pinned_any = True
             if pinned_any:
@@ -2864,6 +2985,10 @@ class PlanningAgent:
     ) -> VisitItem:
         """A user-must restaurant as a pinned food item in the freest meal
         window of the day that currently has the fewest meals."""
+        # 必吃 > 顺路推荐：目标日已自动插的顺路餐厅（item_id=food-d…
+        # build_food_item 契约）让位——否则用户餐窗被占去晚餐，撞晚间
+        # 交通 90 分钟衔接缓冲（2026-10-31 喝茶案）。让位语义即「回复
+        # 可换/删」的自动让位版。
         food_counts = {
             d.day: sum(
                 1 for i in d.items if isinstance(i, VisitItem) and i.category == "food"
@@ -2878,16 +3003,28 @@ class PlanningAgent:
             key=lambda dn: (food_counts[dn], dn),
         )
         day_plan = next(d for d in session.plan.days if d.day == day)
+        # 让位落地：目标日仅有的 food 若是自动插入的午餐件（顺路餐厅或
+        # 「午饭」占位）则移除，用户必吃顶上其餐窗（重算 food_counts →
+        # slot 回到 lunch）。占位件也须让位：不然必吃被挤去晚餐窗，撞
+        # 晚间返程的 90 分钟衔接缓冲（2026-10-31 喝茶案）。
+        foods_today = [
+            i
+            for i in day_plan.items
+            if isinstance(i, VisitItem) and i.category == "food"
+        ]
+        auto_foods = [
+            i
+            for i in foods_today
+            if i.item_id.startswith("food-d") or is_lunch_placeholder(i)
+        ]
+        if auto_foods and len(foods_today) == len(auto_foods):
+            day_plan.items = [i for i in day_plan.items if i not in auto_foods]
+            food_counts[day] = 0
         slot: Literal["lunch", "dinner"] = (
             "dinner" if food_counts[day] >= 1 else "lunch"
         )
         window = meal_window(day_plan, slot) or MEAL_WINDOWS[slot]
-        mid = (
-            window[0].hour * 60
-            + window[0].minute
-            + window[1].hour * 60
-            + window[1].minute
-        ) // 2
+        start, end = meal_times(window)
         return VisitItem(
             item_id=item_id,
             name=name,
@@ -2896,10 +3033,8 @@ class PlanningAgent:
             city=city,
             location=location,
             day=day,
-            start_time=time(mid // 60, mid % 60),
-            end_time=time(
-                (mid + MEAL_DURATION_MINUTES) // 60, (mid + MEAL_DURATION_MINUTES) % 60
-            ),
+            start_time=start,
+            end_time=end,
             duration_minutes=MEAL_DURATION_MINUTES,
             pinned=True,
         )
@@ -3552,9 +3687,7 @@ class PlanningAgent:
                             "rating_count": h.get("rating_count"),
                             "tags": h.get("tags"),
                             "best_visit_time": h.get("best_visit_time"),
-                            "suggested_duration_min": h.get(
-                                "suggested_duration_min"
-                            ),
+                            "suggested_duration_min": h.get("suggested_duration_min"),
                             "indoor": h.get("indoor"),
                             "rain_ok": h.get("rain_ok"),
                             "review_tags": h.get("review_tags"),
@@ -3955,9 +4088,11 @@ class PlanningAgent:
     def _wish_bind_candidate(self, name: str, candidates: list[dict]) -> dict | None:
         """心愿词→候选池真实 POI 的确定性绑定（2026-10-30 用户拍板：
         「看熊猫」要匹配到 熊猫基地 而非落无城市占位）。剥意图动词后的
-        核心词（≥2 字）先精确等值、再包含匹配；多命中按评分降序、更短
-        名称稳定裁决；占位候选（无坐标）不参与。2026-10-30 深夜：核心
-        词升级为纯核心词（再剥城市/方位限定，水利工程事故）。"""
+        核心词（≥2 字）先精确等值、再包含匹配；多命中按 预约名单 > 最
+        经典（UNESCO/5A，2026-10-31 用户拍板「先去最经典的」——都江堰
+        熊猫谷这类同类次优让位给 5A 成都基地）> 评分降序 > 更短名称稳
+        定裁决；占位候选（无坐标）不参与。2026-10-30 深夜：核心词升级
+        为纯核心词（再剥城市/方位限定，水利工程事故）。"""
         core = _wish_pure_core(name)
         if len(core) < 2:
             return None
@@ -3981,14 +4116,23 @@ class PlanningAgent:
             except Exception:
                 return 0
 
+        def _classic(c: dict) -> int:
+            # UNESCO/5A = 最经典档（2026-10-31 看熊猫案：熊猫谷与基地同
+            # 进候选池时，5A 基地胜出；次优留给 reply「可替换」注释）。
+            try:
+                return 1 if _source_tier(c) <= 2 else 0
+            except Exception:
+                return 0
+
+        def _rank(c: dict) -> tuple:
+            return (_seed(c), _classic(c), _rating(c), -len(str(c["name"])))
+
         exact = [c for c in pool if _norm_site_name(str(c["name"])) == ncore]
         if exact:
-            return max(
-                exact, key=lambda c: (_seed(c), _rating(c), -len(str(c["name"])))
-            )
+            return max(exact, key=_rank)
         near = [c for c in pool if _same_site(core, str(c["name"]))]
         if near:
-            return max(near, key=lambda c: (_seed(c), _rating(c), -len(str(c["name"]))))
+            return max(near, key=_rank)
         return None
 
     async def _bind_wish_poi(self, name: str, city: str) -> dict | None:
@@ -4188,6 +4332,9 @@ class PlanningAgent:
                     "你是旅行行程助手。把用户的旅行愿望匹配到候选列表中"
                     '最合适的一个真实地点。只输出 JSON：{"i": 候选序号}；'
                     '候选都不合适就输出 {"i": null}，不要编造候选之外的地点。'
+                    "多个候选都符合时（2026-10-31 用户拍板）：优先选最经典"
+                    "（知名度最高）且交通/地理位置对行程更方便的一个，"
+                    "宁可只选这一个，其余同类留给用户当可替换项。"
                 ),
             ),
             ChatMessage(
@@ -4373,9 +4520,7 @@ class PlanningAgent:
                         and cand.get("suggested_duration_min")
                         and item.get("duration_minutes") == DEFAULT_VISIT_MINUTES
                     ):
-                        item["duration_minutes"] = int(
-                            cand["suggested_duration_min"]
-                        )
+                        item["duration_minutes"] = int(cand["suggested_duration_min"])
                     if item.get("reason"):
                         reasons.append(
                             L(
@@ -5127,9 +5272,7 @@ class PlanningAgent:
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
-                        minutes = (
-                            int(minutes) if minutes else DEFAULT_VISIT_MINUTES
-                        )
+                        minutes = int(minutes) if minutes else DEFAULT_VISIT_MINUTES
                     except (TypeError, ValueError):
                         minutes = DEFAULT_VISIT_MINUTES
                     xy = _xy(cand)
@@ -5520,13 +5663,7 @@ class PlanningAgent:
                     # 1st/2nd meal of the day rides a meal window with a
                     # concrete time so the solver (rule 19) honors the pin.
                     slot = "lunch" if count == 0 else "dinner"
-                    ws, we = MEAL_WINDOWS[slot]
-                    mid = (ws.hour * 60 + ws.minute + we.hour * 60 + we.minute) // 2
-                    start_time = time(mid // 60, mid % 60)
-                    end_time = time(
-                        (mid + MEAL_DURATION_MINUTES) // 60,
-                        (mid + MEAL_DURATION_MINUTES) % 60,
-                    )
+                    start_time, end_time = meal_times(MEAL_WINDOWS[slot])
                     duration = MEAL_DURATION_MINUTES
                     pinned = True
             visits.append(
@@ -5606,15 +5743,25 @@ class PlanningAgent:
             if todays:
                 base = max(todays, key=lambda t: t.seq).to_city
 
-        # 8.2.4 餐厅 v0 自动插入（2026-10-24）：无 food 的日子（≥2 景点）
-        # 晚餐窗插 1 家顺路餐厅；每天最多 1 次调用、全程最多 3 次（防慢防
-        # 配额烧穿——AmapQuotaExhaustedError 等一切异常降级留日志，配额
-        # 比餐厅重要）；铁律 20 由 recommend_restaurants 的空窗校验保证。
+        # 8.2.4 餐厅 v0 自动插入 + 午餐保底（2026-10-31 拍板：默认
+        # 12:00–13:30 午餐窗——有餐厅插餐厅，没餐厅插「午饭」占位件）。
+        # 搜索预算沿用「全程最多 3 次」（午餐+晚餐共享，防慢防配额烧穿
+        # ——AmapQuotaExhaustedError 等一切异常降级留日志，配额比餐厅
+        # 重要）；铁律 20 由 recommend_restaurants 的空窗校验保证，午餐
+        # 空窗不足（过挤/纯过境日）不强插。占位件不算「真 food」——
+        # 晚餐 pass 照常在 ≥2 景点日搜顺路餐厅。
         inserted_restos = 0
-        if self._auto_restaurants and self._amap is not None:
+        if self._auto_restaurants:
+            searches = 0
+            ph_days: list[int] = []
+            # 全程已插餐厅 poi 去重：同城多天搜索会反复回同一 top1，
+            # 每天插同一家店既难吃又会被跨天去重吞卡（2026-10-31）
+            inserted_pids: set[str] = set()
+
+            def _fresh(recs: list[VisitItem]) -> list[VisitItem]:
+                return [r for r in recs if not (r.poi_id and r.poi_id in inserted_pids)]
+
             for day_plan in day_plans:
-                if inserted_restos >= 3:
-                    break
                 sights = [
                     i
                     for i in day_plan.items
@@ -5624,11 +5771,67 @@ class PlanningAgent:
                     isinstance(i, VisitItem) and i.category == "food"
                     for i in day_plan.items
                 )
-                if len(sights) < 2 or has_food:
+                # 午餐保底：有 ≥1 景点且无任何 food 的日子先搜餐厅
+                # （落位贴着上一件排：切分/顺延见 _plan_lunch_slot）
+                placed_slot = None
+                split_cont: VisitItem | None = None
+                if sights and not has_food:
+                    resolved = _plan_lunch_slot(day_plan)
+                    if resolved is not None:
+                        placed_slot, split_cont = resolved
+                recs: list[VisitItem] = []
+                if placed_slot is not None and self._amap is not None and searches < 3:
+                    searches += 1
+                    try:
+                        recs = await recommend_restaurants(
+                            self._amap,
+                            day_plan,
+                            "lunch",
+                            city=day_plan.base_city,
+                            window=placed_slot,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "plan: auto lunch insert failed day=%d city=%s",
+                            day_plan.day,
+                            day_plan.base_city,
+                            exc_info=True,
+                        )
+                        recs = []
+                if recs:
+                    recs = _fresh(recs)
+                if recs:
+                    # 铁律 20 守卫：build_food_item 按 apply_diffs 契约造
+                    # unpinned 件，而 v0 插入后紧跟全量 solve——不 pin 会被
+                    # solver 自由重排出餐窗（评测集 2026-10-25 抓到 10:30
+                    # 排餐）。此处 pin 在落位槽内（时间具体，rule 19 生效）。
+                    recs[0].pinned = True
+                    day_plan.items.append(recs[0])
+                    inserted_restos += 1
+                    if recs[0].poi_id:
+                        inserted_pids.add(recs[0].poi_id)
+                elif placed_slot is not None:
+                    day_plan.items.append(_lunch_placeholder(day_plan, placed_slot))
+                    ph_days.append(day_plan.day)
+                if split_cont is not None:
+                    day_plan.items.append(split_cont)
+                if len(sights) < 2 or inserted_restos >= 3:
+                    continue
+                has_real_food = any(
+                    isinstance(i, VisitItem)
+                    and i.category == "food"
+                    and not is_lunch_placeholder(i)
+                    for i in day_plan.items
+                )
+                if has_real_food:
                     continue
                 try:
-                    recs = await recommend_restaurants(
-                        self._amap, day_plan, "dinner", city=day_plan.base_city
+                    recs = (
+                        await recommend_restaurants(
+                            self._amap, day_plan, "dinner", city=day_plan.base_city
+                        )
+                        if self._amap is not None
+                        else []
                     )
                 except Exception:
                     logger.warning(
@@ -5639,19 +5842,29 @@ class PlanningAgent:
                     )
                     recs = []
                 if recs:
-                    # 铁律 20 守卫：build_food_item 按 apply_diffs 契约造
-                    # unpinned 件，而 v0 插入后紧跟全量 solve——不 pin 会被
-                    # solver 自由重排出餐窗（评测集 2026-10-25 抓到 10:30
-                    # 排餐）。此处 pin 在空窗中点（时间具体，rule 19 生效）。
+                    recs = _fresh(recs)
+                if recs:
                     recs[0].pinned = True
                     day_plan.items.append(recs[0])
                     inserted_restos += 1
+                    if recs[0].poi_id:
+                        inserted_pids.add(recs[0].poi_id)
             if inserted_restos:
                 assumptions.append(
                     L(
                         f"已自动安排 {inserted_restos} 家顺路餐厅（回复可换/删）",
                         f"Auto-added {inserted_restos} convenient restaurant(s) "
-                        "for dinner (reply to swap or remove)",
+                        "(reply to swap or remove)",
+                    )
+                )
+            if ph_days:
+                days_bit = "、".join(f"第{d}天" for d in ph_days)
+                assumptions.append(
+                    L(
+                        f"{days_bit}午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+                        f"No suitable restaurant found for lunch on "
+                        f"day(s) {', '.join(str(d) for d in ph_days)} — a lunch "
+                        "slot is reserved (reply to swap or remove)",
                     )
                 )
 
@@ -5721,7 +5934,11 @@ class PlanningAgent:
             item
             for day in plan.days
             for item in day.items
-            if isinstance(item, VisitItem) and item.location is None and item.name
+            if isinstance(item, VisitItem)
+            and item.location is None
+            and item.name
+            # 午饭占位件无 POI 可回填（搜「午饭」纯烧配额）
+            and not is_lunch_placeholder(item)
         ]
         if not missing:
             return
@@ -5894,7 +6111,8 @@ class PlanningAgent:
         missing: list[VisitItem] = []
         for day in plan.days:
             for item in day.items:
-                if not isinstance(item, VisitItem):
+                if not isinstance(item, VisitItem) or is_lunch_placeholder(item):
+                    # 午饭占位件无 POI 详情可查（库读/回源都纯烧配额）
                     continue
                 detail = None
                 if item.poi_id:

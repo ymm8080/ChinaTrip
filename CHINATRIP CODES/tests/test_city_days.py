@@ -126,7 +126,9 @@ def test_v0_city_days_windows_transfers_and_return_leg():
             )
         ]
     )
-    agent = PlanningAgent(llm, train_service=NoTrains())
+    agent = PlanningAgent(
+        llm, train_service=NoTrains(), auto_restaurants=False
+    )  # 城窗断言：午餐占位件除外
     session = asyncio.run(
         agent.start(
             device_id="d1",
@@ -177,7 +179,9 @@ def test_return_leg_prefers_evening_train_and_keeps_last_day_visits():
             )
         ]
     )
-    agent = PlanningAgent(llm, train_service=StubTrains())
+    agent = PlanningAgent(
+        llm, train_service=StubTrains(), auto_restaurants=False
+    )  # 城窗断言：午餐占位件除外
     session = asyncio.run(
         agent.start(
             device_id="d1",

@@ -25,6 +25,7 @@ from app.services.agent.plan import (
 )
 from app.services.itinerary import VisitItem
 from app.services.llm.base import ChatResult
+from app.services.restaurants import is_lunch_placeholder
 from app.services.trip_items import TripItemService
 from app.services.web_reader import LinkDigest
 
@@ -222,7 +223,9 @@ def test_first_message_link_in_preferences_goes_site_round_then_v0():
         item
         for day in session.plan.days
         for item in day.items
-        if isinstance(item, VisitItem) and item.pinned
+        if isinstance(item, VisitItem)
+        and item.pinned
+        and not is_lunch_placeholder(item)  # 占位件设计上 pinned，不算用户钉选
     ]
     assert [v.name for v in pinned] == ["总统府"]
     wishlist_names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
@@ -289,7 +292,9 @@ def test_single_site_link_before_details_pins_into_later_v0():
         item
         for day in session.plan.days
         for item in day.items
-        if isinstance(item, VisitItem) and item.pinned
+        if isinstance(item, VisitItem)
+        and item.pinned
+        and not is_lunch_placeholder(item)  # 占位件设计上 pinned，不算用户钉选
     ]
     assert [v.name for v in pinned] == ["颐和园"]
 
@@ -353,7 +358,9 @@ class GeoStubAmap:
                 "name": keywords,
                 "city": city or "南京",
                 "category": "餐饮服务;小吃店",
-                "source_poi_id": "F1",
+                # poi id 随关键词走：自动午餐搜索（餐厅）与必吃店名检索
+                # 必须是不同店——同 id 会被同站去重把必吃并进自动餐厅
+                "source_poi_id": f"F-{keywords}",
                 "address": "某路1号",
                 "location": {"lon": 118.78, "lat": self.food_lat},
             }
@@ -449,7 +456,10 @@ def test_food_link_near_sights_no_ask_pinned_into_meal_window():
     assert food.category == "food"
     assert food.pinned
     assert food.start_time is not None
-    assert time(11, 30) <= food.start_time <= time(13, 30)
+    # 当天已有自动午餐餐厅时必吃落最闲的晚餐窗（_food_visit food_counts）
+    assert time(12, 0) <= food.start_time <= time(13, 30) or time(
+        17, 30
+    ) <= food.start_time <= time(19, 30)
     assert food.duration_minutes == 60
 
 
@@ -475,7 +485,9 @@ def test_food_link_edit_round_far_defers_then_adds_on_accept():
     food = _food_item(session)
     assert food.pinned
     assert food.start_time is not None
-    assert time(11, 30) <= food.start_time <= time(13, 30)
+    assert time(12, 0) <= food.start_time <= time(13, 30) or time(
+        17, 30
+    ) <= food.start_time <= time(19, 30)
 
 
 def test_parse_resto_answer_shapes():

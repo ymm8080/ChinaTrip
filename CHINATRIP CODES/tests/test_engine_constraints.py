@@ -196,18 +196,21 @@ class _OneStore(PoiDetailStore):
         return self._rows
 
 
-def test_eval_restaurant_rides_dinner_window():
-    """铁律 20：v0 自动插入的晚餐必须落在晚餐窗（17:30-19:30）内。"""
-    from app.services.restaurants import MEAL_WINDOWS
+def test_eval_lunch_placeholder_rides_lunch_window():
+    """铁律 20 + 午餐保底（2026-10-31）：无餐饮候选时 v0 自动插入的
+    「午饭」占位件必须落在午餐窗（12:00-13:30）内且钉住不被 solve 挪走。
+    顺路餐厅版见 test_plan_agent.test_v0_auto_inserts_lunch_restaurant_..."""
+    from app.services.restaurants import MEAL_WINDOWS, is_lunch_placeholder
 
     items = [
         {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
         {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
     ]
-    session = _start(_agent(items))
+    session = _start(_agent(items))  # AMAP_POIS 全景点：品类闸后无餐饮候选
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1
-    lo, hi = MEAL_WINDOWS["dinner"]
+    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
+    lo, hi = MEAL_WINDOWS["lunch"]
+    assert foods[0].pinned
     assert foods[0].start_time and lo <= foods[0].start_time < hi
 
 
