@@ -316,6 +316,85 @@ def test_preference_skip_word_keeps_preferences_empty_and_generates_v0():
     assert "初版行程" in reply
 
 
+def test_preference_reply_is_wish_and_gets_scheduled():
+    """2026-10-31 用户实测回归（「所有的回复都是心愿」拍板）：偏好问答
+    回「看熊猫」曾只被存成偏好字符串，行程里没有任何熊猫条目。回复必须
+    落心愿单并经语义绑定排期成真实 POI（熊猫基地本体，必去钉选）。"""
+    svc = TripItemService()
+    store = PoiDetailStore()  # memory mode
+    store.upsert(
+        "B-PANDA-BASE",
+        city="成都",
+        name="成都大熊猫繁育研究基地",
+        location=(104.1441, 30.7327),
+    )
+    amap = DistanceAmap([])  # 图商全空：熊猫只能来自库内核心词绑定
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "成都大熊猫繁育研究基地",
+                        "city": "成都",
+                        "category": "sight",
+                        "day": 2,
+                        "duration_minutes": 150,
+                    }
+                ]
+            )
+        ]
+    )
+    agent = PlanningAgent(
+        llm,
+        amap_client=amap,
+        poi_details=store,
+        trip_items=svc,
+        auto_restaurants=False,
+    )
+    session = run(agent.start(device_id="d1", cities=["成都"], days=2))
+    assert session.state == "clarify"
+    assert session.pref_asked is True
+    session, reply, _ = run(agent.message(session, "看熊猫"))
+    assert session.state == "ready"
+    assert session.preferences == "看熊猫"
+    assert llm.calls == 1  # 绑定走库内核心词，心愿管线不烧 LLM
+    # 行程里是绑定真身（有 poi_id/坐标），不是按名称占位卡
+    panda = next(v for v in all_visits(session) if v.name == "成都大熊猫繁育研究基地")
+    assert panda.poi_id == "B-PANDA-BASE"
+    assert panda.location is not None
+    assert panda.pinned is True
+    # 心愿行逐字建行，排期后收口为已排期
+    iid = session.plan.itinerary_id
+    groups = svc.list_groups(iid)
+    assert any(
+        i["name"] == "看熊猫" and i["status"] == "scheduled"
+        for rows in groups.values()
+        for i in rows
+    )
+    assert any("熊猫基地" in a or "看熊猫" in a for a in session.assumptions)
+
+
+def test_preference_style_reply_without_grounding_stays_preference():
+    """「慢慢逛」这类落不到真实 POI 的风格回复维持纯偏好语义——不建
+    心愿行，不被吸收链变成占位卡（2026-10-31 拍板的落空闸）。"""
+    svc = TripItemService()
+    store = PoiDetailStore()  # memory mode：空库
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(
+        llm,
+        amap_client=DistanceAmap(AMAP_POIS),
+        poi_details=store,
+        trip_items=svc,
+        auto_restaurants=False,
+    )
+    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session, _, _ = run(agent.message(session, "慢慢逛"))
+    assert session.state == "ready"
+    assert session.preferences == "慢慢逛"
+    groups = svc.list_groups(session.plan.itinerary_id)
+    assert not any(i["name"] == "慢慢逛" for rows in groups.values() for i in rows)
+
+
 def test_start_with_preferences_generates_v0_without_preference_round():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm)
@@ -720,8 +799,8 @@ def test_v0_degraded_store_refuses_placeholder_candidates():
         run(agent._collect_candidates(["苏州"]))
 
 
-def test_v0_candidate_durations_clamped_to_180():
-    """240 分钟的库时长按 180 上料（治 49%≥180min 把行程压到每天 2 点）。"""
+def test_v0_candidate_durations_pass_through():
+    """库时长直通上料（2026-10-31 拍板拆除 180 钳制闸）——240 就上料 240。"""
     store = PoiDetailStore()
     store.upsert(
         "P1",
@@ -734,7 +813,7 @@ def test_v0_candidate_durations_clamped_to_180():
     agent = PlanningAgent(ScriptedLLM([]), amap_client=None, poi_details=store)
     candidates, _ = run(agent._collect_candidates(["重庆"]))
     by_name = {c["name"]: c for c in candidates}
-    assert by_name["超长时长景点"]["suggested_duration_min"] == 180
+    assert by_name["超长时长景点"]["suggested_duration_min"] == 240
 
 
 class PerCityAmap:
@@ -1453,7 +1532,7 @@ def _ready_hz_session(agent):
     surviving visit is 西湖 (day 2)."""
     session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
     assert session.state == "clarify"
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     return session
 
@@ -1930,7 +2009,7 @@ def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
     agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
     session = run(agent.start(device_id="d1", cities=list(cities), days=2))
     assert session.state == "clarify"
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     westlake = next(v for v in all_visits(session) if v.name == "西湖")
     westlake.location = GeoPoint(lon=120.15, lat=30.25)
@@ -2153,7 +2232,7 @@ def _wish_sync_session(wishes, *, amap=None, store=None, cities=("上海", "杭�
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), edit_reply("好的", [], wishes=wishes)])
     agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
     session = run(agent.start(device_id="d1", cities=list(cities), days=2))
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     return agent, session, svc, llm
 

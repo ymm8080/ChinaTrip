@@ -93,9 +93,9 @@ POI_CANDIDATES_PER_CITY = 8
 # 8.1.1：底库候选不足此数才打高德补量（省配额；2026-10-24 配额紧张）
 LIBRARY_MIN_CANDIDATES = 10
 PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
-# 规划期时长上限（2026-10-25）：库时长 p50=120、49%≥180min，240+ 的
-# 大点把真实行程压到每天 2 个——上料钳到 180，库值不动。
-_PLAN_DURATION_MAX_MIN = 180
+# 时长不设规划期钳制（2026-10-31 拍板，拆除 2026-10-25 的 180 上料
+# 钳制闸）：库 suggested_duration_min 直通上料，风景区名称默认 240
+# 由 poi_classify 地板给出。
 # 库候选取数（2026-10-30 day4 单点事故）：tier 序把无坐标 5A/图商骨架
 # 顶到前排，坐标闸（同日）必须在截窗之前——深取 120 行、滤完坐标再截
 # 30 行；重庆 top30 滤后仅剩 3 个可用候选、每天 1 点即此故。
@@ -110,12 +110,6 @@ class PoiStoreUnavailableError(RuntimeError):
     零坐标假点（2/2/1/0 每天）。门禁只拦「库降级」这一种；库健康但
     该城真没数据的占位仍是扩城兜底，照常出货。
     """
-
-
-def _clamp_plan_duration(minutes) -> int | None:
-    if not minutes:
-        return None
-    return min(int(minutes), _PLAN_DURATION_MAX_MIN)
 
 
 def _unspecified() -> str:
@@ -1009,6 +1003,21 @@ def _wish_pure_core(wish: str) -> str:
             break
         s = s[cut:].strip()
     return s
+
+
+def _location_dict(loc: object) -> dict | None:
+    """库行坐标（GCJ-02 (lon, lat) tuple，poi_details.search_keyword 口径）
+    → 候选池/组装层通用的 {"lon","lat"}；已是 dict 原样返回。绑定字典
+    （_bind_wish_poi 产物）进 candidates/merge 前必须过这里，否则组装层
+    只认 dict、排上的真实 POI 卡片丢坐标（2026-10-31 看熊猫案）。"""
+    if isinstance(loc, dict):
+        return loc
+    if isinstance(loc, (tuple, list)) and len(loc) == 2:
+        try:
+            return {"lon": float(loc[0]), "lat": float(loc[1])}
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def _wish_when_text(session: "PlanSession", item: VisitItem) -> tuple[str, str]:
@@ -3081,6 +3090,25 @@ class PlanningAgent:
 
     # --- clarification (§6.1: <=2 questions, template only, no LLM) -------
 
+    async def _pref_reply_groundable(self, session: PlanSession, answer: str) -> bool:
+        """偏好回复能否按心愿落实（2026-10-31 用户拍板「所有的回复都是心
+        愿」的落空闸）：品类愿望（喝茶/博物馆人文…）天然可落实；专名/意
+        图愿望看语义绑定能否命中真实 POI——两者都落空的风格词（慢慢逛）
+        只当偏好，不进心愿单（吸收链会把它变成无坐标占位卡）。绑定结果
+        顺带留在 _wish_bindings，sync 复用不再二次绑定。"""
+        if _category_search_keyword(answer) is not None:
+            return True
+        bound = (session.wish_bindings or {}).get(answer) or self._wish_bindings.get(
+            answer
+        )
+        if bound is None:
+            bind_city = next(
+                (c for c in session.cities if (c or "").strip()),
+                _unspecified(),
+            )
+            bound = await self._bind_wish_poi(answer, bind_city)
+        return bound is not None
+
     async def _answer_clarification(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
@@ -3091,6 +3119,20 @@ class PlanningAgent:
             answer = text.strip()
             if answer and answer not in PREFERENCE_SKIP_WORDS:
                 session.preferences = answer
+                # 2026-10-31 用户拍板「所有的回复都是心愿」：偏好问答的回复
+                # 同时按愿望处理——能落到真实 POI 的（专名语义绑定/品类愿望）
+                # 进心愿管线建行，由 _generate_v0 头部的 _absorb_wishlist 吸收
+                # 为必去钉选排期（用户实测回归：回「看熊猫」只被存成偏好字
+                # 符串，行程里没安排）。落空的风格词（慢慢逛）只当偏好，不
+                # 进心愿单，免得被吸收链变成无坐标占位卡。
+                if self._trip_items is not None:
+                    try:
+                        if await self._pref_reply_groundable(session, answer):
+                            await self.sync_wishes_to_trip_items(session, [answer])
+                    except Exception:
+                        logger.warning(
+                            "plan: pref reply wish sync failed", exc_info=True
+                        )
         if session.days <= 0:
             days = _parse_days(text)
             if days is not None:
@@ -3510,8 +3552,8 @@ class PlanningAgent:
                             "rating_count": h.get("rating_count"),
                             "tags": h.get("tags"),
                             "best_visit_time": h.get("best_visit_time"),
-                            "suggested_duration_min": _clamp_plan_duration(
-                                h.get("suggested_duration_min")
+                            "suggested_duration_min": h.get(
+                                "suggested_duration_min"
                             ),
                             "indoor": h.get("indoor"),
                             "rain_ok": h.get("rain_ok"),
@@ -3857,8 +3899,7 @@ class PlanningAgent:
                 duration = DEFAULT_VISIT_MINUTES
                 if kinds.get(name) != "food" and bound.get("suggested_duration_min"):
                     duration = (
-                        _clamp_plan_duration(bound["suggested_duration_min"])
-                        or DEFAULT_VISIT_MINUTES
+                        int(bound["suggested_duration_min"]) or DEFAULT_VISIT_MINUTES
                     )
                 m_minutes = (
                     MEAL_DURATION_MINUTES if kinds.get(name) == "food" else duration
@@ -3976,6 +4017,7 @@ class PlanningAgent:
                     break
         if pool:
             best = self._wish_bind_candidate(name, pool) or pool[0]
+            best["location"] = _location_dict(best.get("location"))
             self._wish_bindings[name] = best
             self._backfill_wish_city(name, str(best.get("city") or ""))
             logger.info("plan: wish core bind %s -> %s", name, best.get("name"))
@@ -3994,6 +4036,7 @@ class PlanningAgent:
                 llm_pool = []
         picked = await self._llm_bind_wish(name, llm_pool)
         if picked is not None:
+            picked["location"] = _location_dict(picked.get("location"))
             self._wish_bindings[name] = picked
             self._backfill_wish_city(name, str(picked.get("city") or ""))
         return picked
@@ -4330,7 +4373,7 @@ class PlanningAgent:
                         and cand.get("suggested_duration_min")
                         and item.get("duration_minutes") == DEFAULT_VISIT_MINUTES
                     ):
-                        item["duration_minutes"] = _clamp_plan_duration(
+                        item["duration_minutes"] = int(
                             cand["suggested_duration_min"]
                         )
                     if item.get("reason"):
@@ -4530,9 +4573,7 @@ class PlanningAgent:
         def _minutes(cand: dict, default_minutes: int) -> int:
             duration = cand.get("suggested_duration_min")
             try:
-                return (
-                    _clamp_plan_duration(int(duration)) if duration else default_minutes
-                )
+                return int(duration) if duration else default_minutes
             except (TypeError, ValueError):
                 return default_minutes
 
@@ -5087,9 +5128,7 @@ class PlanningAgent:
                     minutes = cand.get("suggested_duration_min")
                     try:
                         minutes = (
-                            _clamp_plan_duration(int(minutes))
-                            if minutes
-                            else DEFAULT_VISIT_MINUTES
+                            int(minutes) if minutes else DEFAULT_VISIT_MINUTES
                         )
                     except (TypeError, ValueError):
                         minutes = DEFAULT_VISIT_MINUTES
