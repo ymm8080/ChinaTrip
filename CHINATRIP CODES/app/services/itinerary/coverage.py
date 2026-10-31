@@ -20,9 +20,12 @@ def premium_coverage_gaps(
     candidates: list[dict],
     *,
     same_site=None,
-    max_missing: int = 3,
+    max_missing: int | None = None,
 ) -> list[dict]:
-    """候选池顶级标签点未被选 → [{name, tags}]（cap max_missing）。
+    """候选池顶级标签点未被选 → [{name, tags}]。
+
+    默认全量（2026-10-31 用户拍板：白名单只显示前 3 条被质疑，
+    截断放开——披露不设坑位上限）；max_missing 仅供测试收窄。
 
     same_site 注入 plan._same_site（避免循环导入）；缺省用集合包含
     粗判（名字变体兜底交给调用方口径）。
@@ -42,7 +45,7 @@ def premium_coverage_gaps(
             hit = name in picked
         if not hit:
             missing.append({"name": name, "tags": sorted(tags & _PREMIUM_TAGS)})
-        if len(missing) >= max_missing:
+        if max_missing is not None and len(missing) >= max_missing:
             break
     return missing
 
@@ -64,6 +67,6 @@ def rain_swap_advice(
     indoor_like = [v["name"] for v in day_visits if v.get("rain_ok") == "yes"]
     swap_hint = f"（可与 {'、'.join(indoor_like[:2])} 对调）" if indoor_like else ""
     return (
-        f"预报有雨：{'、'.join(outdoor[:3])} 为露天点位{swap_hint}——"
-        "回复「雨天调整」可帮你重排"
+        f"预报有雨：{'、'.join(outdoor[:3])} 为露天点位{swap_hint}，"
+        "雨天行程已自动优先室内，建议备伞"
     )

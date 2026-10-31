@@ -141,7 +141,7 @@ def test_refresh_search_is_final_amap_fallback():
     assert amap.search_calls == [("景点D", "重庆", None)]
 
 
-def test_refresh_miss_cools_down_24h_without_writing_hours():
+def test_refresh_miss_cools_down_without_writing_hours():
     store = PoiDetailStore()
     store.upsert("B8", city="重庆", name="景点E")
     stats = asyncio.run(refresh_pois(store, _NullCtrip(), None, limit=10))
@@ -149,7 +149,30 @@ def test_refresh_miss_cools_down_24h_without_writing_hours():
     got = store.get("B8")
     assert got.get("opening_hours") is None  # 冷却不写 hours
     assert got.get("hours_source") is None
-    assert store.stale_pois() == []  # 盖戳后 24h 内不再进 stale 窗口
+    assert store.stale_pois() == []  # 盖戳后 30 天窗口内不再回源（一行一月）
+
+
+class _AddressOnlyAmap:
+    """detail/search 都给不出 hours、仅 search 带回地址（开放型点位）。"""
+
+    async def place_hours(self, poi_id):
+        return None
+
+    async def search_hours(self, keyword, city=None, location=None):
+        return {"opening_hours": None, "rating": None, "address": "某路2号"}
+
+
+def test_refresh_address_only_persists_when_hours_miss():
+    """hours 全链未命中但地址到手：地址落库 + 冷却戳，不随 hours 丢
+    （2026-10-28 月刷侧同款丢弃修复——行程单地址不显示根因之二）。"""
+    store = PoiDetailStore()
+    store.upsert("B6", city="重庆", name="景点F")
+    stats = asyncio.run(refresh_pois(store, _NullCtrip(), _AddressOnlyAmap(), limit=10))
+    assert stats["address_only"] == 1
+    got = store.get("B6")
+    assert got["address"] == "某路2号"
+    assert not got.get("opening_hours") and not got.get("hours_source")
+    assert store.stale_pois() == []  # 冷却戳仍生效，不烧下轮
 
 
 def test_stale_pois_returns_amap_location_string():
@@ -357,3 +380,118 @@ def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
     top = hits[1]
     assert top["best_visit_time"] == "any"
     assert top["location"] == (106.5, 29.5)
+
+
+# --- search_keyword 读侧 tier 并列裁决 (2026-10-28 泛称愿望落地) --------------
+
+
+def test_search_keyword_tier_breaks_category_tie():
+    """search_keyword 与 top_pois_in_city 同一套 hit_tier：类别/坐标并列时
+    unesco > 5A > 裸行（泛称愿望落实要同类最佳）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "B1",
+        city="成都",
+        name="成都博物馆",
+        category="博物馆",
+        location=(104.06, 30.65),
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    store.upsert(
+        "B3",
+        city="成都",
+        name="四川博物院",
+        category="博物馆",
+        location=(104.08, 30.66),
+        source="unesco",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    assert [h["source_poi_id"] for h in hits][:2] == ["B3", "B2"]
+
+
+def test_search_keyword_exact_name_beats_tier():
+    """专名精确命中稳居首位——tier 只作并列裁决不越位。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "B1", city="成都", name="博物馆", category="博物馆", location=(104.06, 30.65)
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    assert hits[0]["source_poi_id"] == "B1"
+
+
+def test_search_keyword_heritage_overlap_gives_tier():
+    """名单互含与 top_pois 同权：裸 amap 行名 ⊂ unesco 名单行名 → tier 4
+    （灵隐飞来峰 ⊂ 灵隐飞来峰景区），压过同类裸行。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "C1", city="杭州", name="灵隐寺", category="风景区", location=(120.10, 30.24)
+    )
+    store.upsert(
+        "C2",
+        city="杭州",
+        name="灵隐飞来峰",
+        category="风景区",
+        location=(120.11, 30.25),
+    )
+    store.upsert(
+        "H1", city="杭州", name="杭州西湖文化景观", source="unesco"
+    )  # 名单行（互含基准）
+    store._memory["H1"]["name"] = "灵隐飞来峰景区"  # 名单行名改写模拟库内别名
+    hits = store.search_keyword("杭州", ["灵隐"])
+    ids = [h["source_poi_id"] for h in hits]
+    assert ids.index("C2") < ids.index("C1")  # 互含 tier 4 压过裸行
+
+
+# --- search_keyword 功能标签检索（2026-10-29 批打接线） -----------------------
+
+
+def test_search_keyword_label_token_hits_tagged_row():
+    """愿望词「演出」按 tags=['show'] 命中——《驼铃传奇》秀 名称无
+    「演出」二字，靠功能标签吃到（label_pois 批打后读侧接线）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1",
+        city="西安",
+        name="《驼铃传奇》秀",
+        category="entertainment",
+        location=(109.07, 34.37),
+    )
+    store._memory["S1"]["tags"] = ["show"]
+    hits = store.search_keyword("西安", ["演出"])
+    assert [h["source_poi_id"] for h in hits] == ["S1"]
+    assert hits[0]["tags"] == ["show"]
+
+
+def test_search_keyword_label_rank_beats_plain_hit():
+    """标签命中排前：同类裸行（名含演出二字）让位给 tags=show 的正主——
+    不对，同名层并列时精确名仍优先；此处验证标签命中优先于无标签同名。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1", city="成都", name="蜀风雅韵", category="娱乐", location=(104.05, 30.66)
+    )
+    store._memory["S1"]["tags"] = ["show"]
+    store.upsert(
+        "N1",
+        city="成都",
+        name="成都演出中心",
+        category="娱乐",
+        location=(104.06, 30.65),
+    )
+    hits = store.search_keyword("成都", ["演出"])
+    ids = [h["source_poi_id"] for h in hits]
+    assert ids.index("S1") < ids.index("N1")

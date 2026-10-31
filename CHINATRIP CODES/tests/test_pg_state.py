@@ -1,6 +1,8 @@
 """pg_state 映射纯函数 + PG 不可达降级测试（CI 无 PostgreSQL，不出网）."""
 
+import contextlib
 from datetime import datetime
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import OperationalError
@@ -100,6 +102,111 @@ def test_record_to_row_values_and_boot_round_trip():
     assert ItineraryRecord.model_validate(values["plan"]) == record
 
 
+# --- 删除写穿透（2026-10-30 删除复活事故）--------------------------------------
+
+
+class _RecordingQuery:
+    """记账 filter 条款，delete() 只记账不动真库。"""
+
+    def __init__(self, log, model):
+        self._log, self._model = log, model
+
+    def filter(self, criteria):
+        self._log.append((self._model.__name__, criteria))
+        return self
+
+    def all(self):
+        return []  # boot/reload 全量重载：空表
+
+    def delete(self):
+        return 1
+
+
+class _RecordingSession:
+    """put/delete 都过的假会话：query 记账、get 恒 None、add 收行。"""
+
+    def __init__(self, log):
+        self._log = log
+        self.added = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def query(self, model):
+        return _RecordingQuery(self._log, model)
+
+    def get(self, model, key):
+        return None
+
+    def add(self, row):
+        self.added.append(row)
+
+    def commit(self):
+        pass
+
+
+class _RecordingFactory:
+    def __init__(self):
+        self.log = []
+        self.sessions = []
+
+    def __call__(self):
+        session = _RecordingSession(self.log)
+        self.sessions.append(session)
+        return session
+
+
+def test_itinerary_delete_targets_loose_proxy_row_for_legacy_ids():
+    """存量行程业务 id 是 it-<8hex> 短格式，写库走 loose uuid5 代理键；
+    delete 曾用严格 _pg_uuid 解析成 None 整段跳过 PG 删除——接口照样
+    204/「已删除」toast，下次 list 读穿透又把行从 PG 复活（用户实报
+    「行程页删除按钮不生效」）。delete 必须用与写库同款的 loose 键。"""
+    legacy_id = "it-7bd56f89"
+    record = ItineraryRecord(
+        itinerary_id=legacy_id,
+        owner_device_id="dev-1",
+        plan=_plan(legacy_id),
+        created_at=datetime(2026, 10, 30, 8, 0, 0),
+        updated_at=datetime(2026, 10, 30, 8, 0, 0),
+    )
+    factory = _RecordingFactory()
+    store = PgItineraryStore(factory)
+    store.put(record)
+    put_uid = next(
+        s.added[0].id for s in factory.sessions if s.added
+    )  # _write_pg 首个 add = Itinerary 行
+    assert put_uid == _pg_uuid_loose(legacy_id, "it_")  # 短 id → uuid5 代理键
+
+    factory.log.clear()
+    assert store.delete(legacy_id) is True
+    assert [name for name, _ in factory.log] == [
+        "ItineraryDay",
+        "ItinerarySnapshot",
+        "Itinerary",
+    ]
+    for _, criteria in factory.log:
+        # 严格版这里取到 None → 三表删除整段跳过，行复活
+        assert criteria.right.value == put_uid
+
+
+def test_itinerary_delete_targets_hex_id_row_unchanged():
+    """新格式 it_<32hex> 行为不变：delete 命中与写库同一条严格 UUID 行。"""
+    record = _record()
+    factory = _RecordingFactory()
+    store = PgItineraryStore(factory)
+    store.put(record)
+    put_uid = next(s.added[0].id for s in factory.sessions if s.added)
+    assert put_uid == UUID(hex=record.itinerary_id[3:])
+
+    factory.log.clear()
+    assert store.delete(record.itinerary_id) is True
+    for _, criteria in factory.log:
+        assert criteria.right.value == put_uid
+
+
 def test_snapshot_to_row_values_freezes_plan():
     record = _record()
     snapshot = Snapshot(
@@ -118,9 +225,10 @@ def test_snapshot_to_row_values_freezes_plan():
 
 
 def test_item_to_row_values_keeps_free_string_ids_in_payload():
+    itin_hex = uuid4().hex
     item = {
         "id": uuid4().hex,
-        "itinerary_id": f"it_{uuid4().hex}",
+        "itinerary_id": f"it_{itin_hex}",
         "name": "蜀风雅韵",
         "city": "成都",
         "note": "来自聊天",
@@ -137,10 +245,42 @@ def test_item_to_row_values_keeps_free_string_ids_in_payload():
     }
     values = item_to_row_values(item)
     assert values["poi_id"] is None  # 自由字符串不落 FK 列
-    assert values["itinerary_id"] is None  # it_ 前缀没剥，不硬转
+    # itinerary_id 剥 it_ 前缀严格命中（2026-10-31 看水利工程案：此前整列
+    # 落 NULL，行程过滤丢行）
+    assert values["itinerary_id"] == UUID(hex=itin_hex)
     assert values["status"] == "wishlist"
     assert values["created_at"] is not None and values["created_at"].year == 2026
     assert values["payload"] == item  # 原值全量在 payload
+
+
+def test_item_to_row_values_legacy_short_itin_id_uses_uuid5_proxy():
+    """短业务 id（it-<8hex>）→ uuid5 代理键，且与行程行 PG 主键同源可 JOIN。
+
+    看水利工程案：payload 里 itinerary_id=it-c94803b8 绑得好好的，列投影
+    用严格版解析成 None，重启回灌/跨进程按行程过滤即丢行。
+    """
+    item = {
+        "id": uuid4().hex,
+        "itinerary_id": "it-c94803b8",
+        "name": "看水利工程",
+        "status": "scheduled",
+        "source": "chat",
+        "day": 5,
+        "position": 1.0,
+        "created_at": "2026-10-30T23:45:21+00:00",
+        "updated_at": "2026-10-30T23:45:21+00:00",
+    }
+    values = item_to_row_values(item)
+    expected = _pg_uuid_loose("it-c94803b8", "it_")
+    assert values["itinerary_id"] == expected
+    record = ItineraryRecord(
+        itinerary_id="it-c94803b8",
+        owner_device_id="dev-1",
+        plan=_plan("it-c94803b8"),
+        created_at=datetime(2026, 10, 30, 23, 45, 47),
+        updated_at=datetime(2026, 10, 30, 23, 45, 47),
+    )
+    assert record_to_row_values(record)["id"] == expected  # FK 指向真实行程行
 
 
 # --- PG 不可达降级（CI / PG 宕机路径）------------------------------------------
@@ -176,3 +316,151 @@ def test_import_item_memory_fallback_without_pg():
         is False
     )
     assert svc.get(item_id)["name"] == "灵隐寺"
+
+
+def test_release_itinerary_writes_wishlist_through_to_pg():
+    """删行程释放心愿（2026-10-31）：内存行翻回 wishlist，PG 行同款写穿
+    （status/day/position/booking_id 全部落列）。"""
+    factory = _RecordingFactory()
+    svc = PgTripItemService(factory)
+    svc._pg_ok = True
+    row = {
+        "id": uuid4().hex,
+        "itinerary_id": "it-1",
+        "name": "灵隐寺",
+        "city": "杭州",
+        "status": "scheduled",
+        "source": "chat",
+        "day": 2,
+        "position": 3.0,
+        "booking_id": None,
+        "created_at": "2026-10-31T08:00:00+00:00",
+        "updated_at": "2026-10-31T08:00:00+00:00",
+    }
+    svc._items[row["id"]] = dict(row)
+
+    released = svc.release_itinerary("it-1")
+
+    assert [r["id"] for r in released] == [row["id"]]
+    healed = svc.get(row["id"])
+    assert healed["status"] == "wishlist"
+    assert healed["day"] is None and healed["position"] is None
+    written = [r for s in factory.sessions for r in s.added]
+    assert written and written[-1].status == "wishlist"
+    assert written[-1].day is None and written[-1].position is None
+    assert written[-1].booking_id is None
+
+
+# --- 2026-10-28 跨进程查重（advisory 锁内 SQL 查重 + 命中不重插） -------------
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def first(self):
+        return self._rows[0] if self._rows else None
+
+    def all(self):
+        return list(self._rows)
+
+
+class _TxSession:
+    """boot 段 query()→空表；create 段 execute() 按 SQL 分流（锁语句返回
+    空、查重语句返回预置命中行）。"""
+
+    def __init__(self, dup_payload=None):
+        self.dup_payload = dup_payload
+        self.executed = []
+        self.inserted = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def begin(self):
+        return self
+
+    def begin_nested(self):
+        return contextlib.nullcontext()
+
+    def query(self, model):
+        return SimpleNamespace(all=lambda: [])
+
+    def execute(self, stmt, params=None):
+        sql = str(stmt)
+        self.executed.append((sql, params))
+        if "pg_advisory_xact_lock" in sql:
+            return _FakeResult([])
+        return _FakeResult([(self.dup_payload,)] if self.dup_payload else [])
+
+    def add(self, row):
+        self.inserted.append(row)
+
+
+class _TxFactory:
+    def __init__(self, dup_payload=None):
+        self.dup_payload = dup_payload
+        self.sessions = []
+
+    def __call__(self):
+        session = _TxSession(self.dup_payload)
+        self.sessions.append(session)
+        return session
+
+
+def _wish_payload(name="西湖", city="杭州"):
+    return {
+        "id": "abc123def456abc123def456abc12345",
+        "name": name,
+        "city": city,
+        "status": "wishlist",
+        "source": "paste",
+        "itinerary_id": "it-1",
+        "poi_id": None,
+        "note": None,
+        "day": None,
+        "position": None,
+        "address": None,
+        "opening_hours": None,
+        "booking_id": None,
+        "created_at": "2026-10-28T08:00:00+00:00",
+        "updated_at": "2026-10-28T08:00:00+00:00",
+    }
+
+
+def test_pg_create_hit_returns_other_process_row_without_reinsert():
+    factory = _TxFactory(dup_payload=_wish_payload())
+    svc = PgTripItemService(factory)
+    item = svc.create("西湖", source="chat", itinerary_id="it-1", city=None)
+    assert item["id"] == "abc123def456abc123def456abc12345"
+    assert svc._items[item["id"]]["name"] == "西湖"  # 命中行回灌内存
+    writer = factory.sessions[1]
+    assert writer.inserted == []  # 不重插
+    assert any("pg_advisory_xact_lock" in sql for sql, _ in writer.executed)
+
+
+def test_pg_create_miss_inserts_inside_locked_transaction():
+    factory = _TxFactory()
+    svc = PgTripItemService(factory)
+    item = svc.create("西湖", source="paste", itinerary_id="it-1", city="杭州")
+    assert item["status"] == "wishlist"
+    writer = factory.sessions[1]
+    assert len(writer.inserted) == 1
+    assert writer.inserted[0].name == "西湖"
+    assert any("pg_advisory_xact_lock" in sql for sql, _ in writer.executed)
+
+
+def test_pg_create_hit_on_rephrased_variant_shares_base_predicate():
+    """2026-10-28 变脸补报：库内 变脸表演（川剧），新提交 看变脸 —— 基类
+    谓词的规范化匹配收口，命中不重插，别名入 note。"""
+    payload = _wish_payload(name="变脸表演（川剧）", city="成都")
+    factory = _TxFactory(dup_payload=payload)
+    svc = PgTripItemService(factory)
+    item = svc.create("看变脸", source="chat", itinerary_id="it-1", city="成都")
+    assert item["id"] == payload["id"]
+    assert item["note"] == "别名：看变脸"
+    writer = factory.sessions[1]
+    assert writer.inserted == []

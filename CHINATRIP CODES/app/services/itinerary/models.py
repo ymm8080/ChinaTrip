@@ -54,7 +54,7 @@ class VisitItem(BaseModel):
     # mutation; never user input.
     distance_to_next_km: float | None = None
     next_walk_minutes: int | None = None
-    leg_source: Literal["estimate", "amap"] | None = None
+    leg_source: Literal["estimate", "amap", "baidu"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
     # 0009 / 8.2.1：库候选携带的时段属性（morning/afternoon/evening/

@@ -83,6 +83,9 @@ def _gcj_polyline(path: object) -> list[dict]:
 
 
 class BaiduClient:
+    # 图商标识（与 AmapClient.vendor 同构；方法级鸭子类型复用）。
+    vendor = "baidu"
+
     def __init__(
         self,
         *,
@@ -111,6 +114,8 @@ class BaiduClient:
                 response = await http.get(path, params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("baidu request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"baidu network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:
@@ -209,6 +214,28 @@ class BaiduClient:
             "district": _as_str(comp.get("district")),
             "address": _as_str(result.get("formatted_address")),
         }
+
+    async def geocode(self, address: str, *, city: str | None = None) -> dict:
+        """ "/geocoding/v3 —— 文字地址→GCJ-02 坐标（{"lon","lat","level"}）。
+
+        与 place 检索、regeo 互为独立配额池（2026-10-30 实测：检索日配额
+        烧尽时本接口仍 200，门址级 precise=1）。出参 location 为 BD-09，
+        按本客户端约定转 GCJ-02。
+        """
+        params = {"ak": self._ak, "output": "json", "address": address}
+        if city:  # 城市上下文：无前缀街道地址不传 city 会被盲猜到外地（实测）
+            params["city"] = city
+        data = await self._request_json("/geocoding/v3", params)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        loc = result.get("location") if isinstance(result.get("location"), dict) else {}
+        try:
+            lon, lat = float(loc.get("lng")), float(loc.get("lat"))
+        except (TypeError, ValueError):
+            lon = lat = None
+        if lon is None or not (-180 <= lon <= 180 and -90 <= lat <= 90):
+            return {"lon": None, "lat": None, "level": _as_str(result.get("level"))}
+        g_lon, g_lat = bd09_to_gcj02(lon, lat)
+        return {"lon": g_lon, "lat": g_lat, "level": _as_str(result.get("level"))}
 
     async def ip_locate(self) -> dict:
         """/location/ip —— 按出口 IP 定位，形状对齐（无点坐标消费）。"""

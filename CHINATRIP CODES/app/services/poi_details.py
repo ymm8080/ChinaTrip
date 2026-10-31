@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from math import log2
 from uuid import uuid4
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import String, and_, cast, func, or_
 
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
 _POINT_WKT_RE = re.compile(r"POINT\((\S+) (\S+)\)")
 
-_STALE_AFTER = timedelta(hours=24)
+# 回源刷新目标窗口（2026-10-28 用户拍板：地址/营业时间一行一月）——
+# hours_updated_at 距今超 30 天（或 NULL）才进 stale_pois；每日作业照跑，
+# 只是每行最多一月被碰一次（命中/未命中盖戳同权），配额烧耗降一个量级
+_STALE_AFTER = timedelta(days=30)
 # After a failed DB call, skip DB attempts for this long (memory
 # serves instead). Bounds the down-db cost to ONE connect_timeout
 # stall per window instead of one per call (2026-10-20 latency fix).
@@ -62,8 +65,89 @@ _SOURCE_TAG_ORDER = {
 }
 
 
+# 功能标签愿望词 → tags 内核（2026-10-29 功能标签批打后的读侧接线）：
+# 「看演出 / citywalk / 逛古镇」按玩法标签检索，不再只 LIKE 名称/类别——
+# 《驼铃传奇》秀 名称无「演出」二字，靠 tags=['show'] 命中。
+_LABEL_TOKENS: dict[str, str] = {
+    "演出": "show",
+    "看演出": "show",
+    "show": "show",
+    "citywalk": "citywalk",
+    "city walk": "citywalk",
+    "压马路": "citywalk",
+    "古镇": "historical_town",
+    "名镇": "historical_town",
+    "历史名镇": "historical_town",
+    "世界遗产": "unesco",
+    "unesco": "unesco",
+    "5a": "5a",
+    "5a级": "5a",
+}
+
+
+def _token_label(token: str) -> str | None:
+    return _LABEL_TOKENS.get((token or "").strip().lower())
+
+
+def _norm_label_tag(t: object) -> str:
+    return str(t).strip().lower()
+
+
+def _hit_has_label(h: dict, label: str | None) -> bool:
+    """命中行 tags 是否带某功能标签（愿望词→标签后的读侧判定）。"""
+    if not label:
+        return False
+    return label in {_norm_label_tag(t) for t in (h.get("tags") or [])}
+
+
 def order_source_tags(tags: list[str]) -> list[str]:
     return sorted(tags, key=lambda t: _SOURCE_TAG_ORDER.get(t, 99))
+
+
+def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
+    """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
+    tags → source（intl 系与 5A 同档，2026-10-25/26 拍板）→ 全库名单互含。"""
+    tags = {str(t) for t in (h.get("tags") or [])}
+    if "unesco" in tags or h.get("source") == "unesco":
+        return 4
+    if "5a" in tags or h.get("source") == "5a":
+        return 3
+    # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
+    # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
+    # 改明细站点名，枚举同步扩）
+    if "intl" in tags or h.get("source") in (
+        "intl",
+        "tripadvisor",
+        "lonelyplanet",
+        "viator",
+        "curated",
+    ):
+        return 3
+    if "4a" in tags:
+        return 2
+    if "3a" in tags:
+        return 1
+    name = h.get("name") or ""
+    for ref, tier in heritage:
+        if _name_overlap(name, ref):
+            return tier
+    return 0
+
+
+def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
+    """判定层级并把层级标签并入 tags（intl 档打 intl 牌不打 5a 牌），
+    返回层级。读侧（top_pois_in_city / search_keyword / api/pois）共用。"""
+    tier = hit_tier(h, heritage)
+    tag = _TIER_TAG.get(tier)
+    if (
+        tier == 3
+        and "intl" in (h.get("tags") or [])
+        and "5a" not in (h.get("tags") or [])
+    ):
+        tag = "intl"
+    if tag and tag not in (h.get("tags") or []):
+        h["tags"] = order_source_tags([*(h.get("tags") or []), tag])
+    return tier
 
 
 def _name_overlap(a: str | None, b: str | None) -> bool:
@@ -116,6 +200,11 @@ class PoiDetailStore:
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
+                        # 双语 P1 补链（2026-10-30）：_en 并出（空回退中文）
+                        "name_en": row.name_en,
+                        "address_en": row.address_en,
+                        "intro_en": row.intro_en,
+                        "opening_hours_en": row.opening_hours_en,
                         "hours_updated_at": (
                             row.hours_updated_at.isoformat()
                             if row.hours_updated_at
@@ -137,7 +226,8 @@ class PoiDetailStore:
         sources: tuple[str, ...] | None = None,
         city: str | None = None,
     ) -> list[tuple[str, str | None, str | None, str | None, str | None]]:
-        """POIs whose hours are missing or older than 24h (job targets).
+        """POIs whose hours are missing or older than 30 days (job targets;
+        _STALE_AFTER 月度节奏 2026-10-28 定稿).
 
         返回 (source_poi_id, city, name_zh, source, location) 五元组；
         location 为 amap-ready "lon,lat"（GCJ-02，无坐标行 None）——链③
@@ -226,14 +316,33 @@ class PoiDetailStore:
         if self._db_available():
             try:
                 with self._factory() as session:
-                    row = session.query(Poi).filter(Poi.name_zh == name).first()
-                    if row is None:
+                    pair = (
+                        session.query(
+                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                        )
+                        .filter(Poi.name_zh == name)
+                        .first()
+                    )
+                    if pair is None:
                         return None
+                    row, loc_txt = pair
+                    m = _POINT_WKT_RE.match(loc_txt or "")
                     return {
                         "poi_id": row.source_poi_id,
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
+                        # 双语 P1 补链（2026-10-30）：_en 并出（空回退中文）
+                        "name_en": row.name_en,
+                        "address_en": row.address_en,
+                        "intro_en": row.intro_en,
+                        "opening_hours_en": row.opening_hours_en,
+                        # 2026-10-30 补坐标（零配额治愈路径）：条目缺坐标时
+                        # _backfill_locations 靠本跳直接拿库内坐标自愈，
+                        # 不必烧图商配额（坐标 GCJ-02 (lon, lat) 或 None）。
+                        "location": (
+                            (float(m.group(1)), float(m.group(2))) if m else None
+                        ),
                     }
             except Exception:
                 self._note_db_failure()
@@ -248,9 +357,15 @@ class PoiDetailStore:
     ) -> list[dict]:
         """POI 底库关键字搜索（心愿落实先查库再打高德，用户拍板
         2026-10-24）。city 匹配同 stale_pois 三态；tokens 对 name_zh/
-        category 做 LIKE。返回 amap 形状的骨架 dict（name/city/category/
-        source_poi_id/location/address/opening_hours/source/rating），
-        按（名字精确命中，有坐标，类别命中）降序。"""
+        category 做 LIKE，愿望词另按功能标签检索（2026-10-29：演出→show、
+        citywalk、古镇→historical_town…打在 tags，名称无内核词的行如
+        《驼铃传奇》秀 也能命中）。返回 amap 形状的骨架 dict（name/city/
+        category/tags/source_poi_id/location/address/opening_hours/source/
+        rating），按（名字精确命中，标签命中，有坐标，类别命中，hit_tier:
+        unesco>5A/intl>4A>3A>名单互含）降序——tier 只作同档并列裁决
+        （2026-10-28 泛称愿望落地要同类最佳，与 top_pois_in_city 同一套
+        层级判定；专名精确命中仍稳居首位不受影响）。"""
+
         toks = [t for t in (tokens or []) if t]
         if not toks:
             return []
@@ -259,12 +374,15 @@ class PoiDetailStore:
             c = city.strip()
             city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
 
-        def rank(h: dict) -> tuple[bool, bool, bool]:
+        def rank(h: dict, heritage: list[tuple[str, int]]) -> tuple:
             n = (h.get("name") or "").strip()
+            labels = [_token_label(t) for t in toks]
             return (
                 any(n == t for t in toks),
+                any(_hit_has_label(h, lb) for lb in labels),
                 h.get("location") is not None,
                 any(t in (h.get("category") or "") for t in toks),
+                hit_tier(h, heritage),
             )
 
         if self._db_available():
@@ -280,7 +398,15 @@ class PoiDetailStore:
                         pat = f"%{t}%"
                         conds.append(Poi.name_zh.like(pat))
                         conds.append(Poi.category.like(pat))
-                    rows = q.filter(or_(*conds)).limit(limit * 3).all()
+                        label = _token_label(t)
+                        if label:
+                            # JSONB tags 文本化匹配功能标签（"show" 子串唯一，
+                            # 词表无前缀碰撞）；tags 为 NULL 的行不命中该条件
+                            conds.append(cast(Poi.tags, String).like(f'%"{label}"%'))
+                    # 取 10× 再 Python 排序：LIMIT 内没有 tier 概念，取太少
+                    # 会把同类的 unesco/5A 行截在排序之前（内存回退全库扫，
+                    # 两路池深对齐）。
+                    rows = q.filter(or_(*conds)).limit(limit * 10).all()
                     hits = []
                     for row, loc_txt in rows:
                         m = _POINT_WKT_RE.match(loc_txt or "")
@@ -290,6 +416,7 @@ class PoiDetailStore:
                                 "name": row.name_zh,
                                 "city": row.city,
                                 "category": row.category,
+                                "tags": row.tags or [],
                                 "address": row.address,
                                 "opening_hours": row.opening_hours,
                                 "source": row.source,
@@ -301,7 +428,8 @@ class PoiDetailStore:
                                 ),
                             }
                         )
-                    hits.sort(key=rank, reverse=True)
+                    heritage = self._heritage_names() if hits else []
+                    hits.sort(key=lambda h: rank(h, heritage), reverse=True)
                     return hits[:limit]
             except Exception:
                 self._note_db_failure()
@@ -310,12 +438,17 @@ class PoiDetailStore:
                     exc_info=True,
                 )
         hits = []
+        tok_labels = [(t, _token_label(t)) for t in toks]
         for pid, v in self._memory.items():
             if city_names and v.get("city") not in city_names:
                 continue
             name = v.get("name") or ""
             hay = f"{name} {v.get('category') or ''}"
-            if not any(t in hay for t in toks):
+            vtags = {_norm_label_tag(t) for t in (v.get("tags") or [])}
+            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签
+            if not any(
+                t in hay or (lb is not None and lb in vtags) for t, lb in tok_labels
+            ):
                 continue
             loc = v.get("location")
             hits.append(
@@ -324,6 +457,7 @@ class PoiDetailStore:
                     "name": name,
                     "city": v.get("city"),
                     "category": v.get("category"),
+                    "tags": list(v.get("tags") or []),
                     "address": v.get("address"),
                     "opening_hours": v.get("opening_hours"),
                     "source": v.get("source") or "amap",
@@ -331,7 +465,8 @@ class PoiDetailStore:
                     "location": tuple(loc) if loc else None,
                 }
             )
-        hits.sort(key=rank, reverse=True)
+        heritage = self._heritage_names() if hits else []
+        hits.sort(key=lambda h: rank(h, heritage), reverse=True)
         return hits[:limit]
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
@@ -427,10 +562,15 @@ class PoiDetailStore:
                 tags = {str(t) for t in (h.get("tags") or [])}
                 if tags & {"michelin", "black_pearl"}:
                     boost = 1.5
+            # 2026-10-30 拍板（修「距下一站距离/步行不显示」第二刀）：有坐标
+            # 行整体压过无坐标骨架行——top-N 截断发生在排序后，若骨架行靠
+            # tier 挤进前 30，消费端坐标闸剔除后池子只剩 3-6 行，检索配额
+            # 一死整城落占位（10-30 成都/上海/重庆实录 no_loc_skipped=24-27）。
+            # 骨架行垫底保留，backfill 补齐坐标后自动回到前列。
             return (
+                1 if h.get("location") else 0,
                 tier,
                 round(quality * boost, 3),
-                1 if h.get("location") else 0,
             )
 
         rows_out: list[dict] = []
@@ -529,41 +669,9 @@ class PoiDetailStore:
                 rows_out.append(h)
         heritage = self._heritage_names()
 
-        def tier_of(h: dict) -> int:
-            tags = {str(t) for t in (h.get("tags") or [])}
-            if "unesco" in tags or h.get("source") == "unesco":
-                return 4
-            if "5a" in tags or h.get("source") == "5a":
-                return 3
-            # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
-            # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
-            # 改明细站点名，枚举同步扩）
-            if "intl" in tags or h.get("source") in (
-                "intl",
-                "tripadvisor",
-                "lonelyplanet",
-                "viator",
-                "curated",
-            ):
-                return 3
-            if "4a" in tags:
-                return 2
-            if "3a" in tags:
-                return 1
-            name = h.get("name") or ""
-            for ref, tier in heritage:
-                if _name_overlap(name, ref):
-                    return tier
-            return 0
-
         for h in rows_out:
-            tier = tier_of(h)
+            tier = apply_tier_tag(h, heritage)
             h["_tier"] = tier
-            tag = _TIER_TAG.get(tier)
-            if tier == 3 and "intl" in h["tags"] and "5a" not in h["tags"]:
-                tag = "intl"
-            if tag and tag not in h["tags"]:
-                h["tags"] = order_source_tags([*h["tags"], tag])
         rows_out.sort(key=score, reverse=True)
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)
@@ -755,9 +863,10 @@ class PoiDetailStore:
         """MISS 冷却：只盖 hours_updated_at=now，不写 hours/source。
 
         永久缺 hours 的行（骨架不可匹配等）原本每轮重复查询、一天
-        多次烧 text 配额（2026-10-24 实测 200 连续超限）；盖戳即进
-        24h 静默（stale_pois 窗口外）。内存同步盖；DB UPDATE 失败只
-        记日志不抛（冷却失败无害，下轮多查一次而已）。
+        多次烧 text 配额（2026-10-24 实测 200 连续超限）；盖戳即出
+        stale_pois 窗口（2026-10-28 起窗口 30 天，未命中同样静默一月）。
+        内存同步盖；DB UPDATE 失败只记日志不抛（冷却失败无害，下轮
+        多查一次而已）。
         """
         now = datetime.now(timezone.utc)
         mem = self._memory.get(source_poi_id)

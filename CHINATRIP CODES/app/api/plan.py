@@ -15,9 +15,11 @@ survive); the v0 path degrades to a placeholder plan instead of failing
 anything the agent still raises.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, time, timezone
+from functools import partial
 from time import monotonic
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -33,6 +35,7 @@ from app.api.itineraries import (
 from app.api.translate import get_translation_service
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
+from app.db import get_session_factory
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
@@ -40,10 +43,12 @@ from app.services.agent.plan import (
     PoiStoreUnavailableError,
     clarify_questions,
     current_violations,
+    dedupe_plan_visits,
 )
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
 from app.services.fast_lane import FastLane
+from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, VisitItem, mutate
 from app.services.itinerary_store import (
@@ -52,11 +57,15 @@ from app.services.itinerary_store import (
     QuotaExceededError,
 )
 from app.services.lane_metrics import get_lane_metrics
-from app.services.lang_ctx import L
+from app.services.lang_ctx import L, get_lang
 from app.services.llm import get_flash_adapter, get_llm_adapter
 from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import LLMError
-from app.services.map_provider import build_map_client, map_ready
+from app.services.map_provider import (
+    build_client_chain,
+    build_map_client,
+    map_ready,
+)
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
@@ -66,6 +75,7 @@ from app.services.state_persist import (
 from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
+from app.services.weather import daily_weather_text
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
 logger = logging.getLogger(__name__)
@@ -107,11 +117,20 @@ def get_planning_agent(
         _agent_singleton = PlanningAgent(
             get_llm_adapter(settings),
             amap_client=amap,
+            # 检索链（2026-10-30 vendor_policy）：amap>tencent>baidu，缺 key 自动跳过
+            search_chain=build_client_chain(settings, "search"),
             train_service=get_train_service(settings),
+            # 航班与火车同构（2026-10-28）：flight_api_key 空 → Mock 占位，
+            # 配置 key → VariFlight 适配器（管线零改动）。
+            flight_service=build_flight_service(settings),
             time_budget_seconds=settings.solver_time_budget_seconds,
             trip_items=get_trip_item_service(),
             poi_details=get_poi_detail_store(),
             ctrip_hours=get_ctrip_hours(),
+            # 雨天感知（2026-10-30）：纯 DB 读 weather_reports（每日
+            # 08:10 管线全量 40 城），请求路径零外呼；读失败在
+            # _rain_map 内降级为无雨，规划不受影响
+            weather_lookup=partial(daily_weather_text, get_session_factory()),
         )
     return _agent_singleton
 
@@ -162,6 +181,9 @@ def get_fast_lane(
     return _fast_lane_singleton
 
 
+_BG_PREFETCH_TASKS: set[asyncio.Task] = set()  # 防后台任务被 GC
+
+
 class PlanSaveRequest(BaseModel):
     name: str | None = None
     note: str | None = None
@@ -180,6 +202,7 @@ async def save_plan(
     service: ItineraryService = Depends(get_itinerary_service),
     entitlement: EntitlementService = Depends(get_entitlement_service),
     account: str | None = Depends(_account_from_auth),
+    agent: PlanningAgent = Depends(get_planning_agent),
 ) -> dict:
     """Explicit save (2026-10-20 product rule: 行程只在用户点「💾 保存行程」
     时写入行程库). Upserts the session's working plan into the itinerary
@@ -196,6 +219,21 @@ async def save_plan(
     plan = session.plan
     if request.start_date and request.start_date != plan.start_date:
         plan = plan.model_copy(update={"start_date": request.start_date})
+        session.plan = plan
+        store.save(session)
+        # 出发日期变更即预热票务（2026-10-28）：城市在计划里已齐，火车查询
+        # 立刻开跑，下一次组装/重排直接吃缓存。
+        _warm = asyncio.create_task(
+            agent.prefetch_transfer_schedules(
+                plan.cities, len(plan.days), request.start_date
+            )
+        )
+        _BG_PREFETCH_TASKS.add(_warm)
+        _warm.add_done_callback(_BG_PREFETCH_TASKS.discard)
+    # 入库终闸（2026-10-28 变脸 x4 事故）：冻结快照前强制同站合并——
+    # 任何来源（旧代码进程编辑/历史脏会话）的重复站点从此进不了行程库；
+    # 合并发生时把工作副本一并存回会话。
+    if dedupe_plan_visits(plan):
         session.plan = plan
         store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
@@ -237,6 +275,7 @@ async def save_plan(
 async def start_plan_from_itinerary(
     itinerary_id: str,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
     itinerary_store=Depends(get_store),
     account: str | None = Depends(_account_from_auth),
@@ -249,9 +288,17 @@ async def start_plan_from_itinerary(
         raise HTTPException(status_code=400, detail="missing_device_id")
     record = _owned_record(itinerary_store, itinerary_id, x_device_id, account)
     plan = record.plan.model_copy(deep=True)
+    # 同站合并开档闸（2026-10-28）：旧行程带出的重复站点（如变脸 x4）
+    # 开档即合并；行程库本体由 save 终闸兜住。
+    dedupe_plan_visits(plan)
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,
+        # 双语 P2 补漏（2026-10-30）：会话语言随 X-Lang 请求头
+        # （LangMiddleware 写入的 contextvar，与端内 L() 同源）。
+        # 漏传时英文界面下「✏️ 修改」会话的编辑回合恒中文——
+        # _with_lang 的英文输出指令只认 session.lang。
+        lang=get_lang(),
         cities=list(plan.cities),
         days=len(plan.days),
         state="ready",
@@ -274,12 +321,38 @@ async def start_plan_from_itinerary(
             )
         ],
     )
+    await agent.refresh_legs(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
     body["plan"] = session.plan
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
+
+
+@router.get("/plan/{session_id}")
+async def get_plan_session(
+    session_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """规划会话读取（2026-10-28）：H5 刷新/重开页面恢复行程卡用。返回前跑
+    一遍实测腿刷新（annotate → 缺坐标回填 → 缓存回放 → 新对高德/百度实测），
+    旧行程打开即有距离与步行信息，无需先做一次编辑。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
+    # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
+    dedupe_plan_visits(session.plan)
+    await agent.refresh_legs(session)
+    store.save(session)
+    return _plan_turn_body(session, None, None)
 
 
 @router.post("/plan/start")
@@ -417,6 +490,11 @@ async def message_plan(
         intent=decision.intent,
         source=decision.source,
     )
+    # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：对话式
+    # 增删改与按钮端点（pin/delete/move/retime）同款——变更后实测腿刷新
+    # （缓存对零网络回放，新对走图商链，配额死降级估算不阻塞回合）。
+    if session.plan is not None:
+        await agent.refresh_legs(session)
     store.save(session)
     body = _plan_turn_body(session, reply, change)
     body["lane"] = {"lane": "main", "intent": decision.intent}
@@ -484,6 +562,7 @@ async def pin_plan_item(
     item_id: str,
     request: PlanPinRequest,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
 ) -> dict:
     """钉住/取消钉住（iron rule 19）：pinned 的项目引擎不重排时间。"""
@@ -500,6 +579,7 @@ async def pin_plan_item(
     if request.pinned and item.start_time is None:
         raise HTTPException(status_code=422, detail="pinned_requires_time")
     item.pinned = request.pinned
+    await agent.refresh_legs(session)
     store.save(session)
     reply = (
         L(f"已钉住 {item.name}", f"Pinned {item.name}")
@@ -534,6 +614,7 @@ async def delete_plan_item(
     new_plan, _, _ = mutate(plan_before, [diff], poi_hours=[])
     session.plan = new_plan
     agent.sync_removals_to_trip_items(plan_before, [diff])
+    await agent.refresh_legs(session)
     store.save(session)
     reply = L(
         f"已删除 {item.name}，已记入不想去",
@@ -575,6 +656,7 @@ async def move_plan_item(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
     store.save(session)
     reply = L("已按你的顺序调整", "Reordered to your sequence") + (
         f"（{'；'.join(notes)}）" if notes else ""
@@ -614,6 +696,7 @@ async def retime_plan_item(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
     store.save(session)
     base = (
         summary.change_summary[0]

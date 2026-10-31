@@ -415,3 +415,59 @@ def test_distance_rejects_non_walking():
                 ["116.391,39.907"], "116.40,39.91", type_=2
             )
         )
+
+
+def test_network_error_maps_to_amap_error():
+    def handler(request: httpx.Request):
+        raise httpx.ConnectError("[Errno 11001] getaddrinfo failed")
+
+    with pytest.raises(AmapError) as excinfo:
+        asyncio.run(make_client(handler).search_poi("food", city="\u5317\u4eac"))
+    assert "network error" in str(excinfo.value)
+
+
+def test_geocode_converts_bd09_to_gcj02():
+    """地址→坐标：BD-09 出参按客户端约定转 GCJ-02（门址级）。"""
+    import asyncio
+
+    import httpx
+
+    from app.services.baidu_client import BaiduClient
+    from app.services.coords import bd09_to_gcj02
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["address"] == "安仁街218号"
+        assert request.url.params["city"] == "上海"
+        return httpx.Response(
+            200,
+            json={
+                "status": 0,
+                "result": {
+                    "location": {"lng": 121.49949616067579, "lat": 31.2315382193462},
+                    "precise": 1,
+                    "confidence": 80,
+                    "level": "门址",
+                },
+            },
+        )
+
+    client = BaiduClient(ak="test", transport=httpx.MockTransport(handler))
+    out = asyncio.run(client.geocode("安仁街218号", city="上海"))
+    g_lon, g_lat = bd09_to_gcj02(121.49949616067579, 31.2315382193462)
+    assert out["lon"] == g_lon and out["lat"] == g_lat
+    assert out["level"] == "门址"
+
+
+def test_geocode_bad_location_returns_none():
+    import asyncio
+
+    import httpx
+
+    from app.services.baidu_client import BaiduClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": 0, "result": {"location": None}})
+
+    client = BaiduClient(ak="test", transport=httpx.MockTransport(handler))
+    out = asyncio.run(client.geocode("不存在的地方"))
+    assert out["lon"] is None and out["lat"] is None

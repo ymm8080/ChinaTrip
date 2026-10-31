@@ -46,12 +46,17 @@ class ZhipuGLMAdapter:
         model: str,
         timeout_seconds: float,
         transport: httpx.AsyncBaseTransport | None = None,
+        vision_model: str = "glm-4.6v-flash",
+        vision_fallback_models: list[str] | None = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.transport = transport
+        # 视觉链（行程导入 OCR / 视频理解同款考量）：4.6v-flash 免费池晚
+        # 高峰整段 429，旧免费模型在独立容量池——主模型 429 时切备用链。
+        self.vision_models = [vision_model, *(vision_fallback_models or [])]
 
     async def chat(
         self,
@@ -59,6 +64,8 @@ class ZhipuGLMAdapter:
         *,
         temperature: float = 0.3,
         max_tokens: int | None = None,
+        thinking: bool | None = None,
+        timeout_seconds: float | None = None,
     ) -> ChatResult:
         payload: dict = {
             "model": self.model,
@@ -67,7 +74,14 @@ class ZhipuGLMAdapter:
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
-        body = await self._post_json("/chat/completions", payload)
+        if thinking is not True:
+            # glm 思考关断默认开（2026-10-28 用户拍板）：探针实测 select 场景
+            # 37.9s→7.5s、小请求 11.4s→2.3s；端点不支持该参数时会忽略，
+            # 无副作用；thinking=True 可显式恢复端点默认。
+            payload["thinking"] = {"type": "disabled"}
+        body = await self._post_json(
+            "/chat/completions", payload, timeout_seconds=timeout_seconds
+        )
         try:
             content = body["choices"][0]["message"]["content"]
         except (KeyError, TypeError, IndexError) as exc:
@@ -84,11 +98,60 @@ class ZhipuGLMAdapter:
             tokens_out=_int_or_zero(usage.get("completion_tokens")),
         )
 
-    async def _post_json(self, path: str, payload: dict) -> dict:
+    async def chat_vision(self, images: list[tuple[bytes, str]], prompt: str) -> str:
+        """图片理解（行程导入 OCR）：图片以 base64 data URL 内联。主视觉
+        模型 429（免费池晚高峰整段饱和）时切备用模型链；链上全部 429 才
+        抛 LLMError——_post_json 自带 429 空间重试，这里的降级只跨模型。"""
+        import base64
+
+        content: list[dict] = [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime};base64,"
+                    + base64.b64encode(data).decode("ascii")
+                },
+            }
+            for data, mime in images
+        ]
+        content.append({"type": "text", "text": prompt})
+        last_error: LLMError | None = None
+        for model in self.vision_models:
+            try:
+                body = await self._post_json(
+                    "/chat/completions",
+                    {
+                        "model": model,
+                        "messages": [{"role": "user", "content": content}],
+                        "thinking": {"type": "disabled"},
+                    },
+                )
+            except LLMError as exc:
+                if "status 429" not in str(exc):
+                    raise
+                last_error = exc
+                continue
+            try:
+                resp_content = body["choices"][0]["message"]["content"]
+            except (TypeError, KeyError, IndexError) as exc:
+                raise LLMError("zhipu malformed response shape") from exc
+            if isinstance(resp_content, list):
+                resp_content = "".join(
+                    p.get("text", "") for p in resp_content if isinstance(p, dict)
+                )
+            if not isinstance(resp_content, str):
+                raise LLMError("zhipu malformed response shape")
+            return resp_content
+        raise last_error or LLMError("zhipu vision: no models configured")
+
+    async def _post_json(
+        self, path: str, payload: dict, *, timeout_seconds: float | None = None
+    ) -> dict:
+        timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
-                timeout=self.timeout_seconds,
+                timeout=timeout,
                 transport=self.transport,
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as client:
@@ -107,7 +170,11 @@ class ZhipuGLMAdapter:
             # raw httpx exceptions bypass every retry/degrade handler.
             raise LLMError(f"zhipu request failed: {type(exc).__name__}") from exc
         if resp.status_code != 200:
-            raise LLMError(f"zhipu http status {resp.status_code}")
+            # 400/429 响应正文带 error.code/message（如 1210 该模型始终
+            # 思考不支持关闭、1113 余额不足）——丢掉正文会让排障只能瞎猜
+            # （2026-10-30 事故里的 400 即无正文盲区）。
+            snippet = (resp.text or "")[:200].replace("\n", " ")
+            raise LLMError(f"zhipu http status {resp.status_code}: {snippet}")
         try:
             body = resp.json()
         except ValueError as exc:
@@ -124,6 +191,7 @@ class ZhipuGLMAdapter:
                 {"role": "user", "content": text},
             ],
             "temperature": 0.1,
+            "thinking": {"type": "disabled"},
         }
         body = await self._post_json("/chat/completions", payload)
         try:

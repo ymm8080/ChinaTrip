@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.itineraries import (
+    _trip_items_service,
     get_entitlement_service,
     get_store,
 )
@@ -18,6 +19,7 @@ from app.api.itineraries import (
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary_store import InMemoryItineraryStore
+from app.services.trip_items import TripItemService
 
 DEV_A = {"X-Device-ID": "device-a"}
 DEV_B = {"X-Device-ID": "device-b"}
@@ -31,6 +33,9 @@ def make_app(*, snapshot_limit: int = 3) -> TestClient:
     app = FastAPI()
     app.dependency_overrides[get_store] = lambda: store
     app.dependency_overrides[get_entitlement_service] = lambda: entitlement
+    # 删行程会顺带释放名下已排期心愿（2026-10-31）——钉每测试空实例，
+    # 不打到真实单例
+    app.dependency_overrides[_trip_items_service] = lambda: TripItemService()
     app.include_router(itineraries_router)
     return TestClient(app)
 

@@ -32,6 +32,8 @@ _CATEGORY_META: dict[str, tuple[bool | None, bool | None]] = {
     "ruins": (False, None),
     "historic": (None, None),
     "ancient_town": (False, None),
+    # 住宿：名称守卫命中即归此类（2026-10-31），不参与行程规划读取
+    "hotel": (True, None),
 }
 
 _DURATION_FLOOR: dict[str, int] = {
@@ -80,6 +82,54 @@ _THEME_HINTS = (
     "海洋公园",
     "文旅城",
 )
+# 风景区类名称标记（2026-10-31 用户指令两档：市区默认 180 / 城市外
+# 默认 240）。独立于类别地板：名称命中即在类别地板之上抬到对应档；
+# 真值源仍可按 duration_upgradable 升级覆盖。priority 在 heritage 之
+# 前——「中山陵风景区」「灵隐飞来峰景区」这类大块头按景区口径，不
+# 落 60/90 档。
+_SCENIC_MARKS = ("风景名胜区", "旅游景区", "旅游区", "风景区", "景区")
+_SCENIC_URBAN_MIN = 180
+_SCENIC_SUBURB_MIN = 240
+
+#: 城外行政区/聚落标记——名称或地址命中任一即按城市外档，都不命中
+#: 按市区档。零联网口径下的保守判定，漏判（如 长白山景区 名称地址
+#: 皆无标记）落市区 180 地板，真值源可升级覆盖。
+_SUBURB_MARKS = (
+    "县",
+    "自治州",
+    "旗",
+    "盟",
+    "镇",
+    "乡",
+    "村",
+    "林场",
+    "农场",
+    "牧场",
+    "水库",
+)
+
+# 住宿名称标记（2026-10-31 用户拍板清洗）：名称命中即认定住宿，不再
+# 按名称/上游类别归 景点/park——「桔子水晶北京朝阳公园酒店」「南京
+# 竹官园宾馆」曾因裸「园」hint 被误归 park 污染公园池。不含「度假
+# 村」（温泉/景区度假村常即目的地本身，歧义大不进守卫）。
+_ACCOMMODATION_HINTS = (
+    "酒店",
+    "饭店",
+    "宾馆",
+    "民宿",
+    "公寓",
+    "客栈",
+    "旅馆",
+    "招待所",
+    "青旅",
+)
+
+
+def is_accommodation(name: str) -> bool:
+    """名称是否命中住宿标记（import_chinatravel 跳过闸 / 分类守卫共用）."""
+    return any(h in (name or "") for h in _ACCOMMODATION_HINTS)
+
+
 _HERITAGE_HINTS = (
     "宫",
     "庙",
@@ -151,13 +201,21 @@ _URBAN_HINTS = (
 
 
 def classify(
-    name: str, category: str | None = None
+    name: str, category: str | None = None, address: str | None = None
 ) -> tuple[str | None, bool | None, bool | None, int | None]:
     """返回 (category, indoor, rain_ok, duration_floor)；拿不准的为 None。
 
     category 已有则直接按类别表映射属性；category 为空时按名称高置信
-    关键词分类（宁缺毋滥，低置信名全部 None）。
+    关键词分类（宁缺毋滥，低置信名全部 None）。名称带景区标记时地板
+    分两档：名称/地址（address 传入时）命中 _SUBURB_MARKS 为城市外
+    240，否则市区 180；seed 骨架阶段无 address，仅按名称判。
+
+    住宿守卫（2026-10-31）：名称命中住宿词即返回 hotel——优先于一切
+    名称推断与上游类别（含公园/广场类上游误标），地板恒 None（住宿
+    无游憩时长）。
     """
+    if is_accommodation(name):
+        return "hotel", True, None, None
     cat = category
     indoor = rain_ok = None
     if cat in _CATEGORY_META:
@@ -168,6 +226,8 @@ def classify(
             cat, indoor, rain_ok = "museum", True, True
         elif any(h in name for h in _THEME_HINTS):
             cat, indoor, rain_ok = "theme_park", False, False
+        elif any(h in name for h in _SCENIC_MARKS):
+            cat, indoor, rain_ok = "nature", False, False
         elif any(h in name for h in _HERITAGE_HINTS):
             cat, indoor, rain_ok = "attraction", False, None
         elif any(h in name for h in _CAVE_HINTS):
@@ -179,6 +239,15 @@ def classify(
         elif any(h in name for h in _URBAN_HINTS):
             cat, indoor, rain_ok = "attraction", False, None
     floor = _DURATION_FLOOR.get(cat) if cat is not None else None
+    if any(m in name for m in _SCENIC_MARKS):
+        text = name + (address or "")
+        base = (
+            _SCENIC_SUBURB_MIN
+            if any(m in text for m in _SUBURB_MARKS)
+            else _SCENIC_URBAN_MIN
+        )
+        if floor is None or floor < base:
+            floor = base
     return cat, indoor, rain_ok, floor
 
 

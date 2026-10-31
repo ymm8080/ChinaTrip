@@ -15,10 +15,12 @@ PG 的 itineraries/itinerary_snapshots/trip_items 三表自 alembic 0001 建表�
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid as uuid_mod
 from datetime import datetime
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models import Itinerary, ItineraryDay, ItinerarySnapshot, TripItem
@@ -30,6 +32,11 @@ from app.services.itinerary_store import (
 from app.services.trip_items import STATUS_WISHLIST, TripItemService
 
 logger = logging.getLogger(__name__)
+
+# 跨进程心愿查重锁（2026-10-28）：:8000 与 :8443 两个 uvicorn 进程共写一张
+# trip_items 表，各自内存查重互相看不见 → 同名心愿重复入库（用户实报心愿单
+# 多条 西湖）。任意 bigint 常量即可，全库仅此一处使用。
+_TRIP_ITEMS_ADVISORY_KEY = 8633722
 
 
 def _pg_uuid(stored_id: str | None, prefix: str = "") -> uuid_mod.UUID | None:
@@ -113,10 +120,17 @@ def snapshot_to_row_values(snapshot: Snapshot, itinerary_uuid: uuid_mod.UUID) ->
 
 
 def item_to_row_values(item: dict) -> dict:
-    """trip-center 条目 dict → trip_items 行投影（列化字段 + payload 全量）。"""
+    """trip-center 条目 dict → trip_items 行投影（列化字段 + payload 全量）。
+
+    itinerary_id 用 loose 代理（2026-10-31 看水利工程案）：业务 id 是
+    it-<8hex> 短格式，严格版解析为 None → 行程明明绑上了（payload 里有）
+    列里却是 NULL，重启回灌/跨进程按行程过滤全丢。loose 与 itineraries
+    行主键（record_to_row_values）同源，FK 可 JOIN；FK 目标不存在时由
+    _insert_on/_write_through 的 IntegrityError 回退清列兜底。
+    """
     return {
         "id": _pg_uuid_loose(item.get("id")),
-        "itinerary_id": _pg_uuid(item.get("itinerary_id")),
+        "itinerary_id": _pg_uuid_loose(item.get("itinerary_id"), "it_"),
         "name": item.get("name"),
         "city": item.get("city"),
         "note": item.get("note"),
@@ -149,20 +163,88 @@ class PgItineraryStore(InMemoryItineraryStore):
 
     def _boot_load(self) -> None:
         try:
-            with self._session_factory() as session:
-                for row in session.query(Itinerary).all():
-                    if not row.plan:
-                        continue
-                    try:
-                        record = ItineraryRecord.model_validate(row.plan)
-                        self._records[record.itinerary_id] = record
-                    except Exception:
-                        logger.warning(
-                            "pg_state: itinerary %s payload 解析失败，跳过", row.id
-                        )
+            self._pg_reload()
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，行程 store 降级纯内存: %s", exc)
+
+    # ---- 读穿透（2026-10-28 双进程事故重构）：PG 是读权威 -----------------
+    # 内存层降级为「PG 不可达兜底 + 写穿缓存」。get/list 每次回库取新，
+    # 旁路写入（运维脚本 / 另一端口进程 :8000/:8443）立即可见，save 端点
+    # 不再冻结到陈旧内存（当天 12:01 错快照事故根治）。
+
+    def _pg_reload(self) -> None:
+        """全量重载进内存（boot 与 list 读穿透共用）。"""
+        records: dict[str, ItineraryRecord] = {}
+        with self._session_factory() as session:
+            for row in session.query(Itinerary).all():
+                if not row.plan:
+                    continue
+                try:
+                    record = ItineraryRecord.model_validate(row.plan)
+                except Exception:
+                    logger.warning(
+                        "pg_state: itinerary %s payload 解析失败，跳过", row.id
+                    )
+                    continue
+                records[record.itinerary_id] = record
+        self._records = records
+
+    def _try_refresh(self) -> None:
+        if not self._pg_ok:
+            return
+        try:
+            self._pg_reload()
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 读降级（纯内存兜底）: %s", exc)
+        except Exception:
+            logger.warning("pg_state: PG 读穿透失败，本轮用内存", exc_info=True)
+
+    def _pg_get(self, itinerary_id: str) -> ItineraryRecord | None | object:
+        uid = _pg_uuid_loose(itinerary_id, "it_")
+        if uid is None:
+            return None
+        with self._session_factory() as session:
+            row = session.get(Itinerary, uid)
+            if row is None or not row.plan:
+                return None
+            return ItineraryRecord.model_validate(row.plan)
+
+    def get(self, itinerary_id: str) -> ItineraryRecord | None:
+        if self._pg_ok:
+            try:
+                record = self._pg_get(itinerary_id)
+            except OperationalError as exc:
+                self._pg_ok = False
+                logger.warning("pg_state: PG 读降级（纯内存兜底）: %s", exc)
+            except Exception:
+                logger.warning(
+                    "pg_state: 行程 %s 读穿透失败，本轮用内存",
+                    itinerary_id,
+                    exc_info=True,
+                )
+            else:
+                if record is not None:
+                    self._records[itinerary_id] = record
+                return record
+        return super().get(itinerary_id)
+
+    def list_by_owner(self, owner_device_id: str) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_by_owner(owner_device_id)
+
+    def list_by_account(self, username: str) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_by_account(username)
+
+    def find_by_share_token(self, token: str) -> ItineraryRecord | None:
+        self._try_refresh()
+        return super().find_by_share_token(token)
+
+    def list_all(self) -> list[ItineraryRecord]:
+        self._try_refresh()
+        return super().list_all()
 
     def put(self, record: ItineraryRecord) -> None:
         super().put(record)
@@ -171,7 +253,11 @@ class PgItineraryStore(InMemoryItineraryStore):
     def delete(self, itinerary_id: str) -> bool:
         removed = super().delete(itinerary_id)
         if removed and self._pg_ok:
-            uid = _pg_uuid(itinerary_id, "it_")
+            # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
+            # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
+            # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
+            # 行从 PG 复活。键必须与写库一致。
+            uid = _pg_uuid_loose(itinerary_id, "it_")
             if uid is not None:
                 try:
                     with self._session_factory() as session:
@@ -235,10 +321,15 @@ class PgItineraryStore(InMemoryItineraryStore):
 
 
 class PgTripItemService(TripItemService):
-    """trip-center 条目内存权威 + PG 写穿（混合列 + payload 全量）。
+    """trip-center 条目 PG 写穿 + list 读穿透（混合列 + payload 全量）。
 
-    去重/状态机/list_groups 语义全部继承基类；本类只负责落库。FK 列
-    （itinerary_id/poi_id/booking_id）仅当值能解析成 UUID 时写入，
+    去重/状态机/list_groups 语义全部继承基类；本类负责落库与读权威。
+    读穿透（2026-10-31 看水利工程案）：此前只有 itineraries 有读穿透，
+    trip_items 内存权威——排期写在 A 进程（:8000 规划会话），B 进程
+    （:8443 / 早于写入启动的进程）看板永远看不到，直到重启。现在
+    list_groups 每次全量回灌 PG payload，旁路写入/跨进程删除立即可见；
+    PG 不可达时熔断降级为纯内存（_pg_ok=False），行为同基类。FK 列
+    （itinerary_id/poi_id/booking_id）仅当值能解析（含 loose 代理）时写入，
     IntegrityError（FK 目标不存在）回退清空 FK 列重试一次——dict 里这些
     字段是自由字符串，原值永远安全地存在 payload JSONB 里。
     """
@@ -249,21 +340,142 @@ class PgTripItemService(TripItemService):
         self._pg_ok = True
         self._boot_load()
 
+    def _pg_reload_items(self) -> None:
+        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。"""
+        items: dict[str, dict] = {}
+        with self._session_factory() as session:
+            for row in session.query(TripItem).all():
+                payload = row.payload
+                if isinstance(payload, dict) and payload.get("id"):
+                    items[str(payload["id"])] = payload
+        self._items = items
+
     def _boot_load(self) -> None:
         try:
-            with self._session_factory() as session:
-                for row in session.query(TripItem).all():
-                    payload = row.payload
-                    if isinstance(payload, dict) and payload.get("id"):
-                        self._items[str(payload["id"])] = payload
+            self._pg_reload_items()
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
 
+    def _try_refresh(self) -> None:
+        if not self._pg_ok:
+            return
+        try:
+            self._pg_reload_items()
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 读降级（trip items 纯内存兜底）: %s", exc)
+        except Exception:
+            logger.warning("pg_state: trip items 读穿透失败，本轮用内存", exc_info=True)
+
+    def list_groups(self, itinerary_id: str | None = None) -> dict:
+        # 读穿透（PG 读权威）：看板/规划收口每次回库取新，跨进程排期立即可见。
+        self._try_refresh()
+        return super().list_groups(itinerary_id)
+
     def create(self, name: str, *, source: str, **kwargs) -> dict:
-        item = super().create(name, source=source, **kwargs)
-        self._write_through(item["id"])
-        return item
+        """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与
+        :8443 两个 uvicorn 进程共写一张 trip_items 表，各自内存查重互相看
+        不见 → 同名心愿各插一行。改为在 PG advisory 事务锁内查重（回灌基
+        类 _find_duplicate 谓词本体，无 SQL 镜像）+ 未命中才插入，两进程
+        在该锁上
+        串行化；命中即回灌内存并返回既有行。PG 不可达时熔断降级为纯内存
+        语义（与 update/delete 一致）。"""
+        if not self._pg_ok:
+            return super().create(name, source=source, **kwargs)
+        try:
+            with self._session_factory() as session, session.begin():
+                session.execute(
+                    text("select pg_advisory_xact_lock(:key)"),
+                    {"key": _TRIP_ITEMS_ADVISORY_KEY},
+                )
+                existing = self._db_find_duplicate(session, name, source, kwargs)
+                if existing is not None:
+                    payload = dict(existing)
+                    # 与基类 create 的补空位语义一致（第二次带更全信息）。
+                    self._enrich_duplicate(
+                        payload,
+                        name=name,
+                        note=kwargs.get("note"),
+                        city=kwargs.get("city"),
+                        poi_id=kwargs.get("poi_id"),
+                        address=kwargs.get("address"),
+                        opening_hours=kwargs.get("opening_hours"),
+                        now=kwargs.get("now"),
+                    )
+                    self._items[str(payload["id"])] = payload
+                    self._write_through(payload["id"])
+                    logger.info(
+                        "trip_item_deduplicated_pg id=%s name=%s",
+                        payload["id"],
+                        payload.get("name"),
+                    )
+                    return payload
+                item = super().create(name, source=source, **kwargs)
+                values = item_to_row_values(item)
+                if values["id"] is not None:
+                    self._insert_on(session, values)
+                return item
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
+            return super().create(name, source=source, **kwargs)
+
+    def _db_find_duplicate(
+        self, session, name: str, source: str, kwargs: dict
+    ) -> dict | None:
+        """advisory 锁内拉取库内活跃行，回灌基类 _find_duplicate 谓词判定。
+        2026-10-28 收口：谓词单一实现——SQL 镜像版曾与基类不同步（patch55
+        参数自比较恒真事故），规范化/双向包含等模糊逻辑也不该在 SQL 里重
+        写一份。表为几十行级、创建低频，全量拉取代价可忽略；PG 故障期的
+        纯内存行仍由 super().create() 的内存查重兜底。"""
+        rows = session.execute(
+            text(
+                "SELECT payload FROM trip_items"
+                " WHERE status <> 'unwanted'"
+                " ORDER BY created_at ASC NULLS LAST"
+            )
+        ).all()
+        items = []
+        for row in rows:
+            payload = row[0]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            if isinstance(payload, dict) and payload.get("id"):
+                items.append(payload)
+        return self._find_duplicate(
+            name,
+            source=source,
+            itinerary_id=kwargs.get("itinerary_id"),
+            city=kwargs.get("city"),
+            poi_id=kwargs.get("poi_id"),
+            items=items,
+        )
+
+    def _insert_on(self, session, values: dict) -> None:
+        """advisory 锁内同事务落库。FK 目标不存在时清空 FK 列在 savepoint
+        里重试一次（外层事务与锁不受影响，原值仍在 payload）；其余写失败
+        仅告警——内存条目保留，降级语义与 _write_through 一致。"""
+        try:
+            with session.begin_nested():
+                session.add(TripItem(**values))
+        except IntegrityError:
+            for fk in ("itinerary_id", "poi_id", "booking_id"):
+                values[fk] = None
+            try:
+                with session.begin_nested():
+                    session.add(TripItem(**values))
+            except Exception as exc:
+                logger.warning(
+                    "pg_state: 条目 %s 锁内落库失败(FK 回退): %s",
+                    values["id"],
+                    exc,
+                )
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 写穿熔断（trip items 降级纯内存）: %s", exc)
+        except Exception as exc:
+            logger.warning("pg_state: 条目 %s 锁内落库失败: %s", values["id"], exc)
 
     def update(self, item_id: str, **kwargs) -> dict:
         item = super().update(item_id, **kwargs)

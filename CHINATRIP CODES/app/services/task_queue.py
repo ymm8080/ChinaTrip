@@ -291,6 +291,11 @@ async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
         raise ValueError("session_not_found")
     agent = get_planning_agent()
     session, reply, change = await agent.message(session, text)
+    # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：慢车道
+    # 后台重排与主车道同款——变更后实测腿刷新（缓存对零网络回放，新对走
+    # 图商链，配额死降级估算）。
+    if session.plan is not None:
+        await agent.refresh_legs(session)
     sessions.save(session)
     change_payload = (
         change.model_dump() if hasattr(change, "model_dump") else (change or None)

@@ -14,6 +14,12 @@ GCJ-02（原样入库）；>150m 判 WGS84（wgs84_to_gcj02 转换后入库，
 wgs84_location 存原始值）；之间按 WGS84 处理并在 stats 标 assumed。
 高德不可用/无样本同样退 WGS84 假设 + assumed 标记。
 
+住宿行归口（2026-10-31 用户拍板 v2）：attraction 种子中名称含 酒店/
+宾馆/民宿/公寓 等住宿词的行强制 category='hotel' 落库（不跳过不隐
+藏；曾因名称裸「园」hint 误归 category='park'），计入
+accommodation_hotel；restaurant 种子中住宿行不属餐饮，仍跳过
+（skipped_accommodation）。
+
 注：poi_zh.parquet（餐厅）无 id/type 列 —— 缺 id 列时以文件行号为
 稳定伪 id（source_poi_id 仍 ct_<city>_<id> 格式）；行内 id 为空则跳过。
 
@@ -38,6 +44,7 @@ import pandas as pd
 
 from app.models import Poi, Restaurant
 from app.services.coords import haversine_m, out_of_china, wgs84_to_gcj02
+from app.services.poi_classify import is_accommodation
 from app.services.poi_seed import seed_upsert
 
 logger = logging.getLogger(__name__)
@@ -97,6 +104,8 @@ def _new_stats() -> dict[str, Any]:
         "skipped_no_name": 0,
         "skipped_no_coords": 0,
         "skipped_no_id": 0,
+        "skipped_accommodation": 0,
+        "accommodation_hotel": 0,
         "skipped_city": 0,
         "skipped_language": 0,
         "coord_system": None,
@@ -182,6 +191,11 @@ def _import_rows(
 ) -> None:
     """逐行骨架写入：name/坐标/id 任一缺失即跳过并计数.
 
+    住宿行归口（2026-10-31 用户拍板 v2）：attraction 种子中名称含
+    酒店/宾馆/民宿/公寓 等住宿词的行强制 category='hotel' 落库——
+    不跳过不隐藏，按类别归口（上游 type 误标以名称证据盖掉），
+    计入 accommodation_hotel；restaurant 种子中住宿行不属餐饮，
+    仍跳过（skipped_accommodation）。
     时间敏感字段（opentime/endtime/price/recommendmintime/
     recommendmaxtime）绝不传入 seed —— 只写名称/坐标/类别/城市。
     """
@@ -192,6 +206,11 @@ def _import_rows(
         name = _as_text(row.get("name"))
         if not name:
             stats["skipped_no_name"] += 1
+            stats["skipped"] += 1
+            continue
+        accommodation = is_accommodation(name)
+        if accommodation and model is Restaurant:
+            stats["skipped_accommodation"] += 1
             stats["skipped"] += 1
             continue
         lon, lat = _as_float(row.get("lon")), _as_float(row.get("lat"))
@@ -220,7 +239,9 @@ def _import_rows(
             source_poi_id=f"ct_{city}_{pid}",
             city=city,
             name_zh=name,
-            category=_as_text(row.get("type")) if has_type else None,
+            category="hotel"
+            if accommodation
+            else (_as_text(row.get("type")) if has_type else None),
             origin="chinatravel",
             **kwargs,
         )
@@ -228,6 +249,8 @@ def _import_rows(
         if result == "created":
             stats["imported"] += 1
             bucket["imported"] += 1
+            if accommodation:
+                stats["accommodation_hotel"] += 1
         elif result == "exists":
             stats["exists"] += 1
             bucket["exists"] += 1
@@ -236,19 +259,15 @@ def _import_rows(
 
 
 def _default_amap() -> Any | None:
-    """从 settings 构建高德客户端；无 key/构建失败 → None."""
+    """从 settings 构建图商客户端（2026-10-28 走 map_provider 工厂）；未就绪 → None."""
     try:
         from app.config import get_settings
-        from app.services.amap_client import AmapClient
+        from app.services.map_provider import build_map_client, map_ready
 
         settings = get_settings()
-        if not settings.amap_api_key:
+        if not map_ready(settings):
             return None
-        return AmapClient(
-            key=settings.amap_api_key,
-            base_url=settings.amap_base_url,
-            timeout_seconds=settings.amap_timeout_seconds,
-        )
+        return build_map_client(settings)
     except Exception:
         return None
 

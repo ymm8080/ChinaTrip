@@ -22,6 +22,7 @@ from app.services.profile_store import (
     ProfileStore,
     ProfileValidationError,
 )
+from app.services.trip_items import TripItemService
 
 logger = logging.getLogger(__name__)
 
@@ -244,13 +245,16 @@ async def promote_link_to_wishlist(
     request: WishlistPromote,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     store: LinkStore = Depends(get_link_store),
+    trip_items: TripItemService = Depends(get_trip_item_service),
 ) -> dict:
-    """个人主页「链接 → 心愿单」：跨模块胶水，写同一张 trip_items（铁律 0 同源）。"""
+    """个人主页「链接 → 心愿单」：跨模块胶水，写同一张 trip_items（铁律 0 同源）。
+    trip_items 走 Depends（2026-10-28）：与其它依赖同款可被测试覆写，进程内
+    仍是 get_trip_item_service 的同一单例。"""
     device = _require_device(x_device_id)
     link = store.get_link(device, link_id)
     if link is None:
         raise HTTPException(status_code=404, detail="link_not_found")
-    item = get_trip_item_service().create(
+    item = trip_items.create(
         request.name or link["url"],
         source="paste",
         itinerary_id=link.get("itinerary_id"),

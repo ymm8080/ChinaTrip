@@ -3,6 +3,31 @@ name = "chinatrip-api"
 version = "0.1.0"
 description = "ChinaTrip travel-agent backend (W1-2 overseas-region minimal loop)"
 requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.13",
+    "cryptography>=42.0",
+    "fastapi>=0.115",
+    "geoalchemy2>=0.15",
+    "httpx>=0.27",
+    "imageio-ffmpeg>=0.5",
+    "openpyxl>=3.1",
+    "ortools>=9.8",
+    "osmium>=4.0",
+    "pandas>=2.0",
+    "psycopg[binary]>=3.1",
+    "pyarrow>=16",
+    "pydantic>=2.7",
+    "olefile>=0.46",
+    "pillow>=10.0",
+    "pypdf>=4.0",
+    "pypdfium2>=4.0",
+    "xlrd>=2.0",
+    "pydantic-settings>=2.3",
+    "python-docx>=1.1",
+    "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0",
+    "uvicorn[standard]>=0.30",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -12,3 +37,9 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+]

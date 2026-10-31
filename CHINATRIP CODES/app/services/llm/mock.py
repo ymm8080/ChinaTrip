@@ -52,3 +52,7 @@ class MockLLMAdapter:
             tokens_in=sum(len(m.content) for m in messages) // 4,
             tokens_out=32,
         )
+
+    async def chat_vision(self, images, prompt: str) -> str:
+        # 行程导入 OCR 的零网络桩：真实行为由测试注入 stub adapter 覆盖。
+        return f"mock-vision:{len(images)}img:{prompt[-32:]}"

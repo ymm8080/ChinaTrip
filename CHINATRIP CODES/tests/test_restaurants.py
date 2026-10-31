@@ -8,6 +8,8 @@ from app.services.restaurants import (
     NO_LOCATION_DETOUR_SCORE,
     RestaurantCandidate,
     build_food_item,
+    is_lunch_placeholder,
+    meal_times,
     meal_window,
     rank_by_detour,
     recommend_restaurants,
@@ -69,31 +71,33 @@ def visit(item_id, start=None, end=None, duration=None, location=None):
 
 
 def test_meal_window_empty_day_returns_constants():
-    assert meal_window(day_plan(), "lunch") == (time(11, 30), time(13, 30))
+    # 午餐窗 12:00–13:30（2026-10-31 拍板）
+    assert meal_window(day_plan(), "lunch") == (time(12, 0), time(13, 30))
     assert meal_window(day_plan(), "dinner") == (time(17, 30), time(19, 30))
 
 
 def test_meal_window_untimed_items_do_not_block():
     plan = day_plan(items=[visit("v1")])  # no times at all
-    assert meal_window(plan, "lunch") == (time(11, 30), time(13, 30))
+    assert meal_window(plan, "lunch") == (time(12, 0), time(13, 30))
     # start_time alone (no end, no duration) defines no interval either
     plan2 = day_plan(items=[visit("v2", start=time(12, 0))])
-    assert meal_window(plan2, "lunch") == (time(11, 30), time(13, 30))
+    assert meal_window(plan2, "lunch") == (time(12, 0), time(13, 30))
 
 
 def test_meal_window_item_inside_window_compresses_gap():
     plan = day_plan(items=[visit("v1", start=time(11, 30), end=time(12, 30))])
     assert meal_window(plan, "lunch") == (time(12, 30), time(13, 30))
-    # right-hand compression: item overhanging the window end gets clipped
+    # right-hand compression: item overhanging the window end gets clipped;
+    # the 90-minute window then leaves only a 30-min gap -> no meal fits
     plan2 = day_plan(items=[visit("v2", start=time(12, 30), end=time(14, 0))])
-    assert meal_window(plan2, "lunch") == (time(11, 30), time(12, 30))
+    assert meal_window(plan2, "lunch") is None
 
 
 def test_meal_window_duration_only_item_blocks():
     plan = day_plan(
         items=[visit("v1", start=time(12, 0), duration=60)]  # end_time absent
     )
-    # leftover gaps 11:30-12:00 and 13:00-13:30 are both < 60 min
+    # leftover gap 13:00-13:30 is < 60 min
     assert meal_window(plan, "lunch") is None
 
 
@@ -114,7 +118,22 @@ def test_meal_window_items_outside_window_are_ignored():
             visit("v2", start=time(14, 0), end=time(16, 0)),
         ]
     )
-    assert meal_window(plan, "lunch") == (time(11, 30), time(13, 30))
+    assert meal_window(plan, "lunch") == (time(12, 0), time(13, 30))
+
+
+# --- meal_times（钳制中点：一餐绝不溢出空窗尾） -----------------------------
+
+
+def test_meal_times_full_windows():
+    # 90-minute lunch window: midpoint 12:45 + 60 would overflow -> clamped
+    assert meal_times((time(12, 0), time(13, 30))) == (time(12, 30), time(13, 30))
+    assert meal_times((time(17, 30), time(19, 30))) == (time(18, 30), time(19, 30))
+
+
+def test_meal_times_compressed_gap_never_spills():
+    # 60-minute gap fits exactly; a midpoint + 60 (13:00-14:00) would spill
+    assert meal_times((time(12, 30), time(13, 30))) == (time(12, 30), time(13, 30))
+    assert meal_times((time(12, 0), time(13, 0))) == (time(12, 0), time(13, 0))
 
 
 # --- rank_by_detour --------------------------------------------------------
@@ -187,12 +206,25 @@ def test_build_food_item_fills_fields():
 
 
 def test_build_food_item_uses_compressed_window_midpoint():
+    # clamp: the meal never spills past the gap end (old behavior 13:00-14:00)
     cand = RestaurantCandidate(name="知味观")
     item = build_food_item(
         cand, day=1, city="杭州", window=(time(12, 30), time(13, 30)), item_id="f-2"
     )
-    assert item.start_time == time(13, 0)
-    assert item.end_time == time(14, 0)
+    assert item.start_time == time(12, 30)
+    assert item.end_time == time(13, 30)
+
+
+def test_lunch_placeholder_prefix_detection():
+    ph = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="杭州",
+        day=1,
+    )
+    assert is_lunch_placeholder(ph)
+    assert not is_lunch_placeholder(visit("v1"))
 
 
 # --- search_restaurants ----------------------------------------------------
@@ -260,8 +292,8 @@ def test_recommend_restaurants_builds_food_items_inside_window():
         assert item.city == "杭州"
         assert item.duration_minutes == 60
         assert item.pinned is False
-        assert time(11, 30) <= item.start_time <= time(13, 30)
-        assert item.start_time == time(12, 30)  # midpoint of the full window
+        assert time(12, 0) <= item.start_time <= time(13, 30)
+        assert item.start_time == time(12, 30)  # clamped midpoint of the window
         assert item.end_time == time(13, 30)
     assert len({i.item_id for i in items}) == 3
     assert items[2].location is None  # location-less candidate stays addable

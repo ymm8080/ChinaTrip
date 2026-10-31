@@ -33,8 +33,9 @@ logger = logging.getLogger(__name__)
 MealSlot = Literal["lunch", "dinner"]
 
 # Meal window constants (local time of the itinerary city, iron rule 13).
+# 午餐窗 12:00–13:30（2026-10-31 拍板：默认午饭时间，原 11:30–13:30）。
 MEAL_WINDOWS: dict[MealSlot, tuple[time, time]] = {
-    "lunch": (time(11, 30), time(13, 30)),
+    "lunch": (time(12, 0), time(13, 30)),
     "dinner": (time(17, 30), time(19, 30)),
 }
 
@@ -46,7 +47,30 @@ RATING_WEIGHT = 0.1  # rating * weight is subtracted from detour score
 # degenerate no-route-points case, where on-the-way-ness is undefined).
 NO_LOCATION_DETOUR_SCORE = 999.0
 
+# 午餐占位件 id 前缀（2026-10-31 拍板：午餐窗搜不到餐厅时插「午饭」占位）。
+# 识别走 item_id 而非名字——名字随请求语言（lang_ctx.L）变化。
+LUNCH_PLACEHOLDER_ID_PREFIX = "food-lunch-ph"
+
+
+def is_lunch_placeholder(item: VisitItem) -> bool:
+    """True for the auto-inserted lunch placeholder (never a real POI)."""
+    return item.item_id.startswith(LUNCH_PLACEHOLDER_ID_PREFIX)
+
+
 _RESTAURANT_KEYWORD = "餐厅"
+
+
+def amap_category_is_food(category: object) -> bool:
+    """amap typecode strings look like「餐饮服务;中餐厅;…」; POI 底库
+    骨架行直接存 food/attraction（底库落实链路 2026-10-24）。"""
+    if not isinstance(category, str):
+        return False
+    if category.strip().lower() == "food":
+        return True
+    if category.strip().lower() == "attraction":
+        return False
+    return any(k in category for k in ("餐饮", "美食", "餐厅"))
+
 
 _EARTH_RADIUS_M = 6371000.0
 
@@ -129,6 +153,12 @@ async def search_restaurants(
         name = poi.get("name")
         if not name:
             continue
+        # 品类闸：关键词搜索偶气回非餐饮 POI（商场/景点），一律不当年
+        # 餐厅推荐（外滩案 2026-10-31：松散候选源把出发城已删景点又排
+        # 成午餐）。category 缺失（老数据）放行，有值即须是餐饮。
+        raw_category = poi.get("category") or poi.get("biz_type")
+        if raw_category and not amap_category_is_food(raw_category):
+            continue
         raw_loc = poi.get("location")
         location = None
         if isinstance(raw_loc, dict):
@@ -198,6 +228,22 @@ def meal_window(day: DayPlan, slot: MealSlot) -> tuple[time, time] | None:
     return (_time_of(best[0]), _time_of(best[1]))
 
 
+def meal_times(window: tuple[time, time]) -> tuple[time, time]:
+    """Start/end of a one-hour meal inside a free gap (clamped midpoint).
+
+    Midpoint of the gap, pulled back so start + MEAL_DURATION_MINUTES never
+    spills past the gap end: the 90-minute lunch window's midpoint lands at
+    12:45 and 12:45+60 would overflow to 13:45, and so would any compressed
+    gap shorter than two hours. For windows of at least one meal the result
+    always satisfies window[0] <= start and end <= window[1].
+    """
+    mid = (_minutes(window[0]) + _minutes(window[1])) // 2
+    start = max(
+        _minutes(window[0]), min(mid, _minutes(window[1]) - MEAL_DURATION_MINUTES)
+    )
+    return _time_of(start), _time_of(start + MEAL_DURATION_MINUTES)
+
+
 def rank_by_detour(
     candidates: list[RestaurantCandidate],
     *,
@@ -236,12 +282,13 @@ def build_food_item(
 ) -> VisitItem:
     """Convert a ranked candidate into an addable food VisitItem.
 
-    start_time = midpoint of the free-gap window, one-hour duration,
-    unpinned (iron rule 20: never displaces user-confirmed items, rule 19
-    stays intact). Final non-overlap is guaranteed by validate_plan in
-    the caller's mutation pipeline, not here.
+    start/end = meal_times(window): the free-gap midpoint clamped so the
+    one-hour meal stays inside the gap, unpinned (iron rule 20: never
+    displaces user-confirmed items, rule 19 stays intact). Final
+    non-overlap is guaranteed by validate_plan in the caller's mutation
+    pipeline, not here.
     """
-    mid = (_minutes(window[0]) + _minutes(window[1])) // 2
+    start, end = meal_times(window)
     return VisitItem(
         item_id=item_id,
         name=candidate.name,
@@ -252,8 +299,8 @@ def build_food_item(
         address=candidate.address,
         opening_hours=candidate.opening_hours,
         day=day,
-        start_time=_time_of(mid),
-        end_time=_time_of(mid + MEAL_DURATION_MINUTES),
+        start_time=start,
+        end_time=end,
         duration_minutes=MEAL_DURATION_MINUTES,
         pinned=False,
     )
@@ -265,6 +312,7 @@ async def recommend_restaurants(
     slot: MealSlot,
     *,
     city: str | None = None,
+    window: tuple[time, time] | None = None,
 ) -> list[VisitItem]:
     """Top-N ready-to-add food items for the meal slot (§6.2 v1.7).
 
@@ -274,12 +322,23 @@ async def recommend_restaurants(
     build_food_item (unpinned, inside the gap). The caller inserts the
     returned items via apply_diffs and relies on validate_plan for rules
     1/2 (non-overlap, poi_hours) — see module docstring for the split.
+
+    `window` overrides the derived free gap for callers that already
+    resolved a concrete placement slot themselves (plan.py lunch pass:
+    the slot may sit after an overrunning transfer, outside the raw
+    window) — the iron-rule-20 gap check is then the caller's duty.
     """
-    window = meal_window(day_plan, slot)
+    window = window or meal_window(day_plan, slot)
     if window is None:
         return []
     city_used = city or day_plan.base_city
     candidates = await search_restaurants(amap_client, city_used)
+    # 当天已排的 POI 不再当餐厅推荐（同站景点不是用餐点；2026-10-31
+    # 外滩案：松散候选源把已排景点又排成晚餐，造成同天双卡）
+    planned_pids = {
+        i.poi_id for i in day_plan.items if isinstance(i, VisitItem) and i.poi_id
+    }
+    candidates = [c for c in candidates if c.poi_id not in planned_pids]
     route_points = [
         item.location
         for item in day_plan.items

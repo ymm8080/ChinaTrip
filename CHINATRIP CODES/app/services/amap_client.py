@@ -142,6 +142,11 @@ def _normalize_poi(poi: dict) -> dict:
     photos = _normalize_photos(poi.get("photos"))
     if photos:
         normalized["photos"] = photos
+    # 英文官方名（v3/place/text 的 ename 字段，部分 POI 有值）——
+    # name_en 回填的权威源（2026-10-30 双语补链）；空值不落键
+    ename = _as_str(poi.get("ename"))
+    if ename:
+        normalized["ename"] = ename
     return normalized
 
 
@@ -294,6 +299,9 @@ def _normalize_transit_segment(segment: dict) -> dict:
 
 
 class AmapClient:
+    # 图商标识（2026-10-28 一键切图商）：leg_source 等按真实 vendor 标注。
+    vendor = "amap"
+
     def __init__(
         self,
         *,
@@ -324,6 +332,8 @@ class AmapClient:
                 response = await http.get(path, params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:
@@ -365,6 +375,8 @@ class AmapClient:
                 response = await http.get("/place/text", params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         try:
             data = response.json()
         except ValueError as exc:
@@ -417,6 +429,8 @@ class AmapClient:
                 response = await http.get("/place/around", params=params)
             except httpx.TimeoutException as exc:
                 raise AmapTimeoutError("amap request timed out") from exc
+            except httpx.RequestError as exc:
+                raise AmapError(f"amap network error: {type(exc).__name__}") from exc
         return self._pois_from_response(response)
 
     @staticmethod

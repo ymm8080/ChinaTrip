@@ -286,6 +286,9 @@ def test_replan_worker_handler_roundtrip(monkeypatch):
             captured["text"] = text
             return session, "重排完成：第1天洪崖洞保留", None
 
+        async def refresh_legs(self, session):
+            captured["refresh_legs"] = True  # replan 新契约：变更后腿刷新
+
     import app.api.plan as plan_module
 
     monkeypatch.setattr(plan_module, "get_plan_sessions", lambda: sessions)
@@ -304,6 +307,7 @@ def test_replan_worker_handler_roundtrip(monkeypatch):
     assert done.status == "done"
     assert "重排完成" in done.result["reply"]
     assert captured["text"] == "帮我重排一下行程"
+    assert captured.get("refresh_legs") is True  # 2026-10-30 重排后腿刷新
 
 
 # --- missing session still 404s before any lane work ---

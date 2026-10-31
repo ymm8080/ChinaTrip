@@ -54,7 +54,7 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `POST/GET /api/v1/links…` · `/{id}/reparse` · `/{id}/to-wishlist` | 个人主页链接历史（双来源 user_paste/agent_recommend）：重新解析 + 加入心愿单（写同一张 trip_items） |
 | `POST /api/v1/auth/email/code` · `/auth/email/register` · `/auth/register` · `/auth/login` · `/auth/logout` · `/auth/password/reset` · `GET /auth/me` | 自定义邮箱+密码账号（设计 v2.4.1/2.4.2，决策速查 9）：注册/登录即认领当前设备匿名行程（owner_account_id）；SMTP 未配置=开发态回显验证码；Bearer 鉴权，OAuth 留待企业主体 |
 | `POST /api/v1/asr` | H5 语音输入（multipart wav → 智谱 GLM-ASR → text）：替代浏览器 Web Speech——Chrome 识别走谷歌服务大陆不可达 |
-| `GET /api/weather` · `POST /api/weather/sync` | 城市天气只读 feed（v2.5 参考数据域，weather_reports 快照表：高德 3 日 + Open-Meteo 14 天）；sync 按行程城市即席刷新 |
+| `GET /api/weather` · `POST /api/weather/sync` | 城市天气只读 feed（v2.5 参考数据域，weather_reports 快照表：高德 3 日 + Open-Meteo 14 天）；sync 开站巡检纯读表逐城回报 has_data/fresh（从不出网；抓取只属每日 08:10 管线，全量 40 城） |
 | `GET /api/v1/visa/240h` | 240h 过境免签行程校验（§14.3-G2）：确定性纯函数零 LLM 零外呼——行程页绿/红横幅数据源 |
 | `POST /api/v1/feedback/vote` · `/visit` · `/review` · `GET /feedback/poi` | 互动闭环（§4）：卡片👍👎 / 行中打卡 / 行后点评 / 「去过的人说」聚合——零 LLM 零外呼 |
 | `GET /api/v1/booking-auto/tiers` · `POST /tasks` · `/check` · `/select` · `/order-intent` · `GET /selected` · `/shows` · `/sites` | 预约自动化三档栈（booking_design 2026-10-25）：L1 抢票日历 / L2 渠道可订性 / L3 下单闭环预填（17 馆名单+降级链）+ 🎭 演出目录（show_booking S5）+ 🎫 景点目录/热门榜/geo 分流 |

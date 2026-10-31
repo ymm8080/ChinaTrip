@@ -1,13 +1,15 @@
 from datetime import datetime, timedelta
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.amap import get_amap_client
+from app.api.navigation import get_transit_chain, get_walking_chain
 from app.api.navigation import router as navi_router
 from app.config import Settings, get_settings
 from app.services.amap_client import AmapClient
+from app.services.baidu_client import BaiduClient
 
 API_KEY = "test-key-123"
 BASE_URL = "https://restapi.amap.test/v3"
@@ -121,7 +123,8 @@ def make_app(handler=None, api_key: str = API_KEY) -> FastAPI:
             timeout_seconds=1.0,
             transport=httpx.MockTransport(handler),
         )
-        app.dependency_overrides[get_amap_client] = lambda: amap
+        app.dependency_overrides[get_walking_chain] = lambda: [amap]
+        app.dependency_overrides[get_transit_chain] = lambda: [amap]
     return app
 
 
@@ -394,3 +397,92 @@ def test_missed_connection_route_is_async_importable():
         "/api/v1/nav/transport-reminders",
         "/api/v1/nav/missed-connection",
     } <= paths
+
+
+def test_walking_falls_back_when_first_vendor_quota_dead():
+    calls: list[str] = []
+
+    def dead(request: httpx.Request) -> httpx.Response:
+        calls.append("baidu")
+        return httpx.Response(200, json={"status": 302, "message": "quota"})
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        calls.append("amap")
+        return httpx.Response(200, json=WALKING_BODY)
+
+    app = make_app()
+    app.dependency_overrides[get_walking_chain] = lambda: [
+        BaiduClient(ak="k", timeout_seconds=1.0, transport=httpx.MockTransport(dead)),
+        AmapClient(
+            key=API_KEY,
+            base_url=BASE_URL,
+            timeout_seconds=1.0,
+            transport=httpx.MockTransport(ok),
+        ),
+    ]
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/nav/walking", json={"origin": ORIGIN, "destination": DEST}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["route"]["distance_m"] == 1500
+    assert calls == ["baidu", "amap"]
+
+
+def test_walking_connect_error_returns_502_not_500():
+    def broken(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("[Errno 11001] getaddrinfo failed")
+
+    app = make_app()
+    app.dependency_overrides[get_walking_chain] = lambda: [
+        AmapClient(
+            key=API_KEY,
+            base_url=BASE_URL,
+            timeout_seconds=1.0,
+            transport=httpx.MockTransport(broken),
+        )
+    ]
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/nav/walking", json={"origin": ORIGIN, "destination": DEST}
+        )
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "amap_error"
+
+
+def test_transit_falls_back_when_first_vendor_quota_dead():
+    def dead(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": 302, "message": "quota"})
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=TRANSIT_BODY)
+
+    app = make_app()
+    app.dependency_overrides[get_transit_chain] = lambda: [
+        BaiduClient(ak="k", timeout_seconds=1.0, transport=httpx.MockTransport(dead)),
+        AmapClient(
+            key=API_KEY,
+            base_url=BASE_URL,
+            timeout_seconds=1.0,
+            transport=httpx.MockTransport(ok),
+        ),
+    ]
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/nav/transit",
+            json={"origin": ORIGIN, "destination": DEST, "city": "\u5317\u4eac"},
+        )
+    assert resp.status_code == 200
+    assert len(resp.json()["plans"]) == 2
+
+
+@pytest.fixture(autouse=True)
+def _clear_nav_vendor_latches():
+    """配额 latch 是模块级状态，测试间必须清零防串扰。"""
+    from app.api import navigation as nav_api
+
+    nav_api._WALKING_LATCH.clear()
+    nav_api._TRANSIT_LATCH.clear()
+    yield
+    nav_api._WALKING_LATCH.clear()
+    nav_api._TRANSIT_LATCH.clear()

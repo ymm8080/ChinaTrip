@@ -13,16 +13,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
-from app.services.amap_client import AmapClient, AmapError, AmapTimeoutError
+from app.services.amap_client import AmapClient, AmapTimeoutError
 from app.services.deeplinks import compose_deeplink
-from app.services.map_provider import map_ready
+from app.services.map_provider import build_client_chain, map_ready
 from app.services.trains import get_train_service
 from app.services.transport_reminders import (
     build_departure_reminders,
     missed_connection_fallback,
 )
-
-from .amap import get_amap_client
+from app.services.vendor_chain import run_vendor_chain
 
 logger = logging.getLogger(__name__)
 
@@ -72,47 +71,72 @@ def _fmt(loc: Location) -> str:
     return f"{loc.lon:.6f},{loc.lat:.6f}"
 
 
+_WALKING_LATCH: dict[str, str] = {}
+_TRANSIT_LATCH: dict[str, str] = {}
+
+
+def get_walking_chain(settings: Settings = Depends(get_settings)) -> list[AmapClient]:
+    """步行链 walking=baidu>amap（缺 key 自动跳过，2026-10-30 导航页接链）。"""
+    return build_client_chain(settings, "walking")
+
+
+def get_transit_chain(settings: Settings = Depends(get_settings)) -> list[AmapClient]:
+    """公交链 transit=baidu>amap。"""
+    return build_client_chain(settings, "transit")
+
+
 @router.post("/walking")
 async def walking(
     req: WalkingRequest,
     settings: Settings = Depends(get_settings),
-    client: AmapClient = Depends(get_amap_client),
+    chain: list[AmapClient] = Depends(get_walking_chain),
 ) -> dict:
-    if not map_ready(settings):
+    if not map_ready(settings) or not chain:
         raise HTTPException(status_code=503, detail="amap_not_configured")
-    try:
-        route = await client.walking_route(_fmt(req.origin), _fmt(req.destination))
-    except AmapTimeoutError:
-        raise HTTPException(status_code=504, detail="amap_timeout") from None
-    except AmapError as exc:
-        logger.warning("nav walking amap error: infocode=%s", exc.infocode)
-        raise HTTPException(status_code=502, detail="amap_error") from exc
-    return {"route": route}
+    result = await run_vendor_chain(
+        chain,
+        lambda c: c.walking_route(_fmt(req.origin), _fmt(req.destination)),
+        latch=_WALKING_LATCH,
+        function="walking",
+    )
+    if isinstance(result, AmapTimeoutError):
+        raise HTTPException(status_code=504, detail="amap_timeout") from result
+    if result is None or isinstance(result, Exception):
+        logger.warning("nav walking all vendors failed: %s", result)
+        raise HTTPException(status_code=502, detail="amap_error") from result
+    return {"route": result}
 
 
 @router.post("/transit")
 async def transit(
     req: TransitRequest,
     settings: Settings = Depends(get_settings),
-    client: AmapClient = Depends(get_amap_client),
+    chain: list[AmapClient] = Depends(get_transit_chain),
 ) -> dict:
-    if not map_ready(settings):
+    if not map_ready(settings) or not chain:
         raise HTTPException(status_code=503, detail="amap_not_configured")
     cityd = req.cityd if req.cityd else None
-    try:
-        plans = await client.transit_route(
+    result = await run_vendor_chain(
+        chain,
+        lambda c: c.transit_route(
             _fmt(req.origin), _fmt(req.destination), city=req.city, cityd=cityd
-        )
-    except AmapTimeoutError:
-        raise HTTPException(status_code=504, detail="amap_timeout") from None
-    except AmapError as exc:
-        logger.warning("nav transit amap error: infocode=%s", exc.infocode)
-        raise HTTPException(status_code=502, detail="amap_error") from exc
-    return {"plans": plans[:3]}
+        ),
+        latch=_TRANSIT_LATCH,
+        function="transit",
+    )
+    if isinstance(result, AmapTimeoutError):
+        raise HTTPException(status_code=504, detail="amap_timeout") from result
+    if result is None or isinstance(result, Exception):
+        logger.warning("nav transit all vendors failed: %s", result)
+        raise HTTPException(status_code=502, detail="amap_error") from result
+    return {"plans": result[:3]}
 
 
 @router.post("/deeplink")
-async def deeplink(req: DeeplinkRequest) -> dict:
+async def deeplink(
+    req: DeeplinkRequest,
+    settings: Settings = Depends(get_settings),
+) -> dict:
     origin = (
         None
         if req.origin is None
@@ -125,6 +149,7 @@ async def deeplink(req: DeeplinkRequest) -> dict:
             req.destination.lon,
             req.destination.lat,
             origin=origin,
+            provider=settings.map_provider,
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_destination") from None
@@ -145,7 +170,9 @@ async def missed_connection(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     def _taxi(station_name: str, lon: float, lat: float) -> dict:
-        return compose_deeplink("taxi", station_name, lon, lat)
+        return compose_deeplink(
+            "taxi", station_name, lon, lat, provider=settings.map_provider
+        )
 
     try:
         return await missed_connection_fallback(

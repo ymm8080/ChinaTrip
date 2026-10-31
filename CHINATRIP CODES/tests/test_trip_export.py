@@ -98,7 +98,7 @@ def test_render_html_contains_days_and_escapes():
     assert "第 2 天 · 西安" in text
     assert "故宫" in text and "北京市东城区景山前街4号" in text
     assert "08:30-17:00" in text
-    assert "已钉住" in text and "步行约 15 分钟" in text and "高德实测" in text
+    assert "已钉住" in text and "步行约 15 分钟" in text and "地图实测" in text
     assert "火车/高铁 北京 → 西安" in text and "G87" in text
     assert "假设1：未计入排队时间" in text
     # XSS 防护（TREK escHtml 口径）：文本一律转义

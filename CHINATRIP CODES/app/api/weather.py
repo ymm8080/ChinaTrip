@@ -2,15 +2,15 @@
 weather_reports snapshot table (DESIGN §4.1 / §6.2 矩阵行).
 
 Lookup by city name (中文或英文别名，「市」后缀容错) or 6-digit adcode.
-Pure DB read — freshness comes from the scheduled fetch job
-(08:10/11:10/18:10, after Amap's own 8/11/18 forecast updates); the
-response carries report_time / fetched_at so the H5 can show 数据时间.
+Pure DB read — freshness comes from the daily fetch pipeline
+(08:10 北京时间一次、全量 40 城，任何行程城市开站即有隔夜表数据);
+the response carries report_time / fetched_at so the H5 can show 数据时间.
 
-POST /sync：开站新鲜度巡检——行程城市 fetched_at 非今天（北京时间）或
-无数据的内联刷新（高德 0-3 天 + Open-Meteo 14 天），其余只读秒回。
+POST /sync：开站新鲜度巡检（2026-10-28 定稿：**纯读表，从不出网**）——
+行程城市 fetched_at / 有无数据逐城回报；抓取只属于每日管线作业，
+请求路径零 API 调用（新城市第一次天气也读表，缺数据只提示等管线）。
 """
 
-import asyncio
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,24 +19,14 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.itineraries import get_store
 from app.api.trip_items import get_trip_item_service
-from app.config import get_settings
 from app.db import get_session_factory
 from app.models import WeatherReport
 from app.services.agent.plan import CITY_ALIASES
 from app.services.lang_ctx import L, is_en
-from app.services.map_provider import build_map_client, map_ready
-from app.services.weather import (
-    city_to_adcode,
-    fetch_and_store,
-    store_cities,
-    trip_cities,
-)
-from app.services.weather_open_meteo import day_text_en, fetch_forecast14
+from app.services.weather import city_to_adcode, store_cities, trip_cities
+from app.services.weather_open_meteo import day_text_en
 
 router = APIRouter(prefix="/api/weather", tags=["weather"])
-
-# 内联刷新城市上限——高德 ~2 次调用/城，兜底防配额被一次请求打穿
-MAX_SYNC_CITIES = 12
 
 
 def get_weather_session_factory() -> sessionmaker[Session]:
@@ -148,7 +138,8 @@ class CityWeatherStatus(BaseModel):
     city: str
     adcode: str
     fetched_at: datetime | None = None
-    refreshed: bool = False
+    has_data: bool = False  # 表里任一 kind 有行（新城市首次开站可能还没有）
+    fresh: bool = False  # fetched_at 落在北京时间今天（管线当日已跑）
 
 
 class SyncResult(BaseModel):
@@ -168,6 +159,8 @@ def sync_weather(
     store=Depends(get_h5_store),
     trip_item_svc=Depends(get_h5_trip_item_service),
 ) -> SyncResult:
+    """纯读表巡检（2026-10-28 定稿）：行程城市逐城回报表内新鲜度，
+    从不出网——抓取只属于每日管线（08:10 全量 40 城）。"""
     if body.cities:
         names = body.cities
     else:
@@ -196,34 +189,18 @@ def sync_weather(
         if row.fetched_at and row.fetched_at > fetched.get(row.adcode, datetime.min):
             fetched[row.adcode] = row.fetched_at
 
-    stale = [
-        adcode
-        for adcode in adcode_city
-        if adcode not in fetched
-        or (fetched[adcode] + timedelta(hours=8)).date().isoformat() != _today_beijing()
-    ]
-
-    refreshed: set[str] = set()
-    if stale:
-        targets = [adcode_city[a] for a in stale][:MAX_SYNC_CITIES]
-        settings = get_settings()
-        if map_ready(settings):
-            client = build_map_client(settings)
-            asyncio.run(fetch_and_store(session_factory, client, targets))
-        asyncio.run(fetch_forecast14(session_factory, targets))
-        refreshed = set(adcode_city[a] for a in stale[:MAX_SYNC_CITIES])
-        now = datetime.utcnow()
-        for adcode in stale[:MAX_SYNC_CITIES]:
-            fetched[adcode] = now
-
+    today = _today_beijing()
     return SyncResult(
-        today=_today_beijing(),
+        today=today,
         cities=[
             CityWeatherStatus(
                 city=adcode_city[adcode],
                 adcode=adcode,
                 fetched_at=fetched.get(adcode),
-                refreshed=adcode_city[adcode] in refreshed,
+                has_data=adcode in fetched,
+                fresh=(fetched[adcode] + timedelta(hours=8)).date().isoformat() == today
+                if adcode in fetched
+                else False,
             )
             for adcode in sorted(adcode_city)
         ],

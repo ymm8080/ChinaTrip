@@ -450,3 +450,49 @@ def test_show_and_daytime_visit_share_day_without_overlap():
     dayt = next(i for i in solved.items if i.item_id == "v_day")
     assert _minutes(dayt.end_time) <= _minutes(show.start_time)
     assert _minutes(show.start_time) == 20 * 60 + 10
+
+
+# --- 2026-10-30 走行分离（travel-aware arcs）+ 不可行回落 ---------------------
+
+
+def test_travel_gap_enforced_between_consecutive_visits():
+    """矩阵给出走行分钟时，相邻两场之间必须留足走行时间（零走行衔接事故：
+    上一场 09:30 散场、7.3km 外下一场 09:30 开场）。"""
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _visit("a", poi_id="pa", dur=60),
+            _visit("b", poi_id="pb", dur=60),
+        ],
+    )
+    matrix = {("pa", "pb"): 40, ("pb", "pa"): 40}
+
+    solved = solve_day(day, poi_hours=[_ALL_DAY], travel_minutes=matrix)
+
+    assert solved is not None
+    first, second = solved.items
+    gap = _minutes(second.start_time) - _minutes(first.end_time)
+    assert gap >= 40
+
+
+def test_infeasible_travel_separation_falls_back_to_packed():
+    """走行分离把当天挤爆（时段窗钉死 + 240 分钟走行）→ 回落旧背靠背语义，
+    整日仍出方案（宁可挤也不弃日，§6.9 降级链由上层兜底）。"""
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _visit("m", poi_id="pm", dur=180, best_visit_time="morning"),
+            _visit("e", poi_id="pe", dur=180, best_visit_time="afternoon"),
+        ],
+    )
+    matrix = {("pm", "pe"): 240, ("pe", "pm"): 240}
+
+    solved = solve_day(day, poi_hours=[_ALL_DAY], travel_minutes=matrix)
+
+    assert solved is not None
+    m = next(i for i in solved.items if i.item_id == "m")
+    e = next(i for i in solved.items if i.item_id == "e")
+    assert _minutes(m.end_time) <= _minutes(e.start_time)
+    assert _minutes(e.start_time) - _minutes(m.end_time) < 240

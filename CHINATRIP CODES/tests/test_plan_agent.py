@@ -7,6 +7,7 @@ network or the real amap/zhipu backends.
 
 import asyncio
 import json
+import os
 from datetime import time
 
 import pytest
@@ -17,14 +18,22 @@ from app.services.agent.plan import (
     PlanningAgent,
     _category_search_keyword,
     _dedupe_visit_keepers,
+    _plan_lunch_slot,
     _site_dup,
     clarify_questions,
     current_violations,
 )
-from app.services.itinerary import GeoPoint, RuleSeverity, TransferItem, VisitItem
+from app.services.itinerary import (
+    DayPlan,
+    GeoPoint,
+    RuleSeverity,
+    TransferItem,
+    VisitItem,
+)
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 from app.services.poi_details import PoiDetailStore
+from app.services.restaurants import is_lunch_placeholder
 from app.services.trip_items import TripItemService
 
 
@@ -42,6 +51,7 @@ class ScriptedLLM:
     ) -> ChatResult:
         self.calls += 1
         assert self.replies, "scripted replies exhausted"
+        return ChatResult(content=self.replies.pop(0), model="scripted")
         return ChatResult(content=self.replies.pop(0), model="scripted")
 
 
@@ -132,6 +142,14 @@ class DistanceAmap(StubAmap):
 
 def run(coro):
     return asyncio.run(coro)
+
+
+@pytest.fixture(autouse=True)
+def _llm_select_mode():
+    """本文件守护 LLM 选点（备用模式）语义；算法主路径见 test_algo_v0.py。"""
+    os.environ["PLAN_SELECT_MODE"] = "llm"
+    yield
+    os.environ.pop("PLAN_SELECT_MODE", None)
 
 
 def v0_reply(items, assumptions=None) -> str:
@@ -306,6 +324,85 @@ def test_preference_skip_word_keeps_preferences_empty_and_generates_v0():
     assert "初版行程" in reply
 
 
+def test_preference_reply_is_wish_and_gets_scheduled():
+    """2026-10-31 用户实测回归（「所有的回复都是心愿」拍板）：偏好问答
+    回「看熊猫」曾只被存成偏好字符串，行程里没有任何熊猫条目。回复必须
+    落心愿单并经语义绑定排期成真实 POI（熊猫基地本体，必去钉选）。"""
+    svc = TripItemService()
+    store = PoiDetailStore()  # memory mode
+    store.upsert(
+        "B-PANDA-BASE",
+        city="成都",
+        name="成都大熊猫繁育研究基地",
+        location=(104.1441, 30.7327),
+    )
+    amap = DistanceAmap([])  # 图商全空：熊猫只能来自库内核心词绑定
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "成都大熊猫繁育研究基地",
+                        "city": "成都",
+                        "category": "sight",
+                        "day": 2,
+                        "duration_minutes": 150,
+                    }
+                ]
+            )
+        ]
+    )
+    agent = PlanningAgent(
+        llm,
+        amap_client=amap,
+        poi_details=store,
+        trip_items=svc,
+        auto_restaurants=False,
+    )
+    session = run(agent.start(device_id="d1", cities=["成都"], days=2))
+    assert session.state == "clarify"
+    assert session.pref_asked is True
+    session, reply, _ = run(agent.message(session, "看熊猫"))
+    assert session.state == "ready"
+    assert session.preferences == "看熊猫"
+    assert llm.calls == 1  # 绑定走库内核心词，心愿管线不烧 LLM
+    # 行程里是绑定真身（有 poi_id/坐标），不是按名称占位卡
+    panda = next(v for v in all_visits(session) if v.name == "成都大熊猫繁育研究基地")
+    assert panda.poi_id == "B-PANDA-BASE"
+    assert panda.location is not None
+    assert panda.pinned is True
+    # 心愿行逐字建行，排期后收口为已排期
+    iid = session.plan.itinerary_id
+    groups = svc.list_groups(iid)
+    assert any(
+        i["name"] == "看熊猫" and i["status"] == "scheduled"
+        for rows in groups.values()
+        for i in rows
+    )
+    assert any("熊猫基地" in a or "看熊猫" in a for a in session.assumptions)
+
+
+def test_preference_style_reply_without_grounding_stays_preference():
+    """「慢慢逛」这类落不到真实 POI 的风格回复维持纯偏好语义——不建
+    心愿行，不被吸收链变成占位卡（2026-10-31 拍板的落空闸）。"""
+    svc = TripItemService()
+    store = PoiDetailStore()  # memory mode：空库
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(
+        llm,
+        amap_client=DistanceAmap(AMAP_POIS),
+        poi_details=store,
+        trip_items=svc,
+        auto_restaurants=False,
+    )
+    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    session, _, _ = run(agent.message(session, "慢慢逛"))
+    assert session.state == "ready"
+    assert session.preferences == "慢慢逛"
+    groups = svc.list_groups(session.plan.itinerary_id)
+    assert not any(i["name"] == "慢慢逛" for rows in groups.values() for i in rows)
+
+
 def test_start_with_preferences_generates_v0_without_preference_round():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm)
@@ -358,7 +455,7 @@ def test_v0_amap_transfer_and_solved_schedule():
     ]
     llm = ScriptedLLM([v0_reply(items)])
     amap = StubAmap(AMAP_POIS)
-    agent = PlanningAgent(llm, amap_client=amap)
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -371,6 +468,8 @@ def test_v0_amap_transfer_and_solved_schedule():
     plan = session.plan
     assert len(plan.days) == 3
     visits = all_visits(session)
+    for _v in visits:
+        print("DBG", _v.item_id, _v.name, _v.city, _v.poi_id, "day", _v.day)
     transfers = all_transfers(session)
     assert len(visits) == 3  # 外滩位于出发城市，未列入行程
     assert "外滩" not in {v.name for v in visits}
@@ -387,7 +486,8 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
     assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
     # 出发城市不再抓 POI 候选（产品规则 2026-10-19）
-    assert [city for _, city in amap.calls] == ["杭州", "苏州"]
+    # v0 候选拉取按城市序；条目缺坐标回填的专名查询（backfill）不计入
+    assert [city for k, city in amap.calls if k == POI_KEYWORD] == ["杭州", "苏州"]
     # solver placed every visit (§6.9 pipeline backend)
     assert all(v.start_time is not None for v in visits)
     # 最后一天仍有活动（返程段晚出发的收益）
@@ -502,8 +602,10 @@ def test_v0_store_hit_fills_without_live_calls():
     visits = {v.name: v for v in all_visits(session)}
     assert visits["豫园"].opening_hours == "09:00-17:00"
     assert visits["豫园"].address == "文昌路"
-    assert ctrip.calls == []  # 库命中 → 不触网
-    assert amap.hours_calls == []
+    # 库命中（豫园）→ 不触网；均衡回填的新卡无库行，enrich 走 ctrip
+    # 取小时属预期（2026-10-31 跨天均衡新语义），只断言库内条目不触网。
+    assert ("上海", "豫园") not in ctrip.calls
+    assert "B000A7U3C8" not in set(amap.hours_calls)
 
 
 def test_v0_store_miss_runs_ctrip_first_then_appends():
@@ -669,7 +771,11 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
             )
         ]
     )
-    agent = PlanningAgent(llm, amap_client=StubAmap(exc=RuntimeError("amap down")))
+    agent = PlanningAgent(
+        llm,
+        amap_client=StubAmap(exc=RuntimeError("amap down")),
+        auto_restaurants=False,  # 断言候选占位条数：午餐占位件不算候选
+    )
     session = run(
         agent.start(
             device_id="d1",
@@ -705,8 +811,8 @@ def test_v0_degraded_store_refuses_placeholder_candidates():
         run(agent._collect_candidates(["苏州"]))
 
 
-def test_v0_candidate_durations_clamped_to_180():
-    """240 分钟的库时长按 180 上料（治 49%≥180min 把行程压到每天 2 点）。"""
+def test_v0_candidate_durations_pass_through():
+    """库时长直通上料（2026-10-31 拍板拆除 180 钳制闸）——240 就上料 240。"""
     store = PoiDetailStore()
     store.upsert(
         "P1",
@@ -719,7 +825,7 @@ def test_v0_candidate_durations_clamped_to_180():
     agent = PlanningAgent(ScriptedLLM([]), amap_client=None, poi_details=store)
     candidates, _ = run(agent._collect_candidates(["重庆"]))
     by_name = {c["name"]: c for c in candidates}
-    assert by_name["超长时长景点"]["suggested_duration_min"] == 180
+    assert by_name["超长时长景点"]["suggested_duration_min"] == 240
 
 
 class PerCityAmap:
@@ -808,7 +914,7 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
             "哈尔滨": [_poi("中央大街", 126.62, 45.76)],
         }
     )
-    agent = PlanningAgent(llm, amap_client=amap)
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -822,7 +928,8 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
     # 三亚→哈尔滨 两端都有坐标锚点（均为目的地，出发城市不抓候选），
     # 直线约 3400 公里：90 分钟车程不合理，占位为航班
     hop = transfers[1]
-    assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 2)
+    # 4 天 2 目的地均分：三亚 day1-2、哈尔滨 day3-4，城际腿落在哈尔滨首日
+    assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 3)
     assert hop.mode == "flight"
     assert hop.duration_minutes == 180
     assert [c for c in amap.calls] == ["三亚", "哈尔滨"]  # origin 无 amap 调用
@@ -858,7 +965,7 @@ def test_v0_near_pair_with_coords_is_car_placeholder():
             "苏州": [_poi("拙政园", 120.62, 31.33)],  # ~85km from 上海
         }
     )
-    agent = PlanningAgent(llm, amap_client=amap)
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -901,7 +1008,7 @@ def test_v0_poi_day_outside_city_window_is_clamped():
             )
         ]
     )
-    agent = PlanningAgent(llm)
+    agent = PlanningAgent(llm, auto_restaurants=False)  # 城窗断言：占位件除外
     session = run(
         agent.start(
             device_id="d1",
@@ -917,7 +1024,9 @@ def test_v0_poi_day_outside_city_window_is_clamped():
 
 def test_v0_placeholder_selection_respects_city_windows():
     agent = PlanningAgent(
-        ExplodingLLM(), amap_client=StubAmap(exc=RuntimeError("amap down"))
+        ExplodingLLM(),
+        amap_client=StubAmap(exc=RuntimeError("amap down")),
+        auto_restaurants=False,  # 城窗断言：午餐占位件不带城窗语义
     )
     session = run(
         agent.start(
@@ -930,8 +1039,9 @@ def test_v0_placeholder_selection_respects_city_windows():
     visits = all_visits(session)
     hangzhou = [v for v in visits if v.city == "杭州"]
     suzhou = [v for v in visits if v.city == "苏州"]
-    assert hangzhou and all(v.day == 1 for v in hangzhou)
-    assert suzhou and all(2 <= v.day <= 4 for v in suzhou)
+    # 4 天 2 目的地均分窗口：杭州 day1-2、苏州 day3-4（2026-10-30 修复）
+    assert hangzhou and all(1 <= v.day <= 2 for v in hangzhou)
+    assert suzhou and all(3 <= v.day <= 4 for v in suzhou)
     # 出发城市不再产生任何占位候选（产品规则 2026-10-19）
     assert not [v for v in visits if v.city == "上海"]
 
@@ -958,7 +1068,7 @@ def test_v0_solver_failure_delivers_sequenced_with_assumption():
 
 
 def test_v0_llm_down_degrades_to_placeholder_plan():
-    agent = PlanningAgent(ExplodingLLM())
+    agent = PlanningAgent(ExplodingLLM(), auto_restaurants=False)
     session = run(
         agent.start(
             device_id="d1",
@@ -1355,6 +1465,65 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
     assert all(store.get(f"B0000{idx:02d}") for idx in range(8))
 
 
+class _SkeletonAmap(DistanceAmap):
+    """TABLE 骨架形态：detail 只带回地址，search 什么都没有。"""
+
+    async def place_hours(self, poi_id):
+        self.hours_calls.append(poi_id)
+        return {"opening_hours": None, "address": f"回填路{int(poi_id[-2:])}"}
+
+    async def search_hours(self, keyword, city=None):
+        self.search_calls.append((keyword, city))
+        return {"opening_hours": None, "rating": None}
+
+
+def test_v0_hours_chain_keeps_address_when_hours_miss():
+    """2026-10-28 根因：hours 全链未命中但高德带回地址——地址必须
+    回填行程项并落库，不能随 hours 一起丢（TABLE 骨架行库里无地址，
+    行程单地址全靠这条链）。"""
+    pois = [
+        {
+            "name": f"景点{idx}",
+            "city": "上海",
+            "category": "风景名胜",
+            "source_poi_id": f"B0000{idx:02d}",
+            "location": {"lon": 121.49 + idx * 0.01, "lat": 31.23},
+            "address": None,
+            "opening_hours": None,
+        }
+        for idx in range(2)
+    ]
+    items = [
+        {"name": f"景点{idx}", "city": "上海", "day": 1, "duration_minutes": 60}
+        for idx in range(2)
+    ]
+    store = PoiDetailStore()
+    amap = _SkeletonAmap(pois)
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=NullCtrip(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=4,
+            preferences="博物馆",
+        )
+    )
+    assert session.state == "ready"
+    visits = all_visits(session)
+    assert len(visits) == 2
+    for v in visits:
+        idx = int(v.name[-1])
+        assert v.address == f"回填路{idx}"  # 链上地址未被 hours 未命中丢弃
+        assert v.opening_hours is None
+        assert store.get(f"B0000{idx:02d}")["address"] == f"回填路{idx}"
+
+
 # --- rule 19 carve-out: named edits release pins; deletes hit trip center ---
 
 
@@ -1377,7 +1546,7 @@ def _ready_hz_session(agent):
     surviving visit is 西湖 (day 2)."""
     session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
     assert session.state == "clarify"
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     return session
 
@@ -1593,6 +1762,78 @@ def test_wishlist_coverage_skips_already_covered_wish():
     assert [v.name for v in all_visits(session)].count("川剧变脸表演（蜀风雅韵）") == 1
 
 
+# --- 泛称愿望自动落地 (2026-10-28): single-city trips never ask which city ---
+
+
+def _single_city_items():
+    return [
+        {
+            "name": "外滩",
+            "city": "上海",
+            "category": "sight",
+            "day": 1,
+            "duration_minutes": 90,
+        },
+        {
+            "name": "豫园",
+            "city": "上海",
+            "category": "sight",
+            "day": 2,
+            "duration_minutes": 60,
+        },
+    ]
+
+
+def _ready_single_city_session(agent):
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=2, preferences="亲子")
+    )
+    assert session.state == "ready"
+    return session
+
+
+def test_category_wish_single_city_records_city_without_asking():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(_single_city_items())])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_single_city_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
+    session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
+    # 泛称愿望自动记唯一行程城市，行名维持用户原话
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", "上海")]
+    # 不追问：待答复队列为空，回复里没有城市问句
+    assert session.pending_wish_cities == []
+    assert "还没确定是哪个城市" not in reply
+
+
+def test_category_wish_multi_city_stays_cityless_without_asking():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    iid = session.plan.itinerary_id
+    llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
+    session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
+    # 多城留空（就近落实语义），但同样不再追问
+    wish = svc.list_groups(iid)["wishlist"]
+    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", None)]
+    assert session.pending_wish_cities == []
+    assert "还没确定是哪个城市" not in reply
+
+
+def test_named_wish_without_city_still_asks():
+    svc = TripItemService()
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = _ready_hz_session(agent)
+    llm.replies.append(edit_reply("好的", [], wishes=["蜀风雅韵"]))
+    session, reply, _ = run(agent.message(session, "我想去蜀风雅韵"))
+    # 专名愿望定不出城维持追问——泛称自动落地不外溢到专名
+    assert "还没确定是哪个城市" in reply
+
+
 # --- wishlist absorption at v0 (2026-10-23 心愿单被规划吸收) -----------------
 
 
@@ -1630,7 +1871,7 @@ def test_absorb_wishlist_dedupes_same_site():
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
     assert session.must_visits == ["李子坝站"]
-    assert agent._absorb_wishlist(session) == []  # rerun absorbs nothing new
+    assert run(agent._absorb_wishlist(session)) == []  # rerun absorbs nothing new
 
 
 def test_absorb_wishlist_skips_items_from_other_cities():
@@ -1779,10 +2020,14 @@ def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
     """Ready session（默认上海→杭州）；西湖带坐标充当搜索圆心，心愿单
     里有 ``wish``，下一轮 edit 回复已就位。"""
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
-    agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
+    # auto_restaurants=False：本组断言 amap 调用形状/餐窗落位，自动午餐
+    # 搜索（餐厅）与占位件会污染口径（午餐保底 2026-10-31）
+    agent = PlanningAgent(
+        llm, amap_client=amap, poi_details=store, trip_items=svc, auto_restaurants=False
+    )
     session = run(agent.start(device_id="d1", cities=list(cities), days=2))
     assert session.state == "clarify"
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     westlake = next(v for v in all_visits(session) if v.name == "西湖")
     westlake.location = GeoPoint(lon=120.15, lat=30.25)
@@ -1959,7 +2204,8 @@ def test_named_wish_city_hint_routes_to_chengdu():
     )
     session, _, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
-    added = next(v for v in all_visits(session) if v.name == "看变脸表演")
+    # 2026-10-30 深夜拍板：落实为真实 POI 的专名心愿，条目用 POI 正名
+    added = next(v for v in all_visits(session) if v.name == "蜀风雅韵剧院")
     assert added.city == "成都"
     assert added.poi_id == "B-OPERA-1"
 
@@ -1979,7 +2225,11 @@ def test_poi_library_hit_skips_amap():
     agent, session = _teahouse_session(amap, store, svc, "喝茶")
     session, reply, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
-    assert all(k == POI_KEYWORD for k, _ in amap.calls)  # 仅 v0 景点拉取
+    # 仅 v0 景点拉取 + 条目缺坐标回填的专名查询（backfill 2026-10-28）
+    assert all(
+        k == POI_KEYWORD or k in {v.name for v in all_visits(session)}
+        for k, _ in amap.calls
+    )
     added = next(v for v in all_visits(session) if v.name == "喝茶")
     assert added.poi_id == "B-TEA-LIB"
     assert added.pinned is True
@@ -2000,7 +2250,7 @@ def _wish_sync_session(wishes, *, amap=None, store=None, cities=("上海", "杭�
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS), edit_reply("好的", [], wishes=wishes)])
     agent = PlanningAgent(llm, amap_client=amap, poi_details=store, trip_items=svc)
     session = run(agent.start(device_id="d1", cities=list(cities), days=2))
-    session, _, _ = run(agent.message(session, "喜欢博物馆"))
+    session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
     return agent, session, svc, llm
 
@@ -2190,6 +2440,8 @@ def test_v0_reason_rolls_into_assumptions():
 
 
 def test_v0_auto_inserts_restaurant_for_foodless_day():
+    # 新语义（2026-10-31 午餐保底）：无 food 的日子午餐窗先搜顺路餐厅；
+    # AMAP_POIS 全是景点（品类闸拦截）→ 落「午饭」占位件保底
     items = [
         {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
         {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
@@ -2201,8 +2453,215 @@ def test_v0_auto_inserts_restaurant_for_foodless_day():
         agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
     )
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1  # 无 food 的日子晚餐窗插 1 家
+    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
+    assert any("午饭时段" in a for a in session.assumptions)
+
+
+def test_v0_auto_inserts_lunch_restaurant_when_food_candidates():
+    # stub 混入真餐饮候选 → 午餐窗插首推顺路餐厅（不再占位）
+    food_poi = {
+        "name": "绿波廊",
+        "city": "上海",
+        "category": "餐饮服务;本帮菜",
+        "source_poi_id": "B-FOOD-1",
+        "location": {"lon": 121.49, "lat": 31.23},
+        "address": "城隍庙",
+        "rating": "4.6",
+    }
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap([*AMAP_POIS, food_poi]),
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    assert len(foods) == 1 and foods[0].name == "绿波廊"
+    assert foods[0].pinned and foods[0].poi_id == "B-FOOD-1"
+    assert time(12, 0) <= foods[0].start_time <= time(13, 30)
     assert any("顺路餐厅" in a for a in session.assumptions)
+
+
+# --- 午餐保底（2026-10-31 拍板：默认 12:00–13:30，没餐厅就占位） ------------
+
+
+def test_v0_foodless_day_without_restaurants_gets_lunch_placeholder():
+    # 当天把候选池三个 POI 全排掉 → 午餐搜索无候选 → 「午饭」占位件
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "东方明珠", "city": "上海", "day": 1, "duration_minutes": 60},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]), amap_client=StubAmap(AMAP_POIS)
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
+    ph = foods[0]
+    assert ph.name == "午饭（自由安排）" and ph.poi_id is None
+    assert ph.pinned and ph.duration_minutes == 60
+    assert time(12, 0) <= ph.start_time <= time(13, 30)
+    # 占位件不算真 food：晚餐 pass 照常搜索（也无候选）→ 无顺路餐厅假设
+    assert not any("顺路餐厅" in a for a in session.assumptions)
+    assert any("午饭时段" in a for a in session.assumptions)
+
+
+def test_plan_lunch_slot_base_is_noon():
+    # 终版拍板：基准 12 点开饭（2026-10-31）
+    slot, cont = _plan_lunch_slot(DayPlan(day=1, base_city="上海", items=[]))
+    assert slot == (time(12, 0), time(13, 0)) and cont is None
+
+
+def test_plan_lunch_slot_skips_when_transfer_pushes_past_latest():
+    # 交通优先级最高：transfer 09:00–12:00 + 90min 缓冲 → 13:30 起餐
+    # 越过 12:30 最晚上限 → 当天不插午餐占位（过午到站不算午饭）
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                from_city="成都",
+                to_city="西安",
+                mode="train",
+                start_time=time(9, 0),
+                end_time=time(12, 0),
+            )
+        ],
+    )
+    assert _plan_lunch_slot(day) is None
+
+
+def test_plan_lunch_slot_skips_when_shift_too_late():
+    # transfer 12:00–14:00 → 顺延 15:30 已不算午饭 → 当天不插占位
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                from_city="成都",
+                to_city="西安",
+                mode="train",
+                start_time=time(12, 0),
+                end_time=time(14, 0),
+            )
+        ],
+    )
+    assert _plan_lunch_slot(day) is None
+
+
+def test_plan_lunch_slot_splits_overrunning_pinned_visit():
+    # 上个行程 11:00–13:00 收尾超 12:30 上限 → 从基准头 12:00 切分，
+    # 下半段 13:00 续排
+    visit = VisitItem(
+        item_id="v1",
+        name="博物馆",
+        city="上海",
+        day=1,
+        start_time=time(11, 0),
+        end_time=time(13, 0),
+        duration_minutes=120,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 0), time(13, 0))
+    assert visit.end_time == time(12, 0) and visit.duration_minutes == 60
+    assert cont is not None
+    assert cont.item_id == "v1-p2" and cont.name == "博物馆"
+    assert (cont.start_time, cont.end_time) == (time(13, 0), time(14, 0))
+    assert cont.duration_minutes == 60 and cont.pinned
+
+
+def test_plan_lunch_slot_pulls_earlier_when_prev_ends_early():
+    # 终版拍板（2026-10-31）：前一件早结束 → 跟随提前，最早 11:30
+    visit = VisitItem(
+        item_id="v1",
+        name="博物馆",
+        city="上海",
+        day=1,
+        start_time=time(9, 0),
+        end_time=time(11, 0),
+        duration_minutes=120,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(11, 30), time(12, 30)) and cont is None
+
+
+def test_plan_lunch_slot_follows_prev_end_inside_early_band():
+    # 前一件 11:45 结束（11:30–12:00 提前带内）→ 贴其结束开饭
+    visit = VisitItem(
+        item_id="v1",
+        name="美术馆",
+        city="上海",
+        day=1,
+        start_time=time(10, 30),
+        end_time=time(11, 45),
+        duration_minutes=75,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(11, 45), time(12, 45)) and cont is None
+
+
+def test_plan_lunch_slot_follows_prev_end_within_half_hour():
+    # 前一件 12:15 结束（12:00–12:30 之间）→ 午餐贴其结束开饭
+    visit = VisitItem(
+        item_id="v1",
+        name="美术馆",
+        city="上海",
+        day=1,
+        start_time=time(11, 30),
+        end_time=time(12, 15),
+        duration_minutes=45,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 15), time(13, 15)) and cont is None
+
+
+def test_plan_lunch_slot_no_earlier_inside_transfer_buffer():
+    # 交通优先：transfer 09:30–11:00（缓冲至 12:30）压住提前空间 →
+    # 即使前一件 09:00 早结束，午餐也不得提前进缓冲（维持 12:30）
+    visit = VisitItem(
+        item_id="v1",
+        name="博物馆",
+        city="西安",
+        day=1,
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        duration_minutes=60,
+        pinned=True,
+    )
+    transfer = TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        from_city="成都",
+        to_city="西安",
+        mode="train",
+        start_time=time(9, 30),
+        end_time=time(11, 0),
+    )
+    day = DayPlan(day=1, base_city="西安", items=[visit, transfer])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 30), time(13, 30)) and cont is None
 
 
 # --- G1：预约制门票提示（名单 v0 兜底） -------------------------------------
@@ -2390,3 +2849,274 @@ def test_lang_en_directive_reaches_llm_system_prompt():
     )
     run(agent2.start(device_id="d2", cities=["上海"], days=1, preferences="随便"))
     assert not any("LANGUAGE:" in m for m in rec2.system_msgs), "zh 路径不应注入指令"
+
+
+# --- 2026-10-28 心愿单定城（西湖漏进重庆行程事故门禁）------------------------
+
+
+def _city_probe_agent(poi_hits, items):
+    """带 POI 库定城 stub 的 wishlist agent（[(name, city)] 行）。"""
+
+    class Lib(PoiDetailStore):
+        def __init__(self, hits):
+            super().__init__(None)  # 无 DB：管线其余方法走降级默认
+            self.hits = hits
+
+        def search_keyword(self, *args, **kwargs):
+            # city=None = _resolve_wish_city 定城查询（返回库命中）；
+            # 带城市 = 候选拉取（返回空，不干扰行程内容）。
+            city = args[0] if args else kwargs.get("city")
+            return list(self.hits) if city is None else []
+
+        def top_pois_in_city(self, *a, **k):
+            return []
+
+    svc = TripItemService()
+
+    for name, city in items:
+        svc.create(name, source="manual", city=city)
+
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(SH_HZ_ITEMS)]),
+        trip_items=svc,
+        poi_details=Lib(list(poi_hits)),
+    )
+
+    return agent, svc
+
+
+def test_absorb_named_null_city_resolves_outside_trip_skipped():
+    """空城专名行（故宫）：库命中同名行→定城北京；不在行程→跳过且行已回填。"""
+
+    agent, svc = _city_probe_agent(
+        [{"name": "故宫博物院", "city": "北京市"}],
+        [("故宫", None)],
+    )
+
+    session = run(
+        agent.start(
+            device_id="d1", cities=["上海", "杭州"], days=2, preferences="无特别要求"
+        )
+    )
+
+    assert "故宫" not in session.must_visits
+
+    assert not any("故宫" in v.name for v in all_visits(session))
+
+    assert svc.list_groups()["wishlist"][0]["city"] == "北京"
+
+
+def test_absorb_named_null_city_resolves_inside_trip_kept():
+    """空城专名行（灵隐寺）：定城杭州在行程内→照常吸收且行已回填。"""
+
+    agent, svc = _city_probe_agent(
+        [{"name": "灵隐寺", "city": "杭州市"}],
+        [("灵隐寺", None)],
+    )
+
+    session = run(
+        agent.start(
+            device_id="d1", cities=["上海", "杭州"], days=2, preferences="无特别要求"
+        )
+    )
+
+    assert "灵隐寺" in session.must_visits
+
+    assert session.site_cities.get("灵隐寺") == "杭州"
+
+    assert svc.list_groups()["wishlist"][0]["city"] == "杭州"
+
+
+def test_resolve_wish_city_library_containment():
+    """库名精确未中→双向包含同城唯一即收（西湖→西湖区西湖风景区/杭州）。"""
+
+    class Lib:
+        def search_keyword(self, city, names):
+
+            assert names == ["西湖"]
+
+            return [{"name": "西湖区西湖风景区", "city": "杭州市"}]
+
+    agent = PlanningAgent(ScriptedLLM([]), poi_details=Lib())
+
+    assert run(agent._resolve_wish_city("西湖")) == "杭州"
+
+
+class WestlakeOnlyAmap(StubAmap):
+    """只答 must-visit 名查（西湖→杭州真身）；城内候选搜索一律空。"""
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+
+        self.calls.append((keywords, city))
+
+        if keywords != "西湖":
+            return []
+
+        return [
+            {
+                "name": "杭州市西湖风景名胜区",
+                "city": "杭州市",
+                "source_poi_id": "B001WESTLAKE",
+                "location": {"lon": 120.14, "lat": 30.24},
+            }
+        ]
+
+
+def test_collect_candidates_same_site_outside_trip_excluded():
+    """必去专名真身确在行程外（西湖→杭州，行程重庆）：真排除，不再落名称占位。"""
+
+    agent = PlanningAgent(ScriptedLLM([]), amap_client=WestlakeOnlyAmap())
+
+    candidates, assumptions = run(agent._collect_candidates(["重庆"], ["西湖"]))
+
+    names = [c["name"] for c in candidates]
+
+    assert "西湖" not in names
+
+    assert "杭州市西湖风景名胜区" not in names
+
+    assert any("行程外城市" in a and "杭州" in a for a in assumptions)
+
+    assert not any("按名称占位" in a for a in assumptions)
+
+
+def test_v0_leg_source_follows_vendor_attr():
+    """2026-10-28 一键切图商：客户端标 vendor=baidu 时实测腿不再硬编 amap。"""
+
+    amap = DistanceAmap(AMAP_POIS)
+
+    amap.vendor = "baidu"
+
+    llm = ScriptedLLM([v0_reply(_two_stop_items())])
+
+    agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
+
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["杭州", "上海"],
+            days=2,
+            preferences="博物馆",
+        )
+    )
+
+    day2 = _day2_visits(session)
+
+    assert day2 and day2[0].leg_source == "baidu"
+
+
+def test_v0_hours_chain_source_follows_vendor_attr():
+    """2026-10-29 一键切图商 hours_source 收口：vendor=baidu 时 hours 链
+    ②/③ 标签写 baidu_detail/baidu_search（与 refresh_pois detail/search_tag
+    同径），store 行 source 随 vendor——不再硬编 amap_v5_*。"""
+    pois = [
+        {
+            "name": "景点0",
+            "city": "上海",
+            "category": "风景名胜",
+            "source": "baidu",
+            "source_poi_id": "B00000000",
+            "location": {"lon": 121.49, "lat": 31.23},
+            "address": "路0",
+            "opening_hours": None,
+        }
+    ]
+    items = [{"name": "景点0", "city": "上海", "day": 1, "duration_minutes": 60}]
+    store = PoiDetailStore()
+    amap = DistanceAmap(pois)
+    amap.vendor = "baidu"
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=amap,
+        poi_details=store,
+        ctrip_hours=NullCtrip(),
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="博物馆")
+    )
+    assert session.state == "ready"
+    visits = all_visits(session)
+    assert visits and visits[0].opening_hours == "09:00-17:00"
+    row = store.get("B00000000")
+    assert row["hours_source"] == "baidu_detail"
+    assert row["source"] == "baidu"
+
+
+# --- 功能标签愿望词（2026-10-29 批打接线） ------------------------------------
+
+
+def test_category_search_keyword_show_citywalk_town():
+    """玩法愿望 → 高德检索词（演出/步行街/古镇）；变脸类专名愿原样走
+    底库名称精确匹配，不吃品类词（既有拍板保持）。"""
+    assert _category_search_keyword("看演出") == "演出"
+    assert _category_search_keyword("citywalk") == "步行街"
+    assert _category_search_keyword("压马路") == "步行街"
+    assert _category_search_keyword("逛古镇") == "古镇"
+    assert _category_search_keyword("看变脸表演") is None  # 既有拍板不动
+    assert _category_search_keyword("蜀风雅韵") is None
+
+
+def test_keyword_label_tokens():
+    """检索词 → 底库功能标签内核（演出→show、步行街→citywalk、
+    古镇→historical_town）；_poi_library_lookup 用它拼标签 tokens。"""
+    from app.services.agent.plan import KEYWORD_LABEL_TOKENS, _category_label_tokens
+
+    assert _category_label_tokens("演出") == ["show"]
+    assert _category_label_tokens("步行街") == ["citywalk"]
+    assert _category_label_tokens("古镇") == ["historical_town"]
+    assert _category_label_tokens("茶馆") == []
+    assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇"}
+
+
+# --- refresh_legs 双语 P1 补链（2026-10-30）--------------------------------
+
+
+class _EnDetailStore:
+    """鸭子类型 poi_details：get_by_name 带 _en 字段（库回填后的形态）。"""
+
+    def get(self, source_poi_id):
+        return None
+
+    def get_by_name(self, city, name):
+        return {
+            "poi_id": "B000A7U3C8",
+            "address": "文昌路",
+            "opening_hours": "09:00-17:00",
+            "name_en": "Yu Garden",
+            "address_en": "Wenchang Road",
+            "intro_en": None,
+            "opening_hours_en": None,
+        }
+
+    def upsert(self, *args, **kwargs):
+        return True
+
+
+def test_refresh_legs_stamps_en_fields_from_detail_store():
+    """打开/重开旧行程（refresh_legs）库读详情把 name_en/address_en 只填空
+    并出——英文界面结果卡出英文站名/地址，不回填已有中文 address 语义不变。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    agent = PlanningAgent(
+        ScriptedLLM([]), amap_client=None, poi_details=_EnDetailStore()
+    )
+    item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
+    session = PlanSession(
+        session_id="s1",
+        device_id="d1",
+        cities=["上海"],
+        days=1,
+        state="ready",
+        plan=ItineraryPlan(
+            itinerary_id="it_t",
+            cities=["上海"],
+            days=[DayPlan(day=1, base_city="上海", items=[item])],
+        ),
+    )
+    run(agent.refresh_legs(session))
+    assert item.name_en == "Yu Garden"
+    assert item.address_en == "Wenchang Road"
+    assert item.address == "文昌路"
+    assert item.opening_hours == "09:00-17:00"

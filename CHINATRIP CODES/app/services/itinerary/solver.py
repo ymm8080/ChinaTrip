@@ -28,21 +28,23 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 
-#: Visits may be placed anywhere in [08:00, 21:00] (minutes since midnight).
-DAY_START_MINUTES = 8 * 60
+#: Visits may be placed anywhere in [09:00, 21:00] (minutes since midnight).
+# 2026-10-31 拍板：景点活动一天 9 点开始（8 点太早）；交通除外——
+# 车次/航班时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
+DAY_START_MINUTES = 9 * 60
 DAY_END_MINUTES = 21 * 60
 #: Fallback when an item carries no duration.
 DEFAULT_VISIT_MINUTES = 60
 #: Fallback when the travel matrix has no entry for an ordered pair.
 DEFAULT_TRAVEL_MINUTES = 30
-#: 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
-#: "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
+# 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
+# "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
 _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
-    "morning": (8 * 60, 12 * 60),  # 08:00-12:00
+    "morning": (9 * 60, 12 * 60),  # 09:00-12:00（随日始 9 点，2026-10-31）
     "afternoon": (12 * 60, 17 * 60),  # 12:00-17:00
     "evening": (17 * 60, 21 * 60),  # 17:00-21:00（夜景自动排晚上）
     "sunset": (16 * 60, 19 * 60),  # 16:00-19:00 近似窗
-    "sunrise": (8 * 60, 10 * 60 + 30),  # 08:00-10:30 近似窗
+    "sunrise": (9 * 60, 10 * 60 + 30),  # 09:00-10:30 近似窗（随日始）
 }
 
 #: S5（show_booking_design §4，2026-10-26）：演出=晚间场演事件——
@@ -126,6 +128,10 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
+        # 日始 9 点（2026-10-31）是排程默认而非用户约束：用户自钉的
+        # 早于日始的时刻照常生效（铁律 19 优先，validate_plan 另行提示）
+        if pin < lo:
+            lo = pin
         if multi is not None:
             if not any(s[0] <= pin <= s[1] for s in multi):
                 return None
@@ -172,6 +178,8 @@ def _add_travel_objective(
     specs: list[_VisitSpec],
     starts: list[cp_model.IntVar],
     travel_minutes: dict[tuple[str, str], int],
+    *,
+    separate: bool = False,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -179,6 +187,11 @@ def _add_travel_objective(
     tour (minus depot arcs) is the visit sequence; each non-depot arc
     forces its head to start after its tail ends, so the tour order and
     the chronological order coincide.
+
+    separate=True（2026-10-30）：弧约束再叠加相邻两点的走行分钟——旧版
+    只把 travel 计进目标函数、不进时序约束，日程排得出「上一场 09:30
+    散场、7.3km 外下一场 09:30 开场」的零走行衔接。分离态不可行时
+    solve_day 回落旧语义（宁可背靠背也不弃日）。
     """
     n = len(specs)
     arcs: list[tuple[int, int, cp_model.IntVar]] = []
@@ -198,7 +211,12 @@ def _add_travel_objective(
             costs.append(
                 lit * _travel_cost(specs[i].item, specs[j].item, travel_minutes)
             )
-            model.Add(starts[j] >= starts[i] + specs[i].dur).OnlyEnforceIf(lit)
+            gap = (
+                _travel_cost(specs[i].item, specs[j].item, travel_minutes)
+                if separate
+                else 0
+            )
+            model.Add(starts[j] >= starts[i] + specs[i].dur + gap).OnlyEnforceIf(lit)
     model.AddCircuit(arcs)
     model.Minimize(sum(costs))
 
@@ -257,53 +275,68 @@ def solve_day(
             return None
         specs.append(spec)
 
-    model = cp_model.CpModel()
-    starts: list[cp_model.IntVar] = []
-    intervals: list[cp_model.IntervalVar] = []
-    for spec in specs:
-        start = model.NewIntVar(spec.lo, spec.hi, f"start_{spec.item.item_id}")
-        starts.append(start)
-        if spec.windows:
-            # G3 多段开窗：start 必落其中一段（条件约束 + ExactlyOne，
-            # 标准解法——不引入 optional intervals，模型更简）
-            presences = []
-            for j, (wlo, whi) in enumerate(spec.windows):
-                in_win = model.NewBoolVar(f"inwin_{spec.item.item_id}_{j}")
-                model.Add(start >= wlo).OnlyEnforceIf(in_win)
-                model.Add(start <= whi).OnlyEnforceIf(in_win)
-                presences.append(in_win)
-            model.AddExactlyOne(presences)
-        intervals.append(
-            model.NewIntervalVar(
-                start, spec.dur, start + spec.dur, f"visit_{spec.item.item_id}"
+    def _attempt(separate: bool):
+        """Build + solve the day model once; (solver, status, starts)."""
+        model = cp_model.CpModel()
+        starts: list[cp_model.IntVar] = []
+        intervals: list[cp_model.IntervalVar] = []
+        for spec in specs:
+            start = model.NewIntVar(spec.lo, spec.hi, f"start_{spec.item.item_id}")
+            starts.append(start)
+            if spec.windows:
+                # G3 多段开窗：start 必落其中一段（条件约束 + ExactlyOne，
+                # 标准解法——不引入 optional intervals，模型更简）
+                presences = []
+                for j, (wlo, whi) in enumerate(spec.windows):
+                    in_win = model.NewBoolVar(f"inwin_{spec.item.item_id}_{j}")
+                    model.Add(start >= wlo).OnlyEnforceIf(in_win)
+                    model.Add(start <= whi).OnlyEnforceIf(in_win)
+                    presences.append(in_win)
+                model.AddExactlyOne(presences)
+            intervals.append(
+                model.NewIntervalVar(
+                    start, spec.dur, start + spec.dur, f"visit_{spec.item.item_id}"
+                )
             )
-        )
-    for item, ts, tdur in transfer_windows:
-        intervals.append(
-            model.NewIntervalVar(ts, tdur, ts + tdur, f"transfer_{item.item_id}")
-        )
-    model.AddNoOverlap(intervals)
-
-    # Visits keep INTERCITY_BUFFER_MINUTES clear on both sides of a transfer.
-    for spec, start in zip(specs, starts):
-        for _, ts, tdur in transfer_windows:
-            before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
-            model.Add(start + spec.dur <= ts - INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
-                before
+        for item, ts, tdur in transfer_windows:
+            intervals.append(
+                model.NewIntervalVar(ts, tdur, ts + tdur, f"transfer_{item.item_id}")
             )
-            model.Add(start >= ts + tdur + INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
-                before.Not()
+        model.AddNoOverlap(intervals)
+
+        # Visits keep INTERCITY_BUFFER_MINUTES clear on both sides of a
+        # transfer.
+        for spec, start in zip(specs, starts):
+            for _, ts, tdur in transfer_windows:
+                before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
+                model.Add(
+                    start + spec.dur <= ts - INTERCITY_BUFFER_MINUTES
+                ).OnlyEnforceIf(before)
+                model.Add(start >= ts + tdur + INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
+                    before.Not()
+                )
+
+        if travel_minutes is not None and specs:
+            _add_travel_objective(
+                model, specs, starts, travel_minutes, separate=separate
             )
+        else:
+            _add_makespan_objective(model, specs, starts, transfer_windows)
 
-    if travel_minutes is not None and specs:
-        _add_travel_objective(model, specs, starts, travel_minutes)
-    else:
-        _add_makespan_objective(model, specs, starts, transfer_windows)
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = time_budget_seconds
+        solver.parameters.num_search_workers = 1  # deterministic schedules
+        return solver, solver.Solve(model), starts
 
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = time_budget_seconds
-    solver.parameters.num_search_workers = 1  # deterministic schedules
-    status = solver.Solve(model)
+    solver, status, starts = _attempt(travel_minutes is not None and bool(specs))
+    if (
+        travel_minutes is not None
+        and specs
+        and status not in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+    ):
+        # 走行分离把当天挤爆（时段窗/转场缓冲卡死）→ 回落旧背靠背语义
+        # 交付：宁可挤也不弃日（§6.9 降级链仍由上层兜底）。
+        solver, status, starts = _attempt(False)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
 

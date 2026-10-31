@@ -45,6 +45,45 @@ def test_park_hints():
     assert cat == "park" and floor == 90
 
 
+def test_accommodation_names_guard_to_hotel():
+    """2026-10-31 清洗拍板：名称含住宿词一律 hotel，优先于裸「园」hint
+    与上游类别（桔子水晶北京朝阳公园酒店 曾被误归 park 污染公园池）。"""
+    cases = (
+        "桔子水晶北京朝阳公园酒店",
+        "南京竹官园宾馆",
+        "隐栖堂美学生活酒店(宽窄巷子人民公园地铁站店)",
+        "杭州余杭温德姆花园酒店",
+        "全季酒店",
+        "老门东客栈",
+    )
+    for name in cases:
+        cat, indoor, rain_ok, floor = _c(name)
+        assert cat == "hotel", name
+        assert indoor is True and floor is None, name
+    # 上游误标 park/attraction 也被名称证据盖掉
+    for cat_in in ("park", "attraction", "garden"):
+        cat, indoor, _, floor = _c("桔子水晶北京朝阳公园酒店", cat_in)
+        assert cat == "hotel" and floor is None, cat_in
+    # 非住宿公园不受守卫影响
+    cat, _, _, floor = _c("朝阳公园")
+    assert cat == "park" and floor == 90
+
+
+def test_is_accommodation_tokens():
+    from app.services.poi_classify import is_accommodation
+
+    assert is_accommodation("北京国贸潘家园亚朵酒店")
+    assert is_accommodation("檀香花园酒店(茶店子客运站地铁店)")
+    assert is_accommodation("拾穗花园民宿")
+    assert is_accommodation("云颐自在酒店公寓")
+    assert is_accommodation("老宅客栈")
+    assert not is_accommodation("北海公园")
+    assert not is_accommodation("苏州园林曲园")
+    assert not is_accommodation("")
+    # 度假村歧义不进守卫（温泉/景区度假村常即目的地本身）
+    assert not is_accommodation("南温泉度假村")
+
+
 def test_urban_hints_extended():
     for name in ("南滨路", "意大利风情街", "苏州古运河游船(相门码头)"):
         cat, _, _, floor = _c(name)
@@ -64,6 +103,45 @@ def test_second_pass_hints():
     for name, want in cases.items():
         cat, _, _, _ = _c(name)
         assert cat == want, name
+
+
+def test_scenic_area_urban_180():
+    """2026-10-31 二次拍板：市区风景区 180——名称无城外行政标记按市区档。"""
+    for name in ("黄山风景区", "东湖生态旅游风景区", "漓江旅游区", "乐山大佛景区"):
+        cat, indoor, rain_ok, floor = _c(name)
+        assert cat == "nature" and indoor is False and rain_ok is False, name
+        assert floor == 180, name
+
+
+def test_scenic_area_suburb_240_by_address():
+    """地址命中县/镇/乡等城外标记 → 城市外档 240。"""
+    for name, addr in (
+        ("黄山风景区", "安徽省黄山市黄山区汤口镇"),
+        ("四面山景区", "重庆市江津区四面山镇"),
+        ("玉龙雪山景区", "云南省丽江市玉龙纳西族自治县大具乡"),
+        ("淀山湖风景区", "上海市青浦区朱家角镇彩虹桥"),
+    ):
+        cat, _, _, floor = _classify(name, None, addr)
+        assert cat == "nature" and floor == 240, name
+
+
+def test_scenic_area_suburb_240_by_name():
+    """名称自带县标（无地址）即可判城市外档。"""
+    for name in ("婺源县江湾景区", "涞源县白石山景区", "上杭县古田旅游区"):
+        cat, _, _, floor = _c(name)
+        assert cat == "nature" and floor == 240, name
+
+
+def test_scenic_mark_lifts_category_floor():
+    """已有类别行名称带景区标记：地板抬到对应档，类别与属性不覆盖。"""
+    cases = (
+        ("灵隐飞来峰景区", "temple", None, 180),
+        ("某某陵园风景区", "memorial", None, 180),
+        ("缙云仙都景区", "attraction", "浙江省丽水市缙云县壶镇镇", 240),
+    )
+    for name, cat_in, addr, want in cases:
+        cat, _, _, floor = _classify(name, cat_in, addr)
+        assert cat == cat_in and floor == want, name
 
 
 def test_low_confidence_stays_none():

@@ -92,12 +92,22 @@ class FakeFactory:
 
 
 class StubAmap:
-    """search_poi 固定返回候选列表；place_hours/search_hours 记调用。"""
+    """search_poi 固定返回候选列表；place_hours/search_hours 记调用。
 
-    def __init__(self, candidates=None, error=False):
+    vendor 与真实客户端同构（refresh_pois fallback 标签取自该属性）。
+    """
+
+    vendor = "amap"
+
+    def __init__(
+        self, candidates=None, error=False, search_error=False, regeo_error=False
+    ):
         self.calls = []
         self.detail_calls = []
         self.search_calls = []
+        self.regeo_calls = []
+        self._search_error = search_error
+        self._regeo_error = regeo_error
         self._candidates = list(candidates or [])
         self._error = error
 
@@ -113,12 +123,20 @@ class StubAmap:
 
     async def search_hours(self, keyword, city=None, location=None):
         self.search_calls.append((keyword, city, location))
+        if self._search_error:
+            raise RuntimeError("map search down")
         return {
             "opening_hours": "09:00-21:00",
             "rating": None,
             "matched": keyword,
             "address": None,
         }
+
+    async def regeo(self, *, lon, lat):
+        self.regeo_calls.append((lon, lat))
+        if self._regeo_error:
+            raise RuntimeError("regeo down")
+        return {"address": "某路1号", "city": "重庆"}
 
 
 class _NullCtrip:
@@ -256,15 +274,65 @@ def test_match_amap_none_all_error_no_crash():
     assert row1.source == "chinatravel"
 
 
-def test_match_search_exception_row_error_continues():
+def test_match_search_exception_rows_kept_as_miss():
     ok_row = make_row(name_zh="磁器口")
     bad_row = make_row()
     amap = StubAmap(error=True)
     stats = asyncio.run(
         match_and_enrich(FakeFactory([bad_row, ok_row]), Poi, [bad_row, ok_row], amap)
     )
-    assert stats["error"] == 2  # 每行独立计 error，不 crash
+    # 2026-10-30 起主源单行异常记 warning 按 miss 保留（fallback 可重试）
+    assert stats["miss"] == 2 and stats["error"] == 0
     assert bad_row.source == "chinatravel"
+
+
+def test_match_fallback_amap_rescues_baidu_miss():
+    row = make_row()
+    primary = StubAmap([])  # 百度无候选
+    fb = StubAmap([cand(poi_id="B100")])  # 高德兜底命中
+    stats = asyncio.run(
+        match_and_enrich(
+            FakeFactory([row]),
+            Poi,
+            [row],
+            primary,
+            vendor="baidu",
+            fallback=fb,
+            fallback_vendor="amap",
+        )
+    )
+    assert stats["matched"] == 1
+    assert row.source == "amap" and row.source_poi_id == "B100"
+    assert row.address == "嘉陵江滨江路88号"
+    assert row.rating_source == "amap"
+    assert len(primary.calls) == 1 and len(fb.calls) == 1
+
+
+def test_match_fallback_quota_only_stops_fallback():
+    rows = [make_row(name_zh="磁器口"), make_row(name_zh="洪崖洞")]
+
+    class _QuotaFb(StubAmap):
+        async def search_poi(self, keywords, *, city=None, page=1):
+            self.calls.append((keywords, city))
+            raise AmapQuotaExhaustedError("10021: USER_DAILY_QUERY_OVER_LIMIT")
+
+    primary = StubAmap([])  # 百度一直无候选（行保留）
+    fb = _QuotaFb()
+    stats = asyncio.run(
+        match_and_enrich(
+            FakeFactory(rows),
+            Poi,
+            rows,
+            primary,
+            vendor="baidu",
+            fallback=fb,
+            fallback_vendor="amap",
+        )
+    )
+    assert stats["miss"] == 2  # 主源 miss 保留
+    assert stats.get("quota_exhausted") is None  # 主源配额未熔断
+    assert len(fb.calls) == 1  # 高德首行即配额尽 → 只停兜底
+    assert len(primary.calls) == 2  # 主源继续逐行搜索
 
 
 def test_match_quota_exhausted_aborts_remaining_rows():
@@ -447,3 +515,338 @@ def test_refresh_cities_filter_for_rotate_subset():
     store = fresh_store()
     asyncio.run(refresh_pois(store, _NullCtrip(), None))
     assert asyncio.run(refresh_pois(store, _NullCtrip(), None))["total"] == 0
+
+
+# --- search_keyword tier tiebreak (2026-10-28 泛称愿望落地同类最佳) ----------
+
+
+def test_search_keyword_prefers_tier_on_category_tie():
+    store = PoiDetailStore()
+    store.upsert(
+        "B1",
+        city="成都",
+        name="成都博物馆",
+        category="博物馆",
+        location=(104.06, 30.65),
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    store.upsert(
+        "B3",
+        city="成都",
+        name="四川博物院",
+        category="博物馆",
+        location=(104.08, 30.66),
+        source="unesco",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    # 同档并列（类别命中+有坐标）时 tier 在前：unesco > 5A > 裸行
+    assert [h["source_poi_id"] for h in hits][:2] == ["B3", "B2"]
+
+
+def test_search_keyword_exact_name_still_beats_tier():
+    store = PoiDetailStore()
+    store.upsert(
+        "B1",
+        city="成都",
+        name="博物馆",
+        category="博物馆",
+        location=(104.06, 30.65),
+    )
+    store.upsert(
+        "B2",
+        city="成都",
+        name="金沙遗址博物馆",
+        category="博物馆",
+        location=(104.07, 30.68),
+        source="5a",
+    )
+    hits = store.search_keyword("成都", ["博物馆"])
+    # 专名精确命中稳居首位，tier 只作并列裁决不越位
+    assert hits[0]["source_poi_id"] == "B1"
+
+
+# --- 百度 vendor 回源（2026-10-30：--match 百度命名空间同权生效） ----------
+
+
+def test_match_baidu_vendor_upgrades_row_to_uid():
+    row = make_row()
+    amap = StubAmap([cand(source="baidu", poi_id="uid-77")])
+    stats = asyncio.run(
+        match_and_enrich(FakeFactory([row]), Poi, [row], amap, vendor="baidu")
+    )
+    assert stats == {"matched": 1, "duplicate": 0, "miss": 0, "error": 0}
+    assert row.source == "baidu"
+    assert row.source_poi_id == "uid-77"
+    assert row.address == "嘉陵江滨江路88号"
+    assert row.rating_source == "baidu"
+    assert row.origin == "chinatravel"  # 初始发现渠道保留
+
+
+def test_match_baidu_duplicate_uid_taken_by_other_row():
+    row = make_row()
+    owner = make_row(source="baidu", source_poi_id="uid-77", name_zh="同名行")
+    factory = FakeFactory([row, owner])
+    stats = asyncio.run(
+        match_and_enrich(
+            factory,
+            Poi,
+            [row],
+            StubAmap([cand(source="baidu", poi_id="uid-77")]),
+            vendor="baidu",
+        )
+    )
+    assert stats["duplicate"] == 1 and stats["matched"] == 0
+    assert row.source == "chinatravel"  # 不升级
+
+
+def test_match_baidu_missing_coordinates_skips_search():
+    row = make_row(location=None)
+    amap = StubAmap([cand(source="baidu", poi_id="uid-77")])
+    stats = asyncio.run(
+        match_and_enrich(FakeFactory([row]), Poi, [row], amap, vendor="baidu")
+    )
+    assert stats["miss"] == 1
+    assert amap.calls == []  # 缺坐标连搜索都不打，配额零消耗
+
+
+def test_refresh_match_baidu_upgrades_then_detail_fills_hours():
+    row = make_row(source_poi_id="ct-1")
+    factory = FakeFactory([row])
+    store = PoiDetailStore()
+    store.upsert("ct-1", city="重庆", name="洪崖洞", source="chinatravel")
+    amap = StubAmap([cand(source="baidu", poi_id="uid-77")])
+    stats = asyncio.run(
+        refresh_pois(
+            store,
+            _NullCtrip(),
+            amap,
+            limit=10,
+            match=True,
+            session_factory=factory,
+            provider="baidu",
+        )
+    )
+    assert stats.get("match_skipped", 0) == 0  # 百度下不再跳过 --match
+    assert stats["matched"] == 1 and stats["duplicate"] == 0
+    # 升级后 source_poi_id 是百度 uid → 链② 直查命中，链③ 未触发
+    assert stats["baidu_detail"] == 1 and stats["baidu_search"] == 0
+    assert amap.detail_calls == ["uid-77"]
+    assert store.get("uid-77")["opening_hours"] == "09:00-17:00"
+    assert row.source == "baidu" and row.source_poi_id == "uid-77"
+
+
+def test_refresh_fallback_search_hours_after_baidu_failure():
+    store = PoiDetailStore()
+    store.upsert("C1", city="重庆", name="骨架A", source="chinatravel")
+    primary = StubAmap(search_error=True)  # 百度链③报错（Parameter Invalid 类）
+    fb = StubAmap()  # 高德 search_hours 正常返回 hours
+    stats = asyncio.run(
+        refresh_pois(
+            store, _NullCtrip(), primary, limit=10, fallback=fb, provider="baidu"
+        )
+    )
+    assert stats["amap_v5_search"] == 1  # 高德兜底命中计入 amap 标签
+    assert store.get("C1")["opening_hours"] == "09:00-21:00"
+
+
+def test_refresh_amap_row_direct_detail_via_fallback_under_baidu():
+    store = PoiDetailStore()
+    store.upsert("B001", city="重庆", name="高德行", source="amap")
+    primary = StubAmap()  # 百度客户端不该被 amap 行触发
+    fb = StubAmap()
+    stats = asyncio.run(
+        refresh_pois(
+            store, _NullCtrip(), primary, limit=10, fallback=fb, provider="baidu"
+        )
+    )
+    assert primary.detail_calls == []  # 百度 uid 直查不适用 amap 行
+    assert fb.detail_calls == ["B001"]  # 高德 detail 兜底直查
+    assert stats["amap_v5_detail"] == 1
+    assert store.get("B001")["opening_hours"] == "09:00-17:00"
+
+
+def test_refresh_regeo_fills_address_when_search_yields_nothing():
+    store = PoiDetailStore()
+    store.upsert(
+        "C2",
+        city="重庆",
+        name="开放点位",
+        source="chinatravel",
+        location=(106.578, 29.5628),
+    )
+    primary = StubAmap(search_error=True)  # 链③百度报错、无 hours/address
+    fb = StubAmap(search_error=True)  # ③b 高德搜索也报错
+    stats = asyncio.run(
+        refresh_pois(
+            store, _NullCtrip(), primary, limit=10, fallback=fb, provider="baidu"
+        )
+    )
+    # 链④：行有坐标 → regeo 门址兜底（主源命中）
+    assert stats.get("regeo_addr") == 1
+    assert primary.regeo_calls and fb.regeo_calls == []
+    assert store.get("C2")["address"] == "某路1号"
+    assert stats["address_only"] == 1
+
+
+def test_refresh_regeo_fallback_rescues_when_main_quota_dead():
+    fb = StubAmap(search_error=True)
+
+    class _QuotaRegeo(StubAmap):
+        async def regeo(self, *, lon, lat):
+            self.regeo_calls.append((lon, lat))
+            raise AmapQuotaExhaustedError("302: daily quota")
+
+    primary2 = _QuotaRegeo(search_error=True)
+    store2 = PoiDetailStore()
+    store2.upsert(
+        "C4",
+        city="重庆",
+        name="开放点位C",
+        source="chinatravel",
+        location=(106.578, 29.5628),
+    )
+    stats2 = asyncio.run(
+        refresh_pois(
+            store2, _NullCtrip(), primary2, limit=10, fallback=fb, provider="baidu"
+        )
+    )
+    # 主源 regeo 配额尽 → 高德 regeo 兜底命中
+    assert stats2.get("regeo_addr") == 1
+    assert len(primary2.regeo_calls) == 1 and len(fb.regeo_calls) == 1
+    assert store2.get("C4")["address"] == "某路1号"
+
+
+class StubTencent:
+    vendor = "tencent"
+
+    def __init__(self, cands=None, regeo_addr=None, geocode=None):
+        self.search_calls = []
+        self.regeo_calls = []
+        self.geocode_calls = []
+        self._cands = list(cands or [])
+        self._regeo_addr = regeo_addr
+        self._geocode = geocode
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        self.search_calls.append((keywords, city))
+        return list(self._cands)
+
+    async def regeo(self, *, lon, lat):
+        self.regeo_calls.append((lon, lat))
+        return {"address": self._regeo_addr} if self._regeo_addr else {"address": None}
+
+    async def geocode(self, address):
+        self.geocode_calls.append(address)
+        return dict(self._geocode) if self._geocode else {}
+
+
+def test_refresh_tencent_geocode_fills_city_then_search_fills_address():
+    store = PoiDetailStore()
+    store.upsert("C7", city="", name="大兴安岭地区漠河县北极村旅游景区", source="5a")
+    tc = StubTencent(
+        geocode={
+            "province": "黑龙江省",
+            "city": "大兴安岭地区",
+            "title": "北极村",  # 真子串（行名是「…北极村旅游景区」，旅游区≠旅游景区）
+            "lon": 122.41,
+            "lat": 53.47,
+        },
+        cands=[
+            {
+                "source": "tencent",
+                "source_poi_id": "t9",
+                "name": "北极村",
+                "address": "漠河县北极村",
+                "location": {"lon": 122.41, "lat": 53.47},
+            }
+        ],
+    )
+    primary = StubAmap(search_error=True)
+    fb = StubAmap(search_error=True)
+    stats = asyncio.run(
+        refresh_pois(
+            store,
+            _NullCtrip(),
+            primary,
+            limit=10,
+            fallback=fb,
+            tertiary=tc,
+            provider="baidu",
+        )
+    )
+    assert stats.get("tencent_city") == 1
+    assert stats.get("tencent_addr") == 1
+    row = store.get("C7")
+    assert row["city"] == "大兴安岭地区"  # ④b 正地理编码补城
+    assert row["address"] == "漠河县北极村"  # ④c 按名搜索补地址
+    assert row["location"] == (122.41, 53.47)
+    assert tc.search_calls == [("大兴安岭地区漠河县北极村旅游景区", "大兴安岭地区")]
+
+
+def test_refresh_tencent_search_fills_no_coord_row():
+    store = PoiDetailStore()
+    store.upsert("C5", city="湘西土家族苗族自治州", name="凤凰古城旅游区", source="5a")
+    tc = StubTencent(
+        [
+            {
+                "source": "tencent",
+                "source_poi_id": "t1",
+                "name": "凤凰古城旅游区",
+                "address": "湖南省湘西州凤凰县G209",
+                "location": {"lon": 109.6049, "lat": 27.9478},
+            }
+        ]
+    )
+    primary = StubAmap(search_error=True)
+    fb = StubAmap(search_error=True)
+    stats = asyncio.run(
+        refresh_pois(
+            store,
+            _NullCtrip(),
+            primary,
+            limit=10,
+            fallback=fb,
+            tertiary=tc,
+            provider="baidu",
+        )
+    )
+    assert stats.get("tencent_addr") == 1
+    row = store.get("C5")
+    assert row["address"] == "湖南省湘西州凤凰县G209"
+    assert row["location"] == (109.6049, 27.9478)  # 顺带回填坐标
+    assert primary.regeo_calls == []  # 无坐标行走不到 regeo
+    assert stats["address_only"] == 1
+
+
+def test_refresh_tencent_regeo_third_layer():
+    store = PoiDetailStore()
+    store.upsert(
+        "C6",
+        city="重庆",
+        name="有坐标行",
+        source="chinatravel",
+        location=(106.578, 29.5628),
+    )
+    primary = StubAmap(search_error=True, regeo_error=True)
+    fb = StubAmap(search_error=True, regeo_error=True)
+    tc = StubTencent(regeo_addr="腾讯门址")
+    stats = asyncio.run(
+        refresh_pois(
+            store,
+            _NullCtrip(),
+            primary,
+            limit=10,
+            fallback=fb,
+            tertiary=tc,
+            provider="baidu",
+        )
+    )
+    assert stats.get("regeo_addr") == 1
+    assert tc.regeo_calls and store.get("C6")["address"] == "腾讯门址"

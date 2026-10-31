@@ -11,6 +11,7 @@ from app.api.profile import (
     links_router,
     profile_router,
 )
+from app.api.trip_items import get_trip_item_service
 from app.services.profile_store import (
     LinkStore,
     ProfileStore,
@@ -18,6 +19,7 @@ from app.services.profile_store import (
     distill_facts,
     new_profile_state,
 )
+from app.services.trip_items import TripItemService
 
 FIXED_NOW = datetime(2026, 10, 18, 12, 0, 0)
 DEV = {"X-Device-ID": "dev-1"}
@@ -40,6 +42,11 @@ def make_client() -> TestClient:
     # links keep the real clock so created_at ordering is exercised
     link_store = LinkStore()  # one instance per app, not per request
     app.dependency_overrides[get_link_store] = lambda: link_store
+    # 2026-10-28: promote 胶水此前漏配了 trip-item 依赖 → 测试直写真实 PG
+    # 单例（dev 库里 itin-1/example.com 的测试残留行即来源于此）；与其他
+    # store 同款，按 app 隔离为纯内存实例。
+    trip_items = TripItemService()  # one instance per app, not per request
+    app.dependency_overrides[get_trip_item_service] = lambda: trip_items
     return TestClient(app)
 
 

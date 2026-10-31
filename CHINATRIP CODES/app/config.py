@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     glm_timeout_seconds: float = 60.0
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
+    # ASR 后端开关（translation_pipeline_design_2026-10-30 P0）：
+    # zhipu = 智谱 glm-asr（现状默认）；baidu_voice_trans = 百度翻译语音翻译API；
+    # sensevoice = 本地开源（P1 预留）。对应后端键为空时 503 asr_not_configured。
+    asr_backend: str = "zhipu"
+    baidu_fanyi_appid: str = ""
+    baidu_fanyi_key: str = ""
+    baidu_vt_from: str = "auto"
+    baidu_vt_to: str = "en"
+    baidu_vt_endpoint: str = "https://aip.baidubce.com/rpc/2.0/mt/v2/speech-translation"
+    baidu_vt_oauth_url: str = "https://aip.baidubce.com/oauth/2.0/token"
+    baidu_bce_api_key: str = ""
+    baidu_bce_secret_key: str = ""
     # 视频链接理解（web_reader 视频壳）：GLM-4.6V-Flash 看画面（免费）+
     # GLM-ASR 转写音轨（imageio-ffmpeg 自带二进制抽音轨，无需系统 ffmpeg）。
     glm_model_vision: str = "glm-4.6v-flash"
@@ -46,6 +58,10 @@ class Settings(BaseSettings):
     map_provider: str = "amap"
     baidu_ak: str = ""
     baidu_base_url: str = "https://api.map.baidu.com"
+    # 腾讯位置服务 WebService key（2026-10-30：refresh_pois 链④ 第三兜底
+    # ——坐标行 regeo 第三层 + 无坐标行按名搜地址；有意不进 map_provider 工厂）
+    tencent_map_key: str = ""
+    tencent_base_url: str = "https://apis.map.qq.com"
 
     # Offer-center alliance tracking (design v2.3 §6.11): server-side only,
     # appended to channel deeplinks as allianceId/sid when BOTH are non-empty;
@@ -55,6 +71,13 @@ class Settings(BaseSettings):
 
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
+
+    # 行程导入（2026-10-31，行程页 📥 上传 PDF/Word/Excel → 预览 → 确认生成
+    # 行程单）：上传文件字节数上限 + 解析出的纯文本上限（超出 422，防大文件
+    # 打爆 LLM 上下文）；OCR 页数上限（扫描版 PDF 渲染页图走 GLM 视觉）。
+    import_max_file_bytes: int = 10 * 1024 * 1024
+    import_max_text_chars: int = 30_000
+    import_max_ocr_pages: int = 10
 
     # 火车时刻（v2.4 行程中心）：数据源链 携程>美团>12306，任一源返回有效
     # 班次即用，全失败降级 MockTrainService（app/services/trains.py）。
@@ -68,6 +91,12 @@ class Settings(BaseSettings):
     # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
     train_cache_url: str = "sqlite:///data/train_cache.db"
     train_cache_ttl_hours: float = 24.0
+    # 航班时刻（2026-10-28 骨架）：VariFlight 个人开发者 key，注册后填入；
+    # 空（默认）→ MockFlightService 确定性占位，零网络零行为变化。API 契约
+    # 在 key 注册后按 open.variflight.com 文档校正（app/services/
+    # flights_variflight.py，解析/缓存/降级已就位，届时只改 _fetch 一处）。
+    flight_api_key: str = ""
+    flight_api_timeout_seconds: float = 5.0
     # 规划会话+行程记录的写穿透落盘（app/services/state_persist.py），
     # 重启 uvicorn 不再清空进行中会话与已存行程。
     state_db_url: str = "sqlite:///data/h5_state.db"
