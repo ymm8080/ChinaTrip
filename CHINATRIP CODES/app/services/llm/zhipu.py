@@ -137,9 +137,7 @@ class ZhipuGLMAdapter:
                 raise LLMError("zhipu malformed response shape") from exc
             if isinstance(resp_content, list):
                 resp_content = "".join(
-                    p.get("text", "")
-                    for p in resp_content
-                    if isinstance(p, dict)
+                    p.get("text", "") for p in resp_content if isinstance(p, dict)
                 )
             if not isinstance(resp_content, str):
                 raise LLMError("zhipu malformed response shape")

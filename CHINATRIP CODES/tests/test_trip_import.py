@@ -53,18 +53,33 @@ GOOD_DRAFT = {
             "day": 1,
             "base_city": "杭州",
             "items": [
-                {"type": "visit", "name": "西湖", "city": "杭州",
-                 "start_time": "09:00", "end_time": "11:00"},
-                {"type": "visit", "name": "灵隐寺", "city": None,
-                 "start_time": "13:30"},
+                {
+                    "type": "visit",
+                    "name": "西湖",
+                    "city": "杭州",
+                    "start_time": "09:00",
+                    "end_time": "11:00",
+                },
+                {
+                    "type": "visit",
+                    "name": "灵隐寺",
+                    "city": None,
+                    "start_time": "13:30",
+                },
             ],
         },
         {
             "day": 2,
             "base_city": "苏州",
             "items": [
-                {"type": "transfer", "from_city": "杭州", "to_city": "苏州",
-                 "mode": "train", "start_time": "08:15", "train_no": "G7352"},
+                {
+                    "type": "transfer",
+                    "from_city": "杭州",
+                    "to_city": "苏州",
+                    "mode": "train",
+                    "start_time": "08:15",
+                    "train_no": "G7352",
+                },
                 {"type": "visit", "name": "拙政园", "start_time": "bad"},
             ],
         },
@@ -140,8 +155,10 @@ def test_extract_txt_utf8_and_gbk():
 
 
 def test_extract_html_strips_tags_and_script():
-    html = b"<html><head><style>.x{}</style></head><body><h1>Day1</h1>" \
-           b"<script>alert(1)</script><p>\xe8\xa5\xbf\xe6\xb9\x96</p></body></html>"
+    html = (
+        b"<html><head><style>.x{}</style></head><body><h1>Day1</h1>"
+        b"<script>alert(1)</script><p>\xe8\xa5\xbf\xe6\xb9\x96</p></body></html>"
+    )
     text = extract_text("page.html", html, max_text_chars=100)
     assert "Day1" in text and "西湖" in text
     assert "alert" not in text and ".x{}" not in text
@@ -320,9 +337,22 @@ def test_build_plan_all_days_bad_raises():
 
 
 def test_build_plan_transfer_bad_mode_falls_back_train():
-    draft = {"days": [{"day": 1, "base_city": "A",
-                       "items": [{"type": "transfer", "from_city": "A",
-                                  "to_city": "B", "mode": "rocket"}]}]}
+    draft = {
+        "days": [
+            {
+                "day": 1,
+                "base_city": "A",
+                "items": [
+                    {
+                        "type": "transfer",
+                        "from_city": "A",
+                        "to_city": "B",
+                        "mode": "rocket",
+                    }
+                ],
+            }
+        ]
+    }
     plan, _ = build_plan(draft, "it_x")
     assert plan.days[0].items[0].mode == "train"
 
@@ -364,8 +394,9 @@ def test_structure_non_json_raises():
 # 不受影响。
 
 
-def make_app(*, snapshot_limit: int = 3, draft=GOOD_DRAFT,
-             settings: Settings | None = None) -> TestClient:
+def make_app(
+    *, snapshot_limit: int = 3, draft=GOOD_DRAFT, settings: Settings | None = None
+) -> TestClient:
     store = InMemoryItineraryStore()
     entitlement = EntitlementService(
         InMemoryQuotaStore(), rules=[], quotas={"snapshot_limit": snapshot_limit}
@@ -477,8 +508,11 @@ def test_confirm_invalid_plan_rejected():
     client = make_app()
     resp = client.post(
         "/api/v1/itineraries/import/confirm",
-        json={"file_id": "imp_" + "0" * 32, "file_name": "x.txt",
-              "plan": {"itinerary_id": "it_x"}},
+        json={
+            "file_id": "imp_" + "0" * 32,
+            "file_name": "x.txt",
+            "plan": {"itinerary_id": "it_x"},
+        },
         headers=DEV_A,
     )
     assert resp.status_code == 422
@@ -569,9 +603,7 @@ def _blank_pdf(pages: int = 1) -> bytes:
 def test_service_scanned_pdf_falls_back_to_ocr():
     adapter = VisionStubAdapter()
     svc = TripImportService(adapter)
-    text = asyncio.run(
-        svc.extract("扫描行程.pdf", _blank_pdf(), max_text_chars=30000)
-    )
+    text = asyncio.run(svc.extract("扫描行程.pdf", _blank_pdf(), max_text_chars=30000))
     assert "西湖" in text
     assert len(adapter.ocr_calls) == 1
 
@@ -605,8 +637,9 @@ def test_service_ocr_page_cap():
     adapter = VisionStubAdapter()
     svc = TripImportService(adapter)
     asyncio.run(
-        svc.extract("扫描行程.pdf", _blank_pdf(3), max_text_chars=30000,
-                    max_ocr_pages=2)
+        svc.extract(
+            "扫描行程.pdf", _blank_pdf(3), max_text_chars=30000, max_ocr_pages=2
+        )
     )
     assert len(adapter.ocr_calls[0]) == 2  # 3 页只渲染前 2 页
 
@@ -665,8 +698,11 @@ def test_zhipu_chat_vision_success_first_model():
         )
 
     adapter = ZhipuGLMAdapter(
-        api_key="k", base_url="https://x", model="glm-5.3-flash",
-        timeout_seconds=5, transport=httpx.MockTransport(handler),
+        api_key="k",
+        base_url="https://x",
+        model="glm-5.3-flash",
+        timeout_seconds=5,
+        transport=httpx.MockTransport(handler),
     )
     out = asyncio.run(adapter.chat_vision([(b"img", "image/jpeg")], "提取文字"))
     assert out == "第1天 西湖"
@@ -698,9 +734,13 @@ def test_zhipu_chat_vision_falls_back_on_429(monkeypatch):
         )
 
     adapter = ZhipuGLMAdapter(
-        api_key="k", base_url="https://x", model="glm-5.3-flash",
-        timeout_seconds=5, transport=httpx.MockTransport(handler),
-        vision_model="glm-4.6v-flash", vision_fallback_models=["glm-4v-flash"],
+        api_key="k",
+        base_url="https://x",
+        model="glm-5.3-flash",
+        timeout_seconds=5,
+        transport=httpx.MockTransport(handler),
+        vision_model="glm-4.6v-flash",
+        vision_fallback_models=["glm-4v-flash"],
     )
     out = asyncio.run(adapter.chat_vision([(b"img", "image/jpeg")], "提取文字"))
     assert out == "OCR 文本"  # content 为分段数组时拼接

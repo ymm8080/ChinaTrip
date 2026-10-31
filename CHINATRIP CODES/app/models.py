@@ -553,9 +553,7 @@ class ItineraryImport(Base):
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     text_chars: Mapped[int | None] = mapped_column(Integer)
     # previewed | confirmed | failed
-    status: Mapped[str] = mapped_column(
-        String(20), server_default=text("'previewed'")
-    )
+    status: Mapped[str] = mapped_column(String(20), server_default=text("'previewed'"))
     error: Mapped[str | None] = mapped_column(Text)
     text_preview: Mapped[str | None] = mapped_column(Text)
     owner_device_id: Mapped[str | None] = mapped_column(String(100))

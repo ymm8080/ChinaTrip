@@ -95,8 +95,24 @@ def _decode_text(data: bytes) -> str:
 class _HTMLText(HTMLParser):
     """只抽文本：script/style 整段跳过，块级标签补换行。"""
 
-    _BLOCK = {"p", "div", "br", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6",
-              "table", "ul", "ol", "section", "article"}
+    _BLOCK = {
+        "p",
+        "div",
+        "br",
+        "tr",
+        "li",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "table",
+        "ul",
+        "ol",
+        "section",
+        "article",
+    }
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -199,8 +215,14 @@ def _u32(b: bytes, off: int) -> int:
 
 
 # Word 用控制字符当段落/单元格分隔：\r=段落 \x07=单元格/行尾 \x0b=软换行
-_WORD_MARKS = {"\r": "\n", "\x07": "\t", "\x0b": "\n", "\x0c": "\n",
-               "\x1e": "-", "\x1f": "-"}
+_WORD_MARKS = {
+    "\r": "\n",
+    "\x07": "\t",
+    "\x0b": "\n",
+    "\x0c": "\n",
+    "\x1e": "-",
+    "\x1f": "-",
+}
 
 
 def _word97_pieces(word: bytes, clx: bytes) -> list[str] | None:
@@ -362,13 +384,13 @@ _STRUCTURE_SYSTEM = (
     "只输出一个 JSON 对象，禁止输出任何解释文字。Schema："
     '{"cities": ["城市", ...], "start_date": "YYYY-MM-DD" 或 null, '
     '"days": [{"day": 1, "base_city": "当天所在城市", "items": [条目]}]}。'
-    "条目两种：景点/餐饮 {\"type\": \"visit\", \"name\": \"名称\", \"city\": \"城市\", "
-    "\"category\": \"sight|food|hotel|show\", \"start_time\": \"HH:MM\" 或 null, "
-    "\"end_time\": \"HH:MM\" 或 null, \"address\": \"或 null\"}；"
-    "城市间交通 {\"type\": \"transfer\", \"day\": 天数, \"from_city\": \"\", "
-    "\"to_city\": \"\", \"mode\": \"train|flight|car|bus\", "
-    "\"start_time\": \"HH:MM\" 或 null, \"end_time\": \"HH:MM\" 或 null, "
-    "\"train_no\": \"车次\" 或 null}。"
+    '条目两种：景点/餐饮 {"type": "visit", "name": "名称", "city": "城市", '
+    '"category": "sight|food|hotel|show", "start_time": "HH:MM" 或 null, '
+    '"end_time": "HH:MM" 或 null, "address": "或 null"}；'
+    '城市间交通 {"type": "transfer", "day": 天数, "from_city": "", '
+    '"to_city": "", "mode": "train|flight|car|bus", '
+    '"start_time": "HH:MM" 或 null, "end_time": "HH:MM" 或 null, '
+    '"train_no": "车次" 或 null}。'
     "规则：时间一律 24 小时制 HH:MM；文档里没有的信息填 null，不要编造；"
     "天数与顺序严格按文档；文档不是行程（没有逐日安排）时 days 给空数组。"
 )
@@ -484,8 +506,12 @@ def build_plan(draft: dict, itinerary_id: str) -> tuple[ItineraryPlan, list[str]
     visit_seq = 0
     for idx, raw_day in enumerate(raw_days, start=1):
         if not isinstance(raw_day, dict):
-            warnings.append(L(f"第{idx}天数据不是对象，已跳过",
-                              f"Day {idx} is not an object; skipped"))
+            warnings.append(
+                L(
+                    f"第{idx}天数据不是对象，已跳过",
+                    f"Day {idx} is not an object; skipped",
+                )
+            )
             continue
         try:
             day_no = int(raw_day.get("day") or idx)
@@ -507,13 +533,15 @@ def build_plan(draft: dict, itinerary_id: str) -> tuple[ItineraryPlan, list[str]
                         seq=transfer_seq,
                         from_city=str(raw_item.get("from_city") or "").strip()
                         or base_city,
-                        to_city=str(raw_item.get("to_city") or "").strip()
-                        or base_city,
+                        to_city=str(raw_item.get("to_city") or "").strip() or base_city,
                         mode=mode if mode in _MODES else "train",
                         start_time=_parse_time(raw_item.get("start_time")),
                         end_time=_parse_time(raw_item.get("end_time")),
-                        train_no=(str(raw_item["train_no"]).strip()
-                                  if raw_item.get("train_no") else None),
+                        train_no=(
+                            str(raw_item["train_no"]).strip()
+                            if raw_item.get("train_no")
+                            else None
+                        ),
                     )
                 )
                 continue
