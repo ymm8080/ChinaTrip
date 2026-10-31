@@ -39,6 +39,10 @@ def get_llm_adapter(settings: Settings) -> LLMAdapter:
             base_url=settings.glm_base_url,
             model=settings.glm_model,
             timeout_seconds=settings.glm_timeout_seconds,
+            vision_model=settings.glm_model_vision,
+            vision_fallback_models=[
+                m for m in settings.glm_vision_fallback_models.split(",") if m.strip()
+            ],
         )
     raise ValueError(f"unknown llm_backend: {settings.llm_backend!r}")
 

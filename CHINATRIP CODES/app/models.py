@@ -538,6 +538,34 @@ class TripItem(Base):
     payload: Mapped[dict | None] = mapped_column(JSONB)
 
 
+class ItineraryImport(Base):
+    # 行程导入流水（2026-10-31，行程页 📥 上传生成行程单）：id = 文件ID
+    # （imp_<hex> 的 UUID 本体，每次导入全新、同一文件重复导入不共用）。
+    # audit/排障用——app 无读路径，写入失败只告警不阻断导入主流程。
+    __tablename__ = "itinerary_imports"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    file_name: Mapped[str | None] = mapped_column(String(255))
+    ext: Mapped[str | None] = mapped_column(String(20))
+    size_bytes: Mapped[int | None] = mapped_column(Integer)
+    text_chars: Mapped[int | None] = mapped_column(Integer)
+    # previewed | confirmed | failed
+    status: Mapped[str] = mapped_column(
+        String(20), server_default=text("'previewed'")
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+    text_preview: Mapped[str | None] = mapped_column(Text)
+    owner_device_id: Mapped[str | None] = mapped_column(String(100))
+    owner_account_id: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+
+
 class UserProfile(Base):
     # v2.4 §4: per-user preference memory backing the trip-center agent.
     __tablename__ = "user_profiles"

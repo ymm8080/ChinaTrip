@@ -78,6 +78,12 @@ class ItineraryRecord(BaseModel):
     # 查看。token 与 itinerary_id 相互独立——链接可关可换，真实 id 不外泄。
     share_enabled: bool = False
     share_token: str | None = None
+    # 导入溯源（2026-10-31 行程导入）：行程页 📥 上传文件生成——file_id 在
+    # preview 时生成（imp_<hex>，每次导入全新，同一文件重复导入不共用）、
+    # confirm 落库时连同源文件名钉在行程上；存量/常规规划的行程为 None。
+    # 随 model_dump 进 pg itineraries.plan JSONB，零迁移自动持久化。
+    import_file_id: str | None = None
+    import_file_name: str | None = None
 
 
 class ItineraryStore(Protocol):

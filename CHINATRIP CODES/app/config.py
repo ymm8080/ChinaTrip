@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     extract_max_text_chars: int = 20_000
     extract_confidence_threshold: float = 0.8
 
+    # 行程导入（2026-10-31，行程页 📥 上传 PDF/Word/Excel → 预览 → 确认生成
+    # 行程单）：上传文件字节数上限 + 解析出的纯文本上限（超出 422，防大文件
+    # 打爆 LLM 上下文）；OCR 页数上限（扫描版 PDF 渲染页图走 GLM 视觉）。
+    import_max_file_bytes: int = 10 * 1024 * 1024
+    import_max_text_chars: int = 30_000
+    import_max_ocr_pages: int = 10
+
     # 火车时刻（v2.4 行程中心）：数据源链 携程>美团>12306，任一源返回有效
     # 班次即用，全失败降级 MockTrainService（app/services/trains.py）。
     # 携程/美团对个人开发者无公开火车票 API（H5 探测见模块内证据常量），

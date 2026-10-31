@@ -46,12 +46,17 @@ class ZhipuGLMAdapter:
         model: str,
         timeout_seconds: float,
         transport: httpx.AsyncBaseTransport | None = None,
+        vision_model: str = "glm-4.6v-flash",
+        vision_fallback_models: list[str] | None = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.transport = transport
+        # 视觉链（行程导入 OCR / 视频理解同款考量）：4.6v-flash 免费池晚
+        # 高峰整段 429，旧免费模型在独立容量池——主模型 429 时切备用链。
+        self.vision_models = [vision_model, *(vision_fallback_models or [])]
 
     async def chat(
         self,
@@ -92,6 +97,54 @@ class ZhipuGLMAdapter:
             tokens_in=_int_or_zero(usage.get("prompt_tokens")),
             tokens_out=_int_or_zero(usage.get("completion_tokens")),
         )
+
+    async def chat_vision(self, images: list[tuple[bytes, str]], prompt: str) -> str:
+        """图片理解（行程导入 OCR）：图片以 base64 data URL 内联。主视觉
+        模型 429（免费池晚高峰整段饱和）时切备用模型链；链上全部 429 才
+        抛 LLMError——_post_json 自带 429 空间重试，这里的降级只跨模型。"""
+        import base64
+
+        content: list[dict] = [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime};base64,"
+                    + base64.b64encode(data).decode("ascii")
+                },
+            }
+            for data, mime in images
+        ]
+        content.append({"type": "text", "text": prompt})
+        last_error: LLMError | None = None
+        for model in self.vision_models:
+            try:
+                body = await self._post_json(
+                    "/chat/completions",
+                    {
+                        "model": model,
+                        "messages": [{"role": "user", "content": content}],
+                        "thinking": {"type": "disabled"},
+                    },
+                )
+            except LLMError as exc:
+                if "status 429" not in str(exc):
+                    raise
+                last_error = exc
+                continue
+            try:
+                resp_content = body["choices"][0]["message"]["content"]
+            except (TypeError, KeyError, IndexError) as exc:
+                raise LLMError("zhipu malformed response shape") from exc
+            if isinstance(resp_content, list):
+                resp_content = "".join(
+                    p.get("text", "")
+                    for p in resp_content
+                    if isinstance(p, dict)
+                )
+            if not isinstance(resp_content, str):
+                raise LLMError("zhipu malformed response shape")
+            return resp_content
+        raise last_error or LLMError("zhipu vision: no models configured")
 
     async def _post_json(
         self, path: str, payload: dict, *, timeout_seconds: float | None = None

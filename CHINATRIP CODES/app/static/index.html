@@ -500,7 +500,13 @@
 
     <!-- ============ 行程 ============ -->
     <section class="tab" id="tab-itin">
-      <div class="card" id="itinSavedWrap"><h4 data-i18n="itin.title">📌 我的行程（点「💾 保存行程」后出现在这里；每行可查看 / 删除）</h4><div id="itinSavedList" class="muted" data-i18n="itin.loading">切到本页时自动加载…</div></div>
+      <div class="card" id="itinSavedWrap"><h4 data-i18n="itin.title">📌 我的行程（点「💾 保存行程」后出现在这里；每行可查看 / 删除）</h4>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px">
+          <button class="btn" id="itinImport" data-i18n="itin.import">📥 导入行程文件</button>
+          <input type="file" id="itinImportFile" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.md,.csv,.html,.htm,.png,.jpg,.jpeg,.webp,.bmp" hidden>
+          <span class="muted" data-i18n="itin.importHint">支持 PDF / Word(docx·doc) / Excel(xlsx·xls) / 文本 / HTML / 图片（扫描件自动 OCR）；先预览再确认生成</span>
+        </div>
+        <div id="itinSavedList" class="muted" data-i18n="itin.loading">切到本页时自动加载…</div></div>
     </section>
 
     <!-- ============ 行程中心（trip-items 三态看板，铁律 0：手动/对话/粘贴同一张表） ============ -->
@@ -951,6 +957,24 @@ async function apiRaw(path) {
     throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : ("http_" + res.status) };
   }
   return res;
+}
+
+// 文件上传（行程导入）：multipart FormData，同 api() 的设备头/登录态；
+// 非法响应同样抛 {status, detail}。上传不做断线重试——preview 每次都生成
+// 新文件ID，自动重试会在服务端留下重复流水。
+async function apiUpload(path, file) {
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  const headers = { "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() === "en" ? "en" : "zh" };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token;
+  let res;
+  try { res = await fetch(apiBase() + path, { method: "POST", headers, body: fd }); }
+  catch (e) { throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") }; }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* 空体 */ }
+  if (!res.ok) throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : (data || "http_" + res.status) };
+  return data;
 }
 
 // 触发浏览器下载；revoke 延迟 100ms（Firefox/Safari 提前 revoke 会取消下载）
@@ -2121,7 +2145,6 @@ function planRenderReply(holder, body, opts) {
       holder.appendChild(row2);
     }
     if (opts && opts.first) holder.appendChild(el("<div>" + I18N.tf("plan.first.done","初版行程已生成 ✅ 可直接对话修改（可多轮）。") + "</div>"));
-    if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
     if (body.change) holder.appendChild(changeNode(body.change));
     if (body.plan) {
       holder.appendChild(planCard(body.plan));
@@ -2130,6 +2153,9 @@ function planRenderReply(holder, body, opts) {
     } else if (!body.reply) {
       holder.appendChild(el('<div class="muted">' + I18N.tf("plan.noPlan","（本轮没有返回行程数据）") + "</div>"));
     }
+    // 2026-10-31（看熊猫案）：reply 压到行程卡下面——行程卡一长，顶部
+    // 的说明/追问整段被顶出视野，用户看不见（用户拍板「问题移到最下面」）。
+    if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
     const vn = violationsNode(body.violations, I18N.tf("vio.hard","硬校验提示"));
     if (vn) holder.appendChild(vn);
   }
@@ -3103,8 +3129,14 @@ async function itinSavedLoad() {
     }
     listEl.className = "";
     rows.forEach(r => {
+      // 导入行程（2026-10-31）行尾标注源文件：📄 文件名（文件ID）
+      const fileTag = r.import_file_name
+        ? I18N.tf("itin.importFilePre", " · 📄 ") + esc(r.import_file_name) +
+          (r.import_file_id ? I18N.tf("itin.parenPre", "（") + '<code>' + esc(r.import_file_id) + '</code>' + I18N.tf("itin.parenSuf", "）") : "")
+        : "";
       const row = el('<div class="row"><span class="t"><code>' + esc(r.itinerary_id) + '</code></span><span style="flex:1;min-width:0">' +
         esc((r.cities || []).map(c => I18N.city(c)).join(" → ")) + I18N.tf("itin.snapPre", " · 快照 ") + (r.snapshot_count || 0) + I18N.tf("itin.snapSuf", " 个 · v") + (r.working_sync_version || 0) +
+        fileTag +
         (itinFmtLocal(r.updated_at || r.created_at) ? " · 🗓 " + itinFmtLocal(r.updated_at || r.created_at) : "") + "</span></div>");
       const ops = el('<div class="ops" style="display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"></div>');
       const mk = (label, fn) => {
@@ -3159,6 +3191,110 @@ async function itinEdit(r, btn) {
       toast(I18N.tf("itin.editLoaded", "已载入到规划页：直接说要怎么改；改完点「💾 保存行程」覆盖保存"));
     } catch (err) { failToast(err); }
   });
+}
+
+/* ---- 📥 导入行程文件（2026-10-31）：上传 → 服务端解析+AI 结构化 → 预览弹层 → 确认落库 ---- */
+
+// 导入报错翻译：后端 detail 是稳定码（字符串或 {message, reasons}），这里
+// 映射成中英文案（failToast 的通用 detailText 对这种码不友好）。
+function importErrText(detail) {
+  const code = typeof detail === "string" ? detail : (detail && (detail.message || (detail.reasons || []).join(","))) || "";
+  switch (code) {
+    case "import_unsupported_format": return I18N.tf("itin.impErr.unsupported", "不支持的文件格式——支持 PDF / Word(docx·doc) / Excel(xlsx·xls) / 文本 / HTML / 图片");
+    case "import_doc_unreadable": return I18N.tf("itin.impErr.doc", "无法可靠解析此 .doc（可能加密或版式复杂）——请在 Word/WPS 里「另存为 .docx」后再导入");
+    case "import_no_text": return I18N.tf("itin.impErr.noText", "文件（含 OCR）仍抽不出文字——请确认图片清晰、内容为可读文字");
+    case "import_file_too_large": return I18N.tf("itin.impErr.tooLarge", "文件超过 10 MB 上限");
+    case "import_parse_failed": return I18N.tf("itin.impErr.parse", "文件内容没能结构化成行程——可试试换个格式（如文本）再导入");
+    case "import_plan_invalid": return I18N.tf("itin.impErr.planInvalid", "导入数据校验失败，请重新导入");
+    case "llm_error": return I18N.tf("itin.impErr.llm", "AI 服务暂时不可用，请稍后再试");
+    default: return null;
+  }
+}
+
+function itinImportInit() {
+  const btn = document.getElementById("itinImport");
+  const input = document.getElementById("itinImportFile");
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  btn.onclick = () => input.click();
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    input.value = ""; // 允许重选同一个文件
+    if (!f) return;
+    await busy(btn, async () => {
+      let r;
+      try { r = await apiUpload("/api/v1/itineraries/import/preview", f); }
+      catch (err) {
+        const t = importErrText(err.detail);
+        toast("HTTP " + (err.status || "?") + " · " + (t || detailText(err.detail)));
+        return;
+      }
+      itinImportPreviewModal(r);
+    });
+  };
+}
+
+// 预览弹层（shareLinkCard 同款 mask）：文件名+文件ID、逐天逐站、警告区；
+// 「✅ 确认导入」才真正落库（2026-10-31 用户拍板：先预览再确认保存）。
+function itinImportPreviewModal(r) {
+  const plan = r.plan || {};
+  const cities = (plan.cities || []).map(c => I18N.city(c)).join(" → ");
+  const dayRows = (plan.days || []).map(d => {
+    const items = (d.items || []).map(it => {
+      const t = it.start_time ? esc(String(it.start_time).slice(0, 5)) + " " : "";
+      if (it.from_city || it.to_city) { // TransferItem
+        const modeLabel = {
+          train: I18N.tf("itin.impMode.train", "火车"),
+          flight: I18N.tf("itin.impMode.flight", "航班"),
+          car: I18N.tf("itin.impMode.car", "驾车"),
+          bus: I18N.tf("itin.impMode.bus", "大巴")
+        }[it.mode] || it.mode;
+        return '<div style="margin:2px 0">🚄 ' + t + esc(it.from_city) + " → " + esc(it.to_city) +
+          I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no ? " " + esc(it.train_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
+      }
+      return '<div style="margin:2px 0">• ' + t + esc(it.name) +
+        (it.city && it.city !== d.base_city ? I18N.tf("itin.parenPre", "（") + esc(I18N.city(it.city)) + I18N.tf("itin.parenSuf", "）") : "") + "</div>";
+    }).join("");
+    return '<div style="margin:8px 0 2px"><b>' + I18N.tf("itin.impDayPre", "第 ") + d.day + I18N.tf("itin.impDaySuf", " 天 · ") + esc(I18N.city(d.base_city)) + "</b></div>" + (items || '<div class="muted">' + I18N.tf("itin.impDayEmpty", "（无条目）") + "</div>");
+  }).join("");
+  const warnRows = [];
+  (r.warnings || []).forEach(w => warnRows.push("⚠️ " + esc(w)));
+  if (r.quarantined) warnRows.push("⚠️ " + I18N.tf("itin.impQuarantined", "文件内容包含疑似指令注入的语句，已按纯数据处理"));
+  if (!dayRows) warnRows.push(I18N.tf("itin.impNoDays", "文档里没有解析出逐日安排——确认这是行程单后再导入"));
+  const mask = el('<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center">' +
+    '<div class="card" style="width:min(640px,92vw);max-height:84vh;overflow:auto;padding:16px">' +
+    "<h4 style=\"margin:0 0 6px\">" + I18N.tf("itin.impTitle", "📥 导入预览") + "</h4>" +
+    '<div class="muted" style="margin-bottom:8px">📄 ' + esc(r.file_name) + I18N.tf("itin.parenPre", "（") + I18N.tf("itin.impFileId", "文件ID ") + "<code>" + esc(r.file_id) + "</code>" + I18N.tf("itin.parenSuf", "）") +
+    " · " + (plan.days || []).length + I18N.tf("itin.impDays", " 天") + " · " + esc(cities || "") + "</div>" +
+    (warnRows.length ? '<div style="background:#fff7e6;border:1px solid #f0d9a8;border-radius:6px;padding:6px 8px;margin-bottom:6px">' + warnRows.join("<br>") + "</div>" : "") +
+    "<div>" + dayRows + "</div>" +
+    '<div style="display:flex;gap:8px;margin-top:12px;align-items:center">' +
+    '<button class="btn" data-a="confirm">✅ ' + I18N.tf("itin.impConfirm", "确认导入") + "</button>" +
+    '<button class="btn ghost" data-a="cancel">' + I18N.tf("rem.close", "关闭") + "</button>" +
+    '<span class="muted">' + I18N.tf("itin.impConfirmHint", "确认后生成新行程（自动冻结「导入原版」快照）") + "</span>" +
+    "</div></div></div>");
+  mask.addEventListener("click", (ev) => {
+    const b = ev.target.closest ? ev.target.closest("button[data-a]") : null;
+    if (!b || !mask.contains(b)) return;
+    if (b.getAttribute("data-a") === "confirm") {
+      busy(b, async () => {
+        try {
+          const body = await api("/api/v1/itineraries/import/confirm", { file_id: r.file_id, file_name: r.file_name, plan: r.plan });
+          mask.remove();
+          toast(I18N.tf("itin.imported", "✅ 已生成行程 ") + body.itinerary_id +
+            I18N.tf("itin.importedFile", "（源文件：") + r.file_name + " · " + r.file_id + I18N.tf("itin.parenSuf", "）"));
+          if (body.snapshot_skipped === "quota_exhausted") {
+            toast(I18N.tf("itin.importQuota", "免费快照额度已用完——行程已保存，本次未冻结「导入原版」快照"));
+          }
+          await itinSavedLoad();
+        } catch (err) {
+          const t = importErrText(err.detail);
+          toast("HTTP " + (err.status || "?") + " · " + (t || detailText(err.detail)));
+        }
+      });
+    } else mask.remove();
+  });
+  document.body.appendChild(mask);
 }
 
 // 进页默认打开最新行程（2026-10-24）：挑 updated_at 最新的一张走 ✏️ 修改
@@ -4515,7 +4651,7 @@ document.getElementById("bfAlliance").onclick = (e) => busy(e.target, async () =
 });
 
 /* ---- 新入口首开自动加载 ---- */
-document.querySelector('.nav-item[data-tab="trips"]').addEventListener("click", () => { if (!TRIP.loaded) tcLoad(); });
+document.querySelector('.nav-item[data-tab="trips"]').addEventListener("click", () => { tcLoad(); }); // 每次进入都刷新：聊天排期/另一端写入后 TRIP.loaded 旧态不再钉死看板
 document.querySelector('.nav-item[data-tab="me"]').addEventListener("click", () => {
   if (!ME.loaded) prLoad();
   if (!document.getElementById("lkList").childElementCount) lkLoad();
@@ -4548,6 +4684,7 @@ window.addEventListener("i18n:change", () => {
 // 会话恢复）：最近行程自动载入规划页；本设备没有行程就不显示，留在空白规划页（分享视图跳过）。
 planSetSession(null);
 autoOpenLatestItin();
+itinImportInit(); // 行程页 📥 导入入口（2026-10-31）
 wxSync();
 
 /* ================= Tab：通话咨询（DESIGN paid_call_service_2026-10-25） ================= */

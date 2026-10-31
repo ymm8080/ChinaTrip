@@ -94,3 +94,12 @@ class LLMAdapter(Protocol):
         temperature: float = 0.3,
         max_tokens: int | None = None,
     ) -> ChatResult: ...
+
+    async def chat_vision(
+        self,
+        images: list[tuple[bytes, str]],
+        prompt: str,
+    ) -> str:
+        """图片理解（行程导入 OCR 等）：images 为 (字节, mime) 列表，返回
+        纯文本。视觉模型不可用/全部 429 时抛 LLMError（zhipu 实现）。"""
+        ...
