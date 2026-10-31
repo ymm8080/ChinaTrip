@@ -209,6 +209,34 @@ def test_algo_clamps_day_into_total_days():
     assert show["day"] == 3  # 窗口越界被夹到总天数
 
 
+def test_algo_show_avoids_return_day_when_evening_blocked():
+    # 返程日晚上被 17 点档返程腿占住：夜场演出改钉前一天，不再与返程
+    # 航班互斥搞垮整计划求解（2026-10-31 沪-西安-沪 5 天案：《梦回大唐》
+    # 钉 day5 撞 17:00 航班 → day5 两卡 None 时间 + 全计划顺序兜底降级）
+    cands = [
+        _cand("景点A", "西安"),
+        _cand("夜场秀", "西安", cat="entertainment"),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"西安": (1, 5), "上海": (5, 5)}, transfer_days={1, 5}
+    )
+    show = next(it for it in items if it["name"] == "夜场秀")
+    assert show["day"] == 4  # 返程日(5)晚上有回程腿 → 钉前一天
+
+
+def test_algo_show_stays_on_last_day_without_return_leg():
+    # 末日无返程腿（transfer_days 不含总天数）：夜场照旧钉城市末日
+    cands = [
+        _cand("景点A", "成都"),
+        _cand("变脸表演", "成都", cat="entertainment"),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, transfer_days={1}
+    )
+    show = next(it for it in items if it["name"] == "变脸表演")
+    assert show["day"] == 3
+
+
 # --- 流程：算法模式生成 v0，零 LLM 调用 --------------------------------------
 
 

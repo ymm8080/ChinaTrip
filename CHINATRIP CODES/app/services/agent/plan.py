@@ -5483,7 +5483,15 @@ class PlanningAgent:
                     )
             if shows:
                 best = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][1]
-                items.append(_item(best, hi, _minutes(best, 90)))
+                show_day = hi
+                if hi >= days and days in (transfer_days or set()) and hi - 1 >= lo:
+                    # 返程日晚上被 17 点档返程腿占住：夜场钉末日与返程腿互斥
+                    # → 整计划求解失败退全局顺序兜底（2026-10-31 沪-西安-沪
+                    # 5 天案：《梦回大唐》钉 day5 撞 17:00 航班，day5 两卡
+                    # None 时间、全计划布局降级）。改钉前一天，返程日白天
+                    # 仍留给常规景点（返程日修复的既有语义）。
+                    show_day = hi - 1
+                items.append(_item(best, show_day, _minutes(best, 90)))
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         return items
