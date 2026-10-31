@@ -14,6 +14,7 @@ the time budget -> the caller falls back to the LLM self-repair chain
 
 from __future__ import annotations
 
+import re
 from datetime import time
 from typing import NamedTuple
 
@@ -58,6 +59,69 @@ def _is_show(item: VisitItem) -> bool:
     return item.best_visit_time == "show" or item.category == "entertainment"
 
 
+#: 演出场次串「多场（约15:00/20:00，旺季加场至4场）」「傍晚/晚间场（约
+#: 17:30/19:30两场）」——场次列表是真值源（23552b5 show_sessions 刷新
+#: 管线写入 opening_hours 列）。
+_SESSION_LIST_RE = re.compile(r"约\s*((?:\d{1,2}:\d{2}\s*[/、,]\s*)+\d{1,2}:\d{2})")
+_SESSION_TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
+
+
+def show_session_starts(text: str | None) -> list[int]:
+    """opening_hours 场次串 → 当日场次起点分钟表（升序去重）；解析不出回空。
+
+    2026-10-31 上午空排事故根因之一：S5 把一切演出钉死 20:10-20:45
+    晚场，白天多场演出（如《复活的军团》约11:10/12:00/13:40/16:20/
+    17:10）同日多场被硬塞同一个 35 分钟晚窗 → 单日不可行 → 整单降级。
+    场次表存在时 solver 应按真场次开窗（_visit_spec 场次点窗通道）。
+    """
+    if not text:
+        return []
+    starts: list[int] = []
+    for m in _SESSION_LIST_RE.finditer(text):
+        for hh, mm in _SESSION_TIME_RE.findall(m.group(1)):
+            t = int(hh) * 60 + int(mm)
+            if DAY_START_MINUTES <= t <= DAY_END_MINUTES:
+                starts.append(t)
+    return sorted(set(starts))
+
+
+#: 2026-10-31 用户拍板（城墙·碑林 17:00 入场事故）：景区/博物馆等
+#: 非演出类观光点只排白天，最晚 16:00 入场——傍晚档留给演出、
+#: 夜游与晚餐。豁免：用户自钉时刻（铁律 19）、夜间属性点
+#: （best_visit_time=evening/sunset）、营业时间明确开到晚间的场馆
+#: （闭馆 ≥17:30）、餐饮/酒店/交通/演出类条目。
+_GENERIC_ENTRY_CAP_MINUTES = 16 * 60
+_LATE_OPEN_MINUTES = 17 * 60 + 30
+_EVENING_OK_CATEGORIES = {"food", "entertainment", "hotel", "transport"}
+_EVENING_OK_BEST = {"evening", "sunset", "show"}
+
+
+def _hours_open_late(window: PoiHours | None) -> bool:
+    """营业时间证明晚间可游（闭馆 ≥17:30；多段窗任一段满足即算）。"""
+    if window is None:
+        return False
+    if window.windows:
+        return any(
+            _to_minutes(closes) >= _LATE_OPEN_MINUTES for _, closes in window.windows
+        )
+    if window.closes is None:
+        return False
+    return _to_minutes(window.closes) >= _LATE_OPEN_MINUTES
+
+
+def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
+    """非演出观光点的最晚入场分钟数；None = 不设闸（豁免面见常量注释）。"""
+    if item.pinned:
+        return None  # 铁律 19：用户确认过的时刻优先于默认排程规则
+    if (item.best_visit_time or "") in _EVENING_OK_BEST:
+        return None
+    if (item.category or "") in _EVENING_OK_CATEGORIES:
+        return None
+    if _hours_open_late(window):
+        return None
+    return _GENERIC_ENTRY_CAP_MINUTES
+
+
 _MINUTES_PER_DAY = 24 * 60
 
 
@@ -94,16 +158,28 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
     # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理
     # 不约束（防御库脏数据）；food 类条目不带该字段（plan.py 走 pinned 餐
     # 窗），天然不受影响。
-    if _is_show(item):
+    # 2026-10-31：带真场次的演出按场次点开窗（下方 multi 通道承载），
+    # 不再吃 S5 晚场替换——白天多场演出不再被硬塞 20:10-20:45。
+    # pinned 演出仍走原域（铁律 19：用户钉的时间优先于场次表）。
+    show_sessions = (
+        show_session_starts(item.opening_hours)
+        if _is_show(item) and not item.pinned
+        else []
+    )
+    if _is_show(item) and not show_sessions:
         # S5 场演窗：直接替换默认域（不看 _BEST_VISIT_WINDOWS——其 hi 会
         # 被 21:00 日终钳掉 20:10 开演）；营业时间窗仍照常再收紧。
         lo, hi = _SHOW_STARTS
-    else:
+    elif not _is_show(item):
         best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
         if best is not None:
             lo = max(lo, best[0])
             hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
+    cap = generic_entry_cap(item, window)
+    if cap is not None:
+        # 白天入场闸（2026-10-31 拍板）：晚于闸点的入场时间不可行
+        hi = min(hi, cap)
     multi: list[tuple[int, int]] | None = None
     if window is not None and window.windows:
         # G3：多段（如 09:00-12:00 + 13:30-17:00）——逐段与全天/best 窗
@@ -123,6 +199,10 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
     elif window is not None:
         lo = max(lo, _to_minutes(window.opens))
         hi = min(hi, _to_minutes(window.closes) - dur)
+
+    if show_sessions:
+        # 场次点窗：start 必恰落其中一个场次（段 (s, s)，G3 ExactlyOne 承载）
+        multi = [(s, s) for s in show_sessions]
 
     if item.pinned:  # iron rule 19: fixed at the user-confirmed time
         if item.start_time is None:
@@ -370,7 +450,14 @@ def solve_plan(
     travel_minutes: dict[tuple[str, str], int] | None = None,
     time_budget_seconds: float = 3.0,
 ) -> ItineraryPlan | None:
-    """Solve every day; any single failure voids the whole plan."""
+    """Solve every day independently; a failing day keeps its input layout.
+
+    2026-10-31 上午空排事故：旧「单日失败作废整单」让一个过约束日
+    （晚场演出+返程航班缓冲）把其余各天的好解一起拖进顺序兜底，
+    第 2/3 天上午全空。现在失败日原样保留（未排时间的条目由调用方
+    的 _fallback_sequence_times 逐日收口），其余天保住 solver 优化解；
+    调用方以「还有无 untimed 参访」判定是否降级披露。
+    """
     solved_days: list[DayPlan] = []
     for day in plan.days:
         solved = solve_day(
@@ -379,9 +466,7 @@ def solve_plan(
             travel_minutes=travel_minutes,
             time_budget_seconds=time_budget_seconds,
         )
-        if solved is None:
-            return None
-        solved_days.append(solved)
+        solved_days.append(solved if solved is not None else day.model_copy(deep=True))
     return plan.model_copy(update={"days": solved_days})
 
 

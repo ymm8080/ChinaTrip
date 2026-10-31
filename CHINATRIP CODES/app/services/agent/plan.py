@@ -58,7 +58,12 @@ from app.services.itinerary import (
 from app.services.itinerary.coverage import premium_coverage_gaps
 from app.services.itinerary.geo import area_labels, cluster_days
 from app.services.itinerary.models import INTERCITY_BUFFER_MINUTES, PoiHours
-from app.services.itinerary.solver import DAY_START_MINUTES, solve_plan
+from app.services.itinerary.solver import (
+    DAY_START_MINUTES,
+    generic_entry_cap,
+    show_session_starts,
+    solve_plan,
+)
 from app.services.lang_ctx import L, is_en
 from app.services.llm import ChatMessage, LLMError, parse_json_content
 from app.services.poi_details import PoiDetailStore
@@ -1163,12 +1168,178 @@ def _site_dup(a: str, b: str) -> bool:
     return _same_site(_wish_core(a), _wish_core(b))
 
 
-def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int]:
-    """Which twin to keep: resolved POI > pinned > real city; ties keep the
-    earlier entry (replacement happens on strictly-greater rank only)."""
+def _cand_xy(entry: dict) -> tuple[float, float] | None:
+    loc = entry.get("location")
+    if isinstance(loc, dict) and loc.get("lon") is not None:
+        try:
+            return (float(loc["lon"]), float(loc["lat"]))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _cand_twin(a: dict, b: dict) -> bool:
+    """候选层同站孪生（与 _same_visit 同义、含地理闸分档）：名字撞衫
+    但相距 >2km 的不同场馆不算；同内容配套（含伞名行 vs 配套场馆）
+    走 30km 闸。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
+    na, nb = str(a.get("name") or ""), str(b.get("name") or "")
+    if not (na and nb and _name_dup(na, nb)):
+        return False
+    gate = _CONTENT_TWIN_GATE_KM if _content_dup(na, nb) else 2.0
+    axy, bxy = _cand_xy(a), _cand_xy(b)
+    if axy is not None and bxy is not None:
+        if (
+            haversine_km(
+                GeoPoint(lon=axy[0], lat=axy[1]),
+                GeoPoint(lon=bxy[0], lat=bxy[1]),
+            )
+            > gate
+        ):
+            return False
+    return True
+
+
+def _museum_cand(cand: dict) -> bool:
+    """候选层博物馆卡（与 _museum_card 同口径，dict 形态）。"""
+    name = str(cand.get("name") or "").strip()
+    return (cand.get("category") or "") == "museum" or name.endswith(
+        ("博物馆", "纪念馆")
+    )
+
+
+def _museum_core(name: str) -> str:
+    """博物馆本体核心词（2026-10-31 碑林拍板）：_content_core 剥设施尾巴
+    后再剥开头的城市名——「西安碑林博物馆」→「碑林」。核心词本身是
+    城市/设施词（苏州博物馆→苏州）时返回空：太泛，不做伞名判定。"""
+    core, _stripped = _content_core(name)
+    m = _CITY_PREFIX_RE.match(core)
+    if m and len(core) - m.end() >= 2:
+        core = core[m.end() :]
+    if len(core) < 2 or core in KNOWN_CITIES or core in _FACILITY_TAILS:
+        return ""
+    return core
+
+
+def _museum_umbrella_dup(
+    museum_name: str,
+    scenic_name: str,
+    museum_xy: tuple[float, float] | None,
+    scenic_xy: tuple[float, float] | None,
+) -> bool:
+    """博物馆本体 vs 伞形景区挂牌行的同站判定（2026-10-31 碑林拍板）。
+
+    「西安碑林博物馆」vs「城墙·碑林历史文化景区」：名字互不包含、
+    核心词也不等（碑林 vs 城墙·碑林历史文化），containment/_content_dup
+    都判不开——博物馆核心词（剥尾巴+城市前缀，≥2 字、非城市/设施词）
+    作为词素出现在景区名里 + 双方有坐标且相距 ≤2km（异地撞名闸）→
+    同站；同站时博物馆本体优先（碑林拍板）。"""
+    core = _museum_core(museum_name)
+    if not core or not scenic_name:
+        return False
+    if _name_dup(museum_name, scenic_name):
+        # 既有通道（包含/同内容/演出）管得到的对子维持原语义：大足类
+        # 同内容家族在组装层 dedupe 合并、选点层保留双卡（既有拍板），
+        # 不走伞名让位。
+        return False
+    if core not in scenic_name:
+        return False
+    if museum_xy is None or scenic_xy is None:
+        return False  # 无坐标不猜（宁可不并）
+    return (
+        haversine_km(
+            GeoPoint(lon=museum_xy[0], lat=museum_xy[1]),
+            GeoPoint(lon=scenic_xy[0], lat=scenic_xy[1]),
+        )
+        <= 2.0
+    )
+
+
+_UMBRELLA_SCENIC_EXEMPT_CATEGORIES = {
+    "food",
+    "entertainment",
+    "hotel",
+    "transport",
+}
+
+
+def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
+    """VisitItem 层伞名同站（挂进 _same_visit）：一侧博物馆卡、另一侧
+    景区类观光卡（餐饮/演出/酒店/交通不适用）时走 _museum_umbrella_dup。"""
+    ma, mb = _museum_card(a), _museum_card(b)
+    if ma == mb:
+        return False
+    museum, scenic = (a, b) if ma else (b, a)
+    if (scenic.category or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES:
+        return False
+    return _museum_umbrella_dup(
+        museum.name or "",
+        scenic.name or "",
+        (museum.location.lon, museum.location.lat)
+        if museum.location is not None
+        else None,
+        (scenic.location.lon, scenic.location.lat)
+        if scenic.location is not None
+        else None,
+    )
+
+
+def _umbrella_cand_dup(a: dict, b: dict) -> bool:
+    """候选层伞名同站（挂进选点层博物馆让位）。"""
+    ma, mb = _museum_cand(a), _museum_cand(b)
+    if ma == mb:
+        return False
+    museum, scenic = (a, b) if ma else (b, a)
+    if (scenic.get("category") or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES:
+        return False
+    return _museum_umbrella_dup(
+        str(museum.get("name") or ""),
+        str(scenic.get("name") or ""),
+        _cand_xy(museum),
+        _cand_xy(scenic),
+    )
+
+
+def _museum_shadow_pairs(
+    pool: list[tuple[int, dict]],
+) -> list[tuple[str, str]]:
+    """伞形景区让位博物馆孪生（2026-10-31 碑林拍板）。
+
+    「城墙·碑林历史文化景区」这类伞形挂牌行与「碑林博物馆」本体
+    同站在池时，景区行让位、博物馆优先入选。返回 [(景区名, 博物馆名)]
+    供选点层过滤与披露。"""
+    pairs: list[tuple[str, str]] = []
+    shadowed: set[int] = set()
+    museums = [(i, c) for i, (_, c) in enumerate(pool) if _museum_cand(c)]
+    for i, a in museums:
+        for j, (_, b) in enumerate(pool):
+            if i == j or j in shadowed or _museum_cand(b):
+                continue
+            # 只走伞名词素通道：大足类同内容孪生（博物馆/影院/园区）
+            # 的合并语义在组装层 dedupe（选点层保留双卡是既有拍板），
+            # 不在选点层影子。
+            if _umbrella_cand_dup(a, b):
+                shadowed.add(j)
+                pairs.append((str(b.get("name") or ""), str(a.get("name") or "")))
+    return pairs
+
+
+def _museum_card(item: VisitItem) -> bool:
+    """博物馆卡（2026-10-31 碑林拍板）：「碑林博物馆」优先于「城墙·
+    碑林历史文化景区」这类伞形挂牌行——同站孪生保留博物馆本体。"""
+    name = (item.name or "").strip()
+    return (item.category or "") == "museum" or name.endswith(("博物馆", "纪念馆"))
+
+
+def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int]:
+    """Which twin to keep: resolved POI > pinned > museum card > real
+    city; ties keep the earlier entry (replacement happens on
+    strictly-greater rank only). 博物馆层（2026-10-31 碑林拍板）排在
+    pinned 之后：用户确认过的卡片/时刻不让位，未被确认的伞形景区
+    行让位博物馆本体。"""
     return (
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
+        1 if _museum_card(item) else 0,
         1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
     )
 
@@ -1195,6 +1366,8 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
+    if _umbrella_visit_dup(a, b):
+        return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
     content = _content_dup(a.name, b.name)
     if not (content or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)):
         return False
@@ -1764,6 +1937,8 @@ def _reconcile_transfer_days(
     # 景点日始 9 点（2026-10-31 拍板）：离城日上午容量按 9 点起算；
     # 交通（火车 8 点出发）不受此限
     day_start = DAY_START_MINUTES
+    # 白天入场闸（2026-10-31 拍板）：挪日修复同样最晚 16:00 入场
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for idx, day in enumerate(plan.days):
         transfers = [t for t in day.items if isinstance(t, TransferItem)]
         leaving = {t.from_city.strip() for t in transfers}
@@ -1818,7 +1993,8 @@ def _reconcile_transfer_days(
                 )
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
                 start = max(tail + 30, DAY_START_MINUTES)
-                if start + dur <= 21 * 60 + 30:
+                cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
+                if start + dur <= 21 * 60 + 30 and (cap is None or start <= cap):
                     visit.day = target.day
                     visit.start_time = time(start // 60, start % 60)
                     visit.end_time = time((start + dur) // 60, (start + dur) % 60)
@@ -1986,6 +2162,9 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     """
     # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
+    # 白天入场闸（2026-10-31 拍板）：非演出观光点降级排序同样最晚
+    # 16:00 入场——与 solver 主路同口径（城墙·碑林 17:00 入场事故）。
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
         fixed: list[tuple[int, int]] = []
@@ -1995,41 +2174,96 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 continue
             s = start.hour * 60 + start.minute
             e = _item_end_minutes(item)
-            has_transfer = isinstance(item, TransferItem)
-            fixed.append((s - buf, e + buf) if has_transfer else (s - 30, e + 30))
+            if isinstance(item, TransferItem):
+                fixed.append((s - buf, e + buf))
+            elif getattr(item, "category", "") == "food":
+                # 餐位可紧贴（与 solver NoOverlap 同语义）：午餐 12 点占位挂
+                # ±30 缓冲会把 9:00-12:00 的三小时景点整个挤出上午
+                # （2026-10-31 上午空排事故）
+                fixed.append((s, e))
+            else:
+                fixed.append((s - 30, e + 30))
         fixed.sort()
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
-        # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，游标只前进，
-        # 时间严格跟列表顺序单调；排不下的项留空并由校验提示，后续项不回插。
+        # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
+        # 顺序单调；排不下的项留空并由校验提示。2026-10-31 三处修正：
+        # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
+        # 演出被前面 180 分钟失败顶到日终事故）；②带场次的演出只落场次
+        # 点（真值源=show_sessions 刷新管线）；③无场次信息的晚场演出
+        # 不进上午。
         cursor = day_start
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-            t = cursor
-            advanced = True
-            while advanced:
-                advanced = False
-                for fs, fe in fixed:
-                    if t < fe and t + dur > fs:
-                        t = fe
-                        advanced = True
+            sessions = (
+                show_session_starts(visit.opening_hours) if _is_show_item(visit) else []
+            )
+            placed_at: int | None = None
+            if sessions:
+                for s in sessions:
+                    if s + dur <= day_end and not any(
+                        s < fe and s + dur > fs for fs, fe in fixed
+                    ):
+                        placed_at = s
                         break
-            if t + dur <= day_end:
-                visit.start_time = time(t // 60, t % 60)
-                visit.end_time = time((t + dur) // 60, (t + dur) % 60)
-                fixed.append((t - 30, t + dur + 30))
-                fixed.sort()
-                cursor = t + dur
             else:
-                cursor = t
+                t = max(cursor, 17 * 60) if _is_show_item(visit) else cursor
+                advanced = True
+                while advanced:
+                    advanced = False
+                    for fs, fe in fixed:
+                        if t < fe and t + dur > fs:
+                            t = fe
+                            advanced = True
+                            break
+                cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
+                if t + dur <= day_end and (cap is None or t <= cap):
+                    placed_at = t
+            if placed_at is None:
                 logger.warning(
                     "plan: fallback sequencing could not place %s on day %d",
                     visit.name,
                     day.day,
                 )
+                continue
+            t = placed_at
+            visit.start_time = time(t // 60, t % 60)
+            visit.end_time = time((t + dur) // 60, (t + dur) % 60)
+            fixed.append((t - 30, t + dur + 30))
+            fixed.sort()
+            cursor = max(cursor, t + dur)
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
+def _is_show_item(item: VisitItem) -> bool:
+    """演出条目（与 solver._is_show 同口径：best_visit_time=show 或
+    entertainment 类）。"""
+    return item.best_visit_time == "show" or item.category == "entertainment"
+
+
+def _has_untimed_visits(plan: ItineraryPlan) -> bool:
+    """还有没排上时间的参访条目（solver 按日降级后失败日的标志，
+    2026-10-31 上午空排事故接线）。"""
+    return any(
+        isinstance(item, VisitItem) and item.start_time is None
+        for day in plan.days
+        for item in day.items
+    )
+
+
+def _morning_occupied(day_plan) -> bool:
+    """当天 12:00 前已有交通或非餐饮条目开始（上午不空）。"""
+    for it in day_plan.items:
+        st = it.start_time
+        if st is None or (st.hour, st.minute) >= (12, 0):
+            continue
+        if isinstance(it, TransferItem):
+            return True
+        if getattr(it, "category", "") != "food":
+            return True
+    return False
 
 
 class PendingResto(BaseModel):
@@ -3957,6 +4191,8 @@ class PlanningAgent:
             assumptions,
             city_days=session.city_days,
             start_date=session.start_date,
+            rain_days=rain_map,
+            heavy_rain_days=heavy_rain_map,
         )
         session.plan = plan
         session.assumptions = list(plan.assumptions)
@@ -5173,6 +5409,20 @@ class PlanningAgent:
                 ):
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
             pool = ordered[: span * 4]
+            # 博物馆孪生让位（2026-10-31 碑林拍板）：伞形景区行与博物馆
+            # 本体同站在池时，景区行让位——「碑林博物馆优先于城墙·
+            # 碑林历史文化景区」。
+            shadow_pairs = _museum_shadow_pairs(pool)
+            if shadow_pairs:
+                shadowed_names = {scenic for scenic, _ in shadow_pairs}
+                pool = [
+                    p_ for p_ in pool if (p_[1].get("name") or "") not in shadowed_names
+                ]
+                if notes is not None:
+                    for scenic, museum in shadow_pairs:
+                        notes.append(
+                            f"{city}：「{scenic}」与「{museum}」同站，已优先保留博物馆"
+                        )
             clusters = cluster_days([c for _, c in pool], span)
             day_loads = {d: [0, 0] for d in range(lo, hi + 1)}  # [minutes, count]
             day_coords: dict[int, list[tuple[float, float]]] = {
@@ -5552,26 +5802,9 @@ class PlanningAgent:
         # （有坐标者优先，平手先到先得，与 _dedupe_visit_keepers 同义）；
         # 败者留在 picked，组装层照旧丢弃并「已合并重复站点」留痕。
         def _spec_twin(a: dict, b: dict) -> bool:
-            # 与 _same_visit 同义（含地理闸分档）：名字撞衫但相距 >2km
-            # 的不同场馆（青城山 vs 青城山skydive跳伞基地，实测 ~6km）
-            # 不是孪生——spec 层只按名字折叠会把它误判 phantom、低估
-            # 当日负载、超预算回填；同内容配套（含伞名行 vs 配套场馆）
-            # 走 30km 闸（大足石刻北山行 vs 宝顶影院 ~8km）。
-            na, nb = a.get("name") or "", b.get("name") or ""
-            if not (na and nb and _name_dup(na, nb)):
-                return False
-            gate = _CONTENT_TWIN_GATE_KM if _content_dup(na, nb) else 2.0
-            axy, bxy = _xy(a), _xy(b)
-            if axy is not None and bxy is not None:
-                if (
-                    haversine_km(
-                        GeoPoint(lon=axy[0], lat=axy[1]),
-                        GeoPoint(lon=bxy[0], lat=bxy[1]),
-                    )
-                    > gate
-                ):
-                    return False
-            return True
+            # 与 _same_visit 同义（含地理闸分档，2026-10-31 抽到模块级
+            # _cand_twin 统一口径：选点层博物馆让位与孪生记账共用）。
+            return _cand_twin(a, b)
 
         keepers: list[dict] = []
         phantom: set[int] = set()
@@ -6005,6 +6238,8 @@ class PlanningAgent:
         *,
         city_days: dict[str, int] | None = None,
         start_date: str | None = None,
+        rain_days: dict[str, set[int]] | None = None,
+        heavy_rain_days: dict[str, set[int]] | None = None,
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
         ranges = _city_day_ranges(cities, days, city_days)
@@ -6301,9 +6536,50 @@ class PlanningAgent:
         degraded = solved is None
         if solved is not None:
             plan = solved
-        else:
+        # 2026-10-31：solver 按日降级后，失败日的 untimed 条目在此顺序
+        # 兜底（其余天保住优化解）；降级判定=还有未排时间的参访。
+        if degraded or _has_untimed_visits(plan):
             _fallback_sequence_times(plan)
             plan.assumptions.append(_solver_degraded_assumption())
+        # 上午保底（2026-10-31 用户拍板「所有行程上午不许空」）：活动日
+        # 若无任何 12:00 前开始的条目（交通占上午亦算占用），从未入选
+        # 候选按 tier 序补一个上午点（同城/非演出非餐饮/雨天只收室内/
+        # 预算 360+30 内/与已排不重样），兜底排列落 9:00 段；补不进则
+        # 假设区点名披露，绝不静默空窗。
+        for day_plan in plan.days:
+            if not any(
+                isinstance(it, VisitItem) and getattr(it, "category", "") != "food"
+                for it in day_plan.items
+            ):
+                continue  # 无参访日交给跨天均衡层，不在此重复披露
+            if _morning_occupied(day_plan):
+                continue
+            added = self._morning_fill(
+                plan,
+                day_plan,
+                picked,
+                candidates,
+                rain_days=rain_days,
+                heavy_rain_days=heavy_rain_days,
+            )
+            if added:
+                plan.assumptions.append(
+                    L(
+                        f"第{day_plan.day}天上午空窗保底：已补排「{added}」",
+                        f"Day {day_plan.day} morning backfill: added '{added}' "
+                        "so the morning isn't empty",
+                    )
+                )
+            else:
+                plan.assumptions.append(
+                    L(
+                        f"第{day_plan.day}天上午暂无合适候选可补"
+                        "（雨天只收室内/时长预算约束），要加请说",
+                        f"No fitting candidate to fill day {day_plan.day}'s "
+                        "morning (indoor-only in rain / time budget) — "
+                        "say the word to add one",
+                    )
+                )
         must_names = {spec["name"] for spec in picked if spec.get("must")}
         if must_names:
             # Pin after the solve: pinned items need concrete times for the
@@ -6342,6 +6618,112 @@ class PlanningAgent:
                 "plan v0 delivered with %d hard violations", len(report.violations)
             )
         return plan
+
+    def _morning_fill(
+        self,
+        plan: ItineraryPlan,
+        day_plan,
+        picked: list[dict],
+        candidates: list[dict],
+        *,
+        rain_days: dict[str, set[int]] | None = None,
+        heavy_rain_days: dict[str, set[int]] | None = None,
+    ) -> str | None:
+        """上午空窗保底（2026-10-31 用户拍板「所有行程上午不许空」）：
+        当天 12 点前无任何条目时，从未入选候选补一个上午点；返回新增
+        条目名，None=没补上（调用方负责披露）。
+
+        过滤闸：同城、非演出非餐饮、宜上午/全天、未入选、与全行程
+        已排不重样（_same_site/poi_id 双闸）、建议时长落上午空窗、
+        雨天只收室内（rain_ok∈{yes,true}）、当天非餐参访预算
+        360+30 不超。补进后经 _fallback_sequence_times 落位（正常应
+        09:00 起）；落不进上午立即回滚，绝不硬塞。
+        """
+        city = str(day_plan.base_city or "").removesuffix("市")
+        rainy = day_plan.day in (rain_days or {}).get(city, ()) or day_plan.day in (
+            heavy_rain_days or {}
+        ).get(city, ())
+        first_fixed = 12 * 60
+        for it in day_plan.items:
+            st = it.start_time
+            if st is None:
+                continue
+            s = st.hour * 60 + st.minute
+            if isinstance(it, TransferItem):
+                s -= INTERCITY_BUFFER_MINUTES
+            elif getattr(it, "category", "") != "food":
+                s -= 30
+            if DAY_START_MINUTES <= s < first_fixed:
+                first_fixed = s
+        gap = first_fixed - DAY_START_MINUTES
+        if gap < 60:
+            return None
+        taken = {str(spec.get("name")) for spec in picked}
+        planned = [i for d in plan.days for i in d.items if isinstance(i, VisitItem)]
+        day_load = sum(
+            i.duration_minutes or 0
+            for i in day_plan.items
+            if isinstance(i, VisitItem) and getattr(i, "category", "") != "food"
+        )
+        for cand in candidates:
+            name = str(cand.get("name") or "")
+            if not name or name in taken:
+                continue
+            if str(cand.get("city") or "").removesuffix("市") != city:
+                continue
+            cat = str(cand.get("category") or "")
+            if cat in ("food", "entertainment"):
+                continue
+            if str(cand.get("best_visit_time") or "any") not in ("any", "morning", ""):
+                continue
+            if rainy and str(cand.get("rain_ok") or "") not in ("yes", "true"):
+                continue
+            if any(
+                _same_site(name, i.name)
+                or (cand.get("source_poi_id") and i.poi_id == cand.get("source_poi_id"))
+                for i in planned
+            ):
+                continue
+            dur = cand.get("suggested_duration_min") or 90
+            if not isinstance(dur, int) or dur <= 0:
+                dur = 90
+            if dur > gap or day_load + dur > DAY_VISIT_BUDGET_MINUTES + 30:
+                continue
+            location = (
+                GeoPoint(**cand["location"])
+                if isinstance(cand.get("location"), dict)
+                else None
+            )
+            self._item_seq += 1
+            visit = VisitItem(
+                item_id=f"v{self._item_seq}",
+                name=name,
+                poi_id=cand.get("source_poi_id"),
+                category=cat or None,
+                city=day_plan.base_city,
+                location=location,
+                address=cand.get("address"),
+                name_en=cand.get("name_en"),
+                address_en=cand.get("address_en"),
+                intro_en=cand.get("intro_en"),
+                opening_hours=cand.get("opening_hours"),
+                opening_hours_en=cand.get("opening_hours_en"),
+                best_visit_time=cand.get("best_visit_time"),
+                booking_url=cand.get("booking_url"),
+                rain_ok=cand.get("rain_ok"),
+                day=day_plan.day,
+                duration_minutes=dur,
+            )
+            day_plan.items.append(visit)
+            _fallback_sequence_times(plan)
+            if visit.start_time is not None and (
+                visit.start_time.hour,
+                visit.start_time.minute,
+            ) < (12, 0):
+                return name
+            day_plan.items.remove(visit)
+            return None
+        return None
 
     async def _backfill_locations(
         self, plan: ItineraryPlan, *, limit: int = 12
@@ -7619,7 +8001,7 @@ class PlanningAgent:
         solved = self._solve(candidate)
         if solved is not None:
             candidate = solved
-        else:
+        if solved is None or _has_untimed_visits(candidate):
             _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)

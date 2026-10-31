@@ -1090,9 +1090,14 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     starts = [t for _, t in seq]
     assert starts == sorted(starts)  # 展示顺序=时间顺序
     assert seq[0] == ("甲", dtime(12, 47))  # 首个空档（高铁 11:17+90min 缓冲）
-    assert seq[1] == ("夜游", dtime(16, 17))  # pinned 锚点
-    assert seq[2] == ("乙", dtime(18, 17))  # 塞不进夜游前空档 → 排到夜游后
-    assert visits[-1].name == "丙" and visits[-1].start_time is None  # 排不下垫底
+    assert seq[1] == ("丙", dtime(14, 17))  # 2026-10-31 游标修正：乙失败后
+    # 丙仍回填 14:17-15:47 空档（旧版游标被失败顶到 18:17，丙跟着排不上）
+    assert seq[2] == ("夜游", dtime(16, 17))  # pinned 锚点
+    # 2026-10-31 白天入场闸（用户拍板「非演出景点最晚 16:00 入场」）：
+    # 乙被推到夜游后 18:17 入场，超闸留空由校验披露。夜游（pinned）
+    # 不受闸。
+    untimed = [v.name for v in visits if v.start_time is None]
+    assert untimed == ["乙"]
 
 
 # --- POST /plan/{id}/items/{item_id}/retime（2026-10-24 点时间戳改时间）-----

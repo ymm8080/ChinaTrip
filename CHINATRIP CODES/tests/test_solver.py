@@ -197,7 +197,10 @@ def test_empty_day_round_trips():
     assert solved.items == []
 
 
-def test_solve_plan_is_atomic():
+def test_solve_plan_degrades_per_day():
+    """2026-10-31 上午空排事故：旧「单日失败作废整单」把其余天的好解
+    一起拖进顺序兜底（第2/3天上午全空）；现在失败日原样保留（untimed
+    交给调用方兜底），好天保住 solver 优化解。"""
     ok_day = DayPlan(day=1, base_city="北京", items=[_visit("v1", poi_id="p_short")])
     bad_day = DayPlan(
         day=2, base_city="上海", items=[_visit("v2", poi_id="p_short", dur=300)]
@@ -207,7 +210,12 @@ def test_solve_plan_is_atomic():
         itinerary_id="it1", cities=["北京", "上海"], days=[ok_day, bad_day]
     )
 
-    assert solve_plan(plan, poi_hours=hours) is None
+    solved = solve_plan(plan, poi_hours=hours)
+
+    assert solved is not None
+    day1, day2 = solved.days
+    assert day1.items[0].start_time is not None  # 好天保住解
+    assert all(i.start_time is None for i in day2.items)  # 坏天原样保留
 
 
 def test_solve_plan_solves_all_days():
@@ -496,3 +504,89 @@ def test_infeasible_travel_separation_falls_back_to_packed():
     e = next(i for i in solved.items if i.item_id == "e")
     assert _minutes(m.end_time) <= _minutes(e.start_time)
     assert _minutes(e.start_time) - _minutes(m.end_time) < 240
+
+
+# --- 2026-10-31 白天入场闸（非演出观光点最晚 16:00 入场） ---------------------
+
+
+def test_generic_sightseeing_entry_capped_at_16():
+    """城墙·碑林案：下午被 pinned 180 分钟占满（13:30-16:30）时，景区
+    不许 17:00 入场——只能排上午（solver 主路收编）。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=180,
+                category="attraction",
+                pinned=True,
+                start_time=time(13, 30),
+            ),
+            _visit("wall", poi_id="p_w", dur=180, category="attraction"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    wall = next(i for i in solved.items if i.item_id == "wall")
+    assert _minutes(wall.start_time) <= 16 * 60
+    assert wall.end_time <= time(13, 30)  # 只能排上午（pin 前）
+
+
+def test_food_dinner_uncapped_while_scenic_capped():
+    """晚餐（food）照旧可排傍晚；同日景区被 16:00 闸收进上午。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=300,
+                category="attraction",
+                pinned=True,
+                start_time=time(11, 30),
+            ),  # 11:30-16:30
+            _visit("wall", poi_id="p_w", dur=150, category="attraction"),
+            _visit("dinner", poi_id="p_f", dur=60, category="food"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    wall = next(i for i in solved.items if i.item_id == "wall")
+    dinner = next(i for i in solved.items if i.item_id == "dinner")
+    # wall 150 分钟只能进上午（blocker 后是 16:30 > 闸点）
+    assert wall.end_time <= time(11, 30)
+    assert _minutes(wall.start_time) <= 16 * 60
+    # 晚餐不受闸：blocker 之后 16:30 开饭
+    assert dinner.start_time >= time(16, 30)
+
+
+def test_late_open_venue_exempt_from_entry_cap():
+    """营业到 22:00 的场馆（城墙夜场次类）不吃 16:00 闸。"""
+    hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=450,
+                pinned=True,
+                start_time=time(9, 0),
+            ),  # 09:00-16:30
+            _visit("v_late", poi_id="p_late", dur=90, category="attraction"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=hours)
+
+    assert solved is not None
+    late = next(i for i in solved.items if i.item_id == "v_late")
+    assert late.start_time >= time(16, 30)  # 傍晚入场合法

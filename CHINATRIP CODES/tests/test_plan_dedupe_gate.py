@@ -561,3 +561,104 @@ def test_same_visit_content_channel_uses_wide_gate():
         location=GeoPoint(lon=106.50, lat=29.70),  # ~68km 外
     )
     assert _same_visit(cinema, far) is False
+
+
+# --- 2026-10-31 碑林拍板：博物馆本体优先于伞形景区挂牌行 ---------------------
+
+
+def test_museum_twin_replaces_umbrella_scenic():
+    """「城墙·碑林历史文化景区」（5A 伞形挂牌）先入列、「西安碑林博物馆」
+    后来 → 同站判定命中（词素 + ≤2km），博物馆替换胜出。"""
+
+    from app.services.agent.plan import _dedupe_visit_keepers
+    from app.services.itinerary.models import GeoPoint
+
+    wall = _visit(
+        "v1",
+        "城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        location=GeoPoint(lon=108.9405, lat=34.2569),
+    )
+    museum = _visit(
+        "v2",
+        "西安碑林博物馆",
+        poi_id="amap_1",
+        category="museum",
+        location=GeoPoint(lon=108.9402, lat=34.2544),
+    )
+    keepers, dropped = _dedupe_visit_keepers([wall, museum])
+    assert [k.name for k in keepers] == ["西安碑林博物馆"]
+    assert dropped == ["城墙·碑林历史文化景区"]
+
+
+def test_pinned_scenic_defends_against_museum_twin():
+    """用户确认过（pinned）的景区卡不让位——博物馆层排在 pinned 之后。"""
+    from datetime import time
+
+    from app.services.agent.plan import _dedupe_visit_keepers
+    from app.services.itinerary.models import GeoPoint
+
+    wall = _visit(
+        "v1",
+        "城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        pinned=True,
+        start_time=time(9, 0),
+        location=GeoPoint(lon=108.9405, lat=34.2569),
+    )
+    museum = _visit(
+        "v2",
+        "西安碑林博物馆",
+        poi_id="amap_1",
+        category="museum",
+        location=GeoPoint(lon=108.9402, lat=34.2544),
+    )
+    keepers, _dropped = _dedupe_visit_keepers([wall, museum])
+    assert [k.name for k in keepers] == ["城墙·碑林历史文化景区"]
+
+
+def test_museum_shadow_pairs_and_far_twin():
+    """候选层让位对：同站景区让位博物馆；异地（>2km）同名不并。"""
+    from app.services.agent.plan import _museum_shadow_pairs
+
+    near = [
+        (
+            0,
+            {
+                "name": "城墙·碑林历史文化景区",
+                "category": "attraction",
+                "location": {"lon": 108.9405, "lat": 34.2569},
+            },
+        ),
+        (
+            1,
+            {
+                "name": "兵马俑",
+                "category": "attraction",
+                "location": {"lon": 109.28, "lat": 34.38},
+            },
+        ),
+        (
+            2,
+            {
+                "name": "西安碑林博物馆",
+                "category": "museum",
+                "location": {"lon": 108.9402, "lat": 34.2544},
+            },
+        ),
+    ]
+    assert _museum_shadow_pairs(near) == [("城墙·碑林历史文化景区", "西安碑林博物馆")]
+    far = [
+        (0, near[0][1]),
+        (
+            2,
+            {
+                "name": "西安碑林博物馆",
+                "category": "museum",
+                "location": {"lon": 109.02, "lat": 34.28},
+            },
+        ),
+    ]
+    assert _museum_shadow_pairs(far) == []
