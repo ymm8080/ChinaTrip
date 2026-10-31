@@ -1,0 +1,616 @@
+# 公园名单（POIS 库 category='park'，排除 5A / 国家级风景名胜区 / 国外平台推荐 / 热门预约景点）
+
+> 2026-10-31 快照（chinatravel 导入作业正在库内持续写入，行数为拉取时刻口径）：category='park' 共 573 行；名称比对排除四类名单（02_5A 358 / 04_国家级风景名胜区 244 / 05_国际旅行网站荐点 TA-LP-Viator / 09_热门预约景点 / 10_国际平台荐点，城市不符的同名不排）；混入的酒店/民宿/地铁站/观光车等非公园行 86 条列附二；剧场/码头/广场等场馆子点位 11 条列附三；曲园（「苏州园林」前缀包含属巧合）保留。
+
+## 上海（47）
+
+- 上海海湾国家森林公园 / Shanghai Haiwan National Forest Park（chinatravel/active）
+- 上海海湾国家森林公园 / Shanghai Haiwan National Forest Park（amap/active）
+- 上海鲜花港 / Shanghai Flower Port（chinatravel/active）
+- 世博文化公园 / Expo Culture Park（chinatravel/active）
+- 世纪公园 / Century Park（amap/active）
+- 东平国家森林公园 / Dongping National Forest Park（chinatravel/active）
+- 东平国家森林公园 / Dongping National Forest Park（amap/active）
+- 东滩湿地公园 / Dongtan Wetland Park（amap/active）
+- 东滩湿地公园 / Dongtan Wetland Park（chinatravel/active）
+- 临港星空之境海绵公园 / Lingang Starry Sky Sponge Park（chinatravel/active）
+- 人民公园 / People's Park（chinatravel/active）
+- 光明生态园 / Guangming Ecological Park（amap/active）
+- 前滩休闲公园 / Qiantan Leisure Park（chinatravel/active）
+- 北外滩滨江绿地 / North Bund Riverside Green Space（chinatravel/active）
+- 古猗园 / Guyi Garden（amap/active）
+- 吴淞炮台湾湿地森林公园 / Wusong Paotaiwan Wetland Forest Park（chinatravel/active）
+- 四川北路公园 / Sichuan North Road Park（chinatravel/active）
+- 复兴公园 / Fuxing Park（chinatravel/active）
+- 大宁公园 / Daning Park（chinatravel/active）
+- 季高兔窝窝亲子园 / Jigao Tuwowo Family Park（amap/active）
+- 崇明岛国家地质公园 / Chongming Island National Geological Park（chinatravel/active）
+- 川沙公园 / Chuansha Park（chinatravel/active）
+- 广富林郊野公园 / Guangfulin Country Park（chinatravel/active）
+- 张园 / Zhangyuan（amap/active）
+- 徐家汇公园 / Xujiahui Park（amap/active）
+- 徐汇滨江绿地 / Xuhui Riverside Greenland（chinatravel/active）
+- 愚园路历史风貌保护区 / Yuyuan Road Historic and Cultural Protection Area（chinatravel/active）
+- 方塔园 / Fangta Garden（chinatravel/active）
+- 星愿公园 / Wishing Star Park（amap/active）
+- 月湖雕塑公园 / Yuehu Sculpture Park（chinatravel/active）
+- 枫叶岛（chinatravel/active）
+- 汽车博览公园 / Auto Expo Park（chinatravel/active）
+- 浦江郊野公园 / Pujiang Country Park（amap/active）
+- 申园 / Shen Garden（chinatravel/active）
+- 莫奈花园 / Monet's Garden（chinatravel/active）
+- 课植园 / Kezhi Garden（amap/active）
+- 醉白池 / Zuibaichi Garden（chinatravel/active）
+- 长风公园 / Changfeng Park（amap/active）
+- 闻道园 / Wendao Garden（chinatravel/active）
+- 陆家嘴中心绿地 / Lujiazui Central Green Space（amap/active）
+- 陆家嘴空中步行连廊 / Lujiazui Elevated Pedestrian Walkway（chinatravel/active）
+- 青西郊野公园 / Qingxi Country Park（chinatravel/active）
+- 静安公园 / Jing'an Park（chinatravel/active）
+- 静安雕塑公园 / Jing'an Sculpture Park（amap/active）
+- 韩湘水博园 / Hanxiang Water Museum Park（amap/active）
+- 顾村公园 / Gucun Park（amap/active）
+- 鲁迅公园 / Lu Xun Park（amap/active）
+
+## 北京（38）
+
+- 三庆园 / Sanqingyuan Theater（chinatravel/active）
+- 三庆园 / Sanqingyuan（amap/inactive）
+- 世界公园 / Beijing World Park（amap/active）
+- 世界花卉大观园 / World Flower Grand View Garden（amap/active）
+- 亮马河国际风情水岸 / Liangma River International Waterfront（amap/active）
+- 亮马河国际风情水岸 / Liangma River International Waterfront（chinatravel/active）
+- 信园（chinatravel/active）
+- 元大都城垣遗址公园 / Yuan Dynasty City Wall Relics Park（chinatravel/active）
+- 八大处公园 / Badachu Park（amap/active）
+- 北京世园公园 / Beijing Expo Park（chinatravel/active）
+- 北京世园公园 / Beijing Expo Park（amap/active）
+- 北京东方花园饭店（chinatravel/active）
+- 北京动物园 / Beijing Zoo（chinatravel/active）
+- 北京大观园 / Beijing Grand View Garden（chinatravel/active）
+- 北京怡生园会议中心（chinatravel/active）
+- 北京温榆河公园 / Beijing Wenyu River Park（amap/active）
+- 北京西山国家森林公园 / Beijing Xishan National Forest Park（chinatravel/active）
+- 北京雁栖湖西山步道 / Beijing Yanqi Lake West Hill Trail（chinatravel/active）
+- 北坞公园 / Beiwu Park（chinatravel/active）
+- 北海公园 / Beihai Park（chinatravel/active）
+- 南海子公园 / Nanhaizi Park（chinatravel/active）
+- 后海 / Houhai Lake（chinatravel/active）
+- 呀路古热带植物园 / Yalugu Tropical Botanical Garden（amap/active）
+- 国家植物园南园 / China National Botanical Garden South Garden（amap/active）
+- 国家植物园(原北京植物园) / China National Botanical Garden (formerly Beijing Botanical Garden)（amap/active）
+- 大运河森林公园 / Grand Canal Forest Park（chinatravel/active）
+- 大运河源头遗址公园 / Grand Canal Source Ruins Park（chinatravel/active）
+- 御花园 / Imperial Garden（amap/active）
+- 日坛公园 / Ritan Park（chinatravel/active）
+- 昆明湖 / Kunming Lake（chinatravel/active）
+- 月坛公园 / Yuetan Park（chinatravel/active）
+- 朝阳公园 / Chaoyang Park（chinatravel/active）
+- 玉渊潭公园 / Yuyuantan Park（amap/active）
+- 紫竹院公园 / Zizhuyuan Park (Purple Bamboo Park)（chinatravel/active）
+- 莲花池公园 / Lianhuachi Park（chinatravel/active）
+- 通州运河公园 / Tongzhou Canal Park（amap/active）
+- 陶然亭公园 / Taoranting Park（chinatravel/active）
+- 龙潭公园 / Longtan Park（amap/active）
+
+## 南京（46）
+
+- 下马坊遗址公园 / Xiamafang Heritage Park（chinatravel/active）
+- 东水关遗址公园 / Dongshuiguan Heritage Park（chinatravel/active）
+- 中国秦淮灯会主会场（白鹭洲公园） / Qinhuai Lantern Festival Main Venue (Bailu Zhou Park)（amap/active）
+- 九龙湖 / Jiulong Lake（chinatravel/active）
+- 九龙湖公园 / Jiulonghu Park (Kowloon Lake Park)（chinatravel/active）
+- 八卦洲湿地公园 / Baguazhou Wetland Park（chinatravel/active）
+- 六合龙袍省级湿地公园 / Luhe Longpao Provincial Wetland Park（chinatravel/active）
+- 凤凰山公园 / Fenghuangshan Park（chinatravel/active）
+- 前湖公园 / Qianhu Park（chinatravel/active）
+- 午朝门公园 / Wuchaomen Park（chinatravel/active）
+- 南京中国绿化博览园 / Nanjing China Greening Expo Park（amap/active）
+- 南京十朝历史文化园 / Nanjing Ten Dynasties Historical and Cultural Park（chinatravel/active）
+- 南京园博园悦榕庄（chinatravel/active）
+- 南京国防园 / Nanjing National Defense Park（amap/active）
+- 南京松鼠部落森林假日公园 / Nanjing Squirrel Tribe Forest Holiday Park（amap/active）
+- 南京游子山休闲旅游区 / Nanjing Youzishan Leisure Tourism Area（chinatravel/active）
+- 南京玫瑰园 / Nanjing Rose Garden（chinatravel/active）
+- 古林公园 / Gulin Park（chinatravel/active）
+- 山顶公园 / Hilltop Park（chinatravel/active）
+- 平山森林公园 / Pingshan Forest Park（chinatravel/active）
+- 愚园 / Yuyuan Garden（amap/active）
+- 月牙湖公园 / Yueya Lake Park（chinatravel/active）
+- 杉林氧吧 / Fir Forest Oxygen Bar（chinatravel/active）
+- 梅花谷公园 / Meihua Valley Park（chinatravel/active）
+- 樱洲 / Cherry Islet（chinatravel/active）
+- 江心洲 / Jiangxin Island（chinatravel/active）
+- 江苏六合国家地质公园 / Jiangsu Luhe National Geopark（chinatravel/active）
+- 江苏园博园 / Jiangsu Garden Expo Park（amap/active）
+- 泮池 / Panchi Pond（chinatravel/active）
+- 溧水周园 / Zhou Garden, Lishui（amap/active）
+- 燕子矶公园 / Yanziji Park（amap/active）
+- 燕子矶公园 / Yanziji Park（chinatravel/active）
+- 白马公园 / Baima Park（amap/active）
+- 白鹭洲公园 / Bailuzhou Park（amap/active）
+- 百家湖 / Baijia Lake（amap/active）
+- 百家湖 / Baijia Lake（chinatravel/active）
+- 神策门公园 / Shence Gate Park（amap/active）
+- 紫霞湖 / Zixia Lake（chinatravel/active）
+- 红枫岗 / Red Maple Ridge（chinatravel/active）
+- 聚宝山公园 / Jubaoshan Park（chinatravel/active）
+- 芥子园 / Jiezi Garden（amap/active）
+- 苏韵十三园 / Thirteen Gardens of Jiangsu Charm（chinatravel/active）
+- 金乌温泉公园（chinatravel/active）
+- 钟山风景区-流徽榭 / Zhongshan Scenic Area - Liuhui Pavilion（chinatravel/active）
+- 阡陌花开 / Qianmo Huakai（chinatravel/active）
+- 雨花石地质公园 / Yuhuashi Geological Park（amap/active）
+
+## 广州（51）
+
+- 1978文化创意产业园 / 1978 Cultural and Creative Industrial Park（chinatravel/active）
+- LPS在地公园 / LPS Local Park（chinatravel/active）
+- TIT创意园 / TIT Creative Park（chinatravel/active）
+- 一方乐田都市农园 / Yifang Letian Urban Farm（chinatravel/active）
+- 中国科学院华南国家植物园 / South China National Botanical Garden, Chinese Academy of Sciences（amap/active）
+- 中山公园 / Zhongshan Park（chinatravel/active）
+- 云台花园 / Yuntai Garden（amap/active）
+- 人民公园 / People's Park（chinatravel/active）
+- 创客公园 / Maker Park（chinatravel/active）
+- 北回归线公园 / Tropic of Cancer Park（chinatravel/active）
+- 十八罗汉山森林公园 / Shibaluohan Mountain Forest Park（chinatravel/active）
+- 南沙水鸟世界生态公园 / Nansha Waterfowl World Ecological Park（amap/active）
+- 天河公园 / Tianhe Park（amap/active）
+- 宝墨园 / Baomo Garden（amap/active）
+- 岭南印象园 / Lingnan Impression Park（amap/active）
+- 广东花都湖国家湿地公园 / Guangdong Huadu Lake National Wetland Park（chinatravel/active）
+- 广州二龙山花园 / Guangzhou Erlongshan Garden（chinatravel/active）
+- 广州兰圃 / Guangzhou Orchid Garden（amap/active）
+- 广州市儿童公园 / Guangzhou Children's Park（amap/active）
+- 广州文化公园 / Guangzhou Cultural Park（amap/active）
+- 广州白云湖公园 / Guangzhou Baiyun Lake Park（chinatravel/active）
+- 广州雕塑公园 / Guangzhou Sculpture Park（chinatravel/active）
+- 新塘公园 / Xintang Park（chinatravel/active）
+- 晓港公园 / Xiaogang Park（chinatravel/active）
+- 曼古园 / Mangu Garden（chinatravel/active）
+- 林则徐纪念园 / Lin Zexu Memorial Park（chinatravel/active）
+- 正佳雨林生态植物园 / Zhengjia Rainforest Ecological Botanical Garden（amap/active）
+- 洲头咀公园 / Zhoutouzui Park（chinatravel/active）
+- 滨海公园 / Binhai Park（chinatravel/active）
+- 滴水岩森林公园 / Dishuiyan Forest Park（chinatravel/active）
+- 王子山森林公园 / Wangzishan Forest Park（chinatravel/active）
+- 珠江公园 / Zhujiang Park（amap/active）
+- 番禺儿童公园 / Panyu Children's Park（amap/active）
+- 石头记矿物园 / Story of Stone Mineral Park（chinatravel/active）
+- 笑平园休闲科教农场 / Xiaopingyuan Leisure and Science-Education Farm（chinatravel/active）
+- 罗洞工匠小镇流溪田园尚居（chinatravel/active）
+- 美山婚礼公园（chinatravel/active）
+- 美豪丽致(广州高铁南站顺德碧桂园店)（chinatravel/active）
+- 花果山公园 / Huaguoshan Park（chinatravel/active）
+- 花都湿地公园 / Huadu Wetland Park（chinatravel/active）
+- 荔湖公园 / Lihu Park（chinatravel/active）
+- 萝岗香雪公园 / Luogang Xiangxue Park（chinatravel/active）
+- 蒲洲花园 / Puzhou Garden（chinatravel/active）
+- 西坊大院文化创意园 / Xifang Dayuan Cultural and Creative Park（amap/active）
+- 越秀公园 / Yuexiu Park（amap/active）
+- 越秀山 / Yuexiu Mountain（chinatravel/active）
+- 风云岭森林公园 / Fengyunling Forest Park（chinatravel/active）
+- 马岭观花植物园 / Maling Flower-Viewing Botanical Garden（amap/active）
+- 马鞍山公园 / Ma'anshan Park（chinatravel/active）
+- 黄埔公园 / Huangpu Park（chinatravel/active）
+- 黄山鲁森林公园 / Huangshanlu Forest Park（chinatravel/active）
+
+## 成都（52）
+
+- LA CADIERE 花园城 / LA CADIERE Garden City（chinatravel/active）
+- 东湖公园 / East Lake Park（chinatravel/active）
+- 五凤山森林公园 / Wufeng Mountain Forest Park（chinatravel/active）
+- 交子公园 / Jiaozi Park（chinatravel/active）
+- 兴隆湖湿地公园 / Xinglong Lake Wetland Park（chinatravel/active）
+- 凤凰山公园 / Phoenix Mountain Park（chinatravel/active）
+- 凤凰湖湿地公园 / Fenghuang Lake Wetland Park（chinatravel/active）
+- 刘文辉公馆延庆园 / Liu Wenhui Mansion Yanqing Garden（chinatravel/active）
+- 北湖生态公园 / Beihu Ecological Park（chinatravel/active）
+- 双流区中心公园 / Shuangliu District Central Park（chinatravel/active）
+- 大源中央公园 / Dayuan Central Park（chinatravel/active）
+- 天府公园 / Tianfu Park（chinatravel/active）
+- 天府绿道 / Tianfu Greenway（chinatravel/active）
+- 天府艺术公园当代艺术馆 / Contemporary Art Museum, Tianfu Art Park（chinatravel/active）
+- 天府芙蓉园 / Tianfu Hibiscus Park（chinatravel/active）
+- 天鹅湖 / Swan Lake（chinatravel/active）
+- 太保家园·成都国际颐养社区（chinatravel/active）
+- 成都国际非物质文化遗产博览园 / Chengdu International Intangible Cultural Heritage Expo Park（amap/active）
+- 成都市天府艺术公园 / Tianfu Art Park, Chengdu（chinatravel/active）
+- 成都市天府艺术公园 / Tianfu Art Park, Chengdu（amap/active）
+- 成都市文化公园 / Chengdu Culture Park（amap/active）
+- 成都新津斑竹林景区 / Banzhulin Scenic Area, Xinjin, Chengdu（chinatravel/active）
+- 成都植物园 / Chengdu Botanical Garden（amap/active）
+- 成都超音速国际卡丁车公园 / Chengdu Supersonic International Karting Park（amap/active）
+- 成都锦城公园 / Jincheng Park, Chengdu（chinatravel/active）
+- 成都鸟语林 / Chengdu Bird Garden（chinatravel/active）
+- 成都鹿尔花园（chinatravel/active）
+- 成飞公园 / Chengfei Park（chinatravel/active）
+- 我的田园 / My Pastoral（chinatravel/active）
+- 摩诃池 / Maha Pond（chinatravel/active）
+- 望江楼公园 / Wangjiang Pavilion Park（amap/active）
+- 桂湖公园 / Guihu Park（chinatravel/active）
+- 桂溪生态公园 / Guixi Ecological Park（chinatravel/active）
+- 棠湖公园 / Tanghu Park（chinatravel/active）
+- 永安湖城市森林公园 / Yong'an Lake Urban Forest Park（chinatravel/active）
+- 浣花溪公园 / Huanhuaxi Park（amap/active）
+- 清溪园 / Qingxi Garden（chinatravel/active）
+- 白塔园 / White Pagoda Garden（chinatravel/active）
+- 白鹭湾湿地公园 / Egret Bay Wetland Park（chinatravel/active）
+- 白鹿森林公园 / Bailu Forest Park（chinatravel/active）
+- 百花潭公园 / Baihuatan Park（chinatravel/active）
+- 离堆公园 / Lidui Park（chinatravel/active）
+- 空港花田 / Airport Flower Field（amap/active）
+- 虹口花谷 / Hongkou Flower Valley（chinatravel/active）
+- 锦城梨园 / Jincheng Pear Garden（chinatravel/active）
+- 青龙湖 / Qinglong Lake（chinatravel/active）
+- 麓湖生态城 / Luxelakes Eco-City（chinatravel/active）
+- 麓湖生态城 / Luhu Eco City（amap/active）
+- 黄龙溪欢乐田园 / Huanglongxi Happy Countryside（amap/active）
+- 龙泉山城市森林公园 / Longquan Mountain Urban Forest Park（chinatravel/active）
+- 龙泉森林公园 / Longquan Forest Park（chinatravel/active）
+- 龙泉驿欢乐田园 / Longquanyi Happy Countryside (Huanle Tianyuan)（amap/active）
+
+## 杭州（29）
+
+- 三公园 / San Gongyuan（chinatravel/active）
+- 中山公园 / Zhongshan Park（chinatravel/active）
+- 临平公园 / Linping Park（chinatravel/active）
+- 云亭 / Cloud Pavilion（chinatravel/active）
+- 云栖竹径 / Yunqi Bamboo-Lined Path（chinatravel/active）
+- 城市阳台 / City Balcony（amap/active）
+- 大明湖 / Daming Lake（chinatravel/active）
+- 太子湾公园 / Taiziwan Park（amap/active）
+- 孤山 / Gushan (Solitary Hill)（chinatravel/active）
+- 少年儿童公园 / Children's Park（amap/active）
+- 杨公堤 / Yanggong Causeway（chinatravel/active）
+- 杭州半山国家森林公园 / Hangzhou Banshan National Forest Park（chinatravel/active）
+- 杭州市之江凤凰国际创意园区 / Hangzhou Zhijiang Phoenix International Creative Park（chinatravel/active）
+- 杭州植物园 / Hangzhou Botanical Garden（amap/active）
+- 杭州樱花园 / Hangzhou Cherry Blossom Garden（chinatravel/active）
+- 杭州浪浪浪水公园 / Hangzhou Langlanglang Water Park（amap/active）
+- 柳浪闻莺 / Orioles Singing in the Willows（amap/active）
+- 浙农东巢艺术公园 / Zhenong Dongchao Art Park（chinatravel/active）
+- 浙江大学(华家池校区)-植物园 / Zhejiang University (Huajiachi Campus) - Botanical Garden（chinatravel/active）
+- 白塔公园 / White Pagoda Park（chinatravel/active）
+- 老龙井十八棵御茶园 / Eighteen Imperial Tea Trees at Laolongjing (Old Dragon Well)（amap/active）
+- 花港观鱼 / Huagang Guanyu (Viewing Fish at Flower Pond)（amap/active）
+- 苏堤 / Su Causeway（chinatravel/active）
+- 虎跑公园 / Tiger Running Spring Park (Hupao Park)（amap/active）
+- 西溪梅墅 / Xixi Plum Villa（chinatravel/active）
+- 跨虹桥 / Kua Hong Qiao (Spanning Rainbow Bridge)（chinatravel/active）
+- 钱江世纪公园 / Qianjiang Century Park（amap/active）
+- 长桥 / Changqiao (Long Bridge)（chinatravel/active）
+- 青山湖 / Qingshan Lake（chinatravel/active）
+
+## 武汉（31）
+
+- zoolung zoolung动物主题公园(壹方购物中心店) / Zoolung Zoolung Animal Theme Park (Uni Square Shopping Center Branch)（amap/active）
+- 万国公园 / Wanguo Park（chinatravel/active）
+- 光谷花海 / Optics Valley Flower Sea（chinatravel/active）
+- 后官湖湿地公园 / Houguan Lake Wetland Park（chinatravel/active）
+- 和平公园 / Heping Park（chinatravel/active）
+- 堤角公园 / Dijiao Park（chinatravel/active）
+- 墨水湖 / Moshui Lake（chinatravel/active）
+- 大禹神话园 / Dayu Mythology Park（amap/active）
+- 木兰玫瑰园 / Mulan Rose Garden（chinatravel/active）
+- 杨春湖 / Yangchun Lake（chinatravel/active）
+- 武汉安山国家湿地公园 / Wuhan Anshan National Wetland Park（chinatravel/active）
+- 武汉植物园 / Wuhan Botanical Garden（amap/active）
+- 武汉赶海公园 / Wuhan Ganhai Park（chinatravel/inactive）
+- 水云乡 / Shuiyunxiang（chinatravel/active）
+- 汉口江滩芦苇荡 / Hankou Riverside Reed Marsh（chinatravel/active）
+- 洪山公园 / Hongshan Park（chinatravel/active）
+- 王家墩公园 / Wangjiadun Park（chinatravel/active）
+- 石门峰纪念公园 / Shimenfeng Memorial Park（chinatravel/active）
+- 碧潭观鱼 / Bitan Fish Viewing（chinatravel/active）
+- 素山寺森林公园 / Sushansi Forest Park（chinatravel/active）
+- 紫薇花海 / Crape Myrtle Sea of Flowers（chinatravel/active）
+- 紫薇都市田园 / Ziwei Urban Pastoral（amap/active）
+- 紫阳公园 / Ziyang Park（amap/active）
+- 西北湖 / Xibei Lake (Northwest Lake)（chinatravel/active）
+- 解放公园 / Jiefang Park（amap/active）
+- 谭鑫培公园 / Tan Xinpei Park（chinatravel/active）
+- 辛亥革命纪念园 / Xinhai Revolution Memorial Park（chinatravel/active）
+- 青山江滩 / Qingshan Riverside（chinatravel/active）
+- 首义公园 / Shouyi Park（amap/active）
+- 鹦鹉洲汉阳桥梁主题公园 / Yingwuzhou Hanyang Bridge Theme Park（amap/active）
+- 龙灵山生态公园 / Longling Mountain Ecological Park（chinatravel/active）
+
+## 深圳（53）
+
+- 东部华侨城水公园 / OCT East Water Park（amap/active）
+- 人民公园 / People's Park（chinatravel/active）
+- 光明农场大观园 / Guangming Farm Grand View Garden（amap/active）
+- 光明欢乐田园 / Guangming Happy Farmland（amap/active）
+- 前海演艺公园 / Qianhai Performing Arts Park（chinatravel/active）
+- 北站中心公园 / Beizhan Central Park（amap/active）
+- 南山 / Nanshan（chinatravel/active）
+- 四海公园 / Sihai Park（chinatravel/active）
+- 坪山公园 / Pingshan Park（chinatravel/active）
+- 塘朗山公园 / Tanglangshan Park（chinatravel/active）
+- 塘朗山郊野公园 / Tanglangshan Country Park（chinatravel/active）
+- 大沙河公园 / Dashahe Park（amap/active）
+- 大沙河生态长廊 / Dasha River Ecological Corridor（chinatravel/active）
+- 宝安公园 / Bao'an Park（chinatravel/active）
+- 宝安西湾红树林公园 / Bao'an Xiwan Mangrove Park（amap/active）
+- 小南山公园 / Xiaonanshan Park（chinatravel/active）
+- 平湖生态园 / Pinghu Ecological Park（chinatravel/active）
+- 月亮湾公园 / Moon Bay Park (Yueliangwan Park)（amap/active）
+- 梅沙湾公园 / Meishawan Park（chinatravel/active）
+- 海山公园(深盐路) / Haishan Park (Shenyan Road)（chinatravel/active）
+- 海景公园 / Seaview Park（chinatravel/active）
+- 淘金山绿道 / Taojinshan Greenway（chinatravel/active）
+- 深圳teamLab共创！未来园 / teamLab Borderless Shenzhen: Co-Creation! Future Park（amap/active）
+- 深圳中心公园 / Shenzhen Central Park（amap/active）
+- 深圳人才公园 / Shenzhen Talent Park（amap/active）
+- 深圳国际园林花卉博览园 / Shenzhen International Garden and Flower Expo Park（amap/active）
+- 深圳市中心公园 / Shenzhen Central Park（chinatravel/active）
+- 深圳市儿童公园 / Shenzhen Children's Park（amap/active）
+- 深圳花海间 / Shenzhen Huahaijian（chinatravel/active）
+- 清平古墟影视文化园 / Qingping Ancient Market Film and Television Culture Park（amap/active）
+- 燕晗山郊野公园 / Yanhanshan Country Park（chinatravel/active）
+- 玉龙公园 / Yulong Park（chinatravel/active）
+- 白石龙音乐主题公园 / Baishilong Music Theme Park（amap/active）
+- 盐田中央公园 / Yantian Central Park（chinatravel/active）
+- 石岩湿地公园 / Shiyan Wetland Park（chinatravel/active）
+- 碧海湾公园 / Bihai Bay Park（chinatravel/active）
+- 福田红树林生态公园 / Futian Mangrove Ecological Park（amap/active）
+- 科兴科技园 / Kexing Science Park（chinatravel/active）
+- 立新湖公园 / Lixinhu Park（chinatravel/active）
+- 荔枝公园 / Lizhi Park（amap/active）
+- 虹桥公园 / Hongqiao Park（amap/active）
+- 观澜河湿地公园 / Guanlan River Wetland Park（chinatravel/active）
+- 铁路公园 / Railway Park（chinatravel/active）
+- 银湖山郊野公园 / Yinhu Mountain Country Park（chinatravel/active）
+- 锦绣园 / Jinxiu Garden（chinatravel/active）
+- 阳台山森林公园 / Yangtai Mountain Forest Park（chinatravel/active）
+- 阳台山森林公园 / Yangtaishan Forest Park（amap/active）
+- 香蜜公园 / Xiangmi Park（amap/active）
+- 龙华公园 / Longhua Park（amap/active）
+- 龙园 / Longyuan (Dragon Garden)（amap/active）
+- 龙城公园 / Longcheng Park（chinatravel/active）
+- 龙岗儿童公园 / Longgang Children's Park（amap/active）
+- 龙潭公园 / Longtan Park（chinatravel/active）
+
+## 苏州（58）
+
+- 七都湿地公园 / Qidu Wetland Park（chinatravel/active）
+- 万公堤 / Wangong Dike（chinatravel/active）
+- 万鸟园 / Wanniao Garden（amap/active）
+- 东园 / Dongyuan Garden（amap/active）
+- 东太湖生态园 / East Taihu Lake Ecological Park（chinatravel/active）
+- 东沙湖生态公园 / Dongsha Lake Ecological Park（chinatravel/active）
+- 严家花园 / Yanjia Garden（amap/active）
+- 亭林园 / Tinglin Park（amap/active）
+- 半园 / Banyuan Garden（chinatravel/active）
+- 南园 / Nanyuan Garden（amap/active）
+- 南园茶社 / Nanyuan Teahouse（amap/active）
+- 南湖湿地公园 / Nanhu Wetland Park（chinatravel/active）
+- 双山岛湿地公园 / Shuangshan Island Wetland Park（chinatravel/active）
+- 古松园 / Ancient Pine Garden（amap/active）
+- 可园 / Keyuan Garden（amap/active）
+- 启园 / Qiyuan Garden（amap/active）
+- 唐寅园 / Tang Yin Garden（chinatravel/active）
+- 大阳山国家森林公园植物园景区 / Dayang Mountain National Forest Park Botanical Garden Scenic Area（chinatravel/active）
+- 天福国家湿地公园 / Tianfu National Wetland Park（chinatravel/active）
+- 天镜湖 / Tianjing Lake（chinatravel/active）
+- 孙武文化园 / Sun Wu Cultural Park（chinatravel/active）
+- 孙武纪念园 / Sun Wu Memorial Park（chinatravel/active）
+- 尚湖水上森林 / Shanghu Lake Water Forest（chinatravel/active）
+- 尹山湖 / Yinshan Lake（chinatravel/active）
+- 怡园 / Garden of Joy（amap/active）
+- 昆承湖 / Kuncheng Lake（chinatravel/active）
+- 曾赵园 / Zengzhao Garden（amap/active）
+- 木樨园 / Muxiyuan（chinatravel/active）
+- 柴园 / Chai Garden（chinatravel/active）
+- 梅李聚沙园 / Meili Jusha Garden（amap/active）
+- 沙洲优黄文化园 / Shazhou Youhuang Cultural Park（amap/active）
+- 沙洲公园 / Shazhou Park（chinatravel/active）
+- 燕园 / Yanyuan (Yan Garden)（amap/active）
+- 独墅湖 / Dushu Lake（chinatravel/active）
+- 独墅湖 / Dushu Lake（amap/active）
+- 独墅湖公园 / Dushu Lake Park（chinatravel/active）
+- 瑞园 / Rui Garden（chinatravel/active）
+- 畅园 / Changyuan Garden（amap/active）
+- 留园 / Liuyuan Garden (Lingering Garden)（amap/active）
+- 白鹭园 / Egret Garden（chinatravel/active）
+- 盛泽湖月季园 / Shengze Lake Rose Garden（chinatravel/active）
+- 紫藤园 / Wisteria Garden（chinatravel/active）
+- 纸箱王主题创意园区 / Carton King Theme Creative Park（amap/active）
+- 网师园 / Master of the Nets Garden（amap/active）
+- 翡翠湖生态公园 / Emerald Lake Ecological Park（chinatravel/active）
+- 耦园 / Couple's Retreat Garden（amap/active）
+- 花溪公园 / Huaxi Park（chinatravel/active）
+- 苏州中国花卉植物园 / Suzhou China Flower Botanical Garden（amap/active）
+- 苏州公园 / Suzhou Park（chinatravel/active）
+- 苏州园林曲园 / Quyuan Garden, Suzhou Gardens（amap/active）
+- 苏州江南农耕文化园 / Suzhou Jiangnan Farming Culture Park（amap/active）
+- 虞山公园 / Yushan Park（chinatravel/active）
+- 退思园 / Tuisi Garden (Retreat & Reflection Garden)（amap/active）
+- 郑和公园 / Zhenghe Park（chinatravel/active）
+- 金仓湖 / Jincang Lake（chinatravel/active）
+- 震泽省级湿地公园 / Zhenze Provincial Wetland Park（chinatravel/active）
+- 静思园 / Jingsi Garden（amap/active）
+- 鹤园 / He Garden（chinatravel/active）
+
+## 重庆（40）
+
+- 七里塘 / Qilitang（chinatravel/inactive）
+- 九曲河湿地公园 / Jiuqu River Wetland Park（chinatravel/active）
+- 二厂文创公园 / Erchang Cultural and Creative Park（amap/active）
+- 云阳龙缸国家地质公园 / Yunyang Longgang National Geological Park（amap/active）
+- 仙女山国家森林公园 / Xiannü Mountain National Forest Park（amap/active）
+- 仙女山国家森林公园 / Fairy Mountain National Forest Park（chinatravel/active）
+- 佛图关公园 / Fotuguan Park（chinatravel/active）
+- 半山崖线 / Mid-Mountain Cliff Trail（chinatravel/active）
+- 华生园金色蛋糕梦幻王国 / Huashengyuan Golden Cake Dream Kingdom（amap/active）
+- 南温泉公园（chinatravel/active）
+- 南湖多彩植物园 / Nanhu Colorful Botanical Garden（chinatravel/active）
+- 双桂山国家森林公园 / Shuanggui Mountain National Forest Park（chinatravel/active）
+- 双桂山国家森林公园 / Shuangguishan National Forest Park（amap/active）
+- 壹华里夜景公园 / Yihuali Night View Park（chinatravel/active）
+- 大渡口公园 / Dadukou Park（chinatravel/active）
+- 天生城公园 / Tianshengcheng Park（amap/active）
+- 天生城公园 / Tianshengcheng Park（baidu/active）
+- 山王坪喀斯特国家生态公园 / Shanwangping Karst National Ecological Park（chinatravel/active）
+- 李子坝公园 / Liziba Park（chinatravel/active）
+- 桂园 / Guiyuan（amap/active）
+- 武陵山国家森林公园 / Wuling Mountain National Forest Park（amap/active）
+- 武陵山国家森林公园 / Wulingshan National Forest Park（chinatravel/active）
+- 江北嘴江滩公园 / Jiangbeizui Riverside Park（chinatravel/active）
+- 渝北龙头寺公园 / Longtousi Park, Yubei（chinatravel/active）
+- 烟雨公园 / Yanyu Park（chinatravel/active）
+- 熊婆婆的花园 / Grandma Bear's Garden（chinatravel/active）
+- 碧津公园 / Bijin Park（chinatravel/active）
+- 神女湖 / Goddess Lake（chinatravel/active）
+- 秀湖公园 / Xiuhu Park（chinatravel/active）
+- 绿色星球动物主题公园 / Green Planet Animal Theme Park（amap/active）
+- 西山公园 / Xishan Park（chinatravel/active）
+- 重庆中央公园 / Chongqing Central Park（amap/active）
+- 重庆光环购物公园室内植物园“沐光森林” / The Ring Chongqing Indoor Botanical Garden 'Muguang Forest'（amap/active）
+- 重庆园博园 / Chongqing Garden Expo Park（amap/active）
+- 重庆开埠遗址公园 / Chongqing Port Opening Heritage Park（chinatravel/active）
+- 重庆枇杷山公园 / Pipashan Park, Chongqing（chinatravel/active）
+- 重庆谈判旧址-怡园 / Chongqing Negotiation Site - Yiyuan（chinatravel/active）
+- 际华园极限运动中心 / Jihua Park Extreme Sports Center（amap/active）
+- 鹅岭公园 / Eling Park（amap/active）
+- 黄水国家森林公园 / Huangshui National Forest Park（chinatravel/active）
+
+
+## 附一：命中四类名单而排除的（31）
+
+- —｜苏州园林｜5A
+- —｜颐和园｜5A、国外平台推荐、热门预约景点
+- 北京｜北京颐和园石舫｜5A、国外平台推荐、热门预约景点
+- 北京｜圆明园｜5A
+- 北京｜奥林匹克公园｜5A、国外平台推荐
+- 北京｜颐和园｜5A、国外平台推荐、热门预约景点
+- 北京｜颐和园-船坞｜5A、国外平台推荐、热门预约景点
+- 武汉｜东湖凌波门栈桥｜5A
+- 武汉｜东湖帆船公园｜5A
+- 武汉｜东湖磨山景区｜5A
+- 武汉｜东湖磨山景区｜5A
+- —｜拙政园｜国外平台推荐、热门预约景点
+- 上海｜豫园｜国外平台推荐、热门预约景点
+- 北京｜景山公园｜国外平台推荐、热门预约景点
+- 成都｜人民公园｜国外平台推荐、热门预约景点
+- 成都｜成都市人民公园｜国外平台推荐、热门预约景点
+- 杭州｜西溪湿地洪园｜国外平台推荐、热门预约景点
+- 武汉｜黄鹤楼酒文化博览园｜国外平台推荐、热门预约景点
+- 深圳｜华侨城创意文化园｜国外平台推荐、热门预约景点
+- 深圳｜深圳湾公园｜国外平台推荐、热门预约景点
+- 深圳｜深圳湾公园｜国外平台推荐、热门预约景点
+- 深圳｜深圳湾公园-运动公园｜国外平台推荐、热门预约景点
+- 苏州｜拙政园｜国外平台推荐、热门预约景点
+- 广州｜白云山风景名胜区-山顶公园｜国家级风景名胜区
+- 杭州｜杭州西湖风景名胜区-茅乡水情｜国家级风景名胜区、国外平台推荐、热门预约景点
+- 杭州｜杭州西湖风景名胜区-西湖幽静公园｜国家级风景名胜区、国外平台推荐、热门预约景点
+- 深圳｜广东梧桐山国家森林公园｜国家级风景名胜区
+- 苏州｜苏州太湖园博园｜国家级风景名胜区
+- 苏州｜苏州太湖园博园｜国家级风景名胜区
+- 苏州｜苏州太湖湖滨国家湿地公园｜国家级风景名胜区
+- 苏州｜苏州太湖湖滨国家湿地公园｜国家级风景名胜区
+
+## 附二：category=park 混入的非公园行（86，建议清洗）
+
+- 上海｜豫园星空梦幻馆｜amap
+- 北京｜云颐自在酒店(北京清河高铁站小米科技园店)｜chinatravel
+- 北京｜北京世园凯悦嘉轩酒店｜chinatravel
+- 北京｜北京世园璞燊酒店｜chinatravel
+- 北京｜北京中关村科技园智选假日酒店｜chinatravel
+- 北京｜北京亚太花园酒店(环球度假区梨园地铁站店)｜chinatravel
+- 北京｜北京北辰汇园酒店公寓(贵宾楼)｜chinatravel
+- 北京｜北京南站大观园漫心酒店｜chinatravel
+- 北京｜北京和园景逸大酒店｜chinatravel
+- 北京｜北京四季御园国际大酒店｜chinatravel
+- 北京｜北京国贸潘家园亚朵酒店｜chinatravel
+- 北京｜北京望京科技园亚朵酒店｜chinatravel
+- 北京｜北京枫烨园酒店｜chinatravel
+- 北京｜北京民族园葉子里酒店｜chinatravel
+- 北京｜北京蓝调庄园｜chinatravel
+- 北京｜北京西西里度假庄园｜chinatravel
+- 北京｜朗丽兹酒店(北京中关村软件园农大店)｜chinatravel
+- 北京｜桔子水晶北京上地中关村软件园酒店｜chinatravel
+- 北京｜桔子水晶北京朝阳公园酒店｜chinatravel
+- 北京｜潘家园旧货市场｜chinatravel
+- 北京｜秋果酒店(北京望京科技园店)｜chinatravel
+- 北京｜艺龙酒店(北京清河高铁站小米科技园店)｜chinatravel
+- 北京｜艺龙酒店(北京通州环球梨园地铁站店)｜chinatravel
+- 南京｜乐优居商旅酒店公寓(南京奥体新城科技园店)｜chinatravel
+- 南京｜南京和福园酒店｜chinatravel
+- 南京｜南京园博园voco酒店｜chinatravel
+- 南京｜南京园博园英迪格酒店｜chinatravel
+- 南京｜南京得半庄园度假酒店｜chinatravel
+- 南京｜南京河西奥体中心希尔顿花园酒店｜chinatravel
+- 南京｜南京石塘田园e站竹卿舍田园民宿｜chinatravel
+- 南京｜南京空港温德姆花园酒店｜chinatravel
+- 南京｜南京竹官园宾馆(禄口机场店)｜chinatravel
+- 南京｜南京素一花园民宿｜chinatravel
+- 南京｜南京颐和芥子园酒店｜chinatravel
+- 南京｜拾穗花园民宿(南京徐家院店)｜chinatravel
+- 南京｜艾米酒店公寓(南京奥体新城科技园店)｜chinatravel
+- 南京｜苏辽酒店(南京奥体中心绿博园店)｜chinatravel
+- 广州｜奕玥S酒店(广州天河公园科韵路地铁站店)｜chinatravel
+- 广州｜宜致酒店(广州天河公园珠江新城店)｜chinatravel
+- 广州｜广州从都国际庄园｜chinatravel
+- 广州｜广州仟信至尊酒店(广州从化儿童公园店)｜chinatravel
+- 广州｜广州吾乡石屋田园度假酒店｜chinatravel
+- 广州｜广州增城碧桂园希尔顿逸林酒店(增城万达广场店)｜chinatravel
+- 广州｜广州天河公园万枫酒店｜chinatravel
+- 广州｜广州天河鼎龙希尔顿花园酒店｜chinatravel
+- 广州｜广州奥园喜来登酒店｜chinatravel
+- 广州｜广州富力君悦大酒店·空中花园｜chinatravel
+- 广州｜广州机场空港希尔顿花园酒店｜chinatravel
+- 广州｜广州柒舍云宿庄园｜chinatravel
+- 广州｜广州白云太和民营科技园亚朵酒店｜chinatravel
+- 广州｜广州花园酒店｜chinatravel
+- 广州｜府上酒店(火车站越秀公园店)｜chinatravel
+- 广州｜柏高·雅酒店(广州龙洞植物园地铁站店)｜chinatravel
+- 广州｜桔子酒店(广州越秀公园店)｜chinatravel
+- 成都｜佛莱雅花园酒店(新加坡)(成都火车南站店)｜chinatravel
+- 成都｜成都C3酒店(天府艺术公园店)｜chinatravel
+- 成都｜成都家园国际酒店｜chinatravel
+- 成都｜成都宽窄人民公园地铁站亚朵S酒店｜chinatravel
+- 成都｜成都成华希尔顿花园酒店｜chinatravel
+- 成都｜成都梨园祥酒店(文殊坊店)｜chinatravel
+- 成都｜成都非遗博览园缇沃丽酒店｜chinatravel
+- 成都｜檀香花园酒店(茶店子客运站地铁店)｜chinatravel
+- 成都｜漫心酒店(成都青羊工业园万达广场店)｜chinatravel
+- 成都｜隐栖堂美学生活酒店(宽窄巷子人民公园地铁站店)｜chinatravel
+- 杭州｜杭州世纪雷迪森庄园酒店｜chinatravel
+- 杭州｜杭州临安云泊天目养生庄园｜chinatravel
+- 杭州｜杭州余杭温德姆花园酒店｜chinatravel
+- 杭州｜杭州兮园民宿｜chinatravel
+- 杭州｜杭州拱墅亚运公园亚朵酒店｜chinatravel
+- 杭州｜杭州柏锦花园酒店｜chinatravel
+- 杭州｜杭州雷迪森龙井庄园｜chinatravel
+- 杭州｜浙江西子宾馆·汪庄·瑶园咖啡厅｜chinatravel
+- 杭州｜花筑·杭州竺隐园民宿｜chinatravel
+- 武汉｜东湖绿道观光车｜chinatravel
+- 苏州｜太仓玫瑰庄园｜chinatravel
+- 苏州｜拙政园VR馆｜amap
+- 重庆｜丽怡酒店(重庆光环购物公园重光地铁站店)｜chinatravel
+- 重庆｜哈啰轻酒店(重庆微电园地铁站店)｜chinatravel
+- 重庆｜希曼影院式酒店(重庆悦来国博中心中央公园店)｜chinatravel
+- 重庆｜柏特酒店(鱼嘴鱼复工业园区店)｜chinatravel
+- 重庆｜泊联汇·观澜酒店(重庆微电园地铁站店)｜chinatravel
+- 重庆｜维也纳国际酒店(重庆中央公园店)｜chinatravel
+- 重庆｜重庆南岸茶园新区亚朵酒店｜chinatravel
+- 重庆｜重庆璞悦•空中花园酒店｜chinatravel
+- 重庆｜重庆魔名奇妙花园民宿｜chinatravel
+- 重庆｜麗枫酒店(重庆悦来国际博览中心中央公园店)｜chinatravel
+
+## 附三：疑似场馆/子点位（11，人工复核是否算公园）
+
+- 北京｜北京梨园剧场｜amap
+- 北京｜北海公园游船｜chinatravel
+- 广州｜中央演艺广场｜chinatravel
+- 广州｜海心沙亚运公园-海心沙广场｜chinatravel
+- 广州｜考拉广场｜chinatravel
+- 成都｜联华梨园社·春熙剧场川剧变脸秀｜amap
+- 杭州｜湖滨五公园码头｜chinatravel
+- 武汉｜武汉园博园-东广场｜chinatravel
+- 深圳｜深圳湾公园-日出剧场｜chinatravel
+- 苏州｜墨客园茶席乐剧场｜chinatravel
+- 重庆｜重庆人民广场｜chinatravel
