@@ -37,6 +37,14 @@ FOREIGNER_TIP 配套 FOREIGNER_TIP_EN；中文键值字节不变，只加字段�
 并入，丽江古城/冰雪大世界/圣索菲亚/鼓浪屿（船票瓶颈）/永定土楼/太平山顶/
 武当山/平遥古城/西递宏村 9 行 无需预约。差异项与批次明细见
 DESIGN/reservation_seeds_核对_2026-10-25.md。
+
+外籍渠道轮（2026-10-29）：09 号表与 data/reservation_pois.csv 新增
+official_channel_foreign 列（38 馆逐馆直核+129 行分类规则）；陕历博口径
+修正（官网票务系统护照+国际手机号可约、到馆人工窗口换票，小程序仍限二代
+身份证）、河南博 days 2→3（官网明示提前 3 日、护照为五种有效证件之一）、
+布达拉宫 note 补外籍随团入藏、上博 note 补英文预约系统；FOREIGNER_TIP
+双语重写。详见核对 md「外籍渠道分列核查」章节（含灵隐免票传闻/大梅沙
+预约下架两条待人工确认）。
 """
 
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
@@ -75,8 +83,8 @@ RESERVATION_V0: dict[str, dict] = {
     "陕西历史博物馆": {
         "days": 5,
         "release": "17:00",
-        "note": "官方微信提前 5 天 17:00 放免费票，秒光；仅二代身份证，外籍需代订",
-        "note_en": "Official WeChat releases free tickets 5 days ahead at 17:00, sells out within seconds; 2nd-gen Chinese ID only — foreigners must use a proxy booking",  # noqa: E501
+        "note": "官方微信提前 5 天 17:00 放免费票，秒光；小程序仅限二代身份证，外籍走官网票务系统护照预约、到馆人工窗口换票",  # noqa: E501
+        "note_en": "Official WeChat releases free tickets 5 days ahead at 17:00, sells out within seconds; the mini-program needs a 2nd-gen Chinese ID — foreigners book on the official website with passport + international phone number, then exchange the ticket at the manual window",  # noqa: E501
     },
     "陕西历史博物馆秦汉馆": {
         "days": 5,
@@ -141,8 +149,8 @@ RESERVATION_V0: dict[str, dict] = {
     "布达拉宫": {
         "days": 10,
         "release": "00:00",
-        "note": "「布达拉宫票务预订系统」小程序提前 10 天，须本人微信端购票+人脸认证",
-        "note_en": "'Potala Palace Ticket Booking System' mini-program, book 10 days ahead; must be purchased on the visitor's own WeChat account with facial-recognition verification",  # noqa: E501
+        "note": "「布达拉宫票务预订系统」小程序提前 10 天，须本人微信端购票+人脸认证；外籍须随团入藏（入藏函），由旅行社凭护照代订",  # noqa: E501
+        "note_en": "'Potala Palace Ticket Booking System' mini-program, book 10 days ahead; must be purchased on the visitor's own WeChat account with facial-recognition verification; foreigners must join an organized tour (Tibet travel permit) with agency booking",  # noqa: E501
     },
     "秦始皇帝陵博物院": {
         "days": 7,
@@ -183,8 +191,8 @@ RESERVATION_V0: dict[str, dict] = {
     "上海博物馆": {
         "days": 14,
         "release": "12:00",
-        "note": "预约制期间散客提前 14 天、每日 12:00 放票（2024-04 起）；东馆常设展 2024-09 起试行免预约凭证入馆，特展以官方小程序为准",  # noqa: E501
-        "note_en": "During reservation periods individuals book 14 days ahead, released daily at 12:00 (since 2024-04); the East Hall's permanent galleries have piloted walk-in entry since 2024-09 — special exhibitions follow the official mini-program",  # noqa: E501
+        "note": "预约制期间散客提前 14 天、每日 12:00 放票（2024-04 起）；东馆常设展 2024-09 起试行免预约凭证入馆，特展以官方小程序为准；境外游客可用英文预约系统 reservation.shanghaimuseum.net/en（邮箱注册）",  # noqa: E501
+        "note_en": "During reservation periods individuals book 14 days ahead, released daily at 12:00 (since 2024-04); the East Hall's permanent galleries have piloted walk-in entry since 2024-09 — special exhibitions follow the official mini-program; overseas visitors can use the English booking system reservation.shanghaimuseum.net/en (email sign-up)",  # noqa: E501
     },
     "湖北省博物馆": {
         "days": 5,
@@ -193,10 +201,10 @@ RESERVATION_V0: dict[str, dict] = {
         "note_en": "Book free tickets 5 days ahead via the official WeChat account/site, released daily at 17:18; up to 5 per order; closed Mondays (except holidays)",  # noqa: E501
     },
     "河南博物院": {
-        "days": 2,
+        "days": 3,
         "release": "00:00",
-        "note": "官方微信公众号分时段实名预约（免费）；官方提前天数/放票时刻本轮未核到，以公众号《参观指南》为准",  # noqa: E501
-        "note_en": "Free timed-entry reservation via the official WeChat account; the official advance window/release time was not verified this round — follow the museum's visitor guide",  # noqa: E501
+        "note": "官方微信公众号/官网分时段实名预约（免费，护照为五种有效证件之一）；官网明示提前 3 日，放票时刻未注明",  # noqa: E501
+        "note_en": "Free timed-entry reservation via the official WeChat account/site — passports are one of five accepted ID types; officially 3 days ahead (release time not stated)",  # noqa: E501
     },
     "甘肃省博物馆": {
         "days": 3,
@@ -276,8 +284,8 @@ RESERVATION_V0: dict[str, dict] = {
 
 FOREIGNER_TIP = (
     "外国手机号/护照在小程序常失败——Trip.com/Klook 代抢是标准解法"
-    "（故宫官网/三星堆境外通道/熊猫基地携程频道护照可自助；"
-    "陕历博仅限二代身份证，必须代订）"
+    "（故宫官网/三星堆境外通道/熊猫基地携程频道/上博英文预约系统=护照可自助；"
+    "陕历博小程序仅限二代身份证、官网可护照预约；布达拉宫外籍须随团由旅行社代订）"
 )
 
 # 英文版（H5 英文态渲染用；与上面中文版口径一致）
@@ -285,9 +293,11 @@ FOREIGNER_TIP_EN = (
     "Foreign phone numbers/passports often fail in WeChat mini-programs — "
     "booking via Trip.com/Klook is the standard workaround "
     "(Forbidden City official site / Sanxingdui overseas channel / "
-    "Panda Base Ctrip channel accept passports for self-service; "
-    "Shaanxi History Museum requires a 2nd-gen Chinese ID — "
-    "must use a proxy booking)"
+    "Panda Base Ctrip channel / Shanghai Museum English booking site "
+    "accept passports for self-service; Shaanxi History Museum's "
+    "mini-program needs a 2nd-gen Chinese ID — book on its official "
+    "website instead; Potala Palace requires an organized tour with "
+    "agency booking)"
 )
 
 
