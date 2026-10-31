@@ -1408,7 +1408,11 @@ def _plan_lunch_slot(
     return None
 
 
-def _lunch_placeholder(day_plan: DayPlan, slot: tuple[time, time]) -> VisitItem:
+def _lunch_placeholder(
+    day_plan: DayPlan,
+    slot: tuple[time, time],
+    city: str | None = None,
+) -> VisitItem:
     """午餐占位件（2026-10-31 拍板：默认午饭时间，没餐厅就占位）。
 
     「午饭（自由安排）」钉在午餐落位（_plan_lunch_slot 给出的槽位，
@@ -1422,13 +1426,41 @@ def _lunch_placeholder(day_plan: DayPlan, slot: tuple[time, time]) -> VisitItem:
         item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("午饭（自由安排）", "Lunch (on your own)"),
         category="food",
-        city=day_plan.base_city,
+        # 换乘日午餐城由调用方传入（_meal_city_at）；None 回退醒来城
+        city=city or day_plan.base_city,
         day=day_plan.day,
         start_time=start,
         end_time=end,
         duration_minutes=MEAL_DURATION_MINUTES,
         pinned=True,
     )
+
+
+def _meal_city_at(day_plan: DayPlan, at: time | None) -> str:
+    """用餐时刻人所在城市（2026-10-31「上海→西安→上海→西安」案）。
+
+    DayPlan.base_city 是「当天醒来的城市」；换乘日晚上人在末段
+    transfer 的 to_city——餐厅检索按 base_city 搜会插出出发城晚餐卡
+    （day1 醒在上海、晚上逛西安，卡面却是上海七宝的店）。按 seq 走
+    当日 transfer，落地时刻（end_time，缺则 start+duration 推算）
+    ≤ at 即推进到 to_city：晚餐窗（17:30）前落地的白天航班把晚餐城
+    切到到达城；傍晚才起飞的航班落地晚于晚餐窗，晚饭照旧在出发城。
+    at=None 仅出现在无窗调用（此时上层本就不搜餐厅），语义=全天
+    transfer 均已落地。
+    """
+    city = day_plan.base_city
+    for t in sorted(
+        (i for i in day_plan.items if isinstance(i, TransferItem)),
+        key=lambda x: x.seq,
+    ):
+        end = t.end_time
+        if end is None and t.start_time is not None and t.duration_minutes is not None:
+            end = _time_of(_minutes_of(t.start_time) + t.duration_minutes)
+        if end is None:
+            continue
+        if at is None or end <= at:
+            city = t.to_city
+    return city
 
 
 def _reconcile_transfer_days(
@@ -5808,10 +5840,13 @@ class PlanningAgent:
                 # （落位贴着上一件排：切分/顺延见 _plan_lunch_slot）
                 placed_slot = None
                 split_cont: VisitItem | None = None
+                lunch_city = day_plan.base_city
                 if sights and not has_food:
                     resolved = _plan_lunch_slot(day_plan)
                     if resolved is not None:
                         placed_slot, split_cont = resolved
+                        # 换乘日午餐城跟随落地时刻（2026-10-31 沪→西安案）
+                        lunch_city = _meal_city_at(day_plan, placed_slot[0])
                 recs: list[VisitItem] = []
                 if placed_slot is not None and self._amap is not None and searches < 3:
                     searches += 1
@@ -5820,14 +5855,14 @@ class PlanningAgent:
                             self._amap,
                             day_plan,
                             "lunch",
-                            city=day_plan.base_city,
+                            city=lunch_city,
                             window=placed_slot,
                         )
                     except Exception:
                         logger.warning(
                             "plan: auto lunch insert failed day=%d city=%s",
                             day_plan.day,
-                            day_plan.base_city,
+                            lunch_city,
                             exc_info=True,
                         )
                         recs = []
@@ -5844,7 +5879,9 @@ class PlanningAgent:
                     if recs[0].poi_id:
                         inserted_pids.add(recs[0].poi_id)
                 elif placed_slot is not None:
-                    day_plan.items.append(_lunch_placeholder(day_plan, placed_slot))
+                    day_plan.items.append(
+                        _lunch_placeholder(day_plan, placed_slot, city=lunch_city)
+                    )
                     ph_days.append(day_plan.day)
                 if split_cont is not None:
                     day_plan.items.append(split_cont)
@@ -5859,9 +5896,17 @@ class PlanningAgent:
                 if has_real_food:
                     continue
                 try:
+                    dinner_win = meal_window(day_plan, "dinner")
                     recs = (
                         await recommend_restaurants(
-                            self._amap, day_plan, "dinner", city=day_plan.base_city
+                            self._amap,
+                            day_plan,
+                            "dinner",
+                            # 换乘日晚餐城=末段已落地 transfer 的到达城
+                            # （base_city 是醒来城：2026-10-31 沪→西安案）
+                            city=_meal_city_at(
+                                day_plan, dinner_win[0] if dinner_win else None
+                            ),
                         )
                         if self._amap is not None
                         else []

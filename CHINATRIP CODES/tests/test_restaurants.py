@@ -334,3 +334,28 @@ def test_recommend_restaurants_returns_fewer_when_few_hits():
     items = asyncio.run(recommend_restaurants(stub, plan, "lunch"))
     assert len(items) == 1
     assert items[0].name == "独一家"
+
+
+def test_recommend_restaurants_drops_far_located_candidates_when_route_known():
+    # 跨城错排闸（2026-10-31 沪→西安案）：有当日动线坐标时，已知坐标
+    # 候选距动线 ≥50km 不推荐；无坐标候选无法判定，维持垫底保留。
+    stub = StubAmap(
+        pois=[
+            make_poi("千里之外餐厅", lat=0.5),  # ~55.6km，跨城错排信号
+            make_poi("顺路餐厅", lat=0.002),
+            make_poi("无坐标餐厅", no_location=True),
+        ]
+    )
+    plan = day_plan(
+        day=1,
+        items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)],
+    )
+    items = asyncio.run(recommend_restaurants(stub, plan, "dinner"))
+    assert [i.name for i in items] == ["顺路餐厅", "无坐标餐厅"]
+
+
+def test_recommend_restaurants_keeps_far_candidates_without_route_points():
+    # 无动线坐标（纯过境日）：顺路语义无从判定，50km 闸不启用
+    stub = StubAmap(pois=[make_poi("远处餐厅", lat=0.5)])
+    items = asyncio.run(recommend_restaurants(stub, day_plan(), "dinner"))
+    assert [i.name for i in items] == ["远处餐厅"]

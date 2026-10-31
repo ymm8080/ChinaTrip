@@ -47,6 +47,13 @@ RATING_WEIGHT = 0.1  # rating * weight is subtracted from detour score
 # degenerate no-route-points case, where on-the-way-ness is undefined).
 NO_LOCATION_DETOUR_SCORE = 999.0
 
+# 跨城错排闸（2026-10-31「上海→西安→上海→西安」案）：候选池按调用方
+# 所传城市检索，城市传错时整池都在几百公里外，rank_by_detour 只能在
+# 错池内部排序、救不回来。有当日动线坐标时，已知坐标候选距动线
+# ≥50km（跨城/远郊跨区）不算「顺路」，不推荐；无坐标候选无法判定，
+# 维持排序垫底不动（行为不变）。
+MEAL_DETOUR_HARD_KM = 50.0
+
 # 午餐占位件 id 前缀（2026-10-31 拍板：午餐窗搜不到餐厅时插「午饭」占位）。
 # 识别走 item_id 而非名字——名字随请求语言（lang_ctx.L）变化。
 LUNCH_PLACEHOLDER_ID_PREFIX = "food-lunch-ph"
@@ -345,6 +352,14 @@ async def recommend_restaurants(
         if isinstance(item, VisitItem) and item.location is not None
     ]
     ranked = rank_by_detour(candidates, route_points=route_points)
+    if route_points:
+        # 有动线才有顺路语义：已知坐标的远距候选=跨城错排信号，整只
+        # 剔除比在错池里排序更诚实（宁缺不插 700km 外的「顺路」店）。
+        ranked = [
+            r
+            for r in ranked
+            if r.location is None or r.detour_score < MEAL_DETOUR_HARD_KM
+        ]
     return [
         build_food_item(
             cand,

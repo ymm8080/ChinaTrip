@@ -18,6 +18,7 @@ from app.services.agent.plan import (
     PlanningAgent,
     _category_search_keyword,
     _dedupe_visit_keepers,
+    _meal_city_at,
     _plan_lunch_slot,
     _site_dup,
     clarify_questions,
@@ -3120,3 +3121,97 @@ def test_refresh_legs_stamps_en_fields_from_detail_store():
     assert item.address_en == "Wenchang Road"
     assert item.address == "文昌路"
     assert item.opening_hours == "09:00-17:00"
+
+
+# --- 换乘日餐厅城市（2026-10-31「上海→西安→上海→西安」案）-----------------
+
+
+def test_meal_city_at_daytime_landing_moves_dinner_to_arrival_city():
+    # day1 醒在上海、航班 09:00–12:00 落西安 → 晚餐窗（17:30 起）人在西安
+    day = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                from_city="上海",
+                to_city="西安",
+                mode="flight",
+                start_time=time(9, 0),
+                end_time=time(12, 0),
+            )
+        ],
+    )
+    assert _meal_city_at(day, time(17, 30)) == "西安"
+    assert _meal_city_at(day, time(11, 0)) == "上海"  # 午餐窗在落地前 → 出发城
+    assert _meal_city_at(day, time(12, 0)) == "西安"  # 恰在落地时刻 → 到达城
+
+
+def test_meal_city_at_evening_departure_keeps_base_city():
+    # 傍晚航班（落地 22:00 晚于晚餐窗）→ 晚饭照旧在出发城吃
+    day = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            TransferItem(
+                item_id="t2",
+                day=2,
+                seq=1,
+                from_city="西安",
+                to_city="重庆",
+                mode="flight",
+                start_time=time(19, 0),
+                end_time=time(22, 0),
+            )
+        ],
+    )
+    assert _meal_city_at(day, time(17, 30)) == "西安"
+    assert _meal_city_at(day, time(22, 30)) == "重庆"  # 落地后 → 到达城
+
+
+def test_meal_city_at_no_transfer_is_base_city():
+    day = DayPlan(day=3, base_city="重庆", items=[])
+    assert _meal_city_at(day, time(17, 30)) == "重庆"
+
+
+def test_meal_city_at_duration_only_transfer_end_derived():
+    # end_time 缺失时按 start+duration 推落地时刻
+    day = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                from_city="上海",
+                to_city="西安",
+                mode="train",
+                start_time=time(9, 0),
+                duration_minutes=180,
+            )
+        ],
+    )
+    assert _meal_city_at(day, time(12, 0)) == "西安"
+    assert _meal_city_at(day, time(11, 59)) == "上海"
+
+
+def test_v0_transfer_day_dinner_searches_arrival_city():
+    # 端到端锁线：沪→西安 换乘日的晚餐检索城必须是到达城西安
+    # （旧码按 base_city 搜 → 插出上海七宝晚餐卡=跨城乱序）
+    amap = StubAmap(AMAP_POIS)
+    items = [
+        {"name": "大雁塔", "city": "西安", "day": 1, "duration_minutes": 90},
+        {"name": "回民街", "city": "西安", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(ScriptedLLM([v0_reply(items)]), amap_client=amap)
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "西安"], days=2, preferences="随便")
+    )
+    # 无餐饮候选 → 一张餐卡都不插（宁缺不插错城店）
+    assert not [v for v in all_visits(session) if v.category == "food"]
+    # 午餐被 90 分钟衔接缓冲推出窗外不搜；唯一餐厅检索=晚餐、城=西安
+    assert amap.calls, "dinner search should have run"
+    assert all(city == "西安" for _, city in amap.calls)
