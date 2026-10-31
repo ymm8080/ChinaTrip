@@ -81,7 +81,12 @@ from app.services.restaurants import (
     amap_category_is_food as _amap_category_is_food,
 )
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
-from app.services.trip_items import STATUS_SCHEDULED, STATUS_UNWANTED, STATUS_WISHLIST
+from app.services.trip_items import (
+    STATUS_SCHEDULED,
+    STATUS_UNWANTED,
+    STATUS_WISHLIST,
+    strip_scheduled_note,
+)
 from app.services.video_reader import build_video_reader
 from app.services.web_reader import (
     HttpLinkReader,
@@ -756,24 +761,41 @@ def _city_day_ranges(
     拍板：4 天 2 目的地不再「杭州只给 1 天」，test_v0_placeholder_
     selection_respects_city_windows 锚），但余数给后面的目的地——3 天
     南京→上海→苏州 = 上海1+苏州2，上海→苏州 站间腿落 day2（2026-10-31
-    收库门禁核：余数给前面会把该腿挪到 day3，推翻 v0 排日契约）。"""
+    收库门禁核：余数给前面会把该腿挪到 day3，推翻 v0 排日契约）。
+
+        2026-10-31 修复（返程日上午空排事故）：闭合行程上海-西安-重庆-
+        上海 3 天（city_days={西安:1,重庆:1,上海:1}，H5「结束城市天数」
+        语义=返程日）里旧版把尾城当真实目的地切窗——上海拿走 day3 活动
+        窗，而出发城不收候选、回填层 day_city 又把 day3 解析到上海直接
+        跳过 → 返程日只排一班 17 点航班、上午全空（用户：飞机五点的，
+        为什么不安排景点）。修复两个分支同口径：尾城只留 (days,days)
+        返程标记，末位真实目的地吃满到 days——返程日白天归它（预算由
+        transfer_days 扣减，组装层保证不与返程腿重叠；与非闭合行程
+        「最后一天有活动+傍晚返程」语义对齐，test_city_days 锚）。
+"""
     dests = cities[1:] if len(cities) > 1 else cities
     if len(dests) <= 1:
         return {dests[0]: (1, days)} if dests else {}
     closed = _norm_city(dests[-1]) == _norm_city(cities[0])
     if city_days:
+        # 闭合行程：尾城天数=返程日（H5 语义），不是它的活动日——尾城只留
+        # (days,days) 返程标记，真实目的地按 stay 切窗，末位真实目的地
+        # 吃满到 days（返程日白天归它，2026-10-31 返程日上午空排事故）。
+        split = dests[:-1] if closed else dests
         starts = [1]
-        for city in dests[:-1]:
+        for city in split[:-1]:
             stay = 1
             d = city_days.get(city) or city_days.get(city.removesuffix("市"))
             if isinstance(d, int) and d >= 1:
                 stay = d
             starts.append(max(starts[-1] + 1, min(starts[-1] + stay, days)))
         ranges: dict[str, tuple[int, int]] = {}
-        for c, city in enumerate(dests):
+        for c, city in enumerate(split):
             start = starts[c]
-            end = starts[c + 1] - 1 if c + 1 < len(dests) else days
+            end = starts[c + 1] - 1 if c + 1 < len(split) else days
             ranges[city] = (start, max(start, end))
+        if closed and dests[-1] not in ranges:
+            ranges[dests[-1]] = (days, days)  # 返程标记（无候选无活动）
         return ranges
     if not closed:
         base = days // len(dests)
@@ -802,7 +824,11 @@ def _city_day_ranges(
     ranges = {}
     for c, city in enumerate(seq):
         start = starts[c]
-        end = starts[c + 1] - 1 if c + 1 < len(seq) else days
+        if c + 1 < len(seq) and c + 1 < len(real):
+            end = starts[c + 1] - 1
+        else:
+            # 末位真实目的地吃到 days（返程日白天归它）；尾城只作返程标记
+            end = days
         ranges[city] = (start, max(start, end))
     return ranges
 
@@ -967,10 +993,66 @@ def _show_dup(a: str, b: str) -> bool:
     return _show_bucket(a) and _show_bucket(b)
 
 
+# 同内容配套场馆（2026-10-31 大足双卡案）：「大足石刻博物馆」「大足石刻
+# 数字影院」「大足区大足石刻景区」是同一遗产景区的园区/主馆/影厅，名字
+# 互不包含（containment 判不开）也不在演出桶——全雨天室内优先时博物馆
+# +影院背靠背双卡进同一天、园区卡再跨天第三张。剥行政区前缀与设施尾巴
+# 后核心词相同即同内容；双侧都要真的剥过（裸名 vs 设施名的组合 containment
+# 已覆盖，不重复受理）；核心词保持 ≥3 字防 2 字泛名误并（苏州博物馆→
+# 苏州 剥不动，保持全名）。
+_FACILITY_TAILS: tuple[str, ...] = (
+    "数字影院",
+    "电影院",
+    "影院",
+    "博物馆",
+    "纪念馆",
+    "陈列馆",
+    "美术馆",
+    "游客中心",
+)
+_DISTRICT_PREFIX_RE = re.compile(r"^[\u4e00-\u9fa5]{1,3}[区县]")
+
+
+def _content_core(name: str) -> tuple[str, bool]:
+    """名称→（内容核心词, 是否剥过前缀/尾巴）。剥序：junk → 行政区前缀
+    （大足区大足石刻景区→大足石刻景区）→ 景区尾巴（_SITE_TAILS，norm
+    已剥一遍，此处与设施尾巴同循环收尾）→ 设施尾巴；任一步剥掉即
+    flag=True。核心词保持 ≥3 字：剥完不足 3 字的步骤不执行。"""
+    junk_only = re.sub(_SITE_NAME_JUNK, "", name or "")
+    core = _norm_site_name(name)
+    stripped = False
+    m = _DISTRICT_PREFIX_RE.match(core)
+    if m and len(core) - m.end() >= 4:
+        core = core[m.end() :]
+        stripped = True
+    changed = True
+    while changed:
+        changed = False
+        for tail in (*_FACILITY_TAILS, *_SITE_TAILS):
+            if core.endswith(tail) and len(core) - len(tail) >= 3:
+                core = core[: -len(tail)]
+                changed = True
+    if core != junk_only:
+        stripped = True
+    return core, stripped
+
+
+def _content_dup(a: str, b: str) -> bool:
+    """同内容配套场馆（博物馆/影院/园区三胞胎）判定：双侧剥设施词后
+    核心词相等。地理闸在调用层（_same_visit/_spec_twin 与包含通道同
+    口径：双方有坐标且相距 >2km = 名字撞衫的不同场馆，不并）。"""
+    ca, sa = _content_core(a)
+    cb, sb = _content_core(b)
+    if not (sa and sb):
+        return False
+    return len(ca) >= 3 and ca == cb
+
+
 def _name_dup(a: str, b: str) -> bool:
     """Name-pair duplicate test for wish/candidate matching: containment
-    (_site_dup) plus show-activity alias (_show_dup)."""
-    return _site_dup(a, b) or _show_dup(a, b)
+    (_site_dup) plus show-activity alias (_show_dup) plus same-content
+    companion venues (_content_dup, 2026-10-31 大足双卡案)."""
+    return _site_dup(a, b) or _show_dup(a, b) or _content_dup(a, b)
 
 
 _WISH_VERB_RE = re.compile(
@@ -1088,7 +1170,12 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     地理闸（2026-10-31 青城山误并事故）：包含匹配会把泛名山岳「青城山」
     与同山不同场馆「青城山skydive跳伞基地」判同站（实测相距 ~6km，
     day3 被整天空掉）。双方有坐标且相距 >2km = 名字撞衫的不同场馆，
-    不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。"""
+    不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。
+
+    同内容通道（2026-10-31 大足双卡案）：_content_dup 把
+    大足石刻博物馆/数字影院/大足石刻景区 这类园区+配套场馆收敛为
+    同一站（一次行程看一次大足石刻），地理闸同样罩住：同名异地
+    分馆 >2km 不并。"""
     # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
@@ -4320,6 +4407,22 @@ class PlanningAgent:
                     self._trip_items.link_itinerary(it["id"], itin, force=True)
                     if row_itin:
                         session.linked_itins.append(row_itin)
+                if target is None and it.get("status") == STATUS_SCHEDULED:
+                    # 2026-10-31（看熊猫案）：行已归属当前行程，但重排后
+                    # 行程已不含该心愿落点（删点/换城窗/占位回退）——
+                    # scheduled 再挂着就是「已排期但实际没排」：回心愿
+                    # 单，note 剥「已安排」尾段。booked 行有真实订单，
+                    # rows 只取 wishlist+scheduled 组，天然不在其列。
+                    raw_note = str(it.get("note") or "")
+                    base = strip_scheduled_note(raw_note)
+                    note_kw: dict = {}
+                    if base != raw_note:
+                        note_kw["note"] = base
+                    self._trip_items.update(it["id"], status=STATUS_WISHLIST, **note_kw)
+                    logger.info(
+                        "plan: wish row back to wishlist %s (no slot in current plan)",
+                        name,
+                    )
                 if (
                     target is not None
                     and target.poi_id
@@ -4335,11 +4438,7 @@ class PlanningAgent:
                         f"Scheduled: {target.name} (day {target.day}{when[1]})",
                     )
                     raw_note = str(it.get("note") or "")
-                    base = (
-                        raw_note.split("｜已安排：")[0]
-                        .split(" | Scheduled:")[0]
-                        .strip()
-                    )
+                    base = strip_scheduled_note(raw_note)
                     if base:
                         note = L(f"{base}｜{note}", f"{base} | {note}")
                     self._trip_items.update(

@@ -186,6 +186,39 @@ def test_sync_heals_stale_binding_to_real_poi(monkeypatch):
     assert "成都大熊猫繁育研究基地" in (row.get("note") or "")
 
 
+def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
+    """重排后行程已不含心愿落点：scheduled 行回心愿单、剥「已安排」
+    尾段（2026-10-31 看熊猫案——已排期栏必须真实，行程里没有=没排）。
+    """
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = PandaStore()
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    rows = svc.list_groups()
+    assert any(r["name"] == "看熊猫" for r in rows["scheduled"])
+    # 模拟重排删点：把基地从计划里拿掉，再跑收口
+    for day in session.plan.days:
+        day.items = [
+            i
+            for i in day.items
+            if not (isinstance(i, VisitItem) and i.name == "成都大熊猫繁育研究基地")
+        ]
+    agent._sync_wish_rows(session)
+    rows = svc.list_groups()
+    assert not any(r["name"] == "看熊猫" for r in rows["scheduled"])
+    row = next(r for r in rows["wishlist"] if r["name"] == "看熊猫")
+    assert row["status"] == "wishlist"
+    assert row["day"] is None and row["position"] is None
+    assert "已安排" not in (row.get("note") or "")
+
+
 def test_sync_time_arrange_skips_when_name_match_exists(monkeypatch):
     """行程里已有名字对得上的正主：不再为次优绑定点加第二个点。"""
     monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")

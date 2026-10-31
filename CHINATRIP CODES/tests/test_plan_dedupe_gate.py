@@ -413,3 +413,121 @@ def test_dedupe_plan_keeps_far_apart_same_name_pair():
     names = _visit_names(plan)
     assert "青城山" in names and "青城山skydive跳伞基地" in names
     assert "青城山skydive跳伞基地" not in dropped
+
+
+# --- 2026-10-31 大足双卡案：同内容配套场馆（博物馆/影院/园区） ---------------
+
+
+def test_content_dup_merges_dazu_museum_cinema_scenic():
+    """实景（it-02287fad / it-c20cc5b5）：大足石刻博物馆 13:30 + 大足石刻
+    数字影院 15:00 背靠背，9 天版再加大足区大足石刻景区跨天第三卡——
+    三者剥设施词后核心词同为「大足石刻」（博物馆/影院距 ~1.4km、园区
+    与博物馆同坐标），同内容只算一站。"""
+    from app.services.agent.plan import _content_dup, _same_visit
+    from app.services.itinerary import GeoPoint
+
+    assert _content_dup("大足石刻博物馆", "大足石刻数字影院") is True
+    assert _content_dup("大足石刻博物馆", "大足区大足石刻景区") is True
+    assert _content_dup("大足石刻数字影院", "大足区大足石刻景区") is True
+
+    museum = _visit(
+        "v1",
+        "大足石刻博物馆",
+        city="重庆",
+        poi_id="ct_重庆_133",
+        location=GeoPoint(lon=105.79484, lat=29.74688),
+    )
+    cinema = _visit(
+        "v2",
+        "大足石刻数字影院",
+        city="重庆",
+        poi_id="ct_重庆_301",
+        location=GeoPoint(lon=105.78017, lat=29.74961),
+    )
+    scenic = _visit(
+        "v3",
+        "大足区大足石刻景区",
+        city="重庆",
+        poi_id="5a_243",
+        location=GeoPoint(lon=105.79484, lat=29.74688),
+    )
+    assert _same_visit(museum, cinema) is True  # ~1.4km：同园区配套
+    assert _same_visit(scenic, museum) is True  # 同坐标
+
+
+def test_dedupe_plan_keeps_single_dazu_card():
+    """端到端：day2 博物馆+影院背靠背、day3 园区卡 → 全程只留一张大足卡，
+    假设区「已合并重复站点」留痕。"""
+    from app.services.itinerary import GeoPoint
+
+    plan = ItineraryPlan(
+        itinerary_id="it-dazu",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=2,
+                base_city="重庆",
+                items=[
+                    _visit(
+                        "v1",
+                        "大足石刻博物馆",
+                        city="重庆",
+                        poi_id="ct_重庆_133",
+                        location=GeoPoint(lon=105.79484, lat=29.74688),
+                    ),
+                    _visit(
+                        "v2",
+                        "大足石刻数字影院",
+                        city="重庆",
+                        poi_id="ct_重庆_301",
+                        location=GeoPoint(lon=105.78017, lat=29.74961),
+                    ),
+                ],
+            ),
+            DayPlan(
+                day=3,
+                base_city="重庆",
+                items=[
+                    _visit(
+                        "v3",
+                        "大足区大足石刻景区",
+                        city="重庆",
+                        poi_id="5a_243",
+                        location=GeoPoint(lon=105.79484, lat=29.74688),
+                    )
+                ],
+            ),
+        ],
+    )
+    dropped = dedupe_plan_visits(plan)
+    names = _visit_names(plan)
+    assert sum(1 for n in names if "大足" in n) == 1
+    assert names[0] == "大足石刻博物馆"  # 同 rank 保序：第一张胜出
+    assert set(dropped) == {"大足石刻数字影院", "大足区大足石刻景区"}
+    assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
+def test_content_dup_far_apart_same_core_not_merged():
+    """地理闸：核心词相同但相距 >2km 的场馆（同名异地分馆）不并。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary import GeoPoint
+
+    a = _visit("v1", "大足石刻博物馆", location=GeoPoint(lon=105.79, lat=29.74))
+    b = _visit(
+        "v2",
+        "大足石刻数字影院",
+        location=GeoPoint(lon=106.10, lat=29.90),  # ~35km 外
+    )
+    assert _same_visit(a, b) is False
+
+
+def test_content_dup_requires_both_facility_strips():
+    """双侧都要剥过设施词：裸名 vs 设施名的组合交给 containment；2 字
+    核心词（苏州博物馆→苏州）剥不动，不进本通道。"""
+    from app.services.agent.plan import _content_core, _content_dup
+
+    assert _content_dup("大足石刻", "大足石刻博物馆") is False  # 单侧裸名
+    assert _content_core("苏州博物馆") == ("苏州博物馆", False)
+    assert _content_core("大足石刻博物馆") == ("大足石刻", True)
+    assert _content_core("大足区大足石刻景区") == ("大足石刻", True)
+    assert _content_core("大足石刻数字影院") == ("大足石刻", True)

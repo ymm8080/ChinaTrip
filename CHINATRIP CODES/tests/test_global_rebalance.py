@@ -55,19 +55,20 @@ def _spec(name, city, day, *, loc=None, minutes=90, must=False, category="sight"
 
 
 def test_ranges_closed_trip_even_split():
-    # 上海→成都→重庆→上海 7 天：归程上海只留返程日，蓉渝均分 6 天
+    # 上海→成都→重庆→上海 7 天：尾城上海只留返程标记，蓉均分、渝吃到
+    # day7（2026-10-31 返程日修复：返程日白天归末位真实目的地）
     assert _city_day_ranges(["上海", "成都", "重庆", "上海"], 7) == {
         "成都": (1, 3),
-        "重庆": (4, 6),
+        "重庆": (4, 7),
         "上海": (7, 7),
     }
 
 
 def test_ranges_closed_trip_uneven_split():
-    # 8 天：7 个活动天 4+3 分给两个真实目的地
+    # 8 天：活动天 4+3 分给两个真实目的地，苏州吃到 day8（含返程日白天）
     assert _city_day_ranges(["上海", "杭州", "苏州", "上海"], 8) == {
         "杭州": (1, 4),
-        "苏州": (5, 7),
+        "苏州": (5, 8),
         "上海": (8, 8),
     }
 
@@ -91,9 +92,43 @@ def test_ranges_city_days_unchanged():
         ["上海", "成都", "重庆", "上海"], 7, {"成都": 2, "重庆": 4}
     ) == {
         "成都": (1, 2),
-        "重庆": (3, 6),
+        "重庆": (3, 7),
         "上海": (7, 7),
     }
+
+
+def test_ranges_closed_trip_tail_city_days_is_return_marker():
+    # 2026-10-31 返程日上午空排事故：H5 闭合行程的「结束城市天数」=
+    # 返程日，不是上海的活动日——尾城只留标记，末位真实目的地吃到 days。
+    assert _city_day_ranges(
+        ["上海", "西安", "重庆", "上海"], 3, {"西安": 1, "重庆": 1, "上海": 1}
+    ) == {
+        "西安": (1, 1),
+        "重庆": (2, 3),
+        "上海": (3, 3),
+    }
+
+
+def test_rebalance_fills_return_day_under_closed_ranges():
+    # ranges 来自 _city_day_ranges（含尾城标记）时，返程日 day_city 必须解析
+    # 到末位真实目的地（重庆）而不是死窗上海——回填不再跳过返程日。
+    ranges = _city_day_ranges(
+        ["上海", "西安", "重庆", "上海"], 3, {"西安": 1, "重庆": 1, "上海": 1}
+    )
+    picked = [_spec("锚点A", "重庆", 2, loc=(106.5, 29.5), minutes=90)]
+    candidates = [
+        _cand("锚点A", "重庆", loc=(106.5, 29.5), minutes=90),
+        _cand("室内馆", "重庆", loc=(106.51, 29.51), minutes=90),
+    ]
+    out, notes = PlanningAgent._rebalance_days(
+        picked,
+        candidates,
+        3,
+        ranges,
+        transfer_days={1, 2, 3},
+        origin_city="上海",
+    )
+    assert any(s["name"] == "室内馆" and s["day"] == 3 for s in out)
 
 
 # --- _rebalance_days ①：空/欠载天回填 --------------------------------------
