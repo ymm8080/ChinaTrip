@@ -772,7 +772,7 @@ def _city_day_ranges(
         返程标记，末位真实目的地吃满到 days——返程日白天归它（预算由
         transfer_days 扣减，组装层保证不与返程腿重叠；与非闭合行程
         「最后一天有活动+傍晚返程」语义对齐，test_city_days 锚）。
-"""
+    """
     dests = cities[1:] if len(cities) > 1 else cities
     if len(dests) <= 1:
         return {dests[0]: (1, days)} if dests else {}
@@ -877,7 +877,9 @@ _EDIT_SYSTEM_PROMPT = (
     "用用户的原话短语（语言跟用户）：想做的活动如「看变脸表演」「看大熊猫」"
     "「watch the face-changing show」，或用户直接点名的具体场馆/地点如"
     "「蜀风雅韵」。注意用用户自己的说法：用户说看变脸，就写「看变脸」"
-    "而不是模型解析出的「川剧变脸表演（蜀风雅韵）」。行程里已有的愿望"
+    "而不是模型解析出的「川剧变脸表演（蜀风雅韵）」。整串只是偏好"
+    "表态、没有任何具体对象的（「无特别要求」「都可以」「自然风光」"
+    "这类）不算愿望，不要列进 wishes。行程里已有的愿望"
     "也要列（心愿单要去重）。没有愿望时给空数组。没有行程变更时 diffs "
     "给空数组，把说明写在 reply 里。用户消息"
     "之后可能跟随 role 为 system 的「[链接内容]」消息：那是用户粘贴链接"
@@ -1037,13 +1039,23 @@ def _content_core(name: str) -> tuple[str, bool]:
     return core, stripped
 
 
+# 同内容地理闸分档（2026-10-31 用户拍板「北山+宝顶也要并」）：同内容
+# 配套场馆放宽到同城 30km——裸名伞行「大足石刻」（北山路研究院）vs
+# 宝顶镇游客中心的影院/博物馆/景区 ~8km，同一遗产的两个摩崖集群也算
+# 一站；包含/演出通道维持 2km（青城山 vs skydive 跳伞基地 ~6km 的
+# 同山不同场馆不误并）。
+_CONTENT_TWIN_GATE_KM = 30.0
+
+
 def _content_dup(a: str, b: str) -> bool:
-    """同内容配套场馆（博物馆/影院/园区三胞胎）判定：双侧剥设施词后
-    核心词相等。地理闸在调用层（_same_visit/_spec_twin 与包含通道同
-    口径：双方有坐标且相距 >2km = 名字撞衫的不同场馆，不并）。"""
+    """同内容配套场馆（博物馆/影院/园区/伞名行）判定：至少一侧剥出
+    设施词（双侧裸名交给 containment），核心词相等（≥3 字）即同内容
+    ——伞名行「大足石刻」与配套行「大足石刻数字影院」也收进来。
+    地理闸在调用层（_same_visit/_spec_twin）：内容通道 30km、
+    包含/演出通道 2km。"""
     ca, sa = _content_core(a)
     cb, sb = _content_core(b)
-    if not (sa and sb):
+    if not (sa or sb):
         return False
     return len(ca) >= 3 and ca == cb
 
@@ -1172,22 +1184,27 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     day3 被整天空掉）。双方有坐标且相距 >2km = 名字撞衫的不同场馆，
     不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。
 
-    同内容通道（2026-10-31 大足双卡案）：_content_dup 把
-    大足石刻博物馆/数字影院/大足石刻景区 这类园区+配套场馆收敛为
-    同一站（一次行程看一次大足石刻），地理闸同样罩住：同名异地
-    分馆 >2km 不并。"""
+    同内容通道（2026-10-31 大足双卡案+同日拍板放宽）：_content_dup 把
+    大足石刻博物馆/数字影院/大足石刻景区/北山伞名行「大足石刻」收
+    敛为同一站（一次行程看一次大足石刻），内容通道地理闸放宽到同城
+    30km（同遗产两摩崖集群 ~8km 也并）；同名异地 >30km、包含通道
+    撞衫 >2km 仍不并。"""
     # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
         return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
-    if _name_dup(a.name, b.name):
-        if a.location is not None and b.location is not None:
-            if haversine_km(a.location, b.location) > 2.0:
-                return False
-        return True
-    return False
+    content = _content_dup(a.name, b.name)
+    if not (content or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)):
+        return False
+    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）30km；包含/演出
+    # 通道维持 2km（青城山 skydive 同山不同场馆不误并）。
+    gate = _CONTENT_TWIN_GATE_KM if content else 2.0
+    if a.location is not None and b.location is not None:
+        if haversine_km(a.location, b.location) > gate:
+            return False
+    return True
 
 
 def _dedupe_visit_keepers(
@@ -1296,6 +1313,185 @@ def _category_search_keyword(name: str) -> str | None:
             if key in probe:
                 return keyword
     return None
+
+
+# --- 偏好与心愿的分层（2026-10-31 用户拍板，三条合成口径） ---------------
+# ①心愿=一次性满足的具体要求（看熊猫→基地，排一次翻已排期）→ 建心愿行；
+# ②偏好=品类倾向，行程里可以出现同一类型的多个景点 → 只作选点排序信号，
+#   不建心愿行；③选点当然要优先用户偏好的品类（偏好同类提到 tier 之前，
+#   同偏好组内仍按 tier 保库序——多个同类景点自然入选）。
+
+
+def _norm_pref_text(text: str) -> str:
+    """偏好文本规整：剥「偏好：」前缀与首尾标点，转小写（en 词形对齐）。"""
+    s = (text or "").strip()
+    s = re.sub(r"^(偏好|preference)[:：\s]*", "", s, flags=re.IGNORECASE)
+    return s.strip(" \t，。,.、!！?？;；~～-").lower()
+
+
+# 问答题面的风格选项词与「无特别要求」类元话语：整串没有任何具体地点/
+# 活动要求——既不是心愿（建行会变无坐标占位卡），也映射不出品类动作。
+PREFERENCE_STYLE_OPTIONS: tuple[str, ...] = (
+    "自然风光",
+    "美食街区",
+    "亲子休闲",
+    "暴走走透",
+    "慢慢逛",
+    "museums & history",
+    "natural scenery",
+    "food streets",
+    "family fun",
+    "see-it-all",
+    "take it slow",
+)
+PREFERENCE_META_PHRASES: tuple[str, ...] = (
+    "无特别要求",
+    "没有特别要求",
+    "没什么特别要求",
+    "没有特殊要求",
+    "无特殊要求",
+    "没有要求",
+    "无要求",
+    "无所谓",
+    "都可以",
+    "都行",
+    "随便",
+    "随意",
+    "看着办",
+    "no preference",
+    "no special requirement",
+    "no particular preference",
+    "anything works",
+    "anything is fine",
+    "up to you",
+    "whatever",
+)
+
+
+def _is_preference_meta(text: str) -> bool:
+    """整串只是偏好性元话语（无特别要求/随便…），没有任何具体对象。
+
+    线上案（2026-10-31 12:44 上海会话）：LLM 把「偏好：无特别要求」原话
+    列进 wishes，心愿单出现同名行。这类短语在建行前丢弃。"""
+    s = _norm_pref_text(text)
+    if not s or len(s) > 24:
+        return False
+    return any(p in s for p in PREFERENCE_META_PHRASES)
+
+
+def _is_preference_style_option(text: str) -> bool:
+    """偏好问答题面的风格选项词（自然风光/慢慢逛…）——是品类与节奏的
+    表态，不是可建行的具体愿望（一次性满足不了也点不了名）。"""
+    s = _norm_pref_text(text)
+    if not s or len(s) > 24:
+        return False
+    return any(o in s for o in PREFERENCE_STYLE_OPTIONS)
+
+
+# 偏好→品类映射（拍板③）：(偏好触发词, 库内 category 值, 名字兜底 token)。
+# category 为主（库内已分类 museum/nature/park/…），名字 token 只兜底
+# 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃上海博物馆这类）。
+PREFERENCE_CATEGORY_SPECS: tuple[
+    tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...
+] = (
+    (
+        ("博物馆人文", "博物馆", "人文", "历史", "museum", "history"),
+        ("museum", "historic", "temple", "art"),
+        (
+            "博物馆",
+            "纪念馆",
+            "美术馆",
+            "艺术馆",
+            "科技馆",
+            "展览馆",
+            "故居",
+            "遗址",
+            "文庙",
+            "书院",
+            "教堂",
+        ),
+    ),
+    (
+        ("自然风光", "自然", "山水", "风景", "nature", "scenic", "户外"),
+        ("nature", "park", "viewpoint"),
+        (
+            "风景名胜",
+            "森林公园",
+            "湿地公园",
+            "地质公园",
+            "国家公园",
+            "草原",
+            "瀑布",
+            "峡谷",
+            "雪山",
+            "竹海",
+            "花海",
+        ),
+    ),
+    (
+        ("美食街区", "美食", "小吃", "吃货", "夜市", "food"),
+        ("citywalk",),
+        ("夜市", "美食", "小吃", "步行街", "美食街", "食品街"),
+    ),
+    (
+        ("亲子休闲", "亲子", "孩子", "小孩", "带娃", "family", "kids"),
+        ("theme_park", "zoo"),
+        (
+            "动物园",
+            "海洋馆",
+            "海底世界",
+            "水族馆",
+            "乐园",
+            "欢乐谷",
+            "迪士尼",
+            "熊猫",
+            "植物园",
+            "科技馆",
+        ),
+    ),
+    (
+        ("古镇", "古城", "水乡"),
+        ("ancient_town",),
+        ("古镇", "古城", "水乡", "古街"),
+    ),
+    (
+        ("喝茶", "泡茶", "品茶", "茶馆", "咖啡", "奶茶", "tea", "coffee"),
+        (),
+        ("茶馆", "茶楼", "咖啡", "奶茶"),
+    ),
+)
+
+
+def _preference_tokens(text: str) -> tuple[tuple[str, ...], bool]:
+    """偏好文本 → (品类命中 token 并集, 是否演出偏好)。多品类并存
+    （「喜欢博物馆和美食」→ 博物馆类+美食类同时优先）。"""
+    low = _norm_pref_text(text)
+    if not low:
+        return (), False
+    toks: list[str] = []
+    for triggers, cats, name_toks in PREFERENCE_CATEGORY_SPECS:
+        if any(t in low for t in triggers):
+            toks.extend(cats)
+            toks.extend(name_toks)
+    show_pref = any(t in low for t in ("看演出", "演出", "看秀", "show"))
+    if show_pref:
+        toks.extend(("演出", "剧场", "剧院", "戏院", "相声"))
+    return tuple(dict.fromkeys(toks)), show_pref
+
+
+def _pref_category_hit(
+    cand: dict, tokens: tuple[str, ...], show_pref: bool = False
+) -> bool:
+    """候选是否偏好同类（拍板③）：category 精确命中 / 名字或 tags 包含
+    token / 演出偏好走 _cand_is_show 结构判定。"""
+    if show_pref and _cand_is_show(cand):
+        return True
+    if not tokens:
+        return False
+    name = _norm_site_name(str(cand.get("name") or "")).lower()
+    category = str(cand.get("category") or "").strip().lower()
+    tags = " ".join(str(t) for t in (cand.get("tags") or [])).lower()
+    return any(t in name or t == category or t in tags for t in tokens)
 
 
 # 城市知识提示（用户拍板 2026-10-24：心愿单没写城市时先自己找——
@@ -3372,13 +3568,20 @@ class PlanningAgent:
     # --- clarification (§6.1: <=2 questions, template only, no LLM) -------
 
     async def _pref_reply_groundable(self, session: PlanSession, answer: str) -> bool:
-        """偏好回复能否按心愿落实（2026-10-31 用户拍板「所有的回复都是心
-        愿」的落空闸）：品类愿望（喝茶/博物馆人文…）天然可落实；专名/意
-        图愿望看语义绑定能否命中真实 POI——两者都落空的风格词（慢慢逛）
-        只当偏好，不进心愿单（吸收链会把它变成无坐标占位卡）。绑定结果
-        顺带留在 _wish_bindings，sync 复用不再二次绑定。"""
+        """偏好回复能否按心愿落实（2026-10-31 晚拍板「偏好无特别要求就
+        不要进心愿单」：心愿=一次性满足的具体要求，偏好=品类倾向、同类
+        可以是多个景点）：只有语义绑定能命中真实 POI 的回复（「看熊猫」
+        →熊猫基地）才算特别要求、进心愿管线建行；品类词（博物馆人文/
+        喝茶）与风格选项（自然风光/慢慢逛）只是偏好——不建行也不烧绑定
+        调用，由选点层按偏好品类优先排序兑现（_deterministic_selection
+        的 preferences 参数）。绑定结果顺带留在 _wish_bindings，sync 复用
+        不再二次绑定。"""
+        if _is_preference_meta(answer) or _is_preference_style_option(answer):
+            return False
         if _category_search_keyword(answer) is not None:
-            return True
+            # 品类倾向不是特别要求：偏好由选点排序兑现（同类可多个），
+            # 建行会被吸收链钉成一个「最佳同类点」，对偏好语义过重。
+            return False
         bound = (session.wish_bindings or {}).get(answer) or self._wish_bindings.get(
             answer
         )
@@ -3400,12 +3603,12 @@ class PlanningAgent:
             answer = text.strip()
             if answer and answer not in PREFERENCE_SKIP_WORDS:
                 session.preferences = answer
-                # 2026-10-31 用户拍板「所有的回复都是心愿」：偏好问答的回复
-                # 同时按愿望处理——能落到真实 POI 的（专名语义绑定/品类愿望）
-                # 进心愿管线建行，由 _generate_v0 头部的 _absorb_wishlist 吸收
-                # 为必去钉选排期（用户实测回归：回「看熊猫」只被存成偏好字
-                # 符串，行程里没安排）。落空的风格词（慢慢逛）只当偏好，不
-                # 进心愿单，免得被吸收链变成无坐标占位卡。
+                # 2026-10-31 晚拍板「偏好无特别要求就不要进心愿单」收窄
+                # 早前「所有的回复都是心愿」：回复里点名了具体对象的（语义
+                # 绑定命中真实 POI，如「看熊猫」→基地）才进心愿管线建行
+                # （用户实测回归：回「看熊猫」曾被只存成偏好字符串、行程里
+                # 没安排）；品类/风格词只是偏好，不建行——选点层按偏好品类
+                # 优先排序兑现（同类可多个景点）。
                 if self._trip_items is not None:
                     try:
                         if await self._pref_reply_groundable(session, answer):
@@ -3530,6 +3733,10 @@ class PlanningAgent:
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue
+            if _is_preference_meta(name) or _is_preference_style_option(name):
+                # 偏好性元话语/风格词不是愿望（2026-10-31 拍板）：历史
+                # 误建行不再吸收成必去占位卡。
+                continue
             city = it.get("city")
             if city and city not in session.cities:
                 continue
@@ -3631,6 +3838,7 @@ class PlanningAgent:
                 night_rain_days=night_rain_map,
                 heavy_rain_days=heavy_rain_map,
                 notes=rain_notes,
+                preferences=session.preferences,
             )
             llm_assumptions = [
                 L(
@@ -3644,6 +3852,19 @@ class PlanningAgent:
             llm_assumptions.append(
                 L("；".join(rain_notes[:4]), "; ".join(rain_notes[:4]))
             )
+        if session.preferences:
+            _ptoks, _pshow = _preference_tokens(session.preferences)
+            if (_ptoks or _pshow) and any(
+                _pref_category_hit(c, _ptoks, _pshow) for c in candidates
+            ):
+                # 偏好兑现留痕（拍板③）：假设区可见品类优先已生效
+                llm_assumptions.append(
+                    L(
+                        f"已按偏好优先安排同类景点：{session.preferences}（同类可多个）",
+                        f"Preference applied: sights matching "
+                        f"'{session.preferences}' prioritized",
+                    )
+                )
         logger.info(
             "plan: v0 candidates %.2fs + select[%s] %.2fs (%d candidates)",
             t1 - t0,
@@ -4825,6 +5046,7 @@ class PlanningAgent:
         night_rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
         notes: list[str] | None = None,
+        preferences: str = "",
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -4847,7 +5069,15 @@ class PlanningAgent:
         夜间窗——雨夜里的夜间露天点（游船观景/夜游等 evening 点，
         _night_cand）换到干夜；H5 横幅分窗兜底（notes 留痕）。
         不评分、同输入同输出。
+        ⑦偏好品类优先（2026-10-31 拍板「偏好当然要优先用户选的 CATEGORY，
+        偏好可以是同一类型多个景点」）：偏好同类候选提到 tier 之前，同
+        偏好组内仍按 tier 保库序——多个同类景点自然入选；雨天重排时偏好
+        位次在雨天避险位之后、tier 之前（物理约束优先于口味）。
         """
+        pref_tokens, pref_show = _preference_tokens(preferences)
+
+        def _pref_hit(cand: dict) -> bool:
+            return _pref_category_hit(cand, pref_tokens, pref_show)
 
         def _cxy(cand: dict) -> tuple[float, float] | None:
             loc = cand.get("location")
@@ -4907,7 +5137,10 @@ class PlanningAgent:
                     shows.append((idx, cand))
                 else:
                     sights.append((idx, cand))
-            ordered = sorted(sights, key=lambda p: (_source_tier(p[1]), p[0]))
+            ordered = sorted(
+                sights,
+                key=lambda p: (not _pref_hit(p[1]), _source_tier(p[1]), p[0]),
+            )
             rainy_here = {d for d in (rain_days or {}).get(city, ()) if lo <= d <= hi}
             heavy_here = {
                 d for d in (heavy_rain_days or {}).get(city, ()) if lo <= d <= hi
@@ -4928,6 +5161,7 @@ class PlanningAgent:
                         1
                         if _rain_exposed(p[1]) and (night_all or not _night_cand(p[1]))
                         else 0,
+                        not _pref_hit(p[1]),
                         _source_tier(p[1]),
                         p[0],
                     ),
@@ -5310,13 +5544,15 @@ class PlanningAgent:
         # （有坐标者优先，平手先到先得，与 _dedupe_visit_keepers 同义）；
         # 败者留在 picked，组装层照旧丢弃并「已合并重复站点」留痕。
         def _spec_twin(a: dict, b: dict) -> bool:
-            # 与 _same_visit 同义（含地理闸）：名字撞衫但相距 >2km 的不同
-            # 场馆（青城山 vs 青城山skydive跳伞基地，实测 ~6km）不是孪生
-            # ——spec 层只按名字折叠会把它误判 phantom、低估当日负载、
-            # 超预算回填。
+            # 与 _same_visit 同义（含地理闸分档）：名字撞衫但相距 >2km
+            # 的不同场馆（青城山 vs 青城山skydive跳伞基地，实测 ~6km）
+            # 不是孪生——spec 层只按名字折叠会把它误判 phantom、低估
+            # 当日负载、超预算回填；同内容配套（含伞名行 vs 配套场馆）
+            # 走 30km 闸（大足石刻北山行 vs 宝顶影院 ~8km）。
             na, nb = a.get("name") or "", b.get("name") or ""
             if not (na and nb and _name_dup(na, nb)):
                 return False
+            gate = _CONTENT_TWIN_GATE_KM if _content_dup(na, nb) else 2.0
             axy, bxy = _xy(a), _xy(b)
             if axy is not None and bxy is not None:
                 if (
@@ -5324,7 +5560,7 @@ class PlanningAgent:
                         GeoPoint(lon=axy[0], lat=axy[1]),
                         GeoPoint(lon=bxy[0], lat=bxy[1]),
                     )
-                    > 2.0
+                    > gate
                 ):
                     return False
             return True
@@ -6951,6 +7187,15 @@ class PlanningAgent:
         拍板语义）。落空的专名进 unresolved 返回给调用方，coverage 之后
         决定是否追问用户。返回 (notes, unresolved)。
         Best-effort — service errors never block the plan turn."""
+        # 2026-10-31 拍板「偏好无特别要求就不要进心愿单」：偏好性元话语
+        # （线上案：LLM 把「偏好：无特别要求」原话列进 wishes，心愿单出现
+        # 同名行）与问答题面的风格选项词整串没有任何具体地点/活动要求，
+        # 建行前丢弃。
+        wishes = [
+            w
+            for w in wishes
+            if not _is_preference_meta(w) and not _is_preference_style_option(w)
+        ]
         if self._trip_items is None or not wishes:
             return [], []
         # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——

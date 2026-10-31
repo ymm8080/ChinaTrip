@@ -508,7 +508,8 @@ def test_dedupe_plan_keeps_single_dazu_card():
 
 
 def test_content_dup_far_apart_same_core_not_merged():
-    """地理闸：核心词相同但相距 >2km 的场馆（同名异地分馆）不并。"""
+    """地理闸：核心词相同但相距 >30km（内容通道闸）的两个同名异地
+    分馆不并；~35km 实测距离落在闸外。"""
     from app.services.agent.plan import _same_visit
     from app.services.itinerary import GeoPoint
 
@@ -521,13 +522,42 @@ def test_content_dup_far_apart_same_core_not_merged():
     assert _same_visit(a, b) is False
 
 
-def test_content_dup_requires_both_facility_strips():
-    """双侧都要剥过设施词：裸名 vs 设施名的组合交给 containment；2 字
-    核心词（苏州博物馆→苏州）剥不动，不进本通道。"""
+def test_content_dup_single_side_and_guards():
+    """单侧剥过即可（伞名行 vs 配套行，2026-10-31 拍板放宽）；双侧
+    裸名/无设施词的组合交给 containment；2 字核心词剥不动。"""
     from app.services.agent.plan import _content_core, _content_dup
 
-    assert _content_dup("大足石刻", "大足石刻博物馆") is False  # 单侧裸名
+    assert _content_dup("大足石刻", "大足石刻数字影院") is True  # 伞名 vs 配套
+    assert _content_dup("大足石刻", "大足石刻博物馆") is True
+    assert _content_dup("青城山", "青城山skydive跳伞基地") is False  # 双侧无设施词
+    assert _content_dup("大足石刻", "都江堰水利工程") is False
     assert _content_core("苏州博物馆") == ("苏州博物馆", False)
     assert _content_core("大足石刻博物馆") == ("大足石刻", True)
     assert _content_core("大足区大足石刻景区") == ("大足石刻", True)
     assert _content_core("大足石刻数字影院") == ("大足石刻", True)
+
+
+def test_same_visit_content_channel_uses_wide_gate():
+    """跨集群同内容按 30km 闸合并（宝顶影院 vs 北山研究院伞名行
+    ~8km，同一遗产两个摩崖集群）；>30km 仍不并。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary import GeoPoint
+
+    cinema = _visit(
+        "v1",
+        "大足石刻数字影院",
+        location=GeoPoint(lon=105.78017, lat=29.74961),  # 宝顶
+    )
+    beishan = _visit(
+        "v2",
+        "大足石刻",
+        location=GeoPoint(lon=105.71286, lat=29.70399),  # 北山研究院 ~8km
+    )
+    assert _same_visit(cinema, beishan) is True
+
+    far = _visit(
+        "v3",
+        "大足石刻",
+        location=GeoPoint(lon=106.50, lat=29.70),  # ~68km 外
+    )
+    assert _same_visit(cinema, far) is False
