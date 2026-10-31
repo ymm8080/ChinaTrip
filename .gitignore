@@ -75,3 +75,10 @@ DESIGN/POIS DATASOURCE/~WRL*.tmp
 DESIGN/POIS DATASOURCE/*.wbk
 DESIGN/Testing/_overlay_backup_*/
 DESIGN/Testing/refresh_pois_address_only_fix_*.patch
+# Local smoke/probe dumps (2026-10-31 鏀跺彛锛氫細璇濅竴娆℃€ц浆鍌ㄤ笌鎺㈤拡杈撳嚭锛岀粨妗堝嵆寮?
+CHINATRIP CODES/h5_*.html
+CHINATRIP CODES/itins.json
+CHINATRIP CODES/itin_plan_tmp.json
+CHINATRIP CODES/ti_*.json
+keepalive.log
+scenic_90min_*.csv
