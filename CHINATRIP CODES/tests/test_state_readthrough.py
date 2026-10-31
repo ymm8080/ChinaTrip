@@ -13,11 +13,11 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
-from app.models import Itinerary, ItineraryDay, ItinerarySnapshot
+from app.models import Itinerary, ItineraryDay, ItinerarySnapshot, TripItem
 from app.services.agent.plan import PlanSession
 from app.services.itinerary import DayPlan, ItineraryPlan
 from app.services.itinerary_store import ItineraryRecord
-from app.services.pg_state import PgItineraryStore
+from app.services.pg_state import PgItineraryStore, PgTripItemService
 from app.services.state_persist import (
     PersistentPlanSessionStore,
     SqliteStateBackend,
@@ -34,6 +34,7 @@ class _FakePG:
         self.rows: dict = {}
         self.snaps: dict = {}
         self.days: list = []
+        self.trip_rows: list = []
 
     def factory(self):
         return _FakeSession(self)
@@ -53,6 +54,8 @@ class _FakeSession:
     def query(self, model):
         if model is Itinerary:
             return SimpleNamespace(all=lambda: list(self._db.rows.values()))
+        if model is TripItem:
+            return SimpleNamespace(all=lambda: list(self._db.trip_rows))
         if model is ItineraryDay:
             return SimpleNamespace(
                 filter=lambda *a, **k: SimpleNamespace(delete=lambda: 0)
@@ -151,6 +154,61 @@ def test_itinerary_get_pg_down_falls_back_to_memory():
     record = _record()
     store.put(record)  # 写穿失败被吞，内存仍生效（旧降级语义）
     assert store.get(record.itinerary_id) is not None
+
+
+# ---------- PgTripItemService 读穿透（2026-10-31 看水利工程案） --------------
+# 排期写在规划进程，看板进程（早启动/另一端口）此前内存权威永远看不到，
+# 行程中心按行程过滤即丢行。读穿透后旁路写入/删除必须立即可见。
+
+
+def _water_payload() -> dict:
+    return {
+        "id": uuid4().hex,
+        "name": "看水利工程",
+        "status": "scheduled",
+        "source": "chat",
+        "city": "成都",
+        "day": 5,
+        "position": 1.0,
+        "itinerary_id": "it-c94803b8",
+        "created_at": "2026-10-30T23:45:21+00:00",
+        "updated_at": "2026-10-30T23:45:21+00:00",
+    }
+
+
+def test_trip_items_list_sees_side_channel_scheduled_row():
+    db = _FakePG()
+    board = PgTripItemService(db.factory)  # 看板进程：boot 时库空
+    db.trip_rows = [SimpleNamespace(payload=_water_payload())]  # 规划进程排期落库
+    scheduled = board.list_groups()["scheduled"]
+    assert [i["name"] for i in scheduled] == ["看水利工程"]
+    assert scheduled[0]["itinerary_id"] == "it-c94803b8"
+
+
+def test_trip_items_list_drops_side_channel_deleted_row():
+    db = _FakePG()
+    board = PgTripItemService(db.factory)
+    db.trip_rows = [SimpleNamespace(payload=_water_payload())]
+    assert board.list_groups()["scheduled"]
+    db.trip_rows = []  # 另一进程删除（防复活）
+    assert board.list_groups()["scheduled"] == []
+
+
+def test_trip_items_list_pg_down_falls_back_to_memory():
+    db = _FakePG()
+    mode = {"dead": False}
+
+    def factory():
+        return _DeadSession() if mode["dead"] else _FakeSession(db)
+
+    board = PgTripItemService(factory)
+    payload = _water_payload()
+    db.trip_rows = [SimpleNamespace(payload=payload)]
+    assert board.list_groups()["scheduled"]  # 刷新进内存
+    mode["dead"] = True
+    groups = board.list_groups()  # 熔断 → 旧内存兜底，行不丢
+    assert board._pg_ok is False
+    assert [i["name"] for i in groups["scheduled"]] == ["看水利工程"]
 
 
 # ---------- PersistentPlanSessionStore 读穿透 -------------------------------

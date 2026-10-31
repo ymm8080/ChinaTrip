@@ -483,3 +483,25 @@ def test_add_must_visits_binds_water_wish_incremental(monkeypatch):
     )
     assert row is not None and row["status"] == "scheduled"
     assert row["itinerary_id"] == itin
+
+
+def test_wish_bind_prefers_classic_5a_over_shorter_rival():
+    """2026-10-31 用户拍板「景点先去最经典的」：同类候选（都江堰熊猫谷
+    vs 5A 成都大熊猫繁育研究基地）同池时，经典档权重压过更高评分与更短
+    名称——基地胜出，熊猫谷留给 reply「可替换」注释语义。"""
+    agent = PlanningAgent(CountingLLM())
+    valley = {
+        "source_poi_id": "PANDAVALLEY",
+        "name": "都江堰熊猫谷",
+        "city": "成都",
+        "category": "attraction",
+        "rating": 4.9,
+        "tags": [],
+        "location": (103.60, 31.01),
+    }
+    base = dict(_PANDA)  # source_poi_id=PANDA01, tags=["5a"], rating 4.8
+    picked = agent._wish_bind_candidate("看熊猫", [valley, base])
+    assert picked is not None and picked["source_poi_id"] == "PANDA01"
+    # 反向次序同样稳定（max 不受输入顺序影响）
+    picked = agent._wish_bind_candidate("看熊猫", [base, valley])
+    assert picked is not None and picked["source_poi_id"] == "PANDA01"

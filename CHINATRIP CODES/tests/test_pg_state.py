@@ -225,9 +225,10 @@ def test_snapshot_to_row_values_freezes_plan():
 
 
 def test_item_to_row_values_keeps_free_string_ids_in_payload():
+    itin_hex = uuid4().hex
     item = {
         "id": uuid4().hex,
-        "itinerary_id": f"it_{uuid4().hex}",
+        "itinerary_id": f"it_{itin_hex}",
         "name": "蜀风雅韵",
         "city": "成都",
         "note": "来自聊天",
@@ -244,10 +245,42 @@ def test_item_to_row_values_keeps_free_string_ids_in_payload():
     }
     values = item_to_row_values(item)
     assert values["poi_id"] is None  # 自由字符串不落 FK 列
-    assert values["itinerary_id"] is None  # it_ 前缀没剥，不硬转
+    # itinerary_id 剥 it_ 前缀严格命中（2026-10-31 看水利工程案：此前整列
+    # 落 NULL，行程过滤丢行）
+    assert values["itinerary_id"] == UUID(hex=itin_hex)
     assert values["status"] == "wishlist"
     assert values["created_at"] is not None and values["created_at"].year == 2026
     assert values["payload"] == item  # 原值全量在 payload
+
+
+def test_item_to_row_values_legacy_short_itin_id_uses_uuid5_proxy():
+    """短业务 id（it-<8hex>）→ uuid5 代理键，且与行程行 PG 主键同源可 JOIN。
+
+    看水利工程案：payload 里 itinerary_id=it-c94803b8 绑得好好的，列投影
+    用严格版解析成 None，重启回灌/跨进程按行程过滤即丢行。
+    """
+    item = {
+        "id": uuid4().hex,
+        "itinerary_id": "it-c94803b8",
+        "name": "看水利工程",
+        "status": "scheduled",
+        "source": "chat",
+        "day": 5,
+        "position": 1.0,
+        "created_at": "2026-10-30T23:45:21+00:00",
+        "updated_at": "2026-10-30T23:45:21+00:00",
+    }
+    values = item_to_row_values(item)
+    expected = _pg_uuid_loose("it-c94803b8", "it_")
+    assert values["itinerary_id"] == expected
+    record = ItineraryRecord(
+        itinerary_id="it-c94803b8",
+        owner_device_id="dev-1",
+        plan=_plan("it-c94803b8"),
+        created_at=datetime(2026, 10, 30, 23, 45, 47),
+        updated_at=datetime(2026, 10, 30, 23, 45, 47),
+    )
+    assert record_to_row_values(record)["id"] == expected  # FK 指向真实行程行
 
 
 # --- PG 不可达降级（CI / PG 宕机路径）------------------------------------------

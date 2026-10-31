@@ -185,6 +185,11 @@ def _find_same_venue(
 #: 中文/OSM 原始类别 → 受控英文类别（精确匹配层）
 CATEGORY_MAP: dict[str, str] = {
     # ChinaTravel type 值
+    "酒店/宾馆/民宿": "hotel",
+    "车站/机场/码头/口岸": "transport",
+    "剧场/戏院/艺术馆/展览": "art",
+    "街区/商圈/夜市": "citywalk",
+    "游船/观光车/渡轮": "entertainment",
     "博物馆/纪念馆": "museum",
     "公园/广场": "park",
     "历史遗迹": "historic",
@@ -195,6 +200,11 @@ CATEGORY_MAP: dict[str, str] = {
     "观景台/地标": "viewpoint",
     "文化村/古镇": "ancient_town",
     "其他": "other",
+    # 住宿（2026-10-31 清洗拍板）：GLM kind=hotel 的 subtype（酒店/民宿…）
+    # 经此归一为 hotel，不再落 None 后被 classify 裸「园」hint 误归 park；
+    # import_chinatravel 对住宿名行强制传 "hotel"，此键保证直通
+    "酒店/宾馆/民宿/公寓/客栈/旅馆/招待所": "hotel",
+    "hotel": "hotel",
     # OSM tourism/leisure 值
     "attraction": "attraction",
     "museum": "museum",

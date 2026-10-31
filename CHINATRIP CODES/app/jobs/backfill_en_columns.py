@@ -75,6 +75,15 @@ def _latin_ratio(text: str) -> float:
     return latin / max(len(text), 1)
 
 
+# 模型偶发带「Location: …」前缀行（2026-10-31 实测把短译文撑超 cuisine_en
+# String(50) 列限、_fits 拒收 53 行）——译文落库前剥掉前缀行。
+_LOCATION_PREFIX_RE = re.compile(r"^\s*location\s*:[^\n]*\n+", re.IGNORECASE)
+
+
+def _strip_location_prefix(text: str) -> str:
+    return _LOCATION_PREFIX_RE.sub("", text or "", count=1)
+
+
 def validate_translation(text: str, *, source: str) -> str | None:
     """合格返回 None；否则拒绝原因码（too_short/no_latin/echo/meta）。"""
     trimmed = (text or "").strip()
@@ -421,7 +430,7 @@ async def _process_row(
                 continue
             stats["tokens_in"] += result.tokens_in
             stats["tokens_out"] += result.tokens_out
-            content = result.content.strip()
+            content = _strip_location_prefix(result.content.strip())
             if content.upper().startswith("SKIP"):
                 stats["skipped"] += 1
                 continue

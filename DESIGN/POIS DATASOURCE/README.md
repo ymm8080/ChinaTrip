@@ -54,3 +54,7 @@
 点名文件（或点名剔除行）→ 既有管线：产品规则过滤 → `import_museum_grades` 扩 grade/source 映射（如 street/scenic/town/village/guobao/unesco）→ 幂等骨架 upsert（m2_ 式稳定键，只补新增不覆盖）→ `backfill_en_columns` 补英文名 → 坐标走回源链/seed 自动地理编码。
 
 预约景点行（09）审后**不建新 source**：直接合并进 `app/services/reservation_seeds.py`（booking 放票任务种子），pois 侧 `reservation_required` 由携程「需预约」标识回源接管。
+
+### 04 演出 session_time 扩列（2026-10-31）
+
+50 行全量新增 `session_time` 列（末列）：按逐场核定的场次属性填「仅夜场（约xx:xx）/ 多场（含下午场）/ 全天滚动 / 夜场为主 / 场次随排期」。口径：户外山水/水上/山地实景秀与晚宴秀、夜航船剧为仅夜场（15 行）；千古情系列、传奇秀、幻城、杂技功夫马戏等剧场/沉浸类每日多场含下午场（35 行）。低置信条目标「以当日公告为准」。DB 侧同步回填 pois.opening_hours（47 行 show，只填空）。备份：_src/04_演艺演出_主要旅游城市.session_time_2026-10-31.backup.csv。

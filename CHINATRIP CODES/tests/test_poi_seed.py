@@ -116,6 +116,16 @@ def test_normalize_category_contains_and_case():
     assert normalize_category("Theme_Park") == "theme_park"
 
 
+def test_normalize_category_hotel_subtype():
+    """2026-10-31 清洗拍板：GLM kind=hotel 的 subtype 归一为 hotel——
+    曾落 None 后被 classify 裸「园」hint 误归 park/nature 污染景点池。"""
+    for raw in ("酒店", "宾馆", "民宿", "公寓", "客栈", "旅馆", "招待所", "hotel"):
+        assert normalize_category(raw) == "hotel", raw
+    # 包含匹配：LLM 自由 subtype 带「酒店」词也命中
+    assert normalize_category("连锁酒店") == "hotel"
+    assert normalize_category("海景民宿") == "hotel"
+
+
 def test_normalize_category_unmatched():
     assert normalize_category("购物中心") is None
     assert normalize_category("") is None

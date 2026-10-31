@@ -130,6 +130,81 @@ def test_city_filter_and_stats(tmp_path, capsys):
     assert all(kwargs["city"] != "火星市" for _, kwargs in seed.calls)
 
 
+def test_accommodation_rows_forced_hotel_for_attraction(tmp_path, capsys):
+    """2026-10-31 用户拍板 v2：attraction 种子里的酒店/民宿行不跳过不
+    隐藏——强制 category='hotel' 落库（上游 type 误标以名称证据盖掉）。"""
+    rows = [
+        {
+            "language": "zh",
+            "city": "北京",
+            "id": 11,
+            "name": "桔子水晶北京朝阳公园酒店",
+            "type": "公园/广场",
+            "lat": BJ_LAT,
+            "lon": BJ_LON,
+        },
+        {
+            "language": "zh",
+            "city": "南京",
+            "id": 12,
+            "name": "南京竹官园宾馆",
+            "type": "公园/广场",
+            "lat": 32.0603,
+            "lon": 118.7969,
+        },
+        {
+            "language": "zh",
+            "city": "北京",
+            "id": 13,
+            "name": "朝阳公园",
+            "type": "公园/广场",
+            "lat": BJ_LAT,
+            "lon": BJ_LON,
+        },
+    ]
+    path = _write_parquet(tmp_path, rows)
+    rc, seed, stats = _run(capsys, path, extra=("--assume", "gcj02"))
+    assert rc == 0
+    assert stats["accommodation_hotel"] == 2
+    assert stats["skipped_accommodation"] == 0
+    assert stats["imported"] == 3
+    names = [kwargs["name_zh"] for _, kwargs in seed.calls]
+    cats = [kwargs["category"] for _, kwargs in seed.calls]
+    assert names == ["桔子水晶北京朝阳公园酒店", "南京竹官园宾馆", "朝阳公园"]
+    assert cats == ["hotel", "hotel", "公园/广场"]
+    assert stats["read"] == stats["imported"] + stats["exists"] + stats["skipped"]
+
+
+def test_accommodation_rows_skipped_for_restaurant_kind(tmp_path, capsys):
+    """restaurant 种子中住宿行不属餐饮表，仍跳过。"""
+    rows = [
+        {
+            "language": "zh",
+            "city": "北京",
+            "id": 21,
+            "name": "桔子水晶北京朝阳公园酒店",
+            "type": "其他",
+            "lat": BJ_LAT,
+            "lon": BJ_LON,
+        },
+        {
+            "language": "zh",
+            "city": "北京",
+            "id": 22,
+            "name": "全聚德烤鸭店",
+            "type": "其他",
+            "lat": BJ_LAT,
+            "lon": BJ_LON,
+        },
+    ]
+    path = _write_parquet(tmp_path, rows)
+    rc, seed, stats = _run(capsys, path, kind="restaurant", extra=("--assume", "gcj02"))
+    assert rc == 0
+    assert stats["skipped_accommodation"] == 1
+    assert stats["accommodation_hotel"] == 0
+    assert [kwargs["name_zh"] for _, kwargs in seed.calls] == ["全聚德烤鸭店"]
+
+
 def test_source_poi_id_format(tmp_path, capsys):
     path = _write_parquet(tmp_path, _base_rows())
     rc, seed, _ = _run(capsys, path, extra=("--assume", "gcj02"))

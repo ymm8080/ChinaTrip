@@ -120,10 +120,17 @@ def snapshot_to_row_values(snapshot: Snapshot, itinerary_uuid: uuid_mod.UUID) ->
 
 
 def item_to_row_values(item: dict) -> dict:
-    """trip-center 条目 dict → trip_items 行投影（列化字段 + payload 全量）。"""
+    """trip-center 条目 dict → trip_items 行投影（列化字段 + payload 全量）。
+
+    itinerary_id 用 loose 代理（2026-10-31 看水利工程案）：业务 id 是
+    it-<8hex> 短格式，严格版解析为 None → 行程明明绑上了（payload 里有）
+    列里却是 NULL，重启回灌/跨进程按行程过滤全丢。loose 与 itineraries
+    行主键（record_to_row_values）同源，FK 可 JOIN；FK 目标不存在时由
+    _insert_on/_write_through 的 IntegrityError 回退清列兜底。
+    """
     return {
         "id": _pg_uuid_loose(item.get("id")),
-        "itinerary_id": _pg_uuid(item.get("itinerary_id")),
+        "itinerary_id": _pg_uuid_loose(item.get("itinerary_id"), "it_"),
         "name": item.get("name"),
         "city": item.get("city"),
         "note": item.get("note"),
@@ -314,10 +321,15 @@ class PgItineraryStore(InMemoryItineraryStore):
 
 
 class PgTripItemService(TripItemService):
-    """trip-center 条目内存权威 + PG 写穿（混合列 + payload 全量）。
+    """trip-center 条目 PG 写穿 + list 读穿透（混合列 + payload 全量）。
 
-    去重/状态机/list_groups 语义全部继承基类；本类只负责落库。FK 列
-    （itinerary_id/poi_id/booking_id）仅当值能解析成 UUID 时写入，
+    去重/状态机/list_groups 语义全部继承基类；本类负责落库与读权威。
+    读穿透（2026-10-31 看水利工程案）：此前只有 itineraries 有读穿透，
+    trip_items 内存权威——排期写在 A 进程（:8000 规划会话），B 进程
+    （:8443 / 早于写入启动的进程）看板永远看不到，直到重启。现在
+    list_groups 每次全量回灌 PG payload，旁路写入/跨进程删除立即可见；
+    PG 不可达时熔断降级为纯内存（_pg_ok=False），行为同基类。FK 列
+    （itinerary_id/poi_id/booking_id）仅当值能解析（含 loose 代理）时写入，
     IntegrityError（FK 目标不存在）回退清空 FK 列重试一次——dict 里这些
     字段是自由字符串，原值永远安全地存在 payload JSONB 里。
     """
@@ -328,16 +340,38 @@ class PgTripItemService(TripItemService):
         self._pg_ok = True
         self._boot_load()
 
+    def _pg_reload_items(self) -> None:
+        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。"""
+        items: dict[str, dict] = {}
+        with self._session_factory() as session:
+            for row in session.query(TripItem).all():
+                payload = row.payload
+                if isinstance(payload, dict) and payload.get("id"):
+                    items[str(payload["id"])] = payload
+        self._items = items
+
     def _boot_load(self) -> None:
         try:
-            with self._session_factory() as session:
-                for row in session.query(TripItem).all():
-                    payload = row.payload
-                    if isinstance(payload, dict) and payload.get("id"):
-                        self._items[str(payload["id"])] = payload
+            self._pg_reload_items()
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
+
+    def _try_refresh(self) -> None:
+        if not self._pg_ok:
+            return
+        try:
+            self._pg_reload_items()
+        except OperationalError as exc:
+            self._pg_ok = False
+            logger.warning("pg_state: PG 读降级（trip items 纯内存兜底）: %s", exc)
+        except Exception:
+            logger.warning("pg_state: trip items 读穿透失败，本轮用内存", exc_info=True)
+
+    def list_groups(self, itinerary_id: str | None = None) -> dict:
+        # 读穿透（PG 读权威）：看板/规划收口每次回库取新，跨进程排期立即可见。
+        self._try_refresh()
+        return super().list_groups(itinerary_id)
 
     def create(self, name: str, *, source: str, **kwargs) -> dict:
         """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与

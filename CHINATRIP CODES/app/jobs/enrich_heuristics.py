@@ -99,7 +99,7 @@ def enrich(factory, *, limit: int, with_duration: bool) -> dict:
         name = (r.name_zh or "").strip()
         if not name:
             continue
-        cat, indoor, rain_ok, floor = _classify(name, r.category)
+        cat, indoor, rain_ok, floor = _classify(name, r.category, r.address)
         if with_duration and cat is None:
             floor = None  # 类别都定不了，地板值不硬塞
         written = _write_row(
@@ -134,7 +134,9 @@ def dry_run(session_factory, *, limit: int) -> None:
     rows = select_targets(session_factory, limit=limit, with_duration=False)
     print(json.dumps({"dry_run": True, "targets": len(rows)}, ensure_ascii=True))
     for r in rows[:5]:
-        cat, indoor, rain_ok, _ = _classify((r.name_zh or "").strip(), r.category)
+        cat, indoor, rain_ok, _ = _classify(
+            (r.name_zh or "").strip(), r.category, r.address
+        )
         print(
             json.dumps(
                 {
