@@ -2583,6 +2583,69 @@ def test_plan_lunch_slot_splits_overrunning_pinned_visit():
     assert cont.duration_minutes == 30 and cont.pinned
 
 
+def test_plan_lunch_slot_pulls_earlier_when_prev_ends_early():
+    # 二次拍板（2026-10-31）：前一件早结束 → 午餐最多提前半小时
+    # （跟随上一件结束时刻，不早于 12:00）
+    visit = VisitItem(
+        item_id="v1",
+        name="博物馆",
+        city="上海",
+        day=1,
+        start_time=time(9, 0),
+        end_time=time(11, 0),
+        duration_minutes=120,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 0), time(13, 0)) and cont is None
+
+
+def test_plan_lunch_slot_follows_prev_end_within_half_hour():
+    # 前一件 12:15 结束（12:00–12:30 之间）→ 午餐贴其结束开饭
+    visit = VisitItem(
+        item_id="v1",
+        name="美术馆",
+        city="上海",
+        day=1,
+        start_time=time(11, 30),
+        end_time=time(12, 15),
+        duration_minutes=45,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[visit])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 15), time(13, 15)) and cont is None
+
+
+def test_plan_lunch_slot_no_earlier_inside_transfer_buffer():
+    # 交通优先：transfer 09:30–11:00（缓冲至 12:30）压住提前空间 →
+    # 即使前一件 09:00 早结束，午餐也不得提前进缓冲（维持 12:30）
+    visit = VisitItem(
+        item_id="v1",
+        name="博物馆",
+        city="西安",
+        day=1,
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        duration_minutes=60,
+        pinned=True,
+    )
+    transfer = TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        from_city="成都",
+        to_city="西安",
+        mode="train",
+        start_time=time(9, 30),
+        end_time=time(11, 0),
+    )
+    day = DayPlan(day=1, base_city="西安", items=[visit, transfer])
+    slot, cont = _plan_lunch_slot(day)
+    assert slot == (time(12, 30), time(13, 30)) and cont is None
+
+
 # --- G1：预约制门票提示（名单 v0 兜底） -------------------------------------
 
 

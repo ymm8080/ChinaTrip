@@ -1312,12 +1312,16 @@ def _plan_lunch_slot(
     """午餐占位落位（2026-10-31 拍板：默认午饭时间贴着上一件排）。
 
     基准位 = 午餐窗内尽量靠后（meal_times 钳制 → 12:30–13:30，「推后
-    午餐」：上一件 12:30 前结束也不提前开饭）。交通优先级最高——
-    transfer 的 90 分钟衔接缓冲（铁律 4）连同车次本体都算占用，基准位
-    撞上即顺延到 te+90 之后（顺延起点最晚 14:00，再晚不算午饭 → 不插
-    当天占位）。pinned visit 压住基准位（无 transfer 冲突时）：
-    - 前段压线（start < 12:30 且 end 越过 12:30）→ 从 12:30 切分：原件
-      截到 12:30，下半段（原 end−12:30 分钟）13:30 起续排在午餐之后
+    午餐」）。二次拍板：前一件（pinned visit/带时刻 transfer 之外最早
+    可依的结束时刻）早结束（≤基准位）时，午餐最多提前半小时跟随——
+    start = clamp(上一件结束, 12:00, 12:30)，上一件 11:00 结束则
+    12:00 开饭、12:15 结束则 12:15 开饭；无带时刻前件维持 12:30 基准。
+    交通优先级最高——transfer 的 90 分钟衔接缓冲（铁律 4）内不许提前，
+    缓冲边界 clamp 进 earliest。transfer 车次本体+缓冲压基准位则顺延到
+    te+90 之后（顺延起点最晚 14:00，再晚不算午饭 → 不插当天占位）。
+    pinned visit 压住落位（无 transfer 冲突时）：
+    - 前段压线（start < 落位且 end 越过落位头）→ 从落位头切分：原件
+      截到落位头，下半段（原 end−落位头分钟）落位尾起续排在午餐之后
       ——续件沿用原件身份（名称/poi/坐标），item_id 加 -p2 后缀；
     - 整段压窗 → 午餐顺延到它结束之后（同样 14:00 封顶）。
     返回 (槽位, 切分续件)；None = 当天无午餐位（过挤/纯过境），不强插
@@ -1326,6 +1330,7 @@ def _plan_lunch_slot(
     """
     base_start, base_end = meal_times(MEAL_WINDOWS["lunch"])
     bs, be = _minutes_of(base_start), _minutes_of(base_end)
+    ws = _minutes_of(MEAL_WINDOWS["lunch"][0])  # 窗起 12:00：提前的下限
     transfers: list[tuple[int, int]] = []
     pinned_visits: list[tuple[int, int, VisitItem]] = []
     for item in day_plan.items:
@@ -1362,6 +1367,19 @@ def _plan_lunch_slot(
         ((s, e, it) for s, e, it in pinned_visits if s < slot_e and e > slot_s), None
     )
     if blocker is None:
+        # 二次拍板：前一件早结束 → 午餐最多提前半小时（跟随上一件结束
+        # 时刻，不早于窗起 12:00；transfer 衔接缓冲边界内不提前）
+        prev_end = max((e for _, e, _ in pinned_visits if e <= slot_s), default=None)
+        if prev_end is not None:
+            earliest = max(
+                ws,
+                max(
+                    (te + INTERCITY_BUFFER_MINUTES for _, te in transfers),
+                    default=0,
+                ),
+            )
+            start = min(slot_s, max(earliest, prev_end))
+            return (_time_of(start), _time_of(start + MEAL_DURATION_MINUTES)), None
         return (_time_of(slot_s), _time_of(slot_e)), None
     s, e, it = blocker
     if s < slot_s:
