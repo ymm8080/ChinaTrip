@@ -698,3 +698,54 @@ def test_morning_fill_overflow_adds_shortest_when_budget_soft():
     assert added == "短点丙"
     visit = next(i for i in day.items if i.name == "短点丙")
     assert visit.start_time == time(9, 0)
+
+
+def test_morning_fill_never_refills_same_heritage_site():
+    """2026-11-01 秦陵双卡案：D2 已排「秦始皇陵国家考古遗址公园」，D1
+    空窗上午保底不得把同馆的「秦始皇兵马俑博物馆」补进来（守卫走全量
+    同站判定而非包含判定），顺延到下一个非重样候选。"""
+    agent = PlanningAgent(_NoLLM())
+    plan, day = _afternoon_only_plan()
+    plan.days.append(
+        DayPlan(
+            day=2,
+            base_city="西安",
+            items=[
+                VisitItem(
+                    item_id="vq",
+                    name="秦始皇陵国家考古遗址公园",
+                    category="attraction",
+                    city="西安",
+                    day=2,
+                    start_time=time(15, 0),
+                    end_time=time(16, 30),
+                    duration_minutes=90,
+                )
+            ],
+        )
+    )
+    cands = [
+        {
+            "name": "秦始皇兵马俑博物馆",
+            "city": "西安",
+            "category": "attraction",
+            "source_poi_id": "5a_296",
+            "suggested_duration_min": 90,
+            "rain_ok": "yes",
+            "best_visit_time": "any",
+        },
+        {
+            "name": "陕西历史博物馆",
+            "city": "西安",
+            "category": "museum",
+            "source_poi_id": "4a_slb",
+            "suggested_duration_min": 120,
+            "rain_ok": "yes",
+            "best_visit_time": "any",
+        },
+    ]
+
+    added = agent._morning_fill(plan, day, [{"name": "下午秀", "day": 1}], cands)
+
+    assert added == "陕西历史博物馆"
+    assert all(i.name != "秦始皇兵马俑博物馆" for i in day.items)

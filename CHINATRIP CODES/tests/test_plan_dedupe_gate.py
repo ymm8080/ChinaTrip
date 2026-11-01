@@ -741,3 +741,43 @@ def test_dedupe_plan_keeps_single_qin_card():
     assert set(dropped) == {"秦始皇陵"}
 
     assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
+# --- 2026-11-01 秦陵双卡案：回填守卫全量同站判定 ------------------------------
+
+
+def test_dup_blocks_item_full_name_dup_guard():
+    """_dup_blocks_item（晨间保底/借调回填/干日回填共用守卫）：poi_id 相等、
+    同馆桶（互不包含=事故根因）、包含通道都拦；同名异地 >30km 不拦
+    （geo 闸）；无关联不拦。"""
+    from app.services.agent.plan import _dup_blocks_item
+    from app.services.itinerary import GeoPoint
+
+    relic_park = _visit(
+        "v1",
+        "秦始皇陵国家考古遗址公园",
+        poi_id="relicpark_0054",
+        location=GeoPoint(lon=109.256, lat=34.380),
+    )
+    bmy_cand = {
+        "name": "秦始皇兵马俑博物馆",
+        "source_poi_id": "5a_296",
+        "location": {"lon": 109.282, "lat": 34.386},
+    }
+    # 同馆桶：互不包含也拦（旧 _same_site 守卫拦不住=双卡事故根因）
+    assert _dup_blocks_item(bmy_cand, relic_park) is True
+    # poi_id 相等直接拦（名字无关）
+    same_pid = {"name": "别名行", "source_poi_id": "relicpark_0054"}
+    assert _dup_blocks_item(same_pid, relic_park) is True
+    # 包含通道照旧生效
+    contain_cand = {"name": "城墙·碑林历史文化景区", "source_poi_id": "5a_304"}
+    assert _dup_blocks_item(contain_cand, _visit("v2", "城墙")) is True
+    # 同馆名但异地 >30km：geo 闸放行（巡展/同名馆不是同站）
+    far_show = _visit(
+        "v3",
+        "秦始皇兵马俑博物馆(异地巡展)",
+        location=GeoPoint(lon=116.4, lat=39.9),
+    )
+    assert _dup_blocks_item(bmy_cand, far_show) is False
+    # 无关联：不拦
+    assert _dup_blocks_item(bmy_cand, _visit("v4", "西安城墙")) is False

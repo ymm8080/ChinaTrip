@@ -1233,6 +1233,38 @@ def _cand_twin(a: dict, b: dict) -> bool:
     return True
 
 
+def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
+    """回填/保底守卫（2026-11-01 秦陵双卡案统一口径）：候选 dict vs 已排
+    VisitItem 的全量同站判定——poi_id 相等，或 _name_dup（containment/
+    同内容/演出桶/同馆桶）过地理闸（内容/同馆 30km、包含/演出 2km）。
+
+    旧守卫只查 _same_site（包含），「秦始皇陵国家考古遗址公园」与
+    「秦始皇兵马俑博物馆」互不包含——晨间保底把第二张秦陵卡补进了
+    行程（D1+D3 双卡实录）。回填族三处（晨间保底/借出日回填/干日
+    回填）统一换用本判定。"""
+    pid = cand.get("source_poi_id")
+    if pid and item.poi_id == pid:
+        return True
+    cn = str(cand.get("name") or "")
+    iname = str(item.name or "")
+    if not (cn and iname and _name_dup(cn, iname)):
+        return False
+    content = _content_dup(cn, iname) or _heritage_dup(cn, iname)
+    gate = _CONTENT_TWIN_GATE_KM if content else 2.0
+    cxy = _cand_xy(cand)
+    ixy = (item.location.lon, item.location.lat) if item.location is not None else None
+    if cxy is not None and ixy is not None:
+        if (
+            haversine_km(
+                GeoPoint(lon=cxy[0], lat=cxy[1]),
+                GeoPoint(lon=ixy[0], lat=ixy[1]),
+            )
+            > gate
+        ):
+            return False
+    return True
+
+
 def _museum_cand(cand: dict) -> bool:
     """候选层博物馆卡（与 _museum_card 同口径，dict 形态）。"""
     name = str(cand.get("name") or "").strip()
@@ -6989,6 +7021,11 @@ class PlanningAgent:
                 if resolved is not None:
                     resolved.assumptions = plan.assumptions
                     plan = resolved
+        # 生成期终闸（2026-11-01 秦陵双卡案）：选点/组装层去重在前，但
+        # 晨间保底/借调回填/干日回填/雨天对调都跑在其后，任一守卫口径
+        # 不齐就会把同站的另一行补进来（D1 遗址公园 + D3 兵马俑实录）
+        # ——交付前统一再过一次跨天全量去重（keep-rank 与开档闸同义）。
+        dedupe_plan_visits(plan)
         annotate_legs(plan)
         await self._enrich_parallel(plan)
         # 两段式重解（用户拍板 2026-10-25「步行换算优先高德实测」的正确
@@ -7077,11 +7114,9 @@ class PlanningAgent:
                 # 与 _rain_exposed 同口径：unknown(None/'')不算露天，
                 # 只拦明确露天/半露天/false（比系统更严会误杀无标记行）
                 continue
-            if any(
-                _same_site(name, i.name)
-                or (cand.get("source_poi_id") and i.poi_id == cand.get("source_poi_id"))
-                for i in planned
-            ):
+            # 同站守卫走全量判定（2026-11-01 秦陵双卡案）：_same_site 只查
+            # 包含，同馆/同内容/演出桶行互不包含时会漏拦。
+            if any(_dup_blocks_item(cand, i) for i in planned):
                 continue
             dur = cand.get("suggested_duration_min") or 90
             if not isinstance(dur, int) or dur <= 0:
@@ -7286,11 +7321,7 @@ class PlanningAgent:
                 "false",
             ):
                 continue
-            if any(
-                _same_site(name, i.name)
-                or (cand.get("source_poi_id") and i.poi_id == cand.get("source_poi_id"))
-                for i in planned
-            ):
+            if any(_dup_blocks_item(cand, i) for i in planned):
                 continue
             dur = cand.get("suggested_duration_min") or 90
             if not isinstance(dur, int) or dur <= 0:
@@ -7611,14 +7642,7 @@ class PlanningAgent:
                         "false",
                     ):
                         continue
-                    if any(
-                        _same_site(name, i.name)
-                        or (
-                            cand.get("source_poi_id")
-                            and i.poi_id == cand.get("source_poi_id")
-                        )
-                        for i in planned
-                    ):
+                    if any(_dup_blocks_item(cand, i) for i in planned):
                         continue
                     dur = cand.get("suggested_duration_min") or 90
                     if not isinstance(dur, int) or dur <= 0:
