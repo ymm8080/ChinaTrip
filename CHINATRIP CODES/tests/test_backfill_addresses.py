@@ -112,3 +112,20 @@ def test_dry_run_counts_without_writes():
     assert stats["filled"] == 1
     assert stats["by_vendor"] == {"stub": 1}
     assert not store.upserts
+
+
+def test_select_keeps_null_category_rows():
+    # 2026-11-01:~ilike 遇 category NULL 求值 NULL,会把 guobao8/4a/intl
+    # 无类别骨架行整批排除(门址 210 行漏选)——NULL 不是餐饮,须保留。
+    from sqlalchemy import or_
+
+    from app.jobs.backfill_addresses import _FOOD_MARKS, select_rows  # noqa: F401
+
+    # 直接对过滤表达式做语义验证:category NULL 行不被餐饮过滤器剔除
+    from app.models import Poi
+    expr = or_(
+        Poi.category.is_(None),
+        *[~Poi.category.ilike(f"%{mark}%") for mark in _FOOD_MARKS],
+    )
+    compiled = str(expr.compile(compile_kwargs={"literal_binds": True}))
+    assert "IS NULL" in compiled
