@@ -440,6 +440,7 @@
       "flow.rain.colon": ": ",
       "flow.wx.pending": "🌤 Weather for some cities awaits the daily pipeline (ready after 08:10) · ",
       "flow.wx.sep": ", ",
+      "flow.wx.live": " (live)",
       "infra.sep": "; ",
       "itin.copyLink": "🔗 Copy link",
       "itin.del": "🗑 Delete",

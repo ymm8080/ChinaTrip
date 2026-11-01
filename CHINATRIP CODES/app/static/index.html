@@ -1334,7 +1334,10 @@ function wxFor(city, force) {
   const key = city.replace(/市$/, "");
   if (force) delete WX.cache[key];
   if (!WX.cache[key]) {
-    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => null);
+    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => {
+      delete WX.cache[key]; // 失败不缓存 null（2026-11-01）：一次网络抖动曾把该城天气钉死成整页空白直到刷新
+      return null;
+    });
   }
   return WX.cache[key];
 }
@@ -1381,6 +1384,16 @@ function wxFill(span, city, dateIso, force) {
       span.textContent = "  " + icon + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
         (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "") + nightChip;
       wxRainBar(span, cast);
+    } else if (dateIso <= todayBeijingIso() && w.live && w.live.weather) {
+      // 无预报的天（2026-11-01 用户报「第一天/最后一天没有天气」：行程从历史
+      // 日期开始时，两个预报源的 casts 都从今天起，历史首日天头永远空白）
+      // → 今天与历史日回落实况；未来日期不兜底（forecast14 覆盖 14 天，
+      // 更远的日期挂实况会误导）
+      const lv = w.live;
+      const tv = lv.temperature != null && lv.temperature !== "" ? lv.temperature : "--";
+      const lf = lv.temperature_f != null ? Number(lv.temperature_f) : c2f(lv.temperature);
+      span.textContent = "  " + wxIcon(lv.weather) + " " + tv + "°C" +
+        (lf != null ? " · " + lf + "°F" : "") + I18N.tf("flow.wx.live", "（实况）");
     }
   });
 }
@@ -1587,17 +1600,30 @@ function startRenameEditor(btn, box, plan, id) {
   search(); // 打开即列出当前点的同类候选（排除自身）
 }
 
+// 天头城市口径（2026-11-01）：base_city 是「醒来城」——首日=出发城（落地后才
+// 开始活动），含落地游玩的首日按醒来城显示城市/查天气，会把出发城的天气挂在
+// 落地城的行程头上（用户报「第一天行程安排在落地城市，没有天气情况」）。
+// 取当天非转场条目的实际所在城市（同城常态，取首个非空）；纯转场/空天回落
+// base_city，转场末日（条目在出发城+傍晚航班）行为不变
+function dayActivityCity(d) {
+  for (const it of (d && d.items) || []) {
+    if (!it.from_city && it.city) return it.city;
+  }
+  return "";
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
-    const dayHead = el('<div class="day-h">' + I18N.tf("card.day.pre","第") + d.day + I18N.tf("card.day.suf"," 天") + (dt ? I18N.tf("card.paren.pre","（") + dt + I18N.tf("card.paren.suf","）") : "") + " · " + esc(I18N.city(d.base_city)) +
-      '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
+    const wxCity = dayActivityCity(d) || d.base_city; // 天头城市/天气按当天活动城；纯转场/空天回落醒来城
+    const dayHead = el('<div class="day-h">' + I18N.tf("card.day.pre","第") + d.day + I18N.tf("card.day.suf"," 天") + (dt ? I18N.tf("card.paren.pre","（") + dt + I18N.tf("card.paren.suf","）") : "") + " · " + esc(I18N.city(wxCity)) +
+      '<span class="wx" data-wx-city="' + esc(wxCity) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
     box.appendChild(dayHead);
     const wxSpan = dayHead.querySelector(".wx");
     wxSpan._day = d; // 8.1.4：当日行程挂到天气 span，雨天横幅据此生成/重绘
-    wxFill(wxSpan, d.base_city, dt);
+    wxFill(wxSpan, wxCity, dt);
     const dayItems = el('<div class="day-items" data-day="' + d.day + '"></div>');
     box.appendChild(dayItems);
     (d.items || []).forEach((it, idx) => {
