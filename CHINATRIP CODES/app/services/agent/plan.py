@@ -1059,6 +1059,10 @@ def _content_core(name: str) -> tuple[str, bool]:
 # 一站；包含/演出通道维持 2km（青城山 vs skydive 跳伞基地 ~6km 的
 # 同山不同场馆不误并）。
 _CONTENT_TWIN_GATE_KM = 30.0
+# 同馆家族闸（2026-11-01 用户拍板「30km 调成 5 公里比较合适」）：秦陵类
+# 同一票制院区的两园区实测 2.2-2.4km——5km 半径内算同馆；大足类同城
+# 遗产双集群（北山+宝顶 ~8km）走上方的 30km 内容闸，不受影响。
+_HERITAGE_TWIN_GATE_KM = 5.0
 
 
 def _content_dup(a: str, b: str) -> bool:
@@ -1217,8 +1221,8 @@ def _cand_twin(a: dict, b: dict) -> bool:
         return False
     gate = (
         _CONTENT_TWIN_GATE_KM
-        if (_content_dup(na, nb) or _heritage_dup(na, nb))
-        else 2.0
+        if _content_dup(na, nb)
+        else (_HERITAGE_TWIN_GATE_KM if _heritage_dup(na, nb) else 2.0)
     )
     axy, bxy = _cand_xy(a), _cand_xy(b)
     if axy is not None and bxy is not None:
@@ -1249,8 +1253,13 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     iname = str(item.name or "")
     if not (cn and iname and _name_dup(cn, iname)):
         return False
-    content = _content_dup(cn, iname) or _heritage_dup(cn, iname)
-    gate = _CONTENT_TWIN_GATE_KM if content else 2.0
+    content = _content_dup(cn, iname)
+    heritage = _heritage_dup(cn, iname)
+    gate = (
+        _CONTENT_TWIN_GATE_KM
+        if content
+        else (_HERITAGE_TWIN_GATE_KM if heritage else 2.0)
+    )
     cxy = _cand_xy(cand)
     ixy = (item.location.lon, item.location.lat) if item.location is not None else None
     if cxy is not None and ixy is not None:
@@ -1298,26 +1307,30 @@ def _museum_umbrella_dup(
     核心词也不等（碑林 vs 城墙·碑林历史文化），containment/_content_dup
     都判不开——博物馆核心词（剥尾巴+城市前缀，≥2 字、非城市/设施词）
     作为词素出现在景区名里 + 双方有坐标且相距 ≤2km（异地撞名闸）→
-    同站；同站时博物馆本体优先（碑林拍板）。"""
+    同站；同站时博物馆本体优先（碑林拍板）。
+
+    2026-11-01 用户拍板「核心词匹配运用到所有景点」：撤销「_name_dup
+    管得到的对子不让位」豁免——大足类同内容家族（博物馆/影院/园区）
+    此前选点层保双卡、组装层合并，现统一在选点层让位博物馆本体（结局
+    同为单张博物馆卡，机制更早更省池位，假设区多一行让位披露）。"""
+    if museum_xy is None or scenic_xy is None:
+        return False  # 无坐标不猜（宁可不并）
+    dist = haversine_km(
+        GeoPoint(lon=museum_xy[0], lat=museum_xy[1]),
+        GeoPoint(lon=scenic_xy[0], lat=scenic_xy[1]),
+    )
+    if _heritage_dup(museum_name, scenic_name):
+        # 秦陵同馆家族（2026-11-01 用户拍板「当然选兵马俑」）：骊山园
+        # （秦始皇陵）行让位兵马俑博物馆本体——核心词词素判不开（秦始
+        # 皇兵马俑 ⊄ 秦始皇陵）；家族闸 5km（同日拍板，实测 2.2-2.4km）。
+        return dist <= _HERITAGE_TWIN_GATE_KM
     core = _museum_core(museum_name)
     if not core or not scenic_name:
         return False
-    if _name_dup(museum_name, scenic_name):
-        # 既有通道（包含/同内容/演出）管得到的对子维持原语义：大足类
-        # 同内容家族在组装层 dedupe 合并、选点层保留双卡（既有拍板），
-        # 不走伞名让位。
-        return False
     if core not in scenic_name:
         return False
-    if museum_xy is None or scenic_xy is None:
-        return False  # 无坐标不猜（宁可不并）
-    return (
-        haversine_km(
-            GeoPoint(lon=museum_xy[0], lat=museum_xy[1]),
-            GeoPoint(lon=scenic_xy[0], lat=scenic_xy[1]),
-        )
-        <= 2.0
-    )
+    # 词素闸 2km（青城山 vs skydive 同山不同场馆不误并）
+    return dist <= 2.0
 
 
 _UMBRELLA_SCENIC_EXEMPT_CATEGORIES = {
@@ -1434,12 +1447,20 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return True
     if _umbrella_visit_dup(a, b):
         return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
-    content = _content_dup(a.name, b.name) or _heritage_dup(a.name, b.name)
-    if not (content or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)):
+    content = _content_dup(a.name, b.name)
+    heritage = _heritage_dup(a.name, b.name)
+    if not (
+        content or heritage or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)
+    ):
         return False
-    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆/同馆桶）30km；包含/
-    # 演出通道维持 2km（青城山 skydive 同山不同场馆不误并）。
-    gate = _CONTENT_TWIN_GATE_KM if content else 2.0
+    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）30km；同馆家族 5km
+    # （2026-11-01 拍板）；包含/演出通道维持 2km（青城山 skydive 同山
+    # 不同场馆不误并）。
+    gate = (
+        _CONTENT_TWIN_GATE_KM
+        if content
+        else (_HERITAGE_TWIN_GATE_KM if heritage else 2.0)
+    )
     if a.location is not None and b.location is not None:
         if haversine_km(a.location, b.location) > gate:
             return False

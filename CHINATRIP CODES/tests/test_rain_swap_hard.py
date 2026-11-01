@@ -43,7 +43,7 @@ def test_multi_exchange_rescues_rainy_day_blocked_by_transfer_budget():
     # day6=[四面山120,神龙峡180]=300/360
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
-        _cand("大足石刻数字影院", "重庆", "yes", lat=29.70, dur=60),
+        _cand("重庆科技馆", "重庆", "yes", lat=29.70, dur=60),
         _cand("武陵山大裂谷", "重庆", "no", lat=29.50, dur=180),
         _cand("四面山", "重庆", "no", lat=28.90, dur=120),
         _cand("神龙峡", "重庆", "no", lat=28.90, dur=180),
@@ -61,7 +61,7 @@ def test_multi_exchange_rescues_rainy_day_blocked_by_transfer_budget():
     # 雨日5：多点腾挪生效——露天点去干日、室内点整组来雨日
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["大足石刻博物馆"] == 5
-    assert day_of["大足石刻数字影院"] == 5
+    assert day_of["重庆科技馆"] == 5
     assert any(
         "武陵山大裂谷" in n and "第4天" in n and "大足石刻博物馆" in n for n in notes
     )
@@ -109,7 +109,7 @@ def test_slack_tolerates_leg_noise_when_transfer_budget_tight():
     # day5=[大裂谷180]，day6=[四面山120,神龙峡180]
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
-        _cand("大足石刻数字影院", "重庆", "yes", lat=29.71, dur=60),
+        _cand("重庆科技馆", "重庆", "yes", lat=29.71, dur=60),
         _cand("武陵山大裂谷", "重庆", "no", lat=29.50, dur=180),
         _cand("四面山", "重庆", "no", lat=28.90, dur=120),
         _cand("神龙峡", "重庆", "no", lat=28.91, dur=180),
@@ -128,7 +128,7 @@ def test_slack_tolerates_leg_noise_when_transfer_budget_tight():
     # 来雨日（198 ≤ 180+30）
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["大足石刻博物馆"] == 5
-    assert day_of["大足石刻数字影院"] == 5
+    assert day_of["重庆科技馆"] == 5
     assert any("武陵山大裂谷" in n and "移到第4天" in n for n in notes)
     assert not any("武陵山大裂谷" in n and "本轮不排" in n for n in notes)
     # 雨日6：干日已无室内点 → 四面山/神龙峡保留但留痕
@@ -250,7 +250,7 @@ def test_heavy_rain_upgrades_no_alternative_to_removal():
     # 不受强度影响照常走
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
-        _cand("大足石刻数字影院", "重庆", "yes", lat=29.70, dur=60),
+        _cand("重庆科技馆", "重庆", "yes", lat=29.70, dur=60),
         _cand("武陵山大裂谷", "重庆", "no", lat=29.50, dur=180),
         _cand("四面山", "重庆", "no", lat=28.90, dur=120),
         _cand("神龙峡", "重庆", "no", lat=28.90, dur=180),
@@ -271,7 +271,7 @@ def test_heavy_rain_upgrades_no_alternative_to_removal():
     # day6 大雨：无可替代 → 移出行程，且回填层也不回排（无干日可去）
     assert "四面山" not in day_of
     assert "神龙峡" not in day_of
-    assert set(day_of) == {"大足石刻博物馆", "大足石刻数字影院", "武陵山大裂谷"}
+    assert set(day_of) == {"大足石刻博物馆", "重庆科技馆", "武陵山大裂谷"}
     assert any("四面山" in n and "雨日不排" in n for n in notes)
     assert any("神龙峡" in n and "雨日不排" in n for n in notes)
 

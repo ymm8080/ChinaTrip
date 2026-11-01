@@ -675,7 +675,7 @@ def test_heritage_dup_merges_qin_mausoleum_family():
     from app.services.agent.plan import _name_dup, _same_visit
     from app.services.itinerary import GeoPoint
 
-    a = _visit("v1", "秦始皇陵", location=GeoPoint(lon=109.2540, lat=34.1936))
+    a = _visit("v1", "秦始皇陵", location=GeoPoint(lon=109.2589, lat=34.3803))
 
     b = _visit("v2", "秦始皇兵马俑博物馆", location=GeoPoint(lon=109.2820, lat=34.3862))
 
@@ -712,7 +712,7 @@ def test_dedupe_plan_keeps_single_qin_card():
                         "秦始皇陵",
                         city="西安",
                         poi_id="unesco_Q910180",
-                        location=GeoPoint(lon=109.2540, lat=34.1936),
+                        location=GeoPoint(lon=109.2589, lat=34.3803),
                     )
                 ],
             ),
@@ -781,3 +781,64 @@ def test_dup_blocks_item_full_name_dup_guard():
     assert _dup_blocks_item(bmy_cand, far_show) is False
     # 无关联：不拦
     assert _dup_blocks_item(bmy_cand, _visit("v4", "西安城墙")) is False
+
+
+def test_heritage_family_shadows_to_museum_card():
+    """2026-11-01 用户拍板「当然选兵马俑」：同馆家族在池时骊山园/遗址
+    公园行让位兵马俑博物馆本体（选点层影子，碑林拍板同款）；异地同馆
+    名 >30km 不让位；大足类同内容家族维持「组装层合并、选点层双卡」
+    既有语义不变。"""
+    from app.services.agent.plan import _museum_shadow_pairs, _umbrella_cand_dup
+
+    bmy = {
+        "name": "秦始皇兵马俑博物馆",
+        "category": "attraction",
+        "location": {"lon": 109.2820, "lat": 34.3862},
+    }
+    park = {
+        "name": "秦始皇陵国家考古遗址公园",
+        "category": "attraction",
+        "location": {"lon": 109.2561, "lat": 34.3800},
+    }
+    ling = {
+        "name": "秦始皇陵",
+        "category": "attraction",
+        "location": {"lon": 109.2589, "lat": 34.3803},
+    }
+    pool = [(0, ling), (1, bmy), (2, park)]
+    pairs = _museum_shadow_pairs(pool)
+    assert set(pairs) == {
+        ("秦始皇陵", "秦始皇兵马俑博物馆"),
+        ("秦始皇陵国家考古遗址公园", "秦始皇兵马俑博物馆"),
+    }
+
+    # 异地同馆名（巡展）>30km：不让位
+    far = {
+        "name": "秦始皇陵(异地展馆)",
+        "category": "attraction",
+        "location": {"lon": 116.4, "lat": 39.9},
+    }
+    assert _umbrella_cand_dup(bmy, far) is False
+
+    # 同馆家族 5km 闸边界：~8km 的同名遗产集群不让位（大足北山+宝顶类
+    # 走 30km 内容闸在组装层合并，选点层各自入选）
+    far_family = {
+        "name": "秦始皇陵(北山区)",
+        "category": "attraction",
+        "location": {"lon": 109.28, "lat": 34.31},  # 距兵马俑 ~8.4km
+    }
+    assert _umbrella_cand_dup(bmy, far_family) is False
+
+    # 大足类同内容家族：2026-11-01 拍板「核心词匹配运用到所有景点」——
+    # 撤豁免后选点层也让位博物馆本体（旧「保双卡、组装层合并」退役）
+    dazu_museum = {
+        "name": "大足石刻博物馆",
+        "category": "museum",
+        "location": {"lon": 105.79484, "lat": 29.74688},
+    }
+    dazu_scenic = {
+        "name": "大足区大足石刻景区",
+        "category": "attraction",
+        "location": {"lon": 105.79484, "lat": 29.74688},
+    }
+    assert _umbrella_cand_dup(dazu_museum, dazu_scenic) is True
