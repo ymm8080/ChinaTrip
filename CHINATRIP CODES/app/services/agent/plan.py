@@ -7399,8 +7399,10 @@ class PlanningAgent:
 
         硬惩罚信号（未排卡/空白上午）驱动三类算子：单点跨天 move、跨天
         swap、拆日重建 destroy-repair（S2.1：信号日可挪件全摘、按时长降序
-        贪心重插，原日优先）；评估=深拷贝+顺序兜底+全局评分（含 S2.2
-        day_balance 均衡软项）；接受准则=总分严格改进且硬惩罚不加重，
+        贪心重插，原日优先）；评估=深拷贝+插入式求解 v1.5（受影响天
+        先走生产主路口径，兜底补缝）+全局评分（含 S2.2 day_balance
+        均衡软项）；接受准则=总分严格改进且硬惩罚不加重，停滞时
+        ILS shake/SA 扰动跳出局部最优（≤2 次，收工取历史最优），
         预算 max_evals/2s 墙钟，超时保底原样（按日降级契约不变）。
         只挪不删；铁律 19/必去/系统餐锚/hotel 卡不参与；演出可跨天挪
         （场次合法性由兜底评估判，设计稿 §10.2 拍板）；结束后同城轻载
@@ -7412,6 +7414,7 @@ class PlanningAgent:
         from copy import deepcopy
 
         from app.services.itinerary.scoring import plan_score
+        from app.services.itinerary.solver import insertion_schedule_day
 
         if os.environ.get("CHINATRIP_GLOBAL_RESCHED", "") == "off":
             return [], 0, 0
@@ -7452,7 +7455,7 @@ class PlanningAgent:
             item.day = target_day
             src.items.remove(item)
             dst.items.insert(0, item)  # 晨间优先（同晨间借调口径）
-            return f"「{item.name}」→第{target_day}天"
+            return f"「{item.name}」→第{target_day}天", {src.day, target_day}
 
         def _swap_on(p, id_a, id_b):
             da, a = _find(p, id_a)
@@ -7469,7 +7472,7 @@ class PlanningAgent:
             db.items.remove(b)
             da.items.insert(0, b)
             db.items.insert(0, a)
-            return f"「{a.name}」↔「{b.name}」对调"
+            return f"「{a.name}」↔「{b.name}」对调", {day_a, day_b}
 
         def _destroy_repair_on(p, signal_day_no):
             day = next((d for d in p.days if d.day == signal_day_no), None)
@@ -7502,8 +7505,13 @@ class PlanningAgent:
                     i.day = day.day
                     _fallback_sequence_times(p)
             if relocated:
-                return "、".join(relocated) + f"（第{signal_day_no}天拆日重建）"
-            return f"第{signal_day_no}天就地重排（{len(removed)}项）"
+                return (
+                    "、".join(relocated) + f"（第{signal_day_no}天拆日重建）",
+                    {d.day for d in targets},
+                )
+            return f"第{signal_day_no}天就地重排（{len(removed)}项）", {
+                signal_day_no,
+            }
 
         def _signal_day(p):
             for d in p.days:
@@ -7522,11 +7530,28 @@ class PlanningAgent:
                     return d, "blank"
             return None, None
 
+        def _retime_trial(p, day_nos):
+            """v1.5 评估器（2026-11-01 LNS 升级拍板）：受影响天先插入式
+            求解（锚点+最廉插入，与生产主路同口径）——兜底法判不下的
+            空档插入（240 分钟条目贴锚背靠背类）由它解锁；插入无解的
+            天保持兜底结果（按日降级契约）；最后整体兜底补缝。
+            """
+            hours = _plan_poi_hours(p)
+            for d in p.days:
+                if d.day not in day_nos:
+                    continue
+                solved = insertion_schedule_day(d, poi_hours=hours, meal_flex=True)
+                if solved is not None:
+                    d.items = solved.items
+            _fallback_sequence_times(p)
+
         moves: list[str] = []
         evals = 0
         deadline = time.monotonic() + 2.0
         cur = plan
         cur_score = base
+        best_seen = (base, plan, [])  # (score, plan, moves) 历史最优快照
+        shakes = 0
         while evals < max_evals and time.monotonic() < deadline:
             target, mode = _signal_day(cur)
             if target is None:
@@ -7579,10 +7604,11 @@ class PlanningAgent:
                 if evals >= max_evals or time.monotonic() >= deadline:
                     break
                 trial = deepcopy(cur)
-                desc = fn(trial)
-                if desc is None:
+                res = fn(trial)
+                if res is None:
                     continue
-                _fallback_sequence_times(trial)
+                desc, affected = res
+                _retime_trial(trial, affected)
                 ts = plan_score(trial, rain_days=rain, heavy_rain_days=heavy)
                 evals += 1
                 if ts.total <= cur_score.total:
@@ -7592,10 +7618,36 @@ class PlanningAgent:
                 if best is None or ts.total > best[0]:
                     best = (ts.total, ts, trial, desc)
             if best is None:
-                break  # 本信号无改进→收工
+                # S2.3 ILS shake（2026-11-01 升级拍板）：本信号无改进
+                # 移动时小扰动跳出局部最优——把信号日首个可挪件甩到
+                # 同城次日（SA 语义：接受劣化继续搜），全程保历史最优
+                # 快照，收工取最优——扰动绝不把结果变差。
+                if shakes >= 2 or not movable_here:
+                    break
+                shake_dst = next((d for d in others if _city(d) == _city(target)), None)
+                if shake_dst is None:
+                    break
+                shaken = deepcopy(cur)
+                sres = _move_on(shaken, movable_here[0].item_id, shake_dst.day)
+                if sres is None:
+                    break
+                shakes += 1
+                _retime_trial(shaken, sres[1])
+                cur = shaken
+                cur_score = plan_score(cur, rain_days=rain, heavy_rain_days=heavy)
+                evals += 1
+                moves.append(sres[0] + "（扰动）")
+                continue
             cur = best[2]
             cur_score = best[1]
             moves.append(best[3])
+            if cur_score.total > best_seen[0].total:
+                best_seen = (cur_score, cur, list(moves))
+        # 收工取历史最优快照（扰动路径可能劣于中途最优——绝不交差）
+        if best_seen[0].total >= cur_score.total:
+            cur = best_seen[1]
+            cur_score = best_seen[0]
+            moves = list(best_seen[2])
         # 轻载日规则式回填（借出日补偿，≤2 个；无参访日不填）
         if moves:
             backfills = 0

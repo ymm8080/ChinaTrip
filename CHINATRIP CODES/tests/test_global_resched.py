@@ -286,3 +286,126 @@ def test_lns_disclosure_moves_are_strings():
     moves, _b, _f = agent._global_resched(plan, _picked(), [_slb()], rain_days=RAIN)
     assert all(isinstance(m, str) and m for m in moves)
     assert any("→第" in m or "对调" in m or "重排" in m for m in moves)
+
+
+def test_lns_insertion_evaluator_fills_anchor_gap():
+    """v1.5：240 分钟未排条目夹在两个全钉锚之间——兜底法因 ±30 缓冲
+    判死（10:30+240 撞 B 的 13:30 缓冲；B 后 16:30 又超入场闸），插入式
+    求解按锚背靠背落 10:00-14:00——评估器升级解锁这类移动。"""
+    agent = PlanningAgent(_NoLLM())
+    a = VisitItem(
+        item_id="pa",
+        name="锚A",
+        city="西安",
+        day=1,
+        duration_minutes=60,
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        pinned=True,
+    )
+    b = VisitItem(
+        item_id="pb",
+        name="锚B",
+        city="西安",
+        day=1,
+        duration_minutes=120,
+        start_time=time(14, 0),
+        end_time=time(16, 0),
+        pinned=True,
+    )
+    x = VisitItem(
+        item_id="vx",
+        name="大点X",
+        city="西安",
+        day=1,
+        duration_minutes=240,
+    )
+    day1 = DayPlan(day=1, base_city="西安", items=[a, b, x])
+    day2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            VisitItem(
+                item_id="pc",
+                name="堵日C",
+                city="西安",
+                day=2,
+                duration_minutes=660,
+                start_time=time(9, 0),
+                end_time=time(20, 0),
+                pinned=True,
+            )
+        ],
+    )
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day1, day2])
+
+    moves, b_total, f_total = agent._global_resched(plan, [], [])
+
+    assert moves, "插入式评估应解锁拆日重建"
+    assert f_total > b_total
+    x_it = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.item_id == "vx"
+    )
+    assert x_it.start_time == time(10, 0)  # 锚背靠背：10:00-14:00
+    assert x_it.end_time == time(14, 0)
+
+
+def test_lns_shake_bounded_never_worse():
+    """S2.3：全信号无改进移动时 shake 触发（≤2 次、SA 接受劣化继续
+    搜），收工取历史最优快照——扰动路径绝不把结果变差（此处=恒等）。"""
+    agent = PlanningAgent(_NoLLM())
+    a = VisitItem(
+        item_id="pa",
+        name="锚A",
+        city="西安",
+        day=1,
+        duration_minutes=60,
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        pinned=True,
+    )
+    b = VisitItem(
+        item_id="pb",
+        name="锚B",
+        city="西安",
+        day=1,
+        duration_minutes=120,
+        start_time=time(14, 0),
+        end_time=time(16, 0),
+        pinned=True,
+    )
+    x = VisitItem(
+        item_id="vx",
+        name="巨点X",
+        city="西安",
+        day=1,
+        duration_minutes=480,  # 任何空档都装不下：全渠道无解
+    )
+    day1 = DayPlan(day=1, base_city="西安", items=[a, b, x])
+    day2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            VisitItem(
+                item_id="pc",
+                name="堵日C",
+                city="西安",
+                day=2,
+                duration_minutes=300,
+                start_time=time(9, 0),
+                end_time=time(14, 0),
+                pinned=True,
+            )
+        ],
+    )
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day1, day2])
+    before = plan.model_dump()
+
+    moves, b_total, f_total = agent._global_resched(plan, [], [])
+
+    assert moves == []  # 历史最优=基线：不产出劣化披露
+    assert f_total == b_total
+    assert plan.model_dump() == before  # 恒等：扰动绝不落地劣化
