@@ -97,6 +97,17 @@ class StubAmap:
         self.calls.append((keywords, city))
         if self.exc is not None:
             raise self.exc
+        # 2026-11-01 同城优先（用户拍板「不应该有跨城用点」）：诚实图商
+        # citylimit 语义——带 city 检索只回该城点位，异地行一概不返回；
+        # 无 city 的全国检索维持原样。引擎层对异地命中的拒收由
+        # test_plan_candidates_require_location（北京钟楼案）守护。
+        if city:
+            want = city.removesuffix("市")
+            return [
+                p
+                for p in self.pois
+                if str(p.get("city") or "").removesuffix("市") == want
+            ]
         return self.pois
 
 
@@ -433,11 +444,11 @@ def test_v0_amap_transfer_and_solved_schedule():
             "duration_minutes": 90,
         },
         {
-            "name": "豫园",
+            "name": "西湖",
             "city": "杭州",
             "category": "sight",
             "day": 1,
-            "duration_minutes": 60,
+            "duration_minutes": 90,
         },
         {
             "name": "拙政园",
@@ -455,8 +466,40 @@ def test_v0_amap_transfer_and_solved_schedule():
             "duration_minutes": 60,
         },
     ]
+    # 2026-11-01 同城优先（用户拍板「不应该有跨城用点」）：stub=诚实
+    # 图商 citylimit——杭州/苏州检索只回本城真点位，上海景点绝不出现在
+    # 他城返回里。
+    hz_sz_pois = [
+        {
+            "name": "西湖",
+            "city": "杭州",
+            "category": "风景名胜",
+            "source_poi_id": "B000XIHU01",
+            "location": {"lon": 120.15, "lat": 30.25},
+            "address": "龙井路1号",
+            "opening_hours": "全年 全天开放",
+        },
+        {
+            "name": "拙政园",
+            "city": "苏州",
+            "category": "风景名胜",
+            "source_poi_id": "B000ZHUO01",
+            "location": {"lon": 120.62, "lat": 31.33},
+            "address": "东北街178号",
+            "opening_hours": "07:30-17:30",
+        },
+        {
+            "name": "留园",
+            "city": "苏州",
+            "category": "风景名胜",
+            "source_poi_id": "B000LIU001",
+            "location": {"lon": 120.60, "lat": 31.32},
+            "address": "留园路338号",
+            "opening_hours": "07:30-17:00",
+        },
+    ]
     llm = ScriptedLLM([v0_reply(items)])
-    amap = StubAmap(AMAP_POIS)
+    amap = StubAmap(hz_sz_pois)
     agent = PlanningAgent(llm, amap_client=amap, auto_restaurants=False)
     session = run(
         agent.start(
@@ -474,8 +517,6 @@ def test_v0_amap_transfer_and_solved_schedule():
     visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
     # 第二段杭州→苏州是汽车（mode=car）：落地首停规则只认火车/飞机
     assert sum(1 for v in all_visits(session) if is_hotel_checkin(v)) == 1
-    for _v in visits:
-        print("DBG", _v.item_id, _v.name, _v.city, _v.poi_id, "day", _v.day)
     transfers = all_transfers(session)
     assert len(visits) == 3  # 外滩位于出发城市，未列入行程
     assert "外滩" not in {v.name for v in visits}
@@ -500,10 +541,10 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert any(v.name == "留园" and v.day == 3 for v in visits)
     # amap enrichment: matched candidate name carries the source poi_id
     by_name = {v.name: v for v in visits}
-    assert by_name["豫园"].poi_id == "B000A7U3C8"
+    assert by_name["西湖"].poi_id == "B000XIHU01"
     # every recommendation carries its concrete address + opening hours
-    assert by_name["豫园"].address == "文昌路"
-    assert by_name["豫园"].opening_hours == "09:00-17:00"
+    assert by_name["西湖"].address == "龙井路1号"
+    assert by_name["西湖"].opening_hours == "全年 全天开放"
     assert "假设中等节奏、不早起" in session.assumptions
 
 
@@ -3219,7 +3260,30 @@ def test_meal_city_at_duration_only_transfer_end_derived():
 def test_v0_transfer_day_dinner_searches_arrival_city():
     # 端到端锁线：沪→西安 换乘日的晚餐检索城必须是到达城西安
     # （旧码按 base_city 搜 → 插出上海七宝晚餐卡=跨城乱序）
-    amap = StubAmap(AMAP_POIS)
+    # 2026-11-01 同城优先（用户拍板「不应该有跨城用点」）：stub=诚实
+    # 图商 citylimit——西安检索只回西安真点位，上海行绝不被洗进西安。
+    amap = StubAmap(
+        [
+            {
+                "name": "大雁塔",
+                "city": "西安",
+                "category": "风景名胜",
+                "source_poi_id": "B000DAYAN1",
+                "location": {"lon": 108.96, "lat": 34.22},
+                "address": "雁塔南路",
+                "opening_hours": "08:00-17:30",
+            },
+            {
+                "name": "回民街",
+                "city": "西安",
+                "category": "风景名胜",
+                "source_poi_id": "B000HMINJ1",
+                "location": {"lon": 108.94, "lat": 34.27},
+                "address": "北院门",
+                "opening_hours": "全天开放",
+            },
+        ]
+    )
     items = [
         {"name": "大雁塔", "city": "西安", "day": 1, "duration_minutes": 90},
         {"name": "回民街", "city": "西安", "day": 1, "duration_minutes": 90},

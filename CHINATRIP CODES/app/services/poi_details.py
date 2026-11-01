@@ -415,26 +415,37 @@ class PoiDetailStore:
     # --- write --------------------------------------------------------------
 
     def get_by_name(self, city: str | None, name: str) -> dict | None:
-        """Exact-name lookup so appended rows serve later no-poi_id items."""
+        """Exact-name lookup so appended rows serve later no-poi_id items.
+
+        city 口径（2026-11-01 北京钟楼案，用户拍板「应选西安钟楼而不是
+        北京钟楼」）：带 city 时只认同城行——「钟楼」这类多城重名 POI，
+        旧版全库 .first() 把北京行过继给西安条目（poi_id/地址/英文简介
+        整套易主）。同城无行宁可 None（零配额自愈链会走图商补齐），
+        绝不用异地行冒充；city=None（fast_lane 语义）维持全库命中。
+        """
         name = (name or "").strip()
         if not name:
             return None
+        city_names = None
+        if city:
+            c = city.strip()
+            city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
         if self._db_available():
             try:
                 with self._factory() as session:
-                    pair = (
-                        session.query(
-                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
-                        )
-                        .filter(Poi.name_zh == name)
-                        .first()
-                    )
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(Poi.name_zh == name)
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    pair = q.first()
                     if pair is None:
                         return None
                     row, loc_txt = pair
                     m = _POINT_WKT_RE.match(loc_txt or "")
                     return {
                         "poi_id": row.source_poi_id,
+                        "city": row.city,
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
@@ -454,8 +465,11 @@ class PoiDetailStore:
                 self._note_db_failure()
                 logger.warning("poi_details: db get_by_name failed", exc_info=True)
         for key, v in self._memory.items():
-            if v.get("name") == name:
-                return dict(v, poi_id=key)
+            if v.get("name") != name:
+                continue
+            if city_names and (v.get("city") or "") not in city_names:
+                continue  # 异地行不过继（与 DB 路同口径，2026-11-01）
+            return dict(v, poi_id=key)
         return None
 
     def search_keyword(

@@ -495,3 +495,49 @@ def test_search_keyword_label_rank_beats_plain_hit():
     hits = store.search_keyword("成都", ["演出"])
     ids = [h["source_poi_id"] for h in hits]
     assert ids.index("S1") < ids.index("N1")
+
+
+def test_store_get_by_name_city_scoped():
+    """2026-11-01 北京钟楼案：get_by_name 带 city 只认同城行。
+
+
+
+    「钟楼」多城重名（北京行 vs 西安 manual 行），旧版全库 .first() 把
+
+    北京行过继给西安条目（poi_id/地址/英文简介整套易主）。
+
+    """
+
+    store = PoiDetailStore()
+
+    store.upsert(
+        "ct_beijing_165",
+        city="北京",
+        name="钟楼",
+        category="sight",
+        location=(116.4128, 39.9443),
+    )
+
+    store.upsert(
+        "manual_xian_zhonglou",
+        city="西安",
+        name="西安钟楼",
+        category="attraction",
+        location=(108.9440, 34.3409),
+    )
+
+    # 同城无精确同名行：宁可 None，绝不拿北京行冒充
+
+    assert store.get_by_name("西安", "钟楼") is None
+
+    # 同城精确行照常命中（带「市」后缀也认），并出 city 供调用方复核
+
+    got = store.get_by_name("西安市", "西安钟楼")
+
+    assert got is not None and got["poi_id"] == "manual_xian_zhonglou"
+
+    assert got["city"] == "西安"
+
+    # city=None（fast_lane 语义）：全库精确名照常
+
+    assert store.get_by_name(None, "钟楼")["poi_id"] == "ct_beijing_165"

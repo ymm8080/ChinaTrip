@@ -662,3 +662,82 @@ def test_museum_shadow_pairs_and_far_twin():
         ),
     ]
     assert _museum_shadow_pairs(far) == []
+
+
+# --- 2026-11-01 秦陵三行案：同馆配列桶（骊山园/遗址公园/兵马俑馆一票同站） ---
+
+
+def test_heritage_dup_merges_qin_mausoleum_family():
+    """秦始皇陵 ↔ 秦始皇兵马俑博物馆：互不包含、剥尾核心词不等（秦始皇陵
+
+    vs 秦始皇兵马俑），containment/同内容/演出三通道全漏——同馆桶收拢。"""
+
+    from app.services.agent.plan import _name_dup, _same_visit
+    from app.services.itinerary import GeoPoint
+
+    a = _visit("v1", "秦始皇陵", location=GeoPoint(lon=109.2540, lat=34.1936))
+
+    b = _visit("v2", "秦始皇兵马俑博物馆", location=GeoPoint(lon=109.2820, lat=34.3862))
+
+    assert _name_dup("秦始皇陵", "秦始皇兵马俑博物馆") is True
+
+    assert _name_dup("兵马俑", "秦始皇陵国家考古遗址公园") is True
+
+    assert _same_visit(a, b) is True  # ~3km：同馆 30km 闸内
+
+    # 反例：别的博物馆/景点不进桶
+
+    assert _name_dup("西安碑林博物馆", "秦始皇陵") is False
+
+    assert _name_dup("西安城墙", "秦始皇兵马俑博物馆") is False
+
+
+def test_dedupe_plan_keeps_single_qin_card():
+    """端到端：D1 秦始皇陵 + D4 兵马俑（2026-11-01 用户事故形状）→ 全程
+
+    只留一张秦陵卡，博物馆卡胜出（keep-rank 博物馆层），假设区留痕。"""
+
+    from app.services.itinerary import GeoPoint
+
+    plan = ItineraryPlan(
+        itinerary_id="it-qin",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v1",
+                        "秦始皇陵",
+                        city="西安",
+                        poi_id="unesco_Q910180",
+                        location=GeoPoint(lon=109.2540, lat=34.1936),
+                    )
+                ],
+            ),
+            DayPlan(
+                day=4,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v2",
+                        "秦始皇兵马俑博物馆",
+                        city="西安",
+                        poi_id="5a_296",
+                        location=GeoPoint(lon=109.2820, lat=34.3862),
+                    )
+                ],
+            ),
+        ],
+    )
+
+    dropped = dedupe_plan_visits(plan)
+
+    names = _visit_names(plan)
+
+    assert names == ["秦始皇兵马俑博物馆"]  # 博物馆层胜出
+
+    assert set(dropped) == {"秦始皇陵"}
+
+    assert any("已合并重复站点" in a for a in plan.assumptions)

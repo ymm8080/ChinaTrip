@@ -218,3 +218,53 @@ def test_origin_closure_city_collects_no_candidates():
     agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
     run(agent._collect_candidates(["上海", "成都", "重庆", "上海"]))
     assert store.cities == ["成都", "重庆"]
+
+
+# --- 2026-11-01 北京钟楼案：补量异地命中保留真实城市，不进排程 -------------
+
+
+def test_off_city_remote_hit_keeps_true_city_and_never_schedules():
+    """图商补量返回异地 POI：保留真实城市 + cross_city_hit 标记（旧版
+
+    {**p,"city":city} 把北京钟楼洗成西安候选，晨间保底补进了行程）；
+
+    选点层显式出局。"""
+
+    store = PoiDetailStore()
+
+    remote = RemoteAmap(
+        {
+            "西安": [
+                {
+                    "name": "钟楼",
+                    "location": {"lon": 116.41, "lat": 39.94},
+                    "city": "北京",
+                },
+                {
+                    "name": "西安钟楼",
+                    "location": {"lon": 108.94, "lat": 34.26},
+                    "city": "西安市",
+                },
+            ],
+        }
+    )
+
+    agent = PlanningAgent(NoLLM(), amap_client=remote, poi_details=store)
+
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+
+    by_name = {c["name"]: c for c in candidates}
+
+    assert by_name["钟楼"]["city"] == "北京"
+
+    assert by_name["钟楼"]["cross_city_hit"] is True
+
+    assert by_name["西安钟楼"]["city"] == "西安"
+
+    picked = PlanningAgent._deterministic_selection(candidates, 2, {"西安": (1, 2)})
+
+    names = {p["name"] for p in picked}
+
+    assert "西安钟楼" in names
+
+    assert "钟楼" not in names

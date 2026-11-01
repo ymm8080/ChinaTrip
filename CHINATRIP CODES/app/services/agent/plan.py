@@ -1074,11 +1074,32 @@ def _content_dup(a: str, b: str) -> bool:
     return len(ca) >= 3 and ca == cb
 
 
+# 秦始皇帝陵博物院同馆配列桶（2026-11-01 用户拍板「第一天秦始皇陵、
+# 第四天兵马俑=重复」）：骊山园（秦始皇陵/秦始皇陵国家考古遗址公园）
+# 与兵马俑馆（秦始皇兵马俑博物馆）是同一票制院区的两个园区，名字互
+# 不包含、剥尾核心词也不等（秦始皇陵 vs 秦始皇兵马俑），containment/
+# 同内容/演出三条通道全漏——按演出桶（_SHOW_DUP_KEYS）同款收桶：两个
+# 名字都带桶词即同馆。一次行程只看一次兵马俑（含骊山园）。
+_HERITAGE_DUP_KEYS: tuple[str, ...] = ("兵马俑", "秦始皇陵", "秦始皇帝陵")
+
+
+def _heritage_dup(a: str, b: str) -> bool:
+    """Same-ticket heritage companion venues (骊山园 vs 兵马俑馆)：both
+    names carry a qin-mausoleum morpheme; geo gate rides the content
+    channel (30km) at the callers."""
+    return any(k in (a or "") for k in _HERITAGE_DUP_KEYS) and any(
+        k in (b or "") for k in _HERITAGE_DUP_KEYS
+    )
+
+
 def _name_dup(a: str, b: str) -> bool:
     """Name-pair duplicate test for wish/candidate matching: containment
     (_site_dup) plus show-activity alias (_show_dup) plus same-content
-    companion venues (_content_dup, 2026-10-31 大足双卡案)."""
-    return _site_dup(a, b) or _show_dup(a, b) or _content_dup(a, b)
+    companion venues (_content_dup, 2026-10-31 大足双卡案) plus same-
+    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案)."""
+    return (
+        _site_dup(a, b) or _show_dup(a, b) or _content_dup(a, b) or _heritage_dup(a, b)
+    )
 
 
 _WISH_VERB_RE = re.compile(
@@ -1194,7 +1215,11 @@ def _cand_twin(a: dict, b: dict) -> bool:
     na, nb = str(a.get("name") or ""), str(b.get("name") or "")
     if not (na and nb and _name_dup(na, nb)):
         return False
-    gate = _CONTENT_TWIN_GATE_KM if _content_dup(na, nb) else 2.0
+    gate = (
+        _CONTENT_TWIN_GATE_KM
+        if (_content_dup(na, nb) or _heritage_dup(na, nb))
+        else 2.0
+    )
     axy, bxy = _cand_xy(a), _cand_xy(b)
     if axy is not None and bxy is not None:
         if (
@@ -1377,11 +1402,11 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return True
     if _umbrella_visit_dup(a, b):
         return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
-    content = _content_dup(a.name, b.name)
+    content = _content_dup(a.name, b.name) or _heritage_dup(a.name, b.name)
     if not (content or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)):
         return False
-    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）30km；包含/演出
-    # 通道维持 2km（青城山 skydive 同山不同场馆不误并）。
+    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆/同馆桶）30km；包含/
+    # 演出通道维持 2km（青城山 skydive 同山不同场馆不误并）。
     gate = _CONTENT_TWIN_GATE_KM if content else 2.0
     if a.location is not None and b.location is not None:
         if haversine_km(a.location, b.location) > gate:
@@ -4556,13 +4581,20 @@ class PlanningAgent:
                         continue
                     if not p.get("location"):
                         continue  # 图商命中偶发无坐标：同款坐标闸（2026-10-30）
-                    entry = {**p, "city": city}
-                    poi_city = str(p.get("city") or "").removesuffix("市")
+                    poi_city = str(p.get("city") or "").strip().removesuffix("市")
+                    entry = {**p}
                     if poi_city and poi_city != city.removesuffix("市"):
-                        # 图商本地检索返回了异地 POI（stub 松散返回同款）：
-                        # 保留进池供 spec 按名解析，但不许进均衡回填（防
-                        # 「已丢弃出发城市景点的复活卡」2026-10-31）。
+                        # 图商本地检索返回了异地 POI（stub 松散返回同款）。
+                        # 2026-11-01 用户拍板「应选西安钟楼而不是北京钟楼」：
+                        # 异地命中保留真实城市，绝不改写成目标城——旧版
+                        # {**p, "city": city} 把异地行洗成本地候选，晨间
+                        # 保底/雨天对调照样捞它进排期。保留进池只供按名
+                        # 解析（2026-10-31「出发城景点复活卡」事故语义不
+                        # 变），排程三路（选点/回填/均衡）全出局。
+                        entry["city"] = poi_city
                         entry["cross_city_hit"] = True
+                    else:
+                        entry["city"] = city.removesuffix("市")
                     pois.append(entry)
             logger.info(
                 "plan: city %s candidates library=%d no_loc_skipped=%d total=%d",
@@ -5236,6 +5268,9 @@ class PlanningAgent:
             for c in candidates
             if c.get("category") == "food" and isinstance(c.get("location"), dict)
         ]
+        # 异地命中不进 LLM 选点（2026-11-01 北京钟楼案）：城外行没有合法
+        # day 窗口，列给模型只会引诱跨城选点。
+        candidates = [c for c in candidates if not c.get("cross_city_hit")]
 
         def _fmt_count(n: object) -> str:
             try:
@@ -5574,6 +5609,10 @@ class PlanningAgent:
 
         groups: dict[str, list[dict]] = {}
         for cand in candidates:
+            if cand.get("cross_city_hit"):
+                # 异地命中不排期（2026-11-01 北京钟楼案）：真实城市组走
+                # ranges.get(city,(1,days)) 兜底默认窗仍会排——显式出局。
+                continue
             city = (cand.get("city") or _unspecified()).removesuffix("市")
             groups.setdefault(city, []).append(cand)
         items: list[dict] = []
