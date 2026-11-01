@@ -195,3 +195,16 @@ def test_addressless_rows_geocode_by_city_and_name():
     assert geo.calls == 1
     assert geo.city_seen == "成都"
     assert stats["by_vendor"] == {"baidu_geocode": 1}
+
+
+def test_source_rank_covers_p2_sources():
+    # 2026-11-01 master backlog #4/#9:4a/国保/遗址公园/名村/intl/预约名单
+    # 入档,不再与 chinatravel 长尾同落 99 档混排。
+    assert _SOURCE_RANK["4a"] == 8 > _SOURCE_RANK["histvillage"]  # 2026-11-01 拍板先放
+    assert _SOURCE_RANK["intl"] == _SOURCE_RANK["reservation"] < _SOURCE_RANK["4a"]
+    assert _SOURCE_RANK["guobao8"] == _SOURCE_RANK["relicpark"]
+    assert _SOURCE_RANK["relicpark"] == _SOURCE_RANK["museum1"]
+    assert _SOURCE_RANK["histvillage"] == _SOURCE_RANK["street"]
+    assert _SOURCE_RANK["street"] < _SOURCE_RANK["4a"] < _SOURCE_RANK["chinatravel"]
+    for src in ("4a", "guobao8", "relicpark", "histvillage", "intl", "reservation"):
+        assert _SOURCE_RANK[src] < 99

@@ -907,7 +907,12 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
     return [
         i
         for i in day["items"]
-        if "mode" not in i and not i.get("item_id", "").startswith("food-lunch-ph")
+        if (
+            "mode" not in i
+            and not i.get("item_id", "").startswith("food-lunch-ph")
+            # 酒店入住卡无坐标/不回填（2026-11-01 落地首停）
+            and not i.get("item_id", "").startswith("hotel-checkin")
+        )
     ]
 
 
@@ -1075,8 +1080,8 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
                         name="夜游",
                         city="成都",
                         day=1,
-                        start_time=dtime(16, 17),
-                        end_time=dtime(17, 47),
+                        start_time=dtime(17, 17),
+                        end_time=dtime(18, 47),
                         duration_minutes=90,
                         pinned=True,
                     ),
@@ -1089,10 +1094,12 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     seq = [(v.name, v.start_time) for v in visits if v.start_time is not None]
     starts = [t for _, t in seq]
     assert starts == sorted(starts)  # 展示顺序=时间顺序
-    assert seq[0] == ("甲", dtime(12, 47))  # 首个空档（高铁 11:17+90min 缓冲）
-    assert seq[1] == ("丙", dtime(14, 17))  # 2026-10-31 游标修正：乙失败后
-    # 丙仍回填 14:17-15:47 空档（旧版游标被失败顶到 18:17，丙跟着排不上）
-    assert seq[2] == ("夜游", dtime(16, 17))  # pinned 锚点
+    # 2026-11-01 落地首停：高铁到达侧首个观光 ≥ 落地+150（原 +90）
+    assert seq[0] == ("甲", dtime(13, 47))  # 首个空档（高铁 11:17+150min 地板）
+    assert seq[1] == ("丙", dtime(15, 17))  # 2026-10-31 游标修正：乙失败后
+    # 丙仍回填 15:17-16:47 空档（夜游挪 17:17 给丙让窗；旧版游标被失败
+    # 顶到 18:17，丙跟着排不上）
+    assert seq[2] == ("夜游", dtime(17, 17))  # pinned 锚点
     # 2026-10-31 白天入场闸（用户拍板「非演出景点最晚 16:00 入场」）：
     # 乙被推到夜游后 18:17 入场，超闸留空由校验披露。夜游（pinned）
     # 不受闸。
@@ -1341,8 +1348,10 @@ def test_refresh_legs_backfills_missing_locations():
         for d in resp.json()["plan"]["days"]
         for i in d["items"]
         if "mode" not in i
-        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
+        # 入住卡同理（2026-11-01 落地首停）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
+        and not str(i.get("item_id", "")).startswith("hotel-checkin")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -1381,8 +1390,10 @@ def test_get_plan_session_returns_refreshed_plan():
         for d in data["plan"]["days"]
         for i in d["items"]
         if "mode" not in i
-        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
+        # 入住卡同理（2026-11-01 落地首停）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
+        and not str(i.get("item_id", "")).startswith("hotel-checkin")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
@@ -1402,3 +1413,223 @@ def _llm_select_mode():
     os.environ["PLAN_SELECT_MODE"] = "llm"
     yield
     os.environ.pop("PLAN_SELECT_MODE", None)
+
+
+# --- POST /plan/{id}/items/{item_id}/replace（2026-11-01 换景点：名字
+# --- 可编辑，关键字去库里匹配；无匹配由 H5 引导留空）-----------------------
+
+
+REPLACE_CAND = {
+    "source_poi_id": "ct_杭州_9",
+    "name": "灵隐寺",
+    "city": "杭州市",
+    "category": "attraction",
+    "address": "法云弄1号",
+    "opening_hours": "07:00-18:00",
+    "name_en": "Lingyin Temple",
+    "address_en": None,
+    "intro_en": None,
+    "opening_hours_en": None,
+    "best_visit_time": "morning",
+    "booking_url": None,
+    "rain_ok": "yes",
+    "rating": 4.7,
+    "tags": ["4a"],
+    "suggested_duration_min": 120,
+    "reservation_required": None,
+    "reservation_advance_days": None,
+    "location": (120.0972, 30.2414),
+    "source": "4a",
+}
+
+
+class StubReplaceStore:
+    """candidate_by_name 桩：名字→候选，未命中 None。start 路径的其它
+    库读方法给空实现（本文件其余用例 poi_details=None 不走库）。"""
+
+    def __init__(self, mapping: dict | None = None) -> None:
+        self.mapping = mapping or {}
+        self.calls: list = []
+
+    def candidate_by_name(self, city, name):
+        self.calls.append((city, name))
+        return self.mapping.get(name)
+
+    def db_degraded(self):
+        return False
+
+    def get(self, source_poi_id):
+        return None
+
+    def upsert(self, *a, **k):
+        return None
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        return []
+
+    def search_keyword(self, city, tokens, *, limit=5):
+        return []
+
+    def get_by_name(self, city, name):
+        return None
+
+
+def test_replace_swaps_item_in_place_and_retimes_day():
+    store = StubReplaceStore({"灵隐寺": REPLACE_CAND})
+    agent = PlanningAgent(StubAdapter([V0_JSON]), poi_details=store)
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/replace",
+        json={"name": "灵隐寺"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    new = _visit(data, "灵隐寺")
+    assert new["day"] == 1  # 原位：同天
+    assert new["item_id"] != vid  # 新条目新 id
+    assert new["poi_id"] == "ct_杭州_9"
+    assert new["duration_minutes"] == 120
+    assert new["location"]["lon"] == pytest.approx(120.0972)
+    with pytest.raises(StopIteration):
+        _visit(data, "西湖")  # 旧点不再出现
+    assert store.calls == [("杭州", "灵隐寺")]  # 按条目所在城收窄
+    slots = [(v["start_time"], v["end_time"]) for v in _day_visits(data, 1)]
+    assert slots and all(s[0] and s[1] for s in slots)  # 当天时链完整
+
+
+def test_replace_no_match_422():
+    agent = PlanningAgent(StubAdapter([V0_JSON]), poi_details=StubReplaceStore())
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/replace",
+        json={"name": "库里没有的点"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "no_match"}
+
+
+def test_replace_duplicate_in_plan_422():
+    cand = dict(REPLACE_CAND, name="雷峰塔", source_poi_id="ct_杭州_2")
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), poi_details=StubReplaceStore({"雷峰塔": cand})
+    )
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/replace",
+        json={"name": "雷峰塔"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "duplicate_in_plan"}
+
+
+def test_replace_meal_slot_locked_422():
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]),
+        poi_details=StubReplaceStore({"灵隐寺": REPLACE_CAND}),
+    )
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    meals = [
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if str(i.get("item_id", "")).startswith("food-lunch-ph")
+    ]
+    assert meals  # 前置：午餐占位存在
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{meals[0]['item_id']}/replace",
+        json={"name": "灵隐寺"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "meal_slot_locked"}
+
+
+def test_replace_pinned_item_allowed_and_fresh_unpinned():
+    store = StubReplaceStore({"灵隐寺": REPLACE_CAND})
+    agent = PlanningAgent(StubAdapter([V0_JSON]), poi_details=store)
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/{vid}/pin",
+            json={"pinned": True},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 200
+    )
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/replace",
+        json={"name": "灵隐寺"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200  # 用户显式动作最高优先（同 retime）
+    new = _visit(resp.json(), "灵隐寺")
+    assert new["pinned"] is False  # 新点不继承钉（用户可再钉）
+
+
+def test_replace_guard_chain_400_404_422():
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]),
+        poi_details=StubReplaceStore({"灵隐寺": REPLACE_CAND}),
+    )
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/v1/replace", json={"name": "灵隐寺"}
+        ).status_code
+        == 400
+    )  # 缺 X-Device-ID
+    assert (
+        client.post(
+            "/api/v1/plan/no-such/items/v1/replace",
+            json={"name": "灵隐寺"},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/v_none/replace",
+            json={"name": "灵隐寺"},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/api/v1/plan/{sid}/items/v1/replace",
+            json={"name": ""},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 422
+    )

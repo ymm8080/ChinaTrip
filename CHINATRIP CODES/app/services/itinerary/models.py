@@ -19,6 +19,14 @@ CROWD_COEF_MAX = 1.2
 VALID_TOUR_RATIO_MIN = 0.55  # effective sightseeing time ratio >= 55%
 INTERCITY_BUFFER_MINUTES = 90  # iron rule 4: cross-city connection buffer
 
+# 落地首停规则（2026-11-01 用户拍板「行程里应该有 HOTEL」）：火车/飞机
+# 落地后默认先到酒店——入住卡摆在落地 +90 分钟（铁律 4 衔接缓冲=出站+
+# 去酒店，即「到达酒店」的默认估计），到店 1 小时后出发去当天首个行程；
+# 无酒店卡（用户删除/深夜放不下）时首个观光同样 ≥ 落地 +150（2.5h）。
+# solver CP/插入两条主路与 plan 兜底三处同口径。
+ARRIVAL_STOP_FLOOR_MINUTES = 150  # landing -> first attraction floor
+HOTEL_SETTLE_MINUTES = 60  # hotel arrival -> depart to next attraction
+
 
 class GeoPoint(BaseModel):
     lon: float

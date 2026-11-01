@@ -474,3 +474,227 @@ def test_fallback_delays_system_lunch_but_not_user_pinned():
     h = {i.item_id: i.start_time for i in hard_day.items}
     assert h["lunch-1"] == time(12, 0)  # 用户钉不动
     assert h["big"] == time(13, 0)  # 大点让到下午
+
+
+# ---------- 6) 预算=偏好 + 跨天借调（2026-11-01 拍板） ----------
+
+
+def _borrow_fixture():
+    """用户 4f228cfb 案形状：day3 雨天空上午（软午餐+华清池 240+未排
+    秦俑情），day4 兵马俑 09:00 + 钟楼 11:00。"""
+    from app.services.itinerary.models import GeoPoint
+
+    lunch = VisitItem(
+        item_id="lunch-3",
+        name="午饭（自由安排）",
+        category="food",
+        city="西安",
+        day=3,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
+    )
+    hqc = VisitItem(
+        item_id="v-hqc",
+        name="临潼区华清池景区",
+        category="attraction",
+        city="西安",
+        day=3,
+        rain_ok="no",
+        start_time=time(13, 0),
+        end_time=time(17, 0),
+        duration_minutes=240,
+        location=GeoPoint(lon=109.21, lat=34.36),
+    )
+    show = VisitItem(
+        item_id="v-qyq",
+        name="《秦俑情》",
+        category="entertainment",
+        city="西安",
+        day=3,
+        rain_ok="yes",
+        best_visit_time="show",
+        opening_hours="多场（约11:00/14:00/17:00）",
+        duration_minutes=80,
+        location=GeoPoint(lon=109.28, lat=34.38),
+    )
+    bmy = VisitItem(
+        item_id="v-bmy",
+        name="秦始皇兵马俑博物馆",
+        category="attraction",
+        city="西安",
+        day=4,
+        rain_ok="yes",
+        best_visit_time="any",
+        start_time=time(9, 0),
+        end_time=time(10, 30),
+        duration_minutes=90,
+        location=GeoPoint(lon=109.27, lat=34.38),
+    )
+    zl = VisitItem(
+        item_id="v-zl",
+        name="钟楼",
+        category="sight",
+        city="西安",
+        day=4,
+        rain_ok="yes",
+        best_visit_time="any",
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        duration_minutes=60,
+        location=GeoPoint(lon=108.94, lat=34.26),
+    )
+    day3 = DayPlan(day=3, base_city="西安", items=[lunch, hqc, show])
+    day4 = DayPlan(day=4, base_city="西安", items=[bmy, zl])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day3, day4])
+    return plan, day3, day4
+
+
+def _picked4():
+    return [
+        {"name": "临潼区华清池景区"},
+        {"name": "《秦俑情》"},
+        {"name": "秦始皇兵马俑博物馆"},
+        {"name": "钟楼"},
+    ]
+
+
+def _slb_cand():
+    return {
+        "name": "陕西历史博物馆",
+        "city": "西安",
+        "category": "museum",
+        "source_poi_id": "4a_slb",
+        "suggested_duration_min": 120,
+        "rain_ok": "yes",
+        "best_visit_time": "any",
+        "location": {"lon": 108.95, "lat": 34.24},
+    }
+
+
+def test_morning_borrow_moves_bmy_to_blank_rainy_morning():
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+
+    res = agent._morning_borrow(
+        plan,
+        day3,
+        _picked4(),
+        [_slb_cand()],
+        rain_days={"西安": {3, 4}},
+    )
+
+    assert res == ("秦始皇兵马俑博物馆", "陕西历史博物馆", 4)
+    bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
+    assert bmy.day == 3
+    assert bmy.start_time == time(9, 0)
+    assert _morning_occupied(day4)  # 钟楼 11:00 仍在
+    slb = next(i for i in day4.items if i.name == "陕西历史博物馆")
+    assert slb.start_time is not None
+
+
+def test_morning_borrow_geo_prefers_lintong_cluster():
+    """day2(市区)与 day4(临潼)都可借时，地理亲和度选临潼簇的兵马俑。"""
+    from app.services.itinerary.models import GeoPoint
+
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+    hj = VisitItem(
+        item_id="v-hj",
+        name="回民街",
+        category="attraction",
+        city="西安",
+        day=2,
+        rain_ok="yes",
+        best_visit_time="any",
+        start_time=time(9, 0),
+        end_time=time(10, 30),
+        duration_minutes=90,
+        location=GeoPoint(lon=108.93, lat=34.26),
+    )
+    day2 = DayPlan(day=2, base_city="西安", items=[hj])
+    plan.days.insert(0, day2)
+
+    res = agent._morning_borrow(
+        plan,
+        day3,
+        _picked4() + [{"name": "回民街"}],
+        [_slb_cand()],
+        rain_days={"西安": {3, 4}},
+    )
+
+    assert res is not None
+    assert res[0] == "秦始皇兵马俑博物馆"
+    assert res[2] == 4
+
+
+def test_morning_borrow_reverts_when_donor_morning_would_blank():
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+    day4.items = [i for i in day4.items if i.name != "钟楼"]  # 兵马俑是唯一晨点
+
+    res = agent._morning_borrow(plan, day3, _picked4(), [], rain_days={"西安": {3, 4}})
+
+    assert res is None
+    assert not any(i.name == "秦始皇兵马俑博物馆" for i in day3.items)
+    bmy = next(i for i in day4.items if i.name == "秦始皇兵马俑博物馆")
+    assert bmy.day == 4
+
+
+def test_morning_borrow_skips_pinned_and_show():
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+    for i in day4.items:
+        i.pinned = True  # 钟楼+兵马俑全钉 → 不可借
+
+    res = agent._morning_borrow(plan, day3, _picked4(), [], rain_days={"西安": {3, 4}})
+
+    assert res is None
+
+
+def test_morning_fill_overflow_adds_shortest_when_budget_soft():
+    """360=偏好非硬闸：全都装不下时按最短溢出补，不再拒绝。"""
+    agent = PlanningAgent(_NoLLM())
+    plan, day = _afternoon_only_plan()
+    day.items.append(
+        VisitItem(
+            item_id="v-big1",
+            name="大点甲",
+            category="attraction",
+            city="西安",
+            day=1,
+            start_time=time(16, 0),
+            end_time=time(20, 0),
+            duration_minutes=240,
+        )
+    )
+    cands = [
+        {
+            "name": "长点乙",
+            "city": "西安",
+            "category": "museum",
+            "source_poi_id": "ct_b",
+            "suggested_duration_min": 180,
+            "rain_ok": "yes",
+            "best_visit_time": "any",
+        },
+        {
+            "name": "短点丙",
+            "city": "西安",
+            "category": "museum",
+            "source_poi_id": "ct_c",
+            "suggested_duration_min": 90,
+            "rain_ok": "yes",
+            "best_visit_time": "any",
+        },
+    ]
+
+    # 不许溢出（第一阶段）：全都装不下 → None
+    assert agent._morning_fill(plan, day, [], cands, allow_overflow=False) is None
+    # 允许溢出（第三阶段）：按最短溢出补「短点丙」
+    added = agent._morning_fill(plan, day, [], cands, allow_overflow=True)
+    assert added == "短点丙"
+    visit = next(i for i in day.items if i.name == "短点丙")
+    assert visit.start_time == time(9, 0)

@@ -12,6 +12,7 @@ from datetime import time
 
 import pytest
 
+from app.services.agent.hotel_stays import is_hotel_checkin
 from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     POI_KEYWORD,
@@ -468,7 +469,11 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert session.state == "ready"
     plan = session.plan
     assert len(plan.days) == 3
-    visits = all_visits(session)
+    # 酒店入住卡（2026-11-01 落地首停）不算观光点：形状断言剔除、
+    # 单独断言两张（杭州 day1 / 苏州 day2 落地各一张）
+    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
+    # 第二段杭州→苏州是汽车（mode=car）：落地首停规则只认火车/飞机
+    assert sum(1 for v in all_visits(session) if is_hotel_checkin(v)) == 1
     for _v in visits:
         print("DBG", _v.item_id, _v.name, _v.city, _v.poi_id, "day", _v.day)
     transfers = all_transfers(session)
@@ -1161,9 +1166,9 @@ def test_message_move_diff_changes_plan_and_reports_change():
 
 
 def test_selfrepair_recovers_from_hard_violation():
-    # Day 1 carries the 上海→杭州 train (07:15-08:16 + 90min buffer ⇒ 西湖
-    # can only start ≥09:46); the first diff retimes 西湖 to 09:00 -> rule-4
-    # buffer violation -> repair round fixes it.
+    # Day 1 carries the 上海→杭州 train (07:15-08:16; 落地首停 2026-11-01:
+    # 入住卡 09:46-10:46，首个观光 ≥10:46=落地+150)；the first diff retimes
+    # 西湖 to 09:00 -> violation -> repair round fixes it.
     items = [
         {
             "name": "西湖",
@@ -1187,7 +1192,7 @@ def test_selfrepair_recovers_from_hard_violation():
                 "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
             ),
             repair_reply(
-                [{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}]
+                [{"op": "retime", "item_id": "v1", "new_start_time": "14:00"}]
             ),
         ]
     )
@@ -1203,7 +1208,7 @@ def test_selfrepair_recovers_from_hard_violation():
     session, reply, change = run(agent.message(session, "西湖改到九点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
-    assert item.start_time == time(10, 0)
+    assert item.start_time == time(14, 0)
     assert change is not None
     assert not hard_errors(session)
 
@@ -1458,7 +1463,7 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
         )
     )
     assert session.state == "ready"
-    visits = all_visits(session)
+    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
     assert len(visits) == 8
     assert all(v.opening_hours == "全年全天开放" for v in visits)
     assert len(ctrip.calls) == 8
@@ -1516,7 +1521,7 @@ def test_v0_hours_chain_keeps_address_when_hours_miss():
         )
     )
     assert session.state == "ready"
-    visits = all_visits(session)
+    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
     assert len(visits) == 2
     for v in visits:
         idx = int(v.name[-1])

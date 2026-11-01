@@ -707,3 +707,47 @@ async def retime_plan_item(
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)
+
+
+class PlanReplaceRequest(BaseModel):
+    # 库内选中项的名字（H5 /api/pois/search 下拉选中后携带；replace 按
+    # 条目所在城 + 精确同名落实，防止跨城/模糊误换）
+    name: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/replace")
+async def replace_plan_item(
+    session_id: str,
+    item_id: str,
+    request: PlanReplaceRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """行程卡「换景点」（2026-11-01 拍板：景点名可编辑，拿关键字去库
+    里匹配）：条目原位换成库内精确同名 POI，当天按游标链重排。无同名
+    422 no_match（H5 端引导留空）；与行程内重复 422 duplicate_in_plan；
+    系统餐位（soft_pin 餐件）422 meal_slot_locked。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.replace_item(
+            session, item_id, name=request.name
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0] if summary.change_summary else L("已替换", "Replaced")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)

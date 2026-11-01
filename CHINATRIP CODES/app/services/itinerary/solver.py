@@ -22,6 +22,7 @@ from typing import NamedTuple
 from ortools.sat.python import cp_model
 
 from app.services.itinerary.models import (
+    ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
     DayPlan,
     ItineraryPlan,
@@ -141,6 +142,18 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     return _GENERIC_ENTRY_CAP_MINUTES
 
 
+def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
+    """落地侧缓冲（2026-11-01 用户拍板「落地→酒店→到店 1 小时后出发；
+    无酒店首停 ≥ 落地 2.5 小时」）：火车/飞机的到达侧，非餐/非酒店条目
+    用 ARRIVAL_STOP_FLOOR_MINUTES 地板；酒店入住卡与餐饮沿用铁律 4 的
+    90 分钟衔接缓冲；汽车/大巴双侧照旧 90。"""
+    if transfer.mode not in ("train", "flight"):
+        return INTERCITY_BUFFER_MINUTES
+    if (visit.category or "") in ("hotel", "food"):
+        return INTERCITY_BUFFER_MINUTES
+    return ARRIVAL_STOP_FLOOR_MINUTES
+
+
 _MINUTES_PER_DAY = 24 * 60
 
 
@@ -239,7 +252,15 @@ def _visit_spec(
         and (item.category or "") == "food"
         and item.start_time is not None
     )
-    if item.pinned or soft_meal:  # iron rule 19 / 系统餐软锚
+    # 酒店入住卡同构软锚（2026-11-01 落地首停规则）：落位=到达酒店，
+    # 排程域锚定不漂移；flex ±30 分支仍仅餐类，入住卡不参与。
+    soft_hotel = (
+        not item.pinned
+        and item.soft_pin
+        and (item.category or "") == "hotel"
+        and item.start_time is not None
+    )
+    if item.pinned or soft_meal or soft_hotel:  # 铁律 19 / 系统软锚
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
@@ -480,16 +501,16 @@ def solve_day(
         model.AddNoOverlap(intervals)
 
         # Visits keep INTERCITY_BUFFER_MINUTES clear on both sides of a
-        # transfer.
+        # transfer; 落地侧首停地板（2026-11-01）：火车/飞机到达侧首个
+        # 观光 ≥ 落地 +150（入住卡/餐饮贴常规 90 衔接缓冲）。
         for spec, start, size in zip(specs, starts, sizes):
-            for _, ts, tdur in transfer_windows:
+            for titem, ts, tdur in transfer_windows:
+                after_buf = _after_transfer_buffer(titem, spec.item)
                 before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
                 model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
                     before
                 )
-                model.Add(start >= ts + tdur + INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
-                    before.Not()
-                )
+                model.Add(start >= ts + tdur + after_buf).OnlyEnforceIf(before.Not())
 
         # 软钉餐偏离惩罚项：|start-pin| + (dur - size)（激活软钉的餐才有）
         penalty_terms: list[object] = []
@@ -611,6 +632,9 @@ def insertion_schedule_day(
 
     # ---- ① 锚点：transfers（±90 缓冲）+ 完全钉死项 ----
     occupied: list[tuple[int, int, object]] = []
+    # 落地侧首停地板（同 _after_transfer_buffer 口径）：非餐/非酒店候选
+    # 起点不得落 [te+90, te+150)——基础占用块已拦 <te+90 的重叠。
+    arrival_floor_zones: list[tuple[int, int]] = []
     for item in transfers:
         window = _fixed_transfer_window(item)
         if window is None:
@@ -619,6 +643,13 @@ def insertion_schedule_day(
         occupied.append(
             (ts - INTERCITY_BUFFER_MINUTES, ts + tdur + INTERCITY_BUFFER_MINUTES, item)
         )
+        if item.mode in ("train", "flight"):
+            arrival_floor_zones.append(
+                (
+                    ts + tdur + INTERCITY_BUFFER_MINUTES,
+                    ts + tdur + ARRIVAL_STOP_FLOOR_MINUTES,
+                )
+            )
     rest: list[_VisitSpec] = []
     for spec in specs:
         flexed = flex_day and spec.dur_lo and spec.dur_lo < spec.dur
@@ -654,6 +685,10 @@ def insertion_schedule_day(
         if cap is not None and t > cap and not _is_show(spec.item):
             return False
         is_flex_meal = spec.dur_lo and spec.dur_lo < spec.dur
+        if (spec.item.category or "") not in ("food", "hotel"):
+            for fs, fe in arrival_floor_zones:
+                if fs <= t < fe:
+                    return False
         if not is_flex_meal:
             for pin, mdur in flex_pins:
                 span_lo, span_hi = (
@@ -677,12 +712,14 @@ def insertion_schedule_day(
         return True
 
     def _added_travel(t: int, dur: int, item: VisitItem) -> int:
+        # 换乘锚不参与走行记账（PR2 起矩阵+换乘日在此 AttributeError 必崩
+        # →整日静默降级；与 _fits 的 isinstance 守卫同口径，2026-11-01 修）
         before = [o for o in occupied if o[1] <= t]
         after = [o for o in occupied if o[0] >= t + dur]
         added = 0
-        if before:
+        if before and isinstance(before[-1][2], VisitItem):
             added += _travel(before[-1][2], item)
-        if after:
+        if after and isinstance(after[0][2], VisitItem):
             added += _travel(item, after[0][2])
         return added
 

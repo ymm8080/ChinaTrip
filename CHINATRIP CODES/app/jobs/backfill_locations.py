@@ -1,8 +1,12 @@
 """POI 坐标批量补全作业（2026-10-28 backlog：无坐标行走高德 text 补齐）。
 
 选行：location 为空 + status active/空 + 非餐饮 + KNOWN_CITIES（规划池；
-池外城市 MVP 外）。优先级按 source 档（unesco>5a>intl 系>scenic>museum>
-street/histown>show>amap>其余）——规划候选池主力先补，长尾后补。
+池外城市 MVP 外）。优先级按 source 档（unesco>5a>intl 系/预约名单>
+intl 系/scenic>国保/遗址公园/museum>名村/street/histown>show>
+amap/baidu>4a(2026-11-01 用户拍板先放)>chinatravel 长尾）——规划候选池
+主力先补，长尾后补（2026-11-01：4a/guobao8/relicpark/histvillage/
+intl/reservation 曾落 99 档与长尾混排，
+按 master backlog #4/#9 入档）。
 
 逐行 search_poi(name, city=城) 取首个通过校验的命中（有坐标 + 同城相容 +
 名称互含），经 PoiDetailStore.upsert 落库（fill-empty + wgs84 成对写，
@@ -43,13 +47,22 @@ _SOURCE_RANK = {
     "curated": 2,
     "xiaohongshu": 2,
     "sygic": 2,
+    "intl": 2,
+    "reservation": 2,
+    "4a": 8,          # 2026-11-01 用户拍板「4a 先放一下」:降档到长尾前
     "scenic": 3,
+    "guobao8": 4,
+    "relicpark": 4,
     "museum1": 4,
     "museum2": 4,
+    "histvillage": 5,
     "street": 5,
     "histown": 5,
     "show": 6,
     "amap": 7,
+    "baidu": 7,
+    "ctrip": 7,
+    "chinatravel": 9,
 }
 
 _FOOD_MARKS = ("food", "餐饮", "美食", "餐厅")

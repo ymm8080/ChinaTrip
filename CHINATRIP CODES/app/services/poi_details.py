@@ -158,6 +158,112 @@ def _name_overlap(a: str | None, b: str | None) -> bool:
     return a in b or b in a
 
 
+# 内存行 mimic ORM attrs（top_pois_in_city / candidate_by_name 的回退路共用）
+_MEM_ROW_SLOTS = (
+    "source_poi_id",
+    "name_zh",
+    "city",
+    "category",
+    "address",
+    "opening_hours",
+    "source",
+    "rating",
+    "rating_count",
+    "tags",
+    "best_visit_time",
+    "suggested_duration_min",
+    "indoor",
+    "rain_ok",
+    "review_tags",
+    "intro",
+    "name_en",
+    "address_en",
+    "intro_en",
+    "opening_hours_en",
+    "review_tags_en",
+    "reservation_required",
+    "reservation_advance_days",
+    "booking_url",
+)
+
+
+class _MemRow:
+    """Memory fallback row with the same attribute surface as the ORM Poi."""
+
+    __slots__ = _MEM_ROW_SLOTS
+
+
+def _candidate_from_row(row, loc_txt: str | None) -> dict:
+    """ORM Poi 行 → 引擎候选 dict（top_pois_in_city / candidate_by_name
+    共用，2026-11-01 从 top_pois_in_city 内的 build 提出）。"""
+    m = _POINT_WKT_RE.match(loc_txt or "")
+    # rating 可能是 Decimal/str/float（DB 列 vs amap 原文），统一安全转
+    try:
+        rating = float(row.rating) if row.rating else None
+    except (TypeError, ValueError):
+        rating = None
+    return {
+        "source_poi_id": row.source_poi_id,
+        "name": row.name_zh,
+        # 双语 P1：_en 并出（空时前端回退中文）
+        "name_en": row.name_en,
+        "address_en": row.address_en,
+        "intro_en": (row.intro_en or "")[:60] or None,
+        "opening_hours_en": row.opening_hours_en,
+        "review_tags_en": row.review_tags_en or [],
+        "city": row.city,
+        "category": row.category,
+        "address": row.address,
+        "opening_hours": row.opening_hours,
+        "source": row.source,
+        "rating": rating,
+        "rating_count": row.rating_count,
+        "tags": row.tags or [],
+        "best_visit_time": row.best_visit_time or "any",
+        "suggested_duration_min": row.suggested_duration_min,
+        "indoor": row.indoor,
+        "rain_ok": row.rain_ok,
+        "review_tags": row.review_tags or [],
+        "intro": (row.intro or "")[:60] or None,
+        "reservation_required": row.reservation_required,
+        "reservation_advance_days": row.reservation_advance_days,
+        "booking_url": row.booking_url,
+        "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+    }
+
+
+def _memory_candidate_row(pid: str, v: dict, loc_txt: str | None) -> dict:
+    """内存条目 → 引擎候选 dict（属性面与 ORM 行对齐后走同一构造器）。"""
+    r = _MemRow()
+    for slot in _MEM_ROW_SLOTS:
+        setattr(r, slot, None)
+    r.source_poi_id = pid
+    r.name_zh = v.get("name")
+    r.city = v.get("city")
+    r.category = v.get("category")
+    r.address = v.get("address")
+    r.opening_hours = v.get("opening_hours")
+    r.source = v.get("source") or "amap"
+    r.rating = v.get("rating")
+    r.rating_count = v.get("rating_count")
+    r.tags = v.get("tags")
+    r.best_visit_time = v.get("best_visit_time")
+    r.suggested_duration_min = v.get("suggested_duration_min")
+    r.indoor = v.get("indoor")
+    r.rain_ok = v.get("rain_ok")
+    r.review_tags = v.get("review_tags")
+    r.intro = v.get("intro")
+    r.name_en = v.get("name_en")
+    r.address_en = v.get("address_en")
+    r.intro_en = v.get("intro_en")
+    r.opening_hours_en = v.get("opening_hours_en")
+    r.review_tags_en = v.get("review_tags_en")
+    r.reservation_required = v.get("reservation_required")
+    r.reservation_advance_days = v.get("reservation_advance_days")
+    r.booking_url = v.get("booking_url")
+    return _candidate_from_row(r, loc_txt)
+
+
 class PoiDetailStore:
     """Read/upsert POI display details; DB-backed with memory fallback."""
 
@@ -469,6 +575,59 @@ class PoiDetailStore:
         hits.sort(key=lambda h: rank(h, heritage), reverse=True)
         return hits[:limit]
 
+    def candidate_by_name(self, city: str | None, name: str) -> dict | None:
+        """精确同名完整候选（2026-11-01 行程卡「换景点」）：name_zh 精确
+        相等取行（city 三态收窄），同名多源行按 有坐标>tier>口碑 择一；
+        返回 top_pois_in_city 同形状（含时段/时长/露天/预约字段），无
+        命中返回 None——调用方提示用户，不静默换点。"""
+        n = (name or "").strip()
+        if not n:
+            return None
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else None
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(Poi.name_zh == n)
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.limit(50).all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: candidate_by_name db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+            for pid, v in self._memory.items():
+                if (v.get("name") or "").strip() != n:
+                    continue
+                if city_names and (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                loc = v.get("location")
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
+        if not rows_out:
+            return None
+        heritage = self._heritage_names()
+
+        def pick(h: dict) -> tuple:
+            return (
+                1 if h.get("location") else 0,
+                apply_tier_tag(h, heritage),
+                h.get("rating") or 0.0,
+            )
+
+        best = max(rows_out, key=pick)
+        return best
+
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
 
     @classmethod
@@ -514,42 +673,6 @@ class PoiDetailStore:
         if not city_names:
             return []
 
-        def build(row, loc_txt: str | None) -> dict:
-            m = _POINT_WKT_RE.match(loc_txt or "")
-            # rating 可能是 Decimal/str/float（DB 列 vs amap 原文），统一安全转
-            try:
-                rating = float(row.rating) if row.rating else None
-            except (TypeError, ValueError):
-                rating = None
-            return {
-                "source_poi_id": row.source_poi_id,
-                "name": row.name_zh,
-                # 双语 P1：_en 并出（空时前端回退中文）
-                "name_en": row.name_en,
-                "address_en": row.address_en,
-                "intro_en": (row.intro_en or "")[:60] or None,
-                "opening_hours_en": row.opening_hours_en,
-                "review_tags_en": row.review_tags_en or [],
-                "city": row.city,
-                "category": row.category,
-                "address": row.address,
-                "opening_hours": row.opening_hours,
-                "source": row.source,
-                "rating": rating,
-                "rating_count": row.rating_count,
-                "tags": row.tags or [],
-                "best_visit_time": row.best_visit_time or "any",
-                "suggested_duration_min": row.suggested_duration_min,
-                "indoor": row.indoor,
-                "rain_ok": row.rain_ok,
-                "review_tags": row.review_tags or [],
-                "intro": (row.intro or "")[:60] or None,
-                "reservation_required": row.reservation_required,
-                "reservation_advance_days": row.reservation_advance_days,
-                "booking_url": row.booking_url,
-                "location": ((float(m.group(1)), float(m.group(2))) if m else None),
-            }
-
         def score(h: dict) -> tuple:
             # A 级优先（2026-10-25 用户拍板）：tier 在前——无评分的 5A/
             # unesco 名单行也要压过裸 4.8 的边缘点（城市阳台事件）。
@@ -594,7 +717,7 @@ class PoiDetailStore:
                             )
                         )
                     q = q.limit(2000)
-                    rows_out = [build(r, t) for r, t in q.all()]
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -603,70 +726,17 @@ class PoiDetailStore:
                 )
                 rows_out = []
         if not rows_out:
-
-            class _MemRow:  # memory rows mimic ORM attrs for build()
-                __slots__ = (
-                    "source_poi_id",
-                    "name_zh",
-                    "city",
-                    "category",
-                    "address",
-                    "opening_hours",
-                    "source",
-                    "rating",
-                    "rating_count",
-                    "tags",
-                    "best_visit_time",
-                    "suggested_duration_min",
-                    "indoor",
-                    "rain_ok",
-                    "review_tags",
-                    "intro",
-                    "name_en",
-                    "address_en",
-                    "intro_en",
-                    "opening_hours_en",
-                    "review_tags_en",
-                    "reservation_required",
-                    "reservation_advance_days",
-                    "booking_url",
-                )
-
             for pid, v in self._memory.items():
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
                 if exclude_food and self._row_is_food(v.get("category")):
                     continue
-                r = _MemRow()
-                for slot in _MemRow.__slots__:
-                    setattr(r, slot, None)
-                r.source_poi_id = pid
-                r.name_zh = v.get("name")
-                r.city = v.get("city")
-                r.category = v.get("category")
-                r.address = v.get("address")
-                r.opening_hours = v.get("opening_hours")
-                r.source = v.get("source") or "amap"
-                r.rating = v.get("rating")
-                r.rating_count = v.get("rating_count")
-                r.tags = v.get("tags")
-                r.best_visit_time = v.get("best_visit_time")
-                r.suggested_duration_min = v.get("suggested_duration_min")
-                r.indoor = v.get("indoor")
-                r.rain_ok = v.get("rain_ok")
-                r.review_tags = v.get("review_tags")
-                r.intro = v.get("intro")
-                r.name_en = v.get("name_en")
-                r.address_en = v.get("address_en")
-                r.intro_en = v.get("intro_en")
-                r.opening_hours_en = v.get("opening_hours_en")
-                r.review_tags_en = v.get("review_tags_en")
-                r.reservation_required = v.get("reservation_required")
-                r.reservation_advance_days = v.get("reservation_advance_days")
-                r.booking_url = v.get("booking_url")
                 loc = v.get("location")
-                h = build(r, f"POINT({loc[0]} {loc[1]})" if loc else None)
-                rows_out.append(h)
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
         heritage = self._heritage_names()
 
         for h in rows_out:
