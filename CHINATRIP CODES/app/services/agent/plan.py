@@ -1059,10 +1059,10 @@ def _content_core(name: str) -> tuple[str, bool]:
 # 一站；包含/演出通道维持 2km（青城山 vs skydive 跳伞基地 ~6km 的
 # 同山不同场馆不误并）。
 _CONTENT_TWIN_GATE_KM = 30.0
-# 同馆家族闸（2026-11-01 用户拍板「30km 调成 5 公里比较合适」）：秦陵类
-# 同一票制院区的两园区实测 2.2-2.4km——5km 半径内算同馆；大足类同城
-# 遗产双集群（北山+宝顶 ~8km）走上方的 30km 内容闸，不受影响。
-_HERITAGE_TWIN_GATE_KM = 5.0
+# 同馆家族闸（2026-11-01 用户拍板沿革：先 5km，同日二拍「距离可以放宽
+# 到10公里」）：秦陵类同一票制院区两园区实测 2.2-2.4km；大足北山+宝顶
+# ~8km 也收进同馆半径。同名异地 >10km 不并。
+_HERITAGE_TWIN_GATE_KM = 10.0
 
 
 def _content_dup(a: str, b: str) -> bool:
@@ -1392,6 +1392,12 @@ def _museum_shadow_pairs(
     for i, a in museums:
         for j, (_, b) in enumerate(pool):
             if i == j or j in shadowed or _museum_cand(b):
+                continue
+            # tier 护栏（2026-11-01 明星伞形保护）：博物馆档位弱于景区时
+            # 不让位——熊猫博物馆(tier9) 不影子 5A 熊猫繁育基地(tier2)、
+            # 颐和园博物馆不影子 unesco 颐和园（博物馆是附属，伞形才是
+            # 正主）；同档/更强照常让位（碑林/秦陵/大足语义不变）。
+            if _source_tier(a) > _source_tier(b):
                 continue
             # 只走伞名词素通道：大足类同内容孪生（博物馆/影院/园区）
             # 的合并语义在组装层 dedupe（选点层保留双卡是既有拍板），

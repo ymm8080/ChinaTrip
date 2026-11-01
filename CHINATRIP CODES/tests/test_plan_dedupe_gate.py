@@ -820,12 +820,12 @@ def test_heritage_family_shadows_to_museum_card():
     }
     assert _umbrella_cand_dup(bmy, far) is False
 
-    # 同馆家族 5km 闸边界：~8km 的同名遗产集群不让位（大足北山+宝顶类
-    # 走 30km 内容闸在组装层合并，选点层各自入选）
+    # 同馆家族 10km 闸边界：~12km 的同名点不让位（8km 大足北山+宝顶
+    # 已收进同馆半径，2026-11-01 二拍放宽）
     far_family = {
-        "name": "秦始皇陵(北山区)",
+        "name": "秦始皇陵(远郊)",
         "category": "attraction",
-        "location": {"lon": 109.28, "lat": 34.31},  # 距兵马俑 ~8.4km
+        "location": {"lon": 109.28, "lat": 34.276},  # 距兵马俑 ~12.3km
     }
     assert _umbrella_cand_dup(bmy, far_family) is False
 
@@ -842,3 +842,39 @@ def test_heritage_family_shadows_to_museum_card():
         "location": {"lon": 105.79484, "lat": 29.74688},
     }
     assert _umbrella_cand_dup(dazu_museum, dazu_scenic) is True
+
+
+def test_museum_shadow_tier_guard_protects_star_umbrella():
+    """2026-11-01 明星伞形保护：博物馆档位弱于景区时选点层不让位——
+    熊猫博物馆不得把 5A 熊猫繁育基地影子出池（10-31 起的既有隐患，
+    碑林机制通用化后暴露面扩大）；同档让位照常。"""
+    from app.services.agent.plan import _museum_shadow_pairs
+
+    museum = {
+        "name": "成都大熊猫博物馆",
+        "category": "museum",
+        "location": {"lon": 104.144, "lat": 30.738},
+    }
+    base = {
+        "name": "大熊猫繁育研究基地",
+        "category": "attraction",
+        "tags": ["5a"],
+        "location": {"lon": 104.145, "lat": 30.737},
+    }
+    # 博物馆 tier9 弱于基地 tier2：不让位
+    assert _museum_shadow_pairs([(0, museum), (1, base)]) == []
+
+    # 同档（都无 tier）：碑林/秦陵类照常让位
+    bmy = {
+        "name": "秦始皇兵马俑博物馆",
+        "category": "attraction",
+        "location": {"lon": 109.2820, "lat": 34.3862},
+    }
+    ling = {
+        "name": "秦始皇陵",
+        "category": "attraction",
+        "location": {"lon": 109.2589, "lat": 34.3803},
+    }
+    assert _museum_shadow_pairs([(0, ling), (1, bmy)]) == [
+        ("秦始皇陵", "秦始皇兵马俑博物馆")
+    ]
