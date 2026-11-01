@@ -3310,6 +3310,15 @@ async function itinEdit(r, btn) {
       // 保存时随 /plan/{id}/save 的 start_date 落库自愈
       PLAN.startDate = (body.plan && body.plan.start_date) || todayBeijingIso();
       document.getElementById("bookStartDate").value = PLAN.startDate;
+      // 参数表单同步当前行程（2026-11-01 修复「明明选了西安，参数摘要却显示 上海→杭州·共1天」）：
+      // auto-open/✏️修改 载入行程后表单从未预填，一直停在出厂默认（起始上海/结束杭州/共1天）——
+      // 摘要行跟着显示错路线；✏️ 展开表单再点「🚀 开始规划」更会按默认杭州路线真开一局。
+      // 与「重新规划」按钮同源反推预填（逐日 base_city 计数，转场日计入到达城；城市不在
+      // 40 城下拉则跳过不动，但摘要不再默认指向杭州）。预填在 planSetSession 之前，
+      // 让摘要行打开即显示真实路线。
+      const itinPerCity = {};
+      ((body.plan && body.plan.days) || []).forEach(d => { if (d.base_city) itinPerCity[d.base_city] = (itinPerCity[d.base_city] || 0) + 1; });
+      planFormPrefill({ cities: (body.plan && body.plan.cities) || r.cities || [], cityDays: itinPerCity, startDate: PLAN.startDate || "", prefs: null });
       // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
       planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");
