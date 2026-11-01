@@ -603,6 +603,8 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
     from app.services.agent.plan import _fallback_sequence_times
     from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
 
+    # 系统午餐占位带 soft_pin=True（2026-10-31 软钉语义：兜底/求解器只
+    # 顺延系统钉；用户手钉 pinned=True 且 soft_pin=False 纹丝不动=铁律19）
     lunch = VisitItem(
         item_id="l1",
         name="午饭",
@@ -633,3 +635,83 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
     assert big.end_time is not None and big.end_time.hour == 13
     assert lunch.start_time is not None
     assert _t(13, 0) <= lunch.start_time
+
+
+def _mini_plan_with_lunch(lunch_start, show=None, visit_dur=120):
+    from datetime import time as _t
+
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    items = [
+        VisitItem(
+            item_id="l1",
+            name="午饭",
+            city="北京",
+            day=1,
+            category="food",
+            duration_minutes=60,
+            start_time=lunch_start,
+            end_time=_t(lunch_start.hour, lunch_start.minute + 60)
+            if lunch_start.minute + 60 < 60
+            else _t(lunch_start.hour + 1, (lunch_start.minute + 60) % 60),
+            pinned=True,
+            soft_pin=True,
+        ),
+        VisitItem(
+            item_id="v1", name="大点", city="北京", day=1, duration_minutes=visit_dur
+        ),
+    ]
+    if show is not None:
+        st, en = show
+        items.append(
+            VisitItem(
+                item_id="s1",
+                name="场次点",
+                city="北京",
+                day=1,
+                best_visit_time="show",
+                start_time=st,
+                end_time=en,
+                duration_minutes=(en.hour * 60 + en.minute)
+                - (st.hour * 60 + st.minute),
+                pinned=True,
+            )
+        )
+    return ItineraryPlan(
+        itinerary_id="it-x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=items)],
+        assumptions=[],
+    )
+
+
+def test_fallback_lunch_moves_earlier_within_30min():
+    # 2026-11-01 用户拍板：午餐可提前半小时——12:30 固定场次前，午餐
+    # 12:00 提前到 11:30（全时长）落位，不再挡上午。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+
+    plan = _mini_plan_with_lunch(_t(12, 0), show=(_t(12, 30), _t(13, 30)))
+    _fallback_sequence_times(plan)
+    lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
+    visit = next(v for v in plan.days[0].items if v.item_id == "v1")
+    assert visit.start_time == _t(9, 0)
+    assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
+    assert lunch.end_time == _t(12, 30)  # 全时长 60 分钟
+
+
+def test_fallback_lunch_earlier_and_shortened_30min():
+    # 2026-11-01 用户拍板：需要时用餐时间可缩短半小时——12:15 固定场次
+    # 挤不下全时长，午餐提前到 11:30 并缩短为 30 分钟。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+
+    plan = _mini_plan_with_lunch(_t(12, 0), show=(_t(12, 15), _t(13, 15)))
+    _fallback_sequence_times(plan)
+    lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
+    visit = next(v for v in plan.days[0].items if v.item_id == "v1")
+    assert visit.start_time == _t(9, 0)
+    assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
+    assert lunch.end_time == _t(12, 0)  # 缩短为 30 分钟

@@ -2173,6 +2173,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
         fixed: list[tuple[int, int]] = []
+        fixed_tight: list[tuple[int, int]] = []  # 紧贴窗（餐位贴点用）
         flex_lunches: list[tuple[VisitItem, int, int]] = []
         for item in day.items:
             start = item.start_time
@@ -2182,6 +2183,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             e = _item_end_minutes(item)
             if isinstance(item, TransferItem):
                 fixed.append((s - buf, e + buf))
+                fixed_tight.append((s - buf, e + buf))
             elif (
                 getattr(item, "category", "") == "food"
                 and s < 15 * 60
@@ -2199,9 +2201,12 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
                 # 傍晚时段挤没（2026-10-31 上午空排事故）
                 fixed.append((s, e))
+                fixed_tight.append((s, e))
             else:
                 fixed.append((s - 30, e + 30))
+                fixed_tight.append((s, e))
         fixed.sort()
+        fixed_tight.sort()
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
@@ -2250,24 +2255,56 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             visit.end_time = time((t + dur) // 60, (t + dur) % 60)
             fixed.append((t - 30, t + dur + 30))
             fixed.sort()
+            fixed_tight.append((t, t + dur))
+            fixed_tight.sort()
             cursor = max(cursor, t + dur)
-        # 午餐顺延落位（用户拍板「午餐可以延后」）：从原时刻起找第一个能
-        # 容纳时长的空档（紧贴语义、不早于原时刻）；排不下保留原时刻。
-        for meal, ms, mdur in flex_lunches:
-            t = ms
+
+        # 午餐落位 v2.2（2026-11-01 用户拍板：时刻最多提前或延后半小时、
+        # 用餐时长可缩短半小时——许可按最小漂移分层激活）：
+        # ①旧版口径：原时刻起 ±30 缓冲窗内全时长（与此前行为逐位一致）；
+        # 仅当①排不到或只能排到 +30 之外时才动用许可（紧贴窗语义）：
+        # ②提前 30 分钟窗内全时长；③延后 30 分钟窗内全时长；④±30 窗内
+        # 缩短 30 分钟（保底 30 分钟）；都不行回落①的结果（可超窗，如
+        # 240 分钟上午大点后接 13:30——保证任何情况下不产出重叠时刻）。
+        def _meal_slot(
+            t_from: int, t_cap: int, dur_opt: int, windows: list[tuple[int, int]]
+        ) -> int | None:
+            t = t_from
             advanced = True
             while advanced:
                 advanced = False
-                for fs, fe in fixed:
-                    if t < fe and t + mdur > fs:
+                for fs, fe in windows:
+                    if t < fe and t + dur_opt > fs:
                         t = fe
                         advanced = True
                         break
-            if t + mdur <= day_end:
-                meal.start_time = time(t // 60, t % 60)
-                meal.end_time = time((t + mdur) // 60, (t + mdur) % 60)
-                fixed.append((t, t + mdur))
+            if t <= t_cap and t + dur_opt <= day_end:
+                return t
+            return None
+
+        for meal, ms, mdur in flex_lunches:
+            lo_m = max(day_start, ms - 30)
+            hi_m = min(day_end - 30, ms + 30)
+            dur_short = max(30, mdur - 30)
+            # ① 旧版缓冲口径零漂移优先
+            slot = _meal_slot(ms, day_end - mdur, mdur, fixed)
+            if slot is None or slot > ms + 30:
+                cand = _meal_slot(lo_m, ms - 1, mdur, fixed_tight)  # ② 提前窗
+                if cand is None:
+                    cand = _meal_slot(ms + 1, hi_m, mdur, fixed_tight)  # ③ 延后窗
+                if cand is not None:
+                    slot = cand
+                else:
+                    cand_s = _meal_slot(lo_m, hi_m, dur_short, fixed_tight)  # ④ 缩短
+                    if cand_s is not None:
+                        slot, mdur = cand_s, dur_short
+            if slot is not None:
+                meal.start_time = time(slot // 60, slot % 60)
+                meal.end_time = time((slot + mdur) // 60, (slot + mdur) % 60)
+                fixed.append((slot, slot + mdur))
                 fixed.sort()
+                fixed_tight.append((slot, slot + mdur))
+                fixed_tight.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
@@ -7324,9 +7361,9 @@ class PlanningAgent:
     ) -> ItineraryPlan | None:
         # 8.2.2/8.2.3（2026-10-24）：solver 喂饱——travel matrix（高德实测
         # 优先覆写 haversine 基线）+ 营业时间硬窗（解析不出不硬卡）。
-        # meal_flex（2026-11-01 用户拍板：午餐最多提前或延后半小时、时长
-        # 可缩短半小时）：仅初次排程开——soft_pin 餐点 ±30 窗+[dur-30,dur]
-        # 时长区间；编辑/重排路径保持关，用户手钉的时刻仍走铁律 19 钉死。
+        # meal_flex（2026-10-31 用户拍板「午餐可以延后」）：仅初次排程开
+        # ——soft_pin 午餐锚可顺延≤90 分钟让 180/240 分钟上午大点整段落
+        # 进上午；编辑/重排路径保持关，用户手钉的时刻仍走铁律 19 钉死。
         try:
             return self._solver(
                 plan,
