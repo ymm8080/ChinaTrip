@@ -7201,7 +7201,11 @@ class PlanningAgent:
                 a.leg_source = getattr(self._amap, "vendor", "amap")
 
     def _solve(
-        self, plan: ItineraryPlan, *, meal_flex: bool = False
+        self,
+        plan: ItineraryPlan,
+        *,
+        meal_flex: bool = False,
+        scheduler: str | None = None,
     ) -> ItineraryPlan | None:
         # 8.2.2/8.2.3（2026-10-24）：solver 喂饱——travel matrix（高德实测
         # 优先覆写 haversine 基线）+ 营业时间硬窗（解析不出不硬卡）。
@@ -7215,6 +7219,7 @@ class PlanningAgent:
                 travel_minutes=_travel_matrix(plan, self._leg_cache),
                 time_budget_seconds=self._time_budget_seconds,
                 meal_flex=meal_flex,
+                scheduler=scheduler,
             )
         except Exception:
             logger.warning("plan: solver raised, degrading", exc_info=True)
@@ -8059,7 +8064,9 @@ class PlanningAgent:
         """
         candidate = apply_diffs(plan, diffs)
         candidate.assumptions.extend(_reconcile_transfer_days(candidate, protect))
-        solved = self._solve(candidate)
+        # 编辑路径保 CP 重解：与历史会话布局幂等（插入主路仅生成用，
+        # 2026-11-01 PR2）
+        solved = self._solve(candidate, scheduler="cp")
         if solved is not None:
             candidate = solved
         if solved is None or _has_untimed_visits(candidate):

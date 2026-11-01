@@ -14,6 +14,7 @@ the time budget -> the caller falls back to the LLM self-repair chain
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import time
 from typing import NamedTuple
@@ -551,6 +552,244 @@ def solve_day(
     return DayPlan(day=day.day, base_city=day.base_city, items=[i for _, i in placed])
 
 
+def _candidate_starts(spec: "_VisitSpec") -> list[tuple[int, int]]:
+    """条目可行起点域段（multi=场次点/多段窗，否则全天/best 域）。"""
+    if spec.windows:
+        return list(spec.windows)
+    return [(spec.lo, spec.hi)]
+
+
+def insertion_schedule_day(
+    day: DayPlan,
+    *,
+    poi_hours: list[PoiHours],
+    travel_minutes: dict[tuple[str, str], int] | None = None,
+    meal_flex: bool = False,
+) -> DayPlan | None:
+    """锚点优先+最廉插入排时（PR2 主路，TTDP 经典做法）。
+
+    2026-11-01《求解器升级建议》落地：确定性、零「不可行塌方」、O(n²)。
+    ①锚点=transfers（±90 缓冲）+完全钉死项；②其余按时长降序最廉插入
+    （所有空档×可行起点选「新增走行最小、并列最早」，窗/场次/入场闸/
+    软钉餐位分层许可全判定）；③重定位打磨一轮。matrix 提供时相邻条目
+    按走行分钟隔开（与 CP separate 模式同语义）；无 matrix 背靠背合法
+    （NoOverlap 同语义）。None=当天有排不下的条目→调用方回落 CP。
+    """
+    visits = [i for i in day.items if isinstance(i, VisitItem)]
+    transfers = [i for i in day.items if isinstance(i, TransferItem)]
+    if not visits and not transfers:
+        return day.model_copy(deep=True)
+
+    hours = {h.poi_id: h for h in poi_hours}
+    flex_day = meal_flex and (
+        any((v.duration_minutes or 0) >= _MEAL_FLEX_TRIGGER_DUR for v in visits)
+        or any(
+            _is_show(v)
+            and any(s <= 13 * 60 for s in show_session_starts(v.opening_hours))
+            for v in visits
+        )
+    )
+    specs: list[_VisitSpec] = []
+    for item in visits:
+        spec = _visit_spec(item, hours, meal_flex=flex_day)
+        if spec is None:
+            return None
+        specs.append(spec)
+
+    day_end = 21 * 60 + 30  # 与 plan 兜底同口径（演出收尾可越 21:00）
+
+    # ---- ① 锚点：transfers（±90 缓冲）+ 完全钉死项 ----
+    occupied: list[tuple[int, int, object]] = []
+    for item in transfers:
+        window = _fixed_transfer_window(item)
+        if window is None:
+            return None
+        ts, tdur = window
+        occupied.append(
+            (ts - INTERCITY_BUFFER_MINUTES, ts + tdur + INTERCITY_BUFFER_MINUTES, item)
+        )
+    rest: list[_VisitSpec] = []
+    for spec in specs:
+        flexed = flex_day and spec.dur_lo and spec.dur_lo < spec.dur
+        if spec.lo == spec.hi and not spec.windows and not flexed:
+            occupied.append((spec.lo, spec.lo + spec.dur, spec.item))
+        else:
+            rest.append(spec)
+    occupied.sort(key=lambda o: o[0])
+
+    def _travel(a, b) -> int:
+        if travel_minutes is None:
+            return 0
+        return _travel_cost(a, b, travel_minutes)
+
+    # 软钉餐机动跨度（非餐条目的条件块）：餐可在 [P-30, P+30] 开餐、
+    # 时长 [dur-30, dur]——其它条目要么在 P+30 前收尾（餐顺延接后），
+    # 要么从 P+dur-60（最早缩餐终点）后开始。2026-11-01 ±30 规则。
+    flex_pins: list[tuple[int, int]] = []
+    for spec in rest:
+        if (
+            flex_day
+            and spec.dur_lo
+            and spec.dur_lo < spec.dur
+            and spec.item.start_time is not None
+        ):
+            flex_pins.append((_to_minutes(spec.item.start_time), spec.dur))
+
+    def _fits(t: int, dur: int, spec: _VisitSpec) -> bool:
+        e = t + dur
+        if e > day_end:
+            return False
+        cap = generic_entry_cap(spec.item, hours.get(spec.item.poi_id))
+        if cap is not None and t > cap and not _is_show(spec.item):
+            return False
+        is_flex_meal = spec.dur_lo and spec.dur_lo < spec.dur
+        if not is_flex_meal:
+            for pin, mdur in flex_pins:
+                span_lo, span_hi = (
+                    pin - _MEAL_FLEX_SLIDE_MINUTES,
+                    (pin + _MEAL_FLEX_SLIDE_MINUTES + mdur),
+                )
+                if t < span_hi and e > span_lo:
+                    if e <= pin + _MEAL_FLEX_SLIDE_MINUTES:
+                        continue  # 餐顺延接后：合法
+                    if t >= pin + mdur - 60:
+                        continue  # 餐提前+缩短后开始：合法
+                    return False
+        for os_, oe_, oitem in occupied:
+            if t < oe_ and e > os_:
+                return False
+            if isinstance(oitem, VisitItem) and travel_minutes is not None:
+                if e <= os_ and os_ - e < _travel(spec.item, oitem):
+                    return False
+                if t >= oe_ and t - oe_ < _travel(oitem, spec.item):
+                    return False
+        return True
+
+    def _added_travel(t: int, dur: int, item: VisitItem) -> int:
+        before = [o for o in occupied if o[1] <= t]
+        after = [o for o in occupied if o[0] >= t + dur]
+        added = 0
+        if before:
+            added += _travel(before[-1][2], item)
+        if after:
+            added += _travel(item, after[0][2])
+        return added
+
+    def _try_insert(spec: _VisitSpec) -> int | None:
+        """最廉插入：返回落位起点；软钉餐分层（全时长→±30 域→缩 30）。"""
+        flexed = flex_day and spec.dur_lo and spec.dur_lo < spec.dur
+        pin = (
+            _to_minutes(spec.item.start_time)
+            if spec.item.start_time is not None
+            else None
+        )
+        durs = [spec.dur] + ([spec.dur_lo] if flexed else [])
+        best: tuple[int, int, int] | None = None  # (added, t, dur)
+        for dur in durs:
+            for lo, hi in _candidate_starts(spec):
+                if flexed and pin is not None:
+                    lo_d = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
+                    hi_d = min(hi, pin + _MEAL_FLEX_SLIDE_MINUTES)
+                    starts = sorted(set(list(range(lo_d, hi_d + 1, 15)) + [pin]))
+                else:
+                    starts = list(range(lo, hi + 1))
+                for t in starts:
+                    if not _fits(t, dur, spec):
+                        continue
+                    key = (_added_travel(t, dur, spec.item), t)
+                    if best is None or key < (best[0], best[1]):
+                        best = (key[0], t, dur)
+            if best is not None and not flexed:
+                break  # 常规条目首个时长命中即定（都同一 dur）
+        if best is None:
+            return None
+        _, t, dur = best
+        occupied.append((t, t + dur, spec.item))
+        occupied.sort(key=lambda o: o[0])
+        return t if dur == spec.dur else -(t + 1)  # 负数标记=缩时长落位
+
+    # ---- ② 大点先插（难放优先），软钉餐最后（可让位） ----
+    dur_overrides: dict[str, int] = {}
+    hard = [s for s in rest if not (flex_day and s.dur_lo and s.dur_lo < s.dur)]
+    meals = [s for s in rest if s not in hard]
+    for spec in sorted(hard, key=lambda s: -s.dur):
+        marker = _try_insert(spec)
+        if marker is None:
+            return None
+        if marker < 0:
+            dur_overrides[spec.item.item_id] = spec.dur_lo
+    for spec in meals:
+        marker = _try_insert(spec)
+        if marker is None:
+            return None
+        if marker < 0:
+            entry = next(o for o in occupied if o[2] is spec.item)
+            dur_overrides[spec.item.item_id] = entry[1] - entry[0]
+
+    # ---- ③ 重定位打磨：单点挪洞降总走行（一轮，仅 matrix 模式） ----
+    if travel_minutes is not None and len(occupied) > 2:
+
+        def _total_travel() -> int:
+            seq = [o[2] for o in occupied if isinstance(o[2], VisitItem)]
+            seq.sort(key=lambda v: v.start_time or time(0, 0)) if all(
+                v.start_time for v in seq
+            ) else None
+            # occupied 已按 start 有序——直接取参访子列
+            ordered = [o[2] for o in occupied if isinstance(o[2], VisitItem)]
+            return sum(
+                _travel(ordered[i], ordered[i + 1]) for i in range(len(ordered) - 1)
+            )
+
+        base = _total_travel()
+        for spec in specs:
+            entry = next((o for o in occupied if o[2] is spec.item), None)
+            if entry is None or spec.lo == spec.hi:
+                continue
+            dur = entry[1] - entry[0]
+            occupied.remove(entry)
+            best = None
+            for lo, hi in _candidate_starts(spec):
+                for t in range(lo, hi + 1):
+                    if _fits(t, dur, spec):
+                        added = _added_travel(t, dur, spec.item)
+                        if best is None or added < best[0]:
+                            best = (added, t)
+            if best is None:
+                occupied.append(entry)  # 理论不可达（刚移出时可行）
+                occupied.sort(key=lambda o: o[0])
+                continue
+            _, t = best
+            occupied.append((t, t + dur, spec.item))
+            occupied.sort(key=lambda o: o[0])
+            if _total_travel() >= base:
+                occupied.remove(next(o for o in occupied if o[2] is spec.item))
+                occupied.append(entry)
+                occupied.sort(key=lambda o: o[0])
+
+    # ---- 输出 ----
+    placed: list[tuple[int, object]] = []
+    seen_transfers: set[str] = set()
+    for os_, oe_, oitem in occupied:
+        if isinstance(oitem, TransferItem):
+            ts = os_ + INTERCITY_BUFFER_MINUTES
+            placed.append((ts, oitem))
+            seen_transfers.add(oitem.item_id)
+        else:
+            dur = dur_overrides.get(oitem.item_id, oe_ - os_)
+            update: dict[str, object] = {
+                "start_time": _to_time(os_),
+                "end_time": _to_time(os_ + dur),
+            }
+            if dur != (oitem.duration_minutes or dur):
+                update["duration_minutes"] = dur  # 软钉缩餐同步条目时长
+            placed.append((os_, oitem.model_copy(update=update)))
+    for item in transfers:
+        if item.item_id not in seen_transfers:
+            placed.append((_to_minutes(item.start_time), item))
+    placed.sort(key=lambda pair: (pair[0], getattr(pair[1], "item_id", "")))
+    return DayPlan(day=day.day, base_city=day.base_city, items=[i for _, i in placed])
+
+
 def solve_plan(
     plan: ItineraryPlan,
     *,
@@ -558,6 +797,7 @@ def solve_plan(
     travel_minutes: dict[tuple[str, str], int] | None = None,
     time_budget_seconds: float = 3.0,
     meal_flex: bool = False,
+    scheduler: str | None = None,
 ) -> ItineraryPlan | None:
     """Solve every day independently; a failing day keeps its input layout.
 
@@ -568,14 +808,30 @@ def solve_plan(
     调用方以「还有无 untimed 参访」判定是否降级披露。
     """
     solved_days: list[DayPlan] = []
+    # PR2（2026-11-01 用户批《求解器升级建议》）：插入式排时为主路
+    # （确定性、零塌方、O(n²)）；CHINATRIP_SCHEDULER=cp 回旧 CP 主路做
+    # 基准对照；插入失败的日回落 CP solve_day，再失败保输入（按日降级）。
+    # scheduler 显式参数优先（编辑路径传 "cp" 保与历史会话幂等），
+    # 缺省 env：insertion=插入主路（生成），cp=旧 CP 主路（A/B 基准）。
+    mode = scheduler or os.environ.get("CHINATRIP_SCHEDULER", "insertion")
+    use_insertion = mode != "cp"
     for day in plan.days:
-        solved = solve_day(
-            day,
-            poi_hours=poi_hours,
-            travel_minutes=travel_minutes,
-            time_budget_seconds=time_budget_seconds,
-            meal_flex=meal_flex,
-        )
+        solved = None
+        if use_insertion:
+            solved = insertion_schedule_day(
+                day,
+                poi_hours=poi_hours,
+                travel_minutes=travel_minutes,
+                meal_flex=meal_flex,
+            )
+        if solved is None:
+            solved = solve_day(
+                day,
+                poi_hours=poi_hours,
+                travel_minutes=travel_minutes,
+                time_budget_seconds=time_budget_seconds,
+                meal_flex=meal_flex,
+            )
         solved_days.append(solved if solved is not None else day.model_copy(deep=True))
     return plan.model_copy(update={"days": solved_days})
 
