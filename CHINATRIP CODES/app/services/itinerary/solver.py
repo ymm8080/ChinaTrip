@@ -97,6 +97,11 @@ _GENERIC_ENTRY_CAP_MINUTES = 16 * 60
 # ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开 ±30 分钟窗+
 # 时长区间 [dur-30, dur]（保底 30 分钟）；用户手钉（soft_pin=False）
 # 仍铁律 19 钉死。兜底层同口径的分层许可见 plan._fallback_sequence_times。
+# 系统餐软锚（2026-11-01 晚拍板「午饭/顺路餐厅/晚饭都不用钉死」）：系统
+# 摆的餐件（午餐占位/自动顺路餐厅）pinned=False+soft_pin=True——非铁律
+# 19（用户可拖/可改时/LLM 可挪），但排程域仍锚定落位：普通日 lo=hi=pin
+# 零漂移，弹性日走同一 ±30 软钉窗（晚餐滑窗、午餐另可缩）；完全无锚的
+# 自由餐会退回「10:30 排餐」事故（2026-10-25 评测集）。
 _MEAL_FLEX_SLIDE_MINUTES = 30
 _MEAL_FLEX_SHORTEN_MINUTES = 30
 _MEAL_FLEX_MIN_DURATION_MINUTES = 30
@@ -224,7 +229,17 @@ def _visit_spec(
         # 场次点窗：start 必恰落其中一个场次（段 (s, s)，G3 ExactlyOne 承载）
         multi = [(s, s) for s in show_sessions]
 
-    if item.pinned:  # iron rule 19: fixed at the user-confirmed time
+    # 系统餐软锚（2026-11-01 晚拍板「午饭/顺路餐厅/晚饭都不用钉死」）：
+    # 未钉（pinned=False）但系统摆的餐件（soft_pin）仍以落位时刻为锚——
+    # 不设铁律 19（用户可拖/可改时/LLM 可挪），但排程域锚定落位，防退
+    # 回「10:30 排餐」自由漂移（2026-10-25 评测集事故）。
+    soft_meal = (
+        not item.pinned
+        and item.soft_pin
+        and (item.category or "") == "food"
+        and item.start_time is not None
+    )
+    if item.pinned or soft_meal:  # iron rule 19 / 系统餐软锚
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
@@ -237,22 +252,18 @@ def _visit_spec(
                 return None
         elif not lo <= pin <= hi:
             return None
-        if (
-            meal_flex
-            and item.soft_pin
-            and (item.category or "") == "food"
-            and pin < _LUNCH_PIN_FLEX_BEFORE_MIN
-        ):
-            # 午餐软钉 v2.2（2026-11-01 用户拍板：时刻最多提前或延后半小
-            # 时、用餐时长可缩短半小时；仅初次排程 meal_flex=True 且仅系
-            # 统钉 soft_pin）：±30 分钟开餐窗 + 时长区间 [dur-30, dur]
-            # （保底 30 分钟）——上午大点与 12:30 场次点都能贴上午落位；
-            # 晚餐（≥15:00 开餐）与用户手钉不受影响。
+        if meal_flex and item.soft_pin and (item.category or "") == "food":
+            # 软钉窗（仅初次排程 meal_flex=True）：午餐（<15:00 开餐）
+            # ±30 分钟 + 时长可缩 30（2026-11-01 拍板）；晚餐 ±30 滑窗、
+            # 时长不变（同日拍板「晚饭不用钉死」）。普通日/编辑路径
+            # meal_flex=False → lo=hi=pin 零漂移；用户手钉（soft_pin=
+            # False）照旧铁律 19 完全钉死。
             lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
             hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
-            dur_lo = max(
-                dur - _MEAL_FLEX_SHORTEN_MINUTES, _MEAL_FLEX_MIN_DURATION_MINUTES
-            )
+            if pin < _LUNCH_PIN_FLEX_BEFORE_MIN:
+                dur_lo = max(
+                    dur - _MEAL_FLEX_SHORTEN_MINUTES, _MEAL_FLEX_MIN_DURATION_MINUTES
+                )
         else:
             lo = hi = pin
         multi = None

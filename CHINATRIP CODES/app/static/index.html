@@ -1486,7 +1486,7 @@ function planCard(plan) {
           tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标
-          tail = it.pinned ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
+          tail = (it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
         }
         const briefBits = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ""].filter(Boolean).join(" · ");
         const handle = (planSession && planSession.session_id && !it.pinned)

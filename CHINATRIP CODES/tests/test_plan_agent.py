@@ -2482,7 +2482,9 @@ def test_v0_auto_inserts_lunch_restaurant_when_food_candidates():
     )
     foods = [v for v in all_visits(session) if v.category == "food"]
     assert len(foods) == 1 and foods[0].name == "绿波廊"
-    assert foods[0].pinned and foods[0].poi_id == "B-FOOD-1"
+    # 2026-11-01 拍板「顺路餐厅不钉死」：系统软锚（非铁律 19）
+    assert not foods[0].pinned and foods[0].soft_pin
+    assert foods[0].poi_id == "B-FOOD-1"
     assert time(12, 0) <= foods[0].start_time <= time(13, 30)
     assert any("顺路餐厅" in a for a in session.assumptions)
 
@@ -2507,7 +2509,8 @@ def test_v0_foodless_day_without_restaurants_gets_lunch_placeholder():
     assert len(foods) == 1 and is_lunch_placeholder(foods[0])
     ph = foods[0]
     assert ph.name == "午饭（自由安排）" and ph.poi_id is None
-    assert ph.pinned and ph.duration_minutes == 60
+    # 2026-11-01 拍板「午饭不钉死」：系统软锚（非铁律 19）
+    assert not ph.pinned and ph.soft_pin and ph.duration_minutes == 60
     assert time(12, 0) <= ph.start_time <= time(13, 30)
     # 占位件不算真 food：晚餐 pass 照常搜索（也无候选）→ 无顺路餐厅假设
     assert not any("顺路餐厅" in a for a in session.assumptions)

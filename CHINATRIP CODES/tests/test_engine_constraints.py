@@ -197,9 +197,10 @@ class _OneStore(PoiDetailStore):
 
 
 def test_eval_lunch_placeholder_rides_lunch_window():
-    """铁律 20 + 午餐保底（2026-10-31）：无餐饮候选时 v0 自动插入的
-    「午饭」占位件必须落在午餐窗（12:00-13:30）内且钉住不被 solve 挪走。
-    顺路餐厅版见 test_plan_agent.test_v0_auto_inserts_lunch_restaurant_..."""
+    """铁律 20 + 午餐保底（2026-10-31；2026-11-01 拍板不钉死）：无餐饮
+    候选时 v0 自动插入的「午饭」占位件必须落在午餐窗（12:00-13:30）内
+    且带系统软锚（soft_pin，非铁律 19）不被 solve 挪走。顺路餐厅版见
+    test_plan_agent.test_v0_auto_inserts_lunch_restaurant_..."""
     from app.services.restaurants import MEAL_WINDOWS, is_lunch_placeholder
 
     items = [
@@ -210,7 +211,8 @@ def test_eval_lunch_placeholder_rides_lunch_window():
     foods = [v for v in all_visits(session) if v.category == "food"]
     assert len(foods) == 1 and is_lunch_placeholder(foods[0])
     lo, hi = MEAL_WINDOWS["lunch"]
-    assert foods[0].pinned
+    # 2026-11-01 拍板「午饭不钉死」：系统软锚替代铁律 19 钉
+    assert not foods[0].pinned and foods[0].soft_pin
     assert foods[0].start_time and lo <= foods[0].start_time < hi
 
 

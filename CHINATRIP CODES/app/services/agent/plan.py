@@ -1875,9 +1875,11 @@ def _lunch_placeholder(
 ) -> VisitItem:
     """午餐占位件（2026-10-31 拍板：默认午饭时间，没餐厅就占位）。
 
-    「午饭（自由安排）」钉在午餐落位（_plan_lunch_slot 给出的槽位，
-    meal_times 钳制）——pinned：不 pin 会被紧跟的全量 solve 自由重排
-    出餐窗（rule 19 需具体时间）。name 随请求语言（L()），识别走
+    「午饭（自由安排）」摆在午餐落位（_plan_lunch_slot 给出的槽位，
+    meal_times 钳制）——2026-11-01 拍板不设铁律 19 钉（pinned=False +
+    soft_pin=True 系统软锚）：solver 仍锚定落位（普通日零漂移、弹性日
+    ±30 可让），但用户可拖/可改时/LLM 可挪。name 随请求语言（L()），
+    识别走
     item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
     小时链须跳过（否则烧配额搜「午饭」）。
     """
@@ -1892,7 +1894,7 @@ def _lunch_placeholder(
         start_time=start,
         end_time=end,
         duration_minutes=MEAL_DURATION_MINUTES,
-        pinned=True,
+        pinned=False,
         soft_pin=True,
     )
 
@@ -1963,11 +1965,14 @@ def _reconcile_transfer_days(
             if timed_starts
             else -1
         )
+        # 餐件不进搁浅逻辑：跟餐窗走（_meal_city_at/meal pass 口径）——
+        # 2026-11-01 餐件解钉后否则离城日餐件会被误挪前一天或丢弃
         stranded = [
             v
             for v in day.items
             if isinstance(v, VisitItem)
             and not v.pinned
+            and (v.category or "") != "food"
             and v.city.strip() in leaving
             and (v.duration_minutes or DEFAULT_VISIT_MINUTES) > morning_capacity
         ]
@@ -6634,11 +6639,12 @@ class PlanningAgent:
                 if recs:
                     recs = _fresh(recs)
                 if recs:
-                    # 铁律 20 守卫：build_food_item 按 apply_diffs 契约造
-                    # unpinned 件，而 v0 插入后紧跟全量 solve——不 pin 会被
-                    # solver 自由重排出餐窗（评测集 2026-10-25 抓到 10:30
-                    # 排餐）。此处 pin 在落位槽内（时间具体，rule 19 生效）。
-                    recs[0].pinned = True
+                    # 餐位守卫（铁律 20 演进）：v0 插入后紧跟全量 solve——
+                    # 完全不锚会被自由重排出餐窗（评测集 2026-10-25 抓到
+                    # 10:30 排餐）。2026-11-01 拍板不设铁律 19 钉：soft_pin
+                    # 系统软锚（solver 锚定落位；用户可拖/可换/可删）。
+                    recs[0].pinned = False
+                    recs[0].soft_pin = True
                     day_plan.items.append(recs[0])
                     inserted_restos += 1
                     if recs[0].poi_id:
@@ -6687,7 +6693,8 @@ class PlanningAgent:
                 if recs:
                     recs = _fresh(recs)
                 if recs:
-                    recs[0].pinned = True
+                    # 2026-11-01 拍板「晚饭不钉死」：系统软锚（非铁律 19）
+                    recs[0].pinned = False
                     recs[0].soft_pin = True
                     day_plan.items.append(recs[0])
                     inserted_restos += 1
@@ -7581,7 +7588,9 @@ class PlanningAgent:
             if day.day not in (src_no, new_day):
                 continue
             for it in day.items:
-                if isinstance(it, VisitItem) and not it.pinned:
+                if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
+                    # 系统餐锚保留时刻：清了会被游标链按景点乱排（餐窗由
+                    # _fallback_sequence_times 分层接管）
                     it.start_time = None
                     it.end_time = None
         notes = _reconcile_transfer_days(candidate)
@@ -7651,7 +7660,13 @@ class PlanningAgent:
         )
         day = next(d for d in candidate.days if d.day == day_no)
         for it in day.items:
-            if isinstance(it, VisitItem) and it.item_id != item_id and not it.pinned:
+            if (
+                isinstance(it, VisitItem)
+                and it.item_id != item_id
+                and not it.pinned
+                and not it.soft_pin
+            ):
+                # 系统餐锚保留时刻（同 reorder：清了会被游标链乱排）
                 it.start_time = None
                 it.end_time = None
         notes = _reconcile_transfer_days(candidate)
@@ -8126,7 +8141,10 @@ class PlanningAgent:
                         if it.item_id == item_id:
                             it.best_visit_time = window
                             it.pinned = False
-                            it.soft_pin = False
+                            # 餐件保留系统软锚：剥了锚会被排程器当自由件
+                            # 乱排（10:30 排餐类事故）
+                            if (it.category or "") != "food":
+                                it.soft_pin = False
         plan_before = session.plan
         released = self._release_confirmed_pins(plan_before, diffs, user_text)
         current_diffs = diffs
