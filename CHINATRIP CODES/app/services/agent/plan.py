@@ -874,6 +874,10 @@ _EDIT_SYSTEM_PROMPT = (
     '"need_clarification":["..."]}。'
     "diff 规则：move 换天（带 item_id 和 new_day，可带 new_start_time）；"
     'retime 只改时间（带 item_id 和 new_start_time，格式 "HH:MM"）；remove '
+    "；时间规则（2026-11-01）：只有用户原话明确出现的时刻（如「10:00」"
+    "「10点半」）才会被原样采用并锁定——用户只表达时段或没提时间时，你"
+    "给的精确时刻会被转成时段偏好（上午/下午/晚间）并由排程器重排，"
+    "所以时刻给个合理估计即可，别编造「用户要求」的口吻；"
     "删除（带 item_id）；add 新增（带 item 对象 "
     ' {"name","city","category","day","duration_minutes"}，不要编 item_id，'
     "服务端分配）。item_id 必须来自当前行程，不得虚构；时间重叠的安排会被"
@@ -2282,6 +2286,117 @@ def _has_untimed_visits(plan: ItineraryPlan) -> bool:
         for day in plan.days
         for item in day.items
     )
+
+
+_USER_TIME_RE = re.compile(
+    r"(?<![0-9])([0-1]?\d|2[0-3])(?::([0-5]\d)"
+    r"|点(?:(半|三刻)|([0-5]?\d)分?)?)(?![0-9])"
+)
+_USER_CN_TIME_RE = re.compile(
+    r"(晚上|今晚|下午|傍晚|中午)?([一两二三四五六七八九十]{1,2})点"
+    r"(?:(半|三刻)|([0-5]?\d)分?)?"
+)
+_CN_DIGITS = {
+    "一": 1,
+    "两": 2,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+
+
+def _cn_hour(word: str) -> int | None:
+    """中文小时（一~十二；十/十一/十二复合）。"""
+    if word == "十":
+        return 10
+    if len(word) == 2 and word[0] == "十":
+        return 10 + _CN_DIGITS.get(word[1], 0) or None
+    return _CN_DIGITS.get(word)
+
+
+def _user_stated_times(text: str) -> set[str]:
+    """用户原话明确说过的时刻（HH:MM 归一集）。
+
+    PR3（2026-11-01）：LLM 发明的时刻不得冒充用户钉——只有这里收得到
+    的时刻才允许 retime/move 照抄。支持 10:00 / 10点 / 10点半 / 10点30
+    / 九点 / 十点半 / 晚上九点 / 下午三点半（晚/下午/傍晚/中午前缀按
+    12小时制 +12；中文分钟数字不识别）；「第2天」类序号不匹配。
+    """
+    out: set[str] = set()
+    for m in _USER_TIME_RE.finditer(text or ""):
+        h = int(m.group(1))
+        mm = m.group(2)
+        if mm is not None:
+            out.add(f"{h:02d}:{int(mm):02d}")
+            continue
+        if m.group(3) == "半":
+            out.add(f"{h:02d}:30")
+        elif m.group(3) == "三刻":
+            out.add(f"{h:02d}:45")
+        elif m.group(4):
+            out.add(f"{h:02d}:{int(m.group(4)):02d}")
+        else:
+            out.add(f"{h:02d}:00")
+    for m in _USER_CN_TIME_RE.finditer(text or ""):
+        h = _cn_hour(m.group(2))
+        if h is None:
+            continue
+        prefix = m.group(1) or ""
+        if prefix in ("晚上", "今晚", "傍晚") and h < 12:
+            h += 12
+        elif prefix in ("下午", "中午") and h < 12:
+            h += 12
+        if m.group(3) == "半":
+            out.add(f"{h:02d}:30")
+        elif m.group(3) == "三刻":
+            out.add(f"{h:02d}:45")
+        elif m.group(4):
+            out.add(f"{h:02d}:{int(m.group(4)):02d}")
+        else:
+            out.add(f"{h:02d}:00")
+    return out
+
+
+def _window_of(hour: int) -> str:
+    if hour < 12:
+        return "morning"
+    if hour < 17:
+        return "afternoon"
+    return "evening"
+
+
+def _guard_llm_times(
+    diffs: list[DiffOp], user_text: str
+) -> tuple[list[DiffOp], list[tuple[str, str]]]:
+    """PR3 时间戳守卫：LLM 不得发明精确时刻。
+
+    retime/move 带的 new_start_time 只有出现在用户原话（_user_stated_
+    times）才保留（照抄并按铁律 19 跟进钉）；否则视为 LLM 的时段估计
+    ——retime 剥除、move 只留换天，条目改写 best_visit_time=对应时段
+    并解钉，交排程器重排。返回 (过滤后 diffs, 时段提示列表)。
+    """
+    stated = _user_stated_times(user_text)
+    normalized = {s.lstrip("0") for s in stated}
+    kept: list[DiffOp] = []
+    hints: list[tuple[str, str]] = []
+    for op in diffs:
+        if op.op not in ("retime", "move") or op.new_start_time is None:
+            kept.append(op)
+            continue
+        hhmm = op.new_start_time.strftime("%H:%M")
+        if hhmm in stated or hhmm.lstrip("0") in normalized:
+            kept.append(op)
+            continue
+        hints.append((op.item_id or "", _window_of(op.new_start_time.hour)))
+        if op.op == "move":
+            kept.append(op.model_copy(update={"new_start_time": None}))
+        # retime 无 day 语义，整个剥除
+    return kept, hints
 
 
 def _morning_occupied(day_plan) -> bool:
@@ -7961,6 +8076,20 @@ class PlanningAgent:
 
         Returns (delivered plan, change summary, user-visible notes).
         """
+        # PR3（2026-11-01 用户批《求解器升级建议》）：LLM 不得发明时间
+        # 戳——未见于用户原话的 retime/move 时刻剥成时段偏好，条目解钉
+        # 交排程器重排（H5 直接 move/retime 端点是用户动作，不经此处）。
+        diffs, time_hints = _guard_llm_times(diffs, user_text)
+        if time_hints:
+            for day in session.plan.days:
+                for it in day.items:
+                    if not isinstance(it, VisitItem):
+                        continue
+                    for item_id, window in time_hints:
+                        if it.item_id == item_id:
+                            it.best_visit_time = window
+                            it.pinned = False
+                            it.soft_pin = False
         plan_before = session.plan
         released = self._release_confirmed_pins(plan_before, diffs, user_text)
         current_diffs = diffs
