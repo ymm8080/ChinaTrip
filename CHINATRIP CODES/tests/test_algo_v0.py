@@ -613,6 +613,7 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
         start_time=_t(12, 0),
         end_time=_t(13, 0),
         pinned=True,
+        soft_pin=True,
     )
     big = VisitItem(
         item_id="v1",

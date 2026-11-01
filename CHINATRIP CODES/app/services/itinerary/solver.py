@@ -91,6 +91,19 @@ def show_session_starts(text: str | None) -> list[int]:
 #: （best_visit_time=evening/sunset）、营业时间明确开到晚间的场馆
 #: （闭馆 ≥17:30）、餐饮/酒店/交通/演出类条目。
 _GENERIC_ENTRY_CAP_MINUTES = 16 * 60
+# 午餐软钉（2026-11-01 用户拍板修正：时刻最多提前或延后半小时、用餐
+# 时长可缩短半小时）：初始排程的 12 点午餐锚是排程默认而非用户约束
+# ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开 ±30 分钟窗+
+# 时长区间 [dur-30, dur]（保底 30 分钟）；用户手钉（soft_pin=False）
+# 仍铁律 19 钉死。兜底层同口径的分层许可见 plan._fallback_sequence_times。
+_MEAL_FLEX_SLIDE_MINUTES = 30
+_MEAL_FLEX_SHORTEN_MINUTES = 30
+_MEAL_FLEX_MIN_DURATION_MINUTES = 30
+# 激活闸（2026-11-01）：当天存在 ≥150 分钟大点或 13:00 前场次的演出时
+# 才动用软钉——普通日（60-120 分钟小点）零漂移（12:00 全时长），软钉
+# 只在规则为之而设的场景（240 分钟华清池/12:30 场次挡午餐）生效。
+_MEAL_FLEX_TRIGGER_DUR = 150
+_LUNCH_PIN_FLEX_BEFORE_MIN = 15 * 60  # 15:00 前开餐的餐点才按午餐软钉
 _LATE_OPEN_MINUTES = 17 * 60 + 30
 _EVENING_OK_CATEGORIES = {"food", "entertainment", "hotel", "transport"}
 _EVENING_OK_BEST = {"evening", "sunset", "show"}
@@ -131,10 +144,13 @@ class _VisitSpec(NamedTuple):
     item: VisitItem
     lo: int  # earliest feasible start (minutes)
     hi: int  # latest feasible start (minutes)
-    dur: int  # interval size (minutes)
+    dur: int  # interval size upper bound (minutes)
     # G3 多段开窗（午休闭馆）：非 None 时 start 必须落其中一段
     # （solve_day 用条件约束 + ExactlyOne 建模，段外不可行）。
     windows: list[tuple[int, int]] | None = None
+    # 2026-11-01 午餐软钉：时长可缩短时的下界（0=固定 dur——常规条目）。
+    # 必须排在 windows 之后：位置构造 (item, lo, hi, dur, multi, dur_lo)。
+    dur_lo: int = 0
 
 
 def _to_minutes(value: time) -> int:
@@ -145,7 +161,9 @@ def _to_time(minutes: int) -> time:
     return time(minutes // 60, minutes % 60)
 
 
-def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | None:
+def _visit_spec(
+    item: VisitItem, hours: dict[str, PoiHours], *, meal_flex: bool = False
+) -> _VisitSpec | None:
     """Compute the start domain for a visit; None = provably infeasible."""
     dur = item.duration_minutes
     if dur is None:
@@ -154,6 +172,7 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
         return None
 
     lo, hi = DAY_START_MINUTES, DAY_END_MINUTES - dur
+    dur_lo = 0  # 0=固定时长；软钉午餐在 pinned 分支激活区间下界
     # 8.2.1：时段属性先收窄开窗（lo=max(窗起, 08:00)、hi=min(窗止, 21:00)-
     # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理
     # 不约束（防御库脏数据）；food 类条目不带该字段（plan.py 走 pinned 餐
@@ -217,12 +236,29 @@ def _visit_spec(item: VisitItem, hours: dict[str, PoiHours]) -> _VisitSpec | Non
                 return None
         elif not lo <= pin <= hi:
             return None
-        lo = hi = pin
+        if (
+            meal_flex
+            and item.soft_pin
+            and (item.category or "") == "food"
+            and pin < _LUNCH_PIN_FLEX_BEFORE_MIN
+        ):
+            # 午餐软钉 v2.2（2026-11-01 用户拍板：时刻最多提前或延后半小
+            # 时、用餐时长可缩短半小时；仅初次排程 meal_flex=True 且仅系
+            # 统钉 soft_pin）：±30 分钟开餐窗 + 时长区间 [dur-30, dur]
+            # （保底 30 分钟）——上午大点与 12:30 场次点都能贴上午落位；
+            # 晚餐（≥15:00 开餐）与用户手钉不受影响。
+            lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
+            hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
+            dur_lo = max(
+                dur - _MEAL_FLEX_SHORTEN_MINUTES, _MEAL_FLEX_MIN_DURATION_MINUTES
+            )
+        else:
+            lo = hi = pin
         multi = None
 
     if lo > hi:
         return None
-    return _VisitSpec(item, lo, hi, dur, multi)
+    return _VisitSpec(item, lo, hi, dur, multi, dur_lo)
 
 
 def _fixed_transfer_window(item: TransferItem) -> tuple[int, int] | None:
@@ -260,6 +296,8 @@ def _add_travel_objective(
     travel_minutes: dict[tuple[str, str], int],
     *,
     separate: bool = False,
+    sizes: list[object] | None = None,
+    meal_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -296,9 +334,12 @@ def _add_travel_objective(
                 if separate
                 else 0
             )
-            model.Add(starts[j] >= starts[i] + specs[i].dur + gap).OnlyEnforceIf(lit)
+            sz_i = sizes[i] if sizes is not None else specs[i].dur
+            model.Add(starts[j] >= starts[i] + sz_i + gap).OnlyEnforceIf(lit)
     model.AddCircuit(arcs)
-    model.Minimize(sum(costs))
+    # 软钉餐偏离惩罚（2026-11-01 规则：±30/缩 30 是许可不是偏好）：
+    # travel×100 权重主导——省 ≥2 走行分钟才值得动午餐。
+    model.Minimize(sum(costs) * 100 + meal_penalty)
 
 
 def _add_makespan_objective(
@@ -306,10 +347,20 @@ def _add_makespan_objective(
     specs: list[_VisitSpec],
     starts: list[cp_model.IntVar],
     transfers: list[tuple[TransferItem, int, int]],
+    *,
+    sizes: list[object] | None = None,
+    meal_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
+    # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
+    # 挪餐不再白嫖 makespan 收益；只有给参访腾结构空间时惩罚项才让位。
+    # 纯餐日（无参访无交通）回退全员端点防空。
+    _flexed = {i for i, sp in enumerate(specs) if sp.dur_lo and sp.dur_lo < sp.dur}
+    _counted = [i for i in range(len(specs)) if i not in _flexed] or list(
+        range(len(specs))
+    )
     ends: list[cp_model.LinearExpr | int] = [
-        starts[i] + specs[i].dur for i in range(len(specs))
+        starts[i] + (sizes[i] if sizes is not None else specs[i].dur) for i in _counted
     ]
     ends += [ts + tdur for _, ts, tdur in transfers]
     ub = max(
@@ -319,7 +370,9 @@ def _add_makespan_objective(
     )
     makespan = model.NewIntVar(0, ub, "makespan")
     model.AddMaxEquality(makespan, ends)
-    model.Minimize(makespan)
+    # 软钉餐偏离惩罚：makespan×100 权重主导（1 分钟 makespan > 最大偏离），
+    # 无压力日零漂移+全时长。
+    model.Minimize(makespan * 100 + meal_penalty)
 
 
 def solve_day(
@@ -328,6 +381,7 @@ def solve_day(
     poi_hours: list[PoiHours],
     travel_minutes: dict[tuple[str, str], int] | None = None,
     time_budget_seconds: float = 3.0,
+    meal_flex: bool = False,
 ) -> DayPlan | None:
     """Order and time one day's items; None = infeasible or timed out.
 
@@ -348,9 +402,18 @@ def solve_day(
         transfer_windows.append((item, window[0], window[1]))
 
     hours = {h.poi_id: h for h in poi_hours}
+    # 激活闸：大点或早场次当天才 flex（普通日零漂移）
+    flex_day = meal_flex and (
+        any((v.duration_minutes or 0) >= _MEAL_FLEX_TRIGGER_DUR for v in visits)
+        or any(
+            _is_show(v)
+            and any(s <= 13 * 60 for s in show_session_starts(v.opening_hours))
+            for v in visits
+        )
+    )
     specs: list[_VisitSpec] = []
     for item in visits:
-        spec = _visit_spec(item, hours)
+        spec = _visit_spec(item, hours, meal_flex=flex_day)
         if spec is None:
             return None
         specs.append(spec)
@@ -359,6 +422,9 @@ def solve_day(
         """Build + solve the day model once; (solver, status, starts)."""
         model = cp_model.CpModel()
         starts: list[cp_model.IntVar] = []
+        # 2026-11-01 午餐软钉：可缩时长的条目 size 是 IntVar（[dur_lo,dur]），
+        # 其余沿用固定 int——输出端按类型取值。
+        sizes: list[cp_model.IntVar | int] = []
         intervals: list[cp_model.IntervalVar] = []
         for spec in specs:
             start = model.NewIntVar(spec.lo, spec.hi, f"start_{spec.item.item_id}")
@@ -373,11 +439,28 @@ def solve_day(
                     model.Add(start <= whi).OnlyEnforceIf(in_win)
                     presences.append(in_win)
                 model.AddExactlyOne(presences)
-            intervals.append(
-                model.NewIntervalVar(
-                    start, spec.dur, start + spec.dur, f"visit_{spec.item.item_id}"
+            if spec.dur_lo and spec.dur_lo < spec.dur:
+                size = model.NewIntVar(
+                    spec.dur_lo, spec.dur, f"dur_{spec.item.item_id}"
                 )
-            )
+                sizes.append(size)
+                # 本版 ortools 不收「双变量和」作 end——显式 end 变量+等式
+                end = model.NewIntVar(
+                    spec.lo + spec.dur_lo,
+                    spec.hi + spec.dur,
+                    f"end_{spec.item.item_id}",
+                )
+                model.Add(end == start + size)
+                intervals.append(
+                    model.NewIntervalVar(start, size, end, f"visit_{spec.item.item_id}")
+                )
+            else:
+                sizes.append(spec.dur)
+                intervals.append(
+                    model.NewIntervalVar(
+                        start, spec.dur, start + spec.dur, f"visit_{spec.item.item_id}"
+                    )
+                )
         for item, ts, tdur in transfer_windows:
             intervals.append(
                 model.NewIntervalVar(ts, tdur, ts + tdur, f"transfer_{item.item_id}")
@@ -386,29 +469,56 @@ def solve_day(
 
         # Visits keep INTERCITY_BUFFER_MINUTES clear on both sides of a
         # transfer.
-        for spec, start in zip(specs, starts):
+        for spec, start, size in zip(specs, starts, sizes):
             for _, ts, tdur in transfer_windows:
                 before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
-                model.Add(
-                    start + spec.dur <= ts - INTERCITY_BUFFER_MINUTES
-                ).OnlyEnforceIf(before)
+                model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
+                    before
+                )
                 model.Add(start >= ts + tdur + INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
                     before.Not()
                 )
 
+        # 软钉餐偏离惩罚项：|start-pin| + (dur - size)（激活软钉的餐才有）
+        penalty_terms: list[object] = []
+        for spec, start, size in zip(specs, starts, sizes):
+            if not (spec.dur_lo and spec.dur_lo < spec.dur):
+                continue
+            pin = _to_minutes(spec.item.start_time) if spec.item.start_time else None
+            if pin is None:
+                continue
+            drift = model.NewIntVar(
+                0, _MEAL_FLEX_SLIDE_MINUTES, f"mdrift_{spec.item.item_id}"
+            )
+            model.AddAbsEquality(drift, start - pin)
+            penalty_terms.append(drift + (spec.dur - size))
+        meal_penalty = sum(penalty_terms) if penalty_terms else 0
         if travel_minutes is not None and specs:
             _add_travel_objective(
-                model, specs, starts, travel_minutes, separate=separate
+                model,
+                specs,
+                starts,
+                travel_minutes,
+                separate=separate,
+                sizes=sizes,
+                meal_penalty=meal_penalty,
             )
         else:
-            _add_makespan_objective(model, specs, starts, transfer_windows)
+            _add_makespan_objective(
+                model,
+                specs,
+                starts,
+                transfer_windows,
+                sizes=sizes,
+                meal_penalty=meal_penalty,
+            )
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = time_budget_seconds
         solver.parameters.num_search_workers = 1  # deterministic schedules
-        return solver, solver.Solve(model), starts
+        return solver, solver.Solve(model), starts, sizes
 
-    solver, status, starts = _attempt(travel_minutes is not None and bool(specs))
+    solver, status, starts, sizes = _attempt(travel_minutes is not None and bool(specs))
     if (
         travel_minutes is not None
         and specs
@@ -416,24 +526,22 @@ def solve_day(
     ):
         # 走行分离把当天挤爆（时段窗/转场缓冲卡死）→ 回落旧背靠背语义
         # 交付：宁可挤也不弃日（§6.9 降级链仍由上层兜底）。
-        solver, status, starts = _attempt(False)
+        solver, status, starts, sizes = _attempt(False)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
 
     placed: list[tuple[int, VisitItem | TransferItem]] = []
-    for spec, start in zip(specs, starts):
+    for spec, start, size in zip(specs, starts, sizes):
         s = solver.Value(start)
-        placed.append(
-            (
-                s,
-                spec.item.model_copy(
-                    update={
-                        "start_time": _to_time(s),
-                        "end_time": _to_time(s + spec.dur),
-                    }
-                ),
-            )
-        )
+        d = solver.Value(size) if not isinstance(size, int) else size
+        update: dict[str, object] = {
+            "start_time": _to_time(s),
+            "end_time": _to_time(s + d),
+        }
+        if d != spec.dur:
+            # 午餐软钉缩时长：条目时长同步为实值（卡片/后续重排一致）
+            update["duration_minutes"] = d
+        placed.append((s, spec.item.model_copy(update=update)))
     for item, ts, tdur in transfer_windows:
         updates: dict[str, time] = {}
         if item.end_time is None:
@@ -449,6 +557,7 @@ def solve_plan(
     poi_hours: list[PoiHours],
     travel_minutes: dict[tuple[str, str], int] | None = None,
     time_budget_seconds: float = 3.0,
+    meal_flex: bool = False,
 ) -> ItineraryPlan | None:
     """Solve every day independently; a failing day keeps its input layout.
 
@@ -465,6 +574,7 @@ def solve_plan(
             poi_hours=poi_hours,
             travel_minutes=travel_minutes,
             time_budget_seconds=time_budget_seconds,
+            meal_flex=meal_flex,
         )
         solved_days.append(solved if solved is not None else day.model_copy(deep=True))
     return plan.model_copy(update={"days": solved_days})

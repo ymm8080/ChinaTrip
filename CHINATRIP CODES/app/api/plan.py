@@ -579,6 +579,8 @@ async def pin_plan_item(
     if request.pinned and item.start_time is None:
         raise HTTPException(status_code=422, detail="pinned_requires_time")
     item.pinned = request.pinned
+    # 用户手钉：清软钉（铁律 19）；取消钉住同时释放软钉
+    item.soft_pin = False
     await agent.refresh_legs(session)
     store.save(session)
     reply = (

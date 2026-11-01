@@ -57,6 +57,10 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 系统钉（2026-10-31 午餐软钉拍板）：排程器自己放的钉（午餐占位/
+    # 自动餐厅）——solver meal_flex 时可顺延（午餐可以延后）；用户手钉
+    # （retime/move/pin 端点）恒 False，铁律 19 不受软钉影响。
+    soft_pin: bool = False
     # 0009 / 8.2.1：库候选携带的时段属性（morning/afternoon/evening/
     # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
     # None = 无信号（老数据/占位），按全天窗处理。

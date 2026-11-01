@@ -366,3 +366,111 @@ def test_morning_fill_skips_already_picked_and_wrong_city():
     added = agent._morning_fill(plan, day, [{"name": "下午秀", "day": 1}], cands)
 
     assert added == "碑林博物馆"
+
+
+# ---------- 5) 午餐软钉（solver 侧，2026-10-31 拍板「午餐可以延后」） ----------
+
+
+def _soft_lunch(day=1, *, soft=True):
+    return VisitItem(
+        item_id=f"lunch-{day}",
+        name="午饭（自由安排）",
+        category="food",
+        city="西安",
+        day=day,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=soft,
+    )
+
+
+def _big(day=1, dur=240):
+    return _visit("big", dur=dur, day=day)
+
+
+def test_meal_flex_rule_240min_big_lands_after_shortened_lunch():
+    """2026-11-01 规则修正（±30 分钟 + 时长可缩 30）：240 分钟大点塞不进
+    上午窗（≤12:30=210 分钟容量）——贴着缩短的午餐后落位；午餐开餐
+    ±30 内、时长 ≥30；全程无重叠。"""
+    day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
+    solved = solve_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    starts = {i.item_id: i.start_time for i in solved.items}
+    ends = {i.item_id: i.end_time for i in solved.items}
+    # 午餐在 ±30 窗内开餐
+    assert time(11, 30) <= starts["lunch-1"] <= time(12, 30)
+    # 大点贴着午餐可行域后落位（makespan 最优=缩短午餐 11:30-12:00 + 12:00 起）
+    assert starts["big"] == time(12, 0)
+    assert ends["big"] == time(16, 0)
+    # 无重叠
+    assert ends["lunch-1"] <= starts["big"] or ends["big"] <= starts["lunch-1"]
+
+
+def test_meal_flex_180min_big_keeps_morning_zero_drift():
+    """180 分钟大点 09:00-12:00 与 12:00 午餐零漂移紧贴（±30 许可不需要
+    动用——makespan 最优即零漂移）。"""
+    day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=180)])
+    solved = solve_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    starts = {i.item_id: i.start_time for i in solved.items}
+    assert starts["big"] == time(9, 0)
+    assert starts["lunch-1"] == time(12, 0)
+
+
+def test_user_pinned_lunch_stays_hard_under_meal_flex():
+    """用户手钉（soft_pin=False）的午餐：meal_flex 也不动（铁律 19）。"""
+    day = DayPlan(
+        day=1, base_city="西安", items=[_soft_lunch(soft=False), _big(dur=180)]
+    )
+    solved = solve_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    starts = {i.item_id: i.start_time for i in solved.items}
+    assert starts["lunch-1"] == time(12, 0)  # 纹丝不动
+    # NoOverlap 允许紧贴：大点 09:00-12:00 恰好接午餐 12:00（合法且更优）
+    assert starts["big"] == time(9, 0)
+
+
+def test_meal_flex_off_keeps_system_lunch():
+    """编辑/重排路径 meal_flex=False：系统钉午餐也不漂移。"""
+    day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=180)])
+    solved = solve_day(day, poi_hours=[], meal_flex=False)
+    assert solved is not None
+    starts = {i.item_id: i.start_time for i in solved.items}
+    assert starts["lunch-1"] == time(12, 0)
+
+
+def test_solve_plan_forwards_meal_flex():
+    from app.services.itinerary.solver import solve_plan
+
+    day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=180)])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+    solved = solve_plan(plan, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    starts = {i.item_id: i.start_time for i in solved.days[0].items}
+    assert starts["big"] == time(9, 0)
+
+
+def test_fallback_delays_system_lunch_but_not_user_pinned():
+    """兜底口径对齐：soft_pin 午餐顺延给 240 分钟大点让上午；
+    用户手钉午餐不动，大点让到下午。"""
+    from app.services.agent.plan import _fallback_sequence_times
+
+    soft_day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
+    soft_plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[soft_day])
+    _fallback_sequence_times(soft_plan)
+    s = {i.item_id: i.start_time for i in soft_day.items}
+    assert s["big"] == time(9, 0)
+    # ①层=旧版缓冲口径（v2.2 零漂移优先）：240 分钟大点收尾块 13:30 后
+    # 接午餐（±30/缩短许可在本案全被堵，回落①）
+    assert s["lunch-1"] == time(13, 30)
+
+    hard_day = DayPlan(
+        day=1, base_city="西安", items=[_soft_lunch(soft=False), _big(dur=240)]
+    )
+    hard_plan = ItineraryPlan(itinerary_id="it2", cities=["西安"], days=[hard_day])
+    _fallback_sequence_times(hard_plan)
+    h = {i.item_id: i.start_time for i in hard_day.items}
+    assert h["lunch-1"] == time(12, 0)  # 用户钉不动
+    assert h["big"] == time(13, 0)  # 大点让到下午

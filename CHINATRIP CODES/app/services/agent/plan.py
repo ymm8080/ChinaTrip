@@ -1889,6 +1889,7 @@ def _lunch_placeholder(
         end_time=end,
         duration_minutes=MEAL_DURATION_MINUTES,
         pinned=True,
+        soft_pin=True,
     )
 
 
@@ -2177,7 +2178,11 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             e = _item_end_minutes(item)
             if isinstance(item, TransferItem):
                 fixed.append((s - buf, e + buf))
-            elif getattr(item, "category", "") == "food" and s < 15 * 60:
+            elif (
+                getattr(item, "category", "") == "food"
+                and s < 15 * 60
+                and (getattr(item, "soft_pin", False) or not item.pinned)
+            ):
                 # 午餐软钉（2026-10-31 用户拍板「午餐可以延后」）：不进固定
                 # 窗挡上午——参访排完后从原时刻起顺延落位；>180 分钟的上午
                 # 大点（240 分钟华清池 09:00-13:00 类）不再被 12 点午餐锚
@@ -3639,6 +3644,7 @@ class PlanningAgent:
             end_time=end,
             duration_minutes=MEAL_DURATION_MINUTES,
             pinned=True,
+            soft_pin=True,
         )
 
     # --- far-restaurant round (link food > RESTO_ASK_KM from sights) ----
@@ -6325,6 +6331,7 @@ class PlanningAgent:
             start_time = end_time = None
             duration = spec["duration_minutes"]
             pinned = False
+            soft_pin = False
             if spec.get("category") == "food":
                 count = food_by_day.get(spec["day"], 0)
                 food_by_day[spec["day"]] = count + 1
@@ -6335,6 +6342,7 @@ class PlanningAgent:
                     start_time, end_time = meal_times(MEAL_WINDOWS[slot])
                     duration = MEAL_DURATION_MINUTES
                     pinned = True
+                    soft_pin = True
             visits.append(
                 VisitItem(
                     item_id=f"v{self._item_seq}",
@@ -6369,6 +6377,7 @@ class PlanningAgent:
                     end_time=end_time,
                     duration_minutes=duration,
                     pinned=pinned,
+                    soft_pin=soft_pin,
                 )
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
@@ -6527,6 +6536,7 @@ class PlanningAgent:
                     recs = _fresh(recs)
                 if recs:
                     recs[0].pinned = True
+                    recs[0].soft_pin = True
                     day_plan.items.append(recs[0])
                     inserted_restos += 1
                     if recs[0].poi_id:
@@ -6558,7 +6568,7 @@ class PlanningAgent:
             start_date=start_date,
         )
         plan.assumptions.extend(_reconcile_transfer_days(plan))
-        solved = self._solve(plan)
+        solved = self._solve(plan, meal_flex=True)
         degraded = solved is None
         if solved is not None:
             plan = solved
@@ -6646,7 +6656,7 @@ class PlanningAgent:
         # 测）；pinned 字段随 model_copy 保留（铁律 19 继续生效）；首解
         # 已降级或本程无实测缓存时跳过。
         if not degraded and self._leg_cache:
-            resolved = self._solve(plan)
+            resolved = self._solve(plan, meal_flex=True)
             if resolved is not None:
                 resolved.assumptions = plan.assumptions
                 plan = resolved
@@ -7190,15 +7200,21 @@ class PlanningAgent:
                 a.next_walk_minutes = hit[1]
                 a.leg_source = getattr(self._amap, "vendor", "amap")
 
-    def _solve(self, plan: ItineraryPlan) -> ItineraryPlan | None:
+    def _solve(
+        self, plan: ItineraryPlan, *, meal_flex: bool = False
+    ) -> ItineraryPlan | None:
         # 8.2.2/8.2.3（2026-10-24）：solver 喂饱——travel matrix（高德实测
         # 优先覆写 haversine 基线）+ 营业时间硬窗（解析不出不硬卡）。
+        # meal_flex（2026-11-01 用户拍板：午餐最多提前或延后半小时、时长
+        # 可缩短半小时）：仅初次排程开——soft_pin 餐点 ±30 窗+[dur-30,dur]
+        # 时长区间；编辑/重排路径保持关，用户手钉的时刻仍走铁律 19 钉死。
         try:
             return self._solver(
                 plan,
                 poi_hours=_plan_poi_hours(plan),
                 travel_minutes=_travel_matrix(plan, self._leg_cache),
                 time_budget_seconds=self._time_budget_seconds,
+                meal_flex=meal_flex,
             )
         except Exception:
             logger.warning("plan: solver raised, degrading", exc_info=True)
@@ -7998,6 +8014,7 @@ class PlanningAgent:
                     for item in day.items:
                         if isinstance(item, VisitItem) and item.item_id in want_pin:
                             item.pinned = True
+                            item.soft_pin = False  # 用户手钉：铁律 19 钉死
             if any(op.op == "remove" for op in diffs):
                 self.sync_removals_to_trip_items(plan_before, diffs)
         elif applied is None:
