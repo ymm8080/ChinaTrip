@@ -665,3 +665,70 @@ def test_get_train_service_gating_and_singleton(tmp_path):
     finally:
         trains_module._train_service_singleton = None
         train_cache_module._train_cache_engine = None
+
+
+def test_remote_chain_source_breaker_opens_after_streak():
+    """源级熔断（2026-11-01 恢复真实班次）：连续失败 3 次的源进入 1h
+    冷却窗——熔断中的源不再被 fetch（不等 5s 超时），链直接走下一源；
+    空结果不算失败（健康应答）。"""
+
+    class FlakySource:
+        name = "flaky"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            raise RuntimeError("boom")
+
+    class EmptySource:
+        name = "empty"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            return []
+
+    flaky = FlakySource()
+    empty = EmptySource()
+    service = RemoteTrainService(MockTrainService(), sources=[flaky, empty])
+
+    for _ in range(3):
+        asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert flaky.calls == 3  # 三连败 -> 熔断打开
+
+    asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert flaky.calls == 3  # 熔断中：不再被 fetch
+    assert empty.calls == 4  # 链照常走到下一源
+    assert service.last_source == "mock"  # 全空 -> mock 兜底
+
+
+def test_remote_chain_healthy_source_resets_streak():
+    """健康应答（含空结果）清零连败计数：间歇失败不熔断。"""
+
+    class IntermittentSource:
+        name = "inter"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            if self.calls % 2:
+                raise RuntimeError("boom")
+            return []
+
+    class EmptySource:
+        name = "empty"
+
+        async def fetch(self, from_city, to_city, date):
+            return []
+
+    inter = IntermittentSource()
+    service = RemoteTrainService(MockTrainService(), sources=[inter, EmptySource()])
+    for _ in range(6):
+        asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert inter.calls == 6  # 失败-健康交替：连败永不到 3，从不熔断

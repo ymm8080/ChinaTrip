@@ -115,16 +115,43 @@ def test_ttl_expiry_repulls_and_keeps_history(session_factory):
     assert _row_count(session_factory) == 3
 
 
-def test_empty_result_not_cached(session_factory):
+def test_empty_result_negative_cached(session_factory):
+    """空结果负缓存（2026-11-01 恢复真实班次）：链空手后 TTL 内同
+    (pair, qdate) 零网络；过 miss TTL（默认 6h）重拉；空批次仍不落库。"""
+    clock = _Clock()
     inner = ScriptedInner([[], [_option("G1")]])
-    service = CachedTrainService(session_factory=session_factory, inner=inner)
+    service = CachedTrainService(
+        session_factory=session_factory, inner=inner, clock=clock
+    )
 
     assert asyncio.run(service.search("北京", "上海", DATE)) == []
-    assert _row_count(session_factory) == 0  # 空批次不落库
+    assert _row_count(session_factory) == 0  # 空批次仍不落库
 
     again = asyncio.run(service.search("北京", "上海", DATE))
-    assert [o.train_no for o in again] == ["G1"]  # 下次仍会打 inner
+    assert again == [] and inner.calls == 1  # 负缓存命中：不再打 inner
+
+    clock.now = BASE_NOW + timedelta(hours=7)  # 过 miss TTL
+    third = asyncio.run(service.search("北京", "上海", DATE))
+    assert [o.train_no for o in third] == ["G1"]  # 重拉
     assert inner.calls == 2
+
+
+def test_nonempty_result_clears_negative_cache(session_factory):
+    clock = _Clock()
+    inner = ScriptedInner([[], [_option("G9")]])
+    service = CachedTrainService(
+        session_factory=session_factory, inner=inner, clock=clock
+    )
+
+    assert asyncio.run(service.search("北京", "上海", DATE)) == []  # 记负缓存
+    clock.now = BASE_NOW + timedelta(hours=7)  # 过 miss TTL
+    assert [o.train_no for o in asyncio.run(service.search("北京", "上海", DATE))] == [
+        "G9"
+    ]  # 重拉非空 -> 落库并清负缓存
+    clock.now = BASE_NOW + timedelta(hours=32)  # 7h 批次满 24h 龄过正缓存 TTL
+    inner.results = [[_option("G2")]]
+    asyncio.run(service.search("北京", "上海", DATE))
+    assert inner.calls == 3  # 负缓存被非空结果清除后照常重拉
 
 
 def test_inner_error_falls_back_to_stale_batch(session_factory):

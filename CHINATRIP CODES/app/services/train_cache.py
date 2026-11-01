@@ -5,6 +5,9 @@
 
 - 写路径：inner（数据源链）返回非空班次时整批追加落库（fetched_at 同值
   = 一个日批次）；空批次不落库——链降级与真无票无法区分，都不可信；
+  2026-11-01 起空批次进内存负缓存（miss_ttl_hours，默认 6h）：TTL 内
+  同 (pair, qdate) 不再打链（恢复真实班次的防回归工程，与 trains.py
+  源级熔断配套）；
 - 读路径：(from_city, to_city, query_date) 命中 TTL 内的日批次直接返回，
   零网络；
 - 留史只追加：不 UPDATE 不 DELETE，唯一约束保证重跑幂等，读取永远取
@@ -134,11 +137,16 @@ class CachedTrainService(TrainService):
         inner: TrainService,
         ttl_hours: float = 24.0,
         clock: Callable[[], datetime] | None = None,
+        miss_ttl_hours: float = 6.0,
     ) -> None:
         self._session_factory = session_factory
         self._inner = inner
         self._ttl_hours = ttl_hours
         self._clock = clock or _utcnow
+        # 空结果负缓存（2026-11-01）：键 (from, to, qdate) -> 失效时刻。
+        # 进程内存态（重启即清，最多再吃一轮链成本）；非空落库时清除。
+        self._miss_ttl_hours = miss_ttl_hours
+        self._miss_until: dict[tuple[str, str, str], datetime] = {}
 
     async def search(
         self, from_city: str, to_city: str, date: str
@@ -147,6 +155,10 @@ class CachedTrainService(TrainService):
         if from_city == to_city:
             return []
         now = self._clock()
+        key = (from_city, to_city, qdate)
+        miss_until = self._miss_until.get(key)
+        if miss_until is not None and now < miss_until:
+            return []  # 空结果负缓存命中：TTL 内零网络零库读
         stale = self._latest_batch(from_city, to_city, qdate)
         if stale and now - stale[0].fetched_at <= timedelta(hours=self._ttl_hours):
             return [_record_to_option(record) for record in stale]
@@ -167,6 +179,11 @@ class CachedTrainService(TrainService):
             raise
         if options:
             self._write_batch(from_city, to_city, qdate, options, now)
+            self._miss_until.pop(key, None)
+            return options
+        # 空批次负缓存（2026-11-01）：链降级与真无票无法区分——短 TTL
+        # 内不再打链，每轮规划最多吃一次链成本。
+        self._miss_until[key] = now + timedelta(hours=self._miss_ttl_hours)
         return options
 
     def _latest_batch(

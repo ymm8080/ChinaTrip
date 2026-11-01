@@ -17,6 +17,7 @@ import re
 from datetime import date as _date
 from datetime import time, timedelta
 from itertools import product
+from time import monotonic
 from typing import NamedTuple, Protocol
 
 import httpx
@@ -286,17 +287,26 @@ def _city_station_names(stations: dict[str, str], city: str) -> list[str]:
     return exact + prefixed
 
 
-def _time_candidates(row: list[str], station: str) -> list[tuple[int, time]]:
-    """站名锚点：行内每个等于站名的字段，其后 3 个字段内的 HH:MM 候选。
+def _time_candidates(
+    row: list[str], station: str, extra_anchors: set[str] | None = None
+) -> list[tuple[int, time]]:
+    """站场锚点：行内每个等于站名/电报码的字段，其后 3 个字段内的 HH:MM
+    候选。
 
     12306 result 行的时间字段下标历年漂移（6/7 时而是全程、时而是所查区间
-    的站名），绝不硬编码时间下标——只信"站名锚点 + 邻近时间字段"。窗口 3
-    同时覆盖 [站名, 时间] 与 [站名, 站名, 时间] 两种排布（后者见 6=始发站/
+    的站名），绝不硬编码时间下标——只信"站场锚点 + 邻近时间字段"。窗口 3
+    同时覆盖 [站场, 时间] 与 [站场, 站场, 时间] 两种排布（后者见 6=始发站/
     7=终到站/8=时刻 的经典布局）。
+
+    2026-11-01 实测修正：leftTicket 行内站场字段是**电报码**（AOH/EAY）
+    而非站名（上海→西安查询返回 G1970 行 [6]=AOH [7]=EAY [8]=06:09
+    [9]=13:20）——只锚站名时全行锚不中、班次全丢。extra_anchors 传该城
+    全部候选站电报码，站名∪电报码双锚。
     """
+    anchors = {station} | (extra_anchors or set())
     candidates: list[tuple[int, time]] = []
     for i, value in enumerate(row):
-        if value != station:
+        if value not in anchors:
             continue
         for k in range(1, 4):
             if i + k >= len(row):
@@ -321,7 +331,9 @@ def _pick_time_pair(
         (dep, arr)
         for dep in dep_candidates
         for arr in arr_candidates
-        if arr[0] != dep[0] and arr[1] != dep[1]
+        # 行内字段按旅程序（出发时刻字段在到达之前）：索引倒挂的对子
+        # 是跨锚误配（2026-11-01 电报码宽锚后出现的倒挂对），一律排除。
+        if arr[0] > dep[0] and arr[1] != dep[1]
     ]
     if not pairs:
         return None
@@ -337,17 +349,21 @@ def _row_to_option(
     from_city: str,
     to_city: str,
     query_date: str,
+    *,
+    from_codes: set[str] | None = None,
+    to_codes: set[str] | None = None,
 ) -> TrainOption | None:
     """result 行 -> TrainOption；锚不到时刻返回 None（该班跳过）。
 
     车次取下标 3（station_train_code，历年稳定）；历时用锚定到的出发/到达
-    时刻差（跨零点由 _duration_minutes 补 24h）。
+    时刻差（跨零点由 _duration_minutes 补 24h）。from_codes/to_codes 传
+    城市候选站电报码集（2026-11-01：行内站场是电报码，站名∪码双锚）。
     """
     if len(row) < 4 or not row[3]:
         return None
     pair = _pick_time_pair(
-        _time_candidates(row, from_station),
-        _time_candidates(row, to_station),
+        _time_candidates(row, from_station, from_codes),
+        _time_candidates(row, to_station, to_codes),
     )
     if pair is None:
         return None
@@ -408,6 +424,9 @@ class Train12306Source:
             to_names = _city_station_names(stations, to_city)
             if not from_names or not to_names:
                 return []
+            # 电报码锚集（2026-11-01）：行内站场是码不是名，站名∪码双锚
+            from_codes = {stations[n] for n in from_names}
+            to_codes = {stations[n] for n in to_names}
             combos = list(product(from_names, to_names))[:_MAX_QUERY_COMBOS]
             # 2026-10-28 探针实测：并发 x3 全 200、4.8s→2.6s、复测无封锁；
             # 单组合失败降级跳过（原先一个组合抛错拖垮整个 fetch）。
@@ -426,7 +445,10 @@ class Train12306Source:
                 *(_rows(pair) for pair in combos), return_exceptions=True
             )
             options: list[TrainOption] = []
-            seen: set[tuple[str, time, str]] = set()
+            # 同一班跨组合只留一张（2026-11-01：站名∪电报码宽锚后同一班
+            # 会从多组合各锚一次，G1970 上海/上海南 双卡实录）——物理班次
+            # 身份=车次+出发+到达时刻，from_station 展示取首锚组合。
+            seen: set[tuple[str, time, time]] = set()
             for (from_station, to_station), rows in zip(combos, rows_by_combo):
                 if isinstance(rows, BaseException):
                     logger.warning(
@@ -438,11 +460,18 @@ class Train12306Source:
                     continue
                 for row in rows:
                     option = _row_to_option(
-                        row, from_station, to_station, from_city, to_city, query_date
+                        row,
+                        from_station,
+                        to_station,
+                        from_city,
+                        to_city,
+                        query_date,
+                        from_codes=from_codes,
+                        to_codes=to_codes,
                     )
                     if option is None:
                         continue
-                    key = (option.train_no, option.dep_time, option.from_station)
+                    key = (option.train_no, option.dep_time, option.arr_time)
                     if key in seen:
                         continue
                     seen.add(key)
@@ -513,12 +542,23 @@ class Train12306Source:
         )
 
 
+# 源级熔断（2026-11-01 恢复真实班次拍板「先做熔断+空结果负缓存」）：
+# 12306 无凭据查询常态超时（每腿等满 train_query_timeout_seconds=5s，
+# prefetch+build 两处×双腿 = 30-46s 生成的主因）。连续失败 3 次的源
+# 1 小时内秒拒；空结果不算失败（源健康地回答「无车」）。
+_SOURCE_BREAKER_THRESHOLD = 3
+_SOURCE_BREAKER_OPEN_SECONDS = 3600.0
+
+
 class RemoteTrainService(TrainService):
     """数据源链服务：按 sources 顺序尝试，任一源返回非空班次即用。
 
     全部源失败/为空 -> 降级 fallback（MockTrainService，已覆盖 8 对核心
     城市对）；再查不到由调用方已有的 flight/car 占位兜底。任何异常都在
     这里消化，绝不穿出到规划链。
+
+    源级熔断（2026-11-01）：per-source 连败计数 + 单调钟冷却窗——
+    熔断中的源直接跳过（不等超时），健康应答（含空结果）清零连败。
     """
 
     def __init__(self, fallback: TrainService, *, sources: list[TrainSource]) -> None:
@@ -528,20 +568,40 @@ class RemoteTrainService(TrainService):
         # None（尚未搜索）。缓存层落库时取它标注每行 provenance
         # （app/services/train_cache.py）。
         self.last_source: str | None = None
+        self._fail_streak: dict[str, int] = {}
+        self._open_until: dict[str, float] = {}
 
     async def search(
         self, from_city: str, to_city: str, date: str
     ) -> list[TrainOption]:
+        now = monotonic()
         for source in self._sources:
+            name = source.name
+            if now < self._open_until.get(name, 0.0):
+                logger.info("train source %s circuit open, skipping for cooldown", name)
+                continue
             try:
                 options = await source.fetch(from_city, to_city, date)
             except Exception as exc:  # 网络/反爬/解析：换下一个源
-                logger.warning("train source %s failed: %s", source.name, exc)
+                streak = self._fail_streak.get(name, 0) + 1
+                self._fail_streak[name] = streak
+                if streak >= _SOURCE_BREAKER_THRESHOLD:
+                    self._open_until[name] = monotonic() + _SOURCE_BREAKER_OPEN_SECONDS
+                    self._fail_streak[name] = 0
+                    logger.warning(
+                        "train source %s failed %d times in a row, "
+                        "circuit open for %.1fh",
+                        name,
+                        _SOURCE_BREAKER_THRESHOLD,
+                        _SOURCE_BREAKER_OPEN_SECONDS / 3600.0,
+                    )
+                logger.warning("train source %s failed: %s", name, exc)
                 continue
+            self._fail_streak[name] = 0
             if options:
-                self.last_source = source.name
+                self.last_source = name
                 return options
-            logger.info("train source %s returned no trains", source.name)
+            logger.info("train source %s returned no trains", name)
         self.last_source = "mock"
         return await self._fallback.search(from_city, to_city, date)
 

@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from app.services.agent.hotel_stays import attach_hotel_stays, is_hotel_checkin
 from app.services.amap_client import AmapQuotaExhaustedError
+from app.services.best_visit import apply_rules
 from app.services.ctrip_hours import CtripHoursReader
 from app.services.flights import FlightService, MockFlightService, pick_best_flight
 from app.services.itinerary import (
@@ -64,6 +65,7 @@ from app.services.itinerary.models import (
     PoiHours,
 )
 from app.services.itinerary.solver import (
+    _BEST_VISIT_WINDOWS,
     DAY_START_MINUTES,
     generic_entry_cap,
     show_session_starts,
@@ -267,6 +269,30 @@ def _night_cand(cand: dict) -> bool:
         return True
     name = str(cand.get("name") or "")
     return any(m in name for m in _NIGHT_NAME_MARKS)
+
+
+def _sched_best_visit(cand: dict | None) -> str | None:
+    """排程时段信号规整（2026-11-01「两江夜游排在白天」事故）：
+
+    库候选缺时段信号（None/"any"）时用规则引擎（best_visit.apply_rules，
+    与回填作业同源）按名称/类别兜底——intl 骨架行导入时未回填
+    best_visit_time，solver 全天窗把「两江夜游」排进白天。只在缺信号
+    时兜底：库内已有非 any 值（ctrip/llm/heuristic 回填）原样透传，绝
+    不覆盖既有判定（只升不降）；住宿类候选不参访排程，直接透传。
+    """
+    if not cand:
+        return None
+    raw = cand.get("best_visit_time")
+    bvt = str(raw or "").strip().lower()
+    if bvt and bvt != "any":
+        return raw
+    if str(cand.get("category") or "") == "hotel":
+        return raw
+    slot = apply_rules(
+        str(cand.get("name") or ""),
+        str(cand.get("category") or "") or None,
+    )
+    return slot if slot else raw
 
 
 def _rain_exposed(cand: dict) -> bool:
@@ -2347,7 +2373,9 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
         # 演出被前面 180 分钟失败顶到日终事故）；②带场次的演出只落场次
         # 点（真值源=show_sessions 刷新管线）；③无场次信息的晚场演出
-        # 不进上午。
+        # 不进上午。2026-11-01 ④：best_visit 时段窗下限与 solver 同口
+        # 径（evening/sunset/afternoon 下探 17:00/16:00/12:00）——两江
+        # 夜游白天排事故，降级兜底不再把夜间点塞进上午。
         cursor = day_start
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
@@ -2363,7 +2391,16 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                         placed_at = s
                         break
             else:
-                t = max(cursor, 17 * 60) if _is_show_item(visit) else cursor
+                if _is_show_item(visit):
+                    t = max(cursor, 17 * 60)
+                else:
+                    # ④时段窗下限与 solver 同口径：evening 17:00 /
+                    # sunset 16:00 / afternoon 12:00（morning/sunrise 随
+                    # 日始 9 点，天然无下探）。
+                    wlo = _BEST_VISIT_WINDOWS.get(
+                        str(visit.best_visit_time or "").strip().lower()
+                    )
+                    t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
                 advanced = True
                 while advanced:
                     advanced = False
@@ -6404,14 +6441,30 @@ class PlanningAgent:
                 )
             if dests and not closure and _norm_city(dests[-1]) != _norm_city(origin):
                 legs.append((dests[-1], origin, days))
-            for from_city, to_city, day in legs:
-                await self._trains.search(
-                    from_city, to_city, _leg_date_iso(start_date, day)
-                )
-                # 航班腿一并预热（mock 即时返回；真实源接入后此处即生效）
-                await self._flights.search(
-                    from_city, to_city, _leg_date_iso(start_date, day)
-                )
+            # 并行预热（2026-11-01 恢复真实班次）：逐腿串行会把 12306
+            # 5s 超时×双腿叠成 10s+；gather 后最坏=最慢一腿。单腿失败
+            # 只记日志不拖垮其余（生成期会再试）。
+            outcomes = await asyncio.gather(
+                *[
+                    self._trains.search(
+                        from_city, to_city, _leg_date_iso(start_date, day)
+                    )
+                    for from_city, to_city, day in legs
+                ],
+                *[
+                    # 航班腿一并预热（mock 即时返回；真实源接入后即生效）
+                    self._flights.search(
+                        from_city, to_city, _leg_date_iso(start_date, day)
+                    )
+                    for from_city, to_city, day in legs
+                ],
+                return_exceptions=True,
+            )
+            for outcome in outcomes:
+                if isinstance(outcome, BaseException):
+                    logger.warning(
+                        "plan: transfer schedule prefetch leg failed: %s", outcome
+                    )
         except Exception:
             logger.warning("plan: transfer schedule prefetch failed", exc_info=True)
 
@@ -6670,7 +6723,9 @@ class PlanningAgent:
                     opening_hours_en=(cand or {}).get("opening_hours_en"),
                     opening_hours=(cand or {}).get("opening_hours"),
                     # 8.2.1 联动：库候选的时段属性随条目进 solver 开窗
-                    best_visit_time=(cand or {}).get("best_visit_time"),
+                    # （_sched_best_visit：缺信号时按名称规则兜底，夜游
+                    # 类不再因库行 any 被排进白天——2026-11-01 事故）
+                    best_visit_time=_sched_best_visit(cand or {}),
                     # 路径 A 预填（show_booking_design §2）：poi.booking_url
                     # （演出=携程 sight SKU 页）随条目并出，H5 票务直达直开
                     booking_url=(cand or {}).get("booking_url"),
@@ -7135,7 +7190,7 @@ class PlanningAgent:
             cat = str(cand.get("category") or "")
             if cat in ("food", "entertainment"):
                 continue
-            if str(cand.get("best_visit_time") or "any") not in ("any", "morning", ""):
+            if str(_sched_best_visit(cand) or "any") not in ("any", "morning", ""):
                 continue
             if rainy and str(cand.get("rain_ok") or "") in ("no", "partial", "false"):
                 # 与 _rain_exposed 同口径：unknown(None/'')不算露天，
@@ -7177,7 +7232,7 @@ class PlanningAgent:
                 intro_en=cand.get("intro_en"),
                 opening_hours=cand.get("opening_hours"),
                 opening_hours_en=cand.get("opening_hours_en"),
-                best_visit_time=cand.get("best_visit_time"),
+                best_visit_time=_sched_best_visit(cand),
                 booking_url=cand.get("booking_url"),
                 rain_ok=cand.get("rain_ok"),
                 day=day_plan.day,
@@ -7340,7 +7395,7 @@ class PlanningAgent:
             cat = str(cand.get("category") or "")
             if cat in ("food", "entertainment"):
                 continue
-            if str(cand.get("best_visit_time") or "any") not in ("any", "morning", ""):
+            if str(_sched_best_visit(cand) or "any") not in ("any", "morning", ""):
                 continue
             if donor_rainy and str(cand.get("rain_ok") or "") in (
                 "no",
@@ -7382,7 +7437,7 @@ class PlanningAgent:
                 intro_en=cand.get("intro_en"),
                 opening_hours=cand.get("opening_hours"),
                 opening_hours_en=cand.get("opening_hours_en"),
-                best_visit_time=cand.get("best_visit_time"),
+                best_visit_time=_sched_best_visit(cand),
                 booking_url=cand.get("booking_url"),
                 rain_ok=cand.get("rain_ok"),
                 day=donor.day,
@@ -7709,7 +7764,7 @@ class PlanningAgent:
                     cat = str(cand.get("category") or "")
                     if cat in ("food", "entertainment"):
                         continue
-                    if str(cand.get("best_visit_time") or "any") not in (
+                    if str(_sched_best_visit(cand) or "any") not in (
                         "any",
                         "morning",
                         "",
@@ -7735,7 +7790,7 @@ class PlanningAgent:
                         city=d.base_city,
                         address=cand.get("address"),
                         opening_hours=cand.get("opening_hours"),
-                        best_visit_time=cand.get("best_visit_time"),
+                        best_visit_time=_sched_best_visit(cand),
                         rain_ok=cand.get("rain_ok"),
                         day=d.day,
                         duration_minutes=dur,
@@ -8595,7 +8650,7 @@ class PlanningAgent:
             intro_en=cand.get("intro_en"),
             opening_hours=cand.get("opening_hours"),
             opening_hours_en=cand.get("opening_hours_en"),
-            best_visit_time=cand.get("best_visit_time"),
+            best_visit_time=_sched_best_visit(cand),
             booking_url=cand.get("booking_url"),
             reservation_hint=_reservation_hint(new_name, cand),
             rain_ok=cand.get("rain_ok"),
