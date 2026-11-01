@@ -2445,7 +2445,12 @@ def test_v0_reason_rolls_into_assumptions():
     assert any("选点理由" in a and "夜景代表" in a for a in session.assumptions)
 
 
-def test_v0_auto_inserts_restaurant_for_foodless_day():
+def test_v0_auto_inserts_restaurant_for_foodless_day(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "plan_restaurant_search_enabled", True)
     # 新语义（2026-10-31 午餐保底）：无 food 的日子午餐窗先搜顺路餐厅；
     # AMAP_POIS 全是景点（品类闸拦截）→ 落「午饭」占位件保底
     items = [
@@ -2463,7 +2468,12 @@ def test_v0_auto_inserts_restaurant_for_foodless_day():
     assert any("午饭时段" in a for a in session.assumptions)
 
 
-def test_v0_auto_inserts_lunch_restaurant_when_food_candidates():
+def test_v0_auto_inserts_lunch_restaurant_when_food_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "plan_restaurant_search_enabled", True)
     # stub 混入真餐饮候选 → 午餐窗插首推顺路餐厅（不再占位）
     food_poi = {
         "name": "绿波廊",

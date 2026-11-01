@@ -2484,6 +2484,13 @@ def _guard_llm_times(
     return kept, hints
 
 
+def _resto_search_enabled() -> bool:
+    """2026-11-01 性能拍板：规划期餐厅外呼检索开关（默认关）。"""
+    from app.config import get_settings
+
+    return get_settings().plan_restaurant_search_enabled
+
+
 def _morning_occupied(day_plan) -> bool:
     """当天 12:00 前已有交通或非餐饮条目开始（上午不空）。"""
     for it in day_plan.items:
@@ -6669,7 +6676,12 @@ class PlanningAgent:
                         # 换乘日午餐城跟随落地时刻（2026-10-31 沪→西安案）
                         lunch_city = _meal_city_at(day_plan, placed_slot[0])
                 recs: list[VisitItem] = []
-                if placed_slot is not None and self._amap is not None and searches < 3:
+                if (
+                    placed_slot is not None
+                    and self._amap is not None
+                    and searches < 3
+                    and _resto_search_enabled()
+                ):
                     searches += 1
                     try:
                         recs = await recommend_restaurants(
@@ -6730,7 +6742,7 @@ class PlanningAgent:
                                 day_plan, dinner_win[0] if dinner_win else None
                             ),
                         )
-                        if self._amap is not None
+                        if self._amap is not None and _resto_search_enabled()
                         else []
                     )
                 except Exception:
