@@ -192,3 +192,49 @@ def test_score_payload_roundtrip():
     via_json = score_payload(plan.model_dump())
     assert via_json.total == via_obj.total == -100
     assert via_json.counts["untimed"] == 1
+
+
+def test_day_balance_penalizes_thin_worst_day():
+    day1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_v("a", dur=300, start=time(9, 0), end=time(14, 0))],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[_v("b", dur=60, start=time(9, 0), end=time(10, 0))],
+    )
+    sc = plan_score(_plan([day1, day2]))
+    assert sc.soft["day_balance"] == -4  # (180-60)//30
+    assert sc.counts["worst_day_load"] == 60
+
+
+def test_day_balance_ignores_transfer_days():
+    from app.services.itinerary.models import TransferItem
+
+    day1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                from_city="上海",
+                to_city="西安",
+                mode="flight",
+                start_time=time(9, 0),
+                end_time=time(12, 0),
+            ),
+            _v("a", dur=60, start=time(15, 0), end=time(16, 0)),
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[_v("b", dur=300, start=time(9, 0), end=time(14, 0))],
+    )
+    sc = plan_score(_plan([day1, day2]))
+    assert sc.soft["day_balance"] == 0  # 交通日豁免：仅 day2 参与均衡
+    assert sc.counts["worst_day_load"] == -1

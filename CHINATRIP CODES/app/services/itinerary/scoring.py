@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
-"""全局评分器（2026-11-01 设计稿「跨天全局重排层」S1，用户批准执行）。
+"""全局评分器（2026-11-01 设计稿「跨天全局重排层」S1+S2.2）。
 
 纯函数模块：不 import agent 层（避免与 agent.plan 循环依赖），口径
 与来源在注释里逐条标注。用途有二：
 1. LNS 跨天重排（S2）的评估地基——让「哪个点放哪天」可比较；
 2. 指标面板原始数据（untimed 率 / 空白上午 / 雨暴露 / 预算溢出）。
 
-权重（设计稿 §3，2026-11-01 批准）：
+权重（设计稿 §3+§4-S2.2，2026-11-01 批准）：
 - 硬：未排时间卡 -100/张；活动日空白上午 -80/天；硬违规 -60/项
 - 软（用户拍板口径均为小惩罚）：预算溢出 -溢出分钟/10（30 分钟免罚
   额度对齐晨间保底 360+30 闸，上限 -30/天）；雨天露天 -15、半露天
   -10（unknown 不罚，对齐 _rain_exposed 口径）；转场 -round(km)/30
   （代理口径，腿字段缺失记 0）；午餐漂移 -超±30 部分/10（对齐
-  「午餐 ±30 许可」拍板）。
+  「午餐 ±30 许可」拍板）；日均衡 -缺口/30（S2.2 max-min 轻量版：
+  最差活动日负载距 180 的缺口，交通日豁免，需 ≥2 个活动日，上限
+  -15）。
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ ENTRY_CAP_MINUTES = 16 * 60  # 白天入场闸（2026-10-31 拍板）
 LUNCH_ANCHOR_MINUTES = 12 * 60
 LUNCH_WINDOW_END_MINUTES = 15 * 60  # <15:00 的餐=午餐（兜底层同口径）
 LUNCH_GRACE_MINUTES = 30  # ±30 许可（2026-11-01 拍板）
+DAY_BALANCE_TARGET_MINUTES = 180  # S2.2：最差活动日负载目标（max-min 轻量版）
 
 PEN_UNTIMED = 100
 PEN_BLANK_MORNING = 80
@@ -39,6 +42,7 @@ PEN_VIOLATION = 60
 PEN_RAIN_EXPOSED = 15
 PEN_RAIN_PARTIAL = 10
 PEN_BUDGET_OVERFLOW_CAP = 30
+PEN_DAY_BALANCE_CAP = 15
 
 
 @dataclass
@@ -99,6 +103,7 @@ def plan_score(
     travel_km = 0.0
     lunch_drift_pen = 0
     lunch_drift_min = 0
+    act_loads: list[int] = []
     for day in plan.days:
         city = str(day.base_city or "").removesuffix("市")
         rainy = day.day in rain.get(city, ()) or day.day in heavy.get(city, ())
@@ -130,6 +135,9 @@ def plan_score(
         if over > 0:
             overflow_days += 1
             overflow_pen += min(PEN_BUDGET_OVERFLOW_CAP, over // 10)
+        # 日均衡采样（S2.2）：活动日且非交通日才参与最差日比较
+        if has_activity and not any(isinstance(i, TransferItem) for i in day.items):
+            act_loads.append(load)
         timed = sorted(
             (v for v in visits if v.start_time is not None),
             key=lambda v: v.start_time,
@@ -162,6 +170,16 @@ def plan_score(
         for i in range(len(spans) - 1):
             if spans[i + 1][0] < spans[i][1]:
                 overlaps += 1
+    # 日均衡（S2.2，max-min 轻量版）：≥2 个活动日才比较，交通日豁免
+    balance_pen = 0
+    worst_day_load = -1
+    if len(act_loads) >= 2:
+        worst_day_load = min(act_loads)
+        if worst_day_load < DAY_BALANCE_TARGET_MINUTES:
+            balance_pen = min(
+                PEN_DAY_BALANCE_CAP,
+                (DAY_BALANCE_TARGET_MINUTES - worst_day_load) // 30,
+            )
     violations = overlaps + overruns + late_entries
     sc.hard = {
         "untimed": -PEN_UNTIMED * untimed,
@@ -173,6 +191,7 @@ def plan_score(
         "budget_overflow": -overflow_pen,
         "travel": -(round(travel_km) // 30),
         "lunch_drift": -lunch_drift_pen,
+        "day_balance": -balance_pen,
     }
     sc.counts = {
         "untimed": untimed,
@@ -185,6 +204,7 @@ def plan_score(
         "budget_overflow_days": overflow_days,
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
+        "worst_day_load": worst_day_load,
     }
     return sc
 

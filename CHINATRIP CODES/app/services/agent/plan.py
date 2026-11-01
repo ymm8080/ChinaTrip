@@ -6912,6 +6912,32 @@ class PlanningAgent:
                     "edits won't move them",
                 )
             )
+        # 跨天全局重排（LNS+destroy-repair，2026-11-01 设计稿 S2 修订版）：
+        # 硬惩罚信号驱动 move/swap/拆日重建；编辑路径不走 _v0 天然豁免；
+        # CHINATRIP_GLOBAL_RESCHED=off 关闭。
+        resched = self._global_resched(
+            plan,
+            picked,
+            candidates,
+            rain_days=rain_days,
+            heavy_rain_days=heavy_rain_days,
+        )
+        if resched[0]:
+            plan.assumptions.append(
+                L(
+                    "已跨天全局重排："
+                    + "、".join(resched[0])
+                    + f"（全局评分 {resched[1]}→{resched[2]}）",
+                    "Cross-day rescheduling applied: "
+                    + ", ".join(resched[0])
+                    + f" (plan score {resched[1]} -> {resched[2]})",
+                )
+            )
+            if degraded:
+                resolved = self._solve(plan, meal_flex=True)
+                if resolved is not None:
+                    resolved.assumptions = plan.assumptions
+                    plan = resolved
         annotate_legs(plan)
         await self._enrich_parallel(plan)
         # 两段式重解（用户拍板 2026-10-25「步行换算优先高德实测」的正确
@@ -7011,9 +7037,7 @@ class PlanningAgent:
                 dur = 90
             if dur > gap:
                 continue
-            eligible.append(
-                (cand, dur, day_load + dur > DAY_VISIT_BUDGET_MINUTES + 30)
-            )
+            eligible.append((cand, dur, day_load + dur > DAY_VISIT_BUDGET_MINUTES + 30))
 
         # 2026-11-01 用户拍板：预算=「偏短点优先」的排序信号，非硬闸。
         # 先补装得下的（保持 tier 序）；全都装不下才按最短溢出序补。
@@ -7102,8 +7126,10 @@ class PlanningAgent:
         def _nearest(loc, locs):
             best = None
             for b in locs:
-                dx = (loc.lon - b.lon) * 111.0 * math.cos(
-                    math.radians((loc.lat + b.lat) / 2)
+                dx = (
+                    (loc.lon - b.lon)
+                    * 111.0
+                    * math.cos(math.radians((loc.lat + b.lat) / 2))
                 )
                 dy = (loc.lat - b.lat) * 111.0
                 d = (dx * dx + dy * dy) ** 0.5
@@ -7189,9 +7215,7 @@ class PlanningAgent:
         taken = {str(spec.get("name")) for spec in picked}
         planned = [i for d in plan.days for i in d.items if isinstance(i, VisitItem)]
         d_pts = [
-            i.location
-            for i in donor.items
-            if isinstance(i, VisitItem) and i.location
+            i.location for i in donor.items if isinstance(i, VisitItem) and i.location
         ]
         pool = []
         for cand in candidates:
@@ -7213,10 +7237,7 @@ class PlanningAgent:
                 continue
             if any(
                 _same_site(name, i.name)
-                or (
-                    cand.get("source_poi_id")
-                    and i.poi_id == cand.get("source_poi_id")
-                )
+                or (cand.get("source_poi_id") and i.poi_id == cand.get("source_poi_id"))
                 for i in planned
             ):
                 continue
@@ -7224,9 +7245,7 @@ class PlanningAgent:
             if not isinstance(dur, int) or dur <= 0:
                 dur = 90
             loc = (
-                cand.get("location")
-                if isinstance(cand.get("location"), dict)
-                else None
+                cand.get("location") if isinstance(cand.get("location"), dict) else None
             )
             near = _nearest(GeoPoint(**loc), d_pts) if loc and d_pts else 999.0
             over = 1 if donor_load + dur > DAY_VISIT_BUDGET_MINUTES + 30 else 0
@@ -7282,6 +7301,303 @@ class PlanningAgent:
             _fallback_sequence_times(plan)
             return None
         return (item.name, backfilled, donor_day_no)
+
+    def _global_resched(
+        self,
+        plan: ItineraryPlan,
+        picked: list[dict],
+        candidates: list[dict],
+        *,
+        rain_days: dict[str, set[int]] | None = None,
+        heavy_rain_days: dict[str, set[int]] | None = None,
+        max_evals: int = 200,
+    ) -> tuple[list[str], int, int]:
+        """跨天全局重排（LNS + destroy-repair，2026-11-01 设计稿 S2 修订版；
+        路线依据《跨日全局优化方案调研》：评分驱动邻域搜索=TOPTW 主流且 SOTA）。
+
+        硬惩罚信号（未排卡/空白上午）驱动三类算子：单点跨天 move、跨天
+        swap、拆日重建 destroy-repair（S2.1：信号日可挪件全摘、按时长降序
+        贪心重插，原日优先）；评估=深拷贝+顺序兜底+全局评分（含 S2.2
+        day_balance 均衡软项）；接受准则=总分严格改进且硬惩罚不加重，
+        预算 max_evals/2s 墙钟，超时保底原样（按日降级契约不变）。
+        只挪不删；铁律 19/必去/系统餐锚/hotel 卡不参与；演出可跨天挪
+        （场次合法性由兜底评估判，设计稿 §10.2 拍板）；结束后同城轻载
+        日（<240）规则式回填未选点（≤2 个）。编辑路径不走 _v0 天然
+        豁免；CHINATRIP_GLOBAL_RESCHED=off 关闭。返回 (移动摘要, 基线分,
+        终分)。
+        """
+        import time
+        from copy import deepcopy
+
+        from app.services.itinerary.scoring import plan_score
+
+        if os.environ.get("CHINATRIP_GLOBAL_RESCHED", "") == "off":
+            return [], 0, 0
+        rain = rain_days or {}
+        heavy = heavy_rain_days or {}
+        base = plan_score(plan, rain_days=rain, heavy_rain_days=heavy)
+        if base.ok:
+            return [], base.total, base.total
+        must_names = {spec["name"] for spec in picked if spec.get("must")}
+        taken = {str(spec.get("name")) for spec in picked}
+
+        def _movable(it: VisitItem) -> bool:
+            if it.pinned or it.soft_pin:
+                return False  # 铁律 19 + 系统餐锚
+            if str(it.category or "") in ("food", "hotel"):
+                return False  # 餐跟餐窗；hotel 卡跟落地地板
+            return it.name not in must_names
+
+        def _city(day_plan) -> str:
+            return str(day_plan.base_city or "").removesuffix("市")
+
+        def _find(p, item_id):
+            for d in p.days:
+                for i in d.items:
+                    if isinstance(i, VisitItem) and i.item_id == item_id:
+                        return d, i
+            return None, None
+
+        def _move_on(p, item_id, target_day):
+            src, item = _find(p, item_id)
+            dst = next((d for d in p.days if d.day == target_day), None)
+            if item is None or dst is None or src is dst:
+                return None
+            if _city(src) != _city(dst):
+                return None
+            item.start_time = None
+            item.end_time = None
+            item.day = target_day
+            src.items.remove(item)
+            dst.items.insert(0, item)  # 晨间优先（同晨间借调口径）
+            return f"「{item.name}」→第{target_day}天"
+
+        def _swap_on(p, id_a, id_b):
+            da, a = _find(p, id_a)
+            db, b = _find(p, id_b)
+            if a is None or b is None or da is db:
+                return None
+            if _city(da) != _city(db):
+                return None
+            day_a, day_b = a.day, b.day
+            a.start_time = a.end_time = None
+            b.start_time = b.end_time = None
+            a.day, b.day = day_b, day_a
+            da.items.remove(a)
+            db.items.remove(b)
+            da.items.insert(0, b)
+            db.items.insert(0, a)
+            return f"「{a.name}」↔「{b.name}」对调"
+
+        def _destroy_repair_on(p, signal_day_no):
+            day = next((d for d in p.days if d.day == signal_day_no), None)
+            if day is None:
+                return None
+            removed = [i for i in day.items if isinstance(i, VisitItem) and _movable(i)]
+            if not removed:
+                return None
+            for i in removed:
+                day.items.remove(i)
+                i.start_time = i.end_time = None
+            targets = [day] + [
+                d for d in p.days if d is not day and _city(d) == _city(day)
+            ]
+            relocated = []
+            for i in sorted(removed, key=lambda v: -(v.duration_minutes or 60)):
+                landed = False
+                for d in targets:
+                    d.items.insert(0, i)
+                    i.day = d.day
+                    _fallback_sequence_times(p)
+                    if i.start_time is not None:
+                        landed = True
+                        if d is not day:
+                            relocated.append(f"「{i.name}」→第{d.day}天")
+                        break
+                    d.items.remove(i)
+                if not landed:
+                    day.items.append(i)  # 落不进=保留未排（只挪不删）
+                    i.day = day.day
+                    _fallback_sequence_times(p)
+            if relocated:
+                return "、".join(relocated) + f"（第{signal_day_no}天拆日重建）"
+            return f"第{signal_day_no}天就地重排（{len(removed)}项）"
+
+        def _signal_day(p):
+            for d in p.days:
+                if any(
+                    isinstance(i, VisitItem)
+                    and i.start_time is None
+                    and str(i.category or "") not in ("food", "hotel")
+                    for i in d.items
+                ):
+                    return d, "untimed"
+            for d in p.days:
+                visits = [i for i in d.items if isinstance(i, VisitItem)]
+                if any(
+                    str(v.category or "") not in ("food", "hotel") for v in visits
+                ) and not _morning_occupied(d):
+                    return d, "blank"
+            return None, None
+
+        moves: list[str] = []
+        evals = 0
+        deadline = time.monotonic() + 2.0
+        cur = plan
+        cur_score = base
+        while evals < max_evals and time.monotonic() < deadline:
+            target, mode = _signal_day(cur)
+            if target is None:
+                break
+            trials = []
+            others = [
+                d for d in cur.days if d is not target and _city(d) == _city(target)
+            ]
+            movable_here = [
+                i for i in target.items if isinstance(i, VisitItem) and _movable(i)
+            ]
+            if mode == "untimed":
+                unt = [i for i in movable_here if i.start_time is None]
+                blockers = [i for i in movable_here if i.start_time is not None]
+                for u in unt:
+                    for d2 in others:
+                        trials.append(
+                            lambda p, uid=u.item_id, dd=d2.day: _move_on(p, uid, dd)
+                        )
+                for m in blockers:
+                    for d2 in others:
+                        trials.append(
+                            lambda p, uid=m.item_id, dd=d2.day: _move_on(p, uid, dd)
+                        )
+                for u in unt:
+                    for d2 in others:
+                        for m in d2.items:
+                            if isinstance(m, VisitItem) and _movable(m):
+                                trials.append(
+                                    lambda p, a=u.item_id, b=m.item_id: _swap_on(
+                                        p, a, b
+                                    )
+                                )
+            else:  # blank morning：从同城其他天借 ≤180 分钟的可挪件
+                for d2 in others:
+                    for m in d2.items:
+                        if (
+                            isinstance(m, VisitItem)
+                            and _movable(m)
+                            and (m.duration_minutes or 90) <= 180
+                        ):
+                            trials.append(
+                                lambda p, uid=m.item_id, dd=target.day: _move_on(
+                                    p, uid, dd
+                                )
+                            )
+            trials.append(lambda p, dno=target.day: _destroy_repair_on(p, dno))
+            best = None  # (total, score, plan, desc)
+            for fn in trials:
+                if evals >= max_evals or time.monotonic() >= deadline:
+                    break
+                trial = deepcopy(cur)
+                desc = fn(trial)
+                if desc is None:
+                    continue
+                _fallback_sequence_times(trial)
+                ts = plan_score(trial, rain_days=rain, heavy_rain_days=heavy)
+                evals += 1
+                if ts.total <= cur_score.total:
+                    continue
+                if sum(ts.hard.values()) < sum(cur_score.hard.values()):
+                    continue  # 硬惩罚加重→拒
+                if best is None or ts.total > best[0]:
+                    best = (ts.total, ts, trial, desc)
+            if best is None:
+                break  # 本信号无改进→收工
+            cur = best[2]
+            cur_score = best[1]
+            moves.append(best[3])
+        # 轻载日规则式回填（借出日补偿，≤2 个；无参访日不填）
+        if moves:
+            backfills = 0
+            for d in cur.days:
+                if backfills >= 2:
+                    break
+                visits = [i for i in d.items if isinstance(i, VisitItem)]
+                if not any(
+                    str(v.category or "") not in ("food", "hotel") for v in visits
+                ):
+                    continue
+                load = sum(
+                    i.duration_minutes or 0
+                    for i in visits
+                    if str(i.category or "") not in ("food", "hotel")
+                )
+                if load >= 240:
+                    continue
+                city = _city(d)
+                donor_rainy = d.day in rain.get(city, ()) or d.day in heavy.get(
+                    city, ()
+                )
+                planned = [
+                    i for dd in cur.days for i in dd.items if isinstance(i, VisitItem)
+                ]
+                for cand in candidates:
+                    name = str(cand.get("name") or "")
+                    if not name or name in taken:
+                        continue
+                    if str(cand.get("city") or "").removesuffix("市") != city:
+                        continue
+                    cat = str(cand.get("category") or "")
+                    if cat in ("food", "entertainment"):
+                        continue
+                    if str(cand.get("best_visit_time") or "any") not in (
+                        "any",
+                        "morning",
+                        "",
+                    ):
+                        continue
+                    if donor_rainy and str(cand.get("rain_ok") or "") in (
+                        "no",
+                        "partial",
+                        "false",
+                    ):
+                        continue
+                    if any(
+                        _same_site(name, i.name)
+                        or (
+                            cand.get("source_poi_id")
+                            and i.poi_id == cand.get("source_poi_id")
+                        )
+                        for i in planned
+                    ):
+                        continue
+                    dur = cand.get("suggested_duration_min") or 90
+                    if not isinstance(dur, int) or dur <= 0:
+                        dur = 90
+                    self._item_seq += 1
+                    visit = VisitItem(
+                        item_id=f"v{self._item_seq}",
+                        name=name,
+                        poi_id=cand.get("source_poi_id"),
+                        category=cat or None,
+                        city=d.base_city,
+                        address=cand.get("address"),
+                        opening_hours=cand.get("opening_hours"),
+                        best_visit_time=cand.get("best_visit_time"),
+                        rain_ok=cand.get("rain_ok"),
+                        day=d.day,
+                        duration_minutes=dur,
+                    )
+                    d.items.append(visit)
+                    _fallback_sequence_times(cur)
+                    if visit.start_time is None:
+                        d.items.remove(visit)
+                        continue
+                    moves.append(f"「{name}」→第{d.day}天（回填）")
+                    backfills += 1
+                    break
+            cur_score = plan_score(cur, rain_days=rain, heavy_rain_days=heavy)
+        if cur is not plan:
+            plan.days = cur.days
+        return moves, base.total, cur_score.total
 
     async def _backfill_locations(
         self, plan: ItineraryPlan, *, limit: int = 12
