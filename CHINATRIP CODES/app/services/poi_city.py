@@ -24,7 +24,7 @@ _KNOWN_BY_LEN: tuple[str, ...] | None = None
 _INDEX: dict | None = None
 _PREF_FULL: dict[str, str] | None = None  # 地级全名 → canonical 短名（跨省）
 _PREF_SHORT: dict[str, str] | None = None  # 地级短名 → canonical 短名
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()  # 可重入：_pref_maps 锁内还会走 _index 的锁
 
 # 非官方双字缩写（官方短名规则覆盖不到的自治州俗称）。官方口径见
 # `canonical_city` 的后缀剥离；这里只补「巴州/博州/克州」三种。
@@ -34,8 +34,41 @@ _ABBREV_ALIASES: dict[str, str] = {
     "克州": "克孜勒苏",
 }
 
+# 旧库遗留书写（区划索引/变体规则覆盖不到 County-level names / 高新区），
+# 归一到 canonical 短名. 2026-11-01 legacy 清点.
+_CITY_ALIASES_EXTRA: dict[str, str] = {
+    "二连浩特": "锡林郭勒",
+    "神农架": "神农架林区",
+    "格尔木": "海西",
+    "梅河口": "通化",
+    "汝州": "平顶山",
+    "巩义": "郑州",
+    "邓州": "南阳",
+    "平潭": "福州",
+    "玉林北流": "玉林",
+    "石家庄高新区": "石家庄",
+    "杨凌示范区": "咸阳",
+    "济源示范区": "济源",
+    "长白山管委会池北区": "延边",
+    "长白山管委会池南区": "白山",
+    "韩城": "渭南",
+    "陵": "陵水",  # 旧生成器 bug 残值（黎族自治县短写）
+    "大通县": "西宁",  # 青海大通县旧称（淮南同名为 区，不冲突）
+}
+
 _HEAD_RE = re.compile(r"^([\u4e00-\u9fa5]{2,6})(地区|县|市|旗|盟|区)")
 _ADMIN_UNITS = ("省", "壮族自治区", "回族自治区", "维吾尔自治区", "自治区")
+
+# 民族片段（长名优先），把「务川仡佬族苗族自治县」削成「务川」.
+_ETHNIC = (
+    "维吾尔", "柯尔克孜", "乌孜别克", "哈萨克", "塔吉克", "塔塔尔", "达斡尔",
+    "鄂温克", "鄂伦春", "朝鲜", "俄罗斯", "蒙古", "土家", "布依", "哈尼",
+    "傈僳", "拉祜", "纳西", "景颇", "仡佬", "仫佬", "毛南", "阿昌", "普米",
+    "独龙", "裕固", "撒拉", "东乡", "保安", "锡伯", "德昂", "基诺", "门巴",
+    "珞巴", "赫哲", "回", "藏", "苗", "彝", "壮", "侗", "瑶", "白", "傣",
+    "黎", "佤", "畲", "水", "土", "羌", "怒", "京", "满",
+)
+_ETHNIC_SORTED = tuple(sorted(_ETHNIC, key=len, reverse=True))
 
 
 def _known_sorted() -> tuple[str, ...]:
@@ -85,10 +118,25 @@ def _pref_maps() -> tuple[dict[str, str], dict[str, str]]:
     return _PREF_FULL, _PREF_SHORT  # type: ignore[return-value]
 
 
-def known_prefectures() -> frozenset[str]:
-    """全部 canonical 城市名（注册 226 + 各省地级短名）。"""
-    _, pref_short = _pref_maps()
-    return frozenset(pref_short.values())
+def known_cities() -> frozenset[str]:
+    """全部可作为 canonical 城市名的集合：注册 226（含县级旅游城市如
+    五大连池/井冈山/神农架林区）＋各地级短名＋直辖市."""
+    global _KNOWN_ALL
+    if _KNOWN_ALL is None:
+        from app.services.agent.plan import KNOWN_CITIES
+
+        canon_set: set[str] = set(KNOWN_CITIES)
+        for entry in _index().values():
+            canon_set.update(entry["prefectures"].values())
+            canon_set.update(entry["counties"].values())
+        _KNOWN_ALL = frozenset(canon_set)
+    return _KNOWN_ALL
+
+
+known_prefectures = known_cities  # 旧称兼容（下游脚本用旧名）
+
+
+_KNOWN_ALL: frozenset[str] | None = None
 
 
 def _province_short(name: str) -> str:
@@ -167,9 +215,85 @@ def canonical_city(name: str) -> str:
     for abbr, canon in _ABBREV_ALIASES.items():
         if s == abbr:
             return canon
+    if s in _CITY_ALIASES_EXTRA:
+        return _CITY_ALIASES_EXTRA[s]
     if s in pref_short:
         return pref_short[s]
     return s
+
+
+def _strip_admin_suffixes(name: str) -> str:
+    """县级名剥行划后缀 + 民族片段：`凤翔区`→凤翔、
+    `巍山彝族回族自治县`→巍山（撤并改名口径兜底用）."""
+    stem = name
+    changed = True
+    while changed:
+        changed = False
+        for suf in ("自治县", "自治旗", "自治州", "自治区", "特别行政区"):
+            if stem.endswith(suf) and len(stem) > len(suf):
+                stem = stem[: -len(suf)]
+                changed = True
+        for eth in _ETHNIC_SORTED:
+            if stem.endswith(eth + "族") and len(stem) > len(eth) + 1:
+                stem = stem[: -len(eth) - 1]
+                changed = True
+    for suf in ("区", "县", "市", "旗"):
+        if stem.endswith(suf) and len(stem) > len(suf):
+            return stem[: -len(suf)]
+    return stem
+
+
+# 单字 stem 县（变体规则 len>=2 覆盖不到）等个别历史书写.
+_RENAMED_COUNTY_ALIASES: dict[str, str] = {"沙县": "三明"}
+
+
+_COUNTY_VARIANTS: dict[str, dict[str, str]] = {}
+_GLOBAL_COUNTY: list[tuple[str, str]] | None = None  # 全库县名（长名优先）
+
+
+def _county_variants(prov: str, entry: dict) -> dict[str, str]:
+    """旧县级名 → 属地级市（撤并改名：index 现名 凤翔区/偃师区/繁昌区 的
+    旧书写 凤翔县/偃师市/繁昌县）。同省同 stem 冲突则丢. """
+    cached = _COUNTY_VARIANTS.get(prov)
+    if cached is not None:
+        return cached
+    spots: dict[str, dict[str, str]] = {}
+    for county, city in entry["counties"].items():
+        stem = _strip_admin_suffixes(county)
+        if len(stem) < 2:
+            continue
+        # 裸 stem 不入变体（「涪陵区青羊镇」会被 成都青羊 误吞），只认
+        # 带 行划后缀 的旧写法.
+        for v in {stem + "县", stem + "市", stem + "旗"}:
+            if v not in entry["counties"]:
+                spots.setdefault(v, {})[city] = city
+    flat = {name: next(iter(spot)) for name, spot in spots.items() if len(spot) == 1}
+    _COUNTY_VARIANTS[prov] = flat
+    return flat
+
+
+def _global_county_sorted() -> list[tuple[str, str]]:
+    """全库县名（仅索引现名），长名优先；跨省同 key 冲突则丢.
+
+    故意**不含**省scoped 变体：'大通县'在青海(西宁)和淮南(大通区)各有一份
+    旧写法，全局无省上下文时无法裁决——那种走 resolve_city 的省分支.
+    """
+    global _GLOBAL_COUNTY
+    if _GLOBAL_COUNTY is None:
+        spots: dict[str, dict[str, str]] = {}
+        for _prov, entry in _index().items():
+            for county, city in entry["counties"].items():
+                spots.setdefault(county, {})[city] = city
+        _GLOBAL_COUNTY = sorted(
+            (
+                (name, next(iter(spot)))
+                for name, spot in spots.items()
+                if len(spot) == 1
+            ),
+            key=lambda kv: len(kv[0]),
+            reverse=True,
+        )
+    return _GLOBAL_COUNTY
 
 
 _COUNTY_SORTED: dict[str, list[tuple[str, str]]] = {}
@@ -193,9 +317,7 @@ def _county_hit(prov: str, entry: dict, text: str) -> str | None:
 
 
 def _resolve(prov: str | None, t: str) -> str | None:
-    if not prov:
-        return None
-    entry = _index().get(prov)
+    entry = _index().get(prov) if prov else None
     if entry is None:
         return None
     if prov in {"北京", "上海", "天津", "重庆"}:
@@ -214,6 +336,16 @@ def _resolve(prov: str | None, t: str) -> str | None:
     county_city = _county_hit(prov, entry, t)
     if county_city:
         return county_city
+    # 4b) 同省旧县名后缀变体（撤并改名：凤翔县→凤翔区）
+    for old, city in sorted(
+        _county_variants(prov, entry).items(), key=lambda kv: len(kv[0]), reverse=True
+    ):
+        if old in t:
+            return city
+    # 4c) 个别历史 county 别名（单字 stem 变体规则覆盖不到）
+    for old, city in _RENAMED_COUNTY_ALIASES.items():
+        if old in t:
+            return city
     # 5) 首段县级行政名按同省地级短名识别（邢台县 2020 撤并后索引无此县）
     head = _HEAD_RE.match(t)
     if head:
@@ -224,14 +356,23 @@ def _resolve(prov: str | None, t: str) -> str | None:
     for _full, canon in items:
         if len(canon) >= 2 and canon in t:
             return canon
+    return _global_county_fallback(t)
+
+
+def _global_county_fallback(t: str) -> str | None:
+    """跨省县名兜底（省划迁管，如 四川 claim 下的 涪陵区→重庆）。仅在最
+    后接手，同 key 跨省冲突的县不参与（_global_county_sorted 已过滤）."""
+    for name, city in _global_county_sorted():
+        if name in t:
+            return city
     return None
 
 
 def resolve_city(province: str | None, text: str) -> str | None:
     """从「省份 + 自由文本（address/locality）」解析地级城市.
 
-    步骤：1 注册表名全文命中（最长优先，`景德镇市`→景德镇）；2 省级直接
-    城市（直辖市）；3-6 见 `_resolve`。识别不了返回 None.
+    步骤：1 注册表名全文命中（最长优先，`景德镇市`→景德镇）；2 直辖市；
+    2a 旧书写别名；3-6 见 `_resolve`；最后跨省县名兜底.
     """
     t = (text or "").strip()
     if not t:
@@ -239,4 +380,18 @@ def resolve_city(province: str | None, text: str) -> str | None:
     for name in _known_sorted():
         if name in t:
             return canonical_city(name)
-    return _resolve(_province_of(province, t), t)
+    # 2a) 旧库遗留书写（高新区/管委会/直辖县级市短写；无省也能命中）
+    # ≤2 字别名只做全等（「陵」子串会命中一切），≥3 字用包含.
+    for old, city in _CITY_ALIASES_EXTRA.items():
+        if t == old or (len(old) > 2 and old in t):
+            return city
+    hit = _resolve(_province_of(province, t), t)
+    if hit:
+        return hit
+    hit = _global_county_fallback(t)
+    if hit:
+        return hit
+    # 7) 省外裸地级串（normalize 第二遍的「烟台市 / 迪庆州」）：canonical
+    # 层认识就直接给；不认识（原样返回）则按 None 保守处理.
+    canon = canonical_city(t)
+    return canon if canon != t else None

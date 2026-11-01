@@ -105,19 +105,29 @@ def short_prefecture(name: str) -> str:
     """地级名 → 短名：去自治州民族限定 + 去 市/地区/盟/州 后缀。
 
     `阿拉善盟`/`神农架林区` 这类注册名本身带后缀，由 `canonical_prefecture`
-    优先命中注册表回退处理。
+    优先命中注册表回退处理.
+    裸民族 token（蒙古/哈萨克——没有「族」字的自治州）只在剥掉过自治
+    单位后才削，否则「南京市→南」一类误伤（GitHub 生成器踩过的坑）.
     """
     s = _AUTONOMOUS_RE.sub("", name)
-    s = s.replace("族", "")
-    changed = True
-    while changed:
-        changed = False
-        for eth in _ETHNIC_SORTED:
-            if s.endswith(eth) and len(s) > len(eth):
-                s = s[: -len(eth)]
-                changed = True
-                break
-    for suf in ("市", "地区", "盟", "州", "区", "县", "旗"):
+    if s != name:  # 剥掉了自治单位，民族限定才有资格被削
+        changed = True
+        while changed:
+            changed = False
+            for eth in _ETHNIC_SORTED:
+                if s.endswith(eth + "族") and len(s) > len(eth) + 1:
+                    s = s[: -(len(eth) + 1)]
+                    changed = True
+                elif (
+                    s.endswith(eth)
+                    and len(s) > len(eth)
+                    and len(s) - len(eth) >= 2  # 陵水 不能被 水族 裸削成 陵
+                ):
+                    s = s[: -len(eth)]
+                    changed = True
+        if not s:
+            return name
+    for suf in ("市", "地区", "盟", "州"):
         if s.endswith(suf) and len(s) > len(suf):
             return s[: -len(suf)]
     return s
@@ -146,11 +156,34 @@ def canonical_prefecture(name: str) -> str:
     return short
 
 
-def iter_prefectures(raw: list[dict]):
-    for prov in raw:
-        pfull = prov["name"]
-        for city in prov.get("children") or []:
-            yield pfull, city
+def canonical_county_standalone(name: str) -> str:
+    """省直辖县级单位（海南 临高县/白沙黎族自治县…）自成一城时的 canonical：
+    去县/行划后缀 + 民族片段，注册名（神农架林区）优先."""
+    if name in _KNOWN:
+        return name
+    s = name
+    for suf in ("自治县", "自治旗", "自治州", "自治区"):
+        if s.endswith(suf) and len(s) > len(suf):
+            s = s[: -len(suf)]
+            break
+    changed = True
+    while changed:
+        changed = False
+        for eth in _ETHNIC_SORTED:
+            if s.endswith(eth + "族") and len(s) > len(eth) + 1:
+                s = s[: -(len(eth) + 1)]
+                changed = True
+            elif (
+                s.endswith(eth)
+                and len(s) > len(eth)
+                and len(s) - len(eth) >= 2
+            ):
+                s = s[: -len(eth)]
+                changed = True
+    for suf in ("县", "旗", "林区", "市"):
+        if s.endswith(suf) and len(s) > len(suf) and len(s) - len(suf) >= 2:
+            return s[: -len(suf)]
+    return s
 
 
 def build(raw: list[dict]) -> dict:
@@ -174,7 +207,7 @@ def build(raw: list[dict]) -> dict:
                 else:
                     # 省直辖县级单位（济源/仙桃/潜江/石河子…）：自成一城
                     for area in city.get("children") or []:
-                        entry["counties"][area["name"]] = canonical_prefecture(
+                        entry["counties"][area["name"]] = canonical_county_standalone(
                             area["name"]
                         )
                 continue
