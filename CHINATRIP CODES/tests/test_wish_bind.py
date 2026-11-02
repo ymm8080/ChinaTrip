@@ -373,6 +373,67 @@ def test_merge_must_visits_binding_marks_picked_no_dup():
     assert out[0]["must"] is True
 
 
+# --- 行程外城不排（2026-11-02 北京钟楼案收口）---
+
+
+def test_merge_must_visits_skips_off_trip_city_binding():
+    """绑定 POI 真城在行程外（如 西安行程绑到北京钟楼）：跳过不排，
+    不再被 ranges.get(city,(1,days)) 兜底摊到全程。"""
+    off_city = dict(_PANDA)
+    off_city["city"] = "北京"
+    out = PlanningAgent._merge_must_visits(
+        [],
+        ["看熊猫"],
+        ["西安"],
+        3,
+        {"西安": (1, 3)},
+        bindings={"看熊猫": off_city},
+    )
+    assert all("熊猫" not in (s.get("name") or "") for s in out)
+
+
+def test_merge_must_visits_skips_off_trip_city_site():
+    """专名支路：site_cities 把必去解析到行程外城（北京）→ 跳过；
+    行程内城（西安市 带后缀写法）仍正常排。"""
+    out = PlanningAgent._merge_must_visits(
+        [],
+        ["八达岭长城", "兵马俑"],
+        ["西安"],
+        2,
+        {"西安": (1, 2)},
+        site_cities={"八达岭长城": "北京", "兵马俑": "西安市"},
+    )
+    names = [s["name"] for s in out]
+    assert "八达岭长城" not in names
+    assert "兵马俑" in names
+    bmy = next(s for s in out if s["name"] == "兵马俑")
+    assert bmy["city"] == "西安市"
+    assert bmy["must"] is True
+
+
+def test_wish_bind_pool_skips_cross_city_hits():
+    """心愿绑定池：带 cross_city_hit 标记的候选不参与绑定裁决。"""
+    beijing_bell = {
+        "name": "北京钟楼",
+        "city": "北京",
+        "category": "sight",
+        "rating": 4.8,
+        "location": (116.397, 39.939),
+        "cross_city_hit": True,
+    }
+    xian_bell = {
+        "name": "西安钟楼",
+        "city": "西安",
+        "category": "sight",
+        "rating": 4.7,
+        "location": (108.943, 34.261),
+    }
+    agent = PlanningAgent.__new__(PlanningAgent)
+    got = agent._wish_bind_candidate("钟楼", [beijing_bell, xian_bell])
+    assert got is not None
+    assert got["name"] == "西安钟楼"
+
+
 # --- 水利工程事故（2026-10-30 深夜）：精确→模糊→LLM + 行程中心留痕 ---
 
 

@@ -5215,6 +5215,11 @@ class PlanningAgent:
         kinds = kinds or {}
         site_cities = site_cities or {}
         default_city = cities[0] if len(cities) == 1 else _unspecified()
+        # 行程外城不排（2026-11-02 北京钟楼案收口）：绑定/专名必去落到
+        # 非行程城时旧版 ranges.get(city,(1,days)) 兜底默认窗——异地点
+        # 被摊到全程。真城保留（复活卡语义），排期出局+留痕。
+        trip_cities = {str(c or "").strip().removesuffix("市") for c in cities} - {""}
+        unspecified = _unspecified()  # 多城默认城=未标注哨兵：不是行程外城
         # 容量感知放日（2026-10-30「第一天三站时间明显不够」）：必去原先按
         # lo+idx%span 轮转乱放，不看当日负载——转场日（预算 360-180）被再叠
         # 两个必去就是当天 300 分钟参访。改为城窗口内找最早有余量的天；全满
@@ -5340,6 +5345,19 @@ class PlanningAgent:
                     or site_cities.get(name)
                     or default_city
                 )
+                if (
+                    bcity not in ("", unspecified)
+                    and bcity.removesuffix("市") not in trip_cities
+                ):
+                    logger.warning(
+                        "must_visit_skip_off_trip_city: wish=%s bound=%s city=%s "
+                        "trip_cities=%s",
+                        name,
+                        bound.get("name"),
+                        bcity,
+                        sorted(trip_cities),
+                    )
+                    continue
                 lo, hi = ranges.get(bcity, (1, days))
                 duration = DEFAULT_VISIT_MINUTES
                 if kinds.get(name) != "food" and bound.get("suggested_duration_min"):
@@ -5377,6 +5395,17 @@ class PlanningAgent:
             # A must-visit lands on a day based in its own city — never
             # round-robined across the whole trip (multi-city videos).
             city = site_cities.get(name) or default_city
+            if (
+                city not in ("", unspecified)
+                and city.removesuffix("市") not in trip_cities
+            ):
+                logger.warning(
+                    "must_visit_skip_off_trip_city: site=%s city=%s trip_cities=%s",
+                    name,
+                    city,
+                    sorted(trip_cities),
+                )
+                continue
             lo, hi = ranges.get(city, (1, days))
             m_minutes = (
                 MEAL_DURATION_MINUTES
@@ -5409,8 +5438,14 @@ class PlanningAgent:
         if len(core) < 2:
             return None
         ncore = _norm_site_name(core)
+        # 异地命中不参与绑定（2026-11-02 收口）：带 cross_city_hit 标记的
+        # 候选真城在行程外，绑进去会被 _merge_must_visits 摊到全程。
         pool = [
-            c for c in candidates if c.get("name") and c.get("location") is not None
+            c
+            for c in candidates
+            if c.get("name")
+            and c.get("location") is not None
+            and not c.get("cross_city_hit")
         ]
 
         def _rating(c: dict) -> float:
@@ -5637,7 +5672,11 @@ class PlanningAgent:
         if not key or key in self._wish_bind_misses:
             return None
         pool = [
-            c for c in candidates if c.get("name") and c.get("location") is not None
+            c
+            for c in candidates
+            if c.get("name")
+            and c.get("location") is not None
+            and not c.get("cross_city_hit")
         ][:WISH_BIND_LLM_MAX_CANDIDATES]
         if not pool:
             return None
@@ -7034,6 +7073,11 @@ class PlanningAgent:
         across that city's day window."""
         groups: dict[str, list[dict]] = {}
         for cand in candidates:
+            if cand.get("cross_city_hit"):
+                # 异地命中不排期（2026-11-01 北京钟楼案同口径，2026-11-02
+                # 补占位路）：下方 ranges.get(city,(1,days)) 对非行程城
+                # 兜底默认窗——异地组会被摊到全程。
+                continue
             groups.setdefault(cand.get("city") or _unspecified(), []).append(cand)
         items = []
         for city, group in groups.items():

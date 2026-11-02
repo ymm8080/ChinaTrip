@@ -1093,6 +1093,24 @@ def test_v0_placeholder_selection_respects_city_windows():
     assert not [v for v in visits if v.city == "上海"]
 
 
+def test_placeholder_selection_skips_cross_city_hits():
+    """异地命中不进占位（2026-11-02 兵马俑→北京钟楼案补缝）：占位分组
+    对非行程城走 ranges.get(city,(1,days)) 兜底默认窗——北京组会被摊
+    到西安全程。LLM 失败降级路（PLAN_SELECT_MODE=llm）与选点/回填/
+    均衡同口径出局。"""
+    items = PlanningAgent._placeholder_selection(
+        [
+            {"name": "西安钟楼", "city": "西安"},
+            {"name": "北京钟楼", "city": "北京", "cross_city_hit": True},
+        ],
+        days=3,
+        ranges={"西安": (1, 3)},
+    )
+    names = [i["name"] for i in items]
+    assert "西安钟楼" in names
+    assert "北京钟楼" not in names
+
+
 def test_v0_solver_failure_delivers_sequenced_with_assumption():
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm, solver=lambda plan, **kw: None)
