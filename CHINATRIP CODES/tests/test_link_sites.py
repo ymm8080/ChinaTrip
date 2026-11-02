@@ -775,6 +775,36 @@ def test_amap_city_overrides_wrong_extracted_city():
     assert wishlist["十八梯"]["city"] == "重庆"
 
 
+def test_off_trip_amap_truth_not_scheduled():
+    """异地真 POI 不进排期（2026-11-03 收口，北京钟楼镜像案）：amap 真城
+    不在行程城时，旧逻辑无条件覆写 city 且 city_days 为空 → 全程轮转把
+    异地点摊到别城的天。现口径=真城写回心愿单留档、不排期、披露。"""
+    reader = StubReader(_cq_video_digest())
+    trip_items = TripItemService()
+    amap = CityAmap({"十八梯": "兰州市"})  # amap truth: off-trip city
+    llm, agent = _ready_agent(
+        [
+            _cq_v0_reply(),
+            json.dumps(
+                {"sites": [{"name": "十八梯", "kind": "sight", "city": "西安"}]},
+                ensure_ascii=False,
+            ),
+            json.dumps({"reply": "", "diffs": []}),
+        ],
+        reader,
+        trip_items,
+        amap=amap,
+    )
+    session = _multi_city_session(agent)
+    session, _, _ = run(
+        agent.message(session, "看这个 https://www.douyin.com/video/7389002")
+    )
+    item, _ = _plan_visit(session, "十八梯")
+    assert item is None  # 兰州 POI 不出现在重庆/成都/西安的任何天
+    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    assert wishlist["十八梯"]["city"] == "兰州"  # 真城留档
+
+
 # --- variant-name dedupe (plan already holds the site) ---------------------
 
 

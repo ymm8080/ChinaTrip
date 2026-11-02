@@ -4047,9 +4047,43 @@ class PlanningAgent:
                 poi_id = poi.get("source_poi_id")
                 poi_city = _norm_city(str(poi.get("city") or ""))
                 if poi_city:
-                    # Amap ground truth wins over the video/session guess.
-                    city = poi_city
-                    session.site_cities[name] = poi_city
+                    trip_norm = (
+                        {
+                            _norm_city(str(c or ""))
+                            for c in session.cities
+                            if str(c or "").strip()
+                        }
+                        - {""}
+                    )
+                    if poi_city in trip_norm:
+                        # Amap ground truth wins over the video/session guess.
+                        city = poi_city
+                        session.site_cities[name] = poi_city
+                    else:
+                        # 异地真 POI 不排期（2026-11-03 链接/聊天路收口，
+                        # 与 d6a6daf merge 守卫同口径）：旧逻辑无条件覆写
+                        # city 且下方 city_days 为空 → 全程轮转把异地点摊
+                        # 到别城的天（北京钟楼镜像案）。真城写回留档（心愿
+                        # 单城市列），不进排期，披露+留痕。
+                        logger.warning(
+                            "must_visit_off_trip_city: name=%s poi=%s city=%s "
+                            "trip_cities=%s",
+                            name,
+                            poi.get("name"),
+                            poi_city,
+                            session.cities,
+                        )
+                        session.site_cities[name] = poi_city
+                        notes.append(
+                            L(
+                                f"「{name}」实际在{poi_city}，本次行程未含"
+                                f"{poi_city}，未排入——想去请调整行程城市",
+                                f'"{name}" is actually in {poi_city}, which '
+                                "isn't on this trip — left out; adjust the "
+                                "trip cities if you want it",
+                            )
+                        )
+                        continue
                 if _amap_category_is_food(poi.get("category")):
                     kind = "food"
                 loc = poi.get("location")
