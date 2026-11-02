@@ -182,9 +182,10 @@ def test_rebalance_far_same_name_not_phantom():
 
 def test_rebalance_outdoor_skips_rainy_day():
     # 露天点不进雨天；室内点可进
-    picked = [_spec("锚点", "重庆", 1, loc=(106.5, 29.5), minutes=90)]
+    # 锚点 300' ≥ 回填线：day1 不吸走近点，室内替补才能落到雨天 day2
+    picked = [_spec("锚点", "重庆", 1, loc=(106.5, 29.5), minutes=300)]
     candidates = [
-        _cand("锚点", "重庆", loc=(106.5, 29.5), minutes=90),
+        _cand("锚点", "重庆", loc=(106.5, 29.5), minutes=300),
         _cand("露天峡", "重庆", loc=(106.5, 29.51), minutes=90, rain="no"),
         _cand("室内馆", "重庆", loc=(106.5, 29.51), minutes=90, rain="yes"),
     ]
@@ -254,3 +255,23 @@ def test_rebalance_keeps_food_and_show_untouched():
     out, _ = PlanningAgent._rebalance_days(picked, [], 2, {"成都": (1, 2)})
     for name in ("正餐", "演出"):
         assert any(s["name"] == name and s["day"] == 1 for s in out)
+
+
+def test_rebalance_fills_past_half_budget_to_three_quarters():
+    # 2026-11-02 用户拍板「day2 只有三个活动」：旧半预算线（180'）让
+    # 90'+90' 的半满天过早停手、下午全空——回填线收紧到 3/4 日预算
+    # （270'），预算与 4 点闸内继续补
+    picked = [
+        _spec("甲", "西安", 1, loc=(108.96, 34.28), minutes=90),
+        _spec("乙", "西安", 1, loc=(108.97, 34.29), minutes=90),
+    ]
+    candidates = [
+        _cand("甲", "西安", loc=(108.96, 34.28), minutes=90),
+        _cand("乙", "西安", loc=(108.97, 34.29), minutes=90),
+        _cand("丙", "西安", loc=(108.98, 34.30), minutes=120),
+    ]
+    out, notes = PlanningAgent._rebalance_days(
+        picked, candidates, 1, {"西安": (1, 1)}
+    )
+    assert any(s["name"] == "丙" for s in out)
+    assert any("回填" in zh for zh, _en in notes)
