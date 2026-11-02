@@ -166,6 +166,18 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError:
         print(json.dumps({"error": f"csv not found: {args.csv}"}, ensure_ascii=True))
         return 1
+    # §4 产品过滤（2026-11-03 拍板：红色题材演艺不入——红秀/西安事变影画出池）
+    import os
+
+    from app.services.product_filter import apply_product_filter, write_excluded_csv
+
+    rows, excluded = apply_product_filter(rows)
+    if excluded:
+        write_excluded_csv(
+            os.path.splitext(args.csv)[0] + "_excluded.csv",
+            excluded,
+            fields=("city", "name_zh", "exclusion_reason"),
+        )
 
     from app.db import get_session_factory
 

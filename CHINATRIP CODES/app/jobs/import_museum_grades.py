@@ -50,6 +50,7 @@ from sqlalchemy import func
 
 from app.models import Poi
 from app.services.poi_seed import seed_upsert
+from app.services.product_filter import apply_product_filter, write_excluded_csv
 
 _GRADE_SOURCE: dict[str, str] = {
     "国家一级博物馆": "museum1",
@@ -202,6 +203,15 @@ def main(argv: list[str] | None = None) -> int:
     rows, invalid = load_rows(args.csv)
     if args.limit > 0:
         rows = rows[: args.limit]
+    # §4 产品过滤（2026-11-03 接线）：红色/政治/军事名单行不入库，
+    # 剔除行落 *_excluded.csv（可回灌；dry-run 同样生效）
+    rows, excluded = apply_product_filter(rows)
+    if excluded:
+        write_excluded_csv(
+            os.path.splitext(args.csv)[0] + "_excluded.csv",
+            excluded,
+            fields=("source", "city", "name_zh", "batch", "exclusion_reason"),
+        )
 
     from app.db import get_session_factory
 
@@ -220,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
 
     stats = run_import(factory, rows, dry_run=args.dry_run)
     stats["invalid_rows"] = invalid
+    stats["excluded_product_filter"] = len(excluded)
     print(json.dumps(stats, ensure_ascii=True, sort_keys=True))
     return 0
 
