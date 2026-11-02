@@ -184,6 +184,55 @@ def test_geocode_quota_death_falls_to_search_chain():
     assert geo.calls == 1  # latch：第二行不再撞 geocode
 
 
+def test_geocode_quota_death_with_dead_search_chain_stops_clean():
+    # geocode 配额死 + 检索链全死/空：干净停机，剩余行不写 miss 台账
+    # （配额烧尽可次日重试，台账只收确定性未命中，2026-11-03）。
+    from app.jobs.backfill_locations import backfill_rows
+
+    geo = StubGeocoder(quota=True)
+    search = StubSearch("amap", quota_after=0)
+    stats = asyncio.run(
+        backfill_rows(
+            StoreStub(),
+            [search],
+            [_addr_row(1), _addr_row(2), _addr_row(3)],
+            geocoder=geo,
+        )
+    )
+    assert stats.get("stopped_no_channel") == 1
+    assert stats["missed"] == 0
+    assert stats["geocode_quota_stopped"] == 1
+    assert search.calls == 1  # 撞一次配额即 latch
+
+
+def test_geocode_quota_death_with_empty_search_chain_stops_clean():
+    # 探针预检后检索链为空（三家全死）+ geocode 中途烧尽：geocode 存活期
+    # 的未命中仍是确定性 miss（入台账），geocode 死后剩余行零网络干净停机
+    # 不写台账（2026-11-03）。
+    from app.jobs.backfill_locations import backfill_rows
+
+    class GeoDiesAtSecond(StubGeocoder):
+        async def geocode(self, address, *, city=None):
+            self.calls += 1
+            if self.calls > 1:
+                from app.services.amap_client import AmapQuotaExhaustedError
+
+                raise AmapQuotaExhaustedError("quota", "302")
+            return {"lon": None, "lat": None, "level": None}
+
+    stats = asyncio.run(
+        backfill_rows(
+            StoreStub(),
+            [],
+            [_addr_row(1), _addr_row(2), _addr_row(3)],
+            geocoder=GeoDiesAtSecond(),
+        )
+    )
+    assert stats.get("stopped_no_channel") == 1
+    assert stats["missed"] == 1  # 仅首行（geocode 存活期确定性未命中）入台账
+    assert stats["geocode_quota_stopped"] == 1
+
+
 def test_addressless_rows_geocode_by_city_and_name():
     # 无门址行（宽窄巷子类纯名字骨架）用 城市+名字 geocode（2026-10-30）。
     from app.jobs.backfill_locations import backfill_rows

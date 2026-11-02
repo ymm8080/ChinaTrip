@@ -280,6 +280,15 @@ async def backfill_rows(
                 hit_vendor = vendor
                 break
         if hit is None:
+            if geocode_dead and (
+                not clients
+                or all(getattr(c, "vendor", "amap") in dead for c in clients)
+            ):
+                # geocode 配额死 + 检索链无活源：剩余行零网络也全 miss，
+                # 停（幂等可续）且不记 miss——这是配额烧尽不是确定性未命中，
+                # 写台账会堵死次日配额恢复后的重试（2026-11-03）。
+                stats["stopped_no_channel"] = 1
+                break
             stats["missed"] += 1
             if clients and all(getattr(c, "vendor", "amap") in dead for c in clients):
                 # 全链配额死：剩余行零网络也全 miss，停（幂等可续）
