@@ -124,6 +124,8 @@ PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
 # 30 行；重庆 top30 滤后仅剩 3 个可用候选、每天 1 点即此故。
 PLAN_LIBRARY_FETCH_DEPTH = 120
 PLAN_LIBRARY_WINDOW = 30
+# S5 演出保位（2026-11-02）：候选窗口外保底的同城演出行数上限
+PLAN_SHOW_RESCUE_LIMIT = 3
 
 
 class PoiStoreUnavailableError(RuntimeError):
@@ -4665,6 +4667,23 @@ class PlanningAgent:
                 lib_hits = [h for h in lib_all if h.get("name") and h.get("location")][
                     :PLAN_LIBRARY_WINDOW
                 ]
+                # 演出保位（2026-11-02 西安实录）：演出库行无评分
+                # （score 恒尾部），坐标回填把 4a 行补齐坐标后会把演出
+                # 挤出 top-30 窗口（实录演出排 40-53 位全灭、新计划零
+                # 演出）——窗口满员时同城窗口外保底最多 3 行有坐标演出
+                # （按库序），晚间锚点不断供；每天一场的闸在选点层执行。
+                if len(lib_hits) >= PLAN_LIBRARY_WINDOW:
+                    _picked_names = {h.get("name") for h in lib_hits}
+                    lib_hits.extend(
+                        [
+                            h
+                            for h in lib_all
+                            if h.get("name")
+                            and h.get("location")
+                            and h.get("name") not in _picked_names
+                            and _cand_is_show(h)
+                        ][:PLAN_SHOW_RESCUE_LIMIT]
+                    )
                 no_loc = sum(
                     1 for h in lib_all if h.get("name") and not h.get("location")
                 )
@@ -5717,6 +5736,9 @@ class PlanningAgent:
         偏好可以是同一类型多个景点」）：偏好同类候选提到 tier 之前，同
         偏好组内仍按 tier 保库序——多个同类景点自然入选；雨天重排时偏好
         位次在雨天避险位之后、tier 之前（物理约束优先于口味）。
+        ⑧演出每场闸（2026-11-02 用户拍板「一天最多一场演出」）：全通道
+        落位后按天清点演出候选，同天第二场按池序裁掉并披露；夜场收尾
+        避让已有演出日；雨天替补仍可用演出候选，同天重复由主闸裁并。
         """
         pref_tokens, pref_show = _preference_tokens(preferences)
 
@@ -6127,6 +6149,23 @@ class PlanningAgent:
                 ):
                     continue
                 _refill(pos, cand)
+            # 演出每场闸（2026-11-02 用户拍板「一天最多一场演出」）：主池
+            # 落位、雨天对调、稀疏回填全通道收口后按天清点演出候选
+            # （_cand_is_show：含多场次下午场演出），同天第二场起按池序
+            # （tier 序）裁掉并披露，载荷同步扣减。必去合并在选点之后，
+            # 用户点名演出不受本闸限制。
+            for d in range(lo, hi + 1):
+                day_shows = [(p_, c_) for p_, c_ in placed[d] if _cand_is_show(c_)]
+                for p_, c_ in day_shows[1:]:
+                    placed[d].remove((p_, c_))
+                    day_loads[d][0] -= _minutes(c_, DEFAULT_VISIT_MINUTES)
+                    day_loads[d][1] -= 1
+                    if notes is not None:
+                        notes.append(
+                            f"第{d}天一天只排一场演出："
+                            f"{day_shows[0][1]['name']}保留，{c_['name']}已裁掉"
+                            "（要保留请说）"
+                        )
             for day, seq in placed.items():
                 if not seq:
                     continue
@@ -6153,7 +6192,36 @@ class PlanningAgent:
                     # None 时间、全计划布局降级）。改钉前一天，返程日白天
                     # 仍留给常规景点（返程日修复的既有语义）。
                     show_day = hi - 1
-                items.append(_item(best, show_day, _minutes(best, 90)))
+                # 演出每场闸联动（2026-11-02 用户拍板）：收尾日已有演出时，
+                # 夜场改钉同城窗口内最近的无演出日；全窗都有演出则不重复
+                # 钉（由已排演出承担，点名披露）。
+                if any(_cand_is_show(c_) for _p_, c_ in placed.get(show_day, [])):
+                    alt_day = next(
+                        (
+                            d
+                            for d in range(show_day - 1, lo - 1, -1)
+                            if not any(
+                                _cand_is_show(c_) for _p_, c_ in placed.get(d, [])
+                            )
+                        ),
+                        None,
+                    )
+                    if alt_day is None:
+                        if notes is not None:
+                            notes.append(
+                                f"{city}窗口内每天已有演出，夜场{best['name']}"
+                                "不重复排（要保留请说）"
+                            )
+                        best = None
+                    else:
+                        if notes is not None:
+                            notes.append(
+                                f"第{show_day}天已有演出，夜场{best['name']}改排"
+                                f"第{alt_day}天（一天一场演出）"
+                            )
+                        show_day = alt_day
+                if best is not None:
+                    items.append(_item(best, show_day, _minutes(best, 90)))
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         return items
@@ -6322,6 +6390,12 @@ class PlanningAgent:
                     if (_cand_is_show(cand) and _show_night_only(cand)) or _twin_blocks(
                         cand
                     ):
+                        continue
+                    if _cand_is_show(cand) and any(
+                        s.get("category") == "entertainment"
+                        for s in day_specs.get(d, [])
+                    ):
+                        # 演出每场闸（2026-11-02）：该天已有演出不再补第二场
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
