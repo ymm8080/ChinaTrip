@@ -4,12 +4,14 @@ import uuid
 
 from app.jobs.tag_star_hotels import (
     collect_jobs,
+    collect_jobs_prematched,
     make_star_tag,
     map_row,
     parse_star,
     plan_tags,
     row_matches,
     tag_hotels,
+    tag_hotels_prematched,
 )
 from app.models import Poi
 
@@ -136,8 +138,19 @@ class _FakeQuery:
     def filter(self, *_criterion):
         return self  # 城市/类别过滤由 row_matches 与夹具兜底
 
+    def filter_by(self, **kw):
+        out = [
+            r
+            for r in self._rows
+            if all(getattr(r, k, None) == v for k, v in kw.items())
+        ]
+        return _FakeQuery(out)  # prematched 按 id 查行走这里
+
     def all(self):
         return self._rows
+
+    def one_or_none(self):
+        return self._rows[0] if self._rows else None
 
 
 class _FakeSession:
@@ -260,3 +273,140 @@ def test_collect_jobs_bom_columns_limit_and_out_of_vocab(tmp_path):
     assert stats["no_star_detail"][0]["name"] == "某三星宾馆"
     assert [j["tag"] for j in jobs] == ["star_5", "star_5"]
     assert jobs[0]["entry"]["city"] == "北京"
+
+
+# ---------- 审阅包（--prematched）模式：审阅包即决定记录，按 poi_id 执行 ----------
+
+
+def _prematched_csv(tmp_path, lines):
+    header = "星级,市区(名单口径),饭店名称,预匹配状态,库内poi_id,库内city\n"
+    p = tmp_path / "review.csv"
+    p.write_text("\ufeff" + header + "".join(lines), encoding="utf-8")
+    return str(p)
+
+
+def test_collect_prematched_splits_branches(tmp_path):
+    path = _prematched_csv(
+        tmp_path,
+        [
+            "5,东城区,北京饭店,命中,11111111-1111-1111-1111-111111111111,北京\n",
+            "4,朝阳区,某四星,命中(城市待核),22222222-2222-2222-2222-222222222222,北京\n",
+            "5,东城区,未入库五星,未在库,,北京\n",
+            "3,海淀区,某三星,命中,33333333-3333-3333-3333-333333333333,北京\n",
+            "5,东城区,,命中,,北京\n",  # 无名称=无效行
+        ],
+    )
+    jobs, stats = collect_jobs_prematched(path)
+    assert stats["read"] == 5 and stats["invalid"] == 1
+    assert stats["not_in_library"] == 1  # 未在库五星：无行可标，不建骨架
+    assert stats["no_qualifying_star"] == 1  # 三星词表外
+    assert [j["tag"] for j in jobs] == ["star_5", "star_4"]
+    # 状态注记原样保留（命中(城市待核) 等留给审阅人看）
+    assert jobs[1]["entry"]["status"] == "命中(城市待核)"
+
+
+def _with_id(row, hex_str):
+    row.id = uuid.UUID(hex_str)
+    return row
+
+
+def _pjob(poi_id, name, tag="star_5", status="命中"):
+    return {
+        "entry": {
+            "name": name,
+            "city": "北京",
+            "star": 5,
+            "status": status,
+            "poi_id": poi_id,
+        },
+        "tag": tag,
+    }
+
+
+def test_tag_prematched_tags_by_poi_id_dry_run_never_commits():
+    row = _with_id(
+        _mk_hotel("北京饭店", "北京市"), "11111111-1111-1111-1111-111111111111"
+    )
+    factory = _fake_factory([row])
+    stats = tag_hotels_prematched(
+        factory,
+        [_pjob("11111111-1111-1111-1111-111111111111", "北京饭店")],
+        tags_source="mct",
+    )
+    assert stats["mode"] == "dry-run"
+    assert stats["matched"] == 1 and stats["tagged_rows"] == 1
+    assert factory.created[0].commit_count == 0
+    assert stats["tagged_detail"][0]["tag"] == "star_5"
+
+
+def test_tag_prematched_apply_commits_per_row_and_swaps_star():
+    row_a = _with_id(
+        _mk_hotel("北京饭店", "北京市"), "11111111-1111-1111-1111-111111111111"
+    )
+    row_b = _with_id(
+        _mk_hotel("上海和平饭店", "上海市", tags=["star_4"]),
+        "22222222-2222-2222-2222-222222222222",
+    )
+    factory = _fake_factory([row_a, row_b])
+    jobs = [
+        _pjob("11111111-1111-1111-1111-111111111111", "北京饭店"),
+        _pjob(
+            "22222222-2222-2222-2222-222222222222",
+            "上海和平饭店",
+            status="命中(别名/去括号)",
+        ),
+    ]
+    stats = tag_hotels_prematched(factory, jobs, tags_source="mct", apply=True)
+    assert stats["tagged_rows"] == 2
+    assert row_a.tags == ["star_5"] and row_a.tags_source == "mct"
+    assert row_b.tags == ["star_5"]  # 升星互斥替换
+    assert factory.created[0].commit_count == 3  # 2 行逐条 + 收尾
+
+
+def test_tag_prematched_guards_poi_id_not_found_and_bad_uuid():
+    row = _with_id(
+        _mk_hotel("北京饭店", "北京市"), "11111111-1111-1111-1111-111111111111"
+    )
+    factory = _fake_factory([row])
+    jobs = [
+        _pjob("99999999-9999-9999-9999-999999999999", "查无此店"),
+        _pjob("not-a-uuid", "坏uuid", tag="star_4"),
+    ]
+    stats = tag_hotels_prematched(factory, jobs, tags_source="mct", apply=True)
+    assert stats["matched"] == 0 and stats["not_found"] == 2
+    reasons = {d["reason"] for d in stats["skipped_detail"]}
+    assert reasons == {"poi_id_not_found", "bad_poi_id"}
+    assert factory.created[0].commit_count == 1  # 仅收尾
+
+
+def test_tag_prematched_refuses_non_active_hotel_rows():
+    wrong_cat = _with_id(
+        _mk_hotel("误配餐厅", "北京市"), "11111111-1111-1111-1111-111111111111"
+    )
+    wrong_cat.category = "restaurant"
+    hidden = _with_id(
+        _mk_hotel("软删饭店", "北京市"), "22222222-2222-2222-2222-222222222222"
+    )
+    hidden.status = "hidden"
+    factory = _fake_factory([wrong_cat, hidden])
+    jobs = [
+        _pjob("11111111-1111-1111-1111-111111111111", "误配餐厅"),
+        _pjob("22222222-2222-2222-2222-222222222222", "软删饭店"),
+    ]
+    stats = tag_hotels_prematched(factory, jobs, tags_source="mct")
+    assert stats["matched"] == 0 and stats["non_hotel"] == 2
+    assert wrong_cat.tags is None and hidden.tags is None  # 守卫不写
+
+
+def test_tag_prematched_rerun_idempotent_and_official_guard():
+    poi_id = "11111111-1111-1111-1111-111111111111"
+    row = _with_id(
+        _mk_hotel("北京饭店", "北京市", tags=["star_5"], tags_source="mct"), poi_id
+    )
+    factory = _fake_factory([row])
+    job = [_pjob(poi_id, "北京饭店")]
+    stats = tag_hotels_prematched(factory, job, tags_source="mct", apply=True)
+    assert stats["already_ok"] == 1 and stats["tagged_rows"] == 0
+    # glm 市场口径不得改写已持 mct 的行（不冒充官方）
+    stats2 = tag_hotels_prematched(factory, job, tags_source="glm")
+    assert stats2["kept_official"] == 1 and row.tags_source == "mct"
