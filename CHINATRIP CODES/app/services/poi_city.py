@@ -427,20 +427,21 @@ def _global_county_fallback(t: str) -> str | None:
 def resolve_city(province: str | None, text: str) -> str | None:
     """从「省份 + 自由文本（address/locality）」解析地级城市.
 
-    步骤：1 注册表名全文命中（最长优先，`景德镇市`→景德镇）；2 直辖市；
-    2a 旧书写别名；3-6 见 `_resolve`；最后跨省县名兜底.
+    步骤：1 旧书写别名（高新区/管委会/直辖县级市短写——特定串优先于
+    泛化注册表子串，否则「长白山管委会池北区」会被新注册的「白山」
+    子串抢中，扩表批次 3 回归）；2 注册表名全文命中（最长优先，
+    `景德镇市`→景德镇）；3 直辖市；4-8 见 `_resolve`；最后跨省县名兜底.
     """
     t = (text or "").strip()
     if not t:
         return None
-    for name in _known_sorted():
-        if name in t:
-            return canonical_city(name)
-    # 2a) 旧库遗留书写（高新区/管委会/直辖县级市短写；无省也能命中）
     # ≤2 字别名只做全等（「陵」子串会命中一切），≥3 字用包含.
     for old, city in _CITY_ALIASES_EXTRA.items():
         if t == old or (len(old) > 2 and old in t):
             return city
+    for name in _known_sorted():
+        if name in t:
+            return canonical_city(name)
     hit = _resolve(_province_of(province, t), t)
     if hit:
         return hit

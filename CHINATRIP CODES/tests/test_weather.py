@@ -454,7 +454,9 @@ def test_normalize_daily_same_shape_as_amap():
 def test_city_coords_cover_all_40():
     from app.services.weather import CITY_ADCODES
 
-    assert set(CITY_COORDS) == set(CITY_ADCODES)
+    # 扩表批次 3 后双源不再同集：adcode 城必须全部有坐标（气象局源可跑）；
+    # 反向不成立——新城仅 OM 14 天源（adcode 待 web 核实逐批补，见 weather.py 批次注释）
+    assert set(CITY_ADCODES) <= set(CITY_COORDS)
     assert all(len(v) == 2 for v in CITY_COORDS.values())
 
 
