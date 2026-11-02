@@ -38,6 +38,7 @@ import sys
 import uuid
 
 from app.models import Poi
+from app.services.best_visit import apply_rules
 from app.services.poi_details import order_source_tags
 
 logger = logging.getLogger(__name__)
@@ -362,6 +363,11 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                     )
                 stats["merge" if changed else "skip"] += 1
             else:
+                # 骨架行插入时就带时段信号（2026-11-01「两江夜游排在白天」
+                # 事故：intl 行导入后从未被回填作业覆盖到，best_visit_time
+                # 停留在列默认 any，solver 全天窗把夜游排进白天——插入即
+                # 打规则层标签（与回填作业同源），不等回填补课。
+                slot = apply_rules(name_zh, "attraction")
                 row = Poi(
                     id=uuid.uuid4(),
                     source=primary,
@@ -373,6 +379,8 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                     status="active",
                     tags=_order_tags(add_tags),
                     tags_source=primary,
+                    best_visit_time=slot,
+                    best_visit_time_source="heuristic" if slot else None,
                 )
                 session.add(row)
                 rows.append(row)  # 同批去重：别名重复项不会二次插入

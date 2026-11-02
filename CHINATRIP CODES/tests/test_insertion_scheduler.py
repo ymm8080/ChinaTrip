@@ -236,3 +236,29 @@ def test_insertion_pinned_item_is_anchor():
     big = next(i for i in solved.items if i.item_id == "big")
     # 09:00-12:00 会被钉点(±30 块)与午餐夹住 → 落下午
     assert _mins(big.start_time) >= 13 * 60
+
+
+def test_insertion_evening_window_not_in_daytime():
+    # 2026-11-01「两江夜游排在白天」事故回归：best_visit_time=evening 的
+    # 非演出条目开 17:00-21:00 窗（_visit_spec 同口径），白天留给常规点。
+    cruise = _visit("cruise", dur=90, best_visit_time="evening", city="重庆")
+    plain = _visit("plain", dur=90, city="重庆")
+    day = DayPlan(day=1, base_city="重庆", items=[plain, cruise])
+    solved = insertion_schedule_day(day, poi_hours=[])
+    assert solved is not None
+    c = next(i for i in solved.items if i.item_id == "cruise")
+    p = next(i for i in solved.items if i.item_id == "plain")
+    assert c.start_time is not None and _mins(c.start_time) >= 17 * 60
+    assert _mins(c.end_time) <= 21 * 60
+    assert p.start_time is not None and _mins(p.start_time) < 17 * 60
+
+
+def test_insertion_sunset_window_lower_bound():
+    # sunset 近似窗 16:00-19:00：观景台类不进上午。
+    deck = _visit("deck", dur=60, best_visit_time="sunset", city="重庆")
+    day = DayPlan(day=1, base_city="重庆", items=[deck])
+    solved = insertion_schedule_day(day, poi_hours=[])
+    assert solved is not None
+    deck2 = next(i for i in solved.items if i.item_id == "deck")
+    assert deck2.start_time is not None
+    assert 16 * 60 <= _mins(deck2.start_time) <= 19 * 60 - 60

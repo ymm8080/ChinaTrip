@@ -36,10 +36,22 @@ _CATEGORY_RULES: list[tuple[re.Pattern[str], str]] = [
 
 _TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
 
+# 住宿业态守卫（2026-11-01「两江夜游排在白天」事故复盘）：酒店/公寓行
+# 名称常嵌地名/商圈夜信号（「雅致酒店(广州二沙岛珠江夜游店)」「MEISHU
+# 公寓(西湖音乐喷泉店)」），它们不是夜间参访点——名称含住宿词的行不
+# 参与任何时段规则（名称+类别都拦），一律返回 None。
+_LODGING_RE = re.compile("酒店|宾馆|旅馆|民宿|公寓|客栈")
+
 
 def apply_rules(name: str | None, category: str | None = None) -> str | None:
-    """名称规则优先、类别规则兜底；任一命中即返回，无命中返回 None."""
+    """名称规则优先、类别规则兜底；任一命中即返回，无命中返回 None.
+
+    住宿业态名（酒店/公寓等）先拦：其名称里的夜/日出信号是商圈噪音，
+    绝不产出时段（2026-11-01 复盘加固）。
+    """
     if name:
+        if _LODGING_RE.search(name):
+            return None
         for pattern, slot in RULES:
             if pattern.search(name):
                 return slot

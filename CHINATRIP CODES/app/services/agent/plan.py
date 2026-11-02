@@ -2085,7 +2085,8 @@ def _reconcile_transfer_days(
     # 景点日始 9 点（2026-10-31 拍板）：离城日上午容量按 9 点起算；
     # 交通（火车 8 点出发）不受此限
     day_start = DAY_START_MINUTES
-    # 白天入场闸（2026-10-31 拍板）：挪日修复同样最晚 16:00 入场
+    # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：挪日修复同口径，
+    # 落位同时校验营业窗（熊猫基地 18:00（闭馆 17:00）事故）
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for idx, day in enumerate(plan.days):
         transfers = [t for t in day.items if isinstance(t, TransferItem)]
@@ -2144,8 +2145,13 @@ def _reconcile_transfer_days(
                 )
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
                 start = max(tail + 30, DAY_START_MINUTES)
-                cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
-                if start + dur <= 21 * 60 + 30 and (cap is None or start <= cap):
+                hours = hours_by_poi.get(visit.poi_id)
+                cap = generic_entry_cap(visit, hours)
+                if (
+                    start + dur <= 21 * 60 + 30
+                    and (cap is None or start <= cap)
+                    and _fits_hours_window(hours, start, dur)
+                ):
                     visit.day = target.day
                     visit.start_time = time(start // 60, start % 60)
                     visit.end_time = time((start + dur) // 60, (start + dur) % 60)
@@ -2262,6 +2268,32 @@ def _plan_poi_hours(plan: ItineraryPlan) -> list[PoiHours]:
     return out
 
 
+def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
+    """参访整段 [t, t+dur] 须落在营业窗内（2026-11-01 成都熊猫基地
+    18:00（闭馆 17:00）排期事故：兜底落位与挪日修复此前都不看闭馆
+    时刻）。多段窗先合并零间隔邻段（07:30-12:00 + 12:00-17:00 视作
+    07:30-17:00 一段）；无营业数据不硬卡（宁无窗不可错窗）。"""
+
+    def _m(x) -> int:
+        return x.hour * 60 + x.minute
+
+    if hours is None:
+        return True
+    if hours.windows:
+        segs = sorted((_m(o), _m(c)) for o, c in hours.windows)
+    elif hours.opens is not None and hours.closes is not None:
+        segs = [(_m(hours.opens), _m(hours.closes))]
+    else:
+        return True
+    merged: list[list[int]] = []
+    for o, c in segs:
+        if merged and o <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], c)
+        else:
+            merged.append([o, c])
+    return any(o <= t and t + dur <= c for o, c in merged)
+
+
 def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
@@ -2313,8 +2345,9 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     """
     # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
-    # 白天入场闸（2026-10-31 拍板）：非演出观光点降级排序同样最晚
-    # 16:00 入场——与 solver 主路同口径（城墙·碑林 17:00 入场事故）。
+    # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：非演出观光点
+    # 降级排序与 solver 主路同口径；兜底落位同时校验营业窗整段
+    # （城墙·碑林 17:00 入场 / 熊猫基地 18:00（闭馆 17:00）两事故）。
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
@@ -2409,8 +2442,13 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                             t = fe
                             advanced = True
                             break
-                cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
-                if t + dur <= day_end and (cap is None or t <= cap):
+                hours = hours_by_poi.get(visit.poi_id)
+                cap = generic_entry_cap(visit, hours)
+                if (
+                    t + dur <= day_end
+                    and (cap is None or t <= cap)
+                    and _fits_hours_window(hours, t, dur)
+                ):
                     placed_at = t
             if placed_at is None:
                 logger.warning(

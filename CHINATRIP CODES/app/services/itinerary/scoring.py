@@ -30,7 +30,7 @@ from app.services.itinerary.models import (
 DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
 DAY_END_MINUTES = 21 * 60 + 30
-ENTRY_CAP_MINUTES = 16 * 60  # 白天入场闸（2026-10-31 拍板）
+ENTRY_CAP_MINUTES = 16 * 60 + 30  # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）
 LUNCH_ANCHOR_MINUTES = 12 * 60
 LUNCH_WINDOW_END_MINUTES = 15 * 60  # <15:00 的餐=午餐（兜底层同口径）
 LUNCH_GRACE_MINUTES = 30  # ±30 许可（2026-11-01 拍板）

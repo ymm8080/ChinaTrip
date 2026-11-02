@@ -715,3 +715,67 @@ def test_fallback_lunch_earlier_and_shortened_30min():
     assert visit.start_time == _t(9, 0)
     assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
     assert lunch.end_time == _t(12, 0)  # 缩短为 30 分钟
+
+
+def test_fallback_evening_item_not_in_daytime():
+    # 2026-11-01「两江夜游排在白天」事故：降级兜底同步 solver 时段窗下
+    # 限——evening 17:00 起、sunset 16:00 起，非演出夜间点不进白天。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    cruise = VisitItem(
+        item_id="v1",
+        name="两江夜游",
+        city="重庆",
+        day=1,
+        category="attraction",
+        best_visit_time="evening",
+        duration_minutes=90,
+    )
+    deck = VisitItem(
+        item_id="v2",
+        name="南山一棵树观景台",
+        city="重庆",
+        day=1,
+        best_visit_time="sunset",
+        duration_minutes=60,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-nc",
+        cities=["重庆"],
+        days=[DayPlan(day=1, base_city="重庆", items=[cruise, deck])],
+        assumptions=[],
+    )
+    _fallback_sequence_times(plan)
+    assert cruise.start_time is not None and cruise.start_time >= _t(17, 0)
+    assert deck.start_time is not None and deck.start_time >= _t(16, 0)
+
+
+def test_sched_best_visit_fills_missing_signal_by_name():
+    # 2026-11-01 事故根因：intl 骨架行 best_visit_time 停在列默认 any。
+    # 规整层只在缺信号时按名称规则兜底（与回填作业同源）；已有非 any 值
+    # 原样透传（只升不降），住宿类不参访排程。
+    from app.services.agent.plan import _sched_best_visit
+
+    # 缺信号 + 夜游名 → evening
+    assert (
+        _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "evening"
+    )
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": None}) == "evening"
+    assert _sched_best_visit({"name": "较场口夜市"}) == "evening"
+    assert _sched_best_visit({"name": "南山一棵树观景台"}) == "sunset"
+    # 已有非 any 值原样透传，绝不被名称规则覆盖
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": "show"}) == "show"
+    assert (
+        _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "morning"})
+        == "morning"
+    )
+    # 住宿类（名称/类别任一命中）直接透传原值
+    assert (
+        _sched_best_visit({"name": "雅致酒店(珠江夜游店)", "category": "hotel"}) is None
+    )
+    # 无信号无夜名 → 原样 any
+    assert _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "any"}) == "any"
+    assert _sched_best_visit(None) is None

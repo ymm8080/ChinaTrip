@@ -87,12 +87,15 @@ def show_session_starts(text: str | None) -> list[int]:
     return sorted(set(starts))
 
 
-#: 2026-10-31 用户拍板（城墙·碑林 17:00 入场事故）：景区/博物馆等
-#: 非演出类观光点只排白天，最晚 16:00 入场——傍晚档留给演出、
-#: 夜游与晚餐。豁免：用户自钉时刻（铁律 19）、夜间属性点
-#: （best_visit_time=evening/sunset）、营业时间明确开到晚间的场馆
-#: （闭馆 ≥17:30）、餐饮/酒店/交通/演出类条目。
-_GENERIC_ENTRY_CAP_MINUTES = 16 * 60
+#: 2026-10-31 用户拍板（城墙·碑林 17:00 入场事故）→ 2026-11-01 修正
+#: （成都熊猫基地 18:00 排期事故）：景区/博物馆等非演出类观光点
+#: 只排白天，最晚 16:30 入场——傍晚档留给夜游、演出与晚餐。
+#: 豁免：用户自钉且有时刻（铁律 19）、夜间属性点（best_visit_time=
+#: evening/sunset）、仅晚间开放的场馆（全窗开 ≥17:00=夜游类，不豁免
+#: 则永远排不进）、餐饮/酒店/交通/演出类条目。旧口径「闭馆 ≥17:30
+#: 即豁免」废除（2026-11-01 用户裁定：除夜游与演出外一律不晚于
+#: 16:30 开场）。
+_GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
 # 午餐软钉（2026-11-01 用户拍板修正：时刻最多提前或延后半小时、用餐
 # 时长可缩短半小时）：初始排程的 12 点午餐锚是排程默认而非用户约束
 # ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开 ±30 分钟窗+
@@ -111,33 +114,41 @@ _MEAL_FLEX_MIN_DURATION_MINUTES = 30
 # 只在规则为之而设的场景（240 分钟华清池/12:30 场次挡午餐）生效。
 _MEAL_FLEX_TRIGGER_DUR = 150
 _LUNCH_PIN_FLEX_BEFORE_MIN = 15 * 60  # 15:00 前开餐的餐点才按午餐软钉
-_LATE_OPEN_MINUTES = 17 * 60 + 30
+_EVENING_ONLY_OPEN_MINUTES = 17 * 60  # 仅晚间开放（夜游类）= 全窗开 ≥17:00
 _EVENING_OK_CATEGORIES = {"food", "entertainment", "hotel", "transport"}
 _EVENING_OK_BEST = {"evening", "sunset", "show"}
 
 
-def _hours_open_late(window: PoiHours | None) -> bool:
-    """营业时间证明晚间可游（闭馆 ≥17:30；多段窗任一段满足即算）。"""
+def _hours_evening_only(window: PoiHours | None) -> bool:
+    """夜游类场馆：所有开放段都从 17:00 后才开始（白天无档，不豁免则
+    永远排不进）。白天开到晚间的场馆（如 07:30-18:00）不再豁免——
+    2026-11-01 用户裁定除夜游与演出外一律最晚 16:30 入场（旧口径
+    「闭馆 ≥17:30 即豁免」废除）。"""
     if window is None:
         return False
     if window.windows:
-        return any(
-            _to_minutes(closes) >= _LATE_OPEN_MINUTES for _, closes in window.windows
+        return all(
+            _to_minutes(opens) >= _EVENING_ONLY_OPEN_MINUTES
+            for opens, _ in window.windows
         )
-    if window.closes is None:
+    if window.opens is None:
         return False
-    return _to_minutes(window.closes) >= _LATE_OPEN_MINUTES
+    return _to_minutes(window.opens) >= _EVENING_ONLY_OPEN_MINUTES
 
 
 def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     """非演出观光点的最晚入场分钟数；None = 不设闸（豁免面见常量注释）。"""
-    if item.pinned:
-        return None  # 铁律 19：用户确认过的时刻优先于默认排程规则
+    if item.pinned and item.start_time is not None:
+        # 铁律 19：用户确认过的时刻优先于默认排程规则。系统必去钉可能
+        # 落在排不上时间的条目上（降级日）——无时刻即无「用户确认时刻」
+        # 可豁免，照常走闸（2026-11-01 熊猫基地 pinned+未排被兜底甩到
+        # 18:00（闭馆 17:00）事故根因）。
+        return None
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return None
     if (item.category or "") in _EVENING_OK_CATEGORIES:
         return None
-    if _hours_open_late(window):
+    if _hours_evening_only(window):
         return None
     return _GENERIC_ENTRY_CAP_MINUTES
 
