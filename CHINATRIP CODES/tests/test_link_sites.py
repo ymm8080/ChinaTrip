@@ -683,6 +683,10 @@ def test_video_city_wins_over_multi_city_session():
                 },
                 ensure_ascii=False,
             ),
+            # 城市侧闸（2026-11-02）：第1天 09:35 离渝、末日 20:00 才回渝，
+            # 重庆必去全天无物理可排时段 → rule 4 硬校验拒绝 → 一轮修复
+            # （空 diff=认输半成品，必去以未排时间卡留在了重庆日）。
+            json.dumps({"reply": "", "diffs": []}),
         ],
         reader,
         trip_items,
@@ -716,7 +720,13 @@ def test_title_city_fallback_when_llm_omits_city():
     reader = StubReader(_cq_video_digest())
     trip_items = TripItemService()
     llm, agent = _ready_agent(
-        [_cq_v0_reply(), json.dumps({"sites": ["十八梯", "长江索道"]})],
+        [
+            _cq_v0_reply(),
+            json.dumps({"sites": ["十八梯", "长江索道"]}),
+            # 城市侧闸（2026-11-02）：同 test_video_city_wins…，必去硬校验
+            # 拒绝后的一轮修复认输 reply。
+            json.dumps({"reply": "", "diffs": []}),
+        ],
         reader,
         trip_items,
     )
@@ -745,6 +755,8 @@ def test_amap_city_overrides_wrong_extracted_city():
                 {"sites": [{"name": "十八梯", "kind": "sight", "city": "西安"}]},
                 ensure_ascii=False,
             ),
+            # 城市侧闸（2026-11-02）：同 test_video_city_wins…，修复轮认输。
+            json.dumps({"reply": "", "diffs": []}),
         ],
         reader,
         trip_items,

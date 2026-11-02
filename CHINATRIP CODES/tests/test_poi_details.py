@@ -497,6 +497,23 @@ def test_search_keyword_label_rank_beats_plain_hit():
     assert ids.index("S1") < ids.index("N1")
 
 
+def test_search_keyword_unesco_label_matches_prefix_family():
+    """世界遗产愿望词（label "unesco"）须吃到 unesco_* 前缀族行（丝路
+    点段 unesco_silk_road 等）——hit_tier 早已同档（2026-11-02 拍板），
+    检索口径对齐；本测走内存路，DB 路为同口径的锚定前缀 LIKE。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "U1",
+        city="西安",
+        name="汉长安城未央宫遗址",
+        category="风景区",
+        location=(108.84, 34.29),
+    )
+    store._memory["U1"]["tags"] = ["unesco_silk_road"]
+    hits = store.search_keyword("西安", ["世界遗产"])
+    assert [h["source_poi_id"] for h in hits] == ["U1"]
+
+
 def test_store_get_by_name_city_scoped():
     """2026-11-01 北京钟楼案：get_by_name 带 city 只认同城行。
 

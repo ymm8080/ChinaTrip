@@ -17,6 +17,7 @@ phone / district / opening_hours / rating / rating_count / name_aliases。
 import argparse
 import asyncio
 import json
+import logging
 import re
 import sys
 from typing import NamedTuple
@@ -26,6 +27,8 @@ from sqlalchemy import or_
 
 from app.db import get_session_factory
 from app.models import Poi
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_LIMIT = 200
 _DEFAULT_CONCURRENCY = 2
@@ -141,12 +144,19 @@ def _write_row(factory, poi_id, hit: dict) -> list[str]:
         if row.phone is None and tel:
             row.phone = tel[:50]
             written.append("phone")
-        area = (hit.get("area") or "").strip()
+        _area_raw = hit.get("area")
+        area = _area_raw.strip() if isinstance(_area_raw, str) else ""
         if row.district is None and area:
             row.district = area[:50]
             written.append("district")
         di = hit.get("detail_info") or {}
-        hours = (di.get("shop_hours") or di.get("regular_open_hour") or "").strip()
+        # shop_hours 偶为非字符串（list/dict）：or 短路会吞掉合法的
+        # regular_open_hour 字符串——改为两候选里取第一个字符串.
+        _hours_cands = (di.get("shop_hours"), di.get("regular_open_hour"))
+        _hours_raw = next((v for v in _hours_cands if isinstance(v, str)), None)
+        if _hours_raw is None and any(_hours_cands):
+            logger.debug("baidu 营业时间候选均非字符串，弃用: %r", _hours_cands)
+        hours = _hours_raw.strip() if _hours_raw else ""
         if row.opening_hours is None and hours:
             row.opening_hours = hours[:200]
             row.hours_source = "baidu"

@@ -1,7 +1,9 @@
 """POI 坐标批量补全作业（2026-10-28 backlog：无坐标行走高德 text 补齐）。
 
-选行：location 为空 + status active/空 + 非餐饮 + KNOWN_CITIES（规划池；
-池外城市 MVP 外）。优先级按 source 档（unesco>5a>intl 系/预约名单>
+选行：location 为空 + status active/空 + 非餐饮 + 城市注册表（poi_city
+canonical 411=解析器同一真源;2026-11-02 从 plan.KNOWN_CITIES 226 统一——
+505 行 rank≤5 曾被 226 闸住补不进,规划宇宙不动）;池外城市 MVP 外）。
+优先级按 source 档（unesco>5a>intl 系/预约名单>
 intl 系/scenic>国保/遗址公园/museum>名村/street/histown>show>
 amap/baidu>4a(2026-11-01 用户拍板先放)>chinatravel 长尾）——规划候选池
 主力先补，长尾后补（2026-11-01：4a/guobao8/relicpark/histvillage/
@@ -30,9 +32,9 @@ from sqlalchemy import or_
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
-from app.services.agent.plan import KNOWN_CITIES
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.map_provider import build_client_chain, build_vendor
+from app.services.poi_city import known_cities
 from app.services.poi_details import PoiDetailStore
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ _SOURCE_RANK = {
     "sygic": 2,
     "intl": 2,
     "reservation": 2,
-    "4a": 8,          # 2026-11-01 用户拍板「4a 先放一下」:降档到长尾前
+    "4a": 8,  # 2026-11-01 用户拍板「4a 先放一下」:降档到长尾前
     "scenic": 3,
     "guobao8": 4,
     "relicpark": 4,
@@ -133,7 +135,7 @@ def pick_hit(hits: list[dict], name: str, city: str | None) -> dict | None:
 def select_rows(limit: int) -> list[Poi]:
     """无坐标规划池行，按 source 优先档排序取前 limit 行。"""
     cities: list[str] = []
-    for c in KNOWN_CITIES:
+    for c in sorted(known_cities()):
         cities += [c, f"{c}市"]
     with get_session_factory()() as session:
         q = session.query(Poi).filter(

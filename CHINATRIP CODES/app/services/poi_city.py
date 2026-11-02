@@ -14,9 +14,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _INDEX_PATH = Path(__file__).resolve().parent / "data" / "city_index.json"
 
@@ -61,12 +64,59 @@ _ADMIN_UNITS = ("省", "壮族自治区", "回族自治区", "维吾尔自治区
 
 # 民族片段（长名优先），把「务川仡佬族苗族自治县」削成「务川」.
 _ETHNIC = (
-    "维吾尔", "柯尔克孜", "乌孜别克", "哈萨克", "塔吉克", "塔塔尔", "达斡尔",
-    "鄂温克", "鄂伦春", "朝鲜", "俄罗斯", "蒙古", "土家", "布依", "哈尼",
-    "傈僳", "拉祜", "纳西", "景颇", "仡佬", "仫佬", "毛南", "阿昌", "普米",
-    "独龙", "裕固", "撒拉", "东乡", "保安", "锡伯", "德昂", "基诺", "门巴",
-    "珞巴", "赫哲", "回", "藏", "苗", "彝", "壮", "侗", "瑶", "白", "傣",
-    "黎", "佤", "畲", "水", "土", "羌", "怒", "京", "满",
+    "维吾尔",
+    "柯尔克孜",
+    "乌孜别克",
+    "哈萨克",
+    "塔吉克",
+    "塔塔尔",
+    "达斡尔",
+    "鄂温克",
+    "鄂伦春",
+    "朝鲜",
+    "俄罗斯",
+    "蒙古",
+    "土家",
+    "布依",
+    "哈尼",
+    "傈僳",
+    "拉祜",
+    "纳西",
+    "景颇",
+    "仡佬",
+    "仫佬",
+    "毛南",
+    "阿昌",
+    "普米",
+    "独龙",
+    "裕固",
+    "撒拉",
+    "东乡",
+    "保安",
+    "锡伯",
+    "德昂",
+    "基诺",
+    "门巴",
+    "珞巴",
+    "赫哲",
+    "回",
+    "藏",
+    "苗",
+    "彝",
+    "壮",
+    "侗",
+    "瑶",
+    "白",
+    "傣",
+    "黎",
+    "佤",
+    "畲",
+    "水",
+    "土",
+    "羌",
+    "怒",
+    "京",
+    "满",
 )
 _ETHNIC_SORTED = tuple(sorted(_ETHNIC, key=len, reverse=True))
 
@@ -91,6 +141,12 @@ def _index() -> dict:
                 provinces = data.get("provinces") or {}
             except (OSError, ValueError):
                 provinces = {}
+                # 静默回退会无痕缩小 known_cities/解析集，按项目规则留痕
+                # （_INDEX 缓存后仅记一次）.
+                logger.warning(
+                    "city_index.json 缺失/不可读，回退仅注册表（226 城）: %s",
+                    _INDEX_PATH,
+                )
             _INDEX = provinces
     return _INDEX
 
@@ -253,7 +309,7 @@ _GLOBAL_COUNTY: list[tuple[str, str]] | None = None  # 全库县名（长名优�
 
 def _county_variants(prov: str, entry: dict) -> dict[str, str]:
     """旧县级名 → 属地级市（撤并改名：index 现名 凤翔区/偃师区/繁昌区 的
-    旧书写 凤翔县/偃师市/繁昌县）。同省同 stem 冲突则丢. """
+    旧书写 凤翔县/偃师市/繁昌县）。同省同 stem 冲突则丢."""
     cached = _COUNTY_VARIANTS.get(prov)
     if cached is not None:
         return cached

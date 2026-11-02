@@ -14,12 +14,14 @@ from app.services.itinerary.solver import solve_day, solve_plan
 _ALL_DAY = PoiHours(poi_id="p_all", opens=time(8, 0), closes=time(21, 0))
 
 
-def _visit(item_id: str, *, poi_id: str | None = None, dur=60, **kwargs) -> VisitItem:
+def _visit(
+    item_id: str, *, poi_id: str | None = None, dur=60, city="北京", **kwargs
+) -> VisitItem:
     return VisitItem(
         item_id=item_id,
         name=item_id,
         poi_id=poi_id,
-        city="北京",
+        city=city,
         day=1,
         duration_minutes=dur,
         **kwargs,
@@ -173,7 +175,9 @@ def test_transfer_missing_end_time_is_filled():
     day = DayPlan(
         day=1,
         base_city="北京",
-        items=[transfer, _visit("v", poi_id="p_afternoon")],
+        # 城市侧闸（2026-11-02）：转场日 16:00 的条目须是到达城（上海）；
+        # 出发城条目不得排在离城交通之后。
+        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海")],
     )
     hours = [PoiHours(poi_id="p_afternoon", opens=time(16, 0), closes=time(18, 0))]
 
@@ -184,6 +188,33 @@ def test_transfer_missing_end_time_is_filled():
     assert out_transfer.end_time == time(11, 0)
     visit = next(i for i in solved.items if i.item_id == "v")
     assert (visit.start_time, visit.end_time) == (time(16, 0), time(17, 0))
+
+
+def test_same_city_transfer_leg_does_not_gate():
+    """退化转场腿（规整后 from==to，环线大巴/脏数据）整腿不判：先匹配
+    to_city 会把同城条目全判 "after"，上午条目团灭、整天 None
+    （2026-11-02 审计，宁不加码不可错拦）。"""
+    transfer = TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        from_city="上海",
+        to_city="上海市",  # 规整后与 from 同城 → 退化腿
+        start_time=time(13, 0),
+        end_time=time(15, 0),
+    )
+    day = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[transfer, _visit("v", poi_id="p_morning", city="上海")],
+    )
+    hours = [PoiHours(poi_id="p_morning", opens=time(9, 0), closes=time(12, 0))]
+
+    solved = solve_day(day, poi_hours=hours)
+
+    assert solved is not None
+    visit = next(i for i in solved.items if i.item_id == "v")
+    assert visit.end_time <= time(12, 0)  # 上午照排，不被判 "after"
 
 
 def test_empty_day_round_trips():

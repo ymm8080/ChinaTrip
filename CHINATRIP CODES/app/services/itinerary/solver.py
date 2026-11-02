@@ -165,6 +165,39 @@ def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
     return ARRIVAL_STOP_FLOOR_MINUTES
 
 
+def _norm_city_name(text: str | None) -> str:
+    """城市侧闸用的城市规整（strip + 剥「市」尾）。"""
+    return str(text or "").strip().removesuffix("市")
+
+
+def _city_side(item: VisitItem, transfer: TransferItem) -> str | None:
+    """转场城市侧闸（2026-11-02 沪→西安 15:38 火车、23:59 抵达案）：
+    当天有城际转场时，条目只能落在其城市对应的物理段——到达城条目须
+    在落地之后（"after"），出发城条目须在发车之前（"before"）。
+    None = 不判：用户钉（铁律 19 优先于排程规则）、餐饮/酒店（餐位跟
+    餐窗城、入住卡跟落地逻辑，各有专属城市口径）、城市缺信号、或条目
+    城市与该腿两端都不一致（宁不加码，不可错拦）；退化腿（规整后
+    from==to 且双端非空，环线大巴/脏数据）整腿不判——先匹配 to_city
+    会把同城条目全判成 "after"，上午条目团灭、整天 None。
+    """
+    from_city = _norm_city_name(transfer.from_city)
+    to_city = _norm_city_name(transfer.to_city)
+    if from_city and to_city and from_city == to_city:
+        return None
+    if item.pinned:
+        return None
+    if (item.category or "") in ("food", "hotel"):
+        return None
+    vcity = _norm_city_name(item.city)
+    if not vcity:
+        return None
+    if vcity == to_city:
+        return "after"
+    if vcity == from_city:
+        return "before"
+    return None
+
+
 _MINUTES_PER_DAY = 24 * 60
 
 
@@ -517,6 +550,15 @@ def solve_day(
         for spec, start, size in zip(specs, starts, sizes):
             for titem, ts, tdur in transfer_windows:
                 after_buf = _after_transfer_buffer(titem, spec.item)
+                side = _city_side(spec.item, titem)
+                if side == "after":
+                    # 城市侧闸：到达城条目只能落在落地之后
+                    model.Add(start >= ts + tdur + after_buf)
+                    continue
+                if side == "before":
+                    # 城市侧闸：出发城条目只能落在发车之前
+                    model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES)
+                    continue
                 before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
                 model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
                     before
@@ -646,11 +688,13 @@ def insertion_schedule_day(
     # 落地侧首停地板（同 _after_transfer_buffer 口径）：非餐/非酒店候选
     # 起点不得落 [te+90, te+150)——基础占用块已拦 <te+90 的重叠。
     arrival_floor_zones: list[tuple[int, int]] = []
+    city_windows: list[tuple[TransferItem, int, int]] = []
     for item in transfers:
         window = _fixed_transfer_window(item)
         if window is None:
             return None
         ts, tdur = window
+        city_windows.append((item, ts, ts + tdur))
         occupied.append(
             (ts - INTERCITY_BUFFER_MINUTES, ts + tdur + INTERCITY_BUFFER_MINUTES, item)
         )
@@ -700,6 +744,14 @@ def insertion_schedule_day(
             for fs, fe in arrival_floor_zones:
                 if fs <= t < fe:
                     return False
+        for tr, ts_, te_ in city_windows:
+            # 转场城市侧闸（2026-11-02）：到达城条目不得排在落地前
+            # （含发车前的上午空窗）；出发城条目不得排在离城之后。
+            side = _city_side(spec.item, tr)
+            if side == "after" and t < te_:
+                return False
+            if side == "before" and e > ts_:
+                return False
         if not is_flex_meal:
             for pin, mdur in flex_pins:
                 span_lo, span_hi = (

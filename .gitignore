@@ -90,3 +90,6 @@ CHINATRIP CODES/app/services/data/*
 # 飞行备份/运行日志不入库
 CHINATRIP CODES/**/*.bak_*
 pois_refresh.log
+
+# 预约规则运行时快照（all-429 空转产物不入库；根 DESIGN/ 文档不受影响）
+CHINATRIP CODES/DESIGN/*_snapshot_*.json

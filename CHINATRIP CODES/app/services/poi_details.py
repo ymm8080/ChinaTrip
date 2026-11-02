@@ -531,6 +531,14 @@ class PoiDetailStore:
                             # JSONB tags 文本化匹配功能标签（"show" 子串唯一，
                             # 词表无前缀碰撞）；tags 为 NULL 的行不命中该条件
                             conds.append(cast(Poi.tags, String).like(f'%"{label}"%'))
+                            if label == "unesco":
+                                # unesco_* 前缀族（丝路 unesco_silk_road/喀斯特
+                                # unesco_karst…）与 hit_tier 同属世界遗产族
+                                # （2026-11-02 拍板），精确串吃不到前缀行——
+                                # 加起始引号锚定的前缀 LIKE：JSONB 文本化每个
+                                # tag 形如 "unesco_silk_road"，%"unesco 只命中
+                                # tag 开头（也涵盖 "unesco" 本尊），不出泛子串。
+                                conds.append(cast(Poi.tags, String).like('%"unesco%'))
                     # 取 10× 再 Python 排序：LIMIT 内没有 tier 概念，取太少
                     # 会把同类的 unesco/5A 行截在排序之前（内存回退全库扫，
                     # 两路池深对齐）。
@@ -573,9 +581,22 @@ class PoiDetailStore:
             name = v.get("name") or ""
             hay = f"{name} {v.get('category') or ''}"
             vtags = {_norm_label_tag(t) for t in (v.get("tags") or [])}
-            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签
+            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签；
+            # unesco 再吃前缀族（unesco_silk_road 等），对齐 DB 路锚定前缀
+            # LIKE 与 hit_tier 的世界遗产族口径（2026-11-02 拍板）。
             if not any(
-                t in hay or (lb is not None and lb in vtags) for t, lb in tok_labels
+                t in hay
+                or (
+                    lb is not None
+                    and (
+                        lb in vtags
+                        or (
+                            lb == "unesco"
+                            and any(vt.startswith("unesco") for vt in vtags)
+                        )
+                    )
+                )
+                for t, lb in tok_labels
             ):
                 continue
             loc = v.get("location")
