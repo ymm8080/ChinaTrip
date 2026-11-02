@@ -2298,7 +2298,10 @@ def _reconcile_transfer_days(
             kept_load = 0
             for v in arr_pool:
                 dur_v = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                if v.start_time is not None and _minutes_of(v.start_time) >= arr + floor:
+                if (
+                    v.start_time is not None
+                    and _minutes_of(v.start_time) >= arr + floor
+                ):
                     kept_load += dur_v + 30  # 已有合法时刻：占窗
                     continue
                 fits = _fits_after(hours_by_poi.get(v.poi_id), arr + floor, dur_v)
@@ -2510,6 +2513,179 @@ def _fits_after(hours: PoiHours | None, e0: int, dur: int) -> bool:
     else:
         return True
     return any(max(o, e0) + dur <= c for o, c in segs)
+
+
+def _host_day_for_visit(
+    day_pool: list[DayPlan], vcity: str, dur: int
+) -> DayPlan | None:
+    """同城日池里找装得下 dur 分钟参访的宿主天（挪日修复到达侧与
+    转场日无时刻清算共用）：窗口=日始~21:30 扣转场腿占段（到达侧
+    落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。"""
+    for later in day_pool:
+        if str(later.base_city or "").strip().removesuffix("市") != vcity:
+            continue
+        lo, hi, blocked = DAY_START_MINUTES, 21 * 60 + 30, 0
+        for t2 in later.items:
+            if not (isinstance(t2, TransferItem) and t2.start_time is not None):
+                continue
+            ts2 = _minutes_of(t2.start_time)
+            te2 = _item_end_minutes(t2) or ts2
+            c2 = str(t2.to_city or "").strip().removesuffix("市")
+            f2 = str(t2.from_city or "").strip().removesuffix("市")
+            if c2 == vcity:
+                lo = max(
+                    lo,
+                    te2
+                    + (
+                        ARRIVAL_STOP_FLOOR_MINUTES
+                        if t2.mode in ("train", "flight")
+                        else INTERCITY_BUFFER_MINUTES
+                    ),
+                )
+            elif f2 == vcity:
+                hi = min(hi, ts2 - INTERCITY_BUFFER_MINUTES)
+            else:
+                blocked += (te2 + INTERCITY_BUFFER_MINUTES) - (
+                    ts2 - INTERCITY_BUFFER_MINUTES
+                )
+        if any(
+            isinstance(i2, VisitItem)
+            and (i2.category or "") == "food"
+            and i2.start_time is not None
+            for i2 in later.items
+        ):
+            blocked += MEAL_DURATION_MINUTES
+        visits = [
+            i2
+            for i2 in later.items
+            if isinstance(i2, VisitItem)
+            and (i2.category or "") not in ("food", "hotel")
+        ]
+        load = sum(i2.duration_minutes or 0 for i2 in visits)
+        # 每日参观件硬顶 4（2026-11-02 拍板「每天四五个条目」）：分钟
+        # 容量之外同守个数闸——搬迁不再把日堆到 5-6 件。容量口径刻意
+        # 宽（只给搬入件 +30 走行腿）：宿主天是否物理排得下由挪后 CP
+        # 重解裁决（终局清算），排不下再由 _drop_untimed_visits 兜底
+        # 移除——预筛过严会把真实装得下的天误拒（tier1-early 回归批）。
+        if lo < hi and load + dur + 30 <= (hi - lo) - blocked and len(visits) < 4:
+            return later
+    return None
+
+
+def _drop_untimed_visits(plan: ItineraryPlan) -> list[str]:
+    """终局兜底（2026-11-02「第1天无安排」事故）：清算挪日 + CP 重解后
+    仍无时刻的非钉参访，不再以 None-None 卡交付（挪进的天物理装不下时
+    重解也排不出）。移除留痕，请用户改天再加回；pinned 铁律 19 不动
+    （转场日侧由 _transfer_day_sweep 披露）。"""
+    notes: list[str] = []
+    for day in plan.days:
+        drops = [
+            i
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and i.start_time is None
+            and not i.pinned
+            and (i.category or "") not in ("food", "hotel")
+        ]
+        for item in drops:
+            day.items.remove(item)
+            notes.append(
+                L(
+                    f"「{item.name}」在第{day.day}天始终排不下时刻，"
+                    "已从行程移除——要加回可指定其他天",
+                    f'"{item.name}" could not be timed on day {day.day} after '
+                    "re-scheduling; it was removed — ask me to re-add it on "
+                    "another day",
+                )
+            )
+    return notes
+
+
+def _transfer_day_sweep(plan: ItineraryPlan) -> list[str]:
+    """转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：solve 与
+    兜底顺序排都排不上时刻的转场日参访，不再以 None-None 卡滞留当天
+    （卡面无安排 + rule 4「没有起止时间」报错）——到达城条目挪同城
+    更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
+    与挪日修复一致），挪不动移除留痕；pinned 铁律 19 不动只披露。
+    挂在初次排程/编辑路径的兜底之后跑。"""
+    notes: list[str] = []
+    handled: set[str] = set()  # 每件最多挪一次——防跨转场日来回倒
+    for idx, day in enumerate(plan.days):
+        timed = [
+            t
+            for t in day.items
+            if isinstance(t, TransferItem) and t.start_time is not None
+        ]
+        if not timed:
+            continue
+        arrivals = {str(t.to_city or "").strip().removesuffix("市") for t in timed}
+        departures = {str(t.from_city or "").strip().removesuffix("市") for t in timed}
+        strays = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is None
+            and not v.pinned
+            and (v.category or "") not in ("food", "hotel")
+            and v.item_id not in handled
+        ]
+        for visit in strays:
+            vcity = str(visit.city or "").strip().removesuffix("市")
+            dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+            if vcity in arrivals:
+                pool = list(plan.days[idx + 1 :])
+            elif vcity in departures:
+                pool = list(reversed(plan.days[:idx]))
+            else:
+                pool = list(plan.days)
+            target = _host_day_for_visit(pool, vcity, dur)
+            if target is not None and target is not day:
+                visit.day = target.day
+                day.items.remove(visit)
+                target.items.append(visit)
+                handled.add(visit.item_id)
+                notes.append(
+                    L(
+                        f"「{visit.name}」在第{day.day}天转场日排不下时刻，"
+                        f"已挪至第{target.day}天重排",
+                        f'"{visit.name}" could not be timed on transfer day '
+                        f"{day.day}; moved to day {target.day} for re-timing",
+                    )
+                )
+            elif target is None:
+                day.items.remove(visit)
+                notes.append(
+                    L(
+                        f"「{visit.name}」在第{day.day}天（转场日）排不下时刻"
+                        "且无其他天可挪，已从行程移除——要加回可安排在其他天",
+                        f'"{visit.name}" could not be timed on day {day.day} '
+                        "(transfer day) and no other day can host it; it was "
+                        "removed — ask me to re-add it on another day",
+                    )
+                )
+        pinned_untimed = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is None
+            and v.pinned
+            and (v.category or "") not in ("food", "hotel")
+        ]
+        if pinned_untimed:
+            names = L(
+                "、".join(f"「{v.name}」" for v in pinned_untimed),
+                ", ".join(f'"{v.name}"' for v in pinned_untimed),
+            )
+            notes.append(
+                L(
+                    f"必去 {names} 钉在第{day.day}天（转场日）但排不上时刻，"
+                    "请告诉我换天或换时刻",
+                    f"Must-visits {names} are pinned on day {day.day} "
+                    "(transfer day) but could not be timed — tell me to move "
+                    "or re-time them",
+                )
+            )
+    return notes
 
 
 def _travel_matrix(
@@ -5217,7 +5393,8 @@ class PlanningAgent:
         default_city = cities[0] if len(cities) == 1 else _unspecified()
         # 行程外城不排（2026-11-02 北京钟楼案收口）：绑定/专名必去落到
         # 非行程城时旧版 ranges.get(city,(1,days)) 兜底默认窗——异地点
-        # 被摊到全程。真城保留（复活卡语义），排期出局+留痕。
+        # 被摊到全程。真城保留（复活卡语义），排期出局+留痕，心愿行
+        # 落未排期区可见。
         trip_cities = {str(c or "").strip().removesuffix("市") for c in cities} - {""}
         unspecified = _unspecified()  # 多城默认城=未标注哨兵：不是行程外城
         # 容量感知放日（2026-10-30「第一天三站时间明显不够」）：必去原先按
@@ -7076,7 +7253,7 @@ class PlanningAgent:
             if cand.get("cross_city_hit"):
                 # 异地命中不排期（2026-11-01 北京钟楼案同口径，2026-11-02
                 # 补占位路）：下方 ranges.get(city,(1,days)) 对非行程城
-                # 兜底默认窗——异地组会被摊到全程。
+                # 兜底默认窗——异地组会被摊到全程，LLM 失败降级同样出局。
                 continue
             groups.setdefault(cand.get("city") or _unspecified(), []).append(cand)
         items = []
@@ -7651,6 +7828,11 @@ class PlanningAgent:
         # 兜底（其余天保住优化解）；降级判定=还有未排时间的参访。
         if degraded or _has_untimed_visits(plan):
             _fallback_sequence_times(plan)
+            # 转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：兜底
+            # 仍排不上时刻的转场日参访挪日/移除留痕，再兜底一次给挪过去的
+            # 条目落时刻。
+            plan.assumptions.extend(_transfer_day_sweep(plan))
+            _fallback_sequence_times(plan)
             plan.assumptions.append(_solver_degraded_assumption())
         # 上午保底（2026-10-31 用户拍板「所有行程上午不许空」）：活动日
         # 若无任何 12:00 前开始的条目（交通占上午亦算占用），从未入选
@@ -7823,6 +8005,24 @@ class PlanningAgent:
                 annotate_legs(plan)
                 # 展示腿保实测：缓存回放（零网络）
                 self._replay_measured_legs(plan)
+        # 终局清算（2026-11-02「第1天无安排」事故收尾）：全局重排/两段式
+        # 重解都可能在转场日留下无时刻卡（重排按全局评分搬点不带排程；
+        # 重解失败日走兜底后仍 None-None）——交付前最后扫一遍并补排。
+        # 补排用 CP 重解而非兜底顺序排：挪进的天既有条目多在日尾（兜底
+        # 光标只会追加、日尾装不下就又留 None-None），重解可腾中段空档。
+        sweep_notes = _transfer_day_sweep(plan)
+        if sweep_notes:
+            plan.assumptions.extend(sweep_notes)
+            if _has_untimed_visits(plan):
+                resolved = self._solve(plan, meal_flex=True)
+                if resolved is not None:
+                    resolved.assumptions = plan.assumptions
+                    plan = resolved
+                    annotate_legs(plan)
+                else:
+                    _fallback_sequence_times(plan)
+                if _has_untimed_visits(plan):
+                    plan.assumptions.extend(_drop_untimed_visits(plan))
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -10025,6 +10225,8 @@ class PlanningAgent:
         if solved is not None:
             candidate = solved
         if solved is None or _has_untimed_visits(candidate):
+            _fallback_sequence_times(candidate)
+            candidate.assumptions.extend(_transfer_day_sweep(candidate))
             _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)

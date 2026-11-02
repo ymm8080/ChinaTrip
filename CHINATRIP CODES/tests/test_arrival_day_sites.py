@@ -1,0 +1,256 @@
+# -*- coding: utf-8 -*-
+"""到达日有安排（2026-11-02「第1天无安排」事故回归）：午后落地
+（06:09→13:20 车次）+150 地板把最早开游推到 15:50，再叠 16:30 收口
+闸 → 到达日整天判死、兜底留 None-None 无时刻卡。三层修复：
+solver 转场日收口闸让位 / 挪日修复容量预筛（窗口+tier 序）/
+转场日无时刻清算 _transfer_day_sweep。
+"""
+
+from datetime import time
+
+from app.services.agent.plan import (
+    _drop_untimed_visits,
+    _reconcile_transfer_days,
+    _transfer_day_sweep,
+)
+from app.services.itinerary.models import (
+    DayPlan,
+    ItineraryPlan,
+    PoiHours,
+    TransferItem,
+    VisitItem,
+)
+from app.services.itinerary.solver import (
+    generic_entry_cap,
+    insertion_schedule_day,
+    solve_day,
+)
+
+
+def _visit(item_id, *, dur=180, day=1, city="西安", **kw) -> VisitItem:
+    return VisitItem(
+        item_id=item_id,
+        name=item_id,
+        city=city,
+        day=day,
+        duration_minutes=dur,
+        **kw,
+    )
+
+
+def _train(
+    item_id="t1",
+    day=1,
+    dep=time(6, 9),
+    arr=time(13, 20),
+    frm="上海",
+    to="西安",
+) -> TransferItem:
+    dur = (arr.hour * 60 + arr.minute) - (dep.hour * 60 + dep.minute)
+    return TransferItem(
+        item_id=item_id,
+        day=day,
+        seq=1,
+        from_city=frm,
+        to_city=to,
+        mode="train",
+        start_time=dep,
+        end_time=arr,
+        duration_minutes=dur,
+    )
+
+
+def _plan(days):
+    return ItineraryPlan(itinerary_id="it1", cities=["上海", "西安"], days=days)
+
+
+def _find(day, item_id):
+    return next(i for i in day.items if i.item_id == item_id)
+
+
+# ---------------- 收口闸让位（solver 层） ----------------
+
+
+def test_generic_entry_cap_transfer_day_relief():
+    # 普通日闸照旧（990−dur 起点闸 = 「排到 16:30 前」）；转场日闸让位
+    v = _visit("wall", dur=120)
+    w = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
+    assert generic_entry_cap(v, w) == 990 - 120
+    assert generic_entry_cap(v, w, transfer_day=True) is None
+    assert generic_entry_cap(v, None) == 990 - 120
+    assert generic_entry_cap(v, None, transfer_day=True) is None
+
+
+def test_cp_midday_arrival_visit_fits():
+    # 13:20 落地 → 地板 15:50；旧闸 cap=14:30 起点整日判死，让位后可排
+    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)])
+    solved = solve_day(day, poi_hours=[])
+    assert solved is not None
+    wall = next(i for i in solved.items if isinstance(i, VisitItem))
+    assert wall.start_time >= time(15, 50)
+
+
+def test_insertion_midday_arrival_visit_fits():
+    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)])
+    solved = insertion_schedule_day(day, poi_hours=[])
+    assert solved is not None
+    wall = next(i for i in solved.items if isinstance(i, VisitItem))
+    assert wall.start_time >= time(15, 50)
+
+
+def test_cp_midday_arrival_respects_hours_close():
+    # 让位≠放飞：17:00 闭馆的馆 15:50 开游 120 分钟物理装不下 → 整日无解
+    wall = _visit("wall", dur=120, poi_id="wall")
+    day = DayPlan(day=1, base_city="上海", items=[_train(), wall])
+    hours = [PoiHours(poi_id="wall", opens=time(9, 0), closes=time(17, 0))]
+    assert solve_day(day, poi_hours=hours) is None
+
+
+def test_cp_normal_day_cap_still_binds():
+    # 回归闸：无转场腿的普通日不受让位影响——16:30 后不可再起
+    day = DayPlan(day=1, base_city="西安", items=[_visit("wall", dur=90)])
+    hours = [PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))]
+    solved = solve_day(day, poi_hours=hours)
+    assert solved is not None
+    wall = next(i for i in solved.items if isinstance(i, VisitItem))
+    m = wall.start_time.hour * 60 + wall.start_time.minute
+    assert m + 90 <= 990
+
+
+# ---------------- 挪日修复·容量预筛 ----------------
+
+
+def test_reconcile_midday_arrival_keeps_fitting_moves_overflow():
+    # 13:20 落地窗 [15:50, 21:30]=340'：两件 90' 装得下、第三件溢出挪 day2
+    day1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _train(),
+            _visit("v1", dur=90),
+            _visit("v2", dur=90),
+            _visit("v3", dur=90),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
+    plan = _plan([day1, day2])
+    notes = _reconcile_transfer_days(plan)
+    stays = [v for v in day1.items if isinstance(v, VisitItem)]
+    assert sorted(v.item_id for v in stays) == ["v1", "v2"]
+    moved = next(i for d in plan.days for i in d.items if i.item_id == "v3")
+    assert moved.day == 2
+    assert any("进城" in str(n) or "inbound" in str(n) for n in notes)
+
+
+def test_reconcile_capacity_prefers_lower_tier():
+    # 容量溢出裁汰按 tier 序：tier1 留、tier9 让位
+    day1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _train(),
+            _visit("big", dur=90),
+            _visit("small", dur=90),
+            _visit("extra", dur=90),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
+    plan = _plan([day1, day2])
+    _reconcile_transfer_days(plan, tier_by_name={"big": 1, "small": 1, "extra": 9})
+    assert _find(day1, "big").day == 1
+    assert _find(day1, "small").day == 1
+    moved = next(i for d in plan.days for i in d.items if i.item_id == "extra")
+    assert moved.day == 2
+
+
+def test_reconcile_hours_close_moves_to_later_day():
+    # 落地后闭馆装不下（15:50 开游 90' 进 17:00 闭馆）→ 不留当天等
+    # None-None 卡，直接挪 day2
+    w = _visit("museum", dur=90, poi_id="museum", opening_hours="09:00-17:00")
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), w])
+    day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
+    plan = _plan([day1, day2])
+    _reconcile_transfer_days(plan)
+    moved = next(i for d in plan.days for i in d.items if i.item_id == "museum")
+    assert moved.day == 2
+
+
+# ---------------- 转场日无时刻清算 ----------------
+
+
+def test_sweep_moves_arrival_side_stray():
+    # 兜底排不上时刻的到达城条目 → 挪同城更晚一天（None-NOne 卡不留）
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
+    day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
+    plan = _plan([day1, day2])
+    notes = _transfer_day_sweep(plan)
+    wall = _find(day2, "wall")
+    assert wall.day == 2
+    assert all(i.item_id != "wall" for i in day1.items)
+    assert any("挪至" in str(n) or "moved to day" in str(n) for n in notes)
+
+
+def test_sweep_moves_departure_side_stray():
+    # 出发城条目排不上 → 挪同城更早一天
+    t = _train(day=2, dep=time(15, 38), arr=time(23, 59))
+    day1 = DayPlan(
+        day=1, base_city="上海", items=[_visit("sh1", city="上海", day=1, dur=90)]
+    )
+    sh2 = _visit("sh2", city="上海", day=2)
+    day2 = DayPlan(day=2, base_city="上海", items=[t, sh2])
+    plan = _plan([day1, day2])
+    notes = _transfer_day_sweep(plan)
+    moved = _find(day1, "sh2")
+    assert moved.day == 1
+    assert any("挪至" in str(n) or "moved to day" in str(n) for n in notes)
+
+
+def test_sweep_removes_stray_when_no_host():
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
+    plan = _plan([day1])
+    notes = _transfer_day_sweep(plan)
+    assert all(i.item_id != "wall" for i in day1.items)
+    assert any("移除" in str(n) or "removed" in str(n) for n in notes)
+
+
+def test_sweep_discloses_pinned_untimed_only():
+    # pinned 铁律 19：不动只披露
+    w = _visit("wall", pinned=True)
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), w])
+    day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
+    plan = _plan([day1, day2])
+    notes = _transfer_day_sweep(plan)
+    assert _find(day1, "wall").day == 1
+    assert any("必去" in str(n) or "Must-visits" in str(n) for n in notes)
+
+
+def test_sweep_skips_days_without_timed_transfers():
+    # 普通日的无时刻条目不归清算管（另有排程主路/降级披露）
+    day1 = DayPlan(day=1, base_city="西安", items=[_visit("wall")])
+    plan = _plan([day1])
+    assert _transfer_day_sweep(plan) == []
+    assert _find(day1, "wall").day == 1
+
+
+# ---------------- 终局兜底 ----------------
+
+
+def test_drop_untimed_removes_notes_keeps_pinned():
+    # 重解后仍无时刻 → 移除留痕；pinned 铁律 19 不动
+    stray = _visit("stray", day=2)
+    pinned = _visit("keep", day=2, pinned=True)
+    day2 = DayPlan(day=2, base_city="西安", items=[stray, pinned])
+    plan = _plan([day2])
+    notes = _drop_untimed_visits(plan)
+    assert all(i.item_id != "stray" for i in day2.items)
+    assert _find(day2, "keep").day == 2
+    assert any("移除" in str(n) or "removed" in str(n) for n in notes)
+
+
+def test_drop_untimed_ignores_food_and_timed():
+    meal = _visit("lunch", day=2, category="food")
+    timed = _visit("ok", day=2, start_time=time(9, 0), end_time=time(10, 0))
+    day2 = DayPlan(day=2, base_city="西安", items=[meal, timed])
+    plan = _plan([day2])
+    assert _drop_untimed_visits(plan) == []
+    assert len(day2.items) == 2

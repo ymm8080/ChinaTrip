@@ -136,7 +136,9 @@ def _hours_evening_only(window: PoiHours | None) -> bool:
     return _to_minutes(window.opens) >= _EVENING_ONLY_OPEN_MINUTES
 
 
-def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
+def generic_entry_cap(
+    item: VisitItem, window: PoiHours | None, *, transfer_day: bool = False
+) -> int | None:
     """非演出观光点的最晚入场分钟数；None = 不设闸（豁免面见常量注释）。"""
     if item.pinned and item.start_time is not None:
         # 铁律 19：用户确认过的时刻优先于默认排程规则。系统必去钉可能
@@ -149,6 +151,12 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     if (item.category or "") in _EVENING_OK_CATEGORIES:
         return None
     if _hours_evening_only(window):
+        return None
+    if transfer_day:
+        # 转场日白天闸让位（2026-11-02「第1天无安排」事故）：午后落地
+        # （落地+150 地板已 ≥15:00）再叠「16:30 前收口」会把到达日
+        # 整天判死。收口闸是普通日偏好（拍板原文「一般排在 4:30 前」），
+        # 转场日改由城市侧闸/营业窗/日终收口——物理窗即当天全部游览窗。
         return None
     # 白天景点 16:30 前收口（2026-11-02 用户拍板「白天景点一般排
     # 在下午 4:30 前」）：入场闸从「最晚 16:30 开始」改为「最晚
@@ -244,7 +252,11 @@ def _to_time(minutes: int) -> time:
 
 
 def _visit_spec(
-    item: VisitItem, hours: dict[str, PoiHours], *, meal_flex: bool = False
+    item: VisitItem,
+    hours: dict[str, PoiHours],
+    *,
+    meal_flex: bool = False,
+    transfer_day: bool = False,
 ) -> _VisitSpec | None:
     """Compute the start domain for a visit; None = provably infeasible."""
     dur = item.duration_minutes
@@ -277,7 +289,7 @@ def _visit_spec(
             lo = max(lo, best[0])
             hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
-    cap = generic_entry_cap(item, window)
+    cap = generic_entry_cap(item, window, transfer_day=transfer_day)
     if cap is not None:
         # 白天入场闸（2026-10-31 拍板）：晚于闸点的入场时间不可行
         hi = min(hi, cap)
@@ -490,6 +502,12 @@ def solve_day(
     if not visits and not transfers:
         return day.model_copy(deep=True)
 
+    # 转场日（有钉时刻的火车/飞机腿）：白天入场闸让位（generic_entry_cap
+    # transfer_day 口径，2026-11-02「第1天无安排」事故）。
+    xfer_day = any(
+        t.mode in ("train", "flight") and t.start_time is not None for t in transfers
+    )
+
     transfer_windows: list[tuple[TransferItem, int, int]] = []
     for item in transfers:
         window = _fixed_transfer_window(item)
@@ -509,7 +527,7 @@ def solve_day(
     )
     specs: list[_VisitSpec] = []
     for item in visits:
-        spec = _visit_spec(item, hours, meal_flex=flex_day)
+        spec = _visit_spec(item, hours, meal_flex=flex_day, transfer_day=xfer_day)
         if spec is None:
             return None
         specs.append(spec)
@@ -684,6 +702,12 @@ def insertion_schedule_day(
     if not visits and not transfers:
         return day.model_copy(deep=True)
 
+    # 转场日（有钉时刻的火车/飞机腿）：白天入场闸让位（generic_entry_cap
+    # transfer_day 口径，2026-11-02「第1天无安排」事故）。
+    xfer_day = any(
+        t.mode in ("train", "flight") and t.start_time is not None for t in transfers
+    )
+
     hours = {h.poi_id: h for h in poi_hours}
     flex_day = meal_flex and (
         any((v.duration_minutes or 0) >= _MEAL_FLEX_TRIGGER_DUR for v in visits)
@@ -695,7 +719,7 @@ def insertion_schedule_day(
     )
     specs: list[_VisitSpec] = []
     for item in visits:
-        spec = _visit_spec(item, hours, meal_flex=flex_day)
+        spec = _visit_spec(item, hours, meal_flex=flex_day, transfer_day=xfer_day)
         if spec is None:
             return None
         specs.append(spec)
@@ -755,7 +779,9 @@ def insertion_schedule_day(
         e = t + dur
         if e > day_end:
             return False
-        cap = generic_entry_cap(spec.item, hours.get(spec.item.poi_id))
+        cap = generic_entry_cap(
+            spec.item, hours.get(spec.item.poi_id), transfer_day=xfer_day
+        )
         if cap is not None and t > cap and not _is_show(spec.item):
             return False
         is_flex_meal = spec.dur_lo and spec.dur_lo < spec.dur
