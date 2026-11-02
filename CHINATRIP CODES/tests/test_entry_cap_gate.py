@@ -36,7 +36,9 @@ def _visit(**kw):
 
 
 def test_entry_cap_is_1630_for_plain_sight():
-    assert generic_entry_cap(_visit(), None) == CAP
+    # 2026-11-02 拍板「白天景点一般排在下午 4:30 前」= 最晚 16:30
+    # **结束**：闸 = 16:30 − 时长（180 分钟点 → 13:30 起排）。
+    assert generic_entry_cap(_visit(), None) == CAP - 180
 
 
 def test_pinned_with_time_exempt_but_pinned_untimed_capped():
@@ -45,14 +47,15 @@ def test_pinned_with_time_exempt_but_pinned_untimed_capped():
     timed = _visit(pinned=True, start_time=_t(18, 0))
     assert generic_entry_cap(timed, None) is None
     untimed = _visit(pinned=True)  # 事故形态：必去钉+未排时
-    assert generic_entry_cap(untimed, None) == CAP
+    assert generic_entry_cap(untimed, None) == CAP - 180
 
 
 def test_open_late_no_longer_exempt_but_evening_only_exempt():
     # 白天开到晚间（07:30-18:00）：旧口径豁免 → 2026-11-01 用户裁定
-    # 除夜游与演出外一律最晚 16:30 入场，现受闸。
+    # 除夜游与演出外一律最晚 16:30 入场；11-02 再收口为最晚 16:30
+    # 结束（闸=16:30−时长），现受闸。
     daytime = PoiHours(poi_id="p1", opens=_t(7, 30), closes=_t(18, 0))
-    assert generic_entry_cap(_visit(), daytime) == CAP
+    assert generic_entry_cap(_visit(), daytime) == CAP - 180
     # 仅晚间开放（18:00-21:30）= 夜游类：白天无档，豁免。
     night = PoiHours(poi_id="p2", opens=_t(18, 0), closes=_t(21, 30))
     assert generic_entry_cap(_visit(), night) is None
@@ -63,7 +66,18 @@ def test_open_late_no_longer_exempt_but_evening_only_exempt():
         closes=_t(21, 0),
         windows=[(_t(9, 0), _t(12, 0)), (_t(18, 0), _t(21, 0))],
     )
-    assert generic_entry_cap(_visit(), mixed) == CAP
+    assert generic_entry_cap(_visit(), mixed) == CAP - 180
+
+
+def test_late_open_hours_governed_by_window_not_cap():
+    # 晚开门场馆营业窗自治（2026-11-02 backlog #2）：开门晚于入场闸
+    # （16:00 开、18:00 关，60 分钟点闸 15:30）在 16:30 前物理无档
+    # ——豁免，交 _fits_hours_window 收口。
+    late = PoiHours(poi_id="p4", opens=_t(16, 0), closes=_t(18, 0))
+    assert generic_entry_cap(_visit(duration_minutes=60), late) is None
+    # 开门恰在闸值上（15:30 开、60 分钟点）仍受闸：15:30-16:30 装得下。
+    edge = PoiHours(poi_id="p5", opens=_t(15, 30), closes=_t(18, 0))
+    assert generic_entry_cap(_visit(duration_minutes=60), edge) == CAP - 60
 
 
 def test_scoring_entry_cap_aligned_with_solver():

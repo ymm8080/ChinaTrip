@@ -44,10 +44,10 @@ def _cand(name, city, rain_ok, *, lon=104.0, lat=30.6, source="08", dur=60):
 
 
 def test_outdoor_redirects_to_sole_dry_day_soft_overflow():
-    # 2026-11-02 软闸+雨日硬闸后形态：唯一干日 day4（转场日）成为
-    # 露天点避让目标——博物馆/科技馆/四面山/大裂谷 软闸超额全落
-    # day4（4 闸封顶）；神龙峡随后无干日空位 → 出局，回填层点名
-    # 「逢雨暂不排入」——绝不落雨日。
+    # 2026-11-02 预占位链后形态：物理受限先认领（乙山案）——仅干日
+    # 可投的三个露天点先占唯一干日 day4（4 闸占 3，软闸超额照放）；
+    # 宽窗室内馆失去干日档后落雨日5（室内不受雨闸），神龙峡保住
+    # 干日位——露天绝不落雨日、无出局无披露。
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
         _cand("重庆科技馆", "重庆", "yes", lat=29.70, dur=60),
@@ -68,10 +68,10 @@ def test_outdoor_redirects_to_sole_dry_day_soft_overflow():
     # 露天点全部硬闸避让到唯一干日（软闸超额）
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["四面山"] == 4
-    assert day_of["大足石刻博物馆"] == 4 and day_of["重庆科技馆"] == 4
-    # 干日 4 闸封顶后到达的神龙峡：出局+点名，绝不落雨日
-    assert "神龙峡" not in day_of
-    assert any("神龙峡" in n and "逢雨暂不排入" in n for n in notes)
+    assert day_of["神龙峡"] == 4
+    # 宽窗室内馆退雨日5（室内不受雨闸，无出局无披露）
+    assert day_of["大足石刻博物馆"] == 5 and day_of["重庆科技馆"] == 5
+    assert not any(("逢雨" in n or "不排" in n) for n in notes)
 
 
 def test_outdoor_moves_to_dry_day_no_removal_needed():
@@ -121,9 +121,10 @@ def test_leg_noise_does_not_change_hard_gate_shape():
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["四面山"] == 4
-    assert day_of["大足石刻博物馆"] == 4 and day_of["重庆科技馆"] == 4
-    assert "神龙峡" not in day_of
-    assert any("神龙峡" in n and "逢雨暂不排入" in n for n in notes)
+    assert day_of["神龙峡"] == 4
+    # 宽窗室内馆退雨日5（腿噪声不改硬闸落位形态，与上测同构）
+    assert day_of["大足石刻博物馆"] == 5 and day_of["重庆科技馆"] == 5
+    assert not any(("逢雨" in n or "不排" in n) for n in notes)
 
 
 def test_refill_prefers_dry_day_for_outdoor():
@@ -220,9 +221,10 @@ def test_partial_light_rain_only_with_hint():
 
 def test_partial_light_rain_day_stays_with_hint():
     # 复合形态：影院让位博物馆（同站闸）；全露天（四面山/裂谷）硬闸
-    # 避让到唯一干日 day4（软闸超额）；神龙峡(partial)在小雨日(5)
-    # 照排+「建议备伞」提示（2026-11-02 拍板）——半露天唯一可落
-    # 雨日的形态（池外切片修复前此处曾出假披露，2026-11-02 已修）。
+    # 避让到唯一干日 day4（软闸超额）；宽窗博物馆先占小雨日5（室内
+    # 不受雨闸），神龙峡(partial)落另一小雨日6 照排+「建议备伞」
+    # 提示（2026-11-02 拍板）——半露天可落雨日的唯一形态（池外
+    # 切片修复前此处曾出假披露，2026-11-02 已修）。
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
         _cand("大足石刻数字影院", "重庆", "yes", lat=29.71, dur=60),
@@ -243,9 +245,9 @@ def test_partial_light_rain_day_stays_with_hint():
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["四面山"] == 4
-    assert day_of["大足石刻博物馆"] == 4
-    # 神龙峡(partial)：小雨日(5)照排+提示
-    assert day_of["神龙峡"] == 5
+    assert day_of["大足石刻博物馆"] == 5
+    # 神龙峡(partial)：另一小雨日(6)照排+提示
+    assert day_of["神龙峡"] == 6
     assert any("神龙峡" in n and "小雨照排" in n and "建议备伞" in n for n in notes)
     assert any("大足石刻数字影院" in n and "大足石刻博物馆" in n for n in notes)
     assert "大足石刻数字影院" not in day_of
@@ -282,8 +284,9 @@ def test_whole_window_rain_hard_gates_all_outdoor():
 
 def test_partial_window_heavy_day_redirects_when_dry_room():
     # 部分窗有雨+大雨日(day5)：唯一干日 day4 有计数空位 → 大雨日簇
-    # 的露天点同样硬闸避让到干日（软闸超额），无一落雨日、无删点
-    # 披露——防优于治，强度分级只在无可替代移出时影响措辞。
+    # 的露天点物理受限先认领占干日（软闸超额）；宽窗室内馆落雨日5，
+    # 无一露天落雨日、无删点披露——防优于治，强度分级只在无可替
+    # 代移出时影响措辞。
     cands = [
         _cand("大足石刻博物馆", "重庆", "yes", lat=29.70, dur=90),
         _cand("大足石刻数字影院", "重庆", "yes", lat=29.70, dur=60),
@@ -304,7 +307,7 @@ def test_partial_window_heavy_day_redirects_when_dry_room():
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["武陵山大裂谷"] == 4
     assert day_of["四面山"] == 4 and day_of["神龙峡"] == 4
-    assert day_of["大足石刻博物馆"] == 4
+    assert day_of["大足石刻博物馆"] == 5
     assert "大足石刻数字影院" not in day_of
     assert not any(("逢雨" in n or "雨日不排" in n) for n in notes)
 

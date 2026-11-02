@@ -203,8 +203,11 @@ def test_selection_moves_night_activity_off_rainy_night():
     )
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["珠江夜游"] == 2  # 雨夜硬闸 → 避让干夜
-    assert day_of["广东省博物馆"] == 2
-    assert day_of["广州塔"] == 1  # 白天露天点不受夜间雨影响
+    # 室内点初排前置（2026-11-02 优先级拍板链）：最早可行日=day1
+    assert day_of["广东省博物馆"] == 1
+    # 广州塔(1.1km 同簇)被同簇不拆拍板拉去夜游的 day2（day2 夜窗
+    # 无雨，雨闸合规）；夜间雨本就不拦白天点
+    assert day_of["广州塔"] == 2
     # 防优于治：避让即落位，不再有「对调」披露
     assert not any("对调" in n for n in notes)
 
@@ -222,9 +225,13 @@ def test_selection_day_rain_does_not_move_night_activity():
         cands, 2, {"广州": (1, 2)}, rain_days={"广州": {1}}, notes=notes
     )
     day_of = {p["name"]: p["day"] for p in picked}
-    assert day_of["珠江夜游"] == 1  # 夜间点不受白天雨影响
+    # 白天雨确实没拦夜间点（night_rain 为空、夜游未被雨闸触碰）；
+    # day2 是白云山（雨避让到晴日）的同簇天，同簇不拆拍板把夜游
+    # 拉去 day2——两日夜窗均无雨，雨闸口径保持
+    assert day_of["珠江夜游"] == 2
     assert day_of["白云山"] == 2  # 白天露天避让晴日
-    assert day_of["广东省博物馆"] == 2
+    # 室内点初排前置（2026-11-02 优先级拍板链）：最早可行日=day1
+    assert day_of["广东省博物馆"] == 1
     assert not any("对调" in n for n in notes)
 
 

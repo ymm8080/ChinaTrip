@@ -599,7 +599,10 @@ def test_food_dinner_uncapped_while_scenic_capped():
 
 
 def test_late_open_venue_exempt_from_entry_cap():
-    """营业到 22:00 的场馆（城墙夜场次类）不吃 16:00 闸。"""
+    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）
+    后 16:30 前无整段档：2026-11-02「最晚 16:30 结束」拍板下 solver
+    整日降级（None）——傍晚入场交 plan 兜底按「一般」口径溢出放行，
+    不再由 solver 直排（旧断言 ≥16:30 作废）。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
     day = DayPlan(
         day=1,
@@ -618,6 +621,4 @@ def test_late_open_venue_exempt_from_entry_cap():
 
     solved = solve_day(day, poi_hours=hours)
 
-    assert solved is not None
-    late = next(i for i in solved.items if i.item_id == "v_late")
-    assert late.start_time >= time(16, 30)  # 傍晚入场合法
+    assert solved is None  # 闸前无档 → 降级；傍晚溢出由 _fallback_sequence_times 放行

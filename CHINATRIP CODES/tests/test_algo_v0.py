@@ -103,9 +103,11 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 含 tier 最高（5A）的簇排第 1 天，同簇同天
-    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆"}
-    assert by_day[2] == {"东方明珠", "海洋馆", "滨江大道"}
+    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier
+    # 最高（5A）的簇整簇进第 1 天，第 4 位按池序由次簇补位，次簇
+    # 剩余落第 2 天——同簇仍同天优先，4/日闸内高档先占早天。
+    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆", "东方明珠"}
+    assert by_day[2] == {"海洋馆", "滨江大道"}
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
@@ -142,8 +144,10 @@ def test_algo_balances_no_coord_sights_across_days():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    assert by_day[1] == {"成都景点00", "成都景点02", "成都景点04", "成都景点06"}
-    assert by_day[2] == {"成都景点01", "成都景点03", "成都景点05", "成都景点07"}
+    # 优先级前置装满（4/日闸）：取代旧「最空天轮转均摊」——初排
+    # 按池序前置，稀疏天由回填线 270'/LNS 兜底（2026-11-02 拍板链）。
+    assert by_day[1] == {"成都景点00", "成都景点01", "成都景点02", "成都景点03"}
+    assert by_day[2] == {"成都景点04", "成都景点05", "成都景点06", "成都景点07"}
     assert items[0]["city"] == "成都市"
     assert items[0]["duration_minutes"] == 60
 
@@ -155,8 +159,10 @@ def test_algo_respects_city_windows():
         cands, 4, {"成都": (1, 2), "重庆": (3, 4)}
     )
     days = {it["name"]: it["day"] for it in items}
-    assert sorted(d for n, d in days.items() if n.startswith("蓉")) == [1, 1, 2, 2]
-    assert sorted(d for n, d in days.items() if n.startswith("渝")) == [3, 3, 4, 4]
+    # 优先级前置装满但窗口合规（2026-11-02 拍板链）：4 件同窗城
+    # 池序前置吃满窗口首日，不再强制均摊到窗口各天。
+    assert sorted(d for n, d in days.items() if n.startswith("蓉")) == [1, 1, 1, 1]
+    assert sorted(d for n, d in days.items() if n.startswith("渝")) == [3, 3, 3, 3]
 
 
 # --- 演出 / 餐饮 / 夹紧 / 确定性 --------------------------------------------

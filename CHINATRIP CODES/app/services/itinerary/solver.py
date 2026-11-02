@@ -150,7 +150,26 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
         return None
     if _hours_evening_only(window):
         return None
-    return _GENERIC_ENTRY_CAP_MINUTES
+    # 白天景点 16:30 前收口（2026-11-02 用户拍板「白天景点一般排
+    # 在下午 4:30 前」）：入场闸从「最晚 16:30 开始」改为「最晚
+    # 16:30 结束」——cap 减时长（start ≤ 16:30-dur ⟹ end ≤
+    # 16:30）。真装不下（长点/晨满）由兜底按「一般」口径溢出
+    # 放行，仍守日终/营业窗。
+    dur = item.duration_minutes or 90
+    cap = _GENERIC_ENTRY_CAP_MINUTES - dur
+    # 晚开门场馆营业窗自治（2026-11-02 backlog #2）：开门晚于入场
+    # 闸（16:00-18:00 开门类）的场馆在 16:30 前物理无档——不设
+    # 闸，交 _fits_hours_window 按营业窗收口。开门恰等于闸值时仍
+    # 受闸（start=cap ⟹ end=16:30，装得下）。
+    first_open = None
+    if window is not None:
+        if window.windows:
+            first_open = min(_to_minutes(opens) for opens, _ in window.windows)
+        elif window.opens is not None:
+            first_open = _to_minutes(window.opens)
+    if first_open is not None and first_open > cap:
+        return None
+    return cap
 
 
 def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
