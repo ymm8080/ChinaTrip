@@ -2273,8 +2273,14 @@ def _reconcile_transfer_days(
                 if last.mode in ("train", "flight")
                 else INTERCITY_BUFFER_MINUTES
             )
-            usable = (21 * 60 + 30) - (arr + floor)
-            arr_stranded = [
+            # 到达日容量预筛（2026-11-02「第1天无安排」事故）：落地后窗口
+            # [落地+缓冲, 21:30] 装不下的到达城条目按 tier 序裁汰挪日——
+            # 装不下还留当天，solver/兜底排不出时刻就是 None-None 无时刻
+            # 卡 + rule 4 报错。口径：每件 +30 走行腿；时刻已在落地后的
+            # 条目按已占窗计；单件还要过营业窗（_fits_after，闭馆照卡）。
+            # 16:30 收口闸不参与（到达日闸让位，solver transfer_day 同拍板）。
+            arr_window = max(0, (21 * 60 + 30) - (arr + floor))
+            arr_pool = [
                 v
                 for v in day.items
                 if isinstance(v, VisitItem)
@@ -2282,29 +2288,36 @@ def _reconcile_transfer_days(
                 and (v.category or "") not in ("food", "hotel")
                 and acity
                 and str(v.city or "").strip().removesuffix("市") == acity
-                and (
-                    (
-                        v.start_time is not None
-                        and _minutes_of(v.start_time) < arr + floor
-                    )
-                    or (
-                        v.start_time is None
-                        and (v.duration_minutes or DEFAULT_VISIT_MINUTES) > usable
-                    )
-                )
             ]
             if tier_by_name:
                 # 到达侧同理：按 tier 1→9 升序认领落地后第一天余位
                 # （兵马俑被低档小点抢先占位后甩到行程尾部的事故
                 # 形态）——完整梯子，不止 tier1。
-                arr_stranded.sort(key=lambda v: tier_by_name.get(v.name, 9))
+                arr_pool.sort(key=lambda v: tier_by_name.get(v.name, 9))
+            arr_stranded: list[VisitItem] = []
+            kept_load = 0
+            for v in arr_pool:
+                dur_v = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                if v.start_time is not None and _minutes_of(v.start_time) >= arr + floor:
+                    kept_load += dur_v + 30  # 已有合法时刻：占窗
+                    continue
+                fits = _fits_after(hours_by_poi.get(v.poi_id), arr + floor, dur_v)
+                if fits and kept_load + dur_v + 30 <= arr_window:
+                    kept_load += dur_v + 30
+                    if v.start_time is not None:
+                        # 时刻在抵达前但装得下：留待下方清时刻重排
+                        arr_stranded.append(v)
+                else:
+                    arr_stranded.append(v)
             protected_arrival: list[str] = []
             for visit in arr_stranded:
                 if visit.name in protect:
                     protected_arrival.append(visit.name)
                     continue
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-                if visit.start_time is not None and dur <= usable:
+                if visit.start_time is not None and _fits_after(
+                    hours_by_poi.get(visit.poi_id), arr + floor, dur
+                ):
                     # 时刻在抵达前但当天落地后装得下：清时刻交排程器重排
                     visit.start_time = None
                     visit.end_time = None
@@ -2320,64 +2333,7 @@ def _reconcile_transfer_days(
                     continue
                 target = None
                 vcity = str(visit.city or "").strip().removesuffix("市")
-                for later in plan.days[idx + 1 :]:
-                    if str(later.base_city or "").strip().removesuffix("市") != vcity:
-                        continue
-                    lo, hi, blocked = DAY_START_MINUTES, 21 * 60 + 30, 0
-                    for t2 in later.items:
-                        if not (
-                            isinstance(t2, TransferItem) and t2.start_time is not None
-                        ):
-                            continue
-                        ts2 = _minutes_of(t2.start_time)
-                        te2 = _item_end_minutes(t2) or ts2
-                        c2 = str(t2.to_city or "").strip().removesuffix("市")
-                        f2 = str(t2.from_city or "").strip().removesuffix("市")
-                        if c2 == vcity:
-                            lo = max(
-                                lo,
-                                te2
-                                + (
-                                    ARRIVAL_STOP_FLOOR_MINUTES
-                                    if t2.mode in ("train", "flight")
-                                    else INTERCITY_BUFFER_MINUTES
-                                ),
-                            )
-                        elif f2 == vcity:
-                            hi = min(hi, ts2 - INTERCITY_BUFFER_MINUTES)
-                        else:
-                            blocked += (te2 + INTERCITY_BUFFER_MINUTES) - (
-                                ts2 - INTERCITY_BUFFER_MINUTES
-                            )
-                    if any(
-                        isinstance(i2, VisitItem)
-                        and (i2.category or "") == "food"
-                        and i2.start_time is not None
-                        for i2 in later.items
-                    ):
-                        blocked += MEAL_DURATION_MINUTES
-                    load = sum(
-                        i2.duration_minutes or 0
-                        for i2 in later.items
-                        if isinstance(i2, VisitItem)
-                        and (i2.category or "") not in ("food", "hotel")
-                    )
-                    # 每日参观件硬顶 4（2026-11-02 拍板「每天四五个
-                    # 条目」）：分钟容量之外同守个数闸——搬迁不再
-                    # 把日堆到 5-6 件。
-                    if (
-                        lo < hi
-                        and load + dur + 30 <= (hi - lo) - blocked
-                        and sum(
-                            1
-                            for i2 in later.items
-                            if isinstance(i2, VisitItem)
-                            and (i2.category or "") not in ("food", "hotel")
-                        )
-                        < 4
-                    ):
-                        target = later
-                        break
+                target = _host_day_for_visit(plan.days[idx + 1 :], vcity, dur)
                 if target is not None:
                     visit.day = target.day
                     visit.start_time = None
@@ -2531,6 +2487,31 @@ def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
     return any(o <= t and t + dur <= c for o, c in merged)
 
 
+def _fits_after(hours: PoiHours | None, e0: int, dur: int) -> bool:
+    """e0 之后营业窗内是否装得下整段 [s, s+dur]（转场到达日搁浅判定的
+    现实口径，2026-11-02「第1天无安排」事故）：只看日终前有没有整档、
+    不看 16:30 收口闸（到达日闸让位，solver generic_entry_cap
+    transfer_day 同口径），但闭馆时刻照卡——15:50 落地地板 + 90 分钟
+    点进 17:00 闭馆馆 = 物理装不下，该挪日而不是留在当天等兜底排
+    （排不上就成 None-None 无时刻卡 + rule 4 报错）。无营业数据不
+    硬卡（宁无窗不可错窗）。"""
+
+    def _m(x) -> int:
+        return x.hour * 60 + x.minute
+
+    if e0 + dur > 21 * 60 + 30:
+        return False
+    if hours is None:
+        return True
+    if hours.windows:
+        segs = sorted((_m(o), _m(c)) for o, c in hours.windows)
+    elif hours.opens is not None and hours.closes is not None:
+        segs = [(_m(hours.opens), _m(hours.closes))]
+    else:
+        return True
+    return any(max(o, e0) + dur <= c for o, c in segs)
+
+
 def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
@@ -2589,6 +2570,30 @@ def _city_side_ok(
     return True
 
 
+def _leg_windows(
+    fixed: list[tuple[int, int, object]], visit: VisitItem
+) -> list[tuple[int, int]]:
+    """未排条目视角的已占窗（2026-11-02 兵马俑 10:30 散场 11:00 排钟楼
+    事故）：已定位的观光锚按打车腿放宽 ±30 缓冲，餐饮/酒店/落地腿保持
+    原窗（餐位贴点、铁律 4 缓冲语义不变）。"""
+    out: list[tuple[int, int]] = []
+    vloc = getattr(visit, "location", None)
+    for fs, fe, src in fixed:
+        sloc = getattr(src, "location", None)
+        if (
+            src is not None
+            and src is not visit
+            and str(getattr(src, "category", "") or "") not in ("food", "hotel")
+            and vloc is not None
+            and sloc is not None
+        ):
+            pad = max(30, _taxi_leg_min(haversine_km(sloc, vloc)))
+            out.append((fs - (pad - 30), fe + (pad - 30)))
+        else:
+            out.append((fs, fe))
+    return out
+
+
 def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     """Solver-degraded fallback: sequence untimed visits into the free
     gaps around fixed items so no item ships without a time slot.
@@ -2605,7 +2610,9 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
-        fixed: list[tuple[int, int]] = []
+        # fixed 三元组 (s, e, src)：src=观光锚时未排条目按打车腿放宽
+        # （_leg_windows）；餐饮/酒店/落地腿 src=None 保持原窗。
+        fixed: list[tuple[int, int, object]] = []
         fixed_tight: list[tuple[int, int]] = []  # 紧贴窗（餐位贴点用）
         flex_lunches: list[tuple[VisitItem, int, int]] = []
         xfer_windows: list[tuple[TransferItem, int, int]] = []
@@ -2625,7 +2632,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                     if item.mode in ("train", "flight")
                     else buf
                 )
-                fixed.append((s - buf, e + arr_pad))
+                fixed.append((s - buf, e + arr_pad, None))
                 fixed_tight.append((s - buf, e + buf))
             elif (
                 getattr(item, "category", "") == "food"
@@ -2642,17 +2649,17 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 flex_lunches.append((item, s, int(dur)))
             elif getattr(item, "category", "") == "hotel":
                 # 酒店入住卡：紧贴窗（贴着落地缓冲摆的锚，不 ±30）
-                fixed.append((s, e))
+                fixed.append((s, e, None))
                 fixed_tight.append((s, e))
             elif getattr(item, "category", "") == "food":
                 # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
                 # 傍晚时段挤没（2026-10-31 上午空排事故）
-                fixed.append((s, e))
+                fixed.append((s, e, None))
                 fixed_tight.append((s, e))
             else:
-                fixed.append((s - 30, e + 30))
+                fixed.append((s - 30, e + 30, item))
                 fixed_tight.append((s, e))
-        fixed.sort()
+        fixed.sort(key=lambda w: (w[0], w[1]))
         fixed_tight.sort()
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
@@ -2677,7 +2684,10 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 for s in sessions:
                     if (
                         s + dur <= day_end
-                        and not any(s < fe and s + dur > fs for fs, fe in fixed)
+                        and not any(
+                            s < fe and s + dur > fs
+                            for fs, fe in _leg_windows(fixed, visit)
+                        )
                         and _city_side_ok(xfer_windows, visit, s, dur)
                     ):
                         placed_at = s
@@ -2696,7 +2706,7 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 advanced = True
                 while advanced:
                     advanced = False
-                    for fs, fe in fixed:
+                    for fs, fe in _leg_windows(fixed, visit):
                         if t < fe and t + dur > fs:
                             t = fe
                             advanced = True
@@ -2730,8 +2740,8 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             t = placed_at
             visit.start_time = time(t // 60, t % 60)
             visit.end_time = time((t + dur) // 60, (t + dur) % 60)
-            fixed.append((t - 30, t + dur + 30))
-            fixed.sort()
+            fixed.append((t - 30, t + dur + 30, visit))
+            fixed.sort(key=lambda w: (w[0], w[1]))
             fixed_tight.append((t, t + dur))
             fixed_tight.sort()
             if not overflow_tail:
@@ -2767,8 +2777,8 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             lo_m = max(day_start, ms - 30)
             hi_m = min(day_end - 30, ms + 30)
             dur_short = max(30, mdur - 30)
-            # ① 旧版缓冲口径零漂移优先
-            slot = _meal_slot(ms, day_end - mdur, mdur, fixed)
+            # ① 旧版缓冲口径零漂移优先（餐位不按腿放宽：贴点语义）
+            slot = _meal_slot(ms, day_end - mdur, mdur, [(w[0], w[1]) for w in fixed])
             if slot is None or slot > ms + 30:
                 cand = _meal_slot(lo_m, ms - 1, mdur, fixed_tight)  # ② 提前窗
                 if cand is None:
@@ -2782,8 +2792,8 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             if slot is not None:
                 meal.start_time = time(slot // 60, slot % 60)
                 meal.end_time = time((slot + mdur) // 60, (slot + mdur) % 60)
-                fixed.append((slot, slot + mdur))
-                fixed.sort()
+                fixed.append((slot, slot + mdur, None))
+                fixed.sort(key=lambda w: (w[0], w[1]))
                 fixed_tight.append((slot, slot + mdur))
                 fixed_tight.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
@@ -7912,6 +7922,8 @@ class PlanningAgent:
         必去不让、时长落上午空窗；地理亲和=距本天簇近、距借出日簇远），
         借出日优先回填更长/更近的未选点；借出日不得因此变上午空白，
         否则整体回滚。只挪不删（2026-10-30 拍板：景点不得静默消失）。
+        候选按地理亲和序逐个尝试，失败还原后试下一个（2026-11-02：
+        单候选一次性放弃会留下 day3 空上午+day4 双晨点）。
         返回 (借调名, 回填名|None, 借出日 day)；None=借不成。
         """
         import math
@@ -7956,7 +7968,7 @@ class PlanningAgent:
             for i in day_plan.items
             if isinstance(i, VisitItem) and i.location
         ]
-        best = None  # (score, donor_day, item)
+        scored = []  # (score, donor, item)
         for donor in plan.days:
             if donor is day_plan:
                 continue
@@ -7991,126 +8003,139 @@ class PlanningAgent:
                     if near_t is not None and near_d is not None
                     else 0.0
                 )
-                if best is None or score < best[0]:
-                    best = (score, donor, it)
-        if best is None:
+                scored.append((score, donor, it))
+        if not scored:
             return None
-        _score, donor, item = best
-        donor_day_no = donor.day
-        orig_day_no = item.day
-        donor.items.remove(item)
+        # 按地理亲和序逐候选尝试；任一步失败（落不进上午/借出日晨空白
+        # 且回填救不回）整体还原后试下一个，不再一次性放弃
+        scored.sort(key=lambda x: x[0])
+        for _score, donor, item in scored:
+            donor_day_no = donor.day
+            orig_day_no = item.day
+            orig_index = donor.items.index(item)
+            donor.items.remove(item)
+            item.start_time = None
+            item.end_time = None
+            item.day = day_plan.day
+            day_plan.items.insert(0, item)  # 晨间件先落位（不被 untimed 演出吃掉游标）
+            _fallback_sequence_times(plan)
+            if item.start_time is None or (
+                item.start_time.hour,
+                item.start_time.minute,
+            ) >= (12, 0):
+                # 落不进上午——还原后试下一个候选
+                self._borrow_rollback(
+                    plan, day_plan, donor, item, orig_index, orig_day_no
+                )
+                continue
+
+            # 借出日回填：装得下的里面更长/更近本日簇的未选点优先
+            donor_load = sum(
+                i.duration_minutes or 0
+                for i in donor.items
+                if isinstance(i, VisitItem) and getattr(i, "category", "") != "food"
+            )
+            donor_rainy = donor.day in (rain_days or {}).get(city, ()) or donor.day in (
+                heavy_rain_days or {}
+            ).get(city, ())
+            taken = {str(spec.get("name")) for spec in picked}
+            planned = [
+                i for d in plan.days for i in d.items if isinstance(i, VisitItem)
+            ]
+            d_pts = [
+                i.location
+                for i in donor.items
+                if isinstance(i, VisitItem) and i.location
+            ]
+            pool = []
+            for cand in candidates:
+                name = str(cand.get("name") or "")
+                if not name or name in taken:
+                    continue
+                if str(cand.get("city") or "").removesuffix("市") != city:
+                    continue
+                cat = str(cand.get("category") or "")
+                if cat in ("food", "entertainment"):
+                    continue
+                if str(_sched_best_visit(cand) or "any") not in ("any", "morning", ""):
+                    continue
+                if donor_rainy and str(cand.get("rain_ok") or "") in (
+                    "no",
+                    "partial",
+                    "false",
+                ):
+                    continue
+                if any(_dup_blocks_item(cand, i) for i in planned):
+                    continue
+                dur = cand.get("suggested_duration_min") or 90
+                if not isinstance(dur, int) or dur <= 0:
+                    dur = 90
+                loc = (
+                    cand.get("location")
+                    if isinstance(cand.get("location"), dict)
+                    else None
+                )
+                near = _nearest(GeoPoint(**loc), d_pts) if loc and d_pts else 999.0
+                over = 1 if donor_load + dur > DAY_VISIT_BUDGET_MINUTES + 30 else 0
+                pool.append((over, near, -dur, cand))
+            pool.sort(key=lambda x: (x[0], x[1], x[2]))
+            backfilled = None
+            for _over, _near, _negdur, cand in pool:
+                dur = -_negdur
+                location = (
+                    GeoPoint(**cand["location"])
+                    if isinstance(cand.get("location"), dict)
+                    else None
+                )
+                self._item_seq += 1
+                visit = VisitItem(
+                    item_id=f"v{self._item_seq}",
+                    name=str(cand.get("name") or ""),
+                    poi_id=cand.get("source_poi_id"),
+                    category=str(cand.get("category") or "") or None,
+                    city=donor.base_city,
+                    location=location,
+                    address=cand.get("address"),
+                    name_en=cand.get("name_en"),
+                    address_en=cand.get("address_en"),
+                    intro_en=cand.get("intro_en"),
+                    opening_hours=cand.get("opening_hours"),
+                    opening_hours_en=cand.get("opening_hours_en"),
+                    best_visit_time=_sched_best_visit(cand),
+                    booking_url=cand.get("booking_url"),
+                    rain_ok=cand.get("rain_ok"),
+                    day=donor.day,
+                    duration_minutes=dur,
+                )
+                donor.items.append(visit)
+                _fallback_sequence_times(plan)
+                if visit.start_time is None:
+                    donor.items.remove(visit)
+                    continue
+                backfilled = visit.name
+                break
+            if not _morning_occupied(donor):
+                # 借出日早晨将空白且回填救不回——还原后试下一个候选
+                if backfilled:
+                    for i in list(donor.items):
+                        if isinstance(i, VisitItem) and i.name == backfilled:
+                            donor.items.remove(i)
+                            break
+                self._borrow_rollback(
+                    plan, day_plan, donor, item, orig_index, orig_day_no
+                )
+                continue
+            return (item.name, backfilled, donor_day_no)
+        return None
+
+    @staticmethod
+    def _borrow_rollback(plan, day_plan, donor, item, orig_index, orig_day_no):
+        day_plan.items.remove(item)
+        item.day = orig_day_no
+        donor.items.insert(orig_index, item)
         item.start_time = None
         item.end_time = None
-        item.day = day_plan.day
-        day_plan.items.insert(0, item)  # 晨间件先落位（不被 untimed 演出吃掉游标）
         _fallback_sequence_times(plan)
-        if item.start_time is None or (
-            item.start_time.hour,
-            item.start_time.minute,
-        ) >= (12, 0):
-            # 落不进上午——整体回滚，当没动过
-            day_plan.items.remove(item)
-            item.day = orig_day_no
-            donor.items.insert(0, item)
-            item.start_time = None
-            item.end_time = None
-            _fallback_sequence_times(plan)
-            return None
-
-        # 借出日回填：装得下的里面更长/更近本日簇的未选点优先
-        donor_load = sum(
-            i.duration_minutes or 0
-            for i in donor.items
-            if isinstance(i, VisitItem) and getattr(i, "category", "") != "food"
-        )
-        donor_rainy = donor.day in (rain_days or {}).get(city, ()) or donor.day in (
-            heavy_rain_days or {}
-        ).get(city, ())
-        taken = {str(spec.get("name")) for spec in picked}
-        planned = [i for d in plan.days for i in d.items if isinstance(i, VisitItem)]
-        d_pts = [
-            i.location for i in donor.items if isinstance(i, VisitItem) and i.location
-        ]
-        pool = []
-        for cand in candidates:
-            name = str(cand.get("name") or "")
-            if not name or name in taken:
-                continue
-            if str(cand.get("city") or "").removesuffix("市") != city:
-                continue
-            cat = str(cand.get("category") or "")
-            if cat in ("food", "entertainment"):
-                continue
-            if str(_sched_best_visit(cand) or "any") not in ("any", "morning", ""):
-                continue
-            if donor_rainy and str(cand.get("rain_ok") or "") in (
-                "no",
-                "partial",
-                "false",
-            ):
-                continue
-            if any(_dup_blocks_item(cand, i) for i in planned):
-                continue
-            dur = cand.get("suggested_duration_min") or 90
-            if not isinstance(dur, int) or dur <= 0:
-                dur = 90
-            loc = (
-                cand.get("location") if isinstance(cand.get("location"), dict) else None
-            )
-            near = _nearest(GeoPoint(**loc), d_pts) if loc and d_pts else 999.0
-            over = 1 if donor_load + dur > DAY_VISIT_BUDGET_MINUTES + 30 else 0
-            pool.append((over, near, -dur, cand))
-        pool.sort(key=lambda x: (x[0], x[1], x[2]))
-        backfilled = None
-        for _over, _near, _negdur, cand in pool:
-            dur = -_negdur
-            location = (
-                GeoPoint(**cand["location"])
-                if isinstance(cand.get("location"), dict)
-                else None
-            )
-            self._item_seq += 1
-            visit = VisitItem(
-                item_id=f"v{self._item_seq}",
-                name=str(cand.get("name") or ""),
-                poi_id=cand.get("source_poi_id"),
-                category=str(cand.get("category") or "") or None,
-                city=donor.base_city,
-                location=location,
-                address=cand.get("address"),
-                name_en=cand.get("name_en"),
-                address_en=cand.get("address_en"),
-                intro_en=cand.get("intro_en"),
-                opening_hours=cand.get("opening_hours"),
-                opening_hours_en=cand.get("opening_hours_en"),
-                best_visit_time=_sched_best_visit(cand),
-                booking_url=cand.get("booking_url"),
-                rain_ok=cand.get("rain_ok"),
-                day=donor.day,
-                duration_minutes=dur,
-            )
-            donor.items.append(visit)
-            _fallback_sequence_times(plan)
-            if visit.start_time is None:
-                donor.items.remove(visit)
-                continue
-            backfilled = visit.name
-            break
-        if not _morning_occupied(donor):
-            # 借出日早晨将空白且回填救不回——整体回滚
-            if backfilled:
-                for i in list(donor.items):
-                    if isinstance(i, VisitItem) and i.name == backfilled:
-                        donor.items.remove(i)
-                        break
-            day_plan.items.remove(item)
-            item.day = orig_day_no
-            donor.items.insert(0, item)
-            item.start_time = None
-            item.end_time = None
-            _fallback_sequence_times(plan)
-            return None
-        return (item.name, backfilled, donor_day_no)
 
     def _global_resched(
         self,
@@ -8307,10 +8332,16 @@ class PlanningAgent:
             天保持兜底结果（按日降级契约）；最后整体兜底补缝。
             """
             hours = _plan_poi_hours(p)
+            # 与生产主路 _solve 同口径传距离矩阵（2026-11-02 兵马俑→钟楼
+            # 事故）：LNS 重排不传矩阵时插入式求解退化为背靠背，物理不可
+            # 行时刻照发。
+            matrix = _travel_matrix(p, self._leg_cache)
             for d in p.days:
                 if d.day not in day_nos:
                     continue
-                solved = insertion_schedule_day(d, poi_hours=hours, meal_flex=True)
+                solved = insertion_schedule_day(
+                    d, poi_hours=hours, travel_minutes=matrix, meal_flex=True
+                )
                 if solved is not None:
                     d.items = solved.items
             _fallback_sequence_times(p)

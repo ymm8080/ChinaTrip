@@ -654,6 +654,60 @@ def test_morning_borrow_skips_pinned_and_show():
     assert res is None
 
 
+def test_morning_borrow_tries_next_donor_when_best_blanks_donor():
+    """最佳候选会掏空白借出日上午时，按亲和序还原后试下一个候选，
+    不再一次性放弃（2026-11-02 用户案：day3 空上午+day4 双晨点）。"""
+    from app.services.itinerary.models import GeoPoint
+
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+    zl = next(i for i in day4.items if i.name == "钟楼")
+    zl.start_time = time(13, 0)  # 兵马俑成 day4 唯一晨点 → 借出即空白
+    zl.end_time = time(14, 0)
+    zl.best_visit_time = "afternoon"  # 且不具借出资格 → 下一候选才是回民街
+    hj = VisitItem(
+        item_id="v-hj",
+        name="回民街",
+        category="attraction",
+        city="西安",
+        day=2,
+        rain_ok="yes",
+        best_visit_time="any",
+        start_time=time(9, 0),
+        end_time=time(10, 30),
+        duration_minutes=90,
+        location=GeoPoint(lon=108.93, lat=34.26),
+    )
+    bl = VisitItem(
+        item_id="v-bl",
+        name="西安碑林博物馆",
+        category="museum",
+        city="西安",
+        day=2,
+        rain_ok="yes",
+        best_visit_time="any",
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        duration_minutes=60,
+        location=GeoPoint(lon=108.93, lat=34.25),
+    )
+    day2 = DayPlan(day=2, base_city="西安", items=[hj, bl])
+    plan.days.insert(0, day2)
+
+    res = agent._morning_borrow(
+        plan, day3, _picked4() + [{"name": "回民街"}, {"name": "西安碑林博物馆"}], []
+    )
+
+    assert res == ("回民街", None, 2)
+    hj2 = next(i for i in day3.items if i.name == "回民街")
+    assert hj2.day == 3
+    assert hj2.start_time == time(9, 0)
+    bmy = next(i for i in day4.items if i.name == "秦始皇兵马俑博物馆")
+    assert bmy.day == 4  # 最佳候选整体还原，不残留半挪状态
+    assert _morning_occupied(day2)  # 碑林 11:00 仍在
+    assert _morning_occupied(day4)  # 兵马俑还原后晨点仍在
+
+
 def test_morning_fill_overflow_adds_shortest_when_budget_soft():
     """360=偏好非硬闸：全都装不下时按最短溢出补，不再拒绝。"""
     agent = PlanningAgent(_NoLLM())
