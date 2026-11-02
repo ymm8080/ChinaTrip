@@ -290,8 +290,11 @@ def test_lns_disclosure_moves_are_strings():
 
 def test_lns_insertion_evaluator_fills_anchor_gap():
     """v1.5：240 分钟未排条目夹在两个全钉锚之间——兜底法因 ±30 缓冲
-    判死（10:30+240 撞 B 的 13:30 缓冲；B 后 16:30 又超入场闸），插入式
-    求解按锚背靠背落 10:00-14:00——评估器升级解锁这类移动。"""
+    判死（10:30+240 撞 B 的 13:40 缓冲；B 后 16:30 又超入场闸），插入式
+    求解按打车腿落锚缝 10:01-14:01——评估器升级解锁这类移动。
+    2026-11-02 车程进排程后：锚背靠背 10:00-14:00 不再可能（同点位
+    腿 1'，B 锚 14:10 让出腿缝）。"""
+    loc = GeoPoint(lon=108.94, lat=34.26)  # 三件同点位 → 打车腿 1'
     agent = PlanningAgent(_NoLLM())
     a = VisitItem(
         item_id="pa",
@@ -302,6 +305,7 @@ def test_lns_insertion_evaluator_fills_anchor_gap():
         start_time=time(9, 0),
         end_time=time(10, 0),
         pinned=True,
+        location=loc,
     )
     b = VisitItem(
         item_id="pb",
@@ -309,9 +313,10 @@ def test_lns_insertion_evaluator_fills_anchor_gap():
         city="西安",
         day=1,
         duration_minutes=120,
-        start_time=time(14, 0),
+        start_time=time(14, 10),
         end_time=time(16, 0),
         pinned=True,
+        location=loc,
     )
     x = VisitItem(
         item_id="vx",
@@ -319,6 +324,7 @@ def test_lns_insertion_evaluator_fills_anchor_gap():
         city="西安",
         day=1,
         duration_minutes=240,
+        location=loc,
     )
     day1 = DayPlan(day=1, base_city="西安", items=[a, b, x])
     day2 = DayPlan(
@@ -349,8 +355,8 @@ def test_lns_insertion_evaluator_fills_anchor_gap():
         for i in d.items
         if isinstance(i, VisitItem) and i.item_id == "vx"
     )
-    assert x_it.start_time == time(10, 0)  # 锚背靠背：10:00-14:00
-    assert x_it.end_time == time(14, 0)
+    assert x_it.start_time == time(10, 1)  # A 尾 10:00 + 腿 1'：10:01-14:01
+    assert x_it.end_time == time(14, 1)
 
 
 def test_lns_shake_bounded_never_worse():

@@ -8333,7 +8333,7 @@ class PlanningAgent:
             # 与生产主路 _solve 同口径传距离矩阵（2026-11-02 兵马俑→钟楼
             # 事故）：LNS 重排不传矩阵时插入式求解退化为背靠背，物理不可
             # 行时刻照发。
-            matrix = _travel_matrix(p, self._leg_cache)
+            matrix = _travel_matrix(p, getattr(self, "_leg_cache", None))
             for d in p.days:
                 if d.day not in day_nos:
                     continue
