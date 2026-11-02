@@ -331,7 +331,8 @@ def test_grade_source_street_histown():
     assert job.grade_source("旅游休闲街区") == "street"  # 简写容忍
     assert job.grade_source("中国历史文化名镇") == "histown"
     assert job.grade_source("历史文化名镇") == "histown"
-    assert job.grade_source("中国历史文化名村") is None  # 名村未并入
+    assert job.grade_source("国家考古遗址公园") == "relicpark"  # 2026-11-03 并入
+    assert job.grade_source("中国历史文化名村") == "histvillage"  # 2026-11-03 并入
 
 
 def test_load_rows_street_and_histown(tmp_path):
