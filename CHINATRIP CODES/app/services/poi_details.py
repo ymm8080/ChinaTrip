@@ -154,12 +154,52 @@ def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
     return tier
 
 
+_GENERIC_TAILS = (
+    "景区",
+    "风景区",
+    "旅游区",
+    "风景名胜区",
+    "名胜区",
+    "公园",
+    "国家公园",
+    "森林公园",
+    "湿地公园",
+    "地质公园",
+    "遗址",
+    "遗址公园",
+    "博物馆",
+    "博物院",
+    "纪念馆",
+    "陈列馆",
+    "故居",
+    "陵",
+    "园区",
+    "度假区",
+    "旅游度假区",
+    "古城",
+    "古镇",
+    "老街",
+    "街区",
+)
+
+
 def _name_overlap(a: str | None, b: str | None) -> bool:
-    """名单互含匹配（灵隐飞来峰 ↔ 灵隐飞来峰景区）；短名防泛名误伤。"""
+    """名单互含匹配,仅认头/尾相接:尾接多余段须为通用类尾词(灵隐飞来峰↔
+    灵隐飞来峰景区),头接多余段须 ≤3 字地市前缀(北京颐和园);中段嵌含
+    不再认——挡「颐和园-船坞」类子设施借本体世遗牌升档。"""
     a, b = (a or "").strip(), (b or "").strip()
     if len(a) < 3 or len(b) < 3:
         return False
-    return a in b or b in a
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    if long_.startswith(short):
+        extra = re.sub(r"[\s\-—·・]", "", long_[len(short) :])
+        return not extra or extra in _GENERIC_TAILS
+    if long_.endswith(short):
+        extra = re.sub(r"[\s\-—·・]", "", long_[: -len(short)])
+        return 0 < len(extra) <= 3
+    return False
 
 
 # 内存行 mimic ORM attrs（top_pois_in_city / candidate_by_name 的回退路共用）

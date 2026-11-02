@@ -570,3 +570,20 @@ def test_hit_tier_unesco_silk_road_component():
     assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 4
     assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 3
     assert hit_tier({"source": "baidu", "tags": ["4a"]}, []) == 2
+
+
+def test_name_overlap_rejects_midfix_subfacilities():
+    """世遗互含收紧（11-03 拍板）：仅认头/尾相接——尾接通用类尾词放行
+    （灵隐飞来峰↔灵隐飞来峰景区）、头接 ≤3 字地市前缀放行（北京颐和园）；
+    中段嵌含不再认，挡「颐和园-船坞 / 冰雪嘉年华」类子设施借本体牌升档。"""
+    from app.services.poi_details import _name_overlap
+
+    assert _name_overlap("灵隐飞来峰", "灵隐飞来峰景区")
+    assert _name_overlap("灵隐飞来峰景区", "灵隐飞来峰")
+    assert _name_overlap("北京颐和园", "颐和园")
+    assert _name_overlap("颐和园", "颐和园")
+    assert not _name_overlap("颐和园-船坞", "颐和园")
+    assert not _name_overlap("颐和园-冰雪嘉年华", "颐和园")
+    assert not _name_overlap("颐和园文创商店", "颐和园")
+    assert not _name_overlap("圆明园", "颐和园")
+    assert not _name_overlap("秦始皇帝陵", "秦始皇兵马俑博物馆")
