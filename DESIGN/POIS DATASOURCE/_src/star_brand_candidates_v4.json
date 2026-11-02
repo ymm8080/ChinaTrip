@@ -1,0 +1,82 @@
+[
+ {
+  "star": "5",
+  "roster": "上海浦东丽思卡尔顿酒店",
+  "lib_id": "dede8d70-5006-43f2-8653-b4421837aea4",
+  "lib": "上海浦东丽思卡尔顿酒店·Scena di Angelo",
+  "lib_city": "上海",
+  "shared": "上海浦东丽思卡尔顿酒店"
+ },
+ {
+  "star": "5",
+  "roster": "武汉光谷凯悦酒店",
+  "lib_id": "29feb85f-df7f-4fd7-a66d-4ac309916180",
+  "lib": "武汉光谷凯悦酒店lobby lounge  大堂吧",
+  "lib_city": "武汉",
+  "shared": "武汉光谷凯悦酒店"
+ },
+ {
+  "star": "5",
+  "roster": "深圳星河丽思卡尔顿酒店",
+  "lib_id": "18552c8e-65ee-4999-bcbc-3c0d9a499fad",
+  "lib": "深圳星河丽思卡尔顿酒店·ONYX大堂酒廊",
+  "lib_city": "深圳",
+  "shared": "深圳星河丽思卡尔顿酒店"
+ },
+ {
+  "star": "5",
+  "roster": "广州W酒店",
+  "lib_id": "e51dc191-4d54-42ef-be12-1b503f90632d",
+  "lib": "广州1978艺术村落民宿",
+  "lib_city": "广州",
+  "shared": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "广州W酒店",
+  "lib_id": "ca30790c-31cd-4205-b321-4df53e18ad7d",
+  "lib": "广州W酒店·贵船铁板烧KIBUNE TEPPANYAKI",
+  "lib_city": "广州",
+  "shared": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "广州W酒店",
+  "lib_id": "3f1188e7-88eb-4575-836c-bf24d271bb88",
+  "lib": "广州W服务式公寓",
+  "lib_city": "广州",
+  "shared": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "深圳前海华侨城JW万豪酒店",
+  "lib_id": "e21e7819-0c22-478a-b2ed-a2b26611e593",
+  "lib": "金茂深圳JW万豪酒店",
+  "lib_city": "深圳",
+  "shared": "万豪酒店"
+ },
+ {
+  "star": "4",
+  "roster": "广州知识城MUSTEL木文缇酒店",
+  "lib_id": "66834d7d-6417-4d80-becf-af2e4be35adc",
+  "lib": "广州南沙悠方MUSTEL木文缇酒店",
+  "lib_city": "广州",
+  "shared": "mustel|木文缇酒店"
+ },
+ {
+  "star": "4",
+  "roster": "南京东方珍珠voco酒店",
+  "lib_id": "0f3e9cdc-e9e9-4b90-806a-b613107a0b0a",
+  "lib": "南京园博园voco酒店",
+  "lib_city": "南京",
+  "shared": "voco"
+ },
+ {
+  "star": "4",
+  "roster": "南京THE TAI太和紫金大酒店",
+  "lib_id": "82532100-313b-46b3-a902-3dd8ad1d70cf",
+  "lib": "南京1865晨光嘉晖酒店",
+  "lib_city": "南京",
+  "shared": "南京"
+ }
+]
