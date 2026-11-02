@@ -60,6 +60,8 @@ _GRADE_SOURCE: dict[str, str] = {
     "未评级": "artmuseum",  # 无全国性等级的策展馆：只进骨架，无标签
     "国家级旅游休闲街区": "street",  # 文旅部+发改委（2026-10-28 并入）
     "中国历史文化名镇": "histown",  # 住建部+文物局（2026-10-28 并入）
+    "国家考古遗址公园": "relicpark",  # 国家文物局（2026-11-03 并入，§3.2 #2 P0）
+    "中国历史文化名村": "histvillage",  # 名村(2026-11-02 已灌 484 行,对齐)
 }
 _SOURCE_LABEL: dict[str, str] = {v: k for k, v in _GRADE_SOURCE.items()}
 _SOURCE_SLUG: dict[str, str] = {
@@ -69,6 +71,8 @@ _SOURCE_SLUG: dict[str, str] = {
     "artmuseum": "a1",
     "street": "st",
     "histown": "ht",
+    "relicpark": "rp",
+    "histvillage": "hv",
 }
 _TAGGED_GRADES = frozenset(_GRADE_SOURCE) - {"未评级"}
 
@@ -80,6 +84,8 @@ _SOURCE_AUTHORITY: dict[str, str] = {
     "artmuseum": "mct",
     "street": "mct",
     "histown": "mohurd",
+    "relicpark": "ncha",
+    "histvillage": "mohurd",
 }
 
 #: source → 骨架 category（seed_upsert 内经 normalize_category 归一）
@@ -90,6 +96,8 @@ _SOURCE_CATEGORY: dict[str, str] = {
     "artmuseum": "博物馆/纪念馆",
     "street": "历史遗迹",  # → historic
     "histown": "文化村/古镇",  # → ancient_town
+    "relicpark": "历史遗迹",  # → historic（考古遗址公园）
+    "histvillage": "文化村/古镇",  # → ancient_town
 }
 
 
