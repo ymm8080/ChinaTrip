@@ -438,6 +438,8 @@ class PoiDetailStore:
                     ).filter(Poi.name_zh == name)
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：下线行不过继（与主池同口径）
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     pair = q.first()
                     if pair is None:
                         return None
@@ -513,6 +515,8 @@ class PoiDetailStore:
                     )
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：愿望解析/H5 检索不见下线行
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     conds = []
                     for t in toks:
                         pat = f"%{t}%"
@@ -608,6 +612,8 @@ class PoiDetailStore:
                     ).filter(Poi.name_zh == n)
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：换景点不见下线行
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     rows_out = [_candidate_from_row(r, t) for r, t in q.limit(50).all()]
             except Exception:
                 self._note_db_failure()
