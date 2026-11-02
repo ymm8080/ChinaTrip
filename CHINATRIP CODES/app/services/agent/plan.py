@@ -2572,10 +2572,13 @@ def _host_day_for_visit(
     return None
 
 
-def _drop_untimed_visits(plan: ItineraryPlan) -> list[str]:
+def _drop_untimed_visits(
+    plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
     """终局兜底（2026-11-02「第1天无安排」事故）：清算挪日 + CP 重解后
     仍无时刻的非钉参访，不再以 None-None 卡交付（挪进的天物理装不下时
-    重解也排不出）。移除留痕，请用户改天再加回；pinned 铁律 19 不动
+    重解也排不出）。移除留痕，请用户改天再加回；pinned 与 protect
+    （必去/心愿名册）铁律 19 不动——用户点名的地方绝不静默消失
     （转场日侧由 _transfer_day_sweep 披露）。"""
     notes: list[str] = []
     for day in plan.days:
@@ -2585,6 +2588,7 @@ def _drop_untimed_visits(plan: ItineraryPlan) -> list[str]:
             if isinstance(i, VisitItem)
             and i.start_time is None
             and not i.pinned
+            and i.name not in protect
             and (i.category or "") not in ("food", "hotel")
         ]
         for item in drops:
@@ -2601,12 +2605,16 @@ def _drop_untimed_visits(plan: ItineraryPlan) -> list[str]:
     return notes
 
 
-def _transfer_day_sweep(plan: ItineraryPlan) -> list[str]:
+def _transfer_day_sweep(
+    plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
     """转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：solve 与
     兜底顺序排都排不上时刻的转场日参访，不再以 None-None 卡滞留当天
     （卡面无安排 + rule 4「没有起止时间」报错）——到达城条目挪同城
     更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
-    与挪日修复一致），挪不动移除留痕；pinned 铁律 19 不动只披露。
+    与挪日修复一致），挪不动移除留痕；pinned 与 protect（必去/心愿
+    名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
+    长江索道 pinned=False（钉在 solve 之后才打），清算当杂卡删空。
     挂在初次排程/编辑路径的兜底之后跑。"""
     notes: list[str] = []
     handled: set[str] = set()  # 每件最多挪一次——防跨转场日来回倒
@@ -2626,6 +2634,7 @@ def _transfer_day_sweep(plan: ItineraryPlan) -> list[str]:
             if isinstance(v, VisitItem)
             and v.start_time is None
             and not v.pinned
+            and v.name not in protect
             and (v.category or "") not in ("food", "hotel")
             and v.item_id not in handled
         ]
@@ -2668,7 +2677,7 @@ def _transfer_day_sweep(plan: ItineraryPlan) -> list[str]:
             for v in day.items
             if isinstance(v, VisitItem)
             and v.start_time is None
-            and v.pinned
+            and (v.pinned or v.name in protect)
             and (v.category or "") not in ("food", "hotel")
         ]
         if pinned_untimed:
@@ -7812,6 +7821,9 @@ class PlanningAgent:
             assumptions=assumptions + transfer_assumptions,
             start_date=start_date,
         )
+        # 必取名册提前备好：solve 之后的钉位（:7946 一带）之前，转场清算
+        # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
+        must_names = {spec["name"] for spec in picked if spec.get("must")}
         plan.assumptions.extend(
             _reconcile_transfer_days(
                 plan,
@@ -7831,7 +7843,7 @@ class PlanningAgent:
             # 转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：兜底
             # 仍排不上时刻的转场日参访挪日/移除留痕，再兜底一次给挪过去的
             # 条目落时刻。
-            plan.assumptions.extend(_transfer_day_sweep(plan))
+            plan.assumptions.extend(_transfer_day_sweep(plan, must_names))
             _fallback_sequence_times(plan)
             plan.assumptions.append(_solver_degraded_assumption())
         # 上午保底（2026-10-31 用户拍板「所有行程上午不许空」）：活动日
@@ -8010,7 +8022,7 @@ class PlanningAgent:
         # 重解失败日走兜底后仍 None-None）——交付前最后扫一遍并补排。
         # 补排用 CP 重解而非兜底顺序排：挪进的天既有条目多在日尾（兜底
         # 光标只会追加、日尾装不下就又留 None-None），重解可腾中段空档。
-        sweep_notes = _transfer_day_sweep(plan)
+        sweep_notes = _transfer_day_sweep(plan, must_names)
         if sweep_notes:
             plan.assumptions.extend(sweep_notes)
             if _has_untimed_visits(plan):
@@ -8022,7 +8034,7 @@ class PlanningAgent:
                 else:
                     _fallback_sequence_times(plan)
                 if _has_untimed_visits(plan):
-                    plan.assumptions.extend(_drop_untimed_visits(plan))
+                    plan.assumptions.extend(_drop_untimed_visits(plan, must_names))
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -10226,7 +10238,7 @@ class PlanningAgent:
             candidate = solved
         if solved is None or _has_untimed_visits(candidate):
             _fallback_sequence_times(candidate)
-            candidate.assumptions.extend(_transfer_day_sweep(candidate))
+            candidate.assumptions.extend(_transfer_day_sweep(candidate, protect))
             _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)

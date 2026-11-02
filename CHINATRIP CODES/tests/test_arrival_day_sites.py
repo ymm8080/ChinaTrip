@@ -254,3 +254,25 @@ def test_drop_untimed_ignores_food_and_timed():
     plan = _plan([day2])
     assert _drop_untimed_visits(plan) == []
     assert len(day2.items) == 2
+
+
+# ---------------- 铁律 19：protect 名册（必去/心愿）不删 ----------------
+
+
+def test_sweep_protects_must_names():
+    # 2026-11-02 链接必到案：必去 pinned=False（钉在 solve 之后才打），
+    # 转场清算曾当杂卡删空——protect 名册内的条目挪不动也只留卡披露
+    w = _visit("mustsee")
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), w])
+    plan = _plan([day1])
+    notes = _transfer_day_sweep(plan, {"mustsee"})
+    assert _find(day1, "mustsee").day == 1
+    assert any("必去" in str(n) or "Must-visits" in str(n) for n in notes)
+
+
+def test_drop_untimed_protects_must_names():
+    day1 = DayPlan(day=1, base_city="上海", items=[_visit("keep"), _visit("gone")])
+    plan = _plan([day1])
+    _drop_untimed_visits(plan, {"keep"})
+    assert _find(day1, "keep").day == 1
+    assert all(i.item_id != "gone" for i in day1.items)
