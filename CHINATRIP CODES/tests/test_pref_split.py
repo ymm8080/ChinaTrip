@@ -364,7 +364,9 @@ def test_selection_pref_rank_survives_rain_reorder():
         preferences="博物馆人文",
     )
     names = [it["name"] for it in items]
-    assert names == ["社区博物馆", "室内五A馆", "露天自然点"]
+    # 雨日硬闸（2026-11-02）：单日窗无干日 → 露天出局；室内序=
+    # 避险位>偏好位（社区博物馆偏好命中排在 5A 之前）
+    assert names == ["社区博物馆", "室内五A馆"]
 
 
 # --- 偏好识别与映射 helper -------------------------------------------------

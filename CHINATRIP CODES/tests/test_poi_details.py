@@ -541,3 +541,15 @@ def test_store_get_by_name_city_scoped():
     # city=None（fast_lane 语义）：全库精确名照常
 
     assert store.get_by_name(None, "钟楼")["poi_id"] == "ct_beijing_165"
+
+
+def test_hit_tier_unesco_silk_road_component():
+    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档 tier=4（2026-11-02
+    大雁塔事故：点段代表行来源 5a/relicpark 各异，只认 source 永远升不了档）。"""
+    from app.services.poi_details import hit_tier
+
+    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 4
+    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 4
+    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 4
+    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 3
+    assert hit_tier({"source": "baidu", "tags": ["4a"]}, []) == 2

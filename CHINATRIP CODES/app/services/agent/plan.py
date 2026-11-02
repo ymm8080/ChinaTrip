@@ -315,6 +315,18 @@ def _rain_heavy(text: str | None) -> bool:
     return bool(text) and ("大雨" in text or "暴雨" in text)
 
 
+def _rain_light(text: str | None) -> bool:
+    """小雨口径（2026-11-02 用户拍板「半露天（partial）小雨可以排。
+    没说中雨」）：仅文本含「小雨」且不含更强/其他雨种（小到中雨/
+    阵雨/雷阵雨/冻雨/雨夹雪均不算）——半露天只在小雨日照排（+提示），
+    中雨及以上一律拦。"""
+    if not text or "小雨" not in text:
+        return False
+    return not any(
+        w in text for w in ("中雨", "大雨", "暴雨", "阵雨", "雷雨", "冻雨", "雨夹雪")
+    )
+
+
 def _source_tier(cand: dict) -> int:
     """首次到访候选优先级（2026-10-28 用户拍板）：
 
@@ -326,7 +338,15 @@ def _source_tier(cand: dict) -> int:
     source = str(cand.get("source") or "").strip().lower()
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
     joined = " ".join(tags)
-    if source == "unesco" or "unesco" in tags or "世界遗产" in joined:
+    if (
+        source == "unesco"
+        or any(t.startswith("unesco") for t in tags)
+        or "世界遗产" in joined
+    ):
+        # unesco_* 前缀=世界遗产族（丝路点段/明清陵寝/南方喀斯特等
+        # 跨省系列的点段代表行，来源 5a/4a/relicpark/amap 多样），与
+        # 全量世遗同档——不认前缀则点段世遗身份进不了梯子
+        # （2026-11-02 大雁塔落选、未央宫入选事故）。
         return 1
     if source == "5a" or "5a" in tags:
         return 2
@@ -4422,7 +4442,9 @@ class PlanningAgent:
         # 三轮拍板：白天/夜间双窗——夜间雨只影响游船观景等夜间露天
         # 活动）：出发日期落定才有绝对日历；无 start_date / 无
         # lookup / 无数据 → 空表，选点行为与旧版完全一致
-        rain_map, night_rain_map, heavy_rain_map = self._rain_map(session, ranges)
+        rain_map, night_rain_map, heavy_rain_map, light_rain_map = self._rain_map(
+            session, ranges
+        )
         rain_notes: list[str] = []
         # §6.1 片区提示：候选按城市地理聚类（k=该城天数窗），area 标注
         # 进 listing（LLM 分日时少横穿城；聚类只给提示不硬替分日）
@@ -4471,6 +4493,7 @@ class PlanningAgent:
                 rain_days=rain_map,
                 night_rain_days=night_rain_map,
                 heavy_rain_days=heavy_rain_map,
+                light_rain_days=light_rain_map,
                 notes=rain_notes,
                 preferences=session.preferences,
             )
@@ -5674,10 +5697,11 @@ class PlanningAgent:
         空表。
         """
         if self._weather_lookup is None or not session.start_date:
-            return {}, {}, {}
+            return {}, {}, {}, {}
         day_out: dict[str, set[int]] = {}
         night_out: dict[str, set[int]] = {}
         heavy_out: dict[str, set[int]] = {}
+        light_out: dict[str, set[int]] = {}
         for city, (lo, hi) in ranges.items():
             key = city.removesuffix("市")
             for day in range(lo, hi + 1):
@@ -5695,9 +5719,11 @@ class PlanningAgent:
                     day_out.setdefault(key, set()).add(day)
                     if _rain_heavy(str(day_text)):
                         heavy_out.setdefault(key, set()).add(day)
+                    elif _rain_light(str(day_text)):
+                        light_out.setdefault(key, set()).add(day)
                 if night_text and "雨" in str(night_text):
                     night_out.setdefault(key, set()).add(day)
-        return day_out, night_out, heavy_out
+        return day_out, night_out, heavy_out, light_out
 
     @staticmethod
     def _deterministic_selection(
@@ -5708,15 +5734,20 @@ class PlanningAgent:
         rain_days: dict[str, set[int]] | None = None,
         night_rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
+        light_rain_days: dict[str, set[int]] | None = None,
         notes: list[str] | None = None,
         preferences: str = "",
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
         TTDP 通行四段式（研究结论 2026-10-28）的确定性实现：
-        ①选点=首次到访 tier 序（_source_tier），同 tier 保库序；
+        ①选点=首次到访 tier 序（_source_tier），同 tier 短时长优先
+        （2026-11-02 拍板：时间被闸时同档倾向选时间短的）、并列保库序；
         ②分日=cluster_days 地理聚拢（同片区同天）+ 每日参访时长预算
         DAY_VISIT_BUDGET_MINUTES + 4 个/日闸，簇满溢出到余量最大天；
+        时间预算=软闸（2026-11-02 拍板「时间约束是软闸不是硬闸」）：
+        预算外不放生、放余量最大天允许超额，求解层按真实时窗收口；
+        4 个/日闸（铁律 6）仍是硬闸；池外补充回填不享软闸；
         ③日内=最近邻链（solver 再按 travel 矩阵+开放时间窗精排）；
         ④演出钉城市末日收尾、餐饮锚点全保留摊到窗口各天；⑤转场日
         （到达日/返程日，transfer_days）预算扣 FLIGHT_TRANSFER_MINUTES——
@@ -5725,10 +5756,10 @@ class PlanningAgent:
         排室内，不问用户」+三轮「避免露天活动与下雨时间段一致」）：
         白天窗——整段有雨→白天露天降权室内优先入池；部分日有雨→
         雨天露天点逐级兜底（单点对调→干日室内整组腾挪→雨日就地改
-        排未入选室内点（露天不排、点名披露）→保留但留痕，不静默；
-        ④保留仅限小雨/中雨——大雨/暴雨（heavy_rain_days，2026-10-31
-        雨强分级拍板）升级为「雨日不排」移出行程，回填层再替它在
-        干日找位、找不到由白名单「可选加」披露）；
+        排未入选室内点（露天不排、点名披露）→不排；
+        ④无可替代=「雨日不排」移出行程+点名（2026-11-02 拍板「雨日
+        是硬闸」——任何强度都不落雨日，大雨/中雨仅措辞分级），回填
+        层再替它在干日找位、找不到由白名单「可选加」披露）；
         夜间窗——雨夜里的夜间露天点（游船观景/夜游等 evening 点，
         _night_cand）换到干夜；H5 横幅分窗兜底（notes 留痕）。
         不评分、同输入同输出。
@@ -5809,15 +5840,62 @@ class PlanningAgent:
                     sights.append((idx, cand))
             ordered = sorted(
                 sights,
-                key=lambda p: (not _pref_hit(p[1]), _source_tier(p[1]), p[0]),
+                key=lambda p: (
+                    not _pref_hit(p[1]),
+                    _source_tier(p[1]),
+                    _minutes(p[1], DEFAULT_VISIT_MINUTES),
+                    p[0],
+                ),
             )
             rainy_here = {d for d in (rain_days or {}).get(city, ()) if lo <= d <= hi}
             heavy_here = {
                 d for d in (heavy_rain_days or {}).get(city, ()) if lo <= d <= hi
             }
+            light_here = {
+                d for d in (light_rain_days or {}).get(city, ()) if lo <= d <= hi
+            }
             night_rainy = {
                 d for d in (night_rain_days or {}).get(city, ()) if lo <= d <= hi
             }
+
+            def _rainy_for(cand: dict, d: int) -> bool:
+                # 露天/半露天点的逐日雨信号（偏好排序用）：普通露天看
+                # 白天窗，夜间露天只看夜间窗，partial 视同露天。
+                if not _rain_exposed(cand):
+                    return False
+                if _night_cand(cand):
+                    return d in night_rainy
+                return d in rainy_here
+
+            def _rain_blocked(cand: dict, d: int) -> bool:
+                # 雨日硬闸判定（2026-11-02 拍板链「雨日是硬闸」+
+                # 「半露天（partial）小雨可以排。没说中雨」）：全露天
+                # =雨日全拦；半露天=仅小雨日放行（+提示），中雨及以
+                # 上/雨夜一律拦。
+                if not _rain_exposed(cand):
+                    return False
+                if str(cand.get("rain_ok") or "").lower() == "partial":
+                    # 仅小雨日放行（2026-11-02 拍板）；中雨及以上、
+                    # 雨夜（无分级信号，保守拦）都拦。
+                    if d in night_rainy:
+                        return True
+                    return d in rainy_here and d not in light_here
+                if _night_cand(cand):
+                    return d in night_rainy
+                return d in rainy_here
+
+            def _partial_rain_note(cand: dict, d: int) -> None:
+                # 半露天落小雨日：照排但提示（2026-11-02 拍板，仅小雨）。
+                if (
+                    notes is not None
+                    and str(cand.get("rain_ok") or "").lower() == "partial"
+                    and d in rainy_here
+                    and d in light_here
+                ):
+                    notes.append(
+                        f"第{d}天预报小雨：{cand['name']}（半露天）小雨照排，建议备伞"
+                    )
+
             if rainy_here and len(rainy_here) >= span:
                 # 整段预报有雨（2026-10-30 用户拍板：有雨自动排室内，
                 # 不问用户）：露天（rain_ok=no）稳定降权到分区末尾，
@@ -5833,6 +5911,7 @@ class PlanningAgent:
                         else 0,
                         not _pref_hit(p[1]),
                         _source_tier(p[1]),
+                        _minutes(p[1], DEFAULT_VISIT_MINUTES),
                         p[0],
                     ),
                 )
@@ -5842,7 +5921,11 @@ class PlanningAgent:
                     and any(p[1].get("rain_ok") == "yes" for p in ordered)
                 ):
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
-            pool = ordered[: span * 4]
+            # 池上限在让位收缩前定格（2026-11-02）：shadow 让位会缩
+            # pool，若池外切片用 len(pool) 会把池内末位重复当池外
+            # 处理（F6 神龙峡假披露「无干日可排」案）。
+            _pool_cap = span * 4
+            pool = ordered[:_pool_cap]
             # 博物馆孪生让位（2026-10-31 碑林拍板）：伞形景区行与博物馆
             # 本体同站在池时，景区行让位——「碑林博物馆优先于城墙·
             # 碑林历史文化景区」。
@@ -5905,19 +5988,50 @@ class PlanningAgent:
                 cid = clusters[pos]
                 xy = _cxy(cand)
                 day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
+                # 露天点雨日硬闸（2026-11-02 拍板）：全露天雨日全拦、
+                # 半露天仅强雨日拦（小雨照排+提示）→ 必须改投有计数
+                # 空位的干日（余量最小，时间预算软闸照放）；无干日
+                # 空位=出局，交回填层重试与「逢雨暂不排入」披露。
+                if _rain_blocked(cand, day):
+                    _dry = [
+                        d
+                        for d in range(lo, hi + 1)
+                        if not _rain_blocked(cand, d) and day_loads[d][1] < 4
+                    ]
+                    if not _dry:
+                        continue
+                    day = min(_dry, key=lambda d: (day_loads[d][0], day_loads[d][1], d))
                 load = day_loads[day]
                 leg = _leg_min(xy, day)
                 if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
                     day = _emptiest_day()  # 簇满→溢出余量最大天（保地理优先、不空天）
+                    if _rain_blocked(cand, day):
+                        _dry = [
+                            d
+                            for d in range(lo, hi + 1)
+                            if not _rain_blocked(cand, d) and day_loads[d][1] < 4
+                        ]
+                        if not _dry:
+                            continue  # 雨日硬闸：无干日空位不落雨日
+                        day = min(
+                            _dry,
+                            key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                        )
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
-                    if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
+                    # 时间预算=软闸（2026-11-02 拍板「时间约束是软闸
+                    # 不是硬闸」）：预算超了不放生——放余量最大天允许
+                    # 超额，交给求解层按真实时窗精排；4 个/日闸（铁律
+                    # 6）仍是硬闸；同档被闸时短时长先占位（排序键含
+                    # 时长升序）。
+                    if load[1] >= 4:
                         continue  # 全满才出局（tier 低者先出）
                 load[0] += minutes + leg
                 load[1] += 1
                 if xy is not None:
                     day_coords[day].append(xy)
                 placed[day].append((pos, cand))
+                _partial_rain_note(cand, day)
             if rainy_here:
                 # 雨天对调（2026-10-30 用户拍板：有雨自动排室内，不问
                 # 用户）。雨日露天点逐级兜底（2026-10-30 深夜 day5 武陵
@@ -6018,24 +6132,25 @@ class PlanningAgent:
                     #   用户拍板）——移出行程，载荷同步扣减；5A/UNESCO
                     #   由白名单「可选加」自然披露，回填层还会替它在
                     #   干日找位（找不到则点名+白名单双账）
-                    if rd in heavy_here:
-                        placed[rd].remove((pos, cand))
-                        day_loads[rd][0] -= out_min
-                        day_loads[rd][1] -= 1
-                        if notes is not None:
-                            notes.append(
-                                f"第{rd}天预报大雨：{cand['name']}"
-                                f"（{_rain_exposure_label(cand)}）雨日不排；要保留请说"
-                            )
-                    elif notes is not None:
+                    # 雨日硬闸（2026-11-02 拍板）：无可替代=任何强度都
+                    # 不排——移出行程+点名（大雨/中雨仅措辞分级；
+                    # 5A/UNESCO 由白名单「可选加」自然披露，回填层
+                    # 再替它在干日找位）。
+                    placed[rd].remove((pos, cand))
+                    day_loads[rd][0] -= out_min
+                    day_loads[rd][1] -= 1
+                    if notes is not None:
+                        _level = "大雨" if rd in heavy_here else "有雨"
                         notes.append(
-                            f"第{rd}天预报有雨：{cand['name']}"
-                            f"（{_rain_exposure_label(cand)}）无可替代点位，保持原排"
+                            f"第{rd}天预报{_level}：{cand['name']}"
+                            f"（{_rain_exposure_label(cand)}）雨日不排；要保留请说"
                         )
 
                 for rd in sorted(rainy_here):
                     for pos, cand in list(placed[rd]):
-                        if not _rain_exposed(cand):
+                        # 只处理被硬闸拦却已在雨日的（must/编辑残留）；
+                        # 半露天小雨日合法落位（2026-11-02 拍板）不再救。
+                        if not _rain_blocked(cand, rd):
                             continue
                         if _night_cand(cand) and rd not in night_rainy:
                             continue  # 夜间点只受夜间窗影响（三轮口径）
@@ -6048,7 +6163,7 @@ class PlanningAgent:
                 dry_nights = [d for d in range(lo, hi + 1) if d not in night_rainy]
                 for rd in sorted(night_rainy):
                     for pos, cand in list(placed[rd]):
-                        if not _rain_exposed(cand) or not _night_cand(cand):
+                        if not _rain_blocked(cand, rd) or not _night_cand(cand):
                             continue
                         out_min = _minutes(cand, DEFAULT_VISIT_MINUTES)
                         for dd in dry_nights:
@@ -6080,6 +6195,16 @@ class PlanningAgent:
                                     f"（夜间露天）与{c2['name']}已对调"
                                 )
                             break
+                        else:
+                            # 雨夜硬闸（2026-11-02 拍板）：换不动=不排
+                            placed[rd].remove((pos, cand))
+                            day_loads[rd][0] -= out_min
+                            day_loads[rd][1] -= 1
+                            if notes is not None:
+                                notes.append(
+                                    f"第{rd}天夜间有雨：{cand['name']}"
+                                    f"（夜间露天）雨夜不排；要保留请说"
+                                )
             # 稀疏天回填（2026-10-31 用户拍板「第三天非常空」）：全满出局
             # 与池外（tier 13+）的好点此前从不回头看——金沙/杜甫草堂级 90 分
             # 钟点被丢在池外而 day3 只有 180/360。按 tier 序回补：先地理最近
@@ -6088,19 +6213,10 @@ class PlanningAgent:
             # 级未排由白名单「可选加」披露）。
             placed_pos = {pos for seq in placed.values() for pos, _ in seq}
 
-            def _rainy_for(cand: dict, d: int) -> bool:
-                # 回填层雨天感知（2026-10-31 接「有雨自动排室内」补
-                # 漏：此前按 (腿,负载,日) 选天，露天补位点会就近落
-                # 进雨天——线上李子坝/云阳龙缸案）。三轮口径沿用：
-                # 普通露天点看白天窗，夜间露天点只看夜间窗；partial
-                # （半露天，如动物园）视同露天（用户拍板 2026-10-31）。
-                if not _rain_exposed(cand):
-                    return False
-                if _night_cand(cand):
-                    return d in night_rainy
-                return d in rainy_here
+            # _rainy_for 已提前至主放置环前定义（2026-11-02 壬峰案：
+            # 软闸+短者先序会把露天点推进主环，雨闸必须覆盖主环）。
 
-            def _refill(pos: int, cand: dict) -> None:
+            def _refill(pos: int, cand: dict, time_soft: bool = True) -> None:
                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                 xy = _cxy(cand)
                 # 露天点干日优先（雨 flag 前置）；雨日一律不补露天
@@ -6109,6 +6225,7 @@ class PlanningAgent:
                 # 「可选加」披露。空天无忧：主选点溢出兜底已保证每天
                 # 非空）
                 feasible_rainy = False
+                fallback: int | None = None
                 for day in sorted(
                     range(lo, hi + 1),
                     key=lambda d: (
@@ -6120,20 +6237,37 @@ class PlanningAgent:
                 ):
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
-                    if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
+                    if load[1] >= 4:
                         continue
-                    if _rainy_for(cand, day):
-                        feasible_rainy = True
+                    if _rain_blocked(cand, day):
+                        if load[0] + minutes + leg <= _budget(day):
+                            feasible_rainy = True
+                        continue
+                    if load[0] + minutes + leg > _budget(day):
+                        # 时间预算=软闸：预算内无位先记余量最大天
+                        # （2026-11-02 拍板）；雨闸照硬（露天不进雨日）。
+                        if time_soft and fallback is None:
+                            fallback = day
                         continue
                     load[0] += minutes + leg
                     load[1] += 1
                     if xy is not None:
                         day_coords[day].append(xy)
                     placed[day].append((pos, cand))
+                    _partial_rain_note(cand, day)
                     break
                 else:
-                    # 本可排但逢雨：点名留痕（不依赖白名单兜披露）
-                    if feasible_rainy and notes is not None:
+                    if fallback is not None:
+                        # 软闸放行：预算外照排，求解层按真实时窗收口。
+                        leg_fb = _leg_min(xy, fallback)
+                        day_loads[fallback][0] += minutes + leg_fb
+                        day_loads[fallback][1] += 1
+                        if xy is not None:
+                            day_coords[fallback].append(xy)
+                        placed[fallback].append((pos, cand))
+                        _partial_rain_note(cand, fallback)
+                    elif feasible_rainy and notes is not None:
+                        # 本可排但逢雨：点名留痕（不依赖白名单兜披露）
                         notes.append(
                             f"{cand['name']}（{_rain_exposure_label(cand)}）无干日可排，"
                             f"逢雨暂不排入；要保留请说"
@@ -6143,12 +6277,14 @@ class PlanningAgent:
                 if pos not in placed_pos:
                     _refill(pos, cand)
             # 池外补充回填（pool 截断在 span*4，池外仍有序可用点）
-            for pos, (idx, cand) in enumerate(ordered[len(pool) :], start=len(pool)):
+            for pos, (idx, cand) in enumerate(ordered[_pool_cap:], start=_pool_cap):
                 if cand.get("category") == "food" or (
                     _cand_is_show(cand) and _show_night_only(cand)
                 ):
                     continue
-                _refill(pos, cand)
+                # 池外尾巴点未挣到超额权：时间闸照硬（软闸只保池内
+                # 正选点，2026-11-02 拍板口径）。
+                _refill(pos, cand, time_soft=False)
             # 演出每场闸（2026-11-02 用户拍板「一天最多一场演出」）：主池
             # 落位、雨天对调、稀疏回填全通道收口后按天清点演出候选
             # （_cand_is_show：含多场次下午场演出），同天第二场起按池序

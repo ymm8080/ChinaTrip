@@ -108,7 +108,11 @@ def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
     """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
     tags → source（intl 系与 5A 同档，2026-10-25/26 拍板）→ 全库名单互含。"""
     tags = {str(t) for t in (h.get("tags") or [])}
-    if "unesco" in tags or h.get("source") == "unesco":
+    # unesco_* 前缀=世界遗产族（全量世遗 unesco/丝路点段 unesco_silk_road/
+    # 明清陵寝 unesco_ming_tombs/南方喀斯特 unesco_karst 等，点段代表行
+    # 来源 5a/4a/relicpark/amap 各异，靠 source 永远升不了档）——与
+    # 全量世遗同档（2026-11-02 拍板：世界遗产优先）。
+    if any(t.startswith("unesco") for t in tags) or h.get("source") == "unesco":
         return 4
     if "5a" in tags or h.get("source") == "5a":
         return 3

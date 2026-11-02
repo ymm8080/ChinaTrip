@@ -111,15 +111,17 @@ def test_geo_cluster_same_area_same_day():
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
 
 
-def test_time_budget_drops_when_day_full():
+def test_time_budget_soft_gate_overflows_not_drops():
+    # 2026-11-02 拍板「时间约束是软闸不是硬闸」：180+180=360 满后
+    # 第三个不再出局——软闸放行超额落位（4 个/日闸才是硬闸），
+    # 物理可行性交求解层按真实时窗收口。
     cands = [
         _cand("甲", "成都", suggested=180, loc=(104.06, 30.66)),
         _cand("乙", "成都", suggested=180, loc=(104.06, 30.66)),
         _cand("丙", "成都", suggested=180, loc=(104.06, 30.66)),
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
-    # 180+180=360 满，第三个出局
-    assert len(items) == 2
+    assert len(items) == 3
 
 
 def test_four_per_day_cap():
@@ -356,8 +358,9 @@ def test_transfer_day_budget_reduced():
     pinned = PlanningAgent._deterministic_selection(
         cands, 1, {"成都": (1, 1)}, transfer_days={1}
     )
-    # 转场日预算 360-180=180：第一个 120 放得下，第二个 240>180 出局
-    assert len(pinned) == 1
+    # 2026-11-02 软闸拍板：转场日扣减 180 不再决定出局（三个全放），
+    # 只影响溢出目标天选择——见 test_transfer_days_only_deduct_listed_days。
+    assert len(pinned) == 3
 
 
 def test_transfer_days_only_deduct_listed_days():
@@ -376,16 +379,17 @@ def test_transfer_days_only_deduct_listed_days():
 # --- 2026-10-30 过载优化：走行计预算 + 必去容量感知放日 --------------------
 
 
-def test_travel_legs_count_into_day_budget():
-    """远距两点的走行腿（封顶 120）计入当日预算：150+150+120=420>360，
-    第二点出局——旧口径只算参访时长（300≤360）两个都放，solver 只能
-    排出物理不可能的背靠背日程。"""
+def test_travel_legs_count_but_soft_gate_keeps_far_pair():
+    """走行腿仍计入当日载荷（影响落日与溢出目标天，见
+    test_far_pair_spreads_when_second_day_exists）；2026-11-02 软闸
+    拍板后 150+150+腿>360 不再出局——超额照排，物理可行性交求解层。
+    """
     cands = [
         _cand("甲", "成都", suggested=150, loc=(104.06, 30.66)),
         _cand("乙", "成都", suggested=150, loc=(104.90, 31.20)),  # ~90km
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
-    assert [it["name"] for it in items] == ["甲"]
+    assert [it["name"] for it in items] == ["甲", "乙"]
 
 
 def test_travel_legs_zero_for_colocated_sites():
@@ -540,8 +544,11 @@ def test_unlocated_must_goes_to_emptiest_day():
     assert must["day"] == 3  # 最空天（90 < 300）
 
 
-def test_sparse_day_refills_from_beyond_pool():
-    """池外候选回填稀疏天：跨区腿出局的大点不回填，同片区小点补进空天。"""
+def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
+    """2026-11-02 软闸拍板后的形态锁定（原「稀疏天回填」语义被软闸
+    取代）：同档短时长先占位（补0-3 先入池占 day1，恰 4 个/日闸
+    封顶）；池内正选大点（市1/市2/远填0）预算外软闸超额落位 day2；
+    池外尾巴（远填1-4）不享软闸——时间闸照硬，不硬塞。"""
     g1 = (104.06, 30.66)  # 市中心
     g2 = (103.62, 30.90)  # 都江堰（远区）
     cands = [
@@ -549,20 +556,18 @@ def test_sparse_day_refills_from_beyond_pool():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    cands += [
-        _cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)
-    ]  # 池内：day2 90+180+120(跨区腿)=390 出局
-    cands += [
-        _cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)
-    ]  # 池外同片区小点：回填 day2
+    cands += [_cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)]
+    cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
     items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
-    assert "都1" in by_day.get(2, [])
-    refilled = [n for n in by_day.get(2, []) if n.startswith("补")]
-    assert len(refilled) >= 2  # 稀疏天被池外同片区点回填
-    assert not any(n.startswith("远填") for n in by_day.get(2, []))  # 跨区大点不硬塞
+    # day1=池内短时长小点 ×4（4 个/日闸封顶）；day2=软闸超额大点+溢出的都1
+    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
+    # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
+    flat = [n for names in by_day.values() for n in names]
+    assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))
 
 
 # --- 2026-10-31 打车出行模型：车程+半小时叫车 --------------------------------

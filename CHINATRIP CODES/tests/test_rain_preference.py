@@ -59,11 +59,14 @@ def test_rain_map_builds_day_and_night_sets_from_lookup():
         )
     )
     session = SimpleNamespace(start_date="2026-11-02", cities=["成都"])
-    day_rain, night_rain, heavy_rain = agent._rain_map(session, {"成都": (1, 3)})
+    day_rain, night_rain, heavy_rain, light_rain = agent._rain_map(
+        session, {"成都": (1, 3)}
+    )
     assert day_rain == {"成都": {2}}
     assert night_rain == {"成都": {3}}
-    # 小雨/中雨不进强雨集
+    # 小雨/中雨不进强雨集；小雨单列 light 集（半露天放行用）
     assert heavy_rain == {}
+    assert light_rain == {"成都": {2}}
 
 
 def test_rain_map_collects_day_window_heavy_rain():
@@ -80,10 +83,13 @@ def test_rain_map_collects_day_window_heavy_rain():
         )
     )
     session = SimpleNamespace(start_date="2026-11-01", cities=["成都"])
-    day_rain, night_rain, heavy_rain = agent._rain_map(session, {"成都": (1, 3)})
+    day_rain, night_rain, heavy_rain, light_rain = agent._rain_map(
+        session, {"成都": (1, 3)}
+    )
     assert day_rain == {"成都": {1, 2, 3}}
     assert night_rain == {"成都": {3}}
     assert heavy_rain == {"成都": {2}}
+    assert light_rain == {"成都": {3}}  # 仅 day3 小雨；雷阵雨/大雨不进
 
 
 def test_rain_map_empty_without_start_date_or_lookup():
@@ -92,11 +98,12 @@ def test_rain_map_empty_without_start_date_or_lookup():
         {},
         {},
         {},
+        {},
     )
     no_lookup = _agent()
     assert no_lookup._rain_map(
         SimpleNamespace(start_date="2026-11-02", cities=["成都"]), {"成都": (1, 2)}
-    ) == ({}, {}, {})
+    ) == ({}, {}, {}, {})
 
 
 def test_rain_map_degrades_on_lookup_error():
@@ -104,10 +111,10 @@ def test_rain_map_degrades_on_lookup_error():
         raise RuntimeError("db down")
 
     agent = _agent(boom)
-    day_rain, night_rain, heavy_rain = agent._rain_map(
+    day_rain, night_rain, heavy_rain, light_rain = agent._rain_map(
         SimpleNamespace(start_date="2026-11-02", cities=["成都"]), {"成都": (1, 1)}
     )
-    assert day_rain == {} and night_rain == {} and heavy_rain == {}
+    assert day_rain == {} and night_rain == {} and heavy_rain == {} and light_rain == {}
 
 
 # ---------- ② _deterministic_selection 雨天感知（白天窗 + 夜间窗） ----------
@@ -125,10 +132,12 @@ def test_selection_prefers_indoor_when_whole_window_rainy():
         cands, 1, {"成都": (1, 1)}, rain_days={"成都": {1}}, notes=notes
     )
     names = [p["name"] for p in picked]
-    # 单日窗全量装下（4×60≤360、4 个/日闸）：室内在前、露天垫后
-    assert names[:2] == ["成都博物馆", "四川博物院"]
-    assert set(names[2:]) == {"青城山", "街子古镇"}
+    # 雨日硬闸（2026-11-02 拍板）：单日窗无干日 → 露天出局+点名；
+    # 室内照排（避险序室内在前）
+    assert names == ["成都博物馆", "四川博物院"]
     assert any("室内" in n for n in notes)
+    assert any("青城山" in n and "逢雨暂不排入" in n for n in notes)
+    assert any("街子古镇" in n and "逢雨暂不排入" in n for n in notes)
 
 
 def test_selection_unchanged_without_rain_days():
@@ -141,9 +150,9 @@ def test_selection_unchanged_without_rain_days():
     assert [p["name"] for p in picked] == ["青城山", "成都博物馆"]
 
 
-def test_selection_swaps_outdoor_on_rainy_day_with_indoor_on_dry_day():
-    # 地理两组：露天组在北（31.5/31.4），室内组在南（30.66/30.65）——
-    # cluster_days k=2 确定性切两片，露天片（库序在前）落第 1 天
+def test_selection_redirects_outdoor_cluster_off_rainy_day():
+    # 2026-11-02 雨日硬闸：露天簇落雨日 → 直接避让到干日（防优于
+    # 治，不再走对调）；室内簇照旧。
     cands = [
         _cand("青城山", "成都", "no", lat=31.5),
         _cand("街子古镇", "成都", "no", lat=31.4),
@@ -155,14 +164,16 @@ def test_selection_swaps_outdoor_on_rainy_day_with_indoor_on_dry_day():
         cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
     )
     day_of = {p["name"]: p["day"] for p in picked}
-    # 第 1 天（雨天）不剩露天点：两个露天点已换到第 2 天
+    # 露天两点避让到干日 2；室内簇照排雨日 1（室内不受硬闸）
     assert day_of["青城山"] == 2 and day_of["街子古镇"] == 2
     assert day_of["成都博物馆"] == 1 and day_of["四川博物院"] == 1
-    assert sum("对调" in n for n in notes) == 2
+    # 防优于治：避让即落位，不再有「对调」披露
+    assert not any("对调" in n for n in notes)
 
 
-def test_selection_keeps_outdoor_when_no_indoor_to_swap():
-    # 全窗有雨且候选全是露天：无室内可换，保持原排不丢点（宁露天不空天）
+def test_selection_drops_outdoor_when_whole_window_rainy():
+    # 雨日硬闸（2026-11-02 拍板）：全窗有雨无干日 → 露天点出局+
+    # 点名（「宁露天不空天」退役——雨日绝不排露天）。
     cands = [
         _cand("青城山", "成都", "no", lat=31.5),
         _cand("街子古镇", "成都", "no", lat=30.6),
@@ -171,7 +182,9 @@ def test_selection_keeps_outdoor_when_no_indoor_to_swap():
     picked = PlanningAgent._deterministic_selection(
         cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1, 2}}, notes=notes
     )
-    assert {p["name"] for p in picked} == {"青城山", "街子古镇"}
+    assert picked == []
+    assert any("青城山" in n and "逢雨暂不排入" in n for n in notes)
+    assert any("街子古镇" in n and "逢雨暂不排入" in n for n in notes)
     # 全露天无室内 → 不发「已优先室内」note（没优先成）
     assert not any("室内" in n for n in notes)
 
@@ -189,10 +202,11 @@ def test_selection_moves_night_activity_off_rainy_night():
         cands, 2, {"广州": (1, 2)}, night_rain_days={"广州": {1}}, notes=notes
     )
     day_of = {p["name"]: p["day"] for p in picked}
-    assert day_of["珠江夜游"] == 2  # 雨夜 → 干夜
-    assert day_of["广东省博物馆"] == 1
+    assert day_of["珠江夜游"] == 2  # 雨夜硬闸 → 避让干夜
+    assert day_of["广东省博物馆"] == 2
     assert day_of["广州塔"] == 1  # 白天露天点不受夜间雨影响
-    assert any("夜间有雨" in n and "珠江夜游" in n for n in notes)
+    # 防优于治：避让即落位，不再有「对调」披露
+    assert not any("对调" in n for n in notes)
 
 
 def test_selection_day_rain_does_not_move_night_activity():
@@ -209,9 +223,9 @@ def test_selection_day_rain_does_not_move_night_activity():
     )
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["珠江夜游"] == 1  # 夜间点不受白天雨影响
-    assert day_of["白云山"] == 2  # 白天露天换到晴日
-    assert day_of["广东省博物馆"] == 1
-    assert any("白云山" in n for n in notes)
+    assert day_of["白云山"] == 2  # 白天露天避让晴日
+    assert day_of["广东省博物馆"] == 2
+    assert not any("对调" in n for n in notes)
 
 
 # ---------- ③ weather.daily_weather_text ----------
