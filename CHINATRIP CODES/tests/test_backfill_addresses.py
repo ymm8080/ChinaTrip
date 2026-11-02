@@ -123,6 +123,7 @@ def test_select_keeps_null_category_rows():
 
     # 直接对过滤表达式做语义验证:category NULL 行不被餐饮过滤器剔除
     from app.models import Poi
+
     expr = or_(
         Poi.category.is_(None),
         *[~Poi.category.ilike(f"%{mark}%") for mark in _FOOD_MARKS],

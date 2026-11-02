@@ -4237,14 +4237,11 @@ class PlanningAgent:
                 poi_id = poi.get("source_poi_id")
                 poi_city = _norm_city(str(poi.get("city") or ""))
                 if poi_city:
-                    trip_norm = (
-                        {
-                            _norm_city(str(c or ""))
-                            for c in session.cities
-                            if str(c or "").strip()
-                        }
-                        - {""}
-                    )
+                    trip_norm = {
+                        _norm_city(str(c or ""))
+                        for c in session.cities
+                        if str(c or "").strip()
+                    } - {""}
                     if poi_city in trip_norm:
                         # Amap ground truth wins over the video/session guess.
                         city = poi_city

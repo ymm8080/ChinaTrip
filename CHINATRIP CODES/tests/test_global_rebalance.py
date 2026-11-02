@@ -270,8 +270,6 @@ def test_rebalance_fills_past_half_budget_to_three_quarters():
         _cand("乙", "西安", loc=(108.97, 34.29), minutes=90),
         _cand("丙", "西安", loc=(108.98, 34.30), minutes=120),
     ]
-    out, notes = PlanningAgent._rebalance_days(
-        picked, candidates, 1, {"西安": (1, 1)}
-    )
+    out, notes = PlanningAgent._rebalance_days(picked, candidates, 1, {"西安": (1, 1)})
     assert any(s["name"] == "丙" for s in out)
     assert any("回填" in zh for zh, _en in notes)
