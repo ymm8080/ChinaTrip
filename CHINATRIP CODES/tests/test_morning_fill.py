@@ -708,6 +708,34 @@ def test_morning_borrow_tries_next_donor_when_best_blanks_donor():
     assert _morning_occupied(day4)  # 兵马俑还原后晨点仍在
 
 
+def test_morning_borrow_can_move_must_wish_item():
+    """心愿/必去点时间可挪不可删（2026-11-02 拍板：钉的是在册，
+    不是时刻）——上午借调可把必去点挪进空上午，只要它不消失、
+    借出日上午不空白。"""
+    agent = PlanningAgent(_NoLLM())
+    plan, day3, day4 = _borrow_fixture()
+
+    res = agent._morning_borrow(
+        plan,
+        day3,
+        [
+            {"name": "临潼区华清池景区"},
+            {"name": "《秦俑情》"},
+            {"name": "秦始皇兵马俑博物馆", "must": True},
+            {"name": "钟楼"},
+        ],
+        [_slb_cand()],
+        rain_days={"西安": {3, 4}},
+    )
+
+    assert res is not None
+    assert res[0] == "秦始皇兵马俑博物馆"  # 必去点=最佳亲和候选，被借入 day3
+    bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
+    assert bmy.day == 3
+    assert bmy.start_time == time(9, 0)
+    assert _morning_occupied(day4)  # 钟楼 11:00 仍在，必去点未消失
+
+
 def test_morning_fill_overflow_adds_shortest_when_budget_soft():
     """360=偏好非硬闸：全都装不下时按最短溢出补，不再拒绝。"""
     agent = PlanningAgent(_NoLLM())

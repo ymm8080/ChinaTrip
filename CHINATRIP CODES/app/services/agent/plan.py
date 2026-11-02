@@ -7919,7 +7919,8 @@ class PlanningAgent:
         90 分钟，本来安排兵马俑的那天可以换其它时间长些的景点」）：
         未选池补不进上午时，从同城其他天借一个与当天更贴的已排点
         （雨天只借室内；非演出非餐、非钉（铁律19+系统餐锚）、宜上午、
-        必去不让、时长落上午空窗；地理亲和=距本天簇近、距借出日簇远），
+        心愿/必去时间可挪只挪不删（2026-11-02 拍板：钉的是在册，
+        不是时刻）、时长落上午空窗；地理亲和=距本天簇近、距借出日簇远），
         借出日优先回填更长/更近的未选点；借出日不得因此变上午空白，
         否则整体回滚。只挪不删（2026-10-30 拍板：景点不得静默消失）。
         候选按地理亲和序逐个尝试，失败还原后试下一个（2026-11-02：
@@ -7947,7 +7948,6 @@ class PlanningAgent:
         gap = first_fixed - DAY_START_MINUTES
         if gap < 60:
             return None
-        must_names = {spec["name"] for spec in picked if spec.get("must")}
 
         def _nearest(loc, locs):
             best = None
@@ -7989,8 +7989,6 @@ class PlanningAgent:
                     continue  # 演出场次绑日；餐件跟餐窗走
                 if str(it.best_visit_time or "any") not in ("any", "morning", ""):
                     continue
-                if it.name in must_names:
-                    continue  # 必去不让位
                 dur = it.duration_minutes or 90
                 if dur > gap:
                     continue
