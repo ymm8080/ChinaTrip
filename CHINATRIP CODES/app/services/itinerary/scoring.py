@@ -52,6 +52,10 @@ PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板�
 PEN_NO_ENTERTAINMENT = 40  # 零娱乐/程（2026-11-03 拍板，软偏好）
 PEN_EARLY_SHOW = 12  # 演出早场：<15:00 开演的多场次演出（2026-11-03 拍板
 # 「演出优先傍晚/晚场」，与 solver SHOW_LATE_SESSION_MINUTES 同口径）
+PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放在
+# 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
+# 豁免（拍板明说那两天适合 SHOW——演出不算「重」）；pinned 铁律 19
+# 不罚；tier=None（占位/老数据）不罚。
 
 
 @dataclass
@@ -114,6 +118,7 @@ def plan_score(
     lunch_drift_min = 0
     morning_crowd = 0
     early_shows = 0
+    edge_heavy = 0
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
@@ -166,6 +171,19 @@ def plan_score(
                 or str(v.best_visit_time or "") == "show"
             )
         )
+        # 边日重磅（2026-11-03 拍板「重要景点不放在到达/离开日」）：带
+        # 转场腿的天上出现 tier≤4 重磅点计软罚——LNS 跨天重排会把重磅
+        # 挪去无转场的整天，把街区/演出留给边日。时刻无关（排布偏好，
+        # 非时间违规）；pinned/餐/酒店/演出豁免。
+        if any(isinstance(i, TransferItem) for i in day.items):
+            edge_heavy += sum(
+                1
+                for v in visits
+                if not v.pinned
+                and (v.tier or 9) <= 4
+                and str(v.category or "") not in ("food", "hotel", "entertainment")
+                and str(v.best_visit_time or "") != "show"
+            )
         if rainy:
             for v in visits:
                 rk = str(v.rain_ok or "")
@@ -244,6 +262,7 @@ def plan_score(
         "day_balance": -balance_pen,
         "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
         "early_show": -PEN_EARLY_SHOW * early_shows,
+        "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
         "no_entertainment": (
             -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
         ),
@@ -261,6 +280,7 @@ def plan_score(
         "lunch_drift_min": lunch_drift_min,
         "morning_crowd": morning_crowd,
         "early_show": early_shows,
+        "edge_day_heavy": edge_heavy,
         "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }

@@ -767,7 +767,10 @@ def test_v0_poi_details_read_from_store():
         agent.start(
             device_id="d1",
             cities=["杭州", "上海"],
-            days=2,
+            # days=3：返程腿落 day3，day2 成无离城闸的中间日——days=2 时
+            # day2 既是末天又带返程，上午闸装不下豫园+外滩+偏好追加条目，
+            # 外滩无时刻→不入库种子（断言 store 写穿失败）
+            days=3,
             preferences="博物馆",
         )
     )
