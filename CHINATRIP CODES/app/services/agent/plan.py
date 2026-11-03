@@ -1367,11 +1367,45 @@ def _heritage_dup(a: str, b: str) -> bool:
     )
 
 
+# 同类型兄弟对（2026-11-03 用户拍板「同类型得选一个就好了。比如大雁塔，
+# 小雁塔」）：大/小 前缀同核心词的两个点是同类型二选一——大雁塔/小雁塔
+# （同城 ~3.5km）、大昭寺/小昭寺同款，一次行程只看一个。containment/
+# 同内容/演出/同馆四条名字通道全漏（互不包含、剥尾核心词不等）。只剥
+# 大/小 一字前缀且余词 ≥2 字（大理/大同 城名剥完剩 1 字不动）；东/西/
+# 南/北 不剥（西湖/东湖 跨城同名不同湖）。品类豁免与地理闸在调用层
+# （30km，与内容通道同档：兄弟对同城近距）。
+_SIBLING_SIZE_PREFIX = ("大", "小")
+_SIBLING_TWIN_GATE_KM = 30.0
+
+
+def _sibling_core(name: str) -> tuple[str, bool]:
+    """大/小兄弟核心词：剥掉开头一字 大/小（余词 ≥2 字才剥），返回
+    (核心词, 是否剥过)。"""
+    s = _norm_site_name(name)
+    if len(s) >= 3 and s[0] in _SIBLING_SIZE_PREFIX:
+        return s[1:], True
+    return s, False
+
+
+def _sibling_dup(a: str, b: str) -> bool:
+    """同类型兄弟对判定（大雁塔 vs 小雁塔）：剥 大/小 前缀后核心词相等，
+    且至少一侧真的剥过（双侧裸名相等是 containment 的事，不重复受理）。
+    刻意不挂进 _name_dup——心愿「大雁塔」不得被已排的「小雁塔」冒充
+    覆盖（两个是不同的点，用户点名哪个就排哪个），只进站级判定
+    （_same_visit/_cand_twin/_dup_blocks_item）。"""
+    ca, sa = _sibling_core(a)
+    cb, sb = _sibling_core(b)
+    if not (sa or sb):
+        return False
+    return len(ca) >= 2 and ca == cb
+
+
 def _name_dup(a: str, b: str) -> bool:
     """Name-pair duplicate test for wish/candidate matching: containment
     (_site_dup) plus show-activity alias (_show_dup) plus same-content
     companion venues (_content_dup, 2026-10-31 大足双卡案) plus same-
-    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案)."""
+    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案).
+    同类型兄弟对（_sibling_dup）刻意不在内：心愿覆盖不许跨兄弟冒充。"""
     return (
         _site_dup(a, b) or _show_dup(a, b) or _content_dup(a, b) or _heritage_dup(a, b)
     )
@@ -1486,14 +1520,25 @@ def _cand_xy(entry: dict) -> tuple[float, float] | None:
 def _cand_twin(a: dict, b: dict) -> bool:
     """候选层同站孪生（与 _same_visit 同义、含地理闸分档）：名字撞衫
     但相距 >2km 的不同场馆不算；同内容配套（含伞名行 vs 配套场馆）
-    走 30km 闸。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
+    走 30km 闸；同类型兄弟对（大雁塔/小雁塔，2026-11-03 拍板）同档
+    30km、餐饮/演出/酒店/交通豁免。spec 层孪生记账与选点层博物馆让位
+    共用这一口径。"""
     na, nb = str(a.get("name") or ""), str(b.get("name") or "")
-    if not (na and nb and _name_dup(na, nb)):
+    sibling = (
+        bool(na and nb)
+        and _sibling_dup(na, nb)
+        and _sibling_pair_eligible(a.get("category"), b.get("category"))
+    )
+    if not (na and nb and (_name_dup(na, nb) or sibling)):
         return False
     gate = (
         _CONTENT_TWIN_GATE_KM
         if _content_dup(na, nb)
-        else (_HERITAGE_TWIN_GATE_KM if _heritage_dup(na, nb) else 2.0)
+        else (
+            _HERITAGE_TWIN_GATE_KM
+            if _heritage_dup(na, nb)
+            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+        )
     )
     axy, bxy = _cand_xy(a), _cand_xy(b)
     if axy is not None and bxy is not None:
@@ -1511,7 +1556,8 @@ def _cand_twin(a: dict, b: dict) -> bool:
 def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     """回填/保底守卫（2026-11-01 秦陵双卡案统一口径）：候选 dict vs 已排
     VisitItem 的全量同站判定——poi_id 相等，或 _name_dup（containment/
-    同内容/演出桶/同馆桶）过地理闸（内容/同馆 30km、包含/演出 2km）。
+    同内容/演出桶/同馆桶）或同类型兄弟对（_sibling_dup，2026-11-03
+    拍板、品类豁免）过地理闸（内容/兄弟 30km、同馆 10km、包含/演出 2km）。
 
     旧守卫只查 _same_site（包含），「秦始皇陵国家考古遗址公园」与
     「秦始皇兵马俑博物馆」互不包含——晨间保底把第二张秦陵卡补进了
@@ -1522,14 +1568,23 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
         return True
     cn = str(cand.get("name") or "")
     iname = str(item.name or "")
-    if not (cn and iname and _name_dup(cn, iname)):
+    sibling = (
+        bool(cn and iname)
+        and _sibling_dup(cn, iname)
+        and _sibling_pair_eligible(cand.get("category"), item.category)
+    )
+    if not (cn and iname and (_name_dup(cn, iname) or sibling)):
         return False
     content = _content_dup(cn, iname)
     heritage = _heritage_dup(cn, iname)
     gate = (
         _CONTENT_TWIN_GATE_KM
         if content
-        else (_HERITAGE_TWIN_GATE_KM if heritage else 2.0)
+        else (
+            _HERITAGE_TWIN_GATE_KM
+            if heritage
+            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+        )
     )
     cxy = _cand_xy(cand)
     ixy = (item.location.lon, item.location.lat) if item.location is not None else None
@@ -1612,6 +1667,15 @@ _UMBRELLA_SCENIC_EXEMPT_CATEGORIES = {
 }
 
 
+def _sibling_pair_eligible(cat_a: object, cat_b: object) -> bool:
+    """兄弟通道品类豁免（2026-11-03 拍板，与伞名通道同表）：餐饮/演出/
+    酒店/交通卡不参与同类型二选一——大小同名家族馆是两家店，各有各的
+    一顿/一场。"""
+    return not any(
+        str(c or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES for c in (cat_a, cat_b)
+    )
+
+
 def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
     """VisitItem 层伞名同站（挂进 _same_visit）：一侧博物馆卡、另一侧
     景区类观光卡（餐饮/演出/酒店/交通不适用）时走 _museum_umbrella_dup。"""
@@ -1686,17 +1750,20 @@ def _museum_card(item: VisitItem) -> bool:
     return (item.category or "") == "museum" or name.endswith(("博物馆", "纪念馆"))
 
 
-def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int]:
+def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int]:
     """Which twin to keep: resolved POI > pinned > museum card > real
-    city; ties keep the earlier entry (replacement happens on
-    strictly-greater rank only). 博物馆层（2026-10-31 碑林拍板）排在
+    city > 大-字号旗舰; ties keep the earlier entry (replacement happens
+    on strictly-greater rank only). 博物馆层（2026-10-31 碑林拍板）排在
     pinned 之后：用户确认过的卡片/时刻不让位，未被确认的伞形景区
-    行让位博物馆本体。"""
+    行让位博物馆本体。末层（2026-11-03 兄弟对拍板）：同类型兄弟平手
+    偏好「大」字号（大雁塔/大昭寺是家族正主，外国游客认知的那个），
+    只动此前靠先到先得裁决的平手，不影响其余通道。"""
     return (
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
         1 if _museum_card(item) else 0,
         1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
+        1 if str(item.name or "").strip().startswith("大") else 0,
     )
 
 
@@ -1715,7 +1782,13 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     大足石刻博物馆/数字影院/大足石刻景区/北山伞名行「大足石刻」收
     敛为同一站（一次行程看一次大足石刻），内容通道地理闸放宽到同城
     30km（同遗产两摩崖集群 ~8km 也并）；同名异地 >30km、包含通道
-    撞衫 >2km 仍不并。"""
+    撞衫 >2km 仍不并。
+
+    同类型兄弟通道（2026-11-03 拍板「同类型得选一个就好了。比如大雁塔，
+    小雁塔」）：_sibling_dup 把 大/小 前缀同核心词的兄弟对（大雁塔/小雁塔、
+    大昭寺/小昭寺）收敛为同类型二选一——一次行程只看一个塔；品类豁免
+    （餐饮/演出/酒店/交通不适用）、地理闸与内容通道同档 30km。胜者由
+    _visit_keep_rank 末层裁定（pinned 防御 > 「大」字号旗舰）。"""
     # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
@@ -1726,17 +1799,28 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
     content = _content_dup(a.name, b.name)
     heritage = _heritage_dup(a.name, b.name)
+    sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
+        a.category, b.category
+    )
     if not (
-        content or heritage or _site_dup(a.name, b.name) or _show_dup(a.name, b.name)
+        content
+        or heritage
+        or sibling
+        or _site_dup(a.name, b.name)
+        or _show_dup(a.name, b.name)
     ):
         return False
-    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）30km；同馆家族 5km
-    # （2026-11-01 拍板）；包含/演出通道维持 2km（青城山 skydive 同山
-    # 不同场馆不误并）。
+    # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）/同类型兄弟 30km；
+    # 同馆家族 10km（2026-11-01 拍板）；包含/演出通道维持 2km（青城山
+    # skydive 同山不同场馆不误并）。
     gate = (
         _CONTENT_TWIN_GATE_KM
         if content
-        else (_HERITAGE_TWIN_GATE_KM if heritage else 2.0)
+        else (
+            _HERITAGE_TWIN_GATE_KM
+            if heritage
+            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+        )
     )
     if a.location is not None and b.location is not None:
         if haversine_km(a.location, b.location) > gate:
