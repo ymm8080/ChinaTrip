@@ -180,3 +180,121 @@ def test_edit_system_prompt_no_preferences_no_line():
     session = PlanSession(session_id="s", device_id="dev-1", preferences="")
     prompt = PlanningAgent._edit_system_prompt(session)
     assert "用户偏好" not in prompt
+
+
+# --- 偏好优先于默认封顶（2026-11-03 拍板「喜欢某个类型则可以有很多」）---
+
+
+def test_selection_type_ask_collects_premium():
+    """封顶裁掉的世界遗产/5A/4A 同类进待问名单，普通档裁掉不进。"""
+    cands = [
+        _cand("青铜博物馆", cat="museum", tags=["5a"]),
+        _cand("织锦博物馆", cat="museum", tags=["5a"]),
+        _cand("皮影博物馆", cat="museum", tags=["5a"]),
+        _cand("陶艺博物馆", cat="museum", tags=["4a"]),
+        _cand("面人博物馆", cat="museum"),
+        _cand("钟楼", cat="attraction"),
+        _cand("城隍庙", cat="attraction"),
+        _cand("老街", cat="attraction"),
+        _cand("环城公园", cat="attraction"),
+    ]
+    asks: list[dict] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"西安": (1, 5)}, type_asks=asks
+    )
+    museums = [it["name"] for it in items if it["category"] == "museum"]
+    assert museums == ["青铜博物馆", "织锦博物馆"]
+    assert [(a["name"], a["tags"]) for a in asks] == [
+        ("皮影博物馆", ["5a"]),
+        ("陶艺博物馆", ["4a"]),
+    ]
+
+
+def test_selection_type_ask_empty_when_pref_hits():
+    """偏好命中时封顶豁免、无待问（偏好优先于默认封顶）。"""
+    cands = [
+        _cand("青铜博物馆", cat="museum", tags=["5a"]),
+        _cand("织锦博物馆", cat="museum", tags=["5a"]),
+        _cand("皮影博物馆", cat="museum", tags=["5a"]),
+        _cand("陶艺博物馆", cat="museum"),
+        _cand("钟楼", cat="attraction"),
+    ]
+    asks: list[dict] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"西安": (1, 5)}, preferences="博物馆人文", type_asks=asks
+    )
+    museums = [it["name"] for it in items if it["category"] == "museum"]
+    assert len(museums) == 4
+    assert asks == []
+
+
+def test_backfill_pref_exempt():
+    """偏好命中时回填不受品类封顶拦（「喜欢某个类型则可以有很多」）。"""
+    picked = [
+        {
+            "name": "青铜博物馆",
+            "city": "西安",
+            "category": "museum",
+            "day": 1,
+            "duration_minutes": 120,
+            "location": {"lon": 108.94, "lat": 34.26},
+        },
+        {
+            "name": "织锦博物馆",
+            "city": "西安",
+            "category": "museum",
+            "day": 1,
+            "duration_minutes": 120,
+            "location": {"lon": 108.94, "lat": 34.25},
+        },
+        {
+            "name": "钟楼",
+            "city": "西安",
+            "category": "attraction",
+            "day": 1,
+            "duration_minutes": 90,
+            "location": {"lon": 108.94, "lat": 34.27},
+        },
+    ]
+    candidates = [
+        {
+            "name": "皮影博物馆",
+            "city": "西安",
+            "category": "museum",
+            "suggested_duration_min": 90,
+            "tags": ["5a"],
+            "location": {"lon": 108.95, "lat": 34.24},
+        },
+        {
+            "name": "城隍庙",
+            "city": "西安",
+            "category": "attraction",
+            "suggested_duration_min": 90,
+            "location": {"lon": 108.95, "lat": 34.28},
+        },
+    ]
+    out, _notes = PlanningAgent._rebalance_days(
+        picked, candidates, 2, {"西安": (1, 2)}, preferences="博物馆人文"
+    )
+    names = [s["name"] for s in out]
+    assert "皮影博物馆" in names
+
+
+def test_type_ask_hit():
+    """同档同类让位问答：偏好词命中让位行才触发，无关回复/无待问不触发。"""
+    session = PlanSession(
+        session_id="s",
+        device_id="dev-1",
+        pending_type_ask=[
+            {
+                "city": "西安",
+                "name": "皮影博物馆",
+                "category": "museum",
+                "tags": ["5a"],
+            }
+        ],
+    )
+    assert PlanningAgent._type_ask_hit(session, "喜欢博物馆，多排几家") is True
+    assert PlanningAgent._type_ask_hit(session, "帮我换个酒店位置") is False
+    empty = PlanSession(session_id="s2", device_id="dev-1")
+    assert PlanningAgent._type_ask_hit(empty, "喜欢博物馆") is False
