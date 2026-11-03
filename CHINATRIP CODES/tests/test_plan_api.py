@@ -940,8 +940,13 @@ def test_move_same_day_reorder_resequences_times():
     visits = _day_visits(data, 2)
     assert [v["item_id"] for v in visits] == ["v2", "v5", "v4"]
     slots = [(v["start_time"], v["end_time"]) for v in visits]
-    assert all(s[0] and s[1] for s in slots)  # 全部重排后有时间
-    assert all(a[1] <= b[0] for a, b in zip(slots, slots[1:]))  # 时链单调不重叠
+    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日——
+    # 挪头重排后晨窗装 v2+v5（10:30 起是腿垫非游标跳，闸天不跳 12 点），
+    # 灵隐寺 90 分钟 11:30 起 13:00 收尾过正午闸→留空披露，不塞午后。
+    assert slots[0][0] and slots[0][1] <= "12:00:00"
+    assert slots[1][0] and slots[1][1] <= "12:00:00"
+    assert slots[1][0] >= slots[0][1]  # 时链单调不重叠
+    assert slots[2] == (None, None)
 
 
 def test_move_cross_day_to_head():
@@ -967,8 +972,11 @@ def test_move_cross_day_to_head():
     slots = {
         v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 2)
     }
-    assert all(s[0] and s[1] for s in slots.values())
-    assert slots["v1"][1] <= slots["v2"][0]  # 时链单调
+    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日——
+    # 西湖 120 分钟占满晨窗（9:00-11:00+腿垫），雷峰塔 11:30 开场 12:30
+    # 收尾过正午闸→留空披露，不塞午后。
+    assert slots["v1"][0] and slots["v1"][1] <= "12:00:00"
+    assert slots["v2"] == (None, None)
 
 
 def test_move_pinned_item_returns_422():
@@ -1332,7 +1340,10 @@ def test_refresh_legs_backfills_missing_locations():
     ).json()
     sid = body["session_id"]
     vid = _visit(body, "西湖")["item_id"]
-    # 前置：强制清空坐标模拟旧行程（生成期可能已回填）
+    # 前置：强制清空坐标模拟旧行程（生成期可能已回填）；days=2 时 day2
+    # 是 17:00 返程日——离城日上午闸（2026-11-03）下西湖 120 分钟占满
+    # 晨窗、雷峰塔留空→无实测对。机制测试只关心「回填+实测腿」，缩西湖
+    # 到 60 分钟让两点都进晨窗成对。
     store = app.dependency_overrides[get_plan_sessions]()
     session = store.get(sid, device_id="device-1")
     assert session is not None and session.plan is not None
@@ -1340,6 +1351,8 @@ def test_refresh_legs_backfills_missing_locations():
         for it in day.items:
             if isinstance(it, VisitItem):
                 it.location = None
+                if it.item_id == vid:
+                    it.duration_minutes = 60
     store.save(session)
 
     resp = client.post(

@@ -246,6 +246,27 @@ def _city_side(item: VisitItem, transfer: TransferItem) -> str | None:
     return None
 
 
+# 离城日上午闸（2026-11-03 拍板「LEAVING DATE IF TRAIN/BUS/FLIGHT IS IN
+# THE AFTERNOON OR NIGHT, ARRANGE SITES IN THE MORNING BY DEFAULT / NO
+# ARRANGEMENT」）：火车/大巴/飞机 ≥12:00（下午/夜晚）发车时，出发城条目
+# 一律上午收尾（end ≤ min(12:00, 发车−90)），午后整段留白作赶车缓冲；
+# <12:00（上午）发车整日无安排——cap=日始必令条目不可行，交挪日链迁走。
+# 汽车腿时刻是引擎自排的弹性值不设闸（与 _after_transfer_buffer 的
+# train/flight 专项口径同理）；用户钉（_city_side 已 None）与餐/酒店
+# 天然豁免——铁律 19。
+LEAVING_MORNING_END_MINUTES = 12 * 60
+_LEAVING_DAY_MODES = frozenset({"train", "bus", "flight"})
+
+
+def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
+    """出发城条目在离城日的最晚收尾分钟数；None = 不设上午闸。"""
+    if (mode or "") not in _LEAVING_DAY_MODES:
+        return None
+    if dep_min < LEAVING_MORNING_END_MINUTES:
+        return DAY_START_MINUTES
+    return min(LEAVING_MORNING_END_MINUTES, dep_min - INTERCITY_BUFFER_MINUTES)
+
+
 _MINUTES_PER_DAY = 24 * 60
 
 
@@ -624,6 +645,12 @@ def solve_day(
                 if side == "before":
                     # 城市侧闸：出发城条目只能落在发车之前
                     model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES)
+                    # 离城日上午闸（2026-11-03 拍板）：火车/大巴/飞机
+                    # ≥12:00 发车时出发城条目一律上午收尾（午后留白赶车），
+                    # <12:00 发车整日无安排——装不下交挪日链，不硬排午后。
+                    mcap = _leaving_morning_cap(titem.mode, ts)
+                    if mcap is not None:
+                        model.Add(start + size <= mcap)
                     continue
                 before = model.NewBoolVar(f"before_{spec.item.item_id}_{ts}")
                 model.Add(start + size <= ts - INTERCITY_BUFFER_MINUTES).OnlyEnforceIf(
@@ -877,8 +904,15 @@ def insertion_schedule_day(
             side = _city_side(spec.item, tr)
             if side == "after" and t < te_:
                 return False
-            if side == "before" and e > ts_:
-                return False
+            if side == "before":
+                if e > ts_:
+                    return False
+                # 离城日上午闸（2026-11-03 拍板）：火车/大巴/飞机
+                # ≥12:00 发车时出发城条目一律上午收尾，<12:00 发车
+                # 整日无安排——与 CP 路/plan 兜底同口径。
+                mcap = _leaving_morning_cap(tr.mode, ts_)
+                if mcap is not None and e > mcap:
+                    return False
         if not is_flex_meal:
             for pin, mdur in flex_pins:
                 span_lo, span_hi = (

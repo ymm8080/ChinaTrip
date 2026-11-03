@@ -191,14 +191,16 @@ def test_fallback_failure_does_not_poison_cursor():
         name="fix",
         city="西安",
         day=1,
-        start_time=time(10, 0),
-        end_time=time(11, 0),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
         duration_minutes=60,
         pinned=True,
     )
     # 2026-10-31 午餐可顺延（用户拍板）后 180 分钟已能穿过 12 点午餐锚
     # 落位——本例改 300 分钟保持「真排不下」语义：航班缓冲夹死、
-    # small 仍要回填（游标不被前面失败顶飞）。
+    # small 仍要回填（游标不被前面失败顶飞）。钉点挪 9:00-10:00：
+    # 17:00 航班触发离城日上午闸（end ≤ 12:00），10:00 起钉会把
+    # small 的 80 分钟顶过闸（2026-11-03 拍板口径下保持测试意图）。
     big = _visit("big", dur=300)
     small = _visit("small", dur=80)
     flight = TransferItem(

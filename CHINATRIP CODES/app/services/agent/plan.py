@@ -77,6 +77,7 @@ from app.services.itinerary.solver import (
     DAY_START_MINUTES,
     SHOW_LATE_SESSION_MINUTES,
     _city_side,
+    _leaving_morning_cap,
     generic_entry_cap,
     show_session_starts,
     solve_plan,
@@ -2118,9 +2119,9 @@ def _pref_category_hit(
 def _same_category_full(cand: dict, picked: list[dict], span: int) -> bool:
     """回填层品类多样性闸（与选点层 _cat_cap 同口径，2026-11-03 拍板
     「尽量不要重复同一类型」）：候选品类在已选集合里已达
-    max(2, span//3) 家 → 池外回填不再补同类。偏好命中由调用方豁免
-    （2026-11-03 拍板「喜欢某个类型则可以有很多」——偏好优先于默认
-    封顶，回填同口径豁免）。"""
+    max(2, span//3) 家 → 池外回填不再补同类。选点层偏好命中的同类豁免，
+    回填不豁免——偏好点已在选点层放行，回填是补充通道，口径从严防
+    品类经回填返渗扎堆。"""
     cat = str(cand.get("category") or "").strip()
     if cat in ("", "attraction", "sight", "food", "entertainment"):
         return False
@@ -2414,6 +2415,7 @@ def _reconcile_transfer_days(
     plan: ItineraryPlan,
     protect: frozenset[str] = frozenset(),
     tier_by_name: dict[str, int] | None = None,
+    user_edit: bool = False,
 ) -> list[str]:
     """Deterministic repair for transfer-day layout conflicts (rule 4).
 
@@ -2447,11 +2449,44 @@ def _reconcile_transfer_days(
         # the morning window before the earliest transfer minus the
         # iron-rule-4 buffer; with no timed transfer we cannot verify
         # anything, so treat every departure-city visit as stranded.
-        morning_capacity = (
-            min(timed_starts) - INTERCITY_BUFFER_MINUTES - day_start
-            if timed_starts
-            else -1
-        )
+        # 离城日上午闸（2026-11-03 拍板「LEAVING DATE ... ARRANGE SITES
+        # IN THE MORNING BY DEFAULT / NO ARRANGEMENT」）：火车/大巴/飞机
+        # 发车的容量截至 min(12:00, 发车−90)——≥12:00（下午/夜晚）发车=
+        # 出发城条目一律上午收尾（午后留白赶车），<12:00（上午）发车=
+        # 整日无安排；汽车腿时刻弹性照旧发车−90。已排时刻收尾过闸的
+        # 同样按搁浅处理（LLM 编辑路径常把离城景点排进发车前午后空档）。
+        cap_end: int | None = None
+        if timed_starts:
+            if user_edit:
+                # 用户权威路径（move/retime/replace，铁律 19）：容量口径
+                # 不动——离城日上午闸只约束引擎自动排程，不驱逐用户亲手
+                # 摆的卡（用户拖个大点上来=用户自己知道紧，留空披露即可）。
+                cap_end = min(timed_starts) - INTERCITY_BUFFER_MINUTES
+            else:
+                for t in transfers:
+                    if t.start_time is None:
+                        continue
+                    ts = t.start_time.hour * 60 + t.start_time.minute
+                    mcap = _leaving_morning_cap(t.mode, ts)
+                    end = mcap if mcap is not None else ts - INTERCITY_BUFFER_MINUTES
+                    cap_end = end if cap_end is None else min(cap_end, end)
+        morning_capacity = cap_end - day_start if cap_end is not None else -1
+        # 挪进离城日的旧时刻重排（2026-11-03 离城日闸收口）：move 带过来的
+        # 原天时刻（如 15:00 收尾）在新闸下已非法——清时刻交 solve/fallback
+        # 按上午闸重排，不再按搁浅驱逐（用户点名「挪到最后一天」的卡被整
+        # 卡删掉=与用户意志对撞；时刻非法≠物理不可行）。
+        if cap_end is not None and not user_edit:
+            for v in day.items:
+                if (
+                    isinstance(v, VisitItem)
+                    and not v.pinned
+                    and (v.category or "") not in ("food", "hotel")
+                    and v.city.strip() in leaving
+                    and v.start_time is not None
+                    and (_item_end_minutes(v) or -1) > cap_end
+                ):
+                    v.start_time = None
+                    v.end_time = None
         # 餐件不进搁浅逻辑：跟餐窗走（_meal_city_at/meal pass 口径）——
         # 2026-11-01 餐件解钉后否则离城日餐件会被误挪前一天或丢弃
         stranded = [
@@ -2833,7 +2868,16 @@ def _host_day_for_visit(
     转场日无时刻清算共用）：窗口=日始~21:30 扣转场腿占段（到达侧
     落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。"""
     for later in day_pool:
-        if str(later.base_city or "").strip().removesuffix("市") != vcity:
+        # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
+        # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
+        # 物理可排（下方 c2==vcity 分支已按落地+150 起算窗口）；心愿演出
+        # 被离城日上午闸挤出时，前一天落地晚场是正解，不能再整卡删。
+        hosted = str(later.base_city or "").strip().removesuffix("市") == vcity or any(
+            isinstance(t3, TransferItem)
+            and str(t3.to_city or "").strip().removesuffix("市") == vcity
+            for t3 in later.items
+        )
+        if not hosted:
             continue
         lo, hi, blocked = DAY_START_MINUTES, 21 * 60 + 30, 0
         for t2 in later.items:
@@ -3080,13 +3124,19 @@ def _city_side_ok(
     dur: int,
 ) -> bool:
     """兜底排序的城市侧闸（与 solver._city_side 同口径，2026-11-02
-    沪→西安 15:38 案）：到达城条目 t ≥ 落地、出发城条目 t+dur ≤ 发车。"""
+    沪→西安 15:38 案）：到达城条目 t ≥ 落地、出发城条目 t+dur ≤ 发车；
+    离城日上午闸（2026-11-03 拍板）同挂——火车/大巴/飞机 ≥12:00 发车
+    时出发城条目一律上午收尾、<12:00 发车整日无安排。"""
     for tr, ts, te in xfer_windows:
         side = _city_side(visit, tr)
         if side == "after" and t < te:
             return False
-        if side == "before" and t + dur > ts:
-            return False
+        if side == "before":
+            if t + dur > ts:
+                return False
+            mcap = _leaving_morning_cap(tr.mode, ts)
+            if mcap is not None and t + dur > mcap:
+                return False
     return True
 
 
@@ -3192,6 +3242,12 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         # 不进上午。2026-11-01 ④：best_visit 时段窗下限与 solver 同口
         # 径（evening/sunset/afternoon 下探 17:00/16:00/12:00）——两江
         # 夜游白天排事故，降级兜底不再把夜间点塞进上午。
+        # 离城日上午闸天（2026-11-03 拍板）对「上午一个点」让位：上午是
+        # 当天唯一可排窗——填到正午闸为止，游标不跳 12 点（否则第二点起
+        # 永远排不上→挪日/清算误伤）。
+        leaving_capped = any(
+            _leaving_morning_cap(tr.mode, ts) is not None for tr, ts, _ in xfer_windows
+        )
         cursor = day_start
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
@@ -3228,6 +3284,17 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                         str(visit.best_visit_time or "").strip().lower()
                     )
                     t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
+                    # 到达城条目从落地地板起排（与 _host_day_for_visit
+                    # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
+                    # 卡在二值城市侧闸上（2026-11-03 离城日闸收口）。
+                    for tr, _ts, te in xfer_windows:
+                        if _city_side(visit, tr) == "after":
+                            pad = (
+                                ARRIVAL_STOP_FLOOR_MINUTES
+                                if tr.mode in ("train", "flight")
+                                else INTERCITY_BUFFER_MINUTES
+                            )
+                            t = max(t, te + pad)
                 advanced = True
                 while advanced:
                     advanced = False
@@ -3268,7 +3335,12 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             # ②上午一个点（2026-11-03 用户拍板「上午一般只排一个点」）：
             # 晨点收尾后游标跳 12 点——后续点从午后起，不再回填上午；
             # 餐/酒店不触发（餐走 flex_lunches 硬窗，入住卡非游览）。
-            if t < 12 * 60 and (visit.category or "") not in ("food", "hotel"):
+            # 例外：离城日上午闸天不跳（见上 leaving_capped 注释）。
+            if (
+                t < 12 * 60
+                and not leaving_capped
+                and (visit.category or "") not in ("food", "hotel")
+            ):
                 cursor = max(cursor, 12 * 60)
 
         # 午餐落位 v2.3（2026-11-03 用户拍板：开餐硬窗 [11:30, 12:30]、
@@ -3551,10 +3623,6 @@ class PlanSession(BaseModel):
     resto_asked: list[str] = Field(default_factory=list)  # anti re-ask loop
     # 心愿城市追问队列（2026-10-24）：解析落空的专名心愿，等用户下一条消息
     pending_wish_cities: list[str] = Field(default_factory=list)
-    # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆可以问用户」）：品类
-    # 封顶裁掉的世界遗产/5A/4A 同类行，问答式让用户裁定要不要多排——偏好
-    # 命中的答复并入 preferences 并自动重排（偏好优先于默认封顶）
-    pending_type_ask: list[dict] = Field(default_factory=list)
     # 心愿行挂过的行程 id（2026-10-30 深夜）：重组换 id 后允许重挂到当前
     linked_itins: list[str] = Field(default_factory=list)
     # 心愿→真实 POI 绑定（2026-10-30 深夜）：跨回合持久（agent 按请求新
@@ -5332,7 +5400,6 @@ class PlanningAgent:
                 transfer_days.add(clo)
             transfer_days.add(session.days)
         select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
-        type_asks: list[dict] = []
         if select_mode == "llm":
             picked, llm_assumptions, llm_ok = await self._select_pois(
                 candidates, session.days, session.preferences, ranges, session.lang
@@ -5360,7 +5427,6 @@ class PlanningAgent:
                 light_rain_days=light_rain_map,
                 notes=rain_notes,
                 preferences=session.preferences,
-                type_asks=type_asks,
             )
             llm_assumptions = [
                 L(
@@ -5428,7 +5494,6 @@ class PlanningAgent:
             transfer_days=transfer_days,
             rain_days=rain_map,
             origin_city=session.cities[0] if len(session.cities) > 1 else None,
-            preferences=session.preferences,
         )
         for zh_note, en_note in rebalance_notes:
             llm_assumptions.append(L(zh_note, en_note))
@@ -5487,27 +5552,6 @@ class PlanningAgent:
             session.state = "resto_confirm"
             session.history.append(
                 ChatMessage(role="assistant", content=self._resto_question(far))
-            )
-        if type_asks:
-            # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆可以问用户」）：
-            # 品类封顶只是默认，偏好优先——高档同类被裁不静默，问答式让
-            # 用户裁定；偏好答复在 _apply_conversation 入口解析并自动重排
-            session.pending_type_ask = type_asks
-            _ask_names = "、".join(a["name"] for a in type_asks)
-            session.history.append(
-                ChatMessage(
-                    role="assistant",
-                    content=L(
-                        f"为避免行程同类扎堆，{_ask_names}（世界遗产/5A/4A "
-                        "档同类）默认未排入。喜欢这一类想多排几家吗？回复"
-                        "告诉我（如「喜欢博物馆，多排几家」），我按偏好重排。",
-                        f"To keep the trip varied, {_ask_names} (UNESCO/5A/4A "
-                        "of their type) were held back by the same-type "
-                        "default. Want more of this type? Reply (e.g. 'I love "
-                        "museums, add more') and I'll re-plan with your "
-                        "preference.",
-                    ),
-                )
             )
         return session
 
@@ -6647,7 +6691,6 @@ class PlanningAgent:
         light_rain_days: dict[str, set[int]] | None = None,
         notes: list[str] | None = None,
         preferences: str = "",
-        type_asks: list[dict] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -6872,20 +6915,6 @@ class PlanningAgent:
                 n = _cat_seen.get(cat, 0)
                 if n >= _cat_cap:
                     _cat_cut.append(str(p_[1].get("name") or ""))
-                    _tags_l = {str(t).lower() for t in (p_[1].get("tags") or [])}
-                    if _tags_l & {"5a", "4a", "unesco"} and type_asks is not None:
-                        # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆
-                        # 可以问用户」）：封顶裁掉的世界遗产/5A/4A 同类不
-                        # 静默——西安实录被裁的西安博物院/陕西自然博物馆
-                        # 均 4A，只盯 5a/unesco 真库一发不响
-                        type_asks.append(
-                            {
-                                "city": city,
-                                "name": str(p_[1].get("name") or ""),
-                                "category": cat,
-                                "tags": sorted(_tags_l & {"5a", "4a", "unesco"}),
-                            }
-                        )
                     continue
                 _cat_seen[cat] = n + 1
                 _cat_kept.append(p_)
@@ -7500,7 +7529,6 @@ class PlanningAgent:
         transfer_days: set[int] | None = None,
         rain_days: dict[str, set[int]] | None = None,
         origin_city: str | None = None,
-        preferences: str = "",
     ) -> tuple[list[dict], list[tuple[str, str]]]:
         """全局跨天均衡（2026-10-30 用户拍板「做全局跨天优化」）。
 
@@ -7517,9 +7545,6 @@ class PlanningAgent:
            腿优先。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
         transfer_days = transfer_days or set()
-        # 偏好优先于默认封顶（2026-11-03 拍板「喜欢某个类型则可以有很多」）：
-        # 回填同口径豁免偏好命中候选
-        ptoks, pshow = _preference_tokens(preferences)
         # 出发城市 spec 组装层必丢（2026-10-19 产品规则）；NOLOC 同名 spec
         # 不被 _twin_blocks 拦（留真身升级通道），但其真身候选若被回填，
         # spec 丢弃后真身就漏网成「已丢弃景点的复活卡」——回填前按名单拦。
@@ -7671,11 +7696,9 @@ class PlanningAgent:
                         # 演出每场闸（2026-11-02）：该天已有演出不再补第二场
                         continue
                     _lo, _hi = ranges.get(city, (1, days))
-                    if not _pref_category_hit(
-                        cand, ptoks, pshow
-                    ) and _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
+                    if _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
                         # 品类多样性闸（2026-11-03）：同类已满 max(2,span//3)
-                        # 家不回填——偏好命中豁免（偏好优先于默认封顶）
+                        # 家不回填——museum 扎堆不经池外回填返渗
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
@@ -9789,45 +9812,10 @@ class PlanningAgent:
 
     # --- conversational iteration (§6.2-§6.3 diff loop) --------------------
 
-    @staticmethod
-    def _type_ask_hit(session: PlanSession, text: str) -> bool:
-        """同档同类让位问答命中判定（2026-11-03 拍板「三个5A博物馆可以问
-        用户」）：有待问名单且用户回复的偏好词命中其中任一候选的品类/
-        名字——如「喜欢博物馆，多排几家」命中让位的博物馆行。"""
-        if not session.pending_type_ask:
-            return False
-        toks, show = _preference_tokens(text)
-        if not (toks or show):
-            return False
-        return any(_pref_category_hit(a, toks, show) for a in session.pending_type_ask)
-
     async def _apply_conversation(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
         assert session.plan is not None
-        if self._type_ask_hit(session, text):
-            # 同档同类让位问答（2026-11-03 拍板「三个5A博物馆可以问用户」
-            # +「喜欢某个类型则可以有很多」）：偏好答复并入 preferences 并
-            # 自动重排——偏好优先于默认封顶，两通道（选点/回填）同步豁免
-            prev = (session.preferences or "").strip()
-            session.preferences = f"{prev} {text.strip()}".strip()
-            session.pending_type_ask = []
-            session = await self._generate_v0(
-                session,
-                extra_assumptions=[
-                    L(
-                        "已按偏好解除同类默认封顶重排：" + text.strip(),
-                        "Re-planned with your preference (same-type default "
-                        "cap lifted): " + text.strip(),
-                    )
-                ],
-            )
-            reply = (
-                session.history[-1].content
-                if session.history
-                else L("已按偏好重排。", "Re-planned with your preference.")
-            )
-            return session, reply, None
         messages = [
             ChatMessage(role="system", content=self._edit_system_prompt(session)),
             *session.history[-HISTORY_WINDOW:],
@@ -10031,7 +10019,7 @@ class PlanningAgent:
                     # _fallback_sequence_times 分层接管）
                     it.start_time = None
                     it.end_time = None
-        notes = _reconcile_transfer_days(candidate)
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
@@ -10107,7 +10095,7 @@ class PlanningAgent:
                 # 系统餐锚保留时刻（同 reorder：清了会被游标链乱排）
                 it.start_time = None
                 it.end_time = None
-        notes = _reconcile_transfer_days(candidate)
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         annotate_legs(candidate)
@@ -10225,7 +10213,7 @@ class PlanningAgent:
             if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
                 it.start_time = None
                 it.end_time = None
-        notes = _reconcile_transfer_days(candidate)
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
