@@ -22,26 +22,26 @@ import psycopg
 PACK = r"DESIGN/POIS DATASOURCE/02_5A级旅游景区_358.csv"
 OUT = r"DESIGN/POIS DATASOURCE/_src/5a_align_worksheet.csv"
 
-ADMIN_HEAD = re.compile(r"^[\u4e00-\u9fa5]{1,8}?(自治区|特别行政区|自治州|地区|盟|市|县|旗|州|区|镇)")
+ADMIN_HEAD = re.compile(r"^[\u4e00-\u9fa5]{1,8}?(自治区|特别行政区|自治州|地区|盟|市|县|旗|区|镇)")
 TYPE_SUFFIX = re.compile(r"(旅游景区|旅游度假区|风景名胜旅游区|风景名胜区|风景旅游区|旅游风景区|旅游区|风景区|度假区|景区)$")
 MIN_REMAINDER = 2
 #: 剥完剩裸类型词说明剥过头，回退
 TYPE_WORDS = {"景区", "旅游区", "风景区", "度假区", "风景名胜区", "旅游景区", "风景名胜旅游区", "旅游度假区"}
-PUNCT_DELETE = "·－—–―・／/－"  # 各类连接符/斜体点直接删除（两边体系不同：包有横线库常无）
+PUNCT_DELETE = "·－—–―・／/－-"  # 各类连接符/斜体点直接删除（两边体系不同：包有横线库常无）
 
 
-def norm(name: str) -> str:
-    """规范化：剥括号、删连接符、去空白。"""
-    n = re.sub(r"[（(].*?[)）]", "", name)
+def norm(name: str, keepparen: bool = False) -> str:
+    """规范化：默认剥括号（曾用名）；keepparen=True 保留括号内容（括号内即站点名的情形）。"""
+    n = re.sub(r"[（()）]", "", name) if keepparen else re.sub(r"[（(].*?[)）]", "", name)
     n = re.sub(r"\s+", "", n)
     for c in PUNCT_DELETE:
         n = n.replace(c, "")
     return n
 
 
-def core(name: str) -> str:
+def core(name: str, keepparen: bool = False) -> str:
     """剥头行政区 + 剥尾类型词，循环至稳定（只用于比对，不改数据）。"""
-    n = norm(name)
+    n = norm(name, keepparen)
     changed = True
     while changed:
         changed = False
@@ -72,14 +72,23 @@ def main() -> int:
     matched_db_ids = set()
     for p in pack:
         name = p["name_zh"]
-        key = core(name)
+        keys = []
+        for kp in (False, True):
+            k = core(name, kp)
+            if k and k not in keys:
+                keys.append(k)
         hit, mtype = None, "none"
-        if key in db_core:
-            hit, mtype = db_core[key][0], "exact_core"
-        else:
-            for ck, rows in db_core.items():
-                if len(ck) >= 2 and len(key) >= 2 and (key in ck or ck in key):
-                    hit, mtype = rows[0], "contain_core"
+        for key in keys:
+            if key in db_core:
+                hit, mtype = db_core[key][0], "exact_core"
+                break
+        if hit is None:
+            for key in keys:
+                for ck, rows in db_core.items():
+                    if len(ck) >= 2 and len(key) >= 2 and (key in ck or ck in key):
+                        hit, mtype = rows[0], "contain_core"
+                        break
+                if hit:
                     break
         if hit:
             matched_db_ids.add(hit[0])
