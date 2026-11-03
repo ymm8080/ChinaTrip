@@ -40,16 +40,19 @@ _SYSTEM = (
     "transport=车站机场码头。若是餐厅，cuisine 给菜系或业态标签（中文2-8字，如 "
     "川菜/粤菜/火锅/日料/西餐/咖啡烘焙/自助餐）；若不是餐厅，subtype 给中文类别词"
     "（如 博物馆/公园/广场/酒店/古镇/老街/车站/机场/剧场/展览/乐园/其他）。"
+    '若 kind=hotel，star 给官方星级数字（1-5 的字符串，如 "5"；只按名称/标签里'
+    "确凿写明的星级填，不确定就留空串，绝不猜）；非 hotel 时 star 必须留空串。"
     "只输出一行JSON："
     '{"kind":"restaurant|hotel|attraction|transport|other","cuisine":"川菜",'
-    '"subtype":"博物馆"}（餐厅时 subtype 留空、非餐厅时 cuisine 留空），'
-    "不要输出任何其他文字。"
+    '"subtype":"博物馆","star":"5"}（餐厅时 subtype/star 留空、非餐厅时 cuisine '
+    "留空），不要输出任何其他文字。"
 )
 
 _KINDS = {"restaurant", "hotel", "attraction", "transport", "other"}
+_STARS = {"1", "2", "3", "4", "5"}
 
 
-def _parse(text: str) -> tuple[str, str, str] | None:
+def _parse(text: str) -> tuple[str, str, str, str] | None:
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
         return None
@@ -60,6 +63,7 @@ def _parse(text: str) -> tuple[str, str, str] | None:
     kind = str(obj.get("kind", "")).strip().lower()
     cuisine = str(obj.get("cuisine", "")).strip()
     subtype = str(obj.get("subtype", "")).strip()
+    star = str(obj.get("star", "") or "").strip()
     if kind not in _KINDS:
         return None
     if kind == "restaurant":
@@ -67,8 +71,10 @@ def _parse(text: str) -> tuple[str, str, str] | None:
             return None
         if not any("一" <= ch <= "鿿" for ch in cuisine):
             return None
-        return kind, cuisine, ""
-    return kind, "", subtype[:12]
+        return kind, cuisine, "", ""
+    # 星级只对 hotel 有意义，且只收 1..5（GLM 幻觉/六星以上一律丢弃）
+    star = star if kind == "hotel" and star in _STARS else ""
+    return kind, "", subtype[:12], star
 
 
 def _lonlat(geom) -> tuple[float, float] | None:
@@ -114,7 +120,7 @@ async def amain(adapter, factory, sem_size: int) -> dict:
             if parsed is None:
                 stats["unparsed"] += 1
                 return
-            kind, cuisine, subtype = parsed
+            kind, cuisine, subtype, star = parsed
             try:
                 with factory() as session:
                     row = session.get(Restaurant, rid)
@@ -136,6 +142,20 @@ async def amain(adapter, factory, sem_size: int) -> dict:
                     # 文本可能给「自然风光」等景点词，按 subtype 归一会把
                     # 住宿行错归 nature/attraction 污染景点池
                     cat = "hotel" if kind == "hotel" else (subtype or None)
+                    base_tags = (
+                        row.review_tags
+                        if isinstance(row.review_tags, list) and row.review_tags
+                        else None
+                    )
+                    # 星级单词（2026-11-03 全档词表 star_5…star_1）：市场口径
+                    # 随导入顺手抽，tags_source=glm（不冒充官方 mct）
+                    tags = list(base_tags or [])
+                    tags_source = None
+                    if cat == "hotel" and star:
+                        tags = [t for t in tags if not str(t).startswith("star_")] + [
+                            f"star_{star}"
+                        ]
+                        tags_source = "glm"
                     res = seed_upsert(
                         factory,
                         Poi,
@@ -147,9 +167,8 @@ async def amain(adapter, factory, sem_size: int) -> dict:
                         lonlat=lonlat,
                         wgs84_lonlat=wgs,
                         origin="chinatravel",
-                        tags=row.review_tags
-                        if isinstance(row.review_tags, list) and row.review_tags
-                        else None,
+                        tags=tags or None,
+                        tags_source=tags_source,
                     )
                     if res in ("created", "exists"):
                         stats[f"moved_to_pois_{res}"] += 1

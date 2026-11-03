@@ -1,0 +1,4201 @@
+{
+ "total": 839,
+ "pages": 9,
+ "list": [
+  {
+   "hotelName": "王府饭店",
+   "province": "北京市",
+   "uuid": 136746
+  },
+  {
+   "hotelName": "北京华侨大厦",
+   "province": "北京市",
+   "uuid": 136747
+  },
+  {
+   "hotelName": "北京天伦王朝饭店",
+   "province": "北京市",
+   "uuid": 136748
+  },
+  {
+   "hotelName": "北京希尔顿酒店",
+   "province": "北京市",
+   "uuid": 136750
+  },
+  {
+   "hotelName": "北京嘉里大酒店",
+   "province": "北京市",
+   "uuid": 136751
+  },
+  {
+   "hotelName": "中国大饭店",
+   "province": "北京市",
+   "uuid": 136752
+  },
+  {
+   "hotelName": "北京瑞吉酒店",
+   "province": "北京市",
+   "uuid": 136753
+  },
+  {
+   "hotelName": "北京长富宫饭店",
+   "province": "北京市",
+   "uuid": 136754
+  },
+  {
+   "hotelName": "北京燕莎中心有限公司凯宾斯基饭店",
+   "province": "北京市",
+   "uuid": 136755
+  },
+  {
+   "hotelName": "昆仑饭店",
+   "province": "北京市",
+   "uuid": 136756
+  },
+  {
+   "hotelName": "北京国际饭店",
+   "province": "北京市",
+   "uuid": 136757
+  },
+  {
+   "hotelName": "北京京都信苑饭店",
+   "province": "北京市",
+   "uuid": 136758
+  },
+  {
+   "hotelName": "北京新世纪饭店",
+   "province": "北京市",
+   "uuid": 136759
+  },
+  {
+   "hotelName": "北京香格里拉饭店",
+   "province": "北京市",
+   "uuid": 136760
+  },
+  {
+   "hotelName": "西苑饭店",
+   "province": "北京市",
+   "uuid": 136761
+  },
+  {
+   "hotelName": "北京世纪金源大饭店",
+   "province": "北京市",
+   "uuid": 136762
+  },
+  {
+   "hotelName": "北京国宾酒店",
+   "province": "北京市",
+   "uuid": 136763
+  },
+  {
+   "hotelName": "北京饭店",
+   "province": "北京市",
+   "uuid": 136765
+  },
+  {
+   "hotelName": "北京贵宾楼饭店",
+   "province": "北京市",
+   "uuid": 136766
+  },
+  {
+   "hotelName": "北京东方君悦大酒店",
+   "province": "北京市",
+   "uuid": 136767
+  },
+  {
+   "hotelName": "北京五洲皇冠国际酒店",
+   "province": "北京市",
+   "uuid": 136768
+  },
+  {
+   "hotelName": "北京昆泰嘉华酒店",
+   "province": "北京市",
+   "uuid": 136769
+  },
+  {
+   "hotelName": "首都大酒店",
+   "province": "北京市",
+   "uuid": 136770
+  },
+  {
+   "hotelName": "北京友谊宾馆贵宾楼",
+   "province": "北京市",
+   "uuid": 136771
+  },
+  {
+   "hotelName": "北京金融街丽思卡尔顿酒店",
+   "province": "北京市",
+   "uuid": 136772
+  },
+  {
+   "hotelName": "中国妇女活动中心好苑建国酒店",
+   "province": "北京市",
+   "uuid": 136773
+  },
+  {
+   "hotelName": "丽晶酒店",
+   "province": "北京市",
+   "uuid": 136774
+  },
+  {
+   "hotelName": "北京名人国际大酒店",
+   "province": "北京市",
+   "uuid": 136775
+  },
+  {
+   "hotelName": "北京万达文华酒店",
+   "province": "北京市",
+   "uuid": 136776
+  },
+  {
+   "hotelName": "北京中奥马哥孛罗大酒店",
+   "province": "北京市",
+   "uuid": 136777
+  },
+  {
+   "hotelName": "北京中航泊悦酒店",
+   "province": "北京市",
+   "uuid": 136778
+  },
+  {
+   "hotelName": "北京伯豪瑞廷酒店",
+   "province": "北京市",
+   "uuid": 136779
+  },
+  {
+   "hotelName": "新云南皇冠假日酒店",
+   "province": "北京市",
+   "uuid": 136780
+  },
+  {
+   "hotelName": "西国贸大酒店",
+   "province": "北京市",
+   "uuid": 136781
+  },
+  {
+   "hotelName": "北京千禧大酒店",
+   "province": "北京市",
+   "uuid": 136782
+  },
+  {
+   "hotelName": "北大博雅国际酒店",
+   "province": "北京市",
+   "uuid": 136783
+  },
+  {
+   "hotelName": "北京励骏酒店",
+   "province": "北京市",
+   "uuid": 136784
+  },
+  {
+   "hotelName": "北京威斯汀酒店",
+   "province": "北京市",
+   "uuid": 136785
+  },
+  {
+   "hotelName": "北京中关村皇冠假日酒店",
+   "province": "北京市",
+   "uuid": 136786
+  },
+  {
+   "hotelName": "北京北辰洲际酒店",
+   "province": "北京市",
+   "uuid": 136787
+  },
+  {
+   "hotelName": "北京国贸大酒店",
+   "province": "北京市",
+   "uuid": 136788
+  },
+  {
+   "hotelName": "人卫酒店",
+   "province": "北京市",
+   "uuid": 136789
+  },
+  {
+   "hotelName": "北京丰大国际大酒店",
+   "province": "北京市",
+   "uuid": 136790
+  },
+  {
+   "hotelName": "北京富力万丽酒店",
+   "province": "北京市",
+   "uuid": 136791
+  },
+  {
+   "hotelName": "鹏润国际大酒店",
+   "province": "北京市",
+   "uuid": 136792
+  },
+  {
+   "hotelName": "北京金隅喜来登酒店",
+   "province": "北京市",
+   "uuid": 136793
+  },
+  {
+   "hotelName": "北京英协万达嘉华酒店",
+   "province": "北京市",
+   "uuid": 136795
+  },
+  {
+   "hotelName": "北京泰富酒店",
+   "province": "北京市",
+   "uuid": 136796
+  },
+  {
+   "hotelName": "北京日坛宾馆",
+   "province": "北京市",
+   "uuid": 136797
+  },
+  {
+   "hotelName": "北京辉煌松山度假酒店",
+   "province": "北京市",
+   "uuid": 136798
+  },
+  {
+   "hotelName": "北京世园凯悦酒店",
+   "province": "北京市",
+   "uuid": 136799
+  },
+  {
+   "hotelName": "北京金隅八达岭皇冠假日酒店",
+   "province": "北京市",
+   "uuid": 136800
+  },
+  {
+   "hotelName": "北京延庆万豪酒店",
+   "province": "北京市",
+   "uuid": 136801
+  },
+  {
+   "hotelName": "北京厦航嘉年华酒店  ",
+   "province": "北京市",
+   "uuid": 136802
+  },
+  {
+   "hotelName": "天津泰达精选酒店",
+   "province": "天津市",
+   "uuid": 136803
+  },
+  {
+   "hotelName": "天津金皇大酒店",
+   "province": "天津市",
+   "uuid": 136804
+  },
+  {
+   "hotelName": "天津万丽泰达酒店",
+   "province": "天津市",
+   "uuid": 136805
+  },
+  {
+   "hotelName": "天津亿豪山水郡国际度假酒店",
+   "province": "天津市",
+   "uuid": 136806
+  },
+  {
+   "hotelName": "万丽天津宾馆",
+   "province": "天津市",
+   "uuid": 136807
+  },
+  {
+   "hotelName": "海航天津中心唐拉雅秀酒店",
+   "province": "天津市",
+   "uuid": 136808
+  },
+  {
+   "hotelName": "丽思卡尔顿酒店",
+   "province": "天津市",
+   "uuid": 136809
+  },
+  {
+   "hotelName": "河北云瑧世纪大饭店",
+   "province": "河北省",
+   "uuid": 136810
+  },
+  {
+   "hotelName": "石家庄云瑧金陵世贸广场酒店",
+   "province": "河北省",
+   "uuid": 136811
+  },
+  {
+   "hotelName": "保定星光国际商务酒店",
+   "province": "河北省",
+   "uuid": 136812
+  },
+  {
+   "hotelName": "河北卓正国际酒店",
+   "province": "河北省",
+   "uuid": 136813
+  },
+  {
+   "hotelName": "福成国际大酒店",
+   "province": "河北省",
+   "uuid": 136814
+  },
+  {
+   "hotelName": "保定电谷酒店",
+   "province": "河北省",
+   "uuid": 136815
+  },
+  {
+   "hotelName": "秀兰饭店",
+   "province": "河北省",
+   "uuid": 136816
+  },
+  {
+   "hotelName": "金狮国际酒店",
+   "province": "河北省",
+   "uuid": 136817
+  },
+  {
+   "hotelName": "沧州阿尔卡迪亚国际酒店",
+   "province": "河北省",
+   "uuid": 136818
+  },
+  {
+   "hotelName": "秦皇国际大酒店",
+   "province": "河北省",
+   "uuid": 136819
+  },
+  {
+   "hotelName": "廊坊阿尔卡迪亚国际酒店",
+   "province": "河北省",
+   "uuid": 136820
+  },
+  {
+   "hotelName": "武安财富国际酒店",
+   "province": "河北省",
+   "uuid": 136821
+  },
+  {
+   "hotelName": "邢台万峰大酒店",
+   "province": "河北省",
+   "uuid": 136822
+  },
+  {
+   "hotelName": "石家庄万达洲际酒店",
+   "province": "河北省",
+   "uuid": 136823
+  },
+  {
+   "hotelName": "辛集市皮都大酒店",
+   "province": "河北省",
+   "uuid": 136824
+  },
+  {
+   "hotelName": "承德嘉和国际饭店",
+   "province": "河北省",
+   "uuid": 136825
+  },
+  {
+   "hotelName": "张家口云顶大酒店",
+   "province": "河北省",
+   "uuid": 136826
+  },
+  {
+   "hotelName": "富龙度假酒店",
+   "province": "河北省",
+   "uuid": 136827
+  },
+  {
+   "hotelName": "张家口蓝鲸瑞海酒店",
+   "province": "河北省",
+   "uuid": 136828
+  },
+  {
+   "hotelName": "敬业酒店有限公司",
+   "province": "河北省",
+   "uuid": 136829
+  },
+  {
+   "hotelName": "崇礼云瑧金陵翠云山酒店",
+   "province": "河北省",
+   "uuid": 136830
+  },
+  {
+   "hotelName": "崇礼翠云山皇冠假日度假酒店",
+   "province": "河北省",
+   "uuid": 136833
+  },
+  {
+   "hotelName": "滦平庄普酒店有限公司",
+   "province": "河北省",
+   "uuid": 136831
+  },
+  {
+   "hotelName": "河北野生原酒店",
+   "province": "河北省",
+   "uuid": 136832
+  },
+  {
+   "hotelName": "涞源华中假日酒店",
+   "province": "河北省",
+   "uuid": 136834
+  },
+  {
+   "hotelName": "崇礼山麓酒店",
+   "province": "河北省",
+   "uuid": 136835
+  },
+  {
+   "hotelName": "山西国贸大饭店",
+   "province": "山西省",
+   "uuid": 136836
+  },
+  {
+   "hotelName": "山西晋祠宾馆",
+   "province": "山西省",
+   "uuid": 136837
+  },
+  {
+   "hotelName": "丽华大酒店",
+   "province": "山西省",
+   "uuid": 136838
+  },
+  {
+   "hotelName": "长治益东国际酒店",
+   "province": "山西省",
+   "uuid": 136839
+  },
+  {
+   "hotelName": "东明国际大酒店",
+   "province": "山西省",
+   "uuid": 136840
+  },
+  {
+   "hotelName": "朔州万通源大酒店",
+   "province": "山西省",
+   "uuid": 136841
+  },
+  {
+   "hotelName": "宏源国际饭店",
+   "province": "山西省",
+   "uuid": 136842
+  },
+  {
+   "hotelName": "山西万豪美悦国际酒店",
+   "province": "山西省",
+   "uuid": 136843
+  },
+  {
+   "hotelName": "环城凯斯顿酒店",
+   "province": "山西省",
+   "uuid": 136844
+  },
+  {
+   "hotelName": "大同市金地豪生大酒店",
+   "province": "山西省",
+   "uuid": 136845
+  },
+  {
+   "hotelName": "阳城县美韵花园大酒店",
+   "province": "山西省",
+   "uuid": 136846
+  },
+  {
+   "hotelName": "山西潇河新城万达锦华酒店",
+   "province": "山西省",
+   "uuid": 136847
+  },
+  {
+   "hotelName": "内蒙古新城宾馆",
+   "province": "内蒙古自治区",
+   "uuid": 136848
+  },
+  {
+   "hotelName": "内蒙古饭店",
+   "province": "内蒙古自治区",
+   "uuid": 136849
+  },
+  {
+   "hotelName": "鄂尔多斯皇冠假日酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136850
+  },
+  {
+   "hotelName": "香格里拉大酒店（呼和浩特）",
+   "province": "内蒙古自治区",
+   "uuid": 136851
+  },
+  {
+   "hotelName": "包头香格里拉大酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136852
+  },
+  {
+   "hotelName": "喜来登呼和浩特酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136853
+  },
+  {
+   "hotelName": "香格里拉大酒店（满洲里）",
+   "province": "内蒙古自治区",
+   "uuid": 136854
+  },
+  {
+   "hotelName": "锡林郭勒元和建国饭店",
+   "province": "内蒙古自治区",
+   "uuid": 136855
+  },
+  {
+   "hotelName": "内蒙古源源国际酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136856
+  },
+  {
+   "hotelName": "鄂尔多斯博源豪生大酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136857
+  },
+  {
+   "hotelName": "呼和浩特中心皇冠假日酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136858
+  },
+  {
+   "hotelName": "兴安盟博源大酒店",
+   "province": "内蒙古自治区",
+   "uuid": 136859
+  },
+  {
+   "hotelName": "沈阳皇朝万豪酒店",
+   "province": "辽宁省",
+   "uuid": 136860
+  },
+  {
+   "hotelName": "大连富丽华大酒店",
+   "province": "辽宁省",
+   "uuid": 136861
+  },
+  {
+   "hotelName": "大连香格里拉酒店",
+   "province": "辽宁省",
+   "uuid": 136862
+  },
+  {
+   "hotelName": "大连日航饭店",
+   "province": "辽宁省",
+   "uuid": 136863
+  },
+  {
+   "hotelName": "辽阳富虹国际饭店",
+   "province": "辽宁省",
+   "uuid": 136864
+  },
+  {
+   "hotelName": "鞍山五环大酒店",
+   "province": "辽宁省",
+   "uuid": 136865
+  },
+  {
+   "hotelName": "大连银帆宾馆",
+   "province": "辽宁省",
+   "uuid": 136866
+  },
+  {
+   "hotelName": "大连凯宾斯基饭店",
+   "province": "辽宁省",
+   "uuid": 136867
+  },
+  {
+   "hotelName": "大连酒店投资有限公司泰达柏爵酒店",
+   "province": "辽宁省",
+   "uuid": 136868
+  },
+  {
+   "hotelName": "大连中远海运洲际酒店",
+   "province": "辽宁省",
+   "uuid": 136869
+  },
+  {
+   "hotelName": "营口金泰珑悦海景大酒店",
+   "province": "辽宁省",
+   "uuid": 136870
+  },
+  {
+   "hotelName": "本溪富虹国际饭店",
+   "province": "辽宁省",
+   "uuid": 136871
+  },
+  {
+   "hotelName": "抚顺友谊宾馆",
+   "province": "辽宁省",
+   "uuid": 136872
+  },
+  {
+   "hotelName": "大连新世界酒店",
+   "province": "辽宁省",
+   "uuid": 136874
+  },
+  {
+   "hotelName": "沈阳北约客维景大酒店",
+   "province": "辽宁省",
+   "uuid": 136875
+  },
+  {
+   "hotelName": "大连万达希尔顿酒店",
+   "province": "辽宁省",
+   "uuid": 136876
+  },
+  {
+   "hotelName": "东戴河佳兆业铂域酒店",
+   "province": "辽宁省",
+   "uuid": 136877
+  },
+  {
+   "hotelName": "长春香格里拉大酒店",
+   "province": "吉林省",
+   "uuid": 136878
+  },
+  {
+   "hotelName": "长白山万达锦华度假酒店",
+   "province": "吉林省",
+   "uuid": 136880
+  },
+  {
+   "hotelName": "哈尔滨香格里拉大酒店",
+   "province": "黑龙江省",
+   "uuid": 136881
+  },
+  {
+   "hotelName": "哈尔滨索菲特大酒店",
+   "province": "黑龙江省",
+   "uuid": 136882
+  },
+  {
+   "hotelName": "牡丹江市夏威夷国际大酒店",
+   "province": "黑龙江省",
+   "uuid": 136883
+  },
+  {
+   "hotelName": "鸡西龙城花园饭店",
+   "province": "黑龙江省",
+   "uuid": 136884
+  },
+  {
+   "hotelName": "鹤岗龙运大酒店",
+   "province": "黑龙江省",
+   "uuid": 136885
+  },
+  {
+   "hotelName": "大庆富力喜来登酒店",
+   "province": "黑龙江省",
+   "uuid": 136886
+  },
+  {
+   "hotelName": "上海静安昆仑大酒店",
+   "province": "上海市",
+   "uuid": 136887
+  },
+  {
+   "hotelName": "花园饭店",
+   "province": "上海市",
+   "uuid": 136888
+  },
+  {
+   "hotelName": "上海华亭宾馆",
+   "province": "上海市",
+   "uuid": 136889
+  },
+  {
+   "hotelName": "上海新锦江大酒店",
+   "province": "上海市",
+   "uuid": 136890
+  },
+  {
+   "hotelName": "上海波特曼丽思卡尔顿酒店",
+   "province": "上海市",
+   "uuid": 136891
+  },
+  {
+   "hotelName": "虹桥锦江大酒店",
+   "province": "上海市",
+   "uuid": 136892
+  },
+  {
+   "hotelName": "上海锦江汤臣洲际大酒店",
+   "province": "上海市",
+   "uuid": 136893
+  },
+  {
+   "hotelName": "上海浦东香格里拉",
+   "province": "上海市",
+   "uuid": 136894
+  },
+  {
+   "hotelName": "上海锦江饭店有限公司",
+   "province": "上海市",
+   "uuid": 136895
+  },
+  {
+   "hotelName": "和平饭店",
+   "province": "上海市",
+   "uuid": 136896
+  },
+  {
+   "hotelName": "上海金茂君悦大酒店",
+   "province": "上海市",
+   "uuid": 136897
+  },
+  {
+   "hotelName": "上海虹桥万丽酒店",
+   "province": "上海市",
+   "uuid": 136898
+  },
+  {
+   "hotelName": "上海金陵紫金山大酒店",
+   "province": "上海市",
+   "uuid": 136899
+  },
+  {
+   "hotelName": "上海红塔豪华精选酒店",
+   "province": "上海市",
+   "uuid": 136900
+  },
+  {
+   "hotelName": "上海虹桥迎宾馆",
+   "province": "上海市",
+   "uuid": 136901
+  },
+  {
+   "hotelName": "上海兴国宾馆丽笙精选",
+   "province": "上海市",
+   "uuid": 136902
+  },
+  {
+   "hotelName": "上海扬子江丽笙精选酒店",
+   "province": "上海市",
+   "uuid": 136903
+  },
+  {
+   "hotelName": "上海东锦江希尔顿逸林酒店",
+   "province": "上海市",
+   "uuid": 136904
+  },
+  {
+   "hotelName": "威斯汀大饭店",
+   "province": "上海市",
+   "uuid": 136905
+  },
+  {
+   "hotelName": "上海明天广场金威万豪酒店",
+   "province": "上海市",
+   "uuid": 136906
+  },
+  {
+   "hotelName": "上海南新雅皇冠假日酒店",
+   "province": "上海市",
+   "uuid": 136907
+  },
+  {
+   "hotelName": "上海新世界丽笙大酒店",
+   "province": "上海市",
+   "uuid": 136908
+  },
+  {
+   "hotelName": "上海淳大万丽酒店",
+   "province": "上海市",
+   "uuid": 136909
+  },
+  {
+   "hotelName": "上海松江开元名都大酒店",
+   "province": "上海市",
+   "uuid": 136910
+  },
+  {
+   "hotelName": "上海龙之梦大酒店",
+   "province": "上海市",
+   "uuid": 136911
+  },
+  {
+   "hotelName": "上海大厦",
+   "province": "上海市",
+   "uuid": 136912
+  },
+  {
+   "hotelName": "千禧海鸥大酒店",
+   "province": "上海市",
+   "uuid": 136913
+  },
+  {
+   "hotelName": "上海康莱德酒店",
+   "province": "上海市",
+   "uuid": 136914
+  },
+  {
+   "hotelName": "上海银星皇冠假日酒店",
+   "province": "上海市",
+   "uuid": 136915
+  },
+  {
+   "hotelName": "上海豫园万丽酒店",
+   "province": "上海市",
+   "uuid": 136916
+  },
+  {
+   "hotelName": "上海南郊宾馆",
+   "province": "上海市",
+   "uuid": 136917
+  },
+  {
+   "hotelName": "上海中油阳光大酒店",
+   "province": "上海市",
+   "uuid": 136918
+  },
+  {
+   "hotelName": "上海龙之梦万丽酒店",
+   "province": "上海市",
+   "uuid": 136919
+  },
+  {
+   "hotelName": "上海大酒店",
+   "province": "上海市",
+   "uuid": 136920
+  },
+  {
+   "hotelName": "上海东方佘山翰悦阁酒店",
+   "province": "上海市",
+   "uuid": 136921
+  },
+  {
+   "hotelName": "上海静安洲际酒店",
+   "province": "上海市",
+   "uuid": 136922
+  },
+  {
+   "hotelName": "上海世博洲际酒店",
+   "province": "上海市",
+   "uuid": 136923
+  },
+  {
+   "hotelName": "宏安瑞士大酒店",
+   "province": "上海市",
+   "uuid": 136924
+  },
+  {
+   "hotelName": "上海浦东丽思卡尔顿酒店",
+   "province": "上海市",
+   "uuid": 136925
+  },
+  {
+   "hotelName": "上海浦东星河湾酒店",
+   "province": "上海市",
+   "uuid": 136926
+  },
+  {
+   "hotelName": "上海外滩半岛酒店",
+   "province": "上海市",
+   "uuid": 136927
+  },
+  {
+   "hotelName": "上海喜来登由由酒店",
+   "province": "上海市",
+   "uuid": 136929
+  },
+  {
+   "hotelName": "上海朱家角皇家郁金香花园酒店",
+   "province": "上海市",
+   "uuid": 136930
+  },
+  {
+   "hotelName": "上海皇廷国际大酒店",
+   "province": "上海市",
+   "uuid": 136931
+  },
+  {
+   "hotelName": "上海柏悦大酒店",
+   "province": "上海市",
+   "uuid": 136932
+  },
+  {
+   "hotelName": "上海绿瘦酒店",
+   "province": "上海市",
+   "uuid": 136933
+  },
+  {
+   "hotelName": "中谷小南国花园酒店",
+   "province": "上海市",
+   "uuid": 136934
+  },
+  {
+   "hotelName": "上海浦东文华东方酒店",
+   "province": "上海市",
+   "uuid": 136935
+  },
+  {
+   "hotelName": "上海皇廷世际酒店",
+   "province": "上海市",
+   "uuid": 136936
+  },
+  {
+   "hotelName": "上海瑞金洲际酒店",
+   "province": "上海市",
+   "uuid": 136937
+  },
+  {
+   "hotelName": "上海新华联索菲特大酒店",
+   "province": "上海市",
+   "uuid": 136938
+  },
+  {
+   "hotelName": "金陵饭店",
+   "province": "江苏省",
+   "uuid": 136939
+  },
+  {
+   "hotelName": "南京金陵状元楼大酒店",
+   "province": "江苏省",
+   "uuid": 136940
+  },
+  {
+   "hotelName": "南京金丝利喜来登酒店",
+   "province": "江苏省",
+   "uuid": 136941
+  },
+  {
+   "hotelName": "苏州中茵皇冠假日酒店",
+   "province": "江苏省",
+   "uuid": 136942
+  },
+  {
+   "hotelName": "无锡太湖饭店",
+   "province": "江苏省",
+   "uuid": 136943
+  },
+  {
+   "hotelName": "南京维景国际大酒店",
+   "province": "江苏省",
+   "uuid": 136944
+  },
+  {
+   "hotelName": "古南都饭店",
+   "province": "江苏省",
+   "uuid": 136945
+  },
+  {
+   "hotelName": "南京玄武饭店",
+   "province": "江苏省",
+   "uuid": 136946
+  },
+  {
+   "hotelName": "张家港国贸酒店",
+   "province": "江苏省",
+   "uuid": 136947
+  },
+  {
+   "hotelName": "泰州宾馆",
+   "province": "江苏省",
+   "uuid": 136948
+  },
+  {
+   "hotelName": "江苏苏宁环球套房饭店",
+   "province": "江苏省",
+   "uuid": 136949
+  },
+  {
+   "hotelName": "无锡湖滨饭店",
+   "province": "江苏省",
+   "uuid": 136950
+  },
+  {
+   "hotelName": "张家港市馨苑度假村",
+   "province": "江苏省",
+   "uuid": 136951
+  },
+  {
+   "hotelName": "张家港华芳金陵国际酒店",
+   "province": "江苏省",
+   "uuid": 136952
+  },
+  {
+   "hotelName": "江苏天目湖宾馆",
+   "province": "江苏省",
+   "uuid": 136953
+  },
+  {
+   "hotelName": "苏州同里湖大饭店",
+   "province": "江苏省",
+   "uuid": 136954
+  },
+  {
+   "hotelName": "泓昇苑大酒店",
+   "province": "江苏省",
+   "uuid": 136955
+  },
+  {
+   "hotelName": "常州富都VOCO酒店",
+   "province": "江苏省",
+   "uuid": 136956
+  },
+  {
+   "hotelName": "太仓花园酒店",
+   "province": "江苏省",
+   "uuid": 136957
+  },
+  {
+   "hotelName": "南京苏宁钟山高尔夫国际酒店",
+   "province": "江苏省",
+   "uuid": 136958
+  },
+  {
+   "hotelName": "徐州开元名都大酒店",
+   "province": "江苏省",
+   "uuid": 136959
+  },
+  {
+   "hotelName": "昆山瑞士大酒店",
+   "province": "江苏省",
+   "uuid": 136960
+  },
+  {
+   "hotelName": "南京索菲特银河大酒店",
+   "province": "江苏省",
+   "uuid": 136961
+  },
+  {
+   "hotelName": "金陵云台宾馆 ",
+   "province": "江苏省",
+   "uuid": 136962
+  },
+  {
+   "hotelName": "苏州工业园区金鸡湖大酒店",
+   "province": "江苏省",
+   "uuid": 136963
+  },
+  {
+   "hotelName": "苏州香格里拉大酒店",
+   "province": "江苏省",
+   "uuid": 136964
+  },
+  {
+   "hotelName": "江苏国泰南园宾馆",
+   "province": "江苏省",
+   "uuid": 136965
+  },
+  {
+   "hotelName": "宜兴宾馆",
+   "province": "江苏省",
+   "uuid": 136966
+  },
+  {
+   "hotelName": "江苏驿都金陵大酒店",
+   "province": "江苏省",
+   "uuid": 136967
+  },
+  {
+   "hotelName": "太仓锦江国际酒店",
+   "province": "江苏省",
+   "uuid": 136968
+  },
+  {
+   "hotelName": "溧阳宾馆",
+   "province": "江苏省",
+   "uuid": 136969
+  },
+  {
+   "hotelName": "苏州新城花园酒店",
+   "province": "江苏省",
+   "uuid": 136970
+  },
+  {
+   "hotelName": "苏州阳澄湖澜廷度假酒店",
+   "province": "江苏省",
+   "uuid": 136971
+  },
+  {
+   "hotelName": "扬州迎宾馆",
+   "province": "江苏省",
+   "uuid": 136972
+  },
+  {
+   "hotelName": "南京国际会议大酒店",
+   "province": "江苏省",
+   "uuid": 136973
+  },
+  {
+   "hotelName": "南京中心大酒店",
+   "province": "江苏省",
+   "uuid": 136974
+  },
+  {
+   "hotelName": "吴江东恒盛国际大酒店",
+   "province": "江苏省",
+   "uuid": 136976
+  },
+  {
+   "hotelName": "无锡凯燕置业有限公司城中皇冠假日酒店",
+   "province": "江苏省",
+   "uuid": 136977
+  },
+  {
+   "hotelName": "苏州金鸡湖凯宾斯基大酒店",
+   "province": "江苏省",
+   "uuid": 136978
+  },
+  {
+   "hotelName": "南京明发珍珠泉大酒店",
+   "province": "江苏省",
+   "uuid": 136979
+  },
+  {
+   "hotelName": "江苏福如东海温泉大酒店",
+   "province": "江苏省",
+   "uuid": 136980
+  },
+  {
+   "hotelName": "常熟裕坤国贸酒店",
+   "province": "江苏省",
+   "uuid": 136981
+  },
+  {
+   "hotelName": "扬州云鹤金陵大酒店",
+   "province": "江苏省",
+   "uuid": 136982
+  },
+  {
+   "hotelName": "淮安鼎立国际大酒店",
+   "province": "江苏省",
+   "uuid": 136983
+  },
+  {
+   "hotelName": "江阴桃园山庄大酒店",
+   "province": "江苏省",
+   "uuid": 136984
+  },
+  {
+   "hotelName": "南京洲际酒店",
+   "province": "江苏省",
+   "uuid": 136985
+  },
+  {
+   "hotelName": "无锡日航饭店",
+   "province": "江苏省",
+   "uuid": 136986
+  },
+  {
+   "hotelName": "江苏水中仙东雅国际酒店",
+   "province": "江苏省",
+   "uuid": 136987
+  },
+  {
+   "hotelName": "无锡富力喜来登酒店",
+   "province": "江苏省",
+   "uuid": 136988
+  },
+  {
+   "hotelName": "扬州西园饭店",
+   "province": "江苏省",
+   "uuid": 136990
+  },
+  {
+   "hotelName": "欧堡利亚大酒店",
+   "province": "江苏省",
+   "uuid": 136991
+  },
+  {
+   "hotelName": "盐城大丰半岛温泉酒店",
+   "province": "江苏省",
+   "uuid": 136992
+  },
+  {
+   "hotelName": "武进九洲喜来登酒店",
+   "province": "江苏省",
+   "uuid": 136993
+  },
+  {
+   "hotelName": "天目湖御水温泉·度假酒店",
+   "province": "江苏省",
+   "uuid": 136994
+  },
+  {
+   "hotelName": "南京威斯汀大酒店",
+   "province": "江苏省",
+   "uuid": 136995
+  },
+  {
+   "hotelName": "江阴黄嘉喜来登酒店",
+   "province": "江苏省",
+   "uuid": 136996
+  },
+  {
+   "hotelName": "海门东恒盛国际大酒店",
+   "province": "江苏省",
+   "uuid": 136997
+  },
+  {
+   "hotelName": "南京阿尔卡迪亚国际酒店",
+   "province": "江苏省",
+   "uuid": 136998
+  },
+  {
+   "hotelName": "南京香格里拉大酒店",
+   "province": "江苏省",
+   "uuid": 136999
+  },
+  {
+   "hotelName": "常州明都紫薇花园酒店管理有限公司",
+   "province": "江苏省",
+   "uuid": 137000
+  },
+  {
+   "hotelName": "南京景枫万豪酒店",
+   "province": "江苏省",
+   "uuid": 137001
+  },
+  {
+   "hotelName": "启东银洲希尔顿逸林酒店",
+   "province": "江苏省",
+   "uuid": 137002
+  },
+  {
+   "hotelName": "江苏千鹤湖酒店",
+   "province": "江苏省",
+   "uuid": 137003
+  },
+  {
+   "hotelName": "高淳金陵大酒店",
+   "province": "江苏省",
+   "uuid": 137004
+  },
+  {
+   "hotelName": "淮安开元名都大酒店",
+   "province": "江苏省",
+   "uuid": 137005
+  },
+  {
+   "hotelName": "常州市江南明都国际酒店",
+   "province": "江苏省",
+   "uuid": 137006
+  },
+  {
+   "hotelName": "启东皇冠假日酒店",
+   "province": "江苏省",
+   "uuid": 137007
+  },
+  {
+   "hotelName": "南通维景国际大酒店",
+   "province": "江苏省",
+   "uuid": 137008
+  },
+  {
+   "hotelName": "连云港花果山酒店",
+   "province": "江苏省",
+   "uuid": 137009
+  },
+  {
+   "hotelName": "浙江世贸君澜大饭店",
+   "province": "浙江省",
+   "uuid": 137010
+  },
+  {
+   "hotelName": "杭州维景国际大酒店",
+   "province": "浙江省",
+   "uuid": 137011
+  },
+  {
+   "hotelName": "宁波南苑饭店",
+   "province": "浙江省",
+   "uuid": 137012
+  },
+  {
+   "hotelName": "中信宁波国际大酒店",
+   "province": "浙江省",
+   "uuid": 137013
+  },
+  {
+   "hotelName": "宁波太平洋大酒店",
+   "province": "浙江省",
+   "uuid": 137014
+  },
+  {
+   "hotelName": "绍兴咸亨大酒店",
+   "province": "浙江省",
+   "uuid": 137015
+  },
+  {
+   "hotelName": "绍兴国际大酒店",
+   "province": "浙江省",
+   "uuid": 137016
+  },
+  {
+   "hotelName": "浙江慈溪杭州湾大酒店",
+   "province": "浙江省",
+   "uuid": 137017
+  },
+  {
+   "hotelName": "浙江国际大酒店",
+   "province": "浙江省",
+   "uuid": 137018
+  },
+  {
+   "hotelName": "萧山金马饭店",
+   "province": "浙江省",
+   "uuid": 137019
+  },
+  {
+   "hotelName": "杭州索菲特西湖大酒店",
+   "province": "浙江省",
+   "uuid": 137020
+  },
+  {
+   "hotelName": "杭州千岛湖开元度假村",
+   "province": "浙江省",
+   "uuid": 137021
+  },
+  {
+   "hotelName": "绍兴饭店",
+   "province": "浙江省",
+   "uuid": 137022
+  },
+  {
+   "hotelName": "温州华侨饭店",
+   "province": "浙江省",
+   "uuid": 137023
+  },
+  {
+   "hotelName": "溪口银凤度假村",
+   "province": "浙江省",
+   "uuid": 137024
+  },
+  {
+   "hotelName": "浙江南国大酒店",
+   "province": "浙江省",
+   "uuid": 137025
+  },
+  {
+   "hotelName": "杭州开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137026
+  },
+  {
+   "hotelName": "余姚宾馆",
+   "province": "浙江省",
+   "uuid": 137027
+  },
+  {
+   "hotelName": "宁波华侨温德姆至尊豪廷大酒店",
+   "province": "浙江省",
+   "uuid": 137028
+  },
+  {
+   "hotelName": "宁波大榭国际大酒店",
+   "province": "浙江省",
+   "uuid": 137029
+  },
+  {
+   "hotelName": "台州耀达国际酒店",
+   "province": "浙江省",
+   "uuid": 137030
+  },
+  {
+   "hotelName": "宁波东港喜来登酒店",
+   "province": "浙江省",
+   "uuid": 137031
+  },
+  {
+   "hotelName": "宁波凯洲皇冠假日酒店",
+   "province": "浙江省",
+   "uuid": 137032
+  },
+  {
+   "hotelName": "杭州中维歌德大酒店有限公司 ",
+   "province": "浙江省",
+   "uuid": 137033
+  },
+  {
+   "hotelName": "绍兴开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137034
+  },
+  {
+   "hotelName": "富阳国际贸易中心大酒店",
+   "province": "浙江省",
+   "uuid": 137035
+  },
+  {
+   "hotelName": "宁波开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137036
+  },
+  {
+   "hotelName": "义乌锦都酒店",
+   "province": "浙江省",
+   "uuid": 137037
+  },
+  {
+   "hotelName": "良渚君澜度假酒店",
+   "province": "浙江省",
+   "uuid": 137038
+  },
+  {
+   "hotelName": "宁波石浦半岛酒店",
+   "province": "浙江省",
+   "uuid": 137039
+  },
+  {
+   "hotelName": "宁波象山港国际大酒店",
+   "province": "浙江省",
+   "uuid": 137040
+  },
+  {
+   "hotelName": "宁波万豪酒店",
+   "province": "浙江省",
+   "uuid": 137041
+  },
+  {
+   "hotelName": "杭州第一大世界酒店",
+   "province": "浙江省",
+   "uuid": 137042
+  },
+  {
+   "hotelName": "诸暨耀江开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137043
+  },
+  {
+   "hotelName": "杭州中都青山湖畔大酒店",
+   "province": "浙江省",
+   "uuid": 137044
+  },
+  {
+   "hotelName": "嘉兴阳光雷迪森广场酒店",
+   "province": "浙江省",
+   "uuid": 137045
+  },
+  {
+   "hotelName": "前湾海悦•首旅南苑酒店",
+   "province": "浙江省",
+   "uuid": 137046
+  },
+  {
+   "hotelName": "杭州黄龙饭店",
+   "province": "浙江省",
+   "uuid": 137047
+  },
+  {
+   "hotelName": "绍兴鉴湖大酒店",
+   "province": "浙江省",
+   "uuid": 137048
+  },
+  {
+   "hotelName": "舟山喜来登绿城酒店",
+   "province": "浙江省",
+   "uuid": 137049
+  },
+  {
+   "hotelName": "开元宁波九龙湖度假村",
+   "province": "浙江省",
+   "uuid": 137050
+  },
+  {
+   "hotelName": "慈溪达蓬山大酒店",
+   "province": "浙江省",
+   "uuid": 137051
+  },
+  {
+   "hotelName": "海宁海洲大饭店",
+   "province": "浙江省",
+   "uuid": 137052
+  },
+  {
+   "hotelName": "海宁皮都锦江大酒店",
+   "province": "浙江省",
+   "uuid": 137053
+  },
+  {
+   "hotelName": "宁波南苑环球酒店",
+   "province": "浙江省",
+   "uuid": 137054
+  },
+  {
+   "hotelName": "温州天豪君澜大酒店",
+   "province": "浙江省",
+   "uuid": 137055
+  },
+  {
+   "hotelName": "温州温德姆酒店",
+   "province": "浙江省",
+   "uuid": 137056
+  },
+  {
+   "hotelName": "温州香格里拉大酒店",
+   "province": "浙江省",
+   "uuid": 137057
+  },
+  {
+   "hotelName": "杭州海外海宾馆大酒店",
+   "province": "浙江省",
+   "uuid": 137058
+  },
+  {
+   "hotelName": "绍兴咸亨酒店",
+   "province": "浙江省",
+   "uuid": 137059
+  },
+  {
+   "hotelName": "上虞宾馆",
+   "province": "浙江省",
+   "uuid": 137060
+  },
+  {
+   "hotelName": "杭州温德姆至尊豪廷酒店",
+   "province": "浙江省",
+   "uuid": 137061
+  },
+  {
+   "hotelName": "振石大酒店",
+   "province": "浙江省",
+   "uuid": 137062
+  },
+  {
+   "hotelName": "平湖圣雷克大酒店",
+   "province": "浙江省",
+   "uuid": 137063
+  },
+  {
+   "hotelName": "金银岛国际大酒店",
+   "province": "浙江省",
+   "uuid": 137064
+  },
+  {
+   "hotelName": "宁海金海开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137065
+  },
+  {
+   "hotelName": "乐清市金鼎大酒店",
+   "province": "浙江省",
+   "uuid": 137066
+  },
+  {
+   "hotelName": "诸暨同方豪生大酒店",
+   "province": "浙江省",
+   "uuid": 137067
+  },
+  {
+   "hotelName": "余姚阳明温泉山庄",
+   "province": "浙江省",
+   "uuid": 137068
+  },
+  {
+   "hotelName": "杭州天元大厦",
+   "province": "浙江省",
+   "uuid": 137069
+  },
+  {
+   "hotelName": "杭州西溪喜来登度假酒店",
+   "province": "浙江省",
+   "uuid": 137070
+  },
+  {
+   "hotelName": "杭州千岛湖绿城实业有限公司喜来登度假酒店",
+   "province": "浙江省",
+   "uuid": 137071
+  },
+  {
+   "hotelName": "台州皇冠假日酒店",
+   "province": "浙江省",
+   "uuid": 137072
+  },
+  {
+   "hotelName": "湖州南浔花园名都大酒店",
+   "province": "浙江省",
+   "uuid": 137073
+  },
+  {
+   "hotelName": "江山金陵大酒店有限公司",
+   "province": "浙江省",
+   "uuid": 137074
+  },
+  {
+   "hotelName": "温岭国际大酒店",
+   "province": "浙江省",
+   "uuid": 137075
+  },
+  {
+   "hotelName": "乐淸新聚丰圆大酒店",
+   "province": "浙江省",
+   "uuid": 137076
+  },
+  {
+   "hotelName": "台州黄岩耀达酒店有限公司",
+   "province": "浙江省",
+   "uuid": 137077
+  },
+  {
+   "hotelName": "丽水东方文廷酒店",
+   "province": "浙江省",
+   "uuid": 137078
+  },
+  {
+   "hotelName": "温岭耀达国际大酒店",
+   "province": "浙江省",
+   "uuid": 137079
+  },
+  {
+   "hotelName": "江山国际大酒店",
+   "province": "浙江省",
+   "uuid": 137080
+  },
+  {
+   "hotelName": "长兴开元名都大酒店有限公司",
+   "province": "浙江省",
+   "uuid": 137081
+  },
+  {
+   "hotelName": "杭州英冠温德姆酒店",
+   "province": "浙江省",
+   "uuid": 137082
+  },
+  {
+   "hotelName": "开化国际大酒店",
+   "province": "浙江省",
+   "uuid": 137083
+  },
+  {
+   "hotelName": "景宁天元名悦大酒店",
+   "province": "浙江省",
+   "uuid": 137084
+  },
+  {
+   "hotelName": "遂昌凯兴开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137085
+  },
+  {
+   "hotelName": "缙云锦江国际大酒店",
+   "province": "浙江省",
+   "uuid": 137086
+  },
+  {
+   "hotelName": "温州开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137087
+  },
+  {
+   "hotelName": "杭州千岛湖明豪国际会议中心",
+   "province": "浙江省",
+   "uuid": 137088
+  },
+  {
+   "hotelName": "江山海外海皇冠大酒店",
+   "province": "浙江省",
+   "uuid": 137089
+  },
+  {
+   "hotelName": "遂昌汤公雷迪森广场酒店",
+   "province": "浙江省",
+   "uuid": 137090
+  },
+  {
+   "hotelName": "丽水万地温德姆至尊酒店",
+   "province": "浙江省",
+   "uuid": 137091
+  },
+  {
+   "hotelName": "方远台州大饭店",
+   "province": "浙江省",
+   "uuid": 137092
+  },
+  {
+   "hotelName": "浙江龙游东方文岚饭店",
+   "province": "浙江省",
+   "uuid": 137093
+  },
+  {
+   "hotelName": "平湖卓越铂尔曼酒店",
+   "province": "浙江省",
+   "uuid": 137094
+  },
+  {
+   "hotelName": "宁波港城华邑酒店",
+   "province": "浙江省",
+   "uuid": 137095
+  },
+  {
+   "hotelName": "开化东方文岚饭店",
+   "province": "浙江省",
+   "uuid": 137096
+  },
+  {
+   "hotelName": "缙云宝廷酒店",
+   "province": "浙江省",
+   "uuid": 137097
+  },
+  {
+   "hotelName": "景宁畲乡鸿宾大酒店",
+   "province": "浙江省",
+   "uuid": 137098
+  },
+  {
+   "hotelName": "嘉善云澜湾泓璟四季酒店",
+   "province": "浙江省",
+   "uuid": 137099
+  },
+  {
+   "hotelName": "诸暨大酒店",
+   "province": "浙江省",
+   "uuid": 137100
+  },
+  {
+   "hotelName": "西娜君澜大饭店",
+   "province": "浙江省",
+   "uuid": 137101
+  },
+  {
+   "hotelName": "兰溪万固开元名都大酒店",
+   "province": "浙江省",
+   "uuid": 137102
+  },
+  {
+   "hotelName": "宁波杭州湾凯悦酒店",
+   "province": "浙江省",
+   "uuid": 137103
+  },
+  {
+   "hotelName": "杭州富阳喜来登酒店",
+   "province": "浙江省",
+   "uuid": 156647
+  },
+  {
+   "hotelName": "合肥古井假日酒店",
+   "province": "安徽省",
+   "uuid": 137104
+  },
+  {
+   "hotelName": "外商国际俱乐部酒店",
+   "province": "安徽省",
+   "uuid": 137105
+  },
+  {
+   "hotelName": "黄山松柏高尔夫乡村俱乐部",
+   "province": "安徽省",
+   "uuid": 137106
+  },
+  {
+   "hotelName": "安徽建工新时代大酒店（蚌埠店）",
+   "province": "安徽省",
+   "uuid": 137107
+  },
+  {
+   "hotelName": "天鹅湖大酒店",
+   "province": "安徽省",
+   "uuid": 137108
+  },
+  {
+   "hotelName": "合肥元一希尔顿酒店",
+   "province": "安徽省",
+   "uuid": 137109
+  },
+  {
+   "hotelName": "黄山国际大酒店",
+   "province": "安徽省",
+   "uuid": 137110
+  },
+  {
+   "hotelName": "芜湖金鹰尚美酒店",
+   "province": "安徽省",
+   "uuid": 137111
+  },
+  {
+   "hotelName": "淮北口子国际大酒店",
+   "province": "安徽省",
+   "uuid": 137112
+  },
+  {
+   "hotelName": "黄山香茗披云酒店",
+   "province": "安徽省",
+   "uuid": 137113
+  },
+  {
+   "hotelName": "安徽皖西宾馆",
+   "province": "安徽省",
+   "uuid": 137114
+  },
+  {
+   "hotelName": "合肥泓瑞金陵大酒店 ",
+   "province": "安徽省",
+   "uuid": 137115
+  },
+  {
+   "hotelName": "合肥两淮天鹅湖大酒店",
+   "province": "安徽省",
+   "uuid": 137116
+  },
+  {
+   "hotelName": "马鞍山海外海大酒店",
+   "province": "安徽省",
+   "uuid": 137117
+  },
+  {
+   "hotelName": "安徽长江国际酒店",
+   "province": "安徽省",
+   "uuid": 137118
+  },
+  {
+   "hotelName": "安徽世纪金源大饭店",
+   "province": "安徽省",
+   "uuid": 137119
+  },
+  {
+   "hotelName": "合肥威斯汀酒店",
+   "province": "安徽省",
+   "uuid": 137120
+  },
+  {
+   "hotelName": "亳州宾馆",
+   "province": "安徽省",
+   "uuid": 137121
+  },
+  {
+   "hotelName": "合肥新站利港喜来登酒店",
+   "province": "安徽省",
+   "uuid": 137122
+  },
+  {
+   "hotelName": "高速安高开元国际大酒店",
+   "province": "安徽省",
+   "uuid": 137123
+  },
+  {
+   "hotelName": "黄山新华联豪生大酒店",
+   "province": "安徽省",
+   "uuid": 137124
+  },
+  {
+   "hotelName": "阜阳天筑豪生大酒店",
+   "province": "安徽省",
+   "uuid": 137125
+  },
+  {
+   "hotelName": "宿州国际大酒店",
+   "province": "安徽省",
+   "uuid": 137126
+  },
+  {
+   "hotelName": "青阳四季永逸大酒店",
+   "province": "安徽省",
+   "uuid": 137127
+  },
+  {
+   "hotelName": "天长荣誉国际酒店",
+   "province": "安徽省",
+   "uuid": 137128
+  },
+  {
+   "hotelName": "马鞍山富力万达嘉华酒店",
+   "province": "安徽省",
+   "uuid": 137129
+  },
+  {
+   "hotelName": "广德开元名都酒店",
+   "province": "安徽省",
+   "uuid": 137130
+  },
+  {
+   "hotelName": "福州西湖大酒店",
+   "province": "福建省",
+   "uuid": 137131
+  },
+  {
+   "hotelName": "厦门悦华酒店",
+   "province": "福建省",
+   "uuid": 137133
+  },
+  {
+   "hotelName": "泉州宾馆",
+   "province": "福建省",
+   "uuid": 137134
+  },
+  {
+   "hotelName": "福州香格里拉酒店",
+   "province": "福建省",
+   "uuid": 137135
+  },
+  {
+   "hotelName": "厦门日月谷温泉渡假村",
+   "province": "福建省",
+   "uuid": 137136
+  },
+  {
+   "hotelName": "厦门雷迪森酒店有限公司喜来登酒店",
+   "province": "福建省",
+   "uuid": 137137
+  },
+  {
+   "hotelName": "华业（厦门）酒店有限公司泛太平洋大酒店",
+   "province": "福建省",
+   "uuid": 137138
+  },
+  {
+   "hotelName": "晋江宝龙大酒店",
+   "province": "福建省",
+   "uuid": 137139
+  },
+  {
+   "hotelName": "厦门京闽中心酒店",
+   "province": "福建省",
+   "uuid": 137140
+  },
+  {
+   "hotelName": "漳州宾馆",
+   "province": "福建省",
+   "uuid": 137141
+  },
+  {
+   "hotelName": "泉州迎宾馆",
+   "province": "福建省",
+   "uuid": 137142
+  },
+  {
+   "hotelName": "泉州悦华酒店",
+   "province": "福建省",
+   "uuid": 137143
+  },
+  {
+   "hotelName": "晋江市荣誉国际酒店",
+   "province": "福建省",
+   "uuid": 137144
+  },
+  {
+   "hotelName": "厦门磐基大酒店",
+   "province": "福建省",
+   "uuid": 137145
+  },
+  {
+   "hotelName": "厦门牡丹国际大酒店",
+   "province": "福建省",
+   "uuid": 137146
+  },
+  {
+   "hotelName": "泉州崇武西沙湾假日酒店",
+   "province": "福建省",
+   "uuid": 137147
+  },
+  {
+   "hotelName": "晋江市金玛国际酒店",
+   "province": "福建省",
+   "uuid": 137148
+  },
+  {
+   "hotelName": "晋江鸿福酒店",
+   "province": "福建省",
+   "uuid": 137149
+  },
+  {
+   "hotelName": "永安燕江国际大酒店",
+   "province": "福建省",
+   "uuid": 137150
+  },
+  {
+   "hotelName": "厦门惠龙北海湾万达嘉华酒店",
+   "province": "福建省",
+   "uuid": 137151
+  },
+  {
+   "hotelName": "厦门海景大酒店",
+   "province": "福建省",
+   "uuid": 137152
+  },
+  {
+   "hotelName": "厦门东方酒店",
+   "province": "福建省",
+   "uuid": 137153
+  },
+  {
+   "hotelName": "厦门艾美酒店",
+   "province": "福建省",
+   "uuid": 137154
+  },
+  {
+   "hotelName": "厦门海悦山庄酒店",
+   "province": "福建省",
+   "uuid": 137155
+  },
+  {
+   "hotelName": "石狮绿岛国际酒店",
+   "province": "福建省",
+   "uuid": 137156
+  },
+  {
+   "hotelName": "厦门华林国际大酒店",
+   "province": "福建省",
+   "uuid": 137157
+  },
+  {
+   "hotelName": "三明宾馆",
+   "province": "福建省",
+   "uuid": 137158
+  },
+  {
+   "hotelName": "三明梅园国际大酒店",
+   "province": "福建省",
+   "uuid": 137159
+  },
+  {
+   "hotelName": "连城清水天一温泉度假村",
+   "province": "福建省",
+   "uuid": 137160
+  },
+  {
+   "hotelName": "惠安县达利世纪酒店",
+   "province": "福建省",
+   "uuid": 137161
+  },
+  {
+   "hotelName": "厦门源昌酒店",
+   "province": "福建省",
+   "uuid": 137162
+  },
+  {
+   "hotelName": "厦门佰翔澜悦酒店",
+   "province": "福建省",
+   "uuid": 137163
+  },
+  {
+   "hotelName": "仙游大地京闽酒店",
+   "province": "福建省",
+   "uuid": 137164
+  },
+  {
+   "hotelName": "莆田三迪希尔顿逸林酒店",
+   "province": "福建省",
+   "uuid": 137165
+  },
+  {
+   "hotelName": "漳浦金仕顿大酒店",
+   "province": "福建省",
+   "uuid": 137166
+  },
+  {
+   "hotelName": "厦门海沧正元希尔顿逸林酒店",
+   "province": "福建省",
+   "uuid": 137167
+  },
+  {
+   "hotelName": "福建融信（厦门）房地产开发有限公司华邑酒店分公司",
+   "province": "福建省",
+   "uuid": 137168
+  },
+  {
+   "hotelName": "厦门集美海景皇冠假日酒店",
+   "province": "福建省",
+   "uuid": 137169
+  },
+  {
+   "hotelName": "平潭温德姆酒店",
+   "province": "福建省",
+   "uuid": 137170
+  },
+  {
+   "hotelName": "福州聚春园会展酒店",
+   "province": "福建省",
+   "uuid": 137171
+  },
+  {
+   "hotelName": "龙岩冠豸君澜度假酒店",
+   "province": "福建省",
+   "uuid": 137172
+  },
+  {
+   "hotelName": "江西宾馆",
+   "province": "江西省",
+   "uuid": 137173
+  },
+  {
+   "hotelName": "九江远洲国际大酒店",
+   "province": "江西省",
+   "uuid": 137174
+  },
+  {
+   "hotelName": "江西锦峰大酒店",
+   "province": "江西省",
+   "uuid": 137175
+  },
+  {
+   "hotelName": "江西嘉莱特和平国际酒店",
+   "province": "江西省",
+   "uuid": 137176
+  },
+  {
+   "hotelName": "景德镇市紫晶宾馆",
+   "province": "江西省",
+   "uuid": 137177
+  },
+  {
+   "hotelName": "赣州锦江国际酒店",
+   "province": "江西省",
+   "uuid": 137178
+  },
+  {
+   "hotelName": "九江信华建国酒店",
+   "province": "江西省",
+   "uuid": 137179
+  },
+  {
+   "hotelName": "抚州荣誉国际酒店",
+   "province": "江西省",
+   "uuid": 137180
+  },
+  {
+   "hotelName": "南康大酒店",
+   "province": "江西省",
+   "uuid": 137181
+  },
+  {
+   "hotelName": "宜春迎宾馆",
+   "province": "江西省",
+   "uuid": 137182
+  },
+  {
+   "hotelName": "新余市融城大饭店",
+   "province": "江西省",
+   "uuid": 137183
+  },
+  {
+   "hotelName": "明月山维景国际温泉度假酒店",
+   "province": "江西省",
+   "uuid": 137184
+  },
+  {
+   "hotelName": "鹰潭沁庐豪生大酒店",
+   "province": "江西省",
+   "uuid": 137185
+  },
+  {
+   "hotelName": "婺源县瑞怡宝婺度假酒店",
+   "province": "江西省",
+   "uuid": 137186
+  },
+  {
+   "hotelName": "伯爵文山酒店有限公司",
+   "province": "江西省",
+   "uuid": 137187
+  },
+  {
+   "hotelName": "瑞金市荣誉国际酒店",
+   "province": "江西省",
+   "uuid": 137189
+  },
+  {
+   "hotelName": "上饶国际大酒店",
+   "province": "江西省",
+   "uuid": 137190
+  },
+  {
+   "hotelName": "吉安恺蒂国际大酒店",
+   "province": "江西省",
+   "uuid": 137191
+  },
+  {
+   "hotelName": "瑞昌荣誉国际酒店",
+   "province": "江西省",
+   "uuid": 137192
+  },
+  {
+   "hotelName": "赣州沃尔顿皇家花园酒店",
+   "province": "江西省",
+   "uuid": 137193
+  },
+  {
+   "hotelName": "婺源鑫邦大酒店",
+   "province": "江西省",
+   "uuid": 137194
+  },
+  {
+   "hotelName": "南昌香格里拉大酒店",
+   "province": "江西省",
+   "uuid": 137195
+  },
+  {
+   "hotelName": "上饶鑫邦大酒店",
+   "province": "江西省",
+   "uuid": 137196
+  },
+  {
+   "hotelName": "老屋下酒店",
+   "province": "江西省",
+   "uuid": 137197
+  },
+  {
+   "hotelName": "镜花湾酒店",
+   "province": "江西省",
+   "uuid": 137198
+  },
+  {
+   "hotelName": "德安远洲酒店 ",
+   "province": "江西省",
+   "uuid": 137199
+  },
+  {
+   "hotelName": "德兴华云大酒店",
+   "province": "江西省",
+   "uuid": 137200
+  },
+  {
+   "hotelName": "寻乌沃尔顿皇家花园酒店",
+   "province": "江西省",
+   "uuid": 175676
+  },
+  {
+   "hotelName": "怡豪大饭店",
+   "province": "山东省",
+   "uuid": 137201
+  },
+  {
+   "hotelName": "山东大厦",
+   "province": "山东省",
+   "uuid": 137202
+  },
+  {
+   "hotelName": "青岛丽晶大酒店",
+   "province": "山东省",
+   "uuid": 137203
+  },
+  {
+   "hotelName": "青岛香格里拉大酒店",
+   "province": "山东省",
+   "uuid": 137204
+  },
+  {
+   "hotelName": "青岛海景花园大酒店",
+   "province": "山东省",
+   "uuid": 137205
+  },
+  {
+   "hotelName": "青岛汇泉王朝大饭店",
+   "province": "山东省",
+   "uuid": 137206
+  },
+  {
+   "hotelName": "山东健康金海湾国际饭店",
+   "province": "山东省",
+   "uuid": 137207
+  },
+  {
+   "hotelName": "潍坊富华大酒店",
+   "province": "山东省",
+   "uuid": 137208
+  },
+  {
+   "hotelName": "济南绿发贵和洲际酒店",
+   "province": "山东省",
+   "uuid": 137209
+  },
+  {
+   "hotelName": "龙口南山国际会议中心",
+   "province": "山东省",
+   "uuid": 137210
+  },
+  {
+   "hotelName": "烟台金海湾酒店",
+   "province": "山东省",
+   "uuid": 137211
+  },
+  {
+   "hotelName": "东营东胜大厦",
+   "province": "山东省",
+   "uuid": 137212
+  },
+  {
+   "hotelName": "泰安东尊华美达大酒店",
+   "province": "山东省",
+   "uuid": 137213
+  },
+  {
+   "hotelName": "威海海悦建国饭店",
+   "province": "山东省",
+   "uuid": 137214
+  },
+  {
+   "hotelName": "潍坊金庆国际大酒店",
+   "province": "山东省",
+   "uuid": 137215
+  },
+  {
+   "hotelName": "孚利泰国际大酒店",
+   "province": "山东省",
+   "uuid": 137216
+  },
+  {
+   "hotelName": "青岛鑫江温德姆酒店",
+   "province": "山东省",
+   "uuid": 137217
+  },
+  {
+   "hotelName": "临沂华盛江泉城大酒店",
+   "province": "山东省",
+   "uuid": 137218
+  },
+  {
+   "hotelName": "青岛富力艾美酒店",
+   "province": "山东省",
+   "uuid": 137219
+  },
+  {
+   "hotelName": "青岛海尔洲际酒店",
+   "province": "山东省",
+   "uuid": 137220
+  },
+  {
+   "hotelName": "新富佳悦大酒店",
+   "province": "山东省",
+   "uuid": 137221
+  },
+  {
+   "hotelName": "聊城阿尔卡迪亚国际酒店",
+   "province": "山东省",
+   "uuid": 137222
+  },
+  {
+   "hotelName": "山东圣德国际酒店",
+   "province": "山东省",
+   "uuid": 137223
+  },
+  {
+   "hotelName": "烟台金沙滩喜来登度假酒店",
+   "province": "山东省",
+   "uuid": 137224
+  },
+  {
+   "hotelName": "烟台南山皇冠假日酒店",
+   "province": "山东省",
+   "uuid": 137225
+  },
+  {
+   "hotelName": "烟台金海岸希尔顿酒店",
+   "province": "山东省",
+   "uuid": 137226
+  },
+  {
+   "hotelName": "临沂鲁商铂尔曼大酒店",
+   "province": "山东省",
+   "uuid": 137227
+  },
+  {
+   "hotelName": "青岛山港凯悦酒店",
+   "province": "山东省",
+   "uuid": 137228
+  },
+  {
+   "hotelName": "济南喜来登酒店",
+   "province": "山东省",
+   "uuid": 137229
+  },
+  {
+   "hotelName": "荣成倪氏海泰大酒店",
+   "province": "山东省",
+   "uuid": 137230
+  },
+  {
+   "hotelName": "山东禧悦东方酒店",
+   "province": "山东省",
+   "uuid": 137231
+  },
+  {
+   "hotelName": "临沂城发锦江国际饭店",
+   "province": "山东省",
+   "uuid": 137232
+  },
+  {
+   "hotelName": "青岛东方影都富都万达文华酒店",
+   "province": "山东省",
+   "uuid": 137233
+  },
+  {
+   "hotelName": "烟台鑫广万豪酒店",
+   "province": "山东省",
+   "uuid": 137234
+  },
+  {
+   "hotelName": "青岛星河湾酒店",
+   "province": "山东省",
+   "uuid": 137235
+  },
+  {
+   "hotelName": "青岛西海岸隆和艾美度假酒店",
+   "province": "山东省",
+   "uuid": 137236
+  },
+  {
+   "hotelName": "泰安一滕松峪酒店",
+   "province": "山东省",
+   "uuid": 137237
+  },
+  {
+   "hotelName": "济南香格里拉大酒店",
+   "province": "山东省",
+   "uuid": 137238
+  },
+  {
+   "hotelName": "济南鸿腾国际大酒店",
+   "province": "山东省",
+   "uuid": 137239
+  },
+  {
+   "hotelName": "日照喜来登酒店",
+   "province": "山东省",
+   "uuid": 137240
+  },
+  {
+   "hotelName": "青岛海天大酒店",
+   "province": "山东省",
+   "uuid": 137241
+  },
+  {
+   "hotelName": "青岛蓝谷国际酒店",
+   "province": "山东省",
+   "uuid": 137242
+  },
+  {
+   "hotelName": "青岛瑞吉酒店",
+   "province": "山东省",
+   "uuid": 137243
+  },
+  {
+   "hotelName": "日照东湖开元名都大酒店",
+   "province": "山东省",
+   "uuid": 137244
+  },
+  {
+   "hotelName": "知味斋大饭店",
+   "province": "山东省",
+   "uuid": 137245
+  },
+  {
+   "hotelName": "潍坊富力铂尔曼酒店",
+   "province": "山东省",
+   "uuid": 137246
+  },
+  {
+   "hotelName": "青岛胶州万豪酒店",
+   "province": "山东省",
+   "uuid": 137247
+  },
+  {
+   "hotelName": "青岛上合建国饭店",
+   "province": "山东省",
+   "uuid": 137248
+  },
+  {
+   "hotelName": "烟台金沙滩英迪格酒店",
+   "province": "山东省",
+   "uuid": 137249
+  },
+  {
+   "hotelName": "烟台威斯汀酒店",
+   "province": "山东省",
+   "uuid": 137250
+  },
+  {
+   "hotelName": "河南中州皇冠假日宾馆",
+   "province": "河南省",
+   "uuid": 137251
+  },
+  {
+   "hotelName": "索菲特国际饭店（郑州）",
+   "province": "河南省",
+   "uuid": 137252
+  },
+  {
+   "hotelName": "郑州亚欧国际大酒店",
+   "province": "河南省",
+   "uuid": 137253
+  },
+  {
+   "hotelName": "河南郑州建国饭店",
+   "province": "河南省",
+   "uuid": 137254
+  },
+  {
+   "hotelName": "鹤壁迎宾馆",
+   "province": "河南省",
+   "uuid": 137255
+  },
+  {
+   "hotelName": "洛阳东山宾馆",
+   "province": "河南省",
+   "uuid": 137256
+  },
+  {
+   "hotelName": "开封中州国际饭店",
+   "province": "河南省",
+   "uuid": 137257
+  },
+  {
+   "hotelName": "开封开元名都大酒店",
+   "province": "河南省",
+   "uuid": 137258
+  },
+  {
+   "hotelName": "洛阳钼都国际饭店",
+   "province": "河南省",
+   "uuid": 137259
+  },
+  {
+   "hotelName": "郑州承誉德大酒店",
+   "province": "河南省",
+   "uuid": 137260
+  },
+  {
+   "hotelName": "平顶山市蕴海锦园大酒店 ",
+   "province": "河南省",
+   "uuid": 137261
+  },
+  {
+   "hotelName": "许昌三鼎华悦大酒店",
+   "province": "河南省",
+   "uuid": 137262
+  },
+  {
+   "hotelName": "新乡市开元名都大酒店",
+   "province": "河南省",
+   "uuid": 137263
+  },
+  {
+   "hotelName": "永和伯爵国际酒店",
+   "province": "河南省",
+   "uuid": 137264
+  },
+  {
+   "hotelName": "郑州锦鹏酒店",
+   "province": "河南省",
+   "uuid": 137265
+  },
+  {
+   "hotelName": "遂平县嵖岈山温泉酒店",
+   "province": "河南省",
+   "uuid": 137266
+  },
+  {
+   "hotelName": "南阳中泰豪生大酒店",
+   "province": "河南省",
+   "uuid": 137267
+  },
+  {
+   "hotelName": "郑州绿地金威万豪酒店",
+   "province": "河南省",
+   "uuid": 137268
+  },
+  {
+   "hotelName": "信阳温德姆酒店",
+   "province": "河南省",
+   "uuid": 137269
+  },
+  {
+   "hotelName": "登封中州华鼎饭店",
+   "province": "河南省",
+   "uuid": 137270
+  },
+  {
+   "hotelName": "商丘信华建国酒店管理有限公司",
+   "province": "河南省",
+   "uuid": 137271
+  },
+  {
+   "hotelName": "河南郑地奥体建国饭店",
+   "province": "河南省",
+   "uuid": 137272
+  },
+  {
+   "hotelName": "武汉香格里拉大饭店",
+   "province": "湖北省",
+   "uuid": 137273
+  },
+  {
+   "hotelName": "武汉五月花大酒店",
+   "province": "湖北省",
+   "uuid": 137274
+  },
+  {
+   "hotelName": "荆州晶崴国际大酒店",
+   "province": "湖北省",
+   "uuid": 137276
+  },
+  {
+   "hotelName": "江城明珠豪生大酒店",
+   "province": "湖北省",
+   "uuid": 137277
+  },
+  {
+   "hotelName": "武汉锦江国际大酒店",
+   "province": "湖北省",
+   "uuid": 137278
+  },
+  {
+   "hotelName": "百强国际大酒店",
+   "province": "湖北省",
+   "uuid": 137279
+  },
+  {
+   "hotelName": "武汉新世界酒店",
+   "province": "湖北省",
+   "uuid": 137280
+  },
+  {
+   "hotelName": "武汉马哥孛罗酒店",
+   "province": "湖北省",
+   "uuid": 137281
+  },
+  {
+   "hotelName": "咸宁碧桂园凤凰温泉酒店",
+   "province": "湖北省",
+   "uuid": 137282
+  },
+  {
+   "hotelName": "宜昌均瑶国际酒店",
+   "province": "湖北省",
+   "uuid": 137283
+  },
+  {
+   "hotelName": "武汉光谷金盾大酒店",
+   "province": "湖北省",
+   "uuid": 137284
+  },
+  {
+   "hotelName": "湖北洪山宾馆",
+   "province": "湖北省",
+   "uuid": 137285
+  },
+  {
+   "hotelName": "宜昌富力皇冠假日酒店",
+   "province": "湖北省",
+   "uuid": 137286
+  },
+  {
+   "hotelName": "襄阳富力皇冠假日酒店",
+   "province": "湖北省",
+   "uuid": 137287
+  },
+  {
+   "hotelName": "武汉富力威斯汀酒店",
+   "province": "湖北省",
+   "uuid": 137288
+  },
+  {
+   "hotelName": "武汉汉口喜来登大酒店 ",
+   "province": "湖北省",
+   "uuid": 137289
+  },
+  {
+   "hotelName": "武汉光谷希尔顿酒店",
+   "province": "湖北省",
+   "uuid": 137290
+  },
+  {
+   "hotelName": "武汉晟云酒店",
+   "province": "湖北省",
+   "uuid": 137291
+  },
+  {
+   "hotelName": "武汉光谷凯悦酒店",
+   "province": "湖北省",
+   "uuid": 137292
+  },
+  {
+   "hotelName": "武汉万达瑞华酒店",
+   "province": "湖北省",
+   "uuid": 137293
+  },
+  {
+   "hotelName": "恩施瑞享国际酒店",
+   "province": "湖北省",
+   "uuid": 137294
+  },
+  {
+   "hotelName": "武汉光谷皇冠假日酒店",
+   "province": "湖北省",
+   "uuid": 137295
+  },
+  {
+   "hotelName": "武汉富力万达嘉华酒店",
+   "province": "湖北省",
+   "uuid": 137296
+  },
+  {
+   "hotelName": "襄阳华侨城云海酒店",
+   "province": "湖北省",
+   "uuid": 137297
+  },
+  {
+   "hotelName": "武汉汉阳威斯汀酒店",
+   "province": "湖北省",
+   "uuid": 137298
+  },
+  {
+   "hotelName": "武汉车都金盾大酒店",
+   "province": "湖北省",
+   "uuid": 137299
+  },
+  {
+   "hotelName": "武汉泛海费尔蒙酒店",
+   "province": "湖北省",
+   "uuid": 137300
+  },
+  {
+   "hotelName": "保利大酒店",
+   "province": "湖北省",
+   "uuid": 137301
+  },
+  {
+   "hotelName": "武汉保和皇冠假日酒店",
+   "province": "湖北省",
+   "uuid": 137302
+  },
+  {
+   "hotelName": "武汉联投丽笙酒店",
+   "province": "湖北省",
+   "uuid": 137303
+  },
+  {
+   "hotelName": "荆州富力万达嘉华酒店",
+   "province": "湖北省",
+   "uuid": 156650
+  },
+  {
+   "hotelName": "湖南华天大酒店",
+   "province": "湖南省",
+   "uuid": 137304
+  },
+  {
+   "hotelName": "长沙神农大酒店",
+   "province": "湖南省",
+   "uuid": 137305
+  },
+  {
+   "hotelName": "长沙通程国际大酒店",
+   "province": "湖南省",
+   "uuid": 137306
+  },
+  {
+   "hotelName": "湖南圣爵菲斯大酒店",
+   "province": "湖南省",
+   "uuid": 137307
+  },
+  {
+   "hotelName": "湘潭盘龙山庄大酒店",
+   "province": "湖南省",
+   "uuid": 137308
+  },
+  {
+   "hotelName": "株洲华天大酒店",
+   "province": "湖南省",
+   "uuid": 137309
+  },
+  {
+   "hotelName": "郴州瑞际酒店",
+   "province": "湖南省",
+   "uuid": 137310
+  },
+  {
+   "hotelName": "长沙运达喜来登酒店",
+   "province": "湖南省",
+   "uuid": 137311
+  },
+  {
+   "hotelName": "张家界京武铂尔曼酒店",
+   "province": "湖南省",
+   "uuid": 137312
+  },
+  {
+   "hotelName": "长沙明城国际大酒店",
+   "province": "湖南省",
+   "uuid": 137313
+  },
+  {
+   "hotelName": "湖南国际金融大厦有限公司潇湘华天大酒店",
+   "province": "湖南省",
+   "uuid": 137314
+  },
+  {
+   "hotelName": "浏阳银天大酒店",
+   "province": "湖南省",
+   "uuid": 137315
+  },
+  {
+   "hotelName": "青和锦江国际酒店",
+   "province": "湖南省",
+   "uuid": 137316
+  },
+  {
+   "hotelName": "长沙芙蓉国温德姆至尊豪廷大酒店",
+   "province": "湖南省",
+   "uuid": 137317
+  },
+  {
+   "hotelName": "澧县瑞高酒店",
+   "province": "湖南省",
+   "uuid": 137318
+  },
+  {
+   "hotelName": "张家界湘投阳光酒店",
+   "province": "湖南省",
+   "uuid": 137319
+  },
+  {
+   "hotelName": "湘潭鑫田国际大酒店",
+   "province": "湖南省",
+   "uuid": 137320
+  },
+  {
+   "hotelName": "湖南岳阳大酒店",
+   "province": "湖南省",
+   "uuid": 137321
+  },
+  {
+   "hotelName": "湖南佳兴世尊酒店",
+   "province": "湖南省",
+   "uuid": 137322
+  },
+  {
+   "hotelName": "铜官窑新华联丽景酒店",
+   "province": "湖南省",
+   "uuid": 137323
+  },
+  {
+   "hotelName": "郴州温德姆至尊豪廷大酒店",
+   "province": "湖南省",
+   "uuid": 137324
+  },
+  {
+   "hotelName": "郴州奥米茄大酒店",
+   "province": "湖南省",
+   "uuid": 137325
+  },
+  {
+   "hotelName": "长沙温德姆酒店",
+   "province": "湖南省",
+   "uuid": 137326
+  },
+  {
+   "hotelName": "长沙大汉金桥华美达广场酒店",
+   "province": "湖南省",
+   "uuid": 137327
+  },
+  {
+   "hotelName": "衡阳南岳逸山逸水酒店",
+   "province": "湖南省",
+   "uuid": 137328
+  },
+  {
+   "hotelName": "衡阳林隐假日酒店",
+   "province": "湖南省",
+   "uuid": 137329
+  },
+  {
+   "hotelName": "岳阳铂尔曼酒店",
+   "province": "湖南省",
+   "uuid": 137330
+  },
+  {
+   "hotelName": "华泰凤凰国际酒店",
+   "province": "湖南省",
+   "uuid": 137331
+  },
+  {
+   "hotelName": "怀化润樾温德姆酒店",
+   "province": "湖南省",
+   "uuid": 137332
+  },
+  {
+   "hotelName": "长沙融通长城宾馆",
+   "province": "湖南省",
+   "uuid": 156649
+  },
+  {
+   "hotelName": "珠海度假村酒店",
+   "province": "广东省",
+   "uuid": 137333
+  },
+  {
+   "hotelName": "汕头帝豪酒店",
+   "province": "广东省",
+   "uuid": 137334
+  },
+  {
+   "hotelName": "开平潭江半岛酒店",
+   "province": "广东省",
+   "uuid": 137335
+  },
+  {
+   "hotelName": "广东嘉华酒店",
+   "province": "广东省",
+   "uuid": 137336
+  },
+  {
+   "hotelName": "深圳威尼斯酒店",
+   "province": "广东省",
+   "uuid": 137337
+  },
+  {
+   "hotelName": "佛山宾馆",
+   "province": "广东省",
+   "uuid": 137338
+  },
+  {
+   "hotelName": "彭年万丽酒店",
+   "province": "广东省",
+   "uuid": 137339
+  },
+  {
+   "hotelName": "白天鹅宾馆",
+   "province": "广东省",
+   "uuid": 137340
+  },
+  {
+   "hotelName": "中国大酒店",
+   "province": "广东省",
+   "uuid": 137341
+  },
+  {
+   "hotelName": "花园酒店",
+   "province": "广东省",
+   "uuid": 137342
+  },
+  {
+   "hotelName": "广州东方宾馆",
+   "province": "广东省",
+   "uuid": 137343
+  },
+  {
+   "hotelName": "深圳阳光酒店",
+   "province": "广东省",
+   "uuid": 137344
+  },
+  {
+   "hotelName": "深圳香格里拉大酒店",
+   "province": "广东省",
+   "uuid": 137345
+  },
+  {
+   "hotelName": "富苑皇冠假日套房酒店",
+   "province": "广东省",
+   "uuid": 137346
+  },
+  {
+   "hotelName": "深圳观澜湖酒店",
+   "province": "广东省",
+   "uuid": 137347
+  },
+  {
+   "hotelName": "广东亚洲国际大酒店",
+   "province": "广东省",
+   "uuid": 137348
+  },
+  {
+   "hotelName": "东莞喜来登酒店",
+   "province": "广东省",
+   "uuid": 137349
+  },
+  {
+   "hotelName": "广州增城市碧桂园凤凰城酒店",
+   "province": "广东省",
+   "uuid": 137350
+  },
+  {
+   "hotelName": "汕头君华海逸酒店",
+   "province": "广东省",
+   "uuid": 137351
+  },
+  {
+   "hotelName": "河源市翔丰国际酒店",
+   "province": "广东省",
+   "uuid": 137352
+  },
+  {
+   "hotelName": "金沙湖畔酒店",
+   "province": "广东省",
+   "uuid": 137353
+  },
+  {
+   "hotelName": "东莞市塘厦三正半山酒店",
+   "province": "广东省",
+   "uuid": 137354
+  },
+  {
+   "hotelName": "罗浮山宝田国际度假会议酒店",
+   "province": "广东省",
+   "uuid": 137355
+  },
+  {
+   "hotelName": "惠州康帝国际酒店",
+   "province": "广东省",
+   "uuid": 137356
+  },
+  {
+   "hotelName": "广州首旅建国酒店",
+   "province": "广东省",
+   "uuid": 137357
+  },
+  {
+   "hotelName": "揭阳市榕江大酒店",
+   "province": "广东省",
+   "uuid": 137358
+  },
+  {
+   "hotelName": "广州市嘉逸国际酒店",
+   "province": "广东省",
+   "uuid": 137359
+  },
+  {
+   "hotelName": "湛江康益广场皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137360
+  },
+  {
+   "hotelName": "茂名市国际大酒店",
+   "province": "广东省",
+   "uuid": 137361
+  },
+  {
+   "hotelName": "珠海粤财假日酒店",
+   "province": "广东省",
+   "uuid": 137362
+  },
+  {
+   "hotelName": "东莞市丰泰花园酒店",
+   "province": "广东省",
+   "uuid": 137363
+  },
+  {
+   "hotelName": "白云宾馆",
+   "province": "广东省",
+   "uuid": 137364
+  },
+  {
+   "hotelName": "香格里拉大酒店（广州琶洲）",
+   "province": "广东省",
+   "uuid": 137365
+  },
+  {
+   "hotelName": "大梅沙京基洲际度假酒店",
+   "province": "广东省",
+   "uuid": 137366
+  },
+  {
+   "hotelName": "深圳华侨城大酒店",
+   "province": "广东省",
+   "uuid": 137367
+  },
+  {
+   "hotelName": "深航国际酒店",
+   "province": "广东省",
+   "uuid": 137368
+  },
+  {
+   "hotelName": "广州南沙大酒店",
+   "province": "广东省",
+   "uuid": 137369
+  },
+  {
+   "hotelName": "阳春东湖国际大酒店",
+   "province": "广东省",
+   "uuid": 137370
+  },
+  {
+   "hotelName": "东莞华尔登国际酒店",
+   "province": "广东省",
+   "uuid": 137371
+  },
+  {
+   "hotelName": "深圳好日子皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137372
+  },
+  {
+   "hotelName": "深圳宝利来国际大酒店",
+   "province": "广东省",
+   "uuid": 137373
+  },
+  {
+   "hotelName": "广州星河湾酒店",
+   "province": "广东省",
+   "uuid": 137374
+  },
+  {
+   "hotelName": "广州富力丽思卡尔顿酒店",
+   "province": "广东省",
+   "uuid": 137375
+  },
+  {
+   "hotelName": "广州科尔海悦酒店",
+   "province": "广东省",
+   "uuid": 137376
+  },
+  {
+   "hotelName": "广州富力君悦大酒店",
+   "province": "广东省",
+   "uuid": 137377
+  },
+  {
+   "hotelName": "惠州家路国际大酒店",
+   "province": "广东省",
+   "uuid": 137378
+  },
+  {
+   "hotelName": "惠州金海湾喜来登度假酒店",
+   "province": "广东省",
+   "uuid": 137379
+  },
+  {
+   "hotelName": "珠海庆华国际酒店",
+   "province": "广东省",
+   "uuid": 137380
+  },
+  {
+   "hotelName": "广州金叶子温泉度假酒店",
+   "province": "广东省",
+   "uuid": 137381
+  },
+  {
+   "hotelName": "梅州客天下国际大酒店",
+   "province": "广东省",
+   "uuid": 137382
+  },
+  {
+   "hotelName": "金沙湾国际大酒店",
+   "province": "广东省",
+   "uuid": 137383
+  },
+  {
+   "hotelName": "广州九龙湖公主酒店",
+   "province": "广东省",
+   "uuid": 137384
+  },
+  {
+   "hotelName": "深圳市东方银座美爵酒店",
+   "province": "广东省",
+   "uuid": 137385
+  },
+  {
+   "hotelName": "珠海来魅力假日酒店",
+   "province": "广东省",
+   "uuid": 137386
+  },
+  {
+   "hotelName": "巴黎半岛酒店",
+   "province": "广东省",
+   "uuid": 137387
+  },
+  {
+   "hotelName": "台山市君海悦凤凰酒店有限公司",
+   "province": "广东省",
+   "uuid": 137388
+  },
+  {
+   "hotelName": "佛山保利洲际酒店",
+   "province": "广东省",
+   "uuid": 137389
+  },
+  {
+   "hotelName": "高明碧桂园凤凰酒店",
+   "province": "广东省",
+   "uuid": 137390
+  },
+  {
+   "hotelName": "深圳大中华喜来登酒店",
+   "province": "广东省",
+   "uuid": 137391
+  },
+  {
+   "hotelName": "深圳星河丽思卡尔顿酒店",
+   "province": "广东省",
+   "uuid": 137392
+  },
+  {
+   "hotelName": "广州市海怡星河湾酒店",
+   "province": "广东省",
+   "uuid": 137393
+  },
+  {
+   "hotelName": "东莞市厚街国际大酒店",
+   "province": "广东省",
+   "uuid": 137394
+  },
+  {
+   "hotelName": "广州市圣丰索菲特大酒店",
+   "province": "广东省",
+   "uuid": 137395
+  },
+  {
+   "hotelName": "佛山顺德铂尔曼酒店",
+   "province": "广东省",
+   "uuid": 137396
+  },
+  {
+   "hotelName": "深圳市宝亨达国际大酒店",
+   "province": "广东省",
+   "uuid": 137397
+  },
+  {
+   "hotelName": "深圳市中海凯骊酒店",
+   "province": "广东省",
+   "uuid": 137398
+  },
+  {
+   "hotelName": "湛江市君豪酒店",
+   "province": "广东省",
+   "uuid": 137399
+  },
+  {
+   "hotelName": "深圳友和唐拉雅秀酒店",
+   "province": "广东省",
+   "uuid": 137400
+  },
+  {
+   "hotelName": "深圳观澜格兰云天国际酒店",
+   "province": "广东省",
+   "uuid": 137401
+  },
+  {
+   "hotelName": "佛山市恒安瑞士酒店",
+   "province": "广东省",
+   "uuid": 137402
+  },
+  {
+   "hotelName": "深圳龙岗珠江皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137403
+  },
+  {
+   "hotelName": "东莞观澜湖酒店",
+   "province": "广东省",
+   "uuid": 137404
+  },
+  {
+   "hotelName": "海陵岛保利皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137405
+  },
+  {
+   "hotelName": "广州增城保利郡雅酒店",
+   "province": "广东省",
+   "uuid": 137406
+  },
+  {
+   "hotelName": "中山名座假日酒店",
+   "province": "广东省",
+   "uuid": 137407
+  },
+  {
+   "hotelName": "广州南丰朗豪酒店",
+   "province": "广东省",
+   "uuid": 137408
+  },
+  {
+   "hotelName": "广州W酒店",
+   "province": "广东省",
+   "uuid": 137409
+  },
+  {
+   "hotelName": "佛山南海利泰皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137410
+  },
+  {
+   "hotelName": "广州卓美亚酒店",
+   "province": "广东省",
+   "uuid": 137411
+  },
+  {
+   "hotelName": "广州黄埔君澜酒店",
+   "province": "广东省",
+   "uuid": 137412
+  },
+  {
+   "hotelName": "深圳前海华侨城JW万豪酒店",
+   "province": "广东省",
+   "uuid": 137413
+  },
+  {
+   "hotelName": "深圳深铁皇冠假日酒店",
+   "province": "广东省",
+   "uuid": 137414
+  },
+  {
+   "hotelName": "深圳康莱德酒店",
+   "province": "广东省",
+   "uuid": 137415
+  },
+  {
+   "hotelName": "深圳光明美爵酒店",
+   "province": "广东省",
+   "uuid": 137416
+  },
+  {
+   "hotelName": "广州白水寨嘉华温泉酒店",
+   "province": "广东省",
+   "uuid": 137417
+  },
+  {
+   "hotelName": "广东迎宾馆",
+   "province": "广东省",
+   "uuid": 137418
+  },
+  {
+   "hotelName": "深圳光明温德姆至尊酒店",
+   "province": "广东省",
+   "uuid": 156651
+  },
+  {
+   "hotelName": "桂林喜来登饭店",
+   "province": "广西壮族自治区",
+   "uuid": 137419
+  },
+  {
+   "hotelName": "北海香格里拉大饭店",
+   "province": "广西壮族自治区",
+   "uuid": 137420
+  },
+  {
+   "hotelName": "桂林漓江大瀑布饭店",
+   "province": "广西壮族自治区",
+   "uuid": 137421
+  },
+  {
+   "hotelName": "柳州饭店",
+   "province": "广西壮族自治区",
+   "uuid": 137422
+  },
+  {
+   "hotelName": "广西沃顿国际大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137423
+  },
+  {
+   "hotelName": "广西白海豚酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137424
+  },
+  {
+   "hotelName": "桂林阳朔碧莲江景大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137425
+  },
+  {
+   "hotelName": "柳州丽笙酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137426
+  },
+  {
+   "hotelName": "金秀瑶族自治县盘王谷深航假日酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137427
+  },
+  {
+   "hotelName": "桂林香格里拉大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137428
+  },
+  {
+   "hotelName": "崇左凯玄国际大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137429
+  },
+  {
+   "hotelName": "北海富丽华大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137430
+  },
+  {
+   "hotelName": "北海银滩皇冠假日酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137431
+  },
+  {
+   "hotelName": "南宁荔园维景国际大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137432
+  },
+  {
+   "hotelName": "柳州东城华美达广场酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137433
+  },
+  {
+   "hotelName": "玉林璟象酒店",
+   "province": "广西壮族自治区",
+   "uuid": 137434
+  },
+  {
+   "hotelName": "金紫荆星际大酒店",
+   "province": "广西壮族自治区",
+   "uuid": 156648
+  },
+  {
+   "hotelName": "三亚绿发山海天金威万豪酒店",
+   "province": "海南省",
+   "uuid": 137435
+  },
+  {
+   "hotelName": "三亚喜来登度假酒店",
+   "province": "海南省",
+   "uuid": 137436
+  },
+  {
+   "hotelName": "三亚银泰阳光度假酒店",
+   "province": "海南省",
+   "uuid": 137437
+  },
+  {
+   "hotelName": "博螯金海岸温泉大酒店",
+   "province": "海南省",
+   "uuid": 137438
+  },
+  {
+   "hotelName": "三亚亚龙湾万豪度假酒店",
+   "province": "海南省",
+   "uuid": 137439
+  },
+  {
+   "hotelName": "三亚亚龙湾希尔顿酒店",
+   "province": "海南省",
+   "uuid": 137440
+  },
+  {
+   "hotelName": "亚龙湾红树林度假酒店",
+   "province": "海南省",
+   "uuid": 137441
+  },
+  {
+   "hotelName": "三亚天域度假酒店",
+   "province": "海南省",
+   "uuid": 137442
+  },
+  {
+   "hotelName": "海口天佑大酒店",
+   "province": "海南省",
+   "uuid": 137443
+  },
+  {
+   "hotelName": "博鳌亚洲论坛大酒店",
+   "province": "海南省",
+   "uuid": 137444
+  },
+  {
+   "hotelName": "三亚阳光大酒店",
+   "province": "海南省",
+   "uuid": 137445
+  },
+  {
+   "hotelName": "金茂三亚丽思卡尔顿酒店",
+   "province": "海南省",
+   "uuid": 137446
+  },
+  {
+   "hotelName": "石梅湾艾美度假酒店",
+   "province": "海南省",
+   "uuid": 137447
+  },
+  {
+   "hotelName": "三亚维景国际度假酒店",
+   "province": "海南省",
+   "uuid": 137448
+  },
+  {
+   "hotelName": "三亚天通国际酒店",
+   "province": "海南省",
+   "uuid": 137449
+  },
+  {
+   "hotelName": "海口观澜湖酒店",
+   "province": "海南省",
+   "uuid": 137450
+  },
+  {
+   "hotelName": "三亚国光豪生度假酒店",
+   "province": "海南省",
+   "uuid": 137451
+  },
+  {
+   "hotelName": "三亚湾皇冠假日度假酒店",
+   "province": "海南省",
+   "uuid": 137452
+  },
+  {
+   "hotelName": "华丰视家酒店",
+   "province": "海南省",
+   "uuid": 156645
+  },
+  {
+   "hotelName": "重庆世纪金源时代大饭店",
+   "province": "重庆市",
+   "uuid": 137453
+  },
+  {
+   "hotelName": "重庆南方君临酒店",
+   "province": "重庆市",
+   "uuid": 137454
+  },
+  {
+   "hotelName": "重庆君豪大饭店",
+   "province": "重庆市",
+   "uuid": 137455
+  },
+  {
+   "hotelName": "渝商国际大酒店",
+   "province": "重庆市",
+   "uuid": 137456
+  },
+  {
+   "hotelName": "天来酒店",
+   "province": "重庆市",
+   "uuid": 137457
+  },
+  {
+   "hotelName": "重庆国贸格兰维大酒店",
+   "province": "重庆市",
+   "uuid": 137458
+  },
+  {
+   "hotelName": "重庆江鸿国际大饭店",
+   "province": "重庆市",
+   "uuid": 137459
+  },
+  {
+   "hotelName": "重庆欧瑞大酒店",
+   "province": "重庆市",
+   "uuid": 137460
+  },
+  {
+   "hotelName": "重庆贝迪颐园温泉度假酒店",
+   "province": "重庆市",
+   "uuid": 137461
+  },
+  {
+   "hotelName": "重庆维景国际大酒店",
+   "province": "重庆市",
+   "uuid": 137462
+  },
+  {
+   "hotelName": "重庆富力艾美酒店",
+   "province": "重庆市",
+   "uuid": 137463
+  },
+  {
+   "hotelName": "重庆上邦温泉度假酒店",
+   "province": "重庆市",
+   "uuid": 137464
+  },
+  {
+   "hotelName": "重庆市乐和乐都两江酒店",
+   "province": "重庆市",
+   "uuid": 137465
+  },
+  {
+   "hotelName": "重庆隆鑫玫瑰酒店",
+   "province": "重庆市",
+   "uuid": 137466
+  },
+  {
+   "hotelName": "重庆润丽文旅产业有限公司华美达广场酒店",
+   "province": "重庆市",
+   "uuid": 137467
+  },
+  {
+   "hotelName": "云阳两江假日酒店",
+   "province": "重庆市",
+   "uuid": 137468
+  },
+  {
+   "hotelName": "重庆市碧桂园凤城酒店有限公司",
+   "province": "重庆市",
+   "uuid": 137469
+  },
+  {
+   "hotelName": "重庆合川华地王朝大酒店",
+   "province": "重庆市",
+   "uuid": 137470
+  },
+  {
+   "hotelName": "重庆喜来登大酒店",
+   "province": "重庆市",
+   "uuid": 137471
+  },
+  {
+   "hotelName": "重庆华辰国际大酒店",
+   "province": "重庆市",
+   "uuid": 137472
+  },
+  {
+   "hotelName": "重庆澳维酒店",
+   "province": "重庆市",
+   "uuid": 137473
+  },
+  {
+   "hotelName": "悦来温德姆酒店",
+   "province": "重庆市",
+   "uuid": 137474
+  },
+  {
+   "hotelName": "诗城皇廷大酒店",
+   "province": "重庆市",
+   "uuid": 137475
+  },
+  {
+   "hotelName": "重庆两江假日酒店",
+   "province": "重庆市",
+   "uuid": 137476
+  },
+  {
+   "hotelName": "重庆金陵大饭店",
+   "province": "重庆市",
+   "uuid": 137477
+  },
+  {
+   "hotelName": "四川锦江宾馆",
+   "province": "四川省",
+   "uuid": 137478
+  },
+  {
+   "hotelName": "总府皇冠假日酒店",
+   "province": "四川省",
+   "uuid": 137479
+  },
+  {
+   "hotelName": "九寨天堂洲际大饭店",
+   "province": "四川省",
+   "uuid": 137480
+  },
+  {
+   "hotelName": "乐山市红珠山宾馆",
+   "province": "四川省",
+   "uuid": 137481
+  },
+  {
+   "hotelName": "成都家园国际酒店",
+   "province": "四川省",
+   "uuid": 137482
+  },
+  {
+   "hotelName": "成都泰合索菲特大饭店",
+   "province": "四川省",
+   "uuid": 137483
+  },
+  {
+   "hotelName": "成都望江宾馆",
+   "province": "四川省",
+   "uuid": 137484
+  },
+  {
+   "hotelName": "四川泸州酒城宾馆",
+   "province": "四川省",
+   "uuid": 137485
+  },
+  {
+   "hotelName": "四川广安思源酒店",
+   "province": "四川省",
+   "uuid": 137486
+  },
+  {
+   "hotelName": "西藏饭店（成都）",
+   "province": "四川省",
+   "uuid": 137487
+  },
+  {
+   "hotelName": "宜宾竹海世外桃源度假酒店",
+   "province": "四川省",
+   "uuid": 137488
+  },
+  {
+   "hotelName": "绵阳富乐山九洲国际酒店",
+   "province": "四川省",
+   "uuid": 137489
+  },
+  {
+   "hotelName": "成都香格里拉大酒店",
+   "province": "四川省",
+   "uuid": 137490
+  },
+  {
+   "hotelName": "青城（豪生）国际酒店",
+   "province": "四川省",
+   "uuid": 137491
+  },
+  {
+   "hotelName": "岷江东湖饭店",
+   "province": "四川省",
+   "uuid": 137492
+  },
+  {
+   "hotelName": "成都城市名人酒店",
+   "province": "四川省",
+   "uuid": 137493
+  },
+  {
+   "hotelName": "成都世纪城天堂洲际大饭店",
+   "province": "四川省",
+   "uuid": 137494
+  },
+  {
+   "hotelName": "四川岷山饭店",
+   "province": "四川省",
+   "uuid": 137495
+  },
+  {
+   "hotelName": "成都明宇尚雅饭店",
+   "province": "四川省",
+   "uuid": 137496
+  },
+  {
+   "hotelName": "成都宏鼎温德姆至尊豪廷大酒店",
+   "province": "四川省",
+   "uuid": 137497
+  },
+  {
+   "hotelName": "自贡檀木林宾馆",
+   "province": "四川省",
+   "uuid": 137498
+  },
+  {
+   "hotelName": "成都保利皇冠假日酒店",
+   "province": "四川省",
+   "uuid": 137499
+  },
+  {
+   "hotelName": "金海名都大酒店",
+   "province": "四川省",
+   "uuid": 137500
+  },
+  {
+   "hotelName": "阿坝州九寨沟天源豪生度假酒店",
+   "province": "四川省",
+   "uuid": 137501
+  },
+  {
+   "hotelName": "广元天成大酒店",
+   "province": "四川省",
+   "uuid": 137502
+  },
+  {
+   "hotelName": "宜宾城市名人酒店有限公司",
+   "province": "四川省",
+   "uuid": 137503
+  },
+  {
+   "hotelName": "豪威益国际大酒店",
+   "province": "四川省",
+   "uuid": 137504
+  },
+  {
+   "hotelName": "成都滨江希尔顿逸林酒店",
+   "province": "四川省",
+   "uuid": 137505
+  },
+  {
+   "hotelName": "德阳汉瑞酒店",
+   "province": "四川省",
+   "uuid": 137506
+  },
+  {
+   "hotelName": "雅安皇冠假日酒店",
+   "province": "四川省",
+   "uuid": 137507
+  },
+  {
+   "hotelName": "雅安正黄希尔顿逸林酒店",
+   "province": "四川省",
+   "uuid": 137508
+  },
+  {
+   "hotelName": "贵阳喜来登贵航酒店",
+   "province": "贵州省",
+   "uuid": 137509
+  },
+  {
+   "hotelName": "贵阳世纪金源大饭店",
+   "province": "贵州省",
+   "uuid": 137510
+  },
+  {
+   "hotelName": "黔西南州富康国际酒店",
+   "province": "贵州省",
+   "uuid": 137511
+  },
+  {
+   "hotelName": "保利富豪温泉酒店",
+   "province": "贵州省",
+   "uuid": 137512
+  },
+  {
+   "hotelName": "贵州酒店集团荷城花园酒店",
+   "province": "贵州省",
+   "uuid": 137513
+  },
+  {
+   "hotelName": "圣地皇家金煦酒店",
+   "province": "贵州省",
+   "uuid": 137514
+  },
+  {
+   "hotelName": "贵州卢浮宫金熙酒店",
+   "province": "贵州省",
+   "uuid": 137515
+  },
+  {
+   "hotelName": "遵义贵州饭店",
+   "province": "贵州省",
+   "uuid": 137516
+  },
+  {
+   "hotelName": "盘州月亮山庄酒店",
+   "province": "贵州省",
+   "uuid": 137517
+  },
+  {
+   "hotelName": "匀东·贵州饭店",
+   "province": "贵州省",
+   "uuid": 137518
+  },
+  {
+   "hotelName": "贵州饭店·贵宾楼",
+   "province": "贵州省",
+   "uuid": 137519
+  },
+  {
+   "hotelName": "安顺百灵希尔顿逸林酒店",
+   "province": "贵州省",
+   "uuid": 137520
+  },
+  {
+   "hotelName": "安顺豪生温泉度假酒店",
+   "province": "贵州省",
+   "uuid": 137521
+  },
+  {
+   "hotelName": "安顺澳维酒店",
+   "province": "贵州省",
+   "uuid": 137522
+  },
+  {
+   "hotelName": "六盘水福朋喜来登酒店",
+   "province": "贵州省",
+   "uuid": 137523
+  },
+  {
+   "hotelName": "铜仁国宾馆",
+   "province": "贵州省",
+   "uuid": 137524
+  },
+  {
+   "hotelName": "遵义开元名都大酒店",
+   "province": "贵州省",
+   "uuid": 137525
+  },
+  {
+   "hotelName": "六盘水星俪岚酒店",
+   "province": "贵州省",
+   "uuid": 137526
+  },
+  {
+   "hotelName": "天际万国酒店",
+   "province": "贵州省",
+   "uuid": 137527
+  },
+  {
+   "hotelName": "仰阿莎国际酒店",
+   "province": "贵州省",
+   "uuid": 137528
+  },
+  {
+   "hotelName": "仁怀温泉大酒店",
+   "province": "贵州省",
+   "uuid": 137529
+  },
+  {
+   "hotelName": "铜仁市锦江宾馆",
+   "province": "贵州省",
+   "uuid": 137530
+  },
+  {
+   "hotelName": "贵阳花溪福朋喜来登酒店",
+   "province": "贵州省",
+   "uuid": 137531
+  },
+  {
+   "hotelName": "贵阳万丽酒店 ",
+   "province": "贵州省",
+   "uuid": 137532
+  },
+  {
+   "hotelName": "万绿城铂瑞兹酒店",
+   "province": "贵州省",
+   "uuid": 137533
+  },
+  {
+   "hotelName": "安顺黄果树福朋喜来登酒店",
+   "province": "贵州省",
+   "uuid": 137534
+  },
+  {
+   "hotelName": "铜仁九宜城温德姆至尊酒店",
+   "province": "贵州省",
+   "uuid": 137535
+  },
+  {
+   "hotelName": "金黔嘉华国际大酒店",
+   "province": "贵州省",
+   "uuid": 156646
+  },
+  {
+   "hotelName": "昆明佳华广场酒店",
+   "province": "云南省",
+   "uuid": 137536
+  },
+  {
+   "hotelName": "丽江官房大酒店",
+   "province": "云南省",
+   "uuid": 137537
+  },
+  {
+   "hotelName": "翠湖宾馆",
+   "province": "云南省",
+   "uuid": 137538
+  },
+  {
+   "hotelName": "腾冲官房大酒店",
+   "province": "云南省",
+   "uuid": 137539
+  },
+  {
+   "hotelName": "香格里拉天界神川大酒店",
+   "province": "云南省",
+   "uuid": 137540
+  },
+  {
+   "hotelName": "昆明世纪金源大饭店",
+   "province": "云南省",
+   "uuid": 137541
+  },
+  {
+   "hotelName": "红河官房大酒店",
+   "province": "云南省",
+   "uuid": 137542
+  },
+  {
+   "hotelName": "丽江大港旺宝国际饭店",
+   "province": "云南省",
+   "uuid": 137543
+  },
+  {
+   "hotelName": "芒市宾馆",
+   "province": "云南省",
+   "uuid": 137544
+  },
+  {
+   "hotelName": "曲靖官房大酒店",
+   "province": "云南省",
+   "uuid": 137545
+  },
+  {
+   "hotelName": "昆明新南亚风情园商贸有限公司豪生大酒店",
+   "province": "云南省",
+   "uuid": 137546
+  },
+  {
+   "hotelName": "瑞丽市景成地海温泉度假中心",
+   "province": "云南省",
+   "uuid": 137547
+  },
+  {
+   "hotelName": "拉萨瑞吉度假酒店",
+   "province": "西藏自治区",
+   "uuid": 137548
+  },
+  {
+   "hotelName": "拉萨饭店贵宾楼",
+   "province": "西藏自治区",
+   "uuid": 137549
+  },
+  {
+   "hotelName": "拉萨圣地天堂洲际大饭店",
+   "province": "西藏自治区",
+   "uuid": 137550
+  },
+  {
+   "hotelName": "西安喜来登大酒店",
+   "province": "陕西省",
+   "uuid": 137551
+  },
+  {
+   "hotelName": "西安大景城堡酒店",
+   "province": "陕西省",
+   "uuid": 137552
+  },
+  {
+   "hotelName": "西安索菲特酒店",
+   "province": "陕西省",
+   "uuid": 137553
+  },
+  {
+   "hotelName": "香格里拉大酒店（西安）",
+   "province": "陕西省",
+   "uuid": 137554
+  },
+  {
+   "hotelName": "西安建国饭店",
+   "province": "陕西省",
+   "uuid": 137555
+  },
+  {
+   "hotelName": "榆林市永昌国际酒店",
+   "province": "陕西省",
+   "uuid": 137556
+  },
+  {
+   "hotelName": "西安高新希尔顿酒店",
+   "province": "陕西省",
+   "uuid": 137557
+  },
+  {
+   "hotelName": "西安阳光国际大酒店",
+   "province": "陕西省",
+   "uuid": 137558
+  },
+  {
+   "hotelName": "西安赛瑞喜来登大酒店",
+   "province": "陕西省",
+   "uuid": 137559
+  },
+  {
+   "hotelName": "西安皇冠假日酒店",
+   "province": "陕西省",
+   "uuid": 137560
+  },
+  {
+   "hotelName": "西安威斯汀大酒店",
+   "province": "陕西省",
+   "uuid": 137561
+  },
+  {
+   "hotelName": "西安悦豪酒店",
+   "province": "陕西省",
+   "uuid": 137562
+  },
+  {
+   "hotelName": "西安西藏大厦",
+   "province": "陕西省",
+   "uuid": 137563
+  },
+  {
+   "hotelName": "西安豪享来温德姆至尊酒店",
+   "province": "陕西省",
+   "uuid": 137564
+  },
+  {
+   "hotelName": "西安凯悦酒店",
+   "province": "陕西省",
+   "uuid": 137565
+  },
+  {
+   "hotelName": "西安经开洲际酒店",
+   "province": "陕西省",
+   "uuid": 137566
+  },
+  {
+   "hotelName": "海棠太白度假酒店 ",
+   "province": "陕西省",
+   "uuid": 137567
+  },
+  {
+   "hotelName": "安康瑞斯丽酒店",
+   "province": "陕西省",
+   "uuid": 137568
+  },
+  {
+   "hotelName": "甘肃阳光大酒店",
+   "province": "甘肃省",
+   "uuid": 137569
+  },
+  {
+   "hotelName": "敦煌阳光沙州大酒店",
+   "province": "甘肃省",
+   "uuid": 137570
+  },
+  {
+   "hotelName": "青海宾馆",
+   "province": "青海省",
+   "uuid": 137571
+  },
+  {
+   "hotelName": "西宁新华联索菲特大酒店",
+   "province": "青海省",
+   "uuid": 137572
+  },
+  {
+   "hotelName": "西宁富力万达文华酒店",
+   "province": "青海省",
+   "uuid": 137573
+  },
+  {
+   "hotelName": "银川立达深杭国际酒店",
+   "province": "宁夏回族自治区",
+   "uuid": 137574
+  },
+  {
+   "hotelName": "新疆尊茂银都酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137575
+  },
+  {
+   "hotelName": "新疆信达海德酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137576
+  },
+  {
+   "hotelName": "美丽华酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137577
+  },
+  {
+   "hotelName": "新疆华凌大饭店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137578
+  },
+  {
+   "hotelName": "瑞豪国际酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137579
+  },
+  {
+   "hotelName": "新疆南航明珠国际酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137580
+  },
+  {
+   "hotelName": "新疆康城建国国际酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137581
+  },
+  {
+   "hotelName": "玛依塔柯酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137582
+  },
+  {
+   "hotelName": "天缘酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137583
+  },
+  {
+   "hotelName": "梨城花园酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137584
+  },
+  {
+   "hotelName": "乌鲁木齐西北石油酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137585
+  },
+  {
+   "hotelName": "明园新时代大酒店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137586
+  },
+  {
+   "hotelName": "徕宁饭店",
+   "province": "新疆生产建设兵团",
+   "uuid": 137587
+  }
+ ]
+}

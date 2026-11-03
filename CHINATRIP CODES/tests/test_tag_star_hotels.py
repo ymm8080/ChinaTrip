@@ -1,4 +1,4 @@
-"""tag_star_hotels：星级饭店名单 -> pois.tags(star_5/star_4) 打标（backlog #11）。"""
+"""tag_star_hotels：星级饭店名单 -> pois.tags(star_1…star_5) 打标（backlog #11）。"""
 
 import uuid
 
@@ -28,20 +28,39 @@ def test_parse_star_accepts_official_spellings():
     assert parse_star("★★★★") == 4
 
 
-def test_parse_star_rejects_out_of_vocab():
-    # 设计只落 star_5/star_4：三星及以下、空、乱码一律不打标
-    assert parse_star("3") is None
-    assert parse_star("三星") is None
-    assert parse_star("★★★") is None
+def test_parse_star_accepts_full_vocab_down_to_one_star():
+    # 2026-11-03 用户拍板全档词表：三星/二星/一星也要落库
+    assert parse_star("3") == 3
+    assert parse_star("三星") == 3
+    assert parse_star("三星级") == 3
+    assert parse_star("★★★") == 3
+    assert parse_star("2") == 2
+    assert parse_star("二星") == 2
+    assert parse_star("★★") == 2
+    assert parse_star("1") == 1
+    assert parse_star("一星级") == 1
+    assert parse_star("★") == 1
+
+
+def test_parse_star_rejects_junk_and_out_of_range():
+    # 空、乱码、六星以上、0 星一律不打标（词表只有 1..5）
     assert parse_star("") is None
     assert parse_star(None) is None
     assert parse_star("金牌") is None
+    assert parse_star("六星") is None
+    assert parse_star("六星级") is None
+    assert parse_star("0") is None
+    assert parse_star("★★★★★★") is None
 
 
 def test_make_star_tag_vocab():
     assert make_star_tag(5) == "star_5"
     assert make_star_tag(4) == "star_4"
-    assert make_star_tag(3) is None
+    assert make_star_tag(3) == "star_3"
+    assert make_star_tag(2) == "star_2"
+    assert make_star_tag(1) == "star_1"
+    assert make_star_tag(6) is None
+    assert make_star_tag(0) is None
     assert make_star_tag(None) is None
 
 
@@ -121,6 +140,11 @@ def test_plan_tags_appends_and_keeps_others():
 def test_plan_tags_swaps_star_level_exclusively():
     row = _mk_hotel("x", "北京", tags=["star_4", "amap_top"])
     assert plan_tags(row, "star_5") == ["amap_top", "star_5"]
+    # 全覆盖：三星升五星、五星降一星都不并存
+    low = _mk_hotel("y", "北京", tags=["star_3", "amap_top"])
+    assert plan_tags(low, "star_5") == ["amap_top", "star_5"]
+    high = _mk_hotel("z", "北京", tags=["star_5"])
+    assert plan_tags(high, "star_1") == ["star_1"]
 
 
 def test_plan_tags_idempotent_when_present():
@@ -261,17 +285,19 @@ def test_tag_hotels_unmatched_goes_to_review_and_never_creates_rows():
 # ---------- collect_jobs ----------
 
 
-def test_collect_jobs_bom_columns_limit_and_out_of_vocab(tmp_path):
+def test_collect_jobs_bom_columns_limit_and_full_vocab(tmp_path):
     p = tmp_path / "stars.csv"
     p.write_text(
-        "\ufeff城市,酒店名称,星级\n北京,北京饭店,五星\n上海,某三星宾馆,三星\n广州,白天鹅宾馆,5\n杭州,无名,4\n",
+        "\ufeff城市,酒店名称,星级\n北京,北京饭店,五星\n上海,某三星宾馆,三星\n"
+        "广州,白天鹅宾馆,5\n杭州,某废店,金牌\n",
         encoding="utf-8",
     )
-    jobs, stats = collect_jobs(str(p), limit=3)
-    assert stats["read"] == 3
+    jobs, stats = collect_jobs(str(p), limit=4)
+    assert stats["read"] == 4
     assert stats["no_qualifying_star"] == 1
-    assert stats["no_star_detail"][0]["name"] == "某三星宾馆"
-    assert [j["tag"] for j in jobs] == ["star_5", "star_5"]
+    assert stats["no_star_detail"][0]["name"] == "某废店"
+    # 三星已在词表内（2026-11-03 全档拍板）
+    assert [j["tag"] for j in jobs] == ["star_5", "star_3", "star_5"]
     assert jobs[0]["entry"]["city"] == "北京"
 
 
@@ -293,14 +319,21 @@ def test_collect_prematched_splits_branches(tmp_path):
             "4,朝阳区,某四星,命中(城市待核),22222222-2222-2222-2222-222222222222,北京\n",
             "5,东城区,未入库五星,未在库,,北京\n",
             "3,海淀区,某三星,命中,33333333-3333-3333-3333-333333333333,北京\n",
+            "1,海淀区,某一星,命中,44444444-4444-4444-4444-444444444444,北京\n",
+            "六星,海淀区,某废店,命中,55555555-5555-5555-5555-555555555555,北京\n",
             "5,东城区,,命中,,北京\n",  # 无名称=无效行
         ],
     )
     jobs, stats = collect_jobs_prematched(path)
-    assert stats["read"] == 5 and stats["invalid"] == 1
+    assert stats["read"] == 7 and stats["invalid"] == 1
     assert stats["not_in_library"] == 1  # 未在库五星：无行可标，不建骨架
-    assert stats["no_qualifying_star"] == 1  # 三星词表外
-    assert [j["tag"] for j in jobs] == ["star_5", "star_4"]
+    assert stats["no_qualifying_star"] == 1  # 六星：词表外
+    assert [j["tag"] for j in jobs] == [
+        "star_5",
+        "star_4",
+        "star_3",
+        "star_1",
+    ]
     # 状态注记原样保留（命中(城市待核) 等留给审阅人看）
     assert jobs[1]["entry"]["status"] == "命中(城市待核)"
 

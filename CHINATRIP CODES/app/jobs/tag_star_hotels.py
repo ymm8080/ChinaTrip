@@ -1,11 +1,12 @@
 """旅游星级饭店打标作业（CLI，backlog #11，POIS_DATASOURCE §3.2 行12）。
 
 官方星级饭店名单（文旅部全国旅游星级饭店评定委员会年度公布，CSV 审阅包
-轨①）-> 已匹配的 pois.tags 打 ``star_5`` / ``star_4``（词表对齐
-``michelin_Nstar`` 小写风格）。与 tag_quality 的三点不同：
+轨①）-> 已匹配的 pois.tags 打 ``star_1``…``star_5``（全档词表，2026-11-03
+用户拍板「三星/二星/一星都要」；对齐 ``michelin_Nstar`` 小写风格）。与
+tag_quality 的三点不同：
   1) 只打标、**不补建骨架行**（用户拍板：库内 3,753 行 hotel 全 active，
      名单未命中行进 unmatched_detail 供审阅，不许自动造行）；
-  2) star_5/star_4 **互斥**（饭店升/降星时替换旧星标，其余 tags 保留）；
+  2) star_1…star_5 **互斥**（饭店升/降星时替换旧星标，其余 tags 保留）；
   3) ``--tags-source`` 记体系：官方名单=mct；GLM/ctrip 市场口径抽取=
      glm/ctrip，**不冒充官方**——行已是 mct 时低权威源不得降级覆盖。
 
@@ -59,9 +60,11 @@ _NAME_THRESHOLD_STRICT = 0.85  # 无坐标源（名单）名称相似度下限�
 # 行已持官方源时低权威源不得覆盖（不冒充官方）。
 _SOURCE_RANK = {"mct": 2, "glm": 1, "ctrip": 1}
 
-_STAR_TAG = {5: "star_5", 4: "star_4"}
-_STAR_TOKEN_RE = re.compile(r"([45])")
-_STAR_WORD = {"五": 5, "四": 4}
+_STAR_TAG = {5: "star_5", 4: "star_4", 3: "star_3", 2: "star_2", 1: "star_1"}
+_STAR_TAG_VALUES = frozenset(_STAR_TAG.values())
+_STAR_TOKEN_RE = re.compile(r"([1-5])")
+_STAR_WORD_RE = re.compile(r"([一二三四五])\s*[星级]")
+_STAR_WORD = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5}
 
 
 def _first(row: dict, cols: tuple[str, ...]) -> str | None:
@@ -73,24 +76,25 @@ def _first(row: dict, cols: tuple[str, ...]) -> str | None:
 
 
 def parse_star(val: str | None) -> int | None:
-    """星级列值 -> 5/4；其余（三星及以下、空、乱码）返回 None 不打标。
+    """星级列值 -> 1..5；其余（空、乱码、六星以上）返回 None 不打标。
 
-    认「5/4」「五星/四星」「五星级」「5星」「★★★★★/★★★★」；
-    设计只落 star_5/star_4，三星及以下不在词表。
+    认「5/4/3/2/1」「五星/四星/三星/二星/一星」「五星级」「5星」
+    「★★★★★/★★★★/…/★」；全档词表（2026-11-03 用户拍板：三星及以下
+    也要落库，一星一并收）。
     """
     s = (val or "").strip()
     if not s:
         return None
-    for ch, star in _STAR_WORD.items():
-        if ch in s:
-            return star
+    m = _STAR_WORD_RE.search(s)
+    if m:
+        return _STAR_WORD[m.group(1)]
     stars = s.count("★")
     if stars in _STAR_TAG:
         return stars
     m = _STAR_TOKEN_RE.search(s)
-    if m and int(m.group(1)) in _STAR_TAG:
+    if m:
         return int(m.group(1))
-    return None
+    return _STAR_WORD.get(s)
 
 
 def map_row(row: dict) -> dict | None:
@@ -107,7 +111,7 @@ def map_row(row: dict) -> dict | None:
 
 
 def make_star_tag(star: int | None) -> str | None:
-    """5/4 -> star_5/star_4；其余 None（词表外不打标）。"""
+    """1..5 -> star_1…star_5；其余 None（词表外不打标）。"""
     if star in _STAR_TAG:
         return _STAR_TAG[star]
     return None
@@ -162,12 +166,12 @@ def row_matches(entry: dict, row) -> bool:
 def plan_tags(row, tag: str) -> list[str] | None:
     """行打 tag 后的新 tags；无变化返回 None（幂等）。
 
-    star_5/star_4 互斥：先摘掉旧星标再并入新标，其余 tags 保留原序。
+    star_1…star_5 互斥：先摘掉旧星标再并入新标，其余 tags 保留原序。
     """
     old = list(row.tags or [])
     if tag in old:
         return None
-    kept = [t for t in old if t not in _STAR_TAG.values()]
+    kept = [t for t in old if t not in _STAR_TAG_VALUES]
     return kept + [tag]
 
 
@@ -325,8 +329,8 @@ def collect_jobs_prematched(
 ) -> tuple[list[dict], dict]:
     """读审阅包 -> jobs（可执行=命中* 且星在词表）；各分支计数。
 
-    未在库不打标也不算错（本就无行可标，不建骨架）；一至三星是名单
-    全量抓取的副产品，按设计词表只落 star_5/star_4。
+    未在库不打标也不算错（本就无行可标，不建骨架）；一至五星全档落库
+    （2026-11-03 用户拍板：star_1…star_5 均为有效词表）。
     """
     jobs: list[dict] = []
     stats: dict = {
@@ -443,7 +447,7 @@ def tag_hotels_prematched(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "旅游星级饭店名单 -> pois.tags(star_5/star_4)+tags_source；只打标不建行"
+            "旅游星级饭店名单 -> pois.tags(star_1…star_5)+tags_source；只打标不建行"
         )
     )
     parser.add_argument("--csv", required=True, help="星级饭店名单 CSV 路径")

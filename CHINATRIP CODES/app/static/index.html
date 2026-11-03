@@ -1828,7 +1828,7 @@ async function bookDirect(name, city, url, isShow) {
 
 // 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
 // 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
-const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
+const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐", star_5: "五星级饭店", star_4: "四星级饭店", star_3: "三星级饭店", star_2: "二星级饭店", star_1: "一星级饭店" };
 function briefTag(t) {
   const m = /^black_pearl_(\d+)diamond$/.exec(t || "");
   return m ? I18N.tf("brief.blackPearl","黑珍珠") + m[1] + I18N.tf("brief.diamond","钻") : (BRIEF_TAGS[t] || t);
