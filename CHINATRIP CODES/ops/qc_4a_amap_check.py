@@ -33,6 +33,7 @@ from app.db import get_session_factory
 from app.models import Poi
 from app.services.amap_client import AmapClient, AmapQuotaExhaustedError
 from app.services.coords import haversine_m
+from app.services.map_provider import build_vendor
 
 OUT_MD = Path(__file__).parent / "qc_4a_amap_report_2026-11-03.md"
 OUT_CSV = Path(__file__).parent / "qc_4a_amap_suspects.csv"
@@ -208,13 +209,28 @@ def write_reports(stats: dict, suspects: list[dict]) -> None:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="4A 批次高德回源深度质检")
+    parser = argparse.ArgumentParser(description="4A 批次回源深度质检")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--concurrency", type=int, default=2)
+    parser.add_argument(
+        "--vendor",
+        default="baidu",
+        choices=("baidu", "amap", "tencent"),
+        help="真值源（默认 baidu：2026-11-03 实测 amap key 被阿里云 WAF 风控、"
+        "tencent 日配额尽，baidu 正常且坐标归一 GCJ-02）",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    client = AmapClient(key=settings.amap_api_key)
+    client = build_vendor(args.vendor, settings)
+    if client is None:
+        print(
+            json.dumps(
+                {"error": f"vendor key not configured: {args.vendor}"},
+                ensure_ascii=True,
+            )
+        )
+        return 1
     factory = get_session_factory()
     stats, suspects = asyncio.run(
         run(factory, client, limit=args.limit, concurrency=args.concurrency)
