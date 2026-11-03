@@ -5627,6 +5627,11 @@ class PlanningAgent:
                             "city": h.get("city") or city,
                             "category": h.get("category") or "sight",
                             "source_poi_id": h.get("source_poi_id"),
+                            # source 必须随投影（2026-11-03 酒庄事故）：丢键后
+                            # _source_tier 只认 tags，scenic/street/小红书等
+                            # 仅靠 source 判档的行整体掉到档尾，无地址的
+                            # 4a 骨架（如陕西张裕瑞那城堡酒庄）反超名录景点。
+                            "source": h.get("source"),
                             "address": h.get("address"),
                             "opening_hours": h.get("opening_hours"),
                             "rating": h.get("rating"),

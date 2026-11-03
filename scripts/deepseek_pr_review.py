@@ -591,7 +591,10 @@ def main():
     )
     base_url = _sanitize_header(
         os.environ.get("LLM_BASE_URL", "")
-        or os.environ.get("DEEPSEEK_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+        # glm-5.3-flash 不在 paas 免费层（1113）；coding 订阅端点实测 200
+        or os.environ.get(
+            "DEEPSEEK_BASE_URL", "https://open.bigmodel.cn/api/coding/paas/v4"
+        )
     )
     provider = _sanitize_header(
         os.environ.get("LLM_PROVIDER", "")
