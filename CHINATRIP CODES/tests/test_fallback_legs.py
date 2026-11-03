@@ -119,6 +119,66 @@ def test_fallback_cap_keeps_far_anchor_bounded_not_impossible():
     assert start >= 10 * 60 + 30 + 180  # 触顶腿 180 分钟
 
 
+def test_fallback_chains_travel_between_sequenced_sights():
+    """2026-11-03 用户 Day4 事故形态（旧版兜底产物 13:00→13:00 /
+    14:30→14:30 背靠背，兵马俑零车程开场）：全未排点顺序链排时，
+    相邻已排两点的间隔必须 ≥ 打车腿（无坐标对 ≥30）——兜底不得再
+    产出零车程背靠背时刻；装不下 16:30 闸的点留空披露而非硬排。"""
+    sights = [
+        VisitItem(
+            item_id="v16",
+            name="陕西自然博物馆",
+            city="西安",
+            day=4,
+            category="sight",
+            duration_minutes=120,
+            location=GeoPoint(lon=108.9542, lat=34.2226),
+        ),
+        VisitItem(
+            item_id="v15",
+            name="小雁塔",
+            city="西安",
+            day=4,
+            category="sight",
+            duration_minutes=120,
+            location=GeoPoint(lon=108.9437, lat=34.2419),
+        ),
+        VisitItem(
+            item_id="v14",
+            name="华清宫",
+            city="西安",
+            day=4,
+            category="sight",
+            duration_minutes=90,
+            location=GeoPoint(lon=109.2119, lat=34.3621),
+        ),
+        VisitItem(
+            item_id="v13",
+            name="秦始皇兵马俑博物馆",
+            city="西安",
+            day=4,
+            category="sight",
+            duration_minutes=90,
+            location=BMY_LOC,
+        ),
+    ]
+    day = DayPlan(day=4, base_city="西安", items=list(sights))
+    plan = ItineraryPlan(
+        itinerary_id="it-d4", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    placed = [s for s in sights if s.start_time is not None]
+    assert len(placed) >= 3, "前三点（日始+午后+临潼）应可落位"
+    for a, b in zip(placed, placed[1:]):
+        gap = (b.start_time.hour * 60 + b.start_time.minute) - (
+            a.end_time.hour * 60 + a.end_time.minute
+        )
+        leg = _taxi_leg_min(haversine_km(a.location, b.location))
+        assert gap >= max(30, leg), (
+            f"{a.name}→{b.name} 间隔 {gap} 分钟 < 打车腿 {leg}——背靠背零车程回归"
+        )
+
+
 def test_leg_windows_widens_sight_anchor_only():
     """_leg_windows 视角：观光锚按腿放宽（pad-30），餐饮/酒店/无源
     （落地腿）窗保持原样；src 是自身时也保持原样。"""
