@@ -186,7 +186,8 @@ def test_edit_system_prompt_no_preferences_no_line():
 
 
 def test_selection_type_ask_collects_premium():
-    """封顶裁掉的世界遗产/5A/4A 同类进待问名单，普通档裁掉不进。"""
+    """封顶裁掉的世界遗产/5A 同类进待问名单；4A/普通档裁掉只披露不待问
+    （2026-11-03 拍板「4a is not preferred sites」）。"""
     cands = [
         _cand("青铜博物馆", cat="museum", tags=["5a"]),
         _cand("织锦博物馆", cat="museum", tags=["5a"]),
@@ -204,10 +205,7 @@ def test_selection_type_ask_collects_premium():
     )
     museums = [it["name"] for it in items if it["category"] == "museum"]
     assert museums == ["青铜博物馆", "织锦博物馆"]
-    assert [(a["name"], a["tags"]) for a in asks] == [
-        ("皮影博物馆", ["5a"]),
-        ("陶艺博物馆", ["4a"]),
-    ]
+    assert [(a["name"], a["tags"]) for a in asks] == [("皮影博物馆", ["5a"])]
 
 
 def test_selection_type_ask_empty_when_pref_hits():
