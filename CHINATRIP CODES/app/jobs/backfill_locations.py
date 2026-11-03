@@ -132,6 +132,28 @@ def pick_hit(hits: list[dict], name: str, city: str | None) -> dict | None:
     return None
 
 
+def order_backfill_rows(rows: list[Poi]) -> list[Poi]:
+    """排序：source 优先档 → 档内城市热度（核心 40 城）→ 名称.
+
+    2026-11-03 数据债 P1-1「城市热度×tier」：同档（如 museum）长尾里
+    成都/西安等计划核心城的行入池价值高，先于县域行吃当日检索配额。
+    核心城 = plan.KNOWN_CITIES/weather.CITY_ADCODES 字典前部 40（两处
+    同源约定：核心 40 城恒保持前部，2026-10-30 系统性扩容后沿用）。
+    """
+    from app.services.weather import CITY_ADCODES
+
+    hot = frozenset(tuple(CITY_ADCODES)[:40])
+
+    def key(r: Poi) -> tuple[int, int, str]:
+        return (
+            _SOURCE_RANK.get(r.source or "", 99),
+            0 if _bare_city(r.city) in hot else 1,
+            r.name_zh or "",
+        )
+
+    return sorted(rows, key=key)
+
+
 def select_rows(limit: int) -> list[Poi]:
     """无坐标规划池行，按 source 优先档排序取前 limit 行。"""
     cities: list[str] = []
@@ -152,8 +174,7 @@ def select_rows(limit: int) -> list[Poi]:
             )
         )
         rows = q.all()
-    rows.sort(key=lambda r: _SOURCE_RANK.get(r.source or "", 99))
-    return rows[:limit]
+    return order_backfill_rows(rows)[:limit]
 
 
 async def backfill_rows(

@@ -7,6 +7,7 @@ from app.jobs.backfill_locations import (
     _SOURCE_RANK,
     city_compatible,
     name_overlap,
+    order_backfill_rows,
     pick_hit,
 )
 
@@ -257,3 +258,17 @@ def test_source_rank_covers_p2_sources():
     assert _SOURCE_RANK["street"] < _SOURCE_RANK["4a"] < _SOURCE_RANK["chinatravel"]
     for src in ("4a", "guobao8", "relicpark", "histvillage", "intl", "reservation"):
         assert _SOURCE_RANK[src] < 99
+
+
+def test_hot_city_first_within_same_rank():
+    # 2026-11-03 数据债 P1-1「城市热度×tier」：档位内核心 40 城先补——
+    # 博物馆长尾里成都/西安行的入池价值高于县域馆。
+    from types import SimpleNamespace
+
+    def row(name: str, city: str) -> SimpleNamespace:
+        return SimpleNamespace(source="museum2", city=city, name_zh=name)
+
+    hot = row("成都自然博物馆", "成都")
+    hot_b = row("西安博物院", "西安")
+    cold = row("英吉沙博物馆", "英吉沙")
+    assert order_backfill_rows([cold, hot_b, hot]) == [hot, hot_b, cold]
