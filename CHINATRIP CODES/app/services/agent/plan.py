@@ -4450,7 +4450,9 @@ class PlanningAgent:
                     # 回退原 poi/占位语义。
                     bound = bound0
                     if bound is None:
-                        bound = await self._bind_wish_poi(name, city)
+                        bound = await self._bind_wish_poi(
+                            name, city, allowed_cities=list(session.cities or [])
+                        )
                     if bound is not None:
                         poi = bound
                         session.wish_bindings[name] = bound
@@ -5141,7 +5143,9 @@ class PlanningAgent:
                 (c for c in session.cities if (c or "").strip()),
                 _unspecified(),
             )
-            bound = await self._bind_wish_poi(answer, bind_city)
+            bound = await self._bind_wish_poi(
+                answer, bind_city, allowed_cities=list(session.cities or [])
+            )
         return bound is not None
 
     async def _answer_clarification(
@@ -5794,10 +5798,40 @@ class PlanningAgent:
                     # 2026-10-31：库内模糊先于 LLM（精确→模糊→LLM 拍板
                     # 序）；候选池窗口外的正主（基地被新数据挤出 top30）
                     # 也由此兜住。
-                    bound = await self._bind_wish_poi(name, hint)
+                    bound = await self._bind_wish_poi(
+                        name, hint, allowed_cities=list(cities)
+                    )
                 if bound is None:
                     bound = await self._llm_bind_wish(name, candidates)
                 if bound is not None:
+                    bound_city = str(bound.get("city") or "")
+                    if (
+                        bound_city
+                        and cities
+                        and not any(c in bound_city for c in cities)
+                    ):
+                        # 绑定真身在行程外（西安行程·钟楼→北京行，2026-11-04
+                        # 收口）：不排期不占位，真城写回心愿单留痕——与 amap
+                        # 路异地不排期、merge 城闸同口径。
+                        logger.warning(
+                            "must_visit_bind_off_trip_city: wish=%s bound=%s "
+                            "city=%s trip_cities=%s",
+                            name,
+                            bound.get("name"),
+                            bound_city,
+                            cities,
+                        )
+                        self._backfill_wish_city(name, bound_city)
+                        assumptions.append(
+                            L(
+                                f"必去 {name} 匹配到「{bound.get('name')}」"
+                                f"（{bound_city}），不在本次行程城市，未纳入",
+                                f"Must-visit {name} matched "
+                                f"'{bound.get('name')}' in {bound_city}, outside "
+                                "this trip's cities — left out",
+                            )
+                        )
+                        continue
                     if not any(c.get("name") == bound.get("name") for c in candidates):
                         # 组装层 poi_id/坐标按 cand_by_name 回查——窗外正主
                         # 必须同时入池才能落成真实条目。
@@ -6129,11 +6163,26 @@ class PlanningAgent:
             return max(near, key=_rank)
         return None
 
-    async def _bind_wish_poi(self, name: str, city: str) -> dict | None:
+    async def _bind_wish_poi(
+        self, name: str, city: str, allowed_cities: list[str] | None = None
+    ) -> dict | None:
         """消息回合增量路径的心愿语义绑定（2026-10-30 深夜拍板）：库内纯
         核心词最佳（有坐标+口碑）→LLM 从城市顶库接地挑选（都江堰水利工
         程这类正主名字不含核心词，只有 LLM 够得到）。命中记
-        _wish_bindings 供 merge 钉选与心愿单留痕；全程落空返回 None。"""
+        _wish_bindings 供 merge 钉选与心愿单留痕；全程落空返回 None。
+        allowed_cities（行程城市）给定时按城过滤——全库兜底档对泛称词
+        （钟楼/鼓楼）可能全库精确名命中别城同名行（2026-11-04 回归）。"""
+        allowed: set[str] | None = None
+        if allowed_cities:
+            allowed = {_norm_city(str(c or "")) for c in allowed_cities} - {""}
+            allowed = allowed or None
+
+        def _in_trip(row: dict) -> bool:
+            if allowed is None:
+                return True
+            rc = _norm_city(str(row.get("city") or ""))
+            return bool(rc) and rc in allowed
+
         pool: list[dict] = []
         core = _wish_pure_core(name)
         if self._poi_details is not None and len(core) >= 2:
@@ -6145,11 +6194,19 @@ class PlanningAgent:
                     )
                 except Exception:
                     hits = []
+                gated = [h for h in hits if h.get("location") is not None]
+                in_trip = [h for h in gated if _in_trip(h)]
+                if allowed is not None and len(in_trip) < len(gated):
+                    logger.warning(
+                        "plan: wish bind city gate %s allowed=%s dropped=%d",
+                        name,
+                        sorted(allowed),
+                        len(gated) - len(in_trip),
+                    )
                 pool = [
                     h
-                    for h in hits
+                    for h in in_trip
                     if core in _norm_site_name(str(h.get("name") or ""))
-                    and h.get("location") is not None
                 ]
                 if pool:
                     break
@@ -6168,7 +6225,7 @@ class PlanningAgent:
                     for h in await asyncio.to_thread(
                         self._poi_details.top_pois_in_city, city, 40
                     )
-                    if h.get("location") is not None
+                    if h.get("location") is not None and _in_trip(h)
                 ]
             except Exception:
                 llm_pool = []
@@ -10494,7 +10551,9 @@ class PlanningAgent:
                         (c for c in session.cities if (c or "").strip()),
                         _unspecified(),
                     )
-                    bound = await self._bind_wish_poi(wish, bind_city)
+                    bound = await self._bind_wish_poi(
+                        wish, bind_city, allowed_cities=list(session.cities or [])
+                    )
                 if bound is not None:
                     session.wish_bindings[wish] = bound
                     self._wish_bindings[wish] = bound

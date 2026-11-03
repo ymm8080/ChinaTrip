@@ -434,6 +434,72 @@ def test_wish_bind_pool_skips_cross_city_hits():
     assert got["name"] == "西安钟楼"
 
 
+# --- 全库档城市闸（2026-11-04 钟楼回归：西安行程心愿「钟楼」全库
+# 精确名命中北京行 ct_北京_165 串城）---
+
+
+_BJ_BELL = {
+    "source_poi_id": "ct_北京_165",
+    "name": "钟楼",
+    "city": "北京",
+    "category": "sight",
+    "rating": 4.7,
+    "location": (116.4128, 39.9443),
+}
+
+
+class BellStore(PoiDetailStore):
+    """钟楼场景桩：城内档空、全库档只有北京「钟楼」。"""
+
+    def __init__(self):
+        super().__init__(None)
+
+    def search_keyword(self, city, tokens, *, limit=5):
+        if city is None:
+            return [dict(_BJ_BELL)]
+        return []
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        return []
+
+
+def test_bind_wish_poi_global_scope_city_gate_blocks_off_trip():
+    """西安行程心愿「钟楼」：城内档空→全库档北京行被城市闸拦下，
+    返回 None、不写绑定、不串城（2026-11-04 回归）。"""
+    agent = PlanningAgent(CountingLLM(), poi_details=BellStore())
+    got = asyncio.run(agent._bind_wish_poi("钟楼", "西安", allowed_cities=["西安"]))
+    assert got is None
+    assert agent._wish_bindings.get("钟楼") is None
+
+
+def test_bind_wish_poi_global_scope_keeps_trip_city_hits():
+    """多城行程（北京+西安）：全库档北京钟楼属行程城市，正常绑定。"""
+    agent = PlanningAgent(CountingLLM(), poi_details=BellStore())
+    got = asyncio.run(
+        agent._bind_wish_poi("钟楼", "西安", allowed_cities=["西安", "北京"])
+    )
+    assert got is not None
+    assert got["city"] == "北京"
+    assert got["source_poi_id"] == "ct_北京_165"
+
+
+def test_start_zhonglou_xian_never_leaks_beijing(monkeypatch):
+    """端到端回归：西安 2 日、心愿「钟楼」——北京行不得出现在行程；
+    无可绑正主时保持占位语义（卡片无跨城 poi_id）。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    svc = TripItemService()
+    svc.create("钟楼", source="chat", city=None)
+    agent = PlanningAgent(
+        CountingLLM(), trip_items=svc, poi_details=BellStore(), auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["西安"], days=2, preferences="随便")
+    )
+    visits = _visits(session)
+    assert "ct_北京_165" not in [v.poi_id for v in visits]
+    assert all((v.city or "").removesuffix("市") != "北京" for v in visits)
+
+
 # --- 水利工程事故（2026-10-30 深夜）：精确→模糊→LLM + 行程中心留痕 ---
 
 
