@@ -1624,12 +1624,18 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     return True
 
 
+# 博物馆名尾词（2026-11-04 秦陵显示名事故）：5A 官方名「秦始皇帝陵博物院」
+# 以「博物院」结尾（2026-11-03 变体改名后），旧尾词表只认「博物馆/纪念馆」，
+# 该行滑出博物馆卡 → 组装层 keep-rank 平手先到先得，unesco 骊山园行（封
+# 土堆坐标）压过兵马俑坑正主。博物院是正牌博物馆后缀（故宫/南京/山西博
+# 物院全是 museum 类，仅此 5a 行与千岛湖啤酒博物院为 attraction/nature）。
+_MUSEUM_NAME_TAILS = ("博物馆", "博物院", "纪念馆")
+
+
 def _museum_cand(cand: dict) -> bool:
     """候选层博物馆卡（与 _museum_card 同口径，dict 形态）。"""
     name = str(cand.get("name") or "").strip()
-    return (cand.get("category") or "") == "museum" or name.endswith(
-        ("博物馆", "纪念馆")
-    )
+    return (cand.get("category") or "") == "museum" or name.endswith(_MUSEUM_NAME_TAILS)
 
 
 def _museum_core(name: str) -> str:
@@ -1769,9 +1775,10 @@ def _museum_shadow_pairs(
 
 def _museum_card(item: VisitItem) -> bool:
     """博物馆卡（2026-10-31 碑林拍板）：「碑林博物馆」优先于「城墙·
-    碑林历史文化景区」这类伞形挂牌行——同站孪生保留博物馆本体。"""
+    碑林历史文化景区」这类伞形挂牌行——同站孪生保留博物馆本体。
+    尾词含「博物院」（2026-11-04 秦陵显示名事故，见 _MUSEUM_NAME_TAILS）。"""
     name = (item.name or "").strip()
-    return (item.category or "") == "museum" or name.endswith(("博物馆", "纪念馆"))
+    return (item.category or "") == "museum" or name.endswith(_MUSEUM_NAME_TAILS)
 
 
 def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int]:

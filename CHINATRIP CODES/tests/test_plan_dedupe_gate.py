@@ -743,6 +743,57 @@ def test_dedupe_plan_keeps_single_qin_card():
     assert any("已合并重复站点" in a for a in plan.assumptions)
 
 
+def test_dedupe_keeps_museum_yuan_official_name_card():
+    """2026-11-04 秦陵显示名事故：5a 行 2026-11-03 改官方名「秦始皇帝陵
+    博物院」（category=attraction，尾词「博物院」不在旧博物馆尾词表），
+    unesco「秦始皇陵」（骊山园封土堆坐标）先进行程，组装层 keep-rank
+    平手先到先得 → 行程显示封土堆侧、兵马俑坑正主被丢。修法：博物馆尾
+    词补「博物院」。兵马俑博物院（坑区坐标）胜出，骊山园行被丢留痕。"""
+
+    from app.services.agent.plan import _museum_card
+    from app.services.itinerary import GeoPoint
+
+    museum_yuan = _visit(
+        "v2",
+        "秦始皇帝陵博物院",
+        city="西安",
+        poi_id="5a_296",
+        location=GeoPoint(lon=109.2820, lat=34.3862),
+    )
+    assert _museum_card(museum_yuan) is True
+
+    plan = ItineraryPlan(
+        itinerary_id="it-qin-rename",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v1",
+                        "秦始皇陵",
+                        city="西安",
+                        poi_id="unesco_Q910180",
+                        location=GeoPoint(lon=109.2589, lat=34.3803),
+                    )
+                ],
+            ),
+            DayPlan(
+                day=4,
+                base_city="西安",
+                items=[museum_yuan],
+            ),
+        ],
+    )
+
+    dropped = dedupe_plan_visits(plan)
+
+    assert _visit_names(plan) == ["秦始皇帝陵博物院"]  # 坑区正主胜出
+    assert set(dropped) == {"秦始皇陵"}
+    assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
 # --- 2026-11-01 秦陵双卡案：回填守卫全量同站判定 ------------------------------
 
 
