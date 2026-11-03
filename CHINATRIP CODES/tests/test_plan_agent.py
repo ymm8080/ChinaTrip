@@ -872,6 +872,7 @@ def test_v0_candidate_durations_pass_through():
         name="超长时长景点",
         category="attraction",
         location=(106.5, 29.5),
+        rating=4.5,
         suggested_duration_min=240,
     )
     agent = PlanningAgent(ScriptedLLM([]), amap_client=None, poi_details=store)

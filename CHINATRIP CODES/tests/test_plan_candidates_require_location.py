@@ -42,13 +42,14 @@ def _mixed_store() -> PoiDetailStore:
     # 骨架行：有名字无坐标（5A/show 导入常态）
     store.upsert("S1", city="西安", name="秦始皇兵马俑博物馆", category="attraction")
     store.upsert("S2", city="西安", name="大雁塔", category="attraction")
-    # 有坐标行：必须保留
+    # 有坐标行：必须保留（带评分——2026-11-04 起三空行另过数据闸）
     store.upsert(
         "R1",
         city="西安",
         name="回民街",
         category="attraction",
         location=(108.94, 34.26),
+        rating=4.5,
     )
     return store
 
@@ -177,6 +178,7 @@ class _DeepStore:
                 "city": city,
                 "category": "attraction",
                 "location": (104.0 + i * 0.01, 30.6),
+                "rating": 4.2,
             }
             for i in range(5)
         ]
@@ -211,6 +213,7 @@ def test_origin_closure_city_collects_no_candidates():
                     "city": city,
                     "category": "attraction",
                     "location": (104.0, 30.6),
+                    "rating": 4.2,
                 }
             ][:limit]
 
@@ -268,3 +271,53 @@ def test_off_city_remote_hit_keeps_true_city_and_never_schedules():
     assert "西安钟楼" in names
 
     assert "钟楼" not in names
+
+
+# --- 2026-11-04 白鹿原·白鹿仓案：三空骨架行（有坐标无数据）不进排期池 ----
+
+
+def _bailuyuan_store() -> PoiDetailStore:
+    store = PoiDetailStore()
+    # 白鹿原型骨架：有坐标、地址/评分/开放时间三空（4a 批 92.9% 无地址
+    # 坐标回填后的常态，null hours 无时间约束永远可排——事故根因）
+    store.upsert(
+        "B1",
+        city="西安",
+        name="白鹿原·白鹿仓",
+        category="attraction",
+        location=(109.11, 34.22),
+    )
+    # 演出型骨架：无评分但属演出（演出保位线语义不变），豁免
+    store.upsert(
+        "V1",
+        city="西安",
+        name="《复活的军团》",
+        category="entertainment",
+        location=(109.27, 34.38),
+        source="show",
+    )
+    # 三缺二但有地址：回源只差评分/时段，仍可排
+    store.upsert(
+        "D1",
+        city="西安",
+        name="西安关中民俗艺术博物院",
+        category="attraction",
+        location=(108.85, 34.15),
+        address="西安市长安区五台镇",
+    )
+    return store
+
+
+def test_data_empty_skeleton_with_coords_never_scheduled():
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=_bailuyuan_store())
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+    names = {c["name"] for c in candidates}
+    assert "白鹿原·白鹿仓" not in names
+    assert "西安关中民俗艺术博物院" in names
+
+
+def test_show_without_rating_still_pooled():
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=_bailuyuan_store())
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+    names = {c["name"] for c in candidates}
+    assert "《复活的军团》" in names

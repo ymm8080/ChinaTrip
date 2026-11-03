@@ -218,6 +218,17 @@ def _cand_is_show(cand: dict) -> bool:
     )
 
 
+def _pool_worthy(cand: dict) -> bool:
+    """数据完整度闸（2026-11-04 白鹿原·白鹿仓 d4 事故）：有名有坐标但
+    地址/评分/开放时间三空的骨架行不得进自动排期池——null hours 无时间
+    约束永远可排，求解杀真点（骊山/陕历博排不下被移除）留骨架，空位全
+    喂给三空行。4a 批 92.9% 无地址坐标回填后挤占 top-30 窗口尾段，同根。
+    演出行天然无评分，豁免（保位线语义不变）；补齐任一实数据自动回池。"""
+    if _cand_is_show(cand):
+        return True
+    return bool(cand.get("address") or cand.get("rating") or cand.get("opening_hours"))
+
+
 def _show_night_only(cand: dict) -> bool:
     """演出是否仅夜场（2026-10-31 04源场次扩列）：opening_hours 含「多场/
     全天/日场」→ 含下午场，可作常规景点任意时段排；其余（仅夜场/傍晚场/
@@ -5642,6 +5653,7 @@ class PlanningAgent:
             pois: list[dict] = []
             lib_count = 0
             no_loc = 0  # 库命中无坐标骨架行剔除数（坐标闸，2026-10-30）
+            no_data = 0  # 库命中三空骨架行剔除数（数据闸，2026-11-04）
             if self._poi_details is not None:
                 try:
                     lib_all = await asyncio.to_thread(
@@ -5662,9 +5674,15 @@ class PlanningAgent:
                 # 站 X km · 步行约 Y 分钟」整段消失，导航外链也没坐标。库排序
                 # 语义不变，窗口截在可用集上；滤空城市走下方 <10 图商补量
                 # （含占位降级），backfill_locations 补齐坐标后自动回池。
-                lib_hits = [h for h in lib_all if h.get("name") and h.get("location")][
-                    :PLAN_LIBRARY_WINDOW
-                ]
+                # 数据完整度闸与坐标闸同口径（2026-11-04 白鹿原事故）：
+                # 三空骨架行（有坐标无地址/评分/开放时间）不可自动排期，
+                # 窗口截在可用集上；滤空城市走下方 <10 图商补量，
+                # hours/address/rating 回填后自动回池。
+                lib_hits = [
+                    h
+                    for h in lib_all
+                    if h.get("name") and h.get("location") and _pool_worthy(h)
+                ][:PLAN_LIBRARY_WINDOW]
                 # 演出保位（2026-11-02 西安实录）：演出库行无评分
                 # （score 恒尾部），坐标回填把 4a 行补齐坐标后会把演出
                 # 挤出 top-30 窗口（实录演出排 40-53 位全灭、新计划零
@@ -5684,6 +5702,11 @@ class PlanningAgent:
                     )
                 no_loc = sum(
                     1 for h in lib_all if h.get("name") and not h.get("location")
+                )
+                no_data = sum(
+                    1
+                    for h in lib_all
+                    if h.get("name") and h.get("location") and not _pool_worthy(h)
                 )
                 lib_count = len(lib_hits)
                 for h in lib_hits:
@@ -5753,10 +5776,12 @@ class PlanningAgent:
                         entry["city"] = city.removesuffix("市")
                     pois.append(entry)
             logger.info(
-                "plan: city %s candidates library=%d no_loc_skipped=%d total=%d",
+                "plan: city %s candidates library=%d no_loc_skipped=%d "
+                "no_data_skipped=%d total=%d",
                 city,
                 lib_count,
                 no_loc,
+                no_data,
                 len(pois),
             )
             if not pois:
