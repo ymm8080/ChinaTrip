@@ -17,9 +17,9 @@
   -15）；上午超点 -12/个（2026-11-03 拍板「上午一般只排一个点」：
   <12:00 开场的非餐/非酒店点超出 1 个的部分，与 blank_morning 合成
   「上午恰一个点」双向口径）；零娱乐 -40/程（2026-11-03 拍板「每个
-  行程都要有一场娱乐」：全程无 entertainment/演出条目计一次，行程
-  含游览点才计——纯交通/占位形态不罚；候选层无演出供应的城市由
-  选点层披露，本罚只对「该有而没排」的形态）。
+  行程宜有一场娱乐」，同日更正 nice-to-have 非强制、每行程一次判定
+  非按城/按日：全程无 entertainment/演出条目计一次，行程含游览点才
+  计——纯交通/占位形态不罚；软罚即偏好信号，不设强制注入）。
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ PEN_RAIN_PARTIAL = 10
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
 PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
-PEN_NO_ENTERTAINMENT = 40  # 零娱乐：整程无演出/娱乐条目（2026-11-03 拍板）
+PEN_NO_ENTERTAINMENT = 40  # 零娱乐/程（2026-11-03 拍板，软偏好）
 
 
 @dataclass
@@ -126,9 +126,9 @@ def plan_score(
         )
         if has_activity and not _morning_occupied(day):
             blank += 1
-        # 零娱乐（2026-11-03 拍板）：与 solver._is_show 同口径——
-        # category=entertainment 或 best_visit_time=show；行程含游览点
-        # 才计（纯交通/占位形态不罚）。
+        # 零娱乐（2026-11-03 拍板，每行程一次判定非按日）：与
+        # solver._is_show 同口径——category=entertainment 或
+        # best_visit_time=show；行程含游览点才计（纯交通/占位不罚）。
         entertainment += sum(
             1
             for v in visits

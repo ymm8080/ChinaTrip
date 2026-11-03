@@ -5362,13 +5362,6 @@ class PlanningAgent:
             bindings={**session.wish_bindings, **self._wish_bindings},
             transfer_days=transfer_days,
         )
-        # 每行程至少一场娱乐（2026-11-03 用户拍板）：选点三路统一兜底
-        # ——确定性路径已按城钉夜场，LLM/占位/裁并路径可能整程零演出。
-        picked, ent_notes = self._ensure_entertainment(
-            picked, candidates, session.days, ranges, transfer_days
-        )
-        for zh_note, en_note in ent_notes:
-            llm_assumptions.append(L(zh_note, en_note))
         # 全局跨天均衡（2026-10-30 用户拍板）：选点/必去都是逐城贪心，
         # 空天与超载天可能并存；整段行程视角回填+分流后再算白名单。
         picked, rebalance_notes = self._rebalance_days(
@@ -7342,8 +7335,8 @@ class PlanningAgent:
         """8.1.5 硬闸门（TravelPlanner 常识约束）：每天非 food 游览点 >4
         裁到 4——过载日既走不完也过不了铁律 6；用户点名必去不受限（愿
         超载是用户的决定）。演出/娱乐类豁免（2026-11-03 拍板「每个行程
-        都要有一场娱乐」）：S5 晚场是 20:10 收尾事件不占白天游览窗，
-        确定性路径按城钉的夜场若被满员日裁掉会直接清空行程娱乐。
+        宜有一场娱乐」，同日更正 nice-to-have 非强制）：S5 晚场是 20:10
+        收尾事件不占白天游览窗——已选演出不因满员日被裁掉，纯档位核算。
 
         Returns (kept, dropped)：dropped 为 (zh, en) 标签供假设区披露。
         """
@@ -7366,95 +7359,6 @@ class PlanningAgent:
             per_day[spec["day"]] = bucket + 1
             kept.append(spec)
         return kept, dropped
-
-    @staticmethod
-    def _ensure_entertainment(
-        picked: list[dict],
-        candidates: list[dict],
-        days: int,
-        ranges: dict[str, tuple[int, int]],
-        transfer_days: set[int] | None = None,
-    ) -> tuple[list[dict], list[tuple[str, str]]]:
-        """每行程至少一场娱乐（2026-11-03 用户拍板 every itinerary should
-        include one entertainment）。
-
-        确定性选点已按城钉最优夜场；LLM 选点（优先非保证）、LLM 失败占
-        位、4/日裁并后整程零演出的形态由本兜底收口。口径：
-        - 按城清点 picked——spec 无 tags/source，category=entertainment
-          为主信号，名字对上演出候选（_cand_is_show）也算（多场次白天
-          演出的 category 是 sight/best_visit_time=show）；
-        - 空城从候选池补钉该城最优演出（仅夜场 _show_night_only 优先、
-          池序=完整优先级梯子）到城市窗口末日；返程日晚上被返程腿占住
-          时让位前一天（同确定性路径拍板）；
-        - 候选池整城无可排演出（无行/无坐标）不硬造，点名披露。
-        """
-        notes: list[tuple[str, str]] = []
-        night: dict[str, list[tuple[int, dict]]] = {}
-        any_ok: dict[str, list[tuple[int, dict]]] = {}
-        show_name_city: dict[str, str] = {}
-        for idx, c in enumerate(candidates):
-            if not c.get("name") or c.get("cross_city_hit") or not _cand_is_show(c):
-                continue
-            key = (c.get("city") or "").removesuffix("市")
-            show_name_city[c["name"]] = key
-            if c.get("location") is None:
-                continue
-            any_ok.setdefault(key, []).append((idx, c))
-            if _show_night_only(c):
-                night.setdefault(key, []).append((idx, c))
-        picked_names = {str(s.get("name") or "") for s in picked}
-        for city, (lo, hi) in ranges.items():
-            key = (city or "").removesuffix("市")
-            satisfied = any(
-                s.get("category") == "entertainment"
-                or show_name_city.get(str(s.get("name") or "")) == key
-                for s in picked
-                if (s.get("city") or "").removesuffix("市") == key
-            )
-            if satisfied:
-                continue
-            pool = [
-                p
-                for p in (night.get(key) or any_ok.get(key) or [])
-                if p[1].get("name") not in picked_names
-            ]
-            if not pool:
-                notes.append(
-                    (
-                        f"{city} 候选库暂无演出/娱乐类项目，本段未含娱乐安排",
-                        f"No show/entertainment candidates available for {city} "
-                        "— this leg has no entertainment item",
-                    )
-                )
-                continue
-            _idx, best = min(pool, key=lambda p: (_source_tier(p[1]), p[0]))
-            show_day = hi
-            if hi >= days and days in (transfer_days or set()) and hi - 1 >= lo:
-                # 返程日晚上被返程腿占住：夜场钉前一天（同确定性路径
-                # 2026-10-31 沪-西安-沪拍板口径）。
-                show_day = hi - 1
-            try:
-                minutes = int(best.get("suggested_duration_min") or 90)
-            except (TypeError, ValueError):
-                minutes = 90
-            picked.append(
-                {
-                    "name": best["name"],
-                    "city": best.get("city") or city,
-                    "category": best.get("category") or "entertainment",
-                    "day": max(1, min(show_day, days)),
-                    "duration_minutes": minutes,
-                    "location": best.get("location"),
-                    "best_visit_time": best.get("best_visit_time"),
-                }
-            )
-            notes.append(
-                (
-                    f"{city} 已补排演出{best['name']}（第{show_day}天收尾）",
-                    f"{city}: added show {best['name']} (day {show_day} finale)",
-                )
-            )
-        return picked, notes
 
     @staticmethod
     def _rebalance_days(
