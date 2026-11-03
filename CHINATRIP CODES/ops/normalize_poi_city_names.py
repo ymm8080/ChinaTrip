@@ -40,7 +40,7 @@ def main() -> int:
 
     from app.db import get_session_factory
     from app.services.agent.plan import KNOWN_CITIES
-    from app.services.poi_city import canonical_city, known_cities
+    from app.services.poi_city import canonical_city, city_from_name, known_cities
 
     known = frozenset(KNOWN_CITIES)
     canonical_domain = known_cities()
@@ -74,40 +74,55 @@ def main() -> int:
                 print(f"    skip {old!r} -> {new!r} : {counts[old]}")
 
         # 第二遍：historical 值仍不属于 canonical 域（区县级 / 脏串），按
-        # 行解析——先 address（含省前缀），退而 city 本身；仅当结果落
-        # canonical 域才改（逐行 UPDATE + 逐行 commit）。
+        # 行解析——address（含省前缀）→ district → city 本身 → 名称显式
+        # 前缀（`宁波市天一阁博物院`）；仅当结果落 canonical 域才改
+        # （逐行 UPDATE + 逐行 commit）。
         from app.services.poi_city import resolve_city
 
-        if args.apply and canonical_domain:
+        if canonical_domain:
             with fac() as session:
                 pending = session.execute(
                     text(
-                        f"SELECT id, city, address FROM {table} "
+                        f"SELECT id, city, address, district, name_zh FROM {table} "
                         "WHERE city IS NOT NULL AND city <> ''"
                     )
                 ).fetchall()
             legacy = [
-                (pid, c, addr or "")
-                for pid, c, addr in pending
+                (pid, c, addr or "", district or "", name or "")
+                for pid, c, addr, district, name in pending
                 if c not in canonical_domain and c not in mapping
             ]
             print(f"    second-pass legacy rows: {len(legacy)}")
-            fixed = 0
-            for pid, c, addr in legacy:
+            plan: list[tuple[int, str, str, str]] = []
+            for pid, c, addr, district, name in legacy:
                 # 跨市脏串（'临汾市、延安'）只取首段解析——best effort，逐行落库
                 dirty = any(ch in c for ch in "、；;，")
                 cand = c.split("、")[0].strip() if dirty else c
-                new = resolve_city(None, addr) or resolve_city(None, cand)
+                new = (
+                    resolve_city(None, addr)
+                    or resolve_city(None, district)
+                    or resolve_city(None, cand)
+                    or city_from_name(name, cand)
+                )
                 if not new or new not in canonical_domain or new == c:
                     continue
-                with fac() as session:
-                    session.execute(
-                        text(f"UPDATE {table} SET city = :new WHERE id = :pid"),
-                        {"new": new, "pid": pid},
-                    )
-                    session.commit()
-                fixed += 1
-            print(f"    second-pass applied rows: {fixed}")
+                plan.append((pid, c, new, name))
+            print(f"    second-pass planned rows: {len(plan)}")
+            for _pid, old, new, name in plan[:40]:
+                print(f"      {old!r} -> {new!r} : {name}")
+            if len(plan) > 40:
+                print(f"      … 其余 {len(plan) - 40} 行同类")
+            fixed = 0
+            if args.apply:
+                for pid, _old, new, _name in plan:
+                    with fac() as session:
+                        session.execute(
+                            text(f"UPDATE {table} SET city = :new WHERE id = :pid"),
+                            {"new": new, "pid": pid},
+                        )
+                        session.commit()
+                    fixed += 1
+                print(f"    second-pass applied rows: {fixed}")
 
         if not args.apply or not mapping:
             continue

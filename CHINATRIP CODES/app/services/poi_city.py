@@ -122,12 +122,19 @@ _ETHNIC_SORTED = tuple(sorted(_ETHNIC, key=len, reverse=True))
 
 
 def _known_sorted() -> tuple[str, ...]:
-    """注册表城市名，长名优先（「阿拉善盟」压过「阿拉善」，避免误剥盟后缀）。"""
+    """注册表城市名，长名优先（「阿拉善盟」压过「阿拉善」，避免误剥盟后缀）。
+
+    同长度按字典序兜底：`sorted(frozenset, key=len)` 的同长顺序取决于
+    str hash 随机化，跨进程会翻转（`长春市朝阳区…` 里「长春」/「朝阳」都
+    是 2 字子串 → city 随机），必须给确定的全序.
+    """
     global _KNOWN_BY_LEN
     if _KNOWN_BY_LEN is None:
         from app.services.agent.plan import KNOWN_CITIES
 
-        _KNOWN_BY_LEN = tuple(sorted(frozenset(KNOWN_CITIES), key=len, reverse=True))
+        _KNOWN_BY_LEN = tuple(
+            sorted(frozenset(KNOWN_CITIES), key=lambda s: (-len(s), s))
+        )
     return _KNOWN_BY_LEN
 
 
@@ -328,6 +335,163 @@ def _county_variants(prov: str, entry: dict) -> dict[str, str]:
     return flat
 
 
+_COUNTY_EXACT: dict[str, str] | None = None
+_COUNTY_FULL_SORTED: list[tuple[str, str]] | None = None
+_COUNTY_SUFFIXES = ("市", "县", "区", "旗")
+
+
+def _county_exact_map() -> dict[str, str]:
+    """全库县级单位「全名 / 裸 stem」→ 属地级市；跨省同名冲突则丢.
+
+    只服务**整串相等**匹配（`city` 列遗留值 `太仓`/`邛崃`/`孟连县`），
+    不做子串——子串路径见 `_global_county_fallback`（避免「沙溪镇」被
+    外省同名镇吞掉）.
+
+    裸 stem 一律让位给省/地级名：`河北`（河北区,天津）与 `河南`（河南
+    蒙古族自治县,黄南）会被省名撞车，省名输入必须保持「不是城市」。
+    """
+    global _COUNTY_EXACT
+    if _COUNTY_EXACT is None:
+        higher: set[str] = set(_index())
+        for entry in _index().values():
+            higher.update(entry["prefectures"])
+            higher.update(entry["prefectures"].values())
+        higher.update(_known_sorted())
+        spots: dict[str, dict[str, str]] = {}
+        for _prov, entry in _index().items():
+            for county, city in entry["counties"].items():
+                spots.setdefault(county, {})[city] = city
+                stem = _strip_admin_suffixes(county)
+                if len(stem) >= 2 and stem not in higher:
+                    spots.setdefault(stem, {})[city] = city
+        _COUNTY_EXACT = {
+            name: next(iter(spot)) for name, spot in spots.items() if len(spot) == 1
+        }
+    return _COUNTY_EXACT
+
+
+def _exact_county_city(t: str) -> str | None:
+    """整串等于县级单位名/stem 时上卷（`太仓`→苏州、`孟连县`→普洱）."""
+    m = _county_exact_map()
+    if t in m:
+        return m[t]
+    stem = _strip_admin_suffixes(t)
+    if stem != t:
+        return m.get(stem)
+    return None
+
+
+def _county_full_sorted() -> list[tuple[str, str]]:
+    """带显式行划后缀的县级全名（长名优先，跨省冲突丢），供名称前缀
+    识别（`滕州市汉画像石馆`→枣庄）."""
+    global _COUNTY_FULL_SORTED
+    if _COUNTY_FULL_SORTED is None:
+        spots: dict[str, dict[str, str]] = {}
+        for _prov, entry in _index().items():
+            for county, city in entry["counties"].items():
+                if county.endswith(_COUNTY_SUFFIXES):
+                    spots.setdefault(county, {})[city] = city
+        _COUNTY_FULL_SORTED = sorted(
+            (
+                (name, next(iter(spot)))
+                for name, spot in spots.items()
+                if len(spot) == 1
+            ),
+            key=lambda kv: len(kv[0]),
+            reverse=True,
+        )
+    return _COUNTY_FULL_SORTED
+
+
+_NAME_ADMIN_TAIL = ("市", "区", "县", "州", "旗", "盟")
+
+# 「城市名 + 大学/学院」：校名多为历史命名（中山大学在广州、同济在上海），
+# 相邻出现时不能当属地证据，直接跳过（`武汉大学万林艺术博物馆` 因此留在
+# 未解析池，宁可漏判不可错判）.
+_NAME_SCHOOL_HEADS = ("大学", "学院", "中学", "小学")
+
+_CITY_PROVINCE: dict[str, str] | None = None
+
+
+def _city_province() -> dict[str, str]:
+    """canonical 城市 → 省级短名（直辖市映射到自身）."""
+    global _CITY_PROVINCE
+    if _CITY_PROVINCE is None:
+        m: dict[str, str] = {}
+        for prov, entry in _index().items():
+            if prov in {"北京", "上海", "天津", "重庆"}:
+                m.setdefault(prov, prov)
+            for city in entry["prefectures"].values():
+                m.setdefault(city, prov)
+            for city in entry["counties"].values():
+                m.setdefault(city, prov)
+        _CITY_PROVINCE = m
+    return _CITY_PROVINCE
+
+
+def city_from_name(name: str, province: str | None = None) -> str | None:
+    """POI 名称 → canonical 城市（保守：只认可证前缀）.
+
+    默认（无 province）仅认两种形态：
+    1) 「已知城市 + 市/区/县/州/旗/盟」开头：`宁波市天一阁博物院`→宁波、
+       `重庆市江北区观音桥…`→重庆；
+    2) 「索引县级全名（带后缀）」开头：`滕州市汉画像石馆`→枣庄。
+    名称首段没有行政后缀时一律 None——`中山舰博物馆`（武汉）、`北海公园`
+    （北京）、`东方明珠`（上海）不因含同名城市被误判.
+
+    传入 province 时追加第 3 条：`已知城市 + 任意通名`（`桂林博物馆`→
+    桂林、`南京中国科举博物馆`→南京），但要求解析城市**属于该省**；跨省
+    同名（`北海公园` 记为北京）、校名相邻（`中山大学博物馆` 在广东）直接
+    拒绝。省名未知（如 `江北区`）时该规则不启用.
+    """
+    s = (name or "").strip()
+    if not s:
+        return None
+    known = known_cities()
+    prov = _province_short(province.strip()) if province else None
+    if prov is not None and prov not in _index():
+        prov = None  # 传进来的不是省名（区县/园区名），不启用第 3 条
+
+    # 「X省 + 后续地名」体例（街区名录常见：`吉林省长春市朝阳区…`）：
+    # 省名本身不是城市归属，剥掉后按省份语境继续解析.
+    for _p, fulls in _province_short_map().items():
+        for cand in fulls:
+            if len(cand) >= 2 and s.startswith(cand + "省"):
+                rest = s[len(cand) + 1 :]
+                if rest:
+                    return resolve_city(_p, rest) or city_from_name(rest, _p)
+
+    def _ok(canon: str) -> str | None:
+        if canon not in known:
+            return None
+        if prov is not None and _city_province().get(canon) != prov:
+            return None
+        return canon
+
+    for city_name in _known_sorted():
+        for tail in _NAME_ADMIN_TAIL:
+            if s.startswith(city_name + tail):
+                hit = _ok(canonical_city(city_name))
+                if hit:
+                    return hit
+    for county, city in _county_full_sorted():
+        if s.startswith(county):
+            hit = _ok(city)
+            if hit:
+                return hit
+    if prov is not None:
+        for city_name in _known_sorted():
+            if not s.startswith(city_name):
+                continue
+            rest = s[len(city_name) :]
+            if not rest or rest.startswith(_NAME_SCHOOL_HEADS):
+                continue
+            hit = _ok(canonical_city(city_name))
+            if hit:
+                return hit
+    return None
+
+
 def _global_county_sorted() -> list[tuple[str, str]]:
     """全库县名（仅索引现名），长名优先；跨省同 key 冲突则丢.
 
@@ -439,10 +603,27 @@ def resolve_city(province: str | None, text: str) -> str | None:
     for old, city in _CITY_ALIASES_EXTRA.items():
         if t == old or (len(old) > 2 and old in t):
             return city
+    # 名称子串：取**出现位置最靠前**的（同位置取更长），否则
+    # 「长春市朝阳区…」会被 2 字的「朝阳」（朝阳市/辽宁）抢中.
+    best_pos = -1
+    best_len = 0
+    best_city: str | None = None
     for name in _known_sorted():
-        if name in t:
-            return canonical_city(name)
+        pos = t.find(name)
+        if pos < 0:
+            continue
+        if best_city is None or pos < best_pos or (
+            pos == best_pos and len(name) > best_len
+        ):
+            best_pos, best_len = pos, len(name)
+            best_city = canonical_city(name)
+    if best_city is not None:
+        return best_city
     hit = _resolve(_province_of(province, t), t)
+    if hit:
+        return hit
+    # 6b) 整串县级单位（city 列遗留值 `太仓`→苏州、`孟连县`→普洱）
+    hit = _exact_county_city(t)
     if hit:
         return hit
     hit = _global_county_fallback(t)

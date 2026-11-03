@@ -49,6 +49,7 @@ import sys
 from sqlalchemy import func
 
 from app.models import Poi
+from app.services.poi_city import canonical_city, city_from_name
 from app.services.poi_seed import seed_upsert
 from app.services.product_filter import apply_product_filter, write_excluded_csv
 
@@ -132,8 +133,17 @@ def load_rows(csv_path: str) -> tuple[list[dict], int]:
         for raw in csv.DictReader(f):
             name = (raw.get("name_zh") or "").strip()
             src = grade_source(raw.get("grade"))
+            province = (raw.get("province") or "").strip()
             city = (raw.get("city") or "").strip()
-            city = city or (raw.get("province") or "").strip()
+            # city 缺省时先按名称显式前缀解析（`宁波市天一阁博物院`→宁波），
+            # 再退回 province——后者只有直辖市才等价于城市，普通省份会给
+            # 出行按城查池必 miss 的「省名 city」（2026-11-03 存量 805 行）。
+            city = (
+                city
+                or city_from_name(name, province)
+                or canonical_city(province)
+                or province
+            )
             if not name or src is None or not city:
                 invalid += 1
                 continue
@@ -145,7 +155,7 @@ def load_rows(csv_path: str) -> tuple[list[dict], int]:
                 {
                     "source": src,
                     "source_poi_id": slug_for_source(src, name),
-                    "city": city.removesuffix("市"),
+                    "city": canonical_city(city),
                     "name_zh": name,
                     "label": grade if grade in _TAGGED_GRADES else None,
                     "origin": (
