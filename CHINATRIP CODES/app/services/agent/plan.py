@@ -1386,12 +1386,18 @@ def _sibling_dup(a: str, b: str) -> bool:
     且至少一侧真的剥过（双侧裸名相等是 containment 的事，不重复受理）。
     刻意不挂进 _name_dup——心愿「大雁塔」不得被已排的「小雁塔」冒充
     覆盖（两个是不同的点，用户点名哪个就排哪个），只进站级判定
-    （_same_visit/_cand_twin/_dup_blocks_item）。"""
+    （_same_visit/_cand_twin/_dup_blocks_item）。
+    核心词前缀也对（2026-11-03 西安实录「你还是安排了大雁塔和小雁塔」）：
+    池行常是复合挂牌名「大雁塔大唐芙蓉园景区」——剥景区尾巴只掉尾巴，
+    「大雁塔+大唐芙蓉园」的配套词在中间剥不掉，核心词「雁塔大唐芙蓉园」
+    ≠「雁塔」漏判；短核心词是长核心词前缀（≥2 字）视同兄弟。"""
     ca, sa = _sibling_core(a)
     cb, sb = _sibling_core(b)
     if not (sa or sb):
         return False
-    return len(ca) >= 2 and ca == cb
+    if len(ca) < 2 or len(cb) < 2:
+        return False
+    return ca == cb or ca.startswith(cb) or cb.startswith(ca)
 
 
 def _name_dup(a: str, b: str) -> bool:
@@ -2107,6 +2113,19 @@ def _pref_category_hit(
     category = str(cand.get("category") or "").strip().lower()
     tags = " ".join(str(t) for t in (cand.get("tags") or [])).lower()
     return any(t in name or t == category or t in tags for t in tokens)
+
+
+def _same_category_full(cand: dict, picked: list[dict], span: int) -> bool:
+    """回填层品类多样性闸（与选点层 _cat_cap 同口径，2026-11-03 拍板
+    「尽量不要重复同一类型」）：候选品类在已选集合里已达
+    max(2, span//3) 家 → 池外回填不再补同类。选点层偏好命中的同类豁免，
+    回填不豁免——偏好点已在选点层放行，回填是补充通道，口径从严防
+    品类经回填返渗扎堆。"""
+    cat = str(cand.get("category") or "").strip()
+    if cat in ("", "attraction", "sight", "food", "entertainment"):
+        return False
+    cap = max(2, span // 3)
+    return sum(1 for s in picked if str(s.get("category") or "").strip() == cat) >= cap
 
 
 # 城市知识提示（用户拍板 2026-10-24：心愿单没写城市时先自己找——
@@ -6797,6 +6816,43 @@ class PlanningAgent:
             # 处理（F6 神龙峡假披露「无干日可排」案）。
             _pool_cap = span * 4
             pool = ordered[:_pool_cap]
+            # 品类多样性闸（2026-11-03 拍板「尽量不要重复同一类型」+
+            # 「为什么要安排那么多博物馆」）：非 attraction 观光品类同城
+            # 全程封顶 max(2, span//3)——museum 是数据源灌分最全的品类
+            # （rating/review 密集→池 quality 排序天然博物馆密集，西安
+            # 实录 4 会话全 3-4 家扎堆）；attraction 是粗粒度垃圾桶类
+            # （回民街/城墙/兵马俑同档）不设限，food/entertainment 另有
+            # 专属闸。偏好命中豁免（2026-10-31 拍板「偏好可以是同一类型
+            # 多个景点」）；用户点名必走组装层必去合并通道不受此闸。
+            # 超顶按池序（=tier 梯子）裁掉并披露。
+            _cat_cap = max(2, span // 3)
+            _cat_seen: dict[str, int] = {}
+            _cat_cut: list[str] = []
+            _cat_kept: list[tuple[int, dict]] = []
+            for p_ in pool:
+                cat = str(p_[1].get("category") or "").strip()
+                if cat in (
+                    "",
+                    "attraction",
+                    "sight",
+                    "food",
+                    "entertainment",
+                ) or _pref_hit(p_[1]):
+                    _cat_kept.append(p_)
+                    continue
+                n = _cat_seen.get(cat, 0)
+                if n >= _cat_cap:
+                    _cat_cut.append(str(p_[1].get("name") or ""))
+                    continue
+                _cat_seen[cat] = n + 1
+                _cat_kept.append(p_)
+            if _cat_cut:
+                pool = _cat_kept
+                if notes is not None:
+                    notes.append(
+                        f"{city}：同类景点已满{_cat_cap}家，"
+                        f"{'、'.join(_cat_cut)}让位其他类型"
+                    )
             # 博物馆孪生让位（2026-10-31 碑林拍板）：伞形景区行与博物馆
             # 本体同站在池时，景区行让位——「碑林博物馆优先于城墙·
             # 碑林历史文化景区」。
@@ -7566,6 +7622,11 @@ class PlanningAgent:
                         for s in day_specs.get(d, [])
                     ):
                         # 演出每场闸（2026-11-02）：该天已有演出不再补第二场
+                        continue
+                    _lo, _hi = ranges.get(city, (1, days))
+                    if _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
+                        # 品类多样性闸（2026-11-03）：同类已满 max(2,span//3)
+                        # 家不回填——museum 扎堆不经池外回填返渗
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
@@ -10721,8 +10782,15 @@ class PlanningAgent:
     @staticmethod
     def _edit_system_prompt(session: PlanSession) -> str:
         digest = _plan_digest(session.plan) if session.plan else "（空）"
+        # 偏好透传（2026-11-03「我说了尽量不要重复同一类型」事故）：clarify
+        # 轮存下的 session.preferences 此前只进初始选点 prompt，编辑轮
+        # system prompt 不含——用户在自由对话里说过的约束（不重复同类型/
+        # 少博物馆等）对编辑 LLM 不可见，12 条窗口滚出即蒸发。拼进编辑
+        # prompt 让每轮编辑都在偏好约束下出 diffs。
+        prefs = (session.preferences or "").strip()
+        pref_line = f"\n用户偏好（编辑须保持）：{prefs}\n" if prefs else ""
         return _with_lang(
-            f"{_EDIT_SYSTEM_PROMPT}\n当前行程（item_id 清单）：\n{digest}",
+            f"{_EDIT_SYSTEM_PROMPT}{pref_line}\n当前行程（item_id 清单）：\n{digest}",
             session,
         )
 
