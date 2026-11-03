@@ -235,7 +235,8 @@ async def poi_detail(
             tags = list(row.tags or [])
             if not {"unesco", "5a", "4a", "3a", "intl"} & set(tags):
                 heritage = [
-                    (hz, 4 if src == "unesco" else 3)
+                    # 档号随 2026-11-03 名录序（source_tier）：unesco=0、5a=1
+                    (hz, 0 if src == "unesco" else 1)
                     for hz, src in session.query(Poi.name_zh, Poi.source)
                     .filter(Poi.source.in_(["unesco", "5a"]))
                     .all()

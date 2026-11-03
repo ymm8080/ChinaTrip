@@ -90,7 +90,7 @@
 - **幂等语义**：判重键 (source, source_poi_id)，**只补新增不覆盖**；重跑安全。
 - **导入**：`python -m app.jobs.import_museum_grades --csv data/<file>.csv [--dry-run]`；新体系在 `_GRADE_SOURCE`/`_SOURCE_SLUG` 加映射；国际荐点走 `python -m app.jobs.import_intl_picks`（种子内嵌 `_INTL_PICKS`，归档快照 `POIS DATASOURCE/05_国际旅行网站荐点_TA-LP-Viator.csv`，改种子后重导）。
 - **EN 回填**：`backfill_en_columns --table pois --source <src>`（译不写、只填空）。
-- **读侧接线**：enrich 作业 `_SOURCE_PRIORITY`（现：unesco>5a>museum1>2>3>artmuseum>amap>chinatravel>osm）加新源；poi_details tier 体系按拍板并入（5A/4A 已预留）。
+- **读侧接线**：回填铁律 canonical order（CLAUDE.md Iron rule：`unesco>5a>museum1>2>3>artmuseum>street>histown>amap>chinatravel>osm`）唯一定义点=`app/services/source_tier.py` 的 `SOURCE_PRIORITY`，各回填 job 一律 import、不得手抄短表（池里有而铁律表没有的源在同 change 内尾部追加，如 ops 英文回填 `SOURCE_PRIORITY + ("show","baidu")`）。2026-11-03 名录序（08 世界遗产>02 5A>05 国际旅行网站>10 国际平台>11 短视频社媒>12 小红书>01 街区>04 风景名胜>13 4A）与三处消费口径（读侧 hit_tier / 规划选点 _source_tier / 字段回填 SOURCE_PRIORITY）全部取自该模块。tags_source 权威闸同模块 `TAGS_SOURCE_AUTHORITY`：官方 mct/mohurd(3) > show(2) > glm/ctrip 抽取(1) > 商业站点(0)，`tags_source_wins` 闸「导入不降权威」（新归因权威严格低于既有时不改写归因列，tags 并集照写）。poi_details tier 体系按拍板并入（5A/4A 已预留）。
 - **OPS**：定期核对在 5·18（博物馆日）/9 月（5A 公告季）/季度初；`ops/poi_museum_grades.cmd` 模式复制。
 
 ## 6. 路线图

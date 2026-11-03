@@ -85,9 +85,10 @@ class VisitItem(BaseModel):
     # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
     # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
     rain_ok: str | None = None
-    # 候选源档（_source_tier 1=UNESCO..9=other，plan.py 装配期透传）：
-    # 边日轻重拍板（2026-11-03「重要景点不放在到达/离开日」）靠它认
-    # 重磅（≤4）与轻 CityWalk（7=街区）；None=占位/老数据按中档处理。
+    # 候选源档（_source_tier 1=UNESCO..11=other，2026-11-03 名录序，
+    # plan.py 装配期透传）：边日轻重拍板（2026-11-03「重要景点不放在
+    # 到达/离开日」）靠它认重磅（≤4）与轻 CityWalk（8=街区）；
+    # None=占位/老数据按中档处理。
     tier: int | None = None
 
 

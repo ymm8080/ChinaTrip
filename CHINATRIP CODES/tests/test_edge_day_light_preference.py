@@ -2,8 +2,8 @@
 """2026-11-03 拍板「重要景点不要放在到达和离开的那天，那两天适合轻松的
 CityWalk（回民街式街区）或 SHOW」回归：
 
-1. 选层认领分区：tier≤4 重磅让开转场日（有整天优先），tier7 街区
-   反向优先转场日。
+1. 选层认领分区：tier≤4 重磅让开转场日（有整天优先），tier8 街区
+   反向优先转场日（2026-11-03 名录序后街区=8）。
 2. 主环同口径：未被预占的重磅落上转场日时让位（PRIORITY_EARLY=off
    路径）。
 3. 软偏好不拦可行性：全程皆转场日（短程多城）重磅照排。
@@ -136,7 +136,7 @@ def test_scorer_counts_each_heavy():
 
 
 def test_scorer_street_and_none_tier_exempt():
-    street = _visit("v1", tier=7)
+    street = _visit("v1", tier=8)
     unknown = _visit("v2")
     day = DayPlan(day=1, base_city="成都", items=[street, unknown, _leg()])
     sc = plan_score(_plan([day]))

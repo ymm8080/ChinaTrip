@@ -104,6 +104,10 @@ from app.services.restaurants import (
 from app.services.restaurants import (
     amap_category_is_food as _amap_category_is_food,
 )
+
+# 名录档位共享模块（2026-11-03 全站唯一定义点）：_source_tier 判档走
+# catalog_rank，本地不再抄一套 intl 站点/平台枚举
+from app.services.source_tier import catalog_rank
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
 from app.services.trip_items import (
     STATUS_SCHEDULED,
@@ -199,33 +203,6 @@ _TRAVEL_LEG_CAP_MIN = TRAVEL_LEG_CAP_MIN
 # 雨日救援的预算闸允许噪声级超额——走行腿估算留在日载荷里的十几分
 # 钟，不该把「有雨自动排室内」卡死在「点名不排/保持原排」上。
 RAIN_SWAP_BUDGET_SLACK_MIN = 30
-
-
-_INTL_SITE_SOURCES = {"tripadvisor", "lonelyplanet", "viator"}
-_INTL_PLATFORM_SOURCES = {
-    "sygic",
-    "klook",
-    "tui",
-    "kkday",
-    "waug",
-    "mindtrip",
-    "layla",
-    "tiktok",
-    "jtb",
-    "his",
-}
-_INTL_SITE_TAGS = {"ta", "lp", "viator"}
-_INTL_PLATFORM_TAGS = {
-    "intl",
-    "sygic",
-    "klook",
-    "tui",
-    "kkday",
-    "waug",
-    "mindtrip",
-    "layla",
-    "tiktok",
-}
 
 
 def _cand_is_show(cand: dict) -> bool:
@@ -333,41 +310,26 @@ def _priority_early_enabled() -> bool:
 
 
 def _source_tier(cand: dict) -> int:
-    """首次到访候选优先级（2026-10-28 用户拍板）：
+    """首次到访候选优先级（2026-11-03 名录序拍板，档号 1=unesco..11=other）：
 
-    08 UNESCO > 02 5A > 05 国际旅行网站 > 10 国际平台 > 04 演艺演出 >
-    12 小红书 > 01 国家级旅游休闲街区 > 国家级风景名胜区 > 其他（库序）。
-    source 列为主，跨源并库的 tags（ta/lp/intl/sygic…）兜底；
-    演出档判定走 _cand_is_show（tags show 同档，2026-10-29）。
+    08 世界遗产 > 02 5A > 05 国际旅行网站 > 10 国际平台 > 11 短视频 >
+    演出 > 12 小红书 > 01 街区 > 04 风景名胜 > 13 4A > 其他（库序）。
+    名录判定走共享模块 catalog_rank（app/services/source_tier.py，全站
+    唯一定义点；unesco_* 前缀族视同全量世遗——2026-11-02 大雁塔事故
+    修复口径共享）。「世界遗产」字面标签兜底同世遗档；演出档（6）不在
+    名录序，维持旧梯子位次（短视频与小红书之间，2026-10-29 起
+    _cand_is_show tags show 同档）。
     """
-    source = str(cand.get("source") or "").strip().lower()
-    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
-    joined = " ".join(tags)
-    if (
-        source == "unesco"
-        or any(t.startswith("unesco") for t in tags)
-        or "世界遗产" in joined
-    ):
-        # unesco_* 前缀=世界遗产族（丝路点段/明清陵寝/南方喀斯特等
-        # 跨省系列的点段代表行，来源 5a/4a/relicpark/amap 多样），与
-        # 全量世遗同档——不认前缀则点段世遗身份进不了梯子
-        # （2026-11-02 大雁塔落选、未央宫入选事故）。
+    r = catalog_rank(cand.get("source"), cand.get("tags"))
+    if r is not None:
+        # 名录档序号 0 起（0=unesco…8=4a）映射到选点梯子 1..10（演出占 6）
+        return (1, 2, 3, 4, 5, 7, 8, 9, 10)[r]
+    joined = " ".join(str(t).strip().lower() for t in (cand.get("tags") or []))
+    if "世界遗产" in joined:
         return 1
-    if source == "5a" or "5a" in tags:
-        return 2
-    if source in _INTL_SITE_SOURCES or tags & _INTL_SITE_TAGS:
-        return 3
-    if source in _INTL_PLATFORM_SOURCES or tags & _INTL_PLATFORM_TAGS:
-        return 4
     if _cand_is_show(cand):
-        return 5
-    if source == "xiaohongshu" or "xiaohongshu" in tags or "小红书" in joined:
         return 6
-    if source == "street" or "街区" in joined:
-        return 7
-    if source == "scenic" or "风景名胜" in joined:
-        return 8
-    return 9
+    return 11
 
 
 def _leg_date_iso(start_date: str | None, day: int) -> str:
@@ -1730,7 +1692,7 @@ def _museum_shadow_pairs(
             if i == j or j in shadowed or _museum_cand(b):
                 continue
             # tier 护栏（2026-11-01 明星伞形保护）：博物馆档位弱于景区时
-            # 不让位——熊猫博物馆(tier9) 不影子 5A 熊猫繁育基地(tier2)、
+            # 不让位——熊猫博物馆(tier11) 不影子 5A 熊猫繁育基地(tier2)、
             # 颐和园博物馆不影子 unesco 颐和园（博物馆是附属，伞形才是
             # 正主）；同档/更强照常让位（碑林/秦陵/大足语义不变）。
             if _source_tier(a) > _source_tier(b):
@@ -2500,9 +2462,9 @@ def _reconcile_transfer_days(
         ]
         if tier_by_name:
             # 完整优先级梯子先挑位（2026-11-02「尽早安排」拍板，
-            # 不止 tier1）：搁浅搬迁顺序按 tier 1→9 升序——同抢
-            # 前一天余位时高档先挑。
-            stranded.sort(key=lambda v: tier_by_name.get(v.name, 9))
+            # 不止 tier1）：搁浅搬迁顺序按 tier 1→11 升序——同抢
+            # 前一天余位时高档先挑（11=未分层垫底）。
+            stranded.sort(key=lambda v: tier_by_name.get(v.name, 11))
         protected_stranded: list[str] = []
         for visit in stranded:
             if visit.name in protect:
@@ -2619,7 +2581,7 @@ def _reconcile_transfer_days(
                 # 到达侧同理：按 tier 1→9 升序认领落地后第一天余位
                 # （兵马俑被低档小点抢先占位后甩到行程尾部的事故
                 # 形态）——完整梯子，不止 tier1。
-                arr_pool.sort(key=lambda v: tier_by_name.get(v.name, 9))
+                arr_pool.sort(key=lambda v: tier_by_name.get(v.name, 11))
             arr_stranded: list[VisitItem] = []
             kept_load = 0
             for v in arr_pool:
@@ -7083,7 +7045,7 @@ class PlanningAgent:
                     # 边日轻重（2026-11-03 拍板「重要景点不放在到达/
                     # 离开日，那两天适合 CityWalk/演出」）：认领天序在
                     # 同簇偏好之后按档位再分区——tier≤4 重磅压到无转场
-                    # 腿的整天（回民街式街区 tier7 反向让位转场日）。
+                    # 腿的整天（回民街式街区 tier8 反向让位转场日）。
                     # 软偏好：eligible 全是转场日（短程多城）或无信号
                     # 档不变形，排得上优先于排得轻。
                     _tier = _source_tier(cand)
@@ -7092,7 +7054,7 @@ class PlanningAgent:
                             order = [d for d in order if d not in _tdays] + [
                                 d for d in order if d in _tdays
                             ]
-                        elif _tier == 7:
+                        elif _tier == 8:
                             order = [d for d in order if d in _tdays] + [
                                 d for d in order if d not in _tdays
                             ]
@@ -8244,7 +8206,7 @@ class PlanningAgent:
                     # 8.1.4：露天属性透传（H5 雨天横幅用）
                     rain_ok=(cand or {}).get("rain_ok"),
                     # 边日轻重（2026-11-03 拍板）：候选源档随条目透传——
-                    # tier≤4=重磅（避开转场日）、7=街区轻 CityWalk（边日
+                    # tier≤4=重磅（避开转场日）、8=街区轻 CityWalk（边日
                     # 优先）；占位候选（cand=None）无档按中档处理
                     tier=(_source_tier(cand) if cand else None),
                     day=spec["day"],

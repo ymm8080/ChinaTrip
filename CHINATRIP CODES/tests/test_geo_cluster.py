@@ -107,4 +107,4 @@ def test_source_tier_silk_road_component_top_ladder():
         _source_tier({"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"]}) == 1
     )
     assert _source_tier({"source": "5a", "tags": ["5a"]}) == 2
-    assert _source_tier({"source": "relicpark", "tags": ["relicpark"]}) == 9
+    assert _source_tier({"source": "relicpark", "tags": ["relicpark"]}) == 11

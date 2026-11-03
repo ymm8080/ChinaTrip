@@ -180,7 +180,7 @@ def plan_score(
                 1
                 for v in visits
                 if not v.pinned
-                and (v.tier or 9) <= 4
+                and (v.tier or 11) <= 4
                 and str(v.category or "") not in ("food", "hotel", "entertainment")
                 and str(v.best_visit_time or "") != "show"
             )
