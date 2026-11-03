@@ -175,6 +175,19 @@ def test_lns_identity_on_green_plan():
                 start_time=time(14, 0),
                 end_time=time(15, 0),
             ),
+            # 2026-11-03 拍板「每个行程都要有一场娱乐」：无演出的形态
+            # 吃 -40 软罚，绿色样板补晚场（entertainment 不进 LNS 算子）。
+            VisitItem(
+                item_id="s",
+                name="s",
+                city="西安",
+                day=1,
+                category="entertainment",
+                duration_minutes=80,
+                start_time=time(19, 30),
+                end_time=time(20, 50),
+                best_visit_time="show",
+            ),
         ],
     )
     plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])

@@ -16,7 +16,10 @@
   最差活动日负载距 180 的缺口，交通日豁免，需 ≥2 个活动日，上限
   -15）；上午超点 -12/个（2026-11-03 拍板「上午一般只排一个点」：
   <12:00 开场的非餐/非酒店点超出 1 个的部分，与 blank_morning 合成
-  「上午恰一个点」双向口径）。
+  「上午恰一个点」双向口径）；零娱乐 -40/程（2026-11-03 拍板「每个
+  行程都要有一场娱乐」：全程无 entertainment/演出条目计一次，行程
+  含游览点才计——纯交通/占位形态不罚；候选层无演出供应的城市由
+  选点层披露，本罚只对「该有而没排」的形态）。
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ PEN_RAIN_PARTIAL = 10
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
 PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
+PEN_NO_ENTERTAINMENT = 40  # 零娱乐：整程无演出/娱乐条目（2026-11-03 拍板）
 
 
 @dataclass
@@ -107,6 +111,8 @@ def plan_score(
     lunch_drift_pen = 0
     lunch_drift_min = 0
     morning_crowd = 0
+    entertainment = 0
+    has_sights = False
     act_loads: list[int] = []
     for day in plan.days:
         city = str(day.base_city or "").removesuffix("市")
@@ -120,6 +126,16 @@ def plan_score(
         )
         if has_activity and not _morning_occupied(day):
             blank += 1
+        # 零娱乐（2026-11-03 拍板）：与 solver._is_show 同口径——
+        # category=entertainment 或 best_visit_time=show；行程含游览点
+        # 才计（纯交通/占位形态不罚）。
+        entertainment += sum(
+            1
+            for v in visits
+            if str(v.category or "") == "entertainment"
+            or str(v.best_visit_time or "") == "show"
+        )
+        has_sights = has_sights or has_activity
         # 上午一个点（2026-11-03 拍板「上午一般只排一个点」）：晨点
         # （<12:00 开场、非餐/非酒店）超出 1 个的部分计软罚；用户自钉
         # 且有时刻不计（铁律 19 用户安排，同 solver._is_morning_site 口径）。
@@ -209,6 +225,9 @@ def plan_score(
         "lunch_drift": -lunch_drift_pen,
         "day_balance": -balance_pen,
         "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
+        "no_entertainment": (
+            -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
+        ),
     }
     sc.counts = {
         "untimed": untimed,
@@ -222,6 +241,7 @@ def plan_score(
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
         "morning_crowd": morning_crowd,
+        "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }
     return sc

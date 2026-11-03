@@ -43,6 +43,8 @@ def _plan(days):
 
 
 def _good_day():
+    # 2026-11-03 拍板「每个行程都要有一场娱乐」：好计划样板含晚场演出
+    # （零娱乐 -40 软罚上线后，无娱乐形态不再是零分好计划）。
     return DayPlan(
         day=1,
         base_city="西安",
@@ -50,6 +52,14 @@ def _good_day():
             _v("a", dur=120, start=time(9, 0), end=time(11, 0)),
             _lunch(),
             _v("b", dur=60, start=time(14, 0), end=time(15, 0)),
+            _v(
+                "show",
+                dur=80,
+                cat="entertainment",
+                start=time(19, 30),
+                end=time(20, 50),
+                best_visit_time="show",
+            ),
         ],
     )
 
