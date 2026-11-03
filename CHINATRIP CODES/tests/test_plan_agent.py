@@ -528,7 +528,9 @@ def test_v0_amap_transfer_and_solved_schedule():
     dep, hop, ret = transfers
     assert (dep.from_city, dep.to_city, dep.day) == ("上海", "杭州", 1)
     assert dep.mode == "train"
-    assert dep.train_no == "G7351"
+    # 08:00 闸（2026-11-03 拍板「火车 start time start from 8AM」）：
+    # G7351 07:15 出局，G7503 12:10 当选。
+    assert dep.train_no == "G7503"
     assert (hop.from_city, hop.to_city, hop.day) == ("杭州", "苏州", 2)
     assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
     assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
@@ -1225,9 +1227,10 @@ def test_message_move_diff_changes_plan_and_reports_change():
 
 
 def test_selfrepair_recovers_from_hard_violation():
-    # Day 1 carries the 上海→杭州 train (07:15-08:16; 落地首停 2026-11-01:
-    # 入住卡 09:46-10:46，首个观光 ≥10:46=落地+150)；the first diff retimes
-    # 西湖 to 09:00 -> violation -> repair round fixes it.
+    # Day 1 carries the 上海→杭州 train (08:00 闸后当选 G7503 12:10-13:14；
+    # 落地首停 2026-11-01: 入住卡 14:44-15:44，首个观光 ≥15:44=落地+150)；
+    # the first diff retimes 西湖 to 09:00 -> violation -> repair round fixes
+    # it (16:00 过 15:44 地板且不撞 16:30 起始闸).
     items = [
         {
             "name": "西湖",
@@ -1251,7 +1254,7 @@ def test_selfrepair_recovers_from_hard_violation():
                 "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
             ),
             repair_reply(
-                [{"op": "retime", "item_id": "v1", "new_start_time": "14:00"}]
+                [{"op": "retime", "item_id": "v1", "new_start_time": "16:00"}]
             ),
         ]
     )
@@ -1267,7 +1270,7 @@ def test_selfrepair_recovers_from_hard_violation():
     session, reply, change = run(agent.message(session, "西湖改到九点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
-    assert item.start_time == time(14, 0)
+    assert item.start_time == time(16, 0)
     assert change is not None
     assert not hard_errors(session)
 

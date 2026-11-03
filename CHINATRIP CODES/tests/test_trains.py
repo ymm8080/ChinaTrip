@@ -113,10 +113,37 @@ def test_mock_date_is_pure_passthrough():
 
 
 def test_pick_best_no_window_takes_earliest():
+    # 2026-11-03 拍板「火车最早 08:00 出发」：G1 07:00 落闸外，G3 09:00 当选。
     best = asyncio.run(pick_best_train(SERVICE, "北京", "上海", DATE))
     assert best is not None
-    assert best.train_no == "G1"
-    assert best.dep_time == time(7, 0)
+    assert best.train_no == "G3"
+    assert best.dep_time == time(9, 0)
+
+
+def test_pick_best_floor_boundary_exactly_0800_qualifies():
+    # 闸含端点：恰在 08:00 整点出发的 G88 可选。
+    best = asyncio.run(pick_best_train(SERVICE, "西安", "北京", DATE))
+    assert best is not None
+    assert best.train_no == "G88"
+    assert best.dep_time == time(8, 0)
+
+
+def test_pick_best_all_trains_before_floor_returns_none():
+    # 全天只剩闸早班车：返回 None 交上层降级（汽车/航班占位），
+    # 绝不静默换一张 08:00 前的票。
+    early = TrainOption(
+        train_no="G0",
+        dep_time=time(7, 15),
+        arr_time=time(8, 16),
+        duration_minutes=61,
+        from_station="上海虹桥",
+        to_station="杭州东",
+        from_city="上海",
+        to_city="杭州",
+        date=DATE,
+    )
+    best = asyncio.run(pick_best_train(StubTrainService([early]), "上海", "杭州", DATE))
+    assert best is None
 
 
 def test_pick_best_window_hits_only_in_window():
@@ -144,7 +171,7 @@ def test_pick_best_window_prefers_closest_to_window_start():
         )
     )
     assert best is not None
-    assert best.train_no == "G1"  # earliest of G1/G3/G5 = closest to 06:00
+    assert best.train_no == "G3"  # 06:00 窗开在闸前，下限抬到 08:00 → 窗内最早 G3
 
 
 def test_pick_best_window_without_trains_returns_none():
@@ -172,11 +199,11 @@ def test_pick_best_window_boundaries_are_inclusive():
             "北京",
             "上海",
             DATE,
-            preferred_window=(time(7, 0), time(7, 0)),
+            preferred_window=(time(9, 0), time(9, 0)),
         )
     )
     assert best is not None
-    assert best.train_no == "G1"
+    assert best.train_no == "G3"
 
 
 # --- build_transfer_item ---
@@ -201,10 +228,11 @@ def test_build_transfer_item_fills_fields():
     assert item.from_city == "北京"
     assert item.to_city == "上海"
     assert item.mode == "train"
-    assert item.start_time == time(7, 0)
-    assert item.end_time == time(11, 30)
-    assert item.duration_minutes == 270
-    assert item.train_no == "G1"
+    # 08:00 闸（2026-11-03）：G1 07:00 出局，G3 09:00→13:36 当选。
+    assert item.start_time == time(9, 0)
+    assert item.end_time == time(13, 36)
+    assert item.duration_minutes == 276
+    assert item.train_no == "G3"
 
 
 def test_build_transfer_item_respects_window():

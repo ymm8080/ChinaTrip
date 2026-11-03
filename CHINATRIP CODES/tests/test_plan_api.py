@@ -884,16 +884,16 @@ def test_delete_guard_chain_400_404():
 # --- POST /plan/{id}/items/{item_id}/move（2026-10-24 规划页拖拽）-----------
 
 
-def _append_day1_visit(session, item_id: str, name: str, h: int, m: int, dur: int):
+def _append_visit(session, day: int, item_id: str, name: str, h: int, m: int, dur: int):
     from datetime import time as dtime
 
-    day1 = next(d for d in session.plan.days if d.day == 1)
-    day1.items.append(
+    target = next(d for d in session.plan.days if d.day == day)
+    target.items.append(
         VisitItem(
             item_id=item_id,
             name=name,
             city="杭州",
-            day=1,
+            day=day,
             start_time=dtime(h, m),
             end_time=dtime(h + dur // 60, m + dur % 60),
             duration_minutes=dur,
@@ -926,17 +926,19 @@ def test_move_same_day_reorder_resequences_times():
     sid = body["session_id"]
     store = app.dependency_overrides[get_plan_sessions]()
     session = store.get(sid, device_id="device-1")
-    _append_day1_visit(session, "v2", "灵隐寺", 13, 0, 90)
-    _append_day1_visit(session, "v3", "河坊街", 16, 0, 60)
+    # 08:00 火车闸（2026-11-03）：day1 火车改 12:10-13:14 抵，落地后仅容
+    # 一个白天点——同日重排机制改挂无转场的 day2 全天验证。
+    _append_visit(session, 2, "v4", "灵隐寺", 13, 0, 90)
+    _append_visit(session, 2, "v5", "河坊街", 16, 0, 60)
     resp = client.post(
-        f"/api/v1/plan/{sid}/items/v3/move",
-        json={"day": 1, "after_item_id": "v1"},
+        f"/api/v1/plan/{sid}/items/v5/move",
+        json={"day": 2, "after_item_id": "v2"},
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
-    visits = _day_visits(data, 1)
-    assert [v["item_id"] for v in visits] == ["v1", "v3", "v2"]
+    visits = _day_visits(data, 2)
+    assert [v["item_id"] for v in visits] == ["v2", "v5", "v4"]
     slots = [(v["start_time"], v["end_time"]) for v in visits]
     assert all(s[0] and s[1] for s in slots)  # 全部重排后有时间
     assert all(a[1] <= b[0] for a, b in zip(slots, slots[1:]))  # 时链单调不重叠
@@ -949,22 +951,24 @@ def test_move_cross_day_to_head():
         client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
     ).json()
     sid = body["session_id"]
+    # 08:00 火车闸（2026-11-03）：day1 落地后仅容一个点，跨天挪头改挂
+    # day1→day2 方向（西湖挪去 day2 头部）。
     resp = client.post(
-        f"/api/v1/plan/{sid}/items/v2/move",
-        json={"day": 1, "after_item_id": None},
+        f"/api/v1/plan/{sid}/items/v1/move",
+        json={"day": 2, "after_item_id": None},
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert _visit(data, "雷峰塔")["day"] == 1
-    assert not _day_visits(data, 2)  # 原天不再有景点
-    names1 = [v["item_id"] for v in _day_visits(data, 1)]
-    assert names1 == ["v2", "v1"]  # after=None → 插到当天第一个景点前
+    assert _visit(data, "西湖")["day"] == 2
+    assert not _day_visits(data, 1)  # 原天不再有景点
+    names2 = [v["item_id"] for v in _day_visits(data, 2)]
+    assert names2 == ["v1", "v2"]  # after=None → 插到当天第一个景点前
     slots = {
-        v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 1)
+        v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 2)
     }
     assert all(s[0] and s[1] for s in slots.values())
-    assert slots["v2"][1] <= slots["v1"][0]  # 时链单调
+    assert slots["v1"][1] <= slots["v2"][0]  # 时链单调
 
 
 def test_move_pinned_item_returns_422():
@@ -1120,19 +1124,20 @@ def test_retime_sets_anchor_and_resequences_day():
     sid = body["session_id"]
     store = app.dependency_overrides[get_plan_sessions]()
     session = store.get(sid, device_id="device-1")
-    _append_day1_visit(session, "v2", "灵隐寺", 13, 0, 90)
-    _append_day1_visit(session, "v3", "河坊街", 16, 0, 60)
+    # 08:00 火车闸（2026-11-03）：day1 落地后只剩半个下午，锚点改挂
+    # 无转场的 day2。
+    _append_visit(session, 2, "v4", "河坊街", 16, 0, 60)
     resp = client.post(
-        f"/api/v1/plan/{sid}/items/v3/retime",
+        f"/api/v1/plan/{sid}/items/v4/retime",
         json={"start_time": "13:30"},
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
-    v3 = _visit(data, "河坊街")
-    assert v3["start_time"] == "13:30:00"
-    assert v3["end_time"] == "14:30:00"
-    visits = _day_visits(data, 1)
+    v4 = _visit(data, "河坊街")
+    assert v4["start_time"] == "13:30:00"
+    assert v4["end_time"] == "14:30:00"
+    visits = _day_visits(data, 2)
     starts = [v["start_time"] for v in visits if v["start_time"]]
     assert starts == sorted(starts)  # 当天展示顺序=时间顺序
     assert all(v["start_time"] for v in visits)  # 其余景点全部重排出时间

@@ -649,6 +649,13 @@ def get_train_service(settings) -> TrainService:
     return _train_service_singleton
 
 
+# 2026-11-03 用户拍板「火车 start time start from 8AM」：行程里火车最早
+# 08:00 出发（外国游客不赶天没亮的早班车；与白天景点 16:30 起始闸同族的
+# 全日型闸）。选班层全局生效——只在挑班时过滤，search 层不过滤（提醒/
+# 缓存仍要看到真实全表：用户自己买好的 7:30 班次照样要提醒）。
+_EARLIEST_TRAIN_DEPARTURE = time(8, 0)
+
+
 async def pick_best_train(
     service: TrainService,
     from_city: str,
@@ -659,16 +666,24 @@ async def pick_best_train(
 ) -> TrainOption | None:
     """Best train of the day.
 
-    With a preferred window: the departure closest to the window start among
-    trains departing inside the window. Without: the earliest departure.
-    A given window with no in-window train returns None — the caller
+    Earliest-departure floor 08:00 (2026-11-03 ruling): trains departing
+    before 08:00 never qualify, window or not — a window that opens earlier
+    has its lower bound lifted to the floor. With a preferred window: the
+    earliest departure inside the window. Without: the earliest departure
+    of the day at or after 08:00. A given window with no in-window train
+    (or a day whose only trains are pre-08:00) returns None — the caller
     degrades (e.g. hands off to 12306 without a pre-picked train); we never
-    silently substitute a train from outside the window.
+    silently substitute a train from outside the window or before the floor.
     """
-    options = await service.search(from_city, to_city, date)
+    options = [
+        o
+        for o in await service.search(from_city, to_city, date)
+        if o.dep_time >= _EARLIEST_TRAIN_DEPARTURE
+    ]
     if preferred_window is None:
         return min(options, key=lambda o: o.dep_time) if options else None
     lo, hi = preferred_window
+    lo = max(lo, _EARLIEST_TRAIN_DEPARTURE)
     in_window = [o for o in options if lo <= o.dep_time <= hi]
     return min(in_window, key=lambda o: o.dep_time) if in_window else None
 
