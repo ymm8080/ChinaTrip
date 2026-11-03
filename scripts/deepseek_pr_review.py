@@ -9,7 +9,7 @@ Environment variables (set by the workflow):
     GITHUB_TOKEN: GitHub token for posting comments
     GITHUB_REPOSITORY: owner/repo (e.g. "user/aminqt")
     PR_NUMBER: Pull request number
-    LLM_MODEL: Model name (e.g. "glm-4.6" or "deepseek-chat")
+    LLM_MODEL: Model name (e.g. "glm-5.3-flash" or "deepseek-chat")
     LLM_BASE_URL: API base URL (e.g. "https://open.bigmodel.cn/api/coding/paas/v4")
     LLM_PROVIDER: Provider name ("glm" or "deepseek"), controls param format
 
@@ -214,7 +214,7 @@ def review_with_deepseek(
     Args:
         diff: PR diff text.
         api_key: LLM API key.
-        model: Model name (e.g. "glm-4.6" or "deepseek-chat").
+        model: Model name (e.g. "glm-5.3-flash" or "deepseek-chat").
         base_url: API base URL (without ``/chat/completions`` suffix).
         provider: "deepseek" or "glm" — controls param format (thinking
             mode, response_format support).
@@ -586,7 +586,8 @@ def main():
     repo = _sanitize_header(os.environ.get("GITHUB_REPOSITORY", ""))
     pr_number = _sanitize_header(os.environ.get("PR_NUMBER", ""))
     model = _sanitize_header(
-        os.environ.get("LLM_MODEL", "") or os.environ.get("DEEPSEEK_MODEL", "glm-4.6")
+        os.environ.get("LLM_MODEL", "")
+        or os.environ.get("DEEPSEEK_MODEL", "glm-5.3-flash")
     )
     base_url = _sanitize_header(
         os.environ.get("LLM_BASE_URL", "")
