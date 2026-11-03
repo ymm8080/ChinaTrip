@@ -2119,9 +2119,9 @@ def _pref_category_hit(
 def _same_category_full(cand: dict, picked: list[dict], span: int) -> bool:
     """回填层品类多样性闸（与选点层 _cat_cap 同口径，2026-11-03 拍板
     「尽量不要重复同一类型」）：候选品类在已选集合里已达
-    max(2, span//3) 家 → 池外回填不再补同类。选点层偏好命中的同类豁免，
-    回填不豁免——偏好点已在选点层放行，回填是补充通道，口径从严防
-    品类经回填返渗扎堆。"""
+    max(2, span//3) 家 → 池外回填不再补同类。偏好命中由调用方豁免
+    （2026-11-03 拍板「喜欢某个类型则可以有很多」——偏好优先于默认
+    封顶，回填同口径豁免）。"""
     cat = str(cand.get("category") or "").strip()
     if cat in ("", "attraction", "sight", "food", "entertainment"):
         return False
@@ -3623,6 +3623,10 @@ class PlanSession(BaseModel):
     resto_asked: list[str] = Field(default_factory=list)  # anti re-ask loop
     # 心愿城市追问队列（2026-10-24）：解析落空的专名心愿，等用户下一条消息
     pending_wish_cities: list[str] = Field(default_factory=list)
+    # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆可以问用户」）：品类
+    # 封顶裁掉的世界遗产/5A 同类行，问答式让用户裁定要不要多排——偏好
+    # 命中的答复并入 preferences 并自动重排（偏好优先于默认封顶）
+    pending_type_ask: list[dict] = Field(default_factory=list)
     # 心愿行挂过的行程 id（2026-10-30 深夜）：重组换 id 后允许重挂到当前
     linked_itins: list[str] = Field(default_factory=list)
     # 心愿→真实 POI 绑定（2026-10-30 深夜）：跨回合持久（agent 按请求新
@@ -5400,6 +5404,7 @@ class PlanningAgent:
                 transfer_days.add(clo)
             transfer_days.add(session.days)
         select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
+        type_asks: list[dict] = []
         if select_mode == "llm":
             picked, llm_assumptions, llm_ok = await self._select_pois(
                 candidates, session.days, session.preferences, ranges, session.lang
@@ -5427,6 +5432,7 @@ class PlanningAgent:
                 light_rain_days=light_rain_map,
                 notes=rain_notes,
                 preferences=session.preferences,
+                type_asks=type_asks,
             )
             llm_assumptions = [
                 L(
@@ -5494,6 +5500,7 @@ class PlanningAgent:
             transfer_days=transfer_days,
             rain_days=rain_map,
             origin_city=session.cities[0] if len(session.cities) > 1 else None,
+            preferences=session.preferences,
         )
         for zh_note, en_note in rebalance_notes:
             llm_assumptions.append(L(zh_note, en_note))
@@ -5552,6 +5559,26 @@ class PlanningAgent:
             session.state = "resto_confirm"
             session.history.append(
                 ChatMessage(role="assistant", content=self._resto_question(far))
+            )
+        if type_asks:
+            # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆可以问用户」）：
+            # 品类封顶只是默认，偏好优先——高档同类被裁不静默，问答式让
+            # 用户裁定；偏好答复在 _apply_conversation 入口解析并自动重排
+            session.pending_type_ask = type_asks
+            _ask_names = "、".join(a["name"] for a in type_asks)
+            session.history.append(
+                ChatMessage(
+                    role="assistant",
+                    content=L(
+                        f"为避免行程同类扎堆，{_ask_names}（世界遗产/5A "
+                        "档同类）默认未排入。喜欢这一类想多排几家吗？回复"
+                        "告诉我（如「喜欢博物馆，多排几家」），我按偏好重排。",
+                        f"To keep the trip varied, {_ask_names} (UNESCO/5A of "
+                        "their type) were held back by the same-type default. "
+                        "Want more of this type? Reply (e.g. 'I love museums, "
+                        "add more') and I'll re-plan with your preference.",
+                    ),
+                )
             )
         return session
 
@@ -6691,6 +6718,7 @@ class PlanningAgent:
         light_rain_days: dict[str, set[int]] | None = None,
         notes: list[str] | None = None,
         preferences: str = "",
+        type_asks: list[dict] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -6915,6 +6943,20 @@ class PlanningAgent:
                 n = _cat_seen.get(cat, 0)
                 if n >= _cat_cap:
                     _cat_cut.append(str(p_[1].get("name") or ""))
+                    _tags_l = {str(t).lower() for t in (p_[1].get("tags") or [])}
+                    if _tags_l & {"5a", "unesco"} and type_asks is not None:
+                        # 同档同类让位待问（2026-11-03 拍板「三个5A博物馆
+                        # 可以问用户」+「4a is not preferred sites」）：只
+                        # 世界遗产/5A 同类裁掉才追问；4A 不算优先档，裁掉
+                        # 维持披露不待问
+                        type_asks.append(
+                            {
+                                "city": city,
+                                "name": str(p_[1].get("name") or ""),
+                                "category": cat,
+                                "tags": sorted(_tags_l & {"5a", "unesco"}),
+                            }
+                        )
                     continue
                 _cat_seen[cat] = n + 1
                 _cat_kept.append(p_)
@@ -7000,6 +7042,8 @@ class PlanningAgent:
             preclaimed: set[int] = set()
             # 归属跟随账本：天 → 首开簇（地理最近拍板的落位依据）
             day_owner: dict[int, int | None] = {}
+            # 边日轻重分区（2026-11-03 拍板）与空天保底共用：转场日集
+            _tdays = transfer_days or frozenset()
             if _priority_early_enabled():
                 # 地理归属跟随（2026-11-02 拍板链「全部优先级都要
                 # 考虑」+「调剂要考虑地理位置最近」）：优先级池序
@@ -7036,6 +7080,22 @@ class PlanningAgent:
                         # 簇），其余按日序——无主天不再前置（会把新
                         # 簇推去更晚天，乙园簇/东方明珠案）。
                         order = kin + [d for d in eligible if d not in kin]
+                    # 边日轻重（2026-11-03 拍板「重要景点不放在到达/
+                    # 离开日，那两天适合 CityWalk/演出」）：认领天序在
+                    # 同簇偏好之后按档位再分区——tier≤4 重磅压到无转场
+                    # 腿的整天（回民街式街区 tier7 反向让位转场日）。
+                    # 软偏好：eligible 全是转场日（短程多城）或无信号
+                    # 档不变形，排得上优先于排得轻。
+                    _tier = _source_tier(cand)
+                    if _tdays and len(eligible) > 1:
+                        if _tier <= 4:
+                            order = [d for d in order if d not in _tdays] + [
+                                d for d in order if d in _tdays
+                            ]
+                        elif _tier == 7:
+                            order = [d for d in order if d in _tdays] + [
+                                d for d in order if d not in _tdays
+                            ]
                     for day in order:
                         load = day_loads[day]
                         leg = _leg_min(xy, day)
@@ -7075,7 +7135,6 @@ class PlanningAgent:
                 # 填线（270' 均衡线）/LNS 兜底（test_algo_respects_
                 # city_windows [1,1,1,1] 形态）。雨闸照收，预算软闸
                 # 照排，4 点日闸照硬。
-                _tdays = transfer_days or frozenset()
                 for d_empty in range(lo, hi + 1):
                     if (
                         day_loads[d_empty][1] > 0
@@ -7113,6 +7172,27 @@ class PlanningAgent:
                 cid = clusters[pos]
                 xy = _cxy(cand)
                 day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
+                # 边日轻重（2026-11-03 拍板）：主环未被预占的重磅
+                # （tier≤4）落上转场日且有非转场日装得下时让位——与
+                # 预占位分区同口径；演出不参与（钉日/晚场规则定）。
+                if (
+                    _tdays
+                    and day in _tdays
+                    and _source_tier(cand) <= 4
+                    and not _cand_is_show(cand)
+                ):
+                    _alt = [
+                        d
+                        for d in range(lo, hi + 1)
+                        if d not in _tdays
+                        and not _rain_blocked(cand, d)
+                        and day_loads[d][1] < 4
+                        and day_loads[d][0] + minutes + _leg_min(xy, d) <= _budget(d)
+                    ]
+                    if _alt:
+                        day = min(
+                            _alt, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
+                        )
                 # 露天点雨日硬闸（2026-11-02 拍板）：全露天雨日全拦、
                 # 半露天仅强雨日拦（小雨照排+提示）→ 必须改投有计数
                 # 空位的干日（余量最小，时间预算软闸照放）；无干日
@@ -7529,6 +7609,7 @@ class PlanningAgent:
         transfer_days: set[int] | None = None,
         rain_days: dict[str, set[int]] | None = None,
         origin_city: str | None = None,
+        preferences: str = "",
     ) -> tuple[list[dict], list[tuple[str, str]]]:
         """全局跨天均衡（2026-10-30 用户拍板「做全局跨天优化」）。
 
@@ -7545,6 +7626,9 @@ class PlanningAgent:
            腿优先。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
         transfer_days = transfer_days or set()
+        # 偏好优先于默认封顶（2026-11-03 拍板「喜欢某个类型则可以有很多」）：
+        # 回填同口径豁免偏好命中候选
+        ptoks, pshow = _preference_tokens(preferences)
         # 出发城市 spec 组装层必丢（2026-10-19 产品规则）；NOLOC 同名 spec
         # 不被 _twin_blocks 拦（留真身升级通道），但其真身候选若被回填，
         # spec 丢弃后真身就漏网成「已丢弃景点的复活卡」——回填前按名单拦。
@@ -7696,9 +7780,11 @@ class PlanningAgent:
                         # 演出每场闸（2026-11-02）：该天已有演出不再补第二场
                         continue
                     _lo, _hi = ranges.get(city, (1, days))
-                    if _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
+                    if not _pref_category_hit(
+                        cand, ptoks, pshow
+                    ) and _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
                         # 品类多样性闸（2026-11-03）：同类已满 max(2,span//3)
-                        # 家不回填——museum 扎堆不经池外回填返渗
+                        # 家不回填——偏好命中豁免（偏好优先于默认封顶）
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:
@@ -8157,6 +8243,10 @@ class PlanningAgent:
                     reservation_hint=_reservation_hint(spec["name"], cand or {}),
                     # 8.1.4：露天属性透传（H5 雨天横幅用）
                     rain_ok=(cand or {}).get("rain_ok"),
+                    # 边日轻重（2026-11-03 拍板）：候选源档随条目透传——
+                    # tier≤4=重磅（避开转场日）、7=街区轻 CityWalk（边日
+                    # 优先）；占位候选（cand=None）无档按中档处理
+                    tier=(_source_tier(cand) if cand else None),
                     day=spec["day"],
                     start_time=start_time,
                     end_time=end_time,
@@ -9546,6 +9636,10 @@ class PlanningAgent:
         """读库填充地址/营业时间；同步 DB 调用，须在 to_thread 里跑
         （避免阻塞事件循环——2026-10-19 服务器僵死事故）。"""
         missing: list[VisitItem] = []
+        if self._poi_details is None:
+            # 无库（内存模式默认 PlanningAgent）：refresh_legs 直调本趟
+            # 不再靠异常吞整趟（2026-11-03 refresh 测试日志噪音）
+            return missing
         for day in plan.days:
             for item in day.items:
                 if (
@@ -9812,10 +9906,45 @@ class PlanningAgent:
 
     # --- conversational iteration (§6.2-§6.3 diff loop) --------------------
 
+    @staticmethod
+    def _type_ask_hit(session: PlanSession, text: str) -> bool:
+        """同档同类让位问答命中判定（2026-11-03 拍板「三个5A博物馆可以问
+        用户」）：有待问名单且用户回复的偏好词命中其中任一候选的品类/
+        名字——如「喜欢博物馆，多排几家」命中让位的博物馆行。"""
+        if not session.pending_type_ask:
+            return False
+        toks, show = _preference_tokens(text)
+        if not (toks or show):
+            return False
+        return any(_pref_category_hit(a, toks, show) for a in session.pending_type_ask)
+
     async def _apply_conversation(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
         assert session.plan is not None
+        if self._type_ask_hit(session, text):
+            # 同档同类让位问答（2026-11-03 拍板「三个5A博物馆可以问用户」
+            # +「喜欢某个类型则可以有很多」）：偏好答复并入 preferences 并
+            # 自动重排——偏好优先于默认封顶，两通道（选点/回填）同步豁免
+            prev = (session.preferences or "").strip()
+            session.preferences = f"{prev} {text.strip()}".strip()
+            session.pending_type_ask = []
+            session = await self._generate_v0(
+                session,
+                extra_assumptions=[
+                    L(
+                        "已按偏好解除同类默认封顶重排：" + text.strip(),
+                        "Re-planned with your preference (same-type default "
+                        "cap lifted): " + text.strip(),
+                    )
+                ],
+            )
+            reply = (
+                session.history[-1].content
+                if session.history
+                else L("已按偏好重排。", "Re-planned with your preference.")
+            )
+            return session, reply, None
         messages = [
             ChatMessage(role="system", content=self._edit_system_prompt(session)),
             *session.history[-HISTORY_WINDOW:],
