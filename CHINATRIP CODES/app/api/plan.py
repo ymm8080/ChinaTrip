@@ -44,6 +44,7 @@ from app.services.agent.plan import (
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
+    heal_leg_gaps,
 )
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
@@ -236,6 +237,14 @@ async def save_plan(
     if dedupe_plan_visits(plan):
         session.plan = plan
         store.save(session)
+    # 腿间隔终闸（2026-11-03）：零车程背靠背时刻进不了行程库——带腿
+    # 重排后再冻结；钉/餐不动。
+    heal_notes = heal_leg_gaps(plan)
+    if heal_notes:
+        for note in heal_notes:
+            logger.warning("plan/save %s leg-gap heal: %s", session_id, note)
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(
@@ -350,6 +359,10 @@ async def get_plan_session(
     # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
     # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
     dedupe_plan_visits(session.plan)
+    # 腿间隔读闸（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故）：
+    # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
+    for note in heal_leg_gaps(session.plan):
+        logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)

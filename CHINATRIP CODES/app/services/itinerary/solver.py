@@ -436,7 +436,7 @@ def _add_travel_objective(
     separate=True（2026-10-30）：弧约束再叠加相邻两点的走行分钟——旧版
     只把 travel 计进目标函数、不进时序约束，日程排得出「上一场 09:30
     散场、7.3km 外下一场 09:30 开场」的零走行衔接。分离态不可行时
-    solve_day 回落旧语义（宁可背靠背也不弃日）。
+    solve_day 直接弃日交上层兜底（2026-11-03：不再回落 gap=0 背靠背）。
     """
     n = len(specs)
     arcs: list[tuple[int, int, cp_model.IntVar]] = []
@@ -678,14 +678,10 @@ def solve_day(
         return solver, solver.Solve(model), starts, sizes
 
     solver, status, starts, sizes = _attempt(travel_minutes is not None and bool(specs))
-    if (
-        travel_minutes is not None
-        and specs
-        and status not in (cp_model.OPTIMAL, cp_model.FEASIBLE)
-    ):
-        # 走行分离把当天挤爆（时段窗/转场缓冲卡死）→ 回落旧背靠背语义
-        # 交付：宁可挤也不弃日（§6.9 降级链仍由上层兜底）。
-        solver, status, starts, sizes = _attempt(False)
+    # 走行分离不可行（时段窗/转场缓冲卡死）不再回落 gap=0 背靠背语义
+    # （2026-11-03 Day2 大明宫→城墙 15:00 零车程事故拍板「零间隔不合法
+    # 化」）：返回 None 交上层按日降级——_fallback_sequence_times 带腿
+    # 重排、装不下留空披露（与 16:30 起始闸同口径）。
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
 

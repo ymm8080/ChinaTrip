@@ -12,12 +12,13 @@ function over the shared domain models — no I/O, no LLM, no DB.
     4 跨城衔接缓冲（VisitItem↔TransferItem ≥90 分钟）→ validate_plan
     5 同日多段跨城（seq 递增唯一 + 互相缓冲）→ validate_plan
     6 节奏量化（日步行 ≤15km×人群系数；游览占比 ≥55%）→ validate_plan
+    7 相邻观光对间隔 ≥ 打车腿（零车程背靠背绊网；生成端由 solver
+      保证，此处回溯兜底旧载荷）→ validate_plan
     10 只动当天及之后 → validate_change_scope
     19 钉死点（pinned 不得被移动/改时间/删除）→ validate_pinned
 
 不归本校验器管（服务端纯函数无法判定，归属如下）:
     0 一切变更走统一 diff 管线 → pipeline.mutate（本包）
-    7 交通可达 → CP-SAT 求解器 solve_itinerary（§6.9）
     8 3 秒延迟预算 → API 网关 / 性能监控（非行程域）
     9 重排带 reasoning → Agent 输出层填 ChangeSummary.reasoning
     11 执行模式不动过去（生成端）→ 执行模式会话编排层
@@ -88,6 +89,43 @@ def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     return 2.0 * _EARTH_RADIUS_KM * asin(sqrt(h))
 
 
+# 打车模型常量（用户拍板 2026-10-31「打车时间=车程+半小时叫车」）：
+# 车程=直线×1.3 绕行 ÷ 35km/h 均混车速，另加 30 分钟叫车/等待；≤1.5km
+# 近距共址按步行（不白付叫车开销）；单腿上限 180 分钟。选点腿费/必去
+# 放日/solver 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
+TRAVEL_LEG_CAP_MIN = 180
+TAXI_HAIL_MINUTES = 30
+TAXI_MIN_PER_KM = 1.3 / 35 * 60  # ≈2.23 分钟/公里（直线×绕行÷车速）
+TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
+#: 步行估算分钟/公里（×1.3 绕行 / 80m/min）——近距腿与卡片展示共用。
+TRAVEL_MIN_PER_KM = 1000.0 * 1.3 / 80.0
+
+#: 相邻观光对的最小间隔地板（无坐标/毒坐标对的保守值）。
+TRAVEL_GAP_FLOOR_MIN = 30
+
+
+def taxi_leg_min(km: float) -> int:
+    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程+半小时叫车；
+    ≤1.5km 近距退步行口径；封顶 TRAVEL_LEG_CAP_MIN。"""
+    if km <= TAXI_WALK_MAX_KM:
+        return round(km * TRAVEL_MIN_PER_KM)
+    return min(TRAVEL_LEG_CAP_MIN, round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES)
+
+
+def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
+    """相邻两点 a→b 需要的走行分钟；豁免对（餐/酒店贴点、钉点、无坐标）
+    返回 None 表示不校验。口径与兜底 _leg_windows 的 pad 一致：
+    max(30, taxi_leg_min(haversine))。"""
+    for v in (a, b):
+        if (v.category or "") in ("food", "hotel"):
+            return None  # 餐位贴点/入住卡：拍板语义，不按腿隔开
+        if v.pinned:
+            return None  # 铁律 19：钉是用户安排非引擎节奏
+        if v.location is None:
+            return None  # 无坐标算不出腿（占位午餐等）
+    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(haversine_km(a.location, b.location)))
+
+
 def _eff_end_minutes(item: VisitItem | TransferItem) -> int | None:
     """end_time in minutes-of-day, or start+duration when end missing."""
     if item.end_time is not None:
@@ -124,6 +162,44 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
                         f"Day {day_no}: {prev.name}({_fmt(prev.start_time)}-"
                         f"{_fmt(prev.end_time)}) and {cur.name}({_fmt(cur.start_time)}-"
                         f"{_fmt(cur.end_time)}) time ranges overlap",
+                    ),
+                    item_ids=[prev.item_id, cur.item_id],
+                    day=day_no,
+                )
+            )
+    return out
+
+
+# --- iron rule 7: consecutive sight pairs must allow the taxi leg ---------
+
+
+def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
+    """零车程背靠背绊网（2026-11-03 Day2 大明宫→城墙 15:00 事故）：
+    相邻已排观光对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免对见
+    travel_gap_needed（餐/酒店贴点、钉点、无坐标）。solver 生成端已
+    保证；此处回溯兜底旧 session 载荷与任何漏网路径，触即 error 披露。"""
+    timed = sorted(
+        (v for v in visits if v.start_time is not None and v.end_time is not None),
+        key=lambda v: (v.start_time, v.end_time),
+    )
+    out: list[RuleViolation] = []
+    for prev, cur in zip(timed, timed[1:]):
+        need = travel_gap_needed(prev, cur)
+        if need is None:
+            continue
+        gap = _minutes(cur.start_time) - _minutes(prev.end_time)
+        if gap < need:
+            out.append(
+                RuleViolation(
+                    rule_id=7,
+                    severity=RuleSeverity.error,
+                    message=L(
+                        f"第{day_no}天 {prev.name} {_fmt(prev.end_time)} 散场到"
+                        f" {cur.name} {_fmt(cur.start_time)} 开场仅 {gap} 分钟，"
+                        f"打车约需 {need} 分钟（未计路上时间）",
+                        f"Day {day_no}: only {gap} min between {prev.name} "
+                        f"ending {_fmt(prev.end_time)} and {cur.name} starting "
+                        f"{_fmt(cur.start_time)} — taxi needs ~{need} min",
                     ),
                     item_ids=[prev.item_id, cur.item_id],
                     day=day_no,
@@ -412,6 +488,7 @@ def validate_plan(
         visits = [i for i in day.items if isinstance(i, VisitItem)]
         transfers = [i for i in day.items if isinstance(i, TransferItem)]
         violations += _check_time_conflicts(day.day, visits)
+        violations += travel_gap_violations(day.day, visits)
         violations += _check_opening_hours(day.day, visits, hours)
         violations += _check_transfer_buffer(day.day, visits, transfers)
         violations += _check_transfer_sequence(day.day, transfers)

@@ -96,7 +96,7 @@ def test_mutate_pipeline_output_is_annotated():
             city="北京",
             day=1,
             location=GeoPoint(lon=116.41, lat=39.90),
-            start_time=time(11, 0),
+            start_time=time(11, 45),
             duration_minutes=60,
         ),
     )

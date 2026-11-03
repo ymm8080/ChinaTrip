@@ -515,9 +515,11 @@ def test_travel_gap_enforced_between_consecutive_visits():
     assert gap >= 40
 
 
-def test_infeasible_travel_separation_falls_back_to_packed():
-    """走行分离把当天挤爆（时段窗钉死 + 240 分钟走行）→ 回落旧背靠背语义，
-    整日仍出方案（宁可挤也不弃日，§6.9 降级链由上层兜底）。"""
+def test_infeasible_travel_separation_drops_day():
+    """走行分离把当天挤爆（时段窗钉死 + 240 分钟走行）→ 弃日返回 None，
+    交上层 _fallback_sequence_times 带腿重排/留空披露——不再回落 gap=0
+    背靠背语义（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故拍板：
+    零间隔不合法化，宁可披露也不硬排）。"""
     day = DayPlan(
         day=1,
         base_city="北京",
@@ -530,11 +532,7 @@ def test_infeasible_travel_separation_falls_back_to_packed():
 
     solved = solve_day(day, poi_hours=[_ALL_DAY], travel_minutes=matrix)
 
-    assert solved is not None
-    m = next(i for i in solved.items if i.item_id == "m")
-    e = next(i for i in solved.items if i.item_id == "e")
-    assert _minutes(m.end_time) <= _minutes(e.start_time)
-    assert _minutes(e.start_time) - _minutes(m.end_time) < 240
+    assert solved is None
 
 
 # --- 2026-10-31 白天入场闸（非演出观光点最晚 16:00 入场） ---------------------

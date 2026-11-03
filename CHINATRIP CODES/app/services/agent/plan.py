@@ -64,6 +64,14 @@ from app.services.itinerary.models import (
     INTERCITY_BUFFER_MINUTES,
     PoiHours,
 )
+from app.services.itinerary.rules import (
+    TAXI_HAIL_MINUTES,
+    TAXI_MIN_PER_KM,
+    TRAVEL_LEG_CAP_MIN,
+    TRAVEL_MIN_PER_KM,
+    taxi_leg_min,
+    travel_gap_violations,
+)
 from app.services.itinerary.solver import (
     _BEST_VISIT_WINDOWS,
     DAY_START_MINUTES,
@@ -176,34 +184,19 @@ WISH_BIND_LLM_TIMEOUT_SECONDS = 12  # 心愿语义匹配单次 LLM 超时（thin
 WISH_BIND_LLM_MAX_CANDIDATES = 40  # 心愿语义匹配候选列表上限（防 prompt 膨胀）
 HISTORY_WINDOW = 12
 DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径）
-# 走行计预算（2026-10-30「第一天三站时间明显不够」）：选点层预算原本只算
-# 参访时长、不算点间走行——塞满 360 分钟的天给 solver 的是排不下的日程
-# （回落背靠背=物理不可能的时间表）。
 # 出行模型（用户拍板 2026-10-31「打车时间=车程+半小时叫车时间」）：
-# 车程=直线×1.3 绕行 ÷ 35km/h 均混车速，另加 30 分钟叫车/等待；≤1.5km
-# 近距共址按步行（不白付叫车开销）；单腿上限 180 分钟（跨区一日游量级，
-# 替代旧 120 步行封顶）。选点腿费/必去放日/solver 矩阵基线三处共用
-# _taxi_leg_min；卡片展示的「步行约Y分钟」仍为步行口径（标注即口径）。
-_TRAVEL_LEG_CAP_MIN = 180
-_TAXI_HAIL_MINUTES = 30  # 每腿叫车/等待固定开销
-_TAXI_MIN_PER_KM = 1.3 / 35 * 60  # ≈2.23 分钟/公里（直线×绕行÷车速）
-_TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
+# 打车公式 2026-11-03 下沉 itinerary/rules.py（taxi_leg_min 成唯一真源，
+# 校验层铁律 7 与本模块兜底/矩阵共用）；此处留别名供既有调用点。
+_taxi_leg_min = taxi_leg_min
+#: 步行估算分钟/公里（rules.TAXI 同源）——近距腿与卡片展示步行口径共用。
+_TRAVEL_MIN_PER_KM = TRAVEL_MIN_PER_KM
+_TAXI_HAIL_MINUTES = TAXI_HAIL_MINUTES
+_TAXI_MIN_PER_KM = TAXI_MIN_PER_KM
+_TRAVEL_LEG_CAP_MIN = TRAVEL_LEG_CAP_MIN
 # 雨天对调软余量（用户拍板 2026-10-30 深夜「差18分钟没有关系」）：
 # 雨日救援的预算闸允许噪声级超额——走行腿估算留在日载荷里的十几分
 # 钟，不该把「有雨自动排室内」卡死在「点名不排/保持原排」上。
 RAIN_SWAP_BUDGET_SLACK_MIN = 30
-#: 步行估算分钟/公里（同 legs 口径 ×1.3 绕行 / 80m/min）——近距腿与
-#: 卡片展示步行口径共用。
-_TRAVEL_MIN_PER_KM = 1000.0 * 1.3 / 80.0
-
-
-def _taxi_leg_min(km: float) -> int:
-    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程+半小时叫车；
-    ≤1.5km 近距退步行口径；封顶 _TRAVEL_LEG_CAP_MIN。选点腿费/必去
-    放日/solver 矩阵基线共用，调用点不得另算口径。"""
-    if km <= _TAXI_WALK_MAX_KM:
-        return round(km * _TRAVEL_MIN_PER_KM)
-    return min(_TRAVEL_LEG_CAP_MIN, round(km * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES)
 
 
 _INTL_SITE_SOURCES = {"tripadvisor", "lonelyplanet", "viator"}
@@ -3286,6 +3279,47 @@ def _is_show_item(item: VisitItem) -> bool:
     """演出条目（与 solver._is_show 同口径：best_visit_time=show 或
     entertainment 类）。"""
     return item.best_visit_time == "show" or item.category == "entertainment"
+
+
+def heal_leg_gaps(plan: ItineraryPlan) -> list[str]:
+    """读路径腿间隔自愈（2026-11-03 Day2 大明宫 13:30+90min→城墙 15:00
+    零车程事故）：11-02 _leg_windows 改造前的旧 session 兜底产物（锚窗
+    无 pad、链不付车程）在库里长期原样回放。检出首个「相邻已排观光对
+    间隔 < 打车腿」（travel_gap_violations 同口径，餐/钉/无坐标豁免）
+    后，从该对的晚点起清空非钉条目时刻并重跑 _fallback_sequence_times
+    （带腿重排、装不下留空披露）。钉点/餐/酒店/转场不动。返回修复
+    说明（空列表=无需修复），调用方负责 store.save 持久化。"""
+    notes: list[str] = []
+    for day in plan.days:
+        visits = [i for i in day.items if isinstance(i, VisitItem)]
+        bad = travel_gap_violations(day.day, visits)
+        if not bad:
+            continue
+        first = bad[0]
+        by_id = {v.item_id: v for v in visits}
+        later = by_id.get(first.item_ids[-1]) if first.item_ids else None
+        if later is None or later.pinned:
+            continue  # 晚点是钉（用户安排）或已不在——校验层披露，不硬修
+        # 从违规晚点起清非钉条目时刻（餐/酒店保持原位由兜底窗尊重）
+        later_min = later.start_time.hour * 60 + later.start_time.minute
+        touched = 0
+        for v in visits:
+            if v.start_time is None:
+                continue
+            vm = v.start_time.hour * 60 + v.start_time.minute
+            if vm < later_min or v.pinned:
+                continue
+            if (v.category or "") in ("food", "hotel"):
+                continue
+            v.start_time = None
+            v.end_time = None
+            touched += 1
+        if not touched:
+            continue  # 没有可动的自由点——交校验披露
+        _fallback_sequence_times(plan)
+        notes.append(f"day{day.day} {first.message}——已带腿重排 {touched} 项")
+        # 单轮修复；重排后仍违的对（如钉间冲突）留给校验披露
+    return notes
 
 
 def _has_untimed_visits(plan: ItineraryPlan) -> bool:
