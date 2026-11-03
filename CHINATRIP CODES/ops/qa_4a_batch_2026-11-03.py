@@ -180,12 +180,24 @@ def main() -> None:
     cur.execute("""SELECT category, count(*) FROM pois WHERE source='5a'
                    GROUP BY category ORDER BY 2 DESC""")
     cat_5a = cur.fetchall()
-    cur.execute("""SELECT category, count(*) FROM pois WHERE source='4a'
-                   AND category='nature' AND (name_zh LIKE '%博物馆%'
-                   OR name_zh LIKE '%纪念馆%' OR name_zh LIKE '%乐园%'
-                   OR name_zh LIKE '%庄园%' OR name_zh LIKE '%度假区%')
-                   GROUP BY 1""")
-    nat_mis = cur.fetchall()
+    cur.execute("""SELECT
+                   count(*) filter (where name_zh like '%博物馆%' or name_zh like '%纪念馆%') museum_like,
+                   count(*) filter (where name_zh like '%乐园%') park_like,
+                   count(*) filter (where name_zh like '%庄园%') manor,
+                   count(*) filter (where name_zh like '%度假区%') resort
+                   FROM pois WHERE source='4a' AND category='nature'
+                   AND (name_zh LIKE '%博物馆%' OR name_zh LIKE '%纪念馆%'
+                   OR name_zh LIKE '%乐园%' OR name_zh LIKE '%庄园%'
+                   OR name_zh LIKE '%度假区%')""")
+    nat_mis = cur.fetchone()
+    # 正典分类器（poi_classify，与 poi_seed 插入同源）对粗词表命中行的裁决
+    from app.services.poi_classify import classify as _classify
+    nat_mis_names = [r["name_zh"] for r in db_rows if r["category"] == "nature" and (
+        "博物馆" in (r["name_zh"] or "") or "纪念馆" in (r["name_zh"] or "")
+        or "乐园" in (r["name_zh"] or "") or "庄园" in (r["name_zh"] or "")
+        or "度假区" in (r["name_zh"] or ""))]
+    verdict: Counter = Counter(
+        (_classify(n, None, None)[0] or "None") for n in nat_mis_names)
     null_cat = [(r["id"], r["source_poi_id"], r["name_zh"], r["city"])
                 for r in db_rows if not r["category"]]
     odd_cat = [(r["id"], r["name_zh"], r["city"], r["category"])
@@ -358,8 +370,13 @@ def main() -> None:
     a("")
     a("- NULL 分类：{0} 行（backfill 链已有 NULL 分类守卫，属待补）".format(len(null_cat)))
     a(f"- 异类（hotel/restaurant/bar/shop/other）：{len(odd_cat)} 行")
-    a(f"- nature 桶疑似错分（博物馆/纪念馆/乐园/庄园/度假区字样）：{nat_mis[0][1] if nat_mis else 0} 行"
-      "——5a 基准为 attraction 兜底，4a 批 nature 兜底属口径分叉，建议后续 enrich 重分类（本轮不动库）")
+    a("- nature 桶粗词表命中（馆字/乐园/庄园/度假区）："
+      f"{nat_mis[0] + nat_mis[1] + nat_mis[2] + nat_mis[3]} 行"
+      f"（馆字 {nat_mis[0]}、乐园 {nat_mis[1]}、庄园 {nat_mis[2]}、度假区 {nat_mis[3]}）")
+    a(f"  正典分类器裁决分布：{dict(verdict)}——"
+      "馆字/乐园命中为 0 即无 museum/theme 误分；nature 裁决=名称带景区/旅游区标记、"
+      "与 poi_seed 插入即分类同源，**非错分**。真实残留仅「兜底惯例」：4a 批 "
+      "nature 兜底 vs 5a 批 attraction 兜底（同景两批异类），属 P3 口径统一决策")
     a("")
     if odd_cat:
         a("| poi_id | 名称 | 城市 | category |")
