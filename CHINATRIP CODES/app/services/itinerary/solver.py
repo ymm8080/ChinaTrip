@@ -133,6 +133,14 @@ _EVENING_OK_BEST = {"evening", "sunset", "show"}
 # 插入的走行差（≤百余分钟）。
 MORNING_ONE_SITE_END_MINUTES = 12 * 60
 MORNING_ONE_SITE_PENALTY = 10_000
+# 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：场次起点
+# ≥15:00 视为傍晚/晚场（首选），更早场次计软罚——演出若霸占上午会
+# 连带触发「上午一个点」把其余观光点全罚到午后（Day4 秦俑情 11:00
+# 事故形态）；上午名额留给观光点，演出收尾当日。晚场全不可行时照付
+# 罚放行（软偏好不拦可行性）；用户钉住场次天然豁免（铁律 19：pinned
+# 演出走锚点通道不进插入候选）。与 S5 无场次晚场默认 20:10 同哲学。
+SHOW_LATE_SESSION_MINUTES = 15 * 60
+SHOW_EARLY_SESSION_PENALTY = 10_000
 
 
 def _is_morning_site(item: VisitItem) -> bool:
@@ -425,6 +433,7 @@ def _add_travel_objective(
     sizes: list[object] | None = None,
     meal_penalty: object = 0,
     morning_penalty: object = 0,
+    show_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -465,9 +474,9 @@ def _add_travel_objective(
             model.Add(starts[j] >= starts[i] + sz_i + gap).OnlyEnforceIf(lit)
     model.AddCircuit(arcs)
     # 软钉餐偏离惩罚（2026-11-01 规则：±30/缩 30 是许可不是偏好）：
-    # travel×100 权重主导——省 ≥2 走行分钟才值得动午餐。上午超点罚
-    # 已在调用侧 ×100，与 travel 同量纲直接相加。
-    model.Minimize(sum(costs) * 100 + meal_penalty + morning_penalty)
+    # travel×100 权重主导——省 ≥2 走行分钟才值得动午餐。上午超点罚/
+    # 演出早场罚已在调用侧 ×100，与 travel 同量纲直接相加。
+    model.Minimize(sum(costs) * 100 + meal_penalty + morning_penalty + show_penalty)
 
 
 def _add_makespan_objective(
@@ -479,6 +488,7 @@ def _add_makespan_objective(
     sizes: list[object] | None = None,
     meal_penalty: object = 0,
     morning_penalty: object = 0,
+    show_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
     # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
@@ -500,9 +510,10 @@ def _add_makespan_objective(
     makespan = model.NewIntVar(0, ub, "makespan")
     model.AddMaxEquality(makespan, ends)
     # 软钉餐偏离惩罚：makespan×100 权重主导（1 分钟 makespan > 最大偏离），
-    # 无压力日零漂移+全时长。上午超点罚（×100）优先于 makespan——
-    # 「上午一般只排一个点」压过早收工偏好（2026-11-03 拍板）。
-    model.Minimize(makespan * 100 + meal_penalty + morning_penalty)
+    # 无压力日零漂移+全时长。上午超点罚/演出早场罚（×100）优先于
+    # makespan——「上午一个点」「演出优先傍晚/晚场」压过早收工偏好
+    # （2026-11-03 拍板）。
+    model.Minimize(makespan * 100 + meal_penalty + morning_penalty + show_penalty)
 
 
 def solve_day(
@@ -650,6 +661,26 @@ def solve_day(
             extra = model.NewIntVar(0, len(morning_lits) - 1, "morn_extra")
             model.AddMaxEquality(extra, [sum(morning_lits) - 1, 0])
             morning_penalty = extra * (MORNING_ONE_SITE_PENALTY * 100)
+        # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：多场次
+        # 演出落 <15:00 场次计软罚（×100 与 travel/makespan 同量纲）——
+        # 晚场可行时上午留给观光点。纯早场演出 lit 恒 1（罚为常数不改
+        # 择优）；全晚场/单场演出域内 lit 恒 0；pinned 演出场次是用户
+        # 安排（铁律 19），不走本罚。
+        show_early_lits: list[cp_model.IntVar] = []
+        for spec, start in zip(specs, starts):
+            if not (
+                _is_show(spec.item)
+                and not spec.item.pinned
+                and show_session_starts(spec.item.opening_hours)
+            ):
+                continue
+            lit = model.NewBoolVar(f"show_early_{spec.item.item_id}")
+            model.Add(start < SHOW_LATE_SESSION_MINUTES).OnlyEnforceIf(lit)
+            model.Add(start >= SHOW_LATE_SESSION_MINUTES).OnlyEnforceIf(lit.Not())
+            show_early_lits.append(lit)
+        show_penalty: object = 0
+        if show_early_lits:
+            show_penalty = sum(show_early_lits) * (SHOW_EARLY_SESSION_PENALTY * 100)
         if travel_minutes is not None and specs:
             _add_travel_objective(
                 model,
@@ -660,6 +691,7 @@ def solve_day(
                 sizes=sizes,
                 meal_penalty=meal_penalty,
                 morning_penalty=morning_penalty,
+                show_penalty=show_penalty,
             )
         else:
             _add_makespan_objective(
@@ -670,6 +702,7 @@ def solve_day(
                 sizes=sizes,
                 meal_penalty=meal_penalty,
                 morning_penalty=morning_penalty,
+                show_penalty=show_penalty,
             )
 
         solver = cp_model.CpSolver()
@@ -804,6 +837,15 @@ def insertion_schedule_day(
                 return MORNING_ONE_SITE_PENALTY
         return 0
 
+    def _show_early_cost(t: int, item: VisitItem) -> int:
+        # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：早于
+        # 15:00 的场次计罚——晚场可行时不占上午（上午名额留给观光点）；
+        # 量纲同上午超点罚，压过单次插入走行差。pinned 演出走锚点通道，
+        # 不进本函数（铁律 19）；无场次演出域=20:10-20:45 恒零罚。
+        if t >= SHOW_LATE_SESSION_MINUTES or not _is_show(item):
+            return 0
+        return SHOW_EARLY_SESSION_PENALTY
+
     # 软钉餐机动跨度（非餐条目的条件块）：餐可在 [P-30, P+30] 开餐、
     # 时长 [dur-30, dur]——其它条目要么在 P+30 前收尾（餐顺延接后），
     # 要么从 P+dur-60（最早缩餐终点）后开始。2026-11-01 ±30 规则。
@@ -894,7 +936,8 @@ def insertion_schedule_day(
                         continue
                     key = (
                         _added_travel(t, dur, spec.item)
-                        + _morning_extra_cost(t, spec.item),
+                        + _morning_extra_cost(t, spec.item)
+                        + _show_early_cost(t, spec.item),
                         t,
                     )
                     if best is None or key < (best[0], best[1]):

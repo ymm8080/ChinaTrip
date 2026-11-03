@@ -75,6 +75,7 @@ from app.services.itinerary.rules import (
 from app.services.itinerary.solver import (
     _BEST_VISIT_WINDOWS,
     DAY_START_MINUTES,
+    SHOW_LATE_SESSION_MINUTES,
     _city_side,
     generic_entry_cap,
     show_session_starts,
@@ -3156,7 +3157,13 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             )
             placed_at: int | None = None
             if sessions:
-                for s in sessions:
+                # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：
+                # 先试 ≥15:00 晚场（升序——晚场里取最早可行，留晚餐/夜景
+                # 余地），全不可行再回落早场（升序）——不再升序首中霸晨，
+                # 上午名额留给观光点。用户钉住场次有时刻不进本链。
+                ordered = [s for s in sessions if s >= SHOW_LATE_SESSION_MINUTES]
+                ordered += [s for s in sessions if s < SHOW_LATE_SESSION_MINUTES]
+                for s in ordered:
                     if (
                         s + dur <= day_end
                         and not any(

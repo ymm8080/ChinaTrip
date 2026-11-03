@@ -112,7 +112,8 @@ BAD_PLAN = {
 }
 
 # 同案修复形态（晨间借调/LNS 应达成的目标布局）：华清池顶上午、
-# 午餐顺延 13:00、秦俑情落 14:00 场次
+# 午餐顺延 13:00、秦俑情落 17:00 晚场（2026-11-03 拍板「演出优先
+# 傍晚/晚场」——14:00 场次会触发 early_show 软罚）
 REPAIRED_PLAN = {
     "itinerary_id": "it-4f228cfb-repaired",
     "cities": ["上海", "西安", "上海"],
@@ -150,8 +151,8 @@ REPAIRED_PLAN = {
                     "category": "entertainment",
                     "city": "西安",
                     "day": 3,
-                    "start_time": "14:00:00",
-                    "end_time": "15:20:00",
+                    "start_time": "17:00:00",
+                    "end_time": "18:20:00",
                     "duration_minutes": 80,
                     "rain_ok": "yes",
                     "best_visit_time": "show",

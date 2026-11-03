@@ -50,6 +50,8 @@ PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
 PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
 PEN_NO_ENTERTAINMENT = 40  # 零娱乐/程（2026-11-03 拍板，软偏好）
+PEN_EARLY_SHOW = 12  # 演出早场：<15:00 开演的多场次演出（2026-11-03 拍板
+# 「演出优先傍晚/晚场」，与 solver SHOW_LATE_SESSION_MINUTES 同口径）
 
 
 @dataclass
@@ -111,6 +113,7 @@ def plan_score(
     lunch_drift_pen = 0
     lunch_drift_min = 0
     morning_crowd = 0
+    early_shows = 0
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
@@ -148,6 +151,21 @@ def plan_score(
             and str(v.category or "") not in ("food", "hotel")
         )
         morning_crowd += max(0, morning_sites - 1)
+        # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：
+        # <15:00 开演的演出计软罚——与 solver 插入/CP 路早场罚同向，
+        # LNS 不再把演出挪回早场。用户自钉且有时刻不计（铁律 19，
+        # 同 morning_crowd 豁免面）；无场次演出引擎默认晚场天然零罚。
+        early_shows += sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and not (v.pinned and v.start_time is not None)
+            and _minutes(v.start_time) < 15 * 60
+            and (
+                str(v.category or "") == "entertainment"
+                or str(v.best_visit_time or "") == "show"
+            )
+        )
         if rainy:
             for v in visits:
                 rk = str(v.rain_ok or "")
@@ -225,6 +243,7 @@ def plan_score(
         "lunch_drift": -lunch_drift_pen,
         "day_balance": -balance_pen,
         "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
+        "early_show": -PEN_EARLY_SHOW * early_shows,
         "no_entertainment": (
             -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
         ),
@@ -241,6 +260,7 @@ def plan_score(
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
         "morning_crowd": morning_crowd,
+        "early_show": early_shows,
         "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }
