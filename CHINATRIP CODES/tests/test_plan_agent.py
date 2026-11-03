@@ -2464,6 +2464,17 @@ class LibraryStore(PoiDetailStore):
         ]
 
 
+class EveningLibraryStore(LibraryStore):
+    """row0 营业到 21:00：evening/show 型点配 17:00 打烊是自相矛盾
+    夹具——无时刻卡终闸（2026-11-03）会按拍板把排不进的傍晚卡移除
+    留痕，字段透传类测试要的是「卡在排上时刻的前提下透传」。"""
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
+        rows[0]["opening_hours"] = "09:00-21:00"
+        return rows
+
+
 def test_v0_library_first_skips_amap_when_stocked():
     amap = StubAmap(AMAP_POIS)
     items = [
@@ -2473,7 +2484,7 @@ def test_v0_library_first_skips_amap_when_stocked():
     agent = PlanningAgent(
         ScriptedLLM([v0_reply(items)]),
         amap_client=amap,
-        poi_details=LibraryStore(),
+        poi_details=EveningLibraryStore(),
         auto_restaurants=False,
     )
     session = run(
@@ -2770,7 +2781,7 @@ def test_reservation_hint_from_seed_list():
 
 
 def test_rain_ok_passthrough_for_rain_banner():
-    class RainyStore(LibraryStore):
+    class RainyStore(EveningLibraryStore):
         def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
             rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
             rows[0]["rain_ok"] = "no"
@@ -2798,7 +2809,7 @@ def test_rain_ok_passthrough_for_rain_banner():
 def test_en_fields_passthrough_for_bilingual_cards():
     """双语 P1：候选库 _en 字段 → VisitItem 并出（空则 None 前端回退）。"""
 
-    class EnStore(LibraryStore):
+    class EnStore(EveningLibraryStore):
         def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
             rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
             rows[0]["name_en"] = "Gugong Palace"
@@ -2834,7 +2845,7 @@ def test_show_fields_passthrough_for_prefill_card():
     sight SKU 页）+ entertainment 类别 + show 时段随条目并出——H5 订票
     直达直开成品页，solver 晚间场演档触发。"""
 
-    class ShowStore(LibraryStore):
+    class ShowStore(EveningLibraryStore):
         def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
             rows = super().top_pois_in_city(city, limit, exclude_food=exclude_food)
             rows[0]["booking_url"] = (

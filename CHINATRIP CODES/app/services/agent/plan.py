@@ -2864,6 +2864,34 @@ def _host_day_for_visit(
     return None
 
 
+def _drop_untimed_from_day(
+    day: DayPlan, protect: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
+    """单日清算：无时刻非钉参访移除留痕（餐/酒店/protect 铁律 19 豁免）。"""
+    notes: list[str] = []
+    drops = [
+        i
+        for i in day.items
+        if isinstance(i, VisitItem)
+        and i.start_time is None
+        and not i.pinned
+        and i.name not in protect
+        and (i.category or "") not in ("food", "hotel")
+    ]
+    for item in drops:
+        day.items.remove(item)
+        notes.append(
+            L(
+                f"「{item.name}」在第{day.day}天始终排不下时刻，"
+                "已从行程移除——要加回可指定其他天",
+                f'"{item.name}" could not be timed on day {day.day} after '
+                "re-scheduling; it was removed — ask me to re-add it on "
+                "another day",
+            )
+        )
+    return notes
+
+
 def _drop_untimed_visits(
     plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
 ) -> list[str]:
@@ -2874,26 +2902,22 @@ def _drop_untimed_visits(
     （转场日侧由 _transfer_day_sweep 披露）。"""
     notes: list[str] = []
     for day in plan.days:
-        drops = [
-            i
-            for i in day.items
-            if isinstance(i, VisitItem)
-            and i.start_time is None
-            and not i.pinned
-            and i.name not in protect
-            and (i.category or "") not in ("food", "hotel")
-        ]
-        for item in drops:
-            day.items.remove(item)
-            notes.append(
-                L(
-                    f"「{item.name}」在第{day.day}天始终排不下时刻，"
-                    "已从行程移除——要加回可指定其他天",
-                    f'"{item.name}" could not be timed on day {day.day} after '
-                    "re-scheduling; it was removed — ask me to re-add it on "
-                    "another day",
-                )
-            )
+        notes.extend(_drop_untimed_from_day(day, protect))
+    return notes
+
+
+def drop_dangling_visits(plan: ItineraryPlan) -> list[str]:
+    """读闸版（GET/save）无时刻卡清算——只清「混合日」：当天已有排上
+    时刻的参访时，垫底的 None-None 卡是兜底装不下的残渣；整日全未排的
+    降级日/骨架日不动（读路径不重议交付层拍板，全清会把骨架会话读穿
+    成空壳）。pinned/餐/酒店同口径豁免。"""
+    notes: list[str] = []
+    for day in plan.days:
+        has_timed = any(
+            isinstance(i, VisitItem) and i.start_time is not None for i in day.items
+        )
+        if has_timed:
+            notes.extend(_drop_untimed_from_day(day))
     return notes
 
 
@@ -8411,25 +8435,45 @@ class PlanningAgent:
         # 重解失败日走兜底后仍 None-None）——交付前最后扫一遍并补排。
         # 补排用 CP 重解而非兜底顺序排：挪进的天既有条目多在日尾（兜底
         # 光标只会追加、日尾装不下就又留 None-None），重解可腾中段空档。
+        # 2026-11-03 Day4 太平森林公园案：清算不再挂在「转场日清算有产出」
+        # 条件下——普通日（傍晚场演出收尾、远郊公园 16:30 闸前排不进）
+        # 留下的 None-None 卡同样不得交付（垫到 19:30 演出之后 + 腿标注
+        # 画演出→公园 949 分钟腿）。只要有无时刻参访就走重解→移除留痕。
         sweep_notes = _transfer_day_sweep(plan, must_names)
         if sweep_notes:
             plan.assumptions.extend(sweep_notes)
-            if _has_untimed_visits(plan):
-                resolved = self._solve(plan, meal_flex=True)
-                if resolved is not None:
-                    resolved.assumptions = plan.assumptions
-                    plan = resolved
-                    annotate_legs(plan)
-                else:
-                    _fallback_sequence_times(plan)
-                if _has_untimed_visits(plan):
-                    plan.assumptions.extend(_drop_untimed_visits(plan, must_names))
+        plan = self._finalize_untimed_visits(plan, must_names)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
             logger.warning(
                 "plan v0 delivered with %d hard violations", len(report.violations)
             )
+        return plan
+
+    def _finalize_untimed_visits(
+        self,
+        plan: ItineraryPlan,
+        protect: frozenset[str] | set[str] = frozenset(),
+    ) -> ItineraryPlan:
+        """终闸：无时刻参访卡清算（2026-11-03 Day4 太平森林公园案）。
+        旧版嵌在「转场日清算有产出」条件下才重解+移除——普通日 LNS
+        搬进装不下的远郊点（16:30 起始闸前排不进）就以 None-None 卡
+        交付：排序垫底落到 19:30 演出之后，腿标注再画一条演出→公园
+        巨腿。转场日之外的清算不依赖转场信号：还有无时刻参访就 CP
+        重解（可腾中段空档），仍排不上按 2026-11-02 拍板移除留痕；
+        钉/必去 protect（铁律 19）不动。"""
+        if not _has_untimed_visits(plan):
+            return plan
+        resolved = self._solve(plan, meal_flex=True)
+        if resolved is not None:
+            resolved.assumptions = plan.assumptions
+            plan = resolved
+            annotate_legs(plan)
+        else:
+            _fallback_sequence_times(plan)
+        if _has_untimed_visits(plan):
+            plan.assumptions.extend(_drop_untimed_visits(plan, protect))
         return plan
 
     def _morning_fill(
@@ -10629,6 +10673,10 @@ class PlanningAgent:
             _fallback_sequence_times(candidate)
             candidate.assumptions.extend(_transfer_day_sweep(candidate, protect))
             _fallback_sequence_times(candidate)
+            # 编辑侧终闸（2026-11-03 Day4 太平森林公园案）：普通日 None-None
+            # 参访卡同样不得交付——仍排不上按 2026-11-02 拍板移除留痕。
+            if _has_untimed_visits(candidate):
+                candidate.assumptions.extend(_drop_untimed_visits(candidate, protect))
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:

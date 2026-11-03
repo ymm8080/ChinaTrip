@@ -44,6 +44,7 @@ from app.services.agent.plan import (
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
+    drop_dangling_visits,
     heal_leg_gaps,
 )
 from app.services.ctrip_hours import get_ctrip_hours
@@ -245,6 +246,16 @@ async def save_plan(
             logger.warning("plan/save %s leg-gap heal: %s", session_id, note)
         session.plan = plan
         store.save(session)
+    # 无时刻卡终闸（2026-11-03 Day4 太平森林公园案）：混合日垫底的
+    # None-None 参访卡进不了行程库——非钉移除留痕，钉/餐不动；整日
+    # 全未排的降级日不动（读路径不重议交付层拍板）。
+    drop_notes = drop_dangling_visits(plan)
+    if drop_notes:
+        for note in drop_notes:
+            logger.warning("plan/save %s untimed-drop: %s", session_id, note)
+        plan.assumptions.extend(drop_notes)
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(
@@ -363,6 +374,15 @@ async def get_plan_session(
     # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
     for note in heal_leg_gaps(session.plan):
         logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
+    # 无时刻卡读闸（2026-11-03 Day4 太平森林公园案）：旧会话混合日的
+    # None-None 参访卡（垫在 19:30 演出之后、腿标注画巨腿）打开即清
+    # ——非钉移除留痕；钉（build 期必打钉）铁律 19 不动；整日全未排
+    # 的降级日不清（骨架会话不能被读闸读穿成空壳）。
+    drop_notes = drop_dangling_visits(session.plan)
+    if drop_notes:
+        for note in drop_notes:
+            logger.warning("plan/session %s untimed-drop: %s", session_id, note)
+        session.plan.assumptions.extend(drop_notes)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)

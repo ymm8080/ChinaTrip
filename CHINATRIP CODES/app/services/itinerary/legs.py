@@ -27,12 +27,16 @@ MIN_LEG_KM = 0.05  # below this the two stops are effectively co-located
 
 
 def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
-    """Adjacent same-day visit pairs worth measuring, with straight-line km."""
+    """Adjacent same-day visit pairs worth measuring, with straight-line km.
+
+    Untimed cards break the chain (2026-11-03 Day4 show→park case): a leg
+    into an unscheduled item is meaningless and rendered as an absurd
+    night travel (a 949-minute leg from a 19:30 show to a forest park)."""
     out: list[tuple[VisitItem, VisitItem, float]] = []
     for day in plan.days:
         last: VisitItem | None = None
         for item in day.items:
-            if isinstance(item, TransferItem):
+            if isinstance(item, TransferItem) or item.start_time is None:
                 last = None
                 continue
             if (
