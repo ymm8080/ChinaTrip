@@ -87,6 +87,18 @@ def test_relic_park_different_sites_not_merged():
 # --- 反例：物理相邻确非同站（宁漏勿误） -------------------------------------
 
 
+def test_huaqing_family_bucket():
+    """华清宫/华清池历史更名双挂牌（5a_297 vs intl_0079）同站收桶。"""
+    a = _c("华清宫", 109.2120, 34.3620)
+    b = _c("临潼区华清池景区", 109.2125, 34.3625)
+    assert _cand_twin(a, b) is True
+
+
+def test_huaqing_family_not_cross_site():
+    """家族桶不跨站：华清宫 vs 无关行不误并。"""
+    assert _name_dup("华清宫", "骊山风景名胜区") is False
+
+
 def test_adjacent_distinct_sites_not_merged():
     """大雁塔 vs 陕西历史博物馆 ~1km 但确是两站；城墙·碑林段不命中。"""
     a = _c("大雁塔大唐芙蓉园景区", 108.9640, 34.2180)
@@ -106,3 +118,99 @@ def test_same_area_competing_venues_not_merged():
     a = _c("咸宁市楚天瑶池温泉度假村", 114.3220, 29.8410)
     b = _c("咸宁市温泉谷度假区", 114.3290, 29.8480)
     assert _cand_twin(a, b) is False
+
+
+# --- ③ 组装层/行程级合并入口（_same_visit，2026-11-04 城墙双卡回归）----------
+
+
+def _wall_cards():
+    """城墙双卡实录（会话 26037cd0…，库真身坐标 2.17km）：
+    正选 v33=5a_304 城墙·碑林历史文化景区(day4)、后进 v36=lp 西安城墙(day5)。"""
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    wall_beilin = VisitItem(
+        item_id="v33",
+        name="城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.94052490245161, lat=34.25687582300908),
+        day=4,
+    )
+    wall_lp = VisitItem(
+        item_id="v36",
+        name="西安城墙",
+        poi_id="lonelyplanet:西安:西安城墙",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.947110464377, lat=34.275703457106104),
+        day=5,
+    )
+    return wall_beilin, wall_lp
+
+
+def test_same_visit_blocks_late_wall_card():
+    """正选 5a_304 城墙·碑林已在册，组装层再遇 lp 西安城墙必须并掉。
+
+    行程级唯一入口（_dedupe_visit_keepers / dedupe_plan_visits）走
+    _same_visit——2026-11-04 前「·」复合通道只挂在 _name_dup
+    （_cand_twin/_dup_blocks_item 池/回填层），_same_visit 漏挂，
+    两卡全数过闸同计划双卡。修复后通道齐平：2.17km < 复合闸 2.5km。"""
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+
+    wall_beilin, wall_lp = _wall_cards()
+    assert _same_visit(wall_beilin, wall_lp) is True
+    keepers, dropped = _dedupe_visit_keepers([wall_beilin, wall_lp])
+    assert dropped == ["西安城墙"]
+    # 正选留卡：先到先得平手（rank 同分），5a_304 是 selection tier 序先行者
+    assert [k.poi_id for k in keepers] == ["5a_304"]
+
+
+def test_same_visit_relic_park_pair_merged():
+    """遗址公园同址族行程级同闸：大明宫遗址公园 vs 大明宫旅游景区
+    （跨园区 ~3km < 同馆档 10km）在 VisitItem 层也并。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    relic = VisitItem(
+        item_id="v10",
+        name="大明宫国家考古遗址公园",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.9510, lat=34.2850),
+        day=3,
+    )
+    tourism = VisitItem(
+        item_id="v20",
+        name="大明宫旅游景区",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.9430, lat=34.2680),
+        day=3,
+    )
+    assert _same_visit(relic, tourism) is True
+
+
+def test_same_visit_adjacent_distinct_stays_split():
+    """反例锁死（行程级）：大雁塔 vs 陕历博 实测 ~1km 相邻但确是两站，
+    新挂通道不得误并。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    dayanta = VisitItem(
+        item_id="v11",
+        name="大雁塔大唐芙蓉园景区",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.974287901949, lat=34.21270457618454),
+        day=2,
+    )
+    shaanxi_museum = VisitItem(
+        item_id="v12",
+        name="陕西历史博物馆",
+        category="museum",
+        city="西安",
+        location=GeoPoint(lon=108.95507614635606, lat=34.22420108773571),
+        day=4,
+    )
+    assert _same_visit(dayanta, shaanxi_museum) is False

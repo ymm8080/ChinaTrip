@@ -1317,22 +1317,28 @@ def _content_dup(a: str, b: str) -> bool:
     return len(ca) >= 3 and ca == cb
 
 
-# 秦始皇帝陵博物院同馆配列桶（2026-11-01 用户拍板「第一天秦始皇陵、
-# 第四天兵马俑=重复」）：骊山园（秦始皇陵/秦始皇陵国家考古遗址公园）
-# 与兵马俑馆（秦始皇兵马俑博物馆）是同一票制院区的两个园区，名字互
-# 不包含、剥尾核心词也不等（秦始皇陵 vs 秦始皇兵马俑），containment/
-# 同内容/演出三条通道全漏——按演出桶（_SHOW_DUP_KEYS）同款收桶：两个
-# 名字都带桶词即同馆。一次行程只看一次兵马俑（含骊山园）。
+# 同票制院区/同站异名家族桶（2026-11-01 用户拍板「第一天秦始皇陵、
+# 第四天兵马俑=重复」；2026-11-04 华清对补桶）：骊山园（秦始皇陵/
+# 秦始皇陵国家考古遗址公园）与兵马俑馆（秦始皇兵马俑博物馆）是同一
+# 票制院区的两个园区；华清宫与临潼区华清池景区（5a_297/intl_0079
+# 历史更名双挂牌）同址同票——名字互不包含、剥尾核心词也不等，
+# containment/同内容/演出通道全漏。按演出桶（_SHOW_DUP_KEYS）同款
+# 收桶：两个名字都带同一家族词即同站。一次行程只看一次。
+_HERITAGE_DUP_FAMILIES: tuple[tuple[str, ...], ...] = (
+    ("兵马俑", "秦始皇陵", "秦始皇帝陵"),
+    ("华清宫", "华清池"),
+)
 _HERITAGE_DUP_KEYS: tuple[str, ...] = ("兵马俑", "秦始皇陵", "秦始皇帝陵")
 
 
 def _heritage_dup(a: str, b: str) -> bool:
-    """Same-ticket heritage companion venues (骊山园 vs 兵马俑馆)：both
-    names carry a qin-mausoleum morpheme; geo gate rides the content
-    channel (30km) at the callers."""
-    return any(k in (a or "") for k in _HERITAGE_DUP_KEYS) and any(
-        k in (b or "") for k in _HERITAGE_DUP_KEYS
-    )
+    """Same-ticket heritage companion venues (骊山园 vs 兵马俑馆、华清宫
+    vs 华清池双挂牌)：both names carry a morpheme of the SAME family;
+    geo gate rides the heritage channel (10km) at the callers."""
+    for fam in _HERITAGE_DUP_FAMILIES:
+        if any(k in (a or "") for k in fam) and any(k in (b or "") for k in fam):
+            return True
+    return False
 
 
 # 国家考古遗址公园同址景区族（2026-11-04 全库双卡清扫）：遗址公园挂牌
@@ -1841,27 +1847,39 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
     content = _content_dup(a.name, b.name)
     heritage = _heritage_dup(a.name, b.name)
+    relic = _relic_park_dup(a.name, b.name)
+    composite = _composite_dup(a.name, b.name)
     sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
         a.category, b.category
     )
     if not (
         content
         or heritage
+        or relic
+        or composite
         or sibling
         or _site_dup(a.name, b.name)
         or _show_dup(a.name, b.name)
     ):
         return False
     # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）/同类型兄弟 30km；
-    # 同馆家族 10km（2026-11-01 拍板）；包含/演出通道维持 2km（青城山
+    # 同馆家族 10km（2026-11-01 拍板，遗址公园同址族同档）；「·」复合
+    # 挂牌联票 2.5km（2026-11-04 城墙双卡案：5a_304 城墙·碑林 vs
+    # intl_0075 西安城墙 2.18km 同日双卡——通道只进了 _name_dup
+    # （_cand_twin/_dup_blocks_item），组装层/行程级合并唯一入口
+    # _same_visit 漏挂，两卡全数过闸）；包含/演出通道维持 2km（青城山
     # skydive 同山不同场馆不误并）。
     gate = (
         _CONTENT_TWIN_GATE_KM
         if content
         else (
             _HERITAGE_TWIN_GATE_KM
-            if heritage
-            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+            if heritage or relic
+            else (
+                _SIBLING_TWIN_GATE_KM
+                if sibling
+                else (_COMPOSITE_TWIN_GATE_KM if composite else 2.0)
+            )
         )
     )
     if a.location is not None and b.location is not None:
