@@ -42,6 +42,7 @@ from app.db import get_session_factory
 from app.jobs.tag_quality import normalize_entry_city, normalize_name, same_city
 from app.models import Poi
 from app.services.poi_details import get_poi_detail_store
+from app.services.source_tier import TAGS_SOURCE_AUTHORITY, tags_source_wins
 
 _NAME_COLS = ("Name", "name", "酒店名称", "饭店名称", "名称", "hotel")
 _CITY_COLS = ("City", "city", "城市", "所在城市")
@@ -56,9 +57,10 @@ _PREMATCH_CITY_COLS = ("库内city",)
 
 _NAME_THRESHOLD_STRICT = 0.85  # 无坐标源（名单）名称相似度下限，同 tag_quality
 
-# tags_source 权威序：mct（文旅部官方）> glm/ctrip（市场口径抽取）；
-# 行已持官方源时低权威源不得覆盖（不冒充官方）。
-_SOURCE_RANK = {"mct": 2, "glm": 1, "ctrip": 1}
+# tags_source 权威序收编共享常量（app.services.source_tier，大值=高权威）：
+# mct/mohurd（官方名录）> show > glm/ctrip（市场口径抽取）；行已持官方源
+# 时低权威源不得覆盖（不冒充官方）。闸判定走共享 tags_source_wins。
+_SOURCE_RANK = TAGS_SOURCE_AUTHORITY
 
 _STAR_TAG = {5: "star_5", 4: "star_4", 3: "star_3", 2: "star_2", 1: "star_1"}
 _STAR_TAG_VALUES = frozenset(_STAR_TAG.values())
@@ -185,9 +187,9 @@ def _apply_tag_decision(row, tag: str, tags_source: str) -> str:
     new_tags = plan_tags(row, tag)
     if new_tags is None and (row.tags_source or "") == tags_source:
         return "already_ok"
-    if new_tags is None and _SOURCE_RANK.get(tags_source, 0) < _SOURCE_RANK.get(
-        row.tags_source or "", 0
-    ):
+    # 闸语义与共享 tags_source_wins 一致：新权威严格低于既有（不含相等）
+    # 时不动行——共享函数「>=放行」，取反即「<拦下」。
+    if new_tags is None and not tags_source_wins(tags_source, row.tags_source):
         return "kept_official"
     if new_tags is None:
         # 标已在但溯源缺失/较弱：只补 tags_source

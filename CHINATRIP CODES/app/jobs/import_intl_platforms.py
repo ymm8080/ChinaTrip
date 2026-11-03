@@ -9,6 +9,10 @@ hashtag 行不入）+ 产品规则过滤（红色/政治场所不入）+ 繁转�
   库内已有正名/别名行 → 追加 intl+明细站点 tags，tags_source=主站点，
   source 列保留原值（enrich/tier/refresh 三条活链不断）；
   查无 → 插入 source=主站点 骨架行（category=attraction，tags=国际+站点）。
+tags_source 带权威闸（2026-11-03 铁律「导入不降权威」，同
+import_intl_picks）：官方名录归因（mct/mohurd）不被商业站点归因
+冒充——新归因权威严格低于既有（source_tier.tags_source_wins）时保留
+旧 tags_source，tags 并集照写。
 本作业的名称匹配在等值之上加「同城双向包含」（短名≥2 字），以覆盖
 故宫↔故宫博物院、天坛↔天坛公园 这类缩写/全称跨源行——用户 2026-10-27
 指令「add to pois，注意去重」的主诉求。同批行间先集内去重（转换器完成），
@@ -34,7 +38,7 @@ import sys
 import uuid
 
 from app.models import Poi
-from app.services.poi_details import order_source_tags
+from app.services.source_tier import order_source_tags, tags_source_wins
 
 logger = logging.getLogger(__name__)
 
@@ -131,14 +135,18 @@ def apply_rows(session, picks: list[dict], *, dry_run: bool = False) -> dict:
                 for hit in hits:
                     merged = [t for t in add_tags if t not in (hit.tags or [])]
                     desired = order_source_tags([*(hit.tags or []), *merged])
+                    # 归因权威闸（2026-11-03 铁律「导入不降权威」）：低于既有
+                    # 归因权威时不改写 tags_source，tags 并集照写。
+                    source_wins = tags_source_wins(primary, hit.tags_source)
                     if (
                         not merged
-                        and hit.tags_source == primary
                         and desired == (hit.tags or [])
+                        and (hit.tags_source == primary or not source_wins)
                     ):
                         continue
                     hit.tags = desired
-                    hit.tags_source = primary
+                    if source_wins:
+                        hit.tags_source = primary
                     merged_aliases = [
                         a for a in aliases if a not in (hit.name_aliases or [])
                     ]

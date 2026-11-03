@@ -38,25 +38,16 @@ from app.db import get_session_factory
 from app.models import Poi
 from app.services.llm.base import ChatMessage
 from app.services.llm.zhipu import ZhipuGLMAdapter
+from app.services.source_tier import SOURCE_PRIORITY
 
 _DEFAULT_LIMIT = 5000
 # 思考模型：给足额度让正文能出全（探针见模块 docstring）
 _MAX_TOKENS = 1024
 _MAX_CONCURRENCY = 8
-# source 优先级：名气大的先补，未知源排最后
-_SOURCE_PRIORITY = (
-    "unesco",
-    "5a",
-    "museum1",
-    "museum2",
-    "museum3",
-    "artmuseum",
-    "street",
-    "histown",
-    "amap",
-    "chinatravel",
-    "osm",
-)
+# source 优先级：名气大的先补，未知源排最后——铁律 canonical order
+# 唯一定义点 app/services.source_tier.SOURCE_PRIORITY（CLAUDE.md Iron rule），
+# 各 job import 之，不得手抄短表。
+_SOURCE_PRIORITY = SOURCE_PRIORITY
 
 _SYSTEM_PROMPT = (
     "你是旅游百科编辑，为中国景点地点写一句话中文简介。铁律："

@@ -20,8 +20,12 @@ source in (unesco,5a)、refresh 升级键绑定 (source, source_poi_id)，
 覆写会断三条活链；明细站点落在 tags（ta/lp/viator）+ tags_source。
 查无 → 插入 source=主站点 骨架行（主站点优先级 ta>lp>viator>
 curated）；旧版 source='intl' 行重跑时自动升级为明细站点。tags 打标
-序统一：国外榜单在前（ta/lp/viator → intl/curated → unesco/5a/4a/
-3a → 其余原序垫后；2026-10-26 用户标准：多来源全打、国外榜置前）。
+序统一走 app.services.source_tier.SOURCE_TAG_ORDER（2026-11-03 名录
+序：unesco/5a → ta/lp/viator/curated → intl/平台站 → 短视频/小红书
+→ street/scenic/4a/3a → 其余垫底；多来源全打）。
+tags_source 带权威闸（2026-11-03 铁律「导入不降权威」）：官方名录
+归因（mct/mohurd）不被商业站点归因冒充——新归因权威严格低于既有
+时保留旧 tags_source，tags 并集照写（闸见 source_tier.tags_source_wins）。
 子场所行（如「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行
 另行插入。他源作业整覆 tags 掉了 intl 标时重跑本作业即修复。
 
@@ -39,7 +43,7 @@ import uuid
 
 from app.models import Poi
 from app.services.best_visit import apply_rules
-from app.services.poi_details import order_source_tags
+from app.services.source_tier import order_source_tags, tags_source_wins
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +323,7 @@ def _primary_source(sites: list[str]) -> str:
     return "curated"
 
 
-_order_tags = order_source_tags  # 多来源打标序（poi_details 单一实现）
+_order_tags = order_source_tags  # 多来源打标序（source_tier 名录序单一实现）
 
 
 def apply_picks(session, *, dry_run: bool = False) -> dict:
@@ -345,14 +349,19 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                         changed = True
                     merged = [t for t in add_tags if t not in (hit.tags or [])]
                     desired = _order_tags([*(hit.tags or []), *merged])
+                    # 归因权威闸（2026-11-03 铁律「导入不降权威」）：官方名录
+                    # 归因（mct/mohurd）不被商业站点归因冒充——权威低于既有
+                    # 时 tags_source 保留原值，tags 并集照写。
+                    source_wins = tags_source_wins(primary, hit.tags_source)
                     if (
                         not merged
-                        and hit.tags_source == primary
                         and desired == (hit.tags or [])
+                        and (hit.tags_source == primary or not source_wins)
                     ):
                         continue
                     hit.tags = desired
-                    hit.tags_source = primary
+                    if source_wins:
+                        hit.tags_source = primary
                     changed = True
                     logger.info(
                         "intl merge %s/%s onto source=%s tags+=%s",
