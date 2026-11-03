@@ -885,3 +885,54 @@ def test_normalize_poi_keeps_ename():
 def test_normalize_poi_without_ename_omits_key():
     poi = _normalize_poi({"id": "B1", "name": "无名点", "cityname": "上海市"})
     assert "ename" not in poi
+
+
+# ---------- WAF 处罚页识别（2026-11-03 bixi punish） ----------
+
+PUNISH_HTML = (
+    b'\r\n<a id="a-link"\r\n    href="https://bixi.alicdn.com/punish/punish:resource:'
+    b"template:baba:default_35969158.html?action=deny&origin=https%3A%2F%2Frestapi.amap.com"
+    b'"></a>\r\n<script>\r\nvar x=1;\r\n</script>\r\n'
+)
+
+
+def test_search_poi_punish_page_raises_punished_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=PUNISH_HTML, headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapPunishedError) as ei:
+        asyncio.run(client.search_poi("太平山顶", city="香港"))
+    assert "punish" in str(ei.value)
+
+
+def test_search_poi_around_punish_page_raises_punished_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=PUNISH_HTML, headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapPunishedError):
+        asyncio.run(client.search_poi_around("太平山顶", location="114.17,22.28"))
+
+
+def test_geocode_generic_non_json_stays_plain_amap_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=b"<html>oops</html>", headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapError) as ei:
+        asyncio.run(client.geocode("上海市黄浦区中山东一路", city="上海"))
+    assert not isinstance(ei.value, AmapPunishedError)
+    assert "non-JSON" in str(ei.value)

@@ -101,7 +101,7 @@ async def run(limit: int, *, extras: bool = False) -> dict:
     from app.db import get_session_factory
     from app.jobs.backfill_locations import backfill_rows, select_rows
     from app.models import Poi
-    from app.services.map_provider import build_vendor
+    from app.services.map_provider import build_geocode_chain
     from app.services.poi_details import PoiDetailStore
 
     missed = _load_missed()
@@ -113,7 +113,9 @@ async def run(limit: int, *, extras: bool = False) -> dict:
     ids = [r.source_poi_id for r in rows]
     settings = get_settings()
     clients, probe = await _probe_search_chain(settings)
-    geocoder = build_vendor("baidu", settings)
+    # geocode 链：baidu 主 + amap 兜底（独立配额池/风控；place 被 WAF deny
+    # 时 geocode 仍可用）。全链配额死才 latch，backfill_rows 停 geocode 通道。
+    geocoder = build_geocode_chain(settings)
     store = PoiDetailStore(session_factory=get_session_factory())
     stats = await backfill_rows(store, clients, rows, geocoder=geocoder)
     stats["search_probe"] = probe

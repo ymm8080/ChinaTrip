@@ -272,3 +272,26 @@ def test_hot_city_first_within_same_rank():
     hot_b = row("西安博物院", "西安")
     cold = row("英吉沙博物馆", "英吉沙")
     assert order_backfill_rows([cold, hot_b, hot]) == [hot, hot_b, cold]
+
+
+def test_geocode_chain_falls_over_quota_dead_vendor_and_labels_actual_vendor():
+    from app.services.map_provider import GeocodeChain
+
+    class DeadGeo:
+        vendor = "baidu"
+
+        async def geocode(self, address: str, *, city: str | None = None) -> dict:
+            from app.services.amap_client import AmapQuotaExhaustedError
+
+            raise AmapQuotaExhaustedError("quota", "302")
+
+    class OkGeo:
+        vendor = "amap"
+
+        async def geocode(self, address: str, *, city: str | None = None) -> dict:
+            return {"lon": 104.0, "lat": 30.6, "level": "门址"}
+
+    chain = GeocodeChain([DeadGeo(), OkGeo()])
+    geo = asyncio.run(chain.geocode("成都某路", city="成都"))
+    assert geo["lon"] == 104.0
+    assert chain.last_vendor == "amap"

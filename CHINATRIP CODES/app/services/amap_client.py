@@ -349,6 +349,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=timeout_seconds or self._timeout_seconds,
             transport=self._transport,
+            headers={"User-Agent": _BROWSER_UA},
         ) as http:
             try:
                 response = await http.get(path, params=params)
@@ -359,6 +360,10 @@ class AmapClient:
         try:
             data = response.json()
         except ValueError as exc:
+            if _is_punish_page(response.content):
+                raise AmapPunishedError(
+                    "amap WAF deny page (bixi punish) — endpoint cooldown"
+                ) from exc
             raise AmapError("amap returned non-JSON body") from exc
         if not isinstance(data, dict):
             raise AmapError("amap returned unexpected JSON shape")
@@ -373,6 +378,29 @@ class AmapClient:
                 _as_str(data.get("infocode")) or "",
             )
         return data
+
+    async def geocode(self, address: str, *, city: str | None = None) -> dict:
+        """/v3/geocode/geo —— 文字地址→GCJ-02 坐标（{"lon","lat","level"}）。
+
+        与 place 检索是独立配额池与独立风控（2026-11-03 实测：place 整族
+        被 WAF deny 时本接口仍 200 正常）；amap 坐标原生 GCJ-02，无需转换。
+        """
+        params: dict[str, str] = {
+            "key": self._key,
+            "address": address,
+            "output": "JSON",
+        }
+        if city:
+            params["city"] = city
+        data = await self._request_json("/geocode/geo", params)
+        geocodes = data.get("geocodes")
+        if not isinstance(geocodes, list) or not geocodes:
+            return {"lon": None, "lat": None, "level": None}
+        first = geocodes[0] if isinstance(geocodes[0], dict) else {}
+        loc = _parse_location(_as_str(first.get("location")))
+        if loc is None:
+            return {"lon": None, "lat": None, "level": _as_str(first.get("level"))}
+        return {"lon": loc["lon"], "lat": loc["lat"], "level": _as_str(first.get("level"))}
 
     async def search_poi(
         self, keywords: str, *, city: str | None = None, page: int = 1
@@ -392,6 +420,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=self._timeout_seconds,
             transport=self._transport,
+            headers={"User-Agent": _BROWSER_UA},
         ) as http:
             try:
                 response = await http.get("/place/text", params=params)
@@ -402,6 +431,10 @@ class AmapClient:
         try:
             data = response.json()
         except ValueError as exc:
+            if _is_punish_page(response.content):
+                raise AmapPunishedError(
+                    "amap WAF deny page (bixi punish) — /place/text cooldown"
+                ) from exc
             raise AmapError("amap returned non-JSON body") from exc
         if not isinstance(data, dict):
             raise AmapError("amap returned unexpected JSON shape")
@@ -446,6 +479,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=self._timeout_seconds,
             transport=self._transport,
+            headers={"User-Agent": _BROWSER_UA},
         ) as http:
             try:
                 response = await http.get("/place/around", params=params)
@@ -460,6 +494,10 @@ class AmapClient:
         try:
             data = response.json()
         except ValueError as exc:
+            if _is_punish_page(response.content):
+                raise AmapPunishedError(
+                    "amap WAF deny page (bixi punish) — place API cooldown"
+                ) from exc
             raise AmapError("amap returned non-JSON body") from exc
         if not isinstance(data, dict):
             raise AmapError("amap returned unexpected JSON shape")

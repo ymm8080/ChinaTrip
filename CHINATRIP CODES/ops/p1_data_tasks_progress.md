@@ -199,3 +199,10 @@
 - 2026-11-03 ~13:10 第 180 轮（本调度器）：别名 2,054（+2）；其余持平；4 个作业进程（enrich_llm_web + intro 链）在跑。维持监控。
 - 2026-11-03 ~13:15 第 181 轮（本调度器）：全持平（别名 2,054、无坐标 5,034、百度 247、自治州 0）。维持监控。
 - 2026-11-03 ~13:45 T3 追加轮 2（继续填空中发现重大通道事件）：①解析缺口盘点——「有 ctrip 评分但 hours 空」仅 39 行（非大头）；实测颐和园发现 **gs.ctrip.com html5 目录端点 ~13:10 起整页变质**（beijing1 返回智利圣地亚哥景点列表，URL 不重定向、title 变通用页）；you.ctrip.com/sight 主站目录本机 ReadTimeout 不可达。**今日已写数据审计干净**（批次样本+圆明园 district=海淀区+莫高窟/扎什伦布寺场次抽核全对——变质发生在批次 3 收尾后；批次 2 的 3.3% 低命中是长尾本性非污染）。②处置：ctrip_hours.parse_list 加 **slug 运行时城市闸**（目录条目 URL 必须属该 slug，大小写不敏感；变质页 entries 空→按 exhausted 收口零污染），+1 测试=14 全绿；40 行验证批 39 no_page/0 写入/0 错误确认闸有效。③携程通道状态=**下线待观察**（变质可能 A/B 抖动，批次 3 时尚正常；周涓流在闸保护下安全空转，恢复即自动续填；规模化替代=W9-10 门票开放平台签约）。百度日批（优先级序）明晨 03:55 首跑不受影响。
+- 2026-11-03 ~13:30 **amap「非 JSON」修复（用户指派）**：病根=阿里云 WAF bixi punish 处罚页（HTTP 200 + HTML，`action=deny`），**仅 place 检索家族被封，/v3/geocode/geo 同 key 正常**——分 API 风控非全网封，冷却后自解。改动：
+  ① `amap_client.py`：新增 `AmapPunishedError` + `_is_punish_page`（三处 json 解析点全接：_request_json / search_poi / _pois_from_response）；全部 httpx 客户端加浏览器 UA 头；**新增 `AmapClient.geocode()`**（/v3/geocode/geo，原生 GCJ-02，复用配额/处罚识别）。
+  ② `map_provider.py`：新增 `GeocodeChain` + `build_geocode_chain`（baidu→amap 降级；`last_vendor` 标注实际渠道；全链配额死才抛配额异常，网络错误不误 latch）。
+  ③ `backfill_locations.py`：geocoder 换链、by_vendor 标签改 `{last_vendor}_geocode` 动态标注。
+  ④ `ops/backfill_coords_driver.py`：geocoder 换链。
+  ⑤ 测试：新增 4 例（punish→AmapPunishedError ×2、普通非 JSON 仍 AmapError、GeocodeChain 降级+标签）；**全量门禁 2,204 passed 绿**。实测：amap geocode 直连 OK（121.49,31.24），GeocodeChain 走 baidu 主通道 OK。改动未提交（用户未要求 commit）。探针批 50 行已发，验证修复后能否续填。
+- 2026-11-03 ~13:35 **修复实测 + 续批**：探针批 50 行 → filled 35（**baidu_geocode 28 + amap_geocode 6 + baidu 检索 1**）——新 geocode 兜底渠道首战贡献 6 行；search_probe 显示 baidu 检索恢复存活（限速解除），tencent 仍配额尽，amap search 仍超时/处罚。已续启动第 6 批 --limit 200（日志 ops/backfill_coords_round6_1103.log）。

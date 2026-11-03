@@ -33,7 +33,11 @@ from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
 from app.services.amap_client import AmapQuotaExhaustedError
-from app.services.map_provider import build_client_chain, build_vendor
+from app.services.map_provider import (
+    build_client_chain,
+    build_geocode_chain,
+    build_vendor,
+)
 from app.services.poi_city import known_cities
 from app.services.poi_details import PoiDetailStore
 
@@ -248,8 +252,9 @@ async def backfill_rows(
                     if dry_run:
                         stats["filled"] += 1
                         stats["geocode_filled"] += 1
-                        stats["by_vendor"]["baidu_geocode"] = (
-                            stats["by_vendor"].get("baidu_geocode", 0) + 1
+                        _label = f"{getattr(geocoder, 'last_vendor', None) or getattr(geocoder, 'vendor', 'baidu')}_geocode"
+                        stats["by_vendor"][_label] = (
+                            stats["by_vendor"].get(_label, 0) + 1
                         )
                         logger.info(
                             "[dry-run] would geocode-fill %s (%s)",
@@ -266,8 +271,9 @@ async def backfill_rows(
                     )
                     stats["filled"] += 1
                     stats["geocode_filled"] += 1
-                    stats["by_vendor"]["baidu_geocode"] = (
-                        stats["by_vendor"].get("baidu_geocode", 0) + 1
+                    _label = f"{getattr(geocoder, 'last_vendor', None) or getattr(geocoder, 'vendor', 'baidu')}_geocode"
+                    stats["by_vendor"][_label] = (
+                        stats["by_vendor"].get(_label, 0) + 1
                     )
                     continue
         hit = None
@@ -348,9 +354,11 @@ async def backfill(
     settings = get_settings()
     if clients is None:
         clients = build_client_chain(settings, "search")
-    # 地址优先轨道：百度 geocoding（独立配额池；2026-10-30 实测检索
-    # 配额烧尽时仍可用）——检索三家全灭时仍能靠门址补坐标。
-    geocoder = build_vendor("baidu", settings)
+    # 地址优先轨道：baidu geocoding 为主（独立配额池；2026-10-30 实测检索
+    # 配额烧尽时仍可用），amap geocode 兜底（独立配额池+独立风控；2026-11-03
+    # 实测 place 被 bixi WAF deny 时 geocode 仍正常）——检索三家全灭时仍能
+    # 靠门址补坐标。
+    geocoder = build_geocode_chain(settings)
     store = PoiDetailStore(session_factory=get_session_factory())
     rows = select_rows(limit)
     return await backfill_rows(store, clients, rows, dry_run=dry_run, geocoder=geocoder)
