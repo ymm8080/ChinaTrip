@@ -1324,6 +1324,52 @@ def _heritage_dup(a: str, b: str) -> bool:
     )
 
 
+# 国家考古遗址公园同址景区族（2026-11-04 全库双卡清扫）：遗址公园挂牌
+# （万寿岩/仰韶村/城头山/大明宫国家考古遗址公园，relicpark 源）与同址的
+# 文旅小镇/博物馆/旅游景区行（4a/5a 多档并存）名字互不包含——大明宫
+# 国家考古遗址公园 vs 大明宫旅游景区双卡曾同计划在排。剥「[国家]考古
+# 遗址公园」取遗址名（可再剥尾 村/遗址），另一名含之（≥2 字）即同址
+# 同票；地理闸走同馆档 10km（大明宫类大遗址园区级跨度）。
+_RELIC_PARK_MARK = "考古遗址公园"
+
+
+def _relic_park_dup(a: str, b: str) -> bool:
+    for x, y in ((a, b), (b, a)):
+        i = (x or "").find(_RELIC_PARK_MARK)
+        if i < 2:
+            continue
+        site = _norm_site_name(x[:i])
+        if site.endswith("国家") and len(site) - 2 >= 2:
+            site = site[:-2]
+        ny = _norm_site_name(y or "")
+        for cand in (site, site.removesuffix("村"), site.removesuffix("遗址")):
+            if len(cand) >= 2 and cand in ny:
+                return True
+    return False
+
+
+# 「·」复合挂牌族（2026-11-04 城墙双卡实录）：联票/合并挂牌名（城墙·碑林
+# 历史文化景区 = 城墙+碑林一票，5a_304）与单挂行（西安城墙 intl_0075）
+# 名字互不包含、也不是兄弟对，同日双卡；含光门城墙遗址博物馆（墙上场馆）
+# 同族。拆 · 取段（剥景区尾巴、≥2 字、非泛词），一段为另一名归一形式的
+# 子串即同票同站。地理闸 2.5km——复合挂牌是同点联票，不是「峨眉山—
+# 乐山大佛」式跨区系列（那类 30km 距离天然被闸拦住）。
+_COMPOSITE_SPLIT_RE = re.compile(r"[·•・‧]")
+_COMPOSITE_SEG_STOP = {"文化", "历史", "旅游", "生态", "休闲", "度假", "公园"}
+_COMPOSITE_TWIN_GATE_KM = 2.5
+
+
+def _composite_dup(a: str, b: str) -> bool:
+    for x, y in ((a, b), (b, a)):
+        for seg in _COMPOSITE_SPLIT_RE.split(x or ""):
+            s = _norm_site_name(seg)
+            if len(s) < 2 or s in _COMPOSITE_SEG_STOP:
+                continue
+            if s in _norm_site_name(y or ""):
+                return True
+    return False
+
+
 # 同类型兄弟对（2026-11-03 用户拍板「同类型得选一个就好了。比如大雁塔，
 # 小雁塔」）：大/小 前缀同核心词的两个点是同类型二选一——大雁塔/小雁塔
 # （同城 ~3.5km）、大昭寺/小昭寺同款，一次行程只看一个。containment/
@@ -1367,10 +1413,17 @@ def _name_dup(a: str, b: str) -> bool:
     """Name-pair duplicate test for wish/candidate matching: containment
     (_site_dup) plus show-activity alias (_show_dup) plus same-content
     companion venues (_content_dup, 2026-10-31 大足双卡案) plus same-
-    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案).
+    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案)
+    plus relic-park co-listings (_relic_park_dup) plus composite
+    joint-ticket listings (_composite_dup, both 2026-11-04 全库清扫).
     同类型兄弟对（_sibling_dup）刻意不在内：心愿覆盖不许跨兄弟冒充。"""
     return (
-        _site_dup(a, b) or _show_dup(a, b) or _content_dup(a, b) or _heritage_dup(a, b)
+        _site_dup(a, b)
+        or _show_dup(a, b)
+        or _content_dup(a, b)
+        or _heritage_dup(a, b)
+        or _relic_park_dup(a, b)
+        or _composite_dup(a, b)
     )
 
 
@@ -1499,8 +1552,12 @@ def _cand_twin(a: dict, b: dict) -> bool:
         if _content_dup(na, nb)
         else (
             _HERITAGE_TWIN_GATE_KM
-            if _heritage_dup(na, nb)
-            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+            if _heritage_dup(na, nb) or _relic_park_dup(na, nb)
+            else (
+                _SIBLING_TWIN_GATE_KM
+                if sibling
+                else (_COMPOSITE_TWIN_GATE_KM if _composite_dup(na, nb) else 2.0)
+            )
         )
     )
     axy, bxy = _cand_xy(a), _cand_xy(b)
@@ -1539,14 +1596,18 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     if not (cn and iname and (_name_dup(cn, iname) or sibling)):
         return False
     content = _content_dup(cn, iname)
-    heritage = _heritage_dup(cn, iname)
+    heritage = _heritage_dup(cn, iname) or _relic_park_dup(cn, iname)
     gate = (
         _CONTENT_TWIN_GATE_KM
         if content
         else (
             _HERITAGE_TWIN_GATE_KM
             if heritage
-            else (_SIBLING_TWIN_GATE_KM if sibling else 2.0)
+            else (
+                _SIBLING_TWIN_GATE_KM
+                if sibling
+                else (_COMPOSITE_TWIN_GATE_KM if _composite_dup(cn, iname) else 2.0)
+            )
         )
     )
     cxy = _cand_xy(cand)
