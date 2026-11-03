@@ -1100,12 +1100,11 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     # 丙仍回填 15:17-16:47 空档（夜游挪 17:17 给丙让窗；旧版游标被失败
     # 顶到 18:17，丙跟着排不上）
     assert seq[2] == ("夜游", dtime(17, 17))  # pinned 锚点
-    # 2026-11-02「白天景点一般 16:30 前结束」兜底口径：乙 16:30 前装不
-    # 下 → 溢傍晚放行不弃排（夜游后 19:17-21:17）；尾巴落位不推游标
-    # （①同型），丙照旧回填 15:17 空档。夜游（pinned）不受闸。
-    assert seq[3] == ("乙", dtime(19, 17))
+    # 2026-11-03「最晚 16:30 开场」口径：乙在夜游后唯一空档 19:17 起
+    # > 闸 → 不再溢傍晚放行，留空交挪日链/校验披露（第1天城墙 18:43
+    # 事故回归）。夜游（pinned）不受闸。
     untimed = [v.name for v in visits if v.start_time is None]
-    assert untimed == []
+    assert untimed == ["乙"]
 
 
 # --- POST /plan/{id}/items/{item_id}/retime（2026-10-24 点时间戳改时间）-----

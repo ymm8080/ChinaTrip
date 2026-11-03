@@ -72,9 +72,8 @@ def test_insertion_arrival_city_not_before_late_train():
 
 def test_insertion_arrival_city_after_flight():
     # 09:00-12:00 航班/早班火车：西安条目落位须 ≥ 落地时刻（dur=120：
-    # 16:30 终点闸下 cap=14:30 恰在落地+150 地板上，仍可排——180 分钟
-    # 长点则闸前无档整日降级，由 test_insertion_arrival_city_not_before_
-    # late_train 的 None 形态覆盖）
+    # 16:30 开场闸下 14:30 落地地板起排仍有窗，可排——深夜到达的
+    # 整日降级由 test_insertion_arrival_city_not_before_late_train 覆盖）
     t = _train(dep=time(9, 0), arr=time(12, 0))
     day = DayPlan(day=1, base_city="上海", items=[t, _visit("wall", dur=120)])
     solved = insertion_schedule_day(day, poi_hours=[])

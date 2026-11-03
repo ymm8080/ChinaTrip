@@ -568,7 +568,7 @@ def test_generic_sightseeing_entry_capped_at_16():
 
 
 def test_food_dinner_uncapped_while_scenic_capped():
-    """晚餐（food）照旧可排傍晚；同日景区被 16:00 闸收进上午。"""
+    """晚餐（food）照旧可排傍晚；同日景区被 16:30 开场闸收进上午。"""
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -576,11 +576,11 @@ def test_food_dinner_uncapped_while_scenic_capped():
             _visit(
                 "blocker",
                 poi_id="p_b",
-                dur=300,
+                dur=330,
                 category="attraction",
                 pinned=True,
                 start_time=time(11, 30),
-            ),  # 11:30-16:30
+            ),  # 11:30-17:00
             _visit("wall", poi_id="p_w", dur=150, category="attraction"),
             _visit("dinner", poi_id="p_f", dur=60, category="food"),
         ],
@@ -591,18 +591,18 @@ def test_food_dinner_uncapped_while_scenic_capped():
     assert solved is not None
     wall = next(i for i in solved.items if i.item_id == "wall")
     dinner = next(i for i in solved.items if i.item_id == "dinner")
-    # wall 150 分钟只能进上午（blocker 后是 16:30 > 闸点）
+    # wall 150 分钟只能进上午（blocker 后 17:00 起排 > 16:30 开场闸）
     assert wall.end_time <= time(11, 30)
     assert _minutes(wall.start_time) <= 16 * 60
-    # 晚餐不受闸：blocker 之后 16:30 开饭
-    assert dinner.start_time >= time(16, 30)
+    # 晚餐不受闸：blocker 之后 17:00 开饭（闸后时段照排）
+    assert dinner.start_time >= time(17, 0)
 
 
-def test_late_open_venue_exempt_from_entry_cap():
-    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）
-    后 16:30 前无整段档：2026-11-02「最晚 16:30 结束」拍板下 solver
-    整日降级（None）——傍晚入场交 plan 兜底按「一般」口径溢出放行，
-    不再由 solver 直排（旧断言 ≥16:30 作废）。"""
+def test_late_open_venue_capped_gate_boundary_placeable():
+    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）：
+    2026-11-03「最晚 16:30 开场」口径下 16:30 整点开场合法（闸含端点），
+    solver 直排 16:30-18:00——旧「最晚 16:30 结束」口径的整日降级 +
+    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
     day = DayPlan(
         day=1,
@@ -621,4 +621,6 @@ def test_late_open_venue_exempt_from_entry_cap():
 
     solved = solve_day(day, poi_hours=hours)
 
-    assert solved is None  # 闸前无档 → 降级；傍晚溢出由 _fallback_sequence_times 放行
+    assert solved is not None  # 16:30 整点开场在闸内
+    v = next(i for i in solved.items if i.item_id == "v_late")
+    assert _minutes(v.start_time) == 16 * 60 + 30

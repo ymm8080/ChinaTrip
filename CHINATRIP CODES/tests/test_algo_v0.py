@@ -607,8 +607,9 @@ def test_taxi_model_allows_midrange_same_day():
 
 
 def test_fallback_shifts_lunch_for_oversize_morning_visit():
-    # 顺序兜底同口径（用户拍板「午餐可以延后」）：240 分钟大点 09:00-13:00
-    # 落上午，午餐顺延到其后，不再被 12 点锚挤到下午
+    # 2026-11-03 拍板：开餐硬窗 [11:30, 12:30]——240 分钟大点 09:00-13:00
+    # 整段压窗时不再无界顺延（旧版可滑到 20:00「8pm 午餐」事故），当天
+    # 移除午餐（铁律 20 同义：过午不强插）
     from datetime import time as _t
 
     from app.services.agent.plan import _fallback_sequence_times
@@ -644,8 +645,8 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
     _fallback_sequence_times(plan)
     assert big.start_time is not None and big.start_time.hour == 9
     assert big.end_time is not None and big.end_time.hour == 13
-    assert lunch.start_time is not None
-    assert _t(13, 0) <= lunch.start_time
+    # 午餐硬窗 [11:30, 12:30] 被大点整段压满：移除（不插 8pm 午餐）
+    assert lunch not in plan.days[0].items
 
 
 def _mini_plan_with_lunch(lunch_start, show=None, visit_dur=120):
@@ -713,8 +714,8 @@ def test_fallback_lunch_moves_earlier_within_30min():
 
 
 def test_fallback_lunch_earlier_and_shortened_30min():
-    # 2026-11-01 用户拍板：需要时用餐时间可缩短半小时——12:15 固定场次
-    # 挤不下全时长，午餐提前到 11:30 并缩短为 30 分钟。
+    # 2026-11-03 拍板：开餐硬窗 [11:30, 12:30] + 极端可缩 30 分钟——
+    # 12:15 固定场次挤不下全时长，午餐提前到 11:30 并缩短为 30 分钟。
     from datetime import time as _t
 
     from app.services.agent.plan import _fallback_sequence_times
@@ -726,6 +727,7 @@ def test_fallback_lunch_earlier_and_shortened_30min():
     assert visit.start_time == _t(9, 0)
     assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
     assert lunch.end_time == _t(12, 0)  # 缩短为 30 分钟
+    assert lunch.duration_minutes == 30
 
 
 def test_fallback_evening_item_not_in_daytime():

@@ -2583,18 +2583,19 @@ def test_v0_foodless_day_without_restaurants_gets_lunch_placeholder():
     assert len(foods) == 1 and is_lunch_placeholder(foods[0])
     ph = foods[0]
     assert ph.name == "午饭（自由安排）" and ph.poi_id is None
-    # 2026-11-01 拍板「午饭不钉死」：系统软锚（非铁律 19）
-    assert not ph.pinned and ph.soft_pin and ph.duration_minutes == 60
-    assert time(12, 0) <= ph.start_time <= time(13, 30)
+    # 2026-11-01 拍板「午饭不钉死」：系统软锚（非铁律 19）；2026-11-03
+    # 拍板：时长默认 1.5h、开餐硬窗 [11:30, 12:30]
+    assert not ph.pinned and ph.soft_pin and ph.duration_minutes == 90
+    assert time(11, 30) <= ph.start_time <= time(12, 30)
     # 占位件不算真 food：晚餐 pass 照常搜索（也无候选）→ 无顺路餐厅假设
     assert not any("顺路餐厅" in a for a in session.assumptions)
     assert any("午饭时段" in a for a in session.assumptions)
 
 
 def test_plan_lunch_slot_base_is_noon():
-    # 终版拍板：基准 12 点开饭（2026-10-31）
+    # 终版拍板：基准 12 点开饭（2026-10-31）；时长默认 1.5h（2026-11-03）
     slot, cont = _plan_lunch_slot(DayPlan(day=1, base_city="上海", items=[]))
-    assert slot == (time(12, 0), time(13, 0)) and cont is None
+    assert slot == (time(12, 0), time(13, 30)) and cont is None
 
 
 def test_plan_lunch_slot_skips_when_transfer_pushes_past_latest():
@@ -2642,7 +2643,7 @@ def test_plan_lunch_slot_skips_when_shift_too_late():
 
 def test_plan_lunch_slot_splits_overrunning_pinned_visit():
     # 上个行程 11:00–13:00 收尾超 12:30 上限 → 从基准头 12:00 切分，
-    # 下半段 13:00 续排
+    # 下半段 13:30（90 分钟午餐收尾后）续排
     visit = VisitItem(
         item_id="v1",
         name="博物馆",
@@ -2655,11 +2656,11 @@ def test_plan_lunch_slot_splits_overrunning_pinned_visit():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(12, 0), time(13, 0))
+    assert slot == (time(12, 0), time(13, 30))
     assert visit.end_time == time(12, 0) and visit.duration_minutes == 60
     assert cont is not None
     assert cont.item_id == "v1-p2" and cont.name == "博物馆"
-    assert (cont.start_time, cont.end_time) == (time(13, 0), time(14, 0))
+    assert (cont.start_time, cont.end_time) == (time(13, 30), time(14, 30))
     assert cont.duration_minutes == 60 and cont.pinned
 
 
@@ -2677,7 +2678,7 @@ def test_plan_lunch_slot_pulls_earlier_when_prev_ends_early():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(11, 30), time(12, 30)) and cont is None
+    assert slot == (time(11, 30), time(13, 0)) and cont is None
 
 
 def test_plan_lunch_slot_follows_prev_end_inside_early_band():
@@ -2694,7 +2695,7 @@ def test_plan_lunch_slot_follows_prev_end_inside_early_band():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(11, 45), time(12, 45)) and cont is None
+    assert slot == (time(11, 45), time(13, 15)) and cont is None
 
 
 def test_plan_lunch_slot_follows_prev_end_within_half_hour():
@@ -2711,7 +2712,7 @@ def test_plan_lunch_slot_follows_prev_end_within_half_hour():
     )
     day = DayPlan(day=1, base_city="上海", items=[visit])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(12, 15), time(13, 15)) and cont is None
+    assert slot == (time(12, 15), time(13, 45)) and cont is None
 
 
 def test_plan_lunch_slot_no_earlier_inside_transfer_buffer():
@@ -2739,7 +2740,7 @@ def test_plan_lunch_slot_no_earlier_inside_transfer_buffer():
     )
     day = DayPlan(day=1, base_city="西安", items=[visit, transfer])
     slot, cont = _plan_lunch_slot(day)
-    assert slot == (time(12, 30), time(13, 30)) and cont is None
+    assert slot == (time(12, 30), time(14, 0)) and cont is None
 
 
 # --- G1：预约制门票提示（名单 v0 兜底） -------------------------------------

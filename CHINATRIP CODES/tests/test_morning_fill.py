@@ -453,7 +453,8 @@ def test_solve_plan_forwards_meal_flex():
 
 
 def test_fallback_delays_system_lunch_but_not_user_pinned():
-    """兜底口径对齐：soft_pin 午餐顺延给 240 分钟大点让上午；
+    """兜底口径对齐：soft_pin 午餐按 2026-11-03 开餐硬窗 [11:30, 12:30]
+    裁决——240 分钟大点 09:00-13:00 整段压窗 → 当天移除（不再无界顺延）；
     用户手钉午餐不动，大点让到下午。"""
     from app.services.agent.plan import _fallback_sequence_times
 
@@ -462,9 +463,8 @@ def test_fallback_delays_system_lunch_but_not_user_pinned():
     _fallback_sequence_times(soft_plan)
     s = {i.item_id: i.start_time for i in soft_day.items}
     assert s["big"] == time(9, 0)
-    # ①层=旧版缓冲口径（v2.2 零漂移优先）：240 分钟大点收尾块 13:30 后
-    # 接午餐（±30/缩短许可在本案全被堵，回落①）
-    assert s["lunch-1"] == time(13, 30)
+    # 硬窗被大点整段压满：移除（铁律 20 同义，不产 8pm 午餐）
+    assert "lunch-1" not in s
 
     hard_day = DayPlan(
         day=1, base_city="西安", items=[_soft_lunch(soft=False), _big(dur=240)]

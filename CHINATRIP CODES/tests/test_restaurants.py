@@ -85,8 +85,10 @@ def test_meal_window_untimed_items_do_not_block():
 
 
 def test_meal_window_item_inside_window_compresses_gap():
+    # 2026-11-03 拍板：午餐 90 分钟——12:30–13:30 仅剩 60 分钟空档，
+    # 装不下 90 分钟午餐 → None（铁律 20：不强插）
     plan = day_plan(items=[visit("v1", start=time(11, 30), end=time(12, 30))])
-    assert meal_window(plan, "lunch") == (time(12, 30), time(13, 30))
+    assert meal_window(plan, "lunch") is None
     # right-hand compression: item overhanging the window end gets clipped;
     # the 90-minute window then leaves only a 30-min gap -> no meal fits
     plan2 = day_plan(items=[visit("v2", start=time(12, 30), end=time(14, 0))])
@@ -290,10 +292,10 @@ def test_recommend_restaurants_builds_food_items_inside_window():
         assert item.category == "food"
         assert item.day == 2
         assert item.city == "杭州"
-        assert item.duration_minutes == 60
+        # 2026-11-03 拍板：午餐默认 1.5h（90 分钟）
+        assert item.duration_minutes == 90
         assert item.pinned is False
-        assert time(12, 0) <= item.start_time <= time(13, 30)
-        assert item.start_time == time(12, 30)  # clamped midpoint of the window
+        assert item.start_time == time(12, 0)  # pulled back so 90 min fits the gap
         assert item.end_time == time(13, 30)
     assert len({i.item_id for i in items}) == 3
     assert items[2].location is None  # location-less candidate stays addable

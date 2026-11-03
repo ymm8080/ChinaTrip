@@ -290,10 +290,11 @@ def test_lns_disclosure_moves_are_strings():
 
 def test_lns_insertion_evaluator_fills_anchor_gap():
     """v1.5：240 分钟未排条目夹在两个全钉锚之间——兜底法因 ±30 缓冲
-    判死（10:30+240 撞 B 的 13:40 缓冲；B 后 16:30 又超入场闸），插入式
+    判死（10:30+240 撞 B 的 13:40 缓冲；B 后起排又超入场闸），插入式
     求解按打车腿落锚缝 10:01-14:01——评估器升级解锁这类移动。
     2026-11-02 车程进排程后：锚背靠背 10:00-14:00 不再可能（同点位
-    腿 1'，B 锚 14:10 让出腿缝）。"""
+    腿 1'，B 锚让出腿缝）；2026-11-03 开场闸收口：B 收 14:30-16:30，
+    B 后起排 ≥16:31 越闸 → 锚缝是唯一可行位。"""
     loc = GeoPoint(lon=108.94, lat=34.26)  # 三件同点位 → 打车腿 1'
     agent = PlanningAgent(_NoLLM())
     a = VisitItem(
@@ -313,8 +314,8 @@ def test_lns_insertion_evaluator_fills_anchor_gap():
         city="西安",
         day=1,
         duration_minutes=120,
-        start_time=time(14, 10),
-        end_time=time(16, 0),
+        start_time=time(14, 30),
+        end_time=time(16, 30),
         pinned=True,
         location=loc,
     )

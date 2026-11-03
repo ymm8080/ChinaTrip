@@ -456,11 +456,13 @@ def test_food_link_near_sights_no_ask_pinned_into_meal_window():
     assert food.category == "food"
     assert food.pinned
     assert food.start_time is not None
-    # 当天已有自动午餐餐厅时必吃落最闲的晚餐窗（_food_visit food_counts）
-    assert time(12, 0) <= food.start_time <= time(13, 30) or time(
+    # 当天已有自动午餐餐厅时必吃落最闲的晚餐窗（_food_visit food_counts）；
+    # 午餐开餐硬窗自 11:30 起（2026-11-03 拍板）
+    assert time(11, 30) <= food.start_time <= time(13, 30) or time(
         17, 30
     ) <= food.start_time <= time(19, 30)
-    assert food.duration_minutes == 60
+    # 2026-11-03 拍板：占午餐窗的必吃默认 1.5h；落晚餐窗仍是 1h
+    assert food.duration_minutes in (60, 90)
 
 
 def test_food_link_edit_round_far_defers_then_adds_on_accept():
