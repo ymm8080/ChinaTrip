@@ -80,13 +80,13 @@ class Poi(Base):
     website: Mapped[str | None] = mapped_column(String(300))
     rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
     rating_source: Mapped[str | None] = mapped_column(String(20))
-    tags: Mapped[list | None] = mapped_column(JSONB)
+    tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     tags_source: Mapped[str | None] = mapped_column(String(20))
     intro: Mapped[str | None] = mapped_column(Text)
     intro_source: Mapped[str | None] = mapped_column(String(20))
     # 双语 P1（DESIGN language_dual_system §5.2）：*_en 只填空，NULL 回退中文
     intro_en: Mapped[str | None] = mapped_column(Text)
-    photos: Mapped[list | None] = mapped_column(JSONB)
+    photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
     best_visit_time: Mapped[str | None] = mapped_column(
         String(10), server_default=text("'any'")
@@ -98,9 +98,9 @@ class Poi(Base):
     # 规划引擎升级 0009（DESIGN planning_engine_upgrade_2026-10-24）：
     # A/B/C 组富化列——全部只填空/带溯源，时间敏感字段仍只信回源链。
     rating_count: Mapped[int | None] = mapped_column(Integer)
-    review_tags: Mapped[list | None] = mapped_column(JSONB)
+    review_tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     review_tags_source: Mapped[str | None] = mapped_column(String(20))
-    review_tags_en: Mapped[list | None] = mapped_column(JSONB)
+    review_tags_en: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     ticket_price_min: Mapped[int | None] = mapped_column(Integer)
     ticket_price_max: Mapped[int | None] = mapped_column(Integer)
     ticket_source: Mapped[str | None] = mapped_column(String(20))
@@ -108,7 +108,7 @@ class Poi(Base):
     business_area: Mapped[str | None] = mapped_column(String(50))
     indoor: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
     rain_ok: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
-    name_aliases: Mapped[list | None] = mapped_column(JSONB)
+    name_aliases: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     duration_source: Mapped[str | None] = mapped_column(String(20))
     review_summary: Mapped[str | None] = mapped_column(Text)
     review_summary_source: Mapped[str | None] = mapped_column(String(20))
@@ -133,7 +133,7 @@ class PoiHour(Base):
         UUID(as_uuid=True), ForeignKey("pois.id")
     )
     rule_type: Mapped[str] = mapped_column(String(20))
-    payload: Mapped[dict] = mapped_column(JSONB)
+    payload: Mapped[dict] = mapped_column(JSONB(none_as_null=True))
 
 
 class Restaurant(Base):
@@ -174,29 +174,30 @@ class Restaurant(Base):
     avg_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
     rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
     rating_source: Mapped[str | None] = mapped_column(String(20))
-    tags: Mapped[list | None] = mapped_column(JSONB)
+    tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     tags_source: Mapped[str | None] = mapped_column(String(20))
     intro: Mapped[str | None] = mapped_column(Text)
     intro_source: Mapped[str | None] = mapped_column(String(20))
     intro_en: Mapped[str | None] = mapped_column(Text)
-    photos: Mapped[list | None] = mapped_column(JSONB)
+    photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
     origin: Mapped[str | None] = mapped_column(String(20))
     # 规划引擎升级 0009：restaurants 专属富化列（C 组 + 评论域）。
     rating_count: Mapped[int | None] = mapped_column(Integer)
-    review_tags: Mapped[list | None] = mapped_column(JSONB)
+    review_tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     review_tags_source: Mapped[str | None] = mapped_column(String(20))
-    review_tags_en: Mapped[list | None] = mapped_column(JSONB)
-    signature_dishes: Mapped[list | None] = mapped_column(JSONB)
-    signature_dishes_en: Mapped[list | None] = mapped_column(JSONB)
+    review_tags_en: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    signature_dishes: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    signature_dishes_en: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     taste_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
     env_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
     service_score: Mapped[float | None] = mapped_column(Numeric(3, 1))
     price_level: Mapped[str | None] = mapped_column(String(10))  # <=50/50-100/...
-    meal_periods: Mapped[list | None] = mapped_column(JSONB)  # 早茶/正餐/夜宵
+    # 早茶/正餐/夜宵
+    meal_periods: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     district: Mapped[str | None] = mapped_column(String(50))
     business_area: Mapped[str | None] = mapped_column(String(50))
-    name_aliases: Mapped[list | None] = mapped_column(JSONB)
+    name_aliases: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -223,7 +224,8 @@ class PoiReview(Base):
     )
     device_id: Mapped[str | None] = mapped_column(String(64))
     rating: Mapped[int | None] = mapped_column(SmallInteger)  # 1-5
-    tags: Mapped[list | None] = mapped_column(JSONB)  # 人多/出片/外卡支付...
+    # 人多/出片/外卡支付...
+    tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     # 属性名必须避开 sqlalchemy.text——DB 列名仍为 text
     body: Mapped[str | None] = mapped_column("text", Text)
     visited_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
@@ -275,7 +277,7 @@ class WeatherReport(Base):
     city: Mapped[str] = mapped_column(String(50))
     kind: Mapped[str] = mapped_column(String(10))  # live|forecast
     report_time: Mapped[datetime | None] = mapped_column(TIMESTAMP)
-    payload: Mapped[dict | None] = mapped_column(JSONB)
+    payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     fetched_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -305,7 +307,7 @@ class Itinerary(Base):
     # v2.5.2（2026-10-25）：H5 行程状态落 PG——plan 是 ItineraryRecord 整体
     # 文档（ItineraryPlan + snapshots 分存 snapshots 表）；cities 列喂
     # weather.trip_cities，owner/share 列喂设备/账号归属与分享查询。
-    plan: Mapped[dict | None] = mapped_column(JSONB)
+    plan: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     owner_device_id: Mapped[str | None] = mapped_column(String(100), index=True)
     # 账号名字符串（SQLite accounts 域），不是 users.id 外键——账号仍留 SQLite。
     owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
@@ -329,7 +331,7 @@ class ItinerarySnapshot(Base):
         TIMESTAMP, server_default=text("NOW()")
     )
     # 快照冻结的完整 ItineraryPlan 文档（restore 的数据源）
-    plan: Mapped[dict | None] = mapped_column(JSONB)
+    plan: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class ItineraryDay(Base):
@@ -396,7 +398,7 @@ class ExecutionEvent(Base):
     )
     ts: Mapped[datetime] = mapped_column(TIMESTAMP, primary_key=True)
     type: Mapped[str] = mapped_column(String(40))
-    payload: Mapped[dict | None] = mapped_column(JSONB)
+    payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class Entitlement(Base):
@@ -430,7 +432,7 @@ class IapTransaction(Base):
     )
     platform: Mapped[str] = mapped_column(String(10))
     transaction_id: Mapped[str] = mapped_column(String(100))
-    receipt_payload: Mapped[dict | None] = mapped_column(JSONB)
+    receipt_payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     verified_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -444,9 +446,9 @@ class PaywallRule(Base):
     enabled: Mapped[bool | None] = mapped_column(Boolean, server_default=text("false"))
     priority: Mapped[int | None] = mapped_column(Integer, server_default=text("100"))
     trigger_event: Mapped[str] = mapped_column(String(40))
-    conditions: Mapped[dict | None] = mapped_column(JSONB)
-    offer: Mapped[dict] = mapped_column(JSONB)
-    caps: Mapped[dict | None] = mapped_column(JSONB)
+    conditions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    offer: Mapped[dict] = mapped_column(JSONB(none_as_null=True))
+    caps: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     created_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -487,7 +489,7 @@ class ActionHandoff(Base):
     # v2.4: surface that issued this handoff (chat|wishlist|booking_cards).
     source_channel: Mapped[str | None] = mapped_column(String(20))
     # Snapshot of the refund rules shown to the user before handoff.
-    refund_policy: Mapped[dict | None] = mapped_column(JSONB)
+    refund_policy: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     refund_deadline: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
@@ -535,7 +537,7 @@ class TripItem(Base):
     )
     # 心愿单条目全量文档（dict 原样，含自由字符串 id）；列化的字段只是
     # 给 PG 侧查询用的投影（trip_cities 按 city 扫）
-    payload: Mapped[dict | None] = mapped_column(JSONB)
+    payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class ItineraryImport(Base):
@@ -571,11 +573,11 @@ class UserProfile(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
     )
-    profile: Mapped[dict] = mapped_column(JSONB)
+    profile: Mapped[dict] = mapped_column(JSONB(none_as_null=True))
     # Production schema is pgvector vector(1024); shipped as a JSONB float-array
     # placeholder because 0001 provisions only postgis and we add no extension
     # here (see 0003 migration column comment).
-    embedding: Mapped[list[float] | None] = mapped_column(JSONB)
+    embedding: Mapped[list[float] | None] = mapped_column(JSONB(none_as_null=True))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
