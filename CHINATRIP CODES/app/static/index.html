@@ -2102,11 +2102,9 @@ window.addEventListener("i18n:change", planCityRender);
   for (let i = 1; i <= 3; i++) {
     if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
   }
-  // 产品规则 2026-10-19：开始日期默认今天（原默认为空）
-  const _now = new Date();
-  document.getElementById("planStartDate").value = _now.getFullYear() + "-" +
-    String(_now.getMonth() + 1).padStart(2, "0") + "-" +
-    String(_now.getDate()).padStart(2, "0");
+  // 产品规则 2026-11-03：开始日期默认下周一（2026-10-19 曾默认今天——当天出发来不及
+  // 订票/预约，下周一给足预订窗口；永不为当日，周一打开默认次周一）
+  document.getElementById("planStartDate").value = nextMondayBeijingIso();
   ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", planTotalRefresh));
   for (let i = 1; i <= 3; i++) {
     const sel = document.getElementById("planVia" + i); // 选项已由 planCityRender() 建好；旧 viaOpts 引用未定义，会让整段脚本加载即中断
@@ -2118,6 +2116,14 @@ window.addEventListener("i18n:change", planCityRender);
 function todayBeijingIso() {
   // 北京时间今天（口径同后端 _today_beijing）：东八区偏移后取 ISO 日期
   return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+}
+
+// 下周一（北京时间）——开始日期的默认值（2026-11-03 拍板）：
+// (8-周几)%7、周一得 0 归 7 → 恒为未来 1-7 天内的周一，绝不限当日
+function nextMondayBeijingIso() {
+  const d = new Date(Date.now() + 8 * 3600e3); // 东八区墙钟，口径同 todayBeijingIso
+  d.setUTCDate(d.getUTCDate() + (((8 - d.getUTCDay()) % 7) || 7));
+  return d.toISOString().slice(0, 10);
 }
 
 function planDateIso(n) {
@@ -3332,9 +3338,9 @@ async function itinEdit(r, btn) {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
       // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准。
-      // 旧行程没存过出发日期 → 缺省今天（北京时间），打开即有日期+天气；
-      // 保存时随 /plan/{id}/save 的 start_date 落库自愈
-      PLAN.startDate = (body.plan && body.plan.start_date) || todayBeijingIso();
+      // 旧行程没存过出发日期 → 缺省下周一（2026-11-03 起与表单默认同口径），打开即有
+      // 未来日期+预报；保存时随 /plan/{id}/save 的 start_date 落库自愈
+      PLAN.startDate = (body.plan && body.plan.start_date) || nextMondayBeijingIso();
       document.getElementById("bookStartDate").value = PLAN.startDate;
       // 参数表单同步当前行程（2026-11-01 修复「明明选了西安，参数摘要却显示 上海→杭州·共1天」）：
       // auto-open/✏️修改 载入行程后表单从未预填，一直停在出厂默认（起始上海/结束杭州/共1天）——
