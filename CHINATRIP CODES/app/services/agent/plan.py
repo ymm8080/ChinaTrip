@@ -82,6 +82,7 @@ from app.services.reservation_seeds import (
     reservation_meta_for,
 )
 from app.services.restaurants import (
+    LUNCH_DURATION_MINUTES,
     LUNCH_PLACEHOLDER_ID_PREFIX,
     MEAL_DURATION_MINUTES,
     MEAL_WINDOWS,
@@ -2140,14 +2141,15 @@ def _plan_lunch_slot(
     day_plan: DayPlan,
 ) -> tuple[tuple[time, time], VisitItem | None] | None:
     """午餐占位落位（2026-10-31 终版拍板：基准 12 点开饭，早最多
-    11:30、晚最多 12:30）。
+    11:30、晚最多 12:30；2026-11-03 拍板：时长默认 1.5h）。
 
-    基准槽 = 12:00–13:00。前一件（带时刻 pinned visit）早结束（≤12:00）
-    → 跟随提前：start = clamp(前件结束, 11:30, 12:00)——前件 10:00 结束
-    则 11:30 开饭、11:45 结束则 11:45 开饭。前件跨基准收尾：
-    - 结束 ≤12:30（最晚上限内）→ 贴尾开饭（e ≤12:30 保证收餐 ≤13:30）；
+    基准槽 = 12:00–13:30（LUNCH_DURATION_MINUTES=90）。前一件（带时刻
+    pinned visit）早结束（≤12:00）→ 跟随提前：start = clamp(前件结束,
+    11:30, 12:00)——前件 10:00 结束则 11:30 开饭、11:45 结束则 11:45
+    开饭。前件跨基准收尾：
+    - 结束 ≤12:30（最晚上限内）→ 贴尾开饭（e ≤12:30 保证收餐 ≤14:00）；
     - 结束 >12:30 且前段压线（start <12:00）→ 从 12:00 切分：原件截到
-      12:00，下半段（原 end−12:00 分钟）13:00 起续排在午餐之后——续件
+      12:00，下半段（原 end−12:00 分钟）13:30 起续排在午餐之后——续件
       沿用原件身份（名称/poi/坐标），item_id 加 -p2 后缀；
     - 整段压窗（start ≥12:00 且 end >12:30）→ 午餐无位（顺延会破
       12:30 上限），不插（铁律 20）。
@@ -2159,7 +2161,7 @@ def _plan_lunch_slot(
     整体排午餐前后）。
     """
     base_s = 12 * 60  # 基准 12:00 开饭
-    slot_s, slot_e = base_s, base_s + MEAL_DURATION_MINUTES
+    slot_s, slot_e = base_s, base_s + LUNCH_DURATION_MINUTES
     earliest = 11 * 60 + 30  # 最早 11:30
     latest = 12 * 60 + 30  # 最晚 12:30
     transfers: list[tuple[int, int]] = []
@@ -2197,14 +2199,14 @@ def _plan_lunch_slot(
                 continue
             pinned_visits.append((_minutes_of(item.start_time), _minutes_of(end), item))
     # 交通优先级最高：transfer 车次本体 + 前后 90 分钟衔接缓冲都算占用
-    # （基准槽 12:00–13:00；被缓冲推后时起点须 ≤12:30）
+    # （基准槽 12:00–13:30；被缓冲推后时起点须 ≤12:30）
     for ts, te in transfers:
         if (
             slot_s < te + INTERCITY_BUFFER_MINUTES
             and slot_e > ts - INTERCITY_BUFFER_MINUTES
         ):
             slot_s = te + INTERCITY_BUFFER_MINUTES
-            slot_e = slot_s + MEAL_DURATION_MINUTES
+            slot_e = slot_s + LUNCH_DURATION_MINUTES
             earliest = max(earliest, slot_s)
     if slot_s > latest:
         return None  # 交通顺延越过 12:30 上限：当天不插午餐占位
@@ -2218,7 +2220,7 @@ def _plan_lunch_slot(
         # 入住卡占午餐窗：卡尾 ≤12:30 贴卡尾开饭，否则过点到店不插午餐
         he = hotel_block[1]
         if he <= latest:
-            return (_time_of(he), _time_of(he + MEAL_DURATION_MINUTES)), None
+            return (_time_of(he), _time_of(he + LUNCH_DURATION_MINUTES)), None
         return None
     if blocker is None:
         # 前一件早结束 → 跟随提前（clamp 进 [11:30, 12:00]，缓冲内不提前）
@@ -2229,12 +2231,12 @@ def _plan_lunch_slot(
         )
         if prev_end is not None:
             start = min(slot_s, max(earliest, prev_end))
-            return (_time_of(start), _time_of(start + MEAL_DURATION_MINUTES)), None
+            return (_time_of(start), _time_of(start + LUNCH_DURATION_MINUTES)), None
         return (_time_of(slot_s), _time_of(slot_e)), None
     s, e, it = blocker
     if e <= latest:
-        # 前件最晚上限内收尾 → 贴尾开饭（e ≤12:30 → 收餐 ≤13:30）
-        return (_time_of(e), _time_of(e + MEAL_DURATION_MINUTES)), None
+        # 前件最晚上限内收尾 → 贴尾开饭（e ≤12:30 → 收餐 ≤14:00）
+        return (_time_of(e), _time_of(e + LUNCH_DURATION_MINUTES)), None
     if s < slot_s:
         # 前段压线且收尾超上限 → 从基准头切分，下半段槽位尾续排
         tail = e - slot_s
@@ -2260,15 +2262,15 @@ def _lunch_placeholder(
 ) -> VisitItem:
     """午餐占位件（2026-10-31 拍板：默认午饭时间，没餐厅就占位）。
 
-    「午饭（自由安排）」摆在午餐落位（_plan_lunch_slot 给出的槽位，
-    meal_times 钳制）——2026-11-01 拍板不设铁律 19 钉（pinned=False +
+    「午饭（自由安排）」摆在午餐落位（_plan_lunch_slot 给出的槽位即
+    最终时刻，不再过 meal_times 钳制——时长 90 后钳制会错位）——
+    2026-11-01 拍板不设铁律 19 钉（pinned=False +
     soft_pin=True 系统软锚）：solver 仍锚定落位（普通日零漂移、弹性日
-    ±30 可让），但用户可拖/可改时/LLM 可挪。name 随请求语言（L()），
+    硬窗内可让），但用户可拖/可改时/LLM 可挪。name 随请求语言（L()），
     识别走
     item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
     小时链须跳过（否则烧配额搜「午饭」）。
     """
-    start, end = meal_times(slot)
     return VisitItem(
         item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("午饭（自由安排）", "Lunch (on your own)"),
@@ -2276,9 +2278,9 @@ def _lunch_placeholder(
         # 换乘日午餐城由调用方传入（_meal_city_at）；None 回退醒来城
         city=city or day_plan.base_city,
         day=day_plan.day,
-        start_time=start,
-        end_time=end,
-        duration_minutes=MEAL_DURATION_MINUTES,
+        start_time=slot[0],
+        end_time=slot[1],
+        duration_minutes=LUNCH_DURATION_MINUTES,
         pinned=False,
         soft_pin=True,
     )
@@ -2463,12 +2465,14 @@ def _reconcile_transfer_days(
                 if last.mode in ("train", "flight")
                 else INTERCITY_BUFFER_MINUTES
             )
-            # 到达日容量预筛（2026-11-02「第1天无安排」事故）：落地后窗口
-            # [落地+缓冲, 21:30] 装不下的到达城条目按 tier 序裁汰挪日——
-            # 装不下还留当天，solver/兜底排不出时刻就是 None-None 无时刻
-            # 卡 + rule 4 报错。口径：每件 +30 走行腿；时刻已在落地后的
-            # 条目按已占窗计；单件还要过营业窗（_fits_after，闭馆照卡）。
-            # 16:30 收口闸不参与（到达日闸让位，solver transfer_day 同拍板）。
+            # 到达日容量预筛（2026-11-02「第1天无安排」事故 → 2026-11-03
+            # 再收口）：落地后窗口 [落地+缓冲, 21:30] 装不下的到达城条目
+            # 按 tier 序裁汰挪日——装不下还留当天，solver/兜底排不出时刻
+            # 就是 None-None 无时刻卡 + rule 4 报错。口径：每件 +30 走行
+            # 腿；时刻已在落地后的条目按已占窗计；单件还要过营业窗
+            # （_fits_after，闭馆照卡）。16:30 白闸同口径参与（2026-11-03
+            # 用户重申：白天景点最晚 16:30 开场，到达日不让位——闸前
+            # 串行装不下即挪日），豁免件（夜游/演出等 cap=None）只看日终。
             arr_window = max(0, (21 * 60 + 30) - (arr + floor))
             arr_pool = [
                 v
@@ -2488,14 +2492,22 @@ def _reconcile_transfer_days(
             kept_load = 0
             for v in arr_pool:
                 dur_v = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                cap_v = generic_entry_cap(v, hours_by_poi.get(v.poi_id))
                 if (
                     v.start_time is not None
                     and _minutes_of(v.start_time) >= arr + floor
+                    and (cap_v is None or _minutes_of(v.start_time) <= cap_v)
                 ):
                     kept_load += dur_v + 30  # 已有合法时刻：占窗
                     continue
-                fits = _fits_after(hours_by_poi.get(v.poi_id), arr + floor, dur_v)
-                if fits and kept_load + dur_v + 30 <= arr_window:
+                fits = _fits_after(
+                    hours_by_poi.get(v.poi_id), arr + floor, dur_v, cap=cap_v
+                )
+                # 受闸件还要有闸前串行起点预算：起点 ≥ 落地地板 + 已占
+                # 窗（每件 +30 走行腿），预算耗尽即挪日——「15:50 地板
+                # 后第二件 17:50 起排」过日终检查、却必违 16:30 闸。
+                start_ok = cap_v is None or arr + floor + kept_load <= cap_v
+                if fits and start_ok and kept_load + dur_v + 30 <= arr_window:
                     kept_load += dur_v + 30
                     if v.start_time is not None:
                         # 时刻在抵达前但装得下：留待下方清时刻重排
@@ -2509,7 +2521,10 @@ def _reconcile_transfer_days(
                     continue
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
                 if visit.start_time is not None and _fits_after(
-                    hours_by_poi.get(visit.poi_id), arr + floor, dur
+                    hours_by_poi.get(visit.poi_id),
+                    arr + floor,
+                    dur,
+                    cap=generic_entry_cap(visit, hours_by_poi.get(visit.poi_id)),
                 ):
                     # 时刻在抵达前但当天落地后装得下：清时刻交排程器重排
                     visit.start_time = None
@@ -2680,19 +2695,24 @@ def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
     return any(o <= t and t + dur <= c for o, c in merged)
 
 
-def _fits_after(hours: PoiHours | None, e0: int, dur: int) -> bool:
+def _fits_after(
+    hours: PoiHours | None, e0: int, dur: int, cap: int | None = None
+) -> bool:
     """e0 之后营业窗内是否装得下整段 [s, s+dur]（转场到达日搁浅判定的
-    现实口径，2026-11-02「第1天无安排」事故）：只看日终前有没有整档、
-    不看 16:30 收口闸（到达日闸让位，solver generic_entry_cap
-    transfer_day 同口径），但闭馆时刻照卡——15:50 落地地板 + 90 分钟
-    点进 17:00 闭馆馆 = 物理装不下，该挪日而不是留在当天等兜底排
-    （排不上就成 None-None 无时刻卡 + rule 4 报错）。无营业数据不
-    硬卡（宁无窗不可错窗）。"""
+    现实口径，2026-11-02「第1天无安排」事故 → 2026-11-03 再收口）：
+    cap=白天入场闸（generic_entry_cap，16:30 开场）时最早可行起点
+    max(o, e0) 还须 ≤cap——闸前无档即搁浅该挪日；cap=None（夜游/
+    演出/餐住等豁免面）只看日终前有没有整档。闭馆时刻照卡——15:50
+    落地地板 + 90 分钟点进 17:00 闭馆馆 = 物理装不下，该挪日而不是
+    留在当天等兜底排（排不上就成 None-None 无时刻卡 + rule 4 报错）。
+    无营业数据不硬卡（宁无窗不可错窗）。"""
 
     def _m(x) -> int:
         return x.hour * 60 + x.minute
 
     if e0 + dur > 21 * 60 + 30:
+        return False
+    if cap is not None and e0 > cap:
         return False
     if hours is None:
         return True
@@ -2702,7 +2722,11 @@ def _fits_after(hours: PoiHours | None, e0: int, dur: int) -> bool:
         segs = [(_m(hours.opens), _m(hours.closes))]
     else:
         return True
-    return any(max(o, e0) + dur <= c for o, c in segs)
+    for o, c in segs:
+        s = max(o, e0)
+        if s + dur <= c and (cap is None or s <= cap):
+            return True
+    return False
 
 
 def _host_day_for_visit(
@@ -3054,7 +3078,6 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 show_session_starts(visit.opening_hours) if _is_show_item(visit) else []
             )
             placed_at: int | None = None
-            overflow_tail = False
             if sessions:
                 for s in sessions:
                     if (
@@ -3095,16 +3118,9 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                     and _city_side_ok(xfer_windows, visit, t, dur)
                 ):
                     placed_at = t
-                elif (
-                    t + dur <= day_end
-                    and _fits_hours_window(hours, t, dur)
-                    and _city_side_ok(xfer_windows, visit, t, dur)
-                ):
-                    # 16:30 前装不下（2026-11-02「白天景点一般排在
-                    # 4:30 前」的兜底口径）：溢傍晚放行不弃排，仍守
-                    # 日终/营业窗/城市侧。
-                    placed_at = t
-                    overflow_tail = True
+                # 16:30 闸前装不下不再溢傍晚放行（2026-11-03 用户重申：
+                # 除夜游与演出外一律最晚 16:30 开场）——留空交挪日链/
+                # 校验披露，不得硬排傍晚。
             if placed_at is None:
                 logger.warning(
                     "plan: fallback sequencing could not place %s on day %d",
@@ -3119,19 +3135,20 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             fixed.sort(key=lambda w: (w[0], w[1]))
             fixed_tight.append((t, t + dur))
             fixed_tight.sort()
-            if not overflow_tail:
-                # ①放置失败不推进游标——溢闸尾巴落位同理：占的是傍晚
-                # 溢出窗不是白天空档，推进会把后面短条目顶出 15:17 类
-                # 回填位（2026-10-31 游标事故同型）。
-                cursor = max(cursor, t + dur)
+            # ①放置失败不推进游标（占位失败留空档给后续短条目回填，
+            # 2026-10-31 游标事故）。
+            cursor = max(cursor, t + dur)
+            # ②上午一个点（2026-11-03 用户拍板「上午一般只排一个点」）：
+            # 晨点收尾后游标跳 12 点——后续点从午后起，不再回填上午；
+            # 餐/酒店不触发（餐走 flex_lunches 硬窗，入住卡非游览）。
+            if t < 12 * 60 and (visit.category or "") not in ("food", "hotel"):
+                cursor = max(cursor, 12 * 60)
 
-        # 午餐落位 v2.2（2026-11-01 用户拍板：时刻最多提前或延后半小时、
-        # 用餐时长可缩短半小时——许可按最小漂移分层激活）：
-        # ①旧版口径：原时刻起 ±30 缓冲窗内全时长（与此前行为逐位一致）；
-        # 仅当①排不到或只能排到 +30 之外时才动用许可（紧贴窗语义）：
-        # ②提前 30 分钟窗内全时长；③延后 30 分钟窗内全时长；④±30 窗内
-        # 缩短 30 分钟（保底 30 分钟）；都不行回落①的结果（可超窗，如
-        # 240 分钟上午大点后接 13:30——保证任何情况下不产出重叠时刻）。
+        # 午餐落位 v2.3（2026-11-03 用户拍板：开餐硬窗 [11:30, 12:30]、
+        # 时长默认 1.5h、极端可缩 0.5h）。旧版 v2.2 的①兜底可无界顺延到
+        # 日终（cap=day_end-mdur），「20:00 午餐」即其产物——废除。现口
+        # 径：窗内贴点落位，时长逐档让步（原时长 → -30 → 30 保底）；窗
+        # 内全档放不下 → 当天移除该餐（铁律 20 同义：过午不强插）。
         def _meal_slot(
             t_from: int, t_cap: int, dur_opt: int, windows: list[tuple[int, int]]
         ) -> int | None:
@@ -3148,29 +3165,35 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 return t
             return None
 
+        win_lo = 11 * 60 + 30  # 开餐硬窗（2026-11-03 拍板 [11:30, 12:30]）
+        win_hi = 12 * 60 + 30
         for meal, ms, mdur in flex_lunches:
-            lo_m = max(day_start, ms - 30)
-            hi_m = min(day_end - 30, ms + 30)
-            dur_short = max(30, mdur - 30)
-            # ① 旧版缓冲口径零漂移优先（餐位不按腿放宽：贴点语义）
-            slot = _meal_slot(ms, day_end - mdur, mdur, [(w[0], w[1]) for w in fixed])
-            if slot is None or slot > ms + 30:
-                cand = _meal_slot(lo_m, ms - 1, mdur, fixed_tight)  # ② 提前窗
-                if cand is None:
-                    cand = _meal_slot(ms + 1, hi_m, mdur, fixed_tight)  # ③ 延后窗
-                if cand is not None:
-                    slot = cand
-                else:
-                    cand_s = _meal_slot(lo_m, hi_m, dur_short, fixed_tight)  # ④ 缩短
-                    if cand_s is not None:
-                        slot, mdur = cand_s, dur_short
-            if slot is not None:
-                meal.start_time = time(slot // 60, slot % 60)
-                meal.end_time = time((slot + mdur) // 60, (slot + mdur) % 60)
-                fixed.append((slot, slot + mdur, None))
-                fixed.sort(key=lambda w: (w[0], w[1]))
-                fixed_tight.append((slot, slot + mdur))
-                fixed_tight.sort()
+            placed: tuple[int, int] | None = None
+            for d in dict.fromkeys([mdur, max(30, mdur - 30), 30]):
+                # 先贴原时刻段、再全窗早段（同档时长内开餐尽量近原位）
+                for t_from in (max(win_lo, ms), win_lo):
+                    t = _meal_slot(t_from, win_hi, d, fixed_tight)
+                    if t is not None:
+                        placed = (t, d)
+                        break
+                if placed is not None:
+                    break
+            if placed is None:
+                day.items.remove(meal)
+                logger.warning(
+                    "plan: lunch window 11:30-12:30 full on day %d — drop %s",
+                    day.day,
+                    meal.item_id,
+                )
+                continue
+            slot, mdur = placed
+            meal.start_time = time(slot // 60, slot % 60)
+            meal.end_time = time((slot + mdur) // 60, (slot + mdur) % 60)
+            meal.duration_minutes = mdur
+            fixed.append((slot, slot + mdur, None))
+            fixed.sort(key=lambda w: (w[0], w[1]))
+            fixed_tight.append((slot, slot + mdur))
+            fixed_tight.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
@@ -7796,9 +7819,14 @@ class PlanningAgent:
                 if count <= 1:
                     # 1st/2nd meal of the day rides a meal window with a
                     # concrete time so the solver (rule 19) honors the pin.
+                    # 午餐默认 1.5h（2026-11-03 拍板）→ 12:00–13:30。
                     slot = "lunch" if count == 0 else "dinner"
-                    start_time, end_time = meal_times(MEAL_WINDOWS[slot])
-                    duration = MEAL_DURATION_MINUTES
+                    duration = (
+                        LUNCH_DURATION_MINUTES
+                        if slot == "lunch"
+                        else MEAL_DURATION_MINUTES
+                    )
+                    start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
                     pinned = True
                     soft_pin = True
             visits.append(

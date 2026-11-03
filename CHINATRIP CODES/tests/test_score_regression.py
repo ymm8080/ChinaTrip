@@ -164,22 +164,27 @@ REPAIRED_PLAN = {
 
 
 def test_bad_case_4f228cfb_scores_hard_penalties():
-    """用户实际坏例：untimed -100 + 空白上午 -80 + 雨露天 -15 = -195。"""
+    """用户实际坏例：untimed -100 + 空白上午 -80 + 雨露天 -15
+    + 上午超点 -12（day4 兵马俑 9:00+钟楼 11:00 双晨点，2026-11-03
+    拍板新增口径）= -207。"""
     sc = score_payload(BAD_PLAN, rain_days=RAIN)
     assert sc.hard["untimed"] == -100
     assert sc.hard["blank_morning"] == -80
     assert sc.soft["rain_exposed"] == -15
-    assert sc.total == -195
+    assert sc.soft["morning_crowd"] == -12
+    assert sc.total == -207
     assert sc.counts["untimed"] == 1
     assert sc.counts["blank_morning"] == 1
+    assert sc.counts["morning_crowd"] == 1
 
 
 def test_repaired_case_has_zero_hard_penalties():
-    """修复形态：硬惩罚全零（剩雨露天 -15 + 午餐漂移 -3 = -18）。
-    这就是晨间借调 / LNS 应把坏例推进到的目标分。"""
+    """修复形态：硬惩罚全零（剩雨露天 -15 + 午餐漂移 -3 + day4 上午
+    超点 -12 = -30）。这就是晨间借调 / LNS 应把坏例推进到的目标分。"""
     sc = score_payload(REPAIRED_PLAN, rain_days=RAIN)
     assert sc.ok
     assert sc.hard == {"untimed": 0, "blank_morning": 0, "violations": 0}
     assert sc.soft["rain_exposed"] == -15
     assert sc.soft["lunch_drift"] == -3
-    assert sc.total == -18
+    assert sc.soft["morning_crowd"] == -12
+    assert sc.total == -30

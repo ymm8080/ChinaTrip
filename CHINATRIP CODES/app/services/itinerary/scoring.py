@@ -14,7 +14,9 @@
   （代理口径，腿字段缺失记 0）；午餐漂移 -超±30 部分/10（对齐
   「午餐 ±30 许可」拍板）；日均衡 -缺口/30（S2.2 max-min 轻量版：
   最差活动日负载距 180 的缺口，交通日豁免，需 ≥2 个活动日，上限
-  -15）。
+  -15）；上午超点 -12/个（2026-11-03 拍板「上午一般只排一个点」：
+  <12:00 开场的非餐/非酒店点超出 1 个的部分，与 blank_morning 合成
+  「上午恰一个点」双向口径）。
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ PEN_RAIN_EXPOSED = 15
 PEN_RAIN_PARTIAL = 10
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
+PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
 
 
 @dataclass
@@ -103,6 +106,7 @@ def plan_score(
     travel_km = 0.0
     lunch_drift_pen = 0
     lunch_drift_min = 0
+    morning_crowd = 0
     act_loads: list[int] = []
     for day in plan.days:
         city = str(day.base_city or "").removesuffix("市")
@@ -116,6 +120,18 @@ def plan_score(
         )
         if has_activity and not _morning_occupied(day):
             blank += 1
+        # 上午一个点（2026-11-03 拍板「上午一般只排一个点」）：晨点
+        # （<12:00 开场、非餐/非酒店）超出 1 个的部分计软罚；用户自钉
+        # 且有时刻不计（铁律 19 用户安排，同 solver._is_morning_site 口径）。
+        morning_sites = sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and not (v.pinned and v.start_time is not None)
+            and _minutes(v.start_time) < LUNCH_ANCHOR_MINUTES
+            and str(v.category or "") not in ("food", "hotel")
+        )
+        morning_crowd += max(0, morning_sites - 1)
         if rainy:
             for v in visits:
                 rk = str(v.rain_ok or "")
@@ -192,6 +208,7 @@ def plan_score(
         "travel": -(round(travel_km) // 30),
         "lunch_drift": -lunch_drift_pen,
         "day_balance": -balance_pen,
+        "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
     }
     sc.counts = {
         "untimed": untimed,
@@ -204,6 +221,7 @@ def plan_score(
         "budget_overflow_days": overflow_days,
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
+        "morning_crowd": morning_crowd,
         "worst_day_load": worst_day_load,
     }
     return sc

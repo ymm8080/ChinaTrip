@@ -30,6 +30,11 @@ from app.services.itinerary.models import (
     TransferItem,
     VisitItem,
 )
+from app.services.restaurants import (
+    LUNCH_DURATION_FLOOR_MINUTES,
+    LUNCH_START_EARLIEST,
+    LUNCH_START_LATEST,
+)
 
 #: Visits may be placed anywhere in [09:00, 21:00] (minutes since midnight).
 # 2026-10-31 拍板：景点活动一天 9 点开始（8 点太早）；交通除外——
@@ -88,26 +93,28 @@ def show_session_starts(text: str | None) -> list[int]:
 
 
 #: 2026-10-31 用户拍板（城墙·碑林 17:00 入场事故）→ 2026-11-01 修正
-#: （成都熊猫基地 18:00 排期事故）：景区/博物馆等非演出类观光点
-#: 只排白天，最晚 16:30 入场——傍晚档留给夜游、演出与晚餐。
-#: 豁免：用户自钉且有时刻（铁律 19）、夜间属性点（best_visit_time=
-#: evening/sunset）、仅晚间开放的场馆（全窗开 ≥17:00=夜游类，不豁免
-#: 则永远排不进）、餐饮/酒店/交通/演出类条目。旧口径「闭馆 ≥17:30
-#: 即豁免」废除（2026-11-01 用户裁定：除夜游与演出外一律不晚于
-#: 16:30 开场）。
+#: （成都熊猫基地 18:00 排期事故）→ 2026-11-03 再裁定（第1天城墙
+#: 18:43 排期事故）：景区/博物馆等非演出类观光点最晚 16:30 **开场**
+#: （start ≤ 16:30），转场/到达日一律适用——装不下就挪日，不在
+#: 傍晚硬排。豁免：用户自钉且有时刻（铁律 19）、夜间属性点
+#: （best_visit_time=evening/sunset/show）、仅晚间开放的场馆（全窗开
+#: ≥17:00=夜游类）、餐饮/酒店/交通/演出类条目。旧口径三废（2026-11-03
+#: 用户重申「除夜游与演出外，普通日间景点最晚 16:30 开场」）：
+#: ①「最晚 16:30 结束」（11-02 cap−dur）；②转场日闸让位（11-02
+#: transfer_day）；③兜底溢傍晚放行（plan._fallback_sequence_times）。
 _GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
 # 午餐软钉（2026-11-01 用户拍板修正：时刻最多提前或延后半小时、用餐
 # 时长可缩短半小时）：初始排程的 12 点午餐锚是排程默认而非用户约束
-# ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开 ±30 分钟窗+
-# 时长区间 [dur-30, dur]（保底 30 分钟）；用户手钉（soft_pin=False）
-# 仍铁律 19 钉死。兜底层同口径的分层许可见 plan._fallback_sequence_times。
+# ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开滑窗+时长区间
+# （午餐另受 2026-11-03 拍板硬窗，见 _LUNCH_START_EARLIEST/LATEST）；
+# 用户手钉（soft_pin=False）仍铁律 19 钉死。兜底层同口径的分层许可见
+# plan._fallback_sequence_times。
 # 系统餐软锚（2026-11-01 晚拍板「午饭/顺路餐厅/晚饭都不用钉死」）：系统
 # 摆的餐件（午餐占位/自动顺路餐厅）pinned=False+soft_pin=True——非铁律
 # 19（用户可拖/可改时/LLM 可挪），但排程域仍锚定落位：普通日 lo=hi=pin
-# 零漂移，弹性日走同一 ±30 软钉窗（晚餐滑窗、午餐另可缩）；完全无锚的
-# 自由餐会退回「10:30 排餐」事故（2026-10-25 评测集）。
+# 零漂移，弹性日走软钉窗（午餐硬窗内滑+可缩至 30、晚餐 ±30 滑窗）；
+# 完全无锚的自由餐会退回「10:30 排餐」事故（2026-10-25 评测集）。
 _MEAL_FLEX_SLIDE_MINUTES = 30
-_MEAL_FLEX_SHORTEN_MINUTES = 30
 _MEAL_FLEX_MIN_DURATION_MINUTES = 30
 # 激活闸（2026-11-01）：当天存在 ≥150 分钟大点或 13:00 前场次的演出时
 # 才动用软钉——普通日（60-120 分钟小点）零漂移（12:00 全时长），软钉
@@ -117,6 +124,25 @@ _LUNCH_PIN_FLEX_BEFORE_MIN = 15 * 60  # 15:00 前开餐的餐点才按午餐软�
 _EVENING_ONLY_OPEN_MINUTES = 17 * 60  # 仅晚间开放（夜游类）= 全窗开 ≥17:00
 _EVENING_OK_CATEGORIES = {"food", "entertainment", "hotel", "transport"}
 _EVENING_OK_BEST = {"evening", "sunset", "show"}
+
+# 上午一个点（2026-11-03 用户规则「上午一般只排一个点」）：12 点前
+# 开场的观光点（非餐/非酒店）每天 ≤1——排程偏好而非硬闸，双晨点仅在
+# 无他档时出现（双 morning 窗点、场次绑死、用户多钉）。与「上午不许
+# 空」（morning_fill + blank_morning 罚）合成「上午恰一个点」的完整
+# 口径。CP 路径该罚 ×100 与走行目标同量纲；插入路径 10_000 压过单次
+# 插入的走行差（≤百余分钟）。
+MORNING_ONE_SITE_END_MINUTES = 12 * 60
+MORNING_ONE_SITE_PENALTY = 10_000
+
+
+def _is_morning_site(item: VisitItem) -> bool:
+    """晨点判定（计费口径）：非餐/非酒店的观光/演出点（餐跟 12 点锚、
+    入住卡非游览）；用户自钉且有时刻（铁律 19，同 generic_entry_cap 豁免
+    面）不计——那是用户的安排不是引擎节奏，双钉双晨合法且不挤占后续
+    自由点（2026-11-03 拍板组合：钉后大点仍进上午而非被罚到 16:30 后）。"""
+    if item.pinned and item.start_time is not None:
+        return False
+    return (item.category or "") not in ("food", "hotel")
 
 
 def _hours_evening_only(window: PoiHours | None) -> bool:
@@ -136,10 +162,8 @@ def _hours_evening_only(window: PoiHours | None) -> bool:
     return _to_minutes(window.opens) >= _EVENING_ONLY_OPEN_MINUTES
 
 
-def generic_entry_cap(
-    item: VisitItem, window: PoiHours | None, *, transfer_day: bool = False
-) -> int | None:
-    """非演出观光点的最晚入场分钟数；None = 不设闸（豁免面见常量注释）。"""
+def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
+    """非演出观光点的最晚开场分钟数；None = 不设闸（豁免面见常量注释）。"""
     if item.pinned and item.start_time is not None:
         # 铁律 19：用户确认过的时刻优先于默认排程规则。系统必去钉可能
         # 落在排不上时间的条目上（降级日）——无时刻即无「用户确认时刻」
@@ -152,23 +176,12 @@ def generic_entry_cap(
         return None
     if _hours_evening_only(window):
         return None
-    if transfer_day:
-        # 转场日白天闸让位（2026-11-02「第1天无安排」事故）：午后落地
-        # （落地+150 地板已 ≥15:00）再叠「16:30 前收口」会把到达日
-        # 整天判死。收口闸是普通日偏好（拍板原文「一般排在 4:30 前」），
-        # 转场日改由城市侧闸/营业窗/日终收口——物理窗即当天全部游览窗。
-        return None
-    # 白天景点 16:30 前收口（2026-11-02 用户拍板「白天景点一般排
-    # 在下午 4:30 前」）：入场闸从「最晚 16:30 开始」改为「最晚
-    # 16:30 结束」——cap 减时长（start ≤ 16:30-dur ⟹ end ≤
-    # 16:30）。真装不下（长点/晨满）由兜底按「一般」口径溢出
-    # 放行，仍守日终/营业窗。
-    dur = item.duration_minutes or 90
-    cap = _GENERIC_ENTRY_CAP_MINUTES - dur
-    # 晚开门场馆营业窗自治（2026-11-02 backlog #2）：开门晚于入场
-    # 闸（16:00-18:00 开门类）的场馆在 16:30 前物理无档——不设
-    # 闸，交 _fits_hours_window 按营业窗收口。开门恰等于闸值时仍
-    # 受闸（start=cap ⟹ end=16:30，装得下）。
+    # 白天景点最晚 16:30 开场（2026-11-03 用户重申：除夜游与演出外
+    # 一律 start ≤ 16:30，转场/到达日同闸——装不下挪日，不傍晚硬排）。
+    cap = _GENERIC_ENTRY_CAP_MINUTES
+    # 晚开门场馆营业窗自治（2026-11-02 backlog #2 收窄）：开门晚于
+    # 闸值（>16:30 才开）的场馆白闸内物理无档——视为夜游类不设闸，
+    # 交 _fits_hours_window 按营业窗收口；开门 ≤16:30 照常受闸。
     first_open = None
     if window is not None:
         if window.windows:
@@ -256,7 +269,6 @@ def _visit_spec(
     hours: dict[str, PoiHours],
     *,
     meal_flex: bool = False,
-    transfer_day: bool = False,
 ) -> _VisitSpec | None:
     """Compute the start domain for a visit; None = provably infeasible."""
     dur = item.duration_minutes
@@ -289,7 +301,7 @@ def _visit_spec(
             lo = max(lo, best[0])
             hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
-    cap = generic_entry_cap(item, window, transfer_day=transfer_day)
+    cap = generic_entry_cap(item, window)
     if cap is not None:
         # 白天入场闸（2026-10-31 拍板）：晚于闸点的入场时间不可行
         hi = min(hi, cap)
@@ -349,17 +361,23 @@ def _visit_spec(
         elif not lo <= pin <= hi:
             return None
         if meal_flex and item.soft_pin and (item.category or "") == "food":
-            # 软钉窗（仅初次排程 meal_flex=True）：午餐（<15:00 开餐）
-            # ±30 分钟 + 时长可缩 30（2026-11-01 拍板）；晚餐 ±30 滑窗、
-            # 时长不变（同日拍板「晚饭不用钉死」）。普通日/编辑路径
-            # meal_flex=False → lo=hi=pin 零漂移；用户手钉（soft_pin=
-            # False）照旧铁律 19 完全钉死。
-            lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
-            hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
-            if pin < _LUNCH_PIN_FLEX_BEFORE_MIN:
-                dur_lo = max(
-                    dur - _MEAL_FLEX_SHORTEN_MINUTES, _MEAL_FLEX_MIN_DURATION_MINUTES
-                )
+            # 软钉窗（仅初次排程 meal_flex=True）：午餐（<15:00 开餐且钉点
+            # 在硬窗内）走开餐硬窗 [11:30, 12:30] + 时长可缩至 30
+            # （2026-11-03 拍板；钉点已被挪出硬窗的不回拽，保可行）；
+            # 其余 ±30 分钟滑窗（晚餐时长不变，2026-11-01 拍板「晚饭
+            # 不用钉死」）。普通日/编辑路径 meal_flex=False → lo=hi=pin
+            # 零漂移；用户手钉（soft_pin=False）照旧铁律 19 完全钉死。
+            if pin < _LUNCH_PIN_FLEX_BEFORE_MIN and pin <= _to_minutes(
+                LUNCH_START_LATEST
+            ):
+                lo = max(lo, _to_minutes(LUNCH_START_EARLIEST))
+                hi = min(hi, _to_minutes(LUNCH_START_LATEST))
+                dur_lo = LUNCH_DURATION_FLOOR_MINUTES
+            else:
+                lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
+                hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
+                if pin < _LUNCH_PIN_FLEX_BEFORE_MIN:
+                    dur_lo = _MEAL_FLEX_MIN_DURATION_MINUTES
         else:
             lo = hi = pin
         multi = None
@@ -406,6 +424,7 @@ def _add_travel_objective(
     separate: bool = False,
     sizes: list[object] | None = None,
     meal_penalty: object = 0,
+    morning_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -446,8 +465,9 @@ def _add_travel_objective(
             model.Add(starts[j] >= starts[i] + sz_i + gap).OnlyEnforceIf(lit)
     model.AddCircuit(arcs)
     # 软钉餐偏离惩罚（2026-11-01 规则：±30/缩 30 是许可不是偏好）：
-    # travel×100 权重主导——省 ≥2 走行分钟才值得动午餐。
-    model.Minimize(sum(costs) * 100 + meal_penalty)
+    # travel×100 权重主导——省 ≥2 走行分钟才值得动午餐。上午超点罚
+    # 已在调用侧 ×100，与 travel 同量纲直接相加。
+    model.Minimize(sum(costs) * 100 + meal_penalty + morning_penalty)
 
 
 def _add_makespan_objective(
@@ -458,6 +478,7 @@ def _add_makespan_objective(
     *,
     sizes: list[object] | None = None,
     meal_penalty: object = 0,
+    morning_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
     # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
@@ -479,8 +500,9 @@ def _add_makespan_objective(
     makespan = model.NewIntVar(0, ub, "makespan")
     model.AddMaxEquality(makespan, ends)
     # 软钉餐偏离惩罚：makespan×100 权重主导（1 分钟 makespan > 最大偏离），
-    # 无压力日零漂移+全时长。
-    model.Minimize(makespan * 100 + meal_penalty)
+    # 无压力日零漂移+全时长。上午超点罚（×100）优先于 makespan——
+    # 「上午一般只排一个点」压过早收工偏好（2026-11-03 拍板）。
+    model.Minimize(makespan * 100 + meal_penalty + morning_penalty)
 
 
 def solve_day(
@@ -502,12 +524,8 @@ def solve_day(
     if not visits and not transfers:
         return day.model_copy(deep=True)
 
-    # 转场日（有钉时刻的火车/飞机腿）：白天入场闸让位（generic_entry_cap
-    # transfer_day 口径，2026-11-02「第1天无安排」事故）。
-    xfer_day = any(
-        t.mode in ("train", "flight") and t.start_time is not None for t in transfers
-    )
-
+    # 白天入场闸 16:30 全天候适用（2026-11-03 用户重申；转场日让位
+    # 废除）——到达城条目装不下白闸的由挪日链 (_reconcile/_sweep) 迁移。
     transfer_windows: list[tuple[TransferItem, int, int]] = []
     for item in transfers:
         window = _fixed_transfer_window(item)
@@ -527,7 +545,7 @@ def solve_day(
     )
     specs: list[_VisitSpec] = []
     for item in visits:
-        spec = _visit_spec(item, hours, meal_flex=flex_day, transfer_day=xfer_day)
+        spec = _visit_spec(item, hours, meal_flex=flex_day)
         if spec is None:
             return None
         specs.append(spec)
@@ -616,6 +634,22 @@ def solve_day(
             model.AddAbsEquality(drift, start - pin)
             penalty_terms.append(drift + (spec.dur - size))
         meal_penalty = sum(penalty_terms) if penalty_terms else 0
+        # 上午一个点（2026-11-03 拍板）：晨点（<12:00 开场、非餐/非酒店）
+        # 超出 1 个的部分计软罚（×100 与 travel 目标同量纲——罚 >> 全天
+        # 走行，正常日单晨点零罚；双 morning 窗/多钉无他档时照付罚放行）。
+        morning_lits: list[cp_model.IntVar] = []
+        for spec, start in zip(specs, starts):
+            if not _is_morning_site(spec.item):
+                continue
+            lit = model.NewBoolVar(f"morn_{spec.item.item_id}")
+            model.Add(start < MORNING_ONE_SITE_END_MINUTES).OnlyEnforceIf(lit)
+            model.Add(start >= MORNING_ONE_SITE_END_MINUTES).OnlyEnforceIf(lit.Not())
+            morning_lits.append(lit)
+        morning_penalty: object = 0
+        if len(morning_lits) > 1:
+            extra = model.NewIntVar(0, len(morning_lits) - 1, "morn_extra")
+            model.AddMaxEquality(extra, [sum(morning_lits) - 1, 0])
+            morning_penalty = extra * (MORNING_ONE_SITE_PENALTY * 100)
         if travel_minutes is not None and specs:
             _add_travel_objective(
                 model,
@@ -625,6 +659,7 @@ def solve_day(
                 separate=separate,
                 sizes=sizes,
                 meal_penalty=meal_penalty,
+                morning_penalty=morning_penalty,
             )
         else:
             _add_makespan_objective(
@@ -634,6 +669,7 @@ def solve_day(
                 transfer_windows,
                 sizes=sizes,
                 meal_penalty=meal_penalty,
+                morning_penalty=morning_penalty,
             )
 
         solver = cp_model.CpSolver()
@@ -702,12 +738,8 @@ def insertion_schedule_day(
     if not visits and not transfers:
         return day.model_copy(deep=True)
 
-    # 转场日（有钉时刻的火车/飞机腿）：白天入场闸让位（generic_entry_cap
-    # transfer_day 口径，2026-11-02「第1天无安排」事故）。
-    xfer_day = any(
-        t.mode in ("train", "flight") and t.start_time is not None for t in transfers
-    )
-
+    # 白天入场闸 16:30 全天候适用（2026-11-03 用户重申；转场日让位
+    # 废除）——到达城条目装不下白闸的由挪日链 (_reconcile/_sweep) 迁移。
     hours = {h.poi_id: h for h in poi_hours}
     flex_day = meal_flex and (
         any((v.duration_minutes or 0) >= _MEAL_FLEX_TRIGGER_DUR for v in visits)
@@ -719,7 +751,7 @@ def insertion_schedule_day(
     )
     specs: list[_VisitSpec] = []
     for item in visits:
-        spec = _visit_spec(item, hours, meal_flex=flex_day, transfer_day=xfer_day)
+        spec = _visit_spec(item, hours, meal_flex=flex_day)
         if spec is None:
             return None
         specs.append(spec)
@@ -762,6 +794,20 @@ def insertion_schedule_day(
             return 0
         return _travel_cost(a, b, travel_minutes)
 
+    def _morning_extra_cost(t: int, item: VisitItem) -> int:
+        # 上午一个点（2026-11-03 拍板）：候选会构成第二个（及以后）晨点
+        # 时计罚——已占晨点含用户钉（钉本身不动，后续自由点让位午后）。
+        if t >= MORNING_ONE_SITE_END_MINUTES or not _is_morning_site(item):
+            return 0
+        for os_, _oe, oitem in occupied:
+            if (
+                isinstance(oitem, VisitItem)
+                and os_ < MORNING_ONE_SITE_END_MINUTES
+                and _is_morning_site(oitem)
+            ):
+                return MORNING_ONE_SITE_PENALTY
+        return 0
+
     # 软钉餐机动跨度（非餐条目的条件块）：餐可在 [P-30, P+30] 开餐、
     # 时长 [dur-30, dur]——其它条目要么在 P+30 前收尾（餐顺延接后），
     # 要么从 P+dur-60（最早缩餐终点）后开始。2026-11-01 ±30 规则。
@@ -779,10 +825,8 @@ def insertion_schedule_day(
         e = t + dur
         if e > day_end:
             return False
-        cap = generic_entry_cap(
-            spec.item, hours.get(spec.item.poi_id), transfer_day=xfer_day
-        )
-        if cap is not None and t > cap and not _is_show(spec.item):
+        cap = generic_entry_cap(spec.item, hours.get(spec.item.poi_id))
+        if cap is not None and t > cap:
             return False
         is_flex_meal = spec.dur_lo and spec.dur_lo < spec.dur
         if (spec.item.category or "") not in ("food", "hotel"):
@@ -852,7 +896,11 @@ def insertion_schedule_day(
                 for t in starts:
                     if not _fits(t, dur, spec):
                         continue
-                    key = (_added_travel(t, dur, spec.item), t)
+                    key = (
+                        _added_travel(t, dur, spec.item)
+                        + _morning_extra_cost(t, spec.item),
+                        t,
+                    )
                     if best is None or key < (best[0], best[1]):
                         best = (key[0], t, dur)
             if best is not None and not flexed:
@@ -886,15 +934,20 @@ def insertion_schedule_day(
     if travel_minutes is not None and len(occupied) > 2:
 
         def _total_travel() -> int:
-            seq = [o[2] for o in occupied if isinstance(o[2], VisitItem)]
-            seq.sort(key=lambda v: v.start_time or time(0, 0)) if all(
-                v.start_time for v in seq
-            ) else None
-            # occupied 已按 start 有序——直接取参访子列
+            # occupied 已按 start 有序——直接取参访子列；上午一个点罚
+            # （2026-11-03 拍板）计入总成本：打磨挪点不得靠双晨点省走行。
             ordered = [o[2] for o in occupied if isinstance(o[2], VisitItem)]
-            return sum(
+            travel = sum(
                 _travel(ordered[i], ordered[i + 1]) for i in range(len(ordered) - 1)
             )
+            mornings = sum(
+                1
+                for o in occupied
+                if isinstance(o[2], VisitItem)
+                and o[0] < MORNING_ONE_SITE_END_MINUTES
+                and _is_morning_site(o[2])
+            )
+            return travel + max(0, mornings - 1) * MORNING_ONE_SITE_PENALTY
 
         base = _total_travel()
         for spec in specs:
@@ -907,7 +960,9 @@ def insertion_schedule_day(
             for lo, hi in _candidate_starts(spec):
                 for t in range(lo, hi + 1):
                     if _fits(t, dur, spec):
-                        added = _added_travel(t, dur, spec.item)
+                        added = _added_travel(t, dur, spec.item) + _morning_extra_cost(
+                            t, spec.item
+                        )
                         if best is None or added < best[0]:
                             best = (added, t)
             if best is None:
