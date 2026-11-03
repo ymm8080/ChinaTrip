@@ -41,6 +41,25 @@ def test_parse_list_extracts_details_and_skips_pager():
     assert entries["洪崖洞民俗风貌区"].startswith("https://gs.ctrip.com")
 
 
+def test_parse_list_slug_guard_drops_foreign_city():
+    """运行时城市闸（2026-11-03）：目录页整页变质为异地内容时零收条目。
+
+    gs.ctrip.com 实测 beijing1 页曾返回智利圣地亚哥景点——slug 过滤让
+    变质页 entries 为空，调用方按 exhausted 收口，不再有同名误配风险。"""
+    foreign = (
+        '<a href="https://gs.ctrip.com/html5/you/sight/santiago1430931/9527.html" '
+        'title="中央邮局">中央邮局</a>\n'
+        '<a href="https://gs.ctrip.com/html5/you/sight/beijing1/10377.html" '
+        'title="洪崖洞民俗风貌区">洪崖洞</a>\n'
+    )
+    assert parse_list(foreign, slug="beijing1") == {
+        "洪崖洞民俗风貌区": "https://gs.ctrip.com/html5/you/sight/beijing1/10377.html"
+    }
+    assert parse_list(foreign, slug="chongqing158") == {}
+    # 不传 slug 保持旧行为（既有调用/测试兼容）
+    assert "洪崖洞民俗风貌区" in parse_list(foreign)
+
+
 def test_parse_hours_finds_label_value():
     assert parse_hours(DETAIL_HTML) == "全年全天开放"
     assert parse_hours("<p>没有时间字段</p>") is None

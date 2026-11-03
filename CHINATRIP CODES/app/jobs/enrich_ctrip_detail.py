@@ -28,6 +28,7 @@ import json
 import logging
 import re
 import sys
+from pathlib import Path
 from typing import NamedTuple
 
 from sqlalchemy import case, or_
@@ -62,6 +63,33 @@ def _load_extra_slugs() -> dict[str, str]:
             return json.load(fh)
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+# --- 县级 city 上卷（2026-11-03）：库内 5a/unesco 长尾行的 city 常为县级
+# 名（丹江口/峨眉山/五大连池…），携程 slug 表键为地级/热门目的地——不解析
+# 则这批行从未被尝试。用 poi_city 的 GB/T 2260 三级索引离线上卷，零配额。
+_CITY_INDEX = Path(__file__).resolve().parents[1] / "app/services/data/city_index.json"
+
+_county_pref: dict[str, str] | None = None
+
+
+def _county_map() -> dict[str, str]:
+    """县级名（含后缀原形）→ 地级 canonical 短名；文件缺失返回空表。"""
+    global _county_pref
+    if _county_pref is not None:
+        return _county_pref
+    out: dict[str, str] = {}
+    try:
+        provinces = json.loads(_CITY_INDEX.read_text(encoding="utf-8"))["provinces"]
+    except (OSError, json.JSONDecodeError, KeyError):
+        _county_pref = out
+        return out
+    for prov in provinces.values():
+        for county, pref in (prov.get("counties") or {}).items():
+            if isinstance(county, str) and isinstance(pref, str):
+                out[county] = pref
+    _county_pref = out
+    return out
 
 
 # --- 详情页扩展解析（同页多榨，零额外请求；对真实页样本 2026-10-25） ------
@@ -180,12 +208,26 @@ _TARGET_COLS = (
 )
 
 
+# city 原名 → reader 可查名（select_targets 落值，enrich 消费）
+_EXTENDED: dict[str, str] = {}
+
+
 def select_targets(session_factory, *, limit: int) -> list[Poi]:
+    global _EXTENDED
     slugs = {**CITY_SLUGS, **_load_extra_slugs()}
+    extended: dict[str, str] = {s: s for s in slugs}
+    county = _county_map()
+    for raw, pref in county.items():
+        if pref in slugs and raw not in extended:
+            extended[raw] = pref
+            short = re.sub(r"(林区|特区|自治县|自治旗|市|县|区|旗)$", "", raw)
+            if len(short) >= 2 and short not in extended:
+                extended[short] = pref
+    _EXTENDED = extended
     with session_factory() as session:
         return (
             session.query(Poi)
-            .filter(Poi.status == "active", Poi.city.in_(list(slugs)))
+            .filter(Poi.status == "active", Poi.city.in_(list(extended)))
             .filter(or_(*_TARGET_COLS))
             .order_by(_source_rank(), Poi.rating.desc().nullslast(), Poi.id)
             .limit(limit)
@@ -334,7 +376,11 @@ async def enrich(
     rows = select_targets(factory, limit=limit)
     stats["targets"] = len(rows)
     targets = [
-        _Target(r.id, (r.name_zh or "").strip(), (r.city or "").strip())
+        _Target(
+            r.id,
+            (r.name_zh or "").strip(),
+            _EXTENDED.get((r.city or "").strip(), (r.city or "").strip()),
+        )
         for r in rows
         if (r.name_zh or "").strip()
     ]

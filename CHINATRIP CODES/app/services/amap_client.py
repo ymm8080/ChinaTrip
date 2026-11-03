@@ -25,6 +25,28 @@ class AmapQuotaExhaustedError(AmapError):
     """
 
 
+class AmapPunishedError(AmapError):
+    """WAF 风控处罚页（HTTP 200 + bixi.alicdn.com/punish HTML）。
+
+    2026-11-03 实测：整夜高频检索后 /v3/place/text 与 /v5/place/text
+    整族被 deny（同 key 的 /v3/geocode/geo 仍正常）——分 API 处罚而非
+    全网封；通常冷却数十分钟~数小时自动解封，期间重试无意义。
+    """
+
+
+# 阿里云 WAF 对 httpx/python-requests 默认 UA 敏感；浏览器式 UA 降低触发概率。
+_BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
+_PUNISH_MARK = b"bixi.alicdn.com/punish"
+
+
+def _is_punish_page(content: bytes) -> bool:
+    return _PUNISH_MARK in content[:2048]
+
+
 def _is_quota_exhausted(data: dict) -> bool:
     # infocode=10021 为主判据；info 含 OVER_LIMIT 兜底（防个别响应缺 infocode）。
     if _as_str(data.get("infocode")) == "10021":

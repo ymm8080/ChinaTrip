@@ -24,6 +24,11 @@ schtasks /Create /F /TN "ChinaTrip\POI stats nightly"   /TR "\"%OPS%\poi_stats_n
 rem _en translation: nightly fill-empty batch (bilingual P1)
 schtasks /Create /F /TN "ChinaTrip\POI en nightly"      /TR "\"%OPS%\poi_en_nightly.cmd\"" /SC DAILY   /ST 04:10
 
+rem hours/rating daily fill (2026-11-03 user decision: baidu place-search
+rem driver with miss ledger; ~100 searches/day personal quota, quota-stop;
+rem registered live on 2026-11-03, see ops/fill_hours_rating_driver.py)
+schtasks /Create /F /TN "ChinaTrip\POI hours+rating daily" /TR "\"%OPS%\poi_hours_rating_daily.cmd\"" /SC DAILY /ST 03:55
+
 rem ===== Weather (amap/baidu weather API; upstream CMA; 08/11/18 forecasts) =====
 rem 2026-10-28 cadence decision: weather refreshes ONCE daily; 08:10 right
 rem after the ~08:00 CST morning forecast update, FULL 40-city coverage so any
