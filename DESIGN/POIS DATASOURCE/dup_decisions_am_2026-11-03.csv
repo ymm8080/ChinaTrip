@@ -33,9 +33,9 @@
 南京,attraction,夫子庙大成殿,71cc3096-fee4-4c19-a742-74f3b4ab0676,amap,夫子庙,9da1495f-4d34-4ebb-889e-d09c9199796f,amap,61,keep_both,近邻不同体
 南京,attraction,夫子庙秦淮河风光带,67c31d77-50f8-4389-bd85-178a4bc4c510,5a,夫子庙,9da1495f-4d34-4ebb-889e-d09c9199796f,amap,72,keep_both,近邻不同体
 南京,museum,梵高星空艺术馆,1305c0d8-82e8-443c-8c90-90494b300b17,chinatravel,江苏省美术馆,1f39f7d0-bb55-4815-b755-15a2f6ce197f,amap,154,keep_both,近邻不同体
-南京,museum,江宁织造博物馆,7f50f027-41ac-40ba-860b-5d6c68120046,amap,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,221,human_review,爱情/恋爱博物馆-pop-up改名嫌疑
-南京,museum,德基艺术博物馆,be01b3df-3443-4796-b19c-0e978d246c6d,amap,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,221,human_review,爱情/恋爱博物馆-pop-up改名嫌疑
-南京,museum,南京爱情博物馆（新街口店）,e5b67e31-7be1-45a1-bccb-735012f45ab4,chinatravel,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,256,human_review,爱情/恋爱博物馆-pop-up改名嫌疑
+南京,museum,江宁织造博物馆,7f50f027-41ac-40ba-860b-5d6c68120046,amap,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,221,retire,南京爱情博物馆（新街口店）已退役并入南京恋爱博物馆(用户拍板同实体)
+南京,museum,德基艺术博物馆,be01b3df-3443-4796-b19c-0e978d246c6d,amap,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,221,retire,南京爱情博物馆（新街口店）已退役并入南京恋爱博物馆(用户拍板同实体)
+南京,museum,南京爱情博物馆（新街口店）,e5b67e31-7be1-45a1-bccb-735012f45ab4,chinatravel,南京恋爱博物馆,f613bee4-624e-4c96-bfe9-10ca702d3683,chinatravel,256,retire,南京爱情博物馆（新街口店）已退役并入南京恋爱博物馆(用户拍板同实体)
 吉林,attraction,和龙大洞遗址,64fa659c-88d3-4858-94a9-48bd27c80124,guobao8,霸王朝山城遗址,d9926ff8-6ec1-473e-8468-b82cf00fbac4,guobao8,0,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
 吉林,attraction,霸王朝山城遗址,d9926ff8-6ec1-473e-8468-b82cf00fbac4,guobao8,后套木嘎遗址,dd484eae-29c2-4478-897c-5f4bbd469364,guobao8,0,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
 吉林,attraction,和龙大洞遗址,64fa659c-88d3-4858-94a9-48bd27c80124,guobao8,后套木嘎遗址,dd484eae-29c2-4478-897c-5f4bbd469364,guobao8,0,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
@@ -94,3 +94,9 @@
 重庆,museum,重庆建川博物馆,1a3ab838-8802-41fa-90c6-a28bd69edcf7,4a,重庆中国三峡博物馆,b9168b2e-b5b0-42ca-92dc-d69c0732b503,4a,188,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
 重庆,museum,重庆自然博物馆,198b2ca7-de6f-4fc4-aef9-bf5f13865089,4a,重庆中国三峡博物馆,b9168b2e-b5b0-42ca-92dc-d69c0732b503,4a,188,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
 重庆,museum,重庆白鹤梁水下博物馆景区,ab6b6038-83d8-4a04-a84a-7dbdd6007882,4a,重庆中国三峡博物馆,b9168b2e-b5b0-42ca-92dc-d69c0732b503,4a,188,coord_defect_stack,"名不同实不同,坐标长尾姊妹题勿按dup处理"
+西安,attraction,汉景帝阳陵博物院景区,94b52a4c-5a46,4a,(坐标修正),94b52a4c-5a46,4a,0,coord_fixed,"坐标毒(叠西安博物院)修正为 wiki 34.4433,108.9447 WGS84;修前 0km 修后~23km"
+咸阳,attraction,汉景帝阳陵博物院景区,94b52a4c-5a46,4a,阳陵国家考古遗址公园,relicpark,relicpark,0,retire,"跨城同实体(西安/咸阳)退役并入4a正主+别名;relicpark行坐标也毒(108.709,34.329)"
+陕西,museum,汉景帝阳陵博物院景区,94b52a4c-5a46,4a,汉景帝阳陵博物院,museum1,museum1,0,retire,museum1省名city缺陷行(坐标NULL)退役并入+别名;同城join不可见类
+敦煌,attraction,莫高窟,047c12aa,unesco,莫高窟,ed26b915,intl,614,retire,"跨城同实体(unesco酒泉/intl敦煌614m):unesco行转正+city酒泉→敦煌(保tier+目的地城市),intl退役并入别名"
+鹰潭,attraction,龙虎山风景名胜区,ee6ae033,scenic,龙虎山风景名胜区,f2167a82,5a,0,retire,"跨城同实体(scenic鹰潭/5a贵溪0m):5a行转正+city贵溪→鹰潭(5A官方归属),scenic裸骨架退役"
+武夷山,attraction,武夷山风景名胜区,d44bb008,5a,武夷山风景名胜区,97c4083a,scenic,1218,retire,"跨城同实体(5a武夷山/scenic南平1218m):5a保(tier+富字段+目的地县级市),scenic退役"
