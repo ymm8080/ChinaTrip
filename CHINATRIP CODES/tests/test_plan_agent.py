@@ -25,6 +25,7 @@ from app.services.agent.plan import (
     clarify_questions,
     current_violations,
 )
+from app.services.flights import FlightService
 from app.services.itinerary import (
     DayPlan,
     GeoPoint,
@@ -55,6 +56,13 @@ class ScriptedLLM:
         assert self.replies, "scripted replies exhausted"
         return ChatResult(content=self.replies.pop(0), model="scripted")
         return ChatResult(content=self.replies.pop(0), model="scripted")
+
+
+class _EmptyFlights(FlightService):
+    """任何城市对都无航班 → 去程/回程退回火车或占位。"""
+
+    async def search(self, from_city, to_city, date):
+        return []
 
 
 class ExplodingLLM:
@@ -529,10 +537,10 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert len(transfers) == 3
     dep, hop, ret = transfers
     assert (dep.from_city, dep.to_city, dep.day) == ("上海", "杭州", 1)
-    assert dep.mode == "train"
-    # 08:00 闸（2026-11-03 拍板「火车 start time start from 8AM」）：
-    # G7351 07:15 出局，G7503 12:10 当选。
-    assert dep.train_no == "G7503"
+    # 去程优先飞机（2026-11-04 拍板）：航班源有 09:00 档就选它，火车让位
+    assert dep.mode == "flight"
+    assert dep.flight_no == "MU1001"
+    assert dep.start_time == time(9, 0)
     assert (hop.from_city, hop.to_city, hop.day) == ("杭州", "苏州", 2)
     assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
     assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
@@ -922,7 +930,8 @@ def test_v0_uncovered_pair_without_coords_degrades_to_flight():
             )
         ]
     )
-    agent = PlanningAgent(llm)  # no amap → no anchors → distance unknown
+    # 航班源也空 → 去程/回程都无班次，走既有占位口径（不是服务选班）
+    agent = PlanningAgent(llm, flight_service=_EmptyFlights())
     session = run(
         agent.start(
             device_id="d1",

@@ -35,7 +35,12 @@ from app.services.agent.hotel_stays import attach_hotel_stays, is_hotel_checkin
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.best_visit import apply_rules
 from app.services.ctrip_hours import CtripHoursReader
-from app.services.flights import FlightService, MockFlightService, pick_best_flight
+from app.services.flights import (
+    FlightService,
+    MockFlightService,
+    build_flight_transfer_item,
+    pick_best_flight,
+)
 from app.services.itinerary import (
     ChangeSummary,
     DayPlan,
@@ -8174,7 +8179,10 @@ class PlanningAgent:
             closure = len(dests) > 1 and _norm_city(dests[-1]) == _norm_city(origin)
             legs = []
             if _norm_city(dests[0]) != _norm_city(origin):
-                legs.append((origin, dests[0], 1, 9, None))
+                # 来去优选飞机（2026-11-04 拍板）：去程/返程腿航班源有班就
+                # 选它，火车让位；城际 hop 腿不参与（保持火车/驾车）。
+                # 第 6 元素=腿别标签（去程/返程→航班优先，None→hop）。
+                legs.append((origin, dests[0], 1, 9, None, "去程"))
             for k in range(1, len(dests)):
                 if _norm_city(dests[k - 1]) == _norm_city(dests[k]):
                     continue  # 同城腿无班次可查，不占转场
@@ -8189,39 +8197,78 @@ class PlanningAgent:
                         days if is_return else min(starts[k], days),
                         17 if is_return else 9,
                         (time(15, 0), time(21, 0)) if is_return else None,
+                        "返程" if is_return else None,
                     )
                 )
             # The return leg prefers an evening departure so the last day
             # keeps room for activities before heading home; no in-window
             # train degrades to the late placeholder instead of a morning one.
             if dests and not closure and _norm_city(dests[-1]) != _norm_city(origin):
-                legs.append((dests[-1], origin, days, 17, (time(15, 0), time(21, 0))))
+                legs.append(
+                    (dests[-1], origin, days, 17, (time(15, 0), time(21, 0)), "返程")
+                )
         else:
             legs = []
-        for from_city, to_city, day, depart_h, window in legs:
+        for from_city, to_city, day, depart_h, window, leg_kind in legs:
             seq_by_day[day] = seq_by_day.get(day, 0) + 1
             self._item_seq += 1
             item_id = f"t{self._item_seq}"
             transfer: TransferItem | None = None
-            try:
-                transfer = await build_transfer_item(
-                    self._trains,
-                    from_city=from_city,
-                    to_city=to_city,
-                    date=_leg_date_iso(start_date, day),  # 真实乘车日（2026-10-28）
-                    day=day,
-                    seq=seq_by_day[day],
-                    item_id=item_id,
-                    preferred_window=window,
-                )
-            except Exception:
-                logger.warning(
-                    "plan: build_transfer_item failed %s→%s",
-                    from_city,
-                    to_city,
-                    exc_info=True,
-                )
-                transfer = None
+            if leg_kind is not None:
+                # 航班源有班次 → 选班（去程早班/返程窗内最早）；窗内无班
+                # 返回 None 落到火车查询——绝不用窗外航班顶替窗口偏好。
+                try:
+                    transfer = await build_flight_transfer_item(
+                        self._flights,
+                        from_city=from_city,
+                        to_city=to_city,
+                        date=_leg_date_iso(start_date, day),
+                        day=day,
+                        seq=seq_by_day[day],
+                        item_id=item_id,
+                        preferred_window=window,
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: build_flight_transfer_item failed %s→%s",
+                        from_city,
+                        to_city,
+                        exc_info=True,
+                    )
+                    transfer = None
+            if transfer is None:
+                try:
+                    transfer = await build_transfer_item(
+                        self._trains,
+                        from_city=from_city,
+                        to_city=to_city,
+                        date=_leg_date_iso(start_date, day),  # 真实乘车日（2026-10-28）
+                        day=day,
+                        seq=seq_by_day[day],
+                        item_id=item_id,
+                        preferred_window=window,
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: build_transfer_item failed %s→%s",
+                        from_city,
+                        to_city,
+                        exc_info=True,
+                    )
+                    transfer = None
+                if transfer is not None and leg_kind is not None:
+                    # 航班源无班、火车接手——降级留痕进 assumptions。
+                    t_no = getattr(transfer, "train_no", None)
+                    train_tag = f" {t_no}" if t_no else ""
+                    kind_en = "Outbound" if leg_kind == "去程" else "Return"
+                    assumptions.append(
+                        L(
+                            f"{leg_kind} {from_city}→{to_city} "
+                            f"无航班，改用火车{train_tag}",
+                            f"{kind_en} {from_city}→{to_city}: no flight "
+                            f"available, taking train{train_tag} instead",
+                        )
+                    )
             if transfer is None:
                 dist_km: float | None = None
                 a = anchors.get(from_city)

@@ -183,8 +183,8 @@ def test_start_200_ready_with_plan_assumptions_and_violations():
     modes = [
         i.get("mode") for d in body["plan"]["days"] for i in d["items"] if "mode" in i
     ]
-    # 出发段（第1天）+ 返程段（第3天）都经车次服务成行 = 目的地数+1 段
-    assert modes == ["train", "train"]
+    # 出发段（第1天）+ 返程段（第3天）优先飞机（2026-11-04 拍板）
+    assert modes == ["flight", "flight"]
 
 
 def test_start_200_clarify_when_info_missing():
@@ -235,12 +235,12 @@ def test_message_200_applies_diff_and_returns_change():
     assert "雷峰塔" in body["reply"]
     assert body["change"]["affected_items_count"] == 1
     # Day 3 is the 杭州→上海 return day, but the return leg departs in the
-    # evening (no in-window train → 17:00 placeholder), so the moved POI
-    # keeps the last-day morning slot: 末日 = 活动 + 返程.
+    # evening (17:00 flight), so the moved POI keeps the last-day morning
+    # slot: 末日 = 活动 + 返程.
     day2 = [i for i in body["plan"]["days"][1]["items"] if i["item_id"] == "v2"]
     day3 = [i for i in body["plan"]["days"][2]["items"] if i["item_id"] == "v2"]
     assert day3 and not day2
-    assert any(i.get("mode") == "train" for i in body["plan"]["days"][2]["items"])
+    assert any(i.get("mode") == "flight" for i in body["plan"]["days"][2]["items"])
 
 
 def test_message_unknown_session_returns_404():

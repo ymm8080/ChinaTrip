@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import time
 
+from app.services.itinerary.models import TransferItem
+
 
 @dataclass(frozen=True)
 class FlightOption:
@@ -64,3 +66,39 @@ async def pick_best_flight(
     lo, hi = preferred_window
     in_window = [o for o in options if lo <= o.dep_time <= hi]
     return min(in_window, key=lambda o: o.dep_time) if in_window else None
+
+
+async def build_flight_transfer_item(
+    service: FlightService,
+    *,
+    from_city: str,
+    to_city: str,
+    date: str,
+    day: int,
+    seq: int,
+    item_id: str,
+    preferred_window: tuple[time, time] | None = None,
+) -> TransferItem | None:
+    """与 build_transfer_item 同构：选中班次 → TransferItem(mode="flight")。
+
+    Returns None when no flight qualifies — caller falls back to the train
+    query (outbound/return preference) or the existing placeholder.
+    """
+    best = await pick_best_flight(
+        service, from_city, to_city, date, preferred_window=preferred_window
+    )
+    if best is None:
+        return None
+    end_time = best.arr_time if best.arr_time >= best.dep_time else time(23, 59)
+    return TransferItem(
+        item_id=item_id,
+        day=day,
+        seq=seq,
+        from_city=from_city,
+        to_city=to_city,
+        mode="flight",
+        start_time=best.dep_time,
+        end_time=end_time,
+        duration_minutes=best.duration_minutes,
+        flight_no=best.flight_no,
+    )

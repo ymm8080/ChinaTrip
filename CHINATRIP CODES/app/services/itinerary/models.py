@@ -105,6 +105,7 @@ class TransferItem(BaseModel):
     end_time: time | None = None
     duration_minutes: int | None = None
     train_no: str | None = None  # TrainService static-lib hit, if any
+    flight_no: str | None = None  # FlightService hit (outbound/return legs)
 
 
 class DayPlan(BaseModel):
