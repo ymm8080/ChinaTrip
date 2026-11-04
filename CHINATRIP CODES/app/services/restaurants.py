@@ -40,12 +40,25 @@ MEAL_WINDOWS: dict[MealSlot, tuple[time, time]] = {
 }
 
 MEAL_DURATION_MINUTES = 60  # a meal occupies one hour of the free gap
+# 午餐口径（2026-11-03 拍板）：开餐硬窗 [11:30, 12:30]，时长默认 1.5h、
+# 极端可缩 0.5h。晚餐/通用餐仍走 MEAL_DURATION_MINUTES（60）。
+LUNCH_DURATION_MINUTES = 90
+LUNCH_DURATION_FLOOR_MINUTES = 30
+LUNCH_START_EARLIEST = time(11, 30)
+LUNCH_START_LATEST = time(12, 30)
 TOP_N_RECOMMENDATIONS = 3
 WALK_METERS_PER_MINUTE = 80.0  # ~4.8 km/h pedestrian estimate
 RATING_WEIGHT = 0.1  # rating * weight is subtracted from detour score
 # Fixed tail rank for candidates we cannot geo-locate (and for the
 # degenerate no-route-points case, where on-the-way-ness is undefined).
 NO_LOCATION_DETOUR_SCORE = 999.0
+
+# 跨城错排闸（2026-10-31「上海→西安→上海→西安」案）：候选池按调用方
+# 所传城市检索，城市传错时整池都在几百公里外，rank_by_detour 只能在
+# 错池内部排序、救不回来。有当日动线坐标时，已知坐标候选距动线
+# ≥50km（跨城/远郊跨区）不算「顺路」，不推荐；无坐标候选无法判定，
+# 维持排序垫底不动（行为不变）。
+MEAL_DETOUR_HARD_KM = 50.0
 
 # 午餐占位件 id 前缀（2026-10-31 拍板：午餐窗搜不到餐厅时插「午饭」占位）。
 # 识别走 item_id 而非名字——名字随请求语言（lang_ctx.L）变化。
@@ -191,12 +204,14 @@ def meal_window(day: DayPlan, slot: MealSlot) -> tuple[time, time] | None:
     Window constant minus the time coverage of existing items (end_time,
     or start+duration when end is missing; untimed items do not block).
     Untimed day -> the window constant as-is. Of the remaining gaps the
-    largest one that still fits MEAL_DURATION_MINUTES wins (ties ->
-    earliest); fully occupied (or no gap fits a meal) -> None — no free
-    gap means no forced insertion.
+    largest one that still fits the slot's meal duration (lunch 90 min,
+    2026-11-03 拍板; dinner 60) wins (ties -> earliest); fully occupied
+    (or no gap fits a meal) -> None — no free gap means no forced
+    insertion.
     """
     win_start, win_end = MEAL_WINDOWS[slot]
     ws, we = _minutes(win_start), _minutes(win_end)
+    meal_dur = LUNCH_DURATION_MINUTES if slot == "lunch" else MEAL_DURATION_MINUTES
     blocked: list[tuple[int, int]] = []
     for item in day.items:
         if item.start_time is None:
@@ -221,27 +236,27 @@ def meal_window(day: DayPlan, slot: MealSlot) -> tuple[time, time] | None:
         cursor = max(cursor, end)
     if cursor < we:
         gaps.append((cursor, we))
-    gaps = [(s, e) for s, e in gaps if e - s >= MEAL_DURATION_MINUTES]
+    gaps = [(s, e) for s, e in gaps if e - s >= meal_dur]
     if not gaps:
         return None
     best = max(gaps, key=lambda g: (g[1] - g[0], -g[0]))
     return (_time_of(best[0]), _time_of(best[1]))
 
 
-def meal_times(window: tuple[time, time]) -> tuple[time, time]:
-    """Start/end of a one-hour meal inside a free gap (clamped midpoint).
+def meal_times(
+    window: tuple[time, time], duration: int = MEAL_DURATION_MINUTES
+) -> tuple[time, time]:
+    """Start/end of a meal inside a free gap (clamped midpoint).
 
-    Midpoint of the gap, pulled back so start + MEAL_DURATION_MINUTES never
-    spills past the gap end: the 90-minute lunch window's midpoint lands at
-    12:45 and 12:45+60 would overflow to 13:45, and so would any compressed
-    gap shorter than two hours. For windows of at least one meal the result
+    Midpoint of the gap, pulled back so start + duration never spills past
+    the gap end: the 90-minute lunch window's midpoint lands at 12:45 and
+    12:45+60 would overflow to 13:45, and so would any compressed gap
+    shorter than two hours. For windows of at least one meal the result
     always satisfies window[0] <= start and end <= window[1].
     """
     mid = (_minutes(window[0]) + _minutes(window[1])) // 2
-    start = max(
-        _minutes(window[0]), min(mid, _minutes(window[1]) - MEAL_DURATION_MINUTES)
-    )
-    return _time_of(start), _time_of(start + MEAL_DURATION_MINUTES)
+    start = max(_minutes(window[0]), min(mid, _minutes(window[1]) - duration))
+    return _time_of(start), _time_of(start + duration)
 
 
 def rank_by_detour(
@@ -279,16 +294,17 @@ def build_food_item(
     city: str,
     window: tuple[time, time],
     item_id: str,
+    duration: int = MEAL_DURATION_MINUTES,
 ) -> VisitItem:
     """Convert a ranked candidate into an addable food VisitItem.
 
-    start/end = meal_times(window): the free-gap midpoint clamped so the
-    one-hour meal stays inside the gap, unpinned (iron rule 20: never
+    start/end = meal_times(window, duration): the free-gap midpoint clamped
+    so the meal stays inside the gap, unpinned (iron rule 20: never
     displaces user-confirmed items, rule 19 stays intact). Final
     non-overlap is guaranteed by validate_plan in the caller's mutation
     pipeline, not here.
     """
-    start, end = meal_times(window)
+    start, end = meal_times(window, duration)
     return VisitItem(
         item_id=item_id,
         name=candidate.name,
@@ -301,7 +317,7 @@ def build_food_item(
         day=day,
         start_time=start,
         end_time=end,
-        duration_minutes=MEAL_DURATION_MINUTES,
+        duration_minutes=duration,
         pinned=False,
     )
 
@@ -327,10 +343,13 @@ async def recommend_restaurants(
     resolved a concrete placement slot themselves (plan.py lunch pass:
     the slot may sit after an overrunning transfer, outside the raw
     window) — the iron-rule-20 gap check is then the caller's duty.
+    Lunch items carry the 2026-11-03 lunch duration default (90 min);
+    dinner keeps the generic one-hour meal.
     """
     window = window or meal_window(day_plan, slot)
     if window is None:
         return []
+    duration = LUNCH_DURATION_MINUTES if slot == "lunch" else MEAL_DURATION_MINUTES
     city_used = city or day_plan.base_city
     candidates = await search_restaurants(amap_client, city_used)
     # 当天已排的 POI 不再当餐厅推荐（同站景点不是用餐点；2026-10-31
@@ -345,6 +364,14 @@ async def recommend_restaurants(
         if isinstance(item, VisitItem) and item.location is not None
     ]
     ranked = rank_by_detour(candidates, route_points=route_points)
+    if route_points:
+        # 有动线才有顺路语义：已知坐标的远距候选=跨城错排信号，整只
+        # 剔除比在错池里排序更诚实（宁缺不插 700km 外的「顺路」店）。
+        ranked = [
+            r
+            for r in ranked
+            if r.location is None or r.detour_score < MEAL_DETOUR_HARD_KM
+        ]
     return [
         build_food_item(
             cand,
@@ -352,6 +379,7 @@ async def recommend_restaurants(
             city=city_used,
             window=window,
             item_id=f"food-d{day_plan.day}-{slot}-{index + 1}",
+            duration=duration,
         )
         for index, cand in enumerate(ranked[:TOP_N_RECOMMENDATIONS])
     ]

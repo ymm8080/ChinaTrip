@@ -14,12 +14,14 @@ from app.services.itinerary.solver import solve_day, solve_plan
 _ALL_DAY = PoiHours(poi_id="p_all", opens=time(8, 0), closes=time(21, 0))
 
 
-def _visit(item_id: str, *, poi_id: str | None = None, dur=60, **kwargs) -> VisitItem:
+def _visit(
+    item_id: str, *, poi_id: str | None = None, dur=60, city="北京", **kwargs
+) -> VisitItem:
     return VisitItem(
         item_id=item_id,
         name=item_id,
         poi_id=poi_id,
-        city="北京",
+        city=city,
         day=1,
         duration_minutes=dur,
         **kwargs,
@@ -173,7 +175,9 @@ def test_transfer_missing_end_time_is_filled():
     day = DayPlan(
         day=1,
         base_city="北京",
-        items=[transfer, _visit("v", poi_id="p_afternoon")],
+        # 城市侧闸（2026-11-02）：转场日 16:00 的条目须是到达城（上海）；
+        # 出发城条目不得排在离城交通之后。
+        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海")],
     )
     hours = [PoiHours(poi_id="p_afternoon", opens=time(16, 0), closes=time(18, 0))]
 
@@ -184,6 +188,33 @@ def test_transfer_missing_end_time_is_filled():
     assert out_transfer.end_time == time(11, 0)
     visit = next(i for i in solved.items if i.item_id == "v")
     assert (visit.start_time, visit.end_time) == (time(16, 0), time(17, 0))
+
+
+def test_same_city_transfer_leg_does_not_gate():
+    """退化转场腿（规整后 from==to，环线大巴/脏数据）整腿不判：先匹配
+    to_city 会把同城条目全判 "after"，上午条目团灭、整天 None
+    （2026-11-02 审计，宁不加码不可错拦）。"""
+    transfer = TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        from_city="上海",
+        to_city="上海市",  # 规整后与 from 同城 → 退化腿
+        start_time=time(13, 0),
+        end_time=time(15, 0),
+    )
+    day = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[transfer, _visit("v", poi_id="p_morning", city="上海")],
+    )
+    hours = [PoiHours(poi_id="p_morning", opens=time(9, 0), closes=time(12, 0))]
+
+    solved = solve_day(day, poi_hours=hours)
+
+    assert solved is not None
+    visit = next(i for i in solved.items if i.item_id == "v")
+    assert visit.end_time <= time(12, 0)  # 上午照排，不被判 "after"
 
 
 def test_empty_day_round_trips():
@@ -197,7 +228,10 @@ def test_empty_day_round_trips():
     assert solved.items == []
 
 
-def test_solve_plan_is_atomic():
+def test_solve_plan_degrades_per_day():
+    """2026-10-31 上午空排事故：旧「单日失败作废整单」把其余天的好解
+    一起拖进顺序兜底（第2/3天上午全空）；现在失败日原样保留（untimed
+    交给调用方兜底），好天保住 solver 优化解。"""
     ok_day = DayPlan(day=1, base_city="北京", items=[_visit("v1", poi_id="p_short")])
     bad_day = DayPlan(
         day=2, base_city="上海", items=[_visit("v2", poi_id="p_short", dur=300)]
@@ -207,7 +241,12 @@ def test_solve_plan_is_atomic():
         itinerary_id="it1", cities=["北京", "上海"], days=[ok_day, bad_day]
     )
 
-    assert solve_plan(plan, poi_hours=hours) is None
+    solved = solve_plan(plan, poi_hours=hours)
+
+    assert solved is not None
+    day1, day2 = solved.days
+    assert day1.items[0].start_time is not None  # 好天保住解
+    assert all(i.start_time is None for i in day2.items)  # 坏天原样保留
 
 
 def test_solve_plan_solves_all_days():
@@ -476,9 +515,11 @@ def test_travel_gap_enforced_between_consecutive_visits():
     assert gap >= 40
 
 
-def test_infeasible_travel_separation_falls_back_to_packed():
-    """走行分离把当天挤爆（时段窗钉死 + 240 分钟走行）→ 回落旧背靠背语义，
-    整日仍出方案（宁可挤也不弃日，§6.9 降级链由上层兜底）。"""
+def test_infeasible_travel_separation_drops_day():
+    """走行分离把当天挤爆（时段窗钉死 + 240 分钟走行）→ 弃日返回 None，
+    交上层 _fallback_sequence_times 带腿重排/留空披露——不再回落 gap=0
+    背靠背语义（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故拍板：
+    零间隔不合法化，宁可披露也不硬排）。"""
     day = DayPlan(
         day=1,
         base_city="北京",
@@ -491,8 +532,94 @@ def test_infeasible_travel_separation_falls_back_to_packed():
 
     solved = solve_day(day, poi_hours=[_ALL_DAY], travel_minutes=matrix)
 
+    assert solved is None
+
+
+# --- 2026-10-31 白天入场闸（非演出观光点最晚 16:00 入场） ---------------------
+
+
+def test_generic_sightseeing_entry_capped_at_16():
+    """城墙·碑林案：下午被 pinned 180 分钟占满（13:30-16:30）时，景区
+    不许 17:00 入场——只能排上午（solver 主路收编）。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=180,
+                category="attraction",
+                pinned=True,
+                start_time=time(13, 30),
+            ),
+            _visit("wall", poi_id="p_w", dur=180, category="attraction"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=[])
+
     assert solved is not None
-    m = next(i for i in solved.items if i.item_id == "m")
-    e = next(i for i in solved.items if i.item_id == "e")
-    assert _minutes(m.end_time) <= _minutes(e.start_time)
-    assert _minutes(e.start_time) - _minutes(m.end_time) < 240
+    wall = next(i for i in solved.items if i.item_id == "wall")
+    assert _minutes(wall.start_time) <= 16 * 60
+    assert wall.end_time <= time(13, 30)  # 只能排上午（pin 前）
+
+
+def test_food_dinner_uncapped_while_scenic_capped():
+    """晚餐（food）照旧可排傍晚；同日景区被 16:30 开场闸收进上午。"""
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=330,
+                category="attraction",
+                pinned=True,
+                start_time=time(11, 30),
+            ),  # 11:30-17:00
+            _visit("wall", poi_id="p_w", dur=150, category="attraction"),
+            _visit("dinner", poi_id="p_f", dur=60, category="food"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    wall = next(i for i in solved.items if i.item_id == "wall")
+    dinner = next(i for i in solved.items if i.item_id == "dinner")
+    # wall 150 分钟只能进上午（blocker 后 17:00 起排 > 16:30 开场闸）
+    assert wall.end_time <= time(11, 30)
+    assert _minutes(wall.start_time) <= 16 * 60
+    # 晚餐不受闸：blocker 之后 17:00 开饭（闸后时段照排）
+    assert dinner.start_time >= time(17, 0)
+
+
+def test_late_open_venue_capped_gate_boundary_placeable():
+    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）：
+    2026-11-03「最晚 16:30 开场」口径下 16:30 整点开场合法（闸含端点），
+    solver 直排 16:30-17:45——旧「最晚 16:30 结束」口径的整日降级 +
+    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。75 分钟轻点：
+    11-04 大点（>80min）闸加严 15:30 后，16:30 边界开场只对轻点合法。"""
+    hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=450,
+                pinned=True,
+                start_time=time(9, 0),
+            ),  # 09:00-16:30
+            _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
+        ],
+    )
+
+    solved = solve_day(day, poi_hours=hours)
+
+    assert solved is not None  # 16:30 整点开场在闸内
+    v = next(i for i in solved.items if i.item_id == "v_late")
+    assert _minutes(v.start_time) == 16 * 60 + 30

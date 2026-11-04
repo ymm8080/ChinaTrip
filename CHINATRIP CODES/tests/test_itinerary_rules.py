@@ -223,7 +223,7 @@ def test_rule6_walk_over_limit_warns_not_fails():
         base_city="上海",
         items=[
             visit("a", 1, time(9), time(10), loc=pt(31.20)),
-            visit("b", 1, time(11), time(12), loc=pt(31.40)),  # ~22 km
+            visit("b", 1, time(11, 30), time(12, 30), loc=pt(31.40)),  # ~22 km
         ],
     )
     rep = validate_plan(plan([d]), poi_hours=[])

@@ -186,6 +186,39 @@ def test_sync_heals_stale_binding_to_real_poi(monkeypatch):
     assert "成都大熊猫繁育研究基地" in (row.get("note") or "")
 
 
+def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
+    """重排后行程已不含心愿落点：scheduled 行回心愿单、剥「已安排」
+    尾段（2026-10-31 看熊猫案——已排期栏必须真实，行程里没有=没排）。
+    """
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    store = PandaStore()
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    llm = CountingLLM()
+    agent = PlanningAgent(
+        llm, trip_items=svc, poi_details=store, auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
+    )
+    rows = svc.list_groups()
+    assert any(r["name"] == "看熊猫" for r in rows["scheduled"])
+    # 模拟重排删点：把基地从计划里拿掉，再跑收口
+    for day in session.plan.days:
+        day.items = [
+            i
+            for i in day.items
+            if not (isinstance(i, VisitItem) and i.name == "成都大熊猫繁育研究基地")
+        ]
+    agent._sync_wish_rows(session)
+    rows = svc.list_groups()
+    assert not any(r["name"] == "看熊猫" for r in rows["scheduled"])
+    row = next(r for r in rows["wishlist"] if r["name"] == "看熊猫")
+    assert row["status"] == "wishlist"
+    assert row["day"] is None and row["position"] is None
+    assert "已安排" not in (row.get("note") or "")
+
+
 def test_sync_time_arrange_skips_when_name_match_exists(monkeypatch):
     """行程里已有名字对得上的正主：不再为次优绑定点加第二个点。"""
     monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
@@ -338,6 +371,133 @@ def test_merge_must_visits_binding_marks_picked_no_dup():
     )
     assert sum(1 for s in out if s["name"] == "成都大熊猫繁育研究基地") == 1
     assert out[0]["must"] is True
+
+
+# --- 行程外城不排（2026-11-02 北京钟楼案收口）---
+
+
+def test_merge_must_visits_skips_off_trip_city_binding():
+    """绑定 POI 真城在行程外（如 西安行程绑到北京钟楼）：跳过不排，
+    不再被 ranges.get(city,(1,days)) 兜底摊到全程。"""
+    off_city = dict(_PANDA)
+    off_city["city"] = "北京"
+    out = PlanningAgent._merge_must_visits(
+        [],
+        ["看熊猫"],
+        ["西安"],
+        3,
+        {"西安": (1, 3)},
+        bindings={"看熊猫": off_city},
+    )
+    assert all("熊猫" not in (s.get("name") or "") for s in out)
+
+
+def test_merge_must_visits_skips_off_trip_city_site():
+    """专名支路：site_cities 把必去解析到行程外城（北京）→ 跳过；
+    行程内城（西安市 带后缀写法）仍正常排。"""
+    out = PlanningAgent._merge_must_visits(
+        [],
+        ["八达岭长城", "兵马俑"],
+        ["西安"],
+        2,
+        {"西安": (1, 2)},
+        site_cities={"八达岭长城": "北京", "兵马俑": "西安市"},
+    )
+    names = [s["name"] for s in out]
+    assert "八达岭长城" not in names
+    assert "兵马俑" in names
+    bmy = next(s for s in out if s["name"] == "兵马俑")
+    assert bmy["city"] == "西安市"
+    assert bmy["must"] is True
+
+
+def test_wish_bind_pool_skips_cross_city_hits():
+    """心愿绑定池：带 cross_city_hit 标记的候选不参与绑定裁决。"""
+    beijing_bell = {
+        "name": "北京钟楼",
+        "city": "北京",
+        "category": "sight",
+        "rating": 4.8,
+        "location": (116.397, 39.939),
+        "cross_city_hit": True,
+    }
+    xian_bell = {
+        "name": "西安钟楼",
+        "city": "西安",
+        "category": "sight",
+        "rating": 4.7,
+        "location": (108.943, 34.261),
+    }
+    agent = PlanningAgent.__new__(PlanningAgent)
+    got = agent._wish_bind_candidate("钟楼", [beijing_bell, xian_bell])
+    assert got is not None
+    assert got["name"] == "西安钟楼"
+
+
+# --- 全库档城市闸（2026-11-04 钟楼回归：西安行程心愿「钟楼」全库
+# 精确名命中北京行 ct_北京_165 串城）---
+
+
+_BJ_BELL = {
+    "source_poi_id": "ct_北京_165",
+    "name": "钟楼",
+    "city": "北京",
+    "category": "sight",
+    "rating": 4.7,
+    "location": (116.4128, 39.9443),
+}
+
+
+class BellStore(PoiDetailStore):
+    """钟楼场景桩：城内档空、全库档只有北京「钟楼」。"""
+
+    def __init__(self):
+        super().__init__(None)
+
+    def search_keyword(self, city, tokens, *, limit=5):
+        if city is None:
+            return [dict(_BJ_BELL)]
+        return []
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        return []
+
+
+def test_bind_wish_poi_global_scope_city_gate_blocks_off_trip():
+    """西安行程心愿「钟楼」：城内档空→全库档北京行被城市闸拦下，
+    返回 None、不写绑定、不串城（2026-11-04 回归）。"""
+    agent = PlanningAgent(CountingLLM(), poi_details=BellStore())
+    got = asyncio.run(agent._bind_wish_poi("钟楼", "西安", allowed_cities=["西安"]))
+    assert got is None
+    assert agent._wish_bindings.get("钟楼") is None
+
+
+def test_bind_wish_poi_global_scope_keeps_trip_city_hits():
+    """多城行程（北京+西安）：全库档北京钟楼属行程城市，正常绑定。"""
+    agent = PlanningAgent(CountingLLM(), poi_details=BellStore())
+    got = asyncio.run(
+        agent._bind_wish_poi("钟楼", "西安", allowed_cities=["西安", "北京"])
+    )
+    assert got is not None
+    assert got["city"] == "北京"
+    assert got["source_poi_id"] == "ct_北京_165"
+
+
+def test_start_zhonglou_xian_never_leaks_beijing(monkeypatch):
+    """端到端回归：西安 2 日、心愿「钟楼」——北京行不得出现在行程；
+    无可绑正主时保持占位语义（卡片无跨城 poi_id）。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
+    svc = TripItemService()
+    svc.create("钟楼", source="chat", city=None)
+    agent = PlanningAgent(
+        CountingLLM(), trip_items=svc, poi_details=BellStore(), auto_restaurants=False
+    )
+    session = asyncio.run(
+        agent.start(device_id="d1", cities=["西安"], days=2, preferences="随便")
+    )
+    visits = _visits(session)
+    assert "ct_北京_165" not in [v.poi_id for v in visits]
+    assert all((v.city or "").removesuffix("市") != "北京" for v in visits)
 
 
 # --- 水利工程事故（2026-10-30 深夜）：精确→模糊→LLM + 行程中心留痕 ---

@@ -274,15 +274,21 @@ def test_mark_unwanted_fallback_absorbs_normalized_active_match():
 
 
 def test_list_groups_and_orders_three_states():
-    with TestClient(make_app()) as client:
-        create_item(client, itinerary_id="t1", name="w1")
+    # 2026-10-31 起看板自愈：scheduled/booked 行挂的行程必须真实存在
+    # （孤儿回心愿单）——t1 改为真实行程记录；t2 仍幽灵但只放
+    # wishlist 行，不受自愈影响。
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["杭州"], days_count=2)
+    t1 = record.itinerary_id
+    with TestClient(app) as client:
+        create_item(client, itinerary_id=t1, name="w1")
         time.sleep(0.005)
-        create_item(client, itinerary_id="t1", name="w2")
-        s_day2 = create_item(client, itinerary_id="t1", name="s-day2")
-        s_day1_first = create_item(client, itinerary_id="t1", name="s-day1-a")
-        s_day1_second = create_item(client, itinerary_id="t1", name="s-day1-b")
-        b_day2 = create_item(client, itinerary_id="t1", name="b-day2")
-        b_day1 = create_item(client, itinerary_id="t1", name="b-day1")
+        create_item(client, itinerary_id=t1, name="w2")
+        s_day2 = create_item(client, itinerary_id=t1, name="s-day2")
+        s_day1_first = create_item(client, itinerary_id=t1, name="s-day1-a")
+        s_day1_second = create_item(client, itinerary_id=t1, name="s-day1-b")
+        b_day2 = create_item(client, itinerary_id=t1, name="b-day2")
+        b_day1 = create_item(client, itinerary_id=t1, name="b-day1")
         other = create_item(client, itinerary_id="t2", name="other-trip")
 
         schedule(client, s_day2["id"], day=2)  # pos 1.0
@@ -293,7 +299,7 @@ def test_list_groups_and_orders_three_states():
         book(client, b_day2["id"], "BK-D2")
         book(client, b_day1["id"], "BK-D1")
 
-        resp = client.get("/api/v1/trip-items", params={"itinerary_id": "t1"})
+        resp = client.get("/api/v1/trip-items", params={"itinerary_id": t1})
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == {"bookings", "wishlist", "scheduled", "unwanted"}
@@ -353,7 +359,11 @@ def test_list_attaches_itinerary_name_from_store():
 
 
 def test_list_itinerary_name_none_when_itinerary_unknown():
-    """行程已删/查无记录 → 名字置 None，卡上只显示 ID。"""
+    """行程已删/查无记录 → 名字置 None，卡上只显示 ID。
+
+    2026-10-31 起看板自愈：幽灵行程上的 scheduled 行就地回心愿单
+    （看熊猫案——已排期栏必须真实），名字标注语义不变。
+    """
     app, _store = make_app_with_store()
     with TestClient(app) as client:
         item = create_item(client, itinerary_id="ghost-trip")
@@ -361,7 +371,10 @@ def test_list_itinerary_name_none_when_itinerary_unknown():
 
         body = client.get("/api/v1/trip-items").json()
 
-    assert body["scheduled"][0]["itinerary_name"] is None
+    assert body["scheduled"] == []
+    healed = next(r for r in body["wishlist"] if r["name"] == item["name"])
+    assert healed["itinerary_name"] is None
+    assert healed["day"] is None and healed["position"] is None
 
 
 def test_list_items_without_itinerary_id_skip_name_field():
@@ -441,6 +454,68 @@ def test_delete_itinerary_releases_scheduled_wishes_endpoint():
             ).status_code
             == 404
         )
+
+
+def test_release_itinerary_strips_scheduled_note_tail():
+    """释放回心愿单时剥「｜已安排：…」尾段——心愿单不再声称已安排
+    （中英分隔符都剥；无尾段 note 原样保留）。"""
+    svc = TripItemService()
+    wish = svc.create(
+        "看熊猫",
+        source="chat",
+        itinerary_id="t1",
+        city="成都",
+        note="来自聊天｜已安排：成都大熊猫繁育研究基地（第4天 11月3日 12:00）",
+    )
+    svc.update(wish["id"], status="scheduled", day=4)
+    svc.release_itinerary("t1")
+    row = svc.get(wish["id"])
+    assert row["status"] == "wishlist"
+    assert row["note"] == "来自聊天"
+
+    en = svc.create(
+        "Pandas",
+        source="chat",
+        itinerary_id="t2",
+        note="From chat | Scheduled: Panda Base (day 2)",
+    )
+    svc.update(en["id"], status="scheduled", day=2)
+    svc.release_itinerary("t2")
+    assert svc.get(en["id"])["note"] == "From chat"
+
+    plain = svc.create("无尾段", source="chat", itinerary_id="t3", note="随手记")
+    svc.update(plain["id"], status="scheduled", day=1)
+    svc.release_itinerary("t3")
+    assert svc.get(plain["id"])["note"] == "随手记"
+
+
+def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
+    """释放机制上线前的存量孤儿（行程被旁路删除）：看板 GET 就地回
+    心愿单并写穿——已排期栏不再出现「实际没有路程安排」的行。"""
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["成都"], days_count=4)
+    with TestClient(app) as client:
+        item = create_item(
+            client,
+            itinerary_id=record.itinerary_id,
+            name="看熊猫",
+            note="来自聊天｜已安排：成都大熊猫繁育研究基地（第4天 11月3日 12:00）",
+        )
+        schedule(client, item["id"], 4)
+        store.delete(record.itinerary_id)  # 绕过 DELETE 端点=存量孤儿
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert body["scheduled"] == []
+    healed = next(r for r in body["wishlist"] if r["name"] == "看熊猫")
+    assert healed["day"] is None and healed["position"] is None
+    assert healed["note"] == "来自聊天"
+    assert healed["itinerary_name"] is None
+    # 写穿：再次拉取稳定（不会反复横跳）
+    with TestClient(app) as client:
+        again = client.get("/api/v1/trip-items").json()
+    assert again["scheduled"] == []
+    assert any(r["name"] == "看熊猫" for r in again["wishlist"])
 
 
 # --- transitions: wishlist -> scheduled ---------------------------------------

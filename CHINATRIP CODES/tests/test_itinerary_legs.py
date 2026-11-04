@@ -17,11 +17,15 @@ from app.services.itinerary.pipeline import mutate
 
 
 def _visit(name: str, lon: float | None, lat: float | None) -> VisitItem:
+    # 已排时刻（2026-11-03 无时刻卡不得交付后，腿链以已排卡为前提）：
+    # None-None 卡断链（leg_pairs），旧夹具全裸卡不再成对。
     return VisitItem(
         item_id=f"v-{name}",
         name=name,
         city="北京",
         day=1,
+        start_time=time(9, 0),
+        end_time=time(10, 0),
         location=GeoPoint(lon=lon, lat=lat) if lon is not None else None,
     )
 
@@ -96,7 +100,7 @@ def test_mutate_pipeline_output_is_annotated():
             city="北京",
             day=1,
             location=GeoPoint(lon=116.41, lat=39.90),
-            start_time=time(11, 0),
+            start_time=time(11, 45),
             duration_minutes=60,
         ),
     )

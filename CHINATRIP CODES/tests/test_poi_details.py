@@ -308,8 +308,9 @@ def test_top_pois_tier_priority_5a_over_raw_rating():
 
 
 def test_top_pois_intl_pick_tier_over_raw_rating():
-    """2026-10-25 intl 种子：TA/LP 人气榜行与 5A 同档（tier 3），
-    标签注入打 intl 而非 5a，压过裸高分边缘点。"""
+    """2026-10-25 intl 种子（原与 5A 同档；2026-11-03 名录序降为独立
+    国际网站档 tier 2）：TA/LP 人气榜行压过裸高分边缘点，
+    标签注入打 intl 而非 5a。"""
     store = PoiDetailStore()
     store.upsert("A1", city="上海", name="武康路", rating=4.3)
     store.upsert("A2", city="上海", name="城市边缘点", rating=4.8)
@@ -323,15 +324,16 @@ def test_top_pois_intl_pick_tier_over_raw_rating():
 
 
 def test_top_pois_injected_tier_tag_respects_source_order():
-    """2026-10-26 打标序：读路径注入的 unesco 排国外榜单之后，
-    不垫到其它标签（如博物馆分级）后面。"""
+    """2026-11-03 名录序打标序（取代 2026-10-26「国外榜单放前」）：读路径
+    注入的 unesco 排最前（unesco 族最先），仍不垫到其它标签（如博物馆
+    分级）后面。"""
     store = PoiDetailStore()
     store.upsert("A1", city="北京", name="故宫博物院", rating=4.5)
     store._memory["A1"]["source"] = "unesco"
     store._memory["A1"]["tags"] = ["ta", "lp", "intl", "国家一级博物馆"]
     top = store.top_pois_in_city("北京")
     tags = next(h["tags"] for h in top if h["name"] == "故宫博物院")
-    assert tags[:3] == ["ta", "lp", "intl"]
+    assert tags[:3] == ["unesco", "ta", "lp"]
     assert tags.index("unesco") < tags.index("国家一级博物馆")
 
 
@@ -435,8 +437,9 @@ def test_search_keyword_exact_name_beats_tier():
 
 
 def test_search_keyword_heritage_overlap_gives_tier():
-    """名单互含与 top_pois 同权：裸 amap 行名 ⊂ unesco 名单行名 → tier 4
-    （灵隐飞来峰 ⊂ 灵隐飞来峰景区），压过同类裸行。"""
+    """名单互含与 top_pois 同权：裸 amap 行名 ⊂ unesco 名单行名 → tier 0
+    （2026-11-03 名录序小值优先，unesco 档；灵隐飞来峰 ⊂ 灵隐飞来峰
+    景区），压过同类裸行。"""
     store = PoiDetailStore()
     store.upsert(
         "C1", city="杭州", name="灵隐寺", category="风景区", location=(120.10, 30.24)
@@ -454,7 +457,7 @@ def test_search_keyword_heritage_overlap_gives_tier():
     store._memory["H1"]["name"] = "灵隐飞来峰景区"  # 名单行名改写模拟库内别名
     hits = store.search_keyword("杭州", ["灵隐"])
     ids = [h["source_poi_id"] for h in hits]
-    assert ids.index("C2") < ids.index("C1")  # 互含 tier 4 压过裸行
+    assert ids.index("C2") < ids.index("C1")  # 互含 tier 0 压过裸行
 
 
 # --- search_keyword 功能标签检索（2026-10-29 批打接线） -----------------------
@@ -495,3 +498,102 @@ def test_search_keyword_label_rank_beats_plain_hit():
     hits = store.search_keyword("成都", ["演出"])
     ids = [h["source_poi_id"] for h in hits]
     assert ids.index("S1") < ids.index("N1")
+
+
+def test_search_keyword_unesco_label_matches_prefix_family():
+    """世界遗产愿望词（label "unesco"）须吃到 unesco_* 前缀族行（丝路
+    点段 unesco_silk_road 等）——hit_tier 早已同档（2026-11-02 拍板），
+    检索口径对齐；本测走内存路，DB 路为同口径的锚定前缀 LIKE。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "U1",
+        city="西安",
+        name="汉长安城未央宫遗址",
+        category="风景区",
+        location=(108.84, 34.29),
+    )
+    store._memory["U1"]["tags"] = ["unesco_silk_road"]
+    hits = store.search_keyword("西安", ["世界遗产"])
+    assert [h["source_poi_id"] for h in hits] == ["U1"]
+
+
+def test_store_get_by_name_city_scoped():
+    """2026-11-01 北京钟楼案：get_by_name 带 city 只认同城行。
+
+
+
+    「钟楼」多城重名（北京行 vs 西安 manual 行），旧版全库 .first() 把
+
+    北京行过继给西安条目（poi_id/地址/英文简介整套易主）。
+
+    """
+
+    store = PoiDetailStore()
+
+    store.upsert(
+        "ct_beijing_165",
+        city="北京",
+        name="钟楼",
+        category="sight",
+        location=(116.4128, 39.9443),
+    )
+
+    store.upsert(
+        "manual_xian_zhonglou",
+        city="西安",
+        name="西安钟楼",
+        category="attraction",
+        location=(108.9440, 34.3409),
+    )
+
+    # 同城无精确同名行：宁可 None，绝不拿北京行冒充
+
+    assert store.get_by_name("西安", "钟楼") is None
+
+    # 同城精确行照常命中（带「市」后缀也认），并出 city 供调用方复核
+
+    got = store.get_by_name("西安市", "西安钟楼")
+
+    assert got is not None and got["poi_id"] == "manual_xian_zhonglou"
+
+    assert got["city"] == "西安"
+
+    # city=None（fast_lane 语义）：全库精确名照常
+
+    assert store.get_by_name(None, "钟楼")["poi_id"] == "ct_beijing_165"
+
+
+def test_hit_tier_unesco_silk_road_component():
+    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档（2026-11-03 名录序
+    档号 0 起小值优先；原 11-02 大雁塔事故修复：点段代表行来源
+    5a/relicpark 各异，只认 source 永远升不了档）。"""
+    from app.services.poi_details import hit_tier
+
+    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 0
+    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 0
+    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 0
+    # 5a source 明站压 intl 伞标签（catalog_rank 判定序）
+    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 1
+    # 国际旅行网站档（ta/lp/viator/curated 明站）
+    assert hit_tier({"source": "baidu", "tags": ["lp"]}, []) == 2
+    # 裸 intl 伞标按国际平台档计（共享模块既有约定：05/10 两路 import
+    # 都写 intl 伞标，无站点明细时归平台档）
+    assert hit_tier({"source": "baidu", "tags": ["intl"]}, []) == 3
+    assert hit_tier({"source": "baidu", "tags": ["4a"]}, []) == 8
+
+
+def test_name_overlap_rejects_midfix_subfacilities():
+    """世遗互含收紧（11-03 拍板）：仅认头/尾相接——尾接通用类尾词放行
+    （灵隐飞来峰↔灵隐飞来峰景区）、头接 ≤3 字地市前缀放行（北京颐和园）；
+    中段嵌含不再认，挡「颐和园-船坞 / 冰雪嘉年华」类子设施借本体牌升档。"""
+    from app.services.poi_details import _name_overlap
+
+    assert _name_overlap("灵隐飞来峰", "灵隐飞来峰景区")
+    assert _name_overlap("灵隐飞来峰景区", "灵隐飞来峰")
+    assert _name_overlap("北京颐和园", "颐和园")
+    assert _name_overlap("颐和园", "颐和园")
+    assert not _name_overlap("颐和园-船坞", "颐和园")
+    assert not _name_overlap("颐和园-冰雪嘉年华", "颐和园")
+    assert not _name_overlap("颐和园文创商店", "颐和园")
+    assert not _name_overlap("圆明园", "颐和园")
+    assert not _name_overlap("秦始皇帝陵", "秦始皇兵马俑博物馆")

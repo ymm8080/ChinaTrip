@@ -33,6 +33,22 @@ SOURCES = frozenset({"manual", "chat", "paste", "agent_recommend", "plan_delete"
 _TIMELINE_STATUSES = frozenset({STATUS_SCHEDULED, STATUS_BOOKED})
 
 
+def strip_scheduled_note(note: str | None) -> str:
+    """剥掉 note 的「已安排」尾段（带前缀/裸两种形态，中英分隔符）。
+
+    2026-10-31（看熊猫案）：scheduled→wishlist（删行程释放/看板自愈/
+    重排回退）后 note 不再声称已安排——保留来源前缀（如「来自聊天」）；
+    _sync_wish_rows 重新落排时按新行程重写。裸形态（无来源前缀，如
+    「已安排：X（第1天 09:00）」）剥成空串；无尾段原样返回。
+    """
+    raw = str(note or "")
+    for sep in ("｜已安排：", " | Scheduled:"):
+        raw = raw.split(sep)[0]
+    if raw.startswith(("已安排：", "Scheduled:")):
+        raw = ""
+    return raw.strip()
+
+
 class InvalidSourceError(ValueError):
     """Create payload named a source outside the four allowed origins."""
 
@@ -374,7 +390,8 @@ class TripItemService:
     ) -> list[dict]:
         """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
         不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
-        booking_id 清空）。itinerary_id 留痕：吸收/_sync_wish_rows 按名字
+        booking_id 清空，note 剥「已安排」尾段）。itinerary_id 留痕：
+        吸收/_sync_wish_rows 按名字
         force 换绑新行程。booked 行保留真实订单不动；wishlist/unwanted 行
         本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。"""
         if not itinerary_id:
@@ -385,9 +402,16 @@ class TripItemService:
             if item["itinerary_id"] == itinerary_id
             and item["status"] == STATUS_SCHEDULED
         ]
-        return [
-            self.update(item_id, status=STATUS_WISHLIST, now=now) for item_id in targets
-        ]
+        released = []
+        for item_id in targets:
+            item = self._items.get(item_id) or {}
+            raw_note = str(item.get("note") or "")
+            base = strip_scheduled_note(raw_note)
+            kwargs: dict = {"now": now}
+            if base != raw_note:
+                kwargs["note"] = base
+            released.append(self.update(item_id, status=STATUS_WISHLIST, **kwargs))
+        return released
 
     def mark_unwanted(
         self,

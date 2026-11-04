@@ -89,17 +89,28 @@ curl -H "X-Device-ID: t1" http://127.0.0.1:8000/api/v1/call/records   # 记录
 curl http://127.0.0.1:8000/api/v1/call/agent/queue       # 未配键 ⇒ 503 agent_disabled
 ```
 
-## 5. 验收记录（手测时填写）
+## 5. 验收记录（2026-10-25 实机浏览器验证已回填）
 
 | 用例 | 结果（✅/❌） | 执行人 | 时间 | 备注 |
 | --- | --- | --- | --- | --- |
-| TC-01 | | | | |
-| TC-02 | | | | |
-| TC-03 | | | | |
-| TC-04 | | | | |
-| TC-05 | | | | |
-| TC-06 | | | | |
-| TC-07 | | | | |
-| TC-08 | | | | |
-| TC-09 | | | | |
-| TC-10 | | | | |
+| TC-01 | ✅ | ZCode 浏览器实测 | 2026-10-25 | mock 一键购买成功、余额 10、时长 chips 上限正确、**退款摘要购买前可见** |
+| TC-02 | ✅ | ZCode 浏览器实测 | 2026-10-25 | 坐席台登录（含中文坐席名）→ 队列显示直拨呼入 → 接听 → 双端同步 🟢 通话中 |
+| TC-03 | ✅ | ZCode 浏览器实测 | 2026-10-25 | 旅客挂断退 10；坐席挂断 02:29 用后**退 7 整分钟**；双端记录一致 |
+| TC-04 | ✅ | 实机 API + DB 回拨 | 2026-10-25 | waiting 超时 → expired + 全额退款，余额复原 |
+| TC-05 | ✅ | 自动化 + 实机读路径 | 2026-10-25 | 到点强结 exhausted（queue/records 双读路径兜底，不依赖旅客轮询）；单测覆盖 |
+| TC-06 | ✅ | ZCode 浏览器实测 | 2026-10-25 | 热线显示、`tel:+86…` 链接正确；真机拨号待用户手机验证 |
+| TC-07 | ✅ | ZCode 浏览器实测 | 2026-10-25 | 记录含起止时刻、mm:ss 时长、状态徽章、直拨/回拨、原因、退/扣分钟 |
+| TC-08 | ✅ | 静态校验 | 2026-10-25 | i18n 30 键中英齐全；双币下单路径经 API 验证 |
+| TC-09 | ✅ | ZCode 浏览器 + API | 2026-10-25 | 422 hotline 降级 / 503 坐席未启用 / 402 / 设备隔离 / 幂等 全过 |
+| TC-10 | ✅ | 静态校验 | 2026-10-25 | sw 现为 v64（并行会话推进），agent.html 在 SHELL 内 |
+
+### 实机验证中发现并已修复的 4 个缺陷（均有回归测试）
+
+1. **退款摘要未渲染**（铁律 23 违规）：`/packages` 现随目录下发 `refund_summary`，H5 购买前显示；`test_packages_include_refund_summary`。
+2. **中文坐席名导致坐席台整体不可用**：HTTP 头仅 ISO-8859-1，客户端 `encodeURIComponent` + 服务端 `unquote`；实机验证「测试坐席」可正常接听。
+3. **刷新页面产生孤儿 waiting 会话（分钟卡死）**：`records()`/`agent_queue()` 读路径惰性清理超时 waiting + 前端启动自动恢复未结束会话；`test_records_expires_orphan_waiting_session`。
+4. **坐席台计时显示 NaN:NaN**：`agent_queue` 现返回服务端重算的 `remaining_seconds`，且到点强结不依赖旅客端轮询；`test_agent_queue_exposes_remaining_and_enforces_exhaustion`。
+
+### 测试用 .env 键（生产前清理）
+
+本轮实机验证在 `.env` 追加了：`AGENT_CONSOLE_KEY=test123`、`CALL_HOTLINE_NUMBER=+8610000000000`、`CALL_WAITING_TIMEOUT_SECONDS=600`（放宽等待窗口便于人工操作）。上线前替换为真实坐席键/热线号，并删除超时覆盖行。

@@ -1,8 +1,14 @@
 """POI 坐标批量补全作业（2026-10-28 backlog：无坐标行走高德 text 补齐）。
 
-选行：location 为空 + status active/空 + 非餐饮 + KNOWN_CITIES（规划池；
-池外城市 MVP 外）。优先级按 source 档（unesco>5a>intl 系>scenic>museum>
-street/histown>show>amap>其余）——规划候选池主力先补，长尾后补。
+选行：location 为空 + status active/空 + 非餐饮 + 城市注册表（poi_city
+canonical 411=解析器同一真源;2026-11-02 从 plan.KNOWN_CITIES 226 统一——
+505 行 rank≤5 曾被 226 闸住补不进,规划宇宙不动）;池外城市 MVP 外）。
+优先级按 source 档（unesco>5a>intl 系/预约名单>
+intl 系/scenic>国保/遗址公园/museum>名村/street/histown>show>
+amap/baidu>4a(2026-11-01 用户拍板先放)>chinatravel 长尾）——规划候选池
+主力先补，长尾后补（2026-11-01：4a/guobao8/relicpark/histvillage/
+intl/reservation 曾落 99 档与长尾混排，
+按 master backlog #4/#9 入档）。
 
 逐行 search_poi(name, city=城) 取首个通过校验的命中（有坐标 + 同城相容 +
 名称互含），经 PoiDetailStore.upsert 落库（fill-empty + wgs84 成对写，
@@ -26,9 +32,13 @@ from sqlalchemy import or_
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
-from app.services.agent.plan import KNOWN_CITIES
 from app.services.amap_client import AmapQuotaExhaustedError
-from app.services.map_provider import build_client_chain, build_vendor
+from app.services.map_provider import (
+    build_client_chain,
+    build_geocode_chain,
+    build_vendor,
+)
+from app.services.poi_city import known_cities
 from app.services.poi_details import PoiDetailStore
 
 logger = logging.getLogger(__name__)
@@ -43,13 +53,22 @@ _SOURCE_RANK = {
     "curated": 2,
     "xiaohongshu": 2,
     "sygic": 2,
+    "intl": 2,
+    "reservation": 2,
+    "4a": 8,  # 2026-11-01 用户拍板「4a 先放一下」:降档到长尾前
     "scenic": 3,
+    "guobao8": 4,
+    "relicpark": 4,
     "museum1": 4,
     "museum2": 4,
+    "histvillage": 5,
     "street": 5,
     "histown": 5,
     "show": 6,
     "amap": 7,
+    "baidu": 7,
+    "ctrip": 7,
+    "chinatravel": 9,
 }
 
 _FOOD_MARKS = ("food", "餐饮", "美食", "餐厅")
@@ -117,10 +136,32 @@ def pick_hit(hits: list[dict], name: str, city: str | None) -> dict | None:
     return None
 
 
+def order_backfill_rows(rows: list[Poi]) -> list[Poi]:
+    """排序：source 优先档 → 档内城市热度（核心 40 城）→ 名称.
+
+    2026-11-03 数据债 P1-1「城市热度×tier」：同档（如 museum）长尾里
+    成都/西安等计划核心城的行入池价值高，先于县域行吃当日检索配额。
+    核心城 = plan.KNOWN_CITIES/weather.CITY_ADCODES 字典前部 40（两处
+    同源约定：核心 40 城恒保持前部，2026-10-30 系统性扩容后沿用）。
+    """
+    from app.services.weather import CITY_ADCODES
+
+    hot = frozenset(tuple(CITY_ADCODES)[:40])
+
+    def key(r: Poi) -> tuple[int, int, str]:
+        return (
+            _SOURCE_RANK.get(r.source or "", 99),
+            0 if _bare_city(r.city) in hot else 1,
+            r.name_zh or "",
+        )
+
+    return sorted(rows, key=key)
+
+
 def select_rows(limit: int) -> list[Poi]:
     """无坐标规划池行，按 source 优先档排序取前 limit 行。"""
     cities: list[str] = []
-    for c in KNOWN_CITIES:
+    for c in sorted(known_cities()):
         cities += [c, f"{c}市"]
     with get_session_factory()() as session:
         q = session.query(Poi).filter(
@@ -137,8 +178,7 @@ def select_rows(limit: int) -> list[Poi]:
             )
         )
         rows = q.all()
-    rows.sort(key=lambda r: _SOURCE_RANK.get(r.source or "", 99))
-    return rows[:limit]
+    return order_backfill_rows(rows)[:limit]
 
 
 async def backfill_rows(
@@ -212,8 +252,12 @@ async def backfill_rows(
                     if dry_run:
                         stats["filled"] += 1
                         stats["geocode_filled"] += 1
-                        stats["by_vendor"]["baidu_geocode"] = (
-                            stats["by_vendor"].get("baidu_geocode", 0) + 1
+                        _vendor = getattr(geocoder, "last_vendor", None) or getattr(
+                            geocoder, "vendor", "baidu"
+                        )
+                        _label = f"{_vendor}_geocode"
+                        stats["by_vendor"][_label] = (
+                            stats["by_vendor"].get(_label, 0) + 1
                         )
                         logger.info(
                             "[dry-run] would geocode-fill %s (%s)",
@@ -230,9 +274,11 @@ async def backfill_rows(
                     )
                     stats["filled"] += 1
                     stats["geocode_filled"] += 1
-                    stats["by_vendor"]["baidu_geocode"] = (
-                        stats["by_vendor"].get("baidu_geocode", 0) + 1
+                    _vendor = getattr(geocoder, "last_vendor", None) or getattr(
+                        geocoder, "vendor", "baidu"
                     )
+                    _label = f"{_vendor}_geocode"
+                    stats["by_vendor"][_label] = stats["by_vendor"].get(_label, 0) + 1
                     continue
         hit = None
         hit_vendor = None
@@ -265,6 +311,15 @@ async def backfill_rows(
                 hit_vendor = vendor
                 break
         if hit is None:
+            if geocode_dead and (
+                not clients
+                or all(getattr(c, "vendor", "amap") in dead for c in clients)
+            ):
+                # geocode 配额死 + 检索链无活源：剩余行零网络也全 miss，
+                # 停（幂等可续）且不记 miss——这是配额烧尽不是确定性未命中，
+                # 写台账会堵死次日配额恢复后的重试（2026-11-03）。
+                stats["stopped_no_channel"] = 1
+                break
             stats["missed"] += 1
             if clients and all(getattr(c, "vendor", "amap") in dead for c in clients):
                 # 全链配额死：剩余行零网络也全 miss，停（幂等可续）
@@ -303,9 +358,11 @@ async def backfill(
     settings = get_settings()
     if clients is None:
         clients = build_client_chain(settings, "search")
-    # 地址优先轨道：百度 geocoding（独立配额池；2026-10-30 实测检索
-    # 配额烧尽时仍可用）——检索三家全灭时仍能靠门址补坐标。
-    geocoder = build_vendor("baidu", settings)
+    # 地址优先轨道：baidu geocoding 为主（独立配额池；2026-10-30 实测检索
+    # 配额烧尽时仍可用），amap geocode 兜底（独立配额池+独立风控；2026-11-03
+    # 实测 place 被 bixi WAF deny 时 geocode 仍正常）——检索三家全灭时仍能
+    # 靠门址补坐标。
+    geocoder = build_geocode_chain(settings)
     store = PoiDetailStore(session_factory=get_session_factory())
     rows = select_rows(limit)
     return await backfill_rows(store, clients, rows, dry_run=dry_run, geocoder=geocoder)

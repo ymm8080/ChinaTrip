@@ -85,8 +85,10 @@ def test_meal_window_untimed_items_do_not_block():
 
 
 def test_meal_window_item_inside_window_compresses_gap():
+    # 2026-11-03 拍板：午餐 90 分钟——12:30–13:30 仅剩 60 分钟空档，
+    # 装不下 90 分钟午餐 → None（铁律 20：不强插）
     plan = day_plan(items=[visit("v1", start=time(11, 30), end=time(12, 30))])
-    assert meal_window(plan, "lunch") == (time(12, 30), time(13, 30))
+    assert meal_window(plan, "lunch") is None
     # right-hand compression: item overhanging the window end gets clipped;
     # the 90-minute window then leaves only a 30-min gap -> no meal fits
     plan2 = day_plan(items=[visit("v2", start=time(12, 30), end=time(14, 0))])
@@ -290,10 +292,10 @@ def test_recommend_restaurants_builds_food_items_inside_window():
         assert item.category == "food"
         assert item.day == 2
         assert item.city == "杭州"
-        assert item.duration_minutes == 60
+        # 2026-11-03 拍板：午餐默认 1.5h（90 分钟）
+        assert item.duration_minutes == 90
         assert item.pinned is False
-        assert time(12, 0) <= item.start_time <= time(13, 30)
-        assert item.start_time == time(12, 30)  # clamped midpoint of the window
+        assert item.start_time == time(12, 0)  # pulled back so 90 min fits the gap
         assert item.end_time == time(13, 30)
     assert len({i.item_id for i in items}) == 3
     assert items[2].location is None  # location-less candidate stays addable
@@ -334,3 +336,28 @@ def test_recommend_restaurants_returns_fewer_when_few_hits():
     items = asyncio.run(recommend_restaurants(stub, plan, "lunch"))
     assert len(items) == 1
     assert items[0].name == "独一家"
+
+
+def test_recommend_restaurants_drops_far_located_candidates_when_route_known():
+    # 跨城错排闸（2026-10-31 沪→西安案）：有当日动线坐标时，已知坐标
+    # 候选距动线 ≥50km 不推荐；无坐标候选无法判定，维持垫底保留。
+    stub = StubAmap(
+        pois=[
+            make_poi("千里之外餐厅", lat=0.5),  # ~55.6km，跨城错排信号
+            make_poi("顺路餐厅", lat=0.002),
+            make_poi("无坐标餐厅", no_location=True),
+        ]
+    )
+    plan = day_plan(
+        day=1,
+        items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)],
+    )
+    items = asyncio.run(recommend_restaurants(stub, plan, "dinner"))
+    assert [i.name for i in items] == ["顺路餐厅", "无坐标餐厅"]
+
+
+def test_recommend_restaurants_keeps_far_candidates_without_route_points():
+    # 无动线坐标（纯过境日）：顺路语义无从判定，50km 闸不启用
+    stub = StubAmap(pois=[make_poi("远处餐厅", lat=0.5)])
+    items = asyncio.run(recommend_restaurants(stub, day_plan(), "dinner"))
+    assert [i.name for i in items] == ["远处餐厅"]

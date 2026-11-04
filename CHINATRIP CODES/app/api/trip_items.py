@@ -15,10 +15,12 @@ from app.db import get_session_factory
 from app.services.itinerary_store import ItineraryStore
 from app.services.pg_state import PgTripItemService
 from app.services.trip_items import (
+    STATUS_WISHLIST,
     InvalidSourceError,
     InvalidTransitionError,
     NotFoundError,
     TripItemService,
+    strip_scheduled_note,
 )
 
 router = APIRouter(prefix="/api/v1/trip-items", tags=["trip-items"])
@@ -89,6 +91,7 @@ async def list_trip_items(
     # （H5 行程页同款展示），行程已删/查无记录 → None（前端只显示 ID）；
     # 同一行程只查一次 store。
     names: dict[str, str | None] = {}
+    dead_trips: set[str] = set()
     for group in body.values():
         for item in group:
             trip_id = item.get("itinerary_id")
@@ -97,7 +100,32 @@ async def list_trip_items(
             if trip_id not in names:
                 record = store.get(trip_id)
                 names[trip_id] = " → ".join(record.plan.cities) if record else None
+                if record is None:
+                    dead_trips.add(trip_id)
             item["itinerary_name"] = names[trip_id]
+    # 2026-10-31（看熊猫案）：scheduled 行挂的行程已删（释放机制上线前
+    # 的存量孤儿/旁路删除）——已排期栏必须真实：就地回心愿单（note 剥
+    # 「已安排」尾段，service.update 写穿 PG），本次响应即按新分组返回。
+    # booked 行保留真实订单；无归属（itinerary_id 空）的 scheduled 行留给
+    # 状态机，不猜测。
+    if dead_trips and body.get("scheduled"):
+        for item in list(body["scheduled"]):
+            trip_id = item.get("itinerary_id")
+            if not trip_id or trip_id not in dead_trips:
+                continue
+            raw_note = str(item.get("note") or "")
+            base = strip_scheduled_note(raw_note)
+            kwargs: dict = {}
+            if base != raw_note:
+                kwargs["note"] = base
+            try:
+                healed = service.update(item["id"], status=STATUS_WISHLIST, **kwargs)
+            except Exception:
+                continue
+            body["scheduled"].remove(item)
+            healed["itinerary_name"] = names.get(trip_id)
+            body["wishlist"].append(healed)
+        body["wishlist"].sort(key=lambda i: i.get("created_at") or "", reverse=True)
     return body
 
 

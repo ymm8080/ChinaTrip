@@ -390,7 +390,7 @@ _STRUCTURE_SYSTEM = (
     '城市间交通 {"type": "transfer", "day": 天数, "from_city": "", '
     '"to_city": "", "mode": "train|flight|car|bus", '
     '"start_time": "HH:MM" 或 null, "end_time": "HH:MM" 或 null, '
-    '"train_no": "车次" 或 null}。'
+    '"train_no": "车次" 或 null, "flight_no": "航班号" 或 null}。'
     "规则：时间一律 24 小时制 HH:MM；文档里没有的信息填 null，不要编造；"
     "天数与顺序严格按文档；文档不是行程（没有逐日安排）时 days 给空数组。"
 )
@@ -540,6 +540,11 @@ def build_plan(draft: dict, itinerary_id: str) -> tuple[ItineraryPlan, list[str]
                         train_no=(
                             str(raw_item["train_no"]).strip()
                             if raw_item.get("train_no")
+                            else None
+                        ),
+                        flight_no=(
+                            str(raw_item["flight_no"]).strip()
+                            if raw_item.get("flight_no")
                             else None
                         ),
                     )

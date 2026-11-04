@@ -49,7 +49,9 @@ import sys
 from sqlalchemy import func
 
 from app.models import Poi
+from app.services.poi_city import canonical_city, city_from_name
 from app.services.poi_seed import seed_upsert
+from app.services.product_filter import apply_product_filter, write_excluded_csv
 
 _GRADE_SOURCE: dict[str, str] = {
     "国家一级博物馆": "museum1",
@@ -59,6 +61,8 @@ _GRADE_SOURCE: dict[str, str] = {
     "未评级": "artmuseum",  # 无全国性等级的策展馆：只进骨架，无标签
     "国家级旅游休闲街区": "street",  # 文旅部+发改委（2026-10-28 并入）
     "中国历史文化名镇": "histown",  # 住建部+文物局（2026-10-28 并入）
+    "国家考古遗址公园": "relicpark",  # 国家文物局（2026-11-03 并入，§3.2 #2 P0）
+    "中国历史文化名村": "histvillage",  # 名村(2026-11-02 已灌 484 行,对齐)
 }
 _SOURCE_LABEL: dict[str, str] = {v: k for k, v in _GRADE_SOURCE.items()}
 _SOURCE_SLUG: dict[str, str] = {
@@ -68,6 +72,8 @@ _SOURCE_SLUG: dict[str, str] = {
     "artmuseum": "a1",
     "street": "st",
     "histown": "ht",
+    "relicpark": "rp",
+    "histvillage": "hv",
 }
 _TAGGED_GRADES = frozenset(_GRADE_SOURCE) - {"未评级"}
 
@@ -79,6 +85,8 @@ _SOURCE_AUTHORITY: dict[str, str] = {
     "artmuseum": "mct",
     "street": "mct",
     "histown": "mohurd",
+    "relicpark": "ncha",
+    "histvillage": "mohurd",
 }
 
 #: source → 骨架 category（seed_upsert 内经 normalize_category 归一）
@@ -89,6 +97,8 @@ _SOURCE_CATEGORY: dict[str, str] = {
     "artmuseum": "博物馆/纪念馆",
     "street": "历史遗迹",  # → historic
     "histown": "文化村/古镇",  # → ancient_town
+    "relicpark": "历史遗迹",  # → historic（考古遗址公园）
+    "histvillage": "文化村/古镇",  # → ancient_town
 }
 
 
@@ -123,8 +133,17 @@ def load_rows(csv_path: str) -> tuple[list[dict], int]:
         for raw in csv.DictReader(f):
             name = (raw.get("name_zh") or "").strip()
             src = grade_source(raw.get("grade"))
+            province = (raw.get("province") or "").strip()
             city = (raw.get("city") or "").strip()
-            city = city or (raw.get("province") or "").strip()
+            # city 缺省时先按名称显式前缀解析（`宁波市天一阁博物院`→宁波），
+            # 再退回 province——后者只有直辖市才等价于城市，普通省份会给
+            # 出行按城查池必 miss 的「省名 city」（2026-11-03 存量 805 行）。
+            city = (
+                city
+                or city_from_name(name, province)
+                or canonical_city(province)
+                or province
+            )
             if not name or src is None or not city:
                 invalid += 1
                 continue
@@ -136,7 +155,7 @@ def load_rows(csv_path: str) -> tuple[list[dict], int]:
                 {
                     "source": src,
                     "source_poi_id": slug_for_source(src, name),
-                    "city": city.removesuffix("市"),
+                    "city": canonical_city(city),
                     "name_zh": name,
                     "label": grade if grade in _TAGGED_GRADES else None,
                     "origin": (
@@ -202,6 +221,15 @@ def main(argv: list[str] | None = None) -> int:
     rows, invalid = load_rows(args.csv)
     if args.limit > 0:
         rows = rows[: args.limit]
+    # §4 产品过滤（2026-11-03 接线）：红色/政治/军事名单行不入库，
+    # 剔除行落 *_excluded.csv（可回灌；dry-run 同样生效）
+    rows, excluded = apply_product_filter(rows)
+    if excluded:
+        write_excluded_csv(
+            os.path.splitext(args.csv)[0] + "_excluded.csv",
+            excluded,
+            fields=("source", "city", "name_zh", "batch", "exclusion_reason"),
+        )
 
     from app.db import get_session_factory
 
@@ -220,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
 
     stats = run_import(factory, rows, dry_run=args.dry_run)
     stats["invalid_rows"] = invalid
+    stats["excluded_product_filter"] = len(excluded)
     print(json.dumps(stats, ensure_ascii=True, sort_keys=True))
     return 0
 

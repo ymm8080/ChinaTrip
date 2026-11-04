@@ -4,6 +4,7 @@ import uuid
 
 import app.jobs.import_intl_picks as job
 from app.models import Poi
+from app.services.source_tier import source_tag_key
 
 
 class FakeSession:
@@ -122,9 +123,11 @@ def test_legacy_intl_rows_upgraded_to_site_source():
     assert legacy.tags_source == "tripadvisor"
 
 
-def test_tags_ordered_intl_sites_first():
-    """2026-10-26 用户标准：多来源全打上，国外榜单置前
-    （ta/lp → intl → unesco → 5A → 其余）。"""
+def test_tags_ordered_roster_ladder_first():
+    """2026-11-03 名录序取代 2026-10-26「国外榜单放前」：断言直接对照
+    唯一真源 app.services.source_tier.SOURCE_TAG_ORDER——unesco/5a 领跑，
+    然后 ta/lp/viator/curated/intl（平台/短视频/小红书/street/scenic/4a/3a
+    随后），未列入序的（如「国家一级博物馆」）垫底。"""
     row = _row(
         "北京",
         "故宫博物院",
@@ -134,8 +137,10 @@ def test_tags_ordered_intl_sites_first():
     s = FakeSession([row])
     job.apply_picks(s)
     t = row.tags
-    assert t[:2] == ["ta", "lp"]
-    assert t.index("intl") < t.index("unesco") < t.index("5a")
+    keys = [source_tag_key(tag) for tag in t]
+    assert keys == sorted(keys)  # 整表按真源名录序排列
+    assert t[:4] == ["unesco", "5a", "ta", "lp"]
+    assert t.index("intl") == 4
     assert t[-1] == "国家一级博物馆"
     assert row.tags_source == "tripadvisor"
 
@@ -145,3 +150,16 @@ def test_dry_run_rolls_back():
     stats = job.apply_picks(s, dry_run=True)
     assert stats["insert"] > 0
     assert s.rolled_back and not s.committed
+
+
+def test_insert_applies_best_visit_rules():
+    # 2026-11-01「两江夜游排在白天」事故：intl 骨架行插入时就带时段
+    # 信号（夜游名 → evening，source=heuristic），不再等回填作业补课。
+    s = FakeSession()
+    job.apply_picks(s)
+    cruise = next(r for r in s.rows if r.name_zh == "两江夜游")
+    assert cruise.best_visit_time == "evening"
+    assert cruise.best_visit_time_source == "heuristic"
+    bund = next(r for r in s.rows if r.name_zh == "外滩")
+    assert bund.best_visit_time is None
+    assert bund.best_visit_time_source is None

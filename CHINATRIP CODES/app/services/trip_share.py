@@ -53,6 +53,7 @@ _TRANSFER_FIELDS = {
     "end_time",
     "duration_minutes",
     "train_no",
+    "flight_no",
 }
 
 

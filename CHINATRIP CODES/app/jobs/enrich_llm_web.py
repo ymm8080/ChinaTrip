@@ -41,21 +41,16 @@ from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
 from app.services.poi_classify import duration_upgradable
+from app.services.source_tier import SOURCE_PRIORITY
 
 _DEFAULT_LIMIT = 100
 _MAX_TOKENS = 1024
 _MAX_CONCURRENCY = 4
-_SOURCE_PRIORITY = (
-    "unesco",
-    "5a",
-    "museum1",
-    "museum2",
-    "museum3",
-    "artmuseum",
-    "amap",
-    "chinatravel",
-    "osm",
-)
+# 铁律 canonical order 唯一定义点 app.services.source_tier.SOURCE_PRIORITY
+# （CLAUDE.md Iron rule），各 job import 之，不得手抄短表。
+# 行为变化（2026-11-03 短表违规修正）：本表旧版漏 street/histown，
+# 补齐后这两源行排在 artmuseum 之后、amap 之前参与选行排序。
+_SOURCE_PRIORITY = SOURCE_PRIORITY
 _DURATION_MIN, _DURATION_MAX = 15, 600
 _RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 _MAX_ATTEMPTS = 6

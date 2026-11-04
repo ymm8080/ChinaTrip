@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     # DSN（postgresql+psycopg://...），ORM 同一套 metadata 可迁移。
     train_cache_url: str = "sqlite:///data/train_cache.db"
     train_cache_ttl_hours: float = 24.0
+    # 2026-11-01 性能拍板（生成回合 30-46s：12306 超时×双腿+百度配额尽
+    # 连打是主因）：规划期默认关闭餐厅/火车/飞机外呼检索——交通腿走
+    # 占位（~3h 航班/里程推算，TRAIN_REMOTE_ENABLED=false 同拍板），
+    # 餐位走「已留时段」占位；恢复检索=环境变量置 true。
+    plan_restaurant_search_enabled: bool = False
+    plan_transfer_lookup_enabled: bool = False
     # 航班时刻（2026-10-28 骨架）：VariFlight 个人开发者 key，注册后填入；
     # 空（默认）→ MockFlightService 确定性占位，零网络零行为变化。API 契约
     # 在 key 注册后按 open.variflight.com 文档校正（app/services/

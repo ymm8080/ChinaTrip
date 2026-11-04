@@ -108,3 +108,60 @@ def build_client_chain(settings: Settings, function: str) -> list[AmapClient]:
         if client is not None:
             chain.append(client)
     return chain
+
+
+# ---------- geocode 多 vendor 链 ----------
+# baidu geocode 实测最宽裕（10-30 单日 1,300+ 次零熔断）；amap geocode 是
+# 独立配额池 + 独立风控（2026-11-03 实测 place 整族被 bixi WAF deny 时
+# /v3/geocode/geo 仍正常 200）。tencent 无 geocode 方法，不入链。
+GEOCODE_PROVIDER_PRIORITY: tuple[str, ...] = ("baidu", "amap")
+
+
+class GeocodeChain:
+    """geocode 降级链（鸭子类型对齐 BaiduClient.geocode）。
+
+    last_vendor 记录本行实际落地 vendor，供 backfill 统计标注
+    （{vendor}_geocode）；单家配额死 latch 到下一家，全链死才抛
+    AmapQuotaExhaustedError（backfill_rows 据此停 geocode 通道）。
+    """
+
+    def __init__(self, clients: list) -> None:
+        self._clients = [c for c in clients if c is not None]
+        self.last_vendor: str | None = None
+
+    def __bool__(self) -> bool:
+        return bool(self._clients)
+
+    async def geocode(self, address: str, *, city: str | None = None) -> dict:
+        from app.services.amap_client import AmapQuotaExhaustedError
+
+        quota_hit = False
+        other_exc: Exception | None = None
+        last_exc: Exception | None = None
+        for client in self._clients:
+            try:
+                result = await client.geocode(address, city=city)
+            except AmapQuotaExhaustedError as exc:
+                quota_hit = True
+                last_exc = exc
+                continue
+            except Exception as exc:  # noqa: BLE001 — 下一家再试
+                other_exc = exc
+                last_exc = exc
+                continue
+            self.last_vendor = getattr(client, "vendor", None)
+            return result
+        # 全链都是配额死才算配额耗尽（latch 依据）；混有网络错误则抛该错误，
+        # 避免一次抖动把整批 geocode 通道误判为死。
+        if other_exc is not None:
+            raise other_exc
+        if quota_hit:
+            raise AmapQuotaExhaustedError("geocode chain quota exhausted")
+        if last_exc is not None:
+            raise last_exc
+        raise AmapQuotaExhaustedError("geocode chain empty")
+
+
+def build_geocode_chain(settings: Settings) -> GeocodeChain:
+    clients = [build_vendor(vendor, settings) for vendor in GEOCODE_PROVIDER_PRIORITY]
+    return GeocodeChain([c for c in clients if c is not None])

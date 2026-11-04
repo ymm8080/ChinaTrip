@@ -14,7 +14,7 @@ import json
 
 import httpx
 
-from app.services.agent.plan import PlanningAgent
+from app.services.agent.plan import DAY_VISIT_BUDGET_MINUTES, PlanningAgent
 from app.services.itinerary import VisitItem
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import ZhipuGLMAdapter
@@ -103,23 +103,27 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 含 tier 最高（5A）的簇排第 1 天，同簇同天
-    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆"}
-    assert by_day[2] == {"东方明珠", "海洋馆", "滨江大道"}
+    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier
+    # 最高（5A）的簇整簇进第 1 天，第 4 位按池序由次簇补位，次簇
+    # 剩余落第 2 天——同簇仍同天优先，4/日闸内高档先占早天。
+    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆", "东方明珠"}
+    assert by_day[2] == {"海洋馆", "滨江大道"}
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
 
 
-def test_time_budget_drops_when_day_full():
+def test_time_budget_soft_gate_overflows_not_drops():
+    # 2026-11-02 拍板「时间约束是软闸不是硬闸」：180+180=360 满后
+    # 第三个不再出局——软闸放行超额落位（4 个/日闸才是硬闸），
+    # 物理可行性交求解层按真实时窗收口。
     cands = [
         _cand("甲", "成都", suggested=180, loc=(104.06, 30.66)),
         _cand("乙", "成都", suggested=180, loc=(104.06, 30.66)),
         _cand("丙", "成都", suggested=180, loc=(104.06, 30.66)),
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
-    # 180+180=360 满，第三个出局
-    assert len(items) == 2
+    assert len(items) == 3
 
 
 def test_four_per_day_cap():
@@ -140,8 +144,10 @@ def test_algo_balances_no_coord_sights_across_days():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    assert by_day[1] == {"成都景点00", "成都景点02", "成都景点04", "成都景点06"}
-    assert by_day[2] == {"成都景点01", "成都景点03", "成都景点05", "成都景点07"}
+    # 优先级前置装满（4/日闸）：取代旧「最空天轮转均摊」——初排
+    # 按池序前置，稀疏天由回填线 270'/LNS 兜底（2026-11-02 拍板链）。
+    assert by_day[1] == {"成都景点00", "成都景点01", "成都景点02", "成都景点03"}
+    assert by_day[2] == {"成都景点04", "成都景点05", "成都景点06", "成都景点07"}
     assert items[0]["city"] == "成都市"
     assert items[0]["duration_minutes"] == 60
 
@@ -153,8 +159,10 @@ def test_algo_respects_city_windows():
         cands, 4, {"成都": (1, 2), "重庆": (3, 4)}
     )
     days = {it["name"]: it["day"] for it in items}
-    assert sorted(d for n, d in days.items() if n.startswith("蓉")) == [1, 1, 2, 2]
-    assert sorted(d for n, d in days.items() if n.startswith("渝")) == [3, 3, 4, 4]
+    # 优先级前置装满但窗口合规（2026-11-02 拍板链）：4 件同窗城
+    # 池序前置吃满窗口首日，不再强制均摊到窗口各天。
+    assert sorted(d for n, d in days.items() if n.startswith("蓉")) == [1, 1, 1, 1]
+    assert sorted(d for n, d in days.items() if n.startswith("渝")) == [3, 3, 3, 3]
 
 
 # --- 演出 / 餐饮 / 夹紧 / 确定性 --------------------------------------------
@@ -207,6 +215,54 @@ def test_algo_clamps_day_into_total_days():
     items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 4)})
     show = next(it for it in items if it["name"] == "演出")
     assert show["day"] == 3  # 窗口越界被夹到总天数
+
+
+def test_algo_show_avoids_return_day_when_evening_blocked():
+    # 返程日晚上被 17 点档返程腿占住：夜场演出改钉前一天，不再与返程
+    # 航班互斥搞垮整计划求解（2026-10-31 沪-西安-沪 5 天案：《梦回大唐》
+    # 钉 day5 撞 17:00 航班 → day5 两卡 None 时间 + 全计划顺序兜底降级）
+    cands = [
+        _cand("景点A", "西安"),
+        _cand("夜场秀", "西安", cat="entertainment"),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"西安": (1, 5), "上海": (5, 5)}, transfer_days={1, 5}
+    )
+    show = next(it for it in items if it["name"] == "夜场秀")
+    assert show["day"] == 4  # 返程日(5)晚上有回程腿 → 钉前一天
+
+
+def test_algo_show_stays_on_last_day_without_return_leg():
+    # 末日无返程腿（transfer_days 不含总天数）：夜场照旧钉城市末日
+    cands = [
+        _cand("景点A", "成都"),
+        _cand("变脸表演", "成都", cat="entertainment"),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, transfer_days={1}
+    )
+    show = next(it for it in items if it["name"] == "变脸表演")
+    assert show["day"] == 3
+
+
+def test_show_day_budget_reserves_show_minutes():
+    # 2026-11-04 拍板「360 不是硬闸不代表可以白天填满 360 再叠演出」
+    # （西安 day4=360 POI+80 show=440 事故形态）：夜场演出钉日的参访
+    # 预算=360-show_min——白天点给演出让位，装不下的溢出相邻天，
+    # 演出日总参访不再超预算。
+    cands = [
+        _cand(f"点{i:02d}", "成都", suggested=90, loc=(104.06, 30.66))
+        for i in range(14)
+    ]
+    cands.append(_cand("夜场秀", "成都", cat="entertainment"))
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"成都": (1, 5)}, transfer_days={1, 5}
+    )
+    show = next(it for it in items if it["name"] == "夜场秀")
+    assert show["day"] == 4  # 返程日(5)晚上有回程腿 → 钉前一天（既有语义）
+    poi4 = [it for it in items if it["day"] == 4 and it["name"] != "夜场秀"]
+    used = sum(it["duration_minutes"] for it in poi4) + show["duration_minutes"]
+    assert used <= DAY_VISIT_BUDGET_MINUTES
 
 
 # --- 流程：算法模式生成 v0，零 LLM 调用 --------------------------------------
@@ -328,8 +384,9 @@ def test_transfer_day_budget_reduced():
     pinned = PlanningAgent._deterministic_selection(
         cands, 1, {"成都": (1, 1)}, transfer_days={1}
     )
-    # 转场日预算 360-180=180：第一个 120 放得下，第二个 240>180 出局
-    assert len(pinned) == 1
+    # 2026-11-02 软闸拍板：转场日扣减 180 不再决定出局（三个全放），
+    # 只影响溢出目标天选择——见 test_transfer_days_only_deduct_listed_days。
+    assert len(pinned) == 3
 
 
 def test_transfer_days_only_deduct_listed_days():
@@ -348,16 +405,17 @@ def test_transfer_days_only_deduct_listed_days():
 # --- 2026-10-30 过载优化：走行计预算 + 必去容量感知放日 --------------------
 
 
-def test_travel_legs_count_into_day_budget():
-    """远距两点的走行腿（封顶 120）计入当日预算：150+150+120=420>360，
-    第二点出局——旧口径只算参访时长（300≤360）两个都放，solver 只能
-    排出物理不可能的背靠背日程。"""
+def test_travel_legs_count_but_soft_gate_keeps_far_pair():
+    """走行腿仍计入当日载荷（影响落日与溢出目标天，见
+    test_far_pair_spreads_when_second_day_exists）；2026-11-02 软闸
+    拍板后 150+150+腿>360 不再出局——超额照排，物理可行性交求解层。
+    """
     cands = [
         _cand("甲", "成都", suggested=150, loc=(104.06, 30.66)),
         _cand("乙", "成都", suggested=150, loc=(104.90, 31.20)),  # ~90km
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
-    assert [it["name"] for it in items] == ["甲"]
+    assert [it["name"] for it in items] == ["甲", "乙"]
 
 
 def test_travel_legs_zero_for_colocated_sites():
@@ -512,8 +570,11 @@ def test_unlocated_must_goes_to_emptiest_day():
     assert must["day"] == 3  # 最空天（90 < 300）
 
 
-def test_sparse_day_refills_from_beyond_pool():
-    """池外候选回填稀疏天：跨区腿出局的大点不回填，同片区小点补进空天。"""
+def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
+    """2026-11-02 软闸拍板后的形态锁定（原「稀疏天回填」语义被软闸
+    取代）：同档短时长先占位（补0-3 先入池占 day1，恰 4 个/日闸
+    封顶）；池内正选大点（市1/市2/远填0）预算外软闸超额落位 day2；
+    池外尾巴（远填1-4）不享软闸——时间闸照硬，不硬塞。"""
     g1 = (104.06, 30.66)  # 市中心
     g2 = (103.62, 30.90)  # 都江堰（远区）
     cands = [
@@ -521,20 +582,18 @@ def test_sparse_day_refills_from_beyond_pool():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    cands += [
-        _cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)
-    ]  # 池内：day2 90+180+120(跨区腿)=390 出局
-    cands += [
-        _cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)
-    ]  # 池外同片区小点：回填 day2
+    cands += [_cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)]
+    cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
     items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
-    assert "都1" in by_day.get(2, [])
-    refilled = [n for n in by_day.get(2, []) if n.startswith("补")]
-    assert len(refilled) >= 2  # 稀疏天被池外同片区点回填
-    assert not any(n.startswith("远填") for n in by_day.get(2, []))  # 跨区大点不硬塞
+    # day1=池内短时长小点 ×4（4 个/日闸封顶）；day2=软闸超额大点+溢出的都1
+    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
+    # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
+    flat = [n for names in by_day.values() for n in names]
+    assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))
 
 
 # --- 2026-10-31 打车出行模型：车程+半小时叫车 --------------------------------
@@ -565,3 +624,191 @@ def test_taxi_model_allows_midrange_same_day():
     b = _cand("乙", "成都", suggested=150, loc=(104.165, 30.66))  # ~10km
     items = PlanningAgent._deterministic_selection([a, b], 1, {"成都": (1, 1)})
     assert len(items) == 2
+
+
+def test_fallback_shifts_lunch_for_oversize_morning_visit():
+    # 2026-11-03 拍板：开餐硬窗 [11:30, 12:30]——240 分钟大点 09:00-13:00
+    # 整段压窗时不再无界顺延（旧版可滑到 20:00「8pm 午餐」事故），当天
+    # 移除午餐（铁律 20 同义：过午不强插）
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    # 系统午餐占位带 soft_pin=True（2026-10-31 软钉语义：兜底/求解器只
+    # 顺延系统钉；用户手钉 pinned=True 且 soft_pin=False 纹丝不动=铁律19）
+    lunch = VisitItem(
+        item_id="l1",
+        name="午饭",
+        city="北京",
+        day=1,
+        category="food",
+        duration_minutes=60,
+        start_time=_t(12, 0),
+        end_time=_t(13, 0),
+        pinned=True,
+        soft_pin=True,
+    )
+    big = VisitItem(
+        item_id="v1",
+        name="大点",
+        city="北京",
+        day=1,
+        duration_minutes=240,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[lunch, big])],
+        assumptions=[],
+    )
+    _fallback_sequence_times(plan)
+    assert big.start_time is not None and big.start_time.hour == 9
+    assert big.end_time is not None and big.end_time.hour == 13
+    # 午餐硬窗 [11:30, 12:30] 被大点整段压满：移除（不插 8pm 午餐）
+    assert lunch not in plan.days[0].items
+
+
+def _mini_plan_with_lunch(lunch_start, show=None, visit_dur=120):
+    from datetime import time as _t
+
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    items = [
+        VisitItem(
+            item_id="l1",
+            name="午饭",
+            city="北京",
+            day=1,
+            category="food",
+            duration_minutes=60,
+            start_time=lunch_start,
+            end_time=_t(lunch_start.hour, lunch_start.minute + 60)
+            if lunch_start.minute + 60 < 60
+            else _t(lunch_start.hour + 1, (lunch_start.minute + 60) % 60),
+            pinned=True,
+            soft_pin=True,
+        ),
+        VisitItem(
+            item_id="v1", name="大点", city="北京", day=1, duration_minutes=visit_dur
+        ),
+    ]
+    if show is not None:
+        st, en = show
+        items.append(
+            VisitItem(
+                item_id="s1",
+                name="场次点",
+                city="北京",
+                day=1,
+                best_visit_time="show",
+                start_time=st,
+                end_time=en,
+                duration_minutes=(en.hour * 60 + en.minute)
+                - (st.hour * 60 + st.minute),
+                pinned=True,
+            )
+        )
+    return ItineraryPlan(
+        itinerary_id="it-x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=items)],
+        assumptions=[],
+    )
+
+
+def test_fallback_lunch_moves_earlier_within_30min():
+    # 2026-11-01 用户拍板：午餐可提前半小时——12:30 固定场次前，午餐
+    # 12:00 提前到 11:30（全时长）落位，不再挡上午。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+
+    plan = _mini_plan_with_lunch(_t(12, 0), show=(_t(12, 30), _t(13, 30)))
+    _fallback_sequence_times(plan)
+    lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
+    visit = next(v for v in plan.days[0].items if v.item_id == "v1")
+    assert visit.start_time == _t(9, 0)
+    assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
+    assert lunch.end_time == _t(12, 30)  # 全时长 60 分钟
+
+
+def test_fallback_lunch_earlier_and_shortened_30min():
+    # 2026-11-03 拍板：开餐硬窗 [11:30, 12:30] + 极端可缩 30 分钟——
+    # 12:15 固定场次挤不下全时长，午餐提前到 11:30 并缩短为 30 分钟。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+
+    plan = _mini_plan_with_lunch(_t(12, 0), show=(_t(12, 15), _t(13, 15)))
+    _fallback_sequence_times(plan)
+    lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
+    visit = next(v for v in plan.days[0].items if v.item_id == "v1")
+    assert visit.start_time == _t(9, 0)
+    assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
+    assert lunch.end_time == _t(12, 0)  # 缩短为 30 分钟
+    assert lunch.duration_minutes == 30
+
+
+def test_fallback_evening_item_not_in_daytime():
+    # 2026-11-01「两江夜游排在白天」事故：降级兜底同步 solver 时段窗下
+    # 限——evening 17:00 起、sunset 16:00 起，非演出夜间点不进白天。
+    from datetime import time as _t
+
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    cruise = VisitItem(
+        item_id="v1",
+        name="两江夜游",
+        city="重庆",
+        day=1,
+        category="attraction",
+        best_visit_time="evening",
+        duration_minutes=90,
+    )
+    deck = VisitItem(
+        item_id="v2",
+        name="南山一棵树观景台",
+        city="重庆",
+        day=1,
+        best_visit_time="sunset",
+        duration_minutes=60,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-nc",
+        cities=["重庆"],
+        days=[DayPlan(day=1, base_city="重庆", items=[cruise, deck])],
+        assumptions=[],
+    )
+    _fallback_sequence_times(plan)
+    assert cruise.start_time is not None and cruise.start_time >= _t(17, 0)
+    assert deck.start_time is not None and deck.start_time >= _t(16, 0)
+
+
+def test_sched_best_visit_fills_missing_signal_by_name():
+    # 2026-11-01 事故根因：intl 骨架行 best_visit_time 停在列默认 any。
+    # 规整层只在缺信号时按名称规则兜底（与回填作业同源）；已有非 any 值
+    # 原样透传（只升不降），住宿类不参访排程。
+    from app.services.agent.plan import _sched_best_visit
+
+    # 缺信号 + 夜游名 → evening
+    assert (
+        _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "evening"
+    )
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": None}) == "evening"
+    assert _sched_best_visit({"name": "较场口夜市"}) == "evening"
+    assert _sched_best_visit({"name": "南山一棵树观景台"}) == "sunset"
+    # 已有非 any 值原样透传，绝不被名称规则覆盖
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": "show"}) == "show"
+    assert (
+        _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "morning"})
+        == "morning"
+    )
+    # 住宿类（名称/类别任一命中）直接透传原值
+    assert (
+        _sched_best_visit({"name": "雅致酒店(珠江夜游店)", "category": "hotel"}) is None
+    )
+    # 无信号无夜名 → 原样 any
+    assert _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "any"}) == "any"
+    assert _sched_best_visit(None) is None

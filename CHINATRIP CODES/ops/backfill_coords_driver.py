@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -69,6 +70,30 @@ def select_outside_pool_rows(limit: int) -> list:
     return rows[:limit]
 
 
+async def _probe_search_chain(settings) -> tuple[list, dict]:
+    """启动前对检索链逐家试打一枪（2026-11-03 配额预检）：配额死/风控死的
+    渠道直接剔出链——作业层只有 AmapQuotaExhaustedError 才 latch，amap WAF
+    非 JSON 这类持续错误会留在链上，geocode 中途烧尽时会把剩余行整批误记
+    miss 台账。预检后链上只剩活源，geocode 死即触发 stopped_no_channel
+    干净停机、不写台账。"""
+    import asyncio
+
+    from app.services.map_provider import build_client_chain
+
+    chain = build_client_chain(settings, "search")
+    alive: list = []
+    probe: dict = {}
+    for client in chain:
+        vendor = getattr(client, "vendor", "amap")
+        try:
+            await client.search_poi("西湖风景名胜区", city="杭州")
+            probe[vendor] = "alive"
+            alive.append(client)
+        except Exception as exc:  # noqa: BLE001 — 探针死源即剔除
+            probe[vendor] = f"{type(exc).__name__}: {str(exc)[:60]}"
+    return alive, probe
+
+
 async def run(limit: int, *, extras: bool = False) -> dict:
     from sqlalchemy import or_
 
@@ -76,7 +101,7 @@ async def run(limit: int, *, extras: bool = False) -> dict:
     from app.db import get_session_factory
     from app.jobs.backfill_locations import backfill_rows, select_rows
     from app.models import Poi
-    from app.services.map_provider import build_client_chain, build_vendor
+    from app.services.map_provider import build_geocode_chain
     from app.services.poi_details import PoiDetailStore
 
     missed = _load_missed()
@@ -87,10 +112,14 @@ async def run(limit: int, *, extras: bool = False) -> dict:
     rows = [r for r in rows if r.source_poi_id not in missed][:limit]
     ids = [r.source_poi_id for r in rows]
     settings = get_settings()
-    clients = build_client_chain(settings, "search")
-    geocoder = build_vendor("baidu", settings)
+    clients, probe = await _probe_search_chain(settings)
+    # geocode 链：baidu 主 + amap 兜底（独立配额池/风控；place 被 WAF deny
+    # 时 geocode 仍可用）。全链配额死才 latch，backfill_rows 停 geocode 通道。
+    geocoder = build_geocode_chain(settings)
     store = PoiDetailStore(session_factory=get_session_factory())
     stats = await backfill_rows(store, clients, rows, geocoder=geocoder)
+    stats["search_probe"] = probe
+    stats["search_chain_alive"] = [getattr(c, "vendor", "amap") for c in clients]
 
     if not stats.get("stopped_no_channel") and ids:
         with get_session_factory()() as session:
@@ -104,7 +133,10 @@ async def run(limit: int, *, extras: bool = False) -> dict:
                 .all()
             }
         _append_missed(
-            {pid: "geocode+search 未命中（2026-10-30 批）" for pid in still_open}
+            {
+                pid: f"geocode+search 未命中（{date.today().isoformat()} 批）"
+                for pid in still_open
+            }
         )
         stats["new_missed"] = len(still_open)
     stats["skipped_miss_file"] = len(missed)

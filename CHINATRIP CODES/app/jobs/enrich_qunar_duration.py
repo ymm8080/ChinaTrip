@@ -40,6 +40,7 @@ from sqlalchemy import case, or_
 from app.db import get_session_factory
 from app.models import Poi
 from app.services.poi_classify import duration_upgradable
+from app.services.source_tier import SOURCE_PRIORITY
 
 logger = logging.getLogger(__name__)
 
@@ -50,19 +51,9 @@ _DURATION_MIN, _DURATION_MAX = 15, 600
 _MINUTES_PER_DAY = 480  # 「天」按 8 小时算（0.5-1天 → 中值 360 分）
 _RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 _MAX_ATTEMPTS = 4
-_SOURCE_PRIORITY = (
-    "unesco",
-    "5a",
-    "museum1",
-    "museum2",
-    "museum3",
-    "artmuseum",
-    "street",
-    "histown",
-    "amap",
-    "chinatravel",
-    "osm",
-)
+# 铁律 canonical order 唯一定义点 app.services.source_tier.SOURCE_PRIORITY
+# （CLAUDE.md Iron rule），各 job import 之，不得手抄短表。
+_SOURCE_PRIORITY = SOURCE_PRIORITY
 
 _LIST_URL = "https://sight.qunar.com/list?city={slug}&page={page}"
 _DETAIL_URL = "https://sight.qunar.com/{poi_id}"

@@ -17,6 +17,7 @@ phone / district / opening_hours / rating / rating_count / name_aliases。
 import argparse
 import asyncio
 import json
+import logging
 import re
 import sys
 from typing import NamedTuple
@@ -27,26 +28,76 @@ from sqlalchemy import or_
 from app.db import get_session_factory
 from app.models import Poi
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_LIMIT = 200
 _DEFAULT_CONCURRENCY = 2
 _API = "https://api.map.baidu.com/place/v2/search"
 _QUOTA_STATUSES = {401, 402, 302}  # 并发超限 / 总配额超限 / 天配额超限
 
 
+_SEG_SEP_RE = re.compile(r"[·・•\-－—–~～/|]")
+
+# 省/州/县/区/市/旗 行政区前缀（可连续出现多层，如
+# 「黔南布依族苗族自治州荔波县樟江景区」）。2026-11-04：原正则只剥一层，
+# 5A/4A 名录行大面积留下「荔波县樟江景区」这类带县名的变体，回源必空。
+_ADMIN_PREFIX_RE = re.compile(
+    r"^[\u4e00-\u9fa5]{1,10}?(?:自治州|自治县|自治旗|地区|盟|区|县|市|旗)"
+)
+_SUFFIX_RE = re.compile(
+    r"(风景名胜区|旅游景区|旅游区|风景区|度假区|景区|遗址公园|湿地公园|"
+    r"森林公园|地质公园|乐园|公园)$"
+)
+
+
+def _strip_admin_prefixes(name: str) -> list[str]:
+    """逐层剥离行政区前缀，返回每剥一层的中间名（不含原名）。
+
+    只剥剩余长度 ≥3 的前缀，避免把「大理古城」剥成「古城」这类丢信息。
+    """
+    out: list[str] = []
+    cur = name
+    while True:
+        m = _ADMIN_PREFIX_RE.match(cur)
+        if not m:
+            break
+        rest = cur[len(m.group(0)) :]
+        if len(rest) < 3:
+            break
+        out.append(rest)
+        cur = rest
+    return out
+
+
 def _variants(name: str) -> list[str]:
     out = [name]
-    m = re.search(r"^[\u4e00-\u9fa5]{1,10}?(?:自治州|自治县|区|县|市|旗)", name)
-    if m and len(name) - len(m.group(0)) >= 3:
-        out.append(name[len(m.group(0)) :])
-    core = re.sub(
-        r"(风景名胜区|旅游景区|旅游区|风景区|度假区|景区|遗址公园|湿地公园|"
-        r"森林公园|地质公园|乐园|公园)$",
-        "",
-        out[-1],
-    )
-    if len(core) >= 2 and core not in out:
-        out.append(core)
-    return list(dict.fromkeys(out))
+    out.extend(_strip_admin_prefixes(name))
+    # 对每层剥完的名字再去景区类尾缀，逐层叠加（各层都留变体）。
+    # 尾缀也可能叠两层（「世界雕塑公园景区」→「世界雕塑公园」→「世界雕塑」）。
+    for base in list(out):
+        cur = base
+        while True:
+            core = _SUFFIX_RE.sub("", cur)
+            if core == cur or len(core) < 2:
+                break
+            if core not in out:
+                out.append(core)
+            cur = core
+    # 组合名分段（2026-11-04 台账样本：皖南古村落西递和宏村、
+    # 钟山风景名胜区－中山陵园风景区）：分段名各自检索命中率更高。
+    # 只按显式分隔符切（不用「和」——太和殿/中和殿会被切坏）。
+    for base in list(out):
+        for seg in _SEG_SEP_RE.split(base):
+            seg = seg.strip()
+            if len(seg) >= 2 and seg not in out:
+                out.append(seg)
+                core = _SUFFIX_RE.sub("", seg)
+                if len(core) >= 2 and core not in out:
+                    out.append(core)
+    # 前缀剥离可能把分段名剥成「－中山陵园风景区」这类带前导分隔符的脏
+    # 变体——统一去首尾分隔符/空白，别拿脏关键词白烧检索配额。
+    cleaned = [v.strip("·・•-－—–~～/| \t") for v in out]
+    return [v for v in dict.fromkeys(cleaned) if v]
 
 
 def _match_name(name: str, variants: list[str]) -> bool:
@@ -110,7 +161,9 @@ class _Target(NamedTuple):
     city: str
 
 
-def _search(client: httpx.Client, key: str, keyword: str, city: str) -> dict:
+def _search(
+    client: httpx.Client, key: str, keyword: str, city: str, *, page_size: int = 20
+) -> dict:
     r = client.get(
         _API,
         params={
@@ -119,6 +172,7 @@ def _search(client: httpx.Client, key: str, keyword: str, city: str) -> dict:
             "city_limit": "true",
             "output": "json",
             "scope": 2,
+            "page_size": page_size,
             "ak": key,
         },
     )
@@ -131,6 +185,14 @@ def _search(client: httpx.Client, key: str, keyword: str, city: str) -> dict:
     raise err
 
 
+def _best_hit(results: list, variants: list[str]) -> dict | None:
+    """在单次检索返回的候选里挑第一个名称命中变体的行（配额友好）。"""
+    for cand in results or []:
+        if isinstance(cand, dict) and _match_name(cand.get("name", ""), variants):
+            return cand
+    return None
+
+
 def _write_row(factory, poi_id, hit: dict) -> list[str]:
     written: list[str] = []
     with factory() as session:
@@ -141,12 +203,19 @@ def _write_row(factory, poi_id, hit: dict) -> list[str]:
         if row.phone is None and tel:
             row.phone = tel[:50]
             written.append("phone")
-        area = (hit.get("area") or "").strip()
+        _area_raw = hit.get("area")
+        area = _area_raw.strip() if isinstance(_area_raw, str) else ""
         if row.district is None and area:
             row.district = area[:50]
             written.append("district")
         di = hit.get("detail_info") or {}
-        hours = (di.get("shop_hours") or di.get("regular_open_hour") or "").strip()
+        # shop_hours 偶为非字符串（list/dict）：or 短路会吞掉合法的
+        # regular_open_hour 字符串——改为两候选里取第一个字符串.
+        _hours_cands = (di.get("shop_hours"), di.get("regular_open_hour"))
+        _hours_raw = next((v for v in _hours_cands if isinstance(v, str)), None)
+        if _hours_raw is None and any(_hours_cands):
+            logger.debug("baidu 营业时间候选均非字符串，弃用: %r", _hours_cands)
+        hours = _hours_raw.strip() if _hours_raw else ""
         if row.opening_hours is None and hours:
             row.opening_hours = hours[:200]
             row.hours_source = "baidu"
@@ -185,14 +254,13 @@ async def _process_row(
     async with sem:
         hit = None
         try:
-            for v in variants:
-                d = await asyncio.to_thread(_search, client, key, v, t.city)
-                for cand in d.get("results") or []:
-                    if _match_name(cand.get("name", ""), variants):
-                        hit = cand
-                        break
-                if hit:
-                    break
+            # 一次检索取 20 个候选 + 本地变体匹配（旧实现逐变体各发一
+            # 次，no_match 行最贵；百度地点检索日配额仅百级，省着用）。
+            d = await asyncio.to_thread(_search, client, key, variants[0], t.city)
+            hit = _best_hit(d.get("results") or [], variants)
+            if hit is None and len(variants) > 1:
+                d = await asyncio.to_thread(_search, client, key, variants[-1], t.city)
+                hit = _best_hit(d.get("results") or [], variants)
         except Exception as exc:
             st = getattr(exc, "status", None)
             if st in _QUOTA_STATUSES:

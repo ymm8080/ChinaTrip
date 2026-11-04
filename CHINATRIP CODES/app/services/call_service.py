@@ -156,6 +156,8 @@ class CallService:
             "provider": self.settings.call_provider,
             "hotline": self.settings.call_hotline_number,
             "direct_dial_enabled": bool(self.settings.call_hotline_number),
+            # 铁律 23：退款摘要随目录下发，购买前即可见（H5 折叠块渲染）
+            "refund_summary": self.refund_summary(),
         }
 
     def _package(self, code: str) -> dict:
@@ -390,14 +392,52 @@ class CallService:
 
     # -- 坐席台（§7.3） ---------------------------------------------------------
 
-    def agent_queue(self) -> dict:
-        items = self.store.list_agent_queue()
+    def _expire_stale_waiting(self) -> None:
+        """惰性清理：任何读路径（records/agent_queue）先扫一遍 waiting 超时。
+
+        防「旅客刷新页面后不再轮询 ⇒ 会话永挂、分钟卡住」的孤儿会话。
+        """
+        timeout = self.settings.call_waiting_timeout_seconds
         now = datetime.now()
-        for it in items:
+        for s in self.store.list_agent_queue():
+            if s["status"] != "waiting":
+                continue
+            created = self._parse(s["created_at"])
+            if created and (now - created).total_seconds() > timeout:
+                self._end(
+                    s, status="expired", reason="timeout", refund=s["granted_minutes"]
+                )
+
+    def agent_queue(self) -> dict:
+        self._expire_stale_waiting()
+        now = datetime.now()
+        out = []
+        for it in self.store.list_agent_queue():
             created = self._parse(it["created_at"])
             it["wait_seconds"] = int((now - created).total_seconds()) if created else 0
+            # 坐席台计时口径与服务端一致：active 按 started_at 重算，不依赖
+            # 旅客端轮询；到点在此强结（双读路径都兜底，页面关了也能收口）。
+            granted_secs = it["granted_minutes"] * 60
+            if it["status"] == "active":
+                started = self._parse(it["started_at"])
+                elapsed = int((now - started).total_seconds()) if started else 0
+                if elapsed >= granted_secs:
+                    self._end(
+                        it,
+                        status="ended",
+                        reason="exhausted",
+                        refund=0,
+                        consumed=granted_secs,
+                    )
+                    continue  # 已收口，不再出现在坐席队列
+                it["consumed_seconds"] = max(
+                    it["consumed_seconds"], min(elapsed, granted_secs)
+                )
+            it["remaining_seconds"] = max(0, granted_secs - it["consumed_seconds"])
+            it["session_id"] = it["id"]
+            out.append(it)
         return {
-            "sessions": items,
+            "sessions": out,
             "hotline": self.settings.call_hotline_number,
         }
 
@@ -439,6 +479,7 @@ class CallService:
     # -- 记录与认领 -------------------------------------------------------------
 
     def records(self, device_id: str) -> dict:
+        self._expire_stale_waiting()
         sessions = []
         for s in self.store.list_sessions(device_id):
             view = self._session_view(s)

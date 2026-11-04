@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from typing import Iterable
 
+# 世界遗产族标签统一按 unesco 前缀识别（全量世遗 unesco/丝路点段
+# unesco_silk_road/明清陵寝 unesco_ming_tombs 等）：点段代表行来源
+# 多样，只认字面量则没排也不披露（2026-11-02 大雁塔事故）。
 _PREMIUM_TAGS = {"5a", "unesco"}
+_PREMIUM_PREFIX = "unesco"
 _RAIN_WORDS = ("雨", "阵雨", "雷阵雨", "小雨", "中雨", "大雨", "暴雨")
 
 
@@ -34,7 +38,10 @@ def premium_coverage_gaps(
     missing: list[dict] = []
     for cand in candidates:
         tags = {str(t).lower() for t in (cand.get("tags") or [])}
-        if not tags & _PREMIUM_TAGS:
+        premium = sorted(
+            t for t in tags if t in _PREMIUM_TAGS or t.startswith(_PREMIUM_PREFIX)
+        )
+        if not premium:
             continue
         name = cand.get("name") or ""
         if not name:
@@ -44,7 +51,7 @@ def premium_coverage_gaps(
         else:
             hit = name in picked
         if not hit:
-            missing.append({"name": name, "tags": sorted(tags & _PREMIUM_TAGS)})
+            missing.append({"name": name, "tags": premium})
         if max_missing is not None and len(missing) >= max_missing:
             break
     return missing

@@ -8,6 +8,8 @@ source_url/remark）。show_booking_design §5 P0：04 入库（source=show）+
 行内动作（与 import_intl_platforms 同语义，但匹配收紧为**等值**）：
   库内同城市正名/别名等值行 → 追加 show tag、booking_url 只填空、
   别名并入，source 保留原值（enrich/tier/refresh 活链不断）；
+  tags_source 带权威闸（2026-11-03 铁律「导入不降权威」：show 权威 2
+  挡不住 mct/mohurd 3，低于既有归因时保留旧 tags_source）；
   查无 → 插入 source=show 骨架行（category=entertainment，tags=[show]，
   best_visit_time=show（S5 晚间场演档），suggested_duration_min=80 场演
   基准，intro=season_note 只填空——S4 档期守护数据随行入库）。
@@ -31,7 +33,7 @@ import sys
 import uuid
 
 from app.models import Poi
-from app.services.poi_details import order_source_tags
+from app.services.source_tier import order_source_tags, tags_source_wins
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,10 @@ def apply_rows(session, rows: list[dict], *, dry_run: bool = False) -> dict:
                 for hit in hits:
                     merged = [t for t in ("show",) if t not in (hit.tags or [])]
                     desired = order_source_tags([*(hit.tags or []), *merged])
+                    # 归因权威闸（2026-11-03 铁律「导入不降权威」）：show 权威
+                    # 2 挡不住 mct/mohurd 3——权威低于既有时 tags_source 保留
+                    # 原值，tags 并集照写。
+                    source_wins = tags_source_wins("show", hit.tags_source)
                     url_filled = None
                     if ctrip_url and not (hit.booking_url or "").strip():
                         hit.booking_url = ctrip_url
@@ -102,10 +108,16 @@ def apply_rows(session, rows: list[dict], *, dry_run: bool = False) -> dict:
                     ]
                     if merged_aliases:
                         hit.name_aliases = [*(hit.name_aliases or []), *merged_aliases]
-                    if not merged and not url_filled and not merged_aliases:
+                    if (
+                        not merged
+                        and not url_filled
+                        and not merged_aliases
+                        and (hit.tags_source == "show" or not source_wins)
+                    ):
                         continue
                     hit.tags = desired
-                    hit.tags_source = "show"
+                    if source_wins:
+                        hit.tags_source = "show"
                     changed = True
                     logger.info(
                         "show merge %s/%s onto source=%s tags+show url=%s",
@@ -166,6 +178,18 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError:
         print(json.dumps({"error": f"csv not found: {args.csv}"}, ensure_ascii=True))
         return 1
+    # §4 产品过滤（2026-11-03 拍板：红色题材演艺不入——红秀/西安事变影画出池）
+    import os
+
+    from app.services.product_filter import apply_product_filter, write_excluded_csv
+
+    rows, excluded = apply_product_filter(rows)
+    if excluded:
+        write_excluded_csv(
+            os.path.splitext(args.csv)[0] + "_excluded.csv",
+            excluded,
+            fields=("city", "name_zh", "exclusion_reason"),
+        )
 
     from app.db import get_session_factory
 

@@ -763,6 +763,108 @@ def test_search_hours_quota_falls_back_to_around_and_returns_hit():
     }
 
 
+PUNISH_HTML_BODY = (
+    b'<a href="https://bixi.alicdn.com/punish/punish:resource:template:x.html"></a>'
+)
+
+
+def test_search_hours_waf_punish_falls_back_to_around():
+    """2026-11-04：text 整族被 WAF deny 时，有坐标改道 around（实测仍可用）。"""
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.path.endswith("/v5/place/text"):
+            return httpx.Response(
+                200, content=PUNISH_HTML_BODY, headers={"content-type": "text/html"}
+            )
+        return httpx.Response(200, json=V5_AROUND_OK_BODY)
+
+    result = asyncio.run(
+        make_client(handler).search_hours(
+            "故宫博物院", "北京", location="116.397,39.917"
+        )
+    )
+    assert calls[0].url.path.endswith("/v5/place/text")
+    assert calls[1].url.path.endswith("/v5/place/around")
+    assert result["opening_hours"] == "周二-周日 08:30-17:00（16:00停止入院）"
+
+
+def test_search_hours_waf_without_location_still_raises():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=PUNISH_HTML_BODY, headers={"content-type": "text/html"}
+        )
+
+    with pytest.raises(AmapPunishedError):
+        asyncio.run(make_client(handler).search_hours("故宫博物院", "北京"))
+
+
+def test_search_hours_text_disabled_sticks_for_rest_of_client():
+    """一次 text 被处罚后，同一客户端后续查询直接走 around，不再敲 text。"""
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.path.endswith("/v5/place/text"):
+            return httpx.Response(
+                200, content=PUNISH_HTML_BODY, headers={"content-type": "text/html"}
+            )
+        return httpx.Response(200, json=V5_AROUND_OK_BODY)
+
+    client = make_client(handler)
+    asyncio.run(client.search_hours("故宫博物院", "北京", location="116.397,39.917"))
+    calls.clear()
+    asyncio.run(client.search_hours("天坛", "北京", location="116.41,39.88"))
+    assert [c.url.path for c in calls] == ["/v5/place/around"]
+
+
+def test_search_hours_around_best_matches_any_variant_in_one_call():
+    """一次 around 取 10 候选，本地按变体挑匹配项（逐变体会白烧配额）。"""
+    calls: list[httpx.Request] = []
+    body = {
+        "status": "1",
+        "info": "OK",
+        "infocode": "10000",
+        "pois": [
+            {"id": "X1", "name": "特克斯县游客中心"},
+            {
+                "id": "X2",
+                "name": "喀拉峻景区",
+                "business": {"opentime_week": "09:00-18:00"},
+            },
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json=body)
+
+    import asyncio as _asyncio
+
+    out = _asyncio.run(
+        make_client(handler).search_hours_around_best(
+            ["伊梨哈萨克自治州特克斯县喀拉峻景区", "特克斯县喀拉峻景区", "喀拉峻"],
+            "82.0,43.0",
+        )
+    )
+    assert len(calls) == 1
+    assert calls[0].url.params["page_size"] == "10"
+    assert out["matched"] == "喀拉峻景区"
+    assert out["opening_hours"] == "09:00-18:00"
+
+
+def test_service_unavailable_infocode_maps_to_dedicated_error():
+    from app.services.amap_client import AmapServiceUnavailableError
+
+    body = {"status": "0", "info": "SERVICE_NOT_AVAILABLE", "infocode": "10002"}
+    handler, _ = ok_handler(body)
+    with pytest.raises(AmapServiceUnavailableError):
+        asyncio.run(make_client(handler).search_hours("故宫博物院"))
+
+
 def test_search_hours_around_also_quota_reraises_original_text_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=QUOTA_BODY)
@@ -885,3 +987,54 @@ def test_normalize_poi_keeps_ename():
 def test_normalize_poi_without_ename_omits_key():
     poi = _normalize_poi({"id": "B1", "name": "无名点", "cityname": "上海市"})
     assert "ename" not in poi
+
+
+# ---------- WAF 处罚页识别（2026-11-03 bixi punish） ----------
+
+PUNISH_HTML = (
+    b'\r\n<a id="a-link"\r\n    href="https://bixi.alicdn.com/punish/punish:resource:'
+    b"template:baba:default_35969158.html?action=deny&origin=https%3A%2F%2Frestapi.amap.com"
+    b'"></a>\r\n<script>\r\nvar x=1;\r\n</script>\r\n'
+)
+
+
+def test_search_poi_punish_page_raises_punished_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=PUNISH_HTML, headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapPunishedError) as ei:
+        asyncio.run(client.search_poi("太平山顶", city="香港"))
+    assert "punish" in str(ei.value)
+
+
+def test_search_poi_around_punish_page_raises_punished_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=PUNISH_HTML, headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapPunishedError):
+        asyncio.run(client.search_poi_around("太平山顶", location="114.17,22.28"))
+
+
+def test_geocode_generic_non_json_stays_plain_amap_error():
+    from app.services.amap_client import AmapPunishedError
+
+    def handler(request):
+        return httpx.Response(
+            200, content=b"<html>oops</html>", headers={"content-type": "text/html"}
+        )
+
+    client = make_client(handler)
+    with pytest.raises(AmapError) as ei:
+        asyncio.run(client.geocode("上海市黄浦区中山东一路", city="上海"))
+    assert not isinstance(ei.value, AmapPunishedError)
+    assert "non-JSON" in str(ei.value)

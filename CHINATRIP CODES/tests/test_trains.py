@@ -113,10 +113,37 @@ def test_mock_date_is_pure_passthrough():
 
 
 def test_pick_best_no_window_takes_earliest():
+    # 2026-11-03 拍板「火车最早 08:00 出发」：G1 07:00 落闸外，G3 09:00 当选。
     best = asyncio.run(pick_best_train(SERVICE, "北京", "上海", DATE))
     assert best is not None
-    assert best.train_no == "G1"
-    assert best.dep_time == time(7, 0)
+    assert best.train_no == "G3"
+    assert best.dep_time == time(9, 0)
+
+
+def test_pick_best_floor_boundary_exactly_0800_qualifies():
+    # 闸含端点：恰在 08:00 整点出发的 G88 可选。
+    best = asyncio.run(pick_best_train(SERVICE, "西安", "北京", DATE))
+    assert best is not None
+    assert best.train_no == "G88"
+    assert best.dep_time == time(8, 0)
+
+
+def test_pick_best_all_trains_before_floor_returns_none():
+    # 全天只剩闸早班车：返回 None 交上层降级（汽车/航班占位），
+    # 绝不静默换一张 08:00 前的票。
+    early = TrainOption(
+        train_no="G0",
+        dep_time=time(7, 15),
+        arr_time=time(8, 16),
+        duration_minutes=61,
+        from_station="上海虹桥",
+        to_station="杭州东",
+        from_city="上海",
+        to_city="杭州",
+        date=DATE,
+    )
+    best = asyncio.run(pick_best_train(StubTrainService([early]), "上海", "杭州", DATE))
+    assert best is None
 
 
 def test_pick_best_window_hits_only_in_window():
@@ -144,7 +171,7 @@ def test_pick_best_window_prefers_closest_to_window_start():
         )
     )
     assert best is not None
-    assert best.train_no == "G1"  # earliest of G1/G3/G5 = closest to 06:00
+    assert best.train_no == "G3"  # 06:00 窗开在闸前，下限抬到 08:00 → 窗内最早 G3
 
 
 def test_pick_best_window_without_trains_returns_none():
@@ -172,11 +199,11 @@ def test_pick_best_window_boundaries_are_inclusive():
             "北京",
             "上海",
             DATE,
-            preferred_window=(time(7, 0), time(7, 0)),
+            preferred_window=(time(9, 0), time(9, 0)),
         )
     )
     assert best is not None
-    assert best.train_no == "G1"
+    assert best.train_no == "G3"
 
 
 # --- build_transfer_item ---
@@ -201,10 +228,11 @@ def test_build_transfer_item_fills_fields():
     assert item.from_city == "北京"
     assert item.to_city == "上海"
     assert item.mode == "train"
-    assert item.start_time == time(7, 0)
-    assert item.end_time == time(11, 30)
-    assert item.duration_minutes == 270
-    assert item.train_no == "G1"
+    # 08:00 闸（2026-11-03）：G1 07:00 出局，G3 09:00→13:36 当选。
+    assert item.start_time == time(9, 0)
+    assert item.end_time == time(13, 36)
+    assert item.duration_minutes == 276
+    assert item.train_no == "G3"
 
 
 def test_build_transfer_item_respects_window():
@@ -665,3 +693,70 @@ def test_get_train_service_gating_and_singleton(tmp_path):
     finally:
         trains_module._train_service_singleton = None
         train_cache_module._train_cache_engine = None
+
+
+def test_remote_chain_source_breaker_opens_after_streak():
+    """源级熔断（2026-11-01 恢复真实班次）：连续失败 3 次的源进入 1h
+    冷却窗——熔断中的源不再被 fetch（不等 5s 超时），链直接走下一源；
+    空结果不算失败（健康应答）。"""
+
+    class FlakySource:
+        name = "flaky"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            raise RuntimeError("boom")
+
+    class EmptySource:
+        name = "empty"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            return []
+
+    flaky = FlakySource()
+    empty = EmptySource()
+    service = RemoteTrainService(MockTrainService(), sources=[flaky, empty])
+
+    for _ in range(3):
+        asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert flaky.calls == 3  # 三连败 -> 熔断打开
+
+    asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert flaky.calls == 3  # 熔断中：不再被 fetch
+    assert empty.calls == 4  # 链照常走到下一源
+    assert service.last_source == "mock"  # 全空 -> mock 兜底
+
+
+def test_remote_chain_healthy_source_resets_streak():
+    """健康应答（含空结果）清零连败计数：间歇失败不熔断。"""
+
+    class IntermittentSource:
+        name = "inter"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, from_city, to_city, date):
+            self.calls += 1
+            if self.calls % 2:
+                raise RuntimeError("boom")
+            return []
+
+    class EmptySource:
+        name = "empty"
+
+        async def fetch(self, from_city, to_city, date):
+            return []
+
+    inter = IntermittentSource()
+    service = RemoteTrainService(MockTrainService(), sources=[inter, EmptySource()])
+    for _ in range(6):
+        asyncio.run(service.search("北京", "上海", "2026-11-03"))
+    assert inter.calls == 6  # 失败-健康交替：连败永不到 3，从不熔断

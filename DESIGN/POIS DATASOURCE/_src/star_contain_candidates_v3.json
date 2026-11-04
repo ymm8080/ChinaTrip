@@ -1,0 +1,666 @@
+[
+ {
+  "star": "5",
+  "roster": "北京华侨大厦",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "2dda6d91-e00c-43a7-9a0a-0493dcbd5afe",
+  "lib": "北京华侨大厦睿世酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "中国大饭店",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "caa6de33-df20-45f1-916d-4d25b027e40e",
+  "lib": "北京中国大饭店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "丽晶酒店",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "2357853e-da55-48e7-bdd2-318d7201a760",
+  "lib": "北京丽晶酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "丽晶酒店",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "8aba76fc-670c-4309-9b97-ed52cacc7dc8",
+  "lib": "北京金源丽晶酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "新云南皇冠假日酒店",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "ad7fe505-7c21-4e6b-825c-cca59c73a5e3",
+  "lib": "北京新云南皇冠假日酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "西国贸大酒店",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "47293846-2f66-4fe1-ae79-3788342a51d7",
+  "lib": "北京西国贸大酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "226a051e-d97c-4ccd-b0d0-8fb18d47bfc9",
+  "lib": "上海花园饭店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "5d20a0cb-41d2-4848-ad9d-b7573b577da6",
+  "lib": "上海悦麓花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "f68f7792-60b0-40eb-9fa1-24acd67a745b",
+  "lib": "上海皇廷花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "00f788f1-57f3-4fb9-a157-768cbeee0087",
+  "lib": "安和花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "98b88b57-b3d2-4103-9026-ff5d82791157",
+  "lib": "东方绿舟度假酒店(花园酒店)",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "4ed3740a-31e1-4f5e-93fb-34677b26f2f8",
+  "lib": "上海汾阳花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "2e64f74d-1a69-45c2-8366-f2f0760fc300",
+  "lib": "上海宽居云涧花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "45f3813b-259b-4a55-9580-0989ffd76816",
+  "lib": "馨庐花园酒店(上海国际旅游度假区店)",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "4682c41f-4198-4b41-9f41-1e292089487a",
+  "lib": "上海虹桥机场佰翔花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "花园饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "f6c810da-12d4-48c3-bd7f-03a2f21985a2",
+  "lib": "上海衡山花园酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "虹桥锦江大酒店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "6c27e2c4-bcde-450f-aaa6-2afdc39a218c",
+  "lib": "上海虹桥锦江大酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "上海浦东香格里拉",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "e6713905-128c-4783-b432-5fcf002ee59b",
+  "lib": "上海浦东香格里拉大酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "和平饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "ff4066fb-015e-4f17-b011-017ff17e4cf2",
+  "lib": "上海和平饭店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "和平饭店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "769c34ef-0ef0-4499-96e4-6eb242879b2c",
+  "lib": "和平饭店博物馆",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "千禧海鸥大酒店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "b4ea65e2-baa6-4b9a-8c1f-e80746f19949",
+  "lib": "上海千禧海鸥大酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "宏安瑞士大酒店",
+  "roster_geo": "上海市/上海市",
+  "lib_id": "d2663b42-fcff-4808-b7f3-b9b511b50eff",
+  "lib": "上海宏安瑞士大酒店",
+  "lib_city": "上海"
+ },
+ {
+  "star": "5",
+  "roster": "金陵饭店",
+  "roster_geo": "南京市/江苏省",
+  "lib_id": "e94ed336-b64c-47dc-906c-ea7978d42ff1",
+  "lib": "南京金陵饭店",
+  "lib_city": "南京"
+ },
+ {
+  "star": "5",
+  "roster": "金陵饭店",
+  "roster_geo": "南京市/江苏省",
+  "lib_id": "64c012e9-b472-49b9-81ad-a6a2351c825f",
+  "lib": "南京湖滨金陵饭店",
+  "lib_city": "南京"
+ },
+ {
+  "star": "5",
+  "roster": "苏州中茵皇冠假日酒店",
+  "roster_geo": "苏州市/江苏省",
+  "lib_id": "58ddb9cb-b1eb-4ea1-bafb-0031b9407ca9",
+  "lib": "苏州中茵皇冠假日酒店·艇吧TBoat西餐厅",
+  "lib_city": "苏州"
+ },
+ {
+  "star": "5",
+  "roster": "苏州中茵皇冠假日酒店",
+  "roster_geo": "苏州市/江苏省",
+  "lib_id": "2fc8b6bc-9a71-45d8-ae4e-74a6806f66bc",
+  "lib": "苏州中茵皇冠假日酒店·圣汐西餐厅",
+  "lib_city": "苏州"
+ },
+ {
+  "star": "5",
+  "roster": "古南都饭店",
+  "roster_geo": "南京市/江苏省",
+  "lib_id": "688cadf9-9586-4644-beb3-fb1ddf9c4e31",
+  "lib": "南京古南都饭店",
+  "lib_city": "南京"
+ },
+ {
+  "star": "5",
+  "roster": "浙江世贸君澜大饭店",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "7d6e30ad-133e-46e7-9617-537982b77a54",
+  "lib": "浙江世贸君澜大饭店·桃源",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "5",
+  "roster": "江城明珠豪生大酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "41bc7878-b255-406f-b9c8-eb8320d2ec36",
+  "lib": "武汉江城明珠豪生大酒店",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "5",
+  "roster": "武汉车都金盾大酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "fdb19b31-65a7-414a-99e0-59b81e0cee0b",
+  "lib": "武汉车都金盾大酒店(沌口体育中心店)",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "5",
+  "roster": "保利大酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "1e07d197-5108-43ad-ba30-dc2d4cfb46ef",
+  "lib": "武汉保利大酒店",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "5",
+  "roster": "彭年万丽酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "8142a9bd-d82e-495b-a445-9d345b9609f4",
+  "lib": "深圳彭年万丽酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "5",
+  "roster": "白天鹅宾馆",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "d1297770-8117-413a-9934-b672e6061ff7",
+  "lib": "白天鹅宾馆·美食屋",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "白天鹅宾馆",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "a767377f-8070-4a00-8594-d310cec1d8b8",
+  "lib": "广州白天鹅宾馆",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "中国大酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "566b4a45-9505-41c2-b396-04357eac15cd",
+  "lib": "广州中国大酒店·丽廊餐厅(流花路店)",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "中国大酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "042f41ad-a340-4d86-96f6-305ea8bdf090",
+  "lib": "广州中国大酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "花园酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "4ea0ad7d-c66d-4811-8212-a42b9ea68194",
+  "lib": "佛山金沙洲温德姆花园酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "花园酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "48bea6b9-5b5b-41c3-b7e1-1bfc864a38dc",
+  "lib": "广州花园酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "花园酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "8c821d72-a7aa-47a3-972b-30d5c23ddb7a",
+  "lib": "广州天河鼎龙希尔顿花园酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "花园酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "c1b12085-3e61-4b86-ae29-78ba9235de43",
+  "lib": "广州机场空港希尔顿花园酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "富苑皇冠假日套房酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "0a078f75-599c-4a4a-9369-5b2421a07a65",
+  "lib": "深圳富苑皇冠假日套房酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "5",
+  "roster": "广东亚洲国际大酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "42f80974-701e-422e-93b4-4753ffebbdb1",
+  "lib": "广东亚洲国际大酒店· 云顶阁(小北店)",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "白云宾馆",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "c3ade1e6-3e2d-41d7-89ee-46cb80475765",
+  "lib": "广州白云宾馆",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "香格里拉大酒店（广州琶洲）",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "d4fd6959-8771-428a-b737-627a79a532ee",
+  "lib": "广州香格里拉大酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "5",
+  "roster": "大梅沙京基洲际度假酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "c977f338-4cfc-4557-8526-fbdb86fed371",
+  "lib": "深圳大梅沙京基洲际度假酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "5",
+  "roster": "深航国际酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "fa582ee7-77b3-4144-b136-a0d1c5f4602a",
+  "lib": "深圳深航国际酒店·Café Wings羽翼阁·咖啡厅",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "5",
+  "roster": "深航国际酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "95e52418-8813-4ec9-903c-acecaf1885e9",
+  "lib": "深圳深航国际酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "5",
+  "roster": "渝商国际大酒店",
+  "roster_geo": "市辖区/重庆市",
+  "lib_id": "0e93535d-1207-47fb-a327-78d0edc21f41",
+  "lib": "重庆渝商国际大酒店",
+  "lib_city": "重庆"
+ },
+ {
+  "star": "5",
+  "roster": "总府皇冠假日酒店",
+  "roster_geo": "成都市/四川省",
+  "lib_id": "eb0f24d3-56b8-4284-8588-bf04af836bf2",
+  "lib": "成都总府皇冠假日酒店",
+  "lib_city": "成都"
+ },
+ {
+  "star": "5",
+  "roster": "成都香格里拉大酒店",
+  "roster_geo": "成都市/四川省",
+  "lib_id": "2c86c4d7-215a-4be9-8031-683b2ab29b5c",
+  "lib": "成都香格里拉大酒店·大堂酒廊",
+  "lib_city": "成都"
+ },
+ {
+  "star": "4",
+  "roster": "保利大厦",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "00f4f67c-82fd-42cc-aa45-c0cb3b5dcc73",
+  "lib": "北京保利大厦酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "北京广安门维景国际大酒店有限公司",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "61bc5dda-0741-45f1-a44d-585f07b47090",
+  "lib": "北京广安门维景国际大酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "北京星明湖金雁酒店有限公司",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "86172735-f415-41bc-ba99-d9057417e869",
+  "lib": "北京星明湖金雁酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "北京中成天坛假日酒店有限公司",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "80d3a6ed-9568-444a-a370-7f1dc18cbbac",
+  "lib": "北京中成天坛假日酒店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "北京天坛饭店有限公司",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "c48e4be1-ac9c-40b4-9e09-f35e58b4b02d",
+  "lib": "北京天坛饭店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "北京光明饭店有限公司",
+  "roster_geo": "北京市/北京市",
+  "lib_id": "4ff3fd80-9ed5-48a5-852c-787f991014a3",
+  "lib": "北京光明饭店",
+  "lib_city": "北京"
+ },
+ {
+  "star": "4",
+  "roster": "广东大厦",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "8e61ac66-12b1-41a6-96d0-fe32d39d37a6",
+  "lib": "广东大厦酒店(广州北京路步行街纪念堂地铁站店)",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "格兰云天大酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "de2f8a41-e7f4-4456-9424-eb7823e1e097",
+  "lib": "深圳花园格兰云天大酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "4",
+  "roster": "雅兰酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "78b9cfd5-7e03-409e-ac75-6a8c502c8745",
+  "lib": "深圳大梅沙雅兰酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "4",
+  "roster": "京基晶都酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "63a1af01-ed51-4499-9f4e-36e9cb6b4ba7",
+  "lib": "深圳京基晶都酒店",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "4",
+  "roster": "祈福酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "7bc52a5d-77a6-4493-90fb-290a58ecf013",
+  "lib": "广州祈福酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "中油阳光大酒店",
+  "roster_geo": "深圳市/广东省",
+  "lib_id": "1054931a-4025-410c-a6c1-e9624dc78de0",
+  "lib": "深圳中油阳光大酒店(南山科技园店)",
+  "lib_city": "深圳"
+ },
+ {
+  "star": "4",
+  "roster": "华厦国际商务酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "3354350e-14ca-42ce-87ba-1be8b0dc5aa3",
+  "lib": "广州华厦国际商务酒店(火车东站天河体育中心店)",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "广东温泉宾馆",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "5637ba95-a215-4c54-9bc6-8217f3ce85bb",
+  "lib": "广东温泉宾馆景区",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "广州宾馆",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "6360e0ce-5e9a-4b61-8a70-ed2c110803aa",
+  "lib": "广州宾馆(北京路步行街海珠广场地铁站店)",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "南沙凤凰湖木莲庄酒店",
+  "roster_geo": "广州市/广东省",
+  "lib_id": "23df9784-3056-46ca-9337-6d73821802bc",
+  "lib": "广州南沙凤凰湖木莲庄酒店",
+  "lib_city": "广州"
+ },
+ {
+  "star": "4",
+  "roster": "东湖宾馆",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "5cd520e4-9fa7-467f-9c29-d93f1b12f66b",
+  "lib": "武汉东湖宾馆",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "4",
+  "roster": "帅府铂颂酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "721a0c98-309c-44b5-ab49-93a6a4c9f0c8",
+  "lib": "帅府铂颂饭店(武汉大学西门店)",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "4",
+  "roster": "纽宾凯N+国际酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "582aa000-1e6d-473f-8b25-cb2becad4c7f",
+  "lib": "纽宾凯N+国际酒店(武汉中山公园雪松路店)",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "4",
+  "roster": "汉正瑞鑫大酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "de17f0fd-2b08-4852-8fbe-06d962d8ba30",
+  "lib": "汉正瑞鑫大酒店(汉口火车站汉西一路地铁站店)",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "4",
+  "roster": "武汉喜瑞得大酒店",
+  "roster_geo": "武汉市/湖北省",
+  "lib_id": "3428e37d-8dd1-40af-b883-ab204ed2f56f",
+  "lib": "武汉喜瑞得大酒店(沌口体育中心店)",
+  "lib_city": "武汉"
+ },
+ {
+  "star": "4",
+  "roster": "独墅湖书香世家酒店",
+  "roster_geo": "苏州市/江苏省",
+  "lib_id": "f545100e-ead8-49f4-8a35-1f978a5b344a",
+  "lib": "独墅湖书香世家酒店(苏州东振路地铁站店)",
+  "lib_city": "苏州"
+ },
+ {
+  "star": "4",
+  "roster": "独墅湖书香世家酒店",
+  "roster_geo": "苏州市/江苏省",
+  "lib_id": "035a4b9a-b4d2-4ae7-94e4-175e6055241e",
+  "lib": "独墅湖书香世家酒店·牡丹亭",
+  "lib_city": "苏州"
+ },
+ {
+  "star": "4",
+  "roster": "重庆国航饭店",
+  "roster_geo": "市辖区/重庆市",
+  "lib_id": "ffefb40e-d342-428c-965f-c640783dddad",
+  "lib": "重庆国航饭店(观音桥店)",
+  "lib_city": "重庆"
+ },
+ {
+  "star": "4",
+  "roster": "重庆典雅戴斯酒店",
+  "roster_geo": "市辖区/重庆市",
+  "lib_id": "fe55c799-e13e-4d9d-b015-08bb8a4f2ef6",
+  "lib": "重庆典雅戴斯酒店(九公里轻轨站店)",
+  "lib_city": "重庆"
+ },
+ {
+  "star": "4",
+  "roster": "浙江大酒店有限公司",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "285c9cd8-70d2-4c39-baf7-c878d6d87b49",
+  "lib": "浙江大酒店",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "杭州星都宾馆有限公司",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "d22c4860-241a-4c65-a07b-57c492c9f454",
+  "lib": "杭州星都宾馆",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "杭州友好饭店有限公司",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "503afa4a-404f-4473-9270-093589d3b318",
+  "lib": "杭州友好饭店",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "浙江宾馆有限责任公司",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "7cac8b46-af97-4a6e-a2c7-a92cde4b33c0",
+  "lib": "浙江宾馆",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "浙江饭店有限公司",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "7572f836-e24a-4ce1-96e4-411ddc5ada9c",
+  "lib": "浙江饭店",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "杭州九鑫酒店有限公司（杭州绿谷景澜酒店）",
+  "roster_geo": "杭州市/浙江省",
+  "lib_id": "634ce760-04a1-41bc-9056-919db5fbec24",
+  "lib": "杭州绿谷景澜酒店",
+  "lib_city": "杭州"
+ },
+ {
+  "star": "4",
+  "roster": "成都天府阳光酒店",
+  "roster_geo": "成都市/四川省",
+  "lib_id": "805e4b68-a5c8-4383-8d99-49430431a6e7",
+  "lib": "成都天府阳光酒店(春熙路太古里店)",
+  "lib_city": "成都"
+ },
+ {
+  "star": "4",
+  "roster": "世代锦江国际酒店",
+  "roster_geo": "成都市/四川省",
+  "lib_id": "eb39ac89-d929-447d-93c0-a1bbd64ebedb",
+  "lib": "成都世代锦江国际酒店",
+  "lib_city": "成都"
+ }
+]

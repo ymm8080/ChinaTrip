@@ -44,6 +44,8 @@ from app.services.agent.plan import (
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
+    drop_dangling_visits,
+    heal_leg_gaps,
 )
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
@@ -236,6 +238,24 @@ async def save_plan(
     if dedupe_plan_visits(plan):
         session.plan = plan
         store.save(session)
+    # 腿间隔终闸（2026-11-03）：零车程背靠背时刻进不了行程库——带腿
+    # 重排后再冻结；钉/餐不动。
+    heal_notes = heal_leg_gaps(plan)
+    if heal_notes:
+        for note in heal_notes:
+            logger.warning("plan/save %s leg-gap heal: %s", session_id, note)
+        session.plan = plan
+        store.save(session)
+    # 无时刻卡终闸（2026-11-03 Day4 太平森林公园案）：混合日垫底的
+    # None-None 参访卡进不了行程库——非钉移除留痕，钉/餐不动；整日
+    # 全未排的降级日不动（读路径不重议交付层拍板）。
+    drop_notes = drop_dangling_visits(plan)
+    if drop_notes:
+        for note in drop_notes:
+            logger.warning("plan/save %s untimed-drop: %s", session_id, note)
+        plan.assumptions.extend(drop_notes)
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(
@@ -350,6 +370,19 @@ async def get_plan_session(
     # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
     # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
     dedupe_plan_visits(session.plan)
+    # 腿间隔读闸（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故）：
+    # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
+    for note in heal_leg_gaps(session.plan):
+        logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
+    # 无时刻卡读闸（2026-11-03 Day4 太平森林公园案）：旧会话混合日的
+    # None-None 参访卡（垫在 19:30 演出之后、腿标注画巨腿）打开即清
+    # ——非钉移除留痕；钉（build 期必打钉）铁律 19 不动；整日全未排
+    # 的降级日不清（骨架会话不能被读闸读穿成空壳）。
+    drop_notes = drop_dangling_visits(session.plan)
+    if drop_notes:
+        for note in drop_notes:
+            logger.warning("plan/session %s untimed-drop: %s", session_id, note)
+        session.plan.assumptions.extend(drop_notes)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
@@ -579,6 +612,8 @@ async def pin_plan_item(
     if request.pinned and item.start_time is None:
         raise HTTPException(status_code=422, detail="pinned_requires_time")
     item.pinned = request.pinned
+    # 用户手钉：清软钉（铁律 19）；取消钉住同时释放软钉
+    item.soft_pin = False
     await agent.refresh_legs(session)
     store.save(session)
     reply = (
@@ -702,6 +737,50 @@ async def retime_plan_item(
         summary.change_summary[0]
         if summary.change_summary
         else L("已调整时间", "Time updated")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanReplaceRequest(BaseModel):
+    # 库内选中项的名字（H5 /api/pois/search 下拉选中后携带；replace 按
+    # 条目所在城 + 精确同名落实，防止跨城/模糊误换）
+    name: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/replace")
+async def replace_plan_item(
+    session_id: str,
+    item_id: str,
+    request: PlanReplaceRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """行程卡「换景点」（2026-11-01 拍板：景点名可编辑，拿关键字去库
+    里匹配）：条目原位换成库内精确同名 POI，当天按游标链重排。无同名
+    422 no_match（H5 端引导留空）；与行程内重复 422 duplicate_in_plan；
+    系统餐位（soft_pin 餐件）422 meal_slot_locked。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.replace_item(
+            session, item_id, name=request.name
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0] if summary.change_summary else L("已替换", "Replaced")
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)

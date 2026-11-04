@@ -23,6 +23,11 @@ from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
 
+# 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
+# order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
+# import 该名，签名不变）
+from app.services.source_tier import catalog_rank, source_tag_key
+
 logger = logging.getLogger(__name__)
 
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
@@ -43,25 +48,32 @@ _DB_DOWN_COOLDOWN_SECONDS = 300.0
 # connect_timeout per request while down.
 _DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 
-# A 级优先（用户拍板 2026-10-25：unesco > 5A > 4A > 3A）。名单在库里
-# 以 source='unesco'/'5a' 骨架行存在（tags 列 0 覆盖——boost 从未生效
-# 过，2026-10-25 城市阳台事件）；读时按 source + 全库名单互含判定层级，
-# 并把层级标签注入候选 tags（LLM 选点层同享信号）。
-_TIER_BOOST = {4: 1.8, 3: 1.5, 2: 1.3, 1: 1.15}
-_TIER_TAG = {4: "unesco", 3: "5a", 2: "4a", 1: "3a"}
-
-# 多来源打标序（用户 2026-10-26 标准：多个来源都打上、国外榜单放前，
-# 例 ta/lp → unesco → 5A → 其余）；import_intl_picks 同用此序
-_SOURCE_TAG_ORDER = {
-    "ta": 0,
-    "lp": 1,
-    "viator": 2,
-    "intl": 3,
-    "curated": 4,
-    "unesco": 5,
-    "5a": 6,
-    "4a": 7,
-    "3a": 8,
+# 层级档号（2026-11-03 名录序拍板，共享模块 source_tier 全站唯一定义点）：
+# 0=unesco 1=5a 2=国际旅行网站 3=国际平台 4=短视频 5=小红书 6=街区
+# 7=风景名胜 8=4a 9=3a 10=未分层——取代 2026-10-25 四档（4/3/2/1）与
+# 2026-10-25/26「intl 与 5A 同档」拍板。小值优先；boost 逐档递减
+# （未列=1.0）；6 街区/7 风景名胜不打层级牌（_TIER_TAG 缺档即不注入）。
+_TIER_BOOST = {
+    0: 1.8,
+    1: 1.6,
+    2: 1.5,
+    3: 1.4,
+    4: 1.3,
+    5: 1.25,
+    6: 1.2,
+    7: 1.15,
+    8: 1.1,
+    9: 1.05,
+}
+_TIER_TAG = {
+    0: "unesco",
+    1: "5a",
+    2: "intl",
+    3: "intl",
+    4: "intl",
+    5: "intl",
+    8: "4a",
+    9: "3a",
 }
 
 
@@ -101,61 +113,195 @@ def _hit_has_label(h: dict, label: str | None) -> bool:
 
 
 def order_source_tags(tags: list[str]) -> list[str]:
-    return sorted(tags, key=lambda t: _SOURCE_TAG_ORDER.get(t, 99))
+    """多来源打标序——委托共享模块 source_tier（2026-11-03 名录序取代
+    2026-10-26「国外榜单放前」：unesco 族最先）。jobs 从本模块 import
+    此名，签名 (tags: list[str]) -> list[str] 不变。"""
+    return sorted(tags, key=source_tag_key)
 
 
 def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
     """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
-    tags → source（intl 系与 5A 同档，2026-10-25/26 拍板）→ 全库名单互含。"""
-    tags = {str(t) for t in (h.get("tags") or [])}
-    if "unesco" in tags or h.get("source") == "unesco":
-        return 4
-    if "5a" in tags or h.get("source") == "5a":
-        return 3
-    # 国际旅行网站（TA/LP 等）人气榜行与 5A 同档（引擎面向
-    # 外国游客，2026-10-25 intl 种子导入；2026-10-26 source
-    # 改明细站点名，枚举同步扩）
-    if "intl" in tags or h.get("source") in (
-        "intl",
-        "tripadvisor",
-        "lonelyplanet",
-        "viator",
-        "curated",
-    ):
-        return 3
-    if "4a" in tags:
-        return 2
-    if "3a" in tags:
-        return 1
+    名录序 catalog_rank（2026-11-03 拍板，取代 2026-10-25/26「intl 与
+    5A 同档」；unesco_* 前缀族视同全量世遗）→ 3a 兜底档 → 全库名单
+    互含 → 10=未分层。返回档号小值优先：0=unesco 1=5a 2=国际旅行网站
+    3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4a 9=3a。"""
+    r = catalog_rank(h.get("source"), h.get("tags"))
+    if r is not None:
+        return r
+    tags = {str(t).strip().lower() for t in (h.get("tags") or [])}
+    source = str(h.get("source") or "").strip().lower()
+    if "3a" in tags or source == "3a":
+        return 9
     name = h.get("name") or ""
     for ref, tier in heritage:
         if _name_overlap(name, ref):
             return tier
-    return 0
+    return 10
 
 
 def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
-    """判定层级并把层级标签并入 tags（intl 档打 intl 牌不打 5a 牌），
-    返回层级。读侧（top_pois_in_city / search_keyword / api/pois）共用。"""
+    """判定层级并把层级标签并入 tags（档 2-5 统一打 intl 牌；6 街区/
+    7 风景名胜无牌不注入），返回层级。读侧（top_pois_in_city /
+    search_keyword / api/pois）共用。"""
     tier = hit_tier(h, heritage)
     tag = _TIER_TAG.get(tier)
-    if (
-        tier == 3
-        and "intl" in (h.get("tags") or [])
-        and "5a" not in (h.get("tags") or [])
-    ):
-        tag = "intl"
     if tag and tag not in (h.get("tags") or []):
         h["tags"] = order_source_tags([*(h.get("tags") or []), tag])
     return tier
 
 
+_GENERIC_TAILS = (
+    "景区",
+    "风景区",
+    "旅游区",
+    "风景名胜区",
+    "名胜区",
+    "公园",
+    "国家公园",
+    "森林公园",
+    "湿地公园",
+    "地质公园",
+    "遗址",
+    "遗址公园",
+    "博物馆",
+    "博物院",
+    "纪念馆",
+    "陈列馆",
+    "故居",
+    "陵",
+    "园区",
+    "度假区",
+    "旅游度假区",
+    "古城",
+    "古镇",
+    "老街",
+    "街区",
+)
+
+
 def _name_overlap(a: str | None, b: str | None) -> bool:
-    """名单互含匹配（灵隐飞来峰 ↔ 灵隐飞来峰景区）；短名防泛名误伤。"""
+    """名单互含匹配,仅认头/尾相接:尾接多余段须为通用类尾词(灵隐飞来峰↔
+    灵隐飞来峰景区),头接多余段须 ≤3 字地市前缀(北京颐和园);中段嵌含
+    不再认——挡「颐和园-船坞」类子设施借本体世遗牌升档。"""
     a, b = (a or "").strip(), (b or "").strip()
     if len(a) < 3 or len(b) < 3:
         return False
-    return a in b or b in a
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    if long_.startswith(short):
+        extra = re.sub(r"[\s\-—·・]", "", long_[len(short) :])
+        return not extra or extra in _GENERIC_TAILS
+    if long_.endswith(short):
+        extra = re.sub(r"[\s\-—·・]", "", long_[: -len(short)])
+        return 0 < len(extra) <= 3
+    return False
+
+
+# 内存行 mimic ORM attrs（top_pois_in_city / candidate_by_name 的回退路共用）
+_MEM_ROW_SLOTS = (
+    "source_poi_id",
+    "name_zh",
+    "city",
+    "category",
+    "address",
+    "opening_hours",
+    "source",
+    "rating",
+    "rating_count",
+    "tags",
+    "best_visit_time",
+    "suggested_duration_min",
+    "indoor",
+    "rain_ok",
+    "review_tags",
+    "intro",
+    "name_en",
+    "address_en",
+    "intro_en",
+    "opening_hours_en",
+    "review_tags_en",
+    "reservation_required",
+    "reservation_advance_days",
+    "booking_url",
+)
+
+
+class _MemRow:
+    """Memory fallback row with the same attribute surface as the ORM Poi."""
+
+    __slots__ = _MEM_ROW_SLOTS
+
+
+def _candidate_from_row(row, loc_txt: str | None) -> dict:
+    """ORM Poi 行 → 引擎候选 dict（top_pois_in_city / candidate_by_name
+    共用，2026-11-01 从 top_pois_in_city 内的 build 提出）。"""
+    m = _POINT_WKT_RE.match(loc_txt or "")
+    # rating 可能是 Decimal/str/float（DB 列 vs amap 原文），统一安全转
+    try:
+        rating = float(row.rating) if row.rating else None
+    except (TypeError, ValueError):
+        rating = None
+    return {
+        "source_poi_id": row.source_poi_id,
+        "name": row.name_zh,
+        # 双语 P1：_en 并出（空时前端回退中文）
+        "name_en": row.name_en,
+        "address_en": row.address_en,
+        "intro_en": (row.intro_en or "")[:60] or None,
+        "opening_hours_en": row.opening_hours_en,
+        "review_tags_en": row.review_tags_en or [],
+        "city": row.city,
+        "category": row.category,
+        "address": row.address,
+        "opening_hours": row.opening_hours,
+        "source": row.source,
+        "rating": rating,
+        "rating_count": row.rating_count,
+        "tags": row.tags or [],
+        "best_visit_time": row.best_visit_time or "any",
+        "suggested_duration_min": row.suggested_duration_min,
+        "indoor": row.indoor,
+        "rain_ok": row.rain_ok,
+        "review_tags": row.review_tags or [],
+        "intro": (row.intro or "")[:60] or None,
+        "reservation_required": row.reservation_required,
+        "reservation_advance_days": row.reservation_advance_days,
+        "booking_url": row.booking_url,
+        "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+    }
+
+
+def _memory_candidate_row(pid: str, v: dict, loc_txt: str | None) -> dict:
+    """内存条目 → 引擎候选 dict（属性面与 ORM 行对齐后走同一构造器）。"""
+    r = _MemRow()
+    for slot in _MEM_ROW_SLOTS:
+        setattr(r, slot, None)
+    r.source_poi_id = pid
+    r.name_zh = v.get("name")
+    r.city = v.get("city")
+    r.category = v.get("category")
+    r.address = v.get("address")
+    r.opening_hours = v.get("opening_hours")
+    r.source = v.get("source") or "amap"
+    r.rating = v.get("rating")
+    r.rating_count = v.get("rating_count")
+    r.tags = v.get("tags")
+    r.best_visit_time = v.get("best_visit_time")
+    r.suggested_duration_min = v.get("suggested_duration_min")
+    r.indoor = v.get("indoor")
+    r.rain_ok = v.get("rain_ok")
+    r.review_tags = v.get("review_tags")
+    r.intro = v.get("intro")
+    r.name_en = v.get("name_en")
+    r.address_en = v.get("address_en")
+    r.intro_en = v.get("intro_en")
+    r.opening_hours_en = v.get("opening_hours_en")
+    r.review_tags_en = v.get("review_tags_en")
+    r.reservation_required = v.get("reservation_required")
+    r.reservation_advance_days = v.get("reservation_advance_days")
+    r.booking_url = v.get("booking_url")
+    return _candidate_from_row(r, loc_txt)
 
 
 class PoiDetailStore:
@@ -165,6 +311,8 @@ class PoiDetailStore:
         self._factory = session_factory
         self._memory: dict[str, dict] = {}
         self._db_down_until = 0.0  # time.monotonic() deadline
+        self._nonactive_pids_cache: set[str] | None = None
+        self._nonactive_pids_at = 0.0
 
     def _db_available(self) -> bool:
         return self._factory is not None and (time.monotonic() >= self._db_down_until)
@@ -274,7 +422,10 @@ class PoiDetailStore:
                     exc_info=True,
                 )
         out: list[tuple[str, str | None, str | None, str | None, str | None]] = []
+        nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
+            if pid in nonactive:
+                continue
             ts = v.get("hours_updated_at")
             if ts is None or ts < cutoff:
                 loc = v.get("location")
@@ -309,26 +460,39 @@ class PoiDetailStore:
     # --- write --------------------------------------------------------------
 
     def get_by_name(self, city: str | None, name: str) -> dict | None:
-        """Exact-name lookup so appended rows serve later no-poi_id items."""
+        """Exact-name lookup so appended rows serve later no-poi_id items.
+
+        city 口径（2026-11-01 北京钟楼案，用户拍板「应选西安钟楼而不是
+        北京钟楼」）：带 city 时只认同城行——「钟楼」这类多城重名 POI，
+        旧版全库 .first() 把北京行过继给西安条目（poi_id/地址/英文简介
+        整套易主）。同城无行宁可 None（零配额自愈链会走图商补齐），
+        绝不用异地行冒充；city=None（fast_lane 语义）维持全库命中。
+        """
         name = (name or "").strip()
         if not name:
             return None
+        city_names = None
+        if city:
+            c = city.strip()
+            city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
         if self._db_available():
             try:
                 with self._factory() as session:
-                    pair = (
-                        session.query(
-                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
-                        )
-                        .filter(Poi.name_zh == name)
-                        .first()
-                    )
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(Poi.name_zh == name)
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：下线行不过继（与主池同口径）
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
+                    pair = q.first()
                     if pair is None:
                         return None
                     row, loc_txt = pair
                     m = _POINT_WKT_RE.match(loc_txt or "")
                     return {
                         "poi_id": row.source_poi_id,
+                        "city": row.city,
                         "address": row.address,
                         "opening_hours": row.opening_hours,
                         "hours_source": row.hours_source,
@@ -347,9 +511,15 @@ class PoiDetailStore:
             except Exception:
                 self._note_db_failure()
                 logger.warning("poi_details: db get_by_name failed", exc_info=True)
+        nonactive = self._nonactive_pids()
         for key, v in self._memory.items():
-            if v.get("name") == name:
-                return dict(v, poi_id=key)
+            if key in nonactive:
+                continue
+            if v.get("name") != name:
+                continue
+            if city_names and (v.get("city") or "") not in city_names:
+                continue  # 异地行不过继（与 DB 路同口径，2026-11-01）
+            return dict(v, poi_id=key)
         return None
 
     def search_keyword(
@@ -362,9 +532,10 @@ class PoiDetailStore:
         《驼铃传奇》秀 也能命中）。返回 amap 形状的骨架 dict（name/city/
         category/tags/source_poi_id/location/address/opening_hours/source/
         rating），按（名字精确命中，标签命中，有坐标，类别命中，hit_tier:
-        unesco>5A/intl>4A>3A>名单互含）降序——tier 只作同档并列裁决
-        （2026-10-28 泛称愿望落地要同类最佳，与 top_pois_in_city 同一套
-        层级判定；专名精确命中仍稳居首位不受影响）。"""
+        名录序小值优先 unesco>5A>国际网站>国际平台>…>4A>3A>名单互含）
+        降序——tier 只作同档并列裁决（2026-10-28 泛称愿望落地要同类最佳，
+        与 top_pois_in_city 同一套层级判定；专名精确命中仍稳居首位不受
+        影响）。"""
 
         toks = [t for t in (tokens or []) if t]
         if not toks:
@@ -382,7 +553,8 @@ class PoiDetailStore:
                 any(_hit_has_label(h, lb) for lb in labels),
                 h.get("location") is not None,
                 any(t in (h.get("category") or "") for t in toks),
-                hit_tier(h, heritage),
+                # 名录序档号小值优先（2026-11-03）：取负并入降序键
+                -hit_tier(h, heritage),
             )
 
         if self._db_available():
@@ -393,6 +565,8 @@ class PoiDetailStore:
                     )
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：愿望解析/H5 检索不见下线行
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     conds = []
                     for t in toks:
                         pat = f"%{t}%"
@@ -403,6 +577,14 @@ class PoiDetailStore:
                             # JSONB tags 文本化匹配功能标签（"show" 子串唯一，
                             # 词表无前缀碰撞）；tags 为 NULL 的行不命中该条件
                             conds.append(cast(Poi.tags, String).like(f'%"{label}"%'))
+                            if label == "unesco":
+                                # unesco_* 前缀族（丝路 unesco_silk_road/喀斯特
+                                # unesco_karst…）与 hit_tier 同属世界遗产族
+                                # （2026-11-02 拍板），精确串吃不到前缀行——
+                                # 加起始引号锚定的前缀 LIKE：JSONB 文本化每个
+                                # tag 形如 "unesco_silk_road"，%"unesco 只命中
+                                # tag 开头（也涵盖 "unesco" 本尊），不出泛子串。
+                                conds.append(cast(Poi.tags, String).like('%"unesco%'))
                     # 取 10× 再 Python 排序：LIMIT 内没有 tier 概念，取太少
                     # 会把同类的 unesco/5A 行截在排序之前（内存回退全库扫，
                     # 两路池深对齐）。
@@ -439,15 +621,31 @@ class PoiDetailStore:
                 )
         hits = []
         tok_labels = [(t, _token_label(t)) for t in toks]
+        nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
+            if pid in nonactive:
+                continue
             if city_names and v.get("city") not in city_names:
                 continue
             name = v.get("name") or ""
             hay = f"{name} {v.get('category') or ''}"
             vtags = {_norm_label_tag(t) for t in (v.get("tags") or [])}
-            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签
+            # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签；
+            # unesco 再吃前缀族（unesco_silk_road 等），对齐 DB 路锚定前缀
+            # LIKE 与 hit_tier 的世界遗产族口径（2026-11-02 拍板）。
             if not any(
-                t in hay or (lb is not None and lb in vtags) for t, lb in tok_labels
+                t in hay
+                or (
+                    lb is not None
+                    and (
+                        lb in vtags
+                        or (
+                            lb == "unesco"
+                            and any(vt.startswith("unesco") for vt in vtags)
+                        )
+                    )
+                )
+                for t, lb in tok_labels
             ):
                 continue
             loc = v.get("location")
@@ -469,6 +667,65 @@ class PoiDetailStore:
         hits.sort(key=lambda h: rank(h, heritage), reverse=True)
         return hits[:limit]
 
+    def candidate_by_name(self, city: str | None, name: str) -> dict | None:
+        """精确同名完整候选（2026-11-01 行程卡「换景点」）：name_zh 精确
+        相等取行（city 三态收窄），同名多源行按 有坐标>tier>口碑 择一；
+        返回 top_pois_in_city 同形状（含时段/时长/露天/预约字段），无
+        命中返回 None——调用方提示用户，不静默换点。"""
+        n = (name or "").strip()
+        if not n:
+            return None
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else None
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(Poi.name_zh == n)
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    # 去重轮收口（2026-11-01）：换景点不见下线行
+                    q = q.filter((Poi.status.is_(None)) | (Poi.status == "active"))
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.limit(50).all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: candidate_by_name db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("name") or "").strip() != n:
+                    continue
+                if city_names and (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                loc = v.get("location")
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
+        if not rows_out:
+            return None
+        heritage = self._heritage_names()
+
+        def pick(h: dict) -> tuple:
+            return (
+                1 if h.get("location") else 0,
+                # 名录序档号小值优先（2026-11-03）：取负供 max 择优
+                -apply_tier_tag(h, heritage),
+                h.get("rating") or 0.0,
+            )
+
+        best = max(rows_out, key=pick)
+        return best
+
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
 
     @classmethod
@@ -487,15 +744,70 @@ class PoiDetailStore:
                         .filter(Poi.source.in_(["unesco", "5a"]))
                         .all()
                     )
-                    return [(name, 4 if src == "unesco" else 3) for name, src in rows]
+                    # 档号随 2026-11-03 名录序：unesco=0、5a=1（小值优先）
+                    return [(name, 0 if src == "unesco" else 1) for name, src in rows]
             except Exception:
                 self._note_db_failure()
                 logger.warning("poi_details: heritage list query failed", exc_info=True)
         for v in self._memory.values():
             src = v.get("source")
             if src in ("unesco", "5a"):
-                out.append((v.get("name") or "", 4 if src == "unesco" else 3))
+                out.append((v.get("name") or "", 0 if src == "unesco" else 1))
         return out
+
+    def _nonactive_pids(self) -> set[str]:
+        """全库下线行 source_poi_id 集（300s TTL 缓存）——内存回退路的
+        退役闸：_memory 行由 upsert 写入、不带 status，靠身份集对齐
+        DB 路的 (status IS NULL OR 'active') 口径（2026-11-04 公园/遗址
+        下线后，DB 抖动 300s 回退窗会把已下线行重新捞进候选/检索）。"""
+        now = time.monotonic()
+        if (
+            self._nonactive_pids_cache is not None
+            and now - self._nonactive_pids_at < _DB_DOWN_COOLDOWN_SECONDS
+        ):
+            return self._nonactive_pids_cache
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    rows = (
+                        session.query(Poi.source_poi_id)
+                        .filter(Poi.status.isnot(None), Poi.status != "active")
+                        .all()
+                    )
+                    self._nonactive_pids_cache = {r[0] for r in rows}
+                    self._nonactive_pids_at = now
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: nonactive pid list query failed", exc_info=True
+                )
+        return self._nonactive_pids_cache or set()
+
+    def nonactive_names(self, city: str | None) -> set[str]:
+        """同城下线行名字集（含别名）——图商补量旁路的退役闸：库命中
+        <10 时 live 捞回的同名行若在库已下线，不得重新进候选池
+        （2026-11-04）。DB 不可达时返回空集（有日志，不拦）。"""
+        names: set[str] = set()
+        if not self._db_available():
+            return names
+        try:
+            with self._factory() as session:
+                q = session.query(Poi.name_zh, Poi.name_aliases).filter(
+                    Poi.status.isnot(None), Poi.status != "active"
+                )
+                c = (city or "").strip().removesuffix("市")
+                if c:
+                    q = q.filter(Poi.city.in_({c, f"{c}市"} - {""}))
+                for name, aliases in q.all():
+                    if name:
+                        names.add(name)
+                    for a in aliases or []:
+                        if a:
+                            names.add(str(a))
+        except Exception:
+            self._note_db_failure()
+            logger.warning("poi_details: nonactive names query failed", exc_info=True)
+        return names
 
     def top_pois_in_city(
         self, city: str, limit: int = 30, *, exclude_food: bool = True
@@ -514,51 +826,18 @@ class PoiDetailStore:
         if not city_names:
             return []
 
-        def build(row, loc_txt: str | None) -> dict:
-            m = _POINT_WKT_RE.match(loc_txt or "")
-            # rating 可能是 Decimal/str/float（DB 列 vs amap 原文），统一安全转
-            try:
-                rating = float(row.rating) if row.rating else None
-            except (TypeError, ValueError):
-                rating = None
-            return {
-                "source_poi_id": row.source_poi_id,
-                "name": row.name_zh,
-                # 双语 P1：_en 并出（空时前端回退中文）
-                "name_en": row.name_en,
-                "address_en": row.address_en,
-                "intro_en": (row.intro_en or "")[:60] or None,
-                "opening_hours_en": row.opening_hours_en,
-                "review_tags_en": row.review_tags_en or [],
-                "city": row.city,
-                "category": row.category,
-                "address": row.address,
-                "opening_hours": row.opening_hours,
-                "source": row.source,
-                "rating": rating,
-                "rating_count": row.rating_count,
-                "tags": row.tags or [],
-                "best_visit_time": row.best_visit_time or "any",
-                "suggested_duration_min": row.suggested_duration_min,
-                "indoor": row.indoor,
-                "rain_ok": row.rain_ok,
-                "review_tags": row.review_tags or [],
-                "intro": (row.intro or "")[:60] or None,
-                "reservation_required": row.reservation_required,
-                "reservation_advance_days": row.reservation_advance_days,
-                "booking_url": row.booking_url,
-                "location": ((float(m.group(1)), float(m.group(2))) if m else None),
-            }
-
         def score(h: dict) -> tuple:
-            # A 级优先（2026-10-25 用户拍板）：tier 在前——无评分的 5A/
-            # unesco 名单行也要压过裸 4.8 的边缘点（城市阳台事件）。
+            # A 级优先（2026-10-25 用户拍板，2026-11-03 起名录序小值优先）：
+            # tier 取负在前——无评分的 5A/unesco 名单行也要压过裸 4.8 的
+            # 边缘点（城市阳台事件）。
             rating = h.get("rating") or 0.0
             count = h.get("rating_count") or 0
             quality = rating * (1 + (log2(1 + count) if count else 0))
-            tier = h.get("_tier") or 0
+            tier = h.get("_tier")
+            if tier is None:
+                tier = 10  # 未分层（防御：出库前必经 apply_tier_tag）
             boost = _TIER_BOOST.get(tier, 1.0)
-            if not tier:
+            if tier == 10:
                 tags = {str(t) for t in (h.get("tags") or [])}
                 if tags & {"michelin", "black_pearl"}:
                     boost = 1.5
@@ -569,7 +848,7 @@ class PoiDetailStore:
             # 骨架行垫底保留，backfill 补齐坐标后自动回到前列。
             return (
                 1 if h.get("location") else 0,
-                tier,
+                -tier,
                 round(quality * boost, 3),
             )
 
@@ -594,7 +873,7 @@ class PoiDetailStore:
                             )
                         )
                     q = q.limit(2000)
-                    rows_out = [build(r, t) for r, t in q.all()]
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -603,70 +882,20 @@ class PoiDetailStore:
                 )
                 rows_out = []
         if not rows_out:
-
-            class _MemRow:  # memory rows mimic ORM attrs for build()
-                __slots__ = (
-                    "source_poi_id",
-                    "name_zh",
-                    "city",
-                    "category",
-                    "address",
-                    "opening_hours",
-                    "source",
-                    "rating",
-                    "rating_count",
-                    "tags",
-                    "best_visit_time",
-                    "suggested_duration_min",
-                    "indoor",
-                    "rain_ok",
-                    "review_tags",
-                    "intro",
-                    "name_en",
-                    "address_en",
-                    "intro_en",
-                    "opening_hours_en",
-                    "review_tags_en",
-                    "reservation_required",
-                    "reservation_advance_days",
-                    "booking_url",
-                )
-
+            nonactive = self._nonactive_pids()
             for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
                 if exclude_food and self._row_is_food(v.get("category")):
                     continue
-                r = _MemRow()
-                for slot in _MemRow.__slots__:
-                    setattr(r, slot, None)
-                r.source_poi_id = pid
-                r.name_zh = v.get("name")
-                r.city = v.get("city")
-                r.category = v.get("category")
-                r.address = v.get("address")
-                r.opening_hours = v.get("opening_hours")
-                r.source = v.get("source") or "amap"
-                r.rating = v.get("rating")
-                r.rating_count = v.get("rating_count")
-                r.tags = v.get("tags")
-                r.best_visit_time = v.get("best_visit_time")
-                r.suggested_duration_min = v.get("suggested_duration_min")
-                r.indoor = v.get("indoor")
-                r.rain_ok = v.get("rain_ok")
-                r.review_tags = v.get("review_tags")
-                r.intro = v.get("intro")
-                r.name_en = v.get("name_en")
-                r.address_en = v.get("address_en")
-                r.intro_en = v.get("intro_en")
-                r.opening_hours_en = v.get("opening_hours_en")
-                r.review_tags_en = v.get("review_tags_en")
-                r.reservation_required = v.get("reservation_required")
-                r.reservation_advance_days = v.get("reservation_advance_days")
-                r.booking_url = v.get("booking_url")
                 loc = v.get("location")
-                h = build(r, f"POINT({loc[0]} {loc[1]})" if loc else None)
-                rows_out.append(h)
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
         heritage = self._heritage_names()
 
         for h in rows_out:

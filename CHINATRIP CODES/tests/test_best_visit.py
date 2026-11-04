@@ -100,3 +100,21 @@ def test_garbage_or_missing_hours_infer_none():
     assert infer_slot_from_hours("17:00") is None  # 只有一端，不成窗
     assert infer_slot_from_hours("") is None
     assert infer_slot_from_hours(None) is None
+
+
+# --- 住宿业态守卫（2026-11-01 两江夜游白天排事故复盘） -------------------
+
+
+def test_lodging_names_never_classified():
+    # 酒店公寓行名称里的夜/日出信号是商圈噪音，绝不产出时段
+    assert apply_rules("雅致酒店(广州二沙岛珠江夜游店)") is None
+    assert apply_rules("MEISHU公寓(西湖音乐喷泉店)") is None
+    assert apply_rules("北京日出东方凯宾斯基酒店", "viewpoint") is None
+    assert apply_rules("珠江夜游公寓客栈") is None
+    assert apply_rules("某无名酒店", "Night Market") is None
+
+
+def test_lodging_guard_only_blocks_rule_layer():
+    # 守卫在规则层；正常景点不受影响
+    assert apply_rules("两江夜游") == "evening"
+    assert apply_rules("磁器口古镇") is None

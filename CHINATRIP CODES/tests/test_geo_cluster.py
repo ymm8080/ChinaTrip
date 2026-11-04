@@ -78,3 +78,33 @@ def test_premium_coverage_gaps_shows_all_by_default():
     assert [g["name"] for g in gaps] == [f"5a景区{i}" for i in range(1, 6)]
     # 收窄参数仍可用
     assert len(premium_coverage_gaps(["外滩"], candidates, max_missing=2)) == 2
+
+
+def test_premium_coverage_gaps_flags_silk_road_component():
+    # 2026-11-02 大雁塔事故：丝路点段代表行 tags 只有 unesco_silk_road
+    # （无 5a/unesco 字面量）时，白名单披露层同样要点名。
+    from app.services.itinerary.coverage import premium_coverage_gaps
+
+    candidates = [
+        {"name": "大雁塔大唐芙蓉园景区", "tags": ["unesco_silk_road"]},
+        {"name": "昌平区明十三陵景区", "tags": ["unesco_ming_tombs"]},
+    ]
+    gaps = premium_coverage_gaps(["未央宫遗址"], candidates)
+    assert [g["name"] for g in gaps] == ["大雁塔大唐芙蓉园景区", "昌平区明十三陵景区"]
+    assert gaps[0]["tags"] == ["unesco_silk_road"]
+    assert gaps[1]["tags"] == ["unesco_ming_tombs"]
+
+
+def test_source_tier_silk_road_component_top_ladder():
+    # 丝路点段（unesco_silk_road）与全量世遗同档 tier=1，压过 5A——
+    # 世界遗产有更高的优先权（2026-11-02 大雁塔事故）。
+    from app.services.agent.plan import _source_tier
+
+    assert _source_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}) == 1
+    assert _source_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}) == 1
+    assert _source_tier({"source": "5a", "tags": ["unesco_karst"]}) == 1
+    assert (
+        _source_tier({"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"]}) == 1
+    )
+    assert _source_tier({"source": "5a", "tags": ["5a"]}) == 2
+    assert _source_tier({"source": "relicpark", "tags": ["relicpark"]}) == 11

@@ -55,8 +55,12 @@ def _norm_city(city: str | None) -> str:
 
 def _eligible(row: Any, stage: str) -> bool:
     """目标行 = active 且 best_visit_time 为空/any；llm 层再排除已被
-    heuristic 标过的行（source 非空且非 any）."""
+    heuristic 标过的行（source 非空且非 any）。住宿类（category=hotel）
+    不参访排程，直接排除——名称里的夜信号是商圈噪音（2026-11-01
+    两江夜游复盘：「雅致酒店(珠江夜游店)」绝不能被规则标成 evening）。"""
     if (row.status or "active") != "active":
+        return False
+    if (row.category or "") == "hotel":
         return False
     if row.best_visit_time not in (None, "any"):
         return False

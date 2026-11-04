@@ -22,6 +22,25 @@ and `DESIGN/architecture_diagram.png`; operational notes in `DAILY OPERATION/`.
 - Keep secrets (.env, API keys, tokens) out of the repository - .gitignore covers them.
 - Dates in ISO 8601 (2026-10-17); amounts in CNY where relevant.
 
+## Iron rule: full source priority list on every fill
+
+Whenever any job, script or backfill fills a POI field from candidate
+sources (intro, duration, hours, rating, ticket, name_en, coordinates,
+category, ...), it must walk the FULL source priority list — never a single
+source, never an ad-hoc subset, never a job-private ordering. Canonical
+order (the `_SOURCE_PRIORITY` tuple, documented in
+`DESIGN/POIS_DATASOURCE.md` 读侧接线):
+
+    unesco > 5a > museum1 > museum2 > museum3 > artmuseum
+        > street > histown > amap > chinatravel > osm
+
+- A new source registered into the pool must be appended to this list in
+  the same change that introduces it.
+- A new filling job copies the full list as-is (import/share a single
+  definition rather than re-typing a shortened one).
+- Existing jobs found with a shortened list are a bug: fix them to the
+  full list.
+
 ## Local dev server (Windows)
 
 Do NOT run uvicorn with --reload on this machine: its Windows reloader

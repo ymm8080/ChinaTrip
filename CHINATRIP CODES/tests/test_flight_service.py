@@ -88,6 +88,47 @@ def test_build_transfers_flight_uses_service_times_and_real_dates():
     assert ("三亚", "上海", "2026-11-11") in flights.queries
 
 
+class EmptyFlights(MockFlightService):
+    """任何城市对都无航班 → 去程/回程退回火车或占位。"""
+
+    async def search(self, from_city, to_city, date):
+        return []
+
+
+def test_outbound_and_return_prefer_flight_middle_hop_stays_train():
+    """2026-11-04 用户拍板：去程/回程优先飞机，中途城际腿仍以火车为先。"""
+    agent = PlanningAgent(_NoLLM(), train_service=MockTrainService())
+    transfers, _assumptions = asyncio.run(
+        agent._build_transfers(["上海", "北京", "西安"], 3, {}, start_date="2026-11-10")
+    )
+    out, hop, ret = transfers
+    assert (out.from_city, out.to_city) == ("上海", "北京")
+    assert out.mode == "flight" and out.flight_no == "MU1001"
+    # 北京→西安是中转腿：火车仍优先（G87 07:00 被 08:00 闸拦，G25 10:00 当选）
+    assert (hop.from_city, hop.to_city) == ("北京", "西安")
+    assert hop.mode == "train" and hop.train_no == "G25"
+    # 返程腿走晚间窗（15:00-21:00）的 17:00 航班
+    assert (ret.from_city, ret.to_city) == ("西安", "上海")
+    assert ret.mode == "flight" and ret.start_time == time(17, 0)
+
+
+def test_outbound_return_fall_back_to_train_with_assumption():
+    """航班源当日无班 → 去程/回程退回火车，并把降级写进 assumptions。"""
+    agent = PlanningAgent(
+        _NoLLM(), train_service=MockTrainService(), flight_service=EmptyFlights()
+    )
+    transfers, assumptions = asyncio.run(
+        agent._build_transfers(["上海", "杭州"], 2, {}, start_date="2026-11-10")
+    )
+    out, ret = transfers
+    # 08:00 闸（2026-11-03 拍板「火车 start time start from 8AM」）：
+    # G7351 07:15 出局，G7503 12:10 当选。
+    assert out.mode == "train" and out.train_no == "G7503"
+    assert ret.mode == "train" and ret.start_time == time(20, 0)  # 晚间窗 G7360
+    assert any("去程 上海→杭州" in a and "无航班" in a for a in assumptions)
+    assert any("返程 杭州→上海" in a and "无航班" in a for a in assumptions)
+
+
 def test_prefetch_warms_flight_legs_too():
     flights = RecordingFlights()
     agent = PlanningAgent(_NoLLM(), train_service=EmptyTrains(), flight_service=flights)

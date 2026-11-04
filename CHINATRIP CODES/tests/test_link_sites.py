@@ -456,11 +456,13 @@ def test_food_link_near_sights_no_ask_pinned_into_meal_window():
     assert food.category == "food"
     assert food.pinned
     assert food.start_time is not None
-    # 当天已有自动午餐餐厅时必吃落最闲的晚餐窗（_food_visit food_counts）
-    assert time(12, 0) <= food.start_time <= time(13, 30) or time(
+    # 当天已有自动午餐餐厅时必吃落最闲的晚餐窗（_food_visit food_counts）；
+    # 午餐开餐硬窗自 11:30 起（2026-11-03 拍板）
+    assert time(11, 30) <= food.start_time <= time(13, 30) or time(
         17, 30
     ) <= food.start_time <= time(19, 30)
-    assert food.duration_minutes == 60
+    # 2026-11-03 拍板：占午餐窗的必吃默认 1.5h；落晚餐窗仍是 1h
+    assert food.duration_minutes in (60, 90)
 
 
 def test_food_link_edit_round_far_defers_then_adds_on_accept():
@@ -683,6 +685,10 @@ def test_video_city_wins_over_multi_city_session():
                 },
                 ensure_ascii=False,
             ),
+            # 城市侧闸（2026-11-02）：第1天 09:35 离渝、末日 20:00 才回渝，
+            # 重庆必去全天无物理可排时段 → rule 4 硬校验拒绝 → 一轮修复
+            # （空 diff=认输半成品，必去以未排时间卡留在了重庆日）。
+            json.dumps({"reply": "", "diffs": []}),
         ],
         reader,
         trip_items,
@@ -716,7 +722,13 @@ def test_title_city_fallback_when_llm_omits_city():
     reader = StubReader(_cq_video_digest())
     trip_items = TripItemService()
     llm, agent = _ready_agent(
-        [_cq_v0_reply(), json.dumps({"sites": ["十八梯", "长江索道"]})],
+        [
+            _cq_v0_reply(),
+            json.dumps({"sites": ["十八梯", "长江索道"]}),
+            # 城市侧闸（2026-11-02）：同 test_video_city_wins…，必去硬校验
+            # 拒绝后的一轮修复认输 reply。
+            json.dumps({"reply": "", "diffs": []}),
+        ],
         reader,
         trip_items,
     )
@@ -745,6 +757,8 @@ def test_amap_city_overrides_wrong_extracted_city():
                 {"sites": [{"name": "十八梯", "kind": "sight", "city": "西安"}]},
                 ensure_ascii=False,
             ),
+            # 城市侧闸（2026-11-02）：同 test_video_city_wins…，修复轮认输。
+            json.dumps({"reply": "", "diffs": []}),
         ],
         reader,
         trip_items,
@@ -761,6 +775,36 @@ def test_amap_city_overrides_wrong_extracted_city():
     assert day.base_city == "重庆"
     wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
     assert wishlist["十八梯"]["city"] == "重庆"
+
+
+def test_off_trip_amap_truth_not_scheduled():
+    """异地真 POI 不进排期（2026-11-03 收口，北京钟楼镜像案）：amap 真城
+    不在行程城时，旧逻辑无条件覆写 city 且 city_days 为空 → 全程轮转把
+    异地点摊到别城的天。现口径=真城写回心愿单留档、不排期、披露。"""
+    reader = StubReader(_cq_video_digest())
+    trip_items = TripItemService()
+    amap = CityAmap({"十八梯": "兰州市"})  # amap truth: off-trip city
+    llm, agent = _ready_agent(
+        [
+            _cq_v0_reply(),
+            json.dumps(
+                {"sites": [{"name": "十八梯", "kind": "sight", "city": "西安"}]},
+                ensure_ascii=False,
+            ),
+            json.dumps({"reply": "", "diffs": []}),
+        ],
+        reader,
+        trip_items,
+        amap=amap,
+    )
+    session = _multi_city_session(agent)
+    session, _, _ = run(
+        agent.message(session, "看这个 https://www.douyin.com/video/7389002")
+    )
+    item, _ = _plan_visit(session, "十八梯")
+    assert item is None  # 兰州 POI 不出现在重庆/成都/西安的任何天
+    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    assert wishlist["十八梯"]["city"] == "兰州"  # 真城留档
 
 
 # --- variant-name dedupe (plan already holds the site) ---------------------

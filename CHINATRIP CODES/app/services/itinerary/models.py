@@ -19,6 +19,14 @@ CROWD_COEF_MAX = 1.2
 VALID_TOUR_RATIO_MIN = 0.55  # effective sightseeing time ratio >= 55%
 INTERCITY_BUFFER_MINUTES = 90  # iron rule 4: cross-city connection buffer
 
+# 落地首停规则（2026-11-01 用户拍板「行程里应该有 HOTEL」）：火车/飞机
+# 落地后默认先到酒店——入住卡摆在落地 +90 分钟（铁律 4 衔接缓冲=出站+
+# 去酒店，即「到达酒店」的默认估计），到店 1 小时后出发去当天首个行程；
+# 无酒店卡（用户删除/深夜放不下）时首个观光同样 ≥ 落地 +150（2.5h）。
+# solver CP/插入两条主路与 plan 兜底三处同口径。
+ARRIVAL_STOP_FLOOR_MINUTES = 150  # landing -> first attraction floor
+HOTEL_SETTLE_MINUTES = 60  # hotel arrival -> depart to next attraction
+
 
 class GeoPoint(BaseModel):
     lon: float
@@ -57,6 +65,12 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 系统钉（2026-10-31 午餐软钉拍板；2026-11-01 晚扩展「午饭/顺路
+    # 餐厅/晚饭不钉死」）：排程器自己摆的餐件标记——pinned 可为 False
+    # （非铁律 19：用户可拖/可改时/LLM 可挪），solver 仍以落位时刻为
+    # 软锚（普通日零漂移，弹性日 ±30/午餐可缩）；用户手钉（retime/
+    # move/pin 端点）恒 False，铁律 19 不受软钉影响。
+    soft_pin: bool = False
     # 0009 / 8.2.1：库候选携带的时段属性（morning/afternoon/evening/
     # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
     # None = 无信号（老数据/占位），按全天窗处理。
@@ -71,6 +85,11 @@ class VisitItem(BaseModel):
     # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
     # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
     rain_ok: str | None = None
+    # 候选源档（_source_tier 1=UNESCO..11=other，2026-11-03 名录序，
+    # plan.py 装配期透传）：边日轻重拍板（2026-11-03「重要景点不放在
+    # 到达/离开日」）靠它认重磅（≤4）与轻 CityWalk（8=街区）；
+    # None=占位/老数据按中档处理。
+    tier: int | None = None
 
 
 class TransferItem(BaseModel):
@@ -86,6 +105,7 @@ class TransferItem(BaseModel):
     end_time: time | None = None
     duration_minutes: int | None = None
     train_no: str | None = None  # TrainService static-lib hit, if any
+    flight_no: str | None = None  # FlightService hit (outbound/return legs)
 
 
 class DayPlan(BaseModel):

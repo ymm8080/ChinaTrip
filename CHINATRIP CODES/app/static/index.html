@@ -280,6 +280,16 @@
   .drag-handle:active{cursor:grabbing}
   .t-edit{background:none;border:none;padding:0;cursor:pointer;text-decoration:underline dotted}
   .t-edit input{font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 2px;background:#fff;max-width:96px}
+  /* ✏️ 换景点（2026-11-01）：条目名原地编辑 + 库内候选下拉 */
+  .visit-block{position:relative}
+  .rename-box{margin:2px 0 6px 56px}
+  .rename-in{width:min(70vw,320px);font:inherit;border:1px solid var(--muted);border-radius:6px;padding:4px 8px;background:var(--panel);color:var(--text)}
+  .rename-list{max-height:216px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:4px;background:var(--panel)}
+  .rename-item{padding:6px 8px;cursor:pointer;font-size:13px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .rename-item.on,.rename-item:hover{background:rgba(59,130,246,.16)}
+  .rename-item b{max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rename-item span{color:var(--muted)}
+  .rename-hint{padding:6px 8px;font-size:12px;color:var(--muted)}
   .sortable-ghost{opacity:.35;border-style:dashed}
   .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
   .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
@@ -1324,7 +1334,10 @@ function wxFor(city, force) {
   const key = city.replace(/市$/, "");
   if (force) delete WX.cache[key];
   if (!WX.cache[key]) {
-    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => null);
+    WX.cache[key] = api("/api/weather?city=" + encodeURIComponent(city), undefined, "GET").catch(() => {
+      delete WX.cache[key]; // 失败不缓存 null（2026-11-01）：一次网络抖动曾把该城天气钉死成整页空白直到刷新
+      return null;
+    });
   }
   return WX.cache[key];
 }
@@ -1371,6 +1384,16 @@ function wxFill(span, city, dateIso, force) {
       span.textContent = "  " + icon + " " + cast.day_temp + "°/" + cast.night_temp + "°C" +
         (fd != null && fn != null ? " · " + fd + "°/" + fn + "°F" : "") + nightChip;
       wxRainBar(span, cast);
+    } else if (dateIso <= todayBeijingIso() && w.live && w.live.weather) {
+      // 无预报的天（2026-11-01 用户报「第一天/最后一天没有天气」：行程从历史
+      // 日期开始时，两个预报源的 casts 都从今天起，历史首日天头永远空白）
+      // → 今天与历史日回落实况；未来日期不兜底（forecast14 覆盖 14 天，
+      // 更远的日期挂实况会误导）
+      const lv = w.live;
+      const tv = lv.temperature != null && lv.temperature !== "" ? lv.temperature : "--";
+      const lf = lv.temperature_f != null ? Number(lv.temperature_f) : c2f(lv.temperature);
+      span.textContent = "  " + wxIcon(lv.weather) + " " + tv + "°C" +
+        (lf != null ? " · " + lf + "°F" : "") + I18N.tf("flow.wx.live", "（实况）");
     }
   });
 }
@@ -1464,17 +1487,143 @@ function initPlanDrag(box, plan) {
   });
 }
 
+// ✏️ 换景点编辑器（2026-11-01 拍板：景点名可编辑，拿关键字去库里匹
+// 配）：条目名原地变输入框，下拉=/api/pois/search 库内检索（排除自身）；
+// 选中→/items/{id}/replace 原位换点；无匹配（或清空）回车→调 delete
+// 留空（当天只保留餐点/交通）；Esc/失焦=取消还原。系统餐位不亮编辑钮。
+function startRenameEditor(btn, box, plan, id) {
+  const blk = btn.closest(".visit-block");
+  if (!blk || blk.querySelector(".rename-box")) return;
+  const sid = planSession && planSession.session_id;
+  if (!sid) return;
+  const city = btn.getAttribute("data-city") || "";
+  const selfName = btn.getAttribute("data-name") || "";
+  const holder = el('<div class="rename-box"></div>');
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "rename-in";
+  input.maxLength = 64;
+  input.value = selfName;
+  const list = el('<div class="rename-list"></div>');
+  holder.appendChild(input);
+  holder.appendChild(list);
+  blk.appendChild(holder);
+  input.focus();
+  input.select();
+  const st = { items: [], hi: -1, loading: false, done: false, edited: false, seq: 0 };
+  const close = () => { if (!st.done) { st.done = true; box.replaceWith(planCard(plan)); } };
+  const drawHint = (t) => { list.textContent = ""; const d = el('<div class="rename-hint"></div>'); d.textContent = t; list.appendChild(d); };
+  const draw = () => {
+    list.textContent = "";
+    st.items.forEach((h, i) => {
+      const marks = [];
+      const tags = h.tags || [];
+      if (tags.indexOf("unesco") >= 0) marks.push(I18N.tf("card.rename.unesco", "🌍 世界遗产"));
+      else if (tags.indexOf("5a") >= 0 || tags.indexOf("intl") >= 0) marks.push(I18N.tf("card.rename.tier5", "🏛 5A/国际榜"));
+      else if (tags.indexOf("4a") >= 0) marks.push("4A");
+      if (h.category === "food") marks.push(I18N.tf("card.rename.food", "美食"));
+      else if (h.category === "entertainment") marks.push(I18N.tf("card.rename.show", "演出"));
+      if (!h.located) marks.push(I18N.tf("card.rename.noloc", "无坐标"));
+      const row = el('<div class="rename-item' + (i === st.hi ? " on" : "") + '" data-i="' + i + '"><b>' + esc(h.name) + "</b> <span>\u2b50" + (h.rating == null ? "—" : h.rating) + "</span> <span>" + esc(marks.join(" · ")) + "</span></div>");
+      row.addEventListener("mousedown", (ev) => { ev.preventDefault(); pick(i); });
+      list.appendChild(row);
+    });
+    if (!st.items.length) drawHint(I18N.tf("card.rename.noMatch", "库内无匹配——回车留空（当天只保留餐点）"));
+  };
+  const search = () => {
+    const q = input.value.trim();
+    st.seq += 1;
+    const my = st.seq;
+    if (!q) { st.items = []; st.hi = -1; st.loading = false; drawHint(I18N.tf("card.rename.ph", "输入关键字，从库内匹配替换")); return; }
+    st.loading = true;
+    drawHint(I18N.tf("card.rename.searching", "库内检索中…"));
+    api("/api/pois/search?q=" + encodeURIComponent(q) + "&city=" + encodeURIComponent(city), undefined, "GET")
+      .then(rows => {
+        if (st.done || my !== st.seq) return;
+        st.loading = false;
+        st.items = (rows || []).filter(r => r.name !== selfName).slice(0, 8);
+        st.hi = st.items.length ? 0 : -1;
+        draw();
+      })
+      .catch(() => { if (st.done || my !== st.seq) return; st.loading = false; st.items = []; st.hi = -1; draw(); });
+  };
+  let timer = null;
+  input.addEventListener("input", () => { st.edited = true; clearTimeout(timer); timer = setTimeout(search, 250); });
+  const pick = (i) => {
+    const h = st.items[i];
+    if (!h || st.done) return;
+    st.done = true;
+    input.disabled = true;
+    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/replace", { name: h.name }, "POST")
+      .then(body => {
+        box.replaceWith(planCard(body.plan));
+        toast(I18N.tf("card.rename.done", "已换成「") + h.name + I18N.tf("card.rename.doneSuf", "」"));
+      })
+      .catch(err => {
+        const d = err && err.detail;
+        if (d === "duplicate_in_plan") toast(I18N.tf("card.rename.dup", "行程里已有这一站"));
+        else if (d === "no_match") toast(I18N.tf("card.rename.noMatchErr", "库内没有这个点，换个关键字试试"));
+        else failToast(err);
+        box.replaceWith(planCard(plan));
+      });
+  };
+  const clearSlot = () => {
+    st.done = true;
+    input.disabled = true;
+    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/delete", undefined, "POST")
+      .then(body => {
+        box.replaceWith(planCard(body.plan));
+        toast(I18N.tf("card.rename.blanked", "已留空——当天只保留餐点"));
+      })
+      .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+  };
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { ev.preventDefault(); close(); return; }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      if (!st.items.length) return;
+      ev.preventDefault();
+      const n = st.items.length;
+      st.hi = (st.hi + (ev.key === "ArrowDown" ? 1 : n - 1)) % n;
+      draw();
+      return;
+    }
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      if (!st.edited && input.value.trim() === selfName) return; // 原样回车不动（防误触留空）
+      if (st.loading) return;
+      if (st.items.length) { pick(st.hi >= 0 ? st.hi : 0); return; }
+      clearSlot(); // 库内无匹配/已清空 → 留空（用户拍板：只显示午餐、晚餐）
+    }
+  });
+  input.addEventListener("blur", () => { setTimeout(() => close(), 180); });
+  drawHint(I18N.tf("card.rename.ph", "输入关键字，从库内匹配替换"));
+  search(); // 打开即列出当前点的同类候选（排除自身）
+}
+
+// 天头城市口径（2026-11-01）：base_city 是「醒来城」——首日=出发城（落地后才
+// 开始活动），含落地游玩的首日按醒来城显示城市/查天气，会把出发城的天气挂在
+// 落地城的行程头上（用户报「第一天行程安排在落地城市，没有天气情况」）。
+// 取当天非转场条目的实际所在城市（同城常态，取首个非空）；纯转场/空天回落
+// base_city，转场末日（条目在出发城+傍晚航班）行为不变
+function dayActivityCity(d) {
+  for (const it of (d && d.items) || []) {
+    if (!it.from_city && it.city) return it.city;
+  }
+  return "";
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
-    const dayHead = el('<div class="day-h">' + I18N.tf("card.day.pre","第") + d.day + I18N.tf("card.day.suf"," 天") + (dt ? I18N.tf("card.paren.pre","（") + dt + I18N.tf("card.paren.suf","）") : "") + " · " + esc(I18N.city(d.base_city)) +
-      '<span class="wx" data-wx-city="' + esc(d.base_city) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
+    const wxCity = dayActivityCity(d) || d.base_city; // 天头城市/天气按当天活动城；纯转场/空天回落醒来城
+    const dayHead = el('<div class="day-h">' + I18N.tf("card.day.pre","第") + d.day + I18N.tf("card.day.suf"," 天") + (dt ? I18N.tf("card.paren.pre","（") + dt + I18N.tf("card.paren.suf","）") : "") + " · " + esc(I18N.city(wxCity)) +
+      '<span class="wx" data-wx-city="' + esc(wxCity) + '" data-wx-date="' + esc(dt || "") + '"></span></div>');
     box.appendChild(dayHead);
     const wxSpan = dayHead.querySelector(".wx");
     wxSpan._day = d; // 8.1.4：当日行程挂到天气 span，雨天横幅据此生成/重绘
-    wxFill(wxSpan, d.base_city, dt);
+    wxFill(wxSpan, wxCity, dt);
     const dayItems = el('<div class="day-items" data-day="' + d.day + '"></div>');
     box.appendChild(dayItems);
     (d.items || []).forEach((it, idx) => {
@@ -1482,11 +1631,13 @@ function planCard(plan) {
         dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + "</span></div>"));
       } else { // VisitItem
         let tail = "";
-        if (planSession && planSession.session_id) { // 会话内：钉住/删除可点（数据端点见下方委托监听）
-          tail = ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
+        const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
+        if (planSession && planSession.session_id) { // 会话内：换点/钉住/删除可点（数据端点见下方委托监听）
+          tail = (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" title="' + I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空") + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+            ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标
-          tail = it.pinned ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
+          tail = (it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
         }
         const briefBits = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ""].filter(Boolean).join(" · ");
         const handle = (planSession && planSession.session_id && !it.pinned)
@@ -1495,8 +1646,8 @@ function planCard(plan) {
         const timeCell = (planSession && planSession.session_id)
           ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
-        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : I18N.t("card.hours_unknown")].filter(Boolean).join("");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : (it.category === "hotel" ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let legSeg = "";
@@ -1606,6 +1757,11 @@ function planCard(plan) {
       const id = btn.getAttribute("data-item-id");
       const action = btn.getAttribute("data-action");
       const sid = planSession.session_id;
+      if (action === "rename") {
+        // ✏️ 换景点：条目名原地变输入框（库内检索下拉，见 startRenameEditor）
+        startRenameEditor(btn, box, plan, id);
+        return;
+      }
       if (action === "retime") {
         // 时间戳原地换成原生 time 输入：change 提交、blur 还原（防双触发）
         if (btn.querySelector("input")) return;
@@ -1672,7 +1828,7 @@ async function bookDirect(name, city, url, isShow) {
 
 // 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
 // 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
-const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐" };
+const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐", star_5: "五星级饭店", star_4: "四星级饭店", star_3: "三星级饭店", star_2: "二星级饭店", star_1: "一星级饭店" };
 function briefTag(t) {
   const m = /^black_pearl_(\d+)diamond$/.exec(t || "");
   return m ? I18N.tf("brief.blackPearl","黑珍珠") + m[1] + I18N.tf("brief.diamond","钻") : (BRIEF_TAGS[t] || t);
@@ -1946,11 +2102,9 @@ window.addEventListener("i18n:change", planCityRender);
   for (let i = 1; i <= 3; i++) {
     if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
   }
-  // 产品规则 2026-10-19：开始日期默认今天（原默认为空）
-  const _now = new Date();
-  document.getElementById("planStartDate").value = _now.getFullYear() + "-" +
-    String(_now.getMonth() + 1).padStart(2, "0") + "-" +
-    String(_now.getDate()).padStart(2, "0");
+  // 产品规则 2026-11-03：开始日期默认下周一（2026-10-19 曾默认今天——当天出发来不及
+  // 订票/预约，下周一给足预订窗口；永不为当日，周一打开默认次周一）
+  document.getElementById("planStartDate").value = nextMondayBeijingIso();
   ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", planTotalRefresh));
   for (let i = 1; i <= 3; i++) {
     const sel = document.getElementById("planVia" + i); // 选项已由 planCityRender() 建好；旧 viaOpts 引用未定义，会让整段脚本加载即中断
@@ -1962,6 +2116,14 @@ window.addEventListener("i18n:change", planCityRender);
 function todayBeijingIso() {
   // 北京时间今天（口径同后端 _today_beijing）：东八区偏移后取 ISO 日期
   return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+}
+
+// 下周一（北京时间）——开始日期的默认值（2026-11-03 拍板）：
+// (8-周几)%7、周一得 0 归 7 → 恒为未来 1-7 天内的周一，绝不限当日
+function nextMondayBeijingIso() {
+  const d = new Date(Date.now() + 8 * 3600e3); // 东八区墙钟，口径同 todayBeijingIso
+  d.setUTCDate(d.getUTCDate() + (((8 - d.getUTCDay()) % 7) || 7));
+  return d.toISOString().slice(0, 10);
 }
 
 function planDateIso(n) {
@@ -3176,10 +3338,19 @@ async function itinEdit(r, btn) {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
       // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准。
-      // 旧行程没存过出发日期 → 缺省今天（北京时间），打开即有日期+天气；
-      // 保存时随 /plan/{id}/save 的 start_date 落库自愈
-      PLAN.startDate = (body.plan && body.plan.start_date) || todayBeijingIso();
+      // 旧行程没存过出发日期 → 缺省下周一（2026-11-03 起与表单默认同口径），打开即有
+      // 未来日期+预报；保存时随 /plan/{id}/save 的 start_date 落库自愈
+      PLAN.startDate = (body.plan && body.plan.start_date) || nextMondayBeijingIso();
       document.getElementById("bookStartDate").value = PLAN.startDate;
+      // 参数表单同步当前行程（2026-11-01 修复「明明选了西安，参数摘要却显示 上海→杭州·共1天」）：
+      // auto-open/✏️修改 载入行程后表单从未预填，一直停在出厂默认（起始上海/结束杭州/共1天）——
+      // 摘要行跟着显示错路线；✏️ 展开表单再点「🚀 开始规划」更会按默认杭州路线真开一局。
+      // 与「重新规划」按钮同源反推预填（逐日 base_city 计数，转场日计入到达城；城市不在
+      // 40 城下拉则跳过不动，但摘要不再默认指向杭州）。预填在 planSetSession 之前，
+      // 让摘要行打开即显示真实路线。
+      const itinPerCity = {};
+      ((body.plan && body.plan.days) || []).forEach(d => { if (d.base_city) itinPerCity[d.base_city] = (itinPerCity[d.base_city] || 0) + 1; });
+      planFormPrefill({ cities: (body.plan && body.plan.cities) || r.cities || [], cityDays: itinPerCity, startDate: PLAN.startDate || "", prefs: null });
       // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
       planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");
@@ -3250,7 +3421,7 @@ function itinImportPreviewModal(r) {
           bus: I18N.tf("itin.impMode.bus", "大巴")
         }[it.mode] || it.mode;
         return '<div style="margin:2px 0">🚄 ' + t + esc(it.from_city) + " → " + esc(it.to_city) +
-          I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no ? " " + esc(it.train_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
+          I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no || it.flight_no ? " " + esc(it.train_no || it.flight_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
       }
       return '<div style="margin:2px 0">• ' + t + esc(it.name) +
         (it.city && it.city !== d.base_city ? I18N.tf("itin.parenPre", "（") + esc(I18N.city(it.city)) + I18N.tf("itin.parenSuf", "）") : "") + "</div>";
@@ -3413,7 +3584,7 @@ async function shareOpen(token) {
       const t = (it.start_time || "").slice(0, 5);
       if (it.kind === "transfer") {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
-          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
+          esc(modeLabel(it.mode)) + " " + esc(it.train_no || it.flight_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
           (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + I18N.tf("card.minutes", " 分钟") : "") + "</span></div>"));
       } else {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +
@@ -3839,6 +4010,8 @@ function bkShowCard(s, city, kind) {
   head.appendChild(el('<b style="font-size:14px">' + esc(I18N.pick(s, "name", "name_en")) + "</b>"));
   head.appendChild(el('<span class="badge ' + (s.has_direct ? "ok" : "") + '">' + (s.has_direct ? I18N.tf("bk.showDirect", "直达票页") : I18N.tf("bk.showSearch", "渠道搜索")) + "</span>"));
   tile.appendChild(head);
+  const hrs = I18N.pick(s, "opening_hours", "opening_hours_en");
+  if (hrs) tile.appendChild(el('<div class="muted" style="margin:4px 0">🕐 ' + esc(hrs) + "</div>"));
   if (s.note) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + esc(s.note) + "</div>"));
   tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(showRefundSummary(kind)) + "</div>"));
   const btn = el('<button class="btn mini ghost"></button>');
@@ -4689,7 +4862,7 @@ wxSync();
 
 /* ================= Tab：通话咨询（DESIGN paid_call_service_2026-10-25） ================= */
 
-const CALL = { cfg: null, balance: 0, minutes: 0, sessionId: null, pollT: null };
+const CALL = { cfg: null, balance: 0, minutes: 0, sessionId: null, pollT: null, recovered: false };
 
 function callT(k, fb) { try { const v = I18N.t(k); return v === k ? fb : v; } catch (e) { return fb; } }
 
@@ -4707,7 +4880,8 @@ async function callRefresh() {
     CALL.cfg = pk; CALL.balance = bal.minutes;
     if (!CALL.minutes) CALL.minutes = 0;
     callRender();
-    document.getElementById("callRefundText").textContent = "";
+    // 铁律 23：退款摘要随套餐目录下发，购买前必须可见
+    document.getElementById("callRefundText").textContent = pk.refund_summary || "";
   } catch (e) { failToast(e); }
 }
 
@@ -4845,6 +5019,19 @@ async function callLoadRecords() {
   box.innerHTML = "";
   document.getElementById("callBalance").textContent =
     "💰 " + rec.balance + callT("call.unit.min", " 分钟");
+  // 刷新恢复：页面重载丢掉轮询时，接回仍未结束的会话（waiting/active）
+  if (!CALL.recovered) {
+    CALL.recovered = true;
+    const live = rec.sessions.find(s => s.status === "waiting" || s.status === "active");
+    if (live && !CALL.sessionId) {
+      CALL.sessionId = live.session_id;
+      document.getElementById("callOverlay").style.display = "flex";
+      document.getElementById("btnCallEnd").style.display = "";
+      document.getElementById("btnCallClose").style.display = "none";
+      callRenderView(live);
+      CALL.pollT = setInterval(callPoll, 3000);
+    }
+  }
   if (!rec.sessions.length) {
     box.appendChild(el('<div class="muted">' + callT("call.records.empty", "还没有通话记录") + "</div>"));
     return;

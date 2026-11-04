@@ -1,0 +1,493 @@
+{
+  "run_at": "2026-11-03T22:00:14",
+  "applied": false,
+  "section1_selftag": [],
+  "section2": {
+    "2a_created": [],
+    "2a_skip_exist": [
+      {
+        "name": "淮安市周恩来故里景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_342"
+      },
+      {
+        "name": "广安市邓小平故里旅游区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_343"
+      },
+      {
+        "name": "南充市朱德故里景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_344"
+      },
+      {
+        "name": "中山市孙中山故里旅游区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_345"
+      },
+      {
+        "name": "延安市延安革命纪念地景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_346"
+      },
+      {
+        "name": "黔西南州万峰林景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_347"
+      },
+      {
+        "name": "阿克苏地区天山托木尔景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_348"
+      },
+      {
+        "name": "百色市百色起义纪念园景区",
+        "reason": "active 5a 行已在册",
+        "pid": "5a_5a_349"
+      },
+      {
+        "name": "广州长隆",
+        "expect_pid": "5a_211",
+        "found": true,
+        "reason": "5a_211 番禺区长隆旅游度假区 在册（同馆旧名），段1 已并标",
+        "row": {
+          "pid": "5a_5a_211",
+          "name_zh": "番禺区长隆旅游度假区",
+          "city": "广州",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "name": "五大连池",
+        "expect_pid": "5a_057",
+        "found": true,
+        "reason": "5a_057 五大连池景区 在册，段1 已并标",
+        "row": {
+          "pid": "5a_5a_057",
+          "name_zh": "五大连池景区",
+          "city": "五大连池",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "name": "镇江金山·焦山·北固山",
+        "expect_pid": "5a_079",
+        "found": true,
+        "reason": "5a_079 三山风景名胜区 在册（金山·焦山·北固山 2012 旧名），段1 已并标；官方新名是否改名留拍板",
+        "row": {
+          "pid": "5a_5a_079",
+          "name_zh": "三山风景名胜区",
+          "city": "镇江",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      }
+    ],
+    "2b_tagged": [
+      {
+        "why": "故宫博物院（museum1 主行）",
+        "already": true,
+        "before": {
+          "pid": "museum1_m1_885978e4c8a2",
+          "name_zh": "故宫博物院",
+          "city": "北京",
+          "status": "active",
+          "tags": [
+            "5a",
+            "ta",
+            "lp",
+            "intl",
+            "sygic",
+            "klook",
+            "mindtrip",
+            "国家一级博物馆"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "东方明珠（amap 主行）",
+        "already": true,
+        "before": {
+          "pid": "amap_ct_上海_1",
+          "name_zh": "东方明珠",
+          "city": "上海",
+          "status": "active",
+          "tags": [
+            "5a",
+            "intl"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "喀什古城（street 行 st_cf80df9bbf9b）",
+        "already": true,
+        "before": {
+          "pid": "street_st_cf80df9bbf9b",
+          "name_zh": "新疆维吾尔自治区喀什地区喀什市喀什古城印象一条街-九龙泉特色商业街区",
+          "city": "喀什",
+          "status": "active",
+          "tags": [
+            "5a",
+            "国家级旅游休闲街区"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "北京奥林匹克公园（baidu/amap 主行中取 amap——回填铁律序 amap 在列、baidu 不在）",
+        "already": true,
+        "before": {
+          "pid": "amap_ct_北京_12",
+          "name_zh": "奥林匹克公园",
+          "city": "北京",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      }
+    ],
+    "2b_redirect": [
+      {
+        "core": "千岛湖",
+        "expect_pid": "5a_096",
+        "found": true,
+        "reason": "千岛湖非「有行无档」——5a_096 淳安县千岛湖风景区即 source='5a' 主行，段1 已并入 \"5a\"",
+        "row": {
+          "pid": "5a_5a_096",
+          "name_zh": "淳安县千岛湖风景区",
+          "city": "杭州",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      }
+    ],
+    "2c_tagged": [
+      {
+        "why": "老牛湾黄河大峡谷旅游区——5A 名录 2024 条目为呼和浩特市老牛湾黄河大峡谷旅游区（4a_1360 偏关县/忻州是山西侧另一名录行，不打）",
+        "already": true,
+        "before": {
+          "pid": "4a_4a_0335",
+          "name_zh": "老牛湾黄河大峡谷旅游区",
+          "city": "呼和浩特",
+          "status": "active",
+          "tags": [
+            "5a",
+            "4a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "扎龙生态旅游区——名录全名齐齐哈尔市扎龙生态旅游区",
+        "already": true,
+        "before": {
+          "pid": "4a_4a_4665",
+          "name_zh": "扎龙生态旅游区",
+          "city": "齐齐哈尔",
+          "status": "active",
+          "tags": [
+            "5a",
+            "4a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "新乡市宝泉旅游度假区——名录全名新乡市宝泉旅游区",
+        "already": true,
+        "before": {
+          "pid": "4a_4a_2711",
+          "name_zh": "新乡市宝泉旅游度假区",
+          "city": "新乡",
+          "status": "active",
+          "tags": [
+            "5a",
+            "4a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "六盘山国家森林公园——名录全名固原市六盘山红军长征旅游区",
+        "already": true,
+        "before": {
+          "pid": "4a_4a_0968",
+          "name_zh": "六盘山国家森林公园",
+          "city": "固原",
+          "status": "active",
+          "tags": [
+            "5a",
+            "4a"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "why": "武汉东湖风景名胜区——名录全名武汉市东湖生态旅游风景区",
+        "already": true,
+        "before": {
+          "pid": "scenic_scenic_0131",
+          "name_zh": "武汉东湖风景名胜区",
+          "city": "武汉",
+          "status": "active",
+          "tags": [
+            "5a"
+          ],
+          "tags_source": "mct"
+        }
+      }
+    ]
+  },
+  "section3": {
+    "3a_renamed": [
+      {
+        "spid": "unesco_Q308805",
+        "already": true,
+        "name_zh": "云冈石窟"
+      },
+      {
+        "spid": "unesco_Q15660376",
+        "already": true,
+        "name_zh": "杭州西湖文化景观"
+      },
+      {
+        "spid": "unesco_Q1286650",
+        "already": true,
+        "name_zh": "中国丹霞"
+      },
+      {
+        "spid": "unesco_Q2601433",
+        "already": true,
+        "name_zh": "澳门历史城区"
+      },
+      {
+        "spid": "unesco_Q15904183",
+        "already": true,
+        "name_zh": "良渚古城遗址"
+      },
+      {
+        "spid": "unesco_Q4920250",
+        "already": true,
+        "name_zh": "明清故宫（北京故宫、沈阳故宫）"
+      }
+    ],
+    "3b_renamed": [
+      {
+        "spid": "unesco_Q4047",
+        "already": true,
+        "name_zh": "庐山国家公园"
+      },
+      {
+        "spid": "unesco_Q499552",
+        "already": true,
+        "name_zh": "周口店北京人遗址"
+      }
+    ],
+    "3a_report_only": [
+      "unesco_Q1106554 聖母聖誕主教座堂",
+      "unesco_Q2149114 媽閣廟",
+      "unesco_Q2200748 三街會館",
+      "unesco_Q3181816 民政總署大樓",
+      "unesco_Q3182054 伯多祿五世劇院",
+      "unesco_Q3271236 聖老楞佐堂",
+      "unesco_Q3313058 東望洋燈塔",
+      "unesco_Q3320500 何東圖書館",
+      "unesco_Q3504601 基督教墳場",
+      "unesco_Q4130614 玫瑰聖母堂",
+      "unesco_Q4310094 仁慈堂大樓",
+      "unesco_Q4570262 東方基金會會址",
+      "unesco_Q4579079 聖若瑟修院及聖堂",
+      "unesco_Q4587786 聖奧斯定教堂",
+      "unesco_Q46074 馬禮遜教堂",
+      "unesco_Q6730067 聖母雪地殿教堂",
+      "unesco_Q6730196 聖安多尼教堂 (澳門)",
+      "unesco_Q837935 議事亭前地",
+      "unesco_Q838085 大炮台",
+      "unesco_Q137838681 角抵塚（高句丽组件墓）"
+    ],
+    "3c_tagged": [],
+    "3c_already": [
+      {
+        "pid": "amap_ct_苏州_6",
+        "name_zh": "留园",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_12",
+        "name_zh": "网师园",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_4",
+        "name_zh": "狮子林",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_13",
+        "name_zh": "沧浪亭",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_71",
+        "name_zh": "环秀山庄",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_36",
+        "name_zh": "艺圃",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_17",
+        "name_zh": "耦园",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_68",
+        "name_zh": "退思园",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "amap_ct_苏州_5",
+        "name_zh": "虎丘山风景名胜区",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "unesco",
+          "intl"
+        ],
+        "tags_source": "mct"
+      },
+      {
+        "pid": "unesco_unesco_Q1076650",
+        "name_zh": "拙政园",
+        "city": "苏州",
+        "status": "active",
+        "tags": [
+          "intl",
+          "unesco"
+        ],
+        "tags_source": "datasource_csv"
+      }
+    ],
+    "3d_kept_duplicate": [
+      {
+        "spid": "5a_067",
+        "kept": true,
+        "row": {
+          "pid": "5a_5a_067",
+          "name_zh": "苏州园林",
+          "city": "苏州",
+          "status": "duplicate",
+          "tags": [],
+          "tags_source": null
+        }
+      },
+      {
+        "spid": "5a_117",
+        "kept": true,
+        "row": {
+          "pid": "5a_5a_117",
+          "name_zh": "皖南古村落西递宏村",
+          "city": "黄山",
+          "status": "duplicate",
+          "tags": [],
+          "tags_source": null
+        }
+      }
+    ],
+    "3d_tagged": [
+      {
+        "spid": "histvillage_0197",
+        "already": true,
+        "before": {
+          "pid": "histvillage_histvillage_0197",
+          "name_zh": "西递村",
+          "city": "黄山",
+          "status": "active",
+          "tags": [
+            "5a",
+            "histvillage"
+          ],
+          "tags_source": "mct"
+        }
+      },
+      {
+        "spid": "histvillage_0198",
+        "already": true,
+        "before": {
+          "pid": "histvillage_histvillage_0198",
+          "name_zh": "宏村",
+          "city": "黄山",
+          "status": "active",
+          "tags": [
+            "5a",
+            "histvillage"
+          ],
+          "tags_source": "mct"
+        }
+      }
+    ]
+  },
+  "verification": {
+    "skipped": "dry-run"
+  }
+}

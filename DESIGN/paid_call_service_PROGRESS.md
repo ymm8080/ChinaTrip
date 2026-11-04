@@ -121,3 +121,4 @@ H5 新增「📞 咨询」付费服务：旅客预购通话分钟（$1=5 分钟�
 - 2026-10-25 11:10 续跑 automation 第 3 轮：T5 完成（三测试文件 20 例；并行会话的 backfill_en_columns 3 败已由其修复，5 passed 复核）。**全量门槛：1146 passed 全绿 + 覆盖率 81.32% ≥ 75% + ruff 全树干净**。
 - 2026-10-25 11:26 续跑 automation 第 4 轮：T6 完成（H5 tab-call 全套 + 覆盖层 + 记录卡 + i18n 30 键；顺手机械修复并行会话写坏的 index.html 引号笔误）；T7 完成（agent.html 坐席台 + sw v27）。node --check 全部脚本块 OK，DOM/i18n 校验过，24 相关测试过。本轮配额用尽，下轮 T8→T9。
 - 2026-10-25 11:40 续跑 automation 第 5 轮（收口轮）：T8 完成（设计转正 + INDEX 登记）；T9 完成（dev_watch restart 载入新代码；真实 HTTP E2E 12/12；全量 1148 passed + 81.39% 覆盖率 + ruff 干净）。**全部 T0a-T9 勾完 → 续跑 automation 自删（CronDelete）→ ALL COMPLETE。**
+- 2026-10-25 11:55 收口后实机浏览器验证（用户要求「go on」）：真实浏览器双端全流程通过；发现并修复 4 个缺陷——①退款摘要未渲染（铁律 23）②中文坐席名致坐席台不可用（ISO-8859-1 头）③刷新产生孤儿 waiting 会话分钟卡死 ④坐席台计时 NaN:NaN。均补回归测试（call 三件套现 23 passed），实机复验通过。验证手册：`DESIGN/Testing/paid_call_testing_2026-10-25.md`（MD+PDF，验收表已回填）。

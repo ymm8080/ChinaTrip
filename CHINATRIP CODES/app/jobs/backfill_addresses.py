@@ -90,8 +90,15 @@ def select_rows(limit: int) -> list[dict]:
             or_(Poi.status.is_(None), Poi.status == "active"),
             Poi.city.in_(cities),
         )
-        for mark in _FOOD_MARKS:
-            q = q.filter(~Poi.category.ilike(f"%{mark}%"))
+        # 非餐饮:NOT ILIKE 遇 category NULL 求值 NULL 会把无类别骨架行
+        # 整批误排除(2026-10-30 backfill_locations 同款修正;2026-11-01 对齐
+        # 本作业——guobao8/4a/intl 210 行 NULL 分类被拦,门址补不进)。
+        q = q.filter(
+            or_(
+                Poi.category.is_(None),
+                *[~Poi.category.ilike(f"%{mark}%") for mark in _FOOD_MARKS],
+            )
+        )
         rows = [
             {
                 "poi_id": r[0],

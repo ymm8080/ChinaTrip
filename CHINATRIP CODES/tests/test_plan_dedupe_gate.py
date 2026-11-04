@@ -413,3 +413,519 @@ def test_dedupe_plan_keeps_far_apart_same_name_pair():
     names = _visit_names(plan)
     assert "青城山" in names and "青城山skydive跳伞基地" in names
     assert "青城山skydive跳伞基地" not in dropped
+
+
+# --- 2026-10-31 大足双卡案：同内容配套场馆（博物馆/影院/园区） ---------------
+
+
+def test_content_dup_merges_dazu_museum_cinema_scenic():
+    """实景（it-02287fad / it-c20cc5b5）：大足石刻博物馆 13:30 + 大足石刻
+    数字影院 15:00 背靠背，9 天版再加大足区大足石刻景区跨天第三卡——
+    三者剥设施词后核心词同为「大足石刻」（博物馆/影院距 ~1.4km、园区
+    与博物馆同坐标），同内容只算一站。"""
+    from app.services.agent.plan import _content_dup, _same_visit
+    from app.services.itinerary import GeoPoint
+
+    assert _content_dup("大足石刻博物馆", "大足石刻数字影院") is True
+    assert _content_dup("大足石刻博物馆", "大足区大足石刻景区") is True
+    assert _content_dup("大足石刻数字影院", "大足区大足石刻景区") is True
+
+    museum = _visit(
+        "v1",
+        "大足石刻博物馆",
+        city="重庆",
+        poi_id="ct_重庆_133",
+        location=GeoPoint(lon=105.79484, lat=29.74688),
+    )
+    cinema = _visit(
+        "v2",
+        "大足石刻数字影院",
+        city="重庆",
+        poi_id="ct_重庆_301",
+        location=GeoPoint(lon=105.78017, lat=29.74961),
+    )
+    scenic = _visit(
+        "v3",
+        "大足区大足石刻景区",
+        city="重庆",
+        poi_id="5a_243",
+        location=GeoPoint(lon=105.79484, lat=29.74688),
+    )
+    assert _same_visit(museum, cinema) is True  # ~1.4km：同园区配套
+    assert _same_visit(scenic, museum) is True  # 同坐标
+
+
+def test_dedupe_plan_keeps_single_dazu_card():
+    """端到端：day2 博物馆+影院背靠背、day3 园区卡 → 全程只留一张大足卡，
+    假设区「已合并重复站点」留痕。"""
+    from app.services.itinerary import GeoPoint
+
+    plan = ItineraryPlan(
+        itinerary_id="it-dazu",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=2,
+                base_city="重庆",
+                items=[
+                    _visit(
+                        "v1",
+                        "大足石刻博物馆",
+                        city="重庆",
+                        poi_id="ct_重庆_133",
+                        location=GeoPoint(lon=105.79484, lat=29.74688),
+                    ),
+                    _visit(
+                        "v2",
+                        "大足石刻数字影院",
+                        city="重庆",
+                        poi_id="ct_重庆_301",
+                        location=GeoPoint(lon=105.78017, lat=29.74961),
+                    ),
+                ],
+            ),
+            DayPlan(
+                day=3,
+                base_city="重庆",
+                items=[
+                    _visit(
+                        "v3",
+                        "大足区大足石刻景区",
+                        city="重庆",
+                        poi_id="5a_243",
+                        location=GeoPoint(lon=105.79484, lat=29.74688),
+                    )
+                ],
+            ),
+        ],
+    )
+    dropped = dedupe_plan_visits(plan)
+    names = _visit_names(plan)
+    assert sum(1 for n in names if "大足" in n) == 1
+    assert names[0] == "大足石刻博物馆"  # 同 rank 保序：第一张胜出
+    assert set(dropped) == {"大足石刻数字影院", "大足区大足石刻景区"}
+    assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
+def test_content_dup_far_apart_same_core_not_merged():
+    """地理闸：核心词相同但相距 >30km（内容通道闸）的两个同名异地
+    分馆不并；~35km 实测距离落在闸外。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary import GeoPoint
+
+    a = _visit("v1", "大足石刻博物馆", location=GeoPoint(lon=105.79, lat=29.74))
+    b = _visit(
+        "v2",
+        "大足石刻数字影院",
+        location=GeoPoint(lon=106.10, lat=29.90),  # ~35km 外
+    )
+    assert _same_visit(a, b) is False
+
+
+def test_content_dup_single_side_and_guards():
+    """单侧剥过即可（伞名行 vs 配套行，2026-10-31 拍板放宽）；双侧
+    裸名/无设施词的组合交给 containment；2 字核心词剥不动。"""
+    from app.services.agent.plan import _content_core, _content_dup
+
+    assert _content_dup("大足石刻", "大足石刻数字影院") is True  # 伞名 vs 配套
+    assert _content_dup("大足石刻", "大足石刻博物馆") is True
+    assert _content_dup("青城山", "青城山skydive跳伞基地") is False  # 双侧无设施词
+    assert _content_dup("大足石刻", "都江堰水利工程") is False
+    assert _content_core("苏州博物馆") == ("苏州博物馆", False)
+    assert _content_core("大足石刻博物馆") == ("大足石刻", True)
+    assert _content_core("大足区大足石刻景区") == ("大足石刻", True)
+    assert _content_core("大足石刻数字影院") == ("大足石刻", True)
+
+
+def test_same_visit_content_channel_uses_wide_gate():
+    """跨集群同内容按 30km 闸合并（宝顶影院 vs 北山研究院伞名行
+    ~8km，同一遗产两个摩崖集群）；>30km 仍不并。"""
+    from app.services.agent.plan import _same_visit
+    from app.services.itinerary import GeoPoint
+
+    cinema = _visit(
+        "v1",
+        "大足石刻数字影院",
+        location=GeoPoint(lon=105.78017, lat=29.74961),  # 宝顶
+    )
+    beishan = _visit(
+        "v2",
+        "大足石刻",
+        location=GeoPoint(lon=105.71286, lat=29.70399),  # 北山研究院 ~8km
+    )
+    assert _same_visit(cinema, beishan) is True
+
+    far = _visit(
+        "v3",
+        "大足石刻",
+        location=GeoPoint(lon=106.50, lat=29.70),  # ~68km 外
+    )
+    assert _same_visit(cinema, far) is False
+
+
+# --- 2026-10-31 碑林拍板：博物馆本体优先于伞形景区挂牌行 ---------------------
+
+
+def test_museum_twin_replaces_umbrella_scenic():
+    """「城墙·碑林历史文化景区」（5A 伞形挂牌）先入列、「西安碑林博物馆」
+    后来 → 同站判定命中（词素 + ≤2km），博物馆替换胜出。"""
+
+    from app.services.agent.plan import _dedupe_visit_keepers
+    from app.services.itinerary.models import GeoPoint
+
+    wall = _visit(
+        "v1",
+        "城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        location=GeoPoint(lon=108.9405, lat=34.2569),
+    )
+    museum = _visit(
+        "v2",
+        "西安碑林博物馆",
+        poi_id="amap_1",
+        category="museum",
+        location=GeoPoint(lon=108.9402, lat=34.2544),
+    )
+    keepers, dropped = _dedupe_visit_keepers([wall, museum])
+    assert [k.name for k in keepers] == ["西安碑林博物馆"]
+    assert dropped == ["城墙·碑林历史文化景区"]
+
+
+def test_pinned_scenic_defends_against_museum_twin():
+    """用户确认过（pinned）的景区卡不让位——博物馆层排在 pinned 之后。"""
+    from datetime import time
+
+    from app.services.agent.plan import _dedupe_visit_keepers
+    from app.services.itinerary.models import GeoPoint
+
+    wall = _visit(
+        "v1",
+        "城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        pinned=True,
+        start_time=time(9, 0),
+        location=GeoPoint(lon=108.9405, lat=34.2569),
+    )
+    museum = _visit(
+        "v2",
+        "西安碑林博物馆",
+        poi_id="amap_1",
+        category="museum",
+        location=GeoPoint(lon=108.9402, lat=34.2544),
+    )
+    keepers, _dropped = _dedupe_visit_keepers([wall, museum])
+    assert [k.name for k in keepers] == ["城墙·碑林历史文化景区"]
+
+
+def test_museum_shadow_pairs_and_far_twin():
+    """候选层让位对：同站景区让位博物馆；异地（>2km）同名不并。"""
+    from app.services.agent.plan import _museum_shadow_pairs
+
+    near = [
+        (
+            0,
+            {
+                "name": "城墙·碑林历史文化景区",
+                "category": "attraction",
+                "location": {"lon": 108.9405, "lat": 34.2569},
+            },
+        ),
+        (
+            1,
+            {
+                "name": "兵马俑",
+                "category": "attraction",
+                "location": {"lon": 109.28, "lat": 34.38},
+            },
+        ),
+        (
+            2,
+            {
+                "name": "西安碑林博物馆",
+                "category": "museum",
+                "location": {"lon": 108.9402, "lat": 34.2544},
+            },
+        ),
+    ]
+    assert _museum_shadow_pairs(near) == [("城墙·碑林历史文化景区", "西安碑林博物馆")]
+    far = [
+        (0, near[0][1]),
+        (
+            2,
+            {
+                "name": "西安碑林博物馆",
+                "category": "museum",
+                "location": {"lon": 109.02, "lat": 34.28},
+            },
+        ),
+    ]
+    assert _museum_shadow_pairs(far) == []
+
+
+# --- 2026-11-01 秦陵三行案：同馆配列桶（骊山园/遗址公园/兵马俑馆一票同站） ---
+
+
+def test_heritage_dup_merges_qin_mausoleum_family():
+    """秦始皇陵 ↔ 秦始皇兵马俑博物馆：互不包含、剥尾核心词不等（秦始皇陵
+
+    vs 秦始皇兵马俑），containment/同内容/演出三通道全漏——同馆桶收拢。"""
+
+    from app.services.agent.plan import _name_dup, _same_visit
+    from app.services.itinerary import GeoPoint
+
+    a = _visit("v1", "秦始皇陵", location=GeoPoint(lon=109.2589, lat=34.3803))
+
+    b = _visit("v2", "秦始皇兵马俑博物馆", location=GeoPoint(lon=109.2820, lat=34.3862))
+
+    assert _name_dup("秦始皇陵", "秦始皇兵马俑博物馆") is True
+
+    assert _name_dup("兵马俑", "秦始皇陵国家考古遗址公园") is True
+
+    assert _same_visit(a, b) is True  # ~3km：同馆 30km 闸内
+
+    # 反例：别的博物馆/景点不进桶
+
+    assert _name_dup("西安碑林博物馆", "秦始皇陵") is False
+
+    assert _name_dup("西安城墙", "秦始皇兵马俑博物馆") is False
+
+
+def test_dedupe_plan_keeps_single_qin_card():
+    """端到端：D1 秦始皇陵 + D4 兵马俑（2026-11-01 用户事故形状）→ 全程
+
+    只留一张秦陵卡，博物馆卡胜出（keep-rank 博物馆层），假设区留痕。"""
+
+    from app.services.itinerary import GeoPoint
+
+    plan = ItineraryPlan(
+        itinerary_id="it-qin",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v1",
+                        "秦始皇陵",
+                        city="西安",
+                        poi_id="unesco_Q910180",
+                        location=GeoPoint(lon=109.2589, lat=34.3803),
+                    )
+                ],
+            ),
+            DayPlan(
+                day=4,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v2",
+                        "秦始皇兵马俑博物馆",
+                        city="西安",
+                        poi_id="5a_296",
+                        location=GeoPoint(lon=109.2820, lat=34.3862),
+                    )
+                ],
+            ),
+        ],
+    )
+
+    dropped = dedupe_plan_visits(plan)
+
+    names = _visit_names(plan)
+
+    assert names == ["秦始皇兵马俑博物馆"]  # 博物馆层胜出
+
+    assert set(dropped) == {"秦始皇陵"}
+
+    assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
+def test_dedupe_keeps_museum_yuan_official_name_card():
+    """2026-11-04 秦陵显示名事故：5a 行 2026-11-03 改官方名「秦始皇帝陵
+    博物院」（category=attraction，尾词「博物院」不在旧博物馆尾词表），
+    unesco「秦始皇陵」（骊山园封土堆坐标）先进行程，组装层 keep-rank
+    平手先到先得 → 行程显示封土堆侧、兵马俑坑正主被丢。修法：博物馆尾
+    词补「博物院」。兵马俑博物院（坑区坐标）胜出，骊山园行被丢留痕。"""
+
+    from app.services.agent.plan import _museum_card
+    from app.services.itinerary import GeoPoint
+
+    museum_yuan = _visit(
+        "v2",
+        "秦始皇帝陵博物院",
+        city="西安",
+        poi_id="5a_296",
+        location=GeoPoint(lon=109.2820, lat=34.3862),
+    )
+    assert _museum_card(museum_yuan) is True
+
+    plan = ItineraryPlan(
+        itinerary_id="it-qin-rename",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _visit(
+                        "v1",
+                        "秦始皇陵",
+                        city="西安",
+                        poi_id="unesco_Q910180",
+                        location=GeoPoint(lon=109.2589, lat=34.3803),
+                    )
+                ],
+            ),
+            DayPlan(
+                day=4,
+                base_city="西安",
+                items=[museum_yuan],
+            ),
+        ],
+    )
+
+    dropped = dedupe_plan_visits(plan)
+
+    assert _visit_names(plan) == ["秦始皇帝陵博物院"]  # 坑区正主胜出
+    assert set(dropped) == {"秦始皇陵"}
+    assert any("已合并重复站点" in a for a in plan.assumptions)
+
+
+# --- 2026-11-01 秦陵双卡案：回填守卫全量同站判定 ------------------------------
+
+
+def test_dup_blocks_item_full_name_dup_guard():
+    """_dup_blocks_item（晨间保底/借调回填/干日回填共用守卫）：poi_id 相等、
+    同馆桶（互不包含=事故根因）、包含通道都拦；同名异地 >30km 不拦
+    （geo 闸）；无关联不拦。"""
+    from app.services.agent.plan import _dup_blocks_item
+    from app.services.itinerary import GeoPoint
+
+    relic_park = _visit(
+        "v1",
+        "秦始皇陵国家考古遗址公园",
+        poi_id="relicpark_0054",
+        location=GeoPoint(lon=109.256, lat=34.380),
+    )
+    bmy_cand = {
+        "name": "秦始皇兵马俑博物馆",
+        "source_poi_id": "5a_296",
+        "location": {"lon": 109.282, "lat": 34.386},
+    }
+    # 同馆桶：互不包含也拦（旧 _same_site 守卫拦不住=双卡事故根因）
+    assert _dup_blocks_item(bmy_cand, relic_park) is True
+    # poi_id 相等直接拦（名字无关）
+    same_pid = {"name": "别名行", "source_poi_id": "relicpark_0054"}
+    assert _dup_blocks_item(same_pid, relic_park) is True
+    # 包含通道照旧生效
+    contain_cand = {"name": "城墙·碑林历史文化景区", "source_poi_id": "5a_304"}
+    assert _dup_blocks_item(contain_cand, _visit("v2", "城墙")) is True
+    # 同馆名但异地 >30km：geo 闸放行（巡展/同名馆不是同站）
+    far_show = _visit(
+        "v3",
+        "秦始皇兵马俑博物馆(异地巡展)",
+        location=GeoPoint(lon=116.4, lat=39.9),
+    )
+    assert _dup_blocks_item(bmy_cand, far_show) is False
+    # 无关联：不拦
+    assert _dup_blocks_item(bmy_cand, _visit("v4", "西安城墙")) is False
+
+
+def test_heritage_family_shadows_to_museum_card():
+    """2026-11-01 用户拍板「当然选兵马俑」：同馆家族在池时骊山园/遗址
+    公园行让位兵马俑博物馆本体（选点层影子，碑林拍板同款）；异地同馆
+    名 >30km 不让位；大足类同内容家族维持「组装层合并、选点层双卡」
+    既有语义不变。"""
+    from app.services.agent.plan import _museum_shadow_pairs, _umbrella_cand_dup
+
+    bmy = {
+        "name": "秦始皇兵马俑博物馆",
+        "category": "attraction",
+        "location": {"lon": 109.2820, "lat": 34.3862},
+    }
+    park = {
+        "name": "秦始皇陵国家考古遗址公园",
+        "category": "attraction",
+        "location": {"lon": 109.2561, "lat": 34.3800},
+    }
+    ling = {
+        "name": "秦始皇陵",
+        "category": "attraction",
+        "location": {"lon": 109.2589, "lat": 34.3803},
+    }
+    pool = [(0, ling), (1, bmy), (2, park)]
+    pairs = _museum_shadow_pairs(pool)
+    assert set(pairs) == {
+        ("秦始皇陵", "秦始皇兵马俑博物馆"),
+        ("秦始皇陵国家考古遗址公园", "秦始皇兵马俑博物馆"),
+    }
+
+    # 异地同馆名（巡展）>30km：不让位
+    far = {
+        "name": "秦始皇陵(异地展馆)",
+        "category": "attraction",
+        "location": {"lon": 116.4, "lat": 39.9},
+    }
+    assert _umbrella_cand_dup(bmy, far) is False
+
+    # 同馆家族 10km 闸边界：~12km 的同名点不让位（8km 大足北山+宝顶
+    # 已收进同馆半径，2026-11-01 二拍放宽）
+    far_family = {
+        "name": "秦始皇陵(远郊)",
+        "category": "attraction",
+        "location": {"lon": 109.28, "lat": 34.276},  # 距兵马俑 ~12.3km
+    }
+    assert _umbrella_cand_dup(bmy, far_family) is False
+
+    # 大足类同内容家族：2026-11-01 拍板「核心词匹配运用到所有景点」——
+    # 撤豁免后选点层也让位博物馆本体（旧「保双卡、组装层合并」退役）
+    dazu_museum = {
+        "name": "大足石刻博物馆",
+        "category": "museum",
+        "location": {"lon": 105.79484, "lat": 29.74688},
+    }
+    dazu_scenic = {
+        "name": "大足区大足石刻景区",
+        "category": "attraction",
+        "location": {"lon": 105.79484, "lat": 29.74688},
+    }
+    assert _umbrella_cand_dup(dazu_museum, dazu_scenic) is True
+
+
+def test_museum_shadow_tier_guard_protects_star_umbrella():
+    """2026-11-01 明星伞形保护：博物馆档位弱于景区时选点层不让位——
+    熊猫博物馆不得把 5A 熊猫繁育基地影子出池（10-31 起的既有隐患，
+    碑林机制通用化后暴露面扩大）；同档让位照常。"""
+    from app.services.agent.plan import _museum_shadow_pairs
+
+    museum = {
+        "name": "成都大熊猫博物馆",
+        "category": "museum",
+        "location": {"lon": 104.144, "lat": 30.738},
+    }
+    base = {
+        "name": "大熊猫繁育研究基地",
+        "category": "attraction",
+        "tags": ["5a"],
+        "location": {"lon": 104.145, "lat": 30.737},
+    }
+    # 博物馆 tier9 弱于基地 tier2：不让位
+    assert _museum_shadow_pairs([(0, museum), (1, base)]) == []
+
+    # 同档（都无 tier）：碑林/秦陵类照常让位
+    bmy = {
+        "name": "秦始皇兵马俑博物馆",
+        "category": "attraction",
+        "location": {"lon": 109.2820, "lat": 34.3862},
+    }
+    ling = {
+        "name": "秦始皇陵",
+        "category": "attraction",
+        "location": {"lon": 109.2589, "lat": 34.3803},
+    }
+    assert _museum_shadow_pairs([(0, ling), (1, bmy)]) == [
+        ("秦始皇陵", "秦始皇兵马俑博物馆")
+    ]

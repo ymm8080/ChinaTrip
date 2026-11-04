@@ -90,7 +90,7 @@ def display_rows(plan: ItineraryPlan) -> list[dict]:
                         "time": _fmt_time(it.start_time),
                         "title": f"{mode} {it.from_city} → {it.to_city}",
                         "city": "",
-                        "address": it.train_no or "",
+                        "address": it.train_no or it.flight_no or "",
                         "hours": "",
                         "minutes": it.duration_minutes,
                         "note": "",

@@ -165,13 +165,22 @@ def _strip_tags(html: str) -> str:
     return re.sub(r"<[^>]+>", "\n", html)
 
 
-def parse_list(html: str) -> dict[str, str]:
-    """Extract {sight_name: absolute detail_url} from a directory page."""
+def parse_list(html: str, slug: str | None = None) -> dict[str, str]:
+    """Extract {sight_name: absolute detail_url} from a directory page.
+
+    slug 传值时启用运行时城市闸（2026-11-03）：只收 URL 路径属该 slug 的
+    条目——gs.ctrip.com html5 目录页实测会整页变质为异地/海外目的地内容
+    （beijing1 页曾返回智利圣地亚哥景点），名录过滤可让变质页零污染
+    （entries 为空 → 调用方按 exhausted 收口）。
+    """
     entries: dict[str, str] = {}
+    key = slug.lower() if slug else None
     for rex in _LIST_ENTRY_RES:
         for m in rex.finditer(html):
             url, name = m.group(1).strip(), m.group(2).strip()
             if not _DETAIL_URL_RE.search(url):
+                continue
+            if key and key not in url.lower():
                 continue
             if url.startswith("/"):
                 url = _SITE + url
@@ -307,7 +316,7 @@ class CtripHoursReader:
                     self._exhausted.add(slug)
                     return None
                 self._pages_done[slug] = page
-                entries = parse_list(html)
+                entries = parse_list(html, slug=slug)
                 if not entries:
                     self._exhausted.add(slug)
                     return None

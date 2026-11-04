@@ -14,13 +14,14 @@ serialization pitfalls; the H5 does not use coordinates).
 import re
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
 from app.db import get_session_factory
 from app.models import Poi
-from app.services.poi_details import apply_tier_tag
+from app.services.poi_details import PoiDetailStore, apply_tier_tag
+from app.services.poi_details import get_poi_detail_store as _poi_store_singleton
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
@@ -215,14 +216,17 @@ async def poi_detail(
     wanted = name.strip()
     try:
         with factory() as session:
-            q = session.query(Poi).options(load_only(*_COLS))
+            # 退役闸（与主池 poi_details 口径一致）：retired/inactive/duplicate
+            # 行不得经详情接口回吐；在册旧卡靠快照展示，404 静默跳过是既有语义
+            alive = (Poi.status.is_(None)) | (Poi.status == "active")
+            q = session.query(Poi).options(load_only(*_COLS)).filter(alive)
             if variants:
                 q = q.filter(Poi.city.in_(variants))
             row = q.filter(Poi.name_zh == wanted).first()
             if row is None:
                 norm = _norm_name(wanted)
                 if norm:
-                    fq = session.query(Poi).options(load_only(*_COLS))
+                    fq = session.query(Poi).options(load_only(*_COLS)).filter(alive)
                     if variants:
                         fq = fq.filter(Poi.city.in_(variants))
                     row = fq.filter(Poi.name_zh.contains(norm)).first()
@@ -234,7 +238,8 @@ async def poi_detail(
             tags = list(row.tags or [])
             if not {"unesco", "5a", "4a", "3a", "intl"} & set(tags):
                 heritage = [
-                    (hz, 4 if src == "unesco" else 3)
+                    # 档号随 2026-11-03 名录序（source_tier）：unesco=0、5a=1
+                    (hz, 0 if src == "unesco" else 1)
                     for hz, src in session.query(Poi.name_zh, Poi.source)
                     .filter(Poi.source.in_(["unesco", "5a"]))
                     .all()
@@ -247,3 +252,70 @@ async def poi_detail(
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="poi store unavailable") from None
+
+
+def get_poi_store() -> PoiDetailStore:
+    """Dependency indirection over the process singleton so tests can
+    override (dependency_overrides) without touching the global store."""
+    return _poi_store_singleton()
+
+
+class PoiSearchHit(BaseModel):
+    """库内检索下拉项（2026-11-01 行程卡「换景点」）：lean 形状，供
+    H5 展示与后续 replace 端点按 name 精确落实。"""
+
+    poi_id: str | None = None
+    name: str
+    name_en: str | None = None
+    city: str | None = None
+    category: str | None = None
+    tags: list = []
+    rating: float | None = None
+    address: str | None = None
+    opening_hours: str | None = None
+    located: bool = False
+
+
+@router.get("/search", response_model=list[PoiSearchHit])
+def search_pois(
+    q: str = Query(min_length=1, max_length=64),
+    city: str | None = Query(default=None, max_length=32),
+    limit: int = Query(default=8, ge=1, le=20),
+    store: PoiDetailStore = Depends(get_poi_store),
+) -> list[PoiSearchHit]:
+    """POI 底库关键字检索（2026-11-01）：search_keyword 同引擎（q 对
+    name/category/tags LIKE，city 三态收窄），排序 精确命中>标签>有坐
+    标>类别>tier。无坐标行也返回（located=False）——用户显式挑选时不
+    静默隐藏，坐标回填链后补（坐标闸拍板 2026-10-30）。"""
+    kw = q.strip()
+    if not kw:
+        return []
+    try:
+        hits = store.search_keyword(city, [kw], limit=limit)
+    except Exception:
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+    out: list[PoiSearchHit] = []
+    for h in hits:
+        name = str(h.get("name") or "").strip()
+        if not name:
+            continue
+        loc = h.get("location")
+        try:
+            rating = float(h.get("rating")) if h.get("rating") else None
+        except (TypeError, ValueError):
+            rating = None
+        out.append(
+            PoiSearchHit(
+                poi_id=h.get("source_poi_id"),
+                name=name,
+                name_en=h.get("name_en"),
+                city=h.get("city"),
+                category=h.get("category"),
+                tags=list(h.get("tags") or []),
+                rating=rating,
+                address=h.get("address"),
+                opening_hours=h.get("opening_hours"),
+                located=bool(loc),
+            )
+        )
+    return out

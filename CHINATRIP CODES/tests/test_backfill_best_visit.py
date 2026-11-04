@@ -313,3 +313,16 @@ def test_llm_non_empty_row_skipped_and_no_llm_call():
     assert stats["skipped_not_empty"] == 1
     assert calls == []
     assert row.best_visit_time == "morning"
+
+
+def test_select_targets_skips_hotel_rows():
+    # 2026-11-01 两江夜游复盘：住宿类不参访排程，名称里的夜信号是
+    # 商圈噪音（「雅致酒店(珠江夜游店)」绝不能被标成 evening）。
+    session = _FakeSession(
+        [
+            _row("雅致酒店(珠江夜游店)", category="hotel"),
+            _row("较场口夜市", category="citywalk"),
+        ]
+    )
+    rows = select_targets(session, "heuristic", None, 10)
+    assert [r.name_zh for r in rows] == ["较场口夜市"]

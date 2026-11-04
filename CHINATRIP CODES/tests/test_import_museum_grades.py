@@ -52,6 +52,22 @@ def test_load_rows_parses_and_normalizes(tmp_path):
     assert hunan["source_poi_id"] == job.slug_for(1, "湖南博物院")
 
 
+def test_load_rows_city_from_name_prefix(tmp_path):
+    """city 缺省时按名称显式前缀解析，避免落入「省名当 city」（存量 805 行）。"""
+    p = tmp_path / "c.csv"
+    p.write_text(
+        "name_zh,province,city,grade,batch,alias_zh,source_url\n"
+        "宁波市天一阁博物院,浙江,,国家一级博物馆,1,,http://x/1\n"
+        "桂林博物馆,广西,,国家一级博物馆,1,,http://x/2\n"
+        "广西壮族自治区博物馆,广西,,国家一级博物馆,1,,http://x/3\n"
+        "北海公园,北京,,国家一级博物馆,1,,http://x/4\n",
+        encoding="utf-8",
+    )
+    rows, invalid = job.load_rows(str(p))
+    assert invalid == 0
+    assert [r["city"] for r in rows] == ["宁波", "桂林", "广西", "北京"]
+
+
 def test_load_rows_bom_tolerant(tmp_path):
     p = tmp_path / "b.csv"
     p.write_text(
@@ -331,7 +347,8 @@ def test_grade_source_street_histown():
     assert job.grade_source("旅游休闲街区") == "street"  # 简写容忍
     assert job.grade_source("中国历史文化名镇") == "histown"
     assert job.grade_source("历史文化名镇") == "histown"
-    assert job.grade_source("中国历史文化名村") is None  # 名村未并入
+    assert job.grade_source("国家考古遗址公园") == "relicpark"  # 2026-11-03 并入
+    assert job.grade_source("中国历史文化名村") == "histvillage"  # 2026-11-03 并入
 
 
 def test_load_rows_street_and_histown(tmp_path):
