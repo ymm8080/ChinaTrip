@@ -252,9 +252,9 @@ async def backfill_rows(
                     if dry_run:
                         stats["filled"] += 1
                         stats["geocode_filled"] += 1
-                        _vendor = getattr(
-                            geocoder, "last_vendor", None
-                        ) or getattr(geocoder, "vendor", "baidu")
+                        _vendor = getattr(geocoder, "last_vendor", None) or getattr(
+                            geocoder, "vendor", "baidu"
+                        )
                         _label = f"{_vendor}_geocode"
                         stats["by_vendor"][_label] = (
                             stats["by_vendor"].get(_label, 0) + 1
@@ -274,13 +274,11 @@ async def backfill_rows(
                     )
                     stats["filled"] += 1
                     stats["geocode_filled"] += 1
-                    _vendor = getattr(
-                        geocoder, "last_vendor", None
-                    ) or getattr(geocoder, "vendor", "baidu")
-                    _label = f"{_vendor}_geocode"
-                    stats["by_vendor"][_label] = (
-                        stats["by_vendor"].get(_label, 0) + 1
+                    _vendor = getattr(geocoder, "last_vendor", None) or getattr(
+                        geocoder, "vendor", "baidu"
                     )
+                    _label = f"{_vendor}_geocode"
+                    stats["by_vendor"][_label] = stats["by_vendor"].get(_label, 0) + 1
                     continue
         hit = None
         hit_vendor = None
