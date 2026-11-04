@@ -260,11 +260,13 @@ from app.api.booking_auto import router as booking_auto_router  # noqa: E402
 class _ShowQuery:
     def __init__(self, rows):
         self._rows = rows
+        self.criteria = []
 
     def options(self, *a, **k):
         return self
 
     def filter(self, *a, **k):
+        self.criteria.extend(a)
         return self
 
     def order_by(self, *a, **k):
@@ -282,12 +284,15 @@ class _ShowSession:
         self._rows = rows
         self._exc = exc
         self.calls = 0
+        self.queries = []
 
     def query(self, *a, **k):
         self.calls += 1
         if self._exc is not None:
             raise self._exc
-        return _ShowQuery(self._rows)
+        q = _ShowQuery(self._rows)
+        self.queries.append(q)
+        return q
 
     def __enter__(self):
         return self
@@ -354,6 +359,20 @@ def test_shows_db_down_returns_503():
         "/api/v1/booking-auto/shows", params={"city": "西安"}
     )
     assert resp.status_code == 503
+
+
+def test_shows_query_carries_retired_gate():
+    """退役闸（2026-11-04 考古遗址退役）：带 booking_url 的 retired 行
+    不得再从订票页回吐——查询必须带 status IS NULL OR 'active'。
+    PostGIS 列起不了内存 SQLite，契约断言 SQL 条件存在。"""
+    session = _ShowSession([_show_row()])
+    resp = _shows_app(session).get(
+        "/api/v1/booking-auto/shows", params={"city": "西安"}
+    )
+    assert resp.status_code == 200
+    assert session.queries
+    for q in session.queries:
+        assert any("status" in str(c) for c in q.criteria)
 
 
 def test_sites_catalog_route_wired_same_shape():

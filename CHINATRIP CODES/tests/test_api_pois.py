@@ -69,11 +69,13 @@ def make_row(**over) -> SimpleNamespace:
 class FakeQuery:
     def __init__(self, rows):
         self._rows = rows
+        self.criteria: list = []
 
     def options(self, *a, **k):
         return self
 
     def filter(self, *a, **k):
+        self.criteria.extend(a)
         return self
 
     def first(self):
@@ -88,12 +90,15 @@ class FakeSession:
         self._queued = list(queued)
         self._exc = exc
         self.calls = 0
+        self.queries: list[FakeQuery] = []
 
     def query(self, *a, **k):
         self.calls += 1
         if self._exc is not None:
             raise self._exc
-        return FakeQuery(self._queued.pop(0) if self._queued else [])
+        q = FakeQuery(self._queued.pop(0) if self._queued else [])
+        self.queries.append(q)
+        return q
 
     def __enter__(self):
         return self
@@ -182,6 +187,21 @@ def test_miss_returns_404():
     )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "poi not found"}
+
+
+def test_detail_queries_carry_retired_gate():
+    """退役闸（2026-11-04 考古遗址退役）：详情两段查询都必须带
+    status IS NULL OR 'active'，retired/inactive/duplicate 行不得回吐。
+    （第三段名单判级查询只取名字做徽章，不需要闸。）
+    PostGIS 列起不了内存 SQLite，这里契约断言 SQL 条件存在。"""
+    session = FakeSession([[], [make_row()]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    assert resp.status_code == 200
+    assert len(session.queries) >= 2
+    for q in session.queries[:2]:
+        assert any("status" in str(c) for c in q.criteria)
 
 
 def test_db_unreachable_returns_503():

@@ -216,14 +216,17 @@ async def poi_detail(
     wanted = name.strip()
     try:
         with factory() as session:
-            q = session.query(Poi).options(load_only(*_COLS))
+            # 退役闸（与主池 poi_details 口径一致）：retired/inactive/duplicate
+            # 行不得经详情接口回吐；在册旧卡靠快照展示，404 静默跳过是既有语义
+            alive = (Poi.status.is_(None)) | (Poi.status == "active")
+            q = session.query(Poi).options(load_only(*_COLS)).filter(alive)
             if variants:
                 q = q.filter(Poi.city.in_(variants))
             row = q.filter(Poi.name_zh == wanted).first()
             if row is None:
                 norm = _norm_name(wanted)
                 if norm:
-                    fq = session.query(Poi).options(load_only(*_COLS))
+                    fq = session.query(Poi).options(load_only(*_COLS)).filter(alive)
                     if variants:
                         fq = fq.filter(Poi.city.in_(variants))
                     row = fq.filter(Poi.name_zh.contains(norm)).first()

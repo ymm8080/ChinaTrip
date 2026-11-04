@@ -126,6 +126,9 @@ async def _catalog(
                     if kind == "show"
                     else Poi.category.in_(_SITE_CATEGORIES)
                 )
+                # 退役闸：考古遗址退役(11-04)后带 booking_url 的 retired 行
+                # 不得再出现在订票页——与主池 poi_details 同口径
+                .filter((Poi.status.is_(None)) | (Poi.status == "active"))
             )
             variants = _city_variants(city or "")
             if variants:
