@@ -7537,7 +7537,18 @@ class PlanningAgent:
             # 重庆博物馆密集池 16 席满员把它挤出池外——连孪生并卡都无
             # 从谈起（无并卡披露、museum1 行独占大足卡）。tier≤2 行从
             # 池外追回；后续照走让位/时序闸，放不下交白名单披露。
-            _premium_out = [p for p in ordered[_pool_cap:] if _source_tier(p[1]) <= 2]
+            # 高质名点同权（2026-11-05 成都名点案）：tier 梯子把 t8/t9/t10
+            # 排前，quality≥4.5 的图商名点（宽窄巷子/熊猫基地/洛带/东郊
+            # 记忆，rating 4.6 无 count）落 17 位起被切池外；回填线对池外
+            # 尾巴是硬预算+腿费，180 分钟级大点塞不进半满日（4 天窗口只
+            # 排 5 件、日预算 50-60%）——与 tier≤2 同权追回池内，享池内
+            # 软闸语义，后续求解/披露照旧。无评分长尾（quality=0）不享
+            # 此权，池外回填仍硬闸（2026-11-02 拍板口径不变）。
+            _premium_out = [
+                p
+                for p in ordered[_pool_cap:]
+                if _source_tier(p[1]) <= 2 or _quality(p[1]) >= 4.5
+            ]
             if _premium_out:
                 pool.extend(_premium_out)
             # 同站孪生并卡（2026-11-04 成渝案：白帝城·瞿塘峡 3 行、四面山

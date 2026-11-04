@@ -481,6 +481,43 @@ def test_pool_cap_never_evicts_premium_tier():
     assert any(it["name"] == "大足石刻" for it in items)
 
 
+def test_pool_cap_never_evicts_high_quality_sights():
+    """池上限不逐高质名点（2026-11-05 成都名点案）：tier 梯子把名录档
+    排前，quality≥4.5 的图商名点（宽窄巷子/熊猫基地/洛带/东郊记忆，
+    rating 4.6 无 count）被切在 span*4 池外；回填线对池外尾巴是硬预算
+    +腿费，180 分钟级大点塞不进半满日——高质名点必须与 tier≤2 同权
+    追回池内（软闸语义同池内正选点），否则 4 天窗口只排 5 件、日预算
+    50-60%。无评分长尾不享此权（池外硬闸口径不变）。"""
+    downtown = (104.06, 30.66)
+    cands = []
+    # 8 行 nature 类（品类闸 cap=2 会裁 6）+ 12 行 attraction：
+    # tier10 共 20 行占满池上限 16 席，名点被切池外
+    for i in range(8):
+        c = _cand(f"山{i}", "成都", cat="nature", suggested=90, loc=downtown)
+        c["source"] = "4a"
+        cands.append(c)
+    for i in range(12):
+        c = _cand(f"市{i}", "成都", cat="attraction", suggested=90, loc=downtown)
+        c["source"] = "4a"
+        cands.append(c)
+    # 池外高质名点：180 分钟大点 + ~60km 远腿（硬回填 180+腿费>日预算余量）
+    for i in range(2):
+        c = _cand(
+            f"名点{i}", "成都", cat="attraction", suggested=180, loc=(103.6, 30.9)
+        )
+        c["source"] = "amap"  # tier 11
+        c["rating"] = 4.6
+        cands.append(c)
+    # 对照：无评分长尾同规格 → 不追回、硬回填也塞不进
+    tail = _cand("长尾", "成都", cat="attraction", suggested=180, loc=(103.6, 30.9))
+    tail["source"] = "amap"
+    cands.append(tail)
+    items = PlanningAgent._deterministic_selection(cands, 4, {"成都": (1, 4)})
+    names = {it["name"] for it in items}
+    assert {"名点0", "名点1"} <= names  # 高质名点追回并落位（软闸）
+    assert "长尾" not in names  # quality=0 不享追回权
+
+
 def test_preclaim_far_guard_spreads_premium_pair():
     """预占位严格位同样不并互远大点（2026-11-04 成渝案二段）：石刻
     300min 与金佛山 180min 互相 >150km，腿分钟被 TRAVEL_LEG_CAP_MIN
