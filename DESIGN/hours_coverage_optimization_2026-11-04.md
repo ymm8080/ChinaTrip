@@ -4,14 +4,20 @@
 
 ## 基线 → 当日结果
 
-| 口径 | 会话开始 | 会话结束 | 变化 |
+| 口径 | 会话开始 | 第一轮结束 | 高德 around 通道打通后 |
 |---|---|---|---|
-| active 有 opening_hours | 2,373 / 14,784 = **16.06%** | 2,495 / 14,783 = **16.88%** | **+122 行（+0.82pp）** |
+| active 有 opening_hours | 2,373 / 14,784 = **16.06%** | 2,495 / 14,783 = 16.88% | **3,667 / 14,783 = 24.81%** |
+| hours_source='amap' | 122 | — | **1,294** |
 
-来源分布（active，hours_source）：amap 122 / ctrip 473 / baidu 150，其余为
-更早批次（amap_v5_detail 等）。
+第一轮 = 修 WAF 降级 + 变体匹配（+122）；第二轮 = 修「无坐标首行熔断」
+后，amap `place/around` 连续 4 批 150 行 + 2 批 600 行稳定产出：
+150 行批分别填 104/107/98/91/91；600 行批第一批 matched 462/600、
+填 **410**（match 77%），第二批 matched 314/600、填 **267**（match 52%，
+剩余行明显更难）。全程无配额/WAF 中断。
 
-> 注：+122 只统计本次会话实跑；日批任务每日会继续按此机制推进。
+来源分布（active，hours_source）：amap 1,294 / ctrip 473 / baidu 150。
+
+> 注：以上为本次会话实跑；日批任务每日会继续按此机制推进。
 
 ## 根因（按影响排序）
 
@@ -55,7 +61,17 @@
 - amap text 不可用时走 `search_hours_around_best`（单请求多变体匹配）。
 - 10002 计入停批；配额/WAF/10002 首撞即 `asyncio.Event` **整批短路**，
   不再逐行重试死端点；只有已尝试的确定性失败行写 miss 台账。
-- 新增 `--delay`（请求间隔），amap 日批默认 1 并发 + 0.5s。
+- 10002 属短时限速：整批短路前先等 30s 重试一次，避免一次抖动打断整晚。
+- **amap 选行强制要求坐标**（`Poi.location IS NOT NULL`）。这是 11-04
+  下午实盘抓到的单点熔断：队列首行「海南省博物馆」无坐标，text 又已被
+  WAF 封，`search_hours` 直接抛 punish 把整批 150 行带走（0 产出）；
+  无坐标行本轮本就走不了 around，过滤即可。`_process_one` 另加
+  `loc_str is None + text 已死 → skip` 的兜底（不写台账，坐标补上后可重入）。
+- 新增 `--delay`（请求间隔），amap 日批默认 1 并发 + 0.7s。
+
+### `app/services/amap_client.py`（第二批）
+- 请求头从仅 UA 升级为浏览器式 `User-Agent + Referer + Accept +
+  Accept-Language`，降低 place 族 WAF 命中率。
 
 ### `ops/poi_hours_rating_daily.cmd`
 - amap 段改为 `--concurrency 1 --delay 0.5`。
