@@ -36,6 +36,9 @@ _API = "https://api.map.baidu.com/place/v2/search"
 _QUOTA_STATUSES = {401, 402, 302}  # 并发超限 / 总配额超限 / 天配额超限
 
 
+_SEG_SEP_RE = re.compile(r"[·・•\-－—–~～/|]")
+
+
 def _variants(name: str) -> list[str]:
     out = [name]
     m = re.search(r"^[\u4e00-\u9fa5]{1,10}?(?:自治州|自治县|区|县|市|旗)", name)
@@ -49,7 +52,18 @@ def _variants(name: str) -> list[str]:
     )
     if len(core) >= 2 and core not in out:
         out.append(core)
-    return list(dict.fromkeys(out))
+    # 组合名分段（2026-11-04 台账样本：皖南古村落西递和宏村、
+    # 钟山风景名胜区－中山陵园风景区）：分段名各自检索命中率更高。
+    # 只按显式分隔符切（不用「和」——太和殿/中和殿会被切坏）。
+    for base in list(out):
+        for seg in _SEG_SEP_RE.split(base):
+            seg = seg.strip()
+            if len(seg) >= 2 and seg not in out:
+                out.append(seg)
+    # 前缀剥离可能把分段名剥成「－中山陵园风景区」这类带前导分隔符的脏
+    # 变体——统一去首尾分隔符/空白，别拿脏关键词白烧检索配额。
+    cleaned = [v.strip("·・•-－—–~～/| \t") for v in out]
+    return [v for v in dict.fromkeys(cleaned) if v]
 
 
 def _match_name(name: str, variants: list[str]) -> bool:
