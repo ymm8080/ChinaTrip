@@ -151,9 +151,12 @@ PLAN_LIBRARY_FETCH_DEPTH = 120
 PLAN_LIBRARY_WINDOW = 30
 # 软超额放置的最远同日直线距（2026-11-04 成渝案：江津四面山+白帝城·
 # 瞿塘峡 330km 被软闸兜底排进同一天）——公里口径而非腿分钟：taxi_leg_min
-# 封顶 180 分钟，90km 与 330km 在分钟口径下同值无法区分；150km 之内
+# 封顶 180 分钟，90km 与 330km 在分钟口径下同值无法区分；140km 之内
 # 仍走 2026-11-02「时间软闸」拍板（90km 远对照排），更远交回填/披露。
-_SOFT_FAR_KM = 150.0
+# 150→140（2026-11-04 晚二段）：金佛山北坡↔大足石刻实测 148.7km 贴线
+# 漏闸（路距 ~230km 单程 3.5h+，同日本属不可行）——直线 140km ≈ 路距
+# 200km+，收紧一档；南川金佛山+南川东街（2km）等同城簇不受影响。
+_SOFT_FAR_KM = 140.0
 # S5 演出保位（2026-11-02）：候选窗口外保底的同城演出行数上限
 PLAN_SHOW_RESCUE_LIMIT = 3
 
@@ -2652,6 +2655,7 @@ def _reconcile_transfer_days(
                         and (i2.category or "") not in ("food", "hotel")
                     )
                     < 4  # 每日参观件硬顶 4（2026-11-02 拍板）
+                    and not _far_conflict_items(target.items, visit.location)
                 ):
                     visit.day = target.day
                     visit.start_time = time(start // 60, start % 60)
@@ -2782,7 +2786,9 @@ def _reconcile_transfer_days(
                     continue
                 target = None
                 vcity = str(visit.city or "").strip().removesuffix("市")
-                target = _host_day_for_visit(plan.days[idx + 1 :], vcity, dur)
+                target = _host_day_for_visit(
+                    plan.days[idx + 1 :], vcity, dur, incoming=visit.location
+                )
                 if target is not None:
                     visit.day = target.day
                     visit.start_time = None
@@ -2970,8 +2976,29 @@ def _fits_after(
     return False
 
 
+def _far_conflict_items(items: list, extra: GeoPoint | None = None) -> bool:
+    """同日互远冲突（2026-11-04 成渝案三段）：挪日/swap/拆日重建不得把
+    两条 >_SOFT_FAR_KM 直线距的参访换进同一天——腿分钟封顶 180 让预算
+    闸看不见它，兜底 sequencing 排不出时刻整卡蒸发（石刻+金佛山同日
+    案）。餐/酒店豁免：宿在城市侧，与远点距离是正常形态不是冲突。"""
+    pts = [
+        i.location
+        for i in items
+        if isinstance(i, VisitItem)
+        and (i.category or "") not in ("food", "hotel")
+        and i.location is not None
+    ]
+    if extra is not None:
+        pts = pts + [extra]
+    for x in range(len(pts)):
+        for y in range(x + 1, len(pts)):
+            if haversine_km(pts[x], pts[y]) > _SOFT_FAR_KM:
+                return True
+    return False
+
+
 def _host_day_for_visit(
-    day_pool: list[DayPlan], vcity: str, dur: int
+    day_pool: list[DayPlan], vcity: str, dur: int, incoming: GeoPoint | None = None
 ) -> DayPlan | None:
     """同城日池里找装得下 dur 分钟参访的宿主天（挪日修复到达侧与
     转场日无时刻清算共用）：窗口=日始~21:30 扣转场腿占段（到达侧
@@ -3032,6 +3059,8 @@ def _host_day_for_visit(
         # 重解裁决（终局清算），排不下再由 _drop_untimed_visits 兜底
         # 移除——预筛过严会把真实装得下的天误拒（tier1-early 回归批）。
         if lo < hi and load + dur + 30 <= (hi - lo) - blocked and len(visits) < 4:
+            if incoming is not None and _far_conflict_items(visits, incoming):
+                continue  # 同日互远闸：宿主天已有 >150km 互远点不再收
             return later
     return None
 
@@ -3135,7 +3164,7 @@ def _transfer_day_sweep(
                 pool = list(reversed(plan.days[:idx]))
             else:
                 pool = list(plan.days)
-            target = _host_day_for_visit(pool, vcity, dur)
+            target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
             if target is not None and target is not day:
                 visit.day = target.day
                 day.items.remove(visit)
@@ -3182,6 +3211,49 @@ def _transfer_day_sweep(
                     "or re-time them",
                 )
             )
+    return notes
+
+
+def _rehome_untimed_visits(
+    plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
+    """全日无时刻卡挪日扫尾（2026-11-04 成渝案四段）：转场日之外的
+    无时刻参访此前只有终局清算一途——石刻被 CP 分钟口径（腿封顶
+    180）与金佛山装进同一天，兜底排序排不出时刻直接蒸发，连披露都
+    绕过（重解成功=静默少卡）。转场日扫同款 _host_day_for_visit 挪
+    日（容量口径 + 同日互远闸），挪后调用方重排时刻；挪不动返回
+    None 由清算披露，不再静默。pinned/protect（铁律 19）不挪。"""
+    notes: list[str] = []
+    handled: set[str] = set()
+    for day in plan.days:
+        strays = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is None
+            and not v.pinned
+            and v.name not in protect
+            and (v.category or "") not in ("food", "hotel")
+            and v.item_id not in handled
+        ]
+        for visit in strays:
+            vcity = str(visit.city or "").strip().removesuffix("市")
+            dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+            pool = [d for d in plan.days if d is not day]
+            target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
+            if target is not None:
+                visit.day = target.day
+                day.items.remove(visit)
+                target.items.append(visit)
+                handled.add(visit.item_id)
+                notes.append(
+                    L(
+                        f"「{visit.name}」在第{day.day}天排不下时刻，"
+                        f"已挪至第{target.day}天重排",
+                        f'"{visit.name}" could not be timed on day {day.day}; '
+                        f"moved to day {target.day} for re-timing",
+                    )
+                )
     return notes
 
 
@@ -7648,8 +7720,19 @@ class PlanningAgent:
                 # 2026-11-02 乙山案）：可投天少的候选（露天唯一干
                 # 日）先占位，免被宽窗候选（室内全窗可投）抢走唯一
                 # 落位；同宽按池序=完整优先级梯子。
+                # 名录王牌次级先认领（2026-11-04 成渝案三段）：偏好带
+                # 行把预占位队列排满后石刻才认领，各天已被金佛山/濯水
+                # 级先占+远腿闸全窗拒收→主环簇日直排与金佛山同日。
+                # 王牌（tier≤2）在物理受限之后、偏好带之前认领天数；
+                # 同日列表序不受影响（装配尾部按池序重排 8157）——只
+                # 挪认领次序不挪卡面顺序，偏好位在 tier 之前拍板不破。
                 for pos, cand, eligible in sorted(
-                    _claims, key=lambda c: (len(c[2]), c[0])
+                    _claims,
+                    key=lambda c: (
+                        len(c[2]),
+                        0 if _source_tier(c[1]) <= 2 else 1,
+                        c[0],
+                    ),
                 ):
                     minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                     xy = _cxy(cand)
@@ -7803,8 +7886,18 @@ class PlanningAgent:
                     day = min(_dry, key=lambda d: (day_loads[d][0], day_loads[d][1], d))
                 load = day_loads[day]
                 leg = _leg_min(xy, day)
-                if load[0] + minutes + leg > _budget(day) or load[1] >= 4:
-                    day = _emptiest_day()  # 簇满→溢出余量最大天（保地理优先、不空天）
+                # 主环直排位同样不并互远大点（2026-11-04 成渝案三段）：
+                # 预占位被偏好带挤出后石刻走主环，簇日直排无远腿闸——
+                # 与金佛山同日直排成功（腿分钟封顶让预算闸看不见 159km）。
+                # 远腿改走溢出分支（余量最大天带远腿闸，软超额不救距离）。
+                if (
+                    load[0] + minutes + leg > _budget(day)
+                    or load[1] >= 4
+                    or _far_km(xy, day) > _SOFT_FAR_KM
+                ):
+                    day = (
+                        _emptiest_day()
+                    )  # 簇满/远腿→溢出余量最大天（保地理优先、不空天）
                     if _rain_blocked(cand, day):
                         _dry = [
                             d
@@ -9379,6 +9472,12 @@ class PlanningAgent:
         else:
             _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
+            # 挪日扫尾（2026-11-04 成渝案四段）：CP 分钟口径把互远大点
+            # 装进同一天后重解也排不出时刻——清算前先试挪日（转场日
+            # 扫同款容量口径 + 互远闸），挪后重排；仍排不下才清算留痕。
+            plan.assumptions.extend(_rehome_untimed_visits(plan, protect))
+            _fallback_sequence_times(plan)
+        if _has_untimed_visits(plan):
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
         return plan
 
@@ -9826,6 +9925,8 @@ class PlanningAgent:
                 >= 4
             ):
                 return None  # 每日参观件硬顶 4（2026-11-02 拍板）
+            if _far_conflict_items(dst.items, item.location):
+                return None  # 同日互远闸（2026-11-04 成渝案三段）
             item.start_time = None
             item.end_time = None
             item.day = target_day
@@ -9840,6 +9941,10 @@ class PlanningAgent:
                 return None
             if _city(da) != _city(db):
                 return None
+            if _far_conflict_items(da.items, b.location) or _far_conflict_items(
+                db.items, a.location
+            ):
+                return None  # 同日互远闸（2026-11-04 成渝案三段）
             day_a, day_b = a.day, b.day
             a.start_time = a.end_time = None
             b.start_time = b.end_time = None
@@ -9885,6 +9990,8 @@ class PlanningAgent:
                         >= 4
                     ):
                         continue  # 每日参观件硬顶 4（2026-11-02 拍板）
+                    if _far_conflict_items(d.items, i.location):
+                        continue  # 同日互远闸（2026-11-04 成渝案三段）
                     d.items.insert(0, i)
                     i.day = d.day
                     _fallback_sequence_times(p)

@@ -500,6 +500,140 @@ def test_preclaim_far_guard_spreads_premium_pair():
     assert day_of["大足石刻"] != day_of["金佛山"]
 
 
+def test_host_day_for_visit_rejects_far_conflict():
+    """挪日宿主闸（2026-11-04 成渝案三段）：_host_day_for_visit 收到
+    incoming 远点时不得收进已有 >150km 互远参访的天——否则求解层
+    把选点层已分好天的石刻/金佛山重撞同日，兜底 sequencing 排不出
+    时刻整卡蒸发。宿主资格看公里不看分钟（腿封顶 180 让预算闸对
+    90km/330km 同值）。"""
+    from app.services.agent.plan import _far_conflict_items, _host_day_for_visit
+    from app.services.itinerary.models import DayPlan, GeoPoint
+
+    jfs = VisitItem(
+        item_id="t1",
+        name="金佛山",
+        category="sight",
+        city="重庆",
+        location=GeoPoint(lon=107.18, lat=29.02),
+        day=1,
+        duration_minutes=180,
+    )
+    far_day = DayPlan(day=1, base_city="重庆", items=[jfs])
+    empty_day = DayPlan(day=2, base_city="重庆", items=[])
+    stone = GeoPoint(lon=105.70, lat=29.71)  # 大足石刻，与金佛山 ~159km
+
+    assert _far_conflict_items([jfs], stone)
+    assert not _far_conflict_items([jfs])  # 单点无对
+
+    host = _host_day_for_visit([far_day, empty_day], "重庆", 300, incoming=stone)
+    assert host is not None and host.day == 2
+
+    # 近点不受闸：金佛山旁的小点仍可进 day1（非一刀切拒收）
+    near = GeoPoint(lon=107.20, lat=29.05)
+    assert (
+        _host_day_for_visit([far_day, empty_day], "重庆", 60, incoming=near) is far_day
+    )
+
+
+def test_pref_band_keeps_premium_far_pair_apart():
+    """偏好带不拆远点对（2026-11-04 成渝案三段）：偏好「自然风光」让
+    nature 行预占位排到池首，石刻排队垫底，全窗被远腿闸拒收后走主环
+    簇日直排（旧代码直排无远腿闸）与金佛山同日。预占位认领序须给
+    名录王牌次级先认领（物理受限 > 王牌 > 偏好带）——同日列表序仍按
+    池序（装配尾部重排），「偏好位在 tier 之前」拍板不破。"""
+    stone = _cand("大足石刻", "重庆", suggested=300, loc=(105.70, 29.71))
+    stone["source"] = "unesco"
+    stone["tags"] = ["unesco"]
+    stone["rating"] = 4.6
+    stone["category"] = "sight"  # 组装层投影 `or "sight"` 后的形态
+    jfs = _cand("金佛山风景名胜区", "重庆", suggested=180, loc=(107.18, 29.02))
+    jfs["source"] = "scenic"
+    jfs["tags"] = ["5a"]
+    jfs["rating"] = 4.5
+    jfs["category"] = "nature"  # 偏好「自然风光」命中
+    items = PlanningAgent._deterministic_selection(
+        [stone, jfs], 2, {"重庆": (1, 2)}, preferences="历史文化 自然风光"
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of.get("大足石刻") is not None
+    assert day_of.get("金佛山风景名胜区") is not None
+    assert day_of["大足石刻"] != day_of["金佛山风景名胜区"]
+
+
+def test_rehome_untimed_visits_moves_far_stray():
+    """全日挪日扫尾（2026-11-04 成渝案四段）：非转场日无时刻卡此前
+    只有终局清算一途——CP 分钟口径把石刻与金佛山装进同一天后，石刻
+    排不出时刻直接蒸发。清算前须先试挪日（互远闸同款口径），挪到
+    有容量且不互远的天重排；全窗不互远的天都没有才留原天交清算。"""
+    from datetime import time as _time
+
+    from app.services.agent.plan import _rehome_untimed_visits
+    from app.services.itinerary.models import DayPlan, GeoPoint, ItineraryPlan
+
+    def _vis(name, day, *, timed, dur, lon, lat):
+        return VisitItem(
+            item_id=f"v_{name}",
+            name=name,
+            category="sight",
+            city="重庆",
+            location=GeoPoint(lon=lon, lat=lat),
+            day=day,
+            start_time=_time(9, 0) if timed else None,
+            end_time=_time(12, 0) if timed else None,
+            duration_minutes=dur,
+        )
+
+    plan = ItineraryPlan(
+        itinerary_id="t",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="重庆",
+                items=[
+                    _vis("金佛山", 1, timed=True, dur=180, lon=107.18, lat=29.02),
+                    _vis("大足石刻", 1, timed=False, dur=300, lon=105.70, lat=29.71),
+                ],
+            ),
+            DayPlan(day=2, base_city="重庆", items=[]),
+        ],
+    )
+    notes = _rehome_untimed_visits(plan)
+    stone = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "大足石刻"
+    )
+    assert stone.day == 2
+    assert notes and "挪至第2天" in notes[0]
+
+    # 全窗互远：无天可挪 → 留原天交清算披露
+    plan2 = ItineraryPlan(
+        itinerary_id="t2",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="重庆",
+                items=[
+                    _vis("金佛山", 1, timed=True, dur=180, lon=107.18, lat=29.02),
+                    _vis("大足石刻", 1, timed=False, dur=300, lon=105.70, lat=29.71),
+                ],
+            ),
+            DayPlan(
+                day=2,
+                base_city="重庆",
+                items=[
+                    _vis("濯水景区", 2, timed=True, dur=240, lon=108.78, lat=29.53),
+                ],
+            ),
+        ],
+    )
+    assert _rehome_untimed_visits(plan2) == []
+    stone2 = next(
+        i for d in plan2.days for i in d.items if getattr(i, "name", "") == "大足石刻"
+    )
+    assert stone2.day == 1
+
+
 def test_travel_legs_zero_for_colocated_sites():
     """共址点腿=0：不回归时长预算语义（180+180 恰满照放）。"""
     cands = [
