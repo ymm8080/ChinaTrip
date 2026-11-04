@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from app.services.agent.hotel_stays import attach_hotel_stays, is_hotel_checkin
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.best_visit import apply_rules
+from app.services.city_fallback import is_city_fallback_point
 from app.services.ctrip_hours import CtripHoursReader
 from app.services.flights import (
     FlightService,
@@ -246,12 +247,30 @@ def _name_is_addr_shell(name: object) -> bool:
     return ("省" in head or "市" in head) and ("区" in s or "县" in s)
 
 
+def _cand_at_fallback(cand: dict) -> bool:
+    """回退点闸（2026-11-04 P1#1 第四闸）：候选坐标=城市回退点（geocoder
+    解析失败静默回退 gov 点，重庆 181 行聚簇=渝中区政府）——距城心 0km
+    恒过距城闸，远点冲突闸全被骗过（金佛山↔石刻实测 82.8km）。库行与
+    图商补量同闸；演出豁免不豁免本闸（西安 show 批 5 行投毒点=市政府）。
+    注册表见 app/services/city_fallback.py（只收多行实测聚簇点）。"""
+    loc = cand.get("location")
+    if isinstance(loc, dict):  # 图商补量命中形状（amap _normalize_poi）
+        loc = (loc.get("lon"), loc.get("lat"))
+    if not isinstance(loc, (tuple, list)) or len(loc) != 2:
+        return False
+    return is_city_fallback_point(loc[0], loc[1], cand.get("city"))
+
+
 def _pool_worthy(cand: dict) -> bool:
     """数据完整度闸（2026-11-04 白鹿原·白鹿仓 d4 事故）：有名有坐标但
     地址/评分/开放时间三空的骨架行不得进自动排期池——null hours 无时间
     约束永远可排，求解杀真点（骊山/陕历博排不下被移除）留骨架，空位全
     喂给三空行。4a 批 92.9% 无地址坐标回填后挤占 top-30 窗口尾段，同根。
-    演出行天然无评分，豁免（保位线语义不变）；补齐任一实数据自动回池。"""
+    演出行天然无评分，豁免（保位线语义不变）；补齐任一实数据自动回池。
+    回退点闸先行（2026-11-04 P1#1）：坐标=城市回退点的行连 show 一起
+    出局，且先于三空闸（投毒行多带毒地址，靠地址过三空闸是假阳性）。"""
+    if _cand_at_fallback(cand):
+        return False
     if _cand_is_show(cand):
         return True
     if _name_is_addr_shell(cand.get("name")):
@@ -386,6 +405,38 @@ def _leg_date_iso(start_date: str | None, day: int) -> str:
     except ValueError:
         return ""
     return (base + timedelta(days=max(day, 1) - 1)).isoformat()
+
+
+def _find_transfer_item(plan, item_id: str) -> TransferItem | None:
+    """按 item_id 找路途行程腿（VisitItem 版 _find_visit_item 的转场对应物）。"""
+    return next(
+        (
+            i
+            for d in plan.days
+            for i in d.items
+            if isinstance(i, TransferItem) and i.item_id == item_id
+        ),
+        None,
+    )
+
+
+# 班次号识别（2026-11-04 规划页「输入航班号/车次号自动校时」；确定性正则，
+# 不走 LLM——铁律 14 解析期零写权限的反面是这里根本不需要解析）：
+#   车次 = 一个车次字母（G 高铁/D 动车/C 城际/Z 直达/T 特快/K 快速/Y 旅游/
+#          L 临客/S 市域）+ 1-4 位数字，如 G1234、D2288
+#   航班 = 2 位航司码（可含数字，如 3U 成都航/9C 春秋）+ 1-4 位数字 +
+#          可选舱位后缀字母，如 CA1234、MU1001、3U8881、ZH9110A
+_TRAIN_NO_RE = re.compile(r"^[GDCZTKYLS]\d{1,4}$")
+_FLIGHT_NO_RE = re.compile(r"^[A-Z0-9]{2}\d{1,4}[A-Z]?$")
+
+
+def _detect_transfer_kind(number: str) -> str:
+    """班次号 → "train" | "flight"；空串 = 两种格式都不匹配。"""
+    if _TRAIN_NO_RE.match(number):
+        return "train"
+    if _FLIGHT_NO_RE.match(number):
+        return "flight"
+    return ""
 
 
 def _pref_question() -> str:
@@ -6038,6 +6089,7 @@ class PlanningAgent:
             lib_count = 0
             no_loc = 0  # 库命中无坐标骨架行剔除数（坐标闸，2026-10-30）
             no_data = 0  # 库命中三空骨架行剔除数（数据闸，2026-11-04）
+            no_fallback = 0  # 库命中回退点行剔除数（第四闸，P1#1）
             if self._poi_details is not None:
                 try:
                     lib_all = await asyncio.to_thread(
@@ -6082,6 +6134,7 @@ class PlanningAgent:
                             and h.get("location")
                             and h.get("name") not in _picked_names
                             and _cand_is_show(h)
+                            and not _cand_at_fallback(h)  # 回退点闸（P1#1）
                         ][:PLAN_SHOW_RESCUE_LIMIT]
                     )
                 no_loc = sum(
@@ -6091,6 +6144,11 @@ class PlanningAgent:
                     1
                     for h in lib_all
                     if h.get("name") and h.get("location") and not _pool_worthy(h)
+                )
+                no_fallback = sum(
+                    1
+                    for h in lib_all
+                    if h.get("name") and h.get("location") and _cand_at_fallback(h)
                 )
                 lib_count = len(lib_hits)
                 for h in lib_hits:
@@ -6155,6 +6213,10 @@ class PlanningAgent:
                         continue
                     if not p.get("location"):
                         continue  # 图商命中偶发无坐标：同款坐标闸（2026-10-30）
+                    if _cand_at_fallback(
+                        {"location": p["location"], "city": p.get("city") or city}
+                    ):
+                        continue  # 图商命中落城市回退点：同款第四闸（P1#1）
                     poi_city = str(p.get("city") or "").strip().removesuffix("市")
                     entry = {**p}
                     if poi_city and poi_city != city.removesuffix("市"):
@@ -6172,11 +6234,12 @@ class PlanningAgent:
                     pois.append(entry)
             logger.info(
                 "plan: city %s candidates library=%d no_loc_skipped=%d "
-                "no_data_skipped=%d total=%d",
+                "no_data_skipped=%d fallback_skipped=%d total=%d",
                 city,
                 lib_count,
                 no_loc,
                 no_data,
+                no_fallback,
                 len(pois),
             )
             if not pois:
