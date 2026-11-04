@@ -3421,7 +3421,7 @@ function itinImportPreviewModal(r) {
           bus: I18N.tf("itin.impMode.bus", "大巴")
         }[it.mode] || it.mode;
         return '<div style="margin:2px 0">🚄 ' + t + esc(it.from_city) + " → " + esc(it.to_city) +
-          I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no ? " " + esc(it.train_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
+          I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no || it.flight_no ? " " + esc(it.train_no || it.flight_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
       }
       return '<div style="margin:2px 0">• ' + t + esc(it.name) +
         (it.city && it.city !== d.base_city ? I18N.tf("itin.parenPre", "（") + esc(I18N.city(it.city)) + I18N.tf("itin.parenSuf", "）") : "") + "</div>";
@@ -3584,7 +3584,7 @@ async function shareOpen(token) {
       const t = (it.start_time || "").slice(0, 5);
       if (it.kind === "transfer") {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
-          esc(modeLabel(it.mode)) + " " + esc(it.train_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
+          esc(modeLabel(it.mode)) + " " + esc(it.train_no || it.flight_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
           (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + I18N.tf("card.minutes", " 分钟") : "") + "</span></div>"));
       } else {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +

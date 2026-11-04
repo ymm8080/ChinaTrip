@@ -34,6 +34,13 @@ class NoTrains:
         return []
 
 
+class NoFlights:
+    """无航班 → 返程走火车（本文件校验的是晚间火车窗）。"""
+
+    async def search(self, *args, **kwargs):
+        return []
+
+
 def _train(no, dep, arr, from_city, to_city):
     dep_t, arr_t = time(*dep), time(*arr)
     return TrainOption(
@@ -180,8 +187,11 @@ def test_return_leg_prefers_evening_train_and_keeps_last_day_visits():
         ]
     )
     agent = PlanningAgent(
-        llm, train_service=StubTrains(), auto_restaurants=False
-    )  # 城窗断言：午餐占位件除外
+        llm,
+        train_service=StubTrains(),
+        flight_service=NoFlights(),
+        auto_restaurants=False,
+    )  # 城窗断言：午餐占位件除外；航班源空 → 验晚间火车窗
     session = asyncio.run(
         agent.start(
             device_id="d1",

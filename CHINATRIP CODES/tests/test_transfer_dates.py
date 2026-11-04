@@ -6,12 +6,20 @@ from __future__ import annotations
 import asyncio
 
 from app.services.agent.plan import PlanningAgent, _leg_date_iso
+from app.services.flights import FlightService
 from app.services.trains import MockTrainService
 
 
 class _NoLLM:
     async def chat(self, messages, *, temperature=0.3, max_tokens=None):
         raise AssertionError("ticket paths must not call the LLM")
+
+
+class _EmptyFlights(FlightService):
+    """无航班 → 去程/回程退回火车，本文件只校验火车查询日。"""
+
+    async def search(self, from_city, to_city, date):
+        return []
 
 
 class RecordingTrains(MockTrainService):
@@ -25,7 +33,7 @@ class RecordingTrains(MockTrainService):
 
 
 def _agent(trains: RecordingTrains) -> PlanningAgent:
-    return PlanningAgent(_NoLLM(), train_service=trains)
+    return PlanningAgent(_NoLLM(), train_service=trains, flight_service=_EmptyFlights())
 
 
 def test_leg_date_iso_math():
