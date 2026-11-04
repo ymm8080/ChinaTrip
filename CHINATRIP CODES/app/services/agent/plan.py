@@ -3432,7 +3432,7 @@ def _fallback_sequence_times(
             ):
                 cursor = max(cursor, 12 * 60)
             if t >= AFTERNOON_START_MINUTES and _is_big_site(visit):
-                afternoon_big_exists = True
+                pass
 
         # 午餐落位 v2.3（2026-11-03 用户拍板：开餐硬窗 [11:30, 12:30]、
         # 时长默认 1.5h、极端可缩 0.5h）。旧版 v2.2 的①兜底可无界顺延到
