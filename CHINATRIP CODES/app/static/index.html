@@ -4010,6 +4010,8 @@ function bkShowCard(s, city, kind) {
   head.appendChild(el('<b style="font-size:14px">' + esc(I18N.pick(s, "name", "name_en")) + "</b>"));
   head.appendChild(el('<span class="badge ' + (s.has_direct ? "ok" : "") + '">' + (s.has_direct ? I18N.tf("bk.showDirect", "直达票页") : I18N.tf("bk.showSearch", "渠道搜索")) + "</span>"));
   tile.appendChild(head);
+  const hrs = I18N.pick(s, "opening_hours", "opening_hours_en");
+  if (hrs) tile.appendChild(el('<div class="muted" style="margin:4px 0">🕐 ' + esc(hrs) + "</div>"));
   if (s.note) tile.appendChild(el('<div class="muted" style="margin:4px 0">' + esc(s.note) + "</div>"));
   tile.appendChild(el('<div class="muted" style="font-size:12px">' + I18N.tf("bk.refundColon", "退改：") + esc(showRefundSummary(kind)) + "</div>"));
   const btn = el('<button class="btn mini ghost"></button>');

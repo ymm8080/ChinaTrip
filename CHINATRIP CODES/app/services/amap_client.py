@@ -34,11 +34,27 @@ class AmapPunishedError(AmapError):
     """
 
 
+class AmapServiceUnavailableError(AmapError):
+    """infocode 10002 (SERVICE_NOT_AVAILABLE)：接口临时不可用/限速。
+
+    2026-11-04 实测：/v5/place/around 连续调用约百次后开始返 10002，
+    冷却后恢复；与 10021（配额尽）不同，但同样应立即停批而非逐行重试。
+    """
+
+
 # 阿里云 WAF 对 httpx/python-requests 默认 UA 敏感；浏览器式 UA 降低触发概率。
 _BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
+# 2026-11-04：补 Referer/Accept 让请求更像控制台/网页端，降低 place 族
+# WAF 命中率（此前仅 UA 一项）。
+_BROWSER_HEADERS = {
+    "User-Agent": _BROWSER_UA,
+    "Referer": "https://www.amap.com/",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+}
 
 _PUNISH_MARK = b"bixi.alicdn.com/punish"
 
@@ -188,6 +204,13 @@ def _extras(poi: dict) -> dict:
         if first:
             out["business_area"] = first
     return out
+
+
+def _name_like(candidate: str, term: str) -> bool:
+    """名称双向包含判等（去空格）；空/单字不参与。"""
+    c = (candidate or "").replace(" ", "")
+    t = (term or "").replace(" ", "")
+    return bool(c and t and len(t) >= 2 and (t in c or c in t))
 
 
 def _hours_result(poi: dict | None) -> dict:
@@ -341,6 +364,15 @@ class AmapClient:
         self._transport = transport
         # v5 endpoints (richer business hours) live beside the v3 base
         self._v5_base = self._base_url.rsplit("/v3", 1)[0] + "/v5"
+        # 2026-11-04：/v5/place/text 被配额（10021）或 WAF 处罚打下后本轮
+        # 粘住——后续 search_hours 直接走 /v5/place/around（独立配额池、
+        # 独立风控），既省调用也不再持续敲被处罚的端点。
+        self._text_hours_disabled = False
+
+    @property
+    def text_hours_unavailable(self) -> bool:
+        """text 端点本轮已被配额/WAF 打下（调用方可直接走 around）。"""
+        return self._text_hours_disabled
 
     async def _request_json(
         self, path: str, params: dict[str, str], *, timeout_seconds: float | None = None
@@ -349,7 +381,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=timeout_seconds or self._timeout_seconds,
             transport=self._transport,
-            headers={"User-Agent": _BROWSER_UA},
+            headers=_BROWSER_HEADERS,
         ) as http:
             try:
                 response = await http.get(path, params=params)
@@ -372,6 +404,11 @@ class AmapClient:
                 raise AmapQuotaExhaustedError(
                     _as_str(data.get("info")) or "amap daily quota exhausted",
                     _as_str(data.get("infocode")) or "",
+                )
+            if _as_str(data.get("infocode")) == "10002":
+                raise AmapServiceUnavailableError(
+                    _as_str(data.get("info")) or "amap service unavailable",
+                    "10002",
                 )
             raise AmapError(
                 _as_str(data.get("info")) or "amap request failed",
@@ -400,7 +437,11 @@ class AmapClient:
         loc = _parse_location(_as_str(first.get("location")))
         if loc is None:
             return {"lon": None, "lat": None, "level": _as_str(first.get("level"))}
-        return {"lon": loc["lon"], "lat": loc["lat"], "level": _as_str(first.get("level"))}
+        return {
+            "lon": loc["lon"],
+            "lat": loc["lat"],
+            "level": _as_str(first.get("level")),
+        }
 
     async def search_poi(
         self, keywords: str, *, city: str | None = None, page: int = 1
@@ -420,7 +461,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=self._timeout_seconds,
             transport=self._transport,
-            headers={"User-Agent": _BROWSER_UA},
+            headers=_BROWSER_HEADERS,
         ) as http:
             try:
                 response = await http.get("/place/text", params=params)
@@ -443,6 +484,11 @@ class AmapClient:
                 raise AmapQuotaExhaustedError(
                     _as_str(data.get("info")) or "amap daily quota exhausted",
                     _as_str(data.get("infocode")) or "",
+                )
+            if _as_str(data.get("infocode")) == "10002":
+                raise AmapServiceUnavailableError(
+                    _as_str(data.get("info")) or "amap service unavailable",
+                    "10002",
                 )
             raise AmapError(
                 _as_str(data.get("info")) or "amap request failed",
@@ -479,7 +525,7 @@ class AmapClient:
             base_url=self._base_url,
             timeout=self._timeout_seconds,
             transport=self._transport,
-            headers={"User-Agent": _BROWSER_UA},
+            headers=_BROWSER_HEADERS,
         ) as http:
             try:
                 response = await http.get("/place/around", params=params)
@@ -506,6 +552,11 @@ class AmapClient:
                 raise AmapQuotaExhaustedError(
                     _as_str(data.get("info")) or "amap daily quota exhausted",
                     _as_str(data.get("infocode")) or "",
+                )
+            if _as_str(data.get("infocode")) == "10002":
+                raise AmapServiceUnavailableError(
+                    _as_str(data.get("info")) or "amap service unavailable",
+                    "10002",
                 )
             raise AmapError(
                 _as_str(data.get("info")) or "amap request failed",
@@ -690,10 +741,14 @@ class AmapClient:
         sites): one keyword query, first hit only. Same shape as
         place_hours() plus the matched POI name.
 
-        text 配额尽（10021）且调用方给了 location 时，改道 v5
-        /place/around 再试一次（独立配额池，radius 3km 内首条命中）；
-        around 也失败则回抛 text 的原始异常。
+        text 配额尽（10021）或被 WAF 处罚页拦下（2026-11-03 起整族 deny）
+        且调用方给了 location 时，改道 v5 /place/around 再试一次（独立
+        配额池、独立风控，radius 3km 内首条命中）；around 也失败则回抛
+        text 的原始异常。text 已被打下时本轮后续调用直接走 around，不再
+        白敲一次 text（`_text_hours_disabled`）。
         """
+        if self._text_hours_disabled and location:
+            return await self._search_hours_around(keyword, location)
         params = {
             "key": self._key,
             "keywords": keyword,
@@ -706,11 +761,14 @@ class AmapClient:
             params["city_limit"] = "true"
         try:
             data = await self._request_json(f"{self._v5_base}/place/text", params)
-        except AmapQuotaExhaustedError as exc:
+        except (AmapQuotaExhaustedError, AmapPunishedError) as exc:
             if not location:
                 raise
+            self._text_hours_disabled = True
             logger.warning(
-                "amap: text quota exhausted for hours, degrading to around, keyword=%s",
+                "amap: text unavailable for hours (%s), "
+                "degrading to around, keyword=%s",
+                type(exc).__name__,
                 keyword,
             )
             try:
@@ -729,23 +787,70 @@ class AmapClient:
             poi = pois[0]
         return _hours_result(poi)
 
-    async def _search_hours_around(self, keyword: str, location: str) -> dict:
-        """search_hours 的 10021 兜底：v5 /place/around 取坐标邻近首条。"""
+    async def _search_hours_around(
+        self,
+        keyword: str,
+        location: str,
+        *,
+        page_size: int = 1,
+        match_terms: list[str] | None = None,
+    ) -> dict:
+        """search_hours 的兜底：v5 /place/around 取坐标邻近结果。
+
+        2026-11-04：调用方可传 page_size>1 + match_terms——一次请求取回
+        多个候选，在本地按名称变体挑第一个匹配项。逐变体各发一次检索在
+        配额/限速下太贵（5A/4A 长名一行最多 5 个变体）。
+        """
         params = {
             "key": self._key,
             "keywords": keyword,
             "location": location,
             "radius": "3000",
-            "page_size": "1",
+            "page_size": str(max(1, page_size)),
             "show_fields": "business,photos",
             "output": "JSON",
         }
         data = await self._request_json(f"{self._v5_base}/place/around", params)
         pois = data.get("pois")
         poi = None
-        if isinstance(pois, list) and pois and isinstance(pois[0], dict):
-            poi = pois[0]
+        if isinstance(pois, list):
+            if match_terms:
+                poi = next(
+                    (
+                        p
+                        for p in pois
+                        if isinstance(p, dict)
+                        and any(_name_like(p.get("name", ""), t) for t in match_terms)
+                    ),
+                    None,
+                )
+            elif pois and isinstance(pois[0], dict):
+                poi = pois[0]
         return _hours_result(poi)
+
+    async def search_hours_around_best(
+        self, variants: list[str], location: str
+    ) -> dict:
+        """一次 around 请求 + 本地变体匹配；未召回时用核心名再试一次。
+
+        返回形状同 search_hours（matched=None 表示未命中）。
+        """
+        if not variants:
+            return _hours_result(None)
+        primary = variants[0]
+        out = await self._search_hours_around(
+            primary, location, page_size=10, match_terms=variants
+        )
+        if out.get("matched"):
+            return out
+        # 全名过长时 around 可能整条不召回（如带州/县前缀的 5A 名录名），
+        # 用剥离后的最短核心名补一发——最多两次请求，仍少于逐变体。
+        core = variants[-1]
+        if core != primary:
+            out = await self._search_hours_around(
+                core, location, page_size=10, match_terms=variants
+            )
+        return out
 
     async def transit_route(
         self,

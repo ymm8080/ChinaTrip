@@ -27,3 +27,38 @@ def test_no_split_on_he_character():
 
 def test_plain_name_unchanged():
     assert _variants("颐和园") == ["颐和园"]
+
+
+def test_strip_multiple_admin_prefixes():
+    # 2026-11-04：旧实现只剥一层，5A 名录长名会留下「荔波县樟江景区」
+    got = _variants("黔南布依族苗族自治州荔波县樟江景区")
+    assert "樟江景区" in got
+    assert "樟江" in got
+
+
+def test_strip_stacked_suffixes():
+    got = _variants("南关区世界雕塑公园景区")
+    assert "世界雕塑公园" in got
+    assert "世界雕塑" in got
+
+
+def test_short_name_not_over_stripped():
+    # 前缀剥离不得把「大理古城」这类短名剥成「古城」
+    assert _variants("大理古城") == ["大理古城"]
+
+
+def test_best_hit_picks_matching_candidate_not_first():
+    from app.jobs.enrich_baidu_map import _best_hit
+
+    results = [
+        {"name": "其他无关景点"},
+        {"name": "九寨沟景区", "detail_info": {"shop_hours": "08:00-18:00"}},
+    ]
+    hit = _best_hit(results, _variants("阿坝藏族羌族自治州九寨沟县九寨沟景区"))
+    assert hit is not None and hit["name"] == "九寨沟景区"
+
+
+def test_best_hit_returns_none_when_no_variant_matches():
+    from app.jobs.enrich_baidu_map import _best_hit
+
+    assert _best_hit([{"name": "完全不同"}], _variants("颐和园")) is None
