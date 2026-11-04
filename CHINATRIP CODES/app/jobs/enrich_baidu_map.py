@@ -259,9 +259,7 @@ async def _process_row(
             d = await asyncio.to_thread(_search, client, key, variants[0], t.city)
             hit = _best_hit(d.get("results") or [], variants)
             if hit is None and len(variants) > 1:
-                d = await asyncio.to_thread(
-                    _search, client, key, variants[-1], t.city
-                )
+                d = await asyncio.to_thread(_search, client, key, variants[-1], t.city)
                 hit = _best_hit(d.get("results") or [], variants)
         except Exception as exc:
             st = getattr(exc, "status", None)

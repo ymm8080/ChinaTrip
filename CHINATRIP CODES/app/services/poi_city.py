@@ -455,6 +455,7 @@ def _county_stem_sorted(prov: str) -> list[tuple[str, str]]:
         _COUNTY_STEM_SORTED[prov] = items
     return items
 
+
 _CITY_PROVINCE: dict[str, str] | None = None
 
 
@@ -717,8 +718,10 @@ def resolve_city(province: str | None, text: str) -> str | None:
         pos = t.find(name)
         if pos < 0:
             continue
-        if best_city is None or pos < best_pos or (
-            pos == best_pos and len(name) > best_len
+        if (
+            best_city is None
+            or pos < best_pos
+            or (pos == best_pos and len(name) > best_len)
         ):
             best_pos, best_len = pos, len(name)
             best_city = canonical_city(name)

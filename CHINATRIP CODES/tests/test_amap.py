@@ -764,8 +764,7 @@ def test_search_hours_quota_falls_back_to_around_and_returns_hit():
 
 
 PUNISH_HTML_BODY = (
-    b'<a href="https://bixi.alicdn.com/punish/punish:resource:template:x.html">'
-    b"</a>"
+    b'<a href="https://bixi.alicdn.com/punish/punish:resource:template:x.html"></a>'
 )
 
 
