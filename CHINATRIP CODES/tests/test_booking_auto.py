@@ -309,6 +309,8 @@ def _show_row(**over):
         booking_url="https://m.ctrip.com/webapp/cw/sku/x",
         intro="每年冬季例行停演，行前请确认档期",
         intro_en=None,
+        opening_hours=None,
+        opening_hours_en=None,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -323,12 +325,13 @@ def _shows_app(session) -> TestClient:
 
 def test_shows_catalog_flags_direct_and_passes_note():
     rows = [
-        _show_row(),
+        _show_row(opening_hours="仅夜场约20:10/21:35两场"),
         _show_row(
             name_zh="西安千古情",
             booking_url=None,
             intro=None,
             intro_en="Nightly immersive show",
+            opening_hours_en="Nightly shows",
         ),
         _show_row(name_zh="秦俑情", booking_url=None, intro=None, intro_en=None),
     ]
@@ -343,6 +346,11 @@ def test_shows_catalog_flags_direct_and_passes_note():
     assert shows[0]["note"] == "每年冬季例行停演，行前请确认档期"
     assert shows[1]["note"] == "Nightly immersive show"  # intro 空回退 intro_en
     assert shows[2]["note"] is None
+    # 场次/营业时间串透传（2026-11-04 目录页无场次反馈）：中英双写，空为 None
+    assert shows[0]["opening_hours"] == "仅夜场约20:10/21:35两场"
+    assert shows[1]["opening_hours_en"] == "Nightly shows"
+    assert shows[2]["opening_hours"] is None
+    assert shows[2]["opening_hours_en"] is None
 
 
 def test_shows_empty_city_still_200():

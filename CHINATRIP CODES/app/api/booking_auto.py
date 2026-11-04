@@ -59,6 +59,10 @@ class ShowCard(BaseModel):
     city: str | None = None
     booking_url: str | None = None
     note: str | None = None
+    # 营业时间/场次串（poi.opening_hours 透传；演出行多为「仅夜场约
+    # 20:10/21:35两场」类场次文本——2026-11-04 用户反馈目录页无场次补）
+    opening_hours: str | None = None
+    opening_hours_en: str | None = None
     has_direct: bool = False
 
 
@@ -119,6 +123,8 @@ async def _catalog(
                         Poi.rating,
                         Poi.intro,
                         Poi.intro_en,
+                        Poi.opening_hours,
+                        Poi.opening_hours_en,
                     )
                 )
                 .filter(
@@ -163,6 +169,8 @@ async def _catalog(
             city=r.city,
             booking_url=r.booking_url,
             note=(r.intro or r.intro_en or "")[:120] or None,
+            opening_hours=r.opening_hours,
+            opening_hours_en=r.opening_hours_en,
             has_direct=bool(r.booking_url),
         ).model_dump()
         for r in rows
