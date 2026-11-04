@@ -63,8 +63,9 @@ let pollT = null;
 
 function $(id) { return document.getElementById(id); }
 function hdrs() {
+  // HTTP 头仅 ISO-8859-1：坐席名可能含中文，encodeURIComponent 后传，服务端 unquote
   return { "Content-Type": "application/json", "X-Agent-Key": localStorage.getItem(KEY_STORE) || "",
-           "X-Agent-Name": localStorage.getItem(NAME_STORE) || "agent" };
+           "X-Agent-Name": encodeURIComponent(localStorage.getItem(NAME_STORE) || "agent") };
 }
 async function req(path, body, method) {
   const res = await fetch("/api/v1/call" + path, {

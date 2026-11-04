@@ -256,3 +256,44 @@ def test_records_show_start_end_duration_and_minutes(monkeypatch):
     mm, ss = row["duration_label"].split(":")  # mm:ss 形态
     assert len(mm) == 2 and len(ss) == 2 and int(ss) < 60
     assert rec["orders"][0]["id"] == order_id and rec["orders"][0]["status"] == "paid"
+
+
+def test_packages_include_refund_summary():
+    """铁律 23：退款摘要随套餐目录下发，购买前可见。"""
+    p = client.get("/api/v1/call/packages").json()
+    assert "全额原路退回" in p["refund_summary"]
+    assert "120 秒" in p["refund_summary"]
+
+
+def test_records_expires_orphan_waiting_session():
+    """旅客刷新页面后不再轮询：records 读路径也要清掉超时 waiting（防分钟卡死）。"""
+    _buy(10)
+    s = _open(10)
+    svc = cs_module.get_call_service()
+    svc.store.update_session(s["session_id"], created_at="2026-10-25T09:00:00")
+    rec = client.get("/api/v1/call/records", headers=DEVICE).json()
+    row = next(r for r in rec["sessions"] if r["session_id"] == s["session_id"])
+    assert row["status"] == "expired" and row["refund_minutes"] == 10
+    assert rec["balance"] == 10
+    # 坐席队列读路径同样清理
+    q = client.get("/api/v1/call/agent/queue", headers=_agent()).json()
+    assert all(x["status"] != "waiting" for x in q["sessions"])
+
+
+def test_agent_queue_exposes_remaining_and_enforces_exhaustion():
+    """坐席台计时口径：queue 返回 remaining_seconds；到点强结不依赖旅客端轮询。"""
+    _buy(5)
+    s = _open(5)
+    client.post(
+        f"/api/v1/call/agent/sessions/{s['session_id']}/answer", headers=_agent()
+    )
+    q = client.get("/api/v1/call/agent/queue", headers=_agent()).json()
+    row = next(x for x in q["sessions"] if x["session_id"] == s["session_id"])
+    assert row["status"] == "active" and row["remaining_seconds"] == 300
+    # 回拨 started_at 到 6 分钟前 → 队列读路径直接强结 exhausted
+    svc = cs_module.get_call_service()
+    svc.store.update_session(s["session_id"], started_at="2026-10-25T09:00:00")
+    q2 = client.get("/api/v1/call/agent/queue", headers=_agent()).json()
+    assert all(x["session_id"] != s["session_id"] for x in q2["sessions"])
+    final = svc.store.get_session(s["session_id"])
+    assert final["status"] == "ended" and final["end_reason"] == "exhausted"

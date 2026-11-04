@@ -4862,7 +4862,7 @@ wxSync();
 
 /* ================= Tab：通话咨询（DESIGN paid_call_service_2026-10-25） ================= */
 
-const CALL = { cfg: null, balance: 0, minutes: 0, sessionId: null, pollT: null };
+const CALL = { cfg: null, balance: 0, minutes: 0, sessionId: null, pollT: null, recovered: false };
 
 function callT(k, fb) { try { const v = I18N.t(k); return v === k ? fb : v; } catch (e) { return fb; } }
 
@@ -4880,7 +4880,8 @@ async function callRefresh() {
     CALL.cfg = pk; CALL.balance = bal.minutes;
     if (!CALL.minutes) CALL.minutes = 0;
     callRender();
-    document.getElementById("callRefundText").textContent = "";
+    // 铁律 23：退款摘要随套餐目录下发，购买前必须可见
+    document.getElementById("callRefundText").textContent = pk.refund_summary || "";
   } catch (e) { failToast(e); }
 }
 
@@ -5018,6 +5019,19 @@ async function callLoadRecords() {
   box.innerHTML = "";
   document.getElementById("callBalance").textContent =
     "💰 " + rec.balance + callT("call.unit.min", " 分钟");
+  // 刷新恢复：页面重载丢掉轮询时，接回仍未结束的会话（waiting/active）
+  if (!CALL.recovered) {
+    CALL.recovered = true;
+    const live = rec.sessions.find(s => s.status === "waiting" || s.status === "active");
+    if (live && !CALL.sessionId) {
+      CALL.sessionId = live.session_id;
+      document.getElementById("callOverlay").style.display = "flex";
+      document.getElementById("btnCallEnd").style.display = "";
+      document.getElementById("btnCallClose").style.display = "none";
+      callRenderView(live);
+      CALL.pollT = setInterval(callPoll, 3000);
+    }
+  }
   if (!rec.sessions.length) {
     box.appendChild(el('<div class="muted">' + callT("call.records.empty", "还没有通话记录") + "</div>"));
     return;

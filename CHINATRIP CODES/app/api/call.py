@@ -6,6 +6,7 @@ Bearer）。坐席端点以 X-Agent-Key 共享密钥护门——未配置 = 整�
 """
 
 from functools import wraps
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Body, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -162,7 +163,9 @@ def agent_answer(
     x_agent_name: str | None = Header(default=None, alias="X-Agent-Name"),
 ) -> dict:
     _agent(x_agent_key)
-    return _svc().agent_answer(session_id, x_agent_name or "agent")
+    # HTTP 头仅 ISO-8859-1：客户端对坐席名 encodeURIComponent，这里解码
+    name = unquote(x_agent_name) if x_agent_name else "agent"
+    return _svc().agent_answer(session_id, name)
 
 
 @router.post("/agent/sessions/{session_id}/end")
