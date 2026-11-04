@@ -55,6 +55,11 @@ from app.services.itinerary.models import (
     ValidationReport,
     VisitItem,
 )
+from app.services.itinerary.solver import (
+    AFTERNOON_START_MINUTES,
+    _is_big_site,
+    generic_entry_cap,
+)
 from app.services.lang_ctx import L
 
 # Iron rule 6 crowd coefficient band (models.py pins the 0.6-1.2 bounds).
@@ -475,6 +480,91 @@ def _check_base_city_jumps(plan: ItineraryPlan) -> list[RuleViolation]:
 # --- public API -----------------------------------------------------------
 
 
+def _check_delivery_gates(
+    day_no: int,
+    visits: list[VisitItem],
+    hours: dict,
+) -> list[RuleViolation]:
+    """交付闸（2026-11-04 it-b986c4f6 熊猫基地挂日尾事故后收口）：
+
+    ① 钉住条目未排入时刻=error——必去/用户钉的点以「无时刻」交付是
+       优先级倒挂（凑数点霸下午、必去挂日尾渲染成四点以后）；
+    ② 同日下午（≥13:00 开场）大点 ≥2=warning（下午单大点，2026-11-04
+       拍板「超过 80 分钟的下午就放一个」）；
+    ③ 白天入场闸超限=warning（大点 >15:30 / 普通 >16:30 开场，夜游/
+       演出/餐/酒店/用户钉住有时刻豁免面与 solver generic_entry_cap
+       完全同口径）——仅在营业窗已知（poi_id 命中 hours）时判，避免
+       poi_hours=[] 的结构校验调用对夜开场馆误报。
+
+    solver 路径的罚分/闸不覆盖 LLM 改写、H5 move 等旁路，这里是独立
+    的读侧最后一道网。"""
+    out: list[RuleViolation] = []
+    afternoon_bigs = 0
+    for v in visits:
+        if v.pinned and v.start_time is None:
+            out.append(
+                RuleViolation(
+                    rule_id=19,
+                    severity=RuleSeverity.error,
+                    message=L(
+                        f"第{day_no}天 必去/钉住条目「{v.name}」未排入时刻",
+                        f'Day {day_no}: pinned must-visit "{v.name}" has no time slot',
+                    ),
+                    item_ids=[v.item_id],
+                    day=day_no,
+                )
+            )
+        if v.start_time is None:
+            continue
+        start = _minutes(v.start_time)
+        if start >= AFTERNOON_START_MINUTES and _is_big_site(v):
+            afternoon_bigs += 1
+        window = hours.get(v.poi_id)
+        cap = (
+            generic_entry_cap(v, window)
+            if (v.category or "") not in ("food", "hotel") and window is not None
+            else None
+        )
+        if cap is not None and start > cap:
+            out.append(
+                RuleViolation(
+                    rule_id=7,
+                    severity=RuleSeverity.warning,
+                    message=L(
+                        f"第{day_no}天 「{v.name}」{v.start_time.strftime('%H:%M')}"
+                        " 开场晚于白天入场闸",
+                        f'Day {day_no}: "{v.name}" starts '
+                        f"{v.start_time.strftime('%H:%M')} after the daytime "
+                        "entry cap",
+                    ),
+                    item_ids=[v.item_id],
+                    day=day_no,
+                )
+            )
+    if afternoon_bigs > 1:
+        names = "、".join(
+            v.name
+            for v in visits
+            if v.start_time is not None
+            and _minutes(v.start_time) >= AFTERNOON_START_MINUTES
+            and _is_big_site(v)
+        )
+        out.append(
+            RuleViolation(
+                rule_id=7,
+                severity=RuleSeverity.warning,
+                message=L(
+                    f"第{day_no}天 下午排了 {afternoon_bigs} 个大点"
+                    f"（{names}）——一般下午只放一个大点",
+                    f"Day {day_no} afternoon has {afternoon_bigs} big sights "
+                    f"({names}) — usually one per afternoon",
+                ),
+                day=day_no,
+            )
+        )
+    return out
+
+
 def validate_plan(
     plan: ItineraryPlan,
     *,
@@ -494,6 +584,7 @@ def validate_plan(
         violations += _check_transfer_sequence(day.day, transfers)
         violations += _check_pace(day.day, day.items, visits, crowd_profile)
         violations += _check_visit_cities(plan, day, visits)
+        violations += _check_delivery_gates(day.day, visits, hours)
     violations += _check_base_city_jumps(plan)
     return _report(violations)
 

@@ -171,6 +171,9 @@ def test_fallback_chains_travel_between_sequenced_sights():
     _fallback_sequence_times(plan)
     placed = [s for s in sights if s.start_time is not None]
     assert len(placed) >= 3, "前三点（日始+午后+临潼）应可落位"
+    # 11-04 大点先排：兜底排序后时刻序≠列表序，腿链断言按时间序走
+    # （不变式是「相邻时刻不背靠背零车程」，不是列表序）。
+    placed.sort(key=lambda s: (s.start_time.hour, s.start_time.minute))
     for a, b in zip(placed, placed[1:]):
         gap = (b.start_time.hour * 60 + b.start_time.minute) - (
             a.end_time.hour * 60 + a.end_time.minute

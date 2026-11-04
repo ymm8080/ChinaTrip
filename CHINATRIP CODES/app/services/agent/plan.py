@@ -79,10 +79,12 @@ from app.services.itinerary.rules import (
 )
 from app.services.itinerary.solver import (
     _BEST_VISIT_WINDOWS,
+    AFTERNOON_START_MINUTES,
     BIG_SITE_MIN_MINUTES,
     DAY_START_MINUTES,
     SHOW_LATE_SESSION_MINUTES,
     _city_side,
+    _is_big_site,
     _leaving_morning_cap,
     generic_entry_cap,
     show_session_starts,
@@ -2075,6 +2077,25 @@ def _is_preference_style_option(text: str) -> bool:
     return any(o in s for o in PREFERENCE_STYLE_OPTIONS)
 
 
+_SERVICE_META_TAILS = ("天气", "行程", "攻略", "路线", "规划", "安排")
+
+
+def _is_service_meta_wish(text: str) -> bool:
+    """服务型请求当愿望（2026-11-04 it-b986c4f6 事故）：「帮我看看天气」
+    「帮我看看整体行程」被当愿望建行、又经心愿单吸收成必去占位卡——
+    这是让引擎干活的指令，不是可排期的地点。只拦「祈使句+服务宾语」
+    整串与光杆祈使；「帮我看看熊猫」这类具体地点宾语的真愿望不受影响。"""
+    s = (text or "").strip()
+    if not s or len(s) > 24:
+        return False
+    if s.endswith(_SERVICE_META_TAILS):
+        return True
+    return bool(
+        re.match(r"^(帮我|麻烦|请|劳驾)", s)
+        and s.endswith(("看看", "看下", "看一下", "查查", "查一下"))
+    )
+
+
 # 偏好→品类映射（拍板③）：(偏好触发词, 库内 category 值, 名字兜底 token)。
 # category 为主（库内已分类 museum/nature/park/…），名字 token 只兜底
 # 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃上海博物馆这类）。
@@ -3229,13 +3250,19 @@ def _leg_windows(
     return out
 
 
-def _fallback_sequence_times(plan: ItineraryPlan) -> None:
+def _fallback_sequence_times(
+    plan: ItineraryPlan, *, keep_list_order: bool = False
+) -> None:
     """Solver-degraded fallback: sequence untimed visits into the free
     gaps around fixed items so no item ships without a time slot.
 
     Transfer windows are respected with the iron-rule-4 buffer on both
     sides; visits that fit nowhere stay untimed and are flagged by
     validation instead of silently passing.
+
+    keep_list_order=True（拖拽/改时/换景点等用户权威路径）不重排列表
+    顺序、不跳下午第二大点——2026-10-24 拍板「用户顺序权威」压过
+    2026-11-04 的大点先排口径（那只约束引擎自动排期）。
     """
     # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
@@ -3253,12 +3280,13 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         # 兜底排序（2026-11-04 拍板「必去点/大点先排」的降级镜像）：
         # 钉住未排必去最先、大点先于轻点——类内保持列表原序（稳定排序），
         # 游标贪心不再让街区轻点抢占下午头档、把大点顶到日尾。
-        untimed.sort(
-            key=lambda v: (
-                0 if v.pinned else 1,
-                0 if _is_big_site(v) else 1,
+        if not keep_list_order:
+            untimed.sort(
+                key=lambda v: (
+                    0 if v.pinned else 1,
+                    0 if _is_big_site(v) else 1,
+                )
             )
-        )
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
         # 顺序单调；排不下的项留空并由校验提示。2026-10-31 三处修正：
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
@@ -3326,6 +3354,11 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                         str(visit.best_visit_time or "").strip().lower()
                     )
                     t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
+                    if visit.pinned and _is_big_site(visit) and morning_occupied:
+                        # 钉住必去大点下午头档（2026-11-04 熊猫基地挂日尾
+                        # 事故）：上午已被占时从正午起探，不在 11:30 半档
+                        # 开场杀掉午餐窗。
+                        t = max(t, 12 * 60)
                     # 到达城条目从落地地板起排（与 _host_day_for_visit
                     # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
                     # 卡在二值城市侧闸上（2026-11-03 离城日闸收口）。
@@ -3345,6 +3378,20 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                             t = fe
                             advanced = True
                             break
+                if (
+                    not keep_list_order
+                    and _is_big_site(visit)
+                    and afternoon_big_exists
+                    and t >= AFTERNOON_START_MINUTES
+                ):
+                    # 下午单大点兜底镜像（2026-11-04 拍板）：同日下午已有
+                    # 大点，第二个留空交挪日/披露，不硬塞。
+                    logger.warning(
+                        "plan: fallback skips 2nd afternoon big %s on day %d",
+                        visit.name,
+                        day.day,
+                    )
+                    continue
                 hours = hours_by_poi.get(visit.poi_id)
                 cap = generic_entry_cap(visit, hours)
                 if (
@@ -3384,6 +3431,8 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
                 and (visit.category or "") not in ("food", "hotel")
             ):
                 cursor = max(cursor, 12 * 60)
+            if t >= AFTERNOON_START_MINUTES and _is_big_site(visit):
+                afternoon_big_exists = True
 
         # 午餐落位 v2.3（2026-11-03 用户拍板：开餐硬窗 [11:30, 12:30]、
         # 时长默认 1.5h、极端可缩 0.5h）。旧版 v2.2 的①兜底可无界顺延到
@@ -3437,6 +3486,235 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
             fixed_tight.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
+def _day_fixed_windows(
+    day: DayPlan,
+) -> tuple[
+    list[tuple[int, int, object]],
+    list[tuple[int, int]],
+    list[tuple[VisitItem, int, int]],
+    list[tuple[TransferItem, int, int]],
+]:
+    """一天已排条目的固定窗四元组（_fallback_sequence_times 与
+    _must_visit_room_sweep 共用，口径必须一致）：
+
+    - fixed: (start, end, src) 打车腿放宽窗——src=观光锚时未排条目按
+      _leg_windows 放宽 ±30；餐饮/酒店/落地腿 src=None 保持原窗；
+    - fixed_tight: 紧贴窗（餐位贴点用）；
+    - flex_lunches: 午餐软钉（2026-10-31 拍板可延后）——不进固定窗，
+      参访排完后窗内落位；
+    - xfer_windows: 转场窗（城市侧闸用）。
+    """
+    buf = INTERCITY_BUFFER_MINUTES
+    fixed: list[tuple[int, int, object]] = []
+    fixed_tight: list[tuple[int, int]] = []
+    flex_lunches: list[tuple[VisitItem, int, int]] = []
+    xfer_windows: list[tuple[TransferItem, int, int]] = []
+    for item in day.items:
+        start = item.start_time
+        if start is None:
+            continue
+        s = start.hour * 60 + start.minute
+        e = _item_end_minutes(item)
+        if isinstance(item, TransferItem):
+            xfer_windows.append((item, s, e if e is not None else s))
+            # 落地侧首停地板（2026-11-01）：火车/飞机到达侧首个观光
+            # ≥ 落地 +150（有入住卡时卡占 [te+90, te+150]）；餐饮走
+            # fixed_tight 贴点通道，仍按铁律 4 缓冲 90。
+            arr_pad = (
+                ARRIVAL_STOP_FLOOR_MINUTES if item.mode in ("train", "flight") else buf
+            )
+            fixed.append((s - buf, e + arr_pad, None))
+            fixed_tight.append((s - buf, e + buf))
+        elif (
+            getattr(item, "category", "") == "food"
+            and s < 15 * 60
+            and (getattr(item, "soft_pin", False) or not item.pinned)
+        ):
+            # 午餐软钉（2026-10-31 用户拍板「午餐可以延后」）：不进固定
+            # 窗挡上午——参访排完后从原时刻起顺延落位；>180 分钟的上午
+            # 大点（240 分钟华清池 09:00-13:00 类）不再被 12 点午餐锚
+            # 挤到下午。
+            dur = e - s if e is not None and e > s else (item.duration_minutes or 60)
+            flex_lunches.append((item, s, int(dur)))
+        elif getattr(item, "category", "") == "hotel":
+            # 酒店入住卡：紧贴窗（贴着落地缓冲摆的锚，不 ±30）
+            fixed.append((s, e, None))
+            fixed_tight.append((s, e))
+        elif getattr(item, "category", "") == "food":
+            # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
+            # 傍晚时段挤没（2026-10-31 上午空排事故）
+            fixed.append((s, e, None))
+            fixed_tight.append((s, e))
+        else:
+            fixed.append((s - 30, e + 30, item))
+            fixed_tight.append((s, e))
+    fixed.sort(key=lambda w: (w[0], w[1]))
+    fixed_tight.sort()
+    return fixed, fixed_tight, flex_lunches, xfer_windows
+
+
+def _probe_visit_slot(
+    visit: VisitItem,
+    fixed: list[tuple[int, int, object]],
+    xfer_windows: list[tuple[TransferItem, int, int]],
+    hours_by_poi: dict,
+    day_end: int,
+    *,
+    floor: int = DAY_START_MINUTES,
+    cap_max: int | None = None,
+) -> int | None:
+    """单点落位探针（与 _fallback_sequence_times 非演出分支同口径）：
+    返回最早可行开场分钟数，不可行返回 None。floor=起始下限；
+    cap_max 收紧开场闸（必去大点「下午头档 ≤13:00 开场」用）。"""
+    dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+    wlo = _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
+    t = max(floor, wlo[0] if wlo else DAY_START_MINUTES)
+    for tr, _ts, te in xfer_windows:
+        if _city_side(visit, tr) == "after":
+            pad = (
+                ARRIVAL_STOP_FLOOR_MINUTES
+                if tr.mode in ("train", "flight")
+                else INTERCITY_BUFFER_MINUTES
+            )
+            t = max(t, te + pad)
+    advanced = True
+    while advanced:
+        advanced = False
+        for fs, fe in _leg_windows(fixed, visit):
+            if t < fe and t + dur > fs:
+                t = fe
+                advanced = True
+                break
+    if cap_max is not None and t > cap_max:
+        return None
+    hours = hours_by_poi.get(visit.poi_id)
+    cap = generic_entry_cap(visit, hours)
+    if cap is not None and cap_max is not None:
+        cap = min(cap, cap_max)
+    if (
+        t + dur <= day_end
+        and (cap is None or t <= cap)
+        and _fits_hours_window(hours, t, dur)
+        and _city_side_ok(xfer_windows, visit, t, dur)
+    ):
+        return t
+    return None
+
+
+def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
+    """必去让位清算（2026-11-04 it-b986c4f6 事故）：钉住未排的必去大点
+    被同日自动凑数条目占满下午、挤到挂日尾无时刻（熊猫基地 180min 被
+    望平坊 12:00 + 杜甫草堂 14:12 顶到日尾，渲染成「四点以后」）。
+
+    solve 前逐天清场：钉住未排观光点先试原窗（必去大点按「下午头档」
+    口径——上午已被占从 12:00 起、开场 ≤13:00），放不下则逐个挤掉非钉
+    凑数观光（街区 tier8 优先、再开场最晚；一个不够就累计挤、全挤完仍
+    不可行则原样归还绝不白挤）。只动自动凑数观光——钉住条目/餐/酒店/
+    演出永不让位。挤掉者留痕披露「要加回可指定其他天」，绝不静默。
+    幂等：已可行的钉住条目零改动。"""
+    notes: list[str] = []
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    day_end = 21 * 60 + 30
+    for day in plan.days:
+        swept = True
+        while swept:
+            swept = False
+            pinned_un = [
+                v
+                for v in day.items
+                if isinstance(v, VisitItem)
+                and v.pinned
+                and v.start_time is None
+                and not _is_show_item(v)
+                and (v.category or "") not in ("food", "hotel")
+            ]
+            for pv in pinned_un:
+                fixed, _fixed_tight, _flex_lunches, xfer_windows = _day_fixed_windows(
+                    day
+                )
+                morning_occupied = any(
+                    isinstance(v, VisitItem)
+                    and v.start_time is not None
+                    and (v.category or "") not in ("food", "hotel")
+                    and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
+                    for v in day.items
+                )
+                floor = 12 * 60 if morning_occupied else DAY_START_MINUTES
+                tighten = AFTERNOON_START_MINUTES if _is_big_site(pv) else None
+                if (
+                    _probe_visit_slot(
+                        pv,
+                        fixed,
+                        xfer_windows,
+                        hours_by_poi,
+                        day_end,
+                        floor=floor,
+                        cap_max=tighten,
+                    )
+                    is not None
+                ):
+                    continue
+                victims = [
+                    v
+                    for v in day.items
+                    if isinstance(v, VisitItem)
+                    and v.start_time is not None
+                    and not v.pinned
+                    and not _is_show_item(v)
+                    and (v.category or "") not in ("food", "hotel")
+                ]
+                if not victims:
+                    continue
+                victims.sort(
+                    key=lambda v: (
+                        0 if v.tier == 8 else 1,
+                        -(v.start_time.hour * 60 + v.start_time.minute),
+                    )
+                )
+                removed: list[VisitItem] = []
+                ok = False
+                for victim in victims:
+                    day.items.remove(victim)
+                    removed.append(victim)
+                    fixed2, _ft2, _fl2, xfer2 = _day_fixed_windows(day)
+                    if (
+                        _probe_visit_slot(
+                            pv,
+                            fixed2,
+                            xfer2,
+                            hours_by_poi,
+                            day_end,
+                            floor=floor,
+                            cap_max=tighten,
+                        )
+                        is not None
+                    ):
+                        ok = True
+                        break
+                if not ok:
+                    day.items.extend(removed)
+                    continue
+                for victim in removed:
+                    notes.append(
+                        L(
+                            f"「{victim.name}」为必去「{pv.name}」让位"
+                            f"（第{day.day}天留整档）——要加回可指定其他天",
+                            f'"{victim.name}" stepped aside for must-visit '
+                            f'"{pv.name}" on day {day.day} — name another day '
+                            "to add it back",
+                        )
+                    )
+                    logger.warning(
+                        "plan: must-visit room sweep evicted %s for %s on day %d",
+                        victim.name,
+                        pv.name,
+                        day.day,
+                    )
+                swept = True
+                break
+    return notes
 
 
 def _is_show_item(item: VisitItem) -> bool:
@@ -5368,9 +5646,13 @@ class PlanningAgent:
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue
-            if _is_preference_meta(name) or _is_preference_style_option(name):
-                # 偏好性元话语/风格词不是愿望（2026-10-31 拍板）：历史
-                # 误建行不再吸收成必去占位卡。
+            if (
+                _is_preference_meta(name)
+                or _is_preference_style_option(name)
+                or _is_service_meta_wish(name)
+            ):
+                # 偏好性元话语/风格词/服务型请求不是愿望（2026-10-31、
+                # 2026-11-04 拍板）：历史误建行不再吸收成必去占位卡。
                 continue
             city = it.get("city")
             if city and city not in session.cities:
@@ -8689,6 +8971,10 @@ class PlanningAgent:
                 },
             )
         )
+        # 必去让位清算（2026-11-04 熊猫基地挂日尾事故）：solve 前给钉住
+        # 未排必去清出整档——自动凑数条目让位留痕，solve 拿到的日窗即可
+        # 行，不再出现「必去无时刻挂日尾、凑数点霸下午」的优先级倒挂。
+        plan.assumptions.extend(_must_visit_room_sweep(plan))
         solved = self._solve(plan, meal_flex=True)
         degraded = solved is None
         if solved is not None:
@@ -10370,7 +10656,7 @@ class PlanningAgent:
                     it.start_time = None
                     it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
-        _fallback_sequence_times(candidate)
+        _fallback_sequence_times(candidate, keep_list_order=True)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:
@@ -10446,7 +10732,7 @@ class PlanningAgent:
                 it.start_time = None
                 it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
-        _fallback_sequence_times(candidate)
+        _fallback_sequence_times(candidate, keep_list_order=True)
         report = validate_plan(candidate, poi_hours=[])
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
@@ -10564,7 +10850,7 @@ class PlanningAgent:
                 it.start_time = None
                 it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
-        _fallback_sequence_times(candidate)
+        _fallback_sequence_times(candidate, keep_list_order=True)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:
@@ -10715,7 +11001,9 @@ class PlanningAgent:
         wishes = [
             w
             for w in wishes
-            if not _is_preference_meta(w) and not _is_preference_style_option(w)
+            if not _is_preference_meta(w)
+            and not _is_preference_style_option(w)
+            and not _is_service_meta_wish(w)
         ]
         if self._trip_items is None or not wishes:
             return [], []
@@ -10793,6 +11081,11 @@ class PlanningAgent:
         notes: list[str] = []
         unresolved: list[tuple[str, dict]] = []
         for wish in wishes:
+            if _is_service_meta_wish(wish):
+                # 服务型请求不建心愿行（2026-11-04「帮我看看天气」误建行
+                # 事故）：是让引擎干活的指令，不是可排期的地点。
+                logger.info("plan: chat wish skipped as service meta: %s", wish)
+                continue
             try:
                 existing = next(
                     (it for it in known if _name_dup(it["name"], wish)), None

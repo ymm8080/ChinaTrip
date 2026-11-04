@@ -1105,7 +1105,9 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
             )
         ],
     )
-    _fallback_sequence_times(plan)
+    # 拖拽权威路径语义（10-24）：keep_list_order=True 保护列表顺序游标
+    # （引擎自动路径的 11-04 大点先排排序见 test_big_afternoon_rules）。
+    _fallback_sequence_times(plan, keep_list_order=True)
     visits = [i for i in plan.days[0].items if not getattr(i, "from_city", None)]
     seq = [(v.name, v.start_time) for v in visits if v.start_time is not None]
     starts = [t for _, t in seq]

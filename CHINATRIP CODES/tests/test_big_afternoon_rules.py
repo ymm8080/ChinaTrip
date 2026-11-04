@@ -241,3 +241,225 @@ def test_rebalance_no_big_day_keeps_tier_order():
     # 因 4 点/预算闸不补，但绝不能反序（街区先于重磅被选中）。
     if "回民街" in names and "兵马俑" in names:
         assert names.index("兵马俑") < names.index("回民街")
+
+
+# --- 必去让位清算（2026-11-04 it-b986c4f6 熊猫挂日尾事故） ----------------
+
+
+def _plan_with(days: list[DayPlan]) -> ItineraryPlan:
+    return ItineraryPlan(
+        itinerary_id="it-x",
+        cities=[d.base_city for d in days],
+        days=days,
+        assumptions=[],
+    )
+
+
+def _panda_day() -> DayPlan:
+    js = _visit(
+        "js",
+        "金沙遗址博物馆",
+        dur=120,
+        tier=3,
+        start_time=_t(9, 0),
+        end_time=_t(11, 0),
+    )
+    lunch = _visit(
+        "lunch",
+        "午饭",
+        dur=30,
+        category="food",
+        start_time=_t(11, 30),
+        end_time=_t(12, 0),
+    )
+    wpf = _visit(
+        "wpf",
+        "望平坊旅游休闲街区",
+        dur=90,
+        tier=8,
+        start_time=_t(12, 0),
+        end_time=_t(13, 30),
+    )
+    dft = _visit(
+        "dft",
+        "杜甫草堂",
+        dur=120,
+        tier=3,
+        start_time=_t(14, 12),
+        end_time=_t(16, 12),
+    )
+    panda = _visit(
+        "panda",
+        "成都大熊猫繁育研究基地",
+        dur=180,
+        tier=3,
+        pinned=True,
+        poi_id="ct_成都_0",
+        opening_hours="07:30-17:00",
+    )
+    return DayPlan(day=3, base_city="成都", items=[js, lunch, wpf, dft, panda])
+
+
+def test_room_sweep_evicts_filler_for_pinned_big():
+    # 钉住熊猫（180min 大点）被望平坊 12:00 + 杜甫草堂 14:12 顶满下午：
+    # 清场挤掉凑数街区、给熊猫留出 12:00 头档整档，且留痕披露。
+    from app.services.agent.plan import (
+        _day_fixed_windows,
+        _must_visit_room_sweep,
+        _plan_poi_hours,
+        _probe_visit_slot,
+    )
+
+    day = _panda_day()
+    plan = _plan_with([day])
+    notes = _must_visit_room_sweep(plan)
+    names = [v.name for v in day.items if isinstance(v, VisitItem)]
+    assert "望平坊旅游休闲街区" not in names
+    assert notes and any("让位" in n for n in notes)
+    fixed, _fixed_tight, _flex_lunches, xfer_windows = _day_fixed_windows(day)
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    panda = next(v for v in day.items if v.item_id == "panda")
+    t = _probe_visit_slot(
+        panda,
+        fixed,
+        xfer_windows,
+        hours_by_poi,
+        21 * 60 + 30,
+        floor=12 * 60,
+        cap_max=13 * 60,
+    )
+    assert t == 12 * 60
+
+
+def test_room_sweep_idempotent_when_feasible():
+    # 已可行的钉住条目零改动：熊猫自己有时刻时清场不挤任何条目。
+    from app.services.agent.plan import _must_visit_room_sweep
+
+    day = _panda_day()
+    panda = next(v for v in day.items if v.item_id == "panda")
+    panda.start_time = _t(12, 0)
+    panda.end_time = _t(15, 0)
+    before = [v.name for v in day.items]
+    notes = _must_visit_room_sweep(_plan_with([day]))
+    after = [v.name for v in day.items]
+    assert notes == []
+    assert before == after
+
+
+# --- 兜底排序镜像：必去/大点先排 + 下午单大点 -----------------------------
+
+
+def test_fallback_schedules_big_before_street():
+    # 求解器降级时游标贪心不再让街区轻点抢占 9 点头档：大点先落 09:00。
+    from app.services.agent.plan import _fallback_sequence_times
+
+    hj = _visit("hj", "回民街", dur=120, tier=8)
+    dm = _visit("dm", "大明宫遗址公园", dur=180, tier=2)
+    plan = _plan_with([DayPlan(day=1, base_city="西安", items=[hj, dm])])
+    _fallback_sequence_times(plan)
+    starts = {v.item_id: _minutes(v) for v in plan.days[0].items if v.start_time}
+    assert starts["dm"] == 9 * 60
+    assert starts["dm"] < starts["hj"]
+
+
+def test_fallback_skips_second_afternoon_big():
+    # 降级镜像「下午单大点」：下午已有杜甫草堂（14:12 大点锚）时，
+    # 第二个大点不再被游标塞进下午——留空交校验提示，而不是三连大点。
+    from app.services.agent.plan import _fallback_sequence_times
+
+    js = _visit(
+        "js",
+        "金沙遗址博物馆",
+        dur=120,
+        tier=3,
+        start_time=_t(9, 0),
+        end_time=_t(11, 0),
+    )
+    wpf = _visit(
+        "wpf",
+        "望平坊旅游休闲街区",
+        dur=90,
+        tier=8,
+        start_time=_t(12, 0),
+        end_time=_t(13, 30),
+    )
+    dft = _visit(
+        "dft",
+        "杜甫草堂",
+        dur=120,
+        tier=3,
+        start_time=_t(14, 12),
+        end_time=_t(16, 12),
+    )
+    big2 = _visit("big2", "武侯祠", dur=90, tier=3, best_visit_time="afternoon")
+    plan = _plan_with([DayPlan(day=3, base_city="成都", items=[js, wpf, dft, big2])])
+    _fallback_sequence_times(plan)
+    got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
+    assert got["big2"].start_time is None
+
+
+# --- 心愿吸收守卫：服务型请求不当愿望 -------------------------------------
+
+
+def test_service_meta_wish_guard():
+    from app.services.agent.plan import _is_service_meta_wish
+
+    assert _is_service_meta_wish("帮我看看天气")
+    assert _is_service_meta_wish("帮我看看整体行程")
+    assert _is_service_meta_wish("帮我查一下攻略")
+    assert _is_service_meta_wish("看看天气")
+    # 具体地点宾语的真愿望不受影响。
+    assert not _is_service_meta_wish("看熊猫")
+    assert not _is_service_meta_wish("帮我看看熊猫")
+    assert not _is_service_meta_wish("成都大熊猫繁育研究基地")
+
+
+# --- 交付闸：钉住未排=硬违规 / 下午双大点=警告 -----------------------------
+
+
+def test_validate_flags_untimed_pinned_as_error():
+    from app.services.itinerary.rules import validate_plan
+
+    panda = _visit(
+        "panda",
+        "成都大熊猫繁育研究基地",
+        dur=180,
+        tier=3,
+        pinned=True,
+        city="成都",
+    )
+    day = DayPlan(day=3, base_city="成都", items=[panda])
+    rep = validate_plan(_plan_with([day]), poi_hours=[])
+    hits = [
+        v for v in rep.violations if v.rule_id == 19 and v.severity.value == "error"
+    ]
+    assert hits and "成都大熊猫繁育研究基地" in hits[0].message
+    assert not rep.ok
+
+
+def test_validate_flags_second_afternoon_big_as_warning():
+    from app.services.itinerary.rules import validate_plan
+
+    a = _visit(
+        "a",
+        "大雁塔",
+        dur=90,
+        tier=2,
+        start_time=_t(14, 0),
+        end_time=_t(15, 30),
+    )
+    b = _visit(
+        "b",
+        "西安城墙",
+        dur=90,
+        tier=2,
+        start_time=_t(15, 30),
+        end_time=_t(17, 0),
+    )
+    rep = validate_plan(
+        _plan_with([DayPlan(day=1, base_city="西安", items=[a, b])]), poi_hours=[]
+    )
+    hits = [
+        v for v in rep.violations if v.rule_id == 7 and v.severity.value == "warning"
+    ]
+    assert hits and "大雁塔" in hits[0].message and "西安城墙" in hits[0].message
