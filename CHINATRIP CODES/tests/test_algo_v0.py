@@ -418,6 +418,88 @@ def test_travel_legs_count_but_soft_gate_keeps_far_pair():
     assert [it["name"] for it in items] == ["甲", "乙"]
 
 
+def test_soft_gate_rejects_cross_city_far_leg():
+    """软超额远腿闸（2026-11-04 成渝案）：>150km 直线距的腿不做软超额
+    ——四面山+白帝城 ~330km 同天只排一个，交回填/披露。分钟口径被
+    TRAVEL_LEG_CAP_MIN 封顶（90km 与 330km 同值 180），闸必须用公里。"""
+    cands = [
+        _cand("四面山", "重庆", suggested=240, loc=(106.42, 29.22)),
+        _cand("白帝城", "重庆", suggested=240, loc=(109.57, 31.05)),  # ~330km
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 1, {"重庆": (1, 1)})
+    assert len(items) == 1
+
+
+def test_pool_twin_collapse_keeps_premium_survivor():
+    """同站孪生并卡保留名录王牌（2026-11-04 成渝案）：大足石刻 unesco
+    行 category 空、pref 无从评起——无品类王牌按偏好命中算（_pref_key），
+    tier 梯子把 unesco 行顶回队首，并卡卡名回归 石刻 本体而非博物馆。"""
+    mus = _cand("大足石刻博物馆", "重庆", suggested=120, tags=["历史文化"])
+    mus["source"] = "museum1"
+    grotto = _cand("大足石刻", "重庆", cat="", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    items = PlanningAgent._deterministic_selection(
+        [mus, grotto], 1, {"重庆": (1, 1)}, preferences="历史文化"
+    )
+    assert [it["name"] for it in items] == ["大足石刻"]
+
+
+def test_pool_twin_collapse_survivor_not_pool_order_dependent():
+    """并卡幸存者与池序无关（2026-11-04 成渝案二段）：真实管线投影把
+    无品类行默认成 sight（plan.py 候选投影 category or "sight"），石刻
+    偏好豁免失效、museum1 行反超池首——旧版池序首位当幸存者会留下
+    博物馆行、把 unesco 本体并入。组内 (tier, idx) 挑幸存者后不再如此。"""
+    mus = _cand("大足石刻博物馆", "重庆", suggested=120, tags=["历史文化"])
+    mus["source"] = "museum1"
+    grotto = _cand("大足石刻", "重庆", cat="sight", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    items = PlanningAgent._deterministic_selection(
+        [grotto, mus], 1, {"重庆": (1, 1)}, preferences="历史文化"
+    )
+    assert [it["name"] for it in items] == ["大足石刻"]
+
+
+def test_pool_cap_never_evicts_premium_tier():
+    """池上限不逐名录王牌（2026-11-04 成渝案二段）：投影把无品类行默认
+    成 sight 后偏好豁免失效，博物馆密集池（真偏好命中）把 unesco 石刻
+    挤出 span*4 席——tier≤2 行必须追回池内，交后续时序闸/白名单披露，
+    不得静默出局。"""
+    cands = []
+    for i in range(16):
+        m = _cand(f"博物馆{i}", "重庆", suggested=90, tags=["历史文化"])
+        m["source"] = "museum1"
+        m["rating"] = 4.8
+        m["category"] = "museum"
+        cands.append(m)
+    grotto = _cand("大足石刻", "重庆", cat="sight", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    grotto["rating"] = 4.6
+    cands.append(grotto)
+    items = PlanningAgent._deterministic_selection(
+        cands, 4, {"重庆": (1, 4)}, preferences="历史文化"
+    )
+    assert any(it["name"] == "大足石刻" for it in items)
+
+
+def test_preclaim_far_guard_spreads_premium_pair():
+    """预占位严格位同样不并互远大点（2026-11-04 成渝案二段）：石刻
+    300min 与金佛山 180min 互相 >150km，腿分钟被 TRAVEL_LEG_CAP_MIN
+    封顶 180 让两条远腿在预算口径里同值，双双过闸挤同一天 → 求解层
+    300min 大点排不出时刻被清算移除。严格位必须与软闸/主环同口径
+    （_SOFT_FAR_KM 公里闸）。"""
+    a = _cand("大足石刻", "重庆", suggested=300, loc=(105.70, 29.71))
+    a["source"] = "unesco"
+    a["tags"] = ["unesco"]
+    a["rating"] = 4.6
+    b = _cand("金佛山", "重庆", suggested=180, loc=(107.18, 29.02))
+    b["source"] = "5a"
+    b["tags"] = ["5a"]
+    b["rating"] = 4.5
+    items = PlanningAgent._deterministic_selection([a, b], 2, {"重庆": (1, 2)})
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["大足石刻"] != day_of["金佛山"]
+
+
 def test_travel_legs_zero_for_colocated_sites():
     """共址点腿=0：不回归时长预算语义（180+180 恰满照放）。"""
     cands = [

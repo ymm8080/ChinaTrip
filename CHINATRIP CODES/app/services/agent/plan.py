@@ -20,6 +20,7 @@ import asyncio
 import inspect
 import json
 import logging
+import math
 import os
 import re
 import uuid
@@ -148,6 +149,11 @@ PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
 # 30 行；重庆 top30 滤后仅剩 3 个可用候选、每天 1 点即此故。
 PLAN_LIBRARY_FETCH_DEPTH = 120
 PLAN_LIBRARY_WINDOW = 30
+# 软超额放置的最远同日直线距（2026-11-04 成渝案：江津四面山+白帝城·
+# 瞿塘峡 330km 被软闸兜底排进同一天）——公里口径而非腿分钟：taxi_leg_min
+# 封顶 180 分钟，90km 与 330km 在分钟口径下同值无法区分；150km 之内
+# 仍走 2026-11-02「时间软闸」拍板（90km 远对照排），更远交回填/披露。
+_SOFT_FAR_KM = 150.0
 # S5 演出保位（2026-11-02）：候选窗口外保底的同城演出行数上限
 PLAN_SHOW_RESCUE_LIMIT = 3
 
@@ -226,6 +232,17 @@ def _cand_is_show(cand: dict) -> bool:
     )
 
 
+def _name_is_addr_shell(name: object) -> bool:
+    """地址串当名（2026-11-04 成渝案「四川省成都市成华区望平坊旅游休闲
+    街区」整串入库被排进行程）：省级/市级前缀 + 足够长度的行是地址不
+    是名字。短名（武隆县喀斯特旅游区/江津区四面山景区）不受影响。"""
+    s = str(name or "").strip()
+    if len(s) < 14:
+        return False
+    head = s[:8]
+    return ("省" in head or "市" in head) and ("区" in s or "县" in s)
+
+
 def _pool_worthy(cand: dict) -> bool:
     """数据完整度闸（2026-11-04 白鹿原·白鹿仓 d4 事故）：有名有坐标但
     地址/评分/开放时间三空的骨架行不得进自动排期池——null hours 无时间
@@ -234,6 +251,8 @@ def _pool_worthy(cand: dict) -> bool:
     演出行天然无评分，豁免（保位线语义不变）；补齐任一实数据自动回池。"""
     if _cand_is_show(cand):
         return True
+    if _name_is_addr_shell(cand.get("name")):
+        return False
     return bool(cand.get("address") or cand.get("rating") or cand.get("opening_hours"))
 
 
@@ -1817,6 +1836,10 @@ def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int]:
     return (
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
+        # 名录王牌（unesco/5A 档）优先于博物馆卡（2026-11-04 成渝案：
+        # unesco 大足石刻被并进 大足石刻博物馆 卡，王牌名从行程消失——
+        # 博物馆卡语义留给碑林/秦陵这类同档伞形让位，不动王牌档）
+        1 if (item.tier is not None and item.tier <= 2) else 0,
         1 if _museum_card(item) else 0,
         1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
         1 if str(item.name or "").strip().startswith("大") else 0,
@@ -5709,6 +5732,10 @@ class PlanningAgent:
             session, ranges
         )
         rain_notes: list[str] = []
+        # 选点层让位/并卡/裁剪名单（品类闸、博物馆孪生、同站孪生）：
+        # 上午保底等回填通道不得让已披露让位的行复活（2026-11-04 成渝案
+        # 白帝城「已让位+已排入」自相矛盾的同根修口）。
+        selection_cut_names: set[str] = set()
         # §6.1 片区提示：候选按城市地理聚类（k=该城天数窗），area 标注
         # 进 listing（LLM 分日时少横穿城；聚类只给提示不硬替分日）
         _by_city: dict[str, list[dict]] = {}
@@ -5761,6 +5788,7 @@ class PlanningAgent:
                 notes=rain_notes,
                 preferences=session.preferences,
                 type_asks=type_asks,
+                cut_names=selection_cut_names,
             )
             llm_assumptions = [
                 L(
@@ -5865,6 +5893,7 @@ class PlanningAgent:
             start_date=session.start_date,
             rain_days=rain_map,
             heavy_rain_days=heavy_rain_map,
+            cut_names=selection_cut_names,
         )
         session.plan = plan
         session.assumptions = list(plan.assumptions)
@@ -6046,6 +6075,8 @@ class PlanningAgent:
                 for p in remote:
                     if not isinstance(p, dict) or not p.get("name"):
                         continue
+                    if _name_is_addr_shell(p.get("name")):
+                        continue  # 地址串当名：同 _pool_worthy 闸（2026-11-04）
                     if any(_same_site(p["name"], n) for n in lib_names):
                         continue
                     if any(_same_site(p["name"], n) for n in off_names):
@@ -7128,6 +7159,7 @@ class PlanningAgent:
         notes: list[str] | None = None,
         preferences: str = "",
         type_asks: list[dict] | None = None,
+        cut_names: set[str] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -7175,6 +7207,16 @@ class PlanningAgent:
         def _pref_hit(cand: dict) -> bool:
             return _pref_category_hit(cand, pref_tokens, pref_show)
 
+        def _pref_key(cand: dict) -> bool:
+            # 无品类名录王牌视作偏好命中（2026-11-04 成渝案）：大足石刻
+            # unesco 行 category 空、pref 无从评起——漏评的王牌按命中算，
+            # tier 梯子把它顶回队首（孪生并卡卡名回归 石刻 本体而非博物
+            # 馆）。有品类的行不豁免：用户点名 博物馆/自然 时显式偏好
+            # 仍压过 5A（pref_split 既有拍板「偏好位在 tier 之前」）。
+            return _pref_hit(cand) or (
+                not str(cand.get("category") or "").strip() and _source_tier(cand) <= 2
+            )
+
         def _cxy(cand: dict) -> tuple[float, float] | None:
             loc = cand.get("location")
             try:
@@ -7210,6 +7252,17 @@ class PlanningAgent:
             except (TypeError, ValueError):
                 return default_minutes
 
+        def _quality(cand: dict) -> float:
+            # 同档内名声分（与库侧 top_pois_in_city 同公式）：rating ×
+            # (1+log2(1+count))。2026-11-04 成渝案：同档并列只看时长升序，
+            # 短的次优点抢走同档名额（白帝城 vs 四面山级），补质量降序。
+            rating = cand.get("rating") or 0.0
+            count = cand.get("rating_count") or 0
+            try:
+                return float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
+            except (TypeError, ValueError):
+                return 0.0
+
         def _item(cand: dict, day: int, minutes: int) -> dict:
             return {
                 "name": cand["name"],
@@ -7240,8 +7293,9 @@ class PlanningAgent:
             ordered = sorted(
                 sights,
                 key=lambda p: (
-                    not _pref_hit(p[1]),
+                    not _pref_key(p[1]),
                     _source_tier(p[1]),
+                    -_quality(p[1]),
                     _minutes(p[1], DEFAULT_VISIT_MINUTES),
                     p[0],
                 ),
@@ -7270,10 +7324,16 @@ class PlanningAgent:
                 # 雨日硬闸判定（2026-11-02 拍板链「雨日是硬闸」+
                 # 「半露天（partial）小雨可以排。没说中雨」）：全露天
                 # =雨日全拦；半露天=仅小雨日放行（+提示），中雨及以
-                # 上/雨夜一律拦。
+                # 上/雨夜一律拦。名录王牌档（unesco/5A，2026-11-04 成渝
+                # 事故扩列）：整段小雨把露天王牌全部拦死=行程失去白帝城
+                # 级内容——王牌享受 partial 同款「仅小雨放行」，中雨及
+                # 以上/雨夜照拦。
                 if not _rain_exposed(cand):
                     return False
-                if str(cand.get("rain_ok") or "").lower() == "partial":
+                if (
+                    str(cand.get("rain_ok") or "").lower() == "partial"
+                    or _source_tier(cand) <= 2
+                ):
                     # 仅小雨日放行（2026-11-02 拍板）；中雨及以上、
                     # 雨夜（无分级信号，保守拦）都拦。
                     if d in night_rainy:
@@ -7284,15 +7344,20 @@ class PlanningAgent:
                 return d in rainy_here
 
             def _partial_rain_note(cand: dict, d: int) -> None:
-                # 半露天落小雨日：照排但提示（2026-11-02 拍板，仅小雨）。
+                # 半露天/王牌档落小雨日：照排但提示（2026-11-02 拍板，
+                # 仅小雨；2026-11-04 扩列王牌档）。
                 if (
                     notes is not None
-                    and str(cand.get("rain_ok") or "").lower() == "partial"
                     and d in rainy_here
                     and d in light_here
+                    and (
+                        str(cand.get("rain_ok") or "").lower() == "partial"
+                        or _source_tier(cand) <= 2
+                    )
                 ):
                     notes.append(
-                        f"第{d}天预报小雨：{cand['name']}（半露天）小雨照排，建议备伞"
+                        f"第{d}天预报小雨：{cand['name']}"
+                        f"（{_rain_exposure_label(cand)}）小雨照排，建议备伞"
                     )
 
             if rainy_here and len(rainy_here) >= span:
@@ -7305,11 +7370,18 @@ class PlanningAgent:
                 ordered = sorted(
                     sights,
                     key=lambda p: (
+                        # 露天降权（2026-10-30 拍板）不降王牌档（2026-11-04
+                        # 成渝案：整段小雨把 unesco/5A 露天压到全部室内杂点
+                        # 之后=白帝城/李子坝级集体消失）——王牌保持 tier 梯
+                        # 子原位，由 _rain_blocked 小雨放行承接物理侧。
                         1
-                        if _rain_exposed(p[1]) and (night_all or not _night_cand(p[1]))
+                        if _rain_exposed(p[1])
+                        and _source_tier(p[1]) > 2
+                        and (night_all or not _night_cand(p[1]))
                         else 0,
-                        not _pref_hit(p[1]),
+                        not _pref_key(p[1]),
                         _source_tier(p[1]),
+                        -_quality(p[1]),
                         _minutes(p[1], DEFAULT_VISIT_MINUTES),
                         p[0],
                     ),
@@ -7325,6 +7397,78 @@ class PlanningAgent:
             # 处理（F6 神龙峡假披露「无干日可排」案）。
             _pool_cap = span * 4
             pool = ordered[:_pool_cap]
+            # 名录王牌不因池上限出局（2026-11-04 成渝案）：投影把无品类
+            # 行默认成 sight 后，unesco 石刻偏好豁免失效落进偏好未中带，
+            # 重庆博物馆密集池 16 席满员把它挤出池外——连孪生并卡都无
+            # 从谈起（无并卡披露、museum1 行独占大足卡）。tier≤2 行从
+            # 池外追回；后续照走让位/时序闸，放不下交白名单披露。
+            _premium_out = [p for p in ordered[_pool_cap:] if _source_tier(p[1]) <= 2]
+            if _premium_out:
+                pool.extend(_premium_out)
+            # 同站孪生并卡（2026-11-04 成渝案：白帝城·瞿塘峡 3 行、四面山
+            # 3 行、武隆 2 行同站不同名同池——attraction/nature 品类分账
+            # 让品类闸裁掉一张、排进另一张，「已让位」与「已排入」自相矛盾
+            # 同现假设区）。池序=优先级梯子先到为准，孪生并入披露。
+            _twin_kept: list[tuple[int, dict]] = []
+            _twin_names: list[str] = []
+            _twin_cut: list[str] = []
+            # 幸存者=组内名录王牌优先（2026-11-04 成渝案）：池序首位
+            # 不一定是王牌——投影把无品类行默认成 sight 后，unseco 石刻
+            # 的偏好豁免失效，museum1 博物馆行（真偏好命中）反超池首并
+            # 当了幸存者，石刻本体反而被并入。组内先按 (tier, idx) 挑
+            # 幸存者，其余并入披露。
+            _twin_surv: dict[int, bool] = {}
+            for i_a, p_a in enumerate(pool):
+                nm_a = str(p_a[1].get("name") or "")
+                if not nm_a:
+                    continue
+                head = _twin_surv.get(i_a)
+                if head is not None:
+                    continue
+                grp = [i_a]
+                for i_b in range(i_a + 1, len(pool)):
+                    nm_b = str(pool[i_b][1].get("name") or "")
+                    if nm_b and _same_site(nm_a, nm_b):
+                        grp.append(i_b)
+                        _twin_surv[i_b] = False
+                best = min(
+                    grp,
+                    key=lambda i_: (
+                        _source_tier(pool[i_][1]),
+                        # 读侧会把同实体名录标签注入图商孪生行（poi_details
+                        # 读侧并 tag，DB 列已空也注入）——amap博物馆凭注入
+                        # 的 unesco 标签与石刻本体同档，再用分钟数反超。质量
+                        # 分先于分钟数：石刻 4.6 > 图商孪生 0 分。
+                        -_quality(pool[i_][1]),
+                        _minutes(pool[i_][1], DEFAULT_VISIT_MINUTES),
+                    ),
+                )
+                _twin_surv[best] = True
+                for i_ in grp:
+                    if i_ != best:
+                        _twin_surv[i_] = False
+            for i_p, p_ in enumerate(pool):
+                nm_ = str(p_[1].get("name") or "")
+                if nm_ and _twin_surv.get(i_p) is False:
+                    _twin_cut.append(nm_)
+                    continue
+                _twin_kept.append(p_)
+                if nm_:
+                    _twin_names.append(nm_)
+            if _twin_cut:
+                pool = _twin_kept
+                if cut_names is not None:
+                    cut_names.update(_twin_cut)
+                if notes is not None:
+                    keep_hi = [
+                        str(q[1].get("name") or "")
+                        for q in _twin_kept
+                        if _source_tier(q[1]) <= 2
+                    ]
+                    tail = f"（保留 {'、'.join(keep_hi)}）" if keep_hi else "并入同名点"
+                    notes.append(
+                        f"{city}：同站重复卡并一，{'、'.join(_twin_cut)}{tail}"
+                    )
             # 品类多样性闸（2026-11-03 拍板「尽量不要重复同一类型」+
             # 「为什么要安排那么多博物馆」）：非 attraction 观光品类同城
             # 全程封顶 max(2, span//3)——museum 是数据源灌分最全的品类
@@ -7371,6 +7515,8 @@ class PlanningAgent:
                 _cat_kept.append(p_)
             if _cat_cut:
                 pool = _cat_kept
+                if cut_names is not None:
+                    cut_names.update(_cat_cut)
                 if notes is not None:
                     notes.append(
                         f"{city}：同类景点已满{_cat_cap}家，"
@@ -7385,6 +7531,8 @@ class PlanningAgent:
                 pool = [
                     p_ for p_ in pool if (p_[1].get("name") or "") not in shadowed_names
                 ]
+                if cut_names is not None:
+                    cut_names.update(shadowed_names)
                 if notes is not None:
                     for scenic, museum in shadow_pairs:
                         notes.append(
@@ -7419,6 +7567,13 @@ class PlanningAgent:
                 if xy is None or not day_coords[d]:
                     return 0
                 return min(_taxi_leg_min(_km(xy, p)) for p in day_coords[d])
+
+            def _far_km(xy: tuple[float, float] | None, d: int) -> float:
+                # 同日原始直线距（公里，不封顶）：软超额远腿闸用——分钟
+                # 口径被 TRAVEL_LEG_CAP_MIN 封顶，无法区分 90km 与 330km。
+                if xy is None or not day_coords[d]:
+                    return 0.0
+                return min(_km(xy, p) for p in day_coords[d])
 
             def _budget(d: int) -> int:
                 # 转场日扣减：车票/机票时刻地点钉死，当天可用参访时间少一段；
@@ -7528,6 +7683,13 @@ class PlanningAgent:
                     for day in order:
                         load = day_loads[day]
                         leg = _leg_min(xy, day)
+                        # 严格位同样不并远腿大点（2026-11-04 成渝案二段）：
+                        # 预算口径的腿分钟被 TRAVEL_LEG_CAP_MIN 封顶——
+                        # 大足石刻+金佛山两条 >150km 互相远离的腿在分钟
+                        # 预算里同值 180，双双过闸挤同一天，求解层 300min
+                        # 大点排不出时刻被清算移除。与软闸/主环同口径。
+                        if _far_km(xy, day) > _SOFT_FAR_KM:
+                            continue
                         if load[1] >= 4 or load[0] + minutes + leg > _budget(day):
                             continue
                         load[0] += minutes + leg
@@ -7545,8 +7707,12 @@ class PlanningAgent:
                         # 拍板「时间约束是软闸」）：全窗无严格位不放
                         # 生——天序同上（同簇→日序）超额照排；
                         # 4 个/日闸仍硬，全满才出局交回填/披露。
+                        # 远腿不软放（2026-11-04 成渝案：330km 腿被软
+                        # 闸塞进同日=四面山+白帝城同天）。
                         for day in order:
                             if day_loads[day][1] >= 4:
+                                continue
+                            if _far_km(xy, day) > _SOFT_FAR_KM:
                                 continue
                             day_loads[day][0] += minutes + _leg_min(xy, day)
                             day_loads[day][1] += 1
@@ -7657,9 +7823,11 @@ class PlanningAgent:
                     # 不是硬闸」）：预算超了不放生——放余量最大天允许
                     # 超额，交给求解层按真实时窗精排；4 个/日闸（铁律
                     # 6）仍是硬闸；同档被闸时短时长先占位（排序键含
-                    # 时长升序）。
-                    if load[1] >= 4:
-                        continue  # 全满才出局（tier 低者先出）
+                    # 时长升序）。远腿例外（2026-11-04 成渝案）：超
+                    # _SOFT_FAR_KM 的直线距不做软超额——软超额救的是
+                    # 时间预算，不是跨市距离。
+                    if _far_km(xy, day) > _SOFT_FAR_KM or load[1] >= 4:
+                        continue  # 全满/远腿才出局（tier 低者先出）
                 load[0] += minutes + leg
                 load[1] += 1
                 if xy is not None:
@@ -7880,7 +8048,12 @@ class PlanningAgent:
                     if load[0] + minutes + leg > _budget(day):
                         # 时间预算=软闸：预算内无位先记余量最大天
                         # （2026-11-02 拍板）；雨闸照硬（露天不进雨日）。
-                        if time_soft and fallback is None:
+                        # 远腿天不记兜底（同主环远腿不软放口径）。
+                        if (
+                            time_soft
+                            and fallback is None
+                            and _far_km(xy, day) <= _SOFT_FAR_KM
+                        ):
                             fallback = day
                         continue
                     load[0] += minutes + leg
@@ -8639,6 +8812,7 @@ class PlanningAgent:
         start_date: str | None = None,
         rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
+        cut_names: set[str] | None = None,
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
         ranges = _city_day_ranges(cities, days, city_days)
@@ -9010,6 +9184,7 @@ class PlanningAgent:
                 rain_days=rain_days,
                 heavy_rain_days=heavy_rain_days,
                 allow_overflow=False,
+                exclude_names=cut_names,
             )
             borrow = None
             if not added:
@@ -9032,6 +9207,7 @@ class PlanningAgent:
                     rain_days=rain_days,
                     heavy_rain_days=heavy_rain_days,
                     allow_overflow=True,
+                    exclude_names=cut_names,
                 )
             if added:
                 # 白名单披露同步收口：被保底补排的名字不再留在
@@ -9216,6 +9392,7 @@ class PlanningAgent:
         rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
         allow_overflow: bool = True,
+        exclude_names: set[str] | None = None,
     ) -> str | None:
         """上午空窗保底（2026-10-31 用户拍板「所有行程上午不许空」）：
         当天 12 点前无任何条目时，从未入选候选补一个上午点；返回新增
@@ -9259,6 +9436,11 @@ class PlanningAgent:
         for cand in candidates:
             name = str(cand.get("name") or "")
             if not name or name in taken:
+                continue
+            if exclude_names and (
+                name in exclude_names or any(_same_site(name, e) for e in exclude_names)
+            ):
+                # 选点层已披露让位/并卡的行不借上午保底复活
                 continue
             if str(cand.get("city") or "").removesuffix("市") != city:
                 continue
