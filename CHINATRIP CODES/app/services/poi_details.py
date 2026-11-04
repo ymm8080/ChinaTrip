@@ -311,6 +311,8 @@ class PoiDetailStore:
         self._factory = session_factory
         self._memory: dict[str, dict] = {}
         self._db_down_until = 0.0  # time.monotonic() deadline
+        self._nonactive_pids_cache: set[str] | None = None
+        self._nonactive_pids_at = 0.0
 
     def _db_available(self) -> bool:
         return self._factory is not None and (time.monotonic() >= self._db_down_until)
@@ -420,7 +422,10 @@ class PoiDetailStore:
                     exc_info=True,
                 )
         out: list[tuple[str, str | None, str | None, str | None, str | None]] = []
+        nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
+            if pid in nonactive:
+                continue
             ts = v.get("hours_updated_at")
             if ts is None or ts < cutoff:
                 loc = v.get("location")
@@ -506,7 +511,10 @@ class PoiDetailStore:
             except Exception:
                 self._note_db_failure()
                 logger.warning("poi_details: db get_by_name failed", exc_info=True)
+        nonactive = self._nonactive_pids()
         for key, v in self._memory.items():
+            if key in nonactive:
+                continue
             if v.get("name") != name:
                 continue
             if city_names and (v.get("city") or "") not in city_names:
@@ -613,7 +621,10 @@ class PoiDetailStore:
                 )
         hits = []
         tok_labels = [(t, _token_label(t)) for t in toks]
+        nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
+            if pid in nonactive:
+                continue
             if city_names and v.get("city") not in city_names:
                 continue
             name = v.get("name") or ""
@@ -686,7 +697,10 @@ class PoiDetailStore:
                 )
                 rows_out = []
         if not rows_out:
+            nonactive = self._nonactive_pids()
             for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
                 if (v.get("name") or "").strip() != n:
                     continue
                 if city_names and (v.get("city") or "").removesuffix("市") != c:
@@ -740,6 +754,60 @@ class PoiDetailStore:
             if src in ("unesco", "5a"):
                 out.append((v.get("name") or "", 0 if src == "unesco" else 1))
         return out
+
+    def _nonactive_pids(self) -> set[str]:
+        """全库下线行 source_poi_id 集（300s TTL 缓存）——内存回退路的
+        退役闸：_memory 行由 upsert 写入、不带 status，靠身份集对齐
+        DB 路的 (status IS NULL OR 'active') 口径（2026-11-04 公园/遗址
+        下线后，DB 抖动 300s 回退窗会把已下线行重新捞进候选/检索）。"""
+        now = time.monotonic()
+        if (
+            self._nonactive_pids_cache is not None
+            and now - self._nonactive_pids_at < _DB_DOWN_COOLDOWN_SECONDS
+        ):
+            return self._nonactive_pids_cache
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    rows = (
+                        session.query(Poi.source_poi_id)
+                        .filter(Poi.status.isnot(None), Poi.status != "active")
+                        .all()
+                    )
+                    self._nonactive_pids_cache = {r[0] for r in rows}
+                    self._nonactive_pids_at = now
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: nonactive pid list query failed", exc_info=True
+                )
+        return self._nonactive_pids_cache or set()
+
+    def nonactive_names(self, city: str | None) -> set[str]:
+        """同城下线行名字集（含别名）——图商补量旁路的退役闸：库命中
+        <10 时 live 捞回的同名行若在库已下线，不得重新进候选池
+        （2026-11-04）。DB 不可达时返回空集（有日志，不拦）。"""
+        names: set[str] = set()
+        if not self._db_available():
+            return names
+        try:
+            with self._factory() as session:
+                q = session.query(Poi.name_zh, Poi.name_aliases).filter(
+                    Poi.status.isnot(None), Poi.status != "active"
+                )
+                c = (city or "").strip().removesuffix("市")
+                if c:
+                    q = q.filter(Poi.city.in_({c, f"{c}市"} - {""}))
+                for name, aliases in q.all():
+                    if name:
+                        names.add(name)
+                    for a in aliases or []:
+                        if a:
+                            names.add(str(a))
+        except Exception:
+            self._note_db_failure()
+            logger.warning("poi_details: nonactive names query failed", exc_info=True)
+        return names
 
     def top_pois_in_city(
         self, city: str, limit: int = 30, *, exclude_food: bool = True
@@ -814,7 +882,10 @@ class PoiDetailStore:
                 )
                 rows_out = []
         if not rows_out:
+            nonactive = self._nonactive_pids()
             for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
                 if exclude_food and self._row_is_food(v.get("category")):

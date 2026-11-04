@@ -3243,62 +3243,22 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
     # 降级排序与 solver 主路同口径；兜底落位同时校验营业窗整段
     # （城墙·碑林 17:00 入场 / 熊猫基地 18:00（闭馆 17:00）两事故）。
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
-    buf = INTERCITY_BUFFER_MINUTES
     for day in plan.days:
         # fixed 三元组 (s, e, src)：src=观光锚时未排条目按打车腿放宽
         # （_leg_windows）；餐饮/酒店/落地腿 src=None 保持原窗。
-        fixed: list[tuple[int, int, object]] = []
-        fixed_tight: list[tuple[int, int]] = []  # 紧贴窗（餐位贴点用）
-        flex_lunches: list[tuple[VisitItem, int, int]] = []
-        xfer_windows: list[tuple[TransferItem, int, int]] = []
-        for item in day.items:
-            start = item.start_time
-            if start is None:
-                continue
-            s = start.hour * 60 + start.minute
-            e = _item_end_minutes(item)
-            if isinstance(item, TransferItem):
-                xfer_windows.append((item, s, e if e is not None else s))
-                # 落地侧首停地板（2026-11-01）：火车/飞机到达侧首个观光
-                # ≥ 落地 +150（有入住卡时卡占 [te+90, te+150]）；餐饮走
-                # fixed_tight 贴点通道，仍按铁律 4 缓冲 90。
-                arr_pad = (
-                    ARRIVAL_STOP_FLOOR_MINUTES
-                    if item.mode in ("train", "flight")
-                    else buf
-                )
-                fixed.append((s - buf, e + arr_pad, None))
-                fixed_tight.append((s - buf, e + buf))
-            elif (
-                getattr(item, "category", "") == "food"
-                and s < 15 * 60
-                and (getattr(item, "soft_pin", False) or not item.pinned)
-            ):
-                # 午餐软钉（2026-10-31 用户拍板「午餐可以延后」）：不进固定
-                # 窗挡上午——参访排完后从原时刻起顺延落位；>180 分钟的上午
-                # 大点（240 分钟华清池 09:00-13:00 类）不再被 12 点午餐锚
-                # 挤到下午。
-                dur = (
-                    e - s if e is not None and e > s else (item.duration_minutes or 60)
-                )
-                flex_lunches.append((item, s, int(dur)))
-            elif getattr(item, "category", "") == "hotel":
-                # 酒店入住卡：紧贴窗（贴着落地缓冲摆的锚，不 ±30）
-                fixed.append((s, e, None))
-                fixed_tight.append((s, e))
-            elif getattr(item, "category", "") == "food":
-                # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
-                # 傍晚时段挤没（2026-10-31 上午空排事故）
-                fixed.append((s, e, None))
-                fixed_tight.append((s, e))
-            else:
-                fixed.append((s - 30, e + 30, item))
-                fixed_tight.append((s, e))
-        fixed.sort(key=lambda w: (w[0], w[1]))
-        fixed_tight.sort()
+        fixed, fixed_tight, flex_lunches, xfer_windows = _day_fixed_windows(day)
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
+        # 兜底排序（2026-11-04 拍板「必去点/大点先排」的降级镜像）：
+        # 钉住未排必去最先、大点先于轻点——类内保持列表原序（稳定排序），
+        # 游标贪心不再让街区轻点抢占下午头档、把大点顶到日尾。
+        untimed.sort(
+            key=lambda v: (
+                0 if v.pinned else 1,
+                0 if _is_big_site(v) else 1,
+            )
+        )
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
         # 顺序单调；排不下的项留空并由校验提示。2026-10-31 三处修正：
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
@@ -3312,6 +3272,23 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         # 永远排不上→挪日/清算误伤）。
         leaving_capped = any(
             _leaving_morning_cap(tr.mode, ts) is not None for tr, ts, _ in xfer_windows
+        )
+        # 必去大点下午头档 + 下午单大点（2026-11-04 拍板）的兜底镜像：
+        # 上午已被占时钉住大点从 12:00 起探（不塞 11:30 半档杀午餐窗）；
+        # 同日下午已有大点（含锚点）不再排第二个。
+        morning_occupied = any(
+            isinstance(v, VisitItem)
+            and v.start_time is not None
+            and (v.category or "") not in ("food", "hotel")
+            and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
+            for v in day.items
+        )
+        afternoon_big_exists = any(
+            isinstance(v, VisitItem)
+            and v.start_time is not None
+            and v.start_time.hour * 60 + v.start_time.minute >= AFTERNOON_START_MINUTES
+            and _is_big_site(v)
+            for v in day.items
         )
         cursor = day_start
         for visit in untimed:
@@ -5777,10 +5754,19 @@ class PlanningAgent:
                 # 配额死在 _search_poi 内逐家降级，空手归占位（§6.1）。
                 remote: list[dict] = await self._search_poi(POI_KEYWORD, city=city)
                 lib_names = [p["name"] for p in pois]
+                # 退役闸（2026-11-04）：图商补量旁路不过滤 status，同名行
+                # 已在库下线（inactive/retired/duplicate）的不得借此复活。
+                off_names = (
+                    self._poi_details.nonactive_names(city)
+                    if self._poi_details is not None
+                    else set()
+                )
                 for p in remote:
                     if not isinstance(p, dict) or not p.get("name"):
                         continue
                     if any(_same_site(p["name"], n) for n in lib_names):
+                        continue
+                    if any(_same_site(p["name"], n) for n in off_names):
                         continue
                     if not p.get("location"):
                         continue  # 图商命中偶发无坐标：同款坐标闸（2026-10-30）
