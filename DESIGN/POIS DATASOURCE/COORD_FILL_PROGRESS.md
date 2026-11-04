@@ -56,6 +56,12 @@ CSV 回填前备份：`_src/*.pre_coordfill_2026-10-30.backup.csv`（01/13/04 �
 ### ⚠️ 并行会话提示
 本轮存在**两个会话同时执行本任务**（本会话 + 00:50 独立审计会话），fill-empty 幂等语义下无数据损坏，但台账有写竞态。建议只保留一个会话/自动化跑此类任务；本会话的每 2 分钟调度已完成使命，可删除。
 
+### 新批次扩容追记（2026-11-03，独立会话全量补全轮）
+- 表被并行会话扩至 15351 行（active 15263）：新增 4a 4486 / guobao8 743 / histvillage 484 / scenic 240 / chinatravel 增量，坐标缺口回升至 6304。
+- 本日 baidu geocode 填 2123 行后日配额尽；**已注册每日计划任务 `ChinaTrip\coords nightly`（00:20，脚本 `ops/coords_round4.cmd`：清台账→主轮→extras→残留计数，日志 `devlogs/coords_round4.log`）**，预计 2-3 夜清零；清零后删除该任务即可。
+- 其余列：name_en 0 缺、可翻译 address_en 0 缺、intro 6066→73（Wikidata 优先 255 + GLM 四轮兜底；残留=模型 SKIP 拒编造）、category/indoor/rain_ok 残留均为分类器宁缺毋滥设计内。
+- 注意：`intro_llm` 与 `backfill_intro` 同跑会撞行（StaleDataError），**权威源优先序：先 Wikidata 跑完，再 GLM 兜底**。
+
 ## 完成判定（达成 · 终）
 
 - pois 侧：空坐标仅剩 70 inactive 墓碑行（按设计；如需启用某行，status 改回 active 后跑 `python ops/backfill_coords_driver.py` 即自动补坐标）✓

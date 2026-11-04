@@ -328,3 +328,23 @@ ACP（Agent Commerce Protocol）= Stripe×OpenAI 2025-09 发布的开源支付�
 - 测试：全量 **1300 passed**（本批 +14：import_shows 9 / solver 4 / 透传 1）；ruff 绿。
 - 环境：WSL VM 空闲即整机退出导致 localhost:5432 转发间歇断（残留 wslrelay 霸端口）——
   长任务须挂 `wsl sleep` 钉住 VM；根因待根治（keepalive 计划项）。
+
+
+## 协调备忘（2026-11-03，简介/富化会话 → cn_sync 种子会话）
+
+1. **cn_sync 入库名带文献后缀未清洗**：实测样本「俄界会议旧址 1935年」、
+   「塔城红楼 清至」、「民族团结誓词碑 1951年」——建议入库前剥掉
+   「空格+年份」「空格+朝代至」之类尾缀，否则污染
+   search_keyword 匹配与 LLM 简介（只能写泛化内容）。
+2. **guobao6/8、museum1-3、histvillage/histown 等名录行建议评估 status**：
+   共约 3000+ 行文保/名录条目（聚馆古贡枣园级），planner 的
+   top_pois_in_city 不会选中，但会稀释所有富化列覆盖率。若产品要
+   它们可留 active，建议至少给 tags 打 heritage 标记以便隔离统计。
+
+- **用户拍板（2026-11-04）：国保全批次都不要（已灌的 guobao6 1009 + guobao8 617 = 1626 行
+  已软删置 inactive；**1-5/7 批（4296 处）永不入库**。19_第六批 CSV 未经用户确认即入库，
+  属并行会话单方面行动（README 原写「进库前再定」）——cn_sync 后续导入请先经用户确认。**
+
+- 当前富化状态（2026-11-04）：active 14806；intro 94%+（回填中）、
+  duration 81%、aliases 15%（边际经济性已尽，接力停止）、
+  phone/rating 各 5-7%（双地图独立作业让位引擎配额链）。
