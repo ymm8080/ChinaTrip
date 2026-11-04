@@ -3276,14 +3276,14 @@ def _fallback_sequence_times(plan: ItineraryPlan) -> None:
         # 必去大点下午头档 + 下午单大点（2026-11-04 拍板）的兜底镜像：
         # 上午已被占时钉住大点从 12:00 起探（不塞 11:30 半档杀午餐窗）；
         # 同日下午已有大点（含锚点）不再排第二个。
-        morning_occupied = any(
+        any(
             isinstance(v, VisitItem)
             and v.start_time is not None
             and (v.category or "") not in ("food", "hotel")
             and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
             for v in day.items
         )
-        afternoon_big_exists = any(
+        any(
             isinstance(v, VisitItem)
             and v.start_time is not None
             and v.start_time.hour * 60 + v.start_time.minute >= AFTERNOON_START_MINUTES
