@@ -36,6 +36,9 @@ DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
 DAY_END_MINUTES = 21 * 60 + 30
 ENTRY_CAP_MINUTES = 16 * 60 + 30  # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）
+ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30  # 大点加严开场闸（2026-11-04 拍板）
+AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
+BIG_SITE_MIN_MINUTES = 80  # 大点时长下限（2026-11-04 拍板「超过80分钟」）
 LUNCH_ANCHOR_MINUTES = 12 * 60
 LUNCH_WINDOW_END_MINUTES = 15 * 60  # <15:00 的餐=午餐（兜底层同口径）
 LUNCH_GRACE_MINUTES = 30  # ±30 许可（2026-11-01 拍板）
@@ -56,6 +59,36 @@ PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放
 # 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
 # 豁免（拍板明说那两天适合 SHOW——演出不算「重」）；pinned 铁律 19
 # 不罚；tier=None（占位/老数据）不罚。
+PEN_AFTERNOON_CROWD = 12  # 下午超点：每多一个 ≥13:00 开场的大点
+# （2026-11-04 拍板「超过80分钟的一般下午就放一个」，与 solver
+# AFTERNOON_ONE_BIG_PENALTY 同口径同向——LNS 不把第二个大点挪进下午）
+PEN_LATE_BIG = 12  # 大点后置：每个「大点开场晚于轻点」逆序对
+# （2026-11-04 拍板「先排大明宫，再排西安钟楼」，与 solver
+# BIG_FIRST_PENALTY 同口径同向——LNS 不把大点排到轻点之后）
+
+
+def _is_big_visit(v: VisitItem) -> bool:
+    """大点判定（与 solver._is_big_site 同口径，2026-11-04 拍板）：
+    时长>80min、非街区（tier8）、非餐/酒店/演出、非夜属性；用户自钉
+    且有时刻（铁律 19）不计。"""
+    if v.pinned and v.start_time is not None:
+        return False
+    if str(v.category or "") in ("food", "hotel", "entertainment"):
+        return False
+    if str(v.best_visit_time or "") in ("evening", "sunset", "show"):
+        return False
+    if v.tier == 8:
+        return False
+    return (v.duration_minutes or 0) > BIG_SITE_MIN_MINUTES
+
+
+def _is_light_visit(v: VisitItem) -> bool:
+    """轻点判定（大点先排另一侧，与 solver._is_light_sight 同口径）。"""
+    if v.pinned and v.start_time is not None:
+        return False
+    if str(v.category or "") in ("food", "hotel", "entertainment"):
+        return False
+    return not _is_big_visit(v)
 
 
 @dataclass
@@ -117,6 +150,8 @@ def plan_score(
     lunch_drift_pen = 0
     lunch_drift_min = 0
     morning_crowd = 0
+    afternoon_crowd = 0
+    late_big = 0
     early_shows = 0
     edge_heavy = 0
     entertainment = 0
@@ -156,6 +191,28 @@ def plan_score(
             and str(v.category or "") not in ("food", "hotel")
         )
         morning_crowd += max(0, morning_sites - 1)
+        # 下午单大点 + 大点先排（2026-11-04 拍板）：与 solver 插入/CP
+        # 路同向——下午（≥13:00 开场）大点超出 1 个、大点开场晚于轻点
+        # 的逆序对均计软罚；豁免面同 _is_big_visit（pinned 铁律 19 不计）。
+        aft_bigs = sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and _is_big_visit(v)
+            and _minutes(v.start_time) >= AFTERNOON_START_MINUTES
+        )
+        afternoon_crowd += max(0, aft_bigs - 1)
+        big_starts = [
+            _minutes(v.start_time)
+            for v in visits
+            if v.start_time is not None and _is_big_visit(v)
+        ]
+        light_starts = [
+            _minutes(v.start_time)
+            for v in visits
+            if v.start_time is not None and _is_light_visit(v)
+        ]
+        late_big += sum(1 for bs in big_starts for ls in light_starts if bs > ls)
         # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：
         # <15:00 开演的演出计软罚——与 solver 插入/CP 路早场罚同向，
         # LNS 不再把演出挪回早场。用户自钉且有时刻不计（铁律 19，
@@ -224,7 +281,8 @@ def plan_score(
             if (
                 cat not in ("entertainment", "food", "hotel")
                 and bvt not in ("show", "evening", "sunset")
-                and s > ENTRY_CAP_MINUTES
+                and s
+                > (ENTRY_CAP_BIG_MINUTES if _is_big_visit(v) else ENTRY_CAP_MINUTES)
             ):
                 late_entries += 1
             km = getattr(v, "distance_to_next_km", None)
@@ -261,6 +319,8 @@ def plan_score(
         "lunch_drift": -lunch_drift_pen,
         "day_balance": -balance_pen,
         "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
+        "afternoon_crowd": -PEN_AFTERNOON_CROWD * afternoon_crowd,
+        "late_big": -PEN_LATE_BIG * late_big,
         "early_show": -PEN_EARLY_SHOW * early_shows,
         "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
         "no_entertainment": (
@@ -279,6 +339,8 @@ def plan_score(
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
         "morning_crowd": morning_crowd,
+        "afternoon_crowd": afternoon_crowd,
+        "late_big": late_big,
         "early_show": early_shows,
         "edge_day_heavy": edge_heavy,
         "entertainment": entertainment,

@@ -448,7 +448,9 @@ def test_v0_amap_transfer_and_solved_schedule():
             "city": "杭州",
             "category": "sight",
             "day": 1,
-            "duration_minutes": 90,
+            # 75' 轻点（2026-11-04 大点闸 >80min 最晚 15:30 开场）：day1
+            # 13:14 抵 +150 地板=15:44 起排，90' 大点装不下→会被丢弃。
+            "duration_minutes": 75,
         },
         {
             "name": "拙政园",
@@ -1233,15 +1235,19 @@ def test_message_move_diff_changes_plan_and_reports_change():
 def test_selfrepair_recovers_from_hard_violation():
     # Day 1 carries the 上海→杭州 train (08:00 闸后当选 G7503 12:10-13:14；
     # 落地首停 2026-11-01: 入住卡 14:44-15:44，首个观光 ≥15:44=落地+150)；
-    # the first diff retimes 西湖 to 09:00 -> violation -> repair round fixes
-    # it (16:00 过 15:44 地板且不撞 16:30 起始闸).
+    # 西湖缩 75' 轻点（2026-11-04 大点闸 >80min 最晚 15:30 开场，15:44
+    # 档装不下 120' 大点）；
+    # the first diff retimes 西湖 to 10:00 -> violation（10:00+75'=11:15
+    # 收尾，距 12:10 发车 55 分钟 < 铁律 4 的 90 分钟衔接缓冲；75' 在
+    # 09:00 起排 10:15 收尾反而合法，违例时刻须压着缓冲线）-> repair
+    # round fixes it (16:00 过 15:44 地板且不撞 16:30 起始闸).
     items = [
         {
             "name": "西湖",
             "city": "杭州",
             "category": "sight",
             "day": 1,
-            "duration_minutes": 120,
+            "duration_minutes": 75,
         },
         {
             "name": "拙政园",
@@ -1255,7 +1261,7 @@ def test_selfrepair_recovers_from_hard_violation():
         [
             v0_reply(items),
             edit_reply(
-                "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
+                "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}]
             ),
             repair_reply(
                 [{"op": "retime", "item_id": "v1", "new_start_time": "16:00"}]
@@ -1271,7 +1277,7 @@ def test_selfrepair_recovers_from_hard_violation():
             preferences="博物馆",
         )
     )
-    session, reply, change = run(agent.message(session, "西湖改到九点开始"))
+    session, reply, change = run(agent.message(session, "西湖改到十点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
     assert item.start_time == time(16, 0)
@@ -1286,7 +1292,9 @@ def test_selfrepair_exhausted_delivers_half_product():
             "city": "杭州",
             "category": "sight",
             "day": 1,
-            "duration_minutes": 120,
+            # 75' 轻点：11-04 大点闸（>80min 15:30 开场）下 120' 在
+            # 15:44 地板档装不下→v1 会被丢弃，修复链无的放矢。
+            "duration_minutes": 75,
         },
         {
             "name": "拙政园",
@@ -1296,11 +1304,13 @@ def test_selfrepair_exhausted_delivers_half_product():
             "duration_minutes": 90,
         },
     ]
+    # 违例时刻压着铁律 4 缓冲线（10:00+75'=11:15，距 12:10 发车 55 分钟
+    # <90 衔接缓冲）——75' 在 09:00 起排已合法，修复链须持续违规才走完。
     bad_edit = edit_reply(
-        "试试", [{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}]
+        "试试", [{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}]
     )
     bad_repairs = [
-        repair_reply([{"op": "retime", "item_id": "v1", "new_start_time": "09:00"}])
+        repair_reply([{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}])
         for _ in range(MAX_REPAIR_ROUNDS)
     ]
     llm = ScriptedLLM([v0_reply(items), bad_edit] + bad_repairs)
@@ -1313,7 +1323,7 @@ def test_selfrepair_exhausted_delivers_half_product():
             preferences="博物馆",
         )
     )
-    session, reply, change = run(agent.message(session, "西湖改到九点开始"))
+    session, reply, change = run(agent.message(session, "西湖改到十点开始"))
     assert llm.calls == 2 + MAX_REPAIR_ROUNDS  # v0 + edit + 3 repairs
     assert "半成品" in reply
     assert change is not None  # the applied-but-invalid diffs still reported
@@ -1717,7 +1727,9 @@ _ADD_FACE_SHOW = {
         "city": "杭州",
         "category": "sight",
         "day": 2,
-        "duration_minutes": 90,
+        # 75' 轻点：11-04 大点闸（>80min 15:30 开场）下 day2 返程日
+        # 正午窗装不下 90' 大点→加卡会被降级丢弃。
+        "duration_minutes": 75,
     },
 }
 

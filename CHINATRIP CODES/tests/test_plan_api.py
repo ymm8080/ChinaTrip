@@ -46,12 +46,15 @@ DEVICE_HEADERS = {"X-Device-ID": "device-1"}
 V0_JSON = json.dumps(
     {
         "items": [
+            # 75' 轻点（2026-11-04 大点闸：>80min 最晚 15:30 开场，day1
+            # 13:14 抵 +150 地板=15:44 起排装不下 120' 大点→会被丢弃）——
+            # V0 保住 day1 落点位，供 pin/move/replace 机制用例引用。
             {
                 "name": "西湖",
                 "city": "杭州",
                 "category": "sight",
                 "day": 1,
-                "duration_minutes": 120,
+                "duration_minutes": 75,
             },
             {
                 "name": "雷峰塔",
@@ -972,11 +975,12 @@ def test_move_cross_day_to_head():
     slots = {
         v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 2)
     }
-    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日——
-    # 西湖 120 分钟占满晨窗（9:00-11:00+腿垫），雷峰塔 11:30 开场 12:30
-    # 收尾过正午闸→留空披露，不塞午后。
+    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日，
+    # 景点都须正午闸前收尾；西湖缩 75'（2026-11-04 大点闸 fixture 适配）
+    # 后 9:00-10:15+腿垫，雷峰塔 60' 也排进晨窗成时链。
     assert slots["v1"][0] and slots["v1"][1] <= "12:00:00"
-    assert slots["v2"] == (None, None)
+    assert slots["v2"][0] and slots["v2"][1] <= "12:00:00"
+    assert slots["v2"][0] >= slots["v1"][1]  # 时链单调不重叠
 
 
 def test_move_pinned_item_returns_422():
@@ -1341,9 +1345,9 @@ def test_refresh_legs_backfills_missing_locations():
     sid = body["session_id"]
     vid = _visit(body, "西湖")["item_id"]
     # 前置：强制清空坐标模拟旧行程（生成期可能已回填）；days=2 时 day2
-    # 是 17:00 返程日——离城日上午闸（2026-11-03）下西湖 120 分钟占满
-    # 晨窗、雷峰塔留空→无实测对。机制测试只关心「回填+实测腿」，缩西湖
-    # 到 60 分钟让两点都进晨窗成对。
+    # 是 17:00 返程日——离城日上午闸（2026-11-03）下两点都须正午闸前
+    # 收尾才能成对实测；V0 西湖已缩 75' 轻点（2026-11-04 大点闸），此处
+    # 再压 60' 保险让 pair 挤进同一晨窗。
     store = app.dependency_overrides[get_plan_sessions]()
     session = store.get(sid, device_id="device-1")
     assert session is not None and session.plan is not None
@@ -1453,7 +1457,9 @@ REPLACE_CAND = {
     "rain_ok": "yes",
     "rating": 4.7,
     "tags": ["4a"],
-    "suggested_duration_min": 120,
+    # 75'（2026-11-04 大点闸 >80min 最晚 15:30 开场）：day1 落点位 15:44
+    # 档容不下 120'——换入点须同尺寸才留得下（下方断言同步 75）。
+    "suggested_duration_min": 75,
     "reservation_required": None,
     "reservation_advance_days": None,
     "location": (120.0972, 30.2414),
@@ -1512,7 +1518,7 @@ def test_replace_swaps_item_in_place_and_retimes_day():
     assert new["day"] == 1  # 原位：同天
     assert new["item_id"] != vid  # 新条目新 id
     assert new["poi_id"] == "ct_杭州_9"
-    assert new["duration_minutes"] == 120
+    assert new["duration_minutes"] == 75
     assert new["location"]["lon"] == pytest.approx(120.0972)
     with pytest.raises(StopIteration):
         _visit(data, "西湖")  # 旧点不再出现

@@ -74,7 +74,9 @@ def _stale_day2() -> DayPlan:
             city="西安",
             day=2,
             category="attraction",
-            duration_minutes=90,
+            # 75 分钟轻点：11-04 大点闸 15:30 后，90 分钟大点在 15:40 挪后
+            # 落位越闸——自愈机制测试改用轻点保持原语义。
+            duration_minutes=75,
             start_time=_t(15, 0),
             end_time=_t(16, 30),
             location=XQ,

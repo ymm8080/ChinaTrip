@@ -74,6 +74,7 @@ from app.services.itinerary.rules import (
 )
 from app.services.itinerary.solver import (
     _BEST_VISIT_WINDOWS,
+    BIG_SITE_MIN_MINUTES,
     DAY_START_MINUTES,
     SHOW_LATE_SESSION_MINUTES,
     _city_side,
@@ -7845,6 +7846,44 @@ class PlanningAgent:
                 for p in day_xy[d]
             )
 
+        def _day_big_xy(d: int) -> tuple[float, float] | None:
+            # 大点锚（2026-11-04 拍板「大点后面搭配一个近距离的
+            # CITYWALK」）：该天已有 >80min 大点时，回填优先补大点近旁
+            # 的街区轻点（tier8 ≤6km），不再按档位顶格补第二个重磅——
+            # spec 无 tier/tags，按时长近似判大（软偏好只偏排序不失手）。
+            for s in day_specs.get(d, []):
+                if s.get("category") == "food":
+                    continue
+                try:
+                    m = int(s.get("duration_minutes") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if m > BIG_SITE_MIN_MINUTES:
+                    p = _xy(s)
+                    if p is not None:
+                        return p
+            return None
+
+        def _pair_choice_sort(anchor: tuple[float, float] | None):
+            # 有大点锚的天：近旁街区候选（tier8 ≤6km）提到队首——「一个
+            # 大点 + 近距离 CityWalk」的日形；无锚/无近旁街区退回 tier 序。
+            def _key(p: tuple[int, dict]):
+                tier = _source_tier(p[1])
+                near_street = False
+                if anchor is not None and tier == 8:
+                    cxy = _xy(p[1])
+                    if cxy is not None and (
+                        haversine_km(
+                            GeoPoint(lon=anchor[0], lat=anchor[1]),
+                            GeoPoint(lon=cxy[0], lat=cxy[1]),
+                        )
+                        <= 6.0
+                    ):
+                        near_street = True
+                return (0 if near_street else 1, tier, p[0])
+
+            return _key
+
         notes: list[tuple[str, str]] = []
         by_city: dict[str, list[tuple[int, dict]]] = {}
         for idx, cand in enumerate(candidates):
@@ -7897,7 +7936,7 @@ class PlanningAgent:
                 guard += 1
                 choice = None
                 for idx, cand in sorted(
-                    by_city[city], key=lambda p: (_source_tier(p[1]), p[0])
+                    by_city[city], key=_pair_choice_sort(_day_big_xy(d))
                 ):
                     name = cand.get("name") or ""
                     if not name or cand.get("location") is None:

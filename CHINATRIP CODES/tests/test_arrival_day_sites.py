@@ -73,21 +73,33 @@ def _find(day, item_id):
 
 
 def test_generic_entry_cap_start_based_all_days():
-    # 11-03 重申：闸=16:30 开场（不减时长），转场日不再让位
-    v = _visit("wall", dur=120)
-    w = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
-    assert generic_entry_cap(v, w) == 990
-    assert generic_entry_cap(v, None) == 990
+    # 11-03 重申：闸=开场值（不减时长），转场日不再让位；11-04 大点
+    # （>80min 非街区）同口径加严 15:30——转场日与普通日一闸到底。
+    light = _visit("stroll", dur=60)
+    w = PoiHours(poi_id="stroll", opens=time(9, 0), closes=time(21, 0))
+    assert generic_entry_cap(light, w) == 990
+    assert generic_entry_cap(light, None) == 990
+    big = _visit("wall", dur=120)
+    wb = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
+    assert generic_entry_cap(big, wb) == 930
+    assert generic_entry_cap(big, None) == 930
 
 
 def test_arrival_day_wall_not_placed_after_gate():
-    # 第1天城墙 18:43 事故回归：13:20 落地 +150 地板 = 15:50 起排，
-    # 白闸 16:30 下 15:50 起 120 分钟装得下 → 排 15:50 前后；330 分钟
-    # 长点闸前起排也越日终 → 整日降级（挪日），绝不排傍晚。
-    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)])
-    solved = solve_day(day, poi_hours=[])
-    wall = next(i for i in solved.items if isinstance(i, VisitItem))
-    m = wall.start_time.hour * 60 + wall.start_time.minute
+    # 第1天城墙 18:43 事故回归：13:20 落地 +150 地板 = 15:50 起排。
+    # 11-04 大点闸 15:30：120' 城墙 15:50 起排越闸 → 整日降级（挪日）
+    # 绝不排傍晚；轻点（≤80'）仍在 [15:50, 16:30] 窗内开场；330 分钟
+    # 长点闸前起排也越日终 → 同降级。
+    big_day = DayPlan(
+        day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)]
+    )
+    assert solve_day(big_day, poi_hours=[]) is None
+    light_day = DayPlan(
+        day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)]
+    )
+    solved = solve_day(light_day, poi_hours=[])
+    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
+    m = stroll.start_time.hour * 60 + stroll.start_time.minute
     assert 15 * 60 + 50 <= m <= 16 * 60 + 30
     long_day = DayPlan(
         day=1, base_city="上海", items=[_train(), _visit("wall", dur=330)]
@@ -97,20 +109,20 @@ def test_arrival_day_wall_not_placed_after_gate():
 
 
 def test_cp_midday_arrival_visit_fits():
-    # 13:20 落地 → 地板 15:50；白闸 16:30 开场 → 排 [15:50, 16:30] 窗内
-    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)])
+    # 13:20 落地 → 地板 15:50；轻点白闸 16:30 开场 → 排 [15:50, 16:30] 窗内
+    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)])
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    wall = next(i for i in solved.items if isinstance(i, VisitItem))
-    assert time(15, 50) <= wall.start_time <= time(16, 30)
+    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
+    assert time(15, 50) <= stroll.start_time <= time(16, 30)
 
 
 def test_insertion_midday_arrival_visit_fits():
-    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)])
+    day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)])
     solved = insertion_schedule_day(day, poi_hours=[])
     assert solved is not None
-    wall = next(i for i in solved.items if isinstance(i, VisitItem))
-    assert time(15, 50) <= wall.start_time <= time(16, 30)
+    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
+    assert time(15, 50) <= stroll.start_time <= time(16, 30)
 
 
 def test_cp_midday_arrival_respects_hours_close():
@@ -136,14 +148,15 @@ def test_cp_normal_day_cap_still_binds():
 
 
 def test_reconcile_midday_arrival_keeps_fitting_moves_overflow():
-    # 13:20 落地窗 [15:50, 21:30]=340'，白闸 16:30 开场：首件 90' 闸前
-    # (15:50 起) 装得下；v2 起串行起点 17:50 > 闸 → 挪 day2（11-03 口径）
+    # 13:20 落地窗 [15:50, 21:30]=340'，白闸 16:30 开场：首件轻点 60'
+    # 闸前 (15:50 起) 装得下；v2/v3 90' 大点串行起点 > 15:30 大点闸
+    # → 挪 day2（11-03 开场口径 + 11-04 大点加严）
     day1 = DayPlan(
         day=1,
         base_city="上海",
         items=[
             _train(),
-            _visit("v1", dur=90),
+            _visit("v1", dur=60),
             _visit("v2", dur=90),
             _visit("v3", dur=90),
         ],

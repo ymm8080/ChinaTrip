@@ -599,8 +599,9 @@ def test_food_dinner_uncapped_while_scenic_capped():
 def test_late_open_venue_capped_gate_boundary_placeable():
     """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）：
     2026-11-03「最晚 16:30 开场」口径下 16:30 整点开场合法（闸含端点），
-    solver 直排 16:30-18:00——旧「最晚 16:30 结束」口径的整日降级 +
-    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。"""
+    solver 直排 16:30-17:45——旧「最晚 16:30 结束」口径的整日降级 +
+    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。75 分钟轻点：
+    11-04 大点（>80min）闸加严 15:30 后，16:30 边界开场只对轻点合法。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
     day = DayPlan(
         day=1,
@@ -613,7 +614,7 @@ def test_late_open_venue_capped_gate_boundary_placeable():
                 pinned=True,
                 start_time=time(9, 0),
             ),  # 09:00-16:30
-            _visit("v_late", poi_id="p_late", dur=90, category="attraction"),
+            _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
         ],
     )
 

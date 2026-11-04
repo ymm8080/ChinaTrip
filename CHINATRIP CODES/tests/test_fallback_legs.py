@@ -131,7 +131,9 @@ def test_fallback_chains_travel_between_sequenced_sights():
             city="西安",
             day=4,
             category="sight",
-            duration_minutes=120,
+            # 75 分钟轻点：11-04 大点闸 15:30 下，全大点日链排不下第三点；
+            # 本测验证的是腿链机制，轻点链让 4 点全落位。
+            duration_minutes=75,
             location=GeoPoint(lon=108.9542, lat=34.2226),
         ),
         VisitItem(
@@ -140,7 +142,7 @@ def test_fallback_chains_travel_between_sequenced_sights():
             city="西安",
             day=4,
             category="sight",
-            duration_minutes=120,
+            duration_minutes=75,
             location=GeoPoint(lon=108.9437, lat=34.2419),
         ),
         VisitItem(

@@ -27,7 +27,8 @@ def _visit(**kw):
         name="点",
         city="成都",
         day=1,
-        duration_minutes=180,
+        # 默认 60 分钟普通点（11-04 起默认 >80min 会落大点 15:30 闸档）
+        duration_minutes=60,
         category="sight",
         best_visit_time="any",
     )
@@ -42,6 +43,45 @@ def test_entry_cap_is_1630_for_plain_sight():
     # 2026-11-03 用户重申「最晚 16:30 开场」：闸=16:30 起点值，不再
     # 减时长（11-02「最晚 16:30 结束」口径废除）。
     assert generic_entry_cap(_visit(), None) == CAP
+
+
+def test_entry_cap_big_sight_tightened_to_1530():
+    # 2026-11-04 拍板「大型的旅游景区不适合放下午16:00」：时长>80min
+    # 的非街区大点最晚 15:30 开场（16:00 起排的大点天黑前走不完）。
+    big = _visit(duration_minutes=120)
+    assert generic_entry_cap(big, None) == 15 * 60 + 30
+    # 街区轻游（tier8=CityWalk）不算大点——正是大点后面配的近游，
+    # 维持 16:30 闸（回民街式街区可开进傍晚）。
+    street = _visit(duration_minutes=120, tier=8)
+    assert generic_entry_cap(street, None) == CAP
+    # 夜属性大点（夜景公园 best_visit_time=evening）走夜游豁免不设闸。
+    night_big = _visit(duration_minutes=120, best_visit_time="evening")
+    assert generic_entry_cap(night_big, None) is None
+    # 用户自钉且有时刻（铁律 19）照旧豁免。
+    pinned = _visit(duration_minutes=120, pinned=True, start_time=_t(16, 0))
+    assert generic_entry_cap(pinned, None) is None
+    # 演出/餐/酒店类照旧豁免（80 分钟演出不是「旅游景区」）。
+    show = _visit(duration_minutes=120, category="entertainment")
+    assert generic_entry_cap(show, None) is None
+    # 大点晚开门营业窗自治按加严闸值判：15:45 才开 > 15:30 闸 → 视为
+    # 夜游类交营业窗收口。
+    late_open = PoiHours(poi_id="p7", opens=_t(15, 45), closes=_t(19, 0))
+    assert generic_entry_cap(big, late_open) is None
+    # 15:00 开门 ≤ 15:30 闸 → 照常受闸。
+    ok_open = PoiHours(poi_id="p8", opens=_t(15, 0), closes=_t(18, 0))
+    assert generic_entry_cap(big, ok_open) == 15 * 60 + 30
+
+
+def test_scoring_big_entry_cap_aligned_with_solver():
+    from app.services.itinerary import scoring, solver
+
+    assert (
+        scoring.ENTRY_CAP_BIG_MINUTES
+        == solver.BIG_SITE_ENTRY_CAP_MINUTES
+        == 15 * 60 + 30
+    )
+    assert scoring.AFTERNOON_START_MINUTES == solver.AFTERNOON_START_MINUTES
+    assert scoring.BIG_SITE_MIN_MINUTES == solver.BIG_SITE_MIN_MINUTES == 80
 
 
 def test_pinned_with_time_exempt_but_pinned_untimed_capped():
