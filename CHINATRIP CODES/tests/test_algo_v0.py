@@ -14,7 +14,7 @@ import json
 
 import httpx
 
-from app.services.agent.plan import PlanningAgent
+from app.services.agent.plan import DAY_VISIT_BUDGET_MINUTES, PlanningAgent
 from app.services.itinerary import VisitItem
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import ZhipuGLMAdapter
@@ -243,6 +243,26 @@ def test_algo_show_stays_on_last_day_without_return_leg():
     )
     show = next(it for it in items if it["name"] == "变脸表演")
     assert show["day"] == 3
+
+
+def test_show_day_budget_reserves_show_minutes():
+    # 2026-11-04 拍板「360 不是硬闸不代表可以白天填满 360 再叠演出」
+    # （西安 day4=360 POI+80 show=440 事故形态）：夜场演出钉日的参访
+    # 预算=360-show_min——白天点给演出让位，装不下的溢出相邻天，
+    # 演出日总参访不再超预算。
+    cands = [
+        _cand(f"点{i:02d}", "成都", suggested=90, loc=(104.06, 30.66))
+        for i in range(14)
+    ]
+    cands.append(_cand("夜场秀", "成都", cat="entertainment"))
+    items = PlanningAgent._deterministic_selection(
+        cands, 5, {"成都": (1, 5)}, transfer_days={1, 5}
+    )
+    show = next(it for it in items if it["name"] == "夜场秀")
+    assert show["day"] == 4  # 返程日(5)晚上有回程腿 → 钉前一天（既有语义）
+    poi4 = [it for it in items if it["day"] == 4 and it["name"] != "夜场秀"]
+    used = sum(it["duration_minutes"] for it in poi4) + show["duration_minutes"]
+    assert used <= DAY_VISIT_BUDGET_MINUTES
 
 
 # --- 流程：算法模式生成 v0，零 LLM 调用 --------------------------------------

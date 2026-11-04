@@ -7123,6 +7123,23 @@ class PlanningAgent:
                             f"{city}：「{scenic}」与「{museum}」同站，已优先保留博物馆"
                         )
             clusters = cluster_days([c for _, c in pool], span)
+            # 夜场收尾演出预扣（2026-11-04 拍板「360 不是硬闸不代表可以
+            # 白天填满 360 再叠演出排 440」）：钉日提前按收尾规则定死
+            # （池内无演出，填充不影响钉日），当日参访预算=360-show_min
+            # ——白天点给演出让位，装不下的溢出到余量最大天（软闸既有
+            # 语义），不再出现「白天满载+演出叠加」的超载日。
+            show_pin_day: int | None = None
+            show_pin_min = 0
+            if shows:
+                _pin_cand = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][
+                    1
+                ]
+                show_pin_min = _minutes(_pin_cand, 90)
+                show_pin_day = hi
+                if hi >= days and days in (transfer_days or set()) and hi - 1 >= lo:
+                    # 返程日晚上被返程腿占住：钉前一天（2026-10-31 沪-西安-沪
+                    # 5 天案既有语义，钉日与预扣两处必须同源）
+                    show_pin_day = hi - 1
             day_loads = {d: [0, 0] for d in range(lo, hi + 1)}  # [minutes, count]
             day_coords: dict[int, list[tuple[float, float]]] = {
                 d: [] for d in range(lo, hi + 1)
@@ -7136,10 +7153,13 @@ class PlanningAgent:
                 return min(_taxi_leg_min(_km(xy, p)) for p in day_coords[d])
 
             def _budget(d: int) -> int:
-                # 转场日扣减：车票/机票时刻地点钉死，当天可用参访时间少一段
+                # 转场日扣减：车票/机票时刻地点钉死，当天可用参访时间少一段；
+                # show 收尾预扣（2026-11-04）：演出分钟数占当日预算
                 if transfer_days and d in transfer_days:
-                    return DAY_VISIT_BUDGET_MINUTES - FLIGHT_TRANSFER_MINUTES
-                return DAY_VISIT_BUDGET_MINUTES
+                    base = DAY_VISIT_BUDGET_MINUTES - FLIGHT_TRANSFER_MINUTES
+                else:
+                    base = DAY_VISIT_BUDGET_MINUTES
+                return base - (show_pin_min if show_pin_day == d else 0)
 
             cluster_rank: dict[int, tuple] = {}
             for pos, (_idx, cand) in enumerate(pool):
@@ -7666,14 +7686,8 @@ class PlanningAgent:
                     )
             if shows:
                 best = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][1]
-                show_day = hi
-                if hi >= days and days in (transfer_days or set()) and hi - 1 >= lo:
-                    # 返程日晚上被 17 点档返程腿占住：夜场钉末日与返程腿互斥
-                    # → 整计划求解失败退全局顺序兜底（2026-10-31 沪-西安-沪
-                    # 5 天案：《梦回大唐》钉 day5 撞 17:00 航班，day5 两卡
-                    # None 时间、全计划布局降级）。改钉前一天，返程日白天
-                    # 仍留给常规景点（返程日修复的既有语义）。
-                    show_day = hi - 1
+                # 钉日与预算预扣（show_pin_day）同源：不复算，防两处口径漂移
+                show_day = show_pin_day if show_pin_day is not None else hi
                 # 演出每场闸联动（2026-11-02 用户拍板）：收尾日已有演出时，
                 # 夜场改钉同城窗口内最近的无演出日；全窗都有演出则不重复
                 # 钉（由已排演出承担，点名披露）。
