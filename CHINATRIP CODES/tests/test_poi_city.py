@@ -204,3 +204,76 @@ def test_city_from_name_province_gated(
     name: str, province: str, want: str | None
 ) -> None:
     assert city_from_name(name, province) == want
+
+
+@requires_index
+def test_city_province_covers_every_registry_city() -> None:
+    """注册表 411 城都必须能取到省，否则省份闸（_ok）在任何省语境下把它们
+    全拒——42 家县级旅游城市（曲阜/桐乡/东阳/青州…）曾因此永远解析不到."""
+    from app.services.poi_city import _city_province
+
+    missing = known_cities() - set(_city_province())
+    assert not missing, sorted(missing)
+
+
+@requires_index
+@pytest.mark.parametrize(
+    ("name", "province", "want"),
+    [
+        # 县级旅游城市是注册短名（按城查池的键），名称里点名就该落到它，
+        # 不能上卷到地级市
+        ("曲阜汉画艺术博物馆", "山东", "曲阜"),
+        ("青州未央红丝砚博物馆", "山东", "青州"),
+        ("东阳市博物馆", "浙江", "东阳"),
+        ("桐乡市博物馆", "浙江", "桐乡"),
+        ("峨眉山风景名胜区", "四川", "峨眉山"),
+        ("都江堰景区", "四川", "都江堰"),
+        ("敦煌世界地质公园", "甘肃", "敦煌"),
+    ],
+)
+def test_city_from_name_county_level_registry_city(
+    name: str, province: str, want: str
+) -> None:
+    assert city_from_name(name, province) == want
+
+
+@requires_index
+@pytest.mark.parametrize(
+    ("name", "province", "want"),
+    [
+        # 县级 stem 打头（无行划后缀的全称写法）
+        ("番禺博物馆", "广东", "广州"),
+        ("淄川博物馆", "山东", "淄博"),
+        ("镇海口海防历史纪念馆", "浙江", "宁波"),
+        # 数字/标点前缀不妨碍
+        ("5·12汶川特大地震纪念馆", "四川", "阿坝"),
+        ("“5.12”汶川特大地震映秀震中纪念馆", "四川", "阿坝"),
+        # 安贞堡在永安市槐南镇 → 三明（不是「槐南|安贞」拆出来的南安）
+        ("永安槐南安贞堡景区", "福建", "三明"),
+    ],
+)
+def test_city_from_name_county_stem_leading(
+    name: str, province: str, want: str
+) -> None:
+    assert city_from_name(name, province) == want
+
+
+@requires_index
+@pytest.mark.parametrize(
+    ("name", "province"),
+    [
+        # 裸区县名是多城共有的地标名，不是归属证据（鼓楼在南京/徐州/福州…）
+        ("鼓楼", "江苏"),
+        ("南山", "广东"),
+        # 「县级 stem + 乡镇通名」整名：赤坎镇在江门开平，不是湛江赤坎区
+        ("赤坎镇", "广东"),
+        ("芙蓉镇", "湖南"),
+        # 与常用词同形的区县名
+        ("中原军区暨中原野战军司令部旧址陈列馆", "河南"),
+        ("广西自然资源档案博物馆", "广西"),
+        # stem 前是汉字（句中出现不算地名前缀）
+        ("邓世昌纪念馆（广州市海珠博物馆）", "广东"),
+    ],
+)
+def test_city_from_name_county_stem_rejects(name: str, province: str) -> None:
+    assert city_from_name(name, province) is None

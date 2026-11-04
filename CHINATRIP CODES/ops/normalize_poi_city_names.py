@@ -77,7 +77,10 @@ def main() -> int:
         # 行解析——address（含省前缀）→ district → city 本身 → 名称显式
         # 前缀（`宁波市天一阁博物院`）；仅当结果落 canonical 域才改
         # （逐行 UPDATE + 逐行 commit）。
-        from app.services.poi_city import resolve_city
+        from app.services.poi_city import _city_province, resolve_city
+
+        city_province = _city_province()
+        province_names = set(city_province.values())
 
         if canonical_domain:
             with fac() as session:
@@ -98,13 +101,29 @@ def main() -> int:
                 # 跨市脏串（'临汾市、延安'）只取首段解析——best effort，逐行落库
                 dirty = any(ch in c for ch in "、；;，")
                 cand = c.split("、")[0].strip() if dirty else c
-                new = (
-                    resolve_city(None, addr)
-                    or resolve_city(None, district)
-                    or resolve_city(None, cand)
-                    or city_from_name(name, cand)
-                )
+                if cand in province_names:
+                    # 省名当 city 的存量行（导入期 city 列缺失的兜底伪值）：
+                    # 该值只能当**省级语境**用，绝不能让 `resolve_city(None, c)`
+                    # 把省名原样返回、从而短路掉名称解析（那是 515 行残留的成因）。
+                    new = city_from_name(name, cand)
+                    if not new:
+                        for ev in (district, addr):
+                            got = resolve_city(None, ev) if ev else None
+                            if got and city_province.get(got) == cand:
+                                new = got
+                                break
+                else:
+                    new = (
+                        resolve_city(None, addr)
+                        or resolve_city(None, district)
+                        or resolve_city(None, cand)
+                        or city_from_name(name, cand)
+                    )
                 if not new or new not in canonical_domain or new == c:
+                    continue
+                # 省语境下必须自洽（名称里的地名确实属于该省）；无省语境
+                # 的区县/脏串路径不做额外约束
+                if cand in province_names and city_province.get(new) != cand:
                     continue
                 plan.append((pid, c, new, name))
             print(f"    second-pass planned rows: {len(plan)}")

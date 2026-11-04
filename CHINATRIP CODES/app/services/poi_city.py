@@ -410,21 +410,93 @@ _NAME_ADMIN_TAIL = ("市", "区", "县", "州", "旗", "盟")
 # 未解析池，宁可漏判不可错判）.
 _NAME_SCHOOL_HEADS = ("大学", "学院", "中学", "小学")
 
+# 与常用词同形的县/区名 stem（`郑州市中原区`、`桂林市资源县`），出现在馆名
+# 里是构词而非地名（`中原军区…旧址陈列馆`、`广西自然资源档案博物馆`）。
+# 口径同 `_NAME_SCHOOL_HEADS`：宁可漏判不可错判.
+_GENERIC_COUNTY_STEMS = frozenset({"中原", "资源"})
+
+# 汉字（用于「地名前只允许数字/标点前缀」判定：`5·12汶川…`）
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+# 「县级 stem + 乡村级通名」整名（`赤坎镇`/`芙蓉镇`/`大通镇`/`三门源村`）：
+# 这类 POI 本身就是乡镇村名，与「县名打头的馆名」不同，stem 撞上同名的区县
+# 会指到隔壁地级市（`赤坎镇` 在江门开平，却被 `赤坎区`→湛江 吃掉）。
+_SUBCOUNTY_TAILS = ("镇", "乡", "街道", "村")
+
+_COUNTY_STEM_SORTED: dict[str, list[tuple[str, str]]] = {}
+
+
+def _county_stem_sorted(prov: str) -> list[tuple[str, str]]:
+    """本省县级名 stem（长名优先、同 stem 冲突丢），供名称内任意位置识别.
+
+    与 `_county_hit`（要求带行划后缀的县级全名，如 `青州市`）互补：馆名常只
+    写 stem（`青州未央红丝砚博物馆`→潍坊、`番禺博物馆`→广州）。stem 与本省
+    或全局注册城市/地级名同形时让位（`朝阳` 是地级市，不能当北京朝阳区的
+    证据），常用词 stem 见 `_GENERIC_COUNTY_STEMS`.
+    """
+    items = _COUNTY_STEM_SORTED.get(prov)
+    if items is None:
+        entry = _index().get(prov) or {}
+        higher: set[str] = set(_index())
+        higher.update(_known_sorted())
+        prefs = entry.get("prefectures") or {}
+        higher.update(prefs)
+        higher.update(prefs.values())
+        spots: dict[str, dict[str, str]] = {}
+        for county, city in (entry.get("counties") or {}).items():
+            stem = _strip_admin_suffixes(county)
+            if len(stem) < 2 or stem in higher or stem in _GENERIC_COUNTY_STEMS:
+                continue
+            spots.setdefault(stem, {})[city] = city
+        items = sorted(
+            ((stem, next(iter(c))) for stem, c in spots.items() if len(c) == 1),
+            key=lambda kv: (-len(kv[0]), kv[0]),
+        )
+        _COUNTY_STEM_SORTED[prov] = items
+    return items
+
 _CITY_PROVINCE: dict[str, str] | None = None
 
 
+_MUNICIPALITIES = frozenset({"北京", "上海", "天津", "重庆"})
+
+# 特别行政区：不在区划索引里，但注册表收作 canonical 城市（按城查池可用）.
+_SARS = frozenset({"香港", "澳门"})
+
+
 def _city_province() -> dict[str, str]:
-    """canonical 城市 → 省级短名（直辖市映射到自身）."""
+    """canonical 城市 → 省级短名（直辖市/特别行政区映射到自身）.
+
+    县级市/县级区名本身是注册城市时（曲阜/桐乡/东阳/青州…）必须能取到省，
+    否则 `city_from_name` 的省份闸（`_ok`）会把这些城市在**任何**省语境下
+    拒掉——历史上 42 家旅游县级市因此永远解析不到（`曲阜汉画艺术博物馆`
+    →None）。索引里它们挂在某个地级市下，但注册表把它们当独立「按城查池」
+    键，故这里按县级 stem 补映射；只接受跨省唯一 stem（`朝阳` 这类同名
+    既可能是辽宁地级市又可能是北京朝阳区，冲突即丢）.
+    """
     global _CITY_PROVINCE
     if _CITY_PROVINCE is None:
+        known = known_cities()
         m: dict[str, str] = {}
         for prov, entry in _index().items():
-            if prov in {"北京", "上海", "天津", "重庆"}:
+            if prov in _MUNICIPALITIES:
                 m.setdefault(prov, prov)
             for city in entry["prefectures"].values():
                 m.setdefault(city, prov)
             for city in entry["counties"].values():
                 m.setdefault(city, prov)
+        stems: dict[str, set[str]] = {}
+        for prov, entry in _index().items():
+            for county in entry["counties"]:
+                stem = _strip_admin_suffixes(county)
+                if len(stem) >= 2 and stem in known:
+                    stems.setdefault(stem, set()).add(prov)
+        for stem, provs in sorted(stems.items()):
+            # 跨省同名县级 stem（`朝阳`：辽宁地级市 / 北京朝阳区）不猜
+            if len(provs) == 1:
+                m.setdefault(stem, next(iter(provs)))
+        for sar in sorted(_SARS & known):
+            m.setdefault(sar, sar)
         _CITY_PROVINCE = m
     return _CITY_PROVINCE
 
@@ -487,6 +559,39 @@ def city_from_name(name: str, province: str | None = None) -> str | None:
             if not rest or rest.startswith(_NAME_SCHOOL_HEADS):
                 continue
             hit = _ok(canonical_city(city_name))
+            if hit:
+                return hit
+        # 「省短名/全名 + 后续地名」体例（`内蒙古乌海博物馆`、`新疆喀什地区
+        # 博物馆`）：省名不是城市归属，剥掉后按省级语境重解析；余段以行划后缀
+        # 开头时不动——`吉林市博物馆`/`海南州…` 里的 吉林/海南 是城市名.
+        for cand in _province_short_map().get(prov, ()):
+            if len(cand) < 2 or not s.startswith(cand):
+                continue
+            rest = s[len(cand) :]
+            if not rest or rest.startswith(_NAME_ADMIN_TAIL):
+                continue
+            return resolve_city(prov, rest) or city_from_name(rest, prov)
+        # 本省县级 stem 打头（`番禺博物馆`→广州、`汶川特大地震纪念馆`→阿坝）
+        # 或仅被数字/标点前缀隔开（`5·12汶川特大地震纪念馆`）。**不放行任意
+        # 位置**：句中 2 字 stem 会跨词误拼（`某馆|南山|路` 之类）；句中带
+        # 行划后缀的县级全名由 `resolve_city`/`_county_hit` 负责。
+        for stem, city in _county_stem_sorted(prov):
+            pos = s.find(stem)
+            if pos < 0:
+                continue
+            if pos and _CJK_RE.search(s[:pos]):
+                continue
+            rest = s[pos + len(stem) :]
+            # 裸区县名（`鼓楼`/`南山`：多城共有的地名，不是归属证据）
+            if not rest:
+                continue
+            if rest.startswith(_NAME_SCHOOL_HEADS):
+                continue
+            # 整名就是「stem + 乡镇村通名」（`赤坎镇`）→ 不是馆名/景区名，
+            # 县级同名不足为凭，宁可漏判
+            if rest in _SUBCOUNTY_TAILS:
+                continue
+            hit = _ok(city)
             if hit:
                 return hit
     return None
