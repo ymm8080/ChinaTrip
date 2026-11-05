@@ -72,6 +72,7 @@ from app.services.map_provider import (
     map_ready,
 )
 from app.services.offer_cards import flight_offer_cards, train_offer_cards
+from app.services.poi_alternatives import attach_plan_alternatives
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
@@ -348,7 +349,7 @@ async def start_plan_from_itinerary(
     await agent.refresh_legs(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
-    body["plan"] = session.plan
+    body["plan"] = _plan_with_alternatives(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -435,7 +436,7 @@ async def start_plan(
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
-    body["plan"] = session.plan
+    body["plan"] = _plan_with_alternatives(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -538,6 +539,18 @@ async def message_plan(
     return body
 
 
+def _plan_with_alternatives(plan):
+    """行程卡装配期挂「同级备选」（2026-11-05 拍板，规则见
+    services/poi_alternatives）：深拷贝上挂，session.plan 本体与持久化
+    会话永不携带展示数据。任何异常静默回落原 plan——备选是展示糖，
+    绝不能把行程卡拉挂。"""
+    try:
+        return attach_plan_alternatives(plan, get_poi_detail_store())
+    except Exception:
+        logger.warning("plan alternatives attach failed", exc_info=True)
+        return plan
+
+
 def _plan_turn_body(session, reply: str, change) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
     body: dict = {"reply": reply, "state": session.state}
@@ -548,7 +561,7 @@ def _plan_turn_body(session, reply: str, change) -> dict:
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:
-        body["plan"] = session.plan
+        body["plan"] = _plan_with_alternatives(session.plan)
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change

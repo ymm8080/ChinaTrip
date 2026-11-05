@@ -90,6 +90,34 @@ class VisitItem(BaseModel):
     # 到达/离开日」）靠它认重磅（≤4）与轻 CityWalk（8=街区）；
     # None=占位/老数据按中档处理。
     tier: int | None = None
+    # 同级备选（2026-11-05 拍板「每个点要有一个备选」）：展示层字段——
+    # api/plan._plan_turn_body 装配期在深拷贝上挂（session.plan 本体永不
+    # 携带，持久化不留展示数据）；规则见 app.services.poi_alternatives
+    # （同级·同类·同时长·同城·排除行程内已有）。None = 未装配/无候选。
+    alternatives: list["PlanAlternative"] | None = None
+
+
+class PlanAlternative(BaseModel):
+    """行程卡右侧「同级备选」chip 的载荷（2026-11-05 拍板）。
+
+    规则（poi_alternatives.pick_alternatives 唯一定义点）：与主点同层级
+    （tier 档号一致，档 4 短视频/5 小红书并作社媒档）、同类别（受控类别
+    精确匹配，空缺时类别组放宽）、游时时长相近（band 内）、同城可选、
+    排除行程内已有站点。H5 点击 chip → /items/{id}/replace 原位换主点。
+    """
+
+    name: str
+    name_en: str | None = None
+    category: str | None = None
+    # 名录档号（hit_tier 口径 0=unesco..9=3a，10=未分层）——H5 据此亮
+    # 同级徽标；与主点同档是本功能的硬规则。
+    tier: int | None = None
+    # 层级短牌（unesco/5a/ta/intl/social/…，poi_details._TIER_TAG 口径）
+    level_tag: str | None = None
+    duration_minutes: int | None = None
+    # 与主点直线距离（km，annotate 同式 haversine）：同档同城内近者优先
+    distance_km: float | None = None
+    rating: float | None = None
 
 
 class TransferItem(BaseModel):

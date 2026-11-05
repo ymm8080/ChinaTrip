@@ -906,6 +906,55 @@ class PoiDetailStore:
             h.pop("_tier", None)
         return rows_out[:limit]
 
+    def alternatives_pool(self, city: str) -> list[dict]:
+        """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city
+        同一套 DB/内存双路）：不按热度截 top N——同级备选按档号过滤后
+        池子本来就小，截断会把同档冷门行提前埋掉。返回 search_keyword
+        同形状 hit + `_tier`（hit_tier 名录档号，0=unesco..10=未分层，
+        私有键不剥——消费方 poi_alternatives 直接用）。含餐行（备选规则
+        自己按主点类别筛）；DB 故障回落内存库，与 top_pois_in_city 同款。
+        """
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                    )
+                    q = q.limit(3000)
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: alternatives_pool db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                loc = v.get("location")
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
+        heritage = self._heritage_names()
+        for h in rows_out:
+            h["_tier"] = apply_tier_tag(h, heritage)
+        return rows_out
+
     def upsert(
         self,
         source_poi_id: str,

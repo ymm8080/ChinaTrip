@@ -125,6 +125,9 @@
   .card h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
   .day-h{font-weight:600;margin:8px 0 3px;font-size:13px}
   .row{display:flex;gap:8px;align-items:baseline;padding:2px 0}
+  /* 同级备选 chip 区（2026-11-05）：站点行右缘，一行放不下自动换行 */
+  .alt-swaps{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;align-items:center;margin-left:auto;max-width:46%}
+  .alt-swaps .alt-swap{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:11px}
   .t{font-family:Consolas,monospace;font-size:12px;color:var(--muted);min-width:42px}
   .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;margin-left:6px;vertical-align:1px}
   .badge.ok{background:var(--ok-bg);color:var(--ok)}
@@ -1673,7 +1676,23 @@ function planCard(plan) {
         const timeCell = (planSession && planSession.session_id)
           ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + "<span>" + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span></div></div>");
+        // 同级备选（2026-11-05 拍板「每个点要有一个备选，尤其 UNESCO/5A/
+        // 国际旅行网站推荐」）：站点行右侧 chip 区，点击一键换为主点——
+        // 复用 ✏️ 换点端点 /items/{id}/replace（备选是库内真点，后端按名
+        // 精确匹配原位换入并重排当天时链）。餐位/酒店卡后端不挂备选；
+        // 会话外（已保存行程回看）不亮（换点必须会话内）。
+        const altChips = (planSession && planSession.session_id && Array.isArray(it.alternatives) && it.alternatives.length)
+          ? '<span class="alt-swaps">' + it.alternatives.map(a => {
+              const lv = a.level_tag ? I18N.tf("card.alt.lv." + a.level_tag, "") : "";
+              const bits = [];
+              if (lv) bits.push(lv);
+              if (a.duration_minutes) bits.push(a.duration_minutes + I18N.t("card.minutes"));
+              if (typeof a.distance_km === "number") bits.push(a.distance_km.toFixed(1) + "km");
+              const title = I18N.tf("card.alt.titlePre", "同级备选：点击换成 ") + esc(I18N.pick(a, "name", "name_en")) + (bits.length ? I18N.tf("card.paren.pre","（") + esc(bits.join(" · ")) + I18N.tf("card.paren.suf","）") : "");
+              return '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" title="' + title + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + "</button>";
+            }).join("") + "</span>"
+          : "";
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1;min-width:0">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : (it.category === "hotel" ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
@@ -1892,6 +1911,15 @@ function planCard(plan) {
             const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/pin", { pinned: !cur }, "POST");
             box.replaceWith(planCard(body.plan));
           } catch (err) { failToast(err); }
+        });
+      } else if (action === "altswap") {
+        // 同级备选一键换主点（2026-11-05 拍板）：复用 ✏️ 换点端点
+        // /items/{id}/replace——库内精确同名 POI 原位换入，当天游标链重排
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/replace", { name: btn.getAttribute("data-name") }, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); box.replaceWith(planCard(plan)); }
         });
       } else if (action === "del") {
         busy(btn, async () => {
