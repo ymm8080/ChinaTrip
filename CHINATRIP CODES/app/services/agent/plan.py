@@ -2919,18 +2919,22 @@ def _reconcile_transfer_days(
                         )
                     )
                 else:
-                    day.items.remove(visit)
-                    notes.append(
-                        L(
-                            f"「{visit.name}」在第{day.day}天无法安排"
-                            f"（{_fmt_hm(last.end_time)} 才抵达{last.to_city}），"
-                            f"已从行程移除——要加回可安排在其他天",
-                            f'"{visit.name}" could not fit on day {day.day} '
-                            f"(arrival in {last.to_city} at "
-                            f"{_fmt_hm(last.end_time)}); it was removed — "
-                            "ask me to re-add it on another day",
-                        )
+                    rescued = _rescue_premium_stranded(
+                        plan, idx, visit, tier_by_name, protect, notes
                     )
+                    if not rescued:
+                        day.items.remove(visit)
+                        notes.append(
+                            L(
+                                f"「{visit.name}」在第{day.day}天无法安排"
+                                f"（{_fmt_hm(last.end_time)} 才抵达{last.to_city}），"
+                                f"已从行程移除——要加回可安排在其他天",
+                                f'"{visit.name}" could not fit on day {day.day} '
+                                f"(arrival in {last.to_city} at "
+                                f"{_fmt_hm(last.end_time)}); it was removed — "
+                                "ask me to re-add it on another day",
+                            )
+                        )
             if protected_arrival:
                 names = L(
                     "、".join(f"「{n}」" for n in protected_arrival),
@@ -3172,6 +3176,112 @@ def _host_day_for_visit(
                 continue  # 同日互远闸：宿主天已有 >150km 互远点不再收
             return later
     return None
+
+
+def _rescue_premium_stranded(
+    plan: ItineraryPlan,
+    day_idx: int,
+    visit: "VisitItem",
+    tier_by_name: dict[str, int] | None,
+    protect: frozenset[str] | set[str],
+    notes: list,
+) -> bool:
+    """到达日搁浅名录王牌的让座救援（2026-11-05 成都青城山—都江堰案）。
+
+    tier≤2 行在到达日装不下（落地窗+营业窗收不了 180 分钟级大点）、
+    同城后续天又全部满员（每日 4 件硬顶/分钟容量）时，旧路径整卡删除
+    ——世遗被展馆级填满的次日挤死，选点层赢的名录王牌折在排程层。
+    改为：从最近同城日弹出最低档非钉参访（弹出档严格低于王牌），王牌
+    清时刻挪入；被弹者再找宿主天，找不到按原口径移除留痕——低档为
+    名录让位是设计内牺牲（与追回池/品类闸同一档序口径）。
+    """
+    tiers = tier_by_name or {}
+    vt = tiers.get(visit.name, 11)
+    if vt > 2:
+        return False
+    vcity = str(visit.city or "").strip().removesuffix("市")
+    if not vcity:
+        return False
+    later_days = plan.days[day_idx + 1 :]
+    for later in later_days:
+        if str(later.base_city or "").strip().removesuffix("市") != vcity:
+            continue
+        ejects = [
+            i
+            for i in later.items
+            if isinstance(i, VisitItem)
+            and not i.pinned
+            and i.name not in protect
+            and (i.category or "") not in ("food", "hotel")
+            and tiers.get(i.name, 11) > vt
+        ]
+        if not ejects:
+            continue
+        eject = max(
+            ejects,
+            key=lambda e: (
+                e.tier if e.tier is not None else tiers.get(e.name, 11),
+                e.name,
+            ),
+        )
+        later.items.remove(eject)
+        target = _host_day_for_visit(
+            later_days,
+            vcity,
+            visit.duration_minutes or DEFAULT_VISIT_MINUTES,
+            incoming=visit.location,
+        )
+        if target is None:
+            later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
+            continue
+        plan.days[day_idx].items.remove(visit)
+        visit.day = target.day
+        visit.start_time = None
+        visit.end_time = None
+        target.items.append(visit)
+        notes.append(
+            L(
+                f"「{visit.name}」在第{day_idx + 1}天落地后无法安排"
+                f"（营业窗收不下），已挪至第{target.day}天；"
+                f"同天「{eject.name}」为名录王牌让位",
+                f'"{visit.name}" could not fit after landing on day '
+                f"{day_idx + 1} (closing hours); moved to day "
+                f"{target.day} — \"{eject.name}\" yielded its slot "
+                "for this top-tier sight",
+            )
+        )
+        edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
+        ecity = str(eject.city or "").strip().removesuffix("市")
+        etarget = (
+            _host_day_for_visit(
+                plan.days[day_idx + 1 :], ecity, edur, incoming=eject.location
+            )
+            if ecity
+            else None
+        )
+        if etarget is not None:
+            eject.day = etarget.day
+            eject.start_time = None
+            eject.end_time = None
+            etarget.items.append(eject)
+            notes.append(
+                L(
+                    f"「{eject.name}」已改排第{etarget.day}天",
+                    f'"{eject.name}" was re-scheduled to day {etarget.day}',
+                )
+            )
+        else:
+            notes.append(
+                L(
+                    f"「{eject.name}」为「{visit.name}」让位后无处可排，"
+                    "已从行程移除——要加回可指定其他天",
+                    f'"{eject.name}" had nowhere to go after yielding its '
+                    f'slot to "{visit.name}" and was removed — ask me to '
+                    "re-add it on another day",
+                )
+            )
+        return True
+    return False
 
 
 def _drop_untimed_from_day(
