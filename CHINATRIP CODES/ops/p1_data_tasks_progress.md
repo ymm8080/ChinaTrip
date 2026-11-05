@@ -268,3 +268,5 @@
 - 2026-11-05 09:0x 5分钟节拍轮 108：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
 - 2026-11-05 09:1x 5分钟节拍轮 110：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
 - 2026-11-05 09:2x 5分钟节拍轮 111：baidu matched 1 → district +1（302 停）；amap 未恢复。
+- 2026-11-05 ~09:30 **P1#2 别名轮解析器修复完成**（backlog master 2026-11-04 #2，随 0924f56 入库）：30 行真实探针抓包（5,594/13,077 tokens）复盘 r8 的 218/226 个 ValueError——**29/30 纯 JSON，唯一失败形态=空 content 回包**（web_search 吃掉输出预算），不是 JSON 格式坏。修法：①`_chat_web` 空回包/解析失败按可重试（重试即恢复，预计收回 ~4.4% 行损失）；②`_extract_json` 宽容解析（围栏/全角标点/尾逗号/非串防御，30 样本重放无回归）；③`_clean_aliases` 单串拆分；④失败样本落 stderr 供台账分类（此前按类型计数丢弃）。新增 tests/test_enrich_llm_web.py 7 例，全量 **2373 tests 绿**、ruff 绿。注：探针走真实管线顺手填了 2 行别名（只填空铁律）。**续批等用户指令**。
+- 2026-11-05 ~07:40 第 196 轮：amap place 仍 PUNISHED（第 3 天，超常规冷却）。r9 别名轮静默死亡（0 进程/0 字节日志/计数未动，疑受工具中断牵连被杀）；前台 5 行探针正常（0 错误，5/5 no_data——易命中目标已耗尽，产率将走低）。已重开 r10 --limit 5000（日志 ops/enrich_llm_web_r10_1105.log）。坐标 20 行全在台账，无可选目标。
