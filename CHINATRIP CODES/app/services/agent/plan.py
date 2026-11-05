@@ -84,6 +84,7 @@ from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
     BIG_SITE_MIN_MINUTES,
     DAY_START_MINUTES,
+    LEAVING_MORNING_END_MINUTES,
     SHOW_LATE_SESSION_MINUTES,
     _city_side,
     _is_big_site,
@@ -158,6 +159,13 @@ PLAN_LIBRARY_WINDOW = 30
 # 漏闸（路距 ~230km 单程 3.5h+，同日本属不可行）——直线 140km ≈ 路距
 # 200km+，收紧一档；南川金佛山+南川东街（2km）等同城簇不受影响。
 _SOFT_FAR_KM = 140.0
+# 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
+# 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
+# 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
+# 未定，按最宽口径取 12:00 闸 − 日始 9:00 = 180 分钟。超出件求解层必
+# 清算（「离城当天无法安排」），选层直接不收——防软闸兜底/空天保底
+# 把远郊大块头塞进返程日再被移除 = 返程日只剩航班。
+_RETURN_DAY_WINDOW_MIN = LEAVING_MORNING_END_MINUTES - DAY_START_MINUTES
 # S5 演出保位（2026-11-02）：候选窗口外保底的同城演出行数上限
 PLAN_SHOW_RESCUE_LIMIT = 3
 
@@ -3200,9 +3208,7 @@ def _host_day_for_visit(
                 hours1 = {vh.poi_id: vh} if vh is not None else {}
                 fixed1, _ft1, _fl1, xfer1 = _day_fixed_windows(later)
                 if (
-                    _probe_visit_slot(
-                        visit, fixed1, xfer1, hours1, 21 * 60 + 30
-                    )
+                    _probe_visit_slot(visit, fixed1, xfer1, hours1, 21 * 60 + 30)
                     is None
                 ):
                     continue
@@ -3369,29 +3375,40 @@ def _yield_for_premium(
         ]
         if not ejects:
             continue
-        eject = max(
+        # 候选逐个过实位探针（档低者先让）：单弹一个不等于腾出可排
+        # 座——上午链 ±腿占段可能把整日候选全挡死，此时原样还座换
+        # 下一日，而非只试一枪就放弃（2026-11-05 d1→d2 实录）。
+        eject: "VisitItem | None" = None
+        target: "DayPlan | None" = None
+        for cand in sorted(
             ejects,
             key=lambda e: (_tier(e.name), e.name),
-        )
-        later.items.remove(eject)
-        # 宿主池两闸：只认 base 同城日（到达日「结构可容、终排必死」
-        # ——容量闸不识营业窗，落地 14:30 起 180min 名点 17:30 收
-        # >17:00 闭馆实录）；排除搁浅原日——除非弹座正是出自原日
-        # （自家日弹座后原日回宿是让位本意，否则是无谓弹座的空转）
-        target = _host_day_for_visit(
-            [
-                d
-                for d in pool
-                if (d is not origin or d is later)
-                and str(d.base_city or "").strip().removesuffix("市") == vcity
-            ],
-            vcity,
-            dur,
-            incoming=visit.location,
-            visit=visit,
-        )
+            reverse=True,
+        ):
+            later.items.remove(cand)
+            # 宿主池两闸：只认 base 同城日（到达日「结构可容、终排必死」
+            # ——容量闸不识营业窗，落地 14:30 起 180min 名点 17:30 收
+            # >17:00 闭馆实录）；排除搁浅原日——除非弹座正是出自原日
+            # （自家日弹座后原日回宿是让位本意，否则是无谓弹座的空转）
+            t = _host_day_for_visit(
+                [
+                    d
+                    for d in pool
+                    if (d is not origin or d is later)
+                    and str(d.base_city or "").strip().removesuffix("市") == vcity
+                ],
+                vcity,
+                dur,
+                incoming=visit.location,
+                visit=visit,
+            )
+            if t is None:
+                later.items.append(cand)  # 弹了座仍进不去（远闸/窗口）→ 还回
+                continue
+            eject = cand
+            target = t
+            break
         if target is None:
-            later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
             continue
         for origin in plan.days:
             if any(i is visit for i in origin.items):
@@ -8197,6 +8214,17 @@ class PlanningAgent:
             # 非街区）认领天序把到达日压到队尾——软偏好，eligible 全为
             # 到达日（短程窗）不变形；返程末日不在到达日集，不受限。
             _adays = arrival_days or frozenset()
+
+            # 返程日参访件离城上午闸镜像（2026-11-05 重庆案）：超件
+            # 求解层必清算（口径见 _RETURN_DAY_WINDOW_MIN），选层直接
+            # 不收——预占严格位/软闸兜底/空天保底/主环共用一判。
+            def _over_return_cap(d: int, minutes: int, leg: int) -> bool:
+                return (
+                    d == days
+                    and days in _tdays
+                    and minutes + leg > _RETURN_DAY_WINDOW_MIN
+                )
+
             if _priority_early_enabled():
                 # 地理归属跟随（2026-11-02 拍板链「全部优先级都要
                 # 考虑」+「调剂要考虑地理位置最近」）：优先级池序
@@ -8274,6 +8302,8 @@ class PlanningAgent:
                         # 大点排不出时刻被清算移除。与软闸/主环同口径。
                         if _far_km(xy, day) > _SOFT_FAR_KM:
                             continue
+                        if _over_return_cap(day, minutes, leg):
+                            continue
                         if load[1] >= 4 or load[0] + minutes + leg > _budget(day):
                             continue
                         load[0] += minutes + leg
@@ -8297,6 +8327,8 @@ class PlanningAgent:
                             if day_loads[day][1] >= 4:
                                 continue
                             if _far_km(xy, day) > _SOFT_FAR_KM:
+                                continue
+                            if _over_return_cap(day, minutes, _leg_min(xy, day)):
                                 continue
                             day_loads[day][0] += minutes + _leg_min(xy, day)
                             day_loads[day][1] += 1
@@ -8332,6 +8364,11 @@ class PlanningAgent:
                             continue
                         _m = _minutes(cand_last, DEFAULT_VISIT_MINUTES)
                         _xy = _cxy(cand_last)
+                        # 返程日空天挪件也要装得进离城上午窗（2026-11-05
+                        # 重庆案：白帝城/小三峡/龙缸/大裂谷 4 件全被清算
+                        # → day7 归零）；装不下换下一源天，不盲挪。
+                        if _over_return_cap(d_empty, _m, _leg_min(_xy, d_empty)):
+                            continue
                         placed[src].pop()
                         day_loads[src][0] -= _m + _leg_min(_xy, src)
                         day_loads[src][1] -= 1
@@ -8344,6 +8381,47 @@ class PlanningAgent:
                         placed[d_empty].append((pos_last, cand_last))
                         day_owner.setdefault(d_empty, clusters[pos_last])
                         break
+                # 返程日轻量保底（2026-11-05 重庆案）：上午闸镜像闸下
+                # 空天保底可能挪无可挪（源天全是远郊大块头）→ 从未认
+                # 领池拉能装进上午窗的轻量件（池序=档位梯子，街区/市
+                # 区名点自然先行）；仍无 → 披露留痕（日志铁律）。
+                if (
+                    days == hi
+                    and days in _tdays
+                    and day_loads[days][1] == 0
+                    and days not in rainy_here
+                ):
+                    _fit = None
+                    for pos_f, (_idx_f, cand_f) in enumerate(pool):
+                        if pos_f in preclaimed or _cand_is_show(cand_f):
+                            continue
+                        if _rain_blocked(cand_f, days):
+                            continue
+                        _mf = _minutes(cand_f, DEFAULT_VISIT_MINUTES)
+                        _xyf = _cxy(cand_f)
+                        if _over_return_cap(days, _mf, _leg_min(_xyf, days)):
+                            continue
+                        _fit = (pos_f, cand_f, _mf, _xyf)
+                        break
+                    if _fit is not None:
+                        pos_f, cand_f, _mf, _xyf = _fit
+                        day_loads[days][0] += _mf + _leg_min(_xyf, days)
+                        day_loads[days][1] += 1
+                        if _xyf is not None:
+                            day_coords[days].append(_xyf)
+                        placed[days].append((pos_f, cand_f))
+                        day_owner.setdefault(days, clusters[pos_f])
+                        preclaimed.add(pos_f)
+                        if notes is not None:
+                            notes.append(
+                                f"第{days}天返程日上午保底排「{cand_f['name']}」"
+                                "（离城上午闸只收轻量点）"
+                            )
+                    elif notes is not None:
+                        notes.append(
+                            f"第{days}天返程日上午暂无能排进的候选"
+                            "（离城上午闸），要加请说"
+                        )
             for pos, (idx, cand) in enumerate(pool):
                 if pos in preclaimed:
                     continue  # tier1 预占位已落，主环不重复
@@ -8412,6 +8490,7 @@ class PlanningAgent:
                     load[0] + minutes + leg > _budget(day)
                     or load[1] >= 4
                     or _far_km(xy, day) > _SOFT_FAR_KM
+                    or _over_return_cap(day, minutes, leg)
                 ):
                     day = (
                         _emptiest_day()
@@ -8437,8 +8516,12 @@ class PlanningAgent:
                     # 时长升序）。远腿例外（2026-11-04 成渝案）：超
                     # _SOFT_FAR_KM 的直线距不做软超额——软超额救的是
                     # 时间预算，不是跨市距离。
-                    if _far_km(xy, day) > _SOFT_FAR_KM or load[1] >= 4:
-                        continue  # 全满/远腿才出局（tier 低者先出）
+                    if (
+                        _far_km(xy, day) > _SOFT_FAR_KM
+                        or load[1] >= 4
+                        or _over_return_cap(day, minutes, leg)
+                    ):
+                        continue  # 全满/远腿/返程日超上午窗才出局（tier 低者先出）
                 load[0] += minutes + leg
                 load[1] += 1
                 if xy is not None:

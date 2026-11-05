@@ -117,6 +117,13 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
         VisitItem(item_id="a1", name=n1, city="西安", day=1, duration_minutes=90),
         VisitItem(item_id="a2", name=n2, city="西安", day=1, duration_minutes=90),
     ]
+    # day2 恰留一个 90min 合法窗（15:00-16:30，结束闸内）——旧夹具
+    # （乙 14:00-18:20）在 11-05 结束闸+宿主探测下无可宿主 slot，
+    # 救援全落 day3、阶梯测试失去分辨力。开场闸 90min 杂点 ≤15:00
+    # 开场（990-90=900）：乙须 ≤14:30 收（±30 腿垫后空窗 15:00 起
+    # 恰压 cap 边界）——甲 9:00-11:00 / 午餐 flex 11:30 / 乙 12:30-14:30。
+    # 已有丙（无时刻）顶满 4 件闸：王牌占走唯一窗后 untimed 件对探针
+    # 不可见（同窗竞位盲区），第二件搬迁靠 4 件硬顶收口去 day3。
     d2 = [
         VisitItem(
             item_id="b1",
@@ -124,17 +131,17 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
             city="西安",
             day=2,
             start_time=time(9, 0),
-            end_time=time(13, 20),
-            duration_minutes=260,
+            end_time=time(11, 0),
+            duration_minutes=120,
         ),
         VisitItem(
             item_id="b2",
             name="已有乙",
             city="西安",
             day=2,
-            start_time=time(14, 0),
-            end_time=time(18, 20),
-            duration_minutes=260,
+            start_time=time(12, 30),
+            end_time=time(14, 30),
+            duration_minutes=120,
         ),
         VisitItem(
             item_id="b3",
@@ -142,9 +149,16 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
             city="西安",
             day=2,
             category="food",
-            start_time=time(12, 0),
-            end_time=time(13, 0),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
             duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="b4",
+            name="已有丙",
+            city="西安",
+            day=2,
+            duration_minutes=90,
         ),
     ]
     return ItineraryPlan(
