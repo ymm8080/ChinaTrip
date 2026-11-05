@@ -2047,12 +2047,38 @@ CATEGORY_SEARCH_KEYWORDS: dict[str, str] = {
     "演出": "演出",
     "看秀": "演出",
     "show": "演出",
+    # 娱乐愿望按演出池落实（2026-11-05 SHOW/ENTERTAINMENT 全落风景区
+    # 事故）：活跃娱乐库存=tags show 池（category entertainment 同源），
+    # 娱乐词并入演出组吃同一精池；不单设「娱乐」检索词（底库 category
+    # 值是英文 entertainment，中文 LIKE 打不中）。
+    "娱乐": "演出",
+    "entertainment": "演出",
     "城市漫步": "步行街",
     "citywalk": "步行街",
     "city walk": "步行街",
     "压马路": "步行街",
     "逛古镇": "古镇",
     "古镇": "古镇",
+    "ancient town": "古镇",
+    "old town": "古镇",
+    # 英文常用词形补齐（对齐 CITY_ALIASES 双语口径）；注意不收 "tea"
+    # / "bar" 光杆词——"tea" 是 "steak" 子串、"bar" 是 "barbecue"
+    # 子串，会劫持餐饮专名。也不收 "剧场"/"剧院"——专名 venue 后缀
+    # （国家大剧院），劫持具体场馆愿望。
+    "teahouse": "茶馆",
+    "tea house": "茶馆",
+    "tea ceremony": "茶馆",
+    "afternoon tea": "茶馆",
+    "coffee": "咖啡馆",
+    "cafe": "咖啡馆",
+    "café": "咖啡馆",
+    "night market": "夜市",
+    "nightmarket": "夜市",
+    "pub": "酒吧",
+    "museum": "博物馆",
+    "温泉": "温泉",
+    "hot spring": "温泉",
+    "hotspring": "温泉",
 }
 
 # 检索词 → 底库功能标签内核（poi_details._LABEL_TOKENS 同词表）：品类
@@ -2070,13 +2096,17 @@ def _category_label_tokens(keyword: str | None) -> list[str]:
 
 
 def _category_search_keyword(name: str) -> str | None:
-    """品类愿望（「喝茶」「找家咖啡馆」）→ 搜索关键词；专名返回 None。"""
+    """品类愿望（「喝茶」「找家咖啡馆」）→ 搜索关键词；专名返回 None。
+
+    2026-11-05 SHOW/ENTERTAINMENT 全落风景区事故收口：英文愿望大小写
+    无关（CITY_ALIASES 同口径），上限 12→16（entertainment 13 字符曾被
+    长度闸整词拦死走专名通道）。"""
     s = (name or "").strip()
-    if not s or len(s) > 12:
+    if not s or len(s) > 16:
         return None
-    for probe in (s, _wish_core(s)):
+    for probe in (s.lower(), _wish_core(s).lower()):
         for key, keyword in CATEGORY_SEARCH_KEYWORDS.items():
-            if key in probe:
+            if key.lower() in probe:
                 return keyword
     return None
 
@@ -2244,6 +2274,13 @@ PREFERENCE_CATEGORY_SPECS: tuple[
         (),
         ("茶馆", "茶楼", "咖啡", "奶茶"),
     ),
+    # 娱乐/夜生活组（2026-11-05 SHOW/ENTERTAINMENT 事故）：偏好只作
+    # 选点排序信号；库内 entertainment 行=演出池同源。
+    (
+        ("娱乐", "entertainment", "夜生活", "nightlife"),
+        ("entertainment",),
+        ("娱乐", "演艺", "夜生活"),
+    ),
 )
 
 
@@ -2258,7 +2295,9 @@ def _preference_tokens(text: str) -> tuple[tuple[str, ...], bool]:
         if any(t in low for t in triggers):
             toks.extend(cats)
             toks.extend(name_toks)
-    show_pref = any(t in low for t in ("看演出", "演出", "看秀", "show"))
+    show_pref = any(
+        t in low for t in ("看演出", "演出", "看秀", "show", "娱乐", "entertainment")
+    )
     if show_pref:
         toks.extend(("演出", "剧场", "剧院", "戏院", "相声"))
     return tuple(dict.fromkeys(toks)), show_pref

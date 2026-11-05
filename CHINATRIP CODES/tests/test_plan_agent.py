@@ -3175,6 +3175,28 @@ def test_category_search_keyword_show_citywalk_town():
     assert _category_search_keyword("蜀风雅韵") is None
 
 
+def test_category_search_keyword_bilingual_case_insensitive():
+    """2026-11-05 SHOW/ENTERTAINMENT 全落风景区事故收口：英文品类愿望
+    大小写无关（此前大小写敏感整词漏识别→走专名通道被绑成景区）、
+    英文常用词形双语覆盖（对齐 CITY_ALIASES 口径）；entertainment 13
+    字符验证长度闸 12→16。专名仍不被劫持。"""
+    assert _category_search_keyword("SHOW") == "演出"
+    assert _category_search_keyword("Show") == "演出"
+    assert _category_search_keyword("shows") == "演出"
+    assert _category_search_keyword("ENTERTAINMENT") == "演出"
+    assert _category_search_keyword("娱乐") == "演出"
+    assert _category_search_keyword("Tea House") == "茶馆"
+    assert _category_search_keyword("teahouse") == "茶馆"
+    assert _category_search_keyword("COFFEE") == "咖啡馆"
+    assert _category_search_keyword("Night Market") == "夜市"
+    assert _category_search_keyword("Hot Spring") == "温泉"
+    assert _category_search_keyword("ancient town") == "古镇"
+    assert _category_search_keyword("喝茶") == "茶馆"  # 既有中文行为不回退
+    # 专名不被英文品类词劫持（大写也不行）
+    assert _category_search_keyword("蜀风雅韵") is None
+    assert _category_search_keyword("Chauffeur driven tour") is None  # >16 长闸
+
+
 def test_keyword_label_tokens():
     """检索词 → 底库功能标签内核（演出→show、步行街→citywalk、
     古镇→historical_town）；_poi_library_lookup 用它拼标签 tokens。"""
