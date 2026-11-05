@@ -889,9 +889,18 @@ const AMAP_DETAIL_ZH = {
   amap_not_configured: "高德服务未配置（缺 API Key）",
   amap_error: "高德接口异常，请稍后再试",
 };
+// 路途行程改乘/班次号端点（2026-11-04）的 422 detail 码 → 人类语言
+const TRANSFER_DETAIL_ZH = {
+  no_flight_found: "该日期/城市对查不到航班，未改乘",
+  no_train_found: "该日期/城市对查不到火车班次，未改乘",
+  number_not_found: "班次库查无此航班号/车次号（核对输入或换一天再试）",
+  bad_number_format: "班次号格式不符：航班号如 CA1234 / 3U8881，车次号如 G1234 / D2288",
+  mode_not_supported: "该腿不支持改乘此交通方式",
+  booking_unavailable: "该段为市内驾车/公交段，无票可订",
+};
 function detailText(d) {
   if (d == null) return "";
-  if (typeof d === "string") { const z = AMAP_DETAIL_ZH[d]; return z ? I18N.tf("infra." + d, z) : d; }
+  if (typeof d === "string") { const z = AMAP_DETAIL_ZH[d] || TRANSFER_DETAIL_ZH[d]; return z ? I18N.tf("infra." + d, z) : d; }
   if (Array.isArray(d)) return d.map(detailText).join(I18N.tf("infra.sep", "；"));
   if (d.violations) {
     return d.violations
@@ -1627,8 +1636,26 @@ function planCard(plan) {
     const dayItems = el('<div class="day-items" data-day="' + d.day + '"></div>');
     box.appendChild(dayItems);
     (d.items || []).forEach((it, idx) => {
-      if (it.from_city) { // TransferItem：不可拖
-        dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + "</span><span>" + modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + "</span></div>"));
+      if (it.from_city) { // TransferItem：不可拖；改乘/班次号/订票跳转（2026-11-04 规划页路途行程三件套）
+        const inSess = planSession && planSession.session_id;
+        const legNo = it.train_no || it.flight_no || "";
+        const legMain = modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + (legNo ? " <code>" + esc(legNo) + "</code>" : "");
+        const isLeg = it.mode === "train" || it.mode === "flight";
+        let legTail = "";
+        if (inSess && isLeg) {
+          legTail = ' <button class="btn mini ghost" data-action="tmode" data-item-id="' + esc(it.item_id) + '" data-mode="flight"' + (it.mode === "flight" ? " disabled" : "") + ' title="' + I18N.tf("card.tmode.flight.title", "改乘飞机：重查航班并自动更新时刻") + '">✈️</button>' +
+            ' <button class="btn mini ghost" data-action="tmode" data-item-id="' + esc(it.item_id) + '" data-mode="train"' + (it.mode === "train" ? " disabled" : "") + ' title="' + I18N.tf("card.tmode.train.title", "改乘火车：重查车次并自动更新时刻") + '">🚄</button>' +
+            ' <button class="btn mini ghost" data-action="tno" data-item-id="' + esc(it.item_id) + '" title="' + I18N.tf("card.tno.title", "输入航班号/车次号（如 CA1234 / G1234），校验后自动更新时刻") + '">' + I18N.tf("card.tno", "🔢 班次") + "</button>";
+        }
+        dayItems.appendChild(el('<div class="row"><span class="t">' + fmtTime(it.start_time) + '</span><span style="flex:1;min-width:0;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">' + legMain + legTail + "</span></div>"));
+        if (inSess && isLeg) {
+          // 订票跳转（铁律 22/23）：点开拉渠道卡（机票=携程/去哪儿/飞猪，火车=12306），
+          // 每渠道一枚按钮，点击过 bkConfirm 退改浮层后才跳转
+          const tbookLabel = it.mode === "flight"
+            ? I18N.tf("card.tbook.flight", "🎟 去哪儿 / 飞猪 订票")
+            : I18N.tf("card.tbook.train", "🎟 12306 订票");
+          dayItems.appendChild(el('<div class="muted" style="margin:0 2px 6px 56px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn mini ghost" data-action="tbook" data-item-id="' + esc(it.item_id) + '">' + tbookLabel + "</button></div>"));
+        }
       } else { // VisitItem
         let tail = "";
         const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
@@ -1651,6 +1678,7 @@ function planCard(plan) {
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let legSeg = "";
+          let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
           if (it.next_walk_minutes != null) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
             for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
@@ -1662,13 +1690,20 @@ function planCard(plan) {
                 : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
             } else if (nxt && nxt.location) {
               // 打车（默认出行）：车程=直线×1.3 绕行÷35km/h + 半小时叫车，封顶 180 分钟
+              taxiDest = nxt;
               const taxiMin = Math.min(180, Math.round(km * 1.3 / 35 * 60) + 30);
               legSeg = ' · <a class="leg-link" target="_blank" rel="noopener" href="' + navDriveUrl(it, nxt) + '" title="' + I18N.tf("card.drive.titlePre","在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose","）") + '">' + I18N.t("card.taxi") + taxiMin + I18N.t("card.taxi_min") + "</a>";
             }
           }
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
-          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
+          // CALL TAXI（2026-11-04）：已算好公里数+打车时间的段，右侧一键转导航页打车（起点=当前位置，终点=下一站）
+          const callBtn = taxiDest
+            ? ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + esc(taxiDest.name) + '" data-lon="' + taxiDest.location.lon + '" data-lat="' + taxiDest.location.lat + '" title="' + I18N.tf("card.callTaxi.title","一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>"
+            : "";
+          blk.appendChild(el('<div class="muted"' + (callBtn
+            ? ' style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 2px 6px ' + ind + '"><span style="flex:1;min-width:0">' + leg + "</span>" + callBtn + "</div>"
+            : ' style="margin:0 2px 6px ' + ind + '">' + leg + "</div>")));
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
@@ -1750,6 +1785,73 @@ function planCard(plan) {
       addMsg("flow-plan", "sys", info);
       enrichBrief(info, link.getAttribute("data-city"), link.getAttribute("data-name"));
       return;
+    }
+    const ct = ev.target.closest ? ev.target.closest('button[data-action="calltaxi"]') : null;
+    if (ct && box.contains(ct)) { // CALL TAXI：一键转导航页打车（起点=当前位置，终点=下一站），会话外也可用
+      callTaxiTo(ct.getAttribute("data-name"), parseFloat(ct.getAttribute("data-lon")), parseFloat(ct.getAttribute("data-lat")));
+      return;
+    }
+    // 路途行程三件套（2026-11-04）：改乘 / 班次号校时 / 订票渠道卡——
+    // 均会话内可点，命中后原地换新卡（与 retime/pin 同款 replaceWith 流）
+    const tb = ev.target.closest ? ev.target.closest('button[data-action="tmode"],button[data-action="tno"],button[data-action="tbook"]') : null;
+    if (tb && box.contains(tb)) {
+      if (!planSession || !planSession.session_id) return;
+      const sid = planSession.session_id;
+      const tid = tb.getAttribute("data-item-id");
+      const tact = tb.getAttribute("data-action");
+      if (tact === "tmode") {
+        busy(tb, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/transfers/" + encodeURIComponent(tid) + "/mode", { mode: tb.getAttribute("data-mode") }, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); }
+        });
+        return;
+      }
+      if (tact === "tno") {
+        // 班次号原地输入：change/Enter 提交、blur 还原（防双触发，同 retime）
+        if (tb.querySelector("input")) return;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = I18N.tf("card.tno.ph", "CA1234 / G1234");
+        input.setAttribute("aria-label", I18N.tf("card.tno.title", "输入航班号/车次号"));
+        input.style.cssText = "width:110px;min-width:0;font-size:12px;padding:2px 6px;border:1px solid #ccc;border-radius:6px";
+        tb.textContent = "";
+        tb.appendChild(input);
+        input.focus();
+        let done = false;
+        const tnoSubmit = async () => {
+          if (done) return;
+          done = true;
+          const v = (input.value || "").trim().toUpperCase();
+          if (!v) { box.replaceWith(planCard(plan)); return; }
+          input.disabled = true;
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/transfers/" + encodeURIComponent(tid) + "/number", { number: v }, "POST");
+            toast(I18N.tf("card.tno.ok", "✅ 班次命中，时刻已更新"));
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); box.replaceWith(planCard(plan)); }
+        };
+        input.addEventListener("change", tnoSubmit);
+        input.addEventListener("keydown", e2 => { if (e2.key === "Enter") { e2.preventDefault(); tnoSubmit(); } });
+        input.addEventListener("blur", () => { if (!done) { done = true; box.replaceWith(planCard(plan)); } });
+        return;
+      }
+      if (tact === "tbook") {
+        busy(tb, async () => {
+          try {
+            const cards = await api("/api/v1/plan/" + sid + "/transfers/" + encodeURIComponent(tid) + "/booking-links", {}, "POST");
+            const wrap = tb.parentNode;
+            const chips = el('<span style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>');
+            (cards.cards || []).forEach(c => {
+              chips.appendChild(bkChannelBtn(c.channel, c.url, { summary: c.refund_summary }, false, I18N.tf("bk.chan." + c.channel, BK_CHANNEL[c.channel] || c.channel), cards.kind));
+            });
+            wrap.replaceChild(chips, tb);
+            if (cards.disclaimer) wrap.appendChild(el('<span class="muted" style="font-size:11px">' + esc(cards.disclaimer) + "</span>"));
+          } catch (err) { failToast(err); }
+        });
+        return;
+      }
     }
     const btn = ev.target.closest ? ev.target.closest('button[data-item-id]') : null;
     if (!btn || !box.contains(btn)) return;
@@ -3732,7 +3834,7 @@ document.getElementById("bkConfirm").addEventListener("pointerdown", e => {
   if (e.target.id === "bkConfirm") bkConfirmClose();
 });
 
-const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团", "klook": "Klook", "other": "官方/其他" };
+const BK_CHANNEL = { "12306": "12306", "qunar": "去哪儿", "ctrip": "携程", "meituan": "美团", "klook": "Klook", "fliggy": "飞猪", "other": "官方/其他" };
 
 // 渠道按钮：一律先过退改确认浮层；无 refund_policy 则禁用（铁律 23）；actionType → 铁律 22 埋点
 function bkChannelBtn(channel, url, refund, primary, label, actionType) {
@@ -4141,6 +4243,23 @@ function bkRenderPlanDays() {
 function switchTab(name) {
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === "tab-" + name));
+}
+
+/* ---- CALL TAXI（行程卡 → 导航页打车，2026-11-04）：起点=当前位置，终点=下一站 ---- */
+
+function callTaxiTo(name, lon, lat) {
+  if (!isFinite(lon) || !isFinite(lat)) { toast(I18N.tf("card.callTaxi.noCoord", "该站无坐标，请到导航页手动搜索终点")); return; }
+  switchTab("nav");
+  if (!NAV.meAuto) { // 起点被手动改过 → 回到当前位置（CALL TAXI 语义），与 regeo/locate 回填同式
+    NAV.me = { ...NAV.myPos };
+    NAV.meAuto = true;
+    NAV.meReal = NAV.geolocOk; // 只有真实定位过才算真起点，否则 deeplink 不带起点（高德自己定位）
+    originKw.value = posName(NAV.me.name);
+    placeMe();
+  }
+  setDest({ name: name, location: { lon: lon, lat: lat } }); // 终点=下一站：复用导航页 setDest（marker+flyTo+输入框回填）
+  const taxiBtn = document.querySelector('#modeBar button[data-mode="taxi"]');
+  if (taxiBtn) taxiBtn.click(); // 复用导航页打车全流程（deeplink + 手机扫码桥），click 内含 setMode("taxi")
 }
 
 function planBookQuick(plan) {

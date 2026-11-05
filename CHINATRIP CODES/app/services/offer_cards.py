@@ -22,6 +22,7 @@ from urllib.parse import quote
 from app.config import Settings
 from app.services.bookings import (
     _refund_channel_page,
+    fliggy_booking_url,
     flight_booking,
     hotel_booking,
     train_booking,
@@ -31,8 +32,8 @@ from app.services.trains import get_train_service
 
 __all__ = ["flight_offer_cards", "hotel_offer_cards", "train_offer_cards"]
 
-# 稳定性序（同价时的次序）：携程 > 去哪儿 > 美团
-_STABILITY_ORDER = ("ctrip", "qunar", "meituan")
+# 稳定性序（同价时的次序）：携程 > 去哪儿 > 美团 > 飞猪（2026-11-04 飞猪入组）
+_STABILITY_ORDER = ("ctrip", "qunar", "meituan", "fliggy")
 
 # MVP 确定性 mock 基价（元）；接入真实联盟 API 后替换 _mock_price_yuan 即可
 _BASE_PRICE_YUAN: dict[str, float] = {"hotel": 350.0, "flight": 760.0}
@@ -228,11 +229,16 @@ def flight_offer_cards(
     region: str = "cn",
     settings: Settings,
 ) -> dict:
-    """机票候选卡（步骤1 查询）：携程主渠道+去哪儿兜底（机票无美团卡）。"""
+    """机票候选卡（步骤1 查询）：携程主渠道+去哪儿兜底+飞猪（机票无美团卡）。
+
+    2026-11-04 用户拍板：规划页路途行程点「去哪儿/飞猪」跳转——飞猪以
+    第三渠道入组，退改摘要走 bookings._REFUND_SUMMARIES["fliggy"]（铁律 23）。
+    """
     handoff = flight_booking(from_city, to_city, date)["handoff"]
     channel_urls = {
         handoff["channel"]: handoff["url"],
         handoff["fallback"]["channel"]: handoff["fallback"]["url"],
+        "fliggy": fliggy_booking_url(from_city, to_city, date),
     }
     norm = _norm_query(
         "flight",

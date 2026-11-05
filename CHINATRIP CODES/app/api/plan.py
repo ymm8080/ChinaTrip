@@ -21,6 +21,7 @@ import uuid
 from datetime import datetime, time, timezone
 from functools import partial
 from time import monotonic
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -41,6 +42,8 @@ from app.services.agent.plan import (
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
+    _find_transfer_item,
+    _leg_date_iso,
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
@@ -68,6 +71,7 @@ from app.services.map_provider import (
     build_map_client,
     map_ready,
 )
+from app.services.offer_cards import flight_offer_cards, train_offer_cards
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
@@ -740,6 +744,134 @@ async def retime_plan_item(
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)
+
+
+class PlanTransferModeRequest(BaseModel):
+    mode: Literal["train", "flight"]
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/mode")
+async def switch_transfer_mode(
+    session_id: str,
+    item_id: str,
+    request: PlanTransferModeRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """路途行程改乘（2026-11-04 规划页）：飞机/火车二选一，按真实乘车日
+    重查班次回填时刻并重排受影响天。查不到班次 422（no_flight_found /
+    no_train_found），旧腿原样保留。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.switch_transfer_mode(
+            session, item_id, mode=request.mode
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("已改乘", "Transport switched")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanTransferNumberRequest(BaseModel):
+    number: str = Field(min_length=2, max_length=8)  # 航班号/车次号原文
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/number")
+async def set_transfer_number(
+    session_id: str,
+    item_id: str,
+    request: PlanTransferNumberRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """路途行程输入航班号/车次号（2026-11-04 规划页）：格式校验 → 班次库
+    查询 → 命中回填真实起降/到发时刻并按班次改写腿别（输入航班号该腿即
+    成航班）。查无此班 422 number_not_found；格式不符 422 bad_number_format。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.set_transfer_number(
+            session, item_id, number=request.number
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("班次时刻已更新", "Schedule times updated")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/booking-links")
+async def transfer_booking_links(
+    session_id: str,
+    item_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """路途行程订票跳转渠道卡（2026-11-04 规划页；铁律 22/23）：服务端
+    组装成品深链（机票=携程/去哪儿/飞猪，火车=12306 全国统一价单卡）+
+    退改摘要；前端过 bkConfirm 浮层后才 window.open。驾车/公交腿 422
+    booking_unavailable（同城段无票可订）。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    transfer = _find_transfer_item(session.plan, item_id)
+    if transfer is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    if transfer.mode not in ("train", "flight"):
+        raise HTTPException(status_code=422, detail="booking_unavailable")
+    date = _leg_date_iso(session.start_date or session.plan.start_date, transfer.day)
+    try:
+        if transfer.mode == "flight":
+            # 无出发日期时 date 传空串：渠道列表页照常打开（无日期预填），
+            # 不伪造哨兵日期。
+            return flight_offer_cards(
+                transfer.from_city,
+                transfer.to_city,
+                date,
+                settings=settings,
+            )
+        return await train_offer_cards(
+            transfer.from_city, transfer.to_city, date, settings=settings
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="invalid_booking") from exc
 
 
 class PlanReplaceRequest(BaseModel):

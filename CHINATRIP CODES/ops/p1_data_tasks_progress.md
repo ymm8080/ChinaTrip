@@ -247,3 +247,24 @@
 - 2026-11-05 00:5x 5分钟节拍轮 10：baidu matched 28 → hours +19 / rating +19 / district +28 / phone +21 / aliases +7（302 停）；amap 未恢复。
 - 2026-11-05 ~00:50 **P1#6 成都名点选点探针收口**（backlog master 2026-11-04 #6，未开工→探针完成+修复）：三选一裁决——池窗口 PLAN_LIBRARY_WINDOW 与三闸均排除（武侯祠/锦里/宽窄/熊猫全在过闸集内，名点 #4/#7 vs 农科村 #15）。真因=`_deterministic_selection` 四段叠加：①`_pool_cap=span*4=16` 按 tier 梯子切（t1/t2/t8/t9/t10 共 12 行占前席，quality 4.6 图商名点落 17 位起被切池外）；②t11 档内 `-quality` 让百度虚高评分（农科村/宝光桂湖 5.0、欢乐谷 4.8）压过 amap 4.6 名点；③品类闸 `span//3=2` 把 nature 粗分类 9 行裁 8（欢乐谷/海昌都被图商标成 nature）；④池外回填 `time_soft=False` 硬预算+腿费，180 分钟大点塞不进半满日——4 天窗口实弹只排 5 件、日预算 50-60%。修法：`_premium_out` 由 tier≤2 扩为 `tier≤2 or quality≥4.5`（高质名点同权追回池内，享池内软闸；无评分长尾仍硬闸）。实弹复验 **5→9 件**，宽窄巷子/熊猫基地/东郊记忆/洛带古镇回归。余项：品类闸 nature 粗分类待拍板；锦里古街/杜甫草堂/金沙 rating=None 归 #3 数据债；武侯祠/青城山=孪生并卡设计内。2327 tests 绿（新增回归 1 例）、ruff 绿。
 - 2026-11-05 ~01:10 **P2#7 其他城市回退簇部分收口**（backlog master 2026-11-04 #7，未开工→部分收口）：donor dry-run 逐条人工审计后修复 **7 行**（白名单+铁律源序，脚本 tmp_unesco/repair_other_city_fallback.py）：广州 余荫山房←广州市余荫山房景区[4a]/沙湾镇←沙湾古镇[amap]/沙面←沙面堂[amap]；杭州 龙门古镇←龙门镇[histown]；苏州 同里古镇←吴江区同里古镇景区[5a]/金鸡湖←金鸡湖旅游区[5a]/枫桥景区←枫桥夜泊[amap]。全表口径：广州 7→4 / 杭州 8→7 / 苏州 9→6；西安 7 / 通化 3 / 重庆 41 无同实体 donor **不猜不修**（show 行/温泉营地类无孪生源），等 amap 解封（U2）+Nominatim（VPN，U4）回源；池第四闸持续兜底这些行不入排期。
+- 2026-11-05 01:1x 5分钟节拍轮 16：baidu matched 1 → hours +1 / district +1（302 停）；amap 未恢复。
+- 2026-11-05 01:3x 5分钟节拍轮 18：baidu matched 3 → hours +3 / district +3 / phone +2（302 停）；amap 未恢复。
+- 2026-11-05 01:4x 5分钟节拍轮 19：baidu matched 1 → district +1（302 停）；amap 未恢复。
+- 2026-11-05 02:0x 5分钟节拍轮 24：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 02:1x 5分钟节拍轮 25：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 03:0x 5分钟节拍轮 38：baidu matched 1 → hours +1 / rating +1（302 停）；amap 未恢复。
+- 2026-11-05 03:3x 5分钟节拍轮 42：baidu matched 1 → hours +1 / rating +1（302 停）；amap 未恢复。
+- 2026-11-05 04:4x 5分钟节拍轮 57：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 05:1x 5分钟节拍轮 61：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 07:25 调度器续轮：昨夜两引擎额度未随零点重置——03:55 日批 baidu 首请求即 302（0 填充）、amap 撞 quota/WAF（0 填充）；07:18 探针复核双死。夜作业产出：en nightly +489 行 hours_en（zh_no_en 缺口 1,644→~1,155）；refresh 02:00 regeo 填 1,900 地址（独立池正常），amap 链全程 quota 熔断。结论：进入结构性配额等待，改为每小时探针+复活即收割模式。
+- 2026-11-05 ~07:00 第 195 轮（用户 GO ON 恢复主动）：**重建波落地后新基线**——active 13,916、别名 2,504（**18.0%**）、百度 400（+35）、自治州 0（重建后已重新归一）、无坐标 **20**（=miss 台账 20 行一一对应，T2 完全闭合）。日批 hours/rating 03:55 跑了但 amap 仍 WAF 处罚中（quota_stop:waf，**处罚已持续 >24h**，超常规冷却，关注）。已开别名轮 r9 --limit 5000（日志 ops/enrich_llm_web_r9_1105.log）；坐标 20 行全在台账，驱动无可选目标，不跑。
+- 2026-11-05 07:0x 5分钟节拍轮 94：baidu 302 正常自停；amap 引擎连续 2 次 OpenBLAS 内存分配失败（机器内存压力，环境性瞬态非代码问题）——按异常规程本轮放弃，下拍自动重试；百度桶仍干（302）。
+- 2026-11-05 08:0x 5分钟节拍轮 100：baidu matched 1 → district +1（302 停）；amap 未恢复。
+- 2026-11-05 08:1x 5分钟节拍轮 101：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 08:2x 5分钟节拍轮 102：baidu matched 5 → hours +4 / rating +4 / district +5 / phone +3（302 停）；amap 未恢复。
+- 2026-11-05 08:3x 5分钟节拍轮 103：baidu matched 2 → hours +1 / rating +1 / district +2（302 停）；amap 未恢复。
+- 2026-11-05 08:4x 5分钟节拍轮 105：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 08:5x 5分钟节拍轮 106：baidu matched 2 → hours +2 / rating +2（302 停）；amap 未恢复。
+- 2026-11-05 09:0x 5分钟节拍轮 108：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 09:1x 5分钟节拍轮 110：baidu matched 1 → hours +1 / rating +1 / phone +1（302 停）；amap 未恢复。
+- 2026-11-05 09:2x 5分钟节拍轮 111：baidu matched 1 → district +1（302 停）；amap 未恢复。

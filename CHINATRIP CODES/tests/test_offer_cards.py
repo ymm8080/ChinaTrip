@@ -120,17 +120,24 @@ def test_train_single_unified_price_12306_card():
 
 def test_flight_cards_cover_qunar_and_ctrip():
     # 1018 c2ccf08: 去哪儿软404 -> 携程主渠道；渠道标签必须跟 handoff 走，
-    # 不得出现「去哪儿卡开携程链」的错标。
+    # 不得出现「去哪儿卡开携程链」的错标。2026-11-04 飞猪以第三渠道入组
+    # （规划页路途行程「去哪儿/飞猪」跳转拍板）。
     resp = post_cards(FLIGHT_BODY, OFF_SETTINGS)
     assert resp.status_code == 200
     body = resp.json()
     assert body["kind"] == "flight"
     urls = {c["channel"]: c["url"] for c in body["cards"]}
-    assert set(urls) == {"qunar", "ctrip"}
+    assert set(urls) == {"qunar", "ctrip", "fliggy"}
     assert urls["ctrip"].startswith("https://flights.ctrip.com/online/list/oneway-")
     assert "depdate=2026-11-20" in urls["ctrip"]
     assert urls["qunar"].startswith("https://flight.qunar.com/site/onewayList.htm")
     assert "fromDate=2026-11-20" in urls["qunar"]
+    # 飞猪卡：专属域 + 与另两卡同构的日期带参 + 铁律 23 退改摘要
+    assert urls["fliggy"].startswith("https://flight.fliggy.com/flightlist.htm")
+    assert "depDate=2026-11-20" in urls["fliggy"]
+    fliggy_card = next(c for c in body["cards"] if c["channel"] == "fliggy")
+    assert fliggy_card["refund_summary"]
+    assert "飞猪" in fliggy_card["refund_summary"]
 
 
 def test_cards_sorted_by_price_ascending_and_primary_is_cheapest():

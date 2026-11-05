@@ -83,7 +83,10 @@ def _validate_duration(v) -> int | None:
 
 
 def _clean_aliases(raw, name_zh: str) -> list[str]:
-    """过滤为安全别名列表：去主名/URL/邮箱/超长项，去重，截 5 个。"""
+    """过滤为安全别名列表：去主名/URL/邮箱/超长项，去重，截 5 个。
+    模型把别名答成单串（「a、b、c」）时按分隔符拆开（2026-11-05 #2）。"""
+    if isinstance(raw, str):
+        raw = re.split(r"[、，,;；/\n]+", raw)
     if not isinstance(raw, list):
         return []
     out: list[str] = []
@@ -102,16 +105,38 @@ def _clean_aliases(raw, name_zh: str) -> list[str]:
     return out
 
 
-def _extract_json(text: str) -> dict | None:
-    """剥掉可能的 ```json 围栏后解析；失败返回 None。"""
-    m = re.search(r"\{.*\}", text, re.S)
-    if not m:
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.S)
+
+
+def _repair_json(s: str) -> str:
+    """轻量修复 LLM 常见 JSON 滑漏：全角标点/智能引号/尾逗号。"""
+    s = s.replace("，", ",").replace("：", ":").replace("　", " ")
+    s = s.replace("\u201c", '"').replace("\u201d", '"')
+    return re.sub(r",\s*([}\]])", r"\1", s)
+
+
+def _extract_json(text) -> dict | None:
+    """宽容解析（2026-11-05 #2）：纯 JSON > ```json 围栏体 > 首尾大括号
+    切片，每候选先原样再修复（全角标点/尾逗号）后重试。空/非串回包返回
+    None——r8 实测 218/226 个 ValueError 全是空 content（web_search 吃掉
+    输出预算，模型没吐正文），空串本地救不了，由调用方按可重试处理。"""
+    if not isinstance(text, str):
         return None
-    try:
-        data = json.loads(m.group(0))
-        return data if isinstance(data, dict) else None
-    except json.JSONDecodeError:
-        return None
+    candidates = [text.strip()]
+    m = _JSON_FENCE_RE.search(text)
+    if m:
+        candidates.append(m.group(1).strip())
+    first, last = text.find("{"), text.rfind("}")
+    if first != -1 and last > first:
+        candidates.append(text[first : last + 1])
+    for cand in candidates:
+        for s in (cand, _repair_json(cand)):
+            try:
+                data = json.loads(s)
+            except json.JSONDecodeError:
+                continue
+            return data if isinstance(data, dict) else None
+    return None
 
 
 # --- 目标行选取 -------------------------------------------------------------
@@ -196,10 +221,25 @@ def _chat_web(
             continue
         r.raise_for_status()
         payload = r.json()
-        content = payload["choices"][0]["message"]["content"]
+        message = payload["choices"][0]["message"]
+        content = message.get("content") if isinstance(message, dict) else None
         data = _extract_json(content)
         if data is None:
-            raise ValueError(f"non-JSON reply: {content[:80]!r}")
+            # 空回包/解析失败按可重试处理（2026-11-05 #2 复盘：r8 的 218/226
+            # 个 ValueError 全是空 content——web_search 吃掉输出预算，重试
+            # 即恢复；4.4% 行损失 → 应收回）。末次仍失败把样本打 stderr
+            # 供台账分类（此前样本被按类型计数丢弃，无法复盘）。
+            if attempt < _MAX_ATTEMPTS - 1:
+                retries += 1
+                time.sleep(min(8.0, 1.0 + attempt))
+                continue
+            print(
+                json.dumps(
+                    {"parse_fail_sample": str(content)[:200]}, ensure_ascii=True
+                ),
+                file=sys.stderr,
+            )
+            raise ValueError(f"non-JSON reply: {str(content)[:80]!r}")
         usage = dict(payload.get("usage") or {})
         usage["retries"] = retries
         return data, usage

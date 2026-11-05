@@ -180,14 +180,18 @@ _T2 = {
 
 
 def test_transfer_sweep_yields_for_premium():
-    """转场日清算：王牌无宿主天 → 从同城满员日弹最低档腾座。"""
-    premium = _premium()
+    """转场日清算：王牌无宿主天 → 从同城满员日弹最低档腾座。
+
+    宿主天实位探针终审（2026-11-05 洪崖洞案）：让位后探针须找到
+    真实可排座（腿占段+16:30 开场闸+营业窗）才认宿主——被弹者
+    （金沙 tier11 @9:00）腾出整个上午，其余点压到下午。"""
+    premium = _premium(loc=_CD)  # 市区内点：腿窗不外扩，上午腾座即可排
     premium.day = 1
     day2 = [
-        _timed(_visit("金沙遗址博物馆", 11, minutes=90)),
-        _timed(_visit("宽窄巷子", 8, minutes=90), 10),
-        _timed(_visit("武侯祠", 9, minutes=90), 12),
-        _timed(_visit("人民公园", 11, minutes=90), 14),
+        _timed(_visit("金沙遗址博物馆", 11, minutes=90), 9),
+        _timed(_visit("宽窄巷子", 8, minutes=90), 13, 30),
+        _timed(_visit("武侯祠", 9, minutes=90), 15),
+        _timed(_visit("人民公园", 10, minutes=90), 16, 30),
     ]
     plan = _tplan([_arrival_leg(), premium], day2)
     notes = _transfer_day_sweep(plan, frozenset(), dict(_T2))
@@ -196,9 +200,8 @@ def test_transfer_sweep_yields_for_premium():
     moved = next(i for i in plan.days[1].items if i.name == "青城山—都江堰")
     assert moved.day == 2
     assert moved.start_time is None
-    all_names = _visit_names(plan)
-    # 被弹者再找宿主天：到达日（落地后窗）收下 → 改排；找不着才移除
-    assert "金沙遗址博物馆" in all_names or "金沙遗址博物馆" not in d2_names
+    # 被弹者无宿主天（池内无同城日）→ 按口径移除留痕
+    assert "金沙遗址博物馆" not in d2_names
     assert any("让位" in n for n in notes)
 
 
@@ -221,7 +224,12 @@ def test_transfer_sweep_non_premium_no_yield():
 
 def test_rehome_sweep_yields_for_premium():
     """挪日扫尾：普通日满员收不下王牌 → 同城日让位腾座；被弹者
-    满城无宿主 → 移除留痕。"""
+    满城无宿主 → 移除留痕。
+
+    实位探针终审口径：d1（自家日）先试让位——文殊院腾座后探针仍
+    被上午点 ±腿占段（成都→都江堰 ~56km 折 ~156min）挡死 → 原样
+    还座换 d2；d2 弹金沙@9:00（tier11 最低）腾出上午实位（其余点
+    ≥15:00，腿窗不回压上午）。"""
     stray = _premium()
     stray.day = 1
     day1 = [
@@ -232,10 +240,10 @@ def test_rehome_sweep_yields_for_premium():
         stray,
     ]
     day2 = [
-        _timed(_visit("金沙遗址博物馆", 11, minutes=90)),
-        _timed(_visit("望江楼公园", 11, minutes=90), 10),
-        _timed(_visit("青羊宫", 11, minutes=90), 12),
-        _timed(_visit("杜甫草堂", 9, minutes=90), 14),
+        _timed(_visit("金沙遗址博物馆", 11, minutes=90), 9),
+        _timed(_visit("望江楼公园", 11, minutes=90), 15),
+        _timed(_visit("青羊宫", 11, minutes=90), 16, 30),
+        _timed(_visit("杜甫草堂", 9, minutes=90), 18),
     ]
     d1 = DayPlan(day=1, base_city="成都", items=day1)
     d2 = DayPlan(day=2, base_city="成都", items=day2)
@@ -251,15 +259,16 @@ def test_rehome_sweep_yields_for_premium():
 
 
 def test_yield_gate_tier8_ejects_lower_prestige():
-    """洪崖洞案：tier8 名点享让位权，弹出 tier9 杂点（李子坝级）。"""
+    """洪崖洞案：tier8 名点享让位权，弹出 tier9 杂点（李子坝级）；
+    实位探针终审——弹武侯祠@9:00 腾出上午实座（其余点 ≥13:30）。"""
     hongya = _visit("洪崖洞", 8, minutes=90, loc=_CQ, city="重庆")
     hongya.day = 1
     d1 = DayPlan(day=1, base_city="重庆", items=[hongya])
     day2 = [
-        _timed(_visit("李子坝轻轨站", 9, minutes=90, loc=_CQ, city="重庆")),
-        _timed(_visit("四面山", 8, minutes=90, loc=_CQ, city="重庆"), 10),
-        _timed(_visit("武侯祠", 9, minutes=90, loc=_CQ, city="重庆"), 12),
-        _timed(_visit("宽窄巷子", 8, minutes=90, loc=_CQ, city="重庆"), 14),
+        _timed(_visit("武侯祠", 9, minutes=90, loc=_CQ, city="重庆"), 9),
+        _timed(_visit("四面山", 8, minutes=90, loc=_CQ, city="重庆"), 13, 30),
+        _timed(_visit("李子坝轻轨站", 9, minutes=90, loc=_CQ, city="重庆"), 15),
+        _timed(_visit("宽窄巷子", 8, minutes=90, loc=_CQ, city="重庆"), 16, 30),
     ]
     d2 = DayPlan(day=2, base_city="重庆", items=day2)
     for v in day2:

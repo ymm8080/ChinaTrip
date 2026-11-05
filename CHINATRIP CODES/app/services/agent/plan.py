@@ -446,7 +446,9 @@ def _find_transfer_item(plan, item_id: str) -> TransferItem | None:
 #   航班 = 2 位航司码（可含数字，如 3U 成都航/9C 春秋）+ 1-4 位数字 +
 #          可选舱位后缀字母，如 CA1234、MU1001、3U8881、ZH9110A
 _TRAIN_NO_RE = re.compile(r"^[GDCZTKYLS]\d{1,4}$")
-_FLIGHT_NO_RE = re.compile(r"^[A-Z0-9]{2}\d{1,4}[A-Z]?$")
+# 负向前瞻挡「单 train 字母+数字」串（G12345 这类错号）被 2 位航司码
+# 槽位误吞——一个字母开头+纯数字永远是车次，不是航班号。
+_FLIGHT_NO_RE = re.compile(r"^(?![GDCZTKYLS]\d+$)[A-Z0-9]{2}\d{1,4}[A-Z]?$")
 
 
 def _detect_transfer_kind(number: str) -> str:
@@ -2896,7 +2898,11 @@ def _reconcile_transfer_days(
                 target = None
                 vcity = str(visit.city or "").strip().removesuffix("市")
                 target = _host_day_for_visit(
-                    plan.days[idx + 1 :], vcity, dur, incoming=visit.location
+                    plan.days[idx + 1 :],
+                    vcity,
+                    dur,
+                    incoming=visit.location,
+                    visit=visit,
                 )
                 if target is not None:
                     visit.day = target.day
@@ -2987,45 +2993,49 @@ def _reservation_hint(name: str, cand: dict) -> str | None:
 _HOURS_SPAN_RE = re.compile(r"(\d{1,2}):(\d{2})\s*[-–—~至]\s*(\d{1,2}):(\d{2})")
 
 
+def _hours_from_visit(item: VisitItem) -> PoiHours | None:
+    if not (item.poi_id and item.opening_hours):
+        return None
+    try:
+        spans = [
+            (
+                time(int(m.group(1)), int(m.group(2))),
+                time(int(m.group(3)), int(m.group(4))),
+            )
+            for m in _HOURS_SPAN_RE.finditer(item.opening_hours)
+        ]
+    except ValueError:
+        return None
+    spans = [(o, c) for o, c in spans if c > o]
+    if not spans:
+        return None  # 跨午夜/脏数据不硬卡（宁无窗不可错窗）
+    windows = None
+    if len(spans) == 2 and (spans[0][0] <= spans[1][0] and spans[1][1] <= spans[0][1]):
+        # G3 午休闭馆型「09:00-17:00（12:00-13:30 午休）」→ 补集分段
+        windows = [
+            (spans[0][0], spans[1][0]),
+            (spans[1][1], spans[0][1]),
+        ]
+    elif len(spans) >= 2:
+        windows = spans  # 平铺分段「09:00-12:00, 13:30-17:00」
+    first = spans[0]
+    return PoiHours(
+        poi_id=item.poi_id,
+        opens=first[0],
+        closes=max(c for _, c in spans),
+        windows=windows,
+    )
+
+
 def _plan_poi_hours(plan: ItineraryPlan) -> list[PoiHours]:
     out: list[PoiHours] = []
     for day in plan.days:
         for item in day.items:
-            if not (isinstance(item, VisitItem) and item.poi_id and item.opening_hours):
+            if not isinstance(item, VisitItem):
                 continue
-            try:
-                spans = [
-                    (
-                        time(int(m.group(1)), int(m.group(2))),
-                        time(int(m.group(3)), int(m.group(4))),
-                    )
-                    for m in _HOURS_SPAN_RE.finditer(item.opening_hours)
-                ]
-            except ValueError:
-                continue
-            spans = [(o, c) for o, c in spans if c > o]
-            if not spans:
-                continue  # 跨午夜/脏数据不硬卡（宁无窗不可错窗）
-            windows = None
-            if len(spans) == 2 and (
-                spans[0][0] <= spans[1][0] and spans[1][1] <= spans[0][1]
-            ):
-                # G3 午休闭馆型「09:00-17:00（12:00-13:30 午休）」→ 补集分段
-                windows = [
-                    (spans[0][0], spans[1][0]),
-                    (spans[1][1], spans[0][1]),
-                ]
-            elif len(spans) >= 2:
-                windows = spans  # 平铺分段「09:00-12:00, 13:30-17:00」
-            first = spans[0]
-            out.append(
-                PoiHours(
-                    poi_id=item.poi_id,
-                    opens=first[0],
-                    closes=max(c for _, c in spans),
-                    windows=windows,
-                )
-            )
+            h = _hours_from_visit(item)
+            if h is not None:
+                out.append(h)
     return out
 
 
@@ -3111,11 +3121,18 @@ def _far_conflict_items(items: list, extra: GeoPoint | None = None) -> bool:
 
 
 def _host_day_for_visit(
-    day_pool: list[DayPlan], vcity: str, dur: int, incoming: GeoPoint | None = None
+    day_pool: list[DayPlan],
+    vcity: str,
+    dur: int,
+    incoming: GeoPoint | None = None,
+    visit: VisitItem | None = None,
 ) -> DayPlan | None:
     """同城日池里找装得下 dur 分钟参访的宿主天（挪日修复到达侧与
     转场日无时刻清算共用）：窗口=日始~21:30 扣转场腿占段（到达侧
-    落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。"""
+    落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。visit
+    给定时再以单点实位探针终审（腿占段+开场闸+营业窗，口径同
+    _fallback_sequence_times）——探不进不认宿主，调用方原样还座，
+    绝不弹座给终排必死的点（2026-11-05 洪崖洞案）。"""
     for later in day_pool:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
@@ -3174,6 +3191,21 @@ def _host_day_for_visit(
         if lo < hi and load + dur + 30 <= (hi - lo) - blocked and len(visits) < 4:
             if incoming is not None and _far_conflict_items(visits, incoming):
                 continue  # 同日互远闸：宿主天已有 >150km 互远点不再收
+            if visit is not None:
+                # 腿感知实位探针终审：聚合容量过了不等于物理排得下——
+                # 同日 ±腿占段 + 16:30 结束闸 + 营业窗联合裁决；探不进
+                # 换下一候选日，调用方收到 None 原样还座（绝不白挤，
+                # 口径同 _must_visit_room_sweep 的 probe-before-eject）。
+                vh = _hours_from_visit(visit)
+                hours1 = {vh.poi_id: vh} if vh is not None else {}
+                fixed1, _ft1, _fl1, xfer1 = _day_fixed_windows(later)
+                if (
+                    _probe_visit_slot(
+                        visit, fixed1, xfer1, hours1, 21 * 60 + 30
+                    )
+                    is None
+                ):
+                    continue
             return later
     return None
 
@@ -3230,6 +3262,7 @@ def _rescue_premium_stranded(
             vcity,
             visit.duration_minutes or DEFAULT_VISIT_MINUTES,
             incoming=visit.location,
+            visit=visit,
         )
         if target is None:
             later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
@@ -3254,7 +3287,11 @@ def _rescue_premium_stranded(
         ecity = str(eject.city or "").strip().removesuffix("市")
         etarget = (
             _host_day_for_visit(
-                plan.days[day_idx + 1 :], ecity, edur, incoming=eject.location
+                plan.days[day_idx + 1 :],
+                ecity,
+                edur,
+                incoming=eject.location,
+                visit=eject,
             )
             if ecity
             else None
@@ -3351,6 +3388,7 @@ def _yield_for_premium(
             vcity,
             dur,
             incoming=visit.location,
+            visit=visit,
         )
         if target is None:
             later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
@@ -3385,6 +3423,7 @@ def _yield_for_premium(
                 ecity,
                 edur,
                 incoming=eject.location,
+                visit=eject,
             )
             if ecity
             else None
@@ -3531,7 +3570,9 @@ def _transfer_day_sweep(
             if rescued is not None:
                 handled.add(visit.item_id)
                 continue
-            target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
+            target = _host_day_for_visit(
+                pool, vcity, dur, incoming=visit.location, visit=visit
+            )
             if target is not None and target is not day:
                 visit.day = target.day
                 day.items.remove(visit)
@@ -3630,6 +3671,7 @@ def _rehome_untimed_visits(
                     vcity,
                     dur,
                     incoming=visit.location,
+                    visit=visit,
                 )
                 if target is not None:
                     visit.day = target.day
@@ -3646,7 +3688,9 @@ def _rehome_untimed_visits(
                         )
                     )
                 continue
-            target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
+            target = _host_day_for_visit(
+                pool, vcity, dur, incoming=visit.location, visit=visit
+            )
             if target is not None:
                 visit.day = target.day
                 day.items.remove(visit)
@@ -11542,6 +11586,162 @@ class PlanningAgent:
             affected_items_count=1,
         )
         return report, summary, notes
+
+    def _apply_transfer_schedule(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        mode: str,
+        start_time: time,
+        end_time: time,
+        duration_minutes: int,
+        train_no: str | None,
+        flight_no: str | None,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """改乘/班次号共用回填尾（2026-11-04 规划页路途行程）：新班次时刻
+        写回候选腿 → 受影响天非 pinned 景点清时重排（与 retime 同管线：
+        _reconcile_transfer_days + _fallback_sequence_times + 校验 + 腿标注）。
+        纯计算 + 班次查询，LLM 零参与。"""
+        plan = session.plan
+        assert plan is not None  # 调用方已查过
+        candidate = plan.model_copy(deep=True)
+        edited = _find_transfer_item(candidate, item_id)
+        assert edited is not None
+        edited.mode = mode  # type: ignore[assignment]
+        edited.start_time = start_time
+        edited.end_time = end_time
+        edited.duration_minutes = duration_minutes
+        edited.train_no = train_no
+        edited.flight_no = flight_no
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
+        _fallback_sequence_times(candidate, keep_list_order=True)
+        report = validate_plan(candidate, poi_hours=[])
+        annotate_legs(candidate)
+        self._replay_measured_legs(candidate)
+        session.plan = candidate
+        src = _find_transfer_item(plan, item_id)
+        assert src is not None
+        cn = "飞机" if mode == "flight" else "火车"
+        en = "flight" if mode == "flight" else "train"
+        no = flight_no or train_no or ""
+        tag = f" {no}" if no else ""
+        summary = ChangeSummary(
+            change_summary=[
+                L(
+                    f"第{src.day}天 {src.from_city}→{src.to_city} "
+                    f"改乘{cn}{tag}，时刻已按班次更新",
+                    f"Day {src.day}: {src.from_city}→{src.to_city} switched to "
+                    f"{en}{tag}, times updated from the schedule",
+                )
+            ],
+            affected_items_count=1,
+        )
+        return report, summary, notes
+
+    async def switch_transfer_mode(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        mode: str,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """规划页路途行程改乘（2026-11-04）：飞机/火车二选一，按真实乘车日
+        重查该腿班次回填时刻。选班口径与生成期一致（航班全天最早；火车
+        08:00 地板），查不到班次抛 ValueError 由端点回 422——旧腿原样
+        保留，绝不静默降级。"""
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        transfer = _find_transfer_item(plan, item_id)
+        if transfer is None:
+            raise ValueError("item_not_found")
+        if mode not in ("train", "flight"):
+            raise ValueError("mode_not_supported")
+        date = _leg_date_iso(session.start_date or plan.start_date, transfer.day)
+        if mode == "flight":
+            new_item = await build_flight_transfer_item(
+                self._flights,
+                from_city=transfer.from_city,
+                to_city=transfer.to_city,
+                date=date,
+                day=transfer.day,
+                seq=transfer.seq,
+                item_id=item_id,
+            )
+            if new_item is None:
+                raise ValueError("no_flight_found")
+        else:
+            new_item = await build_transfer_item(
+                self._trains,
+                from_city=transfer.from_city,
+                to_city=transfer.to_city,
+                date=date,
+                day=transfer.day,
+                seq=transfer.seq,
+                item_id=item_id,
+            )
+            if new_item is None:
+                raise ValueError("no_train_found")
+        return self._apply_transfer_schedule(
+            session,
+            item_id,
+            mode=mode,
+            start_time=new_item.start_time,
+            end_time=new_item.end_time,
+            duration_minutes=new_item.duration_minutes,
+            train_no=new_item.train_no,
+            flight_no=new_item.flight_no,
+        )
+
+    async def set_transfer_number(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        number: str,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """规划页路途行程输入航班号/车次号（2026-11-04）：格式校验（正则）
+        → 按真实乘车日查班次库命中则回填起降/到发时刻并改写腿别（号码为
+        准：输入航班号该腿即成航班）。查无此班 422 number_not_found，旧腿
+        原样保留。绕过选班 08:00 地板——用户自己买好的 7:30 车次照样要显
+        示（同 transport_reminders 口径）。"""
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        transfer = _find_transfer_item(plan, item_id)
+        if transfer is None:
+            raise ValueError("item_not_found")
+        norm = number.strip().upper()
+        kind = _detect_transfer_kind(norm)
+        if not kind:
+            raise ValueError("bad_number_format")
+        date = _leg_date_iso(session.start_date or plan.start_date, transfer.day)
+        if kind == "train":
+            options = await self._trains.search(
+                transfer.from_city, transfer.to_city, date
+            )
+            hit = next((o for o in options if (o.train_no or "").upper() == norm), None)
+        else:
+            options = await self._flights.search(
+                transfer.from_city, transfer.to_city, date
+            )
+            hit = next(
+                (o for o in options if (o.flight_no or "").upper() == norm), None
+            )
+        if hit is None:
+            raise ValueError("number_not_found")
+        end_time = hit.arr_time if hit.arr_time >= hit.dep_time else time(23, 59)
+        return self._apply_transfer_schedule(
+            session,
+            item_id,
+            mode=kind,
+            start_time=hit.dep_time,
+            end_time=end_time,
+            duration_minutes=hit.duration_minutes,
+            train_no=hit.train_no if kind == "train" else None,
+            flight_no=hit.flight_no if kind == "flight" else None,
+        )
 
     async def replace_item(
         self,

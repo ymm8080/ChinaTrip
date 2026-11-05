@@ -424,9 +424,28 @@ def main() -> None:
     # 2026-11-04：/v5/place/around 连发约百次返 10002，请求间留间隔更稳。
     parser.add_argument("--delay", type=float, default=0.0)
     args = parser.parse_args()
-    stats = asyncio.run(
-        run(args.limit, args.concurrency, args.engine, delay=args.delay)
-    )
+    # 防重叠锁（2026-11-04 5 分钟节拍调度用）：新鲜（<15min）即让位——
+    # 手动/日批 cmd/调度器谁先到谁跑，后来者直接退出不叠加实例。
+    import os
+    import time
+
+    lock = _OPS / "fill_hr.lock"
+    try:
+        if time.time() - os.path.getmtime(lock) < 15 * 60:
+            print(json.dumps({"skipped": "lock_fresh"}))
+            return
+    except OSError:
+        pass
+    lock.write_text(str(time.time()), encoding="utf-8")
+    try:
+        stats = asyncio.run(
+            run(args.limit, args.concurrency, args.engine, delay=args.delay)
+        )
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
     print(json.dumps(stats, ensure_ascii=False))
     sys.exit(2 if stats.get("quota_stop") else 0)
 
