@@ -124,6 +124,14 @@ BIG_SITE_ENTRY_CAP_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60
 AFTERNOON_ONE_BIG_PENALTY = 10_000
 BIG_FIRST_PENALTY = 10_000
+# 头档距离规则（2026-11-05 拍板「心愿单或者高排序的景点根据距离远近
+# 可以排早上第一个，或者下午第一个景点」）：钉住未排或 tier≤2 高排序
+# 的非餐/酒店/演出/夜属性观光点为「头档候选」——候选应占当日首个观光
+# 位（上午头档），其余候选吃下午头档；候选间钉住优先、tier 升序、距
+# 日内酒店锚距离降序。solver 双路的逆序（非候选占候选前、候选占 P 前）
+# 计软罚（量纲同大点先排）；兜底层另有同口径的上午头档置换与排序镜像
+# （plan._morning_head_displacement / 兜底排序键）。
+HEAD_FIRST_PENALTY = 10_000
 # 午餐软钉（2026-11-01 用户拍板修正：时刻最多提前或延后半小时、用餐
 # 时长可缩短半小时）：初始排程的 12 点午餐锚是排程默认而非用户约束
 # ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开滑窗+时长区间
@@ -197,6 +205,20 @@ def _is_light_sight(item: VisitItem) -> bool:
     if (item.category or "") in ("food", "hotel", "entertainment"):
         return False
     return not _is_big_site(item)
+
+
+def _is_head_candidate(item: VisitItem) -> bool:
+    """头档候选判定（2026-11-05 拍板，见 HEAD_FIRST_PENALTY 注块）：钉住
+    或 tier≤2 高排序、非餐/酒店/演出/夜属性。用户自钉有时刻（铁律 19）
+    不参与——那是用户的安排；钉住未排在 solver 域即不可行（_visit_spec
+    返 None 整日交兜底层置换），本判定在 solver 双路实际只见非钉候选。"""
+    if item.pinned and item.start_time is not None:
+        return False
+    if (item.category or "") in ("food", "hotel", "entertainment"):
+        return False
+    if (item.best_visit_time or "") in _EVENING_OK_BEST:
+        return False
+    return bool(item.pinned) or (item.tier is not None and item.tier <= 2)
 
 
 def _hours_evening_only(window: PoiHours | None) -> bool:
@@ -489,6 +511,42 @@ def _travel_cost(a: VisitItem, b: VisitItem, matrix: dict[tuple[str, str], int])
     return DEFAULT_TRAVEL_MINUTES
 
 
+def _head_pick(
+    specs: list["_VisitSpec"],
+    travel_minutes: dict[tuple[str, str], int] | None,
+) -> VisitItem | None:
+    """头档候选 P（2026-11-05 头档距离规则）：钉住优先、tier 升序、距
+    日内酒店锚（矩阵走行分钟，无锚/无矩阵记 0）降序、时长降序；无候选
+    返回 None。"""
+    cands = [sp.item for sp in specs if _is_head_candidate(sp.item)]
+    if not cands:
+        return None
+    anchor = next(
+        (sp.item for sp in specs if (sp.item.category or "") == "hotel"), None
+    )
+
+    def _dist(v: VisitItem) -> int:
+        if (
+            travel_minutes is None
+            or anchor is None
+            or anchor is v
+            or anchor.location is None
+            or v.location is None
+        ):
+            return 0
+        return _travel_cost(anchor, v, travel_minutes)
+
+    return min(
+        cands,
+        key=lambda v: (
+            0 if v.pinned else 1,
+            v.tier if v.tier is not None else 11,
+            -_dist(v),
+            -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
+        ),
+    )
+
+
 def _add_travel_objective(
     model: cp_model.CpModel,
     specs: list[_VisitSpec],
@@ -502,6 +560,7 @@ def _add_travel_objective(
     show_penalty: object = 0,
     afternoon_penalty: object = 0,
     inversion_penalty: object = 0,
+    head_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -551,6 +610,7 @@ def _add_travel_objective(
         + show_penalty
         + afternoon_penalty
         + inversion_penalty
+        + head_penalty
     )
 
 
@@ -566,6 +626,7 @@ def _add_makespan_objective(
     show_penalty: object = 0,
     afternoon_penalty: object = 0,
     inversion_penalty: object = 0,
+    head_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
     # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
@@ -597,6 +658,7 @@ def _add_makespan_objective(
         + show_penalty
         + afternoon_penalty
         + inversion_penalty
+        + head_penalty
     )
 
 
@@ -782,6 +844,25 @@ def solve_day(
                 model.Add(start_i <= start_j).OnlyEnforceIf(lit.Not())
                 inv_lits.append(lit)
         inversion_penalty = sum(inv_lits) * (BIG_FIRST_PENALTY * 100) if inv_lits else 0
+        # 头档距离规则（2026-11-05 拍板，见 HEAD_FIRST_PENALTY 注块）：
+        # 头档候选 P 必须是当日首个开场观光点——任一非餐/酒店条目开场
+        # 早于 P 计罚（×100 与走行同量纲；P 上午物理不可行时罚为常数
+        # 不改择优，软偏好不拦可行性，同「上午一个点」哲学）。
+        head_penalty: object = 0
+        head_p = _head_pick(specs, travel_minutes)
+        if head_p is not None:
+            p_idx = next(i for i, sp in enumerate(specs) if sp.item is head_p)
+            head_lits: list[cp_model.IntVar] = []
+            for i, (spec_o, start_o) in enumerate(zip(specs, starts)):
+                if i == p_idx or (spec_o.item.category or "") in ("food", "hotel"):
+                    continue
+                lit = model.NewBoolVar(f"head_{spec_o.item.item_id}")
+                model.Add(start_o < starts[p_idx]).OnlyEnforceIf(lit)
+                model.Add(start_o >= starts[p_idx]).OnlyEnforceIf(lit.Not())
+                head_lits.append(lit)
+            head_penalty = (
+                sum(head_lits) * (HEAD_FIRST_PENALTY * 100) if head_lits else 0
+            )
         # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：多场次
         # 演出落 <15:00 场次计软罚（×100 与 travel/makespan 同量纲）——
         # 晚场可行时上午留给观光点。纯早场演出 lit 恒 1（罚为常数不改
@@ -815,6 +896,7 @@ def solve_day(
                 show_penalty=show_penalty,
                 afternoon_penalty=afternoon_penalty,
                 inversion_penalty=inversion_penalty,
+                head_penalty=head_penalty,
             )
         else:
             _add_makespan_objective(
@@ -828,6 +910,7 @@ def solve_day(
                 show_penalty=show_penalty,
                 afternoon_penalty=afternoon_penalty,
                 inversion_penalty=inversion_penalty,
+                head_penalty=head_penalty,
             )
 
         solver = cp_model.CpSolver()
@@ -911,6 +994,27 @@ def insertion_schedule_day(
         specs.append(spec)
 
     day_end = 21 * 60 + 30  # 与 plan 兜底同口径（演出收尾可越 21:00）
+
+    # ---- 头档距离规则（2026-11-05 拍板）：候选先插、距离降序 ----
+    # P=最优先头档候选（钉住>tier 升序>距酒店锚降序>时长降序）；候选组
+    # 排在最前插入，远的先吃上午头档。pinned 未排在 _visit_spec 已不可
+    # 行（整日交兜底层置换），本组实际只有非钉 tier≤2 候选。
+    _head_p = _head_pick(specs, travel_minutes)
+    _head_anchor = next(
+        (sp.item for sp in specs if (sp.item.category or "") == "hotel"), None
+    )
+
+    def _head_dist(s: _VisitSpec) -> int:
+        if (
+            travel_minutes is None
+            or _head_anchor is None
+            or not _is_head_candidate(s.item)
+            or s.item is _head_anchor
+            or _head_anchor.location is None
+            or s.item.location is None
+        ):
+            return 0
+        return _travel_cost(_head_anchor, s.item, travel_minutes)
 
     # ---- ① 锚点：transfers（±90 缓冲）+ 完全钉死项 ----
     occupied: list[tuple[int, int, object]] = []
@@ -1003,6 +1107,30 @@ def insertion_schedule_day(
                 cost += BIG_FIRST_PENALTY
             elif light and _is_big_site(oitem) and os_ > t:
                 cost += BIG_FIRST_PENALTY
+        return cost
+
+    def _head_first_cost(t: int, item: VisitItem) -> int:
+        # 头档距离规则（2026-11-05 拍板）：非候选插到候选前、或候选插到
+        # P（最优先候选）前，均计罚——双向对称，量纲同大点先排。插入序
+        # 已让候选先插（_hkey），本罚守打磨/回填不逆序。
+        if _head_p is None:
+            return 0
+        cost = 0
+        for os_, _oe, oitem in occupied:
+            if not isinstance(oitem, VisitItem):
+                continue
+            if (oitem.category or "") in ("food", "hotel"):
+                continue
+            if _is_head_candidate(oitem):
+                if not _is_head_candidate(item) and os_ > t:
+                    cost += HEAD_FIRST_PENALTY
+                elif (
+                    _is_head_candidate(item)
+                    and item is not _head_p
+                    and oitem is _head_p
+                    and os_ > t
+                ):
+                    cost += HEAD_FIRST_PENALTY
         return cost
 
     # 软钉餐机动跨度（非餐条目的条件块）：餐可在 [P-30, P+30] 开餐、
@@ -1105,7 +1233,8 @@ def insertion_schedule_day(
                         + _morning_extra_cost(t, spec.item)
                         + _show_early_cost(t, spec.item)
                         + _afternoon_big_cost(t, spec.item)
-                        + _big_first_cost(t, spec.item),
+                        + _big_first_cost(t, spec.item)
+                        + _head_first_cost(t, spec.item),
                         t,
                     )
                     if best is None or key < (best[0], best[1]):
@@ -1120,10 +1249,19 @@ def insertion_schedule_day(
         return t if dur == spec.dur else -(t + 1)  # 负数标记=缩时长落位
 
     # ---- ② 大点先插（难放优先），软钉餐最后（可让位） ----
+    # 插入序叠加头档距离规则（2026-11-05）：候选组最先、组内距酒店锚
+    # 降序（远的占上午头档），其后维持时长降序原口径。
+    def _hkey(s: _VisitSpec) -> tuple:
+        return (
+            0 if (_head_p is not None and _is_head_candidate(s.item)) else 1,
+            -_head_dist(s),
+            -s.dur,
+        )
+
     dur_overrides: dict[str, int] = {}
     hard = [s for s in rest if not (flex_day and s.dur_lo and s.dur_lo < s.dur)]
     meals = [s for s in rest if s not in hard]
-    for spec in sorted(hard, key=lambda s: -s.dur):
+    for spec in sorted(hard, key=_hkey):
         marker = _try_insert(spec)
         if marker is None:
             return None
@@ -1172,11 +1310,29 @@ def insertion_schedule_day(
                 and _is_light_sight(ol[2])
                 and ob[0] > ol[0]
             )
+            # 头档距离规则（2026-11-05 拍板）同口径入账：打磨挪点不得靠
+            # 候选逆序省走行（非候选占候选前、候选占 P 前）。
+            head_viol = 0
+            if _head_p is not None:
+                seq_h = [
+                    o[2]
+                    for o in occupied
+                    if isinstance(o[2], VisitItem)
+                    and (o[2].category or "") not in ("food", "hotel")
+                ]
+                for x in range(len(seq_h)):
+                    for y in range(x + 1, len(seq_h)):
+                        a, b = seq_h[x], seq_h[y]
+                        if (not _is_head_candidate(a) and _is_head_candidate(b)) or (
+                            b is _head_p and a is not _head_p and _is_head_candidate(a)
+                        ):
+                            head_viol += 1
             return (
                 travel
                 + max(0, mornings - 1) * MORNING_ONE_SITE_PENALTY
                 + max(0, aft_bigs - 1) * AFTERNOON_ONE_BIG_PENALTY
                 + inversions * BIG_FIRST_PENALTY
+                + head_viol * HEAD_FIRST_PENALTY
             )
 
         base = _total_travel()
@@ -1195,6 +1351,7 @@ def insertion_schedule_day(
                             + _morning_extra_cost(t, spec.item)
                             + _afternoon_big_cost(t, spec.item)
                             + _big_first_cost(t, spec.item)
+                            + _head_first_cost(t, spec.item)
                         )
                         if best is None or added < best[0]:
                             best = (added, t)

@@ -3812,6 +3812,120 @@ def _leg_windows(
     return out
 
 
+def _is_head_candidate(v: VisitItem) -> bool:
+    """头档候选（2026-11-05 拍板「心愿单或者高排序的景点根据距离远近
+    可以排早上第一个，或者下午第一个景点」）：钉住未排点或 tier≤2 高
+    排序点，非餐/酒店/演出、非夜属性（同大点豁免面）。"""
+    if (v.category or "") in ("food", "hotel", "entertainment"):
+        return False
+    if _is_show_item(v):
+        return False
+    if (v.best_visit_time or "") in ("evening", "sunset", "show"):
+        return False
+    return bool(v.pinned) or (v.tier is not None and v.tier <= 2)
+
+
+def _morning_head_displacement(
+    day: DayPlan,
+    hours_by_poi: dict,
+    day_end: int,
+) -> None:
+    """头档距离规则（2026-11-05 拍板）兜底层上午头档置换。
+
+    心愿（钉住）或 tier≤2 高排序未排候选 P 与当日已排上午头档 O
+    （<12:00 开场的引擎排观光点，非用户钉/非软钉）同天时，P 优先级
+    压过 O（钉>非钉；同非钉 tier 小者；同 tier 比距日内酒店锚更远）
+    → O 退出头档交重排，P 试吃上午头档；P 探不进上午（240min 级/
+    到达地板/营业窗卡死/午餐窗保不住）则 O 原样归还、P 走「下午头档」
+    （正午起探，见 _fallback_sequence_times 内同口径规则）——绝不两头空。
+    只动引擎排的非钉头档一个条目；餐/酒店/演出/用户钉永不触碰。
+    """
+    cands = [
+        v
+        for v in day.items
+        if isinstance(v, VisitItem) and v.start_time is None and _is_head_candidate(v)
+    ]
+    if not cands:
+        return
+    head = min(
+        (
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is not None
+            and v.end_time is not None
+            and (v.category or "") not in ("food", "hotel", "entertainment")
+            and not _is_show_item(v)
+            and str(v.best_visit_time or "").lower() not in ("morning", "sunrise")
+            and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
+        ),
+        key=lambda v: v.start_time.hour * 60 + v.start_time.minute,
+        default=None,
+    )
+    if head is None or head.pinned or head.soft_pin:
+        return
+    p = min(
+        cands,
+        key=lambda v: (
+            0 if v.pinned else 1,
+            v.tier if v.tier is not None else 11,
+        ),
+    )
+    p_outranks = bool(p.pinned)
+    if not p_outranks:
+        pt = p.tier if p.tier is not None else 11
+        ot = head.tier if head.tier is not None else 11
+        if pt < ot:
+            p_outranks = True
+        elif pt == ot:
+            hotel = next(
+                (
+                    i
+                    for i in day.items
+                    if isinstance(i, VisitItem)
+                    and (i.category or "") == "hotel"
+                    and i.location is not None
+                ),
+                None,
+            )
+            if (
+                hotel is not None
+                and p.location is not None
+                and head.location is not None
+                and hotel is not p
+                and hotel is not head
+            ):
+                p_outranks = haversine_km(hotel.location, p.location) > haversine_km(
+                    hotel.location, head.location
+                )
+    if not p_outranks:
+        return
+    os_, oe_ = head.start_time, head.end_time
+    head.start_time = None
+    head.end_time = None
+    fixed, _fixed_tight, flex_lunches, xfer_windows = _day_fixed_windows(day)
+    t = _probe_visit_slot(p, fixed, xfer_windows, hours_by_poi, day_end)
+    p_dur = p.duration_minutes or DEFAULT_VISIT_MINUTES
+    # 午餐硬窗保护：有软钉午餐时 P 须在 12:00 前收尾（午餐才有
+    # [11:30,12:30] 硬窗内的 30 分钟保底档），否则置换反而丢餐。
+    lunch_kept = not flex_lunches or t + p_dur <= 12 * 60
+    if t is not None and t < 12 * 60 and lunch_kept:
+        logger.info(
+            "plan: head-slot displacement on day %d — %s takes morning head,"
+            " %s re-queued",
+            day.day,
+            p.name,
+            head.name,
+        )
+        return
+    head.start_time, head.end_time = os_, oe_
+    logger.info(
+        "plan: head-slot displacement skipped on day %d — %s cannot take morning head",
+        day.day,
+        p.name,
+    )
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -3833,6 +3947,10 @@ def _fallback_sequence_times(
     # （城墙·碑林 17:00 入场 / 熊猫基地 18:00（闭馆 17:00）两事故）。
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
+        # 头档距离置换（2026-11-05 拍板）先于固定窗提取：候选 P 吃上
+        # 午头档时原头档 O 须在此之前退出固定窗（否则 P 永远探不进）。
+        if not keep_list_order:
+            _morning_head_displacement(day, hours_by_poi, day_end)
         # fixed 三元组 (s, e, src)：src=观光锚时未排条目按打车腿放宽
         # （_leg_windows）；餐饮/酒店/落地腿 src=None 保持原窗。
         fixed, fixed_tight, flex_lunches, xfer_windows = _day_fixed_windows(day)
@@ -3845,9 +3963,35 @@ def _fallback_sequence_times(
         # 之后，前两点吃完下午窗，大点 16:30 起 17:00 闭馆必死；最长先排
         # 是经典最小化碎片启发式，大点吃头档、轻点回填日尾。
         if not keep_list_order:
+            # 头档候选距离锚（2026-11-05 头档距离规则）：日内酒店卡为
+            # 距离参考；距离只在非钉头档候选组内细排——钉住组保
+            # 2026-11-04/11-05 既有序（钉>大点>时长降序）不动。
+            _hotel_anchor = next(
+                (
+                    i
+                    for i in day.items
+                    if isinstance(i, VisitItem)
+                    and (i.category or "") == "hotel"
+                    and i.location is not None
+                ),
+                None,
+            )
+
+            def _head_dist(v: VisitItem) -> float:
+                if (
+                    _hotel_anchor is None
+                    or v.location is None
+                    or v is _hotel_anchor
+                    or v.pinned
+                ):
+                    return 0.0
+                return haversine_km(_hotel_anchor.location, v.location)
+
             untimed.sort(
                 key=lambda v: (
+                    0 if _is_head_candidate(v) else 1,
                     0 if v.pinned else 1,
+                    -_head_dist(v) if _is_head_candidate(v) else 0.0,
                     0 if _is_big_site(v) else 1,
                     -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
@@ -3919,10 +4063,16 @@ def _fallback_sequence_times(
                         str(visit.best_visit_time or "").strip().lower()
                     )
                     t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
-                    if visit.pinned and _is_big_site(visit) and morning_occupied:
-                        # 钉住必去大点下午头档（2026-11-04 熊猫基地挂日尾
-                        # 事故）：上午已被占时从正午起探，不在 11:30 半档
-                        # 开场杀掉午餐窗。
+                    if (
+                        _is_head_candidate(visit)
+                        and _is_big_site(visit)
+                        and morning_occupied
+                    ):
+                        # 必去/高排序大点下午头档（2026-11-04 熊猫基地挂日尾
+                        # 事故；2026-11-05 起候选面扩到 tier≤2 高排序——上
+                        # 午已被占时从正午起探，不在 11:30 半档开场杀掉午
+                        # 餐窗；上午头档由置换规则争取，见
+                        # _morning_head_displacement）。
                         t = max(t, 12 * 60)
                     # 到达城条目从落地地板起排（与 _host_day_for_visit
                     # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
