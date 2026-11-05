@@ -170,20 +170,69 @@ def _norm_name(name: str | None) -> str:
 
 
 # 同体名排除：破折号/间隔号变体（青城山—都江堰 ↔ 青城山-都江堰风景
-# 名胜区）先剥再走 poi_details._name_overlap（头/尾互含，中段嵌含不认）
+# 名胜区）先剥，再走 poi_details._name_overlap（头/尾互含）+ 同核包含。
+# 同核：剥通用类尾词后短核被长核包含即同体——「都江堰景区」剥尾=都江堰
+# ⊂ 青城山都江堰（实录：换过去 alias 解析回同一伞形行，等于没换）；
+# 「成都杜甫草堂博物馆」剥尾=成都杜甫草堂 ⊃ 杜甫草堂（多源同馆两行）。
 _NAME_STRIP = str.maketrans("", "", "-—–·・ ")
+_CORE_TAILS = (
+    "风景名胜区",
+    "旅游区",
+    "旅游度假区",
+    "度假区",
+    "风景区",
+    "景区",
+    "历史文化保护区",
+    "保护区",
+    "遗址公园",
+    "森林公园",
+    "湿地公园",
+    "博物馆",
+    "博物院",
+    "纪念馆",
+    "陈列馆",
+    "公园",
+    "古镇",
+    "古城",
+    "古街",
+    "老街",
+    "街区",
+)
+
+
+def _name_core(name: str) -> str:
+    n = name.strip().lower().translate(_NAME_STRIP)
+    changed = True
+    while changed:
+        changed = False
+        for tail in _CORE_TAILS:
+            t = tail.translate(_NAME_STRIP)
+            if n.endswith(t) and len(n) > len(t) + 1:
+                n = n[: -len(t)]
+                changed = True
+    return n
 
 
 def _overlap_any(name: str, exclude_names: set[str]) -> bool:
-    """候选名与排除名（行程内已有 + 已亮过的备选）同体判定：先剥连字
-    符变体，再走 poi_details._name_overlap 头/尾互含。"""
+    """候选名与排除名（行程内已有 + 已亮过的备选）同体判定：剥连字符
+    变体后，头/尾互含（_name_overlap）或同核包含任一命中即同体。"""
     from app.services.poi_details import _name_overlap
 
     n = name.translate(_NAME_STRIP)
     if not n:
         return False
+    core_n = _name_core(n)
     for ex in exclude_names:
-        if _name_overlap(n, ex.translate(_NAME_STRIP)):
+        ex_s = ex.translate(_NAME_STRIP)
+        if _name_overlap(n, ex_s):
+            return True
+        core_ex = _name_core(ex_s)
+        # ≥2 字核互含即同体（锦里 ⊂ 武侯祠锦里）；过短单字不认
+        if (
+            len(core_n) >= 2
+            and len(core_ex) >= 2
+            and (core_n in core_ex or core_ex in core_n)
+        ):
             return True
     return False
 
@@ -191,6 +240,10 @@ def _overlap_any(name: str, exclude_names: set[str]) -> bool:
 # 演出场馆名守卫：类别缺失的剧场/影院行不得当观光点备选（成都文殊坊
 # 妙剧场混进动物园备选实录）；演出主点（tier 6）不适用
 _SHOW_NAME_PATTERN = "剧场|剧院|演艺|影院|演出中心|音乐厅|秀"
+
+# 短语行守卫：baidu 等源的描述性短语名（「看成都附近的水利工程」实录）
+# 不是真点位名——动词开头或带「附近」的一律不候选
+_JUNK_NAME_RE = re.compile("^(看|去|逛|游|玩|打卡|体验|参观)|附近")
 
 
 def _looks_show_name(name: str) -> bool:
@@ -246,6 +299,8 @@ def pick_alternatives(
         name = _norm_name(h.get("name"))
         if not name or _overlap_any(name, exclude_names):
             return False
+        if _JUNK_NAME_RE.search(name):
+            return False  # 描述性短语行（看成都附近的水利工程实录）不是点位
         if _is_food_row(h.get("category")):
             return False
         pid = h.get("source_poi_id")
@@ -323,9 +378,15 @@ def pick_alternatives(
 
     ordered = sorted(in_band, key=rank) + sorted(unknown, key=rank)
     out: list[PlanAlternative] = []
+    picked_names: set[str] = set()
     for h in ordered:
         if len(out) >= limit:
             break
+        # 本条目内去重：多源同馆两行（杜甫草堂 ↔ 成都杜甫草堂博物馆）、
+        # 组合行（武侯祠·锦里 ↔ 武侯祠）不重复亮两张同体 chip
+        nm = _norm_name(h.get("name"))
+        if nm and _overlap_any(nm, picked_names):
+            continue
         tier_n = h.get("_tier")
         out.append(
             PlanAlternative(
@@ -339,6 +400,8 @@ def pick_alternatives(
                 rating=(float(h["rating"]) if h.get("rating") else None),
             )
         )
+        if nm:
+            picked_names.add(nm)
     return out
 
 
