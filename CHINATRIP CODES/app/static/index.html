@@ -1695,15 +1695,13 @@ function planCard(plan) {
               legSeg = ' · <a class="leg-link" target="_blank" rel="noopener" href="' + navDriveUrl(it, nxt) + '" title="' + I18N.tf("card.drive.titlePre","在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose","）") + '">' + I18N.t("card.taxi") + taxiMin + I18N.t("card.taxi_min") + "</a>";
             }
           }
-          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
-            (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est"));
-          // CALL TAXI（2026-11-04）：已算好公里数+打车时间的段，右侧一键转导航页打车（起点=当前位置，终点=下一站）
+          // CALL TAXI（2026-11-05）：车程右边内联小按钮，一键直唤高德打车页（起点=当前位置，终点=下一站）
           const callBtn = taxiDest
             ? ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + esc(taxiDest.name) + '" data-lon="' + taxiDest.location.lon + '" data-lat="' + taxiDest.location.lat + '" title="' + I18N.tf("card.callTaxi.title","一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>"
             : "";
-          blk.appendChild(el('<div class="muted"' + (callBtn
-            ? ' style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 2px 6px ' + ind + '"><span style="flex:1;min-width:0">' + leg + "</span>" + callBtn + "</div>"
-            : ' style="margin:0 2px 6px ' + ind + '">' + leg + "</div>")));
+          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
+            (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
+          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
@@ -4259,7 +4257,12 @@ function callTaxiTo(name, lon, lat) {
   }
   setDest({ name: name, location: { lon: lon, lat: lat } }); // 终点=下一站：复用导航页 setDest（marker+flyTo+输入框回填）
   const taxiBtn = document.querySelector('#modeBar button[data-mode="taxi"]');
-  if (taxiBtn) taxiBtn.click(); // 复用导航页打车全流程（deeplink + 手机扫码桥），click 内含 setMode("taxi")
+  if (taxiBtn) taxiBtn.click(); // 复用导航页打车全流程（deeplink 面板 + 桌面扫码桥），click 内含 setMode("taxi")
+  // 直唤高德打车页（2026-11-05）：amapuri scheme 手势链内同步跳——手机已装高德=直达打车页；未装 App 2s 探测落提示，桌面不跳仍看扫码桥
+  const s = (NAV.meReal && NAV.me && isFinite(NAV.me.lon) && isFinite(NAV.me.lat))
+    ? "slon=" + NAV.me.lon.toFixed(6) + "&slat=" + NAV.me.lat.toFixed(6) + "&sname=" + encodeURIComponent(NAV.me.name || "") + "&"
+    : "";
+  openHandoff("amapuri://drive/taxi/?" + s + "dlon=" + lon + "&dlat=" + lat + "&dname=" + encodeURIComponent(name || ""), null);
 }
 
 function planBookQuick(plan) {
