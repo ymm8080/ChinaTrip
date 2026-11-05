@@ -1,19 +1,25 @@
 """同级备选装配（2026-11-05 拍板「每个点要有一个备选，尤其是 UNESCO /
 5A / 国际旅行网站推荐」）。
 
-规则唯一定义点（用户拍板三条硬规则 + 落地细则）：
+规则唯一定义点（用户拍板三条规则 + 落地细则）：
 
-- 同级（SAME LEVEL）：名录档号一致（hit_tier 口径 0=unesco 1=5a 2=国际
-  旅行网站 3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4A 9=3A
-  10=未分层）；档 4/5 同属社媒推荐并作一档。绝不跨档放宽——UNESCO 换
-  UNESCO、5A 换 5A、TA 榜换 TA 榜。
+- 同级（SAME LEVEL）：名录档一致。两套档号在此统一——行程条目 tier 是
+  选点梯子（plan._source_tier，1=unesco…10=4a 11=其他 6=演出），候选池
+  `_tier` 是 hit_tier（0=unesco…9=3a 10=未分层），PLAN_TIER_TO_POOL 换算
+  后同档比较。排序口径：**同档优先，缺档近档补位亮牌披露**——名录档在
+  单城里常只有一行（青城山—都江堰是成都唯一 unesco 行），硬闸会让「每
+  个点都要有备选」落空：同档候选排前，同档不足 limit 时按 |Δ档| 最近
+  的近档补位（premium 档带 0-3 内就近 > 跨档带），chip 上亮备选自身档
+  牌（UNESCO/5A/国际榜/…），绝不冒充同级。
 - 同类（SAME CATEGORY）：受控类别（normalize_category）精确一致；不足
-  时放宽到类别组（文博/展馆、自然/园林、游乐、人文古迹），层级永不放宽。
+  时放宽到类别组（文博古迹/展馆、自然/园林、游乐），类别完全不一致的
+  出局。
 - 同时长（SIMILAR DURATION）：游时 band 内（容差 max(45, 0.5×游时)，封顶
-  120 分钟）；无游时数据的候选仅在带内候选不满时垫底补位。
+  120 分钟）；带外已知游时出局；无游时数据的候选仅垫底补位。主点无游
+  时（band=None）不过滤。
 - 落地细则：同城可选（换点必须当天可行）；排除行程内已有站点与全计划
-  已挂过的备选（避免两张卡亮同一个备选）；餐位/酒店卡不挂备选；
-  距离近者优先（同档同城内直线距离小 = 换点当天动线更稳）。
+  已亮过的备选（避免两张卡亮同一个备选）；餐位/酒店卡不挂备选；演出
+  主点（梯档 6）只亮演出备选；距离近者优先（直线距离小 = 换点动线稳）。
 
 装配入口 attach_plan_alternatives：api/plan._plan_turn_body 在**深拷贝**
 上挂备选（session.plan 本体与持久化会话永不携带展示数据），每城只查
@@ -23,6 +29,7 @@
 
 from __future__ import annotations
 
+import re
 from math import log2
 
 from app.services.itinerary.models import (
@@ -38,6 +45,34 @@ from app.services.poi_seed import CATEGORY_MAP, normalize_category
 # 备选默认上限：右侧 chip 区放 3 个以内不挤爆站点行（用户拍板「一个
 # 备选」为底线，多给 2 个供挑剔场景）
 ALT_LIMIT = 3
+
+# 选点梯子档号（plan._source_tier）→ 候选池档号（hit_tier）换算表：
+# 梯子 6=演出（不在名录序）、11=其他/未分层，映射为 None（演出走 show
+# 专项；未分层按池档 10 处理）。
+PLAN_TIER_TO_POOL: dict[int, int | None] = {
+    1: 0,  # unesco
+    2: 1,  # 5a
+    3: 2,  # 国际旅行网站（ta/lp/viator/curated）
+    4: 3,  # 国际平台
+    5: 4,  # 短视频
+    6: None,  # 演出（专项，非名录档）
+    7: 5,  # 小红书
+    8: 6,  # 街区
+    9: 7,  # 风景名胜
+    10: 8,  # 4a
+    11: None,  # 其他/未分层 → 池档 10
+}
+
+# 档带（近档补位范围）：premium 名录档 > 社媒档 > 国内名录档 > 未分层。
+# 补位先同带内 |Δ档| 最近，同带空了才跨带（chip 亮牌披露）。
+LEVEL_BANDS: tuple[frozenset[int], ...] = (
+    frozenset({0, 1, 2, 3}),  # premium：unesco/5a/国际旅行网站/国际平台
+    frozenset({4, 5}),  # 社媒：短视频/小红书
+    frozenset({6, 7, 8, 9}),  # 国内名录：街区/风景名胜/4A/3A
+    frozenset({10}),  # 未分层
+)
+
+SHOW_LEVEL = "show"  # 演出主点的专项档（梯档 6）
 
 # 类别组（同类放宽用；层级与时长永不放宽）
 CATEGORY_GROUPS: dict[str, set[str]] = {
@@ -78,11 +113,26 @@ _FOOD_MARKS = ("food", "餐饮", "美食", "餐厅")
 
 
 def level_class(tier: int | None) -> int:
-    """名录档号 → 层级类（档 4 短视频/5 小红书并作社媒档 4；None=未分层
-    按 10 处理）。备选与主点的层级类必须一致。"""
+    """候选池档号（hit_tier）→ 层级类（档 4 短视频/5 小红书并作社媒档
+    4；None=未分层按 10 处理）。"""
     if tier in (4, 5):
         return 4
     return tier if tier is not None else 10
+
+
+def plan_tier_to_pool(tier: int | None) -> int | None | str:
+    """行程条目 tier（选点梯子 1..11）→ 候选池档号（0..10）；演出梯档 6
+    返回 SHOW_LEVEL；其他/未知（11/None）回 10（池档未分层）。"""
+    if tier == 6:
+        return SHOW_LEVEL
+    mapped = PLAN_TIER_TO_POOL.get(tier)
+    if mapped is None:
+        return 10
+    return mapped
+
+
+def _band_of(cls: int) -> int:
+    return next((i for i, b in enumerate(LEVEL_BANDS) if cls in b), -1)
 
 
 def _is_food_row(category: str | None) -> bool:
@@ -102,7 +152,7 @@ def _category_group(cat: str | None) -> str | None:
 
 def _dur_band(duration_minutes: int | None) -> tuple[int, int] | None:
     """同时长 band：容差 = max(45, 0.5×游时) 封顶 120；短游时不低于
-    15 分钟下限。None = 主点无游时数据（band 过滤跳过，rank 垫底）。"""
+    15 分钟下限。None = 主点无游时数据（band 过滤跳过）。"""
     if not duration_minutes or duration_minutes <= 0:
         return None
     tol = max(45, min(120, round(duration_minutes * 0.5)))
@@ -119,6 +169,34 @@ def _norm_name(name: str | None) -> str:
     return (name or "").strip().lower()
 
 
+# 同体名排除：破折号/间隔号变体（青城山—都江堰 ↔ 青城山-都江堰风景
+# 名胜区）先剥再走 poi_details._name_overlap（头/尾互含，中段嵌含不认）
+_NAME_STRIP = str.maketrans("", "", "-—–·・ ")
+
+
+def _overlap_any(name: str, exclude_names: set[str]) -> bool:
+    """候选名与排除名（行程内已有 + 已亮过的备选）同体判定：先剥连字
+    符变体，再走 poi_details._name_overlap 头/尾互含。"""
+    from app.services.poi_details import _name_overlap
+
+    n = name.translate(_NAME_STRIP)
+    if not n:
+        return False
+    for ex in exclude_names:
+        if _name_overlap(n, ex.translate(_NAME_STRIP)):
+            return True
+    return False
+
+
+# 演出场馆名守卫：类别缺失的剧场/影院行不得当观光点备选（成都文殊坊
+# 妙剧场混进动物园备选实录）；演出主点（tier 6）不适用
+_SHOW_NAME_PATTERN = "剧场|剧院|演艺|影院|演出中心|音乐厅|秀"
+
+
+def _looks_show_name(name: str) -> bool:
+    return bool(re.search(_SHOW_NAME_PATTERN, name))
+
+
 def pick_alternatives(
     pool: list[dict],
     *,
@@ -132,37 +210,61 @@ def pick_alternatives(
 ) -> list[PlanAlternative]:
     """从同城候选池里按同级·同类·同时长挑备选（规则见模块头）。
 
-    pool 行 = PoiDetailStore.alternatives_pool 的 hit dict（带 `_tier`）。
-    返回按 时长贴近 → 类别贴近 → 口碑 → 距离 排序的 PlanAlternative；
-    不足 limit 就少给（宁缺勿滥，绝不跨档/跨时长硬凑）。
+    tier 收行程条目口径（选点梯子 1..11，plan_tier_to_pool 换算）；pool
+    行 = PoiDetailStore.alternatives_pool 的 hit dict（带 `_tier`，hit_tier
+    口径）。返回 PlanAlternative：同档排前，缺档近档补位（|Δ档| 最近，
+    chip 亮备选自身档牌）；不足 limit 就少给。
     """
     exclude_names = exclude_names or set()
     exclude_pids = exclude_pids or set()
-    want_level = level_class(tier)
+    want = plan_tier_to_pool(tier)
+    is_show = want == SHOW_LEVEL
+    want_level = level_class(None if is_show else want)  # show 无池档类
+    want_band = -1 if is_show else _band_of(want_level)
     cur_cat = _norm_cat(category)
     cur_group = _category_group(category)
     want_dur = duration_minutes if duration_minutes and duration_minutes > 0 else None
     band = _dur_band(want_dur)
 
+    def is_show_row(h: dict) -> bool:
+        tags = {str(t).strip().lower() for t in (h.get("tags") or [])}
+        return "show" in tags or _norm_cat(h.get("category")) == "entertainment"
+
+    def level_key(h: dict) -> tuple[int, int]:
+        # (档惩罚, |Δ档|)：0=同档 1=同带近档 2=跨带；演出主点全档同列
+        if is_show:
+            return (0, 0)
+        cand = level_class(h.get("_tier"))
+        if cand == want_level:
+            return (0, 0)
+        cb = _band_of(cand)
+        if cb != -1 and cb == want_band:
+            return (1, abs(cand - want_level))
+        return (2, abs(cand - want_level))
+
     def eligible(h: dict) -> bool:
         name = _norm_name(h.get("name"))
-        if not name or name in exclude_names:
+        if not name or _overlap_any(name, exclude_names):
             return False
         if _is_food_row(h.get("category")):
             return False
         pid = h.get("source_poi_id")
         if pid and pid in exclude_pids:
             return False
-        # 同级硬闸：档类不一致直接出局（绝不放宽）
-        if level_class(h.get("_tier")) != want_level:
-            return False
+        if is_show:
+            return is_show_row(h)
+        if is_show_row(h) or _looks_show_name(name):
+            return False  # 演出/场馆行不是观光点的备选（含类别缺失行）
         return True
 
     def cat_key(h: dict) -> int:
-        # 0=类别精确一致 1=同类别组 2=类别数据缺失（垫底，同组语义）
+        # 0=类别精确一致 1=同类别组 3=类别完全不一致（出局）；演出主点
+        # 免类别闸（演出同名录外）
+        if is_show:
+            return 0
         c = _norm_cat(h.get("category"))
         if not c or not cur_cat:
-            return 2
+            return 2  # 类别数据缺失：垫底补位语义
         if c == cur_cat:
             return 0
         if cur_group and _category_group(h.get("category")) == cur_group:
@@ -189,12 +291,12 @@ def pick_alternatives(
             return None
 
     cands = [h for h in pool if eligible(h)]
-    # 同类闸：精确优先，同组补位（层级/时长不动）；类别完全不一致的出局
-    cands = [h for h in cands if cat_key(h) <= 1]
-    # 同时长闸（硬规则）：带内已知游时优先；带外已知游时直接出局（不同
-    # 时长 ≠ 备选）；仅「无游时数据」的候选在带内不满时垫底补位。
-    # 主点本身无游时（band=None）时不过滤，全部同级同类放行。
-    if band is not None:
+    # 同类闸：精确/同组/缺失垫底保留，完全不一致的出局
+    cands = [h for h in cands if cat_key(h) <= 2]
+    # 同时长闸（硬规则）：带内已知游时优先；带外已知游时直接出局；无游
+    # 时数据垫底补位。主点无游时（band=None）不过滤。演出主点免闸（游
+    # 时无信号常态）。
+    if band is not None and not is_show:
         in_band, unknown = [], []
         for h in cands:
             d = h.get("suggested_duration_min")
@@ -212,6 +314,7 @@ def pick_alternatives(
 
     def rank(h: dict) -> tuple:
         return (
+            level_key(h),  # 同档 > 同带近档 > 跨带（亮牌披露）
             dur_key(h),
             cat_key(h),
             round(-_quality(h), 3),
@@ -229,7 +332,7 @@ def pick_alternatives(
                 name=str(h.get("name") or ""),
                 name_en=h.get("name_en"),
                 category=_norm_cat(h.get("category")) or h.get("category"),
-                tier=tier_n,
+                tier=tier_n,  # 池档口径（hit_tier），H5 只读 level_tag
                 level_tag=_TIER_TAG.get(tier_n) if tier_n is not None else None,
                 duration_minutes=h.get("suggested_duration_min"),
                 distance_km=dist_km(h),
@@ -243,7 +346,7 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
     """深拷贝行程并给每个观光 VisitItem 挂同级备选（模块头规则）。
 
     - 只动拷贝：session.plan 本体/持久化会话不带展示数据；
-    - 餐位（soft_pin food）与酒店卡不挂；
+    - 餐位（food，含 soft_pin 占位）与酒店卡不挂；
     - 每城只查一次候选池；全计划 used_names 去重（两张卡不亮同一备选）；
     - store 不可用/查池失败 → 该城备选静默留空，绝不上抛。
     """
@@ -253,12 +356,12 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
     visits: list[VisitItem] = []
     for day in copy.days:
         for it in day.items:
-            if isinstance(it, VisitItem) and not (
-                it.soft_pin and it.category == "food"
-            ):
-                if (it.category or "") == "hotel":
-                    continue
-                visits.append(it)
+            if not isinstance(it, VisitItem):
+                continue
+            cat = (it.category or "").strip()
+            if cat in ("food", "hotel") or (it.soft_pin and cat == "food"):
+                continue
+            visits.append(it)
     if not visits:
         return copy
     exclude_names: set[str] = set()

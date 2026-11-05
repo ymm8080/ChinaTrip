@@ -1,10 +1,13 @@
 """同级备选规则测试（2026-11-05 拍板「每个点要有一个备选」）。
 
-规则唯一定义点 app/services/poi_alternatives.py：同级（档类一致，
-档 4/5 并社媒档）· 同类（受控类别精确→组放宽）· 同时长（band
-max(45, 0.5×游时) 封顶 120）· 同城 · 排除行程内已有。装配层
-attach_plan_alternatives 在深拷贝上挂、餐位/酒店不挂、fail-soft。
+规则唯一定义点 app/services/poi_alternatives.py：同类（受控类别精确→
+组放宽）· 同时长（band max(45,0.5×游时) 封顶 120，带外出局）· 同档
+优先缺档近档补位亮牌披露（名录档单城常只有一行，硬闸会让「每个点都
+有备选」落空）· 同城 · 排除行程内已有。装配层 attach_plan_alternatives
+在深拷贝上挂、餐位/酒店不挂、fail-soft。
 
+档号口径：行程条目 tier = 选点梯子（1=unesco…6=演出 11=其他）；
+候选池 hit `_tier` = hit_tier（0=unesco…9=3a 10=未分层）。
 纯内存测试：pool hit dict 模拟 PoiDetailStore.alternatives_pool 行，
 不连 DB（LLM_BACKEND=mock 全离线测试口径）。
 """
@@ -22,6 +25,7 @@ from app.services.poi_alternatives import (
     attach_plan_alternatives,
     level_class,
     pick_alternatives,
+    plan_tier_to_pool,
 )
 
 
@@ -35,6 +39,7 @@ def hit(
     pid: str | None = None,
     loc: tuple[float, float] | None = (104.0, 30.6),
     name_en: str | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     return {
         "source_poi_id": pid or f"src_{name}",
@@ -44,7 +49,7 @@ def hit(
         "category": category,
         "rating": rating,
         "rating_count": count,
-        "tags": [],
+        "tags": tags or [],
         "suggested_duration_min": duration,
         "location": loc,
         "_tier": tier,
@@ -53,7 +58,7 @@ def hit(
 
 def visit(
     name: str = "都江堰",
-    tier: int | None = 0,
+    tier: int | None = 1,  # 选点梯子 1=unesco
     category: str | None = "attraction",
     duration: int | None = 120,
     item_id: str = "v1",
@@ -81,36 +86,63 @@ def plan_of(*items, day: int = 1) -> ItineraryPlan:
     )
 
 
-# --- 层级类 -------------------------------------------------------------
+# --- 档号换算 -----------------------------------------------------------
+
+
+def test_plan_tier_to_pool_ladder():
+    # 选点梯子（plan._source_tier）→ 池档号（hit_tier）逐档对齐
+    assert plan_tier_to_pool(1) == 0  # unesco
+    assert plan_tier_to_pool(2) == 1  # 5a
+    assert plan_tier_to_pool(3) == 2  # 国际旅行网站
+    assert plan_tier_to_pool(4) == 3  # 国际平台
+    assert plan_tier_to_pool(5) == 4  # 短视频
+    assert plan_tier_to_pool(6) == "show"  # 演出专项
+    assert plan_tier_to_pool(7) == 5  # 小红书
+    assert plan_tier_to_pool(8) == 6  # 街区
+    assert plan_tier_to_pool(9) == 7  # 风景名胜
+    assert plan_tier_to_pool(10) == 8  # 4a
+    assert plan_tier_to_pool(11) == 10  # 其他/未分层
+    assert plan_tier_to_pool(None) == 10
 
 
 def test_level_class_merges_social_tiers():
-    # 档 4 短视频 / 5 小红书并作社媒档；其余档号即类；None=未分层按 10
+    # 池档 4 短视频 / 5 小红书并作社媒档；None=未分层按 10
     assert level_class(4) == 4 and level_class(5) == 4
     assert level_class(0) == 0 and level_class(1) == 1 and level_class(2) == 2
     assert level_class(None) == 10
 
 
-# --- 同级硬闸 -----------------------------------------------------------
+# --- 同级排序：同档优先，缺档近档补位亮牌 ------------------------------
 
 
-def test_same_level_is_hard_gate():
-    # UNESCO 主点：池里 5A/TA/未分层行全出局——绝不跨档
+def test_same_level_ranks_first_then_nearest_disclosed():
+    # unesco 主点：池里同档 1 行 + 近档 5a/TA + 未分层 → 同档排前，
+    # 近档按 |Δ档| 补位（5a Δ1 < TA Δ2），未分层跨带垫底
     pool = [
         hit("另一个世遗", 0),
-        hit("某5A景区", 1),
         hit("某国际榜点", 2),
+        hit("某5A景区", 1),
         hit("某未分层点", 10),
     ]
-    alts = pick_alternatives(pool, category="attraction", tier=0, duration_minutes=120)
-    assert [a.name for a in alts] == ["另一个世遗"]
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
+    assert [a.name for a in alts] == ["另一个世遗", "某5A景区", "某国际榜点"]
+    assert alts[0].level_tag == "unesco"
+    assert alts[1].level_tag == "5a"  # 近档补位亮自身档牌，不冒充同级
 
 
 def test_5a_main_point_gets_5a_alternative():
     pool = [hit("某5A备选", 1), hit("某世遗", 0)]
-    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
-    assert [a.name for a in alts] == ["某5A备选"]
-    assert alts[0].level_tag == "5a"
+    alts = pick_alternatives(pool, category="attraction", tier=2, duration_minutes=120)
+    assert alts[0].name == "某5A备选" and alts[0].level_tag == "5a"
+    # 同档不足时近档（unesco Δ1）补位
+    assert alts[1].name == "某世遗"
+
+
+def test_ta_recommendation_pair():
+    # 国际旅行网站推荐（TA/LP 榜）主点 ↔ TA 榜备选（用户点名场景）
+    pool = [hit("某lp榜点", 2, pid="p2"), hit("某4A点", 8)]
+    alts = pick_alternatives(pool, category="attraction", tier=3, duration_minutes=120)
+    assert alts[0].name == "某lp榜点" and alts[0].level_tag == "intl"
 
 
 # --- 同类闸（精确→组放宽） ---------------------------------------------
@@ -121,7 +153,7 @@ def test_same_category_exact_preferred_over_group():
         hit("同组不同类", 0, category="historic"),
         hit("同类精确", 0, category="attraction"),
     ]
-    alts = pick_alternatives(pool, category="attraction", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
     # 两行都同级同类组，精确类别排前
     assert [a.name for a in alts] == ["同类精确", "同组不同类"]
 
@@ -129,7 +161,7 @@ def test_same_category_exact_preferred_over_group():
 def test_category_group_fallback_when_exact_missing():
     # 博物馆主点：池里只有 gallery（同文博组）→ 放宽补位
     pool = [hit("某美术馆", 0, category="gallery")]
-    alts = pick_alternatives(pool, category="museum", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="museum", tier=1, duration_minutes=120)
     assert [a.name for a in alts] == ["某美术馆"]
     assert alts[0].category == "gallery"
 
@@ -137,7 +169,7 @@ def test_category_group_fallback_when_exact_missing():
 def test_other_group_category_never_crosses():
     # 博物馆主点：池里只有自然/园林类 → 类别不一致出局
     pool = [hit("某公园", 0, category="park")]
-    alts = pick_alternatives(pool, category="museum", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="museum", tier=1, duration_minutes=120)
     assert alts == []
 
 
@@ -150,7 +182,7 @@ def test_duration_band_filters_and_prefers_close():
         hit("带内最近", 0, duration=130),
         hit("带外太长", 0, duration=300),
     ]
-    alts = pick_alternatives(pool, category="attraction", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
     # band(120)=[60,180]：300 出局；130 比 160 更近排前
     assert [a.name for a in alts] == ["带内最近", "带内远一点"]
 
@@ -160,11 +192,11 @@ def test_unknown_duration_only_fills_shortfall():
         hit("无游时候选", 0, duration=None),
         hit("带内候选", 0, duration=110),
     ]
-    alts = pick_alternatives(pool, category="attraction", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
     assert [a.name for a in alts] == ["带内候选", "无游时候选"]
-    # 主点本身无游时：band 不过滤，全部按垫底序给出
+    # 主点本身无游时：band 不过滤，全部同级同类放行
     alts2 = pick_alternatives(
-        pool, category="attraction", tier=0, duration_minutes=None
+        pool, category="attraction", tier=1, duration_minutes=None
     )
     assert {a.name for a in alts2} == {"无游时候选", "带内候选"}
 
@@ -181,7 +213,7 @@ def test_excludes_in_plan_names_and_pids():
     alts = pick_alternatives(
         pool,
         category="attraction",
-        tier=0,
+        tier=1,
         duration_minutes=120,
         exclude_names={"重名行"},
         exclude_pids={"pid_dup"},
@@ -191,7 +223,27 @@ def test_excludes_in_plan_names_and_pids():
 
 def test_food_rows_never_suggested():
     pool = [hit("某餐厅", 0, category="美食")]
-    alts = pick_alternatives(pool, category="attraction", tier=0, duration_minutes=120)
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
+    assert alts == []
+
+
+# --- 演出专项 -----------------------------------------------------------
+
+
+def test_show_main_point_gets_show_alternatives():
+    pool = [
+        hit("某演出", 10, category="entertainment", tags=["show"]),
+        hit("某景点", 0),
+    ]
+    alts = pick_alternatives(
+        pool, category="entertainment", tier=6, duration_minutes=80
+    )
+    assert [a.name for a in alts] == ["某演出"]
+
+
+def test_show_never_alternative_for_sights():
+    pool = [hit("某演出", 10, category="entertainment", tags=["show"])]
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
     assert alts == []
 
 
@@ -204,7 +256,7 @@ def test_closer_candidate_wins_tie():
     alts = pick_alternatives(
         pool=[far, near],
         category="attraction",
-        tier=0,
+        tier=1,
         duration_minutes=120,
         near=GeoPoint(lon=103.6, lat=31.0),
     )
@@ -228,7 +280,7 @@ class FakeStore:
 def test_attach_skips_food_and_hotel_and_transfer():
     store = FakeStore([hit("世遗备选", 0)])
     plan = plan_of(
-        visit("都江堰", tier=0, item_id="v1"),
+        visit("都江堰", tier=1, item_id="v1"),
         visit("午餐占位", category="food", duration=60, item_id="v2", soft_pin=True),
         visit(
             "某酒店",
@@ -253,7 +305,7 @@ def test_attach_skips_food_and_hotel_and_transfer():
 
 def test_attach_on_copy_original_untouched():
     store = FakeStore([hit("世遗备选", 0)])
-    plan = plan_of(visit("都江堰", tier=0, item_id="v1"))
+    plan = plan_of(visit("都江堰", tier=1, item_id="v1"))
     out = attach_plan_alternatives(plan, store)
     # 本体不带展示数据（持久化会话干净）
     orig = next(i for d in plan.days for i in d.items if isinstance(i, VisitItem))
@@ -268,8 +320,8 @@ def test_attach_excludes_in_plan_sites_from_alternatives():
     # 行程里已有青城山 → 任何卡都不把青城山亮成备选
     store = FakeStore([hit("青城山", 0), hit("世遗备选", 0)])
     plan = plan_of(
-        visit("都江堰", tier=0, item_id="v1"),
-        visit("青城山", tier=0, item_id="v2", duration=180),
+        visit("都江堰", tier=1, item_id="v1"),
+        visit("青城山", tier=1, item_id="v2", duration=180),
     )
     out = attach_plan_alternatives(plan, store)
     for d in out.days:
@@ -283,14 +335,14 @@ def test_attach_fail_soft_when_store_raises():
         def alternatives_pool(self, city: str) -> list[dict]:
             raise RuntimeError("db down")
 
-    plan = plan_of(visit("都江堰", tier=0, item_id="v1"))
+    plan = plan_of(visit("都江堰", tier=1, item_id="v1"))
     out = attach_plan_alternatives(plan, BoomStore())
     v = next(i for d in out.days for i in d.items if isinstance(i, VisitItem))
     assert v.alternatives is None
 
 
 def test_attach_none_store_returns_copy():
-    plan = plan_of(visit("都江堰", tier=0, item_id="v1"))
+    plan = plan_of(visit("都江堰", tier=1, item_id="v1"))
     out = attach_plan_alternatives(plan, None)
     assert out is not plan
 
