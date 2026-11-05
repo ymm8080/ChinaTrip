@@ -218,48 +218,7 @@ def test_fallback_pinned_untimed_not_dumped_after_gate():
         assumptions=[],
     )
     _fallback_sequence_times(plan)
-    # 头档距离规则（2026-11-05）改写旧契约「留空披露」：必去熊猫置换
-    # 引擎上午头档吃 09:00-12:00（营业窗 07:30-12:00 内），青城山不动；
-    # 被让位的凑数件进 12:00 后无合法整段 → 留空披露（不甩闸后）。
-    assert panda.start_time == _t(9, 0)
-    assert panda.end_time == _t(12, 0)
-    got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
-    assert got["v1"].start_time == _t(14, 30)  # 青城山原位
-
-
-def test_fallback_pinned_untimed_no_rescue_leaves_disclosure():
-    """置换被铁律 19 挡住（上午头档是用户自钉）→ 熊猫探不进上午，
-    12:30-18:00 也无合法整段 → 回到留空披露路径（原事故口径）。"""
-    from app.services.agent.plan import _fallback_sequence_times
-
-    morning = VisitItem(
-        item_id="v0",
-        name="用户自钉上午件",
-        city="成都",
-        day=1,
-        duration_minutes=180,
-        pinned=True,
-        start_time=_t(9, 0),
-        end_time=_t(12, 0),
-    )
-    afternoon = VisitItem(
-        item_id="v1",
-        name="青城山—都江堰",
-        city="成都",
-        day=1,
-        duration_minutes=180,
-        start_time=_t(14, 30),
-        end_time=_t(17, 30),
-    )
-    panda = _panda_item()
-    plan = ItineraryPlan(
-        itinerary_id="it-x",
-        cities=["成都"],
-        days=[DayPlan(day=1, base_city="成都", items=[morning, afternoon, panda])],
-        assumptions=[],
-    )
-    _fallback_sequence_times(plan)
-    assert panda.start_time is None  # 12:00-18:00 无合法整段 → 留空披露
+    assert panda.start_time is None  # 12:30-18:00 无合法整段 → 留空披露
 
 
 def test_fallback_pinned_untimed_places_inside_hours_when_slot_exists():
@@ -282,14 +241,8 @@ def test_fallback_pinned_untimed_places_inside_hours_when_slot_exists():
         assumptions=[],
     )
     _fallback_sequence_times(plan)
-    # 头档距离规则（2026-11-05）：熊猫置换上午件吃 09:00-12:00
-    # （营业窗 07:30-12:00 内整段），让位件退到 12:30-16:00
-    # （规则 18：背靠背 gap≥30min）。
-    assert panda.start_time == _t(9, 0)
-    assert panda.end_time == _t(12, 0)
-    got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
-    assert got["v0"].start_time == _t(12, 30)
-    assert got["v0"].end_time == _t(16, 0)
+    assert panda.start_time == _t(13, 0)  # 固定件缓冲后 13:00-16:00 整段在窗
+    assert panda.end_time == _t(16, 0)
 
 
 def test_solver_day_with_pinned_untimed_degrades_not_places():

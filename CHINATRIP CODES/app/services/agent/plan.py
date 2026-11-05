@@ -3850,20 +3850,54 @@ def _is_head_candidate(v: VisitItem) -> bool:
     return bool(v.pinned) or (v.tier is not None and v.tier <= 2)
 
 
+def _head_dist_km(anchor: VisitItem | None, v: VisitItem) -> float:
+    """距头档锚（酒店）公里数；缺锚/缺坐标记 inf——绝不按「距离 0」
+    参与裁决（2026-11-05 二裁：缺距离数据不换）。"""
+    if anchor is None or anchor is v or v.location is None:
+        return float("inf")
+    return haversine_km(anchor.location, v.location)
+
+
+def _head_hotel_anchor(day: DayPlan, plan: ItineraryPlan | None) -> VisitItem | None:
+    """头档距离锚：日内酒店优先，缺则同城任日酒店（一次入住多日共用）。"""
+    for i in day.items:
+        if (
+            isinstance(i, VisitItem)
+            and (i.category or "") == "hotel"
+            and i.location is not None
+        ):
+            return i
+    if plan is None:
+        return None
+    for d in plan.days:
+        for i in d.items:
+            if (
+                isinstance(i, VisitItem)
+                and (i.category or "") == "hotel"
+                and i.location is not None
+                and (i.city or d.base_city) == day.base_city
+            ):
+                return i
+    return None
+
+
 def _morning_head_displacement(
     day: DayPlan,
     hours_by_poi: dict,
     day_end: int,
+    plan: ItineraryPlan | None = None,
 ) -> None:
-    """头档距离规则（2026-11-05 拍板）兜底层上午头档置换。
+    """头档距离规则（2026-11-05 拍板；同日二裁定案「上午头档应给优先
+    级更高且离酒店更远的点」）兜底层上午头档置换。
 
-    心愿（钉住）或 tier≤2 高排序未排候选 P 与当日已排上午头档 O
-    （<12:00 开场的引擎排观光点，非用户钉/非软钉）同天时，P 优先级
-    压过 O（钉>非钉；同非钉 tier 小者；同 tier 比距日内酒店锚更远）
-    → O 退出头档交重排，P 试吃上午头档；P 探不进上午（240min 级/
-    到达地板/营业窗卡死/午餐窗保不住）则 O 原样归还、P 走「下午头档」
-    （正午起探，见 _fallback_sequence_times 内同口径规则）——绝不两头空。
-    只动引擎排的非钉头档一个条目；餐/酒店/演出/用户钉永不触碰。
+    心愿（钉住）或 tier≤2 高排序未排候选按优先级（钉>tier 升序）选出
+    P，与当日已排上午头档 O（<12:00 开场的引擎排观光点，非用户钉/非
+    软钉）比距离：须有距离证据才换——锚（日内酒店→同城任日酒店回退）
+    + 两侧都有坐标 + P 严格更远（远点清晨出发跑全天）；缺任何距离数
+    据不换（P 照走「下午头档」正午起探）。O 退出头档交重排，P 试吃
+    上午头档；P 探不进上午（240min 级/到达地板/营业窗卡死/午餐窗保
+    不住）则 O 原样归还、P 走下午头档——绝不两头空。只动引擎排的非
+    钉头档一个条目；餐/酒店/演出/用户钉永不触碰。
     """
     cands = [
         v
@@ -3889,41 +3923,36 @@ def _morning_head_displacement(
     )
     if head is None or head.pinned or head.soft_pin:
         return
+    anchor = _head_hotel_anchor(day, plan)
     p = min(
         cands,
         key=lambda v: (
             0 if v.pinned else 1,
             v.tier if v.tier is not None else 11,
+            -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
         ),
     )
-    p_outranks = bool(p.pinned)
-    if not p_outranks:
-        pt = p.tier if p.tier is not None else 11
-        ot = head.tier if head.tier is not None else 11
-        if pt < ot:
-            p_outranks = True
-        elif pt == ot:
-            hotel = next(
-                (
-                    i
-                    for i in day.items
-                    if isinstance(i, VisitItem)
-                    and (i.category or "") == "hotel"
-                    and i.location is not None
-                ),
-                None,
-            )
-            if (
-                hotel is not None
-                and p.location is not None
-                and head.location is not None
-                and hotel is not p
-                and hotel is not head
-            ):
-                p_outranks = haversine_km(hotel.location, p.location) > haversine_km(
-                    hotel.location, head.location
-                )
-    if not p_outranks:
+    dp = _head_dist_km(anchor, p)
+    do = _head_dist_km(anchor, head)
+    if dp == float("inf") or do == float("inf"):
+        logger.info(
+            "plan: head-slot displacement skipped on day %d — no distance"
+            " data for %s vs head %s",
+            day.day,
+            p.name,
+            head.name,
+        )
+        return
+    if not dp > do:
+        logger.info(
+            "plan: head-slot displacement skipped on day %d — %s (%.1fkm)"
+            " not farther than head %s (%.1fkm)",
+            day.day,
+            p.name,
+            dp,
+            head.name,
+            do,
+        )
         return
     os_, oe_ = head.start_time, head.end_time
     head.start_time = None
@@ -3936,10 +3965,12 @@ def _morning_head_displacement(
     lunch_kept = not flex_lunches or t + p_dur <= 12 * 60
     if t is not None and t < 12 * 60 and lunch_kept:
         logger.info(
-            "plan: head-slot displacement on day %d — %s takes morning head,"
-            " %s re-queued",
+            "plan: head-slot displacement on day %d — %s takes morning head"
+            " (%.1fkm > %.1fkm), %s re-queued",
             day.day,
             p.name,
+            dp,
+            do,
             head.name,
         )
         return
@@ -3972,10 +4003,11 @@ def _fallback_sequence_times(
     # （城墙·碑林 17:00 入场 / 熊猫基地 18:00（闭馆 17:00）两事故）。
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
-        # 头档距离置换（2026-11-05 拍板）先于固定窗提取：候选 P 吃上
-        # 午头档时原头档 O 须在此之前退出固定窗（否则 P 永远探不进）。
+        # 头档距离置换（2026-11-05 拍板·二裁距离裁决）先于固定窗提取：
+        # 候选 P 吃上午头档时原头档 O 须在此之前退出固定窗（否则 P 永
+        # 远探不进）。
         if not keep_list_order:
-            _morning_head_displacement(day, hours_by_poi, day_end)
+            _morning_head_displacement(day, hours_by_poi, day_end, plan)
         # fixed 三元组 (s, e, src)：src=观光锚时未排条目按打车腿放宽
         # （_leg_windows）；餐饮/酒店/落地腿 src=None 保持原窗。
         fixed, fixed_tight, flex_lunches, xfer_windows = _day_fixed_windows(day)
@@ -3988,29 +4020,15 @@ def _fallback_sequence_times(
         # 之后，前两点吃完下午窗，大点 16:30 起 17:00 闭馆必死；最长先排
         # 是经典最小化碎片启发式，大点吃头档、轻点回填日尾。
         if not keep_list_order:
-            # 头档候选距离锚（2026-11-05 头档距离规则）：日内酒店卡为
-            # 距离参考；距离只在非钉头档候选组内细排——钉住组保
-            # 2026-11-04/11-05 既有序（钉>大点>时长降序）不动。
-            _hotel_anchor = next(
-                (
-                    i
-                    for i in day.items
-                    if isinstance(i, VisitItem)
-                    and (i.category or "") == "hotel"
-                    and i.location is not None
-                ),
-                None,
-            )
+            # 头档候选组内距酒店锚远者优先吃上午头档（2026-11-05 二裁：
+            # 上午=优先级高+更远；排序只定组内偏好，换位仍须置换闸的
+            # 距离证据）。缺锚/缺坐标按 0 处理排组内末位，不影响非候选
+            # 组既有钉>大点>时长降序（43d7fc6）。
+            _anchor = _head_hotel_anchor(day, plan)
 
             def _head_dist(v: VisitItem) -> float:
-                if (
-                    _hotel_anchor is None
-                    or v.location is None
-                    or v is _hotel_anchor
-                    or v.pinned
-                ):
-                    return 0.0
-                return haversine_km(_hotel_anchor.location, v.location)
+                d = _head_dist_km(_anchor, v)
+                return 0.0 if d == float("inf") else d
 
             untimed.sort(
                 key=lambda v: (
