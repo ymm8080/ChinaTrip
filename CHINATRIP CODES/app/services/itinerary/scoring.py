@@ -10,7 +10,8 @@
 - 硬：未排时间卡 -100/张；活动日空白上午 -80/天；硬违规 -60/项
 - 软（用户拍板口径均为小惩罚）：预算溢出 -溢出分钟/10（30 分钟免罚
   额度对齐晨间保底 360+30 闸，上限 -30/天）；雨天露天 -15、半露天
-  -10（unknown 不罚，对齐 _rain_exposed 口径）；转场 -round(km)/30
+  -10、未标注室内外 -5（2026-11-05 拍板，品类非室内的 unknown 行）；
+  转场 -round(km)/30
   （代理口径，腿字段缺失记 0）；午餐漂移 -超±30 部分/10（对齐
   「午餐 ±30 许可」拍板）；日均衡 -缺口/30（S2.2 max-min 轻量版：
   最差活动日负载距 180 的缺口，交通日豁免，需 ≥2 个活动日，上限
@@ -51,6 +52,9 @@ PEN_BLANK_MORNING = 80
 PEN_VIOLATION = 60
 PEN_RAIN_EXPOSED = 15
 PEN_RAIN_PARTIAL = 10
+PEN_RAIN_UNMARKED = 5  # 未标注室内外点落雨日（2026-11-05 拍板「雨天
+# 上午不排室外点」磁器口案）：轻罚让 LNS 不把未标注点挪进雨日，
+# 也不反向硬推——罚值低于 partial，避免把未标注的潜在室内点错杀出雨日
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
 PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
@@ -151,7 +155,7 @@ def plan_score(
     heavy = heavy_rain_days or {}
     sc = PlanScore()
     untimed = blank = overlaps = overruns = late_entries = 0
-    rain_no = rain_partial = 0
+    rain_no = rain_partial = rain_unmarked = 0
     overflow_days = 0
     overflow_pen = 0
     travel_km = 0.0
@@ -267,6 +271,12 @@ def plan_score(
                     rain_no += 1
                 elif rk == "partial":
                     rain_partial += 1
+                elif rk == "" and str(v.category or "") not in (
+                    "museum",
+                    "gallery",
+                    "entertainment",
+                ):
+                    rain_unmarked += 1
         # 预算溢出（360=偏好：30 分钟免罚，超出部分 /10，上限 -30/天）
         load = sum(
             v.duration_minutes or 0
@@ -333,7 +343,11 @@ def plan_score(
         "violations": -PEN_VIOLATION * violations,
     }
     sc.soft = {
-        "rain_exposed": -(PEN_RAIN_EXPOSED * rain_no + PEN_RAIN_PARTIAL * rain_partial),
+        "rain_exposed": -(
+            PEN_RAIN_EXPOSED * rain_no
+            + PEN_RAIN_PARTIAL * rain_partial
+            + PEN_RAIN_UNMARKED * rain_unmarked
+        ),
         "budget_overflow": -overflow_pen,
         "travel": -(round(travel_km) // 30),
         "lunch_drift": -lunch_drift_pen,
@@ -355,7 +369,7 @@ def plan_score(
         "overlaps": overlaps,
         "overruns": overruns,
         "late_entries": late_entries,
-        "rain_exposed": rain_no + rain_partial,
+        "rain_exposed": rain_no + rain_partial + rain_unmarked,
         "budget_overflow_days": overflow_days,
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,

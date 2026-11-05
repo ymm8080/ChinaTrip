@@ -106,7 +106,8 @@ def test_rain_exposure_weights():
         ],
     )
     rainy = plan_score(_plan([day]), rain_days={"西安": {1}})
-    assert rainy.soft["rain_exposed"] == -25  # -15 露天 -10 半露天
+    # -15 露天 -10 半露天 -5 未标注室内外（2026-11-05 磁器口案拍板）
+    assert rainy.soft["rain_exposed"] == -30
     dry = plan_score(_plan([day]))
     assert dry.soft["rain_exposed"] == 0
 

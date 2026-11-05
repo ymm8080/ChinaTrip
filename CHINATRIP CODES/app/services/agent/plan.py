@@ -346,8 +346,33 @@ def _rain_exposed(cand: dict) -> bool:
     return (cand.get("rain_ok") or "") in ("no", "partial")
 
 
+def _rain_unmarked(cand: dict) -> bool:
+    """未标注室内外且品类不指向室内（2026-11-05 用户拍板「雨天上午
+    不排室外点」：indoor/rain_ok 全空的历史街区/attraction 行雨天
+    静默放行=第 8 天磁器口漏闸案）。品类 museum/gallery/hotel/food/
+    entertainment 视同室内不参与；返回 True 的点雨天让位室内——软
+    语义（挪干日/对调/披露），不硬拦（无标记行硬拦=误杀，口径同
+    _morning_fill 保守注释）。"""
+    if str(cand.get("rain_ok") or "") != "":
+        return False
+    return str(cand.get("category") or "") not in (
+        "museum",
+        "gallery",
+        "hotel",
+        "food",
+        "entertainment",
+    )
+
+
 def _rain_exposure_label(cand: dict) -> str:
-    return "半露天" if (cand.get("rain_ok") or "") == "partial" else "露天"
+    rok = str(cand.get("rain_ok") or "").lower()
+    if rok == "partial":
+        return "半露天"
+    if rok in ("yes", "true"):
+        return "室内"
+    if rok == "":
+        return "室内外未标注"
+    return "露天"
 
 
 def _rain_heavy(text: str | None) -> bool:
@@ -8065,7 +8090,10 @@ class PlanningAgent:
 
             def _partial_rain_note(cand: dict, d: int) -> None:
                 # 半露天/王牌档落小雨日：照排但提示（2026-11-02 拍板，
-                # 仅小雨；2026-11-04 扩列王牌档）。
+                # 仅小雨；2026-11-04 扩列王牌档）。未标注室内外点不出
+                # 落位提示——其雨日披露统一由对调成功/保持原排留痕
+                # 承接（2026-11-05 拍板，避免「照排提示+已对调」双账
+                # 自相矛盾）。
                 if (
                     notes is not None
                     and d in rainy_here
@@ -8094,8 +8122,13 @@ class PlanningAgent:
                         # 成渝案：整段小雨把 unesco/5A 露天压到全部室内杂点
                         # 之后=白帝城/李子坝级集体消失）——王牌保持 tier 梯
                         # 子原位，由 _rain_blocked 小雨放行承接物理侧。
+                        # 未标注室内外点（2026-11-05 拍板）与露天同桶降权：
+                        # 整段雨日让室内先挑天，未标注点非王牌不享原位。
                         1
-                        if _rain_exposed(p[1])
+                        if (
+                            _rain_exposed(p[1])
+                            or (_rain_unmarked(p[1]) and _source_tier(p[1]) > 2)
+                        )
                         and _source_tier(p[1]) > 2
                         and (night_all or not _night_cand(p[1]))
                         else 0,
@@ -8442,6 +8475,23 @@ class PlanningAgent:
                         order = [d for d in order if d not in _adays] + [
                             d for d in order if d in _adays
                         ]
+                    # 未标注点雨日让位（2026-11-05 磁器口案，主环同口径）：
+                    # 认领天序把有计数空位的干日前置——软语义不出局，无
+                    # 干日空位保持原序留雨日，交对调/披露承接；王牌与夜
+                    # 间点豁免（同整段降权口径）。
+                    if (
+                        rainy_here
+                        and _rain_unmarked(cand)
+                        and _tier > 2
+                        and not _night_cand(cand)
+                    ):
+                        _dry2 = [
+                            d
+                            for d in order
+                            if d not in rainy_here and day_loads[d][1] < 4
+                        ]
+                        if _dry2:
+                            order = _dry2 + [d for d in order if d not in _dry2]
                     for day in order:
                         load = day_loads[day]
                         leg = _leg_min(xy, day)
@@ -8617,6 +8667,25 @@ class PlanningAgent:
                         day = min(
                             _alt, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
                         )
+                # 未标注室内外点雨日让位（2026-11-05 拍板「雨天上午不排
+                # 室外点」，磁器口漏闸案）：目标天有雨且有干日计数空位时
+                # 挪干日——软语义不出局（无干日空位=留雨日，交对调/披露
+                # 承接）；王牌与夜间点豁免（同整段降权口径）。
+                if (
+                    day in rainy_here
+                    and _rain_unmarked(cand)
+                    and _source_tier(cand) > 2
+                    and not _night_cand(cand)
+                ):
+                    _dry2 = [
+                        d
+                        for d in range(lo, hi + 1)
+                        if d not in rainy_here and day_loads[d][1] < 4
+                    ]
+                    if _dry2:
+                        day = min(
+                            _dry2, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
+                        )
                 # 露天点雨日硬闸（2026-11-02 拍板）：全露天雨日全拦、
                 # 半露天仅强雨日拦（小雨照排+提示）→ 必须改投有计数
                 # 空位的干日（余量最小，时间预算软闸照放）；无干日
@@ -8645,6 +8714,23 @@ class PlanningAgent:
                     day = (
                         _emptiest_day()
                     )  # 簇满/远腿→溢出余量最大天（保地理优先、不空天）
+                    # 未标注点雨日让位（2026-11-05 拍板）：溢出分支同口径
+                    if (
+                        day in rainy_here
+                        and _rain_unmarked(cand)
+                        and _source_tier(cand) > 2
+                        and not _night_cand(cand)
+                    ):
+                        _dry2 = [
+                            d
+                            for d in range(lo, hi + 1)
+                            if d not in rainy_here and day_loads[d][1] < 4
+                        ]
+                        if _dry2:
+                            day = min(
+                                _dry2,
+                                key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                            )
                     if _rain_blocked(cand, day):
                         _dry = [
                             d
@@ -8701,7 +8787,9 @@ class PlanningAgent:
                     # 是这 18 分钟——噪声级超额放行（用户拍板）
                     return load <= _budget(d) + RAIN_SWAP_BUDGET_SLACK_MIN
 
-                def _rescue(rd: int, pos: int, cand: dict) -> None:
+                def _rescue(
+                    rd: int, pos: int, cand: dict, *, hard: bool = True
+                ) -> None:
                     out_min = _minutes(cand, DEFAULT_VISIT_MINUTES)
                     # ① 单点对调
                     for dd in dry_days:
@@ -8782,6 +8870,15 @@ class PlanningAgent:
                     # 不排——移出行程+点名（大雨/中雨仅措辞分级；
                     # 5A/UNESCO 由白名单「可选加」自然披露，回填层
                     # 再替它在干日找位）。
+                    # 未标注点（2026-11-05 拍板）只对调不删点：无室内可
+                    # 换=保持原排+备伞留痕（无标记行不硬拦口径，磁器口案）。
+                    if not hard:
+                        if notes is not None:
+                            notes.append(
+                                f"第{rd}天预报有雨：{cand['name']}"
+                                f"（{_rain_exposure_label(cand)}）保持原排，建议备伞"
+                            )
+                        return
                     placed[rd].remove((pos, cand))
                     day_loads[rd][0] -= out_min
                     day_loads[rd][1] -= 1
@@ -8794,13 +8891,22 @@ class PlanningAgent:
 
                 for rd in sorted(rainy_here):
                     for pos, cand in list(placed[rd]):
-                        # 只处理被硬闸拦却已在雨日的（must/编辑残留）；
-                        # 半露天小雨日合法落位（2026-11-02 拍板）不再救。
-                        if not _rain_blocked(cand, rd):
+                        # 被硬闸拦却已在雨日的（must/编辑残留）照救；未
+                        # 标注室内外点雨日参与对调让位（2026-11-05 拍板，
+                        # hard=False 软语义只换不删，磁器口案）；半露天
+                        # 小雨日合法落位（2026-11-02 拍板）不再救。
+                        blocked = _rain_blocked(cand, rd)
+                        unmarked = (
+                            not blocked
+                            and _rain_unmarked(cand)
+                            and _source_tier(cand) > 2
+                            and not _night_cand(cand)
+                        )
+                        if not blocked and not unmarked:
                             continue
                         if _night_cand(cand) and rd not in night_rainy:
                             continue  # 夜间点只受夜间窗影响（三轮口径）
-                        _rescue(rd, pos, cand)
+                        _rescue(rd, pos, cand, hard=blocked)
             if night_rainy:
                 # 夜间窗对调（三轮拍板：夜间雨只影响夜间露天活动——
                 # 游船观景/夜游/夜市等 evening 点）：雨夜里的夜间露天
@@ -10263,7 +10369,10 @@ class PlanningAgent:
 
         过滤闸：同城、非演出非餐饮、宜上午/全天、未入选、与全行程
         已排不重样（_same_site/poi_id 双闸）、建议时长落上午空窗、
-        雨天只收室内（rain_ok∈{yes,true}）。2026-11-01 用户拍板：
+        雨天不收明确露天/半露天。2026-11-05 拍板「雨天上午不排室外
+        点」（磁器口漏闸案）：雨天排序室内（rain_ok=yes/true）优先，
+        未标注点殿后兜底——上午不许空，但室内有货时不让未标注点抢
+        晨位。2026-11-01 用户拍板：
         预算 360+30 是「偏短点优先」的排序偏好而非硬闸——先补装得下
         的（tier 序）；全都装不下才按最短溢出补（allow_overflow）。
         补进后经 _fallback_sequence_times 落位（正常应 09:00 起）；
@@ -10329,9 +10438,19 @@ class PlanningAgent:
 
         # 2026-11-01 用户拍板：预算=「偏短点优先」的排序信号，非硬闸。
         # 先补装得下的（保持 tier 序）；全都装不下才按最短溢出序补。
+        # 雨天室内优先（2026-11-05 拍板）：两段各自先收 rain_ok=yes，
+        # 未标注点殿后兜底（明确露天/半露天已在上方过滤，磁器口案）。
+        def _rain_first(e: tuple[dict, int, bool]) -> int:
+            return 0 if str(e[0].get("rain_ok") or "").lower() in ("yes", "true") else 1
+
         ordered = [e for e in eligible if not e[2]]
+        if rainy:
+            ordered.sort(key=_rain_first)
         if allow_overflow:
-            ordered += sorted((e for e in eligible if e[2]), key=lambda e: e[1])
+            _over = sorted((e for e in eligible if e[2]), key=lambda e: e[1])
+            if rainy:
+                _over.sort(key=_rain_first)
+            ordered += _over
         for cand, dur, _over in ordered:
             location = (
                 GeoPoint(**cand["location"])
@@ -10364,6 +10483,12 @@ class PlanningAgent:
                 visit.start_time.hour,
                 visit.start_time.minute,
             ) < (12, 0):
+                if rainy and _rain_unmarked(cand):
+                    # 雨天室内候选全缺只补到未标注点：留痕备伞（2026-11-05）
+                    plan.assumptions.append(
+                        f"第{day_plan.day}天预报有雨：{visit.name}"
+                        f"（{_rain_exposure_label(cand)}）补上午，建议备伞"
+                    )
                 return visit.name
             day_plan.items.remove(visit)
             return None
@@ -10470,7 +10595,14 @@ class PlanningAgent:
             return None
         # 按地理亲和序逐候选尝试；任一步失败（落不进上午/借出日晨空白
         # 且回填救不回）整体还原后试下一个，不再一次性放弃
-        scored.sort(key=lambda x: x[0])
+        # 雨天室内优先（2026-11-05 拍板，磁器口案）：明确露天/半露天
+        # 已在上方过滤，未标注殿后，地理亲和序在组内保持
+        scored.sort(
+            key=lambda x: (
+                str(getattr(x[2], "rain_ok", "") or "").lower() not in ("yes", "true"),
+                x[0],
+            )
+        )
         for _score, donor, item in scored:
             donor_day_no = donor.day
             orig_day_no = item.day
