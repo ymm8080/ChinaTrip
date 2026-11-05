@@ -173,6 +173,98 @@ def test_other_group_category_never_crosses():
     assert alts == []
 
 
+# --- 人文古迹组含文博 + 遗址类隔离（2026-11-06 拍板实录） ---------------
+
+
+def test_dufu_pairing_wuhou_not_jinsha():
+    # 用户拍板实录：杜甫草堂（museum t2）的备选应该是武侯祠（attraction
+    # t2，库类别不一致但同人文古迹组），金沙遗址博物馆（museum t2 同级
+    # 同类同时长）反而不合适——遗址考古类与园林祠庙类隔离
+    pool = [
+        hit("成都金沙遗址博物馆", 2, category="museum", duration=120),
+        hit("武侯祠", 2, category="attraction", duration=90),
+        hit("四川博物院", 8, category="museum", duration=120),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="museum",
+        tier=3,  # 杜甫草堂选点梯子档 3（curated intl）
+        duration_minutes=120,
+        main_name="杜甫草堂",
+    )
+    assert [a.name for a in alts] == ["武侯祠", "四川博物院"]
+    assert alts[0].level_tag == "intl"  # 同档（t2 国际旅行网站）亮国际榜
+
+
+def test_ruins_main_never_pairs_with_garden_sites():
+    # 反向同闸：金沙遗址博物馆主点不亮园林祠庙类备选（宁缺）
+    pool = [
+        hit("杜甫草堂", 2, category="museum", duration=120),
+        hit("武侯祠", 2, category="attraction", duration=90),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="museum",
+        tier=3,
+        duration_minutes=120,
+        main_name="成都金沙遗址博物馆",
+    )
+    assert alts == []
+
+
+def test_ruins_main_pairs_with_ruins_peer():
+    pool = [
+        hit(
+            "广汉三星堆博物馆",
+            2,
+            category="museum",
+            duration=120,
+        ),
+        hit("杜甫草堂", 2, category="museum", duration=120),
+    ]
+    # 三星堆名称无「遗址」二字，简介兜底判定（真实库行 intro 必提遗址）
+    pool[0]["intro"] = "广汉三星堆遗址博物馆，古蜀文明考古遗址"
+    alts = pick_alternatives(
+        pool,
+        category="museum",
+        tier=3,
+        duration_minutes=120,
+        main_name="成都金沙遗址博物馆",
+    )
+    # 遗址↔遗址放行（三星堆虽属德阳，此处只验名称闸；同城闸在 attach 层）
+    assert [a.name for a in alts] == ["广汉三星堆博物馆"]
+
+
+def test_wuhou_main_pairs_with_dufu():
+    # 反向配对：武侯祠主点 ↔ 杜甫草堂（同级同组同 band）
+    pool = [
+        hit("杜甫草堂", 2, category="museum", duration=120),
+        hit("成都金沙遗址博物馆", 2, category="museum", duration=120),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=90,
+        main_name="武侯祠",
+    )
+    assert [a.name for a in alts] == ["杜甫草堂"]
+
+
+def test_ruins_subhall_never_suggested_for_umbrella():
+    # 遗迹馆/遗址馆是遗址本体的子馆，不当任何点的备选
+    pool = [hit("金沙遗址博物馆-遗迹馆", 10, category="museum", duration=60)]
+    alts = pick_alternatives(
+        pool,
+        category="museum",
+        tier=3,
+        duration_minutes=120,
+        main_name="杜甫草堂",
+        exclude_names={"成都金沙遗址博物馆"},
+    )
+    assert alts == []
+
+
 # --- 同时长闸 -----------------------------------------------------------
 
 

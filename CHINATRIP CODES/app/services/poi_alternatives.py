@@ -12,8 +12,13 @@
   的近档补位（premium 档带 0-3 内就近 > 跨档带），chip 上亮备选自身档
   牌（UNESCO/5A/国际榜/…），绝不冒充同级。
 - 同类（SAME CATEGORY）：受控类别（normalize_category）精确一致；不足
-  时放宽到类别组（文博古迹/展馆、自然/园林、游乐），类别完全不一致的
-  出局。
+  时放宽到类别组（人文古迹含文博/展馆、自然/园林、游乐），类别完全不
+  一致的出局。文博（museum/gallery）并入人文古迹组是 2026-11-06 拍板
+  「杜甫草堂的备选应该是武侯祠」实录：库类别不一致（杜甫草堂=museum、
+  武侯祠=attraction）不能把经典人文对拆散。
+- 遗址类隔离（2026-11-06 拍板「金沙不合适[作杜甫草堂的备选]」）：名称
+  带「遗址」的考古遗址行只与同带「遗址」行互为备选，双向硬闸——层级/
+  类别/时长同符也不放行；遗址主点无同带遗址候选则宁缺。
 - 同时长（SIMILAR DURATION）：游时 band 内（容差 max(45, 0.5×游时)，封顶
   120 分钟）；带外已知游时出局；无游时数据的候选仅垫底补位。主点无游
   时（band=None）不过滤。
@@ -74,7 +79,10 @@ LEVEL_BANDS: tuple[frozenset[int], ...] = (
 
 SHOW_LEVEL = "show"  # 演出主点的专项档（梯档 6）
 
-# 类别组（同类放宽用；层级与时长永不放宽）
+# 类别组（同类放宽用；层级与时长永不放宽）。博物馆/美术馆并入人文古迹
+# 组（2026-11-06 拍板「杜甫草堂的备选应该是武侯祠」实录：库类别不一致
+# ——杜甫草堂=museum、武侯祠=attraction，分组成墙会把经典人文对拆散）；
+# 精确类别在排序中仍优先于组。
 CATEGORY_GROUPS: dict[str, set[str]] = {
     "cultural": {
         "historic",
@@ -86,11 +94,18 @@ CATEGORY_GROUPS: dict[str, set[str]] = {
         "ancient_town",
         "attraction",
         "viewpoint",
+        "museum",
+        "gallery",
     },
-    "museum": {"museum", "gallery"},
     "nature": {"nature", "park", "garden"},
     "fun": {"theme_park", "zoo"},
 }
+
+# 遗址类隔离（2026-11-06 拍板「金沙不合适[作杜甫草堂的备选]」实录）：
+# 金沙遗址博物馆是考古遗址类，与园林祠庙故居类（杜甫草堂/武侯祠）不是
+# 一类东西——名称带「遗址」的行只与同带「遗址」的行互为备选，双向硬闸
+# （层级/类别/时长同符也不放行）。遗址主点若无同带遗址候选则宁缺。
+RUINS_MARK = "遗址"
 
 # 受控类别全集（poi_seed.CATEGORY_MAP 的目标值）：库行多已是受控值
 # （historic/museum/…），归一先直通再走 raw→受控映射
@@ -191,6 +206,8 @@ _CORE_TAILS = (
     "博物院",
     "纪念馆",
     "陈列馆",
+    "遗迹馆",
+    "遗址馆",
     "公园",
     "古镇",
     "古城",
@@ -259,14 +276,16 @@ def pick_alternatives(
     exclude_names: set[str] | None = None,
     exclude_pids: set[str] | None = None,
     near: GeoPoint | None = None,
+    main_name: str | None = None,
     limit: int = ALT_LIMIT,
 ) -> list[PlanAlternative]:
     """从同城候选池里按同级·同类·同时长挑备选（规则见模块头）。
 
     tier 收行程条目口径（选点梯子 1..11，plan_tier_to_pool 换算）；pool
     行 = PoiDetailStore.alternatives_pool 的 hit dict（带 `_tier`，hit_tier
-    口径）。返回 PlanAlternative：同档排前，缺档近档补位（|Δ档| 最近，
-    chip 亮备选自身档牌）；不足 limit 就少给。
+    口径）；main_name = 主点名（遗址类隔离闸用）。返回 PlanAlternative：
+    同档排前，缺档近档补位（|Δ档| 最近，chip 亮备选自身档牌）；不足
+    limit 就少给。
     """
     exclude_names = exclude_names or set()
     exclude_pids = exclude_pids or set()
@@ -278,10 +297,18 @@ def pick_alternatives(
     cur_group = _category_group(category)
     want_dur = duration_minutes if duration_minutes and duration_minutes > 0 else None
     band = _dur_band(want_dur)
+    main_is_ruins = RUINS_MARK in (main_name or "")
 
     def is_show_row(h: dict) -> bool:
         tags = {str(t).strip().lower() for t in (h.get("tags") or [])}
         return "show" in tags or _norm_cat(h.get("category")) == "entertainment"
+
+    def row_is_ruins(h: dict) -> bool:
+        # 遗址类判定：名称带「遗址」（金沙遗址博物馆）；广汉三星堆类名录
+        # 行名称无「遗址」二字，简介兜底（intro ≤60 字必提遗址）
+        return RUINS_MARK in (h.get("name") or "") or RUINS_MARK in (
+            h.get("intro") or ""
+        )
 
     def level_key(h: dict) -> tuple[int, int]:
         # (档惩罚, |Δ档|)：0=同档 1=同带近档 2=跨带；演出主点全档同列
@@ -310,6 +337,9 @@ def pick_alternatives(
             return is_show_row(h)
         if is_show_row(h) or _looks_show_name(name):
             return False  # 演出/场馆行不是观光点的备选（含类别缺失行）
+        # 遗址类隔离（双向硬闸）：遗址主点只换遗址，非遗址主点不换遗址
+        if row_is_ruins(h) != main_is_ruins:
+            return False
         return True
 
     def cat_key(h: dict) -> int:
@@ -454,6 +484,7 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
                 exclude_names=exclude_names | used_names,
                 exclude_pids=exclude_pids,
                 near=v.location,
+                main_name=v.name,
             )
         except Exception:
             alts = []
