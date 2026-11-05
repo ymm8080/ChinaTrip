@@ -33,7 +33,7 @@ WYG = GeoPoint(lon=108.9012, lat=34.2953)  # 汉长安城未央宫
 
 
 def _stale_day2() -> DayPlan:
-    """事故形态复刻：午餐 12:00-13:30 后三点背靠背 13:30/15:00/16:30。"""
+    """事故形态复刻：午餐 12:00-13:30 后三点背靠背 13:30/15:00/15:45。"""
     items = [
         VisitItem(
             item_id="v1",
@@ -74,11 +74,12 @@ def _stale_day2() -> DayPlan:
             city="西安",
             day=2,
             category="attraction",
-            # 75 分钟轻点：11-04 大点闸 15:30 后，90 分钟大点在 15:40 挪后
-            # 落位越闸——自愈机制测试改用轻点保持原语义。
-            duration_minutes=75,
+            # 45 分钟轻点：11-05 结束闸下自愈挪后落位 15:40-16:25 须仍
+            # 合法；60+ 分钟在该槽位越 16:30 闸 → 兜底回填午餐前空档、
+            # 连锁丢餐，测不了自愈语义。
+            duration_minutes=45,
             start_time=_t(15, 0),
-            end_time=_t(16, 30),
+            end_time=_t(15, 45),
             location=XQ,
         ),
         VisitItem(
@@ -124,7 +125,9 @@ def test_heal_repairs_stale_zero_gap_chain():
     v1 = next(v for v in day.items if v.item_id == "v1")
     lunch = next(v for v in day.items if v.category == "food")
     assert (v1.start_time, v1.end_time) == (_t(9, 0), _t(11, 0)), "违规点之前的好排不动"
-    assert lunch.start_time == _t(12, 0), "餐（贴点拍板语义）不动"
+    assert lunch.start_time is not None and _t(11, 30) <= lunch.start_time < _t(
+        13, 30
+    ), "餐保底（11-03 硬窗内贴点；兜底重排可贴点平移，不得消失）"
     for a, b in _sight_pairs(day):
         if a.start_time is None or b.start_time is None:
             continue
@@ -341,6 +344,6 @@ def test_get_endpoint_heals_stale_session():
         assert gap >= 30, f"GET 返回仍背靠背：{a['name']}→{b['name']} gap={gap}"
     stored = store.get("s-heal", device_id="dev-1")
     wall = next(i for i in stored.plan.days[0].items if i.item_id == "v3")
-    assert wall.start_time != _t(15, 0) or wall.end_time != _t(16, 30), (
+    assert wall.start_time != _t(15, 0) or wall.end_time != _t(15, 45), (
         "修复须 store.save 持久化（下次打开不再触发）"
     )

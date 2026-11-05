@@ -176,8 +176,9 @@ def test_transfer_missing_end_time_is_filled():
         day=1,
         base_city="北京",
         # 城市侧闸（2026-11-02）：转场日 16:00 的条目须是到达城（上海）；
-        # 出发城条目不得排在离城交通之后。
-        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海")],
+        # 出发城条目不得排在离城交通之后。30 分钟点 16:00-16:30 收尾
+        # 在 11-05 结束闸内（60 分钟点 16:00-17:00 已是被废除的形态）。
+        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海", dur=30)],
     )
     hours = [PoiHours(poi_id="p_afternoon", opens=time(16, 0), closes=time(18, 0))]
 
@@ -187,7 +188,7 @@ def test_transfer_missing_end_time_is_filled():
     out_transfer = next(i for i in solved.items if i.item_id == "t1")
     assert out_transfer.end_time == time(11, 0)
     visit = next(i for i in solved.items if i.item_id == "v")
-    assert (visit.start_time, visit.end_time) == (time(16, 0), time(17, 0))
+    assert (visit.start_time, visit.end_time) == (time(16, 0), time(16, 30))
 
 
 def test_same_city_transfer_leg_does_not_gate():
@@ -596,14 +597,14 @@ def test_food_dinner_uncapped_while_scenic_capped():
     assert dinner.start_time >= time(17, 0)
 
 
-def test_late_open_venue_capped_gate_boundary_placeable():
-    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）：
-    2026-11-03「最晚 16:30 开场」口径下 16:30 整点开场合法（闸含端点），
-    solver 直排 16:30-17:45——旧「最晚 16:30 结束」口径的整日降级 +
-    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。75 分钟轻点：
-    11-04 大点（>80min）闸加严 15:30 后，16:30 边界开场只对轻点合法。"""
+def test_late_open_venue_end_gate_boundary_not_placeable():
+    """2026-11-05 终裁（武侯祠 15:23+90=16:53 判违规）：闸=结束闸，
+    观光占用须 16:30 前收尾——晨满（09:00-16:30 固定件）后 75 分钟
+    轻点唯一档 16:30-17:45 越闸 → 整日降级（「16:30 整点开场合法」的
+    11-03 开场口径废除）；固定件收尾腾到 14:30 时，15:00-16:15 照常
+    可排（同一闸内的对照锚）。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
-    day = DayPlan(
+    day_blocked = DayPlan(
         day=1,
         base_city="西安",
         items=[
@@ -617,9 +618,25 @@ def test_late_open_venue_capped_gate_boundary_placeable():
             _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
         ],
     )
+    assert solve_day(day_blocked, poi_hours=hours) is None
 
-    solved = solve_day(day, poi_hours=hours)
-
-    assert solved is not None  # 16:30 整点开场在闸内
+    day_free = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=330,
+                pinned=True,
+                start_time=time(9, 0),
+            ),  # 09:00-14:30
+            _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
+        ],
+    )
+    solved = solve_day(day_free, poi_hours=hours)
+    assert solved is not None
     v = next(i for i in solved.items if i.item_id == "v_late")
-    assert _minutes(v.start_time) == 16 * 60 + 30
+    # 固定件 14:30 收尾后紧接可排（CP 实选 14:30 背靠背），收尾必须在闸内
+    assert v.start_time >= time(14, 30)
+    assert v.end_time is not None and v.end_time <= time(16, 30)

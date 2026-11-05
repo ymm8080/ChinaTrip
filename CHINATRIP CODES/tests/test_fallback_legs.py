@@ -170,7 +170,11 @@ def test_fallback_chains_travel_between_sequenced_sights():
     )
     _fallback_sequence_times(plan)
     placed = [s for s in sights if s.start_time is not None]
-    assert len(placed) >= 3, "前三点（日始+午后+临潼）应可落位"
+    # 11-05 结束闸：4 点 330min+腿 在 09:00-16:30 装不下 3 件以上
+    # （兵马俑/华清宫 90min 场地板 15:00，午窗后第三点必越闸）——
+    # 临潼两点成链即可验证腿链不变式，装不下的留空披露（docstring
+    # 口径「留空披露而非硬排」）。
+    assert len(placed) >= 2, "临潼两点（华清宫+兵马俑）应可落位"
     # 11-04 大点先排：兜底排序后时刻序≠列表序，腿链断言按时间序走
     # （不变式是「相邻时刻不背靠背零车程」，不是列表序）。
     placed.sort(key=lambda s: (s.start_time.hour, s.start_time.minute))

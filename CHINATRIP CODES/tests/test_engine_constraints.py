@@ -213,7 +213,11 @@ def test_eval_lunch_placeholder_rides_lunch_window():
     lo, hi = MEAL_WINDOWS["lunch"]
     # 2026-11-01 拍板「午饭不钉死」：系统软锚替代铁律 19 钉
     assert not foods[0].pinned and foods[0].soft_pin
-    assert foods[0].start_time and lo <= foods[0].start_time < hi
+    # 开餐硬窗（2026-11-03 拍板 [11:30,12:30]，兜底 v2.3 贴点落位）：
+    # 12:00 锚被观光占住时贴窗早段 11:30 开餐合法——MEAL_WINDOWS 是
+    # 餐厅搜索窗（12:00 起），别拿它当排期窗断言。
+    assert foods[0].start_time and dtime(11, 30) <= foods[0].start_time < dtime(12, 30)
+    assert lo <= dtime(12, 0) < hi  # 搜索窗锚 12:00 仍在午餐搜索窗内（护栏）
 
 
 def test_eval_best_visit_time_window_honored_end_to_end():

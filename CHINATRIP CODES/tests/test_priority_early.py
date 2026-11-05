@@ -205,10 +205,13 @@ def _lns_plan() -> ItineraryPlan:
         end_time=time(12, 0),
         duration_minutes=180,
     )
-    # 600 分钟巨点：day2 空窗（12:30 后 540'）与 day3（占日点后）都装
-    # 不下——唯一「解法」是把定时王牌腾去 day3 上午给巨点让位。
+    # 390 分钟巨点（11-05 结束闸下日容 ≤450：600min 永无解、让位机制
+    # 失去意义；390 = 王牌占 day2 上午时午后空窗 12:00-16:30 装不下、
+    # 王牌走后全天 09:00-15:00 恰可）：唯一「解法」是把定时王牌腾去
+    # day3 上午给巨点让位。占日点 pinned（铁律 19）豁免结束闸——
+    # unpinned 12:30-21:30 在 CP 里越闸不可行，resched 会拒绝挪王牌。
     u = VisitItem(
-        item_id="v3", name="未排巨点", city="西安", day=2, duration_minutes=600
+        item_id="v3", name="未排巨点", city="西安", day=2, duration_minutes=390
     )
     w = VisitItem(
         item_id="v4",
@@ -218,6 +221,7 @@ def _lns_plan() -> ItineraryPlan:
         start_time=time(12, 30),
         end_time=time(21, 30),
         duration_minutes=540,
+        pinned=True,
     )
     return ItineraryPlan(
         itinerary_id="p",

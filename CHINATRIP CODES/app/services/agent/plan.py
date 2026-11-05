@@ -3246,7 +3246,7 @@ def _rescue_premium_stranded(
                 f"同天「{eject.name}」为名录王牌让位",
                 f'"{visit.name}" could not fit after landing on day '
                 f"{day_idx + 1} (closing hours); moved to day "
-                f"{target.day} — \"{eject.name}\" yielded its slot "
+                f'{target.day} — "{eject.name}" yielded its slot '
                 "for this top-tier sight",
             )
         )
@@ -6053,11 +6053,10 @@ class PlanningAgent:
                     (city or "").removesuffix("市"), (1, session.days)
                 )
                 transfer_days.add(clo)
-            _closure = (
-                len(_dests) > 1
-                and _norm_city(_dests[-1]) == _norm_city(session.cities[0])
+            _closure = len(_dests) > 1 and _norm_city(_dests[-1]) == _norm_city(
+                session.cities[0]
             )
-            for city in (_dests[:-1] if _closure else _dests):
+            for city in _dests[:-1] if _closure else _dests:
                 clo, _chi = ranges.get(
                     (city or "").removesuffix("市"), (1, session.days)
                 )
@@ -9761,6 +9760,12 @@ class PlanningAgent:
         钉/必去 protect（铁律 19）不动。"""
         if not _has_untimed_visits(plan):
             return plan
+        # 必去让位后置闸（2026-11-05 成渝案 d3df5a8/it-32765684 Day2）：
+        # solve 前的前置清算探针平凡成功（当时全员未排）零改动，solve/兜底
+        # 把凑数点排上时刻（金沙 09:00/宽窄 12:00/武侯祠 15:23）后房间被
+        # 吃掉，钉住必去熊猫基地 180min 垫到日尾无时刻交付。终闸先清场
+        # （挤掉留痕披露），再走重解/兜底给必去落时刻。
+        plan.assumptions.extend(_must_visit_room_sweep(plan))
         resolved = self._solve(plan, meal_flex=True)
         if resolved is not None:
             resolved.assumptions = plan.assumptions
@@ -10199,6 +10204,23 @@ class PlanningAgent:
         def _city(day_plan) -> str:
             return str(day_plan.base_city or "").removesuffix("市")
 
+        def _day_hosts(day_plan, city: str) -> bool:
+            """条目城市宿主闸（与 _host_day_for_visit 资格判定同口径）：
+            目标天 base 同城，或当天有抵达该城的转场腿（到达日晚场）。
+            城市缺信号不拦（宁不加码不可错拦）。2026-11-05 结束闸收紧
+            day 容量后暴露：苏州点落杭州基地的到达日后，LNS「天与天
+            同城」旧闸放行其再挪纯杭州日——城窗语义被穿。"""
+            c = str(city or "").strip().removesuffix("市")
+            if not c:
+                return True
+            if str(day_plan.base_city or "").strip().removesuffix("市") == c:
+                return True
+            return any(
+                isinstance(t3, TransferItem)
+                and str(t3.to_city or "").strip().removesuffix("市") == c
+                for t3 in day_plan.items
+            )
+
         def _find(p, item_id):
             for d in p.days:
                 for i in d.items:
@@ -10211,8 +10233,8 @@ class PlanningAgent:
             dst = next((d for d in p.days if d.day == target_day), None)
             if item is None or dst is None or src is dst:
                 return None
-            if _city(src) != _city(dst):
-                return None
+            if not _day_hosts(dst, item.city):
+                return None  # 条目城市宿主闸（2026-11-05 城窗收口）
             if (
                 sum(
                     isinstance(i2, VisitItem)
@@ -10236,8 +10258,8 @@ class PlanningAgent:
             db, b = _find(p, id_b)
             if a is None or b is None or da is db:
                 return None
-            if _city(da) != _city(db):
-                return None
+            if not (_day_hosts(db, a.city) and _day_hosts(da, b.city)):
+                return None  # 条目城市宿主闸（2026-11-05 城窗收口）
             if _far_conflict_items(da.items, b.location) or _far_conflict_items(
                 db.items, a.location
             ):
@@ -10278,6 +10300,8 @@ class PlanningAgent:
             ):
                 landed = False
                 for d in targets:
+                    if not _day_hosts(d, i.city):
+                        continue  # 条目城市宿主闸（2026-11-05 城窗收口）
                     if (
                         sum(
                             isinstance(i2, VisitItem)

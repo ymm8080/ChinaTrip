@@ -475,7 +475,9 @@ def test_fallback_delays_system_lunch_but_not_user_pinned():
     _fallback_sequence_times(hard_plan)
     h = {i.item_id: i.start_time for i in hard_day.items}
     assert h["lunch-1"] == time(12, 0)  # 用户钉不动
-    assert h["big"] == time(13, 0)  # 大点让到下午
+    # 11-05 结束闸：240 分钟大点最晚 12:30 开场，与 12:00 用户钉午餐
+    # 不可共存 → 无档留空披露（旧「让到下午 13:00-17:00」占用是废除形态）
+    assert h["big"] is None
 
 
 # ---------- 6) 预算=偏好 + 跨天借调（2026-11-01 拍板） ----------
