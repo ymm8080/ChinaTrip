@@ -3337,10 +3337,17 @@ def _yield_for_premium(
             key=lambda e: (_tier(e.name), e.name),
         )
         later.items.remove(eject)
-        # 宿主池排除搁浅原日——除非弹座正是出自原日（自家日弹座后
-        # 原日回宿是让位本意；否则「原日回宿」是无谓弹座的空转救援）
+        # 宿主池两闸：只认 base 同城日（到达日「结构可容、终排必死」
+        # ——容量闸不识营业窗，落地 14:30 起 180min 名点 17:30 收
+        # >17:00 闭馆实录）；排除搁浅原日——除非弹座正是出自原日
+        # （自家日弹座后原日回宿是让位本意，否则是无谓弹座的空转）
         target = _host_day_for_visit(
-            [d for d in pool if d is not origin or d is later],
+            [
+                d
+                for d in pool
+                if (d is not origin or d is later)
+                and str(d.base_city or "").strip().removesuffix("市") == vcity
+            ],
             vcity,
             dur,
             incoming=visit.location,
@@ -3368,7 +3375,17 @@ def _yield_for_premium(
         edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
         ecity = str(eject.city or "").strip().removesuffix("市")
         etarget = (
-            _host_day_for_visit(plan.days, ecity, edur, incoming=eject.location)
+            _host_day_for_visit(
+                [
+                    d
+                    for d in plan.days
+                    if d is not later
+                    and str(d.base_city or "").strip().removesuffix("市") == ecity
+                ],
+                ecity,
+                edur,
+                incoming=eject.location,
+            )
             if ecity
             else None
         )
