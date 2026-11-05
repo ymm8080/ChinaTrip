@@ -439,6 +439,39 @@ def test_attach_none_store_returns_copy():
     assert out is not plan
 
 
+def test_attach_heals_tier_from_store_row():
+    # 2026-11-06 前换入的行不带 tier（replace_item 漏设）→ 读路径按
+    # poi_id 回库以 _source_tier 同口径自愈，同档备选不再落 t10 杂馆
+    class HealingStore(FakeStore):
+        def get(self, source_poi_id: str) -> dict | None:
+            if source_poi_id == "curated_dufu":
+                return {
+                    "source": "curated",
+                    "tags": ["curated", "intl"],
+                    "name": "杜甫草堂",
+                }
+            return None
+
+    store = HealingStore([hit("武侯祠", 2, category="attraction", duration=90)])
+    plan = plan_of(
+        visit(
+            "杜甫草堂",
+            tier=None,  # 历史换点行：档号丢失
+            category="museum",
+            duration=120,
+            item_id="v1",
+        )
+    )
+    # poi_id 关联库行
+    plan.days[0].items[0].poi_id = "curated_dufu"
+    out = attach_plan_alternatives(plan, store)
+    v = next(i for d in out.days for i in d.items if isinstance(i, VisitItem))
+    assert v.tier == 3  # curated → 选点梯子档 3（_source_tier 口径）
+    assert [a.name for a in v.alternatives] == ["武侯祠"]
+    # 本体 tier 仍不动（只治展示拷贝）
+    assert plan.days[0].items[0].tier is None
+
+
 @pytest.mark.parametrize(
     "tier_a,tier_b,same",
     [(0, 0, True), (1, 1, True), (4, 5, True), (0, 1, False), (2, 3, False)],

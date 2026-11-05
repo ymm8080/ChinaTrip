@@ -12217,6 +12217,9 @@ class PlanningAgent:
             booking_url=cand.get("booking_url"),
             reservation_hint=_reservation_hint(new_name, cand),
             rain_ok=cand.get("rain_ok"),
+            # 名录档随候选行走（2026-11-06 备选实录：换入行不带档会被当
+            # 未分层，同级备选全落 t10 杂馆——装配期 _source_tier 同口径）
+            tier=(_source_tier(cand) if cand else None),
             day=old.day,
             duration_minutes=dur,
         )

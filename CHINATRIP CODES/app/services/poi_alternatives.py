@@ -435,11 +435,30 @@ def pick_alternatives(
     return out
 
 
+def _heal_tier(v: VisitItem, store: object) -> None:
+    """档号自愈（读路径，只动展示拷贝）：换点端点 2026-11-06 前换入的行
+    不带 tier（replace_item 漏设），历史会话按未分层处理会让同级备选全
+    落 t10 杂馆（杜甫草堂卡亮失落博物馆实录）——有 poi_id 的行回库按
+    _source_tier 同口径重算。失败静默保留原值。"""
+    if v.tier is not None or not v.poi_id:
+        return
+    try:
+        row = store.get(str(v.poi_id))  # type: ignore[attr-defined]
+        if not row:
+            return
+        from app.services.agent.plan import _source_tier
+
+        v.tier = _source_tier(row)
+    except Exception:
+        pass
+
+
 def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPlan:
     """深拷贝行程并给每个观光 VisitItem 挂同级备选（模块头规则）。
 
     - 只动拷贝：session.plan 本体/持久化会话不带展示数据；
     - 餐位（food，含 soft_pin 占位）与酒店卡不挂；
+    - tier=None 的行按 poi_id 回库自愈档号（历史换点会话）；
     - 每城只查一次候选池；全计划 used_names 去重（两张卡不亮同一备选）；
     - store 不可用/查池失败 → 该城备选静默留空，绝不上抛。
     """
@@ -454,6 +473,7 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
             cat = (it.category or "").strip()
             if cat in ("food", "hotel") or (it.soft_pin and cat == "food"):
                 continue
+            _heal_tier(it, store)
             visits.append(it)
     if not visits:
         return copy
