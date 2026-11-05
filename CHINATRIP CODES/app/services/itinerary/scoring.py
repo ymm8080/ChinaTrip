@@ -65,6 +65,12 @@ PEN_AFTERNOON_CROWD = 12  # 下午超点：每多一个 ≥13:00 开场的大点
 PEN_LATE_BIG = 12  # 大点后置：每个「大点开场晚于轻点」逆序对
 # （2026-11-04 拍板「先排大明宫，再排西安钟楼」，与 solver
 # BIG_FIRST_PENALTY 同口径同向——LNS 不把大点排到轻点之后）
+PEN_ARRIVAL_DAY_BIG = 12  # 到达日大点（2026-11-05 拍板「到达第一天
+# 不适合放大块头景点，只适合小景点或 CityWalk」）：到达侧腿（当天
+# 队尾还跟游览内容的转场腿）之后排入 >80min 大点每件计罚；返程
+# 压轴腿（腿在当天末尾）不算到达日；pinned 铁律 19/餐/酒店/演出/
+# tier8 街区豁免（同 _is_big_visit 豁免面）。与 edge_day_heavy 同向
+# 叠加——tier≤4 大点在到达日双罚，4A/3A 大点只吃本罚。
 
 
 def _is_big_visit(v: VisitItem) -> bool:
@@ -154,6 +160,7 @@ def plan_score(
     late_big = 0
     early_shows = 0
     edge_heavy = 0
+    arrival_big = 0
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
@@ -241,6 +248,14 @@ def plan_score(
                 and str(v.category or "") not in ("food", "hotel", "entertainment")
                 and str(v.best_visit_time or "") != "show"
             )
+        # 到达日大点（2026-11-05 拍板）：到达侧=后面还跟游览内容的转场
+        # 腿（day1 进城腿在队首、中段换城腿后接内容）；返程腿压轴的天
+        # 是离城日不算——大点落返程日不罚（离城日另有上午闸铁律 21）。
+        if any(
+            isinstance(i, TransferItem) and j < len(day.items) - 1
+            for j, i in enumerate(day.items)
+        ):
+            arrival_big += sum(1 for v in visits if _is_big_visit(v))
         if rainy:
             for v in visits:
                 rk = str(v.rain_ok or "")
@@ -323,6 +338,7 @@ def plan_score(
         "late_big": -PEN_LATE_BIG * late_big,
         "early_show": -PEN_EARLY_SHOW * early_shows,
         "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
+        "arrival_day_big": -PEN_ARRIVAL_DAY_BIG * arrival_big,
         "no_entertainment": (
             -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
         ),
@@ -343,6 +359,7 @@ def plan_score(
         "late_big": late_big,
         "early_show": early_shows,
         "edge_day_heavy": edge_heavy,
+        "arrival_day_big": arrival_big,
         "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }

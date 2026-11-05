@@ -392,6 +392,25 @@ def _source_tier(cand: dict) -> int:
     return 11
 
 
+def _cand_is_big(cand: dict) -> bool:
+    """大块头候选（2026-11-05 拍板「到达第一天不适合放大块头景点，
+    只适合小景点或 CityWalk」）：与 solver._is_big_site 同口径——
+    非演出/非餐酒娱/非街区 tier8，时长 >80min。候选读
+    suggested_duration_min、选点规格读 duration_minutes，两键都认；
+    pinned 必去不走选点池（铁律 19 天然豁免）。"""
+    if _cand_is_show(cand):
+        return False
+    if str(cand.get("category") or "") in ("food", "hotel", "entertainment"):
+        return False
+    if _source_tier(cand) == 8:
+        return False
+    minutes = cand.get("suggested_duration_min") or cand.get("duration_minutes")
+    try:
+        return int(minutes or 0) > BIG_SITE_MIN_MINUTES
+    except (TypeError, ValueError):
+        return False
+
+
 def _leg_date_iso(start_date: str | None, day: int) -> str:
     """行程日 → 绝对日期（ISO）：start_date + (day-1) 天。
 
@@ -5913,12 +5932,26 @@ class PlanningAgent:
         # 转场日（车票/机票时刻地点钉死）：到达日=各目的城市窗口首日，
         # 返程日=末日；这些天预算扣减（选点与必去合并同口径）。
         transfer_days: set[int] = set()
+        # 到达日（2026-11-05 拍板「到达第一天不适合放大块头景点，只适合
+        # 小景点或 CityWalk」）=各目的城市窗口首日；闭合行程尾部重复
+        # 出发城是返程非到达（同 prefetch 闭合口径），不入到达日。
+        arrival_days: set[int] = set()
         if len(session.cities) > 1:
-            for city in session.cities[1:]:
+            _dests = session.cities[1:]
+            for city in _dests:
                 clo, _chi = ranges.get(
                     (city or "").removesuffix("市"), (1, session.days)
                 )
                 transfer_days.add(clo)
+            _closure = (
+                len(_dests) > 1
+                and _norm_city(_dests[-1]) == _norm_city(session.cities[0])
+            )
+            for city in (_dests[:-1] if _closure else _dests):
+                clo, _chi = ranges.get(
+                    (city or "").removesuffix("市"), (1, session.days)
+                )
+                arrival_days.add(clo)
             transfer_days.add(session.days)
         select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
         type_asks: list[dict] = []
@@ -5943,6 +5976,7 @@ class PlanningAgent:
                 session.days,
                 ranges,
                 transfer_days,
+                arrival_days=arrival_days,
                 rain_days=rain_map,
                 night_rain_days=night_rain_map,
                 heavy_rain_days=heavy_rain_map,
@@ -6016,6 +6050,7 @@ class PlanningAgent:
             session.days,
             ranges,
             transfer_days=transfer_days,
+            arrival_days=arrival_days,
             rain_days=rain_map,
             origin_city=session.cities[0] if len(session.cities) > 1 else None,
             preferences=session.preferences,
@@ -7326,6 +7361,7 @@ class PlanningAgent:
         days: int,
         ranges: dict[str, tuple[int, int]],
         transfer_days: set[int] | None = None,
+        arrival_days: set[int] | None = None,
         rain_days: dict[str, set[int]] | None = None,
         night_rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
@@ -7813,6 +7849,11 @@ class PlanningAgent:
             day_owner: dict[int, int | None] = {}
             # 边日轻重分区（2026-11-03 拍板）与空天保底共用：转场日集
             _tdays = transfer_days or frozenset()
+            # 到达日轻量分区（2026-11-05 拍板「到达第一天不适合放大块
+            # 头景点，只适合小景点或 CityWalk」）：大块头候选（>80min
+            # 非街区）认领天序把到达日压到队尾——软偏好，eligible 全为
+            # 到达日（短程窗）不变形；返程末日不在到达日集，不受限。
+            _adays = arrival_days or frozenset()
             if _priority_early_enabled():
                 # 地理归属跟随（2026-11-02 拍板链「全部优先级都要
                 # 考虑」+「调剂要考虑地理位置最近」）：优先级池序
@@ -7876,6 +7917,10 @@ class PlanningAgent:
                             order = [d for d in order if d in _tdays] + [
                                 d for d in order if d not in _tdays
                             ]
+                    if _adays and len(eligible) > 1 and _cand_is_big(cand):
+                        order = [d for d in order if d not in _adays] + [
+                            d for d in order if d in _adays
+                        ]
                     for day in order:
                         load = day_loads[day]
                         leg = _leg_min(xy, day)
@@ -7976,6 +8021,23 @@ class PlanningAgent:
                         d
                         for d in range(lo, hi + 1)
                         if d not in _tdays
+                        and not _rain_blocked(cand, d)
+                        and day_loads[d][1] < 4
+                        and day_loads[d][0] + minutes + _leg_min(xy, d) <= _budget(d)
+                    ]
+                    if _alt:
+                        day = min(
+                            _alt, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
+                        )
+                # 到达日大点让位（2026-11-05 拍板）：主环未预占的大块头
+                # 落上到达日且有非到达日装得下时让位——与预占位分区同
+                # 口径；4A/3A 大点（非 tier≤4）也走这层（边日轻重不管
+                # 非重磅大点，到达日轻量管）。
+                if _adays and day in _adays and _cand_is_big(cand):
+                    _alt = [
+                        d
+                        for d in range(lo, hi + 1)
+                        if d not in _adays
                         and not _rain_blocked(cand, d)
                         and day_loads[d][1] < 4
                         and day_loads[d][0] + minutes + _leg_min(xy, d) <= _budget(d)
@@ -8409,6 +8471,7 @@ class PlanningAgent:
         ranges: dict[str, tuple[int, int]],
         *,
         transfer_days: set[int] | None = None,
+        arrival_days: set[int] | None = None,
         rain_days: dict[str, set[int]] | None = None,
         origin_city: str | None = None,
         preferences: str = "",
@@ -8428,6 +8491,8 @@ class PlanningAgent:
            腿优先。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
         transfer_days = transfer_days or set()
+        # 到达日轻量（2026-11-05 拍板）：回填/分流不把大块头塞进到达日
+        _adays = arrival_days or set()
         # 偏好优先于默认封顶（2026-11-03 拍板「喜欢某个类型则可以有很多」）：
         # 回填同口径豁免偏好命中候选
         ptoks, pshow = _preference_tokens(preferences)
@@ -8530,9 +8595,11 @@ class PlanningAgent:
                         return p
             return None
 
-        def _pair_choice_sort(anchor: tuple[float, float] | None):
+        def _pair_choice_sort(anchor: tuple[float, float] | None, d: int):
             # 有大点锚的天：近旁街区候选（tier8 ≤6km）提到队首——「一个
             # 大点 + 近距离 CityWalk」的日形；无锚/无近旁街区退回 tier 序。
+            # 到达日（2026-11-05 拍板）：大块头候选压到小景点之后——到达
+            # 日只收轻内容（软排序不失手：全是大块头时照补）。
             def _key(p: tuple[int, dict]):
                 tier = _source_tier(p[1])
                 near_street = False
@@ -8546,7 +8613,8 @@ class PlanningAgent:
                         <= 6.0
                     ):
                         near_street = True
-                return (0 if near_street else 1, tier, p[0])
+                big_edge = 1 if (d in _adays and _cand_is_big(p[1])) else 0
+                return (0 if near_street else 1, big_edge, tier, p[0])
 
             return _key
 
@@ -8602,7 +8670,7 @@ class PlanningAgent:
                 guard += 1
                 choice = None
                 for idx, cand in sorted(
-                    by_city[city], key=_pair_choice_sort(_day_big_xy(d))
+                    by_city[city], key=_pair_choice_sort(_day_big_xy(d), d)
                 ):
                     name = cand.get("name") or ""
                     if not name or cand.get("location") is None:
@@ -8696,6 +8764,12 @@ class PlanningAgent:
                 ]
                 if not targets:
                     continue
+                # 到达日不让大块头进来（2026-11-05 拍板）：大块头分流时
+                # 有非到达日可去就不落到达日（软偏好，全为到达日照搬）。
+                if _cand_is_big(spec):
+                    _non_arr = [t for t in targets if t not in _adays]
+                    if _non_arr:
+                        targets = _non_arr
                 tgt = min(targets, key=lambda t: (_leg_min(xy, t), day_load[t], t))
                 day_specs[d].remove(spec)
                 picked.remove(spec)
