@@ -3779,13 +3779,16 @@ def _fallback_sequence_times(
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
         # 兜底排序（2026-11-04 拍板「必去点/大点先排」的降级镜像）：
-        # 钉住未排必去最先、大点先于轻点——类内保持列表原序（稳定排序），
-        # 游标贪心不再让街区轻点抢占下午头档、把大点顶到日尾。
+        # 钉住未排必去最先、大点先于轻点、大点类内时长降序——2026-11-05
+        # 成渝案：类内纯列表序让 180min 青城山排在 120min 金沙/90min 宽窄
+        # 之后，前两点吃完下午窗，大点 16:30 起 17:00 闭馆必死；最长先排
+        # 是经典最小化碎片启发式，大点吃头档、轻点回填日尾。
         if not keep_list_order:
             untimed.sort(
                 key=lambda v: (
                     0 if v.pinned else 1,
                     0 if _is_big_site(v) else 1,
+                    -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
             )
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
