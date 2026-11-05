@@ -3284,6 +3284,111 @@ def _rescue_premium_stranded(
     return False
 
 
+# 让位权档顶=图商名点档；4A/其他杂点不享——档序口径同追回池/品类闸
+_YIELD_MAX_TIER = 8
+
+
+def _yield_for_premium(
+    plan: ItineraryPlan,
+    pool: list[DayPlan],
+    visit: "VisitItem",
+    tier_by_name: dict[str, int] | None,
+    protect: frozenset[str] | set[str],
+    notes: list,
+) -> DayPlan | None:
+    """无时刻清算的名点让位救援（2026-11-05 成渝案三段收口）。
+
+    软预算闸把大点堆进同一天、solver 降级后兜底排序排不出时刻，
+    挪日扫尾又把无时刻王牌挪进到达日再被「下午单大点」跳过——
+    最终 _drop_untimed_visits 整卡删除（青城山—都江堰/洪崖洞实录）。
+    本函数在挪不动时从池内同城日弹出档位严格更低（tier 数更大）
+    的非钉参访腾座：王牌清时刻挪入；被弹者再找宿主天，找不到按
+    原口径移除留痕。tier≤8（图商名点档）享此权——李子坝(chinatravel)
+    级杂点为洪崖洞让位是设计内牺牲，与追回池/品类闸同一档序口径。
+    返回宿主天； None=池内无可让之座（调用方照旧清算）。"""
+
+    def _tier(name: str | None) -> int:
+        return (tier_by_name or {}).get(str(name or ""), 11)
+
+    vt = _tier(visit.name)
+    if vt > _YIELD_MAX_TIER:
+        return None
+    vcity = str(visit.city or "").strip().removesuffix("市")
+    if not vcity:
+        return None
+    dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+    for later in pool:
+        if str(later.base_city or "").strip().removesuffix("市") != vcity:
+            continue
+        ejects = [
+            i
+            for i in later.items
+            if isinstance(i, VisitItem)
+            and not i.pinned
+            and i.name not in protect
+            and (i.category or "") not in ("food", "hotel")
+            and _tier(i.name) > vt
+        ]
+        if not ejects:
+            continue
+        eject = max(
+            ejects,
+            key=lambda e: (_tier(e.name), e.name),
+        )
+        later.items.remove(eject)
+        target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
+        if target is None:
+            later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
+            continue
+        for origin in plan.days:
+            if any(i is visit for i in origin.items):
+                origin.items.remove(visit)
+                break
+        visit.day = target.day
+        visit.start_time = None
+        visit.end_time = None
+        target.items.append(visit)
+        notes.append(
+            L(
+                f"「{visit.name}」排不下时刻，同天「{eject.name}」"
+                f"为名点让位，已挪至第{target.day}天重排",
+                f'"{visit.name}" could not be timed; "{eject.name}" '
+                f"yielded its slot and the sight moved to day "
+                f"{target.day} for re-timing",
+            )
+        )
+        edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
+        ecity = str(eject.city or "").strip().removesuffix("市")
+        etarget = (
+            _host_day_for_visit(plan.days, ecity, edur, incoming=eject.location)
+            if ecity
+            else None
+        )
+        if etarget is not None:
+            eject.day = etarget.day
+            eject.start_time = None
+            eject.end_time = None
+            etarget.items.append(eject)
+            notes.append(
+                L(
+                    f"「{eject.name}」已改排第{etarget.day}天",
+                    f'"{eject.name}" was re-scheduled to day {etarget.day}',
+                )
+            )
+        else:
+            notes.append(
+                L(
+                    f"「{eject.name}」为「{visit.name}」让位后无处可排，"
+                    "已从行程移除——要加回可指定其他天",
+                    f'"{eject.name}" had nowhere to go after yielding its '
+                    f'slot to "{visit.name}" and was removed — ask me to '
+                    "re-add it on another day",
+                )
+            )
+        return target
+    return None
+
+
 def _drop_untimed_from_day(
     day: DayPlan, protect: frozenset[str] | set[str] = frozenset()
 ) -> list[str]:
@@ -3342,14 +3447,17 @@ def drop_dangling_visits(plan: ItineraryPlan) -> list[str]:
 
 
 def _transfer_day_sweep(
-    plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
+    plan: ItineraryPlan,
+    protect: frozenset[str] | set[str] = frozenset(),
+    tier_by_name: dict[str, int] | None = None,
 ) -> list[str]:
     """转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：solve 与
     兜底顺序排都排不上时刻的转场日参访，不再以 None-None 卡滞留当天
     （卡面无安排 + rule 4「没有起止时间」报错）——到达城条目挪同城
     更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
-    与挪日修复一致），挪不动移除留痕；pinned 与 protect（必去/心愿
-    名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
+    与挪日修复一致），挪不动先试名点让位（_yield_for_premium，
+    2026-11-05 青城山/洪崖洞案）再移除留痕；pinned 与 protect（必去/
+    心愿名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
     长江索道 pinned=False（钉在 solve 之后才打），清算当杂卡删空。
     挂在初次排程/编辑路径的兜底之后跑。"""
     notes: list[str] = []
@@ -3398,6 +3506,12 @@ def _transfer_day_sweep(
                     )
                 )
             elif target is None:
+                rescued = _yield_for_premium(
+                    plan, pool, visit, tier_by_name, protect, notes
+                )
+                if rescued is not None:
+                    handled.add(visit.item_id)
+                    continue
                 day.items.remove(visit)
                 notes.append(
                     L(
@@ -3434,14 +3548,18 @@ def _transfer_day_sweep(
 
 
 def _rehome_untimed_visits(
-    plan: ItineraryPlan, protect: frozenset[str] | set[str] = frozenset()
+    plan: ItineraryPlan,
+    protect: frozenset[str] | set[str] = frozenset(),
+    tier_by_name: dict[str, int] | None = None,
 ) -> list[str]:
     """全日无时刻卡挪日扫尾（2026-11-04 成渝案四段）：转场日之外的
     无时刻参访此前只有终局清算一途——石刻被 CP 分钟口径（腿封顶
     180）与金佛山装进同一天，兜底排序排不出时刻直接蒸发，连披露都
     绕过（重解成功=静默少卡）。转场日扫同款 _host_day_for_visit 挪
-    日（容量口径 + 同日互远闸），挪后调用方重排时刻；挪不动返回
-    None 由清算披露，不再静默。pinned/protect（铁律 19）不挪。"""
+    日（容量口径 + 同日互远闸），挪后调用方重排时刻；挪不动先试
+    名点让位（_yield_for_premium，2026-11-05 青城山案：挪进到达日
+    被「下午单大点」跳过再遭清算的死亡连环），仍不行交清算披露，
+    不再静默。pinned/protect（铁律 19）不挪。"""
     notes: list[str] = []
     handled: set[str] = set()
     for day in plan.days:
@@ -3473,6 +3591,12 @@ def _rehome_untimed_visits(
                         f"moved to day {target.day} for re-timing",
                     )
                 )
+            elif tier_by_name:
+                rescued = _yield_for_premium(
+                    plan, pool, visit, tier_by_name, protect, notes
+                )
+                if rescued is not None:
+                    handled.add(visit.item_id)
     return notes
 
 
@@ -9526,14 +9650,8 @@ class PlanningAgent:
         # 必取名册提前备好：solve 之后的钉位（:7946 一带）之前，转场清算
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
         must_names = {spec["name"] for spec in picked if spec.get("must")}
-        plan.assumptions.extend(
-            _reconcile_transfer_days(
-                plan,
-                tier_by_name={
-                    name: _source_tier(c) for name, c in cand_by_name.items()
-                },
-            )
-        )
+        tier_map = {name: _source_tier(c) for name, c in cand_by_name.items()}
+        plan.assumptions.extend(_reconcile_transfer_days(plan, tier_by_name=tier_map))
         # 必去让位清算（2026-11-04 熊猫基地挂日尾事故）：solve 前给钉住
         # 未排必去清出整档——自动凑数条目让位留痕，solve 拿到的日窗即可
         # 行，不再出现「必去无时刻挂日尾、凑数点霸下午」的优先级倒挂。
@@ -9549,7 +9667,7 @@ class PlanningAgent:
             # 转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：兜底
             # 仍排不上时刻的转场日参访挪日/移除留痕，再兜底一次给挪过去的
             # 条目落时刻。
-            plan.assumptions.extend(_transfer_day_sweep(plan, must_names))
+            plan.assumptions.extend(_transfer_day_sweep(plan, must_names, tier_map))
             _fallback_sequence_times(plan)
             plan.assumptions.append(_solver_degraded_assumption())
         # 上午保底（2026-10-31 用户拍板「所有行程上午不许空」）：活动日
@@ -9734,10 +9852,10 @@ class PlanningAgent:
         # 条件下——普通日（傍晚场演出收尾、远郊公园 16:30 闸前排不进）
         # 留下的 None-None 卡同样不得交付（垫到 19:30 演出之后 + 腿标注
         # 画演出→公园 949 分钟腿）。只要有无时刻参访就走重解→移除留痕。
-        sweep_notes = _transfer_day_sweep(plan, must_names)
+        sweep_notes = _transfer_day_sweep(plan, must_names, tier_map)
         if sweep_notes:
             plan.assumptions.extend(sweep_notes)
-        plan = self._finalize_untimed_visits(plan, must_names)
+        plan = self._finalize_untimed_visits(plan, must_names, tier_map)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -9750,6 +9868,7 @@ class PlanningAgent:
         self,
         plan: ItineraryPlan,
         protect: frozenset[str] | set[str] = frozenset(),
+        tier_by_name: dict[str, int] | None = None,
     ) -> ItineraryPlan:
         """终闸：无时刻参访卡清算（2026-11-03 Day4 太平森林公园案）。
         旧版嵌在「转场日清算有产出」条件下才重解+移除——普通日 LNS
@@ -9777,7 +9896,7 @@ class PlanningAgent:
             # 挪日扫尾（2026-11-04 成渝案四段）：CP 分钟口径把互远大点
             # 装进同一天后重解也排不出时刻——清算前先试挪日（转场日
             # 扫同款容量口径 + 互远闸），挪后重排；仍排不下才清算留痕。
-            plan.assumptions.extend(_rehome_untimed_visits(plan, protect))
+            plan.assumptions.extend(_rehome_untimed_visits(plan, protect, tier_by_name))
             _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
