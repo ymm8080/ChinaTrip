@@ -269,3 +269,25 @@ def test_yield_gate_tier8_ejects_lower_prestige():
     d2_names = {i.name for i in plan.days[1].items}
     assert "洪崖洞" in d2_names
     assert any("让位" in n for n in notes)
+
+
+def test_rehome_yields_before_bouncing_to_arrival_day():
+    """E2E 案回放（2026-11-05 session ea3e8305）：王牌滞留第2天时纯
+    挪日会「结构上成功」挪进第1天到达日（容量闸不识营业窗——12:00
+    落地+180min 名点终排必死）。现口径名点先让位：同城日弹低档腾座，
+    王牌留在自家日，被弹者改排他日。"""
+    premium = _premium()
+    premium.day = 2
+    d1 = DayPlan(day=1, base_city="上海", items=[_arrival_leg()])
+    day2 = [
+        _timed(_visit("成都大熊猫繁育研究基地", 11, minutes=150, pinned=True), 8),
+        _timed(_visit("宽窄巷子", 8, minutes=90), 14),
+        premium,
+    ]
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it5", cities=["上海", "成都"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), dict(_T2))
+    assert premium.day == 2  # 不被挪进到达日
+    assert any("让位" in n for n in notes)

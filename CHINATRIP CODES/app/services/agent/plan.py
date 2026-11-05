@@ -3317,6 +3317,7 @@ def _yield_for_premium(
     if not vcity:
         return None
     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+    origin = next((d for d in pool if any(i is visit for i in d.items)), None)
     for later in pool:
         if str(later.base_city or "").strip().removesuffix("市") != vcity:
             continue
@@ -3336,7 +3337,14 @@ def _yield_for_premium(
             key=lambda e: (_tier(e.name), e.name),
         )
         later.items.remove(eject)
-        target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
+        # 宿主池排除搁浅原日——除非弹座正是出自原日（自家日弹座后
+        # 原日回宿是让位本意；否则「原日回宿」是无谓弹座的空转救援）
+        target = _host_day_for_visit(
+            [d for d in pool if d is not origin or d is later],
+            vcity,
+            dur,
+            incoming=visit.location,
+        )
         if target is None:
             later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
             continue
@@ -3455,8 +3463,9 @@ def _transfer_day_sweep(
     兜底顺序排都排不上时刻的转场日参访，不再以 None-None 卡滞留当天
     （卡面无安排 + rule 4「没有起止时间」报错）——到达城条目挪同城
     更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
-    与挪日修复一致），挪不动先试名点让位（_yield_for_premium，
-    2026-11-05 青城山/洪崖洞案）再移除留痕；pinned 与 protect（必去/
+    与挪日修复一致）；名点先让位再挪日（_yield_for_premium，
+    2026-11-05 青城山/洪崖洞案：纯挪日「结构成功」终排必死），让位
+    与挪日都不成才移除留痕；pinned 与 protect（必去/
     心愿名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
     长江索道 pinned=False（钉在 solve 之后才打），清算当杂卡删空。
     挂在初次排程/编辑路径的兜底之后跑。"""
@@ -3491,6 +3500,20 @@ def _transfer_day_sweep(
                 pool = list(reversed(plan.days[:idx]))
             else:
                 pool = list(plan.days)
+            # 名点先让位再挪日（口径同 _rehome_untimed_visits——纯挪日
+            # 把王牌挪进大点日是「结构成功、终排必死」；让位池含当天，
+            # 自家日弹低档腾座优先，让位不成再挪。）
+            rescued = _yield_for_premium(
+                plan,
+                [day, *[d for d in pool if d is not day]],
+                visit,
+                tier_by_name,
+                protect,
+                notes,
+            )
+            if rescued is not None:
+                handled.add(visit.item_id)
+                continue
             target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
             if target is not None and target is not day:
                 visit.day = target.day
@@ -3506,12 +3529,6 @@ def _transfer_day_sweep(
                     )
                 )
             elif target is None:
-                rescued = _yield_for_premium(
-                    plan, pool, visit, tier_by_name, protect, notes
-                )
-                if rescued is not None:
-                    handled.add(visit.item_id)
-                    continue
                 day.items.remove(visit)
                 notes.append(
                     L(
@@ -3555,13 +3572,19 @@ def _rehome_untimed_visits(
     """全日无时刻卡挪日扫尾（2026-11-04 成渝案四段）：转场日之外的
     无时刻参访此前只有终局清算一途——石刻被 CP 分钟口径（腿封顶
     180）与金佛山装进同一天，兜底排序排不出时刻直接蒸发，连披露都
-    绕过（重解成功=静默少卡）。转场日扫同款 _host_day_for_visit 挪
-    日（容量口径 + 同日互远闸），挪后调用方重排时刻；挪不动先试
-    名点让位（_yield_for_premium，2026-11-05 青城山案：挪进到达日
-    被「下午单大点」跳过再遭清算的死亡连环），仍不行交清算披露，
-    不再静默。pinned/protect（铁律 19）不挪。"""
+    绕过（重解成功=静默少卡）。名点三段（2026-11-05 E2E 案）：先在
+    同城日让位腾座（自家日优先——洪崖洞案同城日全是大点，自家日弹
+    低档是唯一活路）；让位不成再试同城空日纯挪（只认 base 同城日
+    ——纯挪日会「结构上成功」挪进到达日：容量闸不识营业窗，落地
+    14:30 起 180min 名点 17:30 收 >17:00 闭馆，青城山实录终排必死）；
+    再不成留给兜底重排/终闸清算披露。杂点维持纯挪日口径不变。
+    pinned/protect（铁律 19）不挪。"""
     notes: list[str] = []
     handled: set[str] = set()
+
+    def _bcity(d: DayPlan) -> str:
+        return str(d.base_city or "").strip().removesuffix("市")
+
     for day in plan.days:
         strays = [
             v
@@ -3577,6 +3600,35 @@ def _rehome_untimed_visits(
             vcity = str(visit.city or "").strip().removesuffix("市")
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
             pool = [d for d in plan.days if d is not day]
+            vt = (tier_by_name or {}).get(str(visit.name or ""), 11)
+            if vt <= _YIELD_MAX_TIER:
+                rescued = _yield_for_premium(
+                    plan, [day, *pool], visit, tier_by_name, protect, notes
+                )
+                if rescued is not None:
+                    handled.add(visit.item_id)
+                    continue
+                target = _host_day_for_visit(
+                    [d for d in pool if _bcity(d) == vcity],
+                    vcity,
+                    dur,
+                    incoming=visit.location,
+                )
+                if target is not None:
+                    visit.day = target.day
+                    day.items.remove(visit)
+                    target.items.append(visit)
+                    handled.add(visit.item_id)
+                    notes.append(
+                        L(
+                            f"「{visit.name}」在第{day.day}天排不下时刻，"
+                            f"已挪至第{target.day}天重排",
+                            f'"{visit.name}" could not be timed on day '
+                            f"{day.day}; moved to day {target.day} "
+                            "for re-timing",
+                        )
+                    )
+                continue
             target = _host_day_for_visit(pool, vcity, dur, incoming=visit.location)
             if target is not None:
                 visit.day = target.day
@@ -3591,12 +3643,6 @@ def _rehome_untimed_visits(
                         f"moved to day {target.day} for re-timing",
                     )
                 )
-            elif tier_by_name:
-                rescued = _yield_for_premium(
-                    plan, pool, visit, tier_by_name, protect, notes
-                )
-                if rescued is not None:
-                    handled.add(visit.item_id)
     return notes
 
 
