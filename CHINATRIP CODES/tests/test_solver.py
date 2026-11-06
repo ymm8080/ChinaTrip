@@ -426,26 +426,26 @@ def test_plan_poi_hours_parses_lunch_break_complement():
     assert ws == [(9 * 60, 12 * 60), (13 * 60 + 30, 17 * 60)]
 
 
-# --- S5 演出晚间档（show_booking_design §4，2026-10-26） ----------------------
+# --- 无场次演出按正常景点逻辑排（2026-11-06 拍板，废除旧 S5 §4 晚场默认）------
 
 
-def test_show_slot_starts_2010_and_may_pass_day_end():
-    """场演事件：20:10-20:45 开演域，可越常规日终 21:00（散场 21:30 后）。"""
+def test_show_without_sessions_schedules_like_normal_sight():
+    """无场次演出不再默认晚场：无营业窗、无场次串时按正常景点域排（日始起）。"""
     day = DayPlan(
         day=1,
         base_city="西安",
         items=[_visit("v_show", poi_id="p_all", dur=80, best_visit_time="show")],
     )
-    # 无营业时间条目（种子行未回源 hours 前的常态）→ 开演域 20:10-20:45
+    # 无营业时间条目、无场次串 → 不再钉 20:10，随日始 9 点正常排
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
     start = _minutes(solved.items[0].start_time)
-    assert 20 * 60 + 10 <= start <= 20 * 60 + 45
-    assert _minutes(solved.items[0].end_time) > 21 * 60  # 场演即当日收尾
+    assert start == 9 * 60
+    assert _minutes(solved.items[0].end_time) == start + 80
 
 
-def test_show_slot_with_show_hours_pinned_to_2010():
-    """带场演营业时间（19:00-21:30）时收窄为 20:10 整点开演、21:30 散场。"""
+def test_show_with_show_hours_starts_at_window_open():
+    """带场演营业时间（19:00-21:30）时落在窗内最早可行位：19:00 开场 20:20 散场。"""
     hours = [PoiHours(poi_id="p_show", opens=time(19, 0), closes=time(21, 30))]
     day = DayPlan(
         day=1,
@@ -454,12 +454,12 @@ def test_show_slot_with_show_hours_pinned_to_2010():
     )
     solved = solve_day(day, poi_hours=hours)
     assert solved is not None
-    assert _minutes(solved.items[0].start_time) == 20 * 60 + 10
-    assert _minutes(solved.items[0].end_time) == 21 * 60 + 30
+    assert _minutes(solved.items[0].start_time) == 19 * 60
+    assert _minutes(solved.items[0].end_time) == 20 * 60 + 20
 
 
-def test_show_slot_triggers_on_entertainment_category():
-    """库行 category=entertainment 同样进晚间档（import_shows 种子路径）。"""
+def test_entertainment_category_without_sessions_schedules_normally():
+    """库行 category=entertainment 无场次同样按正常景点逻辑（种子路径）。"""
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -467,7 +467,7 @@ def test_show_slot_triggers_on_entertainment_category():
     )
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    assert _minutes(solved.items[0].start_time) >= 20 * 60 + 10
+    assert _minutes(solved.items[0].start_time) == 9 * 60
 
 
 def test_show_and_daytime_visit_share_day_without_overlap():
@@ -489,7 +489,7 @@ def test_show_and_daytime_visit_share_day_without_overlap():
     show = next(i for i in solved.items if i.item_id == "v_show")
     dayt = next(i for i in solved.items if i.item_id == "v_day")
     assert _minutes(dayt.end_time) <= _minutes(show.start_time)
-    assert _minutes(show.start_time) == 20 * 60 + 10
+    assert _minutes(show.start_time) == 19 * 60  # 场演营业窗开门即排
 
 
 # --- 2026-10-30 走行分离（travel-aware arcs）+ 不可行回落 ---------------------

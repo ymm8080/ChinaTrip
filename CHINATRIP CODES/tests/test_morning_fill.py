@@ -223,7 +223,9 @@ def test_fallback_failure_does_not_poison_cursor():
     assert small.start_time is not None  # 不被前面失败顶飞
 
 
-def test_fallback_evening_show_never_morning():
+def test_fallback_sessionless_show_schedules_normally():
+    """无场次演出按正常景点排（2026-11-06 拍板，废除 17:00 晚场地板）：
+    无营业窗、无场次串 → 随游标正常落位，不再钉晚场。"""
     s = _visit("show", dur=80, best_visit_time="show", category="entertainment")
     day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
     plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
@@ -231,7 +233,8 @@ def test_fallback_evening_show_never_morning():
     _fallback_sequence_times(plan)
 
     assert s.start_time is not None
-    assert s.start_time.hour >= 17
+    assert s.start_time == time(9, 0)
+    assert s.end_time == time(10, 20)
 
 
 def test_fallback_session_show_lands_on_session():

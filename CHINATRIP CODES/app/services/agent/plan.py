@@ -4091,13 +4091,14 @@ def _fallback_sequence_times(
                 )
             )
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
-        # 顺序单调；排不下的项留空并由校验提示。2026-10-31 三处修正：
+        # 顺序单调；排不下的项留空并由校验提示。2026-10-31 修正：
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
         # 演出被前面 180 分钟失败顶到日终事故）；②带场次的演出只落场次
-        # 点（真值源=show_sessions 刷新管线）；③无场次信息的晚场演出
-        # 不进上午。2026-11-01 ④：best_visit 时段窗下限与 solver 同口
-        # 径（evening/sunset/afternoon 下探 17:00/16:00/12:00）——两江
-        # 夜游白天排事故，降级兜底不再把夜间点塞进上午。
+        # 点（真值源=show_sessions 刷新管线）。2026-11-01 ③：best_visit
+        # 时段窗下限与 solver 同口径（evening/sunset/afternoon 下探
+        # 17:00/16:00/12:00）——两江夜游白天排事故，降级兜底不再把夜间
+        # 点塞进上午。2026-11-06 ④拍板：无场次演出废除 17:00 晚场地板，
+        # 与 solver 同步按正常景点逻辑排（"show" 无时段窗 → 随游标）。
         # 离城日上午闸天（2026-11-03 拍板）对「上午一个点」让位：上午是
         # 当天唯一可排窗——填到正午闸为止，游标不跳 12 点（否则第二点起
         # 永远排不上→挪日/清算误伤）。
@@ -4147,38 +4148,37 @@ def _fallback_sequence_times(
                         placed_at = s
                         break
             else:
-                if _is_show_item(visit):
-                    t = max(cursor, 17 * 60)
-                else:
-                    # ④时段窗下限与 solver 同口径：evening 17:00 /
-                    # sunset 16:00 / afternoon 12:00（morning/sunrise 随
-                    # 日始 9 点，天然无下探）。
-                    wlo = _BEST_VISIT_WINDOWS.get(
-                        str(visit.best_visit_time or "").strip().lower()
-                    )
-                    t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
-                    if (
-                        _is_head_candidate(visit)
-                        and _is_big_site(visit)
-                        and morning_occupied
-                    ):
-                        # 必去/高排序大点下午头档（2026-11-04 熊猫基地挂日尾
-                        # 事故；2026-11-05 起候选面扩到 tier≤2 高排序——上
-                        # 午已被占时从正午起探，不在 11:30 半档开场杀掉午
-                        # 餐窗；上午头档由置换规则争取，见
-                        # _morning_head_displacement）。
-                        t = max(t, 12 * 60)
-                    # 到达城条目从落地地板起排（与 _host_day_for_visit
-                    # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
-                    # 卡在二值城市侧闸上（2026-11-03 离城日闸收口）。
-                    for tr, _ts, te in xfer_windows:
-                        if _city_side(visit, tr) == "after":
-                            pad = (
-                                ARRIVAL_STOP_FLOOR_MINUTES
-                                if tr.mode in ("train", "flight")
-                                else INTERCITY_BUFFER_MINUTES
-                            )
-                            t = max(t, te + pad)
+                # ④时段窗下限与 solver 同口径：evening 17:00 /
+                # sunset 16:00 / afternoon 12:00（morning/sunrise 随
+                # 日始 9 点，天然无下探）。无场次演出不再有 17:00 地板
+                # （2026-11-06 拍板：无场次按正常景点逻辑排，"show" 不在
+                # 时段窗表 → 随游标正常排）。
+                wlo = _BEST_VISIT_WINDOWS.get(
+                    str(visit.best_visit_time or "").strip().lower()
+                )
+                t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
+                if (
+                    _is_head_candidate(visit)
+                    and _is_big_site(visit)
+                    and morning_occupied
+                ):
+                    # 必去/高排序大点下午头档（2026-11-04 熊猫基地挂日尾
+                    # 事故；2026-11-05 起候选面扩到 tier≤2 高排序——上
+                    # 午已被占时从正午起探，不在 11:30 半档开场杀掉午
+                    # 餐窗；上午头档由置换规则争取，见
+                    # _morning_head_displacement）。
+                    t = max(t, 12 * 60)
+                # 到达城条目从落地地板起排（与 _host_day_for_visit
+                # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
+                # 卡在二值城市侧闸上（2026-11-03 离城日闸收口）。
+                for tr, _ts, te in xfer_windows:
+                    if _city_side(visit, tr) == "after":
+                        pad = (
+                            ARRIVAL_STOP_FLOOR_MINUTES
+                            if tr.mode in ("train", "flight")
+                            else INTERCITY_BUFFER_MINUTES
+                        )
+                        t = max(t, te + pad)
                 advanced = True
                 while advanced:
                     advanced = False

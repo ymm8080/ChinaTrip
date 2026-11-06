@@ -32,6 +32,7 @@ from app.services.itinerary.models import (
     TransferItem,
     VisitItem,
 )
+from app.services.itinerary.solver import show_session_starts
 
 DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
@@ -229,7 +230,9 @@ def plan_score(
         # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：
         # <15:00 开演的演出计软罚——与 solver 插入/CP 路早场罚同向，
         # LNS 不再把演出挪回早场。用户自钉且有时刻不计（铁律 19，
-        # 同 morning_crowd 豁免面）；无场次演出引擎默认晚场天然零罚。
+        # 同 morning_crowd 豁免面）。无场次演出不罚（2026-11-06 拍板：
+        # 无场次按正常景点逻辑排，不再默认晚场——与 solver
+        # _show_early_cost 的场次闸同口径）。
         early_shows += sum(
             1
             for v in visits
@@ -240,6 +243,7 @@ def plan_score(
                 str(v.category or "") == "entertainment"
                 or str(v.best_visit_time or "") == "show"
             )
+            and show_session_starts(v.opening_hours)
         )
         # 边日重磅（2026-11-03 拍板「重要景点不放在到达/离开日」）：带
         # 转场腿的天上出现 tier≤4 重磅点计软罚——LNS 跨天重排会把重磅

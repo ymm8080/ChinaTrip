@@ -55,11 +55,10 @@ _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
     "sunrise": (9 * 60, 10 * 60 + 30),  # 09:00-10:30 近似窗（随日始）
 }
 
-#: S5（show_booking_design §4，2026-10-26）：演出=晚间场演事件——
-#: 开演域 20:10-20:45（散场至 21:30 前后），允许越常规日终 21:00
-#: （场演即当日收尾事件，后续无排项）。触发：库行 best_visit_time="show"
-#: （import_shows 种子）或 category=entertainment。
-_SHOW_STARTS = (20 * 60 + 10, 20 * 60 + 45)
+#: 2026-11-06 拍板：无场次演出不再默认晚场（旧 S5 §4 曾把无场次演出
+#: 钉死 20:10-20:45 开演域，全天滚动型街区被硬套固定晚场默认）——
+#: 无场次演出按正常景点逻辑排（营业窗 + best_visit 晚场豁免闸不约束），
+#: 带真场次（约xx:xx 串）的演出仍走场次点窗通道。
 
 
 def _is_show(item: VisitItem) -> bool:
@@ -382,22 +381,19 @@ def _visit_spec(
     # 不约束（防御库脏数据）；food 类条目不带该字段（plan.py 走 pinned 餐
     # 窗），天然不受影响。
     # 2026-10-31：带真场次的演出按场次点开窗（下方 multi 通道承载），
-    # 不再吃 S5 晚场替换——白天多场演出不再被硬塞 20:10-20:45。
+    # 不再吃晚场替换——白天多场演出不再被硬塞固定晚窗。
     # pinned 演出仍走原域（铁律 19：用户钉的时间优先于场次表）。
     show_sessions = (
         show_session_starts(item.opening_hours)
         if _is_show(item) and not item.pinned
         else []
     )
-    if _is_show(item) and not show_sessions:
-        # S5 场演窗：直接替换默认域（不看 _BEST_VISIT_WINDOWS——其 hi 会
-        # 被 21:00 日终钳掉 20:10 开演）；营业时间窗仍照常再收紧。
-        lo, hi = _SHOW_STARTS
-    elif not _is_show(item):
-        best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
-        if best is not None:
-            lo = max(lo, best[0])
-            hi = min(hi, best[1] - dur)
+    # 无场次演出按正常景点逻辑（2026-11-06 拍板）：best_visit="show" 不
+    # 在 _BEST_VISIT_WINDOWS → 不加窗约束，营业窗/入场闸照常收口。
+    best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
+    if best is not None:
+        lo = max(lo, best[0])
+        hi = min(hi, best[1] - dur)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
     cap = generic_entry_cap(item, window)
     if cap is not None:
@@ -1070,11 +1066,15 @@ def insertion_schedule_day(
         return 0
 
     def _show_early_cost(t: int, item: VisitItem) -> int:
-        # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：早于
-        # 15:00 的场次计罚——晚场可行时不占上午（上午名额留给观光点）；
-        # 量纲同上午超点罚，压过单次插入走行差。pinned 演出走锚点通道，
-        # 不进本函数（铁律 19）；无场次演出域=20:10-20:45 恒零罚。
+        # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：带真场次
+        # 的演出早于 15:00 开场计罚——晚场可行时不占上午（上午名额留给
+        # 观光点）；量纲同上午超点罚，压过单次插入走行差。pinned 演出走
+        # 锚点通道不进本函数（铁律 19）。无场次演出按正常景点排（
+        # 2026-11-06 拍板），不吃晚场偏好罚——与 CP 路径 show_early_lits
+        # 的场次闸同口径。
         if t >= SHOW_LATE_SESSION_MINUTES or not _is_show(item):
+            return 0
+        if not show_session_starts(item.opening_hours):
             return 0
         return SHOW_EARLY_SESSION_PENALTY
 
