@@ -298,6 +298,9 @@
   .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
   .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
   .site-link{color:var(--accent);text-decoration:underline;cursor:pointer}
+  .site-pop{position:fixed;z-index:999;max-width:min(360px,86vw);max-height:300px;overflow:auto;
+    background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 6px 20px rgba(0,0,0,.22);padding:8px 10px;font-size:13px;line-height:1.55}
   .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
@@ -1670,7 +1673,7 @@ function planCard(plan) {
         } else { // 已保存行程回看：仅静态徽标
           tail = (it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
         }
-        const briefBits = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ""].filter(Boolean).join(" · ");
+        // 悬停简介走 .site-pop 浮层（本行下方 JS），不再挂原生 title（双 tooltip 重叠）
         const handle = (planSession && planSession.session_id && !it.pinned)
           ? '<span class="drag-handle" title="' + I18N.tf("card.drag.title","拖 ⠿ 排序 / 跨天") + '">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
@@ -1693,7 +1696,7 @@ function planCard(plan) {
               return '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" title="' + title + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + "</button>";
             }).join("") + "</span>"
           : "";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '" title="' + esc(briefBits || it.name + " · " + it.city) + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : (it.category === "hotel" ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
@@ -1795,6 +1798,7 @@ function planCard(plan) {
     }
     const link = ev.target.closest ? ev.target.closest('a.site-link') : null;
     if (link && box.contains(link)) {
+      sitePopHideNow();
       if (!document.getElementById("flow-plan")) return;
       const bits = [];
       if (link.getAttribute("data-addr")) bits.push(I18N.tf("brief.addr","📍 地址：") + link.getAttribute("data-addr"));
@@ -2011,6 +2015,85 @@ function enrichBrief(info, city, name) {
     if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
   }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
 }
+
+// 站点悬停简介浮层（2026-11-06）：光标停在站点名 350ms 弹 .site-pop——
+// /api/pois/detail 同端点、(city,name) 内存缓存（一次悬停一次请求），
+// EN 语境读 intro_en；移入浮层可继续读（250ms 宽限防抖），滚屏/改窗/
+// 点击站点名即关；点击仍开完整简介气泡，触屏无 hover 不受影响。
+// 404/未收录落「暂无」不报错；绝不影响原气泡与卡片渲染。
+const SITE_POP = { cache: new Map(), pop: null, showTimer: null, hideTimer: null };
+function sitePopHead(name, city) {
+  return "<b>" + esc(name) + "</b>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(city)) + I18N.tf("card.paren.suf","）");
+}
+function sitePopHideNow() {
+  clearTimeout(SITE_POP.showTimer); SITE_POP.showTimer = null;
+  clearTimeout(SITE_POP.hideTimer); SITE_POP.hideTimer = null;
+  if (SITE_POP.pop) { const p = SITE_POP.pop; SITE_POP.pop = null; p.remove(); }
+}
+function sitePopScheduleHide() {
+  clearTimeout(SITE_POP.showTimer); SITE_POP.showTimer = null;
+  clearTimeout(SITE_POP.hideTimer);
+  SITE_POP.hideTimer = setTimeout(() => {
+    if (SITE_POP.pop) { const p = SITE_POP.pop; SITE_POP.pop = null; p.remove(); }
+  }, 250);
+}
+async function sitePopShow(link) {
+  sitePopHideNow();
+  const city = link.getAttribute("data-city") || "", name = link.getAttribute("data-name") || "";
+  if (!name) return;
+  const pop = el('<div class="site-pop" role="tooltip">' + sitePopHead(name, city) + '<div class="muted" style="margin-top:2px">…</div></div>');
+  document.body.appendChild(pop);
+  pop._link = link;
+  SITE_POP.pop = pop;
+  const place = () => {
+    const r = link.getBoundingClientRect();
+    const x = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8));
+    let y = r.bottom + 6;
+    if (y + pop.offsetHeight > window.innerHeight - 8) y = Math.max(8, r.top - pop.offsetHeight - 6);
+    pop.style.left = x + "px"; pop.style.top = y + "px";
+  };
+  place();
+  pop.onmouseenter = () => clearTimeout(SITE_POP.hideTimer);
+  pop.onmouseleave = sitePopHideNow;
+  const key = city + "\n" + name;
+  if (!SITE_POP.cache.has(key)) {
+    let p = null;
+    try { p = await api("/api/pois/detail?city=" + encodeURIComponent(city) + "&name=" + encodeURIComponent(name), undefined, "GET"); }
+    catch (e) { p = null; }
+    SITE_POP.cache.set(key, p);
+  }
+  if (SITE_POP.pop !== pop) return; // 悬停目标已换：旧浮层早被 sitePopHideNow 收走
+  const p = SITE_POP.cache.get(key) || {};
+  const bits = [];
+  const intro = I18N.pick(p, "intro", "intro_en");
+  if (intro) bits.push("📖 " + esc(intro));
+  if (p.rating != null) bits.push("⭐ " + p.rating);
+  if (p.suggested_duration_min) bits.push("⏱ " + p.suggested_duration_min + I18N.t("card.minutes"));
+  if (p.address) bits.push(I18N.tf("brief.addr","📍 地址：") + esc(p.address));
+  if (p.opening_hours) bits.push(I18N.tf("brief.hours","🕐 开放时间：") + esc(p.opening_hours));
+  pop.innerHTML = sitePopHead(name, city) +
+    (bits.length ? '<div style="margin-top:2px">' + bits.join("<br>") + "</div>"
+                 : '<div class="muted" style="margin-top:2px">' + I18N.t("brief.none") + "</div>");
+  place();
+}
+document.addEventListener("mouseover", (ev) => {
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link") : null;
+  if (!link) return;
+  if (SITE_POP.pop && SITE_POP.pop._link !== link) sitePopHideNow(); // 换目标：旧浮层立刻收走
+  clearTimeout(SITE_POP.hideTimer);
+  clearTimeout(SITE_POP.showTimer);
+  SITE_POP.showTimer = setTimeout(() => sitePopShow(link), 350);
+});
+document.addEventListener("mouseout", (ev) => {
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link") : null;
+  if (!link) return;
+  sitePopScheduleHide();
+});
+window.addEventListener("scroll", (ev) => { // 浮层内滚动读长简介不关（capture 会把浮层自身滚动也送进来）
+  if (SITE_POP.pop && (ev.target === SITE_POP.pop || (ev.target && SITE_POP.pop.contains(ev.target)))) return;
+  sitePopHideNow();
+}, true);
+window.addEventListener("resize", sitePopHideNow);
 
 // 满意了点保存才落库（2026-10-20：规划不再自动写行程库）：写库 + 冻结一个不可变快照
 function planSaveBar(plan) {

@@ -57,6 +57,7 @@ class PoiDetail(BaseModel):
     tags: list | None = None
     tags_source: str | None = None
     intro: str | None = None
+    intro_en: str | None = None
     intro_source: str | None = None
     photos: list | None = None
     photos_source: str | None = None
@@ -99,6 +100,7 @@ _COLS = (
     Poi.tags,
     Poi.tags_source,
     Poi.intro,
+    Poi.intro_en,
     Poi.intro_source,
     Poi.photos,
     Poi.photos_source,
@@ -193,6 +195,7 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
         tags=tags if tags is not None else row.tags,
         tags_source=row.tags_source,
         intro=row.intro,
+        intro_en=row.intro_en,
         intro_source=row.intro_source,
         photos=row.photos,
         photos_source=row.photos_source,

@@ -40,6 +40,7 @@
       "pay.note": "Visa/Mastercard/Amex/JCB · 支付宝 · 微信支付",
       "pay.go": "💳 去支付 / 存卡",
       "pay.kind.pay_now": "立即支付报价", "pay.kind.save_method": "保存银行卡（代订扣款）",
+      "brief.none": "暂无简介信息",
       "nav.call": "📞 咨询",
       "call.title": "通话咨询", "call.unit.min": " 分钟",
       "call.slogan": "付费与真人坐席实时通话；$1=5 分钟，余额可累积，到点自动结束",
