@@ -149,13 +149,86 @@ def test_ta_recommendation_pair():
 
 
 def test_same_category_exact_preferred_over_group():
+    # 综合观光组内：attraction 精确一致排前，museum 同组补位
     pool = [
-        hit("同组不同类", 0, category="historic"),
+        hit("同组不同类", 0, category="museum"),
         hit("同类精确", 0, category="attraction"),
     ]
     alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
-    # 两行都同级同类组，精确类别排前
     assert [a.name for a in alts] == ["同类精确", "同组不同类"]
+
+
+def test_sight_heritage_groups_split():
+    # 2026-11-06 拍板二改：attraction/viewpoint/museum/gallery 单独一组，
+    # 与人文古迹组（historic/temple/…）拆开——temple 不当 museum 的备选
+    pool = [hit("某文殊院", 0, category="temple")]
+    alts = pick_alternatives(pool, category="museum", tier=1, duration_minutes=120)
+    assert alts == []
+    # 反向：观光组主点也不换人文古迹组
+    pool2 = [hit("某博物馆", 0, category="museum")]
+    alts2 = pick_alternatives(pool2, category="temple", tier=1, duration_minutes=120)
+    assert alts2 == []
+
+
+# --- CITYWALK 类隔离（2026-11-06 拍板） ---------------------------------
+
+
+def test_citywalk_pairs_only_with_citywalk():
+    # 宽窄巷子（名称带「巷」）主点：锦里古街（古街）同CityWalk类互备；
+    # 杜甫草堂（museum）非街区类出局
+    pool = [
+        hit("锦里古街", 2, category="attraction", duration=90),
+        hit("杜甫草堂", 2, category="museum", duration=120),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=150,
+        main_name="宽窄巷子",
+    )
+    assert [a.name for a in alts] == ["锦里古街"]
+
+
+def test_non_citywalk_main_never_gets_citywalk_row():
+    pool = [hit("锦里古街", 2, category="attraction", duration=90)]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=120,
+        main_name="武侯祠",
+    )
+    assert alts == []
+
+
+def test_street_catalog_row_is_citywalk_class():
+    # 名录街区档（hit_tier 6 = 国家级旅游休闲街区）即 CityWalk 类，
+    # 名称无街巷坊词（武侯祠·锦里）也算
+    pool = [hit("武侯祠·锦里", 6, category="historic", duration=90)]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=150,
+        main_name="宽窄巷子",
+    )
+    assert [a.name for a in alts] == ["武侯祠·锦里"]
+
+
+def test_citywalk_tag_kernel_counts():
+    # 功能标签批内核：tags 带 citywalk 的行（名称无街巷词）也属该类
+    pool = [
+        hit("某创意园区", 10, category="attraction", duration=60, tags=["citywalk"])
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=1,
+        duration_minutes=60,
+        main_name="宽窄巷子",
+    )
+    assert [a.name for a in alts] == ["某创意园区"]
 
 
 def test_category_group_fallback_when_exact_missing():
