@@ -42,6 +42,9 @@ ENTRY_CAP_MINUTES = 16 * 60 + 30
 # 大点开场带（11-04 拍板；结束闸下时长>80min 时被含入）
 ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
+# CITYWALK 下午场带（2026-11-06 二拍；与 solver 同名常量同口径）
+CITYWALK_AFTERNOON_MINUTES = 13 * 60
+THEME_BLOCK_AFTERNOON_MINUTES = 16 * 60
 BIG_SITE_MIN_MINUTES = 80  # 大点时长下限（2026-11-04 拍板「超过80分钟」）
 LUNCH_ANCHOR_MINUTES = 12 * 60
 LUNCH_WINDOW_END_MINUTES = 15 * 60  # <15:00 的餐=午餐（兜底层同口径）
@@ -62,6 +65,11 @@ PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板�
 PEN_NO_ENTERTAINMENT = 40  # 零娱乐/程（2026-11-03 拍板，软偏好）
 PEN_EARLY_SHOW = 12  # 演出早场：<15:00 开演的多场次演出（2026-11-03 拍板
 # 「演出优先傍晚/晚场」，与 solver SHOW_LATE_SESSION_MINUTES 同口径）
+PEN_CITYWALK_MORNING = 12  # CITYWALK 早场：<13:00 开场的普通街区（2026-11-06
+# 二拍「CITYWALK倾向于下午场」，与 solver CITYWALK_AFTERNOON_MINUTES 同向）
+PEN_THEME_BLOCK_EARLY = 12  # 街区型演出块 <16:00 开场（2026-11-06 二拍
+# 「像长安十二时辰，倾向于下午四点以后第二场」，同 solver
+# THEME_BLOCK_AFTERNOON_MINUTES 同向）
 PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放在
 # 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
 # 豁免（拍板明说那两天适合 SHOW——演出不算「重」）；pinned 铁律 19
@@ -147,6 +155,26 @@ def _morning_occupied(day) -> bool:
     return False
 
 
+def _is_theme_block_visit(v: VisitItem) -> bool:
+    """街区型演出块（2026-11-06 二拍）：名含「街区」的演出/娱乐/街区行
+    ——与 solver._is_theme_block 同口径的评分器本地镜像（pinned 铁律 19
+    不计）。"""
+    if v.pinned and v.start_time is not None:
+        return False
+    if "街区" not in (v.name or ""):
+        return False
+    return str(v.best_visit_time or "") == "show" or str(v.category or "") in (
+        "entertainment",
+        "citywalk",
+    )
+
+
+def _is_citywalk_visit(v: VisitItem) -> bool:
+    """普通街区（2026-11-06 二拍）：category=citywalk 且非街区型演出块
+    ——与 solver._is_citywalk 同口径的评分器本地镜像。"""
+    return str(v.category or "") == "citywalk" and not _is_theme_block_visit(v)
+
+
 def plan_score(
     plan: ItineraryPlan,
     rain_days: dict[str, set[int]] | None = None,
@@ -166,6 +194,8 @@ def plan_score(
     afternoon_crowd = 0
     late_big = 0
     early_shows = 0
+    cw_morning = 0
+    cw_block_early = 0
     edge_heavy = 0
     arrival_big = 0
     entertainment = 0
@@ -244,6 +274,24 @@ def plan_score(
                 or str(v.best_visit_time or "") == "show"
             )
             and show_session_starts(v.opening_hours)
+        )
+        # CITYWALK 下午场（2026-11-06 二拍「CITYWALK倾向于下午场。像长安
+        # 十二时辰，倾向于下午四点以后第二场」）：普通街区 <13:00 开场、
+        # 街区型演出块 <16:00 开场计软罚——与 solver CP/插入同向，LNS 不
+        # 把街区挪回上午。pinned 有时刻不计（判定内已豁免，铁律 19）。
+        cw_morning += sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and _is_citywalk_visit(v)
+            and _minutes(v.start_time) < CITYWALK_AFTERNOON_MINUTES
+        )
+        cw_block_early += sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and _is_theme_block_visit(v)
+            and _minutes(v.start_time) < THEME_BLOCK_AFTERNOON_MINUTES
         )
         # 边日重磅（2026-11-03 拍板「重要景点不放在到达/离开日」）：带
         # 转场腿的天上出现 tier≤4 重磅点计软罚——LNS 跨天重排会把重磅
@@ -360,6 +408,8 @@ def plan_score(
         "afternoon_crowd": -PEN_AFTERNOON_CROWD * afternoon_crowd,
         "late_big": -PEN_LATE_BIG * late_big,
         "early_show": -PEN_EARLY_SHOW * early_shows,
+        "citywalk_morning": -PEN_CITYWALK_MORNING * cw_morning,
+        "theme_block_early": -PEN_THEME_BLOCK_EARLY * cw_block_early,
         "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
         "arrival_day_big": -PEN_ARRIVAL_DAY_BIG * arrival_big,
         "no_entertainment": (
@@ -381,6 +431,8 @@ def plan_score(
         "afternoon_crowd": afternoon_crowd,
         "late_big": late_big,
         "early_show": early_shows,
+        "citywalk_morning": cw_morning,
+        "theme_block_early": cw_block_early,
         "edge_day_heavy": edge_heavy,
         "arrival_day_big": arrival_big,
         "entertainment": entertainment,

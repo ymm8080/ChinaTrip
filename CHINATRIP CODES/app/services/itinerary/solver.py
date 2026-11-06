@@ -172,6 +172,17 @@ MORNING_ONE_SITE_PENALTY = 10_000
 # 演出走锚点通道不进插入候选）。与 S5 无场次晚场默认 20:10 同哲学。
 SHOW_LATE_SESSION_MINUTES = 15 * 60
 SHOW_EARLY_SESSION_PENALTY = 10_000
+# CITYWALK 下午场（2026-11-06 二拍「CITYWALK倾向于下午场。像长安十二
+# 时辰，倾向于下午四点以后第二场」）：普通街区（category=citywalk）开场
+# 早于 13:00 计软罚；街区型演出块（名含「街区」的演出/娱乐/街区行——
+# 长安十二时辰型沉浸街区）开场早于 16:00 计软罚。与同日头拍「无场次
+# 演出不默认晚场」正交：头拍废的是硬窗（20:10 开演域/17:00 地板），
+# 本条是软倾向——早场物理可行时照付罚放行，不拦可行性；用户自钉有
+# 时刻豁免（铁律 19）。CP ×100 与走行同量纲；插入路 10_000 压过单次
+# 插入走行差。
+CITYWALK_AFTERNOON_MINUTES = 13 * 60
+THEME_BLOCK_AFTERNOON_MINUTES = 16 * 60
+CITYWALK_AFTERNOON_PENALTY = 10_000
 
 
 def _is_morning_site(item: VisitItem) -> bool:
@@ -207,6 +218,28 @@ def _is_light_sight(item: VisitItem) -> bool:
     if (item.category or "") in ("food", "hotel", "entertainment"):
         return False
     return not _is_big_site(item)
+
+
+def _is_theme_block(item: VisitItem) -> bool:
+    """街区型演出块判定（2026-11-06 二拍「像长安十二时辰」）：名含
+    「街区」的演出/娱乐/街区行——沉浸式主题街区（长安十二时辰/重逢
+    1980），倾向 16:00 后开场（日午后段第二场形态）。用户自钉有时刻
+    （铁律 19）不计；普通餐食街（回民街/磁器口，名无「街区」二字）不
+    在本判定内，走 _is_citywalk 的 13:00 口径。"""
+    if item.pinned and item.start_time is not None:
+        return False
+    if "街区" not in (item.name or ""):
+        return False
+    return _is_show(item) or (item.category or "") in ("citywalk", "entertainment")
+
+
+def _is_citywalk(item: VisitItem) -> bool:
+    """普通街区判定（2026-11-06 二拍「CITYWALK倾向于下午场」）：
+    category=citywalk 且非街区型演出块——回民街/磁器口类，倾向
+    13:00 后开场。用户自钉有时刻（铁律 19）不计。"""
+    if (item.category or "") != "citywalk":
+        return False
+    return not _is_theme_block(item)
 
 
 def _is_head_candidate(item: VisitItem) -> bool:
@@ -560,6 +593,7 @@ def _add_travel_objective(
     afternoon_penalty: object = 0,
     inversion_penalty: object = 0,
     head_penalty: object = 0,
+    cw_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -610,6 +644,7 @@ def _add_travel_objective(
         + afternoon_penalty
         + inversion_penalty
         + head_penalty
+        + cw_penalty
     )
 
 
@@ -626,6 +661,7 @@ def _add_makespan_objective(
     afternoon_penalty: object = 0,
     inversion_penalty: object = 0,
     head_penalty: object = 0,
+    cw_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
     # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
@@ -658,6 +694,7 @@ def _add_makespan_objective(
         + afternoon_penalty
         + inversion_penalty
         + head_penalty
+        + cw_penalty
     )
 
 
@@ -882,6 +919,32 @@ def solve_day(
         show_penalty: object = 0
         if show_early_lits:
             show_penalty = sum(show_early_lits) * (SHOW_EARLY_SESSION_PENALTY * 100)
+        # CITYWALK 下午场（2026-11-06 二拍，见 CITYWALK_AFTERNOON_MINUTES
+        # 注块）：普通街区 <13:00、街区型演出块 <16:00 开场计软罚（×100
+        # 与 travel/makespan 同量纲）——早场可行但无他档时 lit 恒 1 罚为
+        # 常数不改择优，软偏好不拦可行性；pinned 有时刻已在判定内豁免。
+        cw_lits: list[cp_model.IntVar] = []
+        blk_lits: list[cp_model.IntVar] = []
+        for spec, start in zip(specs, starts):
+            if spec.item.pinned and spec.item.start_time is not None:
+                continue
+            if _is_theme_block(spec.item):
+                lit = model.NewBoolVar(f"blk_{spec.item.item_id}")
+                model.Add(start < THEME_BLOCK_AFTERNOON_MINUTES).OnlyEnforceIf(lit)
+                model.Add(start >= THEME_BLOCK_AFTERNOON_MINUTES).OnlyEnforceIf(
+                    lit.Not()
+                )
+                blk_lits.append(lit)
+            elif _is_citywalk(spec.item):
+                lit = model.NewBoolVar(f"cw_{spec.item.item_id}")
+                model.Add(start < CITYWALK_AFTERNOON_MINUTES).OnlyEnforceIf(lit)
+                model.Add(start >= CITYWALK_AFTERNOON_MINUTES).OnlyEnforceIf(lit.Not())
+                cw_lits.append(lit)
+        cw_penalty: object = (
+            (sum(cw_lits) + sum(blk_lits)) * (CITYWALK_AFTERNOON_PENALTY * 100)
+            if cw_lits or blk_lits
+            else 0
+        )
         if travel_minutes is not None and specs:
             _add_travel_objective(
                 model,
@@ -896,6 +959,7 @@ def solve_day(
                 afternoon_penalty=afternoon_penalty,
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
+                cw_penalty=cw_penalty,
             )
         else:
             _add_makespan_objective(
@@ -910,6 +974,7 @@ def solve_day(
                 afternoon_penalty=afternoon_penalty,
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
+                cw_penalty=cw_penalty,
             )
 
         solver = cp_model.CpSolver()
@@ -1078,6 +1143,20 @@ def insertion_schedule_day(
             return 0
         return SHOW_EARLY_SESSION_PENALTY
 
+    def _cw_afternoon_cost(t: int, item: VisitItem) -> int:
+        # CITYWALK 下午场（2026-11-06 二拍）：普通街区 <13:00、街区型
+        # 演出块 <16:00 开场计罚——量纲同早场罚，压过单次插入走行差。
+        # pinned 有时刻走锚点通道不进本判定（铁律 19，判定内已豁免）。
+        if item.pinned and item.start_time is not None:
+            return 0
+        if _is_theme_block(item):
+            return (
+                CITYWALK_AFTERNOON_PENALTY if t < THEME_BLOCK_AFTERNOON_MINUTES else 0
+            )
+        if _is_citywalk(item):
+            return CITYWALK_AFTERNOON_PENALTY if t < CITYWALK_AFTERNOON_MINUTES else 0
+        return 0
+
     def _afternoon_big_cost(t: int, item: VisitItem) -> int:
         # 下午单大点（2026-11-04 拍板）：候选会是当日第二个 ≥13:00 开场
         # 大点时计罚——豁免面与「上午一个点」一致（用户自钉有时刻不计，
@@ -1237,7 +1316,8 @@ def insertion_schedule_day(
                         + _show_early_cost(t, spec.item)
                         + _afternoon_big_cost(t, spec.item)
                         + _big_first_cost(t, spec.item)
-                        + _head_first_cost(t, spec.item),
+                        + _head_first_cost(t, spec.item)
+                        + _cw_afternoon_cost(t, spec.item),
                         t,
                     )
                     if best is None or key < (best[0], best[1]):
