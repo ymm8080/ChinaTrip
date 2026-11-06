@@ -98,3 +98,35 @@ def test_same_name_different_city_not_merged():
         s, [_pick("广州", "中山陵", "Sun Yat-sen Mausoleum", "klook")], dry_run=True
     )
     assert stats["insert"] == 1 and stats["merge"] == 0
+
+
+def test_stay_food_rows_not_merge_targets():
+    """住宿/餐饮行不做归并目标：磁器口 pick 不得挂到「磁器口地铁站店」酒店
+    （2026-11-06 171 行酒店污染根修）。无其他命中时落 insert 而非 merge。"""
+    hotel = _row("重庆", "恋磁逸客酒店(重庆磁器口地铁站店)", source="chinatravel")
+    hotel.category = "hotel"
+    hotel2 = _row("重庆", "重庆悦磁江景花园酒店(磁器口古镇店)", source="chinatravel")
+    hotel2.category = "hotel"
+    food = _row("成都", "饕林餐厅(春熙路店)", source="baidu")
+    s = FakeSession([hotel, hotel2, food])
+    stats = job.apply_rows(
+        s,
+        [
+            _pick("重庆", "磁器口", "Ciqikou", "tui"),
+            _pick("成都", "春熙路", "Chunxi Road", "layla"),
+        ],
+        dry_run=True,
+    )
+    assert stats["insert"] == 2 and stats["merge"] == 0
+    assert hotel.tags is None and food.tags is None
+    assert hotel.source == "chinatravel"  # source 列不动
+
+
+def test_attraction_with_branch_word_still_merges_when_category_clean():
+    """名字含地名但非住宿餐饮的行（如 古镇/街区/转运楼）仍是合法归并目标。"""
+    row = _row("重庆", "重庆磁器口古镇", source="4a", tags=["4a"])
+    row.category = "ancient_town"
+    s = FakeSession([row])
+    stats = job.apply_rows(s, [_pick("重庆", "磁器口", "Ciqikou", "tui")], dry_run=True)
+    assert stats["merge"] == 1
+    assert "intl" in row.tags and "tui" in row.tags

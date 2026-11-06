@@ -15,7 +15,9 @@ import_intl_picks）：官方名录归因（mct/mohurd）不被商业站点归�
 旧 tags_source，tags 并集照写。
 本作业的名称匹配在等值之上加「同城双向包含」（短名≥2 字），以覆盖
 故宫↔故宫博物院、天坛↔天坛公园 这类缩写/全称跨源行——用户 2026-10-27
-指令「add to pois，注意去重」的主诉求。同批行间先集内去重（转换器完成），
+指令「add to pois，注意去重」的主诉求。住宿/餐饮行（category=hotel 等
+或名字含 酒店/宾馆/餐厅 等字样）不作为归并目标（2026-11-06 根修）。
+同批行间先集内去重（转换器完成），
 作业内仍按行序 append rows 防别名重复二次插入。
 
 站点码（tags 内缩写 / source 列全名一致）：sygic/klook/kkday/waug/mindtrip/
@@ -34,6 +36,7 @@ import argparse
 import csv
 import json
 import logging
+import re
 import sys
 import uuid
 
@@ -41,6 +44,13 @@ from app.models import Poi
 from app.services.source_tier import order_source_tags, tags_source_wins
 
 logger = logging.getLogger(__name__)
+
+#: 住宿/餐饮行不做归并目标——分店名常含地标（磁器口地铁站店），双向包含
+#: 会把荐点错挂到酒店上（2026-11-06 磁器口 171 行酒店污染根修）。
+_STAY_FOOD = re.compile(
+    r"酒店|饭店|宾馆|民宿|客栈|公寓|旅馆|招待所|青年旅舍|餐厅|食堂|饭馆|面馆"
+)
+_STAY_FOOD_CATEGORIES = {"hotel", "accommodation", "restaurant", "food"}
 
 #: 主站点优先级（编辑榜/OTA 活动榜 > AI 行程 > 社媒；同荐时 source/tags_source 取首选）
 _SITE_PRIORITY = (
@@ -107,6 +117,12 @@ def _name_hit(row: Poi, names: set[str]) -> bool:
     return False
 
 
+def _is_stay_food(row: Poi) -> bool:
+    if (row.category or "") in _STAY_FOOD_CATEGORIES:
+        return True
+    return bool(_STAY_FOOD.search(row.name_zh or ""))
+
+
 def load_rows(csv_path: str) -> list[dict]:
     with open(csv_path, encoding="utf-8-sig", newline="") as fh:
         return list(csv.DictReader(fh))
@@ -127,7 +143,13 @@ def apply_rows(session, picks: list[dict], *, dry_run: bool = False) -> dict:
             continue
         try:
             names = {name_zh, *aliases}
-            hits = [r for r in rows if _same_city(r.city, city) and _name_hit(r, names)]
+            hits = [
+                r
+                for r in rows
+                if _same_city(r.city, city)
+                and _name_hit(r, names)
+                and not _is_stay_food(r)
+            ]
             add_tags = ["intl", *sites]
             primary = _primary_source(sites)
             if hits:
