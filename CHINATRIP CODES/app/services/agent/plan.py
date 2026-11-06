@@ -101,6 +101,7 @@ from app.services.reservation_seeds import (
     FOREIGNER_TIP_EN,
     RESERVATION_V0,
     reservation_meta_for,
+    reservation_pois_index,
 )
 from app.services.restaurants import (
     LUNCH_DURATION_MINUTES,
@@ -2999,8 +3000,10 @@ def _fmt_hm(t: time) -> str:
 
 def _reservation_hint(name: str, cand: dict) -> str | None:
     """G1（§14.3）：预约制提示——库列优先，名单 v0 兜底（_same_site
-    容错匹配，覆盖「故宫博物院」vs 库存「故宫」类名字变体）。
-    EN 走 reservation_seeds 的 note_en/FOREIGNER_TIP_EN。"""
+    容错匹配，覆盖「故宫博物院」vs 库存「故宫」类名字变体），
+    再退 09 号表全量判词（data/reservation_pois.csv：需预约/无需预约
+    都有官方渠道+外籍口径）。EN 走 reservation_seeds 的
+    note_en/FOREIGNER_TIP_EN；09 表渠道串无 EN 数据，保留中文原文。"""
     adv = cand.get("reservation_advance_days")
     if cand.get("reservation_required") or adv:
         return L(
@@ -3019,6 +3022,54 @@ def _reservation_hint(name: str, cand: dict) -> str | None:
                 f"需提前 {meta['days']} 天预约（{note}）——{tip}",
                 f"Book {meta['days']} days ahead ({note}) — {tip}",
             )
+    row = _reservation_csv_row(name)
+    if row:
+        return _reservation_hint_from_row(row)
+    return None
+
+
+def _reservation_csv_row(name: str) -> dict | None:
+    """09 表行命中：精确名直取，再 _same_site 容错（先 exact 防
+    「大足石刻博物馆」被容错吸进「大足石刻」判词）。"""
+    n = (name or "").strip()
+    if not n:
+        return None
+    idx = reservation_pois_index()
+    hit = idx.get(n)
+    if hit:
+        return hit
+    for key, row in idx.items():
+        if _same_site(n, key) or key in n:
+            return row
+    return None
+
+
+def _reservation_hint_from_row(row: dict) -> str | None:
+    """09 表行 → 提示串：「无需预约」（含渠道+外籍购票口径）优先判
+    （「无需预约」含「预约」二字，顺序不能反），需预约给提前天数+
+    放票时刻。判词为空（点群廊道类）返回 None 落前端「预约信息无」。"""
+    ttype = (row.get("ticket_type") or "").strip()
+    channel = (row.get("official_channel") or "").strip()
+    foreign = (row.get("official_channel_foreign") or "").strip()
+    if foreign.startswith(("同渠道", "同国内（开放")):
+        foreign = ""  # 冗余复述/开放免费无外籍差异，不上卡
+    zh_foreign = f"；外籍：{foreign}" if foreign else ""
+    en_foreign = f"; foreigners: {foreign}" if foreign else ""
+    if "无需预约" in ttype:
+        zh = "无需预约" + (f"（{channel}）" if channel else "")
+        en = "No reservation needed" + (f" ({channel})" if channel else "")
+        return L(zh + zh_foreign, en + en_foreign)
+    m = re.match(r"(\d+)(?:-(\d+))?", (row.get("advance_days") or "").strip())
+    if "预约" in ttype and m and m.group(1) != "0":
+        days = f"{m.group(1)}-{m.group(2)}" if m.group(2) else m.group(1)
+        release = (row.get("release_time") or "").strip()
+        release = release if release and release != "00:00" else ""
+        zh = f"需提前 {days} 天预约" + (f"，{release} 放票" if release else "")
+        en = f"Book {days} days ahead" + (f", released at {release}" if release else "")
+        if channel:
+            zh += f"（{channel}）"
+            en += f" ({channel})"
+        return L(zh + zh_foreign, en + en_foreign)
     return None
 
 
