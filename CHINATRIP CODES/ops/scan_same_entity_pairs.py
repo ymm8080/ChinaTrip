@@ -12,6 +12,11 @@
   apply-s2 <拍板文件>
               S2 同核（剥尾词相等）逐组退役：拍板文件每行 `城市|keeper名`，
               同城同核组内未点名的只列 MISSING 不删，保证逐组人工过目。
+  s3-detail    S3 互含对逐对打详情（坐标距离 haversine + 地址 + tags），
+              供按用户裁定（以地址判同实体）逐对拍板。
+  apply-s3 <拍板文件>
+              S3 互含对按三元组拍板退役：每行 `城市|keeper名|败者名`，
+              星型拓扑（同实体所有败者指向同一 keeper），找不到行则 SKIP。
 
 判定复用 poi_alternatives 同体闸的剥尾规则；台账输出 utf-8。
 """
@@ -23,6 +28,10 @@ import os
 import sys
 import uuid
 from collections import defaultdict
+from math import asin, cos, radians, sin, sqrt
+
+from geoalchemy2 import Geometry
+from sqlalchemy import func
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -92,6 +101,30 @@ def _keeper_key(r: Poi) -> tuple:
 def _load_active(factory) -> list[Poi]:
     with factory() as s:
         return s.query(Poi).filter(Poi.status == "active").all()
+
+
+def _dist_m(p1, p2) -> int | None:
+    if not p1 or not p2 or None in p1 or None in p2:
+        return None
+    lon1, lat1 = radians(p1[0]), radians(p1[1])
+    lon2, lat2 = radians(p2[0]), radians(p2[1])
+    a = (
+        sin((lat2 - lat1) / 2) ** 2
+        + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+    )
+    return int(6371000 * 2 * asin(sqrt(a)))
+
+
+def _find_active(factory, city_norm: str, name: str) -> Poi | None:
+    with factory() as s:
+        hits = [
+            r
+            for r in s.query(Poi)
+            .filter(Poi.status == "active", Poi.name_zh == name)
+            .all()
+            if (r.city or "").strip().removesuffix("市") == city_norm
+        ]
+    return hits[0] if len(hits) == 1 else None
 
 
 def _s1_groups(rows: list[Poi]) -> dict[tuple[str, str], list[Poi]]:
@@ -271,6 +304,67 @@ def main() -> None:
             print(f"  MISSING [{city}|{core}] {detail}")
         if unused:
             print(f"unused decisions (check typos): {sorted(unused)}")
+        return
+
+    if mode == "s3-detail":
+        rows = _load_active(factory)
+        with factory() as s:
+            geo = Poi.location.cast(Geometry)
+            coord_map = {
+                rid: (lon, lat)
+                for rid, lon, lat in s.query(Poi.id, func.ST_X(geo), func.ST_Y(geo))
+                .filter(Poi.status == "active")
+                .all()
+            }
+        by_city: dict[str, list[Poi]] = defaultdict(list)
+        for r in rows:
+            by_city[(r.city or "").strip().removesuffix("市")].append(r)
+        for city, items in sorted(by_city.items()):
+            for i, a in enumerate(items):
+                for b in items[i + 1 :]:
+                    if a.name_zh == b.name_zh or (
+                        _name_core(a.name_zh)
+                        and (_name_core(a.name_zh) == _name_core(b.name_zh))
+                    ):
+                        continue
+                    if not _name_overlap(a.name_zh, b.name_zh):
+                        continue
+                    d = _dist_m(coord_map.get(a.id), coord_map.get(b.id))
+                    for r in (a, b):
+                        lon, lat = coord_map.get(r.id) or (None, None)
+                        print(
+                            f"[{city}|dist={d}m] [{r.source}] {r.name_zh} "
+                            f"(rating={r.rating}, tags={r.tags}, id={str(r.id)[:8]}) "
+                            f"coord=({lon},{lat}) addr={r.address}"
+                        )
+        return
+
+    if mode == "apply-s3":
+        dec_path = sys.argv[2]
+        triples: list[tuple[str, str, str]] = []
+        with open(dec_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    city, keeper_name, loser_name = line.split("|", 2)
+                    triples.append(
+                        (city.strip(), keeper_name.strip(), loser_name.strip())
+                    )
+        done = 0
+        for city, keeper_name, loser_name in triples:
+            keeper = _find_active(factory, city, keeper_name)
+            loser = _find_active(factory, city, loser_name)
+            if keeper is None or loser is None:
+                print(
+                    f"SKIP 找不到 active 行: [{city}] "
+                    f"keeper={keeper_name} loser={loser_name}"
+                )
+                continue
+            print(f"[{city}] keeper=[{keeper.source}] {keeper.name_zh}")
+            for line in _merge_and_retire(factory, keeper, loser, "S3"):
+                print(line)
+            done += 1
+        print(f"\nretired {done} loser rows from {len(triples)} decisions")
         return
 
     print(__doc__)
