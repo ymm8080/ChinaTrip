@@ -990,14 +990,15 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
     transfers = all_transfers(session)
     assert len(transfers) == 3  # 出发段 + 城际段 + 返程段
     # 三亚→哈尔滨 两端都有坐标锚点（均为目的地，出发城市不抓候选），
-    # 直线约 3400 公里：90 分钟车程不合理，占位为航班
+    # 直线约 3400 公里 >600km 距离闸（2026-11-06 拍板）：航班源优先选班
+    # （mock MU1001），不再落 3 小时占位。
     hop = transfers[1]
     # 4 天 2 目的地均分：三亚 day1-2、哈尔滨 day3-4，城际腿落在哈尔滨首日
     assert (hop.from_city, hop.to_city, hop.day) == ("三亚", "哈尔滨", 3)
     assert hop.mode == "flight"
+    assert hop.flight_no == "MU1001"
     assert hop.duration_minutes == 180
     assert [c for c in amap.calls] == ["三亚", "哈尔滨"]  # origin 无 amap 调用
-    assert any("航班" in a and "公里" in a for a in session.assumptions)
 
 
 def test_v0_near_pair_with_coords_is_car_placeholder():

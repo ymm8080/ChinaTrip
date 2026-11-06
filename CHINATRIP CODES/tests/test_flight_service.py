@@ -96,7 +96,8 @@ class EmptyFlights(MockFlightService):
 
 
 def test_outbound_and_return_prefer_flight_middle_hop_stays_train():
-    """2026-11-04 用户拍板：去程/回程优先飞机，中途城际腿仍以火车为先。"""
+    """距离未知（无锚点）保留 11-04 旧口径：去程/回程优先飞机，中途城际
+    腿仍以火车为先。有锚点时以 2026-11-06 距离闸为准（见上方距离测试）。"""
     agent = PlanningAgent(_NoLLM(), train_service=MockTrainService())
     transfers, _assumptions = asyncio.run(
         agent._build_transfers(["上海", "北京", "西安"], 3, {}, start_date="2026-11-10")
@@ -127,6 +128,32 @@ def test_outbound_return_fall_back_to_train_with_assumption():
     assert ret.mode == "train" and ret.start_time == time(20, 0)  # 晚间窗 G7360
     assert any("去程 上海→杭州" in a and "无航班" in a for a in assumptions)
     assert any("返程 杭州→上海" in a and "无航班" in a for a in assumptions)
+
+
+def test_distance_gate_flight_over_600km_train_under():
+    """2026-11-06 用户拍板：直线 >600km 选航班、≤600km 选火车。
+
+    西安→杭州 ~1130km 必须飞机（11-04 案曾排成火车）；杭州→上海
+    ~165km 必须火车（11-04 案曾排成飞机）。返程 上海→西安 同样 >600km
+    走航班晚间窗。"""
+    agent = PlanningAgent(_NoLLM(), train_service=MockTrainService())
+    anchors = {
+        "西安": GeoPoint(lon=108.94, lat=34.34),
+        "杭州": GeoPoint(lon=120.16, lat=30.29),
+        "上海": GeoPoint(lon=121.47, lat=31.23),
+    }
+    transfers, _assumptions = asyncio.run(
+        agent._build_transfers(
+            ["西安", "杭州", "上海"], 3, anchors, start_date="2026-11-10"
+        )
+    )
+    out, hop, ret = transfers
+    assert (out.from_city, out.to_city) == ("西安", "杭州")
+    assert out.mode == "flight" and out.flight_no == "MU1001"
+    assert (hop.from_city, hop.to_city) == ("杭州", "上海")
+    assert hop.mode == "train" and hop.train_no
+    assert (ret.from_city, ret.to_city) == ("上海", "西安")
+    assert ret.mode == "flight" and ret.start_time == time(17, 0)
 
 
 def test_prefetch_warms_flight_legs_too():

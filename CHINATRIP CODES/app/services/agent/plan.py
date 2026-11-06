@@ -198,6 +198,9 @@ AMAP_CONCURRENCY = 6  # shared amap call cap across legs+hours (QPS)
 HOURS_CHUNK = 6  # hours-chain items fetched concurrently per chunk
 CAR_MAX_KM = 300  # no-schedule legs beyond this are flights, never drives
 CAR_KMH = 70  # intercity road pace behind the car placeholder duration
+# 城际交通方式距离闸（2026-11-06 用户拍板）：直线 >600km 选航班，≤600km
+# 选火车——西安→杭州(~1130km)必须飞机、杭州→上海(~165km)必须火车。
+FLIGHT_OVER_TRAIN_KM = 600
 DEFAULT_DAYS = 6
 DEFAULT_CITY = "北京"
 MAX_CLARIFY_ROUNDS = 2  # §6.1: at most two questions, then v0 on assumptions
@@ -9665,9 +9668,10 @@ class PlanningAgent:
             closure = len(dests) > 1 and _norm_city(dests[-1]) == _norm_city(origin)
             legs = []
             if _norm_city(dests[0]) != _norm_city(origin):
-                # 来去优选飞机（2026-11-04 拍板）：去程/返程腿航班源有班就
-                # 选它，火车让位；城际 hop 腿不参与（保持火车/驾车）。
-                # 第 6 元素=腿别标签（去程/返程→航班优先，None→hop）。
+                # 第 6 元素=腿别标签（去程/返程/hop）。方式选择走距离闸
+                # （2026-11-06：>600km 航班优先、≤600km 火车优先，见
+                # _build_transfers 主体）；腿别标签只用于 assumptions 措辞
+                # 与返程窗，距离未知时退回 11-04 旧口径（去程/返程航班优先）。
                 legs.append((origin, dests[0], 1, 9, None, "去程"))
             for k in range(1, len(dests)):
                 if _norm_city(dests[k - 1]) == _norm_city(dests[k]):
@@ -9700,9 +9704,20 @@ class PlanningAgent:
             self._item_seq += 1
             item_id = f"t{self._item_seq}"
             transfer: TransferItem | None = None
-            if leg_kind is not None:
-                # 航班源有班次 → 选班（去程早班/返程窗内最早）；窗内无班
-                # 返回 None 落到火车查询——绝不用窗外航班顶替窗口偏好。
+            # 距离闸先行（2026-11-06 拍板）：>600km 航班优先、≤600km 火车
+            # 优先——覆盖全部腿别（去程/返程/城际 hop 同一口径）。距离未知
+            # （城市无锚点）保留 11-04 旧口径：去程/返程航班优先。
+            a = anchors.get(from_city)
+            b = anchors.get(to_city)
+            dist_km = haversine_km(a, b) if a is not None and b is not None else None
+            flight_first = (
+                dist_km > FLIGHT_OVER_TRAIN_KM
+                if dist_km is not None
+                else leg_kind is not None
+            )
+            if flight_first:
+                # 航班源有班次 → 选班（无窗取全天最早/返程窗内最早）；窗内
+                # 无班返回 None 落到火车查询——绝不用窗外航班顶替窗口偏好。
                 try:
                     transfer = await build_flight_transfer_item(
                         self._flights,
@@ -9742,25 +9757,25 @@ class PlanningAgent:
                         exc_info=True,
                     )
                     transfer = None
-                if transfer is not None and leg_kind is not None:
+                if transfer is not None and flight_first:
                     # 航班源无班、火车接手——降级留痕进 assumptions。
                     t_no = getattr(transfer, "train_no", None)
                     train_tag = f" {t_no}" if t_no else ""
-                    kind_en = "Outbound" if leg_kind == "去程" else "Return"
+                    kind_cn = leg_kind or "城际"
+                    kind_en = {"去程": "Outbound", "返程": "Return"}.get(
+                        leg_kind, "Hop"
+                    )
                     assumptions.append(
                         L(
-                            f"{leg_kind} {from_city}→{to_city} "
+                            f"{kind_cn} {from_city}→{to_city} "
                             f"无航班，改用火车{train_tag}",
                             f"{kind_en} {from_city}→{to_city}: no flight "
                             f"available, taking train{train_tag} instead",
                         )
                     )
             if transfer is None:
-                dist_km: float | None = None
-                a = anchors.get(from_city)
-                b = anchors.get(to_city)
-                if a is not None and b is not None:
-                    dist_km = haversine_km(a, b)
+                # 双源都无班次 → 占位：≤300km 驾车、更远按航班（距离闸
+                # 上方已算好 dist_km，此处直接复用）。
                 if dist_km is not None and dist_km <= CAR_MAX_KM:
                     # Same-region leg: a drive scaled to real distance.
                     mode = "car"
