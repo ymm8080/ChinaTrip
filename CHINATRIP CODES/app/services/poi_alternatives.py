@@ -3,16 +3,20 @@
 
 规则唯一定义点（用户拍板三条规则 + 落地细则）：
 
-- 同级（SAME LEVEL）：名录档一致。两套档号在此统一——行程条目 tier 是
-  选点梯子（plan._source_tier，1=unesco…10=4a 11=其他 6=演出），候选池
-  `_tier` 是 hit_tier（0=unesco…9=3a 10=未分层），PLAN_TIER_TO_POOL 换算
-  后同档比较。排序口径：**同档优先，缺档近档补位亮牌披露**——名录档在
-  单城里常只有一行（青城山—都江堰是成都唯一 unesco 行），硬闸会让「每
-  个点都要有备选」落空：同档候选排前，同档不足 limit 时按 |Δ档| 最近
-  的近档补位（premium 档带 0-3 内就近 > 跨档带），chip 上亮备选自身档
-  牌（UNESCO/5A/国际榜/…），绝不冒充同级。
+- 同级（SAME LEVEL，2026-11-06 二拍改硬闸）：档带一致。两套档号在此
+  统一——行程条目 tier 是选点梯子（plan._source_tier，1=unesco…10=4a
+  11=其他 6=演出），候选池 `_tier` 是 hit_tier（0=unesco…9=3a 10=未分
+  层），PLAN_TIER_TO_POOL 换算后同带比较。档带（LEVEL_BANDS）：premium
+  （unesco/5a/国际旅行网站/国际平台）、社媒（短视频/小红书）、国内名录
+  （街区/风景名胜/4A/3A）、未分层——**跨档带候选一律出局，宁缺不滥**
+  （兵马俑卡亮 4A 陕西自然博物馆实录；首版「近档补位亮牌披露」被用户
+  否决：4A 不能作 5A/世遗的替代品）。带内仍按 |Δ档| 就近排序，chip 亮
+  备选自身档牌（UNESCO/5A/国际榜/…），绝不冒充同级；带内不足 limit
+  就少给，主点备选宁空。
 - 同类（SAME CATEGORY）：受控类别（normalize_category）精确一致；不足
-  时放宽到类别组，类别完全不一致的出局。组别（2026-11-06 拍板二改）：
+  时放宽到类别组；类别完全不一致**或类别缺失**的出局（2026-11-06 二
+  拍：同类别是硬规则，缺失无法验证同类就不放行）。组别（2026-11-06
+  拍板二改）：
   ①综合观光组 sight = attraction/viewpoint/museum/gallery（杜甫草堂
   museum↔武侯祠 attraction 仍同组互备）；②人文古迹组 heritage =
   historic/temple/church/memorial/ruins/castle/ancient_town（与观光组
@@ -77,8 +81,8 @@ PLAN_TIER_TO_POOL: dict[int, int | None] = {
     11: None,  # 其他/未分层 → 池档 10
 }
 
-# 档带（近档补位范围）：premium 名录档 > 社媒档 > 国内名录档 > 未分层。
-# 补位先同带内 |Δ档| 最近，同带空了才跨带（chip 亮牌披露）。
+# 档带（同级硬闸分界，2026-11-06 二拍）：带内互备，跨带出局宁缺。
+# 带内排序：同档 > |Δ档| 最近（chip 亮牌披露）。
 LEVEL_BANDS: tuple[frozenset[int], ...] = (
     frozenset({0, 1, 2, 3}),  # premium：unesco/5a/国际旅行网站/国际平台
     frozenset({4, 5}),  # 社媒：短视频/小红书
@@ -261,9 +265,17 @@ def _name_core(name: str) -> str:
     return n
 
 
+def _is_subseq(short: str, long: str) -> bool:
+    """short 是否为 long 的子序列（保序删字）：秦始皇陵 ⊂ 秦始皇帝陵。"""
+    it = iter(long)
+    return all(ch in it for ch in short)
+
+
 def _overlap_any(name: str, exclude_names: set[str]) -> bool:
     """候选名与排除名（行程内已有 + 已亮过的备选）同体判定：剥连字符
-    变体后，头/尾互含（_name_overlap）或同核包含任一命中即同体。"""
+    变体后，头/尾互含（_name_overlap）或同核包含任一命中即同体；≥3 字
+    核再做子序列同体（2026-11-06 活库探针实录：兵马俑卡亮「秦始皇陵」
+    ——「帝」字插入变体逃过互含/同核包含）。"""
     from app.services.poi_details import _name_overlap
 
     n = name.translate(_NAME_STRIP)
@@ -280,6 +292,13 @@ def _overlap_any(name: str, exclude_names: set[str]) -> bool:
             len(core_n) >= 2
             and len(core_ex) >= 2
             and (core_n in core_ex or core_ex in core_n)
+        ):
+            return True
+        # ≥3 字核子序列同体（秦始皇陵 ⊂ 秦始皇帝陵）；过短误伤面大不认
+        if (
+            len(core_n) >= 3
+            and len(core_ex) >= 3
+            and (_is_subseq(core_n, core_ex) or _is_subseq(core_ex, core_n))
         ):
             return True
     return False
@@ -317,11 +336,16 @@ def pick_alternatives(
     行 = PoiDetailStore.alternatives_pool 的 hit dict（带 `_tier`，hit_tier
     口径）；main_name = 主点名（遗址类隔离闸用）；main_citywalk = 主点
     CITYWALK 类标志（None=按主点名/梯档自判，attach 已回库解析时显式传）。
-    返回 PlanAlternative：同档排前，缺档近档补位（|Δ档| 最近，chip 亮
-    备选自身档牌）；不足 limit 就少给。
+    返回 PlanAlternative：跨档带出局（同级硬闸），带内同档排前、近档按
+    |Δ档| 补位（chip 亮备选自身档牌）；带内不足 limit 就少给。
     """
-    exclude_names = exclude_names or set()
+    exclude_names = set(exclude_names or set())
     exclude_pids = exclude_pids or set()
+    mn = _norm_name(main_name)
+    if mn:
+        # 主点自身自锚进排除集（同体变体闸的对照锚；attach 层本就传全行
+        # 程名，这里兜住直调场景——2026-11-06 兵马俑卡亮秦始皇陵探针实录）
+        exclude_names.add(mn)
     want = plan_tier_to_pool(tier)
     is_show = want == SHOW_LEVEL
     want_level = level_class(None if is_show else want)  # show 无池档类
@@ -346,16 +370,14 @@ def pick_alternatives(
         )
 
     def level_key(h: dict) -> tuple[int, int]:
-        # (档惩罚, |Δ档|)：0=同档 1=同带近档 2=跨带；演出主点全档同列
+        # (档惩罚, |Δ档|)：0=同档 1=同带近档；跨带已在同级硬闸出局。
+        # 演出主点全档同列
         if is_show:
             return (0, 0)
         cand = level_class(h.get("_tier"))
         if cand == want_level:
             return (0, 0)
-        cb = _band_of(cand)
-        if cb != -1 and cb == want_band:
-            return (1, abs(cand - want_level))
-        return (2, abs(cand - want_level))
+        return (1, abs(cand - want_level))
 
     def eligible(h: dict) -> bool:
         name = _norm_name(h.get("name"))
@@ -372,6 +394,10 @@ def pick_alternatives(
             return is_show_row(h)
         if is_show_row(h) or _looks_show_name(name):
             return False  # 演出/场馆行不是观光点的备选（含类别缺失行）
+        # 同级硬闸（2026-11-06 二拍）：跨档带出局——4A 不作 5A/世遗备选
+        # （陕西自然博物馆实录）；带内不足就少给，宁缺不滥
+        if _band_of(level_class(h.get("_tier"))) != want_band:
+            return False
         # 遗址类隔离（双向硬闸）：遗址主点只换遗址，非遗址主点不换遗址
         if row_is_ruins(h) != main_is_ruins:
             return False
@@ -385,18 +411,22 @@ def pick_alternatives(
         return True
 
     def cat_key(h: dict) -> int:
-        # 0=类别精确一致 1=同类别组 3=类别完全不一致（出局）；演出主点
-        # 免类别闸（演出同名录外）；CITYWALK 组内跨类别放行（2026-11-06
-        # 拍板「CITYWALK 单独一组」——武侯祠·锦里 historic↔宽窄巷子
-        # attraction 实录），类别只作贴近排序
+        # 0=类别精确一致 1=同类别组 3=不一致/缺失（出局）。同类别是硬
+        # 规则（2026-11-06 二拍）：候选类别缺失无法验证同类就不放行
+        # （海底捞/竹间葫芦鸡类图商脏行无类别或错类实录）；主点类别缺
+        # 失时类别闸不开（同级档带闸兜底）。演出主点免类别闸（演出同
+        # 名录外）；CITYWALK 组内跨类别放行（2026-11-06 拍板「CITYWALK
+        # 单独一组」——武侯祠·锦里 historic↔宽窄巷子 attraction 实录）
         if is_show:
             return 0
         if main_citywalk:
             c = _norm_cat(h.get("category"))
             return 0 if c and c == cur_cat else 1
         c = _norm_cat(h.get("category"))
-        if not c or not cur_cat:
-            return 2  # 类别数据缺失：垫底补位语义
+        if not c:
+            return 3
+        if not cur_cat:
+            return 0
         if c == cur_cat:
             return 0
         if cur_group and _category_group(h.get("category")) == cur_group:
@@ -423,8 +453,8 @@ def pick_alternatives(
             return None
 
     cands = [h for h in pool if eligible(h)]
-    # 同类闸：精确/同组/缺失垫底保留，完全不一致的出局
-    cands = [h for h in cands if cat_key(h) <= 2]
+    # 同类闸：精确/同组保留，不一致与类别缺失出局
+    cands = [h for h in cands if cat_key(h) <= 1]
     # 同时长闸（硬规则）：带内已知游时优先；带外已知游时直接出局；无游
     # 时数据垫底补位。主点无游时（band=None）不过滤。演出主点免闸（游
     # 时无信号常态）。
@@ -483,11 +513,16 @@ def pick_alternatives(
 
 
 def _main_row(v: VisitItem, store: object) -> dict | None:
-    """主点库行（回库一次，档号自愈与 CITYWALK 类判定共用）。失败静默。"""
-    if not v.poi_id:
-        return None
+    """主点完整库行（回库一次，档号自愈与 CITYWALK 类判定共用）。
+
+    用 candidate_by_name（全量候选形，含 tags/source/rating）而不是
+    store.get——后者是 EN 展示增补 getter，无 tags/source，喂给
+    _source_tier 会把名录档行错判成未分层（杜甫草堂 t2 curated 行
+    自愈成 11 实录）。失败静默。"""
     try:
-        return store.get(str(v.poi_id))  # type: ignore[attr-defined]
+        return store.candidate_by_name(  # type: ignore[attr-defined]
+            (v.city or "").strip() or None, v.name
+        )
     except Exception:
         return None
 

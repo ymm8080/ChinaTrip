@@ -1,9 +1,9 @@
 """同级备选规则测试（2026-11-05 拍板「每个点要有一个备选」）。
 
 规则唯一定义点 app/services/poi_alternatives.py：同类（受控类别精确→
-组放宽）· 同时长（band max(45,0.5×游时) 封顶 120，带外出局）· 同档
-优先缺档近档补位亮牌披露（名录档单城常只有一行，硬闸会让「每个点都
-有备选」落空）· 同城 · 排除行程内已有。装配层 attach_plan_alternatives
+组放宽）· 同时长（band max(45,0.5×游时) 封顶 120，带外出局）· 同级
+硬闸（2026-11-06 二拍：档带一致才互备，跨档带出局宁缺——4A 不作
+5A/世遗备选实录）· 同城 · 排除行程内已有。装配层 attach_plan_alternatives
 在深拷贝上挂、餐位/酒店不挂、fail-soft。
 
 档号口径：行程条目 tier = 选点梯子（1=unesco…6=演出 11=其他）；
@@ -112,12 +112,12 @@ def test_level_class_merges_social_tiers():
     assert level_class(None) == 10
 
 
-# --- 同级排序：同档优先，缺档近档补位亮牌 ------------------------------
+# --- 同级硬闸：带内互备，跨带出局（2026-11-06 二拍） --------------------
 
 
 def test_same_level_ranks_first_then_nearest_disclosed():
-    # unesco 主点：池里同档 1 行 + 近档 5a/TA + 未分层 → 同档排前，
-    # 近档按 |Δ档| 补位（5a Δ1 < TA Δ2），未分层跨带垫底
+    # unesco 主点：池里同档 1 行 + 近档 5a/TA → 同档排前，带内近档按
+    # |Δ档| 补位（5a Δ1 < TA Δ2）；未分层跨档带出局
     pool = [
         hit("另一个世遗", 0),
         hit("某国际榜点", 2),
@@ -128,6 +128,51 @@ def test_same_level_ranks_first_then_nearest_disclosed():
     assert [a.name for a in alts] == ["另一个世遗", "某5A景区", "某国际榜点"]
     assert alts[0].level_tag == "unesco"
     assert alts[1].level_tag == "5a"  # 近档补位亮自身档牌，不冒充同级
+
+
+def test_cross_band_never_suggested_terracotta_case():
+    # 2026-11-06 二拍实录：兵马俑（unesco/5A premium）的备选不得落 4A
+    # ——陕西自然博物馆（4A，museum 同类同时长全符）也出局，跨档带硬
+    # 闸宁缺不滥
+    pool = [
+        hit("陕西自然博物馆", 8, category="museum", duration=180),
+        hit("华清宫", 1, category="attraction", duration=150),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="museum",
+        tier=1,
+        duration_minutes=180,
+        main_name="秦始皇帝陵博物院",
+    )
+    assert [a.name for a in alts] == ["华清宫"]
+
+
+def test_unlayered_restaurant_row_never_for_premium():
+    # 2026-11-06 二拍实录：竹间葫芦鸡（图商脏行——餐厅被错标 attraction、
+    # 无名录档）不作华清宫（5A premium）备选，跨带出局；无类别脏行
+    # （海底捞类）双重出局（跨带 + 类别缺失）
+    pool = [
+        hit("竹间葫芦鸡(凤林南路店)", 10, category="attraction", duration=None),
+        hit("海底捞火锅(博乐里店)", 10, category=None, duration=None),
+        hit("某5A同行", 1, category="attraction", duration=150),
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=2,
+        duration_minutes=150,
+        main_name="华清宫",
+    )
+    assert [a.name for a in alts] == ["某5A同行"]
+
+
+def test_missing_category_candidate_out():
+    # 候选类别缺失：同类别无法验证，出局（2026-11-06 二拍硬规则；
+    # 带内未知类别行不再垫底补位）
+    pool = [hit("无类别同行", 0, category=None, duration=120)]
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
+    assert alts == []
 
 
 def test_5a_main_point_gets_5a_alternative():
@@ -174,16 +219,17 @@ def test_sight_heritage_groups_split():
 
 
 def test_citywalk_pairs_only_with_citywalk():
-    # 宽窄巷子（名称带「巷」）主点：锦里古街（古街）同CityWalk类互备；
-    # 杜甫草堂（museum）非街区类出局
+    # 宽窄巷子（名称带「巷子」，街区名录梯档 8 → 池档 6 国内名录带）：
+    # 锦里古街（古街，同带）同CityWalk类互备；杜甫草堂（museum 4A，同
+    # 带但非街区类——档 6 本身即街区类，故用档 8 作对照组）出局
     pool = [
-        hit("锦里古街", 2, category="attraction", duration=90),
-        hit("杜甫草堂", 2, category="museum", duration=120),
+        hit("锦里古街", 6, category="attraction", duration=90),
+        hit("杜甫草堂", 8, category="museum", duration=120),
     ]
     alts = pick_alternatives(
         pool,
         category="attraction",
-        tier=3,
+        tier=8,
         duration_minutes=150,
         main_name="宽窄巷子",
     )
@@ -209,7 +255,7 @@ def test_street_catalog_row_is_citywalk_class():
     alts = pick_alternatives(
         pool,
         category="attraction",
-        tier=3,
+        tier=8,
         duration_minutes=150,
         main_name="宽窄巷子",
     )
@@ -218,13 +264,11 @@ def test_street_catalog_row_is_citywalk_class():
 
 def test_citywalk_tag_kernel_counts():
     # 功能标签批内核：tags 带 citywalk 的行（名称无街巷词）也属该类
-    pool = [
-        hit("某创意园区", 10, category="attraction", duration=60, tags=["citywalk"])
-    ]
+    pool = [hit("某创意园区", 6, category="attraction", duration=60, tags=["citywalk"])]
     alts = pick_alternatives(
         pool,
         category="attraction",
-        tier=1,
+        tier=8,
         duration_minutes=60,
         main_name="宽窄巷子",
     )
@@ -252,7 +296,8 @@ def test_other_group_category_never_crosses():
 def test_dufu_pairing_wuhou_not_jinsha():
     # 用户拍板实录：杜甫草堂（museum t2）的备选应该是武侯祠（attraction
     # t2，库类别不一致但同人文古迹组），金沙遗址博物馆（museum t2 同级
-    # 同类同时长）反而不合适——遗址考古类与园林祠庙类隔离
+    # 同类同时长）反而不合适——遗址考古类与园林祠庙类隔离；四川博物院
+    # （4A t8）跨档带出局（2026-11-06 二拍同级硬闸）
     pool = [
         hit("成都金沙遗址博物馆", 2, category="museum", duration=120),
         hit("武侯祠", 2, category="attraction", duration=90),
@@ -265,7 +310,7 @@ def test_dufu_pairing_wuhou_not_jinsha():
         duration_minutes=120,
         main_name="杜甫草堂",
     )
-    assert [a.name for a in alts] == ["武侯祠", "四川博物院"]
+    assert [a.name for a in alts] == ["武侯祠"]
     assert alts[0].level_tag == "intl"  # 同档（t2 国际旅行网站）亮国际榜
 
 
@@ -334,6 +379,21 @@ def test_ruins_subhall_never_suggested_for_umbrella():
         duration_minutes=120,
         main_name="杜甫草堂",
         exclude_names={"成都金沙遗址博物馆"},
+    )
+    assert alts == []
+
+
+def test_same_entity_inserted_char_variant_out():
+    # 2026-11-06 活库探针实录：兵马俑（秦始皇帝陵博物院）卡亮「秦始皇陵」
+    # chip——「帝」字插入变体逃过头尾互含与同核包含，≥3 字核子序列同体
+    # 闸兜住（同体行不作备选）
+    pool = [hit("秦始皇陵", 0, category="attraction", duration=120)]
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=1,
+        duration_minutes=180,
+        main_name="秦始皇帝陵博物院",
     )
     assert alts == []
 
@@ -513,13 +573,16 @@ def test_attach_none_store_returns_copy():
 
 
 def test_attach_heals_tier_from_store_row():
-    # 2026-11-06 前换入的行不带 tier（replace_item 漏设）→ 读路径按
-    # poi_id 回库以 _source_tier 同口径自愈，同档备选不再落 t10 杂馆
+    # 2026-11-06 前换入的行不带 tier（replace_item 漏设）→ 读路径回库以
+    # _source_tier 同口径自愈，同档备选不再落 t10 杂馆。_main_row 用
+    # candidate_by_name（全量候选形含 tags/source；store.get 是 EN 展示
+    # 增补形，无 tags，会把 t2 curated 行错判成 11 实录）。
     class HealingStore(FakeStore):
-        def get(self, source_poi_id: str) -> dict | None:
-            if source_poi_id == "curated_dufu":
+        def candidate_by_name(self, city: str | None, name: str) -> dict | None:
+            if name == "杜甫草堂":
                 return {
-                    "source": "curated",
+                    "source": "amap",
+                    "source_poi_id": "ct_成都_3",
                     "tags": ["curated", "intl"],
                     "name": "杜甫草堂",
                 }
@@ -536,10 +599,10 @@ def test_attach_heals_tier_from_store_row():
         )
     )
     # poi_id 关联库行
-    plan.days[0].items[0].poi_id = "curated_dufu"
+    plan.days[0].items[0].poi_id = "ct_成都_3"
     out = attach_plan_alternatives(plan, store)
     v = next(i for d in out.days for i in d.items if isinstance(i, VisitItem))
-    assert v.tier == 3  # curated → 选点梯子档 3（_source_tier 口径）
+    assert v.tier == 3  # curated/intl 标签 → 选点梯子档 3（_source_tier 口径）
     assert [a.name for a in v.alternatives] == ["武侯祠"]
     # 本体 tier 仍不动（只治展示拷贝）
     assert plan.days[0].items[0].tier is None
