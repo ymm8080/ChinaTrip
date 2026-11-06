@@ -130,3 +130,37 @@ def test_attraction_with_branch_word_still_merges_when_category_clean():
     stats = job.apply_rows(s, [_pick("重庆", "磁器口", "Ciqikou", "tui")], dry_run=True)
     assert stats["merge"] == 1
     assert "intl" in row.tags and "tui" in row.tags
+
+
+def test_dish_named_store_pick_skipped_not_inserted():
+    """菜名店名不含「餐厅」字样的餐饮 pick 整行不入（2026-11-06 水盆羊肉
+    案：崇辉澄城水盆羊肉(钟楼西一路总店) 曾插成 attraction 骨架进观光池
+    被排成景点）。分店后缀（总店/分店/旗舰店/加盟店）也是闸标。"""
+    s = FakeSession([])
+    stats = job.apply_rows(
+        s,
+        [
+            _pick(
+                "西安",
+                "崇辉澄城水盆羊肉(钟楼西一路总店)",
+                "Chengcheng Shuipen Lamb",
+                "layla",
+            ),
+            _pick("西安", "钟楼", "Bell Tower", "sygic"),
+        ],
+        dry_run=True,
+    )
+    assert stats["skip"] == 1 and stats["insert"] == 1
+    assert all("水盆羊肉" not in r.name_zh for r in s.rows)
+
+
+def test_branch_suffixed_row_not_merge_target():
+    """已入库的菜名店（无「餐厅」字样、带分店后缀）也不是归并目标。"""
+    row = _row("西安", "崇辉澄城水盆羊肉(钟楼西一路总店)", source="baidu")
+    row.category = "food"
+    s = FakeSession([row])
+    stats = job.apply_rows(
+        s, [_pick("西安", "崇辉澄城水盆羊肉", "Shuipen Lamb", "layla")], dry_run=True
+    )
+    assert stats["insert"] == 1 and stats["merge"] == 0
+    assert row.tags is None  # 旧行不被打上 intl 标

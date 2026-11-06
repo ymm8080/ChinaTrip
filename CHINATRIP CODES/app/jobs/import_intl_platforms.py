@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 #: 会把荐点错挂到酒店上（2026-11-06 磁器口 171 行酒店污染根修）。
 _STAY_FOOD = re.compile(
     r"酒店|饭店|宾馆|民宿|客栈|公寓|旅馆|招待所|青年旅舍|餐厅|食堂|饭馆|面馆"
+    r"|总店|分店|旗舰店|加盟店"
 )
 _STAY_FOOD_CATEGORIES = {"hotel", "accommodation", "restaurant", "food"}
 
@@ -143,6 +144,14 @@ def apply_rows(session, picks: list[dict], *, dry_run: bool = False) -> dict:
             continue
         try:
             names = {name_zh, *aliases}
+            # pick 自身过闸（2026-11-06 水盆羊肉案）：荐点本身是餐饮/住宿
+            # （转换器过滤漏网、菜名店名不含「餐厅」字样，如「崇辉澄城
+            # 水盆羊肉(钟楼西一路总店)」）时整行不入——插成 attraction
+            # 骨架会进观光排期池被排成景点。
+            if any(_STAY_FOOD.search(n) for n in names if n):
+                stats["skip"] += 1
+                logger.info("intl-platform skip stay/food pick %s/%s", city, name_zh)
+                continue
             hits = [
                 r
                 for r in rows
