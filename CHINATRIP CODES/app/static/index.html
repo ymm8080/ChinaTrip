@@ -1692,8 +1692,9 @@ function planCard(plan) {
               if (lv) bits.push(lv);
               if (a.duration_minutes) bits.push(a.duration_minutes + I18N.t("card.minutes"));
               if (typeof a.distance_km === "number") bits.push(a.distance_km.toFixed(1) + "km");
-              const title = I18N.tf("card.alt.titlePre", "同级备选：点击换成 ") + esc(I18N.pick(a, "name", "name_en")) + (bits.length ? I18N.tf("card.paren.pre","（") + esc(bits.join(" · ")) + I18N.tf("card.paren.suf","）") : "");
-              return '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" title="' + title + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + "</button>";
+              // 悬停简介与主点同款（2026-11-06）：data-city/data-name/data-bits
+              // 喂 .site-pop；原生 title 摘除防双 tooltip，换点提示挪进浮层首行
+              return '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" data-city="' + esc(it.city) + '" data-bits="' + esc(bits.join(" · ")) + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + "</button>";
             }).join("") + "</span>"
           : "";
         const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
@@ -1921,6 +1922,7 @@ function planCard(plan) {
       } else if (action === "altswap") {
         // 同级备选一键换主点（2026-11-05 拍板）：复用 ✏️ 换点端点
         // /items/{id}/replace——库内精确同名 POI 原位换入，当天游标链重排
+        sitePopHideNow();
         busy(btn, async () => {
           try {
             const body = await api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/replace", { name: btn.getAttribute("data-name") }, "POST");
@@ -2016,10 +2018,11 @@ function enrichBrief(info, city, name) {
   }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
 }
 
-// 站点悬停简介浮层（2026-11-06）：光标停在站点名 350ms 弹 .site-pop——
+// 站点悬停简介浮层（2026-11-06）：光标停在站点名/备选 chip 上 350ms 弹 .site-pop——
 // /api/pois/detail 同端点、(city,name) 内存缓存（一次悬停一次请求），
 // EN 语境读 intro_en；移入浮层可继续读（250ms 宽限防抖），滚屏/改窗/
-// 点击站点名即关；点击仍开完整简介气泡，触屏无 hover 不受影响。
+// 点击即关；点击主点仍开完整简介气泡、点击备选原位换点，触屏无 hover 不受影响。
+// 备选 chip 首行显示换点提示、次行显示档号·时长·距离（原 title 信息搬入浮层）。
 // 404/未收录落「暂无」不报错；绝不影响原气泡与卡片渲染。
 const SITE_POP = { cache: new Map(), pop: null, showTimer: null, hideTimer: null };
 function sitePopHead(name, city) {
@@ -2041,6 +2044,7 @@ async function sitePopShow(link) {
   sitePopHideNow();
   const city = link.getAttribute("data-city") || "", name = link.getAttribute("data-name") || "";
   if (!name) return;
+  const isAlt = link.classList.contains("alt-swap");
   const pop = el('<div class="site-pop" role="tooltip">' + sitePopHead(name, city) + '<div class="muted" style="margin-top:2px">…</div></div>');
   document.body.appendChild(pop);
   pop._link = link;
@@ -2065,10 +2069,13 @@ async function sitePopShow(link) {
   if (SITE_POP.pop !== pop) return; // 悬停目标已换：旧浮层早被 sitePopHideNow 收走
   const p = SITE_POP.cache.get(key) || {};
   const bits = [];
+  if (isAlt) bits.push('<span class="muted">↺ ' + esc(I18N.tf("card.alt.popHint","同级备选：点击换为该点")) + "</span>");
   const intro = I18N.pick(p, "intro", "intro_en");
   if (intro) bits.push("📖 " + esc(intro));
   if (p.rating != null) bits.push("⭐ " + p.rating);
   if (p.suggested_duration_min) bits.push("⏱ " + p.suggested_duration_min + I18N.t("card.minutes"));
+  const planBits = link.getAttribute("data-bits");
+  if (isAlt && planBits) bits.push('<span class="muted">' + esc(planBits) + "</span>");
   if (p.address) bits.push(I18N.tf("brief.addr","📍 地址：") + esc(p.address));
   if (p.opening_hours) bits.push(I18N.tf("brief.hours","🕐 开放时间：") + esc(p.opening_hours));
   pop.innerHTML = sitePopHead(name, city) +
@@ -2077,7 +2084,7 @@ async function sitePopShow(link) {
   place();
 }
 document.addEventListener("mouseover", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap") : null;
   if (!link) return;
   if (SITE_POP.pop && SITE_POP.pop._link !== link) sitePopHideNow(); // 换目标：旧浮层立刻收走
   clearTimeout(SITE_POP.hideTimer);
@@ -2085,7 +2092,7 @@ document.addEventListener("mouseover", (ev) => {
   SITE_POP.showTimer = setTimeout(() => sitePopShow(link), 350);
 });
 document.addEventListener("mouseout", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap") : null;
   if (!link) return;
   sitePopScheduleHide();
 });
