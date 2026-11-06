@@ -9,6 +9,9 @@
   apply-group <keeper_id> <loser_id...>
               手工判定的同实体组退役（子序列变体如 秦始皇陵⊂秦始皇帝陵
               不被 S1-S3 覆盖，按用户拍板点名执行），回填/别名/重指向同上。
+  apply-s2 <拍板文件>
+              S2 同核（剥尾词相等）逐组退役：拍板文件每行 `城市|keeper名`，
+              同城同核组内未点名的只列 MISSING 不删，保证逐组人工过目。
 
 判定复用 poi_alternatives 同体闸的剥尾规则；台账输出 utf-8。
 """
@@ -128,7 +131,12 @@ def _merge_and_retire(factory, keeper: Poi, loser: Poi, tag: str) -> list[str]:
             if getattr(k, f) is None and getattr(loser_row, f) is not None:
                 setattr(k, f, getattr(loser_row, f))
                 ops.append(f"    fill {f} <- [{loser_row.source}]")
-        # 3) 别名并入
+        # 3) tags 并集合并（intl/4a/unesco 等实体级标不随退役丢失）
+        added_tags = [t for t in (loser_row.tags or []) if t not in (k.tags or [])]
+        if added_tags:
+            k.tags = list(k.tags or []) + added_tags
+            ops.append(f"    tags union <- [{loser_row.source}] {added_tags}")
+        # 4) 别名并入
         aliases = list(k.name_aliases or [])
         new = {loser_row.name_zh, *(a for a in (loser_row.name_aliases or []) if a)}
         added = [a for a in sorted(new) if a not in aliases and a != k.name_zh]
@@ -136,7 +144,7 @@ def _merge_and_retire(factory, keeper: Poi, loser: Poi, tag: str) -> list[str]:
             aliases.extend(added)
             k.name_aliases = aliases
             ops.append(f"    aliases += {added}")
-        # 4) 退役
+        # 5) 退役
         loser_row.status = "retired"
         s.commit()
     ops.append(
@@ -210,6 +218,59 @@ def main() -> None:
                 loser = s.get(Poi, lid)
                 for line in _merge_and_retire(factory, keeper, loser, "group"):
                     print(line)
+        return
+
+    if mode == "apply-s2":
+        dec_path = sys.argv[2]
+        decisions: set[tuple[str, str]] = set()
+        with open(dec_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    city, keeper_name = line.split("|", 1)
+                    decisions.add((city.strip(), keeper_name.strip()))
+        rows = _load_active(factory)
+        by_city: dict[str, list[Poi]] = defaultdict(list)
+        for r in rows:
+            by_city[(r.city or "").strip().removesuffix("市")].append(r)
+        groups: dict[tuple[str, str], list[Poi]] = defaultdict(list)
+        for city, items in by_city.items():
+            for r in items:
+                core = _name_core(r.name_zh)
+                if core and len(core) >= 2:
+                    groups[(city, core)].append(r)
+        applied = 0
+        missing: list[tuple[str, str, list[Poi]]] = []
+        used = set()
+        for (city, core), grp in sorted(groups.items()):
+            if len(grp) < 2:
+                continue
+            hits = [r for r in grp if (city, r.name_zh) in decisions]
+            if not hits:
+                detail = ", ".join(
+                    f"[{r.source}] {r.name_zh} (rating={r.rating}, dur="
+                    f"{r.suggested_duration_min}, tags={r.tags}) id={str(r.id)[:8]}"
+                    for r in sorted(grp, key=_keeper_key)
+                )
+                missing.append((city, core, detail))
+                continue
+            keeper = hits[0]
+            used.add((city, keeper.name_zh))
+            print(f"[{city}|{core}] keeper=[{keeper.source}] {keeper.name_zh}")
+            for loser in grp:
+                if loser.id == keeper.id:
+                    continue
+                for line in _merge_and_retire(factory, keeper, loser, "S2"):
+                    print(line)
+                applied += 1
+        unused = decisions - used
+        print(
+            f"\nretired {applied} loser rows; missing-decision groups: {len(missing)}"
+        )
+        for city, core, detail in missing:
+            print(f"  MISSING [{city}|{core}] {detail}")
+        if unused:
+            print(f"unused decisions (check typos): {sorted(unused)}")
         return
 
     print(__doc__)
