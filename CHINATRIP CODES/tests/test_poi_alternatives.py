@@ -556,6 +556,36 @@ def test_attach_excludes_in_plan_sites_from_alternatives():
                 assert all(a.name != "青城山" for a in it.alternatives)
 
 
+def test_attach_excludes_family_stop_members_from_alternatives():
+    # 2026-11-07 钟鼓楼案：同街族并卡后族员折进主卡 stops（钟楼/鼓楼 ⊂
+    # 碑林城墙卡）——族员已在行程内，不得再以备选身份亮卡；同档普通
+    # 候选不受影响
+    from app.services.itinerary.models import PlanStop
+
+    store = FakeStore(
+        [
+            hit("钟楼", 8, duration=60),
+            hit("鼓楼", 8, duration=60),
+            hit("某4A同行", 8, duration=90),
+        ]
+    )
+    anchor = visit(
+        "西安城墙·碑林历史文化景区",
+        tier=10,  # 4a → 池档 8，与钟鼓楼同国内名录带
+        duration=180,
+        item_id="v1",
+    )
+    anchor.stops = [
+        PlanStop(name="钟楼", poi_id="src_钟楼", duration_minutes=60),
+        PlanStop(name="鼓楼", poi_id="src_鼓楼", duration_minutes=60),
+    ]
+    out = attach_plan_alternatives(plan_of(anchor), store)
+    v = next(i for d in out.days for i in d.items if isinstance(i, VisitItem))
+    got = [a.name for a in (v.alternatives or [])]
+    assert "钟楼" not in got and "鼓楼" not in got
+    assert got == ["某4A同行"]
+
+
 def test_attach_fail_soft_when_store_raises():
     class BoomStore:
         def alternatives_pool(self, city: str) -> list[dict]:

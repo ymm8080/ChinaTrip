@@ -693,6 +693,14 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
         exclude_names.add(_norm_name(v.name_en))
         if v.poi_id:
             exclude_pids.add(str(v.poi_id))
+        # 同街族子站（2026-11-07 钟鼓楼案）：已折进主卡 stops 的族员就是
+        # 行程内已有站点——不进排除集就会以备选身份再亮卡（钟楼/鼓楼并
+        # 进碑林城墙卡后仍在备选区冒头实录）
+        for s in v.stops or ():
+            exclude_names.add(_norm_name(s.name))
+            exclude_names.add(_norm_name(s.name_en))
+            if s.poi_id:
+                exclude_pids.add(str(s.poi_id))
     # 泛化替代组同档成员表（2026-11-07 泛化拍板）：行程里已有的「一行程
     # 一个」档（citywalk）成员按城聚合——attach 层滤城、滤主点本人，
     # 备选闸只补 30km 距离保险（远郊不算同一体验圈）
