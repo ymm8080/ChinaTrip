@@ -4569,6 +4569,21 @@ def _fallback_sequence_times(
             and _is_big_site(v)
             for v in day.items
         )
+        # 贴邻豁免锚点（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：记录本
+        # 日下午已排大点的坐标，供下方「第二个下午大点」跳过前判步行圈。
+        afternoon_big_xy: tuple[float, float] | None = None
+        for v in day.items:
+            if (
+                isinstance(v, VisitItem)
+                and v.start_time is not None
+                and v.start_time.hour * 60 + v.start_time.minute
+                >= AFTERNOON_START_MINUTES
+                and _is_big_site(v)
+            ):
+                _loc = getattr(v, "location", None)
+                if _loc is not None and getattr(_loc, "lon", None) is not None:
+                    afternoon_big_xy = (float(_loc.lon), float(_loc.lat))
+                break
         cursor = day_start
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
@@ -4642,12 +4657,32 @@ def _fallback_sequence_times(
                 ):
                     # 下午单大点兜底镜像（2026-11-04 拍板）：同日下午已有
                     # 大点，第二个留空交挪日/披露，不硬塞。
-                    logger.warning(
-                        "plan: fallback skips 2nd afternoon big %s on day %d",
-                        visit.name,
-                        day.day,
+                    # 贴邻豁免（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                    # 与本日下午已排大点在步行圈（_SHOW_ADJACENT_KM，锦里
+                    # 案同口径）内=同一街区连游，无车腿无叠加疲劳，不按
+                    # 「第二个下午大点」处理——硬跳过反而制造跨日拆散。
+                    _vloc = getattr(visit, "location", None)
+                    _vxy = (
+                        (float(_vloc.lon), float(_vloc.lat))
+                        if _vloc is not None and getattr(_vloc, "lon", None) is not None
+                        else None
                     )
-                    continue
+                    _walk_adjacent = (
+                        _vxy is not None
+                        and afternoon_big_xy is not None
+                        and haversine_km(
+                            GeoPoint(lon=_vxy[0], lat=_vxy[1]),
+                            GeoPoint(lon=afternoon_big_xy[0], lat=afternoon_big_xy[1]),
+                        )
+                        <= _SHOW_ADJACENT_KM
+                    )
+                    if not _walk_adjacent:
+                        logger.warning(
+                            "plan: fallback skips 2nd afternoon big %s on day %d",
+                            visit.name,
+                            day.day,
+                        )
+                        continue
                 hours = hours_by_poi.get(visit.poi_id)
                 cap = generic_entry_cap(visit, hours)
                 if (
@@ -7715,19 +7750,34 @@ class PlanningAgent:
             if not fitting:
                 return min(window, key=lambda d: (day_load.get(d, 0), d))
             if xy is not None:
-                near = [
-                    d
-                    for d in fitting
-                    if day_xy.get(d)
-                    and min(
+
+                def _day_min_km(d: int) -> float:
+                    pts = day_xy.get(d)
+                    if not pts:
+                        return float("inf")
+                    return min(
                         haversine_km(
                             GeoPoint(lon=xy[0], lat=xy[1]),
                             GeoPoint(lon=p[0], lat=p[1]),
                         )
-                        for p in day_xy[d]
+                        for p in pts
                     )
-                    <= 15.0
-                ]
+
+                # 贴邻圈优先（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                # 15km 片区圈在市中心对几乎每天皆真（华清宫 13km 也算
+                # 「近」），「最空天」兜底随后把同街件吸去别天——步行圈
+                # （_SHOW_ADJACENT_KM，锦里案同口径）内有已放点位的天
+                # 最先，同街三件不再被逐件吸散；贴邻天之间再按最近贴邻
+                # 点距离取近（鼓楼 1.0km 跟回民街块而不是 1.2km 跟较空
+                # 的城墙碑林块，实测），tiebreak 最空天；无贴邻天退回
+                # 15km 圈，再退最空天（熊猫基地→都江堰口径不变）。
+                walk = [d for d in fitting if _day_min_km(d) <= _SHOW_ADJACENT_KM]
+                if walk:
+                    return min(
+                        walk,
+                        key=lambda d: (_day_min_km(d), day_load.get(d, 0), d),
+                    )
+                near = [d for d in fitting if _day_min_km(d) <= 15.0]
                 fitting = near or fitting
             return min(fitting, key=lambda d: (day_load.get(d, 0), d))
 
@@ -9160,6 +9210,42 @@ class PlanningAgent:
                         and _km(xy, show_pin_xy) <= _SHOW_ADJACENT_KM
                     ):
                         order = [show_pin_day] + [d for d in order if d != show_pin_day]
+                    # 步行贴邻同日（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                    # 认领天序把已有步行圈内（_SHOW_ADJACENT_KM，锦里案同
+                    # 口径）点位的天前置——同街件不因认领梯子后位被容量
+                    # 漏斗逐件甩去别天。软偏好：被边日轻重/到达日轻量压
+                    # 到尾段的天不抢位（分区拍板不破），预算/4点日闸照收，
+                    # 求解/LNS 仍可调换。
+                    if xy is not None and len(order) > 1:
+                        _zoned_tail: set[int] = set()
+                        if _tdays and len(eligible) > 1 and _tier <= 4:
+                            _zoned_tail = {d for d in order if d in _tdays}
+                        if _adays and len(eligible) > 1 and _cand_is_big(cand):
+                            _zoned_tail |= {d for d in order if d in _adays}
+                        _walk_days = sorted(
+                            (
+                                d
+                                for d in order
+                                if d not in _zoned_tail
+                                and day_coords.get(d)
+                                and min(_km(xy, p) for p in day_coords[d])
+                                <= _SHOW_ADJACENT_KM
+                            ),
+                            key=lambda d: (
+                                min(_km(xy, p) for p in day_coords[d]),
+                                d,
+                            ),
+                        )
+                        if _walk_days and len(_walk_days) < len(order):
+                            _walk_set = set(_walk_days)
+                            order = _walk_days + [
+                                d for d in order if d not in _walk_set
+                            ]
+                            logger.info(
+                                "plan: preclaim walk-adjacent %s -> days %s first",
+                                cand.get("name") or cand.get("title") or "?",
+                                _walk_days,
+                            )
                     # 未标注点雨日让位（2026-11-05 磁器口案，主环同口径）：
                     # 认领天序把有计数空位的干日前置——软语义不出局，无
                     # 干日空位保持原序留雨日，交对调/披露承接；王牌与夜
