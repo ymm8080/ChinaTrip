@@ -268,14 +268,18 @@ def _run_lns(plan: ItineraryPlan):
 
 
 def test_preclaim_full_ladder_spreads_by_cap():
-    # 全档预占位（2026-11-02 用户拍板「全部优先级都要考虑」）：同坐标
-    # 消腿噪声，4/日闸下高档先满 day1、次档顺延 day2。
+    # 全档预占位（2026-11-02 用户拍板「全部优先级都要考虑」）：4/日闸
+    # 下高档先满 day1、次档顺延 day2。坐标按 lon 逐件 +0.02°（≈1.9km）
+    # 错开（2026-11-07 并卡拍板：≤1.0km 互认同街族、族件豁免 4/日计数
+    # ——同点夹具会并成一族卡绕开闸；>1.5km 同时避开贴邻 hoist）；时长
+    # 90→60 消腿噪声（>1.5km 腿按打车口径 34min/跳，90×4+腿会先撞 360
+    # 预算闸、盖过本测要验的 4/日闸语义）。
     cands = [
-        _sight("甲馆", *_C1, dur=90, tags=["unesco"]),
-        _sight("乙5a", *_C1, dur=90, tags=["5a"]),
-        _sight("丙5a", *_C1, dur=90, tags=["5a"]),
-        _sight("丁lp", *_C1, dur=90, tags=["lp"]),
-        _sight("戊lp", *_C1, dur=90, tags=["lp"]),
+        _sight("甲馆", 108.94, 34.26, dur=60, tags=["unesco"]),
+        _sight("乙5a", 108.96, 34.26, dur=60, tags=["5a"]),
+        _sight("丙5a", 108.98, 34.26, dur=60, tags=["5a"]),
+        _sight("丁lp", 109.00, 34.26, dur=60, tags=["lp"]),
+        _sight("戊lp", 109.02, 34.26, dur=60, tags=["lp"]),
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     day_of = {it["name"]: it["day"] for it in items}

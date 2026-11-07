@@ -25,13 +25,14 @@ class NoLLM:
 
 
 def _filler_rows(city: str, n: int = 32, tags=None, rating: float = 4.2) -> list[dict]:
-    """窗口填充行：有坐标有评分的名录/普通景点。"""
+    """窗口填充行：有坐标有评分的名录/普通景点。行距 0.02°≈1.9km
+    （2026-11-07 并卡拍板：≤1km 链互认同街族、族件豁免 4/日闸）。"""
     return [
         {
             "name": f"填充景点{i:02d}",
             "city": city,
             "category": "attraction",
-            "location": (104.0 + i * 0.01, 30.6),
+            "location": (104.0 + i * 0.02, 30.6),
             "rating": rating,
             "tags": list(tags or []),
         }
@@ -111,8 +112,11 @@ def test_selection_places_diversity_rows_ahead_of_untiered_filler():
         def top_pois_in_city(self, city, limit, *, exclude_food=True):
             ace = _filler_rows(city, n=5, tags=["unesco"], rating=4.9)
             rows = [{**r, "name": f"王牌{i:02d}"} for i, r in enumerate(ace)]
+            # 名录带整体 lat +0.015°（≈1.7km，2026-11-07 并卡拍板：
+            # 王牌/名录同格坐标互认同街族、族件豁免 4/日闸搭车溢池
+            # 20 件——验池席位须独立点）。
             rows += [
-                {**r, "name": f"名录{i:02d}"}
+                {**r, "name": f"名录{i:02d}", "location": (r["location"][0], 30.615)}
                 for i, r in enumerate(_filler_rows(city, n=30, tags=["4a"], rating=4.3))
             ]
             rows += _diversity_rows(city)

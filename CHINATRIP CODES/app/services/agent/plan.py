@@ -74,6 +74,7 @@ from app.services.itinerary.geo import area_labels, cluster_days
 from app.services.itinerary.models import (
     ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
+    PlanStop,
     PoiHours,
 )
 from app.services.itinerary.rules import (
@@ -177,6 +178,11 @@ _REPLACE_REORDER_KM = 3.0
 # 首尾两天。直线距离在该圈内（与 taxi_leg_min ≤1.5km 步行折算同口径
 # ——引擎本就视此距为步行可达）的候选，预占位认领序把演出日前置。
 _SHOW_ADJACENT_KM = 1.5
+# 同街族并卡圈（2026-11-07 拍板「同街族合成一卡，时长取最大不求和；
+# 距离超过一公里保持多卡」）：直线 ≤1km 的同日观光件折成一张卡
+# （主卡+子站 chips），预算账本对族内件只补差额（max-边际）不占
+# 4/日计数——>1km 件不进族，仍走 1.5km 贴邻同日偏好保持多卡贴排。
+_FAMILY_MERGE_KM = 1.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -8086,6 +8092,7 @@ class PlanningAgent:
                 name
             )
             target = None
+            stop = None
             for day in session.plan.days:
                 for item in day.items:
                     if not isinstance(item, VisitItem):
@@ -8099,10 +8106,28 @@ class PlanningAgent:
                         break
                     if target is None and item.poi_id and _name_dup(name, item.name):
                         target = item
+                    # 同街族子站（2026-11-07 并卡拍板）：心愿名/号落在族卡
+                    # 子站 chip 上也算在册——不回炉（防「已排期但实际没排」
+                    # 误判回心愿单）。
+                    if target is None and item.stops:
+                        for st in item.stops:
+                            if (
+                                bound is not None
+                                and st.poi_id
+                                and st.poi_id == str(bound.get("source_poi_id") or "")
+                            ):
+                                stop, target = st, item
+                            elif stop is None and _name_dup(name, st.name):
+                                stop, target = st, item
+                            if target is not None:
+                                break
+                    if target is not None:
+                        break
                 if target is not None:
                     break
             if (
                 target is not None
+                and stop is None
                 and target.poi_id
                 and str((bound or {}).get("source_poi_id") or "") != target.poi_id
             ):
@@ -8113,6 +8138,21 @@ class PlanningAgent:
                     "name": target.name,
                     "city": target.city,
                     "source_poi_id": target.poi_id,
+                    "location": (
+                        {"lon": target.location.lon, "lat": target.location.lat}
+                        if target.location is not None
+                        else None
+                    ),
+                }
+                self._wish_bindings[name] = healed
+                session.wish_bindings[name] = healed
+            elif target is not None and stop is not None and stop.poi_id:
+                # 同街族子站绑定自愈（2026-11-07 并卡拍板）：绑到子站真身
+                # （不挪成主卡——主卡是另一实体）。
+                healed = {
+                    "name": stop.name,
+                    "city": target.city,
+                    "source_poi_id": stop.poi_id,
                     "location": (
                         {"lon": target.location.lon, "lat": target.location.lat}
                         if target.location is not None
@@ -8144,17 +8184,19 @@ class PlanningAgent:
                     )
                 if (
                     target is not None
-                    and target.poi_id
+                    and (target.poi_id or (stop is not None and stop.poi_id))
                     and (
                         it.get("status") != STATUS_SCHEDULED
                         or row_itin != itin
                         or it.get("day") != target.day
                     )
                 ):
+                    # 同街族子站命中时 note 落子站名（卡名是主点实体）。
+                    _shown = stop.name if stop is not None else target.name
                     when = _wish_when_text(session, target)
                     note = L(
-                        f"已安排：{target.name}（第{target.day}天{when[0]}）",
-                        f"Scheduled: {target.name} (day {target.day}{when[1]})",
+                        f"已安排：{_shown}（第{target.day}天{when[0]}）",
+                        f"Scheduled: {_shown} (day {target.day}{when[1]})",
                     )
                     raw_note = str(it.get("note") or "")
                     base = strip_scheduled_note(raw_note)
@@ -8169,7 +8211,7 @@ class PlanningAgent:
                     logger.info(
                         "plan: wish row scheduled %s -> %s day %d",
                         name,
-                        target.name,
+                        _shown,
                         target.day,
                     )
             except Exception:
@@ -9049,6 +9091,34 @@ class PlanningAgent:
             day_coords: dict[int, list[tuple[float, float]]] = {
                 d: [] for d in range(lo, hi + 1)
             }
+            # 同街族账本（2026-11-07 并卡拍板）：天 → [[锚xy, 族内max分钟],
+            # ...]。族内件预算只补差额（max-边际）、计数不占 4/日闸——
+            # 并卡层合成一卡后计数天然归一，账本先按族口径收才不把同街
+            # 件挤去别天拆了族。
+            day_fam: dict[int, list[list]] = {d: [] for d in range(lo, hi + 1)}
+
+            def _fam_peek(
+                xy: tuple[float, float] | None, minutes: int, d: int
+            ) -> tuple[int, bool]:
+                """族边际：(该件实占分钟, 是否族内件)。族内件实占=
+                max(0, 本件-族内现max)（族总计恒=最大件），新锚件全额。"""
+                if xy is None:
+                    return minutes, False
+                for fam in day_fam[d]:
+                    if _km(xy, fam[0]) <= _FAMILY_MERGE_KM:
+                        return max(0, minutes - fam[1]), True
+                return minutes, False
+
+            def _fam_commit(
+                xy: tuple[float, float] | None, minutes: int, d: int
+            ) -> None:
+                if xy is None:
+                    return
+                for fam in day_fam[d]:
+                    if _km(xy, fam[0]) <= _FAMILY_MERGE_KM:
+                        fam[1] = max(fam[1], minutes)
+                        return
+                day_fam[d].append([xy, minutes])
 
             def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
                 # 走行腿计预算（打车模型）：入排点与当日已放点位的最近腿，
@@ -9278,6 +9348,9 @@ class PlanningAgent:
                     for day in order:
                         load = day_loads[day]
                         leg = _leg_min(xy, day)
+                        # 同街族边际（2026-11-07 并卡拍板）：族内件只补
+                        # 差额不占计数；返程上午窗照按全额分钟（物理窗）。
+                        extra, in_fam = _fam_peek(xy, minutes, day)
                         # 严格位同样不并远腿大点（2026-11-04 成渝案二段）：
                         # 预算口径的腿分钟被 TRAVEL_LEG_CAP_MIN 封顶——
                         # 大足石刻+金佛山两条 >150km 互相远离的腿在分钟
@@ -9287,10 +9360,13 @@ class PlanningAgent:
                             continue
                         if _over_return_cap(day, minutes, leg):
                             continue
-                        if load[1] >= 4 or load[0] + minutes + leg > _budget(day):
+                        if (load[1] >= 4 and not in_fam) or load[
+                            0
+                        ] + extra + leg > _budget(day):
                             continue
-                        load[0] += minutes + leg
-                        load[1] += 1
+                        load[0] += extra + leg
+                        load[1] += 0 if in_fam else 1
+                        _fam_commit(xy, minutes, day)
                         if xy is not None:
                             day_coords[day].append(xy)
                         placed[day].append((pos, cand))
@@ -9307,14 +9383,16 @@ class PlanningAgent:
                         # 远腿不软放（2026-11-04 成渝案：330km 腿被软
                         # 闸塞进同日=四面山+白帝城同天）。
                         for day in order:
-                            if day_loads[day][1] >= 4:
+                            _ex, _inf = _fam_peek(xy, minutes, day)
+                            if day_loads[day][1] >= 4 and not _inf:
                                 continue
                             if _far_km(xy, day) > _SOFT_FAR_KM:
                                 continue
                             if _over_return_cap(day, minutes, _leg_min(xy, day)):
                                 continue
-                            day_loads[day][0] += minutes + _leg_min(xy, day)
-                            day_loads[day][1] += 1
+                            day_loads[day][0] += _ex + _leg_min(xy, day)
+                            day_loads[day][1] += 0 if _inf else 1
+                            _fam_commit(xy, minutes, day)
                             if xy is not None:
                                 day_coords[day].append(xy)
                             placed[day].append((pos, cand))
@@ -9484,6 +9562,12 @@ class PlanningAgent:
                     day = min(_dry, key=lambda d: (day_loads[d][0], day_loads[d][1], d))
                 load = day_loads[day]
                 leg = _leg_min(xy, day)
+                # 同街族边际（2026-11-07 并卡拍板）：直排位每轮先探族
+                # （族内件只补差额不占 4/日计数）；溢出分支换天后重探。
+                # 此行必须在溢出分支之外——直排路径不绑 extra/in_fam
+                # 即引用 9685 行会 UnboundLocalError，且前件走溢出后
+                # 后件会静默复用陈旧族账。
+                extra, in_fam = _fam_peek(xy, minutes, day)
                 # 主环直排位同样不并互远大点（2026-11-04 成渝案三段）：
                 # 预占位被偏好带挤出后石刻走主环，簇日直排无远腿闸——
                 # 与金佛山同日直排成功（腿分钟封顶让预算闸看不见 159km）。
@@ -9528,21 +9612,24 @@ class PlanningAgent:
                         )
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
+                    # 同街族边际：换天后按新天重探（族账随 day 变化）。
+                    extra, in_fam = _fam_peek(xy, minutes, day)
                     # 时间预算=软闸（2026-11-02 拍板「时间约束是软闸
                     # 不是硬闸」）：预算超了不放生——放余量最大天允许
                     # 超额，交给求解层按真实时窗精排；4 个/日闸（铁律
-                    # 6）仍是硬闸；同档被闸时短时长先占位（排序键含
-                    # 时长升序）。远腿例外（2026-11-04 成渝案）：超
-                    # _SOFT_FAR_KM 的直线距不做软超额——软超额救的是
-                    # 时间预算，不是跨市距离。
+                    # 6）仍是硬闸（族内件豁免——并卡后计一张）；同档被
+                    # 闸时短时长先占位（排序键含时长升序）。远腿例外
+                    # （2026-11-04 成渝案）：超 _SOFT_FAR_KM 的直线距
+                    # 不做软超额——软超额救的是时间预算，不是跨市距离。
                     if (
                         _far_km(xy, day) > _SOFT_FAR_KM
-                        or load[1] >= 4
+                        or (load[1] >= 4 and not in_fam)
                         or _over_return_cap(day, minutes, leg)
                     ):
                         continue  # 全满/远腿/返程日超上午窗才出局（tier 低者先出）
-                load[0] += minutes + leg
-                load[1] += 1
+                load[0] += extra + leg
+                load[1] += 0 if in_fam else 1
+                _fam_commit(xy, minutes, day)
                 if xy is not None:
                     day_coords[day].append(xy)
                 placed[day].append((pos, cand))
@@ -9772,13 +9859,14 @@ class PlanningAgent:
                 ):
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
-                    if load[1] >= 4:
+                    extra, in_fam = _fam_peek(xy, minutes, day)
+                    if load[1] >= 4 and not in_fam:
                         continue
                     if _rain_blocked(cand, day):
-                        if load[0] + minutes + leg <= _budget(day):
+                        if load[0] + extra + leg <= _budget(day):
                             feasible_rainy = True
                         continue
-                    if load[0] + minutes + leg > _budget(day):
+                    if load[0] + extra + leg > _budget(day):
                         # 时间预算=软闸：预算内无位先记余量最大天
                         # （2026-11-02 拍板）；雨闸照硬（露天不进雨日）。
                         # 远腿天不记兜底（同主环远腿不软放口径）。
@@ -9789,8 +9877,9 @@ class PlanningAgent:
                         ):
                             fallback = day
                         continue
-                    load[0] += minutes + leg
-                    load[1] += 1
+                    load[0] += extra + leg
+                    load[1] += 0 if in_fam else 1
+                    _fam_commit(xy, minutes, day)
                     if xy is not None:
                         day_coords[day].append(xy)
                     placed[day].append((pos, cand))
@@ -9800,8 +9889,10 @@ class PlanningAgent:
                     if fallback is not None:
                         # 软闸放行：预算外照排，求解层按真实时窗收口。
                         leg_fb = _leg_min(xy, fallback)
-                        day_loads[fallback][0] += minutes + leg_fb
-                        day_loads[fallback][1] += 1
+                        ex_fb, in_fam_fb = _fam_peek(xy, minutes, fallback)
+                        day_loads[fallback][0] += ex_fb + leg_fb
+                        day_loads[fallback][1] += 0 if in_fam_fb else 1
+                        _fam_commit(xy, minutes, fallback)
                         if xy is not None:
                             day_coords[fallback].append(xy)
                         placed[fallback].append((pos, cand))
@@ -10631,6 +10722,20 @@ class PlanningAgent:
             transfers.append(transfer)
         return transfers, assumptions
 
+    def _family_must_names(self, names: set[str]) -> set[str]:
+        """必去扩名（2026-11-07 并卡拍板）：成员名映射到族卡主点名，
+        让铁律 19 的 protect 按卡名护住载有必去子站的族卡。无映射时
+        原样返回（_fam_primary_of 未装配=上轮无并卡）。"""
+        prim = getattr(self, "_fam_primary_of", None) or {}
+        if not prim:
+            return names
+        out = set(names)
+        for n in names:
+            p = prim.get(n)
+            if p:
+                out.add(p)
+        return out
+
     async def _assemble_plan(
         self,
         cities: list[str],
@@ -10696,7 +10801,61 @@ class PlanningAgent:
         await self._ensure_origin_anchor(anchors, cities)
         visits: list[VisitItem] = []
         food_by_day: dict[int, int] = {}
+        # 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大不求和；
+        # 距离超过一公里保持多卡」）：同日观光规格直线 ≤1km（锚半径，
+        # _FAMILY_MERGE_KM）折进首件锚卡——锚序=列表序=池序优先级梯子。
+        # food/演出（entertainment）/无坐标件不入族；>1km 保持多卡（同日
+        # 贴邻由预占/求解层的 1.5km 贴邻圈承担）。选层账本（day_fam）已按
+        # 族口径收预算，这里把卡面合并落地。
+        fam_members: dict[str, list[dict]] = {}
+        absorbed: set[str] = set()
+        fam_by_day: dict[int, list[dict]] = {}
         for spec in picked:
+            if spec.get("category") in ("food", "entertainment"):
+                continue
+            if not isinstance(spec.get("location"), dict):
+                continue
+            fam_by_day.setdefault(int(spec["day"]), []).append(spec)
+        for _day, day_specs in fam_by_day.items():
+            for i, anchor in enumerate(day_specs):
+                if anchor["name"] in absorbed:
+                    continue
+                a_pt = GeoPoint(**anchor["location"])
+                for other in day_specs[i + 1 :]:
+                    if other["name"] in absorbed:
+                        continue
+                    if (
+                        haversine_km(a_pt, GeoPoint(**other["location"]))
+                        <= _FAMILY_MERGE_KM
+                    ):
+                        fam_members.setdefault(anchor["name"], []).append(other)
+                        absorbed.add(other["name"])
+        # 必去子站保护映射（成员名→主卡名，2026-11-07 并卡拍板）：必去
+        # 被折进族卡后卡面名换成主点，solver 铁律 19 的 protect 按卡名
+        # 匹配——三处 must_names 构建点经 _family_must_names 扩名，防止
+        # 载有必去子站的族卡被弹。
+        self._fam_primary_of = {
+            m["name"]: anchor_name
+            for anchor_name, members in fam_members.items()
+            for m in members
+        }
+        if fam_members:
+            absorbed_names = [
+                m["name"] for members in fam_members.values() for m in members
+            ]
+            assumptions.append(
+                L(
+                    f"{'、'.join(absorbed_names)} 与相邻站点同街（≤1km），"
+                    "已并入同街一卡（停留时长按族内最长一站计）",
+                    ", ".join(absorbed_names)
+                    + " sit on the same street as a neighbouring stop (within "
+                    "1km) and were merged into one street card (duration = "
+                    "the longest stop)",
+                )
+            )
+        for spec in picked:
+            if spec["name"] in absorbed:
+                continue
             cand = cand_by_name.get(spec["name"])
             location = None
             if cand and isinstance(cand.get("location"), dict):
@@ -10722,6 +10881,28 @@ class PlanningAgent:
                     start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
                     pinned = True
                     soft_pin = True
+            # 族卡收口（2026-11-07 并卡拍板）：主卡时长=族内最长一站，
+            # 子站折成 chips 只出不排；任一子站是必去→必去标随主卡。
+            _members = fam_members.get(spec["name"]) or []
+            _stops = None
+            if _members:
+                duration = max(
+                    [int(duration or DEFAULT_VISIT_MINUTES)]
+                    + [
+                        int(m.get("duration_minutes") or DEFAULT_VISIT_MINUTES)
+                        for m in _members
+                    ]
+                )
+                _stops = [
+                    PlanStop(
+                        name=m["name"],
+                        name_en=(cand_by_name.get(m["name"]) or {}).get("name_en"),
+                        poi_id=(cand_by_name.get(m["name"]) or {}).get("source_poi_id"),
+                        category=m.get("category"),
+                        duration_minutes=m.get("duration_minutes"),
+                    )
+                    for m in _members
+                ]
             visits.append(
                 VisitItem(
                     item_id=f"v{self._item_seq}",
@@ -10763,7 +10944,8 @@ class PlanningAgent:
                     duration_minutes=duration,
                     pinned=pinned,
                     soft_pin=soft_pin,
-                    must=bool(spec.get("must")),
+                    must=bool(spec.get("must")) or any(m.get("must") for m in _members),
+                    stops=_stops,
                 )
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
@@ -11047,7 +11229,9 @@ class PlanningAgent:
         )
         # 必取名册提前备好：solve 之后的钉位（:7946 一带）之前，转场清算
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
-        must_names = {spec["name"] for spec in picked if spec.get("must")}
+        must_names = self._family_must_names(
+            {spec["name"] for spec in picked if spec.get("must")}
+        )
         tier_map = {name: _source_tier(c) for name, c in cand_by_name.items()}
         plan.assumptions.extend(
             _reconcile_transfer_days(
@@ -11183,7 +11367,9 @@ class PlanningAgent:
                         "say the word to add one",
                     )
                 )
-        must_names = {spec["name"] for spec in picked if spec.get("must")}
+        must_names = self._family_must_names(
+            {spec["name"] for spec in picked if spec.get("must")}
+        )
         if must_names:
             # Pin after the solve: pinned items need concrete times for the
             # solver to honor them (rule 19), and the solve above is the
@@ -11735,7 +11921,9 @@ class PlanningAgent:
         base = plan_score(plan, rain_days=rain, heavy_rain_days=heavy)
         if base.ok:
             return [], base.total, base.total
-        must_names = {spec["name"] for spec in picked if spec.get("must")}
+        must_names = self._family_must_names(
+            {spec["name"] for spec in picked if spec.get("must")}
+        )
         taken = {str(spec.get("name")) for spec in picked}
         # ⑨tier1 锚点集（初排偏好，2026-11-02 用户更正「只是给了
         # 初排顺序的偏好，后面根据具体情况可以调换」）：仅用于
@@ -13664,10 +13852,11 @@ class PlanningAgent:
         if self._trip_items is None or session.plan is None:
             return ""
         covered = [
-            i.name
+            n
             for d in session.plan.days
             for i in d.items
             if isinstance(i, VisitItem)
+            for n in ([i.name] + [s.name for s in (i.stops or [])])
         ]
         missing: list[str] = []
         rows: dict[str, dict] = {}

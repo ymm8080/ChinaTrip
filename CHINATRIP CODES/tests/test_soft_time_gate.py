@@ -41,12 +41,15 @@ def test_time_budget_is_soft_gate_not_drop():
 def test_same_tier_prefers_shorter_when_gated():
     # 3×40=120 已占，剩余预算装得下 60 也装得下 240，但每日只剩一个名额
     # （4 个/日闸）——同档被闸时短时长 60 先占位，240 出局。
+    # 坐标彼此错开 >1.5km（2026-11-07 并卡拍板：≤1km 同街族件豁免
+    # 4/日硬计数闸，同点夹具五点并一族全进——验闸封顶下的短者优先
+    # 须独立点）。
     cands = [
-        _cand("小一", 40),
-        _cand("小二", 40),
-        _cand("小三", 40),
-        _cand("长点", 240),
-        _cand("短点", 60),
+        _cand("小一", 40, lon=108.95),
+        _cand("小二", 40, lon=108.97),
+        _cand("小三", 40, lon=108.99),
+        _cand("长点", 240, lon=109.01),
+        _cand("短点", 60, lon=109.03),
     ]
     names = _pick(cands)
     assert "短点" in names

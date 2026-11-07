@@ -105,11 +105,13 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
     # 干日2 先被 4 件占满计数（含室内丙馆）→ 北簇未标注街区让位失败
     # 留雨日1 → 对调层 ①单点对调：磁街区 ↔ 丙馆，点名披露含
     # 「室内外未标注」
+    # 南簇四件坐标错开 >1.5km（2026-11-07 并卡拍板：同点行互认同街
+    # 族、族件豁免 4/日计数——干日 2 就满不了，验不出对调分支）。
     cands = [
         _cand("丙馆", "成都", "yes", lat=30.5),
-        _cand("丙山", "成都", "no", lat=30.5),
-        _cand("丁岭", "成都", "no", lat=30.5),
-        _cand("戊峰", "成都", "no", lat=30.5),
+        _cand("丙山", "成都", "no", lat=30.515),
+        _cand("丁岭", "成都", "no", lat=30.53),
+        _cand("戊峰", "成都", "no", lat=30.545),
         _cand("甲馆", "成都", "yes", lat=31.5),
         _cand("乙馆", "成都", "yes", lat=31.5),
         _cand("磁街区", "成都", None, lat=31.5),
@@ -127,11 +129,14 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
 def test_unmarked_kept_with_umbrella_note_when_nothing_to_swap():
     # 全城无室内可换（干日4 件全露天占满计数）→ 未标注街区留雨日
     # 不删点（hard=False），保持原排+备伞留痕（不再静默）
+    # 干日簇四件坐标错开 >1.5km（2026-11-07 并卡拍板：同点行互认
+    # 同街族、族件豁免 4/日计数——干日 2 不满磁街区会直接挪走，
+    # 验不出「无干日空位留雨日+备伞」分支）。
     cands = [
         _cand("丙山", "成都", "no", lat=30.5),
-        _cand("丁岭", "成都", "no", lat=30.5),
-        _cand("戊峰", "成都", "no", lat=30.5),
-        _cand("己山", "成都", "no", lat=30.5),
+        _cand("丁岭", "成都", "no", lat=30.515),
+        _cand("戊峰", "成都", "no", lat=30.53),
+        _cand("己山", "成都", "no", lat=30.545),
         _cand("甲馆", "成都", "yes", lat=31.5),
         _cand("乙馆", "成都", "yes", lat=31.5),
         _cand("磁街区", "成都", None, lat=31.5),

@@ -103,11 +103,19 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier
-    # 最高（5A）的簇整簇进第 1 天，第 4 位按池序由次簇补位，次簇
-    # 剩余落第 2 天——同簇仍同天优先，4/日闸内高档先占早天。
-    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆", "东方明珠"}
-    assert by_day[2] == {"海洋馆", "滨江大道"}
+    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）+ 同街族并卡
+    # （2026-11-07 拍板）：含 tier 最高（5A）的簇整簇进第 1 天；两簇
+    # 内部成员两两 ≤1km 同街族——族件跟锚同日不占 4/日计数，两天窗
+    # 内实际只出两张族卡（人民广场卡+陆家嘴卡），全落第 1 天。
+    assert by_day[1] == {
+        "人民广场五A",
+        "南京东路",
+        "博物馆",
+        "东方明珠",
+        "海洋馆",
+        "滨江大道",
+    }
+    assert by_day.get(2, set()) == set()
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
@@ -127,8 +135,11 @@ def test_time_budget_soft_gate_overflows_not_drops():
 
 
 def test_four_per_day_cap():
+    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同街族并一卡、族件
+    # 豁免 4/日计数——同点夹具会被并成一张族卡绕开闸，须独立点验闸）。
     cands = [
-        _cand(f"点{i}", "成都", suggested=30, loc=(104.06, 30.66)) for i in range(6)
+        _cand(f"点{i}", "成都", suggested=30, loc=(104.06 + i * 0.02, 30.66))
+        for i in range(6)
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
     assert len(items) == 4  # 时长够但 4 个/日闸封顶
@@ -587,8 +598,10 @@ def test_pool_cap_never_evicts_high_quality_sights():
         c["source"] = "amap"  # tier 11
         c["rating"] = 4.6
         cands.append(c)
-    # 对照：无评分长尾同规格 → 不追回、硬回填也塞不进
-    tail = _cand("长尾", "成都", cat="attraction", suggested=180, loc=(103.6, 30.9))
+    # 对照：无评分长尾同规格 → 不追回、硬回填也塞不进（坐标与名点
+    # 错开 >1km——2026-11-07 并卡拍板后同点行会以族件身份搭车进卡，
+    # 就验不出「quality=0 不享追回权」了）
+    tail = _cand("长尾", "成都", cat="attraction", suggested=180, loc=(103.6, 30.75))
     tail["source"] = "amap"
     cands.append(tail)
     items = PlanningAgent._deterministic_selection(cands, 4, {"成都": (1, 4)})
@@ -601,13 +614,15 @@ def test_baidu_rating_normalized_against_amap():
     """评分跨源不可比（2026-11-07 用户拍板）：rating_source='baidu' 行
     质量分 ×0.9——同档内百度虚高 5.0 不得反超高德 4.6 名录地标（农科村
     vs 武侯祠案）。1 天 4 席满池：amap 名点必须进池，baidu 5.0 让位。"""
+    # 坐标错开 ~1.9km（2026-11-07 并卡拍板：0.01°≈0.96km 的链会互认
+    # 同街族、族件豁免 4/日计数，4 席变 5 件——验池席位须独立点）。
     cands = [
         _cand(
             f"农科村{i}",
             "成都",
             cat="attraction",
             suggested=90,
-            loc=(103.6 + i * 0.01, 30.9),
+            loc=(103.6 + i * 0.02, 30.9),
         )
         for i in range(4)
     ]
@@ -944,15 +959,22 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    cands += [_cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)]
+    # 远填坐标彼此错开 >1.5km（2026-11-07 并卡拍板：同点行互认同街
+    # 族、族件豁免 4/日计数+族边际预算，会搭车进池外尾巴禁入的天）。
+    cands += [
+        _cand(f"远填{i}", "成都", suggested=180, loc=(104.06 + (i + 1) * 0.02, 30.66))
+        for i in range(5)
+    ]
     cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
     items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
-    # day1=池内短时长小点 ×4（4 个/日闸封顶）；day2=软闸超额大点+溢出的都1
-    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
-    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
+    # day1=池内短时长小点 ×4（2026-11-07 并卡拍板：补×4+都1 同点互认
+    # 同街族并一卡，族件豁免 4/日计数与族边际预算）；day2=软闸超额
+    # 大点卡（市1+市2 一族）+溢出的远填0
+    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3", "都1"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0"]
     # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
     flat = [n for names in by_day.values() for n in names]
     assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))

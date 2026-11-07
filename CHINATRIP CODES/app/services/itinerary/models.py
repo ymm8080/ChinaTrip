@@ -101,6 +101,25 @@ class VisitItem(BaseModel):
     # 携带，持久化不留展示数据）；规则见 app.services.poi_alternatives
     # （同级·同类·同时长·同城·排除行程内已有）。None = 未装配/无候选。
     alternatives: list["PlanAlternative"] | None = None
+    # 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
+    # 与主点直线 ≤1km 的同日站点折进主卡 chips，只出不排（solver/兜底
+    # 只见主卡，族窗口=最长一站）；None=独立卡（>1km 保持多卡）。
+    stops: list["PlanStop"] | None = None
+
+
+class PlanStop(BaseModel):
+    """同街族并卡里被主卡吸收的子站 chip（2026-11-07 拍板）。
+
+    只携带卡面展示字段，不参与排程（主卡时长已取族内最大）。name 按
+    主卡同款双语口径并出 _en；poi_id 供心愿覆盖核对（_sync_wish_rows /
+    _ensure_wishlist_coverage 都会扫子站名/号）。
+    """
+
+    name: str
+    name_en: str | None = None
+    poi_id: str | None = None
+    category: str | None = None
+    duration_minutes: int | None = None
 
 
 class PlanAlternative(BaseModel):

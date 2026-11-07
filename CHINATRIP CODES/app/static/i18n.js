@@ -452,6 +452,8 @@
       "card.itinId": "🧳 Itinerary ",
       "card.paren.pre": " (",
       "card.paren.suf": ")",
+      "card.family.pre": "🚶 Same-street stroll: ",
+      "card.family.dur": " ({n} min)",
       "card.pinned.badge": "Pinned",
       "card.retime.title": "Click to change start time",
       "card.review": "✍️ Review",
