@@ -301,6 +301,61 @@ def _show_night_only(cand: dict) -> bool:
     return not any(m in hours for m in ("多场", "全天", "日场"))
 
 
+def _theme_block_cand(cand: dict) -> bool:
+    """街区型演出块候选（与 solver._is_theme_block 同源口径，2026-11-06
+    二拍）：名含「街区」的演出/娱乐/citywalk 行——长安十二时辰主题街区
+    形态（库实测 category=entertainment + bvt=show + tags intl/sygic/
+    show）。名含「街区」的普通观光行（洪崖洞重逢1980街区=attraction
+    + amap）不算——无演出内核。"""
+    if "街区" not in str(cand.get("name") or ""):
+        return False
+    return _cand_is_show(cand) or str(cand.get("category") or "") in (
+        "citywalk",
+        "entertainment",
+    )
+
+
+_STREET_NAME_MARKS = ("街", "巷", "坊")
+
+
+def _plain_street_cand(cand: dict) -> bool:
+    """普通街区候选（2026-11-06 三拍「街区演出 PRIORITY 大于普通街区」
+    裁定对的另一半）：名带 街/巷/坊 语素的行走型街区且非演出块——
+    回民街/宽窄巷子/永兴坊/磁器口街区形态（库实测 category 为
+    attraction/historic，品类不可靠，名字语素为准）。"""
+    if _theme_block_cand(cand):
+        return False
+    name = str(cand.get("name") or "")
+    return any(m in name for m in _STREET_NAME_MARKS)
+
+
+def _street_block_priority(
+    ordered: list[tuple[int, dict]],
+) -> list[tuple[int, dict]]:
+    """街区演出块选点优先于普通街区（2026-11-06 三拍「街区演出 PRIORITY
+    大于普通街区」）：同档（tier 连续段）内演出块稳定提到档首——档内
+    其余成员（普通街区、非街区观光点）相对序原样保持，只新增「块提前」
+    的裁定；跨档名录梯子（2026-11-03 名录序拍板）不动：回民街(lp tier3)
+    仍压过 sygic tier4 块，档间序是用户既定拍板。池序消费者（优先级
+    预占位、主环认领、池上限切片）全部按此序。"""
+    out: list[tuple[int, dict]] = []
+    i = 0
+    while i < len(ordered):
+        tier = _source_tier(ordered[i][1])
+        j = i
+        while j < len(ordered) and _source_tier(ordered[j][1]) == tier:
+            j += 1
+        run = ordered[i:j]
+        blocks = [p for p in run if _theme_block_cand(p[1])]
+        if blocks:
+            out.extend(blocks)
+            out.extend(p for p in run if not _theme_block_cand(p[1]))
+        else:
+            out.extend(run)
+        i = j
+    return out
+
+
 _NIGHT_NAME_MARKS = ("夜游", "夜市", "夜景", "灯光秀", "夜航", "夜场")
 
 
@@ -8217,6 +8272,9 @@ class PlanningAgent:
                     and any(p[1].get("rain_ok") == "yes" for p in ordered)
                 ):
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
+            # 街区演出块同档前置（2026-11-06 三拍「街区演出 PRIORITY 大于
+            # 普通街区」）：晴天/雨天两套排序共用此收口，池上限切片前生效。
+            ordered = _street_block_priority(ordered)
             # 池上限在让位收缩前定格（2026-11-02）：shadow 让位会缩
             # pool，若池外切片用 len(pool) 会把池内末位重复当池外
             # 处理（F6 神龙峡假披露「无干日可排」案）。
@@ -8491,7 +8549,12 @@ class PlanningAgent:
                 # 4 点日闸照收；初排偏好，后续求解/LNS 可调换。
                 _claims: list[tuple[int, dict, list[int]]] = []
                 for pos, (_idx, cand) in enumerate(pool):
-                    if _cand_is_show(cand):
+                    if _cand_is_show(cand) and _show_night_only(cand):
+                        # 仅夜场演出不预占位（日位由演出钉日/每场闸规则定）。
+                        # 多场次演出（长安十二时辰形，sights 桶）按正常景点
+                        # 预占位——2026-11-06 头拍「无场次按正常景点排」的
+                        # 选层镜像：不预占则总走主环垫底，池序前置的街区
+                        # 演出块被 4/日闸+premium 追回压出局（三拍实测）。
                         continue
                     _el = [d for d in range(lo, hi + 1) if not _rain_blocked(cand, d)]
                     if _el:
@@ -9351,13 +9414,15 @@ class PlanningAgent:
 
         def _pair_choice_sort(anchor: tuple[float, float] | None, d: int):
             # 有大点锚的天：近旁街区候选（tier8 ≤6km）提到队首——「一个
-            # 大点 + 近距离 CityWalk」的日形；无锚/无近旁街区退回 tier 序。
-            # 到达日（2026-11-05 拍板）：大块头候选压到小景点之后——到达
-            # 日只收轻内容（软排序不失手：全是大块头时照补）。
+            # 大点 + 近距离 CityWalk」的日形；街区演出块（2026-11-06 三拍）
+            # 不限 tier 入近旁桶且桶内压过普通街区；无锚/无近旁街区退回
+            # tier 序。到达日（2026-11-05 拍板）：大块头候选压到小景点
+            # 之后——到达日只收轻内容（软排序不失手：全是大块头时照补）。
             def _key(p: tuple[int, dict]):
                 tier = _source_tier(p[1])
+                is_block = _theme_block_cand(p[1])
                 near_street = False
-                if anchor is not None and tier == 8:
+                if anchor is not None and (tier == 8 or is_block):
                     cxy = _xy(p[1])
                     if cxy is not None and (
                         haversine_km(
@@ -9367,8 +9432,14 @@ class PlanningAgent:
                         <= 6.0
                     ):
                         near_street = True
+                # 近旁桶内块压过街（三拍裁定对）；桶外不感知，tier 梯子照旧。
+                near_family = (
+                    (0 if is_block else (1 if _plain_street_cand(p[1]) else 0))
+                    if near_street
+                    else 0
+                )
                 big_edge = 1 if (d in _adays and _cand_is_big(p[1])) else 0
-                return (0 if near_street else 1, big_edge, tier, p[0])
+                return (0 if near_street else 1, near_family, big_edge, tier, p[0])
 
             return _key
 
