@@ -16,6 +16,23 @@ def test_indoor_hints_first_hit_wins():
     assert floor == 120
 
 
+def test_show_hints_beat_museum_20261107():
+    """2026-11-07 拍板：SHOW/ENTERTAINMENT 优先级大于 MUSEUM。"""
+    cat, indoor, rain_ok, floor = _c("梅花剧社·非遗川剧变脸")
+    assert (cat, indoor, rain_ok, floor) == ("entertainment", True, True, 80)
+
+
+def test_show_hint_overrides_museum_hint():
+    cat, indoor, rain_ok, _ = _c("非遗博物馆小剧场")
+    assert (cat, indoor, rain_ok) == ("entertainment", True, True)
+
+
+def test_show_hints_venues():
+    for name in ("四川省川剧院", "湖广会馆戏楼", "梨园剧场", "茶馆相声演出"):
+        cat, indoor, rain_ok, floor = _c(name)
+        assert (cat, indoor, rain_ok, floor) == ("entertainment", True, True, 80), name
+
+
 def test_theme_park_hints():
     for name in ("武汉野生动物王国", "上海迪士尼乐园", "北京动物园"):
         cat, indoor, rain_ok, floor = _c(name)
@@ -28,6 +45,20 @@ def test_heritage_hints():
         cat, indoor, rain_ok, floor = _c(name)
         assert cat == "attraction", name
         assert floor == 90
+
+
+def test_heritage_hints_20261106_extension():
+    """殿/王府 → attraction；古城 → attraction（城市人文）。"""
+    for name in ("呼和浩特和硕恪靖公主府王府", "叶赫王府", "即墨古城"):
+        cat, indoor, rain_ok, floor = _c(name)
+        assert cat == "attraction", name
+
+
+def test_scenic_mark_bare_mingshengqu():
+    """裸「名胜区」（无风景/景区前缀）归 scenic 口径 nature（对齐 scenic 源）。"""
+    cat, indoor, rain_ok, floor = _c("昆明市金殿名胜区")
+    assert (cat, indoor) == ("nature", False)
+    assert floor == 180  # 市区档（无县/镇等郊野标记）
 
 
 def test_cave_hints_rain_ok():

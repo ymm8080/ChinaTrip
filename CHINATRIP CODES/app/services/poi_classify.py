@@ -55,6 +55,25 @@ _DURATION_FLOOR: dict[str, int] = {
     "ancient_town": 180,
 }
 
+# 演出/戏班名称标记（2026-11-07 用户指令）：SHOW/ENTERTAINMENT 优先级
+# 大于 MUSEUM——名称同时命中演出词与馆词（如 剧社×非遗馆）按演出归
+# entertainment，不落 museum。
+_SHOW_HINTS = (
+    "剧场",
+    "剧院",
+    "戏院",
+    "戏台",
+    "戏楼",
+    "剧社",
+    "梨园",
+    "变脸",
+    "川剧",
+    "相声",
+    "演出",
+)
+#: 场演基准时长（import_shows.SHOW_DURATION_MIN 同值，含入场余量）
+_SHOW_DURATION_FLOOR = 80
+
 # 名称关键词 → 判定；顺序即优先级（首个命中即停）
 _INDOOR_HINTS = (
     "博物馆",
@@ -87,7 +106,7 @@ _THEME_HINTS = (
 # 真值源仍可按 duration_upgradable 升级覆盖。priority 在 heritage 之
 # 前——「中山陵风景区」「灵隐飞来峰景区」这类大块头按景区口径，不
 # 落 60/90 档。
-_SCENIC_MARKS = ("风景名胜区", "旅游景区", "旅游区", "风景区", "景区")
+_SCENIC_MARKS = ("风景名胜区", "旅游景区", "旅游区", "风景区", "景区", "名胜区")
 _SCENIC_URBAN_MIN = 180
 _SCENIC_SUBURB_MIN = 240
 
@@ -154,6 +173,8 @@ _HERITAGE_HINTS = (
     "温泉",
     "阁",
     "閣",
+    "殿",
+    "王府",
 )
 _OUTDOOR_HINTS = (
     "山",
@@ -180,6 +201,7 @@ _PARK_HINTS = ("公园", "园林", "园", "園")
 _URBAN_HINTS = (
     "古镇",
     "古街",
+    "古城",
     "街区",
     "步行街",
     "老街",
@@ -218,11 +240,16 @@ def classify(
         return "hotel", True, None, None
     cat = category
     indoor = rain_ok = None
+    floor: int | None = None
     if cat in _CATEGORY_META:
         indoor, rain_ok = _CATEGORY_META[cat]
     if indoor is None and cat is None:
+        # 高置信演出：名称带戏班/剧种词（优先级大于馆词，2026-11-07）
+        if any(h in name for h in _SHOW_HINTS):
+            cat, indoor, rain_ok = "entertainment", True, True
+            floor = _SHOW_DURATION_FLOOR
         # 高置信室内：名称带明确馆字
-        if any(h in name for h in _INDOOR_HINTS):
+        elif any(h in name for h in _INDOOR_HINTS):
             cat, indoor, rain_ok = "museum", True, True
         elif any(h in name for h in _THEME_HINTS):
             cat, indoor, rain_ok = "theme_park", False, False
@@ -238,7 +265,8 @@ def classify(
             cat, indoor, rain_ok = "park", False, None
         elif any(h in name for h in _URBAN_HINTS):
             cat, indoor, rain_ok = "attraction", False, None
-    floor = _DURATION_FLOOR.get(cat) if cat is not None else None
+    if floor is None:
+        floor = _DURATION_FLOOR.get(cat) if cat is not None else None
     if any(m in name for m in _SCENIC_MARKS):
         text = name + (address or "")
         base = (
