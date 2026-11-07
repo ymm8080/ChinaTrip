@@ -13949,8 +13949,7 @@ class PlanningAgent:
                 ccities = {
                     (h.get("city") or "").strip().removesuffix("市")
                     for h in chits
-                    if _wish_core_hit(h, core)
-                    and (h.get("city") or "").strip()
+                    if _wish_core_hit(h, core) and (h.get("city") or "").strip()
                 }
                 ccities.discard("")
                 if len(ccities) == 1:
