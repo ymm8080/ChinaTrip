@@ -32,7 +32,10 @@ from app.services.itinerary.models import (
     TransferItem,
     VisitItem,
 )
-from app.services.itinerary.solver import show_session_starts
+from app.services.itinerary.solver import (
+    _adjacent_big_ids,
+    show_session_starts,
+)
 
 DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
@@ -238,13 +241,18 @@ def plan_score(
         # 下午单大点 + 大点先排（2026-11-04 拍板）：与 solver 插入/CP
         # 路同向——下午（≥13:00 开场）大点超出 1 个、大点开场晚于轻点
         # 的逆序对均计软罚；豁免面同 _is_big_visit（pinned 铁律 19 不计）。
-        aft_bigs = sum(
-            1
+        # 贴邻豁免（2026-11-08 城心簇拆天案）：近距同日圈（NEAR_SAMEDAY_KM）
+        # 内成对的下午大点=同片区连游，不计超点——与 solver/plan 兜底同
+        # 口径，LNS 不把贴邻大点对拆天（城墙+碑林博实录）。
+        _aft_big_list = [
+            v
             for v in visits
             if v.start_time is not None
             and _is_big_visit(v)
             and _minutes(v.start_time) >= AFTERNOON_START_MINUTES
-        )
+        ]
+        _aft_ex = _adjacent_big_ids(_aft_big_list)
+        aft_bigs = sum(1 for x in _aft_big_list if id(x) not in _aft_ex)
         afternoon_crowd += max(0, aft_bigs - 1)
         big_starts = [
             _minutes(v.start_time)

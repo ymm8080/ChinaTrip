@@ -123,6 +123,12 @@ _GENERIC_ENTRY_CAP_MINUTES = 16 * 60
 BIG_SITE_MIN_MINUTES = 80
 BIG_SITE_ENTRY_CAP_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60
+# 近距同日圈（2026-11-07 用户拍板 5km 口径，plan 兜底层 _NEAR_SAMEDAY_KM
+# 同源——本常量是唯一真值，agent.plan 引用它）：圈内=同片区连游，大点
+# 贴邻同日不再按「第二个下午大点」判死（2026-11-08 城心簇拆天案：城墙
+# 180+碑林博90 贴邻同日被 CP/插入/打磨/评分四路计罚 → untimed → 挪日
+# → 让位链删件，拆天链起点在此收口）。
+NEAR_SAMEDAY_KM = 5.0
 AFTERNOON_ONE_BIG_PENALTY = 10_000
 BIG_FIRST_PENALTY = 10_000
 # 头档距离规则（2026-11-05 拍板「心愿单或者高排序的景点根据距离远近
@@ -280,6 +286,25 @@ def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     dlo, dla = lo2 - lo1, la2 - la1
     h = math.sin(dla / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin(dlo / 2) ** 2
     return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+def _adjacent_big_ids(bigs: list[VisitItem]) -> set[int]:
+    """下午单大点贴邻豁免成员判定（2026-11-08 城心簇拆天案）：返回与
+    当日另一大点直线 ≤NEAR_SAMEDAY_KM 的成员 id 集——圈内大点对=同
+    片区连游，不计「第二个下午大点」（plan 兜底层 2026-11-07 钟楼/鼓楼
+    /回民街案豁免的引擎侧镜像，CP/插入/打磨/评分四路共用）。缺坐标不
+    豁免（保守）。"""
+    ids: set[int] = set()
+    for i in range(len(bigs)):
+        if bigs[i].location is None:
+            continue
+        for j in range(i + 1, len(bigs)):
+            if bigs[j].location is None:
+                continue
+            if _haversine_km(bigs[i].location, bigs[j].location) <= NEAR_SAMEDAY_KM:
+                ids.add(id(bigs[i]))
+                ids.add(id(bigs[j]))
+    return ids
 
 
 def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:
@@ -919,9 +944,17 @@ def solve_day(
         # 注块）：≥13:00 开场的大点超出 1 个、或大点开场晚于轻点的逆序
         # 对，均计软罚（×100 与走行同量纲；双下午大点/逆序仅在无他档时
         # 照付罚放行，同「上午一个点」哲学）。
+        # 贴邻豁免（2026-11-08 城心簇拆天案）：近距同日圈内成对大点=
+        # 同片区连游，不计入下午超点——CP/插入/打磨/评分与 plan 兜底
+        # 五路同口径。CP 侧为静态判定（对内豁免不依赖开场时刻）。
+        _aft_adj_exempt = _adjacent_big_ids(
+            [sp.item for sp in specs if _is_big_site(sp.item)]
+        )
         afternoon_lits: list[cp_model.IntVar] = []
         for spec, start in zip(specs, starts):
             if not _is_big_site(spec.item):
+                continue
+            if id(spec.item) in _aft_adj_exempt:
                 continue
             lit = model.NewBoolVar(f"aft_{spec.item.item_id}")
             model.Add(start >= AFTERNOON_START_MINUTES).OnlyEnforceIf(lit)
@@ -1260,7 +1293,9 @@ def insertion_schedule_day(
     def _afternoon_big_cost(t: int, item: VisitItem) -> int:
         # 下午单大点（2026-11-04 拍板）：候选会是当日第二个 ≥13:00 开场
         # 大点时计罚——豁免面与「上午一个点」一致（用户自钉有时刻不计，
-        # 双钉合法且不挤占后续自由点）。罚 >> 单次插入走行差。
+        # 双钉合法且不挤占后续自由点）。罚 >> 单次插入走行差。贴邻豁免
+        # （2026-11-08 城心簇拆天案）：与已排下午大点在近距同日圈
+        # （NEAR_SAMEDAY_KM）内=同片区连游不计罚（与 plan 兜底层同口径）。
         if t < AFTERNOON_START_MINUTES or not _is_big_site(item):
             return 0
         for os_, _oe, oitem in occupied:
@@ -1269,6 +1304,11 @@ def insertion_schedule_day(
                 and oitem is not item
                 and os_ >= AFTERNOON_START_MINUTES
                 and _is_big_site(oitem)
+                and not (
+                    item.location is not None
+                    and oitem.location is not None
+                    and _haversine_km(item.location, oitem.location) <= NEAR_SAMEDAY_KM
+                )
             ):
                 return AFTERNOON_ONE_BIG_PENALTY
         return 0
@@ -1527,13 +1567,17 @@ def insertion_schedule_day(
                 and o[0] < MORNING_ONE_SITE_END_MINUTES
                 and _is_morning_site(o[2])
             )
-            aft_bigs = sum(
-                1
+            # 贴邻豁免（2026-11-08 城心簇拆天案）：近距同日圈内成对
+            # 下午大点不计超点——打磨挪点不得靠拆贴邻对省罚。
+            _aft_entries = [
+                o[2]
                 for o in occupied
                 if isinstance(o[2], VisitItem)
                 and o[0] >= AFTERNOON_START_MINUTES
                 and _is_big_site(o[2])
-            )
+            ]
+            _aft_ex = _adjacent_big_ids(_aft_entries)
+            aft_bigs = sum(1 for x in _aft_entries if id(x) not in _aft_ex)
             inversions = sum(
                 1
                 for ob in occupied

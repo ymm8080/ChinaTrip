@@ -90,6 +90,7 @@ from app.services.itinerary.solver import (
     BIG_SITE_MIN_MINUTES,
     DAY_START_MINUTES,
     LEAVING_MORNING_END_MINUTES,
+    NEAR_SAMEDAY_KM,
     SHOW_LATE_SESSION_MINUTES,
     _city_side,
     _is_big_site,
@@ -176,7 +177,15 @@ _REPLACE_REORDER_KM = 3.0
 # 直线距离在该圈内的点位互相牵引同日连排——认领天序贴邻天优先、演出日
 # 前置、下午大点贴邻豁免。原为 1.5km 步行圈，用户拍板「近距离同日连排
 # 是 5 公里之内」后扩圈改名；5km 圈外仍有 15km 片区圈兜底。
-_NEAR_SAMEDAY_KM = 5.0
+# 2026-11-08 起真值挪到 solver.NEAR_SAMEDAY_KM（下午单大点贴邻豁免五路
+# 共用同一口径），此处别名保持既有引用。
+_NEAR_SAMEDAY_KM = NEAR_SAMEDAY_KM
+# 紧簇半径（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合优先」）：
+# 弹座保护与认领 kin 共用的「强簇」口径——圈内同日伙伴不让位弹座单独
+# 拽走、认领先认紧簇天；5km 同日圈是「可以同日」，2km 紧簇是「必须先
+# 聚」——4.6-5km 压线弱边不得斗过 0.5-2km 强簇（钟楼↔碑林 0.52km 被大
+# 雁塔 4.97km 弱边拆散实录）。
+_TIGHT_CLUSTER_KM = 2.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -3823,7 +3832,43 @@ def _host_day_for_visit(
     给定时再以单点实位探针终审（腿占段+开场闸+营业窗，口径同
     _fallback_sequence_times）——探不进不认宿主，调用方原样还座，
     绝不弹座给终排必死的点（2026-11-05 洪崖洞案）。"""
-    for later in day_pool:
+    # 簇领地排序（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合
+    # 优先」）：有坐标的挪入件先探已有近距同日圈（_NEAR_SAMEDAY_KM）内
+    # 伙伴的天，圈内天按最近距离排——4.9km 压线弱边天不得抢在 0.5km
+    # 强簇天前收件（碑林博被挪去大雁塔日、城心簇因此拆散实录）；无圈内
+    # 天再按原日序。仅重排探查次序，资格/容量/实位闸全部照收。
+    seq: list[DayPlan] = list(day_pool)
+    _hloc = getattr(visit, "location", None) if visit is not None else None
+    if _hloc is not None and getattr(_hloc, "lon", None) is not None:
+        _hxy = GeoPoint(lon=float(_hloc.lon), lat=float(_hloc.lat))
+
+        def _day_near_km(d: DayPlan) -> float | None:
+            best: float | None = None
+            for i in d.items:
+                if not isinstance(i, VisitItem) or i is visit:
+                    continue
+                iloc = getattr(i, "location", None)
+                if iloc is None or getattr(iloc, "lon", None) is None:
+                    continue
+                km = haversine_km(
+                    _hxy, GeoPoint(lon=float(iloc.lon), lat=float(iloc.lat))
+                )
+                if best is None or km < best:
+                    best = km
+            return best
+
+        _near_days: list[tuple[float, int, DayPlan]] = []
+        for _hi, d in enumerate(seq):
+            _kmv = _day_near_km(d)
+            if _kmv is not None and _kmv <= _NEAR_SAMEDAY_KM:
+                _near_days.append((_kmv, _hi, d))
+        if _near_days:
+            _near_days.sort(key=lambda t: (t[0], t[1]))
+            _near_ids = {id(d) for _k, _i, d in _near_days}
+            seq = [d for _k, _i, d in _near_days] + [
+                d for d in seq if id(d) not in _near_ids
+            ]
+    for later in seq:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
         # 物理可排（下方 c2==vcity 分支已按落地+150 起算窗口）；心愿演出
@@ -3940,6 +3985,7 @@ def _rescue_premium_stranded(
             and i.name not in protect
             and (i.category or "") not in ("food", "hotel")
             and tiers.get(i.name, 11) > gate_t
+            and not _tight_cluster_mate_on(later, i)
         ]
         if not ejects:
             continue
@@ -4017,6 +4063,34 @@ def _rescue_premium_stranded(
 
 # 让位权档顶=图商名点档；4A/其他杂点不享——档序口径同追回池/品类闸
 _YIELD_MAX_TIER = 8
+
+
+def _tight_cluster_mate_on(day: DayPlan, cand: VisitItem) -> bool:
+    """弹座紧簇保护（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离
+    聚合优先」）：候选与同日任一其他参访在紧簇半径（_TIGHT_CLUSTER_KM）
+    内=同片区强簇员——不让位弹座把它单独拽走（碑林博为钟楼让位后无处
+    可排被删实录：0.52km 强簇员被 tier 盲弹）。洪崖洞/环球中心类远距
+    让座（>2km）不受影响。缺坐标不保护（保守弹座）。零距（同点坐标）
+    也不保护——同点=占位/城市质心共享，非真实紧簇证据（青城山让座
+    回归夹具全城同点布位，真实 POI 坐标互异）。"""
+    cxy = getattr(cand, "location", None)
+    if cxy is None or getattr(cxy, "lon", None) is None:
+        return False
+    for i in day.items:
+        if i is cand or not isinstance(i, VisitItem):
+            continue
+        ixy = getattr(i, "location", None)
+        if ixy is None or getattr(ixy, "lon", None) is None:
+            continue
+        km = haversine_km(
+            GeoPoint(lon=float(cxy.lon), lat=float(cxy.lat)),
+            GeoPoint(lon=float(ixy.lon), lat=float(ixy.lat)),
+        )
+        if 0 < km <= _TIGHT_CLUSTER_KM:
+            return True
+    return False
+
+
 # 连续弹座上限（2026-11-07 环球中心案）：240min 级大块头需弹 2-3 个
 # 90-120min 杂点才腾出整块；再多就把当天弹空壳了——宁让让位失败走
 # 挪日/披露，不交一个只剩酒店卡的天。
@@ -4065,6 +4139,7 @@ def _yield_for_premium(
             and not i.pinned
             and i.name not in protect
             and (i.category or "") not in ("food", "hotel")
+            and not _tight_cluster_mate_on(later, i)
             and (
                 _tier(i.name) > vt
                 or (
@@ -9447,11 +9522,44 @@ class PlanningAgent:
                         # 一簇一天——owner=None 的天不算「已开簇」）。
                         order = list(eligible)
                     else:
-                        kin = [d for d in eligible if day_owner.get(d) == _cid]
+                        # 紧簇 kin（2026-11-08 城心簇拆天案拍板「距离
+                        # 聚合都是近距离聚合优先」）：候选先认 ≤
+                        # _TIGHT_CLUSTER_KM 紧簇已开天（按最近距离排）；
+                        # 10km 粗簇 day_owner 退为次选——大雁塔↔钟楼
+                        # 6.1km 同粗簇把城心件吸去别天的通道收口。
+                        if xy is not None:
+                            tight_kin = sorted(
+                                (
+                                    d
+                                    for d in eligible
+                                    if day_coords.get(d)
+                                    and min(_km(xy, p) for p in day_coords[d])
+                                    <= _TIGHT_CLUSTER_KM
+                                ),
+                                key=lambda d: (
+                                    min(_km(xy, p) for p in day_coords[d]),
+                                    d,
+                                ),
+                            )
+                        else:
+                            tight_kin = []
+                        kin = [
+                            d
+                            for d in eligible
+                            if day_owner.get(d) == _cid and d not in tight_kin
+                        ]
                         # 层①「预占最早有容量天」：同簇天优先（不拆
                         # 簇），其余按日序——无主天不再前置（会把新
                         # 簇推去更晚天，乙园簇/东方明珠案）。
-                        order = kin + [d for d in eligible if d not in kin]
+                        order = (
+                            tight_kin
+                            + kin
+                            + [
+                                d
+                                for d in eligible
+                                if d not in tight_kin and d not in kin
+                            ]
+                        )
                     # 边日轻重（2026-11-03 拍板「重要景点不放在到达/
                     # 离开日，那两天适合 CityWalk/演出」）：认领天序在
                     # 同簇偏好之后按档位再分区——tier≤4 重磅压到无转场
