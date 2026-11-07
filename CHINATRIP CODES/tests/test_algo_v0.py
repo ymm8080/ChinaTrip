@@ -265,6 +265,85 @@ def test_show_day_budget_reserves_show_minutes():
     assert used <= DAY_VISIT_BUDGET_MINUTES
 
 
+def test_algo_show_adjacent_sight_co_schedules_with_pinned_show():
+    # 2026-11-07 锦里古戏台/武侯祠案：仅夜场演出钉窗口末日、贴邻白天点
+    # 却预占最早天——同街区一对被拆成首尾两天。步行圈内（≤1.5km）的
+    # 候选认领序把演出日前置；圈外远点不受牵引（软偏好只贴邻生效）。
+    near = _cand("武侯祠", "成都", tags=["5a"], loc=(104.0493, 30.6445))
+    far = _cand("远郊雪山大点", "成都", tags=["5a"], loc=(102.92, 31.13))
+    cands = [
+        near,
+        far,
+        _cand("锦里古戏台", "成都", cat="entertainment", loc=(104.0588, 30.6502)),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 3)})
+    day = {it["name"]: it["day"] for it in items}
+    assert day["锦里古戏台"] == 3  # 城市末日收尾（既有语义）
+    assert day["武侯祠"] == 3  # 贴邻演出 → 同日连排（白天看祠晚上看戏）
+    assert day["远郊雪山大点"] == 1  # 圈外不被牵引，照旧预占最早天
+
+
+def test_algo_merge_binding_beats_fuzzy_pool_card():
+    # 2026-11-07 锦里古戏台/武侯祠案：心愿词「锦里」复合挂牌通道把
+    # 两条愿望全吸到同一张「武侯祠·锦里」池卡（_name_dup 双双命中），
+    # 卡被去重并掉后必去静默蒸发。绑定真身在手时模糊池卡不冒充必去
+    # ——绕过 match 走绑定分支，真身卡强制进排期。
+    picked = [
+        {"name": "武侯祠·锦里", "city": "成都", "day": 2, "duration_minutes": 90},
+        {"name": "锦里古街", "city": "成都", "day": 2, "duration_minutes": 90},
+    ]
+    bindings = {
+        "武侯祠": {
+            "name": "成都武侯祠博物馆",
+            "city": "成都",
+            "location": {"lon": 104.04932, "lat": 30.644529},
+        },
+        "锦里古戏台": {
+            "name": "锦里古戏台",
+            "city": "成都",
+            "location": {"lon": 104.0588, "lat": 30.6502},
+        },
+    }
+    out = PlanningAgent._merge_must_visits(
+        picked,
+        ["武侯祠", "锦里古戏台"],
+        ["成都"],
+        3,
+        {"成都": (1, 3)},
+        bindings=bindings,
+    )
+    names = {s["name"]: s for s in out}
+    assert "成都武侯祠博物馆" in names and names["成都武侯祠博物馆"]["must"]
+    assert "锦里古戏台" in names and names["锦里古戏台"]["must"]
+    # 池卡不再冒充必去（没有绑定真身等名时不标）
+    assert not names["武侯祠·锦里"].get("must")
+
+
+def test_algo_dedup_never_drops_must_card_for_pool_twin():
+    # 2026-11-07 同案去重侧：必去卡在同站孪生合并中永不让位（铁律
+    # 19）——池卡先入列也不能把必去卡吃掉。
+    from app.services.agent.plan import _dedupe_visit_keepers
+
+    pool_card = VisitItem(
+        item_id="v1",
+        name="武侯祠·锦里",
+        poi_id="st_db921a769059",
+        city="成都",
+        day=3,
+    )
+    must_card = VisitItem(
+        item_id="v2",
+        name="锦里古戏台",
+        poi_id="ct_成都_309",
+        city="成都",
+        day=3,
+        must=True,
+    )
+    keepers, dropped = _dedupe_visit_keepers([pool_card, must_card])
+    assert [k.name for k in keepers] == ["锦里古戏台"]
+    assert dropped == ["武侯祠·锦里"]
+
+
 # --- 流程：算法模式生成 v0，零 LLM 调用 --------------------------------------
 
 

@@ -65,6 +65,12 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 必去/心愿卡（plan._merge_must_visits 装配期落标）：铁律 19 的去重
+    # 侧保护——同站孪生合并时必去卡永不让位（2026-11-07 锦里古戏台/
+    # 武侯祠案：两张愿望全被一张「武侯祠·锦里」复合挂牌池卡冒充吸收，
+    # 卡被去重并掉后必去静默蒸发）。solves 前装配即打，与 solve 后的
+    # pinned 钉位（:7946 一带）互不干扰。
+    must: bool = False
     # 系统钉（2026-10-31 午餐软钉拍板；2026-11-01 晚扩展「午饭/顺路
     # 餐厅/晚饭不钉死」）：排程器自己摆的餐件标记——pinned 可为 False
     # （非铁律 19：用户可拖/可改时/LLM 可挪），solver 仍以落位时刻为

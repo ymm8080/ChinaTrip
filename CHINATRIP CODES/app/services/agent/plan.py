@@ -165,6 +165,11 @@ _SOFT_FAR_KM = 140.0
 # 同口径）按距离聚合串线——替换点换了地，原列表序是绕旧点的近邻链，
 # 照旧会排出 58km 中途大空段。3km 内视为同商圈换位，保持用户列表序。
 _REPLACE_REORDER_KM = 3.0
+# 夜场演出贴邻同日圈（2026-11-07 锦里古戏台/武侯祠案）：仅夜场演出钉
+# 窗口末日、贴邻白天点预占最早天——武侯祠与隔壁锦里古戏台被拆成
+# 首尾两天。直线距离在该圈内（与 taxi_leg_min ≤1.5km 步行折算同口径
+# ——引擎本就视此距为步行可达）的候选，预占位认领序把演出日前置。
+_SHOW_ADJACENT_KM = 1.5
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -2121,15 +2126,19 @@ def _museum_card(item: VisitItem) -> bool:
     return (item.category or "") == "museum" or name.endswith(_MUSEUM_NAME_TAILS)
 
 
-def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int]:
-    """Which twin to keep: resolved POI > pinned > museum card > real
-    city > 大-字号旗舰; ties keep the earlier entry (replacement happens
-    on strictly-greater rank only). 博物馆层（2026-10-31 碑林拍板）排在
-    pinned 之后：用户确认过的卡片/时刻不让位，未被确认的伞形景区
-    行让位博物馆本体。末层（2026-11-03 兄弟对拍板）：同类型兄弟平手
-    偏好「大」字号（大雁塔/大昭寺是家族正主，外国游客认知的那个），
-    只动此前靠先到先得裁决的平手，不影响其余通道。"""
+def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int, int, int]:
+    """Which twin to keep: must (铁律19) > resolved POI > pinned > museum
+    card > real city > 大-字号旗舰; ties keep the earlier entry
+    (replacement happens on strictly-greater rank only). must 层
+    （2026-11-07 锦里古戏台/武侯祠案）置顶：心愿/必去卡在同站孪生合并
+    中永不让位——愿望词被池卡冒充吸收、卡再被去重并掉=必去静默蒸发。
+    博物馆层（2026-10-31 碑林拍板）排在 pinned 之后：用户确认过的
+    卡片/时刻不让位，未被确认的伞形景区行让位博物馆本体。末层
+    （2026-11-03 兄弟对拍板）：同类型兄弟平手偏好「大」字号（大雁塔/
+    大昭寺是家族正主，外国游客认知的那个），只动此前靠先到先得裁决
+    的平手，不影响其余通道。"""
     return (
+        1 if item.must else 0,
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
         # 名录王牌（unesco/5A 档）优先于博物馆卡（2026-11-04 成渝案：
@@ -7462,6 +7471,20 @@ class PlanningAgent:
             match = next(
                 (spec for spec in picked if _name_dup(name, spec["name"])), None
             )
+            bound0 = (bindings or {}).get(name)
+            if (
+                match is not None
+                and bound0 is not None
+                and bound0.get("name")
+                and match["name"] != bound0["name"]
+            ):
+                # 绑定正主优先（2026-11-07 锦里古戏台/武侯祠案）：模糊
+                # match 命中的池卡不是绑定真身时不冒充必去——心愿词
+                # 「锦里」复合挂牌把 锦里古戏台/武侯祠 两条愿望全吸到
+                # 同一张「武侯祠·锦里」池卡上，卡被去重并掉后两条必去
+                # 静默蒸发（披露只见「已合并重复站点」）。绕过 match，
+                # 走下方绑定分支把真身卡强制进排期。
+                match = None
             if match is not None:
                 match["must"] = True
                 if kinds.get(name) == "food":
@@ -7494,7 +7517,7 @@ class PlanningAgent:
                             day_xy.setdefault(target, []).append(m_xy)
                             day_load[target] = day_load.get(target, 0) + m_min
                 continue
-            bound = (bindings or {}).get(name)
+            bound = bound0
             if bound is not None and bound.get("name"):
                 # 绑定候选（看熊猫→熊猫基地）未被算法选中时强制进排期：
                 # 已选中则标 must 不重复追加；规格沿用候选本体（名称/坐标/
@@ -8646,6 +8669,7 @@ class PlanningAgent:
             # 语义），不再出现「白天满载+演出叠加」的超载日。
             show_pin_day: int | None = None
             show_pin_min = 0
+            show_pin_xy = None
             if shows:
                 _pin_cand = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][
                     1
@@ -8656,6 +8680,7 @@ class PlanningAgent:
                     # 返程日晚上被返程腿占住：钉前一天（2026-10-31 沪-西安-沪
                     # 5 天案既有语义，钉日与预扣两处必须同源）
                     show_pin_day = hi - 1
+                show_pin_xy = _cxy(_pin_cand)
             day_loads = {d: [0, 0] for d in range(lo, hi + 1)}  # [minutes, count]
             day_coords: dict[int, list[tuple[float, float]]] = {
                 d: [] for d in range(lo, hi + 1)
@@ -8816,6 +8841,23 @@ class PlanningAgent:
                         order = [d for d in order if d not in _adays] + [
                             d for d in order if d in _adays
                         ]
+                    # 演出贴邻点同日（2026-11-07 锦里古戏台/武侯祠案）：仅
+                    # 夜场演出钉窗口末日，贴邻白天点却预占最早天——同街区
+                    # 一对被拆成首尾两天。与钉日演出直线距离在步行圈内
+                    # （_SHOW_ADJACENT_KM，步行折算同口径）的候选把演出日
+                    # 提到认领序首位；演出日是转场日/到达日时不前置（边日
+                    # 轻重、到达日轻量拍板不破）。软偏好，预算/4点日闸照
+                    # 收，后续求解/LNS 仍可调换。
+                    if (
+                        show_pin_day is not None
+                        and show_pin_day not in _tdays
+                        and show_pin_day not in _adays
+                        and show_pin_xy is not None
+                        and xy is not None
+                        and show_pin_day in order
+                        and _km(xy, show_pin_xy) <= _SHOW_ADJACENT_KM
+                    ):
+                        order = [show_pin_day] + [d for d in order if d != show_pin_day]
                     # 未标注点雨日让位（2026-11-05 磁器口案，主环同口径）：
                     # 认领天序把有计数空位的干日前置——软语义不出局，无
                     # 干日空位保持原序留雨日，交对调/披露承接；王牌与夜
@@ -10253,6 +10295,7 @@ class PlanningAgent:
                     duration_minutes=duration,
                     pinned=pinned,
                     soft_pin=soft_pin,
+                    must=bool(spec.get("must")),
                 )
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
