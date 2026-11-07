@@ -164,3 +164,42 @@ def test_branch_suffixed_row_not_merge_target():
     )
     assert stats["insert"] == 1 and stats["merge"] == 0
     assert row.tags is None  # 旧行不被打上 intl 标
+
+
+def test_experience_venue_branch_rows_not_merge_targets():
+    """体验类门店不挂街区荐点（2026-11-07 宽窄巷子/春熙路 12 行污染收口）：
+    双向包含把 春熙路/锦里/田子坊 pick 错挂到 温泉/写真/鬼校/飞行影院
+    门店上——荐点挂在街区上，不挂在该街区的门店上。"""
+    spa = _row("成都", "汤悦温泉(春熙路)店", source="chinatravel")
+    spa.category = "entertainment"
+    hanfu = _row("成都", "沐云紫汉服体验写真(武侯锦里店)", source="chinatravel")
+    hanfu.category = "entertainment"
+    ghost = _row("成都", "长藤鬼校(春熙路IFS店)", source="chinatravel")
+    ghost.category = "entertainment"
+    flying = _row("上海", "飞跃上海(南京路步行街来福士店)", source="chinatravel")
+    flying.category = "entertainment"
+    s = FakeSession([spa, hanfu, ghost, flying])
+    stats = job.apply_rows(
+        s,
+        [
+            _pick("成都", "春熙路", "Chunxi Road", "layla"),
+            _pick("成都", "锦里", "Jinli", "layla"),
+            _pick("上海", "南京路步行街", "Nanjing Road", "kkday"),
+        ],
+        dry_run=True,
+    )
+    assert stats["merge"] == 0
+    assert all(r.tags is None for r in (spa, hanfu, ghost, flying))
+
+
+def test_hotel_branch_row_without_stay_word_not_merge_target():
+    """酒店行 category 已挡（733c596），此例验证无分类字样的尾缀「店」行
+    同样被闸（丽呈别院/梵隐类不带「酒店」后缀的登记名变体）。"""
+    row = _row("上海", "丽呈别院(上海三甲新天地旅游度假区店)", source="chinatravel")
+    row.category = "hotel"
+    s = FakeSession([row])
+    stats = job.apply_rows(
+        s, [_pick("上海", "新天地", "Xintiandi", "sygic")], dry_run=True
+    )
+    assert stats["insert"] == 1 and stats["merge"] == 0
+    assert row.tags is None
