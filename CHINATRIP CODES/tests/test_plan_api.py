@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.amap import get_search_chain
 from app.api.itineraries import (
     _account_from_auth,
     get_entitlement_service,
@@ -30,13 +31,14 @@ from app.config import Settings, get_settings
 from app.middleware.lang import LangMiddleware
 from app.services.agent.plan import (
     PlanningAgent,
+    PlanSession,
     PlanSessionStore,
     _normalize_city,
     _parse_cities,
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.gate import RequestGate
-from app.services.itinerary import VisitItem
+from app.services.itinerary import DayPlan, ItineraryPlan, VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -185,6 +187,34 @@ def test_start_200_ready_with_plan_assumptions_and_violations():
     ]
     # 出发段（第1天）+ 返程段（第3天）优先飞机（2026-11-04 拍板）
     assert modes == ["flight", "flight"]
+
+
+def test_start_intercity_mode_stored_and_invalid_rejected():
+    """2026-11-07 拍板：起始页交通选择落会话（全程城际段统一口径，后续
+    重排路径经 session.intercity_mode 自动沿用）；非法值被 Literal 契约挡 422。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "intercity_mode": "train",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    sid = resp.json()["session_id"]
+    assert store.get(sid, device_id="device-1").intercity_mode == "train"
+    bad = client.post(
+        "/api/v1/plan/start",
+        json={"cities": ["上海", "杭州"], "days": 3, "intercity_mode": "ship"},
+        headers=DEVICE_HEADERS,
+    )
+    assert bad.status_code == 422
 
 
 def test_start_200_clarify_when_info_missing():
@@ -913,8 +943,9 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
-            # 酒店入住卡无坐标/不回填（2026-11-01 落地首停）
+            # 酒店入住卡/每晚酒店卡无坐标/不回填（2026-11-01/2026-11-07）
             and not i.get("item_id", "").startswith("hotel-checkin")
+            and not i.get("item_id", "").startswith("hotel-night")
         )
     ]
 
@@ -1372,9 +1403,10 @@ def test_refresh_legs_backfills_missing_locations():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡同理（2026-11-01 落地首停）
+        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
+        and not str(i.get("item_id", "")).startswith("hotel-night")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -1414,9 +1446,10 @@ def test_get_plan_session_returns_refreshed_plan():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡同理（2026-11-01 落地首停）
+        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
+        and not str(i.get("item_id", "")).startswith("hotel-night")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
@@ -1696,9 +1729,7 @@ def test_replace_far_swap_reorders_day_by_distance():
     names = [str(i.name) for i in day.items]
     assert names == ["熊猫谷", "离堆公园", "文殊院"]  # 距离聚合：谷↔离堆相邻
     visits = [
-        i
-        for i in day.items
-        if not str(getattr(i, "item_id", "")).startswith("food")
+        i for i in day.items if not str(getattr(i, "item_id", "")).startswith("food")
     ]
     assert all(v.start_time and v.end_time for v in visits)  # 时链完整
     assert any("按距离重新排列" in s for s in summary.change_summary)
@@ -1874,3 +1905,172 @@ def test_replace_guard_chain_400_404_422():
         ).status_code
         == 422
     )
+
+
+# --- POST /plan/{id}/items/{id}/set-hotel（2026-11-07 每晚酒店卡）----------
+
+
+class _StubHotelChainClient:
+    vendor = "stub"  # 独立 vendor 名：不碰共享配额闩（_SEARCH_LATCH）
+
+    def __init__(self, hits=None):
+        self._hits = (
+            hits
+            if hits is not None
+            else [
+                {
+                    "source": "amap",
+                    "source_poi_id": "B0H1",
+                    "name": "全季酒店（西湖店）",
+                    "city": "杭州",
+                    "category": "住宿服务:酒店宾馆",
+                    "address": "西湖区龙井路1号",
+                    "location": {"lon": 120.13, "lat": 30.24},
+                    "opening_hours": None,
+                    "rating": "4.6",
+                }
+            ]
+        )
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        return self._hits
+
+
+def _hotel_session_app(chain=None):
+    """直接造带夜卡的 ready 会话（不经 v0 build——最小隔离面）。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    app.dependency_overrides[get_search_chain] = lambda: (
+        chain if chain is not None else []
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="杭州",
+        day=1,
+        start_time=dtime(20, 0),
+        end_time=dtime(21, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    visit = VisitItem(item_id="v1", name="西湖", category="sight", city="杭州", day=1)
+    store.save(
+        PlanSession(
+            session_id="s-hotel",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-h",
+                cities=["杭州"],
+                days=[DayPlan(day=1, base_city="杭州", items=[visit, night])],
+            ),
+        )
+    )
+    return app
+
+
+def _night_item(body):
+    return next(
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if i.get("item_id") == "hotel-night-d1"
+    )
+
+
+def test_set_hotel_writes_verified_fields_with_coords():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={
+                "name": "酒店甲",
+                "source_poi_id": "B0X",
+                "address": "甲路1号",
+                "opening_hours": "全天",
+                "lon": 120.1,
+                "lat": 30.2,
+            },
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    card = _night_item(data)
+    assert card["name"] == "酒店甲"
+    assert card["address"] == "甲路1号"
+    assert card["opening_hours"] == "全天"
+    assert card["poi_id"] == "B0X"
+    assert card["location"] == {"lon": 120.1, "lat": 30.2}
+    assert "酒店甲" in data["reply"] and "甲路1号" in data["reply"]
+
+
+def test_set_hotel_server_verifies_when_coords_missing():
+    app = _hotel_session_app(chain=[_StubHotelChainClient()])
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "全季"},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    card = _night_item(resp.json())
+    assert card["name"] == "全季酒店（西湖店）"
+    assert card["address"] == "西湖区龙井路1号"
+    assert card["poi_id"] == "B0H1"
+    assert card["location"] == {"lon": 120.13, "lat": 30.24}
+
+
+def test_set_hotel_no_match_422():
+    app = _hotel_session_app(chain=[_StubHotelChainClient(hits=[])])
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "不存在的酒店"},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "no_match"}
+
+
+def test_set_hotel_not_hotel_slot_422():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/v1/set-hotel",
+            json={"name": "酒店甲", "lon": 120.1, "lat": 30.2},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "not_hotel_slot"}
+
+
+def test_set_hotel_guard_chain_400_404():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "酒店甲"},
+        )
+        assert resp.status_code == 400
+        assert resp.json() == {"detail": "missing_device_id"}
+        resp = client.post(
+            "/api/v1/plan/no-such/items/hotel-night-d1/set-hotel",
+            json={"name": "酒店甲"},
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 404
+        assert resp.json() == {"detail": "session_not_found"}
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/v_none/set-hotel",
+            json={"name": "酒店甲"},
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 404
+        assert resp.json() == {"detail": "item_not_found"}

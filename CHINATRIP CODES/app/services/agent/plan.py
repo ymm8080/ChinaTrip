@@ -32,7 +32,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.services.agent.hotel_stays import attach_hotel_stays, is_hotel_checkin
+from app.services.agent.hotel_stays import (
+    attach_hotel_nights,
+    attach_hotel_stays,
+    is_hotel_checkin,
+    is_hotel_night,
+)
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.best_visit import apply_rules
 from app.services.city_fallback import is_city_fallback_point
@@ -104,10 +109,12 @@ from app.services.reservation_seeds import (
     reservation_pois_index,
 )
 from app.services.restaurants import (
+    DINNER_PLACEHOLDER_ID_PREFIX,
     LUNCH_DURATION_MINUTES,
     LUNCH_PLACEHOLDER_ID_PREFIX,
     MEAL_DURATION_MINUTES,
     MEAL_WINDOWS,
+    is_dinner_placeholder,
     is_lunch_placeholder,
     meal_times,
     meal_window,
@@ -235,6 +242,12 @@ WISH_BIND_LLM_TIMEOUT_SECONDS = 12  # 心愿语义匹配单次 LLM 超时（thin
 WISH_BIND_LLM_MAX_CANDIDATES = 40  # 心愿语义匹配候选列表上限（防 prompt 膨胀）
 HISTORY_WINDOW = 12
 DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径）
+
+# 百度评分贴标尺系数（2026-11-07 用户拍板「评分跨源不可比」）：百度 POI
+# 评分整体虚高（农科村 baidu 5.0 vs 武侯祠 amap 4.6 反例——同档内冷门
+# 行反超名录地标），选点质量分对 rating_source='baidu' 的行 ×0.9 贴回
+# 高德标尺；只影响引擎比较，不改库值，amap/ctrip 评分不动。
+_BAIDU_RATING_FACTOR = 0.9
 # 出行模型（用户拍板 2026-10-31「打车时间=车程+半小时叫车时间」）：
 # 打车公式 2026-11-03 下沉 itinerary/rules.py（taxi_leg_min 成唯一真源，
 # 校验层铁律 7 与本模块兜底/矩阵共用）；此处留别名供既有调用点。
@@ -1656,22 +1669,51 @@ _SUBSTITUTE_PANDA_TOKENS = (
 )
 
 
-def _substitute_tokens(name: object) -> bool:
+def _substitute_group(name: object) -> str | None:
+    """具名体验组匹配：名字命中组词素返回组id（现仅熊猫组）；未命中
+    None。具名组用于「词素即体验本体、相距再远也是同一体验」的场景，
+    与泛化品类组（_generic_substitute_group）互补。"""
     s = str(name or "").strip()
-    return bool(s) and any(t in s for t in _SUBSTITUTE_PANDA_TOKENS)
+    if not s:
+        return None
+    if any(t in s for t in _SUBSTITUTE_PANDA_TOKENS):
+        return "panda"
+    return None
+
+
+# 泛化同体验替代组（2026-11-07 用户拍板「替代组应该看类型，距离，而不
+# 只是熊猫或者成都街区。它应该是泛化产品逻辑」）：「一行程一个」体验
+# 品类表 + 同城 + 距离闸。街区压马路型（citywalk）同城只排一处——宽窄
+# 巷子/春熙路/锦里·武侯祠 片区互为替代（宽窄↔锦里 ~1.5km、宽窄↔春熙
+# ~2.6km）；异城不算（成都+重庆连线两城各逛各的街），远郊不算（宽窄
+# 巷子↔都江堰古城 ~55km 超闸，雪山一日游另算一次街区体验）。缺坐标时
+# 退同城判定（心愿别名路径无坐标可依）。品类准入白名单制：加入即全城
+# 生效，宁缺勿滥（museum/park 这类同城多选是常态，不入表）。
+_GENERIC_SUBSTITUTE_CATEGORIES: dict[str, str] = {
+    "citywalk": "street",
+}
+_GENERIC_SUBSTITUTE_GATE_KM = 30.0
+
+
+def _generic_substitute_group(category: object) -> str | None:
+    """泛化品类替代组：库行类别命中「一行程一个」白名单返回组id。"""
+    c = str(category or "").strip().lower()
+    return _GENERIC_SUBSTITUTE_CATEGORIES.get(c)
 
 
 # 正主序（2026-11-07 用户拍板「优选熊猫基地」）：替代组内绑定/复检时正
 # 主稳压其他组员——评分漂移（谷 4.5 反超基地 4.6 之类）、短名裁决都翻
 # 不了盘。首个实例：熊猫组正主=成都大熊猫繁育研究基地（市内、预约名
-# 单正主、全组最高知名度）。
+# 单正主、全组最高知名度）。泛化品类组无正主（街区四项同级互替，按
+# 梯队/评分裁决）。
 _SUBSTITUTE_CANONICAL: tuple[str, ...] = ("成都大熊猫繁育研究基地",)
 
 
 def _substitute_canon_rank(name: object) -> int:
-    """替代组正主序：正主 0、其他组员 1、非组员 2（排序键，越小越优）。"""
+    """替代组正主序：正主 0、其他组员 1、非组员 2（排序键，越小越优）。
+    只对具名组生效；泛化品类组组员一律 2（无正主序语义）。"""
     s = str(name or "").strip()
-    if not _substitute_tokens(s):
+    if _substitute_group(s) != "panda":
         return 2
     for canon in _SUBSTITUTE_CANONICAL:
         c = str(canon)
@@ -1707,19 +1749,46 @@ def _norm_city_key(city: object) -> str:
 
 
 def _substitute_dup(
-    a: str, b: str, city_a: object = None, city_b: object = None
+    a: str,
+    b: str,
+    city_a: object = None,
+    city_b: object = None,
+    cat_a: object = None,
+    cat_b: object = None,
+    xy_a: tuple[float, float] | None = None,
+    xy_b: tuple[float, float] | None = None,
 ) -> bool:
-    """同体验替代组判定（2026-11-07 熊猫基地/熊猫谷拍板）：两侧名字都
-    命中替代组词素即互为替代。城市闸：双侧城市都已知且不同城不判
-    （汉中熊猫谷/湘西大熊猫苑与成都基地不互斥）。与 _sibling_dup 同款
-    只进站级判定（_same_visit/_cand_twin/_dup_blocks_item/备选隔离），
-    不进 _name_dup——心愿点名不受已排替代点冒充覆盖。"""
-    if not (_substitute_tokens(a) and _substitute_tokens(b)):
-        return False
-    ca, cb = _norm_city_key(city_a), _norm_city_key(city_b)
-    if ca and cb and ca != cb:
-        return False
-    return True
+    """同体验替代组判定（2026-11-07 熊猫基地/熊猫谷拍板 + 同日泛化拍板
+    「看类型，距离」）：两条通道任一命中即互为替代。
+    ① 具名组：两侧名字命中同组词素（熊猫组）——替代组本就相距远，不设
+       距离闸；城市闸：双侧城市都已知且不同城不判（汉中熊猫谷/湘西大
+       熊猫苑与成都基地不互斥）。
+    ② 泛化品类组：两侧类别命中同一「一行程一个」白名单档（citywalk）+
+       同城 + 直线 ≤30km（缺坐标退同城判定，心愿别名路径无坐标可依）。
+    与 _sibling_dup 同款只进站级判定（_same_visit/_cand_twin/
+    _dup_blocks_item/备选隔离），不进 _name_dup——心愿点名不受已排替代
+    点冒充覆盖。"""
+    ga, gb = _substitute_group(a), _substitute_group(b)
+    if ga is not None and ga == gb:
+        ca, cb = _norm_city_key(city_a), _norm_city_key(city_b)
+        if ca and cb and ca != cb:
+            return False
+        return True
+    ga, gb = _generic_substitute_group(cat_a), _generic_substitute_group(cat_b)
+    if ga is not None and ga == gb:
+        ca, cb = _norm_city_key(city_a), _norm_city_key(city_b)
+        if ca and cb and ca != cb:
+            return False
+        if xy_a is not None and xy_b is not None:
+            return (
+                haversine_km(
+                    GeoPoint(lon=xy_a[0], lat=xy_a[1]),
+                    GeoPoint(lon=xy_b[0], lat=xy_b[1]),
+                )
+                <= _GENERIC_SUBSTITUTE_GATE_KM
+            )
+        return True
+    return False
 
 
 def _sibling_core(name: str) -> tuple[str, bool]:
@@ -1881,7 +1950,20 @@ def _cand_twin(a: dict, b: dict) -> bool:
     30km、餐饮/演出/酒店/交通豁免；同体验替代组（2026-11-07 熊猫谷案）
     无地理闸直接孪生。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
     na, nb = str(a.get("name") or ""), str(b.get("name") or "")
-    if na and nb and _substitute_dup(na, nb, a.get("city"), b.get("city")):
+    if (
+        na
+        and nb
+        and _substitute_dup(
+            na,
+            nb,
+            a.get("city"),
+            b.get("city"),
+            cat_a=a.get("category"),
+            cat_b=b.get("category"),
+            xy_a=_cand_xy(a),
+            xy_b=_cand_xy(b),
+        )
+    ):
         return True
     sibling = (
         bool(na and nb)
@@ -1931,8 +2013,25 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
         return True
     cn = str(cand.get("name") or "")
     iname = str(item.name or "")
-    if cn and iname and _substitute_dup(cn, iname, cand.get("city"), item.city):
-        return True  # 同体验替代组（2026-11-07 熊猫谷案）：无地理闸
+    if (
+        cn
+        and iname
+        and _substitute_dup(
+            cn,
+            iname,
+            cand.get("city"),
+            item.city,
+            cat_a=cand.get("category"),
+            cat_b=item.category,
+            xy_a=_cand_xy(cand),
+            xy_b=(
+                (item.location.lon, item.location.lat)
+                if item.location is not None
+                else None
+            ),
+        )
+    ):
+        return True  # 同体验替代组（具名组无距离闸；泛化组同城 30km 闸）
     sibling = (
         bool(cn and iname)
         and _sibling_dup(cn, iname)
@@ -2177,9 +2276,11 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     同体验替代组通道（2026-11-07 熊猫基地/熊猫谷拍板）：互为替代的不同
     选址（基地↔谷 ~58km）不设地理闸，组内命中即二选一——唯一一条相距
     越远越要并的通道，与青城山误并事故的 2km 保护闸方向相反。"""
-    # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
+    # 午饭/晚饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
+        return False
+    if is_dinner_placeholder(a) or is_dinner_placeholder(b):
         return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
@@ -2192,8 +2293,17 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
         a.category, b.category
     )
-    if _substitute_dup(a.name, b.name, a.city, b.city):
-        return True  # 替代组无地理闸（基地↔谷 ~58km 本就超一切闸）
+    if _substitute_dup(
+        a.name,
+        b.name,
+        a.city,
+        b.city,
+        cat_a=a.category,
+        cat_b=b.category,
+        xy_a=((a.location.lon, a.location.lat) if a.location is not None else None),
+        xy_b=((b.location.lon, b.location.lat) if b.location is not None else None),
+    ):
+        return True  # 替代组：具名组无地理闸（基地↔谷 ~58km），泛化组同城 30km
     if not (
         content
         or heritage
@@ -2345,6 +2455,10 @@ KEYWORD_LABEL_TOKENS: dict[str, list[str]] = {
     "演出": ["show"],
     "步行街": ["citywalk"],
     "古镇": ["historical_town"],
+    # 茶体验档（2026-11-07 拍板）：茶馆愿望连名称无茶字的库行——人民公园
+    # （茶体验档正主，鹤鸣茶社语义）；search_keyword 对 token 做 category
+    # LIKE，类别通道即中
+    "茶馆": ["tea_experience"],
 }
 
 
@@ -2528,7 +2642,9 @@ PREFERENCE_CATEGORY_SPECS: tuple[
     ),
     (
         ("喝茶", "泡茶", "品茶", "茶馆", "咖啡", "奶茶", "tea", "coffee"),
-        (),
+        # 茶体验档（2026-11-07 拍板：人民公园=茶体验归此档）：类别精确
+        # 通道；token 带下划线不会子串误伤英文名（裸 "tea"⊂"steak/steam"）
+        ("tea_experience",),
         ("茶馆", "茶楼", "咖啡", "奶茶"),
     ),
     # 娱乐/夜生活组（2026-11-05 SHOW/ENTERTAINMENT 事故）：偏好只作
@@ -2838,6 +2954,33 @@ def _lunch_placeholder(
         start_time=slot[0],
         end_time=slot[1],
         duration_minutes=LUNCH_DURATION_MINUTES,
+        pinned=False,
+        soft_pin=True,
+    )
+
+
+def _dinner_placeholder(
+    day_plan: DayPlan,
+    slot: tuple[time, time],
+    city: str | None = None,
+) -> VisitItem:
+    """晚餐占位件（2026-11-07 用户指令「we need to hv dinner slot as
+    well. create it」）：晚餐窗搜不到餐厅时插「晚饭（自由安排）」，与
+    午餐占位同款软锚（pinned=False + soft_pin=True，solver 锚定落位、
+    用户可拖/可删）。识别走 item_id 前缀（is_dinner_placeholder），不带
+    poi/坐标：回填与小时链须跳过（否则烧配额搜「晚饭」）。注意 id 前缀
+    food-dinner-ph 以「food-d」开头——必吃让位闸（:6217 一带）按该前缀
+    识别自动餐件，占位件天然随让位语义可被用户必吃顶替。"""
+    return VisitItem(
+        item_id=f"{DINNER_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
+        name=L("晚饭（自由安排）", "Dinner (on your own)"),
+        category="food",
+        # 换乘日晚餐城由调用方传入（_meal_city_at）；None 回退醒来城
+        city=city or day_plan.base_city,
+        day=day_plan.day,
+        start_time=slot[0],
+        end_time=slot[1],
+        duration_minutes=MEAL_DURATION_MINUTES,
         pinned=False,
         soft_pin=True,
     )
@@ -4966,6 +5109,10 @@ class PlanSession(BaseModel):
     # 双语 P2（DESIGN language_dual_system §6）：会话级回复语言；
     # None=中文（CN 站默认），"en"=LLM 面向用户的输出全英文
     lang: str | None = None
+    # 城际交通方式（2026-11-07 拍板）：auto=距离闸（>600km 航班、≤600km 火车），
+    # train/flight=用户在 H5 起始页指定，作用于全程城际段（去程/途经/返程）；
+    # 规划后单段仍可 /transfers/{item_id}/mode 改乘细调
+    intercity_mode: Literal["auto", "train", "flight"] = "auto"
 
 
 def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
@@ -5173,6 +5320,7 @@ class PlanningAgent:
         preferences: str = "",
         city_days: dict[str, int] | None = None,
         start_date: str | None = None,
+        intercity_mode: str = "auto",
         lang: str | None = None,
     ) -> PlanSession:
         session = PlanSession(
@@ -5187,6 +5335,9 @@ class PlanningAgent:
                 for k, v in (city_days or {}).items()
                 if isinstance(v, int) and v >= 1
             },
+            intercity_mode=(
+                intercity_mode if intercity_mode in ("train", "flight") else "auto"
+            ),
             lang=lang if lang in ("en", "zh") else None,
         )
         # 票务预热（2026-10-28 用户拍板）：开始日期落定且城市齐（起止+中间）
@@ -6021,6 +6172,13 @@ class PlanningAgent:
                 )
                 continue
             if hits:
+                # 评分跨源贴标尺（2026-11-07）：图商命中回包无 rating_source
+                # ——按实际命中 vendor 打标，_quality 才能对 baidu 评分 ×0.9。
+                _rs = {"amap": "amap", "baidu": "baidu"}.get(vendor)
+                if _rs:
+                    for _h in hits:
+                        if isinstance(_h, dict):
+                            _h.setdefault("rating_source", _rs)
                 return hits
         return []
 
@@ -6902,6 +7060,7 @@ class PlanningAgent:
             assumptions,
             city_days=session.city_days,
             start_date=session.start_date,
+            intercity_mode=session.intercity_mode,
             rain_days=rain_map,
             heavy_rain_days=heavy_rain_map,
             cut_names=selection_cut_names,
@@ -7083,6 +7242,9 @@ class PlanningAgent:
                             "opening_hours": h.get("opening_hours"),
                             "rating": h.get("rating"),
                             "rating_count": h.get("rating_count"),
+                            # 评分跨源贴标尺（2026-11-07）：rating_source
+                            # 随投影下传，_quality 对 baidu 行 ×0.9。
+                            "rating_source": h.get("rating_source"),
                             "tags": h.get("tags"),
                             "best_visit_time": h.get("best_visit_time"),
                             "suggested_duration_min": h.get("suggested_duration_min"),
@@ -8329,12 +8491,17 @@ class PlanningAgent:
             # 同档内名声分（与库侧 top_pois_in_city 同公式）：rating ×
             # (1+log2(1+count))。2026-11-04 成渝案：同档并列只看时长升序，
             # 短的次优点抢走同档名额（白帝城 vs 四面山级），补质量降序。
+            # 2026-11-07 评分跨源不可比：rating_source='baidu' 行 ×0.9
+            # 贴回高德标尺（农科村 5.0 反超武侯祠 4.6 案），不改库值。
             rating = cand.get("rating") or 0.0
             count = cand.get("rating_count") or 0
             try:
-                return float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
+                q = float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
             except (TypeError, ValueError):
                 return 0.0
+            if str(cand.get("rating_source") or "").strip().lower() == "baidu":
+                q *= _BAIDU_RATING_FACTOR
+            return q
 
         def _item(cand: dict, day: int, minutes: int) -> dict:
             return {
@@ -9897,6 +10064,41 @@ class PlanningAgent:
                 )
         return items
 
+    async def _ensure_origin_anchor(
+        self, anchors: dict[str, GeoPoint], cities: list[str]
+    ) -> None:
+        """出发城锚点（2026-11-07 沪杭返程实弹）：候选搜索按 2026-10-30
+        配额优化跳过出发城（检索循环 cities[1:]），anchors 恒缺 origin
+        → 11-06 距离闸对去程/返程 dist 恒 None，静默回落 11-04「航班
+        优先」（杭州→上海 165km 被排成航班）。库 top-N 补一个轻量锚点
+        （PG 索引读，零图商配额）；库空/无坐标留日志——距离闸盲区回到
+        旧行为，静默吞掉不允许。"""
+        if len(cities) < 2 or self._poi_details is None:
+            return
+        origin = _norm_city_key(cities[0])
+        if not origin or origin in anchors:
+            return
+        try:
+            lib_top = await asyncio.to_thread(
+                self._poi_details.top_pois_in_city, cities[0], 5
+            )
+        except Exception:
+            logger.warning(
+                "plan: origin anchor fetch failed for %s", cities[0], exc_info=True
+            )
+            return
+        for row in lib_top:
+            loc = row.get("location")
+            if isinstance(loc, dict) and loc.get("lon") is not None:
+                anchors.setdefault(origin, GeoPoint(**loc))
+                return
+        logger.warning(
+            "plan: no origin anchor in library for %s — distance gate blind "
+            "on legs touching %s",
+            cities[0],
+            cities[0],
+        )
+
     async def prefetch_transfer_schedules(
         self, cities: list[str], days: int, start_date: str | None
     ) -> None:
@@ -9968,6 +10170,7 @@ class PlanningAgent:
         anchors: dict[str, GeoPoint],
         dest_starts: list[int] | None = None,
         start_date: str | None = None,
+        intercity_mode: str = "auto",
     ) -> tuple[list[TransferItem], list[str]]:
         transfers: list[TransferItem] = []
         assumptions: list[str] = []
@@ -10026,14 +10229,21 @@ class PlanningAgent:
             # 距离闸先行（2026-11-06 拍板）：>600km 航班优先、≤600km 火车
             # 优先——覆盖全部腿别（去程/返程/城际 hop 同一口径）。距离未知
             # （城市无锚点）保留 11-04 旧口径：去程/返程航班优先。
-            a = anchors.get(from_city)
-            b = anchors.get(to_city)
+            # 起始页指定（2026-11-07 拍板）覆盖距离闸：train/flight 作用于
+            # 全程城际段；无班次时按既有降级链走（航班→火车→占位）。
+            a = anchors.get(_norm_city_key(from_city))
+            b = anchors.get(_norm_city_key(to_city))
             dist_km = haversine_km(a, b) if a is not None and b is not None else None
-            flight_first = (
-                dist_km > FLIGHT_OVER_TRAIN_KM
-                if dist_km is not None
-                else leg_kind is not None
-            )
+            if intercity_mode == "flight":
+                flight_first = True
+            elif intercity_mode == "train":
+                flight_first = False
+            else:
+                flight_first = (
+                    dist_km > FLIGHT_OVER_TRAIN_KM
+                    if dist_km is not None
+                    else leg_kind is not None
+                )
             if flight_first:
                 # 航班源有班次 → 选班（无窗取全天最早/返程窗内最早）；窗内
                 # 无班返回 None 落到火车查询——绝不用窗外航班顶替窗口偏好。
@@ -10175,6 +10385,7 @@ class PlanningAgent:
         *,
         city_days: dict[str, int] | None = None,
         start_date: str | None = None,
+        intercity_mode: str = "auto",
         rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
         cut_names: set[str] | None = None,
@@ -10223,9 +10434,10 @@ class PlanningAgent:
             )
         anchors: dict[str, GeoPoint] = {}
         for cand in candidates:
-            city = cand.get("city")
+            city = _norm_city_key(cand.get("city"))
             if city and city not in anchors and isinstance(cand.get("location"), dict):
                 anchors[city] = GeoPoint(**cand["location"])
+        await self._ensure_origin_anchor(anchors, cities)
         visits: list[VisitItem] = []
         food_by_day: dict[int, int] = {}
         for spec in picked:
@@ -10322,6 +10534,7 @@ class PlanningAgent:
             anchors,
             dest_starts=[ranges[c][0] for c in cities[1:]],
             start_date=start_date,
+            intercity_mode=intercity_mode,
         )
 
         transfers_by_day: dict[int, list[TransferItem]] = {}
@@ -10358,12 +10571,42 @@ class PlanningAgent:
         if self._auto_restaurants:
             searches = 0
             ph_days: list[int] = []
+            dinner_ph_days: list[int] = []
             # 全程已插餐厅 poi 去重：同城多天搜索会反复回同一 top1，
-            # 每天插同一家店既难吃又会被跨天去重吞卡（2026-10-31）
+            # 每天插同一家店既难吃又会被跨天去重吞卡（2026-10-31）。
+            # DB 荐点行可能无 poi_id（骨架行），名字一并入去重集。
             inserted_pids: set[str] = set()
+            inserted_names: set[str] = set()
 
             def _fresh(recs: list[VisitItem]) -> list[VisitItem]:
-                return [r for r in recs if not (r.poi_id and r.poi_id in inserted_pids)]
+                return [
+                    r
+                    for r in recs
+                    if not (r.poi_id and r.poi_id in inserted_pids)
+                    and r.name not in inserted_names
+                ]
+
+            # DB 荐点餐厅按城缓存（2026-11-07 用户指令「有标记推荐的没进
+            # 槽位」）：红鼎宴/失重餐厅类点名店不经 amap 关键词搜索直接
+            # 并入餐槽候选——同城多天只查一次库。
+            db_food_cache: dict[str, list] = {}
+
+            async def _rec_food(city: str) -> list[dict]:
+                if self._poi_details is None or not city:
+                    return []
+                if city not in db_food_cache:
+                    try:
+                        db_food_cache[city] = await asyncio.to_thread(
+                            self._poi_details.recommendation_food_in_city, city
+                        )
+                    except Exception:
+                        logger.warning(
+                            "plan: db recommendation food fetch failed city=%s",
+                            city,
+                            exc_info=True,
+                        )
+                        db_food_cache[city] = []
+                return db_food_cache[city]
 
             for day_plan in day_plans:
                 sights = [
@@ -10401,6 +10644,7 @@ class PlanningAgent:
                             "lunch",
                             city=lunch_city,
                             window=placed_slot,
+                            extra_pois=await _rec_food(lunch_city),
                         )
                     except Exception:
                         logger.warning(
@@ -10423,6 +10667,7 @@ class PlanningAgent:
                     inserted_restos += 1
                     if recs[0].poi_id:
                         inserted_pids.add(recs[0].poi_id)
+                    inserted_names.add(recs[0].name)
                 elif placed_slot is not None:
                     day_plan.items.append(
                         _lunch_placeholder(day_plan, placed_slot, city=lunch_city)
@@ -10436,12 +10681,16 @@ class PlanningAgent:
                     isinstance(i, VisitItem)
                     and i.category == "food"
                     and not is_lunch_placeholder(i)
+                    and not is_dinner_placeholder(i)
                     for i in day_plan.items
                 )
                 if has_real_food:
                     continue
                 try:
                     dinner_win = meal_window(day_plan, "dinner")
+                    dinner_city = _meal_city_at(
+                        day_plan, dinner_win[0] if dinner_win else None
+                    )
                     recs = (
                         await recommend_restaurants(
                             self._amap,
@@ -10449,9 +10698,8 @@ class PlanningAgent:
                             "dinner",
                             # 换乘日晚餐城=末段已落地 transfer 的到达城
                             # （base_city 是醒来城：2026-10-31 沪→西安案）
-                            city=_meal_city_at(
-                                day_plan, dinner_win[0] if dinner_win else None
-                            ),
+                            city=dinner_city,
+                            extra_pois=await _rec_food(dinner_city),
                         )
                         if self._amap is not None and _resto_search_enabled()
                         else []
@@ -10474,6 +10722,16 @@ class PlanningAgent:
                     inserted_restos += 1
                     if recs[0].poi_id:
                         inserted_pids.add(recs[0].poi_id)
+                    inserted_names.add(recs[0].name)
+                elif dinner_win is not None:
+                    # 晚餐保底（2026-11-07 用户指令「we need to hv dinner
+                    # slot as well. create it」）：晚餐窗有位而搜不到餐厅
+                    # → 插「晚饭（自由安排）」占位，与午餐占位同款软锚
+                    # （窗被占满/纯过境日不强插，铁律 20 口径不变）。
+                    day_plan.items.append(
+                        _dinner_placeholder(day_plan, dinner_win, city=dinner_city)
+                    )
+                    dinner_ph_days.append(day_plan.day)
             if inserted_restos:
                 assumptions.append(
                     L(
@@ -10492,7 +10750,16 @@ class PlanningAgent:
                         "slot is reserved (reply to swap or remove)",
                     )
                 )
-
+            if dinner_ph_days:
+                days_bit = "、".join(f"第{d}天" for d in dinner_ph_days)
+                assumptions.append(
+                    L(
+                        f"{days_bit}晚餐暂未找到合适餐厅，已留晚饭时段（回复可换/删）",
+                        f"No suitable restaurant found for dinner on "
+                        f"day(s) {', '.join(str(d) for d in dinner_ph_days)} — a "
+                        "dinner slot is reserved (reply to swap or remove)",
+                    )
+                )
         plan = ItineraryPlan(
             itinerary_id=f"it-{uuid.uuid4().hex[:8]}",
             cities=list(cities),
@@ -10715,6 +10982,16 @@ class PlanningAgent:
             logger.warning(
                 "plan v0 delivered with %d hard violations", len(report.violations)
             )
+        # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
+        # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
+        # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
+        # 此刻末件时刻已定，夜卡窗口=末件结束+30；绝不挂在排程期插入
+        # （早插会把夜卡当固定窗，把当天下午 sequencing 全堵死：
+        # 2026-11-07 西湖 day1 排不上实录）。渠道订走携程/美团/飞猪，
+        # 手输走 set-hotel 验证；仅初次排程插入，编辑路径不复活已删卡。
+        night_notes = attach_hotel_nights(plan.days)
+        if night_notes:
+            plan.assumptions.extend(night_notes)
         return plan
 
     def _finalize_untimed_visits(
@@ -11577,10 +11854,14 @@ class PlanningAgent:
             if isinstance(item, VisitItem)
             and item.location is None
             and item.name
-            # 午饭占位件无 POI 可回填（搜「午饭」纯烧配额）；酒店入住卡
-            # 同理（2026-11-01 落地首停）
+            # 午/晚饭占位件无 POI 可回填（搜「午饭/晚饭」纯烧配额）；
+            # 酒店入住卡同理（2026-11-01 落地首停）；每晚酒店卡未验证
+            # 时也无 POI（2026-11-07）——已验证带坐标的夜卡 location 非
+            # None，天然不进本列表
             and not is_lunch_placeholder(item)
+            and not is_dinner_placeholder(item)
             and not is_hotel_checkin(item)
+            and not is_hotel_night(item)
         ]
         if not missing:
             return
@@ -11760,10 +12041,13 @@ class PlanningAgent:
                 if (
                     not isinstance(item, VisitItem)
                     or is_lunch_placeholder(item)
+                    or is_dinner_placeholder(item)
                     or is_hotel_checkin(item)
+                    or is_hotel_night(item)
                 ):
-                    # 午饭占位件无 POI 详情可查（库读/回源都纯烧配额）；
-                    # 酒店入住卡同理（2026-11-01 落地首停）
+                    # 午/晚饭占位件无 POI 详情可查（库读/回源都纯烧配额）；
+                    # 酒店入住卡同理（2026-11-01 落地首停）；每晚酒店卡的
+                    # 地址/营业时间由 set-hotel 验证时一次性写入，不走库链
                     continue
                 detail = None
                 if item.poi_id:
@@ -12565,10 +12849,35 @@ class PlanningAgent:
             for i in d.items
             if isinstance(i, VisitItem) and i.item_id != item_id
         ]
+        _new_loc = cand.get("location")
+        _new_xy = (
+            (
+                (float(_new_loc["lon"]), float(_new_loc["lat"]))
+                if isinstance(_new_loc, dict)
+                else (
+                    (float(_new_loc[0]), float(_new_loc[1]))
+                    if isinstance(_new_loc, (tuple, list)) and len(_new_loc) == 2
+                    else None
+                )
+            )
+            if _new_loc is not None
+            else None
+        )
         if any(
             _same_site(new_name, i.name)
             or (new_pid and i.poi_id == new_pid)
-            or _substitute_dup(new_name, i.name, visit.city, i.city)
+            or _substitute_dup(
+                new_name,
+                i.name,
+                visit.city,
+                i.city,
+                cat_a=cand.get("category"),
+                cat_b=i.category,
+                xy_a=_new_xy,
+                xy_b=(
+                    (i.location.lon, i.location.lat) if i.location is not None else None
+                ),
+            )
             for i in others
         ):
             raise ValueError("duplicate_in_plan")

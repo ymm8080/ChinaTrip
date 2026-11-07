@@ -26,6 +26,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.amap import get_search_chain
+from app.api.hotels import search_hotel_candidates
 from app.api.itineraries import (
     _account_from_auth,
     _owned_record,
@@ -37,6 +39,7 @@ from app.api.translate import get_translation_service
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
+from app.services.agent.hotel_stays import is_hotel_night
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
@@ -55,7 +58,7 @@ from app.services.entitlement import EntitlementService
 from app.services.fast_lane import FastLane
 from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
-from app.services.itinerary import DiffOp, VisitItem, mutate
+from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -94,6 +97,9 @@ class PlanStartRequest(BaseModel):
     preferences: str = ""
     city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
     start_date: str | None = None  # 出发日期 ISO（可空）——随快照持久化
+    # 城际交通方式（2026-11-07 拍板）：auto=距离闸（>600km 航班、≤600km 火车），
+    # train/flight=H5 起始页用户指定；全程城际段统一口径
+    intercity_mode: Literal["auto", "train", "flight"] = "auto"
     lang: str | None = None  # 双语 P2：会话回复语言 "en"/"zh"（缺省 zh）
 
 
@@ -113,13 +119,17 @@ _agent_singleton: PlanningAgent | None = None
 _sessions_singleton: PersistentPlanSessionStore | None = None
 
 
-def get_planning_agent(
-    settings: Settings = Depends(get_settings),
-) -> PlanningAgent:
+def get_planning_agent() -> PlanningAgent:
     """Process-wide lazy singleton (translate.py pattern). No amap key
-    means placeholder candidates, not a 503 — planning must still deliver."""
+    means placeholder candidates, not a 503 — planning must still deliver.
+
+    settings 函数体内直取、不走 Depends 默认值——慢车道后台重排在 DI
+    上下文外直接调本工厂（task_queue._replan_handler），裸 Depends 哨兵
+    会被当实参炸出 'Depends' object has no attribute 'map_provider'
+    （2026-11-07 事故门禁；写法对齐 get_plan_sessions）。"""
     global _agent_singleton
     if _agent_singleton is None:
+        settings = get_settings()
         amap = build_map_client(settings) if map_ready(settings) else None
         _agent_singleton = PlanningAgent(
             get_llm_adapter(settings),
@@ -410,6 +420,7 @@ async def start_plan(
             preferences=request.preferences or "",
             city_days=request.city_days,
             start_date=request.start_date,
+            intercity_mode=request.intercity_mode,
             lang=request.lang,
         )
     except PoiStoreUnavailableError:
@@ -928,4 +939,76 @@ async def replace_plan_item(
         summary.change_summary[0] if summary.change_summary else L("已替换", "Replaced")
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanSetHotelRequest(BaseModel):
+    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。仅 name
+    # 必填：客户端带坐标=已在下拉验证过，直接落卡；缺坐标由服务端重走
+    # 检索链验证——绝不落未验证裸名（2026-11-07 用户指令「NEED TO VERIFY
+    # THE NAME AND SHOW ADDRESS ACCORDINGLY」）。
+    name: str = Field(min_length=1, max_length=64)
+    source_poi_id: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=200)
+    opening_hours: str | None = Field(default=None, max_length=120)
+    lon: float | None = Field(default=None, ge=-180.0, le=180.0)
+    lat: float | None = Field(default=None, ge=-90.0, le=90.0)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/set-hotel")
+async def set_plan_hotel(
+    session_id: str,
+    item_id: str,
+    request: PlanSetHotelRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    settings: Settings = Depends(get_settings),
+    chain: list = Depends(get_search_chain),
+) -> dict:
+    """每晚酒店卡 ✏️ 手输酒店名：验证后写回 hotel-night 卡（名称/地址/
+    营业时间/坐标/poi_id 一次性写入，卡片 meta 行即亮 📍 地址）。缺坐标
+    时服务端检索链验证（酒店类目命中优先，全无命中 422 no_match）；
+    非 hotel-night 卡 422 not_hotel_slot。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    item = _find_visit_item(session.plan, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    if not is_hotel_night(item):
+        raise HTTPException(status_code=422, detail="not_hotel_slot")
+    name = request.name.strip()
+    lon, lat = request.lon, request.lat
+    address, opening_hours = request.address, request.opening_hours
+    poi_id = request.source_poi_id
+    if lon is None or lat is None:
+        hits = await search_hotel_candidates(chain, settings, name, item.city or None)
+        best = next((h for h in hits if h["is_hotel"]), hits[0] if hits else None)
+        if best is None or not best.get("name"):
+            raise HTTPException(status_code=422, detail="no_match") from None
+        name = best["name"]
+        poi_id = best.get("source_poi_id") or poi_id
+        address = address or best.get("address")
+        opening_hours = opening_hours or best.get("opening_hours")
+        loc = best.get("location")
+        if isinstance(loc, dict):
+            lon, lat = loc.get("lon"), loc.get("lat")
+    item.name = name
+    item.poi_id = poi_id
+    item.address = address
+    item.opening_hours = opening_hours
+    item.location = (
+        GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
+    )
+    await agent.refresh_legs(session)
+    store.save(session)
+    reply = L(
+        f"已验证并填入酒店「{name}」" + (f"（{address}）" if address else ""),
+        f'Verified hotel "{name}"' + (f" ({address})" if address else ""),
+    )
     return _plan_turn_body(session, reply, None)

@@ -395,6 +395,15 @@
             <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
           </span>
         </label>
+        <!-- 交通（2026-11-07 拍板）：全程城际方式，默认按距离闸（600km 上飞机/下火车），
+             用户可指定火车/飞机；规划后每段仍可「改乘」细调 -->
+        <label class="fld"><span data-i18n="plan.transport">交通</span>
+          <select id="planTransport" title="默认按城市间距离自动选火车/飞机（600 公里以上选飞机）；作用于去程/途经/返程，规划后每段仍可改乘" data-i18n-title="plan.transport.title">
+            <option value="auto" data-i18n="plan.transport.auto">按距离自动</option>
+            <option value="train" data-i18n="plan.transport.train">🚄 火车</option>
+            <option value="flight" data-i18n="plan.transport.flight">✈️ 飞机</option>
+          </select>
+        </label>
         <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planVia1"></select>
@@ -405,12 +414,6 @@
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planVia2"></select>
             <input type="number" id="planVia2Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
-          </span>
-        </label>
-        <label class="fld"><span data-i18n="plan.via3">中间城市3</span>
-          <span style="display:flex;gap:4px;align-items:center">
-            <select id="planVia3"></select>
-            <input type="number" id="planVia3Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
           </span>
         </label>
         <label class="fld"><span data-i18n="plan.cityEnd">结束城市</span>
@@ -1616,6 +1619,108 @@ function startRenameEditor(btn, box, plan, id) {
   search(); // 打开即列出当前点的同类候选（排除自身）
 }
 
+// ✏️ 手输酒店名编辑器（2026-11-07 每晚酒店卡：用户指令「INPUT MANUALLY
+// BY USER, NEED TO VERIFY THE NAME AND SHOW ADDRESS ACCORDINGLY」）：
+// 原地输入框，下拉=live 检索（/api/v1/hotels/search，行内亮「名称+地址」
+// 即验证展示）；选中→/items/{id}/set-hotel 把验证结果写回夜卡。无匹配
+// 回车=提示换名（绝不删卡——夜卡是系统骨架，与换景点「回车留空」语义
+// 相反）；Esc/失焦=取消还原。
+function startHotelEditor(btn, box, plan, id) {
+  const blk = btn.closest(".visit-block");
+  if (!blk || blk.querySelector(".rename-box")) return;
+  const sid = planSession && planSession.session_id;
+  if (!sid) return;
+  const city = btn.getAttribute("data-city") || "";
+  const selfName = btn.getAttribute("data-name") || "";
+  const holder = el('<div class="rename-box"></div>');
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "rename-in";
+  input.maxLength = 64;
+  input.value = selfName.indexOf("🏨") === 0 ? "" : selfName; // 系统占位名不回填，直接输新名
+  const list = el('<div class="rename-list"></div>');
+  holder.appendChild(input);
+  holder.appendChild(list);
+  blk.appendChild(holder);
+  input.focus();
+  input.select();
+  const st = { items: [], hi: -1, loading: false, done: false, seq: 0 };
+  const close = () => { if (!st.done) { st.done = true; box.replaceWith(planCard(plan)); } };
+  const drawHint = (t) => { list.textContent = ""; const d = el('<div class="rename-hint"></div>'); d.textContent = t; list.appendChild(d); };
+  const draw = () => {
+    list.textContent = "";
+    st.items.forEach((h, i) => {
+      // 验证展示：名称 + 地址（主行）；非酒店类目命中降权标注
+      const row = el('<div class="rename-item' + (i === st.hi ? " on" : "") + '" data-i="' + i + '"><b>' + esc(h.name || "") + "</b> <span>" + esc(h.address || I18N.city(h.city) || "") + "</span>" + (h.is_hotel ? "" : " <span>" + esc(h.category || "") + "</span>") + "</div>");
+      row.addEventListener("mousedown", (ev) => { ev.preventDefault(); pick(i); });
+      list.appendChild(row);
+    });
+    if (!st.items.length) drawHint(st.loading ? I18N.tf("card.hotel.searching", "地图检索中…") : I18N.tf("card.hotel.noMatch", "未验证到该酒店——换个名称再试"));
+  };
+  const search = () => {
+    const q = input.value.trim();
+    st.seq += 1;
+    const my = st.seq;
+    if (!q) { st.items = []; st.hi = -1; st.loading = false; drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入本晚酒店卡")); return; }
+    st.loading = true;
+    draw();
+    api("/api/v1/hotels/search?keywords=" + encodeURIComponent(q) + "&city=" + encodeURIComponent(city), undefined, "GET")
+      .then(rows => {
+        if (st.done || my !== st.seq) return;
+        st.loading = false;
+        st.items = ((rows && rows.items) || []).slice(0, 8);
+        st.hi = st.items.length ? 0 : -1;
+        draw();
+      })
+      .catch(() => { if (st.done || my !== st.seq) return; st.loading = false; st.items = []; st.hi = -1; draw(); });
+  };
+  let timer = null;
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 250); });
+  const pick = (i) => {
+    const h = st.items[i];
+    if (!h || st.done) return;
+    st.done = true;
+    input.disabled = true;
+    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/set-hotel", {
+      name: h.name,
+      source_poi_id: h.source_poi_id || null,
+      address: h.address || null,
+      opening_hours: h.opening_hours || null,
+      lon: h.location ? h.location.lon : null,
+      lat: h.location ? h.location.lat : null,
+    }, "POST")
+      .then(body => {
+        box.replaceWith(planCard(body.plan));
+        toast(I18N.tf("card.hotel.done", "✅ 已验证并填入酒店"));
+      })
+      .catch(err => {
+        const d = err && err.detail;
+        if (d === "no_match") toast(I18N.tf("card.hotel.noMatchErr", "没验证到这个酒店，换个名称试试"));
+        else failToast(err);
+        box.replaceWith(planCard(plan));
+      });
+  };
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { ev.preventDefault(); close(); return; }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      if (!st.items.length) return;
+      ev.preventDefault();
+      const n = st.items.length;
+      st.hi = (st.hi + (ev.key === "ArrowDown" ? 1 : n - 1)) % n;
+      draw();
+      return;
+    }
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      if (st.loading) return;
+      if (st.items.length) { pick(st.hi >= 0 ? st.hi : 0); return; }
+      toast(I18N.tf("card.hotel.noMatchErr", "没验证到这个酒店，换个名称试试")); // 手输必须验证——绝不删卡
+    }
+  });
+  input.addEventListener("blur", () => { setTimeout(() => close(), 180); });
+  drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入本晚酒店卡"));
+}
+
 // 天头城市口径（2026-11-01）：base_city 是「醒来城」——首日=出发城（落地后才
 // 开始活动），含落地游玩的首日按醒来城显示城市/查天气，会把出发城的天气挂在
 // 落地城的行程头上（用户报「第一天行程安排在落地城市，没有天气情况」）。
@@ -1666,12 +1771,24 @@ function planCard(plan) {
       } else { // VisitItem
         let tail = "";
         const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
+        const isNight = (it.item_id || "").indexOf("hotel-night") === 0; // 每晚酒店卡（2026-11-07）
+        // 🍴 美团订（2026-11-07 用户拍板）：餐位/餐厅卡名右侧直达美团美食频道
+        // 订座/点单，注册出行人资料后端脱敏挂单，跳转后每 2 分钟跟踪至完成。
+        // 会话外也可点（同 CALL TAXI 口径——预订不依赖会话）。
+        const mtBtn = it.category === "food"
+          ? ' <button class="btn mini ghost" data-action="mtbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" title="' + I18N.tf("card.mt.title", "跳美团美食频道订座/点单；出行人资料自动挂单，每 2 分钟跟踪预订状态直到完成") + '">🍴 ' + I18N.tf("card.mt", "美团订") + "</button>"
+          : "";
+        // 🏨 订酒店（2026-11-07 每晚酒店卡）：回酒店卡名右侧拉渠道卡
+        // （携程/美团/飞猪，铁律 23 退改闸）。会话外也可点（同美团订口径）。
+        const htlBtn = it.category === "hotel"
+          ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + d.day + '" title="' + I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近") + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
+          : "";
         if (planSession && planSession.session_id) { // 会话内：换点/钉住/删除可点（数据端点见下方委托监听）
-          tail = (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" title="' + I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空") + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '"' + (isNight ? ' data-hotel="1"' : "") + ' title="' + (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空")) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
-        } else { // 已保存行程回看：仅静态徽标
-          tail = (it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "";
+        } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
+          tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }
         // 悬停简介走 .site-pop 浮层（本行下方 JS），不再挂原生 title（双 tooltip 重叠）
         const handle = (planSession && planSession.session_id && !it.pinned)
@@ -1815,6 +1932,16 @@ function planCard(plan) {
       callTaxiTo(ct.getAttribute("data-name"), parseFloat(ct.getAttribute("data-lon")), parseFloat(ct.getAttribute("data-lat")));
       return;
     }
+    const mb = ev.target.closest ? ev.target.closest('button[data-action="mtbook"]') : null;
+    if (mb && box.contains(mb)) { // 🍴 美团订：餐位/餐厅卡直达（会话外也可用，同 CALL TAXI 口径）
+      mtBook(mb.getAttribute("data-name"), mb.getAttribute("data-city"), mb.getAttribute("data-item-id"));
+      return;
+    }
+    const hb = ev.target.closest ? ev.target.closest('button[data-action="htlbook"]') : null;
+    if (hb && box.contains(hb)) { // 🏨 订酒店：每晚酒店卡拉携程/美团/飞猪渠道卡（会话外也可用，同美团订口径）
+      hotelBookInline(hb, box, plan);
+      return;
+    }
     // 路途行程三件套（2026-11-04）：改乘 / 班次号校时 / 订票渠道卡——
     // 均会话内可点，命中后原地换新卡（与 retime/pin 同款 replaceWith 流）
     const tb = ev.target.closest ? ev.target.closest('button[data-action="tmode"],button[data-action="tno"],button[data-action="tbook"]') : null;
@@ -1884,6 +2011,12 @@ function planCard(plan) {
       const action = btn.getAttribute("data-action");
       const sid = planSession.session_id;
       if (action === "rename") {
+        if (btn.getAttribute("data-hotel") === "1") {
+          // ✏️ 手输酒店名（每晚酒店卡）：live 检索验证，选中后 set-hotel
+          // 写回名称+地址+坐标（见 startHotelEditor；无匹配绝不删卡）
+          startHotelEditor(btn, box, plan, id);
+          return;
+        }
         // ✏️ 换景点：条目名原地变输入框（库内检索下拉，见 startRenameEditor）
         startRenameEditor(btn, box, plan, id);
         return;
@@ -1960,6 +2093,122 @@ async function bookDirect(name, city, url, isShow) {
       toast(I18N.tf("plan.handoff.pre","已预填代订收款关联单号 ") + intent.handoff_id + I18N.tf("plan.handoff.suf","（预订页 💳 支付可直接发起）"));
     }
   } catch (e) { failToast(e); }
+}
+
+// 🍴 美团订（2026-11-07 用户拍板）：餐位/餐厅卡直达美团美食频道订座/点单。
+// 出行人资料（个人主页「出行人资料」登记的实名档案）由后端以脱敏形态挂单；
+// 美团侧表单由本人账号登录自动带入（平台无第三方预填，诚实口径）。
+// 跳转即起 2 分钟跟踪器：每 120s 轮询 /backfill/handoffs/{id}，状态离开
+// opened（「订单回填」粘贴/手动确认）即停并报完成——scheduler till complete。
+const MT_WATCH = { timer: null, handoffId: null, itemId: null };
+const MT_WATCH_MS = 120000; // 2 分钟（用户拍板：每 2 分钟核对直到完成）
+async function mtBook(name, city, itemId) {
+  try {
+    const intent = await api("/api/v1/booking-auto/restaurant-intent", { name, city });
+    if (intent.authorization_url) window.open(intent.authorization_url, "_blank", "noopener");
+    const ct = intent.contact;
+    toast(I18N.tf("mt.opened", "已打开美团预订页") +
+      (ct ? I18N.tf("mt.attached.pre", "（出行人资料已挂单：") + (ct.name || ct.label || "") +
+        (ct.phone_masked ? " · " + ct.phone_masked : "") + I18N.tf("mt.attached.suf", "）") : "") +
+      (intent.handoff_id ? I18N.tf("mt.watch.start", " · ⏳ 每 2 分钟自动核对，完成即停") : ""));
+    if (intent.handoff_id) mtWatchStart(intent.handoff_id, itemId);
+  } catch (e) { failToast(e); }
+}
+
+// 🏨 订酒店内联渠道卡（2026-11-07 每晚酒店卡，用户指令「SAME EITHER
+// PICK UP FROM 飞猪，携程，美团」）：已验证夜卡用其名/坐标；未验证回落
+// 当天末个带坐标景点（同 bkRenderPlanDays 锚点口径）。POST /offers/cards
+// kind=hotel → 每渠道一枚 bkChannelBtn（铁律 23：点击过 bkConfirm 退改
+// 浮层才跳转），渠道行就地渲染在本卡下方。会话外也可点（同美团订口径）。
+async function hotelBookInline(btn, box, plan) {
+  const dayNo = parseInt(btn.getAttribute("data-day") || "1", 10);
+  const blk = btn.closest(".visit-block");
+  const itemId = btn.getAttribute("data-item-id");
+  const day = ((plan && plan.days) || []).find(x => x.day === dayNo);
+  const checkin = planDateIso(dayNo);
+  const checkout = planDateIso(dayNo + 1);
+  if (!checkin || !checkout) { toast(I18N.tf("bk.hotelNoDate", "顶部未设「行程开始日期」：设置后可按天订酒店")); return; }
+  // 验证态优先：夜卡带 poi_id+坐标=已验证酒店；否则找当天末个带坐标景点
+  const it = day && (day.items || []).find(x => x.item_id === itemId);
+  const verified = it && it.poi_id && it.location && isFinite(it.location.lon) && isFinite(it.location.lat);
+  let kw = "", loc = null;
+  (day && day.items || []).forEach(x => {
+    if (x.from_city || !x.name || x.item_id === itemId) return;
+    kw = x.name;
+    if (x.location && isFinite(x.location.lon) && isFinite(x.location.lat)) loc = x.location;
+  });
+  if (verified) { kw = it.name; loc = it.location; }
+  if (!loc) { toast(I18N.tf("card.hotel.noAnchor", "本晚还没法定位：先 ✏️ 验证酒店，或给当天行程加个带坐标的景点")); return; }
+  busy(btn, async () => {
+    try {
+      const cards = await api("/api/v1/offers/cards", {
+        kind: "hotel",
+        city: btn.getAttribute("data-city") || "",
+        near_poi_name: kw,
+        lon: loc.lon,
+        lat: loc.lat,
+        checkin: checkin,
+        checkout: checkout,
+        region: "cn",
+      }, "POST");
+      let holder = blk.querySelector(".htl-offers");
+      if (!holder) {
+        holder = el('<div class="htl-offers" style="margin:0 2px 6px 56px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>');
+        blk.appendChild(holder);
+      }
+      holder.textContent = "";
+      (cards.cards || []).forEach((c, i) => {
+        holder.appendChild(bkChannelBtn(c.channel, c.url, { summary: c.refund_summary }, i === 0, I18N.tf("bk.chan." + c.channel, BK_CHANNEL[c.channel] || c.channel), "hotel"));
+      });
+      if (cards.disclaimer) holder.appendChild(el('<span class="muted" style="font-size:11px">' + esc(cards.disclaimer) + "</span>"));
+    } catch (err) { failToast(err); }
+  });
+}
+function mtWatchStart(handoffId, itemId) {
+  mtWatchStop(false);
+  MT_WATCH.handoffId = handoffId;
+  MT_WATCH.itemId = itemId;
+  mtWatchPaint({ status: "opened", watching: true });
+  MT_WATCH.timer = setInterval(mtWatchTick, MT_WATCH_MS);
+}
+function mtWatchStop(paint) {
+  if (MT_WATCH.timer) { clearInterval(MT_WATCH.timer); MT_WATCH.timer = null; }
+  if (paint) {
+    MT_WATCH.handoffId = null;
+    MT_WATCH.itemId = null;
+  }
+}
+async function mtWatchTick() {
+  if (!MT_WATCH.handoffId) { mtWatchStop(false); return; }
+  try {
+    const body = await api("/api/v1/backfill/handoffs/" + MT_WATCH.handoffId, undefined, "GET");
+    const rec = body.record || body;
+    const done = rec.status && rec.status !== "opened";
+    mtWatchPaint({ status: rec.status, orderRef: rec.order_ref, watching: !done });
+    if (done) {
+      mtWatchStop(true);
+      toast(I18N.tf("mt.watch.done", "✅ 预订状态：") + rec.status + (rec.order_ref ? " · " + rec.order_ref : ""));
+    }
+  } catch (e) {
+    if (e && e.status === 404) { // 记录被清（重启丢内存态等）：停表并标注，不空转
+      mtWatchStop(true);
+      mtWatchPaint({ gone: true });
+    } // 其它错误静默：网络抖动下个周期重试，不中断跟踪
+  }
+}
+function mtWatchPaint(st) {
+  if (!MT_WATCH.itemId) return;
+  document.querySelectorAll('.visit-block[data-id="' + MT_WATCH.itemId + '"]').forEach(blk => {
+    let bar = blk.querySelector("[data-mt-watch]");
+    if (!bar) {
+      bar = el('<div class="muted" data-mt-watch style="margin:0 2px 6px 56px;font-size:12px"></div>');
+      blk.appendChild(bar);
+    }
+    if (st.watching) bar.textContent = "⏳ " + I18N.tf("mt.watch.line", "美团预订跟踪中（每 2 分钟）· ") + (st.status || "opened");
+    else if (st.status) bar.textContent = "✅ " + I18N.tf("mt.watch.doneLine", "美团预订完成 · ") + st.status + (st.orderRef ? " · " + st.orderRef : "");
+    else if (st.gone) bar.textContent = I18N.tf("mt.watch.gone", "（跳转记录已不在，跟踪停止）");
+    else bar.remove();
+  });
 }
 
 // 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
@@ -2253,7 +2502,7 @@ document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
 const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangzhou"],["苏州","Suzhou"],["南京","Nanjing"],["西安","Xi'an"],["成都","Chengdu"],["重庆","Chongqing"],["广州","Guangzhou"],["深圳","Shenzhen"],["天津","Tianjin"],["武汉","Wuhan"],["长沙","Changsha"],["厦门","Xiamen"],["青岛","Qingdao"],["大连","Dalian"],["三亚","Sanya"],["丽江","Lijiang"],["桂林","Guilin"],["洛阳","Luoyang"],["敦煌","Dunhuang"],["兰州","Lanzhou"],["拉萨","Lhasa"],["昆明","Kunming"],["大理","Dali"],["张家界","Zhangjiajie"],["黄山","Huangshan"],["无锡","Wuxi"],["绍兴","Shaoxing"],["嘉兴","Jiaxing"],["舟山","Zhoushan"],["哈尔滨","Harbin"],["沈阳","Shenyang"],["长春","Changchun"],["郑州","Zhengzhou"],["济南","Jinan"],["福州","Fuzhou"],["泉州","Quanzhou"],["威海","Weihai"],["珠海","Zhuhai"]];
 const PLAN = { startDate: "" };
 
-// 路线 = 起始 → 中间1-3（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
+// 路线 = 起始 → 中间1-2（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
 // （起始城市只排出发交通不排活动，其天数框仅占位不参与计算）
 function planRouteForm() {
   const start = document.getElementById("planStartCity").value;
@@ -2261,7 +2510,7 @@ function planRouteForm() {
   const num = id => { const n = parseInt(document.getElementById(id).value, 10); return isNaN(n) ? 0 : n; };
   const seen = new Set([start, end]);
   const mids = [];
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 2; i++) {
     const c = document.getElementById("planVia" + i).value;
     if (!c || seen.has(c)) continue;
     seen.add(c);
@@ -2276,6 +2525,12 @@ function planRouteForm() {
     cityDays,
     total: mids.reduce((s, m) => s + m.days, 0) + endDays,
   };
+}
+// 交通方式（2026-11-07 拍板）：全程城际段去程/途经/返程统一口径——auto=后端距离闸
+// （>600km 航班、≤600km 火车），train/flight=用户指定；规划后单段仍可「改乘」细调
+function planTransportMode() {
+  const v = document.getElementById("planTransport").value;
+  return (v === "train" || v === "flight") ? v : "auto";
 }
 // 合计天数 + 结束日期随表单刷新（顶层函数：重新规划预填表单后也要手动刷一次）
 function planTotalRefresh() {
@@ -2302,10 +2557,10 @@ function planCityRender() {
   const label = ([c, enName]) => en ? enName : (c + " " + enName);
   const opts = PLAN_CITIES.map(p => '<option value="' + p[0] + '">' + label(p) + "</option>").join("");
   const cur = { s: s.value || "上海", e: e.value || "杭州",
-    via: [1, 2, 3].map(i => document.getElementById("planVia" + i).value || "") };
+    via: [1, 2].map(i => document.getElementById("planVia" + i).value || "") };
   s.innerHTML = opts; s.value = cur.s;
   e.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts; e.value = cur.e;
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 2; i++) {
     const v = document.getElementById("planVia" + i);
     v.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts;
     v.value = cur.via[i - 1] || "";
@@ -2319,14 +2574,14 @@ window.addEventListener("i18n:change", planCityRender);
   const num = (id) => parseInt(document.getElementById(id).value, 10);
   if (!(num("planStartDays") >= 0)) document.getElementById("planStartDays").value = 0;
   if (!(num("planEndDays") >= 1)) document.getElementById("planEndDays").value = 1;
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 2; i++) {
     if (!(num("planVia" + i + "Days") >= 1)) document.getElementById("planVia" + i + "Days").value = 1;
   }
   // 产品规则 2026-11-03：开始日期默认下周一（2026-10-19 曾默认今天——当天出发来不及
   // 订票/预约，下周一给足预订窗口；永不为当日，周一打开默认次周一）
   document.getElementById("planStartDate").value = nextMondayBeijingIso();
   ["planStartDays", "planEndDays", "planEndCity", "planStartDate"].forEach(id => document.getElementById(id).addEventListener("change", planTotalRefresh));
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 2; i++) {
     const sel = document.getElementById("planVia" + i); // 选项已由 planCityRender() 建好；旧 viaOpts 引用未定义，会让整段脚本加载即中断
     [sel, document.getElementById("planVia" + i + "Days")].forEach(x => x.addEventListener("change", planTotalRefresh));
   }
@@ -2376,7 +2631,7 @@ function planSetSession(s) {
   document.getElementById("planInput").placeholder = s ? I18N.tf("plan.input.phActive","继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数") : I18N.tf("plan.input.phIdle","自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整");
 }
 // 预填参数表单（2026-10-28 用户规则：重新规划=回到初始设置并带上次输入）：
-// cities=[起始,…中间0-3,结束]，cityDays 城市→天数（只读中间/结束城），startDate 出发日期，
+// cities=[起始,…中间0-2,结束]，cityDays 城市→天数（只读中间/结束城），startDate 出发日期，
 // prefs 偏好（null=保留偏好输入框现状）。写回后刷新合计/结束日期。
 function planFormPrefill(o) {
   const cities = (o && o.cities) || [];
@@ -2392,17 +2647,17 @@ function planFormPrefill(o) {
   const cd = (o && o.cityDays) || {};
   if (cities.length >= 2) {
     const end = cities[cities.length - 1];
-    const mids = cities.slice(1, -1).slice(0, 3);
+    const mids = cities.slice(1, -1).slice(0, 2);
     setSel("planEndCity", end);
     document.getElementById("planEndDays").value = Math.max(1, parseInt(cd[end], 10) || 1);
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 2; i++) {
       const c = mids[i - 1] || "";
       setSel("planVia" + i, c);
       document.getElementById("planVia" + i + "Days").value = c ? Math.max(1, parseInt(cd[c], 10) || 1) : 1;
     }
   } else {
     setSel("planEndCity", "");
-    for (let i = 1; i <= 3; i++) { setSel("planVia" + i, ""); document.getElementById("planVia" + i + "Days").value = 1; }
+    for (let i = 1; i <= 2; i++) { setSel("planVia" + i, ""); document.getElementById("planVia" + i + "Days").value = 1; }
   }
   if (o.startDate) document.getElementById("planStartDate").value = o.startDate;
   if (typeof o.prefs === "string") document.getElementById("planPref").value = o.prefs;
@@ -2556,11 +2811,12 @@ async function planStartCore(extraPref) {
   const r = planRouteForm();
   const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
-  addMsg("flow-plan", "user", I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
+  const tSel = document.getElementById("planTransport");
+  addMsg("flow-plan", "user", I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.transport","；交通：") + tSel.options[tSel.selectedIndex].text + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（通常 10 秒内）…"));
   try {
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, lang: I18N.locale() === "en" ? "en" : "zh" });
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale() === "en" ? "en" : "zh" });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode() } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });
@@ -4977,7 +5233,7 @@ function bfRender() {
   }
   rows.forEach(r => {
     const row = el('<div class="bf-row' + (BF.sel === r.id ? " sel" : "") + '"></div>');
-    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : (r.action_type === "site_ticket" ? "🎭" : "🏨"));
+    const ico = r.action_type === "train" ? "🚄" : (r.action_type === "flight" ? "✈️" : (r.action_type === "site_ticket" ? "🎭" : (r.action_type === "restaurant" ? "🍴" : "🏨")));
     row.appendChild(el('<span style="flex:1">' + ico + " " + esc(BK_CHANNEL[r.channel] || r.channel || "?") +
       (r.order_ref ? " · <b>" + esc(r.order_ref) + "</b>" : "") + "</span>"));
     const cls = r.status === "opened" ? "warn" : (r.status === "user_confirmed" ? "ok" : "err");
