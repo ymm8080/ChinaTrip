@@ -175,6 +175,38 @@ def test_refresh_address_only_persists_when_hours_miss():
     assert store.stale_pois() == []  # 冷却戳仍生效，不烧下轮
 
 
+class _VenueHoursAmap:
+    """detail/search 只带回场馆开放时间（图商口径）。"""
+
+    async def place_hours(self, poi_id):
+        return None
+
+    async def search_hours(self, keyword, city=None, location=None):
+        return {"opening_hours": "09:00-17:00", "rating": None, "address": "某路1号"}
+
+
+def test_refresh_show_hours_guard_20261107():
+    """hours_source='show' 行护闸：人工场次不被图商开放时间覆写；
+    地址照常落库、冷却戳照盖（2026-11-07，04 种子场次保护）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1",
+        city="西安",
+        name="《长恨歌》演出",
+        source="show",
+        opening_hours="仅夜场（约20:10/21:35两场）",
+        hours_source="show",
+    )
+    store.get("S1")["hours_updated_at"] = None  # 手模拟 30 天窗满，进 stale 窗口
+    stats = asyncio.run(refresh_pois(store, _NullCtrip(), _VenueHoursAmap(), limit=10))
+    got = store.get("S1")
+    assert stats["address_only"] == 1  # hours 抑制后走 address 分支
+    assert got["opening_hours"] == "仅夜场（约20:10/21:35两场）"
+    assert got["hours_source"] == "show"
+    assert got["address"] == "某路1号"  # 地址/富化照常
+    assert store.stale_pois() == []  # 抑制后仍盖冷却戳，不烧下轮
+
+
 def test_stale_pois_returns_amap_location_string():
     store = PoiDetailStore()
     store.upsert("L1", city="重庆", name="有坐标", location=(106.578, 29.5628))

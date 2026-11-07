@@ -425,8 +425,8 @@ def test_refresh_source_filter_and_skeleton_skips_v5_detail():
     store = PoiDetailStore()
     store.upsert("B1", city="重庆", name="景点A")  # amap 行
     store.upsert("C1", city="北京", name="骨架B", source="chinatravel")  # 骨架行
-    # stale_pois 五元组（location 无坐标 None）+ sources 过滤
-    assert ("C1", "北京", "骨架B", "chinatravel", None) in store.stale_pois()
+    # stale_pois 六元组（location 无坐标 None；hours_source 供 refresh 护闸）
+    assert ("C1", "北京", "骨架B", "chinatravel", None, None) in store.stale_pois()
     assert [t[0] for t in store.stale_pois(sources=("chinatravel",))] == ["C1"]
 
     amap = StubAmap()

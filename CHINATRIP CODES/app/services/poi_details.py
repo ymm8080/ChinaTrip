@@ -373,13 +373,16 @@ class PoiDetailStore:
         limit: int = 200,
         sources: tuple[str, ...] | None = None,
         city: str | None = None,
-    ) -> list[tuple[str, str | None, str | None, str | None, str | None]]:
+    ) -> list[tuple[str, str | None, str | None, str | None, str | None, str | None]]:
         """POIs whose hours are missing or older than 30 days (job targets;
         _STALE_AFTER 月度节奏 2026-10-28 定稿).
 
-        返回 (source_poi_id, city, name_zh, source, location) 五元组；
-        location 为 amap-ready "lon,lat"（GCJ-02，无坐标行 None）——链③
-        text 配额尽(10021)时 client 降级 around-search 要用（2026-10-24）。
+        返回 (source_poi_id, city, name_zh, source, location, hours_source)
+        六元组；location 为 amap-ready "lon,lat"（GCJ-02，无坐标行
+        None）——链③ text 配额尽(10021)时 client 降级 around-search 要用
+        （2026-10-24）；hours_source 供 refresh 链行级护闸（'show' 行的
+        opening_hours 是人工核好的场次时刻，不接受图商开放时间覆写，
+        2026-11-07）。
         sources 非 None 时只返回指定 source 的行（骨架行按渠道分批回源
         用）。city 过滤必须在 SQL 层做——查询无 ORDER BY，limit 窗口是
         物理顺序前 N 行；若窗口外过滤，单城刷批次会拿不到行（2026-10-23
@@ -412,6 +415,7 @@ class PoiDetailStore:
                                 r.name_zh,
                                 r.source,
                                 f"{m.group(1)},{m.group(2)}" if m else None,
+                                r.hours_source,
                             )
                         )
                     return out
@@ -421,7 +425,9 @@ class PoiDetailStore:
                     "poi_details: db unreachable, memory fallback",
                     exc_info=True,
                 )
-        out: list[tuple[str, str | None, str | None, str | None, str | None]] = []
+        out: list[
+            tuple[str, str | None, str | None, str | None, str | None, str | None]
+        ] = []
         nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
             if pid in nonactive:
@@ -436,6 +442,7 @@ class PoiDetailStore:
                         v.get("name"),
                         v.get("source") or "amap",
                         f"{loc[0]},{loc[1]}" if loc else None,
+                        v.get("hours_source"),
                     )
                 )
         if sources is not None:
