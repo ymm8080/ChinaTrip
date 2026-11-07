@@ -310,6 +310,27 @@ def test_replan_worker_handler_roundtrip(monkeypatch):
     assert captured.get("refresh_legs") is True  # 2026-10-30 重排后腿刷新
 
 
+def test_direct_called_singletons_have_no_depends_defaults():
+    """慢车道 handler 在 DI 上下文外直调 plan.py 单例 getter——带
+    ``Depends`` 默认值的签名会把裸哨兵当实参（2026-11-07 事故：replan
+    后台任务炸 'Depends' object has no attribute 'map_provider'）。
+    契约：被 handler 直调的 getter 一律零参（settings 函数体内直取）。"""
+    import inspect
+
+    from fastapi import Depends
+
+    import app.api.plan as plan_module
+
+    direct_called = ("get_planning_agent", "get_plan_sessions")
+    for name in direct_called:
+        fn = getattr(plan_module, name)
+        for param in inspect.signature(fn).parameters.values():
+            assert not isinstance(param.default, Depends), (
+                f"{name} 参数 {param.name} 带 Depends 默认值——"
+                "慢车道直调会炸；settings 应在函数体内 get_settings() 直取"
+            )
+
+
 # --- missing session still 404s before any lane work ---
 
 
