@@ -266,9 +266,15 @@ _UNCAPPED_CATEGORIES = ("", "attraction", "sight", "food", "entertainment")
 # 行程级品类上限（2026-11-07 用户拍板「少放博物馆、风景区这种，每个
 # 行程最多一个」「CITYWALK 一个行程最多一个」）：同族并入同桶计数——
 # museum 桶含 gallery/memorial/art（美术馆/纪念馆都是「博物馆这种」），
-# 风景区桶含 nature 品类与 scenic 源行。上限 1/行程，跨城共享计数
+# 风景区桶含 nature 品类、scenic 源行，以及「名录王牌里的山水行」
+# （2026-11-07 用户拍板「少放风景区这种，每个行程最多一个」+「风景区
+# 的优先级不应该是最高的」：5A/世遗山水——武隆喀斯特/小三峡/四面山/
+# 阿依河类——source='5a'、category='attraction'，旧判定全部漏网，
+# 重庆段被风景区填满）。山水 token 只对带 5a/unesco 标的行生效——
+# 古镇/人文型 5A（安仁古镇景区）不误伤。上限 1/行程，跨城共享计数
 # （成渝线全程 1 个博物馆，不是每城 1 个）；必去合并通道不受此闸。
 _ITIN_BUCKET_CAP = 1
+_SCENIC_NAME_RE = re.compile("山|峡|谷|江|河|湖|瀑|洞|森林|草原|湿地|地质|喀斯特|风景")
 
 
 def _itin_cap_bucket(cand: dict) -> str | None:
@@ -278,6 +284,11 @@ def _itin_cap_bucket(cand: dict) -> str | None:
     if cat in ("museum", "gallery", "memorial", "art"):
         return "museum"
     if cat == "nature" or src == "scenic":
+        return "scenic"
+    tags = {str(t or "").strip().lower() for t in (cand.get("tags") or [])}
+    if any(
+        t == "5a" or t.startswith("unesco") for t in tags
+    ) and _SCENIC_NAME_RE.search(str(cand.get("name") or "")):
         return "scenic"
     if cat == "citywalk":
         return "citywalk"
@@ -505,6 +516,27 @@ def _sched_best_visit(cand: dict | None) -> str | None:
         str(cand.get("category") or "") or None,
     )
     return slot if slot else raw
+
+
+# 族卡夜档信号（2026-11-07 十二时辰案）：并卡卡面 bvt 原样继承锚——
+# 大雁塔(any)+长安十二时辰(show) 并成一卡后被当大点排进上午头档，族内
+# 夜档成员的体验窗整段丢失。夜档集合与 solver._EVENING_OK_BEST 同族
+# （另收脏值 night 防御），成员任一带夜档时卡取夜档。
+_NIGHT_SCHED_BEST = {"evening", "sunset", "show", "night"}
+
+
+def _family_best_visit(anchor: dict, member_cands: list[dict]) -> str | None:
+    """族卡 bvt 聚合（同街族并卡配套，2026-11-07 十二时辰案）：夜档成员
+    信号 > 锚自身时段——夜间体验窗是更硬的约束；族内无夜档时维持锚值，
+    不改变既有白天族的排期。"""
+    anchor_bvt = _sched_best_visit(anchor)
+    if str(anchor_bvt or "").strip().lower() in _NIGHT_SCHED_BEST:
+        return anchor_bvt
+    for mc in member_cands:
+        mb = _sched_best_visit(mc)
+        if str(mb or "").strip().lower() in _NIGHT_SCHED_BEST:
+            return mb
+    return anchor_bvt
 
 
 def _rain_exposed(cand: dict) -> bool:
@@ -1976,6 +2008,18 @@ def _wish_pure_core(wish: str) -> str:
     return s
 
 
+def _wish_core_hit(hit: dict, core: str) -> bool:
+    """愿望核心词命中判定（含 name_aliases）：看熊猫→秦岭四宝科学公园
+    这类「库名不含核心词、别名才含」的行，靠别名通道才够得着（2026-11-07
+    看熊猫案；poi_details.search_keyword 行并行出 name_aliases）。"""
+    if not core:
+        return False
+    names = [str(hit.get("name") or "")] + [
+        str(a) for a in (hit.get("name_aliases") or []) if a
+    ]
+    return any(core in _norm_site_name(n) for n in names)
+
+
 def _location_dict(loc: object) -> dict | None:
     """库行坐标（GCJ-02 (lon, lat) tuple，poi_details.search_keyword 口径）
     → 候选池/组装层通用的 {"lon","lat"}；已是 dict 原样返回。绑定字典
@@ -2095,6 +2139,24 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     pid = cand.get("source_poi_id")
     if pid and item.poi_id == pid:
         return True
+    if (
+        str(cand.get("name") or "")
+        and str(item.name or "")
+        and _umbrella_cand_dup(
+            cand,
+            {
+                "name": item.name,
+                "city": item.city,
+                "category": item.category,
+                "location": (
+                    {"lon": item.location.lon, "lat": item.location.lat}
+                    if item.location is not None
+                    else None
+                ),
+            },
+        )
+    ):
+        return True  # 伞名同站（2026-11-07 碑林案）：回填不许补第二张碑林卡
     cn = str(cand.get("name") or "")
     iname = str(item.name or "")
     if (
@@ -2184,6 +2246,8 @@ def _museum_umbrella_dup(
     scenic_name: str,
     museum_xy: tuple[float, float] | None,
     scenic_xy: tuple[float, float] | None,
+    museum_city: str | None = None,
+    scenic_city: str | None = None,
 ) -> bool:
     """博物馆本体 vs 伞形景区挂牌行的同站判定（2026-10-31 碑林拍板）。
 
@@ -2196,9 +2260,20 @@ def _museum_umbrella_dup(
     2026-11-01 用户拍板「核心词匹配运用到所有景点」：撤销「_name_dup
     管得到的对子不让位」豁免——大足类同内容家族（博物馆/影院/园区）
     此前选点层保双卡、组装层合并，现统一在选点层让位博物馆本体（结局
-    同为单张博物馆卡，机制更早更省池位，假设区多一行让位披露）。"""
+    同为单张博物馆卡，机制更早更省池位，假设区多一行让位披露）。
+
+    无坐标降级闸（2026-11-07 碑林双卡案，session be915838 day4 实录）：
+    绑定/心愿行的坐标要等 _enrich_parallel（两道去重之后）才补上，若
+    一律「宁可不并」，博物馆本体与伞形景区会在同行程并排成双卡。任一
+    侧缺坐标时降级为同城（剥市后缀、双方非空）+ 词素命中即同站（泛化
+    街区组「候选无坐标同城即判互斥」同先例）；缺城/异地不猜。"""
     if museum_xy is None or scenic_xy is None:
-        return False  # 无坐标不猜（宁可不并）
+        m_city = str(museum_city or "").strip().removesuffix("市")
+        s_city = str(scenic_city or "").strip().removesuffix("市")
+        if not m_city or m_city != s_city:
+            return False  # 缺城/异地不猜（宁可不并）
+        core = _museum_core(museum_name)
+        return bool(core) and bool(scenic_name) and core in scenic_name
     dist = haversine_km(
         GeoPoint(lon=museum_xy[0], lat=museum_xy[1]),
         GeoPoint(lon=scenic_xy[0], lat=scenic_xy[1]),
@@ -2252,6 +2327,8 @@ def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
         (scenic.location.lon, scenic.location.lat)
         if scenic.location is not None
         else None,
+        museum_city=museum.city,
+        scenic_city=scenic.city,
     )
 
 
@@ -2268,7 +2345,19 @@ def _umbrella_cand_dup(a: dict, b: dict) -> bool:
         str(scenic.get("name") or ""),
         _cand_xy(museum),
         _cand_xy(scenic),
+        museum_city=museum.get("city"),
+        scenic_city=scenic.get("city"),
     )
+
+
+def _fam_twin_absorb(anchor: dict, other: dict) -> bool:
+    """族卡孪生吸收（2026-11-07 碑林双卡拍板「先类型二选一，再按距离
+    时间聚合；聚合要把成员显示出来，不许影没」）：同日规格与锚卡构成
+    伞名同站（博物馆本体 vs 城墙·碑林类伞形挂牌行；绑定/心愿行无坐标
+    走同城+词素降级闸）时折进锚卡当子站 chip 展示，不留独立第二卡。
+    只收伞名通道——替代组孪生（熊猫基地↔谷 ~58km）是跨选址二选一，
+    不是同站聚合，不入族。"""
+    return _umbrella_cand_dup(anchor, other)
 
 
 def _museum_shadow_pairs(
@@ -3954,9 +4043,25 @@ def _yield_for_premium(
             and not i.pinned
             and i.name not in protect
             and (i.category or "") not in ("food", "hotel")
-            and _tier(i.name) > vt
+            and (
+                _tier(i.name) > vt
+                or (
+                    # 同档小让大（2026-11-07 环球中心案）：同 tier 下
+                    # 更短时长者为更大块让位（杜甫草堂 120min 让 240min
+                    # 环球中心）——档序之外补「块头」维度；大让小不算。
+                    _tier(i.name) == vt
+                    and (i.duration_minutes or DEFAULT_VISIT_MINUTES) < dur
+                )
+            )
         ]
-        if not ejects:
+        # 零弹座基线探针（2026-11-07）：占位件已软挪出固定窗，当天可能
+        # 本就放得下（唯一墙是晚饭占位件类）——先试原样再进弹座循环。
+        baseline = _host_day_for_visit(
+            [later], vcity, dur, incoming=visit.location, visit=visit
+        )
+        if baseline is not None:
+            ejects = []
+        elif not ejects:
             continue
         # 连续弹座实位探针（档低者先让，弹到放得下为止）：单弹一个
         # 不等于腾出可排座——240min 级大块头弹一个 90min 杂点整块照样
@@ -4008,15 +4113,16 @@ def _yield_for_premium(
         visit.end_time = None
         target.items.append(visit)
         yield_names = "」「".join(e.name for e in ejected)
-        notes.append(
-            L(
-                f"「{visit.name}」排不下时刻，同天「{yield_names}」"
-                f"为名点让位，已挪至第{target.day}天重排",
-                f'"{visit.name}" could not be timed; "{yield_names}" '
-                f"yielded their slot(s) and the sight moved to day "
-                f"{target.day} for re-timing",
+        if ejected:
+            notes.append(
+                L(
+                    f"「{visit.name}」排不下时刻，同天「{yield_names}」"
+                    f"为名点让位，已挪至第{target.day}天重排",
+                    f'"{visit.name}" could not be timed; "{yield_names}" '
+                    f"yielded their slot(s) and the sight moved to day "
+                    f"{target.day} for re-timing",
+                )
             )
-        )
         for eject in ejected:
             edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
             ecity = str(eject.city or "").strip().removesuffix("市")
@@ -7020,7 +7126,9 @@ class PlanningAgent:
                 "plan: wish city backfill failed for %s", name, exc_info=True
             )
 
-    async def _absorb_wishlist(self, session: PlanSession) -> list[str]:
+    async def _absorb_wishlist(
+        self, session: PlanSession
+    ) -> tuple[list[str], list[str]]:
         """Trip-center wishlist entries for this trip's cities become
         must-visits (engine schedules + pins them). Runs at the single
         v0 chokepoint so start/confirm/clarify paths all absorb.
@@ -7028,10 +7136,14 @@ class PlanningAgent:
         2026-10-28 事故门禁（西湖漏进重庆行程）：空城行不再无条件吸收——
         专名愿望先 `_resolve_wish_city` 定城；行程外→写回城市并跳过（行已
         自愈，下次城市过滤直接生效）；品类愿望（喝杯咖啡等）保持空城就近
-        落实语义（2026-10-24 拍板）；解析仍失败→保持原吸收行为。"""
+        落实语义（2026-10-24 拍板）；解析仍失败→保持原吸收行为。
+        2026-11-07 看熊猫案收口：行程外跳过不再静默——返回
+        (absorbed, skipped_notes)，披露随 v0 assumptions 上卡；泛词心愿
+        先经 _wish_city_in_session 宽恕重绑本程城市。"""
         if self._trip_items is None:
-            return []
+            return [], []
         absorbed: list[str] = []
+        skipped_notes: list[str] = []
         cur_itin = session.plan.itinerary_id if session.plan else None
         rows = list(self._trip_items.list_groups().get("wishlist", []))
         # 2026-10-31（用户实报「新行程不抓心愿单」）：已排期但挂在别的行
@@ -7055,23 +7167,96 @@ class PlanningAgent:
                 # 2026-11-04 拍板）：历史误建行不再吸收成必去占位卡。
                 continue
             city = it.get("city")
-            if city and city not in session.cities:
-                continue
             if not city and _category_search_keyword(name) is None:
                 resolved = await self._resolve_wish_city(name)
                 if resolved:
                     self._backfill_wish_city(name, resolved)
                     if resolved not in session.cities:
-                        continue
-                    city = resolved
-                    session.site_cities.setdefault(name, resolved)
+                        # 行程外城市交下方统一闸（宽恕+披露），不再裸 continue
+                        city = resolved
+                    else:
+                        city = resolved
+                        session.site_cities.setdefault(name, resolved)
+            if city and city not in session.cities:
+                # 行程外城市闸（2026-11-07 看熊猫案收口）：原样静默 continue
+                # 连披露都没有，违反 2026-10-25 日志铁律。泛词心愿（核心词
+                # ≠整串）先宽恕——上一程把「看熊猫」解析写死成都后，行城
+                # 市对后续行程是毒记忆；按本程城市序找核心词有库行的城市
+                # 重绑就近落实（专名不宽恕，用户钉死的城市必须尊重）；
+                # 宽恕不了才跳过，两种走向都留披露+日志。
+                core = _wish_pure_core(name)
+                forgiven = None
+                if core and core != name:
+                    forgiven = await self._wish_city_in_session(name, session)
+                if forgiven:
+                    skipped_notes.append(
+                        L(
+                            f"心愿「{name}」此前被解析到{city}；本次行程在"
+                            f"{forgiven}也有对应去处，已改随本程安排",
+                            f'Wish "{name}" was previously resolved to {city}; '
+                            f"this trip can also fulfill it in {forgiven}, "
+                            "so it now follows this trip",
+                        )
+                    )
+                    city = forgiven
+                    session.site_cities.setdefault(name, forgiven)
+                    self._backfill_wish_city(name, forgiven)
+                else:
+                    skipped_notes.append(
+                        L(
+                            f"心愿「{name}」位于{city}，不在本次行程城市"
+                            f"（{'、'.join(session.cities)}）中，未排入本次行程",
+                            f'Wish "{name}" is located in {city}, not among '
+                            f"this trip's cities ({', '.join(session.cities)}); "
+                            "it was not scheduled into this trip",
+                        )
+                    )
+                    logger.info(
+                        "plan: wish off-trip skip %s city=%s trip_cities=%s",
+                        name,
+                        city,
+                        session.cities,
+                    )
+                    continue
             if any(_same_site(name, m) for m in session.must_visits):
                 continue
             session.must_visits.append(name)
             if city:
                 session.site_cities.setdefault(name, city)
             absorbed.append(name)
-        return absorbed
+        return absorbed, skipped_notes
+
+    async def _wish_city_in_session(
+        self, name: str, session: PlanSession
+    ) -> str | None:
+        """泛词心愿跨程城市宽恕（2026-11-07 看熊猫案）：按本程城市序找
+        第一个核心词有库行的城市（含 name_aliases 通道）。三空骨架行不算
+        数（回不了排期池，宽恕了也排不了——_pool_worthy 同闸）。"""
+        if self._poi_details is None:
+            return None
+        core = _wish_pure_core(name)
+        if len(core) < 2:
+            return None
+        for c in session.cities:
+            try:
+                hits = await asyncio.to_thread(
+                    self._poi_details.search_keyword, c, [core], limit=20
+                )
+            except Exception:
+                logger.warning(
+                    "plan: wish forgive search failed city=%s", c, exc_info=True
+                )
+                continue
+            live = [
+                h
+                for h in hits
+                if h.get("location") is not None
+                and _wish_core_hit(h, core)
+                and _pool_worthy(h)
+            ]
+            if live:
+                return c
+        return None
 
     async def _generate_v0(
         self,
@@ -7080,7 +7265,7 @@ class PlanningAgent:
         extra_assumptions: list[str] | None = None,
     ) -> PlanSession:
         session.state = "planning"
-        absorbed = await self._absorb_wishlist(session)
+        absorbed, skip_notes = await self._absorb_wishlist(session)
         if absorbed:
             extra_assumptions = list(extra_assumptions or []) + [
                 L(
@@ -7089,6 +7274,10 @@ class PlanningAgent:
                     + ", ".join(absorbed),
                 )
             ]
+        if skip_notes:
+            # 行程外心愿披露（2026-11-07 看熊猫案）：跳过/宽恕重绑都要让
+            # 用户看见，不再静默蒸发（2026-10-25 日志铁律）。
+            extra_assumptions = list(extra_assumptions or []) + skip_notes
         t0 = perf_counter()
         candidates, poi_assumptions = await self._collect_candidates(
             session.cities,
@@ -7213,19 +7402,12 @@ class PlanningAgent:
             perf_counter() - t1,
             len(candidates),
         )
-        # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
-        # >4 裁到 4——过载日既走不完也过不了铁律 6；放在 must 合并前，
-        # 用户点名必去不受限（愿超载是用户的决定）。
-        picked, dropped_labels = self._cap_sights_per_day(picked)
-        if dropped_labels:
-            llm_assumptions.append(
-                L(
-                    "每日最多保留 4 个景点，已裁："
-                    + "、".join(z for z, _ in dropped_labels),
-                    "Capped at 4 sights per day; dropped: "
-                    + ", ".join(e for _, e in dropped_labels),
-                )
-            )
+        # 必去合并先行（2026-11-07 熊猫基地案）：4/日闸此前跑在合并前，
+        # 心愿必去（看熊猫→熊猫基地）此时还是普通 spec——被数量闸裁掉
+        # 第 2 天席位后，合并通道只能把它硬塞回物理装不下的到达日，
+        # 全程 None-None 交付。现改为：先合并标 must，再过 4/日闸
+        # （must 计件但绝不裁——愿超载是用户的决定，超额交让位清算/
+        # solver 收口）。
         picked = self._merge_must_visits(
             picked,
             session.must_visits,
@@ -7237,6 +7419,18 @@ class PlanningAgent:
             bindings={**session.wish_bindings, **self._wish_bindings},
             transfer_days=transfer_days,
         )
+        # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
+        # >4 裁到 4——过载日既走不完也过不了铁律 6。
+        picked, dropped_labels = self._cap_sights_per_day(picked)
+        if dropped_labels:
+            llm_assumptions.append(
+                L(
+                    "每日最多保留 4 个景点，已裁："
+                    + "、".join(z for z, _ in dropped_labels),
+                    "Capped at 4 sights per day; dropped: "
+                    + ", ".join(e for _, e in dropped_labels),
+                )
+            )
         # 全局跨天均衡（2026-10-30 用户拍板）：选点/必去都是逐城贪心，
         # 空天与超载天可能并存；整段行程视角回填+分流后再算白名单。
         picked, rebalance_notes = self._rebalance_days(
@@ -8085,11 +8279,7 @@ class PlanningAgent:
                         sorted(allowed),
                         len(gated) - len(in_trip),
                     )
-                pool = [
-                    h
-                    for h in in_trip
-                    if core in _norm_site_name(str(h.get("name") or ""))
-                ]
+                pool = [h for h in in_trip if _wish_core_hit(h, core)]
                 if pool:
                     break
         if pool:
@@ -8787,6 +8977,12 @@ class PlanningAgent:
                 # 坐标随规格下传（必去合并的地理放日要用；组装层仍按
                 # cand_by_name 回查真身，此键冗余无害）。
                 "location": cand.get("location"),
+                # 档位依据随规格下传（2026-11-07 风景区桶案）：行程级
+                # 品类账本的 ledger 初始化读 picked spec 的 tags/source
+                # ——不带下去 5A/世遗山水行（source='5a'）就被账本漏计，
+                # 回填借池外补量绕过「风景区 1/行程」上限。
+                "tags": cand.get("tags"),
+                "source": cand.get("source"),
             }
 
         # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
@@ -10060,10 +10256,13 @@ class PlanningAgent:
         picked: list[dict],
     ) -> tuple[list[dict], list[tuple[str, str]]]:
         """8.1.5 硬闸门（TravelPlanner 常识约束）：每天非 food 游览点 >4
-        裁到 4——过载日既走不完也过不了铁律 6；用户点名必去不受限（愿
-        超载是用户的决定）。演出/娱乐类豁免（2026-11-03 拍板「每个行程
-        宜有一场娱乐」，同日更正 nice-to-have 非强制）：S5 晚场是 20:10
-        收尾事件不占白天游览窗——已选演出不因满员日被裁掉，纯档位核算。
+        裁到 4——过载日既走不完也过不了铁律 6。必去（must 标，2026-11-07
+        起合并先于本闸）计件但绝不裁——愿超载是用户的决定，超额交让位
+        清算/solver 收口（熊猫基地被本闸裁掉第 2 天席位、被迫塞回到达日
+        无时刻交付的事故根因）。演出/娱乐类豁免（2026-11-03 拍板「每个
+        行程宜有一场娱乐」，同日更正 nice-to-have 非强制）：S5 晚场是
+        20:10 收尾事件不占白天游览窗——已选演出不因满员日被裁掉，纯档
+        位核算。
 
         Returns (kept, dropped)：dropped 为 (zh, en) 标签供假设区披露。
         """
@@ -10075,6 +10274,10 @@ class PlanningAgent:
                 kept.append(spec)
                 continue
             bucket = per_day.setdefault(spec["day"], 0)
+            if spec.get("must"):
+                per_day[spec["day"]] = bucket + 1
+                kept.append(spec)
+                continue
             if bucket >= 4:
                 dropped.append(
                     (
@@ -10883,30 +11086,39 @@ class PlanningAgent:
         # 列表序=池序优先级梯子。仅餐位保留独立卡（餐窗是独立拍板硬规则
         # ——午餐硬窗/晚餐窗，并卡会吃掉餐时刻）；无坐标件不入族；>1km
         # 保持多卡（同日贴邻由预占/求解层的 1.5km 贴邻圈承担）。选层账本
-        # （day_fam）已按族口径收预算，这里把卡面合并落地。
+        # （day_fam）已按族口径收预算，这里把卡面合并落地。三拍（11-07
+        # 碑林双卡案「先类型二选一，再聚合；要显示出来，不许影没」）：
+        # 与锚卡构成伞名同站的同日件折进锚卡当子站 chip——绑定/心愿行
+        # 无坐标（_enrich_parallel 两道去重之后才补坐标）走同城+词素
+        # 降级闸（_fam_twin_absorb），不留独立第二卡也不静默丢弃。
         fam_members: dict[str, list[dict]] = {}
         absorbed: set[str] = set()
+        twin_absorbed: set[str] = set()
         fam_by_day: dict[int, list[dict]] = {}
         for spec in picked:
             if spec.get("category") == "food":
                 continue
-            if not isinstance(spec.get("location"), dict):
-                continue
             fam_by_day.setdefault(int(spec["day"]), []).append(spec)
         for _day, day_specs in fam_by_day.items():
             for i, anchor in enumerate(day_specs):
-                if anchor["name"] in absorbed:
+                if anchor["name"] in absorbed or not isinstance(
+                    anchor.get("location"), dict
+                ):
                     continue
                 a_pt = GeoPoint(**anchor["location"])
                 for other in day_specs[i + 1 :]:
                     if other["name"] in absorbed:
                         continue
-                    if (
-                        haversine_km(a_pt, GeoPoint(**other["location"]))
+                    near = (
+                        isinstance(other.get("location"), dict)
+                        and haversine_km(a_pt, GeoPoint(**other["location"]))
                         <= _FAMILY_MERGE_KM
-                    ):
+                    )
+                    if near or _fam_twin_absorb(anchor, other):
                         fam_members.setdefault(anchor["name"], []).append(other)
                         absorbed.add(other["name"])
+                        if not near:
+                            twin_absorbed.add(other["name"])
         # 必去子站保护映射（成员名→主卡名，2026-11-07 并卡拍板）：必去
         # 被折进族卡后卡面名换成主点，solver 铁律 19 的 protect 按卡名
         # 匹配——三处 must_names 构建点经 _family_must_names 扩名，防止
@@ -10917,19 +11129,33 @@ class PlanningAgent:
             for m in members
         }
         if fam_members:
-            absorbed_names = [
-                m["name"] for members in fam_members.values() for m in members
+            street_names = [
+                m["name"]
+                for members in fam_members.values()
+                for m in members
+                if m["name"] not in twin_absorbed
             ]
-            assumptions.append(
-                L(
-                    f"{'、'.join(absorbed_names)} 与相邻站点同街（≤1km），"
-                    "已并入同街一卡（停留时长按族内最长一站计）",
-                    ", ".join(absorbed_names)
-                    + " sit on the same street as a neighbouring stop (within "
-                    "1km) and were merged into one street card (duration = "
-                    "the longest stop)",
+            if street_names:
+                assumptions.append(
+                    L(
+                        f"{'、'.join(street_names)} 与相邻站点同街（≤1km），"
+                        "已并入同街一卡（停留时长按族内最长一站计）",
+                        ", ".join(street_names)
+                        + " sit on the same street as a neighbouring stop (within "
+                        "1km) and were merged into one street card (duration = "
+                        "the longest stop)",
+                    )
                 )
-            )
+            if twin_absorbed:
+                assumptions.append(
+                    L(
+                        f"{'、'.join(sorted(twin_absorbed))} 与同站主卡互替"
+                        "（同类型二选一），已并入一卡作子站展示",
+                        ", ".join(sorted(twin_absorbed))
+                        + " are same-site alternates of their host card "
+                        "(one per type) and were folded into it for display",
+                    )
+                )
         for spec in picked:
             if spec["name"] in absorbed:
                 continue
@@ -10962,7 +11188,9 @@ class PlanningAgent:
             # 子站折成 chips 只出不排；任一子站是必去→必去标随主卡。
             _members = fam_members.get(spec["name"]) or []
             _stops = None
+            _member_cands: list[dict] = []
             if _members:
+                _member_cands = [cand_by_name.get(m["name"]) or {} for m in _members]
                 duration = max(
                     [int(duration or DEFAULT_VISIT_MINUTES)]
                     + [
@@ -10974,7 +11202,8 @@ class PlanningAgent:
                     PlanStop(
                         name=m["name"],
                         name_en=(cand_by_name.get(m["name"]) or {}).get("name_en"),
-                        poi_id=(cand_by_name.get(m["name"]) or {}).get("source_poi_id"),
+                        poi_id=(cand_by_name.get(m["name"]) or {}).get("source_poi_id")
+                        or m.get("source_poi_id"),
                         category=m.get("category"),
                         duration_minutes=m.get("duration_minutes"),
                     )
@@ -11004,7 +11233,7 @@ class PlanningAgent:
                     # 8.2.1 联动：库候选的时段属性随条目进 solver 开窗
                     # （_sched_best_visit：缺信号时按名称规则兜底，夜游
                     # 类不再因库行 any 被排进白天——2026-11-01 事故）
-                    best_visit_time=_sched_best_visit(cand or {}),
+                    best_visit_time=_family_best_visit(cand or {}, _member_cands),
                     # 路径 A 预填（show_booking_design §2）：poi.booking_url
                     # （演出=携程 sight SKU 页）随条目并出，H5 票务直达直开
                     booking_url=(cand or {}).get("booking_url"),
@@ -11465,6 +11694,17 @@ class PlanningAgent:
         # 跨天全局重排（LNS+destroy-repair，2026-11-01 设计稿 S2 修订版）：
         # 硬惩罚信号驱动 move/swap/拆日重建；编辑路径不走 _v0 天然豁免；
         # CHINATRIP_GLOBAL_RESCHED=off 关闭。
+        # LNS 防回退基线（2026-11-07 用户指令）：重排前记「有时刻参访」
+        # 名册——重排按全局评分搬点不带排程，可能把原本有时刻的参访搬
+        # 进必死日（环球中心对调实录：评分 -1246→-1230 赚 16 分，代价
+        # 整卡蒸发进终局清算）。
+        pre_resched_snapshot = plan.model_copy(deep=True)
+        pre_resched_timed = {
+            v.item_id
+            for d in plan.days
+            for v in d.items
+            if isinstance(v, VisitItem) and v.start_time is not None
+        }
         resched = self._global_resched(
             plan,
             picked,
@@ -11488,6 +11728,28 @@ class PlanningAgent:
                 if resolved is not None:
                     resolved.assumptions = plan.assumptions
                     plan = resolved
+        # 防回退判定：对调后若出现「重排前有时刻、现在无时刻」的参访，
+        # 整体回滚到重排前状态——物理损失不换评分（重排披露一并撤下，
+        # 回滚本身留痕）。
+        post_resched_timed = {
+            v.item_id
+            for d in plan.days
+            for v in d.items
+            if isinstance(v, VisitItem) and v.start_time is not None
+        }
+        regressed = pre_resched_timed - post_resched_timed
+        if regressed:
+            plan = pre_resched_snapshot
+            plan.assumptions.append(
+                L(
+                    "全局重排使 "
+                    + "、".join(f"「{n}」" for n in sorted(regressed))
+                    + " 丢失已排时刻，已整体回滚到重排前布局",
+                    "Cross-day rescheduling would have cost scheduled times "
+                    "for some sights; rolled back to the pre-rescheduling "
+                    "layout",
+                )
+            )
         # 生成期终闸（2026-11-01 秦陵双卡案）：选点/组装层去重在前，但
         # 晨间保底/借调回填/干日回填/雨天对调都跑在其后，任一守卫口径
         # 不齐就会把同站的另一行补进来（D1 遗址公园 + D3 兵马俑实录）
@@ -11573,6 +11835,69 @@ class PlanningAgent:
             # 扫同款容量口径 + 互远闸），挪后重排；仍排不下才清算留痕。
             plan.assumptions.extend(_rehome_untimed_visits(plan, protect, tier_by_name))
             _fallback_sequence_times(plan)
+        # 回头重试（2026-11-07 用户指令「被裁点同城其他天回头重试」）：
+        # 挪日线只认首个结构可行日——东郊记忆挪 day2 后落进满员日物理
+        # 无档即终局蒸发，day3 本有空档却再无机会。清算前对仍无时刻者
+        # 再扫：已坐日+已试日除外，同城其余日逐日试宿（探测口径同
+        # rehome），挪后重排；日历试尽仍无时刻才交终局清算。tried 记
+        # item 坐过/试过的日号，防 ping-pong 死循环。
+        if _has_untimed_visits(plan):
+            tried: dict[str, set[int]] = {}
+            for day in plan.days:
+                for v in day.items:
+                    if isinstance(v, VisitItem):
+                        tried.setdefault(v.item_id, set()).add(day.day)
+            changed = True
+            while changed:
+                changed = False
+                for day in list(plan.days):
+                    strays = [
+                        v
+                        for v in day.items
+                        if isinstance(v, VisitItem)
+                        and v.start_time is None
+                        and not v.pinned
+                        and v.name not in protect
+                        and (v.category or "") not in ("food", "hotel")
+                    ]
+                    for visit in strays:
+                        vcity = str(visit.city or "").strip().removesuffix("市")
+                        if not vcity:
+                            continue
+                        dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+                        target = _host_day_for_visit(
+                            [
+                                d
+                                for d in plan.days
+                                if d.day not in tried.get(visit.item_id, set())
+                                and str(d.base_city or "").strip().removesuffix("市")
+                                == vcity
+                            ],
+                            vcity,
+                            dur,
+                            incoming=visit.location,
+                            visit=visit,
+                        )
+                        if target is None:
+                            continue
+                        tried.setdefault(visit.item_id, set()).update(
+                            {day.day, target.day}
+                        )
+                        day.items.remove(visit)
+                        visit.day = target.day
+                        visit.start_time = None
+                        visit.end_time = None
+                        target.items.append(visit)
+                        changed = True
+                        plan.assumptions.append(
+                            L(
+                                f"「{visit.name}」回头改排第{target.day}天重试",
+                                f'"{visit.name}" retried on day '
+                                f"{target.day} for re-timing",
+                            )
+                        )
+                if changed:
+                    _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
         return plan
@@ -13624,7 +13949,7 @@ class PlanningAgent:
                 ccities = {
                     (h.get("city") or "").strip().removesuffix("市")
                     for h in chits
-                    if core in _norm_site_name(str(h.get("name") or ""))
+                    if _wish_core_hit(h, core)
                     and (h.get("city") or "").strip()
                 }
                 ccities.discard("")

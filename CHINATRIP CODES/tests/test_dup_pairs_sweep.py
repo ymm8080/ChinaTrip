@@ -375,3 +375,108 @@ def test_panda_and_street_groups_not_crossed():
     a = _cs("熊猫谷", 103.59896, 30.96554, "成都", cat="nature")
     b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
     assert _cand_twin(a, b) is False
+
+
+# --- ⑤ 伞名无坐标降级 + 族卡孪生吸收（2026-11-07 碑林双卡案）----------------
+# session be915838 day4 实录：绑定行「西安碑林博物馆」无坐标（坐标要等
+# _enrich_parallel 在两道去重之后才补），「城墙·碑林历史文化景区」5A 伞标
+# 当族卡——伞形闸全程哑火，双卡并排一天。拍板「先类型二选一，再按距离
+# 时间聚合；聚合要把成员显示出来，不许影没」。
+
+
+def _beilin_anchor() -> dict:
+    return {
+        "name": "城墙·碑林历史文化景区",
+        "city": "西安",
+        "category": "attraction",
+        "location": {"lon": 108.94052490245161, "lat": 34.25687582300908},
+    }
+
+
+def test_umbrella_no_coords_same_city_morpheme_twin():
+    """绑定博物馆行无 location：同城+词素降级判同站（双向）。"""
+    from app.services.agent.plan import _umbrella_cand_dup
+
+    m = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    assert _umbrella_cand_dup(_beilin_anchor(), m) is True
+    assert _umbrella_cand_dup(m, _beilin_anchor()) is True
+
+
+def test_umbrella_no_coords_cross_city_or_missing_city_not_twin():
+    """缺城/异地不猜：降级闸不跨城放行。"""
+    from app.services.agent.plan import _umbrella_cand_dup
+
+    bj = {"name": "西安碑林博物馆", "city": "北京", "category": "museum"}
+    bare = {"name": "西安碑林博物馆", "category": "museum"}
+    assert _umbrella_cand_dup(_beilin_anchor(), bj) is False
+    assert _umbrella_cand_dup(_beilin_anchor(), bare) is False
+
+
+def test_fam_twin_absorb_beilin_pair():
+    """族卡孪生吸收：伞标锚卡吸收同日绑定博物馆行；非伞名对不吸收。"""
+    from app.services.agent.plan import _fam_twin_absorb
+
+    bound = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    assert _fam_twin_absorb(_beilin_anchor(), bound) is True
+    dayanta = {
+        "name": "大雁塔大唐芙蓉园景区",
+        "city": "西安",
+        "category": "attraction",
+        "location": {"lon": 108.9640, "lat": 34.2180},
+    }
+    shaanxi = {"name": "陕西历史博物馆", "city": "西安", "category": "museum"}
+    assert _fam_twin_absorb(dayanta, shaanxi) is False
+
+
+def test_same_visit_bound_museum_no_location_merged():
+    """行程级：无坐标绑定博物馆卡 vs 族卡（must）判同站，族卡幸存。"""
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    museum = VisitItem(
+        item_id="vm",
+        name="西安碑林博物馆",
+        poi_id="m1_1c7b3030b03e",
+        category="museum",
+        city="西安",
+        location=None,
+        day=4,
+    )
+    fam = VisitItem(
+        item_id="vf",
+        name="城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.94052490245161, lat=34.25687582300908),
+        day=4,
+        must=True,
+    )
+    assert _same_visit(museum, fam) is True
+    keepers, dropped = _dedupe_visit_keepers([museum, fam])
+    assert dropped == ["西安碑林博物馆"]
+    assert [k.poi_id for k in keepers] == ["5a_304"]
+
+
+def test_dup_blocks_beilin_museum_backfill():
+    """回填守卫挂伞名通道：行程已有城墙·碑林族卡，保底候选碑林博物馆
+    （无坐标绑定行形态）必须被拦，不许补成第二卡。"""
+    from app.services.agent.plan import _dup_blocks_item
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    fam = VisitItem(
+        item_id="vf",
+        name="城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.94052490245161, lat=34.25687582300908),
+        day=4,
+    )
+    cand = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "source_poi_id": "m1_1c7b3030b03e",
+        "category": "museum",
+    }
+    assert _dup_blocks_item(cand, fam) is True
