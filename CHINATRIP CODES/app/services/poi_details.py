@@ -589,9 +589,6 @@ class PoiDetailStore:
                         pat = f"%{t}%"
                         conds.append(Poi.name_zh.like(pat))
                         conds.append(Poi.category.like(pat))
-                        # 别名通道（2026-11-07 看熊猫案）：「熊猫」靠别名
-                        # 命中 秦岭四宝科学公园（别名 西安熊猫馆）这类行
-                        conds.append(cast(Poi.name_aliases, String).like(pat))
                         label = _token_label(t)
                         if label:
                             # JSONB tags 文本化匹配功能标签（"show" 子串唯一，
@@ -619,7 +616,6 @@ class PoiDetailStore:
                                 "city": row.city,
                                 "category": row.category,
                                 "tags": row.tags or [],
-                                "name_aliases": row.name_aliases or [],
                                 "address": row.address,
                                 "opening_hours": row.opening_hours,
                                 "source": row.source,
@@ -649,9 +645,7 @@ class PoiDetailStore:
             if city_names and v.get("city") not in city_names:
                 continue
             name = v.get("name") or ""
-            hay = f"{name} {v.get('category') or ''} " + " ".join(
-                str(a) for a in (v.get("name_aliases") or [])
-            )
+            hay = f"{name} {v.get('category') or ''}"
             vtags = {_norm_label_tag(t) for t in (v.get("tags") or [])}
             # 标签内核命中（DB 路 cast LIKE 的内存对应）：愿望词→玩法标签；
             # unesco 再吃前缀族（unesco_silk_road 等），对齐 DB 路锚定前缀
@@ -679,7 +673,6 @@ class PoiDetailStore:
                     "city": v.get("city"),
                     "category": v.get("category"),
                     "tags": list(v.get("tags") or []),
-                    "name_aliases": list(v.get("name_aliases") or []),
                     "address": v.get("address"),
                     "opening_hours": v.get("opening_hours"),
                     "source": v.get("source") or "amap",

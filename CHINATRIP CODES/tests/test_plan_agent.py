@@ -1977,7 +1977,8 @@ def test_absorb_wishlist_dedupes_same_site():
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
     assert session.must_visits == ["李子坝站"]
-    assert run(agent._absorb_wishlist(session)) == []  # rerun absorbs nothing new
+    rerun_absorbed, _skip_notes = run(agent._absorb_wishlist(session))
+    assert rerun_absorbed == []  # rerun absorbs nothing new
 
 
 def test_absorb_wishlist_skips_items_from_other_cities():
