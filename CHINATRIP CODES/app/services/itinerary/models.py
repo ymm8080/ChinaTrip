@@ -65,6 +65,12 @@ class VisitItem(BaseModel):
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
+    # 必去/心愿卡（plan._merge_must_visits 装配期落标）：铁律 19 的去重
+    # 侧保护——同站孪生合并时必去卡永不让位（2026-11-07 锦里古戏台/
+    # 武侯祠案：两张愿望全被一张「武侯祠·锦里」复合挂牌池卡冒充吸收，
+    # 卡被去重并掉后必去静默蒸发）。solves 前装配即打，与 solve 后的
+    # pinned 钉位（:7946 一带）互不干扰。
+    must: bool = False
     # 系统钉（2026-10-31 午餐软钉拍板；2026-11-01 晚扩展「午饭/顺路
     # 餐厅/晚饭不钉死」）：排程器自己摆的餐件标记——pinned 可为 False
     # （非铁律 19：用户可拖/可改时/LLM 可挪），solver 仍以落位时刻为
@@ -90,6 +96,53 @@ class VisitItem(BaseModel):
     # 到达/离开日」）靠它认重磅（≤4）与轻 CityWalk（8=街区）；
     # None=占位/老数据按中档处理。
     tier: int | None = None
+    # 同级备选（2026-11-05 拍板「每个点要有一个备选」）：展示层字段——
+    # api/plan._plan_turn_body 装配期在深拷贝上挂（session.plan 本体永不
+    # 携带，持久化不留展示数据）；规则见 app.services.poi_alternatives
+    # （同级·同类·同时长·同城·排除行程内已有）。None = 未装配/无候选。
+    alternatives: list["PlanAlternative"] | None = None
+    # 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
+    # 与主点直线 ≤1km 的同日站点折进主卡 chips，只出不排（solver/兜底
+    # 只见主卡，族窗口=最长一站）；None=独立卡（>1km 保持多卡）。
+    stops: list["PlanStop"] | None = None
+
+
+class PlanStop(BaseModel):
+    """同街族并卡里被主卡吸收的子站 chip（2026-11-07 拍板）。
+
+    只携带卡面展示字段，不参与排程（主卡时长已取族内最大）。name 按
+    主卡同款双语口径并出 _en；poi_id 供心愿覆盖核对（_sync_wish_rows /
+    _ensure_wishlist_coverage 都会扫子站名/号）。
+    """
+
+    name: str
+    name_en: str | None = None
+    poi_id: str | None = None
+    category: str | None = None
+    duration_minutes: int | None = None
+
+
+class PlanAlternative(BaseModel):
+    """行程卡右侧「同级备选」chip 的载荷（2026-11-05 拍板）。
+
+    规则（poi_alternatives.pick_alternatives 唯一定义点）：与主点同层级
+    （tier 档号一致，档 4 短视频/5 小红书并作社媒档）、同类别（受控类别
+    精确匹配，空缺时类别组放宽）、游时时长相近（band 内）、同城可选、
+    排除行程内已有站点。H5 点击 chip → /items/{id}/replace 原位换主点。
+    """
+
+    name: str
+    name_en: str | None = None
+    category: str | None = None
+    # 名录档号（hit_tier 口径 0=unesco..9=3a，10=未分层）——H5 据此亮
+    # 同级徽标；与主点同档是本功能的硬规则。
+    tier: int | None = None
+    # 层级短牌（unesco/5a/ta/intl/social/…，poi_details._TIER_TAG 口径）
+    level_tag: str | None = None
+    duration_minutes: int | None = None
+    # 与主点直线距离（km，annotate 同式 haversine）：同档同城内近者优先
+    distance_km: float | None = None
+    rating: float | None = None
 
 
 class TransferItem(BaseModel):

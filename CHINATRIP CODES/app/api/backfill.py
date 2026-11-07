@@ -147,6 +147,19 @@ async def list_handoffs(
     return store.list_records(status)
 
 
+@router.get("/handoffs/{record_id}")
+async def get_handoff(
+    record_id: str,
+    store: HandoffStore = Depends(get_handoff_store),
+) -> dict:
+    """单条跳转记录（2026-11-07）：🍴 餐位美团预订跟踪器的轮询数据源——
+    H5 每 2 分钟拉一次，状态离开 opened（粘贴回填/手动标记确认）即停。"""
+    record = store.get(record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="handoff_not_found")
+    return {"record": record}
+
+
 @router.post("/alliance-sync")
 async def alliance_sync(
     request: AllianceSyncRequest,

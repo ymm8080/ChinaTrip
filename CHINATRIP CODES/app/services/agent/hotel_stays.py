@@ -35,6 +35,22 @@ def is_hotel_checkin(item: object) -> bool:
     )
 
 
+# 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN THE LAST
+# OF THE DAY. SAME EITHER PICK UP FROM 飞猪，携程，美团。OR INPUT MANUALLY
+# BY USER」）：每天末尾系统插「回酒店·夜间休息」卡——订酒店走渠道卡
+# （携程/美团/飞猪，铁律 22/23 退改闸），手输酒店名走 set-hotel 验证写回。
+HOTEL_NIGHT_ID_PREFIX = "hotel-night"
+HOTEL_NIGHT_MINUTES = 60  # 夜卡默认时长（回店休整到就寝）
+HOTEL_NIGHT_GAP_MINUTES = 30  # 末件结束 → 回到酒店的默认衔接（铁律 4 同源）
+
+
+def is_hotel_night(item: object) -> bool:
+    """系统每晚酒店卡识别（item_id 前缀，与 is_hotel_checkin 同构）。"""
+    return isinstance(item, VisitItem) and item.item_id.startswith(
+        HOTEL_NIGHT_ID_PREFIX
+    )
+
+
 def _city_key(city: str | None) -> str:
     return (city or "").strip().removesuffix("市")
 
@@ -128,5 +144,104 @@ def attach_hotel_stays(day_plans: list[DayPlan]) -> list[str]:
             "(~1.5h to the hotel, 1h to settle in); the first visit starts "
             "no earlier than 2.5h after landing — delete the card if you "
             "don't need a hotel".format(", ".join(str(d) for d in uniq)),
+        )
+    ]
+
+
+def _minutes_of(t: time) -> int:
+    return t.hour * 60 + t.minute
+
+
+def _night_window(last_end: int | None) -> tuple[int, int]:
+    """夜卡 [start, end)（分钟）：末件结束 +30 分钟起、60 分钟时长；
+    空天 21:00 起；越过 23:00 贴 23:00 开卡（末件本身晚于 23:00 则贴
+    末件），收尾封顶 23:59（与入住卡 _card_window 同款兜底口径）。"""
+    if last_end is None:
+        start = 21 * 60
+    else:
+        start = min(last_end + HOTEL_NIGHT_GAP_MINUTES, 23 * 60)
+        if start < last_end:  # 末件晚于 23:00：贴末件，不回拨
+            start = last_end
+    return start, min(start + HOTEL_NIGHT_MINUTES, 23 * 60 + 59)
+
+
+def attach_hotel_nights(day_plans: list[DayPlan]) -> list[str]:
+    """初次排程时给每一天末尾插「回酒店·夜间休息」卡（2026-11-07 用户
+    指令「CREATE NEW SLOT FOR HOTEL IN THE LAST OF THE DAY」）。
+
+    调用时点=v0 排程收口之后（solver/兜底/清算全部完成）——末件时刻
+    已定，窗口按最终时链推；绝不挂排程期插（早插的夜卡被当固定窗，
+    当天下午 sequencing 全堵死——西湖 day1 排不上实录）。每天一张
+    （末件为离程 transfer 的回家日不插，同入住卡「末段回家不插」口径）；
+    幂等：已有夜卡的天不重复插。卡不带 poi/坐标/地址——回填与小时链按
+    is_hotel_night 跳过（同入住卡口径，防「搜『回酒店』烧配额」）；手输
+    酒店名经 set-hotel 端点验证后写回名称+地址+坐标。城取当天最后一个
+    观光件的城（晚间换城日夜宿新城），夕发朝至末件取到达城，无观光件
+    回落醒来城。仅初次排程插入；编辑/修复路径不复活已删卡。
+    """
+    inserted_days: list[int] = []
+    for dp in day_plans:
+        if any(is_hotel_night(i) for i in dp.items):
+            continue
+        # 末件=离程 transfer（到达城不再是任何更晚日子的宿城）：当晚在途/
+        # 到家，不插夜卡（同入住卡「末段回家不插」口径）；反之夕发朝至
+        # 落在宿城，则夜宿到达城（city 覆写为 to_city）。
+        arr_city: str | None = None
+        last = dp.items[-1] if dp.items else None
+        if isinstance(last, TransferItem):
+            to_key = _city_key(last.to_city)
+            arrives_stay = bool(to_key) and any(
+                later.day > dp.day and _city_key(later.base_city) == to_key
+                for later in day_plans
+            )
+            if not arrives_stay:
+                continue
+            arr_city = (last.to_city or "").strip()
+        city = dp.base_city
+        last_end: int | None = None
+        for item in dp.items:
+            end: int | None = None
+            if isinstance(item, VisitItem):
+                if item.city:
+                    city = item.city
+                if item.end_time is not None:
+                    end = _minutes_of(item.end_time)
+                elif item.start_time is not None and item.duration_minutes is not None:
+                    total = _minutes_of(item.start_time) + item.duration_minutes
+                    if total < 24 * 60:
+                        end = total
+            elif isinstance(item, TransferItem):
+                end = _transfer_end_minutes(item)
+            if end is not None:
+                last_end = end
+        if arr_city:
+            city = arr_city
+        s, e = _night_window(last_end)
+        dp.items.append(
+            VisitItem(
+                item_id=f"{HOTEL_NIGHT_ID_PREFIX}-d{dp.day}",
+                name=L("🏨 回酒店·夜间休息", "🏨 Return to hotel · night rest"),
+                category="hotel",
+                city=city,
+                day=dp.day,
+                start_time=time(s // 60, s % 60),
+                end_time=time(e // 60, e % 60),
+                duration_minutes=e - s,
+                pinned=False,
+                soft_pin=True,
+            )
+        )
+        inserted_days.append(dp.day)
+    if not inserted_days:
+        return []
+    return [
+        L(
+            "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；"
+            "可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 "
+            "走携程/美团/飞猪渠道卡",
+            "A 'return to hotel · night rest' card is added at the end of "
+            "every day (~30 min after the last stop); drag/retime/delete "
+            "freely, tap ✏️ to verify and set a real hotel name, or tap 🏨 "
+            "to book via Ctrip/Meituan/Fliggy channel cards",
         )
     ]

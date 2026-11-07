@@ -21,11 +21,13 @@ empty recommendation never breaks the main planning flow.
 
 import logging
 import math
+import re
 from datetime import time
 from typing import Literal, Protocol
 
 from pydantic import BaseModel
 
+from app.services.best_visit import infer_slot_from_hours
 from app.services.itinerary.models import DayPlan, GeoPoint, VisitItem
 
 logger = logging.getLogger(__name__)
@@ -63,11 +65,43 @@ MEAL_DETOUR_HARD_KM = 50.0
 # 午餐占位件 id 前缀（2026-10-31 拍板：午餐窗搜不到餐厅时插「午饭」占位）。
 # 识别走 item_id 而非名字——名字随请求语言（lang_ctx.L）变化。
 LUNCH_PLACEHOLDER_ID_PREFIX = "food-lunch-ph"
+# 晚餐占位件 id 前缀（2026-11-07 用户指令「we need to hv dinner slot as
+# well」：晚餐窗搜不到餐厅时同样占位保槽）。识别同走 item_id 前缀。
+DINNER_PLACEHOLDER_ID_PREFIX = "food-dinner-ph"
+
+# 荐点餐厅晚餐优先公里当量（2026-11-07 用户指令「those with special
+# tags preferred to be set as dinner part」）：dinner 槽位排序时荐点标
+# 候选（curated/ta/klook 等国际荐点）扣减的 detour 分值。3km ≈ 城内
+# 常规顺路距离量级——同距内荐点稳赢、50km 硬闸仍兜底；lunch 不享受
+# （用户指定晚餐场优先，午餐仍纯顺路语义）。
+REC_DINNER_BONUS_KM = 3.0
+# 仅晚市餐秀强拉力（2026-11-07 用户指令「restaurant 演出只有晚上应该
+# 优先晚餐」）：时段闸锁死晚餐（allowed_slots=={dinner}）的荐点候选
+# （红鼎宴类餐秀=目的地体验，食客本就要专程赴约）在 dinner 排序里
+# 扣 10km——不是绝对优先（50km 硬闸 + 比它近 10km 以上的普通店仍能
+# 赢），但压过城内常规顺路差。lunch 已被时段闸剔除，本档只影响 dinner。
+REC_SHOW_DINNER_BONUS_KM = 10.0
+# 荐点餐厅午餐顺路闸（2026-11-07 用户指令「餐厅也要考虑距离，如果
+# 距离近可以放中午」）：点名店距午间动线 REC_LUNCH_NEAR_KM 内才进
+# 午餐（顺路即午饭可吃），远了不硬灌午餐——留给晚餐（bonus 生效处），
+# 避免唯一候选时 10km 外的点名店被午餐 pass 强吃。无坐标/无动线无法
+# 判距时不裁（宁缺勿错的反面：无从判断就不预设远）。
+REC_LUNCH_NEAR_KM = 3.0
 
 
 def is_lunch_placeholder(item: VisitItem) -> bool:
     """True for the auto-inserted lunch placeholder (never a real POI)."""
     return item.item_id.startswith(LUNCH_PLACEHOLDER_ID_PREFIX)
+
+
+def is_dinner_placeholder(item: VisitItem) -> bool:
+    """True for the auto-inserted dinner placeholder (never a real POI)."""
+    return item.item_id.startswith(DINNER_PLACEHOLDER_ID_PREFIX)
+
+
+def _norm_name(s: object) -> str:
+    """并池去重键：去空白 + lower（跨源同名不同写法兜底归并）。"""
+    return re.sub(r"\s+", "", str(s or "")).lower()
 
 
 _RESTAURANT_KEYWORD = "餐厅"
@@ -108,6 +142,70 @@ class RestaurantCandidate(BaseModel):
     detour_score: float = 0.0  # km to nearest route point; smaller = better
     rating: float | None = None  # amap extension field, often missing
     biz_type: str | None = None
+    # DB 荐点标候选（2026-11-07 并池）：curated/ta/klook 等国际荐点的
+    # 餐饮行——dinner 槽位享 REC_DINNER_BONUS_KM 排序优先。
+    rec_tagged: bool = False
+    # 时段要求（2026-11-07 用户指令「check if there is timing
+    # requirement」）：营业时间/宜X时段推得出仅晚市（餐秀/夜市）→
+    # 只进 dinner；仅早市 → 只进 lunch；推不出 → 两槽皆可。
+    allowed_slots: frozenset[str] = frozenset({"lunch", "dinner"})
+    # DB 建议时长（餐秀类 ~120min）：入卡时长 hint，钳制在窗内。
+    duration_hint: int | None = None
+
+
+def _allowed_slots_for(
+    opening_hours: object, best_visit_time: object
+) -> frozenset[str]:
+    """由营业时间 / best_visit_time 推槽位适性（详见候选字段注释）。"""
+    slot = infer_slot_from_hours(
+        opening_hours if isinstance(opening_hours, str) else None
+    )
+    if slot == "evening":
+        return frozenset({"dinner"})
+    if slot == "morning":
+        return frozenset({"lunch"})
+    bvt = str(best_visit_time or "").strip().lower()
+    if bvt in ("evening", "show", "night"):
+        return frozenset({"dinner"})
+    if bvt == "morning":
+        return frozenset({"lunch"})
+    return frozenset({"lunch", "dinner"})
+
+
+def candidate_from_poi_dict(poi: dict) -> RestaurantCandidate | None:
+    """POI 底库 hit（recommendation_food_in_city 形状）→ 候选并池件。
+
+    location 兼容 DB hit 的 (lon, lat) 元组与图商的 {"lon","lat"} dict；
+    rec_tagged 由调用方 store 显式标注（本层不重复实现荐点标判定）。
+    """
+    name = poi.get("name")
+    if not name:
+        return None
+    raw_loc = poi.get("location")
+    location = None
+    if isinstance(raw_loc, dict):
+        lon, lat = _as_float(raw_loc.get("lon")), _as_float(raw_loc.get("lat"))
+        if lon is not None and lat is not None:
+            location = GeoPoint(lon=lon, lat=lat)
+    elif isinstance(raw_loc, (tuple, list)) and len(raw_loc) >= 2:
+        lon, lat = _as_float(raw_loc[0]), _as_float(raw_loc[1])
+        if lon is not None and lat is not None:
+            location = GeoPoint(lon=lon, lat=lat)
+    hint = _as_float(poi.get("suggested_duration_min"))
+    return RestaurantCandidate(
+        name=str(name),
+        poi_id=poi.get("source_poi_id") or None,
+        location=location,
+        address=poi.get("address"),
+        opening_hours=poi.get("opening_hours"),
+        rating=_as_float(poi.get("rating")),
+        biz_type=poi.get("category"),
+        rec_tagged=bool(poi.get("rec_tagged")),
+        allowed_slots=_allowed_slots_for(
+            poi.get("opening_hours"), poi.get("best_visit_time")
+        ),
+        duration_hint=int(hint) if hint else None,
+    )
 
 
 def _haversine_m(a: GeoPoint, b: GeoPoint) -> float:
@@ -193,6 +291,9 @@ async def search_restaurants(
                 walk_minutes=walk_minutes,
                 rating=_as_float(poi.get("rating")),
                 biz_type=poi.get("category"),
+                allowed_slots=_allowed_slots_for(
+                    poi.get("opening_hours"), poi.get("best_visit_time")
+                ),
             )
         )
     return candidates
@@ -263,6 +364,7 @@ def rank_by_detour(
     candidates: list[RestaurantCandidate],
     *,
     route_points: list[GeoPoint],
+    dinner_rec: bool = False,
 ) -> list[RestaurantCandidate]:
     """Sort candidates by on-the-way-ness (smaller final score first).
 
@@ -271,7 +373,10 @@ def rank_by_detour(
     degenerate no-route-points case — get the fixed tail score
     NO_LOCATION_DETOUR_SCORE. Final score = detour_score - rating *
     RATING_WEIGHT when a rating exists, so better-rated places win ties
-    and near-ties. Candidates' detour_score is populated in place.
+    and near-ties. dinner_rec（2026-11-07 用户指令）：dinner 槽位荐点标
+    候选扣 REC_DINNER_BONUS_KM，其中仅晚市餐秀（时段闸锁死晚餐）扣
+    REC_SHOW_DINNER_BONUS_KM 强拉力——同距内稳赢，50km 硬闸仍兜底。
+    Candidates' detour_score is populated in place.
     """
     for cand in candidates:
         if cand.location is None or not route_points:
@@ -282,7 +387,15 @@ def rank_by_detour(
 
     def final_score(cand: RestaurantCandidate) -> float:
         bonus = cand.rating * RATING_WEIGHT if cand.rating is not None else 0.0
-        return cand.detour_score - bonus
+        rec = 0.0
+        if dinner_rec and cand.rec_tagged:
+            # 仅晚市餐秀（时段闸锁死晚餐）强拉力，其余荐点常规拉力
+            rec = (
+                REC_SHOW_DINNER_BONUS_KM
+                if cand.allowed_slots == frozenset({"dinner"})
+                else REC_DINNER_BONUS_KM
+            )
+        return cand.detour_score - bonus - rec
 
     return sorted(candidates, key=final_score)
 
@@ -329,6 +442,7 @@ async def recommend_restaurants(
     *,
     city: str | None = None,
     window: tuple[time, time] | None = None,
+    extra_pois: list[dict] | None = None,
 ) -> list[VisitItem]:
     """Top-N ready-to-add food items for the meal slot (§6.2 v1.7).
 
@@ -345,6 +459,15 @@ async def recommend_restaurants(
     window) — the iron-rule-20 gap check is then the caller's duty.
     Lunch items carry the 2026-11-03 lunch duration default (90 min);
     dinner keeps the generic one-hour meal.
+
+    `extra_pois`（2026-11-07 用户指令「有标记推荐的没进槽位…FIX IT」）：
+    DB 荐点餐厅（curated/ta/klook 标的 food 行，recommendation_food_in_city
+    供给）与图商实时检索并池——我们点名的店（红鼎宴/失重餐厅类）live
+    amap 关键词搜索覆盖不到。并池去重：归一名碰撞时图商实时字段
+    （坐标/营业时间更鲜）赢、荐点标 OR 归并；时段要求闸按槽位裁剪
+    （仅晚市餐秀不进午餐窗）；dinner 槽位荐点候选享排序优先
+    （REC_DINNER_BONUS_KM）；DB 建议时长（餐秀 ~120min）作入卡时长
+    hint，钳制在窗内。
     """
     window = window or meal_window(day_plan, slot)
     if window is None:
@@ -352,18 +475,37 @@ async def recommend_restaurants(
     duration = LUNCH_DURATION_MINUTES if slot == "lunch" else MEAL_DURATION_MINUTES
     city_used = city or day_plan.base_city
     candidates = await search_restaurants(amap_client, city_used)
+    if extra_pois:
+        by_name = {_norm_name(c.name): c for c in candidates}
+        for poi in extra_pois:
+            cand = candidate_from_poi_dict(poi)
+            if cand is None or slot not in cand.allowed_slots:
+                # 时段要求闸（2026-11-07）：仅晚市/仅早市店不进错槽。
+                continue
+            twin = by_name.get(_norm_name(cand.name))
+            if twin is None:
+                candidates.append(cand)
+                by_name[_norm_name(cand.name)] = cand
+            else:
+                # 同名双源：图商实时字段保留，荐点标并回（去重不吞标）
+                twin.rec_tagged = twin.rec_tagged or cand.rec_tagged
     # 当天已排的 POI 不再当餐厅推荐（同站景点不是用餐点；2026-10-31
     # 外滩案：松散候选源把已排景点又排成晚餐，造成同天双卡）
     planned_pids = {
         i.poi_id for i in day_plan.items if isinstance(i, VisitItem) and i.poi_id
     }
     candidates = [c for c in candidates if c.poi_id not in planned_pids]
+    # 时段要求闸全池生效（2026-11-07）：仅晚市/仅早市店不进错槽——
+    # 图商 live 候选与 DB 荐点候选同一把闸（营业时间回填后即生效）。
+    candidates = [c for c in candidates if slot in c.allowed_slots]
     route_points = [
         item.location
         for item in day_plan.items
         if isinstance(item, VisitItem) and item.location is not None
     ]
-    ranked = rank_by_detour(candidates, route_points=route_points)
+    ranked = rank_by_detour(
+        candidates, route_points=route_points, dinner_rec=slot == "dinner"
+    )
     if route_points:
         # 有动线才有顺路语义：已知坐标的远距候选=跨城错排信号，整只
         # 剔除比在错池里排序更诚实（宁缺不插 700km 外的「顺路」店）。
@@ -372,14 +514,36 @@ async def recommend_restaurants(
             for r in ranked
             if r.location is None or r.detour_score < MEAL_DETOUR_HARD_KM
         ]
-    return [
-        build_food_item(
-            cand,
-            day=day_plan.day,
-            city=city_used,
-            window=window,
-            item_id=f"food-d{day_plan.day}-{slot}-{index + 1}",
-            duration=duration,
+    if slot == "lunch":
+        # 荐点餐厅午餐顺路闸（2026-11-07 用户指令「餐厅也要考虑距离，
+        # 如果距离近可以放中午」）：点名店距午间动线 REC_LUNCH_NEAR_KM
+        # 内才进午餐，远了不硬灌——留给晚餐（bonus 生效处），否则唯一
+        # 候选时 10km 外的点名店会被午餐 pass 强吃。无坐标/无动线无从
+        # 判距不裁。
+        ranked = [
+            r
+            for r in ranked
+            if not r.rec_tagged
+            or r.location is None
+            or not route_points
+            or r.detour_score < REC_LUNCH_NEAR_KM
+        ]
+    span = _minutes(window[1]) - _minutes(window[0])
+    out: list[VisitItem] = []
+    for index, cand in enumerate(ranked[:TOP_N_RECOMMENDATIONS]):
+        eff_duration = duration
+        if cand.duration_hint:
+            # DB 建议时长（餐秀 120min 类）作 hint：默认档起底、窗宽封顶
+            # （gap < hint 时缩到 gap，绝不溢出铁律 20 空窗）。
+            eff_duration = min(max(duration, cand.duration_hint), span)
+        out.append(
+            build_food_item(
+                cand,
+                day=day_plan.day,
+                city=city_used,
+                window=window,
+                item_id=f"food-d{day_plan.day}-{slot}-{index + 1}",
+                duration=eff_duration,
+            )
         )
-        for index, cand in enumerate(ranked[:TOP_N_RECOMMENDATIONS])
-    ]
+    return out

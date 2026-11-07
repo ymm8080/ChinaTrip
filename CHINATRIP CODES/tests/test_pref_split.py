@@ -319,9 +319,10 @@ def test_selection_prefers_user_category_ahead_of_tier():
         cands, 1, {"成都": (1, 1)}, preferences="博物馆人文"
     )
     names = [it["name"] for it in items]
-    # 偏好同类（museum，tier 9）提到 5A（tier 2）之前；同组内库序
+    # 偏好同类（museum，tier 9）提到 5A（tier 2）之前；同组内库序；
+    # 偏好命中同时豁免行程桶上限（两家博物馆都保留，2026-11-07 口径）
     assert names == ["社区博物馆乙", "城市美术馆", "五A景区甲", "五A景区乙"]
-    # 无偏好时恢复 tier 序（既有行为不变）
+    # 无偏好时恢复 tier 序 + 行程桶上限（博物馆类每行程 1 家，11-07 拍板）
     base = PlanningAgent._deterministic_selection(
         [dict(c) for c in cands], 1, {"成都": (1, 1)}
     )
@@ -329,7 +330,6 @@ def test_selection_prefers_user_category_ahead_of_tier():
         "五A景区甲",
         "五A景区乙",
         "社区博物馆乙",
-        "城市美术馆",
     ]
 
 

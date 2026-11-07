@@ -491,7 +491,8 @@ def _check_delivery_gates(
        优先级倒挂（凑数点霸下午、必去挂日尾渲染成四点以后）；
     ② 同日下午（≥13:00 开场）大点 ≥2=warning（下午单大点，2026-11-04
        拍板「超过 80 分钟的下午就放一个」）；
-    ③ 白天入场闸超限=warning（大点 >15:30 / 普通 >16:30 开场，夜游/
+    ③ 白天入场开场闸超限=warning（2026-11-07 用户再拍板：观光须 16:00
+       前安排（开场），时长可跨界收尾；大点 15:30 开场带并列上限；夜游/
        演出/餐/酒店/用户钉住有时刻豁免面与 solver generic_entry_cap
        完全同口径）——仅在营业窗已知（poi_id 命中 hours）时判，避免
        poi_hours=[] 的结构校验调用对夜开场馆误报。
@@ -532,10 +533,10 @@ def _check_delivery_gates(
                     severity=RuleSeverity.warning,
                     message=L(
                         f"第{day_no}天 「{v.name}」{v.start_time.strftime('%H:%M')}"
-                        " 开场晚于白天入场闸",
+                        " 开场——白天观光须 16:00 前安排（大点最晚 15:30 开场）",
                         f'Day {day_no}: "{v.name}" starts '
-                        f"{v.start_time.strftime('%H:%M')} after the daytime "
-                        "entry cap",
+                        f"{v.start_time.strftime('%H:%M')} — daytime sights "
+                        "must be scheduled by 16:00 (big sites by 15:30)",
                     ),
                     item_ids=[v.item_id],
                     day=day_no,

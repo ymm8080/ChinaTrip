@@ -151,6 +151,118 @@ def test_finalize_respects_resolved_plan():
     assert out.assumptions == []
 
 
+def test_finalize_sweeps_room_for_pinned_panda_after_fillers_timed():
+    """2026-11-05 成渝案 d3df5a8（it-32765684 Day2 真实坐标）：solve 把
+    凑数点排上时刻（金沙 09:00-11:00/宽窄 12:00-14:30/武侯祠 15:23-16:53）
+    后降级兜底，钉住必去熊猫基地 180min 垫到日尾无时刻交付。solve 前的
+    前置让位清算探针平凡成功（当时全员未排）零改动——房间被吃掉后
+    无人再管。终闸先清场：武侯祠/宽窄让位留痕，熊猫落 12:00-15:00。"""
+    day = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="v5",
+                name="成都金沙遗址博物馆",
+                city="成都",
+                day=2,
+                category="museum",
+                duration_minutes=120,
+                start_time=_t(9, 0),
+                end_time=_t(11, 0),
+            ),
+            VisitItem(
+                item_id="food-lunch-ph-d2",
+                name="午饭（自由安排）",
+                city="成都",
+                day=2,
+                category="food",
+                duration_minutes=30,
+                start_time=_t(11, 30),
+                end_time=_t(12, 0),
+                soft_pin=True,
+            ),
+            VisitItem(
+                item_id="v6",
+                name="宽窄巷子",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=150,
+                start_time=_t(12, 0),
+                end_time=_t(14, 30),
+            ),
+            VisitItem(
+                item_id="v7",
+                name="武侯祠",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=90,
+                start_time=_t(15, 23),
+                end_time=_t(16, 53),
+            ),
+            VisitItem(
+                item_id="v8",
+                name="成都大熊猫繁育研究基地",
+                city="成都",
+                day=2,
+                category="zoo",
+                duration_minutes=180,
+                pinned=True,
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-panda", cities=["成都"], days=[day], assumptions=[]
+    )
+    out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
+    d2 = out.days[0]
+    panda = next(i for i in d2.items if i.item_id == "v8")
+    assert panda.start_time == _t(12, 0) and panda.end_time == _t(15, 0), (
+        "钉住必去必须拿到整档时刻，不得无时刻交付"
+    )
+    names = [i.name for i in d2.items]
+    assert "武侯祠" not in names and "宽窄巷子" not in names, "凑数点让位"
+    assert "成都金沙遗址博物馆" in names
+    jinsha = next(i for i in d2.items if i.item_id == "v5")
+    assert jinsha.start_time == _t(9, 0), "已排钉外锚不动"
+    lunch = next(i for i in d2.items if i.category == "food")
+    assert lunch.start_time == _t(11, 30), "午餐硬窗不动"
+    for victim in ("武侯祠", "宽窄巷子"):
+        assert any(victim in str(a) and "让位" in str(a) for a in out.assumptions), (
+            f"{victim} 让位必须留痕披露"
+        )
+
+
+def test_finalize_sweep_noop_when_pinned_panda_already_timed():
+    """幂等：钉住必去已有时刻（用户钉位）→ 终闸零改动零披露。"""
+    day = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="v8",
+                name="成都大熊猫繁育研究基地",
+                city="成都",
+                day=2,
+                category="zoo",
+                duration_minutes=180,
+                pinned=True,
+                start_time=_t(9, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-panda2", cities=["成都"], days=[day], assumptions=[]
+    )
+    out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
+    assert out.assumptions == []
+    panda = out.days[0].items[0]
+    assert panda.start_time == _t(9, 0)
+
+
 # --- ② 读闸：旧会话打开即清 ----------------------------------------------
 
 

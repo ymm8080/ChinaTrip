@@ -321,3 +321,82 @@ def test_show_without_rating_still_pooled():
     candidates, _ = run(agent._collect_candidates(["西安"]))
     names = {c["name"] for c in candidates}
     assert "《复活的军团》" in names
+
+
+# --- 2026-11-04 P1#1 回退点闸：坐标=城市回退点的行不进排期池 ----------------
+
+
+def _fallback_store() -> PoiDetailStore:
+    store = PoiDetailStore()
+    # 投毒行：坐标=渝中区政府回退点，带评分带地址（三空闸放行，只有
+    # 第四闸能拦——距城 0km 恒过距城闸，远点闸被骗过，P1#1 根因）
+    store.upsert(
+        "F1",
+        city="重庆",
+        name="梦幻奥陶纪景区",
+        category="attraction",
+        location=(106.550464, 29.563761),
+        rating=4.6,
+        address="重庆市渝中区上清寺",
+    )
+    # 同城正常行（解放碑 ~2.5km 外，不误伤）
+    store.upsert(
+        "F2",
+        city="重庆",
+        name="洪崖洞",
+        category="attraction",
+        location=(106.5783, 29.5608),
+        rating=4.6,
+        address="渝中区嘉陵江滨江路",
+    )
+    return store
+
+
+def test_fallback_point_row_never_pooled():
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=_fallback_store())
+    candidates, _ = run(agent._collect_candidates(["重庆"]))
+    names = {c["name"] for c in candidates}
+    assert "梦幻奥陶纪景区" not in names
+    assert "洪崖洞" in names
+
+
+def test_show_at_fallback_point_never_pooled():
+    # 西安 show 批投毒点=市政府（108.94,34.341101）：演出豁免不豁免第四闸。
+    store = PoiDetailStore()
+    store.upsert(
+        "F3",
+        city="西安",
+        name="《梦回大唐》",
+        category="entertainment",
+        source="show",
+        location=(108.94, 34.341101),
+    )
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+    assert not any(c["name"] == "《梦回大唐》" for c in candidates)
+
+
+def test_remote_hit_at_fallback_point_dropped():
+    # 图商补量 dict 形状命中落回退点：同款第四闸（dict 归一后判定）。
+    store = PoiDetailStore()
+    remote = RemoteAmap(
+        {
+            "西安": [
+                {
+                    "name": "毒行",
+                    "location": {"lon": 108.94, "lat": 34.341101},
+                    "city": "西安",
+                },
+                {
+                    "name": "好行",
+                    "location": {"lon": 108.95, "lat": 34.27},
+                    "city": "西安",
+                },
+            ]
+        }
+    )
+    agent = PlanningAgent(NoLLM(), amap_client=remote, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+    names = {c["name"] for c in candidates}
+    assert "毒行" not in names
+    assert "好行" in names

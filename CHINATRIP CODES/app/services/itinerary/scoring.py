@@ -10,7 +10,8 @@
 - 硬：未排时间卡 -100/张；活动日空白上午 -80/天；硬违规 -60/项
 - 软（用户拍板口径均为小惩罚）：预算溢出 -溢出分钟/10（30 分钟免罚
   额度对齐晨间保底 360+30 闸，上限 -30/天）；雨天露天 -15、半露天
-  -10（unknown 不罚，对齐 _rain_exposed 口径）；转场 -round(km)/30
+  -10、未标注室内外 -5（2026-11-05 拍板，品类非室内的 unknown 行）；
+  转场 -round(km)/30
   （代理口径，腿字段缺失记 0）；午餐漂移 -超±30 部分/10（对齐
   「午餐 ±30 许可」拍板）；日均衡 -缺口/30（S2.2 max-min 轻量版：
   最差活动日负载距 180 的缺口，交通日豁免，需 ≥2 个活动日，上限
@@ -31,13 +32,19 @@ from app.services.itinerary.models import (
     TransferItem,
     VisitItem,
 )
+from app.services.itinerary.solver import show_session_starts
 
 DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
 DAY_END_MINUTES = 21 * 60 + 30
-ENTRY_CAP_MINUTES = 16 * 60 + 30  # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）
-ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30  # 大点加严开场闸（2026-11-04 拍板）
+# 白天入场结束闸（11-05 终裁）：观光占用须 16:30 前收尾
+ENTRY_CAP_MINUTES = 16 * 60
+# 大点开场带（11-04 拍板；2026-11-07 开场闸下保持并列上限）
+ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
+# CITYWALK 下午场带（2026-11-06 二拍；与 solver 同名常量同口径）
+CITYWALK_AFTERNOON_MINUTES = 13 * 60
+THEME_BLOCK_AFTERNOON_MINUTES = 16 * 60
 BIG_SITE_MIN_MINUTES = 80  # 大点时长下限（2026-11-04 拍板「超过80分钟」）
 LUNCH_ANCHOR_MINUTES = 12 * 60
 LUNCH_WINDOW_END_MINUTES = 15 * 60  # <15:00 的餐=午餐（兜底层同口径）
@@ -49,12 +56,20 @@ PEN_BLANK_MORNING = 80
 PEN_VIOLATION = 60
 PEN_RAIN_EXPOSED = 15
 PEN_RAIN_PARTIAL = 10
+PEN_RAIN_UNMARKED = 5  # 未标注室内外点落雨日（2026-11-05 拍板「雨天
+# 上午不排室外点」磁器口案）：轻罚让 LNS 不把未标注点挪进雨日，
+# 也不反向硬推——罚值低于 partial，避免把未标注的潜在室内点错杀出雨日
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
 PEN_MORNING_CROWD = 12  # 上午超点：每多一个晨点（2026-11-03 拍板）
 PEN_NO_ENTERTAINMENT = 40  # 零娱乐/程（2026-11-03 拍板，软偏好）
 PEN_EARLY_SHOW = 12  # 演出早场：<15:00 开演的多场次演出（2026-11-03 拍板
 # 「演出优先傍晚/晚场」，与 solver SHOW_LATE_SESSION_MINUTES 同口径）
+PEN_CITYWALK_MORNING = 12  # CITYWALK 早场：<13:00 开场的普通街区（2026-11-06
+# 二拍「CITYWALK倾向于下午场」，与 solver CITYWALK_AFTERNOON_MINUTES 同向）
+PEN_THEME_BLOCK_EARLY = 12  # 街区型演出块 <16:00 开场（2026-11-06 二拍
+# 「像长安十二时辰，倾向于下午四点以后第二场」，同 solver
+# THEME_BLOCK_AFTERNOON_MINUTES 同向）
 PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放在
 # 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
 # 豁免（拍板明说那两天适合 SHOW——演出不算「重」）；pinned 铁律 19
@@ -65,6 +80,12 @@ PEN_AFTERNOON_CROWD = 12  # 下午超点：每多一个 ≥13:00 开场的大点
 PEN_LATE_BIG = 12  # 大点后置：每个「大点开场晚于轻点」逆序对
 # （2026-11-04 拍板「先排大明宫，再排西安钟楼」，与 solver
 # BIG_FIRST_PENALTY 同口径同向——LNS 不把大点排到轻点之后）
+PEN_ARRIVAL_DAY_BIG = 12  # 到达日大点（2026-11-05 拍板「到达第一天
+# 不适合放大块头景点，只适合小景点或 CityWalk」）：到达侧腿（当天
+# 队尾还跟游览内容的转场腿）之后排入 >80min 大点每件计罚；返程
+# 压轴腿（腿在当天末尾）不算到达日；pinned 铁律 19/餐/酒店/演出/
+# tier8 街区豁免（同 _is_big_visit 豁免面）。与 edge_day_heavy 同向
+# 叠加——tier≤4 大点在到达日双罚，4A/3A 大点只吃本罚。
 
 
 def _is_big_visit(v: VisitItem) -> bool:
@@ -134,6 +155,26 @@ def _morning_occupied(day) -> bool:
     return False
 
 
+def _is_theme_block_visit(v: VisitItem) -> bool:
+    """街区型演出块（2026-11-06 二拍）：名含「街区」的演出/娱乐/街区行
+    ——与 solver._is_theme_block 同口径的评分器本地镜像（pinned 铁律 19
+    不计）。"""
+    if v.pinned and v.start_time is not None:
+        return False
+    if "街区" not in (v.name or ""):
+        return False
+    return str(v.best_visit_time or "") == "show" or str(v.category or "") in (
+        "entertainment",
+        "citywalk",
+    )
+
+
+def _is_citywalk_visit(v: VisitItem) -> bool:
+    """普通街区（2026-11-06 二拍）：category=citywalk 且非街区型演出块
+    ——与 solver._is_citywalk 同口径的评分器本地镜像。"""
+    return str(v.category or "") == "citywalk" and not _is_theme_block_visit(v)
+
+
 def plan_score(
     plan: ItineraryPlan,
     rain_days: dict[str, set[int]] | None = None,
@@ -143,7 +184,7 @@ def plan_score(
     heavy = heavy_rain_days or {}
     sc = PlanScore()
     untimed = blank = overlaps = overruns = late_entries = 0
-    rain_no = rain_partial = 0
+    rain_no = rain_partial = rain_unmarked = 0
     overflow_days = 0
     overflow_pen = 0
     travel_km = 0.0
@@ -153,7 +194,10 @@ def plan_score(
     afternoon_crowd = 0
     late_big = 0
     early_shows = 0
+    cw_morning = 0
+    cw_block_early = 0
     edge_heavy = 0
+    arrival_big = 0
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
@@ -216,7 +260,9 @@ def plan_score(
         # 演出场次偏好（2026-11-03 拍板「演出优先傍晚/晚场」）：
         # <15:00 开演的演出计软罚——与 solver 插入/CP 路早场罚同向，
         # LNS 不再把演出挪回早场。用户自钉且有时刻不计（铁律 19，
-        # 同 morning_crowd 豁免面）；无场次演出引擎默认晚场天然零罚。
+        # 同 morning_crowd 豁免面）。无场次演出不罚（2026-11-06 拍板：
+        # 无场次按正常景点逻辑排，不再默认晚场——与 solver
+        # _show_early_cost 的场次闸同口径）。
         early_shows += sum(
             1
             for v in visits
@@ -227,6 +273,25 @@ def plan_score(
                 str(v.category or "") == "entertainment"
                 or str(v.best_visit_time or "") == "show"
             )
+            and show_session_starts(v.opening_hours)
+        )
+        # CITYWALK 下午场（2026-11-06 二拍「CITYWALK倾向于下午场。像长安
+        # 十二时辰，倾向于下午四点以后第二场」）：普通街区 <13:00 开场、
+        # 街区型演出块 <16:00 开场计软罚——与 solver CP/插入同向，LNS 不
+        # 把街区挪回上午。pinned 有时刻不计（判定内已豁免，铁律 19）。
+        cw_morning += sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and _is_citywalk_visit(v)
+            and _minutes(v.start_time) < CITYWALK_AFTERNOON_MINUTES
+        )
+        cw_block_early += sum(
+            1
+            for v in visits
+            if v.start_time is not None
+            and _is_theme_block_visit(v)
+            and _minutes(v.start_time) < THEME_BLOCK_AFTERNOON_MINUTES
         )
         # 边日重磅（2026-11-03 拍板「重要景点不放在到达/离开日」）：带
         # 转场腿的天上出现 tier≤4 重磅点计软罚——LNS 跨天重排会把重磅
@@ -241,6 +306,14 @@ def plan_score(
                 and str(v.category or "") not in ("food", "hotel", "entertainment")
                 and str(v.best_visit_time or "") != "show"
             )
+        # 到达日大点（2026-11-05 拍板）：到达侧=后面还跟游览内容的转场
+        # 腿（day1 进城腿在队首、中段换城腿后接内容）；返程腿压轴的天
+        # 是离城日不算——大点落返程日不罚（离城日另有上午闸铁律 21）。
+        if any(
+            isinstance(i, TransferItem) and j < len(day.items) - 1
+            for j, i in enumerate(day.items)
+        ):
+            arrival_big += sum(1 for v in visits if _is_big_visit(v))
         if rainy:
             for v in visits:
                 rk = str(v.rain_ok or "")
@@ -250,6 +323,12 @@ def plan_score(
                     rain_no += 1
                 elif rk == "partial":
                     rain_partial += 1
+                elif rk == "" and str(v.category or "") not in (
+                    "museum",
+                    "gallery",
+                    "entertainment",
+                ):
+                    rain_unmarked += 1
         # 预算溢出（360=偏好：30 分钟免罚，超出部分 /10，上限 -30/天）
         load = sum(
             v.duration_minutes or 0
@@ -278,13 +357,24 @@ def plan_score(
                 overruns += 1
             cat = str(v.category or "")
             bvt = str(v.best_visit_time or "")
+            # 白天入场开场闸（2026-11-07 用户再拍板，与 solver
+            # generic_entry_cap 同口径）：观光 16:00 前未安排即迟——时长
+            # 可跨界收尾（营业窗+日终照卡）；大点（>80min，tier8 街区
+            # 豁免同 solver._is_big_site）走 15:30 开场带并列上限。
             if (
                 cat not in ("entertainment", "food", "hotel")
                 and bvt not in ("show", "evening", "sunset")
-                and s
-                > (ENTRY_CAP_BIG_MINUTES if _is_big_visit(v) else ENTRY_CAP_MINUTES)
+                and v.start_time is not None
             ):
-                late_entries += 1
+                entry_cap = ENTRY_CAP_MINUTES
+                try:
+                    dur_v = int(v.duration_minutes or 0)
+                except (TypeError, ValueError):
+                    dur_v = 0
+                if dur_v > BIG_SITE_MIN_MINUTES and getattr(v, "tier", None) != 8:
+                    entry_cap = ENTRY_CAP_BIG_MINUTES
+                if (v.start_time.hour * 60 + v.start_time.minute) > entry_cap:
+                    late_entries += 1
             km = getattr(v, "distance_to_next_km", None)
             if km:
                 travel_km += float(km)
@@ -313,7 +403,11 @@ def plan_score(
         "violations": -PEN_VIOLATION * violations,
     }
     sc.soft = {
-        "rain_exposed": -(PEN_RAIN_EXPOSED * rain_no + PEN_RAIN_PARTIAL * rain_partial),
+        "rain_exposed": -(
+            PEN_RAIN_EXPOSED * rain_no
+            + PEN_RAIN_PARTIAL * rain_partial
+            + PEN_RAIN_UNMARKED * rain_unmarked
+        ),
         "budget_overflow": -overflow_pen,
         "travel": -(round(travel_km) // 30),
         "lunch_drift": -lunch_drift_pen,
@@ -322,7 +416,10 @@ def plan_score(
         "afternoon_crowd": -PEN_AFTERNOON_CROWD * afternoon_crowd,
         "late_big": -PEN_LATE_BIG * late_big,
         "early_show": -PEN_EARLY_SHOW * early_shows,
+        "citywalk_morning": -PEN_CITYWALK_MORNING * cw_morning,
+        "theme_block_early": -PEN_THEME_BLOCK_EARLY * cw_block_early,
         "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
+        "arrival_day_big": -PEN_ARRIVAL_DAY_BIG * arrival_big,
         "no_entertainment": (
             -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
         ),
@@ -334,7 +431,7 @@ def plan_score(
         "overlaps": overlaps,
         "overruns": overruns,
         "late_entries": late_entries,
-        "rain_exposed": rain_no + rain_partial,
+        "rain_exposed": rain_no + rain_partial + rain_unmarked,
         "budget_overflow_days": overflow_days,
         "travel_km": round(travel_km, 1),
         "lunch_drift_min": lunch_drift_min,
@@ -342,7 +439,10 @@ def plan_score(
         "afternoon_crowd": afternoon_crowd,
         "late_big": late_big,
         "early_show": early_shows,
+        "citywalk_morning": cw_morning,
+        "theme_block_early": cw_block_early,
         "edge_day_heavy": edge_heavy,
+        "arrival_day_big": arrival_big,
         "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }

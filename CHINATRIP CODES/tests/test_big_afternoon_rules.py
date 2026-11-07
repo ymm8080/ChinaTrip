@@ -64,19 +64,21 @@ def test_solver_keeps_one_big_in_afternoon():
     assert aft_bigs <= 1
 
 
-def test_solver_big_cap_1530_holds_in_solve():
-    # 大点加严开场闸在 solver 主路成立：单独大点不可能被排到 15:30 后
-    # 开场（普通 60 分钟点仍可 16:00 开场——对照锚）。
+def test_solver_end_cap_holds_in_solve():
+    # 结束闸（11-05 终裁）在 solver 主路成立：240 分钟大点最晚 12:30
+    # 开场（13:00 收尾后不再占用），不可能被排到 15:30 后开场（旧
+    # 开场带）——普通 60 分钟点最晚 15:30 开场（16:00 起排即 17:00
+    # 收尾越闸，对照锚）。
     dm = _visit("dm", "大明宫遗址公园", dur=240, tier=2)
     out = solve_day(DayPlan(day=1, base_city="西安", items=[dm]), poi_hours=[])
     assert out is not None
     starts = {v.item_id: _minutes(v) for v in out.items if isinstance(v, VisitItem)}
-    assert starts["dm"] <= 15 * 60 + 30
+    assert starts["dm"] <= 12 * 60 + 30
     small = _visit("sm", "小点", dur=60, tier=9)
     out2 = solve_day(DayPlan(day=1, base_city="西安", items=[small]), poi_hours=[])
     assert out2 is not None
     starts2 = {v.item_id: _minutes(v) for v in out2.items if isinstance(v, VisitItem)}
-    assert starts2["sm"] <= 16 * 60 + 30
+    assert starts2["sm"] <= 15 * 60 + 30
 
 
 # --- 评分器：同口径软罚 + 硬闸对齐 ---------------------------------------
@@ -142,9 +144,11 @@ def test_scorer_flags_big_after_light():
     assert sc.soft["late_big"] == -PEN_LATE_BIG
 
 
-def test_scorer_big_start_after_1530_is_hard_violation():
+def test_scorer_big_occupying_after_1630_is_hard_violation():
     from app.services.itinerary.scoring import plan_score
 
+    # 11-05 终裁=结束闸：16:00 开场的大点占用到 20:00，越闸计迟
+    # （旧口径断言「16:00 开场>15:30 开场带」同形态，结束闸下语义不变）。
     dm = _visit(
         "dm",
         "大明宫遗址公园",
@@ -161,14 +165,16 @@ def test_scorer_big_start_after_1530_is_hard_violation():
 def test_scorer_street_and_small_sights_not_big():
     from app.services.itinerary.scoring import plan_score
 
-    # 街区 tier8（CityWalk）16:30 开场合法——正是大点后面配的近游。
+    # 街区 tier8（CityWalk）不算大点（下午单大点/晚大点罚不咬），
+    # 但 11-05 终裁起同受结束闸：14:00-16:00 收尾在闸内合法，
+    # 16:30-18:30 占用越闸计迟（旧「街区可开进傍晚」口径废除）。
     hj = _visit(
         "hj",
         "回民街",
         dur=120,
         tier=8,
-        start_time=_t(16, 30),
-        end_time=_t(18, 30),
+        start_time=_t(14, 0),
+        end_time=_t(16, 0),
     )
     dm = _visit(
         "dm",
@@ -183,6 +189,16 @@ def test_scorer_street_and_small_sights_not_big():
     assert sc.counts["afternoon_crowd"] == 0
     assert sc.counts["late_big"] == 0
     assert sc.ok
+    hj_late = _visit(
+        "hj2",
+        "回民街",
+        dur=120,
+        tier=8,
+        start_time=_t(16, 30),
+        end_time=_t(18, 30),
+    )
+    sc2 = plan_score(_plan([dm, hj_late]))
+    assert sc2.counts["late_entries"] == 1
 
 
 # --- 回填配对：大点天优先近旁街区 ----------------------------------------

@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.amap import get_search_chain
 from app.api.itineraries import (
     _account_from_auth,
     get_entitlement_service,
@@ -30,13 +31,14 @@ from app.config import Settings, get_settings
 from app.middleware.lang import LangMiddleware
 from app.services.agent.plan import (
     PlanningAgent,
+    PlanSession,
     PlanSessionStore,
     _normalize_city,
     _parse_cities,
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.gate import RequestGate
-from app.services.itinerary import VisitItem
+from app.services.itinerary import DayPlan, ItineraryPlan, VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -185,6 +187,34 @@ def test_start_200_ready_with_plan_assumptions_and_violations():
     ]
     # 出发段（第1天）+ 返程段（第3天）优先飞机（2026-11-04 拍板）
     assert modes == ["flight", "flight"]
+
+
+def test_start_intercity_mode_stored_and_invalid_rejected():
+    """2026-11-07 拍板：起始页交通选择落会话（全程城际段统一口径，后续
+    重排路径经 session.intercity_mode 自动沿用）；非法值被 Literal 契约挡 422。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "intercity_mode": "train",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    sid = resp.json()["session_id"]
+    assert store.get(sid, device_id="device-1").intercity_mode == "train"
+    bad = client.post(
+        "/api/v1/plan/start",
+        json={"cities": ["上海", "杭州"], "days": 3, "intercity_mode": "ship"},
+        headers=DEVICE_HEADERS,
+    )
+    assert bad.status_code == 422
 
 
 def test_start_200_clarify_when_info_missing():
@@ -913,8 +943,9 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
-            # 酒店入住卡无坐标/不回填（2026-11-01 落地首停）
+            # 酒店入住卡/每晚酒店卡无坐标/不回填（2026-11-01/2026-11-07）
             and not i.get("item_id", "").startswith("hotel-checkin")
+            and not i.get("item_id", "").startswith("hotel-night")
         )
     ]
 
@@ -1114,13 +1145,11 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     assert starts == sorted(starts)  # 展示顺序=时间顺序
     # 2026-11-01 落地首停：高铁到达侧首个观光 ≥ 落地+150（原 +90）
     assert seq[0] == ("甲", dtime(13, 47))  # 首个空档（高铁 11:17+150min 地板）
-    assert seq[1] == ("丙", dtime(15, 17))  # 2026-10-31 游标修正：乙失败后
-    # 丙仍回填 15:17-16:47 空档（夜游挪 17:17 给丙让窗；旧版游标被失败
-    # 顶到 18:17，丙跟着排不上）
+    assert seq[1] == ("丙", dtime(15, 17))  # 甲+30 腿游标
     assert seq[2] == ("夜游", dtime(17, 17))  # pinned 锚点
-    # 2026-11-03「最晚 16:30 开场」口径：乙在夜游后唯一空档 19:17 起
-    # > 闸 → 不再溢傍晚放行，留空交挪日链/校验披露（第1天城墙 18:43
-    # 事故回归）。夜游（pinned）不受闸。
+    # 2026-11-07 开场闸 16:00（大点 15:30 带）：乙 120min 甲+30 腿
+    # 15:17 起 ≤ 15:30 但 17:17 收尾撞夜游钉（±30 腿垫）→ 顺延越带留空；
+    # 丙 90min 15:17-16:47 恰贴夜游腿垫前 → 合法。夜游（pinned）不受闸。
     untimed = [v.name for v in visits if v.start_time is None]
     assert untimed == ["乙"]
 
@@ -1373,9 +1402,10 @@ def test_refresh_legs_backfills_missing_locations():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡同理（2026-11-01 落地首停）
+        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
+        and not str(i.get("item_id", "")).startswith("hotel-night")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -1415,9 +1445,10 @@ def test_get_plan_session_returns_refreshed_plan():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡同理（2026-11-01 落地首停）
+        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
+        and not str(i.get("item_id", "")).startswith("hotel-night")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
@@ -1466,6 +1497,30 @@ REPLACE_CAND = {
     "reservation_advance_days": None,
     "location": (120.0972, 30.2414),
     "source": "4a",
+}
+
+# 2026-11-07 熊猫谷案：库真身行（amap，都江堰玉堂，距基地 ~58km）
+PANDA_VALLEY_CAND = {
+    "source_poi_id": "amap_cd_panda_valley",
+    "name": "熊猫谷",
+    "city": "成都市",
+    "category": "attraction",
+    "address": "四川省成都市都江堰市玉堂街道",
+    "opening_hours": "08:00-17:00",
+    "name_en": "Dujiangyan Panda Valley",
+    "address_en": None,
+    "intro_en": None,
+    "opening_hours_en": None,
+    "best_visit_time": "morning",
+    "booking_url": None,
+    "rain_ok": "yes",
+    "rating": 4.5,
+    "tags": ["intl"],
+    "suggested_duration_min": 120,
+    "reservation_required": None,
+    "reservation_advance_days": None,
+    "location": (103.59896, 30.96554),
+    "source": "amap",
 }
 
 
@@ -1566,6 +1621,196 @@ def test_replace_duplicate_in_plan_422():
     assert resp.json() == {"detail": "duplicate_in_plan"}
 
 
+def _panda_session():
+    """成都日：基地+文殊院/剧院 真身坐标（替代组用例共用）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import (
+        DayPlan,
+        GeoPoint,
+        ItineraryPlan,
+        VisitItem,
+    )
+
+    base = VisitItem(
+        item_id="v1",
+        name="成都大熊猫繁育研究基地",
+        poi_id="amap:成都:熊猫基地",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.13953, lat=30.73945),
+        day=1,
+        duration_minutes=90,
+    )
+    other = VisitItem(
+        item_id="v2",
+        name="文殊院",
+        poi_id="amap:成都:文殊院",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.0676, lat=30.6710),
+        day=1,
+        duration_minutes=60,
+    )
+    session = PlanSession(
+        session_id="s-panda",
+        device_id="device-1",
+        plan=ItineraryPlan(
+            itinerary_id="it-panda",
+            cities=["成都"],
+            days=[DayPlan(day=1, base_city="成都", items=[base, other])],
+        ),
+    )
+    return session
+
+
+def test_replace_substitute_of_planned_site_blocked():
+    """2026-11-07 拍板「已经排熊猫基地，就不要排熊猫谷了」：行程已有
+    基地时，给其它条目换入熊猫谷 = 同体验替代组撞 duplicate_in_plan
+    （谷距基地 ~58km，旧查重 _same_site 名字互含拦不住）。换基地本人
+    的正当替换不受影响（others 不含被换条目，见下方重排用例）。"""
+    import asyncio
+
+    store = StubReplaceStore({"熊猫谷": PANDA_VALLEY_CAND})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    session = _panda_session()
+    with pytest.raises(ValueError) as ei:
+        asyncio.run(agent.replace_item(session, "v2", name="熊猫谷"))
+    assert str(ei.value) == "duplicate_in_plan"
+    # 行程未被改动
+    names = [str(i.name) for i in session.plan.days[0].items]
+    assert names == ["成都大熊猫繁育研究基地", "文殊院"]
+
+
+def test_replace_far_swap_reorders_day_by_distance():
+    """2026-11-07 拍板「熊猫谷替换熊猫基地」：换入点距原点位 ~58km，
+    当天插入式重排按距离聚合（与 LNS _retime_trial 同口径，pinned/餐锚
+    不动），并把重排写进变更摘要。列表序故意把近谷的离堆公园（~7km）
+    压在队尾、58km 外的文殊院放中间——重排后离堆必须被聚到谷旁边，
+    文殊院按距离让位其后。换入近点（<3km）不触发重排（近点用例见
+    replace 原位套件）。"""
+    import asyncio
+
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    near_valley = PANDA_VALLEY_CAND  # 58km 触发重排
+    store = StubReplaceStore({"熊猫谷": near_valley})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    session = _panda_session()
+    # 邻居不用熊猫苑（谷↔苑互为替代会被新闸拦下=规则生效）：
+    # day1 = [基地(将换), 文殊院(城区,游时压短留闸余量), 离堆公园(近谷)]
+    day = session.plan.days[0]
+    day.items[1] = VisitItem(
+        item_id="v2",
+        name="文殊院",
+        poi_id="amap:成都:文殊院",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.0676, lat=30.6710),
+        day=1,
+        duration_minutes=30,
+    )
+    duidui = VisitItem(
+        item_id="v3",
+        name="离堆公园",
+        poi_id="amap:成都:离堆公园",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=103.6172, lat=31.0032),
+        day=1,
+        duration_minutes=75,
+    )
+    day.items.append(duidui)
+    report, summary, notes = asyncio.run(
+        agent.replace_item(session, "v1", name="熊猫谷")
+    )
+    # replace 走深拷贝（session.plan 换新对象），断言前重新取日
+    day = session.plan.days[0]
+    names = [str(i.name) for i in day.items]
+    assert names == ["熊猫谷", "离堆公园", "文殊院"]  # 距离聚合：谷↔离堆相邻
+    visits = [
+        i for i in day.items if not str(getattr(i, "item_id", "")).startswith("food")
+    ]
+    assert all(v.start_time and v.end_time for v in visits)  # 时链完整
+    assert any("按距离重新排列" in s for s in summary.change_summary)
+    assert report.ok
+
+
+def test_replace_near_swap_keeps_list_order():
+    """同商圈换位（<3km）：不触发插入式重排，保持用户列表序（原位换入
+    套件同款）。宽窄巷子↔人民公园 ~1.6km。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import (
+        DayPlan,
+        GeoPoint,
+        ItineraryPlan,
+        VisitItem,
+    )
+
+    cand = {
+        "source_poi_id": "amap_cd_kuanzhai",
+        "name": "宽窄巷子",
+        "city": "成都市",
+        "category": "attraction",
+        "opening_hours": "全天",
+        "name_en": "Kuanzhai Alley",
+        "address_en": None,
+        "intro_en": None,
+        "opening_hours_en": None,
+        "best_visit_time": "any",
+        "booking_url": None,
+        "rain_ok": "yes",
+        "rating": 4.4,
+        "tags": [],
+        "suggested_duration_min": 90,
+        "reservation_required": None,
+        "reservation_advance_days": None,
+        "location": (104.0532, 30.6697),
+        "source": "amap",
+    }
+    store = StubReplaceStore({"宽窄巷子": cand})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    items = [
+        VisitItem(
+            item_id="v1",
+            name="人民公园",
+            poi_id="amap:成都:人民公园",
+            category="sight",
+            city="成都",
+            location=GeoPoint(lon=104.0568, lat=30.6636),
+            day=1,
+            duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="v2",
+            name="文殊院",
+            poi_id="amap:成都:文殊院",
+            category="sight",
+            city="成都",
+            location=GeoPoint(lon=104.0676, lat=30.6710),
+            day=1,
+            duration_minutes=60,
+        ),
+    ]
+    session = PlanSession(
+        session_id="s-near",
+        device_id="device-1",
+        plan=ItineraryPlan(
+            itinerary_id="it-near",
+            cities=["成都"],
+            days=[DayPlan(day=1, base_city="成都", items=items)],
+        ),
+    )
+    report, summary, _notes = asyncio.run(
+        agent.replace_item(session, "v1", name="宽窄巷子")
+    )
+    names = [str(i.name) for i in session.plan.days[0].items]
+    assert names == ["宽窄巷子", "文殊院"]  # 原位：列表序不动
+    assert not any("按距离重新排列" in s for s in summary.change_summary)
+    assert report.ok
+
+
 def test_replace_meal_slot_locked_422():
     agent = PlanningAgent(
         StubAdapter([V0_JSON]),
@@ -1659,3 +1904,172 @@ def test_replace_guard_chain_400_404_422():
         ).status_code
         == 422
     )
+
+
+# --- POST /plan/{id}/items/{id}/set-hotel（2026-11-07 每晚酒店卡）----------
+
+
+class _StubHotelChainClient:
+    vendor = "stub"  # 独立 vendor 名：不碰共享配额闩（_SEARCH_LATCH）
+
+    def __init__(self, hits=None):
+        self._hits = (
+            hits
+            if hits is not None
+            else [
+                {
+                    "source": "amap",
+                    "source_poi_id": "B0H1",
+                    "name": "全季酒店（西湖店）",
+                    "city": "杭州",
+                    "category": "住宿服务:酒店宾馆",
+                    "address": "西湖区龙井路1号",
+                    "location": {"lon": 120.13, "lat": 30.24},
+                    "opening_hours": None,
+                    "rating": "4.6",
+                }
+            ]
+        )
+
+    async def search_poi(self, keywords, *, city=None, page=1):
+        return self._hits
+
+
+def _hotel_session_app(chain=None):
+    """直接造带夜卡的 ready 会话（不经 v0 build——最小隔离面）。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    app.dependency_overrides[get_search_chain] = lambda: (
+        chain if chain is not None else []
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="杭州",
+        day=1,
+        start_time=dtime(20, 0),
+        end_time=dtime(21, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    visit = VisitItem(item_id="v1", name="西湖", category="sight", city="杭州", day=1)
+    store.save(
+        PlanSession(
+            session_id="s-hotel",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-h",
+                cities=["杭州"],
+                days=[DayPlan(day=1, base_city="杭州", items=[visit, night])],
+            ),
+        )
+    )
+    return app
+
+
+def _night_item(body):
+    return next(
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if i.get("item_id") == "hotel-night-d1"
+    )
+
+
+def test_set_hotel_writes_verified_fields_with_coords():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={
+                "name": "酒店甲",
+                "source_poi_id": "B0X",
+                "address": "甲路1号",
+                "opening_hours": "全天",
+                "lon": 120.1,
+                "lat": 30.2,
+            },
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    card = _night_item(data)
+    assert card["name"] == "酒店甲"
+    assert card["address"] == "甲路1号"
+    assert card["opening_hours"] == "全天"
+    assert card["poi_id"] == "B0X"
+    assert card["location"] == {"lon": 120.1, "lat": 30.2}
+    assert "酒店甲" in data["reply"] and "甲路1号" in data["reply"]
+
+
+def test_set_hotel_server_verifies_when_coords_missing():
+    app = _hotel_session_app(chain=[_StubHotelChainClient()])
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "全季"},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    card = _night_item(resp.json())
+    assert card["name"] == "全季酒店（西湖店）"
+    assert card["address"] == "西湖区龙井路1号"
+    assert card["poi_id"] == "B0H1"
+    assert card["location"] == {"lon": 120.13, "lat": 30.24}
+
+
+def test_set_hotel_no_match_422():
+    app = _hotel_session_app(chain=[_StubHotelChainClient(hits=[])])
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "不存在的酒店"},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "no_match"}
+
+
+def test_set_hotel_not_hotel_slot_422():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/v1/set-hotel",
+            json={"name": "酒店甲", "lon": 120.1, "lat": 30.2},
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "not_hotel_slot"}
+
+
+def test_set_hotel_guard_chain_400_404():
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={"name": "酒店甲"},
+        )
+        assert resp.status_code == 400
+        assert resp.json() == {"detail": "missing_device_id"}
+        resp = client.post(
+            "/api/v1/plan/no-such/items/hotel-night-d1/set-hotel",
+            json={"name": "酒店甲"},
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 404
+        assert resp.json() == {"detail": "session_not_found"}
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/v_none/set-hotel",
+            json={"name": "酒店甲"},
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 404
+        assert resp.json() == {"detail": "item_not_found"}

@@ -32,6 +32,7 @@
 - [README](../README.md) — 仓库说明与 Claude Code 集成
 - [CLAUDE.md](../CLAUDE.md) — Claude Code 项目约定
 - [审计卫生登记 2026-10-27](audit_hygiene_2026-10-27.md)（[PDF 版](audit_hygiene_2026-10-27.pdf)）— 代码与设计全量审计：守门终态 + 修复清单 + 仓库卫生待清理清单（审计自动化每轮覆盖更新 md；PDF 为快照版，需手动重生成）
+- [Manual/](Manual/) — 旅客侧操作手册：[美团统一使用手册 v1.0 2026-11-06](Manual/meituan_user_manual_2026-11-06.md)（[Word 英文版](Manual/meituan_user_manual_2026-11-06_en.docx)，全 7 页 TOC/表格已过视觉验收）— 国际旅客双路线（App 多语言/境外号注册 vs 支付宝小程序免中国号）+ 外卖/团购/酒店/门票四剧本 + 支付诚实口径（国际卡直绑不保证，支付宝绑卡为可靠路径）+ 故障 FAQ + geo 分流美团模板 handoff 对接（铁律 22 口径）
 - `CHINATRIP CODES/` · `DAILY OPERATION/` · `mcp/` · `scripts/` — 代码与运维目录
 
 ---

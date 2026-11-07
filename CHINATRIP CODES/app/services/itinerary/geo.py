@@ -11,6 +11,13 @@ from __future__ import annotations
 from math import hypot
 
 from app.services.itinerary.models import GeoPoint
+from app.services.itinerary.rules import haversine_km
+
+# 片区归属距离上限（2026-11-07 用户拍板「geo_cluster 距离上限 10 公里」）：
+# 旧版就近归属无上限，k 耗尽后 80km 外的离群点也被拖进最近簇（大足石刻
+# 挂进成都市区簇=「同片区同天」假象），归属跟随把它排进城内天。超限点
+# 返回 None（不归属），走既有的无归属路径（预占最早容量/最空天）。
+_CLUSTER_MAX_KM = 10.0
 
 
 def _xy(loc) -> tuple[float, float] | None:
@@ -36,7 +43,8 @@ def cluster_days(
 
     无坐标候选 → None（不参与聚类，LLM 自行处置）；k<1 或全部无坐标
     → 全 None。最远点选种子，剩余点就近归组——顺序敏感 O(n·k)，几十
-    个候选瞬时完成。
+    个候选瞬时完成。距最近种子 >10km 的点同样返回 None（片区归属上限，
+    2026-11-07 拍板）：k 不够用时离群点不再被硬塞进最近簇。
     """
     if k < 1:
         return [None] * len(candidates)
@@ -68,12 +76,20 @@ def cluster_days(
         if p is None:
             out.append(None)
             continue
-        out.append(
-            min(
-                range(len(seeds)),
-                key=lambda i: hypot(p[0] - seeds[i][0], p[1] - seeds[i][1]),
-            )
+        i = min(
+            range(len(seeds)),
+            key=lambda i: hypot(p[0] - seeds[i][0], p[1] - seeds[i][1]),
         )
+        if (
+            haversine_km(
+                GeoPoint(lon=p[0], lat=p[1]),
+                GeoPoint(lon=seeds[i][0], lat=seeds[i][1]),
+            )
+            > _CLUSTER_MAX_KM
+        ):
+            out.append(None)  # 片区归属上限（10km，2026-11-07 拍板）
+            continue
+        out.append(i)
     return out
 
 

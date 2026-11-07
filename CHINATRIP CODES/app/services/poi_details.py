@@ -26,7 +26,12 @@ from app.services.poi_classify import duration_upgradable
 # 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
 # order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
 # import 该名，签名不变）
-from app.services.source_tier import catalog_rank, source_tag_key
+from app.services.source_tier import (
+    INTL_PLATFORM_TAGS,
+    INTL_SITE_TAGS,
+    catalog_rank,
+    source_tag_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +214,7 @@ _MEM_ROW_SLOTS = (
     "source",
     "rating",
     "rating_count",
+    "rating_source",
     "tags",
     "best_visit_time",
     "suggested_duration_min",
@@ -258,6 +264,10 @@ def _candidate_from_row(row, loc_txt: str | None) -> dict:
         "source": row.source,
         "rating": rating,
         "rating_count": row.rating_count,
+        # 评分跨源贴标尺（2026-11-07 拍板）：引擎 _quality 对 baidu 评分
+        # ×0.9——rating_source 必须随候选投影下传（292 行有 baidu 评分，
+        # 多为 baidu enrich 回填到非 baidu 行，不能按 source 推断）。
+        "rating_source": row.rating_source,
         "tags": row.tags or [],
         "best_visit_time": row.best_visit_time or "any",
         "suggested_duration_min": row.suggested_duration_min,
@@ -373,13 +383,16 @@ class PoiDetailStore:
         limit: int = 200,
         sources: tuple[str, ...] | None = None,
         city: str | None = None,
-    ) -> list[tuple[str, str | None, str | None, str | None, str | None]]:
+    ) -> list[tuple[str, str | None, str | None, str | None, str | None, str | None]]:
         """POIs whose hours are missing or older than 30 days (job targets;
         _STALE_AFTER 月度节奏 2026-10-28 定稿).
 
-        返回 (source_poi_id, city, name_zh, source, location) 五元组；
-        location 为 amap-ready "lon,lat"（GCJ-02，无坐标行 None）——链③
-        text 配额尽(10021)时 client 降级 around-search 要用（2026-10-24）。
+        返回 (source_poi_id, city, name_zh, source, location, hours_source)
+        六元组；location 为 amap-ready "lon,lat"（GCJ-02，无坐标行
+        None）——链③ text 配额尽(10021)时 client 降级 around-search 要用
+        （2026-10-24）；hours_source 供 refresh 链行级护闸（'show' 行的
+        opening_hours 是人工核好的场次时刻，不接受图商开放时间覆写，
+        2026-11-07）。
         sources 非 None 时只返回指定 source 的行（骨架行按渠道分批回源
         用）。city 过滤必须在 SQL 层做——查询无 ORDER BY，limit 窗口是
         物理顺序前 N 行；若窗口外过滤，单城刷批次会拿不到行（2026-10-23
@@ -412,6 +425,7 @@ class PoiDetailStore:
                                 r.name_zh,
                                 r.source,
                                 f"{m.group(1)},{m.group(2)}" if m else None,
+                                r.hours_source,
                             )
                         )
                     return out
@@ -421,7 +435,9 @@ class PoiDetailStore:
                     "poi_details: db unreachable, memory fallback",
                     exc_info=True,
                 )
-        out: list[tuple[str, str | None, str | None, str | None, str | None]] = []
+        out: list[
+            tuple[str, str | None, str | None, str | None, str | None, str | None]
+        ] = []
         nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
             if pid in nonactive:
@@ -436,6 +452,7 @@ class PoiDetailStore:
                         v.get("name"),
                         v.get("source") or "amap",
                         f"{loc[0]},{loc[1]}" if loc else None,
+                        v.get("hours_source"),
                     )
                 )
         if sources is not None:
@@ -727,11 +744,34 @@ class PoiDetailStore:
         return best
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
+    # 主池住宿出池（2026-11-07 实测：成都 top-30 窗口混入 2 家 intl/layla
+    # 标签酒店——易宁阁/西金中心，top_pois_in_city 只排 food 不排 hotel）
+    _STAY_CATEGORY_MARKS = ("hotel", "酒店", "宾馆", "民宿", "客栈")
+    # 餐饮入池豁免标（2026-11-07 用户指令「WE CAN CHOOSE RESTRANT IN SITE
+    # IN CASE THEY ARE HV TAG LIKE KLOOK TRIPADVISOR ETC」）：带国际荐点
+    # 标（ta/lp/viator/curated + 16 平台含 klook/裸 intl 伞标）的餐饮行
+    # 当知名餐厅入主池（选点提示词本有用餐锚点消费口径）；住宿无此豁免。
+    _REC_TAGS: frozenset[str] = frozenset(INTL_SITE_TAGS | INTL_PLATFORM_TAGS)
 
     @classmethod
     def _row_is_food(cls, category: str | None) -> bool:
         c = (category or "").strip()
         return any(mark in c for mark in cls._FOOD_CATEGORY_MARKS)
+
+    @classmethod
+    def _row_has_rec_tag(cls, tags: list | tuple | set | None) -> bool:
+        tagset = {str(t).strip().lower() for t in (tags or [])}
+        return bool(tagset & cls._REC_TAGS)
+
+    @classmethod
+    def _row_is_nonvisit(cls, category: str | None, tags: list | None = None) -> bool:
+        """住宿恒出池；餐饮出池但带国际荐点标（ta/lp/viator/curated/klook
+        等）的知名餐厅豁免入池（2026-11-07 用户指令，top_pois_in_city
+        专用，search_keyword/备选池不受影响）。"""
+        c = (category or "").strip()
+        if any(mark in c for mark in cls._STAY_CATEGORY_MARKS):
+            return True
+        return cls._row_is_food(c) and not cls._row_has_rec_tag(tags)
 
     def _heritage_names(self) -> list[tuple[str, int]]:
         """全库 unesco/5A 名单行 (name_zh, tier)——读时并档用，不限城。"""
@@ -813,6 +853,9 @@ class PoiDetailStore:
         self, city: str, limit: int = 30, *, exclude_food: bool = True
     ) -> list[dict]:
         """引擎候选主池（DESIGN 8.1.1，2026-10-24）：同城确定性排序取 top N。
+        住宿出池（2026-11-07：住宿行此前一直占窗口席位）；餐饮出池但带
+        国际荐点标（ta/lp/viator/curated/klook 等）的知名餐厅豁免入池
+        （2026-11-07 用户指令——选点提示词「用餐锚点」消费口径接通）。
 
         score = rating × log2(1 + rating_count) × 标签加成（tags 含
         unesco/5A 乘 1.5）；有坐标优先；无评分行按（有标签、有坐标）
@@ -868,12 +911,38 @@ class PoiDetailStore:
                             | and_(
                                 *[
                                     ~Poi.category.like(f"%{mark}%")
-                                    for mark in self._FOOD_CATEGORY_MARKS
+                                    for mark in (
+                                        *self._FOOD_CATEGORY_MARKS,
+                                        *self._STAY_CATEGORY_MARKS,
+                                    )
                                 ]
                             )
                         )
                     q = q.limit(2000)
                     rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
+                    if exclude_food:
+                        # 荐点餐厅豁免（2026-11-07 用户指令）：带国际荐点标
+                        # 的餐饮行单独捞回（主流 food 行已在上一查询被 SQL
+                        # 排除，带 tags 的 food 行全库个位数，二次小查询
+                        # 不构成池稀释；住宿不享豁免照旧排除）。
+                        fq = session.query(
+                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                        ).filter(
+                            Poi.city.in_(city_names),
+                            (Poi.status.is_(None)) | (Poi.status == "active"),
+                            Poi.tags.isnot(None),
+                            or_(
+                                *[
+                                    Poi.category.like(f"%{mark}%")
+                                    for mark in self._FOOD_CATEGORY_MARKS
+                                ]
+                            ),
+                        )
+                        rows_out.extend(
+                            _candidate_from_row(r, t)
+                            for r, t in fq.all()
+                            if self._row_has_rec_tag(r.tags)
+                        )
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -888,7 +957,9 @@ class PoiDetailStore:
                     continue
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
-                if exclude_food and self._row_is_food(v.get("category")):
+                if exclude_food and self._row_is_nonvisit(
+                    v.get("category"), v.get("tags")
+                ):
                     continue
                 loc = v.get("location")
                 rows_out.append(
@@ -905,6 +976,121 @@ class PoiDetailStore:
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)
         return rows_out[:limit]
+
+    def recommendation_food_in_city(self, city: str, limit: int = 10) -> list[dict]:
+        """荐点餐厅（2026-11-07 用户指令「有标记推荐的没进槽位…FIX IT」）：
+        库内带国际荐点标（ta/lp/viator/curated/klook 等，同主池豁免
+        _REC_TAGS 判定）的餐饮行，供餐槽位与图商实时检索并池——live
+        amap 关键词搜索覆盖不到我们点名的店（红鼎宴/失重餐厅类）。
+
+        返回 top_pois_in_city 同形状 hit + `rec_tagged: True` 键；无坐标
+        骨架行照回（餐槽位由 rank_by_detour 的 999 垫底带兜住，无动线
+        时不挡点名店进槽）。排序=有坐标>口碑（荐点行全库个位数，无需
+        名录档细化）。DB 故障回落内存库，与读侧其他口径同款。"""
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+        hits: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                        Poi.tags.isnot(None),
+                        or_(
+                            *[
+                                Poi.category.like(f"%{mark}%")
+                                for mark in self._FOOD_CATEGORY_MARKS
+                            ]
+                        ),
+                    )
+                    for row, loc_txt in q.limit(50).all():
+                        if not self._row_has_rec_tag(row.tags):
+                            continue
+                        hit = _candidate_from_row(row, loc_txt)
+                        hit["rec_tagged"] = True
+                        hits.append(hit)
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: recommendation_food db failed, memory fallback",
+                    exc_info=True,
+                )
+                hits = []
+        if not hits:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                if not self._row_is_food(v.get("category")):
+                    continue
+                if not self._row_has_rec_tag(v.get("tags")):
+                    continue
+                loc = v.get("location")
+                loc_txt = f"POINT({loc[0]} {loc[1]})" if loc else None
+                hit = _memory_candidate_row(pid, v, loc_txt)
+                hit["rec_tagged"] = True
+                hits.append(hit)
+        hits.sort(
+            key=lambda h: (h.get("location") is not None, h.get("rating") or 0),
+            reverse=True,
+        )
+        return hits[:limit]
+
+    def alternatives_pool(self, city: str) -> list[dict]:
+        """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city
+        同一套 DB/内存双路）：不按热度截 top N——同级备选按档号过滤后
+        池子本来就小，截断会把同档冷门行提前埋掉。返回 search_keyword
+        同形状 hit + `_tier`（hit_tier 名录档号，0=unesco..10=未分层，
+        私有键不剥——消费方 poi_alternatives 直接用）。含餐行（备选规则
+        自己按主点类别筛）；DB 故障回落内存库，与 top_pois_in_city 同款。
+        """
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                    )
+                    q = q.limit(3000)
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: alternatives_pool db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                loc = v.get("location")
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
+        heritage = self._heritage_names()
+        for h in rows_out:
+            h["_tier"] = apply_tier_tag(h, heritage)
+        return rows_out
 
     def upsert(
         self,

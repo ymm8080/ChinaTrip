@@ -32,6 +32,7 @@
 
 | 日期 | 文件 | 作业 | 数量与去重口径 |
 |---|---|---|---|
+| 2026-11-07 | 用户点名 4 条 | app/jobs/import_intl_picks 扩 `_CURATED_PICKS`（类别感知种子，2026-11-07 指令） | HIGH PRIORITY=curated 标（名录档 2）：成都环球中心在库 amap other 行→merge 打标+升 attraction（0 新插）；新插 food 骨架 2（失重餐厅(环球中心店)、红鼎宴，红鼎艳/洪鼎宴收 aliases）；春熙路已在库→跳过；顺手 stale 种子收口 3（杜甫草堂/兵马俑/七彩丹霞正名对齐去重终态走 merge，防复活刚清掉的重复行）；终态 insert 2/merge 27/skip 72，复跑幂等全 skip，测试 10 项绿 |
 | 2026-11-03 | 14 | app/jobs/tag_star_hotels --prematched（审阅包决定记录按 poi_id 执行） | 审阅包 7,782 行预匹配后 243 行带 poi_id（227 命中 + 16 排除）；**本轮 35 行「命中(包含)」裁定：19 行打标（star_5×2 / star_4×16 / star_3×1）+ 16 行改 `排除(...)`（同名异店/子餐厅/子场所/异分店，保留 poi_id 审计痕迹）**；apply 后库内 mct 打标 211→**230**（star_5 132→134 / star_4 68→84 / star_3 11→12；star_2/star_1 仍 0；非 hotel 0、一行多星 0），复跑 `tagged_rows=0 / already_ok=227` 幂等 |---|
 | 2026-10-28 | 12 | app/jobs/import_intl_platforms 重跑（种子 data/xhs12_picks.csv 扩至 38 组） | insert 1（汕头打铁街）+ merge 6（陕西历史博物馆←sygic 行；景德镇中国陶瓷博物馆、晋祠←museum1 正名行，标签/别名并回后同名 xiaohongshu 骨架行删除——poi_hours/reviews/stats 零引用核验后删；思南公馆街区/三里屯太古里/前门大街←street 行，该批 2026-10-27 后新入库故本轮才命中）；终态 tags 含 xiaohongshu 41 行、source=xiaohongshu 18 行；导入测试 27 项全绿。注意：museum1/2 行 city=省级名，与种子市级同城闸不命中是本轮重复根因，种子已改省级值防再发 |
 | 2026-10-27 | 10、11 | app/jobs/import_intl_platforms（幂等，可重跑） | 两文件 367 行 → 类型/产品规则过滤后 67 组真实 POI → **新插 15**（sygic 9、tui 2、mindtrip/layla/klook/tiktok 各 1；source=明细站点码，category=attraction，name_en 随行）+ **并入既有 52**（source 保留原值如 museum1/5a/amap，只追加 intl+站点 tags、tags_source=主站点、并别名）；匹配=同城市双向包含（短名≥2 字，故宫↔故宫博物院、天坛↔天坛公园 这类缩写/全称跨源全命中）；排除=tour/票务/住宿/餐饮/频道/hashtag/多条目摘要行。测试 4 项+既有导入测试 20 项全绿，ruff/format 绿。 |

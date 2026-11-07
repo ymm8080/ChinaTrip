@@ -37,6 +37,30 @@ def test_cluster_days_degenerate_inputs():
     assert cluster_days([_c("a", 1, 1)], 0) == [None]
 
 
+def test_cluster_days_distance_cap_10km():
+    # 片区归属距离上限（2026-11-07 用户拍板「geo_cluster 距离上限 10 公
+    # 里」）：k 耗尽后 55km 离群点不再被拖进最近簇（旧版大足石刻挂进成
+    # 都市区簇=「同片区同天」假象）→ None 走无归属路径；近点不受影响。
+    cands = [
+        _c("城1", 104.06, 30.66),
+        _c("城2", 104.07, 30.66),  # ~1km，正常归属
+        _c("远点", 104.55, 30.66),  # ~47km，k=1 时无处安放
+    ]
+    assert cluster_days(cands, 1) == [0, 0, None]
+    # k=2 时远点自成一簇（种子），归属正常
+    assert cluster_days(cands, 2) == [0, 0, 1]
+
+
+def test_cluster_days_cap_boundary_just_under():
+    # 边界：~9km 点仍归属（上限内），~11km 不归属
+    cands = [
+        _c("锚", 104.06, 30.66),
+        _c("近", 104.06, 30.74),  # ~8.9km
+        _c("远", 104.06, 30.76),  # ~11.1km
+    ]
+    assert cluster_days(cands, 1) == [0, 0, None]
+
+
 def test_area_labels_fallback_to_index():
     cands = [_c("a", 121.5, 31.2), _c("b", 121.5, 31.21)]
     clusters = cluster_days(cands, 1)

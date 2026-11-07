@@ -258,13 +258,14 @@ function findZhViolations(tokens) {
  *   CITYS/PLAN_CITIES  城市坐标/规划城市表：经 I18N.city() 渲染；
  *   ORI                方位表：与高德数据比对，仅 emoji 上屏；
  *   AMAP_DETAIL_ZH/AUTH_ERR_CN  高德 detail 码/后端账号错误码 → 中文，调用点 tf("前缀."+code, 表[code])；
+ *   TRANSFER_DETAIL_ZH  路途行程改乘/班次号 422 detail 码 → 中文，调用点 tf("infra."+code, 表[code])（2026-11-04）；
  *   MODE_CN/BRIEF_TAGS/PREFS/REVIEW_TAGS/t9nName  交通方式/简报标签/偏好/点评标签/译向名，同上调用点动态包裹。
  * 锚点正则只负责"找到"声明头；数组/对象本体含嵌套括号，故从起始括号起做
  * 字符串感知的配平扫描到配对闭括号，再吞可选 ";"。整段替换为等长空白（保留 \n）
  * → 行号零漂移。返回 {code, found}：found 为本次命中的声明名集合。 */
 const ZH_DATA_NAMES = ["CITYS", "PLAN_CITIES", "ORI", "AMAP_DETAIL_ZH", "AUTH_ERR_CN",
   "MODE_CN", "BRIEF_TAGS", "PREFS", "REVIEW_TAGS", "t9nName",
-  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH", "TV_DOC_ZH", "WELCOME"]; // TV_DOC_ZH 证件类型 code→中文兜底，tvDocLabel 调用点 tf(key, 表[code]) 动态包裹 // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹（WELCOME 为 [flowId, key, zh 兜底] 行，i18n:change 时重写欢迎气泡）
+  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH", "TV_DOC_ZH", "TRANSFER_DETAIL_ZH", "WELCOME"]; // TV_DOC_ZH 证件类型 code→中文兜底，tvDocLabel 调用点 tf(key, 表[code]) 动态包裹 // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹（WELCOME 为 [flowId, key, zh 兜底] 行，i18n:change 时重写欢迎气泡）
 const ZH_DATA_DECL_RE = new RegExp("(?:var|const|let)\\s+(" + ZH_DATA_NAMES.join("|") + ")\\s*=\\s*([\\[{])", "g");
 function stripZhDataArrays(code) {
   const found = new Set();

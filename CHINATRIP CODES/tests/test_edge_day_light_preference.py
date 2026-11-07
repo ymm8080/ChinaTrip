@@ -71,13 +71,21 @@ def test_all_transfer_days_still_schedules():
 
 def test_main_loop_demotes_heavy_from_transfer_day(monkeypatch):
     monkeypatch.setenv("CHINATRIP_PRIORITY_EARLY", "off")
-    cands = [_cand("世遗点", tags=["unesco"]), _cand("普通点")]
+    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同点互认同街族，
+    # 族件跟锚同日会把普通点一并拽去 day2，验不出让位本身）。
+    cands = [
+        _cand("世遗点", tags=["unesco"], loc=(104.06, 30.66)),
+        _cand("普通点", loc=(104.08, 30.66)),
+    ]
     items = PlanningAgent._deterministic_selection(
         cands, 2, {"成都": (1, 2)}, transfer_days={1}
     )
     days = _days_by_name(items)
     assert days["世遗点"] == 2  # 重磅让开 day1 转场日
-    assert days["普通点"] == 1  # 非重磅照常落簇日
+    # 2026-11-07 并卡拍板：独立点各自成簇，簇分日梯子按 (tier,pos)
+    # 排——两簇都避开转场日 day1 顺延 day2（主环无腾空日回填机制，
+    # 同坐标共享簇=族件跟锚同日的旧形态已废）。
+    assert days["普通点"] == 2
 
 
 # --- ③ 评分器 --------------------------------------------------------------

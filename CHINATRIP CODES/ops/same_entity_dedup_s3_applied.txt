@@ -1,0 +1,305 @@
+# S3 互含去重执行记录（2026-11-06）
+# 拍板依据：用户裁定以地址/坐标距离判同实体；拍板表 ops/same_entity_s3_decisions.txt
+# 结果：67 对合并退役（active 13,690→13,623），8 对保留（判不同实体/不同产品线，见下）
+# tags 并集 26 处（4a/国家一级/二级/lp+intl 不随退役丢）；坏针行退役弃针，keeper 取坐标正确行
+# 坏针合并典型案例：北武当山(碛口)←4a方山县、中英街(宝安)←museum3盐田、观澜湖(福田)←5a龙华、
+#   神龙峡(宣汉)←5a南川、九寨沟 scenic(阿坝县)←unesco、二里头(巩义侧)←4a翟镇镇(合并后已修坐标)、
+#   江南丝绸(museum2江宁坏针)→keeper取chinatravel朝天宫正确针、立巢航空(museum2双流坏针)→keeper取amap环球中心
+# 北泉风景区：两行坐标皆坏(渝中市政府/合川)，已并 keeper=4a 行，待高德解封后回源修针
+# 残留 S3=8 对（重扫确认，保留不删）：
+#   上海 龙美术馆≠宝龙美术馆(21.5km) | 庆阳 宁县≠正宁县博物馆(39km) | 南京 中华门≠心印中华门(夜游演出)
+#   南京 秦淮河画舫≠外秦淮河画舫(航线) | 南京 夫子庙雨花石博物馆≠雨花台雨花石博物馆(3.6km)
+#   杭州 天目山≠东天目山(不同景区) | 杭州 新安江≠梦幻新安江(17km) | 阿勒泰 滨河≠克兰河滨河(140km)
+
+[上海] keeper=[chinatravel] 邻家露营地
+    fill suggested_duration_min <- [chinatravel]
+    fill duration_source <- [chinatravel]
+    aliases += ['上海邻家露营地']
+    retired [chinatravel] 上海邻家露营地 id=3b648707 (S3)
+[上海] keeper=[museum1] 上海中国航海博物馆
+    fill phone <- [amap]
+    fill rating_count <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    fill intro_en <- [amap]
+    tags union <- [amap] ['4a']
+    aliases += ['中国航海博物馆']
+    retired [amap] 中国航海博物馆 id=796e51c0 (S3)
+[上海] keeper=[amap] 七宝古镇
+    fill rating <- [baidu]
+    fill rating_source <- [baidu]
+    tags union <- [baidu] ['4a']
+    aliases += ['上海七宝古镇']
+    retired [baidu] 上海七宝古镇 id=d9d31626 (S3)
+[上海] keeper=[museum2] 上海世博会博物馆
+    aliases += ['世博会博物馆']
+    retired [amap] 世博会博物馆 id=9e2ad8f7 (S3)
+[上海] keeper=[4a] 上海花开海上生态园
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['花开海上生态园']
+    retired [amap] 花开海上生态园 id=d5ce4722 (S3)
+[上海] keeper=[4a] 上海金山嘴渔村
+    fill intro_en <- [chinatravel]
+    aliases += ['上海最后一个渔村', '金山嘴渔村']
+    retired [chinatravel] 金山嘴渔村 id=82ce6fb4 (S3)
+[上海] keeper=[5a] 崇明区西沙明珠湖景区
+    aliases += ['西沙明珠湖景区']
+    retired [amap] 西沙明珠湖景区 id=f86f47b9 (S3)
+[保定] keeper=[museum2] 保定直隶总督署博物馆
+    tags union <- [4a] ['4a']
+    aliases += ['保定直隶总督署', '总督署', '直隶总督署', '直隶总督署博物馆', '直隶总督部院']
+    retired [4a] 直隶总督署博物馆 id=2e4bfa8f (S3)
+[北京] keeper=[museum3] 北京石刻艺术博物馆
+    fill intro_en <- [amap]
+    aliases += ['五塔寺', '北京石刻博物馆', '真觉寺', '石刻艺术博物馆']
+    retired [amap] 石刻艺术博物馆 id=56ed73fc (S3)
+[北京] keeper=[museum1] 民航博物馆
+    fill intro_en <- [chinatravel]
+    retired [chinatravel] 中国民航博物馆 id=c1030caa (S3)
+[北京] keeper=[museum1] 园林博物馆
+    retired [chinatravel] 中国园林博物馆 id=2e3740e3 (S3)
+[南京] keeper=[amap] 牛首山文化旅游区
+    fill rating <- [baidu]
+    fill rating_source <- [baidu]
+    tags union <- [baidu] ['4a']
+    aliases += ['南京市牛首山文化旅游区', '春牛首', '牛首山风景区']
+    retired [baidu] 南京市牛首山文化旅游区 id=be141a0b (S3)
+[南京] keeper=[amap] 钟山风景名胜区
+    aliases += ['南京钟山风景名胜区']
+    retired [scenic] 南京钟山风景名胜区 id=eb71e580 (S3)
+[南京] keeper=[amap] 汤山紫清湖旅游区
+    tags union <- [4a] ['4a']
+    aliases += ['南京市汤山紫清湖旅游区']
+    retired [4a] 南京市汤山紫清湖旅游区 id=4b696650 (S3)
+[南京] keeper=[chinatravel] 水墨大埝旅游区
+    tags union <- [4a] ['4a']
+    aliases += ['南京市水墨大埝旅游区']
+    retired [4a] 南京市水墨大埝旅游区 id=e136b42c (S3)
+[南京] keeper=[street] 夫子庙步行街
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['南京夫子庙步行街', '夫子庙', '夫子庙-秦淮河风光带', '夫子庙秦淮风光带', '秦淮风光带']
+    retired [amap] 南京夫子庙步行街 id=82dd5ca0 (S3)
+[南京] keeper=[chinatravel] 江南丝绸文化博物馆
+    tags union <- [museum2] ['国家二级博物馆']
+    aliases += ['南京江南丝绸文化博物馆']
+    retired [museum2] 南京江南丝绸文化博物馆 id=970ce691 (S3)
+[南阳] keeper=[4a] 淮源风景名胜区
+    fill intro_en <- [scenic]
+    aliases += ['桐柏山-淮源风景名胜区']
+    retired [scenic] 桐柏山-淮源风景名胜区 id=61fb03da (S3)
+[吕梁] keeper=[4a] 方山县北武当山风景名胜区
+    fill address <- [scenic]
+    aliases += ['北武当山风景名胜区']
+    retired [scenic] 北武当山风景名胜区 id=fa9ac3b3 (S3)
+[天津] keeper=[5a] 蓟州区盘山风景名胜区
+    aliases += ['盘山风景名胜区']
+    retired [scenic] 盘山风景名胜区 id=a98eff94 (S3)
+[宜宾] keeper=[4a] 宜宾市蜀南竹海风景名胜区
+    fill address <- [scenic]
+    aliases += ['蜀南竹海风景名胜区']
+    retired [scenic] 蜀南竹海风景名胜区 id=83903d2c (S3)
+[平凉] keeper=[5a] 崆峒区崆峒山风景名胜区
+    aliases += ['崆峒山风景名胜区']
+    retired [scenic] 崆峒山风景名胜区 id=69e724b1 (S3)
+[广州] keeper=[amap] 南沙天后宫
+    tags union <- [4a] ['4a']
+    aliases += ['广州市南沙天后宫']
+    retired [4a] 广州市南沙天后宫 id=fd21de15 (S3)
+[广州] keeper=[baidu] 广州市中山纪念堂
+    fill intro_en <- [chinatravel]
+    aliases += ['中山纪念堂']
+    retired [chinatravel] 中山纪念堂 id=3467e43f (S3)
+[广州] keeper=[amap] 正佳广场商贸旅游区
+    tags union <- [baidu] ['4a']
+    aliases += ['广州市正佳广场商贸旅游区']
+    retired [baidu] 广州市正佳广场商贸旅游区 id=dd7ffa8f (S3)
+[广州] keeper=[baidu] 广州市九龙湖度假区
+    fill intro_en <- [amap]
+    aliases += ['九龙湖度假区']
+    retired [amap] 九龙湖度假区 id=3bd6c81f (S3)
+[广州] keeper=[chinatravel] 圣托利温泉庄园
+    aliases += ['广州圣托利温泉庄园']
+    retired [chinatravel] 广州圣托利温泉庄园 id=d46ebe45 (S3)
+[广州] keeper=[4a] 广州市南沙滨海湿地景区
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['南沙滨海湿地景区']
+    retired [amap] 南沙滨海湿地景区 id=8bf3c9f9 (S3)
+[广州] keeper=[4a] 广州市西关永庆坊旅游区
+    fill address <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['西关永庆坊旅游区']
+    retired [amap] 西关永庆坊旅游区 id=a34015f0 (S3)
+[广州] keeper=[museum3] 广州市岭南金融博物馆
+    fill address <- [chinatravel]
+    fill intro_en <- [chinatravel]
+    aliases += ['岭南金融博物馆']
+    retired [chinatravel] 岭南金融博物馆 id=0c60d5cd (S3)
+[广州] keeper=[4a] 广州神农草堂中医药博物馆
+    fill address <- [chinatravel]
+    fill intro_en <- [chinatravel]
+    aliases += ['神农草堂中医药博物馆']
+    retired [chinatravel] 神农草堂中医药博物馆 id=3b07f97f (S3)
+[张掖] keeper=[5a] 七彩丹霞景区
+    fill website <- [lonelyplanet]
+    fill reservation_required <- [lonelyplanet]
+    tags union <- [lonelyplanet] ['lp', 'intl']
+    aliases += ['七彩丹霞', '张掖七彩丹霞景区']
+    retired [lonelyplanet] 张掖七彩丹霞景区 id=cacba72b (S3)
+[成都] keeper=[amap] 宽窄巷子
+    aliases += ['窄巷子']
+    retired [chinatravel] 窄巷子 id=38feac86 (S3)
+[成都] keeper=[amap] 三和老爷车博物馆
+    fill rating <- [museum2]
+    fill rating_source <- [museum2]
+    tags union <- [museum2] ['国家二级博物馆']
+    aliases += ['成都三和老爷车博物馆']
+    retired [museum2] 成都三和老爷车博物馆 id=ebb11378 (S3)
+[成都] keeper=[amap] 立巢航空博物馆
+    tags union <- [museum2] ['国家二级博物馆']
+    aliases += ['成都立巢航空博物馆']
+    retired [museum2] 成都立巢航空博物馆 id=d07fb27d (S3)
+[拉萨] keeper=[museum2] 西藏牦牛博物馆
+    tags union <- [4a] ['4a']
+    retired [4a] 牦牛博物馆 id=719772f7 (S3)
+[杭州] keeper=[museum2] 杭州胡庆余堂中药博物馆
+    fill address <- [chinatravel]
+    aliases += ['胡庆余堂中药博物馆']
+    retired [chinatravel] 胡庆余堂中药博物馆 id=feab2908 (S3)
+[柳州] keeper=[museum2] 柳州白莲洞洞穴科学博物馆
+    tags union <- [4a] ['4a']
+    aliases += ['白莲洞洞穴科学博物馆']
+    retired [4a] 白莲洞洞穴科学博物馆 id=e898edcf (S3)
+[武汉] keeper=[museum3] 武汉琴台钢琴博物馆
+    fill intro_en <- [amap]
+    aliases += ['琴台钢琴博物馆']
+    retired [amap] 琴台钢琴博物馆 id=c559fe76 (S3)
+[池州] keeper=[museum3] 池州市秀山门博物馆
+    fill intro_en <- [4a]
+    tags union <- [4a] ['4a']
+    aliases += ['秀山门博物馆']
+    retired [4a] 秀山门博物馆 id=f20909f4 (S3)
+[泉州] keeper=[5a] 丰泽区清源山风景名胜区
+    aliases += ['清源山风景名胜区']
+    retired [scenic] 清源山风景名胜区 id=c13564a2 (S3)
+[洛阳] keeper=[museum1] 二里头夏都遗址博物馆
+    fill address <- [4a]
+    tags union <- [4a] ['4a']
+    aliases += ['偃师县二里头夏都遗址博物馆']
+    retired [4a] 偃师县二里头夏都遗址博物馆 id=f8056828 (S3)
+[济南] keeper=[4a] 济南千佛山风景名胜区
+    fill address <- [scenic]
+    fill intro_en <- [scenic]
+    aliases += ['千佛山风景名胜区']
+    retired [scenic] 千佛山风景名胜区 id=f54c3ce1 (S3)
+[海口] keeper=[street] 骑楼建筑历史文化街区
+    tags union <- [4a] ['4a']
+    aliases += ['*海口骑楼建筑历史文化街区']
+    retired [4a] *海口骑楼建筑历史文化街区 id=5971d4d5 (S3)
+[深圳] keeper=[artmuseum] 深圳市关山月美术馆
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    aliases += ['关山月美术馆']
+    retired [amap] 关山月美术馆 id=170d7723 (S3)
+[深圳] keeper=[4a] 深圳市仙湖植物园
+    fill address <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['仙湖植物园']
+    retired [amap] 仙湖植物园 id=e4ed56eb (S3)
+[深圳] keeper=[museum3] 深圳市南山博物馆
+    fill intro_en <- [amap]
+    retired [amap] 南山博物馆 id=741fd854 (S3)
+[深圳] keeper=[museum3] 深圳市中英街历史博物馆
+    fill intro_en <- [amap]
+    aliases += ['中英街历史博物馆']
+    retired [amap] 中英街历史博物馆 id=b3850f53 (S3)
+[深圳] keeper=[5a] 龙华区观澜湖休闲旅游区
+    aliases += ['观澜湖休闲旅游区']
+    retired [amap] 观澜湖休闲旅游区 id=188744c7 (S3)
+[石家庄] keeper=[4a] 石家庄嶂石岩风景名胜区
+    fill address <- [scenic]
+    fill opening_hours <- [scenic]
+    fill hours_source <- [scenic]
+    fill rating <- [scenic]
+    fill rating_source <- [scenic]
+    aliases += ['嶂石岩风景名胜区']
+    retired [scenic] 嶂石岩风景名胜区 id=17e94757 (S3)
+[苏州] keeper=[street] 平江历史街区
+    tags union <- [4a] ['4a']
+    aliases += ['苏州市平江历史街区']
+    retired [4a] 苏州市平江历史街区 id=de7db510 (S3)
+[苏州] keeper=[amap] 中国昆曲博物馆
+    aliases += ['昆曲博物馆']
+    retired [chinatravel] 昆曲博物馆 id=698e4e50 (S3)
+[重庆] keeper=[street] 弹子石老街
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill phone <- [amap]
+    fill rating <- [amap]
+    fill rating_source <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['长嘉汇弹子石老街']
+    retired [amap] 长嘉汇弹子石老街 id=b43ef696 (S3)
+[重庆] keeper=[museum2] 巫山博物馆
+    tags union <- [4a] ['4a']
+    aliases += ['重庆巫山博物馆']
+    retired [4a] 重庆巫山博物馆 id=9dbec60a (S3)
+[重庆] keeper=[amap] 丰都雪玉洞景区
+    tags union <- [4a] ['4a']
+    aliases += ['重庆丰都雪玉洞景区', '雪玉洞风景区']
+    retired [4a] 重庆丰都雪玉洞景区 id=57f1cbe4 (S3)
+[重庆] keeper=[amap] 奉节龙桥河景区
+    tags union <- [4a] ['4a']
+    aliases += ['重庆奉节龙桥河景区']
+    retired [4a] 重庆奉节龙桥河景区 id=56113808 (S3)
+[重庆] keeper=[museum3] 重庆大圆祥博物馆
+    retired [amap] 大圆祥博物馆 id=e1f7075c (S3)
+[重庆] keeper=[chinatravel] 仙女山归原小镇
+    tags union <- [4a] ['4a']
+    aliases += ['重庆仙女山归原小镇']
+    retired [4a] 重庆仙女山归原小镇 id=a9f35f42 (S3)
+[重庆] keeper=[chinatravel] 石柱万寿山景区
+    tags union <- [4a] ['4a']
+    aliases += ['重庆石柱万寿山景区']
+    retired [4a] 重庆石柱万寿山景区 id=57e83198 (S3)
+[重庆] keeper=[chinatravel] 綦江古剑山风景区
+    tags union <- [4a] ['4a']
+    aliases += ['重庆綦江古剑山风景区']
+    retired [4a] 重庆綦江古剑山风景区 id=8d1dd064 (S3)
+[重庆] keeper=[amap] 潼南大佛寺
+    tags union <- [4a] ['4a']
+    aliases += ['重庆潼南大佛寺']
+    retired [4a] 重庆潼南大佛寺 id=ae45544c (S3)
+[重庆] keeper=[4a] 重庆北泉风景区
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    aliases += ['北泉风景区']
+    retired [amap] 北泉风景区 id=07652d4b (S3)
+[重庆] keeper=[5a] 金佛山-神龙峡风景区
+    aliases += ['神龙峡风景区']
+    retired [amap] 神龙峡风景区 id=1abdc11a (S3)
+[重庆] keeper=[5a] 彭水县阿依河景区
+    aliases += ['彭水阿依河', '长溪河', '阿依河景区', '阿依河漂流']
+    retired [amap] 阿依河景区 id=7703572c (S3)
+[阿坝] keeper=[unesco] 九寨沟风景名胜区
+    aliases += ['黄龙寺-九寨沟风景名胜区']
+    retired [scenic] 黄龙寺-九寨沟风景名胜区 id=c2d6710b (S3)
+[黑河] keeper=[museum1] 黑河市瑷珲历史陈列馆
+    fill address <- [4a]
+    tags union <- [4a] ['4a']
+    aliases += ['瑷珲历史陈列馆']
+    retired [4a] 瑷珲历史陈列馆 id=a17c7654 (S3)
+[龙岩] keeper=[museum3] 连城县博物馆
+    aliases += ['福建省连城县博物馆']
+    retired [museum3] 福建省连城县博物馆 id=262bb47e (S3)
+
+retired 67 loser rows from 67 decisions

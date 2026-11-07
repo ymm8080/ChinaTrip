@@ -103,11 +103,19 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier
-    # 最高（5A）的簇整簇进第 1 天，第 4 位按池序由次簇补位，次簇
-    # 剩余落第 2 天——同簇仍同天优先，4/日闸内高档先占早天。
-    assert by_day[1] == {"人民广场五A", "南京东路", "博物馆", "东方明珠"}
-    assert by_day[2] == {"海洋馆", "滨江大道"}
+    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）+ 同街族并卡
+    # （2026-11-07 拍板）：含 tier 最高（5A）的簇整簇进第 1 天；两簇
+    # 内部成员两两 ≤1km 同街族——族件跟锚同日不占 4/日计数，两天窗
+    # 内实际只出两张族卡（人民广场卡+陆家嘴卡），全落第 1 天。
+    assert by_day[1] == {
+        "人民广场五A",
+        "南京东路",
+        "博物馆",
+        "东方明珠",
+        "海洋馆",
+        "滨江大道",
+    }
+    assert by_day.get(2, set()) == set()
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
@@ -127,8 +135,11 @@ def test_time_budget_soft_gate_overflows_not_drops():
 
 
 def test_four_per_day_cap():
+    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同街族并一卡、族件
+    # 豁免 4/日计数——同点夹具会被并成一张族卡绕开闸，须独立点验闸）。
     cands = [
-        _cand(f"点{i}", "成都", suggested=30, loc=(104.06, 30.66)) for i in range(6)
+        _cand(f"点{i}", "成都", suggested=30, loc=(104.06 + i * 0.02, 30.66))
+        for i in range(6)
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
     assert len(items) == 4  # 时长够但 4 个/日闸封顶
@@ -263,6 +274,85 @@ def test_show_day_budget_reserves_show_minutes():
     poi4 = [it for it in items if it["day"] == 4 and it["name"] != "夜场秀"]
     used = sum(it["duration_minutes"] for it in poi4) + show["duration_minutes"]
     assert used <= DAY_VISIT_BUDGET_MINUTES
+
+
+def test_algo_show_adjacent_sight_co_schedules_with_pinned_show():
+    # 2026-11-07 锦里古戏台/武侯祠案：仅夜场演出钉窗口末日、贴邻白天点
+    # 却预占最早天——同街区一对被拆成首尾两天。步行圈内（≤1.5km）的
+    # 候选认领序把演出日前置；圈外远点不受牵引（软偏好只贴邻生效）。
+    near = _cand("武侯祠", "成都", tags=["5a"], loc=(104.0493, 30.6445))
+    far = _cand("远郊雪山大点", "成都", tags=["5a"], loc=(102.92, 31.13))
+    cands = [
+        near,
+        far,
+        _cand("锦里古戏台", "成都", cat="entertainment", loc=(104.0588, 30.6502)),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 3)})
+    day = {it["name"]: it["day"] for it in items}
+    assert day["锦里古戏台"] == 3  # 城市末日收尾（既有语义）
+    assert day["武侯祠"] == 3  # 贴邻演出 → 同日连排（白天看祠晚上看戏）
+    assert day["远郊雪山大点"] == 1  # 圈外不被牵引，照旧预占最早天
+
+
+def test_algo_merge_binding_beats_fuzzy_pool_card():
+    # 2026-11-07 锦里古戏台/武侯祠案：心愿词「锦里」复合挂牌通道把
+    # 两条愿望全吸到同一张「武侯祠·锦里」池卡（_name_dup 双双命中），
+    # 卡被去重并掉后必去静默蒸发。绑定真身在手时模糊池卡不冒充必去
+    # ——绕过 match 走绑定分支，真身卡强制进排期。
+    picked = [
+        {"name": "武侯祠·锦里", "city": "成都", "day": 2, "duration_minutes": 90},
+        {"name": "锦里古街", "city": "成都", "day": 2, "duration_minutes": 90},
+    ]
+    bindings = {
+        "武侯祠": {
+            "name": "成都武侯祠博物馆",
+            "city": "成都",
+            "location": {"lon": 104.04932, "lat": 30.644529},
+        },
+        "锦里古戏台": {
+            "name": "锦里古戏台",
+            "city": "成都",
+            "location": {"lon": 104.0588, "lat": 30.6502},
+        },
+    }
+    out = PlanningAgent._merge_must_visits(
+        picked,
+        ["武侯祠", "锦里古戏台"],
+        ["成都"],
+        3,
+        {"成都": (1, 3)},
+        bindings=bindings,
+    )
+    names = {s["name"]: s for s in out}
+    assert "成都武侯祠博物馆" in names and names["成都武侯祠博物馆"]["must"]
+    assert "锦里古戏台" in names and names["锦里古戏台"]["must"]
+    # 池卡不再冒充必去（没有绑定真身等名时不标）
+    assert not names["武侯祠·锦里"].get("must")
+
+
+def test_algo_dedup_never_drops_must_card_for_pool_twin():
+    # 2026-11-07 同案去重侧：必去卡在同站孪生合并中永不让位（铁律
+    # 19）——池卡先入列也不能把必去卡吃掉。
+    from app.services.agent.plan import _dedupe_visit_keepers
+
+    pool_card = VisitItem(
+        item_id="v1",
+        name="武侯祠·锦里",
+        poi_id="st_db921a769059",
+        city="成都",
+        day=3,
+    )
+    must_card = VisitItem(
+        item_id="v2",
+        name="锦里古戏台",
+        poi_id="ct_成都_309",
+        city="成都",
+        day=3,
+        must=True,
+    )
+    keepers, dropped = _dedupe_visit_keepers([pool_card, must_card])
+    assert [k.name for k in keepers] == ["锦里古戏台"]
+    assert dropped == ["武侯祠·锦里"]
 
 
 # --- 流程：算法模式生成 v0，零 LLM 调用 --------------------------------------
@@ -416,6 +506,293 @@ def test_travel_legs_count_but_soft_gate_keeps_far_pair():
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
     assert [it["name"] for it in items] == ["甲", "乙"]
+
+
+def test_soft_gate_rejects_cross_city_far_leg():
+    """软超额远腿闸（2026-11-04 成渝案）：>150km 直线距的腿不做软超额
+    ——四面山+白帝城 ~330km 同天只排一个，交回填/披露。分钟口径被
+    TRAVEL_LEG_CAP_MIN 封顶（90km 与 330km 同值 180），闸必须用公里。"""
+    cands = [
+        _cand("四面山", "重庆", suggested=240, loc=(106.42, 29.22)),
+        _cand("白帝城", "重庆", suggested=240, loc=(109.57, 31.05)),  # ~330km
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 1, {"重庆": (1, 1)})
+    assert len(items) == 1
+
+
+def test_pool_twin_collapse_keeps_premium_survivor():
+    """同站孪生并卡保留名录王牌（2026-11-04 成渝案）：大足石刻 unesco
+    行 category 空、pref 无从评起——无品类王牌按偏好命中算（_pref_key），
+    tier 梯子把 unesco 行顶回队首，并卡卡名回归 石刻 本体而非博物馆。"""
+    mus = _cand("大足石刻博物馆", "重庆", suggested=120, tags=["历史文化"])
+    mus["source"] = "museum1"
+    grotto = _cand("大足石刻", "重庆", cat="", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    items = PlanningAgent._deterministic_selection(
+        [mus, grotto], 1, {"重庆": (1, 1)}, preferences="历史文化"
+    )
+    assert [it["name"] for it in items] == ["大足石刻"]
+
+
+def test_pool_twin_collapse_survivor_not_pool_order_dependent():
+    """并卡幸存者与池序无关（2026-11-04 成渝案二段）：真实管线投影把
+    无品类行默认成 sight（plan.py 候选投影 category or "sight"），石刻
+    偏好豁免失效、museum1 行反超池首——旧版池序首位当幸存者会留下
+    博物馆行、把 unesco 本体并入。组内 (tier, idx) 挑幸存者后不再如此。"""
+    mus = _cand("大足石刻博物馆", "重庆", suggested=120, tags=["历史文化"])
+    mus["source"] = "museum1"
+    grotto = _cand("大足石刻", "重庆", cat="sight", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    items = PlanningAgent._deterministic_selection(
+        [grotto, mus], 1, {"重庆": (1, 1)}, preferences="历史文化"
+    )
+    assert [it["name"] for it in items] == ["大足石刻"]
+
+
+def test_pool_cap_never_evicts_premium_tier():
+    """池上限不逐名录王牌（2026-11-04 成渝案二段）：投影把无品类行默认
+    成 sight 后偏好豁免失效，博物馆密集池（真偏好命中）把 unesco 石刻
+    挤出 span*4 席——tier≤2 行必须追回池内，交后续时序闸/白名单披露，
+    不得静默出局。"""
+    cands = []
+    for i in range(16):
+        m = _cand(f"博物馆{i}", "重庆", suggested=90, tags=["历史文化"])
+        m["source"] = "museum1"
+        m["rating"] = 4.8
+        m["category"] = "museum"
+        cands.append(m)
+    grotto = _cand("大足石刻", "重庆", cat="sight", suggested=300, tags=["unesco"])
+    grotto["source"] = "unesco"
+    grotto["rating"] = 4.6
+    cands.append(grotto)
+    items = PlanningAgent._deterministic_selection(
+        cands, 4, {"重庆": (1, 4)}, preferences="历史文化"
+    )
+    assert any(it["name"] == "大足石刻" for it in items)
+
+
+def test_pool_cap_never_evicts_high_quality_sights():
+    """池上限不逐高质名点（2026-11-05 成都名点案）：tier 梯子把名录档
+    排前，quality≥4.5 的图商名点（宽窄巷子/熊猫基地/洛带/东郊记忆，
+    rating 4.6 无 count）被切在 span*4 池外；回填线对池外尾巴是硬预算
+    +腿费，180 分钟级大点塞不进半满日——高质名点必须与 tier≤2 同权
+    追回池内（软闸语义同池内正选点），否则 4 天窗口只排 5 件、日预算
+    50-60%。无评分长尾不享此权（池外硬闸口径不变）。"""
+    downtown = (104.06, 30.66)
+    cands = []
+    # 8 行 nature 类（品类闸 cap=2 会裁 6）+ 12 行 attraction：
+    # tier10 共 20 行占满池上限 16 席，名点被切池外
+    for i in range(8):
+        c = _cand(f"山{i}", "成都", cat="nature", suggested=90, loc=downtown)
+        c["source"] = "4a"
+        cands.append(c)
+    for i in range(12):
+        c = _cand(f"市{i}", "成都", cat="attraction", suggested=90, loc=downtown)
+        c["source"] = "4a"
+        cands.append(c)
+    # 池外高质名点：180 分钟大点 + ~60km 远腿（硬回填 180+腿费>日预算余量）
+    for i in range(2):
+        c = _cand(
+            f"名点{i}", "成都", cat="attraction", suggested=180, loc=(103.6, 30.9)
+        )
+        c["source"] = "amap"  # tier 11
+        c["rating"] = 4.6
+        cands.append(c)
+    # 对照：无评分长尾同规格 → 不追回、硬回填也塞不进（坐标与名点
+    # 错开 >1km——2026-11-07 并卡拍板后同点行会以族件身份搭车进卡，
+    # 就验不出「quality=0 不享追回权」了）
+    tail = _cand("长尾", "成都", cat="attraction", suggested=180, loc=(103.6, 30.75))
+    tail["source"] = "amap"
+    cands.append(tail)
+    items = PlanningAgent._deterministic_selection(cands, 4, {"成都": (1, 4)})
+    names = {it["name"] for it in items}
+    assert {"名点0", "名点1"} <= names  # 高质名点追回并落位（软闸）
+    assert "长尾" not in names  # quality=0 不享追回权
+
+
+def test_baidu_rating_normalized_against_amap():
+    """评分跨源不可比（2026-11-07 用户拍板）：rating_source='baidu' 行
+    质量分 ×0.9——同档内百度虚高 5.0 不得反超高德 4.6 名录地标（农科村
+    vs 武侯祠案）。1 天 4 席满池：amap 名点必须进池，baidu 5.0 让位。"""
+    # 坐标错开 ~1.9km（2026-11-07 并卡拍板：0.01°≈0.96km 的链会互认
+    # 同街族、族件豁免 4/日计数，4 席变 5 件——验池席位须独立点）。
+    cands = [
+        _cand(
+            f"农科村{i}",
+            "成都",
+            cat="attraction",
+            suggested=90,
+            loc=(103.6 + i * 0.02, 30.9),
+        )
+        for i in range(4)
+    ]
+    for i, c in enumerate(cands):
+        c["source"] = "baidu"
+        c["rating"] = 5.0
+        c["rating_source"] = "baidu"
+    amap = _cand("武侯祠", "成都", cat="attraction", suggested=90, loc=(104.05, 30.65))
+    amap["source"] = "amap"
+    amap["rating"] = 4.6
+    amap["rating_source"] = "amap"
+    cands.append(amap)
+    items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
+    names = {it["name"] for it in items}
+    assert "武侯祠" in names  # amap 4.6 > baidu 5.0×0.9=4.5，进池且占席
+    assert len(names) == 4  # 1 天 4 席：恰好一个 baidu 行被挤出局
+    assert sum(1 for n in names if n.startswith("农科村")) == 3
+
+
+def test_preclaim_far_guard_spreads_premium_pair():
+    """预占位严格位同样不并互远大点（2026-11-04 成渝案二段）：石刻
+    300min 与金佛山 180min 互相 >150km，腿分钟被 TRAVEL_LEG_CAP_MIN
+    封顶 180 让两条远腿在预算口径里同值，双双过闸挤同一天 → 求解层
+    300min 大点排不出时刻被清算移除。严格位必须与软闸/主环同口径
+    （_SOFT_FAR_KM 公里闸）。"""
+    a = _cand("大足石刻", "重庆", suggested=300, loc=(105.70, 29.71))
+    a["source"] = "unesco"
+    a["tags"] = ["unesco"]
+    a["rating"] = 4.6
+    b = _cand("金佛山", "重庆", suggested=180, loc=(107.18, 29.02))
+    b["source"] = "5a"
+    b["tags"] = ["5a"]
+    b["rating"] = 4.5
+    items = PlanningAgent._deterministic_selection([a, b], 2, {"重庆": (1, 2)})
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["大足石刻"] != day_of["金佛山"]
+
+
+def test_host_day_for_visit_rejects_far_conflict():
+    """挪日宿主闸（2026-11-04 成渝案三段）：_host_day_for_visit 收到
+    incoming 远点时不得收进已有 >150km 互远参访的天——否则求解层
+    把选点层已分好天的石刻/金佛山重撞同日，兜底 sequencing 排不出
+    时刻整卡蒸发。宿主资格看公里不看分钟（腿封顶 180 让预算闸对
+    90km/330km 同值）。"""
+    from app.services.agent.plan import _far_conflict_items, _host_day_for_visit
+    from app.services.itinerary.models import DayPlan, GeoPoint
+
+    jfs = VisitItem(
+        item_id="t1",
+        name="金佛山",
+        category="sight",
+        city="重庆",
+        location=GeoPoint(lon=107.18, lat=29.02),
+        day=1,
+        duration_minutes=180,
+    )
+    far_day = DayPlan(day=1, base_city="重庆", items=[jfs])
+    empty_day = DayPlan(day=2, base_city="重庆", items=[])
+    stone = GeoPoint(lon=105.70, lat=29.71)  # 大足石刻，与金佛山 ~159km
+
+    assert _far_conflict_items([jfs], stone)
+    assert not _far_conflict_items([jfs])  # 单点无对
+
+    host = _host_day_for_visit([far_day, empty_day], "重庆", 300, incoming=stone)
+    assert host is not None and host.day == 2
+
+    # 近点不受闸：金佛山旁的小点仍可进 day1（非一刀切拒收）
+    near = GeoPoint(lon=107.20, lat=29.05)
+    assert (
+        _host_day_for_visit([far_day, empty_day], "重庆", 60, incoming=near) is far_day
+    )
+
+
+def test_pref_band_keeps_premium_far_pair_apart():
+    """偏好带不拆远点对（2026-11-04 成渝案三段）：偏好「自然风光」让
+    nature 行预占位排到池首，石刻排队垫底，全窗被远腿闸拒收后走主环
+    簇日直排（旧代码直排无远腿闸）与金佛山同日。预占位认领序须给
+    名录王牌次级先认领（物理受限 > 王牌 > 偏好带）——同日列表序仍按
+    池序（装配尾部重排），「偏好位在 tier 之前」拍板不破。"""
+    stone = _cand("大足石刻", "重庆", suggested=300, loc=(105.70, 29.71))
+    stone["source"] = "unesco"
+    stone["tags"] = ["unesco"]
+    stone["rating"] = 4.6
+    stone["category"] = "sight"  # 组装层投影 `or "sight"` 后的形态
+    jfs = _cand("金佛山风景名胜区", "重庆", suggested=180, loc=(107.18, 29.02))
+    jfs["source"] = "scenic"
+    jfs["tags"] = ["5a"]
+    jfs["rating"] = 4.5
+    jfs["category"] = "nature"  # 偏好「自然风光」命中
+    items = PlanningAgent._deterministic_selection(
+        [stone, jfs], 2, {"重庆": (1, 2)}, preferences="历史文化 自然风光"
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of.get("大足石刻") is not None
+    assert day_of.get("金佛山风景名胜区") is not None
+    assert day_of["大足石刻"] != day_of["金佛山风景名胜区"]
+
+
+def test_rehome_untimed_visits_moves_far_stray():
+    """全日挪日扫尾（2026-11-04 成渝案四段）：非转场日无时刻卡此前
+    只有终局清算一途——CP 分钟口径把石刻与金佛山装进同一天后，石刻
+    排不出时刻直接蒸发。清算前须先试挪日（互远闸同款口径），挪到
+    有容量且不互远的天重排；全窗不互远的天都没有才留原天交清算。"""
+    from datetime import time as _time
+
+    from app.services.agent.plan import _rehome_untimed_visits
+    from app.services.itinerary.models import DayPlan, GeoPoint, ItineraryPlan
+
+    def _vis(name, day, *, timed, dur, lon, lat):
+        return VisitItem(
+            item_id=f"v_{name}",
+            name=name,
+            category="sight",
+            city="重庆",
+            location=GeoPoint(lon=lon, lat=lat),
+            day=day,
+            start_time=_time(9, 0) if timed else None,
+            end_time=_time(12, 0) if timed else None,
+            duration_minutes=dur,
+        )
+
+    plan = ItineraryPlan(
+        itinerary_id="t",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="重庆",
+                items=[
+                    _vis("金佛山", 1, timed=True, dur=180, lon=107.18, lat=29.02),
+                    _vis("大足石刻", 1, timed=False, dur=300, lon=105.70, lat=29.71),
+                ],
+            ),
+            DayPlan(day=2, base_city="重庆", items=[]),
+        ],
+    )
+    notes = _rehome_untimed_visits(plan)
+    stone = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "大足石刻"
+    )
+    assert stone.day == 2
+    assert notes and "挪至第2天" in notes[0]
+
+    # 全窗互远：无天可挪 → 留原天交清算披露
+    plan2 = ItineraryPlan(
+        itinerary_id="t2",
+        cities=["重庆"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="重庆",
+                items=[
+                    _vis("金佛山", 1, timed=True, dur=180, lon=107.18, lat=29.02),
+                    _vis("大足石刻", 1, timed=False, dur=300, lon=105.70, lat=29.71),
+                ],
+            ),
+            DayPlan(
+                day=2,
+                base_city="重庆",
+                items=[
+                    _vis("濯水景区", 2, timed=True, dur=240, lon=108.78, lat=29.53),
+                ],
+            ),
+        ],
+    )
+    assert _rehome_untimed_visits(plan2) == []
+    stone2 = next(
+        i for d in plan2.days for i in d.items if getattr(i, "name", "") == "大足石刻"
+    )
+    assert stone2.day == 1
 
 
 def test_travel_legs_zero_for_colocated_sites():
@@ -582,15 +959,22 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    cands += [_cand(f"远填{i}", "成都", suggested=180, loc=g1) for i in range(5)]
+    # 远填坐标彼此错开 >1.5km（2026-11-07 并卡拍板：同点行互认同街
+    # 族、族件豁免 4/日计数+族边际预算，会搭车进池外尾巴禁入的天）。
+    cands += [
+        _cand(f"远填{i}", "成都", suggested=180, loc=(104.06 + (i + 1) * 0.02, 30.66))
+        for i in range(5)
+    ]
     cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
     items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
-    # day1=池内短时长小点 ×4（4 个/日闸封顶）；day2=软闸超额大点+溢出的都1
-    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
-    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
+    # day1=池内短时长小点 ×4（2026-11-07 并卡拍板：补×4+都1 同点互认
+    # 同街族并一卡，族件豁免 4/日计数与族边际预算）；day2=软闸超额
+    # 大点卡（市1+市2 一族）+溢出的远填0
+    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3", "都1"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0"]
     # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
     flat = [n for names in by_day.values() for n in names]
     assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))

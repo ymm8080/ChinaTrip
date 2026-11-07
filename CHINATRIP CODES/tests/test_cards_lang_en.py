@@ -67,8 +67,16 @@ def test_offer_cards_flight_en(lang_en):
     assert all(not _has_zh(s) for s in summaries.values())
 
 
-def test_hotel_cards_same_price_tag_en(lang_en):
-    # 与 test_offer_cards 同一确定性同价请求（ctrip == meituan == 365.0）
+def test_hotel_cards_same_price_tag_en(lang_en, monkeypatch):
+    # 飞猪入组（2026-11-07 每晚酒店卡）后 mock 哈希种子变了——固定报价
+    # 模拟 ctrip==meituan 同价，端到端验证同价 tag 的 EN 文案与美团
+    # EN 退改摘要（铁律 23）。
+    from app.services import offer_cards as oc
+
+    def _fixed_price(kind, channel, norm):
+        return 365.0 if channel in ("ctrip", "meituan") else 350.0
+
+    monkeypatch.setattr(oc, "_mock_price_yuan", _fixed_price)
     body = hotel_offer_cards(
         "北京",
         "故宫",
@@ -79,7 +87,10 @@ def test_hotel_cards_same_price_tag_en(lang_en):
         settings=SETTINGS,
     )
     assert body["same_price_group"] == ["ctrip", "meituan"]
-    assert {c["tag"] for c in body["cards"]} == {"Same price"}
+    tags = {c["channel"]: c["tag"] for c in body["cards"]}
+    assert tags["ctrip"] == "Same price"
+    assert tags["meituan"] == "Same price"
+    assert tags["fliggy"] is None
     meituan = next(c for c in body["cards"] if c["channel"] == "meituan")
     assert "Meituan checkout page" in meituan["refund_summary"]
 

@@ -175,6 +175,38 @@ def test_refresh_address_only_persists_when_hours_miss():
     assert store.stale_pois() == []  # 冷却戳仍生效，不烧下轮
 
 
+class _VenueHoursAmap:
+    """detail/search 只带回场馆开放时间（图商口径）。"""
+
+    async def place_hours(self, poi_id):
+        return None
+
+    async def search_hours(self, keyword, city=None, location=None):
+        return {"opening_hours": "09:00-17:00", "rating": None, "address": "某路1号"}
+
+
+def test_refresh_show_hours_guard_20261107():
+    """hours_source='show' 行护闸：人工场次不被图商开放时间覆写；
+    地址照常落库、冷却戳照盖（2026-11-07，04 种子场次保护）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1",
+        city="西安",
+        name="《长恨歌》演出",
+        source="show",
+        opening_hours="仅夜场（约20:10/21:35两场）",
+        hours_source="show",
+    )
+    store.get("S1")["hours_updated_at"] = None  # 手模拟 30 天窗满，进 stale 窗口
+    stats = asyncio.run(refresh_pois(store, _NullCtrip(), _VenueHoursAmap(), limit=10))
+    got = store.get("S1")
+    assert stats["address_only"] == 1  # hours 抑制后走 address 分支
+    assert got["opening_hours"] == "仅夜场（约20:10/21:35两场）"
+    assert got["hours_source"] == "show"
+    assert got["address"] == "某路1号"  # 地址/富化照常
+    assert store.stale_pois() == []  # 抑制后仍盖冷却戳，不烧下轮
+
+
 def test_stale_pois_returns_amap_location_string():
     store = PoiDetailStore()
     store.upsert("L1", city="重庆", name="有坐标", location=(106.578, 29.5628))
@@ -382,6 +414,110 @@ def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
     top = hits[1]
     assert top["best_visit_time"] == "any"
     assert top["location"] == (106.5, 29.5)
+
+
+def test_top_pois_in_city_excludes_hotel_rows():
+    """主池住宿出池（2026-11-07 实测：成都窗口混入 2 家 intl 标签酒店）。
+    餐饮出池语义不变；中文类别（酒店/民宿）同拦。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "H1",
+        city="成都",
+        name="易宁阁宽窄别院(成都宽窄巷子地铁站店)",
+        category="hotel",
+        location=(104.05, 30.66),
+        rating=4.7,
+    )
+    store.upsert(
+        "H2",
+        city="成都",
+        name="梵隐·花间庭院villa朴墅",
+        category="酒店",
+        location=(104.06, 30.65),
+        rating=4.8,
+    )
+    store.upsert(
+        "S1",
+        city="成都",
+        name="春熙路",
+        category="attraction",
+        location=(104.08, 30.66),
+        rating=4.7,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert names == ["春熙路"]
+
+
+def test_top_pois_in_city_rec_tag_food_rows_stay_in_pool():
+    """荐点餐厅入池豁免（2026-11-07 用户指令「WE CAN CHOOSE RESTRANT IN
+    SITE IN CASE THEY ARE HV TAG LIKE KLOOK TRIPADVISOR ETC」）：带国际
+    荐点标（klook/ta/curated 等）的餐饮行保留主池（选点提示词「用餐锚点」
+    口径接通）；无标餐饮照旧出池；荐点标酒店不享豁免照旧出池。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "F1",
+        city="成都",
+        name="失重餐厅(环球中心店)",
+        category="food",
+        location=(104.061, 30.574),
+        rating=4.5,
+    )
+    store._memory["F1"]["tags"] = ["curated", "intl"]
+    store.upsert(
+        "F2",
+        city="成都",
+        name="teamLab联名咖啡",
+        category="food",
+        location=(104.07, 30.58),
+        rating=4.6,
+    )
+    store._memory["F2"]["tags"] = ["klook"]
+    store.upsert(
+        "F3",
+        city="成都",
+        name="无名苍蝇馆子",
+        category="food",
+        location=(104.08, 30.59),
+        rating=4.9,
+    )
+    store.upsert(
+        "F4",
+        city="成都",
+        name="非荐点标餐厅",
+        category="food",
+        location=(104.081, 30.591),
+        rating=4.9,
+    )
+    store._memory["F4"]["tags"] = ["国家一级博物馆"]
+    store.upsert(
+        "H1",
+        city="成都",
+        name="带荐点标酒店",
+        category="hotel",
+        location=(104.09, 30.60),
+        rating=4.9,
+    )
+    store._memory["H1"]["tags"] = ["intl", "layla"]
+    store.upsert(
+        "S1",
+        city="成都",
+        name="环球中心",
+        category="attraction",
+        location=(104.062, 30.575),
+        rating=4.6,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert "失重餐厅(环球中心店)" in names
+    assert "teamLab联名咖啡" in names
+    assert "无名苍蝇馆子" not in names
+    assert "非荐点标餐厅" not in names
+    assert "带荐点标酒店" not in names
+    assert "环球中心" in names
+    # 餐饮行 category 原样带出（选点层按 food 消费，不冒充 sight）
+    hit = next(
+        h for h in store.top_pois_in_city("成都", 10) if h["name"] == "teamLab联名咖啡"
+    )
+    assert hit["category"] == "food"
 
 
 # --- search_keyword 读侧 tier 并列裁决 (2026-10-28 泛称愿望落地) --------------

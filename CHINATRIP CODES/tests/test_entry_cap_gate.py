@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
-"""白天入场闸 16:30 + 营业窗兜底校验回归（2026-11-01 成都熊猫基地
+"""白天入场结束闸 16:30 + 营业窗兜底校验回归（2026-11-01 成都熊猫基地
 18:00（闭馆 17:00）排期事故，会话 3e44c428）：
 
 - 系统必去钉（pinned）落在未排上时间的条目上不再豁免入场闸——事故
   根因：solve 降级日必去件无时刻，pin 后再走兜底被甩到闸后；
 - 兜底落位与挪日修复整段校验营业窗（此前只看闸不看闭馆时刻）；
-- 「闭馆 ≥17:30 即豁免」废除 → 白天开到晚间的场馆同受 16:30 闸；
+- 「闭馆 ≥17:30 即豁免」废除 → 白天开到晚间的场馆同受闸；
   仅晚间开放（全窗开 ≥17:00）的夜游类场馆豁免（白天无档，不豁免
   则永远排不进）；
 - 2026-11-03 用户重申（第1天城墙 18:43 排期事故）：闸=最晚 16:30
-  **开场**（start ≤ 16:30，转场/到达日同闸），11-02 的「最晚 16:30
-  结束」（cap−dur）与转场日让位废除。
+  开场（start ≤ 16:30，转场/到达日同闸），11-02 的「最晚 16:30
+  结束」（cap−dur）与转场日让位废除；
+- **2026-11-07 用户再拍板（第 5 次重述）**：闸回归**开场闸**且收紧
+  到 16:00——观光须 16:00 前安排（开场），时长可以自然跨过 16:00
+  （营业窗+日终 21:30 照卡）；11-05 的「结束闸=开场+时长≤16:30」
+  作废（240min 级大块头被压成必须上午整块开场，环球中心类下午档
+  结构性无解）。大点 15:30 开场带保留为并列上限。
 """
 
 from datetime import time as _t
@@ -18,7 +23,7 @@ from datetime import time as _t
 from app.services.itinerary.models import DayPlan, ItineraryPlan, PoiHours, VisitItem
 from app.services.itinerary.solver import generic_entry_cap
 
-CAP = 16 * 60 + 30
+CAP = 16 * 60
 
 
 def _visit(**kw):
@@ -27,7 +32,7 @@ def _visit(**kw):
         name="点",
         city="成都",
         day=1,
-        # 默认 60 分钟普通点（11-04 起默认 >80min 会落大点 15:30 闸档）
+        # 默认 60 分钟普通点（11-04 起默认 >80min 会落大点闸档）
         duration_minutes=60,
         category="sight",
         best_visit_time="any",
@@ -36,22 +41,26 @@ def _visit(**kw):
     return VisitItem(**base)
 
 
-# --- generic_entry_cap：闸值与豁免面 ------------------------------------
+# --- generic_entry_cap：开场闸与豁免面 ------------------------------------
 
 
-def test_entry_cap_is_1630_for_plain_sight():
-    # 2026-11-03 用户重申「最晚 16:30 开场」：闸=16:30 起点值，不再
-    # 减时长（11-02「最晚 16:30 结束」口径废除）。
+def test_entry_cap_start_based_plain_sight():
+    # 2026-11-07 再拍板：观光须 16:00 前安排（开场），时长可跨界收尾
+    # ——各时长统一最晚 16:00 开场，不再按时长回减。
+    assert generic_entry_cap(_visit(duration_minutes=30), None) == CAP
     assert generic_entry_cap(_visit(), None) == CAP
+    # 90min > 80min = 大点 → 15:30 开场带并列上限。
+    assert generic_entry_cap(_visit(duration_minutes=90), None) == 15 * 60 + 30
+    # 时长缺省同样开场闸口径。
+    assert generic_entry_cap(_visit(duration_minutes=None), None) == CAP
 
 
-def test_entry_cap_big_sight_tightened_to_1530():
-    # 2026-11-04 拍板「大型的旅游景区不适合放下午16:00」：时长>80min
-    # 的非街区大点最晚 15:30 开场（16:00 起排的大点天黑前走不完）。
+def test_entry_cap_big_sight_cap_and_exemptions():
+    # 大点开场带（11-04，并列上限保留）：>80min 大点最晚 15:30 开场
+    # （16:00 开场闸之下取 15:30）。
     big = _visit(duration_minutes=120)
     assert generic_entry_cap(big, None) == 15 * 60 + 30
-    # 街区轻游（tier8=CityWalk）不算大点——正是大点后面配的近游，
-    # 维持 16:30 闸（回民街式街区可开进傍晚）。
+    # 街区轻游（tier8=CityWalk）不算大点，走通用 16:00 开场闸。
     street = _visit(duration_minutes=120, tier=8)
     assert generic_entry_cap(street, None) == CAP
     # 夜属性大点（夜景公园 best_visit_time=evening）走夜游豁免不设闸。
@@ -63,11 +72,10 @@ def test_entry_cap_big_sight_tightened_to_1530():
     # 演出/餐/酒店类照旧豁免（80 分钟演出不是「旅游景区」）。
     show = _visit(duration_minutes=120, category="entertainment")
     assert generic_entry_cap(show, None) is None
-    # 大点晚开门营业窗自治按加严闸值判：15:45 才开 > 15:30 闸 → 视为
-    # 夜游类交营业窗收口。
+    # 晚开门营业窗不豁免：15:45 开门的大点受 15:30 开场带约束 → 当天
+    # 无档挪日；15:00 开门 120min：15:00-15:30 有档带内合法。
     late_open = PoiHours(poi_id="p7", opens=_t(15, 45), closes=_t(19, 0))
-    assert generic_entry_cap(big, late_open) is None
-    # 15:00 开门 ≤ 15:30 闸 → 照常受闸。
+    assert generic_entry_cap(big, late_open) == 15 * 60 + 30
     ok_open = PoiHours(poi_id="p8", opens=_t(15, 0), closes=_t(18, 0))
     assert generic_entry_cap(big, ok_open) == 15 * 60 + 30
 
@@ -95,7 +103,7 @@ def test_pinned_with_time_exempt_but_pinned_untimed_capped():
 
 def test_open_late_no_longer_exempt_but_evening_only_exempt():
     # 白天开到晚间（07:30-18:00）：旧口径豁免 → 2026-11-01 用户裁定
-    # 除夜游与演出外一律最晚 16:30 开场，现受闸。
+    # 除夜游与演出外一律受闸，现按开场闸受闸。
     daytime = PoiHours(poi_id="p1", opens=_t(7, 30), closes=_t(18, 0))
     assert generic_entry_cap(_visit(), daytime) == CAP
     # 仅晚间开放（18:00-21:30）= 夜游类：白天无档，豁免。
@@ -111,15 +119,14 @@ def test_open_late_no_longer_exempt_but_evening_only_exempt():
     assert generic_entry_cap(_visit(), mixed) == CAP
 
 
-def test_late_open_hours_governed_by_window_not_cap():
-    # 晚开门场馆营业窗自治（2026-11-02 backlog #2，11-03 随开场闸收窄）：
-    # 16:00 开、18:00 关的场馆闸前（16:00-16:30）物理有档 → 照常受闸；
-    # 开门晚于闸值（16:45 才开）才豁免，交 _fits_hours_window 收口。
+def test_late_open_no_longer_exempt_under_start_gate():
+    # 「开门晚于闸值→豁免」分支不复活：开场闸只给最晚开场 16:00，
+    # 与营业窗的联合裁决由探针/求解做（16:45 开门的点当天无档挪日；
+    # 16:00 开 60 分钟点 = 16:00-17:00 恰好压闸合法；15:30 开同理）。
     late = PoiHours(poi_id="p4", opens=_t(16, 0), closes=_t(18, 0))
     assert generic_entry_cap(_visit(duration_minutes=60), late) == CAP
     later = PoiHours(poi_id="p6", opens=_t(16, 45), closes=_t(20, 0))
-    assert generic_entry_cap(_visit(duration_minutes=60), later) is None
-    # 开门恰在闸值上（15:30 开、60 分钟点）仍受闸：15:30-16:30 装得下。
+    assert generic_entry_cap(_visit(duration_minutes=60), later) == CAP
     edge = PoiHours(poi_id="p5", opens=_t(15, 30), closes=_t(18, 0))
     assert generic_entry_cap(_visit(duration_minutes=60), edge) == CAP
 

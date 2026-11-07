@@ -170,6 +170,12 @@ class Settings(BaseSettings):
     booking_search_template_domestic: str = (
         "https://www.meituan.com/xiuxianyule/{keyword}"
     )
+    # 🍴 餐饮直达（2026-11-07 用户拍板：行程卡餐位旁按钮）：美团美食频道
+    # （meishi）搜店=订座/点单菜单入口——xiuxianyule 是休闲/景区口径，
+    # 餐饮须走 meishi 分区，不能复用上面的模板。
+    booking_restaurant_template_domestic: str = (
+        "https://www.meituan.com/meishi/{keyword}"
+    )
     booking_region_file: str = "data/cn_ip_ranges.txt"
 
     # 客户付款层（DESIGN/PAYMENTS_PROGRESS.md，2026-10-25）：公司↔客户收款，

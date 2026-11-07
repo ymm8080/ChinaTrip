@@ -87,6 +87,77 @@ def _builtin_jobs() -> dict[str, JobSpec]:
             enabled=False,  # 默认关：防与开发进程抢资源
             describe="每小时健康冒烟（默认禁用）",
         ),
+        # --- POI 补全链（2026-11-06 用户指令「每 2 分钟调度直至全部完成」：
+        #     挂进本引擎而非另起调度器。全部只填空幂等，无活可干时空转
+        #     零成本（选行 0 行即不发 LLM/不查配额）；全部到 0 后可删）---
+        "poi_heuristics_fill": JobSpec(
+            name="poi_heuristics_fill",
+            interval_seconds=21600,
+            command=[
+                py,
+                "-m",
+                "app.jobs.enrich_heuristics",
+                "--limit",
+                "5000",
+                "--with-duration",
+            ],
+            describe="每 6h：新导入行启发式分类（本地零联网）",
+        ),
+        "poi_category_llm_fill": JobSpec(
+            name="poi_category_llm_fill",
+            interval_seconds=1800,
+            command=[
+                py,
+                "ops/backfill_category_llm.py",
+                "--limit",
+                "100",
+                "--batch",
+                "20",
+            ],
+            describe="每 30min：GLM 分类批（ABSTAIN 拒猜；连续空转即枯竭）",
+        ),
+        "poi_name_en_fill": JobSpec(
+            name="poi_name_en_fill",
+            interval_seconds=3600,
+            command=[
+                py,
+                "ops/backfill_poi_en.py",
+                "tail",
+                "--batch",
+                "25",
+                "--limit",
+                "300",
+            ],
+            describe="每 1h：name_en 尾部 GLM 回填（通行名/拼音，只填空）",
+        ),
+        "poi_address_en_fill": JobSpec(
+            name="poi_address_en_fill",
+            interval_seconds=3600,
+            command=[
+                py,
+                "ops/backfill_poi_en.py",
+                "addr",
+                "--batch",
+                "20",
+                "--limit",
+                "500",
+            ],
+            describe="每 1h：address_en 结构化翻译（只填空）",
+        ),
+        "poi_intro_fill": JobSpec(
+            name="poi_intro_fill",
+            interval_seconds=3600,
+            command=[
+                py,
+                "-m",
+                "app.jobs.backfill_intro_llm",
+                "--limit",
+                "300",
+                "--concurrency",
+                "4",
+            ],
+            describe="每 1h：GLM intro 兜底（Wikidata 月更之外的增量）",
+        ),
     }
 
 

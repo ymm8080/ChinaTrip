@@ -21,10 +21,13 @@ import uuid
 from datetime import datetime, time, timezone
 from functools import partial
 from time import monotonic
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.amap import get_search_chain
+from app.api.hotels import search_hotel_candidates
 from app.api.itineraries import (
     _account_from_auth,
     _owned_record,
@@ -36,11 +39,14 @@ from app.api.translate import get_translation_service
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
+from app.services.agent.hotel_stays import is_hotel_night
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
+    _find_transfer_item,
+    _leg_date_iso,
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
@@ -52,7 +58,7 @@ from app.services.entitlement import EntitlementService
 from app.services.fast_lane import FastLane
 from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
-from app.services.itinerary import DiffOp, VisitItem, mutate
+from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -68,6 +74,8 @@ from app.services.map_provider import (
     build_map_client,
     map_ready,
 )
+from app.services.offer_cards import flight_offer_cards, train_offer_cards
+from app.services.poi_alternatives import attach_plan_alternatives
 from app.services.poi_details import get_poi_detail_store
 from app.services.state_persist import (
     PersistentPlanSessionStore,
@@ -89,6 +97,9 @@ class PlanStartRequest(BaseModel):
     preferences: str = ""
     city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
     start_date: str | None = None  # 出发日期 ISO（可空）——随快照持久化
+    # 城际交通方式（2026-11-07 拍板）：auto=距离闸（>600km 航班、≤600km 火车），
+    # train/flight=H5 起始页用户指定；全程城际段统一口径
+    intercity_mode: Literal["auto", "train", "flight"] = "auto"
     lang: str | None = None  # 双语 P2：会话回复语言 "en"/"zh"（缺省 zh）
 
 
@@ -108,13 +119,17 @@ _agent_singleton: PlanningAgent | None = None
 _sessions_singleton: PersistentPlanSessionStore | None = None
 
 
-def get_planning_agent(
-    settings: Settings = Depends(get_settings),
-) -> PlanningAgent:
+def get_planning_agent() -> PlanningAgent:
     """Process-wide lazy singleton (translate.py pattern). No amap key
-    means placeholder candidates, not a 503 — planning must still deliver."""
+    means placeholder candidates, not a 503 — planning must still deliver.
+
+    settings 函数体内直取、不走 Depends 默认值——慢车道后台重排在 DI
+    上下文外直接调本工厂（task_queue._replan_handler），裸 Depends 哨兵
+    会被当实参炸出 'Depends' object has no attribute 'map_provider'
+    （2026-11-07 事故门禁；写法对齐 get_plan_sessions）。"""
     global _agent_singleton
     if _agent_singleton is None:
+        settings = get_settings()
         amap = build_map_client(settings) if map_ready(settings) else None
         _agent_singleton = PlanningAgent(
             get_llm_adapter(settings),
@@ -344,7 +359,7 @@ async def start_plan_from_itinerary(
     await agent.refresh_legs(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
-    body["plan"] = session.plan
+    body["plan"] = _plan_with_alternatives(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -405,6 +420,7 @@ async def start_plan(
             preferences=request.preferences or "",
             city_days=request.city_days,
             start_date=request.start_date,
+            intercity_mode=request.intercity_mode,
             lang=request.lang,
         )
     except PoiStoreUnavailableError:
@@ -431,7 +447,7 @@ async def start_plan(
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
-    body["plan"] = session.plan
+    body["plan"] = _plan_with_alternatives(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -534,6 +550,18 @@ async def message_plan(
     return body
 
 
+def _plan_with_alternatives(plan):
+    """行程卡装配期挂「同级备选」（2026-11-05 拍板，规则见
+    services/poi_alternatives）：深拷贝上挂，session.plan 本体与持久化
+    会话永不携带展示数据。任何异常静默回落原 plan——备选是展示糖，
+    绝不能把行程卡拉挂。"""
+    try:
+        return attach_plan_alternatives(plan, get_poi_detail_store())
+    except Exception:
+        logger.warning("plan alternatives attach failed", exc_info=True)
+        return plan
+
+
 def _plan_turn_body(session, reply: str, change) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
     body: dict = {"reply": reply, "state": session.state}
@@ -544,7 +572,7 @@ def _plan_turn_body(session, reply: str, change) -> dict:
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:
-        body["plan"] = session.plan
+        body["plan"] = _plan_with_alternatives(session.plan)
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change
@@ -742,6 +770,134 @@ async def retime_plan_item(
     return _plan_turn_body(session, reply, None)
 
 
+class PlanTransferModeRequest(BaseModel):
+    mode: Literal["train", "flight"]
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/mode")
+async def switch_transfer_mode(
+    session_id: str,
+    item_id: str,
+    request: PlanTransferModeRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """路途行程改乘（2026-11-04 规划页）：飞机/火车二选一，按真实乘车日
+    重查班次回填时刻并重排受影响天。查不到班次 422（no_flight_found /
+    no_train_found），旧腿原样保留。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.switch_transfer_mode(
+            session, item_id, mode=request.mode
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("已改乘", "Transport switched")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanTransferNumberRequest(BaseModel):
+    number: str = Field(min_length=2, max_length=8)  # 航班号/车次号原文
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/number")
+async def set_transfer_number(
+    session_id: str,
+    item_id: str,
+    request: PlanTransferNumberRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """路途行程输入航班号/车次号（2026-11-04 规划页）：格式校验 → 班次库
+    查询 → 命中回填真实起降/到发时刻并按班次改写腿别（输入航班号该腿即
+    成航班）。查无此班 422 number_not_found；格式不符 422 bad_number_format。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.set_transfer_number(
+            session, item_id, number=request.number
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("班次时刻已更新", "Schedule times updated")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+@router.post("/plan/{session_id}/transfers/{item_id}/booking-links")
+async def transfer_booking_links(
+    session_id: str,
+    item_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """路途行程订票跳转渠道卡（2026-11-04 规划页；铁律 22/23）：服务端
+    组装成品深链（机票=携程/去哪儿/飞猪，火车=12306 全国统一价单卡）+
+    退改摘要；前端过 bkConfirm 浮层后才 window.open。驾车/公交腿 422
+    booking_unavailable（同城段无票可订）。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    transfer = _find_transfer_item(session.plan, item_id)
+    if transfer is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    if transfer.mode not in ("train", "flight"):
+        raise HTTPException(status_code=422, detail="booking_unavailable")
+    date = _leg_date_iso(session.start_date or session.plan.start_date, transfer.day)
+    try:
+        if transfer.mode == "flight":
+            # 无出发日期时 date 传空串：渠道列表页照常打开（无日期预填），
+            # 不伪造哨兵日期。
+            return flight_offer_cards(
+                transfer.from_city,
+                transfer.to_city,
+                date,
+                settings=settings,
+            )
+        return await train_offer_cards(
+            transfer.from_city, transfer.to_city, date, settings=settings
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="invalid_booking") from exc
+
+
 class PlanReplaceRequest(BaseModel):
     # 库内选中项的名字（H5 /api/pois/search 下拉选中后携带；replace 按
     # 条目所在城 + 精确同名落实，防止跨城/模糊误换）
@@ -783,4 +939,76 @@ async def replace_plan_item(
         summary.change_summary[0] if summary.change_summary else L("已替换", "Replaced")
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanSetHotelRequest(BaseModel):
+    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。仅 name
+    # 必填：客户端带坐标=已在下拉验证过，直接落卡；缺坐标由服务端重走
+    # 检索链验证——绝不落未验证裸名（2026-11-07 用户指令「NEED TO VERIFY
+    # THE NAME AND SHOW ADDRESS ACCORDINGLY」）。
+    name: str = Field(min_length=1, max_length=64)
+    source_poi_id: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=200)
+    opening_hours: str | None = Field(default=None, max_length=120)
+    lon: float | None = Field(default=None, ge=-180.0, le=180.0)
+    lat: float | None = Field(default=None, ge=-90.0, le=90.0)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/set-hotel")
+async def set_plan_hotel(
+    session_id: str,
+    item_id: str,
+    request: PlanSetHotelRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+    settings: Settings = Depends(get_settings),
+    chain: list = Depends(get_search_chain),
+) -> dict:
+    """每晚酒店卡 ✏️ 手输酒店名：验证后写回 hotel-night 卡（名称/地址/
+    营业时间/坐标/poi_id 一次性写入，卡片 meta 行即亮 📍 地址）。缺坐标
+    时服务端检索链验证（酒店类目命中优先，全无命中 422 no_match）；
+    非 hotel-night 卡 422 not_hotel_slot。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    item = _find_visit_item(session.plan, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="item_not_found")
+    if not is_hotel_night(item):
+        raise HTTPException(status_code=422, detail="not_hotel_slot")
+    name = request.name.strip()
+    lon, lat = request.lon, request.lat
+    address, opening_hours = request.address, request.opening_hours
+    poi_id = request.source_poi_id
+    if lon is None or lat is None:
+        hits = await search_hotel_candidates(chain, settings, name, item.city or None)
+        best = next((h for h in hits if h["is_hotel"]), hits[0] if hits else None)
+        if best is None or not best.get("name"):
+            raise HTTPException(status_code=422, detail="no_match") from None
+        name = best["name"]
+        poi_id = best.get("source_poi_id") or poi_id
+        address = address or best.get("address")
+        opening_hours = opening_hours or best.get("opening_hours")
+        loc = best.get("location")
+        if isinstance(loc, dict):
+            lon, lat = loc.get("lon"), loc.get("lat")
+    item.name = name
+    item.poi_id = poi_id
+    item.address = address
+    item.opening_hours = opening_hours
+    item.location = (
+        GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
+    )
+    await agent.refresh_legs(session)
+    store.save(session)
+    reply = L(
+        f"已验证并填入酒店「{name}」" + (f"（{address}）" if address else ""),
+        f'Verified hotel "{name}"' + (f" ({address})" if address else ""),
+    )
     return _plan_turn_body(session, reply, None)
