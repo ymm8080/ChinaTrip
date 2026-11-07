@@ -92,12 +92,14 @@ from app.services.itinerary.solver import (
     LEAVING_MORNING_END_MINUTES,
     NEAR_SAMEDAY_KM,
     SHOW_LATE_SESSION_MINUTES,
+    TIGHT_CLUSTER_KM,
     _city_side,
     _is_big_site,
     _leaving_morning_cap,
     generic_entry_cap,
     show_session_starts,
     solve_plan,
+    tight_cluster_split_violations,
 )
 from app.services.lang_ctx import L, is_en
 from app.services.llm import ChatMessage, LLMError, parse_json_content
@@ -185,7 +187,7 @@ _NEAR_SAMEDAY_KM = NEAR_SAMEDAY_KM
 # 拽走、认领先认紧簇天；5km 同日圈是「可以同日」，2km 紧簇是「必须先
 # 聚」——4.6-5km 压线弱边不得斗过 0.5-2km 强簇（钟楼↔碑林 0.52km 被大
 # 雁塔 4.97km 弱边拆散实录）。
-_TIGHT_CLUSTER_KM = 2.0
+_TIGHT_CLUSTER_KM = TIGHT_CLUSTER_KM
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -9742,6 +9744,140 @@ class PlanningAgent:
                                 day_owner.setdefault(day, _cid)
                             preclaimed.add(pos)
                             break
+
+                # 紧簇愈合同位交换（2026-11-08 城心簇拆天案二拍，用户复测
+                # 复盘）：认领梯子（tier 序）先到的高档件会把紧簇日的座位
+                # 占给远点陌生人——未央宫 7km 占碑林日 → 钟楼 0.5km 排不
+                # 下被清算挪天，城心簇拆成两天。「距离聚合都是近距离聚合
+                # 优先」的事后修复：对每天 D，坐在别天的紧簇员 v（≤
+                # _TIGHT_CLUSTER_KM 于 D 内点位、且迁入 D 的紧簇伴严格
+                # 多于现居天）——仅当 D 已满员（4/日或预算）时，把 D 上
+                # 的陌生人 w（与 D 其余点位全部 > _NEAR_SAMEDAY_KM、非
+                # must/演出）换到 v 的现居天；D 有空位不追改——tier 序
+                # 合法占座不动（同日四拍「东方明珠要的」：上海夹具陆家
+                # 嘴簇日 2/4 空，东方明珠留 day1）。雨闸/远腿/返程上午闸
+                # /4 点日闸照收；w 本就零紧簇伴，交换只增不减任何天的
+                # 紧簇对。
+                def _tight_cnt(xy, d: int) -> int:
+                    return sum(
+                        1
+                        for p in (day_coords.get(d) or [])
+                        if 0 < _km(xy, p) <= _TIGHT_CLUSTER_KM
+                    )
+
+                def _heal_stranger(d: int, v_xy, e: int) -> tuple | None:
+                    # D 上与同日其余点位全部超出近距同日圈的非 must/演出
+                    # 成员，按离 v 远的优先换出（远的先让位）。
+                    outs = []
+                    for pos_w, cand_w in placed[d]:
+                        if cand_w.get("must") or _cand_is_show(cand_w):
+                            continue
+                        xy_w = _cxy(cand_w)
+                        if xy_w is None:
+                            continue
+                        rest = [p for p in day_coords[d] if p != xy_w]
+                        if not rest:
+                            continue
+                        if any(_km(xy_w, p) <= _NEAR_SAMEDAY_KM for p in rest):
+                            continue
+                        outs.append((_km(v_xy, xy_w), pos_w, cand_w, xy_w))
+                    outs.sort(key=lambda t: -t[0])
+                    for _sw, pos_w, cand_w, xy_w in outs:
+                        m_w = _minutes(cand_w, DEFAULT_VISIT_MINUTES)
+                        if _rain_blocked(cand_w, e):
+                            continue
+                        if _far_km(xy_w, e) > _SOFT_FAR_KM:
+                            continue
+                        if _over_return_cap(e, m_w, _leg_min(xy_w, e)):
+                            continue
+                        return (pos_w, cand_w, xy_w, m_w)
+                    return None
+
+                for _heal_round in range(3):
+                    _healed_any = False
+                    for d in range(lo, hi + 1):
+                        if not day_coords.get(d):
+                            continue
+                        _vs = []
+                        for e in range(lo, hi + 1):
+                            if e == d:
+                                continue
+                            for pos_v, cand_v in placed[e]:
+                                if _cand_is_show(cand_v):
+                                    continue
+                                xy_v = _cxy(cand_v)
+                                if xy_v is None:
+                                    continue
+                                if not any(
+                                    0 < _km(xy_v, p) <= _TIGHT_CLUSTER_KM
+                                    for p in day_coords[d]
+                                ):
+                                    continue
+                                if _rain_blocked(cand_v, d):
+                                    continue
+                                if _far_km(xy_v, d) > _SOFT_FAR_KM:
+                                    continue
+                                m_v = _minutes(cand_v, DEFAULT_VISIT_MINUTES)
+                                if _over_return_cap(d, m_v, _leg_min(xy_v, d)):
+                                    continue
+                                if _tight_cnt(xy_v, d) <= _tight_cnt(xy_v, e):
+                                    continue
+                                km_v = min(_km(xy_v, p) for p in day_coords[d])
+                                _vs.append((km_v, pos_v, cand_v, xy_v, m_v, e))
+                        _vs.sort(key=lambda t: (t[0], t[1]))
+                        for km_v, pos_v, cand_v, xy_v, m_v, e in _vs:
+                            leg_in = _leg_min(xy_v, d)
+                            if day_loads[d][1] < 4 and day_loads[d][
+                                0
+                            ] + m_v + leg_in <= _budget(d):
+                                continue
+                            swap_w = _heal_stranger(d, xy_v, e)
+                            if swap_w is None:
+                                continue
+                            pos_w, cand_w, xy_w, m_w = swap_w
+                            if day_loads[d][0] - (m_w + _leg_min(xy_w, d)) + (
+                                m_v + leg_in
+                            ) > _budget(d):
+                                continue
+                            # 执行：v 出 e 入 d；（若换出）w 出 d 入 e。
+                            placed[e] = [x for x in placed[e] if x[0] != pos_v]
+                            day_loads[e][0] -= m_v + _leg_min(xy_v, e)
+                            day_loads[e][1] -= 1
+                            if xy_v in day_coords[e]:
+                                day_coords[e].remove(xy_v)
+                            placed[d].append((pos_v, cand_v))
+                            day_loads[d][0] += m_v + leg_in
+                            day_loads[d][1] += 1
+                            day_coords[d].append(xy_v)
+                            _w_name = "-"
+                            if swap_w is not None:
+                                pos_w, cand_w, xy_w, m_w = swap_w
+                                placed[d] = [x for x in placed[d] if x[0] != pos_w]
+                                day_loads[d][0] -= m_w + _leg_min(xy_w, d)
+                                day_loads[d][1] -= 1
+                                if xy_w in day_coords[d]:
+                                    day_coords[d].remove(xy_w)
+                                placed[e].append((pos_w, cand_w))
+                                day_loads[e][0] += m_w + _leg_min(xy_w, e)
+                                day_loads[e][1] += 1
+                                day_coords[e].append(xy_w)
+                                _w_name = str(cand_w.get("name") or "?")
+                            logger.info(
+                                "plan: tight-cluster heal %s day%d<-day%d km=%.2f"
+                                " (displaced %s->day%d)",
+                                cand_v.get("name") or cand_v.get("title") or "?",
+                                d,
+                                e,
+                                km_v,
+                                _w_name,
+                                e,
+                            )
+                            _healed_any = True
+                            break  # 天内重扫（day_coords 已变）
+                        if _healed_any:
+                            break
+                    if not _healed_any:
+                        break
                 # 空天保底仅限转场日（2026-11-02 拍板④初排偏好 +「每
                 # 天该有安排」）：空转场日=纯坐车日，把最满天的池序末
                 # 件（最低档）挪来保底；普通窗口尾部空天不强拆——交回
@@ -12670,6 +12806,13 @@ class PlanningAgent:
                     backfills += 1
                     break
             cur_score = plan_score(cur, rain_days=rain, heavy_rain_days=heavy)
+        # 终装紧簇审计（2026-11-08 城心簇拆天案三拍·类级防护）：
+        # 「距离聚合都是近距离聚合优先」的不变量检查——满员日坐
+        # 陌生人而紧簇员被拆到别天=坐座顺序错。认领层愈合应已消
+        # 掉绝大多数；此处再报=某层（LNS/回填/兜底）引入回归，
+        # 必须留痕不许静默（2026-10-25 事故后立规）。
+        for _viol in tight_cluster_split_violations(plan.days):
+            logger.warning("plan: tight-cluster audit violation: %s", _viol)
         if cur is not plan:
             plan.days = cur.days
         return moves, base.total, cur_score.total

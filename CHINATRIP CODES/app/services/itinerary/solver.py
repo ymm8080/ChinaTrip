@@ -129,6 +129,11 @@ AFTERNOON_START_MINUTES = 13 * 60
 # 180+碑林博90 贴邻同日被 CP/插入/打磨/评分四路计罚 → untimed → 挪日
 # → 让位链删件，拆天链起点在此收口）。
 NEAR_SAMEDAY_KM = 5.0
+# 紧簇半径（2026-11-08 城心簇拆天案三拍·类级防护）：同街区级紧簇员
+# （≤2km）与近距同日圈分档——紧簇=「距离聚合都是近距离聚合优先」的
+# 硬档（plan 认领紧簇伴排序/愈合同位交换/终装审计共用；agent.plan
+# _TIGHT_CLUSTER_KM 引用本真值）。
+TIGHT_CLUSTER_KM = 2.0
 AFTERNOON_ONE_BIG_PENALTY = 10_000
 BIG_FIRST_PENALTY = 10_000
 # 头档距离规则（2026-11-05 拍板「心愿单或者高排序的景点根据距离远近
@@ -305,6 +310,59 @@ def _adjacent_big_ids(bigs: list[VisitItem]) -> set[int]:
                 ids.add(id(bigs[i]))
                 ids.add(id(bigs[j]))
     return ids
+
+
+def tight_cluster_split_violations(days: list) -> list[str]:
+    """终装紧簇审计（2026-11-08 城心簇拆天案三拍·类级防护）：检
+    「距离聚合都是近距离聚合优先」不变量在成稿上的违例——紧簇员 v
+    （与某日 D 内点位直线 ≤TIGHT_CLUSTER_KM）坐在别天，而 D 已满员
+    （≥4 非演出参访）且坐着陌生人（与 D 其余点位全部 >NEAR_SAMEDAY_
+    KM）。D 有空位时的拆分是认领梯子的合法结果（同日四拍「东方明珠
+    要的」：tier 序合法占座不追改），不算违例；满员且无陌生人的拆分
+    是容量所迫（4/日硬闸），也不算。违例=坐座顺序错：陌生人本该把
+    座位让给紧簇员。缺坐标/演出/餐/酒店/交通件不参与。"""
+    by_day: dict[int, list[VisitItem]] = {}
+    for d in days:
+        vs = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and i.location is not None
+            and not _is_show(i)
+            and str(i.category or "") not in ("food", "hotel", "transport")
+        ]
+        by_day[d.day] = vs
+    out: list[str] = []
+    for d_day, vs in by_day.items():
+        if len(vs) < 4:
+            continue
+        strangers = [
+            w
+            for w in vs
+            if all(
+                _haversine_km(w.location, o.location) > NEAR_SAMEDAY_KM
+                for o in vs
+                if o is not w
+            )
+        ]
+        if not strangers:
+            continue
+        outsiders = [
+            v
+            for e_day, evs in by_day.items()
+            if e_day != d_day
+            for v in evs
+            if any(
+                _haversine_km(v.location, p.location) <= TIGHT_CLUSTER_KM for p in vs
+            )
+        ]
+        for v in outsiders:
+            out.append(
+                f"day{d_day} 满员且坐着陌生人 "
+                + "、".join(w.name for w in strangers)
+                + f"，紧簇员「{v.name}」被拆到 day{v.day}"
+            )
+    return out
 
 
 def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:

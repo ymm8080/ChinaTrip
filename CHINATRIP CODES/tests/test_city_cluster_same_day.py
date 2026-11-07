@@ -209,3 +209,83 @@ def test_host_day_prefers_cluster_territory_over_day_order():
         visit=_big("西安碑林博物馆", 90, _BL),
     )
     assert host2 is other_city_day
+
+
+# --- 终装紧簇审计（2026-11-08 三拍·类级防护） -------------------------------
+
+
+def _v(name: str, day: int, loc: GeoPoint) -> VisitItem:
+    return VisitItem(
+        item_id=f"v-{name}",
+        name=name,
+        city="西安",
+        day=day,
+        duration_minutes=90,
+        location=loc,
+    )
+
+
+def test_audit_flags_stranger_in_full_cluster_day():
+    """违例形态（西安城心簇案）：碑林日满员 4/4 且坐着陌生人（大明宫
+    ~7km），紧簇员（鼓楼 ↔钟楼 0.4km）被拆到别天——陌生人本该让座。"""
+    from app.services.itinerary.solver import tight_cluster_split_violations
+
+    gl = GeoPoint(lon=108.9400, lat=34.2608)  # 鼓楼（↔钟楼 ~0.4km）
+    days = [
+        DayPlan(
+            day=1,
+            base_city="西安",
+            items=[
+                _v("西安钟楼", 1, _ZL),
+                _v("西安碑林博物馆", 1, _BL),
+                _v("西安城墙永宁门段", 1, _CQ),
+                _v("大明宫遗址公园", 1, _DMG),  # 陌生人 >5km 于全簇
+            ],
+        ),
+        DayPlan(day=2, base_city="西安", items=[_v("西安鼓楼", 2, gl)]),
+    ]
+    viols = tight_cluster_split_violations(days)
+    assert any("西安鼓楼" in s and "大明宫遗址公园" in s for s in viols)
+
+
+def test_audit_allows_split_when_day_has_room():
+    """空位日拆分=认领梯子合法结果（2026-11-08 四拍「东方明珠要的」：
+    tier 序合法占座不追改）——day1 仅 3 件有空位，鼓楼在 day2 不报。"""
+    from app.services.itinerary.solver import tight_cluster_split_violations
+
+    gl = GeoPoint(lon=108.9400, lat=34.2608)
+    days = [
+        DayPlan(
+            day=1,
+            base_city="西安",
+            items=[
+                _v("西安钟楼", 1, _ZL),
+                _v("西安碑林博物馆", 1, _BL),
+                _v("西安城墙永宁门段", 1, _CQ),
+            ],
+        ),
+        DayPlan(day=2, base_city="西安", items=[_v("西安鼓楼", 2, gl)]),
+    ]
+    assert tight_cluster_split_violations(days) == []
+
+
+def test_audit_allows_capacity_forced_split_without_stranger():
+    """满员无陌生人的拆分=容量所迫（4/日硬闸），合法不报。"""
+    from app.services.itinerary.solver import tight_cluster_split_violations
+
+    gl = GeoPoint(lon=108.9400, lat=34.2608)
+    hms = GeoPoint(lon=108.9412, lat=34.2600)  # 回民街（↔钟楼 ~0.5km）
+    days = [
+        DayPlan(
+            day=1,
+            base_city="西安",
+            items=[
+                _v("西安钟楼", 1, _ZL),
+                _v("西安碑林博物馆", 1, _BL),
+                _v("西安城墙永宁门段", 1, _CQ),
+                _v("西安鼓楼", 1, gl),
+            ],
+        ),
+        DayPlan(day=2, base_city="西安", items=[_v("回民街", 2, hms)]),
+    ]
+    assert tight_cluster_split_violations(days) == []
