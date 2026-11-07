@@ -640,3 +640,73 @@ def test_late_open_venue_end_gate_boundary_not_placeable():
     # 固定件 14:30 收尾后紧接可排（CP 实选 14:30 背靠背），收尾必须在闸内
     assert v.start_time >= time(14, 30)
     assert v.end_time is not None and v.end_time <= time(16, 30)
+
+
+def test_night_combo_pair_schedules_back_to_back():
+    """夜档贴排组合（2026-11-07 拍板「不是各排各卡，而是两卡贴排，作为
+    一个 SITE 排列组合」）：≤1.5km 的夜档点（bvt=show）与普通观光点绑成
+    一个排程单元——普通点贴排在夜档点开场前收尾（大雁塔 13:00-16:00 →
+    长安十二时辰 16:00 形态），夜档点守 16:00 后开场。"""
+    hours = [_ALL_DAY]
+    near = dict(
+        dyt={
+            "lon": 108.959,
+            "lat": 34.218,
+        },
+        shier={"lon": 108.964, "lat": 34.221},  # ~0.55km，绑
+    )
+    for scheduler in ("insertion", "cp"):
+        items = [
+            _visit("dyt", poi_id="p_all", dur=180, location=near["dyt"]),
+            _visit(
+                "shier",
+                poi_id="p_all",
+                dur=240,
+                location=near["shier"],
+                best_visit_time="show",
+            ),
+        ]
+        plan = ItineraryPlan(
+            itinerary_id="it_night_combo",
+            cities=["西安"],
+            days=[DayPlan(day=1, base_city="西安", items=items)],
+        )
+        solved = solve_plan(plan, poi_hours=hours, scheduler=scheduler)
+        assert solved is not None, scheduler
+        dyt = next(i for i in solved.days[0].items if i.item_id == "dyt")
+        shier = next(i for i in solved.days[0].items if i.item_id == "shier")
+        assert _minutes(shier.start_time) >= 16 * 60, scheduler
+        gap = _minutes(shier.start_time) - _minutes(dyt.end_time)
+        assert 0 <= gap <= 30, scheduler  # 贴排：间隔仅走行分钟
+        assert _minutes(dyt.start_time) >= 12 * 60, scheduler  # 下午档非晨头
+
+
+def test_night_combo_far_pair_not_bound():
+    """>1.5km 的夜档点不绑：两卡各排各卡（贴排只属贴邻组合）。"""
+    hours = [_ALL_DAY]
+    items = [
+        _visit(
+            "dyt_far",
+            poi_id="p_all",
+            dur=180,
+            location={"lon": 109.009, "lat": 34.218},  # ~4.7km，不绑
+        ),
+        _visit(
+            "shier",
+            poi_id="p_all",
+            dur=240,
+            location={"lon": 108.964, "lat": 34.221},
+            best_visit_time="show",
+        ),
+    ]
+    plan = ItineraryPlan(
+        itinerary_id="it_night_combo_far",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=items)],
+    )
+    solved = solve_plan(plan, poi_hours=hours, scheduler="insertion")
+    assert solved is not None
+    dyt = next(i for i in solved.days[0].items if i.item_id == "dyt_far")
+    shier = next(i for i in solved.days[0].items if i.item_id == "shier")
+    gap = _minutes(shier.start_time) - _minutes(dyt.end_time)
+    assert _minutes(shier.start_time) < 16 * 60 or abs(gap) > 30

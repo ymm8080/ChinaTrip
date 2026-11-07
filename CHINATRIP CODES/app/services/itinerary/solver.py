@@ -14,6 +14,8 @@ the time budget -> the caller falls back to the LLM self-repair chain
 
 from __future__ import annotations
 
+import logging
+import math
 import os
 import re
 from datetime import time
@@ -25,6 +27,7 @@ from app.services.itinerary.models import (
     ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     PoiHours,
     TransferItem,
@@ -35,6 +38,8 @@ from app.services.restaurants import (
     LUNCH_START_EARLIEST,
     LUNCH_START_LATEST,
 )
+
+logger = logging.getLogger(__name__)
 
 #: Visits may be placed anywhere in [09:00, 21:00] (minutes since midnight).
 # 2026-10-31 拍板：景点活动一天 9 点开始（8 点太早）；交通除外——
@@ -180,6 +185,18 @@ SHOW_EARLY_SESSION_PENALTY = 10_000
 CITYWALK_AFTERNOON_MINUTES = 13 * 60
 THEME_BLOCK_AFTERNOON_MINUTES = 16 * 60
 CITYWALK_AFTERNOON_PENALTY = 10_000
+# 夜档贴排组合（2026-11-07 拍板「不是各排各卡，而是两卡贴排，作为一个
+# SITE 排列组合」）：同日 ≤COMBO_BUNDLE_KM（贴邻圈口径）的夜档观光点
+# （best_visit_time=evening/sunset/show，同 16:00 开场闸豁免面；用户自
+# 钉有时刻豁免）与其最近邻普通观光点绑成一个排程单元——普通点紧贴在
+# 夜档点开场前收尾（大雁塔 13:00-16:00 → 长安十二时辰 16:00-20:00 形
+# 态），组合内部以走行分钟首尾相接，不吃上午头档；夜档点自身仍守
+# 16:00 后开场倾向。物理装不下（转场窗/营业窗/餐窗卡死）时组合解绑，
+# 两卡回普通插入各自落位，不拦当日可行性。
+COMBO_BUNDLE_KM = 1.5
+COMBO_GAP_PENALTY_PER_MIN = 200  # CP 路：组合内间隙/分钟（>走行×100，<平罚）
+COMBO_ORDER_PENALTY = 10_000  # CP 路：夜档点先于同伴开场平罚（×100 同量纲）
+COMBO_NIGHT_FLOOR_PENALTY = 10_000  # CP 路：组合夜档点 <16:00 开场平罚
 
 
 def _is_morning_site(item: VisitItem) -> bool:
@@ -256,6 +273,53 @@ def _is_head_candidate(item: VisitItem) -> bool:
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return False
     return bool(item.pinned) or (item.tier is not None and item.tier <= 2)
+
+
+def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
+    lo1, la1, lo2, la2 = map(math.radians, (a.lon, a.lat, b.lon, b.lat))
+    dlo, dla = lo2 - lo1, la2 - la1
+    h = math.sin(dla / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin(dlo / 2) ** 2
+    return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:
+    """夜档贴排组合对（2026-11-07 拍板「两卡贴排，作为一个 SITE 排列组
+    合」）：夜档观光点（bvt=evening/sunset/show，同入场闸豁免面；用户自
+    钉有时刻豁免）与同日 ≤COMBO_BUNDLE_KM 的最近邻普通观光点（非餐/
+    酒店/夜档、非钉）各绑一对——返回 (a_idx, n_idx)，a=普通点应贴排在
+    夜档点开场前收尾。每夜档点至多绑最近一个；无坐标不绑。"""
+    pairs: list[tuple[int, int]] = []
+    for n_idx, sp_n in enumerate(specs):
+        it_n = sp_n.item
+        if it_n.pinned and it_n.start_time is not None:
+            continue
+        if (it_n.best_visit_time or "") not in _EVENING_OK_BEST:
+            continue
+        if (it_n.category or "") in ("food", "hotel"):
+            continue
+        if it_n.location is None:
+            continue
+        best: tuple[float, int] | None = None
+        for a_idx, sp_a in enumerate(specs):
+            it_a = sp_a.item
+            if a_idx == n_idx:
+                continue
+            if (it_a.category or "") in ("food", "hotel"):
+                continue
+            if (it_a.best_visit_time or "") in _EVENING_OK_BEST:
+                continue
+            if it_a.pinned and it_a.start_time is not None:
+                continue
+            if it_a.location is None:
+                continue
+            d = _haversine_km(it_a.location, it_n.location)
+            if d > COMBO_BUNDLE_KM:
+                continue
+            if best is None or d < best[0]:
+                best = (d, a_idx)
+        if best is not None:
+            pairs.append((best[1], n_idx))
+    return pairs
 
 
 def _hours_evening_only(window: PoiHours | None) -> bool:
@@ -592,6 +656,7 @@ def _add_travel_objective(
     inversion_penalty: object = 0,
     head_penalty: object = 0,
     cw_penalty: object = 0,
+    combo_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
 
@@ -643,6 +708,7 @@ def _add_travel_objective(
         + inversion_penalty
         + head_penalty
         + cw_penalty
+        + combo_penalty
     )
 
 
@@ -660,6 +726,7 @@ def _add_makespan_objective(
     inversion_penalty: object = 0,
     head_penalty: object = 0,
     cw_penalty: object = 0,
+    combo_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
     # 弹性餐不计 makespan（2026-11-01）：餐不是日程的业务终点——缩餐/
@@ -693,6 +760,7 @@ def _add_makespan_objective(
         + inversion_penalty
         + head_penalty
         + cw_penalty
+        + combo_penalty
     )
 
 
@@ -943,6 +1011,38 @@ def solve_day(
             if cw_lits or blk_lits
             else 0
         )
+        # 夜档贴排组合（2026-11-07 拍板「两卡贴排，作为一个 SITE 排列组
+        # 合」）：普通点须贴排在夜档点开场前收尾——顺序颠倒平罚 + 组合内
+        # 间隙分钟罚 + 夜档点早于 16:00 开场平罚；物理不可行时照付罚放行
+        # （软偏好不拦可行性，同「上午一个点」哲学）。
+        combo_penalty: object = 0
+        for a_idx, n_idx in _night_combo_pairs(specs):
+            it_a, it_n = specs[a_idx].item, specs[n_idx].item
+            lit_ord = model.NewBoolVar(f"cord_{it_a.item_id}_{it_n.item_id}")
+            model.Add(starts[n_idx] >= starts[a_idx] + sizes[a_idx]).OnlyEnforceIf(
+                lit_ord
+            )
+            model.Add(starts[n_idx] < starts[a_idx] + sizes[a_idx]).OnlyEnforceIf(
+                lit_ord.Not()
+            )
+            gap = model.NewIntVar(
+                0, DAY_END_MINUTES, f"cgap_{it_a.item_id}_{it_n.item_id}"
+            )
+            model.Add(
+                gap == starts[n_idx] - starts[a_idx] - sizes[a_idx]
+            ).OnlyEnforceIf(lit_ord)
+            lit_early = model.NewBoolVar(f"cfloor_{it_n.item_id}")
+            model.Add(starts[n_idx] < THEME_BLOCK_AFTERNOON_MINUTES).OnlyEnforceIf(
+                lit_early
+            )
+            model.Add(starts[n_idx] >= THEME_BLOCK_AFTERNOON_MINUTES).OnlyEnforceIf(
+                lit_early.Not()
+            )
+            combo_penalty += (
+                lit_ord * (COMBO_ORDER_PENALTY * 100)
+                + gap * COMBO_GAP_PENALTY_PER_MIN
+                + lit_early * (COMBO_NIGHT_FLOOR_PENALTY * 100)
+            )
         if travel_minutes is not None and specs:
             _add_travel_objective(
                 model,
@@ -958,6 +1058,7 @@ def solve_day(
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
                 cw_penalty=cw_penalty,
+                combo_penalty=combo_penalty,
             )
         else:
             _add_makespan_objective(
@@ -973,6 +1074,7 @@ def solve_day(
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
                 cw_penalty=cw_penalty,
+                combo_penalty=combo_penalty,
             )
 
         solver = cp_model.CpSolver()
@@ -1329,6 +1431,57 @@ def insertion_schedule_day(
         occupied.sort(key=lambda o: o[0])
         return t if dur == spec.dur else -(t + 1)  # 负数标记=缩时长落位
 
+    # ---- ①b 夜档贴排组合锚定（2026-11-07 拍板「两卡贴排，作为一个
+    # SITE 排列组合」）：夜档点按 16:00 后开场倾向先落位，普通点紧贴其
+    # 开场前收尾（隔走行分钟，与 CP 弧约束同语义）；16:00 后无档退全域
+    # 最早可行档（贴排优先于夜档倾向）；任一侧装不下即组合解绑留痕，
+    # 两卡回普通插入各自落位。锚定组合不进 ② 插入序、不进 ③ 打磨。
+    combo_anchored: set[str] = set()
+
+    def _first_feasible(sp: _VisitSpec, floor: int | None) -> int | None:
+        domains = [d for d in _candidate_starts(sp)]
+        if floor is not None:
+            floored = [(max(lo, floor), hi) for lo, hi in domains if hi >= floor]
+            if floored:
+                domains = floored
+        for lo, hi in domains:
+            for t in range(lo, hi + 1):
+                if _fits(t, sp.dur, sp):
+                    return t
+        return None
+
+    for a_idx, n_idx in _night_combo_pairs(specs):
+        sp_a, sp_n = specs[a_idx], specs[n_idx]
+        n_start = _first_feasible(sp_n, THEME_BLOCK_AFTERNOON_MINUTES)
+        if n_start is None:
+            n_start = _first_feasible(sp_n, None)
+        if n_start is None:
+            logger.info("plan: night-combo skip %s no feasible slot", sp_n.item.name)
+            continue
+        gap_min = _travel(sp_a.item, sp_n.item) if travel_minutes is not None else 0
+        a_start = n_start - gap_min - sp_a.dur
+        if a_start < sp_a.lo or not _fits(a_start, sp_a.dur, sp_a):
+            logger.info(
+                "plan: night-combo unbound %s+%s no contiguous slot",
+                sp_a.item.name,
+                sp_n.item.name,
+            )
+            continue
+        occupied.append((a_start, a_start + sp_a.dur, sp_a.item))
+        occupied.append((n_start, n_start + sp_n.dur, sp_n.item))
+        occupied.sort(key=lambda o: o[0])
+        combo_anchored.update((sp_a.item.item_id, sp_n.item.item_id))
+        rest = [s for s in rest if s is not sp_a and s is not sp_n]
+        logger.info(
+            "plan: night-combo anchored %s %s-%s -> %s %s-%s",
+            sp_a.item.name,
+            _to_time(a_start),
+            _to_time(a_start + sp_a.dur),
+            sp_n.item.name,
+            _to_time(n_start),
+            _to_time(n_start + sp_n.dur),
+        )
+
     # ---- ② 大点先插（难放优先），软钉餐最后（可让位） ----
     # 插入序叠加头档距离规则（2026-11-05）：候选组最先、组内距酒店锚
     # 降序（远的占上午头档），其后维持时长降序原口径。
@@ -1418,6 +1571,8 @@ def insertion_schedule_day(
 
         base = _total_travel()
         for spec in specs:
+            if spec.item.item_id in combo_anchored:
+                continue  # 夜档贴排组合（①b）：贴排结构不参与打磨挪洞
             entry = next((o for o in occupied if o[2] is spec.item), None)
             if entry is None or spec.lo == spec.hi:
                 continue
