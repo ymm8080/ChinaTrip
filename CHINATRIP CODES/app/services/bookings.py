@@ -17,6 +17,7 @@ from app.services.lang_ctx import L
 __all__ = [
     "flight_booking",
     "fliggy_booking_url",
+    "fliggy_hotel_url",
     "hotel_booking",
     "train_booking",
 ]
@@ -116,6 +117,19 @@ def fliggy_booking_url(from_city: str, to_city: str, date: str) -> str:
     return (
         "https://flight.fliggy.com/flightlist.htm"
         f"?depCity={_enc(from_city)}&arrCity={_enc(to_city)}&depDate={date}"
+    )
+
+
+def fliggy_hotel_url(city: str, keyword: str, checkin: str, checkout: str) -> str:
+    """飞猪酒店列表页深链（2026-11-07 每晚酒店卡第三渠道入组）。
+
+    参数规范未证实（同机票深链口径）：未命中时飞猪回退城市/日期选择页，
+    页面本身可打开，属可接受兜底。
+    """
+    return (
+        "https://hotel.fliggy.com/list.htm"
+        f"?city={_enc(city)}&k={_enc(keyword)}"
+        f"&checkin={checkin}&checkout={checkout}"
     )
 
 

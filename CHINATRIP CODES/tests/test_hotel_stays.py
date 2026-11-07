@@ -11,8 +11,11 @@ from datetime import time
 
 from app.services.agent.hotel_stays import (
     _card_window,
+    _night_window,
+    attach_hotel_nights,
     attach_hotel_stays,
     is_hotel_checkin,
+    is_hotel_night,
 )
 from app.services.agent.plan import _fallback_sequence_times, _plan_lunch_slot
 from app.services.itinerary.models import (
@@ -239,3 +242,137 @@ def test_lunch_slot_none_when_card_eats_window():
     card = next(i for i in day.items if is_hotel_checkin(i))
     assert card.start_time == time(12, 30)  # 卡吃掉午餐窗
     assert _plan_lunch_slot(day) is None  # 过点到店不插午餐，也不切卡
+
+
+# ------------------------------------------- 每晚酒店卡（2026-11-07 用户指令）
+
+
+def _night_days():
+    """两天行程：day1 有带时刻观光 + 晚餐占位；day2 傍晚航班回家。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _flight(start=(9, 0), end=(11, 30)),
+            VisitItem(
+                item_id="w1",
+                name="回民街",
+                city="西安",
+                day=1,
+                start_time=time(14, 0),
+                end_time=time(16, 0),
+                duration_minutes=120,
+            ),
+            VisitItem(
+                item_id="food-dinner-ph-d1",
+                name="晚饭（自由安排）",
+                category="food",
+                city="西安",
+                day=1,
+                start_time=time(18, 0),
+                end_time=time(19, 30),
+                duration_minutes=90,
+                soft_pin=True,
+            ),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _flight(2, start=(18, 0), end=(20, 30), frm="西安", to="上海"),
+        ],
+    )
+    return [d1, d2]
+
+
+def test_attach_night_appends_at_day_end():
+    days = _night_days()
+    notes = attach_hotel_nights(days)
+    assert notes, "假设区必须亮出每晚酒店卡注记"
+    cards = [i for i in days[0].items if is_hotel_night(i)]
+    assert len(cards) == 1
+    card = cards[0]
+    assert days[0].items[-1] is card  # 末位（晚餐占位之后）
+    assert card.category == "hotel" and card.soft_pin and not card.pinned
+    # 窗口=末件（晚餐 19:30 收尾）+30 起、60 分钟
+    assert (card.start_time, card.end_time) == (time(20, 0), time(21, 0))
+    assert card.city == "西安"  # 末个观光件之城
+
+
+def test_attach_night_skips_outbound_transfer_day():
+    """末件=离程航班（到达城不再是更晚日子的宿城）：当晚到家，不插。"""
+    days = _night_days()
+    attach_hotel_nights(days)
+    assert not any(is_hotel_night(i) for i in days[1].items)  # day2 傍晚回沪
+
+
+def test_attach_night_arrival_transfer_stays_in_destination():
+    """夕发朝至落在宿城：夜卡城=到达城，窗口贴到达时刻。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _flight(1, start=(19, 0), end=(22, 0), frm="上海", to="西安"),
+        ],
+    )
+    d2 = DayPlan(day=2, base_city="西安", items=[])
+    attach_hotel_nights([d1, d2])
+    cards = [i for i in d1.items if is_hotel_night(i)]
+    assert len(cards) == 1
+    assert cards[0].city == "西安"
+    assert cards[0].start_time == time(22, 30)  # 到达 22:00 + 30
+
+
+def test_attach_night_idempotent_and_empty_day_default():
+    days = _night_days()
+    assert attach_hotel_nights(days)[0] is not None
+    again = attach_hotel_nights(days)
+    assert again == []  # 已有夜卡的天不重复插
+    assert len([i for i in days[0].items if is_hotel_night(i)]) == 1
+    empty = DayPlan(day=3, base_city="成都", items=[])
+    attach_hotel_nights([empty])
+    cards = [i for i in empty.items if is_hotel_night(i)]
+    assert len(cards) == 1
+    assert (cards[0].start_time, cards[0].end_time) == (time(21, 0), time(22, 0))
+    assert cards[0].city == "成都"  # 空天回落醒来城
+
+
+def test_night_window_clamps():
+
+    assert _night_window(None) == (21 * 60, 22 * 60)
+    assert _night_window(22 * 60 + 30) == (23 * 60, 24 * 60 - 1)  # 贴 23:00，封顶 23:59
+    assert _night_window(23 * 60 + 50) == (23 * 60 + 50, 23 * 60 + 59)  # 贴末件不回拨
+
+
+def test_night_card_last_visit_city_wins():
+    """当天活动城（末个观光件）优先于醒来城——晚间换城日夜宿新城。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            VisitItem(
+                item_id="w1",
+                name="外滩",
+                city="上海",
+                day=1,
+                start_time=time(10, 0),
+                end_time=time(12, 0),
+                duration_minutes=120,
+            ),
+            VisitItem(
+                item_id="w2",
+                name="西湖",
+                city="杭州",
+                day=1,
+                start_time=time(15, 0),
+                end_time=time(18, 0),
+                duration_minutes=180,
+            ),
+        ],
+    )
+    d2 = DayPlan(day=2, base_city="杭州", items=[])
+    attach_hotel_nights([d1, d2])
+    card = next(i for i in d1.items if is_hotel_night(i))
+    assert card.city == "杭州"
+    assert (card.start_time, card.end_time) == (time(18, 30), time(19, 30))

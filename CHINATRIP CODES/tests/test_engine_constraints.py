@@ -55,7 +55,12 @@ def test_eval_day_sight_count_capped_at_four():
         for n in ["外滩", "豫园", "南京路步行街", "田子坊", "武康路", "静安寺"]
     ]
     session = _start(_agent(items))
-    day1 = [v for v in all_visits(session) if v.day == 1 and v.category != "food"]
+    # 每晚酒店卡（2026-11-07，category=hotel）非游览点，同 food 剔除
+    day1 = [
+        v
+        for v in all_visits(session)
+        if v.day == 1 and v.category not in ("food", "hotel")
+    ]
     assert len(day1) <= 4
     assert any("每日最多保留 4 个景点" in a for a in session.assumptions)
 

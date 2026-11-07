@@ -12,6 +12,10 @@ from fastapi.testclient import TestClient
 
 from app.api.offers import router as offers_router
 from app.config import Settings, get_settings
+from app.services.offer_cards import (
+    _order_by_price_then_stability,
+    _same_price_group,
+)
 
 DISCLAIMER = "*价格以跳转后页面为准*"
 TRACKING_SUFFIX = "allianceId=ally-42&sid=sid-42"
@@ -77,14 +81,16 @@ def _assert_no_key_string(value) -> None:
         assert "key=" not in value
 
 
-def test_hotel_cn_two_cards_shape():
+def test_hotel_cn_three_cards_shape():
+    # 2026-11-07 每晚酒店卡：飞猪以第三渠道入组（cn=携程+美团+飞猪），
+    # 飞猪卡退改摘要换酒店文案（bookings 表里的飞猪文案是机票口径）。
     resp = post_cards(hotel_body(), OFF_SETTINGS)
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == TOP_KEYS
     assert body["kind"] == "hotel"
     assert body["layout"] == "primary_plus_expand"
-    assert {c["channel"] for c in body["cards"]} == {"ctrip", "meituan"}
+    assert {c["channel"] for c in body["cards"]} == {"ctrip", "meituan", "fliggy"}
     assert body["primary"] == body["cards"][0]
     for card in body["cards"]:
         assert set(card) == CARD_KEYS
@@ -96,6 +102,14 @@ def test_hotel_cn_two_cards_shape():
     assert urls["ctrip"].startswith("https://hotels.ctrip.com/hotels/list")
     assert "checkin=2026-11-20" in urls["ctrip"]
     assert urls["meituan"].startswith("https://hotel.meituan.com/")
+    assert urls["fliggy"].startswith("https://hotel.fliggy.com/list.htm")
+    assert "checkin=2026-11-20" in urls["fliggy"]
+    assert "checkout=" in urls["fliggy"]
+    fliggy_card = next(c for c in body["cards"] if c["channel"] == "fliggy")
+    assert "飞猪" in fliggy_card["refund_summary"]
+    # 价格升序（排序键=价格+稳定性，佣金权重为零）
+    prices = [c["price_yuan"] for c in body["cards"]]
+    assert prices == sorted(prices)
     assert body["same_price_group"] is None
 
 
@@ -154,27 +168,35 @@ def test_cards_sorted_by_price_ascending_and_primary_is_cheapest():
 
 
 def test_same_price_group_tagged_and_stability_ordered():
-    # Deterministic mock: this exact request yields ctrip == meituan == 365.0
-    resp = post_cards(
-        hotel_body(checkin="2026-12-25", checkout="2026-12-26"), OFF_SETTINGS
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["same_price_group"] == ["ctrip", "meituan"]
-    cards = body["cards"]
-    assert [c["channel"] for c in cards] == ["ctrip", "meituan"]
-    assert [c["price_yuan"] for c in cards] == [365.0, 365.0]
-    assert all(c["tag"] == "同价" for c in cards)
-    # 同价 → 稳定性序 ctrip > qunar > meituan：携程排前
-    assert body["primary"]["channel"] == "ctrip"
+    # 同价组识别 + 稳定性序（纯函数级——飞猪入组后 mock 哈希种子变了，
+    # 端到端撞同价日期不再固定，确定性逻辑直接测函数）。
+    prices = {"ctrip": 365.0, "meituan": 365.0, "fliggy": 350.0}
+    assert _same_price_group(prices) == ["ctrip", "meituan"]
+    cards = [
+        {
+            "channel": ch,
+            "price_yuan": p,
+            "unified_price": False,
+            "tag": None,
+            "refund_summary": "x",
+            "url": "u",
+        }
+        for ch, p in prices.items()
+    ]
+    ordered = [c["channel"] for c in _order_by_price_then_stability(cards)]
+    # 价格升序（飞猪 350 最便宜），同价按稳定性序 ctrip > meituan
+    assert ordered == ["fliggy", "ctrip", "meituan"]
 
 
-def test_overseas_hotel_hides_meituan_single_card():
+def test_overseas_hotel_hides_meituan_two_cards():
     resp = post_cards(hotel_body(region="overseas"), OFF_SETTINGS)
     assert resp.status_code == 200
     body = resp.json()
-    assert [c["channel"] for c in body["cards"]] == ["ctrip"]
-    assert body["primary"]["channel"] == "ctrip"
+    # overseas 隐藏美团卡：剩携程+飞猪（2026-11-07 飞猪入组前仅 1 张）
+    assert {c["channel"] for c in body["cards"]} == {"ctrip", "fliggy"}
+    prices = [c["price_yuan"] for c in body["cards"]]
+    assert prices == sorted(prices)
+    assert body["primary"] == body["cards"][0]
     assert body["same_price_group"] is None
     assert body["disclaimer"] == DISCLAIMER
 

@@ -23,6 +23,7 @@ from app.config import Settings
 from app.services.bookings import (
     _refund_channel_page,
     fliggy_booking_url,
+    fliggy_hotel_url,
     flight_booking,
     hotel_booking,
     train_booking,
@@ -70,6 +71,19 @@ def _meituan_refund_summary() -> str:
     return L(
         _MEITUAN_REFUND_SUMMARY,
         "Refund policy per the Meituan checkout page; pick a 'free "
+        "cancellation' room when possible",
+    )
+
+
+# fliggy 在 bookings.py 的退改摘要表里是机票文案；酒店卡按渠道单列时
+# 换酒店自己的铁律 23 兜底文案（2026-11-07 每晚酒店卡飞猪入组）
+_FLIGGY_HOTEL_REFUND_SUMMARY = "退改政策以飞猪下单页展示为准；建议选「免费取消」房型"
+
+
+def _fliggy_hotel_refund_summary() -> str:
+    return L(
+        _FLIGGY_HOTEL_REFUND_SUMMARY,
+        "Refund policy per the Fliggy checkout page; pick a 'free "
         "cancellation' room when possible",
     )
 
@@ -196,14 +210,19 @@ def hotel_offer_cards(
     region: str = "cn",
     settings: Settings,
 ) -> dict:
-    """酒店候选卡（步骤1 查询）：cn=携程+美团；overseas 隐藏美团卡（只剩 1 张）。
+    """酒店候选卡（步骤1 查询）：cn=携程+美团+飞猪（2026-11-07 飞猪入组，
+    飞猪退改摘要换酒店文案）；overseas 隐藏美团卡（携程+飞猪 2 张）。
 
     坐标/日期校验沿用 bookings.hotel_booking 既有口径，不合法抛 ValueError。
     """
     handoff = hotel_booking(
         city, near_poi_name, lon=lon, lat=lat, checkin=checkin, checkout=checkout
     )["handoff"]
-    channel_urls = {"ctrip": handoff["url"], "meituan": handoff["fallback"]["url"]}
+    channel_urls = {
+        "ctrip": handoff["url"],
+        "meituan": handoff["fallback"]["url"],
+        "fliggy": fliggy_hotel_url(city, near_poi_name, checkin, checkout),
+    }
     if region == "overseas":
         channel_urls.pop("meituan")
     norm = _norm_query(
@@ -218,7 +237,11 @@ def hotel_offer_cards(
             "region": region,
         },
     )
-    return _assemble("hotel", channel_urls, norm=norm, settings=settings)
+    cards = _assemble("hotel", channel_urls, norm=norm, settings=settings)
+    for card in cards["cards"]:
+        if card["channel"] == "fliggy":
+            card["refund_summary"] = _fliggy_hotel_refund_summary()
+    return cards
 
 
 def flight_offer_cards(
