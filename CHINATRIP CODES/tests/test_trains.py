@@ -5,6 +5,7 @@ from datetime import date as date_cls
 from datetime import time, timedelta
 
 import httpx
+import pytest
 
 import app.services.train_cache as train_cache_module
 import app.services.trains as trains_module
@@ -514,6 +515,61 @@ def test_remote_service_falls_back_to_mock_on_timeout():
     service = _mock_12306_service(handler)
     options = asyncio.run(service.search("北京", "上海", DATE))
     assert [o.train_no for o in options] == ["G1", "G3", "G5"]
+
+
+def test_12306_source_blocked_all_paths_raises_not_silent_empty():
+    """2026-11-07 实录（杭州→上海被排成航班的第二根因）：反爬封锁
+    leftTicket 全路径 302→error.html——源层必须抛 TrainSourceError（熔断
+    计数/降级链可见），不得静默返回 [] 被上层当「健康无车」、被 cache 层
+    负缓存 6h。错误信息带封锁落点痕迹。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/otn/leftTicket/query"):
+            return httpx.Response(
+                302, headers={"Location": "/mormhweb/logFiles/error.html"}
+            )
+        if request.url.path == "/mormhweb/logFiles/error.html":
+            return httpx.Response(200, text="<html>error</html>")
+        return _station_ok(request)
+
+    source = Train12306Source(timeout_seconds=1, transport=_mock_transport(handler))
+    with pytest.raises(TrainSourceError) as excinfo:
+        asyncio.run(source.fetch("北京", "上海", DATE))
+    assert "error.html" in str(excinfo.value)
+
+
+def test_remote_service_counts_blocked_source_toward_breaker():
+    """全组合皆败 -> fetch 抛错 -> 连败计数累加，3 次熔断开口；熔断后
+    下一查直接跳源走 mock（不再吃满超时）。服务级终局班次不变（mock）。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/otn/leftTicket/query"):
+            return httpx.Response(
+                302, headers={"Location": "/mormhweb/logFiles/error.html"}
+            )
+        if request.url.path == "/mormhweb/logFiles/error.html":
+            return httpx.Response(200, text="<html>error</html>")
+        return _station_ok(request)
+
+    service = _mock_12306_service(handler)
+    for _ in range(3):
+        options = asyncio.run(service.search("北京", "上海", DATE))
+        assert [o.train_no for o in options] == ["G1", "G3", "G5"]
+    assert service._open_until.get("12306", 0) > 0  # 熔断已开口
+
+
+def test_12306_source_healthy_empty_stays_empty():
+    """全组合正常应答（JSON 空 result）= 健康无车，保持返回 [] 不抛——
+    与封锁抛错严格区分，熔断不清零误计。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/otn/leftTicket/query"):
+            return httpx.Response(200, json={"data": {"result": []}})
+        return _station_ok(request)
+
+    source = Train12306Source(timeout_seconds=1, transport=_mock_transport(handler))
+    options = asyncio.run(source.fetch("北京", "上海", DATE))
+    assert options == []
 
 
 def test_remote_service_falls_back_to_mock_on_empty_or_unanchorable():
