@@ -2677,6 +2677,30 @@ PREFERENCE_STYLE_OPTIONS: tuple[str, ...] = (
     "see-it-all",
     "take it slow",
 )
+
+# 泛活动/餐段词（2026-11-07 成都案：EN 会话 LLM 把 sightseeing/lunches
+# 列进 wishes，心愿单被污染、跨会话吸收成必去占位卡）。整词精确匹配，
+# 不做子串——「lunch」子串会误杀「lunch at 蜀大侠」这类真愿望；词表
+# 也不收 citywalk/tea 等品类词——那是合法的品类愿望通道（全城最有名）。
+_GENERIC_ACTIVITY_WORDS: frozenset[str] = frozenset(
+    {
+        "sightseeing",
+        "city sightseeing",
+        "city tour",
+        "tours",
+        "lunches",
+        "lunch",
+        "dinner",
+        "dinners",
+        "breakfast",
+        "meals",
+        "观光",
+        "城市观光",
+        "午餐",
+        "晚餐",
+        "早餐",
+    }
+)
 PREFERENCE_META_PHRASES: tuple[str, ...] = (
     "无特别要求",
     "没有特别要求",
@@ -2694,6 +2718,7 @@ PREFERENCE_META_PHRASES: tuple[str, ...] = (
     "no preference",
     "no special requirement",
     "no particular preference",
+    "no special preference",
     "anything works",
     "anything is fine",
     "up to you",
@@ -2718,6 +2743,8 @@ def _is_preference_style_option(text: str) -> bool:
     s = _norm_pref_text(text)
     if not s or len(s) > 24:
         return False
+    if s in _GENERIC_ACTIVITY_WORDS:
+        return True
     return any(o in s for o in PREFERENCE_STYLE_OPTIONS)
 
 
@@ -2728,9 +2755,11 @@ def _is_service_meta_wish(text: str) -> bool:
     """服务型请求当愿望（2026-11-04 it-b986c4f6 事故）：「帮我看看天气」
     「帮我看看整体行程」被当愿望建行、又经心愿单吸收成必去占位卡——
     这是让引擎干活的指令，不是可排期的地点。只拦「祈使句+服务宾语」
-    整串与光杆祈使；「帮我看看熊猫」这类具体地点宾语的真愿望不受影响。"""
+    整串与光杆祈使；「帮我看看熊猫」这类具体地点宾语的真愿望不受影响。
+    2026-11-07 西安案二拍：帽 24→64——「必去：西安钟楼、…。帮我排好
+    这 5 天的西安行程」整句 30 字被帽放行建行，跨会话吸收成必去。"""
     s = (text or "").strip()
-    if not s or len(s) > 24:
+    if not s or len(s) > 64:
         return False
     if s.endswith(_SERVICE_META_TAILS):
         return True
@@ -7157,7 +7186,9 @@ class PlanningAgent:
                 or _is_service_meta_wish(name)
             ):
                 # 偏好性元话语/风格词/服务型请求不是愿望（2026-10-31、
-                # 2026-11-04 拍板）：历史误建行不再吸收成必去占位卡。
+                # 2026-11-04 拍板）：历史误建行不再吸收成必去占位卡
+                # （跳过留痕，2026-10-25 日志铁律）。
+                logger.info("plan: wish row skipped as meta/style/service: %s", name)
                 continue
             city = it.get("city")
             if not city and _category_search_keyword(name) is None:
@@ -13767,14 +13798,17 @@ class PlanningAgent:
         # 2026-10-31 拍板「偏好无特别要求就不要进心愿单」：偏好性元话语
         # （线上案：LLM 把「偏好：无特别要求」原话列进 wishes，心愿单出现
         # 同名行）与问答题面的风格选项词整串没有任何具体地点/活动要求，
-        # 建行前丢弃。
-        wishes = [
+        # 建行前丢弃（丢弃留痕，2026-10-25 日志铁律）。
+        dropped = [
             w
             for w in wishes
-            if not _is_preference_meta(w)
-            and not _is_preference_style_option(w)
-            and not _is_service_meta_wish(w)
+            if _is_preference_meta(w)
+            or _is_preference_style_option(w)
+            or _is_service_meta_wish(w)
         ]
+        for w in dropped:
+            logger.info("plan: chat wish dropped as meta/generic/service: %s", w)
+        wishes = [w for w in wishes if w not in dropped]
         if self._trip_items is None or not wishes:
             return [], []
         # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——

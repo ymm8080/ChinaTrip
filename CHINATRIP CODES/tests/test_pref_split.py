@@ -16,6 +16,7 @@ from app.services.agent.plan import (
     PlanningAgent,
     _is_preference_meta,
     _is_preference_style_option,
+    _is_service_meta_wish,
     _preference_tokens,
 )
 from app.services.llm.base import ChatResult
@@ -381,6 +382,31 @@ def test_preference_meta_and_style_detection():
     assert _is_preference_style_option("自然风光")
     assert _is_preference_style_option("慢慢逛")
     assert not _is_preference_style_option("看熊猫")
+
+
+def test_wishlist_garbage_strings_rejected():
+    """2026-11-07 成都/西安案（会话 5d978820 / ec636200）：EN 会话 LLM
+    愿望抽取把偏好摘要行与泛活动词列进 wishes 建行，心愿单被污染、跨
+    会话吸收成必去占位卡（lunches/sightseeing 还被语义绑到外滩等真
+    POI）。三闸全收口：元话语词表补 EN 串、泛活动词精确匹配、服务尾
+    长句帽 24→64。"""
+    # 偏好摘要原话（剥「Preferences:」标签后 22 字符，词表补串即中）
+    assert _is_preference_meta("Preferences: No special preference")
+    assert _is_preference_meta("No special preference")
+    # 泛活动/餐段词（整词精确，CITY SIGHTSEEING 大小写无关）
+    assert _is_preference_style_option("sightseeing")
+    assert _is_preference_style_option("CITY SIGHTSEEING")
+    assert _is_preference_style_option("lunches")
+    assert _is_preference_style_option("午餐")
+    # 整句服务型请求（旧 24 字符帽放行的线上案）
+    sentence_wish = "必去：西安钟楼、西安鼓楼、回民街。帮我排好这 5 天的西安行程"
+    assert _is_service_meta_wish(sentence_wish)
+    # 真愿望通道不受影响
+    assert not _is_preference_meta("看熊猫")
+    assert not _is_preference_style_option("CITYWALK")  # 品类愿望（步行街）合法
+    assert not _is_preference_style_option("看川剧变脸")
+    assert not _is_service_meta_wish("想去都江堰看水利工程")
+    assert not _is_service_meta_wish("帮我看熊猫")  # 具体地点宾语非服务尾
 
 
 def test_preference_tokens_union_and_show():
