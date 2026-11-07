@@ -3852,6 +3852,10 @@ def _rescue_premium_stranded(
 
 # 让位权档顶=图商名点档；4A/其他杂点不享——档序口径同追回池/品类闸
 _YIELD_MAX_TIER = 8
+# 连续弹座上限（2026-11-07 环球中心案）：240min 级大块头需弹 2-3 个
+# 90-120min 杂点才腾出整块；再多就把当天弹空壳了——宁让让位失败走
+# 挪日/披露，不交一个只剩酒店卡的天。
+_YIELD_MAX_EJECTS = 3
 
 
 def _yield_for_premium(
@@ -3898,10 +3902,13 @@ def _yield_for_premium(
         ]
         if not ejects:
             continue
-        # 候选逐个过实位探针（档低者先让）：单弹一个不等于腾出可排
-        # 座——上午链 ±腿占段可能把整日候选全挡死，此时原样还座换
-        # 下一日，而非只试一枪就放弃（2026-11-05 d1→d2 实录）。
-        eject: "VisitItem | None" = None
+        # 连续弹座实位探针（档低者先让，弹到放得下为止）：单弹一个
+        # 不等于腾出可排座——240min 级大块头弹一个 90min 杂点整块照样
+        # 进不去（2026-11-07 环球中心案：弹天府广场一座后第 3 天仍无
+        # 4 小时连续块 → 让位失败 → 终局清算蒸发）。逐个累计弹座、每
+        # 弹一个探一次实位，探到放得下为止；弹尽 _YIELD_MAX_EJECTS 个
+        # 仍放不下则原样还座换下一日（2026-11-05 d1→d2 实录口径不变）。
+        ejected: list[VisitItem] = []
         target: "DayPlan | None" = None
         for cand in sorted(
             ejects,
@@ -3909,6 +3916,7 @@ def _yield_for_premium(
             reverse=True,
         ):
             later.items.remove(cand)
+            ejected.append(cand)
             # 宿主池两闸：只认 base 同城日（到达日「结构可容、终排必死」
             # ——容量闸不识营业窗，落地 14:30 起 180min 名点 17:30 收
             # >17:00 闭馆实录）；排除搁浅原日——除非弹座正是出自原日
@@ -3925,70 +3933,74 @@ def _yield_for_premium(
                 incoming=visit.location,
                 visit=visit,
             )
-            if t is None:
-                later.items.append(cand)  # 弹了座仍进不去（远闸/窗口）→ 还回
-                continue
-            eject = cand
-            target = t
-            break
+            if t is not None:
+                target = t
+                break
+            if len(ejected) >= _YIELD_MAX_EJECTS:
+                break
+            # 弹了座仍进不去（远闸/窗口/容量）→ 座先让着，继续弹下一个
         if target is None:
+            for cand in ejected:  # 全弹尽仍进不去 → 原样还座换下一日
+                later.items.append(cand)
             continue
-        for origin in plan.days:
-            if any(i is visit for i in origin.items):
-                origin.items.remove(visit)
+        for _src_day in plan.days:
+            if any(i is visit for i in _src_day.items):
+                _src_day.items.remove(visit)
                 break
         visit.day = target.day
         visit.start_time = None
         visit.end_time = None
         target.items.append(visit)
+        yield_names = "」「".join(e.name for e in ejected)
         notes.append(
             L(
-                f"「{visit.name}」排不下时刻，同天「{eject.name}」"
+                f"「{visit.name}」排不下时刻，同天「{yield_names}」"
                 f"为名点让位，已挪至第{target.day}天重排",
-                f'"{visit.name}" could not be timed; "{eject.name}" '
-                f"yielded its slot and the sight moved to day "
+                f'"{visit.name}" could not be timed; "{yield_names}" '
+                f"yielded their slot(s) and the sight moved to day "
                 f"{target.day} for re-timing",
             )
         )
-        edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
-        ecity = str(eject.city or "").strip().removesuffix("市")
-        etarget = (
-            _host_day_for_visit(
-                [
-                    d
-                    for d in plan.days
-                    if d is not later
-                    and str(d.base_city or "").strip().removesuffix("市") == ecity
-                ],
-                ecity,
-                edur,
-                incoming=eject.location,
-                visit=eject,
-            )
-            if ecity
-            else None
-        )
-        if etarget is not None:
-            eject.day = etarget.day
-            eject.start_time = None
-            eject.end_time = None
-            etarget.items.append(eject)
-            notes.append(
-                L(
-                    f"「{eject.name}」已改排第{etarget.day}天",
-                    f'"{eject.name}" was re-scheduled to day {etarget.day}',
+        for eject in ejected:
+            edur = eject.duration_minutes or DEFAULT_VISIT_MINUTES
+            ecity = str(eject.city or "").strip().removesuffix("市")
+            etarget = (
+                _host_day_for_visit(
+                    [
+                        d
+                        for d in plan.days
+                        if d is not later
+                        and str(d.base_city or "").strip().removesuffix("市") == ecity
+                    ],
+                    ecity,
+                    edur,
+                    incoming=eject.location,
+                    visit=eject,
                 )
+                if ecity
+                else None
             )
-        else:
-            notes.append(
-                L(
-                    f"「{eject.name}」为「{visit.name}」让位后无处可排，"
-                    "已从行程移除——要加回可指定其他天",
-                    f'"{eject.name}" had nowhere to go after yielding its '
-                    f'slot to "{visit.name}" and was removed — ask me to '
-                    "re-add it on another day",
+            if etarget is not None:
+                eject.day = etarget.day
+                eject.start_time = None
+                eject.end_time = None
+                etarget.items.append(eject)
+                notes.append(
+                    L(
+                        f"「{eject.name}」已改排第{etarget.day}天",
+                        f'"{eject.name}" was re-scheduled to day {etarget.day}',
+                    )
                 )
-            )
+            else:
+                notes.append(
+                    L(
+                        f"「{eject.name}」为「{visit.name}」让位后无处可排，"
+                        "已从行程移除——要加回可指定其他天",
+                        f'"{eject.name}" had nowhere to go after yielding its '
+                        f'slot to "{visit.name}" and was removed — ask me to '
+                        "re-add it on another day",
+                    )
+                )
         return target
     return None
 
@@ -10919,16 +10931,38 @@ class PlanningAgent:
                     ph_days.append(day_plan.day)
                 if split_cont is not None:
                     day_plan.items.append(split_cont)
-                if len(sights) < 2 or inserted_restos >= 3:
+                if len(sights) < 2:
                     continue
-                has_real_food = any(
+                # 晚餐判重按晚餐槽（2026-11-07 用户指令「两个餐厅可以一个
+                # 午餐一个晚餐」）：午餐已插真餐厅不再挡晚餐 pass——两餐
+                # 各搜各插（去重闸 _fresh 保证同店不重插）。全局 3 家闸
+                # 同拍删除：每天午+晚各1自然封顶，防挤占交铁律 20 空窗 +
+                # solve。只挡「晚餐窗内已有真餐卡」（用户钉的晚餐店）。
+                dinner_ws, dinner_we = MEAL_WINDOWS["dinner"]
+
+                def _overlaps_dinner(it: VisitItem) -> bool:
+                    if it.start_time is None:
+                        return False
+                    start = _minutes_of(it.start_time)
+                    if it.end_time is not None:
+                        end = _minutes_of(it.end_time)
+                    elif it.duration_minutes is not None:
+                        end = start + it.duration_minutes
+                    else:
+                        end = start + MEAL_DURATION_MINUTES
+                    return start < _minutes_of(dinner_we) and end > _minutes_of(
+                        dinner_ws
+                    )
+
+                has_real_dinner_food = any(
                     isinstance(i, VisitItem)
                     and i.category == "food"
                     and not is_lunch_placeholder(i)
                     and not is_dinner_placeholder(i)
+                    and _overlaps_dinner(i)
                     for i in day_plan.items
                 )
-                if has_real_food:
+                if has_real_dinner_food:
                     continue
                 try:
                     dinner_win = meal_window(day_plan, "dinner")
