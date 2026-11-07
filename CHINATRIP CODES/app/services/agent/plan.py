@@ -280,22 +280,14 @@ def _itin_cap_bucket(cand: dict) -> str | None:
 
 # 体验型中国特色活动（2026-11-07 用户拍板「多放，每个行程最少两个」）：
 # entertainment（演出/夜游/游船/变脸类，走演出晚档钉日）+ tea_experience
-# （茶馆/茶艺，走常规 sight 通道）。选点梯子加 _ladder_rank 大组：体验型
-# 紧跟名录王牌、压过其余全部档位，保证池内有货就稳定选入 ≥2。
+# （茶馆/茶艺，走常规 sight 通道）。选点梯子**同档内体验型优先**（tier
+# 序不变——11-03 名录序拍板「跨档不动」不破；t11 档内茶馆/体验压过
+# 图商泛点，池内有货即稳定选入 ≥2）。
 _EXPERIENCE_CATEGORIES = ("entertainment", "tea_experience")
 
 
 def _is_experience_cand(cand: dict) -> bool:
     return str(cand.get("category") or "").strip() in _EXPERIENCE_CATEGORIES
-
-
-def _ladder_rank(cand: dict) -> int:
-    """选点梯子大组：0=名录王牌（tier≤2），1=体验型中国特色活动，2=其余。"""
-    if _source_tier(cand) <= 2:
-        return 0
-    if _is_experience_cand(cand):
-        return 1
-    return 2
 
 
 # 出行模型（用户拍板 2026-10-31「打车时间=车程+半小时叫车时间」）：
@@ -8598,8 +8590,9 @@ class PlanningAgent:
                 sights,
                 key=lambda p: (
                     not _pref_key(p[1]),
-                    _ladder_rank(p[1]),  # 体验型紧跟王牌（2026-11-07 拍板）
                     _source_tier(p[1]),
+                    # 同档内体验型优先（2026-11-07 拍板；跨档序不动）
+                    0 if _is_experience_cand(p[1]) else 1,
                     -_quality(p[1]),
                     _minutes(p[1], DEFAULT_VISIT_MINUTES),
                     p[0],
@@ -8693,8 +8686,8 @@ class PlanningAgent:
                         and (night_all or not _night_cand(p[1]))
                         else 0,
                         not _pref_key(p[1]),
-                        _ladder_rank(p[1]),  # 体验型紧跟王牌（2026-11-07 拍板）
                         _source_tier(p[1]),
+                        0 if _is_experience_cand(p[1]) else 1,
                         -_quality(p[1]),
                         _minutes(p[1], DEFAULT_VISIT_MINUTES),
                         p[0],
