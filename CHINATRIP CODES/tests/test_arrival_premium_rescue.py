@@ -306,3 +306,59 @@ def test_rehome_yields_before_bouncing_to_arrival_day():
     notes = _rehome_untimed_visits(plan, frozenset(), dict(_T2))
     assert premium.day == 2  # 不被挪进到达日
     assert any("让位" in n for n in notes)
+
+
+# ---- 必去到达日搁浅强制救援（2026-11-07 熊猫基地案）：主路径
+# reconcile 此前不传 protect，必去按杂卡蒸发；且熊猫 tier11 被弹座
+# tier≤2 闸挡死。现口径：protect 内必去先挪同城后续天（大点先排落
+# 早晨头档），日满则 force 弹座（档闸豁免），仍不行才披露换天。----
+
+
+def test_must_stranded_on_arrival_day_force_rescued_to_day2_morning():
+    """必去（tier11 熊猫基地）挂到达日 12:00 落地装不下，次日 4 件
+    满员无宿主 → force 弹座挪入次日（清时刻交排程，大点先排落
+    早晨）；被弹者无宿主天移除留痕，必去绝不蒸发。"""
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-18:00")
+    panda.day = 1
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=90),
+        _visit("宽窄巷子", 8, minutes=90),
+        _visit("武侯祠", 9, minutes=90),
+        _visit("人民公园", 10, minutes=90),
+    ]
+    plan = _plan([_arrival_leg(), panda], day2)
+    notes = _reconcile_transfer_days(
+        plan,
+        tier_by_name=dict(_TIERS),
+        protect=frozenset({"成都大熊猫繁育研究基地"}),
+    )
+    assert "成都大熊猫繁育研究基地" in _visit_names(plan)  # 在册不删
+    moved = next(i for i in plan.days[1].items if i.name == "成都大熊猫繁育研究基地")
+    assert moved.day == 2
+    assert moved.start_time is None
+    assert any("已挪至第2天" in n for n in notes)
+    assert any("让位" in n for n in notes)
+
+
+def test_must_stranded_no_host_no_ejects_discloses():
+    """控制组：后续天全钉（弹座池空）→ 必去原地保留 + 披露换天，
+    不删不静默。"""
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-18:00")
+    panda.day = 1
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=90, pinned=True),
+        _visit("宽窄巷子", 8, minutes=90, pinned=True),
+        _visit("武侯祠", 9, minutes=90, pinned=True),
+        _visit("人民公园", 10, minutes=90, pinned=True),
+    ]
+    plan = _plan([_arrival_leg(), panda], day2)
+    notes = _reconcile_transfer_days(
+        plan,
+        tier_by_name=dict(_TIERS),
+        protect=frozenset({"成都大熊猫繁育研究基地"}),
+    )
+    names_d1 = {i.name for i in plan.days[0].items if isinstance(i, VisitItem)}
+    assert "成都大熊猫繁育研究基地" in names_d1  # 原地保留
+    assert panda.day == 1
+    assert any("必去" in n for n in notes)
+    assert not any("已从行程移除" in n for n in notes)

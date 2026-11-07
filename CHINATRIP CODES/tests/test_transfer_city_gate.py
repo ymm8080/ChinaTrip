@@ -235,13 +235,23 @@ def test_reconcile_drops_arrival_city_visit_when_no_host():
     assert any("移除" in str(n) or "removed" in str(n) for n in notes)
 
 
-def test_reconcile_protects_must_visit_arrival_side():
+def test_reconcile_protected_must_relocates_to_host_day():
+    # 2026-11-07「放其它日期早晨」拍板：必去挂在到达日装不下 → 先挪
+    # 同城后续天（在册不删），不再只披露换天
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])
     notes = _reconcile_transfer_days(plan, protect=frozenset({"wall"}))
-    wall = _find(day1, "wall")
-    assert wall.day == 1
+    assert _find(day2, "wall").day == 2
+    assert any("已挪至第2天" in str(n) for n in notes)
+
+
+def test_reconcile_protects_must_visit_no_host_discloses():
+    # 无更晚同城日（单日行程）→ 原地保留 + 披露换天（铁律 19 不删）
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
+    plan = _plan([day1])
+    notes = _reconcile_transfer_days(plan, protect=frozenset({"wall"}))
+    assert _find(day1, "wall").day == 1
     assert any("必去" in str(n) or "Must-visits" in str(n) for n in notes)
 
 

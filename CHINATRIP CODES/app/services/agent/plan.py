@@ -3305,6 +3305,49 @@ def _reconcile_transfer_days(
             protected_arrival: list[str] = []
             for visit in arr_stranded:
                 if visit.name in protect:
+                    # 必去/心愿在册不删（2026-11-02「可挪不可删」拍板 +
+                    # 2026-11-07「放其它日期早晨」拍板）：到达日装不下先
+                    # 挪同城后续天（挪后大点先排落早晨头档），日满则弹座
+                    # 救援，仍不行才披露换天——绝不静默蒸发。
+                    dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+                    vcity = str(visit.city or "").strip().removesuffix("市")
+                    target = _host_day_for_visit(
+                        plan.days[idx + 1 :],
+                        vcity,
+                        dur,
+                        incoming=visit.location,
+                        visit=visit,
+                    )
+                    if target is None:
+                        rescued = _rescue_premium_stranded(
+                            plan,
+                            idx,
+                            visit,
+                            tier_by_name,
+                            protect,
+                            notes,
+                            force=True,
+                        )
+                        if rescued:
+                            continue
+                    else:
+                        visit.day = target.day
+                        visit.start_time = None
+                        visit.end_time = None
+                        day.items.remove(visit)
+                        target.items.append(visit)
+                        notes.append(
+                            L(
+                                f"必去「{visit.name}」在第{day.day}天落地后"
+                                f"无法安排（{_fmt_hm(last.end_time)} 才抵达"
+                                f"{last.to_city}），已挪至第{target.day}天",
+                                f'Must-visit "{visit.name}" could not fit on '
+                                f"day {day.day} (arrival in {last.to_city} at "
+                                f"{_fmt_hm(last.end_time)}); moved to day "
+                                f"{target.day}",
+                            )
+                        )
+                        continue
                     protected_arrival.append(visit.name)
                     continue
                 dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
@@ -3697,6 +3740,7 @@ def _rescue_premium_stranded(
     tier_by_name: dict[str, int] | None,
     protect: frozenset[str] | set[str],
     notes: list,
+    force: bool = False,
 ) -> bool:
     """到达日搁浅名录王牌的让座救援（2026-11-05 成都青城山—都江堰案）。
 
@@ -3706,14 +3750,19 @@ def _rescue_premium_stranded(
     改为：从最近同城日弹出最低档非钉参访（弹出档严格低于王牌），王牌
     清时刻挪入；被弹者再找宿主天，找不到按原口径移除留痕——低档为
     名录让位是设计内牺牲（与追回池/品类闸同一档序口径）。
+    force=True（必去/心愿，2026-11-07「放其它日期早晨」拍板）：跳过
+    tier≤2 闸——用户点名要去的条目比名录档序更有让位权。
     """
     tiers = tier_by_name or {}
     vt = tiers.get(visit.name, 11)
-    if vt > 2:
+    if vt > 2 and not force:
         return False
     vcity = str(visit.city or "").strip().removesuffix("市")
     if not vcity:
         return False
+    # 弹座档闸：名录口径弹档严格更差者；force（必去/心愿）档位未知/
+    # 杂档（>8）时不设档闸——用户点名条目对任何非钉非必去都有让位权。
+    gate_t = vt if vt <= _YIELD_MAX_TIER else 1
     later_days = plan.days[day_idx + 1 :]
     for later in later_days:
         if str(later.base_city or "").strip().removesuffix("市") != vcity:
@@ -3725,7 +3774,7 @@ def _rescue_premium_stranded(
             and not i.pinned
             and i.name not in protect
             and (i.category or "") not in ("food", "hotel")
-            and tiers.get(i.name, 11) > vt
+            and tiers.get(i.name, 11) > gate_t
         ]
         if not ejects:
             continue
@@ -10880,7 +10929,11 @@ class PlanningAgent:
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
         must_names = {spec["name"] for spec in picked if spec.get("must")}
         tier_map = {name: _source_tier(c) for name, c in cand_by_name.items()}
-        plan.assumptions.extend(_reconcile_transfer_days(plan, tier_by_name=tier_map))
+        plan.assumptions.extend(
+            _reconcile_transfer_days(
+                plan, tier_by_name=tier_map, protect=frozenset(must_names)
+            )
+        )
         # 必去让位清算（2026-11-04 熊猫基地挂日尾事故）：solve 前给钉住
         # 未排必去清出整档——自动凑数条目让位留痕，solve 拿到的日窗即可
         # 行，不再出现「必去无时刻挂日尾、凑数点霸下午」的优先级倒挂。
