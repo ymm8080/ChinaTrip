@@ -307,3 +307,6 @@
 - 2026-11-07 ~11:00 第 201 轮：r12 仍在飞（GLM 5h 窗口限流爬行，+30~50/h，零错误）；别名 2,582，覆盖率 26.4%。坐标 5、百度 476、自治州 0 均持平。继续挂等 r12 收尾。
 - 2026-11-07 ~15:00 第 202 轮：**r12 收讫**——filled 245 / none 4728 / errors 27（HTTP429×12 证实 GLM 限流，窗口恢复后速度回升至 ~40/h）。别名 2,630，覆盖率 **26.8%**；active 9,817（+21 回补）；坐标 5、百度 476、自治州 0。已续别名轮 r13（日志 ops/enrich_llm_web_r13_1107.log）。
 - 2026-11-07 深夜：r14/r15 启动事故复盘——①`&` 后台与 run_in_background 均出现进程被回收/误报死亡，**wmic+grep 探针不可靠（间歇 0 误报）**；②实际累计误启 4 对 enrich_llm_web 并发（幂等无害但 4×烧 GLM），已 taskkill 3 对、保留 Start-Process 启动的单对（完全脱离会话，PID 1404 树）；③前台 --limit 5 探针正常。教训：启动用 Start-Process；进程存活用 tasklist 双验证。
+- 2026-11-08 ~23:xx 5分钟节拍恢复轮：baidu matched 87 → **hours +64 / rating +42 / district +87 / phone +63 / aliases +18**（302 停，当日桶尽）；台账 103→147；amap 仍 text-WAF + around 池 over-limit（UNAVAILABLE 未自愈，待查）。
+- 2026-11-08 ~23:5x ctrip 恢复批收讫：targets 300 / page_hits 171（57%）/ errors 0；实填 phone +18 / ticket +20 / review_tags +12 / district +17 / duration +8 / photos +1 / hours 仅 +2——hours 低产非端点问题，是这批顶流行 hours 已被百度通道填满（fill-empty-only 生效）；注意页面 hours 格式已变为「今天09:00-17:00开放（…）」动态式。
+- 2026-11-08 ctrip 三批累计（300+300+900）：page_hits 657 / hours +7 / rating +3 / ticket +121 / phone +107 / district +104 / review_tags +65 / duration +25 / photos +18——hours 低产系顶流行已被百度通道填满（fill-empty-only），长尾行仍不在携程目录；六列整体覆盖大幅推进。
