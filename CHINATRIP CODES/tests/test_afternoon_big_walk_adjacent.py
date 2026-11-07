@@ -3,9 +3,9 @@
 
 2026-11-04 拍板「同日下午已有大点，第二个留空交挪日」在兜底排序里是
 硬跳过——鼓楼（90min 大点）与下午已排的回民街（90min 大点）直线
-1.3km 步行圈（_SHOW_ADJACENT_KM，锦里古戏台案同口径）内，被当「第二
-个下午大点」踢出当日交挪日链，同街三件拆成两天。步行圈内=同一街区
-连游，无车腿无叠加疲劳，豁免跳过；远距大点照旧跳过。
+1.3km 在近距同日圈（_NEAR_SAMEDAY_KM，用户拍板 5km 口径）内，被当
+「第二个下午大点」踢出当日交挪日链，同街三件拆成两天。圈内=同片区
+连游，豁免跳过；圈外远距大点照旧跳过。
 """
 
 from datetime import time
@@ -20,7 +20,7 @@ from app.services.itinerary.models import (
 
 _HMJ = GeoPoint(lon=108.9326, lat=34.2680)  # 回民街
 _GL = GeoPoint(lon=108.9435, lat=34.2602)  # 鼓楼（钟楼旁，~1.3km）
-_FAR = GeoPoint(lon=108.9639, lat=34.3049)  # 大明宫（~5km，步行圈外）
+_FAR = GeoPoint(lon=108.9639, lat=34.3150)  # 大明宫北（~6km，近距同日圈外）
 
 
 def _plan(far_second: bool) -> ItineraryPlan:
