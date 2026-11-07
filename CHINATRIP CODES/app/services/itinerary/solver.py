@@ -93,19 +93,16 @@ def show_session_starts(text: str | None) -> list[int]:
 
 #: 2026-10-31 用户拍板（城墙·碑林 17:00 入场事故）→ 2026-11-01 修正
 #: （成都熊猫基地 18:00 排期事故）→ 2026-11-03 再裁定（第1天城墙
-#: 18:43 排期事故）→ **2026-11-05 终裁（第4次重述，成都武侯祠
-#: 15:23+90=16:53 判违规）**：「下午 4:30 以后不放景点，除非是夜景
-#: 或者 SHOW」——闸升级为**结束闸**：观光占用须在 16:30 前收尾，
-#: 最晚开场 = 16:30 − 时长（本常量即结束界；大点另有 15:30 开场带，
-#: 时长 >80min 时被结束闸自然含入）。转场/到达日一律适用——装不下
-#: 就挪日，不在傍晚硬排。豁免：用户自钉且有时刻（铁律 19）、夜间
-#: 属性点（best_visit_time=evening/sunset/show）、仅晚间开放的场馆
-#: （全窗开 ≥17:00=夜游类）、餐饮/酒店/交通/演出类条目。
-#: 11-05 同时废除 11-02 backlog #2 的「开门晚于闸值→豁免交营业窗」
-#: 分支：结束闸下该分支会放行 16:30 后仍占用的观光（15:45 开+
-#: 120min=17:45 收尾），违背终裁——晚开门场馆当天物理无档 → 挪日，
-#: 真夜游类仍走 _hours_evening_only（全窗 ≥17:00）豁免。
-_GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
+#: 18:43 排期事故）→ 2026-11-05 曾升级为「结束闸」（开场+时长≤16:30）
+#: → **2026-11-07 用户再拍板（第5次重述）**：「观光须 16:00 前安排」
+#: ——回归**开场闸**且收紧到 16:00：观光须 16:00 前开场，时长可以
+#: 自然跨过 16:00，营业窗 + 日终 21:30 照卡（结束闸把 240min 级大块
+#: 头压成「必须上午整块开场」，环球中心类下午档结构性无解，故废）。
+#: 转场/到达日一律适用——装不下就挪日，不在傍晚硬排。豁免：用户自
+#: 钉且有时刻（铁律 19）、夜间属性点（best_visit_time=evening/
+#: sunset/show）、仅晚间开放的场馆（全窗开 ≥17:00=夜游类）、餐饮/
+#: 酒店/交通/演出类条目。大点另有 15:30 开场带（并列上限）。
+_GENERIC_ENTRY_CAP_MINUTES = 16 * 60
 
 # 大点三口径（2026-11-04 用户拍板「大型的旅游景区不适合放下午16:00。
 # 超过80分钟的一般下午就放一个。然后搭配一个近距离的CITYWALK。当天
@@ -276,11 +273,11 @@ def _hours_evening_only(window: PoiHours | None) -> bool:
 def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     """非演出观光点的最晚开场分钟数；None = 不设闸（豁免面见常量注释）。
 
-    2026-11-05 终裁（第 4 次重述）：16:30 闸为「结束闸」——观光占用
-    须在 16:30 前收尾，最晚开场 = 16:30 − 时长（成都武侯祠 15:23 开+
-    90min=16:53 收尾事故；11-03 的开场口径与 11-02 的「晚开门豁免」
-    一并废入本口径）。大点 15:30 开场带（2026-11-04）保留为并列上限，
-    时长 >80min 时被结束闸自然含入。"""
+    2026-11-07 用户再拍板（第 5 次重述）：16:00 闸为「开场闸」——观光
+    须 16:00 前安排（开场），时长可以自然跨过 16:00，营业窗 + 日终
+    21:30 照卡（2026-11-05 的「结束闸=开场+时长≤16:30」口径作废——
+    它把 240min 级大块头压成「必须上午整块开场」，环球中心类下午档
+    结构性无解）。大点 15:30 开场带（2026-11-04）保留为并列上限。"""
     if item.pinned and item.start_time is not None:
         # 铁律 19：用户确认过的时刻优先于默认排程规则。系统必去钉可能
         # 落在排不上时间的条目上（降级日）——无时刻即无「用户确认时刻」
@@ -293,13 +290,9 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
         return None
     if _hours_evening_only(window):
         return None
-    dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
     if _is_big_site(item):
-        cap = BIG_SITE_ENTRY_CAP_MINUTES
-    else:
-        cap = _GENERIC_ENTRY_CAP_MINUTES
-    # 结束闸（2026-11-05 终裁）：开场 + 时长 ≤ 16:30。
-    return min(cap, _GENERIC_ENTRY_CAP_MINUTES - dur)
+        return BIG_SITE_ENTRY_CAP_MINUTES
+    return _GENERIC_ENTRY_CAP_MINUTES
 
 
 def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:

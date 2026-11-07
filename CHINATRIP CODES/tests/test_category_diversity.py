@@ -163,6 +163,8 @@ def test_rebalance_backfill_respects_category_cap():
             "city": "西安",
             "category": "attraction",
             "suggested_duration_min": 90,
+            "rating": "4.7",
+            "rating_count": 100,
             "location": {"lon": 108.95, "lat": 34.28},
         },
     ]
@@ -280,6 +282,8 @@ def test_backfill_pref_exempt():
             "city": "西安",
             "category": "attraction",
             "suggested_duration_min": 90,
+            "rating": "4.7",
+            "rating_count": 100,
             "location": {"lon": 108.95, "lat": 34.28},
         },
     ]

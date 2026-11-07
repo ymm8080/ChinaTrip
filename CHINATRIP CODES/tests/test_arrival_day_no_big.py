@@ -29,12 +29,15 @@ from app.services.itinerary.scoring import plan_score
 _LOC = (104.06, 30.66)
 
 
-def _cand(name: str, *, minutes=None, tags=None, loc=_LOC):
+def _cand(name: str, *, minutes=None, tags=None, loc=_LOC, rating=None):
     c: dict = {"name": name, "city": "成都", "category": "sight", "location": loc}
     if minutes is not None:
         c["suggested_duration_min"] = minutes
     if tags is not None:
         c["tags"] = tags
+    if rating is not None:
+        c["rating"] = rating
+        c["rating_count"] = 100
     return c
 
 
@@ -111,8 +114,8 @@ def test_backfill_prefers_small_on_arrival_day():
     picked = [_spec("到达茶位", 1, 210)]
     picked[0]["category"] = "food"
     cands = [
-        _cand("候选大块头", minutes=120),
-        _cand("候选轻点", minutes=60),
+        _cand("候选大块头", minutes=120, rating="4.7"),
+        _cand("候选轻点", minutes=60, rating="4.7"),
     ]
     out, _notes = PlanningAgent._rebalance_days(
         picked,

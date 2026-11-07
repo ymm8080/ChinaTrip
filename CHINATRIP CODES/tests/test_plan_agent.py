@@ -2610,14 +2610,73 @@ def test_v0_auto_inserts_lunch_restaurant_when_food_candidates(
         agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
     )
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1 and foods[0].name == "绿波廊"
+    # 2026-11-07 拍板「两个餐厅可以一个午餐一个晚餐」：午餐插绿波廊后
+    # 晚餐 pass 照跑（不再被「当天已有真餐厅」整段跳过）——同城仅此
+    # 一家（_fresh 去重后晚餐无候选）→ 晚餐落占位件保槽。
+    lunch = [f for f in foods if f.name == "绿波廊"]
+    assert len(lunch) == 1
+    assert any(is_dinner_placeholder(f) for f in foods)
     # 2026-11-01 拍板「顺路餐厅不钉死」：系统软锚（非铁律 19）
-    assert not foods[0].pinned and foods[0].soft_pin
-    assert foods[0].poi_id == "B-FOOD-1"
+    assert not lunch[0].pinned and lunch[0].soft_pin
+    assert lunch[0].poi_id == "B-FOOD-1"
     # 2026-11-03 拍板开餐硬窗 [11:30, 12:30]（晚餐槽上线后 solver 滑窗
     # 有了第二软餐自由度，11:30 开餐亦合法）
-    assert time(11, 30) <= foods[0].start_time <= time(12, 30)
+    assert time(11, 30) <= lunch[0].start_time <= time(12, 30)
     assert any("顺路餐厅" in a for a in session.assumptions)
+
+
+def test_v0_lunch_and_dinner_each_get_their_own_restaurant(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "plan_restaurant_search_enabled", True)
+    # 2026-11-07 用户指令「两个餐厅可以一个午餐一个晚餐」：环球中心类
+    # 楼内双店日——午餐吃图商快餐、晚餐吃 DB 荐点餐秀，两餐各搜各插，
+    # 全局 3 家闸同拍删除（每天午+晚各 1 自然封顶）。
+    store = PoiDetailStore()
+    store.upsert(
+        "REC-D1",
+        city="上海",
+        name="红鼎宴",
+        category="food",
+        location=(121.49, 31.23),
+        rating=4.7,
+        suggested_duration_min=120,
+    )
+    store._memory["REC-D1"]["tags"] = ["curated", "intl"]
+    store._memory["REC-D1"]["best_visit_time"] = "evening"  # 仅晚餐闸
+    food_poi = {
+        "name": "绿波廊",
+        "city": "上海",
+        "category": "餐饮服务;本帮菜",
+        "source_poi_id": "B-FOOD-1",
+        "location": {"lon": 121.49, "lat": 31.23},
+        "address": "城隍庙",
+        "rating": "4.6",
+    }
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap([*AMAP_POIS, food_poi]),
+        poi_details=store,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    names = [f.name for f in foods]
+    assert "绿波廊" in names  # 午餐真餐厅（amap 顺路）
+    assert "红鼎宴" in names  # 晚餐荐点（仅晚市闸挡午餐、晚餐 pass 拾起）
+    assert not any(is_dinner_placeholder(f) for f in foods)
+    lunch = next(f for f in foods if f.name == "绿波廊")
+    dinner = next(f for f in foods if f.name == "红鼎宴")
+    assert lunch.start_time < dinner.start_time
+    # 餐秀时长 hint：晚餐窗 17:30-19:30 整窗 120min
+    assert dinner.duration_minutes == 120
 
 
 def test_v0_auto_inserts_dinner_placeholder_for_foodless_day(

@@ -308,6 +308,65 @@ def test_rehome_yields_before_bouncing_to_arrival_day():
     assert any("让位" in n for n in notes)
 
 
+def test_yield_multi_eject_fits_big_block():
+    """连续弹座（2026-11-07 环球中心案）：240min 大块头单弹一个
+    180min 杂点腾不出整块（腿窗垫圈后最大缺口 < 240min）——连续弹
+    两个 tier11 杂点后实位探针才过（10:00-14:00 整块，营业窗
+    10:00-22:00 内、入场闸 12:30 前）；档位更高的 tier9 与钉座不弹，
+    大块头保完整时长落位。旧口径单弹失败即弃 → 大块头被终局清算
+    蒸发。"""
+    big = _visit("成都环球中心", 3, minutes=240, hours="10:00-22:00")
+    big.day = 2
+    day2 = [
+        _timed(_visit("天府广场", 11, minutes=180), 9),  # 09:00-12:00
+        _timed(_visit("东郊记忆", 11, minutes=180), 12),  # 12:00-15:00
+        _timed(_visit("文殊院", 9, minutes=90), 17),  # 17:00-18:30 档高不弹
+        _timed(
+            _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True), 19
+        ),  # 19:00-21:00 钉座不弹
+        big,
+    ]
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    # d1 填满（4 件硬顶 + 无 240min 级缺口）：断掉「弹一座后大块头
+    # 干脆挪去空日」的捷径，逼出连续弹二座、大块头留原日的路径。
+    d1_items = [
+        _timed(_visit("人民公园", 11, minutes=180), 9),
+        _timed(_visit("青羊宫", 10, minutes=180), 12),
+        _timed(_visit("望江楼公园", 10, minutes=180), 15),
+        _timed(_visit("宽窄巷子", 8, minutes=120, pinned=True), 17, 30),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=d1_items)
+    for v in d1_items:
+        v.day = 1
+    plan = ItineraryPlan(itinerary_id="it6", cities=["成都"], days=[d1, d2])
+    tiers = {
+        "成都环球中心": 3,
+        "天府广场": 11,
+        "东郊记忆": 11,
+        "成都大熊猫繁育研究基地": 11,
+        "文殊院": 9,
+    }
+    notes = _rehome_untimed_visits(plan, frozenset(), tiers)
+    d2_names = {i.name for i in plan.days[1].items}
+    # 大块头让位成功留在原日（没被挪走更没被清算）
+    assert "成都环球中心" in d2_names
+    assert big.day == 2
+    # 连续弹座生效：两个 tier11 杂点都腾了座（单弹一个探针不过）
+    assert "天府广场" not in d2_names
+    assert "东郊记忆" not in d2_names
+    # 档位更高（tier9）与钉座不动
+    assert "文殊院" in d2_names
+    assert "成都大熊猫繁育研究基地" in d2_names
+    # 被弹者有交代（改排他日或移除留痕），披露含让位字样
+    assert any("让位" in n for n in notes)
+    assert all(
+        any("已改排第" in n or "无处可排" in n for n in notes if name in n)
+        for name in ("天府广场", "东郊记忆")
+    )
+
+
 # ---- 必去到达日搁浅强制救援（2026-11-07 熊猫基地案）：主路径
 # reconcile 此前不传 protect，必去按杂卡蒸发；且熊猫 tier11 被弹座
 # tier≤2 闸挡死。现口径：protect 内必去先挪同城后续天（大点先排落
@@ -318,7 +377,7 @@ def test_must_stranded_on_arrival_day_force_rescued_to_day2_morning():
     """必去（tier11 熊猫基地）挂到达日 12:00 落地装不下，次日 4 件
     满员无宿主 → force 弹座挪入次日（清时刻交排程，大点先排落
     早晨）；被弹者无宿主天移除留痕，必去绝不蒸发。"""
-    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-18:00")
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-17:00")
     panda.day = 1
     day2 = [
         _visit("金沙遗址博物馆", 11, minutes=90),
@@ -343,7 +402,7 @@ def test_must_stranded_on_arrival_day_force_rescued_to_day2_morning():
 def test_must_stranded_no_host_no_ejects_discloses():
     """控制组：后续天全钉（弹座池空）→ 必去原地保留 + 披露换天，
     不删不静默。"""
-    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-18:00")
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-17:00")
     panda.day = 1
     day2 = [
         _visit("金沙遗址博物馆", 11, minutes=90, pinned=True),

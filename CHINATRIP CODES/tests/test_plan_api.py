@@ -1145,14 +1145,13 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     assert starts == sorted(starts)  # 展示顺序=时间顺序
     # 2026-11-01 落地首停：高铁到达侧首个观光 ≥ 落地+150（原 +90）
     assert seq[0] == ("甲", dtime(13, 47))  # 首个空档（高铁 11:17+150min 地板）
-    assert seq[1] == ("夜游", dtime(17, 17))  # pinned 锚点
-    # 2026-11-05 终裁「16:30 前收尾」占用判：乙 120min 场地板 14:30、
-    # 丙 90min 场地板 15:00——乙在甲后 14:47 起 > 14:30、丙在甲+30 腿
-    # 后 15:17 起 > 15:00，双双留空交挪日链/校验披露（11-03 口径下丙
-    # 15:17-16:47 尚可开场，结束闸后该空档不再放行）。夜游（pinned）
-    # 不受闸。
+    assert seq[1] == ("丙", dtime(15, 17))  # 甲+30 腿游标
+    assert seq[2] == ("夜游", dtime(17, 17))  # pinned 锚点
+    # 2026-11-07 开场闸 16:00（大点 15:30 带）：乙 120min 甲+30 腿
+    # 15:17 起 ≤ 15:30 但 17:17 收尾撞夜游钉（±30 腿垫）→ 顺延越带留空；
+    # 丙 90min 15:17-16:47 恰贴夜游腿垫前 → 合法。夜游（pinned）不受闸。
     untimed = [v.name for v in visits if v.start_time is None]
-    assert untimed == ["乙", "丙"]
+    assert untimed == ["乙"]
 
 
 # --- POST /plan/{id}/items/{item_id}/retime（2026-10-24 点时间戳改时间）-----

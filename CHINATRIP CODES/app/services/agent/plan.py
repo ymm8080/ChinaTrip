@@ -612,6 +612,42 @@ def _cand_is_big(cand: dict) -> bool:
         return False
 
 
+# 回填重要度门槛（2026-11-07 用户指令「应该选重要景点而不是看时间
+# 长度」·宁空勿杂）：跨天均衡补位候选只拦「无名录档的 tier11 长
+# 尾」——tier≤10（街区/风景名胜/4A 等有档轻点，含大点+近旁街区配
+# 对设计）照旧可补；tier11 须「有评分且 quality≥4.5」才够格，否则
+# 宁可留空交白名单披露，不拿无评分杂点凑数（天府广场 4.7 无条数
+# 案）。上午保底线暂不设闸（杂点事故路径在均衡线，先收窄观测）。
+# 偏好命中豁免（偏好优先于默认封顶，2026-11-03 拍板口径）。
+_BACKFILL_FLOOR_TIER = 10
+_BACKFILL_MIN_QUALITY = 4.5
+
+
+def _cand_quality(cand: dict) -> float:
+    """同档内名声分（与选点层 _quality 同公式）：rating ×
+    (1+log2(1+count))；baidu 源 ×0.9 贴回高德标尺（评分跨源不可比，
+    2026-11-07 拍板）。"""
+    rating = cand.get("rating") or 0.0
+    count = cand.get("rating_count") or 0
+    try:
+        q = float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
+    except (TypeError, ValueError):
+        return 0.0
+    if str(cand.get("rating_source") or "").strip().lower() == "baidu":
+        q *= _BAIDU_RATING_FACTOR
+    return q
+
+
+def _backfill_eligible(cand: dict) -> bool:
+    """回填重要度门槛：有名录档（tier≤10）照旧；无档 tier11 须
+    「有评分且 quality≥4.5」——无评分长尾一律不够格。"""
+    if _source_tier(cand) <= _BACKFILL_FLOOR_TIER:
+        return True
+    if cand.get("rating") is None:
+        return False
+    return _cand_quality(cand) >= _BACKFILL_MIN_QUALITY
+
+
 def _leg_date_iso(start_date: str | None, day: int) -> str:
     """行程日 → 绝对日期（ISO）：start_date + (day-1) 天。
 
@@ -3570,29 +3606,41 @@ def _plan_poi_hours(plan: ItineraryPlan) -> list[PoiHours]:
     return out
 
 
-def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
-    """参访整段 [t, t+dur] 须落在营业窗内（2026-11-01 成都熊猫基地
-    18:00（闭馆 17:00）排期事故：兜底落位与挪日修复此前都不看闭馆
-    时刻）。多段窗先合并零间隔邻段（07:30-12:00 + 12:00-17:00 视作
-    07:30-17:00 一段）；无营业数据不硬卡（宁无窗不可错窗）。"""
+def _merged_hours_segments(hours: PoiHours | None) -> list[tuple[int, int]]:
+    """营业窗合并段（分钟数，升序；无窗数据返回 []）。
+
+    多段窗先合并零间隔邻段（07:30-12:00 + 12:00-17:00 视作
+    07:30-17:00 一段）——_fits_hours_window 与 _probe_visit_slot 的
+    开门对齐共用，口径只此一份。"""
 
     def _m(x) -> int:
         return x.hour * 60 + x.minute
 
     if hours is None:
-        return True
+        return []
     if hours.windows:
         segs = sorted((_m(o), _m(c)) for o, c in hours.windows)
     elif hours.opens is not None and hours.closes is not None:
         segs = [(_m(hours.opens), _m(hours.closes))]
     else:
-        return True
+        return []
     merged: list[list[int]] = []
     for o, c in segs:
         if merged and o <= merged[-1][1]:
             merged[-1][1] = max(merged[-1][1], c)
         else:
             merged.append([o, c])
+    return [(o, c) for o, c in merged]
+
+
+def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
+    """参访整段 [t, t+dur] 须落在营业窗内（2026-11-01 成都熊猫基地
+    18:00（闭馆 17:00）排期事故：兜底落位与挪日修复此前都不看闭馆
+    时刻）。多段窗先合并零间隔邻段（07:30-12:00 + 12:00-17:00 视作
+    07:30-17:00 一段）；无营业数据不硬卡（宁无窗不可错窗）。"""
+    merged = _merged_hours_segments(hours)
+    if hours is None or not merged:
+        return True
     return any(o <= t and t + dur <= c for o, c in merged)
 
 
@@ -3877,11 +3925,13 @@ def _yield_for_premium(
     软预算闸把大点堆进同一天、solver 降级后兜底排序排不出时刻，
     挪日扫尾又把无时刻王牌挪进到达日再被「下午单大点」跳过——
     最终 _drop_untimed_visits 整卡删除（青城山—都江堰/洪崖洞实录）。
-    本函数在挪不动时从池内同城日弹出档位严格更低（tier 数更大）
-    的非钉参访腾座：王牌清时刻挪入；被弹者再找宿主天，找不到按
-    原口径移除留痕。tier≤8（图商名点档）享此权——李子坝(chinatravel)
-    级杂点为洪崖洞让位是设计内牺牲，与追回池/品类闸同一档序口径。
-    返回宿主天； None=池内无可让之座（调用方照旧清算）。"""
+    本函数在挪不动时从池内同城日弹出档位更低（tier 数更大）或「同档
+    更小块头」的非钉参访腾座：王牌清时刻挪入；被弹者再找宿主天，找
+    不到按原口径移除留痕。tier≤8（图商名点档）享此权——李子坝
+    (chinatravel) 级杂点为洪崖洞让位是设计内牺牲，与追回池/品类闸
+    同一档序口径。零弹座基线探针（2026-11-07）：占位件已软挪出固定
+    窗，当天可能本就放得下——先试原样再进弹座循环。返回宿主天；
+    None=池内无可让之座（调用方照旧清算）。"""
 
     def _tier(name: str | None) -> int:
         return (tier_by_name or {}).get(str(name or ""), 11)
@@ -4824,6 +4874,12 @@ def _day_fixed_windows(
         start = item.start_time
         if start is None:
             continue
+        # 占位件软挪（2026-11-07 环球中心案）：「午饭/晚饭（自由安排）」
+        # 本就是可换可删的保槽卡——不进固定窗当墙，真身（大块头 13:30-
+        # 17:30 类）落位后占位件由重排让位（否则晚饭占位 17:30-18:30
+        # 把下午整档的探针判死，yield/rehome 永远放不下 240min 块）。
+        if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+            continue
         s = start.hour * 60 + start.minute
         e = _item_end_minutes(item)
         if isinstance(item, TransferItem):
@@ -4891,6 +4947,18 @@ def _probe_visit_slot(
     advanced = True
     while advanced:
         advanced = False
+        # 营业窗对齐（2026-11-07 修复）：t 早于开门/掉进段间隙时推进到
+        # 下一可行段开门——旧口径只推腿窗不推开门，10:00 开门点在
+        # 09:00 起算日永远探不进（t<opens 判 fits=False 即死，环球中心
+        # 案：让位/挪日探针对全天空日也返回 None）。闭馆侧照旧由
+        # _fits_hours_window 终审卡死。
+        for seg_o, seg_c in _merged_hours_segments(hours_by_poi.get(visit.poi_id)):
+            if seg_c <= t:
+                continue  # 该段已过
+            if t < seg_o:
+                t = seg_o
+                advanced = True
+            break  # 命中第一个未关段即止（t 段内或已推到段开）
         for fs, fe in _leg_windows(fixed, visit):
             if t < fe and t + dur > fs:
                 t = fe
@@ -10277,6 +10345,13 @@ class PlanningAgent:
                     ):
                         # 品类多样性闸（2026-11-03）：同类已满 max(2,span//3)
                         # 家不回填——偏好命中豁免（偏好优先于默认封顶）
+                        continue
+                    if not _pref_category_hit(
+                        cand, ptoks, pshow
+                    ) and not _backfill_eligible(cand):
+                        # 重要度门槛（2026-11-07 宁空勿杂）：tier≤6 或
+                        # 有评分且 quality≥4.5 才有补位资格——偏好命中
+                        # 豁免；不够格的留空交白名单披露。
                         continue
                     minutes = cand.get("suggested_duration_min")
                     try:

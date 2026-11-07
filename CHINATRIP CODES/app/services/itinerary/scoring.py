@@ -38,8 +38,8 @@ DAY_VISIT_BUDGET_MINUTES = 360  # 对齐 agent.plan.DAY_VISIT_BUDGET_MINUTES
 BUDGET_SLACK_MINUTES = 30  # 对齐晨间保底「360+30」容差（溢出 30 内免罚）
 DAY_END_MINUTES = 21 * 60 + 30
 # 白天入场结束闸（11-05 终裁）：观光占用须 16:30 前收尾
-ENTRY_CAP_MINUTES = 16 * 60 + 30
-# 大点开场带（11-04 拍板；结束闸下时长>80min 时被含入）
+ENTRY_CAP_MINUTES = 16 * 60
+# 大点开场带（11-04 拍板；2026-11-07 开场闸下保持并列上限）
 ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
 # CITYWALK 下午场带（2026-11-06 二拍；与 solver 同名常量同口径）
@@ -357,16 +357,24 @@ def plan_score(
                 overruns += 1
             cat = str(v.category or "")
             bvt = str(v.best_visit_time or "")
-            # 白天入场结束闸（2026-11-05 终裁，与 solver generic_entry_cap
-            # 同口径）：观光占用 16:30 前未收尾即迟——开场地带（大点
-            # 15:30）被结束界自然含入（时长>80min ⇒ start>15:30 必致
-            # end>16:30），单判 end 即完整镜像。
+            # 白天入场开场闸（2026-11-07 用户再拍板，与 solver
+            # generic_entry_cap 同口径）：观光 16:00 前未安排即迟——时长
+            # 可跨界收尾（营业窗+日终照卡）；大点（>80min，tier8 街区
+            # 豁免同 solver._is_big_site）走 15:30 开场带并列上限。
             if (
                 cat not in ("entertainment", "food", "hotel")
                 and bvt not in ("show", "evening", "sunset")
-                and e > ENTRY_CAP_MINUTES
+                and v.start_time is not None
             ):
-                late_entries += 1
+                entry_cap = ENTRY_CAP_MINUTES
+                try:
+                    dur_v = int(v.duration_minutes or 0)
+                except (TypeError, ValueError):
+                    dur_v = 0
+                if dur_v > BIG_SITE_MIN_MINUTES and getattr(v, "tier", None) != 8:
+                    entry_cap = ENTRY_CAP_BIG_MINUTES
+                if (v.start_time.hour * 60 + v.start_time.minute) > entry_cap:
+                    late_entries += 1
             km = getattr(v, "distance_to_next_km", None)
             if km:
                 travel_km += float(km)
