@@ -597,6 +597,36 @@ def test_pool_cap_never_evicts_high_quality_sights():
     assert "长尾" not in names  # quality=0 不享追回权
 
 
+def test_baidu_rating_normalized_against_amap():
+    """评分跨源不可比（2026-11-07 用户拍板）：rating_source='baidu' 行
+    质量分 ×0.9——同档内百度虚高 5.0 不得反超高德 4.6 名录地标（农科村
+    vs 武侯祠案）。1 天 4 席满池：amap 名点必须进池，baidu 5.0 让位。"""
+    cands = [
+        _cand(
+            f"农科村{i}",
+            "成都",
+            cat="attraction",
+            suggested=90,
+            loc=(103.6 + i * 0.01, 30.9),
+        )
+        for i in range(4)
+    ]
+    for i, c in enumerate(cands):
+        c["source"] = "baidu"
+        c["rating"] = 5.0
+        c["rating_source"] = "baidu"
+    amap = _cand("武侯祠", "成都", cat="attraction", suggested=90, loc=(104.05, 30.65))
+    amap["source"] = "amap"
+    amap["rating"] = 4.6
+    amap["rating_source"] = "amap"
+    cands.append(amap)
+    items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
+    names = {it["name"] for it in items}
+    assert "武侯祠" in names  # amap 4.6 > baidu 5.0×0.9=4.5，进池且占席
+    assert len(names) == 4  # 1 天 4 席：恰好一个 baidu 行被挤出局
+    assert sum(1 for n in names if n.startswith("农科村")) == 3
+
+
 def test_preclaim_far_guard_spreads_premium_pair():
     """预占位严格位同样不并互远大点（2026-11-04 成渝案二段）：石刻
     300min 与金佛山 180min 互相 >150km，腿分钟被 TRAVEL_LEG_CAP_MIN
