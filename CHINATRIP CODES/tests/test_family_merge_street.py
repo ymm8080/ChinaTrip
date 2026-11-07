@@ -253,3 +253,104 @@ def test_theme_block_recognized_via_stops():
     assert _is_theme_block(fam) is True
     assert _is_theme_block(plain) is False
     assert _is_citywalk(fam) is False
+
+
+# --- ⑤ citywalk/街区件不被伞卡吞并（2026-11-07 晚拍板） -----------------------
+#
+# 「武侯祠，锦里，宽窄巷子等 CITYWALK 可以选，它们与景点碑林历史文化
+#  景区不同」：伞名同站闸必须豁免 citywalk 类（cat=citywalk / source=
+#  street / tags citywalk），既不折卡也不影子退役；碑林博物馆×城墙·
+#  碑林景区（attraction 伞形）原语义不动。
+
+
+def _wuhou_museum():
+    return {
+        "name": "成都武侯祠博物馆",
+        "city": "成都",
+        "category": "museum",
+        "source_poi_id": "p-whm",
+        "name_en": "Wuhou Shrine Museum",
+        "location": _loc((104.049, 30.645)),
+    }
+
+
+def _jinli_block():
+    return {
+        "name": "武侯祠·锦里",
+        "city": "成都",
+        "category": "citywalk",
+        "source": "street",
+        "source_poi_id": "p-jinli",
+        "name_en": "Jinli Street",
+        "location": _loc((104.048, 30.6455)),
+    }
+
+
+def test_citywalk_block_exempt_from_museum_umbrella():
+    from app.services.agent.plan import (
+        _cand_diversity_group,
+        _fam_twin_absorb,
+        _itin_cap_bucket,
+        _museum_shadow_pairs,
+        _umbrella_cand_dup,
+        _umbrella_visit_dup,
+    )
+
+    assert _cand_diversity_group(_jinli_block()) == "citywalk"
+    # 候选层：锦里街区卡不构成武侯祠博物馆的伞名同站
+    assert _umbrella_cand_dup(_wuhou_museum(), _jinli_block()) is False
+    assert _fam_twin_absorb(_wuhou_museum(), _jinli_block()) is False
+    # 选点层：博物馆不让街区卡影子退役
+    pool = [(0, _wuhou_museum()), (1, _jinli_block())]
+    assert _museum_shadow_pairs(pool) == []
+    # VisitItem 层：citywalk 卡不参与伞名同站
+    vi_block = VisitItem(
+        item_id="i1",
+        name="武侯祠·锦里",
+        city="成都",
+        day=1,
+        category="citywalk",
+    )
+    vi_museum = VisitItem(
+        item_id="i2",
+        name="成都武侯祠博物馆",
+        city="成都",
+        day=1,
+        category="museum",
+    )
+    assert _umbrella_visit_dup(vi_museum, vi_block) is False
+
+
+def test_beilin_umbrella_semantics_unchanged():
+    # 对照：attraction 伞形挂牌行（非 citywalk 类）伞名同站照旧成立
+    wall = {
+        "name": "城墙·碑林历史文化景区",
+        "city": "西安",
+        "category": "attraction",
+        "source_poi_id": "p-wall",
+        "location": _loc(_ZL),
+    }
+    beilin = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "source_poi_id": "p-bl",
+        "location": _loc(_ZL),
+    }
+    from app.services.agent.plan import _umbrella_cand_dup
+
+    assert _umbrella_cand_dup(beilin, wall) is True
+
+
+def test_bucket_counts_street_source_as_citywalk():
+    from app.services.agent.plan import _itin_cap_bucket
+
+    # street 源行（cat 非 citywalk）与 cat=citywalk 同入 citywalk 桶
+    assert _itin_cap_bucket(_jinli_block()) == "citywalk"
+    street_attraction = {
+        "name": "春熙路",
+        "city": "成都",
+        "category": "attraction",
+        "source": "street",
+    }
+    assert _itin_cap_bucket(street_attraction) == "citywalk"

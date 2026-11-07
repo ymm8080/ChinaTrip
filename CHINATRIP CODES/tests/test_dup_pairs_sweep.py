@@ -480,3 +480,117 @@ def test_dup_blocks_beilin_museum_backfill():
         "category": "museum",
     }
     assert _dup_blocks_item(cand, fam) is True
+
+
+# --- ⑥ 伞名近邻捆绑同日（2026-11-07 四拍「判同族 5km，两站捆绑成线」）------
+# 用户终裁：碑林博物馆和城墙·碑林景区可以作为两个捆绑在一起的路线——
+# 判同族半径 5km；跨日的伞名对拉回同日，折卡组随后一卡两行显示。
+
+
+def _anchor_at(lon: float) -> dict:
+    s = _beilin_anchor()
+    s["location"] = {"lon": lon, "lat": 34.25687582300908}
+    return s
+
+
+def test_bundle_specs_coords_within_5km():
+    """词素+坐标 ≤5km 判捆绑（同闸 2km 的放宽档）。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    near = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "location": {"lon": 108.9550, "lat": 34.2560},  # ~1.3km
+    }
+    assert _umbrella_specs_bundle(_beilin_anchor(), near) is True
+
+
+def test_bundle_specs_coords_beyond_5km_not_bundle():
+    """>5km 同城词素对不捆绑（异地选址维持互斥原语义）。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    far = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "location": {"lon": 109.0400, "lat": 34.2560},  # ~9km
+    }
+    assert _umbrella_specs_bundle(_beilin_anchor(), far) is False
+
+
+def test_bundle_specs_no_coords_same_city_and_cross_city():
+    """无坐标走同城+词素降级（与伞名闸同口径）；跨城不猜。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    bound = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    bj = {"name": "西安碑林博物馆", "city": "北京", "category": "museum"}
+    assert _umbrella_specs_bundle(_beilin_anchor(), bound) is True
+    assert _umbrella_specs_bundle(_beilin_anchor(), bj) is False
+
+
+def test_bundle_pulls_cross_day_pair_to_must_keeper_day():
+    """跨日捆绑：必去碑林博物馆（day3，无坐标）是 keeper，城墙·碑林
+    （day2）拉回 day3——随后折卡组一卡两行。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
+    museum["must"] = True
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    anchor["must"] = False
+    notes = _bundle_umbrella_spec_days(
+        [museum, anchor], {"西安碑林博物馆": {"source_poi_id": "m1_x"}}
+    )
+    assert notes == ["城墙·碑林历史文化景区→西安碑林博物馆"]
+    assert anchor["day"] == 3
+    assert museum["day"] == 3
+
+
+def test_bundle_same_day_pair_untouched():
+    """同日对不动（折卡组自行处理），无披露。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
+    anchor = _beilin_anchor()
+    anchor["day"] = 3
+    notes = _bundle_umbrella_spec_days([museum, anchor], {})
+    assert notes == []
+    assert anchor["day"] == 3
+
+
+def test_bundle_beyond_5km_days_untouched():
+    """>5km 不拉日：异地选址各排各天，互斥闸原语义接管。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "day": 3,
+        "location": {"lon": 109.0400, "lat": 34.2560},
+    }
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    notes = _bundle_umbrella_spec_days([museum, anchor], {})
+    assert notes == []
+    assert museum["day"] == 3
+    assert anchor["day"] == 2
+
+
+def test_bundle_cross_city_days_untouched():
+    """跨城词素对不捆绑（城闸先行）。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    bj = {
+        "name": "西安碑林博物馆",
+        "city": "北京",
+        "category": "museum",
+        "day": 3,
+    }
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    notes = _bundle_umbrella_spec_days([bj, anchor], {})
+    assert notes == []
+    assert bj["day"] == 3
+    assert anchor["day"] == 2

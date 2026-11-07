@@ -173,11 +173,11 @@ _SOFT_FAR_KM = 140.0
 # 同口径）按距离聚合串线——替换点换了地，原列表序是绕旧点的近邻链，
 # 照旧会排出 58km 中途大空段。3km 内视为同商圈换位，保持用户列表序。
 _REPLACE_REORDER_KM = 3.0
-# 夜场演出贴邻同日圈（2026-11-07 锦里古戏台/武侯祠案）：仅夜场演出钉
-# 窗口末日、贴邻白天点预占最早天——武侯祠与隔壁锦里古戏台被拆成
-# 首尾两天。直线距离在该圈内（与 taxi_leg_min ≤1.5km 步行折算同口径
-# ——引擎本就视此距为步行可达）的候选，预占位认领序把演出日前置。
-_SHOW_ADJACENT_KM = 1.5
+# 近距同日圈（2026-11-07 锦里古戏台/武侯祠案起；同日口径用户拍板 5km）：
+# 直线距离在该圈内的点位互相牵引同日连排——认领天序贴邻天优先、演出日
+# 前置、下午大点贴邻豁免。原为 1.5km 步行圈，用户拍板「近距离同日连排
+# 是 5 公里之内」后扩圈改名；5km 圈外仍有 15km 片区圈兜底。
+_NEAR_SAMEDAY_KM = 5.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -285,7 +285,9 @@ def _itin_cap_bucket(cand: dict) -> str | None:
         t == "5a" or t.startswith("unesco") for t in tags
     ) and _SCENIC_NAME_RE.search(str(cand.get("name") or "")):
         return "scenic"
-    if cat == "citywalk":
+    if cat == "citywalk" or src == "street":
+        # street 源与多样性分组同口径（2026-11-07 晚拍板：宽窄巷子/
+        # 武侯祠·锦里类街区件计入行程级 citywalk 上限桶）
         return "citywalk"
     return None
 
@@ -2230,6 +2232,7 @@ def _museum_umbrella_dup(
     scenic_xy: tuple[float, float] | None,
     museum_city: str | None = None,
     scenic_city: str | None = None,
+    morpheme_km: float = 2.0,
 ) -> bool:
     """博物馆本体 vs 伞形景区挂牌行的同站判定（2026-10-31 碑林拍板）。
 
@@ -2270,8 +2273,10 @@ def _museum_umbrella_dup(
         return False
     if core not in scenic_name:
         return False
-    # 词素闸 2km（青城山 vs skydive 同山不同场馆不误并）
-    return dist <= 2.0
+    # 词素闸 2km（青城山 vs skydive 同山不同场馆不误并）；捆绑判据
+    # （_umbrella_specs_bundle）放宽到 _UMBRELLA_BUNDLE_KM（2026-11-07
+    # 四拍「判同族 5km，两站捆绑同日成线」）
+    return dist <= morpheme_km
 
 
 _UMBRELLA_SCENIC_EXEMPT_CATEGORIES = {
@@ -2298,7 +2303,11 @@ def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
     if ma == mb:
         return False
     museum, scenic = (a, b) if ma else (b, a)
-    if (scenic.category or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES:
+    if (scenic.category or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES or (
+        scenic.category or ""
+    ) == "citywalk":
+        # citywalk 卡（VisitItem 无 source/tags，类别口径）同样不参与
+        # 伞名同站（2026-11-07 晚拍板，与 _umbrella_cand_dup 同理）
         return False
     return _museum_umbrella_dup(
         museum.name or "",
@@ -2314,13 +2323,19 @@ def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
     )
 
 
-def _umbrella_cand_dup(a: dict, b: dict) -> bool:
+def _umbrella_cand_dup(a: dict, b: dict, *, morpheme_km: float = 2.0) -> bool:
     """候选层伞名同站（挂进选点层博物馆让位）。"""
     ma, mb = _museum_cand(a), _museum_cand(b)
     if ma == mb:
         return False
     museum, scenic = (a, b) if ma else (b, a)
     if (scenic.get("category") or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES:
+        return False
+    # citywalk/街区件不被伞卡吞并（2026-11-07 晚拍板：武侯祠·锦里
+    # （citywalk/street）与武侯祠博物馆是不同类型，各排各卡——既不折
+    # 卡也不在选点层影子退役；碑林博物馆×城墙·碑林景区（attraction）
+    # 原语义不动）
+    if _cand_diversity_group(scenic) == "citywalk":
         return False
     return _museum_umbrella_dup(
         str(museum.get("name") or ""),
@@ -2329,7 +2344,57 @@ def _umbrella_cand_dup(a: dict, b: dict) -> bool:
         _cand_xy(scenic),
         museum_city=museum.get("city"),
         scenic_city=scenic.get("city"),
+        morpheme_km=morpheme_km,
     )
+
+
+_UMBRELLA_BUNDLE_KM = 5.0
+
+
+def _umbrella_specs_bundle(a: dict, b: dict) -> bool:
+    """伞名近邻捆绑判据（2026-11-07 四拍「判同族 5km，两站捆绑同日成
+    线」）：与 _umbrella_cand_dup 同闸同词素，词素距离闸放宽到
+    _UMBRELLA_BUNDLE_KM（无坐标仍走同城+词素降级；家族闸
+    _HERITAGE_TWIN_GATE_KM 原样）。只用于跨日拉回同日的配对识别，
+    不改变互斥/折卡语义。"""
+    return _umbrella_cand_dup(a, b, morpheme_km=_UMBRELLA_BUNDLE_KM)
+
+
+def _bundle_umbrella_spec_days(
+    picked: list[dict], cand_by_name: dict[str, dict]
+) -> list[str]:
+    """伞名近邻跨日捆绑：跨日的伞名同站对把低 rank 件拉回高 rank 件的
+    同日（2026-11-07 四拍），返回 "moved→keeper" 披露清单；>5km/跨城
+    不动。同日之后 fam_by_day 自然折成一卡两行（时长取 max），去重闸
+    不再触发。"""
+    moved_notes: list[str] = []
+    spec_by_name = {str(s["name"]): s for s in picked if s.get("category") != "food"}
+    names = list(spec_by_name)
+    rank_cache: dict[str, tuple] = {}
+
+    def _rank(s: dict) -> tuple:
+        nm = str(s["name"])
+        if nm not in rank_cache:
+            c = cand_by_name.get(nm)
+            rank_cache[nm] = (
+                bool(s.get("must")),
+                bool((c or {}).get("source_poi_id")),
+                -(_source_tier(c) if c else 99),
+            )
+        return rank_cache[nm]
+
+    for i, a_name in enumerate(names):
+        a = spec_by_name[a_name]
+        for b_name in names[i + 1 :]:
+            b = spec_by_name[b_name]
+            if not _umbrella_specs_bundle(a, b):
+                continue
+            if int(a["day"]) == int(b["day"]):
+                continue
+            keeper, moved = (a, b) if _rank(a) >= _rank(b) else (b, a)
+            moved["day"] = int(keeper["day"])
+            moved_notes.append(f"{moved['name']}→{keeper['name']}")
+    return moved_notes
 
 
 def _fam_twin_absorb(anchor: dict, other: dict) -> bool:
@@ -4726,7 +4791,7 @@ def _fallback_sequence_times(
             for v in day.items
         )
         # 贴邻豁免锚点（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：记录本
-        # 日下午已排大点的坐标，供下方「第二个下午大点」跳过前判步行圈。
+        # 日下午已排大点的坐标，供下方「第二个下午大点」跳过前判近距同日圈。
         afternoon_big_xy: tuple[float, float] | None = None
         for v in day.items:
             if (
@@ -4814,9 +4879,9 @@ def _fallback_sequence_times(
                     # 下午单大点兜底镜像（2026-11-04 拍板）：同日下午已有
                     # 大点，第二个留空交挪日/披露，不硬塞。
                     # 贴邻豁免（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
-                    # 与本日下午已排大点在步行圈（_SHOW_ADJACENT_KM，锦里
-                    # 案同口径）内=同一街区连游，无车腿无叠加疲劳，不按
-                    # 「第二个下午大点」处理——硬跳过反而制造跨日拆散。
+                    # 与本日下午已排大点在近距同日圈（_NEAR_SAMEDAY_KM，
+                    # 5km 口径）内=同片区连游，不按「第二个下午大点」
+                    # 处理——硬跳过反而制造跨日拆散。
                     _vloc = getattr(visit, "location", None)
                     _vxy = (
                         (float(_vloc.lon), float(_vloc.lat))
@@ -4830,7 +4895,7 @@ def _fallback_sequence_times(
                             GeoPoint(lon=_vxy[0], lat=_vxy[1]),
                             GeoPoint(lon=afternoon_big_xy[0], lat=afternoon_big_xy[1]),
                         )
-                        <= _SHOW_ADJACENT_KM
+                        <= _NEAR_SAMEDAY_KM
                     )
                     if not _walk_adjacent:
                         logger.warning(
@@ -7974,13 +8039,13 @@ class PlanningAgent:
 
                 # 贴邻圈优先（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
                 # 15km 片区圈在市中心对几乎每天皆真（华清宫 13km 也算
-                # 「近」），「最空天」兜底随后把同街件吸去别天——步行圈
-                # （_SHOW_ADJACENT_KM，锦里案同口径）内有已放点位的天
-                # 最先，同街三件不再被逐件吸散；贴邻天之间再按最近贴邻
-                # 点距离取近（鼓楼 1.0km 跟回民街块而不是 1.2km 跟较空
-                # 的城墙碑林块，实测），tiebreak 最空天；无贴邻天退回
-                # 15km 圈，再退最空天（熊猫基地→都江堰口径不变）。
-                walk = [d for d in fitting if _day_min_km(d) <= _SHOW_ADJACENT_KM]
+                # 「近」），「最空天」兜底随后把同街件吸去别天——近距
+                # 同日圈（_NEAR_SAMEDAY_KM，5km 口径）内有已放点位的
+                # 天最先，同街三件不再被逐件吸散；贴邻天之间再按最近
+                # 贴邻点距离取近（鼓楼 1.0km 跟回民街块而不是 1.2km 跟
+                # 较空的城墙碑林块，实测），tiebreak 最空天；无贴邻天
+                # 退回 15km 圈，再退最空天（熊猫基地→都江堰口径不变）。
+                walk = [d for d in fitting if _day_min_km(d) <= _NEAR_SAMEDAY_KM]
                 if walk:
                     return min(
                         walk,
@@ -9446,8 +9511,8 @@ class PlanningAgent:
                         ]
                     # 演出贴邻点同日（2026-11-07 锦里古戏台/武侯祠案）：仅
                     # 夜场演出钉窗口末日，贴邻白天点却预占最早天——同街区
-                    # 一对被拆成首尾两天。与钉日演出直线距离在步行圈内
-                    # （_SHOW_ADJACENT_KM，步行折算同口径）的候选把演出日
+                    # 一对被拆成首尾两天。与钉日演出直线距离在近距同日圈
+                    # （_NEAR_SAMEDAY_KM，5km 口径）内的候选把演出日
                     # 提到认领序首位；演出日是转场日/到达日时不前置（边日
                     # 轻重、到达日轻量拍板不破）。软偏好，预算/4点日闸照
                     # 收，后续求解/LNS 仍可调换。
@@ -9458,11 +9523,11 @@ class PlanningAgent:
                         and show_pin_xy is not None
                         and xy is not None
                         and show_pin_day in order
-                        and _km(xy, show_pin_xy) <= _SHOW_ADJACENT_KM
+                        and _km(xy, show_pin_xy) <= _NEAR_SAMEDAY_KM
                     ):
                         order = [show_pin_day] + [d for d in order if d != show_pin_day]
-                    # 步行贴邻同日（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
-                    # 认领天序把已有步行圈内（_SHOW_ADJACENT_KM，锦里案同
+                    # 近距贴邻同日（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                    # 认领天序把已有近距同日圈内（_NEAR_SAMEDAY_KM，5km
                     # 口径）点位的天前置——同街件不因认领梯子后位被容量
                     # 漏斗逐件甩去别天。软偏好：被边日轻重/到达日轻量压
                     # 到尾段的天不抢位（分区拍板不破），预算/4点日闸照收，
@@ -9480,7 +9545,7 @@ class PlanningAgent:
                                 if d not in _zoned_tail
                                 and day_coords.get(d)
                                 and min(_km(xy, p) for p in day_coords[d])
-                                <= _SHOW_ADJACENT_KM
+                                <= _NEAR_SAMEDAY_KM
                             ),
                             key=lambda d: (
                                 min(_km(xy, p) for p in day_coords[d]),
@@ -10955,6 +11020,21 @@ class PlanningAgent:
                     "were moved to the nearest day",
                 )
             )
+        # 伞名近邻捆绑同日（2026-11-07 四拍「判同族 5km，碑林博物馆和
+        # 城墙·碑林景区作为两个捆绑在一起的路线」）：跨日的伞名同站对
+        # 先把低rank件拉回高rank件的同日，再进下方折卡组——同日之后
+        # fam_by_day 自然把两站折成一卡两行（时长取 max，不挤爆当日
+        # 预算），显示不影没；>5km（异地选址）与跨城维持互斥原语义。
+        _bundle_moved = _bundle_umbrella_spec_days(picked, cand_by_name)
+        if _bundle_moved:
+            assumptions.append(
+                L(
+                    f"{'、'.join(_bundle_moved)} 为同站近邻（≤5km），已捆绑到同日成线",
+                    ", ".join(_bundle_moved)
+                    + " are same-site neighbours (≤5 km) and were bundled "
+                    "onto the same day",
+                )
+            )
         anchors: dict[str, GeoPoint] = {}
         for cand in candidates:
             city = _norm_city_key(cand.get("city"))
@@ -10969,7 +11049,7 @@ class PlanningAgent:
         # 才补坐标）走同城+词素降级闸（_fam_twin_absorb），不留独立第二
         # 卡也不静默丢弃。≤1km 同街族并卡已废（2026-11-07 用户反转拍板：
         # 大雁塔+长安十二时辰是两个景点，各排各卡、同日连排，不合成一卡
-        # ——近距同日由预占/求解层的 1.5km 贴邻圈承担；每个点照常占
+        # ——近距同日由预占/求解层的 5km 近距同日圈承担；每个点照常占
         # 4/日计数与预算）。
         fam_members: dict[str, list[dict]] = {}
         absorbed: set[str] = set()
@@ -11005,10 +11085,10 @@ class PlanningAgent:
             assumptions.append(
                 L(
                     f"{'、'.join(sorted(twin_absorbed))} 与同站主卡互替"
-                    "（同类型二选一），已并入一卡作子站展示",
+                    "近邻，已并入一卡作子站展示（两站都可见）",
                     ", ".join(sorted(twin_absorbed))
                     + " are same-site alternates of their host card "
-                    "(one per type) and were folded into it for display",
+                    "and were folded into it as visible sub-stops",
                 )
             )
         for spec in picked:
@@ -11229,16 +11309,21 @@ class PlanningAgent:
                         # 换乘日午餐城跟随落地时刻（2026-10-31 沪→西安案）
                         lunch_city = _meal_city_at(day_plan, placed_slot[0])
                 recs: list[VisitItem] = []
-                if (
-                    placed_slot is not None
-                    and self._amap is not None
-                    and searches < 3
-                    and _resto_search_enabled()
-                ):
-                    searches += 1
+                if placed_slot is not None:
+                    # DB 荐点并池与外呼开关解耦（2026-11-07 晚拍板「curated
+                    # 行必进餐槽，不输庆渝宴」）：开关关/无 amap 时零外呼
+                    # 只查库——amap=None 在 recommend_restaurants 天然降
+                    # 级（只走 extra_pois）；searches 节流只计真外呼。
+                    live = (
+                        self._amap is not None
+                        and _resto_search_enabled()
+                        and searches < 3
+                    )
+                    if live:
+                        searches += 1
                     try:
                         recs = await recommend_restaurants(
-                            self._amap,
+                            self._amap if live else None,
                             day_plan,
                             "lunch",
                             city=lunch_city,
@@ -11312,17 +11397,21 @@ class PlanningAgent:
                     dinner_city = _meal_city_at(
                         day_plan, dinner_win[0] if dinner_win else None
                     )
+                    # 同午餐：DB 并池与外呼开关解耦（2026-11-07 晚拍板），
+                    # 开关关/无 amap 时零外呼只查库荐点
+                    dinner_live = self._amap is not None and _resto_search_enabled()
+                    dinner_pois = await _rec_food(dinner_city)
                     recs = (
                         await recommend_restaurants(
-                            self._amap,
+                            self._amap if dinner_live else None,
                             day_plan,
                             "dinner",
                             # 换乘日晚餐城=末段已落地 transfer 的到达城
                             # （base_city 是醒来城：2026-10-31 沪→西安案）
                             city=dinner_city,
-                            extra_pois=await _rec_food(dinner_city),
+                            extra_pois=dinner_pois,
                         )
-                        if self._amap is not None and _resto_search_enabled()
+                        if dinner_live or dinner_pois
                         else []
                     )
                 except Exception:
