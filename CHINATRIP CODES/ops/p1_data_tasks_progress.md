@@ -270,3 +270,20 @@
 - 2026-11-05 09:2x 5分钟节拍轮 111：baidu matched 1 → district +1（302 停）；amap 未恢复。
 - 2026-11-05 ~09:30 **P1#2 别名轮解析器修复完成**（backlog master 2026-11-04 #2，随 0924f56 入库）：30 行真实探针抓包（5,594/13,077 tokens）复盘 r8 的 218/226 个 ValueError——**29/30 纯 JSON，唯一失败形态=空 content 回包**（web_search 吃掉输出预算），不是 JSON 格式坏。修法：①`_chat_web` 空回包/解析失败按可重试（重试即恢复，预计收回 ~4.4% 行损失）；②`_extract_json` 宽容解析（围栏/全角标点/尾逗号/非串防御，30 样本重放无回归）；③`_clean_aliases` 单串拆分；④失败样本落 stderr 供台账分类（此前按类型计数丢弃）。新增 tests/test_enrich_llm_web.py 7 例，全量 **2373 tests 绿**、ruff 绿。注：探针走真实管线顺手填了 2 行别名（只填空铁律）。**续批等用户指令**。
 - 2026-11-05 ~07:40 第 196 轮：amap place 仍 PUNISHED（第 3 天，超常规冷却）。r9 别名轮静默死亡（0 进程/0 字节日志/计数未动，疑受工具中断牵连被杀）；前台 5 行探针正常（0 错误，5/5 no_data——易命中目标已耗尽，产率将走低）。已重开 r10 --limit 5000（日志 ops/enrich_llm_web_r10_1105.log）。坐标 20 行全在台账，无可选目标。
+- 2026-11-05 ~07:50 第 197 轮：r10 在飞（shim 对），别名 2,527（+7，慢涓流，易命中目标已耗尽属预期）；百度 411（+11 日批）；自治州 0；无坐标 20。维持。
+- 2026-11-06 ~07:00 第 198 轮：**r10 收讫（史上最佳）**——targets 5000 / aliases_filled **304** / aliases_none 4696 / **errors 0**。别名总数 2,527→**2,824，覆盖率 20.3%**。百度 412；自治州 0；**无坐标 20→8**（12 行被并行会话补掉），剩余 8 行与 miss 台账 8 行一一对应（锡林郭勒 2/伊犁 3/阿拉善盟 1/博尔塔拉 2）——T2 彻底闭合。已续别名轮 r11（日志 ops/enrich_llm_web_r11_1106.log）。
+- 2026-11-06 07:45 调度器（2min 周期）：百度池 ~07:25 复活，立即收割 120 行——hours +42 / rating +36 / phone +41 / district +56 / aliases +10，随后 302 收口；amap 仍 USER_DAILY_QUERY_OVER_LIMIT（连续第 3 天未随零点重置，判定月池枯竭待月度重置或换源）。转 en 回填清积压模式（zh_no_en 1,602）。
+- 2026-11-06 08:07 调度器R1：闸 ok；enrich_llm_web 在飞（别名任务，GLM 占用）。探针 amap 死/quota、baidu 短暂复活——收割仅 5 行（均无目标字段）即再 302：池子呈滴漏式分时段放量。amap 行 1,580。en 回填本轮不启（GLM 让位给在飞别名任务）。
+- 2026-11-06 08:09 调度器R2：闸 ok；amap 死/quota；baidu 探针又亮但收割 2 行即再 302——滴漏持续但极细。enrich_llm_web 仍在飞，en 回填继续让位。
+- 2026-11-06 08:11 调度器R3：闸 ok；amap 死；baidu 滴漏 5 行即 302（均无目标字段）。enrich_llm_web 在飞，en 回填让位。台账 amap 1,090。
+- 2026-11-06 08:14 调度器R4：闸 ok；双引擎均死（baidu 302 无滴漏、amap quota）。enrich_llm_web 在飞，en 让位。纯观察轮。
+- 2026-11-06 08:16 调度器R5：闸 ok；amap 死；baidu 滴漏 4 行全中——hours +4 / phone +4 / district +4，随后 302。enrich_llm_web 在飞，en 让位。
+- 2026-11-06 08:18 调度器R6：闸 ok；amap 死；baidu 滴漏 1 行全中（hours +1/phone/district/aliases 各 +1）即 302。enrich_llm_web 在飞，en 让位。
+- 2026-11-06 08:20 调度器R7：闸 ok；amap 死；baidu 探针亮但批首行即 302（滴漏被探针自身耗尽）。enrich_llm_web 在飞，en 让位。
+- 2026-11-06 08:22 调度器R8：闸 ok；双引擎均死。enrich_llm_web 在飞，en 让位。纯观察轮。
+- 2026-11-06 08:26 调度器R9：闸 ok；amap 死；baidu 探针亮、批首行即 302（滴漏耗尽）。enrich_llm_web 在飞，en 让位。
+- 2026-11-06 08:30 调度器R10：闸 ok；amap 死；baidu 滴漏 2 行全中（hours +2/phone/district/aliases 各 +2）即 302。enrich_llm_web 在飞，en 让位。
+- 2026-11-06 08:32 调度器R11：闸 ok；双引擎均死。enrich_llm_web 在飞，en 让位。纯观察轮。
+- 2026-11-06 08:34 调度器R12：闸 ok；amap 死；baidu 探针亮、批首行即 302。enrich_llm_web 在飞，en 让位。
+- 2026-11-07 用户指令「4A 先下线」：**source='4a' 全量退役**——3,799 active → inactive（4a 源 4,191 行现全部 inactive，软删可逆）；active 池 13,623 → **9,824**。台账 DESIGN/POIS DATASOURCE/retire_4a_ledger_2026-11-07.csv（id/名称/城市/改前时间戳逐行留底，2026-11-07 移交），脚本 ops/_tmp_4a_deactivate.py。规划候选闸/导出/双补填引擎均按 status='active' 过滤，即刻生效；其余源仅带 4a tag 的行（baidu 85/amap 55/museum/5a/unesco 等）为去重保留方，未动。调度器指纹闸将见到 pois 计数大变，属本操作非事故。
+- 2026-11-07 用户指令「图书馆非相当特殊不留」：**图书馆全量清理**——31 个 active 名含 图书馆/library 的 POI 退役 28 个（国家/省/市/区县公共馆 14、高校馆 4、酒店书阁 1、大英图书馆世界像素巡展 1、佛学院藏经 1、普通城市馆 7），status='retired' 软删可逆；**保留 3 个相当特殊**：何東圖書館（澳门，unesco 世遗建筑）、北京城市图书馆（IFLA 2024 年度公共图书馆、地标建筑）、徐家汇书院（上海地标、4.7）。退役前核 trip_items 零引用；seed_poi 骨架 exists 即跳过（poi_seed.py:294）、intl merge 不翻 status——retired 不会被再导入复活。active 池 9,824 → **9,796**（图书馆 31 → 3）。读侧退役闸（plan.py/pois.py/booking_auto.py inactive/retired/duplicate 口径）即刻生效。
