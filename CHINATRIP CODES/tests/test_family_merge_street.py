@@ -290,7 +290,6 @@ def test_citywalk_block_exempt_from_museum_umbrella():
     from app.services.agent.plan import (
         _cand_diversity_group,
         _fam_twin_absorb,
-        _itin_cap_bucket,
         _museum_shadow_pairs,
         _umbrella_cand_dup,
         _umbrella_visit_dup,
