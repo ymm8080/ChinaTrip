@@ -727,11 +727,23 @@ class PoiDetailStore:
         return best
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
+    # 主池住宿出池（2026-11-07 实测：成都 top-30 窗口混入 2 家 intl/layla
+    # 标签酒店——易宁阁/西金中心，top_pois_in_city 只排 food 不排 hotel）
+    _STAY_CATEGORY_MARKS = ("hotel", "酒店", "宾馆", "民宿", "客栈")
 
     @classmethod
     def _row_is_food(cls, category: str | None) -> bool:
         c = (category or "").strip()
         return any(mark in c for mark in cls._FOOD_CATEGORY_MARKS)
+
+    @classmethod
+    def _row_is_nonvisit(cls, category: str | None) -> bool:
+        """餐饮或住宿——引擎主池两类都不收（top_pois_in_city 专用，
+        search_keyword/备选池不受影响）。"""
+        c = (category or "").strip()
+        return cls._row_is_food(category) or any(
+            mark in c for mark in cls._STAY_CATEGORY_MARKS
+        )
 
     def _heritage_names(self) -> list[tuple[str, int]]:
         """全库 unesco/5A 名单行 (name_zh, tier)——读时并档用，不限城。"""
@@ -813,6 +825,7 @@ class PoiDetailStore:
         self, city: str, limit: int = 30, *, exclude_food: bool = True
     ) -> list[dict]:
         """引擎候选主池（DESIGN 8.1.1，2026-10-24）：同城确定性排序取 top N。
+        餐饮+住宿出池（2026-11-07：住宿行此前一直占窗口席位）。
 
         score = rating × log2(1 + rating_count) × 标签加成（tags 含
         unesco/5A 乘 1.5）；有坐标优先；无评分行按（有标签、有坐标）
@@ -868,7 +881,10 @@ class PoiDetailStore:
                             | and_(
                                 *[
                                     ~Poi.category.like(f"%{mark}%")
-                                    for mark in self._FOOD_CATEGORY_MARKS
+                                    for mark in (
+                                        *self._FOOD_CATEGORY_MARKS,
+                                        *self._STAY_CATEGORY_MARKS,
+                                    )
                                 ]
                             )
                         )
@@ -888,7 +904,7 @@ class PoiDetailStore:
                     continue
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
-                if exclude_food and self._row_is_food(v.get("category")):
+                if exclude_food and self._row_is_nonvisit(v.get("category")):
                     continue
                 loc = v.get("location")
                 rows_out.append(

@@ -169,6 +169,11 @@ _SOFT_FAR_KM = 140.0
 _RETURN_DAY_WINDOW_MIN = LEAVING_MORNING_END_MINUTES - DAY_START_MINUTES
 # S5 演出保位（2026-11-02）：候选窗口外保底的同城演出行数上限
 PLAN_SHOW_RESCUE_LIMIT = 3
+# 内容类型多样保位（2026-11-07 拍板「商业中心/CITYWALK 要能与 5A 竞争」）：
+# 名录档硬分层把无档商业综合体(other)/城走(citywalk/street)压出排期面——
+# 成都实测环球中心 4.6 分全城 ~77 位、窗口 30 永不出线。窗口外+池外各
+# 保底每类 2 行；演出/娱乐不在此列（S5 演出保位另有专闸）。
+PLAN_DIVERSITY_RESCUE_LIMIT = 2
 
 
 class PoiStoreUnavailableError(RuntimeError):
@@ -246,6 +251,25 @@ def _cand_is_show(cand: dict) -> bool:
         or str(cand.get("source") or "").strip().lower() == "show"
         or "show" in tags
     )
+
+
+def _cand_diversity_group(cand: dict) -> str | None:
+    """内容类型多样保位分组（2026-11-07 拍板「商业中心/CITYWALK 要能与
+    5A 竞争」）：名录档硬分层把无档行压出排期面，此判定只认内容类型
+    不认档位——commercial=商业综合体(other)；citywalk=城走（citywalk
+    类别 / street 源 / 功能标签 citywalk）。演出/娱乐不算（_cand_is_show
+    另有保位专闸）；同名多源去重由调用方把风。"""
+    cat = str(cand.get("category") or "").strip().lower()
+    if cat == "other":
+        return "commercial"
+    if cat == "citywalk":
+        return "citywalk"
+    if str(cand.get("source") or "").strip().lower() == "street":
+        return "citywalk"
+    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
+    if "citywalk" in tags:
+        return "citywalk"
+    return None
 
 
 def _name_is_addr_shell(name: object) -> bool:
@@ -6873,6 +6897,28 @@ class PlanningAgent:
                             and not _cand_at_fallback(h)  # 回退点闸（P1#1）
                         ][:PLAN_SHOW_RESCUE_LIMIT]
                     )
+                    # 内容类型多样保位（2026-11-07 拍板「商业中心/CITYWALK
+                    # 要能与 5A 竞争」）：名录档硬分层把无档商业综合体/
+                    # 城走行压出 top-30（成都实录环球中心 4.6 分 ~77 位）。
+                    # 窗口满员时同城窗外每类保底 2 行；数据闸/回退闸/地址
+                    # 壳名全口径（不享演出豁免，白鹿原口径）。
+                    _div_counts: dict[str, int] = {}
+                    for h in lib_all:
+                        if sum(_div_counts.values()) >= PLAN_DIVERSITY_RESCUE_LIMIT * 2:
+                            break
+                        if not h.get("name") or h.get("name") in _picked_names:
+                            continue
+                        grp = _cand_diversity_group(h)
+                        if (
+                            grp is None
+                            or _div_counts.get(grp, 0) >= PLAN_DIVERSITY_RESCUE_LIMIT
+                        ):
+                            continue
+                        if not (h.get("location") and _pool_worthy(h)):
+                            continue
+                        _picked_names.add(h.get("name"))
+                        _div_counts[grp] = _div_counts.get(grp, 0) + 1
+                        lib_hits.append(h)
                 no_loc = sum(
                     1 for h in lib_all if h.get("name") and not h.get("location")
                 )
@@ -8292,10 +8338,38 @@ class PlanningAgent:
             # 排 5 件、日预算 50-60%）——与 tier≤2 同权追回池内，享池内
             # 软闸语义，后续求解/披露照旧。无评分长尾（quality=0）不享
             # 此权，池外回填仍硬闸（2026-11-02 拍板口径不变）。
+            # 内容类型多样保位·池外追回（2026-11-07 拍板）：窗口保位把商业
+            # 综合体/城走行送进 sights 后，tier 梯子仍把它们压在池外——
+            # premium 同权线只救 quality≥4.5 的有评分行，无评分城走行
+            # （街区 tier8 往转场日引的边日口径）需要显式席位。每类 2 行
+            # 按池序取最前；**插在池中段（第 span*(j+1) 位）而非尾接**——
+            # 满池时尾接行排在认领梯子最后，普通档中游行把 4/日闸吃满后
+            # 永远轮不到（premium 尾接能上靠的是博物馆 cat_cap 留缝，多样
+            # 行没有这种结构性空位）。插位=每天头一个多样内容；cat_cap/
+            # 孪生并卡/让位/披露闸照走。先于 premium 追回执行（有评分行
+            # 走插位不走尾接），premium 过滤池内已收行防重复。
+            _pool_idx = {p[0] for p in pool}
+            _div_pool: list[tuple[int, dict]] = []
+            _div_pool_counts: dict[str, int] = {}
+            for p in ordered[_pool_cap:]:
+                grp = _cand_diversity_group(p[1])
+                if grp is None or _cand_is_show(p[1]):
+                    continue
+                if (
+                    p[0] in _pool_idx
+                    or _div_pool_counts.get(grp, 0) >= PLAN_DIVERSITY_RESCUE_LIMIT
+                ):
+                    continue
+                _pool_idx.add(p[0])
+                _div_pool_counts[grp] = _div_pool_counts.get(grp, 0) + 1
+                _div_pool.append(p)
+            for j, p in enumerate(_div_pool):
+                pool.insert(min(span * (j + 1), len(pool)), p)
             _premium_out = [
                 p
                 for p in ordered[_pool_cap:]
-                if _source_tier(p[1]) <= 2 or _quality(p[1]) >= 4.5
+                if p[0] not in _pool_idx
+                and (_source_tier(p[1]) <= 2 or _quality(p[1]) >= 4.5)
             ]
             if _premium_out:
                 pool.extend(_premium_out)

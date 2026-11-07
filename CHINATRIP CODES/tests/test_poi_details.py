@@ -384,6 +384,38 @@ def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
     assert top["location"] == (106.5, 29.5)
 
 
+def test_top_pois_in_city_excludes_hotel_rows():
+    """主池住宿出池（2026-11-07 实测：成都窗口混入 2 家 intl 标签酒店）。
+    餐饮出池语义不变；中文类别（酒店/民宿）同拦。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "H1",
+        city="成都",
+        name="易宁阁宽窄别院(成都宽窄巷子地铁站店)",
+        category="hotel",
+        location=(104.05, 30.66),
+        rating=4.7,
+    )
+    store.upsert(
+        "H2",
+        city="成都",
+        name="梵隐·花间庭院villa朴墅",
+        category="酒店",
+        location=(104.06, 30.65),
+        rating=4.8,
+    )
+    store.upsert(
+        "S1",
+        city="成都",
+        name="春熙路",
+        category="attraction",
+        location=(104.08, 30.66),
+        rating=4.7,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert names == ["春熙路"]
+
+
 # --- search_keyword 读侧 tier 并列裁决 (2026-10-28 泛称愿望落地) --------------
 
 
