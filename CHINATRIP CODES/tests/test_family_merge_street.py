@@ -14,6 +14,8 @@ import asyncio
 
 from app.services.agent.plan import PlanningAgent, PlanSession
 from app.services.itinerary import VisitItem
+from app.services.itinerary.models import PlanStop
+from app.services.itinerary.solver import _is_citywalk, _is_theme_block
 from app.services.llm.base import ChatResult
 
 # 西安钟楼簇（约 114.0, 34.0）与远点（约 14km 外）
@@ -251,3 +253,68 @@ def test_wishlist_covered_by_family_stop():
     # 鼓楼在族卡子站上 = 已在册：不回炉（note 空、零写库）
     assert note == ""
     assert items.updates == []
+
+
+# --- ⑤ 族卡时段聚合 + 街区型经子站识别（2026-11-07 十二时辰案） -----------------
+
+
+def test_family_card_bvt_takes_night_member():
+    # 大雁塔（bvt any）并收 bvt=show 的十二时辰 → 族卡吃夜档信号，
+    # solver 才会把卡摆进 16:00 后软罚窗（下午→晚上），不再 morning-first。
+    picked = [
+        _picked("大雁塔大唐芙蓉园景区", _ZL, 180),
+        {
+            **_picked("长安十二时辰主题街区", (_ZL[0] + 0.008, _ZL[1]), 240),
+            "category": "entertainment",
+        },
+    ]
+    cands = [
+        {
+            **_cand("大雁塔大唐芙蓉园景区", _ZL, "p-dyt", "Dayanta"),
+            "best_visit_time": "any",
+        },
+        {
+            **_cand(
+                "长安十二时辰主题街区",
+                (_ZL[0] + 0.008, _ZL[1]),
+                "p-sec",
+                "Twelve Hours Block",
+            ),
+            "best_visit_time": "show",
+        },
+    ]
+    _, plan, _ = _family_plan(picked, cands)
+    card = next(v for v in plan.days[0].items if isinstance(v, VisitItem) and v.stops)
+    assert card.best_visit_time == "show"
+
+
+def test_theme_block_recognized_via_stops():
+    # 族卡名是锚名（大雁塔…，无「街区」二字）——_is_theme_block 必须扫到
+    # 子站名/类别才认得出夜档街区形态；普通锚（无街区子站）保持 False，
+    # 也不会被误判成 13:00 口径的普通 citywalk。
+    fam = VisitItem(
+        item_id="i1",
+        name="大雁塔大唐芙蓉园景区",
+        city="西安",
+        day=1,
+        category="attraction",
+        duration_minutes=240,
+        stops=[
+            PlanStop(
+                name="长安十二时辰主题街区",
+                category="entertainment",
+                duration_minutes=240,
+            )
+        ],
+    )
+    plain = VisitItem(
+        item_id="i2",
+        name="大雁塔大唐芙蓉园景区",
+        city="西安",
+        day=1,
+        category="attraction",
+        duration_minutes=240,
+    )
+    assert _is_theme_block(fam) is True
+    assert _is_theme_block(plain) is False
+    assert _is_citywalk(fam) is False

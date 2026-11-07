@@ -1816,10 +1816,11 @@ function planCard(plan) {
           : "";
         const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
-        // 子站 chips 折在主卡名下一行只读展示（删除/换点作用于整卡），
-        // 主卡时长已是族内最长一站，不再叠加。
+        // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
+        // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
+        // 一行（名+时长），不再挤一行灰字。
         if (Array.isArray(it.stops) && it.stops.length) {
-          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + I18N.tf("card.family.pre","🚶 同街联游：") + it.stops.map(s => esc(I18N.pick(s, "name", "name_en")) + ((s.duration_minutes || 0) ? I18N.tf("card.family.dur","（{n} 分钟）").replace("{n}", s.duration_minutes) : "")).join(" · ") + "</div>"));
+          blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + '"><div class="muted">' + I18N.tf("card.family.pre","🚶 同街联游：") + "</div>" + it.stops.map(s => '<div class="muted">· ' + esc(I18N.pick(s, "name", "name_en")) + ((s.duration_minutes || 0) ? I18N.tf("card.family.dur","（{n} 分钟）").replace("{n}", s.duration_minutes) : "") + "</div>").join("") + "</div>"));
         }
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : (it.category === "hotel" ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));

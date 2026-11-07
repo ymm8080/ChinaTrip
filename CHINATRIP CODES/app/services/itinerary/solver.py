@@ -222,12 +222,17 @@ def _is_theme_block(item: VisitItem) -> bool:
     「街区」的演出/娱乐/街区行——沉浸式主题街区（长安十二时辰/重逢
     1980），倾向 16:00 后开场（日午后段第二场形态）。用户自钉有时刻
     （铁律 19）不计；普通餐食街（回民街/磁器口，名无「街区」二字）不
-    在本判定内，走 _is_citywalk 的 13:00 口径。"""
+    在本判定内，走 _is_citywalk 的 13:00 口径。同街族并卡后主卡名是
+    锚站名（如 大雁塔），「街区」在子站名上——2026-11-07 十二时辰
+    案：名与类别都扫到 stops 子站，族卡照样吃 16:00 后软罚。"""
     if item.pinned and item.start_time is not None:
         return False
-    if "街区" not in (item.name or ""):
+    stops = list(item.stops or [])
+    names = [(item.name or "")] + [(s.name or "") for s in stops]
+    cats = [(item.category or "")] + [(s.category or "") for s in stops]
+    if not any("街区" in n for n in names):
         return False
-    return _is_show(item) or (item.category or "") in ("citywalk", "entertainment")
+    return _is_show(item) or any(c in ("citywalk", "entertainment") for c in cats)
 
 
 def _is_citywalk(item: VisitItem) -> bool:
