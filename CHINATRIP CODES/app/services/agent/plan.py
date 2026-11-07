@@ -2778,6 +2778,44 @@ def _is_service_meta_wish(text: str) -> bool:
     )
 
 
+def _significant_units(s: str) -> frozenset[str]:
+    """grounding 的最小信号单位：CJK 单字 + 拉丁词元（≥2 字符）。
+
+    标点/空白/单字符拉丁残片不是信号——「看熊猫」= {看,熊,猫}，
+    "see pandas" = {"see","pandas"}。"""
+    units: set[str] = {ch for ch in s if "一" <= ch <= "鿿"}
+    units.update(tok for tok in re.split(r"[^0-9a-z]+", s) if len(tok) >= 2)
+    return frozenset(units)
+
+
+def _wish_grounded_in_user_text(wish: str, user_texts: list[str]) -> bool:
+    """LLM 抽取的愿望必须溯源到用户自己打的字（2026-11-08 成都案终拍）。
+
+    线上实证（会话 5d978820，75 轮）：用户全场只发过偏好回复与「把成都
+    环球中心加回第4天上午」，心愿单却长出 4 行——lunches/sightseeing 从
+    行程卡捡的、Preferences: No special preference 是偏好回复英译、看熊猫
+    来自助手建议句「如想去都江堰熊猫谷看熊猫」。没有这层闸，词表闸
+    （meta/generic/service）只拦得出形状的垃圾，LLM 从助手消息/行程内容
+    里捡的「像愿望的词」照样建行。
+
+    口径：子串命中，或愿望的有效单位（CJK 字/拉丁词元）全部出现在用户
+    语料里（「我想看大熊猫」能 ground「看熊猫」）。跨语言抽取（EN 用户
+    被抽成中文短语）会落空——宁漏勿错：漏了用户可手动补，错建会挤掉
+    真愿望的坑位。"""
+    w = _norm_pref_text(wish).strip()
+    if not w:
+        return False
+    corpus = "\n".join(_norm_pref_text(t) for t in user_texts if t)
+    if not corpus:
+        return False
+    if w in corpus:
+        return True
+    units = _significant_units(w)
+    if not units:
+        return False
+    return units <= _significant_units(corpus)
+
+
 # 偏好→品类映射（拍板③）：(偏好触发词, 库内 category 值, 名字兜底 token)。
 # category 为主（库内已分类 museum/nature/park/…），名字 token 只兜底
 # 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃上海博物馆这类）。
@@ -13202,7 +13240,9 @@ class PlanningAgent:
         if not diffs:
             reply = reply or L("已处理你的消息。", "Your message is handled.")
             sync_notes, unresolved = await self.sync_wishes_to_trip_items(
-                session, wishes
+                session,
+                wishes,
+                user_texts=self._user_corpus(session),
             )
             extras = list(sync_notes)
             note = await self._ensure_wishlist_coverage(session)
@@ -13226,7 +13266,9 @@ class PlanningAgent:
         new_plan, summary, notes = await self._apply_with_repair(session, diffs, text)
         session.plan = new_plan
         session.state = "ready"
-        sync_notes, unresolved = await self.sync_wishes_to_trip_items(session, wishes)
+        sync_notes, unresolved = await self.sync_wishes_to_trip_items(
+            session, wishes, user_texts=self._user_corpus(session)
+        )
         notes.extend(sync_notes)
         coverage_note = await self._ensure_wishlist_coverage(session)
         if coverage_note:
@@ -13818,6 +13860,12 @@ class PlanningAgent:
             return []
         return [w for w in (str(x).strip() for x in raw) if w]
 
+    @staticmethod
+    def _user_corpus(session: PlanSession) -> list[str]:
+        """会话内用户消息语料（grounding 闸输入）。message() 入口已把
+        当前用户文本 append 进 history，取全量即可。"""
+        return [m.content for m in session.history if getattr(m, "role", "") == "user"]
+
     async def _resolve_wish_city(self, name: str) -> str | None:
         """专名愿望的城市解析（用户拍板 2026-10-24）：POIS 底库（全库
         不限城市，精确同名唯一才收）→ 高德全国 text（未标注=全国）。
@@ -13888,13 +13936,22 @@ class PlanningAgent:
         return None
 
     async def sync_wishes_to_trip_items(
-        self, session: PlanSession, wishes: list[str]
+        self,
+        session: PlanSession,
+        wishes: list[str],
+        *,
+        user_texts: list[str] | None = None,
     ) -> tuple[list[str], list[tuple[str, dict]]]:
         """Wish phrases land in the trip center verbatim (2026-10-24):
         what the user said — activity「看变脸表演」or named venue
         「蜀风雅韵」— is the wishlist row, never the model-resolved
         plan-item name. Duplicate wishes reuse the existing row; an
         unwanted row for the same wish flips back to wishlist.
+
+        user_texts 传入即启用 grounding 闸（2026-11-08 成都案终拍）：
+        LLM 抽取的愿望必须溯源到用户消息语料，否则建行前丢弃。偏好
+        问答回复道不传——回复本身就是用户原话（另有 _pref_reply_
+        groundable 收窄），不走此闸。
 
         城市解析（用户拍板 2026-10-24；2026-10-28 泛称自动落地收口）：
         专名愿望入库前先定城市（提示表→POIS 底库→高德全国）；定出的城市
@@ -13917,6 +13974,17 @@ class PlanningAgent:
         for w in dropped:
             logger.info("plan: chat wish dropped as meta/generic/service: %s", w)
         wishes = [w for w in wishes if w not in dropped]
+        # 2026-11-08 成都案终拍：LLM 从助手建议句/行程卡/偏好英译里捡的
+        # 「像愿望的词」不是用户心愿——必须溯源到用户消息语料才建行。
+        if user_texts is not None:
+            ungrounded = [
+                w for w in wishes if not _wish_grounded_in_user_text(w, user_texts)
+            ]
+            for w in ungrounded:
+                logger.info(
+                    "plan: chat wish dropped as ungrounded (not user-typed): %s", w
+                )
+            wishes = [w for w in wishes if w not in ungrounded]
         if self._trip_items is None or not wishes:
             return [], []
         # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——
