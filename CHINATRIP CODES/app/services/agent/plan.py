@@ -258,6 +258,14 @@ def _cand_is_show(cand: dict) -> bool:
     )
 
 
+# 商业综合体名称语素兜底（2026-11-07 二拍「修法选2」）：点名升类把
+# other→attraction 粘性升类（环球中心案），commercial 组只认 other 即
+# 失明——标再被剥（467664e 前科）则名录梯/保位网双盲回 ~77 位出窗。
+# attraction 名含中心/广场/城按商业体归组；「城」反词排除古城观光名。
+_COMMERCIAL_NAME_MARKS = ("中心", "广场", "城")
+_COMMERCIAL_NAME_ANTI = ("古镇", "古城", "水乡")
+
+
 def _cand_diversity_group(cand: dict) -> str | None:
     """内容类型多样保位分组（2026-11-07 拍板「商业中心/CITYWALK 要能与
     5A 竞争」）：名录档硬分层把无档行压出排期面，此判定只认内容类型
@@ -274,6 +282,12 @@ def _cand_diversity_group(cand: dict) -> str | None:
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
     if "citywalk" in tags:
         return "citywalk"
+    if cat == "attraction":
+        name = str(cand.get("name") or "")
+        if not any(m in name for m in _COMMERCIAL_NAME_ANTI) and any(
+            m in name for m in _COMMERCIAL_NAME_MARKS
+        ):
+            return "commercial"
     return None
 
 

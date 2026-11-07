@@ -8,7 +8,7 @@
 
 import asyncio
 
-from app.services.agent.plan import PlanningAgent
+from app.services.agent.plan import PlanningAgent, _cand_diversity_group
 
 
 def run(coro):
@@ -127,3 +127,39 @@ def test_selection_places_diversity_rows_ahead_of_untiered_filler():
     # 池位证明：多样行插段挤掉了同带靠后的名录填充行
     assert "名录29" not in names
     assert len(names) <= 8
+
+
+def test_upgraded_commercial_attraction_still_rescued():
+    """二拍「修法选2」回归：other→attraction 粘性升类（环球中心终态）
+    且 curated 标被剥的最坏态下，名称语素仍归 commercial 组享保位。"""
+
+    class _Store:
+        def top_pois_in_city(self, city, limit, *, exclude_food=True):
+            rows = _filler_rows(city)
+            rows.append(
+                {
+                    "name": "成都环球中心",
+                    "city": city,
+                    "category": "attraction",
+                    "location": (104.06, 30.57),
+                    "rating": 4.6,
+                    "address": "天府大道北段1700号",
+                    "tags": [],
+                }
+            )
+            return rows[:limit]
+
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=_Store())
+    candidates, _ = run(agent._collect_candidates(["成都"]))
+    assert "成都环球中心" in {c["name"] for c in candidates}
+
+
+def _attraction_row(name: str) -> dict:
+    return {"name": name, "category": "attraction", "tags": []}
+
+
+def test_commercial_name_marks_scope():
+    """语素闸三态：商业体名命中、古城观光名反词排除、普通景点不受染。"""
+    assert _cand_diversity_group(_attraction_row("成都环球中心")) == "commercial"
+    assert _cand_diversity_group(_attraction_row("台儿庄古城")) is None
+    assert _cand_diversity_group(_attraction_row("武侯祠")) is None
