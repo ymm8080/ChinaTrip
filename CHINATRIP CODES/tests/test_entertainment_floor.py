@@ -168,3 +168,33 @@ def test_meal_only_plan_not_penalized():
     )
     sc = plan_score(plan)
     assert sc.soft["no_entertainment"] == 0
+
+
+# --- ④ 必去不受 4/日闸裁（2026-11-07 熊猫基地案） --------------------------
+
+
+def test_cap_gate_never_cuts_must_specs():
+    # must 合并先于 4/日闸后，must 计件但绝不裁：5 件同日、其一必去
+    # → 必去保留、普通点裁到 4 为止（熊猫基地曾被本闸裁掉第 2 天
+    # 席位，被迫塞回物理装不下的到达日全程 None-None）。
+    picked = [
+        {
+            "name": "成都大熊猫繁育研究基地",
+            "city": "成都",
+            "category": "zoo",
+            "day": 2,
+            "duration_minutes": 180,
+            "must": True,
+        },
+    ]
+    picked += [_sight_spec(f"点{i}", 2) for i in range(4)]
+    kept, dropped = PlanningAgent._cap_sights_per_day(picked)
+    names = [p["name"] for p in kept]
+    assert "成都大熊猫繁育研究基地" in names  # 必去绝不裁
+    assert (
+        len([p for p in kept if p.get("category") not in ("food", "entertainment")])
+        == 4
+    )
+    assert len(dropped) == 1  # 只裁一个普通点（第 5 件）
+    # 必去占位计件：后到普通点按 4 件闸正常裁
+    assert dropped[0][0].startswith("第2天 点")

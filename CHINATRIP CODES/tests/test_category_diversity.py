@@ -404,3 +404,60 @@ def test_experience_types_rank_right_after_premium():
     assert {"茶馆甲", "茶馆乙"} <= names  # 体验型 ≥2 保底（梯子 boost）
     assert len(names) == 4
     assert sum(1 for n in names if n.startswith("图商点")) == 2
+
+
+def test_scenic_bucket_covers_5a_landscape_rows():
+    """2026-11-07 用户拍板「风景区的优先级不应该是最高的」：5A/世遗
+    山水行（武隆喀斯特/小三峡类，source=5a、category=attraction）进
+    风景区桶受 1/行程上限——旧判定只认 nature 品类/scenic 源，重庆
+    段被风景区填满。古镇/人文型 5A（安仁古镇景区）不误伤。"""
+    from app.services.agent.plan import _itin_cap_bucket
+
+    wulong = {
+        "name": "武隆县喀斯特旅游区",
+        "category": "attraction",
+        "source": "5a",
+        "tags": ["unesco_karst", "5a"],
+    }
+    sanxia = {
+        "name": "小三峡小小三峡旅游区",
+        "category": "attraction",
+        "source": "5a",
+        "tags": ["5a"],
+    }
+    anren = {
+        "name": "安仁古镇景区",
+        "category": "attraction",
+        "source": "5a",
+        "tags": ["5a"],
+    }
+    assert _itin_cap_bucket(wulong) == "scenic"
+    assert _itin_cap_bucket(sanxia) == "scenic"
+    assert _itin_cap_bucket(anren) is None  # 古镇人文型不误伤
+    # 共享账本：第一个风景区入账后第二个让位（账本经 picked spec 的
+    # tags/source 反推——_item 现在把档位依据随规格下传）
+    picked = [
+        {
+            "name": "武隆县喀斯特旅游区",
+            "city": "重庆",
+            "category": "attraction",
+            "source": "5a",
+            "tags": ["unesco_karst", "5a"],
+            "day": 1,
+            "duration_minutes": 240,
+            "location": {"lon": 107.76, "lat": 29.35},
+        },
+    ]
+    candidates = [
+        {
+            "name": "小三峡小小三峡旅游区",
+            "city": "重庆",
+            "category": "attraction",
+            "source": "5a",
+            "tags": ["5a"],
+            "suggested_duration_min": 240,
+            "location": {"lon": 109.59, "lat": 31.04},
+        },
+    ]
+    out, _notes = PlanningAgent._rebalance_days(picked, candidates, 2, {"重庆": (1, 2)})
+    assert all(s["name"] != "小三峡小小三峡旅游区" for s in out)

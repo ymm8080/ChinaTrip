@@ -103,19 +103,17 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）+ 同街族并卡
-    # （2026-11-07 拍板）：含 tier 最高（5A）的簇整簇进第 1 天；两簇
-    # 内部成员两两 ≤1km 同街族——族件跟锚同日不占 4/日计数，两天窗
-    # 内实际只出两张族卡（人民广场卡+陆家嘴卡），全落第 1 天。
+    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier 最高
+    # （5A）的簇整簇进第 1 天。2026-11-07 反转拍板废 ≤1km 同街族并卡
+    # （近距不同实体各排各卡）→ 每件照占 4/日计数：day1 满 4 件，
+    # 陆家嘴簇尾部两件溢出 day2（两天窗全落位、无出局）。
     assert by_day[1] == {
         "人民广场五A",
         "南京东路",
         "博物馆",
         "东方明珠",
-        "海洋馆",
-        "滨江大道",
     }
-    assert by_day.get(2, set()) == set()
+    assert by_day[2] == {"海洋馆", "滨江大道"}
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
@@ -959,8 +957,7 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    # 远填坐标彼此错开 >1.5km（2026-11-07 并卡拍板：同点行互认同街
-    # 族、族件豁免 4/日计数+族边际预算，会搭车进池外尾巴禁入的天）。
+    # 远填坐标彼此错开 >1.5km（互不粘连，避贴邻圈/preclaim 误认领）。
     cands += [
         _cand(f"远填{i}", "成都", suggested=180, loc=(104.06 + (i + 1) * 0.02, 30.66))
         for i in range(5)
@@ -970,11 +967,11 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
-    # day1=池内短时长小点 ×4（2026-11-07 并卡拍板：补×4+都1 同点互认
-    # 同街族并一卡，族件豁免 4/日计数与族边际预算）；day2=软闸超额
-    # 大点卡（市1+市2 一族）+溢出的远填0
-    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3", "都1"]
-    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0"]
+    # day1=池内短时长小点 ×4（同档短时长先占位，恰 4 个/日闸封顶；
+    # 2026-11-07 反转拍板：无族豁免，都1 照占计数溢出 day2）；
+    # day2=软闸超额大点卡（市1+市2 同点）+溢出的远填0+都1。
+    assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
     # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
     flat = [n for names in by_day.values() for n in names]
     assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))

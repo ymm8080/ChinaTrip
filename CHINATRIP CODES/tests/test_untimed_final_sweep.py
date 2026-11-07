@@ -20,6 +20,7 @@ from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
     ItineraryPlan,
+    TransferItem,
     VisitItem,
 )
 
@@ -318,3 +319,102 @@ def test_annotate_legs_no_bogus_leg_into_untimed():
     assert show.next_walk_minutes is None
     museum = next(i for i in plan.days[0].items if i.item_id == "v13")
     assert museum.distance_to_next_km is not None, "已排链上腿照画"
+
+
+# --- 回头重试（2026-11-07 用户指令「被裁点同城其他天回头重试」） ----------
+
+
+def test_finalize_retries_moved_stray_on_other_city_days():
+    """挪日线只认首个结构可行日：大块头被挪进满员日（演出钉死傍晚）
+    物理无档 → 旧路径终局蒸发，day3 空档再无机会。现口径回头重试：
+    已坐日+已试日除外逐日试宿，day3 落位成功（披露「回头改排」）。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+
+    def _mk(name, day, minutes, hh):
+        return VisitItem(
+            item_id=f"{name}-{day}",
+            name=name,
+            city="成都",
+            day=day,
+            category="attraction",
+            duration_minutes=minutes,
+            start_time=_t(hh),
+            location=xy,
+        )
+
+    big = VisitItem(
+        item_id="big",
+        name="成都环球中心",
+        city="成都",
+        day=1,
+        category="attraction",
+        duration_minutes=240,
+        location=xy,
+    )
+    # day1 到达日：落地地板 14:30 + 武侯祠占 14:30-16:00 → 240min 大块
+    # 越大点 15:30 带无档；day2 结构可行（3 件）但傍晚演出钉死、fallback
+    # 排不出；day3 只有一件 → rehome 挪 day2 仍无时刻，回头重试落 day3。
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t1",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+            _mk("武侯祠", 1, 90, 14),
+            big,
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            _mk("戊", 2, 120, 9),
+            _mk("己", 2, 120, 11),
+            VisitItem(
+                item_id="show-2",
+                name="蜀兿剧院",
+                city="成都",
+                day=2,
+                category="entertainment",
+                duration_minutes=90,
+                start_time=_t(17, 0),
+                end_time=_t(18, 30),
+                pinned=True,
+                location=xy,
+            ),
+        ],
+    )
+    day3 = DayPlan(
+        day=3,
+        base_city="成都",
+        items=[_mk("辛", 3, 90, 9)],
+    )
+    for v in day1.items:
+        v.day = 1
+    for v in day2.items:
+        v.day = 2
+    plan = ItineraryPlan(
+        itinerary_id="it-retry",
+        cities=["上海", "成都"],
+        days=[day1, day2, day3],
+        assumptions=[],
+    )
+    out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
+    big_final = next(i for d in out.days for i in d.items if i.item_id == "big")
+    # day2 被实位探针拒（演出 17:00 封傍晚档）→ rehome 多日宿主扫描
+    # 直接落 day3；若探针过了而 fallback 仍排不出，回头重试循环兜底
+    # （真实东郊记忆案的分歧态）。两条路都不许蒸发。
+    assert big_final.day == 3
+    assert big_final.start_time is not None
+    assert any(("挪至第3天" in str(a) or "回头改排" in str(a)) for a in out.assumptions)
+    assert not any(
+        "已从行程移除" in str(a) and "成都环球中心" in str(a) for a in out.assumptions
+    )
