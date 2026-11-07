@@ -181,11 +181,15 @@ def is_citywalk(
     name: str | None,
     tags: list | None = None,
     *,
+    category: str | None = None,
     pool_tier: int | None = None,
     plan_tier: int | None = None,
 ) -> bool:
-    """CITYWALK 类判定（行级，主点/候选共用）：功能标签 > 名录街区档 >
+    """CITYWALK 类判定（行级，主点/候选共用）：库行类别 citywalk（2026-11-07
+    拍板改档：宽窄巷子/春熙路/锦里武侯祠片区）> 功能标签 > 名录街区档 >
     名称街巷坊词（模块头 CITYWALK 类注释）。"""
+    if (category or "").strip().lower() == CITYWALK_TAG:
+        return True
     if CITYWALK_TAG in {str(t).strip().lower() for t in (tags or [])}:
         return True
     if pool_tier == 6 or plan_tier == 8:
@@ -331,6 +335,7 @@ def pick_alternatives(
     near: GeoPoint | None = None,
     main_name: str | None = None,
     main_citywalk: bool | None = None,
+    exclude_same_class: set[str] | None = None,
     limit: int = ALT_LIMIT,
 ) -> list[PlanAlternative]:
     """从同城候选池里按同级·同类·同时长挑备选（规则见模块头）。
@@ -338,14 +343,22 @@ def pick_alternatives(
     tier 收行程条目口径（选点梯子 1..11，plan_tier_to_pool 换算）；pool
     行 = PoiDetailStore.alternatives_pool 的 hit dict（带 `_tier`，hit_tier
     口径）；main_name = 主点名（遗址类隔离闸用）；main_citywalk = 主点
-    CITYWALK 类标志（None=按主点名/梯档自判，attach 已回库解析时显式传）。
+    CITYWALK 类标志（None=按主点名/梯档自判，attach 已回库解析时显式传）；
+    exclude_same_class = 行程内已有的泛化替代组同档成员名（同城已滤，
+    2026-11-07 泛化拍板：已有街区时其它街区不作 chip，点了必撞 duplicate）。
     返回 PlanAlternative：跨档带出局（同级硬闸），带内同档排前、近档按
     |Δ档| 补位（chip 亮备选自身档牌）；带内不足 limit 就少给。
     """
     exclude_names = set(exclude_names or set())
     exclude_pids = exclude_pids or set()
-    # 同体验替代组词素（2026-11-07 熊猫谷案）与规划引擎同源，防两处口径漂移
-    from app.services.agent.plan import _substitute_tokens
+    exclude_same_class = set(exclude_same_class or set())
+    # 同体验替代组词素/泛化品类组（2026-11-07 熊猫谷案+泛化拍板）与规划
+    # 引擎同源，防两处口径漂移
+    from app.services.agent.plan import (
+        _GENERIC_SUBSTITUTE_GATE_KM,
+        _generic_substitute_group,
+        _substitute_group,
+    )
 
     mn = _norm_name(main_name)
     if mn:
@@ -414,17 +427,36 @@ def pick_alternatives(
         # CITYWALK 类隔离（双向硬闸，2026-11-06 拍板）：街区压马路型只与
         # 街区压马路型互为备选
         if (
-            is_citywalk(h.get("name"), h.get("tags"), pool_tier=h.get("_tier"))
+            is_citywalk(
+                h.get("name"),
+                h.get("tags"),
+                category=h.get("category"),
+                pool_tier=h.get("_tier"),
+            )
             != main_citywalk
         ):
             return "citywalk"
         # 同体验替代组隔离（2026-11-07 熊猫谷案，单向）：行程里已有替代
         # 组成员（≠主点本人）时组员不作备选亮卡——点了必撞 duplicate；
         # 主点本人是组员时放行（基地卡亮谷 chip = 正当替换路径）
-        if _substitute_tokens(name):
+        g_name = _substitute_group(name)
+        if g_name is not None:
             for n in exclude_names:
-                if n != mn and _substitute_tokens(n):
+                if n != mn and _substitute_group(n) == g_name:
                     return "substitute"
+        # 泛化品类替代组（2026-11-07 泛化拍板「类型+距离」）：行程里已有
+        # 同城同档成员（attach 已滤城滤主点本人）时，同档候选不作 chip；
+        # >30km 远郊不算同一体验圈（宽窄巷子↔都江堰古城 55km 各算一次）
+        if exclude_same_class and _generic_substitute_group(h.get("category")):
+            loc = h.get("location")
+            if near is not None and isinstance(loc, (tuple, list)) and len(loc) == 2:
+                try:
+                    cand_pt = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+                    if haversine_km(near, cand_pt) > _GENERIC_SUBSTITUTE_GATE_KM:
+                        return None
+                except (TypeError, ValueError):
+                    pass
+            return "substitute"
         return None
 
     def cat_key(h: dict) -> int:
@@ -441,7 +473,16 @@ def pick_alternatives(
         # 内互认精确同类——正当替换路径不被品类闸卡死（谷卡亮基地实录，
         # 首改前 zoo≠nature 在此被杀、chip 永不亮）。互斥闸（eligible
         # substitute 闸）已保证亮卡方向无第三成员，不会串组误放。
-        if _substitute_tokens(mn) and _substitute_tokens(_norm_name(h.get("name"))):
+        _g_main, _g_cand = (
+            _substitute_group(mn),
+            _substitute_group(_norm_name(h.get("name"))),
+        )
+        if _g_main is not None and _g_main == _g_cand:
+            return 0
+        # 泛化品类组互认（2026-11-07 泛化拍板）：同档白名单成员跨类别组
+        # 精确同类——武侯祠·锦里 historic↔宽窄巷子 attraction 类实录在
+        # 库行改档后自然归 citywalk 同类，此处兜住改档前的过渡态
+        if exclude_same_class and _generic_substitute_group(h.get("category")):
             return 0
         if main_citywalk:
             c = _norm_cat(h.get("category"))
@@ -492,7 +533,7 @@ def pick_alternatives(
             "show_row",
             "not_show",
         )
-        if structural or _substitute_tokens(nm):
+        if structural or _substitute_group(nm) is not None:
             logger.info(
                 "alternatives: drop %s for main %s gate=%s%s",
                 nm,
@@ -652,6 +693,22 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
         exclude_names.add(_norm_name(v.name_en))
         if v.poi_id:
             exclude_pids.add(str(v.poi_id))
+    # 泛化替代组同档成员表（2026-11-07 泛化拍板）：行程里已有的「一行程
+    # 一个」档（citywalk）成员按城聚合——attach 层滤城、滤主点本人，
+    # 备选闸只补 30km 距离保险（远郊不算同一体验圈）
+    from app.services.agent.plan import _generic_substitute_group
+
+    generic_class_names: dict[str, set[str]] = {}
+    for v in visits:
+        g = _generic_substitute_group((v.category or "").strip())
+        if g is None and is_citywalk(v.name, plan_tier=v.tier):
+            g = "street"
+        if g is not None:
+            c = (v.city or "").strip().removesuffix("市")
+            if c:
+                generic_class_names.setdefault(c, set()).update(
+                    {_norm_name(v.name), _norm_name(v.name_en)}
+                )
     pools: dict[str, list[dict]] = {}
     used_names: set[str] = set()
     for v in visits:
@@ -672,7 +729,12 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
         _heal_tier(v, row)
         # 主点 CITYWALK 类：名/梯档之外再认库行功能标签（街巷坊词批打
         # 未全覆盖的兜底）；回库失败按名/梯档自判
-        main_cw = is_citywalk(v.name, (row or {}).get("tags"), plan_tier=v.tier)
+        main_cw = is_citywalk(
+            v.name,
+            (row or {}).get("tags"),
+            category=(row or {}).get("category") or v.category,
+            plan_tier=v.tier,
+        )
         try:
             alts = pick_alternatives(
                 pools[city],
@@ -684,6 +746,11 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
                 near=v.location,
                 main_name=v.name,
                 main_citywalk=main_cw,
+                exclude_same_class=(
+                    generic_class_names.get(city, set())
+                    - {_norm_name(v.name), _norm_name(v.name_en)}
+                )
+                or None,
             )
         except Exception:
             alts = []

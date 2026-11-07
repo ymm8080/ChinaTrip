@@ -521,3 +521,11 @@ def test_gate_key_conflict_shadow_wins_venue():
     assert row.source == "museum1"
     assert row.location is not None
     assert shadow.status == "retired"
+
+
+def test_normalize_category_direct_pass_20261107():
+    """受控值直通行：citywalk/tea_experience 原样落库（2026-11-07 新档），
+    茶体验中文别名归 tea_experience。"""
+    assert normalize_category("citywalk") == "citywalk"
+    assert normalize_category("tea_experience") == "tea_experience"
+    assert normalize_category("茶体验") == "tea_experience"

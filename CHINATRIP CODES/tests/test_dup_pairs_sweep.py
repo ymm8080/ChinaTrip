@@ -315,3 +315,63 @@ def test_dup_blocks_substitute_backfill():
         "location": {"lon": 103.59896, "lat": 30.96554},
     }
     assert _dup_blocks_item(cand, base) is True
+
+
+# --- ③ 泛化品类替代组（2026-11-07 拍板「类型+距离」泛化产品逻辑） ----------
+
+
+def test_generic_street_pair_same_city_is_twin():
+    """宽窄巷子 vs 春熙路（~2.6km 同城）：citywalk 白名单品类互斥，
+    一个行程只走一条街区。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert (
+        _substitute_dup(
+            a["name"],
+            b["name"],
+            "成都",
+            "成都",
+            cat_a="citywalk",
+            cat_b="citywalk",
+            xy_a=(104.05360, 30.66370),
+            xy_b=(104.07820, 30.65740),
+        )
+        is True
+    )
+    assert _cand_twin(a, b) is True
+
+
+def test_generic_street_far_suburb_not_twin():
+    """>30km 出城圈不互斥：都江堰古城（~56km）可与成都任一街区并排。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    djy = _cs("都江堰古城", 103.61900, 31.00400, "成都", cat="citywalk")
+    assert _cand_twin(a, djy) is False
+
+
+def test_generic_street_cross_city_not_blocked():
+    """跨城组合（成都+重庆联程）不互斥：城闸先于距离闸。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    cq = _cs("洪崖洞民俗风貌区", 106.57830, 29.55820, "重庆", cat="citywalk")
+    assert _cand_twin(a, cq) is False
+
+
+def test_museum_not_in_street_group():
+    """泛化按类型不按名：武侯祠博物馆（museum）不在街区白名单，与
+    春熙路（citywalk）可并排。"""
+    a = _cs("成都武侯祠博物馆", 104.04630, 30.64440, "成都", cat="museum")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert _cand_twin(a, b) is False
+
+
+def test_generic_missing_coords_same_city_judged():
+    """候选无坐标（骨架行）：同城即判互斥（宁紧勿松）。"""
+    a = {"name": "宽窄巷子", "category": "citywalk", "city": "成都"}
+    b = {"name": "春熙路", "category": "citywalk", "city": "成都"}
+    assert _cand_twin(a, b) is True
+
+
+def test_panda_and_street_groups_not_crossed():
+    """具名组（熊猫）与泛化组（街区）互不相干：熊猫谷 vs 春熙路可并排。"""
+    a = _cs("熊猫谷", 103.59896, 30.96554, "成都", cat="nature")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert _cand_twin(a, b) is False

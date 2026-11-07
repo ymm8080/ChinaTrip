@@ -718,3 +718,45 @@ def test_panda_member_category_unity_is_bidirectional():
         main_name="成都大熊猫繁育研究基地",
     )
     assert [a.name for a in alts] == ["熊猫谷"]
+
+
+# --- 泛化品类替代组（2026-11-07 类型+距离拍板）-----------------------------
+
+
+def test_generic_street_member_blocked_when_other_street_in_plan():
+    """行程已有宽窄巷子 → 春熙路（同城 30km 圈内 street 组员）不作其它
+    街区条目的备选亮卡——一个行程一条街区。"""
+    pool = [
+        hit("春熙路", 6, category="citywalk", duration=120, loc=(104.0782, 30.6574))
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="citywalk",
+        tier=8,
+        duration_minutes=120,
+        main_name="东郊记忆",
+        exclude_names={_norm_name("东郊记忆"), _norm_name("宽窄巷子")},
+        exclude_same_class={"宽窄巷子"},
+        near=GeoPoint(lon=104.1090, lat=30.6590),
+    )
+    assert alts == []
+
+
+def test_generic_street_member_ok_for_member_main():
+    """主点本人是街区组员（宽窄巷子卡）：attach 层已把主点本人从
+    exclude_same_class 剔除（此处传 None 同形），春熙路 chip 正常亮——
+    正当替换路径。"""
+    pool = [
+        hit("春熙路", 6, category="citywalk", duration=120, loc=(104.0782, 30.6574))
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="citywalk",
+        tier=8,
+        duration_minutes=120,
+        main_name="宽窄巷子",
+        exclude_names={_norm_name("宽窄巷子")},
+        exclude_same_class=None,
+        near=GeoPoint(lon=104.0536, lat=30.6637),
+    )
+    assert [a.name for a in alts] == ["春熙路"]

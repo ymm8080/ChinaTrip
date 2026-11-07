@@ -32,6 +32,12 @@ _CATEGORY_META: dict[str, tuple[bool | None, bool | None]] = {
     "ruins": (False, None),
     "historic": (None, None),
     "ancient_town": (False, None),
+    # 街区漫步（2026-11-07 拍板：宽窄巷子/春熙路/锦里武侯祠=CITYWALK，
+    # 同城互为替代一行程一个）：户外为主；雨日软硬语义由规划层按名字判
+    "citywalk": (False, None),
+    # 茶体验（2026-11-07 拍板：人民公园=茶体验，归 attraction 体验族）：
+    # 室内外混合（鹤鸣茶社半露天）indoor 不判；茶桌有檐雨日可坐
+    "tea_experience": (None, True),
     # 住宿：名称守卫命中即归此类（2026-10-31），不参与行程规划读取
     "hotel": (True, None),
 }
@@ -53,6 +59,8 @@ _DURATION_FLOOR: dict[str, int] = {
     "ruins": 90,
     "historic": 90,
     "ancient_town": 180,
+    "citywalk": 120,
+    "tea_experience": 60,
 }
 
 # 演出/戏班名称标记（2026-11-07 用户指令）：SHOW/ENTERTAINMENT 优先级
@@ -198,6 +206,29 @@ _OUTDOOR_HINTS = (
 )
 _CAVE_HINTS = ("溶洞", "洞窟", "石窟", "窟")
 _PARK_HINTS = ("公园", "园林", "园", "園")
+
+# 名字×城市精确覆盖（2026-11-07 用户拍板）：关键词词典是概率推断，个别
+# 点位按拍板点名归档，重导入/重建也保持同一口径。键=(城市去「市」后缀,
+# 名字原样)——城市限定防同名异地误伤（人民公园全国同名多处，只有成都
+# 鹤鸣茶社语义是茶体验；异地人民公园仍走「公园」hint 落 park）。覆盖在
+# accommodation 守卫之后、类别表映射之前生效，上游类别照样被压过
+# （street 源「武侯祠·锦里」上游 historic 也要落 citywalk）。
+_NAME_CITY_OVERRIDES: dict[tuple[str, str], str] = {
+    ("成都", "人民公园"): "tea_experience",
+    ("成都", "宽窄巷子"): "citywalk",
+    ("成都", "春熙路"): "citywalk",
+    ("成都", "西蜀第一街牌坊"): "citywalk",
+    ("成都", "锦里古街"): "citywalk",
+    ("成都", "武侯祠·锦里"): "citywalk",
+}
+
+
+def name_city_override(name: str, city: str | None = None) -> str | None:
+    """拍板点名覆盖：返回该 (城市, 名字) 的受控类别；未命中 None。"""
+    key = ((city or "").strip().removesuffix("市"), (name or "").strip())
+    return _NAME_CITY_OVERRIDES.get(key)
+
+
 _URBAN_HINTS = (
     "古镇",
     "古街",
@@ -223,7 +254,10 @@ _URBAN_HINTS = (
 
 
 def classify(
-    name: str, category: str | None = None, address: str | None = None
+    name: str,
+    category: str | None = None,
+    address: str | None = None,
+    city: str | None = None,
 ) -> tuple[str | None, bool | None, bool | None, int | None]:
     """返回 (category, indoor, rain_ok, duration_floor)；拿不准的为 None。
 
@@ -232,12 +266,19 @@ def classify(
     分两档：名称/地址（address 传入时）命中 _SUBURB_MARKS 为城市外
     240，否则市区 180；seed 骨架阶段无 address，仅按名称判。
 
+    拍板点名覆盖（2026-11-07）：city 传入时 (城市, 名字) 精确命中
+    _NAME_CITY_OVERRIDES 即采用覆盖类别——优先于上游 category，但仍在
+    住宿守卫之后。
+
     住宿守卫（2026-10-31）：名称命中住宿词即返回 hotel——优先于一切
     名称推断与上游类别（含公园/广场类上游误标），地板恒 None（住宿
     无游憩时长）。
     """
     if is_accommodation(name):
         return "hotel", True, None, None
+    ov = name_city_override(name, city)
+    if ov is not None:
+        category = ov
     cat = category
     indoor = rain_ok = None
     floor: int | None = None

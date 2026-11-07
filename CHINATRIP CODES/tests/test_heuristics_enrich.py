@@ -219,3 +219,37 @@ def test_duration_upgradable_semantics():
     assert not duration_upgradable(
         SimpleNamespace(suggested_duration_min=120, duration_source="qunar")
     )
+
+
+# --- 名×城定读覆盖（2026-11-07 拍板） -----------------------------------
+
+
+def test_name_city_override_renmin_park_tea():
+    """成都人民公园 → tea_experience（雨日可游，60min 地板）；city 未传
+    且无上游类别时仍走名称推断（park）。"""
+    cat, indoor, rain_ok, floor = _classify("人民公园", "attraction", city="成都")
+    assert (cat, indoor, rain_ok, floor) == ("tea_experience", None, True, 60)
+    cat2, indoor2, rain_ok2, _f2 = _classify("人民公园", None)
+    assert (cat2, indoor2, rain_ok2) == ("park", False, None)
+
+
+def test_name_city_override_citywalk_family():
+    """成都四街一坊 + 武侯祠·锦里 → citywalk（非室内，120 地板）；上游
+    类别（attraction/historic）被覆盖。"""
+    for name, up in (
+        ("宽窄巷子", "attraction"),
+        ("春熙路", "attraction"),
+        ("西蜀第一街牌坊", "attraction"),
+        ("锦里古街", "attraction"),
+        ("武侯祠·锦里", "historic"),
+    ):
+        cat, indoor, rain_ok, floor = _classify(name, up, city="成都")
+        assert (cat, indoor, rain_ok, floor) == ("citywalk", False, None, 120), name
+
+
+def test_name_city_override_city_suffix_and_other_city():
+    """「成都市」后缀剥除命中覆盖；上海人民公园不命中覆盖走 park 推断。"""
+    cat, *_ = _classify("人民公园", "attraction", city="成都市")
+    assert cat == "tea_experience"
+    cat2, *_ = _classify("人民公园", None, city="上海")
+    assert cat2 == "park"
