@@ -51,6 +51,10 @@ import logging
 import re
 from math import log2
 
+from app.services.agent.plan import (
+    _COMMERCIAL_DURATION_CAP_MIN,
+    _cand_diversity_group,
+)
 from app.services.itinerary.models import (
     GeoPoint,
     ItineraryPlan,
@@ -66,6 +70,26 @@ logger = logging.getLogger(__name__)
 # 备选默认上限：右侧 chip 区放 3 个以内不挤爆站点行（用户拍板「一个
 # 备选」为底线，多给 2 个供挑剔场景）
 ALT_LIMIT = 3
+
+
+def _dur_capped(h: dict) -> int | None:
+    # 游时读值统一走 commercial 帽（2026-11-08 环球中心案）：库里 240
+    # 的商业综合体在行程卡已压 120，chip 亮裸 240 与换入后的实际游时脱
+    # 节，带闸也会把压帽主点的同帽孪生行带外误杀——读侧三处（排序/带
+    # 闸/展示）与选点同口径。
+    d = h.get("suggested_duration_min")
+    try:
+        d = int(d) if d else None
+    except (TypeError, ValueError):
+        d = None
+    if (
+        d
+        and _cand_diversity_group(h) == "commercial"
+        and d > _COMMERCIAL_DURATION_CAP_MIN
+    ):
+        d = _COMMERCIAL_DURATION_CAP_MIN
+    return d
+
 
 # 选点梯子档号（plan._source_tier）→ 候选池档号（hit_tier）换算表：
 # 梯子 6=演出（不在名录序）、11=其他/未分层，映射为 None（演出走 show
@@ -499,11 +523,7 @@ def pick_alternatives(
         return 3
 
     def dur_key(h: dict) -> tuple[int, int]:
-        d = h.get("suggested_duration_min")
-        try:
-            d = int(d) if d else None
-        except (TypeError, ValueError):
-            d = None
+        d = _dur_capped(h)
         if d and want_dur:
             return (0, abs(d - want_dur))
         return (1, 0)  # 无游时数据垫底（带外已知游时已在时长闸出局）
@@ -563,11 +583,7 @@ def pick_alternatives(
     if band is not None and not is_show:
         in_band, unknown = [], []
         for h in cands:
-            d = h.get("suggested_duration_min")
-            try:
-                d = int(d) if d else None
-            except (TypeError, ValueError):
-                d = None
+            d = _dur_capped(h)
             if d is None:
                 unknown.append(h)
             elif band[0] <= d <= band[1]:
@@ -605,7 +621,7 @@ def pick_alternatives(
                 category=_norm_cat(h.get("category")) or h.get("category"),
                 tier=tier_n,  # 池档口径（hit_tier），H5 只读 level_tag
                 level_tag=_TIER_TAG.get(tier_n) if tier_n is not None else None,
-                duration_minutes=h.get("suggested_duration_min"),
+                duration_minutes=_dur_capped(h),
                 distance_km=dist_km(h),
                 rating=(float(h["rating"]) if h.get("rating") else None),
             )

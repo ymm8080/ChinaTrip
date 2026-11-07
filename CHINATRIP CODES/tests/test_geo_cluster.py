@@ -120,15 +120,36 @@ def test_premium_coverage_gaps_flags_silk_road_component():
 
 
 def test_source_tier_silk_road_component_top_ladder():
-    # 丝路点段（unesco_silk_road）与全量世遗同档 tier=1，压过 5A——
-    # 世界遗产有更高的优先权（2026-11-02 大雁塔事故）。
+    # 串号遗产（unesco_* 点段标）三态（2026-11-08 未央宫案三拍）：
+    # 高质（quality≥4.5）=真遗产子项，tier1 压过 5A（2026-11-02 大雁塔
+    # 事故口径保留）；无评分/低质=3A 遗址骨架借标登顶的事故面，回落
+    # 本源档（5a→2、无名录源→11）。
     from app.services.agent.plan import _source_tier
 
-    assert _source_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}) == 1
-    assert _source_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}) == 1
-    assert _source_tier({"source": "5a", "tags": ["unesco_karst"]}) == 1
     assert (
-        _source_tier({"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"]}) == 1
+        _source_tier(
+            {"source": "relicpark", "tags": ["unesco_silk_road"], "rating": 4.6}
+        )
+        == 1
     )
+    assert (
+        _source_tier(
+            {"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"], "rating": 4.7}
+        )
+        == 1
+    )
+    assert (
+        _source_tier(
+            {"source": "5a", "tags": ["5a", "unesco_ming_tombs"], "rating": 4.8}
+        )
+        == 1
+    )
+    # 无质量背书：回落本源档（未央宫案——relicpark 骨架 11 / 5A 源 2）
+    assert _source_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}) == 11
+    assert _source_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}) == 2
+    assert _source_tier({"source": "5a", "tags": ["unesco_karst"]}) == 2
     assert _source_tier({"source": "5a", "tags": ["5a"]}) == 2
     assert _source_tier({"source": "relicpark", "tags": ["relicpark"]}) == 11
+    # 全量世遗本体（裸 unesco）无条件 tier1
+    assert _source_tier({"source": "unesco"}) == 1
+    assert _source_tier({"tags": ["unesco"]}) == 1

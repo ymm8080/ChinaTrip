@@ -424,10 +424,16 @@ def test_service_meta_wish_guard():
     assert _is_service_meta_wish("帮我看看整体行程")
     assert _is_service_meta_wish("帮我查一下攻略")
     assert _is_service_meta_wish("看看天气")
+    # 改排指令整句不是愿望（2026-11-08 成都案 5d978820：整句建行成
+    # must_visits 无坐标占位卡）。
+    assert _is_service_meta_wish("把成都环球中心加回第4天上午")
+    assert _is_service_meta_wish("把环球中心挪到第二天下午")
+    assert _is_service_meta_wish("把青城山排到第3天")
     # 具体地点宾语的真愿望不受影响。
     assert not _is_service_meta_wish("看熊猫")
     assert not _is_service_meta_wish("帮我看看熊猫")
     assert not _is_service_meta_wish("成都大熊猫繁育研究基地")
+    assert not _is_service_meta_wish("把看熊猫加到心愿单")
 
 
 # --- 交付闸：钉住未排=硬违规 / 下午双大点=警告 -----------------------------

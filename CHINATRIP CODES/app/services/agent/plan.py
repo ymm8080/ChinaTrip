@@ -349,18 +349,30 @@ def _cand_is_show(cand: dict) -> bool:
 _COMMERCIAL_NAME_MARKS = ("中心", "广场", "城")
 _COMMERCIAL_NAME_ANTI = ("古镇", "古城", "水乡")
 
+# 商业综合体时长帽（2026-11-08 环球中心案）：图商给综合体标的
+# 240min 参观时长把日预算吃穿（240+午餐窗+晚场青城山级 → 求解器排不下
+# → untimed → _drop_untimed_from_day 移除，用户连发 40 轮改排才钉回）。
+# 综合体半日足矣——用户手动改排时自选的也是 120。commercial 组候选
+# 时长超帽即压帽，选点/预算/组装全链路同口径。
+_COMMERCIAL_DURATION_CAP_MIN = 120
+
 
 def _cand_diversity_group(cand: dict) -> str | None:
     """内容类型多样保位分组（2026-11-07 拍板「商业中心/CITYWALK 要能与
-    5A 竞争」）：名录档硬分层把无档行压出排期面，此判定只认内容类型
-    不认档位——commercial=商业综合体(other)；citywalk=城走（citywalk
-    类别 / street 源 / 功能标签 citywalk）。演出/娱乐不算（_cand_is_show
-    另有保位专闸）；同名多源去重由调用方把风。"""
+    5A 竞争」；2026-11-08 用户原则「尽可能多类型活动」扩 tea）：名录档
+    硬分层把无档行压出排期面，此判定只认内容类型不认档位——
+    commercial=商业综合体(other)；citywalk=城走（citywalk 类别 /
+    street 源 / 功能标签 citywalk）；tea=茶馆体验（tea_experience 类别，
+    2026-11-08 人民公园案：4.6 分满数据行因 tier11 排出 top-30 窗、
+    保位网无组可归，成都整城行程零喝茶体验）。演出/娱乐不算
+    （_cand_is_show 另有保位专闸）；同名多源去重由调用方把风。"""
     cat = str(cand.get("category") or "").strip().lower()
     if cat == "other":
         return "commercial"
     if cat == "citywalk":
         return "citywalk"
+    if cat == "tea_experience":
+        return "tea"
     if str(cand.get("source") or "").strip().lower() == "street":
         return "citywalk"
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
@@ -608,6 +620,19 @@ def _priority_early_enabled() -> bool:
     return os.environ.get("CHINATRIP_PRIORITY_EARLY", "") != "off"
 
 
+def _unesco_serial_only(cand: dict) -> bool:
+    """unesco 串号家族判定（2026-11-08 未央宫案三拍）：世界遗产名录里
+    的「点段/子项」标签（unesco_silk_road / unesco_ming_tombs 等
+    unesco_* 前缀）≠ 全量世遗本体。裸 unesco 标签/源 = 本体，享 tier1
+    无条件；串号家族必须有质量背书（评分口径 quality≥4.5，同
+    _quality 公式）才视同世遗——未央宫 3A 遗址（无评分骨架）借
+    unesco_silk_road 标签登顶 tier1、挤掉真 5A 席位的事故防线。"""
+    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
+    if "unesco" in tags or str(cand.get("source") or "").strip().lower() == "unesco":
+        return False
+    return any(t.startswith("unesco_") for t in tags)
+
+
 def _source_tier(cand: dict) -> int:
     """首次到访候选优先级（2026-11-03 名录序拍板，档号 1=unesco..11=other）：
 
@@ -618,11 +643,27 @@ def _source_tier(cand: dict) -> int:
     修复口径共享）。「世界遗产」字面标签兜底同世遗档；演出档（6）不在
     名录序，维持旧梯子位次（短视频与小红书之间，2026-10-29 起
     _cand_is_show tags show 同档）。
+    2026-11-08 未央宫案三拍修正：串号家族（仅 unesco_* 前缀标）无质量
+    背书（quality<4.5）不享 tier1——回落本源档（5a→2 等），无名录源
+    落 11。真遗产子项（大雁塔级，带评分/5A 源）不受影响。
     """
     r = catalog_rank(cand.get("source"), cand.get("tags"))
     if r is not None:
         # 名录档序号 0 起（0=unesco…8=4a）映射到选点梯子 1..10（演出占 6）
-        return (1, 2, 3, 4, 5, 7, 8, 9, 10)[r]
+        tier = (1, 2, 3, 4, 5, 7, 8, 9, 10)[r]
+        if tier == 1 and _unesco_serial_only(cand):
+            rating = cand.get("rating") or 0.0
+            count = cand.get("rating_count") or 0
+            try:
+                q = float(rating) * (
+                    1.0 + (math.log2(1.0 + float(count)) if count else 0.0)
+                )
+            except (TypeError, ValueError):
+                q = 0.0
+            if q < 4.5:
+                src_r = catalog_rank(cand.get("source"), None)
+                return (1, 2, 3, 4, 5, 7, 8, 9, 10)[src_r] if src_r is not None else 11
+        return tier
     joined = " ".join(str(t).strip().lower() for t in (cand.get("tags") or []))
     if "世界遗产" in joined:
         return 1
@@ -2761,6 +2802,16 @@ def _is_preference_style_option(text: str) -> bool:
 
 _SERVICE_META_TAILS = ("天气", "行程", "攻略", "路线", "规划", "安排")
 
+# 改排指令形状（2026-11-08 成都案 5d978820）：「把成都环球中心加回
+# 第4天上午」整句被抽成愿望建行，再经吸收闸进 must_visits 成无坐标
+# 占位卡。这是对既有行程的编辑指令，不是愿望——目标地点由改排解析
+# 通道处理，不落心愿单。动宾=改排动词，尾词=天/时段锚；「加到心愿
+# 单」不匹配尾词表，真愿望通道不受影响。
+_EDIT_CMD_WISH_RE = re.compile(
+    r"^把.{1,40}?(加回|加到|加进|排到|排进|挪到|挪进|换到|插到|移到|去掉|删掉|移除)"
+    r".{0,16}(第[0-9一二两三四五六七八九十]{1,3}天|上午|下午|晚上|早场|午场|晚场|清晨|中午|傍晚)"
+)
+
 
 def _is_service_meta_wish(text: str) -> bool:
     """服务型请求当愿望（2026-11-04 it-b986c4f6 事故）：「帮我看看天气」
@@ -2768,10 +2819,14 @@ def _is_service_meta_wish(text: str) -> bool:
     这是让引擎干活的指令，不是可排期的地点。只拦「祈使句+服务宾语」
     整串与光杆祈使；「帮我看看熊猫」这类具体地点宾语的真愿望不受影响。
     2026-11-07 西安案二拍：帽 24→64——「必去：西安钟楼、…。帮我排好
-    这 5 天的西安行程」整句 30 字被帽放行建行，跨会话吸收成必去。"""
+    这 5 天的西安行程」整句 30 字被帽放行建行，跨会话吸收成必去。
+    2026-11-08 三拍：改排指令（把X加回/挪到/排到 第N天上午…）同拦——
+    编辑指令不是愿望，四闸词表形状拦不住它（它确实含真实地点名）。"""
     s = (text or "").strip()
     if not s or len(s) > 64:
         return False
+    if _EDIT_CMD_WISH_RE.match(s):
+        return True
     if s.endswith(_SERVICE_META_TAILS):
         return True
     return bool(
@@ -9037,9 +9092,15 @@ class PlanningAgent:
         def _minutes(cand: dict, default_minutes: int) -> int:
             duration = cand.get("suggested_duration_min")
             try:
-                return int(duration) if duration else default_minutes
+                minutes = int(duration) if duration else default_minutes
             except (TypeError, ValueError):
-                return default_minutes
+                minutes = default_minutes
+            if (
+                _cand_diversity_group(cand) == "commercial"
+                and minutes > _COMMERCIAL_DURATION_CAP_MIN
+            ):
+                return _COMMERCIAL_DURATION_CAP_MIN
+            return minutes
 
         def _quality(cand: dict) -> float:
             # 同档内名声分（与库侧 top_pois_in_city 同公式）：rating ×
@@ -9417,9 +9478,13 @@ class PlanningAgent:
             show_pin_min = 0
             show_pin_xy = None
             if shows:
-                _pin_cand = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][
-                    1
-                ]
+                # 同档演出按名声分择优（2026-11-08 成都案：夜店 PLAY HOUSE
+                # 无评分、纯库序压过 4.9 分蜀兿川剧院当选「每天一场」席位
+                # ——用户要看的是川剧变脸。同 sights 排序口径补 -quality）。
+                _pin_cand = sorted(
+                    shows,
+                    key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
+                )[0][1]
                 show_pin_min = _minutes(_pin_cand, 90)
                 show_pin_day = hi
                 if hi >= days and days in (transfer_days or set()) and hi - 1 >= lo:
@@ -10414,7 +10479,11 @@ class PlanningAgent:
                         _item(cand, day, _minutes(cand, DEFAULT_VISIT_MINUTES))
                     )
             if shows:
-                best = sorted(shows, key=lambda p: (_source_tier(p[1]), p[0]))[0][1]
+                # 同 _pin_cand 口径：同档演出 -quality 择优（2026-11-08）。
+                best = sorted(
+                    shows,
+                    key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
+                )[0][1]
                 # 钉日与预算预扣（show_pin_day）同源：不复算，防两处口径漂移
                 show_day = show_pin_day if show_pin_day is not None else hi
                 # 演出每场闸联动（2026-11-02 用户拍板）：收尾日已有演出时，
@@ -10761,6 +10830,14 @@ class PlanningAgent:
                         minutes = int(minutes) if minutes else DEFAULT_VISIT_MINUTES
                     except (TypeError, ValueError):
                         minutes = DEFAULT_VISIT_MINUTES
+                    # commercial 帽（2026-11-08 环球中心案残余）：此路
+                    # 裸读库时长绕过选点层的帽——回填建 240min 规格、
+                    # 预算/组装与选点口径不一致（卡面 240 实录）。
+                    if (
+                        _cand_diversity_group(cand) == "commercial"
+                        and minutes > _COMMERCIAL_DURATION_CAP_MIN
+                    ):
+                        minutes = _COMMERCIAL_DURATION_CAP_MIN
                     xy = _xy(cand)
                     leg = _leg_min(xy, d)
                     if day_load[d] + minutes + leg > _budget(d):
@@ -13882,6 +13959,13 @@ class PlanningAgent:
         if dur <= 0:
             dur = old.duration_minutes or DEFAULT_VISIT_MINUTES
         dur = max(30, min(dur, 480))
+        # commercial 帽（2026-11-08 环球中心案）：换景路裸读库时长，
+        # 240 会重演 untimed 移除的事故面——与选点/回填同口径压帽。
+        if (
+            _cand_diversity_group(cand) == "commercial"
+            and dur > _COMMERCIAL_DURATION_CAP_MIN
+        ):
+            dur = _COMMERCIAL_DURATION_CAP_MIN
         self._item_seq += 1
         fresh = VisitItem(
             item_id=f"v{self._item_seq}",
