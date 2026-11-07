@@ -74,7 +74,6 @@ from app.services.itinerary.geo import area_labels, cluster_days
 from app.services.itinerary.models import (
     ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
-    PlanStop,
     PoiHours,
 )
 from app.services.itinerary.rules import (
@@ -2296,46 +2295,21 @@ def _sibling_pair_eligible(cat_a: object, cat_b: object) -> bool:
     )
 
 
-def _umbrella_visit_dup(a: VisitItem, b: VisitItem) -> bool:
-    """VisitItem 层伞名同站（挂进 _same_visit）：一侧博物馆卡、另一侧
-    景区类观光卡（餐饮/演出/酒店/交通不适用）时走 _museum_umbrella_dup。"""
-    ma, mb = _museum_card(a), _museum_card(b)
-    if ma == mb:
-        return False
-    museum, scenic = (a, b) if ma else (b, a)
-    if (scenic.category or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES or (
-        scenic.category or ""
-    ) == "citywalk":
-        # citywalk 卡（VisitItem 无 source/tags，类别口径）同样不参与
-        # 伞名同站（2026-11-07 晚拍板，与 _umbrella_cand_dup 同理）
-        return False
-    return _museum_umbrella_dup(
-        museum.name or "",
-        scenic.name or "",
-        (museum.location.lon, museum.location.lat)
-        if museum.location is not None
-        else None,
-        (scenic.location.lon, scenic.location.lat)
-        if scenic.location is not None
-        else None,
-        museum_city=museum.city,
-        scenic_city=scenic.city,
-    )
-
-
-def _umbrella_cand_dup(a: dict, b: dict, *, morpheme_km: float = 2.0) -> bool:
-    """候选层伞名同站（挂进选点层博物馆让位）。"""
+def _umbrella_cand_dup(
+    a: dict, b: dict, *, morpheme_km: float = 2.0, exempt_citywalk: bool = True
+) -> bool:
+    """候选层伞名同站（挂进选点层博物馆让位）。exempt_citywalk（2026-11-07
+    晚拍板「还原多卡但连排成组合」二态）：吸收通道（折卡/影子退役/互斥
+    dedupe）豁免 citywalk/街区件——武侯祠·锦里（citywalk/street）不被
+    武侯祠博物馆吞并；组合识别通道（_umbrella_specs_bundle 传 False）
+    不豁免——同族对照常识别，跨日拉回同日连排。"""
     ma, mb = _museum_cand(a), _museum_cand(b)
     if ma == mb:
         return False
     museum, scenic = (a, b) if ma else (b, a)
     if (scenic.get("category") or "") in _UMBRELLA_SCENIC_EXEMPT_CATEGORIES:
         return False
-    # citywalk/街区件不被伞卡吞并（2026-11-07 晚拍板：武侯祠·锦里
-    # （citywalk/street）与武侯祠博物馆是不同类型，各排各卡——既不折
-    # 卡也不在选点层影子退役；碑林博物馆×城墙·碑林景区（attraction）
-    # 原语义不动）
-    if _cand_diversity_group(scenic) == "citywalk":
+    if exempt_citywalk and _cand_diversity_group(scenic) == "citywalk":
         return False
     return _museum_umbrella_dup(
         str(museum.get("name") or ""),
@@ -2356,17 +2330,20 @@ def _umbrella_specs_bundle(a: dict, b: dict) -> bool:
     线」）：与 _umbrella_cand_dup 同闸同词素，词素距离闸放宽到
     _UMBRELLA_BUNDLE_KM（无坐标仍走同城+词素降级；家族闸
     _HERITAGE_TWIN_GATE_KM 原样）。只用于跨日拉回同日的配对识别，
-    不改变互斥/折卡语义。"""
-    return _umbrella_cand_dup(a, b, morpheme_km=_UMBRELLA_BUNDLE_KM)
+    不改变互斥/折卡语义——识别不豁免 citywalk（武侯祠博物馆×锦里
+    跨日仍拉回同日连排，只是不折成一卡，2026-11-07 晚拍板）。"""
+    return _umbrella_cand_dup(
+        a, b, morpheme_km=_UMBRELLA_BUNDLE_KM, exempt_citywalk=False
+    )
 
 
 def _bundle_umbrella_spec_days(
     picked: list[dict], cand_by_name: dict[str, dict]
 ) -> list[str]:
     """伞名近邻跨日捆绑：跨日的伞名同站对把低 rank 件拉回高 rank 件的
-    同日（2026-11-07 四拍），返回 "moved→keeper" 披露清单；>5km/跨城
-    不动。同日之后 fam_by_day 自然折成一卡两行（时长取 max），去重闸
-    不再触发。"""
+    同日（2026-11-07 终裁「还原多卡但连排成组合，适合于所有城市」），
+    返回 "moved→keeper" 披露清单；>5km/跨城不动。同日之后两卡并存
+    连排，互不去重不折卡（吸收通道已退役）。"""
     moved_notes: list[str] = []
     spec_by_name = {str(s["name"]): s for s in picked if s.get("category") != "food"}
     names = list(spec_by_name)
@@ -2395,46 +2372,6 @@ def _bundle_umbrella_spec_days(
             moved["day"] = int(keeper["day"])
             moved_notes.append(f"{moved['name']}→{keeper['name']}")
     return moved_notes
-
-
-def _fam_twin_absorb(anchor: dict, other: dict) -> bool:
-    """族卡孪生吸收（2026-11-07 碑林双卡拍板「先类型二选一，再按距离
-    时间聚合；聚合要把成员显示出来，不许影没」）：同日规格与锚卡构成
-    伞名同站（博物馆本体 vs 城墙·碑林类伞形挂牌行；绑定/心愿行无坐标
-    走同城+词素降级闸）时折进锚卡当子站 chip 展示，不留独立第二卡。
-    只收伞名通道——替代组孪生（熊猫基地↔谷 ~58km）是跨选址二选一，
-    不是同站聚合，不入族。"""
-    return _umbrella_cand_dup(anchor, other)
-
-
-def _museum_shadow_pairs(
-    pool: list[tuple[int, dict]],
-) -> list[tuple[str, str]]:
-    """伞形景区让位博物馆孪生（2026-10-31 碑林拍板）。
-
-    「城墙·碑林历史文化景区」这类伞形挂牌行与「碑林博物馆」本体
-    同站在池时，景区行让位、博物馆优先入选。返回 [(景区名, 博物馆名)]
-    供选点层过滤与披露。"""
-    pairs: list[tuple[str, str]] = []
-    shadowed: set[int] = set()
-    museums = [(i, c) for i, (_, c) in enumerate(pool) if _museum_cand(c)]
-    for i, a in museums:
-        for j, (_, b) in enumerate(pool):
-            if i == j or j in shadowed or _museum_cand(b):
-                continue
-            # tier 护栏（2026-11-01 明星伞形保护）：博物馆档位弱于景区时
-            # 不让位——熊猫博物馆(tier11) 不影子 5A 熊猫繁育基地(tier2)、
-            # 颐和园博物馆不影子 unesco 颐和园（博物馆是附属，伞形才是
-            # 正主）；同档/更强照常让位（碑林/秦陵/大足语义不变）。
-            if _source_tier(a) > _source_tier(b):
-                continue
-            # 只走伞名词素通道：大足类同内容孪生（博物馆/影院/园区）
-            # 的合并语义在组装层 dedupe（选点层保留双卡是既有拍板），
-            # 不在选点层影子。
-            if _umbrella_cand_dup(a, b):
-                shadowed.add(j)
-                pairs.append((str(b.get("name") or ""), str(a.get("name") or "")))
-    return pairs
 
 
 def _museum_card(item: VisitItem) -> bool:
@@ -2504,12 +2441,21 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
-    if _umbrella_visit_dup(a, b):
-        return True  # 碑林拍板（2026-10-31）：博物馆本体 vs 伞形景区同站
+    # 伞名同站通道已退役（2026-11-07 终裁「还原多卡但连排成组合，适合
+    # 于所有城市」）：博物馆×伞形景区对不再互斥去重——两卡并存，跨日
+    # 由 _bundle_umbrella_spec_days 拉回同日连排。
     content = _content_dup(a.name, b.name)
     heritage = _heritage_dup(a.name, b.name)
     relic = _relic_park_dup(a.name, b.name)
     composite = _composite_dup(a.name, b.name)
+    # composite 通道豁免单侧博物馆对（2026-11-07 终裁「还原多卡连排成
+    # 组合，适合于所有城市」）：「武侯祠·锦里」复合挂牌拆段 武侯祠 ⊆
+    # 成都武侯祠博物馆——这是伞名族，两卡并存连排，不再借 composite
+    # 通道互斥去重（伞名 visit 通道退役后它从侧门漏进来）。城墙·碑林
+    # × 西安城墙（2026-11-04 案，双 attraction）与 museum×museum
+    # （陕历博·秦汉馆）原语义不动。
+    if composite and (_museum_card(a) != _museum_card(b)):
+        composite = False
     sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
         a.category, b.category
     )
@@ -9313,22 +9259,8 @@ class PlanningAgent:
                         f"{city}：同类景点已满{_cat_cap}家，"
                         f"{'、'.join(_cat_cut)}让位其他类型"
                     )
-            # 博物馆孪生让位（2026-10-31 碑林拍板）：伞形景区行与博物馆
-            # 本体同站在池时，景区行让位——「碑林博物馆优先于城墙·
-            # 碑林历史文化景区」。
-            shadow_pairs = _museum_shadow_pairs(pool)
-            if shadow_pairs:
-                shadowed_names = {scenic for scenic, _ in shadow_pairs}
-                pool = [
-                    p_ for p_ in pool if (p_[1].get("name") or "") not in shadowed_names
-                ]
-                if cut_names is not None:
-                    cut_names.update(shadowed_names)
-                if notes is not None:
-                    for scenic, museum in shadow_pairs:
-                        notes.append(
-                            f"{city}：「{scenic}」与「{museum}」同站，已优先保留博物馆"
-                        )
+            # 伞名影子退役已废（2026-11-07 终裁「还原多卡连排成组合」）：
+            # 池内伞名同站对两行都保留，选点照常各占名额。
             clusters = cluster_days([c for _, c in pool], span)
             # 夜场收尾演出预扣（2026-11-04 拍板「360 不是硬闸不代表可以
             # 白天填满 360 再叠演出排 440」）：钉日提前按收尾规则定死
@@ -9536,6 +9468,12 @@ class PlanningAgent:
                         _zoned_tail: set[int] = set()
                         if _tdays and len(eligible) > 1 and _tier <= 4:
                             _zoned_tail = {d for d in order if d in _tdays}
+                        if _tdays and len(eligible) > 1 and _tier == 8:
+                            # 街区反分区（2026-11-03 拍板「那两天适合 CityWalk」）：
+                            # 非转场日已被边日分区压到尾段——贴邻前置只准在转场日
+                            # 内部挑，不得把非转场日抢到队首把街区挡回转场日外
+                            # （test_heavy_avoids_transfer_day_street_takes_it 回归）。
+                            _zoned_tail |= {d for d in order if d not in _tdays}
                         if _adays and len(eligible) > 1 and _cand_is_big(cand):
                             _zoned_tail |= {d for d in order if d in _adays}
                         _walk_days = sorted(
@@ -10949,20 +10887,6 @@ class PlanningAgent:
             transfers.append(transfer)
         return transfers, assumptions
 
-    def _family_must_names(self, names: set[str]) -> set[str]:
-        """必去扩名（2026-11-07 并卡拍板）：成员名映射到族卡主点名，
-        让铁律 19 的 protect 按卡名护住载有必去子站的族卡。无映射时
-        原样返回（_fam_primary_of 未装配=上轮无并卡）。"""
-        prim = getattr(self, "_fam_primary_of", None) or {}
-        if not prim:
-            return names
-        out = set(names)
-        for n in names:
-            p = prim.get(n)
-            if p:
-                out.add(p)
-        return out
-
     async def _assemble_plan(
         self,
         cities: list[str],
@@ -11020,11 +10944,11 @@ class PlanningAgent:
                     "were moved to the nearest day",
                 )
             )
-        # 伞名近邻捆绑同日（2026-11-07 四拍「判同族 5km，碑林博物馆和
-        # 城墙·碑林景区作为两个捆绑在一起的路线」）：跨日的伞名同站对
-        # 先把低rank件拉回高rank件的同日，再进下方折卡组——同日之后
-        # fam_by_day 自然把两站折成一卡两行（时长取 max，不挤爆当日
-        # 预算），显示不影没；>5km（异地选址）与跨城维持互斥原语义。
+        # 伞名近邻捆绑同日（2026-11-07 终裁「还原多卡但连排成组合，适合
+        # 于所有城市」）：跨日的伞名同站对把低 rank 件拉回高 rank 件的
+        # 同日——两卡并存、各自成卡（折卡/影子退役/visit 去重三条吸收
+        # 通道已全部退役），同日连排由求解层距离优化与 5km 近距同日圈
+        # （_NEAR_SAMEDAY_KM）承接；>5km（异地选址）与跨城维持互斥原语义。
         _bundle_moved = _bundle_umbrella_spec_days(picked, cand_by_name)
         if _bundle_moved:
             assumptions.append(
@@ -11043,57 +10967,7 @@ class PlanningAgent:
         await self._ensure_origin_anchor(anchors, cities)
         visits: list[VisitItem] = []
         food_by_day: dict[int, int] = {}
-        # 同站伞名折卡（2026-11-07 碑林双卡案三拍「先类型二选一，再聚合；
-        # 要显示出来，不许影没」）：与锚卡构成伞名同站的同日件折进锚卡
-        # 当子站 chip——绑定/心愿行无坐标（_enrich_parallel 两道去重之后
-        # 才补坐标）走同城+词素降级闸（_fam_twin_absorb），不留独立第二
-        # 卡也不静默丢弃。≤1km 同街族并卡已废（2026-11-07 用户反转拍板：
-        # 大雁塔+长安十二时辰是两个景点，各排各卡、同日连排，不合成一卡
-        # ——近距同日由预占/求解层的 5km 近距同日圈承担；每个点照常占
-        # 4/日计数与预算）。
-        fam_members: dict[str, list[dict]] = {}
-        absorbed: set[str] = set()
-        twin_absorbed: set[str] = set()
-        fam_by_day: dict[int, list[dict]] = {}
         for spec in picked:
-            if spec.get("category") == "food":
-                continue
-            fam_by_day.setdefault(int(spec["day"]), []).append(spec)
-        for _day, day_specs in fam_by_day.items():
-            for i, anchor in enumerate(day_specs):
-                if anchor["name"] in absorbed or not isinstance(
-                    anchor.get("location"), dict
-                ):
-                    continue
-                for other in day_specs[i + 1 :]:
-                    if other["name"] in absorbed:
-                        continue
-                    if _fam_twin_absorb(anchor, other):
-                        fam_members.setdefault(anchor["name"], []).append(other)
-                        absorbed.add(other["name"])
-                        twin_absorbed.add(other["name"])
-        # 必去子站保护映射（成员名→主卡名，2026-11-07 并卡拍板）：必去
-        # 被折进主卡后卡面名换成主点，solver 铁律 19 的 protect 按卡名
-        # 匹配——三处 must_names 构建点经 _family_must_names 扩名，防止
-        # 载有必去子站的主卡被弹。
-        self._fam_primary_of = {
-            m["name"]: anchor_name
-            for anchor_name, members in fam_members.items()
-            for m in members
-        }
-        if twin_absorbed:
-            assumptions.append(
-                L(
-                    f"{'、'.join(sorted(twin_absorbed))} 与同站主卡互替"
-                    "近邻，已并入一卡作子站展示（两站都可见）",
-                    ", ".join(sorted(twin_absorbed))
-                    + " are same-site alternates of their host card "
-                    "and were folded into it as visible sub-stops",
-                )
-            )
-        for spec in picked:
-            if spec["name"] in absorbed:
-                continue
             cand = cand_by_name.get(spec["name"])
             location = None
             if cand and isinstance(cand.get("location"), dict):
@@ -11119,31 +10993,6 @@ class PlanningAgent:
                     start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
                     pinned = True
                     soft_pin = True
-            # 同站折卡收口（2026-11-07 碑林案三拍）：主卡时长=站内最长
-            # 一站，子站折成 chips 只出不排；任一子站是必去→必去标随主卡。
-            _members = fam_members.get(spec["name"]) or []
-            _stops = None
-            _member_cands: list[dict] = []
-            if _members:
-                _member_cands = [cand_by_name.get(m["name"]) or {} for m in _members]
-                duration = max(
-                    [int(duration or DEFAULT_VISIT_MINUTES)]
-                    + [
-                        int(m.get("duration_minutes") or DEFAULT_VISIT_MINUTES)
-                        for m in _members
-                    ]
-                )
-                _stops = [
-                    PlanStop(
-                        name=m["name"],
-                        name_en=(cand_by_name.get(m["name"]) or {}).get("name_en"),
-                        poi_id=(cand_by_name.get(m["name"]) or {}).get("source_poi_id")
-                        or m.get("source_poi_id"),
-                        category=m.get("category"),
-                        duration_minutes=m.get("duration_minutes"),
-                    )
-                    for m in _members
-                ]
             visits.append(
                 VisitItem(
                     item_id=f"v{self._item_seq}",
@@ -11168,7 +11017,7 @@ class PlanningAgent:
                     # 8.2.1 联动：库候选的时段属性随条目进 solver 开窗
                     # （_sched_best_visit：缺信号时按名称规则兜底，夜游
                     # 类不再因库行 any 被排进白天——2026-11-01 事故）
-                    best_visit_time=_family_best_visit(cand or {}, _member_cands),
+                    best_visit_time=_family_best_visit(cand or {}, []),
                     # 路径 A 预填（show_booking_design §2）：poi.booking_url
                     # （演出=携程 sight SKU 页）随条目并出，H5 票务直达直开
                     booking_url=(cand or {}).get("booking_url"),
@@ -11185,8 +11034,7 @@ class PlanningAgent:
                     duration_minutes=duration,
                     pinned=pinned,
                     soft_pin=soft_pin,
-                    must=bool(spec.get("must")) or any(m.get("must") for m in _members),
-                    stops=_stops,
+                    must=bool(spec.get("must")),
                 )
             )
         visits, dup_dropped = _dedupe_visit_keepers(visits)
@@ -11479,9 +11327,7 @@ class PlanningAgent:
         )
         # 必取名册提前备好：solve 之后的钉位（:7946 一带）之前，转场清算
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
-        must_names = self._family_must_names(
-            {spec["name"] for spec in picked if spec.get("must")}
-        )
+        must_names = {spec["name"] for spec in picked if spec.get("must")}
         tier_map = {name: _source_tier(c) for name, c in cand_by_name.items()}
         plan.assumptions.extend(
             _reconcile_transfer_days(
@@ -11617,9 +11463,7 @@ class PlanningAgent:
                         "say the word to add one",
                     )
                 )
-        must_names = self._family_must_names(
-            {spec["name"] for spec in picked if spec.get("must")}
-        )
+        must_names = {spec["name"] for spec in picked if spec.get("must")}
         if must_names:
             # Pin after the solve: pinned items need concrete times for the
             # solver to honor them (rule 19), and the solve above is the
@@ -12267,9 +12111,7 @@ class PlanningAgent:
         base = plan_score(plan, rain_days=rain, heavy_rain_days=heavy)
         if base.ok:
             return [], base.total, base.total
-        must_names = self._family_must_names(
-            {spec["name"] for spec in picked if spec.get("must")}
-        )
+        must_names = {spec["name"] for spec in picked if spec.get("must")}
         taken = {str(spec.get("name")) for spec in picked}
         # ⑨tier1 锚点集（初排偏好，2026-11-02 用户更正「只是给了
         # 初排顺序的偏好，后面根据具体情况可以调换」）：仅用于

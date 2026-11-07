@@ -563,12 +563,13 @@ def test_same_visit_content_channel_uses_wide_gate():
     assert _same_visit(cinema, far) is False
 
 
-# --- 2026-10-31 碑林拍板：博物馆本体优先于伞形景区挂牌行 ---------------------
+# --- 2026-11-07 终裁：伞名对还原多卡、连排成组合（旧「本体优先/让位」退役）--
 
 
-def test_museum_twin_replaces_umbrella_scenic():
-    """「城墙·碑林历史文化景区」（5A 伞形挂牌）先入列、「西安碑林博物馆」
-    后来 → 同站判定命中（词素 + ≤2km），博物馆替换胜出。"""
+def test_museum_and_umbrella_scenic_stay_two_cards():
+    """「城墙·碑林历史文化景区」（5A 伞形挂牌）与「西安碑林博物馆」
+    同站（词素 + ≤2km）不再互斥去重——两卡并存、同日连排（2026-11-07
+    终裁「还原成多卡但连排成一个组合，适合于所有城市」）。"""
 
     from app.services.agent.plan import _dedupe_visit_keepers
     from app.services.itinerary.models import GeoPoint
@@ -588,13 +589,16 @@ def test_museum_twin_replaces_umbrella_scenic():
         location=GeoPoint(lon=108.9402, lat=34.2544),
     )
     keepers, dropped = _dedupe_visit_keepers([wall, museum])
-    assert [k.name for k in keepers] == ["西安碑林博物馆"]
-    assert dropped == ["城墙·碑林历史文化景区"]
+    assert {k.name for k in keepers} == {
+        "城墙·碑林历史文化景区",
+        "西安碑林博物馆",
+    }
+    assert dropped == []
 
 
-def test_pinned_scenic_defends_against_museum_twin():
-    """用户确认过（pinned）的景区卡不让位——博物馆层排在 pinned 之后。"""
-    from datetime import time
+def test_umbrella_pair_dedupe_channel_retired():
+    """伞名 visit 去重通道已退役：无论谁先谁后/pinned 与否，伞名对都
+    两卡并存——去重闸只剩 poi_id/内容/兄弟通道管得着的对。"""
 
     from app.services.agent.plan import _dedupe_visit_keepers
     from app.services.itinerary.models import GeoPoint
@@ -604,8 +608,6 @@ def test_pinned_scenic_defends_against_museum_twin():
         "城墙·碑林历史文化景区",
         poi_id="5a_304",
         category="attraction",
-        pinned=True,
-        start_time=time(9, 0),
         location=GeoPoint(lon=108.9405, lat=34.2569),
     )
     museum = _visit(
@@ -615,53 +617,33 @@ def test_pinned_scenic_defends_against_museum_twin():
         category="museum",
         location=GeoPoint(lon=108.9402, lat=34.2544),
     )
-    keepers, _dropped = _dedupe_visit_keepers([wall, museum])
-    assert [k.name for k in keepers] == ["城墙·碑林历史文化景区"]
+    keepers, _dropped = _dedupe_visit_keepers([museum, wall])
+    assert len(keepers) == 2
 
 
-def test_museum_shadow_pairs_and_far_twin():
-    """候选层让位对：同站景区让位博物馆；异地（>2km）同名不并。"""
-    from app.services.agent.plan import _museum_shadow_pairs
+def test_umbrella_cand_gate_near_far():
+    """候选层伞名同站闸（回填守卫/组合识别共用）：同站（≤2km 词素）
+    判同族；异地（>2km）同名不并——影子退役已废，两卡并存由选点
+    照常各占名额。"""
+    from app.services.agent.plan import _umbrella_cand_dup
 
-    near = [
-        (
-            0,
-            {
-                "name": "城墙·碑林历史文化景区",
-                "category": "attraction",
-                "location": {"lon": 108.9405, "lat": 34.2569},
-            },
-        ),
-        (
-            1,
-            {
-                "name": "兵马俑",
-                "category": "attraction",
-                "location": {"lon": 109.28, "lat": 34.38},
-            },
-        ),
-        (
-            2,
-            {
-                "name": "西安碑林博物馆",
-                "category": "museum",
-                "location": {"lon": 108.9402, "lat": 34.2544},
-            },
-        ),
-    ]
-    assert _museum_shadow_pairs(near) == [("城墙·碑林历史文化景区", "西安碑林博物馆")]
-    far = [
-        (0, near[0][1]),
-        (
-            2,
-            {
-                "name": "西安碑林博物馆",
-                "category": "museum",
-                "location": {"lon": 109.02, "lat": 34.28},
-            },
-        ),
-    ]
-    assert _museum_shadow_pairs(far) == []
+    wall = {
+        "name": "城墙·碑林历史文化景区",
+        "category": "attraction",
+        "location": {"lon": 108.9405, "lat": 34.2569},
+    }
+    beilin_near = {
+        "name": "西安碑林博物馆",
+        "category": "museum",
+        "location": {"lon": 108.9402, "lat": 34.2544},
+    }
+    assert _umbrella_cand_dup(beilin_near, wall) is True
+    beilin_far = {
+        "name": "西安碑林博物馆",
+        "category": "museum",
+        "location": {"lon": 109.02, "lat": 34.28},
+    }
+    assert _umbrella_cand_dup(beilin_far, wall) is False
 
 
 # --- 2026-11-01 秦陵三行案：同馆配列桶（骊山园/遗址公园/兵马俑馆一票同站） ---
@@ -834,36 +816,27 @@ def test_dup_blocks_item_full_name_dup_guard():
     assert _dup_blocks_item(bmy_cand, _visit("v4", "西安城墙")) is False
 
 
-def test_heritage_family_shadows_to_museum_card():
-    """2026-11-01 用户拍板「当然选兵马俑」：同馆家族在池时骊山园/遗址
-    公园行让位兵马俑博物馆本体（选点层影子，碑林拍板同款）；异地同馆
-    名 >30km 不让位；大足类同内容家族维持「组装层合并、选点层双卡」
-    既有语义不变。"""
-    from app.services.agent.plan import _museum_shadow_pairs, _umbrella_cand_dup
+def test_heritage_family_umbrella_gate():
+    """2026-11-07 终裁「还原多卡连排」：影子退役已废——同馆家族
+    （骊山园/遗址公园/兵马俑馆）在池两卡并存；伞名同站闸只服务
+    回填守卫与组合识别。异地同馆名/10km 闸边界负例不变。"""
+    from app.services.agent.plan import _umbrella_cand_dup, _umbrella_specs_bundle
 
     bmy = {
         "name": "秦始皇兵马俑博物馆",
         "category": "attraction",
         "location": {"lon": 109.2820, "lat": 34.3862},
     }
-    park = {
-        "name": "秦始皇陵国家考古遗址公园",
-        "category": "attraction",
-        "location": {"lon": 109.2561, "lat": 34.3800},
-    }
     ling = {
         "name": "秦始皇陵",
         "category": "attraction",
         "location": {"lon": 109.2589, "lat": 34.3803},
     }
-    pool = [(0, ling), (1, bmy), (2, park)]
-    pairs = _museum_shadow_pairs(pool)
-    assert set(pairs) == {
-        ("秦始皇陵", "秦始皇兵马俑博物馆"),
-        ("秦始皇陵国家考古遗址公园", "秦始皇兵马俑博物馆"),
-    }
+    # 同馆家族（~2.3km）判同族：回填守卫拦重、组合识别拉同日
+    assert _umbrella_cand_dup(bmy, ling) is True
+    assert _umbrella_specs_bundle(bmy, ling) is True
 
-    # 异地同馆名（巡展）>30km：不让位
+    # 异地同馆名（巡展）>30km：不猜
     far = {
         "name": "秦始皇陵(异地展馆)",
         "category": "attraction",
@@ -871,7 +844,7 @@ def test_heritage_family_shadows_to_museum_card():
     }
     assert _umbrella_cand_dup(bmy, far) is False
 
-    # 同馆家族 10km 闸边界：~12km 的同名点不让位（8km 大足北山+宝顶
+    # 同馆家族 10km 闸边界：~12km 的同名点不并（8km 大足北山+宝顶
     # 已收进同馆半径，2026-11-01 二拍放宽）
     far_family = {
         "name": "秦始皇陵(远郊)",
@@ -880,8 +853,7 @@ def test_heritage_family_shadows_to_museum_card():
     }
     assert _umbrella_cand_dup(bmy, far_family) is False
 
-    # 大足类同内容家族：2026-11-01 拍板「核心词匹配运用到所有景点」——
-    # 撤豁免后选点层也让位博物馆本体（旧「保双卡、组装层合并」退役）
+    # 大足类同内容家族：伞名闸照常识别（两卡并存，回填守卫拦重）
     dazu_museum = {
         "name": "大足石刻博物馆",
         "category": "museum",
@@ -895,11 +867,10 @@ def test_heritage_family_shadows_to_museum_card():
     assert _umbrella_cand_dup(dazu_museum, dazu_scenic) is True
 
 
-def test_museum_shadow_tier_guard_protects_star_umbrella():
-    """2026-11-01 明星伞形保护：博物馆档位弱于景区时选点层不让位——
-    熊猫博物馆不得把 5A 熊猫繁育基地影子出池（10-31 起的既有隐患，
-    碑林机制通用化后暴露面扩大）；同档让位照常。"""
-    from app.services.agent.plan import _museum_shadow_pairs
+def test_star_umbrella_no_longer_shadowed_selection_keeps_both():
+    """影子退役已废（2026-11-07 终裁）：熊猫博物馆与 5A 熊猫繁育基地
+    选点两卡并存，无任何档位让位；伞名闸只判同族供守卫/捆绑。"""
+    from app.services.agent.plan import _umbrella_cand_dup
 
     museum = {
         "name": "成都大熊猫博物馆",
@@ -912,20 +883,5 @@ def test_museum_shadow_tier_guard_protects_star_umbrella():
         "tags": ["5a"],
         "location": {"lon": 104.145, "lat": 30.737},
     }
-    # 博物馆 tier9 弱于基地 tier2：不让位
-    assert _museum_shadow_pairs([(0, museum), (1, base)]) == []
-
-    # 同档（都无 tier）：碑林/秦陵类照常让位
-    bmy = {
-        "name": "秦始皇兵马俑博物馆",
-        "category": "attraction",
-        "location": {"lon": 109.2820, "lat": 34.3862},
-    }
-    ling = {
-        "name": "秦始皇陵",
-        "category": "attraction",
-        "location": {"lon": 109.2589, "lat": 34.3803},
-    }
-    assert _museum_shadow_pairs([(0, ling), (1, bmy)]) == [
-        ("秦始皇陵", "秦始皇兵马俑博物馆")
-    ]
+    # 同族判定照常（回填守卫拦重/组合识别拉同日），但不再让位出池
+    assert _umbrella_cand_dup(museum, base) is True

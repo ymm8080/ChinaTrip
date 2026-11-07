@@ -412,12 +412,13 @@ def test_umbrella_no_coords_cross_city_or_missing_city_not_twin():
     assert _umbrella_cand_dup(_beilin_anchor(), bare) is False
 
 
-def test_fam_twin_absorb_beilin_pair():
-    """族卡孪生吸收：伞标锚卡吸收同日绑定博物馆行；非伞名对不吸收。"""
-    from app.services.agent.plan import _fam_twin_absorb
+def test_umbrella_pair_bundle_recognition():
+    """组合识别（2026-11-07 终裁「还原多卡连排成组合」）：碑林伞名对判
+    同族供跨日捆绑；非伞名对不判族。吸收通道（折卡）已退役。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
 
     bound = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
-    assert _fam_twin_absorb(_beilin_anchor(), bound) is True
+    assert _umbrella_specs_bundle(_beilin_anchor(), bound) is True
     dayanta = {
         "name": "大雁塔大唐芙蓉园景区",
         "city": "西安",
@@ -425,11 +426,12 @@ def test_fam_twin_absorb_beilin_pair():
         "location": {"lon": 108.9640, "lat": 34.2180},
     }
     shaanxi = {"name": "陕西历史博物馆", "city": "西安", "category": "museum"}
-    assert _fam_twin_absorb(dayanta, shaanxi) is False
+    assert _umbrella_specs_bundle(dayanta, shaanxi) is False
 
 
-def test_same_visit_bound_museum_no_location_merged():
-    """行程级：无坐标绑定博物馆卡 vs 族卡（must）判同站，族卡幸存。"""
+def test_same_visit_umbrella_pair_not_merged():
+    """行程级（2026-11-07 终裁）：博物馆卡 vs 伞形景区卡不再判同站——
+    伞名 visit 去重通道已退役，两卡并存（必去标各随各卡）。"""
     from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
     from app.services.itinerary.models import GeoPoint, VisitItem
 
@@ -452,10 +454,10 @@ def test_same_visit_bound_museum_no_location_merged():
         day=4,
         must=True,
     )
-    assert _same_visit(museum, fam) is True
+    assert _same_visit(museum, fam) is False
     keepers, dropped = _dedupe_visit_keepers([museum, fam])
-    assert dropped == ["西安碑林博物馆"]
-    assert [k.poi_id for k in keepers] == ["5a_304"]
+    assert dropped == []
+    assert {k.poi_id for k in keepers} == {"m1_1c7b3030b03e", "5a_304"}
 
 
 def test_dup_blocks_beilin_museum_backfill():
@@ -482,9 +484,9 @@ def test_dup_blocks_beilin_museum_backfill():
     assert _dup_blocks_item(cand, fam) is True
 
 
-# --- ⑥ 伞名近邻捆绑同日（2026-11-07 四拍「判同族 5km，两站捆绑成线」）------
-# 用户终裁：碑林博物馆和城墙·碑林景区可以作为两个捆绑在一起的路线——
-# 判同族半径 5km；跨日的伞名对拉回同日，折卡组随后一卡两行显示。
+# --- ⑥ 伞名近邻捆绑同日（2026-11-07 终裁「还原多卡连排成组合」）----------
+# 碑林博物馆和城墙·碑林景区两卡并存、判同族半径 5km；跨日的伞名对
+# 拉回同日连排（不再折卡）。
 
 
 def _anchor_at(lon: float) -> dict:
@@ -531,7 +533,7 @@ def test_bundle_specs_no_coords_same_city_and_cross_city():
 
 def test_bundle_pulls_cross_day_pair_to_must_keeper_day():
     """跨日捆绑：必去碑林博物馆（day3，无坐标）是 keeper，城墙·碑林
-    （day2）拉回 day3——随后折卡组一卡两行。"""
+    （day2）拉回 day3——两卡并存同日连排。"""
     from app.services.agent.plan import _bundle_umbrella_spec_days
 
     museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
@@ -548,7 +550,7 @@ def test_bundle_pulls_cross_day_pair_to_must_keeper_day():
 
 
 def test_bundle_same_day_pair_untouched():
-    """同日对不动（折卡组自行处理），无披露。"""
+    """同日对不动（两卡并存连排），无披露。"""
     from app.services.agent.plan import _bundle_umbrella_spec_days
 
     museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
