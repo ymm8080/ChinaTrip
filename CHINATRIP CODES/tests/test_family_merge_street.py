@@ -139,6 +139,42 @@ def test_must_flag_propagates_and_protect_names_expand():
     assert agent._family_must_names({"西安鼓楼"}) == {"西安鼓楼", "西安钟楼"}
 
 
+def test_entertainment_member_joins_family_card():
+    # 2026-11-07 二拍「所有距离近的都可以并族」：演出/街区型不再豁免。
+    # 大雁塔锚卡收编 0.77km 外的长安十二时辰街区块，时长=族内 max(240)。
+    picked = [
+        _picked("大雁塔大唐芙蓉园景区", _ZL, 180),
+        {
+            **_picked("长安十二时辰主题街区", (_ZL[0] + 0.008, _ZL[1]), 240),
+            "category": "entertainment",
+        },
+    ]
+    cands = [
+        _cand("大雁塔大唐芙蓉园景区", _ZL, "p-dyt", "Dayanta"),
+        _cand(
+            "长安十二时辰主题街区",
+            (_ZL[0] + 0.008, _ZL[1]),
+            "p-sec",
+            "Twelve Hours Block",
+        ),
+    ]
+    agent, plan, assumptions = _family_plan(picked, cands)
+    sights = [
+        v
+        for v in plan.days[0].items
+        if isinstance(v, VisitItem) and v.category not in ("food", "hotel")
+    ]
+    assert {v.name for v in sights} == {"大雁塔大唐芙蓉园景区"}
+    card = sights[0]
+    assert card.duration_minutes == 240
+    assert [s.name for s in card.stops] == ["长安十二时辰主题街区"]
+    assert any("同街" in a for a in assumptions)
+    assert agent._family_must_names({"长安十二时辰主题街区"}) == {
+        "长安十二时辰主题街区",
+        "大雁塔大唐芙蓉园景区",
+    }
+
+
 # --- ③ 选层：族边际预算——紧预算日成员跟锚走，不被全额挤去别天 ---------------
 
 

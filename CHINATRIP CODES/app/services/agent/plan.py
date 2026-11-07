@@ -10802,16 +10802,18 @@ class PlanningAgent:
         visits: list[VisitItem] = []
         food_by_day: dict[int, int] = {}
         # 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大不求和；
-        # 距离超过一公里保持多卡」）：同日观光规格直线 ≤1km（锚半径，
-        # _FAMILY_MERGE_KM）折进首件锚卡——锚序=列表序=池序优先级梯子。
-        # food/演出（entertainment）/无坐标件不入族；>1km 保持多卡（同日
-        # 贴邻由预占/求解层的 1.5km 贴邻圈承担）。选层账本（day_fam）已按
-        # 族口径收预算，这里把卡面合并落地。
+        # 距离超过一公里保持多卡」+ 同日二拍「所有距离近的都可以并族，
+        # 没有什么一定要独立的事」——演出/街区型演出块不再豁免）：同日
+        # 规格直线 ≤1km（锚半径，_FAMILY_MERGE_KM）折进首件锚卡——锚序=
+        # 列表序=池序优先级梯子。仅餐位保留独立卡（餐窗是独立拍板硬规则
+        # ——午餐硬窗/晚餐窗，并卡会吃掉餐时刻）；无坐标件不入族；>1km
+        # 保持多卡（同日贴邻由预占/求解层的 1.5km 贴邻圈承担）。选层账本
+        # （day_fam）已按族口径收预算，这里把卡面合并落地。
         fam_members: dict[str, list[dict]] = {}
         absorbed: set[str] = set()
         fam_by_day: dict[int, list[dict]] = {}
         for spec in picked:
-            if spec.get("category") in ("food", "entertainment"):
+            if spec.get("category") == "food":
                 continue
             if not isinstance(spec.get("location"), dict):
                 continue
