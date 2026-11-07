@@ -1642,6 +1642,47 @@ def _substitute_tokens(name: object) -> bool:
     return bool(s) and any(t in s for t in _SUBSTITUTE_PANDA_TOKENS)
 
 
+# 正主序（2026-11-07 用户拍板「优选熊猫基地」）：替代组内绑定/复检时正
+# 主稳压其他组员——评分漂移（谷 4.5 反超基地 4.6 之类）、短名裁决都翻
+# 不了盘。首个实例：熊猫组正主=成都大熊猫繁育研究基地（市内、预约名
+# 单正主、全组最高知名度）。
+_SUBSTITUTE_CANONICAL: tuple[str, ...] = ("成都大熊猫繁育研究基地",)
+
+
+def _substitute_canon_rank(name: object) -> int:
+    """替代组正主序：正主 0、其他组员 1、非组员 2（排序键，越小越优）。"""
+    s = str(name or "").strip()
+    if not _substitute_tokens(s):
+        return 2
+    for canon in _SUBSTITUTE_CANONICAL:
+        c = str(canon)
+        if c in s or s in c:
+            return 0
+    return 1
+
+
+def _wish_candidate_rank(c: dict) -> tuple:
+    """心愿绑定候选梯队（2026-10-30/31 拍板：预约名单 > 最经典
+    UNESCO/5A > 替代组正主序（2026-11-07 拍板「优选熊猫基地」）> 评分
+    降序 > 短名稳定裁决）。模块级供三处共用：绑定器、覆盖兜底、再校验
+    ——原 `_wish_bind_candidate` 闭包版兜底分支够不着，取池序第一个才
+    绑错熊猫谷（2026-11-07 事故）。"""
+    name = str(c.get("name") or "")
+    try:
+        rating = float(c.get("rating") or 0)
+    except (TypeError, ValueError):
+        rating = 0.0
+    try:
+        classic = 1 if _source_tier(c) <= 2 else 0
+    except Exception:
+        classic = 0
+    try:
+        seed = 1 if reservation_meta_for(name) else 0
+    except Exception:
+        seed = 0
+    return (seed, classic, _substitute_canon_rank(name), rating, -len(name))
+
+
 def _norm_city_key(city: object) -> str:
     return str(city or "").strip().removesuffix("市")
 
@@ -5742,6 +5783,14 @@ class PlanningAgent:
                 bound0 = self._wish_bindings.get(name) or (
                     session.wish_bindings or {}
                 ).get(name)
+                if isinstance(bound0, dict) and bound0.get("location"):
+                    # 强制日志（2026-11-07）：存量绑定复用要留痕——熊猫谷
+                    # 错绑跨回合静默传递，排查时无迹可查。
+                    logger.info(
+                        "plan: wish bind reuse %s -> %s (stored)",
+                        name,
+                        bound0.get("name"),
+                    )
                 # 已有绑定时不再烧图商检索（POIS 已定就没配额事）
                 poi = (
                     bound0
@@ -7120,13 +7169,45 @@ class PlanningAgent:
                 # 熊猫基地）——记绑定供 merge 钉选，算法没挑到时由必去
                 # 通道强制进排期，不再落无城市占位卡。
                 if name not in self._wish_bindings:
-                    hit = self._wish_bind_candidate(name, candidates) or next(
-                        (c for c in candidates if _name_dup(name, c["name"])),
-                        None,
-                    )
+                    hit = self._wish_bind_candidate(name, candidates)
+                    via_ladder = hit is not None
+                    if hit is None:
+                        # 梯队够不着（核心词不进候选名）时兜底：同名命中
+                        # 集合按同一梯队取最优。2026-11-07 熊猫谷错绑事故
+                        # 收口：旧版这里 next() 取池序第一个、无排序无日
+                        # 志，是绑错主因之一。
+                        dups = [c for c in candidates if _name_dup(name, c["name"])]
+                        hit = max(dups, key=_wish_candidate_rank) if dups else None
                     if hit is not None:
                         self._wish_bindings[name] = hit
                         self._backfill_wish_city(name, str(hit.get("city") or ""))
+                        logger.info(
+                            "plan: wish covered bind %s -> %s "
+                            "(pool=%d rank=%s ladder=%s)",
+                            name,
+                            hit.get("name"),
+                            len(candidates),
+                            _wish_candidate_rank(hit),
+                            via_ladder,
+                        )
+                else:
+                    # 再校验自愈（2026-11-07 拍板「优选熊猫基地」）：旧会
+                    # 话存量绑定落在替代组次优（谷）而正主（基地）在当前
+                    # 池——换绑，防跨回合静默复用错主（10-31 自愈只治行
+                    # 级落点，治不了绑定源头）。
+                    stored = self._wish_bindings[name]
+                    better = self._wish_bind_candidate(name, candidates)
+                    if better is not None and _substitute_canon_rank(
+                        str(better.get("name") or "")
+                    ) < _substitute_canon_rank(str(stored.get("name") or "")):
+                        self._wish_bindings[name] = better
+                        self._backfill_wish_city(name, str(better.get("city") or ""))
+                        logger.warning(
+                            "plan: wish bind re-healed %s: %s -> %s (canonical)",
+                            name,
+                            stored.get("name"),
+                            better.get("name"),
+                        )
                 continue
             kind = "food" if kinds.get(name) == "food" else "sight"
             # A video-extracted city beats the session-level fallback: the
@@ -7501,9 +7582,11 @@ class PlanningAgent:
         「看熊猫」要匹配到 熊猫基地 而非落无城市占位）。剥意图动词后的
         核心词（≥2 字）先精确等值、再包含匹配；多命中按 预约名单 > 最
         经典（UNESCO/5A，2026-10-31 用户拍板「先去最经典的」——都江堰
-        熊猫谷这类同类次优让位给 5A 成都基地）> 评分降序 > 更短名称稳
-        定裁决；占位候选（无坐标）不参与。2026-10-30 深夜：核心词升级
-        为纯核心词（再剥城市/方位限定，水利工程事故）。"""
+        熊猫谷这类同类次优让位给 5A 成都基地）> 替代组正主序（2026-11-07
+        拍板「优选熊猫基地」：intl 荐点入库后谷也挂档级标签，classic 平
+        局由正主序压住，评分漂移翻不了盘）> 评分降序 > 更短名称稳定裁
+        决；占位候选（无坐标）不参与。2026-10-30 深夜：核心词升级为纯
+        核心词（再剥城市/方位限定，水利工程事故）。"""
         core = _wish_pure_core(name)
         if len(core) < 2:
             return None
@@ -7517,39 +7600,12 @@ class PlanningAgent:
             and c.get("location") is not None
             and not c.get("cross_city_hit")
         ]
-
-        def _rating(c: dict) -> float:
-            try:
-                return float(c.get("rating") or 0)
-            except (TypeError, ValueError):
-                return 0.0
-
-        def _seed(c: dict) -> int:
-            # 预约名单（重大场馆策展表）命中优先（2026-10-31 看熊猫平局
-            # 事故：基地 4.6 vs 大熊猫1号别墅 4.6，短名规则选中了园区内
-            # 设施；正主天然在预约名单里）。
-            try:
-                return 1 if reservation_meta_for(str(c.get("name") or "")) else 0
-            except Exception:
-                return 0
-
-        def _classic(c: dict) -> int:
-            # UNESCO/5A = 最经典档（2026-10-31 看熊猫案：熊猫谷与基地同
-            # 进候选池时，5A 基地胜出；次优留给 reply「可替换」注释）。
-            try:
-                return 1 if _source_tier(c) <= 2 else 0
-            except Exception:
-                return 0
-
-        def _rank(c: dict) -> tuple:
-            return (_seed(c), _classic(c), _rating(c), -len(str(c["name"])))
-
         exact = [c for c in pool if _norm_site_name(str(c["name"])) == ncore]
         if exact:
-            return max(exact, key=_rank)
+            return max(exact, key=_wish_candidate_rank)
         near = [c for c in pool if _same_site(core, str(c["name"]))]
         if near:
-            return max(near, key=_rank)
+            return max(near, key=_wish_candidate_rank)
         return None
 
     async def _bind_wish_poi(
@@ -7579,7 +7635,7 @@ class PlanningAgent:
             for scope in scopes:
                 try:
                     hits = await asyncio.to_thread(
-                        self._poi_details.search_keyword, scope, [core], limit=20
+                        self._poi_details.search_keyword, scope, [core], limit=50
                     )
                 except Exception:
                     hits = []
@@ -7604,7 +7660,13 @@ class PlanningAgent:
             best["location"] = _location_dict(best.get("location"))
             self._wish_bindings[name] = best
             self._backfill_wish_city(name, str(best.get("city") or ""))
-            logger.info("plan: wish core bind %s -> %s", name, best.get("name"))
+            logger.info(
+                "plan: wish core bind %s -> %s (pool=%d rank=%s)",
+                name,
+                best.get("name"),
+                len(pool),
+                _wish_candidate_rank(best),
+            )
             return best
         llm_pool: list[dict] = []
         if self._poi_details is not None and not _is_unspecified(city):

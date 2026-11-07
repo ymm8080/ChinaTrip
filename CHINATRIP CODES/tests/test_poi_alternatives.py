@@ -666,3 +666,55 @@ def test_substitute_member_offered_when_alone():
         main_name="离堆公园",
     )
     assert [a.name for a in alts] == ["熊猫谷"]
+
+
+def test_panda_members_same_category_despite_category_groups():
+    """2026-11-07 用户拍板「熊猫基地/谷/苑一个品类」：组员 zoo/nature 跨
+    CATEGORY_GROUPS 组（fun vs nature），组内互认精确同类——真实库类别
+    （谷=nature、基地=zoo）不再被品类闸杀（首改前谷卡永不亮基地 chip
+    实录：cat_key 出局于 467 行同类闸）。"""
+    pool = [
+        hit(
+            "成都大熊猫繁育研究基地",
+            2,
+            category="zoo",
+            duration=180,
+            rating=4.6,
+            loc=(104.1441, 30.7330),
+        )
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="nature",
+        tier=3,  # 国际旅行网站 → 池档 2，与基地同 premium 带
+        duration_minutes=150,
+        exclude_names={_norm_name("熊猫谷"), _norm_name("文殊院")},
+        main_name="熊猫谷",
+    )
+    assert [a.name for a in alts] == ["成都大熊猫繁育研究基地"]
+
+
+def test_panda_member_category_unity_is_bidirectional():
+    """反向同闸：基地(zoo)卡亮谷(nature) chip——替换路径双向通。"""
+    pool = [
+        hit(
+            "熊猫谷",
+            2,
+            category="nature",
+            duration=150,
+            rating=4.5,
+            loc=(103.59896, 30.96554),
+        )
+    ]
+    alts = pick_alternatives(
+        pool,
+        category="zoo",
+        tier=3,
+        duration_minutes=180,
+        exclude_names={
+            _norm_name("成都大熊猫繁育研究基地"),
+            _norm_name("文殊院"),
+        },
+        main_name="成都大熊猫繁育研究基地",
+    )
+    assert [a.name for a in alts] == ["熊猫谷"]

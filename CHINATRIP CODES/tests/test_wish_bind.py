@@ -665,3 +665,53 @@ def test_wish_bind_prefers_classic_5a_over_shorter_rival():
     # 反向次序同样稳定（max 不受输入顺序影响）
     picked = agent._wish_bind_candidate("看熊猫", [base, valley])
     assert picked is not None and picked["source_poi_id"] == "PANDA01"
+
+
+def test_wish_bind_canonical_member_beats_higher_rated_rival():
+    """2026-11-07 用户拍板「优选熊猫基地」：intl 荐点入库后谷也挂档级
+    标签（classic 平局），正主序压住评分漂移——谷 4.9 > 基地 4.6 仍绑
+    基地；非组员杂行（熊猫挂牌酒店）被正主序垫底，不会凭高分类翻盘
+    （2026-11-07 谷错绑事故回归锚）。"""
+    agent = PlanningAgent(CountingLLM())
+    valley = {
+        "source_poi_id": "PANDAVALLEY",
+        "name": "都江堰熊猫谷",
+        "city": "成都",
+        "category": "nature",
+        "rating": 4.9,
+        "tags": ["intl"],  # 与基地同为 tier≤2：classic 平局
+        "location": (103.60, 31.01),
+    }
+    base = {
+        "source_poi_id": "PANDA01",
+        "name": "成都大熊猫繁育研究基地",
+        "city": "成都",
+        "category": "zoo",
+        "rating": 4.6,
+        "tags": ["intl"],
+        "location": (104.14, 30.73),
+    }
+    junk = {
+        "source_poi_id": "PANDAJUNK",
+        "name": "成都熊猫很困酒店",
+        "city": "成都",
+        "category": "hotel",
+        "rating": 4.8,
+        "tags": [],
+        "location": (104.05, 30.67),
+    }
+    for order in ([valley, base, junk], [junk, base, valley]):
+        picked = agent._wish_bind_candidate("看熊猫", order)
+        assert picked is not None and picked["source_poi_id"] == "PANDA01"
+
+
+def test_substitute_canon_rank_order():
+    """正主序（2026-11-07 拍板「优选熊猫基地」）：正主 0、其他组员 1、
+    非组员 2。"""
+    from app.services.agent.plan import _substitute_canon_rank
+
+    assert _substitute_canon_rank("成都大熊猫繁育研究基地") == 0
+    assert _substitute_canon_rank("都江堰熊猫谷") == 1
+    assert _substitute_canon_rank("都江堰中华大熊猫苑(原熊猫乐园)") == 1
+    assert _substitute_canon_rank("宽窄巷子") == 2
+    assert _substitute_canon_rank("") == 2

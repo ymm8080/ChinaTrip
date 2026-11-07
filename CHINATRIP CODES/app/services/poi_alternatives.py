@@ -47,6 +47,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from math import log2
 
@@ -59,6 +60,8 @@ from app.services.itinerary.models import (
 from app.services.itinerary.rules import haversine_km
 from app.services.poi_details import _TIER_TAG
 from app.services.poi_seed import CATEGORY_MAP, normalize_category
+
+logger = logging.getLogger(__name__)
 
 # 备选默认上限：右侧 chip 区放 3 个以内不挤爆站点行（用户拍板「一个
 # 备选」为底线，多给 2 个供挑剔场景）
@@ -382,43 +385,47 @@ def pick_alternatives(
             return (0, 0)
         return (1, abs(cand - want_level))
 
-    def eligible(h: dict) -> bool:
+    def eligible_reason(h: dict) -> str | None:
+        """None=合格；否则返回命中的闸名（2026-11-07 强制日志收口：此前
+        全模块零日志，谷卡备选缺失无从排查）。"""
         name = _norm_name(h.get("name"))
-        if not name or _overlap_any(name, exclude_names):
-            return False
+        if not name:
+            return "no_name"
+        if _overlap_any(name, exclude_names):
+            return "exclude"
         if _JUNK_NAME_RE.search(name):
-            return False  # 描述性短语行（看成都附近的水利工程实录）不是点位
+            return "junk_name"  # 描述性短语行（看成都附近的水利工程实录）不是点位
         if _is_food_row(h.get("category")):
-            return False
+            return "food"
         pid = h.get("source_poi_id")
         if pid and pid in exclude_pids:
-            return False
+            return "poi_id"
         if is_show:
-            return is_show_row(h)
+            return None if is_show_row(h) else "not_show"
         if is_show_row(h) or _looks_show_name(name):
-            return False  # 演出/场馆行不是观光点的备选（含类别缺失行）
+            return "show_row"  # 演出/场馆行不是观光点的备选（含类别缺失行）
         # 同级硬闸（2026-11-06 二拍）：跨档带出局——4A 不作 5A/世遗备选
         # （陕西自然博物馆实录）；带内不足就少给，宁缺不滥
         if _band_of(level_class(h.get("_tier"))) != want_band:
-            return False
+            return "band"
         # 遗址类隔离（双向硬闸）：遗址主点只换遗址，非遗址主点不换遗址
         if row_is_ruins(h) != main_is_ruins:
-            return False
+            return "ruins"
         # CITYWALK 类隔离（双向硬闸，2026-11-06 拍板）：街区压马路型只与
         # 街区压马路型互为备选
         if (
             is_citywalk(h.get("name"), h.get("tags"), pool_tier=h.get("_tier"))
             != main_citywalk
         ):
-            return False
+            return "citywalk"
         # 同体验替代组隔离（2026-11-07 熊猫谷案，单向）：行程里已有替代
         # 组成员（≠主点本人）时组员不作备选亮卡——点了必撞 duplicate；
         # 主点本人是组员时放行（基地卡亮谷 chip = 正当替换路径）
         if _substitute_tokens(name):
             for n in exclude_names:
                 if n != mn and _substitute_tokens(n):
-                    return False
-        return True
+                    return "substitute"
+        return None
 
     def cat_key(h: dict) -> int:
         # 0=类别精确一致 1=同类别组 3=不一致/缺失（出局）。同类别是硬
@@ -428,6 +435,13 @@ def pick_alternatives(
         # 名录外）；CITYWALK 组内跨类别放行（2026-11-06 拍板「CITYWALK
         # 单独一组」——武侯祠·锦里 historic↔宽窄巷子 attraction 实录）
         if is_show:
+            return 0
+        # 同体验替代组互认同类（2026-11-07 用户拍板「熊猫基地/谷/苑一个
+        # 品类」）：组员 zoo/nature/theme_park 跨 CATEGORY_GROUPS 组，组
+        # 内互认精确同类——正当替换路径不被品类闸卡死（谷卡亮基地实录，
+        # 首改前 zoo≠nature 在此被杀、chip 永不亮）。互斥闸（eligible
+        # substitute 闸）已保证亮卡方向无第三成员，不会串组误放。
+        if _substitute_tokens(mn) and _substitute_tokens(_norm_name(h.get("name"))):
             return 0
         if main_citywalk:
             c = _norm_cat(h.get("category"))
@@ -462,9 +476,46 @@ def pick_alternatives(
         except (TypeError, ValueError):
             return None
 
-    cands = [h for h in pool if eligible(h)]
+    drop_counts: dict[str, int] = {}
+
+    def note_drop(h: dict, gate: str, detail: str = "") -> None:
+        drop_counts[gate] = drop_counts.get(gate, 0) + 1
+        nm = _norm_name(h.get("name")) or "?"
+        # 强制日志（2026-11-07）：结构闸出局与替代组成员死于任何闸都逐
+        # 条留痕（熊猫类 chip 缺失必须可追溯）；例行过滤（已在行程/杂名/
+        # 餐行/无坐标行）只计数不刷屏。
+        structural = gate in (
+            "band",
+            "ruins",
+            "citywalk",
+            "substitute",
+            "show_row",
+            "not_show",
+        )
+        if structural or _substitute_tokens(nm):
+            logger.info(
+                "alternatives: drop %s for main %s gate=%s%s",
+                nm,
+                main_name or "?",
+                gate,
+                f" ({detail})" if detail else "",
+            )
+
+    cands = []
+    for h in pool:
+        why = eligible_reason(h)
+        if why is None:
+            cands.append(h)
+        else:
+            note_drop(h, why)
     # 同类闸：精确/同组保留，不一致与类别缺失出局
-    cands = [h for h in cands if cat_key(h) <= 1]
+    kept = []
+    for h in cands:
+        if cat_key(h) <= 1:
+            kept.append(h)
+        else:
+            note_drop(h, "category")
+    cands = kept
     # 同时长闸（硬规则）：带内已知游时优先；带外已知游时直接出局；无游
     # 时数据垫底补位。主点无游时（band=None）不过滤。演出主点免闸（游
     # 时无信号常态）。
@@ -480,7 +531,8 @@ def pick_alternatives(
                 unknown.append(h)
             elif band[0] <= d <= band[1]:
                 in_band.append(h)
-            # 带外已知游时：出局（不放回）
+            else:  # 带外已知游时：出局（不放回）
+                note_drop(h, "duration", f"d={d}")
     else:
         in_band, unknown = cands, []
 
@@ -519,6 +571,13 @@ def pick_alternatives(
         )
         if nm:
             picked_names.add(nm)
+    logger.info(
+        "alternatives: main=%s pool=%d picked=%d drops=%s",
+        main_name or "?",
+        len(pool),
+        len(out),
+        dict(sorted(drop_counts.items())),
+    )
     return out
 
 
@@ -534,6 +593,12 @@ def _main_row(v: VisitItem, store: object) -> dict | None:
             (v.city or "").strip() or None, v.name
         )
     except Exception:
+        logger.warning(
+            "alternatives: main row lookup failed for %s (city=%s)",
+            v.name,
+            v.city,
+            exc_info=True,
+        )
         return None
 
 
@@ -549,7 +614,12 @@ def _heal_tier(v: VisitItem, row: dict | None) -> None:
 
         v.tier = _source_tier(row)
     except Exception:
-        pass
+        logger.warning(
+            "alternatives: tier heal failed for %s (keep tier=%s)",
+            v.name,
+            v.tier,
+            exc_info=True,
+        )
 
 
 def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPlan:
@@ -593,6 +663,11 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
                 pools[city] = list(store.alternatives_pool(city))  # type: ignore[attr-defined]
             except Exception:
                 pools[city] = []
+                logger.warning(
+                    "alternatives: pool query failed for %s (alts empty)",
+                    city,
+                    exc_info=True,
+                )
         row = _main_row(v, store)
         _heal_tier(v, row)
         # 主点 CITYWALK 类：名/梯档之外再认库行功能标签（街巷坊词批打
@@ -612,6 +687,11 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
             )
         except Exception:
             alts = []
+            logger.warning(
+                "alternatives: pick failed for %s (alts empty)",
+                v.name,
+                exc_info=True,
+            )
         v.alternatives = alts or None
         for a in alts:
             used_names.add(_norm_name(a.name))
