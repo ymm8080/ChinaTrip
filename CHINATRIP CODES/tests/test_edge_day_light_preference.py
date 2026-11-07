@@ -71,8 +71,8 @@ def test_all_transfer_days_still_schedules():
 
 def test_main_loop_demotes_heavy_from_transfer_day(monkeypatch):
     monkeypatch.setenv("CHINATRIP_PRIORITY_EARLY", "off")
-    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同点互认同街族，
-    # 族件跟锚同日会把普通点一并拽去 day2，验不出让位本身）。
+    # 坐标错开 >1.5km（同点互认并卡会把普通点一并拽去 day2，验不出
+    # 让位本身；族卡已废，贴邻同日圈 5km 软偏好同向不破断言）。
     cands = [
         _cand("世遗点", tags=["unesco"], loc=(104.06, 30.66)),
         _cand("普通点", loc=(104.08, 30.66)),

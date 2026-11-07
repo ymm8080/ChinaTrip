@@ -133,8 +133,9 @@ def test_time_budget_soft_gate_overflows_not_drops():
 
 
 def test_four_per_day_cap():
-    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同街族并一卡、族件
-    # 豁免 4/日计数——同点夹具会被并成一张族卡绕开闸，须独立点验闸）。
+    # 坐标错开 >1.5km（同点夹具互认会被伞名孪生吸收并卡绕开闸，须独立
+    # 点验；族卡已废 10bd56b、贴邻同日圈 11-07 晚扩 5km——1.9km 错开
+    # 在圈内，同日软偏好不破本测断言）。
     cands = [
         _cand(f"点{i}", "成都", suggested=30, loc=(104.06 + i * 0.02, 30.66))
         for i in range(6)
@@ -276,8 +277,9 @@ def test_show_day_budget_reserves_show_minutes():
 
 def test_algo_show_adjacent_sight_co_schedules_with_pinned_show():
     # 2026-11-07 锦里古戏台/武侯祠案：仅夜场演出钉窗口末日、贴邻白天点
-    # 却预占最早天——同街区一对被拆成首尾两天。步行圈内（≤1.5km）的
-    # 候选认领序把演出日前置；圈外远点不受牵引（软偏好只贴邻生效）。
+    # 却预占最早天——同街区一对被拆成首尾两天。近距同日圈（5km，
+    # 11-07 晚拍板）内的候选认领序把演出日前置；圈外远点不受牵引
+    # （软偏好只贴邻生效）。
     near = _cand("武侯祠", "成都", tags=["5a"], loc=(104.0493, 30.6445))
     far = _cand("远郊雪山大点", "成都", tags=["5a"], loc=(102.92, 31.13))
     cands = [
@@ -957,7 +959,8 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         _cand("市2", "成都", suggested=180, loc=g1),  # day1 360 满
         _cand("都1", "成都", suggested=90, loc=g2),
     ]
-    # 远填坐标彼此错开 >1.5km（互不粘连，避贴邻圈/preclaim 误认领）。
+    # 远填坐标彼此错开 >1.5km（互不粘连；贴邻同日圈已扩 5km，1.9km
+    # 错开在圈内——同日软偏好与断言 day2 同向，池外硬闸不变）。
     cands += [
         _cand(f"远填{i}", "成都", suggested=180, loc=(104.06 + (i + 1) * 0.02, 30.66))
         for i in range(5)

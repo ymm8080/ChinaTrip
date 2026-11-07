@@ -100,8 +100,8 @@ def test_selection_cap_pref_exempt():
 
 def test_selection_attraction_not_capped():
     """attraction 是粗粒度垃圾桶类（回民街/城墙/兵马俑同档）不设限。"""
-    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同街族并一卡、族件
-    # 豁免 4/日计数——同点夹具会并成一张族卡绕开闸，须独立点验闸）。
+    # 坐标错开 >1.5km（同点夹具互认会被伞名孪生吸收并卡绕开闸，须独立
+    # 点验；族卡已废 10bd56b，贴邻同日圈 5km 软偏好不破断言）。
     cands = [
         _cand(f"地标{w}", cat="attraction", tags=["5a"], loc=(108.94 + i * 0.02, 34.26))
         for i, w in enumerate(("甲", "乙", "丙", "丁", "戊"))
@@ -352,8 +352,8 @@ def test_itinerary_cap_museum_one_per_itinerary():
 def test_itinerary_cap_scenic_source_counts_and_citywalk():
     """风景区桶 = nature 品类 + scenic 源行（品类不对也计数）；
     CITYWALK 每行程 1 个。"""
-    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同点互认同街族、族件
-    # 搭锚车绕开行程桶——验桶计数须独立点）。
+    # 坐标错开 >1.5km（同点互认会被伞名孪生吸收搭锚车绕开行程桶——
+    # 验桶计数须独立点；族卡已废，贴邻同日圈 5km 软偏好不破断言）。
     cands = [
         _bucket_cand("骊山", "西安", "nature", rating=4.5, loc=(108.94, 34.26)),
         _bucket_cand(
@@ -379,8 +379,8 @@ def test_itinerary_cap_scenic_source_counts_and_citywalk():
 def test_experience_types_rank_right_after_premium():
     """体验型中国特色活动（tea_experience 等）梯子紧跟王牌：1 天 4 席
     满池时 4.0 分茶馆压过 4.6 分图商点入选（2026-11-07 拍板「多放」）。"""
-    # 坐标错开 >1.5km（2026-11-07 并卡拍板：≤1km 同点互认同街族、族件
-    # 豁免 4/日计数——4 席会变 5 件，验席位须独立点）。
+    # 坐标错开 >1.5km（同点互认会被伞名孪生吸收并卡——4 席会变 5 件，
+    # 验席位须独立点；族卡已废，贴邻同日圈 5km 软偏好不破断言）。
     cands = [
         _bucket_cand(
             f"图商点{i}",
