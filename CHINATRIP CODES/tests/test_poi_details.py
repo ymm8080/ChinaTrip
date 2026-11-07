@@ -448,6 +448,78 @@ def test_top_pois_in_city_excludes_hotel_rows():
     assert names == ["春熙路"]
 
 
+def test_top_pois_in_city_rec_tag_food_rows_stay_in_pool():
+    """荐点餐厅入池豁免（2026-11-07 用户指令「WE CAN CHOOSE RESTRANT IN
+    SITE IN CASE THEY ARE HV TAG LIKE KLOOK TRIPADVISOR ETC」）：带国际
+    荐点标（klook/ta/curated 等）的餐饮行保留主池（选点提示词「用餐锚点」
+    口径接通）；无标餐饮照旧出池；荐点标酒店不享豁免照旧出池。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "F1",
+        city="成都",
+        name="失重餐厅(环球中心店)",
+        category="food",
+        location=(104.061, 30.574),
+        rating=4.5,
+    )
+    store._memory["F1"]["tags"] = ["curated", "intl"]
+    store.upsert(
+        "F2",
+        city="成都",
+        name="teamLab联名咖啡",
+        category="food",
+        location=(104.07, 30.58),
+        rating=4.6,
+    )
+    store._memory["F2"]["tags"] = ["klook"]
+    store.upsert(
+        "F3",
+        city="成都",
+        name="无名苍蝇馆子",
+        category="food",
+        location=(104.08, 30.59),
+        rating=4.9,
+    )
+    store.upsert(
+        "F4",
+        city="成都",
+        name="非荐点标餐厅",
+        category="food",
+        location=(104.081, 30.591),
+        rating=4.9,
+    )
+    store._memory["F4"]["tags"] = ["国家一级博物馆"]
+    store.upsert(
+        "H1",
+        city="成都",
+        name="带荐点标酒店",
+        category="hotel",
+        location=(104.09, 30.60),
+        rating=4.9,
+    )
+    store._memory["H1"]["tags"] = ["intl", "layla"]
+    store.upsert(
+        "S1",
+        city="成都",
+        name="环球中心",
+        category="attraction",
+        location=(104.062, 30.575),
+        rating=4.6,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert "失重餐厅(环球中心店)" in names
+    assert "teamLab联名咖啡" in names
+    assert "无名苍蝇馆子" not in names
+    assert "非荐点标餐厅" not in names
+    assert "带荐点标酒店" not in names
+    assert "环球中心" in names
+    # 餐饮行 category 原样带出（选点层按 food 消费，不冒充 sight）
+    hit = next(
+        h for h in store.top_pois_in_city("成都", 10) if h["name"] == "teamLab联名咖啡"
+    )
+    assert hit["category"] == "food"
+
+
 # --- search_keyword 读侧 tier 并列裁决 (2026-10-28 泛称愿望落地) --------------
 
 

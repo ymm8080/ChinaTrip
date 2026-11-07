@@ -361,3 +361,166 @@ def test_recommend_restaurants_keeps_far_candidates_without_route_points():
     stub = StubAmap(pois=[make_poi("远处餐厅", lat=0.5)])
     items = asyncio.run(recommend_restaurants(stub, day_plan(), "dinner"))
     assert [i.name for i in items] == ["远处餐厅"]
+
+
+# --- DB 荐点餐厅并池 + 晚餐优先 + 时段要求闸（2026-11-07 用户指令） --------
+
+
+def _db_rec_poi(name, *, rec=True, hours=None, hint=None, lon=None, lat=None):
+    """recommendation_food_in_city 形状的 DB hit（荐点餐厅）。"""
+    return {
+        "source_poi_id": f"curated:成都:{name}",
+        "name": name,
+        "city": "杭州",
+        "category": "food",
+        "address": None,
+        "opening_hours": hours,
+        "best_visit_time": None,
+        "rating": None,
+        "location": None if lon is None else (lon, lat),
+        "suggested_duration_min": hint,
+        "rec_tagged": rec,
+    }
+
+
+def test_recommend_restaurants_merges_db_rec_food_without_amap_hit():
+    """任务1：带荐点标的 DB 餐厅不经 amap 关键词搜索直接进槽（红鼎宴/
+    失重餐厅类点名店 live 搜索覆盖不到）；无坐标骨架行照回（垫底带）。"""
+    stub = StubAmap(pois=[make_poi("顺路餐厅", lat=0.002)])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    items = asyncio.run(
+        recommend_restaurants(stub, plan, "dinner", extra_pois=[_db_rec_poi("红鼎宴")])
+    )
+    names = [i.name for i in items]
+    assert "红鼎宴" in names and "顺路餐厅" in names
+    hong = next(i for i in items if i.name == "红鼎宴")
+    assert hong.category == "food" and hong.location is None
+
+
+def test_dinner_rec_bonus_prefers_tagged_over_closer_untagged():
+    """任务3：dinner 槽位荐点标候选享 REC_DINNER_BONUS_KM 优先——约
+    1.1km 外的荐点店赢 0.2km 顺路无标店；lunch 同场景不享受优先。"""
+    close_plain = make_poi("顺路餐厅", lat=0.002)
+    stub = StubAmap(pois=[close_plain])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    extra = [_db_rec_poi("红鼎宴", lon=0.0, lat=0.01)]
+    dinner = asyncio.run(recommend_restaurants(stub, plan, "dinner", extra_pois=extra))
+    assert dinner[0].name == "红鼎宴"
+    lunch = asyncio.run(recommend_restaurants(stub, plan, "lunch", extra_pois=extra))
+    assert lunch[0].name == "顺路餐厅"
+
+
+def test_evening_only_rec_food_excluded_at_lunch_kept_at_dinner():
+    """任务3 时段要求闸：营业时间推仅晚市（17:00-23:00 餐秀类）→
+    午餐槽剔除、晚餐槽保留——「check if there is timing requirement」。"""
+    stub = StubAmap(pois=[make_poi("顺路餐厅", lat=0.002)])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    extra = [_db_rec_poi("红鼎宴", hours="周一至周日 17:00-23:00")]
+    lunch = asyncio.run(recommend_restaurants(stub, plan, "lunch", extra_pois=extra))
+    assert [i.name for i in lunch] == ["顺路餐厅"]
+    dinner = asyncio.run(recommend_restaurants(stub, plan, "dinner", extra_pois=extra))
+    assert "红鼎宴" in [i.name for i in dinner]
+
+
+def test_dinner_show_duration_hint_extends_and_clamps():
+    """任务3 时长 hint：DB suggested_duration_min=120 的餐秀入卡 120
+    分钟占满晚餐窗（17:30-19:30）；窗被压缩到 90 分钟时钳回 90，绝不
+    溢出铁律 20 空窗。"""
+    stub = StubAmap(pois=[])
+    plan = day_plan(day=1)
+    items = asyncio.run(
+        recommend_restaurants(
+            stub, plan, "dinner", extra_pois=[_db_rec_poi("红鼎宴", hint=120)]
+        )
+    )
+    assert items[0].duration_minutes == 120
+    assert items[0].start_time == time(17, 30) and items[0].end_time == time(19, 30)
+    # 压缩窗：19:00 后被占 → gap 17:30-19:00=90 → 钳 90
+    plan2 = day_plan(
+        day=1,
+        items=[visit("v1", start=time(19, 0), end=time(21, 0))],
+    )
+    items2 = asyncio.run(
+        recommend_restaurants(
+            stub, plan2, "dinner", extra_pois=[_db_rec_poi("红鼎宴", hint=120)]
+        )
+    )
+    assert items2[0].duration_minutes == 90
+    assert items2[0].end_time == time(19, 0)
+
+
+def test_db_rec_food_dedup_against_amap_twin_keeps_vendor_fields():
+    """同名双源去重：图商实时字段（坐标/poi_id）赢，不产生双卡。"""
+    stub = StubAmap(pois=[make_poi("红鼎宴", lat=0.002, poi_id="amap-uid-1")])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    items = asyncio.run(
+        recommend_restaurants(stub, plan, "dinner", extra_pois=[_db_rec_poi("红鼎宴")])
+    )
+    twins = [i for i in items if i.name == "红鼎宴"]
+    assert len(twins) == 1
+    assert twins[0].poi_id == "amap-uid-1"
+    assert twins[0].location is not None
+
+
+def test_lunch_slot_fitness_gates_evening_only_amap_candidate_too():
+    """时段闸对图商候选同款生效：amap 回包带仅晚市营业时间的餐厅
+    不进午餐槽（顺手收口——并池前 live 候选无槽位适性判定）。"""
+    stub = StubAmap(pois=[make_poi("夜市烧烤", lat=0.002, rating=4.9)])
+    for poi in stub._pois:
+        poi["opening_hours"] = "周一至周日 17:00-23:00"
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    lunch = asyncio.run(recommend_restaurants(stub, plan, "lunch"))
+    assert lunch == []
+    dinner = asyncio.run(recommend_restaurants(stub, plan, "dinner"))
+    assert [i.name for i in dinner] == ["夜市烧烤"]
+
+
+def test_far_rec_food_skipped_at_lunch_saved_for_dinner():
+    """午餐顺路闸（2026-11-07 用户指令「餐厅也要考虑距离，如果距离近
+    可以放中午」）：点名店距午间动线 ≥REC_LUNCH_NEAR_KM 不硬灌午餐
+    （防唯一候选被强吃），留给晚餐；近距离（<3km）照常可进午餐。"""
+    close_plain = make_poi("顺路餐厅", lat=0.002)
+    stub = StubAmap(pois=[close_plain])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    far = _db_rec_poi("远点名店", lon=0.0, lat=0.09)  # ~10km
+    lunch = asyncio.run(recommend_restaurants(stub, plan, "lunch", extra_pois=[far]))
+    assert [i.name for i in lunch] == ["顺路餐厅"]
+    dinner = asyncio.run(recommend_restaurants(stub, plan, "dinner", extra_pois=[far]))
+    assert "远点名店" in [i.name for i in dinner]
+    # 近点名店：午餐照进（顺路可午饭）
+    near = _db_rec_poi("近点名店", lon=0.0, lat=0.01)  # ~1.1km
+    lunch2 = asyncio.run(recommend_restaurants(stub, plan, "lunch", extra_pois=[near]))
+    assert "近点名店" in [i.name for i in lunch2]
+
+
+def test_evening_only_show_dinner_beats_closer_plain_restaurant():
+    """仅晚市餐秀强拉力（2026-11-07 用户指令「restaurant 演出只有晚上
+    应该优先晚餐」）：5km 外的时段锁死晚餐的荐点餐秀赢 0.2km 顺路普通
+    店（REC_SHOW_DINNER_BONUS_KM=10 > 4.8km 距离差）；普通荐点同场景
+    仍按 3km 档不越界。"""
+    close_plain = make_poi("顺路餐厅", lat=0.002, rating=4.9)
+    stub = StubAmap(pois=[close_plain])
+    plan = day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+    show = _db_rec_poi("红鼎宴", lon=0.0, lat=0.045, hours="周一至周日 17:00-23:00")
+    dinner = asyncio.run(recommend_restaurants(stub, plan, "dinner", extra_pois=[show]))
+    assert dinner[0].name == "红鼎宴"
+    # 普通荐点（非仅晚市）3km 档：5km 外赢不了 0.2km 顺路店
+    plain_tagged = _db_rec_poi("远点名店", lon=0.0, lat=0.045)
+    dinner2 = asyncio.run(
+        recommend_restaurants(stub, plan, "dinner", extra_pois=[plain_tagged])
+    )
+    assert dinner2[0].name == "顺路餐厅"

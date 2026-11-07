@@ -248,6 +248,56 @@ DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径）
 # 行反超名录地标），选点质量分对 rating_source='baidu' 的行 ×0.9 贴回
 # 高德标尺；只影响引擎比较，不改库值，amap/ctrip 评分不动。
 _BAIDU_RATING_FACTOR = 0.9
+
+# 品类闸豁免类（不参与「同类型封顶 max(2, span//3)」）：""/attraction/sight
+# 是粗桶类（回民街/城墙/兵马俑同桶），food/entertainment 各有专属闸。
+# nature 原按 11-07「A 豁免」入本表，同日被更严的行程级上限接管（见
+# _itin_cap_bucket「少放风景区这种，每个行程最多一个」）——移出豁免表。
+# 博物馆/寺庙/古镇等真类型仍封顶（「为什么安排那么多博物馆」防线不变）；
+# 选点层 _cat_cap 与回填层 _same_category_full 共用本表，永不走样。
+_UNCAPPED_CATEGORIES = ("", "attraction", "sight", "food", "entertainment")
+
+# 行程级品类上限（2026-11-07 用户拍板「少放博物馆、风景区这种，每个
+# 行程最多一个」「CITYWALK 一个行程最多一个」）：同族并入同桶计数——
+# museum 桶含 gallery/memorial/art（美术馆/纪念馆都是「博物馆这种」），
+# 风景区桶含 nature 品类与 scenic 源行。上限 1/行程，跨城共享计数
+# （成渝线全程 1 个博物馆，不是每城 1 个）；必去合并通道不受此闸。
+_ITIN_BUCKET_CAP = 1
+
+
+def _itin_cap_bucket(cand: dict) -> str | None:
+    """候选 → 行程级上限桶名（museum/scenic/citywalk），不受限返回 None。"""
+    cat = str(cand.get("category") or "").strip()
+    src = str(cand.get("source") or "").strip().lower()
+    if cat in ("museum", "gallery", "memorial", "art"):
+        return "museum"
+    if cat == "nature" or src == "scenic":
+        return "scenic"
+    if cat == "citywalk":
+        return "citywalk"
+    return None
+
+
+# 体验型中国特色活动（2026-11-07 用户拍板「多放，每个行程最少两个」）：
+# entertainment（演出/夜游/游船/变脸类，走演出晚档钉日）+ tea_experience
+# （茶馆/茶艺，走常规 sight 通道）。选点梯子加 _ladder_rank 大组：体验型
+# 紧跟名录王牌、压过其余全部档位，保证池内有货就稳定选入 ≥2。
+_EXPERIENCE_CATEGORIES = ("entertainment", "tea_experience")
+
+
+def _is_experience_cand(cand: dict) -> bool:
+    return str(cand.get("category") or "").strip() in _EXPERIENCE_CATEGORIES
+
+
+def _ladder_rank(cand: dict) -> int:
+    """选点梯子大组：0=名录王牌（tier≤2），1=体验型中国特色活动，2=其余。"""
+    if _source_tier(cand) <= 2:
+        return 0
+    if _is_experience_cand(cand):
+        return 1
+    return 2
+
+
 # 出行模型（用户拍板 2026-10-31「打车时间=车程+半小时叫车时间」）：
 # 打车公式 2026-11-03 下沉 itinerary/rules.py（taxi_leg_min 成唯一真源，
 # 校验层铁律 7 与本模块兜底/矩阵共用）；此处留别名供既有调用点。
@@ -2691,14 +2741,25 @@ def _pref_category_hit(
     return any(t in name or t == category or t in tags for t in tokens)
 
 
-def _same_category_full(cand: dict, picked: list[dict], span: int) -> bool:
+def _same_category_full(
+    cand: dict,
+    picked: list[dict],
+    span: int,
+    bucket_used: dict[str, int] | None = None,
+) -> bool:
     """回填层品类多样性闸（与选点层 _cat_cap 同口径，2026-11-03 拍板
     「尽量不要重复同一类型」）：候选品类在已选集合里已达
     max(2, span//3) 家 → 池外回填不再补同类。偏好命中由调用方豁免
     （2026-11-03 拍板「喜欢某个类型则可以有很多」——偏好优先于默认
-    封顶，回填同口径豁免）。"""
+    封顶，回填同口径豁免）。2026-11-07 增补：博物馆/风景区/CITYWALK
+    行程级 1 上限（_itin_cap_bucket），bucket_used 传选点层共享账本，
+    回填不得借池外补量绕过；bucket_used=None 时维持旧口径（单测用）。"""
+    bucket = _itin_cap_bucket(cand)
+    if bucket is not None and bucket_used is not None:
+        if bucket_used.get(bucket, 0) >= _ITIN_BUCKET_CAP:
+            return True
     cat = str(cand.get("category") or "").strip()
-    if cat in ("", "attraction", "sight", "food", "entertainment"):
+    if cat in _UNCAPPED_CATEGORIES:
         return False
     cap = max(2, span // 3)
     return sum(1 for s in picked if str(s.get("category") or "").strip() == cat) >= cap
@@ -8515,6 +8576,9 @@ class PlanningAgent:
                 "location": cand.get("location"),
             }
 
+        # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
+        # 行程最多一个」）：跨城共享计数，城循环逐城扣减。
+        _itin_bucket_used = {"museum": 0, "scenic": 0, "citywalk": 0}
         for city, group in groups.items():
             lo, hi = ranges.get(city, (1, days))
             span = max(hi - lo + 1, 1)
@@ -8534,6 +8598,7 @@ class PlanningAgent:
                 sights,
                 key=lambda p: (
                     not _pref_key(p[1]),
+                    _ladder_rank(p[1]),  # 体验型紧跟王牌（2026-11-07 拍板）
                     _source_tier(p[1]),
                     -_quality(p[1]),
                     _minutes(p[1], DEFAULT_VISIT_MINUTES),
@@ -8628,6 +8693,7 @@ class PlanningAgent:
                         and (night_all or not _night_cand(p[1]))
                         else 0,
                         not _pref_key(p[1]),
+                        _ladder_rank(p[1]),  # 体验型紧跟王牌（2026-11-07 拍板）
                         _source_tier(p[1]),
                         -_quality(p[1]),
                         _minutes(p[1], DEFAULT_VISIT_MINUTES),
@@ -8767,20 +8833,38 @@ class PlanningAgent:
             # （回民街/城墙/兵马俑同档）不设限，food/entertainment 另有
             # 专属闸。偏好命中豁免（2026-10-31 拍板「偏好可以是同一类型
             # 多个景点」）；用户点名必走组装层必去合并通道不受此闸。
-            # 超顶按池序（=tier 梯子）裁掉并披露。
+            # 超顶按池序（=tier 梯子）裁掉并披露。豁免表共用
+            # _UNCAPPED_CATEGORIES（2026-11-07 拍板 A：nature 乱标桶豁免，
+            # 欢乐谷/海昌不再与真山真水互杀）。
             _cat_cap = max(2, span // 3)
             _cat_seen: dict[str, int] = {}
             _cat_cut: list[str] = []
+            _itin_cut: list[str] = []  # 行程级桶上限裁剪（披露文案分离）
             _cat_kept: list[tuple[int, dict]] = []
             for p_ in pool:
                 cat = str(p_[1].get("category") or "").strip()
-                if cat in (
-                    "",
-                    "attraction",
-                    "sight",
-                    "food",
-                    "entertainment",
-                ) or _pref_hit(p_[1]):
+                if cat in _UNCAPPED_CATEGORIES or _pref_hit(p_[1]):
+                    _cat_kept.append(p_)
+                    continue
+                _bucket = _itin_cap_bucket(p_[1])
+                if _bucket is not None:
+                    # 行程级上限（2026-11-07 拍板「博物馆/风景区/CITYWALK
+                    # 每行程最多一个」）：跨城共享账本，超顶裁掉并披露；
+                    # 5A/世遗被裁仍走 type_asks 待问（同旧闸口径）。
+                    if _itin_bucket_used[_bucket] >= _ITIN_BUCKET_CAP:
+                        _itin_cut.append(str(p_[1].get("name") or ""))
+                        _tags_l = {str(t).lower() for t in (p_[1].get("tags") or [])}
+                        if _tags_l & {"5a", "unesco"} and type_asks is not None:
+                            type_asks.append(
+                                {
+                                    "city": city,
+                                    "name": str(p_[1].get("name") or ""),
+                                    "category": cat,
+                                    "tags": sorted(_tags_l & {"5a", "unesco"}),
+                                }
+                            )
+                        continue
+                    _itin_bucket_used[_bucket] += 1
                     _cat_kept.append(p_)
                     continue
                 n = _cat_seen.get(cat, 0)
@@ -8803,6 +8887,15 @@ class PlanningAgent:
                     continue
                 _cat_seen[cat] = n + 1
                 _cat_kept.append(p_)
+            if _itin_cut:
+                pool = _cat_kept
+                if cut_names is not None:
+                    cut_names.update(_itin_cut)
+                if notes is not None:
+                    notes.append(
+                        f"{city}：行程内博物馆/风景区/CityWalk 已满"
+                        f"{_ITIN_BUCKET_CAP}个，{'、'.join(_itin_cut)}让位"
+                    )
             if _cat_cut:
                 pool = _cat_kept
                 if cut_names is not None:
@@ -9722,6 +9815,14 @@ class PlanningAgent:
         ② 超载天分流——非必去的点挪到同城窗口内更空且放得下的天，地理
            腿优先。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
+        # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
+        # 行程最多一个」）：从既有 picked 清点起账，回填不借均衡线绕过
+        # 选点层的行程桶上限。
+        _itin_bucket_used = {"museum": 0, "scenic": 0, "citywalk": 0}
+        for _p in picked:
+            _b = _itin_cap_bucket(_p)
+            if _b:
+                _itin_bucket_used[_b] += 1
         transfer_days = transfer_days or set()
         # 到达日轻量（2026-11-05 拍板）：回填/分流不把大块头塞进到达日
         _adays = arrival_days or set()
@@ -9892,6 +9993,16 @@ class PlanningAgent:
                 day_city.setdefault(d, (city or "").removesuffix("市"))
         city_rain = {c: set(v or ()) for c, v in (rain_days or {}).items()}
 
+        # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
+        # 行程最多一个」）：回填与选点同账——进入时按 picked 已放行的
+        # bucket 成员反推计数，回填命中即递增，不得借池外补量绕过
+        # （_same_category_full bucket_used 口径）。
+        _itin_bucket_used = {"museum": 0, "scenic": 0, "citywalk": 0}
+        for _s in picked:
+            _b = _itin_cap_bucket(_s)
+            if _b is not None:
+                _itin_bucket_used[_b] += 1
+
         # ① 空/欠载天回填（空天优先：按进入本 pass 时的负载升序遍历）
         filled: list[str] = []
         for d in sorted(range(1, days + 1), key=lambda dd: (day_load[dd], dd)):
@@ -9930,7 +10041,9 @@ class PlanningAgent:
                     _lo, _hi = ranges.get(city, (1, days))
                     if not _pref_category_hit(
                         cand, ptoks, pshow
-                    ) and _same_category_full(cand, picked, max(_hi - _lo + 1, 1)):
+                    ) and _same_category_full(
+                        cand, picked, max(_hi - _lo + 1, 1), _itin_bucket_used
+                    ):
                         # 品类多样性闸（2026-11-03）：同类已满 max(2,span//3)
                         # 家不回填——偏好命中豁免（偏好优先于默认封顶）
                         continue
@@ -9959,6 +10072,9 @@ class PlanningAgent:
                     "location": cand.get("location"),
                 }
                 picked.append(spec)
+                _b = _itin_cap_bucket(spec)
+                if _b is not None:
+                    _itin_bucket_used[_b] += 1
                 day_specs.setdefault(d, []).append(spec)
                 day_load[d] += minutes + leg
                 if xy is not None:

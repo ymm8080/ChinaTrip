@@ -214,14 +214,18 @@ def test_eval_lunch_placeholder_rides_lunch_window():
     ]
     session = _start(_agent(items))  # AMAP_POIS 全景点：品类闸后无餐饮候选
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
+    # 2026-11-07 起晚餐窗同样占位保槽（DINNER_PLACEHOLDER_ID_PREFIX），
+    # 全表 food 计数不再恒为 1——本测试只断言午餐占位这一件。
+    lunches = [v for v in foods if is_lunch_placeholder(v)]
+    assert len(lunches) == 1
+    lunch = lunches[0]
     lo, hi = MEAL_WINDOWS["lunch"]
     # 2026-11-01 拍板「午饭不钉死」：系统软锚替代铁律 19 钉
-    assert not foods[0].pinned and foods[0].soft_pin
+    assert not lunch.pinned and lunch.soft_pin
     # 开餐硬窗（2026-11-03 拍板 [11:30,12:30]，兜底 v2.3 贴点落位）：
     # 12:00 锚被观光占住时贴窗早段 11:30 开餐合法——MEAL_WINDOWS 是
     # 餐厅搜索窗（12:00 起），别拿它当排期窗断言。
-    assert foods[0].start_time and dtime(11, 30) <= foods[0].start_time < dtime(12, 30)
+    assert lunch.start_time and dtime(11, 30) <= lunch.start_time < dtime(12, 30)
     assert lo <= dtime(12, 0) < hi  # 搜索窗锚 12:00 仍在午餐搜索窗内（护栏）
 
 

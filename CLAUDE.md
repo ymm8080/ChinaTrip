@@ -22,6 +22,12 @@ and `DESIGN/architecture_diagram.png`; operational notes in `DAILY OPERATION/`.
 - Keep secrets (.env, API keys, tokens) out of the repository - .gitignore covers them.
 - Dates in ISO 8601 (2026-10-17); amounts in CNY where relevant.
 
+## Working rule: never stop to ask mid-task
+
+In case of errors or mid progress: no asking — keep working until the task
+is complete. Decide and continue on your own judgment; report issues in the
+final summary instead of pausing.
+
 ## Iron rule: full source priority list on every fill
 
 Whenever any job, script or backfill fills a POI field from candidate

@@ -1,10 +1,10 @@
-﻿name_zh,province,city,grade,batch,alias_zh,source_url
-西藏文化博物馆,北京,北京,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-通辽市文博院,内蒙古,内蒙古,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-杭州西溪湿地博物馆,浙江,浙江,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-安徽徽州历史博物馆（歙县博物馆）,安徽,安徽,国家二级博物馆,第七次运行评估(2022-2024),歙县博物馆,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-中国共产党湖南历史展览馆,湖南,湖南,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-云浮市博物馆,广东,广东,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-四川宋瓷博物馆（遂宁市博物馆）,四川,四川,国家二级博物馆,第七次运行评估(2022-2024),遂宁市博物馆,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-巴音郭楞蒙古自治州文博院,新疆,新疆,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
-新疆生产建设兵团军垦博物馆,新疆生产建设兵团,新疆,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558
+﻿name_zh,province,city,grade,batch,alias_zh,source_url,official_web_en,official_booking_foreigners,official_social_intl,verify_status,channel_src,,,,,
+西藏文化博物馆,北京,北京,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,xzmuseum.cn（西藏文化博物馆官网·中国藏学研究中心）,免费开放（预约方式以各馆官方公众号公告为准）,微信公众平台「西藏文化博物馆」（2019上线·西藏自治区政府网公告）,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 检索核验 2026-11-06,,,,,
+通辽市文博院,内蒙古,内蒙古,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,www.keerqinmuseum.com（通辽市文博院门户网站）,免费开放（预约方式以各馆官方公众号公告为准）,—,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 检索核验 2026-11-06,,,,,
+杭州西溪湿地博物馆,浙江,浙江,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,—,外宾提示：免费，公众号「中国湿地博物馆」博悦游栏目预约（需微信客户端）；护照建议现场登记,公众号「中国湿地博物馆」（博悦游栏目预约）,verified,检索核验(即中国湿地博物馆；无独立官网，公众号为官方预约通道) 2026-11-06,,,,,
+安徽徽州历史博物馆（歙县博物馆）,安徽,安徽,国家二级博物馆,第七次运行评估(2022-2024),歙县博物馆,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,www.ahhzlsbwg.com（安徽徽州历史博物馆官网）,免费开放（预约方式以各馆官方公众号公告为准）,—,verified,检索核验 2026-11-06,,,,,
+中国共产党湖南历史展览馆,湖南,湖南,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,www.hndsclg.com（中国共产党湖南历史展览馆官网·含网上预约）,免费开放（预约方式以各馆官方公众号公告为准）,—,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 检索核验 2026-11-06,,,,,
+云浮市博物馆,广东,广东,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,—,免费开放（预约方式以各馆官方公众号公告为准）,—,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 无独立官网；公告经云浮市政府门户yunfu.gov.cn发布，公众号名仅平台暗示未确认（检索词：云浮市博物馆 官网 公众号 预约）2026-11-06,,,,,
+四川宋瓷博物馆（遂宁市博物馆）,四川,四川,国家二级博物馆,第七次运行评估(2022-2024),遂宁市博物馆,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,—,免费开放（预约方式以各馆官方公众号公告为准）,公众号「四川宋瓷博物馆」（免费参观预约）,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 检索核验(公众号预约通道明确+遂宁市政府公告佐证；无独立官网) 2026-11-06,,,,,
+巴音郭楞蒙古自治州文博院,新疆,新疆,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,—,免费开放（预约方式以各馆官方公众号公告为准）,公众号「巴州博物馆」（节假日安排/预约以此发布，库尔勒市政府网佐证）,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 检索核验(即巴州博物馆；公众号经政府网公告佐证；无独立官网) 2026-11-06,,,,,
+新疆生产建设兵团军垦博物馆,新疆生产建设兵团,新疆,国家二级博物馆,第七次运行评估(2022-2024),,https://www.chinamuseum.org.cn/cma/detailss.html?id=19&contentId=14558,—,免费开放（预约方式以各馆官方公众号公告为准）,—,inactive,[inactive20261107 用户决定:非special置inactive;原状态与证据如下] 无独立官网；公众号候选名「新疆兵团军垦博物馆」未获源文点名；介绍经文旅部mct.gov.cn/国家民委neac.gov.cn（检索词：新疆生产建设兵团军垦博物馆 官网 公众号 石河子）2026-11-06,,,,,

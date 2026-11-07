@@ -29,6 +29,15 @@ tags_source 带权威闸（2026-11-03 铁律「导入不降权威」）：官方
 子场所行（如「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行
 另行插入。他源作业整覆 tags 掉了 intl 标时重跑本作业即修复。
 
+_CURATED_PICKS（2026-11-07 用户点名指令）：用户直接点名的 SITE/RESTRANT
+高优先级种子，HIGH PRIORITY = curated 标（名录档 2，与 ta/lp/viator
+同梯位，选点 boost 1.5）。行内 category 显式跟行（餐饮行归 food——
+10 号 intl_platforms 作业按产品规则排除餐饮，restaurant 种子只能走本
+作业）；在库同名行走 merge 不重插（用户「SKIP IF THERE IS」），merge
+时既有行类别为空/other 的随种子类别升级（点名即定类，amap 泛类型
+不覆写点名知识）。春熙路点名时已在库（amap attraction）→ 种子不收，
+自动跳过。
+
 用法：
     python -m app.jobs.import_intl_picks [--dry-run]
 """
@@ -48,7 +57,8 @@ from app.services.source_tier import order_source_tags, tags_source_wins
 logger = logging.getLogger(__name__)
 
 # (city, name_zh, name_en, sites, aliases)
-# aliases = 库内已有的等价正名（优先合并标签而非重复插入）
+# aliases = 等价正名（命中库内既有行时合并标签不重插；新插行随行
+# 存入 name_aliases，跨源去重轮据此归并）
 _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     # --- 北京（TA 全国榜 + LP 14 things） ---
     ("北京", "故宫博物院", "The Palace Museum (Forbidden City)", ["ta", "lp"], []),
@@ -196,7 +206,15 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     ("成都", "宽窄巷子", "Kuanzhai Alley (Wide & Narrow Alleys)", ["lp"], []),
     ("成都", "锦里古街", "Jinli Ancient Street", ["curated"], ["锦里"]),
     ("成都", "武侯祠", "Wuhou Shrine", ["curated"], ["成都武侯祠"]),
-    ("成都", "杜甫草堂", "Du Fu Thatched Cottage", ["curated"], ["成都杜甫草堂"]),
+    # 正名对齐 2026-11 去重轮终态（00cf11c 草堂归一）：正名行
+    # museum1「成都杜甫草堂博物馆」（已在库带 curated/intl 标），旧名收 aliases。
+    (
+        "成都",
+        "成都杜甫草堂博物馆",
+        "Du Fu Thatched Cottage",
+        ["curated"],
+        ["杜甫草堂", "成都杜甫草堂"],
+    ),
     ("成都", "成都市人民公园", "People's Park (Heming Teahouse)", ["lp"], ["人民公园"]),
     ("成都", "金沙遗址博物馆", "Jinsha Site Museum", ["lp"], ["成都金沙遗址博物馆"]),
     (
@@ -209,7 +227,13 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     # --- 重庆（LP cyberpunk + 通识） ---
     ("重庆", "洪崖洞民俗风貌区", "Hongyadong (Hongya Cave)", ["ta", "lp"], ["洪崖洞"]),
     ("重庆", "长江索道", "Yangtze River Cableway", ["ta"], ["重庆长江索道"]),
-    ("重庆", "磁器口古镇", "Ciqikou Ancient Town", ["curated"], ["磁器口"]),
+    (
+        "重庆",
+        "磁器口古镇",
+        "Ciqikou Ancient Town",
+        ["curated"],
+        ["磁器口", "重庆磁器口古镇"],
+    ),  # 4a 正名合并, 不插重
     (
         "重庆",
         "李子坝轻轨站",
@@ -230,12 +254,14 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     ),
     ("武汉", "昙华林", "Tanhualin Historic Block", ["curated"], ["昙华林历史文化街区"]),
     # --- Tier B：库未覆盖城市骨架（未来城市扩展信号） ---
+    # 正名对齐 2026-11 去重轮终态（2bcd323 兵马俑 5 行归一）：正名行
+    # 5a「秦始皇帝陵博物院」，旧种子名收进 aliases 走 merge 不重插。
     (
         "西安",
-        "秦始皇帝陵博物院（兵马俑）",
+        "秦始皇帝陵博物院",
         "Terracotta Warriors",
         ["ta", "lp"],
-        ["秦始皇兵马俑博物馆", "兵马俑"],
+        ["秦始皇帝陵博物院（兵马俑）", "秦始皇兵马俑博物馆", "兵马俑"],
     ),
     ("西安", "西安城墙", "Xi'an City Wall", ["lp"], ["西安明城墙"]),
     ("西安", "大雁塔", "Giant Wild Goose Pagoda", ["lp"], ["大雁塔大唐芙蓉园景区"]),
@@ -250,12 +276,13 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
         ["市中区乐山大佛景区", "乐山大佛景区"],
     ),
     ("敦煌", "莫高窟", "Mogao Grottoes", ["lp"], ["敦煌莫高窟"]),
+    # 正名对齐 2026-11 去重轮终态：5a 正名行「七彩丹霞景区」，旧种子名收 aliases。
     (
         "张掖",
-        "张掖七彩丹霞景区",
+        "七彩丹霞景区",
         "Zhangye Rainbow Danxia",
         ["lp"],
-        ["七彩丹霞", "张掖丹霞"],
+        ["张掖七彩丹霞景区", "七彩丹霞", "张掖丹霞"],
     ),
     ("嘉峪关", "嘉峪关", "Jiayuguan Fort", ["lp"], ["嘉峪关文物景区"]),
     ("桂林", "漓江", "Li River", ["ta", "lp"], ["漓江风景区"]),
@@ -299,6 +326,53 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     ("香港", "太平山顶", "Victoria Peak (The Peak)", ["ta"], ["太平山"]),
 ]
 
+# (city, name_zh, name_en, sites, aliases, category) —— 用户点名种子，
+# 6 元组比 _INTL_PICKS 多收尾 category（餐饮行归 food，见 docstring）。
+_CURATED_PICKS: list[tuple[str, str, str, list[str], list[str], str]] = [
+    # 2026-11-07 指令：SITE 成都环球中心 HIGH PRIORITY——在库为 amap
+    # other 泛类行，走 merge 打标 + other→attraction 升类，不重插。
+    (
+        "成都",
+        "成都环球中心",
+        "Chengdu Global Center",
+        ["curated"],
+        ["环球中心"],
+        "attraction",
+    ),
+    # SPACELAB 失重餐厅（环球中心 4F 店，太空轨道传菜汉堡店）——RESTRANT
+    # HIGH PRIORITY；名带分店号对齐图商正名，别名保留裸名可继续命中他源行。
+    (
+        "成都",
+        "失重餐厅(环球中心店)",
+        "SPACELAB Restaurant (Chengdu Global Center)",
+        ["curated"],
+        ["失重餐厅", "SPACELAB失重餐厅"],
+        "food",
+    ),
+    # 红鼎宴（宫廷火锅餐秀，Klook/川媒作「红鼎艳」，Tripadvisor 作
+    # 红鼎宴/洪鼎宴）——RESTRANT HIGH PRIORITY；正名从用户指令，
+    # 异名收进 aliases 供跨源 merge/后续人工并档。
+    (
+        "成都",
+        "红鼎宴",
+        "Hongdingyan Imperial Hotpot Dinner Show",
+        ["curated"],
+        ["红鼎艳", "洪鼎宴"],
+        "food",
+    ),
+    # 蜀宴赋（东郊记忆沉浸式汉唐宋宴秀，午宴/晚宴双场，Klook 139704
+    # 在售）——RESTRANT；在库为 amap 空类行，走 merge 点名即定类
+    # food + curated 打标（2026-11-07 体验宴会拾取链修复）。
+    (
+        "成都",
+        "蜀宴赋",
+        "Shu Yan Fu Immersive Dinner Show",
+        ["curated"],
+        [],
+        "food",
+    ),
+]
+
 
 def _same_city(row_city: str | None, want: str) -> bool:
     rc = (row_city or "").strip()
@@ -327,10 +401,15 @@ _order_tags = order_source_tags  # 多来源打标序（source_tier 名录序单
 
 
 def apply_picks(session, *, dry_run: bool = False) -> dict:
-    """对全部 INTL_PICKS 做幂等 merge/insert，返回统计。"""
+    """对全部 INTL_PICKS + CURATED_PICKS 做幂等 merge/insert，返回统计。"""
     rows = session.query(Poi).all()
     stats = {"insert": 0, "merge": 0, "skip": 0, "errors": 0}
-    for city, name_zh, name_en, sites, aliases in _INTL_PICKS:
+    seeds: list[tuple[str, str, str, list[str], list[str], str]] = [
+        (city, name_zh, name_en, sites, aliases, "attraction")
+        for city, name_zh, name_en, sites, aliases in _INTL_PICKS
+    ]
+    seeds.extend(_CURATED_PICKS)
+    for city, name_zh, name_en, sites, aliases, category in seeds:
         try:
             names = {name_zh, *aliases}
             hits = [r for r in rows if _same_city(r.city, city) and r.name_zh in names]
@@ -347,18 +426,45 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                         hit.source = primary
                         hit.source_poi_id = f"{primary}:{city}:{name_zh}"[:100]
                         changed = True
+                    if (
+                        (hit.category or "") in ("", "other")
+                        and category
+                        and hit.category != category
+                    ):
+                        # 点名即定类（2026-11-07）：种子带显式类别时，
+                        # 库内空类/amap 泛类 other 行随种子升级（成图商
+                        # 泛类型不覆写点名知识）；真名录行类别不碰。
+                        hit.category = category
+                        changed = True
+                        logger.info(
+                            "intl category adopt %s/%s -> %s",
+                            city,
+                            hit.name_zh,
+                            category,
+                        )
                     merged = [t for t in add_tags if t not in (hit.tags or [])]
                     desired = _order_tags([*(hit.tags or []), *merged])
+                    # 异名并回（2026-11-07，同 xhs12 案口径）：种子名集里
+                    # hit 未收的等价名（别名行命中正名行时连正名一并收）
+                    # 补进 name_aliases——去重轮跨源同名合并靠它。
+                    merged_aliases = [
+                        a
+                        for a in sorted(names - {hit.name_zh})
+                        if a not in (hit.name_aliases or [])
+                    ]
                     # 归因权威闸（2026-11-03 铁律「导入不降权威」）：官方名录
                     # 归因（mct/mohurd）不被商业站点归因冒充——权威低于既有
                     # 时 tags_source 保留原值，tags 并集照写。
                     source_wins = tags_source_wins(primary, hit.tags_source)
                     if (
                         not merged
+                        and not merged_aliases
                         and desired == (hit.tags or [])
                         and (hit.tags_source == primary or not source_wins)
                     ):
                         continue
+                    if merged_aliases:
+                        hit.name_aliases = [*(hit.name_aliases or []), *merged_aliases]
                     hit.tags = desired
                     if source_wins:
                         hit.tags_source = primary
@@ -376,7 +482,7 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                 # 事故：intl 行导入后从未被回填作业覆盖到，best_visit_time
                 # 停留在列默认 any，solver 全天窗把夜游排进白天——插入即
                 # 打规则层标签（与回填作业同源），不等回填补课。
-                slot = apply_rules(name_zh, "attraction")
+                slot = apply_rules(name_zh, category)
                 row = Poi(
                     id=uuid.uuid4(),
                     source=primary,
@@ -384,7 +490,8 @@ def apply_picks(session, *, dry_run: bool = False) -> dict:
                     city=city,
                     name_zh=name_zh,
                     name_en=name_en,
-                    category="attraction",
+                    name_aliases=[a for a in aliases if a] or None,
+                    category=category,
                     status="active",
                     tags=_order_tags(add_tags),
                     tags_source=primary,

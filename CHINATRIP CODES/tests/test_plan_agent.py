@@ -12,7 +12,7 @@ from datetime import time
 
 import pytest
 
-from app.services.agent.hotel_stays import is_hotel_checkin
+from app.services.agent.hotel_stays import is_hotel_checkin, is_hotel_night
 from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     POI_KEYWORD,
@@ -36,7 +36,7 @@ from app.services.itinerary import (
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
 from app.services.poi_details import PoiDetailStore
-from app.services.restaurants import is_lunch_placeholder
+from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
 from app.services.trip_items import TripItemService
 
 
@@ -523,8 +523,11 @@ def test_v0_amap_transfer_and_solved_schedule():
     plan = session.plan
     assert len(plan.days) == 3
     # 酒店入住卡（2026-11-01 落地首停）不算观光点：形状断言剔除、
-    # 单独断言两张（杭州 day1 / 苏州 day2 落地各一张）
-    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
+    # 单独断言两张（杭州 day1 / 苏州 day2 落地各一张）；每晚酒店卡
+    # （2026-11-07）同口径剔除
+    visits = [
+        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+    ]
     # 第二段杭州→苏州是汽车（mode=car）：落地首停规则只认火车/飞机
     assert sum(1 for v in all_visits(session) if is_hotel_checkin(v)) == 1
     transfers = all_transfers(session)
@@ -848,7 +851,10 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
     )
     assert session.state == "ready"
     assert any("占位" in a for a in session.assumptions)
-    assert len(session.plan.days[0].items) == 2
+    # 2 = 占位条目 + 落地首停入住卡；每晚酒店卡（2026-11-07）另计不占
+    day1 = session.plan.days[0].items
+    assert len(day1) == 3
+    assert sum(1 for i in day1 if is_hotel_night(i)) == 1
 
 
 def test_v0_degraded_store_refuses_placeholder_candidates():
@@ -1162,7 +1168,9 @@ def test_v0_llm_down_degrades_to_placeholder_plan():
     )
     assert session.state == "ready"
     assert any("LLM 不可用" in a for a in session.assumptions)
-    visits = all_visits(session)
+    visits = [
+        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+    ]
     assert len(visits) == 4  # four built-in placeholder candidates
     names = {v.name for v in visits}
     assert "上海博物馆" in names
@@ -1549,7 +1557,9 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
         )
     )
     assert session.state == "ready"
-    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
+    visits = [
+        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+    ]
     assert len(visits) == 8
     assert all(v.opening_hours == "全年全天开放" for v in visits)
     assert len(ctrip.calls) == 8
@@ -1607,7 +1617,9 @@ def test_v0_hours_chain_keeps_address_when_hours_miss():
         )
     )
     assert session.state == "ready"
-    visits = [v for v in all_visits(session) if not is_hotel_checkin(v)]
+    visits = [
+        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+    ]
     assert len(visits) == 2
     for v in visits:
         idx = int(v.name[-1])
@@ -2563,7 +2575,10 @@ def test_v0_auto_inserts_restaurant_for_foodless_day(
         agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
     )
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
+    # 2026-11-07 晚餐保底：午餐占位之外晚餐窗也落「晚饭」占位件
+    assert len(foods) == 2
+    assert any(is_lunch_placeholder(f) for f in foods)
+    assert any(is_dinner_placeholder(f) for f in foods)
     assert any("午饭时段" in a for a in session.assumptions)
 
 
@@ -2599,8 +2614,87 @@ def test_v0_auto_inserts_lunch_restaurant_when_food_candidates(
     # 2026-11-01 拍板「顺路餐厅不钉死」：系统软锚（非铁律 19）
     assert not foods[0].pinned and foods[0].soft_pin
     assert foods[0].poi_id == "B-FOOD-1"
-    assert time(12, 0) <= foods[0].start_time <= time(13, 30)
+    # 2026-11-03 拍板开餐硬窗 [11:30, 12:30]（晚餐槽上线后 solver 滑窗
+    # 有了第二软餐自由度，11:30 开餐亦合法）
+    assert time(11, 30) <= foods[0].start_time <= time(12, 30)
     assert any("顺路餐厅" in a for a in session.assumptions)
+
+
+def test_v0_auto_inserts_dinner_placeholder_for_foodless_day(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "plan_restaurant_search_enabled", True)
+    # 2026-11-07 用户指令「we need to hv dinner slot as well. create it」：
+    # ≥2 景点日午餐占位后晚餐窗仍搜不到餐厅 → 插「晚饭」占位件保槽，
+    # 披露走 assumptions（与午餐占位同款口径）。
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 90},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 90},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]), amap_client=StubAmap(AMAP_POIS)
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    assert any(is_lunch_placeholder(f) for f in foods)
+    assert any(is_dinner_placeholder(f) for f in foods)
+    # 占位件均无 poi/坐标：回填与小时链跳过（不烧配额）
+    assert all(f.poi_id is None and f.location is None for f in foods)
+    assert any("晚饭时段" in a for a in session.assumptions)
+
+
+def test_v0_dinner_slot_picks_db_rec_food_over_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "plan_restaurant_search_enabled", True)
+    # 2026-11-07 用户指令「有标记推荐的没进槽位…FIX IT」：DB 荐点餐厅
+    # （curated 标，live amap 搜不到）并入晚餐槽候选——无图商餐厅时
+    # 点名店直接当晚餐锚，不再落占位件。
+    store = PoiDetailStore()
+    # 时段要求（2026-11-07 已回写 DB 行）：红鼎宴=晚间餐秀 → 仅晚餐；
+    # 午餐槽剔除后由晚餐 pass 拾起（special tags preferred as dinner）
+    store.upsert(
+        "REC-1",
+        city="上海",
+        name="红鼎宴",
+        category="food",
+        location=(121.49, 31.23),
+        rating=4.7,
+        suggested_duration_min=120,
+    )
+    store._memory["REC-1"]["tags"] = ["curated", "intl"]
+    store._memory["REC-1"]["best_visit_time"] = "evening"
+    # 景点 60min×2 的轻日：晚餐窗 17:30-19:30 完整空闲，餐秀 120min
+    # hint 才不被 solver 餐弹性压缩（重日压缩到地板是 soft_pin 设计内）
+    items = [
+        {"name": "外滩", "city": "上海", "day": 1, "duration_minutes": 60},
+        {"name": "豫园", "city": "上海", "day": 1, "duration_minutes": 60},
+    ]
+    agent = PlanningAgent(
+        ScriptedLLM([v0_reply(items)]),
+        amap_client=StubAmap(AMAP_POIS),
+        poi_details=store,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
+    )
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    hong = [f for f in foods if f.name == "红鼎宴"]
+    assert len(hong) == 1
+    # 仅晚市闸：红鼎宴不进午餐（午餐照常落占位件），晚餐 pass 拾起
+    assert any(is_lunch_placeholder(f) for f in foods)
+    # 餐秀时长 hint：120min 入卡（晚餐窗 17:30-19:30 整窗）
+    assert hong[0].duration_minutes == 120
+    assert not any(is_dinner_placeholder(f) for f in foods)
+
+
+# --- 午餐保底（2026-10-31 拍板：默认 12:00–13:30，没餐厅就占位） ------------
 
 
 # --- 午餐保底（2026-10-31 拍板：默认 12:00–13:30，没餐厅就占位） ------------
@@ -2620,12 +2714,15 @@ def test_v0_foodless_day_without_restaurants_gets_lunch_placeholder():
         agent.start(device_id="d1", cities=["上海"], days=1, preferences="随便")
     )
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1 and is_lunch_placeholder(foods[0])
-    ph = foods[0]
+    # 2026-11-07 晚餐保底：午餐占位 + 晚餐占位各一张
+    assert len(foods) == 2
+    assert any(is_dinner_placeholder(f) for f in foods)
+    ph = next(f for f in foods if is_lunch_placeholder(f))
     assert ph.name == "午饭（自由安排）" and ph.poi_id is None
     # 2026-11-01 拍板「午饭不钉死」：系统软锚（非铁律 19）；2026-11-03
-    # 拍板：时长默认 1.5h、开餐硬窗 [11:30, 12:30]
-    assert not ph.pinned and ph.soft_pin and ph.duration_minutes == 90
+    # 拍板：时长默认 1.5h、可缩至地板 30（晚餐槽上线后 solver 有了第二
+    # 软餐自由度，30~90 都合法——地板即契约）
+    assert not ph.pinned and ph.soft_pin and ph.duration_minutes >= 30
     assert time(11, 30) <= ph.start_time <= time(12, 30)
     # 占位件不算真 food：晚餐 pass 照常搜索（也无候选）→ 无顺路餐厅假设
     assert not any("顺路餐厅" in a for a in session.assumptions)
@@ -3206,8 +3303,9 @@ def test_keyword_label_tokens():
     assert _category_label_tokens("演出") == ["show"]
     assert _category_label_tokens("步行街") == ["citywalk"]
     assert _category_label_tokens("古镇") == ["historical_town"]
-    assert _category_label_tokens("茶馆") == []
-    assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇"}
+    # 茶馆 11-07 起接 tea_experience 档（人民公园=茶体验拍板配套）
+    assert _category_label_tokens("茶馆") == ["tea_experience"]
+    assert set(KEYWORD_LABEL_TOKENS) == {"演出", "步行街", "古镇", "茶馆"}
 
 
 # --- refresh_legs 双语 P1 补链（2026-10-30）--------------------------------
@@ -3373,8 +3471,11 @@ def test_v0_transfer_day_dinner_searches_arrival_city():
     session = run(
         agent.start(device_id="d1", cities=["上海", "西安"], days=2, preferences="随便")
     )
-    # 无餐饮候选 → 一张餐卡都不插（宁缺不插错城店）
-    assert not [v for v in all_visits(session) if v.category == "food"]
+    # 无餐饮候选 → 晚餐落「晚饭」占位件保槽（2026-11-07 晚餐保底），
+    # 占位城=到达城西安（宁缺不插错城店口径不变）
+    foods = [v for v in all_visits(session) if v.category == "food"]
+    assert len(foods) == 1 and is_dinner_placeholder(foods[0])
+    assert foods[0].city == "西安"
     # 午餐被 90 分钟衔接缓冲推出窗外不搜；唯一餐厅检索=晚餐、城=西安
     assert amap.calls, "dinner search should have run"
     assert all(city == "西安" for _, city in amap.calls)
