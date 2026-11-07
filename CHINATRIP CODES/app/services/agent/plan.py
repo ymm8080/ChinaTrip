@@ -160,6 +160,11 @@ PLAN_LIBRARY_WINDOW = 30
 # 漏闸（路距 ~230km 单程 3.5h+，同日本属不可行）——直线 140km ≈ 路距
 # 200km+，收紧一档；南川金佛山+南川东街（2km）等同城簇不受影响。
 _SOFT_FAR_KM = 140.0
+# 行程卡「换景点」的地理重排触发距（2026-11-07 熊猫谷替换熊猫基地案）：
+# 换入点离原点位直线超过该值时，当天跑插入式重排（与 LNS _retime_trial
+# 同口径）按距离聚合串线——替换点换了地，原列表序是绕旧点的近邻链，
+# 照旧会排出 58km 中途大空段。3km 内视为同商圈换位，保持用户列表序。
+_REPLACE_REORDER_KM = 3.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -1615,6 +1620,47 @@ def _composite_dup(a: str, b: str) -> bool:
 _SIBLING_SIZE_PREFIX = ("大", "小")
 _SIBLING_TWIN_GATE_KM = 30.0
 
+# 同体验替代组（2026-11-07 用户拍板「已经排熊猫基地，就不要排熊猫谷了。
+# 两者是替换关系」）：同一体验（看大熊猫）的不同选址——成都域内有
+# 基地/熊猫谷(都江堰)/中华大熊猫苑(原熊猫乐园,都江堰) 三处，基地↔谷
+# 直线 ~58km，不是同站（containment/地理闸全拦不住）但互为替代，一次
+# 行程只去一处。词素取「大熊猫繁育研究基地/熊猫谷/大熊猫苑/熊猫乐园」：
+# 酒店挂牌（熊猫基地店）、附属场馆（熊猫剧院/时空馆/主题邮局）、研学
+# 基地均不命中；异地同名（汉中熊猫谷/湘西大熊猫苑）靠城市闸挡在外。
+# 地理闸不设限——替代组本就相距远（58km 远超兄弟对 30km 闸），过闸
+# 即漏；组内命中即二选一。
+_SUBSTITUTE_PANDA_TOKENS = (
+    "大熊猫繁育研究基地",
+    "熊猫谷",
+    "大熊猫苑",
+    "熊猫乐园",
+)
+
+
+def _substitute_tokens(name: object) -> bool:
+    s = str(name or "").strip()
+    return bool(s) and any(t in s for t in _SUBSTITUTE_PANDA_TOKENS)
+
+
+def _norm_city_key(city: object) -> str:
+    return str(city or "").strip().removesuffix("市")
+
+
+def _substitute_dup(
+    a: str, b: str, city_a: object = None, city_b: object = None
+) -> bool:
+    """同体验替代组判定（2026-11-07 熊猫基地/熊猫谷拍板）：两侧名字都
+    命中替代组词素即互为替代。城市闸：双侧城市都已知且不同城不判
+    （汉中熊猫谷/湘西大熊猫苑与成都基地不互斥）。与 _sibling_dup 同款
+    只进站级判定（_same_visit/_cand_twin/_dup_blocks_item/备选隔离），
+    不进 _name_dup——心愿点名不受已排替代点冒充覆盖。"""
+    if not (_substitute_tokens(a) and _substitute_tokens(b)):
+        return False
+    ca, cb = _norm_city_key(city_a), _norm_city_key(city_b)
+    if ca and cb and ca != cb:
+        return False
+    return True
+
 
 def _sibling_core(name: str) -> tuple[str, bool]:
     """大/小兄弟核心词：剥掉开头一字 大/小（余词 ≥2 字才剥），返回
@@ -1772,9 +1818,11 @@ def _cand_twin(a: dict, b: dict) -> bool:
     """候选层同站孪生（与 _same_visit 同义、含地理闸分档）：名字撞衫
     但相距 >2km 的不同场馆不算；同内容配套（含伞名行 vs 配套场馆）
     走 30km 闸；同类型兄弟对（大雁塔/小雁塔，2026-11-03 拍板）同档
-    30km、餐饮/演出/酒店/交通豁免。spec 层孪生记账与选点层博物馆让位
-    共用这一口径。"""
+    30km、餐饮/演出/酒店/交通豁免；同体验替代组（2026-11-07 熊猫谷案）
+    无地理闸直接孪生。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
     na, nb = str(a.get("name") or ""), str(b.get("name") or "")
+    if na and nb and _substitute_dup(na, nb, a.get("city"), b.get("city")):
+        return True
     sibling = (
         bool(na and nb)
         and _sibling_dup(na, nb)
@@ -1823,6 +1871,8 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
         return True
     cn = str(cand.get("name") or "")
     iname = str(item.name or "")
+    if cn and iname and _substitute_dup(cn, iname, cand.get("city"), item.city):
+        return True  # 同体验替代组（2026-11-07 熊猫谷案）：无地理闸
     sibling = (
         bool(cn and iname)
         and _sibling_dup(cn, iname)
@@ -2058,7 +2108,11 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     小雁塔」）：_sibling_dup 把 大/小 前缀同核心词的兄弟对（大雁塔/小雁塔、
     大昭寺/小昭寺）收敛为同类型二选一——一次行程只看一个塔；品类豁免
     （餐饮/演出/酒店/交通不适用）、地理闸与内容通道同档 30km。胜者由
-    _visit_keep_rank 末层裁定（pinned 防御 > 「大」字号旗舰）。"""
+    _visit_keep_rank 末层裁定（pinned 防御 > 「大」字号旗舰）。
+
+    同体验替代组通道（2026-11-07 熊猫基地/熊猫谷拍板）：互为替代的不同
+    选址（基地↔谷 ~58km）不设地理闸，组内命中即二选一——唯一一条相距
+    越远越要并的通道，与青城山误并事故的 2km 保护闸方向相反。"""
     # 午饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
@@ -2074,6 +2128,8 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
         a.category, b.category
     )
+    if _substitute_dup(a.name, b.name, a.city, b.city):
+        return True  # 替代组无地理闸（基地↔谷 ~58km 本就超一切闸）
     if not (
         content
         or heritage
@@ -12350,8 +12406,12 @@ class PlanningAgent:
         按 有坐标>tier>口碑 择一）。用户顺序权威——新条目落同一 day 同
         一位置，不继承 pinned/时刻；当天非 pinned 景点清空时间后按
         move/retime 同款游标链重排。纯计算不烧 LLM。库内无精确同名
-        raise no_match；与行程内其它条目重复 raise duplicate_in_plan；
-        系统餐位（soft_pin 餐件）不可换 raise meal_slot_locked。"""
+        raise no_match；与行程内其它条目重复（含同体验替代组，2026-11-07
+        熊猫谷案：行程有熊猫基地时给其它条目换入熊猫谷在此拦下，换基地
+        本人放行=正当替换）raise duplicate_in_plan；系统餐位（soft_pin
+        餐件）不可换 raise meal_slot_locked。换入点离原点位直线
+        >_REPLACE_REORDER_KM 时当天插入式重排按距离聚合串线（2026-11-07
+        拍板「熊猫谷替换熊猫基地」，58km 换位原列表序是绕旧点的近邻链）。"""
         plan = session.plan
         if plan is None:
             raise ValueError("no_plan")
@@ -12387,7 +12447,9 @@ class PlanningAgent:
             if isinstance(i, VisitItem) and i.item_id != item_id
         ]
         if any(
-            _same_site(new_name, i.name) or (new_pid and i.poi_id == new_pid)
+            _same_site(new_name, i.name)
+            or (new_pid and i.poi_id == new_pid)
+            or _substitute_dup(new_name, i.name, visit.city, i.city)
             for i in others
         ):
             raise ValueError("duplicate_in_plan")
@@ -12441,6 +12503,29 @@ class PlanningAgent:
             if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
                 it.start_time = None
                 it.end_time = None
+        # 换入点离原点位远（2026-11-07 拍板「熊猫谷替换熊猫基地」类）：
+        # 当天插入式重排（与 LNS _retime_trial 同口径，pinned/餐锚不动）
+        # 按距离聚合串线；插不下的天回落列表序（按日降级契约）
+        delta_km = (
+            haversine_km(old.location, location)
+            if old.location is not None and location is not None
+            else 0.0
+        )
+        reordered = False
+        if delta_km > _REPLACE_REORDER_KM:
+            from app.services.itinerary.solver import insertion_schedule_day
+
+            solved = insertion_schedule_day(
+                day,
+                poi_hours=_plan_poi_hours(candidate),
+                travel_minutes=_travel_matrix(
+                    candidate, getattr(self, "_leg_cache", None)
+                ),
+                meal_flex=True,
+            )
+            if solved is not None:
+                day.items = solved.items
+                reordered = True
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
         report = validate_plan(candidate, poi_hours=[])
@@ -12461,6 +12546,13 @@ class PlanningAgent:
             ],
             affected_items_count=1,
         )
+        if reordered:
+            summary.change_summary.append(
+                L(
+                    f"第{old.day}天已按距离重新排列（{new_name}距原点位约{delta_km:.0f}公里）",
+                    f"Day {old.day} re-sequenced by distance (~{delta_km:.0f} km)",
+                )
+            )
         return report, summary, notes
 
     def sync_removals_to_trip_items(

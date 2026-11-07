@@ -18,6 +18,7 @@ from app.services.agent.plan import (
     _composite_dup,
     _name_dup,
     _relic_park_dup,
+    _substitute_dup,
 )
 
 
@@ -214,3 +215,103 @@ def test_same_visit_adjacent_distinct_stays_split():
         day=4,
     )
     assert _same_visit(dayanta, shaanxi_museum) is False
+
+
+# --- ④ 同体验替代组（2026-11-07 熊猫基地/熊猫谷拍板）------------------------
+# 「已经排熊猫基地，就不要排熊猫谷了。两者是替换关系」——同一体验的不同
+# 选址，基地↔谷 ~58km 不是同站但互为替代，一次行程只去一处。无地理闸：
+# 相距越远越要并，与 2km 保护闸方向相反。
+
+
+def _cs(name, lon, lat, city, cat="attraction"):
+    return {
+        "name": name,
+        "category": cat,
+        "city": city,
+        "location": {"lon": lon, "lat": lat},
+    }
+
+
+def _panda_cards():
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    base = VisitItem(
+        item_id="v21",
+        name="成都大熊猫繁育研究基地",
+        poi_id="amap:成都:熊猫基地",
+        category="attraction",
+        city="成都",
+        location=GeoPoint(lon=104.13953, lat=30.73945),
+        day=2,
+    )
+    valley = VisitItem(
+        item_id="v22",
+        name="熊猫谷",
+        poi_id="amap:成都:熊猫谷",
+        category="attraction",
+        city="成都",
+        location=GeoPoint(lon=103.59896, lat=30.96554),
+        day=3,
+    )
+    return base, valley
+
+
+def test_substitute_panda_pair_far_apart_is_twin():
+    """基地 vs 熊猫谷 ~58km：替代组无地理闸，候选层/行程层都判孪生。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    b = _cs("熊猫谷", 103.59896, 30.96554, "成都")
+    assert _substitute_dup(a["name"], b["name"], "成都", "成都") is True
+    assert _cand_twin(a, b) is True
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+
+    base, valley = _panda_cards()
+    assert _same_visit(base, valley) is True
+    keepers, dropped = _dedupe_visit_keepers([base, valley])
+    assert dropped == ["熊猫谷"]  # 平手先到先得：基地是 selection 序先行者
+
+
+def test_substitute_same_experience_trio():
+    """谷 vs 苑（都江堰中华大熊猫苑(原熊猫乐园)）~7km 同城互斥——
+    一次行程只看一次熊猫，三处任两处都不并排。"""
+    a = _cs("熊猫谷", 103.59896, 30.96554, "成都")
+    b = _cs("都江堰中华大熊猫苑(原熊猫乐园)", 103.59485, 30.89953, "成都")
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_cross_city_not_blocked():
+    """异地同名不误伤：汉中熊猫谷/湘西大熊猫苑与成都基地不互斥。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    hz = _cs("熊猫谷", 107.98339, 33.67317, "汉中")
+    xx = _cs("湘西凤凰县中华大熊猫苑", 109.51465, 27.96564, "湘西")
+    assert _cand_twin(a, hz) is False
+    assert _cand_twin(a, xx) is False
+
+
+def test_substitute_hotels_and_venues_not_hit():
+    """酒店挂牌/附属场馆/研学基地/雅安熊猫古城不进替代组：词素不命中。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    rows = [
+        _cs("京元丽呈酒店(成都熊猫基地店)", 104.11522, 30.74127, "成都", cat="hotel"),
+        _cs("熊猫剧院", 104.14484, 30.74649, "成都", cat="entertainment"),
+        _cs("熊猫时空馆", 104.14609, 30.73139, "成都"),
+        _cs("熊猫小匠研学体验基地", 103.58483, 30.85939, "成都"),
+        _cs("熊猫古城景区", 102.81843, 30.36722, "雅安"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
+def test_dup_blocks_substitute_backfill():
+    """回填守卫（晨间保底/借出日回填/干日回填三处统一口径）：行程已有
+    基地，保底候选熊猫谷必须被 _dup_blocks_item 拦下，不许补成第二卡。"""
+    from app.services.agent.plan import _dup_blocks_item
+
+    base, _valley = _panda_cards()
+    cand = {
+        "name": "熊猫谷",
+        "city": "成都",
+        "source_poi_id": "amap:成都:熊猫谷",
+        "category": "attraction",
+        "location": {"lon": 103.59896, "lat": 30.96554},
+    }
+    assert _dup_blocks_item(cand, base) is True

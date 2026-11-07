@@ -341,6 +341,9 @@ def pick_alternatives(
     """
     exclude_names = set(exclude_names or set())
     exclude_pids = exclude_pids or set()
+    # 同体验替代组词素（2026-11-07 熊猫谷案）与规划引擎同源，防两处口径漂移
+    from app.services.agent.plan import _substitute_tokens
+
     mn = _norm_name(main_name)
     if mn:
         # 主点自身自锚进排除集（同体变体闸的对照锚；attach 层本就传全行
@@ -408,6 +411,13 @@ def pick_alternatives(
             != main_citywalk
         ):
             return False
+        # 同体验替代组隔离（2026-11-07 熊猫谷案，单向）：行程里已有替代
+        # 组成员（≠主点本人）时组员不作备选亮卡——点了必撞 duplicate；
+        # 主点本人是组员时放行（基地卡亮谷 chip = 正当替换路径）
+        if _substitute_tokens(name):
+            for n in exclude_names:
+                if n != mn and _substitute_tokens(n):
+                    return False
         return True
 
     def cat_key(h: dict) -> int:

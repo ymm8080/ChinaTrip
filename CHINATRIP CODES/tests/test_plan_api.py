@@ -1467,6 +1467,30 @@ REPLACE_CAND = {
     "source": "4a",
 }
 
+# 2026-11-07 熊猫谷案：库真身行（amap，都江堰玉堂，距基地 ~58km）
+PANDA_VALLEY_CAND = {
+    "source_poi_id": "amap_cd_panda_valley",
+    "name": "熊猫谷",
+    "city": "成都市",
+    "category": "attraction",
+    "address": "四川省成都市都江堰市玉堂街道",
+    "opening_hours": "08:00-17:00",
+    "name_en": "Dujiangyan Panda Valley",
+    "address_en": None,
+    "intro_en": None,
+    "opening_hours_en": None,
+    "best_visit_time": "morning",
+    "booking_url": None,
+    "rain_ok": "yes",
+    "rating": 4.5,
+    "tags": ["intl"],
+    "suggested_duration_min": 120,
+    "reservation_required": None,
+    "reservation_advance_days": None,
+    "location": (103.59896, 30.96554),
+    "source": "amap",
+}
+
 
 class StubReplaceStore:
     """candidate_by_name 桩：名字→候选，未命中 None。start 路径的其它
@@ -1563,6 +1587,198 @@ def test_replace_duplicate_in_plan_422():
     )
     assert resp.status_code == 422
     assert resp.json() == {"detail": "duplicate_in_plan"}
+
+
+def _panda_session():
+    """成都日：基地+文殊院/剧院 真身坐标（替代组用例共用）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import (
+        DayPlan,
+        GeoPoint,
+        ItineraryPlan,
+        VisitItem,
+    )
+
+    base = VisitItem(
+        item_id="v1",
+        name="成都大熊猫繁育研究基地",
+        poi_id="amap:成都:熊猫基地",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.13953, lat=30.73945),
+        day=1,
+        duration_minutes=90,
+    )
+    other = VisitItem(
+        item_id="v2",
+        name="文殊院",
+        poi_id="amap:成都:文殊院",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.0676, lat=30.6710),
+        day=1,
+        duration_minutes=60,
+    )
+    session = PlanSession(
+        session_id="s-panda",
+        device_id="device-1",
+        plan=ItineraryPlan(
+            itinerary_id="it-panda",
+            cities=["成都"],
+            days=[DayPlan(day=1, base_city="成都", items=[base, other])],
+        ),
+    )
+    return session
+
+
+def test_replace_substitute_of_planned_site_blocked():
+    """2026-11-07 拍板「已经排熊猫基地，就不要排熊猫谷了」：行程已有
+    基地时，给其它条目换入熊猫谷 = 同体验替代组撞 duplicate_in_plan
+    （谷距基地 ~58km，旧查重 _same_site 名字互含拦不住）。换基地本人
+    的正当替换不受影响（others 不含被换条目，见下方重排用例）。"""
+    import asyncio
+
+    store = StubReplaceStore({"熊猫谷": PANDA_VALLEY_CAND})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    session = _panda_session()
+    with pytest.raises(ValueError) as ei:
+        asyncio.run(agent.replace_item(session, "v2", name="熊猫谷"))
+    assert str(ei.value) == "duplicate_in_plan"
+    # 行程未被改动
+    names = [str(i.name) for i in session.plan.days[0].items]
+    assert names == ["成都大熊猫繁育研究基地", "文殊院"]
+
+
+def test_replace_far_swap_reorders_day_by_distance():
+    """2026-11-07 拍板「熊猫谷替换熊猫基地」：换入点距原点位 ~58km，
+    当天插入式重排按距离聚合（与 LNS _retime_trial 同口径，pinned/餐锚
+    不动），并把重排写进变更摘要。列表序故意把近谷的离堆公园（~7km）
+    压在队尾、58km 外的文殊院放中间——重排后离堆必须被聚到谷旁边，
+    文殊院按距离让位其后。换入近点（<3km）不触发重排（近点用例见
+    replace 原位套件）。"""
+    import asyncio
+
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    near_valley = PANDA_VALLEY_CAND  # 58km 触发重排
+    store = StubReplaceStore({"熊猫谷": near_valley})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    session = _panda_session()
+    # 邻居不用熊猫苑（谷↔苑互为替代会被新闸拦下=规则生效）：
+    # day1 = [基地(将换), 文殊院(城区,游时压短留闸余量), 离堆公园(近谷)]
+    day = session.plan.days[0]
+    day.items[1] = VisitItem(
+        item_id="v2",
+        name="文殊院",
+        poi_id="amap:成都:文殊院",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=104.0676, lat=30.6710),
+        day=1,
+        duration_minutes=30,
+    )
+    duidui = VisitItem(
+        item_id="v3",
+        name="离堆公园",
+        poi_id="amap:成都:离堆公园",
+        category="sight",
+        city="成都",
+        location=GeoPoint(lon=103.6172, lat=31.0032),
+        day=1,
+        duration_minutes=75,
+    )
+    day.items.append(duidui)
+    report, summary, notes = asyncio.run(
+        agent.replace_item(session, "v1", name="熊猫谷")
+    )
+    # replace 走深拷贝（session.plan 换新对象），断言前重新取日
+    day = session.plan.days[0]
+    names = [str(i.name) for i in day.items]
+    assert names == ["熊猫谷", "离堆公园", "文殊院"]  # 距离聚合：谷↔离堆相邻
+    visits = [
+        i
+        for i in day.items
+        if not str(getattr(i, "item_id", "")).startswith("food")
+    ]
+    assert all(v.start_time and v.end_time for v in visits)  # 时链完整
+    assert any("按距离重新排列" in s for s in summary.change_summary)
+    assert report.ok
+
+
+def test_replace_near_swap_keeps_list_order():
+    """同商圈换位（<3km）：不触发插入式重排，保持用户列表序（原位换入
+    套件同款）。宽窄巷子↔人民公园 ~1.6km。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import (
+        DayPlan,
+        GeoPoint,
+        ItineraryPlan,
+        VisitItem,
+    )
+
+    cand = {
+        "source_poi_id": "amap_cd_kuanzhai",
+        "name": "宽窄巷子",
+        "city": "成都市",
+        "category": "attraction",
+        "opening_hours": "全天",
+        "name_en": "Kuanzhai Alley",
+        "address_en": None,
+        "intro_en": None,
+        "opening_hours_en": None,
+        "best_visit_time": "any",
+        "booking_url": None,
+        "rain_ok": "yes",
+        "rating": 4.4,
+        "tags": [],
+        "suggested_duration_min": 90,
+        "reservation_required": None,
+        "reservation_advance_days": None,
+        "location": (104.0532, 30.6697),
+        "source": "amap",
+    }
+    store = StubReplaceStore({"宽窄巷子": cand})
+    agent = PlanningAgent(StubAdapter([]), poi_details=store)
+    items = [
+        VisitItem(
+            item_id="v1",
+            name="人民公园",
+            poi_id="amap:成都:人民公园",
+            category="sight",
+            city="成都",
+            location=GeoPoint(lon=104.0568, lat=30.6636),
+            day=1,
+            duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="v2",
+            name="文殊院",
+            poi_id="amap:成都:文殊院",
+            category="sight",
+            city="成都",
+            location=GeoPoint(lon=104.0676, lat=30.6710),
+            day=1,
+            duration_minutes=60,
+        ),
+    ]
+    session = PlanSession(
+        session_id="s-near",
+        device_id="device-1",
+        plan=ItineraryPlan(
+            itinerary_id="it-near",
+            cities=["成都"],
+            days=[DayPlan(day=1, base_city="成都", items=items)],
+        ),
+    )
+    report, summary, _notes = asyncio.run(
+        agent.replace_item(session, "v1", name="宽窄巷子")
+    )
+    names = [str(i.name) for i in session.plan.days[0].items]
+    assert names == ["宽窄巷子", "文殊院"]  # 原位：列表序不动
+    assert not any("按距离重新排列" in s for s in summary.change_summary)
+    assert report.ok
 
 
 def test_replace_meal_slot_locked_422():

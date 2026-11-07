@@ -22,6 +22,7 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.poi_alternatives import (
+    _norm_name,
     attach_plan_alternatives,
     level_class,
     pick_alternatives,
@@ -614,3 +615,54 @@ def test_attach_heals_tier_from_store_row():
 )
 def test_level_class_pairs(tier_a, tier_b, same):
     assert (level_class(tier_a) == level_class(tier_b)) is same
+
+
+# --- 同体验替代组隔离（2026-11-07 熊猫谷案）--------------------------------
+
+
+def test_substitute_member_not_offered_when_other_member_in_plan():
+    """行程已有熊猫基地时，熊猫谷不再作其它条目（文殊院）的备选亮卡
+    ——点了必撞 duplicate_in_plan，宁可不亮。"""
+    pool = [hit("熊猫谷", 2, duration=120, loc=(103.59896, 30.96554))]
+    exclude = {_norm_name("文殊院"), _norm_name("成都大熊猫繁育研究基地")}
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=120,
+        exclude_names=exclude,
+        main_name="文殊院",
+    )
+    assert alts == []
+
+
+def test_substitute_member_offered_for_member_main():
+    """主点本人是组员（基地卡）：谷 chip 正常亮——这是「熊猫谷替换熊猫
+    基地」的正当替换路径（2026-11-07 拍板），隔离闸不得误伤。"""
+    pool = [hit("熊猫谷", 2, duration=120, loc=(103.59896, 30.96554))]
+    exclude = {_norm_name("成都大熊猫繁育研究基地"), _norm_name("文殊院")}
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=120,
+        exclude_names=exclude,
+        main_name="成都大熊猫繁育研究基地",
+    )
+    assert [a.name for a in alts] == ["熊猫谷"]
+
+
+def test_substitute_member_offered_when_alone():
+    """行程无组员时谷照常亮卡（离堆公园的备选）：隔离闸只在「已有另一
+    组员」时收口。"""
+    pool = [hit("熊猫谷", 2, duration=120, loc=(103.59896, 30.96554))]
+    exclude = {_norm_name("离堆公园"), _norm_name("文殊院")}
+    alts = pick_alternatives(
+        pool,
+        category="attraction",
+        tier=3,
+        duration_minutes=120,
+        exclude_names=exclude,
+        main_name="离堆公园",
+    )
+    assert [a.name for a in alts] == ["熊猫谷"]
