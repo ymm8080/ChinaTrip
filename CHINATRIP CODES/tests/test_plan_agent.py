@@ -2112,7 +2112,9 @@ def test_wishlist_coverage_mirrors_city_gate():
 
     agent = PlanningAgent(ScriptedLLM([]), trip_items=Rows())
     item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
-    wall = VisitItem(item_id="v2", name="回民街", city="西安", day=2, duration_minutes=60)
+    wall = VisitItem(
+        item_id="v2", name="回民街", city="西安", day=2, duration_minutes=60
+    )
     session = PlanSession(
         session_id="s1",
         device_id="d1",
