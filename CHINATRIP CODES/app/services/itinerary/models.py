@@ -71,6 +71,17 @@ class VisitItem(BaseModel):
     # 卡被去重并掉后必去静默蒸发）。solves 前装配即打，与 solve 后的
     # pinned 钉位（:7946 一带）互不干扰。
     must: bool = False
+    # 手建卡（2026-11-08 拍板乙·三级梯 心愿>CREATED>TAG）：选层候选
+    # _created_lane 装配期透传（plan.py 池绑定 :9408 一带打标）。梯级
+    # 高于 TAG——终删层（楔子清障 _evict_wedge_strays 等）永不下杀手：
+    # 楔入态改强制归位（踢 kin 多数日最弱 TAG 让位）或原地保留带披露。
+    created: bool = False
+    # 精选库卡（2026-11-08 拍板「我说的是 CURATED，不是 CREATED flag」）：
+    # 池侧 curated 行（source='curated'，如长安十二时辰·唐宴；36 城宴会
+    # 普查/intl 精选种子）装配期透传（plan.py _cand_is_curated）。与
+    # created 同待遇——永不进删除闸；宴秀卡（curated+food）的取消/让位
+    # 仍按簇跟随者规则（已定稿），不受本字段豁免。
+    curated: bool = False
     # 系统钉（2026-10-31 午餐软钉拍板；2026-11-01 晚扩展「午饭/顺路
     # 餐厅/晚饭不钉死」）：排程器自己摆的餐件标记——pinned 可为 False
     # （非铁律 19：用户可拖/可改时/LLM 可挪），solver 仍以落位时刻为

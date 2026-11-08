@@ -536,7 +536,8 @@ def _banquet(
 def test_banquet_show_occupies_day_second_show_moves_off():
     # ⑪宴秀占场（沪→西→沪案 D2 实录）：御宴宫(宴)+唐宴(宴)+唐乐宫(演)
     # 三叠一天——终闸把宴秀计入当日演出位：宴秀留场（御宴宫 0km 贴簇
-    # 首留），唐宴/唐乐宫挪去无演出日，披露点名「宴秀」。
+    # 首留），唐乐宫挪去无演出日，披露点名「宴秀」；唐宴按五拍「宴类
+    # 簇跟随」取消（D1 回民街/D3 城墙都 >5km 无簇伴，不孤放别日）。
     dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
     yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
     tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
@@ -575,7 +576,10 @@ def test_banquet_show_occupies_day_second_show_moves_off():
     }
     assert day_of["御宴宫"] == 2  # 宴秀留场（0km 贴簇）
     assert day_of["唐乐宫《大唐女皇》"] != 2  # 宴日演出让位
-    assert day_of["长安十二时辰·唐宴"] != day_of["御宴宫"]  # 一天一场（宴亦然）
+    # ⑮宴类簇跟随（2026-11-08 五拍「毕竟只是 FOOD」）：唐宴被挤出 D2、
+    # 目标日均无 ≤5km 簇伴 → 不孤放别日、取消+披露
+    assert "长安十二时辰·唐宴" not in day_of
+    assert any("唐宴" in str(a) and "不孤放" in str(a) for a in plan.assumptions)
     # 宴日不再叠任何演出/第二宴秀
     for d in plan.days:
         occupied = [
@@ -710,6 +714,87 @@ def test_squeeze_swap_rescues_anchored_show():
     assert yys.day == 2  # 宴秀不受挤兑影响
     assert any("换位" in str(a) for a in plan.assumptions)
     assert any("驼铃传奇" in str(a) and "未排" in str(a) for a in plan.assumptions)
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+# ---------- 2026-11-08 雁塔案五拍：宴类簇跟随 / 最弱锚牺牲兜底 ----------
+
+
+def test_banquet_moves_only_to_cluster_mate_day():
+    # ⑮宴类簇跟随（五拍）：唐宴被挤出 D2 后，目标日 D3 有 ≤5km 簇伴
+    # （曼蒂广场旁的白天点）→ 整簇合法挪日、照常挪不取消。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    mate = _placed(
+        "v-mtds",
+        "曼蒂广场白天点",
+        3,
+        108.9680,
+        34.2130,
+        60,
+        start=14,
+        category="attraction",
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet-mate",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, tang]),
+            DayPlan(day=3, base_city="西安", items=[mate]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2
+    assert day_of["长安十二时辰·唐宴"] == 3  # 目标日有簇伴→照常挪
+    assert day_of["曼蒂广场白天点"] == 3
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+def test_no_free_day_sacrifices_weakest_anchored_show():
+    # ⑯最弱锚牺牲兜底（雁塔案回归锚）：全城无空演出日时不再直接删本卡
+    # ——D1 孤演《驼铃传奇》（~22km 无簇伴）被删腾位，贴簇强锚的
+    # 《梦回大唐》（D2 0km 贴大雁塔）改落 D1；钉住宴御宴宫留场 D2。
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)
+    tlq = _placed("v-tlq", "《驼铃传奇》", 1, 109.01, 34.45, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 120, start=9, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    yys.pinned = True
+    mhd = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-sacrifice",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, tlq]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2  # 钉住宴留场
+    assert day_of["《梦回大唐》"] == 1  # 贴簇强锚顶掉孤演的日子
+    assert "《驼铃传奇》" not in day_of  # 最弱锚（距当日簇最远无伴）被删
+    assert any("驼铃传奇" in str(a) and "让位" in str(a) for a in plan.assumptions)
     for d in plan.days:
         occupied = [
             i

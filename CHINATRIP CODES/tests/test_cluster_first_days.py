@@ -1,0 +1,343 @@
+# -*- coding: utf-8 -*-
+"""簇优先选日通道（2026-11-08 用户拍板「距离聚类优先/组合排日」+深夜二/三轮）。
+
+选层管线重排为：池定后、逐点认领前——池内可数件按 0<km≤1km
+（_FAMILY_ATOMIC_KM，二拍①收紧；1.5-2km 链式弱边不得把原子族撑爆
+4/日帽逼减员肢解核心组）连边聚族 → 按（族内最优 tier，-族时长合计
+〔二拍③：更难排的先占日〕，-族规模）逐族找最早可行同城日整族原子
+认领（4/日帽/边日规则全过；三轮②：腿不是游玩负载，可行性判定与
+day_loads 账面一律剔腿；二拍②：全小件族每员≤120min且合计≤180min
+可走到达日整族落位通道，返程日不开；三轮①：重要族 best-tier≤2 认领
+净日预算 360→450，仅 2 员不可减员时 480 兜底留痕）→ 塞不进只减地理
+链端点（二拍④逐项比：非钉>tier数字大>时长长，中间成员永不被减）→
+族占日不收异簇可数件（food 豁免、演出钉日不受限）。本文件锚十一路
+判据：①最重要成员的族优先占日；②整族原子落日；③减地理端点；
+④零散景点进不了族占日；⑤餐厅可以；⑥1-2km 弱边不入原子族（钟/鼓/
+城墙核心组不被 1.96km 弱边肢解）；⑦到达日轻量三人组剔腿落 d1；
+⑧重要族净日 450min 预算豁免（雁塔 420min 形）。
+⑨⑩⑪四轮锚（钟楼案）：认领/捆绑时刻同跑入场闸镜像——预算过闸≠
+物理排得下，降序连排末件开场超入场闸即拦在进日前（⑨纯算术；
+⑩伞名捆绑 keeper 日物理满则不拉同日；⑪四员 450min 族账面可落
+但物理不可排→减地理端点+披露，替代终排无声挤死）。
+"""
+
+from __future__ import annotations
+
+from app.services.agent.plan import (
+    PlanningAgent,
+    _bundle_umbrella_spec_days,
+    _cand_entry_cap,
+    _entry_cap_feasible,
+)
+
+
+def _c(
+    name: str,
+    loc: tuple[float, float],
+    *,
+    tier: int | None = None,
+    dur: int = 60,
+    cat: str = "attraction",
+    city: str = "成都",
+):
+    c: dict = {
+        "name": name,
+        "city": city,
+        "category": cat,
+        "suggested_duration_min": dur,
+        "location": loc,
+    }
+    if tier == 1:
+        c["tags"] = ["unesco"]
+        c["source"] = "unesco"
+    elif tier == 2:
+        c["tags"] = ["5a"]
+        c["source"] = "5a"
+    return c
+
+
+# 布点（lat 30.66 下 1° lon ≈ 95.8km、1° lat ≈ 111km）：族内错开
+# ~0.5-0.9km（≤1km 原子连边），两族相距 ~40km（互不连边、互为异簇）。
+_A0 = (104.060, 30.66)
+_A1 = (104.065, 30.66)  # ↔A0 ~0.48km
+_A2 = (104.070, 30.66)  # ↔A1 ~0.48km
+_B0 = (104.500, 30.66)
+_B1 = (104.505, 30.66)
+_B2 = (104.510, 30.66)
+
+
+def _by_day(items: list[dict]) -> dict[int, set[str]]:
+    out: dict[int, set[str]] = {}
+    for it in items:
+        out.setdefault(it["day"], set()).add(it["name"])
+    return out
+
+
+def test_best_member_family_claims_earliest_day_first():
+    """①族优先占日按族内最优成员排序：含 unesco（tier1）的族先认领最早
+    可行日——若按池序/规模先处理普通族，普通族会抢走 day1。"""
+    cands = [
+        _c("族甲员一", _A0, tier=1),
+        _c("族甲员二", _A1),
+        _c("族甲员三", _A2),
+        _c("族乙员一", _B0),
+        _c("族乙员二", _B1),
+        _c("族乙员三", _B2),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    by_day = _by_day(items)
+    # day1 只装得下一族（4/日帽下两族 6 件装不下）：tier1 族先到先得。
+    assert by_day[1] == {"族甲员一", "族甲员二", "族甲员三"}
+    assert by_day[2] == {"族乙员一", "族乙员二", "族乙员三"}
+
+
+def test_family_lands_atomically_on_one_day():
+    """②整族原子落同一天：4 员族链式布点（相邻 ≤1km），单日装得下时
+    整族同日——不得再被容量梯子逐件拆散。"""
+    cands = [
+        _c("链员一", _A0),
+        _c("链员二", _A1),
+        _c("链员三", _A2),
+        _c("链员四", (104.075, 30.66)),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    by_day = _by_day(items)
+    assert by_day[1] == {"链员一", "链员二", "链员三", "链员四"}
+
+
+def test_overflow_family_reduces_geo_endpoint_not_middle():
+    """③塞不进只减地理链端点：五员族链（端一 tier2 — 中枢 unesco —
+    中二 — 中三 — 端二 tier11，相邻 0.86km）5 件 > 4/日帽全窗装不下
+    ——减地理直径端点对（端一↔端二 ~3.4km）中更次要的端二（tier11 >
+    端一的 5A）；中间成员（中枢/中二/中三，含族内最重要者）永不被减，
+    减员退回零散池：day1 已 4/4 帽满，端二落 day2。"""
+    cands = [
+        _c("端一", (104.0600, 30.66), tier=2, dur=100),
+        _c("中枢", (104.0690, 30.66), tier=1, dur=60),
+        _c("中二", (104.0780, 30.66), dur=60),
+        _c("中三", (104.0870, 30.66), dur=60),
+        _c("端二", (104.0960, 30.66), dur=100),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, notes=notes
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    # 减员后整族原子落 day1（4/4），中间成员一个不少
+    assert day_of["中枢"] == day_of["中二"] == day_of["中三"] == day_of["端一"] == 1
+    assert day_of["端二"] == 2  # 地理端点退回零散池，另日安排
+    assert any("端二" in n for n in notes)  # 减员双语披露留痕
+
+
+def test_stranger_sight_cannot_claim_family_day():
+    """④零散景点不得认领族占日：族甲整族占 day1（3/4 有余位），无族
+    身份的远点（异簇）即使最早有容量也不得插进 day1——改投开放日
+    day2（旧容量梯子会把它塞进 day1 第 4 席）。"""
+    cands = [
+        _c("族员一", _A0, tier=1),
+        _c("族员二", _A1),
+        _c("族员三", _A2),
+        _c("零散远点", (104.90, 30.66), dur=90),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    by_day = _by_day(items)
+    assert by_day[1] == {"族员一", "族员二", "族员三"}
+    assert by_day[2] == {"零散远点"}
+
+
+def test_food_can_share_family_day():
+    """⑤近距离餐厅可以（food 豁免）：族甲整族占 day1，food 候选不受
+    族占日闸——照常落 day1（餐饮锚点摊开语义不因族日受限）。"""
+    cands = [
+        _c("族员一", _A0, tier=1),
+        _c("族员二", _A1),
+        _c("族员三", _A2),
+        _c("近邻餐厅", (104.062, 30.66), cat="food", dur=60),
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    by_day = _by_day(items)
+    assert by_day[1] == {"族员一", "族员二", "族员三", "近邻餐厅"}
+
+
+def test_weak_edge_beyond_1km_not_in_atomic_family():
+    """⑥二拍①锚（钟/鼓/城墙案）：1-2km 链式弱边不入原子族。钟楼/
+    鼓楼/城墙碑林互 ≤0.5km 成原子族；小雁塔（↔城墙碑林 ~1.96km 压线
+    弱边）、碑林博物馆（↔城墙碑林 ~1.16km）不入族——旧 2km 口径下
+    五员族超 4/日帽触发结构性减员，核心三人组被肢解；新口径三人组
+    原子完整落 day1，弱边两件留零散（2km 内仍受 tight_kin 软偏好，
+    落哪天不锚）。"""
+    cands = [
+        _c("钟楼", (104.0600, 30.66), dur=40, city="西安"),
+        _c("鼓楼", (104.0610, 30.66), dur=40, city="西安"),
+        _c("城墙碑林", (104.0640, 30.66), tier=2, dur=90, city="西安"),
+        _c("小雁塔", (104.0640, 30.6423), dur=60, city="西安"),  # ↔城墙碑林 ~1.96km
+        _c("碑林博物馆", (104.0760, 30.6585), dur=60, city="西安"),  # ↔城墙碑林 ~1.16km
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, notes=notes
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    trio = ("钟楼", "鼓楼", "城墙碑林")
+    # 核心三人组原子完整同日（不被弱边撑爆减员肢解）
+    assert len({day_of[n] for n in trio}) == 1
+    assert day_of["钟楼"] == 1  # 最早可行日整族认领
+    # 三人组无任何减员/退零散披露（旧口径会减钟楼/鼓楼/城墙碑林）
+    assert not any(n for n in notes if any(t in str(n) for t in trio))
+
+
+def test_all_small_family_claims_arrival_day():
+    """⑦三轮②锚（账面剔腿）：腿不是游玩负载——可行性判定与
+    day_loads 账面一律剔腿。钟/鼓/城墙三人组 40+40+90=170min 落到达
+    日 d1：旧账面含腿 170+腿≈198>180 把整族挤去 d2（探针 r2 实录），
+    剔腿后按 170 判 ≤180 直落 d1（用户目标 d1=城心三人组；到达日
+    整族落位通道〔二拍②〕同判 170≤180 镜像）。"""
+    cands = [
+        _c("钟楼", (104.0600, 30.66), dur=40, city="西安"),
+        _c("鼓楼", (104.0690, 30.66), dur=40, city="西安"),  # ↔钟楼 ~0.86km
+        _c("城墙碑林", (104.0780, 30.66), tier=2, dur=90, city="西安"),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"西安": (1, 3)},
+        transfer_days={1},
+        arrival_days={1},
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert {day_of["钟楼"], day_of["鼓楼"], day_of["城墙碑林"]} == {1}
+
+
+def test_important_family_gets_450_clean_day_waiver():
+    """⑧三轮①锚（净日预算豁免）：重要族（best-tier≤2）整族认领净日时
+    预算 360→450（真实全日窗 09:00-17:30≈450；「拿组合族的时间加和
+    算时间按排序选日子」，预算是选层启发式不是物理极限）。雁塔形 2 员
+    族 240+180=420min>360——无豁免会「no feasible day, members stay
+    loose」散装混日（探针 r2 实录：大雁塔混 30km 异簇 d3）；有豁免
+    整族原子落净日 d1。"""
+    cands = [
+        _c("大雁塔", (104.0600, 30.66), tier=2, dur=240, city="西安"),
+        _c("十二时辰", (104.0680, 30.66), dur=180, city="西安"),  # ↔大雁塔 ~0.77km
+    ]
+    items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
+    day_of = {it["name"]: it["day"] for it in items}
+    assert {day_of["大雁塔"], day_of["十二时辰"]} == {1}
+
+
+def test_entry_cap_feasible_arithmetic():
+    """⑨四轮锚（纯算术）：入场闸镜像——09:00(540) 起、已有负载按单块
+    前置、相邻 30 分钟隔、降序连排，任一件开场超其入场闸即不可排。
+    大点帽 15:30(930)、普帽 16:00(960)（solver.generic_entry_cap 常量
+    镜像）。"""
+    # 空日 180+120+90：540→750→900，末件 90 开场 15:00 ≤16:00 可排
+    assert _entry_cap_feasible(540, 0, 0, [(180, 930), (120, 930), (90, 960)])
+    # +60 末件：90 后 t=1020(17:00) > 16:00 —— 钟楼案形，账面 450 预算
+    # 过闸但物理排不下
+    assert not _entry_cap_feasible(
+        540, 0, 0, [(180, 930), (120, 930), (90, 960), (60, 960)]
+    )
+    # 已有族块 330min/3 卡前置：t=540+330+90=960(16:00)，大点 120 开场
+    # 16:00 > 15:30 帽 —— 捆绑通道同判
+    assert not _entry_cap_feasible(540, 330, 3, [(120, 930)])
+    # 同块小点（帽 16:00）压线可排
+    assert _entry_cap_feasible(540, 330, 3, [(60, 960)])
+    # 帽口径：>80min 普通景点=大点帽 930，≤80min=普帽 960
+    assert _cand_entry_cap(_c("大块景点", _A0, dur=120)) == 15 * 60 + 30
+    assert _cand_entry_cap(_c("小块景点", _A0, dur=60)) == 16 * 60
+
+
+def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
+    """⑩四轮锚（捆绑闸）：伞名近邻跨日捆绑把低 rank 件拉回高 rank 件
+    同日前，先跑入场闸镜像——keeper 日已有物理负载塞不下就不拉
+    （捆绑是机会性优化，跨日合法），不再硬塞进族占日让终排无声挤死
+    某件（钟楼案：碑林博物馆 120min 被拉进 330min 族日，末件 17:00
+    开场被 16:00 闸吞）。"""
+    cands = {
+        "城墙古城景区": _c("城墙古城景区", _A0, tier=2, dur=150),
+        "古城伴一": _c("古城伴一", _A1, dur=90),
+        "古城伴二": _c("古城伴二", _A2, dur=90),
+        "成都古城博物馆": _c("成都古城博物馆", (104.082, 30.66), cat="museum", dur=120),
+    }
+    # 装配层规格形态：无坐标（走同城+词素降级判据，碑林产线同路），
+    # duration_minutes 为物理时长，category 供大点帽判型
+    heavy = [
+        {
+            "name": "城墙古城景区",
+            "day": 1,
+            "duration_minutes": 150,
+            "category": "attraction",
+            "city": "成都",
+        },
+        {
+            "name": "古城伴一",
+            "day": 1,
+            "duration_minutes": 90,
+            "category": "attraction",
+            "city": "成都",
+        },
+        {
+            "name": "古城伴二",
+            "day": 1,
+            "duration_minutes": 90,
+            "category": "attraction",
+            "city": "成都",
+        },
+        {
+            "name": "成都古城博物馆",
+            "day": 2,
+            "duration_minutes": 120,
+            "category": "museum",
+            "city": "成都",
+        },
+    ]
+    notes = _bundle_umbrella_spec_days(heavy, cands)
+    # keeper 日族块 330min/3 卡 + 120 大点 = 末件开场 16:00 > 15:30 帽：
+    # 不拉同日，博物馆留 day2，无捆绑披露
+    assert next(s for s in heavy if s["name"] == "成都古城博物馆")["day"] == 2
+    assert not any("古城博物馆" in n for n in notes)
+    # 对照：keeper 日轻载（仅 90min 景区）时 t=660，120 大点 11:00 开场
+    # 压线下可排 → 捆绑照常
+    light = [
+        {
+            "name": "城墙古城景区",
+            "day": 1,
+            "duration_minutes": 90,
+            "category": "attraction",
+            "city": "成都",
+        },
+        {
+            "name": "成都古城博物馆",
+            "day": 2,
+            "duration_minutes": 120,
+            "category": "museum",
+            "city": "成都",
+        },
+    ]
+    notes_light = _bundle_umbrella_spec_days(light, cands)
+    assert next(s for s in light if s["name"] == "成都古城博物馆")["day"] == 1
+    assert any("古城博物馆" in n for n in notes_light)
+
+
+def test_cap_infeasible_family_sheds_endpoint_with_disclosure():
+    """⑪四轮锚（钟楼案选层形）：四员族 180+120+90+60=450min——tier2
+    成员在场净日 450 预算豁免账面可落（三轮①），但降序连排末件 60
+    开场 17:00 > 16:00 帽物理排不下（终排只会无声挤死它）。四轮起认
+    领时刻即拦：整族不可行→减地理直径端点对中更次要的轻端（tier11
+    > 重员一 tier2），余三员原子落 day1，轻端另日安排+披露留痕——
+    挤死不可能发生。"""
+    cands = [
+        _c("重员一", (104.0600, 30.66), tier=2, dur=180),
+        _c("重员二", (104.0680, 30.66), dur=120),
+        _c("中员", (104.0750, 30.66), dur=90),
+        _c("轻端", (104.0820, 30.66), dur=60),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, notes=notes
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    # 余三员原子落 day1（390min，450 豁免账面过+入场闸物理过）
+    assert day_of["重员一"] == day_of["重员二"] == day_of["中员"] == 1
+    # 轻端被减员另日安排，不再占着 day1 席位等终排无声挤死
+    assert day_of["轻端"] == 2
+    assert any("轻端" in n for n in notes)  # 减员双语披露留痕

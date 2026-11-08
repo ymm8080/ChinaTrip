@@ -103,19 +103,19 @@ def test_geo_cluster_same_area_same_day():
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], set()).add(it["name"])
-    # 优先级前置（2026-11-02 拍板链取代「簇独占日」）：含 tier 最高
-    # （5A）的簇整簇进第 1 天。2026-11-07 反转拍板废 ≤1km 同街族并卡
-    # （近距不同实体各排各卡）→ 每件照占 4/日计数：day1 满 4 件，
-    # 陆家嘴簇尾部两件溢出 day2（两天窗全落位、无出局）。
-    # 2026-11-08 四拍「东方明珠要的」：紧簇愈合只做满员日换座——
-    # 陆家嘴簇日 2/4 有空位，东方明珠 tier 序合法占 day1 不追改。
+    # 2026-11-08 簇优先选日拍板「距离聚类优先/组合排日」（取代四拍
+    # 「东方明珠要的」不追改口径）：人民广场三件 ≤1km 成族
+    # （_FAMILY_ATOMIC_KM，11-08 深夜二拍收紧；含 tier2
+    # 5A，族优先级最高）整族原子落 day1；陆家嘴三件族 day1 装不下
+    # （4/日帽）整族落 day2——东方明珠不再以零散件身份挤进 day1 第
+    # 4 席，同簇组合不拆天。锚随拍板反转，判例见
+    # tests/test_cluster_first_days.py。
     assert by_day[1] == {
         "人民广场五A",
         "南京东路",
         "博物馆",
-        "东方明珠",
     }
-    assert by_day[2] == {"海洋馆", "滨江大道"}
+    assert by_day[2] == {"东方明珠", "海洋馆", "滨江大道"}
 
 
 # --- 每日时间预算与 4 个/日闸 -----------------------------------------------
@@ -180,7 +180,7 @@ def test_algo_respects_city_windows():
 # --- 演出 / 餐饮 / 夹紧 / 确定性 --------------------------------------------
 
 
-def test_algo_show_closes_city_last_day_and_extra_show_takes_noshow_day():
+def test_algo_show_closes_city_last_day_extra_show_takes_no_show_day():
     """2026-11-08 二拍「取消每城只自动排一场夜场」：头场演出守城市末日
     收尾，落选夜场逐张落位——一天一场仍守，第二场落无演出日（day3 已
     有演出；旧「落选即弃」语义由 b0a55e7 撤下，此锚改锁新拍板）。"""
@@ -194,8 +194,14 @@ def test_algo_show_closes_city_last_day_and_extra_show_takes_noshow_day():
     show = next(it for it in items if it["name"] == "变脸表演")
     assert show["day"] == 3  # 城市末日收尾
     assert show["duration_minutes"] == 105  # 库建议时长优先
+    # ⑧二拍（2026-11-08）：取消「每城只排一场夜场」——落选场按聚簇/
+    # 无演出日落位，一天一场仍守。蜀风雅韵无坐标走余量线，day2 空载承接。
     extra = next(it for it in items if it["name"] == "蜀风雅韵")
-    assert extra["day"] == 2  # 无演出日承接（一天一场，day3 已占）
+    assert extra["day"] == 2
+    show_days = sorted(
+        it["day"] for it in items if it["name"] in ("变脸表演", "蜀风雅韵")
+    )
+    assert show_days == [2, 3]  # 每天一场
 
 
 def test_algo_show_without_suggested_defaults_90():
