@@ -17,7 +17,8 @@
   演出（室内替代）；
 ⑥演出日按最近簇选日——夜场不再盲钉窗口末日，某天已有点距场馆
   ≤5km（_NEAR_SAMEDAY_KM）时演出改钉该天（同址 0km 必须同日）；
-⑦夜场桶落选张（shows[1:]）不再无痕消失——日志+披露点名；
+⑦夜场桶落选张（shows[1:]）不再无痕消失——2026-11-08 二拍升级：落选张
+  逐张落位（各按自场馆最近簇/无演出日，每天一场仍守），全窗无位才披露；
 ⑨⑩场馆亲和护栏（2026-11-08 秦俑情案第五刀）——评分器拆簇软罚
   （venue_strand）+ LNS 演出软钉：重排/挪天家族不得把贴场馆簇的
   演出挪去无锚日，容量溢出让弱卡让位。
@@ -26,7 +27,7 @@
 import asyncio
 from datetime import time
 
-from app.services.agent.plan import PlanningAgent
+from app.services.agent.plan import PlanningAgent, _enforce_show_per_day
 from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
@@ -309,8 +310,9 @@ def test_night_show_follows_same_site_daytime_cluster():
     assert day_of["《长恨歌》"] == 1  # 演出日反向拉到白天簇（同址同日）
 
 
-def test_extra_night_shows_disclosed_not_silent():
-    # ⑧落选张披露：每城夜场桶只排第一张，shows[1:] 不再无痕消失。
+def test_extra_night_shows_all_placed_one_per_day():
+    # ⑧二拍（2026-11-08 用户拍板：取消「每城只自动排一场夜场」）：两张
+    # 夜场各落一天——每天一场仍守（11-02 拍板），落选张不再只披露不排。
     cands = [
         _sight("兵马俑", *_LINTONG, dur=90, tags=["5a"]),
         _night_show("《长恨歌》", *_LINTONG),
@@ -321,12 +323,32 @@ def test_extra_night_shows_disclosed_not_silent():
         cands, 2, {"西安": (1, 2)}, notes=notes
     )
     names = [it["name"] for it in items]
-    assert "《长恨歌》" in names  # 池序第一张当选
-    assert "《梦回大唐》" not in names  # 同档落选
-    assert any(
-        "夜场演出仅自动排一场" in n and "《长恨歌》" in n and "《梦回大唐》" in n
-        for n in notes
+    day_of = {it["name"]: it["day"] for it in items}
+    assert "《长恨歌》" in names and "《梦回大唐》" in names
+    assert day_of["《长恨歌》"] != day_of["《梦回大唐》"]  # 一天一场闸
+    assert day_of["《长恨歌》"] == day_of["兵马俑"]  # 落位贴最近簇（同址同日）
+    assert not any("未排" in n for n in notes)  # 都排下了：无未排披露
+
+
+def test_extra_night_shows_disclosed_when_window_full():
+    # ⑧二拍配套：三张夜场挤两天窗口——每天一场守闸，第三张点名披露
+    # （要保留请说），不静默消失。
+    cands = [
+        _sight("兵马俑", *_LINTONG, dur=90, tags=["5a"]),
+        _night_show("《长恨歌》", *_LINTONG),
+        _night_show("《梦回大唐》", *_DOWNTOWN),
+        _night_show("《驼铃传奇》秀", *_DOWNTOWN),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, notes=notes
     )
+    names = [it["name"] for it in items]
+    shows_placed = [n for n in names if n.startswith("《") or n.endswith("秀")]
+    assert "《长恨歌》" in names and "《梦回大唐》" in names  # 每天一场=两张
+    assert "《驼铃传奇》秀" not in names  # 第三张无日可落
+    assert len(shows_placed) == 2
+    assert any("未排" in n and "《驼铃传奇》秀" in n for n in notes)
 
 
 def test_plan_score_penalizes_show_stranded_from_venue_cluster():
@@ -360,6 +382,56 @@ def test_plan_score_penalizes_show_stranded_from_venue_cluster():
     )
     assert plan_score(home).soft["venue_strand"] == 0
     assert plan_score(stranded).soft["venue_strand"] == -2 * PEN_VENUE_STRAND
+
+
+def test_gate_reclaims_show_to_near_mate_day():
+    # ⑧二拍聚簇认领（mc2 多城案实录）：选层把《秦俑情》落在市区无伴日、
+    # 兵马俑在另一无演出日——终装闸把演出挪回伴的日子（贴排口径），并
+    # 披露「贴同日改排」；挪后兜底重排给出时刻。
+    qyq = _placed("v-qyq", "《秦俑情》", 1, 109.278, 34.384, 80, start=17, show=True)
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)
+    bmy = _placed(
+        "v-bmy", "兵马俑", 2, 109.27, 34.38, 180, start=9, category="attraction"
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-mc2",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, qyq]),
+            DayPlan(day=2, base_city="西安", items=[bmy]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    qyq_it = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "《秦俑情》"
+    )
+    bmy_it = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "兵马俑"
+    )
+    assert qyq_it.day == 2 and bmy_it.day == 2  # 演出挪回兵马俑日（~1km 伴）
+    assert qyq_it.start_time is not None  # 挪后兜底重排有时刻
+    assert any("秦俑情" in str(a) and "同日" in str(a) for a in plan.assumptions)
+
+
+def test_gate_noop_leaves_compliant_plan_untouched():
+    # 闸未动作零副作用：每天已一场且都贴簇 → 假设零新增、时刻不被重洗。
+    bmy = _placed(
+        "v-bmy", "兵马俑", 1, 109.27, 34.38, 180, start=9, category="attraction"
+    )
+    qyq = _placed("v-qyq", "《秦俑情》", 1, 109.278, 34.384, 80, start=17, show=True)
+    hms = _placed("v-hms", "回民街", 2, 108.94, 34.26, 90, start=9)
+    plan = ItineraryPlan(
+        itinerary_id="it-ok",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[bmy, qyq]),
+            DayPlan(day=2, base_city="西安", items=[hms]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert plan.assumptions == []
+    assert qyq.start_time == time(17, 0)  # 未被重排洗动
+    assert bmy.start_time == time(9, 0)
 
 
 def test_lns_keeps_day_show_with_overloaded_venue_cluster():

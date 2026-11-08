@@ -12767,6 +12767,10 @@ class PlanningAgent:
         # 每场闸终装（2026-11-08 xa 案 D2 双演出撞日）：选层各相位互不
         # 知情，终装统一对账——同日两场保首场、余场挪无演出日/移除披露。
         _enforce_show_per_day(plan)
+        # 闸挪位/让位后可能留下无时刻卡（mc2 骊山贴排让位案）：闸是最后
+        # 一道动结构的相位，让位所指望的「后续重排」只会来自这里——
+        # 再走一遍终闸清算（重解/挪日/回头重试/移除留痕），干净则零开销。
+        plan = self._finalize_untimed_visits(plan, must_names, tier_map)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.

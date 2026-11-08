@@ -206,3 +206,53 @@ def test_leg_windows_widens_sight_anchor_only():
     assert view[1] == (12 * 60, 13 * 60)  # 餐饮贴点不动
     assert view[2] == (7 * 60, 7 * 60 + 30)  # 落地腿缓冲不动
     assert view[3] == (9 * 60, 10 * 60 + 30)  # 自身窗不动
+
+
+def test_fallback_session_show_yields_far_blocker_keeps_cluster():
+    """贴排对让位（2026-11-08 秦俑情 D2 甩空日案）：多场次演出全场次
+    撞窗且当天有 ≤5km 贴排圈伴时，最晚可行场次撞到的远距（圈外）非
+    钉住观光锚让位重排（untime 交后续 pass/挪日链），演出贴簇留住——
+    不再甩空日单飞。贴排圈伴与钉住点永不让位。"""
+    qyq_loc = GeoPoint(lon=109.2856, lat=34.3856)
+    lishan_loc = GeoPoint(lon=109.2120, lat=34.3660)
+    bmy150 = VisitItem(
+        item_id="bmy150",
+        name="秦始皇帝陵博物院",
+        city="西安",
+        day=2,
+        category="sight",
+        duration_minutes=150,
+        start_time=_t(9, 0),
+        end_time=_t(11, 30),
+        location=BMY_LOC,
+    )
+    lishan = VisitItem(
+        item_id="lishan",
+        name="临潼骊山风景名胜区",
+        city="西安",
+        day=2,
+        category="sight",
+        duration_minutes=180,
+        start_time=_t(14, 3),
+        end_time=_t(17, 3),
+        location=lishan_loc,
+    )
+    show = VisitItem(
+        item_id="qyq",
+        name="《秦俑情》",
+        city="西安",
+        day=2,
+        category="entertainment",
+        best_visit_time="show",
+        duration_minutes=80,
+        opening_hours="多场（约11:00/14:00/17:00，以当日公告为准）",
+        location=qyq_loc,
+    )
+    day = DayPlan(day=2, base_city="西安", items=[bmy150, lishan, show])
+    plan = ItineraryPlan(
+        itinerary_id="it-y", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    assert show.start_time == _t(17, 0), "秦俑情应守住簇日 17:00 场"
+    assert lishan.start_time is None, "骊山应让位（untime 交后续 pass/挪日链）"
+    assert bmy150.start_time == _t(9, 0), "贴排圈伴不动"
