@@ -96,9 +96,11 @@ from app.services.itinerary.solver import (
     LEAVING_MORNING_END_MINUTES,
     NEAR_SAMEDAY_KM,
     SHOW_LATE_SESSION_MINUTES,
+    THEME_BLOCK_AFTERNOON_MINUTES,
     TIGHT_CLUSTER_KM,
     _city_side,
     _is_big_site,
+    _is_theme_block,
     _leaving_morning_cap,
     generic_entry_cap,
     show_session_starts,
@@ -766,6 +768,10 @@ def _cand_entry_cap(cand: dict) -> int:
     口径——夜属性/演出=日终 21:30、大点=15:30、其余=16:00。选层
     尚无时刻概念，pinned+有时刻豁免在认领时无从生效，不认。"""
     if _night_cand(cand) or _cand_is_show(cand):
+        return 21 * 60 + 30
+    if _theme_block_cand(cand):
+        # 主题街区整类开晚场（2026-11-08 拍板，同 solver.generic_entry_cap
+        # 豁免面）：白日倾向是软偏好不是硬闸，选层不压 16:00/15:30 带。
         return 21 * 60 + 30
     if _cand_is_big(cand):
         return BIG_SITE_ENTRY_CAP_MINUTES
@@ -6420,6 +6426,33 @@ def _fallback_sequence_times(
                     and _city_side_ok(xfer_windows, visit, t, dur)
                 ):
                     placed_at = t
+                if (
+                    placed_at is not None
+                    and not keep_list_order
+                    and _is_theme_block(visit)
+                    and placed_at < THEME_BLOCK_AFTERNOON_MINUTES
+                ):
+                    # 主题街区晚场倾向（2026-11-08 拍板「十二时辰建议晚上」
+                    # +规则 33 软偏好的兜底镜像）：游标落位在 16:00 前时尝
+                    # 试升档到 16:00 起排（十二时辰 240min 形态 → 16:00-
+                    # 20:00）。安全升级——地板位过不了任一校验（腿窗/营业
+                    # 窗/城侧闸/日终）就保留游标位，永不因升档安置失败。
+                    tf = max(THEME_BLOCK_AFTERNOON_MINUTES, cursor)
+                    advanced = True
+                    while advanced:
+                        advanced = False
+                        for fs, fe in _leg_windows(fixed, visit):
+                            if tf < fe and tf + dur > fs:
+                                tf = fe
+                                advanced = True
+                                break
+                    if (
+                        tf + dur <= day_end
+                        and (cap is None or tf <= cap)
+                        and _fits_hours_window(hours, tf, dur)
+                        and _city_side_ok(xfer_windows, visit, tf, dur)
+                    ):
+                        placed_at = tf
                 # 16:30 闸前装不下不再溢傍晚放行（2026-11-03 用户重申：
                 # 除夜游与演出外一律最晚 16:30 开场）——留空交挪日链/
                 # 校验披露，不得硬排傍晚。
@@ -6504,6 +6537,128 @@ def _fallback_sequence_times(
             fixed_tight.append((slot, slot + mdur))
             fixed_tight.sort()
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
+        day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
+def _evening_anchor_visit(v: VisitItem) -> bool:
+    """晚场锚判定（晚锚右贴压缩用）：场次演出/bvt 夜属性/主题街区
+    （2026-11-08 拍板「所有街区都可以作为夜场」）。"""
+    if _is_show_item(v) and show_session_starts(v.opening_hours):
+        return True
+    if (v.best_visit_time or "") in ("evening", "sunset", "show"):
+        return True
+    return _is_theme_block(v)
+
+
+def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
+    """晚锚右贴压缩（2026-11-08 拍板「间隔下午时间太久，整个组合的总时
+    间为什么不压缩一下」）：终装不变量——每天最后一个晚场锚（≥15:00
+    开场）之前若有可动观光链，且链尾与锚之间留 ≥60min 死区，整链后移
+    贴锚（锚前留 30min 通勤）——下午空洞前移给上午，日跨度收紧
+    （长恨歌案：清真寺 13:37 收尾 vs 17:00 演出 203min 死区）。返程日
+    午后跳过（规则 21 车站缓冲不动）；钉住/餐饮/酒店/场次演出/晚场类
+    不入链（链在其处断开）；链上任一站过不了营业窗/入场闸就整链不动
+    （跳过零副作用，应用时留痕）。
+    """
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    for day in plan.days:
+        # 返程日跳过：午后城际腿当天的空白是车站缓冲（规则 21）。
+        if any(
+            isinstance(it, TransferItem)
+            and (it.start_time is None or it.start_time.hour >= 12)
+            for it in day.items
+        ):
+            continue
+        timed = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is not None
+            and v.end_time is not None
+        ]
+        if not timed:
+            continue
+        timed.sort(key=lambda v: (v.start_time.hour, v.start_time.minute))
+        anchor = None
+        for v in reversed(timed):
+            s = v.start_time.hour * 60 + v.start_time.minute
+            if s < SHOW_LATE_SESSION_MINUTES:
+                continue
+            if _evening_anchor_visit(v):
+                anchor = v
+                break
+        if anchor is None:
+            continue
+        a_start = anchor.start_time.hour * 60 + anchor.start_time.minute
+        # 可动尾链：从锚向前收，遇不可动件（钉/餐/酒店/场次演出/晚场类）
+        # 或 >90min 断档即停——只贴锚收尾段，不拖上午远件。
+        chain: list[VisitItem] = []
+        prev_start: int | None = None
+        for v in reversed(timed):
+            if v is anchor:
+                continue
+            s = v.start_time.hour * 60 + v.start_time.minute
+            e = v.end_time.hour * 60 + v.end_time.minute
+            if s >= a_start:
+                continue  # 锚后件（晚宴/酒店等）不动
+            if (
+                v.pinned
+                or (v.category or "") in ("food", "hotel")
+                or _evening_anchor_visit(v)
+            ):
+                break
+            if prev_start is not None and e < prev_start - 90:
+                break
+            chain.append(v)
+            prev_start = s
+        if not chain:
+            continue
+        chain.reverse()
+        last_end = max(v.end_time.hour * 60 + v.end_time.minute for v in chain)
+        dead = a_start - last_end
+        if dead < 60:
+            continue
+        delta = dead - 30  # 贴锚留 30min 通勤
+        # 入场闸收紧 delta（链上最紧的白天闸件定上限：清真寺类 16:00
+        # 闸压到最迟开场，而非整段贴锚后被闸全盘否决）。
+        for v in chain:
+            cap = generic_entry_cap(v, hours_by_poi.get(v.poi_id))
+            if cap is not None:
+                delta = min(
+                    delta,
+                    cap - (v.start_time.hour * 60 + v.start_time.minute),
+                )
+        if delta < 30:
+            continue
+        ok = True
+        for v in chain:
+            hours = hours_by_poi.get(v.poi_id)
+            s = v.start_time.hour * 60 + v.start_time.minute + delta
+            dur = (
+                v.end_time.hour * 60
+                + v.end_time.minute
+                - v.start_time.hour * 60
+                - v.start_time.minute
+            )
+            if not _fits_hours_window(hours, s, dur):
+                ok = False
+                break
+        if not ok:
+            continue
+        for v in chain:
+            s = v.start_time.hour * 60 + v.start_time.minute + delta
+            e = v.end_time.hour * 60 + v.end_time.minute + delta
+            v.start_time = time(s // 60, s % 60)
+            v.end_time = time(e // 60, e % 60)
+        logger.info(
+            "plan: compressed %d item(s) against evening anchor %s on day %d "
+            "(+%d min, dead zone %d -> 30)",
+            len(chain),
+            anchor.name,
+            day.day,
+            delta,
+            dead,
+        )
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
@@ -14794,6 +14949,9 @@ class PlanningAgent:
         # 一道动结构的相位，让位所指望的「后续重排」只会来自这里——
         # 再走一遍终闸清算（重解/挪日/回头重试/移除留痕），干净则零开销。
         plan = self._finalize_untimed_visits(plan, must_names, tier_map)
+        # 晚锚右贴压缩（2026-11-08 拍板）：全部排程相位收口后、校验前，
+        # 按天把晚场锚前的可动链贴锚收紧（下午死区前移上午）。
+        _compress_before_evening_anchor(plan)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.

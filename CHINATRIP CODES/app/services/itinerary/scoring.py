@@ -423,6 +423,10 @@ def plan_score(
             if (
                 cat not in ("entertainment", "food", "hotel")
                 and bvt not in ("show", "evening", "sunset")
+                # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以
+                # 作为夜场，也可以白天」）——不吃白天入场闸，同 solver
+                # generic_entry_cap 豁免面。
+                and not _is_theme_block_visit(v)
                 and v.start_time is not None
             ):
                 entry_cap = ENTRY_CAP_MINUTES

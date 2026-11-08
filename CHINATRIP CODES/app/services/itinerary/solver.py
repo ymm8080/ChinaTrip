@@ -367,16 +367,20 @@ def tight_cluster_split_violations(days: list) -> list[str]:
 
 def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:
     """夜档贴排组合对（2026-11-07 拍板「两卡贴排，作为一个 SITE 排列组
-    合」）：夜档观光点（bvt=evening/sunset/show，同入场闸豁免面；用户自
-    钉有时刻豁免）与同日 ≤COMBO_BUNDLE_KM 的最近邻普通观光点（非餐/
-    酒店/夜档、非钉）各绑一对——返回 (a_idx, n_idx)，a=普通点应贴排在
-    夜档点开场前收尾。每夜档点至多绑最近一个；无坐标不绑。"""
+    合」）：夜档观光点（bvt=evening/sunset/show，同入场闸豁免面；2026-
+    11-08 扩面：主题街区整类可作夜侧——「所有街区都可以作为夜场，也可
+    以白天」；用户自钉有时刻豁免）与同日 ≤COMBO_BUNDLE_KM 的最近邻普
+    通观光点（非餐/酒店/夜档/街区、非钉）各绑一对——返回 (a_idx,
+    n_idx)，a=普通点应贴排在夜档点开场前收尾（大雁塔 13:00-16:00 →
+    十二时辰 16:00-20:00 形态）。每夜档点至多绑最近一个；无坐标不绑。"""
     pairs: list[tuple[int, int]] = []
     for n_idx, sp_n in enumerate(specs):
         it_n = sp_n.item
         if it_n.pinned and it_n.start_time is not None:
             continue
-        if (it_n.best_visit_time or "") not in _EVENING_OK_BEST:
+        if (it_n.best_visit_time or "") not in _EVENING_OK_BEST and not _is_theme_block(
+            it_n
+        ):
             continue
         if (it_n.category or "") in ("food", "hotel"):
             continue
@@ -391,6 +395,8 @@ def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:
                 continue
             if (it_a.best_visit_time or "") in _EVENING_OK_BEST:
                 continue
+            if _is_theme_block(it_a):
+                continue  # 街区自己就是夜侧候选，不当白日锚
             if it_a.pinned and it_a.start_time is not None:
                 continue
             if it_a.location is None:
@@ -441,6 +447,13 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     if (item.category or "") in _EVENING_OK_CATEGORIES:
         return None
     if _hours_evening_only(window):
+        return None
+    if _is_theme_block(item):
+        # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以作为夜场，
+        # 也可以白天」）：不吃白天开场闸/大点 15:30 带——十二时辰 240min
+        # citywalk 形态此前被当大点压 15:30、又被兜底塞进白天 12:30。
+        # 「建议晚上」由规则 33 软偏好（≥16:00 开场倾向）+ 夜组贴排
+        # 表达，不是硬闸；白天照排合法。
         return None
     if _is_big_site(item):
         return BIG_SITE_ENTRY_CAP_MINUTES
