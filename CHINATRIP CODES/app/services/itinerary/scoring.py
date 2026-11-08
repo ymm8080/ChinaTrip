@@ -33,7 +33,9 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.solver import (
+    NEAR_SAMEDAY_KM,
     _adjacent_big_ids,
+    _haversine_km,
     show_session_starts,
 )
 
@@ -89,6 +91,14 @@ PEN_ARRIVAL_DAY_BIG = 12  # 到达日大点（2026-11-05 拍板「到达第一�
 # 压轴腿（腿在当天末尾）不算到达日；pinned 铁律 19/餐/酒店/演出/
 # tier8 街区豁免（同 _is_big_visit 豁免面）。与 edge_day_heavy 同向
 # 叠加——tier≤4 大点在到达日双罚，4A/3A 大点只吃本罚。
+PEN_VENUE_STRAND = 60  # 场馆亲和拆簇罚（2026-11-08 秦俑情案）：有坐标
+# 观光/演出件在当前日无 ≤NEAR_SAMEDAY_KM 同日圈伴、而同城另一日却有
+# 圈内伴=被修复通道拆离场馆簇（LNS 为消超载把临潼演出挪市区日，
+# 55km 脱簇在 travel 软项里只值 -2 拦不住）。每件计罚；量级刻意压过
+# 单日软项收益上限（budget_overflow -30 + day_balance -15）——拆簇换
+# 均衡不再免费，溢出时先溢簇外/低档弱卡。软罚不入 ok 口径：结构性
+# 无解（全场次冲突、真装不下）时各候选同付，不拦可行性；拆簇侧的
+# 让位/弹座另有 plan 层 _venue_anchor_on 演出软钉。
 
 
 def _is_big_visit(v: VisitItem) -> bool:
@@ -113,6 +123,27 @@ def _is_light_visit(v: VisitItem) -> bool:
     if str(v.category or "") in ("food", "hotel", "entertainment"):
         return False
     return not _is_big_visit(v)
+
+
+def _near_mate_km(v: VisitItem, visits: list[VisitItem]) -> float | None:
+    """v 在 visits 里的最近圈内伴距离（0<km≤NEAR_SAMEDAY_KM，2026-11-08
+    秦俑情案场馆亲和口径）；无圈内伴返回 None。零距不算伴——同点坐标
+    =占位/城市质心共享，非真实簇证据（与 agent.plan._tight_cluster_mate_on
+    拍板口径一致）。"""
+    vloc = getattr(v, "location", None)
+    if vloc is None or getattr(vloc, "lon", None) is None:
+        return None
+    best: float | None = None
+    for w in visits:
+        if w is v:
+            continue
+        wloc = getattr(w, "location", None)
+        if wloc is None or getattr(wloc, "lon", None) is None:
+            continue
+        km = _haversine_km(vloc, wloc)
+        if 0 < km <= NEAR_SAMEDAY_KM and (best is None or km < best):
+            best = km
+    return best
 
 
 @dataclass
@@ -204,6 +235,10 @@ def plan_score(
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
+    # 场馆亲和采样（2026-11-08 秦俑情案第五刀）：按日收集有坐标观光件
+    # 与转场抵达城，循环后跨日比对拆簇。
+    geo_days: list[tuple[str, list[VisitItem], set[str]]] = []
+    venue_strand = 0
     for day in plan.days:
         city = str(day.base_city or "").removesuffix("市")
         rainy = day.day in rain.get(city, ()) or day.day in heavy.get(city, ())
@@ -350,6 +385,22 @@ def plan_score(
         # 日均衡采样（S2.2）：活动日且非交通日才参与最差日比较
         if has_activity and not any(isinstance(i, TransferItem) for i in day.items):
             act_loads.append(load)
+        geo_days.append(
+            (
+                city,
+                [
+                    v
+                    for v in visits
+                    if str(v.category or "") not in ("food", "hotel")
+                    and getattr(v, "location", None) is not None
+                ],
+                {
+                    str(t.to_city or "").strip().removesuffix("市")
+                    for t in day.items
+                    if isinstance(t, TransferItem)
+                },
+            )
+        )
         timed = sorted(
             (v for v in visits if v.start_time is not None),
             key=lambda v: v.start_time,
@@ -404,6 +455,23 @@ def plan_score(
                 PEN_DAY_BALANCE_CAP,
                 (DAY_BALANCE_TARGET_MINUTES - worst_day_load) // 30,
             )
+    # 场馆亲和拆簇（2026-11-08 秦俑情案第五刀）：当前日无圈内伴、而同城
+    # 另一日（宿主闸口径同 LNS _day_hosts：base 同城或转场抵达该城）有
+    # 圈内伴=拆离场馆簇——LNS/挪天修复为消超载拆簇要付大代价，溢出先
+    # 溢簇外/低档弱卡。城市缺信号不罚（宁漏勿错）。
+    for _di, (_dcity, _dvisits, _darr) in enumerate(geo_days):
+        for _v in _dvisits:
+            if _near_mate_km(_v, _dvisits) is not None:
+                continue  # 当前日圈内成伴=锚定
+            _vc = str(_v.city or "").strip().removesuffix("市") or _dcity
+            if not _vc:
+                continue
+            for _dj, (_c2, _v2s, _a2) in enumerate(geo_days):
+                if _dj == _di or not (_c2 == _vc or _vc in _a2):
+                    continue
+                if _near_mate_km(_v, _v2s) is not None:
+                    venue_strand += 1
+                    break
     violations = overlaps + overruns + late_entries
     sc.hard = {
         "untimed": -PEN_UNTIMED * untimed,
@@ -428,6 +496,7 @@ def plan_score(
         "theme_block_early": -PEN_THEME_BLOCK_EARLY * cw_block_early,
         "edge_day_heavy": -PEN_EDGE_DAY_HEAVY * edge_heavy,
         "arrival_day_big": -PEN_ARRIVAL_DAY_BIG * arrival_big,
+        "venue_strand": -PEN_VENUE_STRAND * venue_strand,
         "no_entertainment": (
             -PEN_NO_ENTERTAINMENT if (has_sights and entertainment == 0) else 0
         ),
@@ -451,6 +520,7 @@ def plan_score(
         "theme_block_early": cw_block_early,
         "edge_day_heavy": edge_heavy,
         "arrival_day_big": arrival_big,
+        "venue_strand": venue_strand,
         "entertainment": entertainment,
         "worst_day_load": worst_day_load,
     }
