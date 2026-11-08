@@ -28,6 +28,7 @@ unesco/5a/amap 优先 + rating 降序——规划器 top_pois_in_city 最先
 import argparse
 import asyncio
 import json
+import logging
 import random
 import re
 import sys
@@ -43,6 +44,7 @@ from app.models import Poi
 from app.services.poi_classify import duration_upgradable
 from app.services.source_tier import SOURCE_PRIORITY
 
+logger = logging.getLogger(__name__)
 _DEFAULT_LIMIT = 100
 _MAX_TOKENS = 1024
 _MAX_CONCURRENCY = 4
@@ -227,17 +229,20 @@ def _chat_web(
         if data is None:
             # 空回包/解析失败按可重试处理（2026-11-05 #2 复盘：r8 的 218/226
             # 个 ValueError 全是空 content——web_search 吃掉输出预算，重试
-            # 即恢复；4.4% 行损失 → 应收回）。末次仍失败把样本打 stderr
+            # 即恢复）。末次仍失败经 logger.warning 打台账（此前样本被按
+            # 类型计数丢弃，无法复盘）。
             # 供台账分类（此前样本被按类型计数丢弃，无法复盘）。
             if attempt < _MAX_ATTEMPTS - 1:
                 retries += 1
                 time.sleep(min(8.0, 1.0 + attempt))
                 continue
-            print(
+            # 台账通道归一：print(stderr) 违规（rule 6）改 logger.warning，
+            # 样本仍带足 200 字符供分类复盘。
+            logger.warning(
+                "parse_fail_sample: %s",
                 json.dumps(
                     {"parse_fail_sample": str(content)[:200]}, ensure_ascii=True
                 ),
-                file=sys.stderr,
             )
             raise ValueError(f"non-JSON reply: {str(content)[:80]!r}")
         usage = dict(payload.get("usage") or {})

@@ -7,6 +7,7 @@ r8 复盘：218/226 个 ValueError 是空 content 回包（web_search 吃掉输�
 """
 
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -109,11 +110,17 @@ def test_chat_web_retries_empty_content_and_recovers(monkeypatch):
     assert len(calls) == 2
 
 
-def test_chat_web_all_empty_raises_with_sample(monkeypatch, capsys):
+def test_chat_web_all_empty_raises_with_sample(monkeypatch, caplog):
     monkeypatch.setattr(J.httpx, "post", lambda *a, **k: _Resp(""))
     monkeypatch.setattr(J.time, "sleep", lambda s: None)
-    with pytest.raises(ValueError, match="non-JSON reply"):
-        J._chat_web(_SETTINGS, name="甲景点", city="苏州", category="sight", timeout=5)
-    err = capsys.readouterr().err
-    assert "parse_fail_sample" in err  # 样本落 stderr 供台账分类
-    assert json.loads(err.strip().splitlines()[-1])["parse_fail_sample"] == ""
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ValueError, match="non-JSON reply"):
+            J._chat_web(
+                _SETTINGS, name="甲景点", city="苏州", category="sight", timeout=5
+            )
+    msgs = [
+        r.getMessage() for r in caplog.records if "parse_fail_sample" in r.getMessage()
+    ]
+    assert msgs  # 样本落 logger.warning 供台账分类
+    payload = msgs[-1].split("parse_fail_sample: ", 1)[1]
+    assert json.loads(payload)["parse_fail_sample"] == ""
