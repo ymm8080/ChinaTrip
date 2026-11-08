@@ -272,6 +272,29 @@ def test_ensure_origin_anchor_fills_origin_and_gate_works():
     assert ret.mode == "train"
 
 
+def test_ensure_origin_anchor_accepts_library_tuple_location():
+    """库真实形状回归锚（2026-11-08 活服复现）：top_pois_in_city 出库
+    location 为 (lon, lat) 元组——11-07 根修的桩只喂 dict 形状，元组行
+    全跳过 → 出发城锚恒缺 → 距离闸盲（上海→杭州 165km 排成航班）。
+    元组行必须能补锚，沪杭往返必须火车。"""
+    agent = PlanningAgent(
+        _NoLLM(),
+        train_service=MockTrainService(),
+        poi_details=_LibTop(
+            [{"name": "东方明珠", "city": "上海", "location": (121.50, 31.24)}]
+        ),
+    )
+    anchors = {"杭州": GeoPoint(lon=120.16, lat=30.29)}
+    asyncio.run(agent._ensure_origin_anchor(anchors, ["上海", "杭州"]))
+    assert anchors["上海"] == GeoPoint(lon=121.50, lat=31.24)
+    transfers, _assumptions = asyncio.run(
+        agent._build_transfers(["上海", "杭州"], 2, anchors, start_date="2026-11-10")
+    )
+    out, ret = transfers
+    assert out.mode == "train" and out.train_no
+    assert ret.mode == "train"
+
+
 def test_ensure_origin_anchor_noop_when_present_or_library_empty():
     agent = PlanningAgent(_NoLLM(), train_service=MockTrainService())
     anchors = {"上海": GeoPoint(lon=121.47, lat=31.23)}

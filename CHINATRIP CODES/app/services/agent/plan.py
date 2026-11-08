@@ -11061,8 +11061,25 @@ class PlanningAgent:
             return
         for row in lib_top:
             loc = row.get("location")
-            if isinstance(loc, dict) and loc.get("lon") is not None:
-                anchors.setdefault(origin, GeoPoint(**loc))
+            # 库出库 location 是 (lon, lat) 元组（poi_details.top_pois_in_city
+            # 文档契约），候选层才是 dict——11-07 根修只认 dict，元组行全跳
+            # 过，距离闸对出发城恒盲（上海→南京 270km 被排成航班 MU1001，
+            # 11-08 活服复现）。两种形状都收。
+            point: GeoPoint | None = None
+            if (
+                isinstance(loc, dict)
+                and loc.get("lon") is not None
+                and loc.get("lat") is not None
+            ):
+                point = GeoPoint(lat=loc["lat"], lon=loc["lon"])
+            elif (
+                isinstance(loc, tuple)
+                and len(loc) == 2
+                and all(isinstance(v, (int, float)) for v in loc)
+            ):
+                point = GeoPoint(lat=loc[1], lon=loc[0])
+            if point is not None:
+                anchors.setdefault(origin, point)
                 return
         logger.warning(
             "plan: no origin anchor in library for %s — distance gate blind "
