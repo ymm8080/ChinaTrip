@@ -4533,6 +4533,56 @@ def _yield_for_premium(
         baseline = _host_day_for_visit(
             [later], vcity, dur, incoming=visit.location, visit=visit
         )
+        # 零弹座跨日探针先行（2026-11-08 永兴坊案）：弹座只腾本日容量，
+        # 对别日宿主毫无贡献——同城他日本就收得下时直接挪日零牺牲
+        # （含光门为永兴坊让位、永兴坊却落他日且终排双蒸发的两头空
+        # 实录）。择宿守贴邻不拆天同款谓词。
+        if baseline is None:
+            zero_pool = [
+                d
+                for d in pool
+                if (d is not origin or d is later)
+                and str(d.base_city or "").strip().removesuffix("市") == vcity
+            ]
+            zero_target = _host_day_for_visit(
+                zero_pool, vcity, dur, incoming=visit.location, visit=visit
+            )
+            logger.info(
+                "yield: %s later=d%s baseline=None zero_target=%s",
+                visit.name,
+                later.day,
+                getattr(zero_target, "day", None),
+            )
+            if (
+                zero_target is not None
+                and zero_target is not later
+                and (
+                    _near_cluster_mate_on(zero_target, visit)
+                    or not any(
+                        _near_cluster_mate_on(o, visit)
+                        for o in plan.days
+                        if o is not later
+                    )
+                )
+            ):
+                for _src_day in plan.days:
+                    if any(i is visit for i in _src_day.items):
+                        _src_day.items.remove(visit)
+                        break
+                visit.day = zero_target.day
+                visit.start_time = None
+                visit.end_time = None
+                zero_target.items.append(visit)
+                notes.append(
+                    L(
+                        f"「{visit.name}」本日排不下，同城他日有空位，"
+                        f"已挪至第{zero_target.day}天重排",
+                        f'"{visit.name}" did not fit its day; another day '
+                        f"in the same city had open capacity, so it moved "
+                        f"to day {zero_target.day} for re-timing",
+                    )
+                )
+                return zero_target
         if baseline is not None:
             ejects = []
         elif not ejects:
@@ -4580,6 +4630,13 @@ def _yield_for_premium(
                 )
             ):
                 target = t
+                logger.info(
+                    "yield: %s eject-path later=d%s target=d%s ejected=%s",
+                    visit.name,
+                    later.day,
+                    target.day,
+                    [e.name for e in ejected],
+                )
                 break
             if len(ejected) >= _YIELD_MAX_EJECTS:
                 break
@@ -5832,6 +5889,27 @@ def _min_show_dist_km(day: DayPlan, v: VisitItem) -> float:
     return min(dists) if dists else 1e9
 
 
+def _best_anchor_km(plan: ItineraryPlan, v: VisitItem) -> float:
+    """演出到全程任一日非餐宿点的最近距离（挤兑救援入场券）：≤5km =
+    在册有场馆伴、值得被救；换位胜负另按对目标日簇的
+    _min_show_dist_km 严格更近裁决（锚在宴日的 0km 不构成强主张）。"""
+    vloc = getattr(v, "location", None)
+    if vloc is None:
+        return 1e9
+    best = 1e9
+    for d in plan.days:
+        for i in d.items:
+            if (
+                i is v
+                or not isinstance(i, VisitItem)
+                or (i.category or "") in ("food", "hotel")
+                or getattr(i, "location", None) is None
+            ):
+                continue
+            best = min(best, haversine_km(i.location, vloc))
+    return best
+
+
 def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     """每场闸终装（2026-11-02 拍板「每天最多一场演出」×2026-11-08 二拍
     取消每城一场，落选夜场各按聚簇/无演出日落位）：选层各相位（sights
@@ -6023,6 +6101,73 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     if not moved:
         return
     _fallback_sequence_times(plan)
+    # 挤兑救援（2026-11-08 四拍）：待删演出若有在册场馆伴（≤5km 全程）
+    # 且对某占席演出的当日簇**严格更近**（梦回大唐 6.1km 贴回民街 vs
+    # 唐乐宫 7.4km），先互换天数再重排——就近者顶上、远者承接；对目标
+    # 日簇不更近绝不换（锚在宴日的 0km 不算强——不得顶掉贴本日 0.4km
+    # 的秦俑情换进 30km 外的场）。
+    swapped = False
+    for day in plan.days:
+        for v in list(day.items):
+            if (
+                not isinstance(v, VisitItem)
+                or not _is_show_item(v)
+                or v.pinned
+                or v.start_time is not None
+                or getattr(v, "location", None) is None
+            ):
+                continue
+            if _day_has_show_banquet(day):
+                continue  # 宴日不换进第二场
+            if _best_anchor_km(plan, v) > _NEAR_SAMEDAY_KM:
+                continue  # 全程无场馆伴的待删演出没有更强主张
+            vcity = str(v.city or day.base_city or "").strip().removesuffix("市")
+            z = z_day = None
+            for d2 in plan.days:
+                if (
+                    d2 is day
+                    or str(d2.base_city or "").strip().removesuffix("市") != vcity
+                ):
+                    continue
+                for i in d2.items:
+                    if (
+                        not isinstance(i, VisitItem)
+                        or not _is_show_item(i)
+                        or i.pinned
+                        or i.start_time is None
+                        or getattr(i, "location", None) is None
+                    ):
+                        continue
+                    if _min_show_dist_km(d2, v) >= _min_show_dist_km(d2, i):
+                        continue  # 对目标日簇不比占席者近——不换
+                    z, z_day = i, d2
+                    break
+                if z is not None:
+                    break
+            if z is None:
+                continue
+            day.items.remove(v)
+            z_day.items.remove(z)
+            day.items.append(z)
+            z_day.items.append(v)
+            v.day, z.day = z_day.day, day.day
+            v.start_time = v.end_time = None
+            z.start_time = z.end_time = None
+            swapped = True
+            plan.assumptions.append(
+                L(
+                    f"「{v.name}」与「{z.name}」换位（就近演出优先保留）",
+                    f'"{v.name}" swapped with "{z.name}" (nearest show kept first)',
+                )
+            )
+            logger.warning(
+                "plan: show-per-day gate squeeze-swap %s <-> %s day %d",
+                v.name,
+                z.name,
+                z_day.day,
+            )
+    if swapped:
+        _fallback_sequence_times(plan)
     for day in plan.days:
         for v in list(day.items):
             if (

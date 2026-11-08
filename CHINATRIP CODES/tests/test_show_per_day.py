@@ -29,7 +29,10 @@
 ⑫认领避宴日——聚簇认领不得把演出认领进宴日（唐乐宫被「贴同日」
   认领进 D2 唐宴日实录）；换座（_reunite）同样双侧避宴日；
 ⑬就近留场——同日多场竞争按距当日簇最近 tiebreak（梦回大唐 0km 留、
-  唐乐宫 12km 让；旧口径按在册序会留错的那个）。
+  唐乐宫 12km 让；旧口径按在册序会留错的那个）；
+⑭挤兑救援（四拍）——挪位后仍无时刻待删的强锚演出（全程任一日有
+  ≤5km 场馆伴）与同城占席弱锚演出换位：强锚顶上晚位、弱锚承接
+  死亡（梦回大唐 0km 贴芙蓉园顶掉 7km 无强锚唐乐宫）。
 """
 
 import asyncio
@@ -655,3 +658,63 @@ def test_plain_curated_restaurant_does_not_occupy_show_slot():
     _enforce_show_per_day(plan)
     assert plan.assumptions == []
     assert spc.day == 1 and mhd.day == 1  # 普通餐不触发清算
+
+
+def test_squeeze_swap_rescues_anchored_show():
+    # ⑭挤兑救援（四拍「要排 SHOW 也应该找最近的」）：D3《梦回大唐》
+    # 场次 12:00/12:30 全撞城墙 9:00-13:00 固定窗（±30+打车 pad）→挪位后
+    # 仍无时刻待删，但 0km 贴 D2 大雁塔（强锚）；D1 唐乐宫在席但最近锚仅
+    # 7.4km 回民街（弱锚）→ 换位：强锚顶 D1、弱锚去 D3 承接；驼铃（无日
+    # 可挪）披露删除。
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 120, start=9, category="sight")
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 1, *_TLG, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 120, start=9, category="sight")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    wall = _placed(
+        "v-cq", "城墙·碑林", 3, 108.9405, 34.2569, 240, start=9, category="sight"
+    )
+    mhd = VisitItem(
+        item_id="v-mhd",
+        name="《梦回大唐》",
+        category="entertainment",
+        best_visit_time="show",
+        city="西安",
+        day=3,
+        duration_minutes=80,
+        location=GeoPoint(lon=_QFJ[0], lat=_QFJ[1]),
+        opening_hours="多场（约12:00/12:30）",
+    )
+    tuoling = _placed("v-tlq", "《驼铃传奇》", 3, 109.01, 34.45, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-squeeze",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, tlg]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys]),
+            DayPlan(day=3, base_city="西安", items=[wall, mhd, tuoling]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["《梦回大唐》"] == 1  # 强锚顶上 D1 并获得时刻
+    assert day_of["唐乐宫《大唐女皇》"] == 3  # 弱锚让位承接
+    mhd_it = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.name == "《梦回大唐》"
+    )
+    assert mhd_it.start_time is not None
+    assert yys.day == 2  # 宴秀不受挤兑影响
+    assert any("换位" in str(a) for a in plan.assumptions)
+    assert any("驼铃传奇" in str(a) and "未排" in str(a) for a in plan.assumptions)
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]

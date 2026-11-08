@@ -421,3 +421,34 @@ def test_must_stranded_no_host_no_ejects_discloses():
     assert panda.day == 1
     assert any("必去" in n for n in notes)
     assert not any("已从行程移除" in n for n in notes)
+
+
+# ---- 零弹座跨日探针（2026-11-08 西安永兴坊案）：弹座只腾本日容量，
+# 对别日宿主毫无贡献——同城他日本就收得下时先直接挪日零牺牲，
+# 不再出现「含光门为永兴坊让位、永兴坊却落他日」的两头空。----
+
+
+def test_yield_zero_eject_crossday_no_sacrifice():
+    """名点本日满员排不下，同城空日本就收得下 → 直接挪日，当日
+    低档点（旧口径的牺牲品）原地不动，零让位披露。"""
+    tiers = {"永兴坊名点": 3, "低档杂点": 11}
+    stray = _visit("永兴坊名点", 3, minutes=90)
+    stray.day = 1
+    day1 = [
+        _timed(_visit("低档杂点", 11, minutes=90), 9),
+        _timed(_visit("宽窄巷子", 8, minutes=90, pinned=True), 13, 30),
+        _timed(_visit("武侯祠", 9, minutes=90, pinned=True), 15),
+        _timed(_visit("人民公园", 11, minutes=90, pinned=True), 16, 30),
+        stray,
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=[])
+    plan = ItineraryPlan(itinerary_id="it-zy", cities=["成都"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), tiers)
+    d1_names = {i.name for i in d1.items if isinstance(i, VisitItem)}
+    assert stray.day == 2
+    assert any(i.name == "永兴坊名点" for i in d2.items)
+    # 牺牲品零损失：原日原地，没被弹出
+    assert "低档杂点" in d1_names
+    assert not any("让位" in n for n in notes)
+    assert any("已挪至第2天" in n for n in notes)
