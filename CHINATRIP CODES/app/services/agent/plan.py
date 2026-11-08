@@ -4705,11 +4705,7 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
                         for x in members
                         if home_day[id(x)] is host
                     ]
-                    if (
-                        dur > 120
-                        or len(kin_mins) < 2
-                        or sum(kin_mins) + dur > 180
-                    ):
+                    if dur > 120 or len(kin_mins) < 2 or sum(kin_mins) + dur > 180:
                         return False
                 elif kin_on_host < 2 or dur > 120:
                     # 短时长王牌跟簇破例上返程边日（2026-11-08「拿着聚
@@ -11930,11 +11926,7 @@ class PlanningAgent:
                     if t <= 2:
                         if minutes > 120:
                             return True  # 大块头王牌不上到达/返程边日
-                        if (
-                            d in _adays
-                            and hi > lo
-                            and not compact_family
-                        ):
+                        if d in _adays and hi > lo and not compact_family:
                             # 到达日只收简单件（2026-11-08 拍板）：小块
                             # 头王牌也不上到达日——库时长短≠轻（兵马俑
                             # 90min 实为全天远征）；跟簇破例只留返程边
@@ -11969,9 +11961,7 @@ class PlanningAgent:
                                     return False
                                 if _over_return_cap(d, fm, 0):
                                     return False
-                                if _edge_blocked(
-                                    cand, d, fm, len(members) - 1, True
-                                ):
+                                if _edge_blocked(cand, d, fm, len(members) - 1, True):
                                     return False
                             return True
                     if cap is None:
