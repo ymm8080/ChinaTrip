@@ -192,6 +192,12 @@ _NEAR_SAMEDAY_KM = NEAR_SAMEDAY_KM
 # 聚」——4.6-5km 压线弱边不得斗过 0.5-2km 强簇（钟楼↔碑林 0.52km 被大
 # 雁塔 4.97km 弱边拆散实录）。
 _TIGHT_CLUSTER_KM = TIGHT_CLUSTER_KM
+# 片区圈（2026-11-08 临潼案拍板「兵马俑/华清宫按距离是一个组合，放在
+# 某一天」）：5km 同日圈外的同片区伴（兵马俑↔华清宫 6.9km、钟楼↔大雁
+# 塔 6.1km 实测）不逐出簇日——纯度闸只清 >片区圈的真异簇（城心↔临潼
+# 34km）；回填天序既有 15km 圈（华清宫 13km 也算「近」实录）同口径
+# 收编为常量，两处共用一个真相。
+_DISTRICT_DAY_KM = 15.0
 # 簇优先选日原子族半径（2026-11-08 深夜二拍）：只管
 # _assign_cluster_first_days 这条通道；1.5-2km 链式弱边（小雁塔↔城墙碑林
 # 1.96km）不得把原子族撑爆 4/日帽、逼减员肢解核心组（钟/鼓/城墙案）。
@@ -4185,6 +4191,34 @@ def _host_day_for_visit(
     if _dep_days and len(_dep_days) < len(seq):
         _dep_ids = {id(d) for d in _dep_days}
         seq = [d for d in seq if id(d) not in _dep_ids] + _dep_days
+    # 到达日殿后（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或
+    # SHOW」）：重物（tier≤2 王牌或 >80min 大点；街区/演出/餐住不
+    # 算重）挪日不得首选到达日——兵马俑被纯度通道、骊山被挪日通道
+    # first-fit 挪进 D1 双实录。到达日识别=带落地 vcity 定时腿的天，
+    # 或首日（单城无腿以首日为准；多城出发城首日=离城边日同让）。
+    # 软序不硬拦：非到达日全探不进时仍可落（孤窗兜底同权）。
+    if visit is not None:
+        _vh_tier = getattr(visit, "tier", None)
+        _vh_cat = str(getattr(visit, "category", "") or "").lower()
+        _heavy_visit = (_vh_tier is not None and _vh_tier <= 2) or (
+            _vh_cat not in ("food", "hotel", "entertainment", "citywalk")
+            and dur > BIG_SITE_MIN_MINUTES
+        )
+        if _heavy_visit:
+            _arr_days = [
+                d
+                for d in seq
+                if d.day == 1
+                or any(
+                    isinstance(t5, TransferItem)
+                    and t5.start_time is not None
+                    and str(t5.to_city or "").strip().removesuffix("市") == vcity
+                    for t5 in d.items
+                )
+            ]
+            if _arr_days and len(_arr_days) < len(seq):
+                _arr_ids = {id(d) for d in _arr_days}
+                seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
     for later in seq:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
@@ -4653,12 +4687,29 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
                 and m.tier <= 2
                 and _day_is_edge(host, str(m.city or ""))
             ):
-                # 短时长王牌跟簇破例上边日（2026-11-08「拿着聚合组合去
-                # 安排」拍板）：跟整簇（≥2 同簇伴已在/将归位宿主）且
-                # ≤120min 小块头才放行，照常过下方兑现审；大块头（兵马
-                # 俑 180min）仍不上边日。tier>2 不受本闸影响。
                 dur = m.duration_minutes or DEFAULT_VISIT_MINUTES
-                if kin_on_host < 2 or dur > 120:
+                if day_index[id(host)] == arrival_idx.get(str(m.city or "")):
+                    # 到达日只收简单件（2026-11-08 拍板）：王牌不上到
+                    # 达日（选层同口径 _edge_blocked）；唯一破例=整族轻
+                    # 量形态（城心三人组=CityWalk 同类，11-08 晨拍板仍
+                    # 立）：≤120min 且宿主已有≥2 同簇伴且族时刻合计
+                    # ≤180。窗口仅一天到达日兜底由保底在册闸兜。
+                    kin_mins = [
+                        (x.duration_minutes or DEFAULT_VISIT_MINUTES)
+                        for x in members
+                        if home_day[id(x)] is host
+                    ]
+                    if (
+                        dur > 120
+                        or len(kin_mins) < 2
+                        or sum(kin_mins) + dur > 180
+                    ):
+                        return False
+                elif kin_on_host < 2 or dur > 120:
+                    # 短时长王牌跟簇破例上返程边日（2026-11-08「拿着聚
+                    # 合组合去安排」拍板）：跟整簇（≥2 同簇伴已在/将归位
+                    # 宿主）且 ≤120min 小块头才放行，照常过下方兑现审；
+                    # 大块头（兵马俑 180min）仍不上边日。
                     return False
             if host_n >= 4:
                 return False  # 4/日硬帽（既定口径）
@@ -4831,6 +4882,14 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
 
     day_index = {id(d): n for n, d in enumerate(plan.days)}
 
+    # 城市到达日索引（在册首日；单城无腿同口径，2026-11-08 拍板）：
+    # 重物纯度挪移不得首选到达日（兵马俑被 first-fit 挪进 D1 实录）。
+    _city_first: dict[str, int] = {}
+    for d in plan.days:
+        c = str(d.base_city or "").strip().removesuffix("市")
+        if c and c not in _city_first:
+            _city_first[c] = day_index[id(d)]
+
     def _dominant_kin(day: DayPlan) -> list[VisitItem] | None:
         """当日在册 ≥2 件的主导簇全体成员（跨日全簇，口径「距全簇成员」）；
         无主导簇（散组的地盘）返回 None。"""
@@ -4865,8 +4924,8 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                 )
                 for m in kin
             )
-            if near_km <= _NEAR_SAMEDAY_KM:
-                continue  # 距簇 ≤5km 近伴不算异簇（餐厅同理天然豁免于 food 档）
+            if near_km <= _DISTRICT_DAY_KM:
+                continue  # 片区伴不逐（2026-11-08 临潼案）：≤5km 近伴照旧；5-15km 同片区伴（兵马俑↔华清宫 6.9km）是「一个组合放同一天」，只清 >片区圈真异簇（城心↔临潼 34km）
             # 异簇插排：挪走不删
             vcity = str(v.city or "").strip().removesuffix("市")
             vroot = cluster_of[id(v)]
@@ -4891,8 +4950,8 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                         )
                         for m in other_kin
                     )
-                    if okm > _NEAR_SAMEDAY_KM:
-                        continue  # 挪过去仍是异簇=换个天继续污染，宁缺勿混
+                    if okm > _DISTRICT_DAY_KM:
+                        continue  # 挪过去仍是异簇=换个天继续污染，宁缺勿混（片区圈口径，与逐出闸对称）
                 mate_on = any(
                     isinstance(i, VisitItem)
                     and i is not v
@@ -4903,6 +4962,24 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                     continue  # 落件真裁决不过（克隆盘排不出时刻）
                 cands.append((0 if mate_on else 1, day_index[id(other)], other))
             if cands:
+                # 重物不归位到达日（2026-11-08 拍板「到达日只适合简单的
+                # CITYWALK 或 SHOW」）：王牌/大点（街区/演出/餐住除外）
+                # 的纯度挪移目标为该城到达日（在册首日）且有非到达日候
+                # 选时先让位；全候选皆到达日（孤窗）保持原选不丢件。
+                _v_heavy = (v.tier is not None and v.tier <= 2) or (
+                    str(v.category or "").lower()
+                    not in ("food", "hotel", "entertainment", "citywalk")
+                    and (v.duration_minutes or DEFAULT_VISIT_MINUTES)
+                    > BIG_SITE_MIN_MINUTES
+                )
+                if _v_heavy:
+                    _non_arr = [
+                        c
+                        for c in cands
+                        if day_index[id(c[2])] != _city_first.get(vcity)
+                    ]
+                    if _non_arr:
+                        cands = _non_arr
                 _, _, tgt = min(cands)
                 day.items.remove(v)
                 v.day = tgt.day
@@ -9326,6 +9403,13 @@ class PlanningAgent:
                 )
                 arrival_days.add(clo)
             transfer_days.add(session.days)
+        else:
+            # 单城行程首日也是到达日（2026-11-08 拍板「到达日只适合简单
+            # 的 CITYWALK 或 SHOW，第一天放兵马俑+show 太重」）：11-05
+            # 到达轻量各闸此前只覆盖多城目的窗首日，单城 D1 全闸空转
+            # （西安案兵马俑+骊山+show 堆首日实录）。不设进城腿、预算
+            # 不扣——只启用轻量口径，不发明假腿。
+            arrival_days.add(1)
         select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
         type_asks: list[dict] = []
         if select_mode == "llm":
@@ -10114,7 +10198,7 @@ class PlanningAgent:
                         walk,
                         key=lambda d: (_day_min_km(d), day_load.get(d, 0), d),
                     )
-                near = [d for d in fitting if _day_min_km(d) <= 15.0]
+                near = [d for d in fitting if _day_min_km(d) <= _DISTRICT_DAY_KM]
                 fitting = near or fitting
             return min(fitting, key=lambda d: (day_load.get(d, 0), d))
 
@@ -11676,7 +11760,13 @@ class PlanningAgent:
                         cand.get("must") or cand.get("pinned") or cand.get("soft_pin")
                     )
 
-                def _edge_blocked(cand: dict, d: int, minutes: int, mates: int) -> bool:
+                def _edge_blocked(
+                    cand: dict,
+                    d: int,
+                    minutes: int,
+                    mates: int,
+                    compact_family: bool = False,
+                ) -> bool:
                     # 边日规则（既有拍板 + 2026-11-08 跟簇破例，镜像
                     # _reunite_tight_kin._can_join 口径）
                     if not ((d == days and days in _tdays) or d in _adays):
@@ -11685,6 +11775,19 @@ class PlanningAgent:
                     if t <= 2:
                         if minutes > 120:
                             return True  # 大块头王牌不上到达/返程边日
+                        if (
+                            d in _adays
+                            and hi > lo
+                            and not compact_family
+                        ):
+                            # 到达日只收简单件（2026-11-08 拍板）：小块
+                            # 头王牌也不上到达日——库时长短≠轻（兵马俑
+                            # 90min 实为全天远征）；跟簇破例只留返程边
+                            # 日与整族轻量形态（城心三人组=CityWalk 同
+                            # 类，11-08 晨拍板仍立，族通道自证全≤120
+                            # 且合计≤180+半径闸）；窗口仅一天（hi==lo）
+                            # 放行兜底。
+                            return True
                         return mates < 2  # 小块头王牌跟簇上边日须≥2 簇伴
                     return _cand_is_big(cand) and hi > lo  # 到达日轻量镜像
 
@@ -11711,7 +11814,9 @@ class PlanningAgent:
                                     return False
                                 if _over_return_cap(d, fm, 0):
                                     return False
-                                if _edge_blocked(cand, d, fm, len(members) - 1):
+                                if _edge_blocked(
+                                    cand, d, fm, len(members) - 1, True
+                                ):
                                     return False
                             return True
                     if cap is None:

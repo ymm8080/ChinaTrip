@@ -211,3 +211,48 @@ def test_scorer_arrival_exempt_pinned_and_street():
     sc = plan_score(_plan([day]))
     assert sc.counts["arrival_day_big"] == 0
     assert sc.soft["arrival_day_big"] == 0
+
+
+# --- ④ 王牌档收口（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或
+# SHOW」；西安案 D1=兵马俑 90min+骊山 180min+show 太重）----------------------
+
+
+def test_ace_small_minutes_avoids_arrival_day():
+    """tier≤2 小块头王牌（兵马俑库时长 90min 形态）不上到达日：库时长
+    短≠轻——此前 ≤120min+簇伴≥2 破例放行是 D1 堆重根因之一。"""
+    cands = [
+        _cand("王牌小块头", minutes=90, tags=["5a"]),
+        _cand("轻点", minutes=60),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, transfer_days={1}, arrival_days={1}
+    )
+    days = _days_by_name(items)
+    assert days["王牌小块头"] == 2
+    assert days["轻点"] == 1
+
+
+def test_ace_family_not_atomic_on_arrival_day():
+    """含 tier≤2 王牌的原子族不得整族认领到达日（到达日整族通道的二道
+    闸）：族内王牌成员被 _edge_blocked 拦下，整族让位非到达日。"""
+    cands = [
+        _cand("族王牌", minutes=90, tags=["5a"], loc=(104.060, 30.660)),
+        _cand("族小点", minutes=60, loc=(104.064, 30.660)),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, transfer_days={1}, arrival_days={1}
+    )
+    days = _days_by_name(items)
+    assert days["族王牌"] == 2
+    assert days["族小点"] == 2  # 整族原子同日（组合排日不变量）
+
+
+def test_single_day_window_ace_still_schedules():
+    """窗口仅一天（hi==lo）：到达日排除让位兜底——无替代日照排，
+    宁排勿缺（软偏好语义不变）。"""
+    cands = [_cand("孤日王牌", minutes=90, tags=["5a"])]
+    items = PlanningAgent._deterministic_selection(
+        cands, 1, {"成都": (1, 1)}, transfer_days=set(), arrival_days={1}
+    )
+    days = _days_by_name(items)
+    assert days["孤日王牌"] == 1
