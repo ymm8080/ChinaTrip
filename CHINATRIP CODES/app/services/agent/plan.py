@@ -206,6 +206,15 @@ _DISTRICT_DAY_KM = 15.0
 # _TIGHT_CLUSTER_KM=2.0 的归位/纯度/楔子口径不动——2km 内零散件仍受
 # tight_kin 软偏好可自然贴族日。
 _FAMILY_ATOMIC_KM = 1.0
+# 返程日市区圈（2026-11-08 拍板「回城当天有多余时间也只排市区内小点
+# 或 CityWalk——华清宫 27km/兵马俑 35km 这类重要或远郊的点不上最后
+# 一天」）：返程日候选须落在市区锚（_urban_medoid 主导簇代理）该圈
+# 内，出圈远郊点不进返程日、前移他日。口径贴 15km 片区圈（磁器口离
+# 解放碑 ~12km 实测在圈内、华清宫 27km 出圈）。「重要」翼已由 tier≤2/
+# >80min 三层布防（_edge_blocked/_can_join/_no_return_day），本圈补
+# 「远」翼。钉/必去/餐住免（用户意图优先）；缺锚/缺坐标不拦；全边
+# 日窗（单日窗/两天到达+返程）软放兜底——排得上优先于排得轻。
+_RETURN_URBAN_KM = 15.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -4141,6 +4150,41 @@ def _day_has_departure(day: DayPlan, vcity: str) -> bool:
     )
 
 
+def _urban_medoid(pts: list[tuple[float, float]]) -> tuple[float, float] | None:
+    """市区锚（2026-11-08 返程日市区圈拍板）：点位云里 _RETURN_URBAN_KM
+    圈内邻居最多的点——主导簇代理。中位数锚会被远郊件拉偏（重庆 12
+    远 5A vs 4 城心件形态，中位数锚落 ~28km 外把城心件全拦），故取
+    medoid。"""
+    if not pts:
+        return None
+    # 同一坐标去重只算一票：rebalance 层锚点云来自 picked+candidates，
+    # 同一 POI 双计会让远郊孤点凭 2 票压过真 2 点簇（test_global_rebalance）。
+    uniq = list(dict.fromkeys((round(p[0], 4), round(p[1], 4)) for p in pts))
+    best_pt = uniq[0]
+    best_n = 0
+    for a in uniq:
+        ga = GeoPoint(lon=a[0], lat=a[1])
+        n = sum(
+            1
+            for b in uniq
+            if haversine_km(ga, GeoPoint(lon=b[0], lat=b[1])) <= _RETURN_URBAN_KM
+        )
+        if n > best_n:
+            best_pt, best_n = a, n
+    return best_pt
+
+
+def _day_is_return_home(day: DayPlan, all_days: list[DayPlan]) -> bool:
+    """返程日（返程日市区圈/挪日闸用，2026-11-08 拍板）：带自本城离城
+    出发腿的天；或单城无城际腿行程的末日（镜像单城 D1 到达口径——
+    无城际腿≠无返程，最后一天照旧只收市区内小点/CityWalk）。"""
+    if _day_has_departure(day, str(day.base_city or "").removesuffix("市")):
+        return True
+    if not all_days or day is not all_days[-1]:
+        return False
+    return not any(isinstance(t4, TransferItem) for d4 in all_days for t4 in d4.items)
+
+
 def _host_day_for_visit(
     day_pool: list[DayPlan],
     vcity: str,
@@ -4609,6 +4653,34 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
     arrival_idx = {c: min(n) for c, n in seen.items()}
     return_idx = {c: max(n) for c, n in seen.items()}
 
+    # 市区锚（2026-11-08 返程日市区圈拍板）：各城在册件点位云的
+    # medoid——返程宿主日不收出圈远郊件（华清宫 27km 形态）。
+    _city_anchor: dict[str, tuple[float, float]] = {}
+    _pts_by_city: dict[str, list[tuple[float, float]]] = {}
+    for _i2, _dd2 in visits:
+        _l2 = getattr(_i2, "location", None)
+        if _l2 is not None and getattr(_l2, "lon", None) is not None:
+            _pts_by_city.setdefault(str(_i2.city or ""), []).append(
+                (float(_l2.lon), float(_l2.lat))
+            )
+    for _c6, _pts6 in _pts_by_city.items():
+        _a6 = _urban_medoid(_pts6)
+        if _a6 is not None:
+            _city_anchor[_c6] = _a6
+
+    def _far_from_anchor(m: "VisitItem") -> bool:
+        a = _city_anchor.get(str(m.city or ""))
+        xy3 = getattr(m, "location", None)
+        if a is None or xy3 is None or getattr(xy3, "lon", None) is None:
+            return False  # 缺锚/缺坐标不拦
+        return (
+            haversine_km(
+                GeoPoint(lon=float(xy3.lon), lat=float(xy3.lat)),
+                GeoPoint(lon=a[0], lat=a[1]),
+            )
+            > _RETURN_URBAN_KM
+        )
+
     def _day_is_edge(day: DayPlan, city: str) -> bool:
         n = day_index[id(day)]
         return n == arrival_idx.get(city) or n == return_idx.get(city)
@@ -4713,6 +4785,10 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
                     # 宿主）且 ≤120min 小块头才放行，照常过下方兑现审；
                     # 大块头（兵马俑 180min）仍不上边日。
                     return False
+            if _day_is_return_home(host, plan.days) and _far_from_anchor(m):
+                # 返程日市区圈（2026-11-08 拍板）：出圈远郊件不归位进
+                # 返程日——「远」翼独立于 tier/时长翼（华清宫 27km）。
+                return False
             if host_n >= 4:
                 return False  # 4/日硬帽（既定口径）
             home = home_day[id(m)]
@@ -4927,7 +5003,10 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                 for m in kin
             )
             if near_km <= _DISTRICT_DAY_KM:
-                continue  # 片区伴不逐（2026-11-08 临潼案）：≤5km 近伴照旧；5-15km 同片区伴（兵马俑↔华清宫 6.9km）是「一个组合放同一天」，只清 >片区圈真异簇（城心↔临潼 34km）
+                # 片区伴不逐（2026-11-08 临潼案）：≤5km 近伴照旧；
+                # 5-15km 同片区伴（兵马俑↔华清宫 6.9km）是「一个组合放
+                # 同一天」，只清 >片区圈真异簇（城心↔临潼 34km）
+                continue
             # 异簇插排：挪走不删
             vcity = str(v.city or "").strip().removesuffix("市")
             vroot = cluster_of[id(v)]
@@ -4953,7 +5032,9 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                         for m in other_kin
                     )
                     if okm > _DISTRICT_DAY_KM:
-                        continue  # 挪过去仍是异簇=换个天继续污染，宁缺勿混（片区圈口径，与逐出闸对称）
+                        # 挪过去仍是异簇=换个天继续污染，宁缺勿混
+                        # （片区圈口径，与逐出闸对称）
+                        continue
                 mate_on = any(
                     isinstance(i, VisitItem)
                     and i is not v
@@ -6180,6 +6261,11 @@ def _fallback_sequence_times(
 
             untimed.sort(
                 key=lambda v: (
+                    # 主题街区沉尾（2026-11-08 升档搁浅根修）：晚场升档把
+                    # 游标推过入场闸后，同日排在后面的件全数搁浅——主题
+                    # 块排日序末位（键位须在 -dur 之前，否则 240min 主题
+                    # 块凭时长反吃到头档），升档只在无跟班时才可能发生。
+                    1 if _is_theme_block(v) else 0,
                     0 if _is_head_candidate(v) else 1,
                     0 if v.pinned else 1,
                     -_head_dist(v) if _is_head_candidate(v) else 0.0,
@@ -6427,12 +6513,15 @@ def _fallback_sequence_times(
                     and not keep_list_order
                     and _is_theme_block(visit)
                     and placed_at < THEME_BLOCK_AFTERNOON_MINUTES
+                    and visit is untimed[-1]
                 ):
                     # 主题街区晚场倾向（2026-11-08 拍板「十二时辰建议晚上」
                     # +规则 33 软偏好的兜底镜像）：游标落位在 16:00 前时尝
                     # 试升档到 16:00 起排（十二时辰 240min 形态 → 16:00-
                     # 20:00）。安全升级——地板位过不了任一校验（腿窗/营业
                     # 窗/城侧闸/日终）就保留游标位，永不因升档安置失败。
+                    # 末位闸（升档搁浅根修）：升档把游标推过入场闸，同日
+                    # 还有后排件时会全数搁浅——仅当日序末位才允许升档。
                     tf = max(THEME_BLOCK_AFTERNOON_MINUTES, cursor)
                     advanced = True
                     while advanced:
@@ -9538,6 +9627,10 @@ class PlanningAgent:
         # 小景点或 CityWalk」）=各目的城市窗口首日；闭合行程尾部重复
         # 出发城是返程非到达（同 prefetch 闭合口径），不入到达日。
         arrival_days: set[int] = set()
+        # 单城行程末日=返程日（2026-11-08 拍板「回城当天只排市区内小点/
+        # CityWalk」，镜像单城 D1 到达口径）：无城际腿不设 transfer_days，
+        # 尾日市区圈走 tail 通道。
+        tail_return: set[int] = set()
         if len(session.cities) > 1:
             _dests = session.cities[1:]
             for city in _dests:
@@ -9561,6 +9654,7 @@ class PlanningAgent:
             # （西安案兵马俑+骊山+show 堆首日实录）。不设进城腿、预算
             # 不扣——只启用轻量口径，不发明假腿。
             arrival_days.add(1)
+            tail_return.add(session.days)
         select_mode = os.getenv("PLAN_SELECT_MODE", "algorithm").strip().lower()
         type_asks: list[dict] = []
         if select_mode == "llm":
@@ -9594,6 +9688,7 @@ class PlanningAgent:
                 type_asks=type_asks,
                 cut_names=selection_cut_names,
                 start_date=session.start_date,
+                tail_return_days=tail_return,
             )
             llm_assumptions = [
                 L(
@@ -11156,6 +11251,7 @@ class PlanningAgent:
         type_asks: list[dict] | None = None,
         cut_names: set[str] | None = None,
         start_date: str | None = None,
+        tail_return_days: set[int] | None = None,
     ) -> list[dict]:
         """确定性选点（2026-10-28 用户拍板：规划=特定算法，非通用 LLM；暂不评分）。
 
@@ -11831,6 +11927,48 @@ class PlanningAgent:
                     and minutes + leg > _RETURN_DAY_WINDOW_MIN
                 )
 
+            # 返程日市区圈（2026-11-08 拍板「回城当天有多余时间也只排
+            # 市区内小点或 CityWalk」）：市区锚=池内点位云 medoid
+            # （_urban_medoid 主导簇代理——中位数锚会被远郊件拉偏）；
+            # 返程日只收圈内非餐住件，出圈远郊点让位非边日。「重要」翼
+            # 由 _edge_blocked/_can_join/_no_return_day 三层布防，本圈
+            # 补「远」翼。钉/必去/软钉与餐住免；缺锚/缺坐标不拦；全边
+            # 日窗（无可用替代日）软放——排得上优先于排得轻。
+            _tret = tail_return_days or frozenset()
+            _ret_anchor = _urban_medoid(
+                [xy for xy in (_cxy(c) for _, c in pool) if xy is not None]
+            )
+            if _ret_anchor is not None and lo <= days <= hi:
+                _out_circle = [
+                    str(c.get("name") or c.get("title") or "?")
+                    for _, c in pool
+                    if str(c.get("category") or "") not in ("food", "hotel")
+                    and _cxy(c) is not None
+                    and _km(_cxy(c), _ret_anchor) > _RETURN_URBAN_KM
+                ]
+                if _out_circle:
+                    logger.info(
+                        "plan: return-urban circle city=%s r=%.1fkm out=%s",
+                        city,
+                        _RETURN_URBAN_KM,
+                        _out_circle[:6],
+                    )
+
+            def _ret_far(cand: dict, d: int) -> bool:
+                # 远郊件不上返程日（软闸：全窗无可用替代日放行——宁排勿缺）
+                if d != days or not (days in _tdays or d in _tret):
+                    return False
+                if cand.get("must") or cand.get("pinned") or cand.get("soft_pin"):
+                    return False
+                if str(cand.get("category") or "") in ("food", "hotel"):
+                    return False
+                if _ret_anchor is None:
+                    return False
+                xy = _cxy(cand)
+                if xy is None or _km(xy, _ret_anchor) <= _RETURN_URBAN_KM:
+                    return False
+                return any(e != days and e not in _adays for e in range(lo, hi + 1))
+
             # 簇优先选日通道（2026-11-08 用户拍板「距离聚类优先/组合排日，
             # 取代逐点容量认领对簇的拆解」，选层镜像终装 _reunite_tight_kin
             # 的并查集口径）：池定后、逐点预占前——①池内可数件（有坐标、
@@ -11922,6 +12060,8 @@ class PlanningAgent:
                     # _reunite_tight_kin._can_join 口径）
                     if not ((d == days and days in _tdays) or d in _adays):
                         return False
+                    if _ret_far(cand, d):
+                        return True  # 返程日市区圈：远郊件不上返程日（2026-11-08 拍板）
                     t = _source_tier(cand)
                     if t <= 2:
                         if minutes > 120:
@@ -12624,6 +12764,8 @@ class PlanningAgent:
                         # → day7 归零）；装不下换下一源天，不盲挪。
                         if _over_return_cap(d_empty, _m, _leg_min(_xy, d_empty)):
                             continue
+                        if _ret_far(cand_last, d_empty):
+                            continue  # 远郊件不挪进返程日空天保底（市区圈）
                         placed[src].pop()
                         day_loads[src][0] -= _m + _leg_min(_xy, src)
                         day_loads[src][1] -= 1
@@ -12656,6 +12798,8 @@ class PlanningAgent:
                         _xyf = _cxy(cand_f)
                         if _over_return_cap(days, _mf, _leg_min(_xyf, days)):
                             continue
+                        if _ret_far(cand_f, days):
+                            continue  # 返程日地板只收圈内件（市区圈）
                         _fit = (pos_f, cand_f, _mf, _xyf)
                         break
                     if _fit is not None:
@@ -12808,6 +12952,7 @@ class PlanningAgent:
                     or load[1] >= 4
                     or _far_km(xy, day) > _SOFT_FAR_KM
                     or _over_return_cap(day, minutes, leg)
+                    or _ret_far(cand, day)
                 ):
                     day = (
                         _emptiest_day()
@@ -12867,8 +13012,9 @@ class PlanningAgent:
                         _far_km(xy, day) > _SOFT_FAR_KM
                         or load[1] >= 4
                         or _over_return_cap(day, minutes, leg)
+                        or _ret_far(cand, day)
                     ):
-                        continue  # 全满/远腿/返程日超上午窗才出局（tier 低者先出）
+                        continue  # 全满/远腿/返程日上午窗/出市区圈才出局
                 load[0] += minutes + leg
                 load[1] += 1
                 if xy is not None:
@@ -13458,6 +13604,61 @@ class PlanningAgent:
                     return None
             return None
 
+        # 返程日市区圈镜像（2026-11-08 拍板「回城当天只排市区内小点/
+        # CityWalk」）：回填/分流不把出圈远郊件塞进返程日——锚=在册
+        # picked+候选池点位云 medoid（_urban_medoid）；钉/必去/软钉/
+        # 餐住免；缺锚/缺坐标不拦；无可用替代日不拦（排得上优先于排
+        # 得轻）。单城无城际腿行程末日=返程日（镜像选层 tail 口径）。
+        _rb_ret_day = days if (days in _tdays or len(ranges) == 1) else None
+
+        def _xy_any(entry: dict) -> tuple[float, float] | None:
+            # _xy 只认 dict 形；候选池还有 (lon,lat) 元组形（选层 _cxy 双形）
+            loc = entry.get("location")
+            try:
+                if isinstance(loc, dict) and loc.get("lon") is not None:
+                    return (float(loc["lon"]), float(loc["lat"]))
+                if isinstance(loc, (tuple, list)) and len(loc) == 2:
+                    return (float(loc[0]), float(loc[1]))
+            except (TypeError, ValueError):
+                return None
+            return None
+
+        _rb_anchor: dict[str, tuple[float, float]] = {}
+        _rb_pts: dict[str, list[tuple[float, float]]] = {}
+        for _e in list(picked) + list(candidates):
+            _xye = _xy_any(_e)
+            if _xye is not None:
+                _rb_pts.setdefault(
+                    (_e.get("city") or "").removesuffix("市"), []
+                ).append(_xye)
+        for _c5, _pts5 in _rb_pts.items():
+            _a5 = _urban_medoid(_pts5)
+            if _a5 is not None:
+                _rb_anchor[_c5] = _a5
+
+        def _rb_ret_far(cand: dict, d: int) -> bool:
+            if _rb_ret_day is None or d != _rb_ret_day:
+                return False
+            if cand.get("must") or cand.get("pinned") or cand.get("soft_pin"):
+                return False
+            if str(cand.get("category") or "") in ("food", "hotel"):
+                return False
+            _ac = _rb_anchor.get((cand.get("city") or "").removesuffix("市"))
+            if _ac is None:
+                return False
+            _xyc = _xy_any(cand)
+            if _xyc is None:
+                return False
+            if (
+                haversine_km(
+                    GeoPoint(lon=_xyc[0], lat=_xyc[1]),
+                    GeoPoint(lon=_ac[0], lat=_ac[1]),
+                )
+                <= _RETURN_URBAN_KM
+            ):
+                return False
+            return any(e != d and e not in _adays for e in range(1, days + 1))
+
         # 有效点记账：孪生 spec（安仁古镇 vs 安仁古镇景区）要到组装层
         # dedupe 才丢一个，选点层却已双双计入预算——day2 假满、老君山
         # 出局躺白名单（2026-11-04 空天同源问题）。均衡只数孪生胜者
@@ -13668,6 +13869,8 @@ class PlanningAgent:
                         continue
                     if cand.get("rain_ok") == "no" and d in city_rain.get(city, set()):
                         continue  # 露天不进雨天（与选点口径一致）
+                    if _rb_ret_far(cand, d):
+                        continue  # 远郊件不回填进返程日（返程日市区圈）
                     choice = (cand, minutes, xy, leg)
                     break
                 if choice is None:
@@ -13740,6 +13943,7 @@ class PlanningAgent:
                         and days in _tdays
                         and (_source_tier(s0) <= 2 or _cand_is_big(s0))
                     )
+                    and not _rb_ret_far(s0, t)
                 ]
                 if not targets:
                     return False
@@ -13808,8 +14012,8 @@ class PlanningAgent:
                             t == days
                             and days in _tdays
                             and (_source_tier(g) <= 2 or _cand_is_big(g))
-                        ):
-                            ok = False  # 王牌/大块头不进返程日
+                        ) or _rb_ret_far(g, t):
+                            ok = False  # 王牌/大块头/出市区圈不进返程日
                             break
                     if ok and day_load[t] + total <= _budget(t):
                         g_targets.append(t)
@@ -15521,15 +15725,59 @@ class PlanningAgent:
         _tier_by_name = {
             str(c.get("name")): _source_tier(c) for c in candidates if c.get("name")
         }
+        # 市区锚（2026-11-08 返程日市区圈）：候选池点位云 medoid——
+        # 远郊件不上返程日的「远」翼判据。
+        _resched_anchor: dict[str, tuple[float, float]] = {}
+        _ra_pts: dict[str, list[tuple[float, float]]] = {}
+        for _c3 in candidates:
+            _l3 = _c3.get("location")
+            try:
+                if isinstance(_l3, dict) and _l3.get("lon") is not None:
+                    _ra_pts.setdefault(
+                        (_c3.get("city") or "").removesuffix("市"), []
+                    ).append((float(_l3["lon"]), float(_l3["lat"])))
+                elif isinstance(_l3, (tuple, list)) and len(_l3) == 2:
+                    _ra_pts.setdefault(
+                        (_c3.get("city") or "").removesuffix("市"), []
+                    ).append((float(_l3[0]), float(_l3[1])))
+            except (TypeError, ValueError):
+                continue
+        for _c4, _pts4 in _ra_pts.items():
+            _a4 = _urban_medoid(_pts4)
+            if _a4 is not None:
+                _resched_anchor[_c4] = _a4
 
         def _no_return_day(d: DayPlan, i: VisitItem) -> bool:
-            """王牌/大块头不上带离城腿的天（2026-11-08 兵马俑→D5 返程日
-            案）：tier≤2 或 >80min 大点不得挪入返程日——用户拍板「更高
-            优先级景点放前几天，不排最后一天」。"""
-            return _day_has_departure(d, str(i.city or "")) and (
+            """王牌/大块头/远郊件不上返程日（2026-11-08 兵马俑→D5 返程日
+            案 + 当日晚拍板「回城当天只排市区内小点/CityWalk」）：tier≤2
+            或 >80min 大点、或出返程市区圈（_RETURN_URBAN_KM）的件不得
+            挪入返程日——用户拍板「更高优先级景点放前几天，不排最后
+            一天」。"""
+            if not (
+                _day_has_departure(d, str(i.city or ""))
+                or _day_is_return_home(d, plan.days)
+            ):
+                return False
+            if (
                 _tier_by_name.get(str(i.name or ""), 11) <= 2
                 or (i.duration_minutes or 0) > 80
-            )
+            ):
+                return True
+            _a = _resched_anchor.get(str(i.city or "").removesuffix("市"))
+            _ixy = getattr(i, "location", None)
+            if (
+                _a is not None
+                and _ixy is not None
+                and getattr(_ixy, "lon", None) is not None
+            ):
+                return (
+                    haversine_km(
+                        GeoPoint(lon=float(_ixy.lon), lat=float(_ixy.lat)),
+                        GeoPoint(lon=_a[0], lat=_a[1]),
+                    )
+                    > _RETURN_URBAN_KM
+                )
+            return False
 
         def _movable(it: VisitItem, day_plan=None) -> bool:
             if it.pinned or it.soft_pin:

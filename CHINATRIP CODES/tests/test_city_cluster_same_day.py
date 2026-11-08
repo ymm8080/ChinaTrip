@@ -190,7 +190,8 @@ def test_host_day_prefers_cluster_territory_over_day_order():
         visit=_big("西安碑林博物馆", 90, _BL),
     )
     assert host is center_day
-    # 无圈内天时维持原日序（first-fit 不变形）
+    # 无圈内天时维持原日序（first-fit 不变形）——轻件（≤80min 非重物）
+    # 不吃到达日殿后（2026-11-08 dde6cce 到达日重物口径），日序原形。
     other_city_day = DayPlan(
         day=1,
         base_city="西安",
@@ -204,11 +205,21 @@ def test_host_day_prefers_cluster_territory_over_day_order():
     host2 = _host_day_for_visit(
         [other_city_day, other_center],
         "西安",
+        60,
+        incoming=_BL,
+        visit=_big("西安碑林博物馆", 60, _BL),
+    )
+    assert host2 is other_city_day
+    # 重物镜像（2026-11-08 拍板「到达日只收简单件」）：>80min 重物在无
+    # 腿单城池 day1 视为到达日殿后——宿主首选 day2，轻件照旧日序。
+    host3 = _host_day_for_visit(
+        [other_city_day, other_center],
+        "西安",
         90,
         incoming=_BL,
         visit=_big("西安碑林博物馆", 90, _BL),
     )
-    assert host2 is other_city_day
+    assert host3 is other_center
 
 
 # --- 终装紧簇审计（2026-11-08 三拍·类级防护） -------------------------------

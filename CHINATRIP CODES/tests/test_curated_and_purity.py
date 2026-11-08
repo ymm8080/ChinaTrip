@@ -2,9 +2,10 @@
 """CURATED 保护 + 簇日纯度闸（2026-11-08 拍板）。
 
 拍板①「异簇不混日」：成族之日（同簇可数件 ≥2 在册）不得插排其它
-非同族景点——_purify_cluster_days 把距全簇 >5km 的异簇件挪走不删
-（无日可收才删+披露，宁缺勿混）；近距离餐厅可以插排（food 永不动），
-pinned/soft_pin/must 永不动。
+非同族景点——_purify_cluster_days 把距全簇 >15km（_DISTRICT_DAY_KM
+同片区圈外，2026-11-08 dde6cce 临潼案口径；此前 >5km）的异簇件挪走
+不删（无日可收才删+披露，宁缺勿混）；近距离餐厅可以插排（food 永
+不动），pinned/soft_pin/must 永不动。
 拍板②「我说的是 CURATED，不是 CREATED flag」：长安十二时辰主题街区
 是 curated（精选库）卡——curated 卡永不进删除闸；判据：≤120min
 citywalk 在 16:30 前一定排得进，被级联甩出家门后删除闸必须救回。
@@ -43,6 +44,11 @@ _VIC = GeoPoint(lon=108.9425, lat=34.2600)  # 让位牺牲品（簇内）
 # 大雁塔簇（第二簇）：与本簇拉开 >5km
 _DYT = GeoPoint(lon=108.9660, lat=34.2170)  # 大雁塔 ~5.4km
 _DTB = GeoPoint(lon=108.9660, lat=34.2120)  # 大唐不夜城 ~5.9km
+# 远簇（purity 三测专用，2026-11-08 dde6cce 临潼案口径：异簇判定放宽到
+# _DISTRICT_DAY_KM=15km 同片区伴不逐——原 5.4km 布点落进豁免带，簇须
+# 布到 >15km 圈外才算异簇）
+_DYT_FAR = GeoPoint(lon=109.1900, lat=34.2100)  # 远簇锚 ~23km
+_DTB_FAR = GeoPoint(lon=109.1900, lat=34.2050)  # 远簇伴 ~23km
 
 
 def _visit(
@@ -210,15 +216,16 @@ def test_curated_never_kicked_as_wedge_victim():
 
 
 def test_purity_moves_stray_out_of_cluster_day():
-    """异簇景点被纯度闸挪出簇日：D2 被大雁塔簇主导，钟楼距全簇 >5km=
-    异簇插排——挪去有它自己簇伴的 D3（清时刻+双语披露），不删。"""
+    """异簇景点被纯度闸挪出簇日：D2 被远簇主导，钟楼距全簇 >15km
+    （_DISTRICT_DAY_KM 同片区圈外，2026-11-08 口径）=异簇插排——挪去
+    有它自己簇伴的 D3（清时刻+双语披露），不删。"""
     zl = _visit("西安钟楼", 40, _V, day=2)
     d2 = DayPlan(
         day=2,
         base_city="西安",
         items=[
-            _visit("大雁塔", 120, _DYT, day=2, tier=3),
-            _visit("大唐不夜城", 90, _DTB, day=2, tier=3),
+            _visit("大雁塔", 120, _DYT_FAR, day=2, tier=3),
+            _visit("大唐不夜城", 90, _DTB_FAR, day=2, tier=3),
             zl,
         ],
     )
@@ -294,8 +301,8 @@ def test_purity_drops_when_no_room():
         day=2,
         base_city="西安",
         items=[
-            _visit("大雁塔", 120, _DYT, day=2, tier=3),
-            _visit("大唐不夜城", 90, _DTB, day=2, tier=3),
+            _visit("大雁塔", 120, _DYT_FAR, day=2, tier=3),
+            _visit("大唐不夜城", 90, _DTB_FAR, day=2, tier=3),
             zl,
         ],
     )
@@ -325,8 +332,8 @@ def test_purity_keeps_curated_when_no_room():
         day=2,
         base_city="西安",
         items=[
-            _visit("大雁塔", 120, _DYT, day=2, tier=3),
-            _visit("大唐不夜城", 90, _DTB, day=2, tier=3),
+            _visit("大雁塔", 120, _DYT_FAR, day=2, tier=3),
+            _visit("大唐不夜城", 90, _DTB_FAR, day=2, tier=3),
             v,
         ],
     )
