@@ -4241,9 +4241,10 @@ def _venue_anchor_on(day: DayPlan, cand: VisitItem) -> bool:
     挪去市区日实录）。必去/点名另有 protect 语义，本闸只加演出档；
     真装不下（全场次冲突/容量结构性无解）时由清算/挪日扫尾按原口径
     兜底并披露，评分器另有 venue_strand 软罚管非演出件。"""
-    if str(cand.category or "") != "entertainment" and str(
-        cand.best_visit_time or ""
-    ) != "show":
+    if (
+        str(cand.category or "") != "entertainment"
+        and str(cand.best_visit_time or "") != "show"
+    ):
         return False
     return _near_cluster_mate_on(day, cand)
 
@@ -12859,9 +12860,7 @@ class PlanningAgent:
             if day is None:
                 return None
             removed = [
-                i
-                for i in day.items
-                if isinstance(i, VisitItem) and _movable(i, day)
+                i for i in day.items if isinstance(i, VisitItem) and _movable(i, day)
             ]
             if not removed:
                 return None
