@@ -415,6 +415,49 @@ def test_dedupe_plan_keeps_far_apart_same_name_pair():
     assert "青城山skydive跳伞基地" not in dropped
 
 
+# --- 2026-11-08 长安十二时辰案：街区体验卡与同址宴/演卡不互并 ---------------
+
+
+def test_street_district_and_banquet_stay_two_cards():
+    """「长安十二时辰主题街区」（citywalk）与同址「长安十二时辰·唐宴」
+    （food，11m）名字包含+同点，但街区行走与宴席是两个体验（2026-11-08
+    拍板「是 CITYWALK 应直接插入」）——组装层去重不吞，两卡并存。
+    街区身份品类+名字双认：show 源行旧 category=entertainment 也算街区
+    （库实测品类不可靠）。"""
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+    from app.services.itinerary import GeoPoint
+
+    street = _visit(
+        "v1",
+        "长安十二时辰主题街区",
+        city="西安",
+        category="citywalk",
+        location=GeoPoint(lon=108.9660, lat=34.2120),
+    )
+    banquet = _visit(
+        "v2",
+        "长安十二时辰·唐宴",
+        city="西安",
+        category="food",
+        location=GeoPoint(lon=108.9661, lat=34.2129),
+    )
+    assert _same_visit(street, banquet) is False
+
+    # 名字语素兜底：品类误标 entertainment（库旧值）也拦并卡
+    miscat = _visit(
+        "v3",
+        "长安十二时辰主题街区",
+        city="西安",
+        category="entertainment",
+        location=GeoPoint(lon=108.9660, lat=34.2120),
+    )
+    assert _same_visit(miscat, banquet) is False
+
+    keepers, dropped = _dedupe_visit_keepers([street, banquet, miscat])
+    assert {k.name for k in keepers} == {"长安十二时辰主题街区", "长安十二时辰·唐宴"}
+    assert dropped == ["长安十二时辰主题街区"]
+
+
 # --- 2026-10-31 大足双卡案：同内容配套场馆（博物馆/影院/园区） ---------------
 
 

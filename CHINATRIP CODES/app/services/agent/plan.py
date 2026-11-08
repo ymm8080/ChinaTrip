@@ -278,8 +278,14 @@ _UNCAPPED_CATEGORIES = ("", "attraction", "sight", "food", "entertainment")
 # 重庆段被风景区填满）。山水 token 只对带 5a/unesco 标的行生效——
 # 古镇/人文型 5A（安仁古镇景区）不误伤。上限 1/行程，跨城共享计数
 # （成渝线全程 1 个博物馆，不是每城 1 个）；必去合并通道不受此闸。
-_ITIN_BUCKET_CAP = 1
+# 桶上限分品类（2026-11-08 二拍「CITYWALK 应该最多二个，不是只有
+# 一个」——长安十二时辰/永兴坊类街区体验可两档共存；博物馆/风景区
+# 维持 11-07 拍板 1 个）。
+_ITIN_BUCKET_CAPS = {"museum": 1, "scenic": 1, "citywalk": 2}
 _SCENIC_NAME_RE = re.compile("山|峡|谷|江|河|湖|瀑|洞|森林|草原|湿地|地质|喀斯特|风景")
+# 街区型体验的名字语素（2026-11-08 长安十二时辰案）：库品类不可靠
+# （show 源主题街区行=entertainment），名字兜底认街区身份。
+_STREET_DISTRICT_RE = re.compile("主题街区|街区|步行街")
 
 
 def _itin_cap_bucket(cand: dict) -> str | None:
@@ -332,7 +338,14 @@ RAIN_SWAP_BUDGET_SLACK_MIN = 30
 def _cand_is_show(cand: dict) -> bool:
     """演出候选判定（2026-10-29 功能标签批打后认 tags）：04 演艺源 /
     娱乐类 / 宜演出时段之外，标签 show 同样算——amap 源的川剧院等
-    （label_pois 名称内核补判）按同一场晚间档参与提案。"""
+    （label_pois 名称内核补判）按同一场晚间档参与提案。街区型体验豁免
+    （2026-11-08 长安十二时辰案拍板「是 CITYWALK 直接插入」）：名字
+    带主题街区/街区/步行街且品类 citywalk 的行走体验不是演出——show
+    源血缘/best_visit_time 旧键不再把它推晚间档与演出闸。"""
+    if str(cand.get("category") or "") == "citywalk" and _STREET_DISTRICT_RE.search(
+        str(cand.get("name") or "")
+    ):
+        return False
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
     return (
         cand.get("category") == "entertainment"
@@ -2136,12 +2149,33 @@ def _cand_xy(entry: dict) -> tuple[float, float] | None:
     return None
 
 
+def _street_banquet_split(a: dict, b: dict) -> bool:
+    """街区卡与宴/演卡不是重复站（2026-11-08 拍板「长安十二时辰是
+    CITYWALK..直接插入」）：citywalk/街道源卡与同址的宴席/演出是两个
+    体验，选层并卡与组装层去重都不吞——「长安十二时辰主题街区」被
+    「长安十二时辰·唐宴」吞并实录（沪→西→沪案）。街区身份品类+名字
+    双认（库实测 show 源行 category=entertainment——品类不可靠时
+    「主题街区/街区/步行街」名字语素兜底）。"""
+
+    def _street(c: dict) -> bool:
+        return (
+            str(c.get("category") or "") == "citywalk"
+            or str(c.get("source") or "").strip().lower() == "street"
+            or bool(_STREET_DISTRICT_RE.search(str(c.get("name") or "")))
+        )
+
+    ca, cb = str(a.get("category") or ""), str(b.get("category") or "")
+    return _street(a) != _street(b) and ({"food", "entertainment"} & {ca, cb}) != set()
+
+
 def _cand_twin(a: dict, b: dict) -> bool:
     """候选层同站孪生（与 _same_visit 同义、含地理闸分档）：名字撞衫
     但相距 >2km 的不同场馆不算；同内容配套（含伞名行 vs 配套场馆）
     走 30km 闸；同类型兄弟对（大雁塔/小雁塔，2026-11-03 拍板）同档
     30km、餐饮/演出/酒店/交通豁免；同体验替代组（2026-11-07 熊猫谷案）
     无地理闸直接孪生。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
+    if _street_banquet_split(a, b):
+        return False
     na, nb = str(a.get("name") or ""), str(b.get("name") or "")
     if (
         na
@@ -2520,6 +2554,20 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
         return False
     if is_dinner_placeholder(a) or is_dinner_placeholder(b):
+        return False
+
+    # 街区体验卡与宴/演卡并存（2026-11-08 拍板「长安十二时辰是
+    # CITYWALK 应直接插入」）：citywalk 街区与同址宴/演是两个体验，
+    # 不并卡——主题街区被唐宴吞并实录。街区身份品类+名字双认（库
+    # 实测 show 源行 category=entertainment，名字语素兜底）。
+    def _street_visit(i: VisitItem) -> bool:
+        return str(i.category or "") == "citywalk" or bool(
+            _STREET_DISTRICT_RE.search(str(i.name or ""))
+        )
+
+    if _street_visit(a) != _street_visit(b) and (
+        {"food", "entertainment"} & {a.category or "", b.category or ""}
+    ):
         return False
     if a.poi_id and b.poi_id and a.poi_id == b.poi_id:
         return True
@@ -3035,7 +3083,7 @@ def _same_category_full(
     回填不得借池外补量绕过；bucket_used=None 时维持旧口径（单测用）。"""
     bucket = _itin_cap_bucket(cand)
     if bucket is not None and bucket_used is not None:
-        if bucket_used.get(bucket, 0) >= _ITIN_BUCKET_CAP:
+        if bucket_used.get(bucket, 0) >= _ITIN_BUCKET_CAPS.get(bucket, 1):
             return True
     cat = str(cand.get("category") or "").strip()
     if cat in _UNCAPPED_CATEGORIES:
@@ -4308,6 +4356,8 @@ def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
                     continue
                 if _day_has_departure(y, str(v.city or "")):
                     continue
+                if _day_has_show_banquet(y):
+                    continue  # 宴日演出位已满（2026-11-08 宴秀拍板）：不换进
                 z = next(
                     (
                         i
@@ -4324,6 +4374,8 @@ def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
                     continue
                 if _day_has_departure(d, str(z.city or "")):
                     continue
+                if _day_has_show_banquet(d):
+                    continue  # 对侧同样不把演出换进宴日（终闸会再挪，徒增披露）
                 d.items.remove(v)
                 y.items.remove(z)
                 d.items.append(z)
@@ -4337,6 +4389,82 @@ def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
                     d.day,
                 )
                 break
+
+
+def _evict_wedge_strays(plan: ItineraryPlan) -> list[str]:
+    """楔子不变量·贴邻孤岛清障（2026-11-08 钟楼案三拍「钟楼可以SKIP，
+    为什么要有」）：选层是容量优先——城心象限 6+ 点装不进簇日（4/日帽）
+    时溢出停泊把点楔进还有容量的天，污染那天的片区连贯（钟楼→D5→
+    弹座→D2 楔进大雁塔日；大清真寺/永兴坊轮替同型实录）。逐动结构相位
+    （分流/全局重排/弹座让位/终闸清算）设防是打地鼠，交付前按不变量
+    统一清算：贴邻伴（≤2km，口径同 _tight_cluster_mate_on）在别日多于
+    本日（严格多数）、且本日存在 >2km 非餐演核心 = 楔子——宁缺勿楔，
+    带披露移除并引导指定他日加回。判例边界（东方明珠四拍「不追改」）：
+    散组同日互伴（本日伴不弱于他日，含平票）不动；本日无远核心=该日
+    本就是散组的地盘，不动；无坐标/钉/必去/餐演酒店不动；tier≤2 名录
+    王牌不剔（兵马俑被秦俑情甩 D1 反客为主实录——锚档牌位合法，楔的
+    是被甩的演出不是王牌，演出侧另有贴场馆换座收口）。"""
+    dropped: list[str] = []
+    for day in list(plan.days):
+        for v in list(day.items):
+            if not isinstance(v, VisitItem):
+                continue
+            if (
+                getattr(v, "pinned", False)
+                or getattr(v, "soft_pin", False)
+                or getattr(v, "must", False)
+                or str(v.category or "") in ("food", "hotel", "entertainment")
+            ):
+                continue
+            if v.tier is not None and v.tier <= 2:
+                continue
+            cxy = getattr(v, "location", None)
+            if cxy is None or getattr(cxy, "lon", None) is None:
+                continue
+            counts: list[tuple[DayPlan, int]] = []
+            far_core_on_day = False
+            for o in plan.days:
+                cnt = 0
+                for i in o.items:
+                    if i is v or not isinstance(i, VisitItem):
+                        continue
+                    ixy = getattr(i, "location", None)
+                    if ixy is None or getattr(ixy, "lon", None) is None:
+                        continue
+                    km = haversine_km(
+                        GeoPoint(lon=float(cxy.lon), lat=float(cxy.lat)),
+                        GeoPoint(lon=float(ixy.lon), lat=float(ixy.lat)),
+                    )
+                    if 0 < km <= _TIGHT_CLUSTER_KM:
+                        cnt += 1
+                    elif (
+                        o is day
+                        and km > _TIGHT_CLUSTER_KM
+                        and str(i.category or "")
+                        not in ("food", "hotel", "entertainment")
+                    ):
+                        far_core_on_day = True
+                counts.append((o, cnt))
+            if not far_core_on_day:
+                continue
+            home_cnt = next(c for o, c in counts if o is day)
+            richer = [(o, c) for o, c in counts if o is not day and c > home_cnt]
+            if not richer:
+                continue
+            target, _ = max(richer, key=lambda t: t[1])
+            day.items.remove(v)
+            dropped.append(v.name)
+            plan.assumptions.append(
+                L(
+                    f"「{v.name}」的近邻多在第{target.day}天，为保第{day.day}"
+                    "天片区连贯未楔入，已略过——要加回可指定其他天",
+                    f'"{v.name}" belongs with its neighbours on day '
+                    f"{target.day}; to keep day {day.day} geographically "
+                    "coherent it was left out — ask me to re-add it on "
+                    "another day",
+                )
+            )
+    return dropped
 
 
 # 连续弹座上限（2026-11-07 环球中心案）：240min 级大块头需弹 2-3 个
@@ -4440,7 +4568,17 @@ def _yield_for_premium(
                 incoming=visit.location,
                 visit=visit,
             )
-            if t is not None:
+            if t is not None and (
+                # 贴邻不拆天（2026-11-08 钟楼案）：名点择宿只认有近簇
+                # 伴的天（或全城无伴）——钟楼被弹去无伴的 D2 楔进大雁
+                # 塔日实录；伴在日满员时宁可让名点让位出局（披露走
+                # 「始终排不下时刻」通道），不投孤岛日。
+                t is later
+                or _near_cluster_mate_on(t, visit)
+                or not any(
+                    _near_cluster_mate_on(o, visit) for o in plan.days if o is not later
+                )
+            ):
                 target = t
                 break
             if len(ejected) >= _YIELD_MAX_EJECTS:
@@ -5637,17 +5775,77 @@ def _is_show_item(item: VisitItem) -> bool:
     return item.best_visit_time == "show" or item.category == "entertainment"
 
 
+_BANQUET_SHOW_TEXT_MARKS = (
+    "宴",
+    "餐秀",
+    "宴秀",
+    "伴宴",
+    "演艺",
+    "宴舞",
+    "乐舞",
+    "晚宴秀",
+)
+
+
+def _is_show_banquet_item(item: VisitItem) -> bool:
+    """宴秀条目（2026-11-08 拍板「唐宴已有 SHOW 的意思，就不应再排
+    唐乐宫」）：36 城宴会普查 curated 行（poi_id curated: + category=
+    food）名/营业时段带宴秀语素=含演出的宴席（唐宴「唐乐演艺」、御宴宫
+    「唐乐舞伴宴」、蜀宴赋「宴秀」）——本身就是当晚那场「show」，占
+    晚餐槽不可再叠演出。失重餐厅类 curated 无宴秀语素不误伤；非 curated
+    普通餐厅名带宴不认（宁漏勿错）。"""
+    if str(item.category or "") != "food":
+        return False
+    if not str(item.poi_id or "").startswith("curated:"):
+        return False
+    text = f"{item.name or ''}|{item.opening_hours or ''}"
+    return any(m in text for m in _BANQUET_SHOW_TEXT_MARKS)
+
+
+def _day_has_show_banquet(day: DayPlan) -> bool:
+    return any(isinstance(i, VisitItem) and _is_show_banquet_item(i) for i in day.items)
+
+
+def _day_show_taken(day: DayPlan) -> bool:
+    """当日演出位已被占（2026-11-08 宴秀拍板）：真演出或宴秀任一在册
+    即满——每场闸挪位/认领不得把第二场叠进宴日。"""
+    return any(
+        isinstance(i, VisitItem) and _is_show_item(i) for i in day.items
+    ) or _day_has_show_banquet(day)
+
+
+def _min_show_dist_km(day: DayPlan, v: VisitItem) -> float:
+    """条目到当日非餐宿簇的最近距离（每场闸留场排序键）：同日多场
+    竞争时留贴簇最近的那场、远者让位（2026-11-08 拍板「要排 SHOW
+    也应该找最近的」——唐乐宫 12km 外 vs 梦回大唐同址 0km）。"""
+    vloc = getattr(v, "location", None)
+    if vloc is None:
+        return 1e9
+    dists = [
+        haversine_km(i.location, vloc)
+        for i in day.items
+        if isinstance(i, VisitItem)
+        and i is not v
+        and i.category not in ("food", "hotel")
+        and getattr(i, "location", None) is not None
+    ]
+    return min(dists) if dists else 1e9
+
+
 def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     """每场闸终装（2026-11-02 拍板「每天最多一场演出」×2026-11-08 二拍
     取消每城一场，落选夜场各按聚簇/无演出日落位）：选层各相位（sights
     路/夜场 finale/extras/回填/重排）各自落位互不知情（xa 案 D2 两场撞
     日；mc2 案秦俑情落 D1 与兵马俑 D3 裂簇），终装处统一对账——
-    ① 同日两场：保钉住/贴簇（场馆 ≤5km 有伴）优先、在册序次之的那场，
-    余场挪去同城无演出日（贴场馆 ≤5km 最近簇优先、轻载次之）；
+    ① 同日两场：保钉住/宴秀（curated 宴=当日那场 show，2026-11-08
+    唐宴案三拍）/贴簇最近（距当日簇 tiebreak，远者让）的那场，余场挪去
+    同城无演出日（贴场馆 ≤5km 最近簇优先、轻载次之）；
     ② 聚簇认领：非钉演出所在日无 ≤5km 伴、而同城他日有伴且他日无演出
-    → 演出挪去伴的日子（贴排口径，最近伴优先）；
+    （宴日同样算已占，不认领）→ 演出挪去伴的日子（贴排口径，最近伴
+    优先）；
     挪后兜底重排时刻；无日可挪才点名移除披露；挪后仍无时刻同样移除
-    披露。闸未动作时零副作用（不重排）。全程留痕。"""
+    披露（宴秀不因超载被闸删——晚餐槽另由餐路兜底）。闸未动作时零
+    副作用（不重排）。全程留痕。"""
     moved = False
 
     def _near_mate_on(day: DayPlan, v: VisitItem) -> bool:
@@ -5662,13 +5860,19 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
         )
 
     for day in plan.days:
-        shows = [v for v in day.items if isinstance(v, VisitItem) and _is_show_item(v)]
+        shows = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and (_is_show_item(v) or _is_show_banquet_item(v))
+        ]
         if len(shows) < 2:
             continue
         shows.sort(
             key=lambda v: (
                 0 if v.pinned else 1,
-                0 if _near_mate_on(day, v) else 1,
+                0 if _is_show_banquet_item(v) else 1,
+                _min_show_dist_km(day, v),
                 day.items.index(v),
             )
         )
@@ -5680,19 +5884,28 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
                 for d in plan.days
                 if d is not day
                 and str(d.base_city or "").strip().removesuffix("市") == vcity
-                and not any(
-                    isinstance(i, VisitItem) and _is_show_item(i) for i in d.items
-                )
+                and not _day_show_taken(d)
             ]
             if not targets:
                 day.items.remove(extra)
-                plan.assumptions.append(
-                    L(
-                        f"演出一天一场、其余天已排满：「{extra.name}」未排（要保留请说）",
-                        f'Only one show per day: "{extra.name}" not scheduled '
-                        "(say the word to keep it)",
+                if _is_show_banquet_item(shows[0]) and not _is_show_banquet_item(extra):
+                    plan.assumptions.append(
+                        L(
+                            f"第{day.day}天已有宴秀「{shows[0].name}」，演出一天一场、"
+                            f"其余天已排满：「{extra.name}」未排（要保留请说）",
+                            f'Day {day.day} already has dinner-show "{shows[0].name}", '
+                            f'only one show per day: "{extra.name}" not scheduled '
+                            "(say the word to keep it)",
+                        )
                     )
-                )
+                else:
+                    plan.assumptions.append(
+                        L(
+                            f"演出一天一场、其余天已排满：「{extra.name}」未排（要保留请说）",
+                            f'Only one show per day: "{extra.name}" not scheduled '
+                            "(say the word to keep it)",
+                        )
+                    )
                 logger.warning(
                     "plan: show-per-day gate removed %s (no show-free day in %s)",
                     extra.name,
@@ -5717,12 +5930,22 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
             extra.start_time = None
             extra.end_time = None
             tgt.items.append(extra)
-            plan.assumptions.append(
-                L(
-                    f"「{extra.name}」改排第{tgt.day}天（演出一天一场）",
-                    f'"{extra.name}" moved to day {tgt.day} (one show per day)',
+            if _is_show_banquet_item(shows[0]) and not _is_show_banquet_item(extra):
+                plan.assumptions.append(
+                    L(
+                        f"第{day.day}天已有宴秀「{shows[0].name}」，「{extra.name}」"
+                        f"改排第{tgt.day}天（演出一天一场）",
+                        f'Day {day.day} already has dinner-show "{shows[0].name}": '
+                        f'"{extra.name}" moved to day {tgt.day} (one show per day)',
+                    )
                 )
-            )
+            else:
+                plan.assumptions.append(
+                    L(
+                        f"「{extra.name}」改排第{tgt.day}天（演出一天一场）",
+                        f'"{extra.name}" moved to day {tgt.day} (one show per day)',
+                    )
+                )
             logger.warning(
                 "plan: show-per-day gate moved %s day %d -> %d",
                 extra.name,
@@ -5753,7 +5976,7 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
                     or str(d.base_city or "").strip().removesuffix("市") != vcity
                 ):
                     continue
-                if any(isinstance(i, VisitItem) and _is_show_item(i) for i in d.items):
+                if _day_show_taken(d):
                     continue
                 if d.day in claims:
                     continue
@@ -5805,6 +6028,7 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
             if (
                 isinstance(v, VisitItem)
                 and _is_show_item(v)
+                and not _is_show_banquet_item(v)
                 and v.start_time is None
                 and not v.pinned
             ):
@@ -9923,7 +10147,11 @@ class PlanningAgent:
                 grp = [i_a]
                 for i_b in range(i_a + 1, len(pool)):
                     nm_b = str(pool[i_b][1].get("name") or "")
-                    if nm_b and _same_site(nm_a, nm_b):
+                    if (
+                        nm_b
+                        and _same_site(nm_a, nm_b)
+                        and not _street_banquet_split(pool[i_a][1], pool[i_b][1])
+                    ):
                         grp.append(i_b)
                         _twin_surv[i_b] = False
                 best = min(
@@ -9982,7 +10210,12 @@ class PlanningAgent:
             _cat_kept: list[tuple[int, dict]] = []
             for p_ in pool:
                 cat = str(p_[1].get("category") or "").strip()
-                if cat in _UNCAPPED_CATEGORIES or _pref_hit(p_[1]):
+                # 行程级桶先于品类豁免表（2026-11-08 骊山案三拍）：
+                # uncapped 短路曾把桶口径行挡在账本外——华山（attraction
+                # +scenic 源）与骊山（nature）双双绕过风景区桶上限同程
+                # 共存。桶定义（_itin_cap_bucket：nature 品类+scenic 源
+                # 行）从来就该计数；偏好命中仍全豁免。
+                if _pref_hit(p_[1]):
                     _cat_kept.append(p_)
                     continue
                 _bucket = _itin_cap_bucket(p_[1])
@@ -9990,7 +10223,7 @@ class PlanningAgent:
                     # 行程级上限（2026-11-07 拍板「博物馆/风景区/CITYWALK
                     # 每行程最多一个」）：跨城共享账本，超顶裁掉并披露；
                     # 5A/世遗被裁仍走 type_asks 待问（同旧闸口径）。
-                    if _itin_bucket_used[_bucket] >= _ITIN_BUCKET_CAP:
+                    if _itin_bucket_used[_bucket] >= _ITIN_BUCKET_CAPS.get(_bucket, 1):
                         _itin_cut.append(str(p_[1].get("name") or ""))
                         _tags_l = {str(t).lower() for t in (p_[1].get("tags") or [])}
                         if _tags_l & {"5a", "unesco"} and type_asks is not None:
@@ -10004,6 +10237,9 @@ class PlanningAgent:
                             )
                         continue
                     _itin_bucket_used[_bucket] += 1
+                    _cat_kept.append(p_)
+                    continue
+                if cat in _UNCAPPED_CATEGORIES:
                     _cat_kept.append(p_)
                     continue
                 n = _cat_seen.get(cat, 0)
@@ -10032,8 +10268,8 @@ class PlanningAgent:
                     cut_names.update(_itin_cut)
                 if notes is not None:
                     notes.append(
-                        f"{city}：行程内博物馆/风景区/CityWalk 已满"
-                        f"{_ITIN_BUCKET_CAP}个，{'、'.join(_itin_cut)}让位"
+                        f"{city}：行程内博物馆/风景区/CityWalk 已满品类"
+                        f"上限，{'、'.join(_itin_cut)}让位"
                     )
             if _cat_cut:
                 pool = _cat_kept
@@ -11648,6 +11884,29 @@ class PlanningAgent:
             )
 
         # ② 超载天分流
+        def _has_kin_on_day(s: dict, d: int) -> bool:
+            """贴邻伴在日（≤2km 紧簇口径）：有伴的超载件不单飞——拆对
+            分流=钟楼被甩去 D5 再弹 D2 楔进大雁塔日实录（2026-11-08
+            沪→西→沪案二轮）。宁可留软闸超载给求解层，不拆贴邻对。"""
+            xy = _xy(s)
+            if xy is None:
+                return False
+            for o in day_specs.get(d, []):
+                if o is s or o.get("category") in ("food", "entertainment"):
+                    continue
+                oxy = _xy(o)
+                if oxy is None:
+                    continue
+                if (
+                    haversine_km(
+                        GeoPoint(lon=xy[0], lat=xy[1]),
+                        GeoPoint(lon=oxy[0], lat=oxy[1]),
+                    )
+                    <= 2.0
+                ):
+                    return True
+            return False
+
         moved: list[str] = []
         for d in sorted(range(1, days + 1), key=lambda dd: -day_load[dd]):
             if day_load[d] <= _budget(d):
@@ -11661,6 +11920,7 @@ class PlanningAgent:
                 for s in day_specs.get(d, [])
                 if not s.get("must")
                 and s.get("category") not in ("food", "entertainment")
+                and not _has_kin_on_day(s, d)
             ]
             for spec in movables:
                 if day_load[d] <= _budget(d):
@@ -12761,6 +13021,12 @@ class PlanningAgent:
         if sweep_notes:
             plan.assumptions.extend(sweep_notes)
         plan = self._finalize_untimed_visits(plan, must_names, tier_map)
+        # 楔子不变量（2026-11-08 钟楼案三拍）：清算/重排/让位各相位接力可
+        # 把贴邻孤岛楔进他片区的天（钟楼楔进大雁塔日实录）——交付前按
+        # 不变量统一清障，宁缺勿楔。
+        wedge_dropped = _evict_wedge_strays(plan)
+        if wedge_dropped:
+            logger.info("plan: wedge strays evicted: %s", "、".join(wedge_dropped))
         # 演出贴场馆换座（2026-11-08 沪→西→沪案终拍）：先于每场闸对账
         # 把被容量漏斗甩离场馆的演出换回场馆日（占座者互换，不增占位）。
         _reunite_show_with_venue(plan)
@@ -13397,6 +13663,14 @@ class PlanningAgent:
                 # 紧簇伴而目标日没有=单独搬走拆对（城墙·碑林被评分器
                 # 搬离碑林博实录）；并簇/换簇到有伴的天不拦。
                 return None
+            if not _tight_cluster_mate_on(dst, item) and any(
+                _tight_cluster_mate_on(o, item) for o in p.days if o is not src
+            ):
+                # 入簇优先闸（2026-11-08 钟楼案镜像刀）：条目在别日尚有
+                # ≤2km 紧簇伴时不投无伴孤岛日——大清真寺被评分器从 D1
+                # 孤点搬去 D2 大雁塔日、绕过 300m 外鼓楼实录。留原日
+                # 等伴日腾位，不作远嫁。
+                return None
             if _no_return_day(dst, item):
                 return None  # 王牌不上返程日（2026-11-08 兵马俑 D5 案）
             if not _day_hosts(dst, item.city):
@@ -13431,6 +13705,16 @@ class PlanningAgent:
             ) or (_tight_cluster_mate_on(db, b) and not _tight_cluster_mate_on(da, b)):
                 # 紧簇整对搬闸（2026-11-08 沪→西→沪案，同 _move_on）：
                 # 对调不得把任一侧紧簇员拽离其 ≤2km 伴。
+                return None
+            if (
+                not _tight_cluster_mate_on(db, a)
+                and any(_tight_cluster_mate_on(o, a) for o in p.days if o is not da)
+            ) or (
+                not _tight_cluster_mate_on(da, b)
+                and any(_tight_cluster_mate_on(o, b) for o in p.days if o is not db)
+            ):
+                # 入簇优先闸（2026-11-08 钟楼案镜像刀，同 _move_on）：
+                # 对调不得把有伴条目换进无伴孤岛日。
                 return None
             if _no_return_day(db, a) or _no_return_day(da, b):
                 return None  # 王牌不上返程日（同 _move_on）

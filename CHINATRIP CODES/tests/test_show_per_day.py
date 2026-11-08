@@ -22,12 +22,25 @@
 ⑨⑩场馆亲和护栏（2026-11-08 秦俑情案第五刀）——评分器拆簇软罚
   （venue_strand）+ LNS 演出软钉：重排/挪天家族不得把贴场馆簇的
   演出挪去无锚日，容量溢出让弱卡让位。
+
+2026-11-08 唐宴案三拍（终装侧）：
+⑪宴秀占场——curated 宴会（唐宴/御宴宫，food+宴秀语素）本身就是当日
+  那场「show」：同日不得再叠演出/第二场宴秀，宴秀留场优先并披露；
+⑫认领避宴日——聚簇认领不得把演出认领进宴日（唐乐宫被「贴同日」
+  认领进 D2 唐宴日实录）；换座（_reunite）同样双侧避宴日；
+⑬就近留场——同日多场竞争按距当日簇最近 tiebreak（梦回大唐 0km 留、
+  唐乐宫 12km 让；旧口径按在册序会留错的那个）。
 """
 
 import asyncio
 from datetime import time
 
-from app.services.agent.plan import PlanningAgent, _enforce_show_per_day
+from app.services.agent.plan import (
+    PlanningAgent,
+    _enforce_show_per_day,
+    _is_show_banquet_item,
+    _is_show_item,
+)
 from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
@@ -484,3 +497,161 @@ def test_lns_keeps_day_show_with_overloaded_venue_cluster():
     assert qyq_it.day == 2  # 演出不挪——必须贴兵马俑线路
     assert bmy_it.day == 2  # 锚点同守——不从另一侧拆簇
     assert all("秦俑情" not in m for m in moves)  # 披露不得点名演出挪动
+
+
+# ---------- 2026-11-08 唐宴案三拍：宴秀占场 / 认领避宴日 / 就近留场 ----------
+
+_QFJ = (108.9743, 34.2127)  # 大唐芙蓉园簇（御宴宫/《梦回大唐》同址锚）
+_MTY = (108.9660, 34.2129)  # 曼蒂广场（长安十二时辰·唐宴）
+_TLG = (108.9701, 34.3217)  # 唐乐宫（城北四海唐人街，距曲江簇 ~12km）
+
+
+def _banquet(
+    item_id,
+    name,
+    day,
+    lon,
+    lat,
+    *,
+    poi_id=None,
+    dur=120,
+    hours="午宴12:30场；晚宴18:30场（预订制）",
+):
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        category="food",
+        city="西安",
+        day=day,
+        duration_minutes=dur,
+        location=GeoPoint(lon=lon, lat=lat),
+        opening_hours=hours,
+        poi_id=poi_id or f"curated:西安:{name}",
+    )
+
+
+def test_banquet_show_occupies_day_second_show_moves_off():
+    # ⑪宴秀占场（沪→西→沪案 D2 实录）：御宴宫(宴)+唐宴(宴)+唐乐宫(演)
+    # 三叠一天——终闸把宴秀计入当日演出位：宴秀留场（御宴宫 0km 贴簇
+    # 首留），唐宴/唐乐宫挪去无演出日，披露点名「宴秀」。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 2, *_TLG, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[_placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)],
+            ),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, tang, tlg]),
+            DayPlan(
+                day=3,
+                base_city="西安",
+                items=[
+                    _placed(
+                        "v-cq",
+                        "城墙",
+                        3,
+                        108.9405,
+                        34.2569,
+                        120,
+                        start=9,
+                        category="attraction",
+                    )
+                ],
+            ),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2  # 宴秀留场（0km 贴簇）
+    assert day_of["唐乐宫《大唐女皇》"] != 2  # 宴日演出让位
+    assert day_of["长安十二时辰·唐宴"] != day_of["御宴宫"]  # 一天一场（宴亦然）
+    # 宴日不再叠任何演出/第二宴秀
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+    assert any("宴秀" in str(a) and "唐乐宫" in str(a) for a in plan.assumptions)
+
+
+def test_claim_never_targets_banquet_day():
+    # ⑫认领避宴日：《梦回大唐》在 D3 无 ≤5km 伴、D2 芙蓉园 0km 有伴，
+    # 但 D2 已是宴日（御宴宫占场）→ 不认领，留 D3 不动、零披露。
+    dyt = _placed("v-dyt", "大唐芙蓉园", 2, *_QFJ, 120, start=9, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    wall = _placed(
+        "v-cq", "城墙·碑林", 3, 108.9405, 34.2569, 150, start=9, category="attraction"
+    )
+    mhd = _placed("v-mhd", "《梦回大唐》", 3, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-claim",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys]),
+            DayPlan(day=3, base_city="西安", items=[wall, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    mhd_it = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if getattr(i, "name", "") == "《梦回大唐》"
+    )
+    assert mhd_it.day == 3  # 宴日不是认领目标
+    assert plan.assumptions == []  # 零副作用
+    assert yys.day == 2 and mhd_it.start_time == time(19, 0)
+
+
+def test_nearest_show_kept_on_contested_day():
+    # ⑬就近留场（「要排 SHOW 也应该找最近的」）：D2 两场演出竞争——
+    # 《梦回大唐》同址 0km、唐乐宫 12km，且唐乐宫在册序在前（旧口径
+    # 会留错的那个）：留近者，远者挪去 D1。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 2, *_TLG, 80, start=19, show=True)
+    mhd = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-near",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, tlg, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["《梦回大唐》"] == 2  # 就近者留场
+    assert day_of["唐乐宫《大唐女皇》"] == 1  # 远者让位挪日
+
+
+def test_plain_curated_restaurant_does_not_occupy_show_slot():
+    # ⑪防误伤：curated 普通餐厅（失重餐厅类，名/时段无宴秀语素）不占
+    # 演出位——同日演出照常，零动作零披露。
+    spc = _banquet("v-spc", "失重餐厅", 1, 108.94, 34.26, hours="10:00-22:00")
+    mhd = _placed("v-mhd", "《梦回大唐》", 1, *_QFJ, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 1, *_QFJ, 90, start=9, category="attraction")
+    plan = ItineraryPlan(
+        itinerary_id="it-plain",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[dyt, spc, mhd]),
+            DayPlan(day=2, base_city="西安", items=[]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert plan.assumptions == []
+    assert spc.day == 1 and mhd.day == 1  # 普通餐不触发清算

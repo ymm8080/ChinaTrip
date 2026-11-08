@@ -351,7 +351,7 @@ def test_itinerary_cap_museum_one_per_itinerary():
 
 def test_itinerary_cap_scenic_source_counts_and_citywalk():
     """风景区桶 = nature 品类 + scenic 源行（品类不对也计数）；
-    CITYWALK 每行程 1 个。"""
+    CITYWALK 每行程 2 个（2026-11-08 二拍「CITYWALK 应该最多二个」）。"""
     # 坐标错开 >1.5km（同点互认会被伞名孪生吸收搭锚车绕开行程桶——
     # 验桶计数须独立点；族卡已废，贴邻同日圈 5km 软偏好不破断言）。
     cands = [
@@ -365,15 +365,41 @@ def test_itinerary_cap_scenic_source_counts_and_citywalk():
             loc=(108.96, 34.26),
         ),
         _bucket_cand("永兴坊", "西安", "citywalk", rating=4.5, loc=(108.98, 34.26)),
+        _bucket_cand(
+            "大唐不夜城街区", "西安", "citywalk", rating=4.4, loc=(109.04, 34.26)
+        ),
         _bucket_cand("回民街", "西安", "attraction", rating=4.6, loc=(109.00, 34.26)),
         _bucket_cand("城墙", "西安", "attraction", rating=4.6, loc=(109.02, 34.26)),
     ]
-    items = PlanningAgent._deterministic_selection(cands, 1, {"西安": (1, 1)})
+    items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     names = {it["name"] for it in items}
     assert "华山" in names  # scenic 源行梯位高（tier9）先占风景区桶
     assert "骊山" not in names  # nature 第 2 个：桶满被裁
-    assert "永兴坊" in names  # citywalk 唯一一个
+    assert {"永兴坊", "大唐不夜城街区"} <= names  # citywalk 两档共存（11-08 二拍）
     assert {"回民街", "城墙"} <= names  # attraction 不设限
+
+
+def test_overload_rebalance_keeps_kin_pair_on_day():
+    """超载天分流不拆贴邻对（2026-11-08 钟楼案二轮）：钟楼被甩 D5 再
+    弹 D2 楔进大雁塔日实录——有 ≤2km 伴在日的超载件不单飞，分流只动
+    无伴件；全员有伴时留软闸超载给求解层收口。"""
+    cands = [
+        _bucket_cand("城墙", "西安", "attraction", rating=4.6, loc=(108.94, 34.26)),
+        _bucket_cand(
+            "鼓楼", "西安", "attraction", rating=4.5, loc=(108.9404, 34.261)
+        ),  # ↔城墙 ~120m 贴邻
+        _bucket_cand(
+            "远点", "西安", "attraction", rating=4.5, loc=(108.99, 34.26)
+        ),  # >2km 无伴
+    ]
+    cands[0]["suggested_duration_min"] = 180
+    cands[1]["suggested_duration_min"] = 40
+    cands[2]["suggested_duration_min"] = 180  # day1 三件 400min 超载
+    items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
+    days = {it["name"]: it["day"] for it in items}
+    assert len(days) == 3
+    assert days["城墙"] == days["鼓楼"]  # 贴邻对同日不被分流拆开
+    assert days["远点"] != days["城墙"]  # 无伴件让位分流
 
 
 def test_experience_types_rank_right_after_premium():
