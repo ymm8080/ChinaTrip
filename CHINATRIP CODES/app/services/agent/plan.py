@@ -4473,6 +4473,65 @@ def _evict_wedge_strays(plan: ItineraryPlan) -> list[str]:
 _YIELD_MAX_EJECTS = 3
 
 
+def _untimed_promises_on(day: DayPlan) -> list["VisitItem"]:
+    """宿主日现存的无时刻参访（餐/酒店除外）＝未兑现的排期承诺。"""
+    return [
+        i
+        for i in day.items
+        if isinstance(i, VisitItem)
+        and (i.category or "") not in ("food", "hotel")
+        and i.start_time is None
+    ]
+
+
+def _jointly_cashable_with(
+    plan: ItineraryPlan, day: DayPlan, visit: "VisitItem"
+) -> bool:
+    """叠加兑现审（2026-11-08 永兴坊案两头空）：无时刻件是未兑现的
+    排期承诺，容量+单点实位探针各自独审时对同日的其他承诺隐形——
+    让位/挪日/回头重试逐个落件双双「可行」，终排贪心只活其一
+    （含光门为永兴坊弹座让位、永兴坊落 D5、大清真寺回头重试再进
+    D5、终排永兴坊死而牺牲品已蒸发的实录）。宿主日已欠承诺时，把
+    visit 落进克隆盘跑兜底排序真裁决：该日仍留无时刻参访＝兑现
+    不了，拒落——宁缺勿叠，被拒者走下一候选日/披露通道。"""
+    clone = (
+        plan.model_copy(deep=True)
+        if hasattr(plan, "model_copy")
+        else plan.copy(deep=True)
+    )
+    cday = next((d for d in clone.days if d.day == day.day), None)
+    cvisit = next(
+        (
+            i
+            for d in clone.days
+            for i in d.items
+            if isinstance(i, VisitItem) and i.item_id == visit.item_id
+        ),
+        None,
+    )
+    if cday is None or cvisit is None:
+        return False
+    for src in clone.days:
+        if any(i is cvisit for i in src.items):
+            src.items.remove(cvisit)
+            break
+    cvisit.day = cday.day
+    cvisit.start_time = None
+    cvisit.end_time = None
+    cday.items.append(cvisit)
+    _fallback_sequence_times(clone)
+    return not _untimed_promises_on(cday)
+
+
+def _stack_uncashable(plan: ItineraryPlan, target: DayPlan, visit: "VisitItem") -> bool:
+    """落件闸谓词：宿主日除 visit 外还欠着无时刻承诺才触发叠加兑现审
+    （visit 本人不算——自家日弹座回宿是让位本意，无叠加）。"""
+    others = [p for p in _untimed_promises_on(target) if p.item_id != visit.item_id]
+    if not others:
+        return False
+    return not _jointly_cashable_with(plan, target, visit)
+
+
 def _yield_for_premium(
     plan: ItineraryPlan,
     pool: list[DayPlan],
@@ -4556,6 +4615,7 @@ def _yield_for_premium(
             if (
                 zero_target is not None
                 and zero_target is not later
+                and not _stack_uncashable(plan, zero_target, visit)
                 and (
                     _near_cluster_mate_on(zero_target, visit)
                     or not any(
@@ -4618,15 +4678,21 @@ def _yield_for_premium(
                 incoming=visit.location,
                 visit=visit,
             )
-            if t is not None and (
-                # 贴邻不拆天（2026-11-08 钟楼案）：名点择宿只认有近簇
-                # 伴的天（或全城无伴）——钟楼被弹去无伴的 D2 楔进大雁
-                # 塔日实录；伴在日满员时宁可让名点让位出局（披露走
-                # 「始终排不下时刻」通道），不投孤岛日。
-                t is later
-                or _near_cluster_mate_on(t, visit)
-                or not any(
-                    _near_cluster_mate_on(o, visit) for o in plan.days if o is not later
+            if (
+                t is not None
+                and not _stack_uncashable(plan, t, visit)
+                and (
+                    # 贴邻不拆天（2026-11-08 钟楼案）：名点择宿只认有近簇
+                    # 伴的天（或全城无伴）——钟楼被弹去无伴的 D2 楔进大雁
+                    # 塔日实录；伴在日满员时宁可让名点让位出局（披露走
+                    # 「始终排不下时刻」通道），不投孤岛日。
+                    t is later
+                    or _near_cluster_mate_on(t, visit)
+                    or not any(
+                        _near_cluster_mate_on(o, visit)
+                        for o in plan.days
+                        if o is not later
+                    )
                 )
             ):
                 target = t
@@ -4828,7 +4894,11 @@ def _transfer_day_sweep(
             target = _host_day_for_visit(
                 pool, vcity, dur, incoming=visit.location, visit=visit
             )
-            if target is not None and target is not day:
+            if (
+                target is not None
+                and target is not day
+                and not _stack_uncashable(plan, target, visit)
+            ):
                 visit.day = target.day
                 day.items.remove(visit)
                 target.items.append(visit)
@@ -4933,7 +5003,7 @@ def _rehome_untimed_visits(
                     # first-fit 挪进 D5 上午）：tier≤2 挪日宿主为带离城
                     # 腿的天时弃挪，交让位弹座/清算另寻整天。
                     target = None
-                if target is not None:
+                if target is not None and not _stack_uncashable(plan, target, visit):
                     visit.day = target.day
                     day.items.remove(visit)
                     target.items.append(visit)
@@ -4951,7 +5021,7 @@ def _rehome_untimed_visits(
             target = _host_day_for_visit(
                 pool, vcity, dur, incoming=visit.location, visit=visit
             )
-            if target is not None:
+            if target is not None and not _stack_uncashable(plan, target, visit):
                 visit.day = target.day
                 day.items.remove(visit)
                 target.items.append(visit)
@@ -13278,6 +13348,12 @@ class PlanningAgent:
                             visit=visit,
                         )
                         if target is None:
+                            continue
+                        # 叠加兑现审（2026-11-08 永兴坊案两头空）：宿主日
+                        # 已欠无时刻承诺时克隆真裁决——回头重试是把第二
+                        # 名承诺压进同日的最后一环（大清真寺压死永兴坊、
+                        # 含光门牺牲已蒸发实录），兑现不了就拒落换下一天。
+                        if _stack_uncashable(plan, target, visit):
                             continue
                         tried.setdefault(visit.item_id, set()).update(
                             {day.day, target.day}

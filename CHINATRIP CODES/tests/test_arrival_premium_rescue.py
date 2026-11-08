@@ -452,3 +452,36 @@ def test_yield_zero_eject_crossday_no_sacrifice():
     assert "低档杂点" in d1_names
     assert not any("让位" in n for n in notes)
     assert any("已挪至第2天" in n for n in notes)
+
+
+def test_yield_no_uncashable_stack_same_day():
+    """叠加兑现审（2026-11-08 永兴坊案两头空）：第一名点先落第2天后，
+    第二名点探针独审「可行」（单点实位过），但克隆真裁决证明同日
+    两笔承诺兑现不了（终排贪心只活其一、含光门牺牲换死座实录）
+    ——必须拒落，第二名留在原日等终闸清算。"""
+    tiers = {"永兴坊名点": 3, "后到名点": 4}
+    stray1 = _visit("永兴坊名点", 3, minutes=90, hours="08:30-12:30")
+    stray1.day = 1
+    stray2 = _visit("后到名点", 4, minutes=90, hours="08:30-12:30")
+    stray2.day = 1
+    day1 = [
+        _timed(_visit("宽窄巷子", 8, minutes=90, pinned=True), 9),
+        _timed(_visit("武侯祠", 9, minutes=90, pinned=True), 11),
+        _timed(_visit("人民公园", 11, minutes=90, pinned=True), 13),
+        _timed(_visit("杜甫草堂", 12, minutes=90, pinned=True), 15),
+        stray1,
+        stray2,
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[_timed(_visit("锁位锚点", 7, minutes=90, pinned=True), 9)],
+    )
+    plan = ItineraryPlan(itinerary_id="it-nodbl", cities=["成都"], days=[d1, d2])
+    _rehome_untimed_visits(plan, frozenset(), tiers)
+    d2_names = [i.name for i in d2.items if isinstance(i, VisitItem)]
+    # 第一名独占可兑现窗；第二名被叠加兑现审拒落，留在原日
+    assert "永兴坊名点" in d2_names
+    assert "后到名点" not in d2_names
+    assert any(i.name == "后到名点" for i in d1.items)
