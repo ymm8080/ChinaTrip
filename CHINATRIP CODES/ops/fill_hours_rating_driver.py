@@ -108,31 +108,16 @@ def _select_rows(
             if ids:
                 q = q.filter(not_(Poi.id.in_(ids)))
         # 既有优先级序列（2026-11-03 用户指令「按既有优先级清单填」）：
-        # 与 app/jobs/enrich_ctrip_detail._source_rank 同序——规划器最先
-        # 挑出的行（unesco/5a/博物馆系/artmuseum）先吃每日配额。
+        # 直接取铁律 canonical 表 app.services.source_tier.SOURCE_PRIORITY
+        # （2026-11-08 用户拍板 +curated）——规划器最先挑出的行先吃每日配额。
+        from app.services.source_tier import SOURCE_PRIORITY
+
         rank = case(
-            *[
-                (Poi.source == src, rank_)
-                for rank_, src in enumerate(
-                    (
-                        "unesco",
-                        "5a",
-                        "museum1",
-                        "museum2",
-                        "museum3",
-                        "artmuseum",
-                        "amap",
-                        "chinatravel",
-                        "osm",
-                    )
-                )
-            ],
-            else_=5,
+            *[(Poi.source == src, rank_) for rank_, src in enumerate(SOURCE_PRIORITY)],
+            else_=len(SOURCE_PRIORITY),
         )
         rows = (
-            q.order_by(rank, Poi.rating.desc().nullslast(), Poi.id)
-            .limit(limit)
-            .all()
+            q.order_by(rank, Poi.rating.desc().nullslast(), Poi.id).limit(limit).all()
         )
         session.expunge_all()
     return rows
@@ -228,9 +213,7 @@ async def _run_baidu(limit: int, concurrency: int) -> dict:
             new_missed[str(row.id)] = f"baidu no_match（{date.today().isoformat()}）"
         else:
             stats["matched_no_fields"] += 1
-            new_missed[str(row.id)] = (
-                f"baidu 无目标字段（{date.today().isoformat()}）"
-            )
+            new_missed[str(row.id)] = f"baidu 无目标字段（{date.today().isoformat()}）"
 
     await asyncio.gather(*(_guarded(r) for r in rows))
     # 台账只含已尝试且确定性失败的行（未尝试行不入 new_missed）——配额
@@ -397,9 +380,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
             new_missed[str(row.id)] = f"amap no_match（{date.today().isoformat()}）"
         else:
             stats["matched_no_fields"] += 1
-            new_missed[str(row.id)] = (
-                f"amap 无目标字段（{date.today().isoformat()}）"
-            )
+            new_missed[str(row.id)] = f"amap 无目标字段（{date.today().isoformat()}）"
 
     await asyncio.gather(*(_guarded(r) for r in rows))
     # 同 baidu：台账只含已尝试的确定性失败行，配额/WAF 停批也照写。
@@ -408,9 +389,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
     return stats
 
 
-async def run(
-    limit: int, concurrency: int, engine: str, delay: float = 0.0
-) -> dict:
+async def run(limit: int, concurrency: int, engine: str, delay: float = 0.0) -> dict:
     if engine == "amap":
         return await _run_amap(limit, concurrency, delay=delay)
     return await _run_baidu(limit, concurrency)

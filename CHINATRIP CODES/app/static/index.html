@@ -395,6 +395,12 @@
             <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
           </span>
         </label>
+        <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
+          <span style="display:flex;gap:4px;align-items:center">
+            <select id="planVia1"></select>
+            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
+          </span>
+        </label>
         <!-- 交通（2026-11-07 拍板）：全程城际方式，默认按距离闸（600km 上飞机/下火车），
              用户可指定火车/飞机；规划后每段仍可「改乘」细调 -->
         <label class="fld"><span data-i18n="plan.transport">交通</span>
@@ -403,12 +409,6 @@
             <option value="train" data-i18n="plan.transport.train">🚄 火车</option>
             <option value="flight" data-i18n="plan.transport.flight">✈️ 飞机</option>
           </select>
-        </label>
-        <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
-          <span style="display:flex;gap:4px;align-items:center">
-            <select id="planVia1"></select>
-            <input type="number" id="planVia1Days" min="1" max="30" value="1" style="width:3.2em"><span data-i18n="plan.dayUnit">天</span>
-          </span>
         </label>
         <label class="fld"><span data-i18n="plan.via2">中间城市2</span>
           <span style="display:flex;gap:4px;align-items:center">
@@ -2563,7 +2563,7 @@ function planCityRender() {
   const en = I18N.locale() === "en";
   const label = ([c, enName]) => en ? enName : (c + " " + enName);
   const opts = PLAN_CITIES.map(p => '<option value="' + p[0] + '">' + label(p) + "</option>").join("");
-  const cur = { s: s.value || "上海", e: e.value || "杭州",
+  const cur = { s: s.value || "上海", e: e.value || "上海",
     via: [1, 2].map(i => document.getElementById("planVia" + i).value || "") };
   s.innerHTML = opts; s.value = cur.s;
   e.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts; e.value = cur.e;

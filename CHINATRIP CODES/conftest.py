@@ -16,6 +16,19 @@ from app.main import create_app  # noqa: E402
 get_handoff_store().attach_persistence(lambda record: None)
 
 
+# 2026-11-08 屏蔽期（先屏蔽不删）：偏好问答轮默认下线
+# （app/services/agent/plan.py::_PREF_ROUND_ENABLED=False，待补充信息后
+# 解封）。大量用例以偏好轮为状态脚手架（start → clarify → ready），
+# 这里 autouse 全局临时开闸按历史口径跑；屏蔽期默认行为由
+# tests/test_plan_agent.py::test_pref_round_blocked_by_default 在用例内
+# 单独翻回默认验收。解封后本 fixture 与该开关用例都是无害冗余，可一并撤掉。
+@pytest.fixture(autouse=True)
+def _pref_round_enabled_for_tests(monkeypatch):
+    import app.services.agent.plan as _plan_mod
+
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", True)
+
+
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(create_app())

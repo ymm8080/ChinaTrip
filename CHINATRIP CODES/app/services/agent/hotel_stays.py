@@ -152,6 +152,28 @@ def _minutes_of(t: time) -> int:
     return t.hour * 60 + t.minute
 
 
+def _last_timed_end_minutes(dp: DayPlan) -> int | None:
+    """当天末件收尾（分钟）：逐件顺序覆盖（与 attach_hotel_nights 同
+    口径），夜卡自身不计——reanchor 复用attach 的同一个 tail 口径。"""
+    last_end: int | None = None
+    for item in dp.items:
+        if is_hotel_night(item):
+            continue
+        end: int | None = None
+        if isinstance(item, VisitItem):
+            if item.end_time is not None:
+                end = _minutes_of(item.end_time)
+            elif item.start_time is not None and item.duration_minutes is not None:
+                total = _minutes_of(item.start_time) + item.duration_minutes
+                if total < 24 * 60:
+                    end = total
+        elif isinstance(item, TransferItem):
+            end = _transfer_end_minutes(item)
+        if end is not None:
+            last_end = end
+    return last_end
+
+
 def _night_window(last_end: int | None) -> tuple[int, int]:
     """夜卡 [start, end)（分钟）：末件结束 +30 分钟起、60 分钟时长；
     空天 21:00 起；越过 23:00 贴 23:00 开卡（末件本身晚于 23:00 则贴
@@ -198,22 +220,10 @@ def attach_hotel_nights(day_plans: list[DayPlan]) -> list[str]:
                 continue
             arr_city = (last.to_city or "").strip()
         city = dp.base_city
-        last_end: int | None = None
         for item in dp.items:
-            end: int | None = None
-            if isinstance(item, VisitItem):
-                if item.city:
-                    city = item.city
-                if item.end_time is not None:
-                    end = _minutes_of(item.end_time)
-                elif item.start_time is not None and item.duration_minutes is not None:
-                    total = _minutes_of(item.start_time) + item.duration_minutes
-                    if total < 24 * 60:
-                        end = total
-            elif isinstance(item, TransferItem):
-                end = _transfer_end_minutes(item)
-            if end is not None:
-                last_end = end
+            if isinstance(item, VisitItem) and item.city:
+                city = item.city
+        last_end = _last_timed_end_minutes(dp)
         if arr_city:
             city = arr_city
         s, e = _night_window(last_end)
@@ -245,3 +255,27 @@ def attach_hotel_nights(day_plans: list[DayPlan]) -> list[str]:
             "to book via Ctrip/Meituan/Fliggy channel cards",
         )
     ]
+
+
+def reanchor_hotel_nights(
+    day_plans: list[DayPlan], *, keep_ids: set[str] | None = None
+) -> None:
+    """编辑/修复路径上的夜卡顺延（2026-11-08 西湖 retime 16:00 撞 16:45
+    夜卡 → selfrepair 修复链被二次硬冲突耗尽事故）。
+
+    夜卡语义=「当天末件收尾后回酒店休息」，初始排程按末件推窗（见
+    attach_hotel_nights）。编辑/修复改动末件时刻后，若末件收尾已越过
+    卡面起点，卡须顺延到「末件+30 起 60 分钟」口径——只顺延不回拨
+    （用户手拖更早的卡不动），keep_ids 内的卡（本回合被用户拖/改的
+    目标）完全不动；不复活已删卡（同 attach 口径）。"""
+    keep = keep_ids or set()
+    for dp in day_plans:
+        card = next((i for i in dp.items if is_hotel_night(i)), None)
+        if card is None or card.item_id in keep:
+            continue
+        s, e = _night_window(_last_timed_end_minutes(dp))
+        cur = _minutes_of(card.start_time) if card.start_time else None
+        if cur is None or s > cur:
+            card.start_time = time(s // 60, s % 60)
+            card.end_time = time(e // 60, e % 60)
+            card.duration_minutes = e - s

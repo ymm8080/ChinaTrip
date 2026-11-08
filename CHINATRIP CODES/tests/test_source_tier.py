@@ -103,13 +103,14 @@ def test_tags_source_wins_authority_gate():
     assert tags_source_wins("mct", "glm")
 
 
-# --- SOURCE_PRIORITY：字段回填铁律 11 项全序（一个字不改） -------------------
+# --- SOURCE_PRIORITY：字段回填铁律全序（2026-11-08 用户拍板 +curated） ------
 
 
 def test_source_priority_iron_rule_full_list():
     assert SOURCE_PRIORITY == (
         "unesco",
         "5a",
+        "curated",
         "museum1",
         "museum2",
         "museum3",

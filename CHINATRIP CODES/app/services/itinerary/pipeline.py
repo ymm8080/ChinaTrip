@@ -5,6 +5,7 @@ restore, solver output. apply -> validate (hard rules) -> summarize.
 Pure functions only: no I/O, no LLM, no DB; inputs are never mutated.
 """
 
+from collections.abc import Callable
 from datetime import time
 
 from app.services.itinerary.legs import annotate_legs
@@ -190,13 +191,19 @@ def mutate(
     crowd_profile: CrowdProfile = CrowdProfile.normal,
     from_day: int | None = None,
     old_plan: ItineraryPlan | None = None,
+    post_apply: Callable[[ItineraryPlan], None] | None = None,
 ) -> tuple[ItineraryPlan, ValidationReport, ChangeSummary]:
     """Iron rule 0 one-shot pipeline: apply -> hard-validate -> summarize.
 
     When ``old_plan`` is given, scope (rule 10, needs ``from_day``) and pinned
     (rule 19) checks are stacked on top of the static plan validation.
+    ``post_apply`` runs on the deep-copied candidate right after diffs are
+    applied and before validation (agent edit path uses it to reanchor the
+    nightly hotel card onto the day's new tail).
     """
     new_plan = apply_diffs(plan, diffs)
+    if post_apply is not None:
+        post_apply(new_plan)
     report = validate_plan(new_plan, poi_hours=poi_hours, crowd_profile=crowd_profile)
     extra = []
     if old_plan is not None and from_day is not None:

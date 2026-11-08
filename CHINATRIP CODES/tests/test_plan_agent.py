@@ -307,6 +307,28 @@ def test_clarify_exhausted_forces_v0_on_default_assumptions():
 
 
 # --- sightseeing preference round (one ask before v0) -----------------------
+#
+# 2026-11-08 屏蔽期：偏好轮默认下线（plan._PREF_ROUND_ENABLED=False），
+# 待补充信息后解封。本文件大量用例以偏好轮为状态脚手架（start → clarify
+# → ready），由根 conftest 的 autouse fixture 全局临时开闸按历史口径跑；
+# 屏蔽期默认行为由 test_pref_round_blocked_by_default 在用例内单独翻回
+# 默认验收。解封后该 fixture 与开关用例都是无害冗余，可一并撤掉。
+
+
+def test_pref_round_blocked_by_default_goes_straight_to_v0(monkeypatch):
+    """屏蔽期默认行为：完整请求不再追问「偏好哪类玩法」，直接出 v0。"""
+    import app.services.agent.plan as _plan_mod
+
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", False)
+    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    agent = PlanningAgent(llm)
+    session = run(agent.start(device_id="d1", cities=["上海", "杭州"], days=2))
+    assert session.state == "ready"
+    assert session.pref_asked is False
+    assert session.plan is not None and session.plan.days
+    assistant_texts = [m.content for m in session.history if m.role == "assistant"]
+    assert not any("偏好哪类玩法" in t or "无特别要求" in t for t in assistant_texts)
+    assert llm.calls == 1  # straight to v0, no preference detour
 
 
 def test_start_complete_without_preferences_asks_preference():
