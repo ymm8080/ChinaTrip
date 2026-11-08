@@ -51,10 +51,6 @@ import logging
 import re
 from math import log2
 
-from app.services.agent.plan import (
-    _COMMERCIAL_DURATION_CAP_MIN,
-    _cand_diversity_group,
-)
 from app.services.itinerary.models import (
     GeoPoint,
     ItineraryPlan,
@@ -73,21 +69,14 @@ ALT_LIMIT = 3
 
 
 def _dur_capped(h: dict) -> int | None:
-    # 游时读值统一走 commercial 帽（2026-11-08 环球中心案）：库里 240
-    # 的商业综合体在行程卡已压 120，chip 亮裸 240 与换入后的实际游时脱
-    # 节，带闸也会把压帽主点的同帽孪生行带外误杀——读侧三处（排序/带
-    # 闸/展示）与选点同口径。
+    # 游时读值统一入口（排序/带闸/展示三处同口径）。2026-11-08 二拍：
+    # commercial 帽撤除——开场闸（11-07 第五拍）下 240min 可落 13:00-
+    # 17:00，压帽与用户「240 肯定能被任何一天放下」终裁相抵。
     d = h.get("suggested_duration_min")
     try:
         d = int(d) if d else None
     except (TypeError, ValueError):
         d = None
-    if (
-        d
-        and _cand_diversity_group(h) == "commercial"
-        and d > _COMMERCIAL_DURATION_CAP_MIN
-    ):
-        d = _COMMERCIAL_DURATION_CAP_MIN
     return d
 
 

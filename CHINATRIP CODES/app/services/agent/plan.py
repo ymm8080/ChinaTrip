@@ -349,13 +349,6 @@ def _cand_is_show(cand: dict) -> bool:
 _COMMERCIAL_NAME_MARKS = ("中心", "广场", "城")
 _COMMERCIAL_NAME_ANTI = ("古镇", "古城", "水乡")
 
-# 商业综合体时长帽（2026-11-08 环球中心案）：图商给综合体标的
-# 240min 参观时长把日预算吃穿（240+午餐窗+晚场青城山级 → 求解器排不下
-# → untimed → _drop_untimed_from_day 移除，用户连发 40 轮改排才钉回）。
-# 综合体半日足矣——用户手动改排时自选的也是 120。commercial 组候选
-# 时长超帽即压帽，选点/预算/组装全链路同口径。
-_COMMERCIAL_DURATION_CAP_MIN = 120
-
 
 def _cand_diversity_group(cand: dict) -> str | None:
     """内容类型多样保位分组（2026-11-07 拍板「商业中心/CITYWALK 要能与
@@ -5612,6 +5605,10 @@ class PlanSession(BaseModel):
     pending_sites: list[str] = Field(default_factory=list)
     pending_link_url: str = ""
     must_visits: list[str] = Field(default_factory=list)
+    # 手建卡通道（2026-11-08 拍板「CREATED 低于心愿、高于其它TAG」）：行程
+    # 中心 source=manual 的心愿行不进 must_visits 强钉——入池置顶+让位档
+    # 0，物理不可排时仍可出局（有心愿绝对安全在上）。
+    created_sites: list[str] = Field(default_factory=list)
     site_kinds: dict[str, str] = Field(default_factory=dict)  # name -> sight|food
     site_cities: dict[str, str] = Field(default_factory=dict)  # name -> city
     pending_restos: list[PendingResto] = Field(default_factory=list)
@@ -7391,6 +7388,20 @@ class PlanningAgent:
                     session.cities,
                 )
                 continue
+            if it.get("source") == "manual":
+                # 手建卡走 CREATED 通道（2026-11-08 拍板「低于心愿、高于
+                # 其它TAG」）：不进 must_visits 强钉——入池置顶+让位档 0；
+                # 心愿已覆盖同点的卡不重复收（心愿通道在上）。
+                if any(
+                    _same_site(name, m)
+                    for m in [*session.must_visits, *session.created_sites]
+                ):
+                    continue
+                session.created_sites.append(name)
+                if city:
+                    session.site_cities.setdefault(name, city)
+                absorbed.append(name)
+                continue
             if any(_same_site(name, m) for m in session.must_visits):
                 continue
             session.must_visits.append(name)
@@ -7425,6 +7436,7 @@ class PlanningAgent:
             session.must_visits,
             kinds=session.site_kinds,
             site_cities=session.site_cities,
+            created_sites=session.created_sites,
         )
         # 心愿绑定跨回合持久化（agent 按请求新建，会话才是载体）
         for _wn, _wb in self._wish_bindings.items():
@@ -7674,6 +7686,7 @@ class PlanningAgent:
         *,
         kinds: dict[str, str] | None = None,
         site_cities: dict[str, str] | None = None,
+        created_sites: list[str] | None = None,
     ) -> tuple[list[dict], list[str]]:
         """8.1.1 候选库优先（2026-10-24）：每城先查 POIS 底库 top 30（确定性
         排序），库存 ≥10 跳过高德（省配额）；<10 高德补量（_same_site 去重）；
@@ -8084,6 +8097,72 @@ class PlanningAgent:
                         f"必去{label} {name} 未能定位，按名称占位",
                         f"Must-visit {label} {name} could not be located — "
                         "placeholder by name",
+                    )
+                )
+        for name in created_sites or []:
+            # CREATED 卡保池（2026-11-08 拍板「低于心愿、高于其它TAG」）：
+            # 在池（top-30 窗或心愿覆盖）→ 直接打标置顶；窗外 → 心愿同路
+            # 解析（池语义/库模糊+LLM）补入并打标。与心愿通道两点不同：
+            # 行程外城同拦但只披露不回写心愿城；全落空不落无坐标占位卡
+            # （数据闸口径）——卡留心愿单可见。
+            covered = any(_name_dup(name, c["name"]) for c in candidates)
+            if not covered:
+                hint = site_cities.get(name) or fallback_city
+                bound = self._wish_bind_candidate(name, candidates)
+                if bound is None:
+                    bound = await self._bind_wish_poi(
+                        name, hint, allowed_cities=list(cities)
+                    )
+                if bound is not None:
+                    bound_city = str(bound.get("city") or "")
+                    if (
+                        bound_city
+                        and cities
+                        and not any(c in bound_city for c in cities)
+                    ):
+                        logger.info(
+                            "plan: created site off-trip skip %s city=%s",
+                            name,
+                            bound_city,
+                        )
+                        assumptions.append(
+                            L(
+                                f"手建「{name}」位于{bound_city}，不在本次行程城市"
+                                f"（{'、'.join(cities)}）中，未排入本次行程",
+                                f'Created item "{name}" is in {bound_city}, outside '
+                                f"this trip's cities ({', '.join(cities)}); it was "
+                                "not scheduled",
+                            )
+                        )
+                        continue
+                    if not any(c.get("name") == bound.get("name") for c in candidates):
+                        candidates.append(
+                            {
+                                **bound,
+                                "category": bound.get("category") or "sight",
+                                "city": bound.get("city") or hint,
+                            }
+                        )
+                    covered = True
+                    logger.info(
+                        "plan: created site bound into pool %s -> %s",
+                        name,
+                        bound.get("name"),
+                    )
+            if covered:
+                for c in candidates:
+                    if _name_dup(name, c["name"]):
+                        c["_created_lane"] = True
+            else:
+                logger.info(
+                    "plan: created site not resolved into pool, left on wishlist: %s",
+                    name,
+                )
+                assumptions.append(
+                    L(
+                        f"手建「{name}」未能定位到候选池，暂留心愿单",
+                        f'Created item "{name}" could not be resolved into the '
+                        "candidate pool; it stays on the wishlist",
                     )
                 )
         return candidates, assumptions
@@ -9095,11 +9174,6 @@ class PlanningAgent:
                 minutes = int(duration) if duration else default_minutes
             except (TypeError, ValueError):
                 minutes = default_minutes
-            if (
-                _cand_diversity_group(cand) == "commercial"
-                and minutes > _COMMERCIAL_DURATION_CAP_MIN
-            ):
-                return _COMMERCIAL_DURATION_CAP_MIN
             return minutes
 
         def _quality(cand: dict) -> float:
@@ -9157,6 +9231,10 @@ class PlanningAgent:
             ordered = sorted(
                 sights,
                 key=lambda p: (
+                    # CREATED 置顶（2026-11-08 拍板「低于心愿、高于其它
+                    # TAG」）：手建卡先于偏好/tier 梯子；心愿不走池序（
+                    # merge 强钉），故 CREATED 即池内最高位。
+                    not p[1].get("_created_lane"),
                     not _pref_key(p[1]),
                     _source_tier(p[1]),
                     # 同档内体验型优先（2026-11-07 拍板；跨档序不动）
@@ -10830,14 +10908,6 @@ class PlanningAgent:
                         minutes = int(minutes) if minutes else DEFAULT_VISIT_MINUTES
                     except (TypeError, ValueError):
                         minutes = DEFAULT_VISIT_MINUTES
-                    # commercial 帽（2026-11-08 环球中心案残余）：此路
-                    # 裸读库时长绕过选点层的帽——回填建 240min 规格、
-                    # 预算/组装与选点口径不一致（卡面 240 实录）。
-                    if (
-                        _cand_diversity_group(cand) == "commercial"
-                        and minutes > _COMMERCIAL_DURATION_CAP_MIN
-                    ):
-                        minutes = _COMMERCIAL_DURATION_CAP_MIN
                     xy = _xy(cand)
                     leg = _leg_min(xy, d)
                     if day_load[d] + minutes + leg > _budget(d):
@@ -11719,6 +11789,11 @@ class PlanningAgent:
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
         must_names = {spec["name"] for spec in picked if spec.get("must")}
         tier_map = {name: _source_tier(c) for name, c in cand_by_name.items()}
+        # CREATED 档 0（2026-11-08 拍板「低于心愿、高于其它TAG」）：让位
+        # 清算里手建卡可弹任何 TAG 座（tier≥1），只有心愿（protect）与其
+        # 同档大块头可抗——梯子上心愿>CREATED>TAG 三级落地。
+        for _cn in {c["name"] for c in candidates if c.get("_created_lane")}:
+            tier_map[_cn] = 0
         plan.assumptions.extend(
             _reconcile_transfer_days(
                 plan, tier_by_name=tier_map, protect=frozenset(must_names)
@@ -13959,13 +14034,6 @@ class PlanningAgent:
         if dur <= 0:
             dur = old.duration_minutes or DEFAULT_VISIT_MINUTES
         dur = max(30, min(dur, 480))
-        # commercial 帽（2026-11-08 环球中心案）：换景路裸读库时长，
-        # 240 会重演 untimed 移除的事故面——与选点/回填同口径压帽。
-        if (
-            _cand_diversity_group(cand) == "commercial"
-            and dur > _COMMERCIAL_DURATION_CAP_MIN
-        ):
-            dur = _COMMERCIAL_DURATION_CAP_MIN
         self._item_seq += 1
         fresh = VisitItem(
             item_id=f"v{self._item_seq}",

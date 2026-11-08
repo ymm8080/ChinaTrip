@@ -1944,10 +1944,12 @@ def test_named_wish_without_city_still_asks():
 
 
 def _wishlist_agent(items):
-    """Agent whose trip-center wishlist holds ``[(name, city)]`` entries."""
+    """Agent whose trip-center wishlist holds ``[(name, city)]`` entries
+    (chat-sourced wishes = 心愿 lane → must_visits pin; manual 手建卡走
+    CREATED 次级通道，见 test_manual_created_lane_splits_from_wishlist)."""
     svc = TripItemService()
     for name, city in items:
-        svc.create(name, source="manual", city=city)
+        svc.create(name, source="chat", city=city)
     return PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]), trip_items=svc)
 
 
@@ -1969,6 +1971,21 @@ def test_v0_absorbed_wishlist_is_pinned():
     )
     absorbed = next(v for v in all_visits(session) if v.name == "李子坝站")
     assert absorbed.pinned is True
+
+
+def test_manual_created_lane_splits_from_wishlist():
+    """CREATED 梯（2026-11-08 拍板「低于心愿、高于其它TAG」）：manual 手建
+    卡不进 must_visits 强钉——落 created_sites 次级通道；chat 心愿照钉。"""
+    svc = TripItemService()
+    svc.create("李子坝站", source="manual")
+    svc.create("西湖", source="chat", city="杭州")
+    agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]), trip_items=svc)
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert "西湖" in session.must_visits
+    assert "李子坝站" not in session.must_visits
+    assert "李子坝站" in session.created_sites
 
 
 def test_absorb_wishlist_dedupes_same_site():
@@ -3150,7 +3167,7 @@ def _city_probe_agent(poi_hits, items):
     svc = TripItemService()
 
     for name, city in items:
-        svc.create(name, source="manual", city=city)
+        svc.create(name, source="chat", city=city)
 
     agent = PlanningAgent(
         ScriptedLLM([v0_reply(SH_HZ_ITEMS)]),
