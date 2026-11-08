@@ -189,9 +189,7 @@ def test_full_host_receives_no_one():
     )
     _reunite_tight_kin(plan)
     assert e.day == 3  # D2 已满 4，第五员不进
-    assert len(
-        [i for i in plan.days[1].items if isinstance(i, VisitItem)]
-    ) == 4
+    assert len([i for i in plan.days[1].items if isinstance(i, VisitItem)]) == 4
 
 
 def test_tier2_not_pushed_to_edge_host():
