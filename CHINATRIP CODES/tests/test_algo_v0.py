@@ -180,18 +180,22 @@ def test_algo_respects_city_windows():
 # --- 演出 / 餐饮 / 夹紧 / 确定性 --------------------------------------------
 
 
-def test_algo_show_closes_city_last_day_and_extra_shows_dropped():
+def test_algo_show_closes_city_last_day_and_extra_show_takes_noshow_day():
+    """2026-11-08 二拍「取消每城只自动排一场夜场」：头场演出守城市末日
+    收尾，落选夜场逐张落位——一天一场仍守，第二场落无演出日（day3 已
+    有演出；旧「落选即弃」语义由 b0a55e7 撤下，此锚改锁新拍板）。"""
     cands = [
         _cand("宽窄巷子", "成都"),
         _cand("变脸表演", "成都", cat="entertainment", suggested=105),
-        _cand("蜀风雅韵", "成都", show=True),  # 第二场演出不排（每城一场）
+        _cand("蜀风雅韵", "成都", show=True),
         _cand("人民公园", "成都"),
     ]
     items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 3)})
     show = next(it for it in items if it["name"] == "变脸表演")
     assert show["day"] == 3  # 城市末日收尾
     assert show["duration_minutes"] == 105  # 库建议时长优先
-    assert "蜀风雅韵" not in {it["name"] for it in items}
+    extra = next(it for it in items if it["name"] == "蜀风雅韵")
+    assert extra["day"] == 2  # 无演出日承接（一天一场，day3 已占）
 
 
 def test_algo_show_without_suggested_defaults_90():

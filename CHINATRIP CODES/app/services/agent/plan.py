@@ -10352,6 +10352,7 @@ class PlanningAgent:
             # 当了幸存者，石刻本体反而被并入。组内先按 (tier, idx) 挑
             # 幸存者，其余并入披露。
             _twin_surv: dict[int, bool] = {}
+            _twin_surv_names: list[str] = []
             for i_a, p_a in enumerate(pool):
                 nm_a = str(p_a[1].get("name") or "")
                 if not nm_a:
@@ -10362,9 +10363,37 @@ class PlanningAgent:
                 grp = [i_a]
                 for i_b in range(i_a + 1, len(pool)):
                     nm_b = str(pool[i_b][1].get("name") or "")
+                    # 同内容配套场馆通道（2026-10-31 大足双卡案：石刻
+                    # 数字影院并入博物馆本体；与 _same_visit 同款 30km
+                    # 地理闸——双侧有坐标才校验，缺坐标保持池级行为）：
+                    # 池层并卡与行程级合并同口径，防「已让位+已排入」
+                    # 同站矛盾（c46f09d 同根口的漏网通道）。
+                    _twin_content = nm_b and _content_dup(nm_a, nm_b)
+                    if _twin_content:
+                        _loca = pool[i_a][1].get("location")
+                        _locb = pool[i_b][1].get("location")
+                        if (
+                            isinstance(_loca, dict)
+                            and _loca.get("lon") is not None
+                            and isinstance(_locb, dict)
+                            and _locb.get("lon") is not None
+                        ):
+                            _twin_content = (
+                                haversine_km(
+                                    GeoPoint(
+                                        lon=float(_loca["lon"]),
+                                        lat=float(_loca["lat"]),
+                                    ),
+                                    GeoPoint(
+                                        lon=float(_locb["lon"]),
+                                        lat=float(_locb["lat"]),
+                                    ),
+                                )
+                                <= _CONTENT_TWIN_GATE_KM
+                            )
                     if (
                         nm_b
-                        and _same_site(nm_a, nm_b)
+                        and (_same_site(nm_a, nm_b) or _twin_content)
                         and not _street_banquet_split(pool[i_a][1], pool[i_b][1])
                     ):
                         grp.append(i_b)
@@ -10378,10 +10407,16 @@ class PlanningAgent:
                         # 的 unesco 标签与石刻本体同档，再用分钟数反超。质量
                         # 分先于分钟数：石刻 4.6 > 图商孪生 0 分。
                         -_quality(pool[i_][1]),
+                        # 同档质量平手时博物馆本体优先于配套场馆行
+                        # （2026-10-31 碑林拍板；大足双卡：数字影院并入
+                        # 博物馆本体，不是反向）。
+                        0 if _museum_cand(pool[i_][1]) else 1,
                         _minutes(pool[i_][1], DEFAULT_VISIT_MINUTES),
                     ),
                 )
                 _twin_surv[best] = True
+                if len(grp) > 1:
+                    _twin_surv_names.append(str(pool[best][1].get("name") or ""))
                 for i_ in grp:
                     if i_ != best:
                         _twin_surv[i_] = False
@@ -10403,7 +10438,11 @@ class PlanningAgent:
                         for q in _twin_kept
                         if _source_tier(q[1]) <= 2
                     ]
-                    tail = f"（保留 {'、'.join(keep_hi)}）" if keep_hi else "并入同名点"
+                    tail = (
+                        f"（保留 {'、'.join(keep_hi)}）"
+                        if keep_hi
+                        else f"（并入 {'、'.join(_twin_surv_names)}）"
+                    )
                     notes.append(
                         f"{city}：同站重复卡并一，{'、'.join(_twin_cut)}{tail}"
                     )
@@ -11183,6 +11222,32 @@ class PlanningAgent:
                         day = min(
                             _alt, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
                         )
+                # 到达日收轻内容（2026-11-05 拍板「到达日适合小点/CityWalk」）：
+                # 簇日轮转把到达日剔除后（336cac5 边日口径），连轻点也
+                # 被分去中段整天、到达日整天空置（CI main_loop demote
+                # 回归）。非大块头非演出的轻点在非到达日簇日落座、而
+                # 到达日更空且装得下时优先去到达日——软偏好：窗口全为
+                # 到达日/到达日不更空或装不下，不变形。
+                if (
+                    _adays
+                    and day not in _adays
+                    and not _cand_is_big(cand)
+                    and not _cand_is_show(cand)
+                ):
+                    _arr_alt = [
+                        d
+                        for d in range(lo, hi + 1)
+                        if d in _adays
+                        and not _rain_blocked(cand, d)
+                        and day_loads[d][1] < 4
+                        and day_loads[d][0] <= day_loads[day][0]
+                        and day_loads[d][0] + minutes + _leg_min(xy, d) <= _budget(d)
+                    ]
+                    if _arr_alt:
+                        day = min(
+                            _arr_alt,
+                            key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                        )
                 # 未标注室内外点雨日让位（2026-11-05 拍板「雨天上午不排
                 # 室外点」，磁器口漏闸案）：目标天有雨且有干日计数空位时
                 # 挪干日——软语义不出局（无干日空位=留雨日，交对调/披露
@@ -11815,7 +11880,10 @@ class PlanningAgent:
            NOLOC 占位心愿的真身候选允许补入（组装层去重按 keep-rank 让
            真身胜出）。
         ② 超载天分流——非必去的点挪到同城窗口内更空且放得下的天，地理
-           腿优先。
+           腿优先；≤2km 贴邻紧簇成组判定（组整体搬走不拆对，2026-11-08
+           钟楼案，原 _has_kin 闸语义抽成组语义），≥3 件组允许单件疏压
+           （剩余成员仍成簇），2 件对无共同目标宁软闸超载不拆——整簇成
+           组时旧闸边缘死锁（到达日/超载分流回归组修，2026-11-08）。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
         # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
         # 行程最多一个」）：从既有 picked 清点起账，回填不借均衡线绕过
@@ -12099,28 +12167,14 @@ class PlanningAgent:
             )
 
         # ② 超载天分流
-        def _has_kin_on_day(s: dict, d: int) -> bool:
-            """贴邻伴在日（≤2km 紧簇口径）：有伴的超载件不单飞——拆对
-            分流=钟楼被甩去 D5 再弹 D2 楔进大雁塔日实录（2026-11-08
-            沪→西→沪案二轮）。宁可留软闸超载给求解层，不拆贴邻对。"""
-            xy = _xy(s)
-            if xy is None:
-                return False
-            for o in day_specs.get(d, []):
-                if o is s or o.get("category") in ("food", "entertainment"):
-                    continue
-                oxy = _xy(o)
-                if oxy is None:
-                    continue
-                if (
-                    haversine_km(
-                        GeoPoint(lon=xy[0], lat=xy[1]),
-                        GeoPoint(lon=oxy[0], lat=oxy[1]),
-                    )
-                    <= 2.0
-                ):
-                    return True
-            return False
+        def _pair_km(a: dict, b: dict) -> float:
+            axy, bxy = _xy(a), _xy(b)
+            if axy is None or bxy is None:
+                return float("inf")  # 缺坐标不构成贴邻伴（原 _has_kin 口径）
+            return haversine_km(
+                GeoPoint(lon=axy[0], lat=axy[1]),
+                GeoPoint(lon=bxy[0], lat=bxy[1]),
+            )
 
         moved: list[str] = []
         for d in sorted(range(1, days + 1), key=lambda dd: -day_load[dd]):
@@ -12135,48 +12189,128 @@ class PlanningAgent:
                 for s in day_specs.get(d, [])
                 if not s.get("must")
                 and s.get("category") not in ("food", "entertainment")
-                and not _has_kin_on_day(s, d)
             ]
-            for spec in movables:
-                if day_load[d] <= _budget(d):
-                    break
+
+            def _try_single(s0: dict) -> bool:
+                sxy = _xy(s0)
                 try:
-                    minutes = int(spec.get("duration_minutes") or 0)
+                    smin = int(s0.get("duration_minutes") or 0)
                 except (TypeError, ValueError):
-                    continue
-                xy = _xy(spec)
+                    return False
                 targets = [
                     t
                     for t in range(lo, hi + 1)
                     if t != d
                     and _cap(t) < 4
-                    and day_load[t] + minutes + _leg_min(xy, t) <= _budget(t)
+                    and day_load[t] + smin + _leg_min(sxy, t) <= _budget(t)
                     and not (
                         t == days
                         and days in _tdays
-                        and (_source_tier(spec) <= 2 or _cand_is_big(spec))
+                        and (_source_tier(s0) <= 2 or _cand_is_big(s0))
                     )
                 ]
                 if not targets:
-                    continue
+                    return False
                 # 到达日不让大块头进来（2026-11-05 拍板）：大块头分流时
                 # 有非到达日可去就不落到达日（软偏好，全为到达日照搬）。
-                if _cand_is_big(spec):
+                if _cand_is_big(s0):
                     _non_arr = [t for t in targets if t not in _adays]
                     if _non_arr:
                         targets = _non_arr
-                tgt = min(targets, key=lambda t: (_leg_min(xy, t), day_load[t], t))
-                day_specs[d].remove(spec)
-                picked.remove(spec)
-                spec["day"] = tgt
-                picked.append(spec)
-                day_specs.setdefault(tgt, []).append(spec)
-                day_load[d] -= minutes
-                day_load[tgt] += minutes + _leg_min(xy, tgt)
-                if xy is not None and xy in day_xy[d]:
-                    day_xy[d].remove(xy)
-                    day_xy[tgt].append(xy)
-                moved.append(f"{spec.get('name')} -> day {tgt}")
+                tgt = min(targets, key=lambda t: (_leg_min(sxy, t), day_load[t], t))
+                day_specs[d].remove(s0)
+                picked.remove(s0)
+                s0["day"] = tgt
+                picked.append(s0)
+                day_specs.setdefault(tgt, []).append(s0)
+                day_load[d] -= smin
+                day_load[tgt] += smin + _leg_min(sxy, tgt)
+                if sxy is not None and sxy in day_xy[d]:
+                    day_xy[d].remove(sxy)
+                    day_xy[tgt].append(sxy)
+                moved.append(f"{s0.get('name')} -> day {tgt}")
+                return True
+
+            handled: set[int] = set()
+            for spec in movables:
+                if day_load[d] <= _budget(d):
+                    break
+                if id(spec) in handled:
+                    continue
+                # 贴邻组成组判定（2026-11-08 钟楼案不拆贴邻对，原闸语义
+                # 抽成组）：同日 ≤2km 非餐/演邻居即伴；贴必去伴的件不单
+                # 飞（必去不能搬，拆开=拆对，原闸口径）。全可搬伴成组，
+                # 组内共同目标找到=整组搬走（预算=全组成员分钟+各自腿封
+                # 顶、4 点闸按组员数计）；找不到且组 ≥3 件允许单件疏压
+                # （剩余成员仍成簇，等效不拆对）；2 件对无共同目标保持
+                # 不拆（宁软闸超载）。
+                neighbors = [
+                    o
+                    for o in day_specs.get(d, [])
+                    if o is not spec
+                    and o.get("category") not in ("food", "entertainment")
+                    and _pair_km(spec, o) <= 2.0
+                ]
+                if not neighbors:
+                    if _try_single(spec):
+                        handled.add(id(spec))
+                    continue
+                if any(o.get("must") for o in neighbors):
+                    continue  # 贴必去伴：必去不动，宁超载不拆
+                group = [spec] + [o for o in neighbors if not o.get("must")]
+                group_min: list[int] = []
+                for g in group:
+                    try:
+                        group_min.append(int(g.get("duration_minutes") or 0))
+                    except (TypeError, ValueError):
+                        group_min.append(0)
+                g_targets: list[int] = []
+                for t in range(lo, hi + 1):
+                    if t == d or _cap(t) + len(group) >= 4:
+                        continue
+                    total = 0
+                    ok = True
+                    for g, gmin in zip(group, group_min):
+                        total += gmin + _leg_min(_xy(g), t)
+                        if (
+                            t == days
+                            and days in _tdays
+                            and (_source_tier(g) <= 2 or _cand_is_big(g))
+                        ):
+                            ok = False  # 王牌/大块头不进返程日
+                            break
+                    if ok and day_load[t] + total <= _budget(t):
+                        g_targets.append(t)
+                if g_targets:
+                    if any(_cand_is_big(g) for g in group):
+                        _non_arr = [t for t in g_targets if t not in _adays]
+                        if _non_arr:
+                            g_targets = _non_arr
+                    tgt = min(
+                        g_targets,
+                        key=lambda t: (
+                            sum(_leg_min(_xy(g), t) for g in group),
+                            day_load[t],
+                            t,
+                        ),
+                    )
+                    for g, gmin in zip(group, group_min):
+                        gxy = _xy(g)
+                        day_specs[d].remove(g)
+                        picked.remove(g)
+                        g["day"] = tgt
+                        picked.append(g)
+                        day_specs.setdefault(tgt, []).append(g)
+                        day_load[d] -= gmin
+                        day_load[tgt] += gmin + _leg_min(gxy, tgt)
+                        if gxy is not None and gxy in day_xy[d]:
+                            day_xy[d].remove(gxy)
+                            day_xy[tgt].append(gxy)
+                        handled.add(id(g))
+                        moved.append(f"{g.get('name')} -> day {tgt}")
+                    continue
+                if len(group) >= 3 and _try_single(spec):
+                    handled.add(id(spec))
         if moved:
             notes.append(
                 (
@@ -13629,10 +13763,32 @@ class PlanningAgent:
                 x[0],
             )
         )
+        # 整体还原快照（2026-11-08 借调试排连带改动组修）：试排路径里的
+        # _fallback_sequence_times 保全盘——多场次演出贴排让位会清掉贴伴
+        # 观光的时刻、软午餐被挤弃（华清池 13:00 让位后重排进上午、
+        # lunch-3 弃卡实录）；旧 _borrow_rollback 只还原被借件本身，
+        # 让位/弃餐的连带改动留在盘上，后续候选面对被改坏的上午再也
+        # 借不进去（回民街/碑林连败实录）。试排前全量快照卡片归属与
+        # 时刻，任一步失败整体还原到借调前——真正的「整体还原后试下
+        # 一个」。
+        _snap_items: dict[int, list] = {d.day: list(d.items) for d in plan.days}
+        _snap_state: dict[int, tuple] = {
+            id(it): (it.day, it.start_time, it.end_time)
+            for d in plan.days
+            for it in d.items
+            if isinstance(it, VisitItem)
+        }
+
+        def _borrow_full_restore() -> None:
+            for d in plan.days:
+                d.items[:] = _snap_items[d.day]
+            for d in plan.days:
+                for it in d.items:
+                    if isinstance(it, VisitItem):
+                        it.day, it.start_time, it.end_time = _snap_state[id(it)]
+
         for _score, donor, item in scored:
             donor_day_no = donor.day
-            orig_day_no = item.day
-            orig_index = donor.items.index(item)
             donor.items.remove(item)
             item.start_time = None
             item.end_time = None
@@ -13643,10 +13799,8 @@ class PlanningAgent:
                 item.start_time.hour,
                 item.start_time.minute,
             ) >= (12, 0):
-                # 落不进上午——还原后试下一个候选
-                self._borrow_rollback(
-                    plan, day_plan, donor, item, orig_index, orig_day_no
-                )
+                # 落不进上午——整体还原后试下一个候选
+                _borrow_full_restore()
                 continue
 
             # 借出日回填：装得下的里面更长/更近本日簇的未选点优先
@@ -13735,15 +13889,9 @@ class PlanningAgent:
                 backfilled = visit.name
                 break
             if not _morning_occupied(donor):
-                # 借出日早晨将空白且回填救不回——还原后试下一个候选
-                if backfilled:
-                    for i in list(donor.items):
-                        if isinstance(i, VisitItem) and i.name == backfilled:
-                            donor.items.remove(i)
-                            break
-                self._borrow_rollback(
-                    plan, day_plan, donor, item, orig_index, orig_day_no
-                )
+                # 借出日早晨将空白且回填救不回——整体还原后试下一个候选
+                # （试排所加回填卡与让位/弃餐改动一并随快照抹平）。
+                _borrow_full_restore()
                 continue
             return (item.name, backfilled, donor_day_no)
         return None

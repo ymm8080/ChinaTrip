@@ -55,7 +55,6 @@ class ScriptedLLM:
         self.calls += 1
         assert self.replies, "scripted replies exhausted"
         return ChatResult(content=self.replies.pop(0), model="scripted")
-        return ChatResult(content=self.replies.pop(0), model="scripted")
 
 
 class _EmptyFlights(FlightService):
@@ -1277,10 +1276,11 @@ def test_selfrepair_recovers_from_hard_violation():
     # 落地首停 2026-11-01: 入住卡 14:44-15:44，首个观光 ≥15:44=落地+150)；
     # 西湖缩 75' 轻点（2026-11-04 大点闸 >80min 最晚 15:30 开场，15:44
     # 档装不下 120' 大点）；
-    # the first diff retimes 西湖 to 10:00 -> violation（10:00+75'=11:15
-    # 收尾，距 12:10 发车 55 分钟 < 铁律 4 的 90 分钟衔接缓冲；75' 在
-    # 09:00 起排 10:15 收尾反而合法，违例时刻须压着缓冲线）-> repair
-    # round fixes it (16:00 过 15:44 地板且不撞 16:30 起始闸).
+    # the first diff retimes 西湖 to 10:00 -> violation（10:00-11:15
+    # 压在抵达腿与城市侧闸的红区里）-> repair round fixes it（2026-11-08
+    # 回归校准：回到引擎原位 15:00——过落地+2.5h 地板，不撞回酒店·
+    # 夜间休息 16:45 卡；旧脚本 16:00 会与其重叠成第二个硬违例，把
+    # 修复轮两连耗尽）.
     items = [
         {
             "name": "西湖",
@@ -1304,7 +1304,7 @@ def test_selfrepair_recovers_from_hard_violation():
                 "好的", [{"op": "retime", "item_id": "v1", "new_start_time": "10:00"}]
             ),
             repair_reply(
-                [{"op": "retime", "item_id": "v1", "new_start_time": "16:00"}]
+                [{"op": "retime", "item_id": "v1", "new_start_time": "15:00"}]
             ),
         ]
     )
@@ -1320,7 +1320,7 @@ def test_selfrepair_recovers_from_hard_violation():
     session, reply, change = run(agent.message(session, "西湖改到十点开始"))
     assert llm.calls == 3  # v0 + edit + one repair round
     item = next(i for d in session.plan.days for i in d.items if i.item_id == "v1")
-    assert item.start_time == time(16, 0)
+    assert item.start_time == time(15, 0)
     assert change is not None
     assert not hard_errors(session)
 
