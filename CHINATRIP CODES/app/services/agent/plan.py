@@ -7399,12 +7399,19 @@ class PlanningAgent:
         落实语义（2026-10-24 拍板）；解析仍失败→保持原吸收行为。
         2026-11-07 看熊猫案收口：行程外跳过不再静默——返回
         (absorbed, skipped_notes)，披露随 v0 assumptions 上卡（同日二拍
-        撤跨城宽恕重绑：「看熊猫」确系成都心愿，钉死的城市必须尊重）。"""
+        撤跨城宽恕重绑：「看熊猫」确系成都心愿，钉死的城市必须尊重）。
+        2026-11-08 城市闸（用户拍板）：心愿只看城市——有符合的城市或
+        适合所有城市的心愿才放进行程。①品类愿望先吃 WISH_CITY_HINTS
+        （喝茶/茶馆是成都心愿，不再无城绕闸就近塞进任意行程）；②多城
+        行程里定不出城的专名心愿没有「符合的城市」也不普适——不再照旧
+        吸收（单城行程唯一城即其城，空城就近落实语义保持）。"""
         if self._trip_items is None:
             return [], []
         absorbed: list[str] = []
         skipped_notes: list[str] = []
         cur_itin = session.plan.itinerary_id if session.plan else None
+        # 行程城市统一去「市」尾比对（心愿行/H5 手填可能带「市」尾）
+        trip_cities = [c.strip().removesuffix("市") for c in session.cities]
         rows = list(self._trip_items.list_groups().get("wishlist", []))
         # 2026-10-31（用户实报「新行程不抓心愿单」）：已排期但挂在别的行
         # 程上的心愿行，对新行程视同心愿单重新吸收；安排后 _sync_wish_rows
@@ -7428,18 +7435,26 @@ class PlanningAgent:
                 # （跳过留痕，2026-10-25 日志铁律）。
                 logger.info("plan: wish row skipped as meta/style/service: %s", name)
                 continue
-            city = it.get("city")
+            city = (it.get("city") or "").strip().removesuffix("市")
+            if not city:
+                # 城市提示先行（2026-11-08 城市闸）：品类愿望也先吃
+                # WISH_CITY_HINTS——喝茶/茶馆是成都心愿，不再无城绕闸
+                # 就近塞进任意行程；提示城写回心愿单（空城行自愈）。
+                hint = _wish_city_hint(name)
+                if hint:
+                    city = hint
+                    self._backfill_wish_city(name, hint)
             if not city and _category_search_keyword(name) is None:
                 resolved = await self._resolve_wish_city(name)
                 if resolved:
                     self._backfill_wish_city(name, resolved)
-                    if resolved not in session.cities:
+                    if resolved not in trip_cities:
                         # 行程外城市交下方统一闸（披露+跳过），不再裸 continue
                         city = resolved
                     else:
                         city = resolved
                         session.site_cities.setdefault(name, resolved)
-            if city and city not in session.cities:
+            if city and city not in trip_cities:
                 # 行程外城市闸（2026-11-07 看熊猫案收口）：原样静默 continue
                 # 连披露都没有，违反 2026-10-25 日志铁律。跨城宽恕重绑同日
                 # 二拍撤掉：「看熊猫」确系成都心愿，钉死的城市必须尊重。
@@ -7457,6 +7472,33 @@ class PlanningAgent:
                     name,
                     city,
                     session.cities,
+                )
+                continue
+            if (
+                not city
+                and _category_search_keyword(name) is None
+                and len(trip_cities) > 1
+            ):
+                # 2026-11-08 城市闸二拍（用户拍板「只有行程有符合的城市，
+                # 或者心愿是个适合所有城市的心愿才放进行程里」）：多城行程
+                # 里定不出城的专名心愿没有「符合的城市」也不普适——不再
+                # 照旧吸收；单城行程唯一城即其城，就近落实语义保持。
+                # 品类无提示愿望（咖啡/酒吧/博物馆…）= 适合所有城市，放行。
+                skipped_notes.append(
+                    L(
+                        f"心愿「{name}」定不出城市，先未排入本次行程"
+                        f"（{'、'.join(session.cities)}）；想排的话告诉我"
+                        "它属于哪座城",
+                        f'Wish "{name}" could not be pinned to a city, so '
+                        "it was not scheduled into this trip ("
+                        f"{', '.join(session.cities)}); tell me which city "
+                        "it belongs to and I will add it",
+                    )
+                )
+                logger.info(
+                    "plan: wish unresolved-city skip %s trip_cities=%s",
+                    name,
+                    trip_cities,
                 )
                 continue
             if it.get("source") == "manual":
@@ -14592,20 +14634,27 @@ class PlanningAgent:
                 if existing is None:
                     is_category = _category_search_keyword(wish) is not None
                     city = None
+                    city_from_trip = False
                     if is_category:
                         # 泛称愿望自动落地（2026-10-28 用户拍板，去除每轮
                         # 冒烟最后一处 clarify 摩擦）：行程城市已定且唯一→行
-                        # 直接记该城，不再追问「哪个城市」；多城/未定→留空，
-                        # 维持 2026-10-24 就近落实语义。落实为同类最佳由规划
-                        # 期 POIS 底库（tier 优先）→全城口碑决定；行名维持
-                        # 用户原话（2026-10-24 逐字拍板不变）。
+                        # 直接记该城，不再追问「哪个城市」。2026-11-08 城市
+                        # 闸收口：先吃 WISH_CITY_HINTS——喝茶/茶馆是成都心
+                        # 愿，提示城写死（不在行程→记城+提示，不再就近硬
+                        # 塞）；无提示品类愿望（咖啡/夜市/博物馆…）才是
+                        # 「适合所有城市」，多城/未定→留空就近落实。行名
+                        # 维持用户原话（2026-10-24 逐字拍板不变）。
                         bare_cities = {
                             (c or "").strip().removesuffix("市")
                             for c in session.cities
                             if (c or "").strip()
                         }
-                        if len(bare_cities) == 1:
+                        hint = _wish_city_hint(wish)
+                        if hint:
+                            city = hint
+                        elif len(bare_cities) == 1:
                             city = session.cities[0]
+                            city_from_trip = True
                     else:
                         city = await self._resolve_wish_city(wish)
                     row = self._trip_items.create(
@@ -14624,9 +14673,10 @@ class PlanningAgent:
                         }
                     )
                     if city:
-                        if not is_category:
-                            # 泛称行自带的城取自本次行程，必在城内，不走
-                            # 「行程未含」提示；专名行维持原判。
+                        if not city_from_trip:
+                            # 行自带城（单城泛称）必在城内，不走「行程未含」
+                            # 提示；专名行与提示城品类行（2026-11-08 城市闸）
+                            # 维持原判。
                             bare = _norm_city(city).removesuffix("市")
                             if trip_cities and bare not in trip_cities:
                                 notes.append(
@@ -14777,13 +14827,27 @@ class PlanningAgent:
         ]
         missing: list[str] = []
         rows: dict[str, dict] = {}
+        trip_cities = [c.strip().removesuffix("市") for c in session.cities]
         for it in self._trip_items.list_groups().get("wishlist", []):
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue
-            city = it.get("city")
-            if city and city not in session.cities:
+            city = (it.get("city") or "").strip().removesuffix("市")
+            if city and city not in trip_cities:
                 continue
+            if not city:
+                # 城市闸镜像（2026-11-08，同 _absorb_wishlist 口径）：吸收端
+                # 跳过的行不得从这里回流成必去——品类提示城不在行程不补排；
+                # 提示城在行程→钉城；多城行程定不出城的专名心愿不补排。
+                hint = _wish_city_hint(name)
+                if hint:
+                    if hint not in trip_cities:
+                        # 提示城写回心愿单（空城行自愈，下次城市过滤直接生效）
+                        self._backfill_wish_city(name, hint)
+                        continue
+                    session.site_cities.setdefault(name, hint)
+                elif _category_search_keyword(name) is None and len(trip_cities) > 1:
+                    continue
             core = _wish_core(name)
             if any(_name_dup(core, c) or _name_dup(name, c) for c in covered):
                 continue

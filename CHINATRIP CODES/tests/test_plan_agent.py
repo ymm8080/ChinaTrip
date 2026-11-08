@@ -1804,13 +1804,15 @@ def test_conversational_wish_syncs_for_english_input():
     english = "watch the face-changing show"
     llm.replies.append(edit_reply("Added.", [], wishes=[english]))
     msg = "I want to watch the face-changing show"
-    session, _, _ = run(agent.message(session, msg))
+    session, reply, _ = run(agent.message(session, msg))
     # Wishlist keeps the English verbatim…
     wish = svc.list_groups(iid)["wishlist"]
     assert [(i["name"], i["source"]) for i in wish] == [(english, "chat")]
-    # …and coverage rides it into the itinerary (pinned), same as Chinese.
-    added = next(v for v in all_visits(session) if v.name == english)
-    assert added.pinned is True
+    # 2026-11-08 城市闸：多城行程定不出城的专名心愿不硬塞——不排、进
+    # 城市追问队列（与中文专名口径一致）。
+    assert all(v.name != english for v in all_visits(session))
+    assert english in session.pending_wish_cities
+    assert "which city" in reply or "哪个城市" in reply or "城市" in reply
 
 
 def test_wish_captured_without_plan_diff():
@@ -1863,19 +1865,21 @@ def test_repeated_wish_reuses_row_and_restores_unwanted():
 
 
 def test_wishlist_coverage_adds_missing_site_to_plan():
+    # 2026-11-08 城市闸后，多城行程里补排走普适品类愿望（博物馆）；
+    # 城市心愿（变脸→成都）不再被补排进沪杭行程（见城市闸镜像测试）。
     svc = TripItemService()
     llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
     agent = PlanningAgent(llm, trip_items=svc)
     session = _ready_hz_session(agent)
     iid = session.plan.itinerary_id
-    svc.create("看变脸表演", source="chat", itinerary_id=iid, note="来自聊天")
+    svc.create("博物馆", source="chat", itinerary_id=iid, note="来自聊天")
     # A turn with no diffs and no fresh wishes still must close the gap.
     llm.replies.append(edit_reply("好的", []))
     session, _, _ = run(agent.message(session, "谢谢"))
-    added = next(v for v in all_visits(session) if v.name == "看变脸表演")
+    added = next(v for v in all_visits(session) if v.name == "博物馆")
     assert added.pinned is True
     assert session.state == "ready"
-    assert svc.list_groups(iid)["wishlist"][0]["name"] == "看变脸表演"
+    assert svc.list_groups(iid)["wishlist"][0]["name"] == "博物馆"
 
 
 def test_wishlist_coverage_skips_already_covered_wish():
@@ -1975,31 +1979,98 @@ def _wishlist_agent(items):
     return PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]), trip_items=svc)
 
 
-def test_v0_absorbs_cityless_wishlist_into_must_visits():
-    agent = _wishlist_agent([("李子坝站", None)])
+def test_v0_absorbs_cityless_universal_wishlist_into_must_visits():
+    # 2026-11-08 城市闸：多城行程里无城专名心愿定不出城不排；品类无提示
+    # 愿望（博物馆=适合所有城市）照旧吸收。
+    agent = _wishlist_agent([("博物馆", None)])
     session = run(
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
     assert session.state == "ready"
-    assert "李子坝站" in session.must_visits
-    assert "李子坝站" in {v.name for v in all_visits(session)}
-    assert any("心愿单" in a and "李子坝站" in a for a in session.assumptions)
+    assert "博物馆" in session.must_visits
+    assert any("博物馆" in v.name for v in all_visits(session))
+    assert any("心愿单" in a and "博物馆" in a for a in session.assumptions)
 
 
-def test_v0_absorbed_wishlist_is_pinned():
+def test_absorb_wishlist_skips_unresolved_named_in_multi_city():
+    # 2026-11-08 城市闸（用户拍板「只有行程有符合的城市，或者心愿是个
+    # 适合所有城市的心愿才放进行程里」）：无城专名心愿定不出城 → 不排
+    # 且披露，不再照旧吸收。
     agent = _wishlist_agent([("李子坝站", None)])
     session = run(
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
-    absorbed = next(v for v in all_visits(session) if v.name == "李子坝站")
+    assert session.must_visits == []
+    assert "李子坝站" not in {v.name for v in all_visits(session)}
+    assert any("李子坝站" in a and "定不出城市" in a for a in session.assumptions)
+
+
+def test_absorb_wishlist_category_city_hint_off_trip_skipped():
+    # 2026-11-08 城市闸：品类愿望先吃 WISH_CITY_HINTS——喝茶是成都心愿，
+    # 不再无城绕闸就近塞进沪杭行程；提示城写回心愿单（空城行自愈）。
+    agent = _wishlist_agent([("喝茶", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    assert session.must_visits == []
+    assert any("喝茶" in a and "成都" in a for a in session.assumptions)
+    row = next(
+        r for r in agent._trip_items.list_groups()["wishlist"] if r["name"] == "喝茶"
+    )
+    assert (row.get("city") or "") == "成都"
+
+
+def test_absorb_wishlist_category_hint_in_trip_pins_city():
+    # 提示城在行程 → 吸收并钉到该城（site_cities 落天用）。
+    svc = TripItemService()
+    svc.create("喝茶", source="chat")
+    llm = ScriptedLLM(
+        [
+            v0_reply(
+                [
+                    {
+                        "name": "宽窄巷子",
+                        "city": "成都",
+                        "category": "sight",
+                        "day": 1,
+                        "duration_minutes": 90,
+                    }
+                ]
+            )
+        ]
+    )
+    agent = PlanningAgent(llm, trip_items=svc)
+    session = run(
+        agent.start(device_id="d1", cities=["成都", "西安"], days=2, preferences="亲子")
+    )
+    assert "喝茶" in session.must_visits
+    assert session.site_cities.get("喝茶") == "成都"
+
+
+def test_absorb_wishlist_unresolved_named_in_single_city_absorbs():
+    # 单城行程唯一城即其城：定不出城的专名心愿保持空城就近落实语义。
+    agent = _wishlist_agent([("李子坝站", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海"], days=2, preferences="亲子")
+    )
+    assert "李子坝站" in session.must_visits
+
+
+def test_v0_absorbed_wishlist_is_pinned():
+    agent = _wishlist_agent([("博物馆", None)])
+    session = run(
+        agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
+    )
+    absorbed = next(v for v in all_visits(session) if "博物馆" in v.name)
     assert absorbed.pinned is True
 
 
 def test_manual_created_lane_splits_from_wishlist():
     """CREATED 梯（2026-11-08 拍板「低于心愿、高于其它TAG」）：manual 手建
-    卡不进 must_visits 强钉——落 created_sites 次级通道；chat 心愿照钉。"""
+    卡不进 must_visits 强钉——落 created_sites 次级通道；chat 心愿照钉。
+    （2026-11-08 城市闸后手建卡也看城市：给卡标行程内城市以保持测通道。）"""
     svc = TripItemService()
-    svc.create("李子坝站", source="manual")
+    svc.create("李子坝站", source="manual", city="上海")
     svc.create("西湖", source="chat", city="杭州")
     agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]), trip_items=svc)
     session = run(
@@ -2011,13 +2082,59 @@ def test_manual_created_lane_splits_from_wishlist():
 
 
 def test_absorb_wishlist_dedupes_same_site():
-    agent = _wishlist_agent([("李子坝站", None)])
+    agent = _wishlist_agent([("博物馆", None)])
     session = run(
         agent.start(device_id="d1", cities=["上海", "杭州"], days=2, preferences="亲子")
     )
-    assert session.must_visits == ["李子坝站"]
+    assert session.must_visits == ["博物馆"]
     rerun_absorbed, _skip_notes = run(agent._absorb_wishlist(session))
     assert rerun_absorbed == []  # rerun absorbs nothing new
+
+
+def test_wishlist_coverage_mirrors_city_gate():
+    # 2026-11-08 城市闸镜像：吸收端跳过的行（提示城不在行程 / 多城行程
+    # 定不出城的专名心愿）不得从补排端回流成必去；行程内城市照补。
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    class Rows:
+        def list_groups(self):
+            return {
+                "wishlist": [
+                    {"name": "喝茶", "city": None, "id": "w1"},  # 提示城=成都
+                    {"name": "李子坝站", "city": None, "id": "w2"},  # 定不出城
+                    {"name": "博物馆", "city": "上海", "id": "w3"},  # 在行程
+                ]
+            }
+
+        def update(self, *a, **k):
+            pass  # 提示城写回自愈（喝茶→成都）
+
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=Rows())
+    item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
+    wall = VisitItem(item_id="v2", name="回民街", city="西安", day=2, duration_minutes=60)
+    session = PlanSession(
+        session_id="s1",
+        device_id="d1",
+        cities=["上海", "西安"],
+        days=2,
+        state="ready",
+        plan=ItineraryPlan(
+            itinerary_id="it_t",
+            cities=["上海", "西安"],
+            days=[
+                DayPlan(day=1, base_city="上海", items=[item]),
+                DayPlan(day=2, base_city="西安", items=[wall]),
+            ],
+        ),
+    )
+    run(agent._ensure_wishlist_coverage(session))
+    # 博物馆(上海,在行程)补排；喝茶(成都)/李子坝站(定不出城)不回流
+    names = {
+        i.name for d in session.plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert any("博物馆" in n for n in names)
+    assert "喝茶" not in names and "李子坝站" not in names
 
 
 def test_absorb_wishlist_skips_items_from_other_cities():
@@ -2252,22 +2369,22 @@ def test_dedupe_visit_keepers_keeps_distinct_sites():
     assert dropped == []
 
 
-def test_category_wish_resolves_city_famous_teahouse():
+def test_category_wish_resolves_city_famous_around_pick():
+    # 2026-11-08 城市闸后，「空城就近落实」的载体换成无城市提示的品类
+    # 愿望（逛夜市）——喝茶→成都会被城闸拦下（见城市闸镜像测试）。
     svc = TripItemService()
     amap = AroundAmap(around=[_TEA_PLAIN, _TEA_FAMOUS])
     store = PoiDetailStore()
-    agent, session = _teahouse_session(amap, store, svc, "喝茶")
+    agent, session = _teahouse_session(amap, store, svc, "逛夜市")
     session, reply, _ = run(agent.message(session, "谢谢"))
-    # 圆心=西湖坐标，关键词=茶馆
-    assert amap.around_calls == [("茶馆", "120.150000,30.250000", 30000)]
-    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    # 圆心=西湖坐标，关键词=夜市
+    assert amap.around_calls == [("夜市", "120.150000,30.250000", 30000)]
+    added = next(v for v in all_visits(session) if v.name == "逛夜市")
     assert added.category == "food"
     assert added.pinned is True
     assert added.poi_id == "B-TEA-TOP"
     assert (added.location.lon, added.location.lat) == (120.15, 30.25)
     assert "湖畔居茶楼" in reply
-    # 喝茶优选成都不在本次行程 → 回复提示
-    assert "成都" in reply
     # 落实出的城市写回心愿单城市列
     iid = session.plan.itinerary_id
     assert svc.list_groups(iid)["wishlist"][0]["city"] == "杭州"
@@ -2286,28 +2403,32 @@ def test_category_wish_without_ratings_keeps_amap_order():
     famous = {**_TEA_FAMOUS, "rating": None}
     amap = AroundAmap(around=[plain, famous])
     store = PoiDetailStore()
-    agent, session = _teahouse_session(amap, store, TripItemService(), "喝茶")
+    agent, session = _teahouse_session(amap, store, TripItemService(), "逛夜市")
     session, _, _ = run(agent.message(session, "谢谢"))
-    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    added = next(v for v in all_visits(session) if v.name == "逛夜市")
     assert added.poi_id == "B-TEA-LOW"
 
 
 def test_category_wish_falls_back_to_text_search_when_around_misses():
     amap = AroundAmap(pois=[_TEA_FAMOUS], around=[])
     store = PoiDetailStore()
-    agent, session = _teahouse_session(amap, store, TripItemService(), "喝茶")
+    agent, session = _teahouse_session(amap, store, TripItemService(), "逛夜市")
     session, reply, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls  # around 先试，未命中
-    added = next(v for v in all_visits(session) if v.name == "喝茶")
+    added = next(v for v in all_visits(session) if v.name == "逛夜市")
     assert added.poi_id == "B-TEA-TOP"
     assert "湖畔居茶楼" in reply
     assert store._memory.get("B-TEA-TOP", {}).get("category") == "food"
 
 
 def test_named_wish_skips_citywide_search():
+    # 专名愿望不做全城 around 扫描：提示城定成都（在行程），文本搜索
+    # 落空 → 占位卡，around 池里的店不得冒充
     amap = AroundAmap(around=[_TEA_FAMOUS])
     store = PoiDetailStore()
-    agent, session = _teahouse_session(amap, store, TripItemService(), "看变脸表演")
+    agent, session = _teahouse_session(
+        amap, store, TripItemService(), "看变脸表演", cities=("上海", "成都")
+    )
     session, _, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
     assert any(v.name == "看变脸表演" for v in all_visits(session))
@@ -2357,18 +2478,19 @@ def test_named_wish_city_hint_routes_to_chengdu():
 
 
 def test_poi_library_hit_skips_amap():
-    # 「先去POIS里找」：底库已收录的茶馆直接用，不打高德
+    # 「先去POIS里找」：底库已收录的店直接用，不打高德（2026-11-08 城市
+    # 闸后载体换成无提示品类愿望逛夜市；喝茶→成都会被城闸拦下）
     store = PoiDetailStore()
-    store._memory["B-TEA-LIB"] = {
+    store._memory["B-NM-LIB"] = {
         "city": "杭州",
-        "name": "湖畔居茶楼",
+        "name": "武林夜市",
         "category": "food",
         "location": (120.15, 30.25),
         "source": "amap",
     }
     svc = TripItemService()
     amap = AroundAmap(around=[_TEA_FAMOUS])
-    agent, session = _teahouse_session(amap, store, svc, "喝茶")
+    agent, session = _teahouse_session(amap, store, svc, "逛夜市")
     session, reply, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
     # 仅 v0 景点拉取 + 条目缺坐标回填的专名查询（backfill 2026-10-28）
@@ -2376,8 +2498,8 @@ def test_poi_library_hit_skips_amap():
         k == POI_KEYWORD or k in {v.name for v in all_visits(session)}
         for k, _ in amap.calls
     )
-    added = next(v for v in all_visits(session) if v.name == "喝茶")
-    assert added.poi_id == "B-TEA-LIB"
+    added = next(v for v in all_visits(session) if v.name == "逛夜市")
+    assert added.poi_id == "B-NM-LIB"
     assert added.pinned is True
     assert "POI 底库" in reply
     iid = session.plan.itinerary_id
@@ -2418,14 +2540,28 @@ def test_chat_name_wish_hint_out_of_trip_recorded_not_forced():
     assert "未含成都" in reply
 
 
-def test_chat_category_wish_keeps_nearby_fallback():
-    # 品类愿望不定城市（已拍板语义）：喝茶提示成都但照旧就近落实杭州
+def test_chat_category_wish_city_hint_off_trip_recorded_not_forced():
+    # 2026-11-08 城市闸：喝茶提示成都、成都不在行程——不再「就近落实
+    # 杭州」，行记成都并提示，不硬塞（与专名口径一致）。
     amap = AroundAmap(pois=[_TEA_FAMOUS])
     agent, session, svc, _ = _wish_sync_session(["喝茶"], amap=amap)
-    session, _, _ = run(agent.message(session, "想喝茶"))
+    session, reply, _ = run(agent.message(session, "想喝茶"))
     iid = session.plan.itinerary_id
-    assert any(v.name == "喝茶" for v in all_visits(session))
-    assert _wish_row(svc, iid, "喝茶")["city"] == "杭州"
+    assert all(v.name != "喝茶" for v in all_visits(session))
+    assert _wish_row(svc, iid, "喝茶")["city"] == "成都"
+    assert "已记入心愿单（成都" in reply
+    assert session.pending_wish_cities == []
+
+
+def test_chat_category_wish_universal_keeps_nearby_fallback():
+    # 无提示品类愿望才是「适合所有城市」：多城行程留空就近落实（原
+    # 2026-10-28 语义收窄到无提示品类）。
+    amap = AroundAmap(pois=[_TEA_FAMOUS])
+    agent, session, svc, _ = _wish_sync_session(["逛夜市"], amap=amap)
+    session, _, _ = run(agent.message(session, "想逛夜市"))
+    iid = session.plan.itinerary_id
+    assert any(v.name == "逛夜市" for v in all_visits(session))
+    assert _wish_row(svc, iid, "逛夜市")["city"] == "杭州"
     assert session.pending_wish_cities == []
 
 
