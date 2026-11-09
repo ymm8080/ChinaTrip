@@ -168,20 +168,20 @@ PLACEHOLDER_POI_LABELS = ("博物馆", "老街", "公园", "地标")
 # 30 行；重庆 top30 滤后仅剩 3 个可用候选、每天 1 点即此故。
 PLAN_LIBRARY_FETCH_DEPTH = 120
 PLAN_LIBRARY_WINDOW = 30
-# 软超额放置的最远同日直线距（2026-11-04 成渝案：江津四面山+白帝城·
-# 瞿塘峡 330km 被软闸兜底排进同一天）——公里口径而非腿分钟：taxi_leg_min
+# 软超额放置的最远同日直线距（2026-11-04 成渝案：江畔古城·峡谷样本
+# 330km 被软闸兜底排进同一天）——公里口径而非腿分钟：taxi_leg_min
 # 封顶 180 分钟，90km 与 330km 在分钟口径下同值无法区分；140km 之内
 # 仍走 2026-11-02「时间软闸」拍板（90km 远对照排），更远交回填/披露。
-# 150→140（2026-11-04 晚二段）：金佛山北坡↔大足石刻实测 148.7km 贴线
+# 150→140（2026-11-04 晚二段）：山岳景区北坡↔石窟样本实测 148.7km 贴线
 # 漏闸（路距 ~230km 单程 3.5h+，同日本属不可行）——直线 140km ≈ 路距
-# 200km+，收紧一档；南川金佛山+南川东街（2km）等同城簇不受影响。
+# 200km+，收紧一档；同城山岳+城心街区样本（2km）等同城簇不受影响。
 _SOFT_FAR_KM = 140.0
-# 行程卡「换景点」的地理重排触发距（2026-11-07 熊猫谷替换熊猫基地案）：
+# 行程卡「换景点」的地理重排触发距（2026-11-07 同体验组换位案）：
 # 换入点离原点位直线超过该值时，当天跑插入式重排（与 LNS _retime_trial
 # 同口径）按距离聚合串线——替换点换了地，原列表序是绕旧点的近邻链，
 # 照旧会排出 58km 中途大空段。3km 内视为同商圈换位，保持用户列表序。
 _REPLACE_REORDER_KM = 3.0
-# 近距同日圈（2026-11-07 锦里古戏台/武侯祠案起；同日口径用户拍板 5km）：
+# 近距同日圈（2026-11-07 庙街复合挂牌案起；同日口径用户拍板 5km）：
 # 直线距离在该圈内的点位互相牵引同日连排——认领天序贴邻天优先、演出日
 # 前置、下午大点贴邻豁免。原为 1.5km 步行圈，用户拍板「近距离同日连排
 # 是 5 公里之内」后扩圈改名；5km 圈外仍有 15km 片区圈兜底。
@@ -191,26 +191,26 @@ _NEAR_SAMEDAY_KM = NEAR_SAMEDAY_KM
 # 紧簇半径（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合优先」）：
 # 弹座保护与认领 kin 共用的「强簇」口径——圈内同日伙伴不让位弹座单独
 # 拽走、认领先认紧簇天；5km 同日圈是「可以同日」，2km 紧簇是「必须先
-# 聚」——4.6-5km 压线弱边不得斗过 0.5-2km 强簇（钟楼↔碑林 0.52km 被大
-# 雁塔 4.97km 弱边拆散实录）。
+# 聚」——4.6-5km 压线弱边不得斗过 0.5-2km 强簇（城心簇两锚 0.52km 被
+# 4.97km 弱边拆散实录）。
 _TIGHT_CLUSTER_KM = TIGHT_CLUSTER_KM
-# 片区圈（2026-11-08 临潼案拍板「兵马俑/华清宫按距离是一个组合，放在
-# 某一天」）：5km 同日圈外的同片区伴（兵马俑↔华清宫 6.9km、钟楼↔大雁
-# 塔 6.1km 实测）不逐出簇日——纯度闸只清 >片区圈的真异簇（城心↔临潼
-# 34km）；回填天序既有 15km 圈（华清宫 13km 也算「近」实录）同口径
+# 片区圈（2026-11-08 远郊片区案拍板「远郊王牌/远郊园林按距离是一个组合，放在
+# 某一天」）：5km 同日圈外的同片区伴（远郊王牌↔远郊园林 6.9km、城心两锚
+# 6.1km 实测）不逐出簇日——纯度闸只清 >片区圈的真异簇（城心↔远郊片区
+# 34km）；回填天序既有 15km 圈（远郊园林 13km 也算「近」实录）同口径
 # 收编为常量，两处共用一个真相。
 _DISTRICT_DAY_KM = 15.0
 # 簇优先选日原子族半径（2026-11-08 深夜二拍）：只管
-# _assign_cluster_first_days 这条通道；1.5-2km 链式弱边（小雁塔↔城墙碑林
-# 1.96km）不得把原子族撑爆 4/日帽、逼减员肢解核心组（钟/鼓/城墙案）。
+# _assign_cluster_first_days 这条通道；1.5-2km 链式弱边（城心簇锚↔联票挂牌行
+# 1.96km）不得把原子族撑爆 4/日帽、逼减员肢解核心组（城心簇锚组案）。
 # _TIGHT_CLUSTER_KM=2.0 的归位/纯度/楔子口径不动——2km 内零散件仍受
 # tight_kin 软偏好可自然贴族日。
 _FAMILY_ATOMIC_KM = 1.0
 # 返程日市区圈（2026-11-08 拍板「回城当天有多余时间也只排市区内小点
-# 或 CityWalk——华清宫 27km/兵马俑 35km 这类重要或远郊的点不上最后
+# 或 CityWalk——远郊园林 27km/远郊王牌 35km 这类重要或远郊的点不上最后
 # 一天」）：返程日候选须落在市区锚（_urban_medoid 主导簇代理）该圈
-# 内，出圈远郊点不进返程日、前移他日。口径贴 15km 片区圈（磁器口离
-# 解放碑 ~12km 实测在圈内、华清宫 27km 出圈）。「重要」翼已由 tier≤2/
+# 内，出圈远郊点不进返程日、前移他日。口径贴 15km 片区圈（街道类样本离
+# 城心锚 ~12km 实测在圈内、远郊园林 27km 出圈）。「重要」翼已由 tier≤2/
 # >80min 三层布防（_edge_blocked/_can_join/_no_return_day），本圈补
 # 「远」翼。钉/必去/餐住免（用户意图优先）；缺锚/缺坐标不拦；全边
 # 日窗（单日窗/两天到达+返程）软放兜底——排得上优先于排得轻。
@@ -226,7 +226,7 @@ _RETURN_DAY_WINDOW_MIN = LEAVING_MORNING_END_MINUTES - DAY_START_MINUTES
 PLAN_SHOW_RESCUE_LIMIT = 3
 # 内容类型多样保位（2026-11-07 拍板「商业中心/CITYWALK 要能与 5A 竞争」）：
 # 名录档硬分层把无档商业综合体(other)/城走(citywalk/street)压出排期面——
-# 成都实测环球中心 4.6 分全城 ~77 位、窗口 30 永不出线。窗口外+池外各
+# 成都实测大体量低分商业体 4.6 分全城 ~77 位、窗口 30 永不出线。窗口外+池外各
 # 保底每类 2 行；演出/娱乐不在此列（S5 演出保位另有专闸）。
 PLAN_DIVERSITY_RESCUE_LIMIT = 2
 
@@ -259,7 +259,7 @@ HOURS_CHUNK = 6  # hours-chain items fetched concurrently per chunk
 CAR_MAX_KM = 300  # no-schedule legs beyond this are flights, never drives
 CAR_KMH = 70  # intercity road pace behind the car placeholder duration
 # 城际交通方式距离闸（2026-11-06 用户拍板）：直线 >600km 选航班，≤600km
-# 选火车——西安→杭州(~1130km)必须飞机、杭州→上海(~165km)必须火车。
+# 选火车——甲城→乙城（~1130km）必须飞机、乙城→丙城（~165km）必须火车。
 FLIGHT_OVER_TRAIN_KM = 600
 DEFAULT_DAYS = 6
 DEFAULT_CITY = "北京"
@@ -282,13 +282,13 @@ HISTORY_WINDOW = 12
 DAY_VISIT_BUDGET_MINUTES = 360  # 每日参访时长预算（TTDP 口径）
 
 # 百度评分贴标尺系数（2026-11-07 用户拍板「评分跨源不可比」）：百度 POI
-# 评分整体虚高（农科村 baidu 5.0 vs 武侯祠 amap 4.6 反例——同档内冷门
+# 评分整体虚高（乡村样本 baidu 5.0 vs 名庙地标 amap 4.6 反例——同档内冷门
 # 行反超名录地标），选点质量分对 rating_source='baidu' 的行 ×0.9 贴回
 # 高德标尺；只影响引擎比较，不改库值，amap/ctrip 评分不动。
 _BAIDU_RATING_FACTOR = 0.9
 
 # 品类闸豁免类（不参与「同类型封顶 max(2, span//3)」）：""/attraction/sight
-# 是粗桶类（回民街/城墙/兵马俑同桶），food/entertainment 各有专属闸。
+# 是粗桶类（街道类/城心簇锚/远郊王牌同桶），food/entertainment 各有专属闸。
 # nature 原按 11-07「A 豁免」入本表，同日被更严的行程级上限接管（见
 # _itin_cap_bucket「少放风景区这种，每个行程最多一个」）——移出豁免表。
 # 博物馆/寺庙/古镇等真类型仍封顶（「为什么安排那么多博物馆」防线不变）；
@@ -300,17 +300,17 @@ _UNCAPPED_CATEGORIES = ("", "attraction", "sight", "food", "entertainment")
 # museum 桶含 gallery/memorial/art（美术馆/纪念馆都是「博物馆这种」），
 # 风景区桶含 nature 品类、scenic 源行，以及「名录王牌里的山水行」
 # （2026-11-07 用户拍板「少放风景区这种，每个行程最多一个」+「风景区
-# 的优先级不应该是最高的」：5A/世遗山水——武隆喀斯特/小三峡/四面山/
-# 阿依河类——source='5a'、category='attraction'，旧判定全部漏网，
+# 的优先级不应该是最高的」：5A/世遗山水——喀斯特/峡谷/山岳类——
+# source='5a'、category='attraction'，旧判定全部漏网，
 # 重庆段被风景区填满）。山水 token 只对带 5a/unesco 标的行生效——
-# 古镇/人文型 5A（安仁古镇景区）不误伤。上限 1/行程，跨城共享计数
+# 古镇/人文型 5A（古镇样本景区）不误伤。上限 1/行程，跨城共享计数
 # （成渝线全程 1 个博物馆，不是每城 1 个）；必去合并通道不受此闸。
 # 桶上限分品类（2026-11-08 二拍「CITYWALK 应该最多二个，不是只有
-# 一个」——长安十二时辰/永兴坊类街区体验可两档共存；博物馆/风景区
+# 一个」——主题街区/街道类体验可两档共存；博物馆/风景区
 # 维持 11-07 拍板 1 个）。
 _ITIN_BUCKET_CAPS = {"museum": 1, "scenic": 1, "citywalk": 2}
 _SCENIC_NAME_RE = re.compile("山|峡|谷|江|河|湖|瀑|洞|森林|草原|湿地|地质|喀斯特|风景")
-# 街区型体验的名字语素（2026-11-08 长安十二时辰案）：库品类不可靠
+# 街区型体验的名字语素（2026-11-08 主题街区案）：库品类不可靠
 # （show 源主题街区行=entertainment），名字兜底认街区身份。
 _STREET_DISTRICT_RE = re.compile("主题街区|街区|步行街")
 
@@ -329,8 +329,8 @@ def _itin_cap_bucket(cand: dict) -> str | None:
     ) and _SCENIC_NAME_RE.search(str(cand.get("name") or "")):
         return "scenic"
     if cat == "citywalk" or src == "street":
-        # street 源与多样性分组同口径（2026-11-07 晚拍板：宽窄巷子/
-        # 武侯祠·锦里类街区件计入行程级 citywalk 上限桶）
+        # street 源与多样性分组同口径（2026-11-07 晚拍板：庙街复合
+        # 挂牌类街区件计入行程级 citywalk 上限桶）
         return "citywalk"
     return None
 
@@ -366,7 +366,7 @@ def _cand_is_show(cand: dict) -> bool:
     """演出候选判定（2026-10-29 功能标签批打后认 tags）：04 演艺源 /
     娱乐类 / 宜演出时段之外，标签 show 同样算——amap 源的川剧院等
     （label_pois 名称内核补判）按同一场晚间档参与提案。街区型体验豁免
-    （2026-11-08 长安十二时辰案拍板「是 CITYWALK 直接插入」）：名字
+    （2026-11-08 主题街区案拍板「是 CITYWALK 直接插入」）：名字
     带主题街区/街区/步行街且品类 citywalk 的行走体验不是演出——show
     源血缘/best_visit_time 旧键不再把它推晚间档与演出闸。"""
     if str(cand.get("category") or "") == "citywalk" and _STREET_DISTRICT_RE.search(
@@ -383,7 +383,7 @@ def _cand_is_show(cand: dict) -> bool:
 
 
 # 商业综合体名称语素兜底（2026-11-07 二拍「修法选2」）：点名升类把
-# other→attraction 粘性升类（环球中心案），commercial 组只认 other 即
+# other→attraction 粘性升类（大体量商业体案），commercial 组只认 other 即
 # 失明——标再被剥（467664e 前科）则名录梯/保位网双盲回 ~77 位出窗。
 # attraction 名含中心/广场/城按商业体归组；「城」反词排除古城观光名。
 _COMMERCIAL_NAME_MARKS = ("中心", "广场", "城")
@@ -396,7 +396,7 @@ def _cand_diversity_group(cand: dict) -> str | None:
     硬分层把无档行压出排期面，此判定只认内容类型不认档位——
     commercial=商业综合体(other)；citywalk=城走（citywalk 类别 /
     street 源 / 功能标签 citywalk）；tea=茶馆体验（tea_experience 类别，
-    2026-11-08 人民公园案：4.6 分满数据行因 tier11 排出 top-30 窗、
+    2026-11-08 茶体验案：4.6 分满数据行因 tier11 排出 top-30 窗、
     保位网无组可归，成都整城行程零喝茶体验）。演出/娱乐不算
     （_cand_is_show 另有保位专闸）；同名多源去重由调用方把风。"""
     cat = str(cand.get("category") or "").strip().lower()
@@ -421,9 +421,9 @@ def _cand_diversity_group(cand: dict) -> str | None:
 
 
 def _name_is_addr_shell(name: object) -> bool:
-    """地址串当名（2026-11-04 成渝案「四川省成都市成华区望平坊旅游休闲
-    街区」整串入库被排进行程）：省级/市级前缀 + 足够长度的行是地址不
-    是名字。短名（武隆县喀斯特旅游区/江津区四面山景区）不受影响。"""
+    """地址串当名（2026-11-04 成渝案「省+市+区县+街道类样本」整串入库被
+    排进行程）：省级/市级前缀 + 足够长度的行是地址不
+    是名字。短名（区县+景区名型短名）不受影响。"""
     s = str(name or "").strip()
     if len(s) < 14:
         return False
@@ -434,7 +434,7 @@ def _name_is_addr_shell(name: object) -> bool:
 def _cand_at_fallback(cand: dict) -> bool:
     """回退点闸（2026-11-04 P1#1 第四闸）：候选坐标=城市回退点（geocoder
     解析失败静默回退 gov 点，重庆 181 行聚簇=渝中区政府）——距城心 0km
-    恒过距城闸，远点冲突闸全被骗过（金佛山↔石刻实测 82.8km）。库行与
+    恒过距城闸，远点冲突闸全被骗过（山岳景区↔石窟样本实测 82.8km）。库行与
     图商补量同闸；演出豁免不豁免本闸（西安 show 批 5 行投毒点=市政府）。
     注册表见 app/services/city_fallback.py（只收多行实测聚簇点）。"""
     loc = cand.get("location")
@@ -448,7 +448,7 @@ def _cand_at_fallback(cand: dict) -> bool:
 def _pool_worthy(cand: dict) -> bool:
     """数据完整度闸（2026-11-04 白鹿原·白鹿仓 d4 事故）：有名有坐标但
     地址/评分/开放时间三空的骨架行不得进自动排期池——null hours 无时间
-    约束永远可排，求解杀真点（骊山/陕历博排不下被移除）留骨架，空位全
+    约束永远可排，求解杀真点（远郊族/名馆排不下被移除）留骨架，空位全
     喂给三空行。4a 批 92.9% 无地址坐标回填后挤占 top-30 窗口尾段，同根。
     演出行天然无评分，豁免（保位线语义不变）；补齐任一实数据自动回池。
     回退点闸先行（2026-11-04 P1#1）：坐标=城市回退点的行连 show 一起
@@ -474,7 +474,7 @@ def _show_night_only(cand: dict) -> bool:
 
 
 def _show_off_season(cand: dict, months: set[int]) -> str | None:
-    """演出停演季闸（2026-11-08 西安长恨歌案）：opening_hours 纯文本含
+    """演出停演季闸（2026-11-08 同址夜演案）：opening_hours 纯文本含
     「演出季X-Y月」（实录「仅夜场（约20:10/21:35两场；演出季4-10月，
     冬季停演）」）或裸「冬季停演」窄模式时，行程月与演出季全无交集 →
     返回披露串；在季/无季节文案/无行程日历返回 None。保守口径防误伤：
@@ -503,9 +503,9 @@ def _show_off_season(cand: dict, months: set[int]) -> str | None:
 
 def _theme_block_cand(cand: dict) -> bool:
     """街区型演出块候选（与 solver._is_theme_block 同源口径，2026-11-06
-    二拍）：名含「街区」的演出/娱乐/citywalk 行——长安十二时辰主题街区
+    二拍）：名含「街区」的演出/娱乐/citywalk 行——主题街区样本
     形态（库实测 category=entertainment + bvt=show + tags intl/sygic/
-    show）。名含「街区」的普通观光行（洪崖洞重逢1980街区=attraction
+    show）。名含「街区」的普通观光行（夜场街区样本=attraction
     + amap）不算——无演出内核。"""
     if "街区" not in str(cand.get("name") or ""):
         return False
@@ -521,7 +521,7 @@ _STREET_NAME_MARKS = ("街", "巷", "坊")
 def _plain_street_cand(cand: dict) -> bool:
     """普通街区候选（2026-11-06 三拍「街区演出 PRIORITY 大于普通街区」
     裁定对的另一半）：名带 街/巷/坊 语素的行走型街区且非演出块——
-    回民街/宽窄巷子/永兴坊/磁器口街区形态（库实测 category 为
+    街道类样本形态（库实测 category 为
     attraction/historic，品类不可靠，名字语素为准）。"""
     if _theme_block_cand(cand):
         return False
@@ -545,7 +545,7 @@ def _street_block_priority(
     """街区演出块选点优先于普通街区（2026-11-06 三拍「街区演出 PRIORITY
     大于普通街区」）：同档（tier 连续段）内演出块稳定提到档首——档内
     其余成员（普通街区、非街区观光点）相对序原样保持，只新增「块提前」
-    的裁定；跨档名录梯子（2026-11-03 名录序拍板）不动：回民街(lp tier3)
+    的裁定；跨档名录梯子（2026-11-03 名录序拍板）不动：街道类样本（lp tier3)
     仍压过 sygic tier4 块，档间序是用户既定拍板。池序消费者（优先级
     预占位、主环认领、池上限切片）全部按此序。"""
     out: list[tuple[int, dict]] = []
@@ -608,7 +608,7 @@ def _sched_best_visit(cand: dict | None) -> str | None:
     return slot if slot else raw
 
 
-# 折卡夜档信号（2026-11-07 十二时辰案）：折卡卡面 bvt 原样继承锚——
+# 折卡夜档信号（2026-11-07 主题街区夜场案）：折卡卡面 bvt 原样继承锚——
 # 若主卡(any)折了夜档子站后被当大点排进上午头档，子站的体验窗整段
 # 丢失。夜档集合与 solver._EVENING_OK_BEST 同族（另收脏值 night 防御），
 # 成员任一带夜档时卡取夜档。
@@ -638,7 +638,7 @@ def _rain_exposed(cand: dict) -> bool:
 def _rain_unmarked(cand: dict) -> bool:
     """未标注室内外且品类不指向室内（2026-11-05 用户拍板「雨天上午
     不排室外点」：indoor/rain_ok 全空的历史街区/attraction 行雨天
-    静默放行=第 8 天磁器口漏闸案）。品类 museum/gallery/hotel/food/
+    静默放行=第 8 天街道类样本漏闸案）。品类 museum/gallery/hotel/food/
     entertainment 视同室内不参与；返回 True 的点雨天让位室内——软
     语义（挪干日/对调/披露），不硬拦（无标记行硬拦=误杀，口径同
     _morning_fill 保守注释）。"""
@@ -692,11 +692,11 @@ def _priority_early_enabled() -> bool:
 
 
 def _unesco_serial_only(cand: dict) -> bool:
-    """unesco 串号家族判定（2026-11-08 未央宫案三拍）：世界遗产名录里
+    """unesco 串号家族判定（2026-11-08 远距遗址陌生人案三拍）：世界遗产名录里
     的「点段/子项」标签（unesco_silk_road / unesco_ming_tombs 等
     unesco_* 前缀）≠ 全量世遗本体。裸 unesco 标签/源 = 本体，享 tier1
     无条件；串号家族必须有质量背书（评分口径 quality≥4.5，同
-    _quality 公式）才视同世遗——未央宫 3A 遗址（无评分骨架）借
+    _quality 公式）才视同世遗——3A 骨架遗址（无评分骨架）借
     unesco_silk_road 标签登顶 tier1、挤掉真 5A 席位的事故防线。"""
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
     if "unesco" in tags or str(cand.get("source") or "").strip().lower() == "unesco":
@@ -710,13 +710,13 @@ def _source_tier(cand: dict) -> int:
     08 世界遗产 > 02 5A > 05 国际旅行网站 > 10 国际平台 > 11 短视频 >
     演出 > 12 小红书 > 01 街区 > 04 风景名胜 > 13 4A > 其他（库序）。
     名录判定走共享模块 catalog_rank（app/services/source_tier.py，全站
-    唯一定义点；unesco_* 前缀族视同全量世遗——2026-11-02 大雁塔事故
+    唯一定义点；unesco_* 前缀族视同全量世遗——2026-11-02 真遗产子项事故
     修复口径共享）。「世界遗产」字面标签兜底同世遗档；演出档（6）不在
     名录序，维持旧梯子位次（短视频与小红书之间，2026-10-29 起
     _cand_is_show tags show 同档）。
-    2026-11-08 未央宫案三拍修正：串号家族（仅 unesco_* 前缀标）无质量
+    2026-11-08 远距遗址陌生人案三拍修正：串号家族（仅 unesco_* 前缀标）无质量
     背书（quality<4.5）不享 tier1——回落本源档（5a→2 等），无名录源
-    落 11。真遗产子项（大雁塔级，带评分/5A 源）不受影响。
+    落 11。真遗产子项（地标级，带评分/5A 源）不受影响。
     """
     r = catalog_rank(cand.get("source"), cand.get("tags"))
     if r is not None:
@@ -782,7 +782,7 @@ def _cand_is_big(cand: dict) -> bool:
 
 
 def _cand_entry_cap(cand: dict) -> int:
-    """入场闸镜像（组合排日四轮，2026-11-08 钟楼案）：选层无
+    """入场闸镜像（组合排日四轮，2026-11-08 城心簇锚案）：选层无
     VisitItem/PoiHours 可依，按常量镜像 solver.generic_entry_cap 的
     口径——夜属性/演出=日终 21:30、大点=15:30、其余=16:00。选层
     尚无时刻概念，pinned+有时刻豁免在认领时无从生效，不认。"""
@@ -824,7 +824,7 @@ def _entry_cap_feasible(
 # 长度」·宁空勿杂）：跨天均衡补位候选只拦「无名录档的 tier11 长
 # 尾」——tier≤10（街区/风景名胜/4A 等有档轻点，含大点+近旁街区配
 # 对设计）照旧可补；tier11 须「有评分且 quality≥4.5」才够格，否则
-# 宁可留空交白名单披露，不拿无评分杂点凑数（天府广场 4.7 无条数
+# 宁可留空交白名单披露，不拿无评分杂点凑数（城心广场 4.7 无条数
 # 案）。上午保底线暂不设闸（杂点事故路径在均衡线，先收窄观测）。
 # 偏好命中豁免（偏好优先于默认封顶，2026-11-03 拍板口径）。
 _BACKFILL_FLOOR_TIER = 10
@@ -1558,20 +1558,20 @@ def _city_day_ranges(
     the real destinations.
 
     2026-10-30 修复（2026-11-04 空天事故）：无 city_days 时旧版给每个非末位
-    目的地只分 1 天、末位目的地吃掉全部余天——闭合行程（上海→成都→重庆→
-    上海）把归程上海当成末位目的地占走 day3-7，成都/重庆各只剩 1 天，
+    目的地只分 1 天、末位目的地吃掉全部余天——闭合行程（甲城→乙城→丙城→
+    甲城）把归程甲城当成末位目的地占走 day3-7，乙城/丙城各只剩 1 天，
     day3-6 全空。修复：闭合行程尾城只作返程日不参与均分，真实目的地均分
-    活动天，余数给前面的目的地（8 天 上海→杭州→苏州→上海 = 杭州4+苏州3，
+    活动天，余数给前面的目的地（8 天 甲→乙→丙→甲 = 乙4+丙3，
     test_ranges_closed_trip_uneven_split 锚）。非闭合行程同样均分（同日
-    拍板：4 天 2 目的地不再「杭州只给 1 天」，test_v0_placeholder_
+    拍板：4 天 2 目的地不再「乙城只给 1 天」，test_v0_placeholder_
     selection_respects_city_windows 锚），但余数给后面的目的地——3 天
-    南京→上海→苏州 = 上海1+苏州2，上海→苏州 站间腿落 day2（2026-10-31
+    丁→甲→丙 = 甲1+丙2，甲→丙 站间腿落 day2（2026-10-31
     收库门禁核：余数给前面会把该腿挪到 day3，推翻 v0 排日契约）。
 
-        2026-10-31 修复（返程日上午空排事故）：闭合行程上海-西安-重庆-
-        上海 3 天（city_days={西安:1,重庆:1,上海:1}，H5「结束城市天数」
-        语义=返程日）里旧版把尾城当真实目的地切窗——上海拿走 day3 活动
-        窗，而出发城不收候选、回填层 day_city 又把 day3 解析到上海直接
+        2026-10-31 修复（返程日上午空排事故）：闭合行程甲-戊-丙-
+        甲 3 天（city_days={戊:1,丙:1,甲:1}，H5「结束城市天数」
+        语义=返程日）里旧版把尾城当真实目的地切窗——甲城拿走 day3 活动
+        窗，而出发城不收候选、回填层 day_city 又把 day3 解析到甲城直接
         跳过 → 返程日只排一班 17 点航班、上午全空（用户：飞机五点的，
         为什么不安排景点）。修复两个分支同口径：尾城只留 (days,days)
         返程标记，末位真实目的地吃满到 days——返程日白天归它（预算由
@@ -1621,7 +1621,7 @@ def _city_day_ranges(
     rem = activity % len(real)
     starts = [1]
     for k, _city in enumerate(real[:-1]):
-        # 余数天给前面的目的地（闭合锚：8 天 = 杭州4+苏州3）
+        # 余数天给前面的目的地（闭合锚：8 天 = 乙4+丙3）
         stay = base + (1 if k < rem else 0)
         starts.append(max(starts[-1] + 1, min(starts[-1] + stay, days)))
     starts.append(days)  # 尾城=归程日起点
@@ -1753,7 +1753,7 @@ def _norm_city(text: str) -> str:
 
 _SITE_NAME_JUNK = r"[\s（）()\[\]【】「」·、，,。.\-—_'\"”]"
 
-# venue-type tails that add nothing to identity (「大足石刻景区」==「大足石刻」)
+# venue-type tails that add nothing to identity (「石窟样本景区」==「石窟样本」)
 _SITE_TAILS = ("旅游风景区", "风景名胜区", "旅游景区", "风景区", "景区", "旅游区")
 
 
@@ -1771,7 +1771,7 @@ def _norm_site_name(name: str) -> str:
 
 def _same_site(a: str, b: str) -> bool:
     """Loose site identity: plans hold POI-canonical names while video
-    extraction yields variants (「大足石刻」 vs 「重庆大足石刻景区」);
+    extraction yields variants (「石窟样本」 vs 「某城石窟样本景区」);
     every exact-name dedupe between the two leaked duplicates."""
     na, nb = _norm_site_name(a), _norm_site_name(b)
     if not na or not nb:
@@ -1804,13 +1804,13 @@ def _show_dup(a: str, b: str) -> bool:
     return _show_bucket(a) and _show_bucket(b)
 
 
-# 同内容配套场馆（2026-10-31 大足双卡案）：「大足石刻博物馆」「大足石刻
-# 数字影院」「大足区大足石刻景区」是同一遗产景区的园区/主馆/影厅，名字
+# 同内容配套场馆（2026-10-31 石窟双卡案）：「石窟样本博物馆」「石窟样本
+# 数字影院」「某区石窟样本景区」是同一遗产景区的园区/主馆/影厅，名字
 # 互不包含（containment 判不开）也不在演出桶——全雨天室内优先时博物馆
 # +影院背靠背双卡进同一天、园区卡再跨天第三张。剥行政区前缀与设施尾巴
 # 后核心词相同即同内容；双侧都要真的剥过（裸名 vs 设施名的组合 containment
-# 已覆盖，不重复受理）；核心词保持 ≥3 字防 2 字泛名误并（苏州博物馆→
-# 苏州 剥不动，保持全名）。
+# 已覆盖，不重复受理）；核心词保持 ≥3 字防 2 字泛名误并（城市博物馆样本→
+# 城市 剥不动，保持全名）。
 _FACILITY_TAILS: tuple[str, ...] = (
     "数字影院",
     "电影院",
@@ -1826,7 +1826,7 @@ _DISTRICT_PREFIX_RE = re.compile(r"^[\u4e00-\u9fa5]{1,3}[区县]")
 
 def _content_core(name: str) -> tuple[str, bool]:
     """名称→（内容核心词, 是否剥过前缀/尾巴）。剥序：junk → 行政区前缀
-    （大足区大足石刻景区→大足石刻景区）→ 景区尾巴（_SITE_TAILS，norm
+    （某区石窟样本景区→石窟样本景区）→ 景区尾巴（_SITE_TAILS，norm
     已剥一遍，此处与设施尾巴同循环收尾）→ 设施尾巴；任一步剥掉即
     flag=True。核心词保持 ≥3 字：剥完不足 3 字的步骤不执行。"""
     junk_only = re.sub(_SITE_NAME_JUNK, "", name or "")
@@ -1849,13 +1849,13 @@ def _content_core(name: str) -> tuple[str, bool]:
 
 
 # 同内容地理闸分档（2026-10-31 用户拍板「北山+宝顶也要并」）：同内容
-# 配套场馆放宽到同城 30km——裸名伞行「大足石刻」（北山路研究院）vs
+# 配套场馆放宽到同城 30km——裸名伞行「石窟样本」（北山路研究院）vs
 # 宝顶镇游客中心的影院/博物馆/景区 ~8km，同一遗产的两个摩崖集群也算
-# 一站；包含/演出通道维持 2km（青城山 vs skydive 跳伞基地 ~6km 的
+# 一站；包含/演出通道维持 2km（泛名山岳样本 vs skydive 跳伞基地 ~6km 的
 # 同山不同场馆不误并）。
 _CONTENT_TWIN_GATE_KM = 30.0
 # 同馆家族闸（2026-11-01 用户拍板沿革：先 5km，同日二拍「距离可以放宽
-# 到10公里」）：秦陵类同一票制院区两园区实测 2.2-2.4km；大足北山+宝顶
+# 到10公里」）：陵寝类同一票制院区两园区实测 2.2-2.4km；石窟北山+宝顶
 # ~8km 也收进同馆半径。同名异地 >10km 不并。
 _HERITAGE_TWIN_GATE_KM = 10.0
 
@@ -1863,7 +1863,7 @@ _HERITAGE_TWIN_GATE_KM = 10.0
 def _content_dup(a: str, b: str) -> bool:
     """同内容配套场馆（博物馆/影院/园区/伞名行）判定：至少一侧剥出
     设施词（双侧裸名交给 containment），核心词相等（≥3 字）即同内容
-    ——伞名行「大足石刻」与配套行「大足石刻数字影院」也收进来。
+    ——伞名行「石窟样本」与配套行「石窟样本数字影院」也收进来。
     地理闸在调用层（_same_visit/_spec_twin）：内容通道 30km、
     包含/演出通道 2km。"""
     ca, sa = _content_core(a)
@@ -1898,11 +1898,11 @@ def _heritage_dup(a: str, b: str) -> bool:
 
 
 # 国家考古遗址公园同址景区族（2026-11-04 全库双卡清扫）：遗址公园挂牌
-# （万寿岩/仰韶村/城头山/大明宫国家考古遗址公园，relicpark 源）与同址的
-# 文旅小镇/博物馆/旅游景区行（4a/5a 多档并存）名字互不包含——大明宫
-# 国家考古遗址公园 vs 大明宫旅游景区双卡曾同计划在排。剥「[国家]考古
+# （relicpark 源大遗址样本）与同址的
+# 文旅小镇/博物馆/旅游景区行（4a/5a 多档并存）名字互不包含——遗址公园
+# 挂牌行 vs 同址旅游景区行双卡曾同计划在排。剥「[国家]考古
 # 遗址公园」取遗址名（可再剥尾 村/遗址），另一名含之（≥2 字）即同址
-# 同票；地理闸走同馆档 10km（大明宫类大遗址园区级跨度）。
+# 同票；地理闸走同馆档 10km（大遗址园区级跨度实录）。
 _RELIC_PARK_MARK = "考古遗址公园"
 
 
@@ -1921,12 +1921,12 @@ def _relic_park_dup(a: str, b: str) -> bool:
     return False
 
 
-# 「·」复合挂牌族（2026-11-04 城墙双卡实录）：联票/合并挂牌名（城墙·碑林
-# 历史文化景区 = 城墙+碑林一票，5a_304）与单挂行（西安城墙 intl_0075）
-# 名字互不包含、也不是兄弟对，同日双卡；含光门城墙遗址博物馆（墙上场馆）
+# 「·」复合挂牌族（2026-11-04 联票双卡实录）：联票/合并挂牌名（A·B
+# 历史文化景区 = 两本体一票，5a_304）与单挂行（单挂本体 intl_0075）
+# 名字互不包含、也不是兄弟对，同日双卡；本体上场馆挂牌行（墙上场馆）
 # 同族。拆 · 取段（剥景区尾巴、≥2 字、非泛词），一段为另一名归一形式的
-# 子串即同票同站。地理闸 2.5km——复合挂牌是同点联票，不是「峨眉山—
-# 乐山大佛」式跨区系列（那类 30km 距离天然被闸拦住）。
+# 子串即同票同站。地理闸 2.5km——复合挂牌是同点联票，不是「名山样本—
+# 大佛样本」式跨区系列（那类 30km 距离天然被闸拦住）。
 _COMPOSITE_SPLIT_RE = re.compile(r"[·•・‧]")
 _COMPOSITE_SEG_STOP = {"文化", "历史", "旅游", "生态", "休闲", "度假", "公园"}
 _COMPOSITE_TWIN_GATE_KM = 2.5
@@ -1943,12 +1943,12 @@ def _composite_dup(a: str, b: str) -> bool:
     return False
 
 
-# 同类型兄弟对（2026-11-03 用户拍板「同类型得选一个就好了。比如大雁塔，
-# 小雁塔」）：大/小 前缀同核心词的两个点是同类型二选一——大雁塔/小雁塔
-# （同城 ~3.5km）、大昭寺/小昭寺同款，一次行程只看一个。containment/
+# 同类型兄弟对（2026-11-03 用户拍板「同类型得选一个就好了」——大/小
+# 字号兄弟对案）：大/小 前缀同核心词的两个点是同类型二选一——大/小
+# 字号塔样本（同城 ~3.5km）、大/小字号寺庙同款，一次行程只看一个。containment/
 # 同内容/演出/同馆四条名字通道全漏（互不包含、剥尾核心词不等）。只剥
 # 大/小 一字前缀且余词 ≥2 字（大理/大同 城名剥完剩 1 字不动）；东/西/
-# 南/北 不剥（西湖/东湖 跨城同名不同湖）。品类豁免与地理闸在调用层
+# 南/北 不剥（名湖样本/另一湖样本 跨城同名不同湖）。品类豁免与地理闸在调用层
 # （30km，与内容通道同档：兄弟对同城近距）。
 _SIBLING_SIZE_PREFIX = ("大", "小")
 _SIBLING_TWIN_GATE_KM = 30.0
@@ -1983,11 +1983,11 @@ def _substitute_group(name: object) -> str | None:
 
 
 # 泛化同体验替代组（2026-11-07 用户拍板「替代组应该看类型，距离，而不
-# 只是熊猫或者成都街区。它应该是泛化产品逻辑」）：「一行程一个」体验
-# 品类表 + 同城 + 距离闸。街区压马路型（citywalk）同城只排一处——宽窄
-# 巷子/春熙路/锦里·武侯祠 片区互为替代（宽窄↔锦里 ~1.5km、宽窄↔春熙
-# ~2.6km）；异城不算（成都+重庆连线两城各逛各的街），远郊不算（宽窄
-# 巷子↔都江堰古城 ~55km 超闸，雪山一日游另算一次街区体验）。缺坐标时
+# 只是具名体验组或者一城街区。它应该是泛化产品逻辑」）：「一行程一个」体验
+# 品类表 + 同城 + 距离闸。街区压马路型（citywalk）同城只排一处——同城
+# 街区群互为替代（组内两两 ~1.5-2.6km 实测）；异城不算（连线两城各逛
+# 各的街），远郊不算（城心街↔远郊古城 ~55km 超闸，雪山一日游另算一次
+# 街区体验）。缺坐标时
 # 退同城判定（心愿别名路径无坐标可依）。品类准入白名单制：加入即全城
 # 生效，宁缺勿滥（museum/park 这类同城多选是常态，不入表）。
 _GENERIC_SUBSTITUTE_CATEGORIES: dict[str, str] = {
@@ -2025,10 +2025,10 @@ def _substitute_canon_rank(name: object) -> int:
 
 def _wish_candidate_rank(c: dict) -> tuple:
     """心愿绑定候选梯队（2026-10-30/31 拍板：预约名单 > 最经典
-    UNESCO/5A > 替代组正主序（2026-11-07 拍板「优选熊猫基地」）> 评分
+    UNESCO/5A > 替代组正主序（2026-11-07 拍板「优选替代组正主」）> 评分
     降序 > 短名稳定裁决）。模块级供三处共用：绑定器、覆盖兜底、再校验
     ——原 `_wish_bind_candidate` 闭包版兜底分支够不着，取池序第一个才
-    绑错熊猫谷（2026-11-07 事故）。"""
+    绑错替代组次优（2026-11-07 事故）。"""
     name = str(c.get("name") or "")
     try:
         rating = float(c.get("rating") or 0)
@@ -2059,11 +2059,11 @@ def _substitute_dup(
     xy_a: tuple[float, float] | None = None,
     xy_b: tuple[float, float] | None = None,
 ) -> bool:
-    """同体验替代组判定（2026-11-07 熊猫基地/熊猫谷拍板 + 同日泛化拍板
+    """同体验替代组判定（2026-11-07 替代组正主/次优拍板 + 同日泛化拍板
     「看类型，距离」）：两条通道任一命中即互为替代。
-    ① 具名组：两侧名字命中同组词素（熊猫组）——替代组本就相距远，不设
-       距离闸；城市闸：双侧城市都已知且不同城不判（汉中熊猫谷/湘西大
-       熊猫苑与成都基地不互斥）。
+    ① 具名组：两侧名字命中同组词素（具名体验组）——替代组本就相距远，不设
+       距离闸；城市闸：双侧城市都已知且不同城不判（异地同名组员与
+       本地正主不互斥）。
     ② 泛化品类组：两侧类别命中同一「一行程一个」白名单档（citywalk）+
        同城 + 直线 ≤30km（缺坐标退同城判定，心愿别名路径无坐标可依）。
     与 _sibling_dup 同款只进站级判定（_same_visit/_cand_twin/
@@ -2102,15 +2102,15 @@ def _sibling_core(name: str) -> tuple[str, bool]:
 
 
 def _sibling_dup(a: str, b: str) -> bool:
-    """同类型兄弟对判定（大雁塔 vs 小雁塔）：剥 大/小 前缀后核心词相等，
+    """同类型兄弟对判定（大/小字号兄弟对样本）：剥 大/小 前缀后核心词相等，
     且至少一侧真的剥过（双侧裸名相等是 containment 的事，不重复受理）。
-    刻意不挂进 _name_dup——心愿「大雁塔」不得被已排的「小雁塔」冒充
+    刻意不挂进 _name_dup——心愿「大」字号不得被已排的「小」字号冒充
     覆盖（两个是不同的点，用户点名哪个就排哪个），只进站级判定
     （_same_visit/_cand_twin/_dup_blocks_item）。
-    核心词前缀也对（2026-11-03 西安实录「你还是安排了大雁塔和小雁塔」）：
-    池行常是复合挂牌名「大雁塔大唐芙蓉园景区」——剥景区尾巴只掉尾巴，
-    「大雁塔+大唐芙蓉园」的配套词在中间剥不掉，核心词「雁塔大唐芙蓉园」
-    ≠「雁塔」漏判；短核心词是长核心词前缀（≥2 字）视同兄弟。"""
+    核心词前缀也对（2026-11-03 西安实录「你还是安排了兄弟俩」）：
+    池行常是复合挂牌名「大字号+配套园林景区」——剥景区尾巴只掉尾巴，
+    「大字号+配套园林」的配套词在中间剥不掉，核心词剥不净
+    ≠裸核心词漏判；短核心词是长核心词前缀（≥2 字）视同兄弟。"""
     ca, sa = _sibling_core(a)
     cb, sb = _sibling_core(b)
     if not (sa or sb):
@@ -2123,8 +2123,8 @@ def _sibling_dup(a: str, b: str) -> bool:
 def _name_dup(a: str, b: str) -> bool:
     """Name-pair duplicate test for wish/candidate matching: containment
     (_site_dup) plus show-activity alias (_show_dup) plus same-content
-    companion venues (_content_dup, 2026-10-31 大足双卡案) plus same-
-    ticket heritage companions (_heritage_dup, 2026-11-01 秦陵三行案)
+    companion venues (_content_dup, 2026-10-31 石窟双卡案) plus same-
+    ticket heritage companions (_heritage_dup, 2026-11-01 陵寝三行案)
     plus relic-park co-listings (_relic_park_dup) plus composite
     joint-ticket listings (_composite_dup, both 2026-11-04 全库清扫).
     同类型兄弟对（_sibling_dup）刻意不在内：心愿覆盖不许跨兄弟冒充。"""
@@ -2172,7 +2172,7 @@ _CITY_PREFIX_RE = re.compile(
 def _wish_pure_core(wish: str) -> str:
     """愿望纯核心词（2026-10-30 用户拍板：精确不成→模糊）：在剥意图动词
     的基础上再剥开头的城市名与方位虚词——「看成都附近的水利工程」→
-    「水利工程」，包含匹配才够得着库里的 都江堰水利工程 类命名。"""
+    「水利工程」，包含匹配才够得着库里的远郊水利类命名。"""
     s = _wish_core(wish)
     while True:
         m = _CITY_PREFIX_RE.match(s)
@@ -2197,7 +2197,7 @@ def _location_dict(loc: object) -> dict | None:
     """库行坐标（GCJ-02 (lon, lat) tuple，poi_details.search_keyword 口径）
     → 候选池/组装层通用的 {"lon","lat"}；已是 dict 原样返回。绑定字典
     （_bind_wish_poi 产物）进 candidates/merge 前必须过这里，否则组装层
-    只认 dict、排上的真实 POI 卡片丢坐标（2026-10-31 看熊猫案）。"""
+    只认 dict、排上的真实 POI 卡片丢坐标（2026-10-31 具名体验愿望案）。"""
     if isinstance(loc, dict):
         return loc
     if isinstance(loc, (tuple, list)) and len(loc) == 2:
@@ -2245,10 +2245,10 @@ def _cand_xy(entry: dict) -> tuple[float, float] | None:
 
 
 def _street_banquet_split(a: dict, b: dict) -> bool:
-    """街区卡与宴/演卡不是重复站（2026-11-08 拍板「长安十二时辰是
+    """街区卡与宴/演卡不是重复站（2026-11-08 拍板「主题街区是
     CITYWALK..直接插入」）：citywalk/街道源卡与同址的宴席/演出是两个
-    体验，选层并卡与组装层去重都不吞——「长安十二时辰主题街区」被
-    「长安十二时辰·唐宴」吞并实录（沪→西→沪案）。街区身份品类+名字
+    体验，选层并卡与组装层去重都不吞——主题街区卡被同址宴秀卡
+    吞并实录（沪→西→沪案）。街区身份品类+名字
     双认（库实测 show 源行 category=entertainment——品类不可靠时
     「主题街区/街区/步行街」名字语素兜底）。"""
 
@@ -2266,8 +2266,8 @@ def _street_banquet_split(a: dict, b: dict) -> bool:
 def _cand_twin(a: dict, b: dict) -> bool:
     """候选层同站孪生（与 _same_visit 同义、含地理闸分档）：名字撞衫
     但相距 >2km 的不同场馆不算；同内容配套（含伞名行 vs 配套场馆）
-    走 30km 闸；同类型兄弟对（大雁塔/小雁塔，2026-11-03 拍板）同档
-    30km、餐饮/演出/酒店/交通豁免；同体验替代组（2026-11-07 熊猫谷案）
+    走 30km 闸；同类型兄弟对（大/小字号兄弟对，2026-11-03 拍板）同档
+    30km、餐饮/演出/酒店/交通豁免；同体验替代组（2026-11-07 替代组换位案）
     无地理闸直接孪生。spec 层孪生记账与选点层博物馆让位共用这一口径。"""
     if _street_banquet_split(a, b):
         return False
@@ -2321,13 +2321,13 @@ def _cand_twin(a: dict, b: dict) -> bool:
 
 
 def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
-    """回填/保底守卫（2026-11-01 秦陵双卡案统一口径）：候选 dict vs 已排
+    """回填/保底守卫（2026-11-01 陵寝双卡案统一口径）：候选 dict vs 已排
     VisitItem 的全量同站判定——poi_id 相等，或 _name_dup（containment/
     同内容/演出桶/同馆桶）或同类型兄弟对（_sibling_dup，2026-11-03
     拍板、品类豁免）过地理闸（内容/兄弟 30km、同馆 10km、包含/演出 2km）。
 
-    旧守卫只查 _same_site（包含），「秦始皇陵国家考古遗址公园」与
-    「秦始皇兵马俑博物馆」互不包含——晨间保底把第二张秦陵卡补进了
+    旧守卫只查 _same_site（包含），同票制家族的两块挂牌
+    互不包含——晨间保底把第二张家族卡补进了
     行程（D1+D3 双卡实录）。回填族三处（晨间保底/借出日回填/干日
     回填）统一换用本判定。"""
     pid = cand.get("source_poi_id")
@@ -2350,7 +2350,7 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
             },
         )
     ):
-        return True  # 伞名同站（2026-11-07 碑林案）：回填不许补第二张碑林卡
+        return True  # 伞名同站（2026-11-07 博物馆本体案）：回填不许补第二张本体卡
     cn = str(cand.get("name") or "")
     iname = str(item.name or "")
     if (
@@ -2408,11 +2408,11 @@ def _dup_blocks_item(cand: dict, item: VisitItem) -> bool:
     return True
 
 
-# 博物馆名尾词（2026-11-04 秦陵显示名事故）：5A 官方名「秦始皇帝陵博物院」
-# 以「博物院」结尾（2026-11-03 变体改名后），旧尾词表只认「博物馆/纪念馆」，
-# 该行滑出博物馆卡 → 组装层 keep-rank 平手先到先得，unesco 骊山园行（封
-# 土堆坐标）压过兵马俑坑正主。博物院是正牌博物馆后缀（故宫/南京/山西博
-# 物院全是 museum 类，仅此 5a 行与千岛湖啤酒博物院为 attraction/nature）。
+# 博物馆名尾词（2026-11-04 同票制家族显示名事故）：5A 官方名以
+# 「博物院」结尾（2026-11-03 变体改名后），旧尾词表只认「博物馆/纪念馆」，
+# 该行滑出博物馆卡 → 组装层 keep-rank 平手先到先得，unesco 封土堆坐标行
+# 压过正主坑馆。博物院是正牌博物馆后缀（官署博物院/省城博
+# 物院全是 museum 类，仅此 5a 行与啤酒厂博物院为 attraction/nature）。
 _MUSEUM_NAME_TAILS = ("博物馆", "博物院", "纪念馆")
 
 
@@ -2423,9 +2423,9 @@ def _museum_cand(cand: dict) -> bool:
 
 
 def _museum_core(name: str) -> str:
-    """博物馆本体核心词（2026-10-31 碑林拍板）：_content_core 剥设施尾巴
-    后再剥开头的城市名——「西安碑林博物馆」→「碑林」。核心词本身是
-    城市/设施词（苏州博物馆→苏州）时返回空：太泛，不做伞名判定。"""
+    """博物馆本体核心词（2026-10-31 博物馆本体拍板）：_content_core 剥设施尾巴
+    后再剥开头的城市名——「某城X博物馆」→「X」。核心词本身是
+    城市/设施词（城市博物馆样本→城市）时返回空：太泛，不做伞名判定。"""
     core, _stripped = _content_core(name)
     m = _CITY_PREFIX_RE.match(core)
     if m and len(core) - m.end() >= 2:
@@ -2444,20 +2444,20 @@ def _museum_umbrella_dup(
     scenic_city: str | None = None,
     morpheme_km: float = 2.0,
 ) -> bool:
-    """博物馆本体 vs 伞形景区挂牌行的同站判定（2026-10-31 碑林拍板）。
+    """博物馆本体 vs 伞形景区挂牌行的同站判定（2026-10-31 博物馆本体拍板）。
 
-    「西安碑林博物馆」vs「城墙·碑林历史文化景区」：名字互不包含、
-    核心词也不等（碑林 vs 城墙·碑林历史文化），containment/_content_dup
+    「某城X博物馆」vs「A·X历史文化景区」：名字互不包含、
+    核心词也不等（X vs A·X历史文化），containment/_content_dup
     都判不开——博物馆核心词（剥尾巴+城市前缀，≥2 字、非城市/设施词）
     作为词素出现在景区名里 + 双方有坐标且相距 ≤2km（异地撞名闸）→
-    同站；同站时博物馆本体优先（碑林拍板）。
+    同站；同站时博物馆本体优先（本体拍板）。
 
     2026-11-01 用户拍板「核心词匹配运用到所有景点」：撤销「_name_dup
     管得到的对子不让位」豁免——大足类同内容家族（博物馆/影院/园区）
     此前选点层保双卡、组装层合并，现统一在选点层让位博物馆本体（结局
     同为单张博物馆卡，机制更早更省池位，假设区多一行让位披露）。
 
-    无坐标降级闸（2026-11-07 碑林双卡案，session be915838 day4 实录）：
+    无坐标降级闸（2026-11-07 博物馆双卡案，session be915838 day4 实录）：
     绑定/心愿行的坐标要等 _enrich_parallel（两道去重之后）才补上，若
     一律「宁可不并」，博物馆本体与伞形景区会在同行程并排成双卡。任一
     侧缺坐标时降级为同城（剥市后缀、双方非空）+ 词素命中即同站（泛化
@@ -2474,16 +2474,16 @@ def _museum_umbrella_dup(
         GeoPoint(lon=scenic_xy[0], lat=scenic_xy[1]),
     )
     if _heritage_dup(museum_name, scenic_name):
-        # 秦陵同馆家族（2026-11-01 用户拍板「当然选兵马俑」）：骊山园
-        # （秦始皇陵）行让位兵马俑博物馆本体——核心词词素判不开（秦始
-        # 皇兵马俑 ⊄ 秦始皇陵）；家族闸 5km（同日拍板，实测 2.2-2.4km）。
+        # 同票制家族（2026-11-01 用户拍板「当然选家族正主」）：封土堆园区
+        # 行让位博物馆本体——核心词词素判不开（两牌名互不包含）；
+        # 家族闸 5km（同日拍板，实测 2.2-2.4km）。
         return dist <= _HERITAGE_TWIN_GATE_KM
     core = _museum_core(museum_name)
     if not core or not scenic_name:
         return False
     if core not in scenic_name:
         return False
-    # 词素闸 2km（青城山 vs skydive 同山不同场馆不误并）；捆绑判据
+    # 词素闸 2km（泛名山岳 vs skydive 同山不同场馆不误并）；捆绑判据
     # （_umbrella_specs_bundle）放宽到 _UMBRELLA_BUNDLE_KM（2026-11-07
     # 四拍「判同族 5km，两站捆绑同日成线」）
     return dist <= morpheme_km
@@ -2511,8 +2511,8 @@ def _umbrella_cand_dup(
 ) -> bool:
     """候选层伞名同站（挂进选点层博物馆让位）。exempt_citywalk（2026-11-07
     晚拍板「还原多卡但连排成组合」二态）：吸收通道（折卡/影子退役/互斥
-    dedupe）豁免 citywalk/街区件——武侯祠·锦里（citywalk/street）不被
-    武侯祠博物馆吞并；组合识别通道（_umbrella_specs_bundle 传 False）
+    dedupe）豁免 citywalk/街区件——庙街复合挂牌（citywalk/street）不被
+    庙宇本体博物馆吞并；组合识别通道（_umbrella_specs_bundle 传 False）
     不豁免——同族对照常识别，跨日拉回同日连排。"""
     ma, mb = _museum_cand(a), _museum_cand(b)
     if ma == mb:
@@ -2541,7 +2541,7 @@ def _umbrella_specs_bundle(a: dict, b: dict) -> bool:
     线」）：与 _umbrella_cand_dup 同闸同词素，词素距离闸放宽到
     _UMBRELLA_BUNDLE_KM（无坐标仍走同城+词素降级；家族闸
     _HERITAGE_TWIN_GATE_KM 原样）。只用于跨日拉回同日的配对识别，
-    不改变互斥/折卡语义——识别不豁免 citywalk（武侯祠博物馆×锦里
+    不改变互斥/折卡语义——识别不豁免 citywalk（庙本体博物馆×相邻古街
     跨日仍拉回同日连排，只是不折成一卡，2026-11-07 晚拍板）。"""
     return _umbrella_cand_dup(
         a, b, morpheme_km=_UMBRELLA_BUNDLE_KM, exempt_citywalk=False
@@ -2580,7 +2580,7 @@ def _bundle_umbrella_spec_days(
             if int(a["day"]) == int(b["day"]):
                 continue
             keeper, moved = (a, b) if _rank(a) >= _rank(b) else (b, a)
-            # 四轮（2026-11-08 钟楼案）：捆绑认领同跑入场闸镜像——
+            # 四轮（2026-11-08 城心簇锚案）：捆绑认领同跑入场闸镜像——
             # keeper 日已有物理负载，moved 硬塞进去若降序连排开场超
             # 入场闸，终排只会无声挤死 keeper 日的某件。过不了闸就
             # 不拉同日（捆绑是机会性优化，跨日连排合法），留日志。
@@ -2621,9 +2621,9 @@ def _bundle_umbrella_spec_days(
 
 
 def _museum_card(item: VisitItem) -> bool:
-    """博物馆卡（2026-10-31 碑林拍板）：「碑林博物馆」优先于「城墙·
-    碑林历史文化景区」这类伞形挂牌行——同站孪生保留博物馆本体。
-    尾词含「博物院」（2026-11-04 秦陵显示名事故，见 _MUSEUM_NAME_TAILS）。"""
+    """博物馆卡（2026-10-31 博物馆本体拍板）：「X博物馆」优先于「A·X
+    历史文化景区」这类伞形挂牌行——同站孪生保留博物馆本体。
+    尾词含「博物院」（2026-11-04 同票制家族显示名事故，见 _MUSEUM_NAME_TAILS）。"""
     name = (item.name or "").strip()
     return (item.category or "") == "museum" or name.endswith(_MUSEUM_NAME_TAILS)
 
@@ -2632,20 +2632,20 @@ def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int, int, int
     """Which twin to keep: must (铁律19) > resolved POI > pinned > museum
     card > real city > 大-字号旗舰; ties keep the earlier entry
     (replacement happens on strictly-greater rank only). must 层
-    （2026-11-07 锦里古戏台/武侯祠案）置顶：心愿/必去卡在同站孪生合并
+    （2026-11-07 庙街复合挂牌案）置顶：心愿/必去卡在同站孪生合并
     中永不让位——愿望词被池卡冒充吸收、卡再被去重并掉=必去静默蒸发。
-    博物馆层（2026-10-31 碑林拍板）排在 pinned 之后：用户确认过的
+    博物馆层（2026-10-31 博物馆本体拍板）排在 pinned 之后：用户确认过的
     卡片/时刻不让位，未被确认的伞形景区行让位博物馆本体。末层
-    （2026-11-03 兄弟对拍板）：同类型兄弟平手偏好「大」字号（大雁塔/
-    大昭寺是家族正主，外国游客认知的那个），只动此前靠先到先得裁决
+    （2026-11-03 兄弟对拍板）：同类型兄弟平手偏好「大」字号（大字号
+    旗舰是家族正主，外国游客认知的那个），只动此前靠先到先得裁决
     的平手，不影响其余通道。"""
     return (
         1 if item.must else 0,
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
         # 名录王牌（unesco/5A 档）优先于博物馆卡（2026-11-04 成渝案：
-        # unesco 大足石刻被并进 大足石刻博物馆 卡，王牌名从行程消失——
-        # 博物馆卡语义留给碑林/秦陵这类同档伞形让位，不动王牌档）
+        # unesco 石窟样本被并进 石窟样本博物馆 卡，王牌名从行程消失——
+        # 博物馆卡语义留给城心博物馆/同票制家族这类同档伞形让位，不动王牌档）
         1 if (item.tier is not None and item.tier <= 2) else 0,
         1 if _museum_card(item) else 0,
         1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
@@ -2659,26 +2659,26 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     「青蓝湾茶楼(…店)」与心愿落实的「茶馆喝茶」落在同一 poi 上，两卡并存
     即重复。poi_id 一方为 None（历史行常态）不参与，交给名字判定。
 
-    地理闸（2026-10-31 青城山误并事故）：包含匹配会把泛名山岳「青城山」
-    与同山不同场馆「青城山skydive跳伞基地」判同站（实测相距 ~6km，
+    地理闸（2026-10-31 泛名山岳误并事故）：包含匹配会把泛名山岳本体
+    与同山不同场馆「山名+skydive跳伞基地」判同站（实测相距 ~6km，
     day3 被整天空掉）。双方有坐标且相距 >2km = 名字撞衫的不同场馆，
     不并；缺坐标维持名字判定（心愿别名路径无坐标可依）。
 
-    同内容通道（2026-10-31 大足双卡案+同日拍板放宽）：_content_dup 把
-    大足石刻博物馆/数字影院/大足石刻景区/北山伞名行「大足石刻」收
-    敛为同一站（一次行程看一次大足石刻），内容通道地理闸放宽到同城
+    同内容通道（2026-10-31 石窟双卡案+同日拍板放宽）：_content_dup 把
+    石窟样本博物馆/数字影院/石窟样本景区/北山伞名行「石窟样本」收
+    敛为同一站（一次行程看一次石窟样本），内容通道地理闸放宽到同城
     30km（同遗产两摩崖集群 ~8km 也并）；同名异地 >30km、包含通道
     撞衫 >2km 仍不并。
 
-    同类型兄弟通道（2026-11-03 拍板「同类型得选一个就好了。比如大雁塔，
-    小雁塔」）：_sibling_dup 把 大/小 前缀同核心词的兄弟对（大雁塔/小雁塔、
-    大昭寺/小昭寺）收敛为同类型二选一——一次行程只看一个塔；品类豁免
+    同类型兄弟通道（2026-11-03 拍板「同类型得选一个就好了」——大/小
+    字号兄弟对案）：_sibling_dup 把 大/小 前缀同核心词的兄弟对（大/小
+    字号塔、大/小字号寺庙）收敛为同类型二选一——一次行程只看一个塔；品类豁免
     （餐饮/演出/酒店/交通不适用）、地理闸与内容通道同档 30km。胜者由
     _visit_keep_rank 末层裁定（pinned 防御 > 「大」字号旗舰）。
 
-    同体验替代组通道（2026-11-07 熊猫基地/熊猫谷拍板）：互为替代的不同
-    选址（基地↔谷 ~58km）不设地理闸，组内命中即二选一——唯一一条相距
-    越远越要并的通道，与青城山误并事故的 2km 保护闸方向相反。"""
+    同体验替代组通道（2026-11-07 替代组正主/次优拍板）：互为替代的不同
+    选址（正主↔次优 ~58km）不设地理闸，组内命中即二选一——唯一一条相距
+    越远越要并的通道，与泛名山岳误并事故的 2km 保护闸方向相反。"""
     # 午饭/晚饭占位件不是站点：绝不参与孪生判定（两天的占位同名，跨天
     # 去重会把它们互并掉——2026-10-31 午餐保底回归抓到）
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
@@ -2686,9 +2686,9 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     if is_dinner_placeholder(a) or is_dinner_placeholder(b):
         return False
 
-    # 街区体验卡与宴/演卡并存（2026-11-08 拍板「长安十二时辰是
+    # 街区体验卡与宴/演卡并存（2026-11-08 拍板「主题街区是
     # CITYWALK 应直接插入」）：citywalk 街区与同址宴/演是两个体验，
-    # 不并卡——主题街区被唐宴吞并实录。街区身份品类+名字双认（库
+    # 不并卡——主题街区被同址宴秀吞并实录。街区身份品类+名字双认（库
     # 实测 show 源行 category=entertainment，名字语素兜底）。
     def _street_visit(i: VisitItem) -> bool:
         return str(i.category or "") == "citywalk" or bool(
@@ -2709,11 +2709,11 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     relic = _relic_park_dup(a.name, b.name)
     composite = _composite_dup(a.name, b.name)
     # composite 通道豁免单侧博物馆对（2026-11-07 终裁「还原多卡连排成
-    # 组合，适合于所有城市」）：「武侯祠·锦里」复合挂牌拆段 武侯祠 ⊆
-    # 成都武侯祠博物馆——这是伞名族，两卡并存连排，不再借 composite
-    # 通道互斥去重（伞名 visit 通道退役后它从侧门漏进来）。城墙·碑林
-    # × 西安城墙（2026-11-04 案，双 attraction）与 museum×museum
-    # （陕历博·秦汉馆）原语义不动。
+    # 组合，适合于所有城市」）：庙街复合挂牌「庙·街」拆段 庙 ⊆
+    # 庙本体博物馆——这是伞名族，两卡并存连排，不再借 composite
+    # 通道互斥去重（伞名 visit 通道退役后它从侧门漏进来）。联票挂牌
+    # × 单挂本体（2026-11-04 案，双 attraction）与 museum×museum
+    # （总馆·分馆）原语义不动。
     if composite and (_museum_card(a) != _museum_card(b)):
         composite = False
     sibling = _sibling_dup(a.name, b.name) and _sibling_pair_eligible(
@@ -2742,10 +2742,10 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         return False
     # 地理闸分档：同内容配套（含伞名行 vs 配套场馆）/同类型兄弟 30km；
     # 同馆家族 10km（2026-11-01 拍板，遗址公园同址族同档）；「·」复合
-    # 挂牌联票 2.5km（2026-11-04 城墙双卡案：5a_304 城墙·碑林 vs
-    # intl_0075 西安城墙 2.18km 同日双卡——通道只进了 _name_dup
+    # 挂牌联票 2.5km（2026-11-04 联票双卡案：5a_304 联票挂牌 vs
+    # intl_0075 单挂本体 2.18km 同日双卡——通道只进了 _name_dup
     # （_cand_twin/_dup_blocks_item），组装层/行程级合并唯一入口
-    # _same_visit 漏挂，两卡全数过闸）；包含/演出通道维持 2km（青城山
+    # _same_visit 漏挂，两卡全数过闸）；包含/演出通道维持 2km（泛名山岳
     # skydive 同山不同场馆不误并）。
     gate = (
         _CONTENT_TWIN_GATE_KM
@@ -2881,8 +2881,8 @@ KEYWORD_LABEL_TOKENS: dict[str, list[str]] = {
     "演出": ["show"],
     "步行街": ["citywalk"],
     "古镇": ["historical_town"],
-    # 茶体验档（2026-11-07 拍板）：茶馆愿望连名称无茶字的库行——人民公园
-    # （茶体验档正主，鹤鸣茶社语义）；search_keyword 对 token 做 category
+    # 茶体验档（2026-11-07 拍板）：茶馆愿望连名称无茶字的库行——茶体验
+    # 档正主（公园茶社语义）；search_keyword 对 token 做 category
     # LIKE，类别通道即中
     "茶馆": ["tea_experience"],
 }
@@ -2909,7 +2909,7 @@ def _category_search_keyword(name: str) -> str | None:
 
 
 # --- 偏好与心愿的分层（2026-10-31 用户拍板，三条合成口径） ---------------
-# ①心愿=一次性满足的具体要求（看熊猫→基地，排一次翻已排期）→ 建心愿行；
+# ①心愿=一次性满足的具体要求（具名体验愿望→替代组正主，排一次翻已排期）→ 建心愿行；
 # ②偏好=品类倾向，行程里可以出现同一类型的多个景点 → 只作选点排序信号，
 #   不建心愿行；③选点当然要优先用户偏好的品类（偏好同类提到 tier 之前，
 #   同偏好组内仍按 tier 保库序——多个同类景点自然入选）。
@@ -2989,7 +2989,7 @@ PREFERENCE_META_PHRASES: tuple[str, ...] = (
 def _is_preference_meta(text: str) -> bool:
     """整串只是偏好性元话语（无特别要求/随便…），没有任何具体对象。
 
-    线上案（2026-10-31 12:44 上海会话）：LLM 把「偏好：无特别要求」原话
+    线上案（2026-10-31 12:44 线上会话）：LLM 把「偏好：无特别要求」原话
     列进 wishes，心愿单出现同名行。这类短语在建行前丢弃。"""
     s = _norm_pref_text(text)
     if not s or len(s) > 24:
@@ -3010,7 +3010,7 @@ def _is_preference_style_option(text: str) -> bool:
 
 _SERVICE_META_TAILS = ("天气", "行程", "攻略", "路线", "规划", "安排")
 
-# 改排指令形状（2026-11-08 成都案 5d978820）：「把成都环球中心加回
+# 改排指令形状（2026-11-08 成都案 5d978820）：「把X加回
 # 第4天上午」整句被抽成愿望建行，再经吸收闸进 must_visits 成无坐标
 # 占位卡。这是对既有行程的编辑指令，不是愿望——目标地点由改排解析
 # 通道处理，不落心愿单。动宾=改排动词，尾词=天/时段锚；「加到心愿
@@ -3025,9 +3025,9 @@ def _is_service_meta_wish(text: str) -> bool:
     """服务型请求当愿望（2026-11-04 it-b986c4f6 事故）：「帮我看看天气」
     「帮我看看整体行程」被当愿望建行、又经心愿单吸收成必去占位卡——
     这是让引擎干活的指令，不是可排期的地点。只拦「祈使句+服务宾语」
-    整串与光杆祈使；「帮我看看熊猫」这类具体地点宾语的真愿望不受影响。
-    2026-11-07 西安案二拍：帽 24→64——「必去：西安钟楼、…。帮我排好
-    这 5 天的西安行程」整句 30 字被帽放行建行，跨会话吸收成必去。
+    整串与光杆祈使；「帮我看看X」这类具体地点宾语的真愿望不受影响。
+    2026-11-07 西安案二拍：帽 24→64——「必去：某城地标、…。帮我排好
+    这 5 天的行程」整句 30 字被帽放行建行，跨会话吸收成必去。
     2026-11-08 三拍：改排指令（把X加回/挪到/排到 第N天上午…）同拦——
     编辑指令不是愿望，四闸词表形状拦不住它（它确实含真实地点名）。"""
     s = (text or "").strip()
@@ -3046,7 +3046,7 @@ def _is_service_meta_wish(text: str) -> bool:
 def _significant_units(s: str) -> frozenset[str]:
     """grounding 的最小信号单位：CJK 单字 + 拉丁词元（≥2 字符）。
 
-    标点/空白/单字符拉丁残片不是信号——「看熊猫」= {看,熊,猫}，
+    标点/空白/单字符拉丁残片不是信号——「看萌物」= {看,萌,物}，
     "see pandas" = {"see","pandas"}。"""
     units: set[str] = {ch for ch in s if "一" <= ch <= "鿿"}
     units.update(tok for tok in re.split(r"[^0-9a-z]+", s) if len(tok) >= 2)
@@ -3056,15 +3056,15 @@ def _significant_units(s: str) -> frozenset[str]:
 def _wish_grounded_in_user_text(wish: str, user_texts: list[str]) -> bool:
     """LLM 抽取的愿望必须溯源到用户自己打的字（2026-11-08 成都案终拍）。
 
-    线上实证（会话 5d978820，75 轮）：用户全场只发过偏好回复与「把成都
-    环球中心加回第4天上午」，心愿单却长出 4 行——lunches/sightseeing 从
-    行程卡捡的、Preferences: No special preference 是偏好回复英译、看熊猫
-    来自助手建议句「如想去都江堰熊猫谷看熊猫」。没有这层闸，词表闸
+    线上实证（会话 5d978820，75 轮）：用户全场只发过偏好回复与「把X
+    加回第4天上午」，心愿单却长出 4 行——lunches/sightseeing 从
+    行程卡捡的、Preferences: No special preference 是偏好回复英译、具名体验愿望
+    来自助手建议句「如想去远郊同体验次优选址」。没有这层闸，词表闸
     （meta/generic/service）只拦得出形状的垃圾，LLM 从助手消息/行程内容
     里捡的「像愿望的词」照样建行。
 
     口径：子串命中，或愿望的有效单位（CJK 字/拉丁词元）全部出现在用户
-    语料里（「我想看大熊猫」能 ground「看熊猫」）。跨语言抽取（EN 用户
+    语料里（用户原话长句能 ground 其愿望短句）。跨语言抽取（EN 用户
     被抽成中文短语）会落空——宁漏勿错：漏了用户可手动补，错建会挤掉
     真愿望的坑位。"""
     w = _norm_pref_text(wish).strip()
@@ -3083,7 +3083,7 @@ def _wish_grounded_in_user_text(wish: str, user_texts: list[str]) -> bool:
 
 # 偏好→品类映射（拍板③）：(偏好触发词, 库内 category 值, 名字兜底 token)。
 # category 为主（库内已分类 museum/nature/park/…），名字 token 只兜底
-# 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃上海博物馆这类）。
+# 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃城市名博物馆这类）。
 PREFERENCE_CATEGORY_SPECS: tuple[
     tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...
 ] = (
@@ -3149,7 +3149,7 @@ PREFERENCE_CATEGORY_SPECS: tuple[
     ),
     (
         ("喝茶", "泡茶", "品茶", "茶馆", "咖啡", "奶茶", "tea", "coffee"),
-        # 茶体验档（2026-11-07 拍板：人民公园=茶体验归此档）：类别精确
+        # 茶体验档（2026-11-07 拍板：茶体验正主归此档）：类别精确
         # 通道；token 带下划线不会子串误伤英文名（裸 "tea"⊂"steak/steam"）
         ("tea_experience",),
         ("茶馆", "茶楼", "咖啡", "奶茶"),
@@ -3261,7 +3261,7 @@ _WISH_SEG_TRIM = "，。、；！？!?.,;：:~～ \t「」『』的在是的了�
 
 def _match_city_token(text: str) -> str | None:
     """答复片段里认城市：英文走 CITY_ALIASES，中文对 KNOWN_CITIES 最长
-    包含匹配（「杭州市」「在杭州」都吃）。返回去「市」尾的标准名。"""
+    包含匹配（「某城市」「在某城」都吃）。返回去「市」尾的标准名。"""
     s = (text or "").strip()
     if not s:
         return None
@@ -3505,11 +3505,11 @@ def _dinner_placeholder(
 
 
 def _meal_city_at(day_plan: DayPlan, at: time | None) -> str:
-    """用餐时刻人所在城市（2026-10-31「上海→西安→上海→西安」案）。
+    """用餐时刻人所在城市（2026-10-31「甲城→乙城→甲城→乙城」案）。
 
     DayPlan.base_city 是「当天醒来的城市」；换乘日晚上人在末段
     transfer 的 to_city——餐厅检索按 base_city 搜会插出出发城晚餐卡
-    （day1 醒在上海、晚上逛西安，卡面却是上海七宝的店）。按 seq 走
+    （day1 醒在甲城、晚上逛乙城，卡面却是甲城旧街的店）。按 seq 走
     当日 transfer，落地时刻（end_time，缺则 start+duration 推算）
     ≤ at 即推进到 to_city：晚餐窗（17:30）前落地的白天航班把晚餐城
     切到到达城；傍晚才起飞的航班落地晚于晚餐窗，晚饭照旧在出发城。
@@ -3553,7 +3553,7 @@ def _reconcile_transfer_days(
     # 交通（火车 8 点出发）不受此限
     day_start = DAY_START_MINUTES
     # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：挪日修复同口径，
-    # 落位同时校验营业窗（熊猫基地 18:00（闭馆 17:00）事故）
+    # 落位同时校验营业窗（替代组正主 18:00（闭馆 17:00）事故）
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for idx, day in enumerate(plan.days):
         transfers = [t for t in day.items if isinstance(t, TransferItem)]
@@ -3738,7 +3738,7 @@ def _reconcile_transfer_days(
             ]
             if tier_by_name:
                 # 到达侧同理：按 tier 1→9 升序认领落地后第一天余位
-                # （兵马俑被低档小点抢先占位后甩到行程尾部的事故
+                # （远郊王牌被低档小点抢先占位后甩到行程尾部的事故
                 # 形态）——完整梯子，不止 tier1。
                 arr_pool.sort(key=lambda v: tier_by_name.get(v.name, 11))
             arr_stranded: list[VisitItem] = []
@@ -3932,7 +3932,7 @@ def _fmt_hm(t: time) -> str:
 
 def _reservation_hint(name: str, cand: dict) -> str | None:
     """G1（§14.3）：预约制提示——库列优先，名单 v0 兜底（_same_site
-    容错匹配，覆盖「故宫博物院」vs 库存「故宫」类名字变体），
+    容错匹配，覆盖「官署博物院」vs 库存短名类名字变体），
     再退 09 号表全量判词（data/reservation_pois.csv：需预约/无需预约
     都有官方渠道+外籍口径）。EN 走 reservation_seeds 的
     note_en/FOREIGNER_TIP_EN；09 表渠道串无 EN 数据，保留中文原文。"""
@@ -3962,7 +3962,7 @@ def _reservation_hint(name: str, cand: dict) -> str | None:
 
 def _reservation_csv_row(name: str) -> dict | None:
     """09 表行命中：精确名直取，再 _same_site 容错（先 exact 防
-    「大足石刻博物馆」被容错吸进「大足石刻」判词）。"""
+    「石窟样本博物馆」被容错吸进「石窟样本」判词）。"""
     n = (name or "").strip()
     if not n:
         return None
@@ -4083,7 +4083,7 @@ def _merged_hours_segments(hours: PoiHours | None) -> list[tuple[int, int]]:
 
 
 def _fits_hours_window(hours: PoiHours | None, t: int, dur: int) -> bool:
-    """参访整段 [t, t+dur] 须落在营业窗内（2026-11-01 成都熊猫基地
+    """参访整段 [t, t+dur] 须落在营业窗内（2026-11-01 替代组正主
     18:00（闭馆 17:00）排期事故：兜底落位与挪日修复此前都不看闭馆
     时刻）。多段窗先合并零间隔邻段（07:30-12:00 + 12:00-17:00 视作
     07:30-17:00 一段）；无营业数据不硬卡（宁无窗不可错窗）。"""
@@ -4130,7 +4130,7 @@ def _fits_after(
 def _far_conflict_items(items: list, extra: GeoPoint | None = None) -> bool:
     """同日互远冲突（2026-11-04 成渝案三段）：挪日/swap/拆日重建不得把
     两条 >_SOFT_FAR_KM 直线距的参访换进同一天——腿分钟封顶 180 让预算
-    闸看不见它，兜底 sequencing 排不出时刻整卡蒸发（石刻+金佛山同日
+    闸看不见它，兜底 sequencing 排不出时刻整卡蒸发（石窟样本+山岳景区同日
     案）。餐/酒店豁免：宿在城市侧，与远点距离是正常形态不是冲突。"""
     pts = [
         i.location
@@ -4151,7 +4151,7 @@ def _far_conflict_items(items: list, extra: GeoPoint | None = None) -> bool:
 def _day_has_departure(day: DayPlan, vcity: str) -> bool:
     """天带自 vcity 离城出发腿（2026-11-08 沪→西→沪闭合案）：返程日
     参访受离城上午闸约束应保持轻量，挪日/重排不得把大块头塞进返程日
-    （兵马俑被 first-fit 挪进 D5 上午实录）。仅认已定时的出发腿。"""
+    （远郊王牌被 first-fit 挪进 D5 上午实录）。仅认已定时的出发腿。"""
     return any(
         isinstance(t4, TransferItem)
         and t4.start_time is not None
@@ -4231,11 +4231,11 @@ def _host_day_for_visit(
     落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。visit
     给定时再以单点实位探针终审（腿占段+开场闸+营业窗，口径同
     _fallback_sequence_times）——探不进不认宿主，调用方原样还座，
-    绝不弹座给终排必死的点（2026-11-05 洪崖洞案）。"""
+    绝不弹座给终排必死的点（2026-11-05 远距街区案）。"""
     # 簇领地排序（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合
     # 优先」）：有坐标的挪入件先探已有近距同日圈（_NEAR_SAMEDAY_KM）内
     # 伙伴的天，圈内天按最近距离排——4.9km 压线弱边天不得抢在 0.5km
-    # 强簇天前收件（碑林博被挪去大雁塔日、城心簇因此拆散实录）；无圈内
+    # 强簇天前收件（城心簇博物馆被挪去异簇王牌日、城心簇因此拆散实录）；无圈内
     # 天再按原日序。仅重排探查次序，资格/容量/实位闸全部照收。
     seq: list[DayPlan] = list(day_pool)
     _hloc = getattr(visit, "location", None) if visit is not None else None
@@ -4269,7 +4269,7 @@ def _host_day_for_visit(
                 d for d in seq if id(d) not in _near_ids
             ]
     # 返程日殿后（2026-11-08 沪→西→沪闭合案）：带离城出发腿的天压到
-    # 探查序末位——大点挪日不得首选返程日（兵马俑 D5 实录）。软序不
+    # 探查序末位——大点挪日不得首选返程日（远郊王牌 D5 实录）。软序不
     # 硬拦：非返程日全探不进时轻量件仍可落（离城上午闸合法件）。
     _dep_days = [d for d in seq if _day_has_departure(d, vcity)]
     if _dep_days and len(_dep_days) < len(seq):
@@ -4277,10 +4277,10 @@ def _host_day_for_visit(
         seq = [d for d in seq if id(d) not in _dep_ids] + _dep_days
     # 到达日殿后（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或
     # SHOW」）：重物（_heavy_rehome_visit）挪日不得首选到达日——
-    # 兵马俑被纯度通道、骊山被挪日通道 first-fit 挪进 D1 双实录。
+    # 远郊王牌被纯度通道、远郊族山岳被挪日通道 first-fit 挪进 D1 双实录。
     # 软序不硬拦：非到达日全探不进时仍可落（孤窗兜底同权）——但
     # 重物落到达日必须由调用方披露（_rehome_untimed_visits 已挂），
-    # 不许静默破例。二拍（11-09 兵马俑再犯案）加硬口径：出市区圈
+    # 不许静默破例。二拍（11-09 远郊王牌再犯案）加硬口径：出市区圈
     # （> _RETURN_URBAN_KM 于本池市区 medoid）的远点到达日直接除名
     # ——「简单 CITYWALK 或 SHOW」不含 25km 外远郊件，披露也不放。
     if visit is not None and _heavy_rehome_visit(visit, dur):
@@ -4395,7 +4395,7 @@ def _rescue_premium_stranded(
     notes: list,
     force: bool = False,
 ) -> bool:
-    """到达日搁浅名录王牌的让座救援（2026-11-05 成都青城山—都江堰案）。
+    """到达日搁浅名录王牌的让座救援（2026-11-05 泛名山岳—远郊水利案）。
 
     tier≤2 行在到达日装不下（落地窗+营业窗收不了 180 分钟级大点）、
     同城后续天又全部满员（每日 4 件硬顶/分钟容量）时，旧路径整卡删除
@@ -4516,10 +4516,10 @@ _YIELD_MAX_TIER = 8
 def _tight_cluster_mate_on(day: DayPlan, cand: VisitItem) -> bool:
     """弹座紧簇保护（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离
     聚合优先」）：候选与同日任一其他参访在紧簇半径（_TIGHT_CLUSTER_KM）
-    内=同片区强簇员——不让位弹座把它单独拽走（碑林博为钟楼让位后无处
-    可排被删实录：0.52km 强簇员被 tier 盲弹）。洪崖洞/环球中心类远距
+    内=同片区强簇员——不让位弹座把它单独拽走（城心簇博物馆为邻锚让位后无处
+    可排被删实录：0.52km 强簇员被 tier 盲弹）。远距街区/大体量商业体类远距
     让座（>2km）不受影响。缺坐标不保护（保守弹座）。零距（同点坐标）
-    也不保护——同点=占位/城市质心共享，非真实紧簇证据（青城山让座
+    也不保护——同点=占位/城市质心共享，非真实紧簇证据（泛名山岳让座
     回归夹具全城同点布位，真实 POI 坐标互异）。"""
     cxy = getattr(cand, "location", None)
     if cxy is None or getattr(cxy, "lon", None) is None:
@@ -4540,7 +4540,7 @@ def _tight_cluster_mate_on(day: DayPlan, cand: VisitItem) -> bool:
 
 
 def _near_cluster_mate_on(day: DayPlan, cand: VisitItem) -> bool:
-    """近距同日圈伴（2026-11-08 秦俑情案第五刀，圈径 _NEAR_SAMEDAY_KM）：
+    """近距同日圈伴（2026-11-08 贴场馆演出案第五刀，圈径 _NEAR_SAMEDAY_KM）：
     候选与同日任一其他非餐/酒店参访在圈内（0<km，零距不算伴——口径同
     _tight_cluster_mate_on）=当前日簇员。紧簇保护（2km）管弹座；本口径
     管重排/挪天家族的场馆亲和护栏。"""
@@ -4565,10 +4565,10 @@ def _near_cluster_mate_on(day: DayPlan, cand: VisitItem) -> bool:
 
 
 def _venue_anchor_on(day: DayPlan, cand: VisitItem) -> bool:
-    """场馆亲和软钉（2026-11-08 秦俑情案第五刀）：演出卡（category=
+    """场馆亲和软钉（2026-11-08 贴场馆演出案第五刀）：演出卡（category=
     entertainment 或 best_visit_time=show）在当前日存在近距同日圈
     （_NEAR_SAMEDAY_KM）内白天簇伴=贴场馆排——LNS 挪动/让位弹座不得
-    把它拽离场馆簇（《秦俑情》与兵马俑同在临潼却被「跨天全局重排」
+    把它拽离场馆簇（贴场馆演出与远郊王牌同在远郊片区却被「跨天全局重排」
     挪去市区日实录）。必去/点名另有 protect 语义，本闸只加演出档；
     真装不下（全场次冲突/容量结构性无解）时由清算/挪日扫尾按原口径
     兜底并披露，评分器另有 venue_strand 软罚管非演出件。"""
@@ -4582,9 +4582,9 @@ def _venue_anchor_on(day: DayPlan, cand: VisitItem) -> bool:
 
 def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
     """演出贴场馆主动换座（2026-11-08 沪→西→沪案终拍）：选层容量漏斗
-    可把与场馆同簇的演出甩去别天（《秦俑情》与兵马俑同在临潼却落到
-    达日 D1），其场馆日的演出位又被无贴场主张的演出占座（《大唐女
-    皇》@唐乐宫 35km 外）——LNS 未收敛时该换座不会自动发生。逐演
+    可把与场馆同簇的演出甩去别天（贴场馆演出与远郊王牌同在远郊片区却落到
+    达日 D1），其场馆日的演出位又被无贴场主张的演出占座（市区宴厅秀
+    35km 外）——LNS 未收敛时该换座不会自动发生。逐演
     出 v：现居天无贴场伴、存在同城他天 y 与 v 成近距同日圈（5km）、
     y 的演出 z 在 y 亦无贴场伴、双方目标天均无离城腿——v↔z 互换天
     数（时刻随卡带走）。结构上每天仍 ≤1 场，
@@ -4647,8 +4647,8 @@ def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
 
 
 def _reunite_tight_kin(plan: ItineraryPlan) -> None:
-    """紧簇亲属归位（2026-11-08 聚合分裂案：钟楼 D1+鼓楼 D4+城墙碑林
-    D2 三点 ≤0.5km 拆三天、长安十二时辰 kin 全在 D2 被楔子清障整删实
+    """紧簇亲属归位（2026-11-08 聚合分裂案：城心簇三锚 D1/D4/D2
+    三点 ≤0.5km 拆三天、主题街区 kin 全在 D2 被楔子清障整删实
     录）：让位弹座/演出闸/终闸挪位等级联互不知情，把 ≤2km 紧簇（口径
     同 _tight_cluster_mate_on）拆上多天后无人再聚——楔子剔除只剔不聚，
     交付前先把能归位的归回簇日，归不进的才轮到宁缺勿楔。并查集聚簇
@@ -4657,9 +4657,9 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
     先、日序低者优先）。可移动判据：非钉/软钉/必去，且坐席在本城边
     日（到达/返程日）或本日无同簇伴；tier≤2 王牌孤悬异簇日（本日零
     同簇伴）可回自己的簇——回家≠被剔（2026-11-08 距离聚类优先拍板，
-    终装层反转东方明珠四拍「不追改」，审计/楔子层不动）；tier≤2 上
+    终装层反转塔形地标四拍「不追改」，审计/楔子层不动）；tier≤2 上
     边日宿主须跟整簇（≥2 同簇伴已在/将归位）且 ≤120min 小块头（短
-    时长王牌跟簇破例，兵马俑 180min 大块头仍不上边日）。到达日保底
+    时长王牌跟簇破例，远郊王牌 180min 大块头仍不上边日）。到达日保底
     1 件在册（返程日可清空）、宿主 4/日帽、落件走 _stack_uncashable
     真裁决。归位清时刻，随后终闸清算重排补时刻（既定模式）。"""
     day_index = {id(d): n for n, d in enumerate(plan.days)}
@@ -4696,7 +4696,7 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
     return_idx = {c: max(n) for c, n in seen.items()}
 
     # 市区锚（2026-11-08 返程日市区圈拍板）：各城在册件点位云的
-    # medoid——返程宿主日不收出圈远郊件（华清宫 27km 形态）。
+    # medoid——返程宿主日不收出圈远郊件（远郊园林 27km 形态）。
     _city_anchor: dict[str, tuple[float, float]] = {}
     _pts_by_city: dict[str, list[tuple[float, float]]] = {}
     for _i2, _dd2 in visits:
@@ -4825,11 +4825,11 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
                     # 短时长王牌跟簇破例上返程边日（2026-11-08「拿着聚
                     # 合组合去安排」拍板）：跟整簇（≥2 同簇伴已在/将归位
                     # 宿主）且 ≤120min 小块头才放行，照常过下方兑现审；
-                    # 大块头（兵马俑 180min）仍不上边日。
+                    # 大块头（远郊王牌 180min）仍不上边日。
                     return False
             if _day_is_return_home(host, plan.days) and _far_from_anchor(m):
                 # 返程日市区圈（2026-11-08 拍板）：出圈远郊件不归位进
-                # 返程日——「远」翼独立于 tier/时长翼（华清宫 27km）。
+                # 返程日——「远」翼独立于 tier/时长翼（远郊园林 27km）。
                 return False
             if host_n >= 4:
                 return False  # 4/日硬帽（既定口径）
@@ -4935,8 +4935,8 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
 def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
     """簇日纯度闸（2026-11-08 拍板「异簇不混日」）：成族之日（同簇可数
     件 ≥2 在册）不得插排其它非同族景点——级联（选层溢出停泊/弹座让位/
-    重排）把距全簇 >5km 的可数件楔进簇日污染片区连贯（钟楼→弹座→楔进
-    大雁塔日同型实录）。跑在 _reunite_tight_kin 之后（先归位再按不变量
+    重排）把距全簇 >5km 的可数件楔进簇日污染片区连贯（城心簇锚→弹座→楔进
+    异簇王牌日同型实录）。跑在 _reunite_tight_kin 之后（先归位再按不变量
     清算盘面）：从最终 VisitItem 重算紧簇（同城可数件 0<km≤2km 并查集，
     口径同 _reunite_tight_kin），某日存在主导簇（同簇可数件 ≥2 在册）
     时，当日距**全簇成员** >_NEAR_SAMEDAY_KM 的可数件=异簇插排——
@@ -5003,7 +5003,7 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
     day_index = {id(d): n for n, d in enumerate(plan.days)}
 
     # 城市到达日索引（在册首日；单城无腿同口径，2026-11-08 拍板）：
-    # 重物纯度挪移不得首选到达日（兵马俑被 first-fit 挪进 D1 实录）。
+    # 重物纯度挪移不得首选到达日（远郊王牌被 first-fit 挪进 D1 实录）。
     _city_first: dict[str, int] = {}
     for d in plan.days:
         c = str(d.base_city or "").strip().removesuffix("市")
@@ -5045,9 +5045,9 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                 for m in kin
             )
             if near_km <= _DISTRICT_DAY_KM:
-                # 片区伴不逐（2026-11-08 临潼案）：≤5km 近伴照旧；
-                # 5-15km 同片区伴（兵马俑↔华清宫 6.9km）是「一个组合放
-                # 同一天」，只清 >片区圈真异簇（城心↔临潼 34km）
+                # 片区伴不逐（2026-11-08 远郊片区案）：≤5km 近伴照旧；
+                # 5-15km 同片区伴（远郊王牌↔远郊园林 6.9km）是「一个组合放
+                # 同一天」，只清 >片区圈真异簇（城心↔远郊片区 34km）
                 continue
             if any(
                 isinstance(m, VisitItem)
@@ -5061,8 +5061,8 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                 for m in day.items
             ):
                 # 演出场馆族（11-09 拆族二拍）：当日坐演出且 v 距其场馆
-                # ≤片区圈——v 是演出的贴场馆族件（兵马俑之于秦俑情），
-                # 逐走它=拆演出自己的组合（11-14 兵马俑被逐离秦俑情锚日
+                # ≤片区圈——v 是演出的贴场馆族件（远郊王牌之于贴场馆演出），
+                # 逐走它=拆演出自己的组合（11-14 远郊王牌被逐离贴场馆演出锚日
                 # 实录）。
                 continue
             # 异簇插排：挪走不删
@@ -5181,20 +5181,20 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
 
 
 def _evict_wedge_strays(plan: ItineraryPlan) -> list[str]:
-    """楔子不变量·贴邻孤岛清障（2026-11-08 钟楼案三拍「钟楼可以SKIP，
+    """楔子不变量·贴邻孤岛清障（2026-11-08 城心簇锚案三拍「它可以SKIP，
     为什么要有」）：选层是容量优先——城心象限 6+ 点装不进簇日（4/日帽）
-    时溢出停泊把点楔进还有容量的天，污染那天的片区连贯（钟楼→D5→
-    弹座→D2 楔进大雁塔日；大清真寺/永兴坊轮替同型实录）。逐动结构相位
+    时溢出停泊把点楔进还有容量的天，污染那天的片区连贯（城心簇锚→D5→
+    弹座→D2 楔进异簇王牌日；同针小件/街道类样本轮替同型实录）。逐动结构相位
     （分流/全局重排/弹座让位/终闸清算）设防是打地鼠，交付前按不变量
     统一清算：本日零贴邻伴（≤2km，口径同 _tight_cluster_mate_on）、
     别日有伴、且本日存在 >2km 非餐演核心 = 真孤岛楔子——宁缺勿楔，
     带披露移除并引导指定他日加回。归位 vs 楔子三拍（2026-11-08）触发
     收紧：本日哪怕只有 1 个紧簇伴=簇的合法局部安置/容量迫形态（
     _reunite_tight_kin 刚放下的部分簇），永不剔——归位刚放下、楔子又
-    删掉是打架不是清障。判例边界（东方明珠四拍「不追改」）：散组同日
+    删掉是打架不是清障。判例边界（塔形地标四拍「不追改」）：散组同日
     互伴不动（已被本日零伴前提覆盖）；本日无远核心=该日本就是散组的
     地盘，不动；无坐标/钉/必去/餐演酒店不动；tier≤2 名录王牌不剔
-    （兵马俑被秦俑情甩 D1 反客为主实录——锚档牌位合法，楔的是被甩的
+    （远郊王牌被贴场馆演出甩 D1 反客为主实录——锚档牌位合法，楔的是被甩的
     演出不是王牌，演出侧另有贴场馆换座收口）。"""
     dropped: list[str] = []
     for day in list(plan.days):
@@ -5246,7 +5246,7 @@ def _evict_wedge_strays(plan: ItineraryPlan) -> list[str]:
                 # 刚放下的部分簇），不是孤岛楔子——永不剔（景点2+景点6
                 # 同日归位后被按「别日严格更多伴」误杀实录：归位刚放下、
                 # 楔子又删掉，反手制造 hard violations）。只有本日零伴的
-                # 真孤岛（钟楼独坐 D5 原案）才走剔/挪路径。
+                # 真孤岛（城心簇锚独坐 D5 原案）才走剔/挪路径。
                 continue
             richer = [(o, c) for o, c in counts if o is not day and c > home_cnt]
             if not richer:
@@ -5254,7 +5254,7 @@ def _evict_wedge_strays(plan: ItineraryPlan) -> list[str]:
             target, _ = max(richer, key=lambda t: t[1])
             # 手建卡/精选库卡楔入豁免（2026-11-08 拍板乙·三级梯
             # 心愿>CREATED>TAG；同日二拍「我说的是 CURATED，不是 CREATED
-            # flag」）：长安十二时辰主题街区实录——手建 citywalk 卡被本
+            # flag」）：主题街区样本实录——手建 citywalk 卡被本
             # 通道整删，因为 CREATED 标记死在选层候选、活不过装配
             # （VisitItem.created 现已透传）；curated（精选库）卡同待遇
             # （VisitItem.curated，_cand_is_curated 装配期透传）。终删层
@@ -5410,7 +5410,7 @@ def _rehome_or_drop_displaced(
     )
 
 
-# 连续弹座上限（2026-11-07 环球中心案）：240min 级大块头需弹 2-3 个
+# 连续弹座上限（2026-11-07 大体量商业体案）：240min 级大块头需弹 2-3 个
 # 90-120min 杂点才腾出整块；再多就把当天弹空壳了——宁让让位失败走
 # 挪日/披露，不交一个只剩酒店卡的天。
 _YIELD_MAX_EJECTS = 3
@@ -5430,11 +5430,11 @@ def _untimed_promises_on(day: DayPlan) -> list["VisitItem"]:
 def _jointly_cashable_with(
     plan: ItineraryPlan, day: DayPlan, visit: "VisitItem"
 ) -> bool:
-    """叠加兑现审（2026-11-08 永兴坊案两头空）：无时刻件是未兑现的
+    """叠加兑现审（2026-11-08 街道类样本案两头空）：无时刻件是未兑现的
     排期承诺，容量+单点实位探针各自独审时对同日的其他承诺隐形——
     让位/挪日/回头重试逐个落件双双「可行」，终排贪心只活其一
-    （含光门为永兴坊弹座让位、永兴坊落 D5、大清真寺回头重试再进
-    D5、终排永兴坊死而牺牲品已蒸发的实录）。宿主日已欠承诺时，把
+    （城心小件为街道件弹座让位、街道件落 D5、同针小件回头重试再进
+    D5、终排街道件死而牺牲品已蒸发的实录）。宿主日已欠承诺时，把
     visit 落进克隆盘跑兜底排序真裁决：该日仍留无时刻参访＝兑现
     不了，拒落——宁缺勿叠，被拒者走下一候选日/披露通道。"""
     clone = (
@@ -5487,11 +5487,11 @@ def _yield_for_premium(
 
     软预算闸把大点堆进同一天、solver 降级后兜底排序排不出时刻，
     挪日扫尾又把无时刻王牌挪进到达日再被「下午单大点」跳过——
-    最终 _drop_untimed_visits 整卡删除（青城山—都江堰/洪崖洞实录）。
+    最终 _drop_untimed_visits 整卡删除（泛名山岳—远郊水利/远距街区实录）。
     本函数在挪不动时从池内同城日弹出档位更低（tier 数更大）或「同档
     更小块头」的非钉参访腾座：王牌清时刻挪入；被弹者再找宿主天，找
-    不到按原口径移除留痕。tier≤8（图商名点档）享此权——李子坝
-    (chinatravel) 级杂点为洪崖洞让位是设计内牺牲，与追回池/品类闸
+    不到按原口径移除留痕。tier≤8（图商名点档）享此权——图商长尾
+    (chinatravel) 级杂点为远距街区王牌让位是设计内牺牲，与追回池/品类闸
     同一档序口径。零弹座基线探针（2026-11-07）：占位件已软挪出固定
     窗，当天可能本就放得下——先试原样再进弹座循环。返回宿主天；
     None=池内无可让之座（调用方照旧清算）。"""
@@ -5522,7 +5522,7 @@ def _yield_for_premium(
             and not getattr(i, "created", False)
             and not getattr(i, "curated", False)
             and (i.category or "") not in ("food", "hotel")
-            # 演出不作弹座牺牲品（11-09 秦俑情案）：场次刚性+每场闸钉
+            # 演出不作弹座牺牲品（11-09 贴场馆演出案）：场次刚性+每场闸钉
             # 日，盲弹去无场次宿主=整卡蒸发；挤兑换位另有专用通道。
             and (i.category or "") != "entertainment"
             and not _tight_cluster_mate_on(later, i)
@@ -5530,9 +5530,9 @@ def _yield_for_premium(
             and (
                 _tier(i.name) > vt
                 or (
-                    # 同档小让大（2026-11-07 环球中心案）：同 tier 下
-                    # 更短时长者为更大块让位（杜甫草堂 120min 让 240min
-                    # 环球中心）——档序之外补「块头」维度；大让小不算。
+                    # 同档小让大（2026-11-07 大体量商业体案）：同 tier 下
+                    # 更短时长者为更大块让位（120min 小件让 240min
+                    # 大块头）——档序之外补「块头」维度；大让小不算。
                     _tier(i.name) == vt
                     and (i.duration_minutes or DEFAULT_VISIT_MINUTES) < dur
                 )
@@ -5543,9 +5543,9 @@ def _yield_for_premium(
         baseline = _host_day_for_visit(
             [later], vcity, dur, incoming=visit.location, visit=visit
         )
-        # 零弹座跨日探针先行（2026-11-08 永兴坊案）：弹座只腾本日容量，
+        # 零弹座跨日探针先行（2026-11-08 街道类样本案）：弹座只腾本日容量，
         # 对别日宿主毫无贡献——同城他日本就收得下时直接挪日零牺牲
-        # （含光门为永兴坊让位、永兴坊却落他日且终排双蒸发的两头空
+        # （城心小件为街道件让位、街道件却落他日且终排双蒸发的两头空
         # 实录）。择宿守贴邻不拆天同款谓词。
         if baseline is None:
             zero_pool = [
@@ -5606,7 +5606,7 @@ def _yield_for_premium(
             continue
         # 连续弹座实位探针（档低者先让，弹到放得下为止）：单弹一个
         # 不等于腾出可排座——240min 级大块头弹一个 90min 杂点整块照样
-        # 进不去（2026-11-07 环球中心案：弹天府广场一座后第 3 天仍无
+        # 进不去（2026-11-07 大体量商业体案：弹城心广场一座后第 3 天仍无
         # 4 小时连续块 → 让位失败 → 终局清算蒸发）。逐个累计弹座、每
         # 弹一个探一次实位，探到放得下为止；弹尽 _YIELD_MAX_EJECTS 个
         # 仍放不下则原样还座换下一日（2026-11-05 d1→d2 实录口径不变）。
@@ -5639,9 +5639,9 @@ def _yield_for_premium(
                 t is not None
                 and not _stack_uncashable(plan, t, visit)
                 and (
-                    # 贴邻不拆天（2026-11-08 钟楼案）：名点择宿只认有近簇
-                    # 伴的天（或全城无伴）——钟楼被弹去无伴的 D2 楔进大雁
-                    # 塔日实录；伴在日满员时宁可让名点让位出局（披露走
+                    # 贴邻不拆天（2026-11-08 城心簇锚案）：名点择宿只认有近簇
+                    # 伴的天（或全城无伴）——城心簇锚被弹去无伴的 D2 楔进异簇
+                    # 王牌日实录；伴在日满员时宁可让名点让位出局（披露走
                     # 「始终排不下时刻」通道），不投孤岛日。
                     t is later
                     or _near_cluster_mate_on(t, visit)
@@ -5833,7 +5833,7 @@ def _transfer_day_sweep(
     （卡面无安排 + rule 4「没有起止时间」报错）——到达城条目挪同城
     更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
     与挪日修复一致）；名点先让位再挪日（_yield_for_premium，
-    2026-11-05 青城山/洪崖洞案：纯挪日「结构成功」终排必死），让位
+    2026-11-05 泛名山岳/远距街区案：纯挪日「结构成功」终排必死），让位
     与挪日都不成才移除留痕；pinned 与 protect（必去/
     心愿名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
     长江索道 pinned=False（钉在 solve 之后才打），清算当杂卡删空。
@@ -5956,7 +5956,7 @@ def _transfer_day_sweep(
 
 
 def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -> None:
-    """终装日纯度清扫（2026-11-09 大雁塔簇日插陌生人/到达日重物双案类级
+    """终装日纯度清扫（2026-11-09 簇日插陌生人/到达日重物双案类级
     收口）：上游各通道（选层初分/预认领/让位弹座/兜底时序/回填）各自
     合规却可合力把互远件塞进同一天，缺一道跨通道终局对账。三步单向扫：
 
@@ -5964,23 +5964,23 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
        >市区圈半径（_RETURN_URBAN_KM 于本市 medoid）的远点落在到达日
        一律挪非到达日；全城无处可去才移除留痕（宁缺勿错）。必去
        （protect）/心愿（created）卡只挪不删（11-08 拍板）——挪不动
-       保留+WARN+披露，整跳不许可（11-09 兵马俑静默留 D1 实录）。
+       保留+WARN+披露，整跳不许可（11-09 远郊王牌静默留 D1 实录）。
     ② 市内簇日陌生人：当日非豁免市内件 ≥3 且存在 ≥2 件近距同日圈主簇
        时，离主簇 >_NEAR_SAMEDAY_KM 的 tier≥3 独件挪去常驻簇收容日
        （近圈内 ≥2 常驻锚或小日单伴，_anchor_rank——漂泊卡互不算锚；
-       11-09 钟楼/碑林互距 0.5km 在异簇日互拉合流实录）；
+       11-09 城心两锚互距 0.5km 在异簇日互拉合流实录）；
        出圈族占日（≥2 出圈件在册）上的市内件同判异簇先回城——族日
        被市内件占满则族散件永远合不回去（11-09 拆族二拍实录）；不许
        挪进出圈族占日再造新陌生人；无处可去保留+披露。
     ③ 出圈片区族对齐（②腾位后跑）：互距 ≤_DISTRICT_DAY_KM 的出圈件
        是一族；散件跨日而某日坐族内演出时，散件尽量并回该演出日（演
-       出贴场馆族=族锚；兵马俑/华清宫/《秦俑情》拆日实录）；锚满先
+       出贴场馆族=族锚；远郊族+贴场馆演出拆日实录）；锚满先
        弹锚上离族 >5km 市内弱件腾位再试。
 
     ②扫两轮：一轮后段的挪动可能为前段失败的陌生人开出新宿主（11-10
-    大清真寺实录——碑林/永兴坊后段才落 D1）。挪后重排仍排不上时刻的
+    同针小件实录——城心博物馆/街道件后段才落 D1）。挪后重排仍排不上时刻的
     ②③挪动卡放回原天换披露：排得上时刻的陌生人好过无时刻"？"卡
-    （11-11 含光门实录——探针过闸≠兜底时序必能落位）；①出圈件不放
+    （11-11 城心小件实录——探针过闸≠兜底时序必能落位）；①出圈件不放
     回（到达日硬口径压过时刻观感）。
     挪动一律走 _host_day_for_visit 实位探针终审（含①到达日硬闸镜像），
     挪后 _fallback_sequence_times 重排；挪动必留日志，移除/搁置必留披
@@ -6065,10 +6065,10 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
         return {id(i) for i in groups[0]}
 
     def _anchor_rank(v: "VisitItem", x: DayPlan) -> tuple[int, float] | None:
-        """择日锚定（2026-11-09 钟楼/碑林互拉实录）：目标日常驻锚=非餐/
+        """择日锚定（2026-11-09 城心两锚互拉实录）：目标日常驻锚=非餐/
         酒店参访、非本次清扫已挪动卡（漂泊卡互不算锚）、且本身不可被清
-        扫再挪——支配分量成员或 tier<3/豁免稳定件（11-14 三拍实录：鼓楼
-        被容量相位挪进 D2 当了碑林博的锚，清扫转头又把鼓楼挪走，碑林博
+        扫再挪——支配分量成员或 tier<3/豁免稳定件（11-14 三拍实录：邻锚
+        被容量相位挪进 D2 当了博物馆本体的锚，清扫转头又把邻锚挪走，博物馆
         被搁浅 6km 空簇——会再挪的卡不配当锚）。合格=近距同日圈内 ≥2
         常驻锚（真簇收容）、紧簇（≤_TIGHT_CLUSTER_KM）单伴（0.5km 级贴
         邻=族力，大日也收）或小日（常驻锚 ≤2）单伴归位；圈内单伴大日不
@@ -6092,8 +6092,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             and (id(i) in core_ids or _exempt(i) or (getattr(i, "tier", 11) or 11) < 3)
         ]
         dists = [haversine_km(vxy, _vxy(i)) for i in anchors]
-        # 同针贴邻（km=0）计入：贴邻 0 距离是最强族力信号（大清真寺与
-        # 钟鼓楼同坊；② 判簇 _components 本就 ≤radius 含 0，此处口径对齐）
+        # 同针贴邻（km=0）计入：贴邻 0 距离是最强族力信号（同针小件与
+        # 城心簇锚同坊；② 判簇 _components 本就 ≤radius 含 0，此处口径对齐）
         near_d = [km for km in dists if km <= _NEAR_SAMEDAY_KM]
         tight = any(km <= _TIGHT_CLUSTER_KM for km in dists)
         if len(near_d) >= 2 or tight or (near_d and len(anchors) <= 2):
@@ -6179,10 +6179,10 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
         return True
 
     # 分组键=日 base_city ∪ 卡自身 city（2026-11-09 沪→西→沪闭环实录：
-    # D1 base_city=上海 而兵马俑（西安点）落 D1——只按 base_city 分组时
-    # 兵马俑独占"上海"组，medoid=自身距离 0，①出圈判定与③族合并整组
-    # 空转；按卡 city 注册后 D1 同时进西安组，兵马俑按西安 medoid 判
-    # 远、与秦俑情成族归位）。
+    # D1 base_city=甲城 而远郊王牌（乙城点）落 D1——只按 base_city 分组时
+    # 远郊王牌独占"甲城"组，medoid=自身距离 0，①出圈判定与③族合并整组
+    # 空转；按卡 city 注册后 D1 同时进乙城组，远郊王牌按乙城 medoid 判
+    # 远、与贴场馆演出成族归位）。
     cities: dict[str, list[DayPlan]] = {}
     for d in plan.days:
         keys = {str(d.base_city or "").removesuffix("市")}
@@ -6210,7 +6210,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 xy = _vxy(v)
                 if xy is not None and haversine_km(xy, med_pt) > _RETURN_URBAN_KM:
                     far_ids.add(id(v))
-        # ① 出圈件禁到达日。二拍（2026-11-09 兵马俑静默留 D1 实录）：
+        # ① 出圈件禁到达日。二拍（2026-11-09 远郊王牌静默留 D1 实录）：
         # protect（必去）/created（心愿）此前被 _exempt 整跳——不挪不删
         # 无日志无披露，与「到达日不放远点」正面冲突；按 11-08 拍板挪卡
         # 不删卡：此类卡只挪不删，挪不动保留+WARN+披露。
@@ -6232,8 +6232,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 keep = str(v.name) in protect or bool(getattr(v, "created", False))
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
                 pool = [x for x in days if x is not d and not _day_is_arrival(x, vcity)]
-                # 择日同②锚定口径：必去/心愿远点优先挪向常驻簇日（兵马俑
-                # 归华清宫/《秦俑情》族日），锚定日全探不进才退容量兜底。
+                # 择日同②锚定口径：必去/心愿远点优先挪向常驻簇日（远郊王牌
+                # 归远郊族/贴场馆演出族日），锚定日全探不进才退容量兜底。
                 cands: list[tuple[float, int, DayPlan]] = []
                 for x in pool:
                     if (
@@ -6307,9 +6307,9 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                         )
                     )
         # ② 市内簇日陌生人（含出圈族占日市内件回城腾位——须先于③族合并
-        # 跑，族散件才有座可落；11-09 大雁塔簇日/拆族二拍实录）。扫两轮：
-        # 一轮后段的挪动可能为前段失败的陌生人开出新宿主（11-10 大清真
-        # 寺实录——碑林/永兴坊后段才落 D1），二轮无新挪动自然空转。
+        # 跑，族散件才有座可落；11-09 簇日陌生人/拆族二拍实录）。扫两轮：
+        # 一轮后段的挪动可能为前段失败的陌生人开出新宿主（11-10 同针小件
+        # 实录——城心博物馆/街道件后段才落 D1），二轮无新挪动自然空转。
         for _pass in range(2):
             for d in days:
                 far_cnt = sum(
@@ -6379,10 +6379,10 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 if len(core) < 2:
                     continue
                 core_ids = {id(x) for x in core}
-                # 王牌（tier≤2）是簇核常客（大雁塔之于十二时辰日），不作
+                # 王牌（tier≤2）是簇核常客（王牌锚之于主题街区日），不作
                 # 陌生人候选——挪王牌风险大于收益，tier≥3 才可挪；curated/
-                # 钉卡计簇核但永不作候选（11-10 实录：街区 curated+唐宴
-                # food 被豁免后 day_all=2，大清真寺陌生人根本没开火）。
+                # 钉卡计簇核但永不作候选（11-10 实录：街区 curated+宴秀
+                # food 被豁免后 day_all=2，同针小件陌生人根本没开火）。
                 for v in [
                     x
                     for x in day_all
@@ -6431,7 +6431,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             for v in stragglers:
                 # 心愿/必去/护名卡可挪不可删（2026-11-02 拍板）：族合并
                 # 只挪卡不删卡，故 pinned/soft_pin/protect/created/curated
-                # 全放行（11-10 华清宫心愿散件被豁免静默跳过实录；「curated
+                # 全放行（11-10 远郊园林心愿散件被豁免静默跳过实录；「curated
                 # 不许消失」护的是删除，不护落位——静默豁免反而让族拆无披露）。
                 if str(getattr(v, "category", "") or "") in (
                     "food",
@@ -6550,13 +6550,13 @@ def _rehome_untimed_visits(
     tier_by_name: dict[str, int] | None = None,
 ) -> list[str]:
     """全日无时刻卡挪日扫尾（2026-11-04 成渝案四段）：转场日之外的
-    无时刻参访此前只有终局清算一途——石刻被 CP 分钟口径（腿封顶
-    180）与金佛山装进同一天，兜底排序排不出时刻直接蒸发，连披露都
+    无时刻参访此前只有终局清算一途——石窟样本被 CP 分钟口径（腿封顶
+    180）与山岳景区装进同一天，兜底排序排不出时刻直接蒸发，连披露都
     绕过（重解成功=静默少卡）。名点三段（2026-11-05 E2E 案）：先在
-    同城日让位腾座（自家日优先——洪崖洞案同城日全是大点，自家日弹
+    同城日让位腾座（自家日优先——远距街区案同城日全是大点，自家日弹
     低档是唯一活路）；让位不成再试同城空日纯挪（只认 base 同城日
     ——纯挪日会「结构上成功」挪进到达日：容量闸不识营业窗，落地
-    14:30 起 180min 名点 17:30 收 >17:00 闭馆，青城山实录终排必死）；
+    14:30 起 180min 名点 17:30 收 >17:00 闭馆，泛名山岳实录终排必死）；
     再不成留给兜底重排/终闸清算披露。杂点维持纯挪日口径不变。
     pinned/protect（铁律 19）不挪。"""
     notes: list[str] = []
@@ -6596,7 +6596,7 @@ def _rehome_untimed_visits(
                     visit=visit,
                 )
                 if target is not None and vt <= 2 and _day_has_departure(target, vcity):
-                    # 王牌不上返程日（2026-11-08 沪→西→沪案：兵马俑被
+                    # 王牌不上返程日（2026-11-08 沪→西→沪案：远郊王牌被
                     # first-fit 挪进 D5 上午）：tier≤2 挪日宿主为带离城
                     # 腿的天时弃挪，交让位弹座/清算另寻整天。
                     target = None
@@ -6618,7 +6618,7 @@ def _rehome_untimed_visits(
                         visit, dur
                     ):
                         # 重物落到达日=孤窗兜底（非到达日全探不进），
-                        # 破「到达日轻量」例必须披露（青城山案口径：
+                        # 破「到达日轻量」例必须披露（泛名山岳案口径：
                         # 结构性无解靠完整披露，不静默塞）。
                         logger.warning(
                             "plan: heavy rehome %s lands arrival day %d (last resort)",
@@ -6738,7 +6738,7 @@ def _city_side_ok(
 def _leg_windows(
     fixed: list[tuple[int, int, object]], visit: VisitItem
 ) -> list[tuple[int, int]]:
-    """未排条目视角的已占窗（2026-11-02 兵马俑 10:30 散场 11:00 排钟楼
+    """未排条目视角的已占窗（2026-11-02 远郊王牌 10:30 散场 11:00 排城心锚
     事故）：已定位的观光锚按打车腿放宽 ±30 缓冲，餐饮/酒店/落地腿保持
     原窗（餐位贴点、铁律 4 缓冲语义不变）。"""
     out: list[tuple[int, int]] = []
@@ -6922,7 +6922,7 @@ def _fallback_sequence_times(
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
     # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：非演出观光点
     # 降级排序与 solver 主路同口径；兜底落位同时校验营业窗整段
-    # （城墙·碑林 17:00 入场 / 熊猫基地 18:00（闭馆 17:00）两事故）。
+    # （联票挂牌 17:00 入场 / 替代组正主 18:00（闭馆 17:00）两事故）。
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
         # 头档距离置换（2026-11-05 拍板·二裁距离裁决）先于固定窗提取：
@@ -6938,7 +6938,7 @@ def _fallback_sequence_times(
         ]
         # 兜底排序（2026-11-04 拍板「必去点/大点先排」的降级镜像）：
         # 钉住未排必去最先、大点先于轻点、大点类内时长降序——2026-11-05
-        # 成渝案：类内纯列表序让 180min 青城山排在 120min 金沙/90min 宽窄
+        # 成渝案：类内纯列表序让 180min 泛名山岳排在 120min 馆/90min 街区
         # 之后，前两点吃完下午窗，大点 16:30 起 17:00 闭馆必死；最长先排
         # 是经典最小化碎片启发式，大点吃头档、轻点回填日尾。
         if not keep_list_order:
@@ -6998,7 +6998,7 @@ def _fallback_sequence_times(
             and _is_big_site(v)
             for v in day.items
         )
-        # 贴邻豁免锚点（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：记录本
+        # 贴邻豁免锚点（2026-11-07 城心同街拆天案）：记录本
         # 日下午已排大点的坐标，供下方「第二个下午大点」跳过前判近距同日圈。
         afternoon_big_xy: tuple[float, float] | None = None
         for v in day.items:
@@ -7043,7 +7043,7 @@ def _fallback_sequence_times(
 
                 placed_at = _try_sessions()
                 if placed_at is None:
-                    # 贴排对让位（2026-11-08 秦俑情 D2 甩空日案）：多场次
+                    # 贴排对让位（2026-11-08 贴场馆演出 D2 甩空日案）：多场次
                     # 演出是簇日锚卡（夜档贴排组合拍板——与 ≤5km 贴排圈
                     # 内观光同为一个排程单元），当天内全场次撞窗时不甩空
                     # 日：若当天有贴排圈内的已排观光伴，让最晚可行场次撞
@@ -7117,7 +7117,7 @@ def _fallback_sequence_times(
                     and _is_big_site(visit)
                     and morning_occupied
                 ):
-                    # 必去/高排序大点下午头档（2026-11-04 熊猫基地挂日尾
+                    # 必去/高排序大点下午头档（2026-11-04 替代组正主挂日尾
                     # 事故；2026-11-05 起候选面扩到 tier≤2 高排序——上
                     # 午已被占时从正午起探，不在 11:30 半档开场杀掉午
                     # 餐窗；上午头档由置换规则争取，见
@@ -7144,7 +7144,7 @@ def _fallback_sequence_times(
                             break
                 _sh_hours = hours_by_poi.get(visit.poi_id)
                 if _is_show_item(visit) and _sh_hours is not None and _sh_hours.windows:
-                    # 多场次演出齐场（2026-11-08 秦俑情 D2 甩空日案）：场次
+                    # 多场次演出齐场（2026-11-08 贴场馆演出 D2 甩空日案）：场次
                     # 制营业窗（11:00/17:00）的兜底 t 常落在两场之间（腿窗
                     # 推进只避撞不齐场）→ 永远过不了 _fits_hours_window，被
                     # 甩去空日破簇。齐到 ≥t 的下一场开场再走常规判定。
@@ -7166,7 +7166,7 @@ def _fallback_sequence_times(
                 ):
                     # 下午单大点兜底镜像（2026-11-04 拍板）：同日下午已有
                     # 大点，第二个留空交挪日/披露，不硬塞。
-                    # 贴邻豁免（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                    # 贴邻豁免（2026-11-07 城心簇锚/街道类样本同街拆天案）：
                     # 与本日下午已排大点在近距同日圈（_NEAR_SAMEDAY_KM，
                     # 5km 口径）内=同片区连游，不按「第二个下午大点」
                     # 处理——硬跳过反而制造跨日拆散。
@@ -7208,9 +7208,9 @@ def _fallback_sequence_times(
                     and placed_at < THEME_BLOCK_AFTERNOON_MINUTES
                     and visit is untimed[-1]
                 ):
-                    # 主题街区晚场倾向（2026-11-08 拍板「十二时辰建议晚上」
+                    # 主题街区晚场倾向（2026-11-08 拍板「主题街区建议晚上」
                     # +规则 33 软偏好的兜底镜像）：游标落位在 16:00 前时尝
-                    # 试升档到 16:00 起排（十二时辰 240min 形态 → 16:00-
+                    # 试升档到 16:00 起排（主题街区 240min 形态 → 16:00-
                     # 20:00）。安全升级——地板位过不了任一校验（腿窗/营业
                     # 窗/城侧闸/日终）就保留游标位，永不因升档安置失败。
                     # 末位闸（升档搁浅根修）：升档把游标推过入场闸，同日
@@ -7333,7 +7333,7 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
     间为什么不压缩一下」）：终装不变量——每天最后一个晚场锚（≥15:00
     开场）之前若有可动观光链，且链尾与锚之间留 ≥60min 死区，整链后移
     贴锚（锚前留 30min 通勤）——下午空洞前移给上午，日跨度收紧
-    （长恨歌案：清真寺 13:37 收尾 vs 17:00 演出 203min 死区）。返程日
+    （同址夜演案：同针小件 13:37 收尾 vs 17:00 演出 203min 死区）。返程日
     午后跳过（规则 21 车站缓冲不动）；钉住/餐饮/酒店/场次演出/晚场类
     不入链（链在其处断开）；链上任一站过不了营业窗/入场闸就整链不动
     （跳过零副作用，应用时留痕）。
@@ -7397,7 +7397,7 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
         if dead < 60:
             continue
         delta = dead - 30  # 贴锚留 30min 通勤
-        # 入场闸收紧 delta（链上最紧的白天闸件定上限：清真寺类 16:00
+        # 入场闸收紧 delta（链上最紧的白天闸件定上限：同针小件类 16:00
         # 闸压到最迟开场，而非整段贴锚后被闸全盘否决）。
         for v in chain:
             cap = generic_entry_cap(v, hours_by_poi.get(v.poi_id))
@@ -7467,7 +7467,7 @@ def _day_fixed_windows(
         start = item.start_time
         if start is None:
             continue
-        # 占位件软挪（2026-11-07 环球中心案）：「午饭/晚饭（自由安排）」
+        # 占位件软挪（2026-11-07 大体量商业体案）：「午饭/晚饭（自由安排）」
         # 本就是可换可删的保槽卡——不进固定窗当墙，真身（大块头 13:30-
         # 17:30 类）落位后占位件由重排让位（否则晚饭占位 17:30-18:30
         # 把下午整档的探针判死，yield/rehome 永远放不下 240min 块）。
@@ -7492,7 +7492,7 @@ def _day_fixed_windows(
         ):
             # 午餐软钉（2026-10-31 用户拍板「午餐可以延后」）：不进固定
             # 窗挡上午——参访排完后从原时刻起顺延落位；>180 分钟的上午
-            # 大点（240 分钟华清池 09:00-13:00 类）不再被 12 点午餐锚
+            # 大点（240 分钟远郊园林 09:00-13:00 类）不再被 12 点午餐锚
             # 挤到下午。
             dur = e - s if e is not None and e > s else (item.duration_minutes or 60)
             flex_lunches.append((item, s, int(dur)))
@@ -7542,7 +7542,7 @@ def _probe_visit_slot(
         advanced = False
         # 营业窗对齐（2026-11-07 修复）：t 早于开门/掉进段间隙时推进到
         # 下一可行段开门——旧口径只推腿窗不推开门，10:00 开门点在
-        # 09:00 起算日永远探不进（t<opens 判 fits=False 即死，环球中心
+        # 09:00 起算日永远探不进（t<opens 判 fits=False 即死，大体量商业体
         # 案：让位/挪日探针对全天空日也返回 None）。闭馆侧照旧由
         # _fits_hours_window 终审卡死。
         for seg_o, seg_c in _merged_hours_segments(hours_by_poi.get(visit.poi_id)):
@@ -7575,8 +7575,8 @@ def _probe_visit_slot(
 
 def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
     """必去让位清算（2026-11-04 it-b986c4f6 事故）：钉住未排的必去大点
-    被同日自动凑数条目占满下午、挤到挂日尾无时刻（熊猫基地 180min 被
-    望平坊 12:00 + 杜甫草堂 14:12 顶到日尾，渲染成「四点以后」）。
+    被同日自动凑数条目占满下午、挤到挂日尾无时刻（替代组正主 180min 被
+    街道类样本 12:00 + 名人故居样本 14:12 顶到日尾，渲染成「四点以后」）。
 
     solve 前逐天清场：钉住未排观光点先试原窗（必去大点按「下午头档」
     口径——上午已被占从 12:00 起、开场 ≤13:00），放不下则逐个挤掉非钉
@@ -7706,10 +7706,10 @@ _BANQUET_SHOW_TEXT_MARKS = (
 
 
 def _is_show_banquet_item(item: VisitItem) -> bool:
-    """宴秀条目（2026-11-08 拍板「唐宴已有 SHOW 的意思，就不应再排
-    唐乐宫」）：36 城宴会普查 curated 行（poi_id curated: + category=
-    food）名/营业时段带宴秀语素=含演出的宴席（唐宴「唐乐演艺」、御宴宫
-    「唐乐舞伴宴」、蜀宴赋「宴秀」）——本身就是当晚那场「show」，占
+    """宴秀条目（2026-11-08 拍板「宴秀卡已有 SHOW 的意思，就不应再排
+    同址伴场演出」）：36 城宴会普查 curated 行（poi_id curated: + category=
+    food）名/营业时段带宴秀语素=含演出的宴席（「唐乐演艺」、
+    「唐乐舞伴宴」、「宴秀」样本）——本身就是当晚那场「show」，占
     晚餐槽不可再叠演出。失重餐厅类 curated 无宴秀语素不误伤；非 curated
     普通餐厅名带宴不认（宁漏勿错）。"""
     if str(item.category or "") != "food":
@@ -7735,7 +7735,7 @@ def _day_show_taken(day: DayPlan) -> bool:
 def _min_show_dist_km(day: DayPlan, v: VisitItem) -> float:
     """条目到当日非餐宿簇的最近距离（每场闸留场排序键）：同日多场
     竞争时留贴簇最近的那场、远者让位（2026-11-08 拍板「要排 SHOW
-    也应该找最近的」——唐乐宫 12km 外 vs 梦回大唐同址 0km）。"""
+    也应该找最近的」——远场 12km 外 vs 同址伴 0km）。"""
     vloc = getattr(v, "location", None)
     if vloc is None:
         return 1e9
@@ -7775,16 +7775,16 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     """每场闸终装（2026-11-02 拍板「每天最多一场演出」×2026-11-08 二拍
     取消每城一场，落选夜场各按聚簇/无演出日落位）：选层各相位（sights
     路/夜场 finale/extras/回填/重排）各自落位互不知情（xa 案 D2 两场撞
-    日；mc2 案秦俑情落 D1 与兵马俑 D3 裂簇），终装处统一对账——
+    日；mc2 案贴场馆演出落 D1 与远郊王牌 D3 裂簇），终装处统一对账——
     ① 同日两场：保钉住/当日场馆锚最强（距当日非餐宿点 ≤5km 含同址
-    0km，宴卡同权；2026-11-08 雁塔案）的那场，距簇最近 tiebreak、早场
+    0km，宴卡同权；2026-11-08 异簇王牌日案）的那场，距簇最近 tiebreak、早场
     收尾，余场挪去同城无演出日（贴场馆 ≤5km 最近簇优先、轻载次之）；
     宴卡是簇跟随者（2026-11-08 五拍）：只挪去仍有 ≤5km 簇伴的日子，
     无簇伴目标日不孤放别日、取消并披露；
     ② 聚簇认领：非钉演出所在日无 ≤5km 伴、而同城他日有伴且他日无演出
     （宴日同样算已占，不认领）→ 演出挪去伴的日子（贴排口径，最近伴
     优先）；
-    ③ 删除兜底（雁塔案回归修复）：全城无空演出日时删「最弱场馆锚」
+    ③ 删除兜底（异簇王牌日案回归修复）：全城无空演出日时删「最弱场馆锚」
     牺牲者（无 ≤5km 簇伴优先、距当日簇最远；钉住卡永不牺牲），本卡
     顶它的日子；本卡自身即最弱才点名删除；
     挪后兜底重排时刻；无日可挪才点名移除披露；挪后仍无时刻同样移除
@@ -7815,7 +7815,7 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
         shows.sort(
             key=lambda v: (
                 0 if v.pinned else 1,
-                # 2026-11-08 雁塔案：留场者=当日场馆锚最强——贴簇（距当日
+                # 2026-11-08 异簇王牌日案：留场者=当日场馆锚最强——贴簇（距当日
                 # 非餐宿点 ≤_NEAR_SAMEDAY_KM，含同址 0km；宴卡同权）先于
                 # 孤卡，弱锚者让位；距簇最近 tiebreak，早场收尾稳定序。
                 0 if _min_show_dist_km(day, v) <= _NEAR_SAMEDAY_KM else 1,
@@ -7864,7 +7864,7 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
                     )
                     moved = True
                     continue
-                # 2026-11-08 雁塔案回归修复：全城无空演出日≠直接删本卡——
+                # 2026-11-08 异簇王牌日案回归修复：全城无空演出日≠直接删本卡——
                 # 先挑同城他日「最弱场馆锚」的演出/宴秀卡当牺牲者（无
                 # ≤5km 簇伴优先、距当日簇最远者最弱；钉住卡永不牺牲），
                 # 删它腾位、本卡改落它的日子；本卡自身即最弱时维持原
@@ -8092,10 +8092,10 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
         return
     _fallback_sequence_times(plan)
     # 挤兑救援（2026-11-08 四拍）：待删演出若有在册场馆伴（≤5km 全程）
-    # 且对某占席演出的当日簇**严格更近**（梦回大唐 6.1km 贴回民街 vs
-    # 唐乐宫 7.4km），先互换天数再重排——就近者顶上、远者承接；对目标
+    # 且对某占席演出的当日簇**严格更近**（近场 6.1km 贴街道类样本 vs
+    # 远场 7.4km），先互换天数再重排——就近者顶上、远者承接；对目标
     # 日簇不更近绝不换（锚在宴日的 0km 不算强——不得顶掉贴本日 0.4km
-    # 的秦俑情换进 30km 外的场）。
+    # 的贴场馆演出换进 30km 外的场）。
     swapped = False
     for day in plan.days:
         for v in list(day.items):
@@ -8194,7 +8194,7 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
 
 
 def heal_leg_gaps(plan: ItineraryPlan) -> list[str]:
-    """读路径腿间隔自愈（2026-11-03 Day2 大明宫 13:30+90min→城墙 15:00
+    """读路径腿间隔自愈（2026-11-03 Day2 大遗址样本 13:30+90min→联票挂牌 15:00
     零车程事故）：11-02 _leg_windows 改造前的旧 session 兜底产物（锚窗
     无 pad、链不付车程）在库里长期原样回放。检出首个「相邻已排观光对
     间隔 < 打车腿」（travel_gap_violations 同口径，餐/钉/无坐标豁免）
@@ -8596,7 +8596,7 @@ class PlanningAgent:
         self._leg_cache: dict[tuple[str, str], tuple[float, int]] = {}
         # 缺坐标专名解析失败的负例缓存（(city, name)）：本进程内不再重试，防刷新空烧配额
         self._loc_misses: set[tuple[str, str]] = set()
-        # 心愿→真实 POI 绑定（2026-10-30 用户拍板：看熊猫要匹配到熊猫基地
+        # 心愿→真实 POI 绑定（2026-10-30 用户拍板：具名体验愿望要匹配到替代组正主
         # 并进排期）：确定性核心词绑定优先，LLM 语义兜底仅对落空心愿单次
         # 尝试；负例缓存防每轮重烧。
         self._wish_bindings: dict[str, dict] = {}
@@ -8918,7 +8918,7 @@ class PlanningAgent:
     @staticmethod
     def _absorb_days_cities(session: PlanSession, text: str) -> None:
         """Site-round answers often carry the missing facts too
-        (「南京 2 天；必去：…」) — keep them from being swallowed."""
+        (「乙城 2 天；必去：…」) — keep them from being swallowed."""
         if session.days <= 0:
             days = _parse_days(text)
             if days is not None:
@@ -9280,7 +9280,7 @@ class PlanningAgent:
                     session.wish_bindings or {}
                 ).get(name)
                 if isinstance(bound0, dict) and bound0.get("location"):
-                    # 强制日志（2026-11-07）：存量绑定复用要留痕——熊猫谷
+                    # 强制日志（2026-11-07）：存量绑定复用要留痕——替代组次优
                     # 错绑跨回合静默传递，排查时无迹可查。
                     logger.info(
                         "plan: wish bind reuse %s -> %s (stored)",
@@ -9331,7 +9331,7 @@ class PlanningAgent:
                         # 异地真 POI 不排期（2026-11-03 链接/聊天路收口，
                         # 与 d6a6daf merge 守卫同口径）：旧逻辑无条件覆写
                         # city 且下方 city_days 为空 → 全程轮转把异地点摊
-                        # 到别城的天（北京钟楼镜像案）。真城写回留档（心愿
+                        # 到别城的天（城心两锚跨城镜像案）。真城写回留档（心愿
                         # 单城市列），不进排期，披露+留痕。
                         logger.warning(
                             "must_visit_off_trip_city: name=%s poi=%s city=%s "
@@ -9376,8 +9376,8 @@ class PlanningAgent:
                     continue
             self._item_seq += 1
             # 2026-10-30 深夜拍板（水利工程事故）：落实为真实 POI 的专名心
-            # 愿，行程条目用 POI 正名（看成都附近的水利工程→青城山都江堰
-            # 旅游景区）；占位/品类/餐饮维持原词；心愿单行仍留用户原话。
+            # 愿，行程条目用 POI 正名（看附近的水利工程→远郊水利景区）；
+            # 占位/品类/餐饮维持原词；心愿单行仍留用户原话。
             item_name = name
             if (
                 kind != "food"
@@ -9579,9 +9579,9 @@ class PlanningAgent:
             ]
             if not hits:
                 # 2026-10-30 拍板：专名精确未中→意图动词剥除后的核心词包含
-                # （「看熊猫」→库名含「熊猫」行），先在库内落地免烧图商配
+                # （「看+动物名」→库名含该动物名行），先在库内落地免烧图商配
                 # 额；只认有坐标行（同候选坐标闸），多命中按口碑挑最佳
-                # （熊猫基地 4.6 > 熊猫谷 4.5），平分时名称更短者胜。深夜
+                # （替代组正主 4.6 > 替代组次优 4.5），平分时名称更短者胜。深夜
                 # 升级纯核心词（水利工程事故：成都附近的水利工程→水利
                 # 工程）。
                 core = _wish_pure_core(name)
@@ -9746,7 +9746,7 @@ class PlanningAgent:
             )
             for d in session.plan.days
         }
-        # 落在以本城为基地的日子（成都茶馆不排上海日）；行程无本城日
+        # 落在以本城为基地的日子（茶馆不排异城日）；行程无本城日
         # （城市未标注/当日纯交通）才全局挑最闲。
         city_days = [d.day for d in session.plan.days if d.base_city.strip() == city]
         day = min(
@@ -9980,8 +9980,8 @@ class PlanningAgent:
     async def _pref_reply_groundable(self, session: PlanSession, answer: str) -> bool:
         """偏好回复能否按心愿落实（2026-10-31 晚拍板「偏好无特别要求就
         不要进心愿单」：心愿=一次性满足的具体要求，偏好=品类倾向、同类
-        可以是多个景点）：只有语义绑定能命中真实 POI 的回复（「看熊猫」
-        →熊猫基地）才算特别要求、进心愿管线建行；品类词（博物馆人文/
+        可以是多个景点）：只有语义绑定能命中真实 POI 的回复（「看+动物名」
+        →替代组正主）才算特别要求、进心愿管线建行；品类词（博物馆人文/
         喝茶）与风格选项（自然风光/慢慢逛）只是偏好——不建行也不烧绑定
         调用，由选点层按偏好品类优先排序兑现（_deterministic_selection
         的 preferences 参数）。绑定结果顺带留在 _wish_bindings，sync 复用
@@ -10017,8 +10017,8 @@ class PlanningAgent:
                 session.preferences = answer
                 # 2026-10-31 晚拍板「偏好无特别要求就不要进心愿单」收窄
                 # 早前「所有的回复都是心愿」：回复里点名了具体对象的（语义
-                # 绑定命中真实 POI，如「看熊猫」→基地）才进心愿管线建行
-                # （用户实测回归：回「看熊猫」曾被只存成偏好字符串、行程里
+                # 绑定命中真实 POI，如「看+动物名」→正主）才进心愿管线建行
+                # （用户实测回归：回该心愿曾被只存成偏好字符串、行程里
                 # 没安排）；品类/风格词只是偏好，不建行——选点层按偏好品类
                 # 优先排序兑现（同类可多个景点）。
                 if self._trip_items is not None:
@@ -10126,13 +10126,13 @@ class PlanningAgent:
         must-visits (engine schedules + pins them). Runs at the single
         v0 chokepoint so start/confirm/clarify paths all absorb.
 
-        2026-10-28 事故门禁（西湖漏进重庆行程）：空城行不再无条件吸收——
+        2026-10-28 事故门禁（名湖样本漏进山城市程）：空城行不再无条件吸收——
         专名愿望先 `_resolve_wish_city` 定城；行程外→写回城市并跳过（行已
         自愈，下次城市过滤直接生效）；品类愿望（喝杯咖啡等）保持空城就近
         落实语义（2026-10-24 拍板）；解析仍失败→保持原吸收行为。
-        2026-11-07 看熊猫案收口：行程外跳过不再静默——返回
+        2026-11-07 具名体验愿望案收口：行程外跳过不再静默——返回
         (absorbed, skipped_notes)，披露随 v0 assumptions 上卡（同日二拍
-        撤跨城宽恕重绑：「看熊猫」确系成都心愿，钉死的城市必须尊重）。
+        撤跨城宽恕重绑：该心愿确系其城心愿，钉死的城市必须尊重）。
         2026-11-08 城市闸（用户拍板）：心愿只看城市——有符合的城市或
         适合所有城市的心愿才放进行程。①品类愿望先吃 WISH_CITY_HINTS
         （喝茶/茶馆是成都心愿，不再无城绕闸就近塞进任意行程）；②多城
@@ -10188,9 +10188,9 @@ class PlanningAgent:
                         city = resolved
                         session.site_cities.setdefault(name, resolved)
             if city and city not in trip_cities:
-                # 行程外城市闸（2026-11-07 看熊猫案收口）：原样静默 continue
+                # 行程外城市闸（2026-11-07 具名体验愿望案收口）：原样静默 continue
                 # 连披露都没有，违反 2026-10-25 日志铁律。跨城宽恕重绑同日
-                # 二拍撤掉：「看熊猫」确系成都心愿，钉死的城市必须尊重。
+                # 二拍撤掉：该心愿确系其城心愿，钉死的城市必须尊重。
                 skipped_notes.append(
                     L(
                         f"心愿「{name}」位于{city}，不在本次行程城市"
@@ -10273,7 +10273,7 @@ class PlanningAgent:
                 )
             ]
         if skip_notes:
-            # 行程外心愿披露（2026-11-07 看熊猫案）：跳过也要让用户看见，
+            # 行程外心愿披露（2026-11-07 具名体验愿望案）：跳过也要让用户看见，
             # 不再静默蒸发（2026-10-25 日志铁律）。
             extra_assumptions = list(extra_assumptions or []) + skip_notes
         t0 = perf_counter()
@@ -10299,7 +10299,7 @@ class PlanningAgent:
         rain_notes: list[str] = []
         # 选点层让位/并卡/裁剪名单（品类闸、博物馆孪生、同站孪生）：
         # 上午保底等回填通道不得让已披露让位的行复活（2026-11-04 成渝案
-        # 白帝城「已让位+已排入」自相矛盾的同根修口）。
+        # 江畔古城样本「已让位+已排入」自相矛盾的同根修口）。
         selection_cut_names: set[str] = set()
         # §6.1 片区提示：候选按城市地理聚类（k=该城天数窗），area 标注
         # 进 listing（LLM 分日时少横穿城；聚类只给提示不硬替分日）
@@ -10342,9 +10342,9 @@ class PlanningAgent:
             transfer_days.add(session.days)
         else:
             # 单城行程首日也是到达日（2026-11-08 拍板「到达日只适合简单
-            # 的 CITYWALK 或 SHOW，第一天放兵马俑+show 太重」）：11-05
+            # 的 CITYWALK 或 SHOW，第一天放远郊王牌+show 太重」）：11-05
             # 到达轻量各闸此前只覆盖多城目的窗首日，单城 D1 全闸空转
-            # （西安案兵马俑+骊山+show 堆首日实录）。不设进城腿、预算
+            # （西安案远郊王牌+远郊族山岳+show 堆首日实录）。不设进城腿、预算
             # 不扣——只启用轻量口径，不发明假腿。
             arrival_days.add(1)
             tail_return.add(session.days)
@@ -10415,8 +10415,8 @@ class PlanningAgent:
             perf_counter() - t1,
             len(candidates),
         )
-        # 必去合并先行（2026-11-07 熊猫基地案）：4/日闸此前跑在合并前，
-        # 心愿必去（看熊猫→熊猫基地）此时还是普通 spec——被数量闸裁掉
+        # 必去合并先行（2026-11-07 替代组正主案）：4/日闸此前跑在合并前，
+        # 心愿必去（看+动物名→替代组正主）此时还是普通 spec——被数量闸裁掉
         # 第 2 天席位后，合并通道只能把它硬塞回物理装不下的到达日，
         # 全程 None-None 交付。现改为：先合并标 must，再过 4/日闸
         # （must 计件但绝不裁——愿超载是用户的决定，超额交让位清算/
@@ -10557,7 +10557,7 @@ class PlanningAgent:
         must_visits = must_visits or []
         kinds = kinds or {}
         # Origin city (cities[0]) is departure-only: no POI candidates —
-        # 含往返闭合尾部重复（上海..上海）：其候选必被 _assemble_plan 的
+        # 含往返闭合尾部重复（甲城..甲城）：其候选必被 _assemble_plan 的
         # 出发城闸丢弃，收了白付一次全城扫描（2026-10-30）。
         origin_norm = _norm_city(cities[0]) if cities else ""
         for city in cities[1:] if len(cities) > 1 else cities:
@@ -10617,7 +10617,7 @@ class PlanningAgent:
                     )
                     # 内容类型多样保位（2026-11-07 拍板「商业中心/CITYWALK
                     # 要能与 5A 竞争」）：名录档硬分层把无档商业综合体/
-                    # 城走行压出 top-30（成都实录环球中心 4.6 分 ~77 位）。
+                    # 城走行压出 top-30（成都实录大体量商业体 4.6 分 ~77 位）。
                     # 窗口满员时同城窗外每类保底 2 行；数据闸/回退闸/地址
                     # 壳名全口径（不享演出豁免，白鹿原口径）。
                     _div_counts: dict[str, int] = {}
@@ -10724,7 +10724,7 @@ class PlanningAgent:
                     entry = {**p}
                     if poi_city and poi_city != city.removesuffix("市"):
                         # 图商本地检索返回了异地 POI（stub 松散返回同款）。
-                        # 2026-11-01 用户拍板「应选西安钟楼而不是北京钟楼」：
+                        # 2026-11-01 用户拍板「应选目标城的城心簇锚而非跨城同名件」：
                         # 异地命中保留真实城市，绝不改写成目标城——旧版
                         # {**p, "city": city} 把异地行洗成本地候选，晨间
                         # 保底/雨天对调照样捞它进排期。保留进池只供按名
@@ -10781,15 +10781,15 @@ class PlanningAgent:
         for name in must_visits:
             covered = any(_name_dup(name, c["name"]) for c in candidates)
             if covered:
-                # 2026-10-30 拍板：心愿词已被池内真实 POI 覆盖（看熊猫↔
-                # 熊猫基地）——记绑定供 merge 钉选，算法没挑到时由必去
+                # 2026-10-30 拍板：心愿词已被池内真实 POI 覆盖（看+动物名↔
+                # 替代组正主）——记绑定供 merge 钉选，算法没挑到时由必去
                 # 通道强制进排期，不再落无城市占位卡。
                 if name not in self._wish_bindings:
                     hit = self._wish_bind_candidate(name, candidates)
                     via_ladder = hit is not None
                     if hit is None:
                         # 梯队够不着（核心词不进候选名）时兜底：同名命中
-                        # 集合按同一梯队取最优。2026-11-07 熊猫谷错绑事故
+                        # 集合按同一梯队取最优。2026-11-07 替代组次优错绑事故
                         # 收口：旧版这里 next() 取池序第一个、无排序无日
                         # 志，是绑错主因之一。
                         dups = [c for c in candidates if _name_dup(name, c["name"])]
@@ -10807,7 +10807,7 @@ class PlanningAgent:
                             via_ladder,
                         )
                 else:
-                    # 再校验自愈（2026-11-07 拍板「优选熊猫基地」）：旧会
+                    # 再校验自愈（2026-11-07 拍板「优选替代组正主」）：旧会
                     # 话存量绑定落在替代组次优（谷）而正主（基地）在当前
                     # 池——换绑，防跨回合静默复用错主（10-31 自愈只治行
                     # 级落点，治不了绑定源头）。
@@ -10847,9 +10847,9 @@ class PlanningAgent:
                         )
                     )
                     if _same_site(str(poi.get("name") or ""), name):
-                        # 2026-10-28 事故门禁：专名真身确在行程外（西湖→杭州）——
+                        # 2026-10-28 事故门禁：专名真身确在行程外（名湖样本→其城）——
                         # 真排除＋心愿单定城；旧行为落穿「按名称占位」支，
-                        # 让被排除的西湖以占位名混进候选（day1 junk）。
+                        # 让被排除的名湖样本以占位名混进候选（day1 junk）。
                         self._backfill_wish_city(name, poi_city)
                         continue
                     # 模糊错配（junk 输入→NTT 香港）：保留用户原词占位（既有拍板）。
@@ -10877,7 +10877,7 @@ class PlanningAgent:
                 )
             else:
                 # 2026-10-30 拍板：心愿语义匹配——确定性核心词→LLM 接地挑
-                # 选，命中即绑定池内真实 POI（行程显示熊猫基地本体），全落
+                # 选，命中即绑定池内真实 POI（行程显示替代组正主本体），全落
                 # 空才保持占位语义。
                 bound = self._wish_bind_candidate(name, candidates)
                 if bound is None:
@@ -10896,7 +10896,7 @@ class PlanningAgent:
                         and cities
                         and not any(c in bound_city for c in cities)
                     ):
-                        # 绑定真身在行程外（西安行程·钟楼→北京行，2026-11-04
+                        # 绑定真身在行程外（目标城行程·城心簇锚→跨城同名行，2026-11-04
                         # 收口）：不排期不占位，真城写回心愿单留痕——与 amap
                         # 路异地不排期、merge 城闸同口径。
                         logger.warning(
@@ -11047,7 +11047,7 @@ class PlanningAgent:
         kinds = kinds or {}
         site_cities = site_cities or {}
         default_city = cities[0] if len(cities) == 1 else _unspecified()
-        # 行程外城不排（2026-11-02 北京钟楼案收口）：绑定/专名必去落到
+        # 行程外城不排（2026-11-02 跨城同名城心锚案收口）：绑定/专名必去落到
         # 非行程城时旧版 ranges.get(city,(1,days)) 兜底默认窗——异地点
         # 被摊到全程。真城保留（复活卡语义），排期出局+留痕，心愿行
         # 落未排期区可见。
@@ -11097,7 +11097,7 @@ class PlanningAgent:
         def _must_day(
             lo: int, hi: int, minutes: int, xy: tuple[float, float] | None = None
         ) -> int:
-            # 容量+走行+地理（2026-10-31 用户拍板「熊猫基地→都江堰 50km 同
+            # 容量+走行+地理（2026-10-31 用户拍板「替代组正主→远郊水利 50km 同
             # 天=聚合没做好」）：有坐标必去优先落「与当日已放点位 ≤15km」的
             # 天（聚拢同片区），无坐标/无近距天退化为最空天——不再 earliest
             # -fit 把必去全堆进城窗口头一天。
@@ -11123,14 +11123,14 @@ class PlanningAgent:
                         for p in pts
                     )
 
-                # 贴邻圈优先（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
-                # 15km 片区圈在市中心对几乎每天皆真（华清宫 13km 也算
+                # 贴邻圈优先（2026-11-07 城心簇锚/街道类样本同街拆天案）：
+                # 15km 片区圈在市中心对几乎每天皆真（远郊园林 13km 也算
                 # 「近」），「最空天」兜底随后把同街件吸去别天——近距
                 # 同日圈（_NEAR_SAMEDAY_KM，5km 口径）内有已放点位的
                 # 天最先，同街三件不再被逐件吸散；贴邻天之间再按最近
-                # 贴邻点距离取近（鼓楼 1.0km 跟回民街块而不是 1.2km 跟
-                # 较空的城墙碑林块，实测），tiebreak 最空天；无贴邻天
-                # 退回 15km 圈，再退最空天（熊猫基地→都江堰口径不变）。
+                # 贴邻点距离取近（邻锚 1.0km 跟街道件块而不是 1.2km 跟
+                # 较空的联票挂牌博物馆块，实测），tiebreak 最空天；无贴邻天
+                # 退回 15km 圈，再退最空天（替代组正主→远郊水利口径不变）。
                 walk = [d for d in fitting if _day_min_km(d) <= _NEAR_SAMEDAY_KM]
                 if walk:
                     return min(
@@ -11152,10 +11152,10 @@ class PlanningAgent:
                 and bound0.get("name")
                 and match["name"] != bound0["name"]
             ):
-                # 绑定正主优先（2026-11-07 锦里古戏台/武侯祠案）：模糊
+                # 绑定正主优先（2026-11-07 庙街复合案）：模糊
                 # match 命中的池卡不是绑定真身时不冒充必去——心愿词
-                # 「锦里」复合挂牌把 锦里古戏台/武侯祠 两条愿望全吸到
-                # 同一张「武侯祠·锦里」池卡上，卡被去重并掉后两条必去
+                # 复合挂牌把庙街两件套两条愿望全吸到
+                # 同一张庙街复合挂牌池卡上，卡被去重并掉后两条必去
                 # 静默蒸发（披露只见「已合并重复站点」）。绕过 match，
                 # 走下方绑定分支把真身卡强制进排期。
                 match = None
@@ -11164,7 +11164,7 @@ class PlanningAgent:
                 if kinds.get(name) == "food":
                     match["category"] = "food"
                 # 匹配必去的地理纠偏（2026-10-31）：候选路径下选点聚类可能
-                # 把必去真身跟远区点放同天（熊猫基地↔都江堰 45km）；有坐标
+                # 把必去真身跟远区点放同天（替代组正主↔远郊水利 45km）；有坐标
                 # 且其城市窗口内存在「更近又有余量」的天时挪过去——只挪非
                 # 食物匹配项，容量含走行腿。
                 if kinds.get(name) != "food":
@@ -11193,7 +11193,7 @@ class PlanningAgent:
                 continue
             bound = bound0
             if bound is not None and bound.get("name"):
-                # 绑定候选（看熊猫→熊猫基地）未被算法选中时强制进排期：
+                # 绑定候选（看+动物名→替代组正主）未被算法选中时强制进排期：
                 # 已选中则标 must 不重复追加；规格沿用候选本体（名称/坐标/
                 # poi_id 由组装层 cand_by_name 回查继承）。
                 already = next((s for s in picked if s["name"] == bound["name"]), None)
@@ -11290,11 +11290,11 @@ class PlanningAgent:
 
     def _wish_bind_candidate(self, name: str, candidates: list[dict]) -> dict | None:
         """心愿词→候选池真实 POI 的确定性绑定（2026-10-30 用户拍板：
-        「看熊猫」要匹配到 熊猫基地 而非落无城市占位）。剥意图动词后的
+        「看+动物名」要匹配到 替代组正主 而非落无城市占位）。剥意图动词后的
         核心词（≥2 字）先精确等值、再包含匹配；多命中按 预约名单 > 最
-        经典（UNESCO/5A，2026-10-31 用户拍板「先去最经典的」——都江堰
-        熊猫谷这类同类次优让位给 5A 成都基地）> 替代组正主序（2026-11-07
-        拍板「优选熊猫基地」：intl 荐点入库后谷也挂档级标签，classic 平
+        经典（UNESCO/5A，2026-10-31 用户拍板「先去最经典的」——远郊同类
+        次优让位给 5A 正主）> 替代组正主序（2026-11-07
+        拍板「优选替代组正主」：intl 荐点入库后次优也挂档级标签，classic 平
         局由正主序压住，评分漂移翻不了盘）> 评分降序 > 更短名称稳定裁
         决；占位候选（无坐标）不参与。2026-10-30 深夜：核心词升级为纯
         核心词（再剥城市/方位限定，水利工程事故）。"""
@@ -11323,11 +11323,11 @@ class PlanningAgent:
         self, name: str, city: str, allowed_cities: list[str] | None = None
     ) -> dict | None:
         """消息回合增量路径的心愿语义绑定（2026-10-30 深夜拍板）：库内纯
-        核心词最佳（有坐标+口碑）→LLM 从城市顶库接地挑选（都江堰水利工
-        程这类正主名字不含核心词，只有 LLM 够得到）。命中记
+        核心词最佳（有坐标+口碑）→LLM 从城市顶库接地挑选（远郊水利
+        这类正主名字不含核心词，只有 LLM 够得到）。命中记
         _wish_bindings 供 merge 钉选与心愿单留痕；全程落空返回 None。
         allowed_cities（行程城市）给定时按城过滤——全库兜底档对泛称词
-        （钟楼/鼓楼）可能全库精确名命中别城同名行（2026-11-04 回归）。"""
+        （城心两锚）可能全库精确名命中别城同名行（2026-11-04 回归）。"""
         allowed: set[str] | None = None
         if allowed_cities:
             allowed = {_norm_city(str(c or "")) for c in allowed_cities} - {""}
@@ -11473,7 +11473,7 @@ class PlanningAgent:
                 and target.poi_id
                 and str((bound or {}).get("source_poi_id") or "") != target.poi_id
             ):
-                # 2026-10-31（看熊猫案）：绑定落在次优（小熊猫森林公园）而
+                # 2026-10-31（看+动物名案）：绑定落在次优（替代组次优样本）而
                 # 行程里已是正主（基地）——绑定自愈为实际安排，防后续回合
                 # 把次优当第二个点加进排期。
                 healed = {
@@ -11509,7 +11509,7 @@ class PlanningAgent:
                     if row_itin:
                         session.linked_itins.append(row_itin)
                 if target is None and it.get("status") == STATUS_SCHEDULED:
-                    # 2026-10-31（看熊猫案）：行已归属当前行程，但重排后
+                    # 2026-10-31（看+动物名案）：行已归属当前行程，但重排后
                     # 行程已不含该心愿落点（删点/换城窗/占位回退）——
                     # scheduled 再挂着就是「已排期但实际没排」：回心愿
                     # 单，note 剥「已安排」尾段。booked 行有真实订单，
@@ -11647,7 +11647,7 @@ class PlanningAgent:
             for c in candidates
             if c.get("category") == "food" and isinstance(c.get("location"), dict)
         ]
-        # 异地命中不进 LLM 选点（2026-11-01 北京钟楼案）：城外行没有合法
+        # 异地命中不进 LLM 选点（2026-11-01 跨城同名城心锚案）：城外行没有合法
         # day 窗口，列给模型只会引诱跨城选点。
         candidates = [c for c in candidates if not c.get("cross_city_hit")]
 
@@ -11983,7 +11983,7 @@ class PlanningAgent:
         后面根据具体情况可以调换」）：池内全部候选（演出除外，
         日位由演出规则定）按池序=完整优先级梯子（tier1→9）先于簇
         分日预占最早有容量的天（雨闸与主环 _rain_blocked 同口径）
-        ——簇日按最优成员排名会把高档王牌挤到行程尾部（兵马俑落
+        ——簇日按最优成员排名会把高档王牌挤到行程尾部（远郊王牌落
         第 5 天事故）；后续求解/救援/LNS 保留按物理约束与评分的
         调换权；CHINATRIP_PRIORITY_EARLY=off 关闭。
         """
@@ -11993,9 +11993,9 @@ class PlanningAgent:
             return _pref_category_hit(cand, pref_tokens, pref_show)
 
         def _pref_key(cand: dict) -> bool:
-            # 无品类名录王牌视作偏好命中（2026-11-04 成渝案）：大足石刻
+            # 无品类名录王牌视作偏好命中（2026-11-04 成渝案）：石窟样本
             # unesco 行 category 空、pref 无从评起——漏评的王牌按命中算，
-            # tier 梯子把它顶回队首（孪生并卡卡名回归 石刻 本体而非博物
+            # tier 梯子把它顶回队首（孪生并卡卡名回归 石窟样本 本体而非博物
             # 馆）。有品类的行不豁免：用户点名 博物馆/自然 时显式偏好
             # 仍压过 5A（pref_split 既有拍板「偏好位在 tier 之前」）。
             return _pref_hit(cand) or (
@@ -12023,7 +12023,7 @@ class PlanningAgent:
         groups: dict[str, list[dict]] = {}
         for cand in candidates:
             if cand.get("cross_city_hit"):
-                # 异地命中不排期（2026-11-01 北京钟楼案）：真实城市组走
+                # 异地命中不排期（2026-11-01 跨城同名城心锚案）：真实城市组走
                 # ranges.get(city,(1,days)) 兜底默认窗仍会排——显式出局。
                 continue
             city = (cand.get("city") or _unspecified()).removesuffix("市")
@@ -12041,9 +12041,9 @@ class PlanningAgent:
         def _quality(cand: dict) -> float:
             # 同档内名声分（与库侧 top_pois_in_city 同公式）：rating ×
             # (1+log2(1+count))。2026-11-04 成渝案：同档并列只看时长升序，
-            # 短的次优点抢走同档名额（白帝城 vs 四面山级），补质量降序。
+            # 短的次优点抢走同档名额（江畔古城 vs 山岳景区级），补质量降序。
             # 2026-11-07 评分跨源不可比：rating_source='baidu' 行 ×0.9
-            # 贴回高德标尺（农科村 5.0 反超武侯祠 4.6 案），不改库值。
+            # 贴回高德标尺（乡村样本 5.0 反超庙街正主 4.6 案），不改库值。
             rating = cand.get("rating") or 0.0
             count = cand.get("rating_count") or 0
             try:
@@ -12078,7 +12078,7 @@ class PlanningAgent:
         for city, group in groups.items():
             lo, hi = ranges.get(city, (1, days))
             span = max(hi - lo + 1, 1)
-            # 停演季判定的行程月集（2026-11-08 长恨歌案）：城市窗口内各天
+            # 停演季判定的行程月集（2026-11-08 同址夜演案）：城市窗口内各天
             # 的月份；无 start_date 无绝对日历，停演闸自然不生效。
             _months: set[int] = set()
             if start_date:
@@ -12101,7 +12101,7 @@ class PlanningAgent:
                     # 场次扩列）→ 落回 sights 按常规时段排
                     _off = _show_off_season(cand, _months)
                     if _off is not None:
-                        # 停演季闸（2026-11-08 长恨歌案）：行程月与演出季全无
+                        # 停演季闸（2026-11-08 同址夜演案）：行程月与演出季全无
                         # 交集的夜场演出退出自动收尾桶（不进 sights——夜场点
                         # 无法当白天景点排），选择自然落到下一张在季演出（室
                         # 内替代），留日志+披露（要保留请说）。
@@ -12158,7 +12158,7 @@ class PlanningAgent:
                 # 「半露天（partial）小雨可以排。没说中雨」）：全露天
                 # =雨日全拦；半露天=仅小雨日放行（+提示），中雨及以
                 # 上/雨夜一律拦。名录王牌档（unesco/5A，2026-11-04 成渝
-                # 事故扩列）：整段小雨把露天王牌全部拦死=行程失去白帝城
+                # 事故扩列）：整段小雨把露天王牌全部拦死=行程失去江畔古城
                 # 级内容——王牌享受 partial 同款「仅小雨放行」，中雨及
                 # 以上/雨夜照拦。
                 if not _rain_exposed(cand):
@@ -12208,7 +12208,7 @@ class PlanningAgent:
                     key=lambda p: (
                         # 露天降权（2026-10-30 拍板）不降王牌档（2026-11-04
                         # 成渝案：整段小雨把 unesco/5A 露天压到全部室内杂点
-                        # 之后=白帝城/李子坝级集体消失）——王牌保持 tier 梯
+                        # 之后=江畔古城/图商长尾级集体消失）——王牌保持 tier 梯
                         # 子原位，由 _rain_blocked 小雨放行承接物理侧。
                         # 未标注室内外点（2026-11-05 拍板）与露天同桶降权：
                         # 整段雨日让室内先挑天，未标注点非王牌不享原位。
@@ -12239,7 +12239,7 @@ class PlanningAgent:
             ordered = _street_block_priority(ordered)
             # 池上限在让位收缩前定格（2026-11-02）：shadow 让位会缩
             # pool，若池外切片用 len(pool) 会把池内末位重复当池外
-            # 处理（F6 神龙峡假披露「无干日可排」案）。
+            # 处理（F6 峡谷景区假披露「无干日可排」案）。
             _pool_cap = span * 4
             pool = ordered[:_pool_cap]
             # 名录王牌不因池上限出局（2026-11-04 成渝案）：投影把无品类
@@ -12248,8 +12248,8 @@ class PlanningAgent:
             # 从谈起（无并卡披露、museum1 行独占大足卡）。tier≤2 行从
             # 池外追回；后续照走让位/时序闸，放不下交白名单披露。
             # 高质名点同权（2026-11-05 成都名点案）：tier 梯子把 t8/t9/t10
-            # 排前，quality≥4.5 的图商名点（宽窄巷子/熊猫基地/洛带/东郊
-            # 记忆，rating 4.6 无 count）落 17 位起被切池外；回填线对池外
+            # 排前，quality≥4.5 的图商名点（街道类样本/替代组正主/古镇样本/文创园区样本
+            # ，rating 4.6 无 count）落 17 位起被切池外；回填线对池外
             # 尾巴是硬预算+腿费，180 分钟级大点塞不进半满日（4 天窗口只
             # 排 5 件、日预算 50-60%）——与 tier≤2 同权追回池内，享池内
             # 软闸语义，后续求解/披露照旧。无评分长尾（quality=0）不享
@@ -12289,17 +12289,17 @@ class PlanningAgent:
             ]
             if _premium_out:
                 pool.extend(_premium_out)
-            # 同站孪生并卡（2026-11-04 成渝案：白帝城·瞿塘峡 3 行、四面山
-            # 3 行、武隆 2 行同站不同名同池——attraction/nature 品类分账
+            # 同站孪生并卡（2026-11-04 成渝案：江畔古城·峡谷样本 3 行、山岳景区样本
+            # 3 行、喀斯特景区样本 2 行同站不同名同池——attraction/nature 品类分账
             # 让品类闸裁掉一张、排进另一张，「已让位」与「已排入」自相矛盾
             # 同现假设区）。池序=优先级梯子先到为准，孪生并入披露。
             _twin_kept: list[tuple[int, dict]] = []
             _twin_names: list[str] = []
             _twin_cut: list[str] = []
             # 幸存者=组内名录王牌优先（2026-11-04 成渝案）：池序首位
-            # 不一定是王牌——投影把无品类行默认成 sight 后，unseco 石刻
+            # 不一定是王牌——投影把无品类行默认成 sight 后，unseco 石窟样本
             # 的偏好豁免失效，museum1 博物馆行（真偏好命中）反超池首并
-            # 当了幸存者，石刻本体反而被并入。组内先按 (tier, idx) 挑
+            # 当了幸存者，石窟本体反而被并入。组内先按 (tier, idx) 挑
             # 幸存者，其余并入披露。
             _twin_surv: dict[int, bool] = {}
             _twin_surv_names: list[str] = []
@@ -12313,7 +12313,7 @@ class PlanningAgent:
                 grp = [i_a]
                 for i_b in range(i_a + 1, len(pool)):
                     nm_b = str(pool[i_b][1].get("name") or "")
-                    # 同内容配套场馆通道（2026-10-31 大足双卡案：石刻
+                    # 同内容配套场馆通道（2026-10-31 石窟双卡案：石窟
                     # 数字影院并入博物馆本体；与 _same_visit 同款 30km
                     # 地理闸——双侧有坐标才校验，缺坐标保持池级行为）：
                     # 池层并卡与行程级合并同口径，防「已让位+已排入」
@@ -12358,7 +12358,7 @@ class PlanningAgent:
                         # 分先于分钟数：石刻 4.6 > 图商孪生 0 分。
                         -_quality(pool[i_][1]),
                         # 同档质量平手时博物馆本体优先于配套场馆行
-                        # （2026-10-31 碑林拍板；大足双卡：数字影院并入
+                        # （2026-10-31 城心博物馆拍板；石窟双卡：数字影院并入
                         # 博物馆本体，不是反向）。
                         0 if _museum_cand(pool[i_][1]) else 1,
                         _minutes(pool[i_][1], DEFAULT_VISIT_MINUTES),
@@ -12401,7 +12401,7 @@ class PlanningAgent:
             # 全程封顶 max(2, span//3)——museum 是数据源灌分最全的品类
             # （rating/review 密集→池 quality 排序天然博物馆密集，西安
             # 实录 4 会话全 3-4 家扎堆）；attraction 是粗粒度垃圾桶类
-            # （回民街/城墙/兵马俑同档）不设限，food/entertainment 另有
+            # （街道类样本/联票挂牌/远郊王牌同档）不设限，food/entertainment 另有
             # 专属闸。偏好命中豁免（2026-10-31 拍板「偏好可以是同一类型
             # 多个景点」）；用户点名必走组装层必去合并通道不受此闸。
             # 超顶按池序（=tier 梯子）裁掉并披露。豁免表共用
@@ -12414,9 +12414,9 @@ class PlanningAgent:
             _cat_kept: list[tuple[int, dict]] = []
             for p_ in pool:
                 cat = str(p_[1].get("category") or "").strip()
-                # 行程级桶先于品类豁免表（2026-11-08 骊山案三拍）：
-                # uncapped 短路曾把桶口径行挡在账本外——华山（attraction
-                # +scenic 源）与骊山（nature）双双绕过风景区桶上限同程
+                # 行程级桶先于品类豁免表（2026-11-08 远郊族山岳案三拍）：
+                # uncapped 短路曾把桶口径行挡在账本外——远郊大山岳（attraction
+                # +scenic 源）与远郊族山岳（nature）双双绕过风景区桶上限同程
                 # 共存。桶定义（_itin_cap_bucket：nature 品类+scenic 源
                 # 行）从来就该计数；偏好命中仍全豁免。
                 if _pref_hit(p_[1]):
@@ -12549,7 +12549,7 @@ class PlanningAgent:
             # 簇日映射可用天（2026-11-08 沪→西→沪闭合案）：簇自然日按
             # 裸序号 lo+rank 会把排名发给转场/到达日——闭合行程预占层
             # 重活全挤中段整天，演出钉日（cluster_day）与同簇白天件
-            # 实际落日系统性错位（大雁塔↔十二时辰拆天实录）。窗口内
+            # 实际落日系统性错位（异簇王牌日↔主题街区拆天实录）。窗口内
             # 有非边日时簇日只在可用天上轮转；全窗皆边日保持裸序不变。
             _cd_pool = [
                 d
@@ -12563,7 +12563,7 @@ class PlanningAgent:
                     sorted(cluster_rank, key=lambda c: cluster_rank[c])
                 )
             }
-            # 含多场次演出的簇（2026-11-08 秦俑情案）：演出钉日走
+            # 含多场次演出的簇（2026-11-08 贴场馆演出案）：演出钉日走
             # cluster_day，同簇场馆白天件裸容量抢别天必拆贴场馆——这类
             # 簇的白天件在认领序里前置簇自然日（夜场专场钉日走
             # show_pin_day 另一轴，不纳入）。
@@ -12589,7 +12589,7 @@ class PlanningAgent:
             # 候选（演出除外——日位由演出钉日/每场闸规则定）按池序
             # =完整优先级梯子（tier1 世遗→5A→国际榜→…→其他，
             # 偏好→tier→同档短时长→库序）先于簇分日认领最早有容量
-            # 的天——簇日按最优成员排名会把高档王牌（兵马俑落第 5
+            # 的天——簇日按最优成员排名会把高档王牌（远郊王牌落第 5
             # 天案）挤到行程尾部捡残窗。注意：这只是初排偏好
             # （2026-11-02 用户更正），后续求解/救援/LNS 仍可按具体
             # 情况调换。雨闸与主环 _rain_blocked 同口径（全露天雨日
@@ -12597,7 +12597,7 @@ class PlanningAgent:
             # 硬塞）；时间预算=软闸（与主环池内点同语义）：最早严格
             # 位优先，全窗无严格位放最早空位天超额照排、求解层按
             # 真实时窗收口——防「后位严格点抢走前位软闸点唯一干日
-            # 空位」把池内点挤出局（壬峰案）；4 个/日闸仍硬；
+            # 空位」把池内点挤出局（山峰王牌案）；4 个/日闸仍硬；
             # CHINATRIP_PRIORITY_EARLY=off 关闭。
             preclaimed: set[int] = set()
             # 归属跟随账本：天 → 首开簇（地理最近拍板的落位依据）
@@ -12662,23 +12662,31 @@ class PlanningAgent:
                     return False
                 return any(e != days and e not in _adays for e in range(lo, hi + 1))
 
-            # 簇优先选日通道（2026-11-08 用户拍板「距离聚类优先/组合排日，
-            # 取代逐点容量认领对簇的拆解」，选层镜像终装 _reunite_tight_kin
-            # 的并查集口径）：池定后、逐点预占前——①池内可数件（有坐标、
-            # 非演出/非 food）并查集聚族，同城 0<km≤_TIGHT_CLUSTER_KM 连边
-            # （同点 0km 不连——共址孪生已有并卡通道）；②族时间=成员时长
-            # 加和，族优先级=族内最优成员（tier 数字最小）；③按（族最优
-            # tier，-族规模）逐族找最早可行同城日，整族原子认领——4/日帽
-            # /边日规则/预算+走行腿全过才算可行；④全窗塞不进只减地理链
-            # 端点（两两距离最大的一对；减非钉 > 更次要（tier 数字大）>
-            # 时长长的端点），减员退回零散池，迭代到装下或族仅剩 2 员；
-            # ⑤族占日不收异簇可数件（food 豁免、演出钉日语义不受本闸；
-            # 零散件全窗无他日可投时软放——排得上优先于排得轻，单日窗
-            # 不饿死异簇件）。边日规则镜像 _can_join：tier≤2 且 >120min
-            # 大块头不上到达/返程边日；≤120min 小块头王牌可跟簇上边日
-            # （须≥2 簇伴在宿主）。多场次演出 cluster_day 钉日机制不破：
+            # 组合原子选日通道（2026-11-08 拍板「距离聚类优先/组合排日」
+            # +2026-11-09 组合原子化统筹模型拍板：组合为排程单元，择日看
+            # 天气适配，装不下减同类型重复件）：池定后、逐点预占前——
+            # ①池内可数件（有坐标、非演出/非 food）并查集聚组合，三类边：
+            #   A 伞名票制对（词素同族 ≤_UMBRELLA_BUNDLE_KM，含跨 1km 同族
+            #     挂牌对）；
+            #   B 紧距原子（同针 0km 贴邻与 ≤_FAMILY_ATOMIC_KM 近邻；1.5-
+            #     2km 链式弱边仍不入，防撑爆 4/日帽的旧拍板不动）；
+            #   C 出圈片区族（双双在市区圈外的远郊件，≤_DISTRICT_DAY_KM
+            #     互连——同片区远征是一家人）；
+            # ②组合时长=成员加和，优先级=族内最优成员 tier；③按（最优
+            # tier，-合计时长，-规模，池序）逐组择日，硬闸（4/日帽/边日
+            # 规则/预算剔腿/入场闸镜像）全过为可行日，可行日内打分择
+            # 优：天气适配（露天组合避雨日、室内组合抢雨日，无雨预报恒
+            # 中性）→ 他日优先（第二组合优先选另一个日期）→ 日序早先；
+            # ④全窗塞不进先减同类型重复件（同体验类型≥2 员时减最弱），
+            # 无重复再减地理链端点；受害者按 _drop_key（非钉 > tier 大
+            #  > 时长长），减员退回零散池，迭代到装下或组仅剩 2 员；
+            # ⑤组合占日不收异簇可数件（food 豁免、演出钉日语义不受本
+            # 闸；零散件全窗无他日可投时软放——排得上优先于排得轻）。
+            # 边日规则镜像 _can_join：tier≤2 且 >120min 大块头不上到
+            # 达/返程边日；≤120min 小块头王牌可跟簇上边日（须≥2 簇伴
+            # 在宿主）。多场次演出 cluster_day 钉日机制不破：
             # 族落日把同粗簇（含多场次演出）的 cluster_day 对齐到族日，
-            # 演出贴场馆不拆（兵马俑/秦俑情案口径）。
+            # 演出贴场馆不拆（远郊王牌/贴场馆演出案口径）。
             _cluster_first_pos: set[int] = set()
             _family_day: dict[int, set[int]] = {}  # 日 → 占日族根集
             _fam_of: dict[int, int] = {}  # 池位 → 族根（含被减员，身份保留）
@@ -12992,7 +13000,7 @@ class PlanningAgent:
                 # 簇）→②其余按日序取最早有容量天（无主/他簇同序
                 # ——无主天前置会把新簇推去更晚天）。不用簇锚定日
                 # （cluster_rank）直接定天——那会把高档大点按池位
-                # 压去晚天（兵马俑落第 5 天事故形态）。雨闸/预算/
+                # 压去晚天（远郊王牌落第 5 天事故形态）。雨闸/预算/
                 # 4 点日闸照收；初排偏好，后续求解/LNS 可调换。
                 _claims: list[tuple[int, dict, list[int]]] = []
                 for pos, (_idx, cand) in enumerate(pool):
@@ -13000,7 +13008,7 @@ class PlanningAgent:
                         continue  # 簇优先整族认领已落位，预占不重复
                     if _cand_is_show(cand) and _show_night_only(cand):
                         # 仅夜场演出不预占位（日位由演出钉日/每场闸规则定）。
-                        # 多场次演出（长安十二时辰形，sights 桶）按正常景点
+                        # 多场次演出（主题街区形，sights 桶）按正常景点
                         # 预占位——2026-11-06 头拍「无场次按正常景点排」的
                         # 选层镜像：不预占则总走主环垫底，池序前置的街区
                         # 演出块被 4/日闸+premium 追回压出局（三拍实测）。
@@ -13009,12 +13017,12 @@ class PlanningAgent:
                     if _el:
                         _claims.append((pos, cand, _el))
                 # 物理受限先认领（⑦「物理约束优先于口味」同源，
-                # 2026-11-02 乙山案）：可投天少的候选（露天唯一干
+                # 2026-11-02 山岳案）：可投天少的候选（露天唯一干
                 # 日）先占位，免被宽窗候选（室内全窗可投）抢走唯一
                 # 落位；同宽按池序=完整优先级梯子。
                 # 名录王牌次级先认领（2026-11-04 成渝案三段）：偏好带
-                # 行把预占位队列排满后石刻才认领，各天已被金佛山/濯水
-                # 级先占+远腿闸全窗拒收→主环簇日直排与金佛山同日。
+                # 行把预占位队列排满后石窟样本才认领，各天已被山岳景区/古镇样本
+                # 级先占+远腿闸全窗拒收→主环簇日直排与山岳景区同日。
                 # 王牌（tier≤2）在物理受限之后、偏好带之前认领天数；
                 # 同日列表序不受影响（装配尾部按池序重排 8157）——只
                 # 挪认领次序不挪卡面顺序，偏好位在 tier 之前拍板不破。
@@ -13057,7 +13065,7 @@ class PlanningAgent:
                         # 紧簇 kin（2026-11-08 城心簇拆天案拍板「距离
                         # 聚合都是近距离聚合优先」）：候选先认 ≤
                         # _TIGHT_CLUSTER_KM 紧簇已开天（按最近距离排）；
-                        # 10km 粗簇 day_owner 退为次选——大雁塔↔钟楼
+                        # 10km 粗簇 day_owner 退为次选——异簇王牌日↔城心簇锚
                         # 6.1km 同粗簇把城心件吸去别天的通道收口。
                         if xy is not None:
                             tight_kin = sorted(
@@ -13080,10 +13088,10 @@ class PlanningAgent:
                             for d in eligible
                             if day_owner.get(d) == _cid and d not in tight_kin
                         ]
-                        # 片区伴天牵引（2026-11-08 临潼拍板「按距离是一个
+                        # 片区伴天牵引（2026-11-08 远郊片区拍板「按距离是一个
                         # 组合。放在某一天」）：互距在近距圈外、片区圈
                         # （_DISTRICT_DAY_KM，15km）内的高价值组合是同
-                        # 片区一族——兵马俑↔华清宫 6.9km、离城心均
+                        # 片区一族——远郊王牌↔远郊园林 6.9km、离城心均
                         # 25km+，应认领片区伴已开的天，优先于演出钉日
                         # （_nat）把片区拆上两天。软偏好：容量/4 点日闸
                         # 照收；无片区伴天时零影响，_nat 钉日机制不破。
@@ -13114,13 +13122,13 @@ class PlanningAgent:
                             )
                         # 层①「预占最早有容量天」：同簇天优先（不拆
                         # 簇），其余按日序——无主天不再前置（会把新
-                        # 簇推去更晚天，乙园簇/东方明珠案）。（2026-11-08
+                        # 簇推去更晚天，园林簇/塔形地标案）。（2026-11-08
                         # 沪→西→沪案三拍：通用「簇自然日前置」被
                         # priority_early 铁律锚打回——单例簇被簇排名推尾
-                        # =兵马俑落末日事故形态复活。收窄版只给「同簇含
+                        # =远郊王牌落末日事故形态复活。收窄版只给「同簇含
                         # 演出」的簇：演出钉日走 cluster_day，同簇场馆
-                        # 白天件若按裸容量抢别天，演出贴场馆必拆（兵马俑
-                        # 抢 D2、同簇《秦俑情》被一天一场闸甩去 D1 实
+                        # 白天件若按裸容量抢别天，演出贴场馆必拆（远郊王牌
+                        # 抢 D2、同簇贴场馆演出被一天一场闸甩去 D1 实
                         # 录）——场馆件先认簇自然日与演出同坐标。无演出
                         # 簇不前置，11-02 梯子铁律不动。）
                         _nat = (
@@ -13149,7 +13157,7 @@ class PlanningAgent:
                     # 边日轻重（2026-11-03 拍板「重要景点不放在到达/
                     # 离开日，那两天适合 CityWalk/演出」）：认领天序在
                     # 同簇偏好之后按档位再分区——tier≤4 重磅压到无转场
-                    # 腿的整天（回民街式街区 tier8 反向让位转场日）。
+                    # 腿的整天（街道类样本式街区 tier8 反向让位转场日）。
                     # 软偏好：eligible 全是转场日（短程多城）或无信号
                     # 档不变形，排得上优先于排得轻。
                     _tier = _source_tier(cand)
@@ -13166,7 +13174,7 @@ class PlanningAgent:
                         order = [d for d in order if d not in _adays] + [
                             d for d in order if d in _adays
                         ]
-                    # 演出贴邻点同日（2026-11-07 锦里古戏台/武侯祠案）：仅
+                    # 演出贴邻点同日（2026-11-07 庙街复合案）：仅
                     # 夜场演出钉窗口末日，贴邻白天点却预占最早天——同街区
                     # 一对被拆成首尾两天。与钉日演出直线距离在近距同日圈
                     # （_NEAR_SAMEDAY_KM，5km 口径）内的候选把演出日
@@ -13184,12 +13192,12 @@ class PlanningAgent:
                         and _km(xy, show_pin_xy) <= _NEAR_SAMEDAY_KM
                         and (
                             not district_mates or show_pin_day in district_mates
-                        )  # 片区伴日已开时不抢位（2026-11-08 临潼拍板：
-                        # 兵马俑跟华清宫同片区日优先，演出随 cluster_day
+                        )  # 片区伴日已开时不抢位（2026-11-08 远郊片区拍板：
+                        # 远郊王牌跟远郊园林同片区日优先，演出随 cluster_day
                         # 对齐跟随场馆实际落日，不再反向拖场馆）。
                     ):
                         order = [show_pin_day] + [d for d in order if d != show_pin_day]
-                    # 近距贴邻同日（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
+                    # 近距贴邻同日（2026-11-07 城心簇锚/街道类样本同街拆天案）：
                     # 认领天序把已有近距同日圈内（_NEAR_SAMEDAY_KM，5km
                     # 口径）点位的天前置——同街件不因认领梯子后位被容量
                     # 漏斗逐件甩去别天。软偏好：被边日轻重/到达日轻量压
@@ -13231,7 +13239,7 @@ class PlanningAgent:
                                 cand.get("name") or cand.get("title") or "?",
                                 _walk_days,
                             )
-                    # 未标注点雨日让位（2026-11-05 磁器口案，主环同口径）：
+                    # 未标注点雨日让位（2026-11-05 古镇街区样本案，主环同口径）：
                     # 认领天序把有计数空位的干日前置——软语义不出局，无
                     # 干日空位保持原序留雨日，交对调/披露承接；王牌与夜
                     # 间点豁免（同整段降权口径）。
@@ -13250,7 +13258,7 @@ class PlanningAgent:
                             order = _dry2 + [d for d in order if d not in _dry2]
 
                     def _evict_stranger_for_pin(day: int, order_: list) -> bool:
-                        """钉簇演出满员换座（2026-11-08 临潼拍板收口）：
+                        """钉簇演出满员换座（2026-11-08 远郊片区拍板收口）：
                         多场演出钉簇自然日却被 4 点日帽拒（预算已按二拍豁
                         免）时，把当日「零近距簇伴的陌生人」（非必去/演
                         出、与当日其余点全部 >_NEAR_SAMEDAY_KM，离簇最远
@@ -13266,10 +13274,10 @@ class PlanningAgent:
                             if xy_w is None:
                                 continue
                             if xy is not None and 0 < _km(xy_w, xy) <= _NEAR_SAMEDAY_KM:
-                                # 入钉演出的近距簇伴不是陌生人（11-09 兵马俑
+                                # 入钉演出的近距簇伴不是陌生人（11-09 远郊王牌
                                 # 案）：钉簇演出回座正是为了贴场伴——把 ≤5km
                                 # 场馆件当「最远陌生人」弹走等于拆掉自己要
-                                # 坐的簇（兵马俑之于秦俑情实录）。
+                                # 坐的簇（远郊王牌之于贴场馆演出实录）。
                                 continue
                             rest = [p for p in day_coords[day] if p != xy_w]
                             if not rest:
@@ -13332,7 +13340,7 @@ class PlanningAgent:
                         leg = _leg_min(xy, day)
                         # 严格位同样不并远腿大点（2026-11-04 成渝案二段）：
                         # 预算口径的腿分钟被 TRAVEL_LEG_CAP_MIN 封顶——
-                        # 大足石刻+金佛山两条 >150km 互相远离的腿在分钟
+                        # 石窟样本+山岳景区样本两条 >150km 互相远离的腿在分钟
                         # 预算里同值 180，双双过闸挤同一天，求解层 300min
                         # 大点排不出时刻被清算移除。与软闸/主环同口径。
                         if _far_km(xy, day) > _SOFT_FAR_KM:
@@ -13351,7 +13359,7 @@ class PlanningAgent:
                             and (_source_tier(cand) <= 2 or _cand_is_big(cand))
                         ):
                             # 王牌/大块头不上边日（2026-11-08 沪→西→沪
-                            # 兵马俑 D5/D1 案）：返程日只留轻量件（离城
+                            # 远郊王牌 D5/D1 案）：返程日只留轻量件（离城
                             # 上午闸口径），到达日守轻量拍板——除非全窗
                             # 只剩该边日可投。
                             continue
@@ -13363,7 +13371,7 @@ class PlanningAgent:
                         if load[1] >= 4 or (
                             load[0] + minutes + leg > _budget(day) and not _pin_show
                         ):
-                            # 钉簇演出满员换座（2026-11-08 临潼拍板：
+                            # 钉簇演出满员换座（2026-11-08 远郊片区拍板：
                             # 「按距离是一个组合。放在某一天」——陌生人占
                             # 座不让组合散件出局）：仅 4 帽拒且换出陌生
                             # 人成功时收回座位；换不出走原闸。
@@ -13391,10 +13399,10 @@ class PlanningAgent:
                             and _cid in _show_cluster_ids
                             and cluster_day.get(_cid) != day
                         ):
-                            # 片区伴落日对齐（2026-11-08 临潼拍板，族落日
+                            # 片区伴落日对齐（2026-11-08 远郊片区拍板，族落日
                             # 对齐 cluster_day 的散件镜像）：场馆件被片区
                             # 伴牵引改落后，同簇演出钉日跟着搬到实际落日
-                            # ——演出贴场馆不拆（兵马俑落 D3、秦俑情跟随）。
+                            # ——演出贴场馆不拆（远郊王牌落 D3、贴场馆演出跟随）。
                             cluster_day[_cid] = day
                             logger.info(
                                 "plan: district claim aligns cluster_day %s -> day %s",
@@ -13415,7 +13423,7 @@ class PlanningAgent:
                         # 生——天序同上（同簇→日序）超额照排；
                         # 4 个/日闸仍硬，全满才出局交回填/披露。
                         # 远腿不软放（2026-11-04 成渝案：330km 腿被软
-                        # 闸塞进同日=四面山+白帝城同天）。
+                        # 闸塞进同日=山岳景区+江畔古城同天）。
                         for day in order:
                             if not _day_open_for(cand, pos, day):
                                 continue  # 族占日不收异簇可数件（软闸兜底同闸）
@@ -13457,15 +13465,15 @@ class PlanningAgent:
 
                 # 紧簇愈合同位交换（2026-11-08 城心簇拆天案二拍，用户复测
                 # 复盘）：认领梯子（tier 序）先到的高档件会把紧簇日的座位
-                # 占给远点陌生人——未央宫 7km 占碑林日 → 钟楼 0.5km 排不
+                # 占给远点陌生人——远距遗址 7km 占城心博物馆日 → 城心簇锚 0.5km 排不
                 # 下被清算挪天，城心簇拆成两天。「距离聚合都是近距离聚合
                 # 优先」的事后修复：对每天 D，坐在别天的紧簇员 v（≤
                 # _TIGHT_CLUSTER_KM 于 D 内点位、且迁入 D 的紧簇伴严格
                 # 多于现居天）——仅当 D 已满员（4/日或预算）时，把 D 上
                 # 的陌生人 w（与 D 其余点位全部 > _NEAR_SAMEDAY_KM、非
                 # must/演出）换到 v 的现居天；D 有空位不追改——tier 序
-                # 合法占座不动（同日四拍「东方明珠要的」：上海夹具陆家
-                # 嘴簇日 2/4 空，东方明珠留 day1）。雨闸/远腿/返程上午闸
+                # 合法占座不动（同日四拍「塔形地标要的」：沿海大城夹具滨水商
+                # 务簇日 2/4 空，塔形地标留 day1）。雨闸/远腿/返程上午闸
                 # /4 点日闸照收；w 本就零紧簇伴，交换只增不减任何天的
                 # 紧簇对。
                 def _tight_cnt(xy, d: int) -> int:
@@ -13625,7 +13633,7 @@ class PlanningAgent:
                         _m = _minutes(cand_last, DEFAULT_VISIT_MINUTES)
                         _xy = _cxy(cand_last)
                         # 返程日空天挪件也要装得进离城上午窗（2026-11-05
-                        # 重庆案：白帝城/小三峡/龙缸/大裂谷 4 件全被清算
+                        # 重庆案：江畔古城/峡谷样本群 4 件全被清算
                         # → day7 归零）；装不下换下一源天，不盲挪。
                         if _over_return_cap(d_empty, _m, _leg_min(_xy, d_empty)):
                             continue
@@ -13782,7 +13790,7 @@ class PlanningAgent:
                             key=lambda d: (day_loads[d][0], day_loads[d][1], d),
                         )
                 # 未标注室内外点雨日让位（2026-11-05 拍板「雨天上午不排
-                # 室外点」，磁器口漏闸案）：目标天有雨且有干日计数空位时
+                # 室外点」，古镇街区样本漏闸案）：目标天有雨且有干日计数空位时
                 # 挪干日——软语义不出局（无干日空位=留雨日，交对调/披露
                 # 承接）；王牌与夜间点豁免（同整段降权口径）。
                 if (
@@ -13820,13 +13828,13 @@ class PlanningAgent:
                 load = day_loads[day]
                 leg = _leg_min(xy, day)
                 # 主环直排位同样不并互远大点（2026-11-04 成渝案三段）：
-                # 预占位被偏好带挤出后石刻走主环，簇日直排无远腿闸——
-                # 与金佛山同日直排成功（腿分钟封顶让预算闸看不见 159km）。
+                # 预占位被偏好带挤出后石窟样本走主环，簇日直排无远腿闸——
+                # 与山岳景区样本同日直排成功（腿分钟封顶让预算闸看不见 159km）。
                 # 远腿改走溢出分支（余量最大天带远腿闸，软超额不救距离）。
                 # 夜场演出例外（2026-11-08 二拍「簇日不查预算——贴簇
-                # 优先」的主环镜像）：预算超额不溢出丢簇日——临潼案
-                # 秦俑情因 D3 预算满被溢出别天，夜演贴排组合反向把
-                # 兵马俑拖去陪演、片区组合拆天。装不下交求解层挪天/
+                # 优先」的主环镜像）：预算超额不溢出丢簇日——远郊片区案
+                # 贴场馆演出因 D3 预算满被溢出别天，夜演贴排组合反向把
+                # 远郊王牌拖去陪演、片区组合拆天。装不下交求解层挪天/
                 # 移除+披露，不静默破簇。4/日帽与远腿/返程闸照收。
                 if (
                     load[1] >= 4
@@ -13907,8 +13915,8 @@ class PlanningAgent:
                 _partial_rain_note(cand, day)
             if rainy_here:
                 # 雨天对调（2026-10-30 用户拍板：有雨自动排室内，不问
-                # 用户）。雨日露天点逐级兜底（2026-10-30 深夜 day5 武陵
-                # 山大裂谷事故：唯一干日=到达日预算 180min，180min 露天
+                # 用户）。雨日露天点逐级兜底（2026-10-30 深夜 day5 峡谷
+                # 样本事故：唯一干日=到达日预算 180min，180min 露天
                 # 点单点对调必败且旧版静默保留）：
                 # ①单点对调——遍历全部干日×全部已排室内点（旧版只试
                 #   每个干日第一个室内点）；
@@ -13985,9 +13993,9 @@ class PlanningAgent:
                                     )
                                 return
                     # ③ 就地改排：未入选室内点顶上（1:1，预算/个数不变）
-                    # 命名空间对齐（2026-11-08 临潼案）：placed 里的 pos 全
+                    # 命名空间对齐（2026-11-08 远郊片区案）：placed 里的 pos 全
                     # 是池序，旧版拿 ordered 全序索引比对必错位——已排卡
-                    # （秦俑情 D3）被误判「未入选」整卡重发一份进雨日，
+                    # （贴场馆演出 D3）被误判「未入选」整卡重发一份进雨日，
                     # 下游均衡再把场馆当可单飞件拆去陪重发卡。替代候选
                     # 一律取池内（同 pos 命名空间，天然尊重品类帽），落
                     # 位登记 preclaimed 防主环重排同一件。
@@ -14019,7 +14027,7 @@ class PlanningAgent:
                     # 5A/UNESCO 由白名单「可选加」自然披露，回填层
                     # 再替它在干日找位）。
                     # 未标注点（2026-11-05 拍板）只对调不删点：无室内可
-                    # 换=保持原排+备伞留痕（无标记行不硬拦口径，磁器口案）。
+                    # 换=保持原排+备伞留痕（无标记行不硬拦口径，古镇街区样本案）。
                     if not hard:
                         if notes is not None:
                             notes.append(
@@ -14041,7 +14049,7 @@ class PlanningAgent:
                     for pos, cand in list(placed[rd]):
                         # 被硬闸拦却已在雨日的（must/编辑残留）照救；未
                         # 标注室内外点雨日参与对调让位（2026-11-05 拍板，
-                        # hard=False 软语义只换不删，磁器口案）；半露天
+                        # hard=False 软语义只换不删，古镇街区样本案）；半露天
                         # 小雨日合法落位（2026-11-02 拍板）不再救。
                         blocked = _rain_blocked(cand, rd)
                         unmarked = (
@@ -14106,14 +14114,14 @@ class PlanningAgent:
                                     f"（夜间露天）雨夜不排；要保留请说"
                                 )
             # 稀疏天回填（2026-10-31 用户拍板「第三天非常空」）：全满出局
-            # 与池外（tier 13+）的好点此前从不回头看——金沙/杜甫草堂级 90 分
+            # 与池外（tier 13+）的好点此前从不回头看——博物馆样本/名人故居样本级 90 分
             # 钟点被丢在池外而 day3 只有 180/360。按 tier 序回补：先地理最近
             # 的可用天（腿小=同片区=动线连贯），全远再退最空天；腿费、4 个/日
             # 闸照收；露天补位干日优先（雨天感知，无干位不补——5A
             # 级未排由白名单「可选加」披露）。
             placed_pos = {pos for seq in placed.values() for pos, _ in seq}
 
-            # _rainy_for 已提前至主放置环前定义（2026-11-02 壬峰案：
+            # _rainy_for 已提前至主放置环前定义（2026-11-02 山峰王牌案：
             # 软闸+短者先序会把露天点推进主环，雨闸必须覆盖主环）。
 
             def _refill(pos: int, cand: dict, time_soft: bool = True) -> None:
@@ -14231,7 +14239,7 @@ class PlanningAgent:
                     shows,
                     key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
                 )
-                # 已排演出去重（2026-11-08 临潼案）：预认领（钉簇/贴
+                # 已排演出去重（2026-11-08 远郊片区案）：预认领（钉簇/贴
                 # 邻通道）已落位的演出不再整卡重发——重发=同一张卡两
                 # 天各一份，下游均衡还会把场馆误当可单飞件拆去陪重
                 # 发卡。
@@ -14254,7 +14262,7 @@ class PlanningAgent:
                 best = _shows_ranked[0][1] if _shows_ranked else None
                 # 钉日与预算预扣（show_pin_day）同源：不复算，防两处口径漂移
                 show_day = show_pin_day if show_pin_day is not None else hi
-                # 演出日按最近簇选日（2026-11-08 长恨歌/华清宫同址案）：终装
+                # 演出日按最近簇选日（2026-11-08 同址夜演/远郊园林同址案）：终装
                 # 前各天停留点已定——反用 5km 同日圈（既有拉日机制把白天点
                 # 拉到演出日，本刀把演出日拉到白天簇）：某天已有点距场馆
                 # ≤_NEAR_SAMEDAY_KM 时演出改钉该天（多天命中取点的最近距离，
@@ -14414,7 +14422,7 @@ class PlanningAgent:
         """8.1.5 硬闸门（TravelPlanner 常识约束）：每天非 food 游览点 >4
         裁到 4——过载日既走不完也过不了铁律 6。必去（must 标，2026-11-07
         起合并先于本闸）计件但绝不裁——愿超载是用户的决定，超额交让位
-        清算/solver 收口（熊猫基地被本闸裁掉第 2 天席位、被迫塞回到达日
+        清算/solver 收口（替代组正主被本闸裁掉第 2 天席位、被迫塞回到达日
         无时刻交付的事故根因）。演出/娱乐类豁免（2026-11-03 拍板「每个
         行程宜有一场娱乐」，同日更正 nice-to-have 非强制）：S5 晚场是
         20:10 收尾事件不占白天游览窗——已选演出不因满员日被裁掉，纯档
@@ -14463,7 +14471,7 @@ class PlanningAgent:
 
         选点与必去合并都是逐城贪心：簇满溢出、必去堆头，同城窗口内会
         出现空天/欠载天与超载天并存（2026-11-04 空天：day2 单点、day3
-        全空、老君山 5A 躺白名单）。本 pass 站在整段行程视角补两张账：
+        全空、远郊山岳 5A 躺白名单）。本 pass 站在整段行程视角补两张账：
         ① 空/欠载天回填——按 tier 序从全量候选（含池外）补位，露天只进
            干日（全雨窗口不硬塞，白名单披露兜底），预算含打车腿、每日
            4 点闸；回填线=3/4 日预算（2026-11-02 用户拍板「day2 只有三个
@@ -14472,7 +14480,7 @@ class PlanningAgent:
            真身胜出）。
         ② 超载天分流——非必去的点挪到同城窗口内更空且放得下的天，地理
            腿优先；≤2km 贴邻紧簇成组判定（组整体搬走不拆对，2026-11-08
-           钟楼案，原 _has_kin 闸语义抽成组语义），≥3 件组允许单件疏压
+           城心簇锚案，原 _has_kin 闸语义抽成组语义），≥3 件组允许单件疏压
            （剩余成员仍成簇），2 件对无共同目标宁软闸超载不拆——整簇成
            组时旧闸边缘死锁（到达日/超载分流回归组修，2026-11-08）。
         确定性、零网络、零 LLM；必去与餐饮/演出不动。返回 (picked, notes)。"""
@@ -14572,8 +14580,8 @@ class PlanningAgent:
                 return False
             return any(e != d and e not in _adays for e in range(1, days + 1))
 
-        # 有效点记账：孪生 spec（安仁古镇 vs 安仁古镇景区）要到组装层
-        # dedupe 才丢一个，选点层却已双双计入预算——day2 假满、老君山
+        # 有效点记账：孪生 spec（古镇样本 vs 古镇样本景区）要到组装层
+        # dedupe 才丢一个，选点层却已双双计入预算——day2 假满、远郊山岳
         # 出局躺白名单（2026-11-04 空天同源问题）。均衡只数孪生胜者
         # （有坐标者优先，平手先到先得，与 _dedupe_visit_keepers 同义）；
         # 败者留在 picked，组装层照旧丢弃并「已合并重复站点」留痕。
@@ -14837,7 +14845,7 @@ class PlanningAgent:
                 for s in day_specs.get(d, [])
                 if not s.get("must")
                 and s.get("category") not in ("food", "entertainment")
-                # 钉簇演出片区圈不拆（2026-11-08 临潼拍板「按距离
+                # 钉簇演出片区圈不拆（2026-11-08 远郊片区拍板「按距离
                 # 是一个组合。放在某一天」+二拍「簇日不查预算」）：
                 # 同日演出 _DISTRICT_DAY_KM 片区圈内的成员与演出绑
                 # 一个组合，演出不可搬、成员不单飞——宁软闸超载，
@@ -14897,7 +14905,7 @@ class PlanningAgent:
                     break
                 if id(spec) in handled:
                     continue
-                # 贴邻组成组判定（2026-11-08 钟楼案不拆贴邻对，原闸语义
+                # 贴邻组成组判定（2026-11-08 城心簇锚案不拆贴邻对，原闸语义
                 # 抽成组）：同日 ≤2km 非餐/演邻居即伴；贴必去伴的件不单
                 # 飞（必去不能搬，拆开=拆对，原闸口径）。全可搬伴成组，
                 # 组内共同目标找到=整组搬走（预算=全组成员分钟+各自腿封
@@ -14990,7 +14998,7 @@ class PlanningAgent:
         groups: dict[str, list[dict]] = {}
         for cand in candidates:
             if cand.get("cross_city_hit"):
-                # 异地命中不排期（2026-11-01 北京钟楼案同口径，2026-11-02
+                # 异地命中不排期（2026-11-01 跨城同名城心锚案同口径，2026-11-02
                 # 补占位路）：下方 ranges.get(city,(1,days)) 对非行程城
                 # 兜底默认窗——异地组会被摊到全程，LLM 失败降级同样出局。
                 continue
@@ -15019,7 +15027,7 @@ class PlanningAgent:
         """出发城锚点（2026-11-07 沪杭返程实弹）：候选搜索按 2026-10-30
         配额优化跳过出发城（检索循环 cities[1:]），anchors 恒缺 origin
         → 11-06 距离闸对去程/返程 dist 恒 None，静默回落 11-04「航班
-        优先」（杭州→上海 165km 被排成航班）。库 top-N 补一个轻量锚点
+        优先」（乙城→甲城 165km 被排成航班）。库 top-N 补一个轻量锚点
         （PG 索引读，零图商配额）；库空/无坐标留日志——距离闸盲区回到
         旧行为，静默吞掉不允许。"""
         if len(cities) < 2 or self._poi_details is None:
@@ -15040,7 +15048,7 @@ class PlanningAgent:
             loc = row.get("location")
             # 库出库 location 是 (lon, lat) 元组（poi_details.top_pois_in_city
             # 文档契约），候选层才是 dict——11-07 根修只认 dict，元组行全跳
-            # 过，距离闸对出发城恒盲（上海→南京 270km 被排成航班 MU1001，
+            # 过，距离闸对出发城恒盲（甲城→丁城 270km 被排成航班 MU1001，
             # 11-08 活服复现）。两种形状都收。
             point: GeoPoint | None = None
             if (
@@ -15082,7 +15090,7 @@ class PlanningAgent:
             dests = cities[1:]
             starts = [ranges.get(c, (1, days))[0] for c in dests]
             # 同 _build_transfers 往返闭合口径（2026-10-30）：尾部重复城
-            # 不是目的地，不预热「上海→上海」幽灵腿。
+            # 不是目的地，不预热「甲城→甲城」幽灵腿。
             closure = len(dests) > 1 and _norm_city(dests[-1]) == _norm_city(origin)
             legs: list[tuple[str, str, int]] = []
             if _norm_city(dests[0]) != _norm_city(origin):
@@ -15149,8 +15157,8 @@ class PlanningAgent:
             # the last destination on the final day (product rule
             # 2026-10-19: last day = activities + travel home).
             starts = dest_starts or [min(k + 1, days) for k in range(len(dests))]
-            # 往返闭合（cities 首尾同城，如 上海..上海，2026-10-30）：尾部
-            # 重复不是第四个目的地，是返程标记——不再追加「上海→上海 0 公里
+            # 往返闭合（cities 首尾同城，如 甲城..甲城，2026-10-30）：尾部
+            # 重复不是第四个目的地，是返程标记——不再追加「甲城→甲城 0 公里
             # 驾车」幽灵腿（实弹计划 day7 出现过双返程腿），返程窗偏好改挂
             # 链上真实进出发城的那条腿。
             closure = len(dests) > 1 and _norm_city(dests[-1]) == _norm_city(origin)
@@ -15802,7 +15810,7 @@ class PlanningAgent:
                 plan, tier_by_name=tier_map, protect=frozenset(must_names)
             )
         )
-        # 必去让位清算（2026-11-04 熊猫基地挂日尾事故）：solve 前给钉住
+        # 必去让位清算（2026-11-04 替代组正主挂日尾事故）：solve 前给钉住
         # 未排必去清出整档——自动凑数条目让位留痕，solve 拿到的日窗即可
         # 行，不再出现「必去无时刻挂日尾、凑数点霸下午」的优先级倒挂。
         plan.assumptions.extend(_must_visit_room_sweep(plan))
@@ -15868,7 +15876,7 @@ class PlanningAgent:
                 )
             if added:
                 # 白名单披露同步收口：被保底补排的名字不再留在
-                # 「白名单未排」行里（大明宫案：既已排又挂着「未排可选加」）
+                # 「白名单未排」行里（大遗址样本案：既已排又挂着「未排可选加」）
                 keep = []
                 for line in plan.assumptions:
                     if ("白名单未排" in line or "Top picks not scheduled" in line) and (
@@ -15952,7 +15960,7 @@ class PlanningAgent:
         # CHINATRIP_GLOBAL_RESCHED=off 关闭。
         # LNS 防回退基线（2026-11-07 用户指令）：重排前记「有时刻参访」
         # 名册——重排按全局评分搬点不带排程，可能把原本有时刻的参访搬
-        # 进必死日（环球中心对调实录：评分 -1246→-1230 赚 16 分，代价
+        # 进必死日（大体量商业体对调实录：评分 -1246→-1230 赚 16 分，代价
         # 整卡蒸发进终局清算）。
         pre_resched_snapshot = plan.model_copy(deep=True)
         pre_resched_timed = {
@@ -16006,9 +16014,9 @@ class PlanningAgent:
                     "layout",
                 )
             )
-        # 生成期终闸（2026-11-01 秦陵双卡案）：选点/组装层去重在前，但
+        # 生成期终闸（2026-11-01 陵寝双卡案）：选点/组装层去重在前，但
         # 晨间保底/借调回填/干日回填/雨天对调都跑在其后，任一守卫口径
-        # 不齐就会把同站的另一行补进来（D1 遗址公园 + D3 兵马俑实录）
+        # 不齐就会把同站的另一行补进来（D1 遗址公园 + D3 远郊王牌实录）
         # ——交付前统一再过一次跨天全量去重（keep-rank 与开档闸同义）。
         dedupe_plan_visits(plan)
         annotate_legs(plan)
@@ -16031,7 +16039,7 @@ class PlanningAgent:
         # 重解失败日走兜底后仍 None-None）——交付前最后扫一遍并补排。
         # 补排用 CP 重解而非兜底顺序排：挪进的天既有条目多在日尾（兜底
         # 光标只会追加、日尾装不下就又留 None-None），重解可腾中段空档。
-        # 2026-11-03 Day4 太平森林公园案：清算不再挂在「转场日清算有产出」
+        # 2026-11-03 Day4 城郊森林公园案：清算不再挂在「转场日清算有产出」
         # 条件下——普通日（傍晚场演出收尾、远郊公园 16:30 闸前排不进）
         # 留下的 None-None 卡同样不得交付（垫到 19:30 演出之后 + 腿标注
         # 画演出→公园 949 分钟腿）。只要有无时刻参访就走重解→移除留痕。
@@ -16040,7 +16048,7 @@ class PlanningAgent:
             plan.assumptions.extend(sweep_notes)
         plan = self._finalize_untimed_visits(plan, must_names, tier_map)
         # 紧簇亲属归位（2026-11-08 聚合分裂案）：级联（让位弹座/演出闸/
-        # 重解）可把 ≤2km 紧簇拆上多天（钟楼 D1+鼓楼 D4+城墙碑林 D2），
+        # 重解）可把 ≤2km 紧簇拆上多天（城心簇锚 D1+邻锚 D4+联票挂牌博物馆块 D2），
         # 楔子剔除只剔不聚——能归位的先归位，归不进的才轮到宁缺勿楔。
         _reunite_tight_kin(plan)
         # 簇日纯度闸（2026-11-08 拍板「异簇不混日」）：归位之后按不变量
@@ -16051,8 +16059,8 @@ class PlanningAgent:
             logger.info(
                 "plan: cluster-day purity dropped: %s", "、".join(purity_dropped)
             )
-        # 楔子不变量（2026-11-08 钟楼案三拍）：清算/重排/让位各相位接力可
-        # 把贴邻孤岛楔进他片区的天（钟楼楔进大雁塔日实录）——交付前按
+        # 楔子不变量（2026-11-08 城心簇锚案三拍）：清算/重排/让位各相位接力可
+        # 把贴邻孤岛楔进他片区的天（城心簇锚楔进异簇王牌日实录）——交付前按
         # 不变量统一清障，宁缺勿楔。
         wedge_dropped = _evict_wedge_strays(plan)
         if wedge_dropped:
@@ -16063,7 +16071,7 @@ class PlanningAgent:
         # 每场闸终装（2026-11-08 xa 案 D2 双演出撞日）：选层各相位互不
         # 知情，终装统一对账——同日两场保首场、余场挪无演出日/移除披露。
         _enforce_show_per_day(plan)
-        # 闸挪位/让位后可能留下无时刻卡（mc2 骊山贴排让位案）：闸是最后
+        # 闸挪位/让位后可能留下无时刻卡（mc2 远郊族山岳贴排让位案）：闸是最后
         # 一道动结构的相位，让位所指望的「后续重排」只会来自这里——
         # 再走一遍终闸清算（重解/挪日/回头重试/移除留痕），干净则零开销。
         plan = self._finalize_untimed_visits(plan, must_names, tier_map)
@@ -16072,7 +16080,7 @@ class PlanningAgent:
         _compress_before_evening_anchor(plan)
         # 终装日纯度清扫（2026-11-09 双案）：跑在最后——净化/楔子/每场
         # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
-        # 交付（含光门"？"实录）；此处是跨通道终局对账的唯一定义点。
+        # 交付（城心小件"？"实录）；此处是跨通道终局对账的唯一定义点。
         _day_purity_sweep(plan, must_names)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
@@ -16085,16 +16093,16 @@ class PlanningAgent:
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
         # 此刻末件时刻已定，夜卡窗口=末件结束+30；绝不挂在排程期插入
         # （早插会把夜卡当固定窗，把当天下午 sequencing 全堵死：
-        # 2026-11-07 西湖 day1 排不上实录）。渠道订走携程/美团/飞猪，
+        # 2026-11-07 名湖样本 day1 排不上实录）。渠道订走携程/美团/飞猪，
         # 手输走 set-hotel 验证；仅初次排程插入，编辑路径不复活已删卡。
         night_notes = attach_hotel_nights(plan.days)
         if night_notes:
             plan.assumptions.extend(night_notes)
-        # 腿是派生态（2026-11-09 唐宴→钟楼 2 分钟实录）：15860/15872 之后
+        # 腿是派生态（2026-11-09 宴秀卡→城心簇锚 2 分钟实录）：15860/15872 之后
         # 还有八个结构性相位（转场扫/终闸/紧族/簇纯/楔逐/贴场/每场闸/
-        # 纯度清扫/挂夜）挪卡删卡——腿字段不重算就按旧邻居交付（唐宴
-        # 2 分钟腿原是对同址主题街区，街区挪尾后钟楼成新邻居仍背旧腿；
-        # 鼓楼对 33.7km 外秦俑情的 2 分钟腿同源）。annotate_legs 幂等，
+        # 纯度清扫/挂夜）挪卡删卡——腿字段不重算就按旧邻居交付（宴秀卡
+        # 2 分钟腿原是对同址主题街区，街区挪尾后城心簇锚成新邻居仍背旧腿；
+        # 邻锚对 33.7km 外贴场馆演出的 2 分钟腿同源）。annotate_legs 幂等，
         # 交付边界统一重算+实测缓存回放（零网络）。
         annotate_legs(plan)
         if self._leg_cache:
@@ -16107,7 +16115,7 @@ class PlanningAgent:
         protect: frozenset[str] | set[str] = frozenset(),
         tier_by_name: dict[str, int] | None = None,
     ) -> ItineraryPlan:
-        """终闸：无时刻参访卡清算（2026-11-03 Day4 太平森林公园案）。
+        """终闸：无时刻参访卡清算（2026-11-03 Day4 城郊森林公园案）。
         旧版嵌在「转场日清算有产出」条件下才重解+移除——普通日 LNS
         搬进装不下的远郊点（16:30 起始闸前排不进）就以 None-None 卡
         交付：排序垫底落到 19:30 演出之后，腿标注再画一条演出→公园
@@ -16118,8 +16126,8 @@ class PlanningAgent:
             return plan
         # 必去让位后置闸（2026-11-05 成渝案 d3df5a8/it-32765684 Day2）：
         # solve 前的前置清算探针平凡成功（当时全员未排）零改动，solve/兜底
-        # 把凑数点排上时刻（金沙 09:00/宽窄 12:00/武侯祠 15:23）后房间被
-        # 吃掉，钉住必去熊猫基地 180min 垫到日尾无时刻交付。终闸先清场
+        # 把凑数点排上时刻（博物馆样本 09:00/街道类样本 12:00/庙街正主 15:23）后房间被
+        # 吃掉，钉住必去替代组正主 180min 垫到日尾无时刻交付。终闸先清场
         # （挤掉留痕披露），再走重解/兜底给必去落时刻。
         plan.assumptions.extend(_must_visit_room_sweep(plan))
         resolved = self._solve(plan, meal_flex=True)
@@ -16136,7 +16144,7 @@ class PlanningAgent:
             plan.assumptions.extend(_rehome_untimed_visits(plan, protect, tier_by_name))
             _fallback_sequence_times(plan)
         # 回头重试（2026-11-07 用户指令「被裁点同城其他天回头重试」）：
-        # 挪日线只认首个结构可行日——东郊记忆挪 day2 后落进满员日物理
+        # 挪日线只认首个结构可行日——文创园区样本挪 day2 后落进满员日物理
         # 无档即终局蒸发，day3 本有空档却再无机会。清算前对仍无时刻者
         # 再扫：已坐日+已试日除外，同城其余日逐日试宿（探测口径同
         # rehome），挪后重排；日历试尽仍无时刻才交终局清算。tried 记
@@ -16180,10 +16188,10 @@ class PlanningAgent:
                         )
                         if target is None:
                             continue
-                        # 叠加兑现审（2026-11-08 永兴坊案两头空）：宿主日
+                        # 叠加兑现审（2026-11-08 街道类样本案两头空）：宿主日
                         # 已欠无时刻承诺时克隆真裁决——回头重试是把第二
-                        # 名承诺压进同日的最后一环（大清真寺压死永兴坊、
-                        # 含光门牺牲已蒸发实录），兑现不了就拒落换下一天。
+                        # 名承诺压进同日的最后一环（同针小件压死街道类样本、
+                        # 城心小件牺牲已蒸发实录），兑现不了就拒落换下一天。
                         if _stack_uncashable(plan, target, visit):
                             continue
                         tried.setdefault(visit.item_id, set()).update(
@@ -16227,7 +16235,7 @@ class PlanningAgent:
         过滤闸：同城、非演出非餐饮、宜上午/全天、未入选、与全行程
         已排不重样（_same_site/poi_id 双闸）、建议时长落上午空窗、
         雨天不收明确露天/半露天。2026-11-05 拍板「雨天上午不排室外
-        点」（磁器口漏闸案）：雨天排序室内（rain_ok=yes/true）优先，
+        点」（古镇街区样本漏闸案）：雨天排序室内（rain_ok=yes/true）优先，
         未标注点殿后兜底——上午不许空，但室内有货时不让未标注点抢
         晨位。2026-11-01 用户拍板：
         预算 360+30 是「偏短点优先」的排序偏好而非硬闸——先补装得下
@@ -16282,7 +16290,7 @@ class PlanningAgent:
                 # 与 _rain_exposed 同口径：unknown(None/'')不算露天，
                 # 只拦明确露天/半露天/false（比系统更严会误杀无标记行）
                 continue
-            # 同站守卫走全量判定（2026-11-01 秦陵双卡案）：_same_site 只查
+            # 同站守卫走全量判定（2026-11-01 陵寝双卡案）：_same_site 只查
             # 包含，同馆/同内容/演出桶行互不包含时会漏拦。
             if any(_dup_blocks_item(cand, i) for i in planned):
                 continue
@@ -16296,7 +16304,7 @@ class PlanningAgent:
         # 2026-11-01 用户拍板：预算=「偏短点优先」的排序信号，非硬闸。
         # 先补装得下的（保持 tier 序）；全都装不下才按最短溢出序补。
         # 雨天室内优先（2026-11-05 拍板）：两段各自先收 rain_ok=yes，
-        # 未标注点殿后兜底（明确露天/半露天已在上方过滤，磁器口案）。
+        # 未标注点殿后兜底（明确露天/半露天已在上方过滤，古镇街区样本案）。
         def _rain_first(e: tuple[dict, int, bool]) -> int:
             return 0 if str(e[0].get("rain_ok") or "").lower() in ("yes", "true") else 1
 
@@ -16361,8 +16369,8 @@ class PlanningAgent:
         rain_days: dict[str, set[int]] | None = None,
         heavy_rain_days: dict[str, set[int]] | None = None,
     ) -> tuple[str, str | None, int] | None:
-        """上午空窗跨天借调（2026-11-01 用户拍板「第3天应该安排兵马俑
-        90 分钟，本来安排兵马俑的那天可以换其它时间长些的景点」）：
+        """上午空窗跨天借调（2026-11-01 用户拍板「第3天应该安排远郊王牌
+        90 分钟，本来安排远郊王牌的那天可以换其它时间长些的景点」）：
         未选池补不进上午时，从同城其他天借一个与当天更贴的已排点
         （雨天只借室内；非演出非餐、非钉（铁律19+系统餐锚）、宜上午、
         心愿/必去时间可挪只挪不删（2026-11-02 拍板：钉的是在册，
@@ -16452,7 +16460,7 @@ class PlanningAgent:
             return None
         # 按地理亲和序逐候选尝试；任一步失败（落不进上午/借出日晨空白
         # 且回填救不回）整体还原后试下一个，不再一次性放弃
-        # 雨天室内优先（2026-11-05 拍板，磁器口案）：明确露天/半露天
+        # 雨天室内优先（2026-11-05 拍板，古镇街区样本案）：明确露天/半露天
         # 已在上方过滤，未标注殿后，地理亲和序在组内保持
         scored.sort(
             key=lambda x: (
@@ -16462,10 +16470,10 @@ class PlanningAgent:
         )
         # 整体还原快照（2026-11-08 借调试排连带改动组修）：试排路径里的
         # _fallback_sequence_times 保全盘——多场次演出贴排让位会清掉贴伴
-        # 观光的时刻、软午餐被挤弃（华清池 13:00 让位后重排进上午、
+        # 观光的时刻、软午餐被挤弃（远郊园林 13:00 让位后重排进上午、
         # lunch-3 弃卡实录）；旧 _borrow_rollback 只还原被借件本身，
         # 让位/弃餐的连带改动留在盘上，后续候选面对被改坏的上午再也
-        # 借不进去（回民街/碑林连败实录）。试排前全量快照卡片归属与
+        # 借不进去（街道类样本/城心博物馆连败实录）。试排前全量快照卡片归属与
         # 时刻，任一步失败整体还原到借调前——真正的「整体还原后试下
         # 一个」。
         _snap_items: dict[int, list] = {d.day: list(d.items) for d in plan.days}
@@ -16685,7 +16693,7 @@ class PlanningAgent:
                 _resched_anchor[_c4] = _a4
 
         def _no_return_day(d: DayPlan, i: VisitItem) -> bool:
-            """王牌/大块头/远郊件不上返程日（2026-11-08 兵马俑→D5 返程日
+            """王牌/大块头/远郊件不上返程日（2026-11-08 远郊王牌→D5 返程日
             案 + 当日晚拍板「回城当天只排市区内小点/CityWalk」）：tier≤2
             或 >80min 大点、或出返程市区圈（_RETURN_URBAN_KM）的件不得
             挪入返程日——用户拍板「更高优先级景点放前几天，不排最后
@@ -16723,7 +16731,7 @@ class PlanningAgent:
                 return False  # 餐跟餐窗；hotel 卡跟落地地板
             if it.name in must_names:
                 return False
-            # 场馆亲和软钉（2026-11-08 秦俑情案第五刀）：演出卡当前日
+            # 场馆亲和软钉（2026-11-08 贴场馆演出案第五刀）：演出卡当前日
             # 有近距同日圈（5km）簇伴时不参与挪动——修复器为消超载把
             # 贴场馆演出拽去无锚日（评分 travel 软项对 55km 只罚 -2）
             # 拆了用户主诉的「演出贴景点线路」；超载让位交给簇外/低档
@@ -16739,8 +16747,8 @@ class PlanningAgent:
             """条目城市宿主闸（与 _host_day_for_visit 资格判定同口径）：
             目标天 base 同城，或当天有抵达该城的转场腿（到达日晚场）。
             城市缺信号不拦（宁不加码不可错拦）。2026-11-05 结束闸收紧
-            day 容量后暴露：苏州点落杭州基地的到达日后，LNS「天与天
-            同城」旧闸放行其再挪纯杭州日——城窗语义被穿。"""
+            day 容量后暴露：邻城点落基地城的到达日后，LNS「天与天
+            同城」旧闸放行其再挪纯基地城日——城窗语义被穿。"""
             c = str(city or "").strip().removesuffix("市")
             if not c:
                 return True
@@ -16765,24 +16773,24 @@ class PlanningAgent:
             if item is None or dst is None or src is dst:
                 return None
             if _venue_anchor_on(src, item):
-                return None  # 场馆亲和软钉（2026-11-08 秦俑情案第五刀）
+                return None  # 场馆亲和软钉（2026-11-08 贴场馆演出案第五刀）
             if _tight_cluster_mate_on(src, item) and not _tight_cluster_mate_on(
                 dst, item
             ):
                 # 紧簇整对搬闸（2026-11-08 沪→西→沪案）：源日有 ≤2km
-                # 紧簇伴而目标日没有=单独搬走拆对（城墙·碑林被评分器
-                # 搬离碑林博实录）；并簇/换簇到有伴的天不拦。
+                # 紧簇伴而目标日没有=单独搬走拆对（联票挂牌被评分器
+                # 搬离博物馆本体实录）；并簇/换簇到有伴的天不拦。
                 return None
             if not _tight_cluster_mate_on(dst, item) and any(
                 _tight_cluster_mate_on(o, item) for o in p.days if o is not src
             ):
-                # 入簇优先闸（2026-11-08 钟楼案镜像刀）：条目在别日尚有
-                # ≤2km 紧簇伴时不投无伴孤岛日——大清真寺被评分器从 D1
-                # 孤点搬去 D2 大雁塔日、绕过 300m 外鼓楼实录。留原日
+                # 入簇优先闸（2026-11-08 城心簇锚案镜像刀）：条目在别日尚有
+                # ≤2km 紧簇伴时不投无伴孤岛日——同针小件被评分器从 D1
+                # 孤点搬去 D2 异簇王牌日、绕过 300m 外邻锚实录。留原日
                 # 等伴日腾位，不作远嫁。
                 return None
             if _no_return_day(dst, item):
-                return None  # 王牌不上返程日（2026-11-08 兵马俑 D5 案）
+                return None  # 王牌不上返程日（2026-11-08 远郊王牌 D5 案）
             if not _day_hosts(dst, item.city):
                 return None  # 条目城市宿主闸（2026-11-05 城窗收口）
             if (
@@ -16809,7 +16817,7 @@ class PlanningAgent:
             if a is None or b is None or da is db:
                 return None
             if _venue_anchor_on(da, a) or _venue_anchor_on(db, b):
-                return None  # 场馆亲和软钉（2026-11-08 秦俑情案第五刀）
+                return None  # 场馆亲和软钉（2026-11-08 贴场馆演出案第五刀）
             if (
                 _tight_cluster_mate_on(da, a) and not _tight_cluster_mate_on(db, a)
             ) or (_tight_cluster_mate_on(db, b) and not _tight_cluster_mate_on(da, b)):
@@ -16823,7 +16831,7 @@ class PlanningAgent:
                 not _tight_cluster_mate_on(da, b)
                 and any(_tight_cluster_mate_on(o, b) for o in p.days if o is not db)
             ):
-                # 入簇优先闸（2026-11-08 钟楼案镜像刀，同 _move_on）：
+                # 入簇优先闸（2026-11-08 城心簇锚案镜像刀，同 _move_on）：
                 # 对调不得把有伴条目换进无伴孤岛日。
                 return None
             if _no_return_day(db, a) or _no_return_day(da, b):
@@ -16862,7 +16870,7 @@ class PlanningAgent:
             relocated = []
 
             def _cluster_hold(v: VisitItem) -> bool:
-                """原日簇员（2026-11-08 秦俑情案第五刀）：与被摘集或日上
+                """原日簇员（2026-11-08 贴场馆演出案第五刀）：与被摘集或日上
                 留守件任一在近距同日圈（5km）内成伴=先回原日；簇外孤件
                 殿后——容量溢出先溢簇外/低档弱卡，不拆簇。"""
 
@@ -16889,7 +16897,7 @@ class PlanningAgent:
                 return _mate_in(removed) or _mate_in(day.items)
 
             # ⑨联动（初排偏好）：tier1 锚点先重插（targets 原日优先，
-            # 尽量保住最早位）；场馆亲和（2026-11-08 秦俑情案第五刀）：
+            # 尽量保住最早位）；场馆亲和（2026-11-08 贴场馆演出案第五刀）：
             # 原日簇员次先，其余按时长降序——装不下时锚点/簇员同样
             # 可落更晚的天（偏好非硬闸）。
             for i in sorted(
@@ -16905,7 +16913,7 @@ class PlanningAgent:
                     if not _day_hosts(d, i.city):
                         continue  # 条目城市宿主闸（2026-11-05 城窗收口）
                     if _no_return_day(d, i):
-                        continue  # 王牌不上返程日（2026-11-08 兵马俑 D5 案）
+                        continue  # 王牌不上返程日（2026-11-08 远郊王牌 D5 案）
                     if (
                         sum(
                             isinstance(i2, VisitItem)
@@ -16963,7 +16971,7 @@ class PlanningAgent:
             天保持兜底结果（按日降级契约）；最后整体兜底补缝。
             """
             hours = _plan_poi_hours(p)
-            # 与生产主路 _solve 同口径传距离矩阵（2026-11-02 兵马俑→钟楼
+            # 与生产主路 _solve 同口径传距离矩阵（2026-11-02 远郊王牌→城心簇锚
             # 事故）：LNS 重排不传矩阵时插入式求解退化为背靠背，物理不可
             # 行时刻照发。
             matrix = _travel_matrix(p, getattr(self, "_leg_cache", None))
@@ -17071,7 +17079,7 @@ class PlanningAgent:
                 shake_dst = next((d for d in others if _city(d) == _city(target)), None)
                 if shake_dst is None:
                     break
-                # 场馆亲和（2026-11-08 秦俑情案第五刀）：扰动先甩簇外孤件
+                # 场馆亲和（2026-11-08 贴场馆演出案第五刀）：扰动先甩簇外孤件
                 # ——把簇员甩去远日虽是 SA 接受的劣化，也会把拆簇形态
                 # 留进历史最优候选池。
                 shake_cand = next(
@@ -17294,7 +17302,7 @@ class PlanningAgent:
         /v3/direction/walking — the same engine the nav module proxies —
         with origin_id/destination_id POI snapping (amap-recommended).
         /v3/distance type=1 was measured to return DRIVING-scale numbers
-        (e.g. 三峡博物馆→洪崖洞 5.4km/16min ≈ 20km/h) — it does NOT honor
+        (e.g. 市级博物馆→远距街区 5.4km/16min ≈ 20km/h) — it does NOT honor
         the walking type, so it is NOT used for legs. Cached per
         coordinate pair; silent degrade keeps the estimate (leg_source).
         """
@@ -18159,11 +18167,11 @@ class PlanningAgent:
         一位置，不继承 pinned/时刻；当天非 pinned 景点清空时间后按
         move/retime 同款游标链重排。纯计算不烧 LLM。库内无精确同名
         raise no_match；与行程内其它条目重复（含同体验替代组，2026-11-07
-        熊猫谷案：行程有熊猫基地时给其它条目换入熊猫谷在此拦下，换基地
+        替代组次优案：行程有替代组正主时给其它条目换入次优在此拦下，换正主
         本人放行=正当替换）raise duplicate_in_plan；系统餐位（soft_pin
         餐件）不可换 raise meal_slot_locked。换入点离原点位直线
         >_REPLACE_REORDER_KM 时当天插入式重排按距离聚合串线（2026-11-07
-        拍板「熊猫谷替换熊猫基地」，58km 换位原列表序是绕旧点的近邻链）。"""
+        拍板「替代组次优替换替代组正主」，58km 换位原列表序是绕旧点的近邻链）。"""
         plan = session.plan
         if plan is None:
             raise ValueError("no_plan")
@@ -18280,7 +18288,7 @@ class PlanningAgent:
             if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
                 it.start_time = None
                 it.end_time = None
-        # 换入点离原点位远（2026-11-07 拍板「熊猫谷替换熊猫基地」类）：
+        # 换入点离原点位远（2026-11-07 拍板「替代组次优替换替代组正主」类）：
         # 当天插入式重排（与 LNS _retime_trial 同口径，pinned/餐锚不动）
         # 按距离聚合串线；插不下的天回落列表序（按日降级契约）
         delta_km = (
@@ -18403,7 +18411,7 @@ class PlanningAgent:
             if len(cities) == 1:
                 return cities.pop()
             # 2026-10-28 补：库名精确未中→双向包含（短名≥2 字）同城唯一即收——
-            # 「西湖」库内行名「西湖区西湖风景区」不再因名字不等而漏定城。
+            # 「名湖样本」库内行名「某区名湖样本风景区」不再因名字不等而漏定城。
             near: set[str] = set()
             probe = name.strip()
             for h in hits:
@@ -18417,9 +18425,9 @@ class PlanningAgent:
                     near.add(hcity)
             if len(near) == 1:
                 return near.pop()
-            # 2026-10-30 拍板：核心词包含层——「看熊猫」这类意图动词遮蔽库名
+            # 2026-10-30 拍板：核心词包含层——「看+动物名」这类意图动词遮蔽库名
             # 的愿望，剥动词后按核心词（≥2 字）找库名包含行，同城唯一即收，
-            # 心愿单建行/吸收两处都能定城（看熊猫→成都）。深夜升级纯核心
+            # 心愿单建行/吸收两处都能定城（看+动物名→对应城市）。深夜升级纯核心
             # 词（成都附近的水利工程→水利工程→成都）。
             core = _wish_pure_core(name)
             if len(core) >= 2 and core != name.strip():
@@ -18549,7 +18557,7 @@ class PlanningAgent:
                             if isinstance(item, VisitItem)
                         )
                         and not any(
-                            # 占位卡（无 poi_id）不算已安排（看熊猫案）
+                            # 占位卡（无 poi_id）不算已安排（看+动物名案）
                             item.poi_id and _name_dup(wish, item.name)
                             for day in session.plan.days
                             for item in day.items
@@ -18643,7 +18651,7 @@ class PlanningAgent:
                     self._trip_items.update(existing["id"], status=STATUS_WISHLIST)
             except ValueError:
                 logger.warning("plan: trip wish sync failed for %s", wish)
-        # 2026-10-31（看熊猫案）：本回合新建的行此刻才存在——头部 76d 块
+        # 2026-10-31（看+动物名案）：本回合新建的行此刻才存在——头部 76d 块
         # 收口不到它们（行程已安排而行仍 wishlist/无城市/未挂行程）。此处
         # 补：绑定城市回填空城行 + 行收口（翻已排期/note/挂行程）。
         try:
@@ -18944,7 +18952,7 @@ class PlanningAgent:
     def _reanchor_nights_hook(
         diffs: list[DiffOp],
     ) -> Callable[[ItineraryPlan], None]:
-        """编辑/修复回合后顺延夜卡（2026-11-08 西湖 retime 16:00 撞
+        """编辑/修复回合后顺延夜卡（2026-11-08 名湖样本 retime 16:00 撞
         16:45 夜卡 → selfrepair 修复链被二次硬冲突耗尽事故）：末件收尾
         越过卡面起点时卡顺延到「末件+30 起 60 分钟」（只顺延不回拨，
         口径见 reanchor_hotel_nights）；本回合被用户拖/改的夜卡自身
@@ -18985,7 +18993,7 @@ class PlanningAgent:
             _fallback_sequence_times(candidate)
             candidate.assumptions.extend(_transfer_day_sweep(candidate, protect))
             _fallback_sequence_times(candidate)
-            # 编辑侧终闸（2026-11-03 Day4 太平森林公园案）：普通日 None-None
+            # 编辑侧终闸（2026-11-03 Day4 城郊森林公园案）：普通日 None-None
             # 参访卡同样不得交付——仍排不上按 2026-11-02 拍板移除留痕。
             if _has_untimed_visits(candidate):
                 candidate.assumptions.extend(_drop_untimed_visits(candidate, protect))
