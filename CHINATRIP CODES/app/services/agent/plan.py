@@ -6122,10 +6122,14 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             band = 0 if best <= _TIGHT_CLUSTER_KM else (1 if best <= 3.5 else 2)
             # 到达日=轻量近点为主而非无点：持紧簇锚的轻卡(≤120min)按普通
             # 日参与排序（O1 之二；重卡仍殿后）
-            arr_late = 1 if (
-                _day_is_arrival(x, vcity)
-                and not (light and best <= _TIGHT_CLUSTER_KM)
-            ) else 0
+            arr_late = (
+                1
+                if (
+                    _day_is_arrival(x, vcity)
+                    and not (light and best <= _TIGHT_CLUSTER_KM)
+                )
+                else 0
+            )
             cands.append((arr_late, band, best, x))
         cands.sort(key=lambda t: (t[0], t[1], t[2]))
         tgt = None
