@@ -18,6 +18,7 @@ from types import SimpleNamespace
 
 from app.services.agent.plan import (
     _cand_is_curated,
+    _day_purity_sweep,
     _drop_untimed_visits,
     _enforce_show_per_day,
     _evict_wedge_strays,
@@ -791,3 +792,128 @@ def test_arrival_clash_keeps_created_card():
     assert any(i is mine for i in d1.items)
     assert any("手动添加" in n and "不删除" in n for n in notes)
     assert not any(mine.name in n and "已从行程移除" in n for n in notes)
+
+
+# ------------------------------------------- 11-09 终装日纯度清扫（双案根修）
+
+_JEQ = GeoPoint(lon=108.9725, lat=34.2192)  # 十二时辰街区（大雁塔簇内 ~0.6km）
+_YXF = GeoPoint(lon=108.9653, lat=34.2672)  # 永兴坊（市区东侧 ~2.4km 于钟楼）
+
+
+def test_day_purity_sweep_purges_far_from_arrival_day():
+    """清扫①：出圈远点（>15km 于城心 medoid）落到达日必挪非到达日
+    （11-09 兵马俑/骊山到达日案——「到达日只适合简单 CITYWALK 或
+    SHOW」硬口径）。"""
+    lishan = _visit("临潼骊山风景名胜区", 120, _LISHAN, 1, tier=9)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("西安大唐西市博物馆", 60, _V, 1, tier=11), lishan],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("西安鼓楼", 40, _GL, 2, tier=3),
+            _visit("西安城墙", 60, _CQ, 2, tier=3),
+        ],
+    )
+    plan = _plan(d1, d2)
+    _day_purity_sweep(plan, frozenset())
+    assert any(i is lishan for i in d2.items)
+    assert lishan.day == 2
+    assert any("距市区较远" in str(a) for a in plan.assumptions)
+
+
+def test_day_purity_sweep_reunites_family_on_show_day():
+    """清扫③：出圈族散件并回坐族内演出的日（华清宫并回兵马俑+
+    《秦俑情》日——11-09 临潼拆族案，演出贴场馆族=族锚）。"""
+    hqg = _visit("华清宫", 120, _HQG, 2, tier=2)
+    qyq = _visit(
+        "《秦俑情》", 80, _BMY, 4, category="entertainment", tier=6, start=time(17, 0)
+    )
+    bmy = _visit("秦始皇帝陵博物院", 180, _BMY, 4, tier=1)
+    # 城心点须 ≥ 临潼票数，否则小夹具 medoid 会落临潼侧（票制锚）
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("西安大唐西市博物馆", 60, _V, 1, tier=11),
+            _visit("西安钟楼", 40, _GL, 1, tier=3),
+            _visit("西安城墙", 60, _CQ, 1, tier=3),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[_visit("西安鼓楼", 40, _GL, 2, tier=3), hqg],
+    )
+    d4 = DayPlan(day=4, base_city="西安", items=[bmy, qyq])
+    plan = _plan(d1, d2, d4)
+    _day_purity_sweep(plan, frozenset())
+    assert any(i is hqg for i in d4.items)
+    assert hqg.day == 4
+
+
+def test_day_purity_sweep_moves_stranger_out_of_cluster_day():
+    """清扫②：大雁塔簇日（t1 簇核+citywalk 伴）里 >5km 独件挪去有
+    近簇伴的日（11-09 大清真寺插大雁塔/十二时辰日案——t1/t2 王牌计
+    簇核但永不作陌生人候选）。"""
+    dzj = _visit("西安大清真寺", 60, _GL, 2, tier=4)
+    dyt = _visit("大雁塔大唐芙蓉园景区", 120, _DYT, 2, tier=1)
+    jeq = _visit("长安十二时辰主题街区", 90, _JEQ, 2, category="citywalk", tier=3)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("西安大唐西市博物馆", 60, _V, 1, tier=11)],
+    )
+    d2 = DayPlan(day=2, base_city="西安", items=[dyt, jeq, dzj])
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[
+            _visit("西安钟楼", 40, _GL, 3, tier=3),
+            _visit("西安城墙", 60, _CQ, 3, tier=3),
+        ],
+    )
+    plan = _plan(d1, d2, d3)
+    _day_purity_sweep(plan, frozenset())
+    assert any(i is dzj for i in d3.items)
+    assert dzj.day == 3
+    assert any(i is dyt for i in d2.items) and any(i is jeq for i in d2.items)
+
+
+def test_day_purity_sweep_family_day_city_stranger_freed_then_merge():
+    """清扫②+③联动（11-09 拆族二拍实录）：D4 被市内弱件（永兴坊）占
+    位 + 族演（《秦俑情》）在册、华清宫拆在 D5——族占日市内件先回城
+    腾位，族散件随后并回锚日。"""
+    yxf = _visit("永兴坊", 90, _YXF, 4, tier=4)
+    hqg = _visit("华清宫", 120, _HQG, 5, tier=2)
+    qyq = _visit(
+        "《秦俑情》", 80, _BMY, 4, category="entertainment", tier=6, start=time(17, 0)
+    )
+    bmy = _visit("秦始皇帝陵博物院", 180, _BMY, 4, tier=1)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("西安大唐西市博物馆", 60, _V, 1, tier=11),
+            _visit("西安钟楼", 40, _GL, 1, tier=3),
+            _visit("西安城墙", 60, _CQ, 1, tier=3),
+        ],
+    )
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[_visit("西安鼓楼", 40, _GL, 3, tier=3)],
+    )
+    d4 = DayPlan(day=4, base_city="西安", items=[bmy, qyq, yxf])
+    d5 = DayPlan(day=5, base_city="西安", items=[hqg])
+    plan = _plan(d1, d3, d4, d5)
+    _day_purity_sweep(plan, frozenset())
+    assert any(i is yxf for i in d3.items)  # 族日占位者回城（鼓楼近簇伴日）
+    assert not any(i is yxf for i in d4.items)
+    assert any(i is hqg for i in d4.items)  # 族散件腾位后并回锚日
+    assert hqg.day == 4
+    assert any("已挪至第3天" in str(a) for a in plan.assumptions)
+    assert any("已合并至第4天" in str(a) for a in plan.assumptions)

@@ -4270,12 +4270,37 @@ def _host_day_for_visit(
     # 兵马俑被纯度通道、骊山被挪日通道 first-fit 挪进 D1 双实录。
     # 软序不硬拦：非到达日全探不进时仍可落（孤窗兜底同权）——但
     # 重物落到达日必须由调用方披露（_rehome_untimed_visits 已挂），
-    # 不许静默破例。
+    # 不许静默破例。二拍（11-09 兵马俑再犯案）加硬口径：出市区圈
+    # （> _RETURN_URBAN_KM 于本池市区 medoid）的远点到达日直接除名
+    # ——「简单 CITYWALK 或 SHOW」不含 25km 外远郊件，披露也不放。
     if visit is not None and _heavy_rehome_visit(visit, dur):
         _arr_days = [d for d in seq if _day_is_arrival(d, vcity)]
         if _arr_days and len(_arr_days) < len(seq):
             _arr_ids = {id(d) for d in _arr_days}
-            seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
+            _vloc = getattr(visit, "location", None)
+            _out_circle = False
+            if _vloc is not None and getattr(_vloc, "lon", None) is not None:
+                _pts = [
+                    (float(i.location.lon), float(i.location.lat))
+                    for d2 in seq
+                    for i in d2.items
+                    if isinstance(i, VisitItem)
+                    and getattr(i, "location", None) is not None
+                    and getattr(i.location, "lon", None) is not None
+                ]
+                _med = _urban_medoid(_pts)
+                if _med is not None:
+                    _out_circle = (
+                        haversine_km(
+                            GeoPoint(lon=float(_vloc.lon), lat=float(_vloc.lat)),
+                            GeoPoint(lon=_med[0], lat=_med[1]),
+                        )
+                        > _RETURN_URBAN_KM
+                    )
+            if _out_circle:
+                seq = [d for d in seq if id(d) not in _arr_ids]
+            else:
+                seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
     for later in seq:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
@@ -5014,6 +5039,22 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
                 # 5-15km 同片区伴（兵马俑↔华清宫 6.9km）是「一个组合放
                 # 同一天」，只清 >片区圈真异簇（城心↔临潼 34km）
                 continue
+            if any(
+                isinstance(m, VisitItem)
+                and str(m.category or "") == "entertainment"
+                and _has_xy(m)
+                and haversine_km(
+                    GeoPoint(lon=float(vxy.lon), lat=float(vxy.lat)),
+                    GeoPoint(lon=float(m.location.lon), lat=float(m.location.lat)),
+                )
+                <= _DISTRICT_DAY_KM
+                for m in day.items
+            ):
+                # 演出场馆族（11-09 拆族二拍）：当日坐演出且 v 距其场馆
+                # ≤片区圈——v 是演出的贴场馆族件（兵马俑之于秦俑情），
+                # 逐走它=拆演出自己的组合（11-14 兵马俑被逐离秦俑情锚日
+                # 实录）。
+                continue
             # 异簇插排：挪走不删
             vcity = str(v.city or "").strip().removesuffix("市")
             vroot = cluster_of[id(v)]
@@ -5471,6 +5512,9 @@ def _yield_for_premium(
             and not getattr(i, "created", False)
             and not getattr(i, "curated", False)
             and (i.category or "") not in ("food", "hotel")
+            # 演出不作弹座牺牲品（11-09 秦俑情案）：场次刚性+每场闸钉
+            # 日，盲弹去无场次宿主=整卡蒸发；挤兑换位另有专用通道。
+            and (i.category or "") != "entertainment"
             and not _tight_cluster_mate_on(later, i)
             and not _venue_anchor_on(later, i)
             and (
@@ -5893,6 +5937,457 @@ def _transfer_day_sweep(
                 )
             )
     return notes
+
+
+def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -> None:
+    """终装日纯度清扫（2026-11-09 大雁塔簇日插陌生人/到达日重物双案类级
+    收口）：上游各通道（选层初分/预认领/让位弹座/兜底时序/回填）各自
+    合规却可合力把互远件塞进同一天，缺一道跨通道终局对账。三步单向扫：
+
+    ① 出圈件禁到达日（「到达日只适合简单 CITYWALK 或 SHOW」硬口径）：
+       >市区圈半径（_RETURN_URBAN_KM 于本市 medoid）的远点落在到达日
+       一律挪非到达日；全城无处可去才移除留痕（宁缺勿错）。
+    ② 市内簇日陌生人：当日非豁免市内件 ≥3 且存在 ≥2 件近距同日圈主簇
+       时，离主簇 >_NEAR_SAMEDAY_KM 的 tier≥3 独件挪去有近簇伴的日；
+       出圈族占日（≥2 出圈件在册）上的市内件同判异簇先回城——族日
+       被市内件占满则族散件永远合不回去（11-09 拆族二拍实录）；不许
+       挪进出圈族占日再造新陌生人；无处可去保留+披露。
+    ③ 出圈片区族对齐（②腾位后跑）：互距 ≤_DISTRICT_DAY_KM 的出圈件
+       是一族；散件跨日而某日坐族内演出时，散件尽量并回该演出日（演
+       出贴场馆族=族锚；兵马俑/华清宫/《秦俑情》拆日实录）；锚满先
+       弹锚上离族 >5km 市内弱件腾位再试。
+
+    ②扫两轮：一轮后段的挪动可能为前段失败的陌生人开出新宿主（11-10
+    大清真寺实录——碑林/永兴坊后段才落 D1）。挪后重排仍排不上时刻的
+    ②③挪动卡放回原天换披露：排得上时刻的陌生人好过无时刻"？"卡
+    （11-11 含光门实录——探针过闸≠兜底时序必能落位）；①出圈件不放
+    回（到达日硬口径压过时刻观感）。
+    挪动一律走 _host_day_for_visit 实位探针终审（含①到达日硬闸镜像），
+    挪后 _fallback_sequence_times 重排；挪动必留日志，移除/搁置必留披
+    露——静默不许可（10-25 立规）。"""
+    moved = False
+    sweep_moves: list[tuple["VisitItem", DayPlan, str]] = []
+
+    def _vxy(v: "VisitItem") -> GeoPoint | None:
+        loc = getattr(v, "location", None)
+        if loc is None or getattr(loc, "lon", None) is None:
+            return None
+        return GeoPoint(lon=float(loc.lon), lat=float(loc.lat))
+
+    def _is_show_item(v: "VisitItem") -> bool:
+        return (
+            str(getattr(v, "category", "") or "") == "entertainment"
+            or str(getattr(v, "best_visit_time", "") or "") == "show"
+        )
+
+    def _exempt(v: "VisitItem") -> bool:
+        return (
+            getattr(v, "pinned", False)
+            or getattr(v, "soft_pin", False)
+            or getattr(v, "created", False)
+            or getattr(v, "curated", False)
+            or str(v.name) in protect
+            or str(getattr(v, "category", "") or "") in ("food", "hotel")
+            or _is_show_item(v)
+        )
+
+    def _move(
+        v: "VisitItem", src: DayPlan, tgt: DayPlan, note: str | None = None
+    ) -> None:
+        src.items.remove(v)
+        v.day = tgt.day
+        v.start_time = None
+        v.end_time = None
+        tgt.items.append(v)
+        if note is not None:
+            sweep_moves.append((v, src, note))
+
+    def _components(items: list["VisitItem"], radius: float) -> list[list["VisitItem"]]:
+        comps: list[list[VisitItem]] = []
+        for v in items:
+            vx = _vxy(v)
+            hit = [
+                g
+                for g in comps
+                if any(
+                    (ux := _vxy(u)) is not None and haversine_km(vx, ux) <= radius
+                    for u in g
+                )
+            ]
+            if hit:
+                hit[0].append(v)
+                for g in hit[1:]:
+                    hit[0].extend(g)
+                    comps.remove(g)
+            else:
+                comps.append([v])
+        return comps
+
+    def _relocate_stranger(
+        v: "VisitItem", d: DayPlan, vcity: str, days: list[DayPlan], far_ids: set[int]
+    ) -> bool:
+        """市内弱件挪出 d 日：先近簇伴日（到达日殿后），再普通日兜底
+        （须自身有近簇伴）；出圈族占日（≥2 出圈件）禁入。"""
+        nonlocal moved
+        dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+        tgt = None
+        mate_days = [
+            x
+            for x in days
+            if x is not d
+            and _near_cluster_mate_on(x, v)
+            and sum(1 for i in x.items if isinstance(i, VisitItem) and id(i) in far_ids)
+            < 2
+        ]
+        # 到达日殿后（同 _host_day_for_visit 软序口径）：陌生人归位首选
+        # 普通日，到达日只收余量。
+        mate_days.sort(key=lambda x: _day_is_arrival(x, vcity))
+        for md in mate_days:
+            t = _host_day_for_visit([md], vcity, dur, visit=v)
+            if t is not None:
+                tgt = t
+                break
+        if tgt is None:
+            t = _host_day_for_visit(
+                [
+                    x
+                    for x in days
+                    if x is not d
+                    and sum(
+                        1
+                        for i in x.items
+                        if isinstance(i, VisitItem) and id(i) in far_ids
+                    )
+                    < 2
+                ],
+                vcity,
+                dur,
+                visit=v,
+            )
+            if t is not None and _near_cluster_mate_on(t, v):
+                tgt = t
+        if tgt is None:
+            return False
+        src = next(x for x in days if any(i is v for i in x.items))
+        note = L(
+            f"「{v.name}」与第{src.day}天其余景点相距较远，已挪至第{tgt.day}天近景点处",
+            f'"{v.name}" sits far from the other sights on day {src.day}; '
+            f"moved to day {tgt.day} beside nearby sights",
+        )
+        _move(v, src, tgt, note=note)
+        moved = True
+        logger.info(
+            "plan: purity stranger %s day %s -> day %s", v.name, src.day, tgt.day
+        )
+        plan.assumptions.append(note)
+        return True
+
+    cities: dict[str, list[DayPlan]] = {}
+    for d in plan.days:
+        c = str(d.base_city or "").removesuffix("市")
+        if c:
+            cities.setdefault(c, []).append(d)
+    for vcity, days in cities.items():
+        all_visits = [i for d in days for i in d.items if isinstance(i, VisitItem)]
+        pts = [
+            (float(v.location.lon), float(v.location.lat))
+            for v in all_visits
+            if getattr(v, "location", None) is not None
+            and getattr(v.location, "lon", None) is not None
+        ]
+        med = _urban_medoid(pts)
+        far_ids: set[int] = set()
+        if med is not None:
+            med_pt = GeoPoint(lon=med[0], lat=med[1])
+            for v in all_visits:
+                xy = _vxy(v)
+                if xy is not None and haversine_km(xy, med_pt) > _RETURN_URBAN_KM:
+                    far_ids.add(id(v))
+        # ① 出圈件禁到达日
+        for d in days:
+            if not _day_is_arrival(d, vcity):
+                continue
+            for v in [
+                i
+                for i in list(d.items)
+                if isinstance(i, VisitItem) and id(i) in far_ids and not _exempt(i)
+            ]:
+                dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                tgt = _host_day_for_visit(
+                    [x for x in days if x is not d and not _day_is_arrival(x, vcity)],
+                    vcity,
+                    dur,
+                    visit=v,
+                )
+                if tgt is not None:
+                    _move(v, d, tgt)
+                    moved = True
+                    logger.info(
+                        "plan: purity arrival-far %s day %s -> day %s",
+                        v.name,
+                        d.day,
+                        tgt.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"「{v.name}」距市区较远，已从到达日"
+                            f"（第{d.day}天）挪至第{tgt.day}天",
+                            f'"{v.name}" is far from downtown; moved from '
+                            f"arrival day {d.day} to day {tgt.day}",
+                        )
+                    )
+                else:
+                    d.items.remove(v)
+                    logger.warning(
+                        "plan: purity arrival-far %s day %s dropped (no host)",
+                        v.name,
+                        d.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"「{v.name}」距市区较远，到达日只排轻量近点，"
+                            f"其余各天已满，本次未排入",
+                            f'"{v.name}" is far from downtown and every other '
+                            "day is full; the arrival day keeps light sights "
+                            "only, so it was left out",
+                        )
+                    )
+        # ② 市内簇日陌生人（含出圈族占日市内件回城腾位——须先于③族合并
+        # 跑，族散件才有座可落；11-09 大雁塔簇日/拆族二拍实录）。扫两轮：
+        # 一轮后段的挪动可能为前段失败的陌生人开出新宿主（11-10 大清真
+        # 寺实录——碑林/永兴坊后段才落 D1），二轮无新挪动自然空转。
+        for _pass in range(2):
+            for d in days:
+                far_cnt = sum(
+                    1 for i in d.items if isinstance(i, VisitItem) and id(i) in far_ids
+                )
+                if far_cnt >= 2:
+                    fam_xy = [
+                        p
+                        for p in (
+                            _vxy(i)
+                            for i in d.items
+                            if isinstance(i, VisitItem) and id(i) in far_ids
+                        )
+                        if p is not None
+                    ]
+                    # 族占日上的市内件是异簇占位者（离全族 >5km 才算——贴
+                    # 族场馆的市内件不算占位）；tier≥3 弱件回城。
+                    for v in [
+                        i
+                        for i in list(d.items)
+                        if isinstance(i, VisitItem)
+                        and not _exempt(i)
+                        and _vxy(i) is not None
+                        and id(i) not in far_ids
+                        and (getattr(i, "tier", 11) or 11) >= 3
+                        and all(
+                            haversine_km(_vxy(i), p) > _NEAR_SAMEDAY_KM for p in fam_xy
+                        )
+                    ]:
+                        if not _relocate_stranger(v, d, vcity, days, far_ids):
+                            logger.warning(
+                                "plan: purity family-day stranger %s stays day %s"
+                                " (no host)",
+                                v.name,
+                                d.day,
+                            )
+                            note = L(
+                                f"「{v.name}」与第{d.day}天的远郊片区相距较远，"
+                                f"各天均已排满，可按需调整",
+                                f'"{v.name}" is far from the out-of-town area '
+                                f"on day {d.day}; every day is full, feel free "
+                                "to adjust",
+                            )
+                            if note not in plan.assumptions:
+                                plan.assumptions.append(note)
+                    continue
+                day_all = [
+                    i
+                    for i in d.items
+                    if isinstance(i, VisitItem)
+                    and _vxy(i) is not None
+                    and id(i) not in far_ids
+                    and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                ]
+                if len(day_all) < 3:
+                    continue
+                groups = _components(day_all, _NEAR_SAMEDAY_KM)
+                if not groups:
+                    continue
+                groups.sort(
+                    key=lambda g: (
+                        -len(g),
+                        -sum(x.duration_minutes or DEFAULT_VISIT_MINUTES for x in g),
+                    )
+                )
+                core = groups[0]
+                if len(core) < 2:
+                    continue
+                core_ids = {id(x) for x in core}
+                # 王牌（tier≤2）是簇核常客（大雁塔之于十二时辰日），不作
+                # 陌生人候选——挪王牌风险大于收益，tier≥3 才可挪；curated/
+                # 钉卡计簇核但永不作候选（11-10 实录：街区 curated+唐宴
+                # food 被豁免后 day_all=2，大清真寺陌生人根本没开火）。
+                for v in [
+                    x
+                    for x in day_all
+                    if id(x) not in core_ids
+                    and not _exempt(x)
+                    and (getattr(x, "tier", 11) or 11) >= 3
+                ]:
+                    if not _relocate_stranger(v, d, vcity, days, far_ids):
+                        logger.warning(
+                            "plan: purity stranger %s stays day %s (no host)",
+                            v.name,
+                            d.day,
+                        )
+                        note = L(
+                            f"「{v.name}」与第{d.day}天其余景点相距较远，"
+                            f"各天均已排满，可按需调整",
+                            f'"{v.name}" is far from the other sights on '
+                            f"day {d.day}; every day is full, feel free to "
+                            "adjust",
+                        )
+                        if note not in plan.assumptions:
+                            plan.assumptions.append(note)
+        # ③ 出圈片区族对齐（②腾位后跑；族锚=坐族内演出的日；锚禁到达
+        # 日——远郊族不向到达日聚合）
+        fams = _components(
+            [v for v in all_visits if id(v) in far_ids and _vxy(v) is not None],
+            _DISTRICT_DAY_KM,
+        )
+        for fam in fams:
+            if len(fam) < 2:
+                continue
+            show_hosts = [
+                d
+                for d in days
+                if not _day_is_arrival(d, vcity)
+                and any(any(x is i for x in d.items) and _is_show_item(i) for i in fam)
+            ]
+            if not show_hosts:
+                continue
+            anchor = show_hosts[0]
+            stragglers = [
+                v
+                for v in fam
+                if not any(x is v for x in anchor.items) and not _is_show_item(v)
+            ]
+            for v in stragglers:
+                # 心愿/必去/护名卡可挪不可删（2026-11-02 拍板）：族合并
+                # 只挪卡不删卡，故 pinned/soft_pin/protect/created/curated
+                # 全放行（11-10 华清宫心愿散件被豁免静默跳过实录；「curated
+                # 不许消失」护的是删除，不护落位——静默豁免反而让族拆无披露）。
+                if str(getattr(v, "category", "") or "") in (
+                    "food",
+                    "hotel",
+                ) or _is_show_item(v):
+                    continue
+                dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                tgt = _host_day_for_visit([anchor], vcity, dur, visit=v)
+                if tgt is None:
+                    # 锚满：先弹锚上离全族 >5km 的市内弱件腾位再试一次
+                    # （11-09 拆族二拍：锚满即合族失败实录）。
+                    fam_on_anchor = [
+                        f for f in fam if any(x is f for x in anchor.items)
+                    ]
+                    for cw in [
+                        i
+                        for i in list(anchor.items)
+                        if isinstance(i, VisitItem)
+                        and not _exempt(i)
+                        and _vxy(i) is not None
+                        and id(i) not in far_ids
+                        and (getattr(i, "tier", 11) or 11) >= 3
+                        and all(
+                            (fx := _vxy(f)) is None
+                            or haversine_km(_vxy(i), fx) > _NEAR_SAMEDAY_KM
+                            for f in fam_on_anchor
+                        )
+                    ]:
+                        if _relocate_stranger(cw, anchor, vcity, days, far_ids):
+                            tgt = _host_day_for_visit([anchor], vcity, dur, visit=v)
+                            if tgt is not None:
+                                break
+                if tgt is None:
+                    src_day_no = next(
+                        (x.day for x in days if any(i is v for i in x.items)),
+                        "?",
+                    )
+                    logger.warning(
+                        "plan: purity family split %s stays day %s"
+                        " (anchor day %s full)",
+                        v.name,
+                        src_day_no,
+                        anchor.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"「{v.name}」与同片区景点分在第"
+                            f"{anchor.day}天前后，可按需手动合并",
+                            f'"{v.name}" belongs to the same out-of-town area '
+                            f"as sights on day {anchor.day}; merge manually "
+                            "if preferred",
+                        )
+                    )
+                    continue
+                src = next(x for x in days if any(i is v for i in x.items))
+                note = L(
+                    f"「{v.name}」与同片区景点已合并至第{tgt.day}天",
+                    f'"{v.name}" was merged onto day {tgt.day} with '
+                    "sights in the same area",
+                )
+                _move(v, src, tgt, note=note)
+                moved = True
+                logger.info(
+                    "plan: purity family merge %s day %s -> day %s",
+                    v.name,
+                    src.day,
+                    tgt.day,
+                )
+                plan.assumptions.append(note)
+    if moved:
+        _fallback_sequence_times(plan)
+        # 挪后重排仍排不上时刻的 ②③ 挪动卡放回原天换披露（11-11 含光
+        # 门实录：实位探针过闸≠兜底时序必能落位，无时刻"？"卡不该出
+        # 自本清扫——排得上时刻的陌生人好过无时刻卡）；①出圈件不放回
+        # ——到达日硬口径压过时刻观感。同卡多跳挪动按最初源日回滚。
+        orig: dict[int, tuple["VisitItem", DayPlan, list[str]]] = {}
+        for v, src, note in sweep_moves:
+            orig.setdefault(id(v), (v, src, []))[2].append(note)
+        rolled = False
+        for v, src, notes in orig.values():
+            if v.start_time is not None:
+                continue
+            cur = next((x for x in plan.days if any(i is v for i in x.items)), None)
+            if cur is None or cur is src:
+                continue
+            _move(v, cur, src)
+            for note in notes:
+                if note in plan.assumptions:
+                    plan.assumptions.remove(note)
+            logger.warning(
+                "plan: purity rollback %s day %s -> day %s (untimed after move)",
+                v.name,
+                cur.day,
+                src.day,
+            )
+            plan.assumptions.append(
+                L(
+                    f"「{v.name}」试挪至第{cur.day}天后排不上时刻，"
+                    f"已放回第{src.day}天（与当日其余景点相距较远，"
+                    "可按需调整）",
+                    f'"{v.name}" could not be timed after moving to day '
+                    f"{cur.day}; returned to day {src.day} (it sits far "
+                    "from that day's other sights — feel free to adjust)",
+                )
+            )
+            rolled = True
+        if rolled:
+            _fallback_sequence_times(plan)
+        if _has_untimed_visits(plan):
+            plan.assumptions.extend(_drop_untimed_visits(plan, protect))
 
 
 def _rehome_untimed_visits(
@@ -12616,6 +13111,12 @@ class PlanningAgent:
                             xy_w = _cxy(cand_w)
                             if xy_w is None:
                                 continue
+                            if xy is not None and 0 < _km(xy_w, xy) <= _NEAR_SAMEDAY_KM:
+                                # 入钉演出的近距簇伴不是陌生人（11-09 兵马俑
+                                # 案）：钉簇演出回座正是为了贴场伴——把 ≤5km
+                                # 场馆件当「最远陌生人」弹走等于拆掉自己要
+                                # 坐的簇（兵马俑之于秦俑情实录）。
+                                continue
                             rest = [p for p in day_coords[day] if p != xy_w]
                             if not rest:
                                 continue
@@ -15415,6 +15916,10 @@ class PlanningAgent:
         # 晚锚右贴压缩（2026-11-08 拍板）：全部排程相位收口后、校验前，
         # 按天把晚场锚前的可动链贴锚收紧（下午死区前移上午）。
         _compress_before_evening_anchor(plan)
+        # 终装日纯度清扫（2026-11-09 双案）：跑在最后——净化/楔子/每场
+        # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
+        # 交付（含光门"？"实录）；此处是跨通道终局对账的唯一定义点。
+        _day_purity_sweep(plan, must_names)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
