@@ -6073,11 +6073,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             and id(i) not in wander
             and str(getattr(i, "category", "") or "") not in ("food", "hotel")
             and _vxy(i) is not None
-            and (
-                id(i) in core_ids
-                or _exempt(i)
-                or (getattr(i, "tier", 11) or 11) < 3
-            )
+            and (id(i) in core_ids or _exempt(i) or (getattr(i, "tier", 11) or 11) < 3)
         ]
         dists = [haversine_km(vxy, _vxy(i)) for i in anchors]
         near_d = [km for km in dists if 0 < km <= _NEAR_SAMEDAY_KM]
@@ -6110,11 +6106,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             if x is d:
                 continue
             if (
-                sum(
-                    1
-                    for i in x.items
-                    if isinstance(i, VisitItem) and id(i) in far_ids
-                )
+                sum(1 for i in x.items if isinstance(i, VisitItem) and id(i) in far_ids)
                 >= 2
             ):
                 continue
@@ -6244,8 +6236,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                     )
                 elif keep:
                     logger.warning(
-                        "plan: purity arrival-far %s day %s kept"
-                        " (must/wish, no host)",
+                        "plan: purity arrival-far %s day %s kept (must/wish, no host)",
                         v.name,
                         d.day,
                     )
