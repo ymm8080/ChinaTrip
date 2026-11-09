@@ -6076,8 +6076,10 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             and (id(i) in core_ids or _exempt(i) or (getattr(i, "tier", 11) or 11) < 3)
         ]
         dists = [haversine_km(vxy, _vxy(i)) for i in anchors]
-        near_d = [km for km in dists if 0 < km <= _NEAR_SAMEDAY_KM]
-        tight = any(0 < km <= _TIGHT_CLUSTER_KM for km in dists)
+        # 同针贴邻（km=0）计入：贴邻 0 距离是最强族力信号（大清真寺与
+        # 钟鼓楼同坊；② 判簇 _components 本就 ≤radius 含 0，此处口径对齐）
+        near_d = [km for km in dists if km <= _NEAR_SAMEDAY_KM]
+        tight = any(km <= _TIGHT_CLUSTER_KM for km in dists)
         if len(near_d) >= 2 or tight or (near_d and len(anchors) <= 2):
             return (len(near_d), min(near_d))
         return None
@@ -6101,7 +6103,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
         合格日=失败（调用方保留+披露）。"""
         nonlocal moved
         dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-        cands: list[tuple[float, int, DayPlan]] = []
+        light = dur <= 120
+        cands: list[tuple[int, int, float, DayPlan]] = []
         for x in days:
             if x is d:
                 continue
@@ -6113,10 +6116,20 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             near = _anchor_rank(v, x)
             if near is None:
                 continue
-            cands.append((near[1], 1 if _day_is_arrival(x, vcity) else 0, x))
-        cands.sort(key=lambda t: (t[1], t[0]))
+            best = near[1]
+            # 锚分带：紧簇(≤2km)族力先于圈边(3.5-5km)压线伴——11-14 碑林
+            # 博物馆 4.82km 圈边双伴日压过 1.2km 真族伴实录（O1 之一）
+            band = 0 if best <= _TIGHT_CLUSTER_KM else (1 if best <= 3.5 else 2)
+            # 到达日=轻量近点为主而非无点：持紧簇锚的轻卡(≤120min)按普通
+            # 日参与排序（O1 之二；重卡仍殿后）
+            arr_late = 1 if (
+                _day_is_arrival(x, vcity)
+                and not (light and best <= _TIGHT_CLUSTER_KM)
+            ) else 0
+            cands.append((arr_late, band, best, x))
+        cands.sort(key=lambda t: (t[0], t[1], t[2]))
         tgt = None
-        for _, _, md in cands:
+        for _, _, _, md in cands:
             t = _host_day_for_visit([md], vcity, dur, visit=v)
             if t is not None:
                 tgt = t
