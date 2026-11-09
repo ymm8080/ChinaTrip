@@ -529,6 +529,16 @@ def _plain_street_cand(cand: dict) -> bool:
     return any(m in name for m in _STREET_NAME_MARKS)
 
 
+def _street_like_visit(v: "VisitItem") -> bool:
+    """街道/citywalk 类卡判定（2026-11-09 拍板唯一定义点）：到达日只收
+    此类轻件，重要景点（博物馆/地标类）不因近而入。品类 citywalk 或名
+    带 街/巷/坊 语素；库 category 为 attraction/historic 不可靠，语素
+    口径同 _plain_street_cand。"""
+    return str(getattr(v, "category", "") or "").strip().lower() == "citywalk" or any(
+        m in str(v.name or "") for m in _STREET_NAME_MARKS
+    )
+
+
 def _street_block_priority(
     ordered: list[tuple[int, dict]],
 ) -> list[tuple[int, dict]]:
@@ -5544,6 +5554,12 @@ def _yield_for_premium(
                 if (d is not origin or d is later)
                 and str(d.base_city or "").strip().removesuffix("市") == vcity
             ]
+            # 到达日殿后（2026-11-09 拍板：到达日只收街道/citywalk 类轻件，
+            # 重要景点殿后）：零弹座跨日择宿按日序首配会把空到达日当第一
+            # 宿主（11-14 实录——后段晨间有圈伴却先落到达日）；非街道类卡
+            # 把到达日挪池尾，仍可作最后兜底（宁末选勿蒸发）。
+            if not _street_like_visit(visit):
+                zero_pool.sort(key=lambda d: _day_is_arrival(d, vcity))
             zero_target = _host_day_for_visit(
                 zero_pool, vcity, dur, incoming=visit.location, visit=visit
             )
@@ -6098,35 +6114,43 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
     def _relocate_stranger(
         v: "VisitItem", d: DayPlan, vcity: str, days: list[DayPlan], far_ids: set[int]
     ) -> bool:
-        """市内弱件挪出 d 日：只许挪向常驻簇收容日（_anchor_rank），到
-        达日殿后、近伴多者先探容量；出圈族占日（≥2 出圈件）禁入；无
-        合格日=失败（调用方保留+披露）。"""
+        """市内弱件挪出 d 日：只许挪向常驻簇收容日（_anchor_rank），候
+        选键 (arrival, band, best_km)——到达日只收街道/citywalk 类轻件
+        （2026-11-09 拍板），紧簇(≤2km)族力先于圈边压线伴；出圈族占日
+        （≥2 出圈件）禁入但 ≤2km 紧簇族锚可豁免；容量探针逐一把关；
+        无合格日=失败（调用方保留+披露）。"""
         nonlocal moved
         dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
         light = dur <= 120
+        # 到达日街道类判定（2026-11-09 拍板，唯一定义点 _street_like_visit）
+        street_like = _street_like_visit(v)
         cands: list[tuple[int, int, float, DayPlan]] = []
         for x in days:
             if x is d:
                 continue
-            if (
-                sum(1 for i in x.items if isinstance(i, VisitItem) and id(i) in far_ids)
-                >= 2
-            ):
-                continue
             near = _anchor_rank(v, x)
             if near is None:
                 continue
+            # 出圈族占日（≥2 出圈件）禁入——除非该日有 ≤2km 紧簇族锚
+            # （11-14 实录：目标日=近圈锚+双远出城件被封死，1.2km 级真族
+            # 锚反不可达；归族不是添城腿，容量探针仍把关）
+            if (
+                sum(1 for i in x.items if isinstance(i, VisitItem) and id(i) in far_ids)
+                >= 2
+                and near[1] > _TIGHT_CLUSTER_KM
+            ):
+                continue
             best = near[1]
-            # 锚分带：紧簇(≤2km)族力先于圈边(3.5-5km)压线伴——11-14 碑林
-            # 博物馆 4.82km 圈边双伴日压过 1.2km 真族伴实录（O1 之一）
+            # 锚分带：紧簇(≤2km)族力先于圈边(3.5-5km)压线伴——11-14 实
+            # 录：4.82km 圈边双伴日压过 1.2km 真族伴（O1 之一）
             band = 0 if best <= _TIGHT_CLUSTER_KM else (1 if best <= 3.5 else 2)
-            # 到达日=轻量近点为主而非无点：持紧簇锚的轻卡(≤120min)按普通
-            # 日参与排序（O1 之二；重卡仍殿后）
+            # 到达日只收街道/citywalk 类轻件：持紧簇锚的街道卡(≤120min)
+            # 按普通日参与；重要景点（博物馆/地标）与重卡仍殿后
             arr_late = (
                 1
                 if (
                     _day_is_arrival(x, vcity)
-                    and not (light and best <= _TIGHT_CLUSTER_KM)
+                    and not (street_like and light and best <= _TIGHT_CLUSTER_KM)
                 )
                 else 0
             )
