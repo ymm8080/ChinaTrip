@@ -4150,6 +4150,30 @@ def _day_has_departure(day: DayPlan, vcity: str) -> bool:
     )
 
 
+def _day_is_arrival(day: DayPlan, vcity: str) -> bool:
+    """到达日（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或 SHOW」
+    的镜像识别，与返程日 _day_is_return_home 口径对齐）：带落地 vcity
+    定时腿的天；或首日（单城无腿行程以首日为准；多城出发城首日=离城
+    边日同让）。"""
+    return day.day == 1 or any(
+        isinstance(t4, TransferItem)
+        and t4.start_time is not None
+        and str(t4.to_city or "").strip().removesuffix("市") == vcity
+        for t4 in day.items
+    )
+
+
+def _heavy_rehome_visit(visit: VisitItem, dur: int) -> bool:
+    """挪日重物判定（到达日轻量拍板）：tier≤2 王牌或 >80min 大点；
+    街区/演出/餐住不算重——它们本来就可进到达日。"""
+    vt = getattr(visit, "tier", None)
+    vcat = str(getattr(visit, "category", "") or "").lower()
+    return (vt is not None and vt <= 2) or (
+        vcat not in ("food", "hotel", "entertainment", "citywalk")
+        and dur > BIG_SITE_MIN_MINUTES
+    )
+
+
 def _urban_medoid(pts: list[tuple[float, float]]) -> tuple[float, float] | None:
     """市区锚（2026-11-08 返程日市区圈拍板）：点位云里 _RETURN_URBAN_KM
     圈内邻居最多的点——主导簇代理。中位数锚会被远郊件拉偏（重庆 12
@@ -4242,33 +4266,16 @@ def _host_day_for_visit(
         _dep_ids = {id(d) for d in _dep_days}
         seq = [d for d in seq if id(d) not in _dep_ids] + _dep_days
     # 到达日殿后（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或
-    # SHOW」）：重物（tier≤2 王牌或 >80min 大点；街区/演出/餐住不
-    # 算重）挪日不得首选到达日——兵马俑被纯度通道、骊山被挪日通道
-    # first-fit 挪进 D1 双实录。到达日识别=带落地 vcity 定时腿的天，
-    # 或首日（单城无腿以首日为准；多城出发城首日=离城边日同让）。
-    # 软序不硬拦：非到达日全探不进时仍可落（孤窗兜底同权）。
-    if visit is not None:
-        _vh_tier = getattr(visit, "tier", None)
-        _vh_cat = str(getattr(visit, "category", "") or "").lower()
-        _heavy_visit = (_vh_tier is not None and _vh_tier <= 2) or (
-            _vh_cat not in ("food", "hotel", "entertainment", "citywalk")
-            and dur > BIG_SITE_MIN_MINUTES
-        )
-        if _heavy_visit:
-            _arr_days = [
-                d
-                for d in seq
-                if d.day == 1
-                or any(
-                    isinstance(t5, TransferItem)
-                    and t5.start_time is not None
-                    and str(t5.to_city or "").strip().removesuffix("市") == vcity
-                    for t5 in d.items
-                )
-            ]
-            if _arr_days and len(_arr_days) < len(seq):
-                _arr_ids = {id(d) for d in _arr_days}
-                seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
+    # SHOW」）：重物（_heavy_rehome_visit）挪日不得首选到达日——
+    # 兵马俑被纯度通道、骊山被挪日通道 first-fit 挪进 D1 双实录。
+    # 软序不硬拦：非到达日全探不进时仍可落（孤窗兜底同权）——但
+    # 重物落到达日必须由调用方披露（_rehome_untimed_visits 已挂），
+    # 不许静默破例。
+    if visit is not None and _heavy_rehome_visit(visit, dur):
+        _arr_days = [d for d in seq if _day_is_arrival(d, vcity)]
+        if _arr_days and len(_arr_days) < len(seq):
+            _arr_ids = {id(d) for d in _arr_days}
+            seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
     for later in seq:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
@@ -5958,6 +5965,27 @@ def _rehome_untimed_visits(
                             "for re-timing",
                         )
                     )
+                    if _day_is_arrival(target, vcity) and _heavy_rehome_visit(
+                        visit, dur
+                    ):
+                        # 重物落到达日=孤窗兜底（非到达日全探不进），
+                        # 破「到达日轻量」例必须披露（青城山案口径：
+                        # 结构性无解靠完整披露，不静默塞）。
+                        logger.warning(
+                            "plan: heavy rehome %s lands arrival day %d (last resort)",
+                            visit.name,
+                            target.day,
+                        )
+                        notes.append(
+                            L(
+                                f"「{visit.name}」其余天均已排满，仅到达日"
+                                f"（第{target.day}天）有余量，已破例排入；"
+                                "到达日本以轻量为主，可按需调整",
+                                f'"{visit.name}" only fits the arrival day '
+                                f"(day {target.day}) — all other days are "
+                                "full; feel free to adjust",
+                            )
+                        )
                 continue
             target = _host_day_for_visit(
                 pool, vcity, dur, incoming=visit.location, visit=visit
@@ -5975,6 +6003,22 @@ def _rehome_untimed_visits(
                         f"moved to day {target.day} for re-timing",
                     )
                 )
+                if _day_is_arrival(target, vcity) and _heavy_rehome_visit(visit, dur):
+                    logger.warning(
+                        "plan: heavy rehome %s lands arrival day %d (last resort)",
+                        visit.name,
+                        target.day,
+                    )
+                    notes.append(
+                        L(
+                            f"「{visit.name}」其余天均已排满，仅到达日"
+                            f"（第{target.day}天）有余量，已破例排入；"
+                            "到达日本以轻量为主，可按需调整",
+                            f'"{visit.name}" only fits the arrival day '
+                            f"(day {target.day}) — all other days are "
+                            "full; feel free to adjust",
+                        )
+                    )
     return notes
 
 
@@ -12343,6 +12387,11 @@ class PlanningAgent:
                     # 第二场演出挤到另一天逃过「一天最多一场演出」主闸
                     # （test_show_per_day 雨日对调案）。
                     _show_pre = _cand_is_show(cand) and not _show_night_only(cand)
+                    # 每候选重置（2026-11-09 空变量根修）：片区伴天清单只
+                    # 在下方 else 分支赋值；不重置时演出钉日/无坐标分支
+                    # 落位后的 cluster_day 对齐检查会读到上一候选的残值
+                    # （跨候选串档）或直接 UnboundLocalError。
+                    district_mates: list[int] = []
                     if _cid is None:
                         # 无坐标候选没有地理归属：纯最早容量（不玩
                         # 一簇一天——owner=None 的天不算「已开簇」）。
@@ -12382,6 +12431,38 @@ class PlanningAgent:
                             for d in eligible
                             if day_owner.get(d) == _cid and d not in tight_kin
                         ]
+                        # 片区伴天牵引（2026-11-08 临潼拍板「按距离是一个
+                        # 组合。放在某一天」）：互距在近距圈外、片区圈
+                        # （_DISTRICT_DAY_KM，15km）内的高价值组合是同
+                        # 片区一族——兵马俑↔华清宫 6.9km、离城心均
+                        # 25km+，应认领片区伴已开的天，优先于演出钉日
+                        # （_nat）把片区拆上两天。软偏好：容量/4 点日闸
+                        # 照收；无片区伴天时零影响，_nat 钉日机制不破。
+                        district_mates = (
+                            sorted(
+                                (
+                                    d
+                                    for d in eligible
+                                    if d not in tight_kin
+                                    and d not in kin
+                                    and day_coords.get(d)
+                                    and min(_km(xy, p) for p in day_coords[d])
+                                    <= _DISTRICT_DAY_KM
+                                ),
+                                key=lambda d: (
+                                    min(_km(xy, p) for p in day_coords[d]),
+                                    d,
+                                ),
+                            )
+                            if xy is not None
+                            else []
+                        )
+                        if district_mates:
+                            logger.info(
+                                "plan: preclaim district-mate %s -> days %s first",
+                                cand.get("name") or cand.get("title") or "?",
+                                district_mates,
+                            )
                         # 层①「预占最早有容量天」：同簇天优先（不拆
                         # 簇），其余按日序——无主天不再前置（会把新
                         # 簇推去更晚天，乙园簇/东方明珠案）。（2026-11-08
@@ -12399,16 +12480,21 @@ class PlanningAgent:
                             and cluster_day.get(_cid) in eligible
                             and cluster_day[_cid] not in tight_kin
                             and cluster_day[_cid] not in kin
+                            and cluster_day[_cid] not in district_mates
                             else []
                         )
                         order = (
                             tight_kin
                             + kin
+                            + district_mates
                             + _nat
                             + [
                                 d
                                 for d in eligible
-                                if d not in tight_kin and d not in kin and d not in _nat
+                                if d not in tight_kin
+                                and d not in kin
+                                and d not in district_mates
+                                and d not in _nat
                             ]
                         )
                     # 边日轻重（2026-11-03 拍板「重要景点不放在到达/
@@ -12447,6 +12533,11 @@ class PlanningAgent:
                         and xy is not None
                         and show_pin_day in order
                         and _km(xy, show_pin_xy) <= _NEAR_SAMEDAY_KM
+                        and (
+                            not district_mates or show_pin_day in district_mates
+                        )  # 片区伴日已开时不抢位（2026-11-08 临潼拍板：
+                        # 兵马俑跟华清宫同片区日优先，演出随 cluster_day
+                        # 对齐跟随场馆实际落日，不再反向拖场馆）。
                     ):
                         order = [show_pin_day] + [d for d in order if d != show_pin_day]
                     # 近距贴邻同日（2026-11-07 钟楼/鼓楼/回民街同街拆天案）：
@@ -12508,6 +12599,77 @@ class PlanningAgent:
                         ]
                         if _dry2:
                             order = _dry2 + [d for d in order if d not in _dry2]
+
+                    def _evict_stranger_for_pin(day: int, order_: list) -> bool:
+                        """钉簇演出满员换座（2026-11-08 临潼拍板收口）：
+                        多场演出钉簇自然日却被 4 点日帽拒（预算已按二拍豁
+                        免）时，把当日「零近距簇伴的陌生人」（非必去/演
+                        出、与当日其余点全部 >_NEAR_SAMEDAY_KM，离簇最远
+                        者最弱——每场闸③牺牲者同口径）移去其可落日
+                        （软兜底同闸：开放/4 帽/远腿/返程/边日），钉簇演
+                        出收回座位。陌生人不出局只换日；无陌生人可换返
+                        回 False 走原闸（宁缺勿乱换）。"""
+                        weak = []
+                        for pos_w, cand_w in placed[day]:
+                            if cand_w.get("must") or _cand_is_show(cand_w):
+                                continue
+                            xy_w = _cxy(cand_w)
+                            if xy_w is None:
+                                continue
+                            rest = [p for p in day_coords[day] if p != xy_w]
+                            if not rest:
+                                continue
+                            if any(_km(xy_w, p) <= _NEAR_SAMEDAY_KM for p in rest):
+                                continue
+                            weak.append(
+                                (min(_km(xy_w, p) for p in rest), pos_w, cand_w, xy_w)
+                            )
+                        weak.sort(key=lambda t: -t[0])
+                        for _wd, pos_w, cand_w, xy_w in weak:
+                            m_w = _minutes(cand_w, DEFAULT_VISIT_MINUTES)
+                            for e in [d for d in order_ if d != day]:
+                                if not _day_open_for(cand_w, pos_w, e):
+                                    continue
+                                if day_loads[e][1] >= 4:
+                                    continue
+                                if _far_km(xy_w, e) > _SOFT_FAR_KM:
+                                    continue
+                                if _over_return_cap(e, m_w, _leg_min(xy_w, e)):
+                                    continue
+                                if (
+                                    (
+                                        (e == days and days in _tdays)
+                                        or (
+                                            e in _adays
+                                            and any(d not in _adays for d in eligible)
+                                        )
+                                    )
+                                    and len(eligible) > 1
+                                    and (
+                                        _source_tier(cand_w) <= 2
+                                        or _cand_is_big(cand_w)
+                                    )
+                                ):
+                                    continue
+                                leg_w = _leg_min(xy_w, e)
+                                day_loads[e][0] += m_w + leg_w
+                                day_loads[e][1] += 1
+                                day_coords[e].append(xy_w)
+                                placed[e].append((pos_w, cand_w))
+                                placed[day].remove((pos_w, cand_w))
+                                day_loads[day][0] -= m_w + _leg_min(xy_w, day)
+                                day_loads[day][1] -= 1
+                                if xy_w in day_coords[day]:
+                                    day_coords[day].remove(xy_w)
+                                logger.info(
+                                    "plan: pin-show evict %s day %s -> day %s",
+                                    cand_w.get("name") or "?",
+                                    day,
+                                    e,
+                                )
+                                return True
+                        return False
+
                     for day in order:
                         if not _day_open_for(cand, pos, day):
                             continue  # 族占日不收异簇可数件（2026-11-08 拍板⑥）
@@ -12538,8 +12700,29 @@ class PlanningAgent:
                             # 上午闸口径），到达日守轻量拍板——除非全窗
                             # 只剩该边日可投。
                             continue
-                        if load[1] >= 4 or load[0] + minutes + leg > _budget(day):
-                            continue
+                        _pin_show = bool(
+                            _show_pre
+                            and _cid is not None
+                            and day == cluster_day.get(_cid)
+                        )
+                        if load[1] >= 4 or (
+                            load[0] + minutes + leg > _budget(day) and not _pin_show
+                        ):
+                            # 钉簇演出满员换座（2026-11-08 临潼拍板：
+                            # 「按距离是一个组合。放在某一天」——陌生人占
+                            # 座不让组合散件出局）：仅 4 帽拒且换出陌生
+                            # 人成功时收回座位；换不出走原闸。
+                            if not (
+                                _pin_show
+                                and load[1] >= 4
+                                and _evict_stranger_for_pin(day, order)
+                            ):
+                                # 簇钉演出免预算查（2026-11-08 二拍「簇日
+                                # 不查预算——贴簇优先，装不下交求解层挪
+                                # 天/移除+披露，不静默破簇」的预认领镜
+                                # 像）＋满员换座（上方）。4 点日帽/远腿/
+                                # 返程/边日闸照收——只免分钟预算。
+                                continue
                         load[0] += minutes + leg
                         load[1] += 1
                         if xy is not None:
@@ -12548,7 +12731,28 @@ class PlanningAgent:
                         _partial_rain_note(cand, day)
                         if _cid is not None:
                             day_owner.setdefault(day, _cid)
+                        if (
+                            day in district_mates
+                            and _cid in _show_cluster_ids
+                            and cluster_day.get(_cid) != day
+                        ):
+                            # 片区伴落日对齐（2026-11-08 临潼拍板，族落日
+                            # 对齐 cluster_day 的散件镜像）：场馆件被片区
+                            # 伴牵引改落后，同簇演出钉日跟着搬到实际落日
+                            # ——演出贴场馆不拆（兵马俑落 D3、秦俑情跟随）。
+                            cluster_day[_cid] = day
+                            logger.info(
+                                "plan: district claim aligns cluster_day %s -> day %s",
+                                _cid,
+                                day,
+                            )
                         preclaimed.add(pos)
+                        if _cand_is_show(cand):
+                            logger.info(
+                                "plan: preclaim show landed %s -> day %s (strict)",
+                                cand.get("name") or "?",
+                                day,
+                            )
                         break
                     else:
                         # 软闸兜底（与主环池内点同语义，2026-11-02
@@ -12588,6 +12792,12 @@ class PlanningAgent:
                             if _cid is not None:
                                 day_owner.setdefault(day, _cid)
                             preclaimed.add(pos)
+                            if _cand_is_show(cand):
+                                logger.info(
+                                    "plan: preclaim show landed %s -> day %s (soft)",
+                                    cand.get("name") or "?",
+                                    day,
+                                )
                             break
 
                 # 紧簇愈合同位交换（2026-11-08 城心簇拆天案二拍，用户复测
@@ -12828,6 +13038,17 @@ class PlanningAgent:
                 cid = clusters[pos]
                 xy = _cxy(cand)
                 day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
+                if _cand_is_show(cand) and _show_night_only(cand):
+                    logger.info(
+                        "plan: mainloop night show %s cid=%s cluster_day=%s -> day %s "
+                        "(load=%s budget=%s)",
+                        cand.get("name") or cand.get("title") or "?",
+                        cid,
+                        cluster_day.get(cid),
+                        day,
+                        day_loads[day],
+                        _budget(day),
+                    )
                 # 族占日不收异簇可数件（2026-11-08 拍板⑥）：主环直排/
                 # 簇自然日指向族日时改投开放日；全窗无开放日软放（不饿死）。
                 if not _family_open(cand, pos, day):
@@ -12947,12 +13168,20 @@ class PlanningAgent:
                 # 预占位被偏好带挤出后石刻走主环，簇日直排无远腿闸——
                 # 与金佛山同日直排成功（腿分钟封顶让预算闸看不见 159km）。
                 # 远腿改走溢出分支（余量最大天带远腿闸，软超额不救距离）。
+                # 夜场演出例外（2026-11-08 二拍「簇日不查预算——贴簇
+                # 优先」的主环镜像）：预算超额不溢出丢簇日——临潼案
+                # 秦俑情因 D3 预算满被溢出别天，夜演贴排组合反向把
+                # 兵马俑拖去陪演、片区组合拆天。装不下交求解层挪天/
+                # 移除+披露，不静默破簇。4/日帽与远腿/返程闸照收。
                 if (
-                    load[0] + minutes + leg > _budget(day)
-                    or load[1] >= 4
+                    load[1] >= 4
                     or _far_km(xy, day) > _SOFT_FAR_KM
                     or _over_return_cap(day, minutes, leg)
                     or _ret_far(cand, day)
+                    or (
+                        load[0] + minutes + leg > _budget(day)
+                        and not (_cand_is_show(cand) and _show_night_only(cand))
+                    )
                 ):
                     day = (
                         _emptiest_day()
@@ -13101,8 +13330,14 @@ class PlanningAgent:
                                     )
                                 return
                     # ③ 就地改排：未入选室内点顶上（1:1，预算/个数不变）
+                    # 命名空间对齐（2026-11-08 临潼案）：placed 里的 pos 全
+                    # 是池序，旧版拿 ordered 全序索引比对必错位——已排卡
+                    # （秦俑情 D3）被误判「未入选」整卡重发一份进雨日，
+                    # 下游均衡再把场馆当可单飞件拆去陪重发卡。替代候选
+                    # 一律取池内（同 pos 命名空间，天然尊重品类帽），落
+                    # 位登记 preclaimed 防主环重排同一件。
                     placed_pos = {p for lst in placed.values() for p, _ in lst}
-                    for p3, c3 in ordered:
+                    for p3, (_i3, c3) in enumerate(pool):
                         if p3 in placed_pos or c3.get("rain_ok") != "yes":
                             continue
                         in_min = _minutes(c3, DEFAULT_VISIT_MINUTES)
@@ -13110,6 +13345,7 @@ class PlanningAgent:
                             continue
                         placed[rd].remove((pos, cand))
                         placed[rd].append((p3, c3))
+                        preclaimed.add(p3)
                         day_loads[rd][0] += in_min - out_min
                         if notes is not None:
                             notes.append(
@@ -13340,7 +13576,27 @@ class PlanningAgent:
                     shows,
                     key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
                 )
-                best = _shows_ranked[0][1]
+                # 已排演出去重（2026-11-08 临潼案）：预认领（钉簇/贴
+                # 邻通道）已落位的演出不再整卡重发——重发=同一张卡两
+                # 天各一份，下游均衡还会把场馆误当可单飞件拆去陪重
+                # 发卡。
+                _placed_show_names = {
+                    str(c_.get("name") or "")
+                    for _seq in placed.values()
+                    for _p_, c_ in _seq
+                    if _cand_is_show(c_)
+                }
+                _shows_ranked = [
+                    p_
+                    for p_ in _shows_ranked
+                    if str(p_[1].get("name") or "") not in _placed_show_names
+                ]
+                if len(_shows_ranked) < len(shows):
+                    logger.info(
+                        "plan: night-show finale dedupe: %d already placed",
+                        len(shows) - len(_shows_ranked),
+                    )
+                best = _shows_ranked[0][1] if _shows_ranked else None
                 # 钉日与预算预扣（show_pin_day）同源：不复算，防两处口径漂移
                 show_day = show_pin_day if show_pin_day is not None else hi
                 # 演出日按最近簇选日（2026-11-08 长恨歌/华清宫同址案）：终装
@@ -13380,7 +13636,9 @@ class PlanningAgent:
                 # 演出每场闸联动（2026-11-02 用户拍板）：收尾日已有演出时，
                 # 夜场改钉同城窗口内最近的无演出日；全窗都有演出则不重复
                 # 钉（由已排演出承担，点名披露）。
-                if any(_cand_is_show(c_) for _p_, c_ in placed.get(show_day, [])):
+                if best is not None and any(
+                    _cand_is_show(c_) for _p_, c_ in placed.get(show_day, [])
+                ):
                     alt_day = next(
                         (
                             d
@@ -13924,6 +14182,17 @@ class PlanningAgent:
                 for s in day_specs.get(d, [])
                 if not s.get("must")
                 and s.get("category") not in ("food", "entertainment")
+                # 钉簇演出片区圈不拆（2026-11-08 临潼拍板「按距离
+                # 是一个组合。放在某一天」+二拍「簇日不查预算」）：
+                # 同日演出 _DISTRICT_DAY_KM 片区圈内的成员与演出绑
+                # 一个组合，演出不可搬、成员不单飞——宁软闸超载，
+                # 交求解层挪天/移除+披露，不静默破簇。
+                and not any(
+                    o is not s
+                    and o.get("category") == "entertainment"
+                    and _pair_km(s, o) <= _DISTRICT_DAY_KM
+                    for o in day_specs.get(d, [])
+                )
             ]
 
             def _try_single(s0: dict) -> bool:

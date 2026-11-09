@@ -37,6 +37,8 @@ from app.services.restaurants import (
     LUNCH_DURATION_FLOOR_MINUTES,
     LUNCH_START_EARLIEST,
     LUNCH_START_LATEST,
+    is_dinner_placeholder,
+    is_lunch_placeholder,
 )
 
 logger = logging.getLogger(__name__)
@@ -1604,10 +1606,24 @@ def insertion_schedule_day(
         )
 
     dur_overrides: dict[str, int] = {}
+    unsched_meals: list[VisitItem] = []
     hard = [s for s in rest if not (flex_day and s.dur_lo and s.dur_lo < s.dur)]
     meals = [s for s in rest if s not in hard]
     for spec in sorted(hard, key=_hkey):
         marker = _try_insert(spec)
+        if marker is None and (
+            is_lunch_placeholder(spec.item) or is_dinner_placeholder(spec.item)
+        ):
+            # 占位餐卡同降级（上一条口径的硬排镜像）：非弹性日占位餐
+            # 卡走 hard 序，开餐窗被晚场演出占死时同样不得作废整日
+            # 参访解——降级为不排时刻占位。
+            logger.info(
+                "solver: meal slot infeasible day %s %s -> keep unscheduled",
+                day.day,
+                spec.item.name,
+            )
+            unsched_meals.append(spec.item)
+            continue
         if marker is None:
             return None
         if marker < 0:
@@ -1615,7 +1631,21 @@ def insertion_schedule_day(
     for spec in meals:
         marker = _try_insert(spec)
         if marker is None:
-            return None
+            # 餐卡降级不连坐（2026-11-08 临潼案根修）：晚饭开餐窗被晚场
+            # 演出整窗占死（秦俑情 17:00-18:20 vs [17:00,18:00)）时，整
+            # 日四件参访好解被一张餐卡作废→回落 CP/兜底→扫尾把组合件
+            # 挪散。餐卡按「窗满丢餐/自由安排占位」口径降级为不排时刻
+            # 占位（交调用方兜底排序），参访解保住。
+            logger.info(
+                "solver: meal slot infeasible day %s %s -> keep unscheduled",
+                day.day,
+                spec.item.name,
+            )
+            unsched_meals.append(spec.item)
+            continue
+        if marker < 0:
+            entry = next(o for o in occupied if o[2] is spec.item)
+            dur_overrides[spec.item.item_id] = entry[1] - entry[0]
         if marker < 0:
             entry = next(o for o in occupied if o[2] is spec.item)
             dur_overrides[spec.item.item_id] = entry[1] - entry[0]
@@ -1739,6 +1769,8 @@ def insertion_schedule_day(
         if item.item_id not in seen_transfers:
             placed.append((_to_minutes(item.start_time), item))
     placed.sort(key=lambda pair: (pair[0], getattr(pair[1], "item_id", "")))
+    for m in unsched_meals:
+        placed.append((24 * 60, m))
     return DayPlan(day=day.day, base_city=day.base_city, items=[i for _, i in placed])
 
 

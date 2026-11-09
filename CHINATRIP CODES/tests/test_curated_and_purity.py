@@ -44,6 +44,12 @@ _VIC = GeoPoint(lon=108.9425, lat=34.2600)  # 让位牺牲品（簇内）
 # 大雁塔簇（第二簇）：与本簇拉开 >5km
 _DYT = GeoPoint(lon=108.9660, lat=34.2170)  # 大雁塔 ~5.4km
 _DTB = GeoPoint(lon=108.9660, lat=34.2120)  # 大唐不夜城 ~5.9km
+# 临潼片区三角（实测坐标）：兵马俑↔华清宫 6.9km、华清宫↔骊山 1.6km，
+# 距城心 ~30km——片区伴锚用（2026-11-08 临潼案拍板「按距离是一个组合
+# 放同一天」）
+_HQG = GeoPoint(lon=109.2151, lat=34.3589)  # 华清宫
+_LISHAN = GeoPoint(lon=109.2130, lat=34.3729)  # 临潼骊山
+_BMY = GeoPoint(lon=109.2820, lat=34.3862)  # 秦始皇帝陵博物院
 # 远簇（purity 三测专用，2026-11-08 dde6cce 临潼案口径：异簇判定放宽到
 # _DISTRICT_DAY_KM=15km 同片区伴不逐——原 5.4km 布点落进豁免带，簇须
 # 布到 >15km 圈外才算异簇）
@@ -372,6 +378,64 @@ def test_purity_stray_allowed_within_5km_of_cluster():
     assert dropped == []
     assert any(i is near for i in d2.items)
     assert near.day == 2
+
+
+def test_purity_district_mate_within_15km_stays():
+    """临潼案锚（2026-11-08 拍板「兵马俑/华清宫按距离是一个组合放同一
+    天」）：兵马俑距华清宫+骊山簇 6.9km——5km 同日圈外但 15km 片区圈内
+    =同片区伴，不逐（旧 >5km 口径会把临潼组合拆两天，兵马俑被逐去
+    到达日实录）。"""
+    bmy = _visit("秦始皇帝陵博物院", 90, _BMY, day=2, tier=1)
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("华清宫", 90, _HQG, day=2, tier=2),
+            _visit("临潼骊山风景名胜区", 180, _LISHAN, day=2, tier=9),
+            bmy,
+        ],
+    )
+    d3 = DayPlan(
+        day=3, base_city="西安", items=[_visit("西安鼓楼", 40, _GL, day=3, tier=3)]
+    )
+    plan = _plan(d2, d3)
+    dropped = _purify_cluster_days(plan)
+    assert dropped == []
+    assert bmy.day == 2
+    assert any(i is bmy for i in d2.items)
+    assert not any("移出" in a for a in plan.assumptions)
+
+
+def test_purity_heavy_stray_avoids_arrival_day():
+    """到达日让位锚（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或
+    SHOW」）：tier≤2 王牌被纯度闸逐出时，空到达日 D1 与空 D3 同为候选
+    ——day_index 原会首选 D1；重物让位后改落 D3。孤窗（无他日）不受
+    影响（软让不硬拦）。"""
+    zl = _visit("西安钟楼", 40, _V, day=2, tier=1)
+    d1 = DayPlan(day=1, base_city="西安", items=[])
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("远簇锚", 120, _DYT_FAR, day=2, tier=3),
+            _visit("远簇伴", 90, _DTB_FAR, day=2, tier=3),
+            zl,
+        ],
+    )
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[
+            _visit("大雁塔", 120, _DYT, day=3, tier=3),
+            _visit("大唐不夜城", 90, _DTB, day=3, tier=3),
+        ],
+    )
+    plan = _plan(d1, d2, d3)
+    dropped = _purify_cluster_days(plan)
+    assert dropped == []
+    assert zl.day == 3
+    assert any(i is zl for i in d3.items)
+    assert not any(i is zl for i in d1.items)
 
 
 # ------------------------------------------- 每场闸删除路径的 curated 豁免
