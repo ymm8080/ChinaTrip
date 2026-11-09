@@ -26,7 +26,7 @@ curated）；旧版 source='intl' 行重跑时自动升级为明细站点。tags
 tags_source 带权威闸（2026-11-03 铁律「导入不降权威」）：官方名录
 归因（mct/mohurd）不被商业站点归因冒充——新归因权威严格低于既有
 时保留旧 tags_source，tags 并集照写（闸见 source_tier.tags_source_wins）。
-子场所行（如「豫园星空梦幻馆」「熊猫小匠研学基地」）不碰——正名行
+子场所行（如主馆属下的子体验/研学基地类场所行）不碰——正名行
 另行插入。他源作业整覆 tags 掉了 intl 标时重跑本作业即修复。
 
 _CURATED_PICKS（2026-11-07 用户点名指令）：用户直接点名的 SITE/RESTRANT
@@ -35,7 +35,7 @@ _CURATED_PICKS（2026-11-07 用户点名指令）：用户直接点名的 SITE/R
 10 号 intl_platforms 作业按产品规则排除餐饮，restaurant 种子只能走本
 作业）；在库同名行走 merge 不重插（用户「SKIP IF THERE IS」），merge
 时既有行类别为空/other 的随种子类别升级（点名即定类，amap 泛类型
-不覆写点名知识）。春熙路点名时已在库（amap attraction）→ 种子不收，
+不覆写点名知识）。点名对象已在库（amap attraction）→ 种子不收，
 自动跳过。
 
 用法：
@@ -207,7 +207,7 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     ("成都", "锦里古街", "Jinli Ancient Street", ["curated"], ["锦里"]),
     ("成都", "武侯祠", "Wuhou Shrine", ["curated"], ["成都武侯祠"]),
     # 正名对齐 2026-11 去重轮终态（00cf11c 草堂归一）：正名行
-    # museum1「成都杜甫草堂博物馆」（已在库带 curated/intl 标），旧名收 aliases。
+    # museum1 既有正名行（已在库带 curated/intl 标），旧名收 aliases。
     (
         "成都",
         "成都杜甫草堂博物馆",
@@ -254,7 +254,7 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
     ),
     ("武汉", "昙华林", "Tanhualin Historic Block", ["curated"], ["昙华林历史文化街区"]),
     # --- Tier B：库未覆盖城市骨架（未来城市扩展信号） ---
-    # 正名对齐 2026-11 去重轮终态（2bcd323 兵马俑 5 行归一）：正名行
+    # 正名对齐 2026-11 去重轮终态（2bcd323 该馆同实体 5 行归一）：正名行
     # 5a「秦始皇帝陵博物院」，旧种子名收进 aliases 走 merge 不重插。
     (
         "西安",
@@ -329,7 +329,7 @@ _INTL_PICKS: list[tuple[str, str, str, list[str], list[str]]] = [
 # (city, name_zh, name_en, sites, aliases, category) —— 用户点名种子，
 # 6 元组比 _INTL_PICKS 多收尾 category（餐饮行归 food，见 docstring）。
 _CURATED_PICKS: list[tuple[str, str, str, list[str], list[str], str]] = [
-    # 2026-11-07 指令：SITE 成都环球中心 HIGH PRIORITY——在库为 amap
+    # 2026-11-07 指令：SITE 用户点名商业综合体 HIGH PRIORITY——在库为 amap
     # other 泛类行，走 merge 打标 + other→attraction 升类，不重插。
     (
         "成都",
@@ -339,7 +339,7 @@ _CURATED_PICKS: list[tuple[str, str, str, list[str], list[str], str]] = [
         ["环球中心"],
         "attraction",
     ),
-    # SPACELAB 失重餐厅（环球中心 4F 店，太空轨道传菜汉堡店）——RESTRANT
+    # SPACELAB 失重餐厅（同商场 4F 店，太空轨道传菜汉堡店）——RESTRANT
     # HIGH PRIORITY；名带分店号对齐图商正名，别名保留裸名可继续命中他源行。
     (
         "成都",

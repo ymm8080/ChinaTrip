@@ -479,9 +479,9 @@ class PoiDetailStore:
     def get_by_name(self, city: str | None, name: str) -> dict | None:
         """Exact-name lookup so appended rows serve later no-poi_id items.
 
-        city 口径（2026-11-01 北京钟楼案，用户拍板「应选西安钟楼而不是
-        北京钟楼」）：带 city 时只认同城行——「钟楼」这类多城重名 POI，
-        旧版全库 .first() 把北京行过继给西安条目（poi_id/地址/英文简介
+        city 口径（2026-11-01 多城重名 POI 案，用户拍板「应选目标城行而不是
+        异地同名行」）：带 city 时只认同城行——多城重名 POI，
+        旧版全库 .first() 把异地行过继给本城条目（poi_id/地址/英文简介
         整套易主）。同城无行宁可 None（零配额自愈链会走图商补齐），
         绝不用异地行冒充；city=None（fast_lane 语义）维持全库命中。
         """

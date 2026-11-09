@@ -62,7 +62,7 @@ PEN_VIOLATION = 60
 PEN_RAIN_EXPOSED = 15
 PEN_RAIN_PARTIAL = 10
 PEN_RAIN_UNMARKED = 5  # 未标注室内外点落雨日（2026-11-05 拍板「雨天
-# 上午不排室外点」磁器口案）：轻罚让 LNS 不把未标注点挪进雨日，
+# 上午不排室外点」古镇街区案）：轻罚让 LNS 不把未标注点挪进雨日，
 # 也不反向硬推——罚值低于 partial，避免把未标注的潜在室内点错杀出雨日
 PEN_BUDGET_OVERFLOW_CAP = 30
 PEN_DAY_BALANCE_CAP = 15
@@ -73,7 +73,7 @@ PEN_EARLY_SHOW = 12  # 演出早场：<15:00 开演的多场次演出（2026-11-
 PEN_CITYWALK_MORNING = 12  # CITYWALK 早场：<13:00 开场的普通街区（2026-11-06
 # 二拍「CITYWALK倾向于下午场」，与 solver CITYWALK_AFTERNOON_MINUTES 同向）
 PEN_THEME_BLOCK_EARLY = 12  # 街区型演出块 <16:00 开场（2026-11-06 二拍
-# 「像长安十二时辰，倾向于下午四点以后第二场」，同 solver
+# 「沉浸式主题街区，倾向于下午四点以后第二场」，同 solver
 # THEME_BLOCK_AFTERNOON_MINUTES 同向）
 PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放在
 # 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
@@ -83,7 +83,7 @@ PEN_AFTERNOON_CROWD = 12  # 下午超点：每多一个 ≥13:00 开场的大点
 # （2026-11-04 拍板「超过80分钟的一般下午就放一个」，与 solver
 # AFTERNOON_ONE_BIG_PENALTY 同口径同向——LNS 不把第二个大点挪进下午）
 PEN_LATE_BIG = 12  # 大点后置：每个「大点开场晚于轻点」逆序对
-# （2026-11-04 拍板「先排大明宫，再排西安钟楼」，与 solver
+# （2026-11-04 拍板「先排大点再排轻点」（城心簇实录），与 solver
 # BIG_FIRST_PENALTY 同口径同向——LNS 不把大点排到轻点之后）
 PEN_ARRIVAL_DAY_BIG = 12  # 到达日大点（2026-11-05 拍板「到达第一天
 # 不适合放大块头景点，只适合小景点或 CityWalk」）：到达侧腿（当天
@@ -91,9 +91,9 @@ PEN_ARRIVAL_DAY_BIG = 12  # 到达日大点（2026-11-05 拍板「到达第一�
 # 压轴腿（腿在当天末尾）不算到达日；pinned 铁律 19/餐/酒店/演出/
 # tier8 街区豁免（同 _is_big_visit 豁免面）。与 edge_day_heavy 同向
 # 叠加——tier≤4 大点在到达日双罚，4A/3A 大点只吃本罚。
-PEN_VENUE_STRAND = 60  # 场馆亲和拆簇罚（2026-11-08 秦俑情案）：有坐标
+PEN_VENUE_STRAND = 60  # 场馆亲和拆簇罚（2026-11-08 远郊演出案）：有坐标
 # 观光/演出件在当前日无 ≤NEAR_SAMEDAY_KM 同日圈伴、而同城另一日却有
-# 圈内伴=被修复通道拆离场馆簇（LNS 为消超载把临潼演出挪市区日，
+# 圈内伴=被修复通道拆离场馆簇（LNS 为消超载把远郊演出挪市区日，
 # 55km 脱簇在 travel 软项里只值 -2 拦不住）。每件计罚；量级刻意压过
 # 单日软项收益上限（budget_overflow -30 + day_balance -15）——拆簇换
 # 均衡不再免费，溢出时先溢簇外/低档弱卡。软罚不入 ok 口径：结构性
@@ -127,7 +127,7 @@ def _is_light_visit(v: VisitItem) -> bool:
 
 def _near_mate_km(v: VisitItem, visits: list[VisitItem]) -> float | None:
     """v 在 visits 里的最近圈内伴距离（0<km≤NEAR_SAMEDAY_KM，2026-11-08
-    秦俑情案场馆亲和口径）；无圈内伴返回 None。零距不算伴——同点坐标
+    远郊演出案场馆亲和口径）；无圈内伴返回 None。零距不算伴——同点坐标
     =占位/城市质心共享，非真实簇证据（与 agent.plan._tight_cluster_mate_on
     拍板口径一致）。"""
     vloc = getattr(v, "location", None)
@@ -235,7 +235,7 @@ def plan_score(
     entertainment = 0
     has_sights = False
     act_loads: list[int] = []
-    # 场馆亲和采样（2026-11-08 秦俑情案第五刀）：按日收集有坐标观光件
+    # 场馆亲和采样（2026-11-08 远郊演出案第五刀）：按日收集有坐标观光件
     # 与转场抵达城，循环后跨日比对拆簇。
     geo_days: list[tuple[str, list[VisitItem], set[str]]] = []
     venue_strand = 0
@@ -278,7 +278,7 @@ def plan_score(
         # 的逆序对均计软罚；豁免面同 _is_big_visit（pinned 铁律 19 不计）。
         # 贴邻豁免（2026-11-08 城心簇拆天案）：近距同日圈（NEAR_SAMEDAY_KM）
         # 内成对的下午大点=同片区连游，不计超点——与 solver/plan 兜底同
-        # 口径，LNS 不把贴邻大点对拆天（城墙+碑林博实录）。
+        # 口径，LNS 不把贴邻大点对拆天（城心簇贴邻大点对实录）。
         _aft_big_list = [
             v
             for v in visits
@@ -318,8 +318,8 @@ def plan_score(
             )
             and show_session_starts(v.opening_hours)
         )
-        # CITYWALK 下午场（2026-11-06 二拍「CITYWALK倾向于下午场。像长安
-        # 十二时辰，倾向于下午四点以后第二场」）：普通街区 <13:00 开场、
+        # CITYWALK 下午场（2026-11-06 二拍「CITYWALK倾向于下午场。沉浸
+        # 式主题街区，倾向于下午四点以后第二场」）：普通街区 <13:00 开场、
         # 街区型演出块 <16:00 开场计软罚——与 solver CP/插入同向，LNS 不
         # 把街区挪回上午。pinned 有时刻不计（判定内已豁免，铁律 19）。
         cw_morning += sum(
@@ -459,7 +459,7 @@ def plan_score(
                 PEN_DAY_BALANCE_CAP,
                 (DAY_BALANCE_TARGET_MINUTES - worst_day_load) // 30,
             )
-    # 场馆亲和拆簇（2026-11-08 秦俑情案第五刀）：当前日无圈内伴、而同城
+    # 场馆亲和拆簇（2026-11-08 远郊演出案第五刀）：当前日无圈内伴、而同城
     # 另一日（宿主闸口径同 LNS _day_hosts：base 同城或转场抵达该城）有
     # 圈内伴=拆离场馆簇——LNS/挪天修复为消超载拆簇要付大代价，溢出先
     # 溢簇外/低档弱卡。城市缺信号不罚（宁漏勿错）。

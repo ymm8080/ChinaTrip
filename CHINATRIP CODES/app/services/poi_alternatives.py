@@ -9,7 +9,7 @@
   层），PLAN_TIER_TO_POOL 换算后同带比较。档带（LEVEL_BANDS）：premium
   （unesco/5a/国际旅行网站/国际平台）、社媒（短视频/小红书）、国内名录
   （街区/风景名胜/4A/3A）、未分层——**跨档带候选一律出局，宁缺不滥**
-  （兵马俑卡亮 4A 陕西自然博物馆实录；首版「近档补位亮牌披露」被用户
+  （5A 主点卡亮 4A 馆实录；首版「近档补位亮牌披露」被用户
   否决：4A 不能作 5A/世遗的替代品）。带内仍按 |Δ档| 就近排序，chip 亮
   备选自身档牌（UNESCO/5A/国际榜/…），绝不冒充同级；带内不足 limit
   就少给，主点备选宁空。
@@ -17,16 +17,16 @@
   时放宽到类别组；类别完全不一致**或类别缺失**的出局（2026-11-06 二
   拍：同类别是硬规则，缺失无法验证同类就不放行）。组别（2026-11-06
   拍板二改）：
-  ①综合观光组 sight = attraction/viewpoint/museum/gallery（杜甫草堂
-  museum↔武侯祠 attraction 仍同组互备）；②人文古迹组 heritage =
+  ①综合观光组 sight = attraction/viewpoint/museum/gallery（园林故居类
+  museum↔祠堂类 attraction 仍同组互备）；②人文古迹组 heritage =
   historic/temple/church/memorial/ruins/castle/ancient_town（与观光组
   拆开，祠庙故居遗迹不与泛观光点互备）；③自然/园林 nature；④游乐 fun。
-- 遗址类隔离（2026-11-06 拍板「金沙不合适[作杜甫草堂的备选]」）：名称/
+- 遗址类隔离（2026-11-06 拍板「遗址类不合适作园林故居类备选」）：名称/
   简介带「遗址」的考古遗址行只与同带「遗址」行互为备选，双向硬闸——
   层级/类别/时长同符也不放行；遗址主点无同带遗址候选则宁缺。
 - CITYWALK 类隔离（2026-11-06 拍板「CITYWALK 单独一组」）：街区压马路
   型点位只与同类互为备选，双向硬闸。判定：功能标签 citywalk > 名录街
-  区档（hit_tier 6 / 选点梯子 8）> 名称街巷类词（宽窄巷子/锦里古街实
+  区档（hit_tier 6 / 选点梯子 8）> 名称街巷类词（知名古街类实
   录——标签批打未全覆盖的兜底）。
 - 演出经典一组（2026-11-06 拍板「show 是经典一组」）：演出（选点梯档
   6）单独一组——show 主点只亮 show 备选（tags show / entertainment 类），
@@ -109,8 +109,8 @@ LEVEL_BANDS: tuple[frozenset[int], ...] = (
 SHOW_LEVEL = "show"  # 演出主点的专项档（梯档 6）
 
 # 类别组（同类放宽用；层级与时长永不放宽）。2026-11-06 拍板二改：
-# attraction/viewpoint/museum/gallery 单独成组（综合观光组，杜甫草堂
-# museum↔武侯祠 attraction 仍同组互备）；historic/temple/… 人文古迹组
+# attraction/viewpoint/museum/gallery 单独成组（综合观光组，园林故居类
+# museum↔祠堂类 attraction 仍同组互备）；historic/temple/… 人文古迹组
 # 与之拆开——祠庙故居遗迹不再与泛观光点互备。
 CATEGORY_GROUPS: dict[str, set[str]] = {
     "sight": {"attraction", "viewpoint", "museum", "gallery"},
@@ -127,18 +127,18 @@ CATEGORY_GROUPS: dict[str, set[str]] = {
     "fun": {"theme_park", "zoo"},
 }
 
-# 遗址类隔离（2026-11-06 拍板「金沙不合适[作杜甫草堂的备选]」实录）：
-# 金沙遗址博物馆是考古遗址类，与园林祠庙故居类（杜甫草堂/武侯祠）不是
-# 一类东西——名称/简介带「遗址」的行只与同带「遗址」的行互为备选，双向
+# 遗址类隔离（2026-11-06 拍板「遗址类不合适作园林故居类备选」实录）：
+# 考古遗址类行与园林祠庙故居类不是一类东西——名称/简介带「遗址」的
+# 行只与同带「遗址」的行互为备选，双向
 # 硬闸（层级/类别/时长同符也不放行）。遗址主点若无同带遗址候选则宁缺。
 RUINS_MARK = "遗址"
 
 # CITYWALK 类（2026-11-06 拍板「CITYWALK 单独一组」）：街区压马路型点位
 # 只与同类互为备选，双向硬闸。判定（任一命中）：①功能标签 citywalk
 # （2026-10-29 功能标签批内核）；②名录街区档（hit_tier 6 = 国家级旅游
-# 休闲街区 / 选点梯子 8）；③名称含街巷类词（宽窄巷子/锦里古街实录
+# 休闲街区 / 选点梯子 8）；③名称含街巷类词（知名古街类实录
 # ——tags 批打未全覆盖时的兜底）。只用多字词：单字「坊」会误伤非街区
-# 行（水井坊博物馆被误判实录），「巷」同理收成「巷子」。
+# 行（含「坊」字的博物馆被误判实录），「巷」同理收成「巷子」。
 CITYWALK_TAG = "citywalk"
 CITYWALK_NAME_RE = re.compile("步行街|商业街|老街|古街|新街|街区|风情街|巷子")
 
@@ -199,7 +199,7 @@ def is_citywalk(
     plan_tier: int | None = None,
 ) -> bool:
     """CITYWALK 类判定（行级，主点/候选共用）：库行类别 citywalk（2026-11-07
-    拍板改档：宽窄巷子/春熙路/锦里武侯祠片区）> 功能标签 > 名录街区档 >
+    拍板改档：知名街区/商圈片区）> 功能标签 > 名录街区档 >
     名称街巷坊词（模块头 CITYWALK 类注释）。"""
     if (category or "").strip().lower() == CITYWALK_TAG:
         return True
@@ -239,11 +239,11 @@ def _norm_name(name: str | None) -> str:
     return (name or "").strip().lower()
 
 
-# 同体名排除：破折号/间隔号变体（青城山—都江堰 ↔ 青城山-都江堰风景
-# 名胜区）先剥，再走 poi_details._name_overlap（头/尾互含）+ 同核包含。
-# 同核：剥通用类尾词后短核被长核包含即同体——「都江堰景区」剥尾=都江堰
-# ⊂ 青城山都江堰（实录：换过去 alias 解析回同一伞形行，等于没换）；
-# 「成都杜甫草堂博物馆」剥尾=成都杜甫草堂 ⊃ 杜甫草堂（多源同馆两行）。
+# 同体名排除：破折号/间隔号变体（山—堰 ↔ 山-堰风景名胜区类连字符变
+# 体）先剥，再走 poi_details._name_overlap（头/尾互含）+ 同核包含。
+# 同核：剥通用类尾词后短核被长核包含即同体——短核剥尾后 ⊂ 长核
+# （实录：换过去 alias 解析回同一伞形行，等于没换）；
+# 多源同馆两行（全称带前缀 ⊃ 简称）同理同体。
 _NAME_STRIP = str.maketrans("", "", "-—–·・ ")
 _CORE_TAILS = (
     "风景名胜区",
@@ -294,8 +294,8 @@ def _is_subseq(short: str, long: str) -> bool:
 def _overlap_any(name: str, exclude_names: set[str]) -> bool:
     """候选名与排除名（行程内已有 + 已亮过的备选）同体判定：剥连字符
     变体后，头/尾互含（_name_overlap）或同核包含任一命中即同体；≥3 字
-    核再做子序列同体（2026-11-06 活库探针实录：兵马俑卡亮「秦始皇陵」
-    ——「帝」字插入变体逃过互含/同核包含）。"""
+    核再做子序列同体（2026-11-06 活库探针实录：5A 主点卡亮同实体别名行
+    ——插字变体逃过互含/同核包含）。"""
     from app.services.poi_details import _name_overlap
 
     n = name.translate(_NAME_STRIP)
@@ -307,7 +307,7 @@ def _overlap_any(name: str, exclude_names: set[str]) -> bool:
         if _name_overlap(n, ex_s):
             return True
         core_ex = _name_core(ex_s)
-        # ≥2 字核互含即同体（锦里 ⊂ 武侯祠锦里）；过短单字不认
+        # ≥2 字核互含即同体（短核 ⊂ 长核带前缀名）；过短单字不认
         if (
             len(core_n) >= 2
             and len(core_ex) >= 2
@@ -365,7 +365,7 @@ def pick_alternatives(
     exclude_names = set(exclude_names or set())
     exclude_pids = exclude_pids or set()
     exclude_same_class = set(exclude_same_class or set())
-    # 同体验替代组词素/泛化品类组（2026-11-07 熊猫谷案+泛化拍板）与规划
+    # 同体验替代组词素/泛化品类组（2026-11-07 替代组样本案+泛化拍板）与规划
     # 引擎同源，防两处口径漂移
     from app.services.agent.plan import (
         _GENERIC_SUBSTITUTE_GATE_KM,
@@ -376,7 +376,7 @@ def pick_alternatives(
     mn = _norm_name(main_name)
     if mn:
         # 主点自身自锚进排除集（同体变体闸的对照锚；attach 层本就传全行
-        # 程名，这里兜住直调场景——2026-11-06 兵马俑卡亮秦始皇陵探针实录）
+        # 程名，这里兜住直调场景——2026-11-06 5A 主点卡亮同实体别名行探针实录）
         exclude_names.add(mn)
     want = plan_tier_to_pool(tier)
     is_show = want == SHOW_LEVEL
@@ -395,7 +395,7 @@ def pick_alternatives(
         return "show" in tags or _norm_cat(h.get("category")) == "entertainment"
 
     def row_is_ruins(h: dict) -> bool:
-        # 遗址类判定：名称带「遗址」（金沙遗址博物馆）；广汉三星堆类名录
+        # 遗址类判定：名称带「遗址」（考古遗址类行）；名录档遗址类
         # 行名称无「遗址」二字，简介兜底（intro ≤60 字必提遗址）
         return RUINS_MARK in (h.get("name") or "") or RUINS_MARK in (
             h.get("intro") or ""
@@ -449,7 +449,7 @@ def pick_alternatives(
             != main_citywalk
         ):
             return "citywalk"
-        # 同体验替代组隔离（2026-11-07 熊猫谷案，单向）：行程里已有替代
+        # 同体验替代组隔离（2026-11-07 替代组样本案，单向）：行程里已有替代
         # 组成员（≠主点本人）时组员不作备选亮卡——点了必撞 duplicate；
         # 主点本人是组员时放行（基地卡亮谷 chip = 正当替换路径）
         g_name = _substitute_group(name)
@@ -459,7 +459,7 @@ def pick_alternatives(
                     return "substitute"
         # 泛化品类替代组（2026-11-07 泛化拍板「类型+距离」）：行程里已有
         # 同城同档成员（attach 已滤城滤主点本人）时，同档候选不作 chip；
-        # >30km 远郊不算同一体验圈（宽窄巷子↔都江堰古城 55km 各算一次）
+        # >30km 远郊不算同一体验圈（市区街区↔远郊古城 55km 各算一次）
         if exclude_same_class and _generic_substitute_group(h.get("category")):
             loc = h.get("location")
             if near is not None and isinstance(loc, (tuple, list)) and len(loc) == 2:
@@ -475,13 +475,13 @@ def pick_alternatives(
     def cat_key(h: dict) -> int:
         # 0=类别精确一致 1=同类别组 3=不一致/缺失（出局）。同类别是硬
         # 规则（2026-11-06 二拍）：候选类别缺失无法验证同类就不放行
-        # （海底捞/竹间葫芦鸡类图商脏行无类别或错类实录）；主点类别缺
+        # （连锁餐饮类图商脏行无类别或错类实录）；主点类别缺
         # 失时类别闸不开（同级档带闸兜底）。演出主点免类别闸（演出同
         # 名录外）；CITYWALK 组内跨类别放行（2026-11-06 拍板「CITYWALK
-        # 单独一组」——武侯祠·锦里 historic↔宽窄巷子 attraction 实录）
+        # 单独一组」——同片区 historic↔attraction 跨类实录）
         if is_show:
             return 0
-        # 同体验替代组互认同类（2026-11-07 用户拍板「熊猫基地/谷/苑一个
+        # 同体验替代组互认同类（2026-11-07 用户拍板「替代组基地/谷/苑一个
         # 品类」）：组员 zoo/nature/theme_park 跨 CATEGORY_GROUPS 组，组
         # 内互认精确同类——正当替换路径不被品类闸卡死（谷卡亮基地实录，
         # 首改前 zoo≠nature 在此被杀、chip 永不亮）。互斥闸（eligible
@@ -493,7 +493,7 @@ def pick_alternatives(
         if _g_main is not None and _g_main == _g_cand:
             return 0
         # 泛化品类组互认（2026-11-07 泛化拍板）：同档白名单成员跨类别组
-        # 精确同类——武侯祠·锦里 historic↔宽窄巷子 attraction 类实录在
+        # 精确同类——同片区 historic↔attraction 类实录在
         # 库行改档后自然归 citywalk 同类，此处兜住改档前的过渡态
         if exclude_same_class and _generic_substitute_group(h.get("category")):
             return 0
@@ -532,7 +532,7 @@ def pick_alternatives(
         drop_counts[gate] = drop_counts.get(gate, 0) + 1
         nm = _norm_name(h.get("name")) or "?"
         # 强制日志（2026-11-07）：结构闸出局与替代组成员死于任何闸都逐
-        # 条留痕（熊猫类 chip 缺失必须可追溯）；例行过滤（已在行程/杂名/
+        # 条留痕（替代组类 chip 缺失必须可追溯）；例行过滤（已在行程/杂名/
         # 餐行/无坐标行）只计数不刷屏。
         structural = gate in (
             "band",
@@ -597,8 +597,8 @@ def pick_alternatives(
     for h in ordered:
         if len(out) >= limit:
             break
-        # 本条目内去重：多源同馆两行（杜甫草堂 ↔ 成都杜甫草堂博物馆）、
-        # 组合行（武侯祠·锦里 ↔ 武侯祠）不重复亮两张同体 chip
+        # 本条目内去重：多源同馆两行（简称 ↔ 全称带前缀）、
+        # 组合行（组合名 ↔ 组合内主站名）不重复亮两张同体 chip
         nm = _norm_name(h.get("name"))
         if nm and _overlap_any(nm, picked_names):
             continue
@@ -632,7 +632,7 @@ def _main_row(v: VisitItem, store: object) -> dict | None:
 
     用 candidate_by_name（全量候选形，含 tags/source/rating）而不是
     store.get——后者是 EN 展示增补 getter，无 tags/source，喂给
-    _source_tier 会把名录档行错判成未分层（杜甫草堂 t2 curated 行
+    _source_tier 会把名录档行错判成未分层（园林故居类 t2 curated 行
     自愈成 11 实录）。失败静默。"""
     try:
         return store.candidate_by_name(  # type: ignore[attr-defined]
@@ -651,7 +651,7 @@ def _main_row(v: VisitItem, store: object) -> dict | None:
 def _heal_tier(v: VisitItem, row: dict | None) -> None:
     """档号自愈（读路径，只动展示拷贝）：换点端点 2026-11-06 前换入的行
     不带 tier（replace_item 漏设），历史会话按未分层处理会让同级备选全
-    落 t10 杂馆（杜甫草堂卡亮失落博物馆实录）——有库行时按
+    落 t10 杂馆（高 tier 主点卡亮 t10 杂馆实录）——有库行时按
     _source_tier 同口径重算。失败静默保留原值。"""
     if v.tier is not None or not row:
         return
@@ -698,9 +698,9 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
         exclude_names.add(_norm_name(v.name_en))
         if v.poi_id:
             exclude_pids.add(str(v.poi_id))
-        # 同街族子站（2026-11-07 钟鼓楼案）：已折进主卡 stops 的族员就是
-        # 行程内已有站点——不进排除集就会以备选身份再亮卡（钟楼/鼓楼并
-        # 进碑林城墙卡后仍在备选区冒头实录）
+        # 同街族子站（2026-11-07 同街族并卡案）：已折进主卡 stops 的族员就是
+        # 行程内已有站点——不进排除集就会以备选身份再亮卡（同街族员并
+        # 进主卡后仍在备选区冒头实录）
         for s in v.stops or ():
             exclude_names.add(_norm_name(s.name))
             exclude_names.add(_norm_name(s.name_en))

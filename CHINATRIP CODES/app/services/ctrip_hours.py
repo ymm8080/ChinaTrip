@@ -195,7 +195,7 @@ def parse_hours(html: str) -> str | None:
 
 
 def match_name(index: dict[str, str], poi_name: str) -> str | None:
-    """Substring match in both directions (洪崖洞 ↔ 洪崖洞民俗风貌区)."""
+    """Substring match in both directions (short name ↔ full scenic-area name)."""
     key = (poi_name or "").strip()
     if not key:
         return None
