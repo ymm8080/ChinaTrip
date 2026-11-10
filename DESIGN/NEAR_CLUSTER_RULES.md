@@ -94,7 +94,7 @@ CURATED，不是 CREATED flag」）、CREATED 卡（用户手建，拍板乙：�
 | 愈合（选层） | `plan.py` 紧簇愈合同位交换 | 认领后置修复：满员日陌生人换座给紧簇员 |
 | 求解 | `solver.py` 贴邻豁免（`_adjacent_big_ids` 等 CP/插入/打磨四路） | 圈内大点对不按「第二个下午大点」判死 |
 | 评分 | `scoring.py` afternoon_crowd 同口径豁免 | 违例形态不计罚 |
-| 兜底 | `plan.py` 兜底层 `_NEAR_SAMEDAY_KM` 镜像 | 排序/挪日走同圈口径 |
+| 兜底 | `plan.py` 兜底层 `_NEAR_SAMEDAY_KM` 镜像 + 组合防插三件套（紧邻/贴排提升/成员间禁入区） | 排序/挪日走同圈口径；伞名组合对成员之间不落第三卡（11-10 拍板） |
 | 终装·归位 | `plan.py` `_reunite_tight_kin`（楔子剔除前跑） | 跨天紧簇按(可达数,簇纯度,非边日,低日号)选宿主整归；王牌归簇通道（本日零同簇伴可回簇）+短时长王牌（≤120min）跟簇破例上边日 |
 | 终装·纯度 | `plan.py` `_purify_cluster_days`（归位后、楔子前） | 族日异簇插排件挪走不删，餐厅豁免 |
 | 终装·楔子 | `plan.py` `_evict_wedge_strays` + `_created_wedge_reunite` | 贴邻孤岛清障；CREATED/CURATED 改走强归位/保留，永不删 |
@@ -112,6 +112,25 @@ CURATED，不是 CREATED flag」）、CREATED 卡（用户手建，拍板乙：�
 
 ## 拍板链（决策史，最新在前）
 
+- 2026-11-10 六拍「组合成员之间不得落入第三卡」（碑林组合中间插宴秀
+  卡案）：伞名组合对（选层 `_umbrella_specs_bundle` 同判据同 5km 闸）
+  此前只保证同日，日内排程层零贴排零防插——solver 不收敛走 fallback
+  时 flex 午餐把宴秀卡缩成 30 分钟楔进组合成员之间（12:00-12:30 插在
+  城墙·碑林 09:00-12:00 与碑林博物馆 12:30-14:30 中间，用户实录）。
+  类级收口三件套（仅兜底自动排路径，`keep_list_order` 用户权威路径
+  不启用——用户亲手拖进组合中间的不顶回）：①放置序成员紧邻（排序后
+  把后位成员挪到搭档正后方，第三方永远排不进未落位间隙）；②成员落位
+  贴排提升（先试 partner_end 再试 partner_start-dur，贴排位被腿窗/禁入
+  区挤占即放弃，回落常规游标不硬挤第三方）；③已排组合对成员间半开
+  区间=第三卡禁入区（游标推进/演出场次/flex 午餐重流/终装餐占位重排
+  一律不得楔入；餐窗满按丢餐留痕——「餐卡可推迟/修订窗满丢餐」拍板
+  口径，组合完整性强于一餐）。上游同拍根修：宴秀卡占晚餐槽落地到
+  组装期槽位分配（`_is_show_banquet_item`「占晚餐槽」docstring 同口径
+  执行）——curated 宴秀是第一餐也不再占午餐槽（午窗被夜宴锁死时防插
+  闸只能把整张心愿卡丢餐蒸发），槽位按集合判不重槽，午餐交自动补餐
+  链保槽。回归锚
+  `tests/test_fallback_legs.py::test_fallback_combo_pair_no_third_card_between`
+  + `::test_fallback_combo_pair_kept_when_user_order_authoritative`。
 - 2026-11-08 返程日市区圈拍板「回城当天有多余时间也只排市区内小点
   或 CityWalk——最后一天不适合华清宫/兵马俑这类重要或远的地方」：
   「重要」翼已有边日规则三层布防；本轮补「远」翼 `_RETURN_URBAN_KM

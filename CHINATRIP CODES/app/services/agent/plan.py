@@ -2583,6 +2583,58 @@ def _umbrella_specs_bundle(a: dict, b: dict) -> bool:
     )
 
 
+def _visit_item_cand_view(v: VisitItem) -> dict:
+    """VisitItem → 候选 dict 视图（日内组合识别复用候选层伞名判据）。"""
+    loc = getattr(v, "location", None)
+    return {
+        "name": v.name,
+        "category": v.category,
+        "city": v.city,
+        "location": (
+            {"lon": float(loc.lon), "lat": float(loc.lat)}
+            if loc is not None and getattr(loc, "lon", None) is not None
+            else None
+        ),
+    }
+
+
+def _day_umbrella_pairs(day: DayPlan) -> list[tuple[VisitItem, VisitItem]]:
+    """日内伞名组合对还原（2026-11-10 拍板「组合成员之间不得落入第三卡」）：
+    与选层 _umbrella_specs_bundle 同判据/词素/5km 闸——选层只把跨日组合
+    拉回同日，日内排程层此前对组合对零贴排零防插强制（实录：fallback
+    完全组合盲，flex 午餐把宴秀卡缩成 30 分钟楔进组合成员之间）。配对
+    本身已排除餐/演/酒/行（_UMBRELLA_SCENIC_EXEMPT_CATEGORIES）。"""
+    visits = [i for i in day.items if isinstance(i, VisitItem)]
+    views = {id(v): _visit_item_cand_view(v) for v in visits}
+    pairs: list[tuple[VisitItem, VisitItem]] = []
+    for i, a in enumerate(visits):
+        for b in visits[i + 1 :]:
+            if _umbrella_specs_bundle(views[id(a)], views[id(b)]):
+                pairs.append((a, b))
+    return pairs
+
+
+def _combo_day_interiors(day: DayPlan) -> list[tuple[int, int]]:
+    """已排组合对（双成员均有时刻）的成员间半开区间 (前尾, 后头)——
+    第三卡禁入区（2026-11-10 拍板「组合成员之间不得落入第三卡」）。
+    双成员真贴排（gap=0）区间为空，天然不触发。"""
+    out: list[tuple[int, int]] = []
+    for a, b in _day_umbrella_pairs(day):
+        sa = _minutes_of(a.start_time) if a.start_time is not None else None
+        sb = _minutes_of(b.start_time) if b.start_time is not None else None
+        if sa is None or sb is None:
+            continue
+        ea = _item_end_minutes(a)
+        eb = _item_end_minutes(b)
+        if ea is None or eb is None:
+            continue
+        if sa <= sb and ea < sb:
+            out.append((ea, sb))
+        elif sb < sa and eb < sa:
+            out.append((eb, sa))
+    return out
+
+
 def _bundle_umbrella_spec_days(
     picked: list[dict], cand_by_name: dict[str, dict]
 ) -> list[str]:
@@ -7234,6 +7286,39 @@ def _fallback_sequence_times(
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
         ]
+        # 组合防插三件套（2026-11-10 拍板，碑林组合中间插宴秀卡案类级
+        # 收口）：①放置序成员紧邻（第三方永远排不进未落位间隙）；
+        # ②成员落位优先贴排已排成员（partner_end / partner_start-dur）；
+        # ③已排组合对的成员间开区间=第三卡禁入区（游标推进/演出场次/
+        #    flex 午餐重流一律不得楔入）。keep_list_order（用户权威路径）
+        #    不重排不防插——用户亲手拖进组合中间的不顶回。
+        combo_pairs = _day_umbrella_pairs(day)
+        combo_partner: dict[int, VisitItem] = {}
+        for _ca, _cb in combo_pairs:
+            combo_partner[id(_ca)] = _cb
+            combo_partner[id(_cb)] = _ca
+
+        def _combo_interiors() -> list[tuple[int, int]]:
+            return _combo_day_interiors(day)
+
+        def _advance_past_combo(t: int, dur: int) -> int:
+            """候选窗整段落入组合成员间区间 → 推进到区间尾（右贴后成员）。
+            成员真贴排（gap=0）区间为空，天然不触发。"""
+            if keep_list_order:
+                return t
+            advanced = True
+            while advanced:
+                advanced = False
+                for pe, ps in _combo_interiors():
+                    if pe <= t and t + dur <= ps and ps > t:
+                        t = ps
+                        advanced = True
+                        break
+            return t
+
+        def _inside_combo(t: int, dur: int) -> bool:
+            return any(pe <= t and t + dur <= ps for pe, ps in _combo_interiors())
+
         # 兜底排序（2026-11-04 拍板「必去点/大点先排」的降级镜像）：
         # 钉住未排必去最先、大点先于轻点、大点类内时长降序——2026-11-05
         # 成渝案：类内纯列表序让 180min 泛名山岳排在 120min 馆/90min 街区
@@ -7264,6 +7349,21 @@ def _fallback_sequence_times(
                     -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
             )
+            if combo_pairs:
+                # ①放置序成员紧邻：排序后把后位成员挪到搭档正后方，
+                # 第三方（餐/演/散点）永远插不进未落位的组合间隙。
+                _pos = {id(v): i for i, v in enumerate(untimed)}
+                for _a, _b in combo_pairs:
+                    if id(_a) not in _pos or id(_b) not in _pos:
+                        continue
+                    ia, ib = _pos[id(_a)], _pos[id(_b)]
+                    if ia > ib:
+                        _a, _b = _b, _a
+                        ia, ib = ib, ia
+                    if ib != ia + 1:
+                        untimed.remove(_b)
+                        untimed.insert(ia + 1, _b)
+                        _pos = {id(v): i for i, v in enumerate(untimed)}
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
         # 顺序单调；排不下的项留空并由校验提示。2026-10-31 修正：
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
@@ -7334,6 +7434,7 @@ def _fallback_sequence_times(
                                 s < fe and s + dur > fs
                                 for fs, fe in _leg_windows(fixed, visit)
                             )
+                            and not _inside_combo(s, dur)
                             and _city_side_ok(xfer_windows, visit, s, dur)
                         ):
                             return s
@@ -7444,6 +7545,7 @@ def _fallback_sequence_times(
                             t = fe
                             advanced = True
                             break
+                t = _advance_past_combo(t, dur)
                 _sh_hours = hours_by_poi.get(visit.poi_id)
                 if _is_show_item(visit) and _sh_hours is not None and _sh_hours.windows:
                     # 多场次演出齐场（2026-11-08 贴场馆演出 D2 甩空日案）：场次
@@ -7496,8 +7598,41 @@ def _fallback_sequence_times(
                         continue
                 hours = hours_by_poi.get(visit.poi_id)
                 cap = generic_entry_cap(visit, hours)
+                # ②组合贴排提升：成员落位优先贴排已排成员——先试紧贴
+                # 成员尾（partner_end）再试紧贴成员头（partner_start-dur）；
+                # 贴排位被腿窗/禁入区挤走即判定组合目标失效，回落常规游标
+                # （不硬挤第三方）。keep_list_order 用户权威路径不提升。
+                if not keep_list_order:
+                    _mate = combo_partner.get(id(visit))
+                    if _mate is not None and _mate.start_time is not None:
+                        _ms = _minutes_of(_mate.start_time)
+                        _me = _item_end_minutes(_mate)
+                        for _cand in (_me, _ms - dur):
+                            if _cand is None or _cand < DAY_START_MINUTES:
+                                continue
+                            _tc = _cand
+                            _adv = True
+                            while _adv:
+                                _adv = False
+                                for fs, fe in _leg_windows(fixed, visit):
+                                    if _tc < fe and _tc + dur > fs:
+                                        _tc = fe
+                                        _adv = True
+                                        break
+                            _tc = _advance_past_combo(_tc, dur)
+                            if _tc != _cand:
+                                continue
+                            if (
+                                _tc + dur <= day_end
+                                and (cap is None or _tc <= cap)
+                                and _fits_hours_window(hours, _tc, dur)
+                                and _city_side_ok(xfer_windows, visit, _tc, dur)
+                            ):
+                                placed_at = _tc
+                                break
                 if (
-                    t + dur <= day_end
+                    placed_at is None
+                    and t + dur <= day_end
                     and (cap is None or t <= cap)
                     and _fits_hours_window(hours, t, dur)
                     and _city_side_ok(xfer_windows, visit, t, dur)
@@ -7526,6 +7661,7 @@ def _fallback_sequence_times(
                                 tf = fe
                                 advanced = True
                                 break
+                    tf = _advance_past_combo(tf, dur)
                     if (
                         tf + dur <= day_end
                         and (cap is None or tf <= cap)
@@ -7589,12 +7725,16 @@ def _fallback_sequence_times(
 
         win_lo = 11 * 60 + 30  # 开餐硬窗（2026-11-03 拍板 [11:30, 12:30]）
         win_hi = 12 * 60 + 30
+        # ③组合防插：成员间区间同时是餐位禁入区——flex 午餐不得缩档
+        # 楔进组合中间（碑林案形态：90min 宴秀被缩成 30min 插在组合
+        # 成员之间）；窗内只剩禁入区→按「窗满丢餐」移除并留痕。
+        meal_blockers = fixed_tight + _combo_interiors()
         for meal, ms, mdur in flex_lunches:
             placed: tuple[int, int] | None = None
             for d in dict.fromkeys([mdur, max(30, mdur - 30), 30]):
                 # 先贴原时刻段、再全窗早段（同档时长内开餐尽量近原位）
                 for t_from in (max(win_lo, ms), win_lo):
-                    t = _meal_slot(t_from, win_hi, d, fixed_tight)
+                    t = _meal_slot(t_from, win_hi, d, meal_blockers)
                     if t is not None:
                         placed = (t, d)
                         break
@@ -7637,6 +7777,9 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
             if end is not None:
                 fixed_tight.append((start, end))
         fixed_tight.sort()
+        # 组合防插（2026-11-10 拍板）：终装挪卡后的餐占位重排同样不得
+        # 楔进组合成员之间——成员间区间并入阻挡窗。
+        meal_blockers = fixed_tight + _combo_day_interiors(day)
         dinners = [
             (i, _minutes_of(i.start_time), int(i.duration_minutes or 60))
             for i in day.items
@@ -7665,11 +7808,11 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
                 current_start is not None
                 and current_end is not None
                 and not any(
-                    current_start < fe and current_end > fs for fs, fe in fixed_tight
+                    current_start < fe and current_end > fs for fs, fe in meal_blockers
                 )
             ):
-                fixed_tight.append((current_start, current_end))
-                fixed_tight.sort()
+                meal_blockers.append((current_start, current_end))
+                meal_blockers.sort()
                 continue
             placed: tuple[int, int] | None = None
             for dur in durations:
@@ -7680,7 +7823,7 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
                     advanced = True
                     while advanced:
                         advanced = False
-                        for fs, fe in fixed_tight:
+                        for fs, fe in meal_blockers:
                             if t < fe and t + dur > fs:
                                 t = fe
                                 advanced = True
@@ -7702,8 +7845,8 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
             meal.start_time = time(slot // 60, slot % 60)
             meal.end_time = time((slot + dur) // 60, (slot + dur) % 60)
             meal.duration_minutes = dur
-            fixed_tight.append((slot, slot + dur))
-            fixed_tight.sort()
+            meal_blockers.append((slot, slot + dur))
+            meal_blockers.sort()
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
@@ -8113,6 +8256,17 @@ def _is_show_banquet_item(item: VisitItem) -> bool:
     if not str(item.poi_id or "").startswith("curated:"):
         return False
     text = f"{item.name or ''}|{item.opening_hours or ''}"
+    return any(m in text for m in _BANQUET_SHOW_TEXT_MARKS)
+
+
+def _cand_is_show_banquet(cand: dict, spec: dict) -> bool:
+    """构造期宴秀判定（_is_show_banquet_item 同口径的 dict 形态）：组装
+    VisitItem 之前决定餐槽归属用。"""
+    if str(spec.get("category") or "") != "food":
+        return False
+    if not str(cand.get("source_poi_id") or "").startswith("curated:"):
+        return False
+    text = f"{spec.get('name') or ''}|{cand.get('opening_hours') or ''}"
     return any(m in text for m in _BANQUET_SHOW_TEXT_MARKS)
 
 
@@ -16397,7 +16551,7 @@ class PlanningAgent:
                 anchors[city] = GeoPoint(**cand["location"])
         await self._ensure_origin_anchor(anchors, cities)
         visits: list[VisitItem] = []
-        food_by_day: dict[int, int] = {}
+        meal_slots_taken: dict[int, set[str]] = {}
         for spec in picked:
             cand = cand_by_name.get(spec["name"])
             location = None
@@ -16409,21 +16563,36 @@ class PlanningAgent:
             pinned = False
             soft_pin = False
             if spec.get("category") == "food":
-                count = food_by_day.get(spec["day"], 0)
-                food_by_day[spec["day"]] = count + 1
-                if count <= 1:
+                taken = meal_slots_taken.setdefault(spec["day"], set())
+                if len(taken) <= 1:
                     # 1st/2nd meal of the day rides a meal window with a
                     # concrete time so the solver (rule 19) honors the pin.
                     # 午餐默认 1.5h（2026-11-03 拍板）→ 12:00–13:30。
-                    slot = "lunch" if count == 0 else "dinner"
-                    duration = (
-                        LUNCH_DURATION_MINUTES
-                        if slot == "lunch"
-                        else MEAL_DURATION_MINUTES
-                    )
-                    start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
-                    pinned = True
-                    soft_pin = True
+                    # 宴秀卡占晚餐槽（2026-11-08 拍板「宴秀占当日 show」）：
+                    # 是第一餐也不占午餐槽——午窗被一场夜宴锁死时，组合防
+                    # 插闸只能把整张心愿卡丢餐蒸发（碑林组合中间插宴秀卡案
+                    # 类级收口）；午餐交由自动补餐链保槽。槽位占用按集合判，
+                    # 宴秀先占晚餐后普通餐自动落到午餐，两餐不重槽。
+                    if _cand_is_show_banquet(cand or {}, spec):
+                        slot = "dinner" if "dinner" not in taken else None
+                    else:
+                        slot = (
+                            "lunch"
+                            if "lunch" not in taken
+                            else "dinner"
+                            if "dinner" not in taken
+                            else None
+                        )
+                    if slot is not None:
+                        duration = (
+                            LUNCH_DURATION_MINUTES
+                            if slot == "lunch"
+                            else MEAL_DURATION_MINUTES
+                        )
+                        start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
+                        pinned = True
+                        soft_pin = True
+                        taken.add(slot)
             visits.append(
                 VisitItem(
                     item_id=f"v{self._item_seq}",

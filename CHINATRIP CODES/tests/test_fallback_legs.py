@@ -256,3 +256,120 @@ def test_fallback_session_show_yields_far_blocker_keeps_cluster():
     assert show.start_time == _t(17, 0), "秦俑情应守住簇日 17:00 场"
     assert lishan.start_time is None, "骊山应让位（untime 交后续 pass/挪日链）"
     assert bmy150.start_time == _t(9, 0), "贴排圈伴不动"
+
+
+# 碑林伞名组合对（景区挂牌行 × 博物馆本体，词素「碑林」+ ~0.6km）
+BL_SCENIC_LOC = GeoPoint(lon=108.9539, lat=34.2555)
+BL_MUSEUM_LOC = GeoPoint(lon=108.9480, lat=34.2530)
+
+
+def _bl_scenic():
+    return VisitItem(
+        item_id="bl-scenic",
+        name="西安城墙·碑林历史文化景区",
+        city="西安",
+        day=2,
+        category="sight",
+        duration_minutes=180,
+        location=BL_SCENIC_LOC,
+    )
+
+
+def _bl_museum():
+    return VisitItem(
+        item_id="bl-museum",
+        name="西安碑林博物馆",
+        city="西安",
+        day=2,
+        category="museum",
+        duration_minutes=120,
+        location=BL_MUSEUM_LOC,
+    )
+
+
+def _bl_banquet():
+    return VisitItem(
+        item_id="banquet",
+        name="长安十二时辰·唐乐舞伴宴",
+        city="西安",
+        day=2,
+        category="food",
+        duration_minutes=90,
+        pinned=True,
+        soft_pin=True,
+        start_time=_t(12, 0),
+        end_time=_t(13, 30),
+        poi_id="curated:banquet-x",
+        location=GeoPoint(lon=108.9610, lat=34.2520),
+    )
+
+
+def _bell():
+    return VisitItem(
+        item_id="bell",
+        name="西安钟楼",
+        city="西安",
+        day=2,
+        category="sight",
+        duration_minutes=60,
+        location=ZL_LOC,
+    )
+
+
+def _min(t) -> int:
+    return t.hour * 60 + t.minute
+
+
+def test_fallback_combo_pair_no_third_card_between():
+    """2026-11-10 拍板「组合成员之间不得落入第三卡」（碑林组合中间插
+    宴秀卡案类级收口）：伞名组合对成员贴排落位；flex 餐不得缩档楔进
+    组合成员之间——窗满按丢餐留痕（2026-11-08「餐卡可推迟/修订窗满
+    丢餐」拍板），组合完整性强于一餐。"""
+    scenic, museum, banquet, bell = (
+        _bl_scenic(),
+        _bl_museum(),
+        _bl_banquet(),
+        _bell(),
+    )
+    # 餐卡列表序夹在组合成员之间——放置序必须把成员挪成紧邻
+    day = DayPlan(day=2, base_city="西安", items=[museum, banquet, scenic, bell])
+    plan = ItineraryPlan(
+        itinerary_id="it-bl", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    assert scenic.start_time is not None, "组合景区应落位"
+    assert museum.start_time is not None, "组合博物馆应落位"
+    ends = sorted([_min(scenic.end_time), _min(museum.end_time)])
+    starts = sorted([_min(scenic.start_time), _min(museum.start_time)])
+    assert starts[1] - ends[0] <= 30, (
+        f"组合成员脱节 >30 分钟交通垫：景区 {scenic.start_time}-{scenic.end_time} "
+        f"博物馆 {museum.start_time}-{museum.end_time}——第三方可楔入"
+    )
+    # 成员间区间（贴排后应为空）不得有任何第三卡
+    interior = (ends[0], starts[1])
+    for it in day.items:
+        if not isinstance(it, VisitItem) or it in (scenic, museum):
+            continue
+        if it.start_time is None:
+            continue
+        wedged = interior[0] <= _min(it.start_time) and _min(it.end_time) <= interior[1]
+        assert not wedged, f"{it.name} 落在组合成员之间"
+    # 午窗被贴排组合吃满 → 宴秀按窗满丢餐移除（留痕在日志），不缩档硬楔
+    assert banquet not in day.items, "宴秀应窗满丢餐移除，不得缩档楔进组合"
+    assert bell.start_time is not None, "第三方观光点应落在组合之后"
+    assert _min(bell.start_time) >= ends[1], "钟楼应排在组合尾后"
+
+
+def test_fallback_combo_pair_kept_when_user_order_authoritative():
+    """keep_list_order（2026-10-24「用户顺序权威」拍板）：用户权威路径
+    不启用组合防插/贴排——用户亲手把第三方排在组合中间时引擎不顶回。"""
+    scenic, bell, museum = _bl_scenic(), _bell(), _bl_museum()
+    day = DayPlan(day=2, base_city="西安", items=[scenic, bell, museum])
+    plan = ItineraryPlan(
+        itinerary_id="it-bl2", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan, keep_list_order=True)
+    assert bell.start_time is not None and museum.start_time is not None
+    assert _min(bell.start_time) < _min(museum.start_time), (
+        "keep_list_order 下不得重排用户列表序（第三方留在组合中间）"
+    )
