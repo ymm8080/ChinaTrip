@@ -223,6 +223,47 @@ def test_origin_closure_city_collects_no_candidates():
     assert store.cities == ["成都", "重庆"]
 
 
+# --- 2026-11-10 同城往返 len==2 同名二城跳过判据修复 -----------------------------
+
+
+class _RecCityStore(_DeepStore):
+    def __init__(self):
+        super().__init__()
+        self.cities: list[str] = []
+
+    def top_pois_in_city(self, city, limit, *, exclude_food=True):
+        self.cities.append(city)
+        return [
+            {
+                "name": f"{city}点",
+                "city": city,
+                "category": "attraction",
+                "location": (104.0, 30.6),
+                "rating": 4.2,
+            }
+        ][:limit]
+
+
+def test_same_name_sole_destination_city_still_collects():
+    """同城往返 len==2（杭州..杭州）：第二城是唯一目的地不是回程尾——
+    旧判据「同名即 continue」静默空池（杭州/重庆/南京单日仅 1 visit 探针
+    实证）；修复后必须收候选。"""
+    store = _RecCityStore()
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["杭州", "杭州"]))
+    assert store.cities == ["杭州"]
+    assert any(c["city"] == "杭州" for c in candidates)
+
+
+def test_mid_list_same_name_still_skipped():
+    """真·闭合尾城跳过保持（2026-10-30 判据）：3 城闭合（上海..重庆..上海）
+    中部同名城不收候选，尾城也不收（len==3 且尾同名才走 skip-tail）。"""
+    store = _RecCityStore()
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    run(agent._collect_candidates(["上海", "重庆", "上海"]))
+    assert store.cities == ["重庆"]
+
+
 # --- 2026-11-01 北京钟楼案：补量异地命中保留真实城市，不进排程 -------------
 
 

@@ -11020,8 +11020,20 @@ class PlanningAgent:
         # 含往返闭合尾部重复（甲城..甲城）：其候选必被 _assemble_plan 的
         # 出发城闸丢弃，收了白付一次全城扫描（2026-10-30）。
         origin_norm = _norm_city(cities[0]) if cities else ""
-        for city in cities[1:] if len(cities) > 1 else cities:
-            if len(cities) > 1 and _norm_city(city) == origin_norm:
+        _pool_cities = cities[1:] if len(cities) > 1 else cities
+        # 同名跳过仅限真·闭合回程尾城（2026-11-10 修）：len==2 且同名时
+        # 第二城是唯一目的地不是回程尾，旧判据一律 continue 会静默空池
+        # （同城往返杭州/重庆/南京单日仅 1 visit 探针实证）；非尾同名仍
+        # 跳过（2026-10-30 白扫描判据不变）。
+        _tail_dup = (
+            len(_pool_cities) > 1 and _norm_city(_pool_cities[-1]) == origin_norm
+        )
+        for pos, city in enumerate(_pool_cities):
+            if (
+                len(cities) > 1
+                and _norm_city(city) == origin_norm
+                and (pos < len(_pool_cities) - 1 or _tail_dup)
+            ):
                 continue
             pois: list[dict] = []
             lib_count = 0
