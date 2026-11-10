@@ -8939,6 +8939,251 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
                 logger.warning("plan: show-per-day gate dropped untimed %s", v.name)
 
 
+def _rain_rebalance_days(
+    plan: ItineraryPlan,
+    day_rain: dict[str, set[int]],
+    start_date: str | None,
+) -> list[str]:
+    """雨日调换闸（2026-11-11 拍板「天气真值每日漂移，打开行程自动更新
+    天气，同时根据雨天走调换逻辑」）：建划时的雨日判读过期后，读路径按
+    新雨情把「雨日的不耐雨组合」与「干日的耐雨组合」整族对调。
+
+    口径（与选层 _fam_rain_intol 同源，类级无站点名）：
+    ① 族=当天观光卡按 ≤1km 原子连边聚族（无坐标件为单件族），整族
+       对调、插入对方族原位置（当日列表序不乱）；
+    ② 严进严出——雨日族不耐雨度 (硬露天员数, 未标注弱件数) 严格大于
+       干日族才调；相等/倒挂不动（宁缺勿滥）；雨日族 intol=(0,0) 无
+       受害方也不调；
+    ③ 族内任一钉/软钉/必去/手建/精选/演出卡 → 整族不调（铁律 19 用户
+       权威 + 场次绑死日期）；
+    ④ 含城际腿的日不参与；餐/酒店卡随日不走；
+    ⑤ 对调后两天 4/日帽与 480min 账不得破，重排时刻 validate 无
+       error 才接受，否则放弃本次对调试下一对；
+    ⑥ 双语披露进 plan.assumptions（用户打开即见计划被雨情改动）。
+    """
+    notes: list[str] = []
+    city_days: dict[str, dict[int, DayPlan]] = {}
+    for d in plan.days:
+        city_days.setdefault(d.base_city, {})[d.day] = d
+
+    def _visits(day: DayPlan) -> list[VisitItem]:
+        return [
+            i
+            for i in day.items
+            if isinstance(i, VisitItem) and i.category not in ("food", "hotel")
+        ]
+
+    def _intol(v: VisitItem) -> tuple[int, int]:
+        rok = str(v.rain_ok or "")
+        if rok in ("no", "partial"):
+            return (1, 0)
+        if (
+            rok == ""
+            and str(v.category or "")
+            not in ("museum", "gallery", "hotel", "food", "entertainment")
+            and (v.tier or 99) > 2
+            and str(v.best_visit_time or "").strip().lower() not in ("evening", "night")
+        ):
+            return (0, 1)
+        return (0, 0)
+
+    def _fam_intol(fam: list[VisitItem]) -> tuple[int, int]:
+        h = sum(_intol(m)[0] for m in fam)
+        u = sum(_intol(m)[1] for m in fam)
+        return (h, u)
+
+    def _swappable(fam: list[VisitItem]) -> bool:
+        return all(
+            not (m.pinned or m.soft_pin or m.must or m.created or m.curated)
+            and str(m.category or "") != "entertainment"
+            for m in fam
+        )
+
+    def _families(day: DayPlan) -> list[list[VisitItem]]:
+        vs = _visits(day)
+        parent = list(range(len(vs)))
+
+        def find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: int, b: int) -> None:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+
+        for ai in range(len(vs)):
+            for bi in range(ai + 1, len(vs)):
+                la, lb = vs[ai].location, vs[bi].location
+                if la is None or lb is None:
+                    continue
+                if 0 < haversine_km(la, lb) <= _FAMILY_ATOMIC_KM:
+                    union(ai, bi)
+        grouped: dict[int, list[VisitItem]] = {}
+        for idx, v in enumerate(vs):
+            grouped.setdefault(find(idx), []).append(v)
+        return sorted(grouped.values(), key=lambda f: -len(f))
+
+    def _load(items: list[VisitItem | TransferItem]) -> tuple[int, int]:
+        vs = [
+            i
+            for i in items
+            if isinstance(i, VisitItem) and i.category not in ("food", "hotel")
+        ]
+        return len(vs), sum(i.duration_minutes or 60 for i in vs)
+
+    def _has_transfer(day: DayPlan) -> bool:
+        return any(isinstance(i, TransferItem) for i in day.items)
+
+    def _try_swap(
+        city: str,
+        rainy_day: DayPlan,
+        dry_day: DayPlan,
+        fam_r: list[VisitItem],
+        fam_d: list[VisitItem],
+    ) -> bool:
+        cnt_r, min_r = _load(rainy_day.items)
+        cnt_d, min_d = _load(dry_day.items)
+        fam_r_min = sum(m.duration_minutes or 60 for m in fam_r)
+        fam_d_min = sum(m.duration_minutes or 60 for m in fam_d)
+        if cnt_r - len(fam_r) + len(fam_d) > 4:
+            return False
+        if cnt_d - len(fam_d) + len(fam_r) > 4:
+            return False
+        if min_r - fam_r_min + fam_d_min > 480:
+            return False
+        if min_d - fam_d_min + fam_r_min > 480:
+            return False
+        trial = plan.model_copy(deep=True)
+        t_rain = city_days_trial(trial, city, rainy_day.day)
+        t_dry = city_days_trial(trial, city, dry_day.day)
+        if t_rain is None or t_dry is None:
+            return False
+        ids_r = {m.item_id for m in fam_r}
+        ids_d = {m.item_id for m in fam_d}
+        moved_r = [i for i in t_rain.items if i.item_id in ids_r]
+        moved_d = [i for i in t_dry.items if i.item_id in ids_d]
+        pos_r = next(k for k, i in enumerate(t_rain.items) if i.item_id in ids_r)
+        pos_d = next(k for k, i in enumerate(t_dry.items) if i.item_id in ids_d)
+        for i in moved_r:
+            t_rain.items.remove(i)
+        for i in moved_d:
+            t_dry.items.remove(i)
+        for offset, i in enumerate(moved_d):
+            i.day = rainy_day.day
+            t_rain.items.insert(pos_r + offset, i)
+        for offset, i in enumerate(moved_r):
+            i.day = dry_day.day
+            t_dry.items.insert(pos_d + offset, i)
+        # 受影响两天非钉时刻清空，按列表序重链（move_item 同口径）
+        for day in (t_rain, t_dry):
+            for it in day.items:
+                if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
+                    it.start_time = None
+                    it.end_time = None
+        _reconcile_transfer_days(trial, user_edit=True)
+        _fallback_sequence_times(trial, keep_list_order=True)
+        report = validate_plan(trial, poi_hours=[])
+        if any(v.severity == RuleSeverity.error for v in report.violations):
+            logger.info(
+                "plan: rain-swap rejected day %d<->%d (%s): %s",
+                rainy_day.day,
+                dry_day.day,
+                city,
+                [v.message for v in report.violations][:3],
+            )
+            return False
+        # 接受：把试排结果写回（in-place，读路径闸惯例）
+        plan.days = trial.days
+        city_days[city][rainy_day.day] = next(
+            d for d in plan.days if d.day == rainy_day.day
+        )
+        city_days[city][dry_day.day] = next(
+            d for d in plan.days if d.day == dry_day.day
+        )
+        date_r = _leg_date_iso(start_date, rainy_day.day) or f"第{rainy_day.day}天"
+        date_d = _leg_date_iso(start_date, dry_day.day) or f"第{dry_day.day}天"
+        notes.append(
+            L(
+                f"天气预报更新：{date_r}转雨，「{fam_r[0].name}」等"
+                f"{len(fam_r)}处已与{date_d}「{fam_d[0].name}」等对调"
+                "——雨日改排更耐雨的组合",
+                f"Forecast updated: rain on {date_r}; swapped the "
+                f'"{fam_r[0].name}" group ({len(fam_r)} stops) with the '
+                f'"{fam_d[0].name}" group on {date_d} — the more '
+                "rain-tolerant combo takes the rainy day",
+            )
+        )
+        logger.info(
+            "plan: rain-swap day %d<->%d (%s): %s <-> %s",
+            rainy_day.day,
+            dry_day.day,
+            city,
+            fam_r[0].name,
+            fam_d[0].name,
+        )
+        return True
+
+    def city_days_trial(
+        trial_plan: ItineraryPlan, city: str, day_no: int
+    ) -> DayPlan | None:
+        for d in trial_plan.days:
+            if d.base_city == city and d.day == day_no:
+                return d
+        return None
+
+    # 主循环：每轮至多接受一次对调，最多 4 轮（防抖动）
+    for _round in range(4):
+        accepted = False
+        for city, days_map in city_days.items():
+            rain_set = day_rain.get(city, set()) | day_rain.get(city + "市", set())
+            if not rain_set:
+                continue
+            span = sorted(days_map)
+            if not span:
+                continue
+            rainy_days = [days_map[d] for d in span if d in rain_set]
+            dry_days = [days_map[d] for d in span if d not in rain_set]
+            if not rainy_days or not dry_days:
+                continue
+            done = False
+            for r_day in rainy_days:
+                if _has_transfer(r_day):
+                    continue
+                r_fams = [f for f in _families(r_day) if len(f) >= 1 and _swappable(f)]
+                r_fams.sort(key=_fam_intol, reverse=True)
+                for fam_r in r_fams:
+                    intol_r = _fam_intol(fam_r)
+                    if intol_r <= (0, 0):
+                        break
+                    for d_day in dry_days:
+                        if _has_transfer(d_day):
+                            continue
+                        d_fams = [
+                            f for f in _families(d_day) if len(f) >= 1 and _swappable(f)
+                        ]
+                        d_fams.sort(key=_fam_intol)
+                        fam_d = next(
+                            (f for f in d_fams if _fam_intol(f) < intol_r),
+                            None,
+                        )
+                        if fam_d is None:
+                            continue
+                        if _try_swap(city, r_day, d_day, fam_r, fam_d):
+                            accepted = True
+                            done = True
+                            break
+                    if done:
+                        break
+                if done:
+                    break
+        if not accepted:
+            break
+    return notes
+
+
 def heal_leg_gaps(plan: ItineraryPlan) -> list[str]:
     """读路径腿间隔自愈（2026-11-03 Day2 大遗址样本 13:30+90min→联票挂牌 15:00
     零车程事故）：11-02 _leg_windows 改造前的旧 session 兜底产物（锚窗
@@ -12685,6 +12930,30 @@ class PlanningAgent:
                 if night_text and "雨" in str(night_text):
                     night_out.setdefault(key, set()).add(day)
         return day_out, night_out, heavy_out, light_out
+
+    def rain_rebalance_days(self, session: PlanSession) -> list[str]:
+        """读路径雨日调换闸（2026-11-11 拍板「天气真值每日漂移，打开行
+        程自动更新天气，同时根据雨天走调换逻辑」）：现查天气库重算雨日
+        集，物化 plan 上把雨日不耐雨组合与干日耐雨组合对调（口径见
+        _rain_rebalance_days）。纯计算不调 LLM； disclosure 由调用方
+        落 assumptions（本方法已写入 session.plan.assumptions）。
+        """
+        plan = session.plan
+        if plan is None or self._weather_lookup is None or not session.start_date:
+            return []
+        ranges: dict[str, tuple[int, int]] = {}
+        for d in plan.days:
+            lo, hi = ranges.get(d.base_city, (d.day, d.day))
+            ranges[d.base_city] = (min(lo, d.day), max(hi, d.day))
+        if not ranges:
+            return []
+        day_rain, _night_rain, _heavy, _light = self._rain_map(session, ranges)
+        if not day_rain:
+            return []
+        notes = _rain_rebalance_days(plan, day_rain, session.start_date)
+        if notes:
+            plan.assumptions.extend(notes)
+        return notes
 
     @staticmethod
     def _deterministic_selection(

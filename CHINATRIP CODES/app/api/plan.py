@@ -271,6 +271,15 @@ async def save_plan(
         plan.assumptions.extend(drop_notes)
         session.plan = plan
         store.save(session)
+    # 雨日调换终闸（2026-11-11 拍板「打开行程自动更新天气，同时根据雨
+    # 天走调换逻辑」）：冻结前现查天气库——雨日不耐雨组合与干日耐雨组
+    # 合对调，钉/场次/餐酒店不动，披露进 assumptions。
+    rain_notes = agent.rain_rebalance_days(session)
+    if rain_notes:
+        for note in rain_notes:
+            logger.warning("plan/save %s rain-swap: %s", session_id, note)
+        session.plan = plan
+        store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
     if record is None:
         record = ItineraryRecord(
@@ -398,6 +407,11 @@ async def get_plan_session(
         for note in drop_notes:
             logger.warning("plan/session %s untimed-drop: %s", session_id, note)
         session.plan.assumptions.extend(drop_notes)
+    # 雨日调换读闸（2026-11-11 拍板「天气真值每日漂移，打开行程自动更
+    # 新天气，同时根据雨天走调换逻辑」）：现查天气库——雨日不耐雨组合
+    # 与干日耐雨组合对调，钉/场次/餐酒店不动；双语披露进 assumptions。
+    for note in agent.rain_rebalance_days(session):
+        logger.warning("plan/session %s rain-swap: %s", session_id, note)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
