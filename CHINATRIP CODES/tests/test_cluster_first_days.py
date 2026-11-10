@@ -19,6 +19,10 @@ day_loads 账面一律剔腿；二拍②：全小件族每员≤120min且合计�
 物理排得下，降序连排末件开场超入场闸即拦在进日前（⑨纯算术；
 ⑩伞名捆绑 keeper 日物理满则不拉同日；⑪四员 450min 族账面可落
 但物理不可排→减地理端点+披露，替代终排无声挤死）。
+⑫先保 tier 高弹让锚：王牌族（best tier≤2）全窗容量型被拒时，把
+目标日已落地件与入件并一组观察，按「重要度小、重复度高」减员腾位
+——弱族整体弹出（伞名票制对联同进退、族形 ≥2 或清零），王牌族
+整族原子补进，弹出件回散件通道+双语披露。
 """
 
 from __future__ import annotations
@@ -516,3 +520,43 @@ def test_cap_infeasible_family_sheds_endpoint_with_disclosure():
     # 轻端被减员另日安排，不再占着 day1 席位等终排无声挤死
     assert day_of["轻端"] == 2
     assert any("轻端" in n for n in notes)  # 减员双语披露留痕
+
+
+def test_ace_family_displaces_weaker_family_with_disclosure():
+    """⑫先保 tier 高（2026-11-10 拍板「先保 TIER 高的。如果装不下可
+    以看当天已经落地景点和要落地景点一起观察，组内按重要度小和重复
+    度高的原则减少项目」）：王牌族（best tier≤2）全窗被拒且拒因纯容
+    量型（cap4/budget/entry_cap——雨/远/边日闸弹人没用）时，把目标日
+    已落地件与入件并一组观察，按「重要度小、重复度高」逐件减员腾位。
+
+    布形：弱族四员 180+120+90+60=450 形（一员 5a 挂联伞名博物馆对），
+    入场闸物理不可排→预可行 0 最先处理→减地理端点（60min 弱端）后
+    三员 390 占 day1；王牌族 2 员 240+180=420（一员 unesco 一员 5a、
+    硬露天 rain_ok=no 锁死雨日 day2）→ day1 cap4 拒、day2 雨拒→
+    弹让：最弱散件先弹（族形 2 保持、账面仍不合），伞名对联整组弹出
+    （族形清零合法、孤员悬日不许）→420≤450 入账，王牌族原子落 day1，
+    弱族三员回散件通道另日+披露留痕。"""
+    cands = [
+        _c("城墙古城景区", (104.0500, 30.66), tier=2, dur=180),
+        _c("江畔乙", (104.0580, 30.66), dur=120),
+        _c("成都古城博物馆", (104.0660, 30.66), cat="museum", dur=90),
+        _c("汀丁", (104.0740, 30.66), dur=60),
+        _c("王牌A", (103.9000, 30.66), tier=1, dur=240),
+        _c("副A", (103.9050, 30.66), tier=2, dur=180),
+    ]
+    cands[4]["rain_ok"] = "no"
+    cands[5]["rain_ok"] = "no"
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, notes=notes, rain_days={"成都": {2}}
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    # 王牌族整族原子落 day1（弹让入账，不被拆散）
+    assert day_of["王牌A"] == 1
+    assert day_of["副A"] == 1
+    # 弱族三员全部弹出 day1（伞名对联整组同进退），回散件通道另日
+    assert day_of["城墙古城景区"] != 1
+    assert day_of["江畔乙"] != 1
+    assert day_of["成都古城博物馆"] != 1
+    # 弹让双语披露留痕（要加回请说）
+    assert any("让位" in n and "王牌A" in n for n in notes)

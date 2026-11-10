@@ -13889,6 +13889,173 @@ class PlanningAgent:
 
                     return min(feasible, key=_key)
 
+                def _try_displace(members: list[int]) -> int | None:
+                    # 先保 tier 高（2026-11-10 拍板）：王牌族（best tier≤2）
+                    # 全窗被拒且拒因纯容量型（cap4/budget/entry_cap——雨/
+                    # 远/边日闸弹人没用）时，把目标日已落地件与入件并一
+                    # 组观察，按「重要度小、重复度高」逐件减员腾位。可弹
+                    # 件：非钉/非演出/非自建，整组须弱于入族王牌（tier 数
+                    # 字更大——低档弹高档禁令镜像减员通道）；伞名票制对联
+                    # 同进退（拆对=拆组合）；族形收口 ≥2 或整族清零（孤员
+                    # 悬日=自拆组合，孤员随弹出件一并摘出）。逐件试删
+                    # +_try_day 复判，全试完仍不合回滚（禁无声半弹）。弹
+                    # 出件摘预占回散件通道，全程留痕+披露。
+                    ace_tier = min(_source_tier(pool[p][1]) for p in members)
+                    if ace_tier > 2:
+                        return None
+
+                    def _bucket(cand: dict) -> str:
+                        return _cand_diversity_group(cand) or (
+                            "museum"
+                            if _museum_cand(cand)
+                            else str(cand.get("category") or "")
+                        )
+
+                    for d in range(lo, hi + 1):
+                        _why: list[tuple[int, str]] = []
+                        if _try_day(members, d, why=_why):
+                            return d  # 已可行（状态漂移兜底），照常认领
+                        if not _why or any(
+                            r not in ("cap4", "budget", "entry_cap") for _, r in _why
+                        ):
+                            continue  # 非容量闸拒日弹人无用
+                        cards = list(placed[d])
+                        if not cards:
+                            continue
+                        # 伞名票制对并查集：对联同进退（拆对=拆组合）
+                        _par = {p: p for p, _ in cards}
+
+                        def _find2(x: int) -> int:
+                            while _par[x] != x:
+                                _par[x] = _par[_par[x]]
+                                x = _par[x]
+                            return x
+
+                        for _i in range(len(cards)):
+                            for _j in range(_i + 1, len(cards)):
+                                if _umbrella_specs_bundle(cards[_i][1], cards[_j][1]):
+                                    _par[_find2(cards[_i][0])] = _find2(cards[_j][0])
+                        _units: dict[int, list[tuple[int, dict]]] = {}
+                        for _pos, _cand in cards:
+                            _units.setdefault(_find2(_pos), []).append((_pos, _cand))
+
+                        def _evictable(unit: list[tuple[int, dict]]) -> bool:
+                            for _pos, _cand in unit:
+                                if _fam_protected(_cand) or _cand_is_show(_cand):
+                                    return False
+                                if _cand.get("created") or _cand.get("curated"):
+                                    return False  # 自建/策展件同救援通道口径
+                            return (
+                                min(_source_tier(_c) for _, _c in unit) > ace_tier
+                            )  # 整组弱于入族王牌
+
+                        _card_bucket = {p: _bucket(c) for p, c in cards}
+                        _in_buckets = {_bucket(pool[p][1]) for p in members}
+
+                        def _unit_key(unit: list[tuple[int, dict]]) -> tuple:
+                            # 减员序（2026-11-10 拍板「重要度小、重复度高」）：
+                            # 重要度小=组内最优成员 tier 数字大（整组越弱越
+                            # 先减）；重复度高=与入件或留守件同体验桶（多样
+                            # 组/真博物馆/类别）者先减；再时长长、池序靠前。
+                            _stay = set(_in_buckets)
+                            for _p2, _c2 in cards:
+                                if all(_p2 != u[0] for u in unit):
+                                    _stay.add(_card_bucket[_p2])
+                            _dup = sum(1 for u in unit if _card_bucket[u[0]] in _stay)
+                            return (
+                                -min(_source_tier(_c) for _, _c in unit),
+                                -_dup,
+                                -sum(
+                                    _minutes(_c, DEFAULT_VISIT_MINUTES)
+                                    for _, _c in unit
+                                ),
+                                min(u[0] for u in unit),
+                            )
+
+                        _ranked = sorted(
+                            (u for u in _units.values() if _evictable(u)),
+                            key=_unit_key,
+                        )
+                        if not _ranked:
+                            continue
+                        _removed: list[tuple[int, dict, int]] = []
+                        _committed = False
+                        for _unit in _ranked:
+                            for _pos, _cand in sorted(_unit, key=lambda pc: pc[0]):
+                                _charge = _remove_card(d, _pos, _cand)
+                                _removed.append((_pos, _cand, _charge))
+                            if _try_day(members, d):
+                                _committed = True
+                                break
+                        if not _committed:
+                            for _pos, _cand, _charge in reversed(_removed):
+                                _place_card(d, _pos, _cand, _charge)
+                            continue  # 回滚（禁无声半弹），试下一天
+                        # 孤员清扫（族形收口）：提交态某族当日仅剩 1 员
+                        # 且非钉/非演出/非自建、弱于入族王牌时，随弹出件
+                        # 一并摘出——孤员悬日=自拆组合，族形要么 ≥2 要么
+                        # 清零（清零由族日簿清根承接）；钉件豁免（钉保护
+                        # 高于族形），高 tier 孤员豁免（先保 tier 高）。
+                        while True:
+                            _rem_ct: dict[int, int] = {}
+                            for _p2, _c2 in placed[d]:
+                                _fr = _fam_of.get(_p2)
+                                if _fr is not None:
+                                    _rem_ct[_fr] = _rem_ct.get(_fr, 0) + 1
+                            _lone: tuple[int, dict] | None = None
+                            for _p2, _c2 in list(placed[d]):
+                                _fr = _fam_of.get(_p2)
+                                if (
+                                    _fr is not None
+                                    and _rem_ct.get(_fr) == 1
+                                    and _source_tier(_c2) > ace_tier
+                                    and not (
+                                        _fam_protected(_c2)
+                                        or _cand_is_show(_c2)
+                                        or _c2.get("created")
+                                        or _c2.get("curated")
+                                    )
+                                ):
+                                    _lone = (_p2, _c2)
+                                    break
+                            if _lone is None:
+                                break
+                            _charge = _remove_card(d, _lone[0], _lone[1])
+                            _removed.append((_lone[0], _lone[1], _charge))
+                        # 提交：弹出件摘预占/簇标回散件通道；族日簿清根
+                        _evicted = []
+                        for _pos, _cand, _charge in _removed:
+                            preclaimed.discard(_pos)
+                            _cluster_first_pos.discard(_pos)
+                            _evicted.append(str(_cand.get("name") or "?"))
+                        for _fr in list(_family_day.get(d, set())):
+                            if not any(
+                                _fam_of.get(_p2) == _fr for _p2, _c2 in placed[d]
+                            ):
+                                _family_day[d].discard(_fr)
+                        if not placed[d]:
+                            day_owner.pop(d, None)
+                        logger.info(
+                            "plan: cluster-first family [%s] -> day %d via "
+                            "tier-priority displacement, evicted=%s",
+                            _names(members),
+                            d,
+                            _evicted,
+                        )
+                        if notes is not None:
+                            notes.append(
+                                L(
+                                    f"「{'」「'.join(_evicted)}」让位"
+                                    f"「{_names(members)}」"
+                                    "（先保高优先级景点；要加回请说）",
+                                    f'"{", ".join(_evicted)}" yielded to '
+                                    f'"{_names(members)}" (higher-priority '
+                                    "sights kept; say the word to add back)",
+                                )
+                            )
+                        return d
+                    return None
+
                 # 最难排优先（2026-11-09 组合原子化拍板）：先算各组合在全
                 # 窗的可行日数（空载近似），可行日越少越先选日——雨困组
                 # 合（露天弱件锁死雨天）的可行日是真稀缺，能在雨天排的
@@ -13965,6 +14132,10 @@ class PlanningAgent:
                                     _names(members),
                                     day_hit,
                                 )
+                        if day_hit is None:
+                            # 先保 tier 高：王牌族全窗容量型被拒时，让
+                            # 已落地的更弱件腾位（弱件回散件通道重试）。
+                            day_hit = _try_displace(members)
                         if day_hit is not None:
                             for pos in members:
                                 cand = pool[pos][1]
