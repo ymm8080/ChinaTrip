@@ -43,11 +43,11 @@
 ### P4 扰动鲁棒评测（TripTide 思路）——✅ 已交付（2026-11-10，tests/test_perturbation_robustness.py，7 passed + 1 xfailed）
 
 - **交付**：纯新增测试夹具，驱动真实修订入口 `pipeline.py:186 mutate()`（与 PUT /itineraries/{id} 同一函数，零 mock），覆盖返程航班延误 2h（retime）与 POI 临时闭馆（remove+add 替换）两场景，断言 validate_plan/pin 不丢/范围不越界三不变量。
-- **摸底产出的真实缺口**（评测的价值所在，不修产品代码，留证待裁）：
-  - GAP-1 铁律 10 `from_day` 范围闸全库无生产调用方——死参数；
-  - GAP-2 钉住点闭馆=铁律 2 与铁律 19 双闸死锁，引擎只拒不升级（无"请示用户解钉"通道）；
-  - GAP-3 DiffOp 无"改交通时长"操作，延误+改签（航程也变长）表达不了；
-  - GAP-4 `validate_change_scope` 整对象相等比较（rules.py:608）被 mutate 出口 annotate_legs 腿标注漂移误报铁律 10（xfail 实证）。
+- **摸底产出的真实缺口**（评测的价值所在；GAP-2/GAP-4 已于当日修复，84345d3）：
+  - GAP-1 铁律 10 `from_day` 范围闸全库无生产调用方——死参数（接线改线上行为，留待产品拍板）；
+  - ~~GAP-2 钉住点闭馆=铁律 2 与铁律 19 双闸死锁，引擎只拒不升级~~【已修】mutate 对「铁律 2 打在钉住卡上」追加 rule_id=19 warning（中英解钉指引，不污染 ok 口径）；
+  - GAP-3 DiffOp 无"改交通时长"操作，延误+改签（航程也变长）表达不了（编辑面产品决策，留待拍板）；
+  - ~~GAP-4 `validate_change_scope` 整对象相等比较（rules.py:608）被 mutate 出口 annotate_legs 腿标注漂移误报铁律 10~~【已修】`_scope_key` 对三个腿标注字段归一化后比较，xfail 转 pass。
 
 ### P5 交付前双模型质检（马蜂窝"质检员"思路）
 
