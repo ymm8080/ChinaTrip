@@ -1294,7 +1294,10 @@ def test_selfrepair_recovers_from_hard_violation():
             "city": "苏州",
             "category": "sight",
             "day": 2,
-            "duration_minutes": 90,
+            # 60' 轻点：到达日收轻内容口径（≤80min 非街区点不算重磅）；
+            # 用 90' 会被到达日轻量终装清扫挪去第 3 天，改变违例画像
+            # 烧光脚本回复。
+            "duration_minutes": 60,
         },
     ]
     llm = ScriptedLLM(

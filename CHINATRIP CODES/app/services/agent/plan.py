@@ -542,6 +542,45 @@ def _street_like_visit(v: "VisitItem") -> bool:
     )
 
 
+def _arrival_simple_visit(v: "VisitItem") -> bool:
+    """到达日简单卡唯一定义点（2026-11-11 拍板「到达日只收简单
+    CITYWALK/街区轻件，重磅与长块殿后」）：街道/citywalk 类（
+    _street_like_visit 口径）且非主题街区演出块（_is_theme_block——
+    名带「街」的 240min 级沉浸块不是简单 CITYWALK）且时长 ≤120min
+    （到达日整族落位通道单员上限镜像）且非 tier≤2 王牌。唯一定义点：
+    终装到达日轻量清扫（_arrival_day_light_sweep）与让位弹座择宿
+    到达日殿后共用本口径。"""
+    if (getattr(v, "tier", None) or 11) <= 2:
+        return False
+    if _is_theme_block(v):
+        return False
+    if (getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES) > 120:
+        return False
+    return _street_like_visit(v)
+
+
+def _arrival_heavy_visit(v: "VisitItem") -> bool:
+    """到达日重磅卡（终装清扫①出到达日判据，_arrival_simple_visit 的
+    补集收窄版）：tier≤2 王牌、主题街区演出块、>80min 大块头（非简卡
+    口径）——小型非街区轻点（≤80min 博物馆/寺观等）不算重磅（到达日
+    收轻内容 2026-11-05 拍板），餐酒娱演出另列不受理。"""
+    if _arrival_simple_visit(v):
+        return False
+    if (getattr(v, "tier", None) or 11) <= 2:
+        return True
+    if _is_theme_block(v):
+        return True
+    if str(getattr(v, "category", "") or "").strip().lower() in (
+        "food",
+        "hotel",
+        "entertainment",
+    ):
+        return False
+    return (
+        getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES
+    ) > BIG_SITE_MIN_MINUTES
+
+
 def _street_block_priority(
     ordered: list[tuple[int, dict]],
 ) -> list[tuple[int, dict]]:
@@ -5774,10 +5813,12 @@ def _yield_for_premium(
                 and str(d.base_city or "").strip().removesuffix("市") == vcity
             ]
             # 到达日殿后（2026-11-09 拍板：到达日只收街道/citywalk 类轻件，
-            # 重要景点殿后）：零弹座跨日择宿按日序首配会把空到达日当第一
-            # 宿主（11-14 实录——后段晨间有圈伴却先落到达日）；非街道类卡
+            # 重要景点殿后；2026-11-11 收紧为「简单街区卡」口径
+            # _arrival_simple_visit——名带街字的长块/主题街区块不算简单
+            # 轻件）：零弹座跨日择宿按日序首配会把空到达日当第一
+            # 宿主（11-14 实录——后段晨间有圈伴却先落到达日）；非简卡
             # 把到达日挪池尾，仍可作最后兜底（宁末选勿蒸发）。
-            if not _street_like_visit(visit):
+            if not _arrival_simple_visit(visit):
                 zero_pool.sort(key=lambda d: _day_is_arrival(d, vcity))
             zero_target = _host_day_for_visit(
                 zero_pool,
@@ -5847,14 +5888,19 @@ def _yield_for_premium(
             # 宿主池两闸：只认 base 同城日（到达日「结构可容、终排必死」
             # ——容量闸不识营业窗，落地 14:30 起 180min 名点 17:30 收
             # >17:00 闭馆实录）；排除搁浅原日——除非弹座正是出自原日
-            # （自家日弹座后原日回宿是让位本意，否则是无谓弹座的空转）
+            # （自家日弹座后原日回宿是让位本意，否则是无谓弹座的空转）。
+            # 非简单街区卡把到达日挪池尾（2026-11-11 同零弹座口径
+            # _arrival_simple_visit——长块/主题街区块不首选到达日）。
+            _eject_pool = [
+                d
+                for d in pool
+                if (d is not origin or d is later)
+                and str(d.base_city or "").strip().removesuffix("市") == vcity
+            ]
+            if not _arrival_simple_visit(visit):
+                _eject_pool.sort(key=lambda d: _day_is_arrival(d, vcity))
             t = _host_day_for_visit(
-                [
-                    d
-                    for d in pool
-                    if (d is not origin or d is later)
-                    and str(d.base_city or "").strip().removesuffix("市") == vcity
-                ],
+                _eject_pool,
                 vcity,
                 dur,
                 incoming=visit.location,
@@ -6922,6 +6968,303 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
+
+
+def _arrival_day_light_sweep(
+    plan: ItineraryPlan, protect: frozenset[str] | set[str]
+) -> None:
+    """到达日轻量终装清扫（2026-11-11 类级收口，纯度清扫姊妹件）：
+    「到达日只适合简单 CITYWALK 或 SHOW」终装硬口径。上游各相位（选层
+    溢出/让位弹座/紧族重逢/全局换座/贴锚并块）各自合规却可合力把重磅卡
+    塞进到达日、或让到达日一张简单街区卡都拿不到（重磅占日+下午单大点
+    跳街区实录）。两步单向扫，挪后 _fallback_sequence_times 重排：
+
+    ① 重磅出到达日：到达日上非演出非钉/软钉/餐宿卡不满足
+       「简单街区卡」口径（_arrival_simple_visit——非街道类/主题街区
+       长块/超长件/tier≤2 王牌）时，挪同城非到达非返程日（
+       _host_day_for_visit 实位探针终审，_rescue=True 放行王牌）；
+       无宿主=保留+WARN+披露（必去/心愿只挪不删口径同纯度①出圈件：
+       挪得动就挪，挪不动保留+披露）。curated 只挪不删（永不进删除闸
+       不受影响），有宿主同样挪——精选长块占到达日同样违反轻量拍板。整族轻量形态豁免：当日参访卡
+       互近成族（两两全连通 ≤_FAMILY_ATOMIC_KM）且每员 ≤120min、
+       合计 ≤180min——到达日整族落位通道（11-08 拍板）终装镜像，
+       拆族比留重磅更伤。
+    ② 简卡进到达日：①后到达日仍无任何简单街区卡时，从同城非到达日
+       参访卡 ≥2 的日挪一张简单街区卡过来（源日腾得动：移除后仍
+       ≥1 张参访卡；钉/软钉/心愿/curated/必去不作源卡）——源日按
+       参访卡数降序、同数靠后者先（早段日结构少动）。仅对真到达日
+       触发（带落地腿日或单城首日；出发城离城日不硬造内容）。先试
+       直落（既有卡原位）；直落落不下升格整日重排（目标日可清卡清时
+       重建，给新卡公平整窗）；升格仍排不上=整步回滚换披露。无源
+       =空转（到达日可只剩演出/餐，不硬造内容）。挪后两日均重排
+       （「？」卡不许出自本清扫）。
+
+    挪动必留日志，保留/回滚必留披露——静默不许可（10-25 立规）。"""
+    moved = False
+
+    def _is_show_v(v: VisitItem) -> bool:
+        return (
+            str(getattr(v, "category", "") or "") == "entertainment"
+            or str(getattr(v, "best_visit_time", "") or "") == "show"
+        )
+
+    def _untouchable(v: VisitItem) -> bool:
+        # 钉/软钉=铁律 19 用户权威；餐宿随行；演出=到达日合法内容。
+        # curated 不在列：①只挪不删（curated 永不进删除闸不受影响），
+        # 有宿主就挪——精选的长块占到达日同样违反轻量拍板。
+        return (
+            getattr(v, "pinned", False)
+            or getattr(v, "soft_pin", False)
+            or str(getattr(v, "category", "") or "") in ("food", "hotel")
+            or _is_show_v(v)
+        )
+
+    def _move(v: VisitItem, src: DayPlan, tgt: DayPlan) -> None:
+        src.items.remove(v)
+        v.day = tgt.day
+        v.start_time = None
+        v.end_time = None
+        tgt.items.append(v)
+
+    def _compact_family_day(day_visits: list[VisitItem]) -> bool:
+        """整族轻量形态（到达日整族落位通道终装镜像）：≥2 张、每员
+        ≤120min、合计 ≤180min、两两全连通 ≤_FAMILY_ATOMIC_KM。"""
+        if len(day_visits) < 2:
+            return False
+        mins = [v.duration_minutes or DEFAULT_VISIT_MINUTES for v in day_visits]
+        if max(mins) > 120 or sum(mins) > 180:
+            return False
+        pts = []
+        for v in day_visits:
+            loc = getattr(v, "location", None)
+            if loc is None or getattr(loc, "lon", None) is None:
+                return False
+            pts.append(GeoPoint(lon=float(loc.lon), lat=float(loc.lat)))
+        return all(
+            any(haversine_km(a, b) <= _FAMILY_ATOMIC_KM for b in pts if b is not a)
+            for a in pts
+        )
+
+    # 分组键=日 base_city ∪ 卡自身 city（口径同纯度清扫：闭环行程远郊
+    # 卡借卡自身城注册进组，到达日判定不空转）。
+    cities: dict[str, list[DayPlan]] = {}
+    for d in plan.days:
+        keys = {str(d.base_city or "").removesuffix("市")}
+        for i in d.items:
+            if isinstance(i, VisitItem) and str(
+                getattr(i, "category", "") or ""
+            ) not in ("food", "hotel"):
+                keys.add(str(getattr(i, "city", "") or "").removesuffix("市"))
+        for c in keys:
+            if c:
+                cities.setdefault(c, []).append(d)
+    single_city = len({str(c).removesuffix("市") for c in (plan.cities or [])}) <= 1
+    _Snap = list[tuple[VisitItem, object, object]]
+    recruit_moves: list[tuple[VisitItem, DayPlan, DayPlan, _Snap | None]] = []
+    for vcity, days in cities.items():
+        for d in [x for x in days if _day_is_arrival(x, vcity)]:
+            visits = [
+                i
+                for i in list(d.items)
+                if isinstance(i, VisitItem)
+                and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                and not _is_show_v(i)
+            ]
+            if not visits:
+                continue
+            # ① 重磅出到达日（整族轻量形态豁免；≤80min 小型非街区轻点
+            #   不算重磅，收轻内容拍板口径）
+            if not _compact_family_day(visits):
+                for v in visits:
+                    if _untouchable(v) or not _arrival_heavy_visit(v):
+                        continue
+                    dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                    non_arrival = [
+                        x for x in days if x is not d and not _day_is_arrival(x, vcity)
+                    ]
+                    pool = [
+                        x for x in non_arrival if not _day_is_return_home(x, plan.days)
+                    ] or non_arrival
+                    tgt = _host_day_for_visit(
+                        pool,
+                        vcity,
+                        dur,
+                        visit=v,
+                        all_days=plan.days,
+                        _rescue=True,
+                    )
+                    if tgt is not None:
+                        _move(v, d, tgt)
+                        moved = True
+                        logger.info(
+                            "plan: arrival-light heavy %s day %s -> day %s",
+                            v.name,
+                            d.day,
+                            tgt.day,
+                        )
+                        plan.assumptions.append(
+                            L(
+                                f"「{v.name}」为重磅景点，到达日以轻量街区"
+                                f"为主，已挪至第{tgt.day}天",
+                                f'"{v.name}" is a major sight; the arrival '
+                                f"day keeps light walks only, so it moved "
+                                f"to day {tgt.day}",
+                            )
+                        )
+                    else:
+                        logger.warning(
+                            "plan: arrival-light heavy %s stays day %s (no host)",
+                            v.name,
+                            d.day,
+                        )
+                        plan.assumptions.append(
+                            L(
+                                f"「{v.name}」为重磅景点，到达日以轻量街区"
+                                f"为主，但其余各天排不下，暂保留在第{d.day}天"
+                                f"（可按需调整）",
+                                f'"{v.name}" is a major sight; the arrival '
+                                f"day keeps light walks only, but every "
+                                f"other day was full, so it stayed on day "
+                                f"{d.day} (adjust as needed)",
+                            )
+                        )
+            # ② 简卡进到达日：仅真到达日（带落地腿日/单城首日）
+            has_arrival_leg = any(
+                isinstance(t4, TransferItem)
+                and str(t4.to_city or "").strip().removesuffix("市") == vcity
+                for t4 in d.items
+            )
+            if not (has_arrival_leg or (single_city and d.day == 1)):
+                continue
+            if any(
+                isinstance(i, VisitItem) and _arrival_simple_visit(i) for i in d.items
+            ):
+                continue
+            src_pick: tuple[VisitItem, DayPlan] | None = None
+            src_days = [x for x in days if x is not d and not _day_is_arrival(x, vcity)]
+            src_days.sort(
+                key=lambda x: (
+                    -sum(
+                        1
+                        for i in x.items
+                        if isinstance(i, VisitItem)
+                        and str(getattr(i, "category", "") or "")
+                        not in ("food", "hotel")
+                    ),
+                    -x.day,
+                )
+            )
+            for x in src_days:
+                cards = [
+                    i
+                    for i in x.items
+                    if isinstance(i, VisitItem)
+                    and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                    and not _is_show_v(i)
+                ]
+                if len(cards) < 2:
+                    continue
+                v = next(
+                    (
+                        i
+                        for i in cards
+                        if _arrival_simple_visit(i)
+                        and not _untouchable(i)
+                        and not getattr(i, "curated", False)
+                        and str(getattr(i, "name", "") or "") not in protect
+                        and not getattr(i, "created", False)
+                    ),
+                    None,
+                )
+                if v is not None:
+                    src_pick = (v, x)
+                    break
+            if src_pick is not None:
+                v, src = src_pick
+                _move(v, src, d)
+                moved = True
+                logger.info(
+                    "plan: arrival-light recruit %s day %s -> day %s",
+                    v.name,
+                    src.day,
+                    d.day,
+                )
+                # 先试直落（既有卡原位不动，新卡填空隙）；直落落不下
+                # 再升格整日重排：目标日可清卡（非钉/软钉/餐宿/演出）
+                # 清时后用 _probe_visit_slot（带开门对齐的实位探针，与
+                # _host_day_for_visit 终审同口径）给新卡定档，其余卡交
+                # 兜底排序绕新档重排——兜底无时刻分支不做开门对齐、游标
+                # 单向前进，纯交给它重建会被「09:30 开门的卡从 9:00 起
+                # 判 fits=False 即死」永久压死（无时刻分支只过 leg 窗不
+                # 推开门）。探不进=整步回滚换披露（快照还原目标日）。
+                _fallback_sequence_times(plan)
+                snapshot: list[tuple[VisitItem, object, object]] | None = None
+                if v.start_time is None:
+                    snapshot = [
+                        (i, i.start_time, i.end_time)
+                        for i in d.items
+                        if isinstance(i, VisitItem)
+                        and i.start_time is not None
+                        and not getattr(i, "pinned", False)
+                        and not getattr(i, "soft_pin", False)
+                        and str(getattr(i, "category", "") or "")
+                        not in ("food", "hotel")
+                        and not _is_show_v(i)
+                    ]
+                    for i, _s, _e in snapshot:
+                        i.start_time = None
+                        i.end_time = None
+                    _fx, _ft, _fl, _xw = _day_fixed_windows(d)
+                    _hbp = {h.poi_id: h for h in _plan_poi_hours(plan)}
+                    _slot = _probe_visit_slot(v, _fx, _xw, _hbp, 21 * 60 + 30)
+                    if _slot is not None:
+                        _vdur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                        v.start_time = time(_slot // 60, _slot % 60)
+                        v.end_time = time((_slot + _vdur) // 60, (_slot + _vdur) % 60)
+                    _fallback_sequence_times(plan)
+                recruit_moves.append((v, src, d, snapshot))
+                if v.start_time is not None:
+                    plan.assumptions.append(
+                        L(
+                            f"「{v.name}」为轻量街区，已挪至到达日"
+                            f"（第{d.day}天）顺路游览",
+                            f'"{v.name}" is a light walk; moved to arrival '
+                            f"day {d.day} for a gentle first day",
+                        )
+                    )
+    if moved:
+        _fallback_sequence_times(plan)
+    # 挪入卡排不上时刻=整步回滚换披露（「？」卡不许出自本清扫）。
+    rolled = False
+    for v, src, tgt, snapshot in recruit_moves:
+        if v.start_time is not None:
+            continue
+        if snapshot:
+            for i, s, e in snapshot:
+                i.start_time = s
+                i.end_time = e
+        cur = next((x for x in plan.days if any(i is v for i in x.items)), None)
+        if cur is None or cur is src:
+            continue
+        _move(v, cur, src)
+        rolled = True
+        logger.warning(
+            "plan: arrival-light recruit rollback %s day %s -> day %s "
+            "(untimed after move)",
+            v.name,
+            cur.day,
+            src.day,
+        )
+        plan.assumptions.append(
+            L(
+                f"「{v.name}」挪至到达日后排不上时刻，已放回第{src.day}天"
+                f"（可按需调整）",
+                f'"{v.name}" could not be timed on the arrival day; '
+                f"returned to day {src.day} (adjust as needed)",
+            )
+        )
+    if rolled:
+        _fallback_sequence_times(plan)
 
 
 def _rehome_untimed_visits(
@@ -17814,6 +18157,10 @@ class PlanningAgent:
         # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
         # 交付（城心小件"？"实录）；此处是跨通道终局对账的唯一定义点。
         _day_purity_sweep(plan, must_names)
+        # 到达日轻量清扫（2026-11-11 拍板）：纯度清扫的姊妹件，同跑在
+        # 终装最后——重磅出到达日+简卡进到达日双向对账（各排程相位可
+        # 合力把重磅卡塞进到达日，或让到达日拿不到任何简单街区卡）。
+        _arrival_day_light_sweep(plan, must_names)
         _retime_meal_placeholders(plan)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
