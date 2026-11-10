@@ -94,6 +94,7 @@ from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
     BIG_SITE_ENTRY_CAP_MINUTES,
     BIG_SITE_MIN_MINUTES,
+    COMBO_BUNDLE_KM,
     DAY_START_MINUTES,
     LEAVING_MORNING_END_MINUTES,
     NEAR_SAMEDAY_KM,
@@ -7402,6 +7403,49 @@ def _fallback_sequence_times(
                         untimed.remove(_b)
                         untimed.insert(ia + 1, _b)
                         _pos = {id(v): i for i, v in enumerate(untimed)}
+            # 演出贴锚放置序（2026-11-10 拍板「贴场馆演出与紧簇锚是一个
+            # 排程单元」兜底镜像，solver 侧同口径=夜档贴排组合）：多场次
+            # 演出挪到最近紧簇观光锚（≤COMBO_BUNDLE_KM）正后方——锚-演
+            # 间隙不被第三方抢先落位；锚已有伞名组合搭档跟随时挪到搭档
+            # 之后，组合不被演出拆开。无紧簇锚/keep_list_order 不动。
+            _pos = {id(v): i for i, v in enumerate(untimed)}
+            for _show in [
+                v
+                for v in untimed
+                if _is_show_item(v) and show_session_starts(v.opening_hours)
+            ]:
+                _sloc = getattr(_show, "location", None)
+                if _sloc is None or id(_show) not in _pos:
+                    continue
+                _near = sorted(
+                    (
+                        (haversine_km(u.location, _sloc), u)
+                        for u in untimed
+                        if u is not _show
+                        and not _is_show_item(u)
+                        and str(getattr(u, "category", "") or "")
+                        not in ("food", "hotel")
+                        and getattr(u, "location", None) is not None
+                        and haversine_km(u.location, _sloc) <= COMBO_BUNDLE_KM
+                    ),
+                    key=lambda t: t[0],
+                )
+                if not _near:
+                    continue
+                _mate = _near[0][1]
+                if _pos[id(_show)] == _pos[id(_mate)] + 1:
+                    continue
+                untimed.remove(_show)
+                _ins = untimed.index(_mate) + 1
+                _mate_partner = combo_partner.get(id(_mate))
+                if (
+                    _mate_partner is not None
+                    and _ins < len(untimed)
+                    and untimed[_ins] is _mate_partner
+                ):
+                    _ins += 1
+                untimed.insert(_ins, _show)
+                _pos = {id(v): i for i, v in enumerate(untimed)}
         # 顺序游标法（2026-10-24 拖拽修复）：按列表顺序依次排，时间跟列表
         # 顺序单调；排不下的项留空并由校验提示。2026-10-31 修正：
         # ①放置失败不推进游标——后续更短条目仍可回填前面空窗（80 分钟
@@ -7463,9 +7507,51 @@ def _fallback_sequence_times(
                 # 上午名额留给观光点。用户钉住场次有时刻不进本链。
                 ordered = [s for s in sessions if s >= SHOW_LATE_SESSION_MINUTES]
                 ordered += [s for s in sessions if s < SHOW_LATE_SESSION_MINUTES]
+                # 贴锚场次优先（2026-11-10 拍板「贴场馆演出与紧簇锚是一个
+                # 排程单元」兜底镜像）：同日 ≤COMBO_BUNDLE_KM 的已落位观光
+                # 锚在册时，场次按与锚窗间隙升序重排——紧贴锚尾者优先、
+                # 其次紧贴锚头，同间隙维持晚场优先；无紧簇锚/
+                # keep_list_order 维持晚场原序。11-03「演出优先傍晚/晚场」
+                # 拍板让位于贴锚——锚演拆开=当日往返折返，比早场更伤。
+                if not keep_list_order:
+                    _vloc = getattr(visit, "location", None)
+                    _mate_wins = (
+                        [
+                            (fs, fe)
+                            for fs, fe, src in fixed
+                            if src is not None
+                            and src is not visit
+                            and not _is_show_item(src)
+                            and str(getattr(src, "category", "") or "")
+                            not in ("food", "hotel")
+                            and getattr(src, "location", None) is not None
+                            and haversine_km(src.location, _vloc)
+                            <= COMBO_BUNDLE_KM
+                        ]
+                        if _vloc is not None
+                        else []
+                    )
+                    if _mate_wins:
 
-                def _try_sessions() -> int | None:
-                    for s in ordered:
+                        def _mate_gap(s: int) -> int:
+                            gaps = []
+                            for ms, me in _mate_wins:
+                                if s >= me:
+                                    gaps.append(s - me)
+                                elif s + dur <= ms:
+                                    gaps.append(ms - (s + dur))
+                                else:
+                                    gaps.append(1 << 30)
+                            return min(gaps)
+
+                        ordered.sort(key=lambda s: (_mate_gap(s), -s))
+
+                def _try_sessions(prefer: int | None = None) -> int | None:
+                    for s in (
+                        [prefer] + [x for x in ordered if x != prefer]
+                        if prefer is not None
+                        else ordered
+                    ):
                         if (
                             s + dur <= day_end
                             and not any(
@@ -7538,7 +7624,10 @@ def _fallback_sequence_times(
                                 day.day,
                                 [getattr(s3, "name", "?") for s3 in _yield_srcs],
                             )
-                            placed_at = _try_sessions()
+                            # 11-08 拍板「让最晚可行场次撞到的远距锚让位」
+                            # 原样保留：让位后仍首选最晚可行场次（晚场
+                            # 优先），_s_last 撞未让位窗才回落贴锚序。
+                            placed_at = _try_sessions(prefer=_s_last)
             else:
                 # ④时段窗下限与 solver 同口径：evening 17:00 /
                 # sunset 16:00 / afternoon 12:00（morning/sunrise 随
@@ -7726,7 +7815,13 @@ def _fallback_sequence_times(
             fixed_tight.sort()
             # ①放置失败不推进游标（占位失败留空档给后续短条目回填，
             # 2026-10-31 游标事故）。
-            cursor = max(cursor, t + dur)
+            # 晚场演出不占白天游标（2026-11-10「贴场馆演出与紧簇锚是一个
+            # 排程单元」兜底镜像配套）：≥15:00 场次落位后游标不推过演出
+            # 窗——后排条目仍按游标在白天落位（撞窗由 fixed 腿窗拦截），
+            # 不再被晚场演出顶到日终后全数搁浅；早场（贴锚场）照常推进，
+            # 锚-演之后不落入第三方。
+            if not (sessions and t >= SHOW_LATE_SESSION_MINUTES):
+                cursor = max(cursor, t + dur)
             # ②上午一个点（2026-11-03 用户拍板「上午一般只排一个点」）：
             # 晨点收尾后游标跳 12 点——后续点从午后起，不再回填上午；
             # 餐/酒店不触发（餐走 flex_lunches 硬窗，入住卡非游览）。

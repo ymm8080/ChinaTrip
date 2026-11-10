@@ -360,6 +360,99 @@ def test_fallback_combo_pair_no_third_card_between():
     assert _min(bell.start_time) >= ends[1], "钟楼应排在组合尾后"
 
 
+def test_fallback_show_session_glued_to_tight_anchor():
+    """2026-11-10 拍板「贴场馆演出与紧簇锚是一个排程单元」（贴锚演出被
+    远距点隔开案类级收口）：多场次演出与同日 ≤1.5km 观光锚同单元——
+    放置序挪到锚后紧邻、场次按与锚窗间隙升序（紧贴锚尾者优先），
+    远距点不得楔入锚-演之间；不再全场次撞窗才想起贴排。"""
+    anchor = VisitItem(
+        item_id="anchor",
+        name="近锚大点",
+        city="西安",
+        day=3,
+        category="attraction",
+        duration_minutes=90,
+        location=BMY_LOC,
+    )
+    far = VisitItem(
+        item_id="far",
+        name="远距点",
+        city="西安",
+        day=3,
+        category="attraction",
+        duration_minutes=90,
+        location=GeoPoint(lon=109.215, lat=34.359),
+    )
+    show = VisitItem(
+        item_id="show",
+        name="贴锚演出",
+        city="西安",
+        day=3,
+        category="entertainment",
+        best_visit_time="show",
+        duration_minutes=80,
+        opening_hours="多场（约11:00/14:00/17:00，以当日公告为准）",
+        location=GeoPoint(lon=109.2809, lat=34.3804),
+    )
+    day = DayPlan(day=3, base_city="西安", items=[anchor, far, show])
+    plan = ItineraryPlan(
+        itinerary_id="it-show-glue", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    assert anchor.start_time is not None and show.start_time is not None
+    anchor_end = _min(anchor.end_time)
+    show_start = _min(show.start_time)
+    assert show_start == 11 * 60, (
+        f"贴锚演出应取紧贴锚尾的 11:00 场，实际 {show.start_time}——"
+        "晚场优先把锚演拆开了"
+    )
+    assert far.start_time is not None and _min(far.start_time) >= _min(
+        show.end_time
+    ), f"远距点 {far.start_time} 楔在锚-演之间"
+    for it in day.items:
+        if not isinstance(it, VisitItem) or it in (anchor, show):
+            continue
+        if it.start_time is None:
+            continue
+        assert not (
+            anchor_end <= _min(it.start_time) and _min(it.end_time) <= show_start
+        ), f"{it.name} 落在锚-演之间"
+
+
+def test_fallback_show_without_tight_anchor_keeps_late_session():
+    """防御纵深：无 ≤1.5km 紧簇锚时维持 2026-11-03「演出优先傍晚/晚场」
+    拍板原序——贴锚新闸不得外溢成全局早场倾向。"""
+    far = VisitItem(
+        item_id="far",
+        name="远距点",
+        city="西安",
+        day=3,
+        category="attraction",
+        duration_minutes=90,
+        location=GeoPoint(lon=109.215, lat=34.359),
+    )
+    show = VisitItem(
+        item_id="show",
+        name="孤立演出",
+        city="西安",
+        day=3,
+        category="entertainment",
+        best_visit_time="show",
+        duration_minutes=80,
+        opening_hours="多场（约11:00/14:00/17:00，以当日公告为准）",
+        location=BMY_LOC,
+    )
+    day = DayPlan(day=3, base_city="西安", items=[far, show])
+    plan = ItineraryPlan(
+        itinerary_id="it-show-late", cities=["西安"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    assert show.start_time is not None
+    assert _min(show.start_time) == 17 * 60, (
+        f"无紧簇锚应维持晚场优先（17:00），实际 {show.start_time}"
+    )
+
+
 def test_fallback_combo_pair_kept_when_user_order_authoritative():
     """keep_list_order（2026-10-24「用户顺序权威」拍板）：用户权威路径
     不启用组合防插/贴排——用户亲手把第三方排在组合中间时引擎不顶回。"""
