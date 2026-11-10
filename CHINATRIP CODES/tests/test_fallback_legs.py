@@ -403,12 +403,11 @@ def test_fallback_show_session_glued_to_tight_anchor():
     anchor_end = _min(anchor.end_time)
     show_start = _min(show.start_time)
     assert show_start == 11 * 60, (
-        f"贴锚演出应取紧贴锚尾的 11:00 场，实际 {show.start_time}——"
-        "晚场优先把锚演拆开了"
+        f"贴锚演出应取紧贴锚尾的 11:00 场，实际 {show.start_time}——晚场优先把锚演拆开了"
     )
-    assert far.start_time is not None and _min(far.start_time) >= _min(
-        show.end_time
-    ), f"远距点 {far.start_time} 楔在锚-演之间"
+    assert far.start_time is not None and _min(far.start_time) >= _min(show.end_time), (
+        f"远距点 {far.start_time} 楔在锚-演之间"
+    )
     for it in day.items:
         if not isinstance(it, VisitItem) or it in (anchor, show):
             continue

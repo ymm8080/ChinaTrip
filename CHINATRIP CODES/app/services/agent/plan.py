@@ -7525,8 +7525,7 @@ def _fallback_sequence_times(
                             and str(getattr(src, "category", "") or "")
                             not in ("food", "hotel")
                             and getattr(src, "location", None) is not None
-                            and haversine_km(src.location, _vloc)
-                            <= COMBO_BUNDLE_KM
+                            and haversine_km(src.location, _vloc) <= COMBO_BUNDLE_KM
                         ]
                         if _vloc is not None
                         else []
