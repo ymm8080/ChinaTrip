@@ -59,6 +59,12 @@ class PoiDetail(BaseModel):
     intro: str | None = None
     intro_en: str | None = None
     intro_source: str | None = None
+    # P7b 证据链透出（2026-11-10）：UGC/点评综述——enrich 管道
+    # （app.jobs.enrich_review_summary / backfill_review_summary）已入库，
+    # 本端点纯读侧透出；source（llm/llm_distill）随字段小字标注。
+    review_summary: str | None = None
+    review_summary_en: str | None = None
+    review_summary_source: str | None = None
     photos: list | None = None
     photos_source: str | None = None
     best_visit_time: str | None = None
@@ -102,6 +108,9 @@ _COLS = (
     Poi.intro,
     Poi.intro_en,
     Poi.intro_source,
+    Poi.review_summary,
+    Poi.review_summary_en,
+    Poi.review_summary_source,
     Poi.photos,
     Poi.photos_source,
     Poi.best_visit_time,
@@ -197,6 +206,9 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
         intro=row.intro,
         intro_en=row.intro_en,
         intro_source=row.intro_source,
+        review_summary=row.review_summary,
+        review_summary_en=row.review_summary_en,
+        review_summary_source=row.review_summary_source,
         photos=row.photos,
         photos_source=row.photos_source,
         best_visit_time=row.best_visit_time,

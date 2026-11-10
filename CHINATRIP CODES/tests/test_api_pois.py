@@ -51,6 +51,9 @@ def make_row(**over) -> SimpleNamespace:
         intro="吊脚楼建筑群",
         intro_en="Stilted building complex",
         intro_source="wikidata",
+        review_summary="夜景出片，江景位要早占",
+        review_summary_en="Great night views; claim a riverside spot early",
+        review_summary_source="llm_distill",
         photos=PHOTOS,
         photos_source="wikidata",
         best_visit_time="night",
@@ -138,6 +141,9 @@ def test_exact_hit_returns_200_with_new_fields():
         "intro",
         "intro_en",
         "intro_source",
+        "review_summary",
+        "review_summary_en",
+        "review_summary_source",
         "photos",
         "photos_source",
         "best_visit_time",
@@ -338,6 +344,43 @@ def test_reservation_seed_name_containment_match():
     assert body["reservation_required"] is True
     assert body["reservation_advance_days"] == 30
     assert body["reservation_release_time"] is None  # 名单 "00:00"=未注明 → 出参 None
+
+
+def test_review_summary_passthrough():
+    """P7b 证据链透出（2026-11-10）：enrich 管道已入库的点评综述
+    （review_summary/_en/_source）经详情端点纯读侧透出，H5 简介气泡渲染。"""
+    session = FakeSession([[make_row()]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["review_summary"] == "夜景出片，江景位要早占"
+    assert body["review_summary_en"] == (
+        "Great night views; claim a riverside spot early"
+    )
+    assert body["review_summary_source"] == "llm_distill"
+
+
+def test_review_summary_null_when_unfilled():
+    """未蒸馏行（三列全空）→ 出参 null，H5 跳过不渲染该位。"""
+    session = FakeSession(
+        [
+            [
+                make_row(
+                    review_summary=None,
+                    review_summary_en=None,
+                    review_summary_source=None,
+                )
+            ]
+        ]
+    )
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["review_summary"] is None
+    assert body["review_summary_en"] is None
+    assert body["review_summary_source"] is None
 
 
 def test_ticket_price_passthrough():

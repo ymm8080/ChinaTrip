@@ -2247,6 +2247,10 @@ function enrichBrief(info, city, name) {
       book.push("💰 " + esc(price) + (p.ticket_source ? '<span class="muted">' + I18N.tf("brief.sourcePre", "（来源：") + esc(p.ticket_source) + I18N.tf("brief.sourceClose", "）") + "</span>" : ""));
     }
     if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">' + I18N.tf("brief.sourcePre","（来源：") + esc(p.intro_source) + I18N.tf("brief.sourceClose","）") + "</span>" : ""));
+    // P7b 证据链透出（2026-11-10）：点评综述（enrich 管道已入库，纯读侧）；
+    // 双语 I18N.pick 同 intro 口径，source 小字标注复用 brief.sourcePre/Close
+    const review = I18N.pick(p, "review_summary", "review_summary_en");
+    if (review) bits.push("💬 " + esc(review) + (p.review_summary_source ? '<span class="muted">' + I18N.tf("brief.sourcePre","（来源：") + esc(p.review_summary_source) + I18N.tf("brief.sourceClose","）") + "</span>" : ""));
     if (p.tags && p.tags.length) bits.push("🏷 " + p.tags.map(t => I18N.tf("brief.tag." + t, briefTag(t))).filter(Boolean).join(" / "));
     if (p.phone) bits.push("☎ " + esc(p.phone));
     const photo = p.photos && p.photos[0] && p.photos[0].url;
