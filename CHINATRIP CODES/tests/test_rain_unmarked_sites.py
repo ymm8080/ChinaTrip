@@ -105,20 +105,25 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
     # 干日2 先被 4 件占满计数（含室内丙馆）→ 北簇未标注街区让位失败
     # 留雨日1 → 对调层 ①单点对调：磁街区 ↔ 丙馆，点名披露含
     # 「室内外未标注」
-    # 南簇四件坐标错开 >1.5km（同点行互认并卡会让干日 2 满不了，
-    # 验不出对调分支；族卡已废，贴邻同日圈 5km 软偏好同向）。
+    # 北族总时长超过到达日轻量上限，先在雨日 1 整族落位；干日 2
+    # 随后被四件占满，仍能锁定对调分支而不绕开组合级天气偏好。
     cands = [
         _cand("丙馆", "成都", "yes", lat=30.5),
         _cand("丙山", "成都", "no", lat=30.515),
         _cand("丁岭", "成都", "no", lat=30.53),
         _cand("戊峰", "成都", "no", lat=30.545),
-        _cand("甲馆", "成都", "yes", lat=31.5),
+        _cand("甲馆", "成都", "yes", lat=31.5, dur=120),
         _cand("乙馆", "成都", "yes", lat=31.5),
         _cand("磁街区", "成都", None, lat=31.5),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
-        cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {1}},
+        arrival_days={2},
+        notes=notes,
     )
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["磁街区"] == 2
@@ -129,21 +134,25 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
 def test_unmarked_kept_with_umbrella_note_when_nothing_to_swap():
     # 全城无室内可换（干日4 件全露天占满计数）→ 未标注街区留雨日
     # 不删点（hard=False），保持原排+备伞留痕（不再静默）
-    # 干日簇四件坐标错开 >1.5km（同点行互认并卡会让干日 2 不满、
-    # 磁街区直接挪走，验不出「无干日空位留雨日+备伞」分支；族卡已废，
-    # 贴邻同日圈 5km 软偏好同向）。
+    # 北族总时长超过到达日轻量上限，先在雨日 1 整族落位；干日 2
+    # 随后被四件露天点占满，保持「无可换则留原日+备伞」分支覆盖。
     cands = [
         _cand("丙山", "成都", "no", lat=30.5),
         _cand("丁岭", "成都", "no", lat=30.515),
         _cand("戊峰", "成都", "no", lat=30.53),
         _cand("己山", "成都", "no", lat=30.545),
-        _cand("甲馆", "成都", "yes", lat=31.5),
+        _cand("甲馆", "成都", "yes", lat=31.5, dur=120),
         _cand("乙馆", "成都", "yes", lat=31.5),
         _cand("磁街区", "成都", None, lat=31.5),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
-        cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {1}},
+        arrival_days={2},
+        notes=notes,
     )
     day_of = {p["name"]: p["day"] for p in picked}
     # 甲馆/乙馆落雨日1（室内不拦），磁街区同簇也落雨日、无室内可换

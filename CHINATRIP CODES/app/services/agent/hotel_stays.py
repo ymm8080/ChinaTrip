@@ -153,8 +153,7 @@ def _minutes_of(t: time) -> int:
 
 
 def _last_timed_end_minutes(dp: DayPlan) -> int | None:
-    """当天末件收尾（分钟）：逐件顺序覆盖（与 attach_hotel_nights 同
-    口径），夜卡自身不计——reanchor 复用attach 的同一个 tail 口径。"""
+    """当天最晚收尾（分钟），与条目列表顺序无关；夜卡自身不计。"""
     last_end: int | None = None
     for item in dp.items:
         if is_hotel_night(item):
@@ -170,7 +169,7 @@ def _last_timed_end_minutes(dp: DayPlan) -> int | None:
         elif isinstance(item, TransferItem):
             end = _transfer_end_minutes(item)
         if end is not None:
-            last_end = end
+            last_end = end if last_end is None else max(last_end, end)
     return last_end
 
 

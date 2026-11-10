@@ -583,7 +583,11 @@ def _visit_spec(
     )
     # 无场次演出按正常景点逻辑（2026-11-06 拍板）：best_visit="show" 不
     # 在 _BEST_VISIT_WINDOWS → 不加窗约束，营业窗/入场闸照常收口。
-    best = _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
+    best = (
+        None
+        if _is_theme_block(item)
+        else _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
+    )
     if best is not None:
         lo = max(lo, best[0])
         hi = min(hi, best[1] - dur)
@@ -1311,7 +1315,8 @@ def insertion_schedule_day(
     rest: list[_VisitSpec] = []
     for spec in specs:
         flexed = flex_day and spec.dur_lo and spec.dur_lo < spec.dur
-        if spec.lo == spec.hi and not spec.windows and not flexed:
+        soft_meal = spec.item.soft_pin and (spec.item.category or "") == "food"
+        if spec.lo == spec.hi and not spec.windows and not flexed and not soft_meal:
             occupied.append((spec.lo, spec.lo + spec.dur, spec.item))
         else:
             rest.append(spec)
@@ -1600,6 +1605,7 @@ def insertion_schedule_day(
     # 降序（远的占上午头档），其后维持时长降序原口径。
     def _hkey(s: _VisitSpec) -> tuple:
         return (
+            0 if s.item.soft_pin and (s.item.category or "") == "food" else 1,
             0 if (_head_p is not None and _is_head_candidate(s.item)) else 1,
             -_head_dist(s),
             -s.dur,
@@ -1612,11 +1618,8 @@ def insertion_schedule_day(
     for spec in sorted(hard, key=_hkey):
         marker = _try_insert(spec)
         if marker is None and (
-            is_lunch_placeholder(spec.item) or is_dinner_placeholder(spec.item)
+            spec.item.soft_pin and (spec.item.category or "") == "food"
         ):
-            # 占位餐卡同降级（上一条口径的硬排镜像）：非弹性日占位餐
-            # 卡走 hard 序，开餐窗被晚场演出占死时同样不得作废整日
-            # 参访解——降级为不排时刻占位。
             logger.info(
                 "solver: meal slot infeasible day %s %s -> keep unscheduled",
                 day.day,
@@ -1770,7 +1773,16 @@ def insertion_schedule_day(
             placed.append((_to_minutes(item.start_time), item))
     placed.sort(key=lambda pair: (pair[0], getattr(pair[1], "item_id", "")))
     for m in unsched_meals:
-        placed.append((24 * 60, m))
+        if is_lunch_placeholder(m) or is_dinner_placeholder(m):
+            logger.info(
+                "solver: meal placeholder dropped day %s %s",
+                day.day,
+                m.item_id,
+            )
+            continue
+        placed.append(
+            (24 * 60, m.model_copy(update={"start_time": None, "end_time": None}))
+        )
     return DayPlan(day=day.day, base_city=day.base_city, items=[i for _, i in placed])
 
 

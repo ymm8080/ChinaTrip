@@ -228,7 +228,11 @@ async def _run_baidu(limit: int, concurrency: int) -> dict:
 
 
 def _write_row_amap(factory, poi_id, out: dict) -> list[str]:
-    """逐列只填空；与 enrich_amap_detail 同口径（amap 触点）。"""
+    """逐列只填空；与 enrich_amap_detail 同口径（amap 触点）。
+
+    2026-11-10 用户拍板：amap 不再取 rating（评分权威归携程/百度，
+    存量 amap 评分由携程详情页覆盖），amap 只出 hours/phone/商圈/照片。
+    """
     written: list[str] = []
     with factory() as session:
         row = session.get(Poi, poi_id)
@@ -238,15 +242,6 @@ def _write_row_amap(factory, poi_id, out: dict) -> list[str]:
             row.opening_hours = str(out["opening_hours"]).strip()[:200]
             row.hours_source = "amap"
             written.append("opening_hours")
-        if row.rating is None and out.get("rating"):
-            try:
-                rv = float(out["rating"])
-            except (TypeError, ValueError):
-                rv = None
-            if rv is not None and 0 <= rv <= 5:
-                row.rating = rv
-                row.rating_source = "amap"
-                written.append("rating")
         if row.phone is None and out.get("tel"):
             row.phone = str(out["tel"]).strip()[:50]
             written.append("phone")

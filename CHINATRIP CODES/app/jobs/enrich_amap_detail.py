@@ -1,7 +1,8 @@
 """POI 富化·高德 detail 确定性行（复用 AmapClient.place_hours）。
 
-目标列：phone/business_area/photos/opening_hours/rating（全部来自
+目标列：phone/business_area/photos/opening_hours（全部来自
 v5 place/detail 的 business+photos 块，确定性数据，无 LLM 参与）。
+2026-11-10 用户拍板：amap 不再取 rating（权威归携程/百度）。
 
 只处理 source='amap' 且 source_poi_id 非空的行——别的 source 没有
 高德 id，没处查。逐列只填空，来源标记 *_source='amap'。
@@ -45,7 +46,6 @@ def select_targets(session_factory, *, limit: int) -> list[Poi]:
                     Poi.business_area.is_(None),
                     Poi.photos.is_(None),
                     Poi.opening_hours.is_(None),
-                    Poi.rating.is_(None),
                 ),
             )
             .order_by(Poi.rating.desc().nullslast(), Poi.id)
@@ -80,15 +80,7 @@ def _write_row(factory, poi_id, r: dict) -> list[str]:
             row.opening_hours = str(r["opening_hours"]).strip()[:200]
             row.hours_source = "amap"
             written.append("opening_hours")
-        if row.rating is None and r.get("rating"):
-            try:
-                rv = float(r["rating"])
-            except (TypeError, ValueError):
-                rv = None
-            if rv is not None and 0 <= rv <= 5:
-                row.rating = rv
-                row.rating_source = "amap"
-                written.append("rating")
+        # 2026-11-10 用户拍板：amap 不再取 rating（权威归携程/百度）。
         if written:
             session.commit()
     return written

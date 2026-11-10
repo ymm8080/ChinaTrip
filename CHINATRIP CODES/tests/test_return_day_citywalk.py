@@ -175,3 +175,109 @@ def test_return_day_gets_citywalk_not_far_poi():
         it["name"] in {"磁器口街区", "十八梯", "洪崖洞", "李子坝轻轨站"}
         for it in by_day[7]
     ), f"返程日没落任何市区 CityWalk 点：{[it['name'] for it in by_day[7]]}"
+
+
+def test_single_city_return_day_rejects_far_family_even_without_transfer():
+    far_names = {"远族一", "远族二", "远族三"}
+    cands = [
+        _cand("远族一", "成都", minutes=60, tags=["unesco"], loc=(105.720, 29.700)),
+        _cand("远族二", "成都", minutes=60, loc=(105.725, 29.700)),
+        _cand("远族三", "成都", minutes=60, loc=(105.730, 29.700)),
+        _cand("城件一", "成都", minutes=60, loc=(106.578, 29.560)),
+        _cand("城件二", "成都", minutes=60, loc=(106.583, 29.560)),
+        _cand("城件三", "成都", minutes=60, loc=(106.588, 29.560)),
+        _cand("城件四", "成都", minutes=60, loc=(106.593, 29.560)),
+    ]
+    for cand in cands:
+        cand["rain_ok"] = "no"
+    notes: list[str] = []
+    picked = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"成都": (1, 3)},
+        rain_days={"成都": {1, 2}},
+        tail_return_days={3},
+        notes=notes,
+    )
+    names = {it["name"] for it in picked}
+    assert not far_names & names
+    assert any(it["day"] == 3 and it["name"].startswith("城件") for it in picked)
+    assert any("无干日可排" in note for note in notes)
+
+
+def test_single_city_return_day_rejects_heavy_urban_family():
+    cands = [
+        _cand(
+            "重族一",
+            "成都",
+            minutes=180,
+            tags=["unesco"],
+            loc=(106.578, 29.560),
+        ),
+        _cand("重族二", "成都", minutes=60, loc=(106.580, 29.560)),
+        _cand("重族三", "成都", minutes=60, loc=(106.582, 29.560)),
+    ]
+    for cand in cands:
+        cand["rain_ok"] = "partial"
+    picked = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"成都": (1, 3)},
+        rain_days={"成都": {2}},
+        light_rain_days={"成都": {2}},
+        tail_return_days={3},
+        arrival_days={1},
+    )
+    heavy_days = {it["name"]: it["day"] for it in picked}
+    assert heavy_days["重族一"] == 2
+    assert sum(day == 2 for day in heavy_days.values()) >= 2
+
+
+def test_single_city_return_day_rejects_short_premium_family():
+    cands = [
+        _cand(
+            f"短王族{i}",
+            "成都",
+            minutes=60,
+            tags=["unesco"],
+            loc=(106.578 + i * 0.003, 29.560),
+            rating=4.8,
+        )
+        for i in range(3)
+    ]
+    for cand in cands:
+        cand["rain_ok"] = "no"
+    notes: list[str] = []
+    picked = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"成都": (1, 3)},
+        rain_days={"成都": {1, 2}},
+        tail_return_days={3},
+        arrival_days={1},
+        notes=notes,
+    )
+    assert all(it["day"] != 3 for it in picked)
+    assert notes
+
+
+def test_single_city_loose_remote_card_is_not_preclaimed_on_return_day():
+    cands = [
+        _cand("远点", "成都", minutes=60, loc=(105.720, 29.700)),
+        _cand("室内一", "成都", minutes=60, loc=_CQ),
+        _cand("室内二", "成都", minutes=60, loc=_CQ_N),
+    ]
+    cands[0]["rain_ok"] = "no"
+    for cand in cands[1:]:
+        cand["rain_ok"] = "yes"
+    notes: list[str] = []
+    picked = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"成都": (1, 3)},
+        rain_days={"成都": {1, 2}},
+        tail_return_days={3},
+        notes=notes,
+    )
+    assert "远点" not in {it["name"] for it in picked}, picked
+    assert any("无干日可排" in note for note in notes)

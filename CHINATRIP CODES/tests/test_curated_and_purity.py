@@ -818,11 +818,49 @@ def test_day_purity_sweep_purges_far_from_arrival_day():
             _visit("西安城墙", 60, _CQ, 2, tier=3),
         ],
     )
-    plan = _plan(d1, d2)
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[
+            _visit("西安钟楼", 40, _GL, 3, tier=3),
+            _visit("大唐西市", 60, _V, 3, tier=11),
+        ],
+    )
+    plan = _plan(d1, d2, d3)
     _day_purity_sweep(plan, frozenset())
     assert any(i is lishan for i in d2.items)
     assert lishan.day == 2
     assert any("距市区较远" in str(a) for a in plan.assumptions)
+
+
+def test_day_purity_sweep_does_not_move_far_arrival_card_to_return_day():
+    far = _visit("远郊参访", 120, _LISHAN, 1, tier=9)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_visit("市区小点", 60, _V, 1, tier=11), far],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("中段一", 40, _GL, 2, tier=3),
+            _visit("中段二", 60, _CQ, 2, tier=3),
+        ],
+    )
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[
+            _visit("末日一", 40, _GL, 3, tier=3),
+            _visit("末日二", 60, _CQ, 3, tier=3),
+        ],
+    )
+    plan = _plan(d1, d2, d3)
+    _day_purity_sweep(plan, frozenset())
+    assert far.day == 2
+    assert any(i is far for i in d2.items)
+    assert not any(i is far for i in d3.items)
 
 
 def test_day_purity_sweep_reunites_family_on_show_day():
@@ -849,10 +887,90 @@ def test_day_purity_sweep_reunites_family_on_show_day():
         items=[_visit("西安鼓楼", 40, _GL, 2, tier=3), hqg],
     )
     d4 = DayPlan(day=4, base_city="西安", items=[bmy, qyq])
-    plan = _plan(d1, d2, d4)
+    d5 = DayPlan(day=5, base_city="西安", items=[])
+    plan = _plan(d1, d2, d4, d5)
     _day_purity_sweep(plan, frozenset())
     assert any(i is hqg for i in d4.items)
     assert hqg.day == 4
+
+
+def test_day_purity_sweep_retimes_movable_family_show():
+    hqg = _visit("华清宫", 120, _HQG, 2, tier=2)
+    qyq = _visit(
+        "《秦俑情》", 80, _BMY, 4, category="entertainment", tier=6, start=time(11, 0)
+    )
+    qyq.opening_hours = "多场（约11:00/17:00，以当日公告为准）"
+    bmy = _visit("秦始皇帝陵博物院", 180, _BMY, 4, tier=1)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("西安大唐西市博物馆", 60, _V, 1, tier=11),
+            _visit("西安钟楼", 40, _GL, 1, tier=3),
+            _visit("西安城墙", 60, _CQ, 1, tier=3),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[_visit("西安鼓楼", 40, _GL, 2, tier=3), hqg],
+    )
+    d4 = DayPlan(day=4, base_city="西安", items=[bmy, qyq])
+    d5 = DayPlan(day=5, base_city="西安", items=[])
+    plan = _plan(d1, d2, d4, d5)
+    _day_purity_sweep(plan, frozenset())
+    assert any(i is hqg for i in d4.items)
+    assert hqg.start_time is not None
+    assert bmy.start_time is not None
+    assert qyq.start_time == time(17, 0)
+
+
+def test_day_purity_sweep_failed_family_merge_rolls_back_whole_family(monkeypatch):
+    import app.services.agent.plan as plan_mod
+
+    first = _visit("远族散件一", 120, _HQG, 2, tier=2, start=time(9, 0))
+    second = _visit("远族散件二", 120, _LISHAN, 2, tier=2, start=time(13, 0))
+    show = _visit(
+        "远区多场演出",
+        80,
+        _BMY,
+        4,
+        category="entertainment",
+        tier=6,
+        start=time(11, 0),
+    )
+    show.opening_hours = "多场（约11:00/17:00，以当日公告为准）"
+    anchor_visit = _visit("远区锚点", 180, _BMY, 4, tier=1, start=time(9, 0))
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("城件一", 60, _V, 1, tier=11, start=time(9, 0)),
+            _visit("城件二", 40, _GL, 1, tier=3, start=time(11, 0)),
+            _visit("城件三", 60, _CQ, 1, tier=3, start=time(13, 0)),
+        ],
+    )
+    d2 = DayPlan(day=2, base_city="西安", items=[first, second])
+    d4 = DayPlan(day=4, base_city="西安", items=[anchor_visit, show])
+    d5 = DayPlan(day=5, base_city="西安", items=[])
+    plan = _plan(d1, d2, d4, d5)
+    real_sequence = plan_mod._fallback_sequence_times
+
+    def leave_one_family_member_untimed(p):
+        real_sequence(p)
+        second.start_time = None
+        second.end_time = None
+
+    monkeypatch.setattr(
+        plan_mod, "_fallback_sequence_times", leave_one_family_member_untimed
+    )
+    _day_purity_sweep(plan, frozenset())
+
+    assert all(any(i is v for i in d2.items) for v in (first, second))
+    assert all(all(i is not v for i in d4.items) for v in (first, second))
+    assert first.day == second.day == 2
+    assert show.start_time == time(11, 0)
+    assert any("保留原日安排" in str(a) for a in plan.assumptions)
 
 
 def test_day_purity_sweep_moves_stranger_out_of_cluster_day():
@@ -917,3 +1035,46 @@ def test_day_purity_sweep_family_day_city_stranger_freed_then_merge():
     assert hqg.day == 4
     assert any("已挪至第3天" in str(a) for a in plan.assumptions)
     assert any("已合并至第4天" in str(a) for a in plan.assumptions)
+
+
+def test_day_purity_sweep_ignores_arrival_card_already_dropped():
+    orphan = _visit("到达远件", 180, _LISHAN, 1, tier=9)
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("城件一", 60, _V, 1, tier=11),
+            _visit("城件二", 60, _GL, 1, tier=3),
+            _visit("城件三", 60, _CQ, 1, tier=3),
+            orphan,
+        ],
+    )
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[
+            _visit("收容件一", 200, _V, 3, tier=3),
+            _visit("收容件二", 200, _GL, 3, tier=3),
+            _visit("收容件三", 200, _CQ, 3, tier=3),
+        ],
+    )
+    show = _visit(
+        "远区演出", 80, _BMY, 4, category="entertainment", tier=6, start=time(17, 0)
+    )
+    city_stranger = _visit("待挪城件", 40, _GL, 4, tier=4)
+    d4 = DayPlan(
+        day=4,
+        base_city="西安",
+        items=[
+            _visit("远区主件", 180, _BMY, 4, tier=1),
+            show,
+            city_stranger,
+            _visit("留守城件", 40, _CQ, 4, tier=4),
+        ],
+    )
+    plan = _plan(d1, d3, d4)
+    _day_purity_sweep(plan, frozenset())
+    assert all(orphan not in d.items for d in plan.days)
+    assert any(
+        orphan.name in str(a) and "本次未排入" in str(a) for a in plan.assumptions
+    )

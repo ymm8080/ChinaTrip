@@ -129,6 +129,150 @@ def test_overflow_family_reduces_geo_endpoint_not_middle():
     assert any("端二" in n for n in notes)  # 减员双语披露留痕
 
 
+def test_zero_distance_family_reduces_global_weakest_member():
+    """同针族没有地理端点，减员须在全部可减成员中选全局最弱件。"""
+    far = (104.500, 30.66)
+    cands = [
+        _c("远一", far, tier=1),
+        _c("远二", far, tier=2),
+        _c("远三", far),
+        _c("远四", far),
+        _c("弱件", far, dur=180),
+        *[_c(f"城件{i}", _A0 if i % 2 == 0 else _A1) for i in range(6)],
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, notes=notes
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert {day_of[n] for n in ("远一", "远二", "远三", "远四")} == {1}
+    assert day_of["弱件"] in (2, 3)
+    assert any("弱件" in n for n in notes)
+
+
+def test_unmarked_family_softly_prefers_dry_day():
+    cands = [
+        _c("未标员一", _A0),
+        _c("未标员二", _A1),
+        _c("未标员三", _A2),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {1}},
+    )
+    assert _by_day(items)[2] == {"未标员一", "未标员二", "未标员三"}
+
+
+def test_known_indoor_family_prefers_rainy_day():
+    cands = [
+        _c("室内员一", _A0),
+        _c("室内员二", _A1),
+        _c("室内员三", _A2),
+    ]
+    for cand in cands:
+        cand["rain_ok"] = "yes"
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {2}},
+    )
+    assert _by_day(items)[2] == {"室内员一", "室内员二", "室内员三"}
+
+
+def test_locked_low_priority_card_cannot_evict_higher_priority_member():
+    cands = [
+        _c("高档长件", _A0, tier=1, dur=180),
+        _c("族短一", _A1, dur=30),
+        _c("族短二", _A2, dur=40),
+        _c("族短三", (104.075, 30.66), dur=50),
+    ]
+    incoming = _c("低档雨锁", (104.240, 30.66), dur=60)
+    cands.append(incoming)
+    for cand in cands:
+        cand["rain_ok"] = "no"
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {2}},
+        notes=notes,
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["高档长件"] == 1
+    assert "低档雨锁" not in day_of
+    assert any("低档雨锁" in n and "无干日可排" in n for n in notes)
+
+
+def test_full_day_shed_preserves_two_members_in_each_family():
+    cands = [
+        _c("甲族一", _A0, dur=30),
+        _c("甲族二", _A1, dur=40),
+        _c("乙族长件", _B0, dur=180),
+        _c("乙族二", _B1, dur=50),
+    ]
+    incoming = _c("雨锁入件", (104.700, 30.66), tier=2, dur=60)
+    cands.append(incoming)
+    for cand in cands:
+        cand["rain_ok"] = "no"
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        3,
+        {"成都": (1, 3)},
+        rain_days={"成都": {2, 3}},
+        notes=notes,
+    )
+    by_day = _by_day(items)
+    assert {"甲族一", "甲族二", "乙族长件", "乙族二"} <= by_day[1]
+    assert "雨锁入件" not in {it["name"] for it in items}
+    assert any("雨锁入件" in n and "无干日可排" in n for n in notes)
+
+
+def test_tight_cluster_capacity_uses_original_insertion_charge():
+    cands = [
+        _c("首占远件", (104.000, 30.66), tier=1, dur=120),
+        _c("近件一", (104.100, 30.66), tier=2, dur=80),
+        _c("近件二", (104.112, 30.66), tier=2, dur=80),
+        _c("近件三", (104.124, 30.66), tier=2, dur=80),
+        _c("待合近件", (104.136, 30.66), dur=60),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, arrival_days={2, 3}
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["首占远件"] == 1
+    assert {day_of[f"近件{x}"] for x in "一二三"} == {1}
+    assert day_of["待合近件"] == 2
+
+
+def test_transfer_empty_day_moves_selected_loose_card_not_cluster_tail():
+    near = (104.505, 30.66)
+
+    def _show(name, loc, *, tier=None, dur=60):
+        cand = _c(name, loc, tier=tier, dur=dur, cat="entertainment")
+        cand.update(best_visit_time="show", opening_hours="多场 10:00/14:00/19:30")
+        return cand
+
+    cands = [
+        _c("近簇件一", near, dur=150),
+        _show("近簇演出", near, dur=150),
+        _c("近簇件二", near, dur=150),
+        _c("待挪散件", (104.200, 30.66), tier=1, dur=150),
+        _c("近簇尾件", near, dur=40, cat="museum"),
+        _show("定场演出", (104.060, 30.66), tier=1, dur=40),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"成都": (1, 3)}, transfer_days={3}
+    )
+    by_day = _by_day(items)
+    assert by_day[3] == {"待挪散件"}
+    assert "近簇尾件" in by_day[2]
+
+
 def test_stranger_sight_cannot_claim_family_day():
     """④零散景点不得认领族占日：族甲整族占 day1（3/4 有余位），无族
     身份的远点（异簇）即使最早有容量也不得插进 day1——改投开放日

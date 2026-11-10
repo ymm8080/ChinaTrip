@@ -17,7 +17,11 @@ from app.services.agent.hotel_stays import (
     is_hotel_checkin,
     is_hotel_night,
 )
-from app.services.agent.plan import _fallback_sequence_times, _plan_lunch_slot
+from app.services.agent.plan import (
+    _fallback_sequence_times,
+    _plan_lunch_slot,
+    _retime_meal_placeholders,
+)
 from app.services.itinerary.models import (
     DayPlan,
     ItineraryPlan,
@@ -244,6 +248,74 @@ def test_lunch_slot_none_when_card_eats_window():
     assert _plan_lunch_slot(day) is None  # 过点到店不插午餐，也不切卡
 
 
+# ------------------------------------------------------------- 餐占位终装避让
+
+
+def _meal_placeholder(item_id: str, start: time, duration: int) -> VisitItem:
+    return VisitItem(
+        item_id=item_id,
+        name=item_id,
+        category="food",
+        city="测试城",
+        day=1,
+        start_time=start,
+        end_time=time(start.hour, start.minute + duration)
+        if start.minute + duration < 60
+        else time(
+            start.hour + (start.minute + duration) // 60, (start.minute + duration) % 60
+        ),
+        duration_minutes=duration,
+        soft_pin=True,
+    )
+
+
+def test_final_lunch_placeholder_retimes_after_structural_move():
+    lunch = _meal_placeholder("food-lunch-ph-d1", time(12, 0), 90)
+    visit = VisitItem(
+        item_id="moved-visit",
+        name="后移参访",
+        city="测试城",
+        day=1,
+        start_time=time(11, 0),
+        end_time=time(12, 30),
+        duration_minutes=90,
+    )
+    day = DayPlan(day=1, base_city="测试城", items=[lunch, visit])
+    _retime_meal_placeholders(_plan([day]))
+    assert (lunch.start_time, lunch.end_time) == (time(12, 30), time(14, 0))
+
+
+def test_final_dinner_placeholder_moves_or_drops_without_overlap():
+    dinner = _meal_placeholder("food-dinner-ph-d1", time(18, 30), 60)
+    show = VisitItem(
+        item_id="moved-show",
+        name="后移演出",
+        category="entertainment",
+        city="测试城",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 50),
+        duration_minutes=80,
+    )
+    day = DayPlan(day=1, base_city="测试城", items=[dinner, show])
+    _retime_meal_placeholders(_plan([day]))
+    assert (dinner.start_time, dinner.end_time) == (time(18, 50), time(19, 50))
+
+    blocked = _meal_placeholder("food-dinner-ph-d1", time(17, 30), 60)
+    day = DayPlan(day=1, base_city="测试城", items=[blocked, show])
+    _retime_meal_placeholders(_plan([day]))
+    assert blocked not in day.items
+
+
+def test_final_placeholder_never_moves_real_meal():
+    lunch = _meal_placeholder("food-lunch-ph-d1", time(12, 0), 90)
+    real = _meal_placeholder("real-food", time(11, 39), 60)
+    day = DayPlan(day=1, base_city="测试城", items=[lunch, real])
+    _retime_meal_placeholders(_plan([day]))
+    assert real.start_time == time(11, 39)
+    assert lunch not in day.items
+
+
 # ------------------------------------------- 每晚酒店卡（2026-11-07 用户指令）
 
 
@@ -298,6 +370,33 @@ def test_attach_night_appends_at_day_end():
     # 窗口=末件（晚餐 19:30 收尾）+30 起、60 分钟
     assert (card.start_time, card.end_time) == (time(20, 0), time(21, 0))
     assert card.city == "西安"  # 末个观光件之城
+
+
+def test_attach_night_uses_latest_end_not_list_order():
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "dinner",
+                dur=120,
+                cat="food",
+                start_time=time(17, 30),
+                end_time=time(19, 30),
+                soft_pin=True,
+            ),
+            _visit(
+                "show",
+                dur=80,
+                cat="entertainment",
+                start_time=time(17, 30),
+                end_time=time(18, 50),
+            ),
+        ],
+    )
+    attach_hotel_nights([day])
+    card = next(i for i in day.items if is_hotel_night(i))
+    assert (card.start_time, card.end_time) == (time(20, 0), time(21, 0))
 
 
 def test_attach_night_skips_outbound_transfer_day():

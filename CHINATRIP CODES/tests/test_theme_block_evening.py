@@ -21,11 +21,13 @@ from app.services.agent.plan import (
 )
 from app.services.itinerary.models import (
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     PoiHours,
     TransferItem,
     VisitItem,
 )
+from app.services.itinerary.rules import travel_gap_needed
 from app.services.itinerary.scoring import plan_score
 from app.services.itinerary.solver import (
     _night_combo_pairs,
@@ -186,6 +188,25 @@ def test_compress_theme_block_is_anchor():
     assert c.start_time == time(15, 0)  # 贴锚留 30min 通勤
     assert c.end_time == time(16, 30)
     assert blk.start_time == time(17, 0)  # 锚不动
+
+
+def test_compress_uses_canonical_gap_beyond_short_leg_floor():
+    c = _timed(_sight("c", dur=60), 12, 0, 13, 0)
+    c.location = GeoPoint(lon=108.9, lat=34.2)
+    a = _visit("show", dur=80, best_visit_time="evening")
+    a.location = GeoPoint(lon=108.965, lat=34.2)
+    _timed(a, 17, 0, 18, 20)
+    plan = _plan_with(c, a)
+    need = travel_gap_needed(c, a)
+    assert need is not None and need > 30
+    _compress_before_evening_anchor(plan)
+    actual_gap = (
+        a.start_time.hour * 60
+        + a.start_time.minute
+        - c.end_time.hour * 60
+        - c.end_time.minute
+    )
+    assert actual_gap == need
 
 
 def test_compress_chain_breaks_at_food():

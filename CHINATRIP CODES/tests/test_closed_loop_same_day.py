@@ -99,6 +99,35 @@ def test_host_day_departure_day_usable_as_last_resort():
     assert host is d5
 
 
+def test_host_day_rejects_heavy_single_city_return_day():
+    d4 = DayPlan(day=4, base_city="西安", items=[])
+    d5 = DayPlan(day=5, base_city="西安", items=[])
+    heavy = _visit("高优先级小点", 60, _BL)
+    heavy.tier = 1
+    host = _host_day_for_visit(
+        [d5],
+        "西安",
+        60,
+        incoming=_BL,
+        visit=heavy,
+        all_days=[d4, d5],
+    )
+    assert host is None
+
+    light = _visit("普通轻量小点", 60, _BL)
+    assert (
+        _host_day_for_visit(
+            [d5],
+            "西安",
+            60,
+            incoming=_BL,
+            visit=light,
+            all_days=[d4, d5],
+        )
+        is d5
+    )
+
+
 # --- 2026-11-08 钟楼案三拍：楔子不变量（贴邻孤岛清障） ------------------------
 
 

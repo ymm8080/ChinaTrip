@@ -355,6 +355,53 @@ def test_generic_street_cross_city_not_blocked():
     assert _cand_twin(a, cq) is False
 
 
+# --- ⑤ 西安钟鼓楼替代组（2026-11-10 拍板「鼓楼和钟楼是 alternative pair，
+#     只取其一」）---------------------------------------------------------------
+# 钟楼/鼓楼/钟鼓楼博物馆是同一登楼体验的不同行（馆在楼上，登楼即登馆），
+# 实测 ~240m 相邻但互为替代——不用地理闸（子串词素在西安商圈词上大面积
+# 误伤，改全名精确 + 钟鼓楼双词素同现）。
+
+
+def test_substitute_belldrum_pair_is_twin():
+    """西安钟楼 vs 西安鼓楼（~240m）：替代组命中即孪生，一个行程只登一楼。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    b = _cs("西安鼓楼", 108.94511, 34.26006, "西安")
+    assert _substitute_dup(a["name"], b["name"], "西安", "西安") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_belldrum_museum_row_in_group():
+    """钟鼓楼博物馆行同组：馆在楼上，登馆即登楼，防「钟楼+钟鼓楼博物馆」
+    双卡；组内互认跨类别（attraction↔museum）precise 同类。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    m = _cs("西安市钟鼓楼博物馆", 108.94400, 34.26070, "西安", cat="museum")
+    assert _substitute_dup(a["name"], m["name"], "西安", "西安") is True
+    assert _cand_twin(a, m) is True
+
+
+def test_substitute_belldrum_cross_city_not_blocked():
+    """异地同名不误伤：北京鼓楼与西安钟楼不互斥（城市闸）。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    bj = _cs("北京鼓楼", 116.39028, 39.94050, "北京")
+    assert _substitute_dup(a["name"], bj["name"], "西安", "北京") is False
+    assert _cand_twin(a, bj) is False
+
+
+def test_substitute_belldrum_merchant_rows_not_hit():
+    """商户行不进组：「钟楼」是西安高频商圈词——水盆羊肉(钟楼西一路
+    总店)类括号后缀商户行不命中替代组（全名精确 + 双词素同现两道都拦；
+    头尾包含型商户名由 containment 闸另行兜底，不在本组口径内）。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    rows = [
+        _cs(
+            "崇辉澄城水盆羊肉(钟楼西一路总店)", 108.94050, 34.26550, "西安", cat="food"
+        ),
+        _cs("德发长饺子馆(钟楼店)", 108.94300, 34.26000, "西安", cat="food"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
 def test_museum_not_in_street_group():
     """泛化按类型不按名：武侯祠博物馆（museum）不在街区白名单，与
     春熙路（citywalk）可并排。"""

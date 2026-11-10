@@ -14,7 +14,7 @@
 
 from datetime import time as _t
 
-from app.services.agent.plan import heal_leg_gaps
+from app.services.agent.plan import _travel_matrix, heal_leg_gaps
 from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
@@ -22,7 +22,12 @@ from app.services.itinerary.models import (
     PoiHours,
     VisitItem,
 )
-from app.services.itinerary.rules import haversine_km, taxi_leg_min, validate_plan
+from app.services.itinerary.rules import (
+    haversine_km,
+    taxi_leg_min,
+    travel_gap_needed,
+    validate_plan,
+)
 from app.services.itinerary.solver import solve_plan
 
 # 真实库位（session 5cbf9073 Day2 载荷坐标）
@@ -30,6 +35,62 @@ SLB = GeoPoint(lon=108.9551, lat=34.2242)  # 陕西历史博物馆
 DMG = GeoPoint(lon=108.9639, lat=34.3121)  # 大明宫国家考古遗址公园
 XQ = GeoPoint(lon=108.9471, lat=34.2757)  # 西安城墙
 WYG = GeoPoint(lon=108.9012, lat=34.2953)  # 汉长安城未央宫
+
+
+def test_solver_matrix_uses_validator_short_leg_floor():
+    a = VisitItem(
+        item_id="short-a",
+        name="近点甲",
+        city="西安",
+        day=1,
+        category="attraction",
+        location=GeoPoint(lon=108.9400, lat=34.2600),
+    )
+    b = VisitItem(
+        item_id="short-b",
+        name="近点乙",
+        city="西安",
+        day=1,
+        category="attraction",
+        location=GeoPoint(lon=108.9450, lat=34.2600),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="short-leg",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[a, b])],
+    )
+    matrix = _travel_matrix(plan)
+    assert matrix[(a.item_id, b.item_id)] == travel_gap_needed(a, b) == 30
+
+
+def test_solver_matrix_keeps_one_minute_for_validator_exempt_pairs():
+    loc = GeoPoint(lon=108.94, lat=34.26)
+    a = VisitItem(
+        item_id="pinned-a",
+        name="钉点甲",
+        city="西安",
+        day=1,
+        category="attraction",
+        pinned=True,
+        location=loc,
+    )
+    b = VisitItem(
+        item_id="free-b",
+        name="动点乙",
+        city="西安",
+        day=1,
+        category="attraction",
+        location=loc,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="exempt-leg",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[a, b])],
+    )
+    matrix = _travel_matrix(plan)
+    assert travel_gap_needed(a, b) is None
+    assert matrix[(a.item_id, b.item_id)] == 1
+    assert matrix[(b.item_id, a.item_id)] == 1
 
 
 def _stale_day2() -> DayPlan:

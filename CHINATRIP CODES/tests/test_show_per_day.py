@@ -41,8 +41,10 @@ from datetime import time
 from app.services.agent.plan import (
     PlanningAgent,
     _enforce_show_per_day,
+    _fallback_sequence_times,
     _is_show_banquet_item,
     _is_show_item,
+    _probe_visit_slot,
 )
 from app.services.itinerary.models import (
     DayPlan,
@@ -51,6 +53,7 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.scoring import PEN_VENUE_STRAND, plan_score
+from app.services.itinerary.solver import _visit_spec
 from app.services.poi_details import PoiDetailStore
 
 
@@ -137,6 +140,36 @@ def _placed(
         end_time=en,
         opening_hours=("多场（约11:00/14:00/17:00）" if show else None),
     )
+
+
+def test_theme_block_evening_is_soft_in_all_scheduling_paths():
+    theme = VisitItem(
+        item_id="theme",
+        name="测试主题街区",
+        category="citywalk",
+        city="西安",
+        day=1,
+        duration_minutes=240,
+        location=GeoPoint(lon=_MTY[0], lat=_MTY[1]),
+        best_visit_time="evening",
+        opening_hours="10:00-22:00",
+    )
+    spec = _visit_spec(theme, {})
+    assert spec is not None and spec.lo == 9 * 60
+    assert _probe_visit_slot(theme, [], [], {}, 21 * 60 + 30) == 9 * 60
+
+    ordinary = _placed("ordinary", "普通参访", 1, *_DOWNTOWN, 90, category="attraction")
+    show = _placed("show", "晚间演出", 1, *_QFJ, 80, start=19, show=True)
+    show.start_time = time(19, 30)
+    show.end_time = time(20, 50)
+    plan = ItineraryPlan(
+        itinerary_id="it-theme-soft",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[ordinary, theme, show])],
+    )
+    _fallback_sequence_times(plan)
+    assert theme.start_time is not None and theme.start_time < time(17, 0)
+    assert theme.end_time <= time(19, 0)
 
 
 def test_gate_keeps_one_show_per_day_disclosed():
@@ -590,6 +623,36 @@ def test_banquet_show_occupies_day_second_show_moves_off():
         ]
         assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
     assert any("宴秀" in str(a) and "唐乐宫" in str(a) for a in plan.assumptions)
+
+
+def test_orphaned_banquet_is_cancelled_after_venue_moves_away():
+    banquet = _banquet("v-banquet", "测试宴秀", 1, *_MTY)
+    banquet.start_time = time(11, 30)
+    banquet.end_time = time(12, 30)
+    banquet.pinned = True
+    banquet.soft_pin = True
+    venue = _placed("v-venue", "同址街区", 2, *_MTY, 240, start=10, category="citywalk")
+    show = _placed("v-show", "同区演出", 2, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-orphan-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    _placed("v-far-b", "远区乙", 1, *_LINTONG, 90, start=12),
+                    banquet,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[venue, show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert all(banquet not in d.items for d in plan.days)
+    assert venue.day == 2 and show.day == 2
+    assert any("测试宴秀" in str(a) and "不孤放" in str(a) for a in plan.assumptions)
 
 
 def test_claim_never_targets_banquet_day():

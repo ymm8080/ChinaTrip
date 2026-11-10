@@ -81,9 +81,11 @@ from app.services.itinerary.models import (
 from app.services.itinerary.rules import (
     TAXI_HAIL_MINUTES,
     TAXI_MIN_PER_KM,
+    TRAVEL_GAP_FLOOR_MIN,
     TRAVEL_LEG_CAP_MIN,
     TRAVEL_MIN_PER_KM,
     taxi_leg_min,
+    travel_gap_needed,
     travel_gap_violations,
 )
 from app.services.itinerary.solver import (
@@ -1970,15 +1972,48 @@ _SUBSTITUTE_PANDA_TOKENS = (
 )
 
 
-def _substitute_group(name: object) -> str | None:
-    """具名体验组匹配：名字命中组词素返回组id（现仅熊猫组）；未命中
-    None。具名组用于「词素即体验本体、相距再远也是同一体验」的场景，
-    与泛化品类组（_generic_substitute_group）互补。"""
+def _substitute_group(name: object, category: object = None) -> str | None:
+    """具名体验组匹配：名字命中组词素返回组id（熊猫组/双塔组）；
+    未命中 None。具名组用于「词素即体验本体、相距再远也是同一体验」的
+    场景，与泛化品类组（_generic_substitute_group）互补。"""
     s = str(name or "").strip()
     if not s:
         return None
     if any(t in s for t in _SUBSTITUTE_PANDA_TOKENS):
         return "panda"
+    return _tower_pair_group(s, category)
+
+
+# 双塔替代组（2026-11-10 用户拍板「鼓楼和钟楼是 alternative pair，只取
+# 其一」）：同城内「钟楼类登楼体验」与「鼓楼类登楼体验」互为替代——两塔
+# 多为同街区对偶古建，属同一登楼体验的不同行；塔上博物馆行也入组（馆
+# 在楼上，登馆即登楼，防「塔+塔博物馆」双卡），一行程只登一处。不用子串
+# 词素（对照熊猫组）：塔名是高频商圈方位词，商户行（塔名+方位/店号）大
+# 面积误伤——改用「去尾缀后以塔词结尾」为主、双塔词同现兜底；餐住行挂
+# 靠塔词的店名行豁免；异地同名塔靠 _substitute_dup 城市闸挡在外；组内
+# 无正主（用户未拍板优先序），组员按评分/梯队正常裁决。
+_TOWER_PAIR_TOKENS: tuple[str, ...] = ("钟鼓楼", "钟楼", "鼓楼")
+_TOWER_VENUE_SUFFIXES: tuple[str, ...] = ("博物馆", "博物院", "景区")
+
+_TOWER_STRIP_RE = re.compile(r"[\s\-—–·・]")
+
+
+def _tower_pair_group(name: object, category: object = None) -> str | None:
+    if str(category or "").strip().lower() in ("food", "hotel"):
+        return None  # 餐住挂靠塔词的店名行，非登楼体验
+    s = _TOWER_STRIP_RE.sub("", str(name or "").strip())
+    if not s:
+        return None
+    for _suf in _TOWER_VENUE_SUFFIXES:
+        if s.endswith(_suf):
+            s = s[: -len(_suf)]
+            break
+    if not s:
+        return None
+    if any(s.endswith(_tok) for _tok in _TOWER_PAIR_TOKENS):
+        return "towerpair"
+    if "钟楼" in s and "鼓楼" in s:  # 分隔/连写变体（「钟楼·鼓楼」类）
+        return "towerpair"
     return None
 
 
@@ -2069,7 +2104,7 @@ def _substitute_dup(
     与 _sibling_dup 同款只进站级判定（_same_visit/_cand_twin/
     _dup_blocks_item/备选隔离），不进 _name_dup——心愿点名不受已排替代
     点冒充覆盖。"""
-    ga, gb = _substitute_group(a), _substitute_group(b)
+    ga, gb = _substitute_group(a, cat_a), _substitute_group(b, cat_b)
     if ga is not None and ga == gb:
         ca, cb = _norm_city_key(city_a), _norm_city_key(city_b)
         if ca and cb and ca != cb:
@@ -3782,6 +3817,8 @@ def _reconcile_transfer_days(
                         dur,
                         incoming=visit.location,
                         visit=visit,
+                        all_days=plan.days,
+                        _rescue=True,
                     )
                     if target is None:
                         rescued = _rescue_premium_stranded(
@@ -3843,6 +3880,8 @@ def _reconcile_transfer_days(
                     dur,
                     incoming=visit.location,
                     visit=visit,
+                    all_days=plan.days,
+                    _rescue=True,
                 )
                 if target is not None:
                     visit.day = target.day
@@ -4225,13 +4264,22 @@ def _host_day_for_visit(
     dur: int,
     incoming: GeoPoint | None = None,
     visit: VisitItem | None = None,
+    all_days: list[DayPlan] | None = None,
+    *,
+    _rescue: bool = False,
 ) -> DayPlan | None:
     """同城日池里找装得下 dur 分钟参访的宿主天（挪日修复到达侧与
     转场日无时刻清算共用）：窗口=日始~21:30 扣转场腿占段（到达侧
     落地地板/出发侧发车缓冲）与餐块，走行腿 +30，件数 <4。visit
     给定时再以单点实位探针终审（腿占段+开场闸+营业窗，口径同
     _fallback_sequence_times）——探不进不认宿主，调用方原样还座，
-    绝不弹座给终排必死的点（2026-11-05 远距街区案）。"""
+    绝不弹座给终排必死的点（2026-11-05 远距街区案）。
+
+    _rescue=挪日救生通道（让位/蒸发清算前的最后挪日尝试）：唯一可行
+    宿主是单城无腿末日镜像时，王牌亦准入（11-04 成渝案挪日救生>末日
+    禁忌，锚 test_rehome_sweep_yields_for_premium）；默认 False 的常
+    规排程口径仍硬拒王牌上末日（锚 test_host_day_rejects_heavy_
+    single_city_return_day）。"""
     # 簇领地排序（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合
     # 优先」）：有坐标的挪入件先探已有近距同日圈（_NEAR_SAMEDAY_KM）内
     # 伙伴的天，圈内天按最近距离排——4.9km 压线弱边天不得抢在 0.5km
@@ -4311,6 +4359,76 @@ def _host_day_for_visit(
                 seq = [d for d in seq if id(d) not in _arr_ids]
             else:
                 seq = [d for d in seq if id(d) not in _arr_ids] + _arr_days
+    if visit is not None:
+        # 返程日与全局重排同口径：重物/王牌及出市区圈件不作宿主；
+        # 单城末日须用全日历识别，单候选探针不得把普通日误判成末日。
+        heavy = _heavy_rehome_visit(visit, dur)
+        vloc = getattr(visit, "location", None)
+        context = all_days or seq
+        pts = [
+            (float(i.location.lon), float(i.location.lat))
+            for d in context
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (
+                str(i.city or "").strip().removesuffix("市") == vcity
+                or str(d.base_city or "").strip().removesuffix("市") == vcity
+            )
+            and getattr(i, "location", None) is not None
+            and getattr(i.location, "lon", None) is not None
+        ]
+        med = _urban_medoid(pts)
+
+        def _return_host_blocked(d: DayPlan) -> bool:
+            """王牌末日硬除名（2026-11-08 沪→西→沪闭合案：远郊王牌被
+            first-fit 挪进离城日上午；单城无腿末日镜像同口径——锚
+            test_host_day_rejects_heavy_single_city_return_day）。tier≤2
+            王牌在末日只走让位/清算通道，不作常规挪日宿主；唯一可行宿主
+            是末日镜像的救生通道（_rescue=True）除外——救生优于蒸发
+            （11-04 成渝案，锚 test_rehome_sweep_yields_for_premium）。"""
+            if _day_has_departure(d, vcity):
+                return _vt_le2()
+            if all_days is not None and _day_is_return_home(d, all_days):
+                return not _rescue and _vt_le2()
+            return False
+
+        def _vt_le2() -> bool:
+            _vt = getattr(visit, "tier", None)
+            return _vt is not None and _vt <= 2
+
+        def _return_host_rank(d: DayPlan) -> bool:
+            """非王牌重件/出圈件末日殿后（软序不硬除名，2026-11-08 口径
+            修订）：唯一可行宿主是末日镜像时，挪日救生优于留原天交清算
+            蒸发（11-04 成渝案挪日锚 test_rehome_untimed_visits_moves_far_
+            stray）；有非末日可选时末日永远末位。圈内轻件不殿。"""
+            if _return_host_blocked(d):
+                return False
+            if not (
+                _day_has_departure(d, vcity)
+                or (all_days is not None and _day_is_return_home(d, all_days))
+            ):
+                return False
+            if heavy:
+                return True
+            if (
+                med is not None
+                and vloc is not None
+                and getattr(vloc, "lon", None) is not None
+            ):
+                return (
+                    haversine_km(
+                        GeoPoint(lon=float(vloc.lon), lat=float(vloc.lat)),
+                        GeoPoint(lon=med[0], lat=med[1]),
+                    )
+                    > _RETURN_URBAN_KM
+                )
+            return False
+
+        seq = [d for d in seq if not _return_host_blocked(d)]
+        _tail_days = [d for d in seq if _return_host_rank(d)]
+        if _tail_days and len(_tail_days) < len(seq):
+            _tail_ids = {id(d) for d in _tail_days}
+            seq = [d for d in seq if id(d) not in _tail_ids] + _tail_days
     for later in seq:
         # 宿主资格（2026-11-03 离城日闸收口）：base 同城，或当天有抵达
         # vcity 的转场腿——转场日 base 是出发城，但落地当晚的 vcity 条目
@@ -4451,6 +4569,8 @@ def _rescue_premium_stranded(
             visit.duration_minutes or DEFAULT_VISIT_MINUTES,
             incoming=visit.location,
             visit=visit,
+            all_days=plan.days,
+            _rescue=True,
         )
         if target is None:
             later.items.append(eject)  # 弹了座仍进不去（远闸/窗口）→ 还回
@@ -4480,6 +4600,8 @@ def _rescue_premium_stranded(
                 edur,
                 incoming=eject.location,
                 visit=eject,
+                all_days=plan.days,
+                _rescue=True,
             )
             if ecity
             else None
@@ -5541,7 +5663,13 @@ def _yield_for_premium(
         # 零弹座基线探针（2026-11-07）：占位件已软挪出固定窗，当天可能
         # 本就放得下（唯一墙是晚饭占位件类）——先试原样再进弹座循环。
         baseline = _host_day_for_visit(
-            [later], vcity, dur, incoming=visit.location, visit=visit
+            [later],
+            vcity,
+            dur,
+            incoming=visit.location,
+            visit=visit,
+            all_days=plan.days,
+            _rescue=True,
         )
         # 零弹座跨日探针先行（2026-11-08 街道类样本案）：弹座只腾本日容量，
         # 对别日宿主毫无贡献——同城他日本就收得下时直接挪日零牺牲
@@ -5561,7 +5689,13 @@ def _yield_for_premium(
             if not _street_like_visit(visit):
                 zero_pool.sort(key=lambda d: _day_is_arrival(d, vcity))
             zero_target = _host_day_for_visit(
-                zero_pool, vcity, dur, incoming=visit.location, visit=visit
+                zero_pool,
+                vcity,
+                dur,
+                incoming=visit.location,
+                visit=visit,
+                all_days=plan.days,
+                _rescue=True,
             )
             logger.info(
                 "yield: %s later=d%s baseline=None zero_target=%s",
@@ -5634,6 +5768,8 @@ def _yield_for_premium(
                 dur,
                 incoming=visit.location,
                 visit=visit,
+                all_days=plan.days,
+                _rescue=True,
             )
             if (
                 t is not None
@@ -5702,6 +5838,8 @@ def _yield_for_premium(
                     edur,
                     incoming=eject.location,
                     visit=eject,
+                    all_days=plan.days,
+                    _rescue=True,
                 )
                 if ecity
                 else None
@@ -5884,7 +6022,13 @@ def _transfer_day_sweep(
                 handled.add(visit.item_id)
                 continue
             target = _host_day_for_visit(
-                pool, vcity, dur, incoming=visit.location, visit=visit
+                pool,
+                vcity,
+                dur,
+                incoming=visit.location,
+                visit=visit,
+                all_days=plan.days,
+                _rescue=True,
             )
             if (
                 target is not None
@@ -5987,6 +6131,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
     露——静默不许可（10-25 立规）。"""
     moved = False
     sweep_moves: list[tuple["VisitItem", DayPlan, str]] = []
+    family_retime_anchors: dict[int, tuple[DayPlan, dict[int, VisitItem]]] = {}
 
     def _vxy(v: "VisitItem") -> GeoPoint | None:
         loc = getattr(v, "location", None)
@@ -6158,7 +6303,14 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
         cands.sort(key=lambda t: (t[0], t[1], t[2]))
         tgt = None
         for _, _, _, md in cands:
-            t = _host_day_for_visit([md], vcity, dur, visit=v)
+            t = _host_day_for_visit(
+                [md],
+                vcity,
+                dur,
+                visit=v,
+                all_days=plan.days,
+                _rescue=True,
+            )
             if t is not None:
                 tgt = t
                 break
@@ -6231,7 +6383,14 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                     continue
                 keep = str(v.name) in protect or bool(getattr(v, "created", False))
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                pool = [x for x in days if x is not d and not _day_is_arrival(x, vcity)]
+                # 有中段整天时出圈件不挪返程日；只有到达+返程的极短窗
+                # 保留两端日兜底，避免清扫删掉选层本可保留的卡。
+                non_arrival = [
+                    x for x in days if x is not d and not _day_is_arrival(x, vcity)
+                ]
+                pool = [
+                    x for x in non_arrival if not _day_is_return_home(x, plan.days)
+                ] or non_arrival
                 # 择日同②锚定口径：必去/心愿远点优先挪向常驻簇日（远郊王牌
                 # 归远郊族/贴场馆演出族日），锚定日全探不进才退容量兜底。
                 cands: list[tuple[float, int, DayPlan]] = []
@@ -6252,12 +6411,26 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 cands.sort(key=lambda t: (t[1], t[0]))
                 tgt = None
                 for _, _, md in cands:
-                    t = _host_day_for_visit([md], vcity, dur, visit=v)
+                    t = _host_day_for_visit(
+                        [md],
+                        vcity,
+                        dur,
+                        visit=v,
+                        all_days=plan.days,
+                        _rescue=True,
+                    )
                     if t is not None:
                         tgt = t
                         break
                 if tgt is None:
-                    tgt = _host_day_for_visit(pool, vcity, dur, visit=v)
+                    tgt = _host_day_for_visit(
+                        pool,
+                        vcity,
+                        dur,
+                        visit=v,
+                        all_days=plan.days,
+                        _rescue=True,
+                    )
                 if tgt is not None:
                     _move(v, d, tgt)
                     moved = True
@@ -6406,9 +6579,25 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                         if note not in plan.assumptions:
                             plan.assumptions.append(note)
         # ③ 出圈片区族对齐（②腾位后跑；族锚=坐族内演出的日；锚禁到达
-        # 日——远郊族不向到达日聚合）
+        # 日——远郊族不向到达日聚合）。整阶段原子：任一族成员无宿主、
+        # 挪后无时刻或族演出换场失败，即恢复本阶段全部挪动/弹座/时刻，
+        # 不留半合族与失联副作用。
+        family_items = {id(d): list(d.items) for d in plan.days}
+        family_states = {
+            id(i): (i, i.day, i.start_time, i.end_time)
+            for d in plan.days
+            for i in d.items
+            if isinstance(i, VisitItem)
+        }
+        family_assumptions = list(plan.assumptions)
+        family_sweep_moves = list(sweep_moves)
+        pre_family_moved = moved
+        family_changed = False
+        family_failed: VisitItem | None = None
+        # ①可能已移除到达日出圈件；族对齐只处理仍在某日清单里的当前卡。
+        current_visits = [i for d in days for i in d.items if isinstance(i, VisitItem)]
         fams = _components(
-            [v for v in all_visits if id(v) in far_ids and _vxy(v) is not None],
+            [v for v in current_visits if id(v) in far_ids and _vxy(v) is not None],
             _DISTRICT_DAY_KM,
         )
         for fam in fams:
@@ -6439,7 +6628,14 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 ) or _is_show_item(v):
                     continue
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                tgt = _host_day_for_visit([anchor], vcity, dur, visit=v)
+                tgt = _host_day_for_visit(
+                    [anchor],
+                    vcity,
+                    dur,
+                    visit=v,
+                    all_days=plan.days,
+                    _rescue=True,
+                )
                 if tgt is None:
                     # 锚满：先弹锚上离全族 >5km 的市内弱件腾位再试一次
                     # （11-09 拆族二拍：锚满即合族失败实录）。
@@ -6461,10 +6657,18 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                         )
                     ]:
                         if _relocate_stranger(cw, anchor, vcity, days, far_ids):
-                            tgt = _host_day_for_visit([anchor], vcity, dur, visit=v)
+                            tgt = _host_day_for_visit(
+                                [anchor],
+                                vcity,
+                                dur,
+                                visit=v,
+                                all_days=plan.days,
+                                _rescue=True,
+                            )
                             if tgt is not None:
                                 break
                 if tgt is None:
+                    family_failed = family_failed or v
                     src_day_no = next(
                         (x.day for x in days if any(i is v for i in x.items)),
                         "?",
@@ -6494,6 +6698,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                 )
                 _move(v, src, tgt, note=note)
                 moved = True
+                family_changed = True
                 logger.info(
                     "plan: purity family merge %s day %s -> day %s",
                     v.name,
@@ -6501,8 +6706,92 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                     tgt.day,
                 )
                 plan.assumptions.append(note)
+                for show in fam:
+                    if (
+                        any(x is show for x in anchor.items)
+                        and _is_show_item(show)
+                        and not show.pinned
+                        and show.start_time is not None
+                        and show_session_starts(show.opening_hours)
+                    ):
+                        _anchor, shows = family_retime_anchors.setdefault(
+                            id(anchor), (anchor, {})
+                        )
+                        shows[id(show)] = show
     if moved:
+        retime_states: list[
+            tuple[DayPlan, list[tuple[VisitItem, time, time | None]], set[int]]
+        ] = []
+        for anchor, shows_by_id in family_retime_anchors.values():
+            shows = list(shows_by_id.values())
+            originals = [(show, show.start_time, show.end_time) for show in shows]
+            untimed_ids = {
+                id(i)
+                for i in anchor.items
+                if isinstance(i, VisitItem) and i.start_time is None
+            }
+            retime_states.append((anchor, originals, untimed_ids))
+            for show in shows:
+                show.start_time = None
+                show.end_time = None
+            logger.info(
+                "plan: purity family show retime day %d count %d",
+                anchor.day,
+                len(shows),
+            )
         _fallback_sequence_times(plan)
+        family_move_ids = {
+            id(v) for v, _src, _note in sweep_moves[len(family_sweep_moves) :]
+        }
+        moved_untimed = next(
+            (
+                v
+                for d in plan.days
+                for v in d.items
+                if isinstance(v, VisitItem)
+                and id(v) in family_move_ids
+                and v.start_time is None
+            ),
+            None,
+        )
+        retime_failed = any(
+            show.start_time is None
+            for _anchor, originals, _untimed in retime_states
+            for show, _start, _end in originals
+        )
+        if family_changed and (
+            family_failed is not None or moved_untimed is not None or retime_failed
+        ):
+            failed = moved_untimed or family_failed
+            if failed is None:
+                failed = next(
+                    show
+                    for _anchor, originals, _untimed in retime_states
+                    for show, start, _end in originals
+                    if show.start_time is None and start is not None
+                )
+            for d in plan.days:
+                d.items[:] = family_items[id(d)]
+            for v, day_no, start, end in family_states.values():
+                v.day = day_no
+                v.start_time = start
+                v.end_time = end
+            plan.assumptions[:] = family_assumptions
+            sweep_moves[:] = family_sweep_moves
+            logger.warning(
+                "plan: purity family transaction rolled back at %s",
+                failed.name,
+            )
+            plan.assumptions.append(
+                L(
+                    f"「{failed.name}」等同片区景点未能安全合并，"
+                    "已保留原日安排，可按需调整",
+                    f'"{failed.name}" and nearby sights could not be merged '
+                    "safely; their original day assignments were restored",
+                )
+            )
+            if pre_family_moved:
+                _fallback_sequence_times(plan)
         # 挪后重排仍排不上时刻的 ②③ 挪动卡放回原天换披露（11-11 含光
         # 门实录：实位探针过闸≠兜底时序必能落位，无时刻"？"卡不该出
         # 自本清扫——排得上时刻的陌生人好过无时刻卡）；①出圈件不放回
@@ -6594,6 +6883,8 @@ def _rehome_untimed_visits(
                     dur,
                     incoming=visit.location,
                     visit=visit,
+                    all_days=plan.days,
+                    _rescue=True,
                 )
                 if target is not None and vt <= 2 and _day_has_departure(target, vcity):
                     # 王牌不上返程日（2026-11-08 沪→西→沪案：远郊王牌被
@@ -6637,7 +6928,13 @@ def _rehome_untimed_visits(
                         )
                 continue
             target = _host_day_for_visit(
-                pool, vcity, dur, incoming=visit.location, visit=visit
+                pool,
+                vcity,
+                dur,
+                incoming=visit.location,
+                visit=visit,
+                all_days=plan.days,
+                _rescue=True,
             )
             if target is not None and not _stack_uncashable(plan, target, visit):
                 visit.day = target.day
@@ -6676,10 +6973,10 @@ def _travel_matrix(
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
 ) -> dict[tuple[str, str], int]:
     """8.2.2 solver 动线矩阵（打车模型，用户拍板 2026-10-31：车程+半小时
-    叫车）：距离经 _taxi_leg_min 折算分钟；高德/百度实测腿只取**距离**
-    （实测步行分钟不再沿用——日程口径统一打车）。矩阵键
-    与 solver._travel_cost 查找序一致：双方有 poi_id 用 poi_id 对，否则
-    item_id 对；跨天键无害（solver 按天取用）。"""
+    叫车）：距离经 _taxi_leg_min 折算分钟，并套用校验同源的最小相邻间隔；
+    高德/百度实测腿只取**距离**（实测步行分钟不再沿用——日程口径统一
+    打车）。矩阵键与 solver._travel_cost 查找序一致：双方有 poi_id 用 poi_id
+    对，否则 item_id 对；跨天键无害（solver 按天取用）。"""
 
     def _coord(pt: GeoPoint) -> str:
         return f"{pt.lon:.6f},{pt.lat:.6f}"
@@ -6702,7 +6999,8 @@ def _travel_matrix(
                     km = hit[0]  # 实测距离优先（打车模型自己折时间）
             if km is None:
                 km = haversine_km(a.location, b.location)
-            minutes = max(1, _taxi_leg_min(km))
+            needed = travel_gap_needed(a, b)
+            minutes = max(needed if needed is not None else 1, _taxi_leg_min(km))
             key = (
                 (a.poi_id, b.poi_id)
                 if a.poi_id and b.poi_id
@@ -7108,8 +7406,12 @@ def _fallback_sequence_times(
                 # 日始 9 点，天然无下探）。无场次演出不再有 17:00 地板
                 # （2026-11-06 拍板：无场次按正常景点逻辑排，"show" 不在
                 # 时段窗表 → 随游标正常排）。
-                wlo = _BEST_VISIT_WINDOWS.get(
-                    str(visit.best_visit_time or "").strip().lower()
+                wlo = (
+                    None
+                    if _is_theme_block(visit)
+                    else _BEST_VISIT_WINDOWS.get(
+                        str(visit.best_visit_time or "").strip().lower()
+                    )
                 )
                 t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
                 if (
@@ -7318,6 +7620,93 @@ def _fallback_sequence_times(
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
+def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
+    """终装挪卡后只重排自动餐占位；真实餐卡与用户时刻保持原样。"""
+    day_end = 21 * 60 + 30
+    for day in plan.days:
+        _fixed, fixed_tight, flex_lunches, _xfer = _day_fixed_windows(day)
+        lunches = [
+            (i, _minutes_of(i.start_time), int(i.duration_minutes or 90))
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and is_lunch_placeholder(i)
+            and i.start_time is not None
+        ]
+        for real_meal, start, _duration in flex_lunches:
+            end = _item_end_minutes(real_meal)
+            if end is not None:
+                fixed_tight.append((start, end))
+        fixed_tight.sort()
+        dinners = [
+            (i, _minutes_of(i.start_time), int(i.duration_minutes or 60))
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and is_dinner_placeholder(i)
+            and i.start_time is not None
+        ]
+        for meal, preferred, original_dur in lunches + dinners:
+            is_lunch = is_lunch_placeholder(meal)
+            durations = (
+                dict.fromkeys([original_dur, max(30, original_dur - 30), 30])
+                if is_lunch
+                else [original_dur]
+            )
+            lo, hi = (
+                (11 * 60 + 30, 12 * 60 + 30)
+                if is_lunch
+                else (
+                    max(0, preferred - 30),
+                    min(day_end - original_dur, preferred + 30),
+                )
+            )
+            current_end = _item_end_minutes(meal)
+            current_start = _minutes_of(meal.start_time) if meal.start_time else None
+            if (
+                current_start is not None
+                and current_end is not None
+                and not any(
+                    current_start < fe and current_end > fs for fs, fe in fixed_tight
+                )
+            ):
+                fixed_tight.append((current_start, current_end))
+                fixed_tight.sort()
+                continue
+            placed: tuple[int, int] | None = None
+            for dur in durations:
+                for t_from in dict.fromkeys(
+                    [max(lo, preferred), lo] + list(range(lo, hi + 1))
+                ):
+                    t = t_from
+                    advanced = True
+                    while advanced:
+                        advanced = False
+                        for fs, fe in fixed_tight:
+                            if t < fe and t + dur > fs:
+                                t = fe
+                                advanced = True
+                                break
+                    if t <= hi and t + dur <= day_end:
+                        placed = (t, dur)
+                        break
+                if placed is not None:
+                    break
+            if placed is None:
+                day.items.remove(meal)
+                logger.warning(
+                    "plan: meal placeholder dropped after final moves day %d %s",
+                    day.day,
+                    meal.item_id,
+                )
+                continue
+            slot, dur = placed
+            meal.start_time = time(slot // 60, slot % 60)
+            meal.end_time = time((slot + dur) // 60, (slot + dur) % 60)
+            meal.duration_minutes = dur
+            fixed_tight.append((slot, slot + dur))
+            fixed_tight.sort()
+        day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
 def _evening_anchor_visit(v: VisitItem) -> bool:
     """晚场锚判定（晚锚右贴压缩用）：场次演出/bvt 夜属性/主题街区
     （2026-11-08 拍板「所有街区都可以作为夜场」）。"""
@@ -7332,7 +7721,7 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
     """晚锚右贴压缩（2026-11-08 拍板「间隔下午时间太久，整个组合的总时
     间为什么不压缩一下」）：终装不变量——每天最后一个晚场锚（≥15:00
     开场）之前若有可动观光链，且链尾与锚之间留 ≥60min 死区，整链后移
-    贴锚（锚前留 30min 通勤）——下午空洞前移给上午，日跨度收紧
+    贴锚（锚前按校验同源口径预留通勤）——下午空洞前移给上午，日跨度收紧
     （同址夜演案：同针小件 13:37 收尾 vs 17:00 演出 203min 死区）。返程日
     午后跳过（规则 21 车站缓冲不动）；钉住/餐饮/酒店/场次演出/晚场类
     不入链（链在其处断开）；链上任一站过不了营业窗/入场闸就整链不动
@@ -7392,11 +7781,13 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
         if not chain:
             continue
         chain.reverse()
-        last_end = max(v.end_time.hour * 60 + v.end_time.minute for v in chain)
+        tail = chain[-1]
+        last_end = tail.end_time.hour * 60 + tail.end_time.minute
         dead = a_start - last_end
         if dead < 60:
             continue
-        delta = dead - 30  # 贴锚留 30min 通勤
+        gap = travel_gap_needed(tail, anchor) or TRAVEL_GAP_FLOOR_MIN
+        delta = dead - gap
         # 入场闸收紧 delta（链上最紧的白天闸件定上限：同针小件类 16:00
         # 闸压到最迟开场，而非整段贴锚后被闸全盘否决）。
         for v in chain:
@@ -7430,12 +7821,13 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
             v.end_time = time(e // 60, e % 60)
         logger.info(
             "plan: compressed %d item(s) against evening anchor %s on day %d "
-            "(+%d min, dead zone %d -> 30)",
+            "(+%d min, dead zone %d -> %d)",
             len(chain),
             anchor.name,
             day.day,
             delta,
             dead,
+            gap,
         )
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
@@ -7527,7 +7919,11 @@ def _probe_visit_slot(
     返回最早可行开场分钟数，不可行返回 None。floor=起始下限；
     cap_max 收紧开场闸（必去大点「下午头档 ≤13:00 开场」用）。"""
     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-    wlo = _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
+    wlo = (
+        None
+        if _is_theme_block(visit)
+        else _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
+    )
     t = max(floor, wlo[0] if wlo else DAY_START_MINUTES)
     for tr, _ts, te in xfer_windows:
         if _city_side(visit, tr) == "after":
@@ -7787,6 +8183,8 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     ③ 删除兜底（异簇王牌日案回归修复）：全城无空演出日时删「最弱场馆锚」
     牺牲者（无 ≤5km 簇伴优先、距当日簇最远；钉住卡永不牺牲），本卡
     顶它的日子；本卡自身即最弱才点名删除；
+    ④ 孤宴清算：挪日链留下无近伴宴卡时，只跟去有簇伴且无演出的同城日，
+    无合法目标则取消并披露，钉住/软钉不把孤宴变成地理锚；
     挪后兜底重排时刻；无日可挪才点名移除披露；挪后仍无时刻同样移除
     披露（宴秀不因超载被闸删——晚餐槽另由餐路兜底）。闸未动作时零
     副作用（不重排）。全程留痕。"""
@@ -8087,6 +8485,68 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
             _dist,
         )
         moved = True
+
+    for day in plan.days:
+        for v in list(day.items):
+            if (
+                not isinstance(v, VisitItem)
+                or not _is_show_banquet_item(v)
+                or _near_mate_on(day, v)
+            ):
+                continue
+            vcity = str(v.city or day.base_city or "").strip().removesuffix("市")
+            targets = [
+                d
+                for d in plan.days
+                if d is not day
+                and str(d.base_city or "").strip().removesuffix("市") == vcity
+                and not _day_show_taken(d)
+                and _near_mate_on(d, v)
+            ]
+            if targets:
+                tgt = min(
+                    targets,
+                    key=lambda d: (
+                        sum(isinstance(i, VisitItem) for i in d.items),
+                        d.day,
+                    ),
+                )
+                day.items.remove(v)
+                v.day = tgt.day
+                v.start_time = None
+                v.end_time = None
+                tgt.items.append(v)
+                plan.assumptions.append(
+                    L(
+                        f"「{v.name}」随就近簇改排第{tgt.day}天（宴类不孤放）",
+                        f'"{v.name}" moved to day {tgt.day} with its nearby '
+                        "cluster (banquets are not placed alone)",
+                    )
+                )
+                logger.warning(
+                    "plan: show-per-day gate moved orphaned banquet %s day %d -> %d",
+                    v.name,
+                    day.day,
+                    tgt.day,
+                )
+            else:
+                day.items.remove(v)
+                plan.assumptions.append(
+                    L(
+                        f"「{v.name}」原就近簇已改排其他演出日，宴类跟随当日簇、"
+                        "不孤放别日，已取消（需要可手动加回）",
+                        f'The nearby cluster for "{v.name}" moved to a day that '
+                        "already has a show; the banquet only follows its day "
+                        "cluster and is not placed alone, cancelled (add it back "
+                        "manually if needed)",
+                    )
+                )
+                logger.warning(
+                    "plan: show-per-day gate cancelled orphaned banquet %s day %d",
+                    v.name,
+                    day.day,
+                )
+            moved = True
 
     if not moved:
         return
@@ -12584,6 +13044,77 @@ class PlanningAgent:
             placed: dict[int, list[tuple[int, dict]]] = {
                 d: [] for d in range(lo, hi + 1)
             }
+            day_charges: dict[int, dict[int, int]] = {d: {} for d in range(lo, hi + 1)}
+
+            def _place_card(
+                d: int,
+                pos: int,
+                cand: dict,
+                charge: int,
+                *,
+                with_coords: bool = True,
+            ) -> None:
+                placed[d].append((pos, cand))
+                day_charges[d][pos] = charge
+                day_loads[d][0] += charge
+                day_loads[d][1] += 1
+                if with_coords:
+                    xy = _cxy(cand)
+                    if xy is not None:
+                        day_coords[d].append(xy)
+
+            def _remove_card(
+                d: int,
+                pos: int,
+                cand: dict,
+                *,
+                refund: int | None = None,
+                with_coords: bool = True,
+            ) -> int:
+                placed[d].remove((pos, cand))
+                charge = day_charges[d].pop(pos)
+                day_loads[d][0] -= charge if refund is None else refund
+                day_loads[d][1] -= 1
+                if with_coords:
+                    xy = _cxy(cand)
+                    if xy is not None and xy in day_coords[d]:
+                        day_coords[d].remove(xy)
+                return charge
+
+            def _charge_of(d: int, pos: int) -> int:
+                return day_charges[d][pos]
+
+            def _exchange_card_slots(
+                out_day: int,
+                out_pos: int,
+                out_cand: dict,
+                out_min: int,
+                in_day: int,
+                in_pos: int,
+                in_cand: dict,
+                in_min: int,
+            ) -> None:
+                out_charge = _remove_card(
+                    out_day, out_pos, out_cand, refund=out_min, with_coords=False
+                )
+                in_charge = _remove_card(
+                    in_day, in_pos, in_cand, refund=in_min, with_coords=False
+                )
+                _place_card(
+                    out_day,
+                    in_pos,
+                    in_cand,
+                    out_charge + in_min - out_min,
+                    with_coords=False,
+                )
+                _place_card(
+                    in_day,
+                    out_pos,
+                    out_cand,
+                    in_charge + out_min - in_min,
+                    with_coords=False,
+                )
+
             # ⑨优先级预占位（2026-11-02 拍板链「UNESCO 第一等级
             # 应该尽早安排」→「全部优先级都要考虑」）：池内全部
             # 候选（演出除外——日位由演出钉日/每场闸规则定）按池序
@@ -12609,16 +13140,16 @@ class PlanningAgent:
             # 非街区）认领天序把到达日压到队尾——软偏好，eligible 全为
             # 到达日（短程窗）不变形；返程末日不在到达日集，不受限。
             _adays = arrival_days or frozenset()
+            _tret = tail_return_days or frozenset()
+
+            def _return_edge(d: int) -> bool:
+                return d == days and (days in _tdays or d in _tret)
 
             # 返程日参访件离城上午闸镜像（2026-11-05 重庆案）：超件
             # 求解层必清算（口径见 _RETURN_DAY_WINDOW_MIN），选层直接
-            # 不收——预占严格位/软闸兜底/空天保底/主环共用一判。
+            # 不收——预占严格位/软闸兜底/空天保底/主环/稀疏回填共用一判。
             def _over_return_cap(d: int, minutes: int, leg: int) -> bool:
-                return (
-                    d == days
-                    and days in _tdays
-                    and minutes + leg > _RETURN_DAY_WINDOW_MIN
-                )
+                return _return_edge(d) and minutes + leg > _RETURN_DAY_WINDOW_MIN
 
             # 返程日市区圈（2026-11-08 拍板「回城当天有多余时间也只排
             # 市区内小点或 CityWalk」）：市区锚=池内点位云 medoid
@@ -12627,7 +13158,6 @@ class PlanningAgent:
             # 由 _edge_blocked/_can_join/_no_return_day 三层布防，本圈
             # 补「远」翼。钉/必去/软钉与餐住免；缺锚/缺坐标不拦；全边
             # 日窗（无可用替代日）软放——排得上优先于排得轻。
-            _tret = tail_return_days or frozenset()
             _ret_anchor = _urban_medoid(
                 [xy for xy in (_cxy(c) for _, c in pool) if xy is not None]
             )
@@ -12647,19 +13177,39 @@ class PlanningAgent:
                         _out_circle[:6],
                     )
 
-            def _ret_far(cand: dict, d: int) -> bool:
-                # 远郊件不上返程日（软闸：全窗无可用替代日放行——宁排勿缺）
+            def _return_reject(
+                cand: dict, d: int, *, _transfer_fill: bool = False
+            ) -> bool:
+                # 远郊件/短王牌不上返程日（软闸：全窗无可用替代日放行——
+                # 宁排勿缺）。王牌分支镜像 _edge_blocked 组合通道口径
+                # （tier≤2 且行程≥2 天；演出/街道类豁免——演出有钉日
+                # 语义、街区正是末日轻量保底要找的件）：末日只收轻量件。
+                # _transfer_fill=空转场日保底挪件调用：纯坐车日「每天有
+                # 安排」允许池序末件（可含轻量王牌）入日——挪件已受上
+                # 午窗闸+市区圈双闸，王牌闸独免（11-10 拍板，锚
+                # test_transfer_empty_day_moves_selected_loose_card）。
                 if d != days or not (days in _tdays or d in _tret):
                     return False
                 if cand.get("must") or cand.get("pinned") or cand.get("soft_pin"):
                     return False
                 if str(cand.get("category") or "") in ("food", "hotel"):
                     return False
-                if _ret_anchor is None:
-                    return False
-                xy = _cxy(cand)
-                if xy is None or _km(xy, _ret_anchor) <= _RETURN_URBAN_KM:
-                    return False
+                _premium = (
+                    not _transfer_fill
+                    and _source_tier(cand) <= 2
+                    and hi > lo
+                    and not _cand_is_show(cand)
+                    and not (
+                        _plain_street_cand(cand)
+                        or str(cand.get("category") or "").strip().lower() == "citywalk"
+                    )
+                )
+                if not _premium:
+                    if _ret_anchor is None:
+                        return False
+                    xy = _cxy(cand)
+                    if xy is None or _km(xy, _ret_anchor) <= _RETURN_URBAN_KM:
+                        return False
                 return any(e != days and e not in _adays for e in range(lo, hi + 1))
 
             # 组合原子选日通道（2026-11-08 拍板「距离聚类优先/组合排日」
@@ -12668,8 +13218,10 @@ class PlanningAgent:
             # ①池内可数件（有坐标、非演出/非 food）并查集聚组合，三类边：
             #   A 伞名票制对（词素同族 ≤_UMBRELLA_BUNDLE_KM，含跨 1km 同族
             #     挂牌对）；
-            #   B 紧距原子（同针 0km 贴邻与 ≤_FAMILY_ATOMIC_KM 近邻；1.5-
-            #     2km 链式弱边仍不入，防撑爆 4/日帽的旧拍板不动）；
+            #   B 紧距原子（>0 且 ≤_FAMILY_ATOMIC_KM 近邻；同针 0km 不
+            #     入族——同针各卡保有自己的边日/雨天语义，贴排组合由求
+            #     解层贴排通道承接；1.5-2km 链式弱边仍不入，防撑爆
+            #     4/日帽的旧拍板不动）；
             #   C 出圈片区族（双双在市区圈外的远郊件，≤_DISTRICT_DAY_KM
             #     互连——同片区远征是一家人）；
             # ②组合时长=成员加和，优先级=族内最优成员 tier；③按（最优
@@ -12681,7 +13233,11 @@ class PlanningAgent:
             # 无重复再减地理链端点；受害者按 _drop_key（非钉 > tier 大
             #  > 时长长），减员退回零散池，迭代到装下或组仅剩 2 员；
             # ⑤组合占日不收异簇可数件（food 豁免、演出钉日语义不受本
-            # 闸；零散件全窗无他日可投时软放——排得上优先于排得轻）。
+            # 闸；零散件全窗无他日可投时软放——排得上优先于排得轻）；
+            # ⑥雨锁/边锁散件全窗无位且唯一可投天被族整组占满时，减族内
+            # 同类型最长重复件腾位（_shed_family_dup：让位件须严格更长
+            # 防回摆、族形≥2 保持、伞名票制对成员不让）——主环直排/溢
+            # 出/稀疏回填三通道同镜像。
             # 边日规则镜像 _can_join：tier≤2 且 >120min 大块头不上到
             # 达/返程边日；≤120min 小块头王牌可跟簇上边日（须≥2 簇伴
             # 在宿主）。多场次演出 cluster_day 钉日机制不破：
@@ -12703,13 +13259,80 @@ class PlanningAgent:
                 return False
 
             def _day_open_for(cand: dict, pos: int, d: int) -> bool:
-                # 软化：全窗无任何开放日时放行原日——零散件不因族占
-                # 全窗而饿死（单日窗城市，baidu 名点案口径）。
+                # 软化：全窗无任何可投开放日时放行原日——雨日硬闸下
+                # 可投日必须先过雨闸，否则唯一干日会被族占日闸误杀。
                 if _family_open(cand, pos, d):
                     return True
                 return not any(
-                    e != d and _family_open(cand, pos, e) for e in range(lo, hi + 1)
+                    e != d and _family_open(cand, pos, e) and not _rain_blocked(cand, e)
+                    for e in range(lo, hi + 1)
                 )
+
+            def _shed_family_dup(d: int, cand: dict) -> bool:
+                # 族日满员让位（2026-11-09 组合原子化拍板「装不下减同类
+                # 型重复件」+11-02「被闸时同档选时间短的」双拍板镜像）：
+                # 雨锁/边锁散件唯一可投天是族占日且满员（4/日帽硬）时，
+                # 同日同类型（行程桶/类别同口径）最长件让位——让位件须
+                # 严格更长（同档短者优先，防让位件回填重试再让位回摆）；
+                # 让位件是族员时族形让后≥2 保持，族日散件让位无族形约
+                # 束；必去/钉/软钉/演出与伞名票制对成员不让（族形态保
+                # 护同减员豁免口径）。族占日封闭在此按「排得上优先于排
+                # 得轻」软放：雨日硬闸日不算可投日。失位件交稀疏回填重
+                # 试与白名单披露承接（全程留痕，日志铁律）。
+                if day_loads[d][1] < 4:
+                    return False
+                fam_n = sum(1 for p2, _ in placed[d] if p2 in _cluster_first_pos)
+                if fam_n < 2:
+                    return False  # 纯散件满员天不动（4/日帽铁律照收）
+                bk = _itin_cap_bucket(cand) or str(cand.get("category") or "")
+                m_in = _minutes(cand, DEFAULT_VISIT_MINUTES)
+                t_in = _source_tier(cand)
+                victim = None
+                for p2, c2 in placed[d]:
+                    if c2.get("must") or c2.get("pinned") or c2.get("soft_pin"):
+                        continue
+                    if _cand_is_show(c2):
+                        continue
+                    if (_itin_cap_bucket(c2) or str(c2.get("category") or "")) != bk:
+                        continue
+                    if _source_tier(c2) < t_in:
+                        continue  # 低档入件不得弹出更高优先级在册卡
+                    m2 = _minutes(c2, DEFAULT_VISIT_MINUTES)
+                    if m2 <= m_in:
+                        continue  # 只让严格更长者（同档短者优先）
+                    victim_root = _fam_of.get(p2)
+                    if (
+                        victim_root is not None
+                        and sum(
+                            1 for p3, _ in placed[d] if _fam_of.get(p3) == victim_root
+                        )
+                        < 3
+                    ):
+                        continue  # 每个族分别保≥2，不能按全日族员总数抵账
+                    if any(
+                        _umbrella_specs_bundle(c2, c3)
+                        for p3, c3 in placed[d]
+                        if p3 != p2
+                    ):
+                        continue  # 伞名票制对成员不让（族形态保护）
+                    if victim is None or (m2, p2) > (victim[2], victim[0]):
+                        victim = (p2, c2, m2)
+                if victim is None:
+                    return False
+                p2, c2, m2 = victim
+                _remove_card(d, p2, c2)
+                logger.info(
+                    "plan: combo full sheds longest dup %s day%d for locked %s",
+                    c2.get("name") or "?",
+                    d,
+                    cand.get("name") or "?",
+                )
+                if notes is not None:
+                    notes.append(
+                        f"第{d}天组合装不下：同类型重复点"
+                        f"「{c2.get('name') or '?'}」已让位（要加回请说）"
+                    )
+                return True
 
             def _assign_cluster_first_days() -> None:
                 elig = [
@@ -12720,6 +13343,20 @@ class PlanningAgent:
                     and str(c.get("category") or "") not in ("food", "hotel")
                 ]
                 parent = {p: p for p in elig}
+                logger.info(
+                    "plan: cluster-first elig=%d/%d excluded=%s",
+                    len(elig),
+                    len(pool),
+                    [
+                        (
+                            str(c.get("name") or "?"),
+                            str(c.get("category") or ""),
+                            _cxy(c) is None,
+                        )
+                        for pos, (_i, c) in enumerate(pool)
+                        if pos not in set(elig)
+                    ],
+                )
 
                 def find(x: int) -> int:
                     while parent[x] != x:
@@ -12727,14 +13364,38 @@ class PlanningAgent:
                         x = parent[x]
                     return x
 
+                def _union(a: int, b: int) -> None:
+                    ra, rb = find(a), find(b)
+                    if ra != rb:
+                        parent[ra] = rb
+
                 for ai in range(len(elig)):
                     for bi in range(ai + 1, len(elig)):
-                        km_ab = _km(_cxy(pool[elig[ai]][1]), _cxy(pool[elig[bi]][1]))
-                        # 原子族半径 1.0km（二拍①）：2km 链式弱边不再入族
+                        pa, pb = elig[ai], elig[bi]
+                        ca, cb = pool[pa][1], pool[pb][1]
+                        km_ab = _km(_cxy(ca), _cxy(cb))
+                        # 边 A 伞名票制对：词素同族 ≤5km（1km 原子半径够不
+                        # 着的同族挂牌对不再靠终装捆绑相位跨日追认）。
+                        if _umbrella_specs_bundle(ca, cb):
+                            _union(pa, pb)
+                            continue
+                        # 边 B 紧距原子：>0 且 ≤_FAMILY_ATOMIC_KM 近邻入族；
+                        # 同针 0km 不入族（同针各卡保留各自的边日/雨天语义
+                        # ——街道类上转场日、未标注雨日让位只在散件通道生
+                        # 效，同针贴排组合由求解层贴排/宴演占场通道承接）；
+                        # 1.5-2km 链式弱边仍不入族（防撑爆 4/日帽，二拍①不动）。
                         if 0 < km_ab <= _FAMILY_ATOMIC_KM:
-                            ra, rb = find(elig[ai]), find(elig[bi])
-                            if ra != rb:
-                                parent[ra] = rb
+                            _union(pa, pb)
+                            continue
+                        # 边 C 出圈片区族：双双在市区圈外的远郊件，片区圈
+                        # 内互连同日（同片区远郊王牌/园林型远征是一家人）。
+                        if (
+                            _ret_anchor is not None
+                            and km_ab <= _DISTRICT_DAY_KM
+                            and _km(_cxy(ca), _ret_anchor) > _RETURN_URBAN_KM
+                            and _km(_cxy(cb), _ret_anchor) > _RETURN_URBAN_KM
+                        ):
+                            _union(pa, pb)
                 fams: dict[int, list[int]] = {}
                 for p in elig:
                     fams.setdefault(find(p), []).append(p)
@@ -12744,6 +13405,13 @@ class PlanningAgent:
                         _fam_of[p] = r
                 if not fams:
                     return
+                logger.info(
+                    "plan: cluster-first combos formed: %s",
+                    [
+                        [str(pool[p][1].get("name") or "?") for p in m]
+                        for m in fams.values()
+                    ],
+                )
 
                 def _fam_protected(cand: dict) -> bool:
                     return bool(
@@ -12759,10 +13427,12 @@ class PlanningAgent:
                 ) -> bool:
                     # 边日规则（既有拍板 + 2026-11-08 跟簇破例，镜像
                     # _reunite_tight_kin._can_join 口径）
-                    if not ((d == days and days in _tdays) or d in _adays):
+                    # 市区圈闸先于边日集合判断：单城末日不走转场日
+                    # 集合，同样不得因短路而漏收远郊族。
+                    if _return_reject(cand, d):
+                        return True
+                    if not (_return_edge(d) or d in _adays):
                         return False
-                    if _ret_far(cand, d):
-                        return True  # 返程日市区圈：远郊件不上返程日（2026-11-08 拍板）
                     t = _source_tier(cand)
                     if t <= 2:
                         if minutes > 120:
@@ -12776,18 +13446,28 @@ class PlanningAgent:
                             # 且合计≤180+半径闸）；窗口仅一天（hi==lo）
                             # 放行兜底。
                             return True
+                        if _return_edge(d) and hi > lo:
+                            return True  # 短时长王牌同样不上返程日
                         return mates < 2  # 小块头王牌跟簇上边日须≥2 簇伴
                     return _cand_is_big(cand) and hi > lo  # 到达日轻量镜像
 
                 def _try_day(
-                    members: list[int], d: int, cap: int | None = None
+                    members: list[int],
+                    d: int,
+                    cap: int | None = None,
+                    why: list[tuple[int, str]] | None = None,
                 ) -> bool:
-                    if day_loads[d][1] + len(members) > 4:
+                    def _rej(reason: str) -> bool:
+                        if why is not None:
+                            why.append((d, reason))
                         return False
+
+                    if day_loads[d][1] + len(members) > 4:
+                        return _rej("cap4")
                     # 到达日整族落位通道（二拍②）：全小件族（每员 ≤120min）
                     # 且族时长合计 ≤180min（到达日轻量预算镜像，腿程不计
                     # 闸）可原子认领到达日；返程日不开此通道。
-                    if d in _adays and not (d == days and days in _tdays):
+                    if d in _adays and not _return_edge(d):
                         fam_mins = [
                             _minutes(pool[p][1], DEFAULT_VISIT_MINUTES) for p in members
                         ]
@@ -12797,13 +13477,13 @@ class PlanningAgent:
                             for pos, fm in zip(members, fam_mins):
                                 cand = pool[pos][1]
                                 if _rain_blocked(cand, d):
-                                    return False
+                                    return _rej("arrival:rain")
                                 if _far_km(_cxy(cand), d) > _SOFT_FAR_KM:
-                                    return False
+                                    return _rej("arrival:far")
                                 if _over_return_cap(d, fm, 0):
-                                    return False
+                                    return _rej("arrival:return_cap")
                                 if _edge_blocked(cand, d, fm, len(members) - 1, True):
-                                    return False
+                                    return _rej("arrival:edge")
                             return True
                     if cap is None:
                         cap = _budget(d)
@@ -12827,17 +13507,17 @@ class PlanningAgent:
                         minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                         leg = min((_taxi_leg_min(_km(xy, p)) for p in sim), default=0)
                         if _rain_blocked(cand, d):
-                            return False
+                            return _rej("rain")
                         if _far_km(xy, d) > _SOFT_FAR_KM:
-                            return False
+                            return _rej("far")
                         if _over_return_cap(d, minutes, leg):
-                            return False
+                            return _rej("return_cap")
                         if _edge_blocked(cand, d, minutes, len(members) - 1):
-                            return False
+                            return _rej("edge")
                         # 三轮②：腿不是游玩负载，可行性判定与账面一律剔腿
                         # （物理时刻交求解层按真实时窗收口）。
                         if day_loads[d][0] + add_load + minutes > cap:
-                            return False
+                            return _rej("budget")
                         add_load += minutes
                         cap_adds.append((minutes, _cand_entry_cap(cand)))
                         sim.append(xy)
@@ -12852,7 +13532,7 @@ class PlanningAgent:
                         day_loads[d][1],
                         cap_adds,
                     ):
-                        return False
+                        return _rej("entry_cap")
                     return True
 
                 def _drop_key(pos: int) -> tuple:
@@ -12867,14 +13547,68 @@ class PlanningAgent:
                         pos,
                     )
 
+                def _pick_day(members: list[int]) -> int | None:
+                    # 择日打分（2026-11-09 拍板「选日期要考虑组合里景点是
+                    # 室内还是室外，选择天气适合的日期」+「第二优先组合优
+                    # 先选另一个日期」）：硬闸照旧由 _try_day 判定，可行日
+                    # 内按 ①天气适配（露天组合避雨日、室内组合抢雨日——
+                    # 干日留给露天；无雨预报时恒中性=现行最早可行日口径）
+                    # ②他日优先（已被组合认领的日殿后）③日序早先（11-02
+                    # 梯子铁律不动）择优。
+                    feasible = [d for d in range(lo, hi + 1) if _try_day(members, d)]
+                    if not feasible:
+                        # 全窗拒因留痕（留痕立规）：减员/搁浅判定前必须
+                        # 看清是哪天哪闸拒的，禁止无声试减。
+                        why: list[tuple[int, str]] = []
+                        for d in range(lo, hi + 1):
+                            _try_day(members, d, why=why)
+                        logger.info(
+                            "plan: cluster-first family [%s] rejected on all days: %s",
+                            "、".join(
+                                str(pool[p][1].get("name") or "?") for p in members
+                            ),
+                            why,
+                        )
+                        return None
+                    exposed = any(_rain_exposed(pool[p][1]) for p in members)
+                    soft_dry = any(
+                        _rain_unmarked(pool[p][1])
+                        and _source_tier(pool[p][1]) > 2
+                        and not _night_cand(pool[p][1])
+                        for p in members
+                    )
+                    known_indoor = all(not _rain_unmarked(pool[p][1]) for p in members)
+
+                    def _key(d: int) -> tuple:
+                        wet = d in rainy_here
+                        if exposed or soft_dry:
+                            weather_bad = wet
+                        elif known_indoor:
+                            weather_bad = not wet
+                        else:
+                            weather_bad = False
+                        return (weather_bad, bool(_family_day.get(d)), d)
+
+                    return min(feasible, key=_key)
+
+                # 最难排优先（2026-11-09 组合原子化拍板）：先算各组合在全
+                # 窗的可行日数（空载近似），可行日越少越先选日——雨困组
+                # 合（露天弱件锁死雨天）的可行日是真稀缺，能在雨天排的
+                # 组合不得凭时长排名抢走唯一净日；可行日数相同再按（最
+                # 优 tier，-合计时长，-规模，池序）原梯。
+                _pre_feasible: dict[int, int] = {
+                    r: sum(1 for d in range(lo, hi + 1) if _try_day(fams[r], d))
+                    for r in fams
+                }
                 _fam_aligned: set[int] = set()
                 for root in sorted(
                     fams,
                     key=lambda r: (
+                        _pre_feasible[r],
                         min(_source_tier(pool[p][1]) for p in fams[r]),
                         # 二拍③：同 best-tier 时族时长合计大者（更难排）先占
-                        # 日，规模只作末位 tiebreak——防小族抢走唯一净日饿
-                        # 死大族（雁塔 420min 饿死实录）。
+                        # 日，规模只作末位 tiebreak——防小族抢走唯一净日，
+                        # 让更难安置的大族失去可投日。
                         -sum(
                             _minutes(pool[p][1], DEFAULT_VISIT_MINUTES) for p in fams[r]
                         ),
@@ -12888,10 +13622,7 @@ class PlanningAgent:
                         return "、".join(str(pool[p][1].get("name") or "?") for p in ms)
 
                     while True:
-                        day_hit = next(
-                            (d for d in range(lo, hi + 1) if _try_day(members, d)),
-                            None,
-                        )
+                        day_hit = _pick_day(members)
                         if day_hit is None and len(members) == 2:
                             # 三轮①480 兜底：450 仍不够且族仅 2 员（不可再
                             # 减员）——净日+重要族限定，留痕放行。
@@ -12917,14 +13648,9 @@ class PlanningAgent:
                         if day_hit is not None:
                             for pos in members:
                                 cand = pool[pos][1]
-                                xy = _cxy(cand)
                                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                                 # 三轮②：账面剔腿（腿不是游玩负载）
-                                day_loads[day_hit][0] += minutes
-                                day_loads[day_hit][1] += 1
-                                if xy is not None:
-                                    day_coords[day_hit].append(xy)
-                                placed[day_hit].append((pos, cand))
+                                _place_card(day_hit, pos, cand, minutes)
                                 _partial_rain_note(cand, day_hit)
                                 preclaimed.add(pos)
                                 _cluster_first_pos.add(pos)
@@ -12949,47 +13675,126 @@ class PlanningAgent:
                                 _names(members),
                             )
                             break
-                        pair = max(
-                            (
-                                (i, j)
-                                for i in range(len(members))
-                                for j in range(i + 1, len(members))
-                            ),
-                            key=lambda ij: _km(
-                                _cxy(pool[members[ij[0]]][1]),
-                                _cxy(pool[members[ij[1]]][1]),
-                            ),
-                        )
-                        pa, pb = members[pair[0]], members[pair[1]]
-                        if _fam_protected(pool[pa][1]) and _fam_protected(pool[pb][1]):
+                        droppable = [
+                            p for p in members if not _fam_protected(pool[p][1])
+                        ]
+                        if not droppable:
                             logger.info(
-                                "plan: cluster-first family [%s] endpoints "
-                                "both protected, stay loose",
+                                "plan: cluster-first family [%s] all members "
+                                "protected, stay loose",
                                 _names(members),
                             )
                             break
-                        drop = pa if _drop_key(pa) >= _drop_key(pb) else pb
+
+                        # 减员序（2026-11-09 拍板「组合过大可以减少组合中
+                        # 同类型的景点」）：①同体验类型重复件里减最弱者
+                        # （多样性优先）；②无重复再减地理链端点（两两距
+                        # 离最大的一对里取弱者）。受害者键 _drop_key：
+                        # 非钉 > tier 大 > 时长长 > 池序靠后。伞名票制
+                        # 联成员在两支减员序里都受保护——伞对是组合的第
+                        # 一类边，减员拆对等于自拆组合（同类受害者里先
+                        # 减无伞联者）。
+                        def _umbrella_linked_in_fam(p: int) -> bool:
+                            return any(
+                                q != p
+                                and _umbrella_specs_bundle(pool[p][1], pool[q][1])
+                                for q in members
+                            )
+
+                        _tgroups: dict[str, list[int]] = {}
+                        for p in members:
+                            # 同类型=体验型重复（商街/城走/茶等多样组）或
+                            # 真博物馆对；attraction 大桶装全城大半点位，
+                            # 按它减员会把不同体验的王牌当重复错杀，不算。
+                            _g = _cand_diversity_group(pool[p][1]) or (
+                                "museum" if _museum_cand(pool[p][1]) else ""
+                            )
+                            if _g:
+                                _tgroups.setdefault(_g, []).append(p)
+                        dup_pool = [
+                            p
+                            for ps in _tgroups.values()
+                            if len(ps) >= 2
+                            for p in ps
+                            if p in droppable
+                        ]
+                        if dup_pool:
+                            _free = [
+                                p for p in dup_pool if not _umbrella_linked_in_fam(p)
+                            ]
+                            drop = max(_free or dup_pool, key=_drop_key)
+                            kind = "duplicate type"
+                        else:
+                            pair = max(
+                                (
+                                    (i, j)
+                                    for i in range(len(members))
+                                    for j in range(i + 1, len(members))
+                                ),
+                                key=lambda ij: _km(
+                                    _cxy(pool[members[ij[0]]][1]),
+                                    _cxy(pool[members[ij[1]]][1]),
+                                ),
+                            )
+                            if (
+                                _km(
+                                    _cxy(pool[pair[0]][1]),
+                                    _cxy(pool[pair[1]][1]),
+                                )
+                                <= 0
+                            ):
+                                # 同针族无地理端点，退化为全局最弱件。
+                                ends = list(droppable)
+                            else:
+                                ends = [
+                                    p
+                                    for p in (members[pair[0]], members[pair[1]])
+                                    if p in droppable
+                                ]
+                            if not ends:
+                                logger.info(
+                                    "plan: cluster-first family [%s] endpoints "
+                                    "both protected, stay loose",
+                                    _names(members),
+                                )
+                                break
+                            _free = [p for p in ends if not _umbrella_linked_in_fam(p)]
+                            drop = max(_free or ends, key=_drop_key)
+                            kind = "geo endpoint"
                         members.remove(drop)
                         _c_drop = pool[drop][1]
                         _n_drop = str(_c_drop.get("name") or "?")
                         logger.info(
-                            "plan: cluster-first reduce %s (geo endpoint) "
-                            "from family [%s]",
+                            "plan: cluster-first reduce %s (%s) from family [%s]",
                             _n_drop,
+                            kind,
                             _names(members),
                         )
                         if notes is not None:
-                            notes.append(
-                                L(
-                                    f"「{_n_drop}」所属近距离组合任一天都装不下"
-                                    "整组，已按地理端点退回零散安排"
-                                    "（组内其余同日连排）",
-                                    f'"{_n_drop}" left its tight-knit group '
-                                    "(group exceeds every day's capacity; the "
-                                    "geographic endpoint yields, the rest stay "
-                                    "together)",
+                            if kind == "duplicate type":
+                                notes.append(
+                                    L(
+                                        f"「{_n_drop}」所属近距离组合任一天都装不下"
+                                        "整组，已按同类型减员退回零散安排"
+                                        "（组内其余同日连排）",
+                                        f'"{_n_drop}" left its tight-knit group '
+                                        "(group exceeds every day's capacity; a "
+                                        "same-type duplicate yields, the rest "
+                                        "stay together)",
+                                    )
                                 )
-                            )
+                            else:
+                                notes.append(
+                                    L(
+                                        f"「{_n_drop}」所属近距离组合任一天都装不下"
+                                        "整组，已按地理端点退回零散安排"
+                                        "（组内其余同日连排）",
+                                        f'"{_n_drop}" left its tight-knit group '
+                                        "(group exceeds every day's capacity; the "
+                                        "geographic endpoint yields, the rest stay "
+                                        "together)",
+                                    )
+                                )
 
             _assign_cluster_first_days()
 
@@ -13299,9 +14104,11 @@ class PlanningAgent:
                                     continue
                                 if _over_return_cap(e, m_w, _leg_min(xy_w, e)):
                                     continue
+                                if _return_reject(cand_w, e):
+                                    continue
                                 if (
                                     (
-                                        (e == days and days in _tdays)
+                                        (_return_edge(e))
                                         or (
                                             e in _adays
                                             and any(d not in _adays for d in eligible)
@@ -13315,15 +14122,8 @@ class PlanningAgent:
                                 ):
                                     continue
                                 leg_w = _leg_min(xy_w, e)
-                                day_loads[e][0] += m_w + leg_w
-                                day_loads[e][1] += 1
-                                day_coords[e].append(xy_w)
-                                placed[e].append((pos_w, cand_w))
-                                placed[day].remove((pos_w, cand_w))
-                                day_loads[day][0] -= m_w + _leg_min(xy_w, day)
-                                day_loads[day][1] -= 1
-                                if xy_w in day_coords[day]:
-                                    day_coords[day].remove(xy_w)
+                                _remove_card(day, pos_w, cand_w)
+                                _place_card(e, pos_w, cand_w, m_w + leg_w)
                                 logger.info(
                                     "plan: pin-show evict %s day %s -> day %s",
                                     cand_w.get("name") or "?",
@@ -13347,9 +14147,11 @@ class PlanningAgent:
                             continue
                         if _over_return_cap(day, minutes, leg):
                             continue
+                        if _return_reject(cand, day):
+                            continue
                         if (
                             (
-                                (day == days and days in _tdays)
+                                (_return_edge(day))
                                 or (
                                     day in _adays
                                     and any(d not in _adays for d in eligible)
@@ -13386,11 +14188,7 @@ class PlanningAgent:
                                 # 像）＋满员换座（上方）。4 点日帽/远腿/
                                 # 返程/边日闸照收——只免分钟预算。
                                 continue
-                        load[0] += minutes + leg
-                        load[1] += 1
-                        if xy is not None:
-                            day_coords[day].append(xy)
-                        placed[day].append((pos, cand))
+                        _place_card(day, pos, cand, minutes + leg)
                         _partial_rain_note(cand, day)
                         if _cid is not None:
                             day_owner.setdefault(day, _cid)
@@ -13433,9 +14231,11 @@ class PlanningAgent:
                                 continue
                             if _over_return_cap(day, minutes, _leg_min(xy, day)):
                                 continue
+                            if _return_reject(cand, day):
+                                continue
                             if (
                                 (
-                                    (day == days and days in _tdays)
+                                    (_return_edge(day))
                                     or (
                                         day in _adays
                                         and any(d not in _adays for d in eligible)
@@ -13446,11 +14246,7 @@ class PlanningAgent:
                             ):
                                 # 王牌/大块头不上边日（同严格位闸）。
                                 continue
-                            day_loads[day][0] += minutes + _leg_min(xy, day)
-                            day_loads[day][1] += 1
-                            if xy is not None:
-                                day_coords[day].append(xy)
-                            placed[day].append((pos, cand))
+                            _place_card(day, pos, cand, minutes + _leg_min(xy, day))
                             _partial_rain_note(cand, day)
                             if _cid is not None:
                                 day_owner.setdefault(day, _cid)
@@ -13508,6 +14304,8 @@ class PlanningAgent:
                             continue
                         if _over_return_cap(e, m_w, _leg_min(xy_w, e)):
                             continue
+                        if _return_reject(cand_w, e):
+                            continue
                         return (pos_w, cand_w, xy_w, m_w)
                     return None
 
@@ -13537,6 +14335,8 @@ class PlanningAgent:
                                     continue
                                 if _far_km(xy_v, d) > _SOFT_FAR_KM:
                                     continue
+                                if _return_reject(cand_v, d):
+                                    continue
                                 m_v = _minutes(cand_v, DEFAULT_VISIT_MINUTES)
                                 if _over_return_cap(d, m_v, _leg_min(xy_v, d)):
                                     continue
@@ -13555,32 +14355,23 @@ class PlanningAgent:
                             if swap_w is None:
                                 continue
                             pos_w, cand_w, xy_w, m_w = swap_w
-                            if day_loads[d][0] - (m_w + _leg_min(xy_w, d)) + (
+                            if day_loads[d][0] - _charge_of(d, pos_w) + (
                                 m_v + leg_in
                             ) > _budget(d):
                                 continue
                             # 执行：v 出 e 入 d；（若换出）w 出 d 入 e。
-                            placed[e] = [x for x in placed[e] if x[0] != pos_v]
-                            day_loads[e][0] -= m_v + _leg_min(xy_v, e)
-                            day_loads[e][1] -= 1
-                            if xy_v in day_coords[e]:
-                                day_coords[e].remove(xy_v)
-                            placed[d].append((pos_v, cand_v))
-                            day_loads[d][0] += m_v + leg_in
-                            day_loads[d][1] += 1
-                            day_coords[d].append(xy_v)
+                            _remove_card(e, pos_v, cand_v)
+                            _place_card(d, pos_v, cand_v, m_v + leg_in)
                             _w_name = "-"
                             if swap_w is not None:
                                 pos_w, cand_w, xy_w, m_w = swap_w
-                                placed[d] = [x for x in placed[d] if x[0] != pos_w]
-                                day_loads[d][0] -= m_w + _leg_min(xy_w, d)
-                                day_loads[d][1] -= 1
-                                if xy_w in day_coords[d]:
-                                    day_coords[d].remove(xy_w)
-                                placed[e].append((pos_w, cand_w))
-                                day_loads[e][0] += m_w + _leg_min(xy_w, e)
-                                day_loads[e][1] += 1
-                                day_coords[e].append(xy_w)
+                                _remove_card(d, pos_w, cand_w)
+                                _place_card(
+                                    d=e,
+                                    pos=pos_w,
+                                    cand=cand_w,
+                                    charge=m_w + _leg_min(xy_w, e),
+                                )
                                 _w_name = str(cand_w.get("name") or "?")
                             logger.info(
                                 "plan: tight-cluster heal %s day%d<-day%d km=%.2f"
@@ -13637,18 +14428,15 @@ class PlanningAgent:
                         # → day7 归零）；装不下换下一源天，不盲挪。
                         if _over_return_cap(d_empty, _m, _leg_min(_xy, d_empty)):
                             continue
-                        if _ret_far(cand_last, d_empty):
+                        if _return_reject(cand_last, d_empty, _transfer_fill=True):
                             continue  # 远郊件不挪进返程日空天保底（市区圈）
-                        placed[src].pop()
-                        day_loads[src][0] -= _m + _leg_min(_xy, src)
-                        day_loads[src][1] -= 1
-                        if _xy is not None and _xy in day_coords[src]:
-                            day_coords[src].remove(_xy)
-                        day_loads[d_empty][0] += _m + _leg_min(_xy, d_empty)
-                        day_loads[d_empty][1] += 1
-                        if _xy is not None:
-                            day_coords[d_empty].append(_xy)
-                        placed[d_empty].append((pos_last, cand_last))
+                        _remove_card(src, pos_last, cand_last)
+                        _place_card(
+                            d_empty,
+                            pos_last,
+                            cand_last,
+                            _m + _leg_min(_xy, d_empty),
+                        )
                         day_owner.setdefault(d_empty, clusters[pos_last])
                         break
                 # 返程日轻量保底（2026-11-05 重庆案）：上午闸镜像闸下
@@ -13657,7 +14445,7 @@ class PlanningAgent:
                 # 区名点自然先行）；仍无 → 披露留痕（日志铁律）。
                 if (
                     days == hi
-                    and days in _tdays
+                    and _return_edge(days)
                     and day_loads[days][1] == 0
                     and days not in rainy_here
                 ):
@@ -13671,23 +14459,88 @@ class PlanningAgent:
                         _xyf = _cxy(cand_f)
                         if _over_return_cap(days, _mf, _leg_min(_xyf, days)):
                             continue
-                        if _ret_far(cand_f, days):
+                        if _return_reject(cand_f, days):
                             continue  # 返程日地板只收圈内件（市区圈）
                         _fit = (pos_f, cand_f, _mf, _xyf)
                         break
                     if _fit is not None:
                         pos_f, cand_f, _mf, _xyf = _fit
-                        day_loads[days][0] += _mf + _leg_min(_xyf, days)
-                        day_loads[days][1] += 1
-                        if _xyf is not None:
-                            day_coords[days].append(_xyf)
-                        placed[days].append((pos_f, cand_f))
+                        _place_card(days, pos_f, cand_f, _mf + _leg_min(_xyf, days))
                         day_owner.setdefault(days, clusters[pos_f])
                         preclaimed.add(pos_f)
                         if notes is not None:
                             notes.append(
                                 f"第{days}天返程日上午保底排「{cand_f['name']}」"
                                 "（离城上午闸只收轻量点）"
+                            )
+                if (
+                    days == hi
+                    and _return_edge(days)
+                    and day_loads[days][1] == 0
+                    and days not in rainy_here
+                ):
+                    # 返程日轻量保底第二梯队（2026-11-09 组合原子化拍板
+                    # 镜像）：未认领池无件可拉（轻件已被预占/族认领）时
+                    # 向别天借最轻的可装件——伞名票制对成员不借（族形
+                    # 态保护同减员豁免口径）；族占日借后须保≥2 族员、
+                    # 非族天借后须保≥1 件。全程留痕（日志铁律）。
+                    _borrow = None
+                    for d_src in range(lo, hi + 1):
+                        if d_src == days or len(placed[d_src]) < 2:
+                            continue
+                        for pos_b, cand_b in placed[d_src]:
+                            if (
+                                cand_b.get("must")
+                                or cand_b.get("pinned")
+                                or cand_b.get("soft_pin")
+                                or _cand_is_show(cand_b)
+                            ):
+                                continue
+                            root_b = _fam_of.get(pos_b)
+                            if (
+                                root_b is not None
+                                and sum(
+                                    1
+                                    for p_, _ in placed[d_src]
+                                    if _fam_of.get(p_) == root_b
+                                )
+                                < 3
+                            ):
+                                continue  # 借出后本族仍须≥2，他族成员不抵账
+                            if _rain_blocked(cand_b, days):
+                                continue
+                            _mb = _minutes(cand_b, DEFAULT_VISIT_MINUTES)
+                            _xyb = _cxy(cand_b)
+                            if _over_return_cap(days, _mb, _leg_min(_xyb, days)):
+                                continue
+                            if _return_reject(cand_b, days):
+                                continue
+                            if any(
+                                _umbrella_specs_bundle(cand_b, c_o)
+                                for p_o, c_o in placed[d_src]
+                                if p_o != pos_b
+                            ):
+                                continue  # 伞名票制对成员不借（族形态保护）
+                            if _borrow is None or (_mb, pos_b) < (
+                                _borrow[2],
+                                _borrow[0],
+                            ):
+                                _borrow = (pos_b, cand_b, _mb, _xyb, d_src)
+                    if _borrow is not None:
+                        pos_b, cand_b, _mb, _xyb, d_src = _borrow
+                        _remove_card(d_src, pos_b, cand_b)
+                        _place_card(days, pos_b, cand_b, _mb + _leg_min(_xyb, days))
+                        day_owner.setdefault(days, clusters[pos_b])
+                        logger.info(
+                            "plan: return-day light floor borrows %s day%d<-day%d",
+                            cand_b.get("name") or "?",
+                            days,
+                            d_src,
+                        )
+                        if notes is not None:
+                            notes.append(
+                                f"第{days}天返程日上午保底自第{d_src}天借排"
+                                f"「{cand_b['name']}」（离城上午闸只收轻量点）"
                             )
                     elif notes is not None:
                         notes.append(
@@ -13823,8 +14676,31 @@ class PlanningAgent:
                         and day_loads[d][1] < 4
                     ]
                     if not _dry:
-                        continue
-                    day = min(_dry, key=lambda d: (day_loads[d][0], day_loads[d][1], d))
+                        # 无干日空位先试组合占满让位：唯一可投干日被族
+                        # 整组占满时减同类型最长重复件腾位（减不动才出局）
+                        _sh2 = None
+                        for _d2 in sorted(
+                            (
+                                d
+                                for d in range(lo, hi + 1)
+                                if not _rain_blocked(cand, d)
+                                and day_loads[d][1] >= 4
+                                and _far_km(xy, d) <= _SOFT_FAR_KM
+                                and not _over_return_cap(d, minutes, _leg_min(xy, d))
+                                and not _return_reject(cand, d)
+                            ),
+                            key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                        ):
+                            if _shed_family_dup(_d2, cand):
+                                _sh2 = _d2
+                                break
+                        if _sh2 is None:
+                            continue
+                        day = _sh2
+                    else:
+                        day = min(
+                            _dry, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
+                        )
                 load = day_loads[day]
                 leg = _leg_min(xy, day)
                 # 主环直排位同样不并互远大点（2026-11-04 成渝案三段）：
@@ -13840,7 +14716,7 @@ class PlanningAgent:
                     load[1] >= 4
                     or _far_km(xy, day) > _SOFT_FAR_KM
                     or _over_return_cap(day, minutes, leg)
-                    or _ret_far(cand, day)
+                    or _return_reject(cand, day)
                     or (
                         load[0] + minutes + leg > _budget(day)
                         and not (_cand_is_show(cand) and _show_night_only(cand))
@@ -13886,11 +14762,33 @@ class PlanningAgent:
                             and day_loads[d][1] < 4
                         ]
                         if not _dry:
-                            continue  # 雨日硬闸：无干日空位不落雨日
-                        day = min(
-                            _dry,
-                            key=lambda d: (day_loads[d][0], day_loads[d][1], d),
-                        )
+                            # 无干日空位先试组合占满让位（与直排位同镜像）
+                            _sh2 = None
+                            for _d2 in sorted(
+                                (
+                                    d
+                                    for d in range(lo, hi + 1)
+                                    if not _rain_blocked(cand, d)
+                                    and day_loads[d][1] >= 4
+                                    and _far_km(xy, d) <= _SOFT_FAR_KM
+                                    and not _over_return_cap(
+                                        d, minutes, _leg_min(xy, d)
+                                    )
+                                    and not _return_reject(cand, d)
+                                ),
+                                key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                            ):
+                                if _shed_family_dup(_d2, cand):
+                                    _sh2 = _d2
+                                    break
+                            if _sh2 is None:
+                                continue  # 雨日硬闸：无干日空位不落雨日
+                            day = _sh2
+                        else:
+                            day = min(
+                                _dry,
+                                key=lambda d: (day_loads[d][0], day_loads[d][1], d),
+                            )
                     load = day_loads[day]
                     leg = _leg_min(xy, day)
                     # 时间预算=软闸（2026-11-02 拍板「时间约束是软闸
@@ -13904,14 +14802,10 @@ class PlanningAgent:
                         _far_km(xy, day) > _SOFT_FAR_KM
                         or load[1] >= 4
                         or _over_return_cap(day, minutes, leg)
-                        or _ret_far(cand, day)
+                        or _return_reject(cand, day)
                     ):
                         continue  # 全满/远腿/返程日上午窗/出市区圈才出局
-                load[0] += minutes + leg
-                load[1] += 1
-                if xy is not None:
-                    day_coords[day].append(xy)
-                placed[day].append((pos, cand))
+                _place_card(day, pos, cand, minutes + leg)
                 _partial_rain_note(cand, day)
             if rainy_here:
                 # 雨天对调（2026-10-30 用户拍板：有雨自动排室内，不问
@@ -13949,12 +14843,9 @@ class PlanningAgent:
                             if _fits(rd, day_loads[rd][0] - out_min + in_min) and _fits(
                                 dd, day_loads[dd][0] - in_min + out_min
                             ):
-                                placed[rd].remove((pos, cand))
-                                placed[dd].remove((p2, c2))
-                                placed[rd].append((p2, c2))
-                                placed[dd].append((pos, cand))
-                                day_loads[rd][0] += in_min - out_min
-                                day_loads[dd][0] += out_min - in_min
+                                _exchange_card_slots(
+                                    rd, pos, cand, out_min, dd, p2, c2, in_min
+                                )
                                 if notes is not None:
                                     notes.append(
                                         f"第{rd}天预报有雨：{cand['name']}"
@@ -13977,13 +14868,30 @@ class PlanningAgent:
                                 and _fits(rd, day_loads[rd][0] - out_min + acc)
                                 and len(placed[rd]) - 1 + len(moved) <= 4
                             ):
-                                placed[rd].remove((pos, cand))
-                                placed[dd].append((pos, cand))
-                                for mp, mc, _mm in moved:
-                                    placed[dd].remove((mp, mc))
-                                    placed[rd].append((mp, mc))
-                                day_loads[rd][0] += acc - out_min
-                                day_loads[dd][0] += out_min - acc
+                                out_charge = _remove_card(
+                                    rd, pos, cand, refund=out_min, with_coords=False
+                                )
+                                moved_charges = [
+                                    _remove_card(
+                                        dd, mp, mc, refund=_mm, with_coords=False
+                                    )
+                                    for mp, mc, _mm in moved
+                                ]
+                                _place_card(
+                                    dd,
+                                    pos,
+                                    cand,
+                                    sum(moved_charges) + out_min - acc,
+                                    with_coords=False,
+                                )
+                                for i, (mp, mc, _mm) in enumerate(moved):
+                                    _place_card(
+                                        rd,
+                                        mp,
+                                        mc,
+                                        out_charge + _mm - out_min if i == 0 else _mm,
+                                        with_coords=False,
+                                    )
                                 if notes is not None:
                                     names = "、".join(mc["name"] for _, mc, _ in moved)
                                     notes.append(
@@ -14006,10 +14914,17 @@ class PlanningAgent:
                         in_min = _minutes(c3, DEFAULT_VISIT_MINUTES)
                         if not _fits(rd, day_loads[rd][0] - out_min + in_min):
                             continue
-                        placed[rd].remove((pos, cand))
-                        placed[rd].append((p3, c3))
+                        out_charge = _remove_card(
+                            rd, pos, cand, refund=out_min, with_coords=False
+                        )
+                        _place_card(
+                            rd,
+                            p3,
+                            c3,
+                            out_charge + in_min - out_min,
+                            with_coords=False,
+                        )
                         preclaimed.add(p3)
-                        day_loads[rd][0] += in_min - out_min
                         if notes is not None:
                             notes.append(
                                 f"第{rd}天预报有雨：{cand['name']}"
@@ -14035,9 +14950,7 @@ class PlanningAgent:
                                 f"（{_rain_exposure_label(cand)}）保持原排，建议备伞"
                             )
                         return
-                    placed[rd].remove((pos, cand))
-                    day_loads[rd][0] -= out_min
-                    day_loads[rd][1] -= 1
+                    _remove_card(rd, pos, cand, refund=out_min, with_coords=False)
                     if notes is not None:
                         _level = "大雨" if rd in heavy_here else "有雨"
                         notes.append(
@@ -14091,12 +15004,9 @@ class PlanningAgent:
                                 rd
                             ) or day_loads[dd][0] - in_min + out_min > _budget(dd):
                                 continue
-                            placed[rd].remove((pos, cand))
-                            placed[dd].remove((p2, c2))
-                            placed[rd].append((p2, c2))
-                            placed[dd].append((pos, cand))
-                            day_loads[rd][0] += in_min - out_min
-                            day_loads[dd][0] += out_min - in_min
+                            _exchange_card_slots(
+                                rd, pos, cand, out_min, dd, p2, c2, in_min
+                            )
                             if notes is not None:
                                 notes.append(
                                     f"第{rd}天夜间有雨：{cand['name']}"
@@ -14105,9 +15015,9 @@ class PlanningAgent:
                             break
                         else:
                             # 雨夜硬闸（2026-11-02 拍板）：换不动=不排
-                            placed[rd].remove((pos, cand))
-                            day_loads[rd][0] -= out_min
-                            day_loads[rd][1] -= 1
+                            _remove_card(
+                                rd, pos, cand, refund=out_min, with_coords=False
+                            )
                             if notes is not None:
                                 notes.append(
                                     f"第{rd}天夜间有雨：{cand['name']}"
@@ -14149,6 +15059,10 @@ class PlanningAgent:
                     leg = _leg_min(xy, day)
                     if load[1] >= 4:
                         continue
+                    if _over_return_cap(day, minutes, leg):
+                        continue  # 返程日上午窗装不下不补（与主环/保底同判）
+                    if _return_reject(cand, day):
+                        continue  # 出圈远郊件不补返程日（市区圈同判）
                     if _rain_blocked(cand, day):
                         if load[0] + minutes + leg <= _budget(day):
                             feasible_rainy = True
@@ -14164,29 +15078,44 @@ class PlanningAgent:
                         ):
                             fallback = day
                         continue
-                    load[0] += minutes + leg
-                    load[1] += 1
-                    if xy is not None:
-                        day_coords[day].append(xy)
-                    placed[day].append((pos, cand))
+                    _place_card(day, pos, cand, minutes + leg)
                     _partial_rain_note(cand, day)
                     break
                 else:
                     if fallback is not None:
                         # 软闸放行：预算外照排，求解层按真实时窗收口。
                         leg_fb = _leg_min(xy, fallback)
-                        day_loads[fallback][0] += minutes + leg_fb
-                        day_loads[fallback][1] += 1
-                        if xy is not None:
-                            day_coords[fallback].append(xy)
-                        placed[fallback].append((pos, cand))
+                        _place_card(fallback, pos, cand, minutes + leg_fb)
                         _partial_rain_note(cand, fallback)
-                    elif feasible_rainy and notes is not None:
-                        # 本可排但逢雨：点名留痕（不依赖白名单兜披露）
-                        notes.append(
-                            f"{cand['name']}（{_rain_exposure_label(cand)}）无干日可排，"
-                            f"逢雨暂不排入；要保留请说"
-                        )
+                    else:
+                        # 组合占满让位（与主环同镜像）：可投天全被族整组
+                        # 占满时减同类型最长重复件腾位，减不动才交披露。
+                        _sh2 = None
+                        for _d2 in sorted(
+                            (
+                                d
+                                for d in range(lo, hi + 1)
+                                if not _rain_blocked(cand, d)
+                                and day_loads[d][1] >= 4
+                                and _far_km(xy, d) <= _SOFT_FAR_KM
+                                and not _over_return_cap(d, minutes, _leg_min(xy, d))
+                                and not _return_reject(cand, d)
+                            ),
+                            key=lambda d: (_leg_min(xy, d), day_loads[d][0], d),
+                        ):
+                            if _shed_family_dup(_d2, cand):
+                                _sh2 = _d2
+                                break
+                        if _sh2 is not None:
+                            leg_sh = _leg_min(xy, _sh2)
+                            _place_card(_sh2, pos, cand, minutes + leg_sh)
+                            _partial_rain_note(cand, _sh2)
+                        elif feasible_rainy and notes is not None:
+                            # 本可排但逢雨：点名留痕（不依赖白名单兜披露）
+                            notes.append(
+                                f"{cand['name']}（{_rain_exposure_label(cand)}）无干日可排，"
+                                f"逢雨暂不排入；要保留请说"
+                            )
 
             for pos, (_idx, cand) in enumerate(pool):
                 if pos not in placed_pos:
@@ -14200,6 +15129,17 @@ class PlanningAgent:
                 # 池外尾巴点未挣到超额权：时间闸照硬（软闸只保池内
                 # 正选点，2026-11-02 拍板口径）。
                 _refill(pos, cand, time_soft=False)
+            # 回填让位可能发生在受害者的首次回填之后；按原在册快照补一轮
+            # 有界重试，避免已让位卡因扫描顺序被跳过。
+            retry_done: set[int] = set()
+            while True:
+                current_pos = {p for seq in placed.values() for p, _ in seq}
+                pending = sorted(placed_pos - current_pos - retry_done)
+                if not pending:
+                    break
+                for pos in pending:
+                    retry_done.add(pos)
+                    _refill(pos, pool[pos][1])
             # 演出每场闸（2026-11-02 用户拍板「一天最多一场演出」）：主池
             # 落位、雨天对调、稀疏回填全通道收口后按天清点演出候选
             # （_cand_is_show：含多场次下午场演出），同天第二场起按池序
@@ -14208,9 +15148,13 @@ class PlanningAgent:
             for d in range(lo, hi + 1):
                 day_shows = [(p_, c_) for p_, c_ in placed[d] if _cand_is_show(c_)]
                 for p_, c_ in day_shows[1:]:
-                    placed[d].remove((p_, c_))
-                    day_loads[d][0] -= _minutes(c_, DEFAULT_VISIT_MINUTES)
-                    day_loads[d][1] -= 1
+                    _remove_card(
+                        d,
+                        p_,
+                        c_,
+                        refund=_minutes(c_, DEFAULT_VISIT_MINUTES),
+                        with_coords=False,
+                    )
                     if notes is not None:
                         notes.append(
                             f"第{d}天一天只排一场演出："
@@ -14557,13 +15501,26 @@ class PlanningAgent:
             if _a5 is not None:
                 _rb_anchor[_c5] = _a5
 
-        def _rb_ret_far(cand: dict, d: int) -> bool:
+        def _rb_return_reject(cand: dict, d: int) -> bool:
             if _rb_ret_day is None or d != _rb_ret_day:
                 return False
             if cand.get("must") or cand.get("pinned") or cand.get("soft_pin"):
                 return False
             if str(cand.get("category") or "") in ("food", "hotel"):
                 return False
+            if (
+                days in _tdays  # 王牌闸只对真实转场末日执行；单城镜像
+                # 末日只守市区圈（11-04 锚 test_backfill_pref_exempt：
+                # 无离城腿的镜像末日无出发物流可守，圈内王牌照常可排）
+                and _source_tier(cand) <= 2
+                and not _cand_is_show(cand)
+                and not (
+                    _plain_street_cand(cand)
+                    or str(cand.get("category") or "").strip().lower() == "citywalk"
+                )
+            ):
+                # 王牌不上返程日——与选层 _return_reject 同口径镜像
+                return any(e != d and e not in _adays for e in range(1, days + 1))
             _ac = _rb_anchor.get((cand.get("city") or "").removesuffix("市"))
             if _ac is None:
                 return False
@@ -14790,7 +15747,7 @@ class PlanningAgent:
                         continue
                     if cand.get("rain_ok") == "no" and d in city_rain.get(city, set()):
                         continue  # 露天不进雨天（与选点口径一致）
-                    if _rb_ret_far(cand, d):
+                    if _rb_return_reject(cand, d):
                         continue  # 远郊件不回填进返程日（返程日市区圈）
                     choice = (cand, minutes, xy, leg)
                     break
@@ -14875,7 +15832,7 @@ class PlanningAgent:
                         and days in _tdays
                         and (_source_tier(s0) <= 2 or _cand_is_big(s0))
                     )
-                    and not _rb_ret_far(s0, t)
+                    and not _rb_return_reject(s0, t)
                 ]
                 if not targets:
                     return False
@@ -14944,7 +15901,7 @@ class PlanningAgent:
                             t == days
                             and days in _tdays
                             and (_source_tier(g) <= 2 or _cand_is_big(g))
-                        ) or _rb_ret_far(g, t):
+                        ) or _rb_return_reject(g, t):
                             ok = False  # 王牌/大块头/出市区圈不进返程日
                             break
                     if ok and day_load[t] + total <= _budget(t):
@@ -16082,12 +17039,7 @@ class PlanningAgent:
         # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
         # 交付（城心小件"？"实录）；此处是跨通道终局对账的唯一定义点。
         _day_purity_sweep(plan, must_names)
-        report = validate_plan(plan, poi_hours=[])
-        if not report.ok:
-            # §6.4: hard violations do not block delivery — annotated half-product.
-            logger.warning(
-                "plan v0 delivered with %d hard violations", len(report.violations)
-            )
+        _retime_meal_placeholders(plan)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
@@ -16098,6 +17050,12 @@ class PlanningAgent:
         night_notes = attach_hotel_nights(plan.days)
         if night_notes:
             plan.assumptions.extend(night_notes)
+        report = validate_plan(plan, poi_hours=[])
+        if not report.ok:
+            # §6.4: hard violations do not block delivery — annotated half-product.
+            logger.warning(
+                "plan v0 delivered with %d hard violations", len(report.violations)
+            )
         # 腿是派生态（2026-11-09 宴秀卡→城心簇锚 2 分钟实录）：15860/15872 之后
         # 还有八个结构性相位（转场扫/终闸/紧族/簇纯/楔逐/贴场/每场闸/
         # 纯度清扫/挂夜）挪卡删卡——腿字段不重算就按旧邻居交付（宴秀卡
@@ -16185,6 +17143,8 @@ class PlanningAgent:
                             dur,
                             incoming=visit.location,
                             visit=visit,
+                            all_days=plan.days,
+                            _rescue=True,
                         )
                         if target is None:
                             continue
