@@ -23,25 +23,26 @@
         plan.py:19725 都未传）——范围闸只在 mutate(from_day=...) 手动
         传入时存在。因此断言 3 在本文件中直接调用
         rules.validate_change_scope 做语义核验。
-  GAP-2 钉住点临时闭馆无解：闭馆检测（hours 变 00:00-00:00 → 铁律 2
+  GAP-2 ~~钉住点临时闭馆无解：闭馆检测（hours 变 00:00-00:00 → 铁律 2
         error）与 pin 保护（铁律 19 禁删）会同时对同一张卡开火——引擎
         正确拒绝一切自动修订（半成品交付），但没有「请示用户解钉」的
-        升级通道。见 test_closed_pinned_poi_refuses_automatic_repair。
+        升级通道~~【2026-11-10 已修】pipeline.mutate 对「铁律 2 打在
+        钉住卡上」追加 rule_id=19 warning（中英双语解钉指引，不污染
+        ok 口径）——拒绝仍拒绝，但用户知道怎么解开。见
+        test_closed_pinned_poi_refuses_automatic_repair。
   GAP-3 DiffOp 没有「改交通时长」的操作：航班「延误 2h」若伴随航司把
         航程也拉长，retime 只挪 start，duration/end 由 _recompute_end_times
         按原 duration 重算——延误+改签组合语义表达不了（当前只能表达
         纯时刻平移）。
-  GAP-4 validate_change_scope 用「DayPlan.items 整对象相等」比较新旧
+  GAP-4 ~~validate_change_scope 用「DayPlan.items 整对象相等」比较新旧
         （rules.py:608），而 mutate 的出口端恒跑 annotate_legs 给候选计划
         补 distance_to_next_km/next_walk_minutes/leg_source——旧计划从存储
         原样进来、无这些展示字段，于是早于 from_day 的天只因腿标注漂移
-        就被判「不一致」（铁律 10 假阳性）。实证见
-        test_flight_delay_2h_retimes_and_stays_valid 的 xfail 分支。
+        就被判「不一致」（铁律 10 假阳性）~~【2026-11-10 已修】
+        rules._scope_key 对三个腿标注字段归一化后比较。
 """
 
 from datetime import time as _t
-
-import pytest
 
 from app.services.itinerary.models import (
     DayPlan,
@@ -240,19 +241,12 @@ def test_flight_delay_2h_retimes_and_stays_valid():
 
 
 def test_flight_delay_scope_check():
-    """不变量 3（铁律 10）核验——GAP-4 实证：纯延误修订（只动 D3 交通卡）
-    也会因 annotate_legs 腿标注漂移被 scope 闸误报（见文件头 GAP-4），
-    故本测试整体 xfail；GAP-4 修复后应转 pass。"""
+    """不变量 3（铁律 10）核验——GAP-4 修复后转正：纯延误修订（只动 D3
+    交通卡）在 from_day=3 下 scope 必须干净（腿标注展示漂移不再误报）。"""
     plan = _delay_plan()
     diffs = [DiffOp(op="retime", item_id="return-flight", new_start_time=_t(16, 0))]
     new_plan, _, _ = mutate(plan, diffs, poi_hours=[], old_plan=plan, from_day=3)
     scope = validate_change_scope(plan, new_plan, from_day=3)
-    if scope.violations:
-        pytest.xfail(
-            "GAP-4: validate_change_scope 整对象相等比较——mutate 后候选"
-            "计划被 annotate_legs 补了腿标注，早于 from_day 的天只因腿标注"
-            "漂移被误报为「不一致」（铁律 10 假阳性，见文件头 GAP-4）"
-        )
     assert not scope.violations
 
 
@@ -268,8 +262,9 @@ def test_flight_pulled_into_pinned_visit_buffer_is_rejected():
 
 def test_flight_delay_must_not_touch_earlier_days():
     """负控：延误修订若误动前两天（如对 D1 卡 retime），scope 闸必须抓到。
-    注：因 GAP-4（腿标注漂移也触发铁律 10），本测试即使删掉 sh-b 那条
-    恶意 diff 也照样红——它证明的是「闸会响」，不是「闸只在该响时响」。"""
+    注：GAP-4 修复（腿标注字段归一化）后闸只在真越界时响——本测试的恶意
+    diff 是真越界，断言保持红；test_flight_delay_scope_check 的零-diff
+    对照证明闸不误响。"""
     plan = _delay_plan()
     diffs = [
         DiffOp(op="retime", item_id="return-flight", new_start_time=_t(16, 0)),
@@ -448,8 +443,17 @@ def test_closed_pinned_poi_refuses_automatic_repair():
     )
     assert not report.ok
     assert 19 in _rule_ids(report)  # pin 保护拦下自动删除
-    # 检测闸同样对钉住的闭馆卡报警（双闸并存 = 死锁，留证即可）
+    # GAP-2 升级通道（2026-11-10 已修）：解钉提示挂在「铁律 2 打在钉住卡
+    # 上」的检测路径（卡在场才报闭馆）；remove 路径卡已摘除只剩铁律 19
+    # 拒绝。检测闸对钉住的闭馆卡报警（双闸并存，留证即可），且必须带
+    # 解钉 warning（不污染 ok 口径，给行动指引）
     _, detect, _ = mutate(
         plan, [], poi_hours=[_CLOSED, _OPEN_PM, _OPEN_BM], old_plan=plan
     )
     assert not detect.ok and 2 in _rule_ids(detect)
+    hints = [
+        v
+        for v in detect.violations
+        if v.rule_id == 19 and v.severity == "warning" and "钉" in v.message
+    ]
+    assert hints, "钉住闭馆死锁必须附解钉提示 warning"

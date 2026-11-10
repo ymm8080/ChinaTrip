@@ -16,6 +16,7 @@ from app.services.itinerary.models import (
     ItineraryPlan,
     PoiHours,
     RuleSeverity,
+    RuleViolation,
     TransferItem,
     ValidationReport,
     VisitItem,
@@ -214,6 +215,43 @@ def mutate(
         combined = list(report.violations) + extra
         has_error = any(v.severity == RuleSeverity.error for v in combined)
         report = ValidationReport(ok=not has_error, violations=combined)
+    # GAP-2 升级通道（2026-11-10 P4 摸底）：钉住的点闭馆/超时=铁律 2 与
+    # 铁律 19 死锁（自动替换被 pin 拒死）——引擎拒绝是对的，但必须把
+    # 「解钉后可自动修订」告知用户（warning 不污染 ok 口径）。
+    _pinned_closed = [
+        v
+        for v in report.violations
+        if v.rule_id == 2
+        and v.severity == RuleSeverity.error
+        and any(
+            isinstance(i, VisitItem) and i.pinned and i.item_id in v.item_ids
+            for d in new_plan.days
+            for i in d.items
+        )
+    ]
+    if _pinned_closed:
+        _names = "、".join(
+            i.name
+            for d in new_plan.days
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and i.pinned
+            and {i.item_id} & {iid for v in _pinned_closed for iid in v.item_ids}
+        )
+        report.violations.append(
+            RuleViolation(
+                rule_id=19,
+                severity=RuleSeverity.warning,
+                message=L(
+                    f"「{_names}」超出营业时间/临时闭馆，但因被钉住无法自动"
+                    "移除或替换——在行程卡上解钉后即可自动修订",
+                    f'"{_names}" is outside opening hours / temporarily '
+                    "closed, but it is pinned so it cannot be auto-removed "
+                    "or swapped — unpin it on the itinerary card to allow "
+                    "automatic repair",
+                ),
+            )
+        )
     annotate_legs(new_plan)
     summary = summarize_changes(diffs, plan=old_plan or new_plan)
     return new_plan, report, summary

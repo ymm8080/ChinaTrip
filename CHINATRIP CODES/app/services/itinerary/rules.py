@@ -590,6 +590,22 @@ def validate_plan(
     return _report(violations)
 
 
+_SCOPE_IGNORE_FIELDS = ("distance_to_next_km", "next_walk_minutes", "leg_source")
+
+
+def _scope_key(day: DayPlan):
+    """铁律 10 的语义比较键：腿标注字段（legs.annotate_legs 出口端恒补的
+    展示字段）归一化后比——旧计划从存储进来无标注，新计划经 mutate 出口
+    必带标注，整对象相等比较会把纯展示漂移误报成越界（2026-11-10 GAP-4）。"""
+    return (
+        day.base_city,
+        tuple(
+            i.model_copy(update={f: None for f in _SCOPE_IGNORE_FIELDS})
+            for i in day.items
+        ),
+    )
+
+
 def validate_change_scope(
     old_plan: ItineraryPlan, new_plan: ItineraryPlan, *, from_day: int
 ) -> ValidationReport:
@@ -602,11 +618,7 @@ def validate_change_scope(
             continue
         old_d = old_days[day_no]
         new_d = new_days.get(day_no)
-        if (
-            new_d is None
-            or new_d.base_city != old_d.base_city
-            or list(new_d.items) != list(old_d.items)
-        ):
+        if new_d is None or _scope_key(new_d) != _scope_key(old_d):
             violations.append(
                 RuleViolation(
                     rule_id=10,
