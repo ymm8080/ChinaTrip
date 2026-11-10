@@ -9,6 +9,7 @@ from datetime import time
 
 from app.services.itinerary.models import (
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     PoiHours,
     TransferItem,
@@ -375,3 +376,82 @@ def test_insertion_sunset_window_lower_bound():
     deck2 = next(i for i in solved.items if i.item_id == "deck")
     assert deck2.start_time is not None
     assert 16 * 60 <= _mins(deck2.start_time) <= 19 * 60 - 60
+
+
+# ---- 晚宴就近并块（2026-11-10「餐卡可推迟/并景点卡」拍板兑现） ------------
+# 宴秀晚宴落不进晚餐窗、但与当日近距晚场参访块同址时，粘接块尾不丢餐
+# （长安十二时辰·唐宴被夜档组合块挤掉案：块 16:00-20:00 恰是该宴场馆）。
+
+_SITE = GeoPoint(lon=108.94, lat=34.21)
+_FAR = GeoPoint(lon=109.10, lat=34.21)  # 同纬度差 0.16° ≈ 15km > 5km 圈
+
+
+def _evening_block() -> VisitItem:
+    return _visit(
+        "block",
+        dur=240,
+        category="street",
+        location=_SITE,
+        pinned=True,
+        start_time=time(16, 0),
+        end_time=time(20, 0),
+    )
+
+
+def _banquet_dinner(*, location) -> VisitItem:
+    return VisitItem(
+        item_id="dinner-b",
+        name="主题宴（宴秀晚宴）",
+        category="food",
+        city="西安",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
+        location=location,
+    )
+
+
+def test_dinner_glues_after_co_located_evening_block():
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_SITE)],
+    )
+    solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    assert dinner.start_time == time(20, 0)  # 粘参访块尾部，不丢餐
+    assert dinner.end_time == time(21, 0)
+
+
+def test_dinner_glues_with_travel_gap_after_evening_block():
+    # 矩阵闸回归（2026-11-10 西安案）：同址双卡矩阵走行 >0 时不得零间隙
+    # 硬贴被拒→丢餐；并块须接走行分钟（与 ①b 贴排组合同口径）。
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_SITE)],
+    )
+    matrix = {("block", "dinner-b"): 10, ("dinner-b", "block"): 10}
+    solved = insertion_schedule_day(
+        day, poi_hours=[], meal_flex=True, travel_minutes=matrix
+    )
+    assert solved is not None
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    assert dinner.start_time == time(20, 10)
+    assert dinner.end_time == time(21, 10)
+
+
+def test_dinner_far_from_evening_block_still_drops():
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_FAR)],
+    )
+    solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    assert dinner.start_time is None  # 远距不粘接，维持「窗满丢餐」降级

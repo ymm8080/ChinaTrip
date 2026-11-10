@@ -1613,6 +1613,77 @@ def insertion_schedule_day(
 
     dur_overrides: dict[str, int] = {}
     unsched_meals: list[VisitItem] = []
+
+    # ---- ②a 晚宴就近并块（2026-11-10 拍板「餐卡可推迟/并景点卡」兑现）：
+    # 晚餐软钉餐落不进餐窗、但与当日 ≥16:00 收尾的近距（≤NEAR_SAMEDAY_
+    # KM）参访块同址时不丢餐——直接粘接在该块尾部（晚宴就在该场馆
+    # 内/旁），先于「窗满丢餐」降级触发。结构化锚定（入 combo_anchored）
+    # 不参与 ③ 打磨挪洞。午餐不并块（pin <16:00 一律不走此通道）。
+    def _glue_evening_mate(spec: _VisitSpec) -> bool:
+        item = spec.item
+        if (item.category or "") != "food":
+            return False
+        if item.location is None or item.start_time is None:
+            logger.info(
+                "solver: dinner glue declined day %s %s (no location/pin)",
+                day.day,
+                item.name,
+            )
+            return False
+        if _to_minutes(item.start_time) < 16 * 60:
+            return False
+        mates = [
+            (oe_, oitem)
+            for _os_, oe_, oitem in occupied
+            if isinstance(oitem, VisitItem)
+            and (oitem.category or "") != "food"
+            and oitem.location is not None
+            and oe_ >= 16 * 60
+            and _haversine_km(item.location, oitem.location) <= NEAR_SAMEDAY_KM
+        ]
+        if not mates:
+            logger.info(
+                "solver: dinner glue declined day %s %s (no evening mate "
+                "within %.0fkm)",
+                day.day,
+                item.name,
+                NEAR_SAMEDAY_KM,
+            )
+            return False
+        mates.sort(key=lambda m: (_haversine_km(item.location, m[1].location), m[0]))
+        durs = [spec.dur] + (
+            [spec.dur_lo] if flex_day and spec.dur_lo and spec.dur_lo < spec.dur else []
+        )
+        for dur in durs:
+            for oe_, oitem in mates:
+                # 与 ①b 贴排组合同口径：块间接走行分钟（同址矩阵值≈0），
+                # 不零间隙硬贴（矩阵闸 _fits 1494 行会弹回）。
+                t = oe_ + _travel(oitem, item)
+                if t + dur > day_end or not _fits(t, dur, spec):
+                    continue
+                occupied.append((t, t + dur, item))
+                occupied.sort(key=lambda o: o[0])
+                combo_anchored.add(item.item_id)
+                if dur != spec.dur:
+                    dur_overrides[item.item_id] = dur
+                logger.info(
+                    "solver: dinner glued after evening mate day %s %s -> "
+                    "%s-%s (%.1fkm %s)",
+                    day.day,
+                    item.name,
+                    _to_time(t),
+                    _to_time(t + dur),
+                    _haversine_km(item.location, oitem.location),
+                    oitem.name,
+                )
+                return True
+        logger.info(
+            "solver: dinner glue declined day %s %s (mates exist but no fit)",
+            day.day,
+            item.name,
+        )
+        return False
+
     hard = [s for s in rest if not (flex_day and s.dur_lo and s.dur_lo < s.dur)]
     meals = [s for s in rest if s not in hard]
     for spec in sorted(hard, key=_hkey):
@@ -1620,6 +1691,8 @@ def insertion_schedule_day(
         if marker is None and (
             spec.item.soft_pin and (spec.item.category or "") == "food"
         ):
+            if _glue_evening_mate(spec):
+                continue
             logger.info(
                 "solver: meal slot infeasible day %s %s -> keep unscheduled",
                 day.day,
@@ -1634,6 +1707,8 @@ def insertion_schedule_day(
     for spec in meals:
         marker = _try_insert(spec)
         if marker is None:
+            if _glue_evening_mate(spec):
+                continue
             # 餐卡降级不连坐（2026-11-08 远郊组合案根修）：晚饭开餐窗被晚场
             # 演出整窗占死（远郊演出 17:00-18:20 vs [17:00,18:00)）时，整
             # 日四件参访好解被一张餐卡作废→回落 CP/兜底→扫尾把组合件
