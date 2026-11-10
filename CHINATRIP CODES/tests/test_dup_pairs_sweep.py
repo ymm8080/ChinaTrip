@@ -402,6 +402,82 @@ def test_substitute_belldrum_merchant_rows_not_hit():
         assert _cand_twin(a, r) is False, r["name"]
 
 
+# --- ⑥ 宫宴餐秀替代组（2026-11-10 拍板「同址同类型的宴是 ALTERNATIVE」+
+#     「尽量多不同类型的体验」「餐卡可以空白」，当日全库体验性宴行复查
+#     定稿）------------------------------------------------------------------
+# 体验性宴会/沉浸式餐秀（仿古乐舞伴宴/换装宫宴/一菜一舞餐秀）同城互为
+# 替代：一次行程只赴一场，已排组员后其余天同组候选被站级判定拦下，晚餐
+# 槽宁空勿重。词素取各城体验宴场馆专名/体验名，普通餐馆名不命中；泛化
+# 品类通道不收餐饮，体验性宴只有具名组一个通道。朝代主题不同（唐风 vs
+# 楚汉 vs 六朝）或体验不同（宫廷宴 vs 民族长桌宴）不并入，宁缺勿滥。
+
+
+def test_substitute_tang_banquet_pair_is_twin():
+    """御宴宫 vs 长安十二时辰·唐宴（同片区同类型体验宴，均 food 行）：
+    具名组无地理闸，候选层判孪生——跨天再排同体验宴被拦，一天一场闸
+    不再把同组宴摊到不同天。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("长安十二时辰·唐宴", 108.96600, 34.21300, "西安", cat="food")
+    assert _substitute_dup(a["name"], b["name"], "西安", "西安") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_tang_banquet_cross_city_not_blocked():
+    """异地同名/同词素不误伤：城市闸先于组判定。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("唐宴", 112.45400, 34.62000, "洛阳", cat="food")
+    assert _substitute_dup(a["name"], b["name"], "西安", "洛阳") is False
+    assert _cand_twin(a, b) is False
+
+
+def test_substitute_tang_banquet_regular_restaurants_not_hit():
+    """普通餐馆不进组：词素不命中，泡馍/饺子馆行与组内宴互不相干
+    （一日三餐天天排是常态，餐饮互斥只认体验性宴专名）。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    rows = [
+        _cs("老孙家泡馍(东关店)", 108.96000, 34.25000, "西安", cat="food"),
+        _cs("德发长饺子馆(钟楼店)", 108.94300, 34.26000, "西安", cat="food"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
+def test_substitute_tang_banquet_and_tower_group_not_crossed():
+    """组间不串：唐风宴组（御宴宫）与双塔组（钟楼）互不相干，可并排。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    assert _cand_twin(a, b) is False
+
+
+# --- ⑦ 浦江游览替代组（2026-11-10 全库漏网扫描定稿）--------------------------
+# 同一观光航线体验的多船卡/多码头挂牌：同码头 0km 但船名带引号前缀打断
+# containment，名字通道全漏——同江同航线互为替代，一行程只乘一次。
+
+
+def test_substitute_river_cruise_pair_is_twin():
+    """浦江游览 vs "水晶公主"号黄浦江游船（同码头 0km 实录）：具名组
+    命中即孪生，多船卡/多码头挂牌不再并排。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs('"水晶公主"号黄浦江游船', 121.49000, 31.23000, "上海", cat="entertainment")
+    assert _substitute_dup(a["name"], b["name"], "上海", "上海") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_river_cruise_cross_city_not_blocked():
+    """异地同词素不误伤：城市闸先于组判定（浙赣地名「浦江」行不互斥）。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs("浦江游览", 119.89000, 29.46000, "金华", cat="entertainment")
+    assert _substitute_dup(a["name"], b["name"], "上海", "金华") is False
+    assert _cand_twin(a, b) is False
+
+
+def test_substitute_river_cruise_unrelated_river_not_hit():
+    """异江游船不进组：钱塘江游览与浦江游览是两条航线，词素不命中。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs("钱塘江游览", 120.20000, 30.20000, "杭州", cat="entertainment")
+    assert _cand_twin(a, b) is False
+
+
 def test_museum_not_in_street_group():
     """泛化按类型不按名：武侯祠博物馆（museum）不在街区白名单，与
     春熙路（citywalk）可并排。"""
