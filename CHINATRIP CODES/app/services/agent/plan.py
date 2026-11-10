@@ -13894,6 +13894,26 @@ class PlanningAgent:
                 # 合（露天弱件锁死雨天）的可行日是真稀缺，能在雨天排的
                 # 组合不得凭时长排名抢走唯一净日；可行日数相同再按（最
                 # 优 tier，-合计时长，-规模，池序）原梯。
+                # 雨日仲裁补口（用户拍板「拿到组合选日期，雨天优先选室内
+                # 组合」）：可行日数相同时，含硬露天员（rain_ok=no/partial）
+                # 越多、未标注弱件越多的族越不耐雨，越先占位干日——耐雨/
+                # 中性族殿后 absorb 雨日。王牌小雨放行只是「可以落」不是
+                # 「该落」，不得凭 tier 序让硬露天族殿后接盘雨日。
+                def _fam_rain_intol(ms: list[int]) -> tuple[int, int]:
+                    # 无雨窗口全族恒 (0,0)——未标注只在有雨日才构成不耐雨，
+                    # 晴天不得扰动 tier/时长原梯（回归：tier 序占日）。
+                    if not rainy_here:
+                        return (0, 0)
+                    hard = sum(1 for p in ms if _rain_exposed(pool[p][1]))
+                    unmk = sum(
+                        1
+                        for p in ms
+                        if _rain_unmarked(pool[p][1])
+                        and _source_tier(pool[p][1]) > 2
+                        and not _night_cand(pool[p][1])
+                    )
+                    return (hard, unmk)
+
                 _pre_feasible: dict[int, int] = {
                     r: sum(1 for d in range(lo, hi + 1) if _try_day(fams[r], d))
                     for r in fams
@@ -13903,6 +13923,8 @@ class PlanningAgent:
                     fams,
                     key=lambda r: (
                         _pre_feasible[r],
+                        -_fam_rain_intol(fams[r])[0],
+                        -_fam_rain_intol(fams[r])[1],
                         min(_source_tier(pool[p][1]) for p in fams[r]),
                         # 二拍③：同 best-tier 时族时长合计大者（更难排）先占
                         # 日，规模只作末位 tiebreak——防小族抢走唯一净日，

@@ -182,6 +182,37 @@ def test_known_indoor_family_prefers_rainy_day():
     assert _by_day(items)[2] == {"室内员一", "室内员二", "室内员三"}
 
 
+def test_less_rain_tolerant_family_claims_dry_day_first():
+    """雨日仲裁（用户拍板「选日期要考虑组合里景点是室内还是室外」补口）：
+    两族争干日且可行日数相同时，含硬露天员（rain_ok=no，王牌仅小雨放行）
+    的族先占位干日；耐雨/中性族殿后 absorb 雨日——王牌小雨放行只是
+    「可以落」不是「该落」，不得凭 tier 序让硬露天族殿后接盘雨日。"""
+    cands = [
+        # 族甲：中性耐雨（王牌+未标注王牌+耐雨员，无 rain_ok=no 员）
+        _c("甲王牌", _A0, tier=1),
+        _c("甲未标", _A1, tier=2),
+        _c("甲耐雨", _A2),
+        # 族乙：含硬露天王牌（rain_ok=no 的 5a）——应占干日
+        _c("乙露天", _B0, tier=2),
+        _c("乙员二", _B1),
+        _c("乙员三", _B2),
+    ]
+    cands[2]["rain_ok"] = "yes"
+    cands[3]["rain_ok"] = "no"
+    cands[4]["rain_ok"] = "yes"
+    cands[5]["rain_ok"] = "yes"
+    items = PlanningAgent._deterministic_selection(
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {2}},
+        light_rain_days={"成都": {2}},
+    )
+    by_day = _by_day(items)
+    assert by_day[1] == {"乙露天", "乙员二", "乙员三"}
+    assert by_day[2] == {"甲王牌", "甲未标", "甲耐雨"}
+
+
 def test_locked_low_priority_card_cannot_evict_higher_priority_member():
     cands = [
         _c("高档长件", _A0, tier=1, dur=180),
