@@ -548,7 +548,7 @@ def _arrival_simple_visit(v: "VisitItem") -> bool:
     _street_like_visit 口径）且非主题街区演出块（_is_theme_block——
     名带「街」的 240min 级沉浸块不是简单 CITYWALK）且时长 ≤120min
     （到达日整族落位通道单员上限镜像）且非 tier≤2 王牌。唯一定义点：
-    终装到达日轻量清扫（_arrival_day_light_sweep）与让位弹座择宿
+    终装端点日轻量清扫（_endpoint_day_light_sweep）与让位弹座择宿
     到达日殿后共用本口径。"""
     if (getattr(v, "tier", None) or 11) <= 2:
         return False
@@ -6970,36 +6970,39 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
 
 
-def _arrival_day_light_sweep(
+def _endpoint_day_light_sweep(
     plan: ItineraryPlan, protect: frozenset[str] | set[str]
 ) -> None:
-    """到达日轻量终装清扫（2026-11-11 类级收口，纯度清扫姊妹件）：
-    「到达日只适合简单 CITYWALK 或 SHOW」终装硬口径。上游各相位（选层
-    溢出/让位弹座/紧族重逢/全局换座/贴锚并块）各自合规却可合力把重磅卡
-    塞进到达日、或让到达日一张简单街区卡都拿不到（重磅占日+下午单大点
-    跳街区实录）。两步单向扫，挪后 _fallback_sequence_times 重排：
+    """端点日（到达日+返程日）轻量终装清扫（2026-11-11 类级收口，纯度
+    清扫姊妹件；用户拍板「到达日与离城日同原则」+「排程顺序」拍板
+    雨日→到达日→正常日→离城日）：端点日只收简单 CITYWALK/街区轻件，
+    时刻闸+距离闸优先于安排——排不进宁可空日，接受端点日无站点安排，
+    不硬造内容，更不跨日挪卡补（11-11 拍板「不强行从其它日期挪卡」——
+    轻卡落位靠排程顺序自然发生，本清扫只做终装对账，双向只出不进）：
 
-    ① 重磅出到达日：到达日上非演出非钉/软钉/餐宿卡不满足
-       「简单街区卡」口径（_arrival_simple_visit——非街道类/主题街区
-       长块/超长件/tier≤2 王牌）时，挪同城非到达非返程日（
-       _host_day_for_visit 实位探针终审，_rescue=True 放行王牌）；
-       无宿主=保留+WARN+披露（必去/心愿只挪不删口径同纯度①出圈件：
-       挪得动就挪，挪不动保留+披露）。curated 只挪不删（永不进删除闸
-       不受影响），有宿主同样挪——精选长块占到达日同样违反轻量拍板。整族轻量形态豁免：当日参访卡
-       互近成族（两两全连通 ≤_FAMILY_ATOMIC_KM）且每员 ≤120min、
-       合计 ≤180min——到达日整族落位通道（11-08 拍板）终装镜像，
-       拆族比留重磅更伤。
-    ② 简卡进到达日：①后到达日仍无任何简单街区卡时，从同城非到达日
-       参访卡 ≥2 的日挪一张简单街区卡过来（源日腾得动：移除后仍
-       ≥1 张参访卡；钉/软钉/心愿/curated/必去不作源卡）——源日按
-       参访卡数降序、同数靠后者先（早段日结构少动）。仅对真到达日
-       触发（带落地腿日或单城首日；出发城离城日不硬造内容）。先试
-       直落（既有卡原位）；直落落不下升格整日重排（目标日可清卡清时
-       重建，给新卡公平整窗）；升格仍排不上=整步回滚换披露。无源
-       =空转（到达日可只剩演出/餐，不硬造内容）。挪后两日均重排
-       （「？」卡不许出自本清扫）。
+    到达日（_day_is_arrival）：
+    ① 重磅出：非演出非钉/软钉/餐宿卡不满足「简单街区卡」口径
+       （_arrival_simple_visit——非街道类/主题街区长块/超长件/tier≤2
+       王牌）时，挪同城非到达非返程日（_host_day_for_visit 实位探针
+       终审，_rescue=True）；无宿主=保留+WARN+披露（必去/心愿只挪不
+       删口径同纯度①出圈件）。curated 只挪不删，有宿主同样挪。整族
+       轻量形态豁免（≥2 员/每员 ≤120min/合计 ≤180min/两两全连通
+       ≤_FAMILY_ATOMIC_KM——到达日整族落位通道终装镜像）。
+    ② 空日披露：真到达日仍无简单街区卡亦无 SHOW=不安排节目，留白
+       并披露（留白是拍板口径，不是事故）。
 
-    挪动必留日志，保留/回滚必留披露——静默不许可（10-25 立规）。"""
+    返程日（_day_is_return_home；与 11-05 轻量保底/11-08 市区圈四层
+    闸同口径不双挪——那些闸管上游准入与保位，本清扫只做终装对账）：
+    ① 出圈出：距城心锚（_urban_medoid，_RETURN_URBAN_KM=15km 同
+       常量）出圈的非钉/软钉/餐宿/演出卡挪同城非返程非到达日；无宿主
+       =保留+披露（软放兜底同 11-08「排得上优先于排得轻」——距离闸
+       优先于安排：挪得动才挪）。重磅不重复管：tier≤2 上游
+       _return_host_blocked 已硬拦、>80min 非王牌按 11-05 收轻口径
+       本可留（锚 test_return_day_accepts_big）。缺坐标/缺锚不拦
+       （同 11-08 口径：不可核即不动）。
+    ② 空日披露：同到达日口径——没收到简单街区卡/SHOW 就留白披露。
+
+    挪动必留日志，保留/空日必留披露——静默不许可（10-25 立规）。"""
     moved = False
 
     def _is_show_v(v: VisitItem) -> bool:
@@ -7059,9 +7062,40 @@ def _arrival_day_light_sweep(
             if c:
                 cities.setdefault(c, []).append(d)
     single_city = len({str(c).removesuffix("市") for c in (plan.cities or [])}) <= 1
-    _Snap = list[tuple[VisitItem, object, object]]
-    recruit_moves: list[tuple[VisitItem, DayPlan, DayPlan, _Snap | None]] = []
     for vcity, days in cities.items():
+        # 返程日城心锚（同 _host_day_for_visit 返程侧口径：vcity 在册
+        # 参访卡坐标云；缺锚不拦不招——距离闸核不了就不放行）。
+        _med = _urban_medoid(
+            [
+                (float(i.location.lon), float(i.location.lat))
+                for d0 in plan.days
+                for i in d0.items
+                if isinstance(i, VisitItem)
+                and str(getattr(i, "city", "") or "").removesuffix("市") == vcity
+                and getattr(i, "location", None) is not None
+                and getattr(i.location, "lon", None) is not None
+            ]
+        )
+
+        def _far_out(v: VisitItem) -> bool:
+            """出圈判定（核得了才算出圈）：卡在册本城、有坐标、有锚，
+            且距锚 >_RETURN_URBAN_KM。缺坐标/缺锚/异城卡一律不算——
+            同 11-08 口径「不可核即不拦」，不可核出圈绝不挪（降级路
+            无坐标卡被当出圈逐出城窗实录）。"""
+            if str(getattr(v, "city", "") or "").removesuffix("市") != vcity:
+                return False
+            loc = getattr(v, "location", None)
+            if _med is None or loc is None or getattr(loc, "lon", None) is None:
+                return False
+            return (
+                haversine_km(
+                    GeoPoint(lon=float(loc.lon), lat=float(loc.lat)),
+                    GeoPoint(lon=_med[0], lat=_med[1]),
+                )
+                > _RETURN_URBAN_KM
+            )
+
+        # —— 到达日分支 ——
         for d in [x for x in days if _day_is_arrival(x, vcity)]:
             visits = [
                 i
@@ -7128,142 +7162,121 @@ def _arrival_day_light_sweep(
                                 f"{d.day} (adjust as needed)",
                             )
                         )
-            # ② 简卡进到达日：仅真到达日（带落地腿日/单城首日）
-            has_arrival_leg = any(
+            # ② 空日披露（2026-11-11 拍板「不强行从其它日期挪卡」）：真
+            # 到达日没收到简单街区卡亦无 SHOW=不安排节目，留白并披露——
+            # 轻卡落位靠排程顺序（雨日→到达日→正常日→离城日）自然发
+            # 生，本清扫绝不跨日挪卡补。
+            has_arr_leg = any(
                 isinstance(t4, TransferItem)
                 and str(t4.to_city or "").strip().removesuffix("市") == vcity
                 for t4 in d.items
             )
-            if not (has_arrival_leg or (single_city and d.day == 1)):
-                continue
-            if any(
-                isinstance(i, VisitItem) and _arrival_simple_visit(i) for i in d.items
+            if (has_arr_leg or (single_city and d.day == 1)) and not any(
+                isinstance(i, VisitItem) and (_arrival_simple_visit(i) or _is_show_v(i))
+                for i in d.items
             ):
-                continue
-            src_pick: tuple[VisitItem, DayPlan] | None = None
-            src_days = [x for x in days if x is not d and not _day_is_arrival(x, vcity)]
-            src_days.sort(
-                key=lambda x: (
-                    -sum(
-                        1
-                        for i in x.items
-                        if isinstance(i, VisitItem)
-                        and str(getattr(i, "category", "") or "")
-                        not in ("food", "hotel")
-                    ),
-                    -x.day,
-                )
-            )
-            for x in src_days:
-                cards = [
-                    i
-                    for i in x.items
-                    if isinstance(i, VisitItem)
-                    and str(getattr(i, "category", "") or "") not in ("food", "hotel")
-                    and not _is_show_v(i)
-                ]
-                if len(cards) < 2:
-                    continue
-                v = next(
-                    (
-                        i
-                        for i in cards
-                        if _arrival_simple_visit(i)
-                        and not _untouchable(i)
-                        and not getattr(i, "curated", False)
-                        and str(getattr(i, "name", "") or "") not in protect
-                        and not getattr(i, "created", False)
-                    ),
-                    None,
-                )
-                if v is not None:
-                    src_pick = (v, x)
-                    break
-            if src_pick is not None:
-                v, src = src_pick
-                _move(v, src, d)
-                moved = True
                 logger.info(
-                    "plan: arrival-light recruit %s day %s -> day %s",
-                    v.name,
-                    src.day,
+                    "plan: endpoint-light empty arrival day %s "
+                    "(no simple card; accepted per 11-11 ruling)",
                     d.day,
                 )
-                # 先试直落（既有卡原位不动，新卡填空隙）；直落落不下
-                # 再升格整日重排：目标日可清卡（非钉/软钉/餐宿/演出）
-                # 清时后用 _probe_visit_slot（带开门对齐的实位探针，与
-                # _host_day_for_visit 终审同口径）给新卡定档，其余卡交
-                # 兜底排序绕新档重排——兜底无时刻分支不做开门对齐、游标
-                # 单向前进，纯交给它重建会被「09:30 开门的卡从 9:00 起
-                # 判 fits=False 即死」永久压死（无时刻分支只过 leg 窗不
-                # 推开门）。探不进=整步回滚换披露（快照还原目标日）。
-                _fallback_sequence_times(plan)
-                snapshot: list[tuple[VisitItem, object, object]] | None = None
-                if v.start_time is None:
-                    snapshot = [
-                        (i, i.start_time, i.end_time)
-                        for i in d.items
-                        if isinstance(i, VisitItem)
-                        and i.start_time is not None
-                        and not getattr(i, "pinned", False)
-                        and not getattr(i, "soft_pin", False)
-                        and str(getattr(i, "category", "") or "")
-                        not in ("food", "hotel")
-                        and not _is_show_v(i)
-                    ]
-                    for i, _s, _e in snapshot:
-                        i.start_time = None
-                        i.end_time = None
-                    _fx, _ft, _fl, _xw = _day_fixed_windows(d)
-                    _hbp = {h.poi_id: h for h in _plan_poi_hours(plan)}
-                    _slot = _probe_visit_slot(v, _fx, _xw, _hbp, 21 * 60 + 30)
-                    if _slot is not None:
-                        _vdur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                        v.start_time = time(_slot // 60, _slot % 60)
-                        v.end_time = time((_slot + _vdur) // 60, (_slot + _vdur) % 60)
-                    _fallback_sequence_times(plan)
-                recruit_moves.append((v, src, d, snapshot))
-                if v.start_time is not None:
+                plan.assumptions.append(
+                    L(
+                        f"第{d.day}天为到达日，未排入轻量街区或演出，"
+                        f"按轻量口径留白，可先安置行李、稍作休整",
+                        f"Day {d.day} is the arrival day; no light walk or "
+                        f"show was scheduled, so it is left open per the "
+                        f"light-arrival policy — settle in and relax",
+                    )
+                )
+        # —— 返程日分支 ——
+        for d in [
+            x
+            for x in days
+            if not _day_is_arrival(x, vcity) and _day_is_return_home(x, plan.days)
+        ]:
+            visits = [
+                i
+                for i in list(d.items)
+                if isinstance(i, VisitItem)
+                and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                and not _is_show_v(i)
+            ]
+            # ① 出圈出返程日：距城心锚 >_RETURN_URBAN_KM 的参访卡
+            #   挪同城非返程非到达日；无宿主=保留+披露（软放兜底同
+            #   11-08「排得上优先于排得轻」——距离闸优先于安排：挪得
+            #   动才挪）。重磅不重复管：tier≤2 上游 _return_host_blocked
+            #   已硬拦、>80min 非王牌按 11-05 收轻口径本可留（锚
+            #   test_return_day_accepts_big）——不与既有返程闸双挪。
+            for v in visits:
+                if _untouchable(v) or not _far_out(v):
+                    continue
+                dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                non_ret = [
+                    x
+                    for x in days
+                    if x is not d and not _day_is_return_home(x, plan.days)
+                ]
+                pool = [x for x in non_ret if not _day_is_arrival(x, vcity)] or non_ret
+                tgt = _host_day_for_visit(
+                    pool, vcity, dur, visit=v, all_days=plan.days, _rescue=True
+                )
+                if tgt is not None:
+                    _move(v, d, tgt)
+                    moved = True
+                    logger.info(
+                        "plan: endpoint-light far %s day %s -> day %s",
+                        v.name,
+                        d.day,
+                        tgt.day,
+                    )
                     plan.assumptions.append(
                         L(
-                            f"「{v.name}」为轻量街区，已挪至到达日"
-                            f"（第{d.day}天）顺路游览",
-                            f'"{v.name}" is a light walk; moved to arrival '
-                            f"day {d.day} for a gentle first day",
+                            f"「{v.name}」距市区较远，离城日只安排市区"
+                            f"圈内游览，已挪至第{tgt.day}天",
+                            f'"{v.name}" is far from the city center; the '
+                            f"departure day keeps to the urban area, so "
+                            f"it moved to day {tgt.day}",
                         )
                     )
+                else:
+                    logger.warning(
+                        "plan: endpoint-light far %s stays day %s (no host)",
+                        v.name,
+                        d.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"「{v.name}」距市区较远，离城日只安排市区"
+                            f"圈内游览，但其余各天排不下，暂保留在第"
+                            f"{d.day}天（可按需调整）",
+                            f'"{v.name}" is far from the city center; the '
+                            f"departure day keeps to the urban area, but "
+                            f"every other day was full, so it stayed on "
+                            f"day {d.day} (adjust as needed)",
+                        )
+                    )
+            # ② 空日披露（同到达日口径，绝不跨日挪卡补）：真返程日没
+            #   收到简单街区卡亦无 SHOW=留白披露，接受离城日无站点
+            #   安排。
+            if not any(
+                isinstance(i, VisitItem) and (_arrival_simple_visit(i) or _is_show_v(i))
+                for i in d.items
+            ):
+                logger.info(
+                    "plan: endpoint-light empty return day %s "
+                    "(no simple card; accepted per 11-11 ruling)",
+                    d.day,
+                )
+                plan.assumptions.append(
+                    L(
+                        f"第{d.day}天为离城日，未排入轻量街区或演出，按轻量口径留白",
+                        f"Day {d.day} is the departure day; no light walk "
+                        f"or show was scheduled, so it is left open per "
+                        f"the light-departure policy",
+                    )
+                )
     if moved:
-        _fallback_sequence_times(plan)
-    # 挪入卡排不上时刻=整步回滚换披露（「？」卡不许出自本清扫）。
-    rolled = False
-    for v, src, tgt, snapshot in recruit_moves:
-        if v.start_time is not None:
-            continue
-        if snapshot:
-            for i, s, e in snapshot:
-                i.start_time = s
-                i.end_time = e
-        cur = next((x for x in plan.days if any(i is v for i in x.items)), None)
-        if cur is None or cur is src:
-            continue
-        _move(v, cur, src)
-        rolled = True
-        logger.warning(
-            "plan: arrival-light recruit rollback %s day %s -> day %s "
-            "(untimed after move)",
-            v.name,
-            cur.day,
-            src.day,
-        )
-        plan.assumptions.append(
-            L(
-                f"「{v.name}」挪至到达日后排不上时刻，已放回第{src.day}天"
-                f"（可按需调整）",
-                f'"{v.name}" could not be timed on the arrival day; '
-                f"returned to day {src.day} (adjust as needed)",
-            )
-        )
-    if rolled:
         _fallback_sequence_times(plan)
 
 
@@ -13514,15 +13527,6 @@ class PlanningAgent:
                 d for d in (night_rain_days or {}).get(city, ()) if lo <= d <= hi
             }
 
-            def _rainy_for(cand: dict, d: int) -> bool:
-                # 露天/半露天点的逐日雨信号（偏好排序用）：普通露天看
-                # 白天窗，夜间露天只看夜间窗，partial 视同露天。
-                if not _rain_exposed(cand):
-                    return False
-                if _night_cand(cand):
-                    return d in night_rainy
-                return d in rainy_here
-
             def _rain_blocked(cand: dict, d: int) -> bool:
                 # 雨日硬闸判定（2026-11-02 拍板链「雨日是硬闸」+
                 # 「半露天（partial）小雨可以排。没说中雨」）：全露天
@@ -13945,12 +13949,6 @@ class PlanningAgent:
                 and not _show_night_only(cand)
             }
 
-            def _emptiest_day() -> int:
-                return sorted(
-                    range(lo, hi + 1),
-                    key=lambda d: (day_loads[d][0], day_loads[d][1], d),
-                )[0]
-
             placed: dict[int, list[tuple[int, dict]]] = {
                 d: [] for d in range(lo, hi + 1)
             }
@@ -14121,6 +14119,37 @@ class PlanningAgent:
                     if xy is None or _km(xy, _ret_anchor) <= _RETURN_URBAN_KM:
                         return False
                 return any(e != days and e not in _adays for e in range(lo, hi + 1))
+
+            def _fill_pri(cand: dict, d: int) -> tuple[int, int, int]:
+                # 2026-11-11 用户拍板排程顺序「先排雨天，再排到达日，
+                # 再排非雨天正常日，最后排出发离开日」。纯排序键——
+                # 硬闸（雨拦/返程上午窗/市区圈/4 帽/族占/预算）全部
+                # 照收在后的落点检查里，本键只定同资格天下的优先序，
+                # 不与任何 eligibility 闸双挪（同端点日清扫「闸优先于
+                # 安排」拍板）。雨日约束最紧：可被雨日收的点（非雨拦）
+                # 先落雨日，干日留给怕雨点；轻点到达日优先于正常日
+                # （大块头不抢到达日，同 11-05 到达日大点让位拍板）；
+                # 离城边日恒殿后。演出两不参与（钉日/晚场规则定），
+                # 只保留离城殿后。
+                if _cand_is_show(cand):
+                    return (1, 1, 1 if _return_edge(d) else 0)
+                _rset = night_rainy if _night_cand(cand) else rainy_here
+                rain_r = 0 if (d in _rset and not _rain_blocked(cand, d)) else 1
+                arr_r = 0 if (d in _adays and not _cand_is_big(cand)) else 1
+                return (rain_r, arr_r, 1 if _return_edge(d) else 0)
+
+            def _best_day(cand: dict, pos: int) -> int:
+                # _emptiest_day 的 11-11 排程顺序升级版：同资格天内按
+                # （雨日→到达日→正常日→离城日）×（余量→日序）取首。
+                return min(
+                    range(lo, hi + 1),
+                    key=lambda d: (
+                        *_fill_pri(cand, d),
+                        day_loads[d][0],
+                        day_loads[d][1],
+                        d,
+                    ),
+                )
 
             # 组合原子选日通道（2026-11-08 拍板「距离聚类优先/组合排日」
             # +2026-11-09 组合原子化统筹模型拍板：组合为排程单元，择日看
@@ -15656,7 +15685,11 @@ class PlanningAgent:
                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                 cid = clusters[pos]
                 xy = _cxy(cand)
-                day = cluster_day.get(cid, lo) if cid is not None else _emptiest_day()
+                day = (
+                    cluster_day.get(cid, lo)
+                    if cid is not None
+                    else _best_day(cand, pos)
+                )
                 if _cand_is_show(cand) and _show_night_only(cand):
                     logger.info(
                         "plan: mainloop night show %s cid=%s cluster_day=%s -> day %s "
@@ -15745,27 +15778,11 @@ class PlanningAgent:
                             _arr_alt,
                             key=lambda d: (day_loads[d][0], day_loads[d][1], d),
                         )
-                # 未标注室内外点雨日让位（2026-11-05 拍板「雨天上午不排
-                # 室外点」，古镇街区样本漏闸案）：目标天有雨且有干日计数空位时
-                # 挪干日——软语义不出局（无干日空位=留雨日，交对调/披露
-                # 承接）；王牌与夜间点豁免（同整段降权口径）。
-                if (
-                    day in rainy_here
-                    and _rain_unmarked(cand)
-                    and _source_tier(cand) > 2
-                    and not _night_cand(cand)
-                ):
-                    _dry2 = [
-                        d
-                        for d in range(lo, hi + 1)
-                        if d not in rainy_here
-                        and _day_open_for(cand, pos, d)
-                        and day_loads[d][1] < 4
-                    ]
-                    if _dry2:
-                        day = min(
-                            _dry2, key=lambda d: (day_loads[d][0], day_loads[d][1], d)
-                        )
+                # 未标注点雨日让位已退役（2026-11-11 拍板「先排雨天」
+                # 覆盖 2026-11-05 软语义）：未标注点=雨日可收件，排程
+                # 顺序雨日优先（_best_day/_refill 的 _fill_pri 键）——
+                # 雨日库存先落雨日，干日留给怕雨点；露天硬闸/对调/披
+                # 露机制不受影响。
                 # 露天点雨日硬闸（2026-11-02 拍板）：全露天雨日全拦、
                 # 半露天仅强雨日拦（小雨照排+提示）→ 必须改投有计数
                 # 空位的干日（余量最小，时间预算软闸照放）；无干日
@@ -15825,9 +15842,7 @@ class PlanningAgent:
                         and not (_cand_is_show(cand) and _show_night_only(cand))
                     )
                 ):
-                    day = (
-                        _emptiest_day()
-                    )  # 簇满/远腿→溢出余量最大天（保地理优先、不空天）
+                    day = _best_day(cand, pos)  # 簇满/远腿→溢出排程顺序首天
                     if not _family_open(cand, pos, day):
                         _fam_alts = [
                             e for e in range(lo, hi + 1) if _family_open(cand, pos, e)
@@ -15837,25 +15852,8 @@ class PlanningAgent:
                                 _fam_alts,
                                 key=lambda e: (day_loads[e][0], day_loads[e][1], e),
                             )
-                    # 未标注点雨日让位（2026-11-05 拍板）：溢出分支同口径
-                    if (
-                        day in rainy_here
-                        and _rain_unmarked(cand)
-                        and _source_tier(cand) > 2
-                        and not _night_cand(cand)
-                    ):
-                        _dry2 = [
-                            d
-                            for d in range(lo, hi + 1)
-                            if d not in rainy_here
-                            and _day_open_for(cand, pos, d)
-                            and day_loads[d][1] < 4
-                        ]
-                        if _dry2:
-                            day = min(
-                                _dry2,
-                                key=lambda d: (day_loads[d][0], day_loads[d][1], d),
-                            )
+                    # 未标注点雨日让位溢出镜像已退役（2026-11-11 拍板
+                    # 「先排雨天」覆盖 11-05 软语义，同主环口径）。
                     if _rain_blocked(cand, day):
                         _dry = [
                             d
@@ -16134,8 +16132,9 @@ class PlanningAgent:
             # 级未排由白名单「可选加」披露）。
             placed_pos = {pos for seq in placed.values() for pos, _ in seq}
 
-            # _rainy_for 已提前至主放置环前定义（2026-11-02 山峰王牌案：
-            # 软闸+短者先序会把露天点推进主环，雨闸必须覆盖主环）。
+            # 雨天集合（rainy_here/night_rainy）已提前至主放置环前定义
+            # （2026-11-02 山峰王牌案：软闸+短者先序会把露天点推进主环，
+            # 雨闸必须覆盖主环）；排程顺序见 _fill_pri（2026-11-11 拍板）。
 
             def _refill(pos: int, cand: dict, time_soft: bool = True) -> None:
                 minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
@@ -16150,7 +16149,7 @@ class PlanningAgent:
                 for day in sorted(
                     range(lo, hi + 1),
                     key=lambda d: (
-                        _rainy_for(cand, d),
+                        *_fill_pri(cand, d),
                         _leg_min(xy, d),
                         day_loads[d][0],
                         d,
@@ -18157,10 +18156,11 @@ class PlanningAgent:
         # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
         # 交付（城心小件"？"实录）；此处是跨通道终局对账的唯一定义点。
         _day_purity_sweep(plan, must_names)
-        # 到达日轻量清扫（2026-11-11 拍板）：纯度清扫的姊妹件，同跑在
-        # 终装最后——重磅出到达日+简卡进到达日双向对账（各排程相位可
-        # 合力把重磅卡塞进到达日，或让到达日拿不到任何简单街区卡）。
-        _arrival_day_light_sweep(plan, must_names)
+        # 端点日轻量清扫（2026-11-11 拍板）：纯度清扫的姊妹件，同跑在
+        # 终装最后——重磅/出圈出端点日+空日披露双向对账（各排程相位可
+        # 合力把重磅/远卡塞进端点日；轻卡落位靠排程顺序雨日→到达日→
+        # 正常日→离城日自然发生，本清扫绝不跨日挪卡补，宁可空日）。
+        _endpoint_day_light_sweep(plan, must_names)
         _retime_meal_placeholders(plan)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）

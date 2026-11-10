@@ -1,26 +1,28 @@
 # -*- coding: utf-8 -*-
-"""到达日轻量终装清扫锚（2026-11-11 拍板「到达日只收简单 CITYWALK/
-街区轻件，重磅与长块殿后」）。
+"""端点日轻量终装清扫锚·到达日侧（2026-11-11 拍板「到达日与离城日
+同原则」+「排程顺序」拍板：雨日→到达日→正常日→离城日）。
 
 单卡引擎无上游守卫——选层溢出/让位弹座/紧族重逢/全局换座各相位
-各自合规，合力可把重磅卡塞进到达日，或让到达日一张简单街区卡都拿不到
-（重磅占日+下午单大点跳街区实录）。终装清扫按「简单街区卡」口径（
+各自合规，合力可把重磅卡塞进到达日。终装清扫按「简单街区卡」口径（
 _arrival_simple_visit 唯一定义点：街道/citywalk 类且非主题街区演出块
-且 ≤120min 且非 tier≤2 王牌）双向对账：
+且 ≤120min 且非 tier≤2 王牌）对账：
 
 ① 重磅出到达日（tier≤2/主题街区块/>80min 大块；整族轻量形态豁免——
    到达日整族落位通道终装镜像；钉/软钉不动=铁律 19；curated 只挪不删，
    有宿主同样挪；无宿主=保留+披露，只挪不删）
-② 简卡进到达日（真到达日无简卡时从同城非到达日挪入一张；挪后两日均
-   重排，排不上时刻=整步回滚换披露——「？」卡不许出自本清扫）
+② 空日留白披露（11-11 拍板「不强行从其它日期挪卡」：到达日没收到
+   简单街区卡/SHOW 就不安排节目，接受空日——轻卡落位靠排程顺序自然
+   发生，本清扫绝不跨日挪卡补；从别日硬挪=既违拍板又把源日拆散）
+
+返程日分支锚见 test_return_day_light.py。
 """
 
 from datetime import time
 
 from app.services.agent.plan import (
-    _arrival_day_light_sweep,
     _arrival_heavy_visit,
     _arrival_simple_visit,
+    _endpoint_day_light_sweep,
 )
 from app.services.itinerary.models import (
     DayPlan,
@@ -128,9 +130,10 @@ def test_heavy_visit_predicate_class_level():
 # ------------------------------------------------------- 清扫行为锚
 
 
-def test_heavy_evicted_and_simple_recruited():
-    """①+②双向对账：王牌出到达日落有容量日；到达日拿到街区简卡；
-    ≤80min 小馆留守（收轻内容口径）。"""
+def test_heavy_evicted_and_no_recruit_accept_empty():
+    """① 出+② 留白拍板：王牌出到达日落有容量日；街卡**不跨日挪补**
+    （留在第 3 天）；≤80min 小馆留守（收轻内容口径）；到达日无简卡
+    =留白披露（11-11「不强行从其它日期挪卡」）。"""
     ace = _v("王牌A", 120, _C0, 1, tier=1)
     # 小馆放远点（>1km）：避免与王牌凑成整族轻量形态触发①豁免
     small = _v("小馆", 60, _D3A, 1, tier=9)
@@ -139,11 +142,14 @@ def test_heavy_evicted_and_simple_recruited():
     st = _v("样本坊", 90, _ST, 3, tier=4)
     dd = _v("馆D", 60, _D3A, 3, tier=9)
     plan = _plan(_d(1, ace, small), _d(2, b, c), _d(3, st, dd))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 2
     assert _day_of(plan, small) == 1
-    assert _day_of(plan, st) == 1
+    # 绝不跨日挪卡补：街卡留在原地
+    assert _day_of(plan, st) == 3
     assert _day_of(plan, dd) == 3
+    # 到达日留白必披露
+    assert any("到达日" in a and "留白" in a for a in plan.assumptions)
     # 挪动后全部排上时刻（「？」卡不许出自本清扫）
     for d in plan.days:
         for i in d.items:
@@ -155,7 +161,7 @@ def test_heavy_kept_and_disclosed_when_no_host():
     ace = _v("王牌A", 120, _C0, 1, tier=1)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     plan = _plan(_d(1, ace), _d(2, *full))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 1
     assert any("王牌A" in a for a in plan.assumptions)
 
@@ -168,7 +174,7 @@ def test_theme_block_treated_heavy_and_evicted():
     c = _v("馆C", 50, _D2B, 2, tier=9)
     dd = _v("馆D", 60, _D3A, 3, tier=9)
     plan = _plan(_d(1, blk, small), _d(2, b, c), _d(3, dd))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, blk) == 2
     assert _day_of(plan, small) == 1
 
@@ -182,7 +188,7 @@ def test_compact_family_day_exempt_from_eviction():
     st = _v("样本坊", 90, _ST, 2, tier=4)
     dd = _v("馆D", 60, _D3A, 2, tier=9)
     plan = _plan(_d(1, a1, a2, a3), _d(2, st, dd))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, a1) == 1
     assert _day_of(plan, a2) == 1
     assert _day_of(plan, a3) == 1
@@ -194,7 +200,7 @@ def test_pinned_heavy_untouched():
     b = _v("馆B", 60, _D2A, 2, tier=9)
     c = _v("馆C", 60, _D2B, 2, tier=9)
     plan = _plan(_d(1, ace), _d(2, b, c))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 1
     assert ace.pinned is True
 
@@ -206,25 +212,27 @@ def test_curated_theme_block_evicted_when_host_exists():
     b = _v("馆B", 50, _D2A, 2, tier=9)
     c = _v("馆C", 50, _D2B, 2, tier=9)
     plan = _plan(_d(1, blk, small), _d(2, b, c))
-    _arrival_day_light_sweep(plan, frozenset())
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, blk) == 2
     assert blk.curated is True
 
 
-def test_recruit_escalates_to_whole_day_rebuild():
-    """直落落不下（街区卡唯一营业窗被既有卡占住）→ 升格整日重排：
-    可清卡清时重建后两卡均排上时刻；仍排不上才整步回滚换披露。"""
+def test_no_recruit_accept_empty_arrival_day():
+    """11-11 拍板锚：到达日没收到简单街区卡=留白披露，**绝不从别日
+    挪卡补**——哪怕源日有现成街卡、哪怕有营业窗空档。轻卡落位靠排程
+    顺序（雨日→到达日→正常日→离城日）自然发生，不由终装清扫硬造。"""
     small = _v("小馆", 60, _D3A, 1, tier=9)
     small.poi_id = "p-x"
     small.opening_hours = "10:30-17:00"
-    small.start_time = time(9, 30)  # 直落期占住 09:30-10:30 唯一档
+    small.start_time = time(9, 30)
     st = _v("样本坊", 60, _ST, 2, tier=4)
     st.poi_id = "p-y"
-    st.opening_hours = "09:30-10:30"  # 唯一可行营业档
+    st.opening_hours = "09:30-10:30"
     dd = _v("馆D", 60, _D3A, 2, tier=9)
     plan = _plan(_d(1, small), _d(2, st, dd))
-    _arrival_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, st) == 1
-    assert st.start_time is not None
+    _endpoint_day_light_sweep(plan, frozenset())
+    # 街卡原地不动（此前的「升格整日重排挪入」机制已按拍板拆除）
+    assert _day_of(plan, st) == 2
     assert _day_of(plan, small) == 1
-    assert small.start_time is not None
+    # 到达日留白必披露
+    assert any("到达日" in a and "留白" in a for a in plan.assumptions)
