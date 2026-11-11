@@ -40,8 +40,10 @@ from datetime import time
 
 from app.services.agent.plan import (
     PlanningAgent,
+    _day_has_dinner_show,
     _enforce_show_per_day,
     _fallback_sequence_times,
+    _is_dinner_show_item,
     _is_show_banquet_item,
     _is_show_item,
     _probe_visit_slot,
@@ -866,3 +868,78 @@ def test_no_free_day_sacrifices_weakest_anchored_show():
             and (_is_show_item(i) or _is_show_banquet_item(i))
         ]
         assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+# ---------- 2026-11-11 拍板：晚宴秀直接作为晚饭卡（占晚餐槽） ----------
+
+
+def _dinner_show_case(name, *, category, opening_hours=None, poi_id="p1"):
+    return VisitItem(
+        item_id="x",
+        name=name,
+        poi_id=poi_id,
+        category=category,
+        city="西安",
+        day=1,
+        duration_minutes=80,
+        best_visit_time="show" if category == "entertainment" else None,
+        opening_hours=opening_hours,
+    )
+
+
+def test_dinner_show_item_recognises_dinner_with_show():
+    """2026-11-11 用户拍板「唐乐宫就是带表演的晚宴，晚宴应该直接作为晚饭
+    卡」：SHOW 卡名字/营业时段带宴席语素即占晚餐槽。"""
+    # 时段带「晚宴秀」（唐乐宫口径：仅夜场（晚宴秀，约19:30一场））
+    assert _is_dinner_show_item(
+        _dinner_show_case(
+            "某剧院",
+            category="entertainment",
+            opening_hours="仅夜场（晚宴秀，约19:30一场）",
+        )
+    )
+    # 名字带「餐秀」
+    assert _is_dinner_show_item(
+        _dinner_show_case("某沉浸式餐秀", category="entertainment")
+    )
+    # 名字带「伴宴」
+    assert _is_dinner_show_item(
+        _dinner_show_case("某乐舞伴宴", category="entertainment")
+    )
+
+
+def test_dinner_show_item_does_not_swallow_plain_shows():
+    """普通演出不是晚宴——不得因占晚餐槽被免掉晚饭。"""
+    for nm, oh in (
+        ("《长恨歌》演出", "仅夜场（约20:10/21:35两场）"),
+        ("《驼铃传奇》秀", "多场（约15:00/20:00，旺季加场至4场）"),
+        ("《西安千古情》", "多场（约14:00/16:30，旺季11:00起加场）"),
+    ):
+        assert not _is_dinner_show_item(
+            _dinner_show_case(nm, category="entertainment", opening_hours=oh)
+        ), nm
+
+
+def test_dinner_show_item_ignores_non_show_categories():
+    """food 宴卡走 _is_show_banquet_item 既有口径；观光点带「宴」字不误伤。"""
+    assert not _is_dinner_show_item(
+        _dinner_show_case("保定宴饮食博物馆", category="museum")
+    )
+    assert not _is_dinner_show_item(_dinner_show_case("某餐馆", category="food"))
+
+
+def test_day_has_dinner_show_covers_day_items():
+    d = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _dinner_show_case(
+                "唐乐宫《大唐女皇》",
+                category="entertainment",
+                opening_hours="仅夜场（晚宴秀，约19:30一场）",
+            )
+        ],
+    )
+    assert _day_has_dinner_show(d)
+    empty = DayPlan(day=2, base_city="西安", items=[])
+    assert not _day_has_dinner_show(empty)

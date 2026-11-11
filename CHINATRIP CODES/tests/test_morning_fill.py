@@ -23,6 +23,8 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.solver import (
+    effective_show_sessions,
+    is_sessionless_show,
     show_session_starts,
     solve_day,
 )
@@ -105,9 +107,144 @@ def test_show_session_starts_parses_single_session_declarations():
         show_session_starts("夜间街区演艺（约16:30-22:00滚动，不倒翁约19:00起）") == []
     )
     assert show_session_starts("夜场为主（晚间场约19:00-20:00，以当日公告为准）") == []
-    # 真无场次（场次随排期/以当日公告为准）仍回空，走 11-06 拍板正常景点逻辑
+    # 真无场次仍回空（场次点解析不认这两类文案）——两档分流在
+    # effective_show_sessions / is_sessionless_show，不在解析层
     assert show_session_starts("场次随排期（驻场/巡演）") == []
     assert show_session_starts("多场（含下午场，以当日公告为准）") == []
+
+
+def test_show_session_starts_admits_late_second_sessions():
+    # 2026-11-11 用户拍板「晚二场信息可以显示出来」：场次上界此前卡在
+    # DAY_END_MINUTES=21:00，21:10/21:35/21:40 的晚二场被滤掉只剩首晚场。
+    assert show_session_starts(
+        "仅夜场（约20:10/21:35两场；演出季4-10月，冬季停演）"
+    ) == [
+        20 * 60 + 10,
+        21 * 60 + 35,
+    ]
+    assert show_session_starts("仅夜场（拉萨，约20:00/21:40两场）") == [
+        20 * 60,
+        21 * 60 + 40,
+    ]
+    assert show_session_starts("仅夜场（约19:30/21:10两场）") == [
+        19 * 60 + 30,
+        21 * 60 + 10,
+    ]
+
+
+def test_effective_show_sessions_defaults_tba_show_to_1930():
+    # 2026-11-11 用户拍板「以当日现场为准的宴会或者 SHOW 设成晚上」——
+    # **只有**自称以公告/现场为准的场次不可知演出回落 19:30 默认晚场。
+    assert effective_show_sessions("show", "多场（含下午场，以当日公告为准）") == [
+        19 * 60 + 30
+    ]
+    assert effective_show_sessions(
+        "show", "夜场为主（晚间场约19:00-20:00，以当日公告为准）"
+    ) == [19 * 60 + 30]
+    assert effective_show_sessions("show", "仅夜场（以当日现场为准）") == [19 * 60 + 30]
+    assert effective_show_sessions(None, "多场（含下午场，以当日公告为准）") == []
+    # entertainment 但 bvt='any' 的室内体验馆/游乐场不是 SHOW（全天开放），
+    # 回落 [] 仍按正常景点排，不得被钉到 19:30。
+    assert effective_show_sessions("any", "周一至周日 10:00-22:00 最晚进入21:15") == []
+    # 有真场次时不被默认值覆盖
+    assert effective_show_sessions(
+        "show", "仅夜场（约20:10/21:35两场；演出季4-10月，冬季停演）"
+    ) == [20 * 60 + 10, 21 * 60 + 35]
+
+
+def test_effective_show_sessions_leaves_plain_sessionless_show_unpinned():
+    # 2026-11-11 用户拍板「无场次 SHOW 设成可以下午或者晚上」：不带
+    # 「以当日公告/现场为准」语素的无场次演出不回落 19:30 点窗，交
+    # is_sessionless_show 走下午或晚上域。
+    assert effective_show_sessions("show", "场次随排期（驻场/巡演）") == []
+    assert effective_show_sessions("show", "全天多剧场滚动（约10:00-21:00）") == []
+    assert effective_show_sessions("show", None) == []
+
+
+def test_is_sessionless_show_splits_the_two_tiers():
+    assert is_sessionless_show("show", "场次随排期（驻场/巡演）") is True
+    assert is_sessionless_show("show", "全天多剧场滚动（约10:00-21:00）") is True
+    assert is_sessionless_show("show", None) is True
+    # 以当日公告/现场为准 → 归「晚上」档，不是「下午或晚上」档
+    assert is_sessionless_show("show", "多场（含下午场，以当日公告为准）") is False
+    assert is_sessionless_show("show", "仅夜场（以当日现场为准）") is False
+    # 有真场次的走场次点窗通道
+    assert is_sessionless_show("show", "仅夜场（约19:30一场）") is False
+    # 非 SHOW 条目不适用
+    assert is_sessionless_show("any", "场次随排期") is False
+    assert is_sessionless_show(None, None) is False
+
+
+def test_solve_day_tba_show_lands_on_default_evening_slot():
+    """「以当日公告为准」的无场次 SHOW 落 19:30 默认晚场（2026-11-11 拍板）。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="多场（含下午场，以当日公告为准）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time == time(19, 30)
+
+
+def test_solve_day_plain_sessionless_show_stays_out_of_the_morning():
+    """无场次 SHOW 落位域自中午起开（2026-11-11 拍板「下午或者晚上」）——
+    不再重演无场次演出被钉到 09:00 的晨卡事故。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="场次随排期（驻场/巡演）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time is not None
+    assert got.start_time >= time(12, 0)
+
+
+def test_solve_day_late_second_session_is_reachable():
+    """晚二场放行后，首晚场被占时应能落到 21:35 而非整日不可行。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="仅夜场（约20:10/21:35两场）",
+    )
+    blocker = VisitItem(
+        item_id="fix",
+        name="fix",
+        city="西安",
+        day=1,
+        start_time=time(20, 0),
+        end_time=time(21, 0),
+        duration_minutes=60,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, blocker, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time == time(21, 35)
 
 
 def test_show_session_starts_empty_for_none():
@@ -250,10 +387,49 @@ def test_fallback_failure_does_not_poison_cursor():
     assert small.start_time is not None  # 不被前面失败顶飞
 
 
-def test_fallback_sessionless_show_schedules_normally():
-    """无场次演出按正常景点排（2026-11-06 拍板，废除 17:00 晚场地板）：
-    无营业窗、无场次串 → 随游标正常落位，不再钉晚场。"""
-    s = _visit("show", dur=80, best_visit_time="show", category="entertainment")
+def test_fallback_tba_show_lands_on_default_evening_slot():
+    """「以当日公告为准」的无场次 SHOW 兜底落 19:30（2026-11-11 用户拍板
+    「以当日现场为准的宴会或者 SHOW 设成晚上」）。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="多场（含下午场，以当日公告为准）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+
+    _fallback_sequence_times(plan)
+
+    assert s.start_time is not None
+    assert s.start_time == time(19, 30)
+    assert s.end_time == time(20, 50)
+
+
+def test_fallback_plain_sessionless_show_starts_no_earlier_than_noon():
+    """无场次 SHOW 兜底自中午起探（2026-11-11 拍板「可以下午或者晚上」）——
+    不回落日始 09:00，也不被钉死 19:30。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="场次随排期（驻场/巡演）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+
+    _fallback_sequence_times(plan)
+
+    assert s.start_time is not None
+    assert s.start_time >= time(12, 0)
+
+
+def test_fallback_sessionless_nonshow_entertainment_schedules_normally():
+    """entertainment 但 bvt='any' 的室内体验馆不是 SHOW（全天开放）——
+    不吃 19:30 默认晚场，随游标正常落位（2026-11-11 拍板的收窄面）。"""
+    s = _visit("venue", dur=80, best_visit_time="any", category="entertainment")
     day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
     plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
 

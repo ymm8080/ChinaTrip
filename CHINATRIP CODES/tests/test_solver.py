@@ -426,21 +426,26 @@ def test_plan_poi_hours_parses_lunch_break_complement():
     assert ws == [(9 * 60, 12 * 60), (13 * 60 + 30, 17 * 60)]
 
 
-# --- 无场次演出按正常景点逻辑排（2026-11-06 拍板，废除旧 S5 §4 晚场默认）------
+# --- 无场次演出两档分流（2026-11-11 拍板，取代 2026-11-06「按正常景点排」）---
 
 
 def test_show_without_sessions_schedules_like_normal_sight():
-    """无场次演出不再默认晚场：无营业窗、无场次串时按正常景点域排（日始起）。"""
+    """无场次 SHOW 落位域自中午起开：不钉 20:10 晚场，也不回落日始 9 点。
+
+    2026-11-06 曾拍板「按正常景点排」，实际效果是随日始落到 09:00（无场次
+    晨卡事故）；2026-11-11 用户改拍「无场次 SHOW 设成可以下午或者晚上」，
+    下界抬到 12:00，上界仍按日终收口。
+    """
     day = DayPlan(
         day=1,
         base_city="西安",
         items=[_visit("v_show", poi_id="p_all", dur=80, best_visit_time="show")],
     )
-    # 无营业时间条目、无场次串 → 不再钉 20:10，随日始 9 点正常排
+    # 无营业时间条目、无场次串 → 下午或晚上域，makespan 取最早可行 = 正午
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
     start = _minutes(solved.items[0].start_time)
-    assert start == 9 * 60
+    assert start == 12 * 60
     assert _minutes(solved.items[0].end_time) == start + 80
 
 

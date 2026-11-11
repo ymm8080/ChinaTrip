@@ -98,6 +98,7 @@ from app.services.itinerary.solver import (
     DAY_START_MINUTES,
     LEAVING_MORNING_END_MINUTES,
     NEAR_SAMEDAY_KM,
+    SHOW_AFTERNOON_START_MINUTES,
     SHOW_LATE_SESSION_MINUTES,
     THEME_BLOCK_AFTERNOON_MINUTES,
     TIGHT_CLUSTER_KM,
@@ -105,7 +106,9 @@ from app.services.itinerary.solver import (
     _is_big_site,
     _is_theme_block,
     _leaving_morning_cap,
+    effective_show_sessions,
     generic_entry_cap,
+    is_sessionless_show,
     show_session_starts,
     solve_plan,
     tight_cluster_split_violations,
@@ -7853,7 +7856,9 @@ def _fallback_sequence_times(
         for visit in untimed:
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
             sessions = (
-                show_session_starts(visit.opening_hours) if _is_show_item(visit) else []
+                effective_show_sessions(visit.best_visit_time, visit.opening_hours)
+                if _is_show_item(visit)
+                else []
             )
             placed_at: int | None = None
             if sessions:
@@ -7986,9 +7991,8 @@ def _fallback_sequence_times(
             else:
                 # ④时段窗下限与 solver 同口径：evening 17:00 /
                 # sunset 16:00 / afternoon 12:00（morning/sunrise 随
-                # 日始 9 点，天然无下探）。无场次演出不再有 17:00 地板
-                # （2026-11-06 拍板：无场次按正常景点逻辑排，"show" 不在
-                # 时段窗表 → 随游标正常排）。
+                # 日始 9 点，天然无下探）。无场次 SHOW 走下午或晚上
+                # （2026-11-11 拍板）：自中午起探，不回落日始 9 点。
                 wlo = (
                     None
                     if _is_theme_block(visit)
@@ -7996,7 +8000,10 @@ def _fallback_sequence_times(
                         str(visit.best_visit_time or "").strip().lower()
                     )
                 )
-                t = max(cursor, wlo[0] if wlo else DAY_START_MINUTES)
+                _floor = wlo[0] if wlo else DAY_START_MINUTES
+                if is_sessionless_show(visit.best_visit_time, visit.opening_hours):
+                    _floor = max(_floor, SHOW_AFTERNOON_START_MINUTES)
+                t = max(cursor, _floor)
                 if (
                     _is_head_candidate(visit)
                     and _is_big_site(visit)
@@ -8760,6 +8767,30 @@ def _cand_is_show_banquet(cand: dict, spec: dict) -> bool:
 
 def _day_has_show_banquet(day: DayPlan) -> bool:
     return any(isinstance(i, VisitItem) and _is_show_banquet_item(i) for i in day.items)
+
+
+#: 晚宴秀语素（2026-11-11 用户拍板「唐乐宫就是带表演的晚宴，晚宴应该直
+#: 接作为晚饭卡」）：SHOW 类卡名字/营业时段带这类语素＝那场演出本身就含
+#: 宴席——占晚餐槽，不再另插「晚饭（自由安排）」。
+_DINNER_SHOW_TEXT_MARKS = ("晚宴秀", "餐秀", "伴宴")
+
+
+def _is_dinner_show_item(item: VisitItem) -> bool:
+    """晚宴秀条目（SHOW 卡身份 + 含宴席语素）。
+
+    与 `_is_show_banquet_item`（food+curated 宴卡）分工：本判定**只管餐槽
+    归属**，不改演出卡在每场闸/无时刻保护名册里的身份——晚宴秀仍是演出，
+    走「可挪日的演出」口径，不因宴卡「跟随簇、无簇伴即取消」那条被清掉。
+    语素取「晚宴秀/餐秀/伴宴」这类强指向，普通演出（长恨歌/千古情）不误伤。
+    """
+    if not _is_show_item(item):
+        return False
+    text = f"{item.name or ''}|{item.opening_hours or ''}"
+    return any(m in text for m in _DINNER_SHOW_TEXT_MARKS)
+
+
+def _day_has_dinner_show(day: DayPlan) -> bool:
+    return any(isinstance(i, VisitItem) and _is_dinner_show_item(i) for i in day.items)
 
 
 def _day_show_taken(day: DayPlan) -> bool:
@@ -17783,7 +17814,12 @@ class PlanningAgent:
                     and _overlaps_dinner(i)
                     for i in day_plan.items
                 )
-                if has_real_dinner_food:
+                # 晚宴秀占晚餐槽（2026-11-11 拍板「唐乐宫就是带表演的晚
+                # 宴，晚宴应该直接作为晚饭卡」）：SHOW 卡带宴席语素即当晚
+                # 那场晚饭——不再另搜餐厅/插「晚饭（自由安排）」。按语素认
+                # 不按时刻认：晚宴秀 19:30 开场落在晚餐窗 17:30-19:30 之外，
+                # 时间重叠判据捕不到。
+                if has_real_dinner_food or _day_has_dinner_show(day_plan):
                     continue
                 try:
                     dinner_win = meal_window(day_plan, "dinner")

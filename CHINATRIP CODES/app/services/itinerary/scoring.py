@@ -412,7 +412,14 @@ def plan_score(
             if e is None:
                 e = s + (v.duration_minutes or 60)
             spans.append((s, e))
-            if e > DAY_END_MINUTES:
+            # 晚二场按真场次排不计日终越界（2026-11-11 用户拍板「晚二场
+            # 信息可以显示出来」）：长恨歌 21:35/文成公主 21:40 等场次是客
+            # 观真值，收尾跨过日终不是排程错误，不该吃 violations 硬罚——
+            # 否则 solver 放行了、评分又把它罚回去，等于没放行。
+            if e > DAY_END_MINUTES and not (
+                str(v.best_visit_time or "") == "show"
+                and s in show_session_starts(v.opening_hours)
+            ):
                 overruns += 1
             cat = str(v.category or "")
             bvt = str(v.best_visit_time or "")

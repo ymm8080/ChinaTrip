@@ -48,6 +48,28 @@ logger = logging.getLogger(__name__)
 # 车次/航班时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
 DAY_START_MINUTES = 9 * 60
 DAY_END_MINUTES = 21 * 60
+#: 晚场演出可突破日终（2026-11-11 用户拍板「晚二场信息可以显示出来」）：
+#: 场次点窗起点不受 DAY_END_MINUTES 回减约束——双晚场演出的第二晚场
+#: （常见 21:10/21:35/21:40 量级）此前被场次上界滤掉，只剩首晚场可排。
+#: 观光/餐宿仍按 DAY_END_MINUTES 收口不变。
+SHOW_SESSION_LATEST_MINUTES = 23 * 60
+#: 无场次 SHOW 的下午/晚场下界（2026-11-11 用户拍板「无场次 SHOW 设成
+#: 可以下午或者晚上」）：解析不出真场次、也非「以当日公告/现场为准」的
+#: 演出，落位域自中午起开——下午或晚上由 makespan/场次偏好/簇锚决定，
+#: 不钉晚场点，也不回落日始 9 点（那样会重演「无场次演出排成晨卡」）。
+SHOW_AFTERNOON_START_MINUTES = 12 * 60
+#: 场次不可知语素（2026-11-11 用户拍板「以当日现场为准的宴会或者 SHOW
+#: 设成晚上」）：当日场次点解析不出、且文案自称以公告/现场为准的演出，
+#: 按 DEFAULT_SHOW_SESSION_MINUTES 默认晚场落。注意「场次随排期」不在此
+#: 列——它归「无场次 SHOW」档，走下午或晚上。
+_TBA_SESSION_MARKS = (
+    "以当日公告为准",
+    "以当日现场为准",
+    "以现场公告为准",
+)
+#: 无场次 SHOW 的默认晚场起点（2026-11-11 拍板「以当日公告为准的 SHOW
+#: 默认为晚上 19:30」）。
+DEFAULT_SHOW_SESSION_MINUTES = 19 * 60 + 30
 #: Fallback when an item carries no duration.
 DEFAULT_VISIT_MINUTES = 60
 #: Fallback when the travel matrix has no entry for an ordered pair.
@@ -62,10 +84,11 @@ _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
     "sunrise": (9 * 60, 10 * 60 + 30),  # 09:00-10:30 近似窗（随日始）
 }
 
-#: 2026-11-06 拍板：无场次演出不再默认晚场（旧 S5 §4 曾把无场次演出
-#: 钉死 20:10-20:45 开演域，全天滚动型街区被硬套固定晚场默认）——
-#: 无场次演出按正常景点逻辑排（营业窗 + best_visit 晚场豁免闸不约束），
-#: 带真场次（约xx:xx 串）的演出仍走场次点窗通道。
+#: 演出三档分流（2026-11-11 拍板，取代 2026-11-06「无场次演出按正常景点
+#: 排」——那条实际让无场次演出随日始落到 09:00）：带真场次（约xx:xx 串）的
+#: 走场次点窗通道；自称「以当日公告/现场为准」的无场次 SHOW 回落 19:30
+#: 默认晚场；其余无场次 SHOW 落位域自中午起开，下午或晚上皆可。
+#: 全天滚动型街区（约10:00-21:00 / 约xx:00起）不是场次点，归第三档。
 
 
 def _is_show(item: VisitItem) -> bool:
@@ -77,7 +100,7 @@ def _is_show(item: VisitItem) -> bool:
 #: 管线写入 opening_hours 列）。
 _SESSION_LIST_RE = re.compile(r"约\s*((?:\d{1,2}:\d{2}\s*[/、,]\s*)+\d{1,2}:\d{2})")
 #: 单场声明「约19:30一场」「约20:00一场，旺季加场」「演出季约20:00，旺季
-#: 加16:00场」——2026-11-11 唐乐宫事故根因：列表式要求 ≥2 个点，单场演出
+#: 加16:00场」——2026-11-11 补口根因：列表式要求 ≥2 个点，仅夜场单场演出
 #: 解析出空表 → 落「无场次按正常景点排」（2026-11-06 拍板）→ 钉到
 #: DAY_START 09:00。排除区间（约10:00-21:00 滚动剧场）与「约19:00起」
 #: （滚动街区）——二者是开放窗不是场次点。
@@ -101,14 +124,55 @@ def show_session_starts(text: str | None) -> list[int]:
     for m in _SESSION_LIST_RE.finditer(text):
         for hh, mm in _SESSION_TIME_RE.findall(m.group(1)):
             t = int(hh) * 60 + int(mm)
-            if DAY_START_MINUTES <= t <= DAY_END_MINUTES:
+            if DAY_START_MINUTES <= t <= SHOW_SESSION_LATEST_MINUTES:
                 starts.append(t)
     for m in _SESSION_SINGLE_RE.finditer(text):
         hh, mm = m.group(1).split(":")
         t = int(hh) * 60 + int(mm)
-        if DAY_START_MINUTES <= t <= DAY_END_MINUTES:
+        if DAY_START_MINUTES <= t <= SHOW_SESSION_LATEST_MINUTES:
             starts.append(t)
     return sorted(set(starts))
+
+
+def _has_tba_session_mark(text: str | None) -> bool:
+    return bool(text) and any(m in text for m in _TBA_SESSION_MARKS)
+
+
+def is_sessionless_show(best_visit_time: str | None, opening_hours: str | None) -> bool:
+    """无场次 SHOW（2026-11-11 用户拍板「无场次 SHOW 设成可以下午或者晚上」）。
+
+    真场次解析不出、也不带「以当日公告/现场为准」语素的演出——落位域自
+    SHOW_AFTERNOON_START_MINUTES 起开，下午或晚上皆可，不钉晚场点。
+    """
+    if (best_visit_time or "") != "show":
+        return False
+    return not show_session_starts(opening_hours) and not _has_tba_session_mark(
+        opening_hours
+    )
+
+
+def effective_show_sessions(
+    best_visit_time: str | None,
+    opening_hours: str | None,
+) -> list[int]:
+    """SHOW 条目当日场次表：真场次优先；带「以当日公告/现场为准」语素的
+    无场次 SHOW 回落 19:30 默认晚场（2026-11-11 用户拍板「以当日现场为准
+    的宴会或者 SHOW 设成晚上」）。
+
+    solver 的场次点窗通道与 plan.py 的兜底排程共用本函数，避免两条路径
+    口径分叉（solver 钉 19:30、兜底仍按正常景点排到 09:00）。
+
+    两档分流（2026-11-11 用户拍板）：**只有**自称以公告/现场为准的场次
+    不可知演出回落默认晚场；其余无场次 SHOW 由 is_sessionless_show 识别，
+    走下午或晚上域，不在本函数返回点窗。bvt!='show' 的 entertainment
+    室内体验馆/游乐场不是 SHOW，回落 [] 仍按正常景点排。
+    """
+    starts = show_session_starts(opening_hours)
+    if starts:
+        return starts
+    if (best_visit_time or "") == "show" and _has_tba_session_mark(opening_hours):
+        return [DEFAULT_SHOW_SESSION_MINUTES]
+    return []
 
 
 #: 2026-10-31 用户拍板（城心簇古迹 17:00 入场事故）→ 2026-11-01 修正
@@ -589,13 +653,16 @@ def _visit_spec(
     # 2026-10-31：带真场次的演出按场次点开窗（下方 multi 通道承载），
     # 不再吃晚场替换——白天多场演出不再被硬塞固定晚窗。
     # pinned 演出仍走原域（铁律 19：用户钉的时间优先于场次表）。
+    # 2026-11-11 两档分流拍板：带「以当日公告/现场为准」语素的无场次 SHOW
+    # 由 effective_show_sessions 回落 19:30 默认晚场（走下方场次点窗）；
+    # 其余无场次 SHOW 由 is_sessionless_show 识别，走下午或晚上域（下方
+    # lo 抬中午），不钉晚场点。bvt!='show' 的 entertainment 室内体验馆
+    # 不是 SHOW，回落 [] 仍按正常景点逻辑，营业窗/入场闸照常收口。
     show_sessions = (
-        show_session_starts(item.opening_hours)
+        effective_show_sessions(item.best_visit_time, item.opening_hours)
         if _is_show(item) and not item.pinned
         else []
     )
-    # 无场次演出按正常景点逻辑（2026-11-06 拍板）：best_visit="show" 不
-    # 在 _BEST_VISIT_WINDOWS → 不加窗约束，营业窗/入场闸照常收口。
     best = (
         None
         if _is_theme_block(item)
@@ -604,6 +671,12 @@ def _visit_spec(
     if best is not None:
         lo = max(lo, best[0])
         hi = min(hi, best[1] - dur)
+    if not item.pinned and is_sessionless_show(
+        item.best_visit_time, item.opening_hours
+    ):
+        # 无场次 SHOW 下午或晚上（2026-11-11 拍板）：落位域自中午起开，
+        # 不再回落日始 9 点重演「无场次演出排成晨卡」。
+        lo = max(lo, SHOW_AFTERNOON_START_MINUTES)
     window = hours.get(item.poi_id) if item.poi_id is not None else None
     cap = generic_entry_cap(item, window)
     if cap is not None:
@@ -633,6 +706,10 @@ def _visit_spec(
     if show_sessions:
         # 场次点窗：start 必恰落其中一个场次（段 (s, s)，G3 ExactlyOne 承载）
         multi = [(s, s) for s in show_sessions]
+        # 晚二场可破日终（2026-11-11 拍板）：起点域须容得下最晚场次，否则
+        # AddExactlyOne 与 start<=hi 互斥 → 整日不可行。只抬上界，观光/餐宿
+        # 的 lo/hi 已由日终与入场闸收过口。
+        hi = max(hi, max(show_sessions))
 
     # 系统餐软锚（2026-11-01 晚拍板「午饭/顺路餐厅/晚饭都不用钉死」）：
     # 未钉（pinned=False）但系统摆的餐件（soft_pin）仍以落位时刻为锚——
@@ -1149,7 +1226,9 @@ def solve_day(
                 lit_ord.Not()
             )
             gap = model.NewIntVar(
-                0, DAY_END_MINUTES, f"cgap_{it_a.item_id}_{it_n.item_id}"
+                0,
+                max(DAY_END_MINUTES, max((s.hi for s in specs), default=0)),
+                f"cgap_{it_a.item_id}_{it_n.item_id}",
             )
             model.Add(
                 gap == starts[n_idx] - starts[a_idx] - sizes[a_idx]
