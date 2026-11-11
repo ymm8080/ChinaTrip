@@ -93,3 +93,76 @@ pois_refresh.log
 
 # 预约规则运行时快照（all-429 空转产物不入库；根 DESIGN/ 文档不受影响）
 CHINATRIP CODES/DESIGN/*_snapshot_*.json
+
+# 2026-11-11 收编：会话级临时探针与运行产物（结案即弃，470 条未跟踪噪音的主要来源）
+# 只收编命名上自证临时的产物。仍留在 git status 里的不是噪音而是待拍板项：
+#   CHINATRIP CODES/DESIGN/            两份 taxonomy 文档
+#   DESIGN/POIS DATASOURCE/retire_manual_ledger_*.csv   退役台账
+#   CHINATRIP CODES/ops/alias_watchdog.ps1              运维看门狗（正式脚本）
+#   DESIGN/Manual/                     平台用户手册 md+docx
+#   ops/tier_a_round_2026110*.py       17 个已执行完毕的 tier 分级批处理脚本，
+#                                      可能具审计价值，忽略与否待拍板
+# 另：tmp_unesco/seed_banquet*.sql 被下面的 tmp_unesco/* 一并忽略了，若要把
+# 宴会种子脚本入库，需同时补 ! 例外。
+CHINATRIP CODES/ops/_tmp_*
+CHINATRIP CODES/tmp_*
+CHINATRIP CODES/openapi_tmp.json
+tmp_verify_*/
+tmp_pre_b9/
+tmp_xian/
+_tmp_*.patch
+agent_reports*_tmp.txt
+DESIGN/intro_*.err
+DESIGN/intro_*.out
+DESIGN/llm_web_r*.err
+DESIGN/llm_web_r*.log
+DESIGN/llm_web_r*.out
+
+# 运维运行时状态与库表备份快照（机器本地，重跑即再生）
+CHINATRIP CODES/ops/alt_*
+CHINATRIP CODES/ops/diag_*
+CHINATRIP CODES/ops/_probe_*
+CHINATRIP CODES/ops/probe_*
+CHINATRIP CODES/ops/tmp_*
+CHINATRIP CODES/ops/*_state.json
+CHINATRIP CODES/ops/*_status.json
+CHINATRIP CODES/ops/*_backup_*.json
+CHINATRIP CODES/ops/*_backup.json
+CHINATRIP CODES/ops/*.err
+CHINATRIP CODES/ops/*.dump
+CHINATRIP CODES/ops/pois_category_null_*.txt
+
+# tmp_unesco 是一次性抓取/验证工作区，其余 html/pdf/探针/补丁产物不入库。
+# 用 tmp_unesco/* 而非 tmp_unesco/——目录级排除会让下面的 ! 例外失效。
+tmp_unesco/*
+
+# 并行会话留下的仓库完整副本（内含 CHINATRIP CODES/ 等 18 项，非本仓产物）
+ct_main/
+ops/_tmp_*
+ops/*_progress.json
+ops/_reuse_idx_tmp.json
+# 库表备份快照集中地（重跑即再生）
+DESIGN/backup/
+# 会话输入记录残留
+CHINATRIP CODES/hist.txt
+
+# 上面几条宽泛模式会连带命中已在库里的 16 个文件，逐一 ! 回来。
+# gitignore 不影响已跟踪文件的版本控制状态，但规则不该与事实相反——
+# 留着会让后来者误以为这些脚本/快照「不入库」，将来 git rm --cached 时
+# 它们会被静默吞掉。
+!CHINATRIP CODES/ops/_probe_import_ocr.py
+!CHINATRIP CODES/ops/diag_beilin_dupe_probe.py
+!CHINATRIP CODES/ops/diag_beilin_smoke.py
+!CHINATRIP CODES/ops/probe_family_merge_xian_20261107.py
+!CHINATRIP CODES/ops/probe_family_reversal_20261107.py
+!CHINATRIP CODES/ops/probe_night_combo_contiguity_20261107.py
+!CHINATRIP CODES/ops/pois_shiershichen_block_backup_20261107.json
+!CHINATRIP CODES/ops/pois_shiershichen_geofix_backup_20261107.json
+!tmp_unesco/align_5a_worksheet.py
+!tmp_unesco/build_guobao6.py
+!tmp_unesco/build_museum2_sevenprov.py
+!tmp_unesco/build_museum3_batches.py
+!tmp_unesco/parse_batches.py
+!tmp_unesco/restore_unesco_museum_20261103.py
+!tmp_unesco/scrape_ncha_by_province.py
+!tmp_unesco/scrape_ncha_museum_dir.py
