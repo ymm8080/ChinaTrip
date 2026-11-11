@@ -6047,7 +6047,7 @@ def _drop_untimed_from_day(
             isinstance(item, VisitItem)
             and item.start_time is None
             and not item.pinned
-            and item.name not in protect
+            and not any(_site_dup(p, item.name) for p in protect)
             and (item.category or "") not in ("food", "hotel")
         ):
             continue
@@ -11169,7 +11169,12 @@ class PlanningAgent:
         if self._poi_details is None:
             return None
         if search_kw is not None:
-            tokens = [search_kw]
+            # 2026-11-11 陕历博错针案：专名含品类子串（陕西历史博物馆→
+            # 博物馆）被关键词路接管后，search_keyword 的 rank 首键（名字
+            # ==token 精确命中）全库落空，同行高 tier 记录（西安市钟鼓楼
+            # 博物馆）凭末键顶包。全名前置 token：库内精确同名行稳居首位
+            # （首键语义 2026-10-28 已有），无同名行时品类排序行为不变。
+            tokens = [name.strip(), search_kw]
             short = search_kw.rstrip("馆楼店")
             if short and short != search_kw:
                 tokens.append(short)
@@ -21318,7 +21323,10 @@ class PlanningAgent:
         # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——
         # 这里直接落语义绑定与行收口：行程里已有正主时按 poi_id 对上即翻
         # 已排期（note 写「已安排：X 第N天 日期 时间」），没有 plan 时只
-        # 记绑定，等规划回合收口。
+        # 记绑定，等规划回合收口。readd_notes 收 _add_must_visits 的披露串
+        # （2026-11-11 陕历博案：心愿回钉重加时「排不下已移除」的披露在此
+        # 被静默丢弃，回复只报成功——并入 notes 返回才进用户可见回复）。
+        readd_notes: list[str] = []
         try:
             for wish in wishes:
                 if _category_search_keyword(wish) is not None:
@@ -21376,7 +21384,9 @@ class PlanningAgent:
                     ):
                         if wish not in session.must_visits:
                             session.must_visits.append(wish)
-                        await self._add_must_visits(session, [wish])
+                        _, _, readd_note = await self._add_must_visits(session, [wish])
+                        if readd_note:
+                            readd_notes.append(readd_note)
             if session.plan is not None:
                 self._sync_wish_rows(session)
         except Exception:
@@ -21386,7 +21396,7 @@ class PlanningAgent:
             it for group in self._trip_items.list_groups(None).values() for it in group
         ]
         trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}
-        notes: list[str] = []
+        notes: list[str] = list(readd_notes)
         unresolved: list[tuple[str, dict]] = []
         for wish in wishes:
             if _is_service_meta_wish(wish):
@@ -21675,12 +21685,17 @@ class PlanningAgent:
         current_diffs = diffs
         applied: ItineraryPlan | None = None
         summary: ChangeSummary | None = None
+        # untimed 清算披露（2026-11-11 陕历博假成功案）：_drop_untimed_visits
+        # 只写 plan.assumptions，LLM 按插入前中间态回「已加到第N天」——
+        # 落到 notes 才进用户可见回复。每回合重置；落定回合带出。
+        drop_notes: list[str] = []
         error_text = ""
         hard_count = 0
         for round_no in range(MAX_REPAIR_ROUNDS + 1):
             try:
+                drop_notes = []
                 if self._is_structural(current_diffs):
-                    applied, report, summary = self._apply_structural(
+                    applied, report, summary, drop_notes = self._apply_structural(
                         session.plan,
                         current_diffs,
                         protect=frozenset(session.must_visits),
@@ -21719,6 +21734,8 @@ class PlanningAgent:
             current_diffs = repaired
 
         notes: list[str] = []
+        if applied is not None and drop_notes:
+            notes.extend(drop_notes)
         if not error_text:
             plan = applied if applied is not None else session.plan
             # Rule 19 follow-through: a named retime/move keeps its pin at
@@ -21783,14 +21800,16 @@ class PlanningAgent:
         plan: ItineraryPlan,
         diffs: list[DiffOp],
         protect: frozenset[str] = frozenset(),
-    ) -> tuple[ItineraryPlan, ValidationReport, ChangeSummary]:
+    ) -> tuple[ItineraryPlan, ValidationReport, ChangeSummary, list[str]]:
         """Structural change path: apply -> solve -> validate (§6.9).
 
         The solver re-places every non-pinned time, so a cross-day move
         does not drag its stale start time into a rule-1 overlap. Solver
         output is NOT validation-exempt (§6.9 iron rule 0); on solver
         failure the raw applied plan is validated and takes the repair
-        path like any other candidate.
+        path like any other candidate. 末位返回 untimed 清算披露（2026-11-11
+        陕历博案：清算只进 assumptions 不进回复，LLM 按插入前中间态报
+        「已加到第3天」假成功）——调用方须并入用户可见 notes。
         """
         candidate = apply_diffs(plan, diffs)
         candidate.assumptions.extend(_reconcile_transfer_days(candidate, protect))
@@ -21799,6 +21818,7 @@ class PlanningAgent:
         solved = self._solve(candidate, scheduler="cp")
         if solved is not None:
             candidate = solved
+        drop_notes: list[str] = []
         if solved is None or _has_untimed_visits(candidate):
             _fallback_sequence_times(candidate)
             candidate.assumptions.extend(_transfer_day_sweep(candidate, protect))
@@ -21806,7 +21826,8 @@ class PlanningAgent:
             # 编辑侧终闸（2026-11-03 Day4 城郊森林公园案）：普通日 None-None
             # 参访卡同样不得交付——仍排不上按 2026-11-02 拍板移除留痕。
             if _has_untimed_visits(candidate):
-                candidate.assumptions.extend(_drop_untimed_visits(candidate, protect))
+                drop_notes = _drop_untimed_visits(candidate, protect)
+                candidate.assumptions.extend(drop_notes)
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:
@@ -21814,7 +21835,7 @@ class PlanningAgent:
             has_error = any(v.severity == RuleSeverity.error for v in combined)
             report = ValidationReport(ok=not has_error, violations=combined)
         summary = summarize_changes(diffs, plan=plan)
-        return candidate, report, summary
+        return candidate, report, summary, drop_notes
 
     @staticmethod
     def _is_structural(diffs: list[DiffOp]) -> bool:
