@@ -108,8 +108,7 @@ class QuotaDeadLLM:
     ) -> ChatResult:
         self.calls += 1
         raise LLMQuotaError(
-            "zhipu http status 429 (quota exhausted until"
-            f" {self.recover_at}): ...",
+            f"zhipu http status 429 (quota exhausted until {self.recover_at}): ...",
             recover_at=self.recover_at,
         )
 
