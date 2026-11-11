@@ -2218,6 +2218,48 @@ function mtWatchPaint(st) {
   });
 }
 
+// 照片灯箱（2026-11-11 拍板）：悬停首图/简介气泡首图点开看全部 photos，
+// 左右点切/方向键、底部计数+来源小字、Esc/点遮罩关闭；纯前端零请求。
+let _phLB = null;
+function closePhotoLB() {
+  if (_phLB) { const lb = _phLB; _phLB = null; lb.remove(); }
+}
+function openPhotoLB(photos, name, source, startIdx) {
+  closePhotoLB();
+  if (!photos || !photos.length) return;
+  let idx = Math.min(Math.max(startIdx || 0, 0), photos.length - 1);
+  const lb = el('<div style="position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center"></div>');
+  const img = el('<img style="max-width:92vw;max-height:80vh;border-radius:8px" referrerpolicy="no-referrer">');
+  const cap = el('<div style="position:fixed;bottom:16px;left:0;right:0;text-align:center;color:#ddd;font-size:13px;pointer-events:none"></div>');
+  const hint = el('<div style="position:fixed;top:14px;right:18px;color:#bbb;font-size:20px;cursor:pointer">✕</div>');
+  const show = () => {
+    const p = photos[idx] || {};
+    img.src = p.url || "";
+    img.onerror = () => { img.removeAttribute("src"); };
+    const src = source ? I18N.tf("brief.sourcePre","（来源：") + source + I18N.tf("brief.sourceClose","）") : "";
+    cap.textContent = name + "　" + (idx + 1) + " / " + photos.length + src;
+  };
+  const nav = (d) => { idx = (idx + d + photos.length) % photos.length; show(); };
+  lb.appendChild(img); lb.appendChild(cap); lb.appendChild(hint);
+  lb.onclick = (e) => {
+    const x = e.clientX / window.innerWidth;
+    if (e.target === hint || e.target === lb) closePhotoLB();
+    else if (x < 0.4) nav(-1);
+    else if (x > 0.6) nav(1);
+    else closePhotoLB();
+  };
+  const keyH = (e) => {
+    if (!_phLB) { document.removeEventListener("keydown", keyH); return; }
+    if (e.key === "Escape") closePhotoLB();
+    else if (e.key === "ArrowLeft") nav(-1);
+    else if (e.key === "ArrowRight") nav(1);
+  };
+  document.addEventListener("keydown", keyH);
+  document.body.appendChild(lb);
+  _phLB = lb;
+  show();
+}
+
 // 站点简介富化（v2.5 POI 底库）：在现有「地址+开放时间」气泡后异步追加
 // 简介/首图/徽标/电话，字段级来源小字标注；404/失败静默跳过，绝不影响原气泡
 const BRIEF_TAGS = { michelin_1star: "米其林一星", michelin_2star: "米其林二星", michelin_3star: "米其林三星", bib_gourmand: "必比登推荐", star_5: "五星级饭店", star_4: "四星级饭店", star_3: "三星级饭店", star_2: "二星级饭店", star_1: "一星级饭店" };
@@ -2270,8 +2312,9 @@ function enrichBrief(info, city, name) {
       info.appendChild(bd);
     }
     if (photo) {
-      const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0" src="' + esc(photo) + '">');
+      const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0;cursor:pointer" src="' + esc(photo) + '">');
       img.onerror = () => img.remove(); // 挂图隐藏，占位不留
+      img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, 0); };
       info.appendChild(img);
     }
     if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
@@ -2345,8 +2388,9 @@ async function sitePopShow(link) {
   // 防图床防盗链空 referrer 摘除；挂图失败原地移除不留占位
   const popPhoto = p.photos && p.photos[0] && p.photos[0].url;
   if (popPhoto) {
-    const img = el('<img alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" style="display:block;max-width:100%;max-height:100px;border-radius:6px;margin:6px 0 0" src="' + esc(popPhoto) + '">');
+    const img = el('<img alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" style="display:block;max-width:100%;max-height:100px;border-radius:6px;margin:6px 0 0;cursor:pointer" src="' + esc(popPhoto) + '">');
     img.onerror = () => img.remove();
+    img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, 0); };
     pop.insertBefore(img, pop.children[1] || null);
   }
   place();
