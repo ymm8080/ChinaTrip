@@ -13770,9 +13770,10 @@ class PlanningAgent:
                 if _rain_core is None:
                     return False
                 cat = str(cand.get("category") or "").strip()
-                if (
-                    _itin_cap_bucket(cand) != "scenic"
-                    and cat not in ("scenic", "nature", "attraction")
+                if _itin_cap_bucket(cand) != "scenic" and cat not in (
+                    "scenic",
+                    "nature",
+                    "attraction",
                 ):
                     return False
                 xy = _cxy(cand)
