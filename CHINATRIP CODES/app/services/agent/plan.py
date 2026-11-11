@@ -15009,6 +15009,20 @@ class PlanningAgent:
                     )
                     return (hard, unmk)
 
+                def _fam_far_rain(ms: list[int]) -> bool:
+                    # 雨日远郊族降权（2026-11-11 拍板「雨天不倾向去远郊风
+                    # 景区，应安排市内活动」）：全员在市区圈外且含风景区
+                    # 件的族=远郊族——雨窗内殿后认领（市内族先赢档期）；
+                    # 无雨窗口恒 False，晴天族序零扰动。软偏好非硬禁。
+                    if not rainy_here or _ret_anchor is None:
+                        return False
+                    _xs = [_cxy(pool[p][1]) for p in ms]
+                    if not _xs or any(x is None for x in _xs):
+                        return False
+                    if not all(_km(x, _ret_anchor) > _RETURN_URBAN_KM for x in _xs):
+                        return False
+                    return any(_far_scenic_rain(pool[p][1]) for p in ms)
+
                 _pre_feasible: dict[int, int] = {
                     r: sum(1 for d in range(lo, hi + 1) if _try_day(fams[r], d))
                     for r in fams
@@ -15020,6 +15034,9 @@ class PlanningAgent:
                         _pre_feasible[r],
                         -_fam_rain_intol(fams[r])[0],
                         -_fam_rain_intol(fams[r])[1],
+                        # 雨日远郊族殿后（2026-11-11 拍板）：市内族先认领
+                        # 档期，远郊族 absorb 剩余日。
+                        1 if _fam_far_rain(fams[r]) else 0,
                         min(_source_tier(pool[p][1]) for p in fams[r]),
                         # 二拍③：同 best-tier 时族时长合计大者（更难排）先占
                         # 日，规模只作末位 tiebreak——防小族抢走唯一净日，
@@ -15087,6 +15104,50 @@ class PlanningAgent:
                                 len(members),
                             )
                             break
+                        # 雨日减员（2026-11-11 用户拍板「一族太大放不下是可
+                        # 以根据实际情况减景点的，与室外一族绑簇不是不入选
+                        # 的理由」）：全窗被拒且拒因含雨闸时，先裁雨日不合适
+                        # 成员（硬露天/未标注非体验件，_rain_unfit）再重试
+                        # ——2 员族同样裁（裁后余员走单件认领，不落「整簇
+                        # 弃排」）；钉/心愿成员不裁；保留高优先/耐雨成员
+                        # （体验型可坐室内）。拒因纯容量/边日时不走本支，
+                        # 落下方原减员序。2 员裁到 1 员为止——1 员不再裁
+                        # （孤员走散件通道，禁裁到空族）。
+                        if rainy_here and len(members) >= 2:
+                            _why_r: list[tuple[int, str]] = []
+                            for _d_r in range(lo, hi + 1):
+                                _try_day(members, _d_r, why=_why_r)
+                            if any(_r in ("rain", "arrival:rain") for _, _r in _why_r):
+                                _unfit = [
+                                    p
+                                    for p in members
+                                    if not _fam_protected(pool[p][1])
+                                    and _rain_unfit(pool[p][1])
+                                ]
+                                if _unfit:
+                                    drop = max(_unfit, key=_drop_key)
+                                    members.remove(drop)
+                                    _c_drop = pool[drop][1]
+                                    _n_drop = str(_c_drop.get("name") or "?")
+                                    logger.info(
+                                        "plan: cluster-first reduce %s (rain) "
+                                        "from family [%s]",
+                                        _n_drop,
+                                        _names(members),
+                                    )
+                                    if notes is not None:
+                                        notes.append(
+                                            L(
+                                                f"「{_n_drop}」"
+                                                f"（{_rain_exposure_label(_c_drop)}）"
+                                                "雨天不适合，已退出近距离组合"
+                                                "（组内其余成员照常连排）",
+                                                f'"{_n_drop}" (poor fit for a '
+                                                "rainy day) left its tight-knit "
+                                                "group; the rest stay together",
+                                            )
+                                        )
+                                    continue
                         if len(members) <= 2:
                             logger.info(
                                 "plan: cluster-first family [%s] no feasible "
@@ -17333,6 +17394,105 @@ class PlanningAgent:
                     + ", ".join(moved[:8]),
                 )
             )
+        # ③ 体验型保底同类替补+弃排披露（2026-11-11 用户拍板「多样化走
+        # 同类替补，需要实行」）：每行程最少 2 个体验型（_EXPERIENCE_
+        # CATEGORIES，11-07 拍板）是保底——主选排不进时从候选池同类目
+        # 其他候选按库序替补重试（日闸同回填①：4/日帽、预算+腿、露天
+        # 不进雨日、返程日拒收、同天已有演出不再补第二场、仅夜场演出
+        # 走演出钉日通道不进本通道）；替补也排不进最终弃排时必须显式
+        # 披露进 assumptions（不许只留服务端日志）。池内无同类候选可
+        # 替不披露（数据缺口非弃排）。
+        _exp_have = sum(1 for s in picked if _is_experience_cand(s))
+        if _exp_have < 2:
+            _exp_keys = {
+                (
+                    str(s.get("name") or ""),
+                    str(s.get("city") or "").removesuffix("市"),
+                )
+                for s in picked
+            }
+            _exp_failed: list[str] = []
+            for _city_e in sorted(by_city):
+                if _exp_have >= 2:
+                    break
+                _lo_e, _hi_e = ranges.get(_city_e, (1, days))
+                for _idx_e, _cand_e in by_city[_city_e]:
+                    if _exp_have >= 2:
+                        break
+                    if not _is_experience_cand(_cand_e):
+                        continue
+                    _nm_e = str(_cand_e.get("name") or "")
+                    if not _nm_e or _cand_e.get("location") is None:
+                        continue
+                    if (_nm_e, _city_e) in _exp_keys or any(
+                        _name_dup(_nm_e, _dn) for _dn in origin_dropped if _dn
+                    ):
+                        continue
+                    if _cand_is_show(_cand_e) and _show_night_only(_cand_e):
+                        continue
+                    if _twin_blocks(_cand_e):
+                        continue
+                    _min_e = _cand_e.get("suggested_duration_min")
+                    try:
+                        _min_e = int(_min_e) if _min_e else DEFAULT_VISIT_MINUTES
+                    except (TypeError, ValueError):
+                        _min_e = DEFAULT_VISIT_MINUTES
+                    _xy_e = _xy(_cand_e)
+                    for _d_e in range(_lo_e, _hi_e + 1):
+                        if _cap(_d_e) >= 4:
+                            continue
+                        if _cand_is_show(_cand_e) and any(
+                            s.get("category") == "entertainment"
+                            for s in day_specs.get(_d_e, [])
+                        ):
+                            continue  # 演出每场闸
+                        _leg_e = _leg_min(_xy_e, _d_e)
+                        if day_load[_d_e] + _min_e + _leg_e > _budget(_d_e):
+                            continue
+                        if _cand_e.get("rain_ok") == "no" and _d_e in city_rain.get(
+                            _city_e, set()
+                        ):
+                            continue  # 露天不进雨天（同回填①口径）
+                        if _rb_return_reject(_cand_e, _d_e):
+                            continue
+                        _spec_e = {
+                            "name": _cand_e["name"],
+                            "city": _cand_e.get("city"),
+                            "category": _cand_e.get("category") or "sight",
+                            "day": _d_e,
+                            "duration_minutes": _min_e,
+                            "location": _cand_e.get("location"),
+                        }
+                        picked.append(_spec_e)
+                        day_specs.setdefault(_d_e, []).append(_spec_e)
+                        day_load[_d_e] += _min_e + _leg_e
+                        if _xy_e is not None:
+                            day_xy[_d_e].append(_xy_e)
+                        _exp_keys.add((_nm_e, _city_e))
+                        _exp_have += 1
+                        logger.info(
+                            "plan: experience-guarantee substitute %s -> day %d",
+                            _nm_e,
+                            _d_e,
+                        )
+                        break
+                    else:
+                        _exp_failed.append(_nm_e)
+            if _exp_failed:
+                _miss_e = "、".join(_exp_failed[:4])
+                logger.info(
+                    "plan: experience-guarantee fallback dropped: %s", _exp_failed
+                )
+                notes.append(
+                    (
+                        f"体验型活动保底 2 个未达成（当前 {_exp_have} 个）："
+                        f"同类候选「{_miss_e}」排不进已弃排（要加回请说）",
+                        f"Two experience activities per trip not guaranteed "
+                        f"({_exp_have} placed): same-type alternative(s) "
+                        f"{_miss_e} could not fit and were dropped "
+                        f"(say the word to add back)",
+                    )
+                )
         return picked, notes
 
     @staticmethod
