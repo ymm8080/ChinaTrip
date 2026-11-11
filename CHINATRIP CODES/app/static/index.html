@@ -2341,6 +2341,14 @@ async function sitePopShow(link) {
   pop.innerHTML = sitePopHead(name, city) +
     (bits.length ? '<div style="margin-top:2px">' + bits.join("<br>") + "</div>"
                  : '<div class="muted" style="margin-top:2px">' + I18N.t("brief.none") + "</div>");
+  // 悬停首图（2026-11-11 拍板）：detail 响应本就带 photos，纯渲染零额外请求；
+  // 防图床防盗链空 referrer 摘除；挂图失败原地移除不留占位
+  const popPhoto = p.photos && p.photos[0] && p.photos[0].url;
+  if (popPhoto) {
+    const img = el('<img alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" style="display:block;max-width:100%;max-height:100px;border-radius:6px;margin:6px 0 0" src="' + esc(popPhoto) + '">');
+    img.onerror = () => img.remove();
+    pop.insertBefore(img, pop.children[1] || null);
+  }
   place();
 }
 document.addEventListener("mouseover", (ev) => {
