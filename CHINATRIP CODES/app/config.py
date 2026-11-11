@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     # Zhipu GLM cloud API (OpenAI-compatible). Personal key, zero GPU cost.
-    llm_backend: str = "mock"  # "mock" | "zhipu"
+    llm_backend: str = "mock"  # "mock" | "zhipu" | "opencode"
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-5.3-flash"
@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     # (design §6.12: >=80% requests must not reach the main model).
     glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
+    # OpenCode Go 订阅（OpenAI-compatible 推理网关，2026-11-11 切换主力
+    # 会话模型——智谱免费额度按日死，DeepSeek V4.1 Flash 走 Go 包月）。
+    # 会话模块（gate/规划/对话编辑）用这一对；ASR/视觉回填仍走 glm_*。
+    opencode_api_key: str = ""
+    opencode_base_url: str = "https://opencode.ai/inference/go/openai/v1"
+    opencode_model: str = "deepseek-v4.1-flash"
+    # Go 网关硬性要求稳定会话头（缺了直接 400 MissingSessionID）。
+    opencode_session_id: str = "chinatrip"
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
     # ASR 后端开关（translation_pipeline_design_2026-10-30 P0）：

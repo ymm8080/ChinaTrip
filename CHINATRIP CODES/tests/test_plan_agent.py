@@ -34,7 +34,7 @@ from app.services.itinerary import (
     VisitItem,
 )
 from app.services.llm.base import ChatResult
-from app.services.llm.zhipu import LLMError
+from app.services.llm.zhipu import LLMError, LLMQuotaError
 from app.services.poi_details import PoiDetailStore
 from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
 from app.services.trip_items import TripItemService
@@ -92,6 +92,26 @@ class FlakyLLM:
         if self.calls <= self.failures:
             raise LLMError("zhipu request timeout: ReadTimeout")
         return ChatResult(content=self.then, model="flaky")
+
+
+class QuotaDeadLLM:
+    """Every call raises the provider quota-exhausted error (code 1310)."""
+
+    name = "quota-dead"
+
+    def __init__(self, recover_at: str | None = "2026-11-15 01:24:32") -> None:
+        self.recover_at = recover_at
+        self.calls = 0
+
+    async def chat(
+        self, messages, *, temperature: float = 0.3, max_tokens=None
+    ) -> ChatResult:
+        self.calls += 1
+        raise LLMQuotaError(
+            "zhipu http status 429 (quota exhausted until"
+            f" {self.recover_at}): ...",
+            recover_at=self.recover_at,
+        )
 
 
 class StubAmap:
@@ -1421,6 +1441,46 @@ def test_message_edit_llm_timeout_keeps_conversation_alive():
     assert session.plan == before
     assert change is None
     assert session.history[-1].role == "assistant"
+
+
+def test_message_edit_quota_dead_reports_recover_time():
+    # 2026-11-11 事故：账户配额死到未来时间点，旧代码泛化回「请再发一次」，
+    # 用户反复重试毫无变化。配额死必须照实披露恢复时间，且行程不动。
+    llm = QuotaDeadLLM(recover_at="2026-11-15 01:24:32")
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
+    before = session.plan.model_copy(deep=True)
+    session, reply, change = run(agent.message(session, "插入陕西历史博物馆"))
+    assert "额度已用尽" in reply
+    assert "2026-11-15 01:24:32" in reply
+    assert "暂时无响应" not in reply
+    assert session.plan == before
+    assert change is None
+    assert session.history[-1].role == "assistant"
+
+
+def test_message_edit_quota_dead_without_recover_time():
+    llm = QuotaDeadLLM(recover_at=None)
+    agent = PlanningAgent(llm)
+    session = run(
+        agent.start(
+            device_id="d1",
+            cities=["上海"],
+            days=1,
+            preferences="博物馆",
+        )
+    )
+    session, reply, change = run(agent.message(session, "插入陕西历史博物馆"))
+    assert "额度已用尽" in reply
+    assert "暂时无响应" not in reply
+    assert change is None
 
 
 def test_message_edit_parse_failure_retried_then_success():

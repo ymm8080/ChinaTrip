@@ -115,7 +115,12 @@ from app.services.itinerary.solver import (
     tight_cluster_split_violations,
 )
 from app.services.lang_ctx import L, is_en
-from app.services.llm import ChatMessage, LLMError, parse_json_content
+from app.services.llm import (
+    ChatMessage,
+    LLMError,
+    LLMQuotaError,
+    parse_json_content,
+)
 from app.services.poi_details import PoiDetailStore
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
@@ -20489,10 +20494,12 @@ class PlanningAgent:
         data = None
         reply = ""
         diffs: list[DiffOp] = []
+        last_llm_error: LLMError | None = None
         for _ in range(LLM_ATTEMPTS):
             try:
                 result = await self._llm.chat(messages, temperature=0.2)
             except LLMError as exc:
+                last_llm_error = exc
                 logger.warning(
                     "plan: edit llm call failed (%s: %s), retrying",
                     type(exc).__name__,
@@ -20524,13 +20531,32 @@ class PlanningAgent:
                 continue
         if data is None:
             if result is None:
-                # All attempts stalled (glm flash ReadTimeout in prod logs):
-                # keep the conversation alive in-band instead of a 502 dead end.
-                reply = L(
-                    "模型暂时无响应，这轮没有改动行程，请再发一次。",
-                    "The model isn't responding right now; the itinerary is "
-                    "unchanged — please send again.",
-                )
+                if isinstance(last_llm_error, LLMQuotaError):
+                    # 配额死 ≠ 暂时无响应：窗口内重试无效，照实说恢复时间
+                    # （2026-11-11 事故：泛化「请再发一次」把用户卡到死循环）。
+                    recover = last_llm_error.recover_at
+                    if recover:
+                        reply = L(
+                            f"模型额度已用尽（服务商预计 {recover} 恢复），"
+                            "这轮没有改动行程，恢复后再发一次即可。",
+                            "The model quota is exhausted (the provider says it"
+                            f" recovers at {recover}); the itinerary is unchanged"
+                            " — send your request again after that time.",
+                        )
+                    else:
+                        reply = L(
+                            "模型额度已用尽，这轮没有改动行程，请稍后再试。",
+                            "The model quota is exhausted; the itinerary is"
+                            " unchanged — please try again later.",
+                        )
+                else:
+                    # All attempts stalled (glm flash ReadTimeout in prod logs):
+                    # keep the conversation alive in-band instead of a 502 dead end.
+                    reply = L(
+                        "模型暂时无响应，这轮没有改动行程，请再发一次。",
+                        "The model isn't responding right now; the itinerary is "
+                        "unchanged — please send again.",
+                    )
             else:
                 reply = L(
                     "刚才模型回复没能解析，已自动重试仍未成功，请再发一次。",

@@ -1,6 +1,8 @@
 """Zhipu GLM cloud adapter (OpenAI-compatible chat/completions, httpx only)."""
 
 import asyncio
+import re
+from datetime import datetime
 
 import httpx
 
@@ -22,6 +24,48 @@ _SYSTEM_PROMPT = (
 
 class LLMError(Exception):
     """LLM backend failure. Messages are sanitized: never contain the API key."""
+
+
+class LLMQuotaError(LLMError):
+    """Provider quota/rate-limit exhaustion with a stated recovery time.
+
+    zhipu code 1310 bodies carry 「额度将在 <ts> 恢复」——窗口内重试纯属
+    浪费（事故 2026-11-11：整段对话轮次被 futile retry 拖到超时），故
+    单列此型让调用方照实转述恢复时间。"""
+
+    def __init__(self, message: str, *, recover_at: str | None = None) -> None:
+        super().__init__(message)
+        self.recover_at = recover_at
+
+
+_QUOTA_RECOVER_RE = re.compile(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})")
+
+
+def _quota_recover_at(resp: httpx.Response) -> str | None:
+    """Provider quota-dead body (code 1310…) 的恢复时间戳；窗口已过或
+    无戳（如纯每秒限流）返回 None，走常规 spaced retry。"""
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    err = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(err, dict):
+        return None
+    message = err.get("message")
+    if not isinstance(message, str):
+        return None
+    if err.get("code") != 1310 and "限额" not in message:
+        return None
+    match = _QUOTA_RECOVER_RE.search(message)
+    if match is None:
+        return None
+    recover_at = f"{match.group(1)} {match.group(2)}"
+    try:
+        if datetime.strptime(recover_at, "%Y-%m-%d %H:%M:%S") <= datetime.now():
+            return None  # 窗口已过——按普通 429 重试
+    except ValueError:
+        pass
+    return recover_at
 
 
 def _opt_str(value: object) -> str | None:
@@ -48,12 +92,14 @@ class ZhipuGLMAdapter:
         transport: httpx.AsyncBaseTransport | None = None,
         vision_model: str = "glm-4.6v-flash",
         vision_fallback_models: list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.transport = transport
+        self.extra_headers = dict(extra_headers or {})
         # 视觉链（行程导入 OCR / 视频理解同款考量）：4.6v-flash 免费池晚
         # 高峰整段 429，旧免费模型在独立容量池——主模型 429 时切备用链。
         self.vision_models = [vision_model, *(vision_fallback_models or [])]
@@ -148,20 +194,33 @@ class ZhipuGLMAdapter:
         self, path: str, payload: dict, *, timeout_seconds: float | None = None
     ) -> dict:
         timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
+        headers = {"Authorization": f"Bearer {self.api_key}", **self.extra_headers}
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
                 timeout=timeout,
                 transport=self.transport,
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=headers,
             ) as client:
                 resp = None
                 for attempt in range(3):
                     resp = await client.post(path, json=payload)
                     # Free-tier flash pools 429-saturate at evening peak; two
-                    # spaced retries usually squeeze through (probe 2026-10-19)
+                    # spaced retries usually squeeze through (probe 2026-10-19).
                     if resp.status_code != 429 or attempt == 2:
                         break
+                    # 配额死到某个未来时间点（code 1310 + 恢复戳）：窗口内
+                    # 2s/4s 重试不可能挤进去——fail fast 让上层照实披露。
+                    recover_at = _quota_recover_at(resp)
+                    if recover_at is not None:
+                        snippet = (resp.text or "")[:200].replace("\n", " ")
+                        # 「http status 429」子串保留：视觉链按它识别 429 走
+                        # 备用模型（chat_vision），改措辞会静默断链。
+                        raise LLMQuotaError(
+                            "zhipu http status 429 (quota exhausted until "
+                            f"{recover_at}): {snippet}",
+                            recover_at=recover_at,
+                        )
                     await asyncio.sleep(2 * (attempt + 1))
         except httpx.TimeoutException as exc:
             raise LLMError(f"zhipu request timeout: {type(exc).__name__}") from exc

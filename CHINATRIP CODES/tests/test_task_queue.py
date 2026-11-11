@@ -154,6 +154,75 @@ def test_run_forever_requeues_crash_leftovers_then_idles():
     assert store.get(leftover.task_id).status == STATUS_DONE
 
 
+def test_run_forever_survives_store_level_errors():
+    """claim/finish 抛错（sqlite 锁等）不能让 worker 协程静默死亡——
+    进程照常服务 HTTP 而队列停摆（2026-11-11 实探测得 queued 滞留）。"""
+
+    class FlakyStore(TaskStore):
+        def __init__(self):
+            super().__init__(":memory:")
+            self.failures_left = 3
+
+        def claim_next(self):
+            if self.failures_left > 0:
+                self.failures_left -= 1
+                raise RuntimeError("database is locked")
+            return super().claim_next()
+
+    store = FlakyStore()
+    worker = TaskWorker(store, poll_seconds=0)
+
+    async def drive():
+        runner = asyncio.create_task(worker.run_forever())
+        await asyncio.sleep(0.05)
+        runner.cancel()
+        try:
+            await runner
+        except asyncio.CancelledError:
+            pass
+
+    run(drive())
+    assert store.failures_left == 0  # 三次存储层异常后循环仍在轮询
+
+
+def test_watchdog_logs_stack_for_slow_handler(monkeypatch, caplog):
+    import logging
+
+    monkeypatch.setattr("app.services.task_queue._WATCHDOG_SECONDS", 0.05)
+
+    async def slow(payload, task):
+        await asyncio.sleep(0.3)
+        return {"ok": True}
+
+    store, worker = make_worker(handlers={"replan": slow})
+    task = store.enqueue("replan", {}, device_id="d")
+    with caplog.at_level(logging.WARNING, logger="app.services.task_queue"):
+        assert run(worker.tick()) is True
+    done = store.get(task.task_id)
+    assert done.status == STATUS_DONE and done.result == {"ok": True}
+    assert any("still running" in r.getMessage() for r in caplog.records)
+    assert any(" in slow" in r.getMessage() for r in caplog.records)
+
+
+def test_finish_tolerates_non_json_types_in_result(caplog):
+    """plan.model_dump() 默认带 time/datetime 实例——finish 落库 json.dumps
+    抛 TypeError 曾让任务永远卡在 running 并静默杀死 worker（2026-11-11
+    「插入命令受理后无变化」根因）。现按 str 强制序列化并留痕。"""
+
+    import logging
+    from datetime import time
+
+    store = TaskStore(":memory:")
+    task = store.enqueue("replan", {}, device_id="d")
+    store.claim_next()
+    with caplog.at_level(logging.WARNING, logger="app.services.task_queue"):
+        store.finish(task.task_id, {"at": time(12, 39)})
+    done = store.get(task.task_id)
+    assert done.status == STATUS_DONE
+    assert done.result == {"at": "12:39:00"}
+    assert any("非 JSON 类型" in r.getMessage() for r in caplog.records)
+
+
 # --- default handlers ---
 
 

@@ -34,6 +34,11 @@ STATUS_FAILED = "failed"
 # 批量解析上限（§6.12 慢车道「批量任务」是有界的，不是无限吞吐承诺）
 BULK_EXTRACT_MAX_TEXTS = 10
 
+# 任务看门狗：单条跑过该秒数即告警并 dump 协程栈。2026-11-11 事故——
+# 重排任务 running 15+ 分钟无任何日志/CPU/网络连接，三态（烧 CPU / 挂
+# 网络 / 冻同步锁）全不沾，无栈可察只能盲猜；此后每超一个周期留一份栈。
+_WATCHDOG_SECONDS = 120
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS async_tasks (
     id TEXT PRIMARY KEY,
@@ -164,20 +169,29 @@ class TaskStore:
             ).fetchone()
         return self._to_record(taken) if taken is not None else None
 
-    def finish(self, task_id: str, result: dict) -> None:
+    def finish(self, task_id: str, result: dict) -> dict:
+        """落库并返回实际写入的 JSON 串。result 可能带 datetime/time 实例
+        （plan.model_dump() 默认 mode="python"），json.dumps 会抛 TypeError
+        ——该异常发生在 handler 成功之后、状态翻转之前：任务永远卡在
+        running、finish 前的静默版还会顺带杀死整个 worker（2026-11-11
+        事故：插卡命令「受理后无任何变化」的根因）。按 str 强制兜住并
+        留痕（与 /message 响应的 FastAPI 序列化口径一致，"12:39" 字符串）。"""
+        try:
+            blob = json.dumps(result, ensure_ascii=False)
+        except TypeError:
+            logger.warning(
+                "async_tasks: result 含非 JSON 类型，按 str 强制序列化",
+                exc_info=True,
+            )
+            blob = json.dumps(result, ensure_ascii=False, default=str)
         with self._lock:
             self._conn.execute(
                 "UPDATE async_tasks SET status = ?, result = ?, updated_at = ?,"
                 " finished_at = ? WHERE id = ?",
-                (
-                    STATUS_DONE,
-                    json.dumps(result, ensure_ascii=False),
-                    _now(),
-                    _now(),
-                    task_id,
-                ),
+                (STATUS_DONE, blob, _now(), _now(), task_id),
             )
             self._conn.commit()
+        return json.loads(blob)
 
     def fail(self, task_id: str, error: str) -> None:
         with self._lock:
@@ -226,7 +240,7 @@ class TaskWorker:
         try:
             if handler is None:
                 raise ValueError(f"unsupported_kind:{task.kind}")
-            result = await handler(task.payload, task)
+            result = await self._run_with_watchdog(task, handler)
         except Exception as exc:  # noqa: BLE001 — 单任务失败不拖垮 worker
             logger.warning(
                 "slow-lane task %s (%s) failed: %s", task.task_id, task.kind, exc
@@ -237,10 +251,51 @@ class TaskWorker:
             logger.info("slow-lane task %s (%s) done", task.task_id, task.kind)
         return True
 
+    async def _run_with_watchdog(self, task: TaskRecord, handler: TaskHandler) -> dict:
+        """跑 handler 并周期留栈：卡死任务的唯一可诊断证据是协程栈。"""
+        run = asyncio.create_task(handler(task.payload, task))
+        elapsed = 0
+        try:
+            while not run.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(run), _WATCHDOG_SECONDS)
+                except TimeoutError:
+                    elapsed += _WATCHDOG_SECONDS
+                    logger.warning(
+                        "slow-lane task %s (%s) still running after %ds, stack:",
+                        task.task_id,
+                        task.kind,
+                        elapsed,
+                    )
+                    for frame in run.get_stack():
+                        logger.warning(
+                            "  %s:%s in %s",
+                            frame.f_code.co_filename,
+                            frame.f_lineno,
+                            frame.f_code.co_name,
+                        )
+            return run.result()
+        except BaseException:
+            if not run.done():
+                run.cancel()
+            raise
+
     async def run_forever(self) -> None:
         self._store.requeue_running()
         while True:
-            if not await self.tick():
+            try:
+                did_work = await self.tick()
+            except Exception as exc:  # noqa: BLE001 — 存储层异常不能杀循环
+                # tick 只兜 handler 异常；claim/finish/fail 抛错（如 sqlite
+                # 瞬时锁）会让本协程整体死亡且无任何日志——进程照常服务
+                # HTTP，队列却永远停摆（2026-11-11 实探测到 queued 任务
+                # 滞留 11 分钟无人认领）。照面错误、继续轮询。
+                logger.warning(
+                    "slow-lane worker tick failed (store-level), keep polling: %s",
+                    exc,
+                )
+                did_work = False
+            if not did_work:
                 await asyncio.sleep(self._poll_seconds)
 
 
@@ -298,14 +353,19 @@ async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
         await agent.refresh_legs(session)
     sessions.save(session)
     change_payload = (
-        change.model_dump() if hasattr(change, "model_dump") else (change or None)
+        change.model_dump(mode="json")
+        if hasattr(change, "model_dump")
+        else (change or None)
     )
     # H5 轮询完成后用 planRenderSafe 渲染——字段与 /message 响应同构。
-    # worker 落库走 json.dumps，pydantic 模型须显式 model_dump。
+    # worker 落库走 json.dumps：pydantic 模型须显式 model_dump；mode="json"
+    # 产出 JSON-safe 值（time→"12:39" 串），与 FastAPI 响应序列化同口径。
     result: dict = {"reply": reply, "change": change_payload, "state": session.state}
     if session.plan is not None:
-        result["plan"] = session.plan.model_dump()
-        result["violations"] = [v.model_dump() for v in current_violations(session)]
+        result["plan"] = session.plan.model_dump(mode="json")
+        result["violations"] = [
+            v.model_dump(mode="json") for v in current_violations(session)
+        ]
     return result
 
 
