@@ -38,13 +38,13 @@ city,name_zh,verdict,action,session_time_written,evidence,note
 苏州,琵琶语评弹茶馆(苏州平江路店),有常规表演(每日约7-8场12:00-22:30),activated,多场（每日约12:00-22:30七至八场）,m.suzhou.bendibao.com/tour/112344.shtm,
 苏州,聆韵社评弹茶馆(平江路店),有常规表演(每日13:00-22:00点唱式),activated,多场（每日约13:00-22:00点唱式）,travelnews.qunar.com/ugc/suzhou-pingjiang-road-100yuan-day,有"点曲另收费"争议 建议披露
 苏州,苏州湾大剧院,有常规表演(2026全年排期多厅),activated,场次随排期（多厅全年排期，以当日公告为准）,suzhouwandajuyuan.df962388.com/,
-苏州,苏州评弹,存疑(品类词非场馆名 实体指向光裕书厅日场13:30/夜场19:30),stay_inactive_pending_rename,,douban.com/event/37260064/ + suzhou.bendibao.com/xiuxian/20251010/133265.shtm,建议改名"光裕书厅"后激活 待用户拍板
+苏州,苏州评弹,存疑(品类词非场馆名 实体指向光裕书厅日场13:30/夜场19:30),activated+renamed(光裕书厅),多场（日场约13:30/夜场约19:30，以当日公告为准）,douban.com/event/37260064/ + suzhou.bendibao.com/xiuxian/20251010/133265.shtm,2026-11-11用户拍板改名激活 hours_source=manual
 武汉,汉秀剧场,有常规表演(每日多场15:00/17:00/20:00),already_active(未在扫中),与04 CSV一致,dahepiao.com/yc/whhxjcmp,
 武汉,知音号·长江漂移剧场晚宴席,有常规表演(常态夜场19:30 周末加21:00 周一休),activated,仅夜场（约19:30，周末加21:00航次，周一休）,m.wh.bendibao.com/xiuxian/184512.shtm,
 武汉,武汉剧院,不定期演出(巡演剧场 排期密集),activated,场次随排期（巡演剧场，以当日公告为准）,pythonke.com/venue/206.html,
 武汉,琴台大剧院,不定期演出(保利院线 2026-11排期密集),activated,场次随排期（院线排期，以当日公告为准）,wuyiqintaidajuyuan.df962388.com,
 武汉,琴台音乐厅,有常规表演(排期密集),activated,场次随排期（以当日公告为准）,dahepiao.com/news1/yanchu/20250102500467.html,
-武汉,田汉大剧院,有常规表演(已更名"琴岛之夜" 常态晚场约21:00),activated,夜场为主（“琴岛之夜”常态晚场约21:00起）,yaspace.cn/venue/detail/3893.html,建议改名"琴岛之夜" 待用户拍板
+武汉,田汉大剧院,有常规表演(已更名"琴岛之夜" 常态晚场约21:00),activated+renamed(琴岛之夜),夜场为主（“琴岛之夜”常态晚场约21:00起）,yaspace.cn/venue/detail/3893.html,2026-11-11用户拍板改名 原hours保留
 武汉,梨园广场,非演出场所(东湖入口市民广场 仅水幕秀/节庆快闪),stay_inactive,,cnr.cn/hubei/yaowen/20200930/t20200930_525283085.shtml,退役判定正确
 武汉,土拨鼠俱乐部·魔幻剧场乐园,查无常态演出(儿童乐园NPC互动 2025年初曝欠租停业),stay_inactive,,sohu.com/a/517671105_121123872,退役判定正确
 武汉,幻境空间超级元宇宙剧场,非演出场所(VR/5D体验馆 无票在售),stay_inactive,,touch.piao.qunar.com/ticket/detail_556655310.html,退役判定正确
@@ -56,6 +56,10 @@ city,name_zh,verdict,action,session_time_written,evidence,note
 重庆,重庆大剧院,不定期演出(巡演租场型 常年排期在售),activated,场次随排期（巡演租场，以当日公告为准）,m.moretickets.com/topic/venue-129,
 重庆,重庆沉浸式悬浮剧场,非演出场所(5D体验馆 展期2024-06已结束 现况不明),stay_inactive,,klook.com/zh-CN/activity/214220,退役判定正确
 
-# 汇总: 56行核实 46激活(成都7+38批量+汉秀本已active) 9维持inactive 1待拍板(苏州评弹→光裕书厅) 另田汉大剧院→琴岛之夜改名待拍板
+# 汇总: 56行核实 47激活(成都7+38批量+汉秀本已active+光裕书厅改名激活) 9维持inactive
 # 根因注记: 11-10退役扫描"无场次"信号疑为数据源漏抓(携程反爬432/去哪儿死页/票牛空白) 建议复盘 ops/retire_theaters_no_show.py 信号源
 # 回滚: 快照表 pois_opera_reactivate_bak_20261111 (45行=激活前状态)
+# 二轮(2026-11-11用户拍板): ①苏州评弹→光裕书厅改名+激活(场次日13:30/夜19:30) ②田汉大剧院→琴岛之夜改名
+# ③category批量修正: 24行→entertainment(13art+2attraction+5theme_park+1museum+1空+秀宴baidu-food)
+#   2行curated宴秀保留food(大巴扎宴艺大剧院/知音号晚宴席——_is_show_banquet_item要求curated:前缀+food 保晚宴秀占晚餐槽)
+#   终态45行=43 entertainment+2 food; 快照表 pois_category_fix_bak_20261111 (27行) 可回滚
