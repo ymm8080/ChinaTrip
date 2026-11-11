@@ -18712,9 +18712,7 @@ class PlanningAgent:
                 dur = must.duration_minutes or DEFAULT_VISIT_MINUTES
                 vt = (tier_by_name or {}).get(str(must.name or ""), 11)
                 own_day = next(d for d in plan.days if d.day == day.day)
-                for target in [own_day] + [
-                    d for d in plan.days if d is not own_day
-                ]:
+                for target in [own_day] + [d for d in plan.days if d is not own_day]:
                     if target is not own_day:
                         if (
                             str(target.base_city or "").strip().removesuffix("市")
@@ -18784,9 +18782,7 @@ class PlanningAgent:
                         for v in d.items
                         if isinstance(v, VisitItem)
                     }
-                    trial_keys = {
-                        (u.poi_id or u.name) for u in trial.unplaced
-                    }
+                    trial_keys = {(u.poi_id or u.name) for u in trial.unplaced}
                     extra: list[UnplacedCandidate] = []
                     for d in plan.days:
                         for v in d.items:
@@ -18814,10 +18810,7 @@ class PlanningAgent:
                     # 摘钉试宿采纳后按解出时刻回钉（落档时刻即新钉点）
                     for d in cand.days:
                         for v in d.items:
-                            if (
-                                isinstance(v, VisitItem)
-                                and v.item_id == must.item_id
-                            ):
+                            if isinstance(v, VisitItem) and v.item_id == must.item_id:
                                 v.pinned = True
                     if target.day == day.day:
                         move_note = L(
