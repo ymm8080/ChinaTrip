@@ -2312,10 +2312,16 @@ function enrichBrief(info, city, name) {
       info.appendChild(bd);
     }
     if (photo) {
-      const img = el('<img alt="' + esc(name) + '" loading="lazy" style="display:block;max-width:100%;max-height:140px;border-radius:6px;margin:6px 0;cursor:pointer" src="' + esc(photo) + '">');
-      img.onerror = () => img.remove(); // 挂图隐藏，占位不留
-      img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, 0); };
-      info.appendChild(img);
+      // 简介并排双图（2026-11-11 拍板）：有 ≥2 张并排放两张，第 3 张起仍走灯箱翻看
+      const pair = (p.photos || []).filter(x => x && x.url).slice(0, 2);
+      const wrap = el('<div style="display:flex;gap:6px;margin:6px 0"></div>');
+      pair.forEach((ph, i) => {
+        const img = el('<img alt="' + esc(name) + '" loading="lazy" style="flex:1;min-width:0;width:0;max-height:140px;border-radius:6px;object-fit:cover;cursor:pointer" src="' + esc(ph.url) + '">');
+        img.onerror = () => img.remove(); // 挂图隐藏，占位不留
+        img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, i); };
+        wrap.appendChild(img);
+      });
+      info.appendChild(wrap);
     }
     if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
   }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
