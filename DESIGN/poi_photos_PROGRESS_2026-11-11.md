@@ -24,3 +24,18 @@
 2. **amap v3 `/place/text` 在本机 key 撞 WAF**（AmapPunishedError "bixi punish"）：按名搜路不可靠，v5 按 id 直查与 wikimedia 正常；链内已降级留痕不炸。
 3. FastAPI 新版 `_IncludedRouter` 懒挂载：`app.routes` 探测不到子路由是假象，用 `router.routes` 核。
 4. models.py/i18n.js 含并行会话 hunk——本次用过滤 patch（`git apply --cached`）只择自己的 hunks，并行 WIP 全程未动。
+
+---
+
+## 增补章节：餐厅照片回源 + 上量预热（2026-11-12，提交 31a2864 已推）
+
+| 事项 | 结果 |
+|---|---|
+| pois 预热 500 行真跑 | 70 行填图（wikimedia 净增 79），active 有图率 16.9%→**17.6%**（1,732/9,830） |
+| 餐厅回源能力 | restaurants 5,088 行**全部无 amap id、无 rating**——v5 按 id 路不存在；接入 v5 `place/around`（keywords+location 3km+名称匹配防错图，独立配额池/风控，text 被罚不影响）；新 job `app.jobs.backfill_restaurant_photos`（只填空+尝试即落戳+配额首撞停不落戳） |
+| 真跑两 bug（已修） | ①坐标 WKT（ST_AsText `POINT(lon lat)`）解析缺壳→全 None；②`_Target` 字段名 `lonlat` ≠ 链读的 `location`，错位静默跌回被 WAF 罚的 v3 text——修后 47 照片套件全过 |
+| 阻塞：amap 日配额尽 | `USER_DAILY_QUERY_OVER_LIMIT`（个人 key，多 job 共享）——餐厅 around 批量与 pois 无图行 v5 补图**明日重置后续跑**：`python -m app.jobs.backfill_restaurant_photos --limit 500` / `python -m app.jobs.backfill_photos --limit 500` |
+| 探针结论 | **百度证伪**：place/v2 search+detail (scope=2) 只回 `detail_info.image_num`（计数）与 `detail_url`（网页），无图 URL 字段，第三链剔除；**腾讯未证实**：key 日配额尽（status 121），detail 零合法调用，探针脚本在 `_tmp_probe/`，次日重跑即可补证 |
+| 明日待办 | ①餐厅批量（around 池）②pois 1,317 有 id 行 v5 补图 ③腾讯 detail 补探 ④text WAF 是否解封复查 |
+
+本次并行会话 WIP（amap_client.py 人均消费链 27 行、plan.py 等）零接触；amap_client.py 保持未提交状态归其会话。
