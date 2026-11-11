@@ -4,8 +4,12 @@
 定义点在本文件（点击端点与 backfill_photos job 共用）：
 
     amap v5 place/detail（row.source=='amap' 且有 source_poi_id）
+      → amap v5 place/around 按坐标邻近搜（2026-11-12 restaurants 回源：
+        无 amap id 但有坐标的行走本档；v3 place/text 被 WAF 整族拦下，
+        around 独立配额池/独立风控不受影响——本文件 httpx 直调，见
+        _amap_around_photos 注记）
       → amap v3 place/text 按名搜（extensions=all 经 _normalize_poi 回
-        photos；覆盖无 amap id 行与 v5 空图兜底）
+        photos；仅剩无坐标的兜底场景）
       → wikimedia P18（复用 backfill_intro 的 Wikidata 链；同步 httpx，
         asyncio.to_thread 包裹进 async 链）
 
@@ -24,12 +28,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
 
-from app.services.amap_client import AmapQuotaExhaustedError
+from app.config import get_settings
+from app.services.amap_client import (
+    _BROWSER_HEADERS,
+    AmapError,
+    AmapQuotaExhaustedError,
+    _is_punish_page,
+    _is_quota_exhausted,
+    _name_like,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +67,14 @@ PHOTO_SOURCES = (
 _MAX_PHOTOS = 8
 
 _AMAP_TIMEOUT_SECONDS = 10.0
+
+#: v5 /place/around 照片档参数（同 amap_client._search_hours_around 口径）：
+#: radius 3km 邻近、page_size 10 一次取回多候选本地匹配。
+_AMAP_AROUND_RADIUS_M = "3000"
+_AMAP_AROUND_PAGE_SIZE = 10
+
+#: 名称去括号变体（"老火锅（解放碑店）"→"老火锅"）。
+_BRACKET_RE = re.compile(r"[（(【\[].*?[）)】\]]")
 
 
 def normalize_photos(raw: object) -> list[dict]:
@@ -98,6 +119,135 @@ async def _amap_by_name(client: Any, name: str, city: str | None) -> list[dict] 
         if photos:
             return photos
     return None
+
+
+def _row_lonlat(location: object) -> tuple[float, float] | None:
+    """行坐标 → (lon, lat)，取不出有效数即 None。
+
+    兼容三种形状（fetch_photo_chain 对行对象零假设，SimpleNamespace 测试
+    行也要能走）：Geography/WKB 列（ORM 行，geoalchemy2 to_shape →
+    shapely .x/.y）、"lon,lat" 逗号串（refresh_pois 同款）、(lon, lat)
+    序列或带 .lon/.lat 属性的 GeoPoint（内存候选行/测试行）。
+    """
+    if location is None:
+        return None
+    if isinstance(location, str):
+        # WKT（job 侧 func.ST_AsText 出参，"POINT(lon lat)"）优先剥壳，
+        # 其余按 "lon,lat" 逗号串（refresh_pois 同款）
+        wkt = location.strip()
+        if wkt.upper().startswith("POINT(") and wkt.endswith(")"):
+            wkt = wkt[len("POINT(") : -1]
+        parts = wkt.replace(",", " ").split()
+        if len(parts) != 2:
+            return None
+        try:
+            return (float(parts[0]), float(parts[1]))
+        except ValueError:
+            return None
+    if isinstance(location, (list, tuple)) and len(location) == 2:
+        try:
+            return (float(location[0]), float(location[1]))
+        except (TypeError, ValueError):
+            return None
+    lon = getattr(location, "lon", None)
+    lat = getattr(location, "lat", None)
+    if isinstance(lon, (int, float)) and isinstance(lat, (int, float)):
+        return (float(lon), float(lat))
+    try:  # Geography 列（WKBElement）：现成提取器只有 geoalchemy2 to_shape
+        from geoalchemy2.shape import to_shape
+
+        point = to_shape(location)
+        return (float(point.x), float(point.y))
+    except Exception:
+        return None
+
+
+def _match_terms(name_zh: str) -> list[str]:
+    """around 本地名匹配词：全名 + 去括号变体，保序去重。
+
+    匹配口径 amap_client._name_like（双向包含、去空格、单字不参与），
+    在 _amap_around_photos 内逐候选套用。
+    """
+    base = name_zh.strip()
+    out: list[str] = []
+    for term in (base, _BRACKET_RE.sub("", base).strip()):
+        if term and term not in out:
+            out.append(term)
+    return out
+
+
+async def _amap_around_photos(
+    name_zh: str, lonlat: tuple[float, float]
+) -> list[dict] | None:
+    """v5 /place/around 按坐标邻近搜照片（无 amap id 行的照片档）。
+
+    2026-11-12 注记：amap_client.py 当前有并行会话未提交改动，不宜
+    在其上扩公开方法——本函数 httpx 直调同端点，参数与判罚口径对齐
+    AmapClient._search_hours_around（keywords+location+radius 3km+
+    page_size 10+show_fields=business,photos；headers/配额判定/WAF
+    处罚页判定/名称匹配复用其唯一实现，不复制缩短版）。命中名（
+    _name_like 双向包含）且 photos 非空才返回。配额尽（10021）原样
+    上抛 AmapQuotaExhaustedError 供链上熔断；WAF 处罚/超时等其余异常
+    上抛 AmapError 由 fetch_photo_chain 记 warning 降级 wikimedia。
+    """
+    params = {
+        "key": get_settings().amap_api_key,
+        "keywords": name_zh,
+        "location": f"{lonlat[0]:.6f},{lonlat[1]:.6f}",
+        "radius": _AMAP_AROUND_RADIUS_M,
+        "page_size": str(_AMAP_AROUND_PAGE_SIZE),
+        "show_fields": "business,photos",
+        "output": "JSON",
+    }
+    async with httpx.AsyncClient(
+        timeout=_AMAP_TIMEOUT_SECONDS, headers=_BROWSER_HEADERS
+    ) as http:
+        response = await http.get(
+            "https://restapi.amap.com/v5/place/around", params=params
+        )
+    try:
+        data = response.json()
+    except ValueError as exc:
+        if _is_punish_page(response.content):
+            raise AmapError(
+                "amap WAF deny page (bixi punish) — around photos skip"
+            ) from exc
+        raise AmapError("amap returned non-JSON body") from exc
+    if not isinstance(data, dict):
+        raise AmapError("amap returned unexpected JSON shape")
+    if data.get("status") != "1":
+        if _is_quota_exhausted(data):
+            raise AmapQuotaExhaustedError(
+                str(data.get("info") or "amap daily quota exhausted"),
+                str(data.get("infocode") or ""),
+            )
+        raise AmapError(
+            str(data.get("info") or "amap request failed"),
+            str(data.get("infocode") or ""),
+        )
+    pois = data.get("pois")
+    terms = _match_terms(name_zh)
+    poi = None
+    if isinstance(pois, list):
+        poi = next(
+            (
+                p
+                for p in pois
+                if isinstance(p, dict)
+                and any(_name_like(p.get("name", ""), t) for t in terms)
+            ),
+            None,
+        )
+    if poi is None:
+        return None
+    photos = normalize_photos(poi.get("photos"))
+    if photos:
+        logger.debug(
+            "photo chain: amap around hit name=%s matched=%s",
+            name_zh,
+            poi.get("name"),
+        )
+    return photos or None
 
 
 def _wikimedia_p18_sync(name_zh: str) -> list[dict] | None:
@@ -150,15 +300,22 @@ async def fetch_photo_chain(
 ) -> tuple[list[dict] | None, str | None]:
     """按链序现拉 photos，首个非空命中即停。
 
-    row：Poi ORM 行（或同形状 SimpleNamespace，测试用）。单源异常记
-    warning 后跳下一源，不拖垮整链；全空返回 (None, None)——调用方
-    只落 fetched_at 戳、不写 photos（只填空铁律）。
+    row：Poi/Restaurant ORM 行（或同形状 SimpleNamespace，测试用）。
+    单源异常记 warning 后跳下一源，不拖垮整链；全空返回 (None, None)
+    ——调用方只落 fetched_at 戳、不写 photos（只填空铁律）。
+
+    链序（2026-11-12 起）：amap id 有 → v5 place/detail；无 id 且行有
+    坐标 → v5 place/around 邻近搜（keyword=name_zh+去括号变体，命中名
+    且 photos 非空才收，见 _amap_around_photos）；无坐标 → v3 place/
+    text 按名搜（旧兜底，text 端点 WAF 被拦时自然落空）；全落空 →
+    wikimedia P18。
     """
     name_zh = (getattr(row, "name_zh", None) or "").strip()
     city = getattr(row, "city", None)
+    amap_id = getattr(row, "source_poi_id", None)
+    has_amap_id = getattr(row, "source", None) == "amap" and bool(amap_id)
     if amap is not None:
-        amap_id = getattr(row, "source_poi_id", None)
-        if getattr(row, "source", None) == "amap" and amap_id:
+        if has_amap_id:
             try:
                 photos = await _amap_by_id(amap, amap_id)
             except AmapQuotaExhaustedError:
@@ -172,19 +329,37 @@ async def fetch_photo_chain(
                 photos = None
             if photos:
                 return photos, "amap"
-        try:
-            photos = await _amap_by_name(amap, name_zh, city)
-        except AmapQuotaExhaustedError:
-            raise
-        except Exception:
-            logger.warning(
-                "photo chain: amap name search failed, name=%s",
-                name_zh,
-                exc_info=True,
-            )
-            photos = None
-        if photos:
-            return photos, "amap"
+        lonlat = None if has_amap_id else _row_lonlat(getattr(row, "location", None))
+        if not has_amap_id and lonlat is not None and name_zh:
+            # 无 amap id 但有坐标：v5 place/around（独立配额池/独立风控，
+            # text 被 WAF 处罚不影响本档）。
+            try:
+                photos = await _amap_around_photos(name_zh, lonlat)
+            except AmapQuotaExhaustedError:
+                raise
+            except Exception:
+                logger.warning(
+                    "photo chain: amap place/around photos failed, name=%s",
+                    name_zh,
+                    exc_info=True,
+                )
+                photos = None
+            if photos:
+                return photos, "amap"
+        else:
+            try:
+                photos = await _amap_by_name(amap, name_zh, city)
+            except AmapQuotaExhaustedError:
+                raise
+            except Exception:
+                logger.warning(
+                    "photo chain: amap name search failed, name=%s",
+                    name_zh,
+                    exc_info=True,
+                )
+                photos = None
+            if photos:
+                return photos, "amap"
     try:
         photos = await _wikimedia(name_zh)
     except Exception:
