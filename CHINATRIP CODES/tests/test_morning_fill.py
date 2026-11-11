@@ -83,6 +83,33 @@ def test_show_session_starts_parses_session_lists():
     assert show_session_starts("") == []
 
 
+def test_show_session_starts_parses_single_session_declarations():
+    # 2026-11-11 唐乐宫事故：仅夜场单场演出解析出空表 → 落「无场次按正常
+    # 景点排」→ 钉到 DAY_START 09:00。单场声明也是场次真值。
+    assert show_session_starts("仅夜场（晚宴秀，约19:30一场）") == [19 * 60 + 30]
+    assert show_session_starts("仅夜场（约19:40一场）") == [19 * 60 + 40]
+    assert show_session_starts("仅夜场（约20:10一场）") == [20 * 60 + 10]
+    assert show_session_starts("仅夜场（约20:00一场，旺季加场）") == [20 * 60]
+    assert show_session_starts("夜场为主（约20:00一场）") == [20 * 60]
+    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [20 * 60]
+    # 列表式之外补拾遗漏的「约」点（《只有峨眉山》日场列表 + 夜场单点）
+    assert show_session_starts("多场（云之上日场约14:00/16:00+夜场约19:30）") == [
+        14 * 60,
+        16 * 60,
+        19 * 60 + 30,
+    ]
+    # 区间/滚动窗不是场次点，不得误判成单场
+    assert show_session_starts("全天多剧场滚动（约10:00-21:00）") == []
+    assert show_session_starts("全天多剧场滚动（约9:00-21:00，18+剧目按排期）") == []
+    assert (
+        show_session_starts("夜间街区演艺（约16:30-22:00滚动，不倒翁约19:00起）") == []
+    )
+    assert show_session_starts("夜场为主（晚间场约19:00-20:00，以当日公告为准）") == []
+    # 真无场次（场次随排期/以当日公告为准）仍回空，走 11-06 拍板正常景点逻辑
+    assert show_session_starts("场次随排期（驻场/巡演）") == []
+    assert show_session_starts("多场（含下午场，以当日公告为准）") == []
+
+
 def test_show_session_starts_empty_for_none():
     assert show_session_starts(None) == []
 

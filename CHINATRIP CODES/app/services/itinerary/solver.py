@@ -76,6 +76,14 @@ def _is_show(item: VisitItem) -> bool:
 #: 17:30/19:30两场）」——场次列表是真值源（23552b5 show_sessions 刷新
 #: 管线写入 opening_hours 列）。
 _SESSION_LIST_RE = re.compile(r"约\s*((?:\d{1,2}:\d{2}\s*[/、,]\s*)+\d{1,2}:\d{2})")
+#: 单场声明「约19:30一场」「约20:00一场，旺季加场」「演出季约20:00，旺季
+#: 加16:00场」——2026-11-11 唐乐宫事故根因：列表式要求 ≥2 个点，单场演出
+#: 解析出空表 → 落「无场次按正常景点排」（2026-11-06 拍板）→ 钉到
+#: DAY_START 09:00。排除区间（约10:00-21:00 滚动剧场）与「约19:00起」
+#: （滚动街区）——二者是开放窗不是场次点。
+_SESSION_SINGLE_RE = re.compile(
+    r"约\s*(\d{1,2}:\d{2})(?!\s*[-–~—至]\s*\d{1,2}:\d{2})(?!\s*起)"
+)
 _SESSION_TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
 
 
@@ -95,6 +103,11 @@ def show_session_starts(text: str | None) -> list[int]:
             t = int(hh) * 60 + int(mm)
             if DAY_START_MINUTES <= t <= DAY_END_MINUTES:
                 starts.append(t)
+    for m in _SESSION_SINGLE_RE.finditer(text):
+        hh, mm = m.group(1).split(":")
+        t = int(hh) * 60 + int(mm)
+        if DAY_START_MINUTES <= t <= DAY_END_MINUTES:
+            starts.append(t)
     return sorted(set(starts))
 
 
