@@ -88,6 +88,11 @@ class Poi(Base):
     intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
+    # 照片回源元数据（DESIGN poi_photos_functional_design §3-F2/F4，
+    # 0020）：fetched_at 是 24h 点击冷却键——尝试即落戳（拉空也落），
+    # photos 本体仍只填空；fetch_fail 由死图上报端点累加。
+    photos_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    photos_fetch_fail: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     best_visit_time: Mapped[str | None] = mapped_column(
         String(10), server_default=text("'any'")
     )
@@ -181,6 +186,9 @@ class Restaurant(Base):
     intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
+    # 同 pois（0020）：回源冷却戳 + 死图计数，语义见 Poi 侧注释。
+    photos_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    photos_fetch_fail: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     origin: Mapped[str | None] = mapped_column(String(20))
     # 规划引擎升级 0009：restaurants 专属富化列（C 组 + 评论域）。
     rating_count: Mapped[int | None] = mapped_column(Integer)
