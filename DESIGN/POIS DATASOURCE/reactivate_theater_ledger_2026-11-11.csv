@@ -1,0 +1,61 @@
+city,name_zh,verdict,action,session_time_written,evidence,note
+成都,蜀兿剧院·变脸川剧·盖碗茶,有常规表演(平日4场/周末6场),activated,多场（平日约13:00/15:00/17:00/20:00，周末加场）,klook.com/zh-CN/activity/112918 + m.df962388.com/yanchu/227294.html,2026-11-11携程/票务核实
+成都,蜀兿剧院·川剧表演(太古里店),有常规表演(每日5场节假日加场),activated,多场（约13:00/15:00/17:00/19:00/21:00，节假日加场）,you.ctrip.com/sight/chengdu104/145705189.html + dahepiao.com/lvyounews1/20250307505932.html,
+成都,四川省川剧院,有常规表演(《芙蓉国粹》每晚20:00-21:20),activated,仅夜场（《芙蓉国粹》约20:00一场，旺季加场）,gs.ctrip.com/html5/you/sight/chengdu104/147145.html + dahepiao.com/lvyounews1/20240903485876.html,
+成都,梅花剧社·非遗川剧变脸,有常规表演(每日循环淡季5场/旺季9场),activated,多场（约10:00-21:00循环，淡季约5场/旺季约9场，以当日公告为准）,gs.ctrip.com/html5/you/sight/chengdu104/5713306.html + dahepiao.com/lvyounews1/20240227448569.html,
+成都,盖碗儿梨园•川剧变脸吐火表演剧院•非遗传承展示基地(天府广场店),有常规表演(下午+晚场每日),activated,多场（约15:30/16:30/19:30/20:00）,you.ctrip.com/sight/chengdu104/2485565.html + klook.cn/zh-CN/activity/160614,
+成都,蜀风雅韵川剧院,有常规表演(每晚一场),activated+category修正(attraction→entertainment),仅夜场（每晚一场，以当日公告为准）,m.dahepiao.com/jingqu/cdsfyycjyznl/ + m.kkday.com/zh-cn/product/163281,
+成都,联华梨园社·春熙剧场川剧变脸秀,有常规表演(365天不间断),activated,夜场为主（约20:00一场，周末加14:00场）,detail.damai.cn/item.htm?id=596912655874 + df962388.com/yanchu/347549.html,
+重庆,川剧博物馆,非演出场所(博物馆 免费参观14:00-18:00),stay_inactive,,mafengwo.cn/poi/5432741.html + you.ctrip.com/sight/chengdu104/5703979.html,城市字段=重庆；成都的"成都川剧艺术博物馆"库中无行
+成都,成都文殊坊妙剧场,有常规表演(《花重锦官城》周二至日19:30),activated,仅夜场（《花重锦官城》周二至周日约19:30，周一休演）,sc.people.com.cn/n2/2025/0312/c345167-41161633.html + klook.com/zh-CN/activity/147357,
+成都,锦江剧场,有常规表演(《川剧秀·传奇变脸》每晚20:00-21:10),activated,仅夜场（《川剧秀·传奇变脸》每晚约20:00）,my.trip.com/travel-guide/attraction/chengdu/sichuan-opera-show-legendary-face-changing-145098392/ + cbgc.scol.com.cn/news/5991072,《芙蓉国粹》在四川省川剧院(指挥街) 非此场馆
+成都,熊猫剧院,有常规表演(驻场音乐剧《熊猫》约11:00/14:00),activated,多场（驻场音乐剧约11:00/14:00两场，部分时期周一休演，以当日公告为准）,163.com/dy/article/KLLKUO8S05149D15.html + dahepiao.com/lvyounews1/20240809481185.html,
+成都,悬空飞越剧场(春熙路茂业百货店),体验项目(裸眼8D飞行影院 随到随看),activated,全天（约10:00-22:00随到随看）,tw.trip.com/travel-guide/attraction/chengdu/suspended-flying-theater-140960632/ + toutiao.com/w/1856038873440256/,携程评分2.4口碑差 引擎低 tier 自然不优先
+成都,繁星戏剧村童剧场,不定期演出(商业排期无固定场次),activated,场次随排期（戏剧村商业排期，以当日公告为准）,dahepiao.com/lvyounews1/20250530515103.html + xinruipiao.com/yinlehui/37879.html,
+成都,MAO Livehouse,有常规表演(2026-11十场排期),activated,场次随排期（演出排期，以当日公告为准）,xinruipiao.com/yanchanghui/37847.html + tw.trip.com,
+广州,奥咖HOKA光影剧场,有常规表演(周二至五3场周末5场 周一闭馆),activated,多场（周二至周五约11:00/13:30/14:30，周末加场至5场，周一闭馆）,piao.qunar.com/ticket/detail_511614.html + hk.trip.com/travel-guide/attraction/guangzhou/hoka-light-and-shadow-theater-129752723/,
+乌鲁木齐,大巴扎宴艺大剧院,有常规表演(《丝绸之路·千年印象》每日双场含晚宴),activated,多场（每天约14:00/20:30两场，含晚宴）,gs.ctrip.com/html5/you/sight/urumqi117/137703.html + klook.com/zh-CN/activity/151855,
+北京,国家大剧院,有常规表演(2026-11场次密集),activated,场次随排期（档期制，以当日公告为准）,goupiaotong.cn/NewsDetail-41342.html,
+北京,北京梨园剧场,有常规表演(旅游京剧 淡季周三至六19:30),activated,仅夜场（淡季周三至周六约19:30，旺季每日）,youyanchu.com/yanchu/56086.html,
+北京,德云社剧场,有常规表演(每日14:00+19:00双场),activated,多场（每日约14:00/19:00双场）,whlyj.beijing.gov.cn/ggfw/wh/202009/t20200904_1997492.html,北京市文旅局当周商演公示(官方一手源)
+北京,中国木偶剧院,有常规表演(卡酷/黑猫剧场每日),activated,多场（卡酷剧场约10:30/14:00，黑猫剧场约19:30）,whlyj.beijing.gov.cn商演公示 + m.df962388.com/yanchu/zhongguomououyizhujuyuanqiakujuchang/,
+北京,曼联梦剧场,非演出场所(曼联主题体验中心 按景区售票),stay_inactive,,baike.baidu.com/item/曼联梦剧场/60660636,退役判定正确
+北京,朝阳剧场杂技,有常规表演(《国韵传奇》每日16:00/17:30),activated,多场（约16:00/17:30两场）,whlyj.beijing.gov.cn商演公示(2026-11-09~15在册),与库内CSV旧记录16:10/17:40吻合
+上海,snh48星梦剧院,有常规表演(常态公演每周开票),activated,夜场为主（常态公演约19:30/18:30/13:30多档，以当周开票为准）,snh48.com/ticket.html + gewara.com/detail/236619,
+上海,国际马戏剧场,有常规表演(《ERA时空之旅2》常驻 周一休演),activated,仅夜场（《ERA时空之旅2》周二至五约19:30，周末加14:00场，周一休演）,shanghaimaxicheng.com + huodong.ctrip.com/ottd-activity/dest/t68989931.html,=上海马戏城；库内无active上海马戏城行 防重通过
+上海,魔都悬空玻璃剧场,非演出场所(光影/VR体验馆 随到随进),stay_inactive,,you.ctrip.com/sight/shanghai2/134773303.html,退役判定正确
+南京,江苏大剧院,有常规表演(档期制11月几乎每日有场),activated,场次随排期（档期制多厅，以当日公告为准）,jsartcentre.org/new_ticket.html,
+南京,秦淮戏院里,查无场次(2026-11官方/大麦/携程均无 仅2021首演记录),stay_inactive,,you.ctrip.com/sight/nanjing9/130369413.html + feng.ifeng.com/c/8xpxDrUE1No,日后出现驻场剧目可再复核
+杭州,杭州剧院,不定期演出(商业租场 排期密集),activated,场次随排期（商业租场，以当日公告为准）,sina.cn/media/1927502753 + 090expo.com/news/exnews_7796.html,
+杭州,杭州大剧院,有常规表演(2026演出季全年排期),activated,场次随排期（演出季排期，以当日公告为准）,mdaily.hangzhou.com.cn/dskb/2026/01/23/article_detail_2_20260123A141.html,
+杭州,浙江小百花越剧院,不定期演出(院团非场馆 主场在蝴蝶剧场),activated,场次随排期（院团巡演+院庆场次，以当日公告为准）,wx.bendibao.com/xiuxian/2026116/85250.shtm,
+杭州,蝴蝶剧场(小百花越剧场),有常规表演(《新龙门客栈》长期驻演),activated,多场（《新龙门客栈》等长期驻演，以当日排期为准）,df962388.com/yanchu/hudiejuchangxiaobaihuayuejuchang/,
+苏州,中国苏州评弹博物馆吴苑深处书场,有常规表演(每天13:30-15:30 半月一档),activated,多场（每天约13:30-15:30，半月一档）,wglj.suzhou.gov.cn/szwhgdhlyj/hdxx/202509/2ced90bb792c4c429ecfd850e8aeea67.shtml,苏州文广旅局(官方)
+苏州,墨客园茶席乐剧场,有常规表演(每天整点场12:00-20:00),activated,多场（每天约12:00-20:00整点场）,gs.ctrip.com/html5/you/article/detail/24966627.html,
+苏州,平江路闲雅苑昆曲评弹馆,有常规表演(每日10:00-21:00点唱式驻场),activated,全天（每日约10:00-21:00茶馆点唱式驻场）,you.ctrip.com/sight/suzhou11/140960763.html,
+苏州,橙天嘉禾剧场-信仰,有常规表演(《信仰》每周四至周日 累计500余场),activated,多场（《信仰》每周四至周日固定演出）,visitsz.wglj.suzhou.com.cn/festival-detail.aspx?id=2025032616491602,
+苏州,江苏省苏州昆剧院,有常规表演(每周六14:00折子戏+园林实景晚场),activated,多场（每周六约14:00折子戏专场，园林实景每周六晚）,wglj.suzhou.gov.cn/szwhgdhlyj/hdxx/202606/731eb928842747d89792493f266c2756.shtml,
+苏州,琵琶语评弹茶馆(苏州平江路店),有常规表演(每日约7-8场12:00-22:30),activated,多场（每日约12:00-22:30七至八场）,m.suzhou.bendibao.com/tour/112344.shtm,
+苏州,聆韵社评弹茶馆(平江路店),有常规表演(每日13:00-22:00点唱式),activated,多场（每日约13:00-22:00点唱式）,travelnews.qunar.com/ugc/suzhou-pingjiang-road-100yuan-day,有"点曲另收费"争议 建议披露
+苏州,苏州湾大剧院,有常规表演(2026全年排期多厅),activated,场次随排期（多厅全年排期，以当日公告为准）,suzhouwandajuyuan.df962388.com/,
+苏州,苏州评弹,存疑(品类词非场馆名 实体指向光裕书厅日场13:30/夜场19:30),stay_inactive_pending_rename,,douban.com/event/37260064/ + suzhou.bendibao.com/xiuxian/20251010/133265.shtm,建议改名"光裕书厅"后激活 待用户拍板
+武汉,汉秀剧场,有常规表演(每日多场15:00/17:00/20:00),already_active(未在扫中),与04 CSV一致,dahepiao.com/yc/whhxjcmp,
+武汉,知音号·长江漂移剧场晚宴席,有常规表演(常态夜场19:30 周末加21:00 周一休),activated,仅夜场（约19:30，周末加21:00航次，周一休）,m.wh.bendibao.com/xiuxian/184512.shtm,
+武汉,武汉剧院,不定期演出(巡演剧场 排期密集),activated,场次随排期（巡演剧场，以当日公告为准）,pythonke.com/venue/206.html,
+武汉,琴台大剧院,不定期演出(保利院线 2026-11排期密集),activated,场次随排期（院线排期，以当日公告为准）,wuyiqintaidajuyuan.df962388.com,
+武汉,琴台音乐厅,有常规表演(排期密集),activated,场次随排期（以当日公告为准）,dahepiao.com/news1/yanchu/20250102500467.html,
+武汉,田汉大剧院,有常规表演(已更名"琴岛之夜" 常态晚场约21:00),activated,夜场为主（“琴岛之夜”常态晚场约21:00起）,yaspace.cn/venue/detail/3893.html,建议改名"琴岛之夜" 待用户拍板
+武汉,梨园广场,非演出场所(东湖入口市民广场 仅水幕秀/节庆快闪),stay_inactive,,cnr.cn/hubei/yaowen/20200930/t20200930_525283085.shtml,退役判定正确
+武汉,土拨鼠俱乐部·魔幻剧场乐园,查无常态演出(儿童乐园NPC互动 2025年初曝欠租停业),stay_inactive,,sohu.com/a/517671105_121123872,退役判定正确
+武汉,幻境空间超级元宇宙剧场,非演出场所(VR/5D体验馆 无票在售),stay_inactive,,touch.piao.qunar.com/ticket/detail_556655310.html,退役判定正确
+济南,秀宴·齐鲁文化美食剧场,有常规表演(宴演一体 午/晚宴+乐舞约90分钟),activated,多场（午/晚宴秀约90分钟，以当日公告为准）,touch.piao.qunar.com/touch/detail_567318.html,
+深圳,深圳音乐厅,有常规表演(官网演出日历密集在售),activated,场次随排期（演出日历排期，以当日公告为准）,szyyt.com,
+深圳,深圳湾公园-日出剧场,非演出场所(露天观景草坪 仅节假日免费公园活动),stay_inactive,,m.bendibao.com/show823592.html,退役判定正确
+重庆,1941茶馆·戏院,有常规表演(川剧变脸每日11:00-19:00多场),activated,多场（川剧变脸每日约11:00-19:00多场）,touch.piao.qunar.com/touch/detail_1421881940.html,
+重庆,红岩红沉浸式剧场,有常规表演(《红岩红》14:40+《黎明之前》10:30/13:00/13:40),activated,多场（约10:30/13:00/13:40/14:40，全年约09:30-18:00）,you.ctrip.com/sight/chongqing158/135924492.html,
+重庆,重庆大剧院,不定期演出(巡演租场型 常年排期在售),activated,场次随排期（巡演租场，以当日公告为准）,m.moretickets.com/topic/venue-129,
+重庆,重庆沉浸式悬浮剧场,非演出场所(5D体验馆 展期2024-06已结束 现况不明),stay_inactive,,klook.com/zh-CN/activity/214220,退役判定正确
+
+# 汇总: 56行核实 46激活(成都7+38批量+汉秀本已active) 9维持inactive 1待拍板(苏州评弹→光裕书厅) 另田汉大剧院→琴岛之夜改名待拍板
+# 根因注记: 11-10退役扫描"无场次"信号疑为数据源漏抓(携程反爬432/去哪儿死页/票牛空白) 建议复盘 ops/retire_theaters_no_show.py 信号源
+# 回滚: 快照表 pois_opera_reactivate_bak_20261111 (45行=激活前状态)
