@@ -2218,13 +2218,29 @@ function mtWatchPaint(st) {
   });
 }
 
+// F4 死图上报（DESIGN poi_photos_functional_design §3-F4）：图床挂图不再
+// 摘除了事——摘除同时 fire-and-forget 打点 /api/pois/photos/report-dead
+// （poi_id 维度 photos_fetch_fail 计数，≥3 由刷新 job 触发整组重拉）。
+// 上报失败/服务不可达不影响渲染，响应无人接。
+function reportDeadPhoto(poiId) {
+  if (!poiId) return;
+  try {
+    fetch(apiBase() + "/api/pois/photos/report-dead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ poi_id: poiId }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) { /* 上报失败不影响渲染 */ }
+}
+
 // 照片灯箱（2026-11-11 拍板）：悬停首图/简介气泡首图点开看全部 photos，
 // 左右点切/方向键、底部计数+来源小字、Esc/点遮罩关闭；纯前端零请求。
 let _phLB = null;
 function closePhotoLB() {
   if (_phLB) { const lb = _phLB; _phLB = null; lb.remove(); }
 }
-function openPhotoLB(photos, name, source, startIdx) {
+function openPhotoLB(photos, name, source, startIdx, poiId) {
   closePhotoLB();
   if (!photos || !photos.length) return;
   let idx = Math.min(Math.max(startIdx || 0, 0), photos.length - 1);
@@ -2235,9 +2251,9 @@ function openPhotoLB(photos, name, source, startIdx) {
   const show = () => {
     const p = photos[idx] || {};
     img.src = p.url || "";
-    img.onerror = () => { img.removeAttribute("src"); };
+    img.onerror = () => { img.removeAttribute("src"); reportDeadPhoto(poiId); };
     const src = source ? I18N.tf("brief.sourcePre","（来源：") + source + I18N.tf("brief.sourceClose","）") : "";
-    cap.textContent = name + "　" + (idx + 1) + " / " + photos.length + src;
+    cap.textContent = name + "\u3000" + (idx + 1) + " / " + photos.length + src;
   };
   const nav = (d) => { idx = (idx + d + photos.length) % photos.length; show(); };
   lb.appendChild(img); lb.appendChild(cap); lb.appendChild(hint);
@@ -2317,11 +2333,39 @@ function enrichBrief(info, city, name) {
       const wrap = el('<div style="display:flex;gap:6px;margin:6px 0"></div>');
       pair.forEach((ph, i) => {
         const img = el('<img alt="' + esc(name) + '" loading="lazy" style="flex:1;min-width:0;width:0;max-height:140px;border-radius:6px;object-fit:cover;cursor:pointer" src="' + esc(ph.url) + '">');
-        img.onerror = () => img.remove(); // 挂图隐藏，占位不留
-        img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, i); };
+        img.onerror = () => { img.remove(); reportDeadPhoto(p.poi_id); }; // 挂图隐藏+死图打点
+        img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, i, p.poi_id); };
         wrap.appendChild(img);
       });
       info.appendChild(wrap);
+    } else {
+      // 空图态（F2 点击回源，DESIGN §3-F2）：🔍 找图按钮 POST /photos/fetch，
+      // 成功就地渲染首两张（点开灯箱落在第 i 张）；24h 冷却由服务端
+      // photos_fetched_at 把关，按钮 disabled 防连点；拉空提示后恢复可点
+      const btn = el('<button class="fb-btn" style="margin:6px 0 0">' + I18N.tf("brief.findPhoto", "🔍 找图") + "</button>");
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        btn.disabled = true;
+        try {
+          const resp = await api("/api/pois/photos/fetch", { city: city || "", name: name || "" }, "POST");
+          const got = ((resp && resp.photos) || []).filter(x => x && x.url);
+          if (got.length) {
+            btn.remove();
+            const wrap = el('<div style="display:flex;gap:6px;margin:6px 0"></div>');
+            got.slice(0, 2).forEach((ph, i) => {
+              const img = el('<img alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" style="flex:1;min-width:0;width:0;max-height:140px;border-radius:6px;object-fit:cover;cursor:pointer" src="' + esc(ph.url) + '">');
+              img.onerror = () => { img.remove(); reportDeadPhoto(resp.poi_id); };
+              img.onclick = (e2) => { e2.stopPropagation(); openPhotoLB(got, name, resp.photos_source, i, resp.poi_id); };
+              wrap.appendChild(img);
+            });
+            info.appendChild(wrap);
+          } else {
+            btn.textContent = I18N.tf("brief.findPhotoNone", "🔍 暂无图");
+            setTimeout(() => { btn.textContent = I18N.tf("brief.findPhoto", "🔍 找图"); btn.disabled = false; }, 1500);
+          }
+        } catch (err) { btn.disabled = false; /* 404/503 静默，气泡保持 */ }
+      };
+      info.appendChild(btn);
     }
     if (bits.length) info.appendChild(el('<div class="muted" style="margin-top:4px">' + bits.join("<br>") + "</div>"));
   }).catch(() => { /* 未收录 / 接口不可用：保持原气泡 */ });
@@ -2395,8 +2439,8 @@ async function sitePopShow(link) {
   const popPhoto = p.photos && p.photos[0] && p.photos[0].url;
   if (popPhoto) {
     const img = el('<img alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" style="display:block;max-width:100%;max-height:100px;border-radius:6px;margin:6px 0 0;cursor:pointer" src="' + esc(popPhoto) + '">');
-    img.onerror = () => img.remove();
-    img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, 0); };
+    img.onerror = () => { img.remove(); reportDeadPhoto(p.poi_id); }; // 挂图隐藏+死图打点
+    img.onclick = (e) => { e.stopPropagation(); openPhotoLB(p.photos, name, p.photos_source, 0, p.poi_id); };
     pop.insertBefore(img, pop.children[1] || null);
   }
   place();
