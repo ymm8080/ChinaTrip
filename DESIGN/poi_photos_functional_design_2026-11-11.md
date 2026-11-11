@@ -41,7 +41,7 @@
 
 ### F1 画廊灯箱（H5，读侧纯前端）
 
-- 简介气泡首图保持现状轻量；**点击首图（或照片计数"📷 N"）开全屏灯箱**：横滑/点切全部 photos，底部来源小字（复用 `brief.sourcePre/Close` 口径与 `photos_source`）。**灯箱已落地 `d3d5621`（sw v78）**：`openPhotoLB` 纯前端零请求——左右 40% 点击/←→键切图、底部 名称+序号/总数+来源、✕/中点/遮罩/Esc 关闭；两入口（悬停浮层首图 + 简介气泡首图）cursor:pointer 接入。CDP 双案 PASS（陕历博 1/3→2/3 切换、华清宫 1/1、Esc 关闭）。探针两坑：①须 `service_workers="block"`（v51 controllerchange 自动重载抹掉注入节点，首案必败假象）；②高德图 headless naturalWidth=0，切图点击须 dispatch 在 img 上带 clientX。未做：📷 N 计数徽标（首图即入口，YAGNI 缓议）、空态"🔍 找图"按钮（依赖 F2 端点，未施工）。
+- 简介气泡**并排双图已落地 `15a7827`（sw v79，2026-11-11 拍板）**：≥2 张时 photos 前两张 flex 并排（各 max-height 140px、object-fit:cover），点第 i 张开灯箱落在第 i 张；第 3 张起仍灯箱翻看；悬停浮层维持单首图。CDP 双案 PASS（陕历博 2 图点第二张落 2/3、华清宫单图 1/1）。**点击首图开全屏灯箱已落地 `d3d5621`（sw v78）**：`openPhotoLB` 纯前端零请求——左右 40% 点击/←→键切图、底部 名称+序号/总数+来源、✕/中点/遮罩/Esc 关闭；两入口（悬停浮层首图 + 简介气泡首图）cursor:pointer 接入。CDP 双案 PASS（陕历博 1/3→2/3 切换、华清宫 1/1、Esc 关闭）。探针两坑：①须 `service_workers="block"`（v51 controllerchange 自动重载抹掉注入节点，首案必败假象）；②高德图 headless naturalWidth=0，切图点击须 dispatch 在 img 上带 clientX。未做：📷 N 计数徽标（首图即入口，YAGNI 缓议）、空态"🔍 找图"按钮（依赖 F2 端点，未施工）。
 - 键位/手势：左右箭头等价 swipe；Esc/点遮罩关闭；EN 语境来源标签不翻译（source 戳原样）。
 - 悬停 .site-pop 浮层：**2026-11-11 用户拍板加首图**（原设计「悬停不出图」作废——detail 请求本就随悬停发出，纯渲染零额外请求，无流量顾虑）。已落地 `e8ed183`（sw v76）：max-height 100px、loading=lazy、referrerpolicy=no-referrer、onerror 原地摘除。CDP 实测两案 PASS（北京有图出图 / 杭州无图不出图）；已知残留：携程图床 headless 下 naturalWidth=0（疑似防盗链/慢载），真机表现待 UAT，大量失败由 F4 死图通道接住。
 - 图源是第三方 URL 直链（referrerpolicy="no-referrer"，防盗链兜底——高德/百度图床对空 referrer 策略不一，需 UAT 实测）。
