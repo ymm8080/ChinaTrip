@@ -75,6 +75,9 @@ def _write_row(factory, poi_id, r: dict) -> list[str]:
             written.append("business_area")
         if row.photos is None and r.get("photos"):
             row.photos = r["photos"]
+            # F5 来源标注收口（DESIGN poi_photos_functional_design §3-F5）：
+            # 与 hours_source='amap' 同口径，防来源悬空
+            row.photos_source = "amap"
             written.append("photos")
         if row.opening_hours is None and r.get("opening_hours"):
             row.opening_hours = str(r["opening_hours"]).strip()[:200]

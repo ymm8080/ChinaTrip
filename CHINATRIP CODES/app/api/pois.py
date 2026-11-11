@@ -11,23 +11,31 @@ serialization pitfalls; the H5 does not use coordinates).
 详情气泡从此与行程卡/抢票日历共用同一份预约口径。
 """
 
+import logging
 import re
+import uuid
 from collections.abc import Callable
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
+from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
+from app.services.amap_client import AmapClient
 from app.services.poi_details import PoiDetailStore, apply_tier_tag
 from app.services.poi_details import get_poi_detail_store as _poi_store_singleton
+from app.services.poi_photos import fetch_photo_chain, in_cooldown
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
     RESERVATION_V0,
     reservation_meta_for,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/pois", tags=["pois"])
 
@@ -267,6 +275,131 @@ async def poi_detail(
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="poi store unavailable") from None
+
+
+# --- F2 点击回源 / F4 死图上报（DESIGN poi_photos_functional_design 2026-11-11）---
+
+
+class PhotosFetchRequest(BaseModel):
+    city: str
+    name: str
+
+
+class PhotosFetchResponse(BaseModel):
+    photos: list = []
+    photos_source: str | None = None
+    fetched: bool = False
+
+
+class PhotosDeadReport(BaseModel):
+    poi_id: str
+
+
+def _find_poi_for_photos(session: Session, city: str, wanted: str) -> Poi | None:
+    """与 detail 同查找口径（city 变体 → name_zh 精确 → contains 模糊）。"""
+    variants = _city_variants(city)
+    alive = (Poi.status.is_(None)) | (Poi.status == "active")
+    q = session.query(Poi).filter(alive)
+    if variants:
+        q = q.filter(Poi.city.in_(variants))
+    row = q.filter(Poi.name_zh == wanted).first()
+    if row is None:
+        norm = _norm_name(wanted)
+        if norm:
+            fq = session.query(Poi).filter(alive)
+            if variants:
+                fq = fq.filter(Poi.city.in_(variants))
+            row = fq.filter(Poi.name_zh.contains(norm)).first()
+    return row
+
+
+@router.post("/photos/fetch", response_model=PhotosFetchResponse)
+async def photos_fetch(
+    req: PhotosFetchRequest,
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> PhotosFetchResponse:
+    """点击触发确定性回源（幂等）。库有图直接回；冷却内回库值不外呼；
+    否则走 fetch_photo_chain 链——photos/photos_source 只填空，
+    photos_fetched_at 尝试即落戳（拉空也落，防连点烧配额）。失败必须
+    留日志（10-25 立规），响应不吐错误细节。"""
+    wanted = req.name.strip()
+    try:
+        with factory() as session:
+            row = _find_poi_for_photos(session, req.city, wanted)
+            if row is None:
+                raise HTTPException(status_code=404, detail="poi not found")
+            if row.photos:
+                return PhotosFetchResponse(
+                    photos=row.photos, photos_source=row.photos_source, fetched=False
+                )
+            now = datetime.now()
+            if in_cooldown(row.photos_fetched_at, now):
+                return PhotosFetchResponse(
+                    photos=list(row.photos or []),
+                    photos_source=row.photos_source,
+                    fetched=False,
+                )
+            photos: list | None = None
+            source: str | None = None
+            try:
+                settings = get_settings()
+                amap = (
+                    AmapClient(key=settings.amap_api_key, timeout_seconds=10.0)
+                    if settings.amap_api_key
+                    else None
+                )
+                photos, source = await fetch_photo_chain(row, amap=amap)
+            except Exception:
+                logger.warning(
+                    "photos_fetch: chain failed, poi=%s city=%s name=%s",
+                    row.id,
+                    req.city,
+                    wanted,
+                    exc_info=True,
+                )
+            row.photos_fetched_at = now
+            if photos:
+                row.photos = photos
+                row.photos_source = source
+            session.commit()
+            return PhotosFetchResponse(
+                photos=list(photos or []),
+                photos_source=row.photos_source,
+                fetched=bool(photos),
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning(
+            "photos_fetch: store unavailable, city=%s name=%s",
+            req.city,
+            wanted,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+
+
+@router.post("/photos/report-dead", status_code=204)
+def photos_report_dead(
+    req: PhotosDeadReport,
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> Response:
+    """F4 死图上报（fire-and-forget）：photos_fetch_fail += 1，恒 204——
+    前端 onerror 不等结果。未知/坏 poi_id 留 warning 日志（静默吞掉
+    不允许），响应层无差别 204 防探测。"""
+    try:
+        poi_uuid = uuid.UUID(req.poi_id)
+    except (ValueError, AttributeError):
+        logger.warning("photos_report_dead: bad poi_id=%r", req.poi_id)
+        return Response(status_code=204)
+    with factory() as session:
+        row = session.get(Poi, poi_uuid)
+        if row is None:
+            logger.warning("photos_report_dead: unknown poi_id=%s", req.poi_id)
+            return Response(status_code=204)
+        row.photos_fetch_fail = (row.photos_fetch_fail or 0) + 1
+        session.commit()
+    return Response(status_code=204)
 
 
 def get_poi_store() -> PoiDetailStore:
