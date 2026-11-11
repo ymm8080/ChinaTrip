@@ -43,7 +43,7 @@
 
 - 简介气泡首图保持现状轻量；**点击首图（或照片计数"📷 N"）开全屏灯箱**：横滑/点切全部 photos，底部来源小字（复用 `brief.sourcePre/Close` 口径与 `photos_source`）。
 - 键位/手势：左右箭头等价 swipe；Esc/点遮罩关闭；EN 语境来源标签不翻译（source 戳原样）。
-- 悬停 .site-pop 仍不出图（流量与骚扰控制），点击气泡才出图。
+- 悬停 .site-pop 浮层：**2026-11-11 用户拍板加首图**（原设计「悬停不出图」作废——detail 请求本就随悬停发出，纯渲染零额外请求，无流量顾虑）。已落地 `e8ed183`（sw v76）：max-height 100px、loading=lazy、referrerpolicy=no-referrer、onerror 原地摘除。CDP 实测两案 PASS（北京有图出图 / 杭州无图不出图）；已知残留：携程图床 headless 下 naturalWidth=0（疑似防盗链/慢载），真机表现待 UAT，大量失败由 F4 死图通道接住。
 - 图源是第三方 URL 直链（referrerpolicy="no-referrer"，防盗链兜底——高德/百度图床对空 referrer 策略不一，需 UAT 实测）。
 - 空态：photos 为空时不显示灯箱入口，改显 F2 的"🔍 找图"按钮。
 
