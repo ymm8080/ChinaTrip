@@ -1528,12 +1528,15 @@ def insertion_schedule_day(
     # 软钉餐机动跨度（非餐条目的条件块）：餐可在 [P-30, P+30] 开餐、
     # 时长 [dur-30, dur]——其它条目要么在 P+30 前收尾（餐顺延接后），
     # 要么从 P+dur-60（最早缩餐终点）后开始。2026-11-01 ±30 规则。
+    # 2026-11-11 扩口径：覆盖全部软钉餐（含只滑窗不缩时的晚餐）——
+    # 软钉餐让位排到大点之后，大点须给餐留机动跨度；否则晚餐先占死
+    # 窗、大点唯一可行档被堵。
     flex_pins: list[tuple[int, int]] = []
     for spec in rest:
         if (
             flex_day
-            and spec.dur_lo
-            and spec.dur_lo < spec.dur
+            and spec.item.soft_pin
+            and (spec.item.category or "") == "food"
             and spec.item.start_time is not None
         ):
             flex_pins.append((_to_minutes(spec.item.start_time), spec.dur))
@@ -1695,9 +1698,18 @@ def insertion_schedule_day(
     # ---- ② 大点先插（难放优先），软钉餐最后（可让位） ----
     # 插入序叠加头档距离规则（2026-11-05）：候选组最先、组内距酒店锚
     # 降序（远的占上午头档），其后维持时长降序原口径。
+    # 2026-11-11 拍板序修正：钉住件（含钉住餐）最先落（刚性锚点）；
+    # flex 日未钉软钉餐排最后（可让位——先占死餐窗会堵死大点唯一
+    # 可行档）；非 flex 日软钉餐是刚性锚点，维持食序优先原口径。
     def _hkey(s: _VisitSpec) -> tuple:
+        soft_food_yieldable = (
+            flex_day
+            and not s.item.pinned
+            and s.item.soft_pin
+            and (s.item.category or "") == "food"
+        )
         return (
-            0 if s.item.soft_pin and (s.item.category or "") == "food" else 1,
+            0 if s.item.pinned else (2 if soft_food_yieldable else 1),
             0 if (_head_p is not None and _is_head_candidate(s.item)) else 1,
             -_head_dist(s),
             -s.dur,

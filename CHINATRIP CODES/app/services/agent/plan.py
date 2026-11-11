@@ -77,6 +77,7 @@ from app.services.itinerary.models import (
     ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
     PoiHours,
+    UnplacedCandidate,
 )
 from app.services.itinerary.rules import (
     TAXI_HAIL_MINUTES,
@@ -8607,7 +8608,7 @@ def _probe_visit_slot(
     return None
 
 
-def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
+def _must_visit_room_sweep(plan: ItineraryPlan, cap_relax: bool = False) -> list[str]:
     """必去让位清算（2026-11-04 it-b986c4f6 事故）：钉住未排的必去大点
     被同日自动凑数条目占满下午、挤到挂日尾无时刻（替代组正主 180min 被
     街道类样本 12:00 + 名人故居样本 14:12 顶到日尾，渲染成「四点以后」）。
@@ -8615,9 +8616,11 @@ def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
     solve 前逐天清场：钉住未排观光点先试原窗（必去大点按「下午头档」
     口径——上午已被占从 12:00 起、开场 ≤13:00），放不下则逐个挤掉非钉
     凑数观光（街区 tier8 优先、再开场最晚；一个不够就累计挤、全挤完仍
-    不可行则原样归还绝不白挤）。只动自动凑数观光——钉住条目/餐/酒店/
-    演出永不让位。挤掉者留痕披露「要加回可指定其他天」，绝不静默。
-    幂等：已可行的钉住条目零改动。"""
+    不可行则原样归还绝不白挤）。只动自动凑数条目——钉住条目/餐/酒店/
+    钉住演出永不让位；未钉凑数演出/体验卡（entertainment 类）在钉住
+    必去面前照让（2026-11-11 拍板「必去/手建优先于梯队」——未钉演出
+    尚未锁场次，让位留痕后可经「想去」chip 加回）。挤掉者留痕披露
+    「要加回可指定其他天」，绝不静默。幂等：已可行的钉住条目零改动。"""
     notes: list[str] = []
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     day_end = 21 * 60 + 30
@@ -8647,6 +8650,12 @@ def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
                 )
                 floor = 12 * 60 if morning_occupied else DAY_START_MINUTES
                 tighten = AFTERNOON_START_MINUTES if _is_big_site(pv) else None
+                if cap_relax:
+                    # 跨日救生末档（2026-11-11 拍板「必去/手建优先于梯队」）：
+                    # 下午头档 13:00 收紧是排程偏好不是物理闸——钉住必去
+                    # 跨日试宿时放宽回通用开场闸（大点 15:30/普通 16:00），
+                    # 仍受营业窗+日终 21:30 硬卡；落下午档由救生侧披露。
+                    tighten = None
                 if (
                     _probe_visit_slot(
                         pv,
@@ -8666,7 +8675,6 @@ def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
                     if isinstance(v, VisitItem)
                     and v.start_time is not None
                     and not v.pinned
-                    and not _is_show_item(v)
                     and (v.category or "") not in ("food", "hotel")
                 ]
                 if not victims:
@@ -8715,6 +8723,20 @@ def _must_visit_room_sweep(plan: ItineraryPlan) -> list[str]:
                         victim.name,
                         pv.name,
                         day.day,
+                    )
+                    plan.unplaced.append(
+                        UnplacedCandidate(
+                            name=victim.name,
+                            name_en=victim.name_en,
+                            poi_id=victim.poi_id,
+                            category=victim.category,
+                            tier=victim.tier,
+                            duration_minutes=victim.duration_minutes,
+                            location=victim.location,
+                            city=victim.city,
+                            day_hint=day.day,
+                            reason="yield_must",
+                        )
                     )
                 swept = True
                 break
@@ -18655,6 +18677,218 @@ class PlanningAgent:
             self._replay_measured_legs(plan)
         return plan
 
+    def _must_visit_crossday_rescue(
+        self,
+        plan: ItineraryPlan,
+        protect: frozenset[str] | set[str] = frozenset(),
+        tier_by_name: dict[str, int] | None = None,
+    ) -> tuple[ItineraryPlan, list[str]]:
+        """必去跨日救生（2026-11-11 拍板「必去/手建优先于梯队、雨天室内
+        优先」的兑现闸）：钉住必去在同日让位清算后仍无时刻时，此前挪日
+        机制全部跳过 pinned（铁律 19）——灰卡终局。本闸对钉住必去开一条
+        跨日救生通道：同城其余日逐日克隆试宿（必去挪候选日 → 当日让位
+        清算 → CP 重解），必去拿到时刻才采纳；失败即弃克隆原样不动（全有
+        全无，绝不白挤）。被挤者经让位清算留痕 plan.unplaced，装配期作
+        「想去」chip 落被挤日相关卡右侧（可替代品跨品类拍板）。tier≤2 不
+        上返程日（口径同 rehome）；重物落到达日走孤窗兜底须披露。"""
+        from copy import deepcopy
+
+        notes: list[str] = []
+        for day in list(plan.days):
+            stuck = [
+                v
+                for v in day.items
+                if isinstance(v, VisitItem)
+                and v.pinned
+                and v.start_time is None
+                and not _is_show_item(v)
+                and (v.category or "") not in ("food", "hotel")
+                and v.name not in protect
+            ]
+            for must in stuck:
+                vcity = str(must.city or "").strip().removesuffix("市")
+                if not vcity:
+                    continue
+                dur = must.duration_minutes or DEFAULT_VISIT_MINUTES
+                vt = (tier_by_name or {}).get(str(must.name or ""), 11)
+                own_day = next(d for d in plan.days if d.day == day.day)
+                for target in [own_day] + [
+                    d for d in plan.days if d is not own_day
+                ]:
+                    if target is not own_day:
+                        if (
+                            str(target.base_city or "").strip().removesuffix("市")
+                            != vcity
+                        ):
+                            continue
+                        if vt <= 2 and _day_has_departure(target, vcity):
+                            continue
+                    trial = deepcopy(plan)
+                    t_day = next(d for d in trial.days if d.day == day.day)
+                    t_target = next(d for d in trial.days if d.day == target.day)
+                    t_must = next(
+                        (
+                            v
+                            for v in t_day.items
+                            if isinstance(v, VisitItem) and v.item_id == must.item_id
+                        ),
+                        None,
+                    )
+                    if t_must is None:
+                        continue
+                    if t_target is not t_day:
+                        t_day.items.remove(t_must)
+                        t_must.day = t_target.day
+                        t_must.start_time = None
+                        t_must.end_time = None
+                        t_target.items.append(t_must)
+                    trial_notes = _must_visit_room_sweep(trial, cap_relax=True)
+                    # 铁律 19 只认「钉住时刻」——pinned+untimed 在 CP 无排程
+                    # 域（solver _visit_spec 直接 None），不摘钉求解器永远
+                    # 落不了档。清算（pinned 口径）完成后、求解前临时摘钉，
+                    # 采纳后按解出时刻回钉（用户钉的是「在册必去」，落档
+                    # 时刻即新钉点）。
+                    t_must.pinned = False
+                    # 钉住具名餐卡可挪不可删（铁律 19 同义，2026-11-11 拍
+                    # 板）：试宿前把钉住餐转刚性——否则求解器窗满丢餐会把
+                    # 钉住的宴/餐蒸发成灰卡（读闸保钉住卡，灰卡永留）。
+                    # 未钉软锚餐（占位/顺路餐厅）维持可滑可丢原口径。
+                    for d in trial.days:
+                        for v in d.items:
+                            if (
+                                isinstance(v, VisitItem)
+                                and (v.category or "") == "food"
+                                and v.pinned
+                            ):
+                                v.soft_pin = False
+                    resolved = self._solve(trial, meal_flex=True)
+                    cand = resolved if resolved is not None else trial
+                    placed = any(
+                        isinstance(v, VisitItem)
+                        and v.item_id == must.item_id
+                        and v.start_time is not None
+                        for d in cand.days
+                        for v in d.items
+                    )
+                    if not placed:
+                        logger.info(
+                            "plan: cross-day rescue of pinned must %s to day %d "
+                            "infeasible; rolling back",
+                            must.name,
+                            target.day,
+                        )
+                        continue
+                    kept = {
+                        v.item_id
+                        for d in cand.days
+                        for v in d.items
+                        if isinstance(v, VisitItem)
+                    }
+                    trial_keys = {
+                        (u.poi_id or u.name) for u in trial.unplaced
+                    }
+                    extra: list[UnplacedCandidate] = []
+                    for d in plan.days:
+                        for v in d.items:
+                            if (
+                                isinstance(v, VisitItem)
+                                and v.item_id not in kept
+                                and (v.poi_id or v.name) not in trial_keys
+                            ):
+                                extra.append(
+                                    UnplacedCandidate(
+                                        name=v.name,
+                                        name_en=v.name_en,
+                                        poi_id=v.poi_id,
+                                        category=v.category,
+                                        tier=v.tier,
+                                        duration_minutes=v.duration_minutes,
+                                        location=v.location,
+                                        city=v.city,
+                                        day_hint=d.day,
+                                        reason="yield_must",
+                                    )
+                                )
+                    cand.unplaced = list(trial.unplaced) + extra
+                    cand.assumptions = plan.assumptions
+                    # 摘钉试宿采纳后按解出时刻回钉（落档时刻即新钉点）
+                    for d in cand.days:
+                        for v in d.items:
+                            if (
+                                isinstance(v, VisitItem)
+                                and v.item_id == must.item_id
+                            ):
+                                v.pinned = True
+                    if target.day == day.day:
+                        move_note = L(
+                            f"必去「{must.name}」同日头档排不下，"
+                            f"末档放行落第{day.day}天下午",
+                            f'must-visit "{must.name}" could not take a '
+                            f"morning slot on day {day.day}; last lane "
+                            "afternoon placement",
+                        )
+                    else:
+                        move_note = L(
+                            f"必去「{must.name}」第{day.day}天排不下，"
+                            f"已救生改排第{target.day}天",
+                            f'must-visit "{must.name}" could not be timed on day '
+                            f"{day.day}; rescued onto day {target.day}",
+                        )
+                    notes.append(move_note)
+                    notes.extend(trial_notes)
+                    if _day_is_arrival(t_target, vcity) and _heavy_rehome_visit(
+                        t_must, dur
+                    ):
+                        logger.warning(
+                            "plan: cross-day rescue lands heavy must %s on "
+                            "arrival day %d (disclosed)",
+                            must.name,
+                            target.day,
+                        )
+                        notes.append(
+                            L(
+                                f"必去「{must.name}」落在到达日第{target.day}天"
+                                "（其余日结构性排不下，孤窗兜底）",
+                                f'must-visit "{must.name}" lands on arrival day '
+                                f"{target.day} (no other day feasible)",
+                            )
+                        )
+                    logger.warning(
+                        "plan: cross-day rescue moved pinned must %s day %d -> %d",
+                        must.name,
+                        day.day,
+                        target.day,
+                    )
+                    placed_start = next(
+                        (
+                            v.start_time
+                            for d in cand.days
+                            for v in d.items
+                            if isinstance(v, VisitItem)
+                            and v.item_id == must.item_id
+                            and v.start_time is not None
+                        ),
+                        None,
+                    )
+                    if placed_start is not None and (
+                        placed_start.hour * 60 + placed_start.minute
+                        >= AFTERNOON_START_MINUTES
+                    ):
+                        notes.append(
+                            L(
+                                f"必去「{must.name}」落第{target.day}天下午档"
+                                "（上午被钉住条目占满，跨日救生末档放行）",
+                                f'must-visit "{must.name}" takes an afternoon '
+                                f"slot on day {target.day} (morning occupied "
+                                "by pinned items; rescue last lane)",
+                            )
+                        )
+                    annotate_legs(cand)
+                    plan = cand
+                    day = next(d for d in plan.days if d.day == day.day)
+                    break
+        return plan, notes
+
     def _finalize_untimed_visits(
         self,
         plan: ItineraryPlan,
@@ -18679,10 +18913,19 @@ class PlanningAgent:
         resolved = self._solve(plan, meal_flex=True)
         if resolved is not None:
             resolved.assumptions = plan.assumptions
+            resolved.unplaced = plan.unplaced
             plan = resolved
             annotate_legs(plan)
         else:
             _fallback_sequence_times(plan)
+        if _has_untimed_visits(plan):
+            # 必去跨日救生（2026-11-11 拍板）：钉住必去同日清算仍无时刻时
+            # 开跨日克隆试宿通道——挪日/回头重试都跳过 pinned，不開此闸
+            # 钉住必去只能灰卡终局。成功才采纳，被挤者留痕作「想去」chip。
+            plan, rescue_notes = self._must_visit_crossday_rescue(
+                plan, protect, tier_by_name
+            )
+            plan.assumptions.extend(rescue_notes)
         if _has_untimed_visits(plan):
             # 挪日扫尾（2026-11-04 成渝案四段）：CP 分钟口径把互远大点
             # 装进同一天后重解也排不出时刻——清算前先试挪日（转场日
