@@ -9571,6 +9571,217 @@ def _rain_rebalance_days(
     return notes
 
 
+# 熊猫顺路换苑闸（2026-11-11 拍板「雨天默认繁育研究基地；非雨天默认繁育
+# 基地，除非那天安排了都江堰，就顺路逛都江堰熊猫馆」）：替代组正主（基地）
+# 已排、而同城腿已有含都江堰/青城山的日（顺路机会）时，把看熊猫件改绑
+# 都江堰中华大熊猫苑并挪到该日。三条护栏：
+# ① 显式点名不动——用户心愿词自带站点词素（基地/谷/苑/乐园）时全程跳过
+#    （用户权威压过顺路默认）；
+# ② 雨日不动——目标日落雨则保留基地（雨天看熊猫走基地室内展区口径，
+#    谷/苑以户外为主）；
+# ③ 试排验收——4/日帽与 480min 账先算，trial 换绑挪日后 validate 无
+#    error 才接受（与雨日调换闸同契约）；目标行不在候选池/无坐标则宁缺
+#    勿滥。换绑保留 item_id/pinned/must（心愿身份不随选址变），字段口径
+#    同 replace_item（2026-11-07 替代组次优替换正主案）。
+_PANDA_WAYPOINT_TARGET_TOKENS = ("中华大熊猫苑", "大熊猫苑", "熊猫乐园")
+_DUJIANYAN_DAY_TOKENS = ("都江堰", "青城山")
+_PANDA_SITE_WISH_TOKENS = (
+    "熊猫基地",
+    "大熊猫基地",
+    "熊猫谷",
+    "大熊猫苑",
+    "熊猫乐园",
+)
+
+
+def _panda_waypoint_pass(
+    plan: ItineraryPlan,
+    cand_by_name: dict[str, dict],
+    day_rain: dict[str, set[int]] | None,
+    start_date: str | None,
+    wish_words: set[str] | frozenset[str] = frozenset(),
+    must_names: set[str] | None = None,
+) -> list[str]:
+    """看熊猫顺路换绑闸：基地正主 → 都江堰中华大熊猫苑（口径见上）。"""
+    notes: list[str] = []
+    if any(t in w for w in (wish_words or ()) for t in _PANDA_SITE_WISH_TOKENS):
+        logger.info("plan: panda waypoint skipped (explicit site wish)")
+        return notes
+    base_item = next(
+        (
+            i
+            for d in plan.days
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and i.category not in ("food", "hotel")
+            and _substitute_group(i.name) == "panda"
+            and _substitute_canon_rank(i.name) == 0
+        ),
+        None,
+    )
+    if base_item is None:
+        return notes
+    city_key = _norm_city_key(base_item.city)
+    target: dict | None = None
+    for toks in (("中华大熊猫苑",), ("大熊猫苑", "熊猫乐园")):
+        target = next(
+            (
+                c
+                for n, c in cand_by_name.items()
+                if _norm_city_key(c.get("city")) == city_key
+                and _substitute_group(n) == "panda"
+                and _substitute_canon_rank(n) != 0
+                and any(t in n for t in toks)
+            ),
+            None,
+        )
+        if target is not None:
+            break
+    if target is None:
+        logger.info("plan: panda waypoint skipped (no Dujiangyan panda in pool)")
+        return notes
+    new_name = str(target.get("name") or "").strip()
+    dj_days = [
+        d
+        for d in plan.days
+        if (_norm_city_key(d.base_city) == city_key)
+        and any(
+            any(t in (i.name or "") for t in _DUJIANYAN_DAY_TOKENS)
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and i.category not in ("food", "hotel")
+            and i.item_id != base_item.item_id
+        )
+    ]
+    dj_days.sort(key=lambda d: d.day)
+    rain_set: set[int] = set()
+    if day_rain:
+        rain_set = (
+            day_rain.get(base_item.city, set())
+            | day_rain.get(city_key, set())
+            | day_rain.get(city_key + "市", set())
+        )
+    target_day = next((d for d in dj_days if d.day not in rain_set), None)
+    if target_day is None:
+        logger.info("plan: panda waypoint skipped (no dry Dujiangyan day)")
+        return notes
+
+    def _load(items: list) -> tuple[int, int]:
+        vs = [
+            i
+            for i in items
+            if isinstance(i, VisitItem) and i.category not in ("food", "hotel")
+        ]
+        return len(vs), sum(i.duration_minutes or 60 for i in vs)
+
+    if base_item.day != target_day.day:
+        cnt_d, min_d = _load(target_day.items)
+        if cnt_d + 1 > 4:
+            logger.info("plan: panda waypoint rejected (day %d 4-cap)", target_day.day)
+            return notes
+        if min_d + (base_item.duration_minutes or 60) > 480:
+            logger.info("plan: panda waypoint rejected (day %d 480min)", target_day.day)
+            return notes
+    loc = target.get("location")
+    if isinstance(loc, dict):
+        location = GeoPoint(lon=float(loc["lon"]), lat=float(loc["lat"]))
+    elif isinstance(loc, (tuple, list)) and len(loc) == 2:
+        location = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+    else:
+        logger.info("plan: panda waypoint skipped (target has no coordinates)")
+        return notes
+    trial = plan.model_copy(deep=True)
+    t_src = next(
+        d
+        for d in trial.days
+        if any(
+            isinstance(i, VisitItem) and i.item_id == base_item.item_id for i in d.items
+        )
+    )
+    t_dst = next(
+        d
+        for d in trial.days
+        if d.day == target_day.day and _norm_city_key(d.base_city) == city_key
+    )
+    old = next(
+        i
+        for i in t_src.items
+        if isinstance(i, VisitItem) and i.item_id == base_item.item_id
+    )
+    old_name = old.name
+    fresh = VisitItem(
+        item_id=old.item_id,
+        name=new_name,
+        poi_id=str(target.get("source_poi_id") or "") or old.poi_id,
+        category=(str(target.get("category") or "") or old.category),
+        city=old.city,
+        location=location,
+        address=target.get("address"),
+        name_en=target.get("name_en"),
+        address_en=target.get("address_en"),
+        intro_en=target.get("intro_en"),
+        opening_hours=target.get("opening_hours"),
+        opening_hours_en=target.get("opening_hours_en"),
+        best_visit_time=_sched_best_visit(target),
+        booking_url=target.get("booking_url"),
+        reservation_hint=_reservation_hint(new_name, target),
+        rain_ok=target.get("rain_ok"),
+        tier=(_source_tier(target) if target else None),
+        day=target_day.day,
+        duration_minutes=old.duration_minutes,
+        pinned=old.pinned,
+        soft_pin=old.soft_pin,
+        must=old.must,
+        created=old.created,
+        curated=old.curated,
+    )
+    t_src.items.remove(old)
+    insert_at = next(
+        (
+            k + 1
+            for k in range(len(t_dst.items) - 1, -1, -1)
+            if isinstance(t_dst.items[k], VisitItem)
+            and t_dst.items[k].category not in ("food", "hotel")
+        ),
+        0,
+    )
+    t_dst.items.insert(insert_at, fresh)
+    for day in {id(t_src): t_src, id(t_dst): t_dst}.values():
+        for it in day.items:
+            if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
+                it.start_time = None
+                it.end_time = None
+    _reconcile_transfer_days(trial, user_edit=True)
+    _fallback_sequence_times(trial, keep_list_order=True)
+    report = validate_plan(trial, poi_hours=[])
+    if any(v.severity == RuleSeverity.error for v in report.violations):
+        logger.info(
+            "plan: panda waypoint rejected (validate): %s",
+            [v.message for v in report.violations][:3],
+        )
+        return notes
+    plan.days = trial.days
+    if must_names is not None:
+        must_names.discard(old_name)
+        must_names.add(new_name)
+    date_d = _leg_date_iso(start_date, target_day.day) or f"第{target_day.day}天"
+    notes.append(
+        L(
+            f"第 {target_day.day} 天（{date_d}）已安排都江堰行程，看大熊猫顺路"
+            f"调整至「{new_name}」（原「{old_name}」）",
+            f"Day {target_day.day} ({date_d}) already covers Dujiangyan, so the "
+            f'panda visit moved there: "{new_name}" (was "{old_name}")',
+        )
+    )
+    logger.info(
+        "plan: panda waypoint day %d (%s -> %s)",
+        target_day.day,
+        old_name,
+        new_name,
+    )
+    return notes
+
+
 def heal_leg_gaps(plan: ItineraryPlan) -> list[str]:
     """读路径腿间隔自愈（2026-11-03 Day2 大遗址样本 13:30+90min→联票挂牌 15:00
     零车程事故）：11-02 _leg_windows 改造前的旧 session 兜底产物（锚窗
@@ -13531,22 +13742,6 @@ class PlanningAgent:
                         shows.append((idx, cand))
                 else:
                     sights.append((idx, cand))
-            ordered = sorted(
-                sights,
-                key=lambda p: (
-                    # CREATED 置顶（2026-11-08 拍板「低于心愿、高于其它
-                    # TAG」）：手建卡先于偏好/tier 梯子；心愿不走池序（
-                    # merge 强钉），故 CREATED 即池内最高位。
-                    not p[1].get("_created_lane"),
-                    not _pref_key(p[1]),
-                    _source_tier(p[1]),
-                    # 同档内体验型优先（2026-11-07 拍板；跨档序不动）
-                    0 if _is_experience_cand(p[1]) else 1,
-                    -_quality(p[1]),
-                    _minutes(p[1], DEFAULT_VISIT_MINUTES),
-                    p[0],
-                ),
-            )
             rainy_here = {d for d in (rain_days or {}).get(city, ()) if lo <= d <= hi}
             heavy_here = {
                 d for d in (heavy_rain_days or {}).get(city, ()) if lo <= d <= hi
@@ -13557,6 +13752,60 @@ class PlanningAgent:
             night_rainy = {
                 d for d in (night_rain_days or {}).get(city, ()) if lo <= d <= hi
             }
+            # 雨日远郊降权（2026-11-11 用户拍板「雨天不倾向去远郊风景区，
+            # 应安排市内活动如看戏喝茶」）：雨窗内距城市核心（本市候选
+            # 点位云 medoid，_urban_medoid 同口径）超出市区圈的风景区/
+            # 远郊观光件降权——软偏好非硬禁（干日/族选日/对调闸照常认领），
+            # 王牌不豁免（雨日远征不优先）；全雨窗（读路径调换闸无干日可
+            # 对调）同样生效。无雨窗口恒不生效，晴天梯序零扰动。
+            _rain_core = (
+                _urban_medoid(
+                    [xy for xy in (_cxy(c) for _, c in sights) if xy is not None]
+                )
+                if rainy_here
+                else None
+            )
+
+            def _far_scenic_rain(cand: dict) -> bool:
+                if _rain_core is None:
+                    return False
+                cat = str(cand.get("category") or "").strip()
+                if (
+                    _itin_cap_bucket(cand) != "scenic"
+                    and cat not in ("scenic", "nature", "attraction")
+                ):
+                    return False
+                xy = _cxy(cand)
+                return xy is not None and _km(xy, _rain_core) > _RETURN_URBAN_KM
+
+            def _rain_unfit(cand: dict) -> bool:
+                """雨日减员受害者判定（2026-11-11 用户拍板「与室外一族
+                绑簇不是不入选的理由」）：硬露天（rain_ok=no/partial）与
+                未标注非体验件是雨日不合适成员；体验型（看戏/喝茶类可坐
+                室内）与显式室内件（_rain_unmarked 已排除的品类）保留。"""
+                if _rain_exposed(cand):
+                    return True
+                return _rain_unmarked(cand) and not _is_experience_cand(cand)
+
+            ordered = sorted(
+                sights,
+                key=lambda p: (
+                    # CREATED 置顶（2026-11-08 拍板「低于心愿、高于其它
+                    # TAG」）：手建卡先于偏好/tier 梯子；心愿不走池序（
+                    # merge 强钉），故 CREATED 即池内最高位。
+                    not p[1].get("_created_lane"),
+                    # 雨日远郊降权（2026-11-11 拍板）：雨天避险位在偏好
+                    # 之前（⑦拍板梯），软偏好非硬禁。
+                    1 if _far_scenic_rain(p[1]) else 0,
+                    not _pref_key(p[1]),
+                    _source_tier(p[1]),
+                    # 同档内体验型优先（2026-11-07 拍板；跨档序不动）
+                    0 if _is_experience_cand(p[1]) else 1,
+                    -_quality(p[1]),
+                    _minutes(p[1], DEFAULT_VISIT_MINUTES),
+                    p[0],
+                ),
+            )
 
             def _rain_blocked(cand: dict, d: int) -> bool:
                 # 雨日硬闸判定（2026-11-02 拍板链「雨日是硬闸」+
@@ -13611,6 +13860,12 @@ class PlanningAgent:
                 ordered = sorted(
                     sights,
                     key=lambda p: (
+                        # 远郊降权（2026-11-11 拍板「雨天不倾向去远郊风景
+                        # 区」）：全雨窗里距城市核心超市区圈的风景区/远郊
+                        # 观光件先降——王牌不豁免（雨日远征不优先），市内
+                        # 体验型先赢档期（调换闸无干日可对调时本键是唯一
+                        # 防线）。
+                        1 if _far_scenic_rain(p[1]) else 0,
                         # 露天降权（2026-10-30 拍板）不降王牌档（2026-11-04
                         # 成渝案：整段小雨把 unesco/5A 露天压到全部室内杂点
                         # 之后=江畔古城/图商长尾级集体消失）——王牌保持 tier 梯
@@ -17938,6 +18193,20 @@ class PlanningAgent:
             plan.assumptions.extend(_transfer_day_sweep(plan, must_names, tier_map))
             _fallback_sequence_times(plan)
             plan.assumptions.append(_solver_degraded_assumption())
+        # 看熊猫顺路换苑闸（2026-11-11 拍板）：solve/兜底落定后、上午保底
+        # 与后续结构相位之前——挪过去的苑卡交给完整下游管线（上午保底/
+        # 跨天均衡/转场扫/纯度/楔子/每场闸/终装清扫）统一处置，试排验收
+        # 契约与雨日调换闸同口径。
+        wp_notes = _panda_waypoint_pass(
+            plan,
+            cand_by_name,
+            rain_days,
+            start_date,
+            wish_words=set(self._wish_bindings),
+            must_names=must_names,
+        )
+        if wp_notes:
+            plan.assumptions.extend(wp_notes)
         # 上午保底（2026-10-31 用户拍板「所有行程上午不许空」）：活动日
         # 若无任何 12:00 前开始的条目（交通占上午亦算占用），从未入选
         # 候选按 tier 序补一个上午点（同城/非演出非餐饮/雨天只收室内/
