@@ -19,7 +19,11 @@ gov 点**（重庆 106.550464,29.563761=渝中区政府/上清寺）——距城
 
 from __future__ import annotations
 
+import logging
+
 from app.services.coords import haversine_m
+
+logger = logging.getLogger(__name__)
 
 # 城市（裸名，去「市」尾）→ geocoder 城市级回退点 (lon, lat)。
 # 来源：tmp_unesco/poison_points.txt（2026-11-04 投毒普查，多行同点聚簇）。
@@ -55,7 +59,18 @@ def is_city_fallback_point(lon, lat, city) -> bool:
     城市未注册/坐标无效 → False（不误伤注册表外的城市）。
     """
     pt = CITY_FALLBACK_POINTS.get(bare_city(city))
-    if pt is None or lon is None or lat is None:
+    if pt is None:
+        # 2026-11-12 补可观测性：未注册城市=无防护面（181 行投毒事故随时
+        # 可能在第 7 座城重演），放行但不留痕违反日志铁律——warn 一次让
+        # 投毒普查能发现新城市（不拦行：无聚簇证据拒绝会误杀真数据）。
+        if (city or "").strip():
+            logger.warning(
+                "city_fallback: city %s has no fallback-point registry — "
+                "poisoned geocoder points pass unchecked",
+                city,
+            )
+        return False
+    if lon is None or lat is None:
         return False
     try:
         return haversine_m(float(lon), float(lat), pt[0], pt[1]) <= FALLBACK_TOLERANCE_M
@@ -67,6 +82,13 @@ def is_fallback_address(address, city) -> bool:
     """地址是否命中该城市的回退地址族（地址同型闸判定）。"""
     tokens = CITY_FALLBACK_ADDRESS_TOKENS.get(bare_city(city))
     if not tokens:
+        # 同坐标面：地址族未注册=地址面无防护，留痕同 is_city_fallback_point。
+        if (city or "").strip():
+            logger.warning(
+                "city_fallback: city %s has no fallback-address registry — "
+                "poisoned addresses remain geocodable",
+                city,
+            )
         return False
     s = str(address or "")
     return any(t in s for t in tokens)

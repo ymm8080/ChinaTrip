@@ -10702,6 +10702,11 @@ def get_plan_session_store() -> PlanSessionStore:
     return _store_singleton
 
 
+#: 品类愿望「就近落实」around 搜索半径（米）= 30km：市域+近郊口径
+#: （2026-10-24 拍板不按上一站附近找），覆盖全城行政范围。
+_CATEGORY_NEARBY_RADIUS_M = 30000
+
+
 class PlanningAgent:
     """§6.1 progressive planner. All I/O dependencies injectable (stubs in
     tests); the LLM is one of several change sources, never a writer."""
@@ -11878,7 +11883,7 @@ class PlanningAgent:
                 results = await around_fn(
                     keyword,
                     location=f"{anchor_loc.lon:.6f},{anchor_loc.lat:.6f}",
-                    radius=30000,
+                    radius=_CATEGORY_NEARBY_RADIUS_M,
                 )
             except Exception:
                 logger.warning(
