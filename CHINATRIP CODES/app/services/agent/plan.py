@@ -93,6 +93,7 @@ from app.services.itinerary.solver import (
     _BEST_VISIT_WINDOWS,
     _GENERIC_ENTRY_CAP_MINUTES,
     AFTERNOON_START_MINUTES,
+    BANQUET_SHOW_TEXT_MARKS,
     BIG_SITE_ENTRY_CAP_MINUTES,
     BIG_SITE_MIN_MINUTES,
     COMBO_BUNDLE_KM,
@@ -110,6 +111,7 @@ from app.services.itinerary.solver import (
     effective_show_sessions,
     generic_entry_cap,
     is_sessionless_show,
+    is_show_banquet_item,
     show_session_starts,
     solve_plan,
     tight_cluster_split_violations,
@@ -9164,31 +9166,15 @@ def _is_show_item(item: VisitItem) -> bool:
     return item.best_visit_time == "show" or item.category == "entertainment"
 
 
-_BANQUET_SHOW_TEXT_MARKS = (
-    "宴",
-    "餐秀",
-    "宴秀",
-    "伴宴",
-    "演艺",
-    "宴舞",
-    "乐舞",
-    "晚宴秀",
-)
+# 宴秀语素唯一定义点已下沉 solver（2026-11-12「声明场次的宴秀按场次落」：
+# solver _visit_spec 场次点窗与 plan 兜底餐槽链共用同一判定，防口径分叉）。
+_BANQUET_SHOW_TEXT_MARKS = BANQUET_SHOW_TEXT_MARKS
 
 
 def _is_show_banquet_item(item: VisitItem) -> bool:
     """宴秀条目（2026-11-08 拍板「宴秀卡已有 SHOW 的意思，就不应再排
-    同址伴场演出」）：36 城宴会普查 curated 行（poi_id curated: + category=
-    food）名/营业时段带宴秀语素=含演出的宴席（「唐乐演艺」、
-    「唐乐舞伴宴」、「宴秀」样本）——本身就是当晚那场「show」，占
-    晚餐槽不可再叠演出。失重餐厅类 curated 无宴秀语素不误伤；非 curated
-    普通餐厅名带宴不认（宁漏勿错）。"""
-    if str(item.category or "") != "food":
-        return False
-    if not str(item.poi_id or "").startswith("curated:"):
-        return False
-    text = f"{item.name or ''}|{item.opening_hours or ''}"
-    return any(m in text for m in _BANQUET_SHOW_TEXT_MARKS)
+    同址伴场演出」）——唯一定义点在 solver.is_show_banquet_item。"""
+    return is_show_banquet_item(item)
 
 
 def _cand_is_show_banquet(cand: dict, spec: dict) -> bool:

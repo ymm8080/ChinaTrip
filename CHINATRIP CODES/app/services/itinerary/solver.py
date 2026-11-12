@@ -95,6 +95,35 @@ def _is_show(item: VisitItem) -> bool:
     return item.best_visit_time == "show" or item.category == "entertainment"
 
 
+#: 宴秀语素（2026-11-08 拍板「宴秀卡已有 SHOW 的意思，就不应再排同址伴场
+#: 演出」）：36 城宴会普查 curated 行名/营业时段带宴秀语素=含演出的宴席
+#: ——本身就是当晚那场「show」，占晚餐槽不可再叠演出。失重餐厅类 curated
+#: 无宴秀语素不误伤；非 curated 普通餐厅名带宴不认（宁漏勿错）。
+BANQUET_SHOW_TEXT_MARKS = (
+    "宴",
+    "餐秀",
+    "宴秀",
+    "伴宴",
+    "演艺",
+    "宴舞",
+    "乐舞",
+    "晚宴秀",
+)
+
+
+def is_show_banquet_item(item: VisitItem) -> bool:
+    """宴秀条目（与 plan._is_show_banquet_item 同口径唯一定义点）：声明了
+    场次的宴秀按场次落（2026-11-12「声明场次的宴秀按场次落」）——此前
+    solver 只给 _is_show 开场次点窗，宴秀卡（food 类）声明的午宴/晚宴
+    场次被无视，v0 按普通餐卡塞任意时刻（12:15 午餐），声明场次形同虚设。"""
+    if str(item.category or "") != "food":
+        return False
+    if not str(item.poi_id or "").startswith("curated:"):
+        return False
+    text = f"{item.name or ''}|{item.opening_hours or ''}"
+    return any(m in text for m in BANQUET_SHOW_TEXT_MARKS)
+
+
 #: 演出场次串「多场（约15:00/20:00，旺季加场至4场）」「傍晚/晚间场（约
 #: 17:30/19:30两场）」——场次列表是真值源（23552b5 show_sessions 刷新
 #: 管线写入 opening_hours 列）。
@@ -668,9 +697,16 @@ def _visit_spec(
     # 其余无场次 SHOW 由 is_sessionless_show 识别，走下午或晚上域（下方
     # lo 抬中午），不钉晚场点。bvt!='show' 的 entertainment 室内体验馆
     # 不是 SHOW，回落 [] 仍按正常景点逻辑，营业窗/入场闸照常收口。
+    # 声明场次的宴秀同权（2026-11-12「声明场次的宴秀按场次落」）：此前
+    # 宴秀卡（food 类 curated 宴）被排除在场次点窗之外，v0 按普通餐卡塞
+    # 游标任意时刻（12:15 午餐），声明的午宴/晚宴场次形同虚设。无场次
+    # 语素的宴秀 effective_show_sessions 回落 []，行为不变。系统软钉
+    # （soft_pin）的宴秀同样开场次点窗——构造期钉的通用餐窗要让位声明
+    # 场次；仅用户自钉（pinned 且非 soft_pin）按铁律 19 排除。
     show_sessions = (
         effective_show_sessions(item.best_visit_time, item.opening_hours)
-        if _is_show(item) and not item.pinned
+        if (_is_show(item) or is_show_banquet_item(item))
+        and not (item.pinned and not item.soft_pin)
         else []
     )
     # 时段窗全员同口径（2026-11-12 修）：主题街区「可夜可昼」（2026-11-08
@@ -744,36 +780,44 @@ def _visit_spec(
         if item.start_time is None:
             return None
         pin = _to_minutes(item.start_time)
+        # 声明场次优先于系统餐窗（2026-11-12 用户拍板「一族里有一项
+        # 有了制约，移动是整个组合邻排一起移动的，不是中间随便插入
+        # 时间」+「声明场次的宴秀按场次落」）：系统软钉（soft_pin）
+        # 的宴秀卡声明了午宴/晚宴场次时，构造期钉的通用餐窗起点不是
+        # 真值——场次表驱动落位，跳过钉点锚定。用户自钉（soft_pin=
+        # False）仍铁律 19：钉点不在场次段内即不可行。
+        session_driven = multi is not None and show_sessions and item.soft_pin
         # 日始 9 点（2026-10-31）是排程默认而非用户约束：用户自钉的
         # 早于日始的时刻照常生效（铁律 19 优先，validate_plan 另行提示）
-        if pin < lo:
-            lo = pin
-        if multi is not None:
-            if not any(s[0] <= pin <= s[1] for s in multi):
+        if not session_driven:
+            if pin < lo:
+                lo = pin
+            if multi is not None:
+                if not any(s[0] <= pin <= s[1] for s in multi):
+                    return None
+            elif not lo <= pin <= hi:
                 return None
-        elif not lo <= pin <= hi:
-            return None
-        if meal_flex and item.soft_pin and (item.category or "") == "food":
-            # 软钉窗（仅初次排程 meal_flex=True）：午餐（<15:00 开餐且钉点
-            # 在硬窗内）走开餐硬窗 [11:30, 12:30] + 时长可缩至 30
-            # （2026-11-03 拍板；钉点已被挪出硬窗的不回拽，保可行）；
-            # 其余 ±30 分钟滑窗（晚餐时长不变，2026-11-01 拍板「晚饭
-            # 不用钉死」）。普通日/编辑路径 meal_flex=False → lo=hi=pin
-            # 零漂移；用户手钉（soft_pin=False）照旧铁律 19 完全钉死。
-            if pin < _LUNCH_PIN_FLEX_BEFORE_MIN and pin <= _to_minutes(
-                LUNCH_START_LATEST
-            ):
-                lo = max(lo, _to_minutes(LUNCH_START_EARLIEST))
-                hi = min(hi, _to_minutes(LUNCH_START_LATEST))
-                dur_lo = LUNCH_DURATION_FLOOR_MINUTES
+            if meal_flex and item.soft_pin and (item.category or "") == "food":
+                # 软钉窗（仅初次排程 meal_flex=True）：午餐（<15:00 开餐且钉点
+                # 在硬窗内）走开餐硬窗 [11:30, 12:30] + 时长可缩至 30
+                # （2026-11-03 拍板；钉点已被挪出硬窗的不回拽，保可行）；
+                # 其余 ±30 分钟滑窗（晚餐时长不变，2026-11-01 拍板「晚饭
+                # 不用钉死」）。普通日/编辑路径 meal_flex=False → lo=hi=pin
+                # 零漂移；用户手钉（soft_pin=False）照旧铁律 19 完全钉死。
+                if pin < _LUNCH_PIN_FLEX_BEFORE_MIN and pin <= _to_minutes(
+                    LUNCH_START_LATEST
+                ):
+                    lo = max(lo, _to_minutes(LUNCH_START_EARLIEST))
+                    hi = min(hi, _to_minutes(LUNCH_START_LATEST))
+                    dur_lo = LUNCH_DURATION_FLOOR_MINUTES
+                else:
+                    lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
+                    hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
+                    if pin < _LUNCH_PIN_FLEX_BEFORE_MIN:
+                        dur_lo = _MEAL_FLEX_MIN_DURATION_MINUTES
             else:
-                lo = max(lo, pin - _MEAL_FLEX_SLIDE_MINUTES)
-                hi = min(max(hi, pin), pin + _MEAL_FLEX_SLIDE_MINUTES)
-                if pin < _LUNCH_PIN_FLEX_BEFORE_MIN:
-                    dur_lo = _MEAL_FLEX_MIN_DURATION_MINUTES
-        else:
-            lo = hi = pin
-        multi = None
+                lo = hi = pin
+            multi = None
 
     if lo > hi:
         return None
