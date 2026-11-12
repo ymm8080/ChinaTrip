@@ -3830,11 +3830,12 @@ def _reconcile_transfer_days(
             stranded.sort(key=lambda v: tier_by_name.get(v.name, 11))
         protected_stranded: list[str] = []
         for visit in stranded:
-            if visit.name in protect:
-                # Must-visits are never dropped (iron rule 19) — but the
-                # user deserves to know it sits on their departure day.
-                protected_stranded.append(visit.name)
-                continue
+            protected = any(_site_dup(p, visit.name) for p in protect)
+            # 搁浅统一先挪同城前日（保护/无保护同口径，2026-11-12 灵隐寺
+            # 案根修）：保护分支直接留离城日，fallback 落不了位即成无时刻
+            # 滞留离城日，硬校验（跨城交通当天景点无起止时间）拒单进
+            # LLM 修复环；无保护件本就走此路搬迁。挪不动才分档：必去
+            # 保留披露（铁律19 不删），杂卡移除留痕。
             target = next(
                 (
                     d
@@ -3885,15 +3886,26 @@ def _reconcile_transfer_days(
                             f"{_fmt_hm(visit.start_time)}",
                         )
                     )
-            if not moved:
-                day.items.remove(visit)
-                notes.append(
-                    L(
-                        f"「{visit.name}」在离城当天无法安排，已从第{day.day}天移除",
-                        f'"{visit.name}" could not fit on the departure day '
-                        f"and was removed from day {day.day}",
-                    )
+            if moved:
+                continue
+            if protected:
+                # 必去/心愿在册不删（2026-11-02「可挪不可删」+ 铁律19）——
+                # 同城前日也挪不动才保留披露。无时刻不落时刻：
+                # transfer_sweep/fallback 自有落位口径（engine-arranged
+                # morning-cap 闸内），此处 fabricate 时刻曾被下游整窗
+                # 重排引发校验修复环（2026-11-12 灵隐寺案实测）。
+                # Must-visits are never dropped — the user deserves to
+                # know it sits on their departure day.
+                protected_stranded.append(visit.name)
+                continue
+            day.items.remove(visit)
+            notes.append(
+                L(
+                    f"「{visit.name}」在离城当天无法安排，已从第{day.day}天移除",
+                    f'"{visit.name}" could not fit on the departure day '
+                    f"and was removed from day {day.day}",
                 )
+            )
         if protected_stranded:
             names = L(
                 "、".join(f"「{n}」" for n in protected_stranded),
@@ -3974,11 +3986,13 @@ def _reconcile_transfer_days(
                     arr_stranded.append(v)
             protected_arrival: list[str] = []
             for visit in arr_stranded:
-                if visit.name in protect:
+                if any(_site_dup(p, visit.name) for p in protect):
                     # 必去/心愿在册不删（2026-11-02「可挪不可删」拍板 +
                     # 2026-11-07「放其它日期早晨」拍板）：到达日装不下先
                     # 挪同城后续天（挪后大点先排落早晨头档），日满则弹座
-                    # 救援，仍不行才披露换天——绝不静默蒸发。
+                    # 救援，仍不行才披露换天——绝不静默蒸发。核名判据同
+                    # _drop_untimed_from_day（2026-11-12：精确等值漏认
+                    # POI 正名变体卡，到达日保护形同虚设）。
                     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
                     vcity = str(visit.city or "").strip().removesuffix("市")
                     target = _host_day_for_visit(
@@ -6165,13 +6179,17 @@ def _transfer_day_sweep(
             continue
         arrivals = {str(t.to_city or "").strip().removesuffix("市") for t in timed}
         departures = {str(t.from_city or "").strip().removesuffix("市") for t in timed}
+        # protect 名册不再整段排除（2026-11-12 灵隐寺案根修）：无保护件走
+        # 挪日链搬到同城宿主天落位（灵隐寺 day2 转场→day1 实录），保护件
+        # 却被精确名闸挡在门外滞留转场日——无时刻卡过不了 rule 4 硬校验
+        # 进 LLM 修复环。同链挪日，只有挪不动（无宿主）的终端按保护分档
+        # （protect 保留披露 / 杂卡移除，见下方 target is None 分支）。
         strays = [
             v
             for v in day.items
             if isinstance(v, VisitItem)
             and v.start_time is None
             and not v.pinned
-            and v.name not in protect
             and (v.category or "") not in ("food", "hotel")
             and v.item_id not in handled
         ]
@@ -6226,6 +6244,13 @@ def _transfer_day_sweep(
                 )
             elif target is None:
                 reason = _untimed_protected_reason(visit)
+                if reason is None and any(_site_dup(p, visit.name) for p in protect):
+                    # 必去/心愿在册（铁律19，核名同 _drop_untimed_from_day）：
+                    # 宿主天也没有——不删不挪，披露交给下方 pinned_untimed
+                    # 统一出口（「必去 … 钉在第N天（转场日）…」），此处只
+                    # 标记处理完毕防重复留痕。
+                    handled.add(visit.item_id)
+                    continue
                 if reason is not None:
                     # 保护名册（2026-11-08 二拍）：转场日排不下也不删——
                     # 原地保留待重排+披露，口径同 pinned/protect 铁律 19。
@@ -11270,7 +11295,12 @@ class PlanningAgent:
                 logger.warning("plan: note_link_mention failed", exc_info=True)
 
     async def _add_must_visits(
-        self, session: PlanSession, names: list[str], *, far_check: bool = True
+        self,
+        session: PlanSession,
+        names: list[str],
+        *,
+        far_check: bool = True,
+        repin: bool = False,
     ) -> tuple[PlanSession, ChangeSummary | None, str]:
         """Iron rule 0: even a deterministic add rides the pipeline —
         structural add -> solve -> validate, with the usual repair chain.
@@ -11278,7 +11308,14 @@ class PlanningAgent:
         Link food spots: geocode first, place into a free meal window
         pinned; farther than RESTO_ASK_KM from every located sight and not
         asked yet -> held out for the resto_confirm round instead of added
-        (far_check=False is the accepted-by-user re-entry from that round)."""
+        (far_check=False is the accepted-by-user re-entry from that round).
+
+        repin=True（兜底网 _ensure_wishlist_coverage 专用，2026-11-12 陕历博
+        复发案）：此通道进来的名此前不回钉 session.must_visits——apply/终局
+        清算的 protect 按 must_visits 认人，未回钉时排不上即被「始终排不下
+        时刻已移除」静默删除，违反 2026-11-02「心愿可挪不可删」拍板。sync
+        路径不入此参（调用前自己回钉，L21822）；v0 吸收路径不入此参（其行
+        收口语义有专属回归锚，repin 会翻转 wishlist 行态）。"""
         existing_poi_ids = {
             item.poi_id
             for day in session.plan.days
@@ -11555,6 +11592,15 @@ class PlanningAgent:
                 )
         summary: ChangeSummary | None = None
         if diffs:
+            added = {op.item.name for op in diffs if op.op == "add"}
+            # 回钉 must_visits（repin 通道，见 docstring）：只钉真正落了 add
+            # 件的名（异地/远餐被 continue 的不钉，防死钉挡再吸收）。
+            if repin:
+                for name in names:
+                    if name in session.must_visits:
+                        continue
+                    if any(_name_dup(name, a) for a in added):
+                        session.must_visits.append(name)
             new_plan, summary, repair_notes = await self._apply_with_repair(
                 session, diffs, ""
             )
@@ -11566,7 +11612,11 @@ class PlanningAgent:
             # 去重合并（谁活下来取决于 solver 排序），必去意图必须钉在
             # 幸存件上——2026-10-31 午餐占底回归：占位件改变 solver 排序
             # 后新增件被并走，精确名 pin 落空。
-            added = {op.item.name for op in diffs if op.op == "add"}
+            # 无时刻件也钉（2026-11-12 回判）：钉住是下游 sweep 落位
+            # （transfer_sweep/fallback）与清算豁免（_drop_untimed 的
+            # not pinned 闸）的锚——不钉的无时刻件会被 sweep 挪去它日
+            # 引发校验修复环（灵隐寺案实测）。弹座救援对钉件的豁免见
+            # _rescue 旗（L6049 同层注释）。
             pinned_any = False
             for day in session.plan.days:
                 for item in day.items:
@@ -11585,6 +11635,27 @@ class PlanningAgent:
                         "later edits won't move them",
                     )
                 )
+            # 未排上的 add 件（本拍无解、因必有必去身份才被 _drop_untimed
+            # 豁免幸存）：留用户可见披露——2026-11-12 复发案根因之一即兜底
+            # 网重加件被无披露清算，回复只报成功。披露进 notes 才能随回复
+            # 到达用户（readd_notes 收口同源，L21763）。
+            for day in session.plan.days:
+                for item in day.items:
+                    if (
+                        isinstance(item, VisitItem)
+                        and item.start_time is None
+                        and any(_name_dup(n, item.name) for n in added)
+                    ):
+                        notes.append(
+                            L(
+                                f"「{item.name}」第{day.day}天暂排不下时刻，"
+                                "已保留为必去待重排——可指定其他天，或先删掉"
+                                "其它卡腾出时间",
+                                f'"{item.name}" doesn\'t fit day {day.day} yet — '
+                                "kept as a must-visit pending re-scheduling; "
+                                "pick another day or free up time first",
+                            )
+                        )
             notes.extend(repair_notes)
         self._sync_wish_rows(session)
         self._sync_planned_rows(session)
@@ -11660,6 +11731,28 @@ class PlanningAgent:
         if anchor is None:
             return None, city
         return anchor.location, anchor.city
+
+    async def _known_proper_noun(self, name: str) -> bool:
+        """专名优先闸（2026-11-12 复发案）：心愿整串精确命中 POI 底库
+        （带坐标）即按专名路由——即使含品类子串（…博物馆/…古镇/…温泉）。
+        品类判定是子串包含，专名 venue 后缀会被劫持成品类愿望：绑定/回钉/
+        must_visits 整链被跳过，聊天插入只建行不排期（假成功）。整串精确
+        命中是廉价且稳的专名信号。Best-effort：库检索失败按非专名处理
+        （留痕，2026-10-25 日志铁律）。"""
+        if self._poi_details is None or not (name or "").strip():
+            return False
+        try:
+            hits = await asyncio.to_thread(
+                self._poi_details.search_keyword, None, [name.strip()], limit=5
+            )
+        except Exception:
+            logger.warning("plan: proper-noun check failed for %s", name, exc_info=True)
+            return False
+        return any(
+            (h.get("name") or "").strip() == name.strip()
+            and h.get("location") is not None
+            for h in hits
+        )
 
     async def _poi_library_lookup(
         self, session: PlanSession, name: str, search_kw: str | None, city: str
@@ -22028,12 +22121,20 @@ class PlanningAgent:
         # （2026-11-11 陕历博案：心愿回钉重加时「排不下已移除」的披露在此
         # 被静默丢弃，回复只报成功——并入 notes 返回才进用户可见回复）。
         readd_notes: list[str] = []
+        # 专名优先闸豁免集（2026-11-12 复发案）：含品类子串但整串精确命中
+        # POI 底库的心愿按专名处理——品类判定是子串包含，「陕西历史博物馆」
+        # 会被「博物馆」劫持成品类愿望，绑定/回钉/must_visits 整链被跳过，
+        # 插入只建行不排期（假成功）。此集首循环收集，行创建判定点复用。
+        proper_override: set[str] = set()
         try:
             for wish in wishes:
                 if _category_search_keyword(wish) is not None:
                     # 品类愿望（喝茶/咖啡等）走全城口碑与就近落实语义，
                     # 不做专名语义绑定（也省一次脚本化 LLM 调用）。
-                    continue
+                    if await self._known_proper_noun(wish):
+                        proper_override.add(wish)
+                    else:
+                        continue
                 bound = (session.wish_bindings or {}).get(wish)
                 if bound is None:
                     rows = [
@@ -22111,7 +22212,10 @@ class PlanningAgent:
                     (it for it in known if _name_dup(it["name"], wish)), None
                 )
                 if existing is None:
-                    is_category = _category_search_keyword(wish) is not None
+                    is_category = (
+                        _category_search_keyword(wish) is not None
+                        and wish not in proper_override
+                    )
                     city = None
                     city_from_trip = False
                     if is_category:
@@ -22335,7 +22439,7 @@ class PlanningAgent:
             rows[name] = it
         if not missing:
             return ""
-        session, _, note = await self._add_must_visits(session, missing)
+        session, _, note = await self._add_must_visits(session, missing, repin=True)
         # 城市写回（用户拍板 2026-10-24）：落实时推断出城市（城市提示/
         # POI 城市）就写进心愿单城市列；确定不了的保持放空——放空即
         # 「空闲时段就近落实」语义。
