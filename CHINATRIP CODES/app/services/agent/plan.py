@@ -8128,12 +8128,10 @@ def _fallback_sequence_times(
                 # sunset 16:00 / afternoon 12:00（morning/sunrise 随
                 # 日始 9 点，天然无下探）。无场次 SHOW 走下午或晚上
                 # （2026-11-11 拍板）：自中午起探，不回落日始 9 点。
-                wlo = (
-                    None
-                    if _is_theme_block(visit)
-                    else _BEST_VISIT_WINDOWS.get(
-                        str(visit.best_visit_time or "").strip().lower()
-                    )
+                # 显式时段标照吃窗（2026-11-12 修，同 solver._visit_spec）：
+                # 无标的主题街区 .get 落空=None，「可夜可昼」语义不变。
+                wlo = _BEST_VISIT_WINDOWS.get(
+                    str(visit.best_visit_time or "").strip().lower()
                 )
                 _floor = wlo[0] if wlo else DAY_START_MINUTES
                 if is_sessionless_show(visit.best_visit_time, visit.opening_hours):
@@ -8692,11 +8690,8 @@ def _probe_visit_slot(
     返回最早可行开场分钟数，不可行返回 None。floor=起始下限；
     cap_max 收紧开场闸（必去大点「下午头档 ≤13:00 开场」用）。"""
     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
-    wlo = (
-        None
-        if _is_theme_block(visit)
-        else _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
-    )
+    # 同 _fallback_sequence_times 口径（2026-11-12 修）：显式时段标照吃窗。
+    wlo = _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
     t = max(floor, wlo[0] if wlo else DAY_START_MINUTES)
     for tr, _ts, te in xfer_windows:
         if _city_side(visit, tr) == "after":

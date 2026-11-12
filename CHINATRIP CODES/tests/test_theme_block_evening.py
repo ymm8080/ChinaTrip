@@ -11,6 +11,11 @@
    + 兜底 16:00 地板），不硬编码站点；
 3. 晚场锚前的下午死区整链右贴压缩（长恨歌案：清真寺 90min 后 203min
    空洞 vs 17:00 演出）——链上白天闸件钳 delta，返程日跳过。
+
+2026-11-12 复申拍板：口径 2 的「可夜可昼」只管无显式时段标的行——库行
+自带 evening/sunset 标的（「默认是夜游」型）照常吃窗，三处时段窗镜像
+（solver._visit_spec / plan 兜底 wlo / _probe_visit_slot）全域豁免全删，
+同普通时段标成员一个待遇。
 """
 
 from datetime import time
@@ -260,3 +265,73 @@ def test_scorer_late_entry_plain_sight_still_counted():
     c = _timed(_sight("c", dur=90), 17, 0, 18, 30)
     sc = plan_score(_plan_with(c))
     assert sc.counts["late_entries"] == 1
+
+
+# ---------- ⑥ 显式时段标的街块照吃窗（2026-11-12 复申拍板） ----------
+
+
+def _block_evening(dur=240, item_id="blk"):
+    """真实库行形态：citywalk + best_visit_time="evening" + 240min——
+    「默认是夜游」型。显式标在，豁免退场，照吃 17:00-21:00 窗。"""
+    return _visit(
+        item_id,
+        dur=dur,
+        name="长安十二时辰主题街区",
+        category="citywalk",
+        best_visit_time="evening",
+    )
+
+
+def test_spec_explicit_evening_block_floor_17():
+    """240min 显式夜游街块落位域钉死 17:00——修复前 _is_theme_block
+    全域豁免把库行显式 evening 标置空，兜底一路顺排到 12:30 正午。"""
+    spec = _visit_spec(_block_evening(), {})
+    assert spec is not None
+    assert spec.lo == 17 * 60
+    assert spec.hi == 21 * 60 - 240  # = 17:00，整窗钉死
+
+
+def test_cp_explicit_evening_block_runs_17_21():
+    """CP 直解：显式夜游街块 17:00-21:00，与时段窗成员同待遇。"""
+    blk = _block_evening()
+    hours = [PoiHours(poi_id="blk", opens=time(10, 0), closes=time(22, 0))]
+    day = DayPlan(day=1, base_city="西安", items=[blk])
+    solved = solve_day(day, poi_hours=hours)
+    assert solved is not None
+    assert solved.items[0].start_time == time(17, 0)
+    assert solved.items[0].end_time == time(21, 0)
+
+
+def test_fallback_explicit_evening_block_lands_17_21():
+    """晚场无占用时兜底直落 17:00-21:00。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    blk = _block_evening()
+    plan = _plan_with(m, blk)
+    _fallback_sequence_times(plan)
+    assert blk.start_time == time(17, 0)
+    assert blk.end_time == time(21, 0)
+
+
+def test_fallback_explicit_evening_block_evening_blocked_stays_untimed():
+    """事故日形态：晨景 + 19:30 单场演出钉死晚场——240min 夜游窗放不下，
+    街块留无时刻走挪日/披露链（含说明），绝不退档塞正午。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    show = _visit("show", dur=80, category="entertainment", best_visit_time="show")
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    blk = _block_evening()
+    plan = _plan_with(m, show, blk)
+    _fallback_sequence_times(plan)
+    assert blk.start_time is None
+    assert blk.end_time is None
+
+
+def test_fallback_untagged_block_floor_16_still_holds():
+    """11-08 拍板不回归：无标的街块兜底仍 16:00 起（可夜可昼）。"""
+    m = _sight("m", dur=90)
+    m.start_time, m.end_time = time(9, 0), time(10, 30)
+    blk = _block()
+    plan = _plan_with(m, blk)
+    _fallback_sequence_times(plan)
+    assert blk.start_time == time(16, 0)

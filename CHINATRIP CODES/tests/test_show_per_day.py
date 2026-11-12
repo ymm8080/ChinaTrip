@@ -144,7 +144,10 @@ def _placed(
     )
 
 
-def test_theme_block_evening_is_soft_in_all_scheduling_paths():
+def test_theme_block_explicit_evening_hard_window_all_paths():
+    """2026-11-12 复申拍板：显式 evening 标的主题街区照吃夜游窗——11-08
+    「可夜可昼」只管无标的行（test_theme_block_evening.py ⑥ 组）。三镜像
+    （spec/探针/兜底）同一硬窗。"""
     theme = VisitItem(
         item_id="theme",
         name="测试主题街区",
@@ -157,8 +160,8 @@ def test_theme_block_evening_is_soft_in_all_scheduling_paths():
         opening_hours="10:00-22:00",
     )
     spec = _visit_spec(theme, {})
-    assert spec is not None and spec.lo == 9 * 60
-    assert _probe_visit_slot(theme, [], [], {}, 21 * 60 + 30) == 9 * 60
+    assert spec is not None and spec.lo == 17 * 60
+    assert _probe_visit_slot(theme, [], [], {}, 21 * 60 + 30) == 17 * 60
 
     ordinary = _placed("ordinary", "普通参访", 1, *_DOWNTOWN, 90, category="attraction")
     show = _placed("show", "晚间演出", 1, *_QFJ, 80, start=19, show=True)
@@ -170,8 +173,9 @@ def test_theme_block_evening_is_soft_in_all_scheduling_paths():
         days=[DayPlan(day=1, base_city="西安", items=[ordinary, theme, show])],
     )
     _fallback_sequence_times(plan)
-    assert theme.start_time is not None and theme.start_time < time(17, 0)
-    assert theme.end_time <= time(19, 0)
+    # 晚场被单场演出占死：240min 夜游窗放不下 → 留无时刻走挪日/披露链，
+    # 绝不退档塞正午（修复前兜底把它顺排成 12:30-16:30 正午卡）。
+    assert theme.start_time is None
 
 
 def test_gate_keeps_one_show_per_day_disclosed():

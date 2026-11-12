@@ -663,11 +663,12 @@ def _visit_spec(
         if _is_show(item) and not item.pinned
         else []
     )
-    best = (
-        None
-        if _is_theme_block(item)
-        else _BEST_VISIT_WINDOWS.get(item.best_visit_time or "")
-    )
+    # 时段窗全员同口径（2026-11-12 修）：主题街区「可夜可昼」（2026-11-08
+    # 拍板）只管无显式时段标的行——库行自带 evening/sunset 标的（「默认
+    # 是夜游」型，用户当日复申）照常吃窗；旧全域豁免让兜底把显式夜游街
+    # 区塞进中午（十二时辰 12:30-16:30 案）。无标的行 .get 落空=None，
+    # 豁免语义不变。
+    best = _BEST_VISIT_WINDOWS.get(str(item.best_visit_time or "").strip().lower())
     if best is not None:
         lo = max(lo, best[0])
         hi = min(hi, best[1] - dur)
