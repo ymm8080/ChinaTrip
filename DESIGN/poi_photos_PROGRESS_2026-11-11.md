@@ -108,3 +108,10 @@
 - Day-2 restaurants around 批量：**around 池同样熔断**（1 行即停）——两个 amap 池配额均被并行 job 抢空。免费慢火继续：餐厅 Commons 第四轮 200 行后台。**待拍板**：①错峰抢占调度（00:05 抢跑照片批量）②企业 key 升级（用户侧）。
 
 > 提交错位备注：上章读侧代码（pois.py/两测试文件）被并行会话 00:23 的 `docs(design): around 池亦熔断`（6cffa81）连索引一并扫入提交——内容完整、已推 origin，提交信息未体现 feat 主体，特此备注溯源。
+
+## 餐厅 Commons 接力终报（2026-11-13，50 轮自然耗尽）
+
+- 全量无图行已尝试（targets=0，24h 冷却锁定）：**restaurants 0 → 85 行**（全 wikimedia，占 5,088 的 1.7%）
+- 结论：Commons 对本地餐厅覆盖率天然薄（~10%/轮），**餐厅上图主力必须等 amap around 池**（配额争夺待拍板）或点击端点用户触发
+- pois 终态 19.6%（1,938/9,910）；amap 1,667 / wikimedia ~500 / ctrip 434 / mafengwo 37
+- 下一步全部用户门控：①过马蜂窝闸续收 5A 尾巴 ②错峰抢占 or 企业 key ③ctrip 便车拍板 ④24h 后 Commons 二次轮空跑（拉空行或可再试 og 源）
