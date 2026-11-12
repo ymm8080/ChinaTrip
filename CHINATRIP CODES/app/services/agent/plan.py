@@ -203,6 +203,13 @@ _REPLACE_REORDER_KM = 3.0
 # 2026-11-08 起真值挪到 solver.NEAR_SAMEDAY_KM（下午单大点贴邻豁免五路
 # 共用同一口径），此处别名保持既有引用。
 _NEAR_SAMEDAY_KM = NEAR_SAMEDAY_KM
+# 近距评分择优圈/平差（2026-11-12 用户拍板「选 SITE 应该看评分：距离
+# 8km 内选评分高的；评分差小于 0.3 时选近的」）：同档（tier 连续段）
+# 内 8km 圈的一对一近邻比较——高分差（≥0.3）取高分者，近平差（<0.3，
+# 含双方无评分——评分回填中）取离城心锚近者。跨档名录梯子不动
+# （2026-11-03 名录序拍板在先），手建/偏好件不参比。
+_RATING_NEAR_KM = 8.0
+_RATING_NEAR_TIE = 0.3
 # 紧簇半径（2026-11-08 城心簇拆天案拍板「距离聚合都是近距离聚合优先」）：
 # 弹座保护与认领 kin 共用的「强簇」口径——圈内同日伙伴不让位弹座单独
 # 拽走、认领先认紧簇天；5km 同日圈是「可以同日」，2km 紧簇是「必须先
@@ -617,6 +624,100 @@ def _street_block_priority(
             out.extend(p for p in run if not _theme_block_cand(p[1]))
         else:
             out.extend(run)
+        i = j
+    return out
+
+
+def _rating_near_priority(
+    ordered: list[tuple[int, dict]],
+    pref_hit=None,
+) -> list[tuple[int, dict]]:
+    """近距评分择优/择近（2026-11-12 用户拍板「选 SITE 应该看评分：8km
+    内选评分高的；评分差小于 0.3 时选近的」）：排序后一趟成对扫描——
+    同档（tier 连续段）内，排后候选与排前候选距离 ≤8km 且双方均有评分
+    时，评分高者（差 ≥0.3，含一空一有=差 ≥0.3 取有分者）提到前排；
+    差 <0.3（含双方无评分——评分回填中）取离城心锚（_urban_medoid，
+    无锚则维持原序）近者。跨档名录梯子不动；手建/偏好件不参比不降位
+    （pref_hit 谓词由选层闭包注入）。
+
+    评分为空按 0 计；百度源 ×0.9 与 _quality 同口径（跨源不可比拍板）。
+    """
+
+    def _rt(cand: dict) -> float:
+        try:
+            r = float(cand.get("rating") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        if str(cand.get("rating_source") or "").strip().lower() == "baidu":
+            r *= _BAIDU_RATING_FACTOR
+        return r
+
+    def _xy(cand: dict) -> tuple[float, float] | None:
+        loc = cand.get("location")
+        try:
+            if isinstance(loc, dict) and "lon" in loc and "lat" in loc:
+                return (float(loc["lon"]), float(loc["lat"]))
+            if isinstance(loc, (tuple, list)) and len(loc) == 2:
+                return (float(loc[0]), float(loc[1]))
+        except (TypeError, ValueError):
+            return None
+        return None
+
+    pts = [xy for _, c in ordered if (xy := _xy(c)) is not None]
+    core = _urban_medoid(pts)
+
+    out: list[tuple[int, dict]] = []
+    i = 0
+    while i < len(ordered):
+        tier = _source_tier(ordered[i][1])
+        j = i
+        while j < len(ordered) and _source_tier(ordered[j][1]) == tier:
+            j += 1
+        run = list(ordered[i:j])
+        for k in range(1, len(run)):
+            b = run[k]
+            if b[1].get("_created_lane"):
+                continue
+            xyb = _xy(b[1])
+            if xyb is None:
+                continue
+            rb = _rt(b[1])
+            for m in range(k):
+                a = run[m]
+                if a[1].get("_created_lane") or (pref_hit and pref_hit(a[1])):
+                    continue
+                xya = _xy(a[1])
+                if xya is None:
+                    continue
+                if (
+                    haversine_km(
+                        GeoPoint(lon=xya[0], lat=xya[1]),
+                        GeoPoint(lon=xyb[0], lat=xyb[1]),
+                    )
+                    > _RATING_NEAR_KM
+                ):
+                    continue
+                ra = _rt(a[1])
+                if rb - ra >= _RATING_NEAR_TIE or (ra == 0.0) != (rb == 0.0):
+                    # 差 ≥0.3 取高分；一空一有（回填中）取有分者。
+                    run.insert(m, run.pop(k))
+                    break
+                if (
+                    abs(rb - ra) < _RATING_NEAR_TIE
+                    and core is not None
+                    and haversine_km(
+                        GeoPoint(lon=core[0], lat=core[1]),
+                        GeoPoint(lon=xyb[0], lat=xyb[1]),
+                    )
+                    < haversine_km(
+                        GeoPoint(lon=core[0], lat=core[1]),
+                        GeoPoint(lon=xya[0], lat=xya[1]),
+                    )
+                ):
+                    # 差 <0.3（含均无分）取离城心锚近者。
+                    run.insert(m, run.pop(k))
+                    break
+        out.extend(run)
         i = j
     return out
 
@@ -14693,6 +14794,9 @@ class PlanningAgent:
                     and any(p[1].get("rain_ok") == "yes" for p in ordered)
                 ):
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
+            # 近距评分择优/择近（2026-11-12 用户拍板：8km 内选评分高的，
+            # 差 <0.3 选离城心近的）：街区块前置之前生效，块序仍终裁。
+            ordered = _rating_near_priority(ordered, _pref_hit)
             # 街区演出块同档前置（2026-11-06 三拍「街区演出 PRIORITY 大于
             # 普通街区」）：晴天/雨天两套排序共用此收口，池上限切片前生效。
             ordered = _street_block_priority(ordered)
