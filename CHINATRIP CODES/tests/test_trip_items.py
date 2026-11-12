@@ -417,6 +417,23 @@ def test_release_itinerary_moves_scheduled_back_to_wishlist_and_spares_booked():
     assert wish["id"] in {r["id"] for r in svc.list_groups()["wishlist"]}
 
 
+def test_release_itinerary_deletes_plan_rows_keeps_user_rows():
+    """2026-11-12 拍板「心愿单只收用户输入」：死行程释放时 source=plan
+    引擎行删除（行程在册则下轮 _sync_planned_rows 自动重建），用户来源行
+    维持回心愿单。"""
+    svc = TripItemService()
+    engine = svc.create("宽窄巷子", source="plan", itinerary_id="t1", city="成都")
+    svc.update(engine["id"], status="scheduled", day=1)
+    user = svc.create("看熊猫", source="chat", itinerary_id="t1", city="成都")
+    svc.update(user["id"], status="scheduled", day=2)
+
+    released = svc.release_itinerary("t1")
+
+    assert svc.get(engine["id"]) is None
+    assert [r["id"] for r in released] == [user["id"]]
+    assert svc.get(user["id"])["status"] == "wishlist"
+
+
 def test_release_itinerary_without_rows_or_id_is_noop():
     svc = TripItemService()
     assert svc.release_itinerary("ghost-trip") == []
@@ -516,6 +533,43 @@ def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
         again = client.get("/api/v1/trip-items").json()
     assert again["scheduled"] == []
     assert any(r["name"] == "看熊猫" for r in again["wishlist"])
+
+
+def test_list_self_heal_deletes_dead_trip_plan_rows():
+    """2026-11-12 拍板「心愿单只收用户输入」：死行程自愈时 source=plan
+    行删除不回心愿单（心愿单永不得现形非用户输入行）；chat 行维持回心愿
+    单（2026-10-31 拍板不变）。"""
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["成都"], days_count=4)
+    with TestClient(app) as client:
+        engine = create_item(
+            client,
+            itinerary_id=record.itinerary_id,
+            name="宽窄巷子",
+            source="plan",
+            note="来自行程｜已安排：宽窄巷子（第1天 11月3日 10:00）",
+        )
+        schedule(client, engine["id"], 1)
+        user = create_item(
+            client,
+            itinerary_id=record.itinerary_id,
+            name="看熊猫",
+            note="来自聊天｜已安排：成都大熊猫繁育研究基地（第4天 11月3日 12:00）",
+        )
+        schedule(client, user["id"], 4)
+        store.delete(record.itinerary_id)  # 绕过 DELETE 端点=存量孤儿
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert body["scheduled"] == []
+    assert all(r["name"] != "宽窄巷子" for r in body["wishlist"])
+    healed = next(r for r in body["wishlist"] if r["name"] == "看熊猫")
+    assert healed["note"] == "来自聊天"
+    # 写穿：再次拉取稳定，引擎行不回魂
+    with TestClient(app) as client:
+        again = client.get("/api/v1/trip-items").json()
+    assert again["scheduled"] == []
+    assert all(r["name"] != "宽窄巷子" for r in again["wishlist"])
 
 
 def test_list_keeps_scheduled_rows_of_live_session_plan(monkeypatch):

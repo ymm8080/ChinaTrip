@@ -395,7 +395,12 @@ class TripItemService:
         booking_id 清空，note 剥「已安排」尾段）。itinerary_id 留痕：
         吸收/_sync_wish_rows 按名字
         force 换绑新行程。booked 行保留真实订单不动；wishlist/unwanted 行
-        本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。"""
+        本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。
+
+        2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 的引擎行
+        不得落心愿单——死行程时直接删除（行程在册则下轮
+        _sync_planned_rows 自动重建），删除留日志；用户来源行
+        （chat/manual/paste/agent_recommend）维持回心愿单。"""
         if not itinerary_id:
             return []
         targets = [
@@ -407,6 +412,13 @@ class TripItemService:
         released = []
         for item_id in targets:
             item = self._items.get(item_id) or {}
+            if item.get("source") == "plan":
+                try:
+                    self.delete(item_id)
+                except InvalidTransitionError:
+                    continue  # booked 行永不到此（status 过滤），保险不炸
+                logger.info("trip_item_released_as_deleted id=%s", item_id)
+                continue
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)
             kwargs: dict = {"now": now}

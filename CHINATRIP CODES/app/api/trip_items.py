@@ -121,14 +121,30 @@ async def list_trip_items(
                     dead_trips.add(trip_id)
             item["itinerary_name"] = names[trip_id]
     # 2026-10-31（看熊猫案）：scheduled 行挂的行程已删（释放机制上线前
-    # 的存量孤儿/旁路删除）——已排期栏必须真实：就地回心愿单（note 剥
-    # 「已安排」尾段，service.update 写穿 PG），本次响应即按新分组返回。
+    # 的存量孤儿/旁路删除）——已排期栏必须真实。
+    # 2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 引擎行死行程
+    # =删除（心愿单永不得现形非用户输入行；行程在册则下轮
+    # _sync_planned_rows 自动重建），用户来源行（chat/manual/paste/
+    # agent_recommend）就地回心愿单（note 剥「已安排」尾段，
+    # service.update 写穿 PG），本次响应即按新分组返回。
     # booked 行保留真实订单；无归属（itinerary_id 空）的 scheduled 行留给
     # 状态机，不猜测。
     if dead_trips and body.get("scheduled"):
         for item in list(body["scheduled"]):
             trip_id = item.get("itinerary_id")
             if not trip_id or trip_id not in dead_trips:
+                continue
+            if item.get("source") == "plan":
+                try:
+                    service.delete(item["id"])
+                except Exception:
+                    logger.warning(
+                        "trip-items: dead-trip planned row delete failed id=%s",
+                        item.get("id"),
+                        exc_info=True,
+                    )
+                    continue
+                body["scheduled"].remove(item)
                 continue
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)

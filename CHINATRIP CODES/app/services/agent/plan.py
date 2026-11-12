@@ -10586,31 +10586,6 @@ def current_violations(session: PlanSession) -> list[RuleViolation]:
     return validate_plan(session.plan, poi_hours=[]).violations
 
 
-def _session_is_test_traffic(session: PlanSession) -> bool:
-    """冒烟/测试流量识别（2026-11-12 三拍收口）：设备号 smoke- 前缀是
-    测试 harness 的自定约定，此类会话的行程写穿会污染真实用户的行程中
-    心看板（心愿单/已安排分区跨会话共享、无设备隔离）——凡 smoke- 设备
-    一律不得写穿 trip_items，跳过留日志。PLAN_SMOKE_WRITES=1 为 harness
-    自检逃生门（开启时 harness 须自行指向可废弃的库）。"""
-    if os.getenv("PLAN_SMOKE_WRITES", "0").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    ):
-        return False
-    return (
-        (getattr(session, "device_id", "") or "").strip().lower().startswith("smoke-")
-    )
-
-
-def _smoke_skip_log(session: PlanSession, what: str) -> None:
-    logger.info(
-        "plan: %s skipped for smoke/test session %s (no live trip-items writes)",
-        what,
-        getattr(session, "device_id", ""),
-    )
-
-
 class PlanSessionStore:
     """In-process session dict; lookups are device-scoped."""
 
@@ -13528,9 +13503,6 @@ class PlanningAgent:
         )
         if not names:
             return
-        if _session_is_test_traffic(session):
-            _smoke_skip_log(session, "wish-row sync")
-            return
         try:
             groups = self._trip_items.list_groups()
         except Exception:
@@ -13692,9 +13664,6 @@ class PlanningAgent:
             return
         itin = session.plan.itinerary_id
         if not itin:
-            return
-        if _session_is_test_traffic(session):
-            _smoke_skip_log(session, "planned-row sync")
             return
         planned = [
             item
@@ -21950,9 +21919,6 @@ class PlanningAgent:
         # （线上案：LLM 把「偏好：无特别要求」原话列进 wishes，心愿单出现
         # 同名行）与问答题面的风格选项词整串没有任何具体地点/活动要求，
         # 建行前丢弃（丢弃留痕，2026-10-25 日志铁律）。
-        if _session_is_test_traffic(session):
-            _smoke_skip_log(session, "wish sync to trip-items")
-            return [], []
         dropped = [
             w
             for w in wishes
