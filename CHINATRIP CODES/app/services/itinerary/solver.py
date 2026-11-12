@@ -107,6 +107,12 @@ _SESSION_LIST_RE = re.compile(r"约\s*((?:\d{1,2}:\d{2}\s*[/、,]\s*)+\d{1,2}:\d
 _SESSION_SINGLE_RE = re.compile(
     r"约\s*(\d{1,2}:\d{2})(?!\s*[-–~—至]\s*\d{1,2}:\d{2})(?!\s*起)"
 )
+#: 时刻后紧跟「场」即场次声明（2026-11-12 补口根因：宴秀卡「午宴12:30
+#: 场；晚宴18:30场」「旺季加16:00场」等文案无「约」前缀，列表/单场两式
+# 皆漏 → 解析空表 → 落无场次餐槽任意时刻，声明场次形同虚设——「19:30
+# 开始的演出放到 9:30 场」同族病灶）。区间（10:00-21:00）与「约19:30一
+# 场」（隔「一」字）天然不匹配。
+_SESSION_FIELD_RE = re.compile(r"(\d{1,2}):(\d{2})\s*场")
 _SESSION_TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
 
 
@@ -129,6 +135,10 @@ def show_session_starts(text: str | None) -> list[int]:
     for m in _SESSION_SINGLE_RE.finditer(text):
         hh, mm = m.group(1).split(":")
         t = int(hh) * 60 + int(mm)
+        if DAY_START_MINUTES <= t <= SHOW_SESSION_LATEST_MINUTES:
+            starts.append(t)
+    for m in _SESSION_FIELD_RE.finditer(text):
+        t = int(m.group(1)) * 60 + int(m.group(2))
         if DAY_START_MINUTES <= t <= SHOW_SESSION_LATEST_MINUTES:
             starts.append(t)
     return sorted(set(starts))

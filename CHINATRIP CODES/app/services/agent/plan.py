@@ -8248,7 +8248,12 @@ def _fallback_sequence_times(
             dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
             sessions = (
                 effective_show_sessions(visit.best_visit_time, visit.opening_hours)
-                if _is_show_item(visit)
+                # 宴秀卡同权（2026-11-12「声明场次的宴秀按场次落」）：声明了
+                # 午宴/晚宴场次的宴秀（约xx:xx 或 xx:xx场 语素）此前走
+                # sessions=[] 的普通餐槽链，被塞任意时刻（12:00-12:30 半
+                # 小时午餐）——声明场次形同虚设。无场次语素的宴秀仍回落
+                # 原餐槽链，行为不变。
+                if (_is_show_item(visit) or _is_show_banquet_item(visit))
                 else []
             )
             placed_at: int | None = None

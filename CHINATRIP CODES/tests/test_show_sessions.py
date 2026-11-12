@@ -6,6 +6,7 @@
 """
 
 from app.services.agent.plan import _show_night_only
+from app.services.itinerary.solver import show_session_starts
 
 
 def _cand(hours: str | None) -> dict:
@@ -35,3 +36,23 @@ def test_missing_hours_defaults_to_night_only():
     assert _show_night_only(_cand(None))
     assert _show_night_only(_cand(""))
     assert _show_night_only({"name": "无hours键"})
+
+
+def test_field_suffix_session_marks():
+    # 2026-11-12 补口「声明场次的宴秀按场次落」：时刻+「场」字即场次
+    # 声明——宴秀卡「午宴12:30场；晚宴18:30场」无「约」前缀，列表/单场
+    # 两式皆漏 → 空表 → 落无场次餐槽任意时刻（12:00 半小时午餐），声明
+    # 场次形同虚设（「19:30 开始的演出放到 9:30 场」同族病灶）。
+    assert show_session_starts("午宴12:30场；晚宴18:30场（预订制）") == [
+        12 * 60 + 30,
+        18 * 60 + 30,
+    ]
+    assert show_session_starts("演出季约20:00，旺季加16:00场") == [16 * 60, 20 * 60]
+    # 既有形状不回退；区间/滚动窗/「约19:30一场」（隔「一」字）不误伤
+    assert show_session_starts("仅夜场（晚宴秀，约19:30一场）") == [19 * 60 + 30]
+    assert show_session_starts("傍晚/晚间场（约17:30/19:30两场）") == [
+        17 * 60 + 30,
+        19 * 60 + 30,
+    ]
+    assert show_session_starts("全天滚动演艺（10:00-22:00）") == []
+    assert show_session_starts("10月8日-10月31日:10:30-19:00") == []

@@ -778,6 +778,51 @@ def test_block_colocated_banquet_beats_far_show_on_block_day():
     assert any("唐乐宫" in str(a) for a in plan.assumptions)
 
 
+def test_banquet_declared_sessions_drive_fallback_slot():
+    # 2026-11-12「声明场次的宴秀按场次落」回归锚：宴秀卡声明 午宴12:30/
+    # 晚宴18:30 场，此前 sessions=[] 走普通餐槽链被塞 12:00 半小时任意
+    # 午餐——修复后晚场空时按 ≥15:00 晚场优先落声明晚宴场 18:30。
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 1, *_MTY)
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet-sessions",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[tang])],
+    )
+    _fallback_sequence_times(plan)
+    assert tang.start_time == time(18, 30)
+    assert tang.end_time == time(20, 30)
+
+
+def test_block_day_same_venue_experience_wins_over_near_show():
+    # 2026-11-12 二拍「同址决胜」回归锚（沪→西→沪 5 天实录）：块日两张
+    # 体验同进胶块档（同址宴 0.1km vs 贴邻演出 0.77km），演出与当天锚
+    # 同址 0km、锚距 tiebreak 反转致同址宴被逐出块日（gate glued 后又
+    # moved 走）。规则：块日那晚=距街区卡最近的那张，锚距不得反转同址。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 2, *_MTY, 240, start=12, category="citywalk"
+    )
+    near_show = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, start=19, show=True)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    bmy = _placed("v-bmy", "兵马俑", 3, *_LINTONG, 90, start=10, category="attraction")
+    plan = ItineraryPlan(
+        itinerary_id="it-block-same-venue",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, block, near_show, tang]),
+            DayPlan(day=3, base_city="西安", items=[bmy]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["长安十二时辰·唐宴"] == 2  # 同址体验留块日
+    assert day_of["《梦回大唐》"] != 2  # 贴邻演出让位
+    assert any("《梦回大唐》" in str(a) and "改排" in str(a) for a in plan.assumptions)
+
+
 def test_dedupe_twin_prefers_banquet_nearer_to_block():
     # 2026-11-12 拍板平手 tiebreak：宫宴餐秀组两宴（御宴宫 0.77km vs
     # 唐宴 0km 贴街区）同名孪生去重时留贴街区者——先到先得曾留错
