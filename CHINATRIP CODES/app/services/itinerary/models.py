@@ -133,6 +133,30 @@ class PlanStop(BaseModel):
     duration_minutes: int | None = None
 
 
+class UnplacedCandidate(BaseModel):
+    """「想排没排进去」候选的结构化留痕（2026-11-11 用户拍板「可替代品不
+    一定同品类，也可以是想排没有排进去的景点放在右边」）。
+
+    规划器在必去让位/弃排点记录（机器可读，区别于 assumptions 自由文
+    本）；attach_plan_alternatives 装配期把条目转成宿主卡右侧 chip（跨
+    品类放行，点亮「想去」徽标），点击走同一换点端点。
+    """
+
+    name: str
+    name_en: str | None = None
+    poi_id: str | None = None
+    category: str | None = None
+    # 选点梯子档号（plan 口径 1..11），chip 亮牌/排序用
+    tier: int | None = None
+    duration_minutes: int | None = None
+    location: GeoPoint | None = None
+    city: str | None = None
+    # 本想排入的天号（选宿主卡首选键：同天优先）
+    day_hint: int | None = None
+    # yield_must=必去让位被挤 / yield_rain=雨天软规则落选 / cap=日容量弃排
+    reason: str | None = None
+
+
 class PlanAlternative(BaseModel):
     """行程卡右侧「同级备选」chip 的载荷（2026-11-05 拍板）。
 
@@ -140,6 +164,8 @@ class PlanAlternative(BaseModel):
     （tier 档号一致，档 4 短视频/5 小红书并作社媒档）、同类别（受控类别
     精确匹配，空缺时类别组放宽）、游时时长相近（band 内）、同城可选、
     排除行程内已有站点。H5 点击 chip → /items/{id}/replace 原位换主点。
+    「想排未排」chip（2026-11-11 拍板跨品类）不受同级/同类硬闸约束，
+    level_tag="want" 亮「想去」徽标。
     """
 
     name: str
@@ -185,6 +211,10 @@ class ItineraryPlan(BaseModel):
     cities: list[str]
     days: list[DayPlan]
     assumptions: list[str] = Field(default_factory=list)
+    # 想排未排入候选（2026-11-11 拍板「可替代品跨品类」）：必去让位/弃排点
+    # 结构化留痕，装配期作 chip 挂上相关卡右侧；assumptions 自由文本之外
+    # 的机器可读池。
+    unplaced: list[UnplacedCandidate] = Field(default_factory=list)
     # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
     # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
     start_date: str | None = None
