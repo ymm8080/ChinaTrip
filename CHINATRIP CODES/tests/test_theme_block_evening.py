@@ -432,3 +432,31 @@ def test_eviction_untagged_block_never_evicts():
     assert show.day == 1
     assert show.start_time == time(19, 30)
     assert notes == []
+
+
+def test_eviction_target_day_transfer_conflict_declined():
+    """活行程探针回归（2026-11-12 沪→西→沪案）：返程日 17:00-20:00 城际
+    转场占死晚窗，19:30 演出整场挪进去会与转场相撞（物理上看不了）——
+    采纳契约必须判该目标日不可行：演出原日原刻不动、街块留无时刻交
+    披露链，绝不硬塞进转场日。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    show = _dinner_show()
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    blk = _block_evening()
+    back = TransferItem(
+        item_id="tr",
+        day=2,
+        seq=1,
+        from_city="西安",
+        to_city="上海",
+        mode="train",
+        start_time=time(17, 0),
+        end_time=time(20, 0),
+    )
+    plan = _two_day_plan([m, show, blk], [back])
+    notes = _evict_shows_for_windowed_visits(plan)
+    assert show.day == 1
+    assert show.start_time == time(19, 30)
+    assert blk.start_time is None
+    assert notes == []

@@ -7605,6 +7605,26 @@ def _evict_shows_for_windowed_visits(
     def _mins(t) -> int:
         return t.hour * 60 + t.minute
 
+    def _fixed_block_conflict(
+        day_plan: DayPlan, lo: int, hi: int, skip_id: str
+    ) -> bool:
+        """挪入演出与目标日硬锚（城际转场/酒店作息卡）时段相撞判定——
+        试解/兜底只排参访件，临时钉住的演出不会自己绕开转场约束
+        （2026-11-12 活行程探针实测：19:30 演出被挪进 17:00-20:00 返程
+        转场日照样「采纳」），采纳契约在此兜死。"""
+        for it in day_plan.items:
+            if getattr(it, "item_id", None) == skip_id:
+                continue
+            if isinstance(it, TransferItem):
+                st, en = it.start_time, it.end_time
+            elif isinstance(it, VisitItem) and (it.category or "") == "hotel":
+                st, en = it.start_time, it.end_time
+            else:
+                continue
+            if st is not None and en is not None and _mins(st) < hi and _mins(en) > lo:
+                return True
+        return False
+
     notes: list[str] = []
     handled: set[str] = set()
     for _round in range(4):
@@ -7735,6 +7755,13 @@ def _evict_shows_for_windowed_visits(
                         and s_done.start_time is not None
                         and s_done.day == target.day
                         and s_done.start_time == show_start
+                        and s_done.end_time is not None
+                        and not _fixed_block_conflict(
+                            next(d for d in cand.days if d.day == target.day),
+                            _mins(s_done.start_time),
+                            _mins(s_done.end_time),
+                            show.item_id,
+                        )
                         and not (timed_before - timed_after)
                     )
                     if not ok:
@@ -9226,8 +9253,10 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
     路/夜场 finale/extras/回填/重排）各自落位互不知情（xa 案 D2 两场撞
     日；mc2 案贴场馆演出落 D1 与远郊王牌 D3 裂簇），终装处统一对账——
     ① 同日两场：保钉住/当日场馆锚最强（距当日非餐宿点 ≤5km 含同址
-    0km，宴卡同权；2026-11-08 异簇王牌日案）的那场，距簇最近 tiebreak、早场
-    收尾，余场挪去同城无演出日（贴场馆 ≤5km 最近簇优先、轻载次之）；
+    0km，宴卡同权；2026-11-08 异簇王牌日案）的那场；胶块档内同址决胜
+    （2026-11-12 二拍：距街区卡最近者留场，同址压贴邻）；距簇最近
+    tiebreak、早场收尾，余场挪去同城无演出日（贴场馆 ≤5km 最近簇优先、
+    轻载次之）；
     宴卡是簇跟随者（2026-11-08 五拍）：只挪去仍有 ≤5km 簇伴的日子，
     无簇伴目标日不孤放别日、取消并披露；
     ② 聚簇认领：非钉演出所在日无 ≤5km 伴、而同城他日有伴且他日无演出
@@ -9272,6 +9301,21 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
             if iloc is not None and haversine_km(i.location, vloc) <= _NEAR_SAMEDAY_KM:
                 return i
         return None
+
+    def _street_block_mate_km(day: DayPlan, v: VisitItem) -> float:
+        """条目距当日街区伴（citywalk/街区名卡）的公里数；无街区伴 →
+        +inf（不参与同址决胜）。2026-11-12 二拍「同址决胜」：胶块档内
+        部块日那晚是同址体验——≈同址 0km 压过仅 <5km 贴邻的别张体验
+        （11-12 沪→西→沪实录：0.1km 同址宴 vs 0.77km 贴邻演出同档，
+        演出与当天锚同址致锚距 tiebreak 反转、同址宴被逐出块日）。"""
+        mate = _street_block_mate(day, v)
+        if mate is None:
+            return float("inf")
+        vloc = getattr(v, "location", None)
+        iloc = getattr(mate, "location", None)
+        if vloc is None or iloc is None:
+            return float("inf")
+        return haversine_km(iloc, vloc)
 
     # 街区同址晚间体验胶块日（2026-11-12 用户拍板「块日若要特色晚间体
     # 验应选同址街区那张，而不是十几公里外另一张」）：晚间体验卡（演出/
@@ -9352,6 +9396,10 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
                     and _street_block_mate(day, v)
                 )
                 else 1,
+                # 2026-11-12 二拍「同址决胜」：胶块档内部再按距街区卡本身
+                # 升序——块日那晚是同址体验（≈0km）压过仅贴邻的别张；两
+                # 张都贴邻时近者留。无街区伴 +inf 沉底，仍走下方锚强口径。
+                _street_block_mate_km(day, v),
                 # 2026-11-08 异簇王牌日案：留场者=当日场馆锚最强——贴簇（距当日
                 # 非餐宿点 ≤_NEAR_SAMEDAY_KM，含同址 0km；宴卡同权）先于
                 # 孤卡，弱锚者让位；距簇最近 tiebreak，早场收尾稳定序。
