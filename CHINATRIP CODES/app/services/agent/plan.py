@@ -7583,6 +7583,205 @@ def _rehome_untimed_visits(
     return notes
 
 
+def _evict_shows_for_windowed_visits(
+    plan: ItineraryPlan,
+    protect: frozenset[str] | set[str] = frozenset(),
+    solve=None,
+) -> list[str]:
+    """演出跨日让位（2026-11-12 用户拍板「长安十二时辰应落傍晚到晚上，
+    为什么排在中午」的兑现闸）：显式时段标长件（库行 best_visit_time=
+    evening/sunset、240min 窗钉死 17:00-21:00 那种）走完重解/救生/挪日/
+    回头重试仍无时刻，且同城某日晚窗被一场非钉、可挪日的演出（每晚都
+    演型；挪日本身是 _enforce_show_per_day 每场闸既有口径）占死时——把
+    演出让去同城首个无演出、容得下原场次的日，腾出整窗落宿主。采纳全
+    有全无：宿主须落进自己窗内、演出须保住原场次时刻、其余已落件零掉
+    时刻；任一不成即弃克隆原样不动。钉住演出（铁律 19）永不让位。判据
+    只认显式窗件——无标街块走原「可夜可昼」披露链，不让演出背锅。"""
+    from copy import deepcopy
+
+    def _bcity(d: DayPlan) -> str:
+        return str(d.base_city or "").strip().removesuffix("市")
+
+    def _mins(t) -> int:
+        return t.hour * 60 + t.minute
+
+    notes: list[str] = []
+    handled: set[str] = set()
+    for _round in range(4):
+        stray: tuple[DayPlan, VisitItem] | None = None
+        for day in plan.days:
+            for v in day.items:
+                if (
+                    isinstance(v, VisitItem)
+                    and v.start_time is None
+                    and not v.pinned
+                    and v.name not in protect
+                    and (v.category or "") not in ("food", "hotel")
+                    and v.item_id not in handled
+                    and _BEST_VISIT_WINDOWS.get(
+                        str(v.best_visit_time or "").strip().lower()
+                    )
+                    is not None
+                ):
+                    stray = (day, v)
+                    break
+            if stray is not None:
+                break
+        if stray is None:
+            break
+        host_day, visit = stray
+        handled.add(visit.item_id)
+        wlo = _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
+        dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+        vcity = str(visit.city or "").strip().removesuffix("市")
+        if not vcity or wlo is None or wlo[1] - wlo[0] < dur:
+            continue
+        adopted = False
+        for host in [d for d in plan.days if _bcity(d) == vcity]:
+            shows = [
+                s
+                for s in host.items
+                if isinstance(s, VisitItem)
+                and s is not visit
+                and s.start_time is not None
+                and s.end_time is not None
+                and _is_show_item(s)
+                and not s.pinned
+                and s.name not in protect
+                and _mins(s.start_time) < wlo[1]
+                and _mins(s.end_time) > wlo[0]
+            ]
+            for show in shows:
+                for target in [
+                    d
+                    for d in plan.days
+                    if d is not host and _bcity(d) == vcity and not _day_show_taken(d)
+                ]:
+                    trial = deepcopy(plan)
+                    t_host = next(d for d in trial.days if d.day == host.day)
+                    t_target = next(d for d in trial.days if d.day == target.day)
+                    t_visit = None
+                    t_from = None
+                    for d in trial.days:
+                        for v in d.items:
+                            if isinstance(v, VisitItem) and v.item_id == visit.item_id:
+                                t_visit, t_from = v, d
+                    t_show = next(
+                        (
+                            v
+                            for v in t_host.items
+                            if isinstance(v, VisitItem) and v.item_id == show.item_id
+                        ),
+                        None,
+                    )
+                    if t_visit is None or t_show is None:
+                        continue
+                    timed_before = {
+                        v.item_id
+                        for d in trial.days
+                        for v in d.items
+                        if isinstance(v, VisitItem) and v.start_time is not None
+                    }
+                    if t_from is not t_host:
+                        t_from.items.remove(t_visit)
+                        t_host.items.append(t_visit)
+                        t_visit.day = t_host.day
+                    t_visit.start_time = None
+                    t_visit.end_time = None
+                    # 演出整场挪日、场次时刻不动；试解期临时钉住当固定锚，
+                    # 采纳后还原非钉（挪日不篡铁律 19 状态）。
+                    t_host.items.remove(t_show)
+                    t_target.items.append(t_show)
+                    t_show.day = t_target.day
+                    show_start = t_show.start_time
+                    t_show.pinned = True
+                    resolved = solve(trial, meal_flex=True) if solve else None
+                    if resolved is not None:
+                        cand = resolved
+                    else:
+                        _fallback_sequence_times(trial)
+                        cand = trial
+                    v_done = next(
+                        (
+                            v
+                            for d in cand.days
+                            for v in d.items
+                            if isinstance(v, VisitItem) and v.item_id == visit.item_id
+                        ),
+                        None,
+                    )
+                    s_done = next(
+                        (
+                            v
+                            for d in cand.days
+                            for v in d.items
+                            if isinstance(v, VisitItem) and v.item_id == show.item_id
+                        ),
+                        None,
+                    )
+                    timed_after = {
+                        v.item_id
+                        for d in cand.days
+                        for v in d.items
+                        if isinstance(v, VisitItem) and v.start_time is not None
+                    }
+                    ok = (
+                        v_done is not None
+                        and v_done.start_time is not None
+                        and v_done.day == host.day
+                        and _mins(v_done.start_time) >= wlo[0]
+                        and _mins(v_done.start_time) + dur <= wlo[1]
+                        and s_done is not None
+                        and s_done.start_time is not None
+                        and s_done.day == target.day
+                        and s_done.start_time == show_start
+                        and not (timed_before - timed_after)
+                    )
+                    if not ok:
+                        logger.info(
+                            "plan: show eviction %s day %d -> %d for %s "
+                            "infeasible; rolling back",
+                            show.name,
+                            host.day,
+                            target.day,
+                            visit.name,
+                        )
+                        continue
+                    plan.days = cand.days
+                    s_real = next(
+                        v
+                        for d in plan.days
+                        for v in d.items
+                        if isinstance(v, VisitItem) and v.item_id == show.item_id
+                    )
+                    s_real.pinned = False
+                    annotate_legs(plan)
+                    notes.append(
+                        L(
+                            f"「{show.name}」改排第{target.day}天晚场，"
+                            f"为「{visit.name}」的傍晚游览腾出第{host.day}天"
+                            "晚窗",
+                            f'"{show.name}" moved to the evening of day '
+                            f"{target.day}, freeing day {host.day}'s "
+                            f'evening window for "{visit.name}"',
+                        )
+                    )
+                    logger.warning(
+                        "plan: show %s day %d -> %d yields evening window to %s",
+                        show.name,
+                        host.day,
+                        target.day,
+                        visit.name,
+                    )
+                    adopted = True
+                    break
+                if adopted:
+                    break
+            if adopted:
+                break
+    return notes
+
+
 def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
@@ -19331,6 +19530,15 @@ class PlanningAgent:
                     break
         return plan, notes
 
+    def _evict_shows_for_windowed_stage(
+        self,
+        plan: ItineraryPlan,
+        protect: frozenset[str] | set[str] = frozenset(),
+    ) -> list[str]:
+        """演出跨日让位入口（2026-11-12 拍板）：委托模块级
+        `_evict_shows_for_windowed_visits`，CP 重解走本 agent 的 _solve。"""
+        return _evict_shows_for_windowed_visits(plan, protect, solve=self._solve)
+
     def _finalize_untimed_visits(
         self,
         plan: ItineraryPlan,
@@ -19445,6 +19653,12 @@ class PlanningAgent:
                         )
                 if changed:
                     _fallback_sequence_times(plan)
+        if _has_untimed_visits(plan):
+            # 演出跨日让位（2026-11-12 拍板）：显式晚窗长件落不了时刻、
+            # 晚窗被非钉可挪日演出占死时，演出让去同城空演出日再重解落
+            # 宿主（十一·正午案：240min evening 街块 vs 19:30 单场晚宴
+            # 秀抢同一晚窗）。在终局清算前跑——先腾窗再谈移除。
+            plan.assumptions.extend(self._evict_shows_for_windowed_stage(plan, protect))
         if _has_untimed_visits(plan):
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
         return plan

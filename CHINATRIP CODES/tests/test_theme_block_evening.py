@@ -22,6 +22,7 @@ from datetime import time
 
 from app.services.agent.plan import (
     _compress_before_evening_anchor,
+    _evict_shows_for_windowed_visits,
     _fallback_sequence_times,
 )
 from app.services.itinerary.models import (
@@ -335,3 +336,99 @@ def test_fallback_untagged_block_floor_16_still_holds():
     plan = _plan_with(m, blk)
     _fallback_sequence_times(plan)
     assert blk.start_time == time(16, 0)
+
+
+# ---------- ⑦ 演出跨日让位（2026-11-12 拍板「街块应落傍晚到晚上」） ----------
+
+
+def _dinner_show(item_id="show", dur=80):
+    """晚宴秀演出卡：entertainment + bvt=show + 19:30 单场（挪日场次不
+    变是采纳条件之一）。"""
+    return _visit(
+        item_id,
+        dur=dur,
+        category="entertainment",
+        best_visit_time="show",
+        opening_hours="仅夜场（晚宴秀，约19:30一场）",
+    )
+
+
+def _two_day_plan(day1_items, day2_items):
+    d1 = DayPlan(day=1, base_city="西安", items=list(day1_items))
+    d2 = DayPlan(day=2, base_city="西安", items=list(day2_items))
+    return ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[d1, d2])
+
+
+def test_eviction_show_yields_block_lands_17_21():
+    """事故日直复：D1 晨景 + 19:30 单场晚宴秀占死晚窗 + evening 240min
+    街块无时刻；D2 全天空。让位后街块落 D1 17:00-21:00、演出整场挪 D2
+    且场次时刻不动。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    show = _dinner_show()
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    blk = _block_evening()
+    plan = _two_day_plan([m, show, blk], [])
+    notes = _evict_shows_for_windowed_visits(plan)
+    # 采纳走深克隆回灌盘面，须从 plan 重新取引用（原局部引用已孤儿化）
+    got = {v.item_id: v for d in plan.days for v in d.items if isinstance(v, VisitItem)}
+    blk2, show2 = got["blk"], got["show"]
+    assert blk2.start_time == time(17, 0)
+    assert blk2.end_time == time(21, 0)
+    assert blk2.day == 1
+    assert show2.day == 2
+    assert show2.start_time == time(19, 30)
+    assert show2.end_time == time(20, 50)
+    assert show2.pinned is False
+    assert any("改排第2天" in n for n in notes)
+
+
+def test_eviction_no_free_day_keeps_show_block_untimed():
+    """同城没有无演出日可承接演出时：不让位，演出原日原刻不动，街块
+    留无时刻交披露链（绝不硬塞正午）。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    show = _dinner_show()
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    show2 = _dinner_show("show2")
+    show2.day = 2
+    show2.start_time, show2.end_time = time(19, 30), time(20, 50)
+    blk = _block_evening()
+    plan = _two_day_plan([m, show, blk], [show2])
+    notes = _evict_shows_for_windowed_visits(plan)
+    assert show.day == 1
+    assert show.start_time == time(19, 30)
+    assert blk.start_time is None
+    assert notes == []
+
+
+def test_eviction_pinned_show_never_moves():
+    """钉住演出（铁律 19）永不让位：晚窗被钉死演出占着时街块原样无
+    时刻，演出钉位不动。"""
+    m = _sight("m", dur=180)
+    m.start_time, m.end_time = time(9, 0), time(12, 0)
+    show = _dinner_show()
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    show.pinned = True
+    blk = _block_evening()
+    plan = _two_day_plan([m, show, blk], [])
+    notes = _evict_shows_for_windowed_visits(plan)
+    assert show.day == 1
+    assert show.start_time == time(19, 30)
+    assert blk.start_time is None
+    assert notes == []
+
+
+def test_eviction_untagged_block_never_evicts():
+    """11-08 语义不回归：无标的街块（可夜可昼）无时刻时不触发让位——
+    它走 16:00 地板/披露链，演出不背锅。"""
+    m = _sight("m", dur=90)
+    m.start_time, m.end_time = time(9, 0), time(10, 30)
+    show = _dinner_show()
+    show.start_time, show.end_time = time(19, 30), time(20, 50)
+    blk = _block()
+    plan = _two_day_plan([m, show, blk], [])
+    notes = _evict_shows_for_windowed_visits(plan)
+    assert show.day == 1
+    assert show.start_time == time(19, 30)
+    assert notes == []
