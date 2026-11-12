@@ -1,7 +1,8 @@
 """source_tier 共享模块守卫测试（2026-11-03 名录序全站唯一定义点）。
 
 catalog_rank 全档判定 / order_source_tags 展示序 / source_tag_key
-unesco 前缀族 / tags_source_wins 权威闸 / SOURCE_PRIORITY 11 项铁律
+unesco 前缀族 / tags_source_wins 权威闸 / SOURCE_PRIORITY 15 项铁律
+（2026-11-12 需求驱动重排）
 （CLAUDE.md Iron rule 精确全文）。"""
 
 from app.services.source_tier import (
@@ -103,14 +104,17 @@ def test_tags_source_wins_authority_gate():
     assert tags_source_wins("mct", "glm")
 
 
-# --- SOURCE_PRIORITY：字段回填铁律全序（2026-11-08 用户拍板 +curated） ------
+# --- SOURCE_PRIORITY：字段回填铁律全序（2026-11-12 需求驱动重排） ------
 
 
 def test_source_priority_iron_rule_full_list():
     assert SOURCE_PRIORITY == (
+        "curated",
+        "lonelyplanet",
+        "tripadvisor",
+        "viator",
         "unesco",
         "5a",
-        "curated",
         "museum1",
         "museum2",
         "museum3",

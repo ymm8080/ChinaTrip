@@ -37,8 +37,11 @@ source, never an ad-hoc subset, never a job-private ordering. Canonical
 order (the `_SOURCE_PRIORITY` tuple, documented in
 `DESIGN/POIS_DATASOURCE.md` 读侧接线):
 
-    unesco > 5a > museum1 > museum2 > museum3 > artmuseum
+    curated > lonelyplanet > tripadvisor > viator > unesco > 5a
+        > museum1 > museum2 > museum3 > artmuseum
         > street > histown > amap > chinatravel > osm
+    （2026-11-12 需求驱动重排：curated/intl 明站提到官方名录前；
+    行程对话心愿单作为选行最优先信号在具体 job 内先行处理）
 
 - A new source registered into the pool must be appended to this list in
   the same change that introduces it.

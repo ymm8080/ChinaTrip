@@ -173,12 +173,18 @@ def order_source_tags(tags: list[str]) -> list[str]:
 # CLAUDE.md Iron rule 全文（canonical order；拼写 chinatravel）。
 # 各回填 job 必须 import 本常量，不得手抄短表；池里有而此表没有的源，
 # 由该 job 以「元组拼接追加在尾部」的方式带上（同 change 内追加是规矩）。
-# 2026-11-08 用户拍板：curated（05 国际旅行网站荐点之精选宴艺/场景行）
-# 升入优先组，按 11-03 名录序插在 5a 之后（=catalog_rank 档位 2）。
+# 2026-11-08 用户拍板：curated 升入优先组。
+# 2026-11-12 用户拍板（需求驱动序）：回填选行优先级跟「谁会出现在行程里/
+# 被点开」走——curated（人工精选，含行程对话心愿的落地行）与 intl 明站
+# （lonelyplanet/tripadvisor/viator）提到官方名录（unesco/5a）之前；
+# 注意 catalog_rank（规划器/徽章档位）是另一条独立序，本次未动。
 SOURCE_PRIORITY: tuple[str, ...] = (
+    "curated",
+    "lonelyplanet",
+    "tripadvisor",
+    "viator",
     "unesco",
     "5a",
-    "curated",
     "museum1",
     "museum2",
     "museum3",
