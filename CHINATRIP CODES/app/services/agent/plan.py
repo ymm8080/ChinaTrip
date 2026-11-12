@@ -7012,6 +7012,18 @@ def _endpoint_day_light_sweep(
        （同 11-08 口径：不可核即不动）。
     ② 空日披露：同到达日口径——没收到简单街区卡/SHOW 就留白披露。
 
+    ③ 一项上限（2026-11-12 拍板「到达日与离城日只安排一项离酒店近
+       的游览即可；没有酒店地址则以市中心为默认」）：端点日游览卡
+       >1 时只留距锚最近一项，余卡挪同城非端点日（只挪不删；无宿主
+       =保留+披露，同 ① 软放兜底「排得上优先于排得轻」）。锚=日内/
+       同城酒店卡（_head_hotel_anchor），无酒店则以城心锚（
+       _urban_medoid）为市中心默认；无锚或全部缺坐标=不可核即不拦
+       （11-08 同口径）。演出/餐宿不计入上限（演出=节目由每场闸另
+       管，端点日收 SHOW 为 11-11 拍板合法内容）；钉/软钉余卡=铁律
+       19 不动。整族轻量形态不豁免本闸——11-11 族豁免只管①「算不
+       算重磅」，本闸管「留几张」：两张相邻小卡同样是「两项」（
+       11-12 用户报「出发日安排了两项」根案）。
+
     挪动必留日志，保留/空日必留披露——静默不许可（10-25 立规）。"""
     moved = False
 
@@ -7286,6 +7298,122 @@ def _endpoint_day_light_sweep(
                         f"the light-departure policy",
                     )
                 )
+        # —— ③ 端点日一项上限（2026-11-12 拍板，双向只出不进，同 ①
+        #   只挪不删+无宿主保留披露）——对到达日+返程日统一收口（同城
+        #   日去重；单日行程首尾同日也只过一次）。
+        endpoint_days = list(
+            {
+                id(x): x
+                for x in days
+                if _day_is_arrival(x, vcity) or _day_is_return_home(x, plan.days)
+            }.values()
+        )
+        for d in endpoint_days:
+            visits = [
+                i
+                for i in list(d.items)
+                if isinstance(i, VisitItem)
+                and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                and not _is_show_v(i)
+            ]
+            if len(visits) <= 1:
+                continue
+            hotel = _head_hotel_anchor(d, plan)
+
+            def _anchor_dist(v: VisitItem) -> float:
+                # 酒店锚优先（_head_dist_km 缺坐标记 inf）；无酒店则
+                # 城心锚=市中心默认；都无=inf（调用方统一不拦）。
+                if hotel is not None:
+                    return _head_dist_km(hotel, v)
+                if (
+                    _med is None
+                    or getattr(v, "location", None) is None
+                    or getattr(v.location, "lon", None) is None
+                ):
+                    return float("inf")
+                return haversine_km(
+                    GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat)),
+                    GeoPoint(lon=_med[0], lat=_med[1]),
+                )
+
+            dists = [(v, _anchor_dist(v)) for v in visits]
+            if all(dist == float("inf") for _, dist in dists):
+                # 不可核即不拦：无锚/卡全缺坐标，上限核不了（11-08 口径）。
+                continue
+            keeper = min(
+                dists,
+                key=lambda t: (
+                    t[1],
+                    0
+                    if (
+                        getattr(t[0], "pinned", False)
+                        or getattr(t[0], "soft_pin", False)
+                    )
+                    else 1,
+                    str(t[0].name),
+                ),
+            )[0]
+            is_arrival = _day_is_arrival(d, vcity)
+            label_zh = "到达日" if is_arrival else "离城日"
+            label_en = "arrival day" if is_arrival else "departure day"
+            for v in visits:
+                if v is keeper:
+                    continue
+                if _untouchable(v):
+                    # 钉/软钉=铁律 19 用户权威，上限闸同样不挪（当日
+                    # 仍多张=用户自己钉的，留日志可审计）。
+                    logger.info(
+                        "plan: endpoint-light cap keeps pinned %s on day %s",
+                        v.name,
+                        d.day,
+                    )
+                    continue
+                dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
+                non_ep = [
+                    x
+                    for x in days
+                    if x is not d
+                    and not _day_is_arrival(x, vcity)
+                    and not _day_is_return_home(x, plan.days)
+                ]
+                tgt = _host_day_for_visit(
+                    non_ep, vcity, dur, visit=v, all_days=plan.days, _rescue=True
+                )
+                if tgt is not None:
+                    _move(v, d, tgt)
+                    moved = True
+                    logger.info(
+                        "plan: endpoint-light cap %s day %s -> day %s",
+                        v.name,
+                        d.day,
+                        tgt.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"第{d.day}天为{label_zh}，只安排一项离酒店近的"
+                            f"游览，「{v.name}」已挪至第{tgt.day}天",
+                            f"Day {d.day} is the {label_en}; only one "
+                            f"visit near the hotel is scheduled, so "
+                            f'"{v.name}" moved to day {tgt.day}',
+                        )
+                    )
+                else:
+                    logger.warning(
+                        "plan: endpoint-light cap %s stays day %s (no host)",
+                        v.name,
+                        d.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"第{d.day}天为{label_zh}，只安排一项离酒店近的"
+                            f"游览，但其余各天排不下，「{v.name}」暂保留在"
+                            f"第{d.day}天（可按需调整）",
+                            f"Day {d.day} is the {label_en}; only one "
+                            f"visit near the hotel is scheduled, but "
+                            f'every other day was full, so "{v.name}" '
+                            f"stayed on day {d.day} (adjust as needed)",
+                        )
+                    )
     if moved:
         _fallback_sequence_times(plan)
 
@@ -18773,10 +18901,11 @@ class PlanningAgent:
         # 闸/压缩都可能再动盘面，任何相位在清扫之后挪卡都会留无时刻卡
         # 交付（城心小件"？"实录）；此处是跨通道终局对账的唯一定义点。
         _day_purity_sweep(plan, must_names)
-        # 端点日轻量清扫（2026-11-11 拍板）：纯度清扫的姊妹件，同跑在
-        # 终装最后——重磅/出圈出端点日+空日披露双向对账（各排程相位可
-        # 合力把重磅/远卡塞进端点日；轻卡落位靠排程顺序雨日→到达日→
-        # 正常日→离城日自然发生，本清扫绝不跨日挪卡补，宁可空日）。
+        # 端点日轻量清扫（2026-11-11 拍板；11-12 增一项上限）：纯度清扫
+        # 的姊妹件，同跑在终装最后——重磅/出圈出端点日+一项上限+空日
+        # 披露双向对账（各排程相位可合力把重磅/远卡/多张卡塞进端点日；
+        # 轻卡落位靠排程顺序雨日→到达日→正常日→离城日自然发生，本清
+        # 扫绝不跨日挪卡补，宁可空日）。
         _endpoint_day_light_sweep(plan, must_names)
         _retime_meal_placeholders(plan)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN

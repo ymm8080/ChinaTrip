@@ -13,6 +13,10 @@ _arrival_simple_visit 唯一定义点：街道/citywalk 类且非主题街区演
 ② 空日留白披露（11-11 拍板「不强行从其它日期挪卡」：到达日没收到
    简单街区卡/SHOW 就不安排节目，接受空日——轻卡落位靠排程顺序自然
    发生，本清扫绝不跨日挪卡补；从别日硬挪=既违拍板又把源日拆散）
+③ 一项上限（11-12 拍板「到达日与离城日只安排一项离酒店近的游览
+   即可；没有酒店地址则以市中心为默认」）：>1 张只留距锚最近一张，
+   余卡挪非端点日（只挪不删；无宿主=保留+披露；钉/软钉不动=铁律
+   19；演出/餐宿不计入；不可核即不拦）
 
 返程日分支锚见 test_return_day_light.py。
 """
@@ -133,7 +137,9 @@ def test_heavy_visit_predicate_class_level():
 def test_heavy_evicted_and_no_recruit_accept_empty():
     """① 出+② 留白拍板：王牌出到达日落有容量日；街卡**不跨日挪补**
     （留在第 3 天）；≤80min 小馆留守（收轻内容口径）；到达日无简卡
-    =留白披露（11-11「不强行从其它日期挪卡」）。"""
+    =留白披露（11-11「不强行从其它日期挪卡」）。③ 一项上限（11-12）
+    同案收口：第 3 天为离城日持两张（街卡+小馆）→小馆为远者挪第 2 天，
+    只留街卡一张。"""
     ace = _v("王牌A", 120, _C0, 1, tier=1)
     # 小馆放远点（>1km）：避免与王牌凑成整族轻量形态触发①豁免
     small = _v("小馆", 60, _D3A, 1, tier=9)
@@ -145,9 +151,11 @@ def test_heavy_evicted_and_no_recruit_accept_empty():
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 2
     assert _day_of(plan, small) == 1
-    # 绝不跨日挪卡补：街卡留在原地
+    # 绝不跨日挪卡补：街卡留在原地（③ 只出多余一张，不招卡）
     assert _day_of(plan, st) == 3
-    assert _day_of(plan, dd) == 3
+    # ③ 一项上限：离城日两张→远者（馆D）挪走，只留街卡
+    assert _day_of(plan, dd) == 2
+    assert any("只安排一项" in a and "馆D" in a for a in plan.assumptions)
     # 到达日留白必披露
     assert any("到达日" in a and "留白" in a for a in plan.assumptions)
     # 挪动后全部排上时刻（「？」卡不许出自本清扫）
@@ -179,19 +187,27 @@ def test_theme_block_treated_heavy_and_evicted():
     assert _day_of(plan, small) == 1
 
 
-def test_compact_family_day_exempt_from_eviction():
-    """整族轻量形态（≥2 员、每员 ≤120min、合计 ≤180min、两两全连通
-    ≤1km）豁免①——到达日整族落位通道终装镜像，拆族比留重磅更伤。"""
+def test_compact_family_day_exempt_from_heavy_eviction_but_capped_to_one():
+    """① 族豁免不变（族员不算重磅、不触发①出——无「重磅」挪卡披露）；
+    ③ 一项上限（11-12 拍板「到达日只安排一项」）照样收口：只留距锚
+    最近的一员（族锚 _F1=锚点本身 0km），余员挪非端点日。两张相邻
+    小卡同样是「两项」，族形态不豁免本闸（11-11 族豁免只管「算不算
+    重磅」，11-12 闸管「留几张」）。"""
     a1 = _v("族锚", 90, _F1, 1, tier=2)
     a2 = _v("族伴甲", 40, _F2, 1, tier=9)
     a3 = _v("族伴乙", 40, _F3, 1, tier=9)
-    st = _v("样本坊", 90, _ST, 2, tier=4)
-    dd = _v("馆D", 60, _D3A, 2, tier=9)
-    plan = _plan(_d(1, a1, a2, a3), _d(2, st, dd))
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    c = _v("馆C", 60, _D2B, 2, tier=9)
+    st = _v("尾坊", 90, _ST, 3, tier=4)
+    plan = _plan(_d(1, a1, a2, a3), _d(2, b, c), _d(3, st))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, a1) == 1
-    assert _day_of(plan, a2) == 1
-    assert _day_of(plan, a3) == 1
+    # ① 不当作重磅逐出（族豁免仍在案）
+    assert not any("重磅" in x for x in plan.assumptions)
+    # ③ 只留一项：恰一员留守到达日，另两名挪去第 2 天
+    fam = (a1, a2, a3)
+    assert sum(1 for i in plan.days[0].items if any(i is f for f in fam)) == 1
+    assert sum(1 for i in plan.days[1].items if any(i is f for f in fam)) == 2
+    assert any("只安排一项" in x for x in plan.assumptions)
 
 
 def test_pinned_heavy_untouched():
@@ -215,6 +231,39 @@ def test_curated_theme_block_evicted_when_host_exists():
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, blk) == 2
     assert blk.curated is True
+
+
+# ------------------------------------------------------- ③ 一项上限（11-12）
+
+
+def test_arrival_day_capped_to_one_keeps_anchor_nearest():
+    """11-12 拍板锚·到达日侧：两张散卡（近坊+远馆）只留距锚最近一张，
+    另一张挪非端点日；披露在案。无酒店→城心锚为市中心默认。"""
+    near = _v("近坊", 90, _ST, 1, tier=4)
+    far = _v("远馆", 60, _D3A, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    c = _v("馆C", 60, _D2B, 2, tier=9)
+    st = _v("尾坊", 90, _ST, 3, tier=4)
+    plan = _plan(_d(1, near, far), _d(2, b, c), _d(3, st))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 1
+    assert _day_of(plan, far) == 2
+    assert any("只安排一项" in x and "远馆" in x for x in plan.assumptions)
+
+
+def test_arrival_day_cap_keeps_pinned_extra():
+    """余卡钉住=铁律 19：上限闸不挪钉卡（当日仍两张=用户权威，无披露）。"""
+    near = _v("近坊", 90, _ST, 1, tier=4)
+    far = _v("远馆", 60, _D3A, 1, tier=9, pinned=True)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    c = _v("馆C", 60, _D2B, 2, tier=9)
+    st = _v("尾坊", 90, _ST, 3, tier=4)
+    plan = _plan(_d(1, near, far), _d(2, b, c), _d(3, st))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 1
+    assert _day_of(plan, far) == 1
+    assert far.pinned is True
+    assert not any("只安排一项" in x for x in plan.assumptions)
 
 
 def test_no_recruit_accept_empty_arrival_day():

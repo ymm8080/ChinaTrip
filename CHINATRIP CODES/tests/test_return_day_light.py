@@ -12,6 +12,11 @@
 ② 空日留白披露（同到达日口径）：没收到简单街区卡/SHOW 就留白披露，
    接受离城日无站点安排——绝不跨日挪卡补（11-11「不强行从其它日期
    挪卡」）。
+③ 一项上限（11-12 拍板「到达日与离城日只安排一项离酒店近的游览
+   即可；没有酒店地址则以市中心为默认」，用户根案「出发日安排了
+   两项」）：>1 张只留距锚最近一张（锚=酒店卡，缺则城心锚），余卡
+   挪非端点日（只挪不删；无宿主=保留+披露；钉/软钉不动；演出/餐宿
+   不计入；不可核即不拦）。
 """
 
 from datetime import time
@@ -33,6 +38,8 @@ _ST = GeoPoint(lon=108.9450, lat=34.2610)  # 街区语素卡 ~0.5km
 _D2A = GeoPoint(lon=108.9500, lat=34.2650)  # 第二日伴 A ~1.1km
 _D2B = GeoPoint(lon=108.9510, lat=34.2655)  # 第二日伴 B ~1.2km
 _FAR = GeoPoint(lon=109.2400, lat=34.2600)  # 出圈远点 ~27km
+_MID = GeoPoint(lon=108.9550, lat=34.2680)  # 圈内中距 ~1.6km（①不挪③收）
+_EDGE = GeoPoint(lon=108.9850, lat=34.2450)  # 圈内边缘 ~5km（①不挪③收）
 
 
 def _v(
@@ -192,3 +199,79 @@ def test_return_day_with_simple_card_no_empty_disclosure():
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, st) == 3
     assert not any("离城日" in x and "留白" in x for x in plan.assumptions)
+
+
+# ------------------------------------------------------- ③ 一项上限（11-12）
+
+
+def test_return_day_two_cards_keeps_hotel_nearest():
+    """11-12 拍板锚·离城日侧（用户根案「出发日安排了两项」）：两张圈内
+    卡只留离酒店最近一张，另一张挪非端点日；披露在案。"""
+    h = _v("酒店", 0, _C1, 3, category="hotel")
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    near = _v("近馆", 60, _ST, 3, tier=9)  # 距酒店 ~0.55km
+    far2 = _v("边馆", 60, _MID, 3, tier=9)  # 圈内（①不挪）但离酒店更远
+    plan = _plan(_d(1, a), _d(2, b), _d(3, h, near, far2))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 3
+    assert _day_of(plan, far2) == 2
+    assert any("只安排一项" in x and "边馆" in x for x in plan.assumptions)
+
+
+def test_return_day_two_cards_defaults_to_city_center_without_hotel():
+    """无酒店地址→市中心（城心锚）为默认：留距城心近者，余卡挪走。"""
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    c = _v("馆C", 60, _D2B, 2, tier=9)
+    near = _v("心馆", 60, _C1, 3, tier=9)
+    far2 = _v("边馆", 60, _EDGE, 3, tier=9)  # 圈内但明显更靠边缘
+    plan = _plan(_d(1, a), _d(2, b, c), _d(3, near, far2))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 3
+    assert _day_of(plan, far2) == 2
+    assert any("只安排一项" in x and "边馆" in x for x in plan.assumptions)
+
+
+def test_return_day_cap_keeps_pinned_extra():
+    """余卡钉住=铁律 19：上限闸不挪钉卡（当日仍两张=用户权威）。"""
+    h = _v("酒店", 0, _C1, 3, category="hotel")
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    near = _v("近馆", 60, _ST, 3, tier=9)
+    far2 = _v("边馆", 60, _EDGE, 3, tier=9, pinned=True)
+    plan = _plan(_d(1, a), _d(2, b), _d(3, h, near, far2))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 3
+    assert _day_of(plan, far2) == 3
+    assert far2.pinned is True
+    assert not any("只安排一项" in x for x in plan.assumptions)
+
+
+def test_return_day_cap_keeps_no_host_card_and_discloses():
+    """无宿主=保留+披露（软放兜底「排得上优先于排得轻」，同①口径）。"""
+    h = _v("酒店", 0, _C1, 3, category="hotel")
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
+    near = _v("近馆", 60, _ST, 3, tier=9)
+    far2 = _v("边馆", 60, _EDGE, 3, tier=9)
+    plan = _plan(_d(1, a), _d(2, *full), _d(3, h, near, far2))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near) == 3
+    assert _day_of(plan, far2) == 3
+    assert any(
+        "只安排一项" in x and "边馆" in x and "暂保留" in x for x in plan.assumptions
+    )
+
+
+def test_return_day_cap_uncheckable_skips():
+    """不可核即不拦：全无坐标且无酒店→上限核不了→两张都保留、无披露。"""
+    a = _v("馆A", 60, None, 1, tier=9)
+    b = _v("馆B", 60, None, 2, tier=9)
+    blind1 = _v("无坐标甲", 60, None, 3, tier=9)
+    blind2 = _v("无坐标乙", 60, None, 3, tier=9)
+    plan = _plan(_d(1, a), _d(2, b), _d(3, blind1, blind2))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, blind1) == 3
+    assert _day_of(plan, blind2) == 3
+    assert not any("只安排一项" in x for x in plan.assumptions)
