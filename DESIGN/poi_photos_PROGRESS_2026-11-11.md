@@ -71,3 +71,13 @@
 2. 逐站：search/q.php?q=名 → 扫 poi/sharejump 链接 → poi/{id}.html → 滚动触发懒加载 → 收集 (p|b)1-q.mafengwo.net 原图（剥 ?imageMogr2、剔除 <200px 缩略/头像）
 3. 入库脚本：只填空 + photos_source='mafengwo' + 歧义闸
 4. 注意：poi id 不可猜（poi/2 即 404），一律经搜索页事实链接
+
+---
+
+## 增补章节：Day-2 批量与情报（2026-11-13）
+
+- 腾讯探针复测：仍 status 121（key 日配额未见重置）——「未证实」维持，闸不开。
+- ctrip 情报（探针 agent 实测）：GetSightOverview 直连 API 被 WAF 闸死（4/4 失败）；新会话壳页率 100%，但产线 CtripHoursReader 长会话间歇命中真身页（R8 300/600）——**photos 可搭 reader 便车零请求抽取**（dimg04/youimg1 域，_D_180_180 换大图后缀），需 ctrip_hours.py 暴露原始 HTML，待拍板接入。
+- Day-2 批量起跑：pois backfill 800 行（amap v5 主池）+ restaurants around 800 行（独立池），并行后台。
+- SOURCE_PRIORITY 已重排推送（50f5741）：curated > lonelyplanet > tripadvisor > viator > unesco > 5a > ...；catalog_rank（规划器/徽章）独立序未动。
+- 马蜂窝会话收割累计 6 批 24 站（mafengwo 37 行）；餐厅 Commons 三轮 +55 行（65/5,088，命中率 ~10%，主力等 around）。
