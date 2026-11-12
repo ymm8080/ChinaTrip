@@ -207,6 +207,15 @@ _OUTDOOR_HINTS = (
 _CAVE_HINTS = ("溶洞", "洞窟", "石窟", "窟")
 _PARK_HINTS = ("公园", "园林", "园", "園")
 
+# 茶饮场所名称标记（2026-11-12 类级口径）：语素级判定，任意城市生效
+# （成都/杭州/苏州等产茶区通用）——不再靠 (城市,名) 覆盖表逐城点名。
+# 只收场所后缀语素（茶馆/茶楼/茶室…）：裸「茶」不收（茶卡盐湖/茶餐厅
+# /茶叶博物馆皆含「茶」非茶饮场所）；indoor 不判（露天茶桌常见）、
+# rain_ok 同 _CATEGORY_META 的 tea_experience 档（茶桌有檐雨日可坐）、
+# 时长地板 60 走 _DURATION_FLOOR。语义 genuinely 歧义的点名（成都人民
+# 公园=鹤鸣茶社）仍由 _NAME_CITY_OVERRIDES 管。
+_TEA_HINTS = ("茶馆", "茶楼", "茶室", "茶社", "茶寮", "茶轩", "茶艺馆")
+
 # 名字×城市精确覆盖（2026-11-07 用户拍板）：关键词词典是概率推断，个别
 # 点位按拍板点名归档，重导入/重建也保持同一口径。键=(城市去「市」后缀,
 # 名字原样)——城市限定防同名异地误伤（人民公园全国同名多处，只有成都
@@ -289,6 +298,10 @@ def classify(
         if any(h in name for h in _SHOW_HINTS):
             cat, indoor, rain_ok = "entertainment", True, True
             floor = _SHOW_DURATION_FLOOR
+        # 茶饮场所（2026-11-12 类级）：优先于馆词——「茶馆」含「馆」，
+        # 放馆词之后会误归 museum；茶语义高于公园/街区等弱 hints
+        elif any(h in name for h in _TEA_HINTS):
+            cat, indoor, rain_ok = "tea_experience", None, True
         # 高置信室内：名称带明确馆字
         elif any(h in name for h in _INDOOR_HINTS):
             cat, indoor, rain_ok = "museum", True, True

@@ -76,6 +76,23 @@ def test_park_hints():
     assert cat == "park" and floor == 90
 
 
+def test_tea_venue_hints_any_city_20261112():
+    """2026-11-12 类级：茶饮场所语素任意城市归 tea_experience（成都/杭州/
+    苏州等产茶区通用）——不再靠 (城市,名) 覆盖表逐城点名。语素优先于馆
+    词（「茶馆」含「馆」）；裸「茶」不收：茶卡盐湖/茶餐厅/茶叶博物馆皆
+    非茶饮场所。人民公园无茶语素仍走 park（成都点名覆盖另行生效）。"""
+    for name in ("湖畔居茶楼", "虎跑茶室", "苏州茶社", "成都老茶馆"):
+        cat, indoor, rain_ok, floor = _c(name)
+        assert cat == "tea_experience", name
+        assert indoor is None and rain_ok is True, name
+        assert floor == 60, name
+    for name in ("茶卡盐湖", "粤式茶餐厅", "中国茶叶博物馆"):
+        cat, _, _, _ = _c(name)
+        assert cat != "tea_experience", name
+    cat, _, _, floor = _c("人民公园")
+    assert cat == "park" and floor == 90
+
+
 def test_accommodation_names_guard_to_hotel():
     """2026-10-31 清洗拍板：名称含住宿词一律 hotel，优先于裸「园」hint
     与上游类别（桔子水晶北京朝阳公园酒店 曾被误归 park 污染公园池）。"""
@@ -176,7 +193,10 @@ def test_scenic_mark_lifts_category_floor():
 
 
 def test_low_confidence_stays_none():
-    cat, indoor, rain_ok, floor = _c("昆曲茶社")
+    # 「昆曲传习所」无任何高置信语素（茶社/茶馆等茶饮场所语素 2026-11-12
+    # 起是类级高置信——见 test_tea_venue_hints_any_city_20261112，不再算
+    # 低置信样本）
+    cat, indoor, rain_ok, floor = _c("昆曲传习所")
     assert cat is None and indoor is None and rain_ok is None and floor is None
 
 

@@ -275,7 +275,8 @@ CAR_KMH = 70  # intercity road pace behind the car placeholder duration
 # 选火车——甲城→乙城（~1130km）必须飞机、乙城→丙城（~165km）必须火车。
 FLIGHT_OVER_TRAIN_KM = 600
 DEFAULT_DAYS = 6
-DEFAULT_CITY = "北京"
+# 无 DEFAULT_CITY（2026-11-12 撤）：目的地不可编造，澄清耗尽仍无城市→
+# 再问一次而非默认北京（见 chat 澄清耗尽分支）。
 MAX_CLARIFY_ROUNDS = 2  # §6.1: at most two questions, then v0 on assumptions
 MAX_REPAIR_ROUNDS = 3  # §6.4: LLM self-repair cap, then half-product
 PREFERENCE_SKIP_WORDS = frozenset(
@@ -3427,19 +3428,18 @@ def _same_category_full(
     return sum(1 for s in picked if str(s.get("category") or "").strip() == cat) >= cap
 
 
-# 城市知识提示（用户拍板 2026-10-24：心愿单没写城市时先自己找——
-# 变脸一般是成都，喝茶优选成都）。提示城市在行程里→落到该城并回写
-# 心愿单；不在行程→回复里提示用户（不确定再问）；推断不出→城市留空，
-# 由搜索圆心回退就近落实。
+# 城市知识提示（用户拍板 2026-10-24：心愿单没写城市时先自己找）。
+# 提示城市在行程里→落到该城并回写心愿单；不在行程→回复里提示用户
+# （不确定再问）；推断不出→城市留空，由搜索圆心回退就近落实。
+# 收录口径（2026-11-12 类级修订）：只收「独一地专名 / 地域锁定艺术
+# 形」——西湖是独一地专名；变脸/川剧是巴蜀剧种（语素即带地域属性，
+# 换任何城市同名场景规则不变）。活动类愿望（喝茶/泡茶/茶馆等）是
+# 产茶区通用活动（成都/杭州/苏州…皆宜），走品类通道空城就近落实，
+# 不再钉城市。
 WISH_CITY_HINTS: dict[str, str] = {
     "西湖": "杭州",
     "变脸": "成都",
     "川剧": "成都",
-    "喝茶": "成都",
-    "泡茶": "成都",
-    "品茶": "成都",
-    "茶馆": "成都",
-    "茶楼": "成都",
 }
 
 
@@ -10791,8 +10791,9 @@ class PlanningAgent:
         if not session.cities:
             # H5 composer text ("Shanghai 5 days, museums") carries the
             # cities when the plan starts from free text instead of the
-            # pickers; without this the English name never matches and the
-            # clarify-exhausted default (Beijing) silently wins.
+            # pickers; without this the English name never matches and no
+            # city is ever recognized (2026-11-12: no silent default city
+            # anymore — clarify-exhausted flow asks for the destination).
             session.cities = _parse_cities(session.preferences)
         wanted = "、".join(session.cities) if session.cities else "（城市未定）"
         session.history.append(
@@ -12194,15 +12195,35 @@ class PlanningAgent:
                 )
             )
         if not session.cities:
-            history_text = " ".join(m.content for m in session.history)
-            fallback = _parse_cities(history_text) or [DEFAULT_CITY]
-            session.cities = fallback
-            extra.append(
-                L(
-                    f"未识别城市，默认按 {'、'.join(fallback)} 规划",
-                    f"No cities recognized — defaulted to {', '.join(fallback)}",
-                )
+            # 2026-11-12 类级修订：只扫用户消息——clarify 问句自带举例
+            # 城市（「例如：从三亚出发去哈尔滨，途经广州」），扫全量历史
+            # 会把助手举的例子当成用户目的地（实测 v0 真按三亚/哈尔滨/
+            # 广州生成了行程）。助手产出永不作为用户意图来源。
+            history_text = " ".join(
+                m.content for m in session.history if m.role == "user"
             )
+            fallback = _parse_cities(history_text)
+            if fallback:
+                session.cities = fallback
+                extra.append(
+                    L(
+                        f"未识别城市，默认按 {'、'.join(fallback)} 规划",
+                        f"No cities recognized — defaulted to {', '.join(fallback)}",
+                    )
+                )
+        if not session.cities:
+            # 2026-11-12 类级修订：撤 DEFAULT_CITY（原「北京」）硬编码兜底。
+            # 天数有中性默认（6 天）；目的地没有——编一座城给任何非该城
+            # 用户都是错行程，宁再问一次不编造（用户 11-12 硬编码铁律）。
+            reply = L(
+                "信息不全：还差目的地城市。告诉我想去哪座（哪几座）城，"
+                "我马上生成初版行程。",
+                "Almost there — I still need the destination city (or "
+                "cities). Tell me where you want to go and I'll draft "
+                "the itinerary right away.",
+            )
+            session.history.append(ChatMessage(role="assistant", content=reply))
+            return session, reply, None
         session = await self._generate_v0(session, extra_assumptions=extra)
         if session.state == "resto_confirm":
             return session, session.history[-1].content, None
@@ -12261,7 +12282,8 @@ class PlanningAgent:
         撤跨城宽恕重绑：该心愿确系其城心愿，钉死的城市必须尊重）。
         2026-11-08 城市闸（用户拍板）：心愿只看城市——有符合的城市或
         适合所有城市的心愿才放进行程。①品类愿望先吃 WISH_CITY_HINTS
-        （喝茶/茶馆是成都心愿，不再无城绕闸就近塞进任意行程）；②多城
+        （只含独一地专名/地域锁定艺术形；喝茶/茶馆等活动类 2026-11-12
+        起不再钉城，走品类通道就近落实——产茶区通用）；②多城
         行程里定不出城的专名心愿没有「符合的城市」也不普适——不再照旧
         吸收（单城行程唯一城即其城，空城就近落实语义保持）。"""
         if self._trip_items is None:
@@ -12297,8 +12319,9 @@ class PlanningAgent:
             city = (it.get("city") or "").strip().removesuffix("市")
             if not city:
                 # 城市提示先行（2026-11-08 城市闸）：品类愿望也先吃
-                # WISH_CITY_HINTS——喝茶/茶馆是成都心愿，不再无城绕闸
-                # 就近塞进任意行程；提示城写回心愿单（空城行自愈）。
+                # WISH_CITY_HINTS（独一地专名/地域剧种）；喝茶/茶馆等
+                # 活动类不在提示表（2026-11-12 类级修订：产茶区通用），
+                # 城市留空走下方品类通道就近落实。
                 hint = _wish_city_hint(name)
                 if hint:
                     city = hint
