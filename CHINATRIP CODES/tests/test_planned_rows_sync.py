@@ -236,3 +236,52 @@ def test_stray_plan_row_stuck_in_wishlist_swept():
     row = svc2.get(stuck["id"])
     assert row["status"] == "scheduled" and row["day"] == 1
     assert "已安排" in (row.get("note") or "")
+
+
+def test_smoke_session_writes_nothing_to_trip_items():
+    """2026-11-12 三拍（smoke 会话写穿活 PG 事故二发）：smoke- 前缀设备的
+    会话是测试流量——其 sync 一律不得写穿共享 trip_items（心愿单/已安排
+    跨会话共享、无设备隔离，写即污染真实用户看板）。"""
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    agent = _agent(svc)
+    agent._wish_bindings["看熊猫"] = {
+        "name": "成都大熊猫繁育研究基地",
+        "city": "成都",
+        "source_poi_id": "PANDA01",
+        "location": {"lon": 104.1, "lat": 30.7},
+    }
+    session = _session(
+        agent,
+        _plan_with(
+            [
+                _item("成都大熊猫繁育研究基地", poi_id="PANDA01"),
+                _item("宽窄巷子", poi_id="KZ01"),
+            ]
+        ),
+    )
+    session.device_id = "smoke-tangle-gong-1111"
+    agent._sync_wish_rows(session)
+    agent._sync_planned_rows(session)
+    notes, unresolved = asyncio.run(
+        agent.sync_wishes_to_trip_items(session, [], user_texts=None)
+    )
+    assert notes == [] and unresolved == []
+    groups = svc.list_groups("it-test")
+    assert groups["scheduled"] == []
+    # 既有心愿行也不被翻牌/改 note
+    row = svc.get(next(iter(svc._items)))
+    assert row["status"] == "wishlist"
+    assert (row.get("note") or "") == ""
+
+
+def test_smoke_gate_env_escape_hatch(monkeypatch):
+    """PLAN_SMOKE_WRITES=1 逃生门：harness 指向可废弃库自检写穿路径时
+    重新放行（默认仍跳过）。"""
+    monkeypatch.setenv("PLAN_SMOKE_WRITES", "1")
+    svc = TripItemService()
+    agent = _agent(svc)
+    session = _session(agent, _plan_with([_item("宽窄巷子", poi_id="KZ01")]))
+    session.device_id = "smoke-tangle-gong-1111"
+    agent._sync_planned_rows(session)
+    assert len(svc.list_groups("it-test")["scheduled"]) == 1
