@@ -82,3 +82,27 @@
 - SOURCE_PRIORITY 已重排推送（50f5741）：curated > lonelyplanet > tripadvisor > viator > unesco > 5a > ...；catalog_rank（规划器/徽章）独立序未动。
 - 马蜂窝会话收割累计 6 批 24 站（mafengwo 37 行）；餐厅 Commons 三轮 +55 行（65/5,088，命中率 ~10%，主力等 around）。
 - Day-2 amap 批量实测：**配额在日初即被烧穿**（pois 800 行仅 ~83 行即熔断，hits 2）——个人 key 为多 job 共享争夺资源。v5 按 id 多图路规模化前需二选一：①错峰抢占（00:00 重置后立即跑）②企业认证升级 key（用户侧）。当前配额下 photos 主力仍是 wikimedia/mafengwo/ctrip 便车。
+
+---
+
+## 增补章节：餐厅照片读侧接线（2026-11-13 凌晨，用户指令「GET PICTURES FOR RESTAURANTS AS WELL」）
+
+### 复盤（接 Day-2「明日待办」）
+
+| 事项 | 结果 |
+|---|---|
+| amap 池 0 点未重置 | 00:02 v5 around 探针仍 `10044 USER_DAILY_QUERY_OVER_LIMIT`——**非自然日重置池**，与「amap 自 11-04 起月池枯竭连续未重置」台账互证；around 批量归 Day-2 批（并行会话 00:04 已起跑两路 800 行），本会话不抢 |
+| 收割分工 | 餐厅照片**进库**＝并行会话 Commons 脚本/Day-2 批在跑（本会话只读不动）；本会话做**读侧**——收割再多，读侧断链照样白搭 |
+| 读侧断链（根因） | 行程卡餐位/餐厅名同挂 `site-link` 气泡（index.html:1817 非酒店即挂），但 `/api/pois/detail`、`/photos/fetch`、`/photos/report-dead` 三端点**只查 pois 表**——餐厅名一律 404 静默跳过：照片/简介/米其林徽标永远不可见 |
+
+### 读侧施工（本轮落地， pois.py +78 行）
+
+- 三端点加 **restaurants 回退**（pois 未命中才走；active 闸/city 变体/精确→contains 与 pois 完全同构）：
+  1. `/detail` → `_restaurant_to_model` 映射进同一 PoiDetail 形状（cuisine→category）——**H5 零改动**：气泡并排双图/灯箱/🔍找图按钮/米其林徽标自动生效；
+  2. `/photos/fetch` → `fetch_photo_chain(row)` 零分支复用（0020 已把回源列做成两表同构），冷却戳/只填空语义不变；
+  3. `/photos/report-dead` → Poi 查无再查 Restaurant，死图计数落同构 `photos_fetch_fail` 列。
+- 活库验证：`Yong`（米其林，7 图 wikimedia）气泡直出 ✓；无图行 `No. 69 …`（bib_gourmand）出找图按钮、fetch 落冷却戳 ✓；`陕西历史博物馆` POI 路径不受影响 ✓。
+- 测试：`test_api_pois.py` +3、`test_api_poi_photos.py` +3（回退命中/冷却免外呼/死图计数/两表全空仍 404）；两文件 31 passed；ruff check+format 绿。
+- 全量回归：2,995 passed / 5 failed——5 失败全为并行会话域（tea_experience 分类器 1、演出场次解析 1、plan_agent 餐位 2、poi_seed 分类 1），与本链零交集。
+- 提交：pois.py 并行 WIP（/tags 端点 + 两条 import）用 mine-only patch `git apply --cached` 择块，未混入。
+- Day-2 restaurants around 批量：**around 池同样熔断**（1 行即停）——两个 amap 池配额均被并行 job 抢空。免费慢火继续：餐厅 Commons 第四轮 200 行后台。**待拍板**：①错峰抢占调度（00:05 抢跑照片批量）②企业 key 升级（用户侧）。

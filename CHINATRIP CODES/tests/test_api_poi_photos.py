@@ -236,3 +236,93 @@ def test_report_dead_bad_uuid_silently_204_with_warning(caplog):
     assert resp.status_code == 204
     assert session.commits == 0
     assert any("bad poi_id" in r.message for r in caplog.records)
+
+
+# --- 餐厅回退（2026-11-13 读侧接线）：pois 查无回落 restaurants 表 -------------
+
+
+REST_UUID = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
+
+def make_rest_row(**over) -> SimpleNamespace:
+    base = dict(
+        id=REST_UUID,
+        source="michelin",
+        source_poi_id=None,
+        status="active",
+        city="成都市",
+        name_zh="玉芝兰",
+        photos=None,
+        photos_source=None,
+        photos_fetched_at=None,
+        photos_fetch_fail=0,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+class RestaurantFallbackSession(FakeSession):
+    """poi 查询恒空、restaurant 查询命中——pois 未命中走回退的场景。"""
+
+    def __init__(self, rest_rows):
+        super().__init__([])
+        self._rest_rows = rest_rows
+
+    def query(self, *a, **k):
+        from app.models import Restaurant
+
+        if a and a[0] is Restaurant:
+            return FakeQuery(self._rest_rows)
+        return super().query(*a, **k)
+
+    def get(self, model, key):
+        if model is not FakeSession and getattr(model, "__name__", "") == "Restaurant":
+            for row in self._rest_rows:
+                if row.id == key:
+                    return row
+            return None
+        return super().get(model, key)
+
+
+def test_fetch_restaurant_fallback_runs_chain_and_writes(chain_spy):
+    calls, state = chain_spy
+    state["result"] = ([{"title": "", "url": "https://img.example/y.jpg"}], "wikimedia")
+    row = make_rest_row()
+    session = RestaurantFallbackSession([row])
+    resp = make_app(session).post(
+        "/api/pois/photos/fetch", json={"city": "成都", "name": "玉芝兰"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fetched"] is True
+    assert body["photos_source"] == "wikimedia"
+    assert len(calls) == 1 and calls[0] is row  # 链收到的是餐厅行
+    assert row.photos and row.photos_source == "wikimedia"  # 只填空写回
+    assert row.photos_fetched_at is not None  # 尝试即落戳
+    assert session.commits == 1
+
+
+def test_fetch_restaurant_fallback_cooldown_skips_chain(chain_spy):
+    calls, _ = chain_spy
+    row = make_rest_row(
+        photos_fetched_at=NOW - timedelta(minutes=30)  # 冷却内
+    )
+    session = RestaurantFallbackSession([row])
+    resp = make_app(session).post(
+        "/api/pois/photos/fetch", json={"city": "成都", "name": "玉芝兰"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["fetched"] is False
+    assert calls == []  # 冷却内零外呼
+    assert session.commits == 0
+
+
+def test_report_dead_restaurant_row_increments_fail():
+    row = make_rest_row()
+    session = RestaurantFallbackSession([row])
+    resp = make_app(session).post(
+        "/api/pois/photos/report-dead", json={"poi_id": str(REST_UUID)}
+    )
+    assert resp.status_code == 204
+    assert row.photos_fetch_fail == 1
+    assert session.commits == 1

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, load_only, sessionmaker
 
 from app.config import get_settings
 from app.db import get_session_factory
-from app.models import Poi
+from app.models import Poi, Restaurant
 from app.services.amap_client import AmapClient
 from app.services.poi_details import PoiDetailStore, apply_tier_tag
 from app.services.poi_details import get_poi_detail_store as _poi_store_singleton
@@ -229,6 +229,68 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
     )
 
 
+# --- 餐厅回退（2026-11-13 读侧接线）：行程卡餐位/餐厅名同走本气泡，
+# 但 pois 表查无（餐厅在独立 restaurants 表）→ 此前 404 静默跳过，
+# 照片/简介/米其林徽标永远不可见。pois 未命中时回落 restaurants 表
+# （同口径 city 变体 → name_zh 精确 → contains 模糊，active 闸一致），
+# 映射进同一 PoiDetail 形状——H5 气泡/找图按钮/死图打点零改动复用。
+
+
+def _find_restaurant_for_photos(
+    session: Session, city: str, wanted: str
+) -> Restaurant | None:
+    """餐厅侧与 detail 同查找口径（city 变体 → name_zh 精确 → contains）。
+
+    fetch 端点与 detail 回退共用；写回列（photos/photos_source/
+    photos_fetched_at/photos_fetch_fail）restaurants 与 pois 同构（0020）。
+    """
+    variants = _city_variants(city)
+    alive = Restaurant.status.is_(None) | (Restaurant.status == "active")
+    q = session.query(Restaurant).filter(alive)
+    if variants:
+        q = q.filter(Restaurant.city.in_(variants))
+    row = q.filter(Restaurant.name_zh == wanted).first()
+    if row is None:
+        norm = _norm_name(wanted)
+        if norm:
+            fq = session.query(Restaurant).filter(alive)
+            if variants:
+                fq = fq.filter(Restaurant.city.in_(variants))
+            row = fq.filter(Restaurant.name_zh.contains(norm)).first()
+    return row
+
+
+def _restaurant_to_model(row: Restaurant) -> PoiDetail:
+    """Restaurant 行 → PoiDetail（仅两表同构字段；预约/订票/点评综述
+    列餐厅侧不存在，恒 None）。cuisine 即受控 EN 类别（seed_upsert
+    Restaurant→cuisine 同口径），映射进 category 供 H5 复用。"""
+    rating = row.rating  # Numeric → Decimal on real rows
+    return PoiDetail(
+        poi_id=str(row.id) if row.id else None,
+        source=row.source,
+        origin=row.origin,
+        city=row.city,
+        name_zh=row.name_zh,
+        name_en=row.name_en,
+        category=row.cuisine,
+        status=row.status,
+        address=row.address,
+        opening_hours=row.opening_hours,
+        hours_source=row.hours_source,
+        phone=row.phone,
+        website=row.website,
+        rating=float(rating) if rating is not None else None,
+        rating_source=row.rating_source,
+        tags=list(row.tags or []) or None,
+        tags_source=row.tags_source,
+        intro=row.intro,
+        intro_en=row.intro_en,
+        intro_source=row.intro_source,
+        photos=row.photos,
+        photos_source=row.photos_source,
+    )
+
+
 @router.get("/detail", response_model=PoiDetail)
 async def poi_detail(
     city: str,
@@ -254,6 +316,12 @@ async def poi_detail(
                         fq = fq.filter(Poi.city.in_(variants))
                     row = fq.filter(Poi.name_zh.contains(norm)).first()
             if row is None:
+                # 餐厅回退（2026-11-13）：行程卡餐位/餐厅名的气泡读侧——
+                # pois 查无再查 restaurants，命中即出同形状详情（照片/
+                # 简介/米其林徽标）。仍查无才 404（H5 静默跳过语义不变）。
+                rrow = _find_restaurant_for_photos(session, city, wanted)
+                if rrow is not None:
+                    return _restaurant_to_model(rrow)
                 raise HTTPException(status_code=404, detail="poi not found")
             # 读侧 tier 接线（2026-10-28）：5A/unesco 名单行 tags 列 0 覆盖
             # （名单以骨架行存在），H5 徽章按行内 tags 永远看不到层级——出参
@@ -327,6 +395,10 @@ async def photos_fetch(
         with factory() as session:
             row = _find_poi_for_photos(session, req.city, wanted)
             if row is None:
+                # 餐厅回退（2026-11-13）：找图按钮对餐位/餐厅名同样成立——
+                # restaurants 与 pois 回源列同构（0020），链/写回零分支复用。
+                row = _find_restaurant_for_photos(session, req.city, wanted)
+            if row is None:
                 raise HTTPException(status_code=404, detail="poi not found")
             if row.photos:
                 return PhotosFetchResponse(
@@ -394,6 +466,10 @@ def photos_report_dead(
         return Response(status_code=204)
     with factory() as session:
         row = session.get(Poi, poi_uuid)
+        if row is None:
+            # 餐厅回退（2026-11-13）：气泡出参 poi_id 可能是 restaurants 行
+            # （detail 回退命中餐厅）——死图计数落在同构 photos_fetch_fail 列。
+            row = session.get(Restaurant, poi_uuid)
         if row is None:
             logger.warning("photos_report_dead: unknown poi_id=%s", req.poi_id)
             return Response(status_code=204)
