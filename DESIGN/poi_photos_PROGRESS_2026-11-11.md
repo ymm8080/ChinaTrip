@@ -39,3 +39,35 @@
 | 明日待办 | ①餐厅批量（around 池）②pois 1,317 有 id 行 v5 补图 ③腾讯 detail 补探 ④text WAF 是否解封复查 |
 
 本次并行会话 WIP（amap_client.py 人均消费链 27 行、plan.py 等）零接触；amap_client.py 保持未提交状态归其会话。
+
+---
+
+## 增补章节：真浏览器图源收割战报（2026-11-12 下午，提交 ed59011）
+
+### 免费源最终定论
+
+| 源 | 结论 | 证据 |
+|---|---|---|
+| Commons 站内搜 | ✅ 主力免费源，入链 | 文件名含名才收（_name_like 防错图）；pois/restaurants 双表命中（餐厅破零 10 行，均 2.6 张） |
+| 官网 og:image | ✅ 入链 | website 列直取，正确性最高 |
+| Wikidata P18 | ✅ 兜底 | 1 张/站 |
+| Wikipedia media-list | ❌ 判死摘除 | api.wikimedia.org 无该 handler（404 rest-no-match），zh.wikipedia.org 被墙 |
+| 百度 place detail | ❌ 证伪 | 只回 image_num 计数，无 URL |
+| 腾讯 place detail | ⏳ 未证实 | key 日配额尽（status 121），探针脚本就绪次日重跑 |
+| ctrip | （未接入） | 用户指示转新资源；dimg 抽取器现成，后续可接 |
+| qunar | ⚠️ 仅首图 | 真浏览器渲染才拿得到，每站 1 张，暂不接链（IAB 实测详情页） |
+| 马蜂窝 | ✅ 会话收割模式 | TCaptcha 每会话人工过一次后持续有效；poi 页多图满载 |
+
+### 真浏览器收割（IAB + 用户人工过闸一次）
+
+- 15 目标 → 14 站命中入库，每站 ≤8 张原图（剥 imageMogr2 缩放参数），歧义闸（title 精确→search 词→唯一候选否则按 rating 择优）+ 西湖错配回滚
+- 收割 JSON：`CHINATRIP CODES/_tmp_probe_web/mfw_harvest_2026-11-12.json`
+- 覆盖率：pois 18.9% → **19.1%**（1,875/9,830）；来源分布 amap 1,667 / wikimedia 457 / ctrip 434 / mafengwo 14
+- 品类多样：宫殿(布达拉宫)/古镇(丽江)/大佛(乐山)/沙漠(鸣沙山)/园林(瘦西湖)/遗址(圆明园)/街区(三坊七巷)/关隘(沙坡头)/石窟(云冈)/王府(恭王府)/陵(清西陵)/瀑布(德天)/山(神仙居)/寺(塔尔寺)
+
+### 马蜂窝会话收割 SOP（可复用）
+
+1. IAB 打开任意 poi 页 → TCaptcha 弹窗 → 用户人工过闸（会话级有效）
+2. 逐站：search/q.php?q=名 → 扫 poi/sharejump 链接 → poi/{id}.html → 滚动触发懒加载 → 收集 (p|b)1-q.mafengwo.net 原图（剥 ?imageMogr2、剔除 <200px 缩略/头像）
+3. 入库脚本：只填空 + photos_source='mafengwo' + 歧义闸
+4. 注意：poi id 不可猜（poi/2 即 404），一律经搜索页事实链接
