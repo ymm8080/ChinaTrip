@@ -149,3 +149,90 @@ def test_start_end_to_end_scheduled_zone_filled(monkeypatch):
     planned_names = {v.name for v in _visits(session) if v.poi_id}
     row_names = {r["name"] for r in scheduled}
     assert planned_names <= row_names
+
+
+def test_empty_wishes_still_runs_sync():
+    """2026-11-12 二拍（排上了还在心愿单根因二）：「把X排进行程」类 diff
+    回合 wishes 恒空——旧闸门 not wishes 提前返回把整个收口吞掉。空愿望
+    也必须跑 _sync_*，plan 落排点照样进已安排分区。"""
+    svc = TripItemService()
+    svc.create("看熊猫", source="chat", city="成都")
+    agent = _agent(svc)
+    # 模拟会话既有绑定（聊天建行轮留下）：_sync_wish_rows 只认绑定名
+    agent._wish_bindings["看熊猫"] = {
+        "name": "成都大熊猫繁育研究基地",
+        "city": "成都",
+        "source_poi_id": "PANDA01",
+        "location": {"lon": 104.1, "lat": 30.7},
+    }
+    session = _session(
+        agent,
+        _plan_with(
+            [
+                _item("成都大熊猫繁育研究基地", poi_id="PANDA01"),
+                _item("宽窄巷子", poi_id="KZ01"),
+            ]
+        ),
+    )
+    notes, unresolved = asyncio.run(
+        agent.sync_wishes_to_trip_items(session, [], user_texts=None)
+    )
+    assert notes == [] and unresolved == []
+    groups = svc.list_groups("it-test")
+    assert not any(r["name"] == "看熊猫" for r in groups["wishlist"])
+    assert any(r["name"] == "看熊猫" for r in groups["scheduled"])
+    # _sync_planned_rows 同样跑过：无许愿的落排点（宽窄巷子）补源成行
+    assert any(
+        r["name"] == "宽窄巷子" and r["source"] == "plan" for r in groups["scheduled"]
+    )
+
+
+def test_flip_failure_leaves_no_wishlist_residue(monkeypatch):
+    """2026-11-12 二拍（自动插入心愿单根因）：建行后翻牌抛错时旧码留
+    「来自行程」心愿单残渣。新行为=当场摘除，任何 source=plan 行不得
+    以 wishlist 状态现形。"""
+    svc = TripItemService()
+    agent = _agent(svc)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("pg down")
+
+    monkeypatch.setattr(svc, "update", _boom)
+    session = _session(agent, _plan_with([_item("宽窄巷子", poi_id="KZ01")]))
+    agent._sync_planned_rows(session)
+    groups = svc.list_groups("it-test")
+    assert groups["scheduled"] == []
+    assert groups["wishlist"] == []
+
+
+def test_stray_plan_row_stuck_in_wishlist_swept():
+    """2026-11-12 二拍自愈：旧码遗留的 source=plan 滞留心愿单行（用户库
+    8 行实录），再跑收口时被清扫（点不在 plan）或翻牌（点在 plan）——
+    不得以「来自行程」卡在心愿单。"""
+    svc = TripItemService()
+    # 点已不在 plan 的残渣行：清扫
+    stray = svc.create(
+        "长安十二时辰主题街区", source="plan", itinerary_id="it-test", city="成都"
+    )
+    assert stray["status"] == "wishlist"
+    agent = _agent(svc)
+    session = _session(agent, _plan_with([_item("宽窄巷子", poi_id="KZ01")]))
+    agent._sync_planned_rows(session)
+    groups = svc.list_groups("it-test")
+    assert not any(r["source"] == "plan" for r in groups["wishlist"]), (
+        "source=plan 行不得滞留心愿单"
+    )
+    assert len(groups["scheduled"]) == 1
+
+    # 点仍在 plan 的残渣行：翻牌而非误删
+    svc2 = TripItemService()
+    stuck = svc2.create(
+        "西安钟楼", source="plan", itinerary_id="it-test", city="成都", poi_id="BELL01"
+    )
+    assert stuck["status"] == "wishlist"
+    agent2 = _agent(svc2)
+    session2 = _session(agent2, _plan_with([_item("西安钟楼", poi_id="BELL01")]))
+    agent2._sync_planned_rows(session2)
+    row = svc2.get(stuck["id"])
+    assert row["status"] == "scheduled" and row["day"] == 1
+    assert "已安排" in (row.get("note") or "")

@@ -518,6 +518,49 @@ def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
     assert any(r["name"] == "看熊猫" for r in again["wishlist"])
 
 
+def test_list_keeps_scheduled_rows_of_live_session_plan(monkeypatch):
+    """2026-11-12「排上了还在心愿单」振荡根因收口：聊天重排换新
+    itinerary_id 且按 10-20 拍板未入库，死行程闸曾把 scheduled 行就地
+    打回心愿单（重排→已安排→打开行程中心→回心愿单 循环）。修复=闸
+    判活：本设备在册会话的工作行程 id 豁免回翻；无设备头/他设备不豁免
+    （保守回翻语义不变）。"""
+    from app.services.agent.plan import PlanSession, PlanSessionStore
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    app, store = make_app_with_store()
+    sessions = PlanSessionStore()
+    session = PlanSession(session_id="s1", device_id="dev-1", cities=["西安"])
+    session.plan = ItineraryPlan(
+        itinerary_id="it-work1",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[])],
+    )
+    sessions.save(session)
+    monkeypatch.setattr("app.api.plan.get_plan_sessions", lambda: sessions)
+
+    with TestClient(app) as client:
+        item = create_item(client, itinerary_id="it-work1", name="西安钟楼")
+        schedule(client, item["id"], 1)
+
+        # 同设备：在册工作行程 → 豁免，scheduled 行不被打回
+        body = client.get("/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}).json()
+        assert [r["name"] for r in body["scheduled"]] == ["西安钟楼"]
+        assert body["scheduled"][0]["itinerary_name"] is None
+
+        # 无设备头：保守回翻（旧行为，与孤儿自愈一致）
+        body2 = client.get("/api/v1/trip-items").json()
+        assert body2["scheduled"] == []
+        assert any(r["name"] == "西安钟楼" for r in body2["wishlist"])
+
+        # 他设备会话不豁免
+        item2 = create_item(client, itinerary_id="it-work1", name="鼓楼")
+        schedule(client, item2["id"], 1)
+        body3 = client.get(
+            "/api/v1/trip-items", headers={"X-Device-ID": "dev-2"}
+        ).json()
+        assert body3["scheduled"] == []
+
+
 # --- transitions: wishlist -> scheduled ---------------------------------------
 
 

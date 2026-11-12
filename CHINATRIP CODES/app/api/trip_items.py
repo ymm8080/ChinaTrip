@@ -7,7 +7,9 @@ source: Bookings pinned on top + Wishlist stream + Scheduled third key.
 The router is NOT registered in app/main.py — the orchestrator wires it.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.itineraries import get_store
@@ -22,6 +24,8 @@ from app.services.trip_items import (
     TripItemService,
     strip_scheduled_note,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/trip-items", tags=["trip-items"])
 
@@ -83,10 +87,23 @@ async def create_trip_item(
 @router.get("")
 async def list_trip_items(
     itinerary_id: str | None = None,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
     store: ItineraryStore = Depends(get_store),
 ) -> dict:
     body = service.list_groups(itinerary_id or None)
+    # 2026-11-12 死行程闸判活（「排上了还在心愿单」振荡根因）：聊天重排换
+    # 新 itinerary_id 且按 10-20 拍板未入库，store.get miss ≠ 行程已删——
+    # 以本设备在册会话的工作行程 id 豁免回翻。会话存储单例与 plan 端点
+    # 共享（函数体内延迟导入防模块环）；查不动就退化为旧行为（保守回翻）。
+    live: set[str] = set()
+    if x_device_id:
+        try:
+            from app.api.plan import get_plan_sessions
+
+            live = get_plan_sessions().live_itinerary_ids(x_device_id)
+        except Exception:
+            logger.warning("trip-items: live-itin check failed", exc_info=True)
     # 2026-10-30 看板卡标注所属行程（行程ID + 行程名）：行程名 = 城市链
     # （H5 行程页同款展示），行程已删/查无记录 → None（前端只显示 ID）；
     # 同一行程只查一次 store。
@@ -100,7 +117,7 @@ async def list_trip_items(
             if trip_id not in names:
                 record = store.get(trip_id)
                 names[trip_id] = " → ".join(record.plan.cities) if record else None
-                if record is None:
+                if record is None and trip_id not in live:
                     dead_trips.add(trip_id)
             item["itinerary_name"] = names[trip_id]
     # 2026-10-31（看熊猫案）：scheduled 行挂的行程已删（释放机制上线前

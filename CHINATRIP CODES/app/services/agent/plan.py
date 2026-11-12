@@ -10291,6 +10291,17 @@ class PlanSessionStore:
             return None
         return session
 
+    def live_itinerary_ids(self, device_id: str) -> set[str]:
+        """本设备在册会话的当前工作行程 id 集（2026-11-12 行程中心死行
+        程闸判活）：重排会换新 itinerary_id 且未入库（2026-10-20 拍板
+        「只在保存时写入行程库」），但会话仍持有该计划——读侧不得把它
+        当死行程把 scheduled 行打回心愿单（排上了还在心愿单振荡根因）。"""
+        return {
+            s.plan.itinerary_id
+            for s in self._sessions.values()
+            if s.device_id == device_id and s.plan is not None and s.plan.itinerary_id
+        }
+
 
 _store_singleton: PlanSessionStore | None = None
 
@@ -13376,6 +13387,7 @@ class PlanningAgent:
                 # 用户表态（不想去）与真实订单优先，引擎不翻牌
                 matched.add(row["id"])
                 continue
+            created_here = False
             if row is None:
                 try:
                     row = self._trip_items.create(
@@ -13386,6 +13398,7 @@ class PlanningAgent:
                         poi_id=item.poi_id,
                         note=L("来自行程", "From itinerary"),
                     )
+                    created_here = True
                 except Exception:
                     logger.warning(
                         "plan: planned row create failed for %s",
@@ -13422,9 +13435,27 @@ class PlanningAgent:
                     "plan: planned row scheduled %s -> day %d", item.name, item.day
                 )
             except Exception:
-                logger.warning(
-                    "plan: planned row sync failed for %s", item.name, exc_info=True
-                )
+                if created_here:
+                    # 2026-11-12 二拍（8 行 source=plan 滞留心愿单事故）：建行
+                    # 后翻牌失败不得留「来自行程」心愿单残渣——当场摘除，
+                    # 下回合由落排点重建并翻牌。
+                    try:
+                        self._trip_items.delete(row["id"])
+                        logger.info(
+                            "plan: planned row removed %s (flip failed)", item.name
+                        )
+                    except Exception:
+                        logger.warning(
+                            "plan: planned row cleanup failed for %s",
+                            item.name,
+                            exc_info=True,
+                        )
+                else:
+                    logger.warning(
+                        "plan: planned row sync failed for %s",
+                        item.name,
+                        exc_info=True,
+                    )
         for r in groups.get("scheduled", []):
             if (
                 r.get("source") == "plan"
@@ -13437,6 +13468,24 @@ class PlanningAgent:
                 except Exception:
                     logger.warning(
                         "plan: stale planned row delete failed for %s",
+                        r.get("name"),
+                        exc_info=True,
+                    )
+        for r in groups.get("wishlist", []):
+            if r.get("source") == "plan" and r["id"] not in matched:
+                # 2026-11-12 二拍：source=plan 行按设计只应为 scheduled——
+                # 滞留心愿单即「自动插入心愿单」污染源（翻牌失败残渣/旧
+                # 码遗留），清扫后由落排点重建，不在心愿单现形。matched
+                # 内的行本回合已翻牌成功，不得误删。
+                try:
+                    self._trip_items.delete(r["id"])
+                    logger.info(
+                        "plan: stray planned row removed %s (stuck in wishlist)",
+                        r.get("name"),
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: stray planned row delete failed for %s",
                         r.get("name"),
                         exc_info=True,
                     )
@@ -21566,8 +21615,11 @@ class PlanningAgent:
                     "plan: chat wish dropped as ungrounded (not user-typed): %s", w
                 )
             wishes = [w for w in wishes if w not in ungrounded]
-        if self._trip_items is None or not wishes:
+        if self._trip_items is None:
             return [], []
+        # 2026-11-12 二拍：空愿望不得跳过收口——「把X排进行程」类 diff
+        # 回合 wishes 恒空（或被 grounding 闸丢空），同步整段被吃正是
+        # 「排上了还在心愿单」残留根因。下方各愿望循环对空表天然无操作。
         # 2026-10-30 深夜收口（水利工程事故）：纯愿望消息不触发重排——
         # 这里直接落语义绑定与行收口：行程里已有正主时按 poi_id 对上即翻
         # 已排期（note 写「已安排：X 第N天 日期 时间」），没有 plan 时只
