@@ -150,6 +150,7 @@ from app.services.restaurants import (
 from app.services.source_tier import catalog_rank
 from app.services.trains import MockTrainService, TrainService, build_transfer_item
 from app.services.trip_items import (
+    STATUS_BOOKED,
     STATUS_SCHEDULED,
     STATUS_UNWANTED,
     STATUS_WISHLIST,
@@ -10821,6 +10822,7 @@ class PlanningAgent:
                     )
                 )
             self._sync_wish_rows(session)
+            self._sync_planned_rows(session)
             return session, None, ""
         default_city = session.cities[0] if len(session.cities) == 1 else _unspecified()
         sight_pts = [
@@ -11082,6 +11084,7 @@ class PlanningAgent:
                 )
             notes.extend(repair_notes)
         self._sync_wish_rows(session)
+        self._sync_planned_rows(session)
         if far:
             session.pending_restos.extend(far)
             session.state = "resto_confirm"
@@ -12119,6 +12122,7 @@ class PlanningAgent:
         session.plan = plan
         session.assumptions = list(plan.assumptions)
         self._sync_wish_rows(session)
+        self._sync_planned_rows(session)
         session.state = "ready"
         session.history.append(
             ChatMessage(
@@ -13193,6 +13197,121 @@ class PlanningAgent:
                 logger.warning("plan: wish row sync failed for %s", name, exc_info=True)
         if itin not in (session.linked_itins or []):
             session.linked_itins.append(itin)
+
+    def _sync_planned_rows(self, session: PlanSession) -> None:
+        """行程中心「已安排」分区补源（2026-11-12 用户报「已经安排的景点
+        没有移动到已安排的部分下，还在心愿单里」）：H5 已安排分区只渲染
+        trip_items 的 scheduled 行，而 scheduled 行此前只能由心愿行翻转
+        产生——用户没许愿过的引擎排点永远不产生行，分区按构造恒空；许愿
+        行被排上但名字核名未中时同样滞留心愿单。本同步把 plan 里真实落排
+        （有 poi_id，占位卡不算已安排，与 _sync_wish_rows 同口径）的非餐/
+        酒店参访 upsert 成 scheduled 行：命中既有行（poi_id 权威，其次
+        _name_dup 核名）按状态机翻牌（wishlist→scheduled 含心愿滞留案；
+        booked 真实订单/unwanted 用户表态不动）；无行则 source=plan 建行。
+        引擎后续把点移出 plan 时，本行程名下 source=plan 的滞留 scheduled
+        行删除留日志（不留「已排期但实际没排」假卡）。行按名字全局去重、
+        跟随当前行程——与 _sync_wish_rows 同语义。Best-effort。"""
+        if self._trip_items is None or session.plan is None:
+            return
+        itin = session.plan.itinerary_id
+        if not itin:
+            return
+        planned = [
+            item
+            for day in session.plan.days
+            for item in day.items
+            if isinstance(item, VisitItem)
+            and item.poi_id
+            and ((item.category or "") != "food" or _is_show_banquet_item(item))
+            and (item.category or "") != "hotel"
+        ]
+        try:
+            groups = self._trip_items.list_groups()
+        except Exception:
+            return
+        rows = [r for g in groups.values() for r in g]
+        matched: set[str] = set()
+        for item in planned:
+            row = next(
+                (
+                    r
+                    for r in rows
+                    if (item.poi_id and r.get("poi_id") and r["poi_id"] == item.poi_id)
+                    or _name_dup(str(r.get("name") or ""), item.name)
+                ),
+                None,
+            )
+            if row is not None and row.get("status") in (
+                STATUS_BOOKED,
+                STATUS_UNWANTED,
+            ):
+                # 用户表态（不想去）与真实订单优先，引擎不翻牌
+                matched.add(row["id"])
+                continue
+            if row is None:
+                try:
+                    row = self._trip_items.create(
+                        item.name,
+                        source="plan",
+                        itinerary_id=itin,
+                        city=item.city,
+                        poi_id=item.poi_id,
+                        note=L("来自行程", "From itinerary"),
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: planned row create failed for %s",
+                        item.name,
+                        exc_info=True,
+                    )
+                    continue
+                rows.append(row)
+            matched.add(row["id"])
+            if (
+                row.get("status") == STATUS_SCHEDULED
+                and row.get("day") == item.day
+                and row.get("itinerary_id") == itin
+            ):
+                continue
+            try:
+                if row.get("itinerary_id") != itin:
+                    self._trip_items.link_itinerary(row["id"], itin, force=True)
+                when = _wish_when_text(session, item)
+                note = L(
+                    f"已安排：{item.name}（第{item.day}天{when[0]}）",
+                    f"Scheduled: {item.name} (day {item.day}{when[1]})",
+                )
+                base = strip_scheduled_note(str(row.get("note") or ""))
+                if base:
+                    note = L(f"{base}｜{note}", f"{base} | {note}")
+                self._trip_items.update(
+                    row["id"],
+                    status=STATUS_SCHEDULED,
+                    day=item.day,
+                    note=note,
+                )
+                logger.info(
+                    "plan: planned row scheduled %s -> day %d", item.name, item.day
+                )
+            except Exception:
+                logger.warning(
+                    "plan: planned row sync failed for %s", item.name, exc_info=True
+                )
+        for r in groups.get("scheduled", []):
+            if (
+                r.get("source") == "plan"
+                and r.get("itinerary_id") == itin
+                and r["id"] not in matched
+            ):
+                try:
+                    self._trip_items.delete(r["id"])
+                    logger.info("plan: stale planned row removed %s", r.get("name"))
+                except Exception:
+                    logger.warning(
+                        "plan: stale planned row delete failed for %s",
+                        r.get("name"),
+                        exc_info=True,
+                    )
 
     async def _llm_bind_wish(self, name: str, candidates: list[dict]) -> dict | None:
         """LLM 语义兜底（2026-10-30 用户拍板「用LLM理解并推荐」）：确定
@@ -21389,6 +21508,7 @@ class PlanningAgent:
                             readd_notes.append(readd_note)
             if session.plan is not None:
                 self._sync_wish_rows(session)
+                self._sync_planned_rows(session)
         except Exception:
             logger.warning("plan: wish sync-time bind failed", exc_info=True)
         itinerary_id = session.plan.itinerary_id if session.plan else None
@@ -21485,6 +21605,7 @@ class PlanningAgent:
                         self._backfill_wish_city(wish, bcity)
             if session.plan is not None:
                 self._sync_wish_rows(session)
+                self._sync_planned_rows(session)
         except Exception:
             logger.warning("plan: wish post-create sync failed", exc_info=True)
         return notes, unresolved

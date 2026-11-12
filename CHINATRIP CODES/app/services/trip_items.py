@@ -27,7 +27,9 @@ STATUSES = frozenset(
     {STATUS_WISHLIST, STATUS_SCHEDULED, STATUS_BOOKED, STATUS_UNWANTED}
 )
 
-SOURCES = frozenset({"manual", "chat", "paste", "agent_recommend", "plan_delete"})
+SOURCES = frozenset(
+    {"manual", "chat", "paste", "agent_recommend", "plan_delete", "plan"}
+)
 
 # Statuses that occupy a (day, position) slot on the timeline.
 _TIMELINE_STATUSES = frozenset({STATUS_SCHEDULED, STATUS_BOOKED})
