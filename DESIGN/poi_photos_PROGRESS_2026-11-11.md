@@ -106,3 +106,5 @@
 - 全量回归：2,995 passed / 5 failed——5 失败全为并行会话域（tea_experience 分类器 1、演出场次解析 1、plan_agent 餐位 2、poi_seed 分类 1），与本链零交集。
 - 提交：pois.py 并行 WIP（/tags 端点 + 两条 import）用 mine-only patch `git apply --cached` 择块，未混入。
 - Day-2 restaurants around 批量：**around 池同样熔断**（1 行即停）——两个 amap 池配额均被并行 job 抢空。免费慢火继续：餐厅 Commons 第四轮 200 行后台。**待拍板**：①错峰抢占调度（00:05 抢跑照片批量）②企业 key 升级（用户侧）。
+
+> 提交错位备注：上章读侧代码（pois.py/两测试文件）被并行会话 00:23 的 `docs(design): around 池亦熔断`（6cffa81）连索引一并扫入提交——内容完整、已推 origin，提交信息未体现 feat 主体，特此备注溯源。
