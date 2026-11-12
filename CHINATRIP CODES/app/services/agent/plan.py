@@ -2803,7 +2803,9 @@ def _museum_card(item: VisitItem) -> bool:
     return (item.category or "") == "museum" or name.endswith(_MUSEUM_NAME_TAILS)
 
 
-def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int, int, int]:
+def _visit_keep_rank(
+    item: VisitItem, street_dmin_km: float | None = None
+) -> tuple[int, int, int, int, int, int, int, float]:
     """Which twin to keep: must (铁律19) > resolved POI > pinned > museum
     card > real city > 大-字号旗舰; ties keep the earlier entry
     (replacement happens on strictly-greater rank only). must 层
@@ -2813,7 +2815,11 @@ def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int, int, int
     卡片/时刻不让位，未被确认的伞形景区行让位博物馆本体。末层
     （2026-11-03 兄弟对拍板）：同类型兄弟平手偏好「大」字号（大字号
     旗舰是家族正主，外国游客认知的那个），只动此前靠先到先得裁决
-    的平手，不影响其余通道。"""
+    的平手，不影响其余通道。
+
+    末末层（2026-11-12 拍板「街区同址晚间体验胶块日」）：平手孪生里距
+    citywalk 街区卡更近者留——孪生体验卡贴块近者被先到先得留错、留下
+    的那个随后被孤放取消整组蒸发实录；贴街区者即块日本身那场。"""
     return (
         1 if item.must else 0,
         1 if item.poi_id else 0,
@@ -2825,6 +2831,8 @@ def _visit_keep_rank(item: VisitItem) -> tuple[int, int, int, int, int, int, int
         1 if _museum_card(item) else 0,
         1 if (item.city or "").strip() not in ("", "未标注", "Unspecified") else 0,
         1 if str(item.name or "").strip().startswith("大") else 0,
+        # 平手专用：距街区卡越近越大（无街区伴=0.0 垫底）
+        -street_dmin_km if street_dmin_km is not None else 0.0,
     )
 
 
@@ -2950,6 +2958,26 @@ def _dedupe_visit_keepers(
     names) in plan order."""
     keepers: list[VisitItem] = []
     dropped: list[str] = []
+    # 街区距离图（2026-11-12 平手 tiebreak）：每张卡到全列 citywalk/街区
+    # 名卡的最近距离，只作 _visit_keep_rank 末末层，不动前七层既有语义。
+    _street_pts = [
+        (i.location.lon, i.location.lat)
+        for i in visits
+        if isinstance(i, VisitItem)
+        and i.location is not None
+        and (
+            str(i.category or "") == "citywalk"
+            or bool(_STREET_DISTRICT_RE.search(str(i.name or "")))
+        )
+    ]
+    _street_dmin: dict[int, float] = {}
+    for _i in visits:
+        if not isinstance(_i, VisitItem) or _i.location is None or not _street_pts:
+            continue
+        _street_dmin[id(_i)] = min(
+            haversine_km(_i.location, GeoPoint(lon=_x, lat=_y))
+            for _x, _y in _street_pts
+        )
     for item in visits:
         twin = next(
             (i for i, k in enumerate(keepers) if _same_visit(item, k)),
@@ -2957,7 +2985,9 @@ def _dedupe_visit_keepers(
         )
         if twin is None:
             keepers.append(item)
-        elif _visit_keep_rank(item) > _visit_keep_rank(keepers[twin]):
+        elif _visit_keep_rank(item, _street_dmin.get(id(item))) > _visit_keep_rank(
+            keepers[twin], _street_dmin.get(id(keepers[twin]))
+        ):
             dropped.append(keepers[twin].name)
             keepers[twin] = item
         else:
@@ -9025,6 +9055,82 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
             for i in day.items
         )
 
+    def _street_block_mate(day: DayPlan, v: VisitItem) -> VisitItem | None:
+        """条目与该日某 citywalk/街区名卡 ≤5km 的街区伴（2026-11-12
+        「街区同址晚间体验胶块日」拍板 helper）：主题街区身份品类+名
+        字双认（与 _same_visit._street_visit 同口径）。"""
+        vloc = getattr(v, "location", None)
+        if vloc is None:
+            return None
+        for i in day.items:
+            if not isinstance(i, VisitItem) or i is v:
+                continue
+            if str(i.category or "") != "citywalk" and not _STREET_DISTRICT_RE.search(
+                str(i.name or "")
+            ):
+                continue
+            iloc = getattr(i, "location", None)
+            if iloc is not None and haversine_km(i.location, vloc) <= _NEAR_SAMEDAY_KM:
+                return i
+        return None
+
+    # 街区同址晚间体验胶块日（2026-11-12 用户拍板「块日若要特色晚间体
+    # 验应选同址街区那张，而不是十几公里外另一张」）：晚间体验卡（演出/
+    # 宴秀，同 _is_show_item/_is_show_banquet_item 口径）落在别日又无
+    # ≤5km 簇伴时，同城只要有一天带 ≤5km 街区卡（块日本身）就先胶去块
+    # 日——块日那晚就是同址体验；胶过去后与块日已占演出/宴的竞争由下
+    # 方同日排序（胶块体验优先档）解决。先于逐日竞争执行，防体验卡因
+    # 落错日被④孤宴取消/点名删除整组蒸发（11-11 实录：同址宴孤放取消、
+    # 12km 孤演占块日晚位）。
+    for day in plan.days:
+        for v in list(day.items):
+            if not isinstance(v, VisitItem):
+                continue
+            if not (_is_show_item(v) or _is_show_banquet_item(v)):
+                continue
+            if _street_block_mate(day, v) is not None:
+                continue
+            vloc = getattr(v, "location", None)
+            if vloc is None:
+                continue
+            vcity = str(v.city or day.base_city or "").strip().removesuffix("市")
+            block_days = [
+                d
+                for d in plan.days
+                if d is not day
+                and str(d.base_city or "").strip().removesuffix("市") == vcity
+                and _street_block_mate(d, v) is not None
+            ]
+            if not block_days:
+                continue
+            tgt = min(
+                block_days,
+                key=lambda d: (
+                    sum(isinstance(i, VisitItem) for i in d.items),
+                    d.day,
+                ),
+            )
+            day.items.remove(v)
+            v.day = tgt.day
+            v.start_time = None
+            v.end_time = None
+            tgt.items.append(v)
+            plan.assumptions.append(
+                L(
+                    f"「{v.name}」为同址街区晚间体验，胶块日改排第{tgt.day}天"
+                    "（街区当天那场）",
+                    f'"{v.name}" is the evening experience of the co-located '
+                    f"theme block, moved to day {tgt.day} (the block's own slot)",
+                )
+            )
+            logger.warning(
+                "plan: show-per-day gate glued block experience %s day %d -> %d",
+                v.name,
+                day.day,
+                tgt.day,
+            )
+            moved = True
+
     for day in plan.days:
         shows = [
             v
@@ -9037,6 +9143,16 @@ def _enforce_show_per_day(plan: ItineraryPlan) -> None:
         shows.sort(
             key=lambda v: (
                 0 if v.pinned else 1,
+                # 2026-11-12「街区同址晚间体验胶块日」：胶到块日的体验卡
+                # （≤5km 街区伴，演出/宴秀同权）压过一切非钉演出/宴——同址
+                # 近体验优先于远距孤卡；钉住用户确认卡仍最高优先。无街区
+                # 伴的体验卡（⑪案贴簇宴）不在此档，走原锚强/最近口径。
+                0
+                if (
+                    (_is_show_item(v) or _is_show_banquet_item(v))
+                    and _street_block_mate(day, v)
+                )
+                else 1,
                 # 2026-11-08 异簇王牌日案：留场者=当日场馆锚最强——贴簇（距当日
                 # 非餐宿点 ≤_NEAR_SAMEDAY_KM，含同址 0km；宴卡同权）先于
                 # 孤卡，弱锚者让位；距簇最近 tiebreak，早场收尾稳定序。

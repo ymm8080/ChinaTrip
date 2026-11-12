@@ -41,6 +41,7 @@ from datetime import time
 from app.services.agent.plan import (
     PlanningAgent,
     _day_has_dinner_show,
+    _dedupe_visit_keepers,
     _enforce_show_per_day,
     _fallback_sequence_times,
     _is_dinner_show_item,
@@ -632,12 +633,18 @@ def test_banquet_show_occupies_day_second_show_moves_off():
 
 
 def test_orphaned_banquet_is_cancelled_after_venue_moves_away():
+    # 无街区卡场景下④孤宴取消语义不变：venue 是普通景点（非 citywalk、
+    # 名无街区语素），孤宴无处可胶 → 原取消口径。若 venue 是同址街区卡，
+    # 2026-11-12「街区同址晚间体验胶块日」拍板取代本语义——见
+    # test_orphaned_block_banquet_glues_to_block_day。
     banquet = _banquet("v-banquet", "测试宴秀", 1, *_MTY)
     banquet.start_time = time(11, 30)
     banquet.end_time = time(12, 30)
     banquet.pinned = True
     banquet.soft_pin = True
-    venue = _placed("v-venue", "同址街区", 2, *_MTY, 240, start=10, category="citywalk")
+    venue = _placed(
+        "v-venue", "同区景点", 2, *_MTY, 240, start=10, category="attraction"
+    )
     show = _placed("v-show", "同区演出", 2, *_QFJ, 80, start=19, show=True)
     plan = ItineraryPlan(
         itinerary_id="it-orphan-banquet",
@@ -659,6 +666,136 @@ def test_orphaned_banquet_is_cancelled_after_venue_moves_away():
     assert all(banquet not in d.items for d in plan.days)
     assert venue.day == 2 and show.day == 2
     assert any("测试宴秀" in str(a) and "不孤放" in str(a) for a in plan.assumptions)
+
+
+def test_orphaned_block_banquet_glues_to_block_day():
+    # 2026-11-12 拍板「街区同址晚间体验胶块日」：孤宴（D1 无 ≤5km 伴）同城
+    # 有块日（D3 同址街区 0km）→ 胶去块日；块日原有演出被胶块宴挤出
+    # （无处可挪→未排披露）。旧「取消」口径只保留给真无街区场景。
+    banquet = _banquet("v-banquet", "测试宴秀", 1, *_MTY)
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    show = _placed("v-show", "同区演出", 3, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-block-glue",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    banquet,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[]),
+            DayPlan(day=3, base_city="西安", items=[block, show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["测试宴秀"] == 3  # 胶去块日
+    assert day_of["同区演出"] != 3  # 非钉演出让位
+    assert any(
+        "同址街区晚间体验" in str(a) and "测试宴秀" in str(a) for a in plan.assumptions
+    )
+
+
+def test_orphaned_block_show_glues_to_block_day():
+    # 类级证明（非宴秀变体）：贴街区 0km 的纯演出卡落错日（D1 无
+    # ≤5km 伴）→ 同样胶去块日；块日远距演出被挤走。规则不认卡型只认
+    # 「街区同址 + 落错日」，换任何城市同类场景同裁决。
+    near_show = _placed(
+        "v-near-show", "街区同址演出", 1, *_MTY, 80, start=19, show=True
+    )
+    block = _placed(
+        "v-block", "测试主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    far_show = _placed("v-far-show", "远区演出", 3, *_TLG, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-block-glue-show",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    near_show,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[]),
+            DayPlan(day=3, base_city="西安", items=[block, far_show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["街区同址演出"] == 3  # 胶去块日
+    assert day_of["远区演出"] != 3  # 远距孤演让位
+    assert any(
+        "同址街区晚间体验" in str(a) and "街区同址演出" in str(a)
+        for a in plan.assumptions
+    )
+
+
+def test_block_colocated_banquet_beats_far_show_on_block_day():
+    # 2026-11-12 用户案回归锚（沪→西→沪 D3 实录）：块日（大雁塔簇+
+    # 长安十二时辰街区）晚位被 13km 唐乐宫占、同址唐宴孤放取消——
+    # 「第三天要安排特色宴会应选街区同址唐宴」：唐宴胶块日留场，
+    # 唐乐宫（孤锚 12km）不得占块日晚位。
+    dyt = _placed("v-dyt", "大雁塔", 3, *_QFJ, 90, start=10, category="attraction")
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 3, *_TLG, 80, start=19, show=True)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 1, *_MTY)  # 选层落错日
+    zl = _placed(
+        "v-zl", "西安钟楼", 2, 108.943, 34.2611, 60, start=12, category="attraction"
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-tang-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[tang]),
+            DayPlan(day=2, base_city="西安", items=[zl]),
+            DayPlan(day=3, base_city="西安", items=[dyt, block, tlg]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["长安十二时辰·唐宴"] == 3  # 胶块日且留场
+    assert day_of["唐乐宫《大唐女皇》"] != 3  # 13km 孤演不占块日
+    assert any(
+        "同址街区晚间体验" in str(a) and "唐宴" in str(a) for a in plan.assumptions
+    )
+    assert any("唐乐宫" in str(a) for a in plan.assumptions)
+
+
+def test_dedupe_twin_prefers_banquet_nearer_to_block():
+    # 2026-11-12 拍板平手 tiebreak：宫宴餐秀组两宴（御宴宫 0.77km vs
+    # 唐宴 0km 贴街区）同名孪生去重时留贴街区者——先到先得曾留错
+    # （御宴宫留、唐宴并掉），留下的随后被孤宴取消=整组蒸发。
+    block = VisitItem(
+        item_id="v-block",
+        name="长安十二时辰主题街区",
+        category="citywalk",
+        city="西安",
+        day=3,
+        duration_minutes=240,
+        location=GeoPoint(lon=_MTY[0], lat=_MTY[1]),
+    )
+    yys = _banquet("v-yys", "御宴宫", 3, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 3, *_MTY)
+    keepers, dropped = _dedupe_visit_keepers([yys, block, tang])
+    assert any(k.name == "长安十二时辰·唐宴" for k in keepers)
+    assert "御宴宫" in dropped
 
 
 def test_claim_never_targets_banquet_day():
