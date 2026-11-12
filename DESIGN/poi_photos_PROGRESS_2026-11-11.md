@@ -81,3 +81,4 @@
 - Day-2 批量起跑：pois backfill 800 行（amap v5 主池）+ restaurants around 800 行（独立池），并行后台。
 - SOURCE_PRIORITY 已重排推送（50f5741）：curated > lonelyplanet > tripadvisor > viator > unesco > 5a > ...；catalog_rank（规划器/徽章）独立序未动。
 - 马蜂窝会话收割累计 6 批 24 站（mafengwo 37 行）；餐厅 Commons 三轮 +55 行（65/5,088，命中率 ~10%，主力等 around）。
+- Day-2 amap 批量实测：**配额在日初即被烧穿**（pois 800 行仅 ~83 行即熔断，hits 2）——个人 key 为多 job 共享争夺资源。v5 按 id 多图路规模化前需二选一：①错峰抢占（00:00 重置后立即跑）②企业认证升级 key（用户侧）。当前配额下 photos 主力仍是 wikimedia/mafengwo/ctrip 便车。
