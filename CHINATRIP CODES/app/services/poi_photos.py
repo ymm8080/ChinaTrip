@@ -295,6 +295,204 @@ async def _wikimedia(name_zh: str) -> list[dict] | None:
     return await asyncio.to_thread(_wikimedia_p18_sync, name_zh)
 
 
+# --- 2026-11-12 免费新源：Wikipedia media-list / Commons 搜索 / 官网 og ----
+
+
+def _wiki_headers() -> dict[str, str]:
+    from app.jobs.backfill_intro import API_USER_AGENT, USER_AGENT
+
+    return {"User-Agent": USER_AGENT, "Api-User-Agent": API_USER_AGENT}
+
+
+def _wikidata_sitelinks_sync(name_zh: str) -> dict[str, str]:
+    """wbsearchentities + EntityData → {"zhwiki"/"enwiki": 页面标题}。
+
+    media-list 需要按语言的页面标题（P18 链拿不到 enwiki），此处独立
+    取 sitelinks——端点与 backfill_intro 同款，合规 UA 同串。
+    """
+    from app.jobs.backfill_intro import _search_entity
+
+    if not name_zh:
+        return {}
+    with httpx.Client(headers=_wiki_headers(), timeout=10.0) as http:
+        qid = _search_entity(http, name_zh)
+        if not qid:
+            return {}
+        resp = http.get(f"https://www.wikidata.org/wiki/Special:EntityData/{qid}.json")
+        resp.raise_for_status()
+        data = resp.json()
+        entities = data.get("entities") if isinstance(data, dict) else {}
+        entity = entities.get(qid) if isinstance(entities, dict) else {}
+        sitelinks = entity.get("sitelinks") if isinstance(entity, dict) else {}
+        if not isinstance(sitelinks, dict):
+            return {}
+        out: dict[str, str] = {}
+        for key in ("zhwiki", "enwiki"):
+            sl = sitelinks.get(key)
+            title = sl.get("title") if isinstance(sl, dict) else None
+            if isinstance(title, str) and title:
+                out[key] = title
+        return out
+
+
+def _parse_media_items(data: object) -> list[dict]:
+    """media-list 响应 → [{title,url}]。original 优先、thumb 兜底，
+    协议相对 //upload.wikimedia.org 补 https:，mime 必须 image/*。"""
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return []
+    out: list[dict] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        mime = it.get("mime")
+        if not isinstance(mime, str) or not mime.startswith("image/"):
+            continue
+        src = None
+        for key in ("original", "thumb"):
+            node = it.get(key)
+            if isinstance(node, dict):
+                src = node.get("source") or node.get("url")
+                if src:
+                    break
+        if not isinstance(src, str) or not src:
+            continue
+        if src.startswith("//"):
+            src = "https:" + src
+        title = it.get("title")
+        out.append({"title": title if isinstance(title, str) else "", "url": src})
+    return out
+
+
+def _wikipedia_media_sync(name_zh: str) -> list[dict] | None:
+    """Wikipedia media-list（zh→en sitelink 各试一档）→ 页面全部图片。
+
+    api.wikimedia.org 直连可达（zh.wikipedia.org 被墙，backfill_intro
+    已实测）；P18 只是页面可能的一张，media-list 收全页图——多图主力
+    免费源。任一语言命中即停。
+    """
+    from urllib.parse import quote
+
+    if not name_zh:
+        return None
+    links = _wikidata_sitelinks_sync(name_zh)
+    with httpx.Client(headers=_wiki_headers(), timeout=10.0) as http:
+        for key, lang in (("zhwiki", "zh"), ("enwiki", "en")):
+            title = links.get(key)
+            if not title:
+                continue
+            try:
+                resp = http.get(
+                    "https://api.wikimedia.org/core/v1/wikipedia/"
+                    f"{lang}/page/{quote(title, safe='')}/media-list"
+                )
+                resp.raise_for_status()
+                photos = normalize_photos(_parse_media_items(resp.json()))
+            except Exception:
+                logger.warning(
+                    "photo chain: media-list failed, lang=%s title=%s",
+                    lang,
+                    title,
+                    exc_info=True,
+                )
+                continue
+            if photos:
+                return photos
+    return None
+
+
+def _parse_commons_pages(data: object, name_zh: str) -> list[dict]:
+    """Commons generator=search 响应 → [{title,url}]（relevance 序）。"""
+    pages = data.get("query", {}).get("pages") if isinstance(data, dict) else None
+    if not isinstance(pages, dict):
+        return []
+    out: list[dict] = []
+    for page in pages.values():
+        if not isinstance(page, dict):
+            continue
+        infos = page.get("imageinfo")
+        info = infos[0] if isinstance(infos, list) and infos else None
+        if not isinstance(info, dict):
+            continue
+        mime = info.get("mime")
+        if not isinstance(mime, str) or not mime.startswith("image/"):
+            continue
+        url = info.get("thumburl") or info.get("url")
+        title = page.get("title")
+        # 防张冠李戴：文件名须含名称核心词（双向包含口径与 _name_like 一致）
+        if isinstance(title, str) and not _name_like(title.rsplit(".", 1)[0], name_zh):
+            continue
+        if isinstance(url, str) and url:
+            out.append({"title": title if isinstance(title, str) else "", "url": url})
+    return out
+
+
+def _commons_search_sync(name_zh: str) -> list[dict] | None:
+    """Commons File 命名空间站内搜（免费，relevance 序，文件名含名才收）。"""
+    if not name_zh:
+        return None
+    with httpx.Client(headers=_wiki_headers(), timeout=10.0) as http:
+        resp = http.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query",
+                "generator": "search",
+                "gsrsearch": name_zh,
+                "gsrnamespace": "6",
+                "gsrlimit": "8",
+                "prop": "imageinfo",
+                "iiprop": "url|mime",
+                "iiurlwidth": "800",
+                "format": "json",
+            },
+        )
+        resp.raise_for_status()
+        return normalize_photos(_parse_commons_pages(resp.json(), name_zh)) or None
+
+
+def _official_og_sync(website: str) -> list[dict] | None:
+    """官网 og:image（正确性最高的免费源：官方自选主图）。"""
+    from app.services.video_reader import _OG_IMAGE_RE
+
+    url = (website or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return None
+    with httpx.Client(
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            )
+        },
+        timeout=10.0,
+        follow_redirects=True,
+    ) as http:
+        resp = http.get(url)
+        resp.raise_for_status()
+        m = _OG_IMAGE_RE.search(resp.text)
+        if not m:
+            return None
+        og = m.group(1).strip()
+        if og.startswith("//"):
+            og = "https:" + og
+        from urllib.parse import urljoin
+
+        og = urljoin(url, og)
+        return normalize_photos([{"title": "", "url": og}]) or None
+
+
+async def _wikipedia_media(name_zh: str) -> list[dict] | None:
+    return await asyncio.to_thread(_wikipedia_media_sync, name_zh)
+
+
+async def _commons_search(name_zh: str) -> list[dict] | None:
+    return await asyncio.to_thread(_commons_search_sync, name_zh)
+
+
+async def _official_og(website: str) -> list[dict] | None:
+    return await asyncio.to_thread(_official_og_sync, website)
+
+
 async def fetch_photo_chain(
     row: Any, *, amap: Any | None
 ) -> tuple[list[dict] | None, str | None]:
@@ -360,6 +558,36 @@ async def fetch_photo_chain(
                 photos = None
             if photos:
                 return photos, "amap"
+    # 免费维基档（2026-11-12 扩链）：media-list（页面全部图，多图主力）
+    # → Commons 站内搜（文件名含名才收）→ 官网 og:image（官方自选主图）
+    # → 旧 P18 兜底（media-list 覆盖不到的 P18-only 实体仍能收 1 图）。
+    for fn, tag in (
+        # 2026-11-12 media-list 摘除：api.wikimedia.org 网关无该 handler
+        # （rest-no-match 404），zh.wikipedia.org 直连被墙——白打 2 请求/行
+        (_commons_search, "wikimedia"),
+    ):
+        try:
+            photos = await fn(name_zh)
+        except Exception:
+            logger.warning(
+                "photo chain: %s failed, name=%s", tag, name_zh, exc_info=True
+            )
+            photos = None
+        if photos:
+            return photos, tag
+    website = getattr(row, "website", None)
+    if website:
+        try:
+            photos = await _official_og(website)
+        except Exception:
+            logger.warning(
+                "photo chain: official og:image failed, site=%s",
+                website,
+                exc_info=True,
+            )
+            photos = None
+        if photos:
+            return photos, "official"
     try:
         photos = await _wikimedia(name_zh)
     except Exception:

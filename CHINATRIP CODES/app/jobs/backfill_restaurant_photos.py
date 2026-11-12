@@ -155,7 +155,9 @@ async def _process_row(
         stats["filled"][col] = stats["filled"].get(col, 0) + 1
 
 
-async def backfill(factory, settings, *, limit, city, concurrency) -> dict:
+async def backfill(
+    factory, settings, *, limit, city, concurrency, no_amap=False
+) -> dict:
     stats: dict = {
         "targets": 0,
         "hits": 0,
@@ -168,7 +170,7 @@ async def backfill(factory, settings, *, limit, city, concurrency) -> dict:
     stats["targets"] = len(targets)
     amap = (
         AmapClient(key=settings.amap_api_key, timeout_seconds=10.0)
-        if settings.amap_api_key
+        if settings.amap_api_key and not no_amap
         else None
     )
     sem = asyncio.Semaphore(max(1, concurrency))
@@ -200,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--city", type=str, default=None)
     parser.add_argument("--concurrency", type=int, default=_DEFAULT_CONCURRENCY)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--no-amap",
+        action="store_true",
+        help="纯 wikimedia 免费档（amap 配额尽/只想白嫖 P18 时用）",
+    )
     args = parser.parse_args(argv)
     factory = get_session_factory()
     if args.dry_run:
@@ -220,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             limit=args.limit,
             city=args.city,
             concurrency=args.concurrency,
+            no_amap=args.no_amap,
         )
     )
     print(json.dumps(stats, ensure_ascii=True))

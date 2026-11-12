@@ -1,0 +1,155 @@
+{
+  "session": "2026-11-12 IAB 浏览器会话（用户人工过 TCaptcha 一次后批量收割）",
+  "entries": [
+    {"search": "西湖", "poiId": "1093", "title": "杭州西湖风景名胜区", "urls": [
+      "https://p1-q.mafengwo.net/s13/M00/DA/7D/wKgEaVysAG-AXtKuAASdij17Z_A50.jpeg",
+      "https://p1-q.mafengwo.net/s18/M00/69/7C/CoUBYGBhk-WAE848AChbxsOJIFA25.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/D3/4B/wKgED1utwAaAA2nbABgHzg8mVrQ79.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/45/D0/wKgEaVyPd36AZAHvACIAtSuOlNM76.jpeg",
+      "https://p1-q.mafengwo.net/s15/M00/B8/75/CoUBGV4XwgCABmj4AAI6IKH3EHw33.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/91/F7/wKgE2l1SdV2AeLO_ABP8BTDeyd017.jpeg",
+      "https://p1-q.mafengwo.net/s16/M00/FC/EB/CoUBUl8uqDeAV1KnACDrcysDDG0542.jpg",
+      "https://p1-q.mafengwo.net/s16/M00/83/AB/CoUBUl7gvzWAYUedAAUPH-WIz7464.jpeg"
+    ]},
+    {"search": "恭王府", "poiId": "3506", "title": "北京恭王府", "urls": [
+      "https://p1-q.mafengwo.net/s19/M00/07/49/CoNJZGPpyEQk8vLoAAFoPWH234Y.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/CC/A0/wKgBEFqqyYGAI7PbAAvIIp4Q8qQ28.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/A6/DC/wKgBZ1iv73WAX1JCAA1ixYXEnEg84.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/D4/A6/wKgEaVxubVGAW9esABum3lF5TmE80.jpeg",
+      "https://p1-q.mafengwo.net/s15/M00/4C/8E/CoUBGV4SXy2AF_DTABaAuD8Jv0Q371.jpg",
+      "https://p1-q.mafengwo.net/s15/M00/2F/27/CoUBGV4zYHOAJQHHABXa-W_0BcM900.jpg",
+      "https://p1-q.mafengwo.net/s15/M00/E1/6C/CoUBGV47TO2AL50rABzxJYvmIMk572.jpg",
+      "https://p1-q.mafengwo.net/s10/M00/0A/AE/wKgBZ1zw80-AErF9ACcKproBNug15.jpeg"
+    ]},
+    {"search": "云冈石窟", "poiId": "24310", "title": "大同云冈石窟", "urls": [
+      "https://p1-q.mafengwo.net/s10/M00/4A/4F/wKgBZ1h7L6KAZLRFAANbkIZm4yc30.jpeg",
+      "https://p1-q.mafengwo.net/s19/M00/16/16/CoNELWHmGf59TYa1AD4unwT8Wp8.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/5D/57/wKgBEFtIrcuAebhKAAzis1eqVds01.jpeg",
+      "https://p1-q.mafengwo.net/s6/M00/8F/F9/wKgB4lMV1LGAFqbrADAl4NxCYIs00.jpeg",
+      "https://p1-q.mafengwo.net/s17/M00/D5/49/CoUBXl-mGQiALtSnADMsXkW-SKs570.jpg",
+      "https://p1-q.mafengwo.net/s16/M00/98/CB/CoUBUmD5iMqAdFKiABOkLegwa7U00.jpeg",
+      "https://p1-q.mafengwo.net/s15/M00/96/C0/CoUBGWECnUOAGYM4AAo_AbbnE8A43.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/4B/98/wKgEaVyGK0KAPNnaAAJt9AlKKCE50.jpeg"
+    ]},
+    {"search": "沙坡头", "poiId": "34390", "title": "中卫沙坡头旅游区", "urls": [
+      "https://p1-q.mafengwo.net/s8/M00/1E/67/wKgBpVXV1_OAGURdABtse4OCPgA11.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/91/66/wKgBEFsPTuqANszMABWrqZ1PI4w05.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/91/98/wKgBEFsPTxyAK75oAArGhfD-eEI48.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/D9/21/wKgE2l0NldGAbLKgAAoqvZ-r5AQ847.jpg",
+      "https://p1-q.mafengwo.net/s9/M00/3E/DB/wKgBs1e0OgyAO7btAAuJydSplxA02.jpeg",
+      "https://p1-q.mafengwo.net/s8/M00/67/7B/wKgBpVXVMtWAXk6hAD8Qy5YXoAQ17.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/A7/3F/wKgBZ1n7tAWAIUAlAAPC1vNVUIc27.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/3D/6E/wKgE2l0vsJiAX0ieAAWMSi_6P8g130.jpg"
+    ]},
+    {"search": "清西陵", "poiId": "5438750", "title": "易县清西陵", "urls": [
+      "https://p1-q.mafengwo.net/s12/M00/F7/12/wKgED1u12T2AEZJoACIXHfA54-E38.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/59/0A/wKgED1u6FtCAUX-xAA0JJG7hm3w14.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/90/C6/wKgE2lz_smSAef2KAAvAkKdC1Ow63.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/E9/07/wKgBEFsjbUKAC4TjAAuvrTjlY8k38.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/F7/E1/wKgBEFzs40CAEoFJABM3s8rOWZM92.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/29/37/wKgEaVylv8aAOhzPAA-oWtwwUQY41.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/42/6D/wKgBEFrXUpiABeg_AAIypHqLe5s20.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/2C/F0/wKgEaVzPdkCATQnLADaVJpOhVI813.jpeg"
+    ]},
+    {"search": "神仙居", "poiId": "7693416", "title": "仙居神仙居景区", "urls": [
+      "https://p1-q.mafengwo.net/s12/M00/4D/43/wKgED1vUR0aAStQkAAIsXsi3enw99.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/8E/CA/wKgBZ1oMW92ARZ3vAA46WKA3OYg75.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/94/09/wKgBZ1oMYAOAHZ5gAA5zETV7ilg95.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/F1/BE/wKgE2l0WuZuADSpgAAVbxibXqok09.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/C3/FE/wKgEaVzy-HWAWEoyABmy0rmUUy046.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/AB/50/wKgEaVzZ4e2AO_e7AB_0PENlJVg67.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/9A/CF/wKgE2l0FjfSATyWFADHdhqxto4885.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/F2/3A/wKgE2l1sN3mAEJvnABxyTyTvgfA75.jpeg"
+    ]},
+    {"search": "德天跨国瀑布", "poiId": "6150378", "title": "大新德天跨国瀑布", "urls": [
+      "https://p1-q.mafengwo.net/s11/M00/2B/5E/wKgBEFt-LxqAQyb4ACAiFIOgJNk03.jpeg",
+      "https://p1-q.mafengwo.net/s16/M00/5C/FA/CoUBUl6FnQqAJf7IAAUHmSbC40g12.jpeg",
+      "https://p1-q.mafengwo.net/s9/M00/D4/86/wKgBs1f7SSOAZhF7AAx_2ZLh7Fc82.jpeg",
+      "https://p1-q.mafengwo.net/s8/M00/6B/4B/wKgBpVU58RWAOtQwAD83JbF32AI09.jpeg",
+      "https://p1-q.mafengwo.net/s15/M00/AE/7A/CoUBGV3sMRCAUa5VAB_JrcltJfY541.jpg",
+      "https://p1-q.mafengwo.net/s18/M00/37/33/CoUBYGCaQX6ANNNAAARwd_SxeYc061.jpg",
+      "https://p1-q.mafengwo.net/s15/M00/CF/96/CoUBGV3UfJKAHplgABiapA-20fo727.jpg",
+      "https://p1-q.mafengwo.net/s12/M00/B8/FC/wKgED1wZqT6AVG8DADNii8pZHQs62.jpeg"
+    ]},
+    {"search": "布达拉宫", "poiId": "5869", "title": "拉萨布达拉宫", "urls": [
+      "https://p1-q.mafengwo.net/s11/M00/3C/59/wKgBEFs_bw6AFu66ABEJU6KmuAc35.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/0D/2B/wKgBEFsnv5-AHC68AAqCMHYl1mA52.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/3C/5B/wKgBEFs_bw-AAbgjABDwK5X2r_k92.jpeg",
+      "https://p1-q.mafengwo.net/s5/M00/98/C9/wKgB3FD5nZmAAbOGAAipye6lXT493.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/08/E7/wKgEaVy0XeyAJP8oADC5I2cPcDQ54.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/63/21/wKgEaVycFHOAak53AAx0ohEcKm423.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/3B/13/wKgE2l1RAoSACBE5AAT_w_vV_9k64.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/E8/7A/wKgE2lz9HN-AKYvDABHHITEaXgU65.jpeg"
+    ]},
+    {"search": "丽江古城", "poiId": "5430915", "title": "丽江古城", "urls": [
+      "https://p1-q.mafengwo.net/s19/M00/E9/81/CoNEMGOhTSxGbqlsAAFCHvhrciY.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/73/54/wKgED1vtMT6AHAIJAAvStkIiBEg95.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/5A/97/wKgBEFso69aAQ8G8ABFS8plmz6U87.jpeg",
+      "https://p1-q.mafengwo.net/s16/M00/FC/C2/CoUBUl8-ipCAQEcTABPDkFtQu4A16.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/BD/9E/wKgBEFtHKAOAI8eMACF7bqabycA81.jpeg",
+      "https://p1-q.mafengwo.net/s14/M00/FA/80/wKgE2l1FoySAQTJ4AAYw4HGuGPk31.jpeg",
+      "https://p1-q.mafengwo.net/s15/M00/AF/12/CoUBGV4yuQCAdW5gABSi-ywQ88w612.jpg",
+      "https://p1-q.mafengwo.net/s14/M00/C1/C1/wKgE2l0gkQ2Ab7yQAAStji6NpYk397.jpg"
+    ]},
+    {"search": "乐山大佛", "poiId": "1238", "title": "乐山大佛", "urls": [
+      "https://p1-q.mafengwo.net/s12/M00/4E/83/wKgED1v9ThOAeVdeABc1Aiojkbg84.jpeg",
+      "https://p1-q.mafengwo.net/s1/M00/80/11/wKgIC1t74HuAIduFAAgsN1mPXsQ55.jpeg",
+      "https://p1-q.mafengwo.net/s1/M00/80/12/wKgIC1t74HuAGEn3AAgTa09eAiQ91.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/81/7E/wKgBEFrWtkKAC29CAAskCQ0Xkhw39.jpeg",
+      "https://p1-q.mafengwo.net/s9/M00/A0/9A/wKgBs1c-kbiAVFAdAAGnp4s42Ek87.jpeg",
+      "https://p1-q.mafengwo.net/s6/M00/DC/D2/wKgB4lKAcyOAUtWHAAFRUFkUbHA67.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/38/FF/wKgBEFtkHhWANPAVAAHmYY777x806.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/80/86/wKgBEFppn5iAZWz0AAreTfDzrj091.jpeg"
+    ]},
+    {"search": "鸣沙山月牙泉", "poiId": "71855580", "title": "敦煌鸣沙山月牙泉景区", "urls": [
+      "https://b1-q.mafengwo.net/s13/M00/C8/C5/wKgEaVyE39iAfPM8ACwKmo4Ek9w04.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/DE/86/wKgED1wNOTeASkP6ACfjMRivmLU10.jpeg",
+      "https://p1-q.mafengwo.net/s17/M00/64/F4/CoUBXl9zIOeAacWTAAlaZ-nDor8399.jpg",
+      "https://p1-q.mafengwo.net/s17/M00/64/E8/CoUBXl9zIOCATSIXAAwXAuCrx-s428.jpg",
+      "https://p1-q.mafengwo.net/s17/M00/64/D5/CoUBXl9zINaAGQgxAAwBEKr7Mos083.jpg",
+      "https://p1-q.mafengwo.net/s19/M00/8A/CF/CoNFR2XJoB9ssQYcAC11lzbZHBA.jpg",
+      "https://p1-q.mafengwo.net/s14/M00/95/8B/wKgE2l0oQyiAN0j4AAnDwhtqvd0354.jpg",
+      "https://p1-q.mafengwo.net/s14/M00/95/92/wKgE2l0oQyuAH406AAhwPTFMFok315.jpg"
+    ]},
+    {"search": "瘦西湖", "poiId": "5430250", "title": "扬州瘦西湖", "urls": [
+      "https://p1-q.mafengwo.net/s7/M00/29/D2/wKgB6lPDZG6AKw_OAAbyqRbs7AI92.jpeg",
+      "https://p1-q.mafengwo.net/s19/M00/26/67/CoNJcWIluRkmLNsLAAb0lXoaabk.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/99/11/wKgED1wke-OAdUE9AAPPMerIXvw36.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/F1/53/wKgEaVzOiNmAEw5GACSAhY2yWrM74.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/28/1C/wKgEaVy-xo6AVuJwAA3z25zDZgQ96.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/0D/08/wKgEaVyn4H6AQB-qACB9t1YA-6I74.jpeg",
+      "https://p1-q.mafengwo.net/s18/M00/3D/20/CoUBYGB-kHyAMky6ABgFv6B26xs490.jpg",
+      "https://p1-q.mafengwo.net/s14/M00/4C/2C/wKgE2lz5DTSAc3GUABgiKaWBc2830.jpeg"
+    ]},
+    {"search": "三坊七巷", "poiId": "15419", "title": "福州三坊七巷", "urls": [
+      "https://p1-q.mafengwo.net/s9/M00/A4/CA/wKgBs1bDLZ6AMQzKAAtHdA2ltJQ74.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/B4/24/wKgBZ1mcFdCABy8pAA24MP2AwgM91.jpeg",
+      "https://p1-q.mafengwo.net/s5/M00/0F/C9/wKgB3FGPBdCAO9ayAAbbatc8kzw38.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/B3/15/wKgEaVzAEoCAY55OAC-i-L29Dhg68.jpeg",
+      "https://p1-q.mafengwo.net/s7/M00/FE/6A/wKgB6lQCg3CAEkfOAAKUDVhUTt038.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/B9/63/wKgBEFtpGkKAOM8-ACXqje2HG2I06.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/8B/60/wKgED1vId0mAWy9qAASOQoz8LVg79.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/19/14/wKgED1vJOkCALRmMAAgVaIbpBek72.jpeg"
+    ]},
+    {"search": "塔尔寺", "poiId": "10300", "title": "湟中塔尔寺", "urls": [
+      "https://p1-q.mafengwo.net/s9/M00/05/C5/wKgBs1ZUcvaAH2V0AAywA3VLvw883.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/E4/49/wKgED1vCBIKAdq64ABRLyGDThrA16.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/E6/88/wKgED1vCBamAWQPwABEYNAA87cE82.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/22/77/wKgBZ1lbIdSAGxHIABT0e6R0de058.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/E2/FD/wKgED1wL0xGAMCv8AD2a0EELMjE87.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/C9/11/wKgED1ugpVKANaFcAApXMp6Tqh048.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/06/FC/wKgEaVx_G0aAHG7RACNgdM39yWA95.jpeg",
+      "https://p1-q.mafengwo.net/s16/M00/01/F3/CoUBUl6WnSyAZ_Q8AAT38dUpzVg615.jpg"
+    ]},
+    {"search": "圆明园", "poiId": "6427", "title": "北京圆明园", "urls": [
+      "https://p1-q.mafengwo.net/s14/M00/DB/21/wKgE2l05aN6AU8VDAAERPcYUzVg88.jpeg",
+      "https://p1-q.mafengwo.net/s18/M00/E9/91/CoUBYGBcF_eAWxWIAA00fukuw0A510.jpg",
+      "https://p1-q.mafengwo.net/s12/M00/EB/FB/wKgED1unTByAads1AAc9Gn5CBM427.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/16/E7/wKgED1v3_96AZdDPACWulFFCfJ818.jpeg",
+      "https://p1-q.mafengwo.net/s11/M00/9B/B7/wKgBEFttfDSAEHHbAED2ze3Acbg37.jpeg",
+      "https://p1-q.mafengwo.net/s10/M00/56/DD/wKgBZ1nBRUmAB2CJABEPoNj6cEY44.jpeg",
+      "https://p1-q.mafengwo.net/s18/M00/CD/B2/CoUBYGAe8zWAUsbBAB9SApjCFhk538.jpg",
+      "https://p1-q.mafengwo.net/s13/M00/E2/B2/wKgEaVzGreuAMhpZAANucbR0FQA53.jpeg"
+    ]}
+  ]
+}
