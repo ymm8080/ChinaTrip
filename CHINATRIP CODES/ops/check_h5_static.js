@@ -18,6 +18,10 @@
  *      数据比对字面量白名单（香港/澳门），否则 FAIL 并列出全部位置。
  *      预剥离纯数据声明 CITYS/PLAN_CITIES/ORI（城市表/计划城市表/方位表：仅作数据比对
  *      或经 I18N.city() 渲染，与文案无关）；三者任一在文件里找不到即 FAIL（剥离规则失效告警）。
+ *   D. 腿坐标门（2026-11-13 空餐卡渲染中断案）：取真实函数体在 stub 里跑——
+ *      空餐卡（自由安排的午饭/晚饭，location=null 只有 anchor_location）的
+ *      打车/步行链接必须吃锚点坐标；起终点都没坐标时必须返回空串（调用点降级
+ *      纯文字），绝不许读 from.location.lat 抛 TypeError 把整卡打成「渲染中断」。
  * 任一项失败 exit 1。 */
 "use strict";
 const fs = require("fs");
@@ -322,11 +326,59 @@ function gateC() {
     ok("残留门 index.html " + blocks.length + " 个脚本块无未包裹中文（已预剥离 CITYS/PLAN_CITIES/ORI）");
 }
 
+
+/* ---------- D. 腿坐标门（2026-11-13 空餐卡渲染中断） ---------- */
+function gateD() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("腿坐标门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  const pick = (name) => {
+    const start = src.indexOf("function " + name + "(");
+    if (start < 0) return null;
+    let i = src.indexOf("{", start), depth = 0;
+    for (; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}") { depth--; if (depth === 0) return src.slice(start, i + 1); }
+    }
+    return null;
+  };
+  const code = ["legPoint", "amapWalkUrl", "navDriveUrl"].map(pick).join("\n");
+  if (code.indexOf("function legPoint") < 0 || code.indexOf("function navDriveUrl") < 0) {
+    fail("腿坐标门: 找不到 legPoint/amapWalkUrl/navDriveUrl（函数改名？同步更新本门）");
+    return;
+  }
+  const vm = require("vm");
+  const sandbox = { isFinite, encodeURIComponent, MAP_VENDOR: "baidu" };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  try { vm.runInContext(code, sandbox); }
+  catch (e) { fail("腿坐标门: 函数体无法执行: " + e.message); return; }
+  const meal = { name: "午饭（自由安排）", location: null, anchor_location: { lon: 108.9, lat: 34.2 } };
+  const next = { name: "下一站", location: { lon: 109.3, lat: 34.4 }, city: "西安" };
+  let drive, walk, none;
+  try {
+    drive = sandbox.navDriveUrl(meal, next);
+    walk = sandbox.amapWalkUrl(meal);
+    none = sandbox.navDriveUrl({ name: "无坐标" }, { name: "无坐标二" });
+  } catch (e) {
+    fail("腿坐标门: 空餐卡腿抛错（即渲染中断的 TypeError）: " + e.message);
+    return;
+  }
+  if (!/^https:\/\/api\.map\.baidu\.com\/direction\?origin=34\.2,108\.9/.test(drive))
+    fail("腿坐标门: 空餐卡打车腿没吃锚点坐标: " + drive);
+  if (walk.indexOf("location=") < 0)
+    fail("腿坐标门: 空餐卡步行链接缺目标坐标: " + walk);
+  if (none !== "")
+    fail("腿坐标门: 起终点都没坐标应返回空串（降级纯文字），实得: " + none);
+  ok("腿坐标门 空餐卡腿吃锚点坐标、无坐标降级纯文字");
+}
+
 /* ---------- 入口：直接运行才执行；被 require 时只导出分词器供 harness 复用 ---------- */
 function main() {
   gateA();
   gateB();
   gateC();
+  gateD();
   if (failed) { console.error("\n" + failed + " 项未过——见上方 FAIL"); process.exit(1); }
   console.log("\nH5 静态守门全部通过");
 }
