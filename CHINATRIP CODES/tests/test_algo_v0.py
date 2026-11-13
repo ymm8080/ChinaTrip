@@ -516,8 +516,13 @@ def test_travel_legs_count_but_soft_gate_keeps_far_pair():
         _cand("甲", "成都", suggested=150, loc=(104.06, 30.66)),
         _cand("乙", "成都", suggested=150, loc=(104.90, 31.20)),  # ~90km
     ]
-    items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})
-    assert [it["name"] for it in items] == ["甲", "乙"]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 1, {"成都": (1, 1)}, notes=notes
+    )
+    # 2026-11-13 日间混排闸：甲(城心)+乙(90km 远郊)不再同日——乙移出并留痕
+    assert [it["name"] for it in items] == ["甲"]
+    assert any("离城心太远" in str(n) for n in notes)
 
 
 def test_soft_gate_rejects_cross_city_far_leg():
@@ -634,7 +639,7 @@ def test_baidu_rating_normalized_against_amap():
             "成都",
             cat="attraction",
             suggested=90,
-            loc=(103.6 + i * 0.02, 30.9),
+            loc=(103.95 + i * 0.02, 30.75),  # 10-14km 中性带（不触发混排闸）
         )
         for i in range(4)
     ]
@@ -978,15 +983,22 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         for i in range(5)
     ]
     cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
-    items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"成都": (1, 2)}, notes=notes
+    )
     by_day = {}
     for it in items:
         by_day.setdefault(it["day"], []).append(it["name"])
     # day1=池内短时长小点 ×4（同档短时长先占位，恰 4 个/日闸封顶；
-    # 2026-11-07 反转拍板：无族豁免，都1 照占计数溢出 day2）；
-    # day2=软闸超额大点卡（市1+市2 同点）+溢出的远填0+都1。
+    # 2026-11-07 反转拍板：无族豁免）；
+    # day2=软闸超额大点卡（市1+市2 同点）+溢出的远填0；
+    # 2026-11-13 日间混排闸：都1（都江堰 ~44km）不再与城心件同日——
+    # 远郊件无可投日（day1 已 4/4 满）即移出并留痕。
     assert sorted(by_day.get(1, [])) == ["补0", "补1", "补2", "补3"]
-    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0", "都1"]
+    assert sorted(by_day.get(2, [])) == ["市1", "市2", "远填0"]
+    assert "都1" not in [n for names in by_day.values() for n in names]
+    assert any("离城心太远" in str(n) and "都1" in str(n) for n in notes)
     # 池外尾巴不硬塞：远填1-4 不入任何天（软闸只保池内正选点）
     flat = [n for names in by_day.values() for n in names]
     assert not any(n in flat for n in ("远填1", "远填2", "远填3", "远填4"))

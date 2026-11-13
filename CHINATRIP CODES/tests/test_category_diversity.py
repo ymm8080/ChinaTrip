@@ -350,7 +350,8 @@ def test_itinerary_cap_museum_one_per_itinerary():
 
 
 def test_itinerary_cap_scenic_source_counts_and_citywalk():
-    """风景区桶 = nature 品类 + scenic 源行（品类不对也计数）；
+    """风景区桶 = nature 品类 + scenic 源行（品类不对也计数）；每行程 2 个
+    （2026-11-13 用户拍板「SCENIC BUCKET SHOULD BE 2」）；
     CITYWALK 每行程 2 个（2026-11-08 二拍「CITYWALK 应该最多二个」）。"""
     # 坐标错开 >1.5km（同点互认会被伞名孪生吸收搭锚车绕开行程桶——
     # 验桶计数须独立点；族卡已废，贴邻同日圈 5km 软偏好不破断言）。
@@ -368,13 +369,15 @@ def test_itinerary_cap_scenic_source_counts_and_citywalk():
         _bucket_cand(
             "大唐不夜城街区", "西安", "citywalk", rating=4.4, loc=(109.04, 34.26)
         ),
+        _bucket_cand("南五台", "西安", "nature", rating=4.4, loc=(109.06, 34.26)),
         _bucket_cand("回民街", "西安", "attraction", rating=4.6, loc=(109.00, 34.26)),
         _bucket_cand("城墙", "西安", "attraction", rating=4.6, loc=(109.02, 34.26)),
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     names = {it["name"] for it in items}
-    assert "华山" in names  # scenic 源行梯位高（tier9）先占风景区桶
-    assert "骊山" not in names  # nature 第 2 个：桶满被裁
+    assert "华山" in names  # scenic 源行梯位高（tier9）先占风景区桶第 1 席
+    assert "骊山" in names  # 第 2 席：2026-11-13 起风景区桶=2（外滩/地标共存）
+    assert "南五台" not in names  # nature 第 3 个：桶满（2）被裁
     assert {"永兴坊", "大唐不夜城街区"} <= names  # citywalk 两档共存（11-08 二拍）
     assert {"回民街", "城墙"} <= names  # attraction 不设限
 
@@ -435,7 +438,7 @@ def test_experience_types_rank_right_after_premium():
 def test_scenic_bucket_covers_5a_landscape_rows():
     """2026-11-07 用户拍板「风景区的优先级不应该是最高的」：5A/世遗
     山水行（武隆喀斯特/小三峡类，source=5a、category=attraction）进
-    风景区桶受 1/行程上限——旧判定只认 nature 品类/scenic 源，重庆
+    风景区桶受 2/行程上限（2026-11-13 起；原 1）——旧判定只认 nature 品类/scenic 源，重庆
     段被风景区填满。古镇/人文型 5A（安仁古镇景区）不误伤。"""
     from app.services.agent.plan import _itin_cap_bucket
 
@@ -472,6 +475,14 @@ def test_scenic_bucket_covers_5a_landscape_rows():
             "day": 1,
             "duration_minutes": 240,
             "location": {"lon": 107.76, "lat": 29.35},
+        },
+        {
+            "name": "四面山",
+            "city": "重庆",
+            "category": "nature",
+            "day": 1,
+            "duration_minutes": 180,
+            "location": {"lon": 106.30, "lat": 28.60},
         },
     ]
     candidates = [
