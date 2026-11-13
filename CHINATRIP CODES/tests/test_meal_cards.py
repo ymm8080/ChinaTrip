@@ -177,6 +177,7 @@ def test_lunch_placeholder_kept_when_only_dinner_card_taken():
     _retime_meal_placeholders(plan)
     assert [i.name for i in plan.days[0].items] == ["午饭（自由安排）", "福和慧"]
 
+
 def test_adjacent_restaurant_absorbs_same_card_placeholder():
     """相邻但不重叠也算同卡：12:00-13:30 午占位 + 13:30 餐厅 → 占位让位。
 
