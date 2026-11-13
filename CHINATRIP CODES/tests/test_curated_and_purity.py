@@ -1037,7 +1037,12 @@ def test_day_purity_sweep_family_day_city_stranger_freed_then_merge():
     assert any("已合并至第4天" in str(a) for a in plan.assumptions)
 
 
-def test_day_purity_sweep_ignores_arrival_card_already_dropped():
+def test_day_purity_sweep_merges_arrival_far_card_into_family_day():
+    """2026-11-13 四拍「这些远郊的景点应该成族后选单独日子安排」：到达日
+    上的出圈件不再单张删掉——③ 出圈片区族对齐先把它并回远郊族日（远区
+    主件+远区演出所在日），① 到达日闸随后空转。旧契约是 ① 先删、③ 只
+    处理在册卡（西安实弹「兵马俑被删、秦俑情因演出豁免留在到达日」的
+    一删一留正是这条顺序造成的）。"""
     orphan = _visit("到达远件", 180, _LISHAN, 1, tier=9)
     d1 = DayPlan(
         day=1,
@@ -1053,28 +1058,23 @@ def test_day_purity_sweep_ignores_arrival_card_already_dropped():
         day=3,
         base_city="西安",
         items=[
-            _visit("收容件一", 200, _V, 3, tier=3),
-            _visit("收容件二", 200, _GL, 3, tier=3),
-            _visit("收容件三", 200, _CQ, 3, tier=3),
+            _visit("收容件一", 120, _V, 3, tier=3),
+            _visit("收容件二", 120, _GL, 3, tier=3),
         ],
     )
     show = _visit(
         "远区演出", 80, _BMY, 4, category="entertainment", tier=6, start=time(17, 0)
     )
-    city_stranger = _visit("待挪城件", 40, _GL, 4, tier=4)
     d4 = DayPlan(
         day=4,
         base_city="西安",
-        items=[
-            _visit("远区主件", 180, _BMY, 4, tier=1),
-            show,
-            city_stranger,
-            _visit("留守城件", 40, _CQ, 4, tier=4),
-        ],
+        items=[_visit("远区主件", 180, _BMY, 4, tier=1), show],
     )
-    plan = _plan(d1, d3, d4)
+    d5 = DayPlan(day=5, base_city="西安", items=[_visit("尾坊", 90, _CQ, 5, tier=4)])
+    plan = _plan(d1, d3, d4, d5)
     _day_purity_sweep(plan, frozenset())
-    assert all(orphan not in d.items for d in plan.days)
+    assert any(orphan is i for i in d4.items), "到达日远件应并回远郊族日"
+    assert all(orphan not in d.items for d in (d1, d3, d5))
     assert any(
-        orphan.name in str(a) and "本次未排入" in str(a) for a in plan.assumptions
+        "到达远件" in str(a) and "已合并至第4天" in str(a) for a in plan.assumptions
     )
