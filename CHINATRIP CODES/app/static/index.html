@@ -926,6 +926,18 @@ function detailText(d) {
   try { return JSON.stringify(d); } catch (e) { return String(d); }
 }
 
+// 断线退避梯（2026-11-13「规划失败：网络错误」案）：旧梯 1.5s+4s≈5.5s 盖不住
+// 一次服务重启（keepalive 判活 15-20s + 进程拉起 10-20s），用户在重启窗内点
+// 「规划」只会看到「无法连接 API」。新梯累计 ≈39s，重启窗内用户无感。
+const NET_RETRY_WAITS = [1200, 2500, 5000, 10000, 20000];
+let _connRetryToastAt = 0;
+function noteConnRetry() {
+  const now = Date.now();
+  if (now - _connRetryToastAt < 8000) return; // 并发请求/多轮重试只提示一次
+  _connRetryToastAt = now;
+  toast(I18N.tf("infra.retrying", "服务未响应，正在自动重试…"));
+}
+
 // 统一请求：POST/PUT JSON + X-Device-ID（已登录附 Authorization）；非 2xx 抛 {status, detail}
 async function api(path, body, method) {
   let res;
@@ -940,12 +952,15 @@ async function api(path, body, method) {
   try {
     res = await doFetch();
   } catch (e) {
-    // 撞上服务重启/崩溃死窗（连不上）：退避重试 1.5s/4s，覆盖 keepalive 拉起窗口
-    for (const w of [1500, 4000]) {
+    // 撞上服务重启/崩溃死窗（连不上）：按 NET_RETRY_WAITS 退避重试（≈39s），
+    // 覆盖 keepalive 判活 + 进程拉起的整窗；首轮重试前告知用户「正在自动重试」
+    let tries = 0;
+    for (const w of NET_RETRY_WAITS) {
+      if (tries++ === 0) noteConnRetry();
       await new Promise(r => setTimeout(r, w));
       try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
     }
-    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") };
+    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（已自动重试约 40 秒；服务可能正在重启，请稍后再试）") };
   }
   let data = null;
   try { data = await res.json(); } catch (e) { /* 空体 */ }
@@ -974,11 +989,13 @@ async function apiRaw(path) {
   let res;
   try { res = await doFetch(); }
   catch (e) {
-    for (const w of [1500, 4000]) {
+    let tries = 0;
+    for (const w of NET_RETRY_WAITS) {
+      if (tries++ === 0) noteConnRetry();
       await new Promise(r => setTimeout(r, w));
       try { res = await doFetch(); break; } catch (e2) { /* 再试 */ }
     }
-    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") };
+    if (!res) throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（已自动重试约 40 秒；服务可能正在重启，请稍后再试）") };
   }
   if (!res.ok) {
     let data = null;
@@ -2944,7 +2961,7 @@ async function planStartCore(extraPref) {
   PLAN.startDate = document.getElementById("planStartDate").value || "";
   const tSel = document.getElementById("planTransport");
   addMsg("flow-plan", "user", I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.transport","；交通：") + tSel.options[tSel.selectedIndex].text + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
-  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（通常 10 秒内）…"));
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 30–60 秒，请稍候）…"));
   try {
     const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale() === "en" ? "en" : "zh" });
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode() } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
