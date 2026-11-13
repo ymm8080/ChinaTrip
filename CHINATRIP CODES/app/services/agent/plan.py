@@ -7711,8 +7711,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                 _host_day_for_visit(
                                     [anchor],
                                     vcity,
-                                    flagship.duration_minutes
-                                    or DEFAULT_VISIT_MINUTES,
+                                    flagship.duration_minutes or DEFAULT_VISIT_MINUTES,
                                     visit=flagship,
                                     all_days=plan.days,
                                     _rescue=True,
