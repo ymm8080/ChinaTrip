@@ -8839,9 +8839,7 @@ def _endpoint_day_light_sweep(
                     _ends.append(_e)
                 _last = max(_ends) if _ends else None
                 _start = _last + 30 if _last is not None else None
-                _limit = (
-                    _night_start - 30 if _night_start is not None else 21 * 60 + 30
-                )
+                _limit = _night_start - 30 if _night_start is not None else 21 * 60 + 30
                 if _start is not None and _start + 90 <= _limit:
                     _end = _start + 90
                     _hotel = _head_hotel_anchor(d, plan)
@@ -8851,9 +8849,7 @@ def _endpoint_day_light_sweep(
                         city=vcity,
                         day=d.day,
                         duration_minutes=_end - _start,
-                        location=(
-                            _hotel.location if _hotel is not None else None
-                        ),
+                        location=(_hotel.location if _hotel is not None else None),
                         category="citywalk",
                         start_time=_time_of(_start),
                         end_time=_time_of(_end),
