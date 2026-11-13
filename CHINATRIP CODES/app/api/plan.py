@@ -350,9 +350,7 @@ async def start_plan_from_itinerary(
     # 起点（用户报「看不到酒店作为出发点」）。只补「一张酒店卡都没有」
     # 的行程，已有卡（含用户删剩一张）不复活、不重复。
     if not any(
-        is_hotel_night(i) or is_hotel_morning(i)
-        for d in plan.days
-        for i in d.items
+        is_hotel_night(i) or is_hotel_morning(i) for d in plan.days for i in d.items
     ):
         plan.assumptions.extend(attach_hotel_nights(plan.days))
         plan.assumptions.extend(attach_hotel_mornings(plan.days))

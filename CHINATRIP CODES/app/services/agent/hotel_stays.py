@@ -355,10 +355,7 @@ def _morning_window(
     gap = INTERCITY_BUFFER_MINUTES if transfer else HOTEL_MORNING_GAP_MINUTES
     end = first_start - gap if first_start is not None else 9 * 60
     start = end - HOTEL_MORNING_MINUTES
-    if (
-        first_start is not None
-        and start < HOTEL_MORNING_EARLIEST_MINUTES <= end
-    ):
+    if first_start is not None and start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
         # 最早 08:30 出发：卡压到 08:30 起，与首站贴排（路程并入卡内）。
         start = HOTEL_MORNING_EARLIEST_MINUTES
         end = min(first_start, max(end, start + HOTEL_MORNING_MINUTES))
