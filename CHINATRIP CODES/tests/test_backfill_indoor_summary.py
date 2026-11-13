@@ -26,6 +26,20 @@ def test_classify_indoor_heuristics():
     assert classify_indoor("某某观景台", None) is None
 
 
+def test_classify_indoor_city_complex_is_rain_safe():
+    """2026-11-13 用户拍板「新天地 作为城市综合体 可以放在雨天，不是露天点位」。
+
+    商业体/室内业态词必须先于「广场/街区」露天词判定（否则正佳广场、新天地
+    被一刀切成露天）；真遗产历史建筑群与露天广场不得被综合体档误伤。
+    """
+    assert classify_indoor("新天地", "attraction") == "yes"
+    assert classify_indoor("正佳广场商贸旅游区", "attraction") == "yes"
+    assert classify_indoor("远洋太古里", "historic") == "yes"
+    assert classify_indoor("探洞工场(环球中心旗舰店)", "entertainment") == "yes"
+    assert classify_indoor("登封“天地之中”历史建筑群", "historic") is None
+    assert classify_indoor("天安门广场", "attraction") == "no"
+
+
 def test_backfill_indoor_only_fills_empty():
     rows = [
         _Row("三峡博物馆"),  # 填 yes/yes
