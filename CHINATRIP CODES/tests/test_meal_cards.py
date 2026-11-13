@@ -176,3 +176,27 @@ def test_lunch_placeholder_kept_when_only_dinner_card_taken():
     plan = _plan([ph, flh])
     _retime_meal_placeholders(plan)
     assert [i.name for i in plan.days[0].items] == ["午饭（自由安排）", "福和慧"]
+
+def test_adjacent_restaurant_absorbs_same_card_placeholder():
+    """相邻但不重叠也算同卡：12:00-13:30 午占位 + 13:30 餐厅 → 占位让位。
+
+    编辑路径的旧口径只在「撞车（重叠）」时才挪占位，13:30 开席的餐厅与
+    12:00-13:30 的空占位首尾相接、无重叠，交付就成了「一个餐厅邻一个餐
+    卡」。餐卡对账按卡判、不按重叠判。
+    """
+    ph = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(12, 0),
+        end_time=time(13, 30),
+        duration_minutes=90,
+        pinned=False,
+        soft_pin=True,
+    )
+    resto = _food("v50", "某餐厅", time(13, 30), dur=60)
+    plan = _plan([ph, resto])
+    _retime_meal_placeholders(plan, ensure_cards=False)
+    assert [i.name for i in plan.days[0].items] == ["某餐厅"]
