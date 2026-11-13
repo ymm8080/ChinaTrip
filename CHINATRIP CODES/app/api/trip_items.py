@@ -34,6 +34,31 @@ router = APIRouter(prefix="/api/v1/trip-items", tags=["trip-items"])
 _service_singleton: TripItemService | None = None
 
 
+def _city_from_library(name: str) -> str | None:
+    """建行即定城（2026-11-13 用户拍板「心愿单的城市必须在插入的时候就
+    标注城市」）：POIS 底库同名行的城市唯一 → 采用；多城/无行 → 留空，
+    交给规划回合追问。Best-effort——库不可用不影响建行（留痕）。"""
+    probe = (name or "").strip()
+    if not probe:
+        return None
+    try:
+        from app.services.poi_details import get_poi_detail_store
+
+        hits = get_poi_detail_store().search_keyword(None, [probe], limit=20)
+    except Exception:
+        logger.warning("trip-items: city resolve failed for %s", probe, exc_info=True)
+        return None
+    cities = {
+        (h.get("city") or "").strip().removesuffix("市")
+        for h in hits or []
+        if isinstance(h, dict)
+        and (h.get("name") or "").strip() == probe
+        and (h.get("city") or "").strip()
+    }
+    cities.discard("")
+    return cities.pop() if len(cities) == 1 else None
+
+
 def get_trip_item_service() -> TripItemService:
     """Process-wide singleton: trip items must survive across requests —
     and across uvicorn restarts（2026-10-25 起写穿 PG，pg_state.PgTripItemService
@@ -69,12 +94,20 @@ async def create_trip_item(
     request: CreateTripItemRequest,
     service: TripItemService = Depends(get_trip_item_service),
 ) -> dict:
+    city = request.city
+    if not (city or "").strip():
+        # 2026-11-13（用户拍板「心愿单的城市必须在插入的时候就标注城市」）：
+        # 建行当口能定城就定，不定就留空等追问——绝不把没城的行塞进
+        # 任何行程（跨城串行程的根）。
+        city = _city_from_library(request.name)
+        if not city:
+            logger.warning("trip-items: create without city name=%s", request.name)
     try:
         return service.create(
             request.name,
             source=request.source,
             itinerary_id=request.itinerary_id,
-            city=request.city,
+            city=city,
             note=request.note,
             poi_id=request.poi_id,
             address=request.address,
@@ -97,11 +130,17 @@ async def list_trip_items(
     # 以本设备在册会话的工作行程 id 豁免回翻。会话存储单例与 plan 端点
     # 共享（函数体内延迟导入防模块环）；查不动就退化为旧行为（保守回翻）。
     live: set[str] = set()
+    # 2026-11-13（熊猫/环球中心被打回心愿单案）：判活不可得时不得判死。
+    # 无 X-Device-ID（看板轮询/其他端）或活表查不动 → live_known=False，
+    # 本趟不做「行程已删」回翻；否则一次缺参请求就能把已排期的行打回
+    # 心愿单（scheduled↔wishlist 振荡）。
+    live_known = False
     if x_device_id:
         try:
             from app.api.plan import get_plan_sessions
 
             live = get_plan_sessions().live_itinerary_ids(x_device_id)
+            live_known = True
         except Exception:
             logger.warning("trip-items: live-itin check failed", exc_info=True)
     # 2026-10-30 看板卡标注所属行程（行程ID + 行程名）：行程名 = 城市链
@@ -117,7 +156,7 @@ async def list_trip_items(
             if trip_id not in names:
                 record = store.get(trip_id)
                 names[trip_id] = " → ".join(record.plan.cities) if record else None
-                if record is None and trip_id not in live:
+                if record is None and live_known and trip_id not in live:
                     dead_trips.add(trip_id)
             item["itinerary_name"] = names[trip_id]
     # 2026-10-31（看熊猫案）：scheduled 行挂的行程已删（释放机制上线前

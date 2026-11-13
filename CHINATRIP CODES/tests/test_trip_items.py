@@ -451,7 +451,7 @@ def test_list_itinerary_name_none_when_itinerary_unknown():
         item = create_item(client, itinerary_id="ghost-trip")
         schedule(client, item["id"], 2)
 
-        body = client.get("/api/v1/trip-items").json()
+        body = client.get("/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}).json()
 
     assert body["scheduled"] == []
     healed = next(r for r in body["wishlist"] if r["name"] == item["name"])
@@ -602,7 +602,7 @@ def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
         schedule(client, item["id"], 4)
         store.delete(record.itinerary_id)  # 绕过 DELETE 端点=存量孤儿
 
-        body = client.get("/api/v1/trip-items").json()
+        body = client.get("/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}).json()
 
     assert body["scheduled"] == []
     healed = next(r for r in body["wishlist"] if r["name"] == "看熊猫")
@@ -611,7 +611,9 @@ def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
     assert healed["itinerary_name"] is None
     # 写穿：再次拉取稳定（不会反复横跳）
     with TestClient(app) as client:
-        again = client.get("/api/v1/trip-items").json()
+        again = client.get(
+            "/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}
+        ).json()
     assert again["scheduled"] == []
     assert any(r["name"] == "看熊猫" for r in again["wishlist"])
 
@@ -640,7 +642,7 @@ def test_list_self_heal_deletes_dead_trip_plan_rows():
         schedule(client, user["id"], 4)
         store.delete(record.itinerary_id)  # 绕过 DELETE 端点=存量孤儿
 
-        body = client.get("/api/v1/trip-items").json()
+        body = client.get("/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}).json()
 
     assert body["scheduled"] == []
     assert all(r["name"] != "宽窄巷子" for r in body["wishlist"])
@@ -648,7 +650,9 @@ def test_list_self_heal_deletes_dead_trip_plan_rows():
     assert healed["note"] == "来自聊天"
     # 写穿：再次拉取稳定，引擎行不回魂
     with TestClient(app) as client:
-        again = client.get("/api/v1/trip-items").json()
+        again = client.get(
+            "/api/v1/trip-items", headers={"X-Device-ID": "dev-1"}
+        ).json()
     assert again["scheduled"] == []
     assert all(r["name"] != "宽窄巷子" for r in again["wishlist"])
 
@@ -713,10 +717,10 @@ def test_list_keeps_scheduled_rows_of_live_session_plan(monkeypatch):
         assert [r["name"] for r in body["scheduled"]] == ["西安钟楼"]
         assert body["scheduled"][0]["itinerary_name"] is None
 
-        # 无设备头：保守回翻（旧行为，与孤儿自愈一致）
+        # 无设备头：判活不可得 → 不判死（2026-11-13 fail-open 拍板：
+        # 一次缺参请求曾把已排期行打回心愿单），行保留
         body2 = client.get("/api/v1/trip-items").json()
-        assert body2["scheduled"] == []
-        assert any(r["name"] == "西安钟楼" for r in body2["wishlist"])
+        assert [r["name"] for r in body2["scheduled"]] == ["西安钟楼"]
 
         # 他设备会话不豁免
         item2 = create_item(client, itinerary_id="it-work1", name="鼓楼")
