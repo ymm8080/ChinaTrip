@@ -143,7 +143,9 @@ def parse_detail_fields(html: str) -> dict:
     """A4/A5/A6/B3 字段解析（纯函数，测试吃真实页片段）。
 
     返回键：suggested_duration_min/rating/rating_count/review_tags/
-    ticket_price_min/ticket_price_max——缺失键 None/[]。
+    ticket_price_min/ticket_price_max/photos——缺失键 None/[]。
+    photos（2026-11-13 便车抽取）：详情页真身内嵌 JSON 的 imageList
+    （dimg*.c-ctrip.com 域白名单），零新增请求；壳页自然零图。
     """
     text = _strip_tags(html)
     lo, hi = parse_ticket(text)
@@ -154,7 +156,37 @@ def parse_detail_fields(html: str) -> dict:
         "review_tags": parse_review_tags(html) or None,
         "ticket_price_min": lo,
         "ticket_price_max": hi,
+        "photos": parse_detail_photos(html) or None,
     }
+
+
+# 详情页内嵌 imageList → dimg 图床白名单（与 enrich_ctrip_detail 同款形状，
+# 该 job 为并行 WIP 不改，正则在此独立定义并互相注明）。
+_CTRIP_IMAGE_RE = re.compile(
+    r'"(https://dimg\d*\.c-ctrip\.com/images/[^"]+?\.(?:jpg|png|jpeg)'
+    r'(?:\?[^"]*)?)"',
+    re.IGNORECASE,
+)
+
+
+def parse_detail_photos(html: str, *, limit: int = 8) -> list[dict]:
+    """详情页 HTML → [{title:"",url}]（dimg 域白名单，去重，≤8）。
+
+    便车语义：复用 CtripHoursReader 已发出的那一份响应，零额外请求。
+    """
+    urls = _CTRIP_IMAGE_RE.findall(html or "")
+    if not urls:
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for u in urls:
+        if u in seen:
+            continue
+        seen.add(u)
+        out.append({"title": "", "url": u})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _norm_city(city: str | None) -> str:

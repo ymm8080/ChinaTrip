@@ -291,6 +291,22 @@ def _wikimedia_p18_sync(name_zh: str) -> list[dict] | None:
     )
 
 
+async def _ctrip_photos(name_zh: str, city: str) -> list[dict] | None:
+    """ctrip 便车：CtripHoursReader 详情页响应顺带抠图（零新增请求）。
+
+    读者为进程级 lazy 单例（长会话 cookie 罐过闸率远高于新会话）；
+    城市不在 CITY_SLUGS 393 城内 reader 自动返 None。dimg 域白名单
+    在 ctrip_hours.parse_detail_photos 内收口。
+    """
+    from app.services.ctrip_hours import get_ctrip_hours
+
+    reader = get_ctrip_hours()
+    fields = await reader.detail_fields_for(city, name_zh)
+    if not fields:
+        return None
+    return normalize_photos(fields.get("photos")) or None
+
+
 async def _wikimedia(name_zh: str) -> list[dict] | None:
     return await asyncio.to_thread(_wikimedia_p18_sync, name_zh)
 
@@ -558,6 +574,22 @@ async def fetch_photo_chain(
                 photos = None
             if photos:
                 return photos, "amap"
+    # ctrip 便车（2026-11-13）：复用 CtripHoursReader 长会话已发的详情页
+    # 响应顺带抠图（零新增请求、零 key；壳页/未收录自然落空）——只对
+    # 有城市行生效（CITY_SLUGS 393 城内）。
+    if name_zh and city:
+        try:
+            photos = await _ctrip_photos(name_zh, city)
+        except Exception:
+            logger.warning(
+                "photo chain: ctrip ride failed, name=%s city=%s",
+                name_zh,
+                city,
+                exc_info=True,
+            )
+            photos = None
+        if photos:
+            return photos, "ctrip"
     # 免费维基档（2026-11-12 扩链）：media-list（页面全部图，多图主力）
     # → Commons 站内搜（文件名含名才收）→ 官网 og:image（官方自选主图）
     # → 旧 P18 兜底（media-list 覆盖不到的 P18-only 实体仍能收 1 图）。

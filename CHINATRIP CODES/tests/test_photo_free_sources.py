@@ -76,13 +76,14 @@ def _run_chain(monkeypatch, results, website=None):
     order = []
 
     def make_fake(fnname):
-        async def fake(name):
+        async def fake(*args):
             order.append(fnname)
             return results.get(fnname)
 
         return fake
 
     for fname in (
+        "_ctrip_photos",
         "_commons_search",
         "_wikimedia",
     ):
@@ -101,12 +102,21 @@ def _run_chain(monkeypatch, results, website=None):
     return order, photos, source
 
 
-def test_chain_media_list_wins(monkeypatch):
+def test_chain_ctrip_wins_over_free_sources(monkeypatch):
+    order, photos, source = _run_chain(
+        monkeypatch,
+        {"_ctrip_photos": [{"title": "", "url": "https://dimg04.c-ctrip.com/x.jpg"}]},
+    )
+    assert order == ["_ctrip_photos"]
+    assert source == "ctrip"
+
+
+def test_chain_commons_wins_when_ctrip_empty(monkeypatch):
     order, photos, source = _run_chain(
         monkeypatch,
         {"_commons_search": [{"title": "", "url": "https://u/1.jpg"}]},
     )
-    assert order == ["_commons_search"]
+    assert order == ["_ctrip_photos", "_commons_search"]
     assert source == "wikimedia"
 
 
@@ -117,12 +127,12 @@ def test_chain_falls_through_to_official_og(monkeypatch):
         {"_official_og": og},
         website="https://www.xihu.example.cn",
     )
-    assert order == ["_commons_search", "_official_og"]
+    assert order == ["_ctrip_photos", "_commons_search", "_official_og"]
     assert source == "official"
 
 
 def test_chain_all_empty_returns_none(monkeypatch):
     order, photos, source = _run_chain(monkeypatch, {})
-    assert order == ["_commons_search", "_wikimedia"]
+    assert order == ["_ctrip_photos", "_commons_search", "_wikimedia"]
     assert photos is None
     assert source is None
