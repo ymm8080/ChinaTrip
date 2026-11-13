@@ -42,6 +42,12 @@ class VisitItem(BaseModel):
     category: str | None = None  # sight|food|...
     city: str
     location: GeoPoint | None = None
+    # 餐卡贴前一站落位（2026-11-13 用户指令「BLANK LUNCH CARD 默认取上一站
+    # 地址」）：午饭/晚饭占位件本身没有 POI，卡面地址与「距下一站」展示腿
+    # 都从当天前一落脚点继承。anchor_location 只服务展示腿与卡片地址——
+    # location 保持 None：solver 动线矩阵、铁律 7 间隔、回填/小时链口径不变。
+    anchor_from_prev: bool = False
+    anchor_location: GeoPoint | None = None
     # Concrete address + opening hours shown with every recommendation
     # (product rule 2026-10-19); None when amap data is unavailable.
     address: str | None = None

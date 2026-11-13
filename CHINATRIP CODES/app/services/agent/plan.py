@@ -3878,6 +3878,38 @@ def _time_of(minutes: int) -> time:
     return time(minutes // 60, minutes % 60)
 
 
+def _meal_anchor(
+    day_plan: DayPlan, at: time | None
+) -> tuple[str | None, str | None, GeoPoint | None]:
+    """午饭/晚饭占位卡的展示锚（2026-11-13 用户指令「BLANK LUNCH CARD
+    默认取上一站地址」）。
+
+    占位件没有 POI（搜「午饭/晚饭」纯烧配额），卡面地址与「距下一站」展示
+    腿全依赖前一落脚点：取当天在 ``at`` 之前结束、带坐标的最近一个非占位
+    条目（另一张占位卡/未定位条目跳过；城际交通视为断链——换乘之后不继承
+    出发城地址）。返回 (address, address_en, location)；无锚 → 三个 None。
+    """
+    limit = _minutes_of(at) if at is not None else 24 * 60
+    anchor: VisitItem | None = None
+    anchor_end: int | None = None
+    for item in day_plan.items:
+        if isinstance(item, TransferItem):
+            anchor, anchor_end = None, None
+            continue
+        if not isinstance(item, VisitItem) or item.location is None:
+            continue
+        if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+            continue
+        end = _item_end_minutes(item)
+        if end is None or end > limit:
+            continue
+        if anchor_end is None or end >= anchor_end:
+            anchor, anchor_end = item, end
+    if anchor is None:
+        return None, None, None
+    return anchor.address, anchor.address_en, anchor.location
+
+
 def _plan_lunch_slot(
     day_plan: DayPlan,
 ) -> tuple[tuple[time, time], VisitItem | None] | None:
@@ -4012,6 +4044,9 @@ def _lunch_placeholder(
     item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
     小时链须跳过（否则烧配额搜「午饭」）。
     """
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
+        day_plan, slot[0]
+    )
     return VisitItem(
         item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("午饭（自由安排）", "Lunch (on your own)"),
@@ -4019,6 +4054,12 @@ def _lunch_placeholder(
         # 换乘日午餐城由调用方传入（_meal_city_at）；None 回退醒来城
         city=city or day_plan.base_city,
         day=day_plan.day,
+        # 空白餐卡默认吃在上一站（2026-11-13 用户指令「BLANK LUNCH CARD 默认
+        # 取上一站地址」）：卡面地址 + 展示腿都跟前一落脚点，不再空白
+        address=anchor_address,
+        address_en=anchor_address_en,
+        anchor_from_prev=True,
+        anchor_location=anchor_location,
         start_time=slot[0],
         end_time=slot[1],
         duration_minutes=LUNCH_DURATION_MINUTES,
@@ -4039,6 +4080,9 @@ def _dinner_placeholder(
     poi/坐标：回填与小时链须跳过（否则烧配额搜「晚饭」）。注意 id 前缀
     food-dinner-ph 以「food-d」开头——必吃让位闸（:6217 一带）按该前缀
     识别自动餐件，占位件天然随让位语义可被用户必吃顶替。"""
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
+        day_plan, slot[0]
+    )
     return VisitItem(
         item_id=f"{DINNER_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("晚饭（自由安排）", "Dinner (on your own)"),
@@ -4046,6 +4090,11 @@ def _dinner_placeholder(
         # 换乘日晚餐城由调用方传入（_meal_city_at）；None 回退醒来城
         city=city or day_plan.base_city,
         day=day_plan.day,
+        # 同午餐占位：空白晚餐卡也默认吃在上一站（地址/腿不再空白）
+        address=anchor_address,
+        address_en=anchor_address_en,
+        anchor_from_prev=True,
+        anchor_location=anchor_location,
         start_time=slot[0],
         end_time=slot[1],
         duration_minutes=MEAL_DURATION_MINUTES,
@@ -8644,6 +8693,12 @@ def _travel_matrix(
             )
             matrix.setdefault(key, minutes)
     return matrix
+
+
+def _leg_point(item: VisitItem) -> GeoPoint | None:
+    """展示腿取值点（2026-11-13 空餐卡案）：真 POI 坐标优先；午饭/晚饭
+    占位卡回退继承来的 anchor_location——腿链与卡片地址同源。"""
+    return item.location or item.anchor_location
 
 
 def _city_side_ok(
@@ -22276,6 +22331,9 @@ class PlanningAgent:
         except Exception:
             logger.warning("plan: refresh details pass failed", exc_info=True)
         await self._backfill_locations(session.plan)
+        # 旧行程自愈（2026-11-13 空餐卡案）：上线前落库的午/晚饭占位卡没有
+        # anchor_from_prev 标记，补标后本回合 annotate 即按前一站地址回填
+        self._adopt_legacy_meal_anchors(session.plan)
         annotate_legs(session.plan)
 
         self._replay_measured_legs(session.plan)
@@ -22284,6 +22342,20 @@ class PlanningAgent:
             return
 
         await self._enrich_legs(session.plan)
+
+    @staticmethod
+    def _adopt_legacy_meal_anchors(plan: ItineraryPlan) -> None:
+        """旧行程自愈（2026-11-13 空餐卡案）：本功能上线前落库的午饭/晚饭
+        占位卡没有 ``anchor_from_prev`` 标记——刷新时补标，同回合
+        ``annotate_legs`` 即按前一站地址/展示腿回填，用户手上的旧行程不必
+        重新规划。新占位卡在 _lunch_placeholder/_dinner_placeholder 已自带
+        标记；真实餐厅卡/景点卡永不进本标记。"""
+        for day in plan.days:
+            for item in day.items:
+                if isinstance(item, VisitItem) and (
+                    is_lunch_placeholder(item) or is_dinner_placeholder(item)
+                ):
+                    item.anchor_from_prev = True
 
     async def _enrich_legs(
         self, plan: ItineraryPlan, *, amap_slots: asyncio.Semaphore | None = None
@@ -22315,7 +22387,8 @@ class PlanningAgent:
 
         todo: list[tuple[VisitItem, VisitItem, tuple[str, str]]] = []
         for a, b, _km in leg_pairs(plan)[:LEG_ENRICH_MAX_PAIRS]:
-            key = (coord_str(a.location), coord_str(b.location))
+            # 占位餐卡无 location（锚在 anchor_location）：口径同 legs
+            key = (coord_str(_leg_point(a)), coord_str(_leg_point(b)))
             cached = self._leg_cache.get(key)
             if cached is not None:
                 apply_measured(a, cached)
@@ -22342,8 +22415,8 @@ class PlanningAgent:
             outcomes = await asyncio.gather(
                 *[
                     route_slot(
-                        coord_str(a.location),
-                        coord_str(b.location),
+                        coord_str(_leg_point(a)),
+                        coord_str(_leg_point(b)),
                         oid=a.poi_id,
                         did=b.poi_id,
                     )
@@ -22624,11 +22697,13 @@ class PlanningAgent:
         """G4/两段式共用：重排/重解后，把 _leg_cache 里的高德实测腿回放到
         展示字段（零网络——缓存命中即覆写估算值）。"""
         for a, _b, _km in leg_pairs(plan):
-            if a.location is None or _b.location is None:
+            a_pt = _leg_point(a)
+            b_pt = _leg_point(_b)
+            if a_pt is None or b_pt is None:
                 continue
             fwd = (
-                f"{a.location.lon:.6f},{a.location.lat:.6f}",
-                f"{_b.location.lon:.6f},{_b.location.lat:.6f}",
+                f"{a_pt.lon:.6f},{a_pt.lat:.6f}",
+                f"{b_pt.lon:.6f},{b_pt.lat:.6f}",
             )
             # 双向匹配（2026-10-31）：步行距离无向；二次求解（打车矩阵值
             # 打破平局）可能翻转游览序，实测缓存只存了一个方向——反向同用。
