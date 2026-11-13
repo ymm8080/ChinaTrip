@@ -153,3 +153,5 @@
 - 收割 6 批 11 店 → `_tmp_probe_web/mfw_harvest_restaurants_2026-11-13.json`（41 图）；入库脚本 `ops/ingest_restaurant_photos_mafengwo.py`（fill-empty-only + name 精确 + normalize_photos + photos_source='mafengwo'）。
 - 结果：11/11 入库，restaurants 有图 **85→96/5,088（1.89%）**；来源 wikimedia 85 + mafengwo 11；读侧实测 200/8图直出。
 - 观察：马蜂窝餐厅 poi 页点评图档 0-8 张/店；无 poi 页（沃夫冈/福和慧/鲁采/HORITA/WL BISTRO）或页无图（东富酒家/皖宴/潮跃）居多——继续收割的边际产出依赖目标选择。
+
+> 提交错位备注（反向）：f9499db（餐厅马蜂窝第二波）提交时，并行会话暂存中的 `plan.py`（+139）/`test_untimed_final_sweep.py`（+513）随共享索引一并入库——内容完整，提交信息未体现 plan 主体，特此溯源。并行会话工作树仍有 plan.py 新改动，未受影响。
