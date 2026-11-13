@@ -15,6 +15,8 @@ from app.services.trip_items import InvalidTransitionError, TripItemService
 CONTRACT_KEYS = {
     "id",
     "itinerary_id",
+    # 2026-11-13 数据库事实化：行归属设备随行返回
+    "owner_device_id",
     "name",
     "city",
     "note",
@@ -515,6 +517,32 @@ def test_release_itinerary_deletes_plan_rows_keeps_user_rows():
     assert svc.get(user["id"])["status"] == "wishlist"
 
 
+def test_release_itinerary_unbinds_rows_so_itinerary_delete_is_not_blocked():
+    """2026-11-13 用户拍板「行程页删行程时排期部分退回心愿单」：释放不只
+    翻状态，还要摘掉行程绑定——trip_items.itinerary_id 外键仍指着被删
+    行程时，PG 的 DELETE 被 FK 挡下（接口照样 204，刷新后行程复活）。"""
+    svc = TripItemService()
+    wish = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
+    svc.update(wish["id"], status="scheduled", day=2)
+    booked = svc.create("宋城", source="manual", itinerary_id="t1")
+    svc.update(booked["id"], status="scheduled", day=1)
+    svc.update(booked["id"], status="booked", booking_id="BK-9")
+    parked = svc.create("河坊街", source="chat", itinerary_id="t1")
+    other = svc.create("外滩", source="manual", itinerary_id="t2")
+    svc.update(other["id"], status="scheduled", day=1)
+
+    svc.release_itinerary("t1")
+
+    assert svc.get(wish["id"])["status"] == "wishlist"
+    for row_id in (wish["id"], booked["id"], parked["id"]):
+        assert svc.get(row_id)["itinerary_id"] is None
+    # booked 保留真实订单（只摘绑定）；别行程的排期行原样
+    assert svc.get(booked["id"])["status"] == "booked"
+    assert svc.get(booked["id"])["booking_id"] == "BK-9"
+    assert svc.get(other["id"])["itinerary_id"] == "t2"
+    assert svc.get(other["id"])["status"] == "scheduled"
+
+
 def test_release_itinerary_without_rows_or_id_is_noop():
     svc = TripItemService()
     assert svc.release_itinerary("ghost-trip") == []
@@ -543,7 +571,11 @@ def test_delete_itinerary_releases_scheduled_wishes_endpoint():
         assert body["scheduled"] == []
         released = next(r for r in body["wishlist"] if r["name"] == "s")
         assert released["day"] is None and released["position"] is None
+        # 2026-11-13：释放即解绑——itinerary_id 还指着被删行程时 PG 外键
+        # 会挡下 DELETE（接口 204、刷新后行程复活、排期像没退）
+        assert released["itinerary_id"] is None
         assert [r["name"] for r in body["bookings"]] == ["b"]
+        assert body["bookings"][0]["itinerary_id"] is None
         # 行程本身确已删除（释放没有挡住删除）
         assert (
             client.get(

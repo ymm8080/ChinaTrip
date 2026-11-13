@@ -655,6 +655,50 @@ async def export_itinerary(
     )
 
 
+@router.get("/itineraries/{itinerary_id}/changes")
+async def list_itinerary_changes(
+    itinerary_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> list[dict]:
+    """行程变更日志（2026-11-13 用户拍板「CHANGE LOG … USER, USER NAME,
+    CHANGES AFTER CLICK SAVE BUTTON」）：按保存时刻倒序回放。"""
+    device = _require_device(x_device_id)
+    _owned_record(store, itinerary_id, device, account)
+    from sqlalchemy import text
+
+    from app.models import ItineraryChangeLog
+
+    uid = _pg_uuid_loose(itinerary_id, "it_")
+    if uid is None:
+        return []
+    factory = get_session_factory()
+    with factory() as session:
+        rows = (
+            session.query(ItineraryChangeLog)
+            .filter(ItineraryChangeLog.itinerary_id == uid)
+            .order_by(ItineraryChangeLog.changed_at.desc())
+            .limit(200)
+            .all()
+        )
+        return [
+            {
+                "id": str(r.id),
+                "itinerary_id": r.itinerary_ref or itinerary_id,
+                "changed_at": r.changed_at.isoformat() if r.changed_at else None,
+                "sync_version": r.sync_version,
+                "summary": r.summary,
+                "changes": r.changes or [],
+                "owner_device_id": r.owner_device_id,
+                "owner_account_id": r.owner_account_id,
+                "actor_name": r.actor_name,
+                "snapshot_id": r.snapshot_id,
+            }
+            for r in rows
+        ]
+
+
 @router.delete("/itineraries/{itinerary_id}", status_code=204)
 async def delete_itinerary(
     itinerary_id: str,
@@ -672,4 +716,7 @@ async def delete_itinerary(
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
     trip_items.release_itinerary(itinerary_id)
-    store.delete(itinerary_id)
+    if not store.delete(itinerary_id):
+        # 2026-11-13：写穿失败不再假装成功——历史上外键挡下 DELETE 仍回
+        # 204，用户刷新后行程原位「复活」，还以为排期没退。
+        raise HTTPException(status_code=500, detail="itinerary_delete_failed")

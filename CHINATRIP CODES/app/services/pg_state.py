@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid as uuid_mod
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -131,6 +131,9 @@ def item_to_row_values(item: dict) -> dict:
     return {
         "id": _pg_uuid_loose(item.get("id")),
         "itinerary_id": _pg_uuid_loose(item.get("itinerary_id"), "it_"),
+        # 2026-11-13 数据库事实化：业务行程号与设备归属都进列（挂靠可查）
+        "itinerary_ref": (item.get("itinerary_id") or None),
+        "owner_device_id": (item.get("owner_device_id") or None),
         "name": item.get("name"),
         "city": item.get("city"),
         "note": item.get("note"),
@@ -178,7 +181,7 @@ class PgItineraryStore(InMemoryItineraryStore):
         records: dict[str, ItineraryRecord] = {}
         with self._session_factory() as session:
             for row in session.query(Itinerary).all():
-                if not row.plan:
+                if not row.plan or row.is_deleted:
                     continue
                 try:
                     record = ItineraryRecord.model_validate(row.plan)
@@ -207,7 +210,8 @@ class PgItineraryStore(InMemoryItineraryStore):
             return None
         with self._session_factory() as session:
             row = session.get(Itinerary, uid)
-            if row is None or not row.plan:
+            # 2026-11-13 软删：头表 is_deleted 的行视为不存在（记录仍留审计）
+            if row is None or not row.plan or row.is_deleted:
                 return None
             return ItineraryRecord.model_validate(row.plan)
 
@@ -252,27 +256,54 @@ class PgItineraryStore(InMemoryItineraryStore):
 
     def delete(self, itinerary_id: str) -> bool:
         removed = super().delete(itinerary_id)
-        if removed and self._pg_ok:
-            # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
-            # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
-            # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
-            # 行从 PG 复活。键必须与写库一致。
-            uid = _pg_uuid_loose(itinerary_id, "it_")
-            if uid is not None:
-                try:
-                    with self._session_factory() as session:
-                        session.query(ItineraryDay).filter(
-                            ItineraryDay.itinerary_id == uid
-                        ).delete()
-                        session.query(ItinerarySnapshot).filter(
-                            ItinerarySnapshot.itinerary_id == uid
-                        ).delete()
-                        session.query(Itinerary).filter(Itinerary.id == uid).delete()
-                        session.commit()
-                except Exception as exc:
-                    logger.warning(
-                        "pg_state: 行程 %s 删除写穿失败: %s", itinerary_id, exc
-                    )
+        if not self._pg_ok:
+            return removed
+        # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
+        # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
+        # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
+        # 行从 PG 复活。键必须与写库一致。
+        uid = _pg_uuid_loose(itinerary_id, "it_")
+        if uid is None:
+            return removed
+        try:
+            with self._session_factory() as session:
+                # 2026-11-13（删行程后行程复活/排期没回心愿单）：trip_items
+                # 的 itinerary_id 是指向 itineraries 的外键——释放后残留死
+                # 行程 id 时 DELETE 撞 FK，异常被吞、接口照样 204，下次
+                # list 又把行程读回来。删前统一摘引用（列 + payload 同源
+                # 清空），跨进程/未回灌内存的行也被覆盖。
+                session.execute(
+                    text(
+                        "UPDATE trip_items"
+                        " SET itinerary_id = NULL,"
+                        " payload = (COALESCE(payload, '{}'::jsonb)"
+                        " - 'itinerary_id')"
+                        " WHERE itinerary_id = :uid"
+                    ),
+                    {"uid": uid},
+                )
+                # 2026-11-13 软删（用户拍板 DELETION FLAG）：明细/快照留审计，
+                # 读口按 itineraries.is_deleted 过滤——不再物理删三表。
+                # 2026-11-13（用户拍板 trip HEADER 带 DELETION FLAG）：
+                # 改为软删——行留审计，读口按 is_deleted 过滤；明细/快照
+                # 保留可回放（change log 另有逐次 diff）。
+                now = datetime.now(timezone.utc)
+                result = session.execute(
+                    text(
+                        "UPDATE itineraries"
+                        " SET is_deleted = TRUE,"
+                        " deleted_at = :now, updated_at = :now"
+                        " WHERE id = :uid AND is_deleted = FALSE"
+                    ),
+                    {"uid": uid, "now": now},
+                )
+                rowcount = getattr(result, "rowcount", None)
+                # 假库/驱动不给 rowcount 时按「SQL 无异常即成功」；真库用行数
+                deleted = 1 if rowcount is None else rowcount
+                session.commit()
+                return removed or bool(deleted)
+        except Exception as exc:
+            logger.warning("pg_state: 行程 %s 删除写穿失败: %s", itinerary_id, exc)
         return removed
 
     def _write_pg(self, record: ItineraryRecord) -> None:
@@ -364,6 +395,8 @@ class PgTripItemService(TripItemService):
                     "position",
                     "address",
                     "opening_hours",
+                    "owner_device_id",
+                    "itinerary_ref",
                 ):
                     if payload.get(field) is None:
                         value = getattr(row, field, None)
@@ -398,10 +431,14 @@ class PgTripItemService(TripItemService):
         except Exception:
             logger.warning("pg_state: trip items 读穿透失败，本轮用内存", exc_info=True)
 
-    def list_groups(self, itinerary_id: str | None = None) -> dict:
+    def list_groups(
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+    ) -> dict:
         # 读穿透（PG 读权威）：看板/规划收口每次回库取新，跨进程排期立即可见。
         self._try_refresh()
-        return super().list_groups(itinerary_id)
+        return super().list_groups(itinerary_id, owner_device_id)
 
     def create(self, name: str, *, source: str, **kwargs) -> dict:
         """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与
@@ -480,6 +517,9 @@ class PgTripItemService(TripItemService):
             city=kwargs.get("city"),
             poi_id=kwargs.get("poi_id"),
             items=items,
+            # 2026-11-13 数据库事实化：查重同样按设备——别的设备的同名行
+            # 不是同一条心愿（否则冒烟/别的浏览器会把用户的行动手合并）
+            owner_device_id=kwargs.get("owner_device_id"),
         )
 
     def _insert_on(self, session, values: dict) -> None:
@@ -512,6 +552,23 @@ class PgTripItemService(TripItemService):
         self._write_through(item_id)
         return item
 
+    def release_itinerary(
+        self, itinerary_id: str, *, now: datetime | None = None
+    ) -> list[dict]:
+        """跨进程释放（2026-11-13）：删行程可能落在没回灌内存的进程上
+        （排期写在另一端口 / 另一实例）——内存里一条该行程的行都没有时先
+        回库取权威，否则漏放的 scheduled 行会被 store 级 FK 清理留下半截
+        状态（无行程却仍排期）。内存有命中就不重灌（避免冲掉热行）。"""
+        if (
+            self._pg_ok
+            and itinerary_id
+            and not any(
+                it.get("itinerary_id") == itinerary_id for it in self._items.values()
+            )
+        ):
+            self._try_refresh()
+        return super().release_itinerary(itinerary_id, now=now)
+
     def delete(self, item_id: str) -> None:
         super().delete(item_id)
         if not self._pg_ok:
@@ -521,10 +578,13 @@ class PgTripItemService(TripItemService):
                 uid = _pg_uuid(item_id)
                 if uid is not None:
                     session.query(TripItem).filter(TripItem.id == uid).delete()
-                else:
-                    session.query(TripItem).filter(
-                        TripItem.payload["id"].astext == item_id
-                    ).delete()
+                # 2026-11-13 看板引擎行删不掉（内存删了、库里还在）：历史
+                # 恢复/旁路导入行的 PK 列与 payload id 不一致（实测 12 行
+                # 中 7 行），严格 PK 删 0 行。payload 才是业务权威——再按
+                # payload id 删一次；正常行 PK==payload，第二条为 no-op。
+                session.query(TripItem).filter(
+                    TripItem.payload["id"].astext == item_id
+                ).delete()
                 session.commit()
         except Exception as exc:
             logger.warning("pg_state: 条目 %s 删除写穿失败: %s", item_id, exc)
@@ -569,8 +629,23 @@ class PgTripItemService(TripItemService):
         with self._session_factory() as session:
             row = session.get(TripItem, values["id"])
             if row is None:
+                # 2026-11-13 PK/payload 错位兼容：历史恢复行的 PK 列与
+                # payload id 不一致，只按 PK get 会 miss → 误插一条新行，
+                # 旧行成幽灵（看板删不掉/重复计数）。按 payload id 兜底
+                # 命中后就地更新，绝不改 PK（避免与既有行主键冲突）。
+                payload_id = (values.get("payload") or {}).get("id")
+                if payload_id:
+                    row = (
+                        session.query(TripItem)
+                        .filter(TripItem.payload["id"].astext == str(payload_id))
+                        .first()
+                    )
+            if row is None:
                 row = TripItem(id=values["id"])
                 session.add(row)
-            for key, val in values.items():
+                updates = values
+            else:
+                updates = {k: v for k, v in values.items() if k != "id"}
+            for key, val in updates.items():
                 setattr(row, key, val)
             session.commit()

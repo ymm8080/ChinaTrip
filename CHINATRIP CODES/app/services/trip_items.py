@@ -180,6 +180,7 @@ class TripItemService:
         *,
         source: str,
         itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
         city: str | None = None,
         note: str | None = None,
         poi_id: str | None = None,
@@ -200,6 +201,7 @@ class TripItemService:
             itinerary_id=itinerary_id,
             city=city,
             poi_id=poi_id,
+            owner_device_id=owner_device_id,
         )
         if duplicate is not None:
             # Same wish, richer info: fill ONLY empty fields of the existing
@@ -225,6 +227,8 @@ class TripItemService:
         item = {
             "id": uuid4().hex,
             "itinerary_id": itinerary_id,
+            # 2026-11-13 数据库事实化：归属设备随行落库（看板按设备读）
+            "owner_device_id": owner_device_id,
             "name": name,
             "city": city,
             "note": note,
@@ -284,10 +288,26 @@ class TripItemService:
         item = self._items.get(item_id)
         return dict(item) if item is not None else None
 
-    def list_groups(self, itinerary_id: str | None = None) -> dict:
+    def list_groups(
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+    ) -> dict:
         """Timeline payload (§5): Bookings pinned first, Wishlist stream,
-        Scheduled as the third key — each in its documented order."""
+        Scheduled as the third key — each in its documented order.
+
+        2026-11-13（用户拍板「这些应该都是数据库的数据」）：行归属设备
+        ——带 owner_device_id 时只回该设备的行；不带（脚本/运维）回全量。
+        """
         items = list(self._items.values())
+        if owner_device_id is not None:
+            # 有归属的按设备隔离；无归属（历史行/脚本建行）仍可见——归属列
+            # 是新事实，不能让老数据在升级瞬间集体消失。
+            items = [
+                i
+                for i in items
+                if i.get("owner_device_id") in (None, owner_device_id)
+            ]
         if itinerary_id is not None:
             items = [i for i in items if i.get("itinerary_id") == itinerary_id]
 
@@ -423,15 +443,40 @@ class TripItemService:
         del self._items[item_id]
         logger.info("trip_item_deleted id=%s", item_id)
 
+    def unbind_itinerary(
+        self, item_id: str, *, now: datetime | None = None
+    ) -> dict | None:
+        """解除行程绑定（2026-11-13 删行程拍板）。
+
+        itinerary_id 是指向 itineraries 的外键列：释放回心愿单的行若仍挂
+        被删行程 id，PG 会拿 FK 挡下 DELETE /itineraries/{id}——接口照样
+        204、列表读穿透又把它拉回来（删了又复活）。心愿单行不该挂死行程：
+        清空 itinerary_id 并写穿（PG 子类落列 + payload）。未绑定/不存在
+        幂等返回现状。
+        """
+        item = self._items.get(item_id)
+        if item is None:
+            return None
+        if not item.get("itinerary_id"):
+            return dict(item)
+        item["itinerary_id"] = None
+        item["updated_at"] = _iso_now(now)
+        hook = getattr(self, "_write_through", None)
+        if callable(hook):
+            hook(item_id)
+        return dict(item)
+
     def release_itinerary(
         self, itinerary_id: str, *, now: datetime | None = None
     ) -> list[dict]:
         """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
         不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
-        booking_id 清空，note 剥「已安排」尾段）。itinerary_id 留痕：
-        吸收/_sync_wish_rows 按名字
-        force 换绑新行程。booked 行保留真实订单不动；wishlist/unwanted 行
-        本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。
+        booking_id 清空，note 剥「已安排」尾段），并解除行程绑定（2026-11-13
+        用户拍板「删行程时排期部分退回心愿单」：留着死行程 id 会让
+        trip_items.itinerary_id 外键挡住行程删除，接口 204 后行程复活）。
+        吸收/_sync_wish_rows 仍按名字把心愿行 force 换绑新行程，不靠旧 id
+        留痕。booked 行保留真实订单、只摘绑定；wishlist/unwanted 行本就
+        在原位。返回被释放的行（PG 子类经 update 写穿落库）。
 
         2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 的引擎行
         不得落心愿单——死行程时直接删除（2026-11-13 起引擎行不再补源
@@ -461,7 +506,14 @@ class TripItemService:
             if base != raw_note:
                 kwargs["note"] = base
             released.append(self.update(item_id, status=STATUS_WISHLIST, **kwargs))
-        return released
+        # 2026-11-13（删行程拍板）：释放只翻状态，绑定还必须摘掉——死行程
+        # id 留在行上时 PG 外键会把行程删除挡成静默失败（204 后复活）；
+        # booked/unwanted 行挂着死 id 同样挡删除，这里一并解绑。
+        for item in list(self._items.values()):
+            if item.get("itinerary_id") == itinerary_id:
+                self.unbind_itinerary(item["id"], now=now)
+        # 返回值同步解绑后的现状（调用方拿到的行不再声称挂在死行程上）
+        return [self._items.get(r["id"]) or r for r in released]
 
     def mark_unwanted(
         self,
@@ -536,6 +588,7 @@ class TripItemService:
         city: str | None,
         poi_id: str | None,
         items: Iterable[dict] | None = None,
+        owner_device_id: str | None = None,
     ) -> dict | None:
         """Same trip + same thing = one row: poi_id is authoritative when
         both sides carry it, else the wish key (see _wish_key) matched by
@@ -555,6 +608,14 @@ class TripItemService:
         rows straight into this predicate — single implementation, no SQL
         mirror."""
         active = self._items.values() if items is None else items
+        if owner_device_id is not None:
+            # 2026-11-13：别的设备的同名行不是同一条心愿——各设备各一行
+            active = [
+                i
+                for i in active
+                if not i.get("owner_device_id")
+                or i.get("owner_device_id") == owner_device_id
+            ]
         if poi_id:
             for item in active:
                 if (

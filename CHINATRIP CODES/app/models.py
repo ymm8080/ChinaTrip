@@ -125,6 +125,14 @@ class Poi(Base):
     reservation_required: Mapped[bool | None] = mapped_column(Boolean)
     reservation_advance_days: Mapped[int | None] = mapped_column(Integer)
     booking_url: Mapped[str | None] = mapped_column(String(500))
+    # 用户可选二级标签（DESIGN user_tag_two_level_2026-11-10 §一，w12_0022）：
+    # 一级 7 族 × 二级 25 组受控词表。映射唯一来源
+    # app/services/poi_tag_selector.py（规则级联 + review 粗词碰撞消解；
+    # 类目命中恒保留封顶、定族优先），由 app/jobs/backfill_poi_user_tags.py
+    # 只填空回填；hotel/food/transport/category=None 服务类行恒空，
+    # 未命中不猜（留空）。
+    user_family: Mapped[str | None] = mapped_column(String(50))
+    user_groups: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -158,6 +166,12 @@ class Restaurant(Base):
     name_en: Mapped[str | None] = mapped_column(String(200))
     cuisine: Mapped[str | None] = mapped_column(String(50))
     cuisine_en: Mapped[str | None] = mapped_column(String(50))
+    # 用户可选二级标签（DESIGN user_tag_two_level_2026-11-10 §二）：
+    # cuisine 575 原值粗化 → family(6)/group(21)，推导列，原值列不动。
+    # 映射唯一来源 app/services/cuisine_taxonomy.py，回填走
+    # app/jobs/backfill_cuisine_group.py（fill-empty-only）。
+    cuisine_family: Mapped[str | None] = mapped_column(String(50))
+    cuisine_group: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str | None] = mapped_column(
         String(20), server_default=text("'active'")
     )
@@ -323,6 +337,19 @@ class Itinerary(Base):
         Boolean, server_default=text("false")
     )
     share_token: Mapped[str | None] = mapped_column(String(64))
+    # 2026-11-13（用户拍板 trip HEADER：CREATION DATE / CREATOR / DELETION
+    # FLAG / TRIP ID / TRIP NAME / LAST CHANGE DATE+TIME）：软删标记、创建人、
+    # 最后变更时刻。title=行程名，created_at=创建日期，owner_*=归属。
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
+    creator_name: Mapped[str | None] = mapped_column(String(100))
+    last_changed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
 
 
 class ItinerarySnapshot(Base):
@@ -393,6 +420,40 @@ class ItineraryItem(Base):
     start_time: Mapped[time | None] = mapped_column(TIME)
     end_time: Mapped[time | None] = mapped_column(TIME)
     draft: Mapped[bool | None] = mapped_column(Boolean, server_default=text("true"))
+    # 2026-11-13（用户拍板「TRIP 详情数据库：EACH DATE AND TIME AND SITES,
+    # ALTERNATIVE INFORMATION」）：点位名/城/类别/地址/备选一并落库。
+    name: Mapped[str | None] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(50))
+    category: Mapped[str | None] = mapped_column(String(40))
+    address: Mapped[str | None] = mapped_column(String(200))
+    alternatives: Mapped[list | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
+
+
+class ItineraryChangeLog(Base):
+    """每次「💾 保存行程」的变更日志（2026-11-13 用户拍板）。
+
+    USER / USER NAME / CHANGES ——设备、账号、变更人与逐条 diff 全落库，
+    供行程中心审计与回放。"""
+
+    __tablename__ = "itinerary_change_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    itinerary_ref: Mapped[str | None] = mapped_column(String(64))
+    owner_device_id: Mapped[str | None] = mapped_column(String(100))
+    owner_account_id: Mapped[str | None] = mapped_column(String(100))
+    actor_name: Mapped[str | None] = mapped_column(String(100))
+    changed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("NOW()")
+    )
+    sync_version: Mapped[int | None] = mapped_column(Integer)
+    summary: Mapped[str | None] = mapped_column(Text)
+    changes: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    snapshot_id: Mapped[str | None] = mapped_column(String(64))
 
 
 class ExecutionEvent(Base):
@@ -513,6 +574,12 @@ class TripItem(Base):
     __tablename__ = "trip_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    # 2026-11-13（用户拍板「心愿单/已排期/不想去/已订 都应该是数据库的
+    # 数据」）：行归属设备 + 业务行程号原样入库（itinerary_id 是 uuid
+    # 外键，未保存的工作行程没有对应行，FK 落不了；ref 列让挂靠/无挂靠
+    # 在库里可查、可 JOIN）。
+    owner_device_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    itinerary_ref: Mapped[str | None] = mapped_column(String(64), index=True)
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )

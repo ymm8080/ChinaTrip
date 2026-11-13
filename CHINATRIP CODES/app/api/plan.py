@@ -63,6 +63,7 @@ from app.services.agent.plan import (
     heal_item_ids,
     heal_leg_gaps,
 )
+from app.services.agent.wish_fast import consume_fast_turn
 from app.services.ctrip_hours import get_ctrip_hours
 from app.services.entitlement import EntitlementService
 from app.services.fast_lane import FastLane
@@ -295,6 +296,9 @@ async def save_plan(
         session.plan = plan
         store.save(session)
     record = itinerary_store.get(plan.itinerary_id)
+    # 2026-11-13（用户拍板「CHANGE LOG … AFTER CLICK SAVE BUTTON」）：
+    # 覆盖前先留一份旧计划，保存后写逐条 diff。
+    prev_plan = record.plan.model_copy(deep=True) if record is not None else None
     if record is None:
         record = ItineraryRecord(
             itinerary_id=plan.itinerary_id,
@@ -326,6 +330,26 @@ async def save_plan(
                 "paywall_trigger": exc.paywall_trigger,
             },
         ) from exc
+    # 2026-11-13（陕历博仍躺心愿单案）：保存即对账看板（保存是行程入库的
+    # 唯一时刻，看板必须跟着落排走）。
+    agent.sync_trip_rows(session)
+    # 2026-11-13（用户拍板 trip 头/明细/变更日志进库）：一次保存写三份——
+    # 头（改名/最后变更/创建人）、明细（天·时段·点位·备选）、变更日志
+    # （USER / USER NAME / CHANGES）。
+    try:
+        from app.db import get_session_factory as _sf
+        from app.services.trip_changes import record_trip_change
+
+        record_trip_change(
+            _sf(),
+            record,
+            old_plan=prev_plan,
+            new_plan=plan,
+            actor_name=(account or x_device_id),
+            snapshot_id=snapshot.snapshot_id,
+        )
+    except Exception:
+        logger.warning("plan/save %s change-log failed", session_id, exc_info=True)
     return snapshot.model_dump(exclude={"plan"})
 
 
@@ -354,7 +378,9 @@ async def start_plan_from_itinerary(
     # 起点（用户报「看不到酒店作为出发点」）。只补「一张酒店卡都没有」
     # 的行程，已有卡（含用户删剩一张）不复活、不重复。
     if not any(
-        is_hotel_night(i) or is_hotel_morning(i) for d in plan.days for i in d.items
+        is_hotel_night(i) or is_hotel_morning(i)
+        for d in plan.days
+        for i in d.items
     ):
         plan.assumptions.extend(attach_hotel_nights(plan.days))
         plan.assumptions.extend(attach_hotel_mornings(plan.days))
@@ -393,6 +419,9 @@ async def start_plan_from_itinerary(
     )
     await agent.refresh_legs(session)
     store.save(session)
+    # 2026-11-13（陕历博仍躺心愿单案）：开档即对账看板——心愿单里已落排的
+    # 翻已排期，已排期里本行程没有的回心愿单。
+    agent.sync_trip_rows(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
     body["plan"] = _plan_for_response(session.plan)
     body["assumptions"] = session.assumptions
@@ -603,17 +632,20 @@ async def message_plan(
     # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：对话式
     # 增删改与按钮端点（pin/delete/move/retime）同款——变更后实测腿刷新
     # （缓存对零网络回放，新对走图商链，配额死降级估算不阻塞回合）。
-    if session.plan is not None:
+    # 2026-11-13 快路径：落位已在 agent 内按直线估算标好腿，本回合不再整趟
+    # 实测（图商惩罚/配额死时实测可拖 30s+）；动线实测交给下一次编辑/打开。
+    fast_turn = consume_fast_turn(session.session_id)
+    if session.plan is not None and not fast_turn:
         await agent.refresh_legs(session)
     store.save(session)
-    body = _plan_turn_body(session, reply, change)
+    body = _plan_turn_body(session, reply, change, alternatives=not fast_turn)
     body["lane"] = {"lane": "main", "intent": decision.intent}
     return body
 
 
 # 无时刻卡下发过滤豁免类别（2026-11-13 拍板「未安排不显示」）：餐/酒店是
 # 行程骨架（落地即吃/住），无时刻也随行程交付；交通 TransferItem 不在
-# VisitItem 过滤范围内，天然豁免。内部清算层的 created/curated/tier≤2
+# VisitItem 过滤范围内，天然豁免。内部清算层的 created/curated/tier≤3
 # 保护名册只保「不删除」，不保「下发显示」——下发层一律滤掉。
 _UNTIMED_KEEP_CATEGORIES = frozenset({"food", "hotel"})
 
@@ -699,7 +731,7 @@ def _plan_with_alternatives(plan):
         return plan
 
 
-def _plan_turn_body(session, reply: str, change) -> dict:
+def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
     body: dict = {
         "reply": reply,
@@ -718,7 +750,13 @@ def _plan_turn_body(session, reply: str, change) -> dict:
         # 出站前条目 id 重号自愈（2026-11-13 磁器口换点 422）：新增条目可能
         # 撞上会话里载入的旧号，前端拿到重号卡片后按 id 换点会命中别天那条。
         heal_item_ids(session)
-        body["plan"] = _plan_for_response(session.plan)
+        # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
+        # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
+        body["plan"] = (
+            _plan_for_response(session.plan)
+            if alternatives
+            else _strip_untimed_items(session.plan)
+        )
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change
@@ -822,7 +860,11 @@ async def delete_plan_item(
     diffs = [DiffOp(op="remove", item_id=item_id)]
     # 2026-11-13 续（每天出发点是 HOTEL）：删夜卡=这一晚不住店，次日
     # 「🏨 从酒店出发」晨卡一并移除——否则次日仍声称从酒店出发。
-    pair = paired_hotel_card(plan_before.days, item) if is_hotel_night(item) else None
+    pair = (
+        paired_hotel_card(plan_before.days, item)
+        if is_hotel_night(item)
+        else None
+    )
     if pair is not None:
         diffs.append(DiffOp(op="remove", item_id=pair.item_id))
     new_plan, _, _ = mutate(

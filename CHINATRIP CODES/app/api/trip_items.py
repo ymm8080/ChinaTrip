@@ -89,9 +89,23 @@ class PatchTripItemRequest(BaseModel):
     booking_id: str | None = Field(default=None, max_length=128)
 
 
+def _ensure_owned(
+    service: TripItemService, item_id: str, device: str | None
+) -> None:
+    """看板行归属闸（2026-11-13 数据库事实化）：行有归属设备且与请求
+    设备不符 → 404（防枚举口径）；无归属（历史行）放行。"""
+    if not device:
+        return
+    row = service.get(item_id)
+    owner = (row or {}).get("owner_device_id")
+    if owner and owner != device:
+        raise HTTPException(status_code=404, detail="not_found")
+
+
 @router.post("", status_code=201)
 async def create_trip_item(
     request: CreateTripItemRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
 ) -> dict:
     city = request.city
@@ -107,6 +121,8 @@ async def create_trip_item(
             request.name,
             source=request.source,
             itinerary_id=request.itinerary_id,
+            # 2026-11-13：建行即落设备归属（看板按设备读，别的会话改不到）
+            owner_device_id=x_device_id,
             city=city,
             note=request.note,
             poi_id=request.poi_id,
@@ -124,7 +140,28 @@ async def list_trip_items(
     service: TripItemService = Depends(get_trip_item_service),
     store: ItineraryStore = Depends(get_store),
 ) -> dict:
-    body = service.list_groups(itinerary_id or None)
+    # 2026-11-13（用户拍板「看板就是数据库的数据」）：按设备读自己的行
+    body = service.list_groups(itinerary_id or None, x_device_id or None)
+    # 2026-11-13 拍板「已排期只放已排的心愿单」：source=plan 是旧版自动
+    # 补源/翻牌残渣，不是用户心愿——看板读口兜底清除（scheduled +
+    # wishlist），历史库/旁路写入/其他进程旧码产生的引擎行即时消失。
+    # booked 真实订单保留（订单栏自有真相）。与 plan._sync_planned_rows
+    # 同口径，双保险。
+    for group_name in ("scheduled", "wishlist"):
+        for item in list(body.get(group_name) or []):
+            if item.get("source") != "plan":
+                continue
+            try:
+                service.delete(item["id"])
+            except Exception:
+                logger.warning(
+                    "trip-items: engine planned row delete failed id=%s group=%s",
+                    item.get("id"),
+                    group_name,
+                    exc_info=True,
+                )
+                continue
+            body[group_name].remove(item)
     # 2026-11-12 死行程闸判活（「排上了还在心愿单」振荡根因）：聊天重排换
     # 新 itinerary_id 且按 10-20 拍板未入库，store.get miss ≠ 行程已删——
     # 以本设备在册会话的工作行程 id 豁免回翻。会话存储单例与 plan 端点
@@ -160,30 +197,16 @@ async def list_trip_items(
                     dead_trips.add(trip_id)
             item["itinerary_name"] = names[trip_id]
     # 2026-10-31（看熊猫案）：scheduled 行挂的行程已删（释放机制上线前
-    # 的存量孤儿/旁路删除）——已排期栏必须真实。
-    # 2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 引擎行死行程
-    # =删除（心愿单永不得现形非用户输入行；行程在册则下轮
-    # _sync_planned_rows 自动重建），用户来源行（chat/manual/paste/
-    # agent_recommend）就地回心愿单（note 剥「已安排」尾段，
-    # service.update 写穿 PG），本次响应即按新分组返回。
+    # 的存量孤儿/旁路删除）——已排期栏必须真实。用户来源行
+    # （chat/manual/paste/agent_recommend）就地回心愿单（note 剥「已安排」
+    # 尾段，service.update 写穿 PG），本次响应即按新分组返回。
+    # source=plan 引擎行已在上方统一清除（2026-11-13 已排期只放心愿单）。
     # booked 行保留真实订单；无归属（itinerary_id 空）的 scheduled 行留给
     # 状态机，不猜测。
     if dead_trips and body.get("scheduled"):
         for item in list(body["scheduled"]):
             trip_id = item.get("itinerary_id")
             if not trip_id or trip_id not in dead_trips:
-                continue
-            if item.get("source") == "plan":
-                try:
-                    service.delete(item["id"])
-                except Exception:
-                    logger.warning(
-                        "trip-items: dead-trip planned row delete failed id=%s",
-                        item.get("id"),
-                        exc_info=True,
-                    )
-                    continue
-                body["scheduled"].remove(item)
                 continue
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)
@@ -216,8 +239,10 @@ async def get_trip_item(
 async def patch_trip_item(
     item_id: str,
     request: PatchTripItemRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
 ) -> dict:
+    _ensure_owned(service, item_id, x_device_id)
     try:
         return service.update(
             item_id,
@@ -237,8 +262,10 @@ async def patch_trip_item(
 @router.delete("/{item_id}", status_code=204)
 async def delete_trip_item(
     item_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
 ) -> None:
+    _ensure_owned(service, item_id, x_device_id)
     try:
         service.delete(item_id)
     except NotFoundError:
