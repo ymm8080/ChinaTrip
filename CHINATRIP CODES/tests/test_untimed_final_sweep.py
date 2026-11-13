@@ -14,7 +14,11 @@ None-None 垫在 19:30《梦回大唐》之后交付，腿标注再画一条 64.
 
 from datetime import time as _t
 
-from app.services.agent.plan import PlanningAgent, drop_dangling_visits
+from app.services.agent.plan import (
+    PlanningAgent,
+    _fallback_sequence_times,
+    drop_dangling_visits,
+)
 from app.services.itinerary.legs import annotate_legs, leg_pairs
 from app.services.itinerary.models import (
     DayPlan,
@@ -998,4 +1002,96 @@ def test_rescue_includes_pinned_untimed_show():
     show = next(i for d in out.days for i in d.items if i.item_id == "show-1")
     assert show.day == 2 and show.start_time is not None, (
         "钉住演出无时刻必须救生落场，不得灰卡滞留端点日"
+    )
+
+
+# --- 2026-11-13 拍板「心愿单必须达成，可删其它不重要景点」兑现锚 -------------
+
+
+def test_finalize_fallback_runs_after_solve_success_for_pinned_must():
+    """CP 重解返回「成功」计划≠全员落档：钉住必去在 solve 无排程域
+    （room_sweep 腾位后仍灰卡）时，成功分支此前跳过兜底链直送终局
+    （陕历博返程日 None-None 案）。只要还有未排参访就必须补一轮兜底。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="m1",
+                name="某钉住必去",
+                city="成都",
+                day=1,
+                category="museum",
+                duration_minutes=120,
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-fb-after-ok", cities=["成都"], days=[day], assumptions=[]
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    # 假 solve 恒返回计划（≠None=「成功」）但 120min 条目在 max=60 下
+    # 永不落档——正是旧码跳过兜底的形态。
+    agent._solve = _greedy_solve(max_minutes=60)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan)
+    must = next(i for d in out.days for i in d.items if i.item_id == "m1")
+    assert must.start_time is not None, "solve 成功≠全员落档：钉住必去必须兜底落时刻"
+
+
+def test_fallback_never_skips_pinned_second_afternoon_big():
+    """「第二个下午大点」软跳只约束普通卡：钉住必去即使与本日已排
+    下午大点相距 >5km（非贴邻），兜底也恒放行落位（点名必排，排不上
+    删弱件腾位——room_sweep 已先行腾位，软让位不得再拦）。"""
+    xy_a = GeoPoint(lon=104.06, lat=30.60)  # 城区锚
+    xy_b = GeoPoint(lon=104.10, lat=30.65)  # 距锚约 6.7km（>5km 非贴邻、短腿可达）
+    day = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="am1",
+                name="某上午小点",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=60,
+                start_time=_t(9, 0),
+                end_time=_t(10, 0),
+                location=xy_a,
+            ),
+            VisitItem(
+                item_id="big1",
+                name="某下午大点",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=90,
+                start_time=_t(13, 0),
+                end_time=_t(14, 30),
+                location=xy_a,
+            ),
+            VisitItem(
+                item_id="must2",
+                name="某钉住必去大点",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=90,
+                pinned=True,
+                must=True,
+                location=xy_b,
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-fb-pinned-big", cities=["成都"], days=[day], assumptions=[]
+    )
+    _fallback_sequence_times(plan)
+    must2 = next(i for i in plan.days[0].items if i.item_id == "must2")
+    assert must2.start_time is not None, (
+        "钉住必去不受第二个下午大点软跳约束，兜底必须落位"
     )

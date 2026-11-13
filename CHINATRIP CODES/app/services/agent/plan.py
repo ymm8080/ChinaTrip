@@ -8770,6 +8770,10 @@ def _fallback_sequence_times(
                     and _is_big_site(visit)
                     and afternoon_big_exists
                     and t >= AFTERNOON_START_MINUTES
+                    # 2026-11-13 拍板「点名必排，排不上删其它景点」：钉住
+                    # 必去不受「第二个下午大点」软跳约束——软让位规则只管
+                    # 普通卡，必去兜底恒放行（room_sweep 已先腾位）。
+                    and not getattr(visit, "pinned", False)
                 ):
                     # 下午单大点兜底镜像（2026-11-04 拍板）：同日下午已有
                     # 大点，第二个留空交挪日/披露，不硬塞。
@@ -8974,6 +8978,21 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
     day_end = 21 * 60 + 30
     for day in plan.days:
         _fixed, fixed_tight, flex_lunches, _xfer = _day_fixed_windows(day)
+        # 真餐件窗（2026-11-13 用户拍板「餐厅应该插入午餐卡/晚餐卡」）：
+        # 真实餐卡占了占位餐窗 → 占位撤除、真餐卡即餐卡，不再把占位挤到
+        # 真餐旁并排两张餐卡（11:30 空白午饭+12:00 餐厅并存款）。占位本
+        # 就 pinned=False 可换可删，顶位不违铁律 19。
+        real_meals = [
+            (s, e)
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and getattr(i, "category", "") == "food"
+            and not is_lunch_placeholder(i)
+            and not is_dinner_placeholder(i)
+            and i.start_time is not None
+            for s, e in [(_minutes_of(i.start_time), _item_end_minutes(i))]
+            if e is not None
+        ]
         lunches = [
             (i, _minutes_of(i.start_time), int(i.duration_minutes or 90))
             for i in day.items
@@ -9011,6 +9030,14 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
                     min(day_end - original_dur, preferred + 30),
                 )
             )
+            if any(s < hi + max(durations) and e > lo for s, e in real_meals):
+                day.items.remove(meal)
+                logger.warning(
+                    "plan: meal placeholder absorbed by real food day %d %s",
+                    day.day,
+                    meal.item_id,
+                )
+                continue
             current_end = _item_end_minutes(meal)
             current_start = _minutes_of(meal.start_time) if meal.start_time else None
             if (
@@ -10992,9 +11019,10 @@ _CATEGORY_NEARBY_RADIUS_M = 30000
 def _geo_cluster_day(
     days: list[DayPlan], location: GeoPoint | None, *, fallback: int
 ) -> int:
-    """插入件入族择日（2026-11-13「插入的景点按地理排族」拍板）：有坐标
-    时取已布非餐参访离新点最近（到最近邻距离最小）的天=地理族归属；
-    并列/无坐标/全城无已布点回退 fallback（调用方轮转口径）。"""
+    """插入件入族择日（2026-11-13「插入的景点按地理排族」拍板；同日晚间
+    用户扩面：参考点**全类型**——餐/酒店同算，不限非餐）：有坐标时取已布
+    参访（含 food/hotel，有坐标者）离新点最近（到最近邻距离最小）的天=
+    地理族归属；并列/无坐标/全城无已布点回退 fallback（调用方轮转口径）。"""
     if location is None or not days:
         return fallback
     best_day: int | None = None
@@ -11003,9 +11031,7 @@ def _geo_cluster_day(
         pts = [
             i.location
             for i in d.items
-            if isinstance(i, VisitItem)
-            and (i.category or "") != "food"
-            and i.location is not None
+            if isinstance(i, VisitItem) and i.location is not None
         ]
         if not pts:
             continue
@@ -12276,8 +12302,9 @@ class PlanningAgent:
         poi_id: object,
         item_id: str,
     ) -> VisitItem:
-        """A user-must restaurant as a pinned food item in the freest meal
-        window of the day that currently has the fewest meals."""
+        """A user-must restaurant as a pinned food item: day by geographic
+        cluster (nearest placed visit of any category), falling back to the
+        day with the fewest meals; slot = lunch/dinner by meal count."""
         # 必吃 > 顺路推荐：目标日已自动插的顺路餐厅（item_id=food-d…
         # build_food_item 契约）让位——否则用户餐窗被占去晚餐，撞晚间
         # 交通 90 分钟衔接缓冲（2026-10-31 喝茶案）。让位语义即「回复
@@ -12291,9 +12318,17 @@ class PlanningAgent:
         # 落在以本城为基地的日子（茶馆不排异城日）；行程无本城日
         # （城市未标注/当日纯交通）才全局挑最闲。
         city_days = [d.day for d in session.plan.days if d.base_city.strip() == city]
-        day = min(
+        # 地理族择日（2026-11-13 用户扩面拍板：参考点全类型含餐/酒店——
+        # 选餐厅有 5/8/15km 距离闸，择日不看地址是结构性错配）：点名餐厅
+        # 按已布参访最近邻入族（醉长安案=被「餐数最少」均衡挂到临潼日），
+        # 餐数最少日降作 fallback（无坐标/全城无已布点时维持原口径）。
+        fallback = min(
             city_days or food_counts.keys(),
             key=lambda dn: (food_counts[dn], dn),
+        )
+        pool = [d for d in session.plan.days if d.day in set(city_days)]
+        day = _geo_cluster_day(
+            pool or list(session.plan.days), location, fallback=fallback
         )
         day_plan = next(d for d in session.plan.days if d.day == day)
         # 让位落地：目标日仅有的 food 若是自动插入的午餐件（顺路餐厅或
@@ -19989,7 +20024,12 @@ class PlanningAgent:
                     [own_day] + [d for d in plan.days if d is not own_day],
                     key=lambda d: (_tgt_is_ep(d), 0 if d is own_day else 1),
                 )
+                adopted = False
                 for target in targets:
+                    if _stay and target is own_day:
+                        # 违例必去同日重解无解：pinned 时刻在 CP 是固定档，
+                        # 原地试宿只会原样采纳成空转，只试跨日宿主。
+                        continue
                     if target is not own_day:
                         if (
                             str(target.base_city or "").strip().removesuffix("市")
@@ -20038,6 +20078,13 @@ class PlanningAgent:
                                 v.soft_pin = False
                     resolved = self._solve(trial, meal_flex=True)
                     cand = resolved if resolved is not None else trial
+                    if resolved is None:
+                        # 降级兜底镜像（2026-11-13 拍板「心愿单必须达成，可删
+                        # 其它不重要景点」）：CP 试宿返回 None 时克隆并非终局——
+                        # 房间已让出、必去已摘钉，兜底链能把必去落进空档（陕历博
+                        # 挂返程日灰卡案：solve 全候选日 None，未兜底即回滚）。不
+                        # 兜底=降级救生通道恒空转。
+                        _fallback_sequence_times(cand)
                     placed = any(
                         isinstance(v, VisitItem)
                         and v.item_id == must.item_id
@@ -20272,7 +20319,11 @@ class PlanningAgent:
             resolved.unplaced = plan.unplaced
             plan = resolved
             annotate_legs(plan)
-        else:
+        # 2026-11-13 拍板「心愿单必须达成」：solve 成功≠全员落档——钉住/
+        # 必去在 CP 无排程域（room_sweep 后仍灰卡），solve 走的成功分支
+        # 此前跳过兜底，灰卡直送终局（陕历博返程日 None-None 案）。只要
+        # 还有未排参访就补一轮兜底（只填未排项，不动已解时刻）。
+        if _has_untimed_visits(plan):
             _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
             # 必去跨日救生（2026-11-11 拍板）：钉住必去同日清算仍无时刻时
