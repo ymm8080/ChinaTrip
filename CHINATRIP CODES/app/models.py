@@ -438,6 +438,14 @@ class ItineraryItem(Base):
     alt1: Mapped[str | None] = mapped_column(String(200))
     alt2: Mapped[str | None] = mapped_column(String(200))
     alt3: Mapped[str | None] = mapped_column(String(200))
+    # 2026-11-13（用户「先想清楚还缺什么」）：可回溯列——plan item_id /
+    # POI 业务号 / 行种类 / 城际段起止城与班次（transfer 行没有 name）。
+    item_ref: Mapped[str | None] = mapped_column(String(64))
+    poi_ref: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str | None] = mapped_column(String(20))
+    from_city: Mapped[str | None] = mapped_column(String(50))
+    to_city: Mapped[str | None] = mapped_column(String(50))
+    transport_no: Mapped[str | None] = mapped_column(String(32))
 
 
 class ItineraryChangeLog(Base):
