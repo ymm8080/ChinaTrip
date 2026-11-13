@@ -90,6 +90,49 @@ def test_match_terms_full_name_plus_stripped_variant():
     assert _match_terms("  ") == []
 
 
+def test_match_terms_adds_first_segment_for_subtitle_names():
+    """副标题长名（·/空格分栏）补首段档：amap 侧真名通常只到首段。"""
+    from app.services.poi_photos import _match_terms
+
+    assert _match_terms("乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)") == [
+        "乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)",
+        "乔街深夜食堂·生腌熟醉·高压生蚝",
+        "乔街深夜食堂",
+    ]
+    # 空格分栏同切；单字段不参与
+    assert _match_terms("Tsuru 鹤日本料理") == ["Tsuru 鹤日本料理", "鹤日本料理"]
+    assert _match_terms("南京晶丽酒店·南京精菜馆") == [
+        "南京晶丽酒店·南京精菜馆",
+        "南京晶丽酒店",
+    ]
+
+
+def test_search_keyword_prefers_first_segment():
+    """around 关键词口径：首段 > 去括号全名 > 原串。"""
+    from app.services.poi_photos import _search_keyword
+
+    assert _search_keyword("乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)") == "乔街深夜食堂"
+    assert _search_keyword("老火锅（解放碑店）") == "老火锅"
+    assert _search_keyword("洪崖洞") == "洪崖洞"
+    assert _search_keyword("Yong") == "Yong"
+
+
+def test_around_params_sends_segment_keyword(monkeypatch):
+    """_around_params 组装：keywords=首段、radius/page_size/show_fields 口径不变。"""
+    import app.services.poi_photos as pp
+
+    monkeypatch.setattr(
+        pp, "get_settings", lambda: SimpleNamespace(amap_api_key="test-key")
+    )
+    params = pp._around_params("南京晶丽酒店·南京精菜馆", (118.78, 32.06))
+    assert params["keywords"] == "南京晶丽酒店"
+    assert params["key"] == "test-key"
+    assert params["location"] == "118.780000,32.060000"
+    assert params["radius"] == "3000"
+    assert params["page_size"] == "10"
+    assert params["show_fields"] == "business,photos"
+
+
 # --- fetch_photo_chain：v5 place/around 档（无 amap id 行） ----------------------
 
 

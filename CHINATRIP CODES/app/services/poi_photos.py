@@ -162,18 +162,70 @@ def _row_lonlat(location: object) -> tuple[float, float] | None:
         return None
 
 
+#: 副标题分隔符（"店名·品类·招牌" / 空格分栏）。
+_SEG_SPLIT_RE = re.compile(r"[·•・\s]+")
+
+#: CJK 判据：分段择优时 precedence 给含中文的段（"Tsuru 鹤日本料理"→
+#: "鹤日本料理"），amap 索引以中文名为主。
+_CJK_RE = re.compile(r"[一-龥]")
+
+
+def _base_segment(name_zh: str) -> str:
+    """去括号全名里的核心段（·/•/空格切）：优先首个含中文段，全英文
+    名回退首段；≥2 字才取，取不出返回空串。
+
+    amap 真实 POI 名极少带「·品类·招牌」副标题（2026-11-13 探针口径）：
+    '乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)' 在 amap 侧通常只叫
+    '乔街深夜食堂(滨盛路店)'——核心段是双向包含唯一能命中的载体。
+    """
+    base = _BRACKET_RE.sub("", name_zh or "").strip()
+    segs = [s.strip() for s in _SEG_SPLIT_RE.split(base) if len(s.strip()) >= 2]
+    for seg in segs:
+        if _CJK_RE.search(seg):
+            return seg
+    return segs[0] if segs else ""
+
+
 def _match_terms(name_zh: str) -> list[str]:
-    """around 本地名匹配词：全名 + 去括号变体，保序去重。
+    """around 本地名匹配词：全名 + 去括号全名 + 去括号首段，保序去重。
 
     匹配口径 amap_client._name_like（双向包含、去空格、单字不参与），
     在 _amap_around_photos 内逐候选套用。
     """
     base = name_zh.strip()
+    stripped = _BRACKET_RE.sub("", base).strip()
     out: list[str] = []
-    for term in (base, _BRACKET_RE.sub("", base).strip()):
+    for term in (base, stripped, _base_segment(base)):
         if term and term not in out:
             out.append(term)
     return out
+
+
+def _search_keyword(name_zh: str) -> str:
+    """around 搜索关键词：有副标题分段的取首段，否则去括号全名，再否则原串。
+
+    池稀缺时一行只发一次关键词调用（不翻倍耗量）——首段比全名召回率高：
+    '乔街深夜食堂·生腌熟醉·高压生蚝' 全名送检索，amap 相关度排序容易整串
+    落空；'乔街深夜食堂' 能直接字体命中同一 POI。
+    """
+    seg = _base_segment(name_zh)
+    if seg:
+        return seg
+    stripped = _BRACKET_RE.sub("", name_zh or "").strip()
+    return stripped or (name_zh or "").strip()
+
+
+def _around_params(name_zh: str, lonlat: tuple[float, float]) -> dict[str, str]:
+    """v5 /place/around 请求参数（独立函数便于测试关键词口径）。"""
+    return {
+        "key": get_settings().amap_api_key,
+        "keywords": _search_keyword(name_zh),
+        "location": f"{lonlat[0]:.6f},{lonlat[1]:.6f}",
+        "radius": _AMAP_AROUND_RADIUS_M,
+        "page_size": str(_AMAP_AROUND_PAGE_SIZE),
+        "show_fields": "business,photos",
+        "output": "JSON",
+    }
 
 
 async def _amap_around_photos(
@@ -190,15 +242,7 @@ async def _amap_around_photos(
     上抛 AmapQuotaExhaustedError 供链上熔断；WAF 处罚/超时等其余异常
     上抛 AmapError 由 fetch_photo_chain 记 warning 降级 wikimedia。
     """
-    params = {
-        "key": get_settings().amap_api_key,
-        "keywords": name_zh,
-        "location": f"{lonlat[0]:.6f},{lonlat[1]:.6f}",
-        "radius": _AMAP_AROUND_RADIUS_M,
-        "page_size": str(_AMAP_AROUND_PAGE_SIZE),
-        "show_fields": "business,photos",
-        "output": "JSON",
-    }
+    params = _around_params(name_zh, lonlat)
     async with httpx.AsyncClient(
         timeout=_AMAP_TIMEOUT_SECONDS, headers=_BROWSER_HEADERS
     ) as http:

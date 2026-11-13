@@ -127,3 +127,19 @@
 
 - 无图库存 7,936 行，分源：chinatravel 5,307 / amap 1,203 / histvillage 411 / histown 179 / street 165 / 其余 ~700
 - **现实约束**：chinatravel 尾库多为小景点（无维基/马蜂窝页），免费源命中率极低；amap 规模化受配额争夺；100% 有图需企业 key。策略：①免费全链（ctrip便车+Commons+og+P18）分批磨到枯竭 ②00:05 调度每日 amap 补 ③mafengwo 会话按需
+
+---
+
+## 增补章节：00:00 抢跑计划 + around 名称匹配修复（2026-11-13 上午）
+
+### 抢跑（用户「go on」拍板，替代 ctrip 便车）
+
+- **结构坑（本轮发现）**：冷却戳源无感——Commons 齿轮把 5,003 无图行全盖 24h 戳，明晚 00:00 池重置时 around 批选不到它们（只能捡英文名米其林行=amap 匹配最弱）。→ `ops/rest_photos_race_prep.py`：抢跑前只对**中文名无图行**清戳（干跑 4,503 行，已回滚验证）。
+- **计划任务**：`ChinaTrip\rest photos race`（schtasks 一次性，2026-11-14 00:00；CronCreate 因本会话本身是调度任务运行中被禁，走仓库惯例 schtasks）。链路：指纹闸 → prep 清戳 → `backfill_restaurant_photos --limit 3000 --concurrency 2` → 台账+`ops/rest_photos_race.log`。错过后补跑/电池不拦已设。
+- **不做 ctrip 便车**：需改并行会话每 3 分钟自动化的 ctrip_hours/enrich_ctrip_detail 链，撞车风险 > 不确定收益。
+
+### around 名称匹配修复（直接抬抢跑命中率）
+
+- 病根：关键词发全名（`乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)`），amap 真实 POI 名只到「乔街深夜食堂(滨盛路店)」——相关度整串落空 + 双向包含永不过。
+- 修：`_base_segment`（副标题 ·/空格切分，优先含中文段）+ `_search_keyword`（关键词取核心段）+ `_match_terms` 三档（全名/去括号/核心段）+ `_around_params`（抽出可测）。单次调用不变（池稀缺不翻倍耗量）。26 用例过，ruff 绿。
+- 明文限制：英文名行（'Yong' 等）amap 仍匹配不了，不进抢跑池（prep 不清它们的戳）。
