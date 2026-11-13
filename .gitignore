@@ -166,3 +166,4 @@ CHINATRIP CODES/hist.txt
 !tmp_unesco/restore_unesco_museum_20261103.py
 !tmp_unesco/scrape_ncha_by_province.py
 !tmp_unesco/scrape_ncha_museum_dir.py
+keepalive_strikes.txt
