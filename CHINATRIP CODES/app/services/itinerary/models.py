@@ -113,6 +113,10 @@ class VisitItem(BaseModel):
     # 到达/离开日」）靠它认重磅（≤4）与轻 CityWalk（8=街区）；
     # None=占位/老数据按中档处理。
     tier: int | None = None
+    # 名录秩（2026-11-13 三拍定序「时长久不是优先因子」）：0=UNESCO 世界遗产
+    # 本体、10=curated/国际站精选、20=unesco_* 串号子项、30=5A 本体、40=其它；
+    # None=未分层。族日择日、让位弹座按本秩排，tier 只作同秩内次序。
+    site_rank: int | None = None
     # 同级备选（2026-11-05 拍板「每个点要有一个备选」）：展示层字段——
     # api/plan._plan_turn_body 装配期在深拷贝上挂（session.plan 本体永不
     # 携带，持久化不留展示数据）；规则见 app.services.poi_alternatives

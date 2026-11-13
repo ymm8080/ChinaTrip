@@ -1051,6 +1051,32 @@ def _source_tier(cand: dict) -> int:
     return 11
 
 
+def _site_rank(cand: dict) -> int:
+    """名录秩（2026-11-13 用户三拍定序，取代旧「tier 平手比时长」口径）。
+
+    0 = UNESCO 世界遗产本体（裸 unesco 标/源，兵马俑这类）
+    10 = curated / 国际站精选（华清宫、陕西历史博物馆这类）
+    20 = unesco_* 串号子项（丝路等，大雁塔大唐芙蓉园）
+    30 = 5A 本体（城墙·碑林历史文化景区）
+    40 = 其它（临潼骊山这类风景区）
+
+    档序只认名录与来源：时长绝不参与排序（2026-11-13 实录「180 分钟的大雁塔
+    压过 90 分钟的兵马俑」），tier 仅在同秩内作次序。族日择日、让位弹座、
+    卡片透传（VisitItem.site_rank）全部走本函数。
+    """
+    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
+    src = str(cand.get("source") or "").strip().lower()
+    if "unesco" in tags or src == "unesco":
+        return 0
+    if src == "curated" or tags & {"curated", "intl"}:
+        return 10
+    if any(t.startswith("unesco_") for t in tags):
+        return 20
+    if src == "5a" or "5a" in tags:
+        return 30
+    return 40
+
+
 def _cand_is_curated(cand: dict) -> bool:
     """池侧 curated（精选库）行判据（2026-11-08 拍板「我说的是 CURATED，
     不是 CREATED flag」）：source='curated'（36 城宴会普查 seed_banquet_
@@ -7579,13 +7605,14 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             def _is_board_card(v: "VisitItem") -> bool:
                 return str(getattr(v, "category", "") or "") in ("food", "hotel")
 
-            flagship = sorted(
-                fam,
-                key=lambda v: (
-                    _fam_tier(v),
-                    -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
-                ),
-            )[0]
+            def _fam_rank(v: "VisitItem") -> int:
+                r = getattr(v, "site_rank", None)
+                return r if isinstance(r, int) and r >= 0 else 9
+
+            def _fam_key(v: "VisitItem") -> tuple[int, int, str]:
+                return (_fam_rank(v), _fam_tier(v), str(v.name or ""))
+
+            flagship = sorted(fam, key=_fam_key)[0]
             open_days = [
                 d
                 for d in days
@@ -7666,7 +7693,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                 isinstance(x, VisitItem)
                                 and not _is_board_card(x)
                                 and not any(x is f for f in fam)
-                                and (getattr(x, "tier", 11) or 11) > _fam_tier(flagship)
+                                and (_fam_rank(x), _fam_tier(x))
+                                > (_fam_rank(flagship), _fam_tier(flagship))
                                 and not _exempt(x)
                                 and not getattr(x, "created", False)
                                 and not getattr(x, "curated", False)
@@ -7683,7 +7711,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                 _host_day_for_visit(
                                     [anchor],
                                     vcity,
-                                    flagship.duration_minutes or DEFAULT_VISIT_MINUTES,
+                                    flagship.duration_minutes
+                                    or DEFAULT_VISIT_MINUTES,
                                     visit=flagship,
                                     all_days=plan.days,
                                     _rescue=True,
@@ -7698,8 +7727,8 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                     if isinstance(x, VisitItem)
                                     and not _is_board_card(x)
                                     and not any(x is f for f in fam)
-                                    and (getattr(x, "tier", 11) or 11)
-                                    > _fam_tier(flagship)
+                                    and (_fam_rank(x), _fam_tier(x))
+                                    > (_fam_rank(flagship), _fam_tier(flagship))
                                     and not _exempt(x)
                                     and not getattr(x, "created", False)
                                     and not getattr(x, "curated", False)
@@ -21456,6 +21485,7 @@ class PlanningAgent:
                     # tier≤4=重磅（避开转场日）、8=街区轻 CityWalk（边日
                     # 优先）；占位候选（cand=None）无档按中档处理
                     tier=(_source_tier(cand) if cand else None),
+                    site_rank=(_site_rank(cand) if cand else None),
                     day=spec["day"],
                     start_time=start_time,
                     end_time=end_time,
@@ -24840,6 +24870,7 @@ class PlanningAgent:
             # 名录档随候选行走（2026-11-06 备选实录：换入行不带档会被当
             # 未分层，同级备选全落 t10 杂馆——装配期 _source_tier 同口径）
             tier=(_source_tier(cand) if cand else None),
+            site_rank=(_site_rank(cand) if cand else None),
             day=old.day,
             duration_minutes=dur,
         )
