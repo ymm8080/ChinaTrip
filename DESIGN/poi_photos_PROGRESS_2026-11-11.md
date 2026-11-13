@@ -169,3 +169,28 @@
 最终来源分布：amap 1,667 / **wikimedia 1,402** / ctrip 463 / mafengwo 81 / NULL 6。
 
 **天花板说明**：剩余 6,988 行无图，其中 chinatravel 尾库占大半（无维基/马蜂窝页）；免费源已榨干。继续爬升的三条路：①每日 00:05 错峰 amap 批量（已建调度，自动跑）②24h 冷却过期后免费池再开一轮（次日自动可跑）③企业 key 升级（用户侧，唯一根治）。马蜂窝按需过闸续收。
+
+---
+
+## 增补章节：马蜂窝餐厅连轴收割手册（2026-11-13 下午，可续跑）
+
+### 当前基数
+
+- restaurants 有图 **116/5,088 = 2.28%**（wikimedia 85 + mafengwo 31 店 ~97 图）；读侧三端点已上线，有图即 H5 可见。
+- 收割产物：`_tmp_probe_web/mfw_harvest_restaurants_2026-11-13{,_b2.._b6}.json`；入库脚本 `ops/ingest_restaurant_photos_mafengwo.py`（fill-empty-only + name 精确 + normalize_photos + photos_source='mafengwo'）。
+
+### 操作手册（照单执行）
+
+1. **取名单**：`SELECT name_zh, city FROM restaurants WHERE status='active' AND photos IS NULL AND name_zh ~ '[一-龥]' ORDER BY (tags_source IS NULL), id OFFSET N LIMIT 25`
+2. **浏览器**：IAB 打开 mafengwo；搜索页 `https://www.mafengwo.cn/search/q.php?q=<去括号名>`；poi 链接 = `a[href*='sharejump.php?type=3']`（提取 id）；poi 页 `https://www.mafengwo.cn/poi/<id>.html` → 下滚 6-7 屏 → 收 `(p|b)\d+-q.mafengwo.net` 原图（naturalWidth≥200，剥 ?query，≤8）。
+3. **四道闸**（缺一不可，全部踩过坑）：
+   - 全站通用图剔：`https://p1-q.mafengwo.net/s1/M00/6C/51/wKgIC1t_6TuASybrAADGUPUHjr021.jpeg` 每页都有，必须拉黑；
+   - 类型闸：标题 `景点-`/`酒店-` 前缀拒收（马房湾七彩巷教训）；
+   - 分店闸：库名带（XX店）时，搜索结果/页面标题的分店名必须一致；
+   - **标题前缀城市闸**：poi 页 title 形如「{城市}{店名}点评/餐厅介绍」——店名前的城市前缀必须含 DB city（大蓉和张家界/厚贞杨浦/七欣天宁波/无锡古韵轩/珠海大三元/多伦多富临门/郑州都会尚膳/上海上房火鍋 8 起同名错配全靠它拦住）。
+4. **节奏与限流**：连续快访 ~10-15 个 poi 页触发软封（搜索页正常、poi 页空白，5-10 分钟自动解）；偶发 TCaptcha 滑块需**人工拖一次**（会话级有效）。可持续节奏：每拍 3 目标、间距 5-6s、拍间 60-90s；质量优先于速度。
+5. **入库**：每波写 `mfw_harvest_restaurants_*.json` → `python ops/ingest_restaurant_photos_mafengwo.py <json>`；台账 `ops/p1_data_tasks_progress.md` 记 before/after 覆盖率。
+
+### 今日已验证的错配案例（沉淀为闸的由来）
+
+FLAIR（成都同名）、大蓉和（张家界）、厚贞（上海杨浦）、七欣天（宁波）、古韵轩（无锡）、大三元（珠海）、富临门（多伦多）、都会尚膳（郑州）、上房火鍋（上海vs杭州）——全部弃收未入库（大蓉和曾误入 1 行，已回滚）。
