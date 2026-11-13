@@ -2285,11 +2285,7 @@ def test_delete_night_card_removes_next_morning_card():
         )
     assert resp.status_code == 200
     data = resp.json()
-    ids = [
-        i.get("item_id")
-        for d in data["plan"]["days"]
-        for i in d["items"]
-    ]
+    ids = [i.get("item_id") for d in data["plan"]["days"] for i in d["items"]]
     assert "hotel-night-d1" not in ids
     assert "hotel-morning-d2" not in ids
     assert "hotel-morning-d3" in ids

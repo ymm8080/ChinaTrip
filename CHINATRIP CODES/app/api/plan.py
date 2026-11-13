@@ -774,11 +774,7 @@ async def delete_plan_item(
     diffs = [DiffOp(op="remove", item_id=item_id)]
     # 2026-11-13 续（每天出发点是 HOTEL）：删夜卡=这一晚不住店，次日
     # 「🏨 从酒店出发」晨卡一并移除——否则次日仍声称从酒店出发。
-    pair = (
-        paired_hotel_card(plan_before.days, item)
-        if is_hotel_night(item)
-        else None
-    )
+    pair = paired_hotel_card(plan_before.days, item) if is_hotel_night(item) else None
     if pair is not None:
         diffs.append(DiffOp(op="remove", item_id=pair.item_id))
     new_plan, _, _ = mutate(
