@@ -208,6 +208,7 @@ def test_adjacent_restaurant_absorbs_same_card_placeholder():
     _retime_meal_placeholders(plan, ensure_cards=False)
     assert [i.name for i in plan.days[0].items] == ["某餐厅"]
 
+
 # --- 真餐卡落位闸（2026-11-13 福和慧/老吉士「未排」案）---------------------
 
 
@@ -365,6 +366,7 @@ def test_untimed_restaurant_does_not_squeeze_against_flight_departure():
     _retime_real_food_cards(plan)
     assert resto.start_time is None
 
+
 # --- 餐卡随时段：下午茶档 + 按动线择卡（2026-11-13 用户「或者下午茶」
 #     「所有的餐厅都应该进入午餐卡或者晚餐卡」「按照时间可以决定」）-------
 
@@ -380,25 +382,53 @@ def test_meal_card_slot_has_afternoon_tea_bucket():
 def test_squeezed_lunch_restaurant_moves_to_dinner():
     """老吉士案：11:45–12:30 硬塞在两个景点之间（晚饭卡整晚空着）→ 改晚餐卡。"""
     sight1 = VisitItem(
-        item_id="v1", name="东方明珠", category="attraction", city="上海", day=2,
-        start_time=time(9, 0), end_time=time(11, 45), duration_minutes=165,
+        item_id="v1",
+        name="东方明珠",
+        category="attraction",
+        city="上海",
+        day=2,
+        start_time=time(9, 0),
+        end_time=time(11, 45),
+        duration_minutes=165,
     )
     sight2 = VisitItem(
-        item_id="v2", name="豫园", category="park", city="上海", day=2,
-        start_time=time(12, 34), end_time=time(14, 4), duration_minutes=90,
+        item_id="v2",
+        name="豫园",
+        category="park",
+        city="上海",
+        day=2,
+        start_time=time(12, 34),
+        end_time=time(14, 4),
+        duration_minutes=90,
     )
     sight3 = VisitItem(
-        item_id="v3", name="南京东路步行街", category="attraction", city="上海", day=2,
-        start_time=time(14, 38), end_time=time(16, 8), duration_minutes=90,
+        item_id="v3",
+        name="南京东路步行街",
+        category="attraction",
+        city="上海",
+        day=2,
+        start_time=time(14, 38),
+        end_time=time(16, 8),
+        duration_minutes=90,
     )
     resto = VisitItem(
-        item_id="v171", name="老吉士酒家（天平路店）", poi_id="p1", category="food",
-        city="上海", day=2, start_time=time(11, 45), end_time=time(12, 30),
-        duration_minutes=60, opening_hours="11:00-14:30,17:00-21:30",
-        pinned=True, soft_pin=True, curated=True,
+        item_id="v171",
+        name="老吉士酒家（天平路店）",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=2,
+        start_time=time(11, 45),
+        end_time=time(12, 30),
+        duration_minutes=60,
+        opening_hours="11:00-14:30,17:00-21:30",
+        pinned=True,
+        soft_pin=True,
+        curated=True,
     )
     plan = ItineraryPlan(
-        itinerary_id="it1", cities=["上海"],
+        itinerary_id="it1",
+        cities=["上海"],
         days=[DayPlan(day=2, base_city="上海", items=[sight1, resto, sight2, sight3])],
     )
     _retime_real_food_cards(plan)
@@ -410,21 +440,45 @@ def test_squeezed_lunch_restaurant_moves_to_dinner():
 def test_untimed_restaurant_takes_tea_slot_when_lunch_and_dinner_taken():
     """午卡被景点占、晚卡已有餐厅 → 落下午茶卡（所有餐厅都要有卡）。"""
     lunch_sight = VisitItem(
-        item_id="v1", name="上海博物馆", category="museum", city="上海", day=3,
-        start_time=time(11, 0), end_time=time(14, 0), duration_minutes=180,
+        item_id="v1",
+        name="上海博物馆",
+        category="museum",
+        city="上海",
+        day=3,
+        start_time=time(11, 0),
+        end_time=time(14, 0),
+        duration_minutes=180,
     )
     dinner = VisitItem(
-        item_id="v200", name="绿波廊", category="food", city="上海", day=3,
-        start_time=time(18, 30), end_time=time(19, 30), duration_minutes=60,
-        pinned=True, soft_pin=True,
+        item_id="v200",
+        name="绿波廊",
+        category="food",
+        city="上海",
+        day=3,
+        start_time=time(18, 30),
+        end_time=time(19, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
     )
     resto = VisitItem(
-        item_id="v201", name="某甜品店", poi_id="p1", category="food", city="上海",
-        day=3, start_time=None, end_time=None, duration_minutes=60,
-        opening_hours="10:00-22:00", pinned=True, soft_pin=True, curated=True,
+        item_id="v201",
+        name="某甜品店",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=3,
+        start_time=None,
+        end_time=None,
+        duration_minutes=60,
+        opening_hours="10:00-22:00",
+        pinned=True,
+        soft_pin=True,
+        curated=True,
     )
     plan = ItineraryPlan(
-        itinerary_id="it1", cities=["上海"],
+        itinerary_id="it1",
+        cities=["上海"],
         days=[DayPlan(day=3, base_city="上海", items=[lunch_sight, dinner, resto])],
     )
     _retime_real_food_cards(plan)
@@ -435,17 +489,34 @@ def test_untimed_restaurant_takes_tea_slot_when_lunch_and_dinner_taken():
 def test_user_pinned_restaurant_time_is_never_retimed():
     """用户手钉的时刻（pinned 且非 soft_pin）绝不因动线复审被挪。"""
     dinner = VisitItem(
-        item_id="v200", name="绿波廊", category="food", city="上海", day=4,
-        start_time=time(18, 30), end_time=time(19, 30), duration_minutes=60,
-        pinned=True, soft_pin=True,
+        item_id="v200",
+        name="绿波廊",
+        category="food",
+        city="上海",
+        day=4,
+        start_time=time(18, 30),
+        end_time=time(19, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
     )
     resto = VisitItem(
-        item_id="v201", name="手钉午市", poi_id="p1", category="food", city="上海",
-        day=4, start_time=time(12, 0), end_time=time(13, 0), duration_minutes=60,
-        opening_hours="10:00-22:00", pinned=True, soft_pin=False,
+        item_id="v201",
+        name="手钉午市",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=4,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        opening_hours="10:00-22:00",
+        pinned=True,
+        soft_pin=False,
     )
     plan = ItineraryPlan(
-        itinerary_id="it1", cities=["上海"],
+        itinerary_id="it1",
+        cities=["上海"],
         days=[DayPlan(day=4, base_city="上海", items=[dinner, resto])],
     )
     _retime_real_food_cards(plan)

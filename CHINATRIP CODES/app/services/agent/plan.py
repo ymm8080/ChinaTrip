@@ -10019,9 +10019,10 @@ def _retime_real_food_cards(plan: ItineraryPlan) -> list[str]:
             t, dur = slot
             # 只认「更贴动线」（时长不打折 + 餐后条目更少）；「更早开席」
             # 只是无时刻补位时的平手裁决，不能拿它把已排好的晚宴挪回午市。
-            if _food_slot_score(t, dur, base, blockers)[:2] >= _food_slot_score(
-                cur_t, cur_dur, base, blockers
-            )[:2]:
+            if (
+                _food_slot_score(t, dur, base, blockers)[:2]
+                >= _food_slot_score(cur_t, cur_dur, base, blockers)[:2]
+            ):
                 item.start_time, item.end_time, item.duration_minutes = old
                 continue
             item.start_time = time(t // 60, t % 60)
@@ -10073,9 +10074,11 @@ def _retime_real_food_cards(plan: ItineraryPlan) -> list[str]:
     if failed:
         notes.append(
             L(
-                "餐卡已满、暂未落时刻：" + "、".join(failed)
+                "餐卡已满、暂未落时刻："
+                + "、".join(failed)
                 + "（可删当天景点或改到其他天）",
-                "No free meal card for: " + ", ".join(failed)
+                "No free meal card for: "
+                + ", ".join(failed)
                 + " (drop a sight that day or move it to another day)",
             )
         )
