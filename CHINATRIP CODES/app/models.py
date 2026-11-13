@@ -7,7 +7,6 @@ from sqlalchemy import (
     TIME,
     TIMESTAMP,
     Boolean,
-
     Date,
     Float,
     ForeignKey,

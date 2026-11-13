@@ -168,8 +168,7 @@ def record_trip_change(
                 for pos, item in enumerate(getattr(day, "items", None) or []):
                     alts = getattr(item, "alternatives", None) or None
                     alt_names = [
-                        (getattr(a, "name", None) or "")[:200]
-                        for a in (alts or [])
+                        (getattr(a, "name", None) or "")[:200] for a in (alts or [])
                     ]
                     session.add(
                         ItineraryItem(
@@ -186,9 +185,7 @@ def record_trip_change(
                             city=(getattr(item, "city", None) or None),
                             category=(getattr(item, "category", None) or None),
                             address=(getattr(item, "address", None) or None),
-                            duration_minutes=getattr(
-                                item, "duration_minutes", None
-                            ),
+                            duration_minutes=getattr(item, "duration_minutes", None),
                             schedule_date=(
                                 start_date + timedelta(days=day.day - 1)
                                 if start_date is not None

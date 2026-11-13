@@ -3764,7 +3764,6 @@ def _is_trip_brief_wish(text: str) -> bool:
     return days is not None and days >= 1
 
 
-
 def _significant_units(s: str) -> frozenset[str]:
     """grounding 的最小信号单位：CJK 单字 + 拉丁词元（≥2 字符）。
 
