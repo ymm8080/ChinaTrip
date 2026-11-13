@@ -321,6 +321,88 @@ def test_list_groups_and_orders_three_states():
     assert len(resp.json()["wishlist"]) == 1
 
 
+def test_list_groups_tolerates_legacy_payload_without_timestamps():
+    """2026-11-13 看板 500（KeyError: 'created_at'）：旧版 H5 迁移/
+    旁路恢复行 payload 可能没有 created_at（PG 列也为 NULL），排序键
+    不得裸取键——整个 GET 会因此 500。"""
+    service = TripItemService()
+    service._items["legacy-wish"] = {
+        "id": "legacy-wish",
+        "itinerary_id": "t1",
+        "name": "陕西历史博物馆",
+        "city": "西安",
+        "note": None,
+        "status": "wishlist",
+        "source": "plan",
+        "poi_id": None,
+        "address": None,
+        "opening_hours": None,
+        "day": None,
+        "position": None,
+        "booking_id": None,
+    }
+    service._items["legacy-sched"] = {
+        "id": "legacy-sched",
+        "itinerary_id": "t1",
+        "name": "西安钟楼",
+        "city": "西安",
+        "note": None,
+        "status": "scheduled",
+        "source": "plan",
+        "poi_id": None,
+        "address": None,
+        "opening_hours": None,
+        "booking_id": None,
+        "created_at": "2026-11-13T06:13:44+00:00",
+    }
+    groups = service.list_groups("t1")
+    assert [i["name"] for i in groups["wishlist"]] == ["陕西历史博物馆"]
+    assert [i["name"] for i in groups["scheduled"]] == ["西安钟楼"]
+
+
+def test_list_groups_tolerates_string_day_and_position():
+    """2026-11-13 二拍：import_item / 旧版迁移入口可能把 day/position
+    写成字符串（payload 是读权威），int 与 str 比较同样 TypeError——
+    排序键必须先做数值归一，否则整个看板 GET 一起 500。"""
+    service = TripItemService()
+    service._items["sched-junk"] = {
+        "id": "sched-junk",
+        "itinerary_id": "t1",
+        "name": "脏数据",
+        "status": "scheduled",
+        "day": "abc",
+        "position": None,
+        "created_at": "2026-11-13T06:13:43+00:00",
+        "updated_at": "2026-11-13T06:13:43+00:00",
+    }
+    service._items["sched-str"] = {
+        "id": "sched-str",
+        "itinerary_id": "t1",
+        "name": "陕西历史博物馆",
+        "status": "scheduled",
+        "day": "2",
+        "position": "1.5",
+        "created_at": "2026-11-13T06:13:44+00:00",
+        "updated_at": "2026-11-13T06:13:44+00:00",
+    }
+    service._items["sched-int"] = {
+        "id": "sched-int",
+        "itinerary_id": "t1",
+        "name": "西安钟楼",
+        "status": "scheduled",
+        "day": 3,
+        "position": 2,
+        "created_at": "2026-11-13T06:13:45+00:00",
+        "updated_at": "2026-11-13T06:13:45+00:00",
+    }
+    groups = service.list_groups("t1")
+    assert [i["id"] for i in groups["scheduled"]] == [
+        "sched-junk",  # 解析失败按 0 天处理，仍留在看板上
+        "sched-str",  # "2" 归一成 2
+        "sched-int",  # 3
+    ]
+
+
 # --- list 回填行程名（2026-10-30：已排期心愿看板标注行程ID+行程名） -------------
 
 
@@ -419,8 +501,7 @@ def test_release_itinerary_moves_scheduled_back_to_wishlist_and_spares_booked():
 
 def test_release_itinerary_deletes_plan_rows_keeps_user_rows():
     """2026-11-12 拍板「心愿单只收用户输入」：死行程释放时 source=plan
-    引擎行删除（行程在册则下轮 _sync_planned_rows 自动重建），用户来源行
-    维持回心愿单。"""
+    引擎行删除（2026-11-13 起不再补源重建），用户来源行维持回心愿单。"""
     svc = TripItemService()
     engine = svc.create("宽窄巷子", source="plan", itinerary_id="t1", city="成都")
     svc.update(engine["id"], status="scheduled", day=1)
@@ -570,6 +651,37 @@ def test_list_self_heal_deletes_dead_trip_plan_rows():
         again = client.get("/api/v1/trip-items").json()
     assert again["scheduled"] == []
     assert all(r["name"] != "宽窄巷子" for r in again["wishlist"])
+
+
+def test_list_deletes_engine_plan_rows_even_on_live_trip():
+    """2026-11-13 拍板「已排期只放已排的心愿单」：source=plan 引擎行
+    （scheduled/wishlist）不得在看板现形——行程在册也删；用户来源的
+    scheduled 行保留。"""
+    app, store = make_app_with_store()
+    record = ItineraryService(store).create("dev-1", ["成都"], days_count=2)
+    with TestClient(app) as client:
+        engine_s = create_item(
+            client, itinerary_id=record.itinerary_id, name="宽窄巷子", source="plan"
+        )
+        schedule(client, engine_s["id"], 1)
+        engine_w = create_item(
+            client, itinerary_id=record.itinerary_id, name="人民公园", source="plan"
+        )
+        user = create_item(client, itinerary_id=record.itinerary_id, name="看熊猫")
+        schedule(client, user["id"], 2)
+
+        body = client.get("/api/v1/trip-items").json()
+
+    assert [r["name"] for r in body["scheduled"]] == ["看熊猫"]
+    assert all(
+        r["name"] not in ("宽窄巷子", "人民公园")
+        for group in body.values()
+        for r in group
+    )
+    service = app.dependency_overrides[get_trip_item_service]()
+    assert service.get(engine_s["id"]) is None
+    assert service.get(engine_w["id"]) is None
+    assert service.get(user["id"])["status"] == "scheduled"
 
 
 def test_list_keeps_scheduled_rows_of_live_session_plan(monkeypatch):

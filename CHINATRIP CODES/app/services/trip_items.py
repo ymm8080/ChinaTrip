@@ -35,6 +35,26 @@ SOURCES = frozenset(
 _TIMELINE_STATUSES = frozenset({STATUS_SCHEDULED, STATUS_BOOKED})
 
 
+def _as_int(value: object, default: int = 0) -> int:
+    """排序键的宽松数值归一：None/缺键/脏字符串一律落 default。
+
+    payload 是读权威，迁移与旁路脚本写进来的 day/position 可能是字符串
+    （int 与 str 比较 = TypeError = 看板整块 500）。
+    """
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+    """同 _as_int：position 的宽松数值归一。"""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def strip_scheduled_note(note: str | None) -> str:
     """剥掉 note 的「已安排」尾段（带前缀/裸两种形态，中英分隔符）。
 
@@ -269,32 +289,44 @@ class TripItemService:
         Scheduled as the third key — each in its documented order."""
         items = list(self._items.values())
         if itinerary_id is not None:
-            items = [i for i in items if i["itinerary_id"] == itinerary_id]
+            items = [i for i in items if i.get("itinerary_id") == itinerary_id]
 
         def timeline_key(item: dict) -> tuple[int, float]:
             # position None 兜底 0.0：库内行可能在状态机外写入（如 SQL
             # 级恢复），裸比较 None vs float 直接 TypeError 把整个
             # list_groups（=每次规划回合的吸收入口）打成 500。
-            pos = item["position"]
-            return (item["day"], pos if pos is not None else 0.0)
+            # day 同款兜底：旧版 H5 迁移/旁路脚本的 payload 可能缺列。
+            # 2026-11-13 再补类型归一：迁移/导入入口（import_item）可能把
+            # day/position 写成字符串，int 与 str 比较同样 TypeError。
+            return (_as_int(item.get("day")), _as_float(item.get("position")))
+
+        def stamp(item: dict, *fields: str) -> str:
+            # 2026-11-13 看板 500（KeyError: 'created_at'）：payload 是读
+            # 权威，旧版迁移行可能既没有 created_at 也没有 updated_at——
+            # 排序键必须容忍缺键，否则整个看板 GET 直接 500。
+            for field in fields:
+                value = item.get(field)
+                if value:
+                    return str(value)
+            return ""
 
         return {
             "bookings": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_BOOKED),
+                (dict(i) for i in items if i.get("status") == STATUS_BOOKED),
                 key=timeline_key,
             ),
             "wishlist": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_WISHLIST),
-                key=lambda i: i["created_at"],
+                (dict(i) for i in items if i.get("status") == STATUS_WISHLIST),
+                key=lambda i: stamp(i, "created_at", "updated_at"),
                 reverse=True,
             ),
             "scheduled": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_SCHEDULED),
+                (dict(i) for i in items if i.get("status") == STATUS_SCHEDULED),
                 key=timeline_key,
             ),
             "unwanted": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_UNWANTED),
-                key=lambda i: i["updated_at"],
+                (dict(i) for i in items if i.get("status") == STATUS_UNWANTED),
+                key=lambda i: stamp(i, "updated_at", "created_at"),
                 reverse=True,
             ),
         }
@@ -402,8 +434,8 @@ class TripItemService:
         本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。
 
         2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 的引擎行
-        不得落心愿单——死行程时直接删除（行程在册则下轮
-        _sync_planned_rows 自动重建），删除留日志；用户来源行
+        不得落心愿单——死行程时直接删除（2026-11-13 起引擎行不再补源
+        重建：已排期只放已排的心愿单），删除留日志；用户来源行
         （chat/manual/paste/agent_recommend）维持回心愿单。"""
         if not itinerary_id:
             return []

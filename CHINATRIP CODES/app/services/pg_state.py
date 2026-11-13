@@ -341,13 +341,43 @@ class PgTripItemService(TripItemService):
         self._boot_load()
 
     def _pg_reload_items(self) -> None:
-        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。"""
+        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。
+
+        2026-11-13 看板 500（KeyError: 'created_at'）：旧版 H5 迁移/
+        旁路恢复脚本写库的 payload 协议不完整（可能没有 created_at，
+        列里也是 NULL）。payload 缺失的投影列在此按列补齐，created_at
+        最终退到 updated_at——下游 list_groups/去重不再裸取键。"""
         items: dict[str, dict] = {}
         with self._session_factory() as session:
             for row in session.query(TripItem).all():
                 payload = row.payload
-                if isinstance(payload, dict) and payload.get("id"):
-                    items[str(payload["id"])] = payload
+                if not (isinstance(payload, dict) and payload.get("id")):
+                    continue
+                payload = dict(payload)
+                for field in (
+                    "name",
+                    "city",
+                    "note",
+                    "status",
+                    "source",
+                    "day",
+                    "position",
+                    "address",
+                    "opening_hours",
+                ):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value
+                for field in ("created_at", "updated_at"):
+                    if payload.get(field):
+                        continue
+                    value = getattr(row, field, None)
+                    if value is None and field == "created_at":
+                        value = row.updated_at
+                    if value is not None:
+                        payload[field] = value.isoformat()
+                items[str(payload["id"])] = payload
         self._items = items
 
     def _boot_load(self) -> None:
