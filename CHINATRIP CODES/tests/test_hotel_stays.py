@@ -316,6 +316,28 @@ def test_final_placeholder_never_moves_real_meal():
     assert lunch not in day.items
 
 
+def test_final_real_food_absorbs_lunch_placeholder():
+    """2026-11-13 用户拍板「餐厅应该插入午餐卡」：真餐卡占午餐窗 → 占位
+    撤除、真餐卡即餐卡，不再 11:30 空白午饭+12:00 餐厅并排两张餐卡。"""
+    lunch = _meal_placeholder("food-lunch-ph-d1", time(11, 30), 90)
+    real = _meal_placeholder("real-food", time(12, 0), 90)
+    day = DayPlan(day=1, base_city="测试城", items=[lunch, real])
+    _retime_meal_placeholders(_plan([day]))
+    assert lunch not in day.items
+    assert (real.start_time, real.end_time) == (time(12, 0), time(13, 30))
+
+
+def test_final_dinner_real_food_keeps_lunch_placeholder():
+    """反向锚：真晚餐卡不顶午餐占位——各餐窗占位只被同窗真餐吸收。"""
+    lunch = _meal_placeholder("food-lunch-ph-d1", time(11, 30), 90)
+    dinner_real = _meal_placeholder("real-food", time(17, 30), 90)
+    day = DayPlan(day=1, base_city="测试城", items=[lunch, dinner_real])
+    _retime_meal_placeholders(_plan([day]))
+    assert lunch in day.items
+    assert (lunch.start_time, lunch.end_time) == (time(11, 30), time(13, 0))
+    assert (dinner_real.start_time, dinner_real.end_time) == (time(17, 30), time(19, 0))
+
+
 # ------------------------------------------- 每晚酒店卡（2026-11-07 用户指令）
 
 

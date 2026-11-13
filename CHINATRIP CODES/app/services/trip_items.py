@@ -272,7 +272,11 @@ class TripItemService:
             items = [i for i in items if i["itinerary_id"] == itinerary_id]
 
         def timeline_key(item: dict) -> tuple[int, float]:
-            return (item["day"], item["position"])
+            # position None 兜底 0.0：库内行可能在状态机外写入（如 SQL
+            # 级恢复），裸比较 None vs float 直接 TypeError 把整个
+            # list_groups（=每次规划回合的吸收入口）打成 500。
+            pos = item["position"]
+            return (item["day"], pos if pos is not None else 0.0)
 
         return {
             "bookings": sorted(

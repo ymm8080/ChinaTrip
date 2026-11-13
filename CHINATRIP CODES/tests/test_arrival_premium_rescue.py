@@ -669,3 +669,73 @@ def test_geo_cluster_day_picks_nearest_cluster_day():
     # 全城无已布点 → fallback
     d3 = DayPlan(day=3, base_city="成都", items=[])
     assert _geo_cluster_day([d3], _CD, fallback=3) == 3
+
+
+# ---- 点名餐厅地理族择日（2026-11-13 用户扩面拍板：参考点全类型含餐/
+#  酒店；醉长安案回归锚——餐数最少的远郊日不再是默认归属）----
+
+
+def test_named_restaurant_picks_nearest_cluster_day_over_fewest_meals():
+    from types import SimpleNamespace
+
+    _ZHONGLOU = GeoPoint(lon=108.94, lat=34.26)  # 西安钟鼓楼
+    _DAYANGTA = GeoPoint(lon=108.96, lat=34.22)  # 大雁塔（~5km）
+    _CHENGQIANG = GeoPoint(lon=108.95, lat=34.25)  # 城墙（~2km）
+    _BINGMAYONG = GeoPoint(lon=109.28, lat=34.38)  # 兵马俑（~35km）
+
+    def _auto_food(iid, loc):
+        f = _visit(iid, 11, loc=loc)
+        f.category = "food"
+        return f
+
+    days = [
+        DayPlan(
+            day=1,
+            base_city="西安",
+            items=[
+                _visit("大雁塔", 11, loc=_DAYANGTA),
+                _auto_food("food-d1", _DAYANGTA),
+            ],
+        ),
+        DayPlan(
+            day=2,
+            base_city="西安",
+            items=[
+                _visit("钟楼", 11, loc=_ZHONGLOU),
+                _visit("鼓楼", 11, loc=_ZHONGLOU),
+                # Day2 已有自动餐 → 「餐数最少」口径会把点名餐厅均衡去远郊日
+                _auto_food("food-d2", _ZHONGLOU),
+            ],
+        ),
+        DayPlan(
+            day=3,
+            base_city="西安",
+            items=[_visit("城墙", 11, loc=_CHENGQIANG)],
+        ),
+        DayPlan(day=4, base_city="西安", items=[_visit("兵马俑", 1, loc=_BINGMAYONG)]),
+    ]
+    for d in days:
+        for i in d.items:
+            i.day = d.day
+    agent = PlanningAgent.__new__(PlanningAgent)
+    session = SimpleNamespace(plan=SimpleNamespace(days=days))
+    # 先验 fallback（无坐标 → 餐数最少日；Day3/4 同 0 餐取天数小者）——
+    # 放前面：点名件入选会让位掉当天自动餐，先测免互相污染。
+    blind = agent._food_visit(
+        session,
+        name="无名馆",
+        city="西安",
+        location=None,
+        poi_id=None,
+        item_id="must-blind",
+    )
+    assert blind.day == 3
+    food = agent._food_visit(
+        session,
+        name="醉长安",
+        city="西安",
+        location=_ZHONGLOU,
+        poi_id="poi-zui",
+        item_id="must-zuichangan",
+    )
+    assert food.day == 2, "点名餐厅应落最近地理簇日（钟鼓楼），非餐数最少的远郊日"

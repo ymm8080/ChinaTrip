@@ -1869,15 +1869,19 @@ def insertion_schedule_day(
     # 2026-11-11 拍板序修正：钉住件（含钉住餐）最先落（刚性锚点）；
     # flex 日未钉软钉餐排最后（可让位——先占死餐窗会堵死大点唯一
     # 可行档）；非 flex 日软钉餐是刚性锚点，维持食序优先原口径。
+    # 食序优先=插在普通参访之前（非 flex 日软钉餐排程域已锚定
+    # lo=hi=pin，先落保住系统摆的餐窗；曾与参访同档竞争，参访先插
+    # 会抢走软钉餐唯一可行档致占位件被 dropped/真餐卡变未排——
+    # 2026-11-13 无 food 日午餐占位丢失案根修）。
     def _hkey(s: _VisitSpec) -> tuple:
-        soft_food_yieldable = (
-            flex_day
-            and not s.item.pinned
-            and s.item.soft_pin
-            and (s.item.category or "") == "food"
+        soft_food = (
+            not s.item.pinned and s.item.soft_pin and (s.item.category or "") == "food"
         )
+        soft_food_yieldable = flex_day and soft_food
         return (
-            0 if s.item.pinned else (2 if soft_food_yieldable else 1),
+            0
+            if s.item.pinned
+            else (3 if soft_food_yieldable else (1 if soft_food else 2)),
             0 if (_head_p is not None and _is_head_candidate(s.item)) else 1,
             -_head_dist(s),
             -s.dur,

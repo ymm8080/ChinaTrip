@@ -1024,3 +1024,21 @@ def test_persistent_mark_unwanted_write_through(tmp_path):
     svc.mark_unwanted("新天地", itinerary_id="t1", city="上海")
     reloaded = PersistentTripItemService(SqliteStateBackend(db))
     assert [i["name"] for i in reloaded.list_groups("t1")["unwanted"]] == ["新天地"]
+
+
+def test_list_groups_tolerates_null_position_rows():
+    """scheduled 行 position=None 不得打爆 list_groups（2026-11-13 看板
+    SQL 级恢复后 start_plan 500 案）：timeline_key 裸比较 None vs float
+    TypeError，把整个规划回合的吸收入口堵死。NULL 按 0.0 兜底排序。"""
+    app = make_app()
+    client = TestClient(app)
+    service = app.dependency_overrides[get_trip_item_service]()
+    a = create_item(client, name="甲景点")
+    schedule(client, a["id"], 2)
+    b = create_item(client, name="乙景点")
+    schedule(client, b["id"], 2)
+    # 模拟状态机外写入（SQL 恢复/外部脚本）：day 已置、position 留空
+    for row in service._items.values():
+        row["position"] = None
+    groups = service.list_groups()
+    assert {i["name"] for i in groups["scheduled"]} == {"甲景点", "乙景点"}
