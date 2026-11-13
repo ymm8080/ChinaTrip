@@ -60,6 +60,7 @@ from app.services.agent.plan import (
     current_violations,
     dedupe_plan_visits,
     drop_dangling_visits,
+    heal_item_ids,
     heal_leg_gaps,
 )
 from app.services.ctrip_hours import get_ctrip_hours
@@ -681,6 +682,9 @@ def _plan_turn_body(session, reply: str, change) -> dict:
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:
+        # 出站前条目 id 重号自愈（2026-11-13 磁器口换点 422）：新增条目可能
+        # 撞上会话里载入的旧号，前端拿到重号卡片后按 id 换点会命中别天那条。
+        heal_item_ids(session)
         body["plan"] = _plan_for_response(session.plan)
         body["violations"] = current_violations(session)
     if change is not None:

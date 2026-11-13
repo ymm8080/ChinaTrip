@@ -26,7 +26,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from app.services.agent.plan import PlanSession, PlanSessionStore
+from app.services.agent.plan import PlanSession, PlanSessionStore, heal_item_ids
 from app.services.itinerary_store import (
     InMemoryItineraryStore,
     ItineraryRecord,
@@ -344,6 +344,7 @@ class PersistentPlanSessionStore(PlanSessionStore):
                 self._sessions[session_id] = session
                 if session.device_id != device_id:
                     return None
+                heal_item_ids(session)
                 return session
         return super().get(session_id, device_id=device_id)
 

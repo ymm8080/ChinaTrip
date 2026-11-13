@@ -76,6 +76,7 @@ from app.services.itinerary import (
 )
 from app.services.itinerary.coverage import premium_coverage_gaps
 from app.services.itinerary.geo import area_labels, cluster_days
+from app.services.itinerary.item_ids import ensure_unique_item_ids
 from app.services.itinerary.models import (
     ARRIVAL_STOP_FLOOR_MINUTES,
     INTERCITY_BUFFER_MINUTES,
@@ -11851,6 +11852,28 @@ def current_violations(session: PlanSession) -> list[RuleViolation]:
     return validate_plan(session.plan, poi_hours=[]).violations
 
 
+def heal_item_ids(session: PlanSession) -> list[str]:
+    """会话条目 id 重号自愈（2026-11-13 「Day6 磁器口 换点 422 no_match」）：
+    agent 的 ``_item_seq`` 是进程级计数，重启归零后新条目会撞上会话里载入的
+    旧 id（v1…v30）。同一计划两条同 id 时，换点/删除/钉/移动按 id 首命中别
+    天那条，再拿错城去 POI 库精确匹配就 422 no_match。会话读入与响应出站都
+    过这一口；幂等，无重号时零改动。"""
+    if getattr(session, "plan", None) is None:
+        return []
+    try:
+        notes = ensure_unique_item_ids(session.plan)
+    except Exception:  # noqa: BLE001 - 自愈失败绝不能挡住主流程
+        logger.warning("plan: item_id heal failed", exc_info=True)
+        return []
+    if notes:
+        logger.warning(
+            "plan: session %s 条目 id 重号已改配：%s",
+            session.session_id,
+            "、".join(notes),
+        )
+    return notes
+
+
 class PlanSessionStore:
     """In-process session dict; lookups are device-scoped."""
 
@@ -11864,6 +11887,7 @@ class PlanSessionStore:
         session = self._sessions.get(session_id)
         if session is None or session.device_id != device_id:
             return None
+        heal_item_ids(session)
         return session
 
     def live_itinerary_ids(self, device_id: str) -> set[str]:
@@ -11984,6 +12008,27 @@ class PlanningAgent:
         self._solver = solver
         self._time_budget_seconds = time_budget_seconds
         self._item_seq = 0
+
+    def alloc_item_id(
+        self, plan: ItineraryPlan | None = None, *, prefix: str = "v"
+    ) -> str:
+        """分配计划内唯一的条目 id（2026-11-13 磁器口换点 422 事故根因）：
+        ``_item_seq`` 进程重启归零，而载入会话里的既有 id（v1…v30）还占着
+        号——跳过这些已用号，避免同一计划出现两条同 id，让按 id 定位的换点/
+        删除/钉/移动命中别天那条（拿错城去 POI 库精确匹配 → 422 no_match）。
+        """
+        used: set[str] = set()
+        if plan is not None:
+            used = {
+                str(getattr(i, "item_id", "") or "")
+                for d in getattr(plan, "days", []) or []
+                for i in getattr(d, "items", []) or []
+            }
+        while True:
+            self._item_seq += 1
+            cand = f"{prefix}{self._item_seq}"
+            if cand not in used:
+                return cand
 
     @property
     def _search_chain(self) -> list:
@@ -12756,7 +12801,7 @@ class PlanningAgent:
                     session.resto_asked.append(name)
                     far.append(PendingResto(name=name, nearest_km=round(nearest, 1)))
                     continue
-            self._item_seq += 1
+            _new_item_id = self.alloc_item_id(session.plan)
             # 2026-10-30 深夜拍板（水利工程事故）：落实为真实 POI 的专名心
             # 愿，行程条目用 POI 正名（看附近的水利工程→远郊水利景区）；
             # 占位/品类/餐饮维持原词；心愿单行仍留用户原话。
@@ -12778,7 +12823,7 @@ class PlanningAgent:
                             city=city,
                             location=location,
                             poi_id=poi_id,
-                            item_id=f"v{self._item_seq}",
+                            item_id=_new_item_id,
                         ),
                     )
                 )
@@ -12794,7 +12839,7 @@ class PlanningAgent:
                     DiffOp(
                         op="add",
                         item=VisitItem(
-                            item_id=f"v{self._item_seq}",
+                            item_id=_new_item_id,
                             name=item_name,
                             category="sight",
                             city=city,
@@ -19868,8 +19913,7 @@ class PlanningAgent:
             legs = []
         for from_city, to_city, day, depart_h, window, leg_kind in legs:
             seq_by_day[day] = seq_by_day.get(day, 0) + 1
-            self._item_seq += 1
-            item_id = f"t{self._item_seq}"
+            item_id = self.alloc_item_id(None, prefix="t")
             transfer: TransferItem | None = None
             # 距离闸先行（2026-11-06 拍板）：>600km 航班优先、≤600km 火车
             # 优先——覆盖全部腿别（去程/返程/城际 hop 同一口径）。距离未知
@@ -20116,7 +20160,7 @@ class PlanningAgent:
             location = None
             if cand and isinstance(cand.get("location"), dict):
                 location = GeoPoint(**cand["location"])
-            self._item_seq += 1
+            _new_item_id = self.alloc_item_id()
             start_time = end_time = None
             duration = spec["duration_minutes"]
             pinned = False
@@ -20145,7 +20189,7 @@ class PlanningAgent:
                     soft_pin = True
             visits.append(
                 VisitItem(
-                    item_id=f"v{self._item_seq}",
+                    item_id=_new_item_id,
                     name=spec["name"],
                     poi_id=(cand or {}).get("source_poi_id"),
                     # S5（show_booking_design §4）：演出库行的 entertainment
@@ -21510,9 +21554,8 @@ class PlanningAgent:
                 if isinstance(cand.get("location"), dict)
                 else None
             )
-            self._item_seq += 1
             visit = VisitItem(
-                item_id=f"v{self._item_seq}",
+                item_id=self.alloc_item_id(plan),
                 name=str(cand.get("name") or ""),
                 poi_id=cand.get("source_poi_id"),
                 category=str(cand.get("category") or "") or None,
@@ -21754,9 +21797,8 @@ class PlanningAgent:
                     if isinstance(cand.get("location"), dict)
                     else None
                 )
-                self._item_seq += 1
                 visit = VisitItem(
-                    item_id=f"v{self._item_seq}",
+                    item_id=self.alloc_item_id(plan),
                     name=str(cand.get("name") or ""),
                     poi_id=cand.get("source_poi_id"),
                     category=str(cand.get("category") or "") or None,
@@ -22346,9 +22388,8 @@ class PlanningAgent:
                     dur = cand.get("suggested_duration_min") or 90
                     if not isinstance(dur, int) or dur <= 0:
                         dur = 90
-                    self._item_seq += 1
                     visit = VisitItem(
-                        item_id=f"v{self._item_seq}",
+                        item_id=self.alloc_item_id(plan),
                         name=name,
                         poi_id=cand.get("source_poi_id"),
                         category=cat or None,
@@ -22945,7 +22986,7 @@ class PlanningAgent:
             try:
                 data = parse_json_content(result.content)
                 reply = str(data.get("reply") or "")
-                diffs = self._coerce_diffs(data.get("diffs"))
+                diffs = self._coerce_diffs(data.get("diffs"), plan=session.plan)
                 wishes = self._coerce_wishes(data.get("wishes"))
                 if diffs or reply or wishes:
                     reply = reply or L("已处理你的消息。", "Your message is handled.")
@@ -23448,6 +23489,24 @@ class PlanningAgent:
         cand = await asyncio.to_thread(
             self._poi_details.candidate_by_name, visit.city, wanted
         )
+        if cand is None:
+            # 同号条目兜底（2026-11-13「Day6 磁器口 换点 422 no_match」）：条目
+            # 序号是进程级计数，重启归零后新条目可能与旧条目重号，前端手上的
+            # item_id 按「首命中」指到了别天那条（点第六天重庆的卡命中了第三
+            # 天成都的 v1），拿成都去库里查重庆的点必然 no_match。该城查不到
+            # 就换同号的其它条目再试一次，命中即改在它身上落点。
+            for alt in (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id and i is not visit
+            ):
+                cand = await asyncio.to_thread(
+                    self._poi_details.candidate_by_name, alt.city, wanted
+                )
+                if cand is not None:
+                    visit = alt
+                    break
         new_name = str((cand or {}).get("name") or "").strip()
         if cand is None or not new_name:
             raise ValueError("no_match")
@@ -23456,7 +23515,7 @@ class PlanningAgent:
             i
             for d in plan.days
             for i in d.items
-            if isinstance(i, VisitItem) and i.item_id != item_id
+            if isinstance(i, VisitItem) and i is not visit
         ]
         _new_loc = cand.get("location")
         _new_xy = (
@@ -23492,7 +23551,11 @@ class PlanningAgent:
             raise ValueError("duplicate_in_plan")
 
         candidate = plan.model_copy(deep=True)
-        day = next(d for d in candidate.days for i in d.items if i.item_id == item_id)
+        # 按对象定位所在天（同号条目存在时 item_id 首命中会指向别天）。
+        day_pos = next(
+            k for k, d in enumerate(plan.days) if any(i is visit for i in d.items)
+        )
+        day = candidate.days[day_pos]
         idx = next(k for k, i in enumerate(day.items) if i.item_id == item_id)
         old = day.items[idx]
         loc = cand.get("location")
@@ -23509,9 +23572,8 @@ class PlanningAgent:
         if dur <= 0:
             dur = old.duration_minutes or DEFAULT_VISIT_MINUTES
         dur = max(30, min(dur, 480))
-        self._item_seq += 1
         fresh = VisitItem(
-            item_id=f"v{self._item_seq}",
+            item_id=self.alloc_item_id(session.plan),
             name=new_name,
             poi_id=new_pid,
             category=(str(cand.get("category") or "") or old.category),
@@ -24368,7 +24430,7 @@ class PlanningAgent:
             logger.warning("plan: repair round failed: %s", exc)
             return []
         try:
-            return self._coerce_diffs(data.get("diffs"))
+            return self._coerce_diffs(data.get("diffs"), plan=session.plan)
         except (ValueError, TypeError) as exc:
             logger.info("plan: repair diffs unparseable, dropped: %s", exc)
             return []
@@ -24388,7 +24450,9 @@ class PlanningAgent:
             session,
         )
 
-    def _coerce_diffs(self, raw: object) -> list[DiffOp]:
+    def _coerce_diffs(
+        self, raw: object, *, plan: ItineraryPlan | None = None
+    ) -> list[DiffOp]:
         if raw is None:
             return []
         if not isinstance(raw, list):
@@ -24428,11 +24492,12 @@ class PlanningAgent:
                 item = entry.get("item")
                 if not isinstance(item, dict):
                     raise ValueError("add diff missing item")
-                self._item_seq += 1
                 ops.append(
                     DiffOp(
                         op="add",
-                        item=self._coerce_visit(item, item_id=f"v{self._item_seq}"),
+                        item=self._coerce_visit(
+                            item, item_id=self.alloc_item_id(plan)
+                        ),
                     )
                 )
             else:
