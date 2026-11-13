@@ -40,6 +40,8 @@ from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.services.agent.hotel_stays import (
+    attach_hotel_mornings,
+    attach_hotel_nights,
     hotel_morning_label,
     is_hotel_morning,
     is_hotel_night,
@@ -343,6 +345,17 @@ async def start_plan_from_itinerary(
     # 同站合并开档闸（2026-10-28）：旧行程带出的重复站点（如变脸 x4）
     # 开档即合并；行程库本体由 save 终闸兜住。
     dedupe_plan_visits(plan)
+    # 2026-11-13：功能上线前保存的老行程快照没有酒店卡——开档补齐
+    # 「回酒店·夜间休息」与「🏨 从酒店出发」，否则继续修改时每天没有
+    # 起点（用户报「看不到酒店作为出发点」）。只补「一张酒店卡都没有」
+    # 的行程，已有卡（含用户删剩一张）不复活、不重复。
+    if not any(
+        is_hotel_night(i) or is_hotel_morning(i)
+        for d in plan.days
+        for i in d.items
+    ):
+        plan.assumptions.extend(attach_hotel_nights(plan.days))
+        plan.assumptions.extend(attach_hotel_mornings(plan.days))
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,

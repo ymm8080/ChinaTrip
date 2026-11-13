@@ -549,7 +549,8 @@ def _morning_days():
 
 def test_morning_window():
     assert _morning_window(None) == (8 * 60 + 30, 9 * 60)  # 空天：日始前离店
-    assert _morning_window(540) == (480, 510)  # 首件 09:00 → 08:00-08:30
+    # 2026-11-13 用户拍板「早上从 8:30 开始」：首件 09:00 → 卡 08:30-09:00
+    assert _morning_window(540) == (510, 540)
     assert _morning_window(390) == (330, 360)  # 首件 06:30 → 05:30-06:00
     assert _morning_window(30) is None  # 首件 00:30 放不下
     # 首件是跨城交通：按铁律 4 的 90 分钟衔接缓冲预留
@@ -566,7 +567,7 @@ def test_attach_mornings_after_each_hotel_night():
     assert not any(is_hotel_morning(i) for i in days[0].items)
     d2 = next(i for i in days[1].items if is_hotel_morning(i))
     assert d2.item_id == "hotel-morning-d2"
-    assert (d2.start_time, d2.end_time) == (time(8, 0), time(8, 30))
+    assert (d2.start_time, d2.end_time) == (time(8, 30), time(9, 0))
     assert d2.city == "西安" and d2.soft_pin and not d2.pinned
     assert days[1].items[0] is d2  # 当天第一张卡
     # 回家日（d3 无夜卡）仍从前一晚酒店退房出发：18:00 航班按铁律 4

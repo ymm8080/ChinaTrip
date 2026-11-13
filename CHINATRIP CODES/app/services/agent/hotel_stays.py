@@ -300,6 +300,9 @@ def reanchor_hotel_nights(
 HOTEL_MORNING_ID_PREFIX = "hotel-morning"
 HOTEL_MORNING_MINUTES = 30  # 出发卡默认时长（早餐/退房/整理）
 HOTEL_MORNING_GAP_MINUTES = 30  # 离店 → 当天首站的路程预留（铁律 7 地板）
+# 2026-11-13 用户拍板「早上从 8:30 开始」：从酒店出发的最早时刻。
+# 首站 09:00 时卡=08:30–09:00（路程并入卡内，不再前推到 08:00）。
+HOTEL_MORNING_EARLIEST_MINUTES = 8 * 60 + 30
 
 
 def is_hotel_morning(item: object) -> bool:
@@ -352,6 +355,13 @@ def _morning_window(
     gap = INTERCITY_BUFFER_MINUTES if transfer else HOTEL_MORNING_GAP_MINUTES
     end = first_start - gap if first_start is not None else 9 * 60
     start = end - HOTEL_MORNING_MINUTES
+    if (
+        first_start is not None
+        and start < HOTEL_MORNING_EARLIEST_MINUTES <= end
+    ):
+        # 最早 08:30 出发：卡压到 08:30 起，与首站贴排（路程并入卡内）。
+        start = HOTEL_MORNING_EARLIEST_MINUTES
+        end = min(first_start, max(end, start + HOTEL_MORNING_MINUTES))
     if end <= 0 or start < 0:
         return None
     return start, end
