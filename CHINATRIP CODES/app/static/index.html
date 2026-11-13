@@ -2813,6 +2813,20 @@ function planFormPrefill(o) {
   planTotalRefresh();
   return true;
 }
+// 行程卡 → 参数表单（2026-11-13「重新规划却回到上次行程」）：自由输入框里的
+// 新行程简报可能改写了本次生成的路线（后端以简报为准），生成后把表单/摘要同步
+// 成新行程，别让上一次行程的参数继续挂在界面上。
+function planFormSyncFromPlan(plan) {
+  if (!plan || !(plan.cities || []).length) return;
+  const perCity = {};
+  (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
+  planFormPrefill({
+    cities: plan.cities,
+    cityDays: perCity,
+    startDate: plan.start_date || PLAN.startDate || "",
+    prefs: null,
+  });
+}
 document.getElementById("planSummaryToggle").onclick = () => {
   const form = document.getElementById("planSetup");
   const opening = form.style.display === "none";
@@ -2963,7 +2977,10 @@ async function planStartCore(extraPref) {
   addMsg("flow-plan", "user", I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.transport","；交通：") + tSel.options[tSel.selectedIndex].text + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 30–60 秒，请稍候）…"));
   try {
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale() === "en" ? "en" : "zh" });
+    // brief：自由输入框里那一整句（2026-11-13）——它写出的路线优先于表单回填值，
+    // 否则「重新规划」把上次行程的参数回填后，新打的城市会被表单顶掉。
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale() === "en" ? "en" : "zh", brief: extraPref || undefined });
+    planFormSyncFromPlan(body.plan); // 后端按简报改了路线时，表单/摘要跟着新行程走
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode() } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
@@ -3096,6 +3113,20 @@ async function planSend() {
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.thinking","⏳ 思考中…"));
   try {
     const body = await api("/api/v1/plan/" + planSession.session_id + "/message", { text });
+    // 换局跟随（2026-11-13「重新规划却回到上次行程」）：后端把「另一趟完整
+    // 行程」的整句当新行程重开了会话——本地指针必须先切到新 session_id，
+    // 否则下面渲染出的保存/导出仍挂在上一趟行程上。
+    if (body.session_id && body.session_id !== planSession.session_id) {
+      const p = body.plan || {};
+      const perCity = {};
+      (p.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
+      planFormSyncFromPlan(p);
+      planSetSession({
+        session_id: body.session_id,
+        state: body.state,
+        origin: { cities: p.cities || [], days: (p.days || []).length, preferences: "", city_days: perCity, start_date: p.start_date || PLAN.startDate || undefined, intercity_mode: planTransportMode() },
+      });
+    }
     planSession.state = body.state;
     if (body.lane && body.lane.lane === "slow" && body.lane.task_id) {
       // §6.12 慢车道：重排后台跑，这里轮询任务直到完成再渲染（2 分钟封顶）

@@ -112,6 +112,9 @@ class PlanStartRequest(BaseModel):
     # train/flight=H5 起始页用户指定；全程城际段统一口径
     intercity_mode: Literal["auto", "train", "flight"] = "auto"
     lang: str | None = None  # 双语 P2：会话回复语言 "en"/"zh"（缺省 zh）
+    # 自由输入框里那一整句（2026-11-13「重新规划却回到上次行程」）：它写出
+    # 的路线优先于表单回填值——用户刚打的这句才是新设置。
+    brief: str | None = None
 
 
 class PlanMessageRequest(BaseModel):
@@ -363,6 +366,9 @@ async def start_plan_from_itinerary(
         # 漏传时英文界面下「✏️ 修改」会话的编辑回合恒中文——
         # _with_lang 的英文输出指令只认 session.lang。
         lang=get_lang(),
+        # 2026-11-13：记下来源行程——✏️ 修改会话里用户说出另一趟完整行程时，
+        # 后端重开新会话，旧行程不被顺手改掉（「重新规划却回到上次行程」）。
+        source_itinerary_id=itinerary_id,
         cities=list(plan.cities),
         days=len(plan.days),
         state="ready",
@@ -456,6 +462,7 @@ async def start_plan(
             start_date=request.start_date,
             intercity_mode=request.intercity_mode,
             lang=request.lang,
+            brief=request.brief,
         )
     except PoiStoreUnavailableError:
         # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
@@ -505,6 +512,26 @@ async def message_plan(
     session = store.get(session_id, device_id=x_device_id)
     if session is None:
         raise HTTPException(status_code=404, detail="session_not_found")
+    # 换局闸（2026-11-13「重新规划却回到上次行程」）：这句话本身是另一趟完整
+    # 行程（换城市/换天数）时重开会话出新车，旧行程一个字段都不动；必须先于
+    # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
+    brief = agent.new_trip_brief(session, request.text)
+    if brief is not None:
+        try:
+            session, reply = await agent.restart_with_brief(
+                session, request.text, brief
+            )
+        except PoiStoreUnavailableError:
+            logger.warning("plan/message poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            logger.exception("plan/message llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        store.save(session)
+        body = _plan_turn_body(session, reply, None)
+        body["new_trip"] = True
+        body["lane"] = {"lane": "main", "intent": "new_trip"}
+        return body
     metrics = get_lane_metrics()
     started = monotonic()
 
@@ -674,7 +701,13 @@ def _plan_with_alternatives(plan):
 
 def _plan_turn_body(session, reply: str, change) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
-    body: dict = {"reply": reply, "state": session.state}
+    body: dict = {
+        "reply": reply,
+        "state": session.state,
+        # 2026-11-13：换局（新行程）时后端返回的是**另一个**会话，前端要
+        # 跟着换指针，否则保存/导出仍挂在上一趟行程上。同会话回合原样。
+        "session_id": session.session_id,
+    }
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
     if session.state == "resto_confirm":

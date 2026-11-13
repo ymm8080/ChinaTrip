@@ -2220,6 +2220,52 @@ def _norm_city(text: str) -> str:
     return found[0] if len(found) == 1 else ""
 
 
+# 新行程简报（2026-11-13「重新规划又回到上次行程」）：整句里同时有城市和
+# 天数（或起止两城）才算一趟完整行程；「加一天，去苏州玩」这种单城、没有
+# 重开语气的消息仍按改当前行程处理（避免把加一天误判成换行程）。
+_RESTART_TRIP_RE = re.compile(
+    r"重新规划|重新安排|重新生成|重新做|新[的]?行程|另[一外][个份]?行程|"
+    r"换个行程|换一个行程|改成|改为|换成"
+)
+_GO_PLAY_RE = re.compile(r"(去|到|在)\s*[^，。；、\s]{0,8}?(玩|游|旅行|旅游|待)")
+
+
+def _trip_brief(text: str) -> tuple[list[str], int | None] | None:
+    """Free-text trip brief -> (cities, days); None when not a whole trip.
+
+    城市识别复用 _parse_cities（中英别名/「市」后缀都认），天数复用
+    _parse_days。单城又没有天数的句子（「外滩怎么走」）不算简报。
+    """
+    text = text or ""
+    cities = _parse_cities(text)
+    if not cities:
+        return None
+    days = _parse_days(text)
+    if days is None and len(cities) < 2:
+        return None
+    return cities, days
+
+
+def _is_new_trip_request(text: str) -> bool:
+    """整句是不是「另开一趟」而不只是改当前行程。
+
+    2026-11-13 事故：载入的上海 2 天行程里收到「从北京出发，去成都玩 3
+    天」，旧逻辑按修改回合处理——把「去成都玩3天」当成一个景点塞进第 1
+    天，用户看到的就是「重新规划又回到上次行程」。判据保守：
+    - 起止两城（>=2 个已知城市）= 完整路线，直接算新行程；
+    - 单城必须带重开语气（重新规划/改成/新行程…）或「去 X 玩 N 天」(N>=2)。
+    """
+    brief = _trip_brief(text)
+    if brief is None:
+        return False
+    cities, days = brief
+    if len(cities) >= 2:
+        return True
+    if _RESTART_TRIP_RE.search(text):
+        return True
+    return bool(_GO_PLAY_RE.search(text) and days and days >= 2)
+
+
 _SITE_NAME_JUNK = r"[\s（）()\[\]【】「」·、，,。.\-—_'\"”]"
 
 # venue-type tails that add nothing to identity (「石窟样本景区」==「石窟样本」)
@@ -11754,6 +11800,10 @@ class PlanSession(BaseModel):
     # train/flight=用户在 H5 起始页指定，作用于全程城际段（去程/途经/返程）；
     # 规划后单段仍可 /transfers/{item_id}/mode 改乘细调
     intercity_mode: Literal["auto", "train", "flight"] = "auto"
+    # 载入来源行程（2026-11-13「重新规划却回到上次行程」修复）：✏️ 修改/
+    # 页首自动打开出来的会话记下来源行程号——用户在这个会话里说出**另一趟
+    # 完整行程**时后端重开会话生成新行程，旧行程一个字段都不动。
+    source_itinerary_id: str | None = None
 
 
 def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
@@ -12050,6 +12100,7 @@ class PlanningAgent:
         start_date: str | None = None,
         intercity_mode: str = "auto",
         lang: str | None = None,
+        brief: str | None = None,
     ) -> PlanSession:
         # 2026-11-13（陕历博跨城串行程案）：心愿绑定缓存按会话隔离——
         # agent 是单例、跨行程复用，上一趟的 _wish_bindings 会让新行程的
@@ -12074,6 +12125,25 @@ class PlanningAgent:
             ),
             lang=lang if lang in ("en", "zh") else None,
         )
+        # 自由输入框里的「新行程简报」（2026-11-13）：表单可能是上一次行程
+        # 的回填（重新规划/自动打开后），而用户刚打的这句才是新设置——它写出
+        # 的路线与表单不同时以简报为准，旧路线不参与本趟生成。
+        parsed = _trip_brief(brief) if brief else None
+        if parsed is not None and parsed[0]:
+            brief_cities = [_normalize_city(c) for c in parsed[0]]
+            brief_days = parsed[1]
+            form_cities = list(session.cities)
+            if {_normalize_city(c) for c in brief_cities} != {
+                _normalize_city(c) for c in form_cities
+            }:
+                if len(brief_cities) == 1 and len(form_cities) >= 2:
+                    # 「成都 3 天」只报目的地：出发城沿用表单（北京→成都）
+                    if _normalize_city(form_cities[0]) != brief_cities[0]:
+                        brief_cities = [form_cities[0], *brief_cities]
+                session.cities = brief_cities
+                session.city_days = {}
+                if brief_days:
+                    session.days = brief_days
         # 票务预热（2026-10-28 用户拍板）：开始日期落定且城市齐（起止+中间）
         # 就开跑火车查询，不等行程生成——CachedTrainService 命中后组装零等待。
         if session.start_date and len(session.cities) > 1:
@@ -12130,6 +12200,56 @@ class PlanningAgent:
             )
             return session
         return await self._generate_v0(session)
+
+    def new_trip_brief(
+        self, session: PlanSession, text: str
+    ) -> tuple[list[str], int | None] | None:
+        """当前会话收到「另一趟行程」的整句时返回 (cities, days)，否则 None。
+
+        只在两件事同时成立时换局：句子本身像一趟完整行程
+        （_is_new_trip_request），并且目的地真的换了（解析出的城市不全是当前
+        城市）；或者会话本来就是载入的已存行程（✏️ 修改）——那种会话里用户
+        报新的完整路线，一律按新行程开，绝不改旧行程。
+        """
+        if not _is_new_trip_request(text):
+            return None
+        brief = _trip_brief(text)
+        if brief is None:  # pragma: no cover - _is_new_trip_request 已保证
+            return None
+        cities, days = brief
+        current = {_normalize_city(c) for c in (session.cities or [])}
+        fresh = {_normalize_city(c) for c in cities}
+        changed = not current or not fresh.issubset(current)
+        if not changed and session.source_itinerary_id is None:
+            return None
+        return cities, days
+
+    async def restart_with_brief(
+        self,
+        session: PlanSession,
+        text: str,
+        brief: tuple[list[str], int | None],
+    ) -> tuple[PlanSession, str]:
+        """按「新行程简报」重开一局（旧会话/旧行程原样留着，不写不绑）。"""
+        cities, days = brief
+        fresh = await self.start(
+            device_id=session.device_id,
+            cities=cities,
+            days=days or session.days,
+            preferences=text,
+            start_date=session.start_date,
+            intercity_mode=session.intercity_mode,
+            lang=session.lang,
+        )
+        note = L(
+            "已按你刚说的新行程重开一局："
+            f"{'→'.join(fresh.cities) or '（城市待定）'}，{fresh.days or '?'} 天"
+            "（上一趟行程没有被改动）。",
+            "Started a new trip from your latest message: "
+            f"{' → '.join(fresh.cities) or '(city TBC)'}, {fresh.days or '?'} days "
+            "(the previous itinerary was left untouched).",
+        )
+        return fresh, note
 
     async def message(
         self, session: PlanSession, text: str

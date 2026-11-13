@@ -677,6 +677,108 @@ def test_from_itinerary_opens_ready_session_and_round_trips_save():
     assert updated >= created
 
 
+# --- 新行程简报：「重新规划」不再回到上次行程（2026-11-13）----------------
+
+
+def test_trip_brief_parser_separates_new_trip_from_edit():
+    from app.services.agent.plan import _is_new_trip_request, _trip_brief
+
+    # 整趟行程（起止两城 + 天数）：新行程
+    assert _trip_brief("从北京出发，去成都玩3天") == (["北京", "成都"], 3)
+    assert _is_new_trip_request("从北京出发，去成都玩3天")
+    # 单城 + 重开语气：也算新行程
+    assert _is_new_trip_request("重新规划：成都 3 天")
+    # 改当前行程的话术不得被误判成换行程
+    assert not _is_new_trip_request("把雷峰塔挪到第三天")
+    assert not _is_new_trip_request("加一天，去苏州玩")
+    assert not _is_new_trip_request("外滩怎么走")
+
+
+def test_message_new_trip_brief_restarts_and_leaves_old_itinerary_untouched():
+    """✏️ 修改会话里说出另一趟完整行程：后端重开新会话，旧行程不动。
+
+    2026-11-13 事故：旧逻辑按修改回合处理，把「去成都玩3天」当成景点塞进
+    上海行程第 1 天，用户看到的就是「重新规划又回到上次行程」。
+    """
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    saved = start(
+        client, {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"}
+    ).json()
+    iid = saved["plan"]["itinerary_id"]
+    assert (
+        client.post(
+            f"/api/v1/plan/{saved['session_id']}/save",
+            json={},
+            headers=DEVICE_HEADERS,
+        ).status_code
+        == 201
+    )
+    loaded = client.post(
+        f"/api/v1/plan/from-itinerary/{iid}", json={}, headers=DEVICE_HEADERS
+    ).json()
+    resp = message(client, loaded["session_id"], "从北京出发，去成都玩3天")
+    assert resp.status_code == 200
+    body = resp.json()
+    # 换局：新 session_id + 新路线，绝不是旧会话的又一个版本
+    assert body["session_id"] and body["session_id"] != loaded["session_id"]
+    assert body["new_trip"] is True
+    assert body["plan"]["cities"] == ["北京", "成都"]
+    assert len(body["plan"]["days"]) == 3
+    assert body["plan"]["itinerary_id"] != iid
+    # 旧行程原样：工作版本与快照都没被这轮对话改过
+    rec = client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS).json()
+    assert rec["plan"]["cities"] == ["上海", "杭州"]
+    assert rec["working_sync_version"] == 1
+    assert len(rec["snapshots"]) == 1
+
+
+def test_message_edit_wording_does_not_restart_session():
+    agent = PlanningAgent(StubAdapter([V0_JSON, EDIT_JSON]))
+    client = client_for(agent)
+    sid = start(
+        client, {"cities": ["上海", "杭州"], "days": 3, "preferences": "博物馆"}
+    ).json()["session_id"]
+    body = message(client, sid, "加一天，去苏州玩").json()
+    assert body["session_id"] == sid  # 同一个会话：这是改行程，不是换行程
+    assert not body.get("new_trip")
+
+
+def test_start_brief_overrides_prefilled_form_route():
+    """「重新规划」把上次参数回填进表单后，自由输入那句才是新设置。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = start(
+        client_for(agent),
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "博物馆",
+            "brief": "从北京出发，去成都玩2天",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["plan"]["cities"] == ["北京", "成都"]
+    assert len(body["plan"]["days"]) == 2
+
+
+def test_start_brief_single_city_keeps_form_origin():
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = start(
+        client_for(agent),
+        {
+            "cities": ["北京", "上海"],
+            "days": 2,
+            "preferences": "博物馆",
+            "brief": "成都2天",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["plan"]["cities"] == ["北京", "成都"]
+
+
+
 def test_from_itinerary_session_lang_follows_x_lang_header():
     """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
     编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
