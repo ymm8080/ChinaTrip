@@ -421,9 +421,7 @@ def _day_with(day_plans: list[DayPlan], day: int) -> DayPlan | None:
     return next((dp for dp in day_plans if dp.day == day), None)
 
 
-def paired_hotel_card(
-    day_plans: list[DayPlan], item: object
-) -> VisitItem | None:
+def paired_hotel_card(day_plans: list[DayPlan], item: object) -> VisitItem | None:
     """同段住宿的另一端：夜卡 d ↔ 次日晨卡 d+1。"""
     if not isinstance(item, VisitItem):
         return None

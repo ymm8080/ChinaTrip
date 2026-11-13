@@ -9659,9 +9659,7 @@ def _entry_xy(entry: dict) -> tuple[float, float] | None:
 
 
 def _xy_km(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return haversine_km(
-        GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1])
-    )
+    return haversine_km(GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1]))
 
 
 def _reassign_banquet_days(
@@ -9705,18 +9703,12 @@ def _reassign_banquet_days(
         if xy is None:
             continue
         city = str(spec.get("city") or "").removesuffix("市")
-        lo, hi = ranges.get(city) or ranges.get(
-            str(spec.get("city") or ""), (0, -1)
-        )
+        lo, hi = ranges.get(city) or ranges.get(str(spec.get("city") or ""), (0, -1))
         if hi < lo:
             continue
         days = list(range(lo, hi + 1))
         nearest = min(
-            (
-                _xy_km(xy, p)
-                for d in days
-                for p in pts_by_day.get(d, [])
-            ),
+            (_xy_km(xy, p) for d in days for p in pts_by_day.get(d, [])),
             default=float("inf"),
         )
         banquets.append((nearest, idx, spec, xy, days))
@@ -14278,8 +14270,7 @@ class PlanningAgent:
                 )
                 day_load[m_day] = day_load.get(m_day, 0) + m_minutes
                 logger.info(
-                    "plan: must merge bound %s -> day %d (city=%s minutes=%s "
-                    "xy=%s)",
+                    "plan: must merge bound %s -> day %d (city=%s minutes=%s xy=%s)",
                     name,
                     m_day,
                     bcity,
