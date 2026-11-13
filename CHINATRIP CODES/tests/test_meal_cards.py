@@ -21,8 +21,9 @@ def _food(item_id: str, name: str, start: time | None, dur: int = 60) -> VisitIt
     end = (
         None
         if start is None
-        else time((start.hour * 60 + start.minute + dur) // 60 % 24,
-                  (start.minute + dur) % 60)
+        else time(
+            (start.hour * 60 + start.minute + dur) // 60 % 24, (start.minute + dur) % 60
+        )
     )
     return VisitItem(
         item_id=item_id,
@@ -66,8 +67,13 @@ def test_meal_card_slot_maps_by_start_time():
     assert _meal_card_slot(ph) is None
     # 非餐条目
     sight = VisitItem(
-        item_id="v9", name="外滩", category="attraction", city="上海", day=1,
-        start_time=time(18, 0), duration_minutes=60,
+        item_id="v9",
+        name="外滩",
+        category="attraction",
+        city="上海",
+        day=1,
+        start_time=time(18, 0),
+        duration_minutes=60,
     )
     assert _meal_card_slot(sight) is None
 
@@ -82,9 +88,7 @@ def test_day_meal_card_taken_sees_late_dinner_and_untimed():
     assert _day_meal_card_taken(day, "dinner") is True
     assert _day_meal_card_taken(day, "lunch") is False
     # 无时刻真餐件：宁空不重，两张卡都算占
-    untimed = DayPlan(
-        day=1, base_city="上海", items=[_food("v35", "某餐厅", None)]
-    )
+    untimed = DayPlan(day=1, base_city="上海", items=[_food("v35", "某餐厅", None)])
     assert _day_meal_card_taken(untimed, "lunch") is True
     assert _day_meal_card_taken(untimed, "dinner") is True
 
@@ -97,8 +101,7 @@ def test_surplus_auto_dinner_dropped_against_late_user_dinner():
     _drop_surplus_auto_meals(plan)
     names = [i.name for i in plan.days[0].items]
     assert names == ["福和慧"]
-    assert any("撤掉重复的自动补餐" in a and "老吉士" in a
-               for a in plan.assumptions)
+    assert any("撤掉重复的自动补餐" in a and "老吉士" in a for a in plan.assumptions)
 
 
 def test_two_system_dinners_keep_first_only():

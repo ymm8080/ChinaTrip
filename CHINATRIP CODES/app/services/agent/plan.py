@@ -1014,8 +1014,20 @@ _BANK_BRANCH_RE = re.compile(
     r"(银行\s*$)|(支行|分行|营业部|营业所|储蓄所|自助银行|ATM)", re.IGNORECASE
 )
 _BANK_NAME_EXEMPT = (
-    "博物馆", "美术馆", "纪念馆", "旧址", "大楼", "大厦", "景区",
-    "乐园", "世界", "中心", "酒店", "宾馆", "展览", "陈列",
+    "博物馆",
+    "美术馆",
+    "纪念馆",
+    "旧址",
+    "大楼",
+    "大厦",
+    "景区",
+    "乐园",
+    "世界",
+    "中心",
+    "酒店",
+    "宾馆",
+    "展览",
+    "陈列",
 )
 
 
@@ -1091,9 +1103,7 @@ def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> lis
         a = anchors.get(str(it.get("city") or ""))
         if xy is None or a is None:
             return 1
-        km = haversine_km(
-            GeoPoint(lon=xy[0], lat=xy[1]), GeoPoint(lon=a[0], lat=a[1])
-        )
+        km = haversine_km(GeoPoint(lon=xy[0], lat=xy[1]), GeoPoint(lon=a[0], lat=a[1]))
         if km > _DAY_MIX_KM:
             return 2
         return 0 if km <= _DAY_CORE_KM else 1
