@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import time as T
 
 from app.services.agent.plan import (
     PlanningAgent,
@@ -39,6 +40,8 @@ def _agent(svc, *, amap_client=None):
 
 
 def _visit(name, *, city, day, poi_id="POI1"):
+    # 2026-11-13（陕历博灰卡案）：无时刻卡不算已排期——夹具给真时刻，
+    # 「城在行程内 → 翻已排期」的锚才测的是城闸而不是时刻闸。
     return VisitItem(
         item_id=f"v-{name}",
         name=name,
@@ -47,6 +50,8 @@ def _visit(name, *, city, day, poi_id="POI1"):
         duration_minutes=120,
         category="attraction",
         poi_id=poi_id,
+        start_time=T(9, 0),
+        end_time=T(11, 0),
     )
 
 

@@ -4914,6 +4914,9 @@ def _reservation_hint_from_row(row: dict) -> str | None:
 
 # 8.2.3：营业时间串首段 "HH:MM-HH:MM" → solver 硬窗；解析不出不硬卡
 _HOURS_SPAN_RE = re.compile(r"(\d{1,2}):(\d{2})\s*[-–—~至]\s*(\d{1,2}):(\d{2})")
+# 午间闭馆/午休的最长时长（分钟）：内段超过它就不是午休，而是另一套作息
+# （季节/节假日时间表），见 _hours_from_visit 的分支判据。
+_MIDDAY_BREAK_MAX = 180
 
 
 def _hours_from_visit(item: VisitItem) -> PoiHours | None:
@@ -4934,11 +4937,21 @@ def _hours_from_visit(item: VisitItem) -> PoiHours | None:
         return None  # 跨午夜/脏数据不硬卡（宁无窗不可错窗）
     windows = None
     if len(spans) == 2 and (spans[0][0] <= spans[1][0] and spans[1][1] <= spans[0][1]):
-        # G3 午休闭馆型「09:00-17:00（12:00-13:30 午休）」→ 补集分段
-        windows = [
-            (spans[0][0], spans[1][0]),
-            (spans[1][1], spans[0][1]),
-        ]
+        # G3 午休闭馆型「09:00-17:00（12:00-13:30 午休）」→ 补集分段。
+        # 2026-11-13（陕历博 None-None 灰卡案）：季节/节假日双套作息也长成
+        # 「大段包小段」形状（「4月1日至11月14日 08:30-19:00…；11月15日至
+        # 3月14日 周二至周日 09:00-17:30」），旧口径把内段当午休，补集成
+        # 08:30-09:00 + 17:30-19:00 两片碎窗——240min 必去件任何一天都探不
+        # 进，必去让位/跨日救生全链失效，只能灰卡终局。午休判据=内段够短
+        # （≤3h，午休/午间闭馆常态）；内段更长的按「另一套作息」处理，取
+        # 内段（两季都开的交集）最保守。
+        if _minutes_of(spans[1][1]) - _minutes_of(spans[1][0]) <= _MIDDAY_BREAK_MAX:
+            windows = [
+                (spans[0][0], spans[1][0]),
+                (spans[1][1], spans[0][1]),
+            ]
+        else:
+            spans = [spans[1]]
     elif len(spans) >= 2:
         windows = spans  # 平铺分段「09:00-12:00, 13:30-17:00」
     first = spans[0]
@@ -15131,7 +15144,10 @@ class PlanningAgent:
                     self._trip_items.link_itinerary(it["id"], itin, force=True)
                     if row_itin:
                         session.linked_itins.append(row_itin)
-                if target is None and it.get("status") == STATUS_SCHEDULED:
+                # 2026-11-13（陕历博灰卡案）：无时刻卡（None-None）不算已排
+                # ——「未排」卡却翻已排期是假成功；回心愿单等重排。
+                untimed = target is None or target.start_time is None
+                if untimed and it.get("status") == STATUS_SCHEDULED:
                     # 2026-10-31（看+动物名案）：行已归属当前行程，但重排后
                     # 行程已不含该心愿落点（删点/换城窗/占位回退）——
                     # scheduled 再挂着就是「已排期但实际没排」：回心愿
@@ -15149,6 +15165,7 @@ class PlanningAgent:
                     )
                 if (
                     target is not None
+                    and target.start_time is not None
                     and (target.poi_id or (stop is not None and stop.poi_id))
                     and (
                         it.get("status") != STATUS_SCHEDULED
@@ -15207,6 +15224,7 @@ class PlanningAgent:
             for day in session.plan.days
             for item in day.items
             if isinstance(item, VisitItem)
+            and item.start_time is not None
             and item.poi_id
             and ((item.category or "") != "food" or _is_show_banquet_item(item))
             and (item.category or "") != "hotel"
