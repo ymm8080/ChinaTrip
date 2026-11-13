@@ -3747,6 +3747,24 @@ def _is_service_meta_wish(text: str) -> bool:
     )
 
 
+def _is_trip_brief_wish(text: str) -> bool:
+    """「去成都玩3天」是行程简报，不是可排期的心愿（2026-11-13 用户拍板
+    「去成都玩三天不能算心愿单」）。
+
+    判据：能解析出城市 + 天数（_trip_brief 非空且 days 有值）即算简报；
+    纯地点名/街区（「成都」「宽窄巷子」）不受影响——它们是可排期的点位。
+    """
+    s = (text or "").strip()
+    if not s or len(s) > 40:
+        return False
+    brief = _trip_brief(s)
+    if brief is None:
+        return False
+    _cities, days = brief
+    return days is not None and days >= 1
+
+
+
 def _significant_units(s: str) -> frozenset[str]:
     """grounding 的最小信号单位：CJK 单字 + 拉丁词元（≥2 字符）。
 
@@ -25151,6 +25169,11 @@ class PlanningAgent:
                 # 服务型请求不建心愿行（2026-11-04「帮我看看天气」误建行
                 # 事故）：是让引擎干活的指令，不是可排期的地点。
                 logger.info("plan: chat wish skipped as service meta: %s", wish)
+                continue
+            if _is_trip_brief_wish(wish):
+                # 2026-11-13（用户拍板「去成都玩三天不能算心愿单」）：
+                # 「去X玩N天」是整趟行程简报，不是可排期的点位。
+                logger.info("plan: chat wish skipped as trip brief: %s", wish)
                 continue
             try:
                 existing = next(

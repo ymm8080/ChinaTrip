@@ -322,3 +322,28 @@ def test_route_endpoint_city_wish_not_absorbed():
     got = svc.get(row["id"])
     assert got["status"] == "wishlist"
     assert not got.get("itinerary_id")
+
+
+def test_trip_brief_is_not_a_wish():
+    """2026-11-13 用户拍板「去成都玩三天不能算心愿单」：心愿单是某城市里
+    具体可落地的活动/地址；「去X玩N天」是整趟行程简报，不建行。"""
+    from app.services.agent.plan import _is_trip_brief_wish
+
+    assert _is_trip_brief_wish("去成都玩3天")
+    assert _is_trip_brief_wish("去成都玩三天")
+    # 具体点位照常
+    assert not _is_trip_brief_wish("宽窄巷子")
+    assert not _is_trip_brief_wish("成都")
+
+
+def test_trip_brief_creates_no_wish_row():
+    import asyncio
+
+    svc = TripItemService()
+    agent = _agent(svc)
+    session = _session(agent, _plan_with([_item("宽窄巷子", poi_id="KZ01")]))
+    notes, unresolved = asyncio.run(
+        agent.sync_wishes_to_trip_items(session, ["去成都玩3天"], user_texts=None)
+    )
+    assert notes == [] and unresolved == []
+    assert svc.list_groups(None, "d1")["wishlist"] == []

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 from geoalchemy2 import Geography, WKBElement
 from sqlalchemy import (
@@ -7,6 +7,8 @@ from sqlalchemy import (
     TIME,
     TIMESTAMP,
     Boolean,
+
+    Date,
     Float,
     ForeignKey,
     Index,
@@ -421,6 +423,13 @@ class ItineraryItem(Base):
     category: Mapped[str | None] = mapped_column(String(40))
     address: Mapped[str | None] = mapped_column(String(200))
     alternatives: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    # 2026-11-13（用户拍板明细列：DURATION / SCHEDULE DATE /
+    # ALTERNATIVE 1-3）：时长、具体日期、备选名单独成列，方便查询。
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    schedule_date: Mapped[date | None] = mapped_column(Date)
+    alt1: Mapped[str | None] = mapped_column(String(200))
+    alt2: Mapped[str | None] = mapped_column(String(200))
+    alt3: Mapped[str | None] = mapped_column(String(200))
 
 
 class ItineraryChangeLog(Base):
