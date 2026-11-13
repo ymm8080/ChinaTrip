@@ -107,6 +107,8 @@ def test_parse_place_request_rejects_non_single_place():
     assert parse_place_request("豫园几点开门") is None
     assert parse_place_request("我想去上海玩三天") is None
     assert parse_place_request("帮我规划一下上海三日游") is None
+
+
 def _night_card(day: int) -> VisitItem:
     return VisitItem(
         item_id=f"hotel-night-d{day}",
