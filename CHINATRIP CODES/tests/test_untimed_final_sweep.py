@@ -418,3 +418,516 @@ def test_finalize_retries_moved_stray_on_other_city_days():
     assert not any(
         "已从行程移除" in str(a) and "成都环球中心" in str(a) for a in out.assumptions
     )
+
+
+# --- 让位留痕 plan.unplaced + 必去跨日救生（2026-11-11 拍板「可替代品跨品
+# 类：想排没排进去的景点放右边」） -------------------------------------------
+
+
+def test_sweep_records_unplaced_yield_must():
+    """同日让位清算挤掉的凑数点必须结构化留痕 plan.unplaced（reason=
+    yield_must，day_hint=被挤日）——装配期据此作「想去」chip 落被挤日。"""
+    day = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="v5",
+                name="成都金沙遗址博物馆",
+                city="成都",
+                day=2,
+                category="museum",
+                duration_minutes=120,
+                start_time=_t(9, 0),
+                end_time=_t(11, 0),
+            ),
+            VisitItem(
+                item_id="v6",
+                name="宽窄巷子",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=150,
+                start_time=_t(12, 0),
+                end_time=_t(14, 30),
+            ),
+            VisitItem(
+                item_id="v8",
+                name="成都大熊猫繁育研究基地",
+                city="成都",
+                day=2,
+                category="zoo",
+                duration_minutes=180,
+                pinned=True,
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-unplaced", cities=["成都"], days=[day], assumptions=[]
+    )
+    out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
+    by_name = {u.name: u for u in out.unplaced}
+    assert "宽窄巷子" in by_name, "被挤点必须进 unplaced"
+    assert by_name["宽窄巷子"].reason == "yield_must"
+    assert by_name["宽窄巷子"].day_hint == 2
+
+
+def _greedy_solve(max_minutes: int):
+    """假 _solve：无时刻参访按最早空档贪心落时刻，超过 max_minutes 的
+    条目永远排不上（模拟物理装不下）。"""
+
+    def _solve(plan, meal_flex=True, **kw):
+        for day in plan.days:
+            busy = []
+            for v in day.items:
+                if (
+                    isinstance(v, VisitItem)
+                    and v.start_time is not None
+                    and v.end_time is not None
+                ):
+                    busy.append(
+                        (
+                            v.start_time.hour * 60 + v.start_time.minute,
+                            v.end_time.hour * 60 + v.end_time.minute,
+                        )
+                    )
+            for v in day.items:
+                if not (
+                    isinstance(v, VisitItem)
+                    and v.start_time is None
+                    and (v.category or "") not in ("food", "hotel")
+                ):
+                    continue
+                dur = v.duration_minutes or 90
+                if dur > max_minutes:
+                    continue
+                s = 9 * 60
+                while s + dur <= 21 * 60 + 30:
+                    clash = next((b for b in busy if b[0] < s + dur and s < b[1]), None)
+                    if clash is None:
+                        v.start_time = _t(s // 60, s % 60)
+                        v.end_time = _t((s + dur) // 60, (s + dur) % 60)
+                        busy.append((s, s + dur))
+                        break
+                    s = clash[1]
+        return plan
+
+    return _solve
+
+
+def _rescue_plan() -> ItineraryPlan:
+    """钉住必去 300min 在同日物理装不下（演出钉死傍晚+大点 13:00 起始
+    闸），同城次日全空——跨日救生应把必去挪次日落时刻。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="f1",
+                name="凑数点甲",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=120,
+                start_time=_t(9, 0),
+                end_time=_t(11, 0),
+                location=xy,
+            ),
+            VisitItem(
+                item_id="lunch-1",
+                name="午饭（自由安排）",
+                city="成都",
+                day=1,
+                category="food",
+                duration_minutes=30,
+                start_time=_t(12, 0),
+                end_time=_t(12, 30),
+                soft_pin=True,
+            ),
+            VisitItem(
+                item_id="f2",
+                name="凑数点乙",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=120,
+                start_time=_t(14, 0),
+                end_time=_t(16, 0),
+                location=xy,
+            ),
+            VisitItem(
+                item_id="show-1",
+                name="某钉死演出",
+                city="成都",
+                day=1,
+                category="entertainment",
+                best_visit_time="show",
+                duration_minutes=90,
+                start_time=_t(17, 0),
+                end_time=_t(18, 30),
+                pinned=True,
+                location=xy,
+            ),
+            VisitItem(
+                item_id="must-1",
+                name="某必去大点",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=300,
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="成都", items=[])
+    return ItineraryPlan(
+        itinerary_id="it-rescue", cities=["成都"], days=[day1, day2], assumptions=[]
+    )
+
+
+def test_crossday_rescue_moves_pinned_must_to_feasible_day():
+    plan = _rescue_plan()
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan)
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
+    assert must.day == 2, "同城次日可行时必须跨日救生，不得灰卡终局"
+    assert must.start_time is not None
+    assert any("救生改排" in str(a) for a in out.assumptions)
+    d1_names = [i.name for i in out.days[0].items]
+    assert "凑数点甲" in d1_names and "某钉死演出" in d1_names, (
+        "救生全有全无：失败日原样不动"
+    )
+
+
+def test_crossday_rescue_rolls_back_when_target_infeasible():
+    """目标日也装不下（假 solve 对 300min 恒排不上）→ 弃克隆原样归还，
+    钉住必去留灰卡+披露，绝不留半拉子让位。"""
+    plan = _rescue_plan()
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=240)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan)
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
+    assert must.day == 1 and must.start_time is None, "不可行即回滚"
+    assert not any("救生改排" in str(a) for a in out.assumptions)
+    d1_names = [i.name for i in out.days[0].items]
+    assert "凑数点甲" in d1_names and "凑数点乙" in d1_names, "回滚不得白挤"
+
+
+def test_crossday_rescue_repins_must_and_rigidifies_pinned_meals():
+    """救生采纳后必去按落档时刻回钉（pinned=True，2026-11-11 铁律 19
+    口径：用户钉的是「在册必去」，落档时刻即新钉点）；钉住具名餐卡试宿
+    前转刚性（可挪不可删）——否则求解器窗满丢餐把钉住宴/餐蒸发成灰卡
+    （读闸保钉住卡，灰卡永留）；未钉软锚餐维持可滑可丢。"""
+    plan = _rescue_plan()
+    banquet = VisitItem(
+        item_id="banquet-1",
+        name="某钉住宴秀",
+        city="成都",
+        day=2,
+        category="food",
+        duration_minutes=90,
+        start_time=_t(12, 30),
+        end_time=_t(14, 0),
+        pinned=True,
+        soft_pin=True,
+    )
+    plan.days[1].items.append(banquet)
+    seen: dict[str, bool] = {}
+    base_solve = _greedy_solve(max_minutes=400)
+
+    def _spy_solve(p, meal_flex=True, **kw):
+        for d in p.days:
+            for v in d.items:
+                if isinstance(v, VisitItem) and v.item_id == "banquet-1":
+                    seen["soft_pin_at_solve"] = bool(v.soft_pin)
+        return base_solve(p, meal_flex=meal_flex, **kw)
+
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _spy_solve  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan)
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
+    assert must.start_time is not None and must.pinned is True, (
+        "采纳后必须按落档时刻回钉"
+    )
+    assert seen.get("soft_pin_at_solve") is False, "钉住餐试宿前须转刚性（可挪不可删）"
+
+
+def test_sweep_evicts_unpinned_show_but_never_pinned_show():
+    """2026-11-11 拍板「必去/手建优先于梯队」：未钉凑数演出在钉住必去
+    面前照让（让位留痕 plan.unplaced，可经「想去」chip 加回）；钉住演出
+    （已锁场次）永不让位。"""
+    day = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="f1",
+                name="某凑数点",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=180,
+                start_time=_t(9, 0),
+                end_time=_t(12, 0),
+            ),
+            VisitItem(
+                item_id="e1",
+                name="某未钉演出",
+                city="成都",
+                day=2,
+                category="entertainment",
+                best_visit_time="show",
+                duration_minutes=90,
+                start_time=_t(13, 0),
+                end_time=_t(14, 30),
+            ),
+            VisitItem(
+                item_id="e2",
+                name="某钉住演出",
+                city="成都",
+                day=2,
+                category="entertainment",
+                best_visit_time="show",
+                duration_minutes=90,
+                start_time=_t(17, 0),
+                end_time=_t(18, 30),
+                pinned=True,
+            ),
+            VisitItem(
+                item_id="v8",
+                name="某必去大点",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=180,
+                pinned=True,
+                must=True,
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-show-shield", cities=["成都"], days=[day], assumptions=[]
+    )
+    out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
+    by_name = {u.name: u for u in out.unplaced}
+    assert "某未钉演出" in by_name, "未钉凑数演出在钉住必去面前照让"
+    assert by_name["某未钉演出"].reason == "yield_must"
+    d2 = next(d for d in out.days if d.day == 2)
+    kept = {i.name: i for i in d2.items}
+    assert "某钉住演出" in kept and kept["某钉住演出"].start_time == _t(17, 0), (
+        "钉住演出已锁场次，永不让位"
+    )
+
+
+# --- 2026-11-13「到达与出发日只安排一项活动」用户拍板 -------------------------
+# 根案：西安 5 日 day1 = 曲江艺术博物馆（钉住必去 14:30）+ 陕西历史博物馆
+# （具名钉住必去无时刻灰卡）——「两项」。三病根类级收口：
+# ① _must_visit_crossday_rescue 的 v.name not in protect 精确名闸把具名
+#   必去挡在验证制救生门外（灵隐寺案同病第二现场）→ 灰卡滞留端点日；
+# ② 救生候选日原序自家日先行，钉住件落端点日=上限闸无解的新违规；
+# ③ 转场日扫的滞留披露前置运行，救生成功后旧披露成反向信息。
+
+
+def test_rescue_includes_protect_named_must():
+    """具名必去（protect 在册）不再被精确名闸挡在救生门外：钉住必去
+    无时刻时照样走克隆试宿通道（11-13 拍板「点名必排，排不上删其它
+    腾位」——裸挪禁，验证制救生必达）。"""
+    plan = _rescue_plan()
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, notes = agent._must_visit_crossday_rescue(plan, protect={"某必去大点"})
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
+    assert must.day == 2 and must.start_time is not None, (
+        "具名必去无时刻必须跨日救生，不得灰卡终局"
+    )
+    assert any("救生改排" in n for n in notes)
+
+
+def _departure_day_plan() -> ItineraryPlan:
+    """离城日（day3 17:00 出发腿）钉住必去无时刻，同城 day2 全空——
+    救生必须先试非端点日，不得自家日（端点）先行落档。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="成都", items=[])
+    day3 = DayPlan(
+        day=3,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-out",
+                day=3,
+                seq=1,
+                mode="train",
+                from_city="成都",
+                to_city="上海",
+                start_time=_t(17, 0),
+                end_time=_t(20, 0),
+            ),
+            VisitItem(
+                item_id="must-d3",
+                name="离城日必去",
+                city="成都",
+                day=3,
+                category="attraction",
+                duration_minutes=90,
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+        ],
+    )
+    return ItineraryPlan(
+        itinerary_id="it-ep-order",
+        cities=["上海", "成都", "上海"],
+        days=[day1, day2, day3],
+        assumptions=[],
+    )
+
+
+def test_rescue_prefers_non_endpoint_day():
+    """救生候选日端点日排最后：自家离城日试宿成功也不采纳——上限闸
+    对钉住件无解，先落端点日=把灰卡换成新违规（用户可见「两项」）。"""
+    plan = _departure_day_plan()
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, _notes = agent._must_visit_crossday_rescue(plan, protect={"离城日必去"})
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
+    assert must.day == 2 and must.start_time is not None, (
+        "非端点日可行时必须落非端点日，不得自家离城日先行"
+    )
+
+
+def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
+    """转场日扫的滞留披露在本闸之前跑：救生成功后按名剥除token——
+    披露行聚合同日多名时不得整行丢弃（同伴滞留披露被吃掉=静默）。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+            VisitItem(
+                item_id="must-a",
+                name="救生甲",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=90,
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+            VisitItem(
+                item_id="must-b",
+                name="滞留乙",
+                city="成都",
+                day=1,
+                category="attraction",
+                duration_minutes=3000,  # 物理装不下：greedy 永不落档
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="成都", items=[])
+    plan = ItineraryPlan(
+        itinerary_id="it-prune",
+        cities=["上海", "成都"],
+        days=[day1, day2],
+        assumptions=[
+            "必去 「救生甲」、「滞留乙」 钉在第1天（转场日）但排不上时刻，"
+            "请告诉我换天或换时刻"
+        ],
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, _notes = agent._must_visit_crossday_rescue(plan, protect={"救生甲", "滞留乙"})
+    a = next(i for d in out.days for i in d.items if i.item_id == "must-a")
+    assert a.day == 2 and a.start_time is not None
+    b = next(i for d in out.days for i in d.items if i.item_id == "must-b")
+    assert b.day == 1 and b.start_time is None, "装不下即回滚留灰卡"
+    stale_a = [
+        str(x) for x in out.assumptions if "救生甲" in str(x) and "排不上时刻" in str(x)
+    ]
+    assert stale_a == [], "救生成功后旧滞留披露必须剥除"
+    kept_b = [
+        str(x) for x in out.assumptions if "滞留乙" in str(x) and "排不上时刻" in str(x)
+    ]
+    assert kept_b and "救生甲" not in kept_b[0], "同伴滞留披露按名剥token后保留"
+
+
+def test_rescue_includes_pinned_untimed_show():
+    """钉住演出无时刻（端点日转场腿占死晚窗，演出让位/场次链管不到
+    钉住件）一并进救生：同城非端点日试宿落场；protect 在册不豁免。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+            VisitItem(
+                item_id="show-1",
+                name="某钉住演出",
+                city="成都",
+                day=1,
+                category="entertainment",
+                best_visit_time="show",
+                duration_minutes=90,
+                pinned=True,
+                must=True,
+                location=xy,
+            ),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="成都", items=[])
+    plan = ItineraryPlan(
+        itinerary_id="it-show-rescue",
+        cities=["上海", "成都"],
+        days=[day1, day2],
+        assumptions=[],
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, _notes = agent._must_visit_crossday_rescue(plan, protect={"某钉住演出"})
+    show = next(i for d in out.days for i in d.items if i.item_id == "show-1")
+    assert show.day == 2 and show.start_time is not None, (
+        "钉住演出无时刻必须救生落场，不得灰卡滞留端点日"
+    )

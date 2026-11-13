@@ -7194,7 +7194,8 @@ def _endpoint_day_light_sweep(
        _urban_medoid）为市中心默认；无锚或全部缺坐标=不可核即不拦
        （11-08 同口径）。演出/餐宿不计入上限（演出=节目由每场闸另
        管，端点日收 SHOW 为 11-11 拍板合法内容）；钉/软钉余卡=铁律
-       19 不动。整族轻量形态不豁免本闸——11-11 族豁免只管①「算不
+       19 不动，2026-11-13 起当日仍多张时留披露（用户可见「两项」，
+       静默仅日志不满足披露口径）。整族轻量形态不豁免本闸——11-11 族豁免只管①「算不
        算重磅」，本闸管「留几张」：两张相邻小卡同样是「两项」（
        11-12 用户报「出发日安排了两项」根案）。
 
@@ -7535,12 +7536,26 @@ def _endpoint_day_light_sweep(
                     continue
                 if _untouchable(v):
                     # 钉/软钉=铁律 19 用户权威，上限闸同样不挪（当日
-                    # 仍多张=用户自己钉的，留日志可审计）。
+                    # 仍多张=用户自己钉的，留日志可审计）。2026-11-13
+                    # 起补披露：端点日钉住余卡滞留是用户可见的「两项」，
+                    # 静默留日志不满足披露口径（10-25 立规）。
                     logger.info(
                         "plan: endpoint-light cap keeps pinned %s on day %s",
                         v.name,
                         d.day,
                     )
+                    if getattr(v, "pinned", False) and not getattr(
+                        v, "soft_pin", False
+                    ):
+                        plan.assumptions.append(
+                            L(
+                                f"第{d.day}天为{label_zh}，一项上限不挪动钉住的"
+                                f"「{v.name}」（铁律 19），当日保留多项",
+                                f"Day {d.day} is the {label_en}; the one-item "
+                                f'cap does not move pinned "{v.name}" (iron '
+                                "rule 19), so the day keeps multiple items",
+                            )
+                        )
                     continue
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
                 non_ep = [
@@ -13515,6 +13530,19 @@ class PlanningAgent:
                 FLIGHT_TRANSFER_MINUTES if transfer_days and d in transfer_days else 0
             )
 
+        # 端点日口径（同 _endpoint_day_light_sweep ③）：首日恒为到达侧
+        # （_day_is_arrival 字面 day==1）；城际转场日（多城含末日返程腿，
+        # 见调用侧 transfer_days 构造）；单城无城际腿行程末日=返程日镜像。
+        _ep_days: set[int] = {1, *(transfer_days or ())}
+        if len({str(c or "").strip().removesuffix("市") for c in cities} - {""}) <= 1:
+            _ep_days.add(days)
+        # 已收必去的端点日（2026-11-13「到达与出发日只安排一项活动」拍板
+        # 上游防线）：端点日至多收一件必去——到达日保留「一项近酒店游览」
+        # （11-12 拍板）而非清空；第二件必去起只落非端点日，全满才结构
+        # 兜底放行（同终装清扫「无宿主=保留+披露」口径）。餐类必去不占
+        # 游览上限（上限闸不计餐宿），不占名额也不被拦。
+        _ep_must: set[int] = set()
+
         def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
             # 与选点同口径（打车模型）：必去入排当日与最近已放点位的腿费
             # ——「第二天看不完」的走行债在这里就计入。
@@ -13529,7 +13557,11 @@ class PlanningAgent:
             return _taxi_leg_min(km)
 
         def _must_day(
-            lo: int, hi: int, minutes: int, xy: tuple[float, float] | None = None
+            lo: int,
+            hi: int,
+            minutes: int,
+            xy: tuple[float, float] | None = None,
+            taken_ep: set[int] | None = None,
         ) -> int:
             # 容量+走行+地理（2026-10-31 用户拍板「替代组正主→远郊水利 50km 同
             # 天=聚合没做好」）：有坐标必去优先落「与当日已放点位 ≤15km」的
@@ -13543,6 +13575,12 @@ class PlanningAgent:
             ]
             if not fitting:
                 return min(window, key=lambda d: (day_load.get(d, 0), d))
+            # 端点日一件必去上限（taken_ep=已收必去的端点日）：有其它候选
+            # 时不再收第二件；全窗只剩被占端点日/全满时照收（结构兜底）。
+            if taken_ep:
+                inner = [d for d in fitting if d not in taken_ep]
+                if inner:
+                    fitting = inner
             if xy is not None:
 
                 def _day_min_km(d: int) -> float:
@@ -13616,14 +13654,21 @@ class PlanningAgent:
                         m_city = str(match.get("city") or "").removesuffix("市")
                         w_lo, w_hi = ranges.get(m_city, (1, days))
                         m_min = int(match.get("duration_minutes") or 60)
-                        target = _must_day(w_lo, w_hi, m_min, m_xy)
-                        if target != cur and _leg_min(m_xy, target) < _leg_min(
-                            m_xy, cur
+                        target = _must_day(w_lo, w_hi, m_min, m_xy, taken_ep=_ep_must)
+                        # 端点日避让压过腿费比较：已落端点日的必去，只要
+                        # 有非端点候选天就挪回（11-13 一项上限上游防线）。
+                        off_ep = cur in _ep_days and target not in _ep_days
+                        if target != cur and (
+                            _leg_min(m_xy, target) < _leg_min(m_xy, cur) or off_ep
                         ):
                             day_load[cur] = max(0, day_load.get(cur, 0) - m_min)
                             match["day"] = target
                             day_xy.setdefault(target, []).append(m_xy)
                             day_load[target] = day_load.get(target, 0) + m_min
+                            if target in _ep_days:
+                                _ep_must.add(target)
+                            if cur in _ep_days:
+                                _ep_must.discard(cur)
                 continue
             bound = bound0
             if bound is not None and bound.get("name"):
@@ -13669,7 +13714,15 @@ class PlanningAgent:
                     if isinstance(m_loc, dict) and m_loc.get("lon") is not None
                     else None
                 )
-                m_day = _must_day(lo, hi, m_minutes, m_xy)
+                m_day = _must_day(
+                    lo,
+                    hi,
+                    m_minutes,
+                    m_xy,
+                    taken_ep=_ep_must if kinds.get(name) != "food" else None,
+                )
+                if kinds.get(name) != "food" and m_day in _ep_days:
+                    _ep_must.add(m_day)
                 if m_xy is not None:
                     day_xy.setdefault(m_day, []).append(m_xy)
                 picked.append(
@@ -13708,7 +13761,15 @@ class PlanningAgent:
                 if kinds.get(name) == "food"
                 else DEFAULT_VISIT_MINUTES
             )
-            m_day = _must_day(lo, hi, m_minutes, None)
+            m_day = _must_day(
+                lo,
+                hi,
+                m_minutes,
+                None,
+                taken_ep=_ep_must if kinds.get(name) != "food" else None,
+            )
+            if kinds.get(name) != "food" and m_day in _ep_days:
+                _ep_must.add(m_day)
             picked.append(
                 {
                     "name": name,
@@ -19658,7 +19719,19 @@ class PlanningAgent:
         清算 → CP 重解），必去拿到时刻才采纳；失败即弃克隆原样不动（全有
         全无，绝不白挤）。被挤者经让位清算留痕 plan.unplaced，装配期作
         「想去」chip 落被挤日相关卡右侧（可替代品跨品类拍板）。tier≤2 不
-        上返程日（口径同 rehome）；重物落到达日走孤窗兜底须披露。"""
+        上返程日（口径同 rehome）；重物落到达日走孤窗兜底须披露。
+
+        2026-11-13 三拍修订（「到达与出发日只安排一项活动」用户拍板）：
+        ①具名必去（protect 在册）不再被精确名闸挡在门外——11-11 建闸时
+        的 v.name not in protect 过滤让点名必去灰卡滞留端点日（陕历博
+        day1 实录），与同天 _transfer_day_sweep 灵隐寺案根修同病；钉住
+        演出一并纳入（端点日转场腿占死晚窗，演出让位/场次链管不到钉住
+        无时刻演出）。真用户手钉必带时刻（钉接口 422 强制），进不了
+        stuck 集，铁律 19 不受影响。②候选日端点日排最后：端点日一项
+        上限对钉住件无解，救生落端点日=把灰卡换成新违规——同城非端点
+        日优先试宿，结构无解才孤窗兜底（含披露）。③采纳时剥「排不上
+        时刻/落地后已无游览时间/暂留原天待重排」类滞留披露——前置清扫
+        在本闸之前跑，救生成功后旧披露成反向信息。"""
         from copy import deepcopy
 
         notes: list[str] = []
@@ -19669,9 +19742,7 @@ class PlanningAgent:
                 if isinstance(v, VisitItem)
                 and v.pinned
                 and v.start_time is None
-                and not _is_show_item(v)
                 and (v.category or "") not in ("food", "hotel")
-                and v.name not in protect
             ]
             for must in stuck:
                 vcity = str(must.city or "").strip().removesuffix("市")
@@ -19680,7 +19751,19 @@ class PlanningAgent:
                 dur = must.duration_minutes or DEFAULT_VISIT_MINUTES
                 vt = (tier_by_name or {}).get(str(must.name or ""), 11)
                 own_day = next(d for d in plan.days if d.day == day.day)
-                for target in [own_day] + [d for d in plan.days if d is not own_day]:
+
+                def _tgt_is_ep(d: DayPlan) -> bool:
+                    # 端点日（口径同 _endpoint_day_light_sweep ③）排最后：
+                    # 上限闸对钉住件无解，救生先落端点日=灰卡换新违规。
+                    return _day_is_arrival(d, vcity) or _day_is_return_home(
+                        d, plan.days
+                    )
+
+                targets = sorted(
+                    [own_day] + [d for d in plan.days if d is not own_day],
+                    key=lambda d: (_tgt_is_ep(d), 0 if d is own_day else 1),
+                )
+                for target in targets:
                     if target is not own_day:
                         if (
                             str(target.base_city or "").strip().removesuffix("市")
@@ -19846,6 +19929,38 @@ class PlanningAgent:
                         )
                     annotate_legs(cand)
                     plan = cand
+                    # 滞留披露剥除（2026-11-13）：前置清扫（转场日扫/到达
+                    # 溢出披露）在本闸之前跑——救生成功后「排不上时刻请
+                    # 换天」类旧披露成反向信息。按名剥除token（披露行可能
+                    # 聚合同日多名，整行丢弃会吃掉同伴的滞留披露——剥到
+                    # 行内无名可剥才整行撤下）；无这些语素的含名披露（预约
+                    # 提醒等）不受影响。
+                    stale_markers = (
+                        "排不上时刻",
+                        "落地后已无游览时间",
+                        "暂留原天待重排",
+                        "could not be timed",
+                        "no sightseeing time left",
+                        "stays for re-timing",
+                    )
+                    kept: list[str] = []
+                    for a in plan.assumptions:
+                        if not (must.name in a and any(m in a for m in stale_markers)):
+                            kept.append(a)
+                            continue
+                        for tok in (f"「{must.name}」", f'"{must.name}"'):
+                            if tok in a:
+                                seps = (f"{tok}、", f"、{tok}", f"{tok}, ", f", {tok}")
+                                for sep in seps:
+                                    if sep in a:
+                                        a = a.replace(sep, "", 1)
+                                        break
+                                else:
+                                    a = a.replace(tok, "", 1)
+                                break
+                        if "「" in a or '"' in a:
+                            kept.append(a)
+                    plan.assumptions = kept
                     day = next(d for d in plan.days if d.day == day.day)
                     break
         return plan, notes
