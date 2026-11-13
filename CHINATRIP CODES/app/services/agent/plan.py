@@ -4055,6 +4055,227 @@ def _dinner_placeholder(
     )
 
 
+#: 餐卡归属分界（2026-11-13 用户拍板「餐厅应该插入午餐卡/晚餐卡」）：
+#: 真餐厅卡按开席时刻归卡——午卡自 10:30 起（更早属早餐自由时间，
+#: 不占午/晚卡），晚卡自 16:00 起。旧判据（与 17:30-19:30 常量窗有
+#: 交集）漏掉 19:30 后开席的晚宴：上海案第 1 天 19:34 的福和慧已占
+#: 晚餐卡，自动补餐仍在 18:30 又插老吉士酒家，两张晚餐卡并排。
+MEAL_CARD_LUNCH_FROM = 10 * 60 + 30
+MEAL_CARD_DINNER_FROM = 16 * 60
+
+
+def _meal_card_slot(item: object) -> str | None:
+    """真餐厅卡归属的餐卡："lunch"/"dinner"；早餐 "breakfast"；
+    无时刻的真餐厅卡 "untimed"；非真餐卡（景点/酒店/午饭晚饭占位件）
+    None。
+
+    占位件本身就是空餐卡，不算占卡——它们由 _retime_meal_placeholders
+    吸收/重排。
+    """
+    if not isinstance(item, VisitItem):
+        return None
+    if str(getattr(item, "category", "") or "") != "food":
+        return None
+    if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+        return None
+    if item.start_time is None:
+        return "untimed"
+    minutes = _minutes_of(item.start_time)
+    if minutes < MEAL_CARD_LUNCH_FROM:
+        return "breakfast"
+    if minutes < MEAL_CARD_DINNER_FROM:
+        return "lunch"
+    return "dinner"
+
+
+def _day_meal_card_taken(day: DayPlan, slot: str) -> bool:
+    """当天该餐卡是否已被真餐厅卡占住（无时刻的真餐件按「宁空不重」占
+    住两张卡——无处落位的餐厅卡迟早要落，再补一家必撞）。"""
+    for item in day.items:
+        got = _meal_card_slot(item)
+        if got == slot or got == "untimed":
+            return True
+    return False
+
+
+def _is_system_meal(item: VisitItem) -> bool:
+    """系统自动餐件判定：占位件与自动补餐餐厅共用 "food-" 前缀
+    （restaurants.build_food_item / *_placeholder）；心愿/必吃/手建/
+    精选卡是 v* 号，永不被本闸撤除。"""
+    return str(getattr(item, "item_id", "") or "").startswith("food-")
+
+
+def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
+    """一个餐卡只留一张真餐厅（2026-11-13 拍板「餐厅应该插入午餐卡/晚餐
+    卡」的终装闸）。
+
+    同一餐卡（午/晚）里一真一自动时，自动补餐让位撤除——上海案第 1 天
+    19:34 福和慧（晚餐卡）与 18:30 老吉士酒家（自动补餐）并排两张餐卡。
+    用户卡/精选卡永不让位；同日两张都是系统件时留先落位的一张。撤卡
+    留痕走 assumptions，绝不静默消失。
+    """
+    notes: list[str] = []
+    for day in plan.days:
+        by_card: dict[str, list[VisitItem]] = {}
+        for item in day.items:
+            card = _meal_card_slot(item)
+            if card not in ("lunch", "dinner"):
+                continue
+            by_card.setdefault(card, []).append(item)
+        for card in ("lunch", "dinner"):
+            cards = by_card.get(card) or []
+            if len(cards) < 2:
+                continue
+            keep = next((i for i in cards if not _is_system_meal(i)), cards[0])
+            dropped: list[str] = []
+            for item in list(cards):
+                if item is keep or not _is_system_meal(item):
+                    continue
+                day.items.remove(item)
+                dropped.append(item.name)
+            if not dropped:
+                continue
+            card_name = "午餐" if card == "lunch" else "晚餐"
+            notes.append(
+                L(
+                    f"第{day.day}天{card_name}卡已有餐厅「{keep.name}」，"
+                    f"已撤掉重复的自动补餐：「{'、'.join(dropped)}」",
+                    f"Day {day.day} {card} card already has \"{keep.name}\"; "
+                    f"dropped duplicate auto-added meal(s): {', '.join(dropped)}",
+                )
+            )
+    if notes:
+        plan.assumptions.extend(notes)
+
+
+#: 每日餐卡保底窗（2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND
+#: DINNER CARDS」）：午卡开席硬窗 [11:30, 12:30]（与 11-03 拍板的午餐
+#: 开餐窗同口径，14:30 的晚午饭不再算午卡——那天就不补午卡）；晚卡
+#: 16:30–20:30 开席（离城日航班前/落地后都落得下）。
+MEAL_CARD_LUNCH_EARLIEST = 11 * 60 + 30
+MEAL_CARD_LUNCH_LATEST = 12 * 60 + 30
+MEAL_CARD_DINNER_EARLIEST = 16 * 60 + 30
+MEAL_CARD_DINNER_LATEST = 20 * 60 + 30
+MEAL_CARD_DAY_END = 21 * 60 + 30
+
+
+def _day_meal_card_present(day: DayPlan, slot: str) -> bool:
+    """该餐卡是否已有内容：真餐厅卡、对应占位件，或无处落位的无时刻
+    真餐件（宁空不重）。"""
+    for item in day.items:
+        if _meal_card_slot(item) == slot:
+            return True
+        if slot == "lunch" and is_lunch_placeholder(item):
+            return True
+        if slot == "dinner" and is_dinner_placeholder(item):
+            return True
+    return any(_meal_card_slot(i) == "untimed" for i in day.items)
+
+
+def _first_free_gap(
+    blocked: list[tuple[int, int]],
+    starts: list[int],
+    durations: tuple[int, ...],
+) -> tuple[int, int] | None:
+    """按 starts 优先序 × durations 先后找第一个不撞 blocked 的 (起, 时长)。
+
+    优先序先给正窗（午饭 12:00 / 晚饭 17:30），再顺延/提前——轻日不会被
+    放到 16:30 吃晚饭，到达日才滑到晚午市。
+    """
+    for dur in durations:
+        for start in starts:
+            end = start + dur
+            if end > MEAL_CARD_DAY_END:
+                continue
+            if all(end <= bs or start >= be for bs, be in blocked):
+                return (start, dur)
+    return None
+
+
+def _ensure_meal_cards(plan: ItineraryPlan) -> None:
+    """每天都得有午餐卡和晚餐卡，缺卡补「自由安排」占位（在路上豁免）。
+
+    2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND DINNER CARDS」+「在路
+    上的日子可以豁免」：补餐
+    通道只在「有景点 / ≥2 景点 / 窗内没空」时跑，交付常见整天一张餐卡
+    都没有（上海案第 2 天 3 个景点零餐卡、第 3 天只有午卡、第 4 天只有
+    晚卡）。终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45 分钟
+    真空隙；晚卡缺→[16:30,20:30] 找 ≥60/45 分钟。落地/发车缓冲取
+    _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地 +150），绝不把
+    餐卡塞进飞机/火车在途时段。整天被交通+大块头吃满、确实无处可落
+    时才不补，披露点名该天缺卡——绝不静默缺卡。
+    """
+    notes: list[str] = []
+    missing: dict[str, list[int]] = {"lunch": [], "dinner": []}
+    for day in plan.days:
+        # 在路上的日子可豁免（2026-11-13 用户拍板「在路上的日子可以豁免」）：
+        # 当天有城际火车/航班段（到达日/离城日）时人不定在城里，硬补的餐
+        # 卡只会排到飞机/火车上或落地后的机场里——豁免补卡。
+        if any(isinstance(i, TransferItem) for i in day.items):
+            continue
+        fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
+        blocked = [(s, e) for s, e, _src in fixed]
+        for card in ("lunch", "dinner"):
+            if _day_meal_card_present(day, card):
+                continue
+            if card == "lunch":
+                starts = [
+                    12 * 60,
+                    11 * 60 + 30,
+                    12 * 60 + 30,
+                    *range(MEAL_CARD_LUNCH_EARLIEST, MEAL_CARD_LUNCH_LATEST + 1, 5),
+                ]
+                gap = _first_free_gap(
+                    blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45)
+                )
+            else:
+                starts = [
+                    17 * 60 + 30,
+                    18 * 60,
+                    17 * 60,
+                    *range(MEAL_CARD_DINNER_EARLIEST, MEAL_CARD_DINNER_LATEST + 1, 5),
+                ]
+                gap = _first_free_gap(blocked, starts, (MEAL_DURATION_MINUTES, 45))
+            if gap is None:
+                missing[card].append(day.day)
+                continue
+            start, dur = gap
+            at = _time_of(start)
+            city = _meal_city_at(day, at)
+            if card == "lunch":
+                ph = _lunch_placeholder(
+                    day, (_time_of(start), _time_of(start + dur)), city=city
+                )
+            else:
+                ph = _dinner_placeholder(
+                    day, (_time_of(start), _time_of(start + dur)), city=city
+                )
+            ph.duration_minutes = dur
+            day.items.append(ph)
+            day.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+    for card, card_name, window_name in (
+        ("lunch", "午餐", "午饭"),
+        ("dinner", "晚餐", "晚饭"),
+    ):
+        days = missing[card]
+        if not days:
+            continue
+        days_bit = "、".join(f"第{d}天" for d in sorted(days))
+        notes.append(
+            L(
+                f"{days_bit}当天没有可用{card_name}时段（被交通或长行程占满），"
+                f"未留{window_name}卡",
+                f"Day(s) {', '.join(str(d) for d in sorted(days))}: no free "
+                f"{card} window (travel or long stops fill the day) — no "
+                f"{card} card added",
+            )
+        )
+    if notes:
+        plan.assumptions.extend(notes)
+
+
 def _meal_city_at(day_plan: DayPlan, at: time | None) -> str:
     """用餐时刻人所在城市（2026-10-31「甲城→乙城→甲城→乙城」案）。
 
@@ -9264,8 +9485,19 @@ def _fallback_sequence_times(
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
-def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
-    """终装挪卡后只重排自动餐占位；真实餐卡与用户时刻保持原样。"""
+def _retime_meal_placeholders(
+    plan: ItineraryPlan, *, ensure_cards: bool = True
+) -> None:
+    """终装挪卡后只重排自动餐占位；真实餐卡与用户时刻保持原样。
+
+    ensure_cards=False（编辑路径复用）：只把占位挪开、不新增/去重餐卡——
+    编辑是用户权威回合，本回合没动过的天不凭空长卡。
+    """
+    if ensure_cards:
+        # 先收口一个餐卡一张真餐厅（同日双晚餐/双午餐终装去重），再按天
+        # 补齐缺失的午餐卡/晚餐卡，最后重排占位。
+        _drop_surplus_auto_meals(plan)
+        _ensure_meal_cards(plan)
     day_end = 21 * 60 + 30
     for day in plan.days:
         _fixed, fixed_tight, flex_lunches, _xfer = _day_fixed_windows(day)
@@ -9273,17 +9505,13 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
         # 真实餐卡占了占位餐窗 → 占位撤除、真餐卡即餐卡，不再把占位挤到
         # 真餐旁并排两张餐卡（11:30 空白午饭+12:00 餐厅并存款）。占位本
         # 就 pinned=False 可换可删，顶位不违铁律 19。
-        real_meals = [
-            (s, e)
-            for i in day.items
-            if isinstance(i, VisitItem)
-            and getattr(i, "category", "") == "food"
-            and not is_lunch_placeholder(i)
-            and not is_dinner_placeholder(i)
-            and i.start_time is not None
-            for s, e in [(_minutes_of(i.start_time), _item_end_minutes(i))]
-            if e is not None
-        ]
+        # 餐卡占用（2026-11-13 拍板「餐厅应该插入午餐卡/晚餐卡」）：占位
+        # 件只认卡不认时钟——旧口径拿「与 17:30-19:30 常量窗的交集」判，
+        # 19:30 后开席的晚宴（福和慧 19:34）判不出占卡，占位件会并排留下
+        # 第二张餐卡。
+        taken_cards = {
+            card for i in day.items if (card := _meal_card_slot(i)) is not None
+        }
         lunches = [
             (i, _minutes_of(i.start_time), int(i.duration_minutes or 90))
             for i in day.items
@@ -9321,7 +9549,7 @@ def _retime_meal_placeholders(plan: ItineraryPlan) -> None:
                     min(day_end - original_dur, preferred + 30),
                 )
             )
-            if any(s < hi + max(durations) and e > lo for s, e in real_meals):
+            if ("lunch" if is_lunch else "dinner") in taken_cards:
                 day.items.remove(meal)
                 logger.warning(
                     "plan: meal placeholder absorbed by real food day %d %s",
@@ -19947,30 +20175,22 @@ class PlanningAgent:
                 # 各搜各插（去重闸 _fresh 保证同店不重插）。全局 3 家闸
                 # 同拍删除：每天午+晚各1自然封顶，防挤占交铁律 20 空窗 +
                 # solve。只挡「晚餐窗内已有真餐卡」（用户钉的晚餐店）。
-                dinner_ws, dinner_we = MEAL_WINDOWS["dinner"]
-
-                def _overlaps_dinner(it: VisitItem) -> bool:
-                    if it.start_time is None:
-                        return False
-                    start = _minutes_of(it.start_time)
-                    if it.end_time is not None:
-                        end = _minutes_of(it.end_time)
-                    elif it.duration_minutes is not None:
-                        end = start + it.duration_minutes
-                    else:
-                        end = start + MEAL_DURATION_MINUTES
-                    return start < _minutes_of(dinner_we) and end > _minutes_of(
-                        dinner_ws
+                # 餐卡闸（2026-11-13 用户拍板「餐厅应该插入午餐卡/晚餐
+                # 卡」）：当天晚餐卡只要已有真餐厅就整段跳过。旧判据按
+                # 17:30-19:30 常量窗交集判，19:30 后开席的晚宴落在窗外，
+                # 自动补餐会把 18:30 的窗再吃一遍（上海案两张晚餐卡并排）。
+                has_real_dinner_food = _day_meal_card_taken(day_plan, "dinner")
+                # 一天最多两张真餐（午卡+晚卡各一）：如何排都满了就不再补
+                # 第三张，同日双卡的重复件交 _drop_surplus_auto_meals 终装。
+                if (
+                    sum(
+                        1
+                        for i in day_plan.items
+                        if _meal_card_slot(i) in ("lunch", "dinner")
                     )
-
-                has_real_dinner_food = any(
-                    isinstance(i, VisitItem)
-                    and i.category == "food"
-                    and not is_lunch_placeholder(i)
-                    and not is_dinner_placeholder(i)
-                    and _overlaps_dinner(i)
-                    for i in day_plan.items
-                )
+                    >= 2
+                ):
+                    continue
                 # 晚宴秀占晚餐槽（2026-11-11 拍板「唐乐宫就是带表演的晚
                 # 宴，晚宴应该直接作为晚饭卡」）：SHOW 卡带宴席语素即当晚
                 # 那场晚饭——不再另搜餐厅/插「晚饭（自由安排）」。按语素认
@@ -20369,7 +20589,7 @@ class PlanningAgent:
         # 轻卡落位靠排程顺序雨日→到达日→正常日→离城日自然发生，本清
         # 扫绝不跨日挪卡补，宁可空日）。
         _endpoint_day_light_sweep(plan, must_names)
-        _retime_meal_placeholders(plan)
+        _retime_meal_placeholders(plan, ensure_cards=self._auto_restaurants)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
@@ -23738,6 +23958,22 @@ class PlanningAgent:
                 hard = [
                     v for v in report.violations if v.severity == RuleSeverity.error
                 ]
+                if hard and applied is not None:
+                    # 占位餐卡可挪（2026-11-13「ALL DAYS SHOULD HV LUNCH
+                    # AND DINNER CARDS」）：编辑插入撞上「午饭/晚饭（自由
+                    # 安排）」是软卡撞车，不该耗一轮 LLM 修复——先把占位
+                    # 挪到空窗再复检，挪不动（真空窗不足）才留给修复轮。
+                    _retime_meal_placeholders(applied, ensure_cards=False)
+                    report = validate_plan(applied, poi_hours=[])
+                    hard = [
+                        v
+                        for v in report.violations
+                        if v.severity == RuleSeverity.error
+                    ]
+                    if not hard:
+                        logger.info(
+                            "plan: meal placeholder reflow cleared edit violations"
+                        )
                 hard_count = len(hard)
                 error_text = L(
                     "；".join(v.message for v in hard),
