@@ -378,9 +378,7 @@ async def start_plan_from_itinerary(
     # 起点（用户报「看不到酒店作为出发点」）。只补「一张酒店卡都没有」
     # 的行程，已有卡（含用户删剩一张）不复活、不重复。
     if not any(
-        is_hotel_night(i) or is_hotel_morning(i)
-        for d in plan.days
-        for i in d.items
+        is_hotel_night(i) or is_hotel_morning(i) for d in plan.days for i in d.items
     ):
         plan.assumptions.extend(attach_hotel_nights(plan.days))
         plan.assumptions.extend(attach_hotel_mornings(plan.days))
@@ -860,11 +858,7 @@ async def delete_plan_item(
     diffs = [DiffOp(op="remove", item_id=item_id)]
     # 2026-11-13 续（每天出发点是 HOTEL）：删夜卡=这一晚不住店，次日
     # 「🏨 从酒店出发」晨卡一并移除——否则次日仍声称从酒店出发。
-    pair = (
-        paired_hotel_card(plan_before.days, item)
-        if is_hotel_night(item)
-        else None
-    )
+    pair = paired_hotel_card(plan_before.days, item) if is_hotel_night(item) else None
     if pair is not None:
         diffs.append(DiffOp(op="remove", item_id=pair.item_id))
     new_plan, _, _ = mutate(

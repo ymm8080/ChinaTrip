@@ -311,9 +311,7 @@ def test_route_endpoint_city_wish_not_absorbed():
         itinerary_id="it-test",
         cities=["上海", "成都", "上海"],
         days=[
-            DayPlan(
-                day=1, base_city="成都", items=[_item("人民公园", poi_id="RM01")]
-            )
+            DayPlan(day=1, base_city="成都", items=[_item("人民公园", poi_id="RM01")])
         ],
     )
     session = PlanSession(

@@ -517,8 +517,20 @@ _BANK_BRANCH_RE = re.compile(
     r"(银行\s*$)|(支行|分行|营业部|营业所|储蓄所|自助银行|ATM)", re.IGNORECASE
 )
 _BANK_NAME_EXEMPT = (
-    "博物馆", "美术馆", "纪念馆", "旧址", "大楼", "大厦", "景区",
-    "乐园", "世界", "中心", "酒店", "宾馆", "展览", "陈列",
+    "博物馆",
+    "美术馆",
+    "纪念馆",
+    "旧址",
+    "大楼",
+    "大厦",
+    "景区",
+    "乐园",
+    "世界",
+    "中心",
+    "酒店",
+    "宾馆",
+    "展览",
+    "陈列",
 )
 
 
@@ -1099,9 +1111,7 @@ def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> lis
         a = anchors.get(str(it.get("city") or ""))
         if xy is None or a is None:
             return 1
-        km = haversine_km(
-            GeoPoint(lon=xy[0], lat=xy[1]), GeoPoint(lon=a[0], lat=a[1])
-        )
+        km = haversine_km(GeoPoint(lon=xy[0], lat=xy[1]), GeoPoint(lon=a[0], lat=a[1]))
         if km > _DAY_MIX_KM:
             return 2
         return 0 if km <= _DAY_CORE_KM else 1
@@ -1185,8 +1195,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
         cand_days = [
             d
             for d in days
-            if d == fd.get("day")
-            or not any(_is_full_day_item(x) for x in _sights(d))
+            if d == fd.get("day") or not any(_is_full_day_item(x) for x in _sights(d))
         ]
         if not cand_days:
             continue
@@ -4188,9 +4197,7 @@ def _lunch_placeholder(
     item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
     小时链须跳过（否则烧配额搜「午饭」）。
     """
-    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
-        day_plan, slot[0]
-    )
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(day_plan, slot[0])
     return VisitItem(
         item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("午饭（自由安排）", "Lunch (on your own)"),
@@ -4224,9 +4231,7 @@ def _dinner_placeholder(
     poi/坐标：回填与小时链须跳过（否则烧配额搜「晚饭」）。注意 id 前缀
     food-dinner-ph 以「food-d」开头——必吃让位闸（:6217 一带）按该前缀
     识别自动餐件，占位件天然随让位语义可被用户必吃顶替。"""
-    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
-        day_plan, slot[0]
-    )
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(day_plan, slot[0])
     return VisitItem(
         item_id=f"{DINNER_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("晚饭（自由安排）", "Dinner (on your own)"),
@@ -4337,7 +4342,7 @@ def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
                 L(
                     f"第{day.day}天{card_name}卡已有餐厅「{keep.name}」，"
                     f"已撤掉重复的自动补餐：「{'、'.join(dropped)}」",
-                    f"Day {day.day} {card} card already has \"{keep.name}\"; "
+                    f'Day {day.day} {card} card already has "{keep.name}"; '
                     f"dropped duplicate auto-added meal(s): {', '.join(dropped)}",
                 )
             )
@@ -4422,9 +4427,7 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     12 * 60 + 30,
                     *range(MEAL_CARD_LUNCH_EARLIEST, MEAL_CARD_LUNCH_LATEST + 1, 5),
                 ]
-                gap = _first_free_gap(
-                    blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45)
-                )
+                gap = _first_free_gap(blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45))
             else:
                 starts = [
                     17 * 60 + 30,
@@ -7663,8 +7666,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                 _host_day_for_visit(
                                     [anchor],
                                     vcity,
-                                    flagship.duration_minutes
-                                    or DEFAULT_VISIT_MINUTES,
+                                    flagship.duration_minutes or DEFAULT_VISIT_MINUTES,
                                     visit=flagship,
                                     all_days=plan.days,
                                     _rescue=True,
@@ -8398,9 +8400,7 @@ def _endpoint_day_light_sweep(
             far_shows = [
                 i
                 for i in list(d.items)
-                if isinstance(i, VisitItem)
-                and _is_show_v(i)
-                and _show_out(i)
+                if isinstance(i, VisitItem) and _is_show_v(i) and _show_out(i)
             ]
             if not far_shows:
                 continue
@@ -8412,12 +8412,9 @@ def _endpoint_day_light_sweep(
                 and not _day_is_return_home(x, plan.days)
             ]
             for v in far_shows:
-                _why = (
-                    f"距酒店或市中心超 {_EP_LIGHT_KM:.0f} 公里"
-                )
+                _why = f"距酒店或市中心超 {_EP_LIGHT_KM:.0f} 公里"
                 _why_en = (
-                    f"is more than {_EP_LIGHT_KM:.0f} km from the hotel or "
-                    "city center"
+                    f"is more than {_EP_LIGHT_KM:.0f} km from the hotel or city center"
                 )
                 if getattr(v, "pinned", False) or getattr(v, "soft_pin", False):
                     logger.info(
@@ -8515,8 +8512,7 @@ def _endpoint_day_light_sweep(
                     continue
                 if getattr(v, "curated", False) or getattr(v, "created", False):
                     logger.warning(
-                        "plan: endpoint-show %s stays day %s "
-                        "(curated/created kept)",
+                        "plan: endpoint-show %s stays day %s (curated/created kept)",
                         v.name,
                         d.day,
                     )
@@ -9793,6 +9789,7 @@ def _fallback_sequence_times(
                 _cur = _anchor
                 _rank = 0
                 while _remaining and _cur is not None:
+
                     def _chain_d(v, _c=_cur):
                         loc = getattr(v, "location", None)
                         if loc is None or _c is None:
@@ -10660,9 +10657,10 @@ def _retime_real_food_cards(plan: ItineraryPlan) -> list[str]:
             t, dur = slot
             # 只认「更贴动线」（时长不打折 + 餐后条目更少）；「更早开席」
             # 只是无时刻补位时的平手裁决，不能拿它把已排好的晚宴挪回午市。
-            if _food_slot_score(t, dur, base, blockers)[:2] >= _food_slot_score(
-                cur_t, cur_dur, base, blockers
-            )[:2]:
+            if (
+                _food_slot_score(t, dur, base, blockers)[:2]
+                >= _food_slot_score(cur_t, cur_dur, base, blockers)[:2]
+            ):
                 item.start_time, item.end_time, item.duration_minutes = old
                 continue
             item.start_time = time(t // 60, t % 60)
@@ -10714,9 +10712,11 @@ def _retime_real_food_cards(plan: ItineraryPlan) -> list[str]:
     if failed:
         notes.append(
             L(
-                "餐卡已满、暂未落时刻：" + "、".join(failed)
+                "餐卡已满、暂未落时刻："
+                + "、".join(failed)
                 + "（可删当天景点或改到其他天）",
-                "No free meal card for: " + ", ".join(failed)
+                "No free meal card for: "
+                + ", ".join(failed)
                 + " (drop a sight that day or move it to another day)",
             )
         )
@@ -11165,9 +11165,7 @@ def _entry_xy(entry: dict) -> tuple[float, float] | None:
 
 
 def _xy_km(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return haversine_km(
-        GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1])
-    )
+    return haversine_km(GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1]))
 
 
 def _reassign_banquet_days(
@@ -11211,18 +11209,12 @@ def _reassign_banquet_days(
         if xy is None:
             continue
         city = str(spec.get("city") or "").removesuffix("市")
-        lo, hi = ranges.get(city) or ranges.get(
-            str(spec.get("city") or ""), (0, -1)
-        )
+        lo, hi = ranges.get(city) or ranges.get(str(spec.get("city") or ""), (0, -1))
         if hi < lo:
             continue
         days = list(range(lo, hi + 1))
         nearest = min(
-            (
-                _xy_km(xy, p)
-                for d in days
-                for p in pts_by_day.get(d, [])
-            ),
+            (_xy_km(xy, p) for d in days for p in pts_by_day.get(d, [])),
             default=float("inf"),
         )
         banquets.append((nearest, idx, spec, xy, days))
@@ -14684,18 +14676,16 @@ class PlanningAgent:
         # 行程城市统一去「市」尾比对（心愿行/H5 手填可能带「市」尾）
         trip_cities = [c.strip().removesuffix("市") for c in session.cities]
         rows = list(
-            self._trip_items.list_groups(None, session.device_id).get(
-                "wishlist", []
-            )
+            self._trip_items.list_groups(None, session.device_id).get("wishlist", [])
         )
         # 2026-10-31（用户实报「新行程不抓心愿单」）：已排期但挂在别的行
         # 程上的心愿行，对新行程视同心愿单重新吸收；安排后 _sync_wish_rows
         # 会把行换绑到当前行程并刷新 note/天序。
         rows += [
             r
-            for r in self._trip_items.list_groups(
-                None, session.device_id
-            ).get("scheduled", [])
+            for r in self._trip_items.list_groups(None, session.device_id).get(
+                "scheduled", []
+            )
             if r.get("itinerary_id") != cur_itin
         ]
         for it in rows:
@@ -15968,8 +15958,7 @@ class PlanningAgent:
                 )
                 day_load[m_day] = day_load.get(m_day, 0) + m_minutes
                 logger.info(
-                    "plan: must merge bound %s -> day %d (city=%s minutes=%s "
-                    "xy=%s)",
+                    "plan: must merge bound %s -> day %d (city=%s minutes=%s xy=%s)",
                     name,
                     m_day,
                     bcity,
@@ -16193,9 +16182,7 @@ class PlanningAgent:
                     if isinstance(i, VisitItem) and (i.city or "").strip()
                 }
                 if not day_cities and (day.base_city or "").strip():
-                    day_cities = {
-                        _norm_city(day.base_city or "").removesuffix("市")
-                    }
+                    day_cities = {_norm_city(day.base_city or "").removesuffix("市")}
                 trip_cities_here |= day_cities
             if not trip_cities_here:
                 trip_cities_here = {
@@ -18854,8 +18841,10 @@ class PlanningAgent:
                             order = [d for d in order if d in _tdays] + [
                                 d for d in order if d not in _tdays
                             ]
-                    if _adays and len(eligible) > 1 and not _cand_endpoint_content(
-                        cand
+                    if (
+                        _adays
+                        and len(eligible) > 1
+                        and not _cand_endpoint_content(cand)
                     ):
                         # 端点合法内容（街区/茶/演出）才留到达日；其余一律
                         # 殿后（2026-11-13 豫园案：旧口径只压大块头，90
@@ -18902,8 +18891,10 @@ class PlanningAgent:
                             # 内部挑，不得把非转场日抢到队首把街区挡回转场日外
                             # （test_heavy_avoids_transfer_day_street_takes_it 回归）。
                             _zoned_tail |= {d for d in order if d not in _tdays}
-                        if _adays and len(eligible) > 1 and not _cand_endpoint_content(
-                            cand
+                        if (
+                            _adays
+                            and len(eligible) > 1
+                            and not _cand_endpoint_content(cand)
                         ):
                             _zoned_tail |= {d for d in order if d in _adays}
                         _walk_days = sorted(
@@ -19236,9 +19227,7 @@ class PlanningAgent:
                                 if (
                                     d in _adays
                                     and not _cand_endpoint_content(cand_v)
-                                    and any(
-                                        x not in _adays for x in range(lo, hi + 1)
-                                    )
+                                    and any(x not in _adays for x in range(lo, hi + 1))
                                 ):
                                     continue
                                 m_v = _minutes(cand_v, DEFAULT_VISIT_MINUTES)
@@ -25151,9 +25140,7 @@ class PlanningAgent:
         itinerary_id = session.plan.itinerary_id if session.plan else None
         known: list[dict] = [
             it
-            for group in self._trip_items.list_groups(
-                None, session.device_id
-            ).values()
+            for group in self._trip_items.list_groups(None, session.device_id).values()
             for it in group
         ]
         trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}
@@ -25505,9 +25492,7 @@ class PlanningAgent:
                     _retime_meal_placeholders(applied, ensure_cards=False)
                     report = validate_plan(applied, poi_hours=[])
                     hard = [
-                        v
-                        for v in report.violations
-                        if v.severity == RuleSeverity.error
+                        v for v in report.violations if v.severity == RuleSeverity.error
                     ]
                     if not hard:
                         logger.info(
@@ -25751,9 +25736,7 @@ class PlanningAgent:
                 ops.append(
                     DiffOp(
                         op="add",
-                        item=self._coerce_visit(
-                            item, item_id=self.alloc_item_id(plan)
-                        ),
+                        item=self._coerce_visit(item, item_id=self.alloc_item_id(plan)),
                     )
                 )
             else:

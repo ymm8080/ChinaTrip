@@ -340,16 +340,10 @@ class Itinerary(Base):
     # 2026-11-13（用户拍板 trip HEADER：CREATION DATE / CREATOR / DELETION
     # FLAG / TRIP ID / TRIP NAME / LAST CHANGE DATE+TIME）：软删标记、创建人、
     # 最后变更时刻。title=行程名，created_at=创建日期，owner_*=归属。
-    is_deleted: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True)
-    )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     creator_name: Mapped[str | None] = mapped_column(String(100))
-    last_changed_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True)
-    )
+    last_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
 class ItinerarySnapshot(Base):
@@ -426,9 +420,7 @@ class ItineraryItem(Base):
     city: Mapped[str | None] = mapped_column(String(50))
     category: Mapped[str | None] = mapped_column(String(40))
     address: Mapped[str | None] = mapped_column(String(200))
-    alternatives: Mapped[list | None] = mapped_column(
-        JSONB(none_as_null=True)
-    )
+    alternatives: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class ItineraryChangeLog(Base):

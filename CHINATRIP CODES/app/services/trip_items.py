@@ -304,9 +304,7 @@ class TripItemService:
             # 有归属的按设备隔离；无归属（历史行/脚本建行）仍可见——归属列
             # 是新事实，不能让老数据在升级瞬间集体消失。
             items = [
-                i
-                for i in items
-                if i.get("owner_device_id") in (None, owner_device_id)
+                i for i in items if i.get("owner_device_id") in (None, owner_device_id)
             ]
         if itinerary_id is not None:
             items = [i for i in items if i.get("itinerary_id") == itinerary_id]

@@ -666,7 +666,6 @@ async def list_itinerary_changes(
     CHANGES AFTER CLICK SAVE BUTTON」）：按保存时刻倒序回放。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    from sqlalchemy import text
 
     from app.models import ItineraryChangeLog
 

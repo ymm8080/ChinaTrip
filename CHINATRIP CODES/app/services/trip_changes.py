@@ -17,7 +17,6 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-import sqlalchemy as sa
 from sqlalchemy import text
 
 from app.models import Itinerary, ItineraryChangeLog, ItineraryDay, ItineraryItem
@@ -71,7 +70,9 @@ def diff_plans(old_plan, new_plan) -> list[dict]:
                 }
             )
             continue
-        if _t(getattr(prev, "start_time", None)) != _t(getattr(item, "start_time", None)):
+        if _t(getattr(prev, "start_time", None)) != _t(
+            getattr(item, "start_time", None)
+        ):
             changes.append(
                 {
                     "op": "retime",
@@ -129,9 +130,10 @@ def record_trip_change(
         with session_factory() as session, session.begin():
             row = session.get(Itinerary, uid)
             if row is not None:
-                row.title = getattr(new_plan, "cities", None) and " → ".join(
-                    new_plan.cities
-                )[:200]
+                row.title = (
+                    getattr(new_plan, "cities", None)
+                    and " → ".join(new_plan.cities)[:200]
+                )
                 row.cities = list(getattr(new_plan, "cities", []) or [])
                 row.last_changed_at = now
                 row.updated_at = now
@@ -202,5 +204,7 @@ def record_trip_change(
                 )
             )
     except Exception:
-        logger.warning("trip_changes: 保存变更日志失败 ref=%s", itinerary_id, exc_info=True)
+        logger.warning(
+            "trip_changes: 保存变更日志失败 ref=%s", itinerary_id, exc_info=True
+        )
     return changes

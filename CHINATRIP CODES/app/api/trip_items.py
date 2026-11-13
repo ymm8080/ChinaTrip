@@ -89,9 +89,7 @@ class PatchTripItemRequest(BaseModel):
     booking_id: str | None = Field(default=None, max_length=128)
 
 
-def _ensure_owned(
-    service: TripItemService, item_id: str, device: str | None
-) -> None:
+def _ensure_owned(service: TripItemService, item_id: str, device: str | None) -> None:
     """看板行归属闸（2026-11-13 数据库事实化）：行有归属设备且与请求
     设备不符 → 404（防枚举口径）；无归属（历史行）放行。"""
     if not device:
