@@ -20932,7 +20932,7 @@ class PlanningAgent:
                 v
                 for v in day.items
                 if isinstance(v, VisitItem)
-                and v.pinned
+                and (v.pinned or v.must)
                 and v.start_time is None
                 and (v.category or "") not in ("food", "hotel")
             ]
@@ -21351,16 +21351,20 @@ class PlanningAgent:
         # 必去在 CP 无排程域（room_sweep 后仍灰卡），solve 走的成功分支
         # 此前跳过兜底，灰卡直送终局（陕历博返程日 None-None 案）。只要
         # 还有未排参访就补一轮兜底（只填未排项，不动已解时刻）。
+        # 2026-11-13（外滩/豫园时段案）：救生先于兜底。兜底会给无解必去
+        # 硬塞时刻（豫园 afternoon 被排到 19:30 闭馆后），一旦成了 start_time，
+        # 救生的 stuck（start_time is None）就再也看不到它，跨日挪日闸沦为死代码。
+        # 必去/钉住先跨日试宿（成功才采纳），失败再交兜底填缝。
         if _has_untimed_visits(plan):
-            _fallback_sequence_times(plan)
-        if _has_untimed_visits(plan):
-            # 必去跨日救生（2026-11-11 拍板）：钉住必去同日清算仍无时刻时
+            # 必去跨日救生（2026-11-11 拍板）：必去同日清算仍无时刻时
             # 开跨日克隆试宿通道——挪日/回头重试都跳过 pinned，不開此闸
-            # 钉住必去只能灰卡终局。成功才采纳，被挤者留痕作「想去」chip。
+            # 必去只能灰卡终局。成功才采纳，被挤者留痕作「想去」chip。
             plan, rescue_notes = self._must_visit_crossday_rescue(
                 plan, protect, tier_by_name
             )
             plan.assumptions.extend(rescue_notes)
+        if _has_untimed_visits(plan):
+            _fallback_sequence_times(plan)
         if _has_untimed_visits(plan):
             # 挪日扫尾（2026-11-04 成渝案四段）：CP 分钟口径把互远大点
             # 装进同一天后重解也排不出时刻——清算前先试挪日（转场日
