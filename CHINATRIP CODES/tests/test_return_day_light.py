@@ -3,12 +3,13 @@
 同原则」）：与 11-05 轻量保底/11-08 市区圈四层闸同口径不双挪——那些
 闸管上游准入与保位，本清扫只做终装对账。返程日侧两拍：
 
-① 出圈出返程日：距城心锚（_urban_medoid，_RETURN_URBAN_KM=15km
-   同常量）出圈的参访卡挪同城非返程非到达日（_host_day_for_visit 实
-   位探针终审）；无宿主=保留+披露（软放兜底同 11-08「排得上优先于排
-   得轻」——距离闸优先于安排：挪得动才挪）。重磅不重复管（tier≤2 上
-   游 _return_host_blocked 已硬拦、>80min 非王牌按 11-05 收轻口径本
-   可留，锚 test_return_day_accepts_big）。缺坐标/缺锚不拦。
+① 违例出返程日（11-13 拍板「出发日和到达日一样」双向同闸 _stay_out）：
+   重磅翼 >80min 非街卡=「不能安排大景点时间」；远翼距酒店或城心锚
+   >_EP_LIGHT_KM=8km（双锚皆核，收紧自 11-08 的 15km 城心单锚——
+   用户根案：距城心 6km 但距酒店 11km 被判「远郊区」=AND 语义）；挪
+   同城非端点日（_host_day_for_visit 实位探针终审）；无宿主=保留+披
+   露（软放兜底同 11-08「排得上优先于排得轻」——距离闸优先于安排：
+   挪得动才挪）。缺坐标/双锚皆缺不拦（「不可核即不拦」11-08 口径）。
 ② 空日留白披露（同到达日口径）：没收到简单街区卡/SHOW 就留白披露，
    接受离城日无站点安排——绝不跨日挪卡补（11-11「不强行从其它日期
    挪卡」）。
@@ -40,6 +41,7 @@ _D2B = GeoPoint(lon=108.9510, lat=34.2655)  # 第二日伴 B ~1.2km
 _FAR = GeoPoint(lon=109.2400, lat=34.2600)  # 出圈远点 ~27km
 _MID = GeoPoint(lon=108.9550, lat=34.2680)  # 圈内中距 ~1.6km（①不挪③收）
 _EDGE = GeoPoint(lon=108.9850, lat=34.2450)  # 圈内边缘 ~5km（①不挪③收）
+_HOTEL_FAR = GeoPoint(lon=109.0400, lat=34.2600)  # 远酒店 ~9.3km（11-13 双锚锚）
 
 
 def _v(
@@ -100,7 +102,12 @@ def test_far_card_evicted_from_single_city_last_day():
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, far) == 2
     assert _day_of(plan, near) == 3
-    assert any("远郊园" in x and "距市区较远" in x for x in plan.assumptions)
+    # 11-13 起 90min 非街卡吃重磅翼（「不能安排大景点时间」拍板）：
+    # 披露语素为「大景点」；远翼（距锚 >8km）同闸，两翼任一在案即可。
+    assert any(
+        "远郊园" in x and ("为大景点" in x or "距酒店或市中心较远" in x)
+        for x in plan.assumptions
+    )
 
 
 def test_far_card_kept_and_disclosed_when_no_host():
@@ -149,16 +156,17 @@ def test_departure_leg_day_far_card_evicted():
     assert any(isinstance(i, TransferItem) for i in d3.items)
 
 
-def test_in_circle_heavy_non_ace_stays_on_return_day():
-    """不双挪锚：>80min 非王牌在圈内=11-05 收轻口径本可留（锚
-    test_return_day_accepts_big 终装镜像），本清扫不重复管。"""
+def test_in_circle_big_card_moves_out_of_return_day():
+    """11-13 拍板「不能安排大景点时间」：>80min 非街卡即重磅——即便在
+    8km 圈内也出返程日（旧 11-05 收轻口径被本拍板取代，test_return_
+    day_accepts_big 为上游保位闸语义不动，终装清扫只管终装对账）。"""
     a = _v("馆A", 60, _C0, 1, tier=9)
     b = _v("馆B", 60, _D2A, 2, tier=9)
     big = _v("大馆", 120, _C1, 3, tier=5)
     plan = _plan(_d(1, a), _d(2, b), _d(3, big))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, big) == 3
-    assert not any("大馆" in x and "距市区较远" in x for x in plan.assumptions)
+    assert _day_of(plan, big) == 2
+    assert any("大馆" in x and "为大景点" in x for x in plan.assumptions)
 
 
 def test_no_coords_card_not_evicted_uncheckable_stays():
@@ -170,6 +178,36 @@ def test_no_coords_card_not_evicted_uncheckable_stays():
     plan = _plan(_d(1, a), _d(2, b), _d(3, blind))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, blind) == 3
+
+
+def test_hotel_anchor_far_card_evicted_and_semantics():
+    """11-13 双锚 AND 语义锚（用户根案：距城心 6km 但距酒店 11km 被判
+    「远郊区」）：卡距城心锚在 8km 内、但距日酒店锚 >8km=违例出。轻
+    时长（60min ≤80）+ 城心近 =只中酒店翼——证明两锚各自独立核。"""
+    h = _v("酒店", 0, _HOTEL_FAR, 3, category="hotel")
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    near_center = _v("心边馆", 60, _C1, 3, tier=9)  # 距城心 ~0.1km
+    plan = _plan(_d(1, a), _d(2, b), _d(3, h, near_center))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, near_center) == 2
+    assert any("心边馆" in x and "距酒店或市中心较远" in x for x in plan.assumptions)
+
+
+def test_tea_counts_as_legal_endpoint_content():
+    """11-13 拍板「喝茶看秀」：tea_experience 卡=合法端点日内容——
+    到达日只有茶卡时不吃空日留白披露，也不被①挪走。"""
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    tea = _v("茶馆", 60, _ST, 3, category="tea_experience")
+    plan = _plan(_d(1, a), _d(2, b), _d(3, tea))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, tea) == 3
+    assert not any("离城日" in x and "留白" in x for x in plan.assumptions)
+    assert not any(
+        "茶馆" in x and ("大景点" in x or "距酒店或市中心较远" in x)
+        for x in plan.assumptions
+    )
 
 
 # ------------------------------------------------------- ② 空日留白披露

@@ -221,16 +221,19 @@ def test_pinned_heavy_untouched():
     assert ace.pinned is True
 
 
-def test_curated_theme_block_evicted_when_host_exists():
-    """curated 只挪不删（永不进删除闸不受影响）——有宿主同样出到达日。"""
+def test_curated_theme_block_stays_when_all_days_endpoint():
+    """11-13 双向同闸锚：2 天单城行程 day1=到达日、day2=离城日镜像——
+    两天都是端点日，240min 主题块无合法宿主（端点日之间不互搬=违规搬
+    家），curated 只挪不删下=原天保留+披露（「其余各天排不下」口径）。"""
     blk = _v("沉浸主题街区", 240, _ST, 1, category="citywalk", tier=3, curated=True)
     small = _v("小馆", 60, _C1, 1, tier=9)
     b = _v("馆B", 50, _D2A, 2, tier=9)
     c = _v("馆C", 50, _D2B, 2, tier=9)
     plan = _plan(_d(1, blk, small), _d(2, b, c))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, blk) == 2
+    assert _day_of(plan, blk) == 1
     assert blk.curated is True
+    assert any("沉浸主题街区" in x and "暂保留" in x for x in plan.assumptions)
 
 
 # ------------------------------------------------------- ③ 一项上限（11-12）

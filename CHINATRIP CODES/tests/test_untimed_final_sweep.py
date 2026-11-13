@@ -816,6 +816,74 @@ def test_rescue_prefers_non_endpoint_day():
     )
 
 
+def test_rescue_moves_timed_endpoint_stay_violator():
+    """11-13「出发日和到达日一样」拍板锚：已排（timed）钉住必去吃
+    端点日违例（>80min 大景点时间/距锚 >8km）时，不裸挪——进验证制
+    救生链跨日改排；同日重解无解（pinned 时刻=CP 固定档）只试跨日。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    day2 = DayPlan(day=2, base_city="成都", items=[])
+    day3 = DayPlan(
+        day=3,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-out",
+                day=3,
+                seq=1,
+                mode="train",
+                from_city="成都",
+                to_city="上海",
+                start_time=_t(17, 0),
+                end_time=_t(20, 0),
+            ),
+            VisitItem(
+                item_id="must-d3",
+                name="离城日大点",
+                city="成都",
+                day=3,
+                category="attraction",
+                duration_minutes=180,  # >80min=大景点时间违例翼
+                pinned=True,
+                must=True,
+                location=xy,
+                start_time=_t(9, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-ep-stay",
+        cities=["上海", "成都", "上海"],
+        days=[day1, day2, day3],
+        assumptions=[],
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
+    assert must.day == 2 and must.start_time is not None, (
+        "端点日违例必去必须验证制救生到非端点日，不得原天滞留"
+    )
+    assert must.pinned is True, "救生采纳后按解出时刻回钉"
+    assert any("超出端点日轻量口径" in n for n in notes), "违例救生留痕披露"
+
+
 def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
     """转场日扫的滞留披露在本闸之前跑：救生成功后按名剥除token——
     披露行聚合同日多名时不得整行丢弃（同伴滞留披露被吃掉=静默）。"""
