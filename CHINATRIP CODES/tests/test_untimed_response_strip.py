@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """API 出口无时刻卡过滤回归（2026-11-13 用户拍板「未安排（无时刻灰卡）
-不要显示」）：days[].items 中 start_time=None 的非钉 VisitItem 在行程响应
-下发层剔除；pinned（铁律 19）与餐/酒店/交通骨架保留；内部清算层的
-created/curated/tier≤2 保护名册只保「不删除」不保「下发显示」；
-plan.unplaced（「想去」chip 池）与 assumptions 披露原样下发。
+不要显示」「只有替代项，不应该有未安排项」）：days[].items 中
+start_time=None 的非钉 VisitItem 在行程响应下发层剔除，并转入
+plan.unplaced 按正常备选规则亮「想去」chip；pinned（铁律 19）与餐/酒店/
+交通骨架保留；内部清算层的 created/curated/tier≤2 保护名册只保「不删除」
+不保「下发显示」；assumptions 披露原样下发。
 """
 
 from datetime import time as _t
@@ -12,6 +13,7 @@ from types import SimpleNamespace
 from app.api.plan import _plan_turn_body, _strip_untimed_items
 from app.services.itinerary.models import (
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     TransferItem,
     UnplacedCandidate,
@@ -115,24 +117,71 @@ def test_strip_keeps_food_hotel_and_transfer():
 
 
 def test_strip_non_mutating_and_unplaced_preserved():
-    """非变异：session.plan 本体不动（内部重排/清算不受影响）；unplaced
-    池与 assumptions 披露原样下发（chip 是备选功能，保留不动）。"""
+    """非变异：session.plan 本体不动（内部重排/清算不受影响）；原有
+    unplaced 池条目与 assumptions 披露原样保留（chip 是备选功能）。"""
     plan = _plan([_timed("v1", "已排点"), _untimed("v2", "灰卡")])
     out = _strip_untimed_items(plan)
-    assert [v.name for d in out.days for v in d.items] == ["已排点"]
-    # 本体未被改动
-    assert [v.name for d in plan.days for v in d.items] == ["已排点", "灰卡"]
-    # unplaced 池与披露原样保留
-    assert [c.name for c in out.unplaced] == ["想排没排进的点"]
+    assert [v.name for v in out.days[0].items] == ["已排点"]
+    # 本体未被改动（灰卡仍在原 plan 里，本体 unplaced 也不多出新条目）
+    assert [v.name for v in plan.days[0].items] == ["已排点", "灰卡"]
+    assert [c.name for c in plan.unplaced] == ["想排没排进的点"]
+    # 原有池条目保留，披露原样
+    assert out.unplaced[0].name == "想排没排进的点"
     assert out.assumptions == plan.assumptions
     # 已排卡对象共享（浅拷贝壳，不 deep-copy 条目）
     assert out.days[0].items[0] is plan.days[0].items[0]
 
 
+def test_strip_demotes_untimed_to_unplaced_chip_source():
+    """只有替代项，没有未安排项：剔除的无时刻卡转入 plan.unplaced
+    （day_hint=原天号供 chip 选同天宿主），类别/坐标/时长随行。"""
+    plan = _plan(
+        [
+            _timed("v1", "已排点"),
+            _untimed(
+                "v2",
+                "钟楼博物馆",
+                poi_id="poi-42",
+                tier=2,
+                location=GeoPoint(lon=108.95, lat=34.26),
+            ),
+        ]
+    )
+    out = _strip_untimed_items(plan)
+    assert [v.name for v in out.days[0].items] == ["已排点"]
+    demoted = [c for c in out.unplaced if c.name == "钟楼博物馆"]
+    assert len(demoted) == 1
+    cand = demoted[0]
+    assert cand.poi_id == "poi-42"
+    assert cand.category == "attraction"
+    assert cand.tier == 2
+    assert cand.duration_minutes == 120
+    assert cand.day_hint == 1
+    assert cand.location is not None
+    assert cand.reason == "untimed_demoted"
+
+
+def test_strip_demote_dedupes_against_existing_unplaced():
+    """同名/同 poi_id 已在 unplaced 池（规划器已留痕）时不重复转入——
+    chip 装配层全计划不重复亮，源头先去重。"""
+    plan = _plan([_timed("v1", "已排点"), _untimed("v2", "想排没排进的点")])
+    out = _strip_untimed_items(plan)
+    assert [c.name for c in out.unplaced].count("想排没排进的点") == 1
+
+
+def test_strip_kept_pinned_not_demoted():
+    """钉住卡保留在行程里（不是未安排，也无需转备选）——unplaced 不
+    因钉住卡多出新条目。"""
+    plan = _plan([_timed("v1", "已排点"), _untimed("v2", "钉住灰卡", pinned=True)])
+    out = _strip_untimed_items(plan)
+    assert [v.name for v in out.days[0].items] == ["已排点", "钉住灰卡"]
+    assert [c.name for c in out.unplaced] == ["想排没排进的点"]
+
+
 def test_plan_turn_body_exit_strips(monkeypatch):
     """出口接线：_plan_turn_body（GET session / message / pin 等一族端点
-    的统一响应组装）下发的 plan 不含无时刻非钉卡；pinned 与 unplaced
-    保留。"""
+    的统一响应组装）下发的 plan 不含无时刻非钉卡（转 unplaced 待亮
+    chip）；pinned 保留。"""
     monkeypatch.setattr("app.api.plan._plan_with_alternatives", lambda p: p)
     monkeypatch.setattr("app.api.plan.current_violations", lambda s: [])
     session = SimpleNamespace(
@@ -151,4 +200,6 @@ def test_plan_turn_body_exit_strips(monkeypatch):
     body = _plan_turn_body(session, "reply", None)
     names = [v.name for d in body["plan"].days for v in d.items]
     assert names == ["已排点", "钉住灰卡"]
-    assert [c.name for c in body["plan"].unplaced] == ["想排没排进的点"]
+    unplaced_names = [c.name for c in body["plan"].unplaced]
+    assert "想排没排进的点" in unplaced_names
+    assert "灰卡" in unplaced_names

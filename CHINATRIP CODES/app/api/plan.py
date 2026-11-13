@@ -59,6 +59,7 @@ from app.services.fast_lane import FastLane
 from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
+from app.services.itinerary.models import UnplacedCandidate
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -572,40 +573,71 @@ _UNTIMED_KEEP_CATEGORIES = frozenset({"food", "hotel"})
 
 
 def _strip_untimed_items(plan):
-    """API 出口过滤（2026-11-13 用户拍板「未安排（无时刻灰卡）不要显示」）：
-    days[].items 中 start_time 为 None 的非钉 VisitItem 从下发响应剔除；
-    pinned（铁律 19）与餐/酒店骨架保留。非变异——浅拷贝 plan/day 壳、条目
-    对象共享，session.plan 本体与持久化会话不动（内部重排/清算逻辑不受影响）；
-    plan.unplaced 池与 assumptions 披露原样下发（披露是另一回事）。"""
+    """API 出口过滤（2026-11-13 用户拍板「未安排（无时刻灰卡）不要显示」
+    「只有替代项，不应该有未安排项」）：days[].items 中 start_time 为 None
+    的非钉 VisitItem 从下发响应剔除，并转入 plan.unplaced——由
+    attach_plan_alternatives 按正常备选规则亮成宿主卡「想去」chip
+    （day_hint=原天号，选宿主同天优先）；pinned（铁律 19）与餐/酒店骨架
+    保留。非变异——浅拷贝 plan/day 壳、条目对象共享，session.plan 本体与
+    持久化会话不动（内部重排/清算逻辑不受影响）；assumptions 披露原样
+    下发（披露是另一回事）。"""
     if plan is None:
         return plan
     days = []
+    stripped: list[VisitItem] = []
     changed = False
     for day in plan.days:
-        kept = [
-            item
-            for item in day.items
-            if not (
+        kept = []
+        for item in day.items:
+            if (
                 isinstance(item, VisitItem)
                 and item.start_time is None
                 and not item.pinned
                 and (item.category or "") not in _UNTIMED_KEEP_CATEGORIES
-            )
-        ]
+            ):
+                stripped.append(item)
+                changed = True
+            else:
+                kept.append(item)
         if len(kept) != len(day.items):
-            changed = True
             day = day.model_copy(update={"items": kept})
         days.append(day)
     if not changed:
         return plan
-    return plan.model_copy(update={"days": days})
+    unplaced = list(plan.unplaced or ())
+    known_poi_ids = {c.poi_id for c in unplaced if c.poi_id}
+    known_names = {str(c.name or "").strip().lower() for c in unplaced}
+    for item in stripped:
+        if (item.poi_id and item.poi_id in known_poi_ids) or (
+            str(item.name or "").strip().lower() in known_names
+        ):
+            continue
+        unplaced.append(
+            UnplacedCandidate(
+                name=item.name,
+                name_en=item.name_en,
+                poi_id=item.poi_id,
+                category=item.category,
+                tier=item.tier,
+                duration_minutes=item.duration_minutes,
+                location=item.location,
+                city=item.city,
+                day_hint=item.day,
+                reason="untimed_demoted",
+            )
+        )
+        if item.poi_id:
+            known_poi_ids.add(item.poi_id)
+        known_names.add(str(item.name or "").strip().lower())
+    return plan.model_copy(update={"days": days, "unplaced": unplaced})
 
 
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
-    非钉参访卡，再挂同级备选/「想去」chip——chip 只落在可见宿主卡上。
-    所有返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
-    统一走本入口，禁止旁路。"""
+    非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
+    替代项，没有未安排项），再挂同级备选 chip。所有返回完整行程的端点
+    （start / from-itinerary / _plan_turn_body 一族）统一走本入口，禁止
+    旁路。"""
     return _plan_with_alternatives(_strip_untimed_items(plan))
 
 

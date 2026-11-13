@@ -238,6 +238,14 @@ _FAMILY_ATOMIC_KM = 1.0
 # 「远」翼。钉/必去/餐住免（用户意图优先）；缺锚/缺坐标不拦；全边
 # 日窗（单日窗/两天到达+返程）软放兜底——排得上优先于排得轻。
 _RETURN_URBAN_KM = 15.0
+# 端点日留卡距离闸（2026-11-13 拍板「出发日和到达日一样：不能去远郊，
+# 不能距离酒店或者市中心 8 公里以上，不能安排大景点时间」）：终装轻量
+# 清扫对到达日+返程日统一执行——距任一已知锚（酒店优先、城心锚同核）
+# 超本圈即出端点日。与上游 _RETURN_URBAN_KM=15km 市区圈分工：15km 管
+# 返程日候选池准入，8km 管端点日最终留卡（双锚皆核：近酒店但远离城心
+# =远郊，反之亦然——11-13 西安案 180min 大点距城心 6km 但距酒店 11km
+# 被用户点名为违规）。缺锚/缺坐标=不可核即不拦（11-08 同口径）。
+_EP_LIGHT_KM = 8.0
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -600,6 +608,54 @@ def _arrival_heavy_visit(v: "VisitItem") -> bool:
     return (
         getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES
     ) > BIG_SITE_MIN_MINUTES
+
+
+def _endpoint_content_visit(v: "VisitItem") -> bool:
+    """端点日合法内容口径（2026-11-13 拍板「出发日和到达日一样，只能
+    安排简单的 CITYWALK/喝茶/看秀」）：简单街区卡（_arrival_simple_
+    visit 口径）或 茶事体验（tea_experience——「喝茶」拍板点名，此前
+    不在 _arrival_simple_visit：非街道类）或 演出（_is_show_item）。
+    空日留白披露判据与留卡闸共用本口径（唯一定义点）。"""
+    if _arrival_simple_visit(v):
+        return True
+    if str(getattr(v, "category", "") or "").strip().lower() == "tea_experience":
+        return True
+    return _is_show_item(v)
+
+
+def _ep_stay_violation(
+    v: "VisitItem",
+    hotel: "VisitItem | None",
+    med: tuple[float, float] | None,
+) -> bool:
+    """端点日留卡违例判据（2026-11-13「出发日和到达日同口径」拍板）：
+    重磅/大点（_arrival_heavy_visit——tier≤2 王牌/主题街区演出块/
+    >BIG_SITE_MIN_MINUTES 大块头=「大景点时间」）或距任一已知锚（酒店/
+    城心）超 _EP_LIGHT_KM=8km（「不能去远郊，不能距离酒店或者市中心
+    8 公里以上」——双锚皆核）。缺锚/缺坐标=不可核即不拦（11-08 口径）。
+    演出/餐宿另列不受理（调用方排除在 visits 集外）。"""
+    if _arrival_heavy_visit(v):
+        return True
+    loc = getattr(v, "location", None)
+    if loc is None or getattr(loc, "lon", None) is None:
+        return False
+    if (
+        hotel is not None
+        and getattr(hotel, "location", None) is not None
+        and getattr(hotel.location, "lon", None) is not None
+        and _head_dist_km(hotel, v) > _EP_LIGHT_KM
+    ):
+        return True
+    if (
+        med is not None
+        and haversine_km(
+            GeoPoint(lon=float(loc.lon), lat=float(loc.lat)),
+            GeoPoint(lon=med[0], lat=med[1]),
+        )
+        > _EP_LIGHT_KM
+    ):
+        return True
+    return False
 
 
 def _street_block_priority(
@@ -7162,29 +7218,38 @@ def _endpoint_day_light_sweep(
     雨日→到达日→正常日→离城日）：端点日只收简单 CITYWALK/街区轻件，
     时刻闸+距离闸优先于安排——排不进宁可空日，接受端点日无站点安排，
     不硬造内容，更不跨日挪卡补（11-11 拍板「不强行从其它日期挪卡」——
-    轻卡落位靠排程顺序自然发生，本清扫只做终装对账，双向只出不进）：
+    轻卡落位靠排程顺序自然发生，本清扫只做终装对账，双向只出不进）。
+
+    2026-11-13 拍板「出发日和到达日一样」扩展：只能安排简单 CITYWALK/
+    喝茶/看秀（_endpoint_content_visit 口径——茶事体验补入），不能去
+    远郊、不能距酒店或市中心 8 公里以上（_EP_LIGHT_KM 双锚皆核），
+    不能安排大景点时间（_arrival_heavy_visit 重磅口径）——到达日①补
+    距离翼（此前只管重磅）、返程日①补重磅翼（此前只管 15km 出圈）
+    双向同闸 _stay_out；钉住必去（pinned+must，心愿带入具名件）违例
+    不裸挪——交前置 _must_visit_crossday_rescue 验证制救生链（11-13
+    拍板：点名必排，裸挪已整撤），本清扫对钉住件仍只披露不动手。
 
     到达日（_day_is_arrival）：
-    ① 重磅出：非演出非钉/软钉/餐宿卡不满足「简单街区卡」口径
-       （_arrival_simple_visit——非街道类/主题街区长块/超长件/tier≤2
-       王牌）时，挪同城非到达非返程日（_host_day_for_visit 实位探针
+    ① 重磅/远卡出：非演出非钉/软钉/餐宿卡吃 _stay_out 违例判据
+       （重磅=_arrival_heavy_visit；远=距酒店或城心锚 >_EP_LIGHT_KM）
+       时，挪同城非到达非返程日（_host_day_for_visit 实位探针
        终审，_rescue=True）；无宿主=保留+WARN+披露（必去/心愿只挪不
        删口径同纯度①出圈件）。curated 只挪不删，有宿主同样挪。整族
        轻量形态豁免（≥2 员/每员 ≤120min/合计 ≤180min/两两全连通
        ≤_FAMILY_ATOMIC_KM——到达日整族落位通道终装镜像）。
-    ② 空日披露：真到达日仍无简单街区卡亦无 SHOW=不安排节目，留白
+    ② 空日披露：真到达日仍无简单街区卡亦无 SHOW/茶=不安排节目，留白
        并披露（留白是拍板口径，不是事故）。
 
     返程日（_day_is_return_home；与 11-05 轻量保底/11-08 市区圈四层
     闸同口径不双挪——那些闸管上游准入与保位，本清扫只做终装对账）：
-    ① 出圈出：距城心锚（_urban_medoid，_RETURN_URBAN_KM=15km 同
-       常量）出圈的非钉/软钉/餐宿/演出卡挪同城非返程非到达日；无宿主
-       =保留+披露（软放兜底同 11-08「排得上优先于排得轻」——距离闸
-       优先于安排：挪得动才挪）。重磅不重复管：tier≤2 上游
-       _return_host_blocked 已硬拦、>80min 非王牌按 11-05 收轻口径
-       本可留（锚 test_return_day_accepts_big）。缺坐标/缺锚不拦
+    ① 违例出返程日：_stay_out（重磅翼 tier≤2 上游 _return_host_blocked
+       已硬拦、>80min 非王牌 11-13 起按「不能安排大景点时间」拍板出；
+       远翼距酒店或城心锚 >_EP_LIGHT_KM=8km，收紧自 11-08 的 15km——
+       11-13 拍板「不能距离酒店或者市中心 8 公里以上」，双锚皆核）；
+       无宿主=保留+披露（软放兜底同 11-08「排得上优先于排得轻」——
+       距离闸优先于安排：挪得动才挪）。缺坐标/缺锚不拦
        （同 11-08 口径：不可核即不动）。
-    ② 空日披露：同到达日口径——没收到简单街区卡/SHOW 就留白披露。
+    ② 空日披露：同到达日口径——没收到简单街区卡/SHOW/茶就留白披露。
 
     ③ 一项上限（2026-11-12 拍板「到达日与离城日只安排一项离酒店近
        的游览即可；没有酒店地址则以市中心为默认」）：端点日游览卡
@@ -7274,23 +7339,15 @@ def _endpoint_day_light_sweep(
             ]
         )
 
-        def _far_out(v: VisitItem) -> bool:
-            """出圈判定（核得了才算出圈）：卡在册本城、有坐标、有锚，
-            且距锚 >_RETURN_URBAN_KM。缺坐标/缺锚/异城卡一律不算——
-            同 11-08 口径「不可核即不拦」，不可核出圈绝不挪（降级路
-            无坐标卡被当出圈逐出城窗实录）。"""
+        def _stay_out(v: VisitItem, hotel: VisitItem | None) -> bool:
+            """端点日违例判定（核得了才算）：卡在册本城 且 吃
+            _ep_stay_violation（重磅大块头/距酒店或城心锚 >
+            _EP_LIGHT_KM 远郊，双翼同闸）。缺坐标/双锚皆缺/异城卡
+            一律不算——同 11-08 口径「不可核即不拦」，不可核违例
+            绝不挪（降级路无坐标卡被当出圈逐出城窗实录）。"""
             if str(getattr(v, "city", "") or "").removesuffix("市") != vcity:
                 return False
-            loc = getattr(v, "location", None)
-            if _med is None or loc is None or getattr(loc, "lon", None) is None:
-                return False
-            return (
-                haversine_km(
-                    GeoPoint(lon=float(loc.lon), lat=float(loc.lat)),
-                    GeoPoint(lon=_med[0], lat=_med[1]),
-                )
-                > _RETURN_URBAN_KM
-            )
+            return _ep_stay_violation(v, hotel, _med)
 
         # —— 到达日分支 ——
         for d in [x for x in days if _day_is_arrival(x, vcity)]:
@@ -7303,19 +7360,27 @@ def _endpoint_day_light_sweep(
             ]
             if not visits:
                 continue
-            # ① 重磅出到达日（整族轻量形态豁免；≤80min 小型非街区轻点
-            #   不算重磅，收轻内容拍板口径）
+            # ① 重磅/远卡出到达日（2026-11-13 拍板补距离翼，同返程日
+            #   双向同闸 _stay_out：不能安排大景点时间 且 不能距酒店或
+            #   市中心 8 公里以上；整族轻量形态豁免；≤80min 小型非街
+            #   区轻点不算重磅，收轻内容拍板口径）
             if not _compact_family_day(visits):
                 for v in visits:
-                    if _untouchable(v) or not _arrival_heavy_visit(v):
+                    if _untouchable(v) or not _stay_out(v, _head_hotel_anchor(d, plan)):
                         continue
+                    _heavy = _arrival_heavy_visit(v)
                     dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                    non_arrival = [
-                        x for x in days if x is not d and not _day_is_arrival(x, vcity)
-                    ]
+                    # 宿主池=同城非端点日（到达+离城双侧皆排）：11-13 双向
+                    # 同闸后端点日之间挪卡=违规搬家（旧 11-08 软放兜底退回
+                    # 另一侧端点日的语义被本拍板取代——双向同标准，落哪侧
+                    # 都是同一违例）；全是端点日=无宿主=保留+披露。
                     pool = [
-                        x for x in non_arrival if not _day_is_return_home(x, plan.days)
-                    ] or non_arrival
+                        x
+                        for x in days
+                        if x is not d
+                        and not _day_is_arrival(x, vcity)
+                        and not _day_is_return_home(x, plan.days)
+                    ]
                     tgt = _host_day_for_visit(
                         pool,
                         vcity,
@@ -7328,28 +7393,40 @@ def _endpoint_day_light_sweep(
                         _move(v, d, tgt)
                         moved = True
                         logger.info(
-                            "plan: arrival-light heavy %s day %s -> day %s",
+                            "plan: arrival-light %s %s day %s -> day %s",
+                            "heavy" if _heavy else "far",
                             v.name,
                             d.day,
                             tgt.day,
                         )
-                        plan.assumptions.append(
-                            L(
+                        if _heavy:
+                            _why = L(
                                 f"「{v.name}」为重磅景点，到达日以轻量街区"
                                 f"为主，已挪至第{tgt.day}天",
                                 f'"{v.name}" is a major sight; the arrival '
                                 f"day keeps light walks only, so it moved "
                                 f"to day {tgt.day}",
                             )
-                        )
+                        else:
+                            _why = L(
+                                f"「{v.name}」距酒店或市中心较远（超过 "
+                                f"{_EP_LIGHT_KM:.0f} 公里），到达日只安排近处"
+                                f"轻量内容，已挪至第{tgt.day}天",
+                                f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
+                                f"km from the hotel or city center; the "
+                                f"arrival day keeps to nearby light "
+                                f"activities, so it moved to day {tgt.day}",
+                            )
+                        plan.assumptions.append(_why)
                     else:
                         logger.warning(
-                            "plan: arrival-light heavy %s stays day %s (no host)",
+                            "plan: arrival-light %s %s stays day %s (no host)",
+                            "heavy" if _heavy else "far",
                             v.name,
                             d.day,
                         )
-                        plan.assumptions.append(
-                            L(
+                        if _heavy:
+                            _why = L(
                                 f"「{v.name}」为重磅景点，到达日以轻量街区"
                                 f"为主，但其余各天排不下，暂保留在第{d.day}天"
                                 f"（可按需调整）",
@@ -7358,19 +7435,33 @@ def _endpoint_day_light_sweep(
                                 f"other day was full, so it stayed on day "
                                 f"{d.day} (adjust as needed)",
                             )
-                        )
-            # ② 空日披露（2026-11-11 拍板「不强行从其它日期挪卡」）：真
-            # 到达日没收到简单街区卡亦无 SHOW=不安排节目，留白并披露——
-            # 轻卡落位靠排程顺序（雨日→到达日→正常日→离城日）自然发
-            # 生，本清扫绝不跨日挪卡补。
+                        else:
+                            _why = L(
+                                f"「{v.name}」距酒店或市中心较远（超过 "
+                                f"{_EP_LIGHT_KM:.0f} 公里），到达日只安排近处"
+                                f"轻量内容，但其余各天排不下，暂保留在第"
+                                f"{d.day}天（可按需调整）",
+                                f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
+                                f"km from the hotel or city center; the "
+                                f"arrival day keeps to nearby light "
+                                f"activities, but every other day was full, "
+                                f"so it stayed on day {d.day} (adjust as "
+                                f"needed)",
+                            )
+                        plan.assumptions.append(_why)
+            # ② 空日披露（2026-11-11 拍板「不强行从其它日期挪卡」；11-13
+            # 起合法内容口径扩为简单街区卡/SHOW/茶 _endpoint_content_
+            # visit——「只能安排简单的 CITYWALK 或者喝茶看秀」拍板）：真
+            # 到达日没收到合法轻内容=不安排节目，留白并披露——轻卡
+            # 落位靠排程顺序（雨日→到达日→正常日→离城日）自然发生，
+            # 本清扫绝不跨日挪卡补。
             has_arr_leg = any(
                 isinstance(t4, TransferItem)
                 and str(t4.to_city or "").strip().removesuffix("市") == vcity
                 for t4 in d.items
             )
             if (has_arr_leg or (single_city and d.day == 1)) and not any(
-                isinstance(i, VisitItem) and (_arrival_simple_visit(i) or _is_show_v(i))
-                for i in d.items
+                isinstance(i, VisitItem) and _endpoint_content_visit(i) for i in d.items
             ):
                 logger.info(
                     "plan: endpoint-light empty arrival day %s "
@@ -7379,11 +7470,12 @@ def _endpoint_day_light_sweep(
                 )
                 plan.assumptions.append(
                     L(
-                        f"第{d.day}天为到达日，未排入轻量街区或演出，"
+                        f"第{d.day}天为到达日，未排入轻量街区、演出或茶事，"
                         f"按轻量口径留白，可先安置行李、稍作休整",
-                        f"Day {d.day} is the arrival day; no light walk or "
-                        f"show was scheduled, so it is left open per the "
-                        f"light-arrival policy — settle in and relax",
+                        f"Day {d.day} is the arrival day; no light walk, "
+                        f"show or tea stop was scheduled, so it is left "
+                        f"open per the light-arrival policy — settle in "
+                        f"and relax",
                     )
                 )
         # —— 返程日分支 ——
@@ -7399,22 +7491,29 @@ def _endpoint_day_light_sweep(
                 and str(getattr(i, "category", "") or "") not in ("food", "hotel")
                 and not _is_show_v(i)
             ]
-            # ① 出圈出返程日：距城心锚 >_RETURN_URBAN_KM 的参访卡
-            #   挪同城非返程非到达日；无宿主=保留+披露（软放兜底同
-            #   11-08「排得上优先于排得轻」——距离闸优先于安排：挪得
-            #   动才挪）。重磅不重复管：tier≤2 上游 _return_host_blocked
-            #   已硬拦、>80min 非王牌按 11-05 收轻口径本可留（锚
-            #   test_return_day_accepts_big）——不与既有返程闸双挪。
+            # ① 违例出返程日（2026-11-13 拍板「出发日和到达日一样」：
+            #   重磅翼>80min 非王牌按「不能安排大景点时间」出（tier≤2
+            #   上游 _return_host_blocked 已硬拦，不与既有返程闸双挪）；
+            #   远翼距酒店或城心锚 >_EP_LIGHT_KM=8km——11-13 拍板「不
+            #   能距离酒店或者市中心 8 公里以上」，双锚皆核，收紧自
+            #   11-08 的 15km 城心单锚；双向同闸 _stay_out，缺坐标/双锚
+            #   皆缺=不可核即不拦）——挪同城非返程非到达日；无宿主=
+            #   保留+披露（软放兜底同 11-08「排得上优先于排得轻」——
+            #   距离闸优先于安排：挪得动才挪）。
             for v in visits:
-                if _untouchable(v) or not _far_out(v):
+                if _untouchable(v) or not _stay_out(v, _head_hotel_anchor(d, plan)):
                     continue
+                _heavy = _arrival_heavy_visit(v)
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
-                non_ret = [
+                # 宿主池同到达日分支：同城非端点日（双侧皆排）——端点日
+                # 之间不互搬（11-13 双向同闸）；全是端点日=无宿主=保留+披露。
+                pool = [
                     x
                     for x in days
-                    if x is not d and not _day_is_return_home(x, plan.days)
+                    if x is not d
+                    and not _day_is_return_home(x, plan.days)
+                    and not _day_is_arrival(x, vcity)
                 ]
-                pool = [x for x in non_ret if not _day_is_arrival(x, vcity)] or non_ret
                 tgt = _host_day_for_visit(
                     pool, vcity, dur, visit=v, all_days=plan.days, _rescue=True
                 )
@@ -7422,43 +7521,67 @@ def _endpoint_day_light_sweep(
                     _move(v, d, tgt)
                     moved = True
                     logger.info(
-                        "plan: endpoint-light far %s day %s -> day %s",
+                        "plan: endpoint-light %s %s day %s -> day %s",
+                        "heavy" if _heavy else "far",
                         v.name,
                         d.day,
                         tgt.day,
                     )
-                    plan.assumptions.append(
-                        L(
-                            f"「{v.name}」距市区较远，离城日只安排市区"
-                            f"圈内游览，已挪至第{tgt.day}天",
-                            f'"{v.name}" is far from the city center; the '
-                            f"departure day keeps to the urban area, so "
-                            f"it moved to day {tgt.day}",
+                    if _heavy:
+                        _why = L(
+                            f"「{v.name}」为大景点，离城日只安排轻量街区"
+                            f"或看秀，已挪至第{tgt.day}天",
+                            f'"{v.name}" is a major sight; the departure '
+                            f"day keeps light walks and shows only, so it "
+                            f"moved to day {tgt.day}",
                         )
-                    )
+                    else:
+                        _why = L(
+                            f"「{v.name}」距酒店或市中心较远（超过 "
+                            f"{_EP_LIGHT_KM:.0f} 公里），离城日只安排近处"
+                            f"轻量内容，已挪至第{tgt.day}天",
+                            f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
+                            f"km from the hotel or city center; the "
+                            f"departure day keeps to nearby light "
+                            f"activities, so it moved to day {tgt.day}",
+                        )
+                    plan.assumptions.append(_why)
                 else:
                     logger.warning(
-                        "plan: endpoint-light far %s stays day %s (no host)",
+                        "plan: endpoint-light %s %s stays day %s (no host)",
+                        "heavy" if _heavy else "far",
                         v.name,
                         d.day,
                     )
-                    plan.assumptions.append(
-                        L(
-                            f"「{v.name}」距市区较远，离城日只安排市区"
-                            f"圈内游览，但其余各天排不下，暂保留在第"
-                            f"{d.day}天（可按需调整）",
-                            f'"{v.name}" is far from the city center; the '
-                            f"departure day keeps to the urban area, but "
+                    if _heavy:
+                        _why = L(
+                            f"「{v.name}」为大景点，离城日只安排轻量街区"
+                            f"或看秀，但其余各天排不下，暂保留在第{d.day}天"
+                            f"（可按需调整）",
+                            f'"{v.name}" is a major sight; the departure '
+                            f"day keeps light walks and shows only, but "
                             f"every other day was full, so it stayed on "
                             f"day {d.day} (adjust as needed)",
                         )
-                    )
-            # ② 空日披露（同到达日口径，绝不跨日挪卡补）：真返程日没
-            #   收到简单街区卡亦无 SHOW=留白披露，接受离城日无站点
-            #   安排。
+                    else:
+                        _why = L(
+                            f"「{v.name}」距酒店或市中心较远（超过 "
+                            f"{_EP_LIGHT_KM:.0f} 公里），离城日只安排近处"
+                            f"轻量内容，但其余各天排不下，暂保留在第"
+                            f"{d.day}天（可按需调整）",
+                            f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
+                            f"km from the hotel or city center; the "
+                            f"departure day keeps to nearby light "
+                            f"activities, but every other day was full, "
+                            f"so it stayed on day {d.day} (adjust as "
+                            f"needed)",
+                        )
+                    plan.assumptions.append(_why)
+            # ② 空日披露（同到达日口径，绝不跨日挪卡补；合法内容=
+            #   _endpoint_content_visit 简单街区卡/SHOW/茶）：真返程日
+            #   没收到合法轻内容=留白披露，接受离城日无站点安排。
             if not any(
-                isinstance(i, VisitItem) and (_arrival_simple_visit(i) or _is_show_v(i))
-                for i in d.items
+                isinstance(i, VisitItem) and _endpoint_content_visit(i) for i in d.items
             ):
                 logger.info(
                     "plan: endpoint-light empty return day %s "
@@ -7467,10 +7590,10 @@ def _endpoint_day_light_sweep(
                 )
                 plan.assumptions.append(
                     L(
-                        f"第{d.day}天为离城日，未排入轻量街区或演出，按轻量口径留白",
-                        f"Day {d.day} is the departure day; no light walk "
-                        f"or show was scheduled, so it is left open per "
-                        f"the light-departure policy",
+                        f"第{d.day}天为离城日，未排入轻量街区、演出或茶事，按轻量口径留白",
+                        f"Day {d.day} is the departure day; no light walk, "
+                        f"show or tea stop was scheduled, so it is left "
+                        f"open per the light-departure policy",
                     )
                 )
         # —— ③ 端点日一项上限（2026-11-12 拍板，双向只出不进，同 ①
@@ -13544,8 +13667,10 @@ class PlanningAgent:
         # 已收必去的端点日（2026-11-13「到达与出发日只安排一项活动」拍板
         # 上游防线）：端点日至多收一件必去——到达日保留「一项近酒店游览」
         # （11-12 拍板）而非清空；第二件必去起只落非端点日，全满才结构
-        # 兜底放行（同终装清扫「无宿主=保留+披露」口径）。餐类必去不占
-        # 游览上限（上限闸不计餐宿），不占名额也不被拦。
+        # 兜底放行（同终装清扫「无宿主=保留+披露」口径）。非轻量必去
+        # （_spec_ep_light：大景点时间/距城心锚 >_EP_LIGHT_KM——11-13「出
+        # 发日和到达日一样」拍板）端点日整组视为已占，连一件都不收。餐类
+        # 必去不占游览上限（上限闸不计餐宿），不占名额也不被拦。
         _ep_must: set[int] = set()
 
         def _leg_min(xy: tuple[float, float] | None, d: int) -> int:
@@ -13618,6 +13743,35 @@ class PlanningAgent:
                 fitting = near or fitting
             return min(fitting, key=lambda d: (day_load.get(d, 0), d))
 
+        def _spec_ep_light(
+            bcity: str, minutes: int, xy: tuple[float, float] | None
+        ) -> bool:
+            # 端点日轻量口径（2026-11-13「出发日和到达日一样」上游防线）：
+            # >BIG_SITE_MIN_MINUTES 一律非轻（「不能安排大景点时间」——
+            # 非轻必去把端点日整组视为已占，只落普通日，全满才结构兜底）；
+            # 有坐标则须落在本城行程窗口内已选点位云 medoid 的
+            # _EP_LIGHT_KM 内（距城心锚口径同终装清扫）；不可核（无坐标/
+            # 无锚）不拦=轻。主题街区/tier 翼在装配规格层不可判，由终装
+            # 清扫+救生链收口（同 11-13 分工）。
+            if minutes > BIG_SITE_MIN_MINUTES:
+                return False
+            if xy is None:
+                return True
+            _lo, _hi = ranges.get(bcity, (1, days))
+            _pts = [p for _d in range(_lo, _hi + 1) for p in day_xy.get(_d, [])]
+            if not _pts:
+                return True
+            _med = _urban_medoid(_pts)
+            if _med is None:
+                return True
+            return (
+                haversine_km(
+                    GeoPoint(lon=xy[0], lat=xy[1]),
+                    GeoPoint(lon=_med[0], lat=_med[1]),
+                )
+                <= _EP_LIGHT_KM
+            )
+
         for idx, name in enumerate(must):
             match = next(
                 (spec for spec in picked if _name_dup(name, spec["name"])), None
@@ -13659,7 +13813,15 @@ class PlanningAgent:
                         m_city = str(match.get("city") or "").removesuffix("市")
                         w_lo, w_hi = ranges.get(m_city, (1, days))
                         m_min = int(match.get("duration_minutes") or 60)
-                        target = _must_day(w_lo, w_hi, m_min, m_xy, taken_ep=_ep_must)
+                        # 非轻量必去（大景点时间/远锚）端点日整组视为已占
+                        # （11-13「出发日和到达日一样」上游防线；轻量口径
+                        # 同终装清扫 _ep_stay_violation 可判翼）。
+                        _taken_ep = (
+                            set(_ep_days)
+                            if not _spec_ep_light(m_city, m_min, m_xy)
+                            else _ep_must
+                        )
+                        target = _must_day(w_lo, w_hi, m_min, m_xy, taken_ep=_taken_ep)
                         # 端点日避让压过腿费比较：已落端点日的必去，只要
                         # 有非端点候选天就挪回（11-13 一项上限上游防线）。
                         off_ep = cur in _ep_days and target not in _ep_days
@@ -13724,7 +13886,15 @@ class PlanningAgent:
                     hi,
                     m_minutes,
                     m_xy,
-                    taken_ep=_ep_must if kinds.get(name) != "food" else None,
+                    taken_ep=(
+                        (
+                            _ep_must
+                            if _spec_ep_light(bcity, m_minutes, m_xy)
+                            else set(_ep_days)
+                        )
+                        if kinds.get(name) != "food"
+                        else None
+                    ),
                 )
                 if kinds.get(name) != "food" and m_day in _ep_days:
                     _ep_must.add(m_day)
@@ -13771,7 +13941,12 @@ class PlanningAgent:
                 hi,
                 m_minutes,
                 None,
-                taken_ep=_ep_must if kinds.get(name) != "food" else None,
+                taken_ep=(
+                    _ep_must
+                    if kinds.get(name) == "food"
+                    or _spec_ep_light(city, m_minutes, None)
+                    else set(_ep_days)
+                ),
             )
             if kinds.get(name) != "food" and m_day in _ep_days:
                 _ep_must.add(m_day)
@@ -19736,10 +19911,38 @@ class PlanningAgent:
         上限对钉住件无解，救生落端点日=把灰卡换成新违规——同城非端点
         日优先试宿，结构无解才孤窗兜底（含披露）。③采纳时剥「排不上
         时刻/落地后已无游览时间/暂留原天待重排」类滞留披露——前置清扫
-        在本闸之前跑，救生成功后旧披露成反向信息。"""
+        在本闸之前跑，救生成功后旧披露成反向信息。④端点日违例的已排必去
+        （timed pinned+must 吃大景点/距锚 >_EP_LIGHT_KM 违例——11-13「出
+        发日和到达日一样」拍板）纳入救生：不裸挪（must_strays 裸挪曾打破
+        回滚锚已整撤），同日重解无解（pinned 时刻=CP 固定档）只试跨日；
+        全候选日无解=原天保留+披露（铁律 19 不删）。演出/茶=合法端点内
+        容不纳入违例集。"""
         from copy import deepcopy
 
         notes: list[str] = []
+        _med_cache: dict[str, tuple[float, float] | None] = {}
+
+        def _ep_med(v: VisitItem) -> tuple[float, float] | None:
+            # 端点日违例核距的城心锚（同清扫返程侧口径：vcity 在册参访卡
+            # 坐标云 medoid；缺锚不拦）。按城缓存——同 stuck 批内复用。
+            vc = str(getattr(v, "city", "") or "").strip().removesuffix("市")
+            if vc in _med_cache:
+                return _med_cache[vc]
+            med = _urban_medoid(
+                [
+                    (float(i.location.lon), float(i.location.lat))
+                    for d0 in plan.days
+                    for i in d0.items
+                    if isinstance(i, VisitItem)
+                    and str(getattr(i, "city", "") or "").strip().removesuffix("市")
+                    == vc
+                    and getattr(i, "location", None) is not None
+                    and getattr(i.location, "lon", None) is not None
+                ]
+            )
+            _med_cache[vc] = med
+            return med
+
         for day in list(plan.days):
             stuck = [
                 v
@@ -19749,7 +19952,25 @@ class PlanningAgent:
                 and v.start_time is None
                 and (v.category or "") not in ("food", "hotel")
             ]
-            for must in stuck:
+            # 端点日违例的已排必去（2026-11-13「出发日和到达日一样」拍板）：
+            # timed pinned+must 且吃 _ep_stay_violation（大景点时间/距酒店
+            # 或城心锚 >_EP_LIGHT_KM；演出/茶=合法端点内容不纳入）——不
+            # 裸挪（11-13 拍板验证制救生链，must_strays 裸挪打破回滚锚已
+            # 整撤），纳入本闸按真实求解结果裁决；同日重解对「自身违例」
+            # 无解（pinned 时刻在 CP 是固定档），只试跨日宿主。
+            stay_bad = [
+                v
+                for v in day.items
+                if isinstance(v, VisitItem)
+                and v.pinned
+                and getattr(v, "must", False)
+                and v.start_time is not None
+                and (v.category or "") not in ("food", "hotel")
+                and not _is_show_item(v)
+                and _ep_stay_violation(v, _head_hotel_anchor(day, plan), _ep_med(v))
+            ]
+            for must in stuck + stay_bad:
+                _stay = must in stay_bad
                 vcity = str(must.city or "").strip().removesuffix("市")
                 if not vcity:
                     continue
@@ -19876,6 +20097,16 @@ class PlanningAgent:
                             f"morning slot on day {day.day}; last lane "
                             "afternoon placement",
                         )
+                    elif _stay:
+                        move_note = L(
+                            f"必去「{must.name}」超出端点日轻量口径（大景点/"
+                            f"距酒店或市中心超 {_EP_LIGHT_KM:.0f} 公里），"
+                            f"已救生改排第{target.day}天",
+                            f'must-visit "{must.name}" breaks the light '
+                            f"endpoint-day rule (major sight / more than "
+                            f"{_EP_LIGHT_KM:.0f} km from the hotel or city "
+                            f"center); rescued onto day {target.day}",
+                        )
                     else:
                         move_note = L(
                             f"必去「{must.name}」第{day.day}天排不下，"
@@ -19967,7 +20198,42 @@ class PlanningAgent:
                             kept.append(a)
                     plan.assumptions = kept
                     day = next(d for d in plan.days if d.day == day.day)
+                    adopted = True
                     break
+                if _stay and not adopted:
+                    # 违例必去全候选日结构性排不下：原天保留（铁律 19 不
+                    # 删）但必须留痕——用户可见的端点日违例，静默即违规
+                    # （10-25 立规）。终装清扫 ① 对钉住件只披露不动手，
+                    # 此处披露为同案上游。
+                    logger.warning(
+                        "plan: cross-day rescue of stay-violating must %s "
+                        "day %d infeasible everywhere; stays (disclosed)",
+                        must.name,
+                        day.day,
+                    )
+                    _heavy = _arrival_heavy_visit(must)
+                    _why = (
+                        "为重磅景点，端点日不安排大景点时间"
+                        if _heavy
+                        else f"距酒店或市中心超 {_EP_LIGHT_KM:.0f} 公里，"
+                        f"端点日只安排近处轻量内容"
+                    )
+                    _why_en = (
+                        "is a major sight, which endpoint days exclude"
+                        if _heavy
+                        else f"is more than {_EP_LIGHT_KM:.0f} km from the "
+                        f"hotel or city center, outside the endpoint-day "
+                        f"light radius"
+                    )
+                    notes.append(
+                        L(
+                            f"必去「{must.name}」{_why}，但其余各天排不下，"
+                            f"暂保留在第{day.day}天（可按需调整）",
+                            f'must-visit "{must.name}" {_why_en}, but every '
+                            f"other day was full, so it stayed on day "
+                            f"{day.day} (adjust as needed)",
+                        )
+                    )
         return plan, notes
 
     def _evict_shows_for_windowed_stage(
