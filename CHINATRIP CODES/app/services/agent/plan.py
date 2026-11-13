@@ -42,6 +42,7 @@ from app.services.agent.hotel_stays import (
     is_hotel_morning,
     is_hotel_night,
     reanchor_hotel_cards,
+    reanchor_hotel_nights,
 )
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.best_visit import apply_rules
@@ -4227,11 +4228,14 @@ def _dinner_placeholder(
 #: 交集）漏掉 19:30 后开席的晚宴：上海案第 1 天 19:34 的福和慧已占
 #: 晚餐卡，自动补餐仍在 18:30 又插老吉士酒家，两张晚餐卡并排。
 MEAL_CARD_LUNCH_FROM = 10 * 60 + 30
+#: 下午茶档（2026-11-13 用户「或者下午茶」）：14:00–16:00 开席的餐卡单独
+#: 成档，不再并进午餐卡——否则 15:00 的甜品/茶馆会把当天的午餐占位吞掉。
+MEAL_CARD_TEA_FROM = 14 * 60
 MEAL_CARD_DINNER_FROM = 16 * 60
 
 
 def _meal_card_slot(item: object) -> str | None:
-    """真餐厅卡归属的餐卡："lunch"/"dinner"；早餐 "breakfast"；
+    """真餐厅卡归属的餐卡："lunch"/"tea"/"dinner"；早餐 "breakfast"；
     无时刻的真餐厅卡 "untimed"；非真餐卡（景点/酒店/午饭晚饭占位件）
     None。
 
@@ -4249,8 +4253,10 @@ def _meal_card_slot(item: object) -> str | None:
     minutes = _minutes_of(item.start_time)
     if minutes < MEAL_CARD_LUNCH_FROM:
         return "breakfast"
-    if minutes < MEAL_CARD_DINNER_FROM:
+    if minutes < MEAL_CARD_TEA_FROM:
         return "lunch"
+    if minutes < MEAL_CARD_DINNER_FROM:
+        return "tea"
     return "dinner"
 
 
@@ -4285,10 +4291,10 @@ def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
         by_card: dict[str, list[VisitItem]] = {}
         for item in day.items:
             card = _meal_card_slot(item)
-            if card not in ("lunch", "dinner"):
+            if card not in ("lunch", "tea", "dinner"):
                 continue
             by_card.setdefault(card, []).append(item)
-        for card in ("lunch", "dinner"):
+        for card in ("lunch", "tea", "dinner"):
             cards = by_card.get(card) or []
             if len(cards) < 2:
                 continue
@@ -4301,7 +4307,7 @@ def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
                 dropped.append(item.name)
             if not dropped:
                 continue
-            card_name = "午餐" if card == "lunch" else "晚餐"
+            card_name = {"lunch": "午餐", "tea": "下午茶", "dinner": "晚餐"}[card]
             notes.append(
                 L(
                     f"第{day.day}天{card_name}卡已有餐厅「{keep.name}」，"
@@ -9839,6 +9845,241 @@ def _retime_meal_placeholders(
             meal_blockers.append((slot, slot + dur))
             meal_blockers.sort()
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
+#: 真餐卡兜底落位窗（2026-11-13 用户拍板「餐厅选中就该落午餐卡/晚餐卡」）：
+#: 选层按「午→晚」预排的餐窗可能物理不可行（落地日 12:00 才到、目标日
+#: 12:30 已被景点占住），失败日的兜底序列又把餐排除在外、终局清算再按铁律
+#: 19 豁免餐卡——真餐卡带着 None-None 直送 H5「未排」。终装按当天已排时刻
+#: 重算餐窗：午卡 11:30–13:30、晚卡 17:00–20:30 开席，营业窗内择位（90/60/
+#: 45 分钟递减试装）；当日两卡皆满/无档则披露保留，绝不静默删用户选中的店。
+MEAL_REAL_LUNCH_WINDOW = (11 * 60 + 30, 13 * 60 + 30)
+#: 下午茶窗（2026-11-13 用户「或者下午茶」）：动线中间空一段时，甜点/茶馆
+#: 类落这里比硬挤午餐更贴；不吃下午茶的日子这档自然空着。
+MEAL_REAL_TEA_WINDOW = (14 * 60, 16 * 60)
+MEAL_REAL_DINNER_WINDOW = (17 * 60, 20 * 60 + 30)
+MEAL_REAL_MIN_DURATION = 45
+#: 换乘条目两侧给餐卡让出的衔接缓冲（铁律 4：起飞/落地前后 90 分钟不算自由时间）
+MEAL_REAL_XFER_BUFFER = 90
+
+
+def _meal_card_label(card: str) -> str:
+    """餐卡的卡面中文名（剖白/披露用）：lunch/tea/dinner → 午餐/下午茶/晚餐。"""
+    return {"lunch": "午餐", "tea": "下午茶", "dinner": "晚餐"}.get(card, "餐卡")
+
+
+def _is_real_food(item: object) -> bool:
+    """真餐厅卡（用户选中/心愿/必吃/精选/顺路自动补餐都算）；午饭/晚饭
+    占位件是空餐卡本身，不算。"""
+    return (
+        isinstance(item, VisitItem)
+        and str(getattr(item, "category", "") or "") == "food"
+        and not is_lunch_placeholder(item)
+        and not is_dinner_placeholder(item)
+    )
+
+
+def _real_food_blockers(day: DayPlan, item: VisitItem) -> list[tuple[int, int]]:
+    """当天已排时刻 → 分钟阻挡窗（真餐卡择位的占用面）。
+
+    夜/晨酒店卡由 attach/reanchor 按末件顺延、占位餐卡自身可被真餐顶替——
+    三者不入阻挡；换乘条目两侧各留 90 分钟衔接缓冲（铁律 4）。"""
+    out: list[tuple[int, int]] = []
+    for other in day.items:
+        if other is item:
+            continue
+        start = getattr(other, "start_time", None)
+        if start is None:
+            continue
+        if is_lunch_placeholder(other) or is_dinner_placeholder(other):
+            continue
+        if is_hotel_night(other) or is_hotel_morning(other):
+            continue
+        s = _minutes_of(start)
+        e = _item_end_minutes(other)
+        if e is None:
+            e = s + int(getattr(other, "duration_minutes", None) or 60)
+        if isinstance(other, TransferItem):
+            s -= MEAL_REAL_XFER_BUFFER
+            e += MEAL_REAL_XFER_BUFFER
+        out.append((max(0, s), max(e, s + 1)))
+    out.sort()
+    return out
+
+
+def _food_slot_score(
+    t: int, dur: int, base: int, blockers: list[tuple[int, int]]
+) -> tuple[int, int, int]:
+    """餐卡候选位的时间贴合度（越小越贴合当天动线，2026-11-13 用户拍板
+    「不是默认晚餐，而是按照时间决定」）：
+
+    ① 不打折时长优先——90 分钟的席面被压成 45/60 是硬凑；
+    ② 餐后还有几条已排条目——0 = 落在当天动线末尾（逛完再吃），数越大
+       越像「硬塞进两个景点之间」（东方明珠 11:45 收尾、豫园 12:34 开场，
+       中间只剩 49 分钟就是典型硬塞）；
+    ③ 同等贴合取更早开席（不凭空制造白天大空窗）。"""
+    after = sum(1 for fs, _fe in blockers if fs >= t + dur)
+    return (0 if dur >= base else 1, after, t)
+
+
+def _place_real_food_on_day(day: DayPlan, item: VisitItem) -> tuple[int, int] | None:
+    """按当天动线给真餐卡挑最贴合的餐卡位：午餐卡 / 下午茶 / 晚餐卡各试。
+
+    每个餐卡先试整段时长（90），装不下才 60/45 递减；候选按
+    _food_slot_score 打分取最优。返回 (开席分钟, 时长)；三档都被真餐厅
+    占住或营业窗内无档返回 None。"""
+    taken = {
+        card
+        for other in day.items
+        if other is not item
+        for card in [_meal_card_slot(other)]
+        if card in ("lunch", "tea", "dinner")
+    }
+    hours = _hours_from_visit(item)
+    blockers = _real_food_blockers(day, item)
+    base = max(
+        int(item.duration_minutes or MEAL_DURATION_MINUTES), MEAL_REAL_MIN_DURATION
+    )
+    durations = [
+        d
+        for d in dict.fromkeys(
+            [min(base, 90), MEAL_DURATION_MINUTES, MEAL_REAL_MIN_DURATION]
+        )
+        if d >= MEAL_REAL_MIN_DURATION
+    ]
+    best: tuple[tuple[int, int, int], int, int] | None = None
+    for card, (lo, hi) in (
+        ("lunch", MEAL_REAL_LUNCH_WINDOW),
+        ("tea", MEAL_REAL_TEA_WINDOW),
+        ("dinner", MEAL_REAL_DINNER_WINDOW),
+    ):
+        if card in taken:
+            continue
+        placed: tuple[int, int] | None = None
+        for dur in durations:
+            for t in range(lo, hi + 1, 5):
+                if not _fits_hours_window(hours, t, dur):
+                    continue
+                if any(t < fe and t + dur > fs for fs, fe in blockers):
+                    continue
+                placed = (t, dur)
+                break
+            if placed is not None:
+                break
+        if placed is None:
+            continue
+        t, dur = placed
+        score = _food_slot_score(t, dur, base, blockers)
+        if best is None or score < best[0]:
+            best = (score, t, dur)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def _retime_real_food_cards(plan: ItineraryPlan) -> list[str]:
+    """终装真餐卡落位闸（2026-11-13 福和慧/老吉士「未排」案）。
+
+    真餐厅条目（用户选中/心愿/必吃/精选/自动补餐）在任何相位丢了时刻后，
+    兜底序列与终局清算都不碰 food——用户手上就出现「选了餐厅却显示未排」。
+    本闸在餐卡重排之前按当天最终时链补位：午餐卡 / 下午茶 / 晚餐卡都按营业窗
+    与衔接缓冲试装，再按「贴合当天动线」打分择一（_food_slot_score）——所有
+    真餐厅最终都必须落在某张餐卡上（2026-11-13 用户「所有的餐厅都应该进入
+    午餐卡或者晚餐卡，或者下午茶」）。落位后夜卡交给 reanchor 顺延；真排不下
+    也留披露，绝不静默删卡（用户点名的店同铁律 19）。"""
+    placed: list[str] = []
+    failed: list[str] = []
+    touched_days: list[DayPlan] = []
+    for day in plan.days:
+        touched = False
+        # ① 已排餐卡的真餐厅按动线复审（2026-11-13 用户「为什么不决定成晚餐
+        #    卡」）：选层预排的 12:00 午卡常被硬塞进两个景点之间，而当天动线
+        #    末尾整晚空着——明显更贴合别处才改卡，改不成保留原时刻；用户手钉
+        #    时刻（pinned 且非 soft_pin）绝不动。
+        for item in list(day.items):
+            if not _is_real_food(item) or item.start_time is None:
+                continue
+            if _is_system_meal(item):
+                # 系统自动补餐（food-d…）本就是拿来填那一张卡的（午餐保底），
+                # 不参与动线复审；否则午饭卡被搬空只剩占位件。
+                continue
+            if item.pinned and not item.soft_pin:
+                continue
+            cur_t = _minutes_of(item.start_time)
+            cur_dur = int(item.duration_minutes or MEAL_DURATION_MINUTES)
+            blockers = _real_food_blockers(day, item)
+            base = max(cur_dur, MEAL_REAL_MIN_DURATION)
+            old = (item.start_time, item.end_time, item.duration_minutes)
+            item.start_time = None
+            item.end_time = None
+            slot = _place_real_food_on_day(day, item)
+            if slot is None:
+                item.start_time, item.end_time, item.duration_minutes = old
+                continue
+            t, dur = slot
+            # 只认「更贴动线」（时长不打折 + 餐后条目更少）；「更早开席」
+            # 只是无时刻补位时的平手裁决，不能拿它把已排好的晚宴挪回午市。
+            if _food_slot_score(t, dur, base, blockers)[:2] >= _food_slot_score(
+                cur_t, cur_dur, base, blockers
+            )[:2]:
+                item.start_time, item.end_time, item.duration_minutes = old
+                continue
+            item.start_time = time(t // 60, t % 60)
+            item.end_time = time((t + dur) // 60, (t + dur) % 60)
+            item.duration_minutes = dur
+            touched = True
+            placed.append(
+                f"第{day.day}天「{item.name}」"
+                f"{_meal_card_label(_meal_card_slot(item) or '')}"
+                f" {item.start_time.strftime('%H:%M')}–"
+                f"{item.end_time.strftime('%H:%M')}"
+            )
+        # ② 无时刻真餐厅补位
+        for item in list(day.items):
+            if not _is_real_food(item) or item.start_time is not None:
+                continue
+            slot = _place_real_food_on_day(day, item)
+            if slot is None:
+                failed.append(f"第{day.day}天「{item.name}」")
+                continue
+            t, dur = slot
+            item.start_time = time(t // 60, t % 60)
+            item.end_time = time((t + dur) // 60, (t + dur) % 60)
+            item.duration_minutes = dur
+            touched = True
+            placed.append(
+                f"第{day.day}天「{item.name}」"
+                f"{_meal_card_label(_meal_card_slot(item) or '')}"
+                f" {item.start_time.strftime('%H:%M')}–"
+                f"{item.end_time.strftime('%H:%M')}"
+            )
+        if touched:
+            touched_days.append(day)
+    notes: list[str] = []
+    if placed:
+        # 落位后夜/晨卡按末件顺延（只后移不回拨，删过的卡不复活），
+        # 顺延完再按时链重排列表——否则夜卡排在新落的晚餐之前。
+        reanchor_hotel_nights(plan.days)
+        for day in touched_days:
+            day.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+        notes.append(
+            L(
+                "选中的餐厅已排进餐卡：" + "；".join(placed),
+                "Restaurants placed on meal cards: " + "; ".join(placed),
+            )
+        )
+    if failed:
+        notes.append(
+            L(
+                "餐卡已满、暂未落时刻：" + "、".join(failed)
+                + "（可删当天景点或改到其他天）",
+                "No free meal card for: " + ", ".join(failed)
+                + " (drop a sight that day or move it to another day)",
+            )
+        )
+    return notes
 
 
 def _evening_anchor_visit(v: VisitItem) -> bool:
@@ -20951,6 +21192,7 @@ class PlanningAgent:
         # 轻卡落位靠排程顺序雨日→到达日→正常日→离城日自然发生，本清
         # 扫绝不跨日挪卡补，宁可空日）。
         _endpoint_day_light_sweep(plan, must_names)
+        plan.assumptions.extend(_retime_real_food_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=self._auto_restaurants)
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
@@ -24436,6 +24678,7 @@ class PlanningAgent:
         # 真餐厅即使不与占位重叠（12:00-13:30 空占位 + 13:30 餐厅），只要
         # 同属一张餐卡，交付前也吸收占位——一个餐卡只留一张卡。占位本就可
         # 挪可删，不违铁律 19；上面「撞车先挪位」只是省修复轮的快路。
+        notes.extend(_retime_real_food_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=False)
         # 行程单模糊去重收口（2026-10-28）：三条交付分支（干净落定/
         # 保底原样/半成品）统一过闸——2026-10-24 版只挂在「无硬校验错误」
