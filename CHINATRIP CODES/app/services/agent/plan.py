@@ -4044,9 +4044,7 @@ def _lunch_placeholder(
     item_id 前缀（is_lunch_placeholder），占位件不带 poi/坐标：回填与
     小时链须跳过（否则烧配额搜「午饭」）。
     """
-    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
-        day_plan, slot[0]
-    )
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(day_plan, slot[0])
     return VisitItem(
         item_id=f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("午饭（自由安排）", "Lunch (on your own)"),
@@ -4080,9 +4078,7 @@ def _dinner_placeholder(
     poi/坐标：回填与小时链须跳过（否则烧配额搜「晚饭」）。注意 id 前缀
     food-dinner-ph 以「food-d」开头——必吃让位闸（:6217 一带）按该前缀
     识别自动餐件，占位件天然随让位语义可被用户必吃顶替。"""
-    anchor_address, anchor_address_en, anchor_location = _meal_anchor(
-        day_plan, slot[0]
-    )
+    anchor_address, anchor_address_en, anchor_location = _meal_anchor(day_plan, slot[0])
     return VisitItem(
         item_id=f"{DINNER_PLACEHOLDER_ID_PREFIX}-d{day_plan.day}",
         name=L("晚饭（自由安排）", "Dinner (on your own)"),
