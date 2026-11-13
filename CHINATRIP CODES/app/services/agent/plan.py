@@ -109,6 +109,7 @@ from app.services.itinerary.solver import (
     _is_theme_block,
     _leaving_morning_cap,
     effective_show_sessions,
+    fusion_food_nested,
     generic_entry_cap,
     is_sessionless_show,
     is_show_banquet_item,
@@ -8449,6 +8450,41 @@ def _fallback_sequence_times(
 
                         ordered.sort(key=lambda s: (_mate_gap(s), -s))
 
+                def _session_blocked(s: int, dur: int) -> bool:
+                    # 撞窗判定（_leg_windows 口径：观光锚±打车腿缓冲）。同址
+                    # 餐饮融合豁免（2026-11-12 拍板「街区天然有餐饮...街区的
+                    # 时间里包含了餐厅时间」）：food 卡与同址宿主卡重叠、且
+                    # 被宿主真时段完整包含 → 嵌套不挡；部分溢出/非同址照旧
+                    # 挡。fixed 与 _leg_windows 同源同序，zip 对齐取 src。
+                    if (visit.category or "") != "food":
+                        for fs, fe in _leg_windows(fixed, visit):
+                            if s < fe and s + dur > fs:
+                                return True
+                        return False
+                    for (fs, fe), (_rs, _re, src) in zip(
+                        _leg_windows(fixed, visit), fixed
+                    ):
+                        if not (s < fe and s + dur > fs):
+                            continue
+                        if (
+                            src is not None
+                            and src is not visit
+                            and isinstance(src, VisitItem)
+                            and src.start_time is not None
+                            and fusion_food_nested(
+                                visit,
+                                src,
+                                (s, s + dur),
+                                (
+                                    _minutes_of(src.start_time),
+                                    _item_end_minutes(src),
+                                ),
+                            )
+                        ):
+                            continue
+                        return True
+                    return False
+
                 def _try_sessions(prefer: int | None = None) -> int | None:
                     for s in (
                         [prefer] + [x for x in ordered if x != prefer]
@@ -8457,10 +8493,7 @@ def _fallback_sequence_times(
                     ):
                         if (
                             s + dur <= day_end
-                            and not any(
-                                s < fe and s + dur > fs
-                                for fs, fe in _leg_windows(fixed, visit)
-                            )
+                            and not _session_blocked(s, dur)
                             and not _inside_combo(s, dur)
                             and _city_side_ok(xfer_windows, visit, s, dur)
                         ):

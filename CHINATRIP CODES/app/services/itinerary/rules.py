@@ -58,6 +58,7 @@ from app.services.itinerary.models import (
 from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
     _is_big_site,
+    fusion_food_nested,
     generic_entry_cap,
 )
 from app.services.lang_ctx import L
@@ -148,6 +149,19 @@ def _report(violations: list[RuleViolation]) -> ValidationReport:
 # --- iron rule 1: same-day VisitItem time overlap -------------------------
 
 
+def _nested_food_pair(a: VisitItem, b: VisitItem) -> bool:
+    """同址餐饮融合嵌套（2026-11-12 用户拍板「街区天然有餐饮，不应该互斥
+    相撞...街区的时间里包含了餐厅时间」）：food 卡完整落在同址（≤
+    SAME_VENUE_KM）宿主卡窗内=时间包含语义，不判铁律 1 双订。判定定义
+    点 solver.fusion_food_nested；部分溢出/非同址照旧报错。"""
+    return fusion_food_nested(
+        a,
+        b,
+        (_minutes(a.start_time), _minutes(a.end_time)),
+        (_minutes(b.start_time), _minutes(b.end_time)),
+    )
+
+
 def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
@@ -156,6 +170,8 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
     out = []
     for prev, cur in zip(timed, timed[1:]):
         if _minutes(prev.end_time) > _minutes(cur.start_time):
+            if _nested_food_pair(prev, cur):
+                continue  # 同址餐饮融合豁免（拍板）：街区时间包含餐厅时间
             out.append(
                 RuleViolation(
                     rule_id=1,

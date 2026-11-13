@@ -124,6 +124,62 @@ def is_show_banquet_item(item: VisitItem) -> bool:
     return any(m in text for m in BANQUET_SHOW_TEXT_MARKS)
 
 
+#: 同址圈（2026-11-12 用户拍板「近距离地址的街区和景点天然相容的...特别
+#: 是餐厅的地址就在街区里」）：≤此半径的一张 food 卡与一张非餐卡=同院/
+#: 同址——food 卡时段可整体嵌进宿主卡窗（街区时间包含餐厅时间），不判
+#: 双订、不记走行。比 NEAR_SAMEDAY_KM(5km 同片区)严：嵌套是时间包含
+#: 语义，只认物理上在一起的同址对。
+SAME_VENUE_KM = 0.5
+#: 同址嵌套强偏好量纲（同软罚档）：声明场次餐嵌进街区/景点窗内 优先于
+#: 独立餐位——「街区天然有餐饮，不应该互斥相撞。他们可以融合的啊。」
+#: 只作用于声明场次餐（fusion_food_nested 口径）；普通餐卡不占宿主窗。
+FUSION_NEST_BONUS = 10_000
+
+
+def is_same_venue_food_pair(a: VisitItem, b: VisitItem) -> bool:
+    """同址餐饮融合对（唯一定义点，rules/plan 读侧引用）：恰一张 food 卡
+    + 一张同址（≤SAME_VENUE_KM）非餐非酒店卡。缺坐标/双双餐卡/宿主为
+    酒店（入住卡非游览宿主）均不认。"""
+    a_food = (a.category or "") == "food"
+    b_food = (b.category or "") == "food"
+    if a_food == b_food:
+        return False
+    host = b if a_food else a
+    if (host.category or "") == "hotel":
+        return False
+    if a.location is None or b.location is None:
+        return False
+    return _haversine_km(a.location, b.location) <= SAME_VENUE_KM
+
+
+def fusion_food_nested(
+    a: VisitItem,
+    b: VisitItem,
+    a_span: tuple[int, int],
+    b_span: tuple[int, int],
+) -> bool:
+    """同址融合嵌套判定：food 端被宿主端完整包含（街区时间里包含餐厅
+    时间）。部分重叠（餐溢出宿主窗尾）不豁免——人已出门在路上，按双订
+    判。时段元组=分钟-of-day，a/b 任意顺序。
+
+    豁免只认「声明场次餐」（2026-11-12 拍板口径）：馆方公布固定入席时刻
+    （午宴/晚宴场）的餐卡才可嵌进同址宿主窗；无声明场次的普通餐卡不占
+    宿主窗内位——冲突仍由贴邻/并块尾机制（2026-11-10 拍板）收口，避免
+    普通晚餐被抢进体验块窗头。
+    """
+    if not is_same_venue_food_pair(a, b):
+        return False
+    if (a.category or "") == "food":
+        food, food_span, host_span = a, a_span, b_span
+    else:
+        food, food_span, host_span = b, b_span, a_span
+    if not show_session_starts(food.opening_hours):
+        return False
+    fs, fe = food_span
+    hs, he = host_span
+    return hs <= fs and fe <= he
+
+
 #: 演出场次串「多场（约15:00/20:00，旺季加场至4场）」「傍晚/晚间场（约
 #: 17:30/19:30两场）」——场次列表是真值源（23552b5 show_sessions 刷新
 #: 管线写入 opening_hours 列）。
@@ -1637,6 +1693,13 @@ def insertion_schedule_day(
                     return False
         for os_, oe_, oitem in occupied:
             if t < oe_ and e > os_:
+                # 同址餐饮融合豁免（2026-11-12 拍板「街区天然有餐饮...街区
+                # 的时间里包含了餐厅时间」）：food 卡完整嵌进同址宿主卡窗
+                # 不判双订；部分溢出/非同址照旧拦。
+                if isinstance(oitem, VisitItem) and fusion_food_nested(
+                    spec.item, oitem, (t, e), (os_, oe_)
+                ):
+                    continue
                 return False
             if isinstance(oitem, VisitItem) and travel_minutes is not None:
                 if e <= os_ and os_ - e < _travel(spec.item, oitem):
@@ -1645,9 +1708,21 @@ def insertion_schedule_day(
                     return False
         return True
 
+    def _fusion_host_span(t: int, dur: int, item: VisitItem) -> bool:
+        # food 卡 [t,t+dur] 完整落进同址宿主已排窗=嵌套融合（2026-11-12
+        # 拍板）：骑宿主腿——不新增走行，且强偏好于独立餐位。豁免口径
+        # （声明场次餐）统一走 fusion_food_nested 唯一定义点。
+        return (item.category or "") == "food" and any(
+            isinstance(oitem, VisitItem)
+            and fusion_food_nested(item, oitem, (t, t + dur), (os_, oe_))
+            for os_, oe_, oitem in occupied
+        )
+
     def _added_travel(t: int, dur: int, item: VisitItem) -> int:
         # 换乘锚不参与走行记账（PR2 起矩阵+换乘日在此 AttributeError 必崩
         # →整日静默降级；与 _fits 的 isinstance 守卫同口径，2026-11-01 修）
+        if _fusion_host_span(t, dur, item):
+            return 0  # 同址嵌套餐骑宿主腿，不新增走行
         before = [o for o in occupied if o[1] <= t]
         after = [o for o in occupied if o[0] >= t + dur]
         added = 0
@@ -1685,7 +1760,12 @@ def insertion_schedule_day(
                         + _afternoon_big_cost(t, spec.item)
                         + _big_first_cost(t, spec.item)
                         + _head_first_cost(t, spec.item)
-                        + _cw_afternoon_cost(t, spec.item),
+                        + _cw_afternoon_cost(t, spec.item)
+                        + (
+                            -FUSION_NEST_BONUS
+                            if _fusion_host_span(t, dur, spec.item)
+                            else 0
+                        ),
                         t,
                     )
                     if best is None or key < (best[0], best[1]):
