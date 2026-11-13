@@ -3804,8 +3804,11 @@ def test_v0_transfer_day_dinner_searches_arrival_city():
     # 无餐饮候选 → 晚餐落「晚饭」占位件保槽（2026-11-07 晚餐保底），
     # 占位城=到达城西安（宁缺不插错城店口径不变）
     foods = [v for v in all_visits(session) if v.category == "food"]
-    assert len(foods) == 1 and is_dinner_placeholder(foods[0])
-    assert foods[0].city == "西安"
+    # 2026-11-13「每天午卡+晚卡，在路上的日子可以豁免」：上路日不补卡，
+    # 整天在西安的那天落午/晚占位各一张，城一律=西安（宁缺不插错城店）。
+    dinners = [f for f in foods if is_dinner_placeholder(f)]
+    assert dinners and all(f.city == "西安" for f in dinners)
+    assert all(f.city == "西安" for f in foods)
     # 午餐被 90 分钟衔接缓冲推出窗外不搜；唯一餐厅检索=晚餐、城=西安
     assert amap.calls, "dinner search should have run"
     assert all(city == "西安" for _, city in amap.calls)
