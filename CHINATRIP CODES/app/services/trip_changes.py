@@ -17,6 +17,7 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import text
 
 from app.models import Itinerary, ItineraryChangeLog, ItineraryDay, ItineraryItem
@@ -28,6 +29,75 @@ def _t(value) -> str | None:
     if value is None:
         return None
     return value.strftime("%H:%M") if hasattr(value, "strftime") else str(value)
+
+
+def rewrite_trip_detail(session, uid, plan) -> None:
+    """重建行程明细（snapshot_id IS NULL 的那份）：天 + 点位（含备选 1-3）。
+
+    保存时与回填脚本共用——一处口径，避免两份实现漂移。"""
+    session.execute(
+        text(
+            "DELETE FROM itinerary_items"
+            " WHERE itinerary_id = :uid AND snapshot_id IS NULL"
+        ),
+        {"uid": uid},
+    )
+    session.execute(
+        text(
+            "DELETE FROM itinerary_days"
+            " WHERE itinerary_id = :uid AND snapshot_id IS NULL"
+        ),
+        {"uid": uid},
+    )
+    start_date = _start_date(plan)
+    for day in getattr(plan, "days", None) or []:
+        session.add(
+            ItineraryDay(
+                id=uuid.uuid4(),
+                itinerary_id=uid,
+                snapshot_id=None,
+                day=day.day,
+                base_city=getattr(day, "base_city", None),
+            )
+        )
+        for pos, item in enumerate(getattr(day, "items", None) or []):
+            alts = getattr(item, "alternatives", None) or None
+            alt_names = [
+                (getattr(a, "name", None) or "")[:200] for a in (alts or [])
+            ]
+            session.add(
+                ItineraryItem(
+                    id=uuid.uuid4(),
+                    itinerary_id=uid,
+                    snapshot_id=None,
+                    day=day.day,
+                    poi_id=None,
+                    position=float(pos),
+                    start_time=getattr(item, "start_time", None),
+                    end_time=getattr(item, "end_time", None),
+                    draft=False,
+                    name=(getattr(item, "name", None) or None),
+                    city=(getattr(item, "city", None) or None),
+                    category=(getattr(item, "category", None) or None),
+                    address=(getattr(item, "address", None) or None),
+                    alternatives=(
+                        [a.model_dump(mode="json") for a in alts]
+                        if alts
+                        else None
+                    ),
+                    duration_minutes=getattr(
+                        item, "duration_minutes", None
+                    ),
+                    schedule_date=(
+                        start_date + timedelta(days=day.day - 1)
+                        if start_date is not None
+                        else None
+                    ),
+                    alt1=(alt_names[0] if len(alt_names) > 0 else None),
+                    alt2=(alt_names[1] if len(alt_names) > 1 else None),
+                    alt3=(alt_names[2] if len(alt_names) > 2 else None),
+                )
+            )
 
 
 def _start_date(plan) -> date | None:
@@ -56,9 +126,7 @@ def trip_header_fields(plan) -> dict:
             for i in (getattr(day, "items", None) or [])
             if (getattr(i, "city", None) or "").strip()
         ]
-        per_day.append(
-            day_cities[0] if day_cities else (getattr(day, "base_city", None) or None)
-        )
+        per_day.append(day_cities[0] if day_cities else (getattr(day, "base_city", None) or None))
     dests: list[str] = []
     for city in per_day:
         if city and city not in dests:
@@ -66,7 +134,7 @@ def trip_header_fields(plan) -> dict:
     counts = {city: per_day.count(city) for city in dests}
     return {
         "start_city": cities[0] if cities else None,
-        "end_city": cities[-1] if cities else None,
+        "end_city": (cities[-1] if cities else None),
         "travel_start_date": _start_date(plan),
         "dest_city_1": dests[0] if dests else None,
         "dest_days_1": counts.get(dests[0]) if dests else None,
@@ -115,9 +183,7 @@ def diff_plans(old_plan, new_plan) -> list[dict]:
                 }
             )
             continue
-        if _t(getattr(prev, "start_time", None)) != _t(
-            getattr(item, "start_time", None)
-        ):
+        if _t(getattr(prev, "start_time", None)) != _t(getattr(item, "start_time", None)):
             changes.append(
                 {
                     "op": "retime",
@@ -175,80 +241,20 @@ def record_trip_change(
         with session_factory() as session, session.begin():
             row = session.get(Itinerary, uid)
             if row is not None:
-                row.title = (
-                    getattr(new_plan, "cities", None)
-                    and " → ".join(new_plan.cities)[:200]
-                )
+                row.title = getattr(new_plan, "cities", None) and " → ".join(
+                    new_plan.cities
+                )[:200]
                 row.cities = list(getattr(new_plan, "cities", []) or [])
                 row.last_changed_at = now
                 row.updated_at = now
                 row.is_deleted = False
-                # 2026-11-13：头派生列随行程内容更新
+                # 2026-11-13：头派生列随行程内容更新（始/终城、目的地
+                # 城市+天数、旅行开始日期）
                 for _key, _value in trip_header_fields(new_plan).items():
                     setattr(row, _key, _value)
                 if actor_name and not row.creator_name:
                     row.creator_name = actor_name[:100]
-            session.execute(
-                text(
-                    "DELETE FROM itinerary_items"
-                    " WHERE itinerary_id = :uid AND snapshot_id IS NULL"
-                ),
-                {"uid": uid},
-            )
-            session.execute(
-                text(
-                    "DELETE FROM itinerary_days"
-                    " WHERE itinerary_id = :uid AND snapshot_id IS NULL"
-                ),
-                {"uid": uid},
-            )
-            start_date = _start_date(new_plan)
-            for day in getattr(new_plan, "days", None) or []:
-                session.add(
-                    ItineraryDay(
-                        id=uuid.uuid4(),
-                        itinerary_id=uid,
-                        snapshot_id=None,
-                        day=day.day,
-                        base_city=getattr(day, "base_city", None),
-                    )
-                )
-                for pos, item in enumerate(getattr(day, "items", None) or []):
-                    alts = getattr(item, "alternatives", None) or None
-                    alt_names = [
-                        (getattr(a, "name", None) or "")[:200] for a in (alts or [])
-                    ]
-                    session.add(
-                        ItineraryItem(
-                            id=uuid.uuid4(),
-                            itinerary_id=uid,
-                            snapshot_id=None,
-                            day=day.day,
-                            poi_id=None,
-                            position=float(pos),
-                            start_time=getattr(item, "start_time", None),
-                            end_time=getattr(item, "end_time", None),
-                            draft=False,
-                            name=(getattr(item, "name", None) or None),
-                            city=(getattr(item, "city", None) or None),
-                            category=(getattr(item, "category", None) or None),
-                            address=(getattr(item, "address", None) or None),
-                            duration_minutes=getattr(item, "duration_minutes", None),
-                            schedule_date=(
-                                start_date + timedelta(days=day.day - 1)
-                                if start_date is not None
-                                else None
-                            ),
-                            alt1=(alt_names[0] if len(alt_names) > 0 else None),
-                            alt2=(alt_names[1] if len(alt_names) > 1 else None),
-                            alt3=(alt_names[2] if len(alt_names) > 2 else None),
-                            alternatives=(
-                                [a.model_dump(mode="json") for a in alts]
-                                if alts
-                                else None
-                            ),
-                        )
-                    )
+            rewrite_trip_detail(session, uid, new_plan)
             session.add(
                 ItineraryChangeLog(
                     id=uuid.uuid4(),
@@ -265,7 +271,5 @@ def record_trip_change(
                 )
             )
     except Exception:
-        logger.warning(
-            "trip_changes: 保存变更日志失败 ref=%s", itinerary_id, exc_info=True
-        )
+        logger.warning("trip_changes: 保存变更日志失败 ref=%s", itinerary_id, exc_info=True)
     return changes
