@@ -1523,6 +1523,39 @@ def insertion_schedule_day(
             occupied.append((spec.lo, spec.lo + spec.dur, spec.item))
         else:
             rest.append(spec)
+    if travel_minutes is not None:
+        # 钉点直落不验腿（铁律 19：用户钉不可弹），但零/短间隔须留痕——
+        # 2026-11-13 秦俑情 11:00 散场→41km 外餐厅 12:20 案：生成端任何
+        # 漏网组合至少进日志，不得静默（用户拍板：所有 OBJECT 计腿）。
+        _pin_occ = [o for o in occupied if isinstance(o[2], VisitItem)]
+        for ps_, pe_, pitem in _pin_occ:
+            for os_, oe_, oitem in _pin_occ:
+                if oitem is pitem:
+                    continue
+                if oe_ <= ps_ and ps_ - oe_ < _travel_cost(
+                    oitem, pitem, travel_minutes
+                ):
+                    logger.warning(
+                        "solver: pinned %s day %s starts %d min after %s "
+                        "ends — leg is %d min (under-counted travel)",
+                        pitem.name,
+                        day.day,
+                        ps_ - oe_,
+                        oitem.name,
+                        _travel_cost(oitem, pitem, travel_minutes),
+                    )
+                if os_ >= pe_ and os_ - pe_ < _travel_cost(
+                    pitem, oitem, travel_minutes
+                ):
+                    logger.warning(
+                        "solver: %s day %s starts %d min after pinned %s "
+                        "ends — leg is %d min (under-counted travel)",
+                        oitem.name,
+                        day.day,
+                        os_ - pe_,
+                        pitem.name,
+                        _travel_cost(pitem, oitem, travel_minutes),
+                    )
     occupied.sort(key=lambda o: o[0])
 
     def _travel(a, b) -> int:

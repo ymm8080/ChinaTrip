@@ -12,8 +12,8 @@ function over the shared domain models — no I/O, no LLM, no DB.
     4 跨城衔接缓冲（VisitItem↔TransferItem ≥90 分钟）→ validate_plan
     5 同日多段跨城（seq 递增唯一 + 互相缓冲）→ validate_plan
     6 节奏量化（日步行 ≤15km×人群系数；游览占比 ≥55%）→ validate_plan
-    7 相邻观光对间隔 ≥ 打车腿（零车程背靠背绊网；生成端由 solver
-      保证，此处回溯兜底旧载荷）→ validate_plan
+    7 相邻对象对间隔 ≥ 打车腿（零车程背靠背绊网；2026-11-13 起餐/
+      酒店/钉件同口径，仅同址≤SAME_VENUE_KM 与无坐标对豁免）→ validate_plan
     10 只动当天及之后 → validate_change_scope
     19 钉死点（pinned 不得被移动/改时间/删除）→ validate_pinned
 
@@ -57,6 +57,7 @@ from app.services.itinerary.models import (
 )
 from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
+    SAME_VENUE_KM,
     _is_big_site,
     fusion_food_nested,
     generic_entry_cap,
@@ -119,17 +120,27 @@ def taxi_leg_min(km: float) -> int:
 
 
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
-    """相邻两点 a→b 需要的走行分钟；豁免对（餐/酒店贴点、钉点、无坐标）
-    返回 None 表示不校验。口径与兜底 _leg_windows 的 pad 一致：
-    max(30, taxi_leg_min(haversine))。"""
-    for v in (a, b):
-        if (v.category or "") in ("food", "hotel"):
-            return None  # 餐位贴点/入住卡：拍板语义，不按腿隔开
-        if v.pinned:
-            return None  # 铁律 19：钉是用户安排非引擎节奏
-        if v.location is None:
-            return None  # 无坐标算不出腿（占位午餐等）
-    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(haversine_km(a.location, b.location)))
+    """相邻两点 a→b 需要的走行分钟。
+
+    2026-11-13 用户拍板「路途时间和距离在所有 OBJECT 里都要正确计算
+    （HOTEL/餐饮/活动/景点）」：旧按类目豁免（餐/酒店贴点、钉点）是
+    「同址」的粗糙代理，撤除——改为距离语义：
+
+    - 双方有坐标且同址（≤SAME_VENUE_KM）：返回 None——同址嵌套/并
+      块尾（2026-11-12/11-10 拍板）按真实距离天然免隔腿，不再按类目
+      一刀切；
+    - 双方有坐标：max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))——
+      餐/酒店/钉件与观光件同口径（秦俑情 11:00 散场→41km 外餐厅
+      12:20 零车程案：钉不可挪由铁律 19 管移动，本条管间隔计算与披露）；
+    - 任一方无坐标：返回 None（算不出），调用方须留痕。
+    口径与兜底 _leg_windows 的 pad 一致：max(30, taxi_leg_min(haversine))。
+    """
+    if a.location is None or b.location is None:
+        return None
+    km = haversine_km(a.location, b.location)
+    if km <= SAME_VENUE_KM:
+        return None  # 同址不隔腿（嵌套/并块尾按距离语义豁免）
+    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))
 
 
 def _eff_end_minutes(item: VisitItem | TransferItem) -> int | None:
@@ -196,9 +207,9 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
 
 def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     """零车程背靠背绊网（2026-11-03 Day2 大明宫→城墙 15:00 事故）：
-    相邻已排观光对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免对见
-    travel_gap_needed（餐/酒店贴点、钉点、无坐标）。solver 生成端已
-    保证；此处回溯兜底旧 session 载荷与任何漏网路径，触即 error 披露。"""
+    相邻已排对象对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免口径
+    见 travel_gap_needed（2026-11-13 起仅同址/无坐标豁免，餐/酒店/钉
+    件照算——solver 生成端漏网由此处披露兜底）。"""
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
         key=lambda v: (v.start_time, v.end_time),

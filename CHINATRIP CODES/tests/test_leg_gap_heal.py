@@ -9,7 +9,8 @@
    → solver 改弃日（见 test_solver.test_infeasible_travel_separation_
    drops_day），本文件补 solve_plan 链路视角；
 ③校验对 end==start 贴脸不报
-   → rules.travel_gap_violations 铁律 7 绊网（餐/钉/无坐标豁免）。
+   → rules.travel_gap_violations 铁律 7 绊网（2026-11-13 拍板后仅同址/
+     无坐标豁免，餐/酒店/钉件照算腿）。
 """
 
 from datetime import time as _t
@@ -52,7 +53,9 @@ def test_solver_matrix_uses_validator_short_leg_floor():
         city="西安",
         day=1,
         category="attraction",
-        location=GeoPoint(lon=108.9450, lat=34.2600),
+        # ~1.2km（>SAME_VENUE_KM 同址圈）：步行腿 <30 分钟地板，矩阵与
+        # 校验同源取 30（2026-11-13 拍板后同址 ≤0.5km 对免隔腿）。
+        location=GeoPoint(lon=108.9530, lat=34.2600),
     )
     plan = ItineraryPlan(
         itinerary_id="short-leg",
@@ -299,8 +302,9 @@ def test_validate_flags_back_to_back_zero_gap():
     assert not report.ok
 
 
-def test_validate_exempts_food_pinned_and_locationless_pairs():
-    """餐贴点/钉点/无坐标对不报——与 heal、_leg_windows 同口径。"""
+def test_validate_flags_food_pinned_far_pairs():
+    """2026-11-13 拍板：餐/酒店/钉件的远距对也照算腿并披露——秦俑情
+    11:00 散场→41km 外餐厅 12:20 零车程案即钉+餐双豁免漏网形态。"""
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -324,7 +328,7 @@ def test_validate_exempts_food_pinned_and_locationless_pairs():
                 category="attraction",
                 duration_minutes=90,
                 start_time=_t(13, 30),
-                end_time=_t(15, 0),  # 餐→点贴点合法
+                end_time=_t(15, 0),  # 餐→点 ~5.5km：贴点零间隔违规
                 location=GeoPoint(lon=108.96, lat=34.31),
             ),
             VisitItem(
@@ -336,13 +340,66 @@ def test_validate_exempts_food_pinned_and_locationless_pairs():
                 duration_minutes=90,
                 pinned=True,
                 start_time=_t(15, 0),
-                end_time=_t(16, 30),
+                end_time=_t(16, 30),  # 点→钉 ~24km：钉件也照算
                 location=GeoPoint(lon=109.21, lat=34.36),
             ),
         ],
     )
     plan = ItineraryPlan(
         itinerary_id="it-x", cities=["西安"], days=[day], assumptions=[]
+    )
+    report = validate_plan(plan, poi_hours=[])
+    rule7 = [v for v in report.violations if v.rule_id == 7]
+    assert {tuple(sorted(v.item_ids)) for v in rule7} == {
+        ("f", "s1"),
+        ("s1", "s2"),
+    }, "远距餐对/钉对均须报铁律 7"
+
+
+def test_validate_exempts_only_same_venue_and_locationless():
+    """豁免收窄回归：同址（≤SAME_VENUE_KM）与无坐标对不报（2026-11-13
+    拍板保留面；旧「餐贴点/钉点」类目豁免已撤）。"""
+    loc = GeoPoint(lon=108.94, lat=34.26)
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            VisitItem(
+                item_id="host",
+                name="同址馆",
+                city="西安",
+                day=1,
+                category="museum",
+                duration_minutes=120,
+                start_time=_t(14, 0),
+                end_time=_t(16, 0),
+                location=loc,
+            ),
+            VisitItem(
+                item_id="near-food",
+                name="同址餐",
+                city="西安",
+                day=1,
+                category="food",
+                duration_minutes=90,
+                start_time=_t(16, 0),
+                end_time=_t(17, 30),
+                location=GeoPoint(lon=108.9402, lat=34.2601),
+            ),
+            VisitItem(
+                item_id="no-loc",
+                name="无坐标点",
+                city="西安",
+                day=1,
+                category="attraction",
+                duration_minutes=60,
+                start_time=_t(17, 30),
+                end_time=_t(18, 30),
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-sv", cities=["西安"], days=[day], assumptions=[]
     )
     report = validate_plan(plan, poi_hours=[])
     assert not [v for v in report.violations if v.rule_id == 7]

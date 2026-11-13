@@ -8041,8 +8041,10 @@ def _leg_windows(
     fixed: list[tuple[int, int, object]], visit: VisitItem
 ) -> list[tuple[int, int]]:
     """未排条目视角的已占窗（2026-11-02 远郊王牌 10:30 散场 11:00 排城心锚
-    事故）：已定位的观光锚按打车腿放宽 ±30 缓冲，餐饮/酒店/落地腿保持
-    原窗（餐位贴点、铁律 4 缓冲语义不变）。"""
+    事故）：已定位锚（含餐/酒店，2026-11-13 用户拍板「路途时间在所有
+    OBJECT 都要正确计算」）按打车腿放宽 ±30 缓冲；落地腿（换乘）保持
+    原窗（铁律 4 缓冲语义不变）。同址（≤SAME_VENUE_KM）腿 ≤30 时 pad
+    退化为 30，窗口不额外放宽——同址嵌套/并块尾语义天然保住。"""
     out: list[tuple[int, int]] = []
     vloc = getattr(visit, "location", None)
     for fs, fe, src in fixed:
@@ -8050,7 +8052,6 @@ def _leg_windows(
         if (
             src is not None
             and src is not visit
-            and str(getattr(src, "category", "") or "") not in ("food", "hotel")
             and vloc is not None
             and sloc is not None
         ):
@@ -8232,8 +8233,9 @@ def _fallback_sequence_times(
         # 远探不进）。
         if not keep_list_order:
             _morning_head_displacement(day, hours_by_poi, day_end, plan)
-        # fixed 三元组 (s, e, src)：src=观光锚时未排条目按打车腿放宽
-        # （_leg_windows）；餐饮/酒店/落地腿 src=None 保持原窗。
+        # fixed 三元组 (s, e, src)：src=已定位锚（含餐/酒店，2026-11-13
+        # 全对象计腿拍板）时未排条目按打车腿放宽（_leg_windows）；
+        # 落地腿（换乘）src=None 保持原窗。
         fixed, fixed_tight, flex_lunches, xfer_windows = _day_fixed_windows(day)
         untimed = [
             v for v in day.items if isinstance(v, VisitItem) and v.start_time is None
@@ -8836,7 +8838,7 @@ def _fallback_sequence_times(
             meal.start_time = time(slot // 60, slot % 60)
             meal.end_time = time((slot + mdur) // 60, (slot + mdur) % 60)
             meal.duration_minutes = mdur
-            fixed.append((slot, slot + mdur, None))
+            fixed.append((slot, slot + mdur, meal))
             fixed.sort(key=lambda w: (w[0], w[1]))
             fixed_tight.append((slot, slot + mdur))
             fixed_tight.sort()
@@ -9070,8 +9072,9 @@ def _day_fixed_windows(
     """一天已排条目的固定窗四元组（_fallback_sequence_times 与
     _must_visit_room_sweep 共用，口径必须一致）：
 
-    - fixed: (start, end, src) 打车腿放宽窗——src=观光锚时未排条目按
-      _leg_windows 放宽 ±30；餐饮/酒店/落地腿 src=None 保持原窗；
+    - fixed: (start, end, src) 打车腿放宽窗——src=已定位锚（含餐/酒店，
+      2026-11-13 用户拍板全对象计腿）时未排条目按 _leg_windows 放宽
+      ±30；落地腿（换乘）src=None 保持原窗；
     - fixed_tight: 紧贴窗（餐位贴点用）；
     - flex_lunches: 午餐软钉（2026-10-31 拍板可延后）——不进固定窗，
       参访排完后窗内落位；
@@ -9116,13 +9119,15 @@ def _day_fixed_windows(
             dur = e - s if e is not None and e > s else (item.duration_minutes or 60)
             flex_lunches.append((item, s, int(dur)))
         elif getattr(item, "category", "") == "hotel":
-            # 酒店入住卡：紧贴窗（贴着落地缓冲摆的锚，不 ±30）
-            fixed.append((s, e, None))
+            # 酒店入住卡：腿放宽窗（2026-11-13 全对象计腿拍板）；同址/
+            # 近距腿 pad 退化 30 时与原紧贴窗等价，入住卡语义不变。
+            fixed.append((s, e, item))
             fixed_tight.append((s, e))
         elif getattr(item, "category", "") == "food":
-            # 晚餐餐位可紧贴（与 solver NoOverlap 同语义）：±30 缓冲会把
-            # 傍晚时段挤没（2026-10-31 上午空排事故）
-            fixed.append((s, e, None))
+            # 晚餐餐位：腿放宽窗（2026-11-13 全对象计腿拍板，旧「餐位
+            # 可紧贴±30 会把傍晚时段挤没」的窗口语义由 pad 退化保住——
+            # ≤30 分钟腿仍只隔原窗）。
+            fixed.append((s, e, item))
             fixed_tight.append((s, e))
         else:
             fixed.append((s - 30, e + 30, item))

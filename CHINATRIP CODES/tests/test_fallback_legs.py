@@ -4,8 +4,9 @@
 兜底顺序排时（_fallback_sequence_times）此前对已定位观光锚只加平 ±30
 缓冲、完全无视车程——10:30 散场的兵马俑后 34km 外的钟楼被排到 11:00。
 修复：已占窗带源条目（fs, fe, src），未排条目经 _leg_windows 视角按
-打车腿（_taxi_leg_min）放宽观光锚缓冲；餐饮/酒店/落地腿保持原窗
-（贴点/铁律 4 语义不变）。
+打车腿（_taxi_leg_min）放宽已定位锚缓冲——2026-11-13 用户拍板「所有
+OBJECT 计腿」后餐饮/酒店锚同样放宽（同址腿 ≤30 时 pad 退化、窗口不
+变）；落地腿（换乘）保持原窗（铁律 4 缓冲语义不变）。
 """
 
 from datetime import time as _t
@@ -188,9 +189,9 @@ def test_fallback_chains_travel_between_sequenced_sights():
         )
 
 
-def test_leg_windows_widens_sight_anchor_only():
-    """_leg_windows 视角：观光锚按腿放宽（pad-30），餐饮/酒店/无源
-    （落地腿）窗保持原样；src 是自身时也保持原样。"""
+def test_leg_windows_widens_all_located_anchors():
+    """_leg_windows 视角（2026-11-13 全对象计腿拍板）：观光/餐饮锚一律
+    按腿放宽（pad-30）；无源（落地腿）窗与自身窗保持原样。"""
     sight = _bmy()
     meal = _lunch()
     far = _zhonglou()
@@ -203,7 +204,8 @@ def test_leg_windows_widens_sight_anchor_only():
     view = _leg_windows(fixed, far)
     leg = _taxi_leg_min(haversine_km(BMY_LOC, ZL_LOC))
     assert view[0] == (8 * 60 + 30 - (leg - 30), 11 * 60 + (leg - 30))
-    assert view[1] == (12 * 60, 13 * 60)  # 餐饮贴点不动
+    mleg = _taxi_leg_min(haversine_km(meal.location, ZL_LOC))
+    assert view[1] == (12 * 60 - (mleg - 30), 13 * 60 + (mleg - 30))
     assert view[2] == (7 * 60, 7 * 60 + 30)  # 落地腿缓冲不动
     assert view[3] == (9 * 60, 10 * 60 + 30)  # 自身窗不动
 
