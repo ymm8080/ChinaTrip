@@ -11,11 +11,16 @@ from datetime import time
 
 from app.services.agent.hotel_stays import (
     _card_window,
+    _morning_window,
     _night_window,
+    attach_hotel_mornings,
     attach_hotel_nights,
     attach_hotel_stays,
     is_hotel_checkin,
+    is_hotel_morning,
     is_hotel_night,
+    reanchor_hotel_mornings,
+    sync_hotel_pair,
 )
 from app.services.agent.plan import (
     _fallback_sequence_times,
@@ -24,6 +29,7 @@ from app.services.agent.plan import (
 )
 from app.services.itinerary.models import (
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     TransferItem,
     VisitItem,
@@ -497,3 +503,223 @@ def test_night_card_last_visit_city_wins():
     card = next(i for i in d1.items if is_hotel_night(i))
     assert card.city == "杭州"
     assert (card.start_time, card.end_time) == (time(18, 30), time(19, 30))
+
+
+# ------------------------------ 到达后每天出发点是 HOTEL（2026-11-13 拍板）
+
+
+def _morning_days():
+    """沪→西安 3 天：d1 落地、d2 正常日、d3 傍晚回家。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _flight(),
+            _visit(
+                "w1",
+                city="西安",
+                start_time=time(14, 0),
+                end_time=time(16, 0),
+            ),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit(
+                "w2",
+                day=2,
+                start_time=time(9, 0),
+                end_time=time(11, 0),
+            ),
+        ],
+    )
+    d3 = DayPlan(
+        day=3,
+        base_city="西安",
+        items=[_flight(3, start=(18, 0), end=(20, 30), frm="西安", to="上海")],
+    )
+    return [d1, d2, d3]
+
+
+def test_morning_window():
+    assert _morning_window(None) == (8 * 60 + 30, 9 * 60)  # 空天：日始前离店
+    assert _morning_window(540) == (480, 510)  # 首件 09:00 → 08:00-08:30
+    assert _morning_window(390) == (330, 360)  # 首件 06:30 → 05:30-06:00
+    assert _morning_window(30) is None  # 首件 00:30 放不下
+    # 首件是跨城交通：按铁律 4 的 90 分钟衔接缓冲预留
+    assert _morning_window(1080, transfer=True) == (960, 990)  # 18:00 → 16:00-16:30
+
+
+def test_attach_mornings_after_each_hotel_night():
+    days = _morning_days()
+    attach_hotel_stays(days)
+    attach_hotel_nights(days)
+    notes = attach_hotel_mornings(days)
+    assert notes and "从酒店出发" in notes[0]
+    # 落地日不插（当天另有入住卡）
+    assert not any(is_hotel_morning(i) for i in days[0].items)
+    d2 = next(i for i in days[1].items if is_hotel_morning(i))
+    assert d2.item_id == "hotel-morning-d2"
+    assert (d2.start_time, d2.end_time) == (time(8, 0), time(8, 30))
+    assert d2.city == "西安" and d2.soft_pin and not d2.pinned
+    assert days[1].items[0] is d2  # 当天第一张卡
+    # 回家日（d3 无夜卡）仍从前一晚酒店退房出发：18:00 航班按铁律 4
+    # 90 分钟衔接缓冲 → 16:00-16:30 离店
+    d3 = next(i for i in days[2].items if is_hotel_morning(i))
+    assert (d3.start_time, d3.end_time) == (time(16, 0), time(16, 30))
+
+
+def test_attach_morning_empty_day_before_day_start():
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("w1", start_time=time(14, 0), end_time=time(16, 0)),
+        ],
+    )
+    d2 = DayPlan(day=2, base_city="西安", items=[])
+    attach_hotel_nights([d1, d2])
+    attach_hotel_mornings([d1, d2])
+    card = next(i for i in d2.items if is_hotel_morning(i))
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
+
+
+def test_attach_morning_requires_previous_night_card():
+    """前一晚没住酒店（无夜卡：夜车/删卡）→ 次日不插晨卡。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit("w1", start_time=time(14, 0), end_time=time(16, 0)),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("w2", day=2, start_time=time(9, 0), end_time=time(11, 0)),
+        ],
+    )
+    assert attach_hotel_mornings([d1, d2]) == []
+    assert not any(is_hotel_morning(i) for i in d2.items)
+
+
+def test_attach_morning_inherits_verified_hotel_and_is_idempotent():
+    days = _morning_days()
+    attach_hotel_nights(days)
+    night = next(i for i in days[0].items if is_hotel_night(i))
+    night.name = "丽枫酒店钟楼店"
+    night.poi_id = "B0H"
+    night.address = "碑林区南大街1号"
+    night.location = GeoPoint(lon=108.95, lat=34.26)
+    assert attach_hotel_mornings(days)
+    card = next(i for i in days[1].items if is_hotel_morning(i))
+    assert card.name == "🏨 从酒店出发（丽枫酒店钟楼店）"
+    assert card.poi_id == "B0H"
+    assert card.address == "碑林区南大街1号"
+    assert card.location == night.location
+    assert attach_hotel_mornings(days) == []  # 已有晨卡不重复插
+
+
+def test_sync_hotel_pair_both_directions():
+    d1 = DayPlan(day=1, base_city="西安", items=[])
+    d2 = DayPlan(day=2, base_city="西安", items=[])
+    attach_hotel_nights([d1, d2])
+    attach_hotel_mornings([d1, d2])
+    night = next(i for i in d1.items if is_hotel_night(i))
+    morning = next(i for i in d2.items if is_hotel_morning(i))
+    night.name = "酒店甲"
+    night.poi_id = "B1"
+    night.address = "甲路1号"
+    night.location = GeoPoint(lon=108.9, lat=34.2)
+    sync_hotel_pair([d1, d2], night, hotel_name="酒店甲")
+    assert morning.name == "🏨 从酒店出发（酒店甲）"
+    assert morning.poi_id == "B1"
+    assert morning.address == "甲路1号"
+    assert morning.location == night.location
+    # 反向：晨卡写入新酒店 → 前一晚夜卡同步（夜卡名=纯店名）
+    morning.poi_id = "B2"
+    morning.address = "乙路2号"
+    morning.location = GeoPoint(lon=108.8, lat=34.1)
+    sync_hotel_pair([d1, d2], morning, hotel_name="酒店乙")
+    assert night.name == "酒店乙"
+    assert night.poi_id == "B2"
+    assert night.address == "乙路2号"
+    assert morning.name == "🏨 从酒店出发（酒店乙）"
+
+
+def test_reanchor_morning_pulls_back_for_far_hotel_only_earlier():
+    card = VisitItem(
+        item_id="hotel-morning-d2",
+        name="🏨 从酒店出发",
+        category="hotel",
+        city="西安",
+        day=2,
+        start_time=time(8, 0),
+        end_time=time(8, 30),
+        duration_minutes=30,
+        soft_pin=True,
+        location=GeoPoint(lon=120.0, lat=30.0),
+    )
+    visit = VisitItem(
+        item_id="w2",
+        name="西湖",
+        city="西安",
+        day=2,
+        start_time=time(9, 0),
+        end_time=time(11, 0),
+        duration_minutes=120,
+        location=GeoPoint(lon=120.0, lat=30.18),  # ≈20km → 打车 75 分钟
+    )
+    day = DayPlan(day=2, base_city="西安", items=[card, visit])
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(7, 15), time(7, 45))
+    # 只回拨不后移：已更早的卡不动（用户手拖）
+    card.start_time, card.end_time = time(6, 30), time(7, 0)
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(6, 30), time(7, 0))
+    # keep_ids：本回合被用户改的卡完全不动
+    card.start_time, card.end_time = time(8, 0), time(8, 30)
+    reanchor_hotel_mornings([day], keep_ids={"hotel-morning-d2"})
+    assert (card.start_time, card.end_time) == (time(8, 0), time(8, 30))
+
+
+def test_dedupe_keeps_night_and_morning_cards():
+    """同名同 poi 的一段住宿两端不得被跨天孪生合并并掉一张。"""
+    from app.services.agent.plan import dedupe_plan_visits
+
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="丽枫酒店",
+        poi_id="B1",
+        category="hotel",
+        city="西安",
+        day=1,
+        start_time=time(20, 0),
+        end_time=time(21, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    morning = VisitItem(
+        item_id="hotel-morning-d2",
+        name="🏨 从酒店出发（丽枫酒店）",
+        poi_id="B1",
+        category="hotel",
+        city="西安",
+        day=2,
+        start_time=time(8, 0),
+        end_time=time(8, 30),
+        duration_minutes=30,
+        soft_pin=True,
+    )
+    plan = _plan(
+        [
+            DayPlan(day=1, base_city="西安", items=[night]),
+            DayPlan(day=2, base_city="西安", items=[morning]),
+        ]
+    )
+    assert dedupe_plan_visits(plan) == []
+    assert night in plan.days[0].items
+    assert morning in plan.days[1].items

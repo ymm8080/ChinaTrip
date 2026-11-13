@@ -12,6 +12,12 @@
 solver 锚定落位、用户可拖/可改时/可删（删后即走 ② 口径）。仅初次排程
 插入；编辑/修复路径不复活已删卡。卡无 poi/坐标——地址/营业时间回填
 与走行链自动跳过。回程末段（落地即回家，无过夜）不插。
+
+到达后每天出发点是 HOTEL（2026-11-13 用户拍板「到达后每天出发点是
+HOTEL. 加酒店卡」）：前一晚住店（当天有 hotel-night 卡）的次日开头
+插「🏨 从酒店出发」晨卡——卡占 30 分钟（早餐/退房），卡尾到当天首个
+行程预留 30 分钟起程；酒店身份随夜卡 set-hotel 双向同步（夜卡 ↔
+次日晨卡），点 ✏️ 同样可验证酒店名。首日=落地日不插（另有入住卡）。
 """
 
 from datetime import time
@@ -23,6 +29,7 @@ from app.services.itinerary.models import (
     TransferItem,
     VisitItem,
 )
+from app.services.itinerary.rules import travel_gap_needed
 from app.services.lang_ctx import L
 
 HOTEL_CHECKIN_ID_PREFIX = "hotel-checkin"
@@ -153,10 +160,10 @@ def _minutes_of(t: time) -> int:
 
 
 def _last_timed_end_minutes(dp: DayPlan) -> int | None:
-    """当天最晚收尾（分钟），与条目列表顺序无关；夜卡自身不计。"""
+    """当天最晚收尾（分钟），与条目列表顺序无关；夜卡/晨卡自身不计。"""
     last_end: int | None = None
     for item in dp.items:
-        if is_hotel_night(item):
+        if is_hotel_night(item) or is_hotel_morning(item):
             continue
         end: int | None = None
         if isinstance(item, VisitItem):
@@ -278,3 +285,221 @@ def reanchor_hotel_nights(
             card.start_time = time(s // 60, s % 60)
             card.end_time = time(e // 60, e % 60)
             card.duration_minutes = e - s
+
+
+# 到达后每天从酒店出发（2026-11-13 用户拍板「到达后每天出发点是 HOTEL.
+# 加酒店卡」）：前一晚住店 → 次日开头一张「🏨 从酒店出发」软锚卡。卡占
+# 30 分钟（早餐/退房），卡尾到当天首个非酒店件开场预留 30 分钟起程
+# （首件提前/酒店坐标写入后由 reanchor_hotel_mornings 回拨）；空天
+# 08:30–09:00（日始 9 点前离店）。酒店身份与夜卡双向同步（set-hotel）。
+HOTEL_MORNING_ID_PREFIX = "hotel-morning"
+HOTEL_MORNING_MINUTES = 30  # 出发卡默认时长（早餐/退房/整理）
+HOTEL_MORNING_GAP_MINUTES = 30  # 离店 → 当天首站的路程预留（铁律 7 地板）
+
+
+def is_hotel_morning(item: object) -> bool:
+    """系统每日出发酒店卡识别（item_id 前缀，与 is_hotel_night 同构）。"""
+    return isinstance(item, VisitItem) and item.item_id.startswith(
+        HOTEL_MORNING_ID_PREFIX
+    )
+
+
+def hotel_morning_label(hotel_name: str | None) -> str:
+    """晨卡名：有已验证酒店名时带上店名，否则「今日起点」占位。"""
+    hotel = (hotel_name or "").strip()
+    if hotel and not hotel.startswith("🏨"):
+        return L(f"🏨 从酒店出发（{hotel}）", f"🏨 Depart from hotel ({hotel})")
+    return L("🏨 从酒店出发（今日起点）", "🏨 Depart from hotel (today's start)")
+
+
+def _copy_hotel_identity(src: VisitItem, dst: VisitItem) -> None:
+    """酒店身份五件套（poi/地址/营业时间/坐标）整段复制。"""
+    dst.poi_id = src.poi_id
+    dst.address = src.address
+    dst.address_en = src.address_en
+    dst.opening_hours = src.opening_hours
+    dst.opening_hours_en = src.opening_hours_en
+    dst.location = src.location.model_copy() if src.location is not None else None
+
+
+def _first_timed_item(dp: DayPlan) -> VisitItem | TransferItem | None:
+    """当天首个有时刻的行程件（夜卡/晨卡自身不计；无时刻件跳过）。"""
+    best: VisitItem | TransferItem | None = None
+    best_min: int | None = None
+    for item in dp.items:
+        if is_hotel_morning(item) or is_hotel_night(item):
+            continue
+        if item.start_time is None:
+            continue
+        m = _minutes_of(item.start_time)
+        if best_min is None or m < best_min:
+            best, best_min = item, m
+    return best
+
+
+def _morning_window(
+    first_start: int | None, *, transfer: bool = False
+) -> tuple[int, int] | None:
+    """晨卡 [start, end)（分钟）：首件开场前预留起程时间，卡占前
+    _MINUTES 分钟；空天 08:30–09:00。首件是跨城交通时按铁律 4 的
+    90 分钟衔接缓冲预留（否则晨卡贴 17:00 航班会被缓冲闸判硬违规），
+    普通行程件按 30 分钟路程预留。放不下（首件过早）None。"""
+    gap = INTERCITY_BUFFER_MINUTES if transfer else HOTEL_MORNING_GAP_MINUTES
+    end = first_start - gap if first_start is not None else 9 * 60
+    start = end - HOTEL_MORNING_MINUTES
+    if end <= 0 or start < 0:
+        return None
+    return start, end
+
+
+def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
+    """到达后每天以酒店为出发点：给「前一晚住店」的次日开头插晨卡。
+
+    判定=前一天有 hotel-night 卡（前一晚没住酒店/夜车/末段回家不插）；
+    首日=落地日不插（当天另有酒店入住卡）。窗口=当天首个非酒店件开场
+    前预留起程（跨城交通按铁律 4 的 90 分钟缓冲）、卡占 30 分钟；空天
+    08:30–09:00。酒店名/地址/坐标从夜卡继承（set-hotel 后由
+    sync_hotel_pair 双向续写）。幂等：已有晨卡的天不重复插；编辑/修复
+    路径不复活已删卡（同夜卡口径）。
+    """
+    inserted: list[int] = []
+    by_day = {dp.day: dp for dp in day_plans}
+    for dp in day_plans:
+        if dp.day <= 1 or any(is_hotel_morning(i) for i in dp.items):
+            continue
+        prev = by_day.get(dp.day - 1)
+        if prev is None:
+            continue
+        night = next((i for i in prev.items if is_hotel_night(i)), None)
+        if night is None:
+            continue
+        first = _first_timed_item(dp)
+        window = _morning_window(
+            _minutes_of(first.start_time) if first is not None else None,
+            transfer=isinstance(first, TransferItem),
+        )
+        if window is None:
+            continue
+        s, e = window
+        card = VisitItem(
+            item_id=f"{HOTEL_MORNING_ID_PREFIX}-d{dp.day}",
+            name=hotel_morning_label(night.name),
+            category="hotel",
+            city=(night.city or dp.base_city or "").strip(),
+            day=dp.day,
+            start_time=time(s // 60, s % 60),
+            end_time=time(e // 60, e % 60),
+            duration_minutes=e - s,
+            pinned=False,
+            soft_pin=True,
+        )
+        _copy_hotel_identity(night, card)
+        dp.items.insert(0, card)
+        inserted.append(dp.day)
+    if not inserted:
+        return []
+    uniq = sorted(set(inserted))
+    return [
+        L(
+            "到达后每天从酒店出发：第{}天开头默认加「🏨 从酒店出发」卡"
+            "（前一晚住店→次日以酒店为起点，出发前预留约30分钟到首站；"
+            "可拖动/改时/删除，点 ✏️ 可验证酒店名）".format(
+                "、".join(str(d) for d in uniq)
+            ),
+            "From arrival onward every day starts at the hotel: a "
+            "'🏨 Depart from hotel' card is added at the start of day(s) {} "
+            "(the default departure point after a hotel night, with ~30 min "
+            "reserved for the ride to the first stop; drag/retime/delete "
+            "freely, tap ✏️ to verify the hotel name)".format(
+                ", ".join(str(d) for d in uniq)
+            ),
+        )
+    ]
+
+
+def _day_with(day_plans: list[DayPlan], day: int) -> DayPlan | None:
+    return next((dp for dp in day_plans if dp.day == day), None)
+
+
+def paired_hotel_card(
+    day_plans: list[DayPlan], item: object
+) -> VisitItem | None:
+    """同段住宿的另一端：夜卡 d ↔ 次日晨卡 d+1。"""
+    if not isinstance(item, VisitItem):
+        return None
+    if is_hotel_night(item):
+        nxt = _day_with(day_plans, item.day + 1)
+        if nxt is None:
+            return None
+        return next((i for i in nxt.items if is_hotel_morning(i)), None)
+    if is_hotel_morning(item):
+        prev = _day_with(day_plans, item.day - 1)
+        if prev is None:
+            return None
+        return next((i for i in prev.items if is_hotel_night(i)), None)
+    return None
+
+
+def sync_hotel_pair(
+    day_plans: list[DayPlan], item: object, *, hotel_name: str
+) -> VisitItem | None:
+    """set-hotel 写回后同步同段住宿的另一端（2026-11-13 每天出发点
+    是 HOTEL）：夜卡写入 → 次日晨卡继承名称/地址/坐标；晨卡写入 →
+    前一晚夜卡同步。晨卡名恒为「🏨 从酒店出发（酒店名）」，夜卡名=
+    酒店名（两端一致，用户下次点 ✏️ 不会误把前缀当店名）。"""
+    pair = paired_hotel_card(day_plans, item)
+    if pair is None or not isinstance(item, VisitItem):
+        return None
+    _copy_hotel_identity(item, pair)
+    pair.city = (item.city or pair.city or "").strip()
+    if is_hotel_morning(item):
+        pair.name = hotel_name.strip()
+        item.name = hotel_morning_label(hotel_name)
+    else:
+        pair.name = hotel_morning_label(hotel_name)
+    return pair
+
+
+def reanchor_hotel_mornings(
+    day_plans: list[DayPlan], *, keep_ids: set[str] | None = None
+) -> None:
+    """编辑/设置酒店后的晨卡回拨（2026-11-13「每天出发点是 HOTEL」）。
+
+    晨卡语义=「离店去当天首站」：首件开场或酒店坐标变化后，卡尾须
+    回到「首件 − max(30, 实际打车腿)」（首件是跨城交通则按铁律 4 的
+    90 分钟衔接缓冲），卡占前 30 分钟。只回拨不后移（用户手拖更早的
+    卡不动）；keep_ids 内的卡（本回合被用户拖/改的目标）完全不动；
+    不复活已删卡（同夜卡 reanchor 口径）。
+    """
+    keep = keep_ids or set()
+    for dp in day_plans:
+        card = next((i for i in dp.items if is_hotel_morning(i)), None)
+        if card is None or card.item_id in keep:
+            continue
+        first = _first_timed_item(dp)
+        if first is None:
+            continue
+        need = (
+            INTERCITY_BUFFER_MINUTES
+            if isinstance(first, TransferItem)
+            else HOTEL_MORNING_GAP_MINUTES
+        )
+        if (
+            card.location is not None
+            and isinstance(first, VisitItem)
+            and first.location is not None
+        ):
+            gap = travel_gap_needed(card, first)
+            if gap is not None:
+                need = max(need, gap)
+        first_start = _minutes_of(first.start_time)
+        end = first_start - need
+        start = end - HOTEL_MORNING_MINUTES
+        if end <= 0 or start < 0:
+            continue
+        cur_end = _minutes_of(card.end_time) if card.end_time is not None else None
+        if cur_end is not None and cur_end <= end:
+            continue
+        card.start_time = time(start // 60, start % 60)
+        card.end_time = time(end // 60, end % 60)
+        card.duration_minutes = HOTEL_MORNING_MINUTES

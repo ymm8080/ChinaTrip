@@ -9642,6 +9642,184 @@ def _cand_is_show_banquet(cand: dict, spec: dict) -> bool:
     return any(m in text for m in _BANQUET_SHOW_TEXT_MARKS)
 
 
+def _entry_xy(entry: dict) -> tuple[float, float] | None:
+    """候选/spec 坐标双形归一（dict 与 (lon, lat) 元组都认）。"""
+    loc = entry.get("location")
+    if isinstance(loc, dict) and loc.get("lon") is not None:
+        try:
+            return (float(loc["lon"]), float(loc["lat"]))
+        except (TypeError, ValueError):
+            return None
+    if isinstance(loc, (tuple, list)) and len(loc) >= 2:
+        try:
+            return (float(loc[0]), float(loc[1]))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _xy_km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return haversine_km(
+        GeoPoint(lon=a[0], lat=a[1]), GeoPoint(lon=b[0], lat=b[1])
+    )
+
+
+def _reassign_banquet_days(
+    picked: list[dict],
+    cand_by_name: dict[str, dict],
+    ranges: dict[str, tuple[int, int]],
+) -> list[str]:
+    """精选宴秀按「就近非餐景点簇」重新择日（2026-11-13 用户拍板
+    「红鼎宴就在环球中心旁边，应该被就近拾取」）。
+
+    构造期餐卡原先走 lo+idx%span 轮转/容量择日，宴秀会跟着另一张同址
+    餐卡被发到别的天（红鼎宴与失重餐厅同址 → 发去 D1）；终装每场闸
+    再按「宴类跟随当日簇」挪日时只能清掉时刻，最终形成「近店无时刻、
+    远店占晚餐」的倒挂。本 pass 在组装前用最终`picked`（必去已合并）
+    的非餐景点坐标重排宴秀日：每宴一日（宴日不叠第二宴），按距该日
+    景点簇的最近距离升序认领；无坐标/全城无已落景点不动。普通餐卡
+    不参与（沿用原分配，避免打散失重/马旺子的到达日与午餐布局）。
+    """
+    pts_by_day: dict[int, list[tuple[float, float]]] = {}
+    for spec in picked:
+        if str(spec.get("category") or "") in ("food", "hotel"):
+            continue
+        try:
+            day = int(spec.get("day") or 0)
+        except (TypeError, ValueError):
+            continue
+        xy = _entry_xy(spec)
+        if day and xy is not None:
+            pts_by_day.setdefault(day, []).append(xy)
+    if not pts_by_day:
+        return []
+
+    banquets: list[tuple[float, int, dict, tuple[float, float], list[int]]] = []
+    for idx, spec in enumerate(picked):
+        if str(spec.get("category") or "") != "food":
+            continue
+        cand = cand_by_name.get(str(spec.get("name") or "")) or {}
+        if not _cand_is_show_banquet(cand, spec):
+            continue
+        xy = _entry_xy(cand) or _entry_xy(spec)
+        if xy is None:
+            continue
+        city = str(spec.get("city") or "").removesuffix("市")
+        lo, hi = ranges.get(city) or ranges.get(
+            str(spec.get("city") or ""), (0, -1)
+        )
+        if hi < lo:
+            continue
+        days = list(range(lo, hi + 1))
+        nearest = min(
+            (
+                _xy_km(xy, p)
+                for d in days
+                for p in pts_by_day.get(d, [])
+            ),
+            default=float("inf"),
+        )
+        banquets.append((nearest, idx, spec, xy, days))
+    if not banquets:
+        return []
+
+    used_days: set[int] = set()
+    moved: list[str] = []
+    for _nearest, _idx, spec, xy, days in sorted(
+        banquets, key=lambda item: (item[0], item[1])
+    ):
+        avail = [d for d in days if d not in used_days] or days
+        target = min(
+            avail,
+            key=lambda d: (
+                0 if pts_by_day.get(d) else 1,
+                min(
+                    (_xy_km(xy, p) for p in pts_by_day.get(d, [])),
+                    default=float("inf"),
+                ),
+                d,
+            ),
+        )
+        used_days.add(target)
+        try:
+            current = int(spec.get("day") or 0)
+        except (TypeError, ValueError):
+            current = 0
+        if current != target:
+            spec["day"] = target
+            moved.append(str(spec.get("name") or ""))
+    return moved
+
+
+def _meal_slot_plan(
+    picked: list[dict],
+    cand_by_name: dict[str, dict],
+) -> dict[int, str]:
+    """每日餐槽预分配（2026-11-13 用户拍板「红鼎宴就在环球中心旁边，
+    应被就近拾取」）。
+
+    宴秀先占晚餐槽，且同日多张宴秀卡时距当日非餐景点簇最近者得晚餐
+    ——原先按 picked 顺序先到先得，远店可先抢走近店的晚餐槽（蜀宴赋
+    占 18:30、同址环球中心的红鼎宴无时刻正由此而来）。其余餐卡按原
+    顺序午→晚；每天最多两餐（午+晚），第三张起无槽（下游转备选/
+    披露）。返回 id(spec) → lunch/dinner。
+    """
+    spec_day: dict[int, int] = {}
+    by_day: dict[int, list[dict]] = {}
+    for spec in picked:
+        try:
+            day = int(spec.get("day") or 1)
+        except (TypeError, ValueError):
+            day = 1
+        # 非餐景点的日位也要入表——下方 pts 按 spec_day 收当日簇锚。
+        spec_day[id(spec)] = day
+        if str(spec.get("category") or "") != "food":
+            continue
+        by_day.setdefault(day, []).append(spec)
+
+    out: dict[int, str] = {}
+    for day, specs in by_day.items():
+        pts = [
+            xy
+            for s in picked
+            if str(s.get("category") or "") not in ("food", "hotel")
+            and spec_day.get(id(s)) == day
+            for xy in [_entry_xy(s)]
+            if xy is not None
+        ]
+
+        def _dist(spec: dict) -> float:
+            cand = cand_by_name.get(str(spec.get("name") or "")) or {}
+            xy = _entry_xy(cand) or _entry_xy(spec)
+            if xy is None or not pts:
+                return float("inf")
+            return min(_xy_km(xy, p) for p in pts)
+
+        banquets = [
+            s
+            for s in specs
+            if _cand_is_show_banquet(
+                cand_by_name.get(str(s.get("name") or "")) or {}, s
+            )
+        ]
+        banquet_ids = {id(s) for s in banquets}
+        ordinary = [s for s in specs if id(s) not in banquet_ids]
+        order = {id(s): i for i, s in enumerate(specs)}
+        taken: set[str] = set()
+        for s in sorted(banquets, key=lambda s: (_dist(s), order[id(s)])):
+            if "dinner" not in taken:
+                out[id(s)] = "dinner"
+                taken.add("dinner")
+        for s in ordinary:
+            if "lunch" not in taken:
+                out[id(s)] = "lunch"
+                taken.add("lunch")
+            elif "dinner" not in taken:
+                out[id(s)] = "dinner"
+                taken.add("dinner")
+    return out
+
+
 def _day_has_show_banquet(day: DayPlan) -> bool:
     return any(isinstance(i, VisitItem) and _is_show_banquet_item(i) for i in day.items)
 
@@ -19337,8 +19515,19 @@ class PlanningAgent:
             if city and city not in anchors and isinstance(cand.get("location"), dict):
                 anchors[city] = GeoPoint(**cand["location"])
         await self._ensure_origin_anchor(anchors, cities)
+        # 宴秀就近择日 + 餐槽预分配（2026-11-13 用户拍板「红鼎宴就在
+        # 环球中心旁边，应该被就近拾取」）：必须跑在必去合并/均衡之后、
+        # 组装之前——此时非餐景点日位已定，宴秀才能跟对簇日；餐槽按
+        # 「宴秀优先晚餐 + 同日晚餐给距簇最近者」预分配，不再按 picked
+        # 顺序先到先得。
+        moved_banquets = _reassign_banquet_days(picked, cand_by_name, ranges)
+        if moved_banquets:
+            logger.info(
+                "plan: banquet days moved to nearest cluster: %s",
+                moved_banquets,
+            )
+        meal_slots = _meal_slot_plan(picked, cand_by_name)
         visits: list[VisitItem] = []
-        meal_slots_taken: dict[int, set[str]] = {}
         for spec in picked:
             cand = cand_by_name.get(spec["name"])
             location = None
@@ -19350,36 +19539,27 @@ class PlanningAgent:
             pinned = False
             soft_pin = False
             if spec.get("category") == "food":
-                taken = meal_slots_taken.setdefault(spec["day"], set())
-                if len(taken) <= 1:
-                    # 1st/2nd meal of the day rides a meal window with a
-                    # concrete time so the solver (rule 19) honors the pin.
-                    # 午餐默认 1.5h（2026-11-03 拍板）→ 12:00–13:30。
-                    # 宴秀卡占晚餐槽（2026-11-08 拍板「宴秀占当日 show」）：
-                    # 是第一餐也不占午餐槽——午窗被一场夜宴锁死时，组合防
-                    # 插闸只能把整张心愿卡丢餐蒸发（碑林组合中间插宴秀卡案
-                    # 类级收口）；午餐交由自动补餐链保槽。槽位占用按集合判，
-                    # 宴秀先占晚餐后普通餐自动落到午餐，两餐不重槽。
-                    if _cand_is_show_banquet(cand or {}, spec):
-                        slot = "dinner" if "dinner" not in taken else None
-                    else:
-                        slot = (
-                            "lunch"
-                            if "lunch" not in taken
-                            else "dinner"
-                            if "dinner" not in taken
-                            else None
-                        )
-                    if slot is not None:
-                        duration = (
-                            LUNCH_DURATION_MINUTES
-                            if slot == "lunch"
-                            else MEAL_DURATION_MINUTES
-                        )
-                        start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
-                        pinned = True
-                        soft_pin = True
-                        taken.add(slot)
+                # 1st/2nd meal of the day rides a meal window with a
+                # concrete time so the solver (rule 19) honors the pin.
+                # 午餐默认 1.5h（2026-11-03 拍板）→ 12:00–13:30。
+                # 宴秀卡占晚餐槽（2026-11-08 拍板「宴秀占当日 show」）：
+                # 是第一餐也不占午餐槽——午窗被一场夜宴锁死时，组合防
+                # 插闸只能把整张心愿卡丢餐蒸发（碑林组合中间插宴秀卡案
+                # 类级收口）；午餐交由自动补餐链保槽。槽位占用按集合判，
+                # 宴秀先占晚餐后普通餐自动落到午餐，两餐不重槽。
+                # 槽位由 _meal_slot_plan 预分配（2026-11-13 近距拍板：
+                # 同日多张宴秀卡时距当日景点簇最近者得晚餐，不再按
+                # picked 顺序先到先得）。
+                slot = meal_slots.get(id(spec))
+                if slot is not None:
+                    duration = (
+                        LUNCH_DURATION_MINUTES
+                        if slot == "lunch"
+                        else MEAL_DURATION_MINUTES
+                    )
+                    start_time, end_time = meal_times(MEAL_WINDOWS[slot], duration)
+                    pinned = True
+                    soft_pin = True
             visits.append(
                 VisitItem(
                     item_id=f"v{self._item_seq}",
