@@ -345,6 +345,15 @@ class Itinerary(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     creator_name: Mapped[str | None] = mapped_column(String(100))
     last_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # 2026-11-13（用户拍板 HEADER 列）：起始/结束城市、旅行城市一/二
+    # 与各自天数、旅行开始日期。
+    start_city: Mapped[str | None] = mapped_column(String(50))
+    end_city: Mapped[str | None] = mapped_column(String(50))
+    dest_city_1: Mapped[str | None] = mapped_column(String(50))
+    dest_days_1: Mapped[int | None] = mapped_column(Integer)
+    dest_city_2: Mapped[str | None] = mapped_column(String(50))
+    dest_days_2: Mapped[int | None] = mapped_column(Integer)
+    travel_start_date: Mapped[date | None] = mapped_column(Date)
 
 
 class ItinerarySnapshot(Base):

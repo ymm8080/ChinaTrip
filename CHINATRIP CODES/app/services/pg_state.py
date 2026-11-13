@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models import Itinerary, ItineraryDay, ItinerarySnapshot, TripItem
+from app.services.trip_changes import trip_header_fields
 from app.services.itinerary_store import (
     InMemoryItineraryStore,
     ItineraryRecord,
@@ -90,6 +91,8 @@ def record_to_row_values(record: ItineraryRecord) -> dict:
         "id": _pg_uuid_loose(record.itinerary_id, "it_"),
         "cities": list(record.plan.cities or []),
         "title": _trip_title(record.plan.cities or []),
+        # 2026-11-13（用户拍板 HEADER 列）：随每次 put 同步
+        **trip_header_fields(record.plan),
         "working_sync_version": record.working_sync_version,
         "active_snapshot_id": (
             _pg_uuid_loose(record.active_snapshot_id, "snap_")

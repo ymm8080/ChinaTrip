@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 
@@ -28,6 +28,51 @@ def _t(value) -> str | None:
     if value is None:
         return None
     return value.strftime("%H:%M") if hasattr(value, "strftime") else str(value)
+
+
+def _start_date(plan) -> date | None:
+    raw = getattr(plan, "start_date", None)
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw)[:10])
+    except ValueError:
+        return None
+
+
+def trip_header_fields(plan) -> dict:
+    """TRIP HEADER 派生列（2026-11-13 用户拍板）：
+
+    起始城市 / 结束城市 / 旅行城市一+天数 / 旅行城市二+天数 / 旅行开始日期。
+    目的地城市取逐日「活动城」（条目城优先，某天全空回退 base_city）按首次
+    出现排序——上海→西安→上海 这类去/回程端点不算旅行城市。
+    """
+    cities = [c for c in (getattr(plan, "cities", None) or []) if (c or "").strip()]
+    days = getattr(plan, "days", None) or []
+    per_day: list[str | None] = []
+    for day in days:
+        day_cities = [
+            (getattr(i, "city", None) or "").strip()
+            for i in (getattr(day, "items", None) or [])
+            if (getattr(i, "city", None) or "").strip()
+        ]
+        per_day.append(
+            day_cities[0] if day_cities else (getattr(day, "base_city", None) or None)
+        )
+    dests: list[str] = []
+    for city in per_day:
+        if city and city not in dests:
+            dests.append(city)
+    counts = {city: per_day.count(city) for city in dests}
+    return {
+        "start_city": cities[0] if cities else None,
+        "end_city": cities[-1] if cities else None,
+        "travel_start_date": _start_date(plan),
+        "dest_city_1": dests[0] if dests else None,
+        "dest_days_1": counts.get(dests[0]) if dests else None,
+        "dest_city_2": dests[1] if len(dests) > 1 else None,
+        "dest_days_2": counts.get(dests[1]) if len(dests) > 1 else None,
+    }
 
 
 def _items_by_key(plan) -> dict[str, object]:
@@ -138,6 +183,9 @@ def record_trip_change(
                 row.last_changed_at = now
                 row.updated_at = now
                 row.is_deleted = False
+                # 2026-11-13：头派生列随行程内容更新
+                for _key, _value in trip_header_fields(new_plan).items():
+                    setattr(row, _key, _value)
                 if actor_name and not row.creator_name:
                     row.creator_name = actor_name[:100]
             session.execute(
