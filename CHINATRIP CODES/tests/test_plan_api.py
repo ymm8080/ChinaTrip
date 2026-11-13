@@ -778,7 +778,6 @@ def test_start_brief_single_city_keeps_form_origin():
     assert resp.json()["plan"]["cities"] == ["北京", "成都"]
 
 
-
 def test_from_itinerary_session_lang_follows_x_lang_header():
     """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
     编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
