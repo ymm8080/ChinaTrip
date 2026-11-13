@@ -143,3 +143,13 @@
 - 病根：关键词发全名（`乔街深夜食堂·生腌熟醉·高压生蚝(滨盛路店)`），amap 真实 POI 名只到「乔街深夜食堂(滨盛路店)」——相关度整串落空 + 双向包含永不过。
 - 修：`_base_segment`（副标题 ·/空格切分，优先含中文段）+ `_search_keyword`（关键词取核心段）+ `_match_terms` 三档（全名/去括号/核心段）+ `_around_params`（抽出可测）。单次调用不变（池稀缺不翻倍耗量）。26 用例过，ruff 绿。
 - 明文限制：英文名行（'Yong' 等）amap 仍匹配不了，不进抢跑池（prep 不清它们的戳）。
+
+---
+
+## 增补章节：餐厅马蜂窝收割轮（2026-11-13 中午，用户「IGNORE BATCH JOB, RUN NOW」）
+
+- amap 池确认仍 10044（00:00 前死），批路线不可行 → 转 IAB 真浏览器马蜂窝收割（本轮**无 TCaptcha**，搜索页直出）。
+- SOP 复用 + 三处新闸：①全站通用图剔（`p1-q/s1/...6C/51` 每页都出现）；②分店闸（库名带（XX店）须标题同店，新荣记温岭九龙店被正确拦截）；③简繁归一（南堂館↔南堂馆）+ 品牌别名（炳胜公馆=公馆(炳胜集团)）。
+- 收割 6 批 11 店 → `_tmp_probe_web/mfw_harvest_restaurants_2026-11-13.json`（41 图）；入库脚本 `ops/ingest_restaurant_photos_mafengwo.py`（fill-empty-only + name 精确 + normalize_photos + photos_source='mafengwo'）。
+- 结果：11/11 入库，restaurants 有图 **85→96/5,088（1.89%）**；来源 wikimedia 85 + mafengwo 11；读侧实测 200/8图直出。
+- 观察：马蜂窝餐厅 poi 页点评图档 0-8 张/店；无 poi 页（沃夫冈/福和慧/鲁采/HORITA/WL BISTRO）或页无图（东富酒家/皖宴/潮跃）居多——继续收割的边际产出依赖目标选择。
