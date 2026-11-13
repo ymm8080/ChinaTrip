@@ -4140,7 +4140,7 @@ def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
                 L(
                     f"第{day.day}天{card_name}卡已有餐厅「{keep.name}」，"
                     f"已撤掉重复的自动补餐：「{'、'.join(dropped)}」",
-                    f"Day {day.day} {card} card already has \"{keep.name}\"; "
+                    f'Day {day.day} {card} card already has "{keep.name}"; '
                     f"dropped duplicate auto-added meal(s): {', '.join(dropped)}",
                 )
             )
@@ -4225,9 +4225,7 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     12 * 60 + 30,
                     *range(MEAL_CARD_LUNCH_EARLIEST, MEAL_CARD_LUNCH_LATEST + 1, 5),
                 ]
-                gap = _first_free_gap(
-                    blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45)
-                )
+                gap = _first_free_gap(blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45))
             else:
                 starts = [
                     17 * 60 + 30,
@@ -23966,9 +23964,7 @@ class PlanningAgent:
                     _retime_meal_placeholders(applied, ensure_cards=False)
                     report = validate_plan(applied, poi_hours=[])
                     hard = [
-                        v
-                        for v in report.violations
-                        if v.severity == RuleSeverity.error
+                        v for v in report.violations if v.severity == RuleSeverity.error
                     ]
                     if not hard:
                         logger.info(
