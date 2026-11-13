@@ -77,7 +77,9 @@ def test_build_transfers_flight_uses_service_times_and_real_dates():
         "三亚": GeoPoint(lon=109.50, lat=18.25),
     }
     transfers, _assumptions = asyncio.run(
-        agent._build_transfers(["上海", "三亚"], 2, anchors, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "三亚", "上海"], 2, anchors, start_date="2026-11-10"
+        )
     )
     by_day = {t.day: t for t in transfers}
     assert by_day[1].mode == "flight" and by_day[1].start_time == time(9, 0)
@@ -100,7 +102,9 @@ def test_outbound_and_return_prefer_flight_middle_hop_stays_train():
     腿仍以火车为先。有锚点时以 2026-11-06 距离闸为准（见上方距离测试）。"""
     agent = PlanningAgent(_NoLLM(), train_service=MockTrainService())
     transfers, _assumptions = asyncio.run(
-        agent._build_transfers(["上海", "北京", "西安"], 3, {}, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "北京", "西安", "上海"], 3, {}, start_date="2026-11-10"
+        )
     )
     out, hop, ret = transfers
     assert (out.from_city, out.to_city) == ("上海", "北京")
@@ -119,7 +123,9 @@ def test_outbound_return_fall_back_to_train_with_assumption():
         _NoLLM(), train_service=MockTrainService(), flight_service=EmptyFlights()
     )
     transfers, assumptions = asyncio.run(
-        agent._build_transfers(["上海", "杭州"], 2, {}, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "杭州", "上海"], 2, {}, start_date="2026-11-10"
+        )
     )
     out, ret = transfers
     # 08:00 闸（2026-11-03 拍板「火车 start time start from 8AM」）：
@@ -144,7 +150,7 @@ def test_distance_gate_flight_over_600km_train_under():
     }
     transfers, _assumptions = asyncio.run(
         agent._build_transfers(
-            ["西安", "杭州", "上海"], 3, anchors, start_date="2026-11-10"
+            ["西安", "杭州", "上海", "西安"], 3, anchors, start_date="2026-11-10"
         )
     )
     out, hop, ret = transfers
@@ -170,7 +176,7 @@ def test_intercity_mode_train_overrides_distance_gate():
     }
     transfers, _assumptions = asyncio.run(
         agent._build_transfers(
-            ["北京", "西安"],
+            ["北京", "西安", "北京"],
             2,
             anchors,
             start_date="2026-11-10",
@@ -196,7 +202,7 @@ def test_intercity_mode_flight_overrides_distance_gate():
     }
     transfers, _assumptions = asyncio.run(
         agent._build_transfers(
-            ["上海", "杭州"],
+            ["上海", "杭州", "上海"],
             2,
             anchors,
             start_date="2026-11-10",
@@ -220,7 +226,7 @@ def test_intercity_mode_flight_falls_back_to_train_with_assumption():
     }
     transfers, assumptions = asyncio.run(
         agent._build_transfers(
-            ["上海", "杭州"],
+            ["上海", "杭州", "上海"],
             2,
             anchors,
             start_date="2026-11-10",
@@ -265,7 +271,9 @@ def test_ensure_origin_anchor_fills_origin_and_gate_works():
     asyncio.run(agent._ensure_origin_anchor(anchors, ["上海", "杭州"]))
     assert anchors["上海"] == GeoPoint(lon=121.49, lat=31.24)
     transfers, _assumptions = asyncio.run(
-        agent._build_transfers(["上海", "杭州"], 2, anchors, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "杭州", "上海"], 2, anchors, start_date="2026-11-10"
+        )
     )
     out, ret = transfers
     assert out.mode == "train" and out.train_no
@@ -288,7 +296,9 @@ def test_ensure_origin_anchor_accepts_library_tuple_location():
     asyncio.run(agent._ensure_origin_anchor(anchors, ["上海", "杭州"]))
     assert anchors["上海"] == GeoPoint(lon=121.50, lat=31.24)
     transfers, _assumptions = asyncio.run(
-        agent._build_transfers(["上海", "杭州"], 2, anchors, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "杭州", "上海"], 2, anchors, start_date="2026-11-10"
+        )
     )
     out, ret = transfers
     assert out.mode == "train" and out.train_no
@@ -311,7 +321,9 @@ def test_ensure_origin_anchor_noop_when_present_or_library_empty():
 def test_prefetch_warms_flight_legs_too():
     flights = RecordingFlights()
     agent = PlanningAgent(_NoLLM(), train_service=EmptyTrains(), flight_service=flights)
-    asyncio.run(agent.prefetch_transfer_schedules(["上海", "成都"], 2, "2026-11-10"))
+    asyncio.run(
+        agent.prefetch_transfer_schedules(["上海", "成都", "上海"], 2, "2026-11-10")
+    )
     assert {q[:2] for q in flights.queries} == {("上海", "成都"), ("成都", "上海")}
     assert all(q[2].startswith("2026-11-") for q in flights.queries)
 

@@ -50,11 +50,13 @@ def test_build_transfers_queries_real_travel_dates():
     trains = RecordingTrains()
     agent = _agent(trains)
     asyncio.run(
-        agent._build_transfers(["上海", "成都"], 2, {}, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "成都", "上海"], 2, {}, start_date="2026-11-10"
+        )
     )
     pairs = {(f, t): d for f, t, d in trains.queries}
     assert pairs.get(("上海", "成都")) == "2026-11-10"  # day1 去程
-    assert pairs.get(("成都", "上海")) == "2026-11-11"  # day2 返程
+    assert pairs.get(("成都", "上海")) == "2026-11-11"  # day2 返程（闭合行程）
 
 
 def test_build_transfers_blank_start_date_keeps_placeholder():
@@ -68,7 +70,9 @@ def test_prefetch_transfer_schedules_covers_all_legs():
     trains = RecordingTrains()
     agent = _agent(trains)
     asyncio.run(
-        agent.prefetch_transfer_schedules(["上海", "成都", "重庆"], 6, "2026-11-10")
+        agent.prefetch_transfer_schedules(
+            ["上海", "成都", "重庆", "上海"], 6, "2026-11-10"
+        )
     )
     pairs = {(f, t) for f, t, _d in trains.queries}
     assert pairs == {("上海", "成都"), ("成都", "重庆"), ("重庆", "上海")}
@@ -140,3 +144,30 @@ def test_prefetch_closure_cities_skip_phantom_leg():
     )
     pairs = {(f, t) for f, t, _d in trains.queries}
     assert pairs == {("上海", "成都"), ("成都", "重庆"), ("重庆", "上海")}
+
+# --- 2026-11-13 开放行程不回家（北京→上海 3 天案） ---------------------------
+
+
+def test_build_transfers_open_trip_has_no_return_leg():
+    """起始城≠结束城的开放行程只在相邻两城间出腿——结束城市就是行程终点。
+
+    实弹案：起始北京 / 目的地上海 3 天 / 结束城市上海，后端无条件补
+    「上海→北京 17:00 返程腿」，day3 被当成返程日清空，上海只排出一天。
+    """
+    trains = RecordingTrains()
+    agent = _agent(trains)
+    transfers, _assumptions = asyncio.run(
+        agent._build_transfers(["北京", "上海"], 3, {}, start_date="2026-11-16")
+    )
+    pairs = [(t.from_city, t.to_city, t.day) for t in transfers]
+    assert pairs == [("北京", "上海", 1)]
+
+
+def test_prefetch_open_trip_skips_return_leg():
+    trains = RecordingTrains()
+    agent = _agent(trains)
+    asyncio.run(
+        agent.prefetch_transfer_schedules(["北京", "上海"], 3, "2026-11-16")
+    )
+    pairs = {(f, t) for f, t, _d in trains.queries}
+    assert pairs == {("北京", "上海")}

@@ -13631,7 +13631,11 @@ class PlanningAgent:
                     (city or "").removesuffix("市"), (1, session.days)
                 )
                 arrival_days.add(clo)
-            transfer_days.add(session.days)
+            if _closure:
+                # 末日=返程日只在闭合行程成立（2026-11-13 北京→上海案）：
+                # 非闭合行程末日没有离城腿，再标转场日会扣 180' 预算并触发
+                # 返程日轻量/上午窗清算，把整天清空。
+                transfer_days.add(session.days)
         else:
             # 单城行程首日也是到达日（2026-11-08 拍板「到达日只适合简单
             # 的 CITYWALK 或 SHOW，第一天放远郊王牌+show 太重」）：11-05
@@ -19579,8 +19583,8 @@ class PlanningAgent:
                         days if is_return else min(starts[k], days),
                     )
                 )
-            if dests and not closure and _norm_city(dests[-1]) != _norm_city(origin):
-                legs.append((dests[-1], origin, days))
+            # 非闭合行程无返程腿（2026-11-13 同 _build_transfers）：
+            # 结束城市≠出发城不回家，别预热一条不会出现在行程里的腿。
             # 并行预热（2026-11-01 恢复真实班次）：逐腿串行会把 12306
             # 5s 超时×双腿叠成 10s+；gather 后最坏=最慢一腿。单腿失败
             # 只记日志不拖垮其余（生成期会再试）。
@@ -19657,13 +19661,12 @@ class PlanningAgent:
                         "返程" if is_return else None,
                     )
                 )
-            # The return leg prefers an evening departure so the last day
-            # keeps room for activities before heading home; no in-window
-            # train degrades to the late placeholder instead of a morning one.
-            if dests and not closure and _norm_city(dests[-1]) != _norm_city(origin):
-                legs.append(
-                    (dests[-1], origin, days, 17, (time(15, 0), time(21, 0)), "返程")
-                )
+            # 非闭合行程不加返程腿（2026-11-13 拍板，北京→上海 3 天案）：
+            # cities 是路线，转场只发生在相邻两城之间；结束城市≠出发城 =
+            # 行程在那里结束（用户「从北京出发去上海玩几天，最后上海结束」）。
+            # 旧口径无条件补「终点城→出发城 17:00 返程腿」，把末日钉成返程
+            # 日上午窗清算日——北京→上海 3 天只剩中间一天能排景点。
+            # 要回家就把结束城市选回起始城市（闭合口径，上面的 k 循环出腿）。
         else:
             legs = []
         for from_city, to_city, day, depart_h, window, leg_kind in legs:

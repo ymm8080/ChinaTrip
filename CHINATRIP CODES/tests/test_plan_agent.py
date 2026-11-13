@@ -12,7 +12,11 @@ from datetime import time
 
 import pytest
 
-from app.services.agent.hotel_stays import is_hotel_checkin, is_hotel_night
+from app.services.agent.hotel_stays import (
+    is_hotel_checkin,
+    is_hotel_morning,
+    is_hotel_night,
+)
 from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     POI_KEYWORD,
@@ -263,6 +267,15 @@ AMAP_POIS = [
 
 def all_visits(session):
     return [i for d in session.plan.days for i in d.items if isinstance(i, VisitItem)]
+
+
+def non_hotel_visits(session):
+    """观光/候选条目（剔除酒店骨架卡：入住/夜卡/次日晨卡——2026-11-13）。"""
+    return [
+        v
+        for v in all_visits(session)
+        if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
+    ]
 
 
 def all_transfers(session):
@@ -585,7 +598,9 @@ def test_v0_amap_transfer_and_solved_schedule():
     # 单独断言两张（杭州 day1 / 苏州 day2 落地各一张）；每晚酒店卡
     # （2026-11-07）同口径剔除
     visits = [
-        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+        v
+        for v in all_visits(session)
+        if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
     ]
     # 第二段杭州→苏州是汽车（mode=car）：落地首停规则只认火车/飞机
     assert sum(1 for v in all_visits(session) if is_hotel_checkin(v)) == 1
@@ -595,23 +610,21 @@ def test_v0_amap_transfer_and_solved_schedule():
     assert any(
         "出发城市 上海" in a and "出发日只安排交通" in a for a in session.assumptions
     )
-    # 交通段 = 目的地数 + 1（出发段、城际段、返程段）
-    assert len(transfers) == 3
-    dep, hop, ret = transfers
+    # 交通段 = 城际腿（结束城市=苏州即行程终点，2026-11-13 起不自动回家）
+    assert len(transfers) == 2
+    dep, hop = transfers
     assert (dep.from_city, dep.to_city, dep.day) == ("上海", "杭州", 1)
     # 去程优先飞机（2026-11-04 拍板）：航班源有 09:00 档就选它，火车让位
     assert dep.mode == "flight"
     assert dep.flight_no == "MU1001"
     assert dep.start_time == time(9, 0)
     assert (hop.from_city, hop.to_city, hop.day) == ("杭州", "苏州", 2)
-    assert (ret.from_city, ret.to_city, ret.day) == ("苏州", "上海", 3)
-    assert ret.start_time == time(17, 0)  # 返程占位 17:00，白天留给活动
     # 出发城市不再抓 POI 候选（产品规则 2026-10-19）
     # v0 候选拉取按城市序；条目缺坐标回填的专名查询（backfill）不计入
     assert [city for k, city in amap.calls if k == POI_KEYWORD] == ["杭州", "苏州"]
     # solver placed every visit (§6.9 pipeline backend)
     assert all(v.start_time is not None for v in visits)
-    # 最后一天仍有活动（返程段晚出发的收益）
+    # 最后一天是完整活动日（结束城市即终点，不再有返程腿占晚窗）
     assert any(v.name == "留园" and v.day == 3 for v in visits)
     # amap enrichment: matched candidate name carries the source poi_id
     by_name = {v.name: v for v in visits}
@@ -644,6 +657,9 @@ def _two_stop_items():
 def _day2_visits(session):
     by_day = {}
     for v in all_visits(session):
+        # 酒店骨架卡（入住/夜卡/次日晨卡）不是观光点（2026-11-13）
+        if is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v):
+            continue
         by_day.setdefault(v.day, []).append(v)
     return by_day.get(2, [])
 
@@ -1053,7 +1069,7 @@ def test_v0_far_pair_with_coords_is_flight_placeholder():
         )
     )
     transfers = all_transfers(session)
-    assert len(transfers) == 3  # 出发段 + 城际段 + 返程段
+    assert len(transfers) == 2  # 出发段 + 城际段（开放行程无返程段）
     # 三亚→哈尔滨 两端都有坐标锚点（均为目的地，出发城市不抓候选），
     # 直线约 3400 公里 >600km 距离闸（2026-11-06 拍板）：航班源优先选班
     # （mock MU1001），不再落 3 小时占位。
@@ -1105,7 +1121,7 @@ def test_v0_near_pair_with_coords_is_car_placeholder():
         )
     )
     transfers = all_transfers(session)
-    assert len(transfers) == 3
+    assert len(transfers) == 2
     # 上海→苏州 两端都有坐标锚点（同为目的地），~85km 同域腿按驾车占位
     hop = transfers[1]
     assert (hop.from_city, hop.to_city, hop.day) == ("上海", "苏州", 2)
@@ -1147,7 +1163,7 @@ def test_v0_poi_day_outside_city_window_is_clamped():
             preferences="经典",
         )
     )
-    hangzhou = [v for v in all_visits(session) if v.city == "杭州"]
+    hangzhou = [v for v in non_hotel_visits(session) if v.city == "杭州"]
     assert hangzhou and all(v.day == 1 for v in hangzhou)
     assert any("城市日程" in a for a in session.assumptions)
 
@@ -1166,7 +1182,7 @@ def test_v0_placeholder_selection_respects_city_windows():
             preferences="无",
         )
     )
-    visits = all_visits(session)
+    visits = non_hotel_visits(session)
     hangzhou = [v for v in visits if v.city == "杭州"]
     suzhou = [v for v in visits if v.city == "苏州"]
     # 4 天 2 目的地均分窗口：杭州 day1-2、苏州 day3-4（2026-10-30 修复）
@@ -1228,7 +1244,9 @@ def test_v0_llm_down_degrades_to_placeholder_plan():
     assert session.state == "ready"
     assert any("LLM 不可用" in a for a in session.assumptions)
     visits = [
-        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+        v
+        for v in all_visits(session)
+        if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
     ]
     assert len(visits) == 4  # four built-in placeholder candidates
     names = {v.name for v in visits}
@@ -1661,7 +1679,9 @@ def test_v0_hours_chain_fills_every_item_across_chunks():
     )
     assert session.state == "ready"
     visits = [
-        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+        v
+        for v in all_visits(session)
+        if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
     ]
     assert len(visits) == 8
     assert all(v.opening_hours == "全年全天开放" for v in visits)
@@ -1721,7 +1741,9 @@ def test_v0_hours_chain_keeps_address_when_hours_miss():
     )
     assert session.state == "ready"
     visits = [
-        v for v in all_visits(session) if not (is_hotel_checkin(v) or is_hotel_night(v))
+        v
+        for v in all_visits(session)
+        if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
     ]
     assert len(visits) == 2
     for v in visits:
@@ -3804,8 +3826,9 @@ def test_v0_transfer_day_dinner_searches_arrival_city():
     # 无餐饮候选 → 晚餐落「晚饭」占位件保槽（2026-11-07 晚餐保底），
     # 占位城=到达城西安（宁缺不插错城店口径不变）
     foods = [v for v in all_visits(session) if v.category == "food"]
-    # 2026-11-13「每天午卡+晚卡，在路上的日子可以豁免」：上路日不补卡，
-    # 整天在西安的那天落午/晚占位各一张，城一律=西安（宁缺不插错城店）。
+    # 2026-11-13「每天午/晚各一张卡；在路上的日子可以豁免」：第 1 天全程
+    # 在路上（航班 09:00-12:00）→ 豁免补卡；第 2 天在西安整日 → 午/晚占位
+    # 各一张，城一律=西安（宁缺不插错城店口径不变）。
     dinners = [f for f in foods if is_dinner_placeholder(f)]
     assert dinners and all(f.city == "西安" for f in dinners)
     assert all(f.city == "西安" for f in foods)
