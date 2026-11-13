@@ -24495,9 +24495,7 @@ class PlanningAgent:
                 ops.append(
                     DiffOp(
                         op="add",
-                        item=self._coerce_visit(
-                            item, item_id=self.alloc_item_id(plan)
-                        ),
+                        item=self._coerce_visit(item, item_id=self.alloc_item_id(plan)),
                     )
                 )
             else:
