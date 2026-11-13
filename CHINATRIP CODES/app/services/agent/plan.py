@@ -1066,7 +1066,11 @@ def _site_rank(cand: dict) -> int:
     """
     tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
     src = str(cand.get("source") or "").strip().lower()
-    if "unesco" in tags or src == "unesco":
+    # 同带 unesco_* 前缀标（丝路/明清皇陵等）的行一律按串号子项算——苦库里
+    # 这种行常同时挂着裸 unesco 标（大雁塔 = unesco_silk_road + unesco + intl），
+    # 若按「裸标=本体」认，丝路子项会被抬成 0 档，再按时长/名称压过兵马俑。
+    serial = any(t.startswith("unesco_") for t in tags)
+    if ("unesco" in tags or src == "unesco") and not serial:
         return 0
     if src == "curated" or tags & {"curated", "intl"}:
         return 10
