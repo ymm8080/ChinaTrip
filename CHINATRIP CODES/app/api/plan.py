@@ -368,7 +368,7 @@ async def start_plan_from_itinerary(
     await agent.refresh_legs(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
-    body["plan"] = _plan_with_alternatives(session.plan)
+    body["plan"] = _plan_for_response(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -461,7 +461,7 @@ async def start_plan(
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
-    body["plan"] = _plan_with_alternatives(session.plan)
+    body["plan"] = _plan_for_response(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -564,6 +564,51 @@ async def message_plan(
     return body
 
 
+# 无时刻卡下发过滤豁免类别（2026-11-13 拍板「未安排不显示」）：餐/酒店是
+# 行程骨架（落地即吃/住），无时刻也随行程交付；交通 TransferItem 不在
+# VisitItem 过滤范围内，天然豁免。内部清算层的 created/curated/tier≤2
+# 保护名册只保「不删除」，不保「下发显示」——下发层一律滤掉。
+_UNTIMED_KEEP_CATEGORIES = frozenset({"food", "hotel"})
+
+
+def _strip_untimed_items(plan):
+    """API 出口过滤（2026-11-13 用户拍板「未安排（无时刻灰卡）不要显示」）：
+    days[].items 中 start_time 为 None 的非钉 VisitItem 从下发响应剔除；
+    pinned（铁律 19）与餐/酒店骨架保留。非变异——浅拷贝 plan/day 壳、条目
+    对象共享，session.plan 本体与持久化会话不动（内部重排/清算逻辑不受影响）；
+    plan.unplaced 池与 assumptions 披露原样下发（披露是另一回事）。"""
+    if plan is None:
+        return plan
+    days = []
+    changed = False
+    for day in plan.days:
+        kept = [
+            item
+            for item in day.items
+            if not (
+                isinstance(item, VisitItem)
+                and item.start_time is None
+                and not item.pinned
+                and (item.category or "") not in _UNTIMED_KEEP_CATEGORIES
+            )
+        ]
+        if len(kept) != len(day.items):
+            changed = True
+            day = day.model_copy(update={"items": kept})
+        days.append(day)
+    if not changed:
+        return plan
+    return plan.model_copy(update={"days": days})
+
+
+def _plan_for_response(plan):
+    """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
+    非钉参访卡，再挂同级备选/「想去」chip——chip 只落在可见宿主卡上。
+    所有返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
+    统一走本入口，禁止旁路。"""
+    return _plan_with_alternatives(_strip_untimed_items(plan))
+
+
 def _plan_with_alternatives(plan):
     """行程卡装配期挂「同级备选」（2026-11-05 拍板，规则见
     services/poi_alternatives）：深拷贝上挂，session.plan 本体与持久化
@@ -586,7 +631,7 @@ def _plan_turn_body(session, reply: str, change) -> dict:
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
     if session.plan is not None:
-        body["plan"] = _plan_with_alternatives(session.plan)
+        body["plan"] = _plan_for_response(session.plan)
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change

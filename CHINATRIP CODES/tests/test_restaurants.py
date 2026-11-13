@@ -524,3 +524,186 @@ def test_evening_only_show_dinner_beats_closer_plain_restaurant():
         recommend_restaurants(stub, plan, "dinner", extra_pois=[plain_tagged])
     )
     assert dinner2[0].name == "顺路餐厅"
+
+
+# --- 近簇硬闸 + 簇锚检索 + 多类型/评分差排序（2026-11-13 用户拍板） --------
+# 场景：当天景点成簇在远郊（距市区几十公里），午餐不得落到市区——普通
+# 候选距当天动线最近点 >8km 一律剔除（网红店放宽 15km），无回落宁缺。
+
+
+# 1 度纬度 ~111.19km：0.071≈7.9km / 0.081≈9.0km / 0.108≈12.0km /
+# 0.144≈16.0km / 0.369≈41.0km
+def _routed_plan():
+    return day_plan(
+        day=1, items=[visit("v1", start=time(9, 0), end=time(11, 0), location=ORIGIN)]
+    )
+
+
+def test_meal_gate_drops_plain_beyond_8km_keeps_within():
+    """普通候选 9km 剔除 / 7.9km 保留（8km 硬闸边界，无回落兜底）。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005),  # ~0.6km
+            make_poi("闸内店", lat=0.071),  # ~7.9km
+            make_poi("闸外店", lat=0.081),  # ~9.0km
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    names = [i.name for i in items]
+    assert "闸外店" not in names
+    assert names[:2] == ["簇近店", "闸内店"]
+
+
+def test_meal_gate_drops_city_restaurant_40km_from_cluster():
+    """远郊成簇日回归：景点簇旁有候选时，41km 外市区店不得中选。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005),
+            make_poi("远市区店", lat=0.369),  # ~41km，50km 旧闸内但 8km 闸外
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert [i.name for i in items] == ["簇近店"]
+
+
+def test_meal_gate_empty_after_gate_returns_empty():
+    # 宁缺：闸内无候选 → 返回 []，调用方走既有占位/不插路径
+    stub = StubAmap(pois=[make_poi("远市区店", lat=0.369)])
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert items == []
+
+
+def test_viral_within_15km_wins_with_rating_edge():
+    """网红店距离闸放宽到 15km：12km 网红店评分比近选中选者高 0.4
+    （≥0.3 评分差）→ 越前中选。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005, rating=4.0),
+            make_poi("网红食堂", lat=0.108, rating=4.4),  # ~12.0km
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert items[0].name == "网红食堂"
+
+
+def test_viral_beyond_15km_dropped():
+    """网红店 16km 外仍剔除（15km 是网红档最后一道闸）。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005, rating=4.0),
+            make_poi("网红食堂", lat=0.144, rating=4.9),  # ~16.0km
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert [i.name for i in items] == ["簇近店"]
+
+
+def test_viral_with_small_rating_edge_loses_to_near():
+    """评分差 0.1 < 0.3：网红店（5.6km，闸内）败给 8km 内近店。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005, rating=4.0),
+            make_poi("网红食堂", lat=0.05, rating=4.1),  # ~5.6km
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert items[0].name == "簇近店"
+
+
+def test_typed_candidate_beats_untyped_at_same_distance_band():
+    """多类型优先：同距离档内带 cuisine_group 类型标签的候选优先于
+    无类型候选（映射复用 cuisine_taxonomy 现成词表）。"""
+    untyped = make_poi("无类型店", lat=0.004)  # ~0.44km 更近
+    untyped["category"] = None
+    typed = make_poi("火锅小店", lat=0.005)  # ~0.56km 稍远但带类型
+    typed["category"] = "餐饮服务;中餐厅;火锅店"
+    stub = StubAmap(pois=[untyped, typed])
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert items[0].name == "火锅小店"
+
+
+def test_only_viral_left_is_directly_selectable():
+    """无普通候选可中时（闸内只剩网红店）网红店直接可选，无需比较。"""
+    stub = StubAmap(pois=[make_poi("网红食堂", lat=0.03, rating=4.2)])
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert [i.name for i in items] == ["网红食堂"]
+
+
+def test_meal_gate_ignores_viral_tags_honor_mark():
+    """网红信号复用现成 tags 荣誉标：普通名但 tags 带 michelin 标 +
+    高评分差 → 享受 15km 网红档与越前规则。"""
+    honored = make_poi("巷里小馆", lat=0.108, rating=4.5)  # ~12.0km
+    honored["tags"] = ["michelin_1star"]
+    stub = StubAmap(pois=[make_poi("簇近店", lat=0.005, rating=4.0), honored])
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert items[0].name == "巷里小馆"
+
+
+class StubAmapAround(StubAmap):
+    """带 /place/around 能力的 stub：记录簇锚检索入参。"""
+
+    def __init__(self, pois=None, error=None, around_error=None):
+        super().__init__(pois=pois, error=error)
+        self.around_calls = []
+        self._around_error = around_error
+
+    async def search_poi_around(
+        self, keywords, *, location, radius=30000, page=1, offset=25
+    ):
+        self.around_calls.append((keywords, location, radius))
+        if self._around_error is not None:
+            raise self._around_error
+        return self._pois
+
+
+def test_recommend_uses_cluster_anchor_for_around_search():
+    """簇锚传检索：当天景点簇质心作为 around 检索位置，半径覆盖网红档
+    （15km）；支持 around 的客户端不再走无偏置 text 检索。"""
+    stub = StubAmapAround(pois=[make_poi("簇近店", lat=0.005)])
+    plan = day_plan(
+        day=1,
+        items=[
+            visit("v1", start=time(9, 0), end=time(10, 0), location=ORIGIN),
+            visit(
+                "v2",
+                start=time(10, 0),
+                end=time(11, 0),
+                location=GeoPoint(lon=0.0, lat=0.01),
+            ),
+        ],
+    )
+    items = asyncio.run(recommend_restaurants(stub, plan, "lunch"))
+    assert items and items[0].name == "簇近店"
+    assert len(stub.around_calls) == 1
+    keywords, location, radius = stub.around_calls[0]
+    assert keywords == "餐厅"
+    assert location == "0.000000,0.005000"  # 两景点质心
+    assert radius == 15000
+    assert stub.calls == []  # around 命中即不走 text
+
+
+def test_around_failure_falls_back_to_text_search():
+    """around 失败自动回退 text 原路径（独立配额池，行为不退化）。"""
+    stub = StubAmapAround(
+        pois=[make_poi("簇近店", lat=0.005)], around_error=RuntimeError("around down")
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "lunch"))
+    assert [i.name for i in items] == ["簇近店"]
+    assert len(stub.around_calls) == 1
+    assert stub.calls == [("餐厅", "杭州")]
+
+
+def test_meal_gate_and_viral_edge_apply_to_dinner_too():
+    """午/晚餐同一套规则（2026-11-13 拍板收口）：晚餐槽同吃 8km 普通
+    硬闸 + 网红 15km 放宽 + 评分差 ≥0.3 越前。"""
+    stub = StubAmap(
+        pois=[
+            make_poi("簇近店", lat=0.005, rating=4.0),
+            make_poi("闸外店", lat=0.081),  # ~9.0km 普通 → 剔除
+            make_poi("网红食堂", lat=0.108, rating=4.4),  # ~12.0km 网红 → 越前
+        ]
+    )
+    items = asyncio.run(recommend_restaurants(stub, _routed_plan(), "dinner"))
+    names = [i.name for i in items]
+    assert "闸外店" not in names
+    assert names[0] == "网红食堂"

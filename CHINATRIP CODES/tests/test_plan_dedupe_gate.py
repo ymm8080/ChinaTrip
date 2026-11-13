@@ -55,7 +55,12 @@ def _visit(item_id: str, name: str, **kw) -> VisitItem:
 
 
 def _dup_plan() -> ItineraryPlan:
-    """变脸 x4 实景还原（it-bf69b5c7）：3 同名 + 1 动词变体，全在 day2。"""
+    """变脸 x4 实景还原（it-bf69b5c7）：3 同名 + 1 动词变体，全在 day2。
+    2026-11-13 拍板「无时刻灰卡不下发」后，响应层断言要求卡带时刻——
+    去重语义与时刻无关，统一给 day2 各卡补 09:00-10:00 占位时刻。"""
+    from datetime import time as dtime
+
+    timed = {"start_time": dtime(9, 0), "end_time": dtime(10, 0)}
     day1 = DayPlan(
         day=1,
         base_city="北京",
@@ -74,11 +79,11 @@ def _dup_plan() -> ItineraryPlan:
         day=2,
         base_city="成都",
         items=[
-            _visit("v1", "变脸表演（川剧）"),
-            _visit("v2", "变脸表演（川剧）"),
-            _visit("v3", "看变脸表演", city="未标注"),
-            _visit("v4", "变脸表演（川剧）", poi_id="poi-1"),
-            _visit("v5", "宽窄巷子"),
+            _visit("v1", "变脸表演（川剧）", **timed),
+            _visit("v2", "变脸表演（川剧）", **timed),
+            _visit("v3", "看变脸表演", city="未标注", **timed),
+            _visit("v4", "变脸表演（川剧）", poi_id="poi-1", **timed),
+            _visit("v5", "宽窄巷子", **timed),
         ],
     )
     return ItineraryPlan(

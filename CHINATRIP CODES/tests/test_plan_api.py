@@ -972,7 +972,9 @@ def test_move_same_day_reorder_resequences_times():
     assert resp.status_code == 200
     data = resp.json()
     visits = _day_visits(data, 2)
-    assert [v["item_id"] for v in visits] == ["v2", "v5", "v4"]
+    # 2026-11-13 拍板「未安排（无时刻灰卡）不显示」：灵隐寺过正午闸留空
+    # 披露后是无时刻非钉卡——下发响应剔除（内部工作副本原样保留，见下）。
+    assert [v["item_id"] for v in visits] == ["v2", "v5"]
     slots = [(v["start_time"], v["end_time"]) for v in visits]
     # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日——
     # 挪头重排后晨窗装 v2+v5（10:30 起是腿垫非游标跳，闸天不跳 12 点），
@@ -980,7 +982,15 @@ def test_move_same_day_reorder_resequences_times():
     assert slots[0][0] and slots[0][1] <= "12:00:00"
     assert slots[1][0] and slots[1][1] <= "12:00:00"
     assert slots[1][0] >= slots[0][1]  # 时链单调不重叠
-    assert slots[2] == (None, None)
+    # 出口过滤只动下发层：会话工作副本里 v4 仍是无时刻卡，重排/清算照管
+    saved = store.get(sid, device_id="device-1")
+    v4 = next(
+        i
+        for d in saved.plan.days
+        for i in d.items
+        if getattr(i, "item_id", None) == "v4"
+    )
+    assert v4.start_time is None and v4.end_time is None
 
 
 def test_move_cross_day_to_head():
