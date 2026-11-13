@@ -5891,6 +5891,7 @@ def _yield_for_premium(
     tier_by_name: dict[str, int] | None,
     protect: frozenset[str] | set[str],
     notes: list,
+    force: bool = False,
 ) -> DayPlan | None:
     """无时刻清算的名点让位救援（2026-11-05 成渝案三段收口）。
 
@@ -5903,18 +5904,27 @@ def _yield_for_premium(
     (chinatravel) 级杂点为远距街区王牌让位是设计内牺牲，与追回池/品类闸
     同一档序口径。零弹座基线探针（2026-11-07）：占位件已软挪出固定
     窗，当天可能本就放得下——先试原样再进弹座循环。返回宿主天；
-    None=池内无可让之座（调用方照旧清算）。"""
+    None=池内无可让之座（调用方照旧清算）。
+
+    force（必去/心愿，2026-11-13「点名必排，排不上删其它景点」拍板）：
+    跳过 tier≤8 档闸与弹座档闸——用户点名条目对任何非钉非必去非名册
+    件都有让位权，档闸口径同 _rescue_premium_stranded.force（2026-11-07
+    熊猫基地案已立此先例）。"""
 
     def _tier(name: str | None) -> int:
         return (tier_by_name or {}).get(str(name or ""), 11)
 
     vt = _tier(visit.name)
-    if vt > _YIELD_MAX_TIER:
+    if vt > _YIELD_MAX_TIER and not force:
         return None
     vcity = str(visit.city or "").strip().removesuffix("市")
     if not vcity:
         return None
     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+    # 弹座档闸：名录口径弹档严格更差者；force 且档位未知（>8）时档闸=1
+    # ——用户点名条目可弹任何 tier>1 非保护件（同 _rescue_premium_stranded
+    # L4722 口径）。
+    gate_t = vt if vt <= _YIELD_MAX_TIER else (1 if force else vt)
     origin = next((d for d in pool if any(i is visit for i in d.items)), None)
     for later in pool:
         if str(later.base_city or "").strip().removesuffix("市") != vcity:
@@ -5937,12 +5947,12 @@ def _yield_for_premium(
             and not _tight_cluster_mate_on(later, i)
             and not _venue_anchor_on(later, i)
             and (
-                _tier(i.name) > vt
+                _tier(i.name) > gate_t
                 or (
                     # 同档小让大（2026-11-07 大体量商业体案）：同 tier 下
                     # 更短时长者为更大块让位（120min 小件让 240min
                     # 大块头）——档序之外补「块头」维度；大让小不算。
-                    _tier(i.name) == vt
+                    _tier(i.name) == gate_t
                     and (i.duration_minutes or DEFAULT_VISIT_MINUTES) < dur
                 )
             )
@@ -6266,9 +6276,11 @@ def _transfer_day_sweep(
     更晚一天、出发城条目挪同城更早一天（容量口径 _host_day_for_visit
     与挪日修复一致）；名点先让位再挪日（_yield_for_premium，
     2026-11-05 泛名山岳/远距街区案：纯挪日「结构成功」终排必死），让位
-    与挪日都不成才移除留痕；pinned 与 protect（必去/
-    心愿名册）铁律 19 不挪不删只披露——2026-11-02 链接必去案：十八梯/
-    长江索道 pinned=False（钉在 solve 之后才打），清算当杂卡删空。
+    与挪日都不成才移除留痕；protect（必去/心愿名册，核名）件 2026-11-12
+    起同链挪日、2026-11-13 起让位带 force（点名必排，排不上删弱件腾
+    座）——铁律 19 管的是「绝不静默消失」，不是「滞留不动」；只有挪不动
+    让不动才保留+披露（2026-11-02 链接必去案：十八梯/长江索道
+    pinned=False（钉在 solve 之后才打），清算当杂卡删空）。
     挂在初次排程/编辑路径的兜底之后跑。"""
     notes: list[str] = []
     handled: set[str] = set()  # 每件最多挪一次——防跨转场日来回倒
@@ -6307,7 +6319,9 @@ def _transfer_day_sweep(
                 pool = list(plan.days)
             # 名点先让位再挪日（口径同 _rehome_untimed_visits——纯挪日
             # 把王牌挪进大点日是「结构成功、终排必死」；让位池含当天，
-            # 自家日弹低档腾座优先，让位不成再挪。）
+            # 自家日弹低档腾座优先，让位不成再挪。force=protect 在册
+            # （核名，2026-11-13「点名必排，排不上删其它景点」拍板）：
+            # tier11 点名件此前被档闸挡在弹座外只能纯挪/滞留披露。）
             rescued = _yield_for_premium(
                 plan,
                 [day, *[d for d in pool if d is not day]],
@@ -6315,6 +6329,7 @@ def _transfer_day_sweep(
                 tier_by_name,
                 protect,
                 notes,
+                force=any(_site_dup(p, visit.name) for p in protect),
             )
             if rescued is not None:
                 handled.add(visit.item_id)
@@ -7590,7 +7605,11 @@ def _rehome_untimed_visits(
     ——纯挪日会「结构上成功」挪进到达日：容量闸不识营业窗，落地
     14:30 起 180min 名点 17:30 收 >17:00 闭馆，泛名山岳实录终排必死）；
     再不成留给兜底重排/终闸清算披露。杂点维持纯挪日口径不变。
-    pinned/protect（铁律 19）不挪。"""
+    pinned/protect 必去心愿件不在此链清算——钉住必去的让位/跨日救生
+    走 _must_visit_room_sweep + _must_visit_crossday_rescue（克隆真裁决
+    口径，2026-11-11 拍板）：无时刻点名件先按「删其它（非钉）景点腾位」
+    求解验证，删光都排不下才回滚留灰卡披露；此处不做无验证裸挪
+    （2026-11-13「点名必排，排不上删其它景点」拍板的兑现闸在救生链）。"""
     notes: list[str] = []
     handled: set[str] = set()
 
@@ -10794,6 +10813,33 @@ def get_plan_session_store() -> PlanSessionStore:
 _CATEGORY_NEARBY_RADIUS_M = 30000
 
 
+def _geo_cluster_day(
+    days: list[DayPlan], location: GeoPoint | None, *, fallback: int
+) -> int:
+    """插入件入族择日（2026-11-13「插入的景点按地理排族」拍板）：有坐标
+    时取已布非餐参访离新点最近（到最近邻距离最小）的天=地理族归属；
+    并列/无坐标/全城无已布点回退 fallback（调用方轮转口径）。"""
+    if location is None or not days:
+        return fallback
+    best_day: int | None = None
+    best_km: float | None = None
+    for d in days:
+        pts = [
+            i.location
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (i.category or "") != "food"
+            and i.location is not None
+        ]
+        if not pts:
+            continue
+        km = min(haversine_km(location, p) for p in pts)
+        if best_km is None or km < best_km:
+            best_km = km
+            best_day = d.day
+    return best_day if best_day is not None else fallback
+
+
 class PlanningAgent:
     """§6.1 progressive planner. All I/O dependencies injectable (stubs in
     tests); the LLM is one of several change sources, never a writer."""
@@ -11651,8 +11697,12 @@ class PlanningAgent:
                     )
                 )
             else:
-                city_days = [
-                    d.day for d in session.plan.days if d.base_city.strip() == city
+                # 按地理排族择日（2026-11-13 拍板「插入的景点按地理排族」）：
+                # 同城多天时不轮转撒布，落进离新点最近的簇所在天——同簇同
+                # 天，下游组合/贴排机制才能把新件和邻伴编进一个排程单元；
+                # 无坐标/全城无已布点回退原轮转口径。
+                city_day_objs = [
+                    d for d in session.plan.days if d.base_city.strip() == city
                 ]
                 diffs.append(
                     DiffOp(
@@ -11666,10 +11716,14 @@ class PlanningAgent:
                             poi_id=poi_id,
                             # A must-visit goes to a day based in its own
                             # city — never round-robin across cities.
-                            day=(
-                                city_days[len(diffs) % len(city_days)]
-                                if city_days
-                                else (len(diffs) % session.days) + 1
+                            day=_geo_cluster_day(
+                                city_day_objs,
+                                location,
+                                fallback=(
+                                    city_day_objs[len(diffs) % len(city_day_objs)].day
+                                    if city_day_objs
+                                    else (len(diffs) % session.days) + 1
+                                ),
                             ),
                             duration_minutes=DEFAULT_VISIT_MINUTES,
                         ),

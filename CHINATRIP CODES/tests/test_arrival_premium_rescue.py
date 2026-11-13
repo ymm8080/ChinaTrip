@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import time
 
 from app.services.agent.plan import (
+    PlanningAgent,
+    _geo_cluster_day,
     _reconcile_transfer_days,
     _rehome_untimed_visits,
     _transfer_day_sweep,
@@ -485,3 +487,185 @@ def test_yield_no_uncashable_stack_same_day():
     assert "永兴坊名点" in d2_names
     assert "后到名点" not in d2_names
     assert any(i.name == "后到名点" for i in d1.items)
+
+
+# ---- 点名必排（2026-11-13 用户拍板「插入的景点排不上就删其它景点」）：
+#  钉住点名件（pinned）无时刻走 _finalize_untimed_visits 验证制救生链——
+#  克隆试宿 + _must_visit_room_sweep 按「删其它（非钉）景点腾位」+ 真解裁决：
+#  采纳才生效（全有全无），删光都排不下回滚留灰卡披露。转场日路径见
+#  test_transfer_day_must_force_ejects_from_later_day（force 弹座直调）。----
+
+_MUST_TIERS = {
+    "用户点名馆": 11,
+    "弱杂点甲": 11,
+    "弱杂点乙": 11,
+    "次弱点": 10,
+    "中档点": 9,
+}
+
+
+def _timed_full(v, hh=9, mm=0):
+    v.start_time = time(hh, mm)
+    end = hh * 60 + mm + (v.duration_minutes or 90)
+    v.end_time = time(end // 60, end % 60)
+    return v
+
+
+def _greedy_solve(max_minutes: int):
+    """假 _solve：无时刻参访按最早空档贪心落时刻，超过 max_minutes 的
+    条目永远排不上（模拟物理装不下）；不校营业窗（夹具自行用钉死条目
+    堵住禁窗）。"""
+
+    def _solve(plan, meal_flex=True, **kw):
+        for day in plan.days:
+            busy = []
+            for v in day.items:
+                if (
+                    isinstance(v, VisitItem)
+                    and v.start_time is not None
+                    and v.end_time is not None
+                ):
+                    busy.append(
+                        (
+                            v.start_time.hour * 60 + v.start_time.minute,
+                            v.end_time.hour * 60 + v.end_time.minute,
+                        )
+                    )
+            for v in day.items:
+                if not (
+                    isinstance(v, VisitItem)
+                    and v.start_time is None
+                    and (v.category or "") not in ("food", "hotel")
+                ):
+                    continue
+                dur = v.duration_minutes or 90
+                if dur > max_minutes:
+                    continue
+                s = 9 * 60
+                while s + dur <= 21 * 60 + 30:
+                    clash = next((b for b in busy if b[0] < s + dur and s < b[1]), None)
+                    if clash is None:
+                        v.start_time = time(s // 60, s % 60)
+                        v.end_time = time((s + dur) // 60, (s + dur) % 60)
+                        busy.append((s, s + dur))
+                        break
+                    s = clash[1]
+        return plan
+
+    return _solve
+
+
+def test_must_regular_day_ejects_others_into_verified_rescue():
+    """普通日无时刻点名件（180min、营业窗 08:30-17:00）：第1天被钉死
+    条目压满（无可弹），第2天非钉件满员——救生链克隆试宿按「排不上删
+    其它（非钉）腾位」挤掉最迟档两件、真解裁决采纳；高档幸存者与钉件
+    不动，被挤者留痕可指定其他天加回；第1天失败试宿原样不动（全有全无）。"""
+    must = _visit("用户点名馆", 11, minutes=180, hours="08:30-17:00", pinned=True)
+    day1 = [
+        must,
+        _timed_full(_visit("钉死点甲", 5, minutes=90, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点乙", 5, minutes=120, pinned=True), 11, 30),
+        _timed_full(_visit("钉死点丙", 5, minutes=180, pinned=True), 14, 0),
+        _timed_full(_visit("钉死点丁", 5, minutes=240, pinned=True), 17, 0),
+    ]
+    day2 = [
+        _timed_full(_visit("弱杂点乙", 11, minutes=90), 9, 0),
+        _timed_full(_visit("弱杂点甲", 11, minutes=90), 11, 0),
+        _timed_full(_visit("次弱点", 10, minutes=90), 13, 0),
+        _timed_full(_visit("中档点", 9, minutes=90), 15, 0),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it-must1", cities=["成都"], days=[d1, d2])
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(600)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
+    must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
+    assert must_out.day == 2 and must_out.start_time is not None, "删弱腾位后必须落档"
+    assert must_out.pinned, "采纳后按落档时刻回钉"
+    assert any("救生改排" in str(a) for a in out.assumptions)
+    d2_names = {i.name for i in out.days[1].items}
+    # 连续腾位：单挤一件只有 120min 整档 < 180，最迟档两件都被挤
+    assert "次弱点" not in d2_names
+    assert "中档点" not in d2_names
+    assert "弱杂点甲" in d2_names and "弱杂点乙" in d2_names  # 档高者不动
+    d1_names = {i.name for i in out.days[0].items}
+    for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁"):
+        assert n in d1_names, "第1天失败试宿原样归还"
+    unplaced_names = {u.name for u in out.unplaced}
+    assert "次弱点" in unplaced_names and "中档点" in unplaced_names
+    assert any("让位" in str(a) for a in out.assumptions)
+
+
+def test_must_all_pinned_floor_rolls_back_with_disclosure():
+    """地板：全城皆钉（弹座池空）+ 假解对 300min 恒排不上——删无可删，
+    点名件回滚原天留灰卡，绝不删钉件凑数（删光都排不下才落披露）。"""
+    must = _visit("用户点名馆", 11, minutes=300, hours="08:30-17:00", pinned=True)
+    day1 = [
+        must,
+        _timed_full(_visit("钉死点甲", 5, minutes=120, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点乙", 5, minutes=120, pinned=True), 11, 30),
+        _timed_full(_visit("钉死点丙", 5, minutes=150, pinned=True), 14, 0),
+    ]
+    day2 = [
+        _timed_full(_visit("钉死点丁", 5, minutes=120, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点戊", 5, minutes=120, pinned=True), 13, 0),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it-must2", cities=["成都"], days=[d1, d2])
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(240)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
+    must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
+    assert must_out.day == 1 and must_out.start_time is None, "不可行即回滚留灰卡"
+    assert not any("救生改排" in str(a) for a in out.assumptions)
+    names = _visit_names(out)
+    for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁", "钉死点戊"):
+        assert n in names, "删无可删时谁都不删"
+    assert not out.unplaced
+
+
+def test_transfer_day_must_force_ejects_from_later_day():
+    """转场日（到达腿）无时刻点名件：force 弹座挪入同城满员次日——
+    此前 tier11 点名件被档闸挡在弹座外只能滞留披露（rule 4 死局）。"""
+    must = _visit("用户点名馆", 11, minutes=180, hours="08:30-17:00")
+    must.day = 1
+    day1 = [_arrival_leg(), must]
+    day2 = [
+        _timed(_visit("弱杂点乙", 11, minutes=90), 9),
+        _timed(_visit("弱杂点甲", 11, minutes=90), 11),
+        _timed(_visit("次弱点", 10, minutes=90), 13),
+        _timed(_visit("中档点", 9, minutes=90), 15),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    plan = ItineraryPlan(itinerary_id="it-must3", cities=["成都"], days=[d1, d2])
+    notes = _transfer_day_sweep(plan, frozenset({"用户点名馆"}), dict(_MUST_TIERS))
+    d2_names = {i.name for i in d2.items}
+    assert "用户点名馆" in d2_names
+    assert must.day == 2
+    assert "弱杂点乙" not in d2_names  # 最弱档被弹（改排/移除留痕）
+    assert any("让位" in n for n in notes)
+    assert any("已改排第" in n or "无处可排" in n for n in notes)
+
+
+# ---- 地理排族择日（2026-11-13「插入的景点按地理排族」）：同城多天不轮转
+#  撒布，插入件落进离它最近的簇所在天。----
+
+
+def test_geo_cluster_day_picks_nearest_cluster_day():
+    d1 = DayPlan(day=1, base_city="成都", items=[_visit("点A", 11, loc=_CD)])
+    d2 = DayPlan(day=2, base_city="成都", items=[_visit("点B", 11, loc=_DJY)])
+    assert _geo_cluster_day([d1, d2], _DJY, fallback=1) == 2
+    assert _geo_cluster_day([d1, d2], _CD, fallback=2) == 1
+    # 无坐标 / 空池 → 调用方轮转 fallback
+    assert _geo_cluster_day([d1, d2], None, fallback=1) == 1
+    assert _geo_cluster_day([], _CD, fallback=3) == 3
+    # 全城无已布点 → fallback
+    d3 = DayPlan(day=3, base_city="成都", items=[])
+    assert _geo_cluster_day([d3], _CD, fallback=3) == 3
