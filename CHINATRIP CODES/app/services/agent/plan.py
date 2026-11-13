@@ -1191,8 +1191,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
         cand_days = [
             d
             for d in days
-            if d == fd.get("day")
-            or not any(_is_full_day_item(x) for x in _sights(d))
+            if d == fd.get("day") or not any(_is_full_day_item(x) for x in _sights(d))
         ]
         if not cand_days:
             continue
@@ -8730,10 +8729,10 @@ def _evict_shows_for_windowed_visits(
 # 实际要过江（隧道/桥 5-8km）。矩阵回退直线距离时，跨岸对按 +7km 折算，
 # 日内就近链与 2-opt 自然把同岸点连成一片，只在一次过江处切换。
 _CROSS_RIVER_SIDES: dict[str, tuple[str, float]] = {
-    "上海": ("lon", 121.4935),   # 黄浦江
-    "武汉": ("lon", 114.3030),   # 长江（汉口/武昌）
-    "广州": ("lat", 23.1100),    # 珠江（天河/海珠）
-    "重庆": ("lat", 29.5660),    # 两江（渝中半岛/南岸）
+    "上海": ("lon", 121.4935),  # 黄浦江
+    "武汉": ("lon", 114.3030),  # 长江（汉口/武昌）
+    "广州": ("lat", 23.1100),  # 珠江（天河/海珠）
+    "重庆": ("lat", 29.5660),  # 两江（渝中半岛/南岸）
 }
 _CROSS_RIVER_EXTRA_KM = 7.0
 
@@ -9086,6 +9085,7 @@ def _fallback_sequence_times(
                 _cur = _anchor
                 _rank = 0
                 while _remaining and _cur is not None:
+
                     def _chain_d(v: "VisitItem", _c=_cur) -> float:
                         loc = getattr(v, "location", None)
                         if loc is None or _c is None:
