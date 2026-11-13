@@ -18,6 +18,8 @@ HOTEL. 加酒店卡」）：前一晚住店（当天有 hotel-night 卡）的次
 插「🏨 从酒店出发」晨卡——卡占 30 分钟（早餐/退房），卡尾到当天首个
 行程预留 30 分钟起程；酒店身份随夜卡 set-hotel 双向同步（夜卡 ↔
 次日晨卡），点 ✏️ 同样可验证酒店名。首日=落地日不插（另有入住卡）。
+同段住宿=同城连续夜：一次 ✏️ 把尚未验证的夜卡/晨卡全段铺开；夜卡被
+删/移走 → 次日晨卡在编辑/删除回合自动清理（2026-11-13 续）。
 """
 
 from datetime import time
@@ -275,6 +277,7 @@ def reanchor_hotel_nights(
     （用户手拖更早的卡不动），keep_ids 内的卡（本回合被用户拖/改的
     目标）完全不动；不复活已删卡（同 attach 口径）。"""
     keep = keep_ids or set()
+    touched: set[int] = set()
     for dp in day_plans:
         card = next((i for i in dp.items if is_hotel_night(i)), None)
         if card is None or card.item_id in keep:
@@ -285,6 +288,8 @@ def reanchor_hotel_nights(
             card.start_time = time(s // 60, s % 60)
             card.end_time = time(e // 60, e % 60)
             card.duration_minutes = e - s
+            touched.add(dp.day)
+    return touched
 
 
 # 到达后每天从酒店出发（2026-11-13 用户拍板「到达后每天出发点是 HOTEL.
@@ -470,28 +475,33 @@ def reanchor_hotel_mornings(
     不复活已删卡（同夜卡 reanchor 口径）。
     """
     keep = keep_ids or set()
+    touched: set[int] = set()
     for dp in day_plans:
         card = next((i for i in dp.items if is_hotel_morning(i)), None)
         if card is None or card.item_id in keep:
             continue
         first = _first_timed_item(dp)
         if first is None:
-            continue
-        need = (
-            INTERCITY_BUFFER_MINUTES
-            if isinstance(first, TransferItem)
-            else HOTEL_MORNING_GAP_MINUTES
-        )
-        if (
-            card.location is not None
-            and isinstance(first, VisitItem)
-            and first.location is not None
-        ):
-            gap = travel_gap_needed(card, first)
-            if gap is not None:
-                need = max(need, gap)
-        first_start = _minutes_of(first.start_time)
-        end = first_start - need
+            # 空天（2026-11-13 续）：当天已无可排件，卡回日始前
+            # 08:30–09:00——与初次插入的空天窗口同口径，不留在
+            # 首件被挪走前的旧时刻。
+            end = 9 * 60
+        else:
+            need = (
+                INTERCITY_BUFFER_MINUTES
+                if isinstance(first, TransferItem)
+                else HOTEL_MORNING_GAP_MINUTES
+            )
+            if (
+                card.location is not None
+                and isinstance(first, VisitItem)
+                and first.location is not None
+            ):
+                gap = travel_gap_needed(card, first)
+                if gap is not None:
+                    need = max(need, gap)
+            first_start = _minutes_of(first.start_time)
+            end = first_start - need
         start = end - HOTEL_MORNING_MINUTES
         if end <= 0 or start < 0:
             continue
@@ -501,3 +511,144 @@ def reanchor_hotel_mornings(
         card.start_time = time(start // 60, start % 60)
         card.end_time = time(end // 60, end % 60)
         card.duration_minutes = HOTEL_MORNING_MINUTES
+        touched.add(dp.day)
+    return touched
+
+
+# ---------------------------------------------------------------- 住宿段收口
+# 2026-11-13「到达后每天出发点是 HOTEL. 加酒店卡」续（同日二拍）：
+# ① 一次 ✏️ 铺开整段住宿——同城连续夜里的占位夜卡/晨卡一起写上同一家
+#    酒店（验证过别家酒店的卡不动），不必逐晚重复输入；
+# ② 夜卡被删/被移除后，次日「从酒店出发」不再成立——孤儿晨卡在编辑/
+#    删除回合清理，不复活、不新建；
+# ③ 编辑/删除回合统一顺延（夜卡贴末件、晨卡回拨首件），酒店卡作为软锚
+#    不挡用户改时/挪卡。
+def _night_card_of(dp: DayPlan | None) -> VisitItem | None:
+    if dp is None:
+        return None
+    return next((i for i in dp.items if is_hotel_night(i)), None)
+
+
+def _morning_card_of(dp: DayPlan | None) -> VisitItem | None:
+    if dp is None:
+        return None
+    return next((i for i in dp.items if is_hotel_morning(i)), None)
+
+
+def _same_hotel(a: VisitItem, b: VisitItem) -> bool:
+    """同一家酒店判定：poi 优先、地址/坐标兜底（手工验证可能无 poi）。"""
+    if a.poi_id and b.poi_id:
+        return a.poi_id == b.poi_id
+    if a.address and b.address:
+        return a.address == b.address
+    if a.location is not None and b.location is not None:
+        return a.location.lon == b.location.lon and a.location.lat == b.location.lat
+    return False
+
+
+def _hotel_placeholder(card: VisitItem) -> bool:
+    """系统占位卡（从未验证过真实酒店）：无 poi/地址/坐标。"""
+    return not card.poi_id and not card.address and card.location is None
+
+
+def hotel_stay_bounds(day_plans: list[DayPlan], night_day: int) -> tuple[int, int]:
+    """同段住宿的夜卡日区间 [start, end]：连续日期 + 夜卡同城即同一段，
+    换城/断日/某天没住店即分段。"""
+    by_day = {dp.day: dp for dp in day_plans}
+    night = _night_card_of(by_day.get(night_day))
+    if night is None:
+        return night_day, night_day
+    city = _city_key(night.city)
+    start = end = night_day
+    while True:
+        prev = _night_card_of(by_day.get(start - 1))
+        if prev is None or _city_key(prev.city) != city:
+            break
+        start -= 1
+    while True:
+        nxt = _night_card_of(by_day.get(end + 1))
+        if nxt is None or _city_key(nxt.city) != city:
+            break
+        end += 1
+    return start, end
+
+
+def sync_hotel_stay(
+    day_plans: list[DayPlan], item: object, *, hotel_name: str
+) -> tuple[VisitItem | None, int]:
+    """set-hotel 写回后铺开整段住宿：先按夜卡↔晨卡对写回（sync_hotel_pair
+    口径），再把同段住宿里所有占位夜卡/晨卡补上同一家酒店——一次 ✏️
+    全段生效。已写入别家酒店（有 poi/地址/坐标）的卡一律不动。
+    返回（配对卡, 额外铺开的卡数）。"""
+    pair = sync_hotel_pair(day_plans, item, hotel_name=hotel_name)
+    if not isinstance(item, VisitItem):
+        return pair, 0
+    night_day = item.day if is_hotel_night(item) else item.day - 1
+    by_day = {dp.day: dp for dp in day_plans}
+    if _night_card_of(by_day.get(night_day)) is None:
+        return pair, 0
+    start, end = hotel_stay_bounds(day_plans, night_day)
+    filled = 0
+    same_ids = {id(item)}
+    for d in range(start, end + 1):
+        night = _night_card_of(by_day.get(d))
+        if night is not None and night is not item and _hotel_placeholder(night):
+            _copy_hotel_identity(item, night)
+            night.name = hotel_name.strip()
+            same_ids.add(id(night))
+            filled += 1
+        # 晨卡跟随「它自己那一晚」的酒店：那一晚已写上同一家（本次铺开
+        # 或原本就是同一 poi）才补晨卡——夜卡写过别家酒店的，次日晨卡
+        # 不得被本段另一家酒店覆盖。
+        same_hotel = bool(night is not None) and (
+            id(night) in same_ids or (night is not item and _same_hotel(night, item))
+        )
+        if same_hotel and night is not None:
+            morning = _morning_card_of(by_day.get(d + 1))
+            if (
+                morning is not None
+                and morning is not item
+                and _hotel_placeholder(morning)
+            ):
+                _copy_hotel_identity(item, morning)
+                morning.name = hotel_morning_label(hotel_name)
+                filled += 1
+    return pair, filled
+
+
+def drop_orphan_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
+    """清理「前一晚没有夜卡」的晨卡：夜卡被删/被移除后，次日「从酒店
+    出发」不再成立——只清系统卡，不复活、不新建。返回被移除的 item_id。"""
+    by_day = {dp.day: dp for dp in day_plans}
+    dropped: list[str] = []
+    for dp in day_plans:
+        if dp.day <= 1:
+            continue
+        prev = by_day.get(dp.day - 1)
+        if prev is None or _night_card_of(prev) is not None:
+            continue
+        for card in [i for i in dp.items if is_hotel_morning(i)]:
+            dp.items.remove(card)
+            dropped.append(card.item_id)
+    return dropped
+
+
+def reanchor_hotel_cards(
+    day_plans: list[DayPlan], *, keep_ids: set[str] | None = None
+) -> list[str]:
+    """编辑/删除回合的酒店卡统一顺延：夜卡按末件顺延 → 孤儿晨卡清理 →
+    晨卡按首件回拨（只回拨不后移，keep_ids 内的用户目标卡完全不动）。
+    返回被清理的晨卡 id。"""
+    reanchor_hotel_nights(day_plans, keep_ids=keep_ids)
+    dropped = drop_orphan_hotel_mornings(day_plans)
+    morning_days = reanchor_hotel_mornings(day_plans, keep_ids=keep_ids)
+    # 晨卡时刻变了，展示位置要跟着变（当天第一张）——只挪晨卡本身，
+    # 不动景点/夜卡的相对顺序：整日按时间重排会让相邻关系变化，把原本
+    # 被夜卡隔开的跨城腿程暴露成硬违例（2026-11-13 沪→蓉 2 日夹具实录）。
+    for dp in day_plans:
+        if dp.day in morning_days:
+            card = _morning_card_of(dp)
+            if card is not None and dp.items and dp.items[0] is not card:
+                dp.items.remove(card)
+                dp.items.insert(0, card)
+    return dropped

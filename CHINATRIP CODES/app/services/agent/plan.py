@@ -41,8 +41,7 @@ from app.services.agent.hotel_stays import (
     is_hotel_checkin,
     is_hotel_morning,
     is_hotel_night,
-    reanchor_hotel_mornings,
-    reanchor_hotel_nights,
+    reanchor_hotel_cards,
 )
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.best_visit import apply_rules
@@ -22935,6 +22934,8 @@ class PlanningAgent:
                     it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
+        # 2026-11-13 续：拖拽后酒店卡跟随当天首/末件
+        reanchor_hotel_cards(candidate.days, keep_ids={item_id})
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:
@@ -23011,6 +23012,8 @@ class PlanningAgent:
                 it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
+        # 2026-11-13 续：用户改时后酒店卡跟随当天首/末件（软锚不挡编辑）
+        reanchor_hotel_cards(candidate.days, keep_ids={item_id})
         report = validate_plan(candidate, poi_hours=[])
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
@@ -23055,6 +23058,8 @@ class PlanningAgent:
         edited.flight_no = flight_no
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
+        # 2026-11-13 续：改乘/班次后酒店卡跟随当天首/末件
+        reanchor_hotel_cards(candidate.days, keep_ids={item_id})
         report = validate_plan(candidate, poi_hours=[])
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
@@ -23342,6 +23347,8 @@ class PlanningAgent:
                 reordered = True
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
+        # 2026-11-13 续：换点后酒店卡跟随当天首/末件
+        reanchor_hotel_cards(candidate.days, keep_ids={item_id})
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:
@@ -24055,8 +24062,9 @@ class PlanningAgent:
         }
 
         def _hook(plan: ItineraryPlan) -> None:
-            reanchor_hotel_nights(plan.days, keep_ids=keep)
-            reanchor_hotel_mornings(plan.days, keep_ids=keep)
+            # 2026-11-13 续：夜卡顺延 + 孤儿晨卡清理（夜卡被删后次日
+            # 「从酒店出发」不再成立）+ 晨卡回拨，一次走完。
+            reanchor_hotel_cards(plan.days, keep_ids=keep)
 
         return _hook
 
@@ -24093,6 +24101,19 @@ class PlanningAgent:
             if _has_untimed_visits(candidate):
                 drop_notes = _drop_untimed_visits(candidate, protect)
                 candidate.assumptions.extend(drop_notes)
+        # 2026-11-13 续：结构改动收口同样顺延酒店卡（孤儿晨卡清理 +
+        # 夜卡贴末件 + 晨卡回拨首件），本回合被拖/改的酒店卡跳过。
+        reanchor_hotel_cards(
+            candidate.days,
+            keep_ids={
+                op.item_id
+                for op in diffs
+                if op.item_id
+                and str(op.item_id).startswith(
+                    (HOTEL_NIGHT_ID_PREFIX, HOTEL_MORNING_ID_PREFIX)
+                )
+            },
+        )
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
         if pinned.violations:

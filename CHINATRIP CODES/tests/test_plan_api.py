@@ -38,7 +38,7 @@ from app.services.agent.plan import (
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.gate import RequestGate
-from app.services.itinerary import DayPlan, ItineraryPlan, VisitItem
+from app.services.itinerary import DayPlan, GeoPoint, ItineraryPlan, VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -942,9 +942,10 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
-            # 酒店入住卡/每晚酒店卡无坐标/不回填（2026-11-01/2026-11-07）
+            # 酒店入住卡/每晚酒店卡/次日晨卡无坐标/不回填（2026-11-01/11-07/11-13）
             and not i.get("item_id", "").startswith("hotel-checkin")
             and not i.get("item_id", "").startswith("hotel-night")
+            and not i.get("item_id", "").startswith("hotel-morning")
         )
     ]
 
@@ -1411,10 +1412,11 @@ def test_refresh_legs_backfills_missing_locations():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
+        # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
+        and not str(i.get("item_id", "")).startswith("hotel-morning")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -1454,10 +1456,11 @@ def test_get_plan_session_returns_refreshed_plan():
         for i in d["items"]
         if "mode" not in i
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
-        # 入住卡/每晚酒店卡同理（2026-11-01/2026-11-07）
+        # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
+        and not str(i.get("item_id", "")).startswith("hotel-morning")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
@@ -1969,6 +1972,29 @@ def _hotel_session_app(chain=None):
         soft_pin=True,
     )
     visit = VisitItem(item_id="v1", name="西湖", category="sight", city="杭州", day=1)
+    # 2026-11-13 每天出发点=HOTEL：次日晨卡与已排首站（set-hotel 双向同步面）
+    morning = VisitItem(
+        item_id="hotel-morning-d2",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="杭州",
+        day=2,
+        start_time=dtime(8, 0),
+        end_time=dtime(8, 30),
+        duration_minutes=30,
+        soft_pin=True,
+    )
+    visit2 = VisitItem(
+        item_id="v2",
+        name="灵隐寺",
+        category="sight",
+        city="杭州",
+        day=2,
+        start_time=dtime(9, 0),
+        end_time=dtime(11, 0),
+        duration_minutes=120,
+        location=GeoPoint(lon=120.10, lat=30.24),
+    )
     store.save(
         PlanSession(
             session_id="s-hotel",
@@ -1977,11 +2003,23 @@ def _hotel_session_app(chain=None):
             plan=ItineraryPlan(
                 itinerary_id="it-h",
                 cities=["杭州"],
-                days=[DayPlan(day=1, base_city="杭州", items=[visit, night])],
+                days=[
+                    DayPlan(day=1, base_city="杭州", items=[visit, night]),
+                    DayPlan(day=2, base_city="杭州", items=[morning, visit2]),
+                ],
             ),
         )
     )
     return app
+
+
+def _hotel_item(body, item_id):
+    return next(
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if i.get("item_id") == item_id
+    )
 
 
 def _night_item(body):
@@ -2082,3 +2120,177 @@ def test_set_hotel_guard_chain_400_404():
         )
         assert resp.status_code == 404
         assert resp.json() == {"detail": "item_not_found"}
+
+
+# --- 每天出发点=HOTEL（2026-11-13）：夜卡 set-hotel 双向同步晨卡 ------------
+
+
+def test_set_hotel_syncs_next_morning_card():
+    """夜卡写入已验证酒店 → 次日晨卡继承名称/地址/坐标（同一段住宿）。"""
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-night-d1/set-hotel",
+            json={
+                "name": "酒店甲",
+                "source_poi_id": "B0X",
+                "address": "甲路1号",
+                "lon": 120.10,
+                "lat": 30.24,
+            },
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    night = _hotel_item(data, "hotel-night-d1")
+    morning = _hotel_item(data, "hotel-morning-d2")
+    assert night["name"] == "酒店甲"
+    assert morning["name"] == "🏨 从酒店出发（酒店甲）"
+    assert morning["address"] == "甲路1号"
+    assert morning["poi_id"] == "B0X"
+    assert morning["location"] == {"lon": 120.10, "lat": 30.24}
+
+
+def test_set_hotel_from_morning_syncs_previous_night():
+    """晨卡 ✏️ 写入酒店 → 前一晚夜卡同步店名/坐标（反向一致）。"""
+    app = _hotel_session_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-hotel/items/hotel-morning-d2/set-hotel",
+            json={
+                "name": "酒店乙",
+                "source_poi_id": "B0Y",
+                "address": "乙路2号",
+                "lon": 120.10,
+                "lat": 30.24,
+            },
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    night = _hotel_item(data, "hotel-night-d1")
+    morning = _hotel_item(data, "hotel-morning-d2")
+    assert night["name"] == "酒店乙"
+    assert night["address"] == "乙路2号"
+    assert night["poi_id"] == "B0Y"
+    assert morning["name"] == "🏨 从酒店出发（酒店乙）"
+    assert morning["location"] == {"lon": 120.10, "lat": 30.24}
+
+
+def _hotel_stay_app():
+    """3 晚同城住宿（夜卡 d1/d2/d3 + 晨卡 d2/d3/d4）：整段铺开面。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    app.dependency_overrides[get_search_chain] = lambda: []
+    store = app.dependency_overrides[get_plan_sessions]()
+    days = []
+    for no in (1, 2, 3):
+        items = []
+        if no > 1:
+            items.append(
+                VisitItem(
+                    item_id=f"hotel-morning-d{no}",
+                    name="🏨 从酒店出发（今日起点）",
+                    category="hotel",
+                    city="杭州",
+                    day=no,
+                    start_time=dtime(8, 0),
+                    end_time=dtime(8, 30),
+                    duration_minutes=30,
+                    soft_pin=True,
+                )
+            )
+        items.append(
+            VisitItem(
+                item_id=f"v{no}",
+                name=f"景点{no}",
+                category="sight",
+                city="杭州",
+                day=no,
+                start_time=dtime(9, 0),
+                end_time=dtime(11, 0),
+                duration_minutes=120,
+            )
+        )
+        items.append(
+            VisitItem(
+                item_id=f"hotel-night-d{no}",
+                name="🏨 回酒店·夜间休息",
+                category="hotel",
+                city="杭州",
+                day=no,
+                start_time=dtime(20, 0),
+                end_time=dtime(21, 0),
+                duration_minutes=60,
+                soft_pin=True,
+            )
+        )
+        days.append(DayPlan(day=no, base_city="杭州", items=items))
+    store.save(
+        PlanSession(
+            session_id="s-stay",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-s",
+                cities=["杭州"],
+                days=days,
+            ),
+        )
+    )
+    return app
+
+
+def test_set_hotel_propagates_whole_stay():
+    """一次 ✏️ 铺开整段住宿：同城连续夜的夜卡/晨卡都写上同一家酒店。"""
+    app = _hotel_stay_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-stay/items/hotel-night-d1/set-hotel",
+            json={
+                "name": "酒店甲",
+                "source_poi_id": "B0X",
+                "address": "甲路1号",
+                "lon": 120.10,
+                "lat": 30.24,
+            },
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    for no in (1, 2, 3):
+        night = _hotel_item(data, f"hotel-night-d{no}")
+        assert night["name"] == "酒店甲"
+        assert night["poi_id"] == "B0X"
+        assert night["address"] == "甲路1号"
+    for no in (2, 3):
+        morning = _hotel_item(data, f"hotel-morning-d{no}")
+        assert morning["name"] == "🏨 从酒店出发（酒店甲）"
+        assert morning["poi_id"] == "B0X"
+    assert "已同步" in data["reply"]
+
+
+def test_delete_night_card_removes_next_morning_card():
+    """删夜卡=这一晚不住店：次日「从酒店出发」晨卡一并移除。"""
+    app = _hotel_stay_app()
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/v1/plan/s-stay/items/hotel-night-d1/delete",
+            headers=DEVICE_HEADERS,
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    ids = [
+        i.get("item_id")
+        for d in data["plan"]["days"]
+        for i in d["items"]
+    ]
+    assert "hotel-night-d1" not in ids
+    assert "hotel-morning-d2" not in ids
+    assert "hotel-morning-d3" in ids
+    assert "晨卡" in data["reply"]

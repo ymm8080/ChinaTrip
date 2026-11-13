@@ -39,7 +39,14 @@ from app.api.translate import get_translation_service
 from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.services.agent.hotel_stays import is_hotel_night
+from app.services.agent.hotel_stays import (
+    hotel_morning_label,
+    is_hotel_morning,
+    is_hotel_night,
+    paired_hotel_card,
+    reanchor_hotel_cards,
+    sync_hotel_stay,
+)
 from app.services.agent.plan import (
     PlanningAgent,
     PlanSession,
@@ -764,16 +771,37 @@ async def delete_plan_item(
     if item is None:
         raise HTTPException(status_code=404, detail="item_not_found")
     plan_before = session.plan
-    diff = DiffOp(op="remove", item_id=item_id)
-    new_plan, _, _ = mutate(plan_before, [diff], poi_hours=[])
+    diffs = [DiffOp(op="remove", item_id=item_id)]
+    # 2026-11-13 续（每天出发点是 HOTEL）：删夜卡=这一晚不住店，次日
+    # 「🏨 从酒店出发」晨卡一并移除——否则次日仍声称从酒店出发。
+    pair = (
+        paired_hotel_card(plan_before.days, item)
+        if is_hotel_night(item)
+        else None
+    )
+    if pair is not None:
+        diffs.append(DiffOp(op="remove", item_id=pair.item_id))
+    new_plan, _, _ = mutate(
+        plan_before,
+        diffs,
+        poi_hours=[],
+        post_apply=lambda p: reanchor_hotel_cards(p.days, keep_ids={item_id}),
+    )
     session.plan = new_plan
-    agent.sync_removals_to_trip_items(plan_before, [diff])
+    agent.sync_removals_to_trip_items(plan_before, diffs)
     await agent.refresh_legs(session)
     store.save(session)
-    reply = L(
-        f"已删除 {item.name}，已记入不想去",
-        f"Deleted {item.name} — recorded under 'not interested'",
-    )
+    if pair is not None:
+        reply = L(
+            f"已删除 {item.name}（次日「从酒店出发」晨卡一并移除），已记入不想去",
+            f"Deleted {item.name} (next day's 'depart from hotel' card removed "
+            "too) — recorded under 'not interested'",
+        )
+    else:
+        reply = L(
+            f"已删除 {item.name}，已记入不想去",
+            f"Deleted {item.name} — recorded under 'not interested'",
+        )
     return _plan_turn_body(session, reply, None)
 
 
@@ -1057,10 +1085,12 @@ async def set_plan_hotel(
     settings: Settings = Depends(get_settings),
     chain: list = Depends(get_search_chain),
 ) -> dict:
-    """每晚酒店卡 ✏️ 手输酒店名：验证后写回 hotel-night 卡（名称/地址/
+    """每晚酒店卡 / 次日晨卡 ✏️ 手输酒店名：验证后写回卡面（名称/地址/
     营业时间/坐标/poi_id 一次性写入，卡片 meta 行即亮 📍 地址）。缺坐标
     时服务端检索链验证（酒店类目命中优先，全无命中 422 no_match）；
-    非 hotel-night 卡 422 not_hotel_slot。"""
+    非酒店卡 422 not_hotel_slot。2026-11-13「到达后每天出发点是 HOTEL」：
+    夜卡 ↔ 次日晨卡双向同步酒店身份（晨卡名=「🏨 从酒店出发（酒店名）」，
+    夜卡名=酒店名），并回拨晨卡给足离店到首站的路程。"""
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
     session = store.get(session_id, device_id=x_device_id)
@@ -1071,7 +1101,7 @@ async def set_plan_hotel(
     item = _find_visit_item(session.plan, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="item_not_found")
-    if not is_hotel_night(item):
+    if not (is_hotel_night(item) or is_hotel_morning(item)):
         raise HTTPException(status_code=422, detail="not_hotel_slot")
     name = request.name.strip()
     lon, lat = request.lon, request.lat
@@ -1089,17 +1119,25 @@ async def set_plan_hotel(
         loc = best.get("location")
         if isinstance(loc, dict):
             lon, lat = loc.get("lon"), loc.get("lat")
-    item.name = name
+    item.name = hotel_morning_label(name) if is_hotel_morning(item) else name
     item.poi_id = poi_id
     item.address = address
     item.opening_hours = opening_hours
     item.location = (
         GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
     )
+    # 2026-11-13 续：一次 ✏️ 铺开整段住宿（夜卡↔晨卡对 + 同城连续夜里
+    # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
+    _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
+    reanchor_hotel_cards(session.plan.days)
     await agent.refresh_legs(session)
     store.save(session)
+    addr_zh = f"（{address}）" if address else ""
+    addr_en = f" ({address})" if address else ""
+    extra_zh = f"，同段住宿其余 {filled} 张卡已同步" if filled else ""
+    extra_en = f", synced {filled} more card(s) of this stay" if filled else ""
     reply = L(
-        f"已验证并填入酒店「{name}」" + (f"（{address}）" if address else ""),
-        f'Verified hotel "{name}"' + (f" ({address})" if address else ""),
+        f"已验证并填入酒店「{name}」" + addr_zh + extra_zh,
+        f'Verified hotel "{name}"' + addr_en + extra_en,
     )
     return _plan_turn_body(session, reply, None)
