@@ -1155,6 +1155,82 @@ def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> lis
     return items
 
 
+def _is_full_day_item(it: dict) -> bool:
+    """整日件（2026-11-13 用户「让迪士尼 / 野生动物园 / 科技馆独占一天」）：
+    时长 ≥ DAY_VISIT_BUDGET_MINUTES(360) 的件独占一天。"""
+    minutes = it.get("duration_minutes") or it.get("suggested_duration_min") or 0
+    try:
+        return int(minutes) >= DAY_VISIT_BUDGET_MINUTES
+    except (TypeError, ValueError):
+        return False
+
+
+def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list[dict]:
+    """整日件独占一天（选点末道闸）：整日件所在日只留餐饮/酒店。
+
+    处理顺序：把整日件挪到「件数最少且无其他整日件」的那天（空天优先），
+    再把它同日的轻件挪到还有空位（<4）且无整日件的天；挪不动的轻件移出
+    并留痕——绝不为了轻件让整日件与人拼天。
+    """
+
+    def _meal(it: dict) -> bool:
+        return str(it.get("category") or "") in ("food", "hotel")
+
+    days = sorted({x.get("day") for x in items if x.get("day")})
+    if not days:
+        return items
+
+    def _sights(d: int | None) -> list[dict]:
+        return [x for x in items if x.get("day") == d and not _meal(x)]
+
+    full = [x for x in items if _is_full_day_item(x) and not _meal(x)]
+    dropped: list[dict] = []
+    for fd in full:
+        if fd.get("day") is None:
+            continue
+        cand_days = [
+            d
+            for d in days
+            if d == fd.get("day")
+            or not any(_is_full_day_item(x) for x in _sights(d))
+        ]
+        if not cand_days:
+            continue
+        target = min(
+            cand_days,
+            key=lambda d: (len(_sights(d)), 0 if d == fd.get("day") else 1, d),
+        )
+        if target != fd.get("day"):
+            fd["day"] = target
+        for other in list(_sights(fd.get("day"))):
+            if other is fd or _is_full_day_item(other):
+                continue
+            dest = next(
+                (
+                    d
+                    for d in days
+                    if d != fd.get("day")
+                    and len(_sights(d)) < 4
+                    and not any(_is_full_day_item(x) for x in _sights(d))
+                ),
+                None,
+            )
+            if dest is None:
+                dropped.append(other)
+            else:
+                other["day"] = dest
+    if dropped:
+        for it in dropped:
+            if it in items:
+                items.remove(it)
+        if notes is not None:
+            notes.append(
+                "、".join(f"「{x.get('name')}」" for x in dropped)
+                + " 为整日件（迪士尼/动物园/科技馆类）腾整天，本次未排入（要加回请说）"
+            )
+    return items
+
+
 def _cand_is_big(cand: dict) -> bool:
     """大块头候选（2026-11-05 拍板「到达第一天不适合放大块头景点，
     只适合小景点或 CityWalk」）：与 solver._is_big_site 同口径——
@@ -8649,6 +8725,30 @@ def _evict_shows_for_windowed_visits(
     return notes
 
 
+# 跨江折返罚（2026-11-13 用户：「第三天从上海中心大厦出发浦东→外滩浦西→
+# 南京东路→东方明珠浦东，走回头路」）：直线距离会把黄浦江两岸算成 1km，
+# 实际要过江（隧道/桥 5-8km）。矩阵回退直线距离时，跨岸对按 +7km 折算，
+# 日内就近链与 2-opt 自然把同岸点连成一片，只在一次过江处切换。
+_CROSS_RIVER_SIDES: dict[str, tuple[str, float]] = {
+    "上海": ("lon", 121.4935),   # 黄浦江
+    "武汉": ("lon", 114.3030),   # 长江（汉口/武昌）
+    "广州": ("lat", 23.1100),    # 珠江（天河/海珠）
+    "重庆": ("lat", 29.5660),    # 两江（渝中半岛/南岸）
+}
+_CROSS_RIVER_EXTRA_KM = 7.0
+
+
+def _cross_river_penalty(a: GeoPoint, b: GeoPoint, city: str | None) -> float:
+    """跨岸对的额外里程（同岸 0）。城市不在表内恒 0。"""
+    spec = _CROSS_RIVER_SIDES.get(str(city or "").replace("市", ""))
+    if spec is None:
+        return 0.0
+    axis, split = spec
+    va = a.lon if axis == "lon" else a.lat
+    vb = b.lon if axis == "lon" else b.lat
+    return _CROSS_RIVER_EXTRA_KM if (va - split) * (vb - split) < 0 else 0.0
+
+
 def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
@@ -8680,6 +8780,10 @@ def _travel_matrix(
                     km = hit[0]  # 实测距离优先（打车模型自己折时间）
             if km is None:
                 km = haversine_km(a.location, b.location)
+                # 跨江折返罚：同岸近点不被江对岸的「直线近」骗（2026-11-13）
+                km += _cross_river_penalty(
+                    a.location, b.location, getattr(a, "city", None)
+                )
             needed = travel_gap_needed(a, b)
             minutes = max(needed if needed is not None else 1, _taxi_leg_min(km))
             key = (
@@ -8972,6 +9076,29 @@ def _fallback_sequence_times(
                 d = _head_dist_km(_anchor, v)
                 return 0.0 if d == float("inf") else d
 
+            # 几何链序（2026-11-13 用户：「中心大厦→外滩→南京东路→东方
+            # 明珠」走回头路）：降级排序在「大点优先」之后按最近邻链走，
+            # 跨江对按 _cross_river_penalty 计里程——同岸点连成一片，只在
+            # 一次过江处切换，不再来回折返。
+            _chain_rank: dict[int, int] = {}
+            if _anchor is not None and len(untimed) > 2:
+                _remaining = list(untimed)
+                _cur = _anchor
+                _rank = 0
+                while _remaining and _cur is not None:
+                    def _chain_d(v: "VisitItem", _c=_cur) -> float:
+                        loc = getattr(v, "location", None)
+                        if loc is None or _c is None:
+                            return 1e9
+                        return haversine_km(_c, loc) + _cross_river_penalty(
+                            _c, loc, getattr(v, "city", None)
+                        )
+
+                    _nxt = min(_remaining, key=_chain_d)
+                    _chain_rank[id(_nxt)] = _rank
+                    _rank += 1
+                    _remaining.remove(_nxt)
+                    _cur = getattr(_nxt, "location", None) or _cur
             untimed.sort(
                 key=lambda v: (
                     # 主题街区沉尾（2026-11-08 升档搁浅根修）：晚场升档把
@@ -8983,6 +9110,7 @@ def _fallback_sequence_times(
                     0 if v.pinned else 1,
                     -_head_dist(v) if _is_head_candidate(v) else 0.0,
                     0 if _is_big_site(v) else 1,
+                    _chain_rank.get(id(v), 99),
                     -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
             )
@@ -18826,6 +18954,7 @@ class PlanningAgent:
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         _enforce_day_zones(items, notes)
+        _enforce_full_day(items, notes)
         return items
 
     @staticmethod
