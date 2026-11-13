@@ -164,14 +164,29 @@ def test_heavy_evicted_and_no_recruit_accept_empty():
             assert i.start_time is not None, f"{i.name} 排不上时刻"
 
 
-def test_heavy_kept_and_disclosed_when_no_host():
-    """无宿主=保留+披露（只挪不删）；他日满员不得硬塞。"""
+def test_heavy_removed_to_unplaced_when_no_host():
+    """11-13 第三拍：无宿主=移除出行程落 unplaced（端点日绝不留重磅/
+    远郊卡）+ 披露加回路径；他日满员不得硬塞，也不得「暂保留」在到达日。"""
     ace = _v("王牌A", 120, _C0, 1, tier=1)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     plan = _plan(_d(1, ace), _d(2, *full))
     _endpoint_day_light_sweep(plan, frozenset())
+    assert all(not any(i is ace for i in d.items) for d in plan.days), (
+        "违例重磅卡不得滞留到达日"
+    )
+    chip = next((u for u in plan.unplaced if (u.poi_id or u.name) == ace.name), None)
+    assert chip is not None and chip.reason == "endpoint_stay"
+    assert any("王牌A" in a and "已从行程移除" in a for a in plan.assumptions)
+
+
+def test_heavy_kept_and_disclosed_when_no_host_curated():
+    """curated 卡永不删：无宿主同样保留+披露（第三拍移除只适用于普通卡）。"""
+    ace = _v("王牌A", 120, _C0, 1, tier=1, curated=True)
+    full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
+    plan = _plan(_d(1, ace), _d(2, *full))
+    _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 1
-    assert any("王牌A" in a for a in plan.assumptions)
+    assert any("王牌A" in a and "暂保留" in a for a in plan.assumptions)
 
 
 def test_theme_block_treated_heavy_and_evicted():

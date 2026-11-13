@@ -609,13 +609,19 @@ def test_crossday_rescue_moves_pinned_must_to_feasible_day():
 
 def test_crossday_rescue_rolls_back_when_target_infeasible():
     """目标日也装不下（假 solve 对 300min 恒排不上）→ 弃克隆原样归还，
-    钉住必去留灰卡+披露，绝不留半拉子让位。"""
+    绝不留半拉子让位；钉住必去自身=端点日违例件（300min 重磅落到达日）
+    按 11-13 第三拍移除落 unplaced+披露，不得灰卡滞留端点日。"""
     plan = _rescue_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._solve = _greedy_solve(max_minutes=240)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan)
-    must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
-    assert must.day == 1 and must.start_time is None, "不可行即回滚"
+    assert all(
+        not (isinstance(i, VisitItem) and i.item_id == "must-1")
+        for d in out.days
+        for i in d.items
+    ), "端点日违例必去不得灰卡滞留"
+    chip = next((u for u in out.unplaced if u.name == "某必去大点"), None)
+    assert chip is not None and chip.reason == "endpoint_stay"
     assert not any("救生改排" in str(a) for a in out.assumptions)
     d1_names = [i.name for i in out.days[0].items]
     assert "凑数点甲" in d1_names and "凑数点乙" in d1_names, "回滚不得白挤"
@@ -888,9 +894,202 @@ def test_rescue_moves_timed_endpoint_stay_violator():
     assert any("超出端点日轻量口径" in n for n in notes), "违例救生留痕披露"
 
 
+def _stay_violator_on_return_day(curated: bool = False) -> ItineraryPlan:
+    """离城日（day3 17:00 出发腿）定时钉住必去 180min 大点（违例翼），
+    day2 全天占死无 180min 空档，day1 为到达日——违例件无合法宿主。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    # busy: 09:00-12:00 / 12:30-14:30 / 15:00-18:00 / 18:30-20:30——
+    # 余隙均 <180min，违例件物理无处可落。
+    full2 = [
+        VisitItem(
+            item_id=f"full-{k}",
+            name=f"占档{k}",
+            city="成都",
+            day=2,
+            category="attraction",
+            duration_minutes=dur,
+            location=xy,
+            start_time=_t(sh, sm),
+            end_time=_t(eh, em),
+            # 钉住占档：让位清算不得替必去挤走它们（否则 180min 空档
+            # 被腾出=救生误采纳， fixture 必须物理不可行）
+            pinned=True,
+        )
+        for k, (dur, sh, sm, eh, em) in enumerate(
+            [
+                (180, 9, 0, 12, 0),
+                (120, 12, 30, 14, 30),
+                (180, 15, 0, 18, 0),
+                (120, 18, 30, 20, 30),
+            ]
+        )
+    ]
+    day2 = DayPlan(day=2, base_city="成都", items=full2)
+    day3 = DayPlan(
+        day=3,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-out",
+                day=3,
+                seq=1,
+                mode="train",
+                from_city="成都",
+                to_city="上海",
+                start_time=_t(17, 0),
+                end_time=_t(20, 0),
+            ),
+            VisitItem(
+                item_id="must-d3",
+                name="离城日大点",
+                city="成都",
+                day=3,
+                category="attraction",
+                duration_minutes=180,
+                pinned=True,
+                must=True,
+                curated=curated,
+                location=xy,
+                start_time=_t(9, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    return ItineraryPlan(
+        itinerary_id="it-ep-stay-rm",
+        cities=["上海", "成都", "上海"],
+        days=[day1, day2, day3],
+        assumptions=[],
+    )
+
+
+def test_rescue_removes_unplaceable_endpoint_stay_violator():
+    """11-13 第三拍：违例必去全候选日（端点日不作宿主——双向同闸）结
+    构性排不下=移除出行程落 plan.unplaced（想去 chip），绝不留违例卡
+    在到达/离城日，也不得「孤窗兜底」搬进另一侧端点日；披露加回路径。"""
+    plan = _stay_violator_on_return_day()
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
+    assert all(
+        not (isinstance(i, VisitItem) and i.item_id == "must-d3")
+        for d in out.days
+        for i in d.items
+    ), "违例必去不得滞留任何一天的卡册"
+    chip = next((u for u in out.unplaced if u.name == "离城日大点"), None)
+    assert chip is not None and chip.reason == "endpoint_stay"
+    assert any("已从行程移除" in n for n in notes), "移除必留披露+加回路径"
+    assert not any("超出端点日轻量口径" in n for n in notes), (
+        "未采纳不得留「已救生改排」式挪卡披露"
+    )
+
+
+def test_rescue_keeps_curated_stay_violator_when_unplaceable():
+    """curated 卡永不删：违例必去无宿主同样保留原天+披露（第三拍移除
+    只适用于非 curated 卡）。"""
+    plan = _stay_violator_on_return_day(curated=True)
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
+    assert must.day == 3 and must.start_time == _t(9, 0), "curated 保留原天原档"
+    assert any("暂保留" in n for n in notes), "保留必留披露"
+    assert all(u.name != "离城日大点" for u in out.unplaced)
+
+
+def test_rescue_stay_bad_gate_ignores_normal_day():
+    """第三拍端点日闸：普通日（非到达/离城）tier≤2/重磅必去不违任何端
+    点口径——不得入 stay_bad 误救生、误披露（违例判定只认端点日）。"""
+    xy = GeoPoint(lon=104.06, lat=30.60)
+    day1 = DayPlan(
+        day=1,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-in",
+                day=1,
+                seq=1,
+                mode="train",
+                from_city="上海",
+                to_city="成都",
+                start_time=_t(8, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
+            VisitItem(
+                item_id="must-normal",
+                name="普通日大点",
+                city="成都",
+                day=2,
+                category="attraction",
+                duration_minutes=180,
+                pinned=True,
+                must=True,
+                location=xy,
+                start_time=_t(9, 0),
+                end_time=_t(12, 0),
+            ),
+        ],
+    )
+    day3 = DayPlan(
+        day=3,
+        base_city="成都",
+        items=[
+            TransferItem(
+                item_id="t-out",
+                day=3,
+                seq=1,
+                mode="train",
+                from_city="成都",
+                to_city="上海",
+                start_time=_t(17, 0),
+                end_time=_t(20, 0),
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-ep-gate",
+        cities=["上海", "成都", "上海"],
+        days=[day1, day2, day3],
+        assumptions=[],
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
+    out, notes = agent._must_visit_crossday_rescue(plan, protect={"普通日大点"})
+    must = next(i for d in out.days for i in d.items if i.item_id == "must-normal")
+    assert must.day == 2 and must.start_time == _t(9, 0), (
+        "普通日必去不得被 stay_bad 误救生挪走"
+    )
+    assert not any("端点日" in n or "已从行程移除" in n for n in notes), (
+        "普通日必去不得误留端点日违例披露"
+    )
+
+
 def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
     """转场日扫的滞留披露在本闸之前跑：救生成功后按名剥除token——
-    披露行聚合同日多名时不得整行丢弃（同伴滞留披露被吃掉=静默）。"""
+    披露行聚合同日多名时不得整行丢弃（同伴滞留披露被吃掉=静默）。
+    同伴滞留乙在普通日（非端点日）灰卡滞留不受第三拍移除影响。"""
     xy = GeoPoint(lon=104.06, lat=30.60)
     day1 = DayPlan(
         day=1,
@@ -917,11 +1116,17 @@ def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
                 must=True,
                 location=xy,
             ),
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[
             VisitItem(
                 item_id="must-b",
                 name="滞留乙",
                 city="成都",
-                day=1,
+                day=2,
                 category="attraction",
                 duration_minutes=3000,  # 物理装不下：greedy 永不落档
                 pinned=True,
@@ -930,15 +1135,11 @@ def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
             ),
         ],
     )
-    day2 = DayPlan(day=2, base_city="成都", items=[])
     plan = ItineraryPlan(
         itinerary_id="it-prune",
         cities=["上海", "成都"],
         days=[day1, day2],
-        assumptions=[
-            "必去 「救生甲」、「滞留乙」 钉在第1天（转场日）但排不上时刻，"
-            "请告诉我换天或换时刻"
-        ],
+        assumptions=["必去 「救生甲」、「滞留乙」 排不上时刻，请告诉我换天或换时刻"],
     )
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
@@ -946,7 +1147,7 @@ def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
     a = next(i for d in out.days for i in d.items if i.item_id == "must-a")
     assert a.day == 2 and a.start_time is not None
     b = next(i for d in out.days for i in d.items if i.item_id == "must-b")
-    assert b.day == 1 and b.start_time is None, "装不下即回滚留灰卡"
+    assert b.day == 2 and b.start_time is None, "普通日装不下即回滚留灰卡"
     stale_a = [
         str(x) for x in out.assumptions if "救生甲" in str(x) and "排不上时刻" in str(x)
     ]

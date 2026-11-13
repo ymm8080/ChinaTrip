@@ -110,11 +110,28 @@ def test_far_card_evicted_from_single_city_last_day():
     )
 
 
-def test_far_card_kept_and_disclosed_when_no_host():
-    """无宿主=保留+披露（软放兜底同 11-08「排得上优先于排得轻」）。"""
+def test_far_card_removed_to_unplaced_when_no_host():
+    """11-13 第三拍：无宿主=移除出行程落 unplaced（端点日绝不留重磅/
+    远郊卡，「暂保留在端点日」被本拍板取代）+ 披露加回路径；想吃想去
+    chip 由装配期按 reason=endpoint_stay 呈现。"""
     a = _v("馆A", 60, _C0, 1, tier=9)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     far = _v("远郊园", 90, _FAR, 3, tier=5)
+    plan = _plan(_d(1, a), _d(2, *full), _d(3, far))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert all(not any(i is far for i in d.items) for d in plan.days), (
+        "违例卡不得滞留离城日"
+    )
+    chip = next((u for u in plan.unplaced if (u.poi_id or u.name) == far.name), None)
+    assert chip is not None and chip.reason == "endpoint_stay"
+    assert any("远郊园" in x and "已从行程移除" in x for x in plan.assumptions)
+
+
+def test_far_card_kept_and_disclosed_when_no_host_curated():
+    """curated 卡永不删：无宿主同样保留+披露（第三拍移除只适用于普通卡）。"""
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
+    far = _v("远郊园", 90, _FAR, 3, tier=5, curated=True)
     plan = _plan(_d(1, a), _d(2, *full), _d(3, far))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, far) == 3

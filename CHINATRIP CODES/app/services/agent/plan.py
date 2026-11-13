@@ -33,11 +33,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.services.agent.hotel_stays import (
+    HOTEL_MORNING_ID_PREFIX,
     HOTEL_NIGHT_ID_PREFIX,
+    attach_hotel_mornings,
     attach_hotel_nights,
     attach_hotel_stays,
     is_hotel_checkin,
+    is_hotel_morning,
     is_hotel_night,
+    reanchor_hotel_mornings,
     reanchor_hotel_nights,
 )
 from app.services.amap_client import AmapQuotaExhaustedError
@@ -280,6 +284,23 @@ def _unspecified() -> str:
 def _is_unspecified(city: str | None) -> bool:
     """Both scripts count: old rows hold zh, EN requests write "Unspecified"."""
     return (city or "").strip() in ("未标注", "Unspecified")
+
+
+def _hours_hit_mismatch(name: str, matched: str | None) -> bool:
+    """营业时间兜底检索的命中名校验（2026-11-13 脏地址案）。
+
+    图商关键词召回会把「历史博物馆」这类通名撞到千里之外的同名族
+    （陕西历史博物馆 → 孟连县民族历史博物馆），直接把对方地址写回
+    条目并落库。命中名与条目名既非同名族（_name_dup）又无双向包含
+    时视为脏命中，调用方整条丢弃。matched 缺省（无命中）不判脏。
+    """
+    hit = (matched or "").strip()
+    if not hit:
+        return False
+    if _name_dup(name, hit):
+        return False
+    a, b = _norm_site_name(name), _norm_site_name(hit)
+    return not (a and b and (a in b or b in a))
 
 
 DEFAULT_VISIT_MINUTES = 60
@@ -3028,6 +3049,11 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
     if is_lunch_placeholder(a) or is_lunch_placeholder(b):
         return False
     if is_dinner_placeholder(a) or is_dinner_placeholder(b):
+        return False
+    # 酒店卡是独立停留点（入住/夜卡/次日晨卡各计一张）：同名同 poi 的
+    # 一段住宿两端（夜卡 ↔ 次日晨卡）绝不互并——2026-11-13 每天出发点
+    # 是 HOTEL 拍板后晨卡必与夜卡共享酒店身份。
+    if (a.category or "") == "hotel" or (b.category or "") == "hotel":
         return False
 
     # 街区体验卡与宴/演卡并存（2026-11-08 拍板「主题街区是
@@ -7233,9 +7259,10 @@ def _endpoint_day_light_sweep(
     ① 重磅/远卡出：非演出非钉/软钉/餐宿卡吃 _stay_out 违例判据
        （重磅=_arrival_heavy_visit；远=距酒店或城心锚 >_EP_LIGHT_KM）
        时，挪同城非到达非返程日（_host_day_for_visit 实位探针
-       终审，_rescue=True）；无宿主=保留+WARN+披露（必去/心愿只挪不
-       删口径同纯度①出圈件）。curated 只挪不删，有宿主同样挪。整族
-       轻量形态豁免（≥2 员/每员 ≤120min/合计 ≤180min/两两全连通
+       终审，_rescue=True）；无宿主=移除落 plan.unplaced（11-13 第三
+       拍「远郊大景点不得出现在到达/离城日」——端点日绝不留违例卡；
+       curated/created 永不删、must 必去只挪不删=保留+披露）。整族轻量
+       形态豁免（≥2 员/每员 ≤120min/合计 ≤180min/两两全连通
        ≤_FAMILY_ATOMIC_KM——到达日整族落位通道终装镜像）。
     ② 空日披露：真到达日仍无简单街区卡亦无 SHOW/茶=不安排节目，留白
        并披露（留白是拍板口径，不是事故）。
@@ -7246,15 +7273,17 @@ def _endpoint_day_light_sweep(
        已硬拦、>80min 非王牌 11-13 起按「不能安排大景点时间」拍板出；
        远翼距酒店或城心锚 >_EP_LIGHT_KM=8km，收紧自 11-08 的 15km——
        11-13 拍板「不能距离酒店或者市中心 8 公里以上」，双锚皆核）；
-       无宿主=保留+披露（软放兜底同 11-08「排得上优先于排得轻」——
-       距离闸优先于安排：挪得动才挪）。缺坐标/缺锚不拦
+       无宿主=移除落 plan.unplaced（11-13 第三拍同到达日口径，端点日
+       绝不留违例卡；curated/created 永不删、must 必去=保留+披露）。缺
+       坐标/缺锚不拦
        （同 11-08 口径：不可核即不动）。
     ② 空日披露：同到达日口径——没收到简单街区卡/SHOW/茶就留白披露。
 
     ③ 一项上限（2026-11-12 拍板「到达日与离城日只安排一项离酒店近
        的游览即可；没有酒店地址则以市中心为默认」）：端点日游览卡
        >1 时只留距锚最近一项，余卡挪同城非端点日（只挪不删；无宿主
-       =保留+披露，同 ① 软放兜底「排得上优先于排得轻」）。锚=日内/
+       =保留+披露——上限闸管「留几张」不删卡，违例重卡在 ① 已按第三
+       拍移除，能进到 ③ 的都是轻量件，留卡不构成端点日违例）。锚=日内/
        同城酒店卡（_head_hotel_anchor），无酒店则以城心锚（
        _urban_medoid）为市中心默认；无锚或全部缺坐标=不可核即不拦
        （11-08 同口径）。演出/餐宿不计入上限（演出=节目由每场闸另
@@ -7373,7 +7402,8 @@ def _endpoint_day_light_sweep(
                     # 宿主池=同城非端点日（到达+离城双侧皆排）：11-13 双向
                     # 同闸后端点日之间挪卡=违规搬家（旧 11-08 软放兜底退回
                     # 另一侧端点日的语义被本拍板取代——双向同标准，落哪侧
-                    # 都是同一违例）；全是端点日=无宿主=保留+披露。
+                    # 都是同一违例）；全是端点日=无宿主=移除落 unplaced
+                    # （第三拍；curated/created/must 保留+披露）。
                     pool = [
                         x
                         for x in days
@@ -7419,36 +7449,78 @@ def _endpoint_day_light_sweep(
                             )
                         plan.assumptions.append(_why)
                     else:
+                        # 无宿主（11-13 第三拍）：端点日绝不留重磅/远郊
+                        # 卡——移除出行程落 unplaced（想去 chip）；curated/
+                        # created 永不删、must 必去只挪不删=保留+披露。
+                        _heavy = _arrival_heavy_visit(v)
+                        _why = (
+                            "为重磅景点，到达日以轻量街区为主"
+                            if _heavy
+                            else f"距酒店或市中心超 {_EP_LIGHT_KM:.0f} 公里，"
+                            f"到达日只安排近处轻量内容"
+                        )
+                        _why_en = (
+                            "is a major sight; the arrival day keeps light walks only"
+                            if _heavy
+                            else f"is more than {_EP_LIGHT_KM:.0f} km from "
+                            f"the hotel or city center; the arrival day "
+                            f"keeps to nearby light activities"
+                        )
+                        if (
+                            getattr(v, "curated", False)
+                            or getattr(v, "created", False)
+                            or getattr(v, "must", False)
+                        ):
+                            logger.warning(
+                                "plan: arrival-light %s %s stays day %s "
+                                "(no host; curated/created/must kept)",
+                                "heavy" if _heavy else "far",
+                                v.name,
+                                d.day,
+                            )
+                            plan.assumptions.append(
+                                L(
+                                    f"「{v.name}」{_why}，但其余各天排不下，"
+                                    f"暂保留在第{d.day}天（可按需调整）",
+                                    f'"{v.name}" {_why_en}, but every other '
+                                    f"day was full, so it stayed on day "
+                                    f"{d.day} (adjust as needed)",
+                                )
+                            )
+                            continue
                         logger.warning(
-                            "plan: arrival-light %s %s stays day %s (no host)",
+                            "plan: arrival-light %s %s day %s removed to "
+                            "unplaced (no host; endpoint day stays light)",
                             "heavy" if _heavy else "far",
                             v.name,
                             d.day,
                         )
-                        if _heavy:
-                            _why = L(
-                                f"「{v.name}」为重磅景点，到达日以轻量街区"
-                                f"为主，但其余各天排不下，暂保留在第{d.day}天"
-                                f"（可按需调整）",
-                                f'"{v.name}" is a major sight; the arrival '
-                                f"day keeps light walks only, but every "
-                                f"other day was full, so it stayed on day "
-                                f"{d.day} (adjust as needed)",
+                        d.items.remove(v)
+                        moved = True
+                        plan.unplaced.append(
+                            UnplacedCandidate(
+                                name=v.name,
+                                name_en=v.name_en,
+                                poi_id=v.poi_id,
+                                category=v.category,
+                                tier=v.tier,
+                                duration_minutes=v.duration_minutes,
+                                location=v.location,
+                                city=v.city,
+                                day_hint=d.day,
+                                reason="endpoint_stay",
                             )
-                        else:
-                            _why = L(
-                                f"「{v.name}」距酒店或市中心较远（超过 "
-                                f"{_EP_LIGHT_KM:.0f} 公里），到达日只安排近处"
-                                f"轻量内容，但其余各天排不下，暂保留在第"
-                                f"{d.day}天（可按需调整）",
-                                f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
-                                f"km from the hotel or city center; the "
-                                f"arrival day keeps to nearby light "
-                                f"activities, but every other day was full, "
-                                f"so it stayed on day {d.day} (adjust as "
-                                f"needed)",
+                        )
+                        plan.assumptions.append(
+                            L(
+                                f"「{v.name}」{_why}，其余各天也排不下，"
+                                f"已从行程移除——想加回可指定其他天",
+                                f'"{v.name}" {_why_en}, and every other day '
+                                f"was full, so it was removed from the "
+                                f"itinerary — ask to place it on a specific "
+                                f"day to add it back",
                             )
-                        plan.assumptions.append(_why)
+                        )
             # ② 空日披露（2026-11-11 拍板「不强行从其它日期挪卡」；11-13
             # 起合法内容口径扩为简单街区卡/SHOW/茶 _endpoint_content_
             # visit——「只能安排简单的 CITYWALK 或者喝茶看秀」拍板）：真
@@ -7506,7 +7578,8 @@ def _endpoint_day_light_sweep(
                 _heavy = _arrival_heavy_visit(v)
                 dur = v.duration_minutes or DEFAULT_VISIT_MINUTES
                 # 宿主池同到达日分支：同城非端点日（双侧皆排）——端点日
-                # 之间不互搬（11-13 双向同闸）；全是端点日=无宿主=保留+披露。
+                # 之间不互搬（11-13 双向同闸）；全是端点日=无宿主=移除落
+                # unplaced（第三拍；curated/created/must 保留+披露）。
                 pool = [
                     x
                     for x in days
@@ -7547,34 +7620,92 @@ def _endpoint_day_light_sweep(
                         )
                     plan.assumptions.append(_why)
                 else:
+                    # 无宿主（11-13 第三拍，同到达日分支）：端点日绝不留
+                    # 重磅/远郊卡——移除出行程落 unplaced；curated/created
+                    # 永不删、must 必去只挪不删=保留+披露。
+                    if (
+                        getattr(v, "curated", False)
+                        or getattr(v, "created", False)
+                        or getattr(v, "must", False)
+                    ):
+                        logger.warning(
+                            "plan: endpoint-light %s %s stays day %s "
+                            "(no host; curated/created/must kept)",
+                            "heavy" if _heavy else "far",
+                            v.name,
+                            d.day,
+                        )
+                        if _heavy:
+                            _why = L(
+                                f"「{v.name}」为大景点，离城日只安排轻量街区"
+                                f"或看秀，但其余各天排不下，暂保留在第{d.day}天"
+                                f"（可按需调整）",
+                                f'"{v.name}" is a major sight; the departure '
+                                f"day keeps light walks and shows only, but "
+                                f"every other day was full, so it stayed on "
+                                f"day {d.day} (adjust as needed)",
+                            )
+                        else:
+                            _why = L(
+                                f"「{v.name}」距酒店或市中心较远（超过 "
+                                f"{_EP_LIGHT_KM:.0f} 公里），离城日只安排近处"
+                                f"轻量内容，但其余各天排不下，暂保留在第"
+                                f"{d.day}天（可按需调整）",
+                                f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
+                                f"km from the hotel or city center; the "
+                                f"departure day keeps to nearby light "
+                                f"activities, but every other day was full, "
+                                f"so it stayed on day {d.day} (adjust as "
+                                f"needed)",
+                            )
+                        plan.assumptions.append(_why)
+                        continue
                     logger.warning(
-                        "plan: endpoint-light %s %s stays day %s (no host)",
+                        "plan: endpoint-light %s %s day %s removed to "
+                        "unplaced (no host; endpoint day stays light)",
                         "heavy" if _heavy else "far",
                         v.name,
                         d.day,
                     )
+                    d.items.remove(v)
+                    moved = True
+                    plan.unplaced.append(
+                        UnplacedCandidate(
+                            name=v.name,
+                            name_en=v.name_en,
+                            poi_id=v.poi_id,
+                            category=v.category,
+                            tier=v.tier,
+                            duration_minutes=v.duration_minutes,
+                            location=v.location,
+                            city=v.city,
+                            day_hint=d.day,
+                            reason="endpoint_stay",
+                        )
+                    )
                     if _heavy:
                         _why = L(
                             f"「{v.name}」为大景点，离城日只安排轻量街区"
-                            f"或看秀，但其余各天排不下，暂保留在第{d.day}天"
-                            f"（可按需调整）",
-                            f'"{v.name}" is a major sight; the departure '
-                            f"day keeps light walks and shows only, but "
-                            f"every other day was full, so it stayed on "
-                            f"day {d.day} (adjust as needed)",
+                            f"或看秀，其余各天也排不下，已从行程移除——"
+                            f"想加回可指定其他天",
+                            f'"{v.name}" is a major sight; the departure day '
+                            f"keeps light walks and shows only, and every "
+                            f"other day was full, so it was removed from "
+                            f"the itinerary — ask to place it on a specific "
+                            f"day to add it back",
                         )
                     else:
                         _why = L(
                             f"「{v.name}」距酒店或市中心较远（超过 "
                             f"{_EP_LIGHT_KM:.0f} 公里），离城日只安排近处"
-                            f"轻量内容，但其余各天排不下，暂保留在第"
-                            f"{d.day}天（可按需调整）",
-                            f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} '
-                            f"km from the hotel or city center; the "
-                            f"departure day keeps to nearby light "
-                            f"activities, but every other day was full, "
-                            f"so it stayed on day {d.day} (adjust as "
-                            f"needed)",
+                            f"轻量内容，其余各天也排不下，已从行程移除——"
+                            f"想加回可指定其他天",
+                            f'"{v.name}" is more than {_EP_LIGHT_KM:.0f} km '
+                            f"from the hotel or city center; the departure "
+                            f"day keeps to nearby light activities, and "
+                            f"every other day was full, so it was removed "
+                            f"from the itinerary — ask to place it on a "
+                            f"specific day to add it back",
                         )
                     plan.assumptions.append(_why)
             # ② 空日披露（同到达日口径，绝不跨日挪卡补；合法内容=
@@ -11128,6 +11259,12 @@ class PlanningAgent:
         intercity_mode: str = "auto",
         lang: str | None = None,
     ) -> PlanSession:
+        # 2026-11-13（陕历博跨城串行程案）：心愿绑定缓存按会话隔离——
+        # agent 是单例、跨行程复用，上一趟的 _wish_bindings 会让新行程的
+        # 心愿行按名字命中，被换绑到不含该城的行程（西安心愿挂进成都
+        # 重庆行程）。新会话从零绑定，绑定结果由本趟重新建立。
+        self._wish_bindings.clear()
+        self._wish_bind_misses.clear()
         session = PlanSession(
             session_id=uuid.uuid4().hex,
             device_id=device_id,
@@ -13860,9 +13997,21 @@ class PlanningAgent:
                         # 端点日避让压过腿费比较：已落端点日的必去，只要
                         # 有非端点候选天就挪回（11-13 一项上限上游防线）。
                         off_ep = cur in _ep_days and target not in _ep_days
-                        if target != cur and (
+                        _mv = target != cur and (
                             _leg_min(m_xy, target) < _leg_min(m_xy, cur) or off_ep
-                        ):
+                        )
+                        logger.info(
+                            "plan: must merge match %s cur=d%d target=d%d "
+                            "moved=%s off_ep=%s leg_cur=%s leg_tgt=%s",
+                            name,
+                            cur,
+                            target,
+                            _mv,
+                            off_ep,
+                            _leg_min(m_xy, cur),
+                            _leg_min(m_xy, target),
+                        )
+                        if _mv:
                             day_load[cur] = max(0, day_load.get(cur, 0) - m_min)
                             match["day"] = target
                             day_xy.setdefault(target, []).append(m_xy)
@@ -13950,6 +14099,15 @@ class PlanningAgent:
                     }
                 )
                 day_load[m_day] = day_load.get(m_day, 0) + m_minutes
+                logger.info(
+                    "plan: must merge bound %s -> day %d (city=%s minutes=%s "
+                    "xy=%s)",
+                    name,
+                    m_day,
+                    bcity,
+                    m_minutes,
+                    "yes" if m_xy is not None else "no",
+                )
                 continue
             # A must-visit lands on a day based in its own city — never
             # round-robined across the whole trip (multi-city videos).
@@ -14139,6 +14297,24 @@ class PlanningAgent:
             name = str(it.get("name") or "")
             if not name or not any(_name_dup(name, n) for n in names):
                 continue
+            # 2026-11-13（用户拍板「心愿单的城市必须在插入的时候就标注
+            # 城市」+ 陕历博串行程案）：行城是权威——已定城且不在本次
+            # 行程的，不换绑、不翻已排期（旧行为按名字无条件 force 换绑，
+            # 西安心愿被挂到成都重庆行程上）。
+            row_city = _norm_city(str(it.get("city") or "")).removesuffix("市")
+            trip_cities_here = {
+                _norm_city(c or "").removesuffix("市")
+                for c in session.cities
+                if (c or "").strip()
+            }
+            if row_city and trip_cities_here and row_city not in trip_cities_here:
+                logger.info(
+                    "plan: wish row off-trip skip %s city=%s trip_cities=%s",
+                    name,
+                    row_city,
+                    session.cities,
+                )
+                continue
             row_itin = it.get("itinerary_id")
             bound = self._wish_bindings.get(name) or (session.wish_bindings or {}).get(
                 name
@@ -14272,18 +14448,18 @@ class PlanningAgent:
             session.linked_itins.append(itin)
 
     def _sync_planned_rows(self, session: PlanSession) -> None:
-        """行程中心「已安排」分区补源（2026-11-12 用户报「已经安排的景点
-        没有移动到已安排的部分下，还在心愿单里」）：H5 已安排分区只渲染
-        trip_items 的 scheduled 行，而 scheduled 行此前只能由心愿行翻转
-        产生——用户没许愿过的引擎排点永远不产生行，分区按构造恒空；许愿
-        行被排上但名字核名未中时同样滞留心愿单。本同步把 plan 里真实落排
-        （有 poi_id，占位卡不算已安排，与 _sync_wish_rows 同口径）的非餐/
-        酒店参访 upsert 成 scheduled 行：命中既有行（poi_id 权威，其次
-        _name_dup 核名）按状态机翻牌（wishlist→scheduled 含心愿滞留案；
-        booked 真实订单/unwanted 用户表态不动）；无行则 source=plan 建行。
-        引擎后续把点移出 plan 时，本行程名下 source=plan 的滞留 scheduled
-        行删除留日志（不留「已排期但实际没排」假卡）。行按名字全局去重、
-        跟随当前行程——与 _sync_wish_rows 同语义。Best-effort。"""
+        """行程中心「已安排」分区对齐心愿单（2026-11-13 拍板：已排期只放
+        已排的心愿单）。
+
+        2026-11-12 首版把 plan 里真实落排的引擎点也 upsert 成 scheduled
+        行（source=plan），用户没许愿过的景点因此出现在已排期——看板变成
+        行程照抄。本版收回补源：只翻既有用户心愿行（source != plan）：
+        命中落排点（poi_id 权威，其次 _name_dup 核名）→ wishlist 翻
+        scheduled（许愿行被排上却滞留心愿单的核心场景），booked 真实订单/
+        unwanted 用户表态不动；无既有行则不建行。历史 source=plan 引擎行
+        （补源 scheduled 行/翻牌失败残渣）本轮一律清扫，booked/unwanted
+        例外。行按名字全局去重、跟随当前行程——与 _sync_wish_rows 同语义。
+        Best-effort。"""
         if self._trip_items is None or session.plan is None:
             return
         itin = session.plan.itinerary_id
@@ -14303,7 +14479,6 @@ class PlanningAgent:
         except Exception:
             return
         rows = [r for g in groups.values() for r in g]
-        matched: set[str] = set()
         for item in planned:
             row = next(
                 (
@@ -14314,34 +14489,16 @@ class PlanningAgent:
                 ),
                 None,
             )
-            if row is not None and row.get("status") in (
-                STATUS_BOOKED,
-                STATUS_UNWANTED,
-            ):
-                # 用户表态（不想去）与真实订单优先，引擎不翻牌
-                matched.add(row["id"])
-                continue
-            created_here = False
             if row is None:
-                try:
-                    row = self._trip_items.create(
-                        item.name,
-                        source="plan",
-                        itinerary_id=itin,
-                        city=item.city,
-                        poi_id=item.poi_id,
-                        note=L("来自行程", "From itinerary"),
-                    )
-                    created_here = True
-                except Exception:
-                    logger.warning(
-                        "plan: planned row create failed for %s",
-                        item.name,
-                        exc_info=True,
-                    )
-                    continue
-                rows.append(row)
-            matched.add(row["id"])
+                # 2026-11-13：没有用户心愿行就不建行——引擎排点不进看板，
+                # 已排期只收「心愿单里被排上」的条目。
+                continue
+            if row.get("status") in (STATUS_BOOKED, STATUS_UNWANTED):
+                # 用户表态（不想去）与真实订单优先，引擎不翻牌
+                continue
+            if row.get("source") == "plan":
+                # 引擎行不是用户心愿：不翻牌，交给本轮末尾清扫。
+                continue
             if (
                 row.get("status") == STATUS_SCHEDULED
                 and row.get("day") == item.day
@@ -14369,57 +14526,39 @@ class PlanningAgent:
                     "plan: planned row scheduled %s -> day %d", item.name, item.day
                 )
             except Exception:
-                if created_here:
-                    # 2026-11-12 二拍（8 行 source=plan 滞留心愿单事故）：建行
-                    # 后翻牌失败不得留「来自行程」心愿单残渣——当场摘除，
-                    # 下回合由落排点重建并翻牌。
-                    try:
-                        self._trip_items.delete(row["id"])
-                        logger.info(
-                            "plan: planned row removed %s (flip failed)", item.name
-                        )
-                    except Exception:
-                        logger.warning(
-                            "plan: planned row cleanup failed for %s",
-                            item.name,
-                            exc_info=True,
-                        )
-                else:
-                    logger.warning(
-                        "plan: planned row sync failed for %s",
-                        item.name,
-                        exc_info=True,
-                    )
+                logger.warning(
+                    "plan: planned row sync failed for %s",
+                    item.name,
+                    exc_info=True,
+                )
+        # 2026-11-13「已排期只放已排的心愿单」：source=plan 引擎行一律
+        # 清出看板——旧版补源留下的 scheduled 行与翻牌失败残渣 wishlist
+        # 行都不得现形；booked 真实订单 / unwanted 用户表态不在清扫组。
         for r in groups.get("scheduled", []):
-            if (
-                r.get("source") == "plan"
-                and r.get("itinerary_id") == itin
-                and r["id"] not in matched
-            ):
+            if r.get("source") == "plan":
                 try:
                     self._trip_items.delete(r["id"])
-                    logger.info("plan: stale planned row removed %s", r.get("name"))
+                    logger.info(
+                        "plan: engine planned row removed %s (scheduled)",
+                        r.get("name"),
+                    )
                 except Exception:
                     logger.warning(
-                        "plan: stale planned row delete failed for %s",
+                        "plan: engine planned row delete failed for %s",
                         r.get("name"),
                         exc_info=True,
                     )
         for r in groups.get("wishlist", []):
-            if r.get("source") == "plan" and r["id"] not in matched:
-                # 2026-11-12 二拍：source=plan 行按设计只应为 scheduled——
-                # 滞留心愿单即「自动插入心愿单」污染源（翻牌失败残渣/旧
-                # 码遗留），清扫后由落排点重建，不在心愿单现形。matched
-                # 内的行本回合已翻牌成功，不得误删。
+            if r.get("source") == "plan":
                 try:
                     self._trip_items.delete(r["id"])
                     logger.info(
-                        "plan: stray planned row removed %s (stuck in wishlist)",
+                        "plan: engine planned row removed %s (wishlist)",
                         r.get("name"),
                     )
                 except Exception:
                     logger.warning(
-                        "plan: stray planned row delete failed for %s",
+                        "plan: engine planned row delete failed for %s",
                         r.get("name"),
                         exc_info=True,
                     )
@@ -19904,6 +20043,14 @@ class PlanningAgent:
         night_notes = attach_hotel_nights(plan.days)
         if night_notes:
             plan.assumptions.extend(night_notes)
+        # 到达后每天从酒店出发（2026-11-13 用户拍板「到达后每天出发点是
+        # HOTEL. 加酒店卡」）：夜卡落定后给「前一晚住店」的次日开头插
+        # 「🏨 从酒店出发」软锚卡——卡尾=当天首个非酒店件开场前 30 分钟
+        # 起程，酒店身份继承夜卡（set-hotel 双向同步）。同夜卡口径只在
+        # 初次排程插；编辑路径 reanchor 回拨不复活已删卡。
+        morning_notes = attach_hotel_mornings(plan.days)
+        if morning_notes:
+            plan.assumptions.extend(morning_notes)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -19950,8 +20097,11 @@ class PlanningAgent:
         （timed pinned+must 吃大景点/距锚 >_EP_LIGHT_KM 违例——11-13「出
         发日和到达日一样」拍板）纳入救生：不裸挪（must_strays 裸挪曾打破
         回滚锚已整撤），同日重解无解（pinned 时刻=CP 固定档）只试跨日；
-        全候选日无解=原天保留+披露（铁律 19 不删）。演出/茶=合法端点内
-        容不纳入违例集。"""
+        全候选日无解=移除出行程落 plan.unplaced（11-13 第三拍「远郊大景
+        点不得出现在到达/离城日」；移除对象仅限引擎托管必去 pinned+must，
+        真用户手钉进不了闸铁律 19 不删）；
+        curated/created 卡永不删=保留+披露。演出/茶=合法端点内容不纳入
+        违例集。"""
         from copy import deepcopy
 
         notes: list[str] = []
@@ -20002,6 +20152,17 @@ class PlanningAgent:
                 and v.start_time is not None
                 and (v.category or "") not in ("food", "hotel")
                 and not _is_show_item(v)
+                # 端点日闸（11-13 第三拍）：stay_bad 只收端点日违例——
+                # 普通日 tier≤2/重磅必去不违任何端点口径，入册=误救生
+                # +误「暂保留」披露。
+                and (
+                    _day_is_arrival(
+                        day,
+                        str(getattr(v, "city", "") or "").strip().removesuffix("市")
+                        or str(day.base_city or "").strip().removesuffix("市"),
+                    )
+                    or _day_is_return_home(day, plan.days)
+                )
                 and _ep_stay_violation(v, _head_hotel_anchor(day, plan), _ep_med(v))
             ]
             for must in stuck + stay_bad:
@@ -20029,6 +20190,12 @@ class PlanningAgent:
                     if _stay and target is own_day:
                         # 违例必去同日重解无解：pinned 时刻在 CP 是固定档，
                         # 原地试宿只会原样采纳成空转，只试跨日宿主。
+                        continue
+                    if _stay and _tgt_is_ep(target):
+                        # 双向同闸（11-13 第三拍）：违例件落任一侧端点日
+                        # 都是同一违例——端点日不作 stay_bad 宿主，全候选
+                        # 无解走下方移除落 unplaced，不得「孤窗兜底」搬进
+                        # 另一侧端点日。
                         continue
                     if target is not own_day:
                         if (
@@ -20247,18 +20414,36 @@ class PlanningAgent:
                     day = next(d for d in plan.days if d.day == day.day)
                     adopted = True
                     break
-                if _stay and not adopted:
-                    # 违例必去全候选日结构性排不下：原天保留（铁律 19 不
-                    # 删）但必须留痕——用户可见的端点日违例，静默即违规
-                    # （10-25 立规）。终装清扫 ① 对钉住件只披露不动手，
-                    # 此处披露为同案上游。
-                    logger.warning(
-                        "plan: cross-day rescue of stay-violating must %s "
-                        "day %d infeasible everywhere; stays (disclosed)",
-                        must.name,
-                        day.day,
-                    )
-                    _heavy = _arrival_heavy_visit(must)
+                # 当前树定位：早前同批必去采纳会把 plan 换成克隆树（plan =
+                # cand），本 must/day 可能是原树遗物——一律按 day 号+item_id
+                # 回当前树取真身，否则对克隆树 remove 原树对象=ValueError。
+                cur_day = next((d for d in plan.days if d.day == day.day), None)
+                if cur_day is None:
+                    continue
+                cur_must = next(
+                    (
+                        v
+                        for v in cur_day.items
+                        if isinstance(v, VisitItem) and v.item_id == must.item_id
+                    ),
+                    None,
+                )
+                if cur_must is None:
+                    # 已被早前采纳的克隆换位带走/挤掉，无需再处理。
+                    continue
+                _ep_viol = (
+                    _day_is_arrival(cur_day, vcity)
+                    or _day_is_return_home(cur_day, plan.days)
+                ) and _ep_stay_violation(
+                    cur_must, _head_hotel_anchor(cur_day, plan), _ep_med(cur_must)
+                )
+                if not adopted and (_stay or _ep_viol):
+                    # 违例必去全候选日结构性排不下（11-13 第三拍「远郊大
+                    # 景点不得出现在到达/离城日」）：移除出行程落 unplaced
+                    # （想去 chip），绝不留违例卡在端点日；curated/created
+                    # 永不删=保留+披露；移除对象=pinned+must 引擎托管必去，
+                    # 真用户手钉（must=False）进不了闸，铁律 19 不删。
+                    _heavy = _arrival_heavy_visit(cur_must)
                     _why = (
                         "为重磅景点，端点日不安排大景点时间"
                         if _heavy
@@ -20272,13 +20457,57 @@ class PlanningAgent:
                         f"hotel or city center, outside the endpoint-day "
                         f"light radius"
                     )
+                    if getattr(cur_must, "curated", False) or getattr(
+                        cur_must, "created", False
+                    ):
+                        logger.warning(
+                            "plan: cross-day rescue of stay-violating must "
+                            "%s day %d infeasible everywhere; curated/created "
+                            "kept (disclosed)",
+                            cur_must.name,
+                            cur_day.day,
+                        )
+                        notes.append(
+                            L(
+                                f"必去「{cur_must.name}」{_why}，但其余各天排不"
+                                f"下，暂保留在第{cur_day.day}天（可按需调整）",
+                                f'must-visit "{cur_must.name}" {_why_en}, but '
+                                f"every other day was full, so it stayed on "
+                                f"day {cur_day.day} (adjust as needed)",
+                            )
+                        )
+                        continue
+                    logger.warning(
+                        "plan: cross-day rescue of stay-violating must %s "
+                        "day %d infeasible everywhere; removed to unplaced "
+                        "(endpoint day stays light per 11-13 ruling)",
+                        cur_must.name,
+                        cur_day.day,
+                    )
+                    cur_day.items.remove(cur_must)
+                    plan.unplaced.append(
+                        UnplacedCandidate(
+                            name=cur_must.name,
+                            name_en=cur_must.name_en,
+                            poi_id=cur_must.poi_id,
+                            category=cur_must.category,
+                            tier=cur_must.tier,
+                            duration_minutes=cur_must.duration_minutes,
+                            location=cur_must.location,
+                            city=cur_must.city,
+                            day_hint=cur_day.day,
+                            reason="endpoint_stay",
+                        )
+                    )
+                    annotate_legs(plan)
                     notes.append(
                         L(
-                            f"必去「{must.name}」{_why}，但其余各天排不下，"
-                            f"暂保留在第{day.day}天（可按需调整）",
-                            f'must-visit "{must.name}" {_why_en}, but every '
-                            f"other day was full, so it stayed on day "
-                            f"{day.day} (adjust as needed)",
+                            f"必去「{cur_must.name}」{_why}，其余各天也排不下，"
+                            f"已从行程移除——想加回可指定其他天",
+                            f'must-visit "{cur_must.name}" {_why_en}, and '
+                            f"every other day was full, so it was removed "
+                            f"from the itinerary — ask to place it on a "
+                            f"specific day to add it back",
                         )
                     )
         return plan, notes
@@ -21419,6 +21648,7 @@ class PlanningAgent:
             and not is_dinner_placeholder(item)
             and not is_hotel_checkin(item)
             and not is_hotel_night(item)
+            and not is_hotel_morning(item)
         ]
         if not missing:
             return
@@ -21601,6 +21831,7 @@ class PlanningAgent:
                     or is_dinner_placeholder(item)
                     or is_hotel_checkin(item)
                     or is_hotel_night(item)
+                    or is_hotel_morning(item)
                 ):
                     # 午/晚饭占位件无 POI 详情可查（库读/回源都纯烧配额）；
                     # 酒店入住卡同理（2026-11-01 落地首停）；每晚酒店卡的
@@ -21733,7 +21964,9 @@ class PlanningAgent:
                     await asyncio.to_thread(
                         self._poi_details.upsert,
                         key,
-                        city=item.city,
+                        # 2026-11-13：哨兵城市不落库（脏行 city='未标注'
+                        # 的根因）；未知城市留 NULL，等库内精确行补。
+                        city=None if _is_unspecified(item.city) else item.city,
                         name=item.name,
                         address=item.address,
                         opening_hours=hours,
@@ -21793,15 +22026,28 @@ class PlanningAgent:
                 if hours:
                     source = detail_tag
         # ③ 仍未命中：高德 v5 关键词搜索兜底
+        # 2026-11-13（脏地址案）：城市哨兵「未标注」不是城市——原样下传
+        # 会让图商按全国召回，孟连县那条把地址写进了陕西历史博物馆行。
+        # 同时命中名与条目名不像的整条丢弃（宁缺毋错）。
+        search_city = None if _is_unspecified(item.city) else (item.city or None)
         if not hours and callable(search_fn):
             try:
                 if amap_slots is not None:
                     async with amap_slots:
-                        out = await search_fn(item.name, item.city or None)
+                        out = await search_fn(item.name, search_city)
                 else:
-                    out = await search_fn(item.name, item.city or None)
+                    out = await search_fn(item.name, search_city)
             except Exception:
                 logger.warning("plan: amap v5 search hours failed, name=%s", item.name)
+                out = None
+            if isinstance(out, dict) and _hours_hit_mismatch(
+                item.name, out.get("matched")
+            ):
+                logger.warning(
+                    "plan: hours search hit mismatch for %s -> %s, discarded",
+                    item.name,
+                    out.get("matched"),
+                )
                 out = None
             if isinstance(out, dict):
                 hours = out.get("opening_hours")
@@ -22859,6 +23105,16 @@ class PlanningAgent:
                             city_from_trip = True
                     else:
                         city = await self._resolve_wish_city(wish)
+                        if not city:
+                            # 2026-11-13（用户拍板「心愿单的城市必须在
+                            # 插入的时候就标注城市」）：解析落空时吃语义
+                            # 绑定的落点城市——插入即带城，不留空行。
+                            _bound = (session.wish_bindings or {}).get(
+                                wish
+                            ) or self._wish_bindings.get(wish)
+                            _bcity = str((_bound or {}).get("city") or "").strip()
+                            if _bcity and not _is_unspecified(_bcity):
+                                city = _bcity
                     row = self._trip_items.create(
                         wish,
                         source="chat",
@@ -23209,15 +23465,21 @@ class PlanningAgent:
         16:45 夜卡 → selfrepair 修复链被二次硬冲突耗尽事故）：末件收尾
         越过卡面起点时卡顺延到「末件+30 起 60 分钟」（只顺延不回拨，
         口径见 reanchor_hotel_nights）；本回合被用户拖/改的夜卡自身
-        跳过（keep_ids），不复活已删卡（reanchor 内部口径）。"""
+        跳过（keep_ids），不复活已删卡（reanchor 内部口径）。晨卡同理
+        （2026-11-13 每天出发点是 HOTEL）：首件提前/酒店坐标变化后卡尾
+        回拨到「首件 − 路程」（只回拨不后移，reanchor_hotel_mornings 口径）。"""
         keep = {
             op.item_id
             for op in diffs
-            if op.item_id and str(op.item_id).startswith(HOTEL_NIGHT_ID_PREFIX)
+            if op.item_id
+            and str(op.item_id).startswith(
+                (HOTEL_NIGHT_ID_PREFIX, HOTEL_MORNING_ID_PREFIX)
+            )
         }
 
         def _hook(plan: ItineraryPlan) -> None:
             reanchor_hotel_nights(plan.days, keep_ids=keep)
+            reanchor_hotel_mornings(plan.days, keep_ids=keep)
 
         return _hook
 
