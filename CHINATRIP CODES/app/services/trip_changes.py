@@ -65,11 +65,30 @@ def rewrite_trip_detail(session, uid, plan) -> None:
             transport_no = getattr(item, "train_no", None) or getattr(
                 item, "flight_no", None
             )
-            kind = (
-                "transfer"
-                if from_city
-                else (getattr(item, "category", None) or "visit")
+            category = getattr(item, "category", None)
+            kind = "transfer" if from_city else (category or "visit")
+            # 2026-11-13（用户：VisitItem/酒店/交通/餐卡都要在详情表里）：
+            # 餐卡分早/午/下午茶/晚，酒店留真名，占位卡单独标记
+            start_t = getattr(item, "start_time", None)
+            meal_slot = None
+            if category == "food" and start_t is not None:
+                hour = start_t.hour
+                meal_slot = (
+                    "breakfast"
+                    if hour < 11
+                    else "lunch"
+                    if hour < 14
+                    else "tea"
+                    if hour < 17
+                    else "dinner"
+                )
+            is_placeholder = bool(getattr(item, "soft_pin", False)) or (
+                category == "food" and not getattr(item, "poi_id", None)
             )
+            hotel_name = None
+            name_txt = getattr(item, "name", None) or ""
+            if category == "hotel" and name_txt and "🏨" not in name_txt:
+                hotel_name = name_txt[:200]
             alt_names = [(getattr(a, "name", None) or "")[:200] for a in (alts or [])]
             session.add(
                 ItineraryItem(
@@ -89,6 +108,10 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                     from_city=(from_city or None),
                     to_city=(getattr(item, "to_city", None) or None),
                     transport_no=(transport_no or None),
+                    transport_mode=(getattr(item, "mode", None) or None),
+                    meal_slot=meal_slot,
+                    hotel_name=hotel_name,
+                    placeholder=is_placeholder,
                     city=(getattr(item, "city", None) or None),
                     category=(getattr(item, "category", None) or None),
                     address=(getattr(item, "address", None) or None),

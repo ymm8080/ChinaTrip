@@ -446,6 +446,14 @@ class ItineraryItem(Base):
     from_city: Mapped[str | None] = mapped_column(String(50))
     to_city: Mapped[str | None] = mapped_column(String(50))
     transport_no: Mapped[str | None] = mapped_column(String(32))
+    # 2026-11-13（用户「VisitItem/酒店/交通/餐卡都要在详情表里」）：
+    # 各类实体自己的业务字段。
+    meal_slot: Mapped[str | None] = mapped_column(String(16))
+    transport_mode: Mapped[str | None] = mapped_column(String(16))
+    hotel_name: Mapped[str | None] = mapped_column(String(200))
+    placeholder: Mapped[bool | None] = mapped_column(
+        Boolean, server_default=text("false")
+    )
 
 
 class ItineraryChangeLog(Base):

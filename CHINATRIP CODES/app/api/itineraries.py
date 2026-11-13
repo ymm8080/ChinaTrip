@@ -713,6 +713,18 @@ async def get_itinerary_detail(
                     "alternative_1": row.alt1,
                     "alternative_2": row.alt2,
                     "alternative_3": row.alt3,
+                    # 2026-11-13（用户：VisitItem/酒店/交通/餐卡都要在详情里）
+                    "kind": row.kind,
+                    "item_ref": row.item_ref,
+                    "poi_ref": row.poi_ref,
+                    "from_city": row.from_city,
+                    "to_city": row.to_city,
+                    "transport_mode": row.transport_mode,
+                    "transport_no": row.transport_no,
+                    "meal_slot": row.meal_slot,
+                    "hotel_name": row.hotel_name,
+                    "placeholder": bool(row.placeholder),
+                    "alternatives": row.alternatives,
                 }
             )
         cities = list(record.plan.cities or [])
