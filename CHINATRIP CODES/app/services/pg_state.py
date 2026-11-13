@@ -24,12 +24,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models import Itinerary, ItineraryDay, ItinerarySnapshot, TripItem
-from app.services.trip_changes import trip_header_fields
 from app.services.itinerary_store import (
     InMemoryItineraryStore,
     ItineraryRecord,
     Snapshot,
 )
+from app.services.trip_changes import trip_header_fields
 from app.services.trip_items import STATUS_WISHLIST, TripItemService
 
 logger = logging.getLogger(__name__)

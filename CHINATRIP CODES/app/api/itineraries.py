@@ -706,7 +706,9 @@ async def get_itinerary_detail(
                     "start_time": (
                         row.start_time.strftime("%H:%M") if row.start_time else None
                     ),
-                    "end_time": row.end_time.strftime("%H:%M") if row.end_time else None,
+                    "end_time": row.end_time.strftime("%H:%M")
+                    if row.end_time
+                    else None,
                     "duration_minutes": row.duration_minutes,
                     "alternative_1": row.alt1,
                     "alternative_2": row.alt2,
