@@ -601,6 +601,9 @@ def test_v0_amap_transfer_and_solved_schedule():
         v
         for v in all_visits(session)
         if not (is_hotel_checkin(v) or is_hotel_night(v) or is_hotel_morning(v))
+        and getattr(v, "category", "") != "food"  # 2026-11-13 六拍：转场日也补餐卡
+        # 2026-11-13 六拍：空到达日补的「城市漫步（自由安排）」占位不算观光点
+        and not str(getattr(v, "item_id", "")).startswith("citywalk-ph-")
     ]
     # 第二段杭州→苏州是汽车（mode=car）：落地首停规则只认火车/飞机
     assert sum(1 for v in all_visits(session) if is_hotel_checkin(v)) == 1

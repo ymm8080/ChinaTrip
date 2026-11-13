@@ -713,6 +713,10 @@ def _endpoint_content_visit(v: "VisitItem") -> bool:
         return True
     if str(getattr(v, "category", "") or "").strip().lower() == "tea_experience":
         return True
+    if str(getattr(v, "item_id", "") or "").startswith("citywalk-ph-d"):
+        # 到达日「城市漫步（自由安排）」占位卡（2026-11-13 六拍）：重跑
+        # 清扫时按合法端点内容认，不再补第二张。
+        return True
     return _is_show_item(v)
 
 
@@ -4442,26 +4446,29 @@ def _first_free_gap(
 
 
 def _ensure_meal_cards(plan: ItineraryPlan) -> None:
-    """每天都得有午餐卡和晚餐卡，缺卡补「自由安排」占位（在路上豁免）。
+    """每天都得有午餐卡和晚餐卡，缺卡补「自由安排」占位（转场日不再豁免）。
 
-    2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND DINNER CARDS」+「在路
-    上的日子可以豁免」：补餐
-    通道只在「有景点 / ≥2 景点 / 窗内没空」时跑，交付常见整天一张餐卡
-    都没有（上海案第 2 天 3 个景点零餐卡、第 3 天只有午卡、第 4 天只有
-    晚卡）。终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45 分钟
-    真空隙；晚卡缺→[16:30,20:30] 找 ≥60/45 分钟。落地/发车缓冲取
+    2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND DINNER CARDS」，同日
+    七拍再补「转场日不能整日豁免，至少晚餐不应该豁免」：补餐通道只在
+    「有景点 / ≥2 景点 / 窗内没空」时跑，交付常见整天一张餐卡都没有
+    （上海案第 2 天 3 个景点零餐卡、第 3 天只有午卡、第 4 天只有晚卡），
+    而旧口径对任何带城际腿的日子整日 continue，落地日只剩航班+酒店，
+    连晚饭都没有（2026-11-13 西安到达日实录）。
+
+    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45 分钟真空隙；
+    晚卡缺→[16:30,20:30] 找 ≥60/45 分钟，仍无隙再走迟场 [20:30,21:30]
+    找 ≥45/30 分钟（迟落地/白天被交通占满也吃得上饭）。落地/发车缓冲取
     _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地 +150），绝不把
-    餐卡塞进飞机/火车在途时段。整天被交通+大块头吃满、确实无处可落
-    时才不补，披露点名该天缺卡——绝不静默缺卡。
+    餐卡塞进飞机/火车在途时段；餐窗整段在途才不补，并披露点名该天缺卡
+    ——绝不静默缺卡。
     """
     notes: list[str] = []
     missing: dict[str, list[int]] = {"lunch": [], "dinner": []}
     for day in plan.days:
-        # 在路上的日子可豁免（2026-11-13 用户拍板「在路上的日子可以豁免」）：
-        # 当天有城际火车/航班段（到达日/离城日）时人不定在城里，硬补的餐
-        # 卡只会排到飞机/火车上或落地后的机场里——豁免补卡。
-        if any(isinstance(i, TransferItem) for i in day.items):
-            continue
+        # 在路上按「窗」判，不再整日豁免（2026-11-13 六拍：用户点名到达日
+        # 「没有安排」，要附近的 CITYWALK/演出/餐厅——旧口径整日跳过，落地
+        # 日只剩航班+酒店，晚饭卡也没有）。fixed 窗已含落地 +150 / 发车 −90
+        # 缓冲，落不进餐窗的日子仍自然跳过（gap is None → 披露缺卡）。
         fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
         blocked = [(s, e) for s, e, _src in fixed]
         for card in ("lunch", "dinner"):
@@ -4483,6 +4490,12 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     *range(MEAL_CARD_DINNER_EARLIEST, MEAL_CARD_DINNER_LATEST + 1, 5),
                 ]
                 gap = _first_free_gap(blocked, starts, (MEAL_DURATION_MINUTES, 45))
+                if gap is None:
+                    # 2026-11-13 七拍「至少晚餐不应该豁免」：迟落地（如
+                    # 20:00 到）或白天被景点/交通占满时，晚卡也不能没有
+                    # ——20:30–21:30 起席、45/30 分钟即可。
+                    late = list(range(20 * 60 + 30, 21 * 60 + 1, 5))
+                    gap = _first_free_gap(blocked, late, (45, 30))
             if gap is None:
                 missing[card].append(day.day)
                 continue
@@ -8358,6 +8371,11 @@ def _endpoint_day_light_sweep(
                 getattr(i, "category", "") or ""
             ) not in ("food", "hotel"):
                 keys.add(str(getattr(i, "city", "") or "").removesuffix("市"))
+            elif isinstance(i, TransferItem):
+                # 落地侧：转场日的 base 是出发城，但当晚人已在 to_city
+                # ——该日必须进 to_city 的组，否则到达日清扫/补位整段
+                # 空转（2026-11-13 六拍：到达日没安排即此因）。
+                keys.add(str(getattr(i, "to_city", "") or "").removesuffix("市"))
         for c in keys:
             if c:
                 cities.setdefault(c, []).append(d)
@@ -8619,7 +8637,12 @@ def _endpoint_day_light_sweep(
                 and not _is_show_v(i)
             ]
             if not visits:
-                continue
+                # 空到达日也要走到 ② 补位（2026-11-13 六拍「到达日不能整天
+                # 没安排」）：① 是逐卡清扫，visits 为空时天然空转。
+                logger.info(
+                    "plan: arrival day %s has no visit yet; trying light fill",
+                    d.day,
+                )
             # ① 重磅/远卡出到达日（2026-11-13 拍板补距离翼，同返程日
             #   双向同闸 _stay_out：不能安排大景点时间 且 不能距酒店或
             #   市中心 8 公里以上；整族轻量形态豁免；≤80min 小型非街
@@ -8788,24 +8811,92 @@ def _endpoint_day_light_sweep(
                 and str(t4.to_city or "").strip().removesuffix("市") == vcity
                 for t4 in d.items
             )
+            # 只在到达日**完全没有参访件**时补位（2026-11-13 六拍）：当天
+            # 已有景点（哪怕不是「轻内容」口径）就不是「整天没安排」，补
+            # 一段自由漫步反而是噪声。
             if (has_arr_leg or (single_city and d.day == 1)) and not any(
-                isinstance(i, VisitItem) and _endpoint_content_visit(i) for i in d.items
+                isinstance(i, VisitItem)
+                and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                for i in d.items
             ):
-                logger.info(
-                    "plan: endpoint-light empty arrival day %s "
-                    "(no simple card; accepted per 11-11 ruling)",
-                    d.day,
+                # 2026-11-13 六拍（用户「到达日不能整天没有安排：附近的
+                # CITYWALK/演出/餐厅都行」）：留白前先补一段酒店周边自由
+                # 漫步——落地后到夜卡之间还有 ≥90 分钟空窗就插占位卡
+                # （锚=酒店，无酒店则不带坐标；名字带「自由安排」不假装
+                # 是具体景点，用户可自行换成街区/演出）。
+                _fx, _tg, _fl, _xf = _day_fixed_windows(d)
+                # 夜卡（回酒店·夜间休息）是当天尾巴不是约束——重跑清扫时
+                # 它已在册，按它算「最后一个结束」会把漫步窗判死（20:00
+                # 夜卡 → 20:30 起 + 90 分钟越 21:30）。改用它当上限。
+                _night_start = None
+                _ends: list[int] = []
+                for _s, _e, _src in _fx:
+                    if _src is not None and is_hotel_night(_src):
+                        _night_start = (
+                            _s if _night_start is None else min(_night_start, _s)
+                        )
+                        continue
+                    _ends.append(_e)
+                _last = max(_ends) if _ends else None
+                _start = _last + 30 if _last is not None else None
+                _limit = (
+                    _night_start - 30 if _night_start is not None else 21 * 60 + 30
                 )
-                plan.assumptions.append(
-                    L(
-                        f"第{d.day}天为到达日，未排入轻量街区、演出或茶事，"
-                        f"按轻量口径留白，可先安置行李、稍作休整",
-                        f"Day {d.day} is the arrival day; no light walk, "
-                        f"show or tea stop was scheduled, so it is left "
-                        f"open per the light-arrival policy — settle in "
-                        f"and relax",
+                if _start is not None and _start + 90 <= _limit:
+                    _end = _start + 90
+                    _hotel = _head_hotel_anchor(d, plan)
+                    _cw = VisitItem(
+                        item_id=f"citywalk-ph-d{d.day}",
+                        name=L("城市漫步（自由安排）", "City walk (free time)"),
+                        city=vcity,
+                        day=d.day,
+                        duration_minutes=_end - _start,
+                        location=(
+                            _hotel.location if _hotel is not None else None
+                        ),
+                        category="citywalk",
+                        start_time=_time_of(_start),
+                        end_time=_time_of(_end),
+                        soft_pin=True,
                     )
-                )
+                    d.items.append(_cw)
+                    logger.info(
+                        "plan: endpoint-light arrival day %s filled with "
+                        "free city walk %s-%s",
+                        d.day,
+                        _cw.start_time,
+                        _cw.end_time,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"第{d.day}天为到达日，落地后有空档，已排一段"
+                            f"酒店周边自由漫步（{_cw.start_time.strftime('%H:%M')}"
+                            f"–{_cw.end_time.strftime('%H:%M')}），可按需换成"
+                            "具体街区/演出/餐厅",
+                            f"Day {d.day} is the arrival day; a free walk "
+                            f"near the hotel was added "
+                            f"({_cw.start_time.strftime('%H:%M')}–"
+                            f"{_cw.end_time.strftime('%H:%M')}) — swap it "
+                            "for a specific block, show or restaurant "
+                            "any time",
+                        )
+                    )
+                else:
+                    logger.info(
+                        "plan: endpoint-light empty arrival day %s "
+                        "(no simple card; accepted per 11-11 ruling)",
+                        d.day,
+                    )
+                    plan.assumptions.append(
+                        L(
+                            f"第{d.day}天为到达日，未排入轻量街区、演出或茶事，"
+                            f"按轻量口径留白，可先安置行李、稍作休整",
+                            f"Day {d.day} is the arrival day; no light walk, "
+                            f"show or tea stop was scheduled, so it is left "
+                            f"open per the light-arrival policy — settle in "
+                            f"and relax",
+                        )
+                    )
         # —— 返程日分支 ——
         for d in [
             x

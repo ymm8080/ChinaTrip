@@ -156,8 +156,10 @@ def test_heavy_evicted_and_no_recruit_accept_empty():
     # ③ 一项上限：离城日两张→远者（馆D）挪走，只留街卡
     assert _day_of(plan, dd) == 2
     assert any("只安排一项" in a and "馆D" in a for a in plan.assumptions)
-    # 到达日留白必披露
-    assert any("到达日" in a and "留白" in a for a in plan.assumptions)
+    # 2026-11-13 六拍：到达日还有小馆=不是「整天没安排」，不补自由漫步
+    # 占位、也不出「留白」披露（占位只在真的空日才补）。
+    assert not any(i.item_id.startswith("citywalk-ph-d") for i in plan.days[0].items)
+    assert not any("留白" in a for a in plan.assumptions)
     # 挪动后全部排上时刻（「？」卡不许出自本清扫）
     for d in plan.days:
         for i in d.items:
@@ -285,9 +287,10 @@ def test_arrival_day_cap_keeps_pinned_extra():
 
 
 def test_no_recruit_accept_empty_arrival_day():
-    """11-11 拍板锚：到达日没收到简单街区卡=留白披露，**绝不从别日
-    挪卡补**——哪怕源日有现成街卡、哪怕有营业窗空档。轻卡落位靠排程
-    顺序（雨日→到达日→正常日→离城日）自然发生，不由终装清扫硬造。"""
+    """11-11 拍板锚：到达日没收到简单街区卡时**绝不从别日挪卡补**（哪怕
+    源日有现成街卡、哪怕有营业窗空档）；11-13 六拍补充：只有**完全没有
+    参访件**的到达日才补「城市漫步（自由安排）」占位（见
+    tests/test_arrival_day_fill.py），有小馆的日子不算空日。"""
     small = _v("小馆", 60, _D3A, 1, tier=9)
     small.poi_id = "p-x"
     small.opening_hours = "10:30-17:00"
@@ -301,5 +304,5 @@ def test_no_recruit_accept_empty_arrival_day():
     # 街卡原地不动（此前的「升格整日重排挪入」机制已按拍板拆除）
     assert _day_of(plan, st) == 2
     assert _day_of(plan, small) == 1
-    # 到达日留白必披露
-    assert any("到达日" in a and "留白" in a for a in plan.assumptions)
+    # 11-13 六拍：到达日有小馆=已有安排，不补自由漫步占位、不跨日挪卡
+    assert not any(i.item_id.startswith("citywalk-ph-d") for i in plan.days[0].items)
