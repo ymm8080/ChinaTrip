@@ -107,8 +107,6 @@ def test_parse_place_request_rejects_non_single_place():
     assert parse_place_request("豫园几点开门") is None
     assert parse_place_request("我想去上海玩三天") is None
     assert parse_place_request("帮我规划一下上海三日游") is None
-
-
 def _night_card(day: int) -> VisitItem:
     return VisitItem(
         item_id=f"hotel-night-d{day}",
@@ -389,3 +387,47 @@ def test_try_fast_wish_passes_unknown_place_back():
     agent = _StubAgent(None)
     assert asyncio.run(try_fast_wish(agent, session, "我要去豫园")) is None
     assert all(i.name != "豫园" for d in session.plan.days for i in d.items)
+
+
+def test_place_wish_tiananmen_starts_at_flag_rise_time():
+    """UAT 修复回归（2026-11-14）：快语心愿插天安门不经过 _plan_poi_hours
+    （place_wish 纯计算路径）——兜底自身打标（_apply_flag_schedule 挂在
+    _fallback_sequence_times 顶部）后走旗时锚，卡片开始时间 = 当日升旗
+    时刻（种子 2026-11-14 → 6:58，可破 8:30 日始）。不落标则按 9:00
+    头位排，正是 UAT「没拿到库内真值」的根因。"""
+    plan = ItineraryPlan(
+        itinerary_id="it-flag-wish",
+        cities=["北京"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="北京",
+                items=[
+                    VisitItem(
+                        item_id="v-gugong",
+                        name="故宫博物院",
+                        city="北京",
+                        day=1,
+                        duration_minutes=180,
+                        location=GeoPoint(lon=116.397, lat=39.916),
+                        category="sight",
+                        tier=1,
+                    )
+                ],
+            )
+        ],
+        start_date="2026-11-14",
+    )
+    poi = {
+        "source_poi_id": "B000A8UIN8",
+        "name": "天安门广场",
+        "city": "北京",
+        "category": "sight",
+        "location": [116.397, 39.903],
+        "suggested_duration_min": 60,
+    }
+    placement = place_wish(
+        plan, name="天安门广场", poi=poi, city="北京", item_id="v-tam"
+    )
+    assert placement is not None
+    assert placement.item.start_time == _time(6, 58)
