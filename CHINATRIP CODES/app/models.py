@@ -647,12 +647,8 @@ class TripItem(Base):
     # 删除审计 / EXCLUSION / 规划字段都是数据库事实（wish_items 视图可查）。
     created_by: Mapped[str | None] = mapped_column(String(64))
     arranged: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    exclusion_flag: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
-    deletion_flag: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
+    exclusion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deletion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     deletion_date: Mapped[date | None] = mapped_column(Date)
     deletion_time: Mapped[time | None] = mapped_column(TIME)
     deleted_by: Mapped[str | None] = mapped_column(String(64))

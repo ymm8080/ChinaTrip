@@ -473,9 +473,7 @@ class TripItemService:
                 item[field] = value
         # 心愿单数据库字段：ARRANGED = 有具体日期时刻（已排期/已订且天序在）；
         # EXCLUSION = 用户删站点后的排除，已排进/已订自动解除。
-        item["arranged"] = (
-            target in _TIMELINE_STATUSES and item.get("day") is not None
-        )
+        item["arranged"] = target in _TIMELINE_STATUSES and item.get("day") is not None
         if exclusion_flag is not None:
             item["exclusion_flag"] = bool(exclusion_flag)
         elif target == STATUS_UNWANTED:
