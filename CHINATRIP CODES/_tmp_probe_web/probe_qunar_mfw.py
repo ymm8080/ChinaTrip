@@ -5,7 +5,6 @@
 报告写 PROBE.md；绝不打印任何 key（本脚本无 key）。
 """
 
-import json
 import re
 import sys
 from pathlib import Path
