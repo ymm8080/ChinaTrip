@@ -33,7 +33,7 @@ __all__ = [
 
 def _opencode_adapter(settings: Settings, *, model: str, vision: bool) -> LLMAdapter:
     """OpenCode Go 网关 = OpenAI-compatible + 两个额外头（会话路由头缺了
-    直接 400；UA 自觉声明）。视觉同模型（deepseek-v4.1-flash 吃图入参）。"""
+    直接 400；UA 自觉声明）。视觉同模型（glm-5.3-flash 吃图入参）。"""
     return ZhipuGLMAdapter(
         api_key=settings.opencode_api_key,
         base_url=settings.opencode_base_url,

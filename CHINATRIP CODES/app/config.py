@@ -21,16 +21,18 @@ class Settings(BaseSettings):
     # (design §6.12: >=80% requests must not reach the main model).
     glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
-    # OpenCode Go 订阅（OpenAI-compatible 推理网关，2026-11-11 切换主力
-    # 会话模型——智谱免费额度按日死，DeepSeek V4.1 Flash 走 Go 包月）。
+    # OpenCode Go 订阅（OpenAI-compatible 推理网关，2026-11-11 起主力会话
+    # 走 Go 包月——智谱免费额度按日死）。模型 2026-11-14 由用户拍板切
+    # glm-5.3-flash（网关实测供该模型且可吃图；此前 deepseek-v4.1-flash）。
     # 会话模块（gate/规划/对话编辑）用这一对；ASR/视觉回填仍走 glm_*。
     opencode_api_key: str = ""
     opencode_base_url: str = "https://opencode.ai/inference/go/openai/v1"
-    opencode_model: str = "deepseek-v4.1-flash"
+    opencode_model: str = "glm-5.3-flash"
     # Go 网关硬性要求稳定会话头（缺了直接 400 MissingSessionID）。
     opencode_session_id: str = "chinatrip"
     # 推理模型输出上限（2026-11-14 用户拍板「max_tokens 拉到最大」）。
-    # deepseek-v4.1-flash 先把 max_tokens 吃进 reasoning，调用点的小额度
+    # 推理模型（glm-5.3-flash / 此前 deepseek-v4.1-flash）先把 max_tokens
+    # 吃进 reasoning，调用点的小额度
     # （select 32 / gate 200 / 索引输出 1600）会把正文挤成空串（实测
     # content="" + finish=length）。会话链一律按网关硬顶发——实测区间
     # 1..393216（1000000 直接 400 invalid_request_error），故取 393216。
