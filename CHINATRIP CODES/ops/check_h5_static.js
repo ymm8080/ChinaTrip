@@ -373,12 +373,74 @@ function gateD() {
   ok("腿坐标门 空餐卡腿吃锚点坐标、无坐标降级纯文字");
 }
 
+/* ---------- E. 备选拖入门（2026-11-14 备选 chip 可拖） ---------- */
+/* planAltDrop 是 chip 落进时间轴的唯一入口：落点→after_item_id、日首 null、
+   跨天拖整卡不误触。抽函数跑真身（不是复述逻辑），改名必须同步本门。 */
+function gateE() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("备选拖入门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  const m = src.match(/function planAltDrop\(evt, box, plan\) \{[\s\S]*?\r?\n\}\r?\n/);
+  if (!m) { fail("备选拖入门: 找不到 planAltDrop（改名？同步更新本门）"); return; }
+  const mk = (cls, attrs, children) => {
+    const node = {
+      _cls: new Set(String(cls || "").split(/\s+/).filter(Boolean)),
+      _attrs: attrs || {},
+      children: children || [],
+      _removed: false,
+      classList: { contains: (c) => node._cls.has(c) },
+      getAttribute: (k) => (k in node._attrs ? node._attrs[k] : null),
+      remove: () => { node._removed = true; },
+    };
+    return node;
+  };
+  let calls = [];
+  const api = (path2, body, method) => {
+    calls.push({ path: path2, body, method });
+    return Promise.resolve({ plan: { days: [] } });
+  };
+  const I18N = { tf: (k, zh) => zh };
+  const box = { replaced: 0, replaceWith: () => { box.replaced++; } };
+  const factory = new Function(
+    "api", "I18N", "planSession", "toast", "sitePopHideNow", "failToast", "planCard",
+    m[0] + "\nreturn planAltDrop;"
+  );
+  const drop = factory(api, I18N, { session_id: "sid1" }, () => {}, () => {}, () => {}, () => ({}));
+
+  /* ① 落在两件之间：after_item_id = 前一张 visit-block */
+  const chip = mk("alt-swap-box", { "data-alt-name": "灵隐寺", "data-alt-host": "v1" });
+  const day = mk("day-items", { "data-day": "2" }, [mk("visit-block", { "data-id": "v1" }), chip, mk("visit-block", { "data-id": "v2" })]);
+  drop({ item: chip, to: day }, box, { days: [] });
+  if (calls.length !== 1) { fail("备选拖入门: 两件之间落点应发 1 次插入请求，实得 " + calls.length); return; }
+  const c0 = calls[0];
+  if (c0.path !== "/api/v1/plan/sid1/items/v1/insert-alt") fail("备选拖入门: 请求路径不对: " + c0.path);
+  if (!c0.body || c0.body.name !== "灵隐寺" || c0.body.day !== 2 || c0.body.after_item_id !== "v1")
+    fail("备选拖入门: 载荷不对: " + JSON.stringify(c0.body));
+  if (!chip._removed) fail("备选拖入门: 克隆 chip 没从时间轴撤走");
+
+  /* ② 落在日首：after_item_id 为 null */
+  calls = [];
+  const chip2 = mk("alt-swap-box", { "data-alt-name": "豫园", "data-alt-host": "v9" });
+  drop({ item: chip2, to: mk("day-items", { "data-day": "1" }, [chip2, mk("visit-block", { "data-id": "v1" })]) }, box, { days: [] });
+  if (calls.length !== 1 || !calls[0].body || calls[0].body.after_item_id !== null)
+    fail("备选拖入门: 日首落点应 after_item_id=null，实得 " + JSON.stringify(calls[0] && calls[0].body));
+
+  /* ③ 跨天拖整卡（.visit-block 跨列表）不触发插入 */
+  calls = [];
+  drop({ item: mk("visit-block", { "data-id": "v3" }), to: mk("day-items", { "data-day": "3" }, []) }, box, { days: [] });
+  if (calls.length) fail("备选拖入门: 跨天拖整卡不应发插入请求");
+
+  ok("备选拖入门 chip 落点→after_item_id、日首 null、整卡拖不误触");
+}
+
+
 /* ---------- 入口：直接运行才执行；被 require 时只导出分词器供 harness 复用 ---------- */
 function main() {
   gateA();
   gateB();
   gateC();
   gateD();
+  gateE();
   if (failed) { console.error("\n" + failed + " 项未过——见上方 FAIL"); process.exit(1); }
   console.log("\nH5 静态守门全部通过");
 }

@@ -200,7 +200,7 @@
       "infra.no_match": "No such place in the library — try another keyword",
       "infra.duplicate_in_plan": "Already in this trip (same site or the same substitute group)",
       "infra.city_mismatch": "That alternative belongs to another city — drop it on a day in that city",
-      "infra.no_slot": "That day is full — even evicting lower-priority stops makes no room (pinned / must-visit / meal / stay cards stay)",
+      "infra.no_slot": "That day is full — even evicting lower-priority stops makes no room (pinned / must-visit / curated / meal / stay cards stay)",
       "infra.poi_store_unavailable": "POI library is unavailable right now — try again shortly",
       "infra.err.apiBase": "「API base」 accepts only http:// or https:// — using this site instead",
       "infra.amap_timeout": "Amap timed out — try again shortly",

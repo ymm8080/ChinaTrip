@@ -868,36 +868,63 @@ def test_message_edit_wording_does_not_restart_session():
 
 
 def test_start_brief_overrides_prefilled_form_route():
-    """「重新规划」把上次参数回填进表单后，自由输入那句才是新设置。"""
+    """「重新规划」把上次参数回填进表单后，自由输入那句才是新设置：
+    文字与表单不一致先出 confirm_route，用户选文字（route_source=brief）
+    后按简报路线生成（2026-11-14 用户拍板「冲突必须确认」）。"""
     agent = PlanningAgent(StubAdapter([V0_JSON]))
-    resp = start(
-        client_for(agent),
+    client = client_for(agent)
+    body = start(
+        client,
         {
             "cities": ["上海", "杭州"],
             "days": 3,
             "preferences": "博物馆",
             "brief": "从北京出发，去成都玩2天",
         },
-    )
-    assert resp.status_code == 200
-    body = resp.json()
+    ).json()
+    assert body["state"] == "confirm_route"
+    assert body["text_route"]["cities"] == ["北京", "成都"]
+    assert body["text_route"]["days"] == 2
+    body = start(
+        client,
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "博物馆",
+            "brief": "从北京出发，去成都玩2天",
+            "route_source": "brief",
+        },
+    ).json()
     assert body["plan"]["cities"] == ["北京", "成都"]
     assert len(body["plan"]["days"]) == 2
 
 
 def test_start_brief_single_city_keeps_form_origin():
+    """简报只报目的地：confirm 后选文字，出发城沿用表单（北京→成都）。"""
     agent = PlanningAgent(StubAdapter([V0_JSON]))
-    resp = start(
-        client_for(agent),
+    client = client_for(agent)
+    body = start(
+        client,
         {
             "cities": ["北京", "上海"],
             "days": 2,
             "preferences": "博物馆",
             "brief": "成都2天",
         },
-    )
-    assert resp.status_code == 200
-    assert resp.json()["plan"]["cities"] == ["北京", "成都"]
+    ).json()
+    assert body["state"] == "confirm_route"
+    assert body["text_route"]["cities"] == ["北京", "成都"]
+    body = start(
+        client,
+        {
+            "cities": ["北京", "上海"],
+            "days": 2,
+            "preferences": "博物馆",
+            "brief": "成都2天",
+            "route_source": "brief",
+        },
+    ).json()
+    assert body["plan"]["cities"] == ["北京", "成都"]
 
 
 def test_from_itinerary_session_lang_follows_x_lang_header():
@@ -2604,7 +2631,7 @@ def test_route_conflict_user_picks_form():
         {
             "cities": ["上海", "西安"],
             "days": 3,
-            "preferences": "",
+            "preferences": "喜欢走路",
             "brief": "西安 2 天",
             "route_source": "form",
         },
@@ -2646,7 +2673,7 @@ def test_no_route_conflict_when_text_matches_form():
         {
             "cities": ["上海", "杭州"],
             "days": 3,
-            "preferences": "",
+            "preferences": "喜欢走路",
             "brief": "上海到杭州玩3天",
         },
     )

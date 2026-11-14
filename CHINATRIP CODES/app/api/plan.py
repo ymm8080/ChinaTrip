@@ -576,24 +576,30 @@ async def start_plan(
     # 用户在确认卡上选了边：brief=按文字路线（表单参数作废，路线全从文字解析）；
     # form=按表单参数（文字只当偏好文本，不再当简报改写路线）。
     if request.route_source == "brief":
-        start_cities: list[str] = []
-        start_days = 0
-        start_brief: str | None = request.brief
+        # 按文字路线：表单参数作废，但出发城上下文仍传给 start——简报只报
+        # 目的地时出发城沿用表单（2026-11-13「成都 3 天」口径）；分城天数
+        # 作废（city_days=None），文字天数才能生效。
+        start_cities = request.cities
+        start_days = request.days or 0
+        start_brief = request.brief
+        start_city_days = None
     elif request.route_source == "form":
         start_cities = request.cities
         start_days = request.days or 0
         start_brief = None
+        start_city_days = request.city_days
     else:
         start_cities = request.cities or []
         start_days = request.days or 0
         start_brief = request.brief
+        start_city_days = request.city_days
     try:
         session = await agent.start(
             device_id=x_device_id,
             cities=start_cities,
             days=start_days,
             preferences=request.preferences or "",
-            city_days=request.city_days,
+            city_days=start_city_days,
             start_date=request.start_date,
             intercity_mode=request.intercity_mode,
             lang=request.lang,

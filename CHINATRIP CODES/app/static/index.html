@@ -285,7 +285,8 @@
   #intakeModal .lead{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5}
   #intakeModal .fld{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--muted);flex-wrap:wrap}
   #intakeModal .fld input[type=date],#intakeModal .fld input[type=time],#intakeModal .fld input[type=text]{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:13px;font-family:inherit;min-width:0}
-  #intakeModal .fld input[type=text]{flex:1}
+  #intakeModal .fld .intake-left{display:flex;gap:6px;align-items:center}
+  #intakeModal .fld input[type=text]{flex:1;margin-left:auto;min-width:120px}
   #intakeModal .fld.row{gap:14px}
   #intakeModal .fld.row label{display:flex;align-items:center;gap:4px}
   #intakeModal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
@@ -406,13 +407,17 @@
         <h4 data-i18n="plan.intake.title">🧭 行前信息</h4>
         <div class="lead" data-i18n="plan.intake.lead">选开始/结束日期；有航班/火车就填班次号（可选）。开始时间默认 8:30、结束默认 21:30，没填班次号的那侧按全天游玩规划。</div>
         <label class="fld"><span data-i18n="plan.intake.start">开始</span>
-          <input type="date" id="intakeArrDate">
-          <input type="time" id="intakeArrTime" title="当天到达时刻" data-i18n-title="plan.intake.arrTime">
+          <span class="intake-left">
+            <input type="date" id="intakeArrDate">
+            <input type="time" id="intakeArrTime" title="当天到达时刻" data-i18n-title="plan.intake.arrTime">
+          </span>
           <input type="text" id="intakeArrNo" maxlength="8" spellcheck="false" placeholder="航班 / 火车号（可选）" data-i18n-ph="plan.intake.noPh">
         </label>
         <label class="fld"><span data-i18n="plan.intake.end">结束</span>
-          <input type="date" id="intakeDepDate">
-          <input type="time" id="intakeDepTime" title="离开（起飞/发车）时刻" data-i18n-title="plan.intake.depTime">
+          <span class="intake-left">
+            <input type="date" id="intakeDepDate">
+            <input type="time" id="intakeDepTime" title="离开（起飞/发车）时刻" data-i18n-title="plan.intake.depTime">
+          </span>
           <input type="text" id="intakeDepNo" maxlength="8" spellcheck="false" placeholder="航班 / 火车号（可选）" data-i18n-ph="plan.intake.noPh">
         </label>
         <div class="lead" data-i18n="plan.intake.hint">开始行时刻=当天到达时刻、结束行时刻=离开（起飞/发车）时刻；默认 8:30 / 21:30，改过就按它落位。填了班次号则按班次真实时刻（查不到再用你给的时刻）；之后还能在行程卡上点 🔢 班次改。</div>
@@ -945,7 +950,7 @@ const PLAN_EDIT_DETAIL_ZH = {
   no_match: "库里没有这个点，换个关键字试试",
   duplicate_in_plan: "行程里已有这一站（同名或同体验替代组）",
   city_mismatch: "这个备选属于另一座城市，只能拖进它所在城市的那几天",
-  no_slot: "当天排不下这个点（钉住/必去/餐宿卡都不让位）",
+  no_slot: "当天排不下这个点（钉住/必去/精选/餐宿卡都不让位）",
   poi_store_unavailable: "POI 库暂时不可用，稍后再试",
 };
 // 路途行程改乘/班次号端点（2026-11-04）的 422 detail 码 → 人类语言
@@ -1550,32 +1555,35 @@ async function wxSync() {
 // 规划页拖拽（2026-10-24）：同天重排 / 跨天移动。drop 后算新锚点
 // （目标天 + 前一个 visit 的 id），位置没变就不请求；后端按用户顺序重排
 // 时链，成功换新卡（自动重挂 Sortable），失败按原 plan 还原。
+// chip 落进时间轴（2026-11-14）：先按落点算「前一个参访件」= after_item_id，
+// 再发插入请求；宿主卡只用来定位城市/详情（不换点）。成败都整卡重绘。
+// 抽成顶层函数（不藏进 initPlanDrag 闭包）——静态 harness 可直接喂一个假
+// onAdd 事件把这段跑起来，不必真的用手拖。
+function planAltDrop(evt, box, plan) {
+  const chip = evt.item, to = evt.to;
+  if (!chip || !chip.classList || !to) return;
+  if (!chip.classList.contains("alt-swap-box")) return; // 跨天拖整卡不走这里
+  const newDay = parseInt(to.getAttribute("data-day"), 10);
+  const name = chip.getAttribute("data-alt-name");
+  const host = chip.getAttribute("data-alt-host");
+  if (!newDay || !name || !host) { chip.remove(); return; }
+  const kids = Array.prototype.slice.call(to.children);
+  let afterId = null;
+  for (let k = kids.indexOf(chip) - 1; k >= 0; k--) {
+    if (kids[k].classList && kids[k].classList.contains("visit-block")) { afterId = kids[k].getAttribute("data-id"); break; }
+  }
+  chip.remove(); // 克隆件先撤：别在时间轴里留半截假条目
+  sitePopHideNow();
+  toast(I18N.tf("card.alt.inserting", "插入中…（正在重排当天时链）"));
+  api("/api/v1/plan/" + (planSession && planSession.session_id) + "/items/" + encodeURIComponent(host) + "/insert-alt",
+      { name: name, day: newDay, after_item_id: afterId }, "POST")
+    .then(body => box.replaceWith(planCard(body.plan)))
+    .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+}
+
 function initPlanDrag(box, plan) {
   if (!planSession || !planSession.session_id || !window.Sortable) return;
   const sid = planSession.session_id;
-  // chip 落进时间轴（2026-11-14）：先按落点算「前一个参访件」= after_item_id，
-  // 再发插入请求；宿主卡只用来定位城市/详情（不换点）。成败都整卡重绘。
-  const dropAlt = (evt) => {
-    const chip = evt.item, to = evt.to;
-    if (!chip || !chip.classList || !to) return;
-    if (!chip.classList.contains("alt-swap-box")) return;
-    const newDay = parseInt(to.getAttribute("data-day"), 10);
-    const name = chip.getAttribute("data-alt-name");
-    const host = chip.getAttribute("data-alt-host");
-    if (!newDay || !name || !host) { chip.remove(); return; }
-    const kids = Array.prototype.slice.call(to.children);
-    let afterId = null;
-    for (let k = kids.indexOf(chip) - 1; k >= 0; k--) {
-      if (kids[k].classList && kids[k].classList.contains("visit-block")) { afterId = kids[k].getAttribute("data-id"); break; }
-    }
-    chip.remove(); // 克隆件先撤：别在时间轴里留半截假条目
-    sitePopHideNow();
-    toast(I18N.tf("card.alt.inserting", "插入中…（正在重排当天时链）"));
-    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(host) + "/insert-alt",
-        { name: name, day: newDay, after_item_id: afterId }, "POST")
-      .then(body => box.replaceWith(planCard(body.plan)))
-      .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
-  };
   box.querySelectorAll(":scope .day-items").forEach(cont => {
     new Sortable(cont, {
       // 落点收两组：本列表（跨天移动）+ 备选 chip（pull:clone 拖入）
@@ -1587,7 +1595,7 @@ function initPlanDrag(box, plan) {
       animation: 150,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
-      onAdd: (evt) => dropAlt(evt),
+      onAdd: (evt) => planAltDrop(evt, box, plan),
       onEnd: (evt) => {
         const id = evt.item.getAttribute("data-id");
         const to = evt.to;

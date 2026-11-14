@@ -29148,17 +29148,59 @@ class PlanningAgent:
                 continue
             if it.pinned or it.soft_pin:
                 continue
+            # 餐卡/酒店卡是槽位不是景点（2026-11-13 拍板「一个位置一份数据」）：
+            # 清时刻只清可动景点——真餐厅保留原卡窗当固定锚，兜底围着它排，
+            # 否则餐厅被清成无时刻 → 出站餐卡自愈另起一张占位卡，和刚拖进来
+            # 的卡时段重叠（2026-11-14 真机实录 12:04-14:04 vs 午饭 12:30-13:30）。
+            if (it.category or "") in ("food", "hotel"):
+                continue
             it.start_time = None
             it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
-        _fallback_sequence_times(candidate, keep_list_order=True)
+        # 餐卡=槽位（2026-11-13 拍板「一个位置一份数据」）：兜底顺序是「先排
+        # 参访、后落软钉午餐」——拖入的卡一旦压住 [11:30,12:30] 午卡窗，flex
+        # 午餐会被整张撤下（`_fallback_sequence_times` 窗满即删）。插入这一
+        # 回合把当天带时刻的真餐卡临时当固定锚（pinned+非软钉），兜底围着它
+        # 排；排完立刻还原标记（绝不把用户餐卡变成铁律 19 钉死件）。
+        meal_flags = [
+            (it, it.pinned, it.soft_pin)
+            for it in day.items
+            if isinstance(it, VisitItem)
+            and (it.category or "") == "food"
+            and it.start_time is not None
+        ]
+
+        def _resequence() -> list[VisitItem] | None:
+            for it, _p, _s in meal_flags:
+                it.pinned, it.soft_pin = True, False
+            try:
+                _fallback_sequence_times(candidate, keep_list_order=True)
+                d = next(dd for dd in candidate.days if dd.day == new_day)
+                return _evict_until_clean(candidate, d, fresh, location)
+            finally:
+                for it, p, s in meal_flags:
+                    it.pinned, it.soft_pin = p, s
+
         from app.services.agent.wish_fast import _evict_until_clean
 
-        day = next(d for d in candidate.days if d.day == new_day)
-        removed = _evict_until_clean(candidate, day, fresh, location)
+        removed = _resequence()
         if removed is None:
             # 当天让位到顶仍排不下：整单不落（会话里仍是原行程），前端提示
             raise ValueError("no_slot")
+        # 餐卡对账（与 chat 编辑路径同款 2026-11-13/14 收口）：真餐卡按卡窗
+        # 复位、占位卡让开——卡是唯一槽位，被拖入卡压住的卡由本闸要回来。
+        meal_notes = _retime_real_food_cards(candidate)
+        meal_notes += _bind_real_food_to_cards(candidate)
+        _retime_meal_placeholders(candidate, ensure_cards=False)
+        for note in meal_notes:
+            if f"第{new_day}天" in note and note not in notes:
+                notes.append(note)
+        if fresh.start_time is None:
+            # 餐卡收口把新卡挤出时链 → 再让一次位，仍排不下就整单不落
+            more = _resequence()
+            if more is None:
+                raise ValueError("no_slot")
+            removed = removed + more
         reanchor_hotel_cards(candidate.days, keep_ids={fresh.item_id})
         report = validate_plan(candidate, poi_hours=[])
         pinned = validate_pinned(plan, candidate)
@@ -29186,9 +29228,9 @@ class PlanningAgent:
             names = "、".join(i.name for i in removed)
             note = L(
                 f"第{new_day}天插入 {new_name} 时撤下 {names}"
-                "（低优先级/离得远，已放进可替换候选，可再拖回）",
-                f"Inserting {new_name} on day {new_day} removed {names} "
-                "(lower priority / farther out; kept as draggable candidates)",
+                "——低优先级/离得远，已放进可替换候选，可再拖回",
+                f"Inserting {new_name} on day {new_day} removed {names}"
+                " — lower priority / farther out; kept as draggable candidates",
             )
             notes.append(note)
             candidate.assumptions.append(note)
