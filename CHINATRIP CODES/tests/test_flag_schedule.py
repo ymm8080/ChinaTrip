@@ -396,3 +396,25 @@ def test_apply_flag_schedule_skip_cases(monkeypatch):
     )
     _apply_flag_schedule(p)
     assert p.days[0].items[0].fixed_sessions is None
+
+
+def test_stamp_overwrites_pinned_form_time_directly():
+    """2026-11-14 三修：附加信息窗默认起止时间（pinned+start_time=8:30）
+    被旗时直接改写——兜底/行程中心编辑路径把已有时刻当固定锚，只打
+    fixed_sessions 不改写的话 8:30 会固化成当日窗（UAT 实况：
+    fixed=07:10 已打标、start 仍 8:30）。"""
+    p = ItineraryPlan(
+        itinerary_id="it-flag-overwrite",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[
+            _visit("tam", "天安门广场", pinned=True, start_time=_t(8, 30),
+                   fixed_sessions=None),
+        ])],
+        start_date="2026-11-25",  # 升旗 7:10
+    )
+    _apply_flag_schedule(p)
+    item = p.days[0].items[0]
+    assert item.fixed_sessions == [_t(7, 10)]
+    assert item.start_time == _t(7, 10)  # 直接改写，不等 solver
+    assert item.end_time == _t(8, 10)  # 默认 60 分钟
+    assert item.pinned is True  # 钉位保留（卡不挪日）

@@ -5705,6 +5705,17 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     plan.assumptions.append(note)
                 continue
             item.fixed_sessions = [rise]
+            # 最高优先级拍板（2026-11-14 三修）：附加信息窗的默认起止时间
+            # 已落卡（pinned+start_time）时直接改写时刻——兜底/行程中心
+            # 编辑路径把「已有时刻」当固定锚不再重排（旗时锚只作用于
+            # untimed 件与 solver），不改写则 8:30 被固化成当日窗。
+            if item.start_time is not None and item.start_time != rise:
+                dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+                item.start_time = rise
+                item.end_time = time(
+                    (rise.hour * 60 + rise.minute + dur) // 60 % 24,
+                    (rise.minute + dur) % 60,
+                )
 
 
 #: 北京城市别名（item.city 口径不一：北京/北京市/Beijing/Beijing, China）。
