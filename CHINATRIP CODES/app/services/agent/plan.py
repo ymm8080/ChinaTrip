@@ -8372,9 +8372,7 @@ def heal_arrival_light(plan: ItineraryPlan) -> None:
         n0.start_time = _time_of(_st)
         n0.end_time = _time_of(_st + dur0)
         d0.items.append(n0)
-        d0.items.sort(
-            key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
-        )
+        d0.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
 def _endpoint_day_light_sweep(
