@@ -12151,10 +12151,9 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
                     and isinstance(i, VisitItem)
                     and (_is_show_item(i) or _is_show_banquet_item(i))
                 ]:
-                    if (
-                        str(gday.base_city or "").strip().removesuffix("市") == hcity
-                        and not _day_show_taken(gday)
-                    ):
+                    if str(gday.base_city or "").strip().removesuffix(
+                        "市"
+                    ) == hcity and not _day_show_taken(gday):
                         host_day.items.remove(rival)
                         rival.day = gday.day
                         rival.start_time = None
