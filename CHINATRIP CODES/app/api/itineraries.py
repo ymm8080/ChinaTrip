@@ -534,6 +534,11 @@ async def mutate_itinerary(
 ) -> dict:
     device = _require_device(x_device_id)
     record = _owned_record(store, itinerary_id, device, account)
+    # 旗时最高优先级（2026-11-14 UAT 五修）：行程中心行编辑/保存即按数据库
+    # 旗时纠正天安门开始时刻——旧行程里的 8:30 不得随 mutates 留存。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(record.plan)
     try:
         record, report, summary = service.mutate(
             record, request.diffs, poi_hours=request.poi_hours
@@ -802,14 +807,15 @@ async def delete_itinerary(
     「行程」页 per-trip 查看/删除 buttons). Unknown / foreign-owner ids
     answer 404 like every other route (no enumeration).
 
-    2026-11-14 用户拍板（覆盖 2026-10-31「退回心愿单」口径）：心愿单随
-    行程走——删行程时名下心愿行一并软删留档（DELETION FLAG + 时间/人），
-    看板不再出现；booked 是真实订单，只摘行程绑定、订单栏保留。"""
+    2026-11-14 二拍（覆盖同日「一并删除」口径，回到 2026-10-31 的释放
+    语义并补全）：删行程时名下心愿行不删——TRIP ID 清空退回心愿单
+    （排期项回心愿单栏、草稿转正、booked 只摘绑定），行保留在心愿单里
+    等下一次规划再认领。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    # 2026-11-14 用户拍板（ISSUE1）：删行程 = 名下心愿单一并删除——
-    # 不再把已排期项退回心愿单（booked 真实订单只解绑、不删）。
-    trip_items.purge_itinerary(itinerary_id, actor=device)
+    # 2026-11-14 二拍：删行程 = 名下心愿行 TRIP ID 清空退回心愿单——
+    # 排期项回心愿单栏、草稿转正，booked 只解绑（不删不重建）。
+    trip_items.release_itinerary(itinerary_id, actor=device)
     if not store.delete(itinerary_id):
         # 写穿失败只告警（假库/未缓存误判）；外键已由 store 删前清理
         logger.warning("itinerary delete reported miss id=%s", itinerary_id)

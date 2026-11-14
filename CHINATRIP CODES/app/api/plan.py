@@ -315,6 +315,11 @@ async def save_plan(
     if session.plan is None:
         raise HTTPException(status_code=400, detail="nothing_to_save")
     plan = session.plan
+    # 旗时最高优先级（2026-11-14 UAT 五修）：保存即按数据库旗时纠正
+    # 天安门开始时刻（含 fixed 在册被行编辑/默认值改回的），不随旧值入库。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(plan)
     if request.start_date and request.start_date != plan.start_date:
         plan = plan.model_copy(update={"start_date": request.start_date})
         session.plan = plan
@@ -495,6 +500,11 @@ async def start_plan_from_itinerary(
     # 再实测腿（救生重排过的相邻对才有真腿）。
     await agent.heal_must_coverage(session)
     await agent.refresh_legs(session)
+    # 旗时最高优先级（2026-11-14 UAT：载入旧行程天安门仍是 8:30）：
+    # 开档即按数据库旗时纠正（含 fixed 已在册被行编辑改回的时刻）。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(plan)
     store.save(session)
     # 2026-11-13（陕历博仍躺心愿单案）：开档即对账看板——心愿单里已落排的
     # 翻已排期，已排期里本行程没有的回心愿单。
@@ -573,9 +583,15 @@ async def start_plan(
         resolved = _resolve_brief_cities(
             [_normalize_city(c) for c in parsed[0]], request.cities
         )
-        if {_normalize_city(c) for c in resolved} != {
-            _normalize_city(c) for c in request.cities
-        } or (parsed[1] is not None and request.days and parsed[1] != request.days):
+        if (
+            {_normalize_city(c) for c in resolved}
+            != {_normalize_city(c) for c in request.cities}
+            or (
+                parsed[1] is not None
+                and request.days
+                and parsed[1] != request.days
+            )
+        ):
             diffs.append(
                 {
                     "what": "route",
@@ -608,7 +624,9 @@ async def start_plan(
         diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
     if card_span and request.days and card_span != request.days:
         # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）
-        diffs.append({"what": "card_days", "intake": card_span, "form": request.days})
+        diffs.append(
+            {"what": "card_days", "intake": card_span, "form": request.days}
+        )
     if diffs and request.route_source is None:
         return {
             "state": "confirm_route",

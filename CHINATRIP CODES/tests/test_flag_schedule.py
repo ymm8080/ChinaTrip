@@ -429,3 +429,22 @@ def test_stamp_overwrites_pinned_form_time_directly():
     assert item.start_time == _t(7, 10)  # 直接改写，不等 solver
     assert item.end_time == _t(8, 10)  # 默认 60 分钟
     assert item.pinned is True  # 钉位保留（卡不挪日）
+
+
+def test_enforce_existing_fixed_rewrites_drifted_start():
+    """行程中心载入旧行程实况（h5_state 2465）：fixed=07:08 在册、start
+    被行编辑/默认值改回 08:30、会话 start_date 缺失——打标函数对已打标
+    件同样强制纠正（按已存旗时，不需日期）。"""
+    item = _visit(
+        "tam", "天安门广场", pinned=True, start_time=_t(8, 30),
+        fixed_sessions=[_t(7, 8)],
+    )
+    p = ItineraryPlan(
+        itinerary_id="it-enforce",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[item])],
+        start_date=None,
+    )
+    _apply_flag_schedule(p)
+    assert item.start_time == _t(7, 8)
+    assert item.end_time == _t(8, 8)  # 默认 60 分钟（_visit 默认 dur）

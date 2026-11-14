@@ -5833,10 +5833,6 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
                 # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
                 flag_min = min(
-                    item.fixed_sessions[0].hour * 60
-                    + item.fixed_sessions[0].minute
-                    for _t0 in [0]
-                ) if False else min(
                     t.hour * 60 + t.minute for t in item.fixed_sessions
                 )
                 if item.start_time is not None and (
@@ -10639,12 +10635,19 @@ def _cross_river_penalty(a: GeoPoint, b: GeoPoint, city: str | None) -> float:
 def _travel_matrix(
     plan: ItineraryPlan,
     leg_cache: dict[tuple[str, str], tuple[float, int]] | None = None,
+    access: dict[tuple[str, str], dict] | None = None,
 ) -> dict[tuple[str, str], int]:
     """8.2.2 solver 动线矩阵（打车模型，用户拍板 2026-10-31：车程+半小时
     叫车）：距离经 _taxi_leg_min 折算分钟，并套用校验同源的最小相邻间隔；
     高德/百度实测腿只取**距离**（实测步行分钟不再沿用——日程口径统一
     打车）。矩阵键与 solver._travel_cost 查找序一致：双方有 poi_id 用 poi_id
     对，否则 item_id 对；跨天键无害（solver 按天取用）。"""
+
+    if access:
+        # 班次接驳档案上身（打车默认 + 接驳腿）：矩阵/校验/兜底同一条腿口径。
+        from app.services.poi_access import attach_access
+
+        attach_access(plan, access)
 
     def _coord(pt: GeoPoint) -> str:
         return f"{pt.lon:.6f},{pt.lat:.6f}"
@@ -10671,7 +10674,9 @@ def _travel_matrix(
                     a.location, b.location, getattr(a, "city", None)
                 )
             needed = travel_gap_needed(a, b)
-            minutes = max(needed if needed is not None else 1, _taxi_leg_min(km))
+            # 接驳链可能比打车慢（专线 2h15 vs 打车 81 分钟）——needed 已是
+            # 链口径时必须采信，不能再被打车值盖回去。
+            minutes = needed if needed is not None else max(1, _taxi_leg_min(km))
             key = (
                 (a.poi_id, b.poi_id)
                 if a.poi_id and b.poi_id
@@ -13008,6 +13013,21 @@ def _enforce_site_day_fit(
 _MUST_DAY_USABLE_MIN = (1290 - 510) - 150 - 60
 # 跨片区同天的双程通勤罚时（≈75 分钟单程，远郊大点/跨城片区口径）。
 _MUST_CROSS_AREA_PENALTY_MIN = 150
+# 餐段保护带（2026-11-15 用户「PUT LUNCH ON 12 AND PUT 天坛 AFTER LUNCH」）：
+# 短于 3 小时的必去不许横跨午饭 12:00–13:00 / 晚饭 19:00–20:30，宁可排到
+# 餐后——否则餐卡只能缩着嵌进景点里显示成「双订」。3 小时以上的大点仍可
+# 整段包含餐卡（游览途中用餐）。
+_MUST_MEAL_BLOCK_BANDS: tuple[tuple[int, int], ...] = (
+    (12 * 60, 13 * 60),
+    (19 * 60, 20 * 60 + 30),
+)
+_MUST_MEAL_BLOCK_MIN_DUR = 180
+
+
+class _MealBandAnchor:
+    """餐段哨兵：无坐标 → _leg_windows 用原窗（不加打车缓冲）。"""
+
+    location = None
 
 
 def _must_visit_families(plan: ItineraryPlan) -> list[list[VisitItem]]:
@@ -13225,6 +13245,15 @@ def _must_yield_ok(v: VisitItem, keep: VisitItem) -> bool:
     return not getattr(v, "pinned", False)
 
 
+def _with_meal_bands(
+    fixed: list[tuple[int, int, object]], dur: int
+) -> list[tuple[int, int, object]]:
+    """给落位探针补餐段保护带（短于 3 小时的件不许横跨饭点）。"""
+    if dur >= _MUST_MEAL_BLOCK_MIN_DUR:
+        return fixed
+    return [*fixed, *((s, e, _MealBandAnchor()) for s, e in _MUST_MEAL_BLOCK_BANDS)]
+
+
 def _must_chain_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
     """同天必去的先后（用户「再排相邻的景点」）：远郊大点先出门（长途走
     早段少堵），其余从当天起点（酒店卡坐标）就近串联。"""
@@ -13336,6 +13365,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             mv = _must_chain_order(day, remaining)[0]
             dur = mv.duration_minutes or DEFAULT_VISIT_MINUTES
             fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            fixed = _with_meal_bands(fixed, dur)
             start = _probe_visit_slot(
                 mv, fixed, xfer, hours_by_poi, day_end, floor=DAY_START_MINUTES
             )
@@ -13356,6 +13386,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                     day.items.remove(w)
                     removed.append(w)
                     fixed2, _t2, _f2, xfer2 = _day_fixed_windows(day)
+                    fixed2 = _with_meal_bands(fixed2, dur)
                     start = _probe_visit_slot(
                         mv,
                         fixed2,
@@ -27124,6 +27155,26 @@ class PlanningAgent:
         `_evict_shows_for_windowed_visits`，CP 重解走本 agent 的 _solve。"""
         return _evict_shows_for_windowed_visits(plan, protect, solve=self._solve)
 
+    def _access_profiles(self, plan: ItineraryPlan) -> dict[tuple[str, str], dict]:
+        """本次规划的城市集 → 到达方式档案（进程内按城市集缓存一次）。
+
+        只影响有班次接驳的卡（景区专线/市郊铁路/轮渡）；无档案/无库时返回空，
+        规划行为与纯打车模型完全一致。
+        """
+        store = getattr(self, "_poi_details", None)
+        if store is None or not hasattr(store, "access_profiles"):
+            return {}
+        cities = tuple(
+            sorted({str(i.city) for d in plan.days for i in d.items if isinstance(i, VisitItem)})
+        )
+        cache = getattr(self, "_access_cache", None)
+        if cache is None:
+            cache = {}
+            self._access_cache = cache
+        if cities not in cache:
+            cache[cities] = store.access_profiles(list(cities))
+        return cache[cities]
+
     def _finalize_untimed_visits(
         self,
         plan: ItineraryPlan,
@@ -28016,7 +28067,11 @@ class PlanningAgent:
             # 与生产主路 _solve 同口径传距离矩阵（2026-11-02 远郊王牌→城心簇锚
             # 事故）：LNS 重排不传矩阵时插入式求解退化为背靠背，物理不可
             # 行时刻照发。
-            matrix = _travel_matrix(p, getattr(self, "_leg_cache", None))
+            matrix = _travel_matrix(
+                p,
+                getattr(self, "_leg_cache", None),
+                self._access_profiles(p),
+            )
             for d in p.days:
                 if d.day not in day_nos:
                     continue
@@ -28783,7 +28838,9 @@ class PlanningAgent:
             return self._solver(
                 plan,
                 poi_hours=_plan_poi_hours(plan),
-                travel_minutes=_travel_matrix(plan, self._leg_cache),
+                travel_minutes=_travel_matrix(
+                    plan, self._leg_cache, self._access_profiles(plan)
+                ),
                 time_budget_seconds=self._time_budget_seconds,
                 meal_flex=meal_flex,
                 scheduler=scheduler,
