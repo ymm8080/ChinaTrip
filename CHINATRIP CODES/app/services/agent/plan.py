@@ -5459,6 +5459,43 @@ def _hours_from_visit(item: VisitItem) -> PoiHours | None:
     )
 
 
+def _flag_pin_reachable(day: DayPlan, item: VisitItem, rise: time) -> bool:
+    """升旗钉时刻的物理可行性闸（2026-11-14「Day1 天安门排在航班之前」案）。
+
+    升旗是官方固定钟点，钉死时刻等于声明「那一刻人在天安门」——转场日
+    却不成立：上海→北京 09:00 起飞、12:00 落地，天安门被钉 07:00-08:30，
+    卡片排成「07:00 天安门 → 09:00 上海起飞」，比飞机还早到北京。
+    判据沿用铁律 4 + 落地地板（与 _after_transfer_buffer 同口径）：
+    到达侧开始不得早于落地 +150（火车/飞机；其它腿 +90）；离城侧散场不得
+    晚于发车 −90。不成立的当天撤钉，交排程按落地地板与城市侧闸正常排
+    （宁可落到下午/改天，也不出错序卡）。
+    """
+    rise_min = _minutes_of(rise)
+    dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+    city = _norm_city_key(item.city)
+    if not city:
+        return True
+    for t in day.items:
+        if not isinstance(t, TransferItem) or t.start_time is None:
+            continue
+        ts = _minutes_of(t.start_time)
+        te = _item_end_minutes(t)
+        te = ts if te is None else te
+        pad = (
+            ARRIVAL_STOP_FLOOR_MINUTES
+            if t.mode in ("train", "flight")
+            else INTERCITY_BUFFER_MINUTES
+        )
+        if _norm_city_key(t.to_city) == city and te + pad > rise_min:
+            return False  # 落地就在升旗之后：人还在出发城
+        if (
+            _norm_city_key(t.from_city) == city
+            and ts - INTERCITY_BUFFER_MINUTES < rise_min + dur
+        ):
+            return False  # 当天离城且早于散场（含赶车缓冲）
+    return True
+
+
 def _apply_flag_schedule(plan: ItineraryPlan) -> None:
     """天安门升旗时刻打标（flag_schedule 设计 2026-11-14，三段式第③步）。
 
@@ -5490,8 +5527,24 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
             if not date_iso:
                 continue
             rise = get_flag_time(date_iso, "morning")
-            if rise is not None:
-                item.fixed_sessions = [rise]
+            if rise is None:
+                continue
+            if not _flag_pin_reachable(day, item, rise):
+                # 转场日赶不上升旗（2026-11-14 上海→北京 Day1 07:00 天安门 →
+                # 09:00 起飞案）：不锁时刻，按正常时段排并披露原因。
+                note = L(
+                    f"第{day.day}天转场时间与升旗（{rise.strftime('%H:%M')}）冲突，"
+                    f"「{item.name}」未锁升旗时刻，按正常时段安排（想看升旗可把它"
+                    "挪到在京的整天）",
+                    f"Day {day.day}'s transfer conflicts with the "
+                    f"{rise.strftime('%H:%M')} flag-raising; \"{item.name}\" is not "
+                    "locked to it and is scheduled at a normal hour (move it to a "
+                    "full day if you want to catch the ceremony)",
+                )
+                if note not in plan.assumptions:
+                    plan.assumptions.append(note)
+                continue
+            item.fixed_sessions = [rise]
 
 
 #: 北京城市别名（item.city 口径不一：北京/北京市/Beijing/Beijing, China）。
@@ -12100,6 +12153,324 @@ def _probe_visit_slot(
     ):
         return t
     return None
+
+
+# --- 景点三轴校核（2026-11-14 用户拍板「sites should check city, date, weather」）
+
+_WEEKDAY_ZH = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+_WEEKDAY_EN = (
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+)
+_CLOSED_HINTS = ("闭馆", "关闭", "不开放", "休息", "停业")
+
+
+def _weekday_hits(text: str) -> list[tuple[int, int, int]]:
+    """星期字样的出现位置（zh/en 统一成 0=周一…6=周日，按位置升序）。"""
+    hits: list[tuple[int, int, int]] = []
+    low = text.lower()
+    for idx, zh in enumerate(_WEEKDAY_ZH):
+        start = 0
+        while True:
+            pos = text.find(zh, start)
+            if pos < 0:
+                break
+            hits.append((pos, pos + len(zh), idx))
+            start = pos + len(zh)
+    for idx, en in enumerate(_WEEKDAY_EN):
+        start = 0
+        while True:
+            pos = low.find(en, start)
+            if pos < 0:
+                break
+            hits.append((pos, pos + len(en), idx))
+            start = pos + len(en)
+    hits.sort()
+    return hits
+
+
+def _closed_weekdays(opening_hours: str | None) -> frozenset[int]:
+    """营业时间文案里的「每周固定闭馆日」（0=周一…6=周日）。
+
+    2026-11-14 用户拍板「sites should check … date」：故宫冬季作息写着
+    「周一关闭(法定节假日除外)…周二至周日08:30-16:30」，旧排程只按
+    HH:MM 窗口判，周一照排。两种写法都认：
+
+      ① 单日闭馆：「周一闭馆」「周一关闭(法定节假日除外)」「closed on Mondays」
+      ② 开放区间：「周二至周日 08:30-17:00」「Tue-Sun 09:00-17:00」——
+         区间外即闭馆（「周一至周日」= 全周开，不产生闭馆日）
+
+    没有任何星期字样（「每天 09:00-22:00」「今天…」）返回空集：不猜。
+    法定节假日例外不建模——宁可不排也不排进闭馆日。
+    """
+    text = str(opening_hours or "")
+    if not text.strip():
+        return frozenset()
+    low = text.lower().replace("–", "-").replace("—", "-").replace("－", "-")
+    closed: set[int] = set()
+    for pos, end, idx in _weekday_hits(text):
+        tail = text[end : end + 10]
+        tail_low = low[end : end + 10]
+        # 中文「周一闭馆」闭馆词在后；英文「Closed on Mondays」在前——
+        # 只在英文侧看前文，防「周一闭馆，周二至周日…」把周二误判闭馆。
+        head_low = low[max(0, pos - 12) : pos]
+        if (
+            any(w in tail for w in _CLOSED_HINTS)
+            or "closed" in tail_low
+            or "closed" in head_low
+        ):
+            closed.add(idx)
+    zr = re.compile(
+        r"(周一|周二|周三|周四|周五|周六|周日)\s*[-~至到]\s*"
+        r"(周一|周二|周三|周四|周五|周六|周日)"
+    )
+    opens: set[int] = set()
+    found_range = False
+    for m in zr.finditer(text):
+        a, b = _WEEKDAY_ZH.index(m.group(1)), _WEEKDAY_ZH.index(m.group(2))
+        found_range = True
+        if a <= b:
+            opens.update(range(a, b + 1))
+        else:
+            opens.update(range(a, 7)) | set(range(0, b + 1))
+    er = re.compile(
+        r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*"
+        r"(?:-|to|through)\s*"
+        r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    )
+    for m in er.finditer(low):
+        a, b = _WEEKDAY_EN.index(m.group(1)), _WEEKDAY_EN.index(m.group(2))
+        found_range = True
+        if a <= b:
+            opens.update(range(a, b + 1))
+        else:
+            opens.update(range(a, 7)) | set(range(0, b + 1))
+    if found_range:
+        closed |= set(range(7)) - opens
+    return frozenset(closed)
+
+
+def _day_hosts_city(day: DayPlan, city: str) -> bool:
+    """当天是否落在这座城（基准城 / 转场两端 / 已在册条目城市）。"""
+    if not city:
+        return False
+    if _norm_city_key(day.base_city) == city:
+        return True
+    for it in day.items:
+        if isinstance(it, TransferItem):
+            if city in (_norm_city_key(it.to_city), _norm_city_key(it.from_city)):
+                return True
+        elif isinstance(it, VisitItem) and _norm_city_key(it.city) == city:
+            return True
+    return False
+
+
+def _site_fit_problem(
+    day: DayPlan,
+    item: VisitItem,
+    *,
+    hours: PoiHours | None,
+    date_iso: str,
+    rainy: bool,
+) -> str | None:
+    """单张景点卡的三轴校核，返回原因码（合规 None）。
+
+    ① city —— 当天有城际转场时，到达城条目须 ≥ 落地 +150（火车/飞机；
+       其它腿 +90），出发城条目须 ≤ 发车 −90：2026-11-14「Day1 07:00
+       天安门 → 09:00 上海起飞」这张卡就是绕过了这条；
+    ② date —— 当天绝对日期的固定闭馆日（周一闭馆）与营业窗整段包含
+       （季节作息已由 _hours_from_visit 取交集，这里只判装不装得下）；
+    ③ weather —— 雨日（rain_days 命中当天）露天点（rain_ok=no）不进。
+    """
+    if item.start_time is None:
+        return None
+    dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+    s = _minutes_of(item.start_time)
+    e = _item_end_minutes(item)
+    e = s + dur if e is None else e
+    city = _norm_city_key(item.city)
+    for t in day.items:
+        if not isinstance(t, TransferItem) or t.start_time is None:
+            continue
+        ts = _minutes_of(t.start_time)
+        te = _item_end_minutes(t)
+        te = ts if te is None else te
+        pad = (
+            ARRIVAL_STOP_FLOOR_MINUTES
+            if t.mode in ("train", "flight")
+            else INTERCITY_BUFFER_MINUTES
+        )
+        if _norm_city_key(t.to_city) == city and s < te + pad:
+            return "city_after_arrival"
+        if _norm_city_key(t.from_city) == city and e > ts - INTERCITY_BUFFER_MINUTES:
+            return "city_before_departure"
+    if date_iso:
+        try:
+            wd = _date.fromisoformat(date_iso).weekday()
+        except ValueError:
+            wd = None
+        if wd is not None and wd in _closed_weekdays(item.opening_hours):
+            return "closed_weekday"
+    if hours is not None and not _fits_hours_window(hours, s, dur):
+        return "outside_hours"
+    if rainy and str(getattr(item, "rain_ok", "") or "").lower() == "no":
+        return "rain_outdoor"
+    return None
+
+
+def _drop_duplicate_sites(plan: ItineraryPlan) -> list[str]:
+    """同名同城重复卡合并（2026-11-14 实录：到达日补位与欠载天回填各加
+    一张「颐和园」，同一天两张不同时段卡）。保留先出现的那张，其余摘卡
+    留痕——补位/回填两条通道互不知情，只能在终装对账。"""
+    notes: list[str] = []
+    seen: dict[str, int] = {}
+    for day in plan.days:
+        for item in [i for i in day.items if isinstance(i, VisitItem)]:
+            if str(getattr(item, "category", "") or "") in ("food", "hotel"):
+                continue
+            key = f"{_norm_city_key(item.city)}|{str(item.name or '').strip()}"
+            if not key.strip("|"):
+                continue
+            if key in seen:
+                day.items = [i for i in day.items if i is not item]
+                notes.append(
+                    L(
+                        f"「{item.name}」重复卡已合并（保留第{seen[key]}天那张）",
+                        f'Duplicate "{item.name}" merged into the day '
+                        f"{seen[key]} card",
+                    )
+                )
+                continue
+            seen[key] = day.day
+    return notes
+
+
+def _enforce_site_day_fit(
+    plan: ItineraryPlan,
+    *,
+    rain_days: dict[str, set[int]] | None = None,
+) -> list[str]:
+    """终装三轴对账（2026-11-14 用户拍板「sites should check city, date,
+    weather」）：任何上游相位（选点/均衡/回填/救生/重排/清扫）漏网的卡，
+    交付前按城市/日期/天气统一校验并修：
+
+      ① 先试同日重排（营业窗内、转场窗外的合法时段）；
+      ② 不行再试同城其它天（探针自带营业窗 + 城市侧闸 + 入场闸）；
+      ③ 仍无处安放就撤时刻留卡（H5 显示未排）并披露原因——绝不让
+         「北京景点排在起飞之前」「闭馆日照排入馆」这种卡交付。
+
+    只动观光件；餐/酒店/占位卡不在本闸（各有时刻语义）。必去件同样
+    参与：挪日不删卡，protect 里的名字照旧保留。
+    """
+    notes = _drop_duplicate_sites(plan)
+    rain_map = {_norm_city_key(c): set(v or ()) for c, v in (rain_days or {}).items()}
+    day_end = 21 * 60 + 30
+    hours_by_item = {
+        id(it): _hours_from_visit(it)
+        for d0 in plan.days
+        for it in d0.items
+        if isinstance(it, VisitItem)
+    }
+    reason_text = {
+        "city_after_arrival": L("落地时间赶不上", "arrives after the slot"),
+        "city_before_departure": L("离城发车赶不上", "departs before the slot ends"),
+        "closed_weekday": L("当天闭馆", "closed that weekday"),
+        "outside_hours": L("超出营业时间", "outside opening hours"),
+        "rain_outdoor": L("雨日露天", "outdoor on a rainy day"),
+    }
+    for day in plan.days:
+        for item in [i for i in day.items if isinstance(i, VisitItem)]:
+            if str(getattr(item, "category", "") or "") in ("food", "hotel"):
+                continue
+            if item.start_time is None:
+                continue
+            city = _norm_city_key(item.city)
+            problem = _site_fit_problem(
+                day,
+                item,
+                hours=hours_by_item.get(id(item)),
+                date_iso=_leg_date_iso(plan.start_date, day.day),
+                rainy=day.day in rain_map.get(city, set()),
+            )
+            if problem is None:
+                continue
+            dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+            # 摘钉再试宿：违规的就是「钉住的时刻」本身，不能让它把闸豁免掉
+            item.pinned = False
+            item.fixed_sessions = None
+            day.items = [i for i in day.items if i is not item]
+            placed = False
+            for target in [day, *[d for d in plan.days if d is not day]]:
+                if target is not day and not _day_hosts_city(target, city):
+                    continue
+                if problem == "rain_outdoor" and target.day in rain_map.get(
+                    city, set()
+                ):
+                    continue
+                t_iso = _leg_date_iso(plan.start_date, target.day)
+                if t_iso:
+                    try:
+                        if _date.fromisoformat(t_iso).weekday() in _closed_weekdays(
+                            item.opening_hours
+                        ):
+                            continue
+                    except ValueError:
+                        pass
+                fixed, _tight, _flex, xfer = _day_fixed_windows(target)
+                t = _probe_visit_slot(
+                    item,
+                    fixed,
+                    xfer,
+                    {item.poi_id: hours_by_item.get(id(item))},
+                    day_end,
+                )
+                if t is None:
+                    continue
+                item.day = target.day
+                item.start_time = _time_of(t)
+                item.end_time = _time_of(t + dur)
+                target.items.append(item)
+                target.items.sort(
+                    key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+                )
+                placed = True
+                if target is not day:
+                    notes.append(
+                        L(
+                            f"「{item.name}」{reason_text.get(problem, problem)}，"
+                            f"已改排第{target.day}天 {item.start_time:%H:%M}",
+                            f'"{item.name}" moved to day {target.day} '
+                            f"{item.start_time:%H:%M}: "
+                            f"{reason_text.get(problem, problem)}",
+                        )
+                    )
+                break
+            if placed:
+                continue
+            # 无处安放：撤时刻留卡（H5 显未排）+ 披露，绝不带着错误时刻交付
+            item.start_time = None
+            item.end_time = None
+            item.pinned = False
+            day.items.append(item)
+            day.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+            notes.append(
+                L(
+                    f"「{item.name}」{reason_text.get(problem, problem)}，"
+                    "本次未排时刻（可指定其他天）",
+                    f'"{item.name}" not scheduled: '
+                    f"{reason_text.get(problem, problem)} "
+                    "(name another day to add it back)",
+                )
+            )
+    return notes
+
 
 
 def _must_visit_room_sweep(plan: ItineraryPlan, cap_relax: bool = False) -> list[str]:
@@ -24896,6 +25267,13 @@ class PlanningAgent:
         # 清扫可能把端点日唯一一张卡判重磅/偏远挪走（挪完就空了）——
         # 再补一次（幂等：有内容的端点日直接跳过）。
         await self._fill_endpoint_day_nearby(plan)
+        # 三轴校核（2026-11-14 用户拍板「sites should check city, date,
+        # weather」）：任何上游相位漏网的卡在这里统一对账并修——先同日
+        # 重排、再同城换天、都不行撤时刻留痕；跑在餐卡重排之前，餐位
+        # 跟着修正后的时链走。
+        plan.assumptions.extend(
+            _enforce_site_day_fit(plan, rain_days=rain_days)
+        )
         plan.assumptions.extend(_retime_real_food_cards(plan))
         # 卡=槽位、餐厅=数据：餐厅必须填进午/茶/晚卡，不许自带一套自由时刻
         plan.assumptions.extend(_bind_real_food_to_cards(plan))
