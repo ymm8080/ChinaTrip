@@ -133,7 +133,9 @@ class VisitItem(BaseModel):
     # 打标的精确开始时刻（仅天安门广场；plan._apply_flag_schedule 落标）。
     # solver 两路（CP/最廉插入）都把它当完全钉死项：start 恰落该点，且可
     # 破 DAY_START 日始下界（升旗 4:45-7:36 早于 8:30 日始）。展示层不读
-    # 此字段；用户自钉（pinned 且非 soft_pin）时铁律 19 优先，锚跳过。
+    # 此字段。优先级（2026-11-14 用户拍板「数据库旗时最高优先级」）：旗时
+    # 压过附加信息窗的默认起止时间输入（pinned+start_time 落卡）——钉位
+    # 保留（卡不挪日），时刻以旗时为准。
     fixed_sessions: list[time] | None = None
     # 路径 A 预填（show_booking_design §2，2026-10-26）：库行 booking_url
     # （演出=携程 sight SKU 页）并出——H5 票务直达直开成品页，跳过搜索；

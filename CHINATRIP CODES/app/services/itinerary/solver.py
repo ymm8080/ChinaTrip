@@ -397,7 +397,7 @@ def _is_morning_site(item: VisitItem) -> bool:
     自由点（2026-11-03 拍板组合：钉后大点仍进上午而非被罚到 16:30 后）。"""
     if item.pinned and item.start_time is not None:
         return False
-    if item.fixed_sessions and not (item.pinned and not item.soft_pin):
+    if item.fixed_sessions:
         # 升旗锚（flag_schedule 2026-11-14）：升旗是当日客观时刻不是引擎
         # 节奏选择，与用户钉同一豁免面——旗仪式后的晨点（如故宫）不再被
         # 「上午一个点」罚到午后，同钉后大点仍进上午的拍板组合。
@@ -893,9 +893,11 @@ def _visit_spec(
     # 完全钉死项，早于 DAY_START 日始（4:45-7:36 vs 8:30）也合法：镜像
     # 「晚二场可破日终」（上方 show_sessions 只抬上界）的口径，这里收紧
     # 成点域 [s, s]，CP/最廉插入两路都按完全钉死处理（插入路 spec.lo==
-    # spec.hi 直进 occupied 锚块）。用户自钉（pinned 且非 soft_pin）铁律
-    # 19 优先，锚跳过——自己钉的时间照常生效。
-    if item.fixed_sessions and not (item.pinned and not item.soft_pin):
+    # spec.hi 直进 occupied 锚块）。优先级（2026-11-14 用户拍板「数据库
+    # 旗时最高优先级」）：旗时压过附加信息窗的默认起止时间输入（该输入
+    # 以 pinned+start_time 落卡）——本块放在钉点分支之后，直接覆盖
+    # lo/hi；钉位本身保留（卡不挪日不换序）。
+    if item.fixed_sessions:
         flag_min = min(_to_minutes(t) for t in item.fixed_sessions)
         if flag_min > DAY_END_MINUTES - dur:
             return None  # 防御：坏数据不至于反过来拖垮整日排程

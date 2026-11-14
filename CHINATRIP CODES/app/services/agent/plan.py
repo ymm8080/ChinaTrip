@@ -5661,9 +5661,14 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
     VisitItem.fixed_sessions——solver 两路把它当完全钉死项（start 恰落
     升旗仪式，可破 8:30 日始）。
 
+    优先级（2026-11-14 用户拍板「数据库旗时最高优先级」）：旗时覆盖附加
+    信息窗的默认起止时间输入（该输入以 pinned+start_time 落到卡上）——
+    天安门卡即使 pinned 也照常打标，solver/兜底锚点再压过钉点时刻；钉位
+    本身保留（卡不挪日不换序）。物理可行性闸 _flag_pin_reachable 照旧
+    （转场赶不上的天不锁旗时、披露原因）。
+
     契约：start_date 缺失/非法、查表落空（None）一律跳过（按默认日始
-    排，不报错）；用户自钉（pinned 且非 soft_pin）铁律 19 优先，不覆盖
-    用户时刻——solver 侧同样跳过，双保险。幂等：重复调用无害。
+    排，不报错）。幂等：重复调用无害。
     """
     from app.services.flag_schedule import get_flag_time  # 懒导入：查询零网络
 
@@ -5671,8 +5676,6 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
         for item in day.items:
             if not isinstance(item, VisitItem) or item.fixed_sessions:
                 continue  # 已打标/非 VisitItem 跳过（幂等）
-            if item.pinned and not item.soft_pin:
-                continue  # 铁律 19：用户手钉时间权威
             name = str(item.name or "")
             if "天安门" not in name and "tiananmen" not in name.lower():
                 continue
@@ -10954,12 +10957,13 @@ def _fallback_sequence_times(
             if (
                 not sessions
                 and visit.fixed_sessions
-                and not (visit.pinned and not visit.soft_pin)
                 and (visit.category or "") not in ("food", "hotel")
             ):
                 # 升旗锚兜底镜像（flag_schedule 2026-11-14）：fixed_sessions
                 # （天安门升旗）走场次点通道——只落旗时点、可破 8:30 日始
-                # （_try_sessions 点窗不受 day_start 游标约束）。与 solver
+                # （_try_sessions 点窗不受 day_start 游标约束）。优先级：
+                # 数据库旗时最高（2026-11-14 拍板）——附加信息窗默认起止
+                # 时间（pinned 落卡）也照样被旗时覆盖。与 solver
                 # _visit_spec 点域锚同一语义：旗时是当日客观时刻，不硬塞。
                 sessions = [_minutes_of(t) for t in visit.fixed_sessions]
             placed_at: int | None = None
@@ -11359,9 +11363,7 @@ def _fallback_sequence_times(
                 t < 12 * 60
                 and not leaving_capped
                 and (visit.category or "") not in ("food", "hotel")
-                and not (
-                    visit.fixed_sessions and not (visit.pinned and not visit.soft_pin)
-                )
+                and not visit.fixed_sessions
             ):
                 cursor = max(cursor, 12 * 60)
             if t >= AFTERNOON_START_MINUTES and _is_big_site(visit):

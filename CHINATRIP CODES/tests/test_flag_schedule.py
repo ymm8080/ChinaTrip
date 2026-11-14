@@ -286,8 +286,10 @@ def test_solver_anchor_both_paths():
         assert _minutes(by["故宫博物院"]) == 8 * 60 + 30
 
 
-def test_solver_user_pin_wins_over_flag_anchor():
-    """铁律 19：用户自钉有时刻时 fixed_sessions 锚跳过，钉点生效。"""
+def test_flag_anchor_beats_pinned_form_time():
+    """2026-11-14 拍板「数据库旗时最高优先级」：附加信息窗的默认起止
+    时间（以 pinned+start_time 落卡，如默认 9:00）被旗时覆盖——天安门
+    卡 pinned 也锚升旗时刻；钉位本身保留（卡不挪日）。"""
     day = DayPlan(
         day=1,
         base_city="北京",
@@ -302,7 +304,7 @@ def test_solver_user_pin_wins_over_flag_anchor():
         ],
     )
     out = insertion_schedule_day(day, poi_hours=[], travel_minutes=None)
-    assert _minutes(out.items[0]) == 9 * 60
+    assert _minutes(out.items[0]) == 6 * 60 + 58
 
 
 def test_fallback_anchor_via_session_channel():
@@ -382,12 +384,12 @@ def test_apply_flag_schedule_skip_cases(monkeypatch):
     p = _plan("2026-11-14", [_visit("jnt", "毛主席纪念堂")])
     _apply_flag_schedule(p)
     assert p.days[0].items[0].fixed_sessions is None
-    # 用户自钉 → 不打标（铁律 19）
+    # 用户自钉（附加信息窗默认时间）→ 仍打标（2026-11-14 最高优先级拍板）
     p = _plan(
         "2026-11-14", [_visit("tam", "天安门广场", pinned=True, start_time=_t(9, 0))]
     )
     _apply_flag_schedule(p)
-    assert p.days[0].items[0].fixed_sessions is None
+    assert p.days[0].items[0].fixed_sessions == [_t(6, 58)]
     # 非北京 → 不打标
     p = _plan(
         "2026-11-14", [_visit("tam", "天安门广场", city="上海")], cities=("上海",)
