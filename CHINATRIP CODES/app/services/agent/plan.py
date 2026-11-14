@@ -265,7 +265,15 @@ _EP_LIGHT_KM = 8.0
 # entertainment/attraction/theme_park），只能按名字语素认。到达日只收
 # ≤120 分钟的轻件——180 分钟级汤泉全天块仍按重磅出端点日。
 _RELAX_NAME_MARKS = (
-    "按摩", "足疗", "足道", "水疗", "沐足", "汤泉", "汗蒸", "SPA", "spa"
+    "按摩",
+    "足疗",
+    "足道",
+    "水疗",
+    "沐足",
+    "汤泉",
+    "汗蒸",
+    "SPA",
+    "spa",
 )
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
@@ -714,6 +722,8 @@ def _arrival_sight_visit(v: "VisitItem") -> bool:
         return False
     dur = getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES
     return 0 < dur <= _EP_SIGHT_MAX_MIN
+
+
 def _arrival_heavy_visit(v: "VisitItem") -> bool:
     """到达日重磅卡（终装清扫①出到达日判据，_arrival_simple_visit 的
     补集收窄版）：tier≤3 王牌、主题街区演出块、>80min 大块头（非简卡
@@ -8591,8 +8601,12 @@ def _recruit_arrival_light(
             tier=getattr(u, "tier", None),
         )
         tgt = _host_day_for_visit(
-            [day], vcity, v.duration_minutes or DEFAULT_VISIT_MINUTES,
-            visit=v, all_days=plan.days, _rescue=True,
+            [day],
+            vcity,
+            v.duration_minutes or DEFAULT_VISIT_MINUTES,
+            visit=v,
+            all_days=plan.days,
+            _rescue=True,
         )
         if tgt is None:
             continue
@@ -11885,6 +11899,8 @@ def _is_show_item(item: VisitItem) -> bool:
     """演出条目（与 solver._is_show 同口径：best_visit_time=show 或
     entertainment 类）。"""
     return item.best_visit_time == "show" or item.category == "entertainment"
+
+
 def _is_relax_item(item: "VisitItem") -> bool:
     """放松类件（2026-11-14「或者按摩卡」拍板）：名字带按摩/足疗/水疗/
     汤泉/汗蒸/SPA 语素且非餐宿——库里这类散在 other/entertainment/

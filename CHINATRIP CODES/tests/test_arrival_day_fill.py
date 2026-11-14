@@ -236,8 +236,14 @@ def test_pick_skips_long_and_excluded_and_no_anchor():
 def test_pick_keeps_center_4a_sights():
     """市中心 4A（tier≤3、≤120 分钟）不再被一票否决，按评价可入选。"""
     premium = _cand("西安鼓楼", lat=0.01, category="attraction", tier=3, rating=4.9)
-    museum = _cand("陕西唐三彩艺术博物馆", lat=0.03, category="museum", tier=10,
-                   rating=4.6, dur=120)
+    museum = _cand(
+        "陕西唐三彩艺术博物馆",
+        lat=0.03,
+        category="museum",
+        tier=10,
+        rating=4.6,
+        dur=120,
+    )
     hit = _pick_arrival_nearby([premium, museum], (0.0, 0.0), exclude=set())
     assert hit is not None and hit["name"] == "西安鼓楼"
 
