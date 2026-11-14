@@ -310,3 +310,41 @@ def test_fit_never_strips_flag_anchored_item():
     assert item.start_time == time(7, 8)
     assert item.fixed_sessions == [time(7, 8)]
     assert not any("天安门广场" in n for n in notes)
+
+
+def test_flag_anchor_beats_intake_default_arrival_placeholder():
+    """UAT 根因回归（2026-11-14 五修）：行前信息窗默认到达 08:30（无班次号
+    → 出发地→北京 06:30-08:30 占位腿）不得把 07:10 升旗判成转场冲突。
+    旧行为：占位腿当真实到达 → 撤钉 → 天安门回落 8:30（用户实况）。
+    新行为：占位腿让位旗时（整腿移除+披露），天安门锚 07:10。"""
+    from datetime import time as _t
+
+    placeholder = TransferItem(
+        item_id="t13",
+        day=1,
+        seq=1,
+        from_city="出发地",
+        to_city="北京",
+        mode="train",
+        start_time=_t(6, 30),
+        end_time=_t(8, 30),
+        duration_minutes=120,
+        train_no=None,
+        flight_no=None,
+    )
+    item = _visit("tam", "天安门广场", start=_t(8, 30), dur=60)
+    day = DayPlan(day=1, base_city="北京", items=[placeholder, item])
+    plan = ItineraryPlan(
+        itinerary_id="it-intake-default",
+        cities=["北京"],
+        days=[day],
+        start_date="2026-11-25",  # 升旗 07:10
+    )
+
+    _apply_flag_schedule(plan)
+    assert item.fixed_sessions == [_t(7, 10)]
+    assert item.start_time == _t(7, 10)
+    # 占位腿已移除
+    assert all(not isinstance(i, TransferItem) for i in day.items)
+    # 披露
+    assert any("升旗" in str(a) and "占位" in str(a) for a in plan.assumptions)

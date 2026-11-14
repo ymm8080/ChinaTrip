@@ -1478,6 +1478,31 @@ def _leg_date_iso(start_date: str | None, day: int) -> str:
 _HM_RE = re.compile(r"^\s*(\d{1,2})[:：.](\d{2})\s*$")
 
 
+_TRAIN_FIND_RE = re.compile(r"(?<![A-Za-z0-9])[GDCZTKYLS]\d{1,4}(?!\d)")
+_FLIGHT_FIND_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z0-9]{2}\d{1,4}[A-Z]?(?![A-Za-z0-9])")
+
+
+def _extract_transport_numbers(text: str) -> list[str]:
+    """自由文本里出现的航班号/车次号（保序去重，最多 4 个）——差异确认
+    「文字班次 vs 行前卡班次」用（2026-11-14 用户拍板）。"""
+    text = str(text or "").upper()
+    hits: list[str] = []
+    for match in _TRAIN_FIND_RE.finditer(text):
+        hits.append((match.start(), match.group(0)))
+    for match in _FLIGHT_FIND_RE.finditer(text):
+        if _TRAIN_FIND_RE.fullmatch(match.group(0)):
+            continue  # 车次别再当航班号
+        hits.append((match.start(), match.group(0)))
+    hits.sort()
+    ordered: list[str] = []
+    for _, number in hits:
+        if number not in ordered:
+            ordered.append(number)
+        if len(ordered) >= 4:
+            break
+    return ordered
+
+
 def _parse_hm(value: str | None) -> time | None:
     """「14:30」「9:05」「14：30」「14.30」→ time；空/非法 None。
 
@@ -4845,111 +4870,162 @@ def _first_free_gap(
     return None
 
 
+def _reconcile_meal_site_overlaps(plan: ItineraryPlan, day: DayPlan) -> None:
+    """占位餐卡 vs 已排观光件的重叠对账（2026-11-14 用户「天坛，午饭 all
+    set on 12pm」根修——「PUT LUNCH ON 12 AND PUT 天坛 AFTER LUNCH」）：
+
+    餐卡=槽位、可动景点让位（11-13「卡不让位」拍板同口径）：压住卡窗的
+    可动观光件顺延到餐后（_make_room_for_meal）；压住卡窗的是钉住件/演出/
+    交通→卡自己按槽位口径另找位（含嵌套/缩时/改点）；整段落在宿主观光窗
+    内=「游览途中用餐」合法嵌套，不动。真餐厅卡由 _bind_real_food_to_cards
+    同口径终装；对账失败（无处可放）的卡移除出行——_ensure_meal_cards
+    对账随即按缺卡披露兜底，绝不静默。
+    """
+    for item in list(day.items):
+        if not (is_lunch_placeholder(item) or is_dinner_placeholder(item)):
+            continue
+        if item.start_time is None:
+            continue
+        card = "lunch" if is_lunch_placeholder(item) else "dinner"
+        t = _minutes_of(item.start_time)
+        dur = int(
+            item.duration_minutes
+            or (LUNCH_DURATION_MINUTES if card == "lunch" else MEAL_DURATION_MINUTES)
+        )
+        # 嵌套宿主内=合法（逛大点顺便吃），不动
+        if _meal_nesting_host(day, item, t, dur) is not None:
+            continue
+        overlappers: list[VisitItem] = []
+        for other in day.items:
+            if other is item or not isinstance(other, VisitItem):
+                continue
+            if (other.category or "") in ("food", "hotel"):
+                continue
+            if other.start_time is None:
+                continue
+            os_ = _minutes_of(other.start_time)
+            oe = _item_end_minutes(other)
+            if oe is None:
+                oe = os_ + int(other.duration_minutes or 60)
+            if os_ < t + dur and oe > t:
+                overlappers.append(other)
+        if not overlappers:
+            continue
+        fixed, _tight2, _flex2, _xfer2 = _day_fixed_windows(day)
+        extra_blocked = [
+            (s, e)
+            for s, e, src in fixed
+            if src is None
+            or (isinstance(src, VisitItem) and (src.category or "") == "hotel")
+        ]
+        if all(_meal_chain_yieldable(o) for o in overlappers) and _make_room_for_meal(
+            day, item, t, dur
+        ):
+            # 可动景点已顺延到餐后（「午饭 12 点、天坛餐后」）
+            continue
+        slot = _place_meal_card(day, item, card, extra_blockers=extra_blocked)
+        if slot is None and card == "dinner":
+            slot = _place_late_dinner_card(day, item, extra_blockers=extra_blocked)
+        if slot is None:
+            # 无处可放：移出交 _ensure_meal_cards 缺卡披露兜底（不静默丢）
+            day.items.remove(item)
+            continue
+        s2, d2 = slot
+        item.start_time = _time_of(s2)
+        item.end_time = _time_of(s2 + d2)
+        item.duration_minutes = d2
+    day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+
+
+def _place_late_dinner_card(
+    day: DayPlan,
+    item: VisitItem,
+    *,
+    extra_blockers: list[tuple[int, int]] | None = None,
+) -> tuple[int, int] | None:
+    """迟场晚卡择位（2026-11-13 七拍「至少晚餐不应该豁免」）：20:30–21:00
+    起席、45/30 分钟，与 _place_meal_card 同口径（嵌套/阻挡/额外窗）。"""
+    for dur in (45, 30):
+        for t in range(20 * 60 + 30, 21 * 60 + 1, 5):
+            if t + dur > MEAL_CARD_DAY_END:
+                continue
+            host = _meal_nesting_host(day, item, t, dur)
+            blockers = _real_food_blockers(day, item, skip=host)
+            if extra_blockers:
+                blockers = [*blockers, *extra_blockers]
+            if any(t < fe and t + dur > fs for fs, fe in blockers):
+                continue
+            if host is not None:
+                _reanchor_meal_to_host(item, host)
+            return t, dur
+    return None
+
+
 def _ensure_meal_cards(plan: ItineraryPlan) -> None:
     """每天都得有午餐卡和晚餐卡，缺卡补「自由安排」占位（转场日不再豁免）。
 
     2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND DINNER CARDS」，同日
-    七拍再补「转场日不能整日豁免，至少晚餐不应该豁免」：补餐通道只在
-    「有景点 / ≥2 景点 / 窗内没空」时跑，交付常见整天一张餐卡都没有
-    （上海案第 2 天 3 个景点零餐卡、第 3 天只有午卡、第 4 天只有晚卡），
-    而旧口径对任何带城际腿的日子整日 continue，落地日只剩航班+酒店，
-    连晚饭都没有（2026-11-13 西安到达日实录）。
+    七拍再补「转场日不能整日豁免，至少晚餐不应该豁免」。
 
-    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥60/45/30 分钟真空
-    （默认 1 小时，2026-11-14 拍板）；晚卡缺→[16:30,20:30] 找 ≥90/60/45
-    分钟（默认 1.5 小时），仍无隙再走迟场
-    [20:30,21:30] 找 ≥45/30 分钟（迟落地/白天被交通占满也吃得上饭）。
-    落地/发车缓冲取 _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地
-    +150），绝不把餐卡塞进飞机/火车在途时段；餐窗整段在途才不补，并
-    披露点名该天缺卡——绝不静默缺卡。
+    2026-11-14 拍板「THE CORRECT SOLUTION IS TO PUT LUNCH ON 12 AND PUT
+    天坛 AFTER LUNCH」+「we should not easily hv lunch excluded unless it
+    is in mid of big site block」重构：餐卡恒走卡窗探针+择位
+    （_place_meal_card）——正点整时长优先（午饭 12:00 一小时、晚饭 19:00
+    一个半小时）；可动景点让位顺延到餐后（卡是槽位，旧「固定窗之间找真空」
+    口径会把可动景点与餐卡压成重叠/缩没，已废）；钉住/演出/交通挡住才
+    缩时/改点；整段落在大点窗内=「游览途中用餐」嵌套落位（不轻易丢卡）；
+    转场 ±90/落地 +150 与酒店卡窗作额外阻挡，绝不把餐卡塞进在途/缓冲/
+    夜宿时段。无处可放且无宿主才缺卡，并披露点名该天——绝不静默缺卡。
     """
     notes: list[str] = []
     missing: dict[str, list[int]] = {"lunch": [], "dinner": []}
     for day in plan.days:
-        # 在路上按「窗」判，不再整日豁免（2026-11-13 六拍：用户点名到达日
-        # 「没有安排」，要附近的 CITYWALK/演出/餐厅——旧口径整日跳过，落地
-        # 日只剩航班+酒店，晚饭卡也没有）。fixed 窗已含落地 +150 / 发车 −90
-        # 缓冲，落不进餐窗的日子仍自然跳过（gap is None → 披露缺卡）。
+        # 重叠对账先行（2026-11-14 拍板）：既有餐卡被可动景点压住→景点顺
+        # 延到餐后；被钉住件压住→卡按槽位口径另找位；嵌套宿主内不动。
+        _reconcile_meal_site_overlaps(plan, day)
+        # 转场窗（src=None 的 fixed 窗：±90 / 落地 +150）与酒店卡窗作额外
+        # 阻挡（口径同旧 gap 通道的 fixed 窗，但可动景点不再算「空地」）。
         fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
-        blocked = [(s, e) for s, e, _src in fixed]
+        extra_blocked = [
+            (s, e)
+            for s, e, src in fixed
+            if src is None
+            or (isinstance(src, VisitItem) and (src.category or "") == "hotel")
+        ]
         for card in ("lunch", "dinner"):
             if _day_meal_card_present(day, card):
                 continue
-            if card == "lunch":
-                starts = [
-                    12 * 60,
-                    11 * 60 + 30,
-                    12 * 60 + 30,
-                    *range(MEAL_CARD_LUNCH_EARLIEST, MEAL_CARD_LUNCH_LATEST + 1, 5),
-                ]
-                gap = _first_free_gap(blocked, starts, (LUNCH_DURATION_MINUTES, 45, 30))
-            else:
-                # 自动晚饭卡默认 19:00 开席（2026-11-14 用户拍板）：17:30 会把
-                # 晚饭卡钉在下午正中间，15:40 之后排不下任何 2 小时景点；晚段
-                # 被占再依次前移 18:30/18:00/17:30/17:00，最后才全窗兜底。
-                starts = [
-                    19 * 60,
-                    18 * 60 + 30,
-                    18 * 60,
-                    17 * 60 + 30,
-                    17 * 60,
-                    *range(MEAL_CARD_DINNER_EARLIEST, MEAL_CARD_DINNER_LATEST + 1, 5),
-                ]
-                gap = _first_free_gap(blocked, starts, (MEAL_DURATION_MINUTES, 60, 45))
-                if gap is None:
-                    # 2026-11-13 七拍「至少晚餐不应该豁免」：迟落地（如
-                    # 20:00 到）或白天被景点/交通占满时，晚卡也不能没有
-                    # ——20:30–21:30 起席、45/30 分钟即可。
-                    late = list(range(20 * 60 + 30, 21 * 60 + 1, 5))
-                    gap = _first_free_gap(blocked, late, (45, 30))
-            if gap is None:
-                # 2026-11-13 用户「卡不让位」：卡是槽位，景点让位。窗内
-                # 没有现成空档时先按卡窗造占位，再顺延可动观光件；固定
-                # 件（演出/交通/钉住）挡住才披露缺卡。
-                probe_at = 12 * 60 if card == "lunch" else 19 * 60
-                probe_dur = (
-                    LUNCH_DURATION_MINUTES if card == "lunch" else MEAL_DURATION_MINUTES
+            probe_at = 12 * 60 if card == "lunch" else 19 * 60
+            probe_dur = (
+                LUNCH_DURATION_MINUTES if card == "lunch" else MEAL_DURATION_MINUTES
+            )
+            probe = (
+                _lunch_placeholder(
+                    day,
+                    (_time_of(probe_at), _time_of(probe_at + probe_dur)),
+                    city=_meal_city_at(day, _time_of(probe_at)),
                 )
-                probe = (
-                    _lunch_placeholder(
-                        day,
-                        (_time_of(probe_at), _time_of(probe_at + probe_dur)),
-                        city=_meal_city_at(day, _time_of(probe_at)),
-                    )
-                    if card == "lunch"
-                    else _dinner_placeholder(
-                        day,
-                        (_time_of(probe_at), _time_of(probe_at + probe_dur)),
-                        city=_meal_city_at(day, _time_of(probe_at)),
-                    )
+                if card == "lunch"
+                else _dinner_placeholder(
+                    day,
+                    (_time_of(probe_at), _time_of(probe_at + probe_dur)),
+                    city=_meal_city_at(day, _time_of(probe_at)),
                 )
-                day.items.append(probe)
-                slot = _place_meal_card(day, probe, card)
-                if slot is None:
-                    day.items.remove(probe)
-                    missing[card].append(day.day)
-                    continue
-                p_start, p_dur = slot
-                probe.start_time = _time_of(p_start)
-                probe.end_time = _time_of(p_start + p_dur)
-                probe.duration_minutes = p_dur
-                day.items.sort(
-                    key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
-                )
+            )
+            day.items.append(probe)
+            slot = _place_meal_card(day, probe, card, extra_blockers=extra_blocked)
+            if slot is None and card == "dinner":
+                # 迟场兜底（2026-11-13 七拍「至少晚餐不应该豁免」）：迟落地
+                # （如 20:00 到）或白天被占满时，20:30–21:00 起席 45/30 分钟。
+                slot = _place_late_dinner_card(day, probe, extra_blockers=extra_blocked)
+            if slot is None:
+                day.items.remove(probe)
+                missing[card].append(day.day)
                 continue
-            start, dur = gap
-            at = _time_of(start)
-            city = _meal_city_at(day, at)
-            if card == "lunch":
-                ph = _lunch_placeholder(
-                    day, (_time_of(start), _time_of(start + dur)), city=city
-                )
-            else:
-                ph = _dinner_placeholder(
-                    day, (_time_of(start), _time_of(start + dur)), city=city
-                )
-            ph.duration_minutes = dur
-            day.items.append(ph)
+            p_start, p_dur = slot
+            probe.start_time = _time_of(p_start)
+            probe.end_time = _time_of(p_start + p_dur)
+            probe.duration_minutes = p_dur
             day.items.sort(
                 key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
             )
@@ -5616,6 +5692,61 @@ def _hours_from_visit(item: VisitItem) -> PoiHours | None:
     )
 
 
+def _placeholder_leg(t) -> bool:
+    """行前信息占位腿判定（2026-11-14 旗时案）。
+
+    行前信息窗的开始/结束时刻默认 08:30/21:30——没填班次号时后端生成
+    「出发地→北京 06:30-08:30」这类占位腿：时刻是默认值不是真实班次，
+    按产品话术「没填班次号的那侧按全天游玩规划」，不得当物理约束。
+    签别=（无 train_no/flight_no）且（from_city=出发地/Origin 或
+    to_city=返程地/Return 占位标签）。真实城市对的无号腿保守仍算约束。
+    """
+    if not isinstance(t, TransferItem):
+        return False
+    if t.train_no or t.flight_no:
+        return False
+    return str(t.from_city or "") in ("出发地", "Origin") or str(
+        t.to_city or ""
+    ) in ("返程地", "Return")
+
+
+def _drop_placeholder_legs_conflicting(
+    day: DayPlan, item: VisitItem, rise: time
+) -> list[tuple[TransferItem, str]]:
+    """与旗仪式窗冲突的行前占位腿移除（2026-11-14 最高优先级拍板）。
+
+    默认到达 08:30 的占位腿曾把 07:10 升旗判成「转场冲突」撤钉（UAT
+    实况）；占位腿时刻来自默认值，让位数据库旗时：冲突的到达腿/离开腿
+    整腿移除并披露，交排程按旗时锚。返回 [(leg, 方向)] 供披露。"""
+    rise_min = _minutes_of(rise)
+    dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+    city = _norm_city_key(item.city)
+    removed: list[tuple[TransferItem, str]] = []
+    keep = []
+    for t in day.items:
+        if _placeholder_leg(t) and t.start_time is not None:
+            ts = _minutes_of(t.start_time)
+            te = _item_end_minutes(t)
+            te = ts if te is None else te
+            pad = (
+                arrival_floor_minutes(t.mode)
+                if t.mode in ("train", "flight")
+                else INTERCITY_BUFFER_MINUTES
+            )
+            is_arrival = _norm_city_key(t.to_city) == city
+            is_departure = _norm_city_key(t.from_city) == city
+            if (is_arrival and te + pad > rise_min) or (
+                is_departure
+                and ts - INTERCITY_BUFFER_MINUTES < rise_min + dur
+            ):
+                removed.append((t, "到达" if is_arrival else "离开"))
+                continue
+        keep.append(t)
+    if removed:
+        day.items = keep
+    return removed
+
+
 def _flag_pin_reachable(day: DayPlan, item: VisitItem, rise: time) -> bool:
     """升旗钉时刻的物理可行性闸（2026-11-14「Day1 天安门排在航班之前」案）。
 
@@ -5635,6 +5766,8 @@ def _flag_pin_reachable(day: DayPlan, item: VisitItem, rise: time) -> bool:
     for t in day.items:
         if not isinstance(t, TransferItem) or t.start_time is None:
             continue
+        if _placeholder_leg(t):
+            continue  # 行前默认占位腿：时刻是默认值，不当物理约束
         ts = _minutes_of(t.start_time)
         te = _item_end_minutes(t)
         te = ts if te is None else te
@@ -5689,6 +5822,24 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
             rise = get_flag_time(date_iso, "morning")
             if rise is None:
                 continue
+            # 行前信息窗默认起止时刻（未填班次号的占位腿，默认 08:30 /
+            # 21:30）让位旗时（2026-11-14 最高优先级拍板）：占位腿时刻是
+            # 默认值不是真实班次，与旗仪式窗冲突时整腿移除并披露——否则
+            # 默认 8:30 到达会把 07:10 升旗判成「转场冲突」撤钉，UAT 实况
+            # 天安门回落到 8:30。
+            dropped = _drop_placeholder_legs_conflicting(day, item, rise)
+            if dropped:
+                sides = "/".join(side for _leg, side in dropped)
+                note = L(
+                    f"第{day.day}天行前信息默认{sides}时刻与升旗"
+                    f"（{rise.strftime('%H:%M')}）冲突，已按升旗时刻安排，"
+                    "占位班次段不再显示",
+                    f"Day {day.day}'s default {sides.lower()} time conflicts "
+                    f"with the {rise.strftime('%H:%M')} flag-raising; the flag "
+                    "time wins and the placeholder leg is hidden",
+                )
+                if note not in plan.assumptions:
+                    plan.assumptions.append(note)
             if not _flag_pin_reachable(day, item, rise):
                 # 转场日赶不上升旗（2026-11-14 上海→北京 Day1 07:00 天安门 →
                 # 09:00 起飞案）：不锁时刻，按正常时段排并披露原因。
@@ -9029,7 +9180,12 @@ def _pick_arrival_nearby(
         if str(c.get("category") or "").lower() in _ARRIVAL_SIGHT_CATS
         or any(m in str(c.get("name") or "") for m in _STREET_NAME_MARKS)
     ]
-    show = [c for c in cands if _cand_is_show(c)]
+    # 演出级同口径（2026-11-14 拍板）：无真场次的演出不补进空到达日。
+    show = [
+        c
+        for c in cands
+        if _cand_is_show(c) and show_session_starts(c.get("opening_hours"))
+    ]
     relax = [
         c
         for c in cands
@@ -11542,7 +11698,34 @@ def _retime_meal_placeholders(
                 if placed is not None:
                     break
             if placed is None:
+                # 不轻易丢卡（2026-11-14 拍板「not easily excluded unless
+                # in mid of big site block」）：整段落在某观光件窗内=
+                # 「游览途中用餐」嵌套保留（锚回填宿主站）；真无处可放
+                # 才丢，并披露该天缺卡（绝不静默）。
+                cur_s = _minutes_of(meal.start_time) if meal.start_time else None
+                cur_d = int(meal.duration_minutes or 60)
+                host = (
+                    _meal_nesting_host(day, meal, cur_s, cur_d)
+                    if cur_s is not None
+                    else None
+                )
+                if host is not None:
+                    _reanchor_meal_to_host(meal, host)
+                    meal_blockers.append((cur_s, cur_s + cur_d))
+                    meal_blockers.sort()
+                    continue
                 day.items.remove(meal)
+                plan.assumptions.append(
+                    L(
+                        f"第{day.day}天行程紧凑："
+                        f"{'午餐' if is_lunch else '晚餐'}建议在游览途中就地解决"
+                        f"（未单独留{'午饭' if is_lunch else '晚饭'}卡时段）",
+                        f"Day {day.day}: packed schedule — have "
+                        f"{'lunch' if is_lunch else 'dinner'} during the site "
+                        f"visits (no separate {'lunch' if is_lunch else 'dinner'} "
+                        "slot held)",
+                    )
+                )
                 logger.warning(
                     "plan: meal placeholder dropped after final moves day %d %s",
                     day.day,
@@ -12030,10 +12213,17 @@ def _reanchor_meal_to_host(item: VisitItem, host: VisitItem) -> None:
 
 
 def _place_meal_card(
-    day: DayPlan, item: VisitItem, card: str
+    day: DayPlan,
+    item: VisitItem,
+    card: str,
+    *,
+    extra_blockers: list[tuple[int, int]] | None = None,
 ) -> tuple[int, int] | None:
     """把餐厅放进指定餐卡槽位。先找不用挪景点的空档；找不到再试让位
-    （只顺延可动观光件）。返回 (开席分钟, 时长)。"""
+    （只顺延可动观光件）。返回 (开席分钟, 时长)。
+
+    extra_blockers=额外阻挡窗（2026-11-14 餐卡择位口径）：转场 ±90/落地
+    +150 缓冲与酒店卡窗——餐卡绝不塞进在途/落地缓冲/夜宿时段。"""
     lo, hi = MEAL_CARD_SLOT_WINDOWS[card]
     default = MEAL_CARD_SLOT_DEFAULT[card]
     starts = list(dict.fromkeys([default, *range(lo, hi + 1, 5)]))
@@ -12062,10 +12252,10 @@ def _place_meal_card(
                 if not _fits_hours_window(hours, t, dur):
                     continue
                 host = _meal_nesting_host(day, item, t, dur)
-                blocked = any(
-                    t < fe and t + dur > fs
-                    for fs, fe in _real_food_blockers(day, item, skip=host)
-                )
+                blockers = _real_food_blockers(day, item, skip=host)
+                if extra_blockers:
+                    blockers = [*blockers, *extra_blockers]
+                blocked = any(t < fe and t + dur > fs for fs, fe in blockers)
                 if not blocked:
                     if host is not None:
                         _reanchor_meal_to_host(item, host)
@@ -15378,6 +15568,9 @@ class PlanningAgent:
         arrival_date: str | None = None,
         departure_date: str | None = None,
         intake: bool = False,
+        days_override: int | None = None,
+        arrival_no_override: str | None = None,
+        departure_no_override: str | None = None,
         images: list[tuple[bytes, str]] | None = None,
     ) -> PlanSession:
         # 2026-11-13（陕历博跨城串行程案）：心愿绑定缓存按会话隔离——
@@ -15450,6 +15643,15 @@ class PlanningAgent:
             elif brief_days and not session.city_days:
                 # 同城但只给了整趟天数（表单没填分城天数）：文本为准
                 session.days = brief_days
+        # 差异确认选边覆写（2026-11-14 用户拍板）：天数/班次号以用户在确认卡上
+        # 选定的为准——在简报解析之后应用，盖过一切自动解析。
+        if days_override:
+            session.days = max(1, int(days_override))
+            session.city_days = {}
+        if arrival_no_override:
+            session.arrival_no = str(arrival_no_override).strip().upper() or None
+        if departure_no_override:
+            session.departure_no = str(departure_no_override).strip().upper() or None
         # 票务预热（2026-10-28 用户拍板）：开始日期落定且城市齐（起止+中间）
         # 就开跑火车查询，不等行程生成——CachedTrainService 命中后组装零等待。
         if session.start_date and len(session.cities) > 1:
@@ -18354,6 +18556,12 @@ class PlanningAgent:
                             and h.get("location")
                             and h.get("name") not in _picked_names
                             and _cand_is_show(h)
+                            # 无真场次的演出不保位（2026-11-14 用户拍板
+                            # 「国家大剧院 HAS NO SHOW TIME INFORMATION, WHY
+                            # WE PICK IT UP?」）：opening_hours 解析不出当
+                            # 日场次的行不进自动通道；用户点名的演出仍走
+                            # 必去管线（TBA 回落 19:30 口径不变）。
+                            and show_session_starts(h.get("opening_hours"))
                             and not _cand_at_fallback(h)  # 回退点闸（P1#1）
                         ][:PLAN_SHOW_RESCUE_LIMIT]
                     )
@@ -20402,6 +20610,18 @@ class PlanningAgent:
                 elif _cand_is_show(cand) and _show_night_only(cand):
                     # 仅夜场/傍晚场 → 晚档收尾桶；含下午场/全天滚动（2026-10-31
                     # 场次扩列）→ 落回 sights 按常规时段排
+                    if not show_session_starts(cand.get("opening_hours")):
+                        # 无真场次的演出不进自动通道（2026-11-14 用户拍板
+                        # 「国家大剧院 HAS NO SHOW TIME INFORMATION, WHY WE
+                        # PICK IT UP?」）：收尾桶与 sights 双不收（夜场点
+                        # 当白天景点排是旧病），整件出池；用户点名的演出
+                        # 仍走必去管线（TBA 回落 19:30 口径不变）。
+                        logger.info(
+                            "plan: night show %s has no concrete sessions, "
+                            "excluded from auto-pick",
+                            cand.get("name"),
+                        )
+                        continue
                     _off = _show_off_season(cand, _months)
                     if _off is not None:
                         # 停演季闸（2026-11-08 同址夜演案）：行程月与演出季全无
@@ -27552,6 +27772,51 @@ class PlanningAgent:
                 *[fill(item) for item in todo[i : i + 6]],
                 return_exceptions=True,
             )
+
+    async def heal_must_coverage(self, session: PlanSession) -> list[str]:
+        """开局必去覆盖自愈（2026-11-14 用户拍板「故宫 IS IN WISH LIST, MUST
+        VISIT, HIGHEST PRIORITY, WHY NOT ARRANGED」）：旧行程里钉住/必去观光件
+        灰卡（无时刻）开档即修——同日让位清算 → 跨日救生（能排即排，低优先
+        凑数件让位留痕），再餐卡对账+直连腿重算（实测腿由本回合 refresh_legs
+        补）。排不进保留披露不删（「心愿可挪不可删」）。幂等：无灰卡零改动。
+
+        旧根因（已根修）：软钉夜宿卡 20:30–21:30 超 solver 21:00 日终闸，
+        含夜卡的天重解恒不可行、救生恒回滚——solver.HOTEL_DAY_END_MINUTES。
+        """
+        plan = session.plan
+        if plan is None:
+            return []
+        stuck = [
+            v
+            for d in plan.days
+            for v in d.items
+            if isinstance(v, VisitItem)
+            and (v.pinned or v.must)
+            and v.start_time is None
+            and (v.category or "") not in ("food", "hotel")
+        ]
+        if not stuck:
+            return []
+        notes = _must_visit_room_sweep(plan, cap_relax=True)
+        plan, rescue_notes = self._must_visit_crossday_rescue(
+            plan, frozenset(session.must_visits or ())
+        )
+        session.plan = plan
+        notes.extend(rescue_notes)
+        # 救生试宿的求解可能丢了占位餐卡（meal slot infeasible → dropped）：
+        # 餐卡=槽位对账补回/重排（含重叠对账），再重算直连腿。
+        _retime_meal_placeholders(plan)
+        annotate_legs(plan)
+        for note in notes:
+            if note not in plan.assumptions:
+                plan.assumptions.append(note)
+        if notes:
+            logger.warning(
+                "plan: session %s 必去覆盖自愈：%s",
+                session.session_id,
+                "；".join(str(n)[:80] for n in notes),
+            )
+        return notes
 
     async def refresh_legs(self, session: PlanSession) -> None:
         """规划页条目变更后的实测腿刷新（用户拍板 2026-10-28）。
