@@ -265,10 +265,12 @@ def test_user_pinned_banquet_is_not_moved_across_days():
     tang = _tang(day=2, start=time(18, 30))
     tang.pinned = True  # 用户 pin 端点：soft_pin 保持 False
     block = _block(day=3, start=time(17, 0), end=time(21, 0))
-    plan = _plan([
-        DayPlan(day=2, base_city="西安", items=[tang]),
-        DayPlan(day=3, base_city="西安", items=[block]),
-    ])
+    plan = _plan(
+        [
+            DayPlan(day=2, base_city="西安", items=[tang]),
+            DayPlan(day=3, base_city="西安", items=[block]),
+        ]
+    )
 
     _bind_block_family(plan)
 
