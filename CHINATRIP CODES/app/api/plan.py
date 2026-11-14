@@ -573,15 +573,9 @@ async def start_plan(
         resolved = _resolve_brief_cities(
             [_normalize_city(c) for c in parsed[0]], request.cities
         )
-        if (
-            {_normalize_city(c) for c in resolved}
-            != {_normalize_city(c) for c in request.cities}
-            or (
-                parsed[1] is not None
-                and request.days
-                and parsed[1] != request.days
-            )
-        ):
+        if {_normalize_city(c) for c in resolved} != {
+            _normalize_city(c) for c in request.cities
+        } or (parsed[1] is not None and request.days and parsed[1] != request.days):
             diffs.append(
                 {
                     "what": "route",
@@ -614,9 +608,7 @@ async def start_plan(
         diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
     if card_span and request.days and card_span != request.days:
         # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）
-        diffs.append(
-            {"what": "card_days", "intake": card_span, "form": request.days}
-        )
+        diffs.append({"what": "card_days", "intake": card_span, "form": request.days})
     if diffs and request.route_source is None:
         return {
             "state": "confirm_route",

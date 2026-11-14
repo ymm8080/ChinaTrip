@@ -762,9 +762,7 @@ def _visit_spec(
     # 夜卡 20:30–21:30 是合法落位，pin 超出 hi=21:00-dur 会让含夜卡的天
     # 在插入/CP 两路恒判不可行，整日冻结、必去跨日救生恒回滚。
     day_end_cap = (
-        HOTEL_DAY_END_MINUTES
-        if (item.category or "") == "hotel"
-        else DAY_END_MINUTES
+        HOTEL_DAY_END_MINUTES if (item.category or "") == "hotel" else DAY_END_MINUTES
     )
     lo, hi = DAY_START_MINUTES, day_end_cap - dur
     dur_lo = 0  # 0=固定时长；软钉午餐在 pinned 分支激活区间下界
