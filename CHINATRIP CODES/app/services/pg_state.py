@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -30,7 +30,13 @@ from app.services.itinerary_store import (
     Snapshot,
 )
 from app.services.trip_changes import trip_header_fields
-from app.services.trip_items import STATUS_WISHLIST, TripItemService
+from app.services.trip_items import (
+    STATUS_BOOKED,
+    STATUS_WISHLIST,
+    InvalidTransitionError,
+    NotFoundError,
+    TripItemService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +83,47 @@ def _parse_iso(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _parse_date(value: object) -> date | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except ValueError:
+        return None
+
+
+def _parse_time(value: object) -> time | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.timetz().replace(tzinfo=None)
+    raw = str(value)
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).time()
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(raw).timetz().replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _wish_source_column(raw: str | None) -> str:
+    """心愿单 SOURCE 列归一（2026-11-13 用户拍板：manual / conversation）。
+
+    payload 保留原始来源（chat/paste/agent_recommend…）供状态机判定。
+    """
+    value = (raw or "manual").strip()
+    if value in ("chat", "conversation"):
+        return "conversation"
+    if value in ("manual", "paste"):
+        return "manual"
+    return value
 
 
 def _trip_title(cities: list[str]) -> str | None:
@@ -137,11 +184,33 @@ def item_to_row_values(item: dict) -> dict:
         # 2026-11-13 数据库事实化：业务行程号与设备归属都进列（挂靠可查）
         "itinerary_ref": (item.get("itinerary_id") or None),
         "owner_device_id": (item.get("owner_device_id") or None),
+        # 心愿单数据库字段（2026-11-13 拍板）
+        "created_by": (item.get("created_by") or item.get("owner_device_id") or None),
+        "arranged": (item.get("status") or "") in ("scheduled", "booked"),
+        "exclusion_flag": bool(item.get("exclusion_flag"))
+        or (item.get("status") or "") == "unwanted",
+        "deletion_flag": bool(item.get("deletion_flag")),
+        "deletion_date": _parse_date(item.get("deletion_date")),
+        "deletion_time": _parse_time(item.get("deletion_time")),
+        "deleted_by": (item.get("deleted_by") or None),
+        "kind": (item.get("kind") or None),
+        "duration_minutes": item.get("duration_minutes"),
+        "must_visit": bool(item.get("must_visit")),
+        "pinned": bool(item.get("pinned")),
+        "tier": item.get("tier"),
+        "site_rank": item.get("site_rank"),
+        "latitude": item.get("latitude"),
+        "longitude": item.get("longitude"),
+        "planned_date": _parse_date(item.get("planned_date")),
+        "start_time": _parse_time(item.get("start_time")),
+        "end_time": _parse_time(item.get("end_time")),
+        "rain_ok": (item.get("rain_ok") or None),
+        "raw_command": (item.get("raw_command") or None),
         "name": item.get("name"),
         "city": item.get("city"),
         "note": item.get("note"),
         "status": item.get("status") or STATUS_WISHLIST,
-        "source": item.get("source") or "manual",
+        "source": _wish_source_column(item.get("source")),
         "poi_id": _pg_uuid(item.get("poi_id")),
         "day": item.get("day"),
         "position": item.get("position"),
@@ -277,11 +346,15 @@ class PgItineraryStore(InMemoryItineraryStore):
                 # 清空），跨进程/未回灌内存的行也被覆盖。
                 session.execute(
                     text(
-                        "UPDATE trip_items"
+                        "UPDATE trip_items t"
                         " SET itinerary_id = NULL,"
-                        " payload = (COALESCE(payload, '{}'::jsonb)"
+                        " payload = (COALESCE(t.payload, '{}'::jsonb)"
                         " - 'itinerary_id')"
-                        " WHERE itinerary_id = :uid"
+                        " || jsonb_build_object("
+                        " 'trip_name',"
+                        " COALESCE(i.title, array_to_string(i.cities, ' → ')))"
+                        " FROM itineraries i"
+                        " WHERE i.id = :uid AND t.itinerary_id = :uid"
                     ),
                     {"uid": uid},
                 )
@@ -384,6 +457,9 @@ class PgTripItemService(TripItemService):
         items: dict[str, dict] = {}
         with self._session_factory() as session:
             for row in session.query(TripItem).all():
+                # 软删行（DELETION FLAG）永不回灌内存——看板/心愿单不显示
+                if getattr(row, "deletion_flag", False):
+                    continue
                 payload = row.payload
                 if not (isinstance(payload, dict) and payload.get("id")):
                     continue
@@ -413,6 +489,32 @@ class PgTripItemService(TripItemService):
                         value = row.updated_at
                     if value is not None:
                         payload[field] = value.isoformat()
+                for field in (
+                    "kind",
+                    "duration_minutes",
+                    "tier",
+                    "site_rank",
+                    "latitude",
+                    "longitude",
+                    "rain_ok",
+                    "raw_command",
+                ):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value
+                for field in ("planned_date", "start_time", "end_time"):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value.isoformat()
+                payload["must_visit"] = bool(getattr(row, "must_visit", False))
+                payload["pinned"] = bool(getattr(row, "pinned", False))
+                payload["created_by"] = payload.get("created_by") or getattr(
+                    row, "created_by", None
+                )
+                payload["arranged"] = bool(getattr(row, "arranged", False))
+                payload["exclusion_flag"] = bool(getattr(row, "exclusion_flag", False))
                 items[str(payload["id"])] = payload
         self._items = items
 
@@ -466,6 +568,7 @@ class PgTripItemService(TripItemService):
                     self._enrich_duplicate(
                         payload,
                         name=name,
+                        source=source,
                         note=kwargs.get("note"),
                         city=kwargs.get("city"),
                         poi_id=kwargs.get("poi_id"),
@@ -502,7 +605,7 @@ class PgTripItemService(TripItemService):
         rows = session.execute(
             text(
                 "SELECT payload FROM trip_items"
-                " WHERE status <> 'unwanted'"
+                " WHERE status <> 'unwanted' AND deletion_flag = false"
                 " ORDER BY created_at ASC NULLS LAST"
             )
         ).all()
@@ -556,7 +659,11 @@ class PgTripItemService(TripItemService):
         return item
 
     def release_itinerary(
-        self, itinerary_id: str, *, now: datetime | None = None
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
     ) -> list[dict]:
         """跨进程释放（2026-11-13）：删行程可能落在没回灌内存的进程上
         （排期写在另一端口 / 另一实例）——内存里一条该行程的行都没有时先
@@ -570,27 +677,29 @@ class PgTripItemService(TripItemService):
             )
         ):
             self._try_refresh()
-        return super().release_itinerary(itinerary_id, now=now)
+        return super().release_itinerary(itinerary_id, now=now, actor=actor)
 
-    def delete(self, item_id: str) -> None:
-        super().delete(item_id)
-        if not self._pg_ok:
-            return
-        try:
-            with self._session_factory() as session:
-                uid = _pg_uuid(item_id)
-                if uid is not None:
-                    session.query(TripItem).filter(TripItem.id == uid).delete()
-                # 2026-11-13 看板引擎行删不掉（内存删了、库里还在）：历史
-                # 恢复/旁路导入行的 PK 列与 payload id 不一致（实测 12 行
-                # 中 7 行），严格 PK 删 0 行。payload 才是业务权威——再按
-                # payload id 删一次；正常行 PK==payload，第二条为 no-op。
-                session.query(TripItem).filter(
-                    TripItem.payload["id"].astext == item_id
-                ).delete()
-                session.commit()
-        except Exception as exc:
-            logger.warning("pg_state: 条目 %s 删除写穿失败: %s", item_id, exc)
+    def delete(self, item_id: str, *, actor: str | None = None) -> None:
+        """删除 = 软删（2026-11-13 用户拍板「心愿单也是数据库」）：行保留，
+        打 DELETION FLAG + 删除日期/时间/人留档，看板不再返回。booked 有
+        真实订单仍拒绝（先退订）；source=plan 引擎行同样软删。"""
+        item = self._items.get(item_id)
+        if item is None:
+            raise NotFoundError(item_id)
+        if item.get("status") == STATUS_BOOKED:
+            raise InvalidTransitionError("booked_not_deletable")
+        now = datetime.now(timezone.utc)
+        payload = dict(item)
+        payload["deletion_flag"] = True
+        payload["deletion_date"] = now.date().isoformat()
+        payload["deletion_time"] = now.strftime("%H:%M:%S")
+        payload["deleted_by"] = actor or item.get("owner_device_id")
+        self._items[item_id] = payload
+        self._write_through(item_id)
+        del self._items[item_id]
+        logger.info(
+            "trip_item_soft_deleted id=%s by=%s", item_id, payload["deleted_by"]
+        )
 
     def import_item(self, payload: dict) -> bool:
         """迁移脚本入口：整条 dict 入内存并写穿（幂等 upsert by id）。"""

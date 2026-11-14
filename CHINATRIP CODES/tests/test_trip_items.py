@@ -30,6 +30,21 @@ CONTRACT_KEYS = {
     "booking_id",
     "created_at",
     "updated_at",
+    # 2026-11-13 心愿单数据库字段
+    "created_by",
+    "arranged",
+    "exclusion_flag",
+    # 2026-11-13 规划字段（建行即有）
+    "kind",
+    "raw_command",
+    "must_visit",
+    "pinned",
+    "duration_minutes",
+    "tier",
+    "site_rank",
+    "latitude",
+    "longitude",
+    "rain_ok",
 }
 
 
@@ -475,7 +490,9 @@ def test_list_items_without_itinerary_id_skip_name_field():
 # --- 行程删除释放心愿（2026-10-31：删行程 → 已排期心愿回心愿单栏） -------------
 
 
-def test_release_itinerary_moves_scheduled_back_to_wishlist_and_spares_booked():
+def test_release_itinerary_rebuilds_scheduled_wishes_without_trip():
+    """2026-11-13 拍板：删整趟 = 旧行软删留档，排期项重建为无行程心愿行
+    （ARRANGED 取消 → 回心愿单）；booked 真实订单只解绑。"""
     svc = TripItemService()
     wish = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
     svc.update(wish["id"], status="scheduled", day=2, position=3.0)
@@ -489,16 +506,52 @@ def test_release_itinerary_moves_scheduled_back_to_wishlist_and_spares_booked():
 
     released = svc.release_itinerary("t1")
 
-    assert [r["id"] for r in released] == [wish["id"]]
-    row = svc.get(wish["id"])
-    assert row["status"] == "wishlist"
-    assert row["day"] is None and row["position"] is None
-    assert row["booking_id"] is None
-    # booked 保留真实订单；他行程与无行程的 scheduled 行不受牵连
+    assert len(released) == 1
+    clone = released[0]
+    assert clone["name"] == "灵隐寺"
+    assert clone["status"] == "wishlist"
+    assert clone["itinerary_id"] is None
+    assert clone["arranged"] is False
+    assert clone["day"] is None and clone["position"] is None
+    # 旧行已软删（内存不可见）；新行独立 WISH ID
+    assert svc.get(wish["id"]) is None
+    assert clone["id"] != wish["id"]
+    # booked 保留真实订单、只摘行程绑定；他行程与无行程行不受牵连
     assert svc.get(booked["id"])["status"] == "booked"
+    assert svc.get(booked["id"])["itinerary_id"] is None
     assert svc.get(other["id"])["status"] == "scheduled"
     assert svc.get(stray["id"])["status"] == "scheduled"
-    assert wish["id"] in {r["id"] for r in svc.list_groups()["wishlist"]}
+    assert clone["id"] in {r["id"] for r in svc.list_groups()["wishlist"]}
+
+
+def test_site_delete_marks_exclusion_and_returns_to_wishlist():
+    """2026-11-13 用户拍板：删行程里的站点 → 该行回心愿单 + EXCLUSION，
+    规划不得自动再排；用户再手动点名建行走 create 去重会解除排除。"""
+    svc = TripItemService()
+    row = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
+    svc.update(row["id"], status="scheduled", day=2)
+
+    excluded = svc.mark_excluded("灵隐寺", itinerary_id="t1", city="杭州")
+
+    assert excluded["status"] == "wishlist"
+    assert excluded["exclusion_flag"] is True
+    assert excluded["arranged"] is False
+    assert excluded["day"] is None
+    # 用户再次点名 → 解除排除（不是永久黑名单）
+    again = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
+    assert again["exclusion_flag"] is False
+
+
+def test_arranged_follows_specific_day():
+    """ARRANGED = 有具体日期时刻（已排期/已订且天序在）。"""
+    svc = TripItemService()
+    row = svc.create("外滩", source="manual", city="上海")
+    assert row["arranged"] is False
+    svc.update(row["id"], status="scheduled", day=1)
+    assert svc.get(row["id"])["arranged"] is True
+    svc.update(row["id"], status="wishlist")
+    assert svc.get(row["id"])["arranged"] is False
+    assert svc.get(row["id"])["day"] is None
 
 
 def test_release_itinerary_deletes_plan_rows_keeps_user_rows():
@@ -513,8 +566,9 @@ def test_release_itinerary_deletes_plan_rows_keeps_user_rows():
     released = svc.release_itinerary("t1")
 
     assert svc.get(engine["id"]) is None
-    assert [r["id"] for r in released] == [user["id"]]
-    assert svc.get(user["id"])["status"] == "wishlist"
+    assert len(released) == 1 and released[0]["name"] == "看熊猫"
+    assert released[0]["status"] == "wishlist" and released[0]["id"] != user["id"]
+    assert svc.get(user["id"]) is None  # 旧行软删留档，重建为新行
 
 
 def test_release_itinerary_unbinds_rows_so_itinerary_delete_is_not_blocked():
@@ -531,14 +585,18 @@ def test_release_itinerary_unbinds_rows_so_itinerary_delete_is_not_blocked():
     other = svc.create("外滩", source="manual", itinerary_id="t2")
     svc.update(other["id"], status="scheduled", day=1)
 
-    svc.release_itinerary("t1")
+    released = svc.release_itinerary("t1")
 
-    assert svc.get(wish["id"])["status"] == "wishlist"
-    for row_id in (wish["id"], booked["id"], parked["id"]):
-        assert svc.get(row_id)["itinerary_id"] is None
+    by_name = {r["name"]: r for r in released}
+    assert set(by_name) == {"灵隐寺", "河坊街"}
+    for row in by_name.values():
+        assert row["itinerary_id"] is None and row["status"] == "wishlist"
+    # 旧行已软删（内存不可见）
+    assert svc.get(wish["id"]) is None and svc.get(parked["id"]) is None
     # booked 保留真实订单（只摘绑定）；别行程的排期行原样
     assert svc.get(booked["id"])["status"] == "booked"
     assert svc.get(booked["id"])["booking_id"] == "BK-9"
+    assert svc.get(booked["id"])["itinerary_id"] is None
     assert svc.get(other["id"])["itinerary_id"] == "t2"
     assert svc.get(other["id"])["status"] == "scheduled"
 
@@ -571,9 +629,9 @@ def test_delete_itinerary_releases_scheduled_wishes_endpoint():
         assert body["scheduled"] == []
         released = next(r for r in body["wishlist"] if r["name"] == "s")
         assert released["day"] is None and released["position"] is None
-        # 2026-11-13：释放即解绑——itinerary_id 还指着被删行程时 PG 外键
-        # 会挡下 DELETE（接口 204、刷新后行程复活、排期像没退）
+        # 2026-11-13：旧行软删留档，排期项重建为无行程心愿行（ARRANGED 取消）
         assert released["itinerary_id"] is None
+        assert released["arranged"] is False
         assert [r["name"] for r in body["bookings"]] == ["b"]
         assert body["bookings"][0]["itinerary_id"] is None
         # 行程本身确已删除（释放没有挡住删除）
@@ -598,8 +656,8 @@ def test_release_itinerary_strips_scheduled_note_tail():
         note="来自聊天｜已安排：成都大熊猫繁育研究基地（第4天 11月3日 12:00）",
     )
     svc.update(wish["id"], status="scheduled", day=4)
-    svc.release_itinerary("t1")
-    row = svc.get(wish["id"])
+    released = svc.release_itinerary("t1")
+    row = released[0]
     assert row["status"] == "wishlist"
     assert row["note"] == "来自聊天"
 
@@ -610,13 +668,11 @@ def test_release_itinerary_strips_scheduled_note_tail():
         note="From chat | Scheduled: Panda Base (day 2)",
     )
     svc.update(en["id"], status="scheduled", day=2)
-    svc.release_itinerary("t2")
-    assert svc.get(en["id"])["note"] == "From chat"
+    assert svc.release_itinerary("t2")[0]["note"] == "From chat"
 
     plain = svc.create("无尾段", source="chat", itinerary_id="t3", note="随手记")
     svc.update(plain["id"], status="scheduled", day=1)
-    svc.release_itinerary("t3")
-    assert svc.get(plain["id"])["note"] == "随手记"
+    assert svc.release_itinerary("t3")[0]["note"] == "随手记"
 
 
 def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():

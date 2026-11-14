@@ -446,6 +446,14 @@ class ItineraryItem(Base):
     from_city: Mapped[str | None] = mapped_column(String(50))
     to_city: Mapped[str | None] = mapped_column(String(50))
     transport_no: Mapped[str | None] = mapped_column(String(32))
+    # 2026-11-13：整条 item 留档（payload）+ 规划语义列
+    payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    must_visit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    tier: Mapped[int | None] = mapped_column(SmallInteger)
+    site_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    note: Mapped[str | None] = mapped_column(Text)
+    seq: Mapped[int | None] = mapped_column(Integer)
     # 2026-11-13（用户「VisitItem/酒店/交通/餐卡都要在详情表里」）：
     # 各类实体自己的业务字段。
     meal_slot: Mapped[str | None] = mapped_column(String(16))
@@ -635,6 +643,32 @@ class TripItem(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+    # 心愿单数据库化（2026-11-13 用户拍板）：CREATED BY / ARRANGED /
+    # 删除审计 / EXCLUSION / 规划字段都是数据库事实（wish_items 视图可查）。
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    arranged: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    exclusion_flag: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    deletion_flag: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    deletion_date: Mapped[date | None] = mapped_column(Date)
+    deletion_time: Mapped[time | None] = mapped_column(TIME)
+    deleted_by: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str | None] = mapped_column(String(20))
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    must_visit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    tier: Mapped[int | None] = mapped_column(SmallInteger)
+    site_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    planned_date: Mapped[date | None] = mapped_column(Date)
+    start_time: Mapped[time | None] = mapped_column(TIME)
+    end_time: Mapped[time | None] = mapped_column(TIME)
+    rain_ok: Mapped[str | None] = mapped_column(String(10))
+    raw_command: Mapped[str | None] = mapped_column(String(1000))
     # 心愿单条目全量文档（dict 原样，含自由字符串 id）；列化的字段只是
     # 给 PG 侧查询用的投影（trip_cities 按 city 扫）
     payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))

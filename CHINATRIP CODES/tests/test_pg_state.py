@@ -273,6 +273,41 @@ def test_item_to_row_values_keeps_free_string_ids_in_payload():
     assert values["itinerary_id"] == UUID(hex=itin_hex)
     assert values["status"] == "wishlist"
     assert values["created_at"] is not None and values["created_at"].year == 2026
+    # 2026-11-13 心愿单数据库字段：SOURCE 列归一到 manual / conversation，
+    # ARRANGED 由状态推导，CREATED BY 回退建行设备
+    assert values["source"] == "conversation"
+    assert values["arranged"] is False
+    assert values["created_by"] is None  # 该行没有 owner_device_id
+    assert values["deletion_flag"] is False
+    assert values["exclusion_flag"] is False
+
+
+def test_item_to_row_values_maps_wish_db_flags():
+    item = {
+        "id": uuid4().hex,
+        "name": "豫园",
+        "status": "scheduled",
+        "source": "paste",
+        "owner_device_id": "dev-9",
+        "day": 2,
+        "arranged": True,
+        "exclusion_flag": True,
+        "deletion_flag": True,
+        "deletion_date": "2026-11-13",
+        "deletion_time": "21:05:07",
+        "deleted_by": "dev-9",
+    }
+
+    values = item_to_row_values(item)
+
+    assert values["source"] == "manual"
+    assert values["arranged"] is True
+    assert values["created_by"] == "dev-9"
+    assert values["exclusion_flag"] is True
+    assert values["deletion_flag"] is True
+    assert str(values["deletion_date"]) == "2026-11-13"
+    assert values["deletion_time"].isoformat() == "21:05:07"
+    assert values["deleted_by"] == "dev-9"
     assert values["payload"] == item  # 原值全量在 payload
 
 
@@ -341,40 +376,34 @@ def test_import_item_memory_fallback_without_pg():
     assert svc.get(item_id)["name"] == "灵隐寺"
 
 
-def test_release_itinerary_writes_wishlist_through_to_pg():
-    """删行程释放心愿（2026-10-31）：内存行翻回 wishlist，PG 行同款写穿
-    （status/day/position/booking_id 全部落列）。"""
+def test_trip_item_delete_is_soft_delete_with_audit():
+    """2026-11-13 用户拍板「心愿单是数据库」：删除不物理删行——写穿
+    DELETION FLAG + 删除日期/时间/人，看板不再返回。"""
     factory = _RecordingFactory()
     svc = PgTripItemService(factory)
     svc._pg_ok = True
-    row = {
-        "id": uuid4().hex,
-        "itinerary_id": "it-1",
+    item_id = uuid4().hex
+    svc._items[item_id] = {
+        "id": item_id,
         "name": "灵隐寺",
         "city": "杭州",
-        "status": "scheduled",
+        "status": "wishlist",
         "source": "chat",
-        "day": 2,
-        "position": 3.0,
-        "booking_id": None,
-        "created_at": "2026-10-31T08:00:00+00:00",
-        "updated_at": "2026-10-31T08:00:00+00:00",
+        "owner_device_id": "dev-1",
+        "created_at": "2026-11-13T08:00:00+00:00",
+        "updated_at": "2026-11-13T08:00:00+00:00",
     }
-    svc._items[row["id"]] = dict(row)
 
-    released = svc.release_itinerary("it-1")
+    svc.delete(item_id, actor="dev-1")
 
-    assert [r["id"] for r in released] == [row["id"]]
-    healed = svc.get(row["id"])
-    assert healed["status"] == "wishlist"
-    assert healed["day"] is None and healed["position"] is None
-    # 2026-11-13：释放即解绑——留着死行程 id 时 PG 外键挡下行程删除
-    assert healed["itinerary_id"] is None
+    assert svc.get(item_id) is None  # 内存不再返回
     written = [r for s in factory.sessions for r in s.added]
-    assert written and written[-1].status == "wishlist"
-    assert written[-1].day is None and written[-1].position is None
-    assert written[-1].booking_id is None
-    assert written[-1].itinerary_id is None
+    assert written, "soft delete must write a row through to PG"
+    row = written[-1]
+    assert row.deletion_flag is True
+    assert row.deleted_by == "dev-1"
+    assert row.deletion_date is not None and row.deletion_time is not None
+    assert row.payload["deletion_flag"] is True
 
 
 # --- 2026-10-28 跨进程查重（advisory 锁内 SQL 查重 + 命中不重插） -------------
@@ -503,45 +532,27 @@ def _bare_trip_svc(session_factory):
     return svc
 
 
-def test_trip_item_delete_falls_back_to_payload_id_when_pk_mismatches():
-    """历史恢复行的 PK 列与 payload id 不一致：严格 PK delete 命中 0 行
-    时必须按 payload id 再删一次（否则看板删了内存、库里仍复活）。"""
-    criteria_log = []
-
-    class _Q:
-        def filter(self, criteria):
-            criteria_log.append(str(criteria))
-            return self
-
-        def delete(self):
-            return 0 if len(criteria_log) == 1 else 1
-
-    class _S:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-        def query(self, model):
-            return _Q()
-
-        def commit(self):
-            pass
-
-    svc = _bare_trip_svc(lambda: _S())
+def test_trip_item_delete_keeps_pk_mismatch_rows_recoverable():
+    """历史恢复行 PK 与 payload id 错位：软删走 payload 全量 upsert，
+    旧行同样被标记删除（不再依赖严格 PK 命中）。"""
+    factory = _RecordingFactory()
+    svc = PgTripItemService(factory)
+    svc._pg_ok = True
     item_id = uuid4().hex
     svc._items[item_id] = {
         "id": item_id,
         "name": "宽窄巷子",
         "status": "scheduled",
         "source": "plan",
+        "created_at": "2026-11-13T08:00:00+00:00",
+        "updated_at": "2026-11-13T08:00:00+00:00",
     }
 
     svc.delete(item_id)
 
-    assert len(criteria_log) == 2  # PK 0 行 → payload id 兜底
-    assert "payload" in criteria_log[1]
+    written = [r for s in factory.sessions for r in s.added]
+    assert written and written[-1].payload["id"] == item_id
+    assert written[-1].deletion_flag is True
     assert item_id not in svc._items
 
 

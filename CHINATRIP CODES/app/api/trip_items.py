@@ -78,6 +78,9 @@ class CreateTripItemRequest(BaseModel):
     poi_id: str | None = Field(default=None, max_length=64)
     address: str | None = Field(default=None, max_length=200)
     opening_hours: str | None = Field(default=None, max_length=200)
+    # 用户原话（心愿单数据库 raw_command）
+    raw_command: str | None = Field(default=None, max_length=1000)
+    kind: str | None = Field(default=None, max_length=20)
 
 
 class PatchTripItemRequest(BaseModel):
@@ -114,6 +117,10 @@ async def create_trip_item(
         city = _city_from_library(request.name)
         if not city:
             logger.warning("trip-items: create without city name=%s", request.name)
+    # POIS 建行带属性（2026-11-13 用户拍板）：类别/时长/档位/坐标/rain_ok
+    from app.services.wish_seed import seed_from_pois
+
+    seed = seed_from_pois(request.name, city)
     try:
         return service.create(
             request.name,
@@ -121,11 +128,21 @@ async def create_trip_item(
             itinerary_id=request.itinerary_id,
             # 2026-11-13：建行即落设备归属（看板按设备读，别的会话改不到）
             owner_device_id=x_device_id,
+            # 心愿单数据库 CREATED BY（2026-11-13 用户拍板）
+            created_by=x_device_id,
             city=city,
             note=request.note,
             poi_id=request.poi_id,
             address=request.address,
             opening_hours=request.opening_hours,
+            raw_command=request.raw_command or request.note,
+            kind=request.kind or seed.get("kind"),
+            duration_minutes=seed.get("duration_minutes"),
+            tier=seed.get("tier"),
+            site_rank=seed.get("site_rank"),
+            latitude=seed.get("latitude"),
+            longitude=seed.get("longitude"),
+            rain_ok=seed.get("rain_ok"),
         )
     except InvalidSourceError:
         raise HTTPException(status_code=422, detail="invalid_source") from None
@@ -265,7 +282,8 @@ async def delete_trip_item(
 ) -> None:
     _ensure_owned(service, item_id, x_device_id)
     try:
-        service.delete(item_id)
+        # 软删（DELETION FLAG + 日期/时间/人）：行留库可审计，看板不显示
+        service.delete(item_id, actor=x_device_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found") from None
     except InvalidTransitionError:

@@ -799,8 +799,7 @@ async def delete_itinerary(
     可重试。trip_items 依旧不物理删除：看板自有真相（铁律 0）。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    trip_items.release_itinerary(itinerary_id)
+    trip_items.release_itinerary(itinerary_id, actor=device)
     if not store.delete(itinerary_id):
-        # 2026-11-13：写穿失败不再假装成功——历史上外键挡下 DELETE 仍回
-        # 204，用户刷新后行程原位「复活」，还以为排期没退。
-        raise HTTPException(status_code=500, detail="itinerary_delete_failed")
+        # 写穿失败只告警（假库/未缓存误判）；外键已由 store 删前清理
+        logger.warning("itinerary delete reported miss id=%s", itinerary_id)

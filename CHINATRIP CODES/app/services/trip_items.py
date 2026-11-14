@@ -181,11 +181,21 @@ class TripItemService:
         source: str,
         itinerary_id: str | None = None,
         owner_device_id: str | None = None,
+        created_by: str | None = None,
         city: str | None = None,
         note: str | None = None,
         poi_id: str | None = None,
         address: str | None = None,
         opening_hours: str | None = None,
+        kind: str | None = None,
+        duration_minutes: int | None = None,
+        tier: int | None = None,
+        site_rank: int | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        rain_ok: str | None = None,
+        must_visit: bool = False,
+        raw_command: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         """Idempotent create: returns the existing row instead of a new one
@@ -210,6 +220,7 @@ class TripItemService:
             self._enrich_duplicate(
                 duplicate,
                 name=name,
+                source=source,
                 note=note,
                 city=city,
                 poi_id=poi_id,
@@ -229,6 +240,19 @@ class TripItemService:
             "itinerary_id": itinerary_id,
             # 2026-11-13 数据库事实化：归属设备随行落库（看板按设备读）
             "owner_device_id": owner_device_id,
+            "created_by": created_by or owner_device_id,
+            "arranged": False,
+            "exclusion_flag": False,
+            "kind": kind,
+            "duration_minutes": duration_minutes,
+            "tier": tier,
+            "site_rank": site_rank,
+            "latitude": latitude,
+            "longitude": longitude,
+            "rain_ok": rain_ok,
+            "raw_command": raw_command,
+            "must_visit": bool(must_visit),
+            "pinned": False,
             "name": name,
             "city": city,
             "note": note,
@@ -252,6 +276,7 @@ class TripItemService:
         item: dict,
         *,
         name: str | None = None,
+        source: str | None = None,
         note: str | None,
         city: str | None,
         poi_id: str | None,
@@ -264,6 +289,10 @@ class TripItemService:
         merge leaves visible trace; bump updated_at when anything changed
         (subclass persistence rides the caller's write-through)."""
         changed = False
+        if source in ("manual", "chat", "paste") and item.get("exclusion_flag"):
+            # 用户再次明确点名 → 解除排除（排除只是「删站点后别自动再排」）
+            item["exclusion_flag"] = False
+            changed = True
         for field, value in (
             ("note", note),
             ("city", city),
@@ -361,6 +390,20 @@ class TripItemService:
         note: str | None = None,
         city: str | None = None,
         booking_id: str | None = None,
+        exclusion_flag: bool | None = None,
+        kind: str | None = None,
+        duration_minutes: int | None = None,
+        must_visit: bool | None = None,
+        pinned: bool | None = None,
+        tier: int | None = None,
+        site_rank: int | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        planned_date: str | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        rain_ok: str | None = None,
+        raw_command: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         item = self._items.get(item_id)
@@ -394,6 +437,10 @@ class TripItemService:
             item["day"] = None
             item["position"] = None
             item["booking_id"] = None
+            # 回心愿单 = 取消具体日期时刻（ARRANGED 语义）
+            item["planned_date"] = None
+            item["start_time"] = None
+            item["end_time"] = None
         else:
             if day is not None:
                 item["day"] = day
@@ -407,6 +454,34 @@ class TripItemService:
             item["note"] = note
         if city is not None:
             item["city"] = city
+        for field, value in (
+            ("kind", kind),
+            ("duration_minutes", duration_minutes),
+            ("must_visit", must_visit),
+            ("pinned", pinned),
+            ("tier", tier),
+            ("site_rank", site_rank),
+            ("latitude", latitude),
+            ("longitude", longitude),
+            ("planned_date", planned_date),
+            ("start_time", start_time),
+            ("end_time", end_time),
+            ("rain_ok", rain_ok),
+            ("raw_command", raw_command),
+        ):
+            if value is not None:
+                item[field] = value
+        # 心愿单数据库字段：ARRANGED = 有具体日期时刻（已排期/已订且天序在）；
+        # EXCLUSION = 用户删站点后的排除，已排进/已订自动解除。
+        item["arranged"] = (
+            target in _TIMELINE_STATUSES and item.get("day") is not None
+        )
+        if exclusion_flag is not None:
+            item["exclusion_flag"] = bool(exclusion_flag)
+        elif target == STATUS_UNWANTED:
+            item["exclusion_flag"] = True
+        elif target in _TIMELINE_STATUSES:
+            item["exclusion_flag"] = False
         item["updated_at"] = _iso_now(now)
         return dict(item)
 
@@ -431,7 +506,7 @@ class TripItemService:
             hook(item_id)
         return dict(item)
 
-    def delete(self, item_id: str) -> None:
+    def delete(self, item_id: str, *, actor: str | None = None) -> None:
         item = self._items.get(item_id)
         if item is None:
             raise NotFoundError(item_id)
@@ -439,7 +514,7 @@ class TripItemService:
             # §5 timeline integrity: un-book before removing.
             raise InvalidTransitionError("booked_not_deletable")
         del self._items[item_id]
-        logger.info("trip_item_deleted id=%s", item_id)
+        logger.info("trip_item_deleted id=%s actor=%s", item_id, actor)
 
     def unbind_itinerary(
         self, item_id: str, *, now: datetime | None = None
@@ -465,7 +540,11 @@ class TripItemService:
         return dict(item)
 
     def release_itinerary(
-        self, itinerary_id: str, *, now: datetime | None = None
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
     ) -> list[dict]:
         """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
         不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
@@ -482,36 +561,102 @@ class TripItemService:
         （chat/manual/paste/agent_recommend）维持回心愿单。"""
         if not itinerary_id:
             return []
-        targets = [
-            item["id"]
+        bound = [
+            dict(item)
             for item in self._items.values()
-            if item["itinerary_id"] == itinerary_id
-            and item["status"] == STATUS_SCHEDULED
+            if item.get("itinerary_id") == itinerary_id
         ]
-        released = []
-        for item_id in targets:
-            item = self._items.get(item_id) or {}
-            if item.get("source") == "plan":
+        released: list[dict] = []
+        for item in bound:
+            item_id = item["id"]
+            status = item.get("status")
+            source = str(item.get("source") or "")
+            if source == "plan":
+                # 引擎补源行不是用户心愿：只软删不重建
                 try:
-                    self.delete(item_id)
+                    self.delete(item_id, actor=actor)
                 except InvalidTransitionError:
-                    continue  # booked 行永不到此（status 过滤），保险不炸
-                logger.info("trip_item_released_as_deleted id=%s", item_id)
+                    continue
                 continue
+            if status == STATUS_BOOKED:
+                # 真实订单不重建、不删除：只摘行程绑定（订单栏自有真相）
+                self.unbind_itinerary(item_id, now=now)
+                continue
+            if status == STATUS_UNWANTED:
+                # 用户明确「不想去」的项不复活：软删留档即可
+                try:
+                    self.delete(item_id, actor=actor)
+                except InvalidTransitionError:
+                    continue
+                continue
+            # 2026-11-13 用户拍板：旧行软删留档（DELETION FLAG + 日期/
+            # 时间/人），排期项重建为无行程心愿行（ARRANGED=False → 心愿单）
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)
-            kwargs: dict = {"now": now}
-            if base != raw_note:
-                kwargs["note"] = base
-            released.append(self.update(item_id, status=STATUS_WISHLIST, **kwargs))
-        # 2026-11-13（删行程拍板）：释放只翻状态，绑定还必须摘掉——死行程
-        # id 留在行上时 PG 外键会把行程删除挡成静默失败（204 后复活）；
-        # booked/unwanted 行挂着死 id 同样挡删除，这里一并解绑。
+            clone_source = source if source in SOURCES else "manual"
+            try:
+                self.update(item_id, status=STATUS_WISHLIST, now=now)
+            except InvalidTransitionError:
+                pass
+            try:
+                self.delete(item_id, actor=actor)
+            except InvalidTransitionError:
+                continue
+            try:
+                released.append(
+                    self.create(
+                        str(item.get("name") or ""),
+                        source=clone_source,
+                        itinerary_id=None,
+                        owner_device_id=item.get("owner_device_id"),
+                        created_by=item.get("created_by"),
+                        city=item.get("city"),
+                        note=base or None,
+                        poi_id=item.get("poi_id"),
+                        address=item.get("address"),
+                        opening_hours=item.get("opening_hours"),
+                        now=now,
+                    )
+                )
+            except (InvalidSourceError, ValueError):
+                logger.warning(
+                    "trip_item_release_clone_failed id=%s name=%s",
+                    item_id,
+                    item.get("name"),
+                )
+        # 兜底：仍挂着该行程的行一律解绑（否则 PG 外键会挡下行程删除）
         for item in list(self._items.values()):
             if item.get("itinerary_id") == itinerary_id:
                 self.unbind_itinerary(item["id"], now=now)
-        # 返回值同步解绑后的现状（调用方拿到的行不再声称挂在死行程上）
-        return [self._items.get(r["id"]) or r for r in released]
+        return released
+
+    def mark_excluded(
+        self,
+        name: str,
+        *,
+        itinerary_id: str | None = None,
+        city: str | None = None,
+    ) -> dict:
+        """删行程里的站点（2026-11-13 拍板）：回心愿单栏并打 EXCLUSION——
+        用户明确不要它，规划不得自动再排；心愿单里仍可见、可手动再排期。"""
+        for item in self._items.values():
+            if item.get("status") == STATUS_UNWANTED:
+                continue
+            if itinerary_id and item.get("itinerary_id") != itinerary_id:
+                continue
+            row_name = _norm(str(item.get("name") or ""))
+            if not row_name or row_name != _norm(name):
+                continue
+            raw_note = str(item.get("note") or "")
+            base = strip_scheduled_note(raw_note)
+            kwargs: dict = {"exclusion_flag": True}
+            if base != raw_note:
+                kwargs["note"] = base
+            return self.update(item["id"], status=STATUS_WISHLIST, **kwargs)
+        created = self.create(
+            name, source="plan_delete", itinerary_id=itinerary_id, city=city
+        )
+        return self.update(created["id"], status=STATUS_WISHLIST, exclusion_flag=True)
 
     def mark_unwanted(
         self,

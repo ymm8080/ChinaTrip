@@ -127,6 +127,18 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                     alt1=(alt_names[0] if len(alt_names) > 0 else None),
                     alt2=(alt_names[1] if len(alt_names) > 1 else None),
                     alt3=(alt_names[2] if len(alt_names) > 2 else None),
+                    # 2026-11-13（用户「VisitItem/酒店/交通/餐卡都要进详情表」）：
+                    # 整条 item 留档 + 规划语义列
+                    payload=(
+                        item.model_dump(mode="json")
+                        if hasattr(item, "model_dump")
+                        else None
+                    ),
+                    pinned=bool(getattr(item, "pinned", False)),
+                    must_visit=bool(getattr(item, "must", False)),
+                    tier=getattr(item, "tier", None),
+                    site_rank=getattr(item, "site_rank", None),
+                    seq=getattr(item, "seq", None),
                 )
             )
 

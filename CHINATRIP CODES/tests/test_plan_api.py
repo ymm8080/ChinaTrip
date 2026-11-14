@@ -874,12 +874,18 @@ class UnwantRecorder:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None, str | None]] = []
 
-    def list_groups(self, itinerary_id: str | None = None) -> dict:
+    def list_groups(
+        self, itinerary_id: str | None = None, owner_device_id: str | None = None
+    ) -> dict:
         return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
 
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "unwanted"}
+
+    def mark_excluded(self, name, *, itinerary_id=None, city=None):
+        self.calls.append((name, itinerary_id, city))
+        return {"name": name, "status": "wishlist", "exclusion_flag": True}
 
 
 def _visit(body: dict, name: str) -> dict:

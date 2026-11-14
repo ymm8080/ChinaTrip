@@ -15350,6 +15350,10 @@ class PlanningAgent:
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue
+            if it.get("exclusion_flag"):
+                # 删站点回心愿单时打了排除标记：规划不得自动再排
+                logger.info("plan: wish row excluded by user, skip: %s", name)
+                continue
             if (
                 _is_preference_meta(name)
                 or _is_preference_style_option(name)
@@ -16792,6 +16796,38 @@ class PlanningAgent:
         except Exception:
             logger.warning("plan: trip row sync failed", exc_info=True)
 
+    @staticmethod
+    def _wish_row_plan_fields(session: "PlanSession", item: VisitItem) -> dict:
+        """已排期心愿行补字段（2026-11-13）：日期/时刻来自真实行程
+        （planned_date = 出发日 + day-1）；点位属性（类别/时长/档位/坐标/
+        rain_ok）建行时已从 POIS 带，这里用行程卡现值刷新。"""
+        planned = None
+        start_date = session.plan.start_date if session.plan else None
+        if start_date:
+            try:
+                planned = (
+                    _date.fromisoformat(start_date) + timedelta(days=item.day - 1)
+                ).isoformat()
+            except ValueError:
+                planned = None
+        loc = item.location
+        return {
+            "kind": (item.category or None),
+            "duration_minutes": item.duration_minutes,
+            "must_visit": bool(getattr(item, "must", False)),
+            "pinned": bool(getattr(item, "pinned", False)),
+            "tier": item.tier,
+            "site_rank": item.site_rank,
+            "latitude": loc.lat if loc is not None else None,
+            "longitude": loc.lon if loc is not None else None,
+            "rain_ok": item.rain_ok,
+            "planned_date": planned,
+            "start_time": (
+                item.start_time.strftime("%H:%M") if item.start_time else None
+            ),
+            "end_time": item.end_time.strftime("%H:%M") if item.end_time else None,
+        }
+
     def _sync_wish_rows(self, session: PlanSession) -> None:
         """心愿行收口（2026-10-30 拍板「行程中心已排期写清楚」）：已绑定
         进排期的心愿——补挂行程归属（聊天建行时 plan 未定→None，按行程
@@ -16980,6 +17016,7 @@ class PlanningAgent:
                         status=STATUS_SCHEDULED,
                         day=target.day,
                         note=note,
+                        **self._wish_row_plan_fields(session, target),
                     )
                     logger.info(
                         "plan: wish row scheduled %s -> %s day %d",
@@ -25571,7 +25608,8 @@ class PlanningAgent:
             if item is None:
                 continue
             try:
-                self._trip_items.mark_unwanted(
+                # 删站点 = 回心愿单 + 排除标记（不再塞进「不想去」）
+                self._trip_items.mark_excluded(
                     item.name,
                     itinerary_id=plan_before.itinerary_id,
                     city=item.city,
@@ -25862,6 +25900,9 @@ class PlanningAgent:
                             _bcity = str((_bound or {}).get("city") or "").strip()
                             if _bcity and not _is_unspecified(_bcity):
                                 city = _bcity
+                    from app.services.wish_seed import seed_from_pois
+
+                    _seed = seed_from_pois(wish, city)
                     row = self._trip_items.create(
                         wish,
                         source="chat",
@@ -25869,6 +25910,15 @@ class PlanningAgent:
                         owner_device_id=session.device_id,
                         note=L("来自聊天", "From chat"),
                         city=city,
+                        raw_command=wish,
+                        kind=_seed.get("kind"),
+                        duration_minutes=_seed.get("duration_minutes"),
+                        tier=_seed.get("tier"),
+                        site_rank=_seed.get("site_rank"),
+                        latitude=_seed.get("latitude"),
+                        longitude=_seed.get("longitude"),
+                        rain_ok=_seed.get("rain_ok"),
+                        must_visit=True,
                     )
                     known.append(
                         {
