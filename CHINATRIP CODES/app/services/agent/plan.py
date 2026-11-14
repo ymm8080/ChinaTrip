@@ -5537,7 +5537,7 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     f"「{item.name}」未锁升旗时刻，按正常时段安排（想看升旗可把它"
                     "挪到在京的整天）",
                     f"Day {day.day}'s transfer conflicts with the "
-                    f"{rise.strftime('%H:%M')} flag-raising; \"{item.name}\" is not "
+                    f'{rise.strftime("%H:%M")} flag-raising; "{item.name}" is not '
                     "locked to it and is scheduled at a normal hour (move it to a "
                     "full day if you want to catch the ceremony)",
                 )
@@ -12341,8 +12341,7 @@ def _drop_duplicate_sites(plan: ItineraryPlan) -> list[str]:
                 notes.append(
                     L(
                         f"「{item.name}」重复卡已合并（保留第{seen[key]}天那张）",
-                        f'Duplicate "{item.name}" merged into the day '
-                        f"{seen[key]} card",
+                        f'Duplicate "{item.name}" merged into the day {seen[key]} card',
                     )
                 )
                 continue
@@ -12470,7 +12469,6 @@ def _enforce_site_day_fit(
                 )
             )
     return notes
-
 
 
 def _must_visit_room_sweep(plan: ItineraryPlan, cap_relax: bool = False) -> list[str]:
@@ -25271,9 +25269,7 @@ class PlanningAgent:
         # weather」）：任何上游相位漏网的卡在这里统一对账并修——先同日
         # 重排、再同城换天、都不行撤时刻留痕；跑在餐卡重排之前，餐位
         # 跟着修正后的时链走。
-        plan.assumptions.extend(
-            _enforce_site_day_fit(plan, rain_days=rain_days)
-        )
+        plan.assumptions.extend(_enforce_site_day_fit(plan, rain_days=rain_days))
         plan.assumptions.extend(_retime_real_food_cards(plan))
         # 卡=槽位、餐厅=数据：餐厅必须填进午/茶/晚卡，不许自带一套自由时刻
         plan.assumptions.extend(_bind_real_food_to_cards(plan))
