@@ -60,6 +60,7 @@ from app.services.agent.plan import (
     current_violations,
     dedupe_plan_visits,
     drop_dangling_visits,
+    heal_arrival_light,
     heal_item_ids,
     heal_leg_gaps,
 )
@@ -748,6 +749,9 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 出站前条目 id 重号自愈（2026-11-13 磁器口换点 422）：新增条目可能
         # 撞上会话里载入的旧号，前端拿到重号卡片后按 id 换点会命中别天那条。
         heal_item_ids(session)
+        # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
+        # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
+        heal_arrival_light(session.plan)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
         # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
         body["plan"] = (

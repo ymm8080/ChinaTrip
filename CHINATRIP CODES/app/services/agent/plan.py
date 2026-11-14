@@ -8258,6 +8258,125 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
 
 
+def heal_arrival_light(plan: ItineraryPlan) -> None:
+    """出站自愈（2026-11-13 六拍）：旧行程的空到达日补「城市漫步（自由
+    安排）」，缺餐卡的日子按 _ensure_meal_cards 补——用户刷新/打开行程即修，
+    不必重新规划。
+
+    空到达日的旧行程常已经挂着一张「回酒店·夜间休息」卡（空日直接落到
+    入住后），它会把这天判成「已排满」。这里按建单时序重放一遍：先摘夜卡
+    →补漫步（落地后到 21:30 之间 ≥90 分钟空窗）→补餐卡→夜卡挂到末尾
+    （+30 分钟）。只碰「整天没有任何参访件」的到达日，重跑幂等。
+    """
+    groups: dict[str, list[DayPlan]] = {}
+    for d0 in plan.days:
+        keys = {str(d0.base_city or "").removesuffix("市")}
+        for i0 in d0.items:
+            if isinstance(i0, VisitItem):
+                if str(getattr(i0, "category", "") or "") not in ("food", "hotel"):
+                    keys.add(str(getattr(i0, "city", "") or "").removesuffix("市"))
+            elif isinstance(i0, TransferItem):
+                keys.add(str(getattr(i0, "to_city", "") or "").removesuffix("市"))
+        for c0 in keys:
+            if c0:
+                groups.setdefault(c0, []).append(d0)
+
+    single_city = len({str(c).removesuffix("市") for c in (plan.cities or [])}) <= 1
+    touched = False
+    pending_nights: list[tuple[DayPlan, VisitItem]] = []
+    for vcity, days in groups.items():
+        for d0 in days:
+            if not _day_is_arrival(d0, vcity):
+                continue
+            if any(
+                isinstance(i0, VisitItem)
+                and str(getattr(i0, "category", "") or "") not in ("food", "hotel")
+                for i0 in d0.items
+            ):
+                continue
+            has_arr_leg = any(
+                isinstance(t0, TransferItem)
+                and str(t0.to_city or "").strip().removesuffix("市") == vcity
+                for t0 in d0.items
+            )
+            if not (has_arr_leg or (single_city and d0.day == 1)):
+                continue
+            if any(
+                str(getattr(i0, "item_id", "") or "").startswith("citywalk-ph-d")
+                for i0 in d0.items
+            ):
+                continue
+            # 摘夜卡（空日的夜卡落到入住后，会把窗口判死）
+            nights = [i0 for i0 in list(d0.items) if is_hotel_night(i0)]
+            for n0 in nights:
+                d0.items.remove(n0)
+            _fx, _tg, _fl, _xf = _day_fixed_windows(d0)
+            _ends = [e for _s, e, _src in _fx]
+            _last = max(_ends) if _ends else None
+            _start = _last + 30 if _last is not None else None
+            if _start is not None and _start + 90 <= 21 * 60 + 30:
+                _end = _start + 90
+                _hotel = _head_hotel_anchor(d0, plan)
+                d0.items.append(
+                    VisitItem(
+                        item_id=f"citywalk-ph-d{d0.day}",
+                        name=L("城市漫步（自由安排）", "City walk (free time)"),
+                        city=vcity,
+                        day=d0.day,
+                        duration_minutes=_end - _start,
+                        location=(_hotel.location if _hotel is not None else None),
+                        category="citywalk",
+                        start_time=_time_of(_start),
+                        end_time=_time_of(_end),
+                        soft_pin=True,
+                    )
+                )
+                logger.info(
+                    "plan: heal arrival day %s with free city walk %s-%s",
+                    d0.day,
+                    _time_of(_start),
+                    _time_of(_end),
+                )
+                plan.assumptions.append(
+                    L(
+                        f"第{d0.day}天为到达日，落地后有空档，已排一段酒店周边"
+                        f"自由漫步（{_time_of(_start).strftime('%H:%M')}–"
+                        f"{_time_of(_end).strftime('%H:%M')}），可按需换成具体"
+                        "街区/演出/餐厅",
+                        f"Day {d0.day} is the arrival day; a free walk near the "
+                        f"hotel was added ({_time_of(_start).strftime('%H:%M')}–"
+                        f"{_time_of(_end).strftime('%H:%M')}) — swap it for a "
+                        "specific block, show or restaurant any time",
+                    )
+                )
+                touched = True
+            # 夜卡先摘着，等餐卡补齐后再挂末尾（否则夜卡被当固定窗挡晚餐，
+            # 出现「回酒店 17:30 → 晚饭 18:30」的倒序）
+            for n0 in nights:
+                pending_nights.append((d0, n0))
+    if touched:
+        # 缺餐卡补齐（至少晚餐不豁免）：旧行程刷新即长回晚卡。
+        _ensure_meal_cards(plan)
+    for d0, n0 in pending_nights:
+        dur0 = n0.duration_minutes or 60
+        # 用当天全部已排条目（含餐占位）算末尾——_day_fixed_windows 会跳过
+        # 餐占位，按它算夜卡会与晚餐并排（17:30 回酒店 + 17:30 晚饭实锤）。
+        _ends2 = [
+            _item_end_minutes(i0)
+            for i0 in d0.items
+            if i0 is not n0 and getattr(i0, "start_time", None) is not None
+        ]
+        _ends2 = [e for e in _ends2 if e is not None]
+        _base = max(_ends2) if _ends2 else 20 * 60
+        _st = min(_base + 30, 21 * 60 + 30 - dur0)
+        n0.start_time = _time_of(_st)
+        n0.end_time = _time_of(_st + dur0)
+        d0.items.append(n0)
+        d0.items.sort(
+            key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+        )
+
+
 def _endpoint_day_light_sweep(
     plan: ItineraryPlan, protect: frozenset[str] | set[str]
 ) -> None:

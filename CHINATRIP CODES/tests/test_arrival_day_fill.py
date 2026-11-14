@@ -14,6 +14,7 @@ from datetime import time
 from app.services.agent.plan import (
     _endpoint_day_light_sweep,
     _retime_meal_placeholders,
+    heal_arrival_light,
 )
 from app.services.itinerary.models import (
     DayPlan,
@@ -165,3 +166,24 @@ def test_late_dinner_card_when_evening_blocked_until_2040():
     assert dinner, "晚窗被占也要补迟场晚卡"
     assert dinner[0].start_time >= time(20, 30)
     assert dinner[0].duration_minutes >= 30
+
+
+def test_heal_arrival_light_fills_old_plan_and_is_idempotent():
+    """出站自愈：旧行程的空到达日补自由漫步 + 晚卡；重跑幂等。"""
+    d1 = _day(1, _transfer(), _hotel())
+    plan = _plan(d1, _day(2, _visit("城件一", 60, _C0, 2, tier=9)))
+    heal_arrival_light(plan)
+    walks = [i for i in d1.items if i.item_id.startswith("citywalk-ph-d")]
+    assert len(walks) == 1, "旧行程空到达日应补自由漫步"
+    assert [i for i in d1.items if getattr(i, "category", "") == "food"], "晚卡也要补"
+    heal_arrival_light(plan)
+    assert len([i for i in d1.items if i.item_id.startswith("citywalk-ph-d")]) == 1
+
+
+def test_heal_arrival_light_leaves_days_with_content_alone():
+    """到达日已有参访件 → 自愈不动它。"""
+    street = _visit("回民街", 90, _C1, 1, tier=4, category="citywalk")
+    d1 = _day(1, _transfer(), _hotel(), street)
+    plan = _plan(d1)
+    heal_arrival_light(plan)
+    assert not any(i.item_id.startswith("citywalk-ph-d") for i in d1.items)
