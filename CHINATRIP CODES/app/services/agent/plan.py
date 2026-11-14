@@ -5832,9 +5832,7 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # 已打标也强制纠正（2026-11-14 UAT：行程中心载入/编辑旧行程
                 # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
                 # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
-                flag_min = min(
-                    t.hour * 60 + t.minute for t in item.fixed_sessions
-                )
+                flag_min = min(t.hour * 60 + t.minute for t in item.fixed_sessions)
                 if (
                     item.start_time is not None
                     and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
@@ -27161,7 +27159,14 @@ class PlanningAgent:
         if store is None or not hasattr(store, "access_profiles"):
             return {}
         cities = tuple(
-            sorted({str(i.city) for d in plan.days for i in d.items if isinstance(i, VisitItem)})
+            sorted(
+                {
+                    str(i.city)
+                    for d in plan.days
+                    for i in d.items
+                    if isinstance(i, VisitItem)
+                }
+            )
         )
         cache = getattr(self, "_access_cache", None)
         if cache is None:
