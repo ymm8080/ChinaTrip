@@ -20,7 +20,6 @@ import asyncio
 import inspect
 import json
 import logging
-import math
 import os
 import re
 import uuid
@@ -125,7 +124,7 @@ from app.services.itinerary.solver import (
     solve_plan,
     tight_cluster_split_violations,
 )
-from app.services.lang_ctx import L, is_en
+from app.services.lang_ctx import SUPPORTED, L, is_en
 from app.services.llm import (
     ChatMessage,
     LLMError,
@@ -1088,12 +1087,11 @@ def _source_tier(cand: dict) -> int:
         # unesco 换到档 1（2026-11-13 国际站升档后），串号家族质量闸随档
         # 改为按 r == 1 判定，不能再用 tier == 1（那会打到国际站行）。
         if r == 1 and _unesco_serial_only(cand):
+            # 质量背书=纯评分（2026-11-13 拍板「纯评分优先」，同
+            # _cand_quality 口径：评分≥4.5 即真遗产子项，点评数不作加分）
             rating = cand.get("rating") or 0.0
-            count = cand.get("rating_count") or 0
             try:
-                q = float(rating) * (
-                    1.0 + (math.log2(1.0 + float(count)) if count else 0.0)
-                )
+                q = float(rating)
             except (TypeError, ValueError):
                 q = 0.0
             if q < 4.5:
@@ -1428,18 +1426,25 @@ _BACKFILL_MIN_QUALITY = 4.5
 
 
 def _cand_quality(cand: dict) -> float:
-    """同档内名声分（与选点层 _quality 同公式）：rating ×
-    (1+log2(1+count))；baidu 源 ×0.9 贴回高德标尺（评分跨源不可比，
-    2026-11-07 拍板）。"""
+    """同档内名声分（2026-11-13 用户拍板「纯评分优先」）：rating 本身，
+    点评数退为同分 tie-break（调用处自加）；baidu 源 ×0.9 贴回高德
+    标尺（评分跨源不可比，2026-11-07 拍板）。"""
     rating = cand.get("rating") or 0.0
-    count = cand.get("rating_count") or 0
     try:
-        q = float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
+        q = float(rating)
     except (TypeError, ValueError):
         return 0.0
     if str(cand.get("rating_source") or "").strip().lower() == "baidu":
         q *= _BAIDU_RATING_FACTOR
     return q
+
+
+def _cand_rating_count(cand: dict) -> int:
+    """点评数安全读（纯评分主序的同分 tie-break 键，2026-11-13 拍板）。"""
+    try:
+        return int(cand.get("rating_count") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _backfill_eligible(cand: dict) -> bool:
@@ -1535,12 +1540,23 @@ def _solver_degraded_assumption() -> str:
 
 MAX_LINK_SITES = 10  # §6.5: sites surfaced from one pasted link
 RESTO_ASK_KM = 5.0  # link food spot farther than this from every sight -> ask
-# 双语 P2：会话 lang=en 时注入到各系统提示词尾部（面向用户的输出
-# 全英文；结构化 name 字段保留中文原名供库匹配）
+# 双语 P2 起步、多语言延续（design nlang §3.2）：会话 lang 有 prompt 档的语言
+# 注入到各系统提示词尾部（面向用户的输出切语言；结构化 name 字段保留中文原名
+# 供库匹配）。L2 骨架（ja/ko）按拍板默认「直接生成」，质量劣再改 en 生成+后置翻译。
 _LANG_DIRECTIVES: dict[str, str] = {
     "en": (
         "LANGUAGE: All user-facing text you output (replies, questions, "
         "reasons) MUST be natural English. Keep Chinese POI names only "
+        "inside structured name fields."
+    ),
+    "ja": (
+        "LANGUAGE: All user-facing text you output (replies, questions, "
+        "reasons) MUST be natural Japanese（日本語）. Keep Chinese POI names only "
+        "inside structured name fields."
+    ),
+    "ko": (
+        "LANGUAGE: All user-facing text you output (replies, questions, "
+        "reasons) MUST be natural Korean（한국어）. Keep Chinese POI names only "
         "inside structured name fields."
     ),
 }
@@ -4524,12 +4540,12 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
     而旧口径对任何带城际腿的日子整日 continue，落地日只剩航班+酒店，
     连晚饭都没有（2026-11-13 西安到达日实录）。
 
-    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45 分钟真空隙；
-    晚卡缺→[16:30,20:30] 找 ≥60/45 分钟，仍无隙再走迟场 [20:30,21:30]
-    找 ≥45/30 分钟（迟落地/白天被交通占满也吃得上饭）。落地/发车缓冲取
-    _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地 +150），绝不把
-    餐卡塞进飞机/火车在途时段；餐窗整段在途才不补，并披露点名该天缺卡
-    ——绝不静默缺卡。
+    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45/30 分钟真空
+    隙；晚卡缺→[16:30,20:30] 找 ≥60/45 分钟，仍无隙再走迟场
+    [20:30,21:30] 找 ≥45/30 分钟（迟落地/白天被交通占满也吃得上饭）。
+    落地/发车缓冲取 _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地
+    +150），绝不把餐卡塞进飞机/火车在途时段；餐窗整段在途才不补，并
+    披露点名该天缺卡——绝不静默缺卡。
     """
     notes: list[str] = []
     missing: dict[str, list[int]] = {"lunch": [], "dinner": []}
@@ -4600,7 +4616,6 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
                 )
                 continue
-
             start, dur = gap
             at = _time_of(start)
             city = _meal_city_at(day, at)
@@ -7898,12 +7913,7 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             ]
             # 王牌先搬（四拍「最高优先级的点硬预留」）：锚满时由低档员承担
             # 失败，绝不出现「骊山占了座、兵马俑反而没进来」的档序倒挂。
-            stragglers.sort(
-                key=lambda v: (
-                    _fam_tier(v),
-                    -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
-                )
-            )
+            stragglers.sort(key=_fam_key)
             for v in stragglers:
                 # 心愿/必去/护名卡可挪不可删（2026-11-02 拍板）：族合并
                 # 只挪卡不删卡，故 pinned/soft_pin/protect/created/curated
@@ -9201,6 +9211,11 @@ def _endpoint_day_light_sweep(
                 and str(getattr(i, "category", "") or "") not in ("food", "hotel")
                 for i in d.items
             ):
+                # 2026-11-13 六拍（用户「到达日不能整天没有安排：附近的
+                # CITYWALK/演出/餐厅都行」）：留白前先补一段酒店周边自由
+                # 漫步——落地后到夜卡之间还有 ≥90 分钟空窗就插占位卡
+                # （锚=酒店，无酒店则不带坐标；名字带「自由安排」不假装
+                # 是具体景点，用户可自行换成街区/演出）。
                 if _recruit_arrival_light(plan, d, vcity) is not None:
                     moved = True
                     continue
@@ -10252,7 +10267,10 @@ def _fallback_sequence_times(
             _chain_rank: dict[int, int] = {}
             if _anchor is not None and len(untimed) > 2:
                 _remaining = list(untimed)
-                _cur = _anchor
+                # 链起点=锚的坐标（2026-11-14 修复 AttributeError）：锚是
+                # 酒店 VisitItem——haversine_km 只吃 GeoPoint，起点带对象
+                # 会在首次 min() 即崩（test_hotel_anchor_far_card 回归）。
+                _cur = getattr(_anchor, "location", None)
                 _rank = 0
                 while _remaining and _cur is not None:
 
@@ -10477,6 +10495,7 @@ def _fallback_sequence_times(
                             ):
                                 continue
                             return True
+                        return False
                     for (fs, fe), (_rs, _re, src) in zip(
                         _leg_windows(fixed, visit), fixed
                     ):
@@ -10629,6 +10648,7 @@ def _fallback_sequence_times(
                         t = fe
                         advanced = True
                         break
+                t = _advance_past_combo(t, dur)
                 _sh_hours = hours_by_poi.get(visit.poi_id)
                 if _is_show_item(visit) and _sh_hours is not None and _sh_hours.windows:
                     # 多场次演出齐场（2026-11-08 贴场馆演出 D2 甩空日案）：场次
@@ -10711,6 +10731,7 @@ def _fallback_sequence_times(
                                     _tc = fe
                                     _adv = True
                                     break
+                            _tc = _advance_past_combo(_tc, dur)
                             if _tc != _cand:
                                 continue
                             if (
@@ -10757,6 +10778,7 @@ def _fallback_sequence_times(
                             tf = fe
                             advanced = True
                             break
+                    tf = _advance_past_combo(tf, dur)
                     if (
                         tf + dur <= day_end
                         and (cap is None or tf <= cap)
@@ -11744,6 +11766,7 @@ def _probe_visit_slot(
                 continue
             t = fe
             advanced = True
+            break
     if cap_max is not None and t > cap_max:
         return None
     hours = hours_by_poi.get(visit.poi_id)
@@ -14185,7 +14208,9 @@ class PlanningAgent:
             intercity_mode=(
                 intercity_mode if intercity_mode in ("train", "flight") else "auto"
             ),
-            lang=lang if lang in ("en", "zh") else None,
+            # 多语言（design nlang §2.1）：lang 白名单走 SUPPORTED 注册表，
+            # 注册表加语言这里自动放行（未知码归 None=zh 行为）
+            lang=lang if lang in SUPPORTED else None,
         )
         # 自由输入框里的「新行程简报」（2026-11-13）：表单可能是上一次行程
         # 的回填（重新规划/自动打开后），而用户刚打的这句才是新设置——它写出
@@ -15873,7 +15898,8 @@ class PlanningAgent:
             if not name or name.startswith(("http://", "https://")):
                 continue
             if it.get("exclusion_flag"):
-                # 删站点回心愿单时打了排除标记：规划不得自动再排
+                # 2026-11-13 用户拍板：删站点 → 回心愿单 + EXCLUSION 标记，
+                # 规划不得自动再排（用户明确不要这一项）——留痕跳过。
                 logger.info("plan: wish row excluded by user, skip: %s", name)
                 continue
             if (
@@ -17320,9 +17346,9 @@ class PlanningAgent:
 
     @staticmethod
     def _wish_row_plan_fields(session: "PlanSession", item: VisitItem) -> dict:
-        """已排期心愿行补字段（2026-11-13）：日期/时刻来自真实行程
-        （planned_date = 出发日 + day-1）；点位属性（类别/时长/档位/坐标/
-        rain_ok）建行时已从 POIS 带，这里用行程卡现值刷新。"""
+        """已排期心愿行补规划字段（2026-11-13）：点位类型/时长/必去/钉住/
+        名录档/坐标/具体日期时刻/雨天属性——行是数据库事实，不再只活在
+        plan JSON 里。planned_date = 出发日 + (day-1)。"""
         planned = None
         start_date = session.plan.start_date if session.plan else None
         if start_date:
@@ -17626,6 +17652,7 @@ class PlanningAgent:
                     status=STATUS_SCHEDULED,
                     day=item.day,
                     note=note,
+                    **self._wish_row_plan_fields(session, item),
                 )
                 logger.info(
                     "plan: planned row scheduled %s -> day %d", item.name, item.day
@@ -17648,6 +17675,27 @@ class PlanningAgent:
             if any(
                 (item.poi_id and r.get("poi_id") and r["poi_id"] == item.poi_id)
                 or _name_dup(str(r.get("name") or ""), item.name)
+                for item in planned
+            ):
+                continue
+            # 绑定行按绑定落点核（2026-11-14 修复「心愿行排上即回心愿单」）：
+            # 行名是心愿原文（看成都附近的水利工程），卡名是绑定 POI 名
+            # （都江堰水利工程）——_name_dup 永不命中，行刚翻 scheduled 就被
+            # 本清扫误判「not in plan」回心愿单（wish_bind 全家桶实测）。
+            # 绑定映射（_wish_bindings/session.wish_bindings）才是行的落点
+            # 权威：绑定 POI 仍在行程→行照旧；绑定已失效（旧行程残渣）→
+            # 落点不在 planned→照旧回心愿单。
+            _rname = str(r.get("name") or "")
+            _bound = self._wish_bindings.get(_rname) or session.wish_bindings.get(
+                _rname
+            )
+            if _bound and any(
+                (
+                    item.poi_id
+                    and _bound.get("source_poi_id")
+                    and item.poi_id == _bound["source_poi_id"]
+                )
+                or _name_dup(str(_bound.get("name") or ""), item.name)
                 for item in planned
             ):
                 continue
@@ -18202,15 +18250,15 @@ class PlanningAgent:
             return minutes
 
         def _quality(cand: dict) -> float:
-            # 同档内名声分（与库侧 top_pois_in_city 同公式）：rating ×
-            # (1+log2(1+count))。2026-11-04 成渝案：同档并列只看时长升序，
-            # 短的次优点抢走同档名额（江畔古城 vs 山岳景区级），补质量降序。
-            # 2026-11-07 评分跨源不可比：rating_source='baidu' 行 ×0.9
-            # 贴回高德标尺（乡村样本 5.0 反超庙街正主 4.6 案），不改库值。
+            # 同档内名声分（2026-11-13 用户拍板「纯评分优先」）：rating
+            # 本身；点评数退为同分 tie-break（调用处 _cand_rating_count）。
+            # 2026-11-04 成渝案：同档并列只看时长升序，短的次优点抢走同档
+            # 名额（江畔古城 vs 山岳景区级），补质量降序。2026-11-07 评分
+            # 跨源不可比：rating_source='baidu' 行 ×0.9 贴回高德标尺
+            # （乡村样本 5.0 反超庙街正主 4.6 案），不改库值。
             rating = cand.get("rating") or 0.0
-            count = cand.get("rating_count") or 0
             try:
-                q = float(rating) * (1.0 + math.log2(1.0 + float(count or 0)))
+                q = float(rating)
             except (TypeError, ValueError):
                 return 0.0
             if str(cand.get("rating_source") or "").strip().lower() == "baidu":
@@ -18341,6 +18389,8 @@ class PlanningAgent:
                     # 同档内体验型优先（2026-11-07 拍板；跨档序不动）
                     0 if _is_experience_cand(p[1]) else 1,
                     -_quality(p[1]),
+                    # 点评数退为同分 tie-break（2026-11-13 纯评分优先）
+                    -_cand_rating_count(p[1]),
                     # 同档同分并列按名录宽度（2026-11-13 豫园案）：多站
                     # 背书行先，DB 物理序不再决定同分次序。
                     -named_site_count(p[1].get("source"), p[1].get("tags")),
@@ -18426,6 +18476,8 @@ class PlanningAgent:
                         _source_tier(p[1]),
                         0 if _is_experience_cand(p[1]) else 1,
                         -_quality(p[1]),
+                        # 点评数退为同分 tie-break（2026-11-13 纯评分优先）
+                        -_cand_rating_count(p[1]),
                         # 同档同分并列按名录宽度（2026-11-13 豫园案）
                         -named_site_count(p[1].get("source"), p[1].get("tags")),
                         _minutes(p[1], DEFAULT_VISIT_MINUTES),
@@ -18564,6 +18616,8 @@ class PlanningAgent:
                         # 的 unesco 标签与石刻本体同档，再用分钟数反超。质量
                         # 分先于分钟数：石刻 4.6 > 图商孪生 0 分。
                         -_quality(pool[i_][1]),
+                        # 点评数退为同分 tie-break（2026-11-13 纯评分优先）
+                        -_cand_rating_count(pool[i_][1]),
                         # 同档质量平手时博物馆本体优先于配套场馆行
                         # （2026-10-31 城心博物馆拍板；石窟双卡：数字影院并入
                         # 博物馆本体，不是反向）。
@@ -18708,7 +18762,12 @@ class PlanningAgent:
                 # ——用户要看的是川剧变脸。同 sights 排序口径补 -quality）。
                 _pin_cand = sorted(
                     shows,
-                    key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
+                    key=lambda p: (
+                        _source_tier(p[1]),
+                        -_quality(p[1]),
+                        -_cand_rating_count(p[1]),
+                        p[0],
+                    ),
                 )[0][1]
                 show_pin_min = _minutes(_pin_cand, 90)
                 show_pin_day = hi
@@ -19476,9 +19535,18 @@ class PlanningAgent:
                                     return False
                                 if _cand.get("created") or _cand.get("curated"):
                                     return False  # 自建/策展件同救援通道口径
-                            return (
-                                min(_source_tier(_c) for _, _c in unit) > ace_tier
-                            )  # 整组弱于入族王牌
+                            # 整组弱于入件（2026-11-13 拍板「纯评分优先」+
+                            # 弱者让位）：档位更低，或同档下评分严格更低
+                            # ——强度键 (tier, -quality) 字典序，整组最强
+                            # 成员仍弱于入件最强成员才可让。
+                            _ace_key = min(
+                                (_source_tier(pool[p][1]), -_quality(pool[p][1]))
+                                for p in members
+                            )
+                            _unit_best = min(
+                                (_source_tier(_c), -_quality(_c)) for _, _c in unit
+                            )
+                            return _unit_best > _ace_key
 
                         _card_bucket = {p: _bucket(c) for p, c in cards}
                         _in_buckets = {_bucket(pool[p][1]) for p in members}
@@ -19503,10 +19571,20 @@ class PlanningAgent:
                                 min(u[0] for u in unit),
                             )
 
+                        def _unit_strength(unit: list[tuple[int, dict]]) -> tuple:
+                            # 单元强度=最强成员 (tier, -quality)（小=强）；
+                            # 2026-11-13 纯评分优先：同档评分低者视为更弱、
+                            # 先让位（外层 reverse=True 排序消费）。
+                            return min(
+                                (_source_tier(_c), -_quality(_c)) for _, _c in unit
+                            )
+
                         _ranked = sorted(
                             (u for u in _units.values() if _evictable(u)),
                             key=_unit_key,
                         )
+                        # 弱者先（降序稳定排序：同强度保持 _unit_key 序）
+                        _ranked.sort(key=_unit_strength, reverse=True)
                         if not _ranked:
                             continue
                         _removed: list[tuple[int, dict, int]] = []
@@ -19925,6 +20003,16 @@ class PlanningAgent:
                     minutes = _minutes(cand, DEFAULT_VISIT_MINUTES)
                     xy = _cxy(cand)
                     _cid = clusters[pos]
+                    _dbg = (
+                        os.getenv("CHINATRIP_DEBUG_PLACE")
+                        and str(cand.get("name") or "") == "豫园"
+                    )
+                    if _dbg:
+                        logger.warning(
+                            "plan: DEBUG preclaim enter 豫园 loads=%s preclaimed=%s",
+                            {d: day_loads[d] for d in range(lo, hi + 1)},
+                            pos in preclaimed,
+                        )
                     # 多场次演出（sights 桶）虽按 2026-11-06 拍板参与预占位，
                     # 其日位仍由演出规则定：跟随簇的自然日（cluster_day，
                     # 与主环未认领演出同口径），不走归属跟随/近距贴邻——
@@ -20351,6 +20439,159 @@ class PlanningAgent:
                                     cand.get("name") or "?",
                                     day,
                                 )
+                            break
+                    # 满员日弱者让位（2026-11-13 三天窗豫园案）：严格位
+                    # 与软闸兜底全败且当日 4 帽满时，让同日更弱的已落卡
+                    # 腾位——受害者（非钉/演出/自建/curated，伞名对联不拆，
+                    # 族形收口 ≥2）回散件通道重试，入件按严格位落座。
+                    # 强度键 (tier, -quality)：2026-11-13 纯评分优先。
+                    if pos not in preclaimed and not _cand_is_show(cand):
+                        if _dbg:
+                            logger.warning(
+                                "plan: DEBUG hook 豫园 enter loads=%s",
+                                {d: day_loads[d] for d in range(lo, hi + 1)},
+                            )
+                        for d in range(lo, hi + 1):
+                            leg = _leg_min(xy, d)
+                            if day_loads[d][1] < 4 or _far_km(xy, d) > _SOFT_FAR_KM:
+                                continue  # 未满帽/远腿日不是帽型拒日
+                            if _rain_blocked(cand, d):
+                                continue
+                            if _over_return_cap(d, minutes, leg) or _return_reject(
+                                cand, d
+                            ):
+                                continue
+                            if (
+                                (
+                                    (_return_edge(d))
+                                    or (
+                                        d in _adays
+                                        and any(e not in _adays for e in eligible)
+                                    )
+                                )
+                                and len(eligible) > 1
+                                and (_source_tier(cand) <= 3 or _cand_is_big(cand))
+                            ):
+                                continue  # 边日轻量闸不让位硬闯
+                            _in_key = (
+                                _source_tier(cand),
+                                -_quality(cand),
+                                -named_site_count(cand.get("source"), cand.get("tags")),
+                            )
+                            # 受害单元=同族根整组（族形要么 ≥2 要么清零）
+                            # ∪ 伞名对联（同进退）；单元内任一成员过不了
+                            # 保护闸（钉/演出/自建/curated/餐宿）则整组不
+                            # 可让，整组最强成员仍弱于入件才可让。
+                            _guard = {
+                                p: not (
+                                    c.get("must")
+                                    or c.get("pinned")
+                                    or c.get("soft_pin")
+                                    or _cand_is_show(c)
+                                    or c.get("created")
+                                    or c.get("curated")
+                                    or str(c.get("category") or "") in ("food", "hotel")
+                                )
+                                for p, c in placed[d]
+                            }
+                            _groups: dict[tuple, list[tuple[int, dict]]] = {}
+                            for p, c in placed[d]:
+                                fr = _fam_of.get(p)
+                                key = ("fam", fr) if fr is not None else ("self", p)
+                                _groups.setdefault(key, []).append((p, c))
+                            _merged = True
+                            while _merged:
+                                _merged = False
+                                _keys = list(_groups)
+                                for _i in range(len(_keys)):
+                                    for _j in range(_i + 1, len(_keys)):
+                                        _gi = _groups[_keys[_i]]
+                                        _gj = _groups[_keys[_j]]
+                                        if any(
+                                            _umbrella_specs_bundle(a[1], b[1])
+                                            for a in _gi
+                                            for b in _gj
+                                        ):
+                                            _groups[_keys[_i]] = _gi + _gj
+                                            del _groups[_keys[_j]]
+                                            _merged = True
+                                            break
+                                    if _merged:
+                                        break
+                            victims = []
+                            for _key, unit in _groups.items():
+                                if not all(_guard[p] for p, _c in unit):
+                                    continue  # 组内有保护件：整组不让
+                                unit_best = min(
+                                    (
+                                        _source_tier(c),
+                                        -_quality(c),
+                                        -named_site_count(
+                                            c.get("source"), c.get("tags")
+                                        ),
+                                    )
+                                    for _, c in unit
+                                )
+                                if unit_best > _in_key:
+                                    victims.append((unit_best, _key, unit))
+                            # 弱者先让（强度键大者先），逐组试让到严格位装下
+                            victims.sort(key=lambda t: t[0], reverse=True)
+                            if _dbg:
+                                _dbg_units = [
+                                    (
+                                        [c.get("name") for _, c in u],
+                                        [
+                                            (
+                                                _source_tier(c),
+                                                _quality(c),
+                                                named_site_count(
+                                                    c.get("source"), c.get("tags")
+                                                ),
+                                            )
+                                            for _, c in u
+                                        ],
+                                        all(_guard[p] for p, _c in u),
+                                    )
+                                    for u in _groups.values()
+                                ]
+                                logger.warning(
+                                    "plan: DEBUG hook 豫园 d=%d in_key=%s "
+                                    "groups=%s victims=%s",
+                                    d,
+                                    _in_key,
+                                    _dbg_units,
+                                    [k for k, _u, _v in victims],
+                                )
+                            _removed: list[tuple[int, dict, int]] = []
+                            _ok = False
+                            for _vk, _root, unit in victims:
+                                for v_pos, v_cand in unit:
+                                    _ch = _remove_card(d, v_pos, v_cand)
+                                    _removed.append((v_pos, v_cand, _ch))
+                                if day_loads[d][1] < 4 and day_loads[d][
+                                    0
+                                ] + minutes + leg <= _budget(d):
+                                    _ok = True
+                                    break
+                            if not _ok:
+                                for v_pos, v_cand, ch in reversed(_removed):
+                                    _place_card(d, v_pos, v_cand, ch)
+                                continue  # 回滚试下一天（禁无声半弹）
+                            _place_card(d, pos, cand, minutes + leg)
+                            _partial_rain_note(cand, d)
+                            if _cid is not None:
+                                day_owner.setdefault(d, _cid)
+                            preclaimed.add(pos)
+                            for v_pos, _v_cand, _ch in _removed:
+                                preclaimed.discard(v_pos)  # 回散件通道重试
+                            logger.info(
+                                "plan: preclaim displace-weaker %s -> day %d (shed %s)",
+                                cand.get("name") or "?",
+                                d,
+                                "、".join(
+                                    str(c.get("name") or "?") for _, c, _ in _removed
+                                ),
+                            )
                             break
 
                 # 紧簇愈合同位交换（2026-11-08 城心簇拆天案二拍，用户复测
@@ -21274,7 +21515,12 @@ class PlanningAgent:
                 # 同 _pin_cand 口径：同档演出 -quality 择优（2026-11-08）。
                 _shows_ranked = sorted(
                     shows,
-                    key=lambda p: (_source_tier(p[1]), -_quality(p[1]), p[0]),
+                    key=lambda p: (
+                        _source_tier(p[1]),
+                        -_quality(p[1]),
+                        -_cand_rating_count(p[1]),
+                        p[0],
+                    ),
                 )
                 # 已排演出去重（2026-11-08 远郊片区案）：预认领（钉簇/贴
                 # 邻通道）已落位的演出不再整卡重发——重发=同一张卡两
@@ -23449,6 +23695,7 @@ class PlanningAgent:
         _reunite_show_with_venue(plan)
         # 街区+同址宴秀硬绑同日（2026-11-13 拍板）：先于每场闸对账——闸的
         # 「胶块档」会把同址体验留在块日、把别的宴/演挪走。
+        plan.assumptions.extend(_bind_block_family(plan))
         # 每场闸终装（2026-11-08 xa 案 D2 双演出撞日）：选层各相位互不
         # 知情，终装统一对账——同日两场保首场、余场挪无演出日/移除披露。
         _enforce_show_per_day(plan)
@@ -23480,6 +23727,7 @@ class PlanningAgent:
         plan.assumptions.extend(_bind_real_food_to_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=self._auto_restaurants)
         # 交付前最后一道：街区与同址宴秀绝不允许拆天（终装各相位仍可挪卡）
+        plan.assumptions.extend(_bind_block_family(plan))
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
@@ -26340,7 +26588,8 @@ class PlanningAgent:
             if item is None:
                 continue
             try:
-                # 删站点 = 回心愿单 + 排除标记（不再塞进「不想去」）
+                # 2026-11-13 用户拍板：删站点 = 回心愿单 + 排除标记
+                # （不再塞进「不想去」分区；心愿单里仍可见）
                 self._trip_items.mark_excluded(
                     item.name,
                     itinerary_id=plan_before.itinerary_id,
@@ -26642,7 +26891,9 @@ class PlanningAgent:
                         owner_device_id=session.device_id,
                         note=L("来自聊天", "From chat"),
                         city=city,
+                        # 用户原话留档（心愿单数据库 raw_command）
                         raw_command=wish,
+                        # POIS 点位属性（类别/时长/档位/坐标/rain_ok）
                         kind=_seed.get("kind"),
                         duration_minutes=_seed.get("duration_minutes"),
                         tier=_seed.get("tier"),

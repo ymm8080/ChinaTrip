@@ -78,7 +78,7 @@ class CreateTripItemRequest(BaseModel):
     poi_id: str | None = Field(default=None, max_length=64)
     address: str | None = Field(default=None, max_length=200)
     opening_hours: str | None = Field(default=None, max_length=200)
-    # 用户原话（心愿单数据库 raw_command）
+    # 用户原话（2026-11-13 心愿单数据库 raw_command）
     raw_command: str | None = Field(default=None, max_length=1000)
     kind: str | None = Field(default=None, max_length=20)
 
@@ -282,7 +282,7 @@ async def delete_trip_item(
 ) -> None:
     _ensure_owned(service, item_id, x_device_id)
     try:
-        # 软删（DELETION FLAG + 日期/时间/人）：行留库可审计，看板不显示
+        # 软删（DELETION FLAG + 日期/时间/人）：行留在库里可审计，看板不显示
         service.delete(item_id, actor=x_device_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found") from None

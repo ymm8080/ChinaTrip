@@ -181,8 +181,8 @@ class PlanAlternative(BaseModel):
     name: str
     name_en: str | None = None
     category: str | None = None
-    # 名录档号（hit_tier 口径 0=unesco..9=3a，10=未分层）——H5 据此亮
-    # 同级徽标；与主点同档是本功能的硬规则。
+    # 名录档号（hit_tier 口径 0=国际站 1=unesco 2=5a..9=3a，10=未分层）
+    # ——H5 据此亮同级徽标；与主点同档是本功能的硬规则。
     tier: int | None = None
     # 层级短牌（unesco/5a/ta/intl/social/…，poi_details._TIER_TAG 口径）
     level_tag: str | None = None

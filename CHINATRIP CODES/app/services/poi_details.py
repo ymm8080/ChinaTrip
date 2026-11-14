@@ -14,7 +14,6 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from math import log2
 from uuid import uuid4
 
 from sqlalchemy import String, and_, cast, func, or_
@@ -30,6 +29,7 @@ from app.services.source_tier import (
     INTL_PLATFORM_TAGS,
     INTL_SITE_TAGS,
     catalog_rank,
+    named_site_count,
     source_tag_key,
 )
 
@@ -54,10 +54,11 @@ _DB_DOWN_COOLDOWN_SECONDS = 300.0
 _DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 
 # 层级档号（2026-11-03 名录序拍板，共享模块 source_tier 全站唯一定义点）：
-# 0=unesco 1=5a 2=国际旅行网站 3=国际平台 4=短视频 5=小红书 6=街区
-# 7=风景名胜 8=4a 9=3a 10=未分层——取代 2026-10-25 四档（4/3/2/1）与
-# 2026-10-25/26「intl 与 5A 同档」拍板。小值优先；boost 逐档递减
-# （未列=1.0）；6 街区/7 风景名胜不打层级牌（_TIER_TAG 缺档即不注入）。
+# 2026-11-13 用户拍板：0=国际旅行网站(TA/LP/Viator/curated) 1=unesco
+# 2=5a 3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4a 9=3a
+# 10=未分层——国际站升到 unesco/5A 之前（与回填 SOURCE_PRIORITY 对齐）。
+# 小值优先；boost 逐档递减（未列=1.0）；6 街区/7 风景名胜不打层级牌
+# （_TIER_TAG 缺档即不注入）。
 _TIER_BOOST = {
     0: 1.8,
     1: 1.6,
@@ -71,9 +72,9 @@ _TIER_BOOST = {
     9: 1.05,
 }
 _TIER_TAG = {
-    0: "unesco",
-    1: "5a",
-    2: "intl",
+    0: "intl",
+    1: "unesco",
+    2: "5a",
     3: "intl",
     4: "intl",
     5: "intl",
@@ -126,10 +127,11 @@ def order_source_tags(tags: list[str]) -> list[str]:
 
 def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
     """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
-    名录序 catalog_rank（2026-11-03 拍板，取代 2026-10-25/26「intl 与
-    5A 同档」；unesco_* 前缀族视同全量世遗）→ 3a 兜底档 → 全库名单
-    互含 → 10=未分层。返回档号小值优先：0=unesco 1=5a 2=国际旅行网站
-    3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4a 9=3a。"""
+    名录序 catalog_rank（2026-11-13 拍板：国际站 > unesco > 5A，取代
+    2026-11-03 的 unesco > 5A > 国际站；unesco_* 前缀族视同全量世遗）
+    → 3a 兜底档 → 全库名单互含 → 10=未分层。返回档号小值优先：
+    0=国际旅行网站 1=unesco 2=5a 3=国际平台 4=短视频 5=小红书 6=街区
+    7=风景名胜 8=4a 9=3a。"""
     r = catalog_rank(h.get("source"), h.get("tags"))
     if r is not None:
         return r
@@ -145,13 +147,31 @@ def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
 
 
 def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
-    """判定层级并把层级标签并入 tags（档 2-5 统一打 intl 牌；6 街区/
+    """判定层级并把层级标签并入 tags（档 0/3-5 统一打 intl 牌；6 街区/
     7 风景名胜无牌不注入），返回层级。读侧（top_pois_in_city /
-    search_keyword / api/pois）共用。"""
+    search_keyword / api/pois）共用。
+
+    2026-11-13 国际站升首档后补一道名录来源牌：混合行（如 source=unesco
+    + ta/lp 双榜）赢档是国际站（档 0 打 intl），但 unesco/5A 本体牌不能
+    因此丢——按来源/既有 tag 追加 provenance 牌（unesco 优先于 5a）。
+    """
     tier = hit_tier(h, heritage)
-    tag = _TIER_TAG.get(tier)
-    if tag and tag not in (h.get("tags") or []):
-        h["tags"] = order_source_tags([*(h.get("tags") or []), tag])
+    tags = {str(t).strip().lower() for t in (h.get("tags") or [])}
+    src = str(h.get("source") or "").strip().lower()
+    prov = None
+    if src == "unesco" or any(t.startswith("unesco") for t in tags):
+        prov = "unesco"
+    elif src == "5a" or "5a" in tags:
+        prov = "5a"
+    # 档牌与 provenance 牌去重（2026-11-14 修复 ['5a','5a'] 双牌）：
+    # 骨架 5a 行 tier=2 档牌与来源 provenance 同为 '5a'——两处独立
+    # 判 `not in tags` 会各加一张，先并集去重再追加。
+    to_add: list[str] = []
+    for t in (_TIER_TAG.get(tier), prov):
+        if t and t not in tags and t not in to_add:
+            to_add.append(t)
+    if to_add:
+        h["tags"] = order_source_tags([*(h.get("tags") or []), *to_add])
     return tier
 
 
@@ -784,15 +804,16 @@ class PoiDetailStore:
                         .filter(Poi.source.in_(["unesco", "5a"]))
                         .all()
                     )
-                    # 档号随 2026-11-03 名录序：unesco=0、5a=1（小值优先）
-                    return [(name, 0 if src == "unesco" else 1) for name, src in rows]
+                    # 档号随 2026-11-13 名录序：国际站=0、unesco=1、
+                    # 5a=2（小值优先）——heritage 名单只收 unesco/5a。
+                    return [(name, 1 if src == "unesco" else 2) for name, src in rows]
             except Exception:
                 self._note_db_failure()
                 logger.warning("poi_details: heritage list query failed", exc_info=True)
         for v in self._memory.values():
             src = v.get("source")
             if src in ("unesco", "5a"):
-                out.append((v.get("name") or "", 0 if src == "unesco" else 1))
+                out.append((v.get("name") or "", 1 if src == "unesco" else 2))
         return out
 
     def _nonactive_pids(self) -> set[str]:
@@ -857,12 +878,14 @@ class PoiDetailStore:
         国际荐点标（ta/lp/viator/curated/klook 等）的知名餐厅豁免入池
         （2026-11-07 用户指令——选点提示词「用餐锚点」消费口径接通）。
 
-        score = rating × log2(1 + rating_count) × 标签加成（tags 含
-        unesco/5A 乘 1.5）；有坐标优先；无评分行按（有标签、有坐标）
-        垫底但保留——5A/UNESCO 骨架可能尚未回源评分，不能因冷启动被
-        埋没。返回 search_keyword 同形状 + 富化字段（rating_count/
-        tags/best_visit_time/suggested_duration_min/indoor/rain_ok/
-        review_tags/intro 摘要 ≤60 字）；location 为 (lon, lat) 元组。
+        score = rating × 标签加成（tags 含 unesco/5A 乘 1.5）；rating_count
+        只作同分 tie-break（2026-11-13 用户拍板「纯评分优先」——迪士尼
+        4.6×23450 条点评不再压过豫园 4.8×0 条）；有坐标优先；无评分行按
+        （有标签、有坐标）垫底但保留——5A/UNESCO 骨架可能尚未回源评分，
+        不能因冷启动被埋没。返回 search_keyword 同形状 + 富化字段
+        （rating_count/tags/best_visit_time/suggested_duration_min/
+        indoor/rain_ok/review_tags/intro 摘要 ≤60 字）；location 为
+        (lon, lat) 元组。
         """
         c = (city or "").strip().removesuffix("市")
         city_names = ({c, f"{c}市"} - {""}) if c else set()
@@ -874,8 +897,10 @@ class PoiDetailStore:
             # tier 取负在前——无评分的 5A/unesco 名单行也要压过裸 4.8 的
             # 边缘点（城市阳台事件）。
             rating = h.get("rating") or 0.0
-            count = h.get("rating_count") or 0
-            quality = rating * (1 + (log2(1 + count) if count else 0))
+            try:
+                count = int(h.get("rating_count") or 0)
+            except (TypeError, ValueError):
+                count = 0
             tier = h.get("_tier")
             if tier is None:
                 tier = 10  # 未分层（防御：出库前必经 apply_tier_tag）
@@ -889,10 +914,18 @@ class PoiDetailStore:
             # tier 挤进前 30，消费端坐标闸剔除后池子只剩 3-6 行，检索配额
             # 一死整城落占位（10-30 成都/上海/重庆实录 no_loc_skipped=24-27）。
             # 骨架行垫底保留，backfill 补齐坐标后自动回到前列。
+            # 第三键=纯评分（2026-11-13 用户拍板）：rating_count 退为同分
+            # tie-break（第四键），点评量不再压评分。
+            # 第五键=名录宽度（2026-11-13 豫园案）：同档同评分并count并列时
+            # 多站背书行先（旧稳定键是 DB 物理序，ta/lp/sygic/mindtrip 四站
+            # 地标被单站零分行压到池尾）。不跨档、不改有评分行次序。
+            # 注意 rows_out.sort(reverse=True)：本键取正值才是「多者先」。
             return (
                 1 if h.get("location") else 0,
                 -tier,
-                round(quality * boost, 3),
+                round(float(rating) * boost, 3),
+                count,
+                named_site_count(h.get("source"), h.get("tags")),
             )
 
         rows_out: list[dict] = []
@@ -972,6 +1005,11 @@ class PoiDetailStore:
         for h in rows_out:
             tier = apply_tier_tag(h, heritage)
             h["_tier"] = tier
+        # 同分最终按名字定序（2026-11-13 豫园案）：DB 查询无 ORDER BY，
+        # 稳定排序的并列键=连接返回的物理行序，跨连接会漂——同输入同输出
+        # 被破坏（豫园时而在池内第 11、时而掉出选点）。先按名字升序预排，
+        # 再按 score 稳定排序，并列组内永远同名序。
+        rows_out.sort(key=lambda h: str(h.get("name") or ""))
         rows_out.sort(key=score, reverse=True)
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)
@@ -1047,7 +1085,7 @@ class PoiDetailStore:
         """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city
         同一套 DB/内存双路）：不按热度截 top N——同级备选按档号过滤后
         池子本来就小，截断会把同档冷门行提前埋掉。返回 search_keyword
-        同形状 hit + `_tier`（hit_tier 名录档号，0=unesco..10=未分层，
+        同形状 hit + `_tier`（hit_tier 名录档号，0=国际站..10=未分层，
         私有键不剥——消费方 poi_alternatives 直接用）。含餐行（备选规则
         自己按主点类别筛）；DB 故障回落内存库，与 top_pois_in_city 同款。
         """

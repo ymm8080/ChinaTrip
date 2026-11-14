@@ -4,11 +4,11 @@
 规则唯一定义点（用户拍板三条规则 + 落地细则）：
 
 - 同级（SAME LEVEL，2026-11-06 二拍改硬闸）：档带一致。两套档号在此
-  统一——行程条目 tier 是选点梯子（plan._source_tier，1=unesco…10=4a
-  11=其他 6=演出），候选池 `_tier` 是 hit_tier（0=unesco…9=3a 10=未分
-  层），PLAN_TIER_TO_POOL 换算后同带比较。档带（LEVEL_BANDS）：premium
-  （unesco/5a/国际旅行网站/国际平台）、社媒（短视频/小红书）、国内名录
-  （街区/风景名胜/4A/3A）、未分层——**跨档带候选一律出局，宁缺不滥**
+  统一——行程条目 tier 是选点梯子（plan._source_tier，1=国际站 2=unesco
+  3=5a…10=4a 11=其他 6=演出），候选池 `_tier` 是 hit_tier（0=国际站
+  1=unesco 2=5a…9=3a 10=未分层），PLAN_TIER_TO_POOL 换算后同带比较。
+  档带（LEVEL_BANDS）：premium（国际旅行网站/unesco/5a/国际平台）、
+  社媒（短视频/小红书）、国内名录（街区/风景名胜/4A/3A）、未分层——**跨档带候选一律出局，宁缺不滥**
   （5A 主点卡亮 4A 馆实录；首版「近档补位亮牌披露」被用户
   否决：4A 不能作 5A/世遗的替代品）。带内仍按 |Δ档| 就近排序，chip 亮
   备选自身档牌（UNESCO/5A/国际榜/…），绝不冒充同级；带内不足 limit
@@ -49,7 +49,6 @@ from __future__ import annotations
 
 import logging
 import re
-from math import log2
 
 from app.services.itinerary.models import (
     GeoPoint,
@@ -84,9 +83,9 @@ def _dur_capped(h: dict) -> int | None:
 # 梯子 6=演出（不在名录序）、11=其他/未分层，映射为 None（演出走 show
 # 专项；未分层按池档 10 处理）。
 PLAN_TIER_TO_POOL: dict[int, int | None] = {
-    1: 0,  # unesco
-    2: 1,  # 5a
-    3: 2,  # 国际旅行网站（ta/lp/viator/curated）
+    1: 0,  # 国际旅行网站（ta/lp/viator/curated，2026-11-13 升首档）
+    2: 1,  # unesco
+    3: 2,  # 5a
     4: 3,  # 国际平台
     5: 4,  # 短视频
     6: None,  # 演出（专项，非名录档）
@@ -230,9 +229,17 @@ def _dur_band(duration_minutes: int | None) -> tuple[int, int] | None:
 
 
 def _quality(h: dict) -> float:
+    # 纯评分（2026-11-13 用户拍板「纯评分优先」）：点评数退为同分
+    # tie-break，不再进主分。
     rating = h.get("rating") or 0.0
-    count = h.get("rating_count") or 0
-    return rating * (1 + (log2(1 + count) if count else 0))
+    return float(rating)
+
+
+def _rating_count(h: dict) -> int:
+    try:
+        return int(h.get("rating_count") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _norm_name(name: str | None) -> str:
@@ -588,6 +595,8 @@ def pick_alternatives(
             dur_key(h),
             cat_key(h),
             round(-_quality(h), 3),
+            # 点评数退为同分 tie-break（2026-11-13 纯评分优先）
+            -_rating_count(h),
             dist_km(h) if dist_km(h) is not None else 9999.0,
         )
 
@@ -776,4 +785,84 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
         for a in alts:
             used_names.add(_norm_name(a.name))
             used_names.add(_norm_name(a.name_en))
+    _attach_unplaced_chips(copy, visits, exclude_names, used_names)
     return copy
+
+
+# 「想排未排」chip 徽标（2026-11-11 拍板「可替代品不一定同品类，也可以是
+# 想排没有排进去的景点放在右边」）：跨品类/跨档带放行，亮「想去」牌与
+# 同级备选区分；点击走同一换点端点。
+WANT_LEVEL_TAG = "want"
+
+
+def _pick_unplaced_host(visits: list[VisitItem], cand) -> VisitItem | None:
+    """给「想排未排」候选选宿主卡：同城 → 本想排入的那天（day_hint）→
+    当天首张有时刻观光卡。无时刻卡（暂排不上的灰卡）不作宿主——把 A 的
+    备选挂到一张自己都没排上的卡上没有换点意义。"""
+    city = str(getattr(cand, "city", "") or "").strip().removesuffix("市")
+    same_city = [
+        v
+        for v in visits
+        if v.start_time is not None
+        and (str(v.city or "").strip().removesuffix("市") == city)
+    ]
+    if not same_city:
+        return None
+    hint = getattr(cand, "day_hint", None)
+    if hint is not None:
+        for v in same_city:
+            if v.day == hint:
+                return v
+    return same_city[0]
+
+
+def _attach_unplaced_chips(
+    plan: ItineraryPlan,
+    visits: list[VisitItem],
+    exclude_names: set[str],
+    used_names: set[str],
+) -> None:
+    """把 plan.unplaced（规划器必去让位/弃排留痕）转成宿主卡右侧 chip。
+
+    与同级备选（pick_alternatives）不同源：不过候选池、过同级/同类硬闸
+    ——用户拍板跨品类放行。仍守底线：名非空非餐、未在行程内（含无时刻
+    灰卡，防双亮）、全计划不重复亮。想排 chip 排最前，总量仍受 ALT_LIMIT
+    约束（同卡 chip 区不挤爆站点行）。
+    """
+    for cand in getattr(plan, "unplaced", None) or ():
+        name = str(getattr(cand, "name", "") or "")
+        nm = _norm_name(name)
+        if not nm or _is_food_row(getattr(cand, "category", None)):
+            continue
+        if _overlap_any(nm, exclude_names) or nm in used_names:
+            continue
+        host = _pick_unplaced_host(visits, cand)
+        if host is None:
+            continue
+        dist = None
+        loc = getattr(cand, "location", None)
+        if host.location is not None and loc is not None:
+            try:
+                dist = haversine_km(host.location, loc)
+            except (TypeError, ValueError):
+                dist = None
+        pool_tier = plan_tier_to_pool(getattr(cand, "tier", None))
+        chip = PlanAlternative(
+            name=name,
+            name_en=getattr(cand, "name_en", None),
+            category=getattr(cand, "category", None),
+            tier=pool_tier if isinstance(pool_tier, int) else None,
+            level_tag=WANT_LEVEL_TAG,
+            duration_minutes=getattr(cand, "duration_minutes", None),
+            distance_km=dist,
+            rating=None,
+        )
+        host.alternatives = ([chip] + list(host.alternatives or ()))[:ALT_LIMIT]
+        used_names.add(nm)
+        logger.info(
+            "alternatives: unplaced chip %s -> host %s (day %s, reason=%s)",
+            name,
+            host.name,
+            getattr(cand, "day_hint", None),
+            getattr(cand, "reason", None),
+        )

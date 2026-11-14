@@ -662,10 +662,10 @@ async def get_itinerary_detail(
     store: ItineraryStore = Depends(get_store),
     account: str | None = Depends(_account_from_auth),
 ) -> dict:
-    """行程详情（2026-11-13 用户拍板「TRIP 详情页面还需要城市」）：逐日明细
+    """行程详情（2026-11-13 用户拍板「TRIP 详情页面」）：库里存的逐日明细
 
-    读库里的 itinerary_days + itinerary_items（保存时重建的那份），每天带城市，
-    每个点位带名称/城市/时段/时长/备选 1-3。
+    ——日期 / 城市 / 时段 / 点位名 / 时长 / 备选 1-3。读的是 itinerary_days +
+    itinerary_items（保存时重建的那份），不是 plan JSON。
     """
     device = _require_device(x_device_id)
     record = _owned_record(store, itinerary_id, device, account)
@@ -700,12 +700,12 @@ async def get_itinerary_detail(
                     "city": row.city,
                     "category": row.category,
                     "address": row.address,
-                    "schedule_date": (
-                        row.schedule_date.isoformat() if row.schedule_date else None
-                    ),
-                    "start_time": (
-                        row.start_time.strftime("%H:%M") if row.start_time else None
-                    ),
+                    "schedule_date": row.schedule_date.isoformat()
+                    if row.schedule_date
+                    else None,
+                    "start_time": row.start_time.strftime("%H:%M")
+                    if row.start_time
+                    else None,
                     "end_time": row.end_time.strftime("%H:%M")
                     if row.end_time
                     else None,
@@ -727,14 +727,21 @@ async def get_itinerary_detail(
                     "alternatives": row.alternatives,
                 }
             )
-        cities = list(record.plan.cities or [])
         return {
             "itinerary_id": itinerary_id,
-            "start_city": cities[0] if cities else None,
-            "end_city": cities[-1] if cities else None,
+            "start_city": (record.plan.cities or [None])[0]
+            if record.plan.cities
+            else None,
+            "end_city": (record.plan.cities or [None])[-1]
+            if record.plan.cities
+            else None,
             "travel_start_date": record.plan.start_date,
             "days": [
-                {"day": d.day, "city": d.base_city, "items": by_day.get(d.day, [])}
+                {
+                    "day": d.day,
+                    "city": d.base_city,
+                    "items": by_day.get(d.day, []),
+                }
                 for d in days
             ],
         }

@@ -700,18 +700,18 @@ def test_store_get_by_name_city_scoped():
 
 
 def test_hit_tier_unesco_silk_road_component():
-    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档（2026-11-03 名录序
-    档号 0 起小值优先；原 11-02 大雁塔事故修复：点段代表行来源
+    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档（2026-11-13 名录序
+    国际站 > unesco > 5A；原 11-02 大雁塔事故修复：点段代表行来源
     5a/relicpark 各异，只认 source 永远升不了档）。"""
     from app.services.poi_details import hit_tier
 
-    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 0
-    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 0
-    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 0
+    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 1
+    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 1
+    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 1
     # 5a source 明站压 intl 伞标签（catalog_rank 判定序）
-    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 1
-    # 国际旅行网站档（ta/lp/viator/curated 明站）
-    assert hit_tier({"source": "baidu", "tags": ["lp"]}, []) == 2
+    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 2
+    # 国际旅行网站档（ta/lp/viator/curated 明站）现为最高名录档 0
+    assert hit_tier({"source": "baidu", "tags": ["lp"]}, []) == 0
     # 裸 intl 伞标按国际平台档计（共享模块既有约定：05/10 两路 import
     # 都写 intl 伞标，无站点明细时归平台档）
     assert hit_tier({"source": "baidu", "tags": ["intl"]}, []) == 3

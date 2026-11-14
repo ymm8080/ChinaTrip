@@ -269,7 +269,9 @@ def _run_lns(plan: ItineraryPlan):
 
 def test_preclaim_full_ladder_spreads_by_cap():
     # 全档预占位（2026-11-02 用户拍板「全部优先级都要考虑」）：4/日闸
-    # 下高档先满 day1、次档顺延 day2。坐标按 lon 逐件 +0.02°（≈1.9km）
+    # 下高档先满 day1、次档顺延 day2。2026-11-13 名录序重排后梯子为
+    # 国际站（lp）> unesco > 5A：丁/戊 lp 先占，甲馆（unesco）次之，
+    # 5A 两件争第 4 席、余件顺延 day2。坐标按 lon 逐件 +0.02°（≈1.9km）
     # 错开（同点夹具互认会被伞名孪生吸收并卡绕开闸；族卡已废，贴邻
     # 同日圈 5km——1.9km 在圈内，同日软偏好与高档先满 day1 同向）；时长
     # 90→60 消腿噪声（>1.5km 腿按打车口径 34min/跳，90×4+腿会先撞 360
@@ -283,10 +285,10 @@ def test_preclaim_full_ladder_spreads_by_cap():
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     day_of = {it["name"]: it["day"] for it in items}
-    assert day_of["甲馆"] == 1
-    assert day_of["乙5a"] == 1 and day_of["丙5a"] == 1
-    assert day_of["丁lp"] == 1  # 池序第 4 件，day1 恰好满 4 点
-    assert day_of["戊lp"] == 2  # 次档顺延，不越档抢更早的天
+    assert day_of["丁lp"] == 1 and day_of["戊lp"] == 1  # 国际站首档先占
+    assert day_of["甲馆"] == 1  # unesco 次档
+    # 5A 两件：一件补 day1 第 4 席，另一件顺延 day2，不越档抢更早的天
+    assert sorted([day_of["乙5a"], day_of["丙5a"]]) == [1, 2]
 
 
 def test_lns_may_relocate_timed_tier1_when_it_unlocks():

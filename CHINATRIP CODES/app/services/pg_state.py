@@ -85,7 +85,7 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
 
 
-def _parse_date(value: object) -> date | None:
+def _parse_date(value: object) -> "date | None":
     if not value:
         return None
     if isinstance(value, datetime):
@@ -96,7 +96,7 @@ def _parse_date(value: object) -> date | None:
         return None
 
 
-def _parse_time(value: object) -> time | None:
+def _parse_time(value: object) -> "time | None":
     if not value:
         return None
     if isinstance(value, datetime):
@@ -116,7 +116,8 @@ def _parse_time(value: object) -> time | None:
 def _wish_source_column(raw: str | None) -> str:
     """心愿单 SOURCE 列归一（2026-11-13 用户拍板：manual / conversation）。
 
-    payload 保留原始来源（chat/paste/agent_recommend…）供状态机判定。
+    payload 保留原始来源（chat/paste/agent_recommend…）供状态机判定；
+    只有数据库列归一到用户口径的两个值。
     """
     value = (raw or "manual").strip()
     if value in ("chat", "conversation"):
@@ -138,7 +139,8 @@ def record_to_row_values(record: ItineraryRecord) -> dict:
         "id": _pg_uuid_loose(record.itinerary_id, "it_"),
         "cities": list(record.plan.cities or []),
         "title": _trip_title(record.plan.cities or []),
-        # 2026-11-13（用户拍板 HEADER 列）：随每次 put 同步
+        # 2026-11-13（用户拍板 HEADER 列）：起始/结束城、旅行城市+天数、
+        # 开始日期随每次 put 同步（跨进程读口也看得到）。
         **trip_header_fields(record.plan),
         "working_sync_version": record.working_sync_version,
         "active_snapshot_id": (
@@ -193,6 +195,8 @@ def item_to_row_values(item: dict) -> dict:
         "deletion_date": _parse_date(item.get("deletion_date")),
         "deletion_time": _parse_time(item.get("deletion_time")),
         "deleted_by": (item.get("deleted_by") or None),
+        # 规划字段（2026-11-13）：点位类型/时长/必去/钉住/名录档/坐标/
+        # 具体日期时刻/雨天属性/原话——心愿行直接可算日容量与归簇
         "kind": (item.get("kind") or None),
         "duration_minutes": item.get("duration_minutes"),
         "must_visit": bool(item.get("must_visit")),
@@ -457,7 +461,7 @@ class PgTripItemService(TripItemService):
         items: dict[str, dict] = {}
         with self._session_factory() as session:
             for row in session.query(TripItem).all():
-                # 软删行（DELETION FLAG）永不回灌内存——看板/心愿单不显示
+                # 软删行（DELETION FLAG）永不回灌内存——心愿单/看板不显示
                 if getattr(row, "deletion_flag", False):
                     continue
                 payload = row.payload

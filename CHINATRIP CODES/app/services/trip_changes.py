@@ -68,7 +68,7 @@ def rewrite_trip_detail(session, uid, plan) -> None:
             category = getattr(item, "category", None)
             kind = "transfer" if from_city else (category or "visit")
             # 2026-11-13（用户：VisitItem/酒店/交通/餐卡都要在详情表里）：
-            # 餐卡分早/午/下午茶/晚，酒店留真名，占位卡单独标记
+            # 各类实体自己的业务字段
             start_t = getattr(item, "start_time", None)
             meal_slot = None
             if category == "food" and start_t is not None:
@@ -108,7 +108,6 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                     from_city=(from_city or None),
                     to_city=(getattr(item, "to_city", None) or None),
                     transport_no=(transport_no or None),
-                    transport_mode=(getattr(item, "mode", None) or None),
                     meal_slot=meal_slot,
                     hotel_name=hotel_name,
                     placeholder=is_placeholder,
@@ -128,7 +127,7 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                     alt2=(alt_names[1] if len(alt_names) > 1 else None),
                     alt3=(alt_names[2] if len(alt_names) > 2 else None),
                     # 2026-11-13（用户「VisitItem/酒店/交通/餐卡都要进详情表」）：
-                    # 整条 item 留档 + 规划语义列
+                    # 整条 item 留档 + 规划语义列，酒店卡/餐卡/交通段一视同仁
                     payload=(
                         item.model_dump(mode="json")
                         if hasattr(item, "model_dump")
@@ -138,6 +137,7 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                     must_visit=bool(getattr(item, "must", False)),
                     tier=getattr(item, "tier", None),
                     site_rank=getattr(item, "site_rank", None),
+                    transport_mode=getattr(item, "mode", None),
                     seq=getattr(item, "seq", None),
                 )
             )

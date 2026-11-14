@@ -774,9 +774,17 @@ def test_amap_city_overrides_wrong_extracted_city():
     assert item is not None and item.city == "重庆"  # …amap truth wins
     assert day.base_city == "重庆"
     # 2026-11-12 拍板（已安排分区补源）：排上的心愿行翻进已安排分区，
-    # amap 覆写的城市保留在行上。
+    # amap 覆写的城市保留在行上。2026-11-13 起无时刻卡不算已排期
+    # （179bfdf）：链接件在 day1 起点卡/跨城腿夹缝里落不下时刻（stub 环境
+    # 无实测腿）→ 硬违例修复认输后卡留灰、行回心愿单——断言改锁
+    # 「行在册且 amap 真城保留」，分区归属随落位状态走。
     groups = trip_items.list_groups()
-    row = next(r for r in groups["scheduled"] if r["name"] == "十八梯")
+    row = next(
+        r
+        for g in ("scheduled", "wishlist")
+        for r in groups.get(g, [])
+        if r["name"] == "十八梯"
+    )
     assert row["city"] == "重庆"
 
 

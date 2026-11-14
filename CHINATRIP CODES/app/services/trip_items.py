@@ -240,9 +240,12 @@ class TripItemService:
             "itinerary_id": itinerary_id,
             # 2026-11-13 数据库事实化：归属设备随行落库（看板按设备读）
             "owner_device_id": owner_device_id,
+            # 心愿单数据库字段（2026-11-13 拍板）：建行人 / 是否排期 /
+            # 排除标记——ARRANGED 由「有具体日期时刻」决定（update 维护）
             "created_by": created_by or owner_device_id,
             "arranged": False,
             "exclusion_flag": False,
+            # 规划字段（2026-11-13）：建行即记类型与用户原话，排期后补齐
             "kind": kind,
             "duration_minutes": duration_minutes,
             "tier": tier,
@@ -290,7 +293,8 @@ class TripItemService:
         (subclass persistence rides the caller's write-through)."""
         changed = False
         if source in ("manual", "chat", "paste") and item.get("exclusion_flag"):
-            # 用户再次明确点名 → 解除排除（排除只是「删站点后别自动再排」）
+            # 用户再次明确点名（手动/对话/粘贴）→ 解除排除：排除只是
+            # 「删站点后别自动再排」，不是永久黑名单。
             item["exclusion_flag"] = False
             changed = True
         for field, value in (
@@ -471,8 +475,9 @@ class TripItemService:
         ):
             if value is not None:
                 item[field] = value
-        # 心愿单数据库字段：ARRANGED = 有具体日期时刻（已排期/已订且天序在）；
-        # EXCLUSION = 用户删站点后的排除，已排进/已订自动解除。
+        # 心愿单数据库字段（2026-11-13 拍板）：ARRANGED = 有具体日期时刻
+        # （已排期/已订且天序在）；EXCLUSION = 用户删站点后明确排除，
+        # 已排进/已订的行自动解除（它就在行程里）。
         item["arranged"] = target in _TIMELINE_STATUSES and item.get("day") is not None
         if exclusion_flag is not None:
             item["exclusion_flag"] = bool(exclusion_flag)
@@ -570,7 +575,7 @@ class TripItemService:
             status = item.get("status")
             source = str(item.get("source") or "")
             if source == "plan":
-                # 引擎补源行不是用户心愿：只软删不重建
+                # 引擎补源行不是用户心愿（2026-11-12 拍板）：只软删不重建
                 try:
                     self.delete(item_id, actor=actor)
                 except InvalidTransitionError:
@@ -592,6 +597,8 @@ class TripItemService:
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)
             clone_source = source if source in SOURCES else "manual"
+            # 用户拍板：删行程时 ARRANGED 取消（已安排 → 心愿单）——旧行先
+            # 回心愿单态（清天序/时刻）再软删留档，审计里不会再声称已排期
             try:
                 self.update(item_id, status=STATUS_WISHLIST, now=now)
             except InvalidTransitionError:
@@ -622,7 +629,8 @@ class TripItemService:
                     item_id,
                     item.get("name"),
                 )
-        # 兜底：仍挂着该行程的行一律解绑（否则 PG 外键会挡下行程删除）
+        # 兜底：仍挂着该行程的行（booked/unwanted 之外的异常态）一律解绑，
+        # 否则 PG 外键会挡下行程删除（204 后行程复活）。
         for item in list(self._items.values()):
             if item.get("itinerary_id") == itinerary_id:
                 self.unbind_itinerary(item["id"], now=now)
@@ -635,8 +643,9 @@ class TripItemService:
         itinerary_id: str | None = None,
         city: str | None = None,
     ) -> dict:
-        """删行程里的站点（2026-11-13 拍板）：回心愿单栏并打 EXCLUSION——
-        用户明确不要它，规划不得自动再排；心愿单里仍可见、可手动再排期。"""
+        """删行程里的站点（2026-11-13 用户拍板）：这一项回心愿单栏并打
+        EXCLUSION 标记——用户明确不要它，规划不得自动再排；与「不想去」
+        分区不同，心愿单里仍可见、可手动再排期。没有既有行就建一条。"""
         for item in self._items.values():
             if item.get("status") == STATUS_UNWANTED:
                 continue

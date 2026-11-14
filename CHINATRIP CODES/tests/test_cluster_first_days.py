@@ -367,14 +367,15 @@ def test_weak_edge_beyond_1km_not_in_atomic_family():
 
 def test_all_small_family_claims_arrival_day():
     """⑦三轮②锚（账面剔腿）：腿不是游玩负载——可行性判定与
-    day_loads 账面一律剔腿。钟/鼓/城墙三人组 40+40+90=170min 落到达
-    日 d1：旧账面含腿 170+腿≈198>180 把整族挤去 d2（探针 r2 实录），
-    剔腿后按 170 判 ≤180 直落 d1（用户目标 d1=城心三人组；到达日
-    整族落位通道〔二拍②〕同判 170≤180 镜像）。"""
+    day_loads 账面一律剔腿。三人组 40+40+90=170min 落到达日 d1：
+    旧账面含腿 170+腿≈198>180 把整族挤去 d2（探针 r2 实录），剔腿后
+    按 170 判 ≤180 直落 d1。2026-11-13 端点日内容闸后，到达日整族
+    通道只收端点合法内容（简单街区/茶/演出），夹具改用带街/巷语素的
+    轻量三人组，仍验 170≤180 的剔腿判据。"""
     cands = [
-        _c("钟楼", (104.0600, 30.66), dur=40, city="西安"),
-        _c("鼓楼", (104.0690, 30.66), dur=40, city="西安"),  # ↔钟楼 ~0.86km
-        _c("城墙碑林", (104.0780, 30.66), tier=2, dur=90, city="西安"),
+        _c("钟楼街", (104.0600, 30.66), dur=40, city="西安"),
+        _c("鼓楼街", (104.0690, 30.66), dur=40, city="西安"),
+        _c("城墙根巷", (104.0780, 30.66), dur=90, city="西安"),
     ]
     items = PlanningAgent._deterministic_selection(
         cands,
@@ -384,7 +385,7 @@ def test_all_small_family_claims_arrival_day():
         arrival_days={1},
     )
     day_of = {it["name"]: it["day"] for it in items}
-    assert {day_of["钟楼"], day_of["鼓楼"], day_of["城墙碑林"]} == {1}
+    assert {day_of["钟楼街"], day_of["鼓楼街"], day_of["城墙根巷"]} == {1}
 
 
 def test_important_family_gets_450_clean_day_waiver():

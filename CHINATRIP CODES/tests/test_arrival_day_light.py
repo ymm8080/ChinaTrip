@@ -171,7 +171,10 @@ def test_heavy_removed_to_unplaced_when_no_host():
     远郊卡）+ 披露加回路径；他日满员不得硬塞，也不得「暂保留」在到达日。"""
     ace = _v("王牌A", 120, _C0, 1, tier=1)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
-    plan = _plan(_d(1, ace), _d(2, *full))
+    # 2026-11-13 起两天窗两端都是端点日（到达+返程）——「全端点日」不变形，
+    # 违例重磅滞留合法；「无宿主出卡」须 3 天窗：day2=正常宿主日（满员），
+    # day3=空返程日。
+    plan = _plan(_d(1, ace), _d(2, *full), _d(3))
     _endpoint_day_light_sweep(plan, frozenset())
     assert all(not any(i is ace for i in d.items) for d in plan.days), (
         "违例重磅卡不得滞留到达日"

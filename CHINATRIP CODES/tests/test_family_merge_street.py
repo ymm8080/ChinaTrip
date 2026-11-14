@@ -179,7 +179,9 @@ class RecordingItems:
     def __init__(self) -> None:
         self.updates: list = []
 
-    def list_groups(self):
+    def list_groups(
+        self, itinerary_id: str | None = None, owner_device_id: str | None = None
+    ) -> dict:
         return {"wishlist": [{"name": "西安碑林博物馆", "city": "西安", "id": "w1"}]}
 
     def update(self, *a, **k):

@@ -289,7 +289,10 @@ def test_plan_message_then_save_freezes_latest_plan():
         },
         ensure_ascii=False,
     )
-    agent = PlanningAgent(StubAdapter([V0_JSON, edit_json]))
+    # 第三条=修复轮兜底（2026-11-13 端点轻量清扫把 day2 的西湖移除会带出
+    # 硬违例→编辑走一轮 _request_repair）：空 diffs=不修复，回合照常收口。
+    repair_json = json.dumps({"diffs": []}, ensure_ascii=False)
+    agent = PlanningAgent(StubAdapter([V0_JSON, edit_json, repair_json]))
     client = TestClient(make_app(agent))
     # Single-city session: under the 2026-10-19 origin rule the two-city
     # variant would drop 外滩 (origin) and strand 西湖 on the return-train

@@ -175,9 +175,10 @@ def test_fallback_user_pinned_head_untouchable():
 
 
 def test_insertion_head_candidate_takes_morning_head():
-    # 插入主路：tier2 候选先插吃 09:00；tier3 大点退让午后。
-    cand = _visit("cand", "武侯祠", dur=90, tier=2)
-    big = _visit("big", "杜甫草堂", dur=120, tier=3)
+    # 插入主路：tier1 候选先插吃 09:00；tier4（非头档）大点退让午后。
+    # 2026-11-13 名录序：头档=国际站/unesco/5A（tier≤3），平台站起非头档。
+    cand = _visit("cand", "武侯祠", dur=90, tier=1)
+    big = _visit("big", "杜甫草堂", dur=120, tier=4)
     out = insertion_schedule_day(
         DayPlan(day=1, base_city="成都", items=[big, cand]), poi_hours=[]
     )
@@ -189,8 +190,8 @@ def test_insertion_head_candidate_takes_morning_head():
 
 def test_cp_head_candidate_first():
     # CP 路（A/B 基准）同口径：候选 P 必须是首个开场观光点。
-    cand = _visit("cand", "武侯祠", dur=90, tier=2)
-    big = _visit("big", "杜甫草堂", dur=120, tier=3)
+    cand = _visit("cand", "武侯祠", dur=90, tier=1)
+    big = _visit("big", "杜甫草堂", dur=120, tier=4)
     out = solve_day(DayPlan(day=1, base_city="成都", items=[big, cand]), poi_hours=[])
     assert out is not None
     starts = {v.item_id: _minutes(v) for v in out.items if isinstance(v, VisitItem)}

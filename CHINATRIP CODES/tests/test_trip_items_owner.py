@@ -94,7 +94,8 @@ def test_delete_itinerary_releases_rows_to_unbound_wishlist():
     svc.update(row["id"], status="scheduled", day=3)
     released = svc.release_itinerary("it-abc12345")
     assert released
-    # 2026-11-13 释放口径：旧行留档软删、按名重建无挂靠心愿行——按名字断言
+    # 2026-11-13 释放口径：旧行留档软删、按名重建无挂靠心愿行（另一条并行
+    # WIP 的「旧行软删+克隆」语义）——按名字断言，别钉旧 id。
     got = next(
         r for r in svc.list_groups(None)["wishlist"] if r["name"] == "陕西历史博物馆"
     )

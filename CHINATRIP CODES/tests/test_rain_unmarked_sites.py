@@ -83,15 +83,23 @@ def test_unmarked_redirects_to_dry_day_when_counter_room():
 
 
 def test_unmarked_ace_stays_on_rainy_day():
-    # 王牌档（tier≤2）未标注点不参与让位（同整段降权口径：王牌保持
-    # tier 梯子原位）——source=5a 落雨日照排
+    # 王牌档（2026-11-13 名录序后 tier≤3 = 国际站/unesco/5A）未标注点
+    # 不参与让位（同整段降权口径：王牌保持 tier 梯子原位）——source=5a
+    # 落雨日照排。本测只验雨闸语义，显式关掉端点日集（到达/返程日
+    # 轻量闸属 11-13 另一拍板，会把 5A 移出端点日，混进来会遮住本测）。
     cands = [
         _cand("王牌街", "成都", None, lat=31.5, source="5a"),
         _cand("丙馆", "成都", "yes", lat=30.5),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
-        cands, 2, {"成都": (1, 2)}, rain_days={"成都": {1}}, notes=notes
+        cands,
+        2,
+        {"成都": (1, 2)},
+        rain_days={"成都": {1}},
+        arrival_days=set(),
+        tail_return_days=set(),
+        notes=notes,
     )
     day_of = {p["name"]: p["day"] for p in picked}
     assert day_of["王牌街"] == 1

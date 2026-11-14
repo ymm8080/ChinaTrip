@@ -12,6 +12,8 @@
 不连 DB（LLM_BACKEND=mock 全离线测试口径）。
 """
 
+from datetime import time as _t
+
 import pytest
 
 from app.services.itinerary.models import (
@@ -19,6 +21,7 @@ from app.services.itinerary.models import (
     GeoPoint,
     ItineraryPlan,
     TransferItem,
+    UnplacedCandidate,
     VisitItem,
 )
 from app.services.poi_alternatives import (
@@ -117,18 +120,19 @@ def test_level_class_merges_social_tiers():
 
 
 def test_same_level_ranks_first_then_nearest_disclosed():
-    # unesco 主点：池里同档 1 行 + 近档 5a/TA → 同档排前，带内近档按
-    # |Δ档| 补位（5a Δ1 < TA Δ2）；未分层跨档带出局
+    # unesco 主点：池里同档 1 行 + 近档 5A/TA → 同档排前，带内近档按
+    # |Δ档| 补位（2026-11-13 名录序：intl 0 / unesco 1 / 5a 2）；
+    # 未分层跨档带出局
     pool = [
-        hit("另一个世遗", 0),
-        hit("某国际榜点", 2),
-        hit("某5A景区", 1),
+        hit("另一个世遗", 1),
+        hit("某国际榜点", 0),
+        hit("某5A景区", 2),
         hit("某未分层点", 10),
     ]
-    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
-    assert [a.name for a in alts] == ["另一个世遗", "某5A景区", "某国际榜点"]
+    alts = pick_alternatives(pool, category="attraction", tier=2, duration_minutes=120)
+    assert [a.name for a in alts] == ["另一个世遗", "某国际榜点", "某5A景区"]
     assert alts[0].level_tag == "unesco"
-    assert alts[1].level_tag == "5a"  # 近档补位亮自身档牌，不冒充同级
+    assert alts[1].level_tag == "intl"  # 近档补位亮自身档牌，不冒充同级
 
 
 def test_cross_band_never_suggested_terracotta_case():
@@ -177,8 +181,8 @@ def test_missing_category_candidate_out():
 
 
 def test_5a_main_point_gets_5a_alternative():
-    pool = [hit("某5A备选", 1), hit("某世遗", 0)]
-    alts = pick_alternatives(pool, category="attraction", tier=2, duration_minutes=120)
+    pool = [hit("某5A备选", 2), hit("某世遗", 1)]
+    alts = pick_alternatives(pool, category="attraction", tier=3, duration_minutes=120)
     assert alts[0].name == "某5A备选" and alts[0].level_tag == "5a"
     # 同档不足时近档（unesco Δ1）补位
     assert alts[1].name == "某世遗"
@@ -186,8 +190,8 @@ def test_5a_main_point_gets_5a_alternative():
 
 def test_ta_recommendation_pair():
     # 国际旅行网站推荐（TA/LP 榜）主点 ↔ TA 榜备选（用户点名场景）
-    pool = [hit("某lp榜点", 2, pid="p2"), hit("某4A点", 8)]
-    alts = pick_alternatives(pool, category="attraction", tier=3, duration_minutes=120)
+    pool = [hit("某lp榜点", 0, pid="p2"), hit("某4A点", 8)]
+    alts = pick_alternatives(pool, category="attraction", tier=1, duration_minutes=120)
     assert alts[0].name == "某lp榜点" and alts[0].level_tag == "intl"
 
 
@@ -300,19 +304,19 @@ def test_dufu_pairing_wuhou_not_jinsha():
     # 同类同时长）反而不合适——遗址考古类与园林祠庙类隔离；四川博物院
     # （4A t8）跨档带出局（2026-11-06 二拍同级硬闸）
     pool = [
-        hit("成都金沙遗址博物馆", 2, category="museum", duration=120),
-        hit("武侯祠", 2, category="attraction", duration=90),
+        hit("成都金沙遗址博物馆", 0, category="museum", duration=120),
+        hit("武侯祠", 0, category="attraction", duration=90),
         hit("四川博物院", 8, category="museum", duration=120),
     ]
     alts = pick_alternatives(
         pool,
         category="museum",
-        tier=3,  # 杜甫草堂选点梯子档 3（curated intl）
+        tier=1,  # 杜甫草堂选点梯子档 1（curated intl，2026-11-13 升首档）
         duration_minutes=120,
         main_name="杜甫草堂",
     )
     assert [a.name for a in alts] == ["武侯祠"]
-    assert alts[0].level_tag == "intl"  # 同档（t2 国际旅行网站）亮国际榜
+    assert alts[0].level_tag == "intl"  # 同档（t0 国际旅行网站）亮国际榜
 
 
 def test_ruins_main_never_pairs_with_garden_sites():
@@ -633,7 +637,7 @@ def test_attach_heals_tier_from_store_row():
     plan.days[0].items[0].poi_id = "ct_成都_3"
     out = attach_plan_alternatives(plan, store)
     v = next(i for d in out.days for i in d.items if isinstance(i, VisitItem))
-    assert v.tier == 3  # curated/intl 标签 → 选点梯子档 3（_source_tier 口径）
+    assert v.tier == 1  # curated/intl 标签 → 选点梯子首档（_source_tier 口径）
     assert [a.name for a in v.alternatives] == ["武侯祠"]
     # 本体 tier 仍不动（只治展示拷贝）
     assert plan.days[0].items[0].tier is None
@@ -790,3 +794,105 @@ def test_generic_street_member_ok_for_member_main():
         near=GeoPoint(lon=104.0536, lat=30.6637),
     )
     assert [a.name for a in alts] == ["春熙路"]
+
+
+# --- 「想排未排」chip（2026-11-11 拍板「可替代品不一定同品类，想排没排
+# 进去的景点放右边」） ---------------------------------------------------------
+
+
+def _unplaced(
+    name: str = "被挤点",
+    city: str = "成都",
+    day_hint: int | None = 1,
+    category: str | None = "museum",
+    tier: int | None = 3,
+    duration: int | None = 120,
+) -> UnplacedCandidate:
+    return UnplacedCandidate(
+        name=name,
+        city=city,
+        day_hint=day_hint,
+        category=category,
+        tier=tier,
+        duration_minutes=duration,
+        location=GeoPoint(lon=104.0, lat=30.6),
+        reason="yield_must",
+    )
+
+
+def _two_day_plan() -> ItineraryPlan:
+    v1 = visit("都江堰", tier=1, item_id="v1")
+    v1.start_time = _t(9, 0)
+    v2 = visit("武侯祠", tier=3, item_id="v2", category="historic")
+    v2.day = 2
+    v2.start_time = _t(10, 0)
+    return ItineraryPlan(
+        itinerary_id="it_want",
+        cities=["成都"],
+        days=[
+            DayPlan(day=1, base_city="成都", items=[v1]),
+            DayPlan(day=2, base_city="成都", items=[v2]),
+        ],
+    )
+
+
+def test_unplaced_chip_lands_on_hint_day_with_want_badge():
+    plan = _two_day_plan()
+    plan.unplaced.append(_unplaced(name="某被挤博物馆", day_hint=2))
+    out = attach_plan_alternatives(plan, FakeStore([]))
+    d1 = out.days[0].items[0]
+    d2 = out.days[1].items[0]
+    assert d1.alternatives is None, "非 day_hint 天不挂"
+    assert [a.name for a in d2.alternatives] == ["某被挤博物馆"]
+    assert d2.alternatives[0].level_tag == "want", "想排 chip 亮「想去」徽标"
+
+
+def test_unplaced_chip_cross_category_allowed():
+    """跨品类放行（拍板核心）：museum 被挤点也挂 attraction 主卡右侧。"""
+    plan = _two_day_plan()
+    plan.unplaced.append(_unplaced(name="某被挤博物馆", day_hint=1, category="museum"))
+    out = attach_plan_alternatives(plan, FakeStore([]))
+    v1 = out.days[0].items[0]
+    assert [a.name for a in v1.alternatives] == ["某被挤博物馆"]
+
+
+def test_unplaced_chip_skipped_when_already_in_plan():
+    """行程内已有同名点（含无时刻灰卡）不再亮「想去」chip，防双亮。"""
+    plan = _two_day_plan()
+    ghost = visit("某被挤博物馆", tier=3, item_id="v9", category="museum")
+    ghost.day = 2  # 无时刻灰卡
+    plan.days[1].items.append(ghost)
+    plan.unplaced.append(_unplaced(name="某被挤博物馆", day_hint=2))
+    out = attach_plan_alternatives(plan, FakeStore([]))
+    for d in out.days:
+        for it in d.items:
+            if isinstance(it, VisitItem) and it.alternatives:
+                assert all(a.name != "某被挤博物馆" for a in it.alternatives)
+
+
+def test_unplaced_chip_food_and_blank_skipped():
+    plan = _two_day_plan()
+    plan.unplaced.append(_unplaced(name="某餐厅", category="美食"))
+    plan.unplaced.append(_unplaced(name=""))
+    out = attach_plan_alternatives(plan, FakeStore([]))
+    for d in out.days:
+        for it in d.items:
+            if isinstance(it, VisitItem):
+                assert not it.alternatives
+
+
+def test_unplaced_chip_want_first_and_capped():
+    """想排 chip 排最前；同卡 chip 总量仍 ≤ALT_LIMIT（同级备选被截尾）。"""
+    from app.services.poi_alternatives import ALT_LIMIT
+
+    pool = [hit(f"同档备选{i}", 0, duration=120) for i in range(ALT_LIMIT)]
+    plan = _two_day_plan()
+    v1 = plan.days[0].items[0]
+    v1.category = "attraction"
+    v1.tier = 1
+    plan.unplaced.append(_unplaced(name="某被挤点", day_hint=1))
+    out = attach_plan_alternatives(plan, FakeStore(pool))
+    got = out.days[0].items[0].alternatives
+    assert len(got) == ALT_LIMIT
+    assert got[0].name == "某被挤点" and got[0].level_tag == "want"
+    assert all(a.name != "某被挤点" for a in got[1:])

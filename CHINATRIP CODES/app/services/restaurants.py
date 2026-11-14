@@ -219,10 +219,33 @@ def _is_viral(cand: RestaurantCandidate) -> bool:
     return any(kw in hay for kw in _VIRAL_SIGNAL_KEYWORDS for hay in haystacks)
 
 
+# 餐段→槽位映射（DESIGN user_tag_two_level_2026-11-10 §三槽位对接口径）。
+# lunch 槽 ← {early_tea, breakfast, lunch, afternoon_tea}；
+# dinner 槽 ← {dinner, late_night}。
+_LUNCH_SLOT_PERIODS = frozenset({"early_tea", "breakfast", "lunch", "afternoon_tea"})
+_DINNER_SLOT_PERIODS = frozenset({"dinner", "late_night"})
+
+
 def _allowed_slots_for(
-    opening_hours: object, best_visit_time: object
+    opening_hours: object, best_visit_time: object, meal_periods: object = None
 ) -> frozenset[str]:
-    """由营业时间 / best_visit_time 推槽位适性（详见候选字段注释）。"""
+    """由 meal_periods / 营业时间 / best_visit_time 推槽位适性.
+
+    meal_periods（2026-11-12 起显式回填的 DB 餐厅行）优先：非空且能映
+    射到槽位时直接裁剪、不再看营业时间；空列表/缺失/全未映射（pois 行
+    与图商 live 候选无此键，传 None 即可）走原营业时间推断，行为不变。
+    """
+    periods = {
+        p.strip() for p in (meal_periods or []) if isinstance(p, str) and p.strip()
+    }
+    if periods:
+        slots: set[str] = set()
+        if periods & _LUNCH_SLOT_PERIODS:
+            slots.add("lunch")
+        if periods & _DINNER_SLOT_PERIODS:
+            slots.add("dinner")
+        if slots:
+            return frozenset(slots)
     slot = infer_slot_from_hours(
         opening_hours if isinstance(opening_hours, str) else None
     )
@@ -268,7 +291,10 @@ def candidate_from_poi_dict(poi: dict) -> RestaurantCandidate | None:
         biz_type=poi.get("category"),
         rec_tagged=bool(poi.get("rec_tagged")),
         allowed_slots=_allowed_slots_for(
-            poi.get("opening_hours"), poi.get("best_visit_time")
+            poi.get("opening_hours"),
+            poi.get("best_visit_time"),
+            # pois 行无 meal_periods 键 → None → 原营业时间推断不变
+            poi.get("meal_periods"),
         ),
         duration_hint=int(hint) if hint else None,
         # DB 行 category 多为粗标 food → 词表不命中时名称后备；tags 荣誉

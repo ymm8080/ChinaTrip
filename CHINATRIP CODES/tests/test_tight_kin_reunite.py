@@ -144,6 +144,63 @@ def test_tier1_ace_cluster_reunifies():
     }
 
 
+def test_chained_cluster_does_not_drag_bund_monument():
+    """东方明珠案（2026-11-13 用户：东方明珠靠外滩一族，不是人民广场）。
+
+    2km 单链接会把「外滩—南京东路—人民广场—新天地—思南公馆—田子坊」
+    连成一条 4.2km 长链（真实坐标，外滩↔新天地本身 2.4km 不相连，靠人民
+    广场接起来）。旧逻辑按可达成员数选宿主，把东方明珠拽进田子坊那天；
+    并族必须按直接距离：只认 ≤2km 的既有近邻（南京东路 1.9km / 外滩
+    0.9km），链尾 4km 外的田子坊日不收。
+    """
+    from app.services.agent.plan import _reunite_tight_kin
+
+    wt = _visit("外滩", 120, GeoPoint(lon=121.4927, lat=31.2329), day=1, city="上海")
+    tzf = _visit("田子坊", 90, GeoPoint(lon=121.4690, lat=31.2087), day=2, city="上海")
+    xtd = _visit("新天地", 90, GeoPoint(lon=121.4748, lat=31.2199), day=2, city="上海")
+    sna = _visit(
+        "思南公馆街区", 90, GeoPoint(lon=121.4690, lat=31.2146), day=2, city="上海"
+    )
+    njd = _visit(
+        "南京东路步行街",
+        90,
+        GeoPoint(lon=121.4823, lat=31.2367),
+        day=3,
+        city="上海",
+    )
+    rmgc = _visit(
+        "人民广场", 90, GeoPoint(lon=121.4749, lat=31.2290), day=3, city="上海"
+    )
+    mz = _visit(
+        "东方明珠",
+        120,
+        GeoPoint(lon=121.5025, lat=31.2371),
+        day=4,
+        city="上海",
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-bund-kin",
+        cities=["上海"],
+        days=[
+            DayPlan(day=1, base_city="上海", items=[wt]),
+            DayPlan(day=2, base_city="上海", items=[tzf, xtd, sna]),
+            DayPlan(day=3, base_city="上海", items=[njd, rmgc]),
+            DayPlan(day=4, base_city="上海", items=[mz]),
+        ],
+    )
+    _reunite_tight_kin(plan)
+    d2_names = {i.name for i in plan.days[1].items if isinstance(i, VisitItem)}
+    d3_names = {i.name for i in plan.days[2].items if isinstance(i, VisitItem)}
+    # 东方明珠离南京东路 1.9km、离田子坊 4.2km：跟着南京东路走，不进田子坊日
+    assert "东方明珠" not in d2_names
+    assert "东方明珠" in d3_names
+    assert mz.day == 3
+    # 披露只点名真近邻（≤5km），不把田子坊写成「同片区」
+    note = next(a for a in plan.assumptions if "东方明珠" in a)
+    assert "南京东路步行街" in note
+    assert "田子坊" not in note
+
+
 def test_pinned_never_moves():
     """铁律 19 护栏：用户钉住的件（pinned）即便孤悬返程日也不归位。"""
     from app.services.agent.plan import _reunite_tight_kin  # 并行实现中（TDD 红基线）

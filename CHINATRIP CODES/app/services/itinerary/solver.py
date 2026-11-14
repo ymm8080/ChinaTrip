@@ -314,7 +314,7 @@ BIG_FIRST_PENALTY = 10_000
 # 可以排早上第一个，或者下午第一个景点」；同日二裁「上午头档应给
 # 优先级更高且离酒店更远的点」——优先级（钉>tier）定谁争头档，距离
 # （远者）定胜负，且换位必须有距离证据、缺数据不换）：钉住未排或
-# tier≤2 高排序的非餐/酒店/演出/夜属性观光点为「头档候选」——候选
+# tier≤3 高排序的非餐/酒店/演出/夜属性观光点为「头档候选」——候选
 # 应占当日首个观光位（上午头档），其余候选吃下午头档；候选间钉住
 # 优先、tier 升序、距日内酒店锚距离降序（远者吃头档）。solver 双路
 # 的逆序（非候选占候选前、候选占 P 前）计软罚（量纲同大点先排）；
@@ -448,7 +448,7 @@ def _is_citywalk(item: VisitItem) -> bool:
 
 def _is_head_candidate(item: VisitItem) -> bool:
     """头档候选判定（2026-11-05 拍板，见 HEAD_FIRST_PENALTY 注块）：钉住
-    或 tier≤2 高排序、非餐/酒店/演出/夜属性。用户自钉有时刻（铁律 19）
+    或 tier≤3 高排序、非餐/酒店/演出/夜属性。用户自钉有时刻（铁律 19）
     不参与——那是用户的安排；钉住未排在 solver 域即不可行（_visit_spec
     返 None 整日交兜底层置换），本判定在 solver 双路实际只见非钉候选。"""
     if item.pinned and item.start_time is not None:
@@ -457,7 +457,7 @@ def _is_head_candidate(item: VisitItem) -> bool:
         return False
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return False
-    return bool(item.pinned) or (item.tier is not None and item.tier <= 2)
+    return bool(item.pinned) or (item.tier is not None and item.tier <= 3)
 
 
 def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
@@ -1475,7 +1475,7 @@ def insertion_schedule_day(
     # ---- 头档距离规则（2026-11-05 拍板）：候选先插、距离降序 ----
     # P=最优先头档候选（钉住>tier 升序>距酒店锚降序>时长降序）；候选组
     # 排在最前插入，远的先吃上午头档。pinned 未排在 _visit_spec 已不可
-    # 行（整日交兜底层置换），本组实际只有非钉 tier≤2 候选。
+    # 行（整日交兜底层置换），本组实际只有非钉 tier≤3 候选。
     _head_p = _head_pick(specs, travel_minutes)
     _head_anchor = next(
         (sp.item for sp in specs if (sp.item.category or "") == "hotel"), None
