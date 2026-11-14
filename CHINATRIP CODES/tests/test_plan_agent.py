@@ -1774,7 +1774,15 @@ class UnwantRecorder:
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "unwanted"}
 
-    def mark_excluded(self, name, *, itinerary_id=None, city=None, draft_session_id=None, owner_account_id=None):
+    def mark_excluded(
+        self,
+        name,
+        *,
+        itinerary_id=None,
+        city=None,
+        draft_session_id=None,
+        owner_account_id=None,
+    ):
         # 2026-11-13 拍板：删站点 = 回心愿单 + EXCLUSION（同一处记账）
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "wishlist", "exclusion_flag": True}

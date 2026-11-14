@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """2026-11-13 拍板回归：餐厅必须落在午餐卡/晚餐卡，一个餐卡只留一张真餐厅。
 
 事故形态（上海案第 1 天）：用户钉了 19:34 的福和慧（晚餐卡），旧判据按
@@ -529,6 +529,8 @@ def test_user_pinned_restaurant_time_is_never_retimed():
     _retime_real_food_cards(plan)
     assert resto.start_time == time(12, 0)
     assert resto.end_time == time(13, 0)
+
+
 def _visit(
     iid: str,
     name: str,
@@ -561,9 +563,7 @@ def test_system_meal_id_keeps_card_after_time_drift():
         _meal_card_slot(_food("food-d2-lunch-1", "醉长安（钟楼旗舰店）", time(16, 15)))
         == "lunch"
     )
-    assert (
-        _meal_card_slot(_food("food-d2-dinner-1", "某晚饭", time(12, 0))) == "dinner"
-    )
+    assert _meal_card_slot(_food("food-d2-dinner-1", "某晚饭", time(12, 0))) == "dinner"
 
 
 def test_day2_lunch_card_binds_zui_changan_at_1230_and_moves_bell_tower():
@@ -607,9 +607,7 @@ def test_day2_lunch_card_binds_zui_changan_at_1230_and_moves_bell_tower():
     i_zui = names.index("醉长安（钟楼旗舰店）")
     i_bell = names.index("西安钟楼")
     assert i_zui < i_bell < names.index("永兴坊")
-    assert any(
-        "午餐卡已由「醉长安（钟楼旗舰店）」填入 12:30-13:30" in n for n in notes
-    )
+    assert any("午餐卡已由「醉长安（钟楼旗舰店）」填入 12:30-13:30" in n for n in notes)
 
 
 def test_lunch_card_start_never_after_1230():

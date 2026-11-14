@@ -68,8 +68,18 @@ _TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
 _DAY_RE = re.compile(r"^\d{1,2}$")
 #: 中文月表头 → 月号（表头横排 一…十二）。
 _CN_MONTH_NUM = {
-    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6,
-    "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12,
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "十一": 11,
+    "十二": 12,
 }
 #: 校验闸门：升/降旗合理区间（分钟）。升旗≈日出 4:45-7:36，降旗≈日落
 #: 16:49-19:47（北京全年极值附近留裕量）。
@@ -92,6 +102,7 @@ _IMG_CACHE_DIR = Path("data/flag_schedule")
 
 
 # ---------------------------------------------------------------- ORM
+
 
 def _utcnow() -> datetime:
     """naive UTC（sqlite DateTime 列 naive 存取，见 train_cache._utcnow）。"""
@@ -135,7 +146,7 @@ def get_flag_schedule_engine(settings=None):
         settings = settings or get_settings()
         url = settings.flag_schedule_db_url
         if url.startswith("sqlite:///"):
-            db_path = Path(url[len("sqlite:///"):])
+            db_path = Path(url[len("sqlite:///") :])
             db_path.parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
             url,
@@ -183,8 +194,9 @@ def _flag_map(settings=None) -> dict[str, tuple[str, str]]:
             _ensure_seed(session_factory=sessionmaker(bind=engine))
             with Session(engine) as session:
                 _flag_cache = _load_latest_rows(session)
-                _flag_cache_generation = session.execute(
-                    func.max(FlagScheduleRecord.id)).scalar() or 0
+                _flag_cache_generation = (
+                    session.execute(func.max(FlagScheduleRecord.id)).scalar() or 0
+                )
     except Exception:  # noqa: BLE001 —— 降级契约：读失败返回现有/空缓存
         logger.warning("flag_schedule 读库失败，沿用进程内缓存", exc_info=True)
     return _flag_cache
@@ -220,6 +232,7 @@ def get_flag_time(
 
 # ------------------------------------------------- 种子（库表空时灌入）
 
+
 def _seed_rows(settings=None) -> list[dict]:
     """读种子 CSV（2026 全年人工核对值）：候选路径依次回退。"""
     del settings  # 种子路径与库位解耦（DESIGN/ 随仓库分发）
@@ -229,12 +242,14 @@ def _seed_rows(settings=None) -> list[dict]:
     out = []
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            out.append({
-                "year": int(row["year"]),
-                "date": row["date"],
-                "rise_time": row["rise_time"],
-                "lower_time": row["lower_time"],
-            })
+            out.append(
+                {
+                    "year": int(row["year"]),
+                    "date": row["date"],
+                    "rise_time": row["rise_time"],
+                    "lower_time": row["lower_time"],
+                }
+            )
     return out
 
 
@@ -243,8 +258,7 @@ def _ensure_seed(*, session_factory=None, settings=None) -> int:
 
     幂等：已有该年份任何批次则跳过。"""
     if session_factory is None:
-        session_factory = sessionmaker(
-            bind=get_flag_schedule_engine(settings))
+        session_factory = sessionmaker(bind=get_flag_schedule_engine(settings))
     rows = _seed_rows(settings)
     if not rows:
         return 0
@@ -252,7 +266,8 @@ def _ensure_seed(*, session_factory=None, settings=None) -> int:
     with session_factory() as session:
         exists = session.execute(
             select(func.count(FlagScheduleRecord.id)).where(
-                FlagScheduleRecord.year == seed_year)
+                FlagScheduleRecord.year == seed_year
+            )
         ).scalar()
         if exists:
             return 0
@@ -260,6 +275,7 @@ def _ensure_seed(*, session_factory=None, settings=None) -> int:
 
 
 # ----------------------------------------------------- 抓取（写路径）
+
 
 def _http_get(url: str, *, timeout: float, follow_redirects: bool = True) -> bytes:
     """浏览器 UA GET（政府站对脚本 UA 有 WAF，照 amap_client 口径）。"""
@@ -290,9 +306,9 @@ def _ocr_image(image_path: Path) -> list[tuple[float, float, str]]:
     下半，2026-11-14 实测），带间 10% 重叠 + 量化 (x,y,text) 去重拼回
     全表。2x 放大（LANCZOS）改善小字号识别；白底黑字印刷体免二值化。
     """
-    from rapidocr_onnxruntime import RapidOCR  # 延迟导入：查询路径零依赖
-    from PIL import Image
     import numpy as np
+    from PIL import Image
+    from rapidocr_onnxruntime import RapidOCR  # 延迟导入：查询路径零依赖
 
     img = Image.open(image_path)
     if img.width < 2000:
@@ -312,11 +328,13 @@ def _ocr_image(image_path: Path) -> list[tuple[float, float, str]]:
                 continue
             xs = [p[0] for p in box]
             ys = [p[1] for p in box]
-            raw.append((
-                sum(xs) / len(xs),
-                sum(ys) / len(ys) + y0,
-                str(text).strip(),
-            ))
+            raw.append(
+                (
+                    sum(xs) / len(xs),
+                    sum(ys) / len(ys) + y0,
+                    str(text).strip(),
+                )
+            )
         if y1 >= h:
             break
         y0 += step
@@ -324,10 +342,7 @@ def _ocr_image(image_path: Path) -> list[tuple[float, float, str]]:
     # 同文本且 (x,y) 近距（<8px）合并，否则保留。
     cells: list[tuple[float, float, str]] = []
     for x, y, t in raw:
-        if any(
-            ot == t and abs(ox - x) < 8 and abs(oy - y) < 8
-            for ox, oy, ot in cells
-        ):
+        if any(ot == t and abs(ox - x) < 8 and abs(oy - y) < 8 for ox, oy, ot in cells):
             continue
         cells.append((x, y, t))
     return cells
@@ -379,11 +394,7 @@ def parse_grid_cells(
         grid[(_nearest(row_centers, y), _nearest(col_centers, x))] = text
 
     # 表头行 = 含 升/降/月/日 表头字的行簇（图最上缘区）
-    header_rows = {
-        r
-        for (r, _c), t in grid.items()
-        if t in ("月", "日", "升", "降")
-    }
+    header_rows = {r for (r, _c), t in grid.items() if t in ("月", "日", "升", "降")}
     if not header_rows:
         raise ValueError("未识别到表头（升/降/月/日），网格还原失败")
 
@@ -392,10 +403,7 @@ def parse_grid_cells(
 
         OCR 漏检个别表头时：已检出列的 x 与其月序做最小二乘，缺位按
         回归期望值找最近未占用列簇补位（容差 = 0.6 个月距）。"""
-        cs = sorted({
-            c for (r, c), t in grid.items()
-            if r in header_rows and t == char
-        })
+        cs = sorted({c for (r, c), t in grid.items() if r in header_rows and t == char})
         if not cs:
             raise ValueError(f"表头未识别到任何「{char}」列")
         xs_det = [col_centers[c] for c in cs]
@@ -415,9 +423,10 @@ def parse_grid_cells(
                 key=lambda c: abs(col_centers[c] - expected),
                 default=None,
             )
-            if best is not None and abs(
-                col_centers[best] - expected
-            ) <= abs(slope) * 0.6:
+            if (
+                best is not None
+                and abs(col_centers[best] - expected) <= abs(slope) * 0.6
+            ):
                 full.append(best)
                 used.add(best)
                 continue
@@ -426,11 +435,8 @@ def parse_grid_cells(
                 key=lambda c: abs(col_centers[c] - expected),
                 default=None,
             )
-            if cand is None or abs(col_centers[cand] - expected) > abs(
-                slope
-            ) * 0.6:
-                raise ValueError(
-                    f"表头「{char}」列缺位且无法补位（{m + 1}月）")
+            if cand is None or abs(col_centers[cand] - expected) > abs(slope) * 0.6:
+                raise ValueError(f"表头「{char}」列缺位且无法补位（{m + 1}月）")
             full.append(cand)
             used.add(cand)
         return full
@@ -468,11 +474,7 @@ def parse_grid_cells(
         cov_yd = sum((y - mean_y) * (d - mean_d) for y, d in anchors)
         slope_d = cov_yd / var_y
         intercept_d = mean_d - slope_d * mean_y
-        keep = [
-            (y, d)
-            for y, d in anchors
-            if abs(slope_d * y + intercept_d - d) <= 0.6
-        ]
+        keep = [(y, d) for y, d in anchors if abs(slope_d * y + intercept_d - d) <= 0.6]
         if len(keep) == len(anchors) or len(keep) < 2:
             break
         anchors = keep
@@ -483,7 +485,6 @@ def parse_grid_cells(
     for (r, c), t in grid.items():
         if r > data_row_max and _TIME_RE.match(t):
             time_by_row[r][c] = t
-    rows_out: list[dict] = []
     seen_md: dict[tuple[int, int], dict] = {}
     for r in sorted(time_by_row):
         day = round(intercept_d + slope_d * row_centers[r])
@@ -502,8 +503,10 @@ def parse_grid_cells(
             prev = seen_md.get(key)
             if prev is None:
                 seen_md[key] = {
-                    "month": month, "day": day,
-                    "rise": rise, "lower": lower,
+                    "month": month,
+                    "day": day,
+                    "rise": rise,
+                    "lower": lower,
                 }
             else:
                 # 行簇拆分残留：同月日互补缺字段（回归残差极小下罕见，
@@ -569,8 +572,10 @@ def validate_rows(rows: list[dict], year: int) -> list[dict]:
             if d + 1 <= calendar.monthrange(year, month)[1]
             else None
         )
-        if left is not None and right is not None and abs(left - right) <= (
-            _MAX_DAY_DRIFT_MINUTES * 2
+        if (
+            left is not None
+            and right is not None
+            and abs(left - right) <= (_MAX_DAY_DRIFT_MINUTES * 2)
         ):
             repaired.append(f"{year}-{month}-{d} {what}←{left}")
             return left
@@ -588,10 +593,12 @@ def validate_rows(rows: list[dict], year: int) -> list[dict]:
             if prev_rise is not None:
                 if abs(rise - prev_rise) > _MAX_DAY_DRIFT_MINUTES:
                     raise ValueError(
-                        f"{year}-{month}-{d} 升旗漂移 {abs(rise - prev_rise)}min")
+                        f"{year}-{month}-{d} 升旗漂移 {abs(rise - prev_rise)}min"
+                    )
                 if abs(lower - prev_lower) > _MAX_DAY_DRIFT_MINUTES:
                     raise ValueError(
-                        f"{year}-{month}-{d} 降旗漂移 {abs(lower - prev_lower)}min")
+                        f"{year}-{month}-{d} 降旗漂移 {abs(lower - prev_lower)}min"
+                    )
             prev_rise, prev_lower = rise, lower
             parsed[(month, d)] = (rise, lower)
             total += 1
@@ -600,8 +607,10 @@ def validate_rows(rows: list[dict], year: int) -> list[dict]:
     if repaired:
         logger.warning(
             "flag_schedule: OCR 单格修复 %d 处: %s",
-            len(repaired), "; ".join(repaired),
+            len(repaired),
+            "; ".join(repaired),
         )
+
     # 中间结构 → 落库行（分钟 → "H:MM"）
     def _fmt(mins):
         return f"{mins // 60}:{mins % 60:02d}"
@@ -610,18 +619,23 @@ def validate_rows(rows: list[dict], year: int) -> list[dict]:
     for month in range(1, 13):
         for d in sorted(k[1] for k in parsed if k[0] == month):
             rise, lower = parsed[(month, d)]
-            out.append({
-                "year": year,
-                "date": _date(year, month, d).isoformat(),
-                "rise_time": _fmt(rise),
-                "lower_time": _fmt(lower),
-            })
+            out.append(
+                {
+                    "year": year,
+                    "date": _date(year, month, d).isoformat(),
+                    "rise_time": _fmt(rise),
+                    "lower_time": _fmt(lower),
+                }
+            )
     return out
 
 
 def insert_batch(
-    rows: list[dict], *, source: str,
-    session: Session | None = None, settings=None,
+    rows: list[dict],
+    *,
+    source: str,
+    session: Session | None = None,
+    settings=None,
 ) -> int:
     """只追加写入一个批次（fetched_at 同值）；同批重跑幂等（OR IGNORE）。"""
     own = session is None
@@ -631,14 +645,18 @@ def insert_batch(
         fetched_at = _utcnow()
         n = 0
         for r in rows:
-            stmt = sqlite_insert(FlagScheduleRecord).values(
-                year=r["year"],
-                date=r["date"],
-                rise_time=r["rise_time"],
-                lower_time=r["lower_time"],
-                source=source,
-                fetched_at=fetched_at,
-            ).on_conflict_do_nothing()
+            stmt = (
+                sqlite_insert(FlagScheduleRecord)
+                .values(
+                    year=r["year"],
+                    date=r["date"],
+                    rise_time=r["rise_time"],
+                    lower_time=r["lower_time"],
+                    source=source,
+                    fetched_at=fetched_at,
+                )
+                .on_conflict_do_nothing()
+            )
             result = session.execute(stmt)
             n += result.rowcount or 0
         session.commit()
@@ -658,8 +676,15 @@ def write_snapshot(rows: list[dict], settings=None) -> Path:
         w = csv.writer(f)
         w.writerow(["year", "date", "rise_time", "lower_time", "source"])
         for r in sorted(rows, key=lambda x: x["date"]):
-            w.writerow([r["year"], r["date"], r["rise_time"], r["lower_time"],
-                        r.get("source", "ocr")])
+            w.writerow(
+                [
+                    r["year"],
+                    r["date"],
+                    r["rise_time"],
+                    r["lower_time"],
+                    r.get("source", "ocr"),
+                ]
+            )
     return path
 
 
@@ -686,8 +711,7 @@ def fetch_and_store(url: str | None = None, *, settings=None) -> dict:
     parsed = parse_grid_cells(cells)
     rows = validate_rows(parsed, year)
     inserted = insert_batch(rows, source="ocr", settings=settings)
-    snapshot = write_snapshot([{**r, "source": "ocr"} for r in rows],
-                              settings=settings)
+    snapshot = write_snapshot([{**r, "source": "ocr"} for r in rows], settings=settings)
     return {
         "year": year,
         "image": str(img_path),
@@ -699,11 +723,17 @@ def fetch_and_store(url: str | None = None, *, settings=None) -> dict:
 
 # ---------------------------------------------------------------- CLI
 
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="天安门升（降）旗时刻抓取入库（官方公告页 → 表图 OCR → 落库）")
-    parser.add_argument("url", nargs="?", default=None,
-                        help="公告页 URL（默认 settings.flag_schedule_source_url）")
+        description="天安门升（降）旗时刻抓取入库（官方公告页 → 表图 OCR → 落库）"
+    )
+    parser.add_argument(
+        "url",
+        nargs="?",
+        default=None,
+        help="公告页 URL（默认 settings.flag_schedule_source_url）",
+    )
     args = parser.parse_args(argv)
     n = _ensure_seed()
     if n:

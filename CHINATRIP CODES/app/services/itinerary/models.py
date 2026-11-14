@@ -54,6 +54,8 @@ def arrival_floor_minutes(mode: str | None) -> int:
 def departure_buffer_minutes(mode: str | None) -> int:
     """离城侧缓冲：飞机 3 小时（值机+安检）、火车 2 小时（进站）。"""
     return arrival_buffer_minutes(mode)
+
+
 HOTEL_SETTLE_MINUTES = 60  # hotel arrival -> depart to next attraction
 
 

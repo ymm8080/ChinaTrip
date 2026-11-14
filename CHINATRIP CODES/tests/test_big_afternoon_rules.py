@@ -495,12 +495,21 @@ def test_fallback_big_site_not_forced_to_noon_anymore():
     from app.services.itinerary.models import GeoPoint
 
     tam = _visit(
-        "tam", "天安门广场", dur=90, tier=1,
-        start_time=_t(8, 30), end_time=_t(10, 0), pinned=True,
+        "tam",
+        "天安门广场",
+        dur=90,
+        tier=1,
+        start_time=_t(8, 30),
+        end_time=_t(10, 0),
+        pinned=True,
         location=GeoPoint(lon=116.4103, lat=39.9115),
     )
     mut = _visit(
-        "mut", "慕田峪长城", dur=180, tier=1, pinned=True,
+        "mut",
+        "慕田峪长城",
+        dur=180,
+        tier=1,
+        pinned=True,
         location=GeoPoint(lon=116.5598, lat=40.4267),
     )
     plan = _plan_with([DayPlan(day=1, base_city="北京", items=[tam, mut])])

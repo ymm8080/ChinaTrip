@@ -211,7 +211,11 @@ def test_build_food_item_uses_compressed_window_midpoint():
     # clamp: the meal never spills past the gap end (old behavior 13:00-14:00)
     cand = RestaurantCandidate(name="知味观")
     item = build_food_item(
-        cand, day=1, city="杭州", window=(time(12, 30), time(13, 30)), item_id="f-2",
+        cand,
+        day=1,
+        city="杭州",
+        window=(time(12, 30), time(13, 30)),
+        item_id="f-2",
         duration=60,
     )
     assert item.start_time == time(12, 30)

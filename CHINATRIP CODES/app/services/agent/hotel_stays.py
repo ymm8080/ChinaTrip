@@ -412,8 +412,6 @@ def _open_morning_slot(dp: DayPlan) -> bool:
     return True
 
 
-
-
 def is_hotel_morning(item: object) -> bool:
     """系统每日出发酒店卡识别（item_id 前缀，与 is_hotel_night 同构）。"""
     return isinstance(item, VisitItem) and item.item_id.startswith(

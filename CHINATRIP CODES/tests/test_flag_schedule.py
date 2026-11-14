@@ -28,8 +28,8 @@ from app.services.agent.plan import (
 from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
 from app.services.itinerary.solver import insertion_schedule_day, solve_day
 
-
 # ---------------------------------------------------------------- 脚手架
+
 
 @pytest.fixture()
 def flag_env(tmp_path, monkeypatch):
@@ -70,6 +70,7 @@ def _visit(item_id, name, *, dur=60, **kw):
 
 # ------------------------------------------------------------ ② 查询路径
 
+
 def test_seed_lookup_morning_and_evening(flag_env):
     """种子灌入后按日期+类别查询：morning=升旗 / evening=降旗。"""
     assert fs._ensure_seed(settings=flag_env) == 365
@@ -106,8 +107,9 @@ def test_append_only_batches_latest_wins(flag_env):
     """只追加不替换（2026-11-14 用户拍板）：新批次整批 INSERT，读取取
     每 date 最新 fetched_at 批次；旧行留档不删。"""
     fs._ensure_seed(settings=flag_env)
-    rows = [{"year": 2026, "date": "2026-11-14",
-             "rise_time": "7:00", "lower_time": "17:00"}]
+    rows = [
+        {"year": 2026, "date": "2026-11-14", "rise_time": "7:00", "lower_time": "17:00"}
+    ]
     fs.insert_batch(rows, source="ocr")
     # 读最新批次
     assert fs.get_flag_time("2026-11-14", "morning", settings=flag_env) == _t(7, 0)
@@ -117,17 +119,17 @@ def test_append_only_batches_latest_wins(flag_env):
     with fs.Session(fs.get_flag_schedule_engine(flag_env)) as session:
         n = session.execute(
             fs.select(fs.func.count(fs.FlagScheduleRecord.id)).where(
-                fs.FlagScheduleRecord.date == "2026-11-14")
+                fs.FlagScheduleRecord.date == "2026-11-14"
+            )
         ).scalar()
     assert n == 2
 
 
 # ------------------------------------------------- ② 解析 + 校验闸门
 
+
 def _seed_2026_rows():
-    path = next(
-        p for p in fs._SEED_CSV_CANDIDATES if Path(p).exists()
-    )
+    path = next(p for p in fs._SEED_CSV_CANDIDATES if Path(p).exists())
     with open(path, encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
@@ -173,25 +175,29 @@ def test_parse_grid_cells_reconstructs_full_year():
 
 def test_validate_rows_rejects_missing_day():
     """校验闸门：缺日不落库。"""
-    rows = [{"month": 1, "day": d, "rise": "7:36", "lower": "17:00"}
-            for d in range(1, 5)]  # 只 4 天
+    rows = [
+        {"month": 1, "day": d, "rise": "7:36", "lower": "17:00"} for d in range(1, 5)
+    ]  # 只 4 天
     with pytest.raises(ValueError):
         fs.validate_rows(rows, 2026)
 
 
 def test_validate_rows_rejects_out_of_range_time():
     """校验闸门：时刻越界（降旗 03:00）不落库。"""
-    rows = [{"month": 1, "day": d, "rise": "7:36",
-             "lower": "17:00" if d > 1 else "3:00"}
-            for d in range(1, 32)]
+    rows = [
+        {"month": 1, "day": d, "rise": "7:36", "lower": "17:00" if d > 1 else "3:00"}
+        for d in range(1, 32)
+    ]
     with pytest.raises(ValueError):
         fs.validate_rows(rows, 2026)
 
 
 def test_validate_rows_rejects_drift():
     """校验闸门：相邻天漂移 >3 分钟（OCR 误读形态）不落库。"""
-    rows = [{"month": 1, "day": d, "rise": "7:36" if d < 10 else "7:50",
-             "lower": "17:00"} for d in range(1, 32)]
+    rows = [
+        {"month": 1, "day": d, "rise": "7:36" if d < 10 else "7:50", "lower": "17:00"}
+        for d in range(1, 32)
+    ]
     with pytest.raises(ValueError):
         fs.validate_rows(rows, 2026)
 
@@ -207,8 +213,7 @@ def test_extract_table_image_url():
         "https://tamgw.beijing.gov.cn/sy/sjqsj/202512/t20251222_4356494.html",
     )
     assert url == (
-        "https://tamgw.beijing.gov.cn/sy/sjqsj/202512/"
-        "W020260101375936698358.png"
+        "https://tamgw.beijing.gov.cn/sy/sjqsj/202512/W020260101375936698358.png"
     )
 
 
@@ -227,13 +232,15 @@ def test_fetch_and_store_offline(monkeypatch, flag_env, tmp_path):
         return httpx.Response(200, content=page)
 
     def fake_http_get(url: str, **kw) -> bytes:
-        return httpx.Client(
-            transport=httpx.MockTransport(handler)
-        ).get(url).content
+        return httpx.Client(transport=httpx.MockTransport(handler)).get(url).content
 
     parsed = [
-        {"month": int(r["date"][5:7]), "day": int(r["date"][8:10]),
-         "rise": r["rise_time"], "lower": r["lower_time"]}
+        {
+            "month": int(r["date"][5:7]),
+            "day": int(r["date"][8:10]),
+            "rise": r["rise_time"],
+            "lower": r["lower_time"],
+        }
         for r in _seed_2026_rows()
     ]
     monkeypatch.setattr(fs, "_http_get", fake_http_get)
@@ -247,27 +254,32 @@ def test_fetch_and_store_offline(monkeypatch, flag_env, tmp_path):
     assert fs.get_flag_time("2026-11-14", "morning", settings=flag_env) == _t(6, 58)
     # DESIGN 快照落盘
     import pathlib
-    snaps = list(pathlib.Path(flag_env.flag_schedule_snapshot_dir).glob(
-        "flag_schedule_snapshot_*.csv"))
+
+    snaps = list(
+        pathlib.Path(flag_env.flag_schedule_snapshot_dir).glob(
+            "flag_schedule_snapshot_*.csv"
+        )
+    )
     assert len(snaps) == 1
 
 
 # --------------------------------------------------- ③ 规划引擎接线
 
+
 def test_solver_anchor_both_paths():
     """solver 双路（最廉插入/CP）：fixed_sessions 锚定 6:58 恰点，可破
     8:30 日始；同日后续晨点（故宫）8:30 正常跟进（_is_morning_site
     升旗豁免面）。"""
-    day = DayPlan(day=1, base_city="北京", items=[
-        _visit("tam", "天安门广场", fixed_sessions=[_t(6, 58)]),
-        _visit("gg", "故宫博物院", dur=120),
-    ])
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _visit("tam", "天安门广场", fixed_sessions=[_t(6, 58)]),
+            _visit("gg", "故宫博物院", dur=120),
+        ],
+    )
     for solver in (insertion_schedule_day, solve_day):
-        kw = (
-            {}
-            if solver is insertion_schedule_day
-            else {"time_budget_seconds": 3.0}
-        )
+        kw = {} if solver is insertion_schedule_day else {"time_budget_seconds": 3.0}
         out = solver(day, poi_hours=[], travel_minutes=None, **kw)
         by = {i.name: i for i in out.items}
         assert _minutes(by["天安门广场"]) == 6 * 60 + 58
@@ -276,10 +288,19 @@ def test_solver_anchor_both_paths():
 
 def test_solver_user_pin_wins_over_flag_anchor():
     """铁律 19：用户自钉有时刻时 fixed_sessions 锚跳过，钉点生效。"""
-    day = DayPlan(day=1, base_city="北京", items=[
-        _visit("tam", "天安门广场", pinned=True, start_time=_t(9, 0),
-               fixed_sessions=[_t(6, 58)]),
-    ])
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _visit(
+                "tam",
+                "天安门广场",
+                pinned=True,
+                start_time=_t(9, 0),
+                fixed_sessions=[_t(6, 58)],
+            ),
+        ],
+    )
     out = insertion_schedule_day(day, poi_hours=[], travel_minutes=None)
     assert _minutes(out.items[0]) == 9 * 60
 
@@ -290,10 +311,16 @@ def test_fallback_anchor_via_session_channel():
     plan = ItineraryPlan(
         itinerary_id="it-flag",
         cities=["北京"],
-        days=[DayPlan(day=1, base_city="北京", items=[
-            _visit("tam", "天安门广场", fixed_sessions=[_t(6, 58)]),
-            _visit("gg", "故宫博物院", dur=120),
-        ])],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="北京",
+                items=[
+                    _visit("tam", "天安门广场", fixed_sessions=[_t(6, 58)]),
+                    _visit("gg", "故宫博物院", dur=120),
+                ],
+            )
+        ],
         start_date="2026-11-14",
     )
     _fallback_sequence_times(plan)
@@ -305,17 +332,25 @@ def test_fallback_anchor_via_session_channel():
 def test_apply_flag_schedule_stamps_from_lookup(monkeypatch, flag_env):
     """装配期打标：天安门广场+北京+start_date → 查表落标 fixed_sessions。"""
     monkeypatch.setattr(
-        fs, "get_flag_time",
-        lambda date_iso, category, **kw: _t(6, 58)
-        if (date_iso, category) == ("2026-11-14", "morning") else None,
+        fs,
+        "get_flag_time",
+        lambda date_iso, category, **kw: (
+            _t(6, 58) if (date_iso, category) == ("2026-11-14", "morning") else None
+        ),
     )
     plan = ItineraryPlan(
         itinerary_id="it-flag",
         cities=["北京"],
-        days=[DayPlan(day=1, base_city="北京", items=[
-            _visit("tam", "天安门广场"),
-            _visit("gg", "故宫博物院"),
-        ])],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="北京",
+                items=[
+                    _visit("tam", "天安门广场"),
+                    _visit("gg", "故宫博物院"),
+                ],
+            )
+        ],
         start_date="2026-11-14",
     )
     _apply_flag_schedule(plan)
@@ -326,7 +361,8 @@ def test_apply_flag_schedule_stamps_from_lookup(monkeypatch, flag_env):
 def test_apply_flag_schedule_skip_cases(monkeypatch):
     """跳过面：无 start_date / 非广场名（纪念堂）/ 用户自钉 / 非北京。"""
     monkeypatch.setattr(
-        fs, "get_flag_time",
+        fs,
+        "get_flag_time",
         lambda date_iso, category, **kw: _t(6, 58),
     )
 
@@ -347,13 +383,14 @@ def test_apply_flag_schedule_skip_cases(monkeypatch):
     _apply_flag_schedule(p)
     assert p.days[0].items[0].fixed_sessions is None
     # 用户自钉 → 不打标（铁律 19）
-    p = _plan("2026-11-14", [
-        _visit("tam", "天安门广场", pinned=True, start_time=_t(9, 0))])
+    p = _plan(
+        "2026-11-14", [_visit("tam", "天安门广场", pinned=True, start_time=_t(9, 0))]
+    )
     _apply_flag_schedule(p)
     assert p.days[0].items[0].fixed_sessions is None
     # 非北京 → 不打标
-    p = _plan("2026-11-14",
-              [_visit("tam", "天安门广场", city="上海")],
-              cities=("上海",))
+    p = _plan(
+        "2026-11-14", [_visit("tam", "天安门广场", city="上海")], cities=("上海",)
+    )
     _apply_flag_schedule(p)
     assert p.days[0].items[0].fixed_sessions is None

@@ -1188,7 +1188,9 @@ def test_list_scopes_by_device_or_user_account():
     service.create(
         "我的账号行", source="manual", owner_device_id="dev-2", owner_account_id="acc-1"
     )
-    service.create("别人的行", source="manual", owner_device_id="dev-3", owner_account_id="acc-2")
+    service.create(
+        "别人的行", source="manual", owner_device_id="dev-3", owner_account_id="acc-2"
+    )
     service.create("历史无归属行", source="manual")
 
     with TestClient(
@@ -1203,9 +1205,7 @@ def test_list_scopes_by_device_or_user_account():
 
 def test_commit_drafts_stamps_owner_account():
     svc = TripItemService()
-    row = svc.create(
-        "豫园", source="chat", itinerary_id="t1", draft_session_id="s1"
-    )
+    row = svc.create("豫园", source="chat", itinerary_id="t1", draft_session_id="s1")
     assert svc.commit_drafts("t1", "s1", owner_account_id="acc-1") == 1
     committed = svc.get(row["id"])
     assert committed["owner_account_id"] == "acc-1"

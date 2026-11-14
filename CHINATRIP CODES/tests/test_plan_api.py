@@ -900,7 +900,6 @@ def test_start_brief_single_city_keeps_form_origin():
     assert resp.json()["plan"]["cities"] == ["北京", "成都"]
 
 
-
 def test_from_itinerary_session_lang_follows_x_lang_header():
     """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
     编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
@@ -1006,7 +1005,15 @@ class UnwantRecorder:
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "unwanted"}
 
-    def mark_excluded(self, name, *, itinerary_id=None, city=None, draft_session_id=None, owner_account_id=None):
+    def mark_excluded(
+        self,
+        name,
+        *,
+        itinerary_id=None,
+        city=None,
+        draft_session_id=None,
+        owner_account_id=None,
+    ):
         # 2026-11-13 拍板：删站点 = 回心愿单 + EXCLUSION（同一处记账）
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "wishlist", "exclusion_flag": True}
@@ -2516,15 +2523,13 @@ def test_delete_night_card_removes_next_morning_card():
         )
     assert resp.status_code == 200
     data = resp.json()
-    ids = [
-        i.get("item_id")
-        for d in data["plan"]["days"]
-        for i in d["items"]
-    ]
+    ids = [i.get("item_id") for d in data["plan"]["days"] for i in d["items"]]
     assert "hotel-night-d1" not in ids
     assert "hotel-morning-d2" not in ids
     assert "hotel-morning-d3" in ids
     assert "晨卡" in data["reply"]
+
+
 def test_start_applies_intake_arrival_departure_times():
     """行前信息（2026-11-14 用户拍板）：/plan/start 带去程当地到达时刻与返程
     当地离开时刻 → v0 生成后按时刻落位对应城际腿（落地定去程腿 end，起飞/
@@ -2565,6 +2570,8 @@ def test_start_applies_intake_arrival_departure_times():
     session = store.get(sid, device_id="device-1")
     assert session.arrival_time == "15:30"
     assert session.departure_time == "16:00"
+
+
 def test_route_conflict_between_text_and_form_asks_user():
     """文字说 2 天、表单 3 天：不静默裁决，返回 confirm_route 两边差异
     （2026-11-14 用户拍板「figure out diff for user confirmation」）。"""

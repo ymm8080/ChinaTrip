@@ -678,7 +678,9 @@ async def get_itinerary_detail(
     with factory() as session:
         days = (
             session.query(ItineraryDay)
-            .filter(ItineraryDay.itinerary_id == uid, ItineraryDay.snapshot_id.is_(None))
+            .filter(
+                ItineraryDay.itinerary_id == uid, ItineraryDay.snapshot_id.is_(None)
+            )
             .order_by(ItineraryDay.day)
             .all()
         )
@@ -704,7 +706,9 @@ async def get_itinerary_detail(
                     "start_time": row.start_time.strftime("%H:%M")
                     if row.start_time
                     else None,
-                    "end_time": row.end_time.strftime("%H:%M") if row.end_time else None,
+                    "end_time": row.end_time.strftime("%H:%M")
+                    if row.end_time
+                    else None,
                     "duration_minutes": row.duration_minutes,
                     "alternative_1": row.alt1,
                     "alternative_2": row.alt2,
@@ -754,7 +758,6 @@ async def list_itinerary_changes(
     CHANGES AFTER CLICK SAVE BUTTON」）：按保存时刻倒序回放。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    from sqlalchemy import text
 
     from app.models import ItineraryChangeLog
 
