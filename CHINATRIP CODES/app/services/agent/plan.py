@@ -5835,9 +5835,10 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 flag_min = min(
                     t.hour * 60 + t.minute for t in item.fixed_sessions
                 )
-                if item.start_time is not None and (
-                    item.start_time.hour * 60 + item.start_time.minute
-                ) != flag_min:
+                if (
+                    item.start_time is not None
+                    and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
+                ):
                     dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
                     item.start_time = time(flag_min // 60, flag_min % 60)
                     item.end_time = time(
@@ -13122,9 +13123,7 @@ def _assign_must_family_days(plan: ItineraryPlan) -> list[str]:
         tied = [d for d, v in by_day.items() if len(v) == most]
         return min(tied, key=lambda d: min(_must_rank_key(v) for v in by_day[d]))
 
-    ordered = sorted(
-        fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f))
-    )
+    ordered = sorted(fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f)))
     cores = [f for f in ordered if len(f) >= 2]
     singles = [f for f in ordered if len(f) < 2]
     placed_items: dict[int, list[VisitItem]] = {}
@@ -13283,9 +13282,7 @@ def _must_chain_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
     rest = list(musts)
     if start is not None:
         far = [
-            v
-            for v in rest
-            if _pt(v) is not None and haversine_km(start, _pt(v)) > 40
+            v for v in rest if _pt(v) is not None and haversine_km(start, _pt(v)) > 40
         ]
         rest = [v for v in rest if v not in far]
         far.sort(key=lambda v: -haversine_km(start, _pt(v)))
@@ -13339,8 +13336,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             out_of_order = [rank_in_chain[id(v)] for v in seq] != sorted(
                 rank_in_chain[id(v)] for v in seq
             ) or any(
-                v.start_time is None and rank_in_chain[id(v)] < len(seq)
-                for v in musts
+                v.start_time is None and rank_in_chain[id(v)] < len(seq) for v in musts
             )
             if out_of_order and len(chain_all) >= 2:
                 # 顺序违反地理规则（远郊大点压到本地件后面）：当天必去是
