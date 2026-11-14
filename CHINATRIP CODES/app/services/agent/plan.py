@@ -26306,6 +26306,15 @@ class PlanningAgent:
                                 isinstance(v, VisitItem)
                                 and v.item_id not in kept
                                 and (v.poi_id or v.name) not in trial_keys
+                                # 系统占位餐卡/酒店卡不进「想去」留痕
+                                # （2026-11-14：救生试宿内 meal slot 不可行
+                                # 丢的午饭占位被当让位件留 chip——卡由
+                                # _ensure_meal_cards 对账补回，不欠用户
+                                # 一个「想去」）。
+                                and not is_lunch_placeholder(v)
+                                and not is_dinner_placeholder(v)
+                                and not is_hotel_night(v)
+                                and not is_hotel_morning(v)
                             ):
                                 extra.append(
                                     UnplacedCandidate(

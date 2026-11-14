@@ -19,7 +19,7 @@ import asyncio
 import base64
 import logging
 import uuid
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 from functools import partial
 from time import monotonic
 from typing import Literal
@@ -62,6 +62,7 @@ from app.services.agent.plan import (
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
+    _extract_transport_numbers,
     _find_transfer_item,
     _leg_date_iso,
     _normalize_city,
@@ -177,6 +178,10 @@ class PlanStartRequest(BaseModel):
     # 路线冲突确认（2026-11-14 用户拍板）：文字简报与表单参数不一致时先让用户
     # 裁决——confirm_route 确认卡回传 "brief"=按文字 / "form"=按表单。
     route_source: Literal["brief", "form"] | None = None
+    # 确认卡逐条选边的落点（2026-11-14 用户三条口径）：天数/班次号由用户选定
+    days_override: int | None = None
+    arrival_no_override: str | None = None
+    departure_no_override: str | None = None
 
 
 class PlanMessageRequest(BaseModel):
@@ -485,6 +490,10 @@ async def start_plan_from_itinerary(
             )
         ],
     )
+    # 2026-11-14（故宫灰卡案）：开档即自愈必去覆盖——钉住/必去观光件
+    # 无时刻的旧行程先让位清算+跨日救生（能排即排、低优先件让位），
+    # 再实测腿（救生重排过的相邻对才有真腿）。
+    await agent.heal_must_coverage(session)
     await agent.refresh_legs(session)
     store.save(session)
     # 2026-11-13（陕历博仍躺心愿单案）：开档即对账看板——心愿单里已落排的
@@ -550,29 +559,74 @@ async def start_plan(
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
-    # 路线冲突确认（2026-11-14 用户拍板「in text, trip is two days, but input
-    # information trip is 3 days → figure out diff for user confirmation」）：
-    # 文字简报与表单参数各说各话时不静默裁决——把两边差异摆出来让用户选。
-    if (
-        request.route_source is None
-        and request.brief
-        and request.brief.strip()
-        and request.cities
-    ):
-        parsed = _trip_brief(request.brief)
-        if parsed is not None:
-            resolved = _resolve_brief_cities(
-                [_normalize_city(c) for c in parsed[0]], request.cities
+    # 差异确认（2026-11-14 用户拍板三条）：①表单没填+有文字 → 默认按文字；
+    # ②表单和文字都填了 → 摆出差异让用户确认；③行前卡信息和文字不同 → 同样
+    # 摆出差异。统一收集 diffs，任何一条且用户还没选边 → confirm_route。
+    parsed = (
+        _trip_brief(request.brief)
+        if (request.brief and request.brief.strip())
+        else None
+    )
+    diffs: list[dict] = []
+    resolved: list[str] | None = None
+    if parsed is not None and request.cities and request.route_source is None:
+        resolved = _resolve_brief_cities(
+            [_normalize_city(c) for c in parsed[0]], request.cities
+        )
+        if (
+            {_normalize_city(c) for c in resolved}
+            != {_normalize_city(c) for c in request.cities}
+            or (
+                parsed[1] is not None
+                and request.days
+                and parsed[1] != request.days
             )
-            conflict = {_normalize_city(c) for c in resolved} != {
-                _normalize_city(c) for c in request.cities
-            } or (parsed[1] is not None and request.days and parsed[1] != request.days)
-            if conflict:
-                return {
-                    "state": "confirm_route",
-                    "text_route": {"cities": resolved, "days": parsed[1]},
-                    "form_route": {"cities": request.cities, "days": request.days},
+        ):
+            diffs.append(
+                {
+                    "what": "route",
+                    "text": {"cities": resolved, "days": parsed[1]},
+                    "intake": {"cities": request.cities, "days": request.days},
                 }
+            )
+    card_span = None
+    if request.arrival_date and request.departure_date:
+        try:
+            card_span = (
+                date.fromisoformat(str(request.departure_date)[:10])
+                - date.fromisoformat(str(request.arrival_date)[:10])
+            ).days + 1
+        except ValueError:
+            card_span = None
+    if parsed is not None and parsed[1] and card_span and parsed[1] != card_span:
+        # 文字天数 vs 行前卡日期跨度（用户拍板③：行前卡信息和文字不同也要摆）
+        diffs.append({"what": "days", "text": parsed[1], "intake": card_span})
+    text_nos = _extract_transport_numbers(request.brief)
+    card_nos = [
+        n
+        for n in (
+            (request.arrival_no or "").strip().upper(),
+            (request.departure_no or "").strip().upper(),
+        )
+        if n
+    ]
+    if text_nos and {n.upper() for n in text_nos} != set(card_nos):
+        diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
+    if card_span and request.days and card_span != request.days:
+        # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）
+        diffs.append(
+            {"what": "card_days", "intake": card_span, "form": request.days}
+        )
+    if diffs and request.route_source is None:
+        return {
+            "state": "confirm_route",
+            "diffs": diffs,
+            "text_route": {
+                "cities": resolved or [],
+                "days": parsed[1] if parsed else None,
+            },
+            "form_route": {"cities": request.cities, "days": request.days},
+        }
     # 用户在确认卡上选了边：brief=按文字路线（表单参数作废，路线全从文字解析）；
     # form=按表单参数（文字只当偏好文本，不再当简报改写路线）。
     if request.route_source == "brief":
@@ -611,6 +665,9 @@ async def start_plan(
             arrival_date=request.arrival_date,
             departure_date=request.departure_date,
             intake=request.intake,
+            days_override=request.days_override,
+            arrival_no_override=request.arrival_no_override,
+            departure_no_override=request.departure_no_override,
             images=_decode_image_payloads(request.images),
         )
     except PoiStoreUnavailableError:

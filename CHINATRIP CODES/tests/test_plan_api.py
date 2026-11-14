@@ -2680,3 +2680,94 @@ def test_no_route_conflict_when_text_matches_form():
     assert resp.status_code == 200
     body = resp.json()
     assert body["state"] == "ready"
+def test_route_days_diff_between_text_and_card_dates():
+    """文字 2 天、行前卡日期跨度 4 天（表单天数与文字一致）：
+    不静默裁决，confirm_route 摆出 days 差异（用户拍板③）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "西安"],
+            "days": 2,
+            "preferences": "喜欢历史",
+            "brief": "西安 2 天",
+            "start_date": "2026-11-16",
+            "arrival_date": "2026-11-16",
+            "departure_date": "2026-11-19",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "confirm_route"
+    whats = [d["what"] for d in body["diffs"]]
+    assert "days" in whats
+    days_diff = next(d for d in body["diffs"] if d["what"] == "days")
+    assert days_diff["text"] == 2
+    assert days_diff["intake"] == 4
+
+
+def test_numbers_diff_between_text_and_card():
+    """文字里有航班号、行前卡班次为空：confirm_route 摆出 numbers 差异。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "brief": "乘CA1234去杭州玩3天",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "confirm_route"
+    numbers = next(d for d in body["diffs"] if d["what"] == "numbers")
+    assert numbers["text"] == ["CA1234"]
+    assert numbers["intake"] == []
+
+
+def test_days_override_applies_after_route_choice():
+    """确认卡选边覆写：按表单路线但天数用文字的 2 天（days_override）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "西安"],
+            "days": 3,
+            "preferences": "喜欢历史",
+            "brief": "西安 2 天",
+            "route_source": "form",
+            "days_override": 2,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert len(body["plan"]["days"]) == 2
+
+
+def test_number_override_lands_on_session():
+    """班次覆写落到会话（行前落位用它查班次/钉时刻）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "arrival_no_override": "G1234",
+            "departure_no_override": "CA888",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    sid = resp.json()["session_id"]
+    session = store.get(sid, device_id="device-1")
+    assert session.arrival_no == "G1234"
+    assert session.departure_no == "CA888"

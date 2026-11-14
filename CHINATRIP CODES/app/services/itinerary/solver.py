@@ -52,6 +52,12 @@ logger = logging.getLogger(__name__)
 # 时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
 DAY_START_MINUTES = 8 * 60 + 30
 DAY_END_MINUTES = 21 * 60
+#: 酒店卡（回酒店·夜间休息/从酒店出发）的日终口径（2026-11-14 拍板）：
+#: 夜卡按「末件 +30 起 60 分钟」落 20:30–21:30、最迟贴 23:59
+#:（hotel_stays._night_window），不吃观光 21:00 日终闸——否则软钉夜卡
+#: 的 pin 落在 hi=21:00-dur 之外，_visit_spec 恒 None，含定时夜卡的天
+#: 在重解/必去跨日救生试宿里整日塌方（钉住必去因此永远排不进：故宫案）。
+HOTEL_DAY_END_MINUTES = 23 * 60 + 59
 #: 晚场演出可突破日终（2026-11-11 用户拍板「晚二场信息可以显示出来」）：
 #: 场次点窗起点不受 DAY_END_MINUTES 回减约束——双晚场演出的第二晚场
 #: （常见 21:10/21:35/21:40 量级）此前被场次上界滤掉，只剩首晚场可排。
@@ -752,7 +758,15 @@ def _visit_spec(
     if dur <= 0:
         return None
 
-    lo, hi = DAY_START_MINUTES, DAY_END_MINUTES - dur
+    # 酒店卡（夜宿/晨启）不吃观光日终 21:00 闸（2026-11-14 故宫灰卡根修）：
+    # 夜卡 20:30–21:30 是合法落位，pin 超出 hi=21:00-dur 会让含夜卡的天
+    # 在插入/CP 两路恒判不可行，整日冻结、必去跨日救生恒回滚。
+    day_end_cap = (
+        HOTEL_DAY_END_MINUTES
+        if (item.category or "") == "hotel"
+        else DAY_END_MINUTES
+    )
+    lo, hi = DAY_START_MINUTES, day_end_cap - dur
     dur_lo = 0  # 0=固定时长；软钉午餐在 pinned 分支激活区间下界
     # 8.2.1：时段属性先收窄开窗（lo=max(窗起, 08:00)、hi=min(窗止, 21:00)-
     # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理

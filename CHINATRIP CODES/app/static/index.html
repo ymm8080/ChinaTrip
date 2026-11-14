@@ -3070,20 +3070,48 @@ function planRenderReply(holder, body, opts) {
       holder.appendChild(el('<div class="muted">' + I18N.tf("plan.clarify.hint","直接在下方输入框回答，例如「4 天，去杭州和上海」。") + "</div>"));
     }
   } else if (body.state === "confirm_route") {
-    // 文字 vs 表单路线冲突：把两边差异摆出来让用户选（2026-11-14 用户拍板）
-    const t = body.text_route || {}, f = body.form_route || {};
-    const fmt = (r) => (r.cities || []).map(c => I18N.city(c)).join("→") + (r.days ? " · " + r.days + I18N.tf("plan.echo.totalSuf"," 天") : "");
-    holder.appendChild(frag("<div>" + I18N.tf("plan.route.conflict","你打的文字和表单参数不一致，用哪个？") + "</div>"));
-    holder.appendChild(frag("<div class='card'>✍️ " + I18N.tf("plan.route.textPre","文字说：") + esc(fmt(t)) + "</div>"));
-    holder.appendChild(frag("<div class='card'>📋 " + I18N.tf("plan.route.formPre","表单参数：") + esc(fmt(f)) + "</div>"));
-    const routeRow = el('<div class="chips"></div>');
-    const useText = el('<button class="chip">' + I18N.tf("plan.route.useText","✍️ 用文字路线") + "</button>");
-    const useForm = el('<button class="chip">' + I18N.tf("plan.route.useForm","📋 用表单参数") + "</button>");
-    useText.onclick = () => planStartConfirmed("brief");
-    useForm.onclick = () => planStartConfirmed("form");
-    routeRow.appendChild(useText);
-    routeRow.appendChild(useForm);
-    holder.appendChild(routeRow);
+    // 差异确认（2026-11-14 用户拍板三条）：文字/表单/行前卡不一致的每一处
+    // 都摆出来，用户逐条选边，✅ 一次提交。
+    const diffs = body.diffs || [];
+    const picks = {};
+    const fmtRoute = (r) => (r.cities || []).map(c => I18N.city(c)).join("→") + (r.days ? " · " + r.days + I18N.tf("plan.echo.totalSuf"," 天") : "");
+    const box = el('<div></div>');
+    box.appendChild(frag("<div>" + I18N.tf("plan.route.conflict","这几处信息不一致，逐条选一个，再点下面按钮：") + "</div>"));
+    diffs.forEach((d) => {
+      const line = el('<div class="card"></div>');
+      let desc = "", leftLabel = "", rightLabel = "";
+      if (d.what === "route") {
+        desc = "✍️ " + I18N.tf("plan.route.textPre","文字说：") + esc(fmtRoute(d.text)) + " | 📋 " + I18N.tf("plan.route.formPre","表单参数：") + esc(fmtRoute(d.intake));
+        leftLabel = I18N.tf("plan.route.useText","✍️ 用文字路线");
+        rightLabel = I18N.tf("plan.route.useForm","📋 用表单参数");
+      } else if (d.what === "days") {
+        desc = "✍️ " + I18N.tf("plan.route.textPre","文字说：") + d.text + I18N.tf("plan.echo.totalSuf"," 天") + " | 📋 " + I18N.tf("plan.route.intakeDays","行前卡：") + d.intake + I18N.tf("plan.echo.totalSuf"," 天");
+        leftLabel = I18N.tf("plan.route.useTextSide","✍️ 用文字天数");
+        rightLabel = I18N.tf("plan.route.useIntakeSide","📋 用行前卡");
+      } else if (d.what === "numbers") {
+        desc = "✍️ " + I18N.tf("plan.route.textNos","文字班次：") + (d.text || []).join("、") + " | 📋 " + I18N.tf("plan.route.intakeNos","行前卡班次：") + ((d.intake || []).join("、") || I18N.tf("plan.route.none","（未填）"));
+        leftLabel = I18N.tf("plan.route.useTextNos","✍️ 用文字班次");
+        rightLabel = I18N.tf("plan.route.useIntakeNos","📋 用行前卡班次");
+      } else if (d.what === "card_days") {
+        desc = "📋 " + I18N.tf("plan.route.intakeDays","行前卡：") + d.intake + I18N.tf("plan.echo.totalSuf"," 天") + " | 📋 " + I18N.tf("plan.route.formDays","表单参数：") + d.form + I18N.tf("plan.echo.totalSuf"," 天");
+        leftLabel = I18N.tf("plan.route.useIntakeSide","📋 用行前卡");
+        rightLabel = I18N.tf("plan.route.useFormSide","📋 用表单");
+      }
+      line.appendChild(frag("<div>" + desc + "</div>"));
+      const chips = el('<div class="chips"></div>');
+      const bl = el('<button class="chip">' + leftLabel + "</button>");
+      const br = el('<button class="chip">' + rightLabel + "</button>");
+      bl.onclick = () => { picks[d.what] = "left"; bl.style.background = "#2563eb"; bl.style.color = "#fff"; br.style.background = ""; br.style.color = ""; };
+      br.onclick = () => { picks[d.what] = "right"; br.style.background = "#2563eb"; br.style.color = "#fff"; bl.style.background = ""; bl.style.color = ""; };
+      chips.appendChild(bl);
+      chips.appendChild(br);
+      line.appendChild(chips);
+      box.appendChild(line);
+    });
+    const go = el('<button class="btn">' + I18N.tf("plan.route.apply","✅ 就按所选规划") + "</button>");
+    go.onclick = () => planStartConfirmedByPicks(diffs, picks);
+    box.appendChild(go);
+    holder.appendChild(box);
   } else {
     if (body.state === "resto_confirm" && (body.restos || []).length) {
       // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
@@ -3207,26 +3235,52 @@ document.getElementById("intakeGo").onclick = () => {
 let planLastStart = null; // 上一次开规划的完整参数（路线冲突确认卡选边重发用）
 // 路线冲突确认卡选边（2026-11-14 用户拍板「figure out diff for user confirmation」）：
 // brief=按文字路线重开（表单参数作废）；form=按表单参数重开（文字只当偏好）。
-async function planStartConfirmed(source) {
+async function planStartConfirmedByPicks(diffs, picks) {
+  // 逐条选边 → route_source + 覆写字段（2026-11-14 用户三条口径）
+  let routeSource = null;
+  const overrides = {};
+  (diffs || []).forEach((d) => {
+    const pick = picks[d.what];
+    if (!pick) return;
+    if (d.what === "route") {
+      routeSource = pick === "left" ? "brief" : "form";
+    } else if (d.what === "days") {
+      overrides.days_override = pick === "left" ? d.text : d.intake;
+    } else if (d.what === "numbers") {
+      if (pick === "left") {
+        if (d.text && d.text[0]) overrides.arrival_no_override = d.text[0];
+        if (d.text && d.text[1]) overrides.departure_no_override = d.text[1];
+      } // right=保留行前卡班次（请求里本来就有）
+    } else if (d.what === "card_days") {
+      if (pick === "left") overrides.days_override = d.intake;
+    }
+  });
+  return planStartConfirmed(routeSource, overrides);
+}
+
+async function planStartConfirmed(routeSource, overrides) {
   const s = planLastStart;
   if (!s) return;
+  const ov = overrides || {};
   planTouch();
   planWorking = true;
   PLAN.startDate = s.startDate || "";
-  addMsg("flow-plan", "user", source === "brief"
+  addMsg("flow-plan", "user", routeSource === "brief"
     ? I18N.tf("plan.route.useText","✍️ 用文字路线")
-    : I18N.tf("plan.route.useForm","📋 用表单参数"));
+    : routeSource === "form"
+      ? I18N.tf("plan.route.useForm","📋 用表单参数")
+      : I18N.tf("plan.route.apply","✅ 就按所选规划"));
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 30–60 秒，请稍候）…"));
   try {
-    const body = await api("/api/v1/plan/start", {
-      cities: source === "brief" ? [] : s.formCities,
-      days: source === "brief" ? 0 : s.formDays,
+    const payload = {
+      cities: s.formCities,
+      days: s.formDays,
       preferences: s.prefs,
       city_days: s.cityDays,
       start_date: s.startDate || undefined,
       intercity_mode: planTransportMode(),
       lang: I18N.locale(),
-      brief: source === "brief" ? s.brief : undefined,
+      brief: routeSource === "brief" ? s.brief : undefined,
       images: s.images && s.images.length ? s.images : undefined,
       arrival_no: s.intake.arrival_no || undefined,
       arrival_date: s.intake.arrival_date || undefined,
@@ -3235,10 +3289,14 @@ async function planStartConfirmed(source) {
       departure_date: s.intake.departure_date || undefined,
       departure_time: s.intake.departure_time || undefined,
       intake: true,
-      route_source: source,
-    });
+    };
+    if (routeSource) payload.route_source = routeSource;
+    if (ov.days_override) payload.days_override = ov.days_override;
+    if (ov.arrival_no_override) payload.arrival_no_override = ov.arrival_no_override;
+    if (ov.departure_no_override) payload.departure_no_override = ov.departure_no_override;
+    const body = await api("/api/v1/plan/start", payload);
     planFormSyncFromPlan(body.plan);
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: source === "brief" ? [] : s.formCities, days: source === "brief" ? 0 : s.formDays, preferences: s.prefs, city_days: s.cityDays, start_date: s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: s.intake.arrival_no || undefined, arrival_time: s.intake.arrival_time || undefined, departure_no: s.intake.departure_no || undefined, departure_time: s.intake.departure_time || undefined, arrival_date: s.intake.arrival_date || undefined, departure_date: s.intake.departure_date || undefined, intake: true } });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, start_date: s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: s.intake.arrival_no || undefined, arrival_time: s.intake.arrival_time || undefined, departure_no: s.intake.departure_no || undefined, departure_time: s.intake.departure_time || undefined, arrival_date: s.intake.arrival_date || undefined, departure_date: s.intake.departure_date || undefined, intake: true } });
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
     planRenderSafe(holder, body, { first: true });

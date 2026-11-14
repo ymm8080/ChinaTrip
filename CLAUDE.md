@@ -52,6 +52,34 @@ order (the `_SOURCE_PRIORITY` tuple, documented in
 
 ## Local dev server (Windows)
 
+## Iron rule: every planning/solver change ships with a REAL E2E test
+
+Unit tests and in-process probes are NOT acceptance in this project. A fix
+counts as done only after it passes a real end-to-end run through the
+running service — the same path the user clicks:
+
+1. **Commit first, then restart through the ops script** (never bare uvicorn;
+   see `DESIGN/OPS_RESTART_PROTOCOL.md`):
+   `powershell -NoProfile -ExecutionPolicy Bypass -File "D:\CHINATRIP\CHINATRIP CODES\ops\restart_h5.ps1"`
+   (add `-Tests` when the tree is green; smoke is mandatory).
+2. **Drive the real HTTP API on a fresh server**, not just unit seams:
+   `POST /api/v1/plan/start` with the *exact user scenario* (same cities,
+   days, `start_date`, intake `arrival_time`/`departure_time`, brief — the
+   H5 intake modal defaults to 08:30/21:30 and IS part of the scenario),
+   then `GET /api/v1/plan/{session_id}` and assert on the returned plan
+   (the specific card's `start_time`, not a proxy).
+3. **For any "user says X is still wrong" report: read the persisted
+   evidence first** — `CHINATRIP CODES/data/h5_state.db` (`plan_sessions`
+   payloads) holds the real session the user just produced; match its
+   `start_time` / `fixed_sessions` / `pinned` before writing code.
+4. **The running process must have the fix**: compare the uvicorn process
+   start time with the commit time. If the commit is newer, restart.
+   Never claim a fix without stating which HEAD the server is running.
+5. Only after the E2E assertion matches: push, then report the server
+   restart + the exact observed card time in the summary.
+
+## Local dev server (Windows)
+
 Do NOT run uvicorn with --reload on this machine: its Windows reloader
 leaves zombie spawn workers that keep serving stale code (the reload
 log says reloading while responses stay old). Use the managed watcher
