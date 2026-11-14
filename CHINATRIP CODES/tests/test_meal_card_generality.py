@@ -74,7 +74,7 @@ def test_lunch_card_follows_same_venue_host_end(city: str, host_name: str):
 
 
 def test_system_dinner_id_stays_dinner_when_drifted_to_noon():
-    """成都 day3 的 food-d3-dinner-1 被漂到 12:00，仍归晚卡、落 17:30。"""
+    """成都 day3 的 food-d3-dinner-1 被漂到 12:00，仍归晚卡、落默认 19:00。"""
     resto = _item(
         "food-d3-dinner-1",
         "某晚宴",
@@ -88,7 +88,7 @@ def test_system_dinner_id_stays_dinner_when_drifted_to_noon():
     plan = _plan([resto], "成都", day=3)
     _bind_real_food_to_cards(plan)
     assert _meal_card_slot(resto) == "dinner"
-    assert resto.start_time == time(17, 30)
+    assert resto.start_time == time(19, 0)
 
 
 def test_tea_restaurant_inside_window_is_not_moved():

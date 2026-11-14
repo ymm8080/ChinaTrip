@@ -273,17 +273,18 @@ def test_untimed_restaurant_lands_on_dinner_card_after_arrival():
     flh = _resto("v170", "福和慧", hours="11:30-14:00,17:30-22:30")
     plan = _plan([_flight(), flh, _hour_card()])
     notes = _retime_real_food_cards(plan)
-    assert flh.start_time == time(17, 30)
-    assert flh.end_time == time(19, 0)
+    # 晚卡默认 19:00 开席（2026-11-14 用户拍板「每天晚饭默认 19:00」）
+    assert flh.start_time == time(19, 0)
+    assert flh.end_time == time(20, 30)
     assert flh.duration_minutes == 90
     night = plan.days[0].items[-1]
     assert night.item_id == "hotel-night-d1"
-    assert night.start_time == time(19, 30)
+    assert night.start_time == time(21, 0)
     assert any("福和慧" in n and "晚餐" in n for n in notes)
 
 
 def test_untimed_restaurant_slides_to_free_card_when_lunch_blocked():
-    """目标日上午被长点占死（11:30-13:00）→ 午餐卡排不进，晚卡 17:00 开席。"""
+    """目标日上午被长点占死（11:30-13:00）→ 午餐卡排不进，晚卡默认 19:00 开席。"""
     lunch_blocker = VisitItem(
         item_id="v1",
         name="豫园",
@@ -303,8 +304,8 @@ def test_untimed_restaurant_slides_to_free_card_when_lunch_blocked():
         days=[DayPlan(day=2, base_city="上海", items=[lunch_blocker, jesse])],
     )
     _retime_real_food_cards(plan)
-    assert jesse.start_time == time(17, 0)
-    assert jesse.end_time == time(18, 30)
+    assert jesse.start_time == time(19, 0)
+    assert jesse.end_time == time(20, 30)
 
 
 def test_untimed_restaurant_uses_free_card_not_taken_one():
@@ -435,8 +436,8 @@ def test_squeezed_lunch_restaurant_moves_to_dinner():
         days=[DayPlan(day=2, base_city="上海", items=[sight1, resto, sight2, sight3])],
     )
     _retime_real_food_cards(plan)
-    assert resto.start_time == time(17, 0)
-    assert resto.end_time == time(18, 0)  # 原本就被压成 60 分钟，不顺带拉长
+    assert resto.start_time == time(19, 0)  # 晚卡默认 19:00 开席
+    assert resto.end_time == time(20, 0)  # 原本就被压成 60 分钟，不顺带拉长
     assert _meal_card_slot(resto) == "dinner"
 
 

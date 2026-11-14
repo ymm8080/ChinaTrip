@@ -4570,9 +4570,15 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45, 30)
                 )
             else:
+                # 自动晚饭卡默认 19:00 开席（2026-11-14 用户拍板）：17:30 会把
+                # 晚饭卡钉在下午正中间，15:40 之后排不下任何 2 小时景点；晚段
+                # 被占再依次前移 19:30/18:30/18:00/17:30/17:00，最后才全窗兜底。
                 starts = [
-                    17 * 60 + 30,
+                    19 * 60,
+                    19 * 60 + 30,
+                    18 * 60 + 30,
                     18 * 60,
+                    17 * 60 + 30,
                     17 * 60,
                     *range(MEAL_CARD_DINNER_EARLIEST, MEAL_CARD_DINNER_LATEST + 1, 5),
                 ]
@@ -4587,7 +4593,7 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                 # 2026-11-13 用户「卡不让位」：卡是槽位，景点让位。窗内
                 # 没有现成空档时先按卡窗造占位，再顺延可动观光件；固定
                 # 件（演出/交通/钉住）挡住才披露缺卡。
-                probe_at = 12 * 60 if card == "lunch" else 17 * 60 + 30
+                probe_at = 12 * 60 if card == "lunch" else 19 * 60
                 probe_dur = LUNCH_DURATION_MINUTES if card == "lunch" else 60
                 probe = (
                     _lunch_placeholder(
@@ -11068,6 +11074,9 @@ MEAL_REAL_LUNCH_WINDOW = (11 * 60 + 30, 12 * 60 + 30)
 #: 下午茶窗（2026-11-13 用户「或者下午茶」）：动线中间空一段时，甜点/茶馆
 #: 类落这里比硬挤午餐更贴；不吃下午茶的日子这档自然空着。
 MEAL_REAL_TEA_WINDOW = (14 * 60, 16 * 60)
+#: 晚饭卡默认 19:00 开席（2026-11-14 用户拍板「每天晚饭默认 19:00」）：19:00
+#: 被占或营业窗只开早市时，再按 19:30 / 18:30 / 18:00 / 17:30 / 17:00 收敛，
+#: 最后全窗兜底（真餐厅仍受自己营业窗约束）。
 MEAL_REAL_DINNER_WINDOW = (17 * 60, 20 * 60 + 30)
 MEAL_REAL_MIN_DURATION = 45
 #: 换乘条目两侧给餐卡让出的衔接缓冲（铁律 4：起飞/落地前后 90 分钟不算自由时间）
@@ -11133,6 +11142,27 @@ def _food_slot_score(
     return (0 if dur >= base else 1, after, t)
 
 
+def _meal_card_start_candidates(card: str, lo: int, hi: int) -> list[int]:
+    """餐卡候选开席时刻（2026-11-14 用户拍板「每天晚饭默认 19:00 开席」）。
+
+    自动晚饭卡与真餐厅晚卡同一口径：先试 19:00，再 19:30 / 18:30 / 18:00 /
+    17:30 / 17:00 收敛，最后全窗兜底；午饭卡、下午茶卡按窗口从早到晚顺排。
+    """
+    ordered = list(range(lo, hi + 1, 5))
+    if card != "dinner":
+        return ordered
+    preferred = [
+        19 * 60,
+        19 * 60 + 30,
+        18 * 60 + 30,
+        18 * 60,
+        17 * 60 + 30,
+        17 * 60,
+    ]
+    head = [t for t in preferred if lo <= t <= hi]
+    return list(dict.fromkeys([*head, *ordered]))
+
+
 def _place_real_food_on_day(day: DayPlan, item: VisitItem) -> tuple[int, int] | None:
     """按当天动线给真餐卡挑最贴合的餐卡位：午餐卡 / 下午茶 / 晚餐卡各试。
 
@@ -11168,7 +11198,7 @@ def _place_real_food_on_day(day: DayPlan, item: VisitItem) -> tuple[int, int] | 
             continue
         placed: tuple[int, int] | None = None
         for dur in durations:
-            for t in range(lo, hi + 1, 5):
+            for t in _meal_card_start_candidates(card, lo, hi):
                 if not _fits_hours_window(hours, t, dur):
                     continue
                 if any(t < fe and t + dur > fs for fs, fe in blockers):
@@ -11304,7 +11334,14 @@ MEAL_CARD_SLOT_WINDOWS: dict[str, tuple[int, int]] = {
     "tea": (14 * 60, 16 * 60),
     "dinner": (17 * 60, 20 * 60 + 30),
 }
-MEAL_CARD_SLOT_DEFAULT = {"lunch": 12 * 60, "tea": 14 * 60, "dinner": 17 * 60 + 30}
+# 自动晚饭卡默认 19:00 开席（2026-11-14 用户拍板「自动晚饭卡默认先落在
+# 19 点」）：17:30 会把晚饭卡钉在下午正中间，15:40 之后排不下任何 2 小时
+# 景点（恭王府因此被挤进「想去」）。真餐厅仍按自己的开席窗走。
+MEAL_CARD_SLOT_DEFAULT = {
+    "lunch": 12 * 60,
+    "tea": 14 * 60,
+    "dinner": 19 * 60,
+}
 MEAL_CARD_SLOT_DURATIONS = {
     "lunch": (90, 60, 45, 30),
     "tea": (60, 45, 30),
