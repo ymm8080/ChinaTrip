@@ -14,6 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.api.itineraries import _account_from_auth
 from app.services.backfill import (
     AllianceFeedItem,
     HandoffNotFoundError,
@@ -79,12 +80,15 @@ def get_handoff_store() -> HandoffStore:
 async def create_handoff(
     request: CreateHandoffRequest,
     store: HandoffStore = Depends(get_handoff_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> HandoffRecord:
     return store.create(
         action_type=request.action_type,
         channel=request.channel,
         url=request.url,
         refund_summary=request.refund_summary,
+        # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+        owner_account_id=account,
     )
 
 

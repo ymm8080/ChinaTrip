@@ -42,10 +42,12 @@ MEAL_WINDOWS: dict[MealSlot, tuple[time, time]] = {
     "dinner": (time(17, 30), time(19, 30)),
 }
 
-MEAL_DURATION_MINUTES = 60  # a meal occupies one hour of the free gap
-# 午餐口径（2026-11-03 拍板）：开餐硬窗 [11:30, 12:30]，时长默认 1.5h、
-# 极端可缩 0.5h。晚餐/通用餐仍走 MEAL_DURATION_MINUTES（60）。
-LUNCH_DURATION_MINUTES = 90
+# 晚餐/通用餐默认 1.5 小时（2026-11-14 用户拍板「1.5 HOUR DEFAULT AS DINNER」）
+MEAL_DURATION_MINUTES = 90
+# 午餐口径：开餐硬窗 [11:30, 12:30]，时长 2026-11-03 拍 1.5h → 2026-11-14
+# 拍板改 1h、极端可缩 0.5h。晚餐/通用餐仍走 MEAL_DURATION_MINUTES（90）。
+# 午餐默认 1 小时（2026-11-14 用户拍板「1 HOUR DEFAULT AS LUNCH」）
+LUNCH_DURATION_MINUTES = 60
 LUNCH_DURATION_FLOOR_MINUTES = 30
 LUNCH_START_EARLIEST = time(11, 30)
 LUNCH_START_LATEST = time(12, 30)
@@ -427,8 +429,8 @@ def meal_window(day: DayPlan, slot: MealSlot) -> tuple[time, time] | None:
     Window constant minus the time coverage of existing items (end_time,
     or start+duration when end is missing; untimed items do not block).
     Untimed day -> the window constant as-is. Of the remaining gaps the
-    largest one that still fits the slot's meal duration (lunch 90 min,
-    2026-11-03 拍板; dinner 60) wins (ties -> earliest); fully occupied
+    largest one that still fits the slot's meal duration (lunch 60 min /
+    dinner 90, 2026-11-14 拍板覆写 2026-11-03) wins (ties -> earliest); fully occupied
     (or no gap fits a meal) -> None — no free gap means no forced
     insertion.
     """
@@ -472,9 +474,8 @@ def meal_times(
     """Start/end of a meal inside a free gap (clamped midpoint).
 
     Midpoint of the gap, pulled back so start + duration never spills past
-    the gap end: the 90-minute lunch window's midpoint lands at 12:45 and
-    12:45+60 would overflow to 13:45, and so would any compressed gap
-    shorter than two hours. For windows of at least one meal the result
+    the gap end when the gap fits one meal (the meal duration rides the
+    slot constants, 2026-11-14 拍板 lunch 1h / dinner 1.5h). For such windows
     always satisfies window[0] <= start and end <= window[1].
     """
     mid = (_minutes(window[0]) + _minutes(window[1])) // 2

@@ -36,14 +36,8 @@ def test_diff_add_remove_move_retime():
         (2, [_item("兵马俑", 2, "09:00")]),
     )
     new = _plan(
-        (
-            1,
-            [
-                _item("大雁塔", 1, "10:00"),
-                _item("钟楼", 1, "14:00"),
-                _item("兵马俑", 1, "13:00"),
-            ],
-        ),
+        (1, [_item("大雁塔", 1, "10:00"), _item("钟楼", 1, "14:00"),
+             _item("兵马俑", 1, "13:00")]),
         (2, []),
     )
     ops = sorted(c["op"] for c in diff_plans(old, new))

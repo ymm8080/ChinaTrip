@@ -196,6 +196,12 @@ class TripItemService:
         rain_ok: str | None = None,
         must_visit: bool = False,
         raw_command: str | None = None,
+        # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：规划会话
+        # 建的行是草稿——只有点「💾 保存行程」才转正进心愿单
+        draft_session_id: str | None = None,
+        # 2026-11-14（用户拍板「心愿单/已排期也是 USER ID 的数据」）：登录
+        # 账号随行落库——打开看板按用户出内容，换设备登录也能看到
+        owner_account_id: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         """Idempotent create: returns the existing row instead of a new one
@@ -205,6 +211,15 @@ class TripItemService:
         same wish too — see _find_duplicate for the exact predicate."""
         if source not in SOURCES:
             raise InvalidSourceError(f"invalid_source:{source}")
+        # 2026-11-14：草稿行只在本会话内参与查重——别的未保存会话留下的
+        # 草稿不能把新会话的心愿「吸」成一条看不见的行（本会话重说一遍
+        # 仍要命中自己的草稿，防重复建行）。
+        known = [
+            i
+            for i in self._items.values()
+            if not i.get("draft_session_id")
+            or i.get("draft_session_id") == draft_session_id
+        ]
         duplicate = self._find_duplicate(
             name,
             source=source,
@@ -212,6 +227,8 @@ class TripItemService:
             city=city,
             poi_id=poi_id,
             owner_device_id=owner_device_id,
+            owner_account_id=owner_account_id,
+            items=known,
         )
         if duplicate is not None:
             # Same wish, richer info: fill ONLY empty fields of the existing
@@ -238,6 +255,10 @@ class TripItemService:
         item = {
             "id": uuid4().hex,
             "itinerary_id": itinerary_id,
+            # 非空 = 草稿（未保存行程），看板/视图不返回（2026-11-14）
+            "draft_session_id": draft_session_id,
+            # USER ID 键（登录账号字符串，与行程头 owner_account_id 同源）
+            "owner_account_id": owner_account_id,
             # 2026-11-13 数据库事实化：归属设备随行落库（看板按设备读）
             "owner_device_id": owner_device_id,
             # 心愿单数据库字段（2026-11-13 拍板）：建行人 / 是否排期 /
@@ -325,6 +346,9 @@ class TripItemService:
         self,
         itinerary_id: str | None = None,
         owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        *,
+        include_drafts: bool = True,
     ) -> dict:
         """Timeline payload (§5): Bookings pinned first, Wishlist stream,
         Scheduled as the third key — each in its documented order.
@@ -333,12 +357,27 @@ class TripItemService:
         ——带 owner_device_id 时只回该设备的行；不带（脚本/运维）回全量。
         """
         items = list(self._items.values())
-        if owner_device_id is not None:
-            # 有归属的按设备隔离；无归属（历史行/脚本建行）仍可见——归属列
-            # 是新事实，不能让老数据在升级瞬间集体消失。
-            items = [
-                i for i in items if i.get("owner_device_id") in (None, owner_device_id)
-            ]
+        if not include_drafts:
+            # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：草稿行
+            # 只在规划引擎内部可见，看板/接口一律不返回
+            items = [i for i in items if not i.get("draft_session_id")]
+        if owner_device_id is not None or owner_account_id is not None:
+            # 2026-11-14（用户拍板「打开行程中心按 USER ID 出内容」）：本
+            # 设备的行 + 本登录账号的行（换设备登录也看得到）都算「我的」；
+            # 无归属（历史行/脚本建行）仍可见——归属列是新事实，不能让老
+            # 数据在升级瞬间集体消失；别人的行（别的设备且别的账号）隐藏。
+            def _mine(item: dict) -> bool:
+                row_dev = item.get("owner_device_id")
+                row_acct = item.get("owner_account_id")
+                if row_dev is None and row_acct is None:
+                    return True  # 历史无归属行：维持原可见口径
+                if owner_device_id is not None and row_dev == owner_device_id:
+                    return True
+                if owner_account_id is not None and row_acct == owner_account_id:
+                    return True
+                return False
+
+            items = [i for i in items if _mine(i)]
         if itinerary_id is not None:
             items = [i for i in items if i.get("itinerary_id") == itinerary_id]
 
@@ -478,7 +517,9 @@ class TripItemService:
         # 心愿单数据库字段（2026-11-13 拍板）：ARRANGED = 有具体日期时刻
         # （已排期/已订且天序在）；EXCLUSION = 用户删站点后明确排除，
         # 已排进/已订的行自动解除（它就在行程里）。
-        item["arranged"] = target in _TIMELINE_STATUSES and item.get("day") is not None
+        item["arranged"] = (
+            target in _TIMELINE_STATUSES and item.get("day") is not None
+        )
         if exclusion_flag is not None:
             item["exclusion_flag"] = bool(exclusion_flag)
         elif target == STATUS_UNWANTED:
@@ -487,6 +528,13 @@ class TripItemService:
             item["exclusion_flag"] = False
         item["updated_at"] = _iso_now(now)
         return dict(item)
+
+    def _persist(self, item_id: str) -> None:
+        """行落库钩子（2026-11-14）：基类按 `_write_through` 约定（PG 子类
+        实现）；SQLite 子类覆写为整行 JSON 落盘。无钩子 = 纯内存。"""
+        hook = getattr(self, "_write_through", None)
+        if callable(hook):
+            hook(item_id)
 
     def link_itinerary(
         self, item_id: str, itinerary_id: str, *, force: bool = False
@@ -504,9 +552,7 @@ class TripItemService:
             return dict(item)
         item["itinerary_id"] = itinerary_id
         item["updated_at"] = _iso_now(None)
-        hook = getattr(self, "_write_through", None)
-        if callable(hook):
-            hook(item_id)
+        self._persist(item_id)
         return dict(item)
 
     def delete(self, item_id: str, *, actor: str | None = None) -> None:
@@ -537,9 +583,7 @@ class TripItemService:
             return dict(item)
         item["itinerary_id"] = None
         item["updated_at"] = _iso_now(now)
-        hook = getattr(self, "_write_through", None)
-        if callable(hook):
-            hook(item_id)
+        self._persist(item_id)
         return dict(item)
 
     def release_itinerary(
@@ -636,12 +680,141 @@ class TripItemService:
                 self.unbind_itinerary(item["id"], now=now)
         return released
 
+    def commit_drafts(
+        self,
+        itinerary_id: str,
+        session_id: str | None = None,
+        owner_account_id: str | None = None,
+    ) -> int:
+        """保存行程 = 心愿草稿转正（2026-11-14 用户拍板「没保存行程，心愿单
+        就不该保存」）：本会话建的草稿行（以及已按名字挂到本行程的草稿行）
+        清掉 draft_session_id、补上行程归属——从这一刻起看板/心愿单可见。
+        返回转正行数。"""
+        if not itinerary_id:
+            return 0
+        committed = 0
+        for item in list(self._items.values()):
+            draft_sid = item.get("draft_session_id")
+            if not draft_sid:
+                continue
+            if item.get("itinerary_id") != itinerary_id and draft_sid != session_id:
+                continue
+            item["draft_session_id"] = None
+            if not item.get("itinerary_id"):
+                item["itinerary_id"] = itinerary_id
+            # 转正即落 USER ID（登录账号）——看板按用户出内容
+            if owner_account_id and not item.get("owner_account_id"):
+                item["owner_account_id"] = owner_account_id
+            item["updated_at"] = _iso_now(None)
+            committed += 1
+            self._persist(item["id"])
+        if committed:
+            logger.info(
+                "trip_item_drafts_committed itinerary=%s session=%s rows=%d",
+                itinerary_id,
+                session_id,
+                committed,
+            )
+        return committed
+
+    def dedupe_itinerary_rows(
+        self,
+        itinerary_id: str,
+        *,
+        actor: str | None = None,
+    ) -> int:
+        """同一行程里同名心愿行只留一行（2026-11-14 用户报「已排期里同一个
+        心愿出现两三条」的自愈）：历史版本按名字跨会话/跨行程吸收 + 每次
+        重新规划新建一行，导致同一 wish 在已排期滚出多行。保留序 = 已排期
+        （有 day）优先 → created_at 最早；多余行软删留档（booked 真实订单
+        不参与）。返回软删行数。"""
+        if not itinerary_id:
+            return 0
+        rows = [
+            item
+            for item in self._items.values()
+            if item.get("itinerary_id") == itinerary_id
+            and item.get("status") != STATUS_BOOKED
+        ]
+        rows.sort(
+            key=lambda r: (
+                r.get("status") != STATUS_SCHEDULED,
+                str(r.get("created_at") or ""),
+            )
+        )
+        seen: set[str] = set()
+        removed = 0
+        for item in rows:
+            key = _wish_key(str(item.get("name") or ""))
+            if key not in seen:
+                seen.add(key)
+                continue
+            try:
+                self.delete(item["id"], actor=actor or "wish-dedupe")
+            except (InvalidTransitionError, NotFoundError):
+                continue
+            removed += 1
+            logger.info(
+                "trip_item_deduped_in_trip itinerary=%s name=%s id=%s",
+                itinerary_id,
+                item.get("name"),
+                item["id"],
+            )
+        return removed
+
+    def purge_itinerary(
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
+    ) -> list[dict]:
+        """删行程 = 名下心愿单一并删除（2026-11-14 用户拍板：
+        「当行程被用户删除时，它的相关心愿单没有被删除」）。
+
+        与旧 release_itinerary 的区别：不再把排期项重建回心愿单——心愿单
+        随行程走，行程没了就一起走。booked 是真实订单（订单栏自有真相），
+        只摘行程绑定、不删；其余状态（wishlist/scheduled/unwanted）一律
+        软删留档（DELETION FLAG + 日期/时间/人）。返回被删的行。
+
+        PG 外键兜底同旧法：清完后仍挂着该行程的行一律解绑，否则 DELETE
+        /itineraries/{id} 会被 FK 挡下（接口 204、刷新后又复活）。"""
+        if not itinerary_id:
+            return []
+        rows = [
+            dict(item)
+            for item in self._items.values()
+            if item.get("itinerary_id") == itinerary_id
+        ]
+        purged: list[dict] = []
+        for item in rows:
+            if item.get("status") == STATUS_BOOKED:
+                self.unbind_itinerary(item["id"], now=now)
+                continue
+            try:
+                self.delete(item["id"], actor=actor)
+            except (InvalidTransitionError, NotFoundError):
+                continue
+            purged.append(item)
+        for item in list(self._items.values()):
+            if item.get("itinerary_id") == itinerary_id:
+                self.unbind_itinerary(item["id"], now=now)
+        logger.info(
+            "trip_itinerary_purged itinerary=%s rows=%d actor=%s",
+            itinerary_id,
+            len(purged),
+            actor,
+        )
+        return purged
+
     def mark_excluded(
         self,
         name: str,
         *,
         itinerary_id: str | None = None,
         city: str | None = None,
+        draft_session_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict:
         """删行程里的站点（2026-11-13 用户拍板）：这一项回心愿单栏并打
         EXCLUSION 标记——用户明确不要它，规划不得自动再排；与「不想去」
@@ -661,7 +834,12 @@ class TripItemService:
                 kwargs["note"] = base
             return self.update(item["id"], status=STATUS_WISHLIST, **kwargs)
         created = self.create(
-            name, source="plan_delete", itinerary_id=itinerary_id, city=city
+            name,
+            source="plan_delete",
+            itinerary_id=itinerary_id,
+            city=city,
+            draft_session_id=draft_session_id,
+            owner_account_id=owner_account_id,
         )
         return self.update(created["id"], status=STATUS_WISHLIST, exclusion_flag=True)
 
@@ -739,6 +917,7 @@ class TripItemService:
         poi_id: str | None,
         items: Iterable[dict] | None = None,
         owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict | None:
         """Same trip + same thing = one row: poi_id is authoritative when
         both sides carry it, else the wish key (see _wish_key) matched by
@@ -758,14 +937,22 @@ class TripItemService:
         rows straight into this predicate — single implementation, no SQL
         mirror."""
         active = self._items.values() if items is None else items
-        if owner_device_id is not None:
-            # 2026-11-13：别的设备的同名行不是同一条心愿——各设备各一行
-            active = [
-                i
-                for i in active
-                if not i.get("owner_device_id")
-                or i.get("owner_device_id") == owner_device_id
-            ]
+        if owner_device_id is not None or owner_account_id is not None:
+            # 2026-11-13：别的用户的同名行不是同一条心愿。2026-11-14（用户
+            # 拍板「心愿单按 USER ID 走」）：同一登录账号换设备也认领同一行
+            # ——设备或账号任一命中即本人；两者都空（历史行）仍参与查重。
+            def _owner_matches(item: dict) -> bool:
+                row_dev = item.get("owner_device_id")
+                row_acct = item.get("owner_account_id")
+                if row_dev is None and row_acct is None:
+                    return True
+                if owner_device_id is not None and row_dev == owner_device_id:
+                    return True
+                if owner_account_id is not None and row_acct == owner_account_id:
+                    return True
+                return False
+
+            active = [i for i in active if _owner_matches(i)]
         if poi_id:
             for item in active:
                 if (

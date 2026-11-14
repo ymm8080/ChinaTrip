@@ -156,8 +156,12 @@ def test_chained_cluster_does_not_drag_bund_monument():
     from app.services.agent.plan import _reunite_tight_kin
 
     wt = _visit("外滩", 120, GeoPoint(lon=121.4927, lat=31.2329), day=1, city="上海")
-    tzf = _visit("田子坊", 90, GeoPoint(lon=121.4690, lat=31.2087), day=2, city="上海")
-    xtd = _visit("新天地", 90, GeoPoint(lon=121.4748, lat=31.2199), day=2, city="上海")
+    tzf = _visit(
+        "田子坊", 90, GeoPoint(lon=121.4690, lat=31.2087), day=2, city="上海"
+    )
+    xtd = _visit(
+        "新天地", 90, GeoPoint(lon=121.4748, lat=31.2199), day=2, city="上海"
+    )
     sna = _visit(
         "思南公馆街区", 90, GeoPoint(lon=121.4690, lat=31.2146), day=2, city="上海"
     )

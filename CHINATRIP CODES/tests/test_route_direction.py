@@ -60,7 +60,8 @@ def _square(anchor: VisitItem) -> tuple[DayPlan, dict[tuple[str, str], int]]:
     pts = {"a": (0, 0), "b": (0, 1), "c": (1, 1), "d": (1, 0), anchor.item_id: (0, 0)}
     matrix = {
         (i, j): round(
-            (((pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2) ** 0.5) * 20
+            (((pts[j][0] - pts[i][0]) ** 2 + (pts[j][1] - pts[i][1]) ** 2) ** 0.5)
+            * 20
         )
         for i in pts
         for j in pts
@@ -82,15 +83,8 @@ def _assert_adjacent_chain(names: list[str]) -> None:
 def test_solver_flips_adjacent_chain_toward_show_at_opposite_end():
     """演出 18:00 在 A 点 → 链保持相邻，方向翻到 A 端收尾（B-C-D-A）。"""
     show = _visit(
-        "s",
-        "演出",
-        0,
-        0,
-        start=time(18, 0),
-        dur=60,
-        cat="entertainment",
-        pinned=True,
-        soft_pin=False,
+        "s", "演出", 0, 0, start=time(18, 0), dur=60, cat="entertainment",
+        pinned=True, soft_pin=False,
     )
     day, matrix = _square(show)
     out = solve_day(day, poi_hours=[], travel_minutes=matrix, time_budget_seconds=5)
@@ -104,15 +98,8 @@ def test_solver_flips_adjacent_chain_toward_show_at_opposite_end():
 def test_solver_flips_adjacent_chain_toward_dinner_card():
     """无演出时，18:00 晚餐卡在 A 点 → 同一相邻链翻到 A 端收尾。"""
     dinner = _visit(
-        "r",
-        "晚餐",
-        0,
-        0,
-        start=time(18, 0),
-        dur=60,
-        cat="food",
-        pinned=True,
-        soft_pin=False,
+        "r", "晚餐", 0, 0, start=time(18, 0), dur=60, cat="food",
+        pinned=True, soft_pin=False,
     )
     day, matrix = _square(dinner)
     out = solve_day(day, poi_hours=[], travel_minutes=matrix, time_budget_seconds=5)
@@ -131,14 +118,8 @@ def test_card_binding_never_reorders_the_sight_chain():
         _visit("c", "C", 1, 1, start=time(11, 40), dur=60),
         _visit("d", "D", 1, 0, start=time(13, 0), dur=60),
         _visit(
-            "food-d1-lunch-1",
-            "同址餐厅",
-            0,
-            1,
-            start=time(16, 15),
-            dur=30,
-            cat="food",
-            soft_pin=True,
+            "food-d1-lunch-1", "同址餐厅", 0, 1, start=time(16, 15), dur=30,
+            cat="food", soft_pin=True,
         ),
     ]
     plan = ItineraryPlan(

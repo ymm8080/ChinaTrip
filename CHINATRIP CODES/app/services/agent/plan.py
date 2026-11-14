@@ -2538,6 +2538,27 @@ def _trip_brief(text: str) -> tuple[list[str], int | None] | None:
     return cities, days
 
 
+def _resolve_brief_cities(
+    brief_cities: list[str], form_cities: list[str]
+) -> list[str]:
+    """简报城市 → 最终路线（2026-11-13/14 口径的纯函数版）：与表单不同时以
+    简报为准；简报只报一个目的地时出发城沿用表单（「成都 3 天」→ 北京→成都）。
+    start 与「路线冲突确认」（api 侧 diff 展示）共用，保证两边裁决一致。"""
+    if {_normalize_city(c) for c in brief_cities} == {
+        _normalize_city(c) for c in form_cities
+    }:
+        return list(form_cities)
+    resolved = list(brief_cities)
+    if (
+        len(resolved) == 1
+        and len(form_cities) >= 2
+        and _normalize_city(form_cities[0]) != _normalize_city(resolved[0])
+    ):
+        resolved = [form_cities[0], *resolved]
+    return resolved
+
+
+
 def _is_new_trip_request(text: str) -> bool:
     """整句是不是「另开一趟」而不只是改当前行程。
 
@@ -4482,9 +4503,10 @@ def _plan_lunch_slot(
     day_plan: DayPlan,
 ) -> tuple[tuple[time, time], VisitItem | None] | None:
     """午餐占位落位（2026-10-31 终版拍板：基准 12 点开饭，早最多
-    11:30、晚最多 12:30；2026-11-03 拍板：时长默认 1.5h）。
+    11:30、晚最多 12:30；时长 2026-11-03 拍 1.5h → 2026-11-14 拍板改 1h）。
 
-    基准槽 = 12:00–13:30（LUNCH_DURATION_MINUTES=90）。前一件（带时刻
+    基准槽 = 12:00–13:00（LUNCH_DURATION_MINUTES=60，2026-11-14 拍板
+    午餐默认 1 小时）。前一件（带时刻
     pinned visit）早结束（≤12:00）→ 跟随提前：start = clamp(前件结束,
     11:30, 12:00)——前件 10:00 结束则 11:30 开饭、11:45 结束则 11:45
     开饭。前件跨基准收尾：
@@ -4540,7 +4562,7 @@ def _plan_lunch_slot(
                 continue
             pinned_visits.append((_minutes_of(item.start_time), _minutes_of(end), item))
     # 交通优先级最高：transfer 车次本体 + 前后 90 分钟衔接缓冲都算占用
-    # （基准槽 12:00–13:30；被缓冲推后时起点须 ≤12:30）
+    # （基准槽 12:00–13:00；被缓冲推后时起点须 ≤12:30）
     for ts, te in transfers:
         if (
             slot_s < te + INTERCITY_BUFFER_MINUTES
@@ -4830,8 +4852,9 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
     而旧口径对任何带城际腿的日子整日 continue，落地日只剩航班+酒店，
     连晚饭都没有（2026-11-13 西安到达日实录）。
 
-    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥90/60/45/30 分钟真空
-    隙；晚卡缺→[16:30,20:30] 找 ≥60/45 分钟，仍无隙再走迟场
+    终装按天对账补齐：午卡缺→[11:30,12:30] 开席找 ≥60/45/30 分钟真空
+    （默认 1 小时，2026-11-14 拍板）；晚卡缺→[16:30,20:30] 找 ≥90/60/45
+    分钟（默认 1.5 小时），仍无隙再走迟场
     [20:30,21:30] 找 ≥45/30 分钟（迟落地/白天被交通占满也吃得上饭）。
     落地/发车缓冲取 _day_fixed_windows 的 fixed 窗（转场含 ±90 / 落地
     +150），绝不把餐卡塞进飞机/火车在途时段；餐窗整段在途才不补，并
@@ -4857,7 +4880,7 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     *range(MEAL_CARD_LUNCH_EARLIEST, MEAL_CARD_LUNCH_LATEST + 1, 5),
                 ]
                 gap = _first_free_gap(
-                    blocked, starts, (LUNCH_DURATION_MINUTES, 60, 45, 30)
+                    blocked, starts, (LUNCH_DURATION_MINUTES, 45, 30)
                 )
             else:
                 # 自动晚饭卡默认 19:00 开席（2026-11-14 用户拍板）：17:30 会把
@@ -4871,7 +4894,7 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                     17 * 60,
                     *range(MEAL_CARD_DINNER_EARLIEST, MEAL_CARD_DINNER_LATEST + 1, 5),
                 ]
-                gap = _first_free_gap(blocked, starts, (MEAL_DURATION_MINUTES, 45))
+                gap = _first_free_gap(blocked, starts, (MEAL_DURATION_MINUTES, 60, 45))
                 if gap is None:
                     # 2026-11-13 七拍「至少晚餐不应该豁免」：迟落地（如
                     # 20:00 到）或白天被景点/交通占满时，晚卡也不能没有
@@ -4883,7 +4906,9 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
                 # 没有现成空档时先按卡窗造占位，再顺延可动观光件；固定
                 # 件（演出/交通/钉住）挡住才披露缺卡。
                 probe_at = 12 * 60 if card == "lunch" else 19 * 60
-                probe_dur = LUNCH_DURATION_MINUTES if card == "lunch" else 60
+                probe_dur = (
+                    LUNCH_DURATION_MINUTES if card == "lunch" else MEAL_DURATION_MINUTES
+                )
                 probe = (
                     _lunch_placeholder(
                         day,
@@ -4937,11 +4962,11 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
         days_bit = "、".join(f"第{d}天" for d in sorted(days))
         notes.append(
             L(
-                f"{days_bit}当天没有可用{card_name}时段（被交通或长行程占满），"
-                f"未留{window_name}卡",
-                f"Day(s) {', '.join(str(d) for d in sorted(days))}: no free "
-                f"{card} window (travel or long stops fill the day) — no "
-                f"{card} card added",
+                f"{days_bit}行程紧凑：{card_name}建议在游览途中就地解决"
+                f"（未单独留{window_name}卡时段）",
+                f"Day(s) {', '.join(str(d) for d in sorted(days))}: packed "
+                f"schedule — have {card} during the site visits (no separate "
+                f"{card} slot held)",
             )
         )
     if notes:
@@ -4973,6 +4998,70 @@ def _meal_city_at(day_plan: DayPlan, at: time | None) -> str:
         if at is None or end <= at:
             city = t.to_city
     return city
+
+
+def _day_place_city(day: DayPlan) -> str:
+    """当天「人在哪座城」（备选拖入的城市闸用）：首个非晨卡参访件的城；
+    没有参访件就按日末城际腿的到达城（与 _meal_city_at(at=None) 同口径）。"""
+    for item in day.items:
+        if (
+            isinstance(item, VisitItem)
+            and (item.city or "").strip()
+            and not (item.item_id or "").startswith("hotel-morning")
+        ):
+            return (item.city or "").strip()
+    return _meal_city_at(day, None)
+
+
+def _cand_xy(cand: dict | None) -> tuple[float, float] | None:
+    """候选行坐标（replace/备选插入共用口径）：dict 或 (lon, lat) 两式。"""
+    loc = (cand or {}).get("location")
+    if isinstance(loc, dict):
+        try:
+            return float(loc["lon"]), float(loc["lat"])
+        except (KeyError, TypeError, ValueError):
+            return None
+    if isinstance(loc, (tuple, list)) and len(loc) == 2:
+        try:
+            return float(loc[0]), float(loc[1])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _planned_duplicate_visit(
+    plan: ItineraryPlan,
+    *,
+    name: str,
+    poi_id: str | None,
+    city: str,
+    category: str | None,
+    xy: tuple[float, float] | None,
+) -> VisitItem | None:
+    """备选拖入前的重复闸（与换点 replace 同口径）：同名 / 同 POI / 同体验
+    替代组已在行程里就返回那张卡（调用方据此 422 duplicate_in_plan）。"""
+    for day in plan.days:
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            if _same_site(name, item.name) or (poi_id and item.poi_id == poi_id):
+                return item
+            if _substitute_dup(
+                name,
+                item.name,
+                city,
+                item.city,
+                cat_a=category,
+                cat_b=item.category,
+                xy_a=xy,
+                xy_b=(
+                    (item.location.lon, item.location.lat)
+                    if item.location is not None
+                    else None
+                ),
+            ):
+                return item
+    return None
 
 
 def _reconcile_transfer_days(
@@ -10830,16 +10919,9 @@ def _fallback_sequence_times(
         leaving_capped = any(
             _leaving_morning_cap(tr.mode, ts) is not None for tr, ts, _ in xfer_windows
         )
-        # 必去大点下午头档 + 下午单大点（2026-11-04 拍板）的兜底镜像：
-        # 上午已被占时钉住大点从 12:00 起探（不塞 11:30 半档杀午餐窗）；
-        # 同日下午已有大点（含锚点）不再排第二个。
-        morning_occupied = any(
-            isinstance(v, VisitItem)
-            and v.start_time is not None
-            and (v.category or "") not in ("food", "hotel")
-            and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
-            for v in day.items
-        )
+        # 下午单大点（2026-11-04 拍板）的兜底镜像：同日下午已有大点
+        # （含锚点）不再排第二个。「上午已被占大点从 12:00 起探」于
+        # 2026-11-14 用户拍板撤掉（路程填上午空档，午餐缩时/嵌套兜底）。
         afternoon_big_exists = any(
             isinstance(v, VisitItem)
             and v.start_time is not None
@@ -11079,17 +11161,10 @@ def _fallback_sequence_times(
                 if is_sessionless_show(visit.best_visit_time, visit.opening_hours):
                     _floor = max(_floor, SHOW_AFTERNOON_START_MINUTES)
                 t = max(cursor, _floor)
-                if (
-                    _is_head_candidate(visit)
-                    and _is_big_site(visit)
-                    and morning_occupied
-                ):
-                    # 必去/高排序大点下午头档（2026-11-04 替代组正主挂日尾
-                    # 事故；2026-11-05 起候选面扩到 tier≤3 高排序——上
-                    # 午已被占时从正午起探，不在 11:30 半档开场杀掉午
-                    # 餐窗；上午头档由置换规则争取，见
-                    # _morning_head_displacement）。
-                    t = max(t, 12 * 60)
+                # 2026-11-14 用户拍板「IGNORE pinned big site probes from noon
+                # rule」：上午已被占不再把钉住大点压到正午起探——远点路程
+                # （天安门 10:00 散场→慕田峪 109 分钟车程）就该填 10:00–12:00
+                # 空档；午餐由缩时/嵌套/途中解决三件兜底（见餐卡口径）。
                 # 到达城条目从落地地板起排（与 _host_day_for_visit
                 # 口径一致）：挪日宿进转场日的条目不再被 540 冷启动
                 # 卡在二值城市侧闸上（2026-11-03 离城日闸收口）。
@@ -11512,14 +11587,17 @@ def _is_real_food(item: object) -> bool:
     )
 
 
-def _real_food_blockers(day: DayPlan, item: VisitItem) -> list[tuple[int, int]]:
+def _real_food_blockers(
+    day: DayPlan, item: VisitItem, skip: VisitItem | None = None
+) -> list[tuple[int, int]]:
     """当天已排时刻 → 分钟阻挡窗（真餐卡择位的占用面）。
 
     夜/晨酒店卡由 attach/reanchor 按末件顺延、占位餐卡自身可被真餐顶替——
-    三者不入阻挡；换乘条目两侧各留 90 分钟衔接缓冲（铁律 4）。"""
+    三者不入阻挡；换乘条目两侧各留 90 分钟衔接缓冲（铁律 4）。skip=嵌套
+    宿主（2026-11-14 拍板餐卡可嵌进观光窗）——宿主窗不算阻挡。"""
     out: list[tuple[int, int]] = []
     for other in day.items:
-        if other is item:
+        if other is item or other is skip:
             continue
         start = getattr(other, "start_time", None)
         if start is None:
@@ -11754,8 +11832,11 @@ MEAL_CARD_SLOT_DEFAULT = {
     "tea": 14 * 60,
     "dinner": 19 * 60,
 }
+# 餐卡时长链（2026-11-14 用户拍板「1 HOUR DEFAULT AS LUNCH AND 1.5 HOUR
+# DEFAULT AS DINNER；紧凑可缩 30 分钟或归零——归零在披露里提示游览途中
+# 用餐」）：午餐先 60 分钟，晚餐先 90 分钟。
 MEAL_CARD_SLOT_DURATIONS = {
-    "lunch": (90, 60, 45, 30),
+    "lunch": (60, 45, 30),
     "tea": (60, 45, 30),
     "dinner": (90, 60, 45),
 }
@@ -11837,9 +11918,11 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
 
 
 def _nested_block_food(day: DayPlan, item: VisitItem) -> bool:
-    """同址街区餐厅：餐厅地址就在街区里、且时段被街区卡完整包含 → 它
-    是街区卡的一部分（2026-11-13 用户「除非街区餐厅是一个地方」），
-    不再另开一张午/晚卡。只认主题街区宿主，普通景点/酒店不嵌套。"""
+    """同址餐厅嵌套：餐厅地址就在宿主点里、且时段被宿主卡完整包含 → 它
+    是宿主卡的一部分（2026-11-13 用户「除非街区餐厅是一个地方」；
+    2026-11-14 拍板从主题街区推广到全部观光件——「LUNCH/DINNER CARD IS
+    NOT EXCLUSIVE TO SITES」），不再另开一张午/晚卡。演出/餐/酒店不作
+    宿主。"""
     if item.start_time is None or item.end_time is None:
         return False
     fs, fe = _minutes_of(item.start_time), _minutes_of(item.end_time)
@@ -11848,7 +11931,9 @@ def _nested_block_food(day: DayPlan, item: VisitItem) -> bool:
     for host in day.items:
         if host is item or not isinstance(host, VisitItem):
             continue
-        if not _is_theme_block(host):
+        if (host.category or "") in ("food", "hotel"):
+            continue
+        if _is_show_item(host):
             continue
         if host.start_time is None or host.end_time is None:
             continue
@@ -11892,6 +11977,50 @@ def _same_venue_times(
     return sorted(out, reverse=True)
 
 
+def _meal_nesting_host(
+    day: DayPlan, item: VisitItem, t: int, dur: int
+) -> VisitItem | None:
+    """餐卡候选窗 [t, t+dur) 的嵌套宿主（2026-11-14 用户拍板「LUNCH/DINNER
+    CARD IS NOT EXCLUSIVE TO SITES, NORMALLY USERS TAKE LUNCH/DINNER DURING
+    THE VISIT TO SITES……SAME APPLIED TO other sites」——CityWalk+餐组合
+    口径推广到全部景点）：候选窗整段落在某观光件窗内=游览途中用餐，该件
+    不算阻挡。占位卡无坐标，包含即认（落位后回填宿主锚）；真餐厅仍须同址
+    （is_same_venue_food_pair）。演出/餐/酒店不作宿主。"""
+    for other in day.items:
+        if other is item or not isinstance(other, VisitItem):
+            continue
+        if (other.category or "") in ("food", "hotel"):
+            continue
+        if _is_show_item(other):
+            continue
+        if other.start_time is None:
+            continue
+        s = _minutes_of(other.start_time)
+        e = _item_end_minutes(other)
+        if e is None or not (s <= t and t + dur <= e):
+            continue
+        # 宿主至少比餐卡长 30 分钟——「游览途中用餐」是逛大点顺便吃，
+        # 30 分钟小点装不下一餐，不为吃停脚。
+        if (e - s) - dur < 30:
+            continue
+        if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+            return other
+        if is_same_venue_food_pair(item, other):
+            return other
+    return None
+
+
+def _reanchor_meal_to_host(item: VisitItem, host: VisitItem) -> None:
+    """餐卡嵌进宿主观光窗后，卡面地址/展示锚改跟宿主（「BLANK 卡默认吃在
+    上一站」升级为「吃在宿主站」，2026-11-14 拍板）。"""
+    if not (is_lunch_placeholder(item) or is_dinner_placeholder(item)):
+        return
+    item.address = host.address
+    item.address_en = host.address_en
+    item.anchor_location = host.location
+    item.anchor_from_prev = True
+
+
 def _place_meal_card(
     day: DayPlan, item: VisitItem, card: str
 ) -> tuple[int, int] | None:
@@ -11924,11 +12053,14 @@ def _place_meal_card(
                     continue
                 if not _fits_hours_window(hours, t, dur):
                     continue
+                host = _meal_nesting_host(day, item, t, dur)
                 blocked = any(
                     t < fe and t + dur > fs
-                    for fs, fe in _real_food_blockers(day, item)
+                    for fs, fe in _real_food_blockers(day, item, skip=host)
                 )
                 if not blocked:
+                    if host is not None:
+                        _reanchor_meal_to_host(item, host)
                     return t, dur
                 if move and _make_room_for_meal(day, item, t, dur):
                     return t, dur
@@ -12528,6 +12660,14 @@ def _enforce_site_day_fit(
                 continue
             if item.start_time is None:
                 continue
+            if item.fixed_sessions:
+                # 升旗锚（flag_schedule 2026-11-14）：旗时=官方固定钟点，
+                # 校核不得摘钉重排——2026-11-23 周一案：升旗 07:08 被
+                # 「营业窗整段」判违规（广场名义 08:30 开门）摘钉重排成
+                # 8:30，UAT 天安门又回日始。城市轴已在打标时由
+                # _flag_pin_reachable 把关（赶不上的转场日根本不落标）；
+                # 营业窗/闭馆日是 POI 名义作息，管不着升旗仪式。
+                continue
             city = _norm_city_key(item.city)
             problem = _site_fit_problem(
                 day,
@@ -12639,7 +12779,8 @@ def _must_visit_room_sweep(
     街道类样本 12:00 + 名人故居样本 14:12 顶到日尾，渲染成「四点以后」）。
 
     solve 前逐天清场：钉住未排观光点先试原窗（必去大点按「下午头档」
-    口径——上午已被占从 12:00 起、开场 ≤13:00），放不下则逐个挤掉非钉
+    口径——开场 ≤13:00；上午已被占从 12:00 起探已于 2026-11-14 撤掉），
+    放不下则逐个挤掉非钉
     凑数观光（街区 tier8 优先、再开场最晚；一个不够就累计挤、全挤完仍
     不可行则原样归还绝不白挤）。只动自动凑数条目——钉住条目/餐/酒店/
     钉住演出永不让位；未钉凑数演出/体验卡（entertainment 类）在钉住
@@ -12666,14 +12807,9 @@ def _must_visit_room_sweep(
                 fixed, _fixed_tight, _flex_lunches, xfer_windows = _day_fixed_windows(
                     day
                 )
-                morning_occupied = any(
-                    isinstance(v, VisitItem)
-                    and v.start_time is not None
-                    and (v.category or "") not in ("food", "hotel")
-                    and v.start_time.hour * 60 + v.start_time.minute < 12 * 60
-                    for v in day.items
-                )
-                floor = 12 * 60 if morning_occupied else DAY_START_MINUTES
+                # 2026-11-14 拍板撤掉「上午已被占从 12:00 起探」：必去大点
+                # 从日始起探——远点路程填上午空档，午餐缩时/嵌套/途中解决。
+                floor = DAY_START_MINUTES
                 tighten = AFTERNOON_START_MINUTES if _is_big_site(pv) else None
                 if cap_relax:
                     # 跨日救生末档（2026-11-11 拍板「必去/手建优先于梯队」）：
@@ -14920,8 +15056,12 @@ def _drop_stale_missing_meal_notes(plan: ItineraryPlan) -> None:
     kept: list[str] = []
     for note in plan.assumptions:
         text = str(note)
-        is_lunch = "未留午饭卡" in text or "no lunch card" in text
-        is_dinner = "未留晚饭卡" in text or "no dinner card" in text
+        is_lunch = (
+            "留午饭卡" in text or "no lunch card" in text or "lunch slot held" in text
+        )
+        is_dinner = (
+            "留晚饭卡" in text or "no dinner card" in text or "dinner slot held" in text
+        )
         if not (is_lunch or is_dinner):
             kept.append(note)
             continue
@@ -15304,14 +15444,11 @@ class PlanningAgent:
                 brief_days = typed_days
         if brief_cities:
             form_cities = list(session.cities)
-            if {_normalize_city(c) for c in brief_cities} != {
+            resolved = _resolve_brief_cities(brief_cities, form_cities)
+            if {_normalize_city(c) for c in resolved} != {
                 _normalize_city(c) for c in form_cities
             }:
-                if len(brief_cities) == 1 and len(form_cities) >= 2:
-                    # 「成都 3 天」只报目的地：出发城沿用表单（北京→成都）
-                    if _normalize_city(form_cities[0]) != brief_cities[0]:
-                        brief_cities = [form_cities[0], *brief_cities]
-                session.cities = brief_cities
+                session.cities = resolved
                 session.city_days = {}
                 if brief_days:
                     session.days = brief_days
@@ -26613,6 +26750,8 @@ class PlanningAgent:
                     continue
                 if it.pinned or it.soft_pin:
                     continue  # 铁律 19 + 系统餐锚不动
+                if it.fixed_sessions:
+                    continue  # 升旗锚绑日（2026-11-14）：挪日旗时就错了
                 cat = str(it.category or "")
                 if cat in ("food", "entertainment"):
                     continue  # 演出场次绑日；餐件跟餐窗走
@@ -28523,8 +28662,9 @@ class PlanningAgent:
         """把「到达落地 / 离开起飞·发车」这一头钉到用户给的班次或当地时刻。
 
         班次号走 set_transfer_number（班次库命中即按真实起降/到发，腿别也按
-        号码改写）；只有时刻就按腿时长反推另一头后走 _apply_transfer_schedule
-        同款回填尾（非钉景点清时重排 + 校验 + 腿标注）。"""
+        号码改写）；用户改过默认时刻时该时刻=运输腿的到达/离开时刻，按腿时长
+        反推另一头后走 _apply_transfer_schedule 同款回填尾（非钉景点清时重排
+        + 校验 + 腿标注）；班次查不到而时刻给过 → 回退按时刻落位。"""
         if session.plan is None:
             return []
         transfer = _find_transfer_item(session.plan, item_id)
@@ -28533,25 +28673,33 @@ class PlanningAgent:
         leg = f"{transfer.from_city}→{transfer.to_city}"
         side = L("到达", "Arrival") if is_arrival else L("离开", "Departure")
         norm = (number or "").strip().upper()
+        miss_prefix = ""
         if norm:
             try:
                 await self.set_transfer_number(session, item_id, number=norm)
-            except ValueError as exc:
                 return [
                     L(
-                        f"{side}班次 {norm} 没查到时表（{exc}），这段先按常规时刻排；"
-                        "行程卡上点「🔢 班次」可以再试一次。",
-                        f"{side} {norm} was not found in the schedule library "
-                        f"({exc}); the leg keeps its regular times — use "
-                        "(use the 🔢 number button on the card to retry).",
+                        f"{side}已按班次 {norm} 的真实时刻排（{leg}）。",
+                        f"{side} timed from the real {norm} schedule ({leg}).",
                     )
                 ]
-            return [
-                L(
-                    f"{side}已按班次 {norm} 的真实时刻排（{leg}）。",
-                    f"{side} timed from the real {norm} schedule ({leg}).",
+            except ValueError as exc:
+                # 班次没查到 + 用户把时刻从默认改掉：该时刻就是运输腿的到达/
+                # 离开时刻（2026-11-14 用户口径），回退按时刻落位，不静默丢弃。
+                if _parse_hm(local) is None:
+                    return [
+                        L(
+                            f"{side}班次 {norm} 没查到时表（{exc}），这段先按常规"
+                            "时刻排；行程卡上点「🔢 班次」可以再试一次。",
+                            f"{side} {norm} was not found in the schedule library "
+                            f"({exc}); the leg keeps its regular times — use "
+                            "(use the 🔢 number button on the card to retry).",
+                        )
+                    ]
+                miss_prefix = L(
+                    f"班次 {norm} 没查到时表，",
+                    f"Schedule for {norm} not found — ",
                 )
-            ]
         hhmm = _parse_hm(local)
         if hhmm is None:
             return []
@@ -28575,7 +28723,8 @@ class PlanningAgent:
         stamp = hhmm.strftime("%H:%M")
         if is_arrival:
             return [
-                L(
+                miss_prefix
+                + L(
                     f"{side}按你给的当地落地时刻 {stamp} 排（{leg}，车程按 "
                     f"{duration} 分钟估算）。",
                     f"{side} timed to your local landing time {stamp} ({leg}, "
@@ -28583,7 +28732,8 @@ class PlanningAgent:
                 )
             ]
         return [
-            L(
+            miss_prefix
+            + L(
                 f"{side}按你给的当地起飞/发车时刻 {stamp} 排（{leg}，车程按 "
                 f"{duration} 分钟估算）。",
                 f"{side} timed to your local departure time {stamp} ({leg}, "
@@ -28908,6 +29058,192 @@ class PlanningAgent:
                     f"Day {old.day} re-sequenced by distance (~{delta_km:.0f} km)",
                 )
             )
+        return report, summary, notes
+
+    async def insert_alternative(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        name: str,
+        new_day: int,
+        after_item_id: str | None = None,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """备选 chip 拖进时间轴（2026-11-14 拍板「备选要像其它条目一样可拖，
+        拖到两个条目之间就插在那里；为此挤掉谁要在标注里写明」）。
+
+        与点击换点（replace_item）是两件事：换点=原位换主点；拖入=在落点
+        新增一张卡、主点保留。落点=第 new_day 天 after_item_id 之后
+        （None=当天第一个参访件之前）。用户顺序权威：当天非钉/非软钉件清
+        时刻后按列表序顺排成新时链；当天实在排不下就按「档号大=弱、离新点
+        远」逐张让位（与快语心愿 wish_fast 同一让位口径），让位件进
+        plan.unplaced 并在返回 notes（回复+假设标注）里点名——用户看得到
+        撤了谁、也能从「想去」chip 拖回来。纯计算 + 库内一次同名查询，零
+        LLM。
+
+        422 码：item_not_found / day_not_found / after_not_found /
+        poi_store_unavailable / no_match（库里没有这个点）/
+        city_mismatch（拖到别的城市那天）/ duplicate_in_plan（行程里已有
+        同名或同体验替代组）/ no_slot（当天连让位都排不出，原行程不动）。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        host = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if host is None:
+            raise ValueError("item_not_found")
+        target = next((d for d in plan.days if d.day == new_day), None)
+        if target is None:
+            raise ValueError("day_not_found")
+        if after_item_id is not None and after_item_id not in {
+            i.item_id for i in target.items if isinstance(i, VisitItem)
+        }:
+            raise ValueError("after_not_found")
+        if self._poi_details is None:
+            raise ValueError("poi_store_unavailable")
+        wanted = (name or "").strip()
+        cand = await asyncio.to_thread(
+            self._poi_details.candidate_by_name, host.city, wanted
+        )
+        new_name = str((cand or {}).get("name") or "").strip()
+        if cand is None or not new_name:
+            raise ValueError("no_match")
+        # 城闸（2026-11-14）：备选是主点同城候选，只能落同城那天——跨城拖
+        # 会把甲城的点插进乙城那天的时链（腿长/营业窗/餐窗全失真）。
+        day_city = _day_place_city(target)
+        if day_city and _norm_city_key(host.city) != _norm_city_key(day_city):
+            raise ValueError("city_mismatch")
+        new_pid = str(cand.get("source_poi_id") or "") or None
+        xy = _cand_xy(cand)
+        if (
+            _planned_duplicate_visit(
+                plan,
+                name=new_name,
+                poi_id=new_pid,
+                city=host.city,
+                category=cand.get("category"),
+                xy=xy,
+            )
+            is not None
+        ):
+            raise ValueError("duplicate_in_plan")
+
+        candidate = plan.model_copy(deep=True)
+        day = next(d for d in candidate.days if d.day == new_day)
+        location = GeoPoint(lon=xy[0], lat=xy[1]) if xy is not None else None
+        try:
+            dur = int(cand.get("suggested_duration_min") or 0)
+        except (TypeError, ValueError):
+            dur = 0
+        if dur <= 0:
+            dur = host.duration_minutes or DEFAULT_VISIT_MINUTES
+        dur = max(30, min(dur, 480))
+        fresh = VisitItem(
+            item_id=self.alloc_item_id(candidate),
+            name=new_name,
+            poi_id=new_pid,
+            category=(str(cand.get("category") or "") or host.category),
+            city=host.city,
+            location=location,
+            address=cand.get("address"),
+            name_en=cand.get("name_en"),
+            address_en=cand.get("address_en"),
+            intro_en=cand.get("intro_en"),
+            opening_hours=cand.get("opening_hours"),
+            opening_hours_en=cand.get("opening_hours_en"),
+            best_visit_time=_sched_best_visit(cand),
+            booking_url=cand.get("booking_url"),
+            reservation_hint=_reservation_hint(new_name, cand),
+            rain_ok=cand.get("rain_ok"),
+            # 名录档随候选走（与 replace_item 同口径：不带档会被当未分层）
+            tier=_source_tier(cand),
+            site_rank=_site_rank(cand),
+            day=new_day,
+            duration_minutes=dur,
+            # 用户亲手拖进来的点=必去卡（后续让位/重规划都不静默丢），
+            # 但刻意不 pin——它要像其它条目一样还能再拖。
+            must=True,
+        )
+        if after_item_id is None:
+            pos = next(
+                (k for k, i in enumerate(day.items) if isinstance(i, VisitItem)),
+                len(day.items),
+            )
+        else:
+            pos = (
+                next(k for k, i in enumerate(day.items) if i.item_id == after_item_id)
+                + 1
+            )
+        day.items.insert(pos, fresh)
+        for it in day.items:
+            if it is fresh or not isinstance(it, VisitItem):
+                continue
+            if it.pinned or it.soft_pin:
+                continue
+            it.start_time = None
+            it.end_time = None
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
+        _fallback_sequence_times(candidate, keep_list_order=True)
+        from app.services.agent.wish_fast import _evict_until_clean
+
+        day = next(d for d in candidate.days if d.day == new_day)
+        removed = _evict_until_clean(candidate, day, fresh, location)
+        if removed is None:
+            # 当天让位到顶仍排不下：整单不落（会话里仍是原行程），前端提示
+            raise ValueError("no_slot")
+        reanchor_hotel_cards(candidate.days, keep_ids={fresh.item_id})
+        report = validate_plan(candidate, poi_hours=[])
+        pinned = validate_pinned(plan, candidate)
+        if pinned.violations:
+            combined = list(report.violations) + pinned.violations
+            has_error = any(v.severity == RuleSeverity.error for v in combined)
+            report = ValidationReport(ok=not has_error, violations=combined)
+        annotate_legs(candidate)
+        self._replay_measured_legs(candidate)
+        session.plan = candidate
+        if new_name not in session.must_visits:
+            session.must_visits.append(new_name)
+        session.wish_bindings[new_name] = {
+            "name": new_name,
+            "city": host.city,
+            "source_poi_id": new_pid,
+            "category": fresh.category,
+        }
+        when = (
+            f"{_fmt_hm(fresh.start_time)}-{_fmt_hm(fresh.end_time)}"
+            if fresh.start_time is not None and fresh.end_time is not None
+            else ""
+        )
+        if removed:
+            names = "、".join(i.name for i in removed)
+            note = L(
+                f"第{new_day}天插入 {new_name} 时撤下 {names}"
+                "（低优先级/离得远，已放进可替换候选，可再拖回）",
+                f"Inserting {new_name} on day {new_day} removed {names} "
+                "(lower priority / farther out; kept as draggable candidates)",
+            )
+            notes.append(note)
+            candidate.assumptions.append(note)
+        summary = ChangeSummary(
+            change_summary=[
+                L(
+                    f"第{new_day}天 插入 {new_name} {when}".strip(),
+                    f"Day {new_day}: inserted {new_name} {when}".strip(),
+                )
+            ],
+            affected_items_count=1,
+        )
+        # 看板对账（2026-11-13：已排期只收心愿单里被排上的行）——拖进来的
+        # 点若本就在心愿单里，这里就地翻成已排期；没有行则不新建。
+        self.sync_trip_rows(session)
         return report, summary, notes
 
     def sync_removals_to_trip_items(

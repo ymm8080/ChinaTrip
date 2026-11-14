@@ -42,6 +42,7 @@ from app.services.itinerary import DayPlan, GeoPoint, ItineraryPlan, VisitItem
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
+from app.services.poi_details import PoiDetailStore
 
 DEVICE_HEADERS = {"X-Device-ID": "device-1"}
 
@@ -504,8 +505,11 @@ def test_sites_confirm_endpoint_writes_only_picked():
     assert r.status_code == 409
 
 
-class BriefPoiStore:
-    """底库桩：名字匹配不命中，candidate_by_name 直接落地（简报读点用）。"""
+class BriefPoiStore(PoiDetailStore):
+    """底库桩：名字匹配不命中，candidate_by_name 直接落地（简报/图片读点用）。"""
+
+    def __init__(self) -> None:
+        super().__init__()
 
     def match_text_names(self, city, text, *, limit=8):
         return []
@@ -540,7 +544,10 @@ def test_start_brief_opens_sites_confirm_round():
         trip_items=svc,
     )
     client = client_for(agent)
-    body = start(client, {"cities": ["北京"], "days": 2, "brief": brief}).json()
+    body = start(
+        client,
+        {"cities": ["北京"], "days": 2, "preferences": "历史建筑", "brief": brief},
+    ).json()
 
     # 先问确认，不出行程、不入库
     assert body["state"] == "site_confirm"
@@ -893,6 +900,7 @@ def test_start_brief_single_city_keeps_form_origin():
     assert resp.json()["plan"]["cities"] == ["北京", "成都"]
 
 
+
 def test_from_itinerary_session_lang_follows_x_lang_header():
     """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
     编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
@@ -998,7 +1006,7 @@ class UnwantRecorder:
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "unwanted"}
 
-    def mark_excluded(self, name, *, itinerary_id=None, city=None):
+    def mark_excluded(self, name, *, itinerary_id=None, city=None, draft_session_id=None, owner_account_id=None):
         # 2026-11-13 拍板：删站点 = 回心愿单 + EXCLUSION（同一处记账）
         self.calls.append((name, itinerary_id, city))
         return {"name": name, "status": "wishlist", "exclusion_flag": True}
@@ -2508,8 +2516,133 @@ def test_delete_night_card_removes_next_morning_card():
         )
     assert resp.status_code == 200
     data = resp.json()
-    ids = [i.get("item_id") for d in data["plan"]["days"] for i in d["items"]]
+    ids = [
+        i.get("item_id")
+        for d in data["plan"]["days"]
+        for i in d["items"]
+    ]
     assert "hotel-night-d1" not in ids
     assert "hotel-morning-d2" not in ids
     assert "hotel-morning-d3" in ids
     assert "晨卡" in data["reply"]
+def test_start_applies_intake_arrival_departure_times():
+    """行前信息（2026-11-14 用户拍板）：/plan/start 带去程当地到达时刻与返程
+    当地离开时刻 → v0 生成后按时刻落位对应城际腿（落地定去程腿 end，起飞/
+    发车定返程腿 start），并在 assumptions 披露；会话字段落档供重建。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    store = None
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "arrival_time": "15:30",
+            "departure_time": "16:00",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    plan = body["plan"]
+    transfers = [
+        it
+        for d in plan["days"]
+        for it in d["items"]
+        if it.get("from_city") and it.get("to_city")
+    ]
+    assert transfers, "intercity legs expected in v0"
+    outbound = min(transfers, key=lambda it: it["day"])
+    inbound = max(transfers, key=lambda it: it["day"])
+    assert outbound["end_time"].startswith("15:30")  # 当地落地
+    assert inbound["start_time"].startswith("16:00")  # 无返程腿时补合成腿
+    assert any("15:30" in a for a in body["assumptions"])
+    sid = body["session_id"]
+    session = store.get(sid, device_id="device-1")
+    assert session.arrival_time == "15:30"
+    assert session.departure_time == "16:00"
+def test_route_conflict_between_text_and_form_asks_user():
+    """文字说 2 天、表单 3 天：不静默裁决，返回 confirm_route 两边差异
+    （2026-11-14 用户拍板「figure out diff for user confirmation」）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "西安"],
+            "days": 3,
+            "preferences": "",
+            "brief": "西安 2 天",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "confirm_route"
+    assert body["text_route"]["cities"] == ["上海", "西安"]
+    assert body["text_route"]["days"] == 2
+    assert body["form_route"]["cities"] == ["上海", "西安"]
+    assert body["form_route"]["days"] == 3
+
+
+def test_route_conflict_user_picks_form():
+    """确认卡选「按表单」：文字不再当简报改写路线，按表单参数生成。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "西安"],
+            "days": 3,
+            "preferences": "",
+            "brief": "西安 2 天",
+            "route_source": "form",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["plan"]["cities"] == ["上海", "西安"]
+    assert len(body["plan"]["days"]) == 3
+
+
+def test_route_conflict_user_picks_text():
+    """确认卡选「按文字」：表单参数作废，路线全从文字解析。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "西安"],
+            "days": 3,
+            "preferences": "西安 2 天",
+            "brief": "西安 2 天",
+            "route_source": "brief",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["plan"]["cities"] == ["上海", "西安"]
+    assert len(body["plan"]["days"]) == 2
+
+
+def test_no_route_conflict_when_text_matches_form():
+    """文字与表单一致（城市同、天数同）：不进确认，直接生成。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "preferences": "",
+            "brief": "上海到杭州玩3天",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"

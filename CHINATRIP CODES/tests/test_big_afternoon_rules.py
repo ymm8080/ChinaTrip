@@ -485,3 +485,26 @@ def test_validate_flags_second_afternoon_big_as_warning():
         v for v in rep.violations if v.rule_id == 7 and v.severity.value == "warning"
     ]
     assert hits and "大雁塔" in hits[0].message and "西安城墙" in hits[0].message
+
+
+def test_fallback_big_site_not_forced_to_noon_anymore():
+    """2026-11-14 拍板「IGNORE pinned big site probes from noon rule」：上午
+    已被占时，钉住大点不再压到 12:00 起探——远点打车腿（天安门→慕田峪
+    80 分钟）填 10:00–12:00 空档，大点 11:20 落位而非正午。"""
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import GeoPoint
+
+    tam = _visit(
+        "tam", "天安门广场", dur=90, tier=1,
+        start_time=_t(8, 30), end_time=_t(10, 0), pinned=True,
+        location=GeoPoint(lon=116.4103, lat=39.9115),
+    )
+    mut = _visit(
+        "mut", "慕田峪长城", dur=180, tier=1, pinned=True,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    plan = _plan_with([DayPlan(day=1, base_city="北京", items=[tam, mut])])
+    _fallback_sequence_times(plan)
+    got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
+    assert got["mut"].start_time is not None
+    assert _minutes(got["mut"]) < 12 * 60

@@ -185,6 +185,11 @@ def item_to_row_values(item: dict) -> dict:
         "itinerary_id": _pg_uuid_loose(item.get("itinerary_id"), "it_"),
         # 2026-11-13 数据库事实化：业务行程号与设备归属都进列（挂靠可查）
         "itinerary_ref": (item.get("itinerary_id") or None),
+        # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：会话草稿
+        # 标记进列，看板/心愿单视图过滤；保存行程时清空转正
+        "draft_session_id": (item.get("draft_session_id") or None),
+        # 2026-11-14（用户拍板「心愿单也是 USER ID 的数据」）：登录账号列
+        "owner_account_id": (item.get("owner_account_id") or None),
         "owner_device_id": (item.get("owner_device_id") or None),
         # 心愿单数据库字段（2026-11-13 拍板）
         "created_by": (item.get("created_by") or item.get("owner_device_id") or None),
@@ -480,6 +485,8 @@ class PgTripItemService(TripItemService):
                     "opening_hours",
                     "owner_device_id",
                     "itinerary_ref",
+                    "draft_session_id",
+                    "owner_account_id",
                 ):
                     if payload.get(field) is None:
                         value = getattr(row, field, None)
@@ -522,9 +529,60 @@ class PgTripItemService(TripItemService):
                 items[str(payload["id"])] = payload
         self._items = items
 
+    def purge_stale_drafts(self, *, days: int = 7) -> int:
+        """过期心愿草稿物理清理（2026-11-14）：草稿从未进过心愿单（看板/
+        视图都不可见），保留 N 天只是给「保存行程」留转正窗口——超过就删，
+        别让未保存行程的行在库里无限堆积。迁移回填的 legacy 草稿同样按
+        建行时间清。"""
+        if not self._pg_ok:
+            return 0
+        # 2026-11-14 用户拍板「心愿单被删也要在数据库里留档/打删除标记」：
+        # 过期草稿不物理删——打 DELETION FLAG + 日期/时间/人（wish_items
+        # 视图本就整列透出，审计可查），读口（_pg_reload_items/看板）不再返回。
+        now = datetime.now(timezone.utc)
+        try:
+            with self._session_factory() as session, session.begin():
+                result = session.execute(
+                    text(
+                        "UPDATE trip_items"
+                        " SET deletion_flag = TRUE,"
+                        "     deletion_date = :ddate,"
+                        "     deletion_time = :dtime,"
+                        "     deleted_by = 'draft-expired',"
+                        "     payload = COALESCE(payload, '{}'::jsonb)"
+                        "       || jsonb_build_object("
+                        "            'deletion_flag', TRUE,"
+                        "            'deletion_date', :ddate_iso,"
+                        "            'deletion_time', :dtime,"
+                        "            'deleted_by', 'draft-expired')"
+                        " WHERE draft_session_id IS NOT NULL AND deletion_flag = FALSE"
+                        "   AND created_at < NOW() - (:days || ' days')::interval"
+                    ),
+                    {
+                        "days": days,
+                        "ddate": now.date(),
+                        "dtime": now.strftime("%H:%M:%S"),
+                        "ddate_iso": now.date().isoformat(),
+                    },
+                )
+                rowcount = getattr(result, "rowcount", None)
+                purged = int(rowcount or 0)
+        except Exception:
+            logger.warning("pg_state: 心愿草稿过期清理失败", exc_info=True)
+            return 0
+        if purged:
+            logger.info(
+                "pg_state: 心愿草稿过期清理 %d 行（>%d 天未保存）", purged, days
+            )
+            self._pg_reload_items()
+        return purged
+
     def _boot_load(self) -> None:
         try:
             self._pg_reload_items()
+            # 过期草稿清理由应用启动钩子（app.main._lifespan）调
+            # purge_stale_drafts()——boot 阶段不多开会话，测试桩按会话数
+            # 断言的用例不受影响。
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
@@ -544,10 +602,18 @@ class PgTripItemService(TripItemService):
         self,
         itinerary_id: str | None = None,
         owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        *,
+        include_drafts: bool = True,
     ) -> dict:
         # 读穿透（PG 读权威）：看板/规划收口每次回库取新，跨进程排期立即可见。
         self._try_refresh()
-        return super().list_groups(itinerary_id, owner_device_id)
+        return super().list_groups(
+            itinerary_id,
+            owner_device_id,
+            owner_account_id,
+            include_drafts=include_drafts,
+        )
 
     def create(self, name: str, *, source: str, **kwargs) -> dict:
         """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与
@@ -606,12 +672,17 @@ class PgTripItemService(TripItemService):
         参数自比较恒真事故），规范化/双向包含等模糊逻辑也不该在 SQL 里重
         写一份。表为几十行级、创建低频，全量拉取代价可忽略；PG 故障期的
         纯内存行仍由 super().create() 的内存查重兜底。"""
+        # 2026-11-14：草稿行只在本会话内参与查重——别的未保存会话留下的
+        # 草稿不能把新会话的心愿「吸」成一条看不见的行（本会话重说一遍
+        # 仍要命中自己的草稿，防重复建行）。
         rows = session.execute(
             text(
                 "SELECT payload FROM trip_items"
                 " WHERE status <> 'unwanted' AND deletion_flag = false"
+                " AND (draft_session_id IS NULL OR draft_session_id = :draft_sid)"
                 " ORDER BY created_at ASC NULLS LAST"
-            )
+            ),
+            {"draft_sid": kwargs.get("draft_session_id") or ""},
         ).all()
         items = []
         for row in rows:
@@ -630,6 +701,7 @@ class PgTripItemService(TripItemService):
             # 2026-11-13 数据库事实化：查重同样按设备——别的设备的同名行
             # 不是同一条心愿（否则冒烟/别的浏览器会把用户的行动手合并）
             owner_device_id=kwargs.get("owner_device_id"),
+            owner_account_id=kwargs.get("owner_account_id"),
         )
 
     def _insert_on(self, session, values: dict) -> None:
@@ -682,6 +754,81 @@ class PgTripItemService(TripItemService):
         ):
             self._try_refresh()
         return super().release_itinerary(itinerary_id, now=now, actor=actor)
+
+    def commit_drafts(
+        self,
+        itinerary_id: str,
+        session_id: str | None = None,
+        owner_account_id: str | None = None,
+    ) -> int:
+        """保存行程 = 心愿草稿转正（2026-11-14）。跨进程兜底：本进程内存里
+        可能没有另一端口建的草稿行，先按 SQL 清标记（payload 同源），再
+        回灌内存；FK 列只在行程确实存在时补。"""
+        committed = super().commit_drafts(itinerary_id, session_id, owner_account_id)
+        if not (self._pg_ok and itinerary_id):
+            return committed
+        uid = _pg_uuid_loose(itinerary_id, "it_")
+        try:
+            with self._session_factory() as session, session.begin():
+                result = session.execute(
+                    text(
+                        "UPDATE trip_items t"
+                        " SET draft_session_id = NULL,"
+                        " owner_account_id = COALESCE(t.owner_account_id, :acct),"
+                        " itinerary_ref = COALESCE(t.itinerary_ref, :ref),"
+                        " payload = (COALESCE(t.payload, '{}'::jsonb)"
+                        "   - 'draft_session_id')"
+                        "   || jsonb_build_object("
+                        "        'itinerary_id',"
+                        "        COALESCE(t.payload->>'itinerary_id', :ref))"
+                        " WHERE t.draft_session_id IS NOT NULL"
+                        "   AND (t.draft_session_id = :sid OR t.itinerary_ref = :ref)"
+                    ),
+                    {
+                        "ref": itinerary_id,
+                        "sid": session_id or "",
+                        "acct": owner_account_id or "",
+                    },
+                )
+                rowcount = getattr(result, "rowcount", None)
+                if rowcount:
+                    committed += int(rowcount)
+                if uid is not None:
+                    session.execute(
+                        text(
+                            "UPDATE trip_items SET itinerary_id = :uid"
+                            " WHERE itinerary_ref = :ref AND itinerary_id IS NULL"
+                            "   AND EXISTS (SELECT 1 FROM itineraries i"
+                            "                WHERE i.id = :uid)"
+                        ),
+                        {"uid": uid, "ref": itinerary_id},
+                    )
+            self._pg_reload_items()
+        except Exception:
+            logger.warning(
+                "pg_state: 心愿草稿转正失败 itinerary=%s", itinerary_id, exc_info=True
+            )
+        return committed
+
+    def purge_itinerary(
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
+    ) -> list[dict]:
+        """删行程 = 名下心愿单一并删除（2026-11-14）。跨进程兜底：本进程
+        内存里没有该行程的行时先回库取权威，否则漏删的行会在删行程后
+        继续挂在死行程上（看板又冒出来）。"""
+        if (
+            self._pg_ok
+            and itinerary_id
+            and not any(
+                it.get("itinerary_id") == itinerary_id for it in self._items.values()
+            )
+        ):
+            self._try_refresh()
+        return super().purge_itinerary(itinerary_id, now=now, actor=actor)
 
     def delete(self, item_id: str, *, actor: str | None = None) -> None:
         """删除 = 软删（2026-11-13 用户拍板「心愿单也是数据库」）：行保留，

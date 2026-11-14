@@ -237,8 +237,10 @@ def _channel_of(url: str) -> str:
 async def order_intent(
     request: OrderIntentRequest,
     x_forwarded_for: str | None = Header(default=None, alias="X-Forwarded-For"),
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     *,
     tpl_request: Request,
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     """L3 伪闭环（2026-10-25，ACP 就绪前的等价体验）：发起即落
     action_handoffs 留痕（opened）——用户渠道付款后回来「订单 → 粘贴
@@ -270,6 +272,8 @@ async def order_intent(
             action_type="site_ticket",
             channel=_channel_of(intent.authorization_url),
             url=intent.authorization_url,
+            # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+            owner_account_id=account,
             refund_summary=L(
                 "人工渠道预订，退改以下单页为准（铁律 23 C 级）",
                 "Manual-channel booking; changes and refunds follow the checkout page",
@@ -339,6 +343,8 @@ async def restaurant_intent(
             action_type="restaurant",
             channel=_channel_of(url),
             url=url,
+            # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+            owner_account_id=account,
             refund_summary=L(
                 "人工渠道预订，退改以下单页为准（铁律 23 C 级）",
                 "Manual-channel booking; changes and refunds follow the checkout page",

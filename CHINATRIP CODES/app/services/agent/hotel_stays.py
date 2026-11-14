@@ -30,6 +30,7 @@ from app.services.itinerary.models import (
     DayPlan,
     TransferItem,
     VisitItem,
+    departure_buffer_minutes,
 )
 from app.services.itinerary.rules import travel_gap_needed
 from app.services.lang_ctx import L
@@ -305,6 +306,114 @@ HOTEL_MORNING_GAP_MINUTES = 30  # 离店 → 当天首站的路程预留（铁�
 HOTEL_MORNING_EARLIEST_MINUTES = 8 * 60 + 30
 
 
+#: 出发卡独占日始：08:30 离店 + 30 分钟路程 → 当天首站不早于 09:00
+#: （2026-11-14 用户「酒店出发是 8:30」）。
+HOTEL_MORNING_READY_MINUTES = HOTEL_MORNING_EARLIEST_MINUTES + HOTEL_MORNING_MINUTES
+
+
+def _minutes_of(value: time | None) -> int:
+    return value.hour * 60 + value.minute if value is not None else 0
+
+
+def _day_overlaps(dp: DayPlan) -> bool:
+    spans = sorted(
+        (_minutes_of(i.start_time), _minutes_of(i.end_time))
+        for i in dp.items
+        if i is not None
+        and not is_hotel_morning(i)
+        and i.start_time is not None
+        and i.end_time is not None
+    )
+    return any(spans[i][1] > spans[i + 1][0] for i in range(len(spans) - 1))
+
+
+def _open_morning_slot(dp: DayPlan) -> bool:
+    """把当天首站让到 09:00 之后，给「08:30 离店」的出发卡腾出日始。
+
+    只做纯算术平移（件间隔、营业窗判定、腿时长都不变）：日始 08:30 开场
+    的件顺移到 09:00 起，被压住的后续件按「前件尾」最小顺推。07:00 这类
+    早于日始的时刻=硬约束（早班车/用户手钉时刻），不挪——调用方回落到「卡贴
+    首件」的旧窗口，绝不让卡压住硬时刻件。
+    """
+    fixed: list[VisitItem | TransferItem] = []
+    early: list[VisitItem | TransferItem] = []
+    for item in dp.items:
+        if is_hotel_morning(item) or item.start_time is None:
+            continue
+        hard = (
+            getattr(item, "pinned", False)
+            and not getattr(item, "soft_pin", False)
+            and not getattr(item, "must", False)
+        )
+        is_early = (
+            HOTEL_MORNING_EARLIEST_MINUTES
+            <= _minutes_of(item.start_time)
+            < HOTEL_MORNING_READY_MINUTES
+        )
+        if isinstance(item, TransferItem) or hard:
+            if is_early:
+                return False  # 早班车/手钉件占住日始：不挪，走旧窗口
+            fixed.append(item)
+        elif is_early:
+            early.append(item)
+    if not early:
+        return True
+    ordered = sorted(
+        [i for i in dp.items if i.start_time is not None and not is_hotel_morning(i)],
+        key=lambda i: _minutes_of(i.start_time),
+    )
+    snapshot = [(i, i.start_time, i.end_time) for i in ordered]
+    delta = HOTEL_MORNING_READY_MINUTES - _minutes_of(early[0].start_time)
+    for item in early:
+        s = _minutes_of(item.start_time) + delta
+        e = (
+            _minutes_of(item.end_time) + delta
+            if item.end_time is not None
+            else s + (item.duration_minutes or HOTEL_MORNING_MINUTES)
+        )
+        item.start_time = time(s // 60, s % 60)
+        item.end_time = time(e // 60, e % 60)
+    # 顺推消冲突：前面件被推后压住了后面件，就把后面件抬到前件尾
+    for i in range(len(ordered) - 1):
+        prev, cur = ordered[i], ordered[i + 1]
+        if prev.end_time is None or cur.start_time is None:
+            continue
+        gap = _minutes_of(prev.end_time) - _minutes_of(cur.start_time)
+        if gap <= 0:
+            continue
+        if (
+            getattr(cur, "pinned", False)
+            and not getattr(cur, "soft_pin", False)
+            and not getattr(cur, "must", False)
+        ):
+            for it, st, en in snapshot:
+                it.start_time, it.end_time = st, en
+            return False
+        if isinstance(cur, TransferItem):
+            for it, st, en in snapshot:
+                it.start_time, it.end_time = st, en
+            return False
+        s = _minutes_of(cur.start_time) + gap
+        e = (
+            _minutes_of(cur.end_time) + gap
+            if cur.end_time is not None
+            else s + (cur.duration_minutes or HOTEL_MORNING_MINUTES)
+        )
+        if e >= 24 * 60:
+            for it, st, en in snapshot:
+                it.start_time, it.end_time = st, en
+            return False
+        cur.start_time = time(s // 60, s % 60)
+        cur.end_time = time(e // 60, e % 60)
+    if _day_overlaps(dp):
+        for it, st, en in snapshot:
+            it.start_time, it.end_time = st, en
+        return False
+    return True
+
+
+
+
 def is_hotel_morning(item: object) -> bool:
     """系统每日出发酒店卡识别（item_id 前缀，与 is_hotel_night 同构）。"""
     return isinstance(item, VisitItem) and item.item_id.startswith(
@@ -346,13 +455,20 @@ def _first_timed_item(dp: DayPlan) -> VisitItem | TransferItem | None:
 
 
 def _morning_window(
-    first_start: int | None, *, transfer: bool = False
+    first_start: int | None,
+    *,
+    transfer: bool = False,
+    transfer_mode: str | None = None,
 ) -> tuple[int, int] | None:
     """晨卡 [start, end)（分钟）：首件开场前预留起程时间，卡占前
     _MINUTES 分钟；空天 08:30–09:00。首件是跨城交通时按铁律 4 的
     90 分钟衔接缓冲预留（否则晨卡贴 17:00 航班会被缓冲闸判硬违规），
     普通行程件按 30 分钟路程预留。放不下（首件过早）None。"""
-    gap = INTERCITY_BUFFER_MINUTES if transfer else HOTEL_MORNING_GAP_MINUTES
+    gap = (
+        departure_buffer_minutes(transfer_mode)
+        if transfer
+        else HOTEL_MORNING_GAP_MINUTES
+    )
     end = first_start - gap if first_start is not None else 9 * 60
     start = end - HOTEL_MORNING_MINUTES
     if first_start is not None and start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
@@ -386,9 +502,14 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
         if night is None:
             continue
         first = _first_timed_item(dp)
+        if first is not None and not isinstance(first, TransferItem):
+            # 首站让到 09:00 之后，卡才能落 08:30-09:00（2026-11-14）
+            _open_morning_slot(dp)
+            first = _first_timed_item(dp)
         window = _morning_window(
             _minutes_of(first.start_time) if first is not None else None,
             transfer=isinstance(first, TransferItem),
+            transfer_mode=getattr(first, "mode", None),
         )
         if window is None:
             continue
@@ -488,6 +609,10 @@ def reanchor_hotel_mornings(
         if card is None or card.item_id in keep:
             continue
         first = _first_timed_item(dp)
+        if first is not None and not isinstance(first, TransferItem):
+            if _open_morning_slot(dp):
+                touched.add(dp.day)
+            first = _first_timed_item(dp)
         if first is None:
             # 空天（2026-11-13 续）：当天已无可排件，卡回日始前
             # 08:30–09:00——与初次插入的空天窗口同口径，不留在
@@ -495,7 +620,7 @@ def reanchor_hotel_mornings(
             end = 9 * 60
         else:
             need = (
-                INTERCITY_BUFFER_MINUTES
+                departure_buffer_minutes(getattr(first, "mode", None))
                 if isinstance(first, TransferItem)
                 else HOTEL_MORNING_GAP_MINUTES
             )
@@ -510,6 +635,10 @@ def reanchor_hotel_mornings(
             first_start = _minutes_of(first.start_time)
             end = first_start - need
         start = end - HOTEL_MORNING_MINUTES
+        if start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
+            # 最早 08:30 离店（2026-11-14）：卡压到日始，与首站贴排
+            start = HOTEL_MORNING_EARLIEST_MINUTES
+            end = max(end, start + HOTEL_MORNING_MINUTES)
         if end <= 0 or start < 0:
             continue
         cur_end = _minutes_of(card.end_time) if card.end_time is not None else None

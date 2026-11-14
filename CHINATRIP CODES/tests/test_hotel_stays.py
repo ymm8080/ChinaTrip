@@ -199,7 +199,8 @@ def test_cp_first_visit_floor_without_card():
     solved = solve_plan(_plan([day]), poi_hours=[], scheduler="cp")
     assert solved is not None
     v = next(i for i in solved.days[0].items if i.item_id == "w1")
-    assert v.start_time == time(14, 0)
+    # 落地 11:30 + 飞机 3 小时缓冲（2026-11-14）→ 14:30
+    assert v.start_time == time(14, 30)
 
 
 def test_food_keeps_90_buffer_after_landing():
@@ -226,8 +227,9 @@ def test_fallback_floor_with_and_without_card():
     _fallback_sequence_times(plan)
     v1 = next(i for i in with_card.items if i.item_id == "w1")
     v2 = next(i for i in without.items if i.item_id == "w2")
-    assert v1.start_time == time(14, 0)
-    assert v2.start_time == time(14, 0)
+    # 落地 11:30 + 飞机 3 小时（2026-11-14）→ 14:30
+    assert v1.start_time == time(14, 30)
+    assert v2.start_time == time(14, 30)
 
 
 # ------------------------------------------------------------- 午餐槽避让
@@ -553,8 +555,11 @@ def test_morning_window():
     assert _morning_window(540) == (510, 540)
     assert _morning_window(390) == (330, 360)  # 首件 06:30 → 05:30-06:00
     assert _morning_window(30) is None  # 首件 00:30 放不下
-    # 首件是跨城交通：按铁律 4 的 90 分钟衔接缓冲预留
-    assert _morning_window(1080, transfer=True) == (960, 990)  # 18:00 → 16:00-16:30
+    # 首件是跨城交通：按交通方式留值机/进站缓冲（飞机 3h / 火车 2h）
+    # 18:00 航班：15:00 前离店（卡占最后一档 14:30-15:00）
+    assert _morning_window(1080, transfer=True, transfer_mode="flight") == (870, 900)
+    # 18:00 火车：16:00 前离店（卡占 15:30-16:00）
+    assert _morning_window(1080, transfer=True, transfer_mode="train") == (930, 960)
 
 
 def test_attach_mornings_after_each_hotel_night():
@@ -570,10 +575,10 @@ def test_attach_mornings_after_each_hotel_night():
     assert (d2.start_time, d2.end_time) == (time(8, 30), time(9, 0))
     assert d2.city == "西安" and d2.soft_pin and not d2.pinned
     assert days[1].items[0] is d2  # 当天第一张卡
-    # 回家日（d3 无夜卡）仍从前一晚酒店退房出发：18:00 航班按铁律 4
-    # 90 分钟衔接缓冲 → 16:00-16:30 离店
+    # 回家日（d3 无夜卡）仍从前一晚酒店退房出发：18:00 航班按 3 小时
+    # 值机缓冲 → 卡收在 15:00（2026-11-14）
     d3 = next(i for i in days[2].items if is_hotel_morning(i))
-    assert (d3.start_time, d3.end_time) == (time(16, 0), time(16, 30))
+    assert (d3.start_time, d3.end_time) == (time(14, 30), time(15, 0))
 
 
 def test_attach_morning_empty_day_before_day_start():
@@ -676,11 +681,11 @@ def test_reanchor_morning_pulls_back_for_far_hotel_only_earlier():
         start_time=time(9, 0),
         end_time=time(11, 0),
         duration_minutes=120,
-        location=GeoPoint(lon=120.0, lat=30.18),  # ≈20km → 打车 75 分钟
+        location=GeoPoint(lon=120.0, lat=30.18),  # ≈20km → 37 分钟（70km/h+15 分叫车）
     )
     day = DayPlan(day=2, base_city="西安", items=[card, visit])
     reanchor_hotel_mornings([day])
-    assert (card.start_time, card.end_time) == (time(7, 15), time(7, 45))
+    assert (card.start_time, card.end_time) == (time(7, 53), time(8, 23))
     # 只回拨不后移：已更早的卡不动（用户手拖）
     card.start_time, card.end_time = time(6, 30), time(7, 0)
     reanchor_hotel_mornings([day])
@@ -860,7 +865,8 @@ def test_reanchor_hotel_cards_pulls_back_for_earlier_first_stop():
     card = next(i for i in d2.items if is_hotel_morning(i))
     card.location = GeoPoint(lon=108.95, lat=34.26)
     reanchor_hotel_cards(days)
-    assert (card.start_time, card.end_time) == (time(5, 50), time(6, 20))
+    # 4.4km → 20 分钟路程，地板 30 分钟：07:00 − 30 = 06:30 收卡
+    assert (card.start_time, card.end_time) == (time(6, 0), time(6, 30))
 
 
 def test_reanchor_hotel_cards_keeps_card_first_in_day_order():

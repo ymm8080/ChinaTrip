@@ -85,12 +85,12 @@ def test_meal_window_untimed_items_do_not_block():
 
 
 def test_meal_window_item_inside_window_compresses_gap():
-    # 2026-11-03 拍板：午餐 90 分钟——12:30–13:30 仅剩 60 分钟空档，
-    # 装不下 90 分钟午餐 → None（铁律 20：不强插）
+    # 2026-11-14 拍板：午餐默认 60 分钟——12:30–13:30 的 60 分钟空档
+    # 装得下 1 小时午餐（旧 90 分钟口径此处判 None，铁律 20 不强插）
     plan = day_plan(items=[visit("v1", start=time(11, 30), end=time(12, 30))])
-    assert meal_window(plan, "lunch") is None
+    assert meal_window(plan, "lunch") == (time(12, 30), time(13, 30))
     # right-hand compression: item overhanging the window end gets clipped;
-    # the 90-minute window then leaves only a 30-min gap -> no meal fits
+    # the leftover 30-min gap still fits no meal
     plan2 = day_plan(items=[visit("v2", start=time(12, 30), end=time(14, 0))])
     assert meal_window(plan2, "lunch") is None
 
@@ -127,15 +127,15 @@ def test_meal_window_items_outside_window_are_ignored():
 
 
 def test_meal_times_full_windows():
-    # 90-minute lunch window: midpoint 12:45 + 60 would overflow -> clamped
-    assert meal_times((time(12, 0), time(13, 30))) == (time(12, 30), time(13, 30))
-    assert meal_times((time(17, 30), time(19, 30))) == (time(18, 30), time(19, 30))
+    # 默认通用/晚餐时长 90 分钟（2026-11-14 拍板 1.5h）：整窗恰填一餐
+    assert meal_times((time(12, 0), time(13, 30))) == (time(12, 0), time(13, 30))
+    assert meal_times((time(17, 30), time(19, 30))) == (time(18, 0), time(19, 30))
 
 
 def test_meal_times_compressed_gap_never_spills():
-    # 60-minute gap fits exactly; a midpoint + 60 (13:00-14:00) would spill
-    assert meal_times((time(12, 30), time(13, 30))) == (time(12, 30), time(13, 30))
-    assert meal_times((time(12, 0), time(13, 0))) == (time(12, 0), time(13, 0))
+    # 60-minute gap fits a 60-minute meal exactly; a midpoint + 60 would spill
+    assert meal_times((time(12, 30), time(13, 30)), 60) == (time(12, 30), time(13, 30))
+    assert meal_times((time(12, 0), time(13, 0)), 60) == (time(12, 0), time(13, 0))
 
 
 # --- rank_by_detour --------------------------------------------------------
@@ -201,9 +201,9 @@ def test_build_food_item_fills_fields():
     assert item.city == "杭州"
     assert item.location == GeoPoint(lon=120.15, lat=30.25)
     assert item.day == 3
-    assert item.start_time == time(12, 30)  # window midpoint
+    assert item.start_time == time(12, 0)  # midpoint clamped so 90 min fits
     assert item.end_time == time(13, 30)
-    assert item.duration_minutes == 60
+    assert item.duration_minutes == 90
     assert item.pinned is False
 
 
@@ -211,7 +211,8 @@ def test_build_food_item_uses_compressed_window_midpoint():
     # clamp: the meal never spills past the gap end (old behavior 13:00-14:00)
     cand = RestaurantCandidate(name="知味观")
     item = build_food_item(
-        cand, day=1, city="杭州", window=(time(12, 30), time(13, 30)), item_id="f-2"
+        cand, day=1, city="杭州", window=(time(12, 30), time(13, 30)), item_id="f-2",
+        duration=60,
     )
     assert item.start_time == time(12, 30)
     assert item.end_time == time(13, 30)
@@ -292,10 +293,10 @@ def test_recommend_restaurants_builds_food_items_inside_window():
         assert item.category == "food"
         assert item.day == 2
         assert item.city == "杭州"
-        # 2026-11-03 拍板：午餐默认 1.5h（90 分钟）
-        assert item.duration_minutes == 90
+        # 2026-11-14 拍板：午餐默认 1h（60 分钟，覆写 2026-11-03 的 1.5h）
+        assert item.duration_minutes == 60
         assert item.pinned is False
-        assert item.start_time == time(12, 0)  # pulled back so 90 min fits the gap
+        assert item.start_time == time(12, 30)  # 60 分钟午餐落窗中点
         assert item.end_time == time(13, 30)
     assert len({i.item_id for i in items}) == 3
     assert items[2].location is None  # location-less candidate stays addable

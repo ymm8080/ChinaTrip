@@ -678,9 +678,7 @@ async def get_itinerary_detail(
     with factory() as session:
         days = (
             session.query(ItineraryDay)
-            .filter(
-                ItineraryDay.itinerary_id == uid, ItineraryDay.snapshot_id.is_(None)
-            )
+            .filter(ItineraryDay.itinerary_id == uid, ItineraryDay.snapshot_id.is_(None))
             .order_by(ItineraryDay.day)
             .all()
         )
@@ -706,9 +704,7 @@ async def get_itinerary_detail(
                     "start_time": row.start_time.strftime("%H:%M")
                     if row.start_time
                     else None,
-                    "end_time": row.end_time.strftime("%H:%M")
-                    if row.end_time
-                    else None,
+                    "end_time": row.end_time.strftime("%H:%M") if row.end_time else None,
                     "duration_minutes": row.duration_minutes,
                     "alternative_1": row.alt1,
                     "alternative_2": row.alt2,
@@ -758,6 +754,7 @@ async def list_itinerary_changes(
     CHANGES AFTER CLICK SAVE BUTTON」）：按保存时刻倒序回放。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
+    from sqlalchemy import text
 
     from app.models import ItineraryChangeLog
 
@@ -800,13 +797,16 @@ async def delete_itinerary(
 ) -> None:
     """Delete an owned itinerary together with its snapshots (2026-10-20:
     「行程」页 per-trip 查看/删除 buttons). Unknown / foreign-owner ids
-    answer 404 like every other route (no enumeration). 2026-10-31（用户
-    拍板）：删行程前名下 scheduled 行先回心愿单栏（day/position/booking_id
-    清空；booked 保留真实订单不动）——先释放后删除，释放失败行程仍在，
-    可重试。trip_items 依旧不物理删除：看板自有真相（铁律 0）。"""
+    answer 404 like every other route (no enumeration).
+
+    2026-11-14 用户拍板（覆盖 2026-10-31「退回心愿单」口径）：心愿单随
+    行程走——删行程时名下心愿行一并软删留档（DELETION FLAG + 时间/人），
+    看板不再出现；booked 是真实订单，只摘行程绑定、订单栏保留。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    trip_items.release_itinerary(itinerary_id, actor=device)
+    # 2026-11-14 用户拍板（ISSUE1）：删行程 = 名下心愿单一并删除——
+    # 不再把已排期项退回心愿单（booked 真实订单只解绑、不删）。
+    trip_items.purge_itinerary(itinerary_id, actor=device)
     if not store.delete(itinerary_id):
         # 写穿失败只告警（假库/未缓存误判）；外键已由 store 删前清理
         logger.warning("itinerary delete reported miss id=%s", itinerary_id)

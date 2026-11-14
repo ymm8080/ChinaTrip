@@ -32,6 +32,9 @@ from app.services.itinerary.models import (
     PoiHours,
     TransferItem,
     VisitItem,
+    arrival_buffer_minutes,
+    arrival_floor_minutes,
+    departure_buffer_minutes,
 )
 from app.services.restaurants import (
     LUNCH_DURATION_FLOOR_MINUTES,
@@ -145,12 +148,16 @@ def is_same_venue_food_pair(a: VisitItem, b: VisitItem) -> bool:
     b_food = (b.category or "") == "food"
     if a_food == b_food:
         return False
+    food = a if a_food else b
     host = b if a_food else a
     if (host.category or "") == "hotel":
         return False
-    if a.location is None or b.location is None:
+    # 2026-11-14 拍板：占位餐卡无坐标，同址判回退 anchor_location（上一站/
+    # 宿主锚）——空白餐卡可嵌进同址观光宿主窗（餐卡不独占景点外时间）。
+    food_loc = food.location or food.anchor_location
+    if food_loc is None or host.location is None:
         return False
-    return _haversine_km(a.location, b.location) <= SAME_VENUE_KM
+    return _haversine_km(food_loc, host.location) <= SAME_VENUE_KM
 
 
 def fusion_food_nested(
@@ -163,19 +170,17 @@ def fusion_food_nested(
     时间）。部分重叠（餐溢出宿主窗尾）不豁免——人已出门在路上，按双订
     判。时段元组=分钟-of-day，a/b 任意顺序。
 
-    豁免只认「声明场次餐」（2026-11-12 拍板口径）：馆方公布固定入席时刻
-    （午宴/晚宴场）的餐卡才可嵌进同址宿主窗；无声明场次的普通餐卡不占
-    宿主窗内位——冲突仍由贴邻/并块尾机制（2026-11-10 拍板）收口，避免
-    普通晚餐被抢进体验块窗头。
+    2026-11-14 拍板（覆写 2026-11-12「只认声明场次餐」口径）：餐卡不独占
+    景点时间——同址且整段被宿主观光窗包含即嵌套（用户在游览途中用餐是
+    常态，CityWalk+餐组合口径推广到全部景点）；部分溢出宿主窗尾仍按双订
+    判（人已出门在路上）。
     """
     if not is_same_venue_food_pair(a, b):
         return False
     if (a.category or "") == "food":
-        food, food_span, host_span = a, a_span, b_span
+        food_span, host_span = a_span, b_span
     else:
-        food, food_span, host_span = b, b_span, a_span
-    if not show_session_starts(food.opening_hours):
-        return False
+        food_span, host_span = b_span, a_span
     fs, fe = food_span
     hs, he = host_span
     return hs <= fs and fe <= he
@@ -648,8 +653,9 @@ def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
     if transfer.mode not in ("train", "flight"):
         return INTERCITY_BUFFER_MINUTES
     if (visit.category or "") in ("hotel", "food"):
-        return INTERCITY_BUFFER_MINUTES
-    return ARRIVAL_STOP_FLOOR_MINUTES
+        # 酒店入住卡按落地缓冲落（飞机 3h/火车 2h，2026-11-14）
+        return arrival_buffer_minutes(transfer.mode)
+    return arrival_floor_minutes(transfer.mode)
 
 
 def _norm_city_name(text: str | None) -> str:
@@ -703,7 +709,8 @@ def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
         return None
     if dep_min < LEAVING_MORNING_END_MINUTES:
         return DAY_START_MINUTES
-    return min(LEAVING_MORNING_END_MINUTES, dep_min - INTERCITY_BUFFER_MINUTES)
+    # 离城侧按交通方式留缓冲（飞机 3h / 火车 2h，2026-11-14）
+    return min(LEAVING_MORNING_END_MINUTES, dep_min - departure_buffer_minutes(mode))
 
 
 _MINUTES_PER_DAY = 24 * 60

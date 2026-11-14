@@ -79,6 +79,15 @@ async def _lifespan(_app: FastAPI):
     threading.Thread(
         target=_pg_keepalive, args=(stop,), daemon=True, name="pg-keepalive"
     ).start()
+    # 2026-11-14（用户拍板「没保存行程，心愿单不该保存」）：心愿草稿只在
+    # 库里短暂停留等「保存行程」转正——启动时清掉超期未保存的草稿行，
+    # 别让放弃的规划无限堆积。
+    try:
+        from app.api.trip_items import get_trip_item_service
+
+        await asyncio.to_thread(get_trip_item_service().purge_stale_drafts)
+    except Exception:
+        logger.warning("main: 心愿草稿过期清理失败", exc_info=True)
     # §6.12 慢车道 worker：进程内 asyncio 任务，逐条消化队列（空转 sleep）。
     from app.services.task_queue import get_task_worker
 

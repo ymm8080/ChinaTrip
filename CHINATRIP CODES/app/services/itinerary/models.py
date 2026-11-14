@@ -25,6 +25,35 @@ INTERCITY_BUFFER_MINUTES = 90  # iron rule 4: cross-city connection buffer
 # 无酒店卡（用户删除/深夜放不下）时首个观光同样 ≥ 落地 +150（2.5h）。
 # solver CP/插入两条主路与 plan 兜底三处同口径。
 ARRIVAL_STOP_FLOOR_MINUTES = 150  # landing -> first attraction floor
+# 落地/离城缓冲（2026-11-14 用户拍板）：飞机 3 小时、火车 2 小时。
+# 落地侧＝到达时刻 + 缓冲才算「人已在城里」；离城侧＝最后一件必须在
+# 出发时刻 − 缓冲之前收尾（值机安检/进站排队都算在里面）。
+ARRIVAL_BUFFER_FLIGHT_MINUTES = 180
+ARRIVAL_BUFFER_TRAIN_MINUTES = 120
+
+
+def arrival_buffer_minutes(mode: str | None) -> int:
+    """落地侧缓冲：飞机 180 / 火车 120 / 其它沿用铁律 4 的 90。"""
+    mode = (mode or "").strip().lower()
+    if mode == "flight":
+        return ARRIVAL_BUFFER_FLIGHT_MINUTES
+    if mode == "train":
+        return ARRIVAL_BUFFER_TRAIN_MINUTES
+    return INTERCITY_BUFFER_MINUTES
+
+
+def arrival_floor_minutes(mode: str | None) -> int:
+    """落地 → 当天首个景点地板：飞机 3 小时 / 火车 2 小时。
+
+    3 小时/2 小时已经把「入境/取行李 + 进城 + 到店放包」算在里面，不再
+    额外加 60 分钟休整（用户 2026-11-14 口径）。
+    """
+    return arrival_buffer_minutes(mode)
+
+
+def departure_buffer_minutes(mode: str | None) -> int:
+    """离城侧缓冲：飞机 3 小时（值机+安检）、火车 2 小时（进站）。"""
+    return arrival_buffer_minutes(mode)
 HOTEL_SETTLE_MINUTES = 60  # hotel arrival -> depart to next attraction
 
 

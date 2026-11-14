@@ -9,10 +9,10 @@ The router is NOT registered in app/main.py — the orchestrator wires it.
 
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from app.api.itineraries import get_store
+from app.api.itineraries import _account_from_auth, get_store
 from app.db import get_session_factory
 from app.services.itinerary_store import ItineraryStore
 from app.services.pg_state import PgTripItemService
@@ -92,7 +92,9 @@ class PatchTripItemRequest(BaseModel):
     booking_id: str | None = Field(default=None, max_length=128)
 
 
-def _ensure_owned(service: TripItemService, item_id: str, device: str | None) -> None:
+def _ensure_owned(
+    service: TripItemService, item_id: str, device: str | None
+) -> None:
     """看板行归属闸（2026-11-13 数据库事实化）：行有归属设备且与请求
     设备不符 → 404（防枚举口径）；无归属（历史行）放行。"""
     if not device:
@@ -108,6 +110,7 @@ async def create_trip_item(
     request: CreateTripItemRequest,
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     city = request.city
     if not (city or "").strip():
@@ -130,6 +133,8 @@ async def create_trip_item(
             owner_device_id=x_device_id,
             # 心愿单数据库 CREATED BY（2026-11-13 用户拍板）
             created_by=x_device_id,
+            # 2026-11-14（用户拍板「心愿单按 USER ID 出内容」）：登录账号随行
+            owner_account_id=account,
             city=city,
             note=request.note,
             poi_id=request.poi_id,
@@ -154,9 +159,24 @@ async def list_trip_items(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     service: TripItemService = Depends(get_trip_item_service),
     store: ItineraryStore = Depends(get_store),
+    response: Response = None,
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
-    # 2026-11-13（用户拍板「看板就是数据库的数据」）：按设备读自己的行
-    body = service.list_groups(itinerary_id or None, x_device_id or None)
+    # 2026-11-13（用户拍板「看板就是数据库的数据」）：按设备读自己的行。
+    # 2026-11-14（用户拍板「没保存行程，心愿单不该保存」）：会话草稿行
+    # 只在规划引擎内部可见——看板一律不返回，保存行程后才出现。
+    # 2026-11-14（用户拍板「行程中心显示数据库信息，不吃缓存」）：看板
+    # 读口永不缓存——浏览器/SW 任何一层缓存都会让删掉的心愿闪回。
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store"
+    # 2026-11-14（用户拍板「打开行程中心按 USER ID 出内容」）：本设备 +
+    # 本登录账号的行都算「我的」；登录后换设备也看得到。
+    body = service.list_groups(
+        itinerary_id or None,
+        x_device_id or None,
+        account,
+        include_drafts=False,
+    )
     # 2026-11-13 拍板「已排期只放已排的心愿单」：source=plan 是旧版自动
     # 补源/翻牌残渣，不是用户心愿——看板读口兜底清除（scheduled +
     # wishlist），历史库/旁路写入/其他进程旧码产生的引擎行即时消失。
@@ -245,7 +265,8 @@ async def get_trip_item(
     service: TripItemService = Depends(get_trip_item_service),
 ) -> dict:
     item = service.get(item_id)
-    if item is None:
+    if item is None or item.get("draft_session_id"):
+        # 草稿行（未保存行程）对外不存在——与看板读口同口径
         raise HTTPException(status_code=404, detail="not_found")
     return item
 

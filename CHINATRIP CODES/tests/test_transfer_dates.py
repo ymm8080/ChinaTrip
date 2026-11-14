@@ -50,7 +50,9 @@ def test_build_transfers_queries_real_travel_dates():
     trains = RecordingTrains()
     agent = _agent(trains)
     asyncio.run(
-        agent._build_transfers(["上海", "成都", "上海"], 2, {}, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "成都", "上海"], 2, {}, start_date="2026-11-10"
+        )
     )
     pairs = {(f, t): d for f, t, d in trains.queries}
     assert pairs.get(("上海", "成都")) == "2026-11-10"  # day1 去程
@@ -143,7 +145,6 @@ def test_prefetch_closure_cities_skip_phantom_leg():
     pairs = {(f, t) for f, t, _d in trains.queries}
     assert pairs == {("上海", "成都"), ("成都", "重庆"), ("重庆", "上海")}
 
-
 # --- 2026-11-13 开放行程不回家（北京→上海 3 天案） ---------------------------
 
 
@@ -165,6 +166,8 @@ def test_build_transfers_open_trip_has_no_return_leg():
 def test_prefetch_open_trip_skips_return_leg():
     trains = RecordingTrains()
     agent = _agent(trains)
-    asyncio.run(agent.prefetch_transfer_schedules(["北京", "上海"], 3, "2026-11-16"))
+    asyncio.run(
+        agent.prefetch_transfer_schedules(["北京", "上海"], 3, "2026-11-16")
+    )
     pairs = {(f, t) for f, t, _d in trains.queries}
     assert pairs == {("北京", "上海")}

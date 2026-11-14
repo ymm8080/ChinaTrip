@@ -64,6 +64,9 @@ from app.services.agent.plan import (
     PoiStoreUnavailableError,
     _find_transfer_item,
     _leg_date_iso,
+    _normalize_city,
+    _resolve_brief_cities,
+    _trip_brief,
     clarify_questions,
     current_violations,
     dedupe_plan_visits,
@@ -145,6 +148,7 @@ def _decode_image_payloads(items: list[str] | None) -> list[tuple[bytes, str]]:
     return out
 
 
+
 class PlanStartRequest(BaseModel):
     cities: list[str] | None = None
     days: int | None = None
@@ -161,6 +165,19 @@ class PlanStartRequest(BaseModel):
     # 开局带图（2026-11-14「图片上有的也抽出来」）：data URL 列表，最多 4 张；
     # 后端读成地点先开确认轮，用户点选后才生成行程。
     images: list[str] | None = None
+    # 行前信息（2026-11-14 用户拍板）：去程/返程班次号或当地到达·离开时刻——
+    # H5 行前确认卡收集，全部可空；后端 v0 后按真实时刻落位对应城际腿。
+    arrival_no: str | None = None
+    arrival_time: str | None = None  # 当地到达「HH:MM」
+    departure_no: str | None = None
+    departure_time: str | None = None  # 当地离开「HH:MM」
+    arrival_date: str | None = None  # 到达日 ISO（缺省=首日）
+    departure_date: str | None = None  # 离开日 ISO（缺省=末日）
+    # 行前卡标志：H5 弹过行前确认卡才置真（放宽语义 opting-in，见 PlanSession）
+    intake: bool = False
+    # 路线冲突确认（2026-11-14 用户拍板）：文字简报与表单参数不一致时先让用户
+    # 裁决——confirm_route 确认卡回传 "brief"=按文字 / "form"=按表单。
+    route_source: Literal["brief", "form"] | None = None
 
 
 class PlanMessageRequest(BaseModel):
@@ -359,6 +376,12 @@ async def save_plan(
     if account is not None and not record.owner_account_id:
         record.owner_account_id = account
     itinerary_store.put(record)
+    # 2026-11-14（用户拍板「WHEN I DO NOT SAVE TRIP, 心愿单 should not be
+    # saved」的对偶）：点保存 = 本会话建的心愿草稿转正（清 draft_session_id）
+    # ——从这一刻起行程中心的愿望单/已排期才看得到这些行；之后再聊出来的
+    # 心愿行直接是正式行（行程已在库）。
+    agent.commit_wish_drafts(session, account)
+    store.save(session)
     try:
         snapshot = service.create_snapshot(
             record,
@@ -415,6 +438,7 @@ async def start_plan_from_itinerary(
         raise HTTPException(status_code=400, detail="missing_device_id")
     record = _owned_record(itinerary_store, itinerary_id, x_device_id, account)
     plan = record.plan.model_copy(deep=True)
+    # 2026-11-14：✏️ 修改已存行程的会话也记住 USER ID（心愿行即时落账号）
     # 同站合并开档闸（2026-10-28）：旧行程带出的重复站点（如变脸 x4）
     # 开档即合并；行程库本体由 save 终闸兜住。
     dedupe_plan_visits(plan)
@@ -430,6 +454,8 @@ async def start_plan_from_itinerary(
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,
+        # 2026-11-14（用户拍板「心愿单按 USER ID 出内容」）：编辑会话带账号
+        account_id=account,
         # 双语 P2 补漏（2026-10-30）：会话语言随 X-Lang 请求头
         # （LangMiddleware 写入的 contextvar，与端内 L() 同源）。
         # 漏传时英文界面下「✏️ 修改」会话的编辑回合恒中文——
@@ -521,20 +547,71 @@ async def start_plan(
     x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     agent: PlanningAgent = Depends(get_planning_agent),
     store: PlanSessionStore = Depends(get_plan_sessions),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
+    # 路线冲突确认（2026-11-14 用户拍板「in text, trip is two days, but input
+    # information trip is 3 days → figure out diff for user confirmation」）：
+    # 文字简报与表单参数各说各话时不静默裁决——把两边差异摆出来让用户选。
+    if (
+        request.route_source is None
+        and request.brief
+        and request.brief.strip()
+        and request.cities
+    ):
+        parsed = _trip_brief(request.brief)
+        if parsed is not None:
+            resolved = _resolve_brief_cities(
+                [_normalize_city(c) for c in parsed[0]], request.cities
+            )
+            conflict = (
+                {_normalize_city(c) for c in resolved}
+                != {_normalize_city(c) for c in request.cities}
+                or (
+                    parsed[1] is not None
+                    and request.days
+                    and parsed[1] != request.days
+                )
+            )
+            if conflict:
+                return {
+                    "state": "confirm_route",
+                    "text_route": {"cities": resolved, "days": parsed[1]},
+                    "form_route": {"cities": request.cities, "days": request.days},
+                }
+    # 用户在确认卡上选了边：brief=按文字路线（表单参数作废，路线全从文字解析）；
+    # form=按表单参数（文字只当偏好文本，不再当简报改写路线）。
+    if request.route_source == "brief":
+        start_cities: list[str] = []
+        start_days = 0
+        start_brief: str | None = request.brief
+    elif request.route_source == "form":
+        start_cities = request.cities
+        start_days = request.days or 0
+        start_brief = None
+    else:
+        start_cities = request.cities or []
+        start_days = request.days or 0
+        start_brief = request.brief
     try:
         session = await agent.start(
             device_id=x_device_id,
-            cities=request.cities or [],
-            days=request.days or 0,
+            cities=start_cities,
+            days=start_days,
             preferences=request.preferences or "",
             city_days=request.city_days,
             start_date=request.start_date,
             intercity_mode=request.intercity_mode,
             lang=request.lang,
-            brief=request.brief,
+            brief=start_brief,
+            arrival_no=request.arrival_no,
+            arrival_time=request.arrival_time,
+            departure_no=request.departure_no,
+            departure_time=request.departure_time,
+            arrival_date=request.arrival_date,
+            departure_date=request.departure_date,
+            intake=request.intake,
             images=_decode_image_payloads(request.images),
         )
     except PoiStoreUnavailableError:
@@ -546,6 +623,9 @@ async def start_plan(
         # LLMError messages are sanitized (never contain the API key).
         logger.exception("plan/start llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
+    # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
+    # 登录账号——会话里建的心愿行落 owner_account_id
+    session.account_id = account or session.account_id
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
     if session.state == "clarify":
@@ -578,6 +658,7 @@ async def message_plan(
     gate: RequestGate = Depends(get_request_gate),
     fast_lane: FastLane = Depends(get_fast_lane),
     tasks: TaskStore = Depends(get_task_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     """§6.12 双车道分流的消息回合：闸门分类 → 快车道直答 / 慢车道入队
     「已受理」/ 主车道走完整 agent 管线。每回合记 lane + 耗时指标。"""
@@ -586,6 +667,8 @@ async def message_plan(
     session = store.get(session_id, device_id=x_device_id)
     if session is None:
         raise HTTPException(status_code=404, detail="session_not_found")
+    # 2026-11-14（用户拍板「心愿单按 USER ID 出内容」）：会话记住登录账号
+    session.account_id = account or session.account_id
     # 换局闸（2026-11-13「重新规划却回到上次行程」）：这句话本身是另一趟完整
     # 行程（换城市/换天数）时重开会话出新车，旧行程一个字段都不动；必须先于
     # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
@@ -844,6 +927,8 @@ async def confirm_plan_sites(
     return _plan_turn_body(session, reply, change)
 
 
+
+
 @router.post("/plan/{session_id}/images")
 async def plan_session_images(
     session_id: str,
@@ -862,7 +947,7 @@ async def plan_session_images(
     if session is None:
         raise HTTPException(status_code=404, detail="session_not_found")
     images: list[tuple[bytes, str]] = []
-    for upload in list(files)[:_MAX_START_IMAGES]:
+    for upload in list(files)[: _MAX_START_IMAGES]:
         mime = (upload.content_type or "").lower()
         if mime and mime not in _ALLOWED_IMAGE_MIME:
             raise HTTPException(status_code=422, detail="unsupported_image_type")
@@ -880,7 +965,6 @@ async def plan_session_images(
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
     return _plan_turn_body(session, reply, None)
-
 
 def _find_visit_item(plan, item_id: str) -> VisitItem | None:
     for day in plan.days:
@@ -959,7 +1043,8 @@ async def delete_plan_item(
         post_apply=lambda p: reanchor_hotel_cards(p.days, keep_ids={item_id}),
     )
     session.plan = new_plan
-    agent.sync_removals_to_trip_items(plan_before, diffs)
+    # 2026-11-14：未保存行程里新建的排除行同样是草稿（看板不显示）
+    agent.sync_removals_to_trip_items(plan_before, diffs, session=session)
     await agent.refresh_legs(session)
     store.save(session)
     if pair is not None:
@@ -1227,6 +1312,60 @@ async def replace_plan_item(
     store.save(session)
     base = (
         summary.change_summary[0] if summary.change_summary else L("已替换", "Replaced")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanAltInsertRequest(BaseModel):
+    # 备选 chip 拖入（2026-11-14）：库内候选精确同名 + 落点（第 day 天
+    # after_item_id 之后；None=当天第一个参访件之前）
+    name: str = Field(min_length=1, max_length=64)
+    day: int = Field(ge=1)
+    after_item_id: str | None = Field(default=None, max_length=32)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/insert-alt")
+async def insert_plan_alternative(
+    session_id: str,
+    item_id: str,
+    request: PlanAltInsertRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """备选 chip 拖进时间轴（2026-11-14 拍板「备选要像其它条目一样可拖，
+    拖到两个条目之间就插在那里」）：把条目右侧的备选（或「想去」chip）
+    拖到某天两件之间即在那里插入一张新卡——主点保留（不是点击换点）。
+    当天排不下时按档号/距离让位，撤下谁写进回复与假设标注；一处都排不
+    下 422 no_slot（原行程不动）。跨城落点 422 city_mismatch；行程内已有
+    同名/同替代组 422 duplicate_in_plan；库里查不到 422 no_match。
+    不走 refresh_legs（实测 12-30s）：腿先按 annotate 直线估价出卡，下一次
+    普通回合/打开行程补实测——拖动是高频操作，不能让每次松手等半分钟。
+    """
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = await agent.insert_alternative(
+            session,
+            item_id,
+            name=request.name,
+            new_day=request.day,
+            after_item_id=request.after_item_id,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    store.save(session)
+    base = (
+        summary.change_summary[0] if summary.change_summary else L("已插入", "Inserted")
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)

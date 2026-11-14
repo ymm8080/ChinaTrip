@@ -424,10 +424,16 @@ class Itinerary(Base):
     # 2026-11-13（用户拍板 trip HEADER：CREATION DATE / CREATOR / DELETION
     # FLAG / TRIP ID / TRIP NAME / LAST CHANGE DATE+TIME）：软删标记、创建人、
     # 最后变更时刻。title=行程名，created_at=创建日期，owner_*=归属。
-    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
     creator_name: Mapped[str | None] = mapped_column(String(100))
-    last_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    last_changed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
     # 2026-11-13（用户拍板 HEADER 列）：起始/结束城市、旅行城市一/二
     # 与各自天数、旅行开始日期。
     start_city: Mapped[str | None] = mapped_column(String(50))
@@ -496,6 +502,10 @@ class ItineraryItem(Base):
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
+    # 2026-11-14（用户拍板「TRIP ITEM 也要 USER ID 列，打开页面按 USER ID
+    # 出内容；不需要设备列」）：明细行冗余用户键——不 JOIN 头表也能按用户
+    # 直查；值由保存路径从头表带下来。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itinerary_snapshots.id")
     )
@@ -513,7 +523,9 @@ class ItineraryItem(Base):
     city: Mapped[str | None] = mapped_column(String(50))
     category: Mapped[str | None] = mapped_column(String(40))
     address: Mapped[str | None] = mapped_column(String(200))
-    alternatives: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    alternatives: Mapped[list | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
     # 2026-11-13（用户拍板明细列：DURATION / SCHEDULE DATE /
     # ALTERNATIVE 1-3）：时长、具体日期、备选名单独成列，方便查询。
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
@@ -653,6 +665,10 @@ class ActionHandoff(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
+    # 2026-11-14（用户拍板「预订/代订埋点也要 USER ID 列，不需要设备列」）：
+    # 归属键 = 登录账号字符串（owner_account_id=用户名/邮箱，与行程头同源）；
+    # users.id 外键留空（users 表非账号真源）。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
@@ -699,6 +715,14 @@ class TripItem(Base):
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
+    # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：规划会话建行
+    # 时写入会话号——非空 = 草稿，看板/心愿单视图不返回；点「💾 保存行程」
+    # 时清空转正，删行程时按 itinerary_ref 一并软删。
+    draft_session_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # 2026-11-14（用户拍板「心愿单/已排期也是 USER ID 的数据」）：登录账号
+    # （用户名/邮箱字符串，与行程头 owner_account_id 同源）——打开行程中心
+    # 按设备或账号出本用户的内容，换设备登录也能看到。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
@@ -730,8 +754,12 @@ class TripItem(Base):
     # 删除审计 / EXCLUSION 都是数据库事实（wish_items 视图直接可查）。
     created_by: Mapped[str | None] = mapped_column(String(64))
     arranged: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    exclusion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    deletion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    exclusion_flag: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+    deletion_flag: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
     deletion_date: Mapped[date | None] = mapped_column(Date)
     deletion_time: Mapped[time | None] = mapped_column(TIME)
     deleted_by: Mapped[str | None] = mapped_column(String(64))

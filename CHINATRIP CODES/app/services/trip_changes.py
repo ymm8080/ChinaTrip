@@ -30,7 +30,9 @@ def _t(value) -> str | None:
     return value.strftime("%H:%M") if hasattr(value, "strftime") else str(value)
 
 
-def rewrite_trip_detail(session, uid, plan) -> None:
+def rewrite_trip_detail(
+    session, uid, plan, *, owner_account_id: str | None = None
+) -> None:
     """重建行程明细（snapshot_id IS NULL 的那份）：天 + 点位（含备选 1-3）。
 
     保存时与回填脚本共用——一处口径，避免两份实现漂移。"""
@@ -94,6 +96,9 @@ def rewrite_trip_detail(session, uid, plan) -> None:
                 ItineraryItem(
                     id=uuid.uuid4(),
                     itinerary_id=uid,
+                    # 2026-11-14（用户拍板「TRIP ITEM 也要 USER ID 列」）：
+                    # 明细行冗余登录账号（从头表带下来）
+                    owner_account_id=owner_account_id,
                     snapshot_id=None,
                     day=day.day,
                     poi_id=None,
@@ -302,7 +307,12 @@ def record_trip_change(
                     setattr(row, _key, _value)
                 if actor_name and not row.creator_name:
                     row.creator_name = actor_name[:100]
-            rewrite_trip_detail(session, uid, new_plan)
+            rewrite_trip_detail(
+                session,
+                uid,
+                new_plan,
+                owner_account_id=getattr(record, "owner_account_id", None),
+            )
             session.add(
                 ItineraryChangeLog(
                     id=uuid.uuid4(),

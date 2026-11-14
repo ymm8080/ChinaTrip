@@ -279,3 +279,34 @@ def test_fit_keeps_rain_outdoor_when_no_dry_day():
     notes = _enforce_site_day_fit(plan, rain_days={"北京": {1}})
     assert item.start_time == time(9, 0)
     assert any("雨" in str(n) for n in notes)
+
+
+def test_fit_never_strips_flag_anchored_item():
+    """UAT 回归（2026-11-14 三拍）：三轴校核不得摘升旗钉。
+
+    实录（h5_state.db 1923e489，北京 2 天 2026-11-23 周一）：天安门被
+    打标 fixed=07:08（官方旗时），但校核按广场名义营业窗（08:30 开门）
+    判「超出营业时间」→ 摘钉重排成 8:30，再被必去钉位锁死——用户看到
+    「没从数据库取真值」。旗时是官方固定钟点，城市轴已在打标时由
+    _flag_pin_reachable 把关；营业窗/闭馆日管不着升旗仪式，校核跳过
+    fixed_sessions 件。
+    """
+    item = _visit(
+        "v-tam",
+        "天安门广场",
+        start=time(7, 8),
+        dur=60,
+        hours="周一至周日 08:30-17:00",  # 名义作息与旗仪式无关
+    )
+    item.fixed_sessions = [time(7, 8)]
+    day = DayPlan(day=1, base_city="北京", items=[item])
+    plan = ItineraryPlan(
+        itinerary_id="it-flag-fit",
+        cities=["北京"],
+        days=[day],
+        start_date="2026-11-23",  # 周一
+    )
+    notes = _enforce_site_day_fit(plan)
+    assert item.start_time == time(7, 8)
+    assert item.fixed_sessions == [time(7, 8)]
+    assert not any("天安门广场" in n for n in notes)
