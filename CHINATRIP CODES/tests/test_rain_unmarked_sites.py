@@ -115,18 +115,14 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
     # 「室内外未标注」
     # 北族总时长超过到达日轻量上限，先在雨日 1 整族落位；干日 2
     # 随后被四件占满，仍能锁定对调分支而不绕开组合级天气偏好。
-    # 北族纬度 30.68（城心 ~12km 中性带，2026-11-13 日间混排闸口径）：
-    # 旧夹具 31.5=城心 103km 远郊件——混排闸会把对调回的磁街区拉回
-    # 「无城心日」(雨日 1)，本测的雨日对调语义被分区闸遮蔽（2026-11-14
-    # 夹具修正：对调语义由本测锁，混排闸语义由 test_day_mix 锁）。
     cands = [
         _cand("丙馆", "成都", "yes", lat=30.5),
         _cand("丙山", "成都", "no", lat=30.515),
         _cand("丁岭", "成都", "no", lat=30.53),
         _cand("戊峰", "成都", "no", lat=30.545),
-        _cand("甲馆", "成都", "yes", lat=30.68, dur=120),
-        _cand("乙馆", "成都", "yes", lat=30.68),
-        _cand("磁街区", "成都", None, lat=30.68),
+        _cand("甲馆", "成都", "yes", lat=31.5, dur=120),
+        _cand("乙馆", "成都", "yes", lat=31.5),
+        _cand("磁街区", "成都", None, lat=31.5),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(

@@ -16,6 +16,7 @@ anything the agent still raises.
 """
 
 import asyncio
+import base64
 import logging
 import uuid
 from datetime import datetime, time, timezone
@@ -23,7 +24,14 @@ from functools import partial
 from time import monotonic
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    UploadFile,
+)
 from pydantic import BaseModel, Field
 
 from app.api.amap import get_search_chain
@@ -105,6 +113,39 @@ router = APIRouter(prefix="/api/v1", tags=["plan"])
 logger = logging.getLogger(__name__)
 
 
+_MAX_START_IMAGES = 4
+_MAX_IMAGE_BYTES = 6 * 1024 * 1024
+_ALLOWED_IMAGE_MIME = {
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/bmp",
+}
+
+
+def _decode_image_payloads(items: list[str] | None) -> list[tuple[bytes, str]]:
+    """data URL 图片 → [(bytes, mime)]；非法/超重的整条丢弃，不阻塞开局。"""
+    out: list[tuple[bytes, str]] = []
+    for raw in (items or [])[:_MAX_START_IMAGES]:
+        text = (raw or "").strip()
+        if not text.startswith("data:image/"):
+            continue
+        try:
+            head, b64 = text.split(",", 1)
+            mime = head[5:].split(";", 1)[0] or "image/jpeg"
+            data = base64.b64decode(b64, validate=False)
+        except Exception:
+            logger.warning("plan/start: bad image payload skipped")
+            continue
+        if not data or len(data) > _MAX_IMAGE_BYTES:
+            logger.warning("plan/start: image payload dropped (size=%d)", len(data))
+            continue
+        out.append((data, mime))
+    return out
+
+
+
 class PlanStartRequest(BaseModel):
     cities: list[str] | None = None
     days: int | None = None
@@ -118,6 +159,9 @@ class PlanStartRequest(BaseModel):
     # 自由输入框里那一整句（2026-11-13「重新规划却回到上次行程」）：它写出
     # 的路线优先于表单回填值——用户刚打的这句才是新设置。
     brief: str | None = None
+    # 开局带图（2026-11-14「图片上有的也抽出来」）：data URL 列表，最多 4 张；
+    # 后端读成地点先开确认轮，用户点选后才生成行程。
+    images: list[str] | None = None
 
 
 class PlanMessageRequest(BaseModel):
@@ -492,6 +536,7 @@ async def start_plan(
             intercity_mode=request.intercity_mode,
             lang=request.lang,
             brief=request.brief,
+            images=_decode_image_payloads(request.images),
         )
     except PoiStoreUnavailableError:
         # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
@@ -509,6 +554,7 @@ async def start_plan(
         return body
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
+        body["sites_source"] = session.pending_sites_source
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
         body["clarify"] = clarify_questions(session)
@@ -742,6 +788,7 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
     }
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
+        body["sites_source"] = session.pending_sites_source
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
@@ -797,6 +844,45 @@ async def confirm_plan_sites(
     store.save(session)
     return _plan_turn_body(session, reply, change)
 
+
+
+
+@router.post("/plan/{session_id}/images")
+async def plan_session_images(
+    session_id: str,
+    files: list[UploadFile] = File(...),
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """📷 图片读点（2026-11-14 用户拍板「图片上有的也抽出来」）。
+
+    图片（笔记截图/行程照片/地图）读出的地点与链接、文字同一条确认轮：
+    用户点选的才写进行程中心心愿单并排期，未点选的不入库。"""
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    images: list[tuple[bytes, str]] = []
+    for upload in list(files)[: _MAX_START_IMAGES]:
+        mime = (upload.content_type or "").lower()
+        if mime and mime not in _ALLOWED_IMAGE_MIME:
+            raise HTTPException(status_code=422, detail="unsupported_image_type")
+        data = await upload.read()
+        if len(data) > _MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="image_too_large")
+        if data:
+            images.append((data, mime or "image/jpeg"))
+    if not images:
+        raise HTTPException(status_code=422, detail="empty_image")
+    try:
+        session, reply = await agent.image_site_round(session, images)
+    except LLMError as exc:
+        logger.exception("plan/images llm_error: %s", exc)
+        raise HTTPException(status_code=502, detail="llm_error") from exc
+    store.save(session)
+    return _plan_turn_body(session, reply, None)
 
 def _find_visit_item(plan, item_id: str) -> VisitItem | None:
     for day in plan.days:

@@ -10,6 +10,7 @@ planning keeps working; the next job run against the DB repopulates it.
 
 from __future__ import annotations
 
+import bisect
 import logging
 import re
 import time
@@ -34,6 +35,29 @@ from app.services.source_tier import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _token_span(positions: dict[str, list[int]], tokens: list[str]) -> int | None:
+    """同时含全部 tokens 的最短连续词窗（词序无关，用于「Great Wall of
+    China at Mutianyu」↔「Mutianyu Great Wall」这类词序不同的名字）。"""
+    anchor = min(tokens, key=lambda t: len(positions[t]))
+    best: int | None = None
+    for start in positions[anchor]:
+        endpoints = [start]
+        for token in tokens:
+            if token == anchor:
+                continue
+            idxs = positions[token]
+            j = bisect.bisect_left(idxs, start)
+            cands = []
+            if j < len(idxs):
+                cands.append(idxs[j])
+            if j:
+                cands.append(idxs[j - 1])
+            endpoints.append(min(cands, key=lambda p: abs(p - start)))
+        span = max(endpoints) - min(endpoints) + 1
+        best = span if best is None else min(best, span)
+    return best
 
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
 _POINT_WKT_RE = re.compile(r"POINT\((\S+) (\S+)\)")
@@ -163,13 +187,7 @@ def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
         prov = "unesco"
     elif src == "5a" or "5a" in tags:
         prov = "5a"
-    # 档牌与 provenance 牌去重（2026-11-14 修复 ['5a','5a'] 双牌）：
-    # 骨架 5a 行 tier=2 档牌与来源 provenance 同为 '5a'——两处独立
-    # 判 `not in tags` 会各加一张，先并集去重再追加。
-    to_add: list[str] = []
-    for t in (_TIER_TAG.get(tier), prov):
-        if t and t not in tags and t not in to_add:
-            to_add.append(t)
+    to_add = [t for t in (_TIER_TAG.get(tier), prov) if t and t not in tags]
     if to_add:
         h["tags"] = order_source_tags([*(h.get("tags") or []), *to_add])
     return tier
@@ -762,6 +780,169 @@ class PoiDetailStore:
 
         best = max(rows_out, key=pick)
         return best
+
+    # 自由输入点名（2026-11-14「规划引擎根本不读输入」）：英文名/别名按词
+    # 边界整段短语匹配，单词型名字只认长度 ≥6 的专名（Mutianyu），防
+    # beijing/hutong 这类通用词把整城点成必去；住宿行剔除——长段描述里
+    # 「北京天坛东门亚朵酒店」这类行比景点名字更早命中。
+    _TEXT_NAME_MIN_LATIN_TOKEN = 6
+    _TEXT_STAY_MARKS = (
+        "酒店",
+        "宾馆",
+        "民宿",
+        "客栈",
+        "公寓",
+        "青旅",
+        "hotel",
+        "hostel",
+        "guesthouse",
+        "resort",
+        "apartment",
+    )
+    _TEXT_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+    # 词窗上限（2026-11-14）：「Great Wall of China at Mutianyu」这类英文
+    # 语序与库名（Mutianyu Great Wall）不同，按「同样的词在几词之内都出现」
+    # 判命中，7 词够容一个介词短语，又不至于把段首段尾的词拼成假命中。
+    _TEXT_MAX_SPAN = 7
+    _TEXT_STOPWORDS = frozenset(
+        ("the", "of", "and", "at", "in", "on", "a", "an", "de", "la", "le", "du")
+    )
+
+    @classmethod
+    def _text_row_is_stay(cls, name_zh, name_en, category) -> bool:
+        cat = (category or "").strip().lower()
+        if any(mark in cat for mark in ("hotel", "lodging", "stay", "住宿")):
+            return True
+        hay = f"{name_zh or ''} {name_en or ''}".lower()
+        return any(mark in hay for mark in cls._TEXT_STAY_MARKS)
+
+    def match_text_names(
+        self, city: str | None, text: str, *, limit: int = 8
+    ) -> list[dict]:
+        """自由输入里点名的真实地点（2026-11-14 起步页长描述案）。
+
+        用户把一趟行程写成一段话（“… starting with Tiananmen Square and the
+        Forbidden City … Temple of Heaven … Summer Palace”），此前整段只当
+        偏好串，品类 token 一个不中，等于引擎没读。这里按 name_zh /
+        name_en / 别名在文中取名：中文名/别名按整串出现；英文名/别名按词
+        边界短语匹配（「Temple of Heaven」「Forbidden City」），单词型名字
+        只认长度 ≥6 的专名（「Mutianyu」）。住宿行剔除。
+        返回轻量行 [{name, city, category}]，按命中短语长度降序。
+        """
+        probe = (text or "").strip()
+        if not probe:
+            return []
+        city_names = None
+        if city:
+            c = city.strip()
+            city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
+        spaced = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", probe.lower())
+        words = spaced.split()
+        positions: dict[str, list[int]] = {}
+        for idx, word in enumerate(words):
+            positions.setdefault(word, []).append(idx)
+
+        def latin_score(v: str) -> int | None:
+            vtoks = re.sub(r"[^0-9a-z]+", " ", v.lower()).split()
+            if not vtoks:
+                return None
+            content = [
+                t
+                for t in vtoks
+                if t not in self._TEXT_STOPWORDS and len(t) >= 3
+            ]
+            if not content:
+                return None
+            if len(vtoks) == 1:
+                token = vtoks[0]
+                if len(token) < self._TEXT_NAME_MIN_LATIN_TOKEN:
+                    return None
+                return len(token) if token in positions else None
+            if not all(t in positions for t in vtoks):
+                return None
+            span = _token_span(positions, vtoks)
+            if span is None or span > self._TEXT_MAX_SPAN:
+                return None
+            # 命中字符数：更具体的名字（慕田峪长城 > 长城）得分更高
+            return sum(len(t) for t in content)
+
+        def best_score(name_zh: str, name_en: str, aliases) -> int | None:
+            variants = [name_zh, name_en]
+            variants.extend(a for a in (aliases or []) if isinstance(a, str))
+            best: int | None = None
+            for variant in variants:
+                v = (variant or "").strip()
+                if len(v) < 2:
+                    continue
+                if self._TEXT_CJK_RE.search(v):
+                    if v in probe:
+                        best = max(best or 0, len(v))
+                    continue
+                score = latin_score(v)
+                if score is not None:
+                    best = max(best or 0, score)
+            return best
+
+        hits: dict[str, tuple[int, str, str | None, str | None]] = {}
+
+        def consider(name_zh, name_en, aliases, category, row_city) -> None:
+            name = (name_zh or "").strip()
+            if not name or self._text_row_is_stay(name_zh, name_en, category):
+                return
+            score = best_score(name_zh, name_en, aliases)
+            if score is None:
+                return
+            prev = hits.get(name)
+            if prev is None or score > prev[0]:
+                hits[name] = (score, name, row_city, category)
+
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi.name_zh,
+                        Poi.name_en,
+                        Poi.name_aliases,
+                        Poi.category,
+                        Poi.city,
+                    ).filter((Poi.status.is_(None)) | (Poi.status == "active"))
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    for row in q.all():
+                        consider(*row)
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: text name match failed, memory fallback",
+                    exc_info=True,
+                )
+        nonactive = self._nonactive_pids()
+        for pid, value in self._memory.items():
+            if pid in nonactive:
+                continue
+            if city_names and (value.get("city") or "") not in city_names:
+                continue
+            consider(
+                value.get("name"),
+                value.get("name_en"),
+                value.get("name_aliases") or value.get("aliases"),
+                value.get("category"),
+                value.get("city"),
+            )
+        ranked = sorted(hits.values(), key=lambda h: (-h[0], h[1]))
+        # 泛名让位（2026-11-14）：文里写了「at Mutianyu」时，慕田峪长城 与
+        # 泛卡「长城」会同时命中——名字被另一个命中名包含的行丢掉，留下
+        # 更具体的那个（用户点名的是那一段长城）。
+        names = [h[1] for h in ranked]
+        kept = [
+            h
+            for h in ranked
+            if not any(h[1] != other and h[1] in other for other in names)
+        ]
+        return [
+            {"name": name, "city": row_city, "category": category}
+            for _score, name, row_city, category in kept[:limit]
+        ]
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
     # 主池住宿出池（2026-11-07 实测：成都 top-30 窗口混入 2 家 intl/layla

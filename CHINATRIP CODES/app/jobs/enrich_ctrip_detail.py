@@ -43,6 +43,7 @@ from app.services.ctrip_hours import (
     parse_hours,
 )
 from app.services.poi_classify import duration_upgradable
+from app.services.review_tag_coarse import coarse_tags
 from app.services.source_tier import SOURCE_PRIORITY
 
 logger = logging.getLogger(__name__)
@@ -292,6 +293,9 @@ def _write_row(factory, poi_id, f: dict) -> list[str]:
             row.ticket_source = "ctrip"
             written.append("ticket")
         tags = _gate_tags(f.get("review_tags"))
+        # 粗化入写（DESIGN user_tag_two_level_2026-11-10 §五）：携程细词
+        # → 12 个用户可选粗标签，原词对照表 app/services/review_tag_coarse.py
+        tags = coarse_tags(tags)
         if row.review_tags is None and tags:
             row.review_tags = tags
             row.review_tags_source = "ctrip"

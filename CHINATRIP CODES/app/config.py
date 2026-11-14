@@ -130,6 +130,18 @@ class Settings(BaseSettings):
     # 重启 uvicorn 不再清空进行中会话与已存行程。
     state_db_url: str = "sqlite:///data/h5_state.db"
 
+    # 天安门升（降）旗时刻（app/services/flag_schedule.py）：官方年度公告页
+    # （表格为嵌入 PNG，OCR 解析）→ 落库 + DESIGN 快照。写路径只追加
+    # （每次抓取=一个 fetched_at 批次，INSERT 不 UPDATE，读取取最新批次），
+    # 与 train_cache 同一「留史只追加」口径。
+    flag_schedule_enabled: bool = True  # False => 查询恒 None，零行为
+    flag_schedule_source_url: str = (
+        "https://tamgw.beijing.gov.cn/sy/sjqsj/202512/t20251222_4356494.html"
+    )
+    flag_schedule_timeout_seconds: float = 15.0
+    flag_schedule_db_url: str = "sqlite:///data/flag_cache.db"
+    flag_schedule_snapshot_dir: str = "DESIGN"  # 快照 CSV 输出目录
+
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0
 

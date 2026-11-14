@@ -59,7 +59,7 @@ def _days_by_name(items: list[dict]) -> dict[str, int]:
 # --- ① 选层预占位分区 -------------------------------------------------------
 
 
-def test_arrival_day_takes_endpoint_content_only():
+def test_big_avoids_arrival_day_small_takes_it():
     cands = [
         _cand("大块头", minutes=120),
         _cand("轻点", minutes=60),
@@ -69,27 +69,21 @@ def test_arrival_day_takes_endpoint_content_only():
         cands, 3, {"成都": (1, 3)}, transfer_days={1}, arrival_days={1}
     )
     days = _days_by_name(items)
-    # 2026-11-13 豫园案：到达日只收端点合法内容（街区/茶/演出）——
-    # 街区点落到达日；普通轻点（60min 非街区）与大块头一律殿后非端点日
-    # （旧口径「轻点接管到达日」收窄；空到达日由终装端点补点兜底）。
-    assert days["街区点"] == 1
+    # 大块头让开到达日；轻点/街区（CityWalk）落到达日
     assert days["大块头"] == 2
-    assert days["轻点"] == 2
+    assert days["轻点"] == 1
+    assert days["街区点"] == 1
 
 
-def test_two_day_window_all_endpoint_days_big_stays(monkeypatch):
+def test_main_loop_demotes_big_from_arrival_day(monkeypatch):
     monkeypatch.setenv("CHINATRIP_PRIORITY_EARLY", "off")
     cands = [_cand("大块头", minutes=120), _cand("轻点", minutes=60)]
     items = PlanningAgent._deterministic_selection(
         cands, 2, {"成都": (1, 2)}, transfer_days={1}, arrival_days={1}
     )
     days = _days_by_name(items)
-    # 2026-11-13 豫园案（EARLY=off 主环口径）：到达日只收端点合法内容，
-    # 普通轻点/大块头有非到达日可投即让位——两点都落 day2，day1 留白由
-    # 终装端点补点兜底；全窗边日不变形豁免见
-    # test_all_arrival_days_still_schedules（EARLY 预占口径）。
-    assert days["大块头"] == 2
-    assert days["轻点"] == 2
+    assert days["大块头"] == 2  # 大块头让开 day1 到达日
+    assert days["轻点"] == 1  # 轻点接管到达日（到达日收轻内容）
 
 
 def test_all_arrival_days_still_schedules():

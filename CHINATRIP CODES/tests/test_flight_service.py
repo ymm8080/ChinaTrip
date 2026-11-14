@@ -123,7 +123,9 @@ def test_outbound_return_fall_back_to_train_with_assumption():
         _NoLLM(), train_service=MockTrainService(), flight_service=EmptyFlights()
     )
     transfers, assumptions = asyncio.run(
-        agent._build_transfers(["上海", "杭州", "上海"], 2, {}, start_date="2026-11-10")
+        agent._build_transfers(
+            ["上海", "杭州", "上海"], 2, {}, start_date="2026-11-10"
+        )
     )
     out, ret = transfers
     # 08:00 闸（2026-11-03 拍板「火车 start time start from 8AM」）：

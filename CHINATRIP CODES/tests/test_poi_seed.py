@@ -202,19 +202,10 @@ def test_seed_upsert_normalized_category_gets_floor():
 
 
 def test_seed_upsert_low_confidence_name_stays_skeleton():
-    """分类不出的名称不硬塞：地板/类别全空（清扫链后续兜底）。
-
-    样名从「昆曲茶社」换成「无名点位甲」：2026-11-12 类级拍板后茶社
-    语素（_TEA_HINTS）是高置信 tea_experience，「昆曲茶社」不再是
-    低置信名。"""
+    """分类不出的名称不硬塞：地板/类别全空（清扫链后续兜底）。"""
     factory = FakeFactory()
     out = seed_upsert(
-        factory,
-        Poi,
-        source="osm",
-        source_poi_id="n8",
-        city="苏州",
-        name_zh="无名点位甲",
+        factory, Poi, source="osm", source_poi_id="n8", city="苏州", name_zh="昆曲茶社"
     )
     assert out == "created"
     (row,) = factory.session.added

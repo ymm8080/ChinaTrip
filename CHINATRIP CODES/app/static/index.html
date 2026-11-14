@@ -392,7 +392,7 @@
         <label class="fld"><span data-i18n="plan.cityStart">起始城市</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planStartCity"></select>
-            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
+            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" disabled title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
           </span>
         </label>
         <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
@@ -439,6 +439,8 @@
       <div class="t9n-wrap">
         <div class="composer">
           <textarea id="planInput" placeholder="自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；也可先粘贴链接；开始后在这里继续调整" data-i18n-ph="plan.input.ph"></textarea>
+          <button class="btn ghost" id="planPhoto" title="发图片：笔记截图/行程照片，读出地点加进心愿单" data-i18n-title="plan.photo.title">📷</button>
+          <input type="file" id="planPhotoFile" accept="image/*" multiple hidden>
           <button class="btn" id="planSend" data-i18n="plan.send">发送</button>
         </div>
       </div>
@@ -941,7 +943,7 @@ function noteConnRetry() {
 // 统一请求：POST/PUT JSON + X-Device-ID（已登录附 Authorization）；非 2xx 抛 {status, detail}
 async function api(path, body, method) {
   let res;
-  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() === "en" ? "en" : "zh" };
+  const headers = { "Content-Type": "application/json", "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() };
   const token = localStorage.getItem("chinatrip_token");
   if (token) headers["Authorization"] = "Bearer " + token; // 登录后行程等接口按账号返回
   const doFetch = () => fetch(apiBase() + path, {
@@ -1011,7 +1013,7 @@ async function apiRaw(path) {
 async function apiUpload(path, file) {
   const fd = new FormData();
   fd.append("file", file, file.name);
-  const headers = { "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() === "en" ? "en" : "zh" };
+  const headers = { "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() };
   const token = localStorage.getItem("chinatrip_token");
   if (token) headers["Authorization"] = "Bearer " + token;
   let res;
@@ -1650,10 +1652,12 @@ function startRenameEditor(btn, box, plan, id) {
 }
 
 // ✏️ 手输酒店名编辑器（2026-11-07 每晚酒店卡：用户指令「INPUT MANUALLY
-// BY USER, NEED TO VERIFY THE NAME AND SHOW ADDRESS ACCORDINGLY」）：
+// BY USER, NEED TO VERIFY THE NAME AND SHOW ADDRESS ACCORDINGLY」；
+// 2026-11-13 起晨卡 hotel-morning 同入口——写回时后端双向同步夜卡↔
+// 次日晨卡）：
 // 原地输入框，下拉=live 检索（/api/v1/hotels/search，行内亮「名称+地址」
-// 即验证展示）；选中→/items/{id}/set-hotel 把验证结果写回夜卡。无匹配
-// 回车=提示换名（绝不删卡——夜卡是系统骨架，与换景点「回车留空」语义
+// 即验证展示）；选中→/items/{id}/set-hotel 把验证结果写回酒店卡。无匹配
+// 回车=提示换名（绝不删卡——酒店卡是系统骨架，与换景点「回车留空」语义
 // 相反）；Esc/失焦=取消还原。
 function startHotelEditor(btn, box, plan, id) {
   const blk = btn.closest(".visit-block");
@@ -1691,7 +1695,7 @@ function startHotelEditor(btn, box, plan, id) {
     const q = input.value.trim();
     st.seq += 1;
     const my = st.seq;
-    if (!q) { st.items = []; st.hi = -1; st.loading = false; drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入本晚酒店卡")); return; }
+    if (!q) { st.items = []; st.hi = -1; st.loading = false; drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入酒店卡")); return; }
     st.loading = true;
     draw();
     api("/api/v1/hotels/search?keywords=" + encodeURIComponent(q) + "&city=" + encodeURIComponent(city), undefined, "GET")
@@ -1748,7 +1752,7 @@ function startHotelEditor(btn, box, plan, id) {
     }
   });
   input.addEventListener("blur", () => { setTimeout(() => close(), 180); });
-  drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入本晚酒店卡"));
+  drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入酒店卡"));
 }
 
 // 天头城市口径（2026-11-01）：base_city 是「醒来城」——首日=出发城（落地后才
@@ -1758,7 +1762,9 @@ function startHotelEditor(btn, box, plan, id) {
 // base_city，转场末日（条目在出发城+傍晚航班）行为不变
 function dayActivityCity(d) {
   for (const it of (d && d.items) || []) {
-    if (!it.from_city && it.city) return it.city;
+    // 晨卡（hotel-morning）= 当天出发标记，不是活动城市：转场日天头仍按
+    // 落地城的活动/天气显示（2026-11-13 每天出发点=HOTEL）。
+    if (!it.from_city && it.city && (it.item_id || "").indexOf("hotel-morning") !== 0) return it.city;
   }
   return "";
 }
@@ -1802,6 +1808,8 @@ function planCard(plan) {
         let tail = "";
         const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
         const isNight = (it.item_id || "").indexOf("hotel-night") === 0; // 每晚酒店卡（2026-11-07）
+        const isMorning = (it.item_id || "").indexOf("hotel-morning") === 0; // 次日从酒店出发卡（2026-11-13）
+        const isHotelSlot = isNight || isMorning; // ✏️ 走 set-hotel 验证写回
         // 🍴 美团订（2026-11-07 用户拍板）：餐位/餐厅卡名右侧直达美团美食频道
         // 订座/点单，注册出行人资料后端脱敏挂单，跳转后每 2 分钟跟踪至完成。
         // 会话外也可点（同 CALL TAXI 口径——预订不依赖会话）。
@@ -1810,11 +1818,12 @@ function planCard(plan) {
           : "";
         // 🏨 订酒店（2026-11-07 每晚酒店卡）：回酒店卡名右侧拉渠道卡
         // （携程/美团/飞猪，铁律 23 退改闸）。会话外也可点（同美团订口径）。
+        // 晨卡（2026-11-13）指向「昨晚」那段住宿：入住=前一天、退房=当天。
         const htlBtn = it.category === "hotel"
-          ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + d.day + '" title="' + I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近") + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
+          ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
           : "";
         if (planSession && planSession.session_id) { // 会话内：换点/钉住/删除可点（数据端点见下方委托监听）
-          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '"' + (isNight ? ' data-hotel="1"' : "") + ' title="' + (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空")) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '"' + (isHotelSlot ? ' data-hotel="1"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
@@ -2170,8 +2179,11 @@ async function hotelBookInline(btn, box, plan) {
   const checkin = planDateIso(dayNo);
   const checkout = planDateIso(dayNo + 1);
   if (!checkin || !checkout) { toast(I18N.tf("bk.hotelNoDate", "顶部未设「行程开始日期」：设置后可按天订酒店")); return; }
-  // 验证态优先：夜卡带 poi_id+坐标=已验证酒店；否则找当天末个带坐标景点
-  const it = day && (day.items || []).find(x => x.item_id === itemId);
+  // 验证态优先：酒店卡带 poi_id+坐标=已验证酒店；否则找当天末个带坐标景点。
+  // 晨卡（data-day=前一天）不在该天 items 里，需全行程找本卡。
+  const it = ((plan && plan.days) || [])
+    .flatMap(x => x.items || [])
+    .find(x => x.item_id === itemId);
   const verified = it && it.poi_id && it.location && isFinite(it.location.lon) && isFinite(it.location.lat);
   let kw = "", loc = null;
   (day && day.items || []).forEach(x => {
@@ -2654,24 +2666,36 @@ const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangz
 const PLAN = { startDate: "" };
 
 // 路线 = 起始 → 中间1-2（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
-// （起始城市只排出发交通不排活动，其天数框仅占位不参与计算）
+// （起始城市只排出发交通不排活动，其天数框禁用不参与计算）
+// 2026-11-13 修复（起始北京→上海 3 天→结束上海，实出 1 天案）：中间城市与
+// 结束城市同城=同一段停留，天数并入结束城市取较大者。旧版整行连天数一起
+// 丢弃，用户填的「上海 3 天」被结束城市默认 1 天顶掉，合计塌成 1 天。
 function planRouteForm() {
   const start = document.getElementById("planStartCity").value;
   const end = document.getElementById("planEndCity").value;
   const num = id => { const n = parseInt(document.getElementById(id).value, 10); return isNaN(n) ? 0 : n; };
   const seen = new Set([start, end]);
   const mids = [];
+  let endDays = Math.max(1, num("planEndDays"));
   for (let i = 1; i <= 2; i++) {
     const c = document.getElementById("planVia" + i).value;
-    if (!c || seen.has(c)) continue;
+    if (!c) continue;
+    const d = Math.max(1, num("planVia" + i + "Days"));
+    if (c === end) { endDays = Math.max(endDays, d); continue; } // 同城并天：填了 3 天就按 3 天，别被结束城市默认 1 天顶掉
+    const dup = mids.find(m => m.city === c);
+    if (dup) { dup.days = Math.max(dup.days, d); continue; } // 两个中间城市同城同理
+    if (seen.has(c)) continue; // 与起始城市同城：出发城不排活动，天数无意义
     seen.add(c);
-    mids.push({ city: c, days: Math.max(1, num("planVia" + i + "Days")) });
+    mids.push({ city: c, days: d });
   }
-  const endDays = Math.max(1, num("planEndDays"));
+  // 并入后的天数回写结束城市输入框：表单显示与实际出参同口径（不回写则用户
+  // 看到「1 天」实际按 3 天排，又是一处静默偏差）。
+  const endInput = document.getElementById("planEndDays");
+  if (endInput && parseInt(endInput.value, 10) !== endDays) endInput.value = endDays;
   const cityDays = {};
   mids.forEach(m => { cityDays[m.city] = m.days; });
   // 结束城市选「（不经过）」时 end 是空串：空城不进 cities/city_days
-  //（2026-11-13：会话 origin 里带 "上海" + ""，/plan/start 收到空城串）。
+  //（2026-11-13：origin 里带 "上海" + ""，/plan/start 收到空城串）。
   if (end) cityDays[end] = endDays;
   return {
     cities: [start, ...mids.map(m => m.city), end].filter(c => !!c),
@@ -2706,7 +2730,7 @@ function planTotalRefresh() {
 function planCityRender() {
   const s = document.getElementById("planStartCity");
   const e = document.getElementById("planEndCity");
-  const en = I18N.locale() === "en";
+  const en = I18N.locale() !== "zh"; // ja/ko 骨架期城市名走 en 拼写（CITY_JA/KO 未建）；value 恒中文=API 契约
   const label = ([c, enName]) => en ? enName : (c + " " + enName);
   const opts = PLAN_CITIES.map(p => '<option value="' + p[0] + '">' + label(p) + "</option>").join("");
   const cur = { s: s.value || "上海", e: e.value || "上海",
@@ -2871,13 +2895,23 @@ function planRenderReply(holder, body, opts) {
   if (!(body.state === "site_confirm" && (body.sites || []).length)) closeSiteChipBoxes();
   if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
   if (body.state === "site_confirm" && (body.sites || []).length) {
-    // 链接里认出的多个地点：先问哪些必去（写入清单+排进行程）、哪些可选（只入清单）
+    // 链接/文字描述里认出的多个地点：先问哪些要排（确认后写入行程中心心愿单）。
+    // 2026-11-14：文字/视频描述轮默认全选，点掉不要的；链接轮仍是不点=不入库。
+    const sitesSource = body.sites_source || "link";
+    const briefRound = sitesSource === "brief" || sitesSource === "image";
     const box = el('<div class="site-confirm-box"></div>');
-    box.appendChild(frag("<div>" + I18N.tf("plan.sites.intro","链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：") + "</div>"));
+    const introText = briefRound
+      ? I18N.tf("plan.sites.introBrief", "从你的文字/视频描述里认出了这些地点：已全部勾选，点一下取消不想去的；确认后写入行程中心心愿单（不点=不入库）：")
+      : I18N.tf("plan.sites.intro", "链接里认出了这些地点，点一下标记「必去」，确认后只把必去写入行程中心心愿单（不点=不入库）：");
+    if (sitesSource === "image") {
+      introText = I18N.tf("plan.sites.introImage", "从你发的图片里认出了这些地点：已全部勾选，点一下取消不想去的；确认后写入行程中心心愿单（不点=不入库）：");
+    }
+    box.appendChild(frag("<div>" + introText + "</div>"));
     const row = el('<div class="chips"></div>');
     const must = new Set();
     body.sites.forEach(s => {
       const b = el('<button class="chip">' + esc(s) + "</button>");
+      if (briefRound) { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
       b.onclick = () => {
         if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }
         else { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
@@ -2983,7 +3017,7 @@ function planRenderSafe(holder, body, opts) {
 }
 
 // extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
-async function planStartCore(extraPref) {
+async function planStartCore(extraPref, images) {
   planTouch(); // 新一局开跑：作废在途的自动载入，旧行程不许再画回来
   planWorking = true;
   const r = planRouteForm();
@@ -2995,7 +3029,7 @@ async function planStartCore(extraPref) {
   try {
     // brief：自由输入框里那一整句（2026-11-13）——它写出的路线优先于表单回填值，
     // 否则「重新规划」把上次行程的参数回填后，新打的城市会被表单顶掉。
-    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale() === "en" ? "en" : "zh", brief: extraPref || undefined });
+    const body = await api("/api/v1/plan/start", { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), lang: I18N.locale(), brief: extraPref || undefined, images: images && images.length ? images : undefined });
     planFormSyncFromPlan(body.plan); // 后端按简报改了路线时，表单/摘要跟着新行程走
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode() } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
     holder.textContent = "";
@@ -3213,6 +3247,72 @@ async function planResendAfterRestart(holder, text, input) {
     failToast(e2);
   }
 }
+
+
+/* 📷 发图片（2026-11-14 用户拍板「图片上有的也抽出来」）：读出的地点走
+   与链接/文字同一条确认轮。没有会话时先开一局（后端先开确认轮再生成）；
+   有会话时直接把图发给当前会话。图片在前端压到 1400px JPEG，省流量。 */
+function planImageDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const max = 1400;
+      const w = img.width || max, h = img.height || max;
+      const scale = Math.min(1, max / Math.max(w, h));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * scale));
+      c.height = Math.max(1, Math.round(h * scale));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+async function apiUploadForm(path, fd) {
+  const headers = { "X-Device-ID": DEVICE_ID, "X-Lang": I18N.locale() };
+  const token = localStorage.getItem("chinatrip_token");
+  if (token) headers["Authorization"] = "Bearer " + token;
+  let res;
+  try { res = await fetch(apiBase() + path, { method: "POST", headers, body: fd }); }
+  catch (e) { throw { status: 0, detail: I18N.tf("infra.err.network", "网络错误：无法连接 API（检查服务是否启动 / API 地址是否正确）") }; }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* 空体 */ }
+  if (!res.ok) throw { status: res.status, detail: data && data.detail !== undefined ? data.detail : (data || "http_" + res.status) };
+  return data;
+}
+async function planPhotoPicked(files) {
+  const list = Array.from(files || []).slice(0, 4);
+  if (!list.length) return;
+  if (!planSession) {
+    const urls = [];
+    for (const f of list) { try { urls.push(await planImageDataUrl(f)); } catch (_) {} }
+    if (!urls.length) { toast(I18N.tf("plan.photo.fail", "图片读取失败")); return; }
+    await planStartCore("", urls);
+    return;
+  }
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.photo.reading", "⏳ 正在读图里的地点…"));
+  try {
+    const fd = new FormData();
+    list.forEach((f, i) => fd.append("files", f, f.name || ("photo" + i + ".jpg")));
+    const body = await apiUploadForm("/api/v1/plan/" + planSession.session_id + "/images", fd);
+    planSession.state = body.state;
+    planRenderSafe(holder, body);
+  } catch (err) {
+    holder.textContent = I18N.tf("plan.photo.fail", "图片读取失败：") + detailText(err.detail);
+    failToast(err);
+  }
+  document.getElementById("flow-plan").scrollTop = 1e9;
+}
+document.getElementById("planPhoto").onclick = () => document.getElementById("planPhotoFile").click();
+document.getElementById("planPhotoFile").onchange = async (e) => {
+  const files = e.target.files;
+  e.target.value = "";
+  await planPhotoPicked(files);
+};
+
 document.getElementById("planSend").onclick = (e) => busy(e.target, planSend);
 document.getElementById("planInput").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); planSend(); }
@@ -3921,7 +4021,7 @@ document.getElementById("remGo").onclick = (e) => busy(e.target, async () => {
     (body.reminders || []).forEach(rm => {
       let at = rm.at;
       const d = new Date(rm.at);
-      if (!isNaN(d.getTime())) at = d.toLocaleString(I18N.locale() === "en" ? "en-US" : "zh-CN", { hour12: false });
+      if (!isNaN(d.getTime())) at = d.toLocaleString(({ zh: "zh-CN", en: "en-US", ja: "ja-JP", ko: "ko-KR" })[I18N.locale()] || "zh-CN", { hour12: false });
       box.appendChild(el('<div class="row"><span class="t">' + esc(at) + '</span><span><span class="badge warn">' + esc(rm.kind) + "</span> " + esc(rm.message) + "</span></div>"));
     });
     out.appendChild(box);
@@ -4196,7 +4296,7 @@ async function itinShareOn(r, btn) {
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/itineraries/" + r.itinerary_id + "/share", { enabled: true });
-      const url = (apiBase() || location.origin) + "/s/" + body.share_token + (I18N.locale() === "en" ? "?lang=en" : "");
+      const url = (apiBase() || location.origin) + "/s/" + body.share_token + (I18N.locale() !== "zh" ? "?lang=" + I18N.locale() : "");
       await copyText(url);
       shareLinkCard(url); // 链接做成真超链卡片（toast 是纯文本点不了）
       await itinSavedLoad();

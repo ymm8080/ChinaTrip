@@ -165,20 +165,16 @@ def test_tail_outdoor_redirects_and_full_dry_drops():
     # 组内坐标按 lon 错开 >1.5km（同点互认并卡会让露天族整族搭车进
     # 干日、庚岭不再 4 闸满出局；本测意图依赖 4/日闸封顶。族卡已废，
     # 贴邻同日圈 5km——1.9km 在圈内，同日软偏好与 4/日闸同向）。
-    # 北族纬度 30.68（城心 ~12km 中性带，2026-11-13 日间混排闸口径）：
-    # 旧夹具 31.5=城心 103km 远郊件——混排闸把露天壬峰锁死在北族日，
-    # 雨日避让语义被分区闸遮蔽（2026-11-14 夹具修正，同
-    # test_rain_unmarked_sites 口径）。
     cands = [
-        _cand("甲馆", "成都", "yes", lon=104.0, lat=30.68, dur=60),
-        _cand("乙馆", "成都", "yes", lon=104.02, lat=30.68, dur=60),
-        _cand("丙馆", "成都", "yes", lon=104.04, lat=30.68, dur=60),
+        _cand("甲馆", "成都", "yes", lon=104.0, lat=31.5, dur=60),
+        _cand("乙馆", "成都", "yes", lon=104.02, lat=31.5, dur=60),
+        _cand("丙馆", "成都", "yes", lon=104.04, lat=31.5, dur=60),
         _cand("丁峰", "成都", "no", lon=104.0, lat=30.5, dur=60),
         _cand("戊岭", "成都", "no", lon=104.02, lat=30.5, dur=60),
         _cand("己山", "成都", "no", lon=104.04, lat=30.5, dur=60),
         _cand("庚岭", "成都", "no", lon=104.06, lat=30.5, dur=180),
         _cand("辛峰", "成都", "no", lat=30.9, dur=180),
-        _cand("壬峰", "成都", "no", lon=104.06, lat=30.68, dur=60),
+        _cand("壬峰", "成都", "no", lon=104.06, lat=31.5, dur=60),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(

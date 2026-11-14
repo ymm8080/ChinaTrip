@@ -19,6 +19,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
 from app.config import get_settings
@@ -28,6 +29,7 @@ from app.services.amap_client import AmapClient
 from app.services.poi_details import PoiDetailStore, apply_tier_tag
 from app.services.poi_details import get_poi_detail_store as _poi_store_singleton
 from app.services.poi_photos import fetch_photo_chain, in_cooldown
+from app.services.poi_tag_selector import GROUPS_BY_FAMILY
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
@@ -329,8 +331,7 @@ async def poi_detail(
             tags = list(row.tags or [])
             if not {"unesco", "5a", "4a", "3a", "intl"} & set(tags):
                 heritage = [
-                    # 档号随 2026-11-13 名录序（source_tier）：国际站=0、
-                    # unesco=1、5a=2——与 catalog_rank 2026-11-13 拍板对齐。
+                    # 档号随 2026-11-13 名录序（source_tier）：unesco=1、5a=2
                     (hz, 1 if src == "unesco" else 2)
                     for hz, src in session.query(Poi.name_zh, Poi.source)
                     .filter(Poi.source.in_(["unesco", "5a"]))
@@ -544,3 +545,57 @@ def search_pois(
             )
         )
     return out
+
+
+# --- 用户可选两级标签树（DESIGN user_tag_two_level_2026-11-10 §一，w12_0022）---
+
+
+class PoiTagGroup(BaseModel):
+    """二级标签计数项：tag 为受控词表成员，count 为库内命中行数。"""
+
+    tag: str
+    count: int
+
+
+class PoiTagFamily(BaseModel):
+    """一级大类节点：groups 按设计 §一 表序全量返回（0 计数组照常在）。"""
+
+    family: str
+    groups: list[PoiTagGroup]
+
+
+@router.get("/tags", response_model=list[PoiTagFamily])
+def poi_tags_tree(
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> list[PoiTagFamily]:
+    """POI 用户可选两级标签树（选择器全菜单）：一级 7 族 × 二级 25 组。
+
+    count 为库内 pois.user_groups 命中行数（jsonb_array_elements_text
+    聚合；hotel/food/transport 行不进标签，WHERE 双保险过滤）。映射唯一
+    来源 app/services/poi_tag_selector.py（user_family/user_groups 由
+    backfill_poi_user_tags 只填空回填）；结构（族序/组序）取自
+    GROUPS_BY_FAMILY，与库内是否有货无关，前端可直接渲染选择器。
+    """
+    try:
+        with factory() as session:
+            rows = session.execute(
+                text(
+                    "SELECT grp, count(*) FROM pois, "
+                    "jsonb_array_elements_text(user_groups) AS grp "
+                    "WHERE user_groups IS NOT NULL "
+                    "AND (category IS NULL "
+                    "     OR lower(category) NOT IN ('hotel', 'food', 'transport')) "
+                    "GROUP BY grp"
+                )
+            ).all()
+    except Exception:
+        logger.warning("poi_tags_tree: store unavailable", exc_info=True)
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+    counts = {t: int(n) for t, n in rows}
+    return [
+        PoiTagFamily(
+            family=fam,
+            groups=[PoiTagGroup(tag=g, count=counts.get(g, 0)) for g in groups],
+        )
+        for fam, groups in GROUPS_BY_FAMILY.items()
+    ]

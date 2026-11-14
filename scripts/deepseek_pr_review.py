@@ -289,11 +289,7 @@ Keep messages concise (one sentence per issue). Only report real violations.
     # reported as unsupported (supports_reasoning: false).
     allow_response_format = provider != "opencode"
 
-    # 推理模型输出上限（2026-11-14 用户拍板「max_tokens 拉到最大」，与
-    # 应用底座 3c0e897 同口径）：deepseek-v4.1-flash 先把 max_tokens 吃进
-    # reasoning，小额度（16k）会把正文挤成空串/截断——OpenCode Go 网关
-    # 实测区间 1..393216（1000000 直接 400），OpenCode 链路一律按硬顶发。
-    max_tokens = 393216 if provider == "opencode" else 16000
+    max_tokens = 16000
     for attempt in range(3):
         payload = {
             "model": model,
@@ -395,10 +391,9 @@ Keep messages concise (one sentence per issue). Only report real violations.
                     content[:500],
                     reasoning[:300],
                 )
-                # Retry on truncation with doubled max_tokens（cap 到网关
-                # 硬顶——超 393216 直接 400，重试反而烧轮次）
+                # Retry on truncation with doubled max_tokens
                 if finish_reason == "length" and attempt < 2:
-                    max_tokens = min(max_tokens * 2, 393216)
+                    max_tokens *= 2
                     logger.info(
                         "Retrying with max_tokens=%d due to finish_reason=length",
                         max_tokens,

@@ -23,6 +23,7 @@
 - [数据库设计](database_design.md) — v1.18（纯设计口径，无代码）：PG 表五域（v2.5 pois 15 列扩容 + restaurants + weather_reports + 评论域 poi_reviews/poi_stats + payments + 行程 PG 状态；迁移史 0001–0018）+ 本机 SQLite 6 表；**数据源×刷新矩阵**（L0–L4 优先级分层、14 源频率/时机/模式、字段链序、刷新模式词汇表；v1.18 刷新节奏定稿：天气一天一次 08:10 全量 40 城、/sync 纯读表、POI 回源一行一月）；稳定键/双坐标/溯源/快照不可变等铁律 9 条；迁移史速查
 - [UPGRADE COST](UPGRADE%20COST.md) — 阿里云 GPU 自建 vLLM 最低成本估算与升级触发条件（v2.0 配套）
 - [POI 照片功能设计 2026-11-11](poi_photos_functional_design_2026-11-11.md) — **待拍板**：存 URL 不存二进制；三路分层=库直读画廊(F1)/点击确定性回源 amap→百度→wikimedia 只填空+24h冷却(F2)/AI 找图兜底 `_PHOTO_AI_ENABLED=False` 能力闸(F3)；死图上报复拉+30天刷新(F4)；实测覆盖 16.9%(1,650/9,787)、restaurants 0；**悬停浮层首图已拍板落地(e8ed183,sw v76,CDP双案PASS)**；顺手台账=enrich_amap_detail 漏标 photos_source 1,449 行/backfill_intro 过时头注
+- [天安门升降旗时刻设计 2026-11-14](tiananmen_flag_schedule_design_2026-11-14.md) — **与代码同步**：官方公告页（表格为嵌入 PNG）→ OCR 分带解析（月名列弃用改用「升/降」表头定位 + 日号稳健回归 + 单格修复）→ 校验闸门 → 落库**只追加批次**（flag_cache.db，读最新批次）+ DESIGN 快照 + 种子随仓库分发；引擎接线=天安门广场当日开始时间=升旗时刻（`fixed_sessions` 点域锚，可破 8:30 日始，铁律 19 优先）；实测 743/744 逐格一致（修复格已披露）
 
 ## 🗄 历史版本
 

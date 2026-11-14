@@ -2216,9 +2216,7 @@ def test_wishlist_coverage_mirrors_city_gate():
     from app.services.itinerary.models import DayPlan, ItineraryPlan
 
     class Rows:
-        def list_groups(
-            self, itinerary_id: str | None = None, owner_device_id: str | None = None
-        ) -> dict:
+        def list_groups(self):
             return {
                 "wishlist": [
                     {"name": "看变脸", "city": None, "id": "w1"},  # 提示城=成都
@@ -2596,9 +2594,6 @@ def test_named_wish_city_hint_routes_to_chengdu():
     agent, session = _teahouse_session(
         amap, store, TripItemService(), "看变脸表演", cities=("上海", "成都")
     )
-    # 夹具城(杭州西湖)×心愿城(成都)跨城腿 180 分钟>150 分钟窗=硬违例→
-    # 修复轮（2026-11-13 端点/腿闸随动）：空 diffs 认输，回合照常收口。
-    agent._llm.replies.append(repair_reply([]))
     session, _, _ = run(agent.message(session, "谢谢"))
     assert amap.around_calls == []
     # 2026-10-30 深夜拍板：落实为真实 POI 的专名心愿，条目用 POI 正名

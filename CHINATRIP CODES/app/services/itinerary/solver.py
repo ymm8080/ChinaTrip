@@ -43,10 +43,11 @@ from app.services.restaurants import (
 
 logger = logging.getLogger(__name__)
 
-#: Visits may be placed anywhere in [09:00, 21:00] (minutes since midnight).
-# 2026-10-31 拍板：景点活动一天 9 点开始（8 点太早）；交通除外——
-# 车次/航班时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
-DAY_START_MINUTES = 9 * 60
+#: Visits may be placed anywhere in [08:30, 21:00] (minutes since midnight).
+# 2026-11-14 用户拍板：日始改 08:30（原 09:00——「北京 2 天」文本第一天
+# 天安门+故宫+长城 390 分钟，9 点起根本装不下）；交通除外——车次/航班
+# 时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
+DAY_START_MINUTES = 8 * 60 + 30
 DAY_END_MINUTES = 21 * 60
 #: 晚场演出可突破日终（2026-11-11 用户拍板「晚二场信息可以显示出来」）：
 #: 场次点窗起点不受 DAY_END_MINUTES 回减约束——双晚场演出的第二晚场
@@ -77,11 +78,11 @@ DEFAULT_TRAVEL_MINUTES = 30
 # 0009 / 8.2.1：best_visit_time 枚举 → 时段窗（分钟，[起, 止)）。表内不收
 # "any"：字段为 None/"any"/未知脏值时查表落空，按全天窗处理不约束。
 _BEST_VISIT_WINDOWS: dict[str, tuple[int, int]] = {
-    "morning": (9 * 60, 12 * 60),  # 09:00-12:00（随日始 9 点，2026-10-31）
+    "morning": (8 * 60 + 30, 12 * 60),  # 08:30-12:00（随日始，2026-11-14）
     "afternoon": (12 * 60, 17 * 60),  # 12:00-17:00
     "evening": (17 * 60, 21 * 60),  # 17:00-21:00（夜景自动排晚上）
     "sunset": (16 * 60, 19 * 60),  # 16:00-19:00 近似窗
-    "sunrise": (9 * 60, 10 * 60 + 30),  # 09:00-10:30 近似窗（随日始）
+    "sunrise": (8 * 60 + 30, 10 * 60),  # 08:30-10:00 近似窗（随日始）
 }
 
 #: 演出三档分流（2026-11-11 拍板，取代 2026-11-06「无场次演出按正常景点
@@ -390,6 +391,11 @@ def _is_morning_site(item: VisitItem) -> bool:
     面）不计——那是用户的安排不是引擎节奏，双钉双晨合法且不挤占后续
     自由点（2026-11-03 拍板组合：钉后大点仍进上午而非被罚到 16:30 后）。"""
     if item.pinned and item.start_time is not None:
+        return False
+    if item.fixed_sessions and not (item.pinned and not item.soft_pin):
+        # 升旗锚（flag_schedule 2026-11-14）：升旗是当日客观时刻不是引擎
+        # 节奏选择，与用户钉同一豁免面——旗仪式后的晨点（如故宫）不再被
+        # 「上午一个点」罚到午后，同钉后大点仍进上午的拍板组合。
         return False
     return (item.category or "") not in ("food", "hotel")
 
@@ -874,6 +880,20 @@ def _visit_spec(
             else:
                 lo = hi = pin
             multi = None
+
+    # 升旗时刻锚（flag_schedule 设计 2026-11-14）：装配期按官方升降旗表
+    # 打标的 fixed_sessions（仅天安门广场）——start 恰落升旗仪式时刻的
+    # 完全钉死项，早于 DAY_START 日始（4:45-7:36 vs 8:30）也合法：镜像
+    # 「晚二场可破日终」（上方 show_sessions 只抬上界）的口径，这里收紧
+    # 成点域 [s, s]，CP/最廉插入两路都按完全钉死处理（插入路 spec.lo==
+    # spec.hi 直进 occupied 锚块）。用户自钉（pinned 且非 soft_pin）铁律
+    # 19 优先，锚跳过——自己钉的时间照常生效。
+    if item.fixed_sessions and not (item.pinned and not item.soft_pin):
+        flag_min = min(_to_minutes(t) for t in item.fixed_sessions)
+        if flag_min > DAY_END_MINUTES - dur:
+            return None  # 防御：坏数据不至于反过来拖垮整日排程
+        lo = hi = flag_min
+        multi = None
 
     if lo > hi:
         return None

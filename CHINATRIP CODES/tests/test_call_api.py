@@ -289,10 +289,7 @@ def test_agent_queue_exposes_remaining_and_enforces_exhaustion():
     )
     q = client.get("/api/v1/call/agent/queue", headers=_agent()).json()
     row = next(x for x in q["sessions"] if x["session_id"] == s["session_id"])
-    # remaining=300 整档；开档→读取跨秒壁时秒位向下取整出 299（CI 06:07
-    # 实录）——边界容差收 299/300 两个合法值（2026-11-14 flake 根修）。
-    assert row["status"] == "active"
-    assert row["remaining_seconds"] in (299, 300)
+    assert row["status"] == "active" and row["remaining_seconds"] == 300
     # 回拨 started_at 到 6 分钟前 → 队列读路径直接强结 exhausted
     svc = cs_module.get_call_service()
     svc.store.update_session(s["session_id"], started_at="2026-10-25T09:00:00")

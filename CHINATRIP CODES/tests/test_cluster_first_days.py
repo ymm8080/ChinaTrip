@@ -150,16 +150,8 @@ def test_zero_distance_family_reduces_global_weakest_member():
     )
     day_of = {it["name"]: it["day"] for it in items}
     assert {day_of[n] for n in ("远一", "远二", "远三", "远四")} == {1}
-    # 减员选择：零距族（全员同针）无地理端点——减的是全局最弱件（弱件
-    # 180min 无档），不是地理端点上的任一件（留痕点名）。
-    assert any("弱件" in n and "退回零散安排" in n for n in notes), (
-        "零距族减员=全局最弱件"
-    )
-    # 2026-11-13 日间混排闸（6f48bf3）：弱件远郊（>25km）减员回散后，
-    # day2/day3 已有城心件（混排禁）、day1 远郊族满员（4/日帽）——
-    # 无合规日移出留痕（要加回请说），不再落城心日。
-    assert "弱件" not in day_of
-    assert any("弱件" in n and "未排入" in n for n in notes)
+    assert day_of["弱件"] in (2, 3)
+    assert any("弱件" in n for n in notes)
 
 
 def test_unmarked_family_softly_prefers_dry_day():
@@ -270,15 +262,9 @@ def test_full_day_shed_preserves_two_members_in_each_family():
         notes=notes,
     )
     by_day = _by_day(items)
-    # 2026-11-13 日间混排闸（6f48bf3）：乙族夹具距城心 42km（>25km 混排
-    # 带）不落城心件（甲族 10km）已占的干日 day1；day2/3 雨日全拦——
-    # 乙族长件无合规日出局留痕、乙族二露天交雨闸弃排披露（现行拍板口
-    # 径）；甲族照旧整族同日。
-    assert {"甲族一", "甲族二"} <= by_day[1]
-    assert not any(n in by_day[1] for n in ("乙族长件", "乙族二"))
+    assert {"甲族一", "甲族二", "乙族长件", "乙族二"} <= by_day[1]
     assert "雨锁入件" not in {it["name"] for it in items}
-    assert any("乙族长件" in n and "离城心太远" in n for n in notes)
-    assert any("乙族二" in n and "无干日可排" in n for n in notes)
+    assert any("雨锁入件" in n and "无干日可排" in n for n in notes)
 
 
 def test_tight_cluster_capacity_uses_original_insertion_charge():

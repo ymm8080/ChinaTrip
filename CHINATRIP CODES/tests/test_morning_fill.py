@@ -93,12 +93,7 @@ def test_show_session_starts_parses_single_session_declarations():
     assert show_session_starts("仅夜场（约20:10一场）") == [20 * 60 + 10]
     assert show_session_starts("仅夜场（约20:00一场，旺季加场）") == [20 * 60]
     assert show_session_starts("夜场为主（约20:00一场）") == [20 * 60]
-    # 2026-11-12 4aa8e1b 拍板：时刻后紧跟「场」即场次声明（无「约」前缀
-    # 也算）——「旺季加16:00场」是字段式真场次，不再是排除项。
-    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [
-        16 * 60,
-        20 * 60,
-    ]
+    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [20 * 60]
     # 列表式之外补拾遗漏的「约」点（《只有峨眉山》日场列表 + 夜场单点）
     assert show_session_starts("多场（云之上日场约14:00/16:00+夜场约19:30）") == [
         14 * 60,

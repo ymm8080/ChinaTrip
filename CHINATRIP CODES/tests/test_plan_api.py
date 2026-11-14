@@ -504,6 +504,119 @@ def test_sites_confirm_endpoint_writes_only_picked():
     assert r.status_code == 409
 
 
+class BriefPoiStore:
+    """底库桩：名字匹配不命中，candidate_by_name 直接落地（简报读点用）。"""
+
+    def match_text_names(self, city, text, *, limit=8):
+        return []
+
+    def candidate_by_name(self, city, name):
+        return {"name": name, "city": city, "category": "sight"}
+
+
+def test_start_brief_opens_sites_confirm_round():
+    from app.services.trip_items import TripItemService
+
+    svc = TripItemService()
+    brief = (
+        "北京两日慢慢逛：第一天想去天坛和颐和园，第二天逛逛胡同和博物馆，"
+        "喜欢历史建筑和本地小吃，节奏不要太赶，晚上想看夜景，"
+        "住宿想住在二环里，交通尽量坐地铁，最后一天想买点伴手礼带回家。"
+    )
+    assert len(brief) >= 80  # 短句不读（_MIN_BRIEF_LLM_TEXT）
+    sites = json.dumps(
+        {
+            "sites": [
+                {"name": "天坛", "kind": "sight", "city": "北京", "day": 1},
+                {"name": "颐和园", "kind": "sight", "city": "北京", "day": 2},
+            ]
+        },
+        ensure_ascii=False,
+    )
+    agent = PlanningAgent(
+        StubAdapter([sites, V0_JSON]),
+        amap_client=NoPoiAmap(),
+        poi_details=BriefPoiStore(),
+        trip_items=svc,
+    )
+    client = client_for(agent)
+    body = start(client, {"cities": ["北京"], "days": 2, "brief": brief}).json()
+
+    # 先问确认，不出行程、不入库
+    assert body["state"] == "site_confirm"
+    assert body["sites"] == ["天坛", "颐和园"]
+    assert body["sites_source"] == "brief"
+    assert "plan" not in body
+    assert svc.list_groups()["wishlist"] == []
+
+    sid = body["session_id"]
+    r = client.post(
+        f"/api/v1/plan/{sid}/sites/confirm",
+        json={"mandatory": ["天坛"]},
+        headers=DEVICE_HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["state"] == "ready"
+    assert data["plan"] is not None
+    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["天坛"]
+    assert "你确认的" in data["reply"]
+
+
+class VisionStubAdapter(StubAdapter):
+    """文字回复照旧，多一个 chat_vision 供图片读点。"""
+
+    def __init__(self, replies: list[str], vision_reply: str) -> None:
+        super().__init__(replies)
+        self.vision_reply = vision_reply
+
+    async def chat_vision(self, images, prompt: str) -> str:
+        return self.vision_reply
+
+
+def test_images_endpoint_opens_site_round():
+    from app.services.trip_items import TripItemService
+
+    svc = TripItemService()
+    agent = PlanningAgent(
+        VisionStubAdapter(
+            [V0_JSON],
+            json.dumps(
+                {"sites": [{"name": "天坛", "kind": "sight", "city": "北京"}]},
+                ensure_ascii=False,
+            ),
+        ),
+        amap_client=NoPoiAmap(),
+        poi_details=BriefPoiStore(),
+        trip_items=svc,
+    )
+    client = client_for(agent)
+    started = start(client, {"cities": ["北京"], "days": 2, "preferences": "博物馆"}).json()
+    sid = started["session_id"]
+
+    r = client.post(
+        f"/api/v1/plan/{sid}/images",
+        files={"files": ("note.png", b"\x89PNG\r\n", "image/png")},
+        headers=DEVICE_HEADERS,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["state"] == "site_confirm"
+    assert body["sites"] == ["天坛"]
+    assert body["sites_source"] == "image"
+    assert svc.list_groups()["wishlist"] == []  # 确认前不入库
+
+    r = client.post(
+        f"/api/v1/plan/{sid}/sites/confirm",
+        json={"mandatory": ["天坛"]},
+        headers=DEVICE_HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["state"] == "ready"
+    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["天坛"]
+
+
 # --- POST /plan/{id}/save：显式落库（2026-10-20 产品规则） -------------------
 
 
@@ -778,6 +891,7 @@ def test_start_brief_single_city_keeps_form_origin():
     assert resp.json()["plan"]["cities"] == ["北京", "成都"]
 
 
+
 def test_from_itinerary_session_lang_follows_x_lang_header():
     """✏️ 修改会话语言随 X-Lang 头（2026-10-30 修复）：建档漏 lang 时
     编辑回合系统提示词不挂英文输出指令，英文界面下 LLM 回复恒中文。"""
@@ -1043,14 +1157,13 @@ def _append_visit(session, day: int, item_id: str, name: str, h: int, m: int, du
 
 def _day_visits(body: dict, day_no: int) -> list[dict]:
     day = next(d for d in body["plan"]["days"] if d["day"] == day_no)
-    # 餐卡=槽位（2026-11-13）：午/晚饭占位件是餐窗不是景点——行程形状
-    # 断言排除（2026-10-31 午餐保底口径扩全餐卡）
+    # 午饭占位件是餐窗不是景点（2026-10-31 午餐保底）：行程形状断言排除
     return [
         i
         for i in day["items"]
         if (
             "mode" not in i
-            and not i.get("item_id", "").startswith("food-")
+            and not i.get("item_id", "").startswith("food-lunch-ph")
             # 酒店入住卡/每晚酒店卡/次日晨卡无坐标/不回填（2026-11-01/11-07/11-13）
             and not i.get("item_id", "").startswith("hotel-checkin")
             and not i.get("item_id", "").startswith("hotel-night")
@@ -1069,9 +1182,8 @@ def test_move_same_day_reorder_resequences_times():
     sid = body["session_id"]
     store = app.dependency_overrides[get_plan_sessions]()
     session = store.get(sid, device_id="device-1")
-    # 2026-11-13 拍板「末日=返程日只在闭合行程成立」：非闭合行程（V0 无
-    # 离城腿）day2 不再是返程日——无正午闸/离城上午闸，同日重排机制改挂
-    # 无转场的 day2 全天验证。
+    # 08:00 火车闸（2026-11-03）：day1 火车改 12:10-13:14 抵，落地后仅容
+    # 一个白天点——同日重排机制改挂无转场的 day2 全天验证。
     _append_visit(session, 2, "v4", "灵隐寺", 13, 0, 90)
     _append_visit(session, 2, "v5", "河坊街", 16, 0, 60)
     resp = client.post(
@@ -1082,14 +1194,25 @@ def test_move_same_day_reorder_resequences_times():
     assert resp.status_code == 200
     data = resp.json()
     visits = _day_visits(data, 2)
-    # 用户顺序权威（2026-10-24 拖拽拍板）：v5 挪到 v2 之后——时链=列表序
-    # 雷峰塔→河坊街→灵隐寺；全部有时刻（无时刻非钉卡在响应剔除，
-    # 2026-11-13「未安排不显示」）。
-    assert [v["item_id"] for v in visits] == ["v2", "v5", "v4"]
+    # 2026-11-13 拍板「未安排（无时刻灰卡）不显示」：灵隐寺过正午闸留空
+    # 披露后是无时刻非钉卡——下发响应剔除（内部工作副本原样保留，见下）。
+    assert [v["item_id"] for v in visits] == ["v2", "v5"]
     slots = [(v["start_time"], v["end_time"]) for v in visits]
-    assert all(s and e for s, e in slots), f"重排后须全带时刻：{slots}"
+    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日——
+    # 挪头重排后晨窗装 v2+v5（10:30 起是腿垫非游标跳，闸天不跳 12 点），
+    # 灵隐寺 90 分钟 11:30 起 13:00 收尾过正午闸→留空披露，不塞午后。
+    assert slots[0][0] and slots[0][1] <= "12:00:00"
+    assert slots[1][0] and slots[1][1] <= "12:00:00"
     assert slots[1][0] >= slots[0][1]  # 时链单调不重叠
-    assert slots[2][0] >= slots[1][1]
+    # 出口过滤只动下发层：会话工作副本里 v4 仍是无时刻卡，重排/清算照管
+    saved = store.get(sid, device_id="device-1")
+    v4 = next(
+        i
+        for d in saved.plan.days
+        for i in d.items
+        if getattr(i, "item_id", None) == "v4"
+    )
+    assert v4.start_time is None and v4.end_time is None
 
 
 def test_move_cross_day_to_head():
@@ -1109,17 +1232,18 @@ def test_move_cross_day_to_head():
     assert resp.status_code == 200
     data = resp.json()
     assert _visit(data, "西湖")["day"] == 2
-    # 西湖挪走后 day1 只剩卡/餐/酒店（2026-11-14 空到达日就近补点：
-    # 补进来的端点日卡片不算 LLM 选点残留——断言只锁原选点不回流）。
-    assert all(v["item_id"] != "v1" for v in _day_visits(data, 1))
+    assert not _day_visits(data, 1)  # 原天不再有景点
     names2 = [v["item_id"] for v in _day_visits(data, 2)]
     assert names2 == ["v1", "v2"]  # after=None → 插到当天第一个景点前
     slots = {
         v["item_id"]: (v["start_time"], v["end_time"]) for v in _day_visits(data, 2)
     }
-    # 2026-11-13 非闭合行程末日无离城腿——day2 非返程日，无正午闸；
-    # 西湖缩 75'（2026-11-04 大点闸 fixture 适配）后晨窗两点成时链。
-    assert slots["v1"][0] and slots["v2"][0] >= slots["v1"][1]  # 时链单调不重叠
+    # 离城日上午闸（2026-11-03 拍板）：days=2 时 day2 是 17:00 返程日，
+    # 景点都须正午闸前收尾；西湖缩 75'（2026-11-04 大点闸 fixture 适配）
+    # 后 9:00-10:15+腿垫，雷峰塔 60' 也排进晨窗成时链。
+    assert slots["v1"][0] and slots["v1"][1] <= "12:00:00"
+    assert slots["v2"][0] and slots["v2"][1] <= "12:00:00"
+    assert slots["v2"][0] >= slots["v1"][1]  # 时链单调不重叠
 
 
 def test_move_pinned_item_returns_422():
@@ -1509,10 +1633,9 @@ def test_refresh_legs_backfills_missing_locations():
         for d in resp.json()["plan"]["days"]
         for i in d["items"]
         if "mode" not in i
-        # 餐卡=槽位（2026-11-13）：午/晚饭占位件无 POI 可回填（设计上不
-        # 烧配额，2026-10-31）；酒店入住卡/每晚酒店卡/次日晨卡同理
-        # （2026-11-01/11-07/11-13）
-        and not str(i.get("item_id", "")).startswith("food-")
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
+        # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
+        and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
@@ -1554,10 +1677,9 @@ def test_get_plan_session_returns_refreshed_plan():
         for d in data["plan"]["days"]
         for i in d["items"]
         if "mode" not in i
-        # 餐卡=槽位（2026-11-13）：午/晚饭占位件无 POI 可回填（设计上不
-        # 烧配额，2026-10-31）；酒店入住卡/每晚酒店卡/次日晨卡同理
-        # （2026-11-01/11-07/11-13）
-        and not str(i.get("item_id", "")).startswith("food-")
+        # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
+        # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
+        and not str(i.get("item_id", "")).startswith("food-lunch-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
@@ -2385,7 +2507,11 @@ def test_delete_night_card_removes_next_morning_card():
         )
     assert resp.status_code == 200
     data = resp.json()
-    ids = [i.get("item_id") for d in data["plan"]["days"] for i in d["items"]]
+    ids = [
+        i.get("item_id")
+        for d in data["plan"]["days"]
+        for i in d["items"]
+    ]
     assert "hotel-night-d1" not in ids
     assert "hotel-morning-d2" not in ids
     assert "hotel-morning-d3" in ids

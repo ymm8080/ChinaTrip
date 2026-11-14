@@ -337,7 +337,9 @@ class TripItemService:
             # 有归属的按设备隔离；无归属（历史行/脚本建行）仍可见——归属列
             # 是新事实，不能让老数据在升级瞬间集体消失。
             items = [
-                i for i in items if i.get("owner_device_id") in (None, owner_device_id)
+                i
+                for i in items
+                if i.get("owner_device_id") in (None, owner_device_id)
             ]
         if itinerary_id is not None:
             items = [i for i in items if i.get("itinerary_id") == itinerary_id]
@@ -478,7 +480,9 @@ class TripItemService:
         # 心愿单数据库字段（2026-11-13 拍板）：ARRANGED = 有具体日期时刻
         # （已排期/已订且天序在）；EXCLUSION = 用户删站点后明确排除，
         # 已排进/已订的行自动解除（它就在行程里）。
-        item["arranged"] = target in _TIMELINE_STATUSES and item.get("day") is not None
+        item["arranged"] = (
+            target in _TIMELINE_STATUSES and item.get("day") is not None
+        )
         if exclusion_flag is not None:
             item["exclusion_flag"] = bool(exclusion_flag)
         elif target == STATUS_UNWANTED:

@@ -677,6 +677,108 @@ def _heal_tier(v: VisitItem, row: dict | None) -> None:
         )
 
 
+# 用户点名的固定替代项（2026-11-14 拍板「故宫在行程单上时，右边是景山公园
+# 作为替代项」）：同级备选池按档带/类别/时长硬筛，景山（公园）与故宫
+# （5A/世界遗产）不同档，池子排序永远挑不到它——这一条不走池子，直接在
+# 故宫卡右侧补一枚指定 chip，点击同样走 /items/{id}/replace 原位换点。
+_STANDIN_CHIPS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("故宫博物院", "故宫", "紫禁城"), "景山公园"),
+)
+
+
+def _standin_row(store: object, city: str, name: str, pool: list[dict]) -> dict | None:
+    """替代点在候选池里的库行；池里没有就回库取一次（失败静默）。"""
+    want = _norm_name(name)
+    for row in pool:
+        if _norm_name(str(row.get("name") or "")) == want:
+            return row
+    try:
+        return store.candidate_by_name(city or None, name)  # type: ignore[attr-defined]
+    except Exception:
+        logger.warning(
+            "alternatives: standin lookup failed for %s", name, exc_info=True
+        )
+        return None
+
+
+def _standin_chip(v: VisitItem, row: dict | None) -> PlanAlternative | None:
+    """替代点 → 右侧 chip 载荷（档号/游时/距离/评分口径与同级备选一致）。"""
+    if not row:
+        return None
+    tier_n = row.get("_tier")
+    if not isinstance(tier_n, int):
+        try:
+            from app.services.agent.plan import _source_tier
+
+            tier_n = PLAN_TIER_TO_POOL.get(_source_tier(row))
+        except Exception:
+            tier_n = None
+    dist = None
+    loc = row.get("location")
+    try:
+        if v.location is not None and isinstance(loc, (tuple, list)) and len(loc) == 2:
+            dist = haversine_km(
+                v.location, GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+            )
+    except (TypeError, ValueError):
+        dist = None
+    try:
+        rating = float(row["rating"]) if row.get("rating") else None
+    except (TypeError, ValueError, KeyError):
+        rating = None
+    return PlanAlternative(
+        name=str(row.get("name") or ""),
+        name_en=row.get("name_en"),
+        category=_norm_cat(row.get("category")) or row.get("category"),
+        tier=tier_n if isinstance(tier_n, int) else None,
+        level_tag=_TIER_TAG.get(tier_n) if isinstance(tier_n, int) else None,
+        duration_minutes=_dur_capped(row),
+        distance_km=dist,
+        rating=rating,
+    )
+
+
+def _attach_standin_chips(
+    store: object,
+    visits: list[VisitItem],
+    pools: dict[str, list[dict]],
+    exclude_names: set[str],
+    used_names: set[str],
+) -> None:
+    """主点在行程里时，卡右侧首位固定亮替代点（当前只有 故宫→景山公园）。
+
+    替代点已在行程/已亮过就别重亮；chip 总量仍受 ALT_LIMIT 约束。
+    """
+    for v in visits:
+        main = _norm_name(v.name)
+        if not main:
+            continue
+        city = (v.city or "").strip().removesuffix("市")
+        for keys, standin in _STANDIN_CHIPS:
+            if not any(k in main or main in k for k in keys):
+                continue
+            want = _norm_name(standin)
+            if not want or want in used_names or _overlap_any(want, exclude_names):
+                continue
+            row = _standin_row(store, city, standin, pools.get(city) or [])
+            chip = _standin_chip(v, row)
+            if chip is None:
+                continue
+            alts = [
+                a
+                for a in (v.alternatives or ())
+                if _norm_name(a.name) != _norm_name(chip.name)
+            ]
+            v.alternatives = ([chip] + alts)[:ALT_LIMIT]
+            used_names.add(want)
+            logger.info(
+                "alternatives: standin chip %s -> host %s (day %s)",
+                chip.name,
+                v.name,
+                getattr(v, "day", None),
+            )
+
+
 def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPlan:
     """深拷贝行程并给每个观光 VisitItem 挂同级备选（模块头规则）。
 
@@ -786,6 +888,7 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
             used_names.add(_norm_name(a.name))
             used_names.add(_norm_name(a.name_en))
     _attach_unplaced_chips(copy, visits, exclude_names, used_names)
+    _attach_standin_chips(store, visits, pools, exclude_names, used_names)
     return copy
 
 

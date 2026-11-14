@@ -621,18 +621,13 @@ def test_must_all_pinned_floor_rolls_back_with_disclosure():
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._solve = _greedy_solve(240)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
-    # 2026-11-13 第三拍（9401148）：全候选日无解的端点日违例必去不再回滚
-    # 灰卡——移除出行程落 unplaced（端点日绝不留违例卡），披露「移除+可
-    # 指定天加回」；钉死件（可行）照旧不删。
-    assert not any(i.name == "用户点名馆" for d in out.days for i in d.items), (
-        "全候选日无解的违例必去不再滞留端点日"
-    )
-    chip = next(u for u in out.unplaced if u.name == "用户点名馆")
-    assert chip.reason == "endpoint_stay"
-    assert any("用户点名馆" in str(a) and "移除" in str(a) for a in out.assumptions)
+    must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
+    assert must_out.day == 1 and must_out.start_time is None, "不可行即回滚留灰卡"
+    assert not any("救生改排" in str(a) for a in out.assumptions)
     names = _visit_names(out)
     for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁", "钉死点戊"):
         assert n in names, "删无可删时谁都不删"
+    assert not out.unplaced
 
 
 def test_transfer_day_must_force_ejects_from_later_day():
