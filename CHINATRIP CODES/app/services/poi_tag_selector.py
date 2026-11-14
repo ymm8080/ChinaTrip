@@ -61,9 +61,7 @@ GROUP_FAMILY: dict[str, str] = {
 # 设计 §一 全表序（封顶截断后仍按此序输出 user_groups）
 _TABLE_ORDER: dict[str, int] = {
     tag: i
-    for i, tag in enumerate(
-        g for groups in GROUPS_BY_FAMILY.values() for g in groups
-    )
+    for i, tag in enumerate(g for groups in GROUPS_BY_FAMILY.values() for g in groups)
 }
 
 # 混入 pois 表的服务类行（DESIGN §一末注）：不进任何用户标签
@@ -112,9 +110,7 @@ def classify_poi(
 
     tg = {str(t or "").strip() for t in (tags or []) if str(t or "").strip()}
     rv = {
-        c
-        for c in (coarse_tag(str(t or "").strip()) for t in (review_tags or []))
-        if c
+        c for c in (coarse_tag(str(t or "").strip()) for t in (review_tags or [])) if c
     }
     nm = str(name or "").strip()
     src = str(source or "").strip().lower()
@@ -318,8 +314,10 @@ def _dry_run() -> None:  # pragma: no cover — ops 工具入口
 
     total = len(rows)
     tagged = sum(fam_counter.values())
-    print(f"total={total} tagged={tagged} excluded={excluded} "
-          f"unmatched={unmatched} tags_per_poi={dict(sorted(n_tags_dist.items()))}")
+    print(
+        f"total={total} tagged={tagged} excluded={excluded} "
+        f"unmatched={unmatched} tags_per_poi={dict(sorted(n_tags_dist.items()))}"
+    )
     print("--- 按一级（行数，一行可属多二级故同一行只计一次） ---")
     for fam, groups in GROUPS_BY_FAMILY.items():
         print(f"  {fam}\t{fam_counter.get(fam, 0)}")

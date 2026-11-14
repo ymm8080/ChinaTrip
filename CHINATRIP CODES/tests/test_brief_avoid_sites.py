@@ -18,9 +18,12 @@ def test_positive_mention_elsewhere_keeps_the_site():
 
 def test_plain_wishlist_has_no_exclusions():
     text = "五道营胡同、国子监、白塔寺、杨梅竹斜街，穿插本地小吃"
-    assert _negated_brief_sites(
-        text, ["五道营胡同", "孔庙和国子监博物馆", "白塔寺", "杨梅竹斜街"]
-    ) == []
+    assert (
+        _negated_brief_sites(
+            text, ["五道营胡同", "孔庙和国子监博物馆", "白塔寺", "杨梅竹斜街"]
+        )
+        == []
+    )
 
 
 def test_english_avoid_phrase():
