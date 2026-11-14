@@ -10395,6 +10395,22 @@ def _fallback_sequence_times(
         # 贴邻豁免锚点（2026-11-07 城心同街拆天案）：记录本
         # 日下午已排大点的坐标，供下方「第二个下午大点」跳过前判近距同日圈。
         afternoon_big_xy: tuple[float, float] | None = None
+        # 定时餐占位窗（2026-11-14 修复兜底压卡）：占位件软挪设计下不进
+        # fixed 墙（11-13 大体量商业体案），但已带时刻的午/晚占位卡也不该
+        # 被兜底直接压上（熊猫 11:30-14:30 压 11:30-12:00 午窗实测）——
+        # 落位先试越过餐窗，越过不可行再回落压窗原位（占位件由重排让位，
+        # 11-13 口径不破）。
+        _meal_walls: list[tuple[int, int]] = []
+        for it in day.items:
+            if (
+                isinstance(it, VisitItem)
+                and it.start_time is not None
+                and (is_lunch_placeholder(it) or is_dinner_placeholder(it))
+            ):
+                _ws = it.start_time.hour * 60 + it.start_time.minute
+                _we = _item_end_minutes(it)
+                if _we is not None and _we > _ws:
+                    _meal_walls.append((_ws, _we))
         for v in day.items:
             if (
                 isinstance(v, VisitItem)
@@ -10749,7 +10765,46 @@ def _fallback_sequence_times(
                     and _fits_hours_window(hours, t, dur)
                     and _city_side_ok(xfer_windows, visit, t, dur)
                 ):
-                    placed_at = t
+                    # 压餐窗先试越过（2026-11-14）：越过档过不了闸才回落
+                    # 压窗原位（占位件重排让位兜底，11-13 口径不破）。
+                    # keep_list_order（用户权威重排）豁免——拖拽邻接语义
+                    # 维持既有口径（实测腿回归锚依赖 visit-visit 邻接）。
+                    _skip = t
+                    _wall_adv = not keep_list_order
+                    while _wall_adv:
+                        _wall_adv = False
+                        for _mws, _mwe in _meal_walls:
+                            if _skip < _mwe and _skip + dur > _mws:
+                                _skip = _mwe
+                                _wall_adv = True
+                                break
+                    if _skip > t:
+                        _t2 = _skip
+                        _adv2 = True
+                        while _adv2:
+                            _adv2 = False
+                            for (fs, fe), (_rs, _re, src) in zip(
+                                _leg_windows(fixed, visit), fixed
+                            ):
+                                if not (_t2 < fe and _t2 + dur > fs):
+                                    continue
+                                if _block_family_window(src, visit, _t2, dur):
+                                    continue
+                                _t2 = fe
+                                _adv2 = True
+                                break
+                        _t2 = _advance_past_combo(_t2, dur)
+                        if (
+                            _t2 + dur <= day_end
+                            and (cap is None or _t2 <= cap)
+                            and _fits_hours_window(hours, _t2, dur)
+                            and _city_side_ok(xfer_windows, visit, _t2, dur)
+                        ):
+                            placed_at = _t2
+                        else:
+                            placed_at = t
+                    else:
+                        placed_at = t
                 if (
                     placed_at is not None
                     and not keep_list_order
@@ -18492,7 +18547,13 @@ class PlanningAgent:
                     notes.append(f"{city}预报全段有雨：选点已优先室内")
             # 近距评分择优/择近（2026-11-12 用户拍板：8km 内选评分高的，
             # 差 <0.3 选离城心近的）：街区块前置之前生效，块序仍终裁。
-            ordered = _rating_near_priority(ordered, _pref_hit)
+            # 体验型（茶/演出，11-07「每行程最少两个」保底）不参比不降位
+            # ——评分重扫把 4.6 图商点顶到 4.0 茶馆前，4 席满日体验保底
+            # 被挤爆（2026-11-14 test_experience_types_rank 回归根修）；
+            # 与手建/偏好件同属「不参比不降位」保护类。
+            ordered = _rating_near_priority(
+                ordered, lambda c: _pref_hit(c) or _is_experience_cand(c)
+            )
             # 街区演出块同档前置（2026-11-06 三拍「街区演出 PRIORITY 大于
             # 普通街区」）：晴天/雨天两套排序共用此收口，池上限切片前生效。
             ordered = _street_block_priority(ordered)
@@ -20491,6 +20552,13 @@ class PlanningAgent:
                                     or c.get("created")
                                     or c.get("curated")
                                     or str(c.get("category") or "") in ("food", "hotel")
+                                    # 多样保位组（2026-11-07「商业中心/CITYWALK
+                                    # 要能与 5A 竞争」+11-08 扩茶）不参与
+                                    # walk-adjacent 弱者让位——名录档把多样行
+                                    # 压到 tier11 末带，档位序比较恒判「弱」，
+                                    # 贴邻让位一跑多样行先被清空（2026-11-14
+                                    # test_plan_diversity_rescue 回归根修）。
+                                    or _cand_diversity_group(c) is not None
                                 )
                                 for p, c in placed[d]
                             }
@@ -27191,6 +27259,15 @@ class PlanningAgent:
                     # 挪到空窗再复检，挪不动（真空窗不足）才留给修复轮。
                     _retime_meal_placeholders(applied, ensure_cards=False)
                     report = validate_plan(applied, poi_hours=[])
+                    # 铁律 19 复检（2026-11-14 修复）：上一步只跑
+                    # validate_plan——钉住件被挪动/改时的 rule 19 判定
+                    # （validate_pinned）不在其列，占位让位复检把原拒绝
+                    # 整个吞掉，未命名 retime 钉件被静默放行。
+                    _pinned_re = validate_pinned(session.plan, applied)
+                    if _pinned_re.violations:
+                        _comb = list(report.violations) + _pinned_re.violations
+                        _has_err = any(v.severity == RuleSeverity.error for v in _comb)
+                        report = ValidationReport(ok=not _has_err, violations=_comb)
                     hard = [
                         v for v in report.violations if v.severity == RuleSeverity.error
                     ]
