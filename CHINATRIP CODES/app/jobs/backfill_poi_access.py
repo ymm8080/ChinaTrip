@@ -14,7 +14,10 @@
 
 用法：
     python -m app.jobs.backfill_poi_access [--city 北京] [--limit 200]
-        [--min-km 15] [--sleep 0.2] [--force] [--dry-run]
+        [--min-km 15] [--sleep 0.2] [--concurrency 4] [--force] [--dry-run]
+
+并发：商链单次 8–30s（百度偶发超时回落高德），串行跑全库 3000+ 个点要一天
+多；默认 4 路并发（同一 AK 不宜再高，配额打穿会按日 latch 到另一家）。
 """
 
 from __future__ import annotations
@@ -115,6 +118,7 @@ async def run(
     limit: int = 200,
     min_km: float = 15.0,
     sleep: float = 0.2,
+    concurrency: int = 4,
     force: bool = False,
     dry_run: bool = False,
 ) -> int:
@@ -132,36 +136,42 @@ async def run(
         return 0
 
     latch: dict[str, str] = {}
-    written = failed = 0
-    for pid, name, row_city, km, lon, lat in rows:
-        plans, vendor = await _plans_for(
-            chain, city=str(row_city), lon=lon, lat=lat, latch=latch
-        )
-        summary = summarize(plans)
-        if not summary:
-            failed += 1
-            print(f"  ✗ {row_city} {name}（{km:.0f}km）无方案")
+    sem = asyncio.Semaphore(max(1, concurrency))
+    stats = {"written": 0, "failed": 0}
+
+    async def one(row) -> None:
+        pid, name, row_city, km, lon, lat = row
+        async with sem:
+            plans, vendor = await _plans_for(
+                chain, city=str(row_city), lon=lon, lat=lat, latch=latch
+            )
+            summary = summarize(plans)
+            if not summary:
+                stats["failed"] += 1
+                print(f"  ✗ {row_city} {name}（{km:.0f}km）无方案")
+                await asyncio.sleep(sleep)
+                return
+            if dry_run:
+                stats["written"] += 1
+                print(f"  · {row_city} {name}（{km:.0f}km）{summary['access_note']}")
+                await asyncio.sleep(sleep)
+                return
+            with factory() as session:
+                db_row = session.get(Poi, pid)
+                if db_row is None or (db_row.access_updated_at and not force):
+                    return
+                for key, value in summary.items():
+                    setattr(db_row, key, value)
+                db_row.access_source = f"{vendor}-transit" if vendor else "transit"
+                db_row.access_updated_at = datetime.now()
+                session.commit()
+            stats["written"] += 1
+            print(f"  ✓ {row_city} {name}（{km:.0f}km）{summary['access_note']}")
             await asyncio.sleep(sleep)
-            continue
-        if dry_run:
-            written += 1
-            print(f"  · {row_city} {name}（{km:.0f}km）{summary['access_note']}")
-            await asyncio.sleep(sleep)
-            continue
-        with factory() as session:
-            db_row = session.get(Poi, pid)
-            if db_row is None or (db_row.access_updated_at and not force):
-                continue
-            for key, value in summary.items():
-                setattr(db_row, key, value)
-            db_row.access_source = f"{vendor}-transit" if vendor else "transit"
-            db_row.access_updated_at = datetime.now()
-            session.commit()
-        written += 1
-        print(f"  ✓ {row_city} {name}（{km:.0f}km）{summary['access_note']}")
-        await asyncio.sleep(sleep)
-    print(f"写入 {written} / 失败 {failed} / 候选 {len(rows)}")
-    return written
+
+    await asyncio.gather(*(one(row) for row in rows))
+    print(f"写入 {stats['written']} / 失败 {stats['failed']} / 候选 {len(rows)}")
+    return stats["written"]
 
 
 def main() -> None:
@@ -172,6 +182,9 @@ def main() -> None:
         "--min-km", type=float, default=15.0, help="只回填距城心超过此距离的点"
     )
     parser.add_argument("--sleep", type=float, default=0.2, help="每条之间歇秒")
+    parser.add_argument(
+        "--concurrency", type=int, default=4, help="并发条数（默认 4，同一 AK 别调高）"
+    )
     parser.add_argument("--force", action="store_true", help="重算已填行")
     parser.add_argument("--dry-run", action="store_true", help="只打印不写库")
     args = parser.parse_args()
@@ -182,6 +195,7 @@ def main() -> None:
             limit=args.limit,
             min_km=args.min_km,
             sleep=args.sleep,
+            concurrency=args.concurrency,
             force=args.force,
             dry_run=args.dry_run,
         )
