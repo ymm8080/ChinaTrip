@@ -52,12 +52,11 @@ logger = logging.getLogger(__name__)
 # 时刻是客观固定窗，不受此日始钳制（火车 8 点出发照常）。
 DAY_START_MINUTES = 8 * 60 + 30
 DAY_END_MINUTES = 21 * 60
-#: 酒店卡（回酒店·夜间休息/从酒店出发）的日终口径（2026-11-14 拍板）：
-#: 夜卡按「末件 +30 起 60 分钟」落 20:30–21:30、最迟贴 23:59
-#:（hotel_stays._night_window），不吃观光 21:00 日终闸——否则软钉夜卡
-#: 的 pin 落在 hi=21:00-dur 之外，_visit_spec 恒 None，含定时夜卡的天
-#: 在重解/必去跨日救生试宿里整日塌方（钉住必去因此永远排不进：故宫案）。
-HOTEL_DAY_END_MINUTES = 23 * 60 + 59
+#: 酒店卡（回酒店·夜间休息/从酒店出发）不是可排条目（2026-11-14 用户
+#: 拍板「hotel night-rest cards SHOULD eat the 21:00 sightseeing cap」）：
+#: 观光 21:00 日终闸对一切可排条目生效，酒店卡只作**固定占用窗**参与
+#: （CP NoOverlap / 插入 occupied），不进 _visit_spec 可行域——20:30 夜卡
+#: 若按普通条目判域会越出 hi=21:00-dur 把整日判死（故宫灰卡案根因）。
 #: 晚场演出可突破日终（2026-11-11 用户拍板「晚二场信息可以显示出来」）：
 #: 场次点窗起点不受 DAY_END_MINUTES 回减约束——双晚场演出的第二晚场
 #: （常见 21:10/21:35/21:40 量级）此前被场次上界滤掉，只剩首晚场可排。
@@ -758,13 +757,9 @@ def _visit_spec(
     if dur <= 0:
         return None
 
-    # 酒店卡（夜宿/晨启）不吃观光日终 21:00 闸（2026-11-14 故宫灰卡根修）：
-    # 夜卡 20:30–21:30 是合法落位，pin 超出 hi=21:00-dur 会让含夜卡的天
-    # 在插入/CP 两路恒判不可行，整日冻结、必去跨日救生恒回滚。
-    day_end_cap = (
-        HOTEL_DAY_END_MINUTES if (item.category or "") == "hotel" else DAY_END_MINUTES
-    )
-    lo, hi = DAY_START_MINUTES, day_end_cap - dur
+    # 观光日终 21:00 闸对所有可排条目生效（酒店卡不进本函数——它们由
+    # 调用方按固定占用窗处理，2026-11-14 用户拍板）。
+    lo, hi = DAY_START_MINUTES, DAY_END_MINUTES - dur
     dur_lo = 0  # 0=固定时长；软钉午餐在 pinned 分支激活区间下界
     # 8.2.1：时段属性先收窄开窗（lo=max(窗起, 08:00)、hi=min(窗止, 21:00)-
     # dur），再依次与营业时间窗、pinned 锚点收紧。未知枚举值按 "any" 处理
@@ -1121,8 +1116,15 @@ def solve_day(
     Every input item must appear in the output (no drops); if the full
     set cannot be scheduled the day fails atomically and None is
     returned so the caller can enter the §6.9 degradation chain.
+
+    酒店卡（回酒店·夜间休息/从酒店出发）不是可排条目（2026-11-14 用户
+    拍板「hotel night-rest cards SHOULD eat the 21:00 sightseeing cap」）：
+    它们按固定占用窗进 NoOverlap（观光仍受 21:00 闸），不进 _visit_spec
+    可行域——否则 20:30 夜卡越出 hi=21:00-dur 会把整日判死。
     """
-    visits = [i for i in day.items if isinstance(i, VisitItem)]
+    visits_all = [i for i in day.items if isinstance(i, VisitItem)]
+    hotels = [(v) for v in visits_all if (v.category or "") == "hotel"]
+    visits = [v for v in visits_all if (v.category or "") != "hotel"]
     transfers = [i for i in day.items if isinstance(i, TransferItem)]
     if not visits and not transfers:
         return day.model_copy(deep=True)
@@ -1199,6 +1201,21 @@ def solve_day(
         for item, ts, tdur in transfer_windows:
             intervals.append(
                 model.NewIntervalVar(ts, tdur, ts + tdur, f"transfer_{item.item_id}")
+            )
+        # 酒店卡固定占用窗（2026-11-14：夜卡吃 21:00 闸但不判死整日）
+        for h in hotels:
+            if h.start_time is None:
+                continue
+            hs = _to_minutes(h.start_time)
+            he = (
+                _to_minutes(h.end_time)
+                if h.end_time is not None
+                else hs + int(h.duration_minutes or 60)
+            )
+            if he <= hs:
+                continue
+            intervals.append(
+                model.NewIntervalVar(hs, he - hs, he, f"hotel_{h.item_id}")
             )
         model.AddNoOverlap(intervals)
 
@@ -1461,6 +1478,11 @@ def solve_day(
         if item.end_time is None:
             updates["end_time"] = _to_time(ts + tdur)
         placed.append((ts, item.model_copy(update=updates)))
+    # 酒店卡原样回归输出（不参与排程，只作固定窗；2026-11-14 用户拍板）
+    for h in hotels:
+        placed.append(
+            (24 * 60 + 1 if h.start_time is None else _to_minutes(h.start_time), h)
+        )
     placed.sort(key=lambda pair: (pair[0], pair[1].item_id))
     return DayPlan(day=day.day, base_city=day.base_city, items=[i for _, i in placed])
 
@@ -1488,7 +1510,12 @@ def insertion_schedule_day(
     按走行分钟隔开（与 CP separate 模式同语义）；无 matrix 背靠背合法
     （NoOverlap 同语义）。None=当天有排不下的条目→调用方回落 CP。
     """
-    visits = [i for i in day.items if isinstance(i, VisitItem)]
+    visits_all = [i for i in day.items if isinstance(i, VisitItem)]
+    # 酒店卡不是可排条目（2026-11-14 用户拍板）：只作固定占用窗，不进
+    # _visit_spec 可行域（夜卡 20:30 若按普通条目判域会越出 21:00 闸把
+    # 整日判不可行）。
+    hotels = [v for v in visits_all if (v.category or "") == "hotel"]
+    visits = [v for v in visits_all if (v.category or "") != "hotel"]
     transfers = [i for i in day.items if isinstance(i, TransferItem)]
     if not visits and not transfers:
         return day.model_copy(deep=True)
@@ -1518,9 +1545,7 @@ def insertion_schedule_day(
     # 排在最前插入，远的先吃上午头档。pinned 未排在 _visit_spec 已不可
     # 行（整日交兜底层置换），本组实际只有非钉 tier≤3 候选。
     _head_p = _head_pick(specs, travel_minutes)
-    _head_anchor = next(
-        (sp.item for sp in specs if (sp.item.category or "") == "hotel"), None
-    )
+    _head_anchor = next((h for h in hotels if h.start_time is not None), None)
 
     def _head_dist(s: _VisitSpec) -> int:
         if (
@@ -1597,6 +1622,18 @@ def insertion_schedule_day(
                         pitem.name,
                         _travel_cost(pitem, oitem, travel_minutes),
                     )
+    # 酒店卡固定占用窗（2026-11-14：夜卡吃 21:00 闸但不判死整日）
+    for h in hotels:
+        if h.start_time is None:
+            continue
+        hs = _to_minutes(h.start_time)
+        he = (
+            _to_minutes(h.end_time)
+            if h.end_time is not None
+            else hs + int(h.duration_minutes or 60)
+        )
+        if he > hs:
+            occupied.append((hs, he, h))
     occupied.sort(key=lambda o: o[0])
 
     def _travel(a, b) -> int:
@@ -1919,10 +1956,15 @@ def insertion_schedule_day(
             not s.item.pinned and s.item.soft_pin and (s.item.category or "") == "food"
         )
         soft_food_yieldable = flex_day and soft_food
+        # 约束紧者先钉（2026-11-14 用户拍板「按重要度和约束强者钉住时间
+        # ——show time / best visit time / open hours etc.，然后排相邻
+        # 景点」）：最晚可行起点 s.hi 越早=窗口越紧，越先占位——否则
+        # 3h 的慕田峪先插把 2h 的故宫（最晚入场 15:30）挤出可行域。
         return (
             0
             if s.item.pinned
             else (3 if soft_food_yieldable else (1 if soft_food else 2)),
+            s.hi,
             0 if (_head_p is not None and _is_head_candidate(s.item)) else 1,
             -_head_dist(s),
             -s.dur,
@@ -2147,6 +2189,8 @@ def insertion_schedule_day(
     placed: list[tuple[int, object]] = []
     seen_transfers: set[str] = set()
     for os_, oe_, oitem in occupied:
+        if isinstance(oitem, VisitItem) and (oitem.category or "") == "hotel":
+            continue  # 酒店卡在下方一次性回归（防重复卡）
         if isinstance(oitem, TransferItem):
             ts = os_ + INTERCITY_BUFFER_MINUTES
             placed.append((ts, oitem))
@@ -2163,6 +2207,14 @@ def insertion_schedule_day(
     for item in transfers:
         if item.item_id not in seen_transfers:
             placed.append((_to_minutes(item.start_time), item))
+    # 酒店卡原样回归输出（不参与排程，只作固定窗）
+    for h in hotels:
+        placed.append(
+            (
+                _to_minutes(h.start_time) if h.start_time is not None else 24 * 60 + 1,
+                h,
+            )
+        )
     placed.sort(key=lambda pair: (pair[0], getattr(pair[1], "item_id", "")))
     for m in unsched_meals:
         if is_lunch_placeholder(m) or is_dinner_placeholder(m):

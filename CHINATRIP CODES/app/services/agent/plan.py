@@ -443,6 +443,25 @@ _TRAVEL_LEG_CAP_MIN = TRAVEL_LEG_CAP_MIN
 RAIN_SWAP_BUDGET_SLACK_MIN = 30
 
 
+def _has_usable_time_info(hours: str | None) -> bool:
+    """场馆/演出是否带可用时间信息（2026-11-14 用户拍板「无场次演出不被
+    提案；有场次演出可以被提案」）：真场次列表、或具体时段（「19:30-21:00」
+    「09:00-17:00」）都算有信息；纯档期制（「场次随排期（档期制，以当日
+    公告为准）」）或空 → 没有可钉的时间，自动通道不提案（国家大剧院案）。
+    """
+    text = str(hours or "").strip()
+    if not text:
+        return False
+    if show_session_starts(text):
+        return True
+    return bool(
+        re.search(
+            r"\d{1,2}[:：]\d{2}\s*[-–~—至]\s*\d{1,2}[:：]\d{2}",
+            text,
+        )
+    )
+
+
 def _cand_is_show(cand: dict) -> bool:
     """演出候选判定（2026-10-29 功能标签批打后认 tags）：04 演艺源 /
     娱乐类 / 宜演出时段之外，标签 show 同样算——amap 源的川剧院等
@@ -5807,8 +5826,28 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
 
     for day in plan.days:
         for item in day.items:
-            if not isinstance(item, VisitItem) or item.fixed_sessions:
-                continue  # 已打标/非 VisitItem 跳过（幂等）
+            if not isinstance(item, VisitItem):
+                continue
+            if item.fixed_sessions:
+                # 已打标也强制纠正（2026-11-14 UAT：行程中心载入/编辑旧行程
+                # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
+                # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
+                flag_min = min(
+                    item.fixed_sessions[0].hour * 60
+                    + item.fixed_sessions[0].minute
+                    for _t0 in [0]
+                ) if False else min(
+                    t.hour * 60 + t.minute for t in item.fixed_sessions
+                )
+                if item.start_time is not None and (
+                    item.start_time.hour * 60 + item.start_time.minute
+                ) != flag_min:
+                    dur = item.duration_minutes or DEFAULT_VISIT_MINUTES
+                    item.start_time = time(flag_min // 60, flag_min % 60)
+                    item.end_time = time(
+                        (flag_min + dur) // 60 % 24, (flag_min + dur) % 60
+                    )
+                continue
             name = str(item.name or "")
             if "天安门" not in name and "tiananmen" not in name.lower():
                 continue
@@ -9184,7 +9223,7 @@ def _pick_arrival_nearby(
     show = [
         c
         for c in cands
-        if _cand_is_show(c) and show_session_starts(c.get("opening_hours"))
+        if _cand_is_show(c) and _has_usable_time_info(c.get("opening_hours"))
     ]
     relax = [
         c
@@ -12964,6 +13003,457 @@ def _enforce_site_day_fit(
     return notes
 
 
+# 必去族定天容量口径（2026-11-14 用户四段式拍板①）：可用日窗 08:30–21:30
+# 扣掉两餐 150 分钟与酒店卡 60 分钟后的可参访分钟数。
+_MUST_DAY_USABLE_MIN = (1290 - 510) - 150 - 60
+# 跨片区同天的双程通勤罚时（≈75 分钟单程，远郊大点/跨城片区口径）。
+_MUST_CROSS_AREA_PENALTY_MIN = 150
+
+
+def _must_visit_families(plan: ItineraryPlan) -> list[list[VisitItem]]:
+    """必去观光件按 ≤NEAR_SAMEDAY_KM 单链聚族（同片区一家人）。"""
+    fams: list[list[VisitItem]] = []
+    pts: list[list[GeoPoint]] = []
+    for d in plan.days:
+        for v in d.items:
+            if not (
+                isinstance(v, VisitItem)
+                and getattr(v, "must", False)
+                and (v.category or "") not in ("food", "hotel")
+                and getattr(v, "location", None) is not None
+            ):
+                continue
+            loc = GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+            hit = None
+            for idx in range(len(fams)):
+                if any(haversine_km(loc, p) <= NEAR_SAMEDAY_KM for p in pts[idx]):
+                    hit = idx
+                    break
+            if hit is None:
+                fams.append([v])
+                pts.append([loc])
+            else:
+                fams[hit].append(v)
+                pts[hit].append(loc)
+    return fams
+
+
+def _must_day_load(plan: ItineraryPlan, day: DayPlan) -> int:
+    """一天已被必去占掉的分钟数（必去参访 + 城际转场时长）。"""
+    total = 0
+    for it in day.items:
+        if isinstance(it, VisitItem):
+            if getattr(it, "must", False) and (it.category or "") not in (
+                "food",
+                "hotel",
+            ):
+                total += int(it.duration_minutes or DEFAULT_VISIT_MINUTES)
+        elif isinstance(it, TransferItem) and it.start_time is not None:
+            end = _item_end_minutes(it)
+            if end is not None:
+                start = it.start_time.hour * 60 + it.start_time.minute
+                total += max(0, end - start)
+    return total
+
+
+def _assign_must_family_days(plan: ItineraryPlan) -> list[str]:
+    """必去族定天（2026-11-14 用户四段式拍板①「先按地理分组」）。
+
+    必去按 ≤NEAR_SAMEDAY_KM 单链聚族后：
+
+    - **多成员族（≥2 件同片区）独占一天**：它是一天的地基（天安门+故宫+
+      天坛 一天），定天代价 = 当天已提交负载 + 本族时长 + 跨片区双程通勤
+      罚时，超容量记重罚；
+    - **单点族**（远郊大点/独立园林）先塞**非核心天**（有核心族的天要留给
+      那片区的邻居件），按同一代价挑最省的天；
+    - 天真不够时单点族仍按最小代价落到核心天，绝不静默丢。
+
+    整族搬（清时刻，时刻交给 `_pin_musts_by_importance` 重钉）；族已同天
+    零改动（幂等）。
+    """
+    notes: list[str] = []
+    fams = _must_visit_families(plan)
+    if len(fams) < 2:
+        return notes
+    day_by_no = {d.day: d for d in plan.days}
+
+    def fam_duration(fam: list[VisitItem]) -> int:
+        return sum(int(v.duration_minutes or DEFAULT_VISIT_MINUTES) for v in fam)
+
+    def fam_pts(fam: list[VisitItem]) -> list[GeoPoint]:
+        return [
+            GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+            for v in fam
+            if getattr(v, "location", None) is not None
+        ]
+
+    def day_pts(items: list[VisitItem]) -> list[GeoPoint]:
+        return [
+            GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+            for v in items
+            if getattr(v, "location", None) is not None
+        ]
+
+    def anchor_no(fam: list[VisitItem]) -> int:
+        by_day: dict[int, list[VisitItem]] = {}
+        for v in fam:
+            by_day.setdefault(int(v.day), []).append(v)
+        most = max(len(v) for v in by_day.values())
+        tied = [d for d, v in by_day.items() if len(v) == most]
+        return min(tied, key=lambda d: min(_must_rank_key(v) for v in by_day[d]))
+
+    ordered = sorted(
+        fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f))
+    )
+    cores = [f for f in ordered if len(f) >= 2]
+    singles = [f for f in ordered if len(f) < 2]
+    placed_items: dict[int, list[VisitItem]] = {}
+    placed_dur: dict[int, int] = {}
+    core_days: set[int] = set()
+    decision: dict[int, int] = {}
+
+    def pick(fam: list[VisitItem], allowed: list[DayPlan]) -> int | None:
+        dur = fam_duration(fam)
+        fpts = fam_pts(fam)
+        best: tuple[int, int] | None = None
+        for day in allowed:
+            if any((v.city or "") and not _day_hosts_city(day, v.city) for v in fam):
+                continue
+            pen = 0
+            opts = day_pts(placed_items.get(day.day, []))
+            if fpts and opts:
+                near = min(haversine_km(p, o) for p in fpts for o in opts)
+                if near > _DISTRICT_DAY_KM:
+                    pen = _MUST_CROSS_AREA_PENALTY_MIN
+            cost = placed_dur.get(day.day, 0) + dur + pen
+            over = max(0, cost - _MUST_DAY_USABLE_MIN)
+            score = over * 10 + cost
+            if best is None or score < best[0]:
+                best = (score, day.day)
+        return None if best is None else best[1]
+
+    for fam in cores:
+        # 核心族优先选没人用的天；都有人用就挑最省的
+        free = [d for d in plan.days if d.day not in core_days]
+        target = pick(fam, free) if free else None
+        if target is None:
+            target = pick(fam, plan.days)
+        if target is None:
+            target = anchor_no(fam)
+        decision[id(fam)] = target
+        core_days.add(target)
+        placed_items.setdefault(target, []).extend(fam)
+        placed_dur[target] = placed_dur.get(target, 0) + fam_duration(fam)
+
+    for fam in singles:
+        others = [d for d in plan.days if d.day not in core_days]
+        target = pick(fam, others) if others else None
+        if target is None:
+            target = pick(fam, plan.days)
+        if target is None:
+            target = anchor_no(fam)
+        decision[id(fam)] = target
+        placed_items.setdefault(target, []).extend(fam)
+        placed_dur[target] = placed_dur.get(target, 0) + fam_duration(fam)
+
+    for fam in fams:
+        target_no = decision.get(id(fam))
+        if target_no is None:
+            continue
+        target = day_by_no.get(target_no)
+        if target is None:
+            continue
+        moved: list[VisitItem] = []
+        for v in fam:
+            if int(v.day) == target_no:
+                continue
+            src = day_by_no.get(int(v.day))
+            if src is not None and v in src.items:
+                src.items.remove(v)
+            v.day = target_no
+            v.start_time = None
+            v.end_time = None
+            v.pinned = False
+            target.items.append(v)
+            moved.append(v)
+        if moved:
+            for day in plan.days:
+                day.items.sort(
+                    key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+                )
+            names = "、".join(v.name for v in moved)
+            notes.append(
+                L(
+                    f"按同片区整族并到第{target_no}天：{names}",
+                    f"Grouped by area onto day {target_no}: {names}",
+                )
+            )
+    return notes
+
+
+def _must_rank_key(v: VisitItem) -> tuple:
+    """必去重要度键（2026-11-14 用户拍板「按重要度和约束强者钉住时间」）：
+    名录秩升序 → 档位升序 → 时长降序（同等重要度时大块头先占位）。"""
+    rank = getattr(v, "site_rank", None)
+    tier = getattr(v, "tier", None)
+    return (
+        rank if isinstance(rank, int) else 99,
+        tier if isinstance(tier, int) else 99,
+        -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
+    )
+
+
+def _must_yield_ok(v: VisitItem, keep: VisitItem) -> bool:
+    """让位梯子（2026-11-14 用户拍板「保留最高优先级，删最低优先级」）：
+    keep 要落位时，v 是否比它更弱可删——非必去凑数件最弱；必去之间比
+    名录秩/档位（如 rank 10 的天安门给 rank 0 的故宫让位）；手建/心愿
+    /精选/钉住的非必去件不在自动删除范围。"""
+    if v is keep:
+        return False
+    if getattr(v, "created", False) or getattr(v, "curated", False):
+        return False
+    if (v.category or "") in ("food", "hotel"):
+        return False
+    if getattr(v, "must", False):
+        vr, pr = getattr(v, "site_rank", None), getattr(keep, "site_rank", None)
+        if isinstance(vr, int) and isinstance(pr, int) and vr != pr:
+            return vr > pr
+        vt, pt = getattr(v, "tier", None), getattr(keep, "tier", None)
+        if isinstance(vt, int) and isinstance(pt, int):
+            return vt > pt
+        return False
+    return not getattr(v, "pinned", False)
+
+
+def _must_chain_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
+    """同天必去的先后（用户「再排相邻的景点」）：远郊大点先出门（长途走
+    早段少堵），其余从当天起点（酒店卡坐标）就近串联。"""
+
+    def _pt(v: VisitItem) -> GeoPoint | None:
+        loc = getattr(v, "location", None)
+        if loc is None:
+            return None
+        return GeoPoint(lon=float(loc.lon), lat=float(loc.lat))
+
+    start: GeoPoint | None = None
+    for it in day.items:
+        if isinstance(it, VisitItem) and (it.category or "") == "hotel":
+            start = _pt(it)
+            if start is not None:
+                break
+    if start is None:
+        for it in day.items:
+            if isinstance(it, VisitItem) and (it.category or "") not in (
+                "food",
+                "hotel",
+            ):
+                start = _pt(it)
+                if start is not None:
+                    break
+    far: list[VisitItem] = []
+    rest = list(musts)
+    if start is not None:
+        far = [
+            v
+            for v in rest
+            if _pt(v) is not None and haversine_km(start, _pt(v)) > 40
+        ]
+        rest = [v for v in rest if v not in far]
+        far.sort(key=lambda v: -haversine_km(start, _pt(v)))
+    order: list[VisitItem] = list(far)
+    cur = start
+    while rest:
+        if cur is None:
+            order.extend(rest)
+            break
+        nxt = min(
+            rest,
+            key=lambda v: haversine_km(cur, _pt(v)) if _pt(v) is not None else 1e9,
+        )
+        rest.remove(nxt)
+        order.append(nxt)
+        nxt_pt = _pt(nxt)
+        if nxt_pt is not None:
+            cur = nxt_pt
+    return order
+
+
+def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
+    """必去按「地理顺序 + 重要度/约束」先钉时刻（2026-11-14 用户四段式）。
+
+    ①地理分组已由 `_assign_must_family_days` 在天层完成；
+    ②每天未排的必去按 `_must_chain_order`（远郊先出门、其余就近串联）逐个
+    钉住具体时刻，落位探针统一吃营业窗/入场闸/最佳时段/场次，越重要的点
+    越先拿到它最合适的档（探针按重要度给出的窗口取最早可行）；
+    ③其余相邻景点由求解器在剩余空档排；
+    ④落不下先删当日凑数件（非必去非手建非精选非钉），再删更弱的必去
+    （名录秩更大者先，如 rank 10 的天安门给 rank 0 的故宫让位）；mv 本身
+    就是当日最弱且排不下时留灰卡交下游救生，绝不静默删。
+    餐卡本通道不碰（用户拍板餐卡最后才调，且尽量不动）。幂等。
+    """
+    notes: list[str] = []
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    day_end = 21 * 60 + 30  # 与 _fallback_sequence_times/_must_visit_room_sweep 同口径
+    for day in plan.days:
+        musts = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and getattr(v, "must", False)
+            and (v.category or "") not in ("food", "hotel")
+        ]
+        timed = [v for v in musts if v.start_time is not None]
+        if timed:
+            chain_all = _must_chain_order(day, musts)
+            seq = sorted(timed, key=lambda v: v.start_time)
+            rank_in_chain = {id(v): i for i, v in enumerate(chain_all)}
+            out_of_order = [rank_in_chain[id(v)] for v in seq] != sorted(
+                rank_in_chain[id(v)] for v in seq
+            ) or any(
+                v.start_time is None and rank_in_chain[id(v)] < len(seq)
+                for v in musts
+            )
+            if out_of_order and len(chain_all) >= 2:
+                # 顺序违反地理规则（远郊大点压到本地件后面）：当天必去是
+                # 引擎钉位，按用户拍板「先地理分组再钉时」重钉一次。
+                for v in timed:
+                    v.start_time = None
+                    v.end_time = None
+                    v.pinned = False
+                notes.append(
+                    L(
+                        f"第{day.day}天必去按同片区先后重排（远郊大点走早段）",
+                        f"Day {day.day} must-visits re-ordered by area "
+                        "(long-haul sights first)",
+                    )
+                )
+        remaining = [v for v in musts if v.start_time is None]
+        if not remaining:
+            continue
+        guard = 0
+        while remaining and guard < 20:
+            guard += 1
+            mv = _must_chain_order(day, remaining)[0]
+            dur = mv.duration_minutes or DEFAULT_VISIT_MINUTES
+            fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            start = _probe_visit_slot(
+                mv, fixed, xfer, hours_by_poi, day_end, floor=DAY_START_MINUTES
+            )
+            removed: list[VisitItem] = []
+            if start is None:
+                victims = sorted(
+                    [
+                        v
+                        for v in day.items
+                        if isinstance(v, VisitItem)
+                        and v.start_time is not None
+                        and _must_yield_ok(v, mv)
+                    ],
+                    key=_must_rank_key,
+                    reverse=True,
+                )
+                for w in victims:
+                    day.items.remove(w)
+                    removed.append(w)
+                    fixed2, _t2, _f2, xfer2 = _day_fixed_windows(day)
+                    start = _probe_visit_slot(
+                        mv,
+                        fixed2,
+                        xfer2,
+                        hours_by_poi,
+                        day_end,
+                        floor=DAY_START_MINUTES,
+                    )
+                    if start is not None:
+                        break
+                if start is None:
+                    day.items.extend(removed)  # 全删也放不下：原样回滚
+                    removed = []
+            if start is None:
+                # 当日连最弱件都让光还排不下：本件留灰卡交跨日救生（不静默删）
+                remaining.remove(mv)
+                continue
+            for w in removed:
+                plan.unplaced.append(
+                    UnplacedCandidate(
+                        name=w.name,
+                        name_en=w.name_en,
+                        poi_id=w.poi_id,
+                        category=w.category,
+                        tier=w.tier,
+                        duration_minutes=w.duration_minutes,
+                        location=w.location,
+                        city=w.city,
+                        day_hint=day.day,
+                        reason="yield_must",
+                    )
+                )
+                notes.append(
+                    L(
+                        f"「{w.name}」为必去「{mv.name}」让位（第{day.day}天）"
+                        "——要加回可指定其他天",
+                        f'"{w.name}" stepped aside for must-visit "{mv.name}" '
+                        f"on day {day.day} — name another day to add it back",
+                    )
+                )
+            mv.start_time = _time_of(start)
+            mv.end_time = _time_of(start + dur)
+            mv.pinned = True
+            remaining.remove(mv)
+            day.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+    return notes
+
+
+def _drop_sessionless_shows(plan: ItineraryPlan) -> list[str]:
+    """无场次信息的演出不占位（2026-11-14 用户拍板「无场次演出不被提案」
+
+    旧行程里已经存在的无场次演出（opening_hours 只有档期制/空）在新回合
+    里撤下并进 unplaced 留痕——用户点名/手建/必去的不动；有真场次或具体
+    时段的照排。
+    """
+    notes: list[str] = []
+    for day in plan.days:
+        for item in [
+            i
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and (
+                (i.category or "") in ("show", "performance", "entertainment")
+                or _cand_is_show({"category": i.category or ""})
+            )
+        ]:
+            if getattr(item, "must", False) or getattr(item, "created", False):
+                continue
+            if _has_usable_time_info(item.opening_hours):
+                continue
+            day.items.remove(item)
+            plan.unplaced.append(
+                UnplacedCandidate(
+                    name=item.name,
+                    name_en=item.name_en,
+                    poi_id=item.poi_id,
+                    category=item.category,
+                    tier=item.tier,
+                    duration_minutes=item.duration_minutes,
+                    location=item.location,
+                    city=item.city,
+                    day_hint=day.day,
+                    reason="no_show_time",
+                )
+            )
+            notes.append(
+                L(
+                    f"「{item.name}」没有可定的场次时间（档期制），暂不排——"
+                    "有场次后随时可以加回",
+                    f'"{item.name}" has no bookable session time, so it was '
+                    "left out for now — add it back once sessions are published",
+                )
+            )
+    return notes
+
+
 def _must_visit_room_sweep(
     plan: ItineraryPlan,
     cap_relax: bool = False,
@@ -13038,13 +13528,38 @@ def _must_visit_room_sweep(
                 def _is_placeholder(v: VisitItem) -> bool:
                     return any(fn(v) for fn in _placeholders)
 
+                def _weaker_than_target(v: VisitItem) -> bool:
+                    """必去重要度梯（2026-11-14 用户拍板「组合放不下时应
+                    先考虑删天安门，保证故宫——而不是留天安门、灰卡给
+                    故宫」）：名录秩/档位明显更弱的钉住必去同样可让位，
+                    重要度优先于「钉住」——否则 rank 10 的天安门占着
+                    08:30-10:00，rank 0 的故宫只能灰卡。只在双向可判
+                    且更弱时成立（同级/更强不动，铁律 19 其余照旧）。
+                    """
+                    if not getattr(v, "must", False):
+                        return False
+                    if v is pv or not getattr(v, "pinned", False):
+                        return False
+                    vr = getattr(v, "site_rank", None)
+                    pr = getattr(pv, "site_rank", None)
+                    vt = getattr(v, "tier", None)
+                    pt = getattr(pv, "tier", None)
+                    if isinstance(vr, int) and isinstance(pr, int) and vr != pr:
+                        return vr > pr
+                    if isinstance(vt, int) and isinstance(pt, int) and vt != pt:
+                        return vt > pt
+                    return False
+
                 victims = [
                     v
                     for v in day.items
                     if isinstance(v, VisitItem)
                     and v.start_time is not None
                     and not getattr(v, "created", False)
-                    and not (v.pinned and not getattr(v, "soft_pin", False))
+                    and (
+                        not (v.pinned and not getattr(v, "soft_pin", False))
+                        or _weaker_than_target(v)
+                    )
                     and (
                         (v.category or "") not in ("food", "hotel")
                         or (v.category or "") == "food"
@@ -13056,6 +13571,10 @@ def _must_visit_room_sweep(
                     continue
 
                 def _weak(v: VisitItem) -> tuple:
+                    # 让位顺序（2026-11-14 用户拍板「按重要度和约束强者
+                    # 先钉」）：未点名件先让；同为必去时**名次更弱（rank
+                    # 数更大）的先让**——rank 10 的天安门先于 rank 0 的
+                    # 慕田峪/颐和园/天坛/故宫让位。
                     named = bool(
                         getattr(v, "must", False) or getattr(v, "created", False)
                     )
@@ -18561,7 +19080,7 @@ class PlanningAgent:
                             # WE PICK IT UP?」）：opening_hours 解析不出当
                             # 日场次的行不进自动通道；用户点名的演出仍走
                             # 必去管线（TBA 回落 19:30 口径不变）。
-                            and show_session_starts(h.get("opening_hours"))
+                            and _has_usable_time_info(h.get("opening_hours"))
                             and not _cand_at_fallback(h)  # 回退点闸（P1#1）
                         ][:PLAN_SHOW_RESCUE_LIMIT]
                     )
@@ -20610,7 +21129,7 @@ class PlanningAgent:
                 elif _cand_is_show(cand) and _show_night_only(cand):
                     # 仅夜场/傍晚场 → 晚档收尾桶；含下午场/全天滚动（2026-10-31
                     # 场次扩列）→ 落回 sights 按常规时段排
-                    if not show_session_starts(cand.get("opening_hours")):
+                    if not _has_usable_time_info(cand.get("opening_hours")):
                         # 无真场次的演出不进自动通道（2026-11-14 用户拍板
                         # 「国家大剧院 HAS NO SHOW TIME INFORMATION, WHY WE
                         # PICK IT UP?」）：收尾桶与 sights 双不收（夜场点
@@ -25741,6 +26260,12 @@ class PlanningAgent:
                 plan, tier_by_name=tier_map, protect=frozenset(must_names)
             )
         )
+        # ① 必去族定天（2026-11-14 四段式拍板）：同片区整族归一天，不同
+        # 片区同天计双程通勤，超容才拆。
+        plan.assumptions.extend(_assign_must_family_days(plan))
+        # ② 必去钉时：按重要度+约束强度先占时刻，塞不下删当日最低优先件，
+        # 其余景点交给 solve 在空档排。
+        plan.assumptions.extend(_pin_musts_by_importance(plan))
         # 必去让位清算（2026-11-04 替代组正主挂日尾事故）：solve 前给钉住
         # 未排必去清出整档——自动凑数条目让位留痕，solve 拿到的日窗即可
         # 行，不再出现「必去无时刻挂日尾、凑数点霸下午」的优先级倒挂。
@@ -27806,7 +28331,20 @@ class PlanningAgent:
         ]
         if not stuck:
             return []
-        notes = _must_visit_room_sweep(plan, cap_relax=True)
+        # ① 地理分组先定天（2026-11-14 四段式拍板）：必去同片区整族归一天，
+        # 不同片区同天要计双程通勤，族定天后再钉时刻。
+        notes = _assign_must_family_days(plan)
+        # 无场次演出先摘（用户拍板：没有场次信息的不提案）
+        notes.extend(_drop_sessionless_shows(plan))
+        # ② 必去钉时先行：灰卡必去按重要度+约束抢时刻，塞不下删当日最弱
+        # 件/更弱必去，再走让位清算。
+        notes.extend(_pin_musts_by_importance(plan))
+        notes.extend(_must_visit_room_sweep(plan, cap_relax=True))
+        # ③ 必去骨架钉好后，剩余景点与餐卡交给求解器围着骨架排（相邻景点
+        # 填空档、餐卡=最后才调的槽位）。
+        _solved = self._solve(plan, meal_flex=True)
+        if _solved is not None:
+            plan = _solved
         plan, rescue_notes = self._must_visit_crossday_rescue(
             plan, frozenset(session.must_visits or ())
         )
