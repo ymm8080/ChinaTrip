@@ -63,6 +63,7 @@ from app.services.agent.plan import (
     heal_arrival_light,
     heal_item_ids,
     heal_leg_gaps,
+    heal_meal_cards,
 )
 from app.services.agent.wish_fast import consume_fast_turn
 from app.services.ctrip_hours import get_ctrip_hours
@@ -749,6 +750,8 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 出站前条目 id 重号自愈（2026-11-13 磁器口换点 422）：新增条目可能
         # 撞上会话里载入的旧号，前端拿到重号卡片后按 id 换点会命中别天那条。
         heal_item_ids(session)
+        # 餐卡=槽位、餐厅=数据：旧会话漂在卡窗外的餐厅在出站前回填
+        heal_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
         heal_arrival_light(session.plan)
