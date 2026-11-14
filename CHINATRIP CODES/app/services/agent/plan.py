@@ -5705,9 +5705,10 @@ def _placeholder_leg(t) -> bool:
         return False
     if t.train_no or t.flight_no:
         return False
-    return str(t.from_city or "") in ("出发地", "Origin") or str(
-        t.to_city or ""
-    ) in ("返程地", "Return")
+    return str(t.from_city or "") in ("出发地", "Origin") or str(t.to_city or "") in (
+        "返程地",
+        "Return",
+    )
 
 
 def _drop_placeholder_legs_conflicting(
@@ -5736,8 +5737,7 @@ def _drop_placeholder_legs_conflicting(
             is_arrival = _norm_city_key(t.to_city) == city
             is_departure = _norm_city_key(t.from_city) == city
             if (is_arrival and te + pad > rise_min) or (
-                is_departure
-                and ts - INTERCITY_BUFFER_MINUTES < rise_min + dur
+                is_departure and ts - INTERCITY_BUFFER_MINUTES < rise_min + dur
             ):
                 removed.append((t, "到达" if is_arrival else "离开"))
                 continue
