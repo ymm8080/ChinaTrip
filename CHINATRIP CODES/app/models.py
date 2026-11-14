@@ -424,16 +424,10 @@ class Itinerary(Base):
     # 2026-11-13（用户拍板 trip HEADER：CREATION DATE / CREATOR / DELETION
     # FLAG / TRIP ID / TRIP NAME / LAST CHANGE DATE+TIME）：软删标记、创建人、
     # 最后变更时刻。title=行程名，created_at=创建日期，owner_*=归属。
-    is_deleted: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True)
-    )
+    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     creator_name: Mapped[str | None] = mapped_column(String(100))
-    last_changed_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True)
-    )
+    last_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     # 2026-11-13（用户拍板 HEADER 列）：起始/结束城市、旅行城市一/二
     # 与各自天数、旅行开始日期。
     start_city: Mapped[str | None] = mapped_column(String(50))
@@ -519,9 +513,7 @@ class ItineraryItem(Base):
     city: Mapped[str | None] = mapped_column(String(50))
     category: Mapped[str | None] = mapped_column(String(40))
     address: Mapped[str | None] = mapped_column(String(200))
-    alternatives: Mapped[list | None] = mapped_column(
-        JSONB(none_as_null=True)
-    )
+    alternatives: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     # 2026-11-13（用户拍板明细列：DURATION / SCHEDULE DATE /
     # ALTERNATIVE 1-3）：时长、具体日期、备选名单独成列，方便查询。
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
@@ -738,12 +730,8 @@ class TripItem(Base):
     # 删除审计 / EXCLUSION 都是数据库事实（wish_items 视图直接可查）。
     created_by: Mapped[str | None] = mapped_column(String(64))
     arranged: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
-    exclusion_flag: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
-    deletion_flag: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("false")
-    )
+    exclusion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deletion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     deletion_date: Mapped[date | None] = mapped_column(Date)
     deletion_time: Mapped[time | None] = mapped_column(TIME)
     deleted_by: Mapped[str | None] = mapped_column(String(64))

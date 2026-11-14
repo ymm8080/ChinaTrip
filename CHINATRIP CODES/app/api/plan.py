@@ -145,7 +145,6 @@ def _decode_image_payloads(items: list[str] | None) -> list[tuple[bytes, str]]:
     return out
 
 
-
 class PlanStartRequest(BaseModel):
     cities: list[str] | None = None
     days: int | None = None
@@ -845,8 +844,6 @@ async def confirm_plan_sites(
     return _plan_turn_body(session, reply, change)
 
 
-
-
 @router.post("/plan/{session_id}/images")
 async def plan_session_images(
     session_id: str,
@@ -865,7 +862,7 @@ async def plan_session_images(
     if session is None:
         raise HTTPException(status_code=404, detail="session_not_found")
     images: list[tuple[bytes, str]] = []
-    for upload in list(files)[: _MAX_START_IMAGES]:
+    for upload in list(files)[:_MAX_START_IMAGES]:
         mime = (upload.content_type or "").lower()
         if mime and mime not in _ALLOWED_IMAGE_MIME:
             raise HTTPException(status_code=422, detail="unsupported_image_type")
@@ -883,6 +880,7 @@ async def plan_session_images(
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
     return _plan_turn_body(session, reply, None)
+
 
 def _find_visit_item(plan, item_id: str) -> VisitItem | None:
     for day in plan.days:

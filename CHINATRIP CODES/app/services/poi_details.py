@@ -59,6 +59,7 @@ def _token_span(positions: dict[str, list[int]], tokens: list[str]) -> int | Non
         best = span if best is None else min(best, span)
     return best
 
+
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
 _POINT_WKT_RE = re.compile(r"POINT\((\S+) (\S+)\)")
 
@@ -847,9 +848,7 @@ class PoiDetailStore:
             if not vtoks:
                 return None
             content = [
-                t
-                for t in vtoks
-                if t not in self._TEXT_STOPWORDS and len(t) >= 3
+                t for t in vtoks if t not in self._TEXT_STOPWORDS and len(t) >= 3
             ]
             if not content:
                 return None

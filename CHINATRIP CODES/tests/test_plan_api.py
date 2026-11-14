@@ -591,7 +591,9 @@ def test_images_endpoint_opens_site_round():
         trip_items=svc,
     )
     client = client_for(agent)
-    started = start(client, {"cities": ["北京"], "days": 2, "preferences": "博物馆"}).json()
+    started = start(
+        client, {"cities": ["北京"], "days": 2, "preferences": "博物馆"}
+    ).json()
     sid = started["session_id"]
 
     r = client.post(
@@ -889,7 +891,6 @@ def test_start_brief_single_city_keeps_form_origin():
     )
     assert resp.status_code == 200
     assert resp.json()["plan"]["cities"] == ["北京", "成都"]
-
 
 
 def test_from_itinerary_session_lang_follows_x_lang_header():
@@ -2507,11 +2508,7 @@ def test_delete_night_card_removes_next_morning_card():
         )
     assert resp.status_code == 200
     data = resp.json()
-    ids = [
-        i.get("item_id")
-        for d in data["plan"]["days"]
-        for i in d["items"]
-    ]
+    ids = [i.get("item_id") for d in data["plan"]["days"] for i in d["items"]]
     assert "hotel-night-d1" not in ids
     assert "hotel-morning-d2" not in ids
     assert "hotel-morning-d3" in ids
