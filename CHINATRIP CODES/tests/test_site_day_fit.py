@@ -265,3 +265,16 @@ def test_fit_merges_duplicate_site_cards():
     names = [i.name for d in plan.days for i in d.items if isinstance(i, VisitItem)]
     assert names == ["颐和园"]
     assert any("重复卡" in str(n) for n in notes)
+
+def test_fit_keeps_rain_outdoor_when_no_dry_day():
+    """雨日换不到干日：保留原时刻只披露，绝不下成未排。"""
+    item = _visit("v1", "天安门广场", start=time(9, 0), rain_ok="no")
+    plan = ItineraryPlan(
+        itinerary_id="it-fit6",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[item])],
+        start_date="2026-11-16",
+    )
+    notes = _enforce_site_day_fit(plan, rain_days={"北京": {1}})
+    assert item.start_time == time(9, 0)
+    assert any("雨" in str(n) for n in notes)

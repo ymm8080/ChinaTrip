@@ -12451,7 +12451,25 @@ def _enforce_site_day_fit(
                 break
             if placed:
                 continue
-            # 无处安放：撤时刻留卡（H5 显未排）+ 披露，绝不带着错误时刻交付
+            if problem == "rain_outdoor":
+                # 雨日露天不夺卡（2026-11-14 二裁）：雨是天气不是硬伤——用户
+                # 点名的点照排，H5 有雨天横幅；换不到干日就只披露，绝不因此
+                # 把「天安门广场」下成未排。
+                item.pinned = False
+                day.items.append(item)
+                day.items.sort(
+                    key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+                )
+                notes.append(
+                    L(
+                        f"「{item.name}」当天有雨且为露天点，已按原时刻保留"
+                        "（可换到晴日）",
+                        f'"{item.name}" is outdoors and it rains that day; kept '
+                        "at its time (swap to a dry day if you prefer)",
+                    )
+                )
+                continue
+            # 其余硬伤：撤时刻留卡（H5 显未排）+ 披露，绝不带着错误时刻交付
             item.start_time = None
             item.end_time = None
             item.pinned = False
