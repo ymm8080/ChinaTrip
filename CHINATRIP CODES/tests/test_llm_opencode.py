@@ -62,3 +62,49 @@ def test_opencode_factory_wires_go_gateway():
     assert main.vision_models == ["deepseek-v4.1-flash"]
     assert isinstance(flash, ZhipuGLMAdapter)
     assert flash.model == "deepseek-v4.1-flash"
+
+def _capture(adapter: ZhipuGLMAdapter) -> list[dict]:
+    import json
+
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+                "usage": {},
+            },
+        )
+
+    adapter.transport = httpx.MockTransport(handler)
+    return bodies
+
+
+def test_opencode_raises_tiny_max_tokens_to_gateway_ceiling():
+    """推理模型：调用点 32 tokens 会被抬到网关硬顶 393216（实测上限）。"""
+    settings = Settings(llm_backend="opencode", opencode_api_key="k", _env_file=None)
+    assert settings.opencode_max_tokens == 393216
+    adapter = get_llm_adapter(settings)
+    bodies = _capture(adapter)
+    asyncio.run(adapter.chat([ChatMessage(role="user", content="hi")], max_tokens=32))
+    assert bodies[-1]["max_tokens"] == 393216
+
+
+def test_opencode_flash_lane_uses_the_same_ceiling():
+    """Flash 快车道（gate 分类）同样抬到硬顶，避免分类结果被 reasoning 吃空。"""
+    settings = Settings(llm_backend="opencode", opencode_api_key="k", _env_file=None)
+    adapter = get_flash_adapter(settings)
+    bodies = _capture(adapter)
+    asyncio.run(adapter.chat([ChatMessage(role="user", content="hi")], max_tokens=200))
+    assert bodies[-1]["max_tokens"] == 393216
+
+
+def test_zhipu_backend_keeps_call_site_max_tokens():
+    """GLM 链（回填作业）不受影响：无 cap 时照调用点走 1024 口径。"""
+    settings = Settings(llm_backend="zhipu", glm_api_key="k", _env_file=None)
+    adapter = get_llm_adapter(settings)
+    bodies = _capture(adapter)
+    asyncio.run(adapter.chat([ChatMessage(role="user", content="hi")], max_tokens=1024))
+    assert bodies[-1]["max_tokens"] == 1024

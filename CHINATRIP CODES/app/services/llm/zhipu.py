@@ -93,6 +93,7 @@ class ZhipuGLMAdapter:
         vision_model: str = "glm-4.6v-flash",
         vision_fallback_models: list[str] | None = None,
         extra_headers: dict[str, str] | None = None,
+        max_tokens_cap: int | None = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -100,6 +101,10 @@ class ZhipuGLMAdapter:
         self.timeout_seconds = timeout_seconds
         self.transport = transport
         self.extra_headers = dict(extra_headers or {})
+        # OpenCode 推理网关：输出上限固定为网关硬顶，调用点的小 max_tokens
+        # （32/200/1600）一律被抬到该值——否则 reasoning 吃光额度、content
+        # 返回空串（2026-11-14 探针）。None=保持调用点语义（GLM 链）。
+        self.max_tokens_cap = max_tokens_cap
         # 视觉链（行程导入 OCR / 视频理解同款考量）：4.6v-flash 免费池晚
         # 高峰整段 429，旧免费模型在独立容量池——主模型 429 时切备用链。
         self.vision_models = [vision_model, *(vision_fallback_models or [])]
@@ -118,8 +123,9 @@ class ZhipuGLMAdapter:
             "messages": [m.model_dump() for m in messages],
             "temperature": temperature,
         }
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
+        effective_max_tokens = self.max_tokens_cap or max_tokens
+        if effective_max_tokens is not None:
+            payload["max_tokens"] = effective_max_tokens
         if thinking is not True:
             # glm 思考关断默认开（2026-10-28 用户拍板）：探针实测 select 场景
             # 37.9s→7.5s、小请求 11.4s→2.3s；端点不支持该参数时会忽略，

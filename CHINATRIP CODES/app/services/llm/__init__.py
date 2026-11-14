@@ -41,6 +41,7 @@ def _opencode_adapter(settings: Settings, *, model: str, vision: bool) -> LLMAda
         timeout_seconds=settings.glm_timeout_seconds,
         vision_model=model if vision else "glm-4.6v-flash",
         vision_fallback_models=[],
+        max_tokens_cap=settings.opencode_max_tokens,
         extra_headers={
             "x-opencode-session": settings.opencode_session_id,
             "User-Agent": "chinatrip-travel-agent/1.0",

@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     opencode_model: str = "deepseek-v4.1-flash"
     # Go 网关硬性要求稳定会话头（缺了直接 400 MissingSessionID）。
     opencode_session_id: str = "chinatrip"
+    # 推理模型输出上限（2026-11-14 用户拍板「max_tokens 拉到最大」）。
+    # deepseek-v4.1-flash 先把 max_tokens 吃进 reasoning，调用点的小额度
+    # （select 32 / gate 200 / 索引输出 1600）会把正文挤成空串（实测
+    # content="" + finish=length）。会话链一律按网关硬顶发——实测区间
+    # 1..393216（1000000 直接 400 invalid_request_error），故取 393216。
+    # 调低即重新饿死正文；方舟链不在本次范围。
+    opencode_max_tokens: int = 393216
     # 火山方舟（Ark）Plan 订阅网关（OpenAI-compatible；2026-11-14 用户拍板
     # 「OpenCode Go 额度用尽 → 现在使用方舟 API」）。模型须在 agent plan
     # 兼容清单内（doubao-seed-2-0-pro-260215 实测可用），否则 404 UnsupportedModel。
