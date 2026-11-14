@@ -2533,6 +2533,7 @@ function planSaveBar(plan) {
   if (planSession && planSession.origin) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
+      planTouch(); // 用户明确要重开一局：在途的自动载入立即作废
       const orig = planSession.origin || {};
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧对话流整段清掉，才是真·全新页
@@ -2555,6 +2556,7 @@ function planSaveBar(plan) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
       if (!confirm(I18N.tf("plan.replan.confirm","回到全新规划？当前未保存的修改会丢弃。"))) return;
+      planTouch(); // 重新规划=真·全新一局：在途自动载入作废
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
       // 预填上次参数（2026-10-28 用户规则）：城市取行程城市；各城天数按行程卡逐日
@@ -2586,6 +2588,7 @@ function planSaveBar(plan) {
   if (!planSession || (!planSession.origin && !planSession.itin_id)) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
+      planTouch(); // 用户明确要重开一局：在途的自动载入立即作废
       const perCity = {};
       (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
       planSetSession(null);
@@ -2667,9 +2670,11 @@ function planRouteForm() {
   const endDays = Math.max(1, num("planEndDays"));
   const cityDays = {};
   mids.forEach(m => { cityDays[m.city] = m.days; });
-  cityDays[end] = endDays;
+  // 结束城市选「（不经过）」时 end 是空串：空城不进 cities/city_days
+  //（2026-11-13：会话 origin 里带 "上海" + ""，/plan/start 收到空城串）。
+  if (end) cityDays[end] = endDays;
   return {
-    cities: [start, ...mids.map(m => m.city), end],
+    cities: [start, ...mids.map(m => m.city), end].filter(c => !!c),
     cityDays,
     total: mids.reduce((s, m) => s + m.days, 0) + endDays,
   };
@@ -2765,6 +2770,15 @@ function planSummaryRefresh() {
       r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.sum.totalPre"," · 共 ") + r.total + I18N.tf("plan.sum.totalSuf"," 天") + (PLAN.startDate ? " · " + PLAN.startDate.slice(5) : "");
   } catch (_) { document.getElementById("planSummaryText").textContent = I18N.tf("plan.sum.edit","改参数"); }
 }
+// 用户主动动作「代」号（2026-11-13 用户实报「点重新规划还是上次行程」）：
+// 打开页面时 autoOpenLatestItin() 会异步载入最近一张已存行程（线上实测 1–28 秒），
+// 这段窗口里用户只要动了手（重新规划 / 开始规划 / 发消息 / 手动 ✏️ 修改），迟到的
+// 载入就会把旧行程卡片重新画回对话流、并把会话指针换回旧行程——表现就是
+// 「点了重新规划，页面还是上次那趟」。每次主动动作 bump 一代，自动载入发现换代即
+// 整段放弃，绝不覆盖用户眼前这一趟。
+let planEpoch = 0;
+let planWorking = false; // 规划请求在途（开始规划 / 对话回合）：SW 自动重载此时一律让路
+function planTouch() { planEpoch += 1; }
 function planSetSession(s) {
   // 会话激活时参数表单收成一行摘要（2026-10-24 实测：矮视口/系统缩放下表单+输入框最小高度超出可视区，
   // flex 会把输入框挤出屏幕——收起表单把空间还给对话流；点摘要随时展开改参数）
@@ -2970,6 +2984,8 @@ function planRenderSafe(holder, body, opts) {
 
 // extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
 async function planStartCore(extraPref) {
+  planTouch(); // 新一局开跑：作废在途的自动载入，旧行程不许再画回来
+  planWorking = true;
   const r = planRouteForm();
   const prefs = [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
   PLAN.startDate = document.getElementById("planStartDate").value || "";
@@ -2990,6 +3006,7 @@ async function planStartCore(extraPref) {
     holder.textContent = I18N.tf("plan.gen.fail","❌ 规划失败：") + detailText(err.detail);
     failToast(err);
   }
+  planWorking = false;
   holder.parentElement.scrollIntoView({ block: "end" });
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
@@ -3109,6 +3126,8 @@ async function planSend() {
     return;
   }
   input.value = "";
+  planTouch(); // 对话回合也是用户主动动作：在途自动载入作废
+  planWorking = true;
   addMsg("flow-plan", "user", text);
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.thinking","⏳ 思考中…"));
   try {
@@ -3131,6 +3150,7 @@ async function planSend() {
     if (body.lane && body.lane.lane === "slow" && body.lane.task_id) {
       // §6.12 慢车道：重排后台跑，这里轮询任务直到完成再渲染（2 分钟封顶）
       await planPollSlowTask(holder, body.lane.task_id);
+      planWorking = false;
       return;
     }
     planRenderSafe(holder, body);
@@ -3147,6 +3167,7 @@ async function planSend() {
       failToast(err);
     }
   }
+  planWorking = false;
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
 // §6.12 慢车道任务轮询：每 3s 查一次 /tasks/{id}，done 渲染结果，
@@ -3990,10 +4011,15 @@ async function itinSavedLoad() {
 // ✏️ 修改：用该行程的工作副本开规划会话并跳到规划页
 // （2026-10-20：查看升级为修改）；对话改动照走铁律管线，
 // 改完点「💾 保存行程」按原行程编号覆盖并冻结新快照
-async function itinEdit(r, btn) {
+async function itinEdit(r, btn, opts) {
+  // 自动载入（页面打开补位）带 auto+epoch：接口回来时用户已经重新规划/开始规划/
+  // 发消息，或已开了新会话——整段放弃，别把旧行程画回用户眼前。
+  const auto = !!(opts && opts.auto);
+  const epoch = auto && typeof opts.epoch === "number" ? opts.epoch : planEpoch;
   await busy(btn, async () => {
     try {
       const body = await api("/api/v1/plan/from-itinerary/" + r.itinerary_id, {});
+      if (auto && (epoch !== planEpoch || planSession)) { console.info("[itin] auto-open superseded, drop", r.itinerary_id); return; }
       // 还原出发日期（快照里持久化的 plan.start_date）：行程卡日期与天气都以此为基准。
       // 旧行程没存过出发日期 → 缺省下周一（2026-11-03 起与表单默认同口径），打开即有
       // 未来日期+预报；保存时随 /plan/{id}/save 的 start_date 落库自愈
@@ -4131,8 +4157,10 @@ function itinImportPreviewModal(r) {
 // 不共享——排障时别把它误判成功能没生效）。
 async function autoOpenLatestItin() {
   if (shareParam) { console.info("[itin] share view, skip auto-open"); return; }
+  const epoch = planEpoch; // 用户动手即作废本条（见 planTouch 注释）
   try {
     const rows = await api("/api/v1/itineraries", undefined, "GET");
+    if (epoch !== planEpoch || planSession) { console.info("[itin] auto-open superseded by user action, skip"); return; }
     if (!rows || !rows.length) {
       toast(I18N.tf("itin.noneOnDevice", "本设备暂无已存行程——换浏览器/手机不共享，可在「行程」页确认"));
       return;
@@ -4140,7 +4168,7 @@ async function autoOpenLatestItin() {
     const latest = rows.reduce((a, b) =>
       ((b.updated_at || b.created_at || "") > (a.updated_at || a.created_at || "") ? b : a));
     console.info("[itin] auto-open latest:", latest.itinerary_id);
-    await itinEdit(latest, el("<span></span>")); // 假按钮：busy 只改 textContent
+    await itinEdit(latest, el("<span></span>"), { auto: true, epoch }); // 假按钮：busy 只改 textContent
   } catch (e) { console.warn("[itin] auto-open failed:", e); }
 }
 
@@ -5760,6 +5788,18 @@ if ('serviceWorker' in navigator) {
     var swReloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (swReloading) return;
+      // 2026-11-13（用户实报「点重新规划还是上次行程」）：新壳 claim 就整页重载，
+      // 会把正在生成（8–20 秒）或正在修改的行程连同会话指针一起冲掉；重载后
+      // autoOpenLatestItin 又把最近一张已存行程画回来——用户看到的就是
+      // 「点了重新规划，还是上次那趟」。有在途请求/屏上有会话时不自动重载，只提示，
+      // 等用户下次空闲刷新（新壳照样已下载好，刷新即用）。
+      if (planWorking || planSession) {
+        if (!window.__planShellToast) {
+          window.__planShellToast = true;
+          toast(I18N.tf("infra.newShell", "新版本已就绪：当前行程不会被自动刷新，稍后手动刷新即可用上新版"));
+        }
+        return;
+      }
       swReloading = true;
       location.reload();
     });

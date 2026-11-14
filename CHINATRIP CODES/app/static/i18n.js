@@ -178,6 +178,7 @@
       "infra.requesting": "Working…",
       "infra.err.network": "Network error: cannot reach the API (auto-retried for ~40 s; the service may be restarting — please try again shortly)",
       "infra.retrying": "Service is not responding — retrying automatically…",
+      "infra.newShell": "A new version is ready — this page was not reloaded because it has a trip in progress; refresh when you are ready",
       "infra.no_flight_found": "No flight found for that date/city pair — leg unchanged",
       "infra.no_train_found": "No train found for that date/city pair — leg unchanged",
       "infra.number_not_found": "Flight/train number not in the schedule library (check the input or try another day)",
