@@ -16,7 +16,9 @@ from app.services.agent.plan import (
     PlanningAgent,
     _is_preference_meta,
     _is_preference_style_option,
+    _is_service_meta_wish,
     _preference_tokens,
+    _wish_grounded_in_user_text,
 )
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -319,9 +321,10 @@ def test_selection_prefers_user_category_ahead_of_tier():
         cands, 1, {"成都": (1, 1)}, preferences="博物馆人文"
     )
     names = [it["name"] for it in items]
-    # 偏好同类（museum，tier 9）提到 5A（tier 2）之前；同组内库序
+    # 偏好同类（museum，tier 9）提到 5A（tier 2）之前；同组内库序；
+    # 偏好命中同时豁免行程桶上限（两家博物馆都保留，2026-11-07 口径）
     assert names == ["社区博物馆乙", "城市美术馆", "五A景区甲", "五A景区乙"]
-    # 无偏好时恢复 tier 序（既有行为不变）
+    # 无偏好时恢复 tier 序 + 行程桶上限（博物馆类每行程 1 家，11-07 拍板）
     base = PlanningAgent._deterministic_selection(
         [dict(c) for c in cands], 1, {"成都": (1, 1)}
     )
@@ -329,7 +332,6 @@ def test_selection_prefers_user_category_ahead_of_tier():
         "五A景区甲",
         "五A景区乙",
         "社区博物馆乙",
-        "城市美术馆",
     ]
 
 
@@ -381,6 +383,87 @@ def test_preference_meta_and_style_detection():
     assert _is_preference_style_option("自然风光")
     assert _is_preference_style_option("慢慢逛")
     assert not _is_preference_style_option("看熊猫")
+
+
+def test_wishlist_garbage_strings_rejected():
+    """2026-11-07 成都/西安案（会话 5d978820 / ec636200）：EN 会话 LLM
+    愿望抽取把偏好摘要行与泛活动词列进 wishes 建行，心愿单被污染、跨
+    会话吸收成必去占位卡（lunches/sightseeing 还被语义绑到外滩等真
+    POI）。三闸全收口：元话语词表补 EN 串、泛活动词精确匹配、服务尾
+    长句帽 24→64。"""
+    # 偏好摘要原话（剥「Preferences:」标签后 22 字符，词表补串即中）
+    assert _is_preference_meta("Preferences: No special preference")
+    assert _is_preference_meta("No special preference")
+    # 泛活动/餐段词（整词精确，CITY SIGHTSEEING 大小写无关）
+    assert _is_preference_style_option("sightseeing")
+    assert _is_preference_style_option("CITY SIGHTSEEING")
+    assert _is_preference_style_option("lunches")
+    assert _is_preference_style_option("午餐")
+    # 整句服务型请求（旧 24 字符帽放行的线上案）
+    sentence_wish = "必去：西安钟楼、西安鼓楼、回民街。帮我排好这 5 天的西安行程"
+    assert _is_service_meta_wish(sentence_wish)
+    # 真愿望通道不受影响
+    assert not _is_preference_meta("看熊猫")
+    assert not _is_preference_style_option("CITYWALK")  # 品类愿望（步行街）合法
+    assert not _is_preference_style_option("看川剧变脸")
+    assert not _is_service_meta_wish("想去都江堰看水利工程")
+    assert not _is_service_meta_wish("帮我看熊猫")  # 具体地点宾语非服务尾
+
+
+def test_wish_grounded_in_user_text_chengdu_case():
+    """2026-11-08 成都案终拍（会话 5d978820）：用户全场只发过这三条，
+    心愿单却长出 lunches/sightseeing/Preferences:/看熊猫——LLM 从行程
+    卡/偏好英译/助手建议句里捡的词必须全部落空。"""
+    corpus = [
+        "帮我规划行程：5 天，城市：上海、成都、杭州；偏好：无",
+        "偏好：无特别要求",
+        "第4天上午太空了，把成都环球中心加回第4天上午",
+    ]
+    for garbage in (
+        "lunches",
+        "sightseeing",
+        "CITY SIGHTSEEING",
+        "Preferences: No special preference",
+        "看熊猫",
+    ):
+        assert not _wish_grounded_in_user_text(garbage, corpus)
+    # 用户真打过的（子串或字级包含）通过
+    assert _wish_grounded_in_user_text("成都环球中心", corpus)
+    assert _wish_grounded_in_user_text("把成都环球中心加回第4天上午", corpus)
+    # 同义改写：字级包含（我想看大熊猫 → 看熊猫）
+    assert _wish_grounded_in_user_text("看熊猫", ["我想看大熊猫"])
+    # EN 词元包含；幻觉词落空
+    assert _wish_grounded_in_user_text("see pandas", ["I want to see pandas"])
+    assert not _wish_grounded_in_user_text("museum tour", ["I want to see pandas"])
+    # 空语料一律拒绝（宁漏勿错：用户可手动补，错建挤真愿望坑位）
+    assert not _wish_grounded_in_user_text("看熊猫", [])
+
+
+def test_chat_edit_round_hallucinated_wish_not_grounded_no_row():
+    """编辑回合集成锚：助手建议句里捡的「看熊猫」（用户没打过）不建行；
+    用户真打过的「成都环球中心」照常建行——grounding 闸不是一刀切。"""
+    llm = ScriptedLLM(
+        [edit_reply("好的", [], wishes=["看熊猫", "lunches", "成都环球中心"])]
+    )
+    svc = TripItemService()
+    agent = PlanningAgent(
+        llm,
+        amap_client=DistanceAmap([dict(p) for p in _CD_POIS]),
+        poi_details=PoiDetailStore(),
+        trip_items=svc,
+        auto_restaurants=False,
+    )
+    session = run(
+        agent.start(device_id="d1", cities=["成都"], days=2, preferences="亲子")
+    )
+    assert session.state == "ready"
+    session, _reply, _ = run(
+        agent.message(session, "第4天上午太空了，把成都环球中心加回第4天上午")
+    )
+    names = [i.get("name") or "" for i in _all_rows(svc)]
+    assert not any("熊猫" in n for n in names)
+    assert not any(n == "lunches" for n in names)
+    assert any("环球中心" in n for n in names)
 
 
 def test_preference_tokens_union_and_show():

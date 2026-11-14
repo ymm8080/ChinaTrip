@@ -78,13 +78,16 @@ def test_outdoor_moves_to_dry_day_no_removal_needed():
     # 2026-11-02 软闸+雨日硬闸后形态：雨日1 的露天山点全部避让到
     # 干日2（软闸超额，4 闸内），室内馆留在雨日——无删点、无披露，
     # 露天不进雨日即无需救援。
+    # 坐标彼此按 lon 错开 >1.5km（同点互认并卡会把室内馆并进露天锚卡，
+    # 验不出「室内不受雨闸独立留雨日」；族卡已废 10bd56b，贴邻同日圈
+    # 11-07 晚扩 5km——0.02°≈1.9km 在圈内，同日软偏好与雨闸同向）。
     cands = [
-        _cand("甲山", "成都", "no", dur=180),
-        _cand("乙山", "成都", "no", dur=180),
-        _cand("丙馆", "成都", "yes", dur=90),
-        _cand("丁峰", "成都", "no", dur=180),
-        _cand("戊岭", "成都", "no", dur=60),
-        _cand("己馆", "成都", "yes", dur=90),
+        _cand("甲山", "成都", "no", lon=104.0, dur=180),
+        _cand("乙山", "成都", "no", lon=104.02, dur=180),
+        _cand("丙馆", "成都", "yes", lon=104.04, dur=90),
+        _cand("丁峰", "成都", "no", lon=104.06, dur=180),
+        _cand("戊岭", "成都", "no", lon=104.08, dur=60),
+        _cand("己馆", "成都", "yes", lon=104.1, dur=90),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
@@ -159,16 +162,19 @@ def test_tail_outdoor_redirects_and_full_dry_drops():
     # 硬闸避让到干日2（软闸超额照放）；庚岭轮到它时干日已 4 闸满、
     # 雨日预算也装不下 → 出局（计数裁减同语义，5A/UNESCO 才有白名
     # 单披露）；池外尾巴辛峰不享软闸不排。
+    # 组内坐标按 lon 错开 >1.5km（同点互认并卡会让露天族整族搭车进
+    # 干日、庚岭不再 4 闸满出局；本测意图依赖 4/日闸封顶。族卡已废，
+    # 贴邻同日圈 5km——1.9km 在圈内，同日软偏好与 4/日闸同向）。
     cands = [
-        _cand("甲馆", "成都", "yes", lat=31.5, dur=60),
-        _cand("乙馆", "成都", "yes", lat=31.5, dur=60),
-        _cand("丙馆", "成都", "yes", lat=31.5, dur=60),
-        _cand("丁峰", "成都", "no", lat=30.5, dur=60),
-        _cand("戊岭", "成都", "no", lat=30.5, dur=60),
-        _cand("己山", "成都", "no", lat=30.5, dur=60),
-        _cand("庚岭", "成都", "no", lat=30.5, dur=180),
+        _cand("甲馆", "成都", "yes", lon=104.0, lat=31.5, dur=60),
+        _cand("乙馆", "成都", "yes", lon=104.02, lat=31.5, dur=60),
+        _cand("丙馆", "成都", "yes", lon=104.04, lat=31.5, dur=60),
+        _cand("丁峰", "成都", "no", lon=104.0, lat=30.5, dur=60),
+        _cand("戊岭", "成都", "no", lon=104.02, lat=30.5, dur=60),
+        _cand("己山", "成都", "no", lon=104.04, lat=30.5, dur=60),
+        _cand("庚岭", "成都", "no", lon=104.06, lat=30.5, dur=180),
         _cand("辛峰", "成都", "no", lat=30.9, dur=180),
-        _cand("壬峰", "成都", "no", lat=31.5, dur=60),
+        _cand("壬峰", "成都", "no", lon=104.06, lat=31.5, dur=60),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(

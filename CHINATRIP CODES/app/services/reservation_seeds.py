@@ -47,6 +47,54 @@ official_channel_foreign 列（38 馆逐馆直核+129 行分类规则）；陕�
 预约下架两条待人工确认）。
 """
 
+import csv
+import logging
+from functools import lru_cache
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+# 09 号表（DESIGN/POIS DATASOURCE/09_热门预约景点_门票预定.csv）的运行时
+# 镜像：167 点全量判词（需预约/无需预约）+ 官方渠道 + 外籍护照口径，
+# 由 _reservation_hint 在「库列 > 名单 v0」之后做第三兜底读侧。
+# 镜像缺失时（CI/新克隆，data/ 被 gitignore）退回 tracked 的 09 号表
+# 源文件——两者内容同构（同名表只读副本），保证读侧判词不空转。
+_RESERVATION_CSV = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "reservation_pois.csv"
+)
+_RESERVATION_CSV_SOURCE = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "DESIGN"
+    / "POIS DATASOURCE"
+    / "09_热门预约景点_门票预定.csv"
+)
+
+
+@lru_cache(maxsize=1)
+def reservation_pois_index() -> dict[str, dict]:
+    """09 表读侧索引：name_zh 与 alias_zh（| 分隔）都作键，值为原始行。
+    文件缺失/读取失败记 warning 返回空——预约提示退回名单 v0，不阻断排期。"""
+    idx: dict[str, dict] = {}
+    path = _RESERVATION_CSV if _RESERVATION_CSV.exists() else _RESERVATION_CSV_SOURCE
+    if not path.exists():
+        log.warning("reservation_pois.csv 缺失: %s", path)
+        return idx
+    try:
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                name = (row.get("name_zh") or "").strip()
+                if not name:
+                    continue
+                idx.setdefault(name, row)
+                for alias in (row.get("alias_zh") or "").split("|"):
+                    alias = alias.strip()
+                    if alias:
+                        idx.setdefault(alias, row)
+    except OSError as exc:
+        log.warning("reservation_pois.csv 读取失败（%s）——预约提示退回名单兜底", exc)
+    return idx
+
+
 # 名字 → {days 提前天数, release 放票时刻, note 渠道提示}；
 # 名字匹配走 _same_site 同款容错
 RESERVATION_V0: dict[str, dict] = {

@@ -9,12 +9,13 @@
    → solver 改弃日（见 test_solver.test_infeasible_travel_separation_
    drops_day），本文件补 solve_plan 链路视角；
 ③校验对 end==start 贴脸不报
-   → rules.travel_gap_violations 铁律 7 绊网（餐/钉/无坐标豁免）。
+   → rules.travel_gap_violations 铁律 7 绊网（2026-11-13 拍板后仅同址/
+     无坐标豁免，餐/酒店/钉件照算腿）。
 """
 
 from datetime import time as _t
 
-from app.services.agent.plan import heal_leg_gaps
+from app.services.agent.plan import _travel_matrix, heal_leg_gaps
 from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
@@ -22,7 +23,12 @@ from app.services.itinerary.models import (
     PoiHours,
     VisitItem,
 )
-from app.services.itinerary.rules import haversine_km, taxi_leg_min, validate_plan
+from app.services.itinerary.rules import (
+    haversine_km,
+    taxi_leg_min,
+    travel_gap_needed,
+    validate_plan,
+)
 from app.services.itinerary.solver import solve_plan
 
 # 真实库位（session 5cbf9073 Day2 载荷坐标）
@@ -32,8 +38,66 @@ XQ = GeoPoint(lon=108.9471, lat=34.2757)  # 西安城墙
 WYG = GeoPoint(lon=108.9012, lat=34.2953)  # 汉长安城未央宫
 
 
+def test_solver_matrix_uses_validator_short_leg_floor():
+    a = VisitItem(
+        item_id="short-a",
+        name="近点甲",
+        city="西安",
+        day=1,
+        category="attraction",
+        location=GeoPoint(lon=108.9400, lat=34.2600),
+    )
+    b = VisitItem(
+        item_id="short-b",
+        name="近点乙",
+        city="西安",
+        day=1,
+        category="attraction",
+        # ~1.2km（>SAME_VENUE_KM 同址圈）：步行腿 <30 分钟地板，矩阵与
+        # 校验同源取 30（2026-11-13 拍板后同址 ≤0.5km 对免隔腿）。
+        location=GeoPoint(lon=108.9530, lat=34.2600),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="short-leg",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[a, b])],
+    )
+    matrix = _travel_matrix(plan)
+    assert matrix[(a.item_id, b.item_id)] == travel_gap_needed(a, b) == 30
+
+
+def test_solver_matrix_keeps_one_minute_for_validator_exempt_pairs():
+    loc = GeoPoint(lon=108.94, lat=34.26)
+    a = VisitItem(
+        item_id="pinned-a",
+        name="钉点甲",
+        city="西安",
+        day=1,
+        category="attraction",
+        pinned=True,
+        location=loc,
+    )
+    b = VisitItem(
+        item_id="free-b",
+        name="动点乙",
+        city="西安",
+        day=1,
+        category="attraction",
+        location=loc,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="exempt-leg",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[a, b])],
+    )
+    matrix = _travel_matrix(plan)
+    assert travel_gap_needed(a, b) is None
+    assert matrix[(a.item_id, b.item_id)] == 1
+    assert matrix[(b.item_id, a.item_id)] == 1
+
+
 def _stale_day2() -> DayPlan:
-    """事故形态复刻：午餐 12:00-13:30 后三点背靠背 13:30/15:00/16:30。"""
+    """事故形态复刻：午餐 12:00-13:30 后三点背靠背 13:30/15:00/15:45。"""
     items = [
         VisitItem(
             item_id="v1",
@@ -74,11 +138,12 @@ def _stale_day2() -> DayPlan:
             city="西安",
             day=2,
             category="attraction",
-            # 75 分钟轻点：11-04 大点闸 15:30 后，90 分钟大点在 15:40 挪后
-            # 落位越闸——自愈机制测试改用轻点保持原语义。
-            duration_minutes=75,
+            # 45 分钟轻点：11-05 结束闸下自愈挪后落位 15:40-16:25 须仍
+            # 合法；60+ 分钟在该槽位越 16:30 闸 → 兜底回填午餐前空档、
+            # 连锁丢餐，测不了自愈语义。
+            duration_minutes=45,
             start_time=_t(15, 0),
-            end_time=_t(16, 30),
+            end_time=_t(15, 45),
             location=XQ,
         ),
         VisitItem(
@@ -124,7 +189,9 @@ def test_heal_repairs_stale_zero_gap_chain():
     v1 = next(v for v in day.items if v.item_id == "v1")
     lunch = next(v for v in day.items if v.category == "food")
     assert (v1.start_time, v1.end_time) == (_t(9, 0), _t(11, 0)), "违规点之前的好排不动"
-    assert lunch.start_time == _t(12, 0), "餐（贴点拍板语义）不动"
+    assert lunch.start_time is not None and _t(11, 30) <= lunch.start_time < _t(
+        13, 30
+    ), "餐保底（11-03 硬窗内贴点；兜底重排可贴点平移，不得消失）"
     for a, b in _sight_pairs(day):
         if a.start_time is None or b.start_time is None:
             continue
@@ -235,8 +302,9 @@ def test_validate_flags_back_to_back_zero_gap():
     assert not report.ok
 
 
-def test_validate_exempts_food_pinned_and_locationless_pairs():
-    """餐贴点/钉点/无坐标对不报——与 heal、_leg_windows 同口径。"""
+def test_validate_flags_food_pinned_far_pairs():
+    """2026-11-13 拍板：餐/酒店/钉件的远距对也照算腿并披露——秦俑情
+    11:00 散场→41km 外餐厅 12:20 零车程案即钉+餐双豁免漏网形态。"""
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -260,7 +328,7 @@ def test_validate_exempts_food_pinned_and_locationless_pairs():
                 category="attraction",
                 duration_minutes=90,
                 start_time=_t(13, 30),
-                end_time=_t(15, 0),  # 餐→点贴点合法
+                end_time=_t(15, 0),  # 餐→点 ~5.5km：贴点零间隔违规
                 location=GeoPoint(lon=108.96, lat=34.31),
             ),
             VisitItem(
@@ -272,13 +340,66 @@ def test_validate_exempts_food_pinned_and_locationless_pairs():
                 duration_minutes=90,
                 pinned=True,
                 start_time=_t(15, 0),
-                end_time=_t(16, 30),
+                end_time=_t(16, 30),  # 点→钉 ~24km：钉件也照算
                 location=GeoPoint(lon=109.21, lat=34.36),
             ),
         ],
     )
     plan = ItineraryPlan(
         itinerary_id="it-x", cities=["西安"], days=[day], assumptions=[]
+    )
+    report = validate_plan(plan, poi_hours=[])
+    rule7 = [v for v in report.violations if v.rule_id == 7]
+    assert {tuple(sorted(v.item_ids)) for v in rule7} == {
+        ("f", "s1"),
+        ("s1", "s2"),
+    }, "远距餐对/钉对均须报铁律 7"
+
+
+def test_validate_exempts_only_same_venue_and_locationless():
+    """豁免收窄回归：同址（≤SAME_VENUE_KM）与无坐标对不报（2026-11-13
+    拍板保留面；旧「餐贴点/钉点」类目豁免已撤）。"""
+    loc = GeoPoint(lon=108.94, lat=34.26)
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            VisitItem(
+                item_id="host",
+                name="同址馆",
+                city="西安",
+                day=1,
+                category="museum",
+                duration_minutes=120,
+                start_time=_t(14, 0),
+                end_time=_t(16, 0),
+                location=loc,
+            ),
+            VisitItem(
+                item_id="near-food",
+                name="同址餐",
+                city="西安",
+                day=1,
+                category="food",
+                duration_minutes=90,
+                start_time=_t(16, 0),
+                end_time=_t(17, 30),
+                location=GeoPoint(lon=108.9402, lat=34.2601),
+            ),
+            VisitItem(
+                item_id="no-loc",
+                name="无坐标点",
+                city="西安",
+                day=1,
+                category="attraction",
+                duration_minutes=60,
+                start_time=_t(17, 30),
+                end_time=_t(18, 30),
+            ),
+        ],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-sv", cities=["西安"], days=[day], assumptions=[]
     )
     report = validate_plan(plan, poi_hours=[])
     assert not [v for v in report.violations if v.rule_id == 7]
@@ -341,6 +462,6 @@ def test_get_endpoint_heals_stale_session():
         assert gap >= 30, f"GET 返回仍背靠背：{a['name']}→{b['name']} gap={gap}"
     stored = store.get("s-heal", device_id="dev-1")
     wall = next(i for i in stored.plan.days[0].items if i.item_id == "v3")
-    assert wall.start_time != _t(15, 0) or wall.end_time != _t(16, 30), (
+    assert wall.start_time != _t(15, 0) or wall.end_time != _t(15, 45), (
         "修复须 store.save 持久化（下次打开不再触发）"
     )

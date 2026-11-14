@@ -33,6 +33,7 @@ from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
 from app.services.amap_client import AmapQuotaExhaustedError
+from app.services.city_fallback import is_city_fallback_point, is_fallback_address
 from app.services.map_provider import (
     build_client_chain,
     build_geocode_chain,
@@ -198,6 +199,11 @@ async def backfill_rows(
     dead: set[str] = set()
     geocode_dead = False
     stats["geocode_filled"] = 0
+    # 回退点入库闸计数（P1#1，2026-11-04）：geocode/检索命中城市回退点、
+    # 行地址命中回退地址族，分别计数供台账观察。
+    stats["geocode_fallback_rejected"] = 0
+    stats["search_fallback_rejected"] = 0
+    stats["fallback_addr_skipped"] = 0
     for row in rows:
         # ④ 地址优先（2026-10-30 用户拍板「有地址就该有坐标」）：有门址的行
         # 先走正地理（百度 geocoding，独立配额池，不烧检索配额），命中即落库；
@@ -210,10 +216,24 @@ async def backfill_rows(
             if (row.name_zh and _bare_city(row.city))
             else None
         )
+        # 地址同型闸（P1#1，2026-11-04）：行地址=geocoder 回退地址族
+        # （「渝中区上清寺」系=政府驻地）——geocode 它必然回到回退点，
+        # 且地址本身已投毒（backlog #5 回源面）：不烧配额，直接退检索链
+        # 按名搜（名字没投毒）。
+        fallback_addr = bool(row_address) and is_fallback_address(row_address, row.city)
+        if fallback_addr:
+            stats["fallback_addr_skipped"] += 1
+            logger.warning(
+                "backfill_locations: fallback-family address on %s (%s), "
+                "geocode track skipped",
+                row.name_zh,
+                row.city,
+            )
         if (
             geocoder is not None
             and not geocode_dead
             and geocode_query
+            and not fallback_addr
             and not getattr(row, "location", None)
         ):
             try:
@@ -248,6 +268,20 @@ async def backfill_rows(
                         / 1000.0
                         <= 500.0
                     )
+                    if near and is_city_fallback_point(
+                        geo["lon"], geo["lat"], row.city
+                    ):
+                        # 回退点闸（P1#1，2026-11-04）：解析点=城市 gov 回退
+                        # 点→拒绝不入库，退检索链按名搜。回退点距城心 0km
+                        # 恒过 500km 闸，正是 181 行投毒的根因路径。
+                        stats["geocode_fallback_rejected"] += 1
+                        logger.warning(
+                            "backfill_locations: geocode city fallback point "
+                            "rejected for %s (%s)",
+                            row.name_zh,
+                            row.city,
+                        )
+                        near = False
                 if near:
                     if dry_run:
                         stats["filled"] += 1
@@ -326,6 +360,18 @@ async def backfill_rows(
                 stats["stopped_no_channel"] = 1
                 break
             continue
+        lon, lat = hit_lonlat(hit)
+        if is_city_fallback_point(lon, lat, row.city):
+            # 回退点闸（P1#1，2026-11-04）：检索命中落城市回退点（同名
+            # gov POI 类命中）→拒绝不落库，不计数 filled。
+            stats["search_fallback_rejected"] += 1
+            logger.warning(
+                "backfill_locations: search hit at city fallback point "
+                "rejected for %s (%s)",
+                row.name_zh,
+                row.city,
+            )
+            continue
         if dry_run:
             stats["filled"] += 1
             stats["by_vendor"][hit_vendor] = stats["by_vendor"].get(hit_vendor, 0) + 1
@@ -336,7 +382,6 @@ async def backfill_rows(
                 hit_vendor,
             )
             continue
-        lon, lat = hit_lonlat(hit)
         store.upsert(
             row.source_poi_id,
             source=row.source,

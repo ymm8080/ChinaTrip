@@ -394,3 +394,95 @@ def test_sites_catalog_route_wired_same_shape():
     assert len(shows) == 2
     assert shows[0]["name"] == "故宫博物院"
     assert shows[0]["has_direct"] is False
+
+
+# --- 🍴 餐位美团直达（2026-11-07 用户拍板：餐位旁按钮 + 每 2 分钟跟踪） --------
+
+
+def test_restaurant_booking_link_meishi_template(monkeypatch):
+    """餐饮走 meishi 分区模板（xiuxianyule 是休闲/景区口径，不复用）。"""
+
+    class _S:
+        ctrip_union_api_key = ""
+        tongcheng_api_key = ""
+        meituan_api_key = ""
+        klook_api_key = ""
+        tripcom_api_key = ""
+        alliance_id = ""
+        alliance_sid = ""
+        booking_restaurant_template_domestic = (
+            "https://www.meituan.com/meishi/{keyword}"
+        )
+
+    monkeypatch.setattr(ba, "get_settings", lambda: _S())
+    url = ba.restaurant_booking_link("全聚德", "北京")
+    assert url.startswith("https://www.meituan.com/meishi/")
+    assert "%E5%8C%97%E4%BA%AC" in url  # 城市名进 keyword（quote 后）
+    _S.alliance_id, _S.alliance_sid = "A1", "S1"
+    linked = ba.restaurant_booking_link("全聚德", "北京")
+    assert "allianceid=A1" in linked and "sid=S1" in linked  # 联盟双非空才附加
+
+
+def test_api_restaurant_intent_handoff_and_honest_default():
+    r = client.post(
+        "/api/v1/booking-auto/restaurant-intent",
+        json={"name": "全聚德", "city": "北京"},
+        headers=DEVICE,
+    ).json()
+    assert "meituan.com/meishi/" in r["authorization_url"]
+    assert r["requires_user_confirmation"] is True  # 铁律 22：支付归用户
+    assert r["contact"] is None  # 未登记出行人 → 诚实缺省，不编造资料
+    assert r["handoff_id"]
+    from app.api.backfill import get_handoff_store
+
+    rec = get_handoff_store().get(r["handoff_id"])
+    assert rec is not None
+    assert rec.action_type == "restaurant" and rec.channel == "meituan"
+    assert rec.status == "opened"
+    # 轮询端点（H5 每 2 分钟跟踪器的数据源）：命中 + 404
+    got = client.get("/api/v1/backfill/handoffs/" + r["handoff_id"])
+    assert got.status_code == 200
+    assert got.json()["record"]["id"] == r["handoff_id"]
+    assert client.get("/api/v1/backfill/handoffs/nope").status_code == 404
+
+
+def test_api_restaurant_intent_missing_device_400():
+    r = client.post("/api/v1/booking-auto/restaurant-intent", json={"name": "全聚德"})
+    assert r.status_code == 400
+
+
+def test_api_restaurant_intent_attaches_registered_traveler(monkeypatch, tmp_path):
+    """登记过出行人资料 → 脱敏挂单（name + phone_masked，明文永不出层）。"""
+    from app.api import travelers as tapi
+    from app.services import travelers as tsvc
+
+    class _S:
+        travelers_db_url = f"sqlite:///{tmp_path / 't.db'}"
+
+    monkeypatch.setattr(tsvc, "get_settings", lambda: _S())
+    monkeypatch.setattr(tsvc, "_service_singleton", None)
+    monkeypatch.setattr(tapi, "_get_travelers_service", tsvc.get_travelers_service)
+    trv = client.post(
+        "/api/v1/travelers",
+        json={
+            "label": "本人",
+            "full_name_en": "SMITH JOHN",
+            "full_name_zh": "张三",
+            "doc_type": "passport",
+            "doc_number": "E12345678",
+            "nationality": "US",
+            "phone": "+12025550123",
+            "consent": True,
+        },
+        headers=DEVICE,
+    ).json()
+    r = client.post(
+        "/api/v1/booking-auto/restaurant-intent",
+        json={"name": "全聚德", "city": "北京", "traveler_id": trv["id"]},
+        headers=DEVICE,
+    ).json()
+    ct = r["contact"]
+    assert ct is not None
+    assert ct["name"] == "张三" and ct["name_en"] == "SMITH JOHN"
+    assert ct["phone_masked"].startswith("+1202") and ct["phone_masked"].endswith("23")
+    assert "*" in ct["phone_masked"] and "+12025550123" not in str(ct)

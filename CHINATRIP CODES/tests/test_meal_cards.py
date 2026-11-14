@@ -1,0 +1,696 @@
+# -*- coding: utf-8 -*-
+"""2026-11-13 拍板回归：餐厅必须落在午餐卡/晚餐卡，一个餐卡只留一张真餐厅。
+
+事故形态（上海案第 1 天）：用户钉了 19:34 的福和慧（晚餐卡），旧判据按
+「与 17:30-19:30 常量窗有交集」认晚餐，19:30 后开席落在窗外 → 自动补餐
+在 18:30 又插老吉士酒家，两天餐卡并排交付。
+"""
+
+from datetime import time
+
+from app.services.agent.plan import (
+    _bind_real_food_to_cards,
+    _day_meal_card_taken,
+    _drop_surplus_auto_meals,
+    _ensure_meal_cards,
+    _meal_card_slot,
+    _nested_block_food,
+    _retime_meal_placeholders,
+    _retime_real_food_cards,
+    is_lunch_placeholder,
+)
+from app.services.itinerary.models import (
+    DayPlan,
+    GeoPoint,
+    ItineraryPlan,
+    TransferItem,
+    VisitItem,
+)
+from app.services.itinerary.solver import fusion_food_nested
+
+
+def _food(item_id: str, name: str, start: time | None, dur: int = 60) -> VisitItem:
+    end = (
+        None
+        if start is None
+        else time(
+            (start.hour * 60 + start.minute + dur) // 60 % 24, (start.minute + dur) % 60
+        )
+    )
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        category="food",
+        city="上海",
+        day=1,
+        start_time=start,
+        end_time=end,
+        duration_minutes=dur,
+        pinned=item_id.startswith("v"),
+        soft_pin=True,
+    )
+
+
+def _plan(items: list[VisitItem], day: int = 1) -> ItineraryPlan:
+    return ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=day, base_city="上海", items=list(items))],
+    )
+
+
+def test_meal_card_slot_maps_by_start_time():
+    """真餐厅卡按开席时刻归卡；占位件不算占卡。"""
+    assert _meal_card_slot(_food("v1", "午饭店", time(12, 0))) == "lunch"
+    assert _meal_card_slot(_food("v2", "福和慧", time(19, 34))) == "dinner"
+    assert _meal_card_slot(_food("v3", "早茶", time(8, 30))) == "breakfast"
+    assert _meal_card_slot(_food("v4", "无时刻", None)) == "untimed"
+    # 占位件本身就是空餐卡
+    ph = VisitItem(
+        item_id="food-dinner-ph-d1",
+        name="晚饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+    )
+    assert _meal_card_slot(ph) is None
+    # 非餐条目
+    sight = VisitItem(
+        item_id="v9",
+        name="外滩",
+        category="attraction",
+        city="上海",
+        day=1,
+        start_time=time(18, 0),
+        duration_minutes=60,
+    )
+    assert _meal_card_slot(sight) is None
+
+
+def test_day_meal_card_taken_sees_late_dinner_and_untimed():
+    """19:30 后开席的晚餐也算占晚餐卡（旧窗口判据漏判的分界）。"""
+    day = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[_food("v34", "福和慧", time(19, 34), dur=90)],
+    )
+    assert _day_meal_card_taken(day, "dinner") is True
+    assert _day_meal_card_taken(day, "lunch") is False
+    # 无时刻真餐件：宁空不重，两张卡都算占
+    untimed = DayPlan(day=1, base_city="上海", items=[_food("v35", "某餐厅", None)])
+    assert _day_meal_card_taken(untimed, "lunch") is True
+    assert _day_meal_card_taken(untimed, "dinner") is True
+
+
+def test_surplus_auto_dinner_dropped_against_late_user_dinner():
+    """上海案原形：19:34 福和慧 + 18:30 自动老吉士 → 只留福和慧并留痕。"""
+    flh = _food("v34", "福和慧", time(19, 34), dur=90)
+    auto = _food("food-d1-dinner-1", "老吉士酒家（天平路店）", time(18, 30))
+    plan = _plan([flh, auto])
+    _drop_surplus_auto_meals(plan)
+    names = [i.name for i in plan.days[0].items]
+    assert names == ["福和慧"]
+    assert any("撤掉重复的自动补餐" in a and "老吉士" in a for a in plan.assumptions)
+
+
+def test_two_system_dinners_keep_first_only():
+    a = _food("food-d1-dinner-1", "甲餐厅", time(18, 0))
+    b = _food("food-d1-dinner-2", "乙餐厅", time(19, 30))
+    plan = _plan([a, b])
+    _drop_surplus_auto_meals(plan)
+    assert [i.name for i in plan.days[0].items] == ["甲餐厅"]
+
+
+def test_lunch_and_dinner_cards_both_kept():
+    """午卡+晚卡各一张是合法形态，绝不误撤。"""
+    lunch = _food("food-d1-lunch-1", "绿波廊", time(12, 0), dur=90)
+    dinner = _food("v34", "福和慧", time(19, 34), dur=90)
+    plan = _plan([lunch, dinner])
+    _drop_surplus_auto_meals(plan)
+    assert [i.name for i in plan.days[0].items] == ["绿波廊", "福和慧"]
+    assert not plan.assumptions
+
+
+def test_two_user_dinners_never_dropped():
+    """两张都不是系统件（用户钉的）时本闸不撤——用户权威。"""
+    a = _food("v40", "甲", time(18, 0))
+    b = _food("v41", "乙", time(19, 30))
+    plan = _plan([a, b])
+    _drop_surplus_auto_meals(plan)
+    assert [i.name for i in plan.days[0].items] == ["甲", "乙"]
+
+
+def test_dinner_placeholder_absorbed_by_late_dinner_card():
+    """晚饭占位件不再与 19:34 的真餐厅并排（旧窗口判据吸收不到）。
+
+    吸收了晚占位之后，同日午卡按「每天午/晚各一张」补齐。
+    """
+    ph = VisitItem(
+        item_id="food-dinner-ph-d1",
+        name="晚饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+        pinned=False,
+        soft_pin=True,
+    )
+    flh = _food("v34", "福和慧", time(19, 34), dur=90)
+    plan = _plan([ph, flh])
+    _retime_meal_placeholders(plan)
+    names = [i.name for i in plan.days[0].items]
+    assert "晚饭（自由安排）" not in names
+    assert "福和慧" in names
+    # 午卡空缺由「每天午/晚各一张」补齐（不吃掉真餐厅卡）
+    assert "午饭（自由安排）" in names
+
+
+def test_lunch_placeholder_kept_when_only_dinner_card_taken():
+    """只占晚卡时午饭占位件照常保留（两个餐卡互不牵连）。"""
+    ph = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(12, 0),
+        end_time=time(13, 30),
+        duration_minutes=90,
+        pinned=False,
+        soft_pin=True,
+    )
+    flh = _food("v34", "福和慧", time(19, 34), dur=90)
+    plan = _plan([ph, flh])
+    _retime_meal_placeholders(plan)
+    assert [i.name for i in plan.days[0].items] == ["午饭（自由安排）", "福和慧"]
+
+
+def test_adjacent_restaurant_absorbs_same_card_placeholder():
+    """相邻但不重叠也算同卡：12:00-13:30 午占位 + 13:30 餐厅 → 占位让位。
+
+    编辑路径的旧口径只在「撞车（重叠）」时才挪占位，13:30 开席的餐厅与
+    12:00-13:30 的空占位首尾相接、无重叠，交付就成了「一个餐厅邻一个餐
+    卡」。餐卡对账按卡判、不按重叠判。
+    """
+    ph = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(12, 0),
+        end_time=time(13, 30),
+        duration_minutes=90,
+        pinned=False,
+        soft_pin=True,
+    )
+    resto = _food("v50", "某餐厅", time(13, 30), dur=60)
+    plan = _plan([ph, resto])
+    _retime_meal_placeholders(plan, ensure_cards=False)
+    assert [i.name for i in plan.days[0].items] == ["某餐厅"]
+
+
+# --- 真餐卡落位闸（2026-11-13 福和慧/老吉士「未排」案）---------------------
+
+
+def _resto(
+    item_id: str,
+    name: str,
+    *,
+    hours: str | None = None,
+    day: int = 1,
+    dur: int = 90,
+) -> VisitItem:
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        poi_id="poi-" + item_id,
+        category="food",
+        city="上海",
+        day=day,
+        start_time=None,
+        end_time=None,
+        duration_minutes=dur,
+        opening_hours=hours,
+        pinned=True,
+        soft_pin=True,
+        curated=True,
+    )
+
+
+def _hour_card() -> VisitItem:
+    return VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="上海",
+        day=1,
+        start_time=time(15, 0),
+        end_time=time(16, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+
+
+def _flight() -> TransferItem:
+    return TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        from_city="北京",
+        to_city="上海",
+        mode="flight",
+        start_time=time(9, 0),
+        end_time=time(12, 0),
+        duration_minutes=180,
+    )
+
+
+def test_untimed_restaurant_lands_on_dinner_card_after_arrival():
+    """落地日午窗物理不可行（12:00 才落地）：真餐卡顺到晚卡，夜卡跟着顺延。"""
+    flh = _resto("v170", "福和慧", hours="11:30-14:00,17:30-22:30")
+    plan = _plan([_flight(), flh, _hour_card()])
+    notes = _retime_real_food_cards(plan)
+    # 晚卡默认 19:00 开席（2026-11-14 用户拍板「每天晚饭默认 19:00」）
+    assert flh.start_time == time(19, 0)
+    assert flh.end_time == time(20, 30)
+    assert flh.duration_minutes == 90
+    night = plan.days[0].items[-1]
+    assert night.item_id == "hotel-night-d1"
+    assert night.start_time == time(21, 0)
+    assert any("福和慧" in n and "晚餐" in n for n in notes)
+
+
+def test_untimed_restaurant_slides_to_free_card_when_lunch_blocked():
+    """目标日上午被长点占死（11:30-13:00）→ 午餐卡排不进，晚卡默认 19:00 开席。"""
+    lunch_blocker = VisitItem(
+        item_id="v1",
+        name="豫园",
+        category="park",
+        city="上海",
+        day=2,
+        start_time=time(11, 30),
+        end_time=time(14, 0),
+        duration_minutes=90,
+    )
+    jesse = _resto(
+        "v171", "老吉士酒家（天平路店）", hours="11:00-14:30,17:00-21:30", day=2
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=2, base_city="上海", items=[lunch_blocker, jesse])],
+    )
+    _retime_real_food_cards(plan)
+    assert jesse.start_time == time(19, 0)
+    assert jesse.end_time == time(20, 30)
+
+
+def test_untimed_restaurant_uses_free_card_not_taken_one():
+    """晚卡已有真餐厅 → 只能落午餐卡（一个餐卡只留一张真餐厅）。"""
+    dinner = _food("v200", "绿波廊", time(18, 30), dur=60)
+    dinner.day = 3
+    resto = _resto("v201", "南翔馒头店", hours="10:30-20:00", day=3)
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=3, base_city="上海", items=[dinner, resto])],
+    )
+    _retime_real_food_cards(plan)
+    assert resto.start_time == time(11, 30)
+    assert _meal_card_slot(resto) == "lunch"
+    assert _meal_card_slot(dinner) == "dinner"
+
+
+def test_restaurant_without_free_card_stays_and_discloses():
+    """当日两卡排满（整天被大点占死、营业窗只到 14:30）→ 保留卡片 + 披露。"""
+    big = VisitItem(
+        item_id="v300",
+        name="上海迪士尼乐园",
+        category="attraction",
+        city="上海",
+        day=4,
+        start_time=time(9, 0),
+        end_time=time(20, 30),
+        duration_minutes=690,
+    )
+    resto = _resto("v301", "某本帮菜", hours="11:00-14:30", day=4)
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=4, base_city="上海", items=[big, resto])],
+    )
+    notes = _retime_real_food_cards(plan)
+    assert resto.start_time is None
+    assert resto in plan.days[0].items  # 绝不静默删用户选中的餐厅
+    assert any("餐卡已满" in n and "某本帮菜" in n for n in notes)
+
+
+def test_untimed_restaurant_does_not_squeeze_against_flight_departure():
+    """离城日 17:00 航班：晚卡整段撞 90 分钟衔接缓冲 → 不硬塞。"""
+    depart = TransferItem(
+        item_id="t2",
+        day=5,
+        seq=1,
+        from_city="上海",
+        to_city="北京",
+        mode="flight",
+        start_time=time(17, 0),
+        end_time=time(20, 0),
+        duration_minutes=180,
+    )
+    resto = _resto("v302", "某晚宴", hours="17:00-22:00", day=5)
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=5, base_city="上海", items=[depart, resto])],
+    )
+    _retime_real_food_cards(plan)
+    assert resto.start_time is None
+
+
+# --- 餐卡随时段：下午茶档 + 按动线择卡（2026-11-13 用户「或者下午茶」
+#     「所有的餐厅都应该进入午餐卡或者晚餐卡」「按照时间可以决定」）-------
+
+
+def test_meal_card_slot_has_afternoon_tea_bucket():
+    """14:00–16:00 开席算下午茶卡，不再并进午餐卡。"""
+    assert _meal_card_slot(_food("v60", "某甜品", time(15, 0))) == "tea"
+    assert _meal_card_slot(_food("v61", "某茶馆", time(14, 30))) == "tea"
+    assert _meal_card_slot(_food("v62", "晚午饭", time(13, 30))) == "lunch"
+    assert _meal_card_slot(_food("v63", "早晚饭", time(16, 0))) == "dinner"
+
+
+def test_squeezed_lunch_restaurant_moves_to_dinner():
+    """老吉士案：11:45–12:30 硬塞在两个景点之间（晚饭卡整晚空着）→ 改晚餐卡。"""
+    sight1 = VisitItem(
+        item_id="v1",
+        name="东方明珠",
+        category="attraction",
+        city="上海",
+        day=2,
+        start_time=time(9, 0),
+        end_time=time(11, 45),
+        duration_minutes=165,
+    )
+    sight2 = VisitItem(
+        item_id="v2",
+        name="豫园",
+        category="park",
+        city="上海",
+        day=2,
+        start_time=time(12, 34),
+        end_time=time(14, 4),
+        duration_minutes=90,
+    )
+    sight3 = VisitItem(
+        item_id="v3",
+        name="南京东路步行街",
+        category="attraction",
+        city="上海",
+        day=2,
+        start_time=time(14, 38),
+        end_time=time(16, 8),
+        duration_minutes=90,
+    )
+    resto = VisitItem(
+        item_id="v171",
+        name="老吉士酒家（天平路店）",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=2,
+        start_time=time(11, 45),
+        end_time=time(12, 30),
+        duration_minutes=60,
+        opening_hours="11:00-14:30,17:00-21:30",
+        pinned=True,
+        soft_pin=True,
+        curated=True,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=2, base_city="上海", items=[sight1, resto, sight2, sight3])],
+    )
+    _retime_real_food_cards(plan)
+    assert resto.start_time == time(19, 0)  # 晚卡默认 19:00 开席
+    assert resto.end_time == time(20, 0)  # 原本就被压成 60 分钟，不顺带拉长
+    assert _meal_card_slot(resto) == "dinner"
+
+
+def test_untimed_restaurant_takes_tea_slot_when_lunch_and_dinner_taken():
+    """午卡被景点占、晚卡已有餐厅 → 落下午茶卡（所有餐厅都要有卡）。"""
+    lunch_sight = VisitItem(
+        item_id="v1",
+        name="上海博物馆",
+        category="museum",
+        city="上海",
+        day=3,
+        start_time=time(11, 0),
+        end_time=time(14, 0),
+        duration_minutes=180,
+    )
+    dinner = VisitItem(
+        item_id="v200",
+        name="绿波廊",
+        category="food",
+        city="上海",
+        day=3,
+        start_time=time(18, 30),
+        end_time=time(19, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
+    )
+    resto = VisitItem(
+        item_id="v201",
+        name="某甜品店",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=3,
+        start_time=None,
+        end_time=None,
+        duration_minutes=60,
+        opening_hours="10:00-22:00",
+        pinned=True,
+        soft_pin=True,
+        curated=True,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=3, base_city="上海", items=[lunch_sight, dinner, resto])],
+    )
+    _retime_real_food_cards(plan)
+    assert _meal_card_slot(resto) == "tea"
+    assert resto.start_time == time(14, 0)
+
+
+def test_user_pinned_restaurant_time_is_never_retimed():
+    """用户手钉的时刻（pinned 且非 soft_pin）绝不因动线复审被挪。"""
+    dinner = VisitItem(
+        item_id="v200",
+        name="绿波廊",
+        category="food",
+        city="上海",
+        day=4,
+        start_time=time(18, 30),
+        end_time=time(19, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
+    )
+    resto = VisitItem(
+        item_id="v201",
+        name="手钉午市",
+        poi_id="p1",
+        category="food",
+        city="上海",
+        day=4,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        opening_hours="10:00-22:00",
+        pinned=True,
+        soft_pin=False,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it1",
+        cities=["上海"],
+        days=[DayPlan(day=4, base_city="上海", items=[dinner, resto])],
+    )
+    _retime_real_food_cards(plan)
+    assert resto.start_time == time(12, 0)
+    assert resto.end_time == time(13, 0)
+
+
+def _visit(
+    iid: str,
+    name: str,
+    cat: str,
+    start: time,
+    dur: int,
+    *,
+    day: int = 2,
+    loc: GeoPoint | None = None,
+    **kw,
+) -> VisitItem:
+    m = start.hour * 60 + start.minute
+    return VisitItem(
+        item_id=iid,
+        name=name,
+        category=cat,
+        city="西安",
+        day=day,
+        location=loc,
+        start_time=start,
+        end_time=time((m + dur) // 60 % 24, (m + dur) % 60),
+        duration_minutes=dur,
+        **kw,
+    )
+
+
+def test_system_meal_id_keeps_card_after_time_drift():
+    """food-d2-lunch-1 被求解器漂到 16:15 仍是午卡，不许按时刻改判晚卡。"""
+    assert (
+        _meal_card_slot(_food("food-d2-lunch-1", "醉长安（钟楼旗舰店）", time(16, 15)))
+        == "lunch"
+    )
+    assert _meal_card_slot(_food("food-d2-dinner-1", "某晚饭", time(12, 0))) == "dinner"
+
+
+def test_day2_lunch_card_binds_zui_changan_at_1230_and_moves_bell_tower():
+    """2026-11-13 Day2 实录：12:30 到钟楼、0.5km 外醉长安。
+
+    卡是槽位（午卡 12:30 开席），餐厅填卡；钟楼让位到午卡之后，
+    永兴坊不再插在钟楼和醉长安之间。
+    """
+    # 钟楼与醉长安同址（≤0.5km）：午卡贴钟楼 12:30 开场，不是写死 12:30。
+    bell_loc = GeoPoint(lon=108.943, lat=34.2611)
+    day = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _visit("v1", "城墙·碑林历史文化景区", "attraction", time(9, 0), 180),
+            _visit("v2", "西安钟楼", "attraction", time(12, 30), 60, loc=bell_loc),
+            _visit("v3", "永兴坊", "attraction", time(14, 7), 90),
+            _visit(
+                "food-d2-lunch-1",
+                "醉长安（钟楼旗舰店）",
+                "food",
+                time(16, 15),
+                30,
+                loc=bell_loc,
+                soft_pin=True,
+            ),
+            _visit("v4", "长安十二时辰主题街区", "citywalk", time(17, 0), 240),
+        ],
+    )
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+    notes = _bind_real_food_to_cards(plan)
+    zui = next(i for i in day.items if i.name.startswith("醉长安"))
+    bell = next(i for i in day.items if i.name == "西安钟楼")
+    yong = next(i for i in day.items if i.name == "永兴坊")
+    assert zui.start_time == time(12, 30)
+    assert zui.end_time == time(13, 30)  # 2026-11-14 拍板：午餐卡默认 1 小时
+    assert _meal_card_slot(zui) == "lunch"
+    assert bell.start_time == zui.end_time
+    assert yong.start_time >= bell.end_time
+    names = [i.name for i in day.items]
+    i_zui = names.index("醉长安（钟楼旗舰店）")
+    i_bell = names.index("西安钟楼")
+    assert i_zui < i_bell < names.index("永兴坊")
+    assert any("午餐卡已由「醉长安（钟楼旗舰店）」填入 12:30-13:30" in n for n in notes)
+
+
+def test_lunch_card_start_never_after_1230():
+    """午饭卡开席硬窗 [11:30, 12:30]：13:30 的餐厅必须回填午卡。"""
+    resto = _food("v500", "午饭店", time(13, 30), dur=60)
+    plan = _plan([resto])
+    _bind_real_food_to_cards(plan)
+    assert resto.start_time is not None
+    assert time(11, 30) <= resto.start_time <= time(12, 30)
+
+
+def test_same_venue_block_restaurant_stays_nested():
+    """街区里的餐厅（同址且时段被街区卡包含）是街区数据，不另开餐卡。"""
+    loc = GeoPoint(lon=108.95, lat=34.25)
+    block = _visit(
+        "v1", "长安十二时辰主题街区", "citywalk", time(17, 0), 240, day=3, loc=loc
+    )
+    tang = _visit(
+        "v2",
+        "长安十二时辰·唐宴",
+        "food",
+        time(18, 30),
+        60,
+        day=3,
+        loc=loc,
+        soft_pin=True,
+    )
+    day = DayPlan(day=3, base_city="西安", items=[block, tang])
+    plan = ItineraryPlan(itinerary_id="it3", cities=["西安"], days=[day])
+    assert _nested_block_food(day, tang) is True
+    assert _bind_real_food_to_cards(plan) == []
+    assert tang.start_time == time(18, 30)
+
+
+def test_placeholder_lunch_defaults_to_60_minutes():
+    """2026-11-14 拍板「1 HOUR DEFAULT AS LUNCH」：补位午饭卡默认 60 分钟
+    （覆写 2026-11-03 的 90 分钟默认）；晚饭卡默认 90 分钟。"""
+    plan = _plan([_visit("v1", "外滩", "attraction", time(9, 0), 90, day=1)])
+    _ensure_meal_cards(plan)
+    lunch = next(i for i in plan.days[0].items if is_lunch_placeholder(i))
+    assert lunch.start_time == time(12, 0)
+    assert lunch.end_time == time(13, 0)
+    assert lunch.duration_minutes == 60
+    dinner = next(
+        i for i in plan.days[0].items if i.item_id.startswith("food-dinner-ph")
+    )
+    assert dinner.duration_minutes == 90
+
+
+def test_lunch_card_nests_inside_long_site_visit():
+    """2026-11-14 拍板「LUNCH/DINNER CARD IS NOT EXCLUSIVE TO SITES……SAME
+    APPLIED TO other sites」：180 分钟大点跨午餐窗时，午饭卡嵌进游览窗
+    （CityWalk+餐组合口径推广到全部景点），卡锚回填宿主坐标，不另占白天。"""
+    loc = GeoPoint(lon=116.5598, lat=40.4267)
+    sight = _visit("v30", "慕田峪长城", "nature", time(11, 20), 180, day=1, loc=loc)
+    plan = _plan([sight])
+    _ensure_meal_cards(plan)
+    lunch = next(i for i in plan.days[0].items if is_lunch_placeholder(i))
+    assert lunch.start_time == time(12, 0)
+    assert lunch.end_time == time(13, 0)
+    # 宿主锚回填：卡面地址/展示腿跟慕田峪（吃在宿主站）
+    assert lunch.anchor_location == loc
+    # 嵌套判定义：整段被宿主窗包含 + 同址（锚）→ 不判铁律 1 双订
+    assert _nested_block_food(plan.days[0], lunch) is True
+    assert fusion_food_nested(
+        lunch, sight, (12 * 60, 13 * 60), (11 * 60 + 20, 14 * 60 + 20)
+    )
+
+
+def test_tight_day_lunch_drops_with_during_tour_comment():
+    """任何时长都放不进、也无宿手可嵌 → 归零不留卡 + 披露「游览途中就地
+    解决」（2026-11-14 拍板「SHORTEN TO 30 MINUTES OR ZERO IN CASE OF
+    TIGHT SCHEDULE. WE CAN HV COMMENTS SHOWN TO HV LUNCH/DINNER DURING
+    SITE TOURIST」）。"""
+    plan = _plan(
+        [
+            _visit("v1", "小点A", "attraction", time(11, 30), 40, day=1, pinned=True),
+            _visit("v2", "小点B", "attraction", time(12, 10), 30, day=1, pinned=True),
+            _visit("v3", "大点C", "attraction", time(12, 40), 500, day=1, pinned=True),
+        ]
+    )
+    _ensure_meal_cards(plan)
+    assert not any(is_lunch_placeholder(i) for i in plan.days[0].items)
+    assert any(
+        "游览途中就地解决" in str(a) and "午餐" in str(a) for a in plan.assumptions
+    )

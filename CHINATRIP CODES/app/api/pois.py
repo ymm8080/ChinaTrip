@@ -11,23 +11,33 @@ serialization pitfalls; the H5 does not use coordinates).
 详情气泡从此与行程卡/抢票日历共用同一份预约口径。
 """
 
+import logging
 import re
+import uuid
 from collections.abc import Callable
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
+from app.config import get_settings
 from app.db import get_session_factory
-from app.models import Poi
+from app.models import Poi, Restaurant
+from app.services.amap_client import AmapClient
 from app.services.poi_details import PoiDetailStore, apply_tier_tag
 from app.services.poi_details import get_poi_detail_store as _poi_store_singleton
+from app.services.poi_photos import fetch_photo_chain, in_cooldown
+from app.services.poi_tag_selector import GROUPS_BY_FAMILY
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
     RESERVATION_V0,
     reservation_meta_for,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/pois", tags=["pois"])
 
@@ -57,7 +67,14 @@ class PoiDetail(BaseModel):
     tags: list | None = None
     tags_source: str | None = None
     intro: str | None = None
+    intro_en: str | None = None
     intro_source: str | None = None
+    # P7b 证据链透出（2026-11-10）：UGC/点评综述——enrich 管道
+    # （app.jobs.enrich_review_summary / backfill_review_summary）已入库，
+    # 本端点纯读侧透出；source（llm/llm_distill）随字段小字标注。
+    review_summary: str | None = None
+    review_summary_en: str | None = None
+    review_summary_source: str | None = None
     photos: list | None = None
     photos_source: str | None = None
     best_visit_time: str | None = None
@@ -99,7 +116,11 @@ _COLS = (
     Poi.tags,
     Poi.tags_source,
     Poi.intro,
+    Poi.intro_en,
     Poi.intro_source,
+    Poi.review_summary,
+    Poi.review_summary_en,
+    Poi.review_summary_source,
     Poi.photos,
     Poi.photos_source,
     Poi.best_visit_time,
@@ -193,7 +214,11 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
         tags=tags if tags is not None else row.tags,
         tags_source=row.tags_source,
         intro=row.intro,
+        intro_en=row.intro_en,
         intro_source=row.intro_source,
+        review_summary=row.review_summary,
+        review_summary_en=row.review_summary_en,
+        review_summary_source=row.review_summary_source,
         photos=row.photos,
         photos_source=row.photos_source,
         best_visit_time=row.best_visit_time,
@@ -203,6 +228,68 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
         ticket_price_min=float(tmin) if tmin is not None else None,
         ticket_price_max=float(tmax) if tmax is not None else None,
         ticket_source=row.ticket_source,
+    )
+
+
+# --- 餐厅回退（2026-11-13 读侧接线）：行程卡餐位/餐厅名同走本气泡，
+# 但 pois 表查无（餐厅在独立 restaurants 表）→ 此前 404 静默跳过，
+# 照片/简介/米其林徽标永远不可见。pois 未命中时回落 restaurants 表
+# （同口径 city 变体 → name_zh 精确 → contains 模糊，active 闸一致），
+# 映射进同一 PoiDetail 形状——H5 气泡/找图按钮/死图打点零改动复用。
+
+
+def _find_restaurant_for_photos(
+    session: Session, city: str, wanted: str
+) -> Restaurant | None:
+    """餐厅侧与 detail 同查找口径（city 变体 → name_zh 精确 → contains）。
+
+    fetch 端点与 detail 回退共用；写回列（photos/photos_source/
+    photos_fetched_at/photos_fetch_fail）restaurants 与 pois 同构（0020）。
+    """
+    variants = _city_variants(city)
+    alive = Restaurant.status.is_(None) | (Restaurant.status == "active")
+    q = session.query(Restaurant).filter(alive)
+    if variants:
+        q = q.filter(Restaurant.city.in_(variants))
+    row = q.filter(Restaurant.name_zh == wanted).first()
+    if row is None:
+        norm = _norm_name(wanted)
+        if norm:
+            fq = session.query(Restaurant).filter(alive)
+            if variants:
+                fq = fq.filter(Restaurant.city.in_(variants))
+            row = fq.filter(Restaurant.name_zh.contains(norm)).first()
+    return row
+
+
+def _restaurant_to_model(row: Restaurant) -> PoiDetail:
+    """Restaurant 行 → PoiDetail（仅两表同构字段；预约/订票/点评综述
+    列餐厅侧不存在，恒 None）。cuisine 即受控 EN 类别（seed_upsert
+    Restaurant→cuisine 同口径），映射进 category 供 H5 复用。"""
+    rating = row.rating  # Numeric → Decimal on real rows
+    return PoiDetail(
+        poi_id=str(row.id) if row.id else None,
+        source=row.source,
+        origin=row.origin,
+        city=row.city,
+        name_zh=row.name_zh,
+        name_en=row.name_en,
+        category=row.cuisine,
+        status=row.status,
+        address=row.address,
+        opening_hours=row.opening_hours,
+        hours_source=row.hours_source,
+        phone=row.phone,
+        website=row.website,
+        rating=float(rating) if rating is not None else None,
+        rating_source=row.rating_source,
+        tags=list(row.tags or []) or None,
+        tags_source=row.tags_source,
+        intro=row.intro,
+        intro_en=row.intro_en,
+        intro_source=row.intro_source,
+        photos=row.photos,
+        photos_source=row.photos_source,
     )
 
 
@@ -231,6 +318,12 @@ async def poi_detail(
                         fq = fq.filter(Poi.city.in_(variants))
                     row = fq.filter(Poi.name_zh.contains(norm)).first()
             if row is None:
+                # 餐厅回退（2026-11-13）：行程卡餐位/餐厅名的气泡读侧——
+                # pois 查无再查 restaurants，命中即出同形状详情（照片/
+                # 简介/米其林徽标）。仍查无才 404（H5 静默跳过语义不变）。
+                rrow = _find_restaurant_for_photos(session, city, wanted)
+                if rrow is not None:
+                    return _restaurant_to_model(rrow)
                 raise HTTPException(status_code=404, detail="poi not found")
             # 读侧 tier 接线（2026-10-28）：5A/unesco 名单行 tags 列 0 覆盖
             # （名单以骨架行存在），H5 徽章按行内 tags 永远看不到层级——出参
@@ -238,8 +331,8 @@ async def poi_detail(
             tags = list(row.tags or [])
             if not {"unesco", "5a", "4a", "3a", "intl"} & set(tags):
                 heritage = [
-                    # 档号随 2026-11-03 名录序（source_tier）：unesco=0、5a=1
-                    (hz, 0 if src == "unesco" else 1)
+                    # 档号随 2026-11-13 名录序（source_tier）：unesco=1、5a=2
+                    (hz, 1 if src == "unesco" else 2)
                     for hz, src in session.query(Poi.name_zh, Poi.source)
                     .filter(Poi.source.in_(["unesco", "5a"]))
                     .all()
@@ -252,6 +345,139 @@ async def poi_detail(
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="poi store unavailable") from None
+
+
+# --- F2 点击回源 / F4 死图上报（DESIGN poi_photos_functional_design 2026-11-11）---
+
+
+class PhotosFetchRequest(BaseModel):
+    city: str
+    name: str
+
+
+class PhotosFetchResponse(BaseModel):
+    photos: list = []
+    photos_source: str | None = None
+    fetched: bool = False
+
+
+class PhotosDeadReport(BaseModel):
+    poi_id: str
+
+
+def _find_poi_for_photos(session: Session, city: str, wanted: str) -> Poi | None:
+    """与 detail 同查找口径（city 变体 → name_zh 精确 → contains 模糊）。"""
+    variants = _city_variants(city)
+    alive = (Poi.status.is_(None)) | (Poi.status == "active")
+    q = session.query(Poi).filter(alive)
+    if variants:
+        q = q.filter(Poi.city.in_(variants))
+    row = q.filter(Poi.name_zh == wanted).first()
+    if row is None:
+        norm = _norm_name(wanted)
+        if norm:
+            fq = session.query(Poi).filter(alive)
+            if variants:
+                fq = fq.filter(Poi.city.in_(variants))
+            row = fq.filter(Poi.name_zh.contains(norm)).first()
+    return row
+
+
+@router.post("/photos/fetch", response_model=PhotosFetchResponse)
+async def photos_fetch(
+    req: PhotosFetchRequest,
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> PhotosFetchResponse:
+    """点击触发确定性回源（幂等）。库有图直接回；冷却内回库值不外呼；
+    否则走 fetch_photo_chain 链——photos/photos_source 只填空，
+    photos_fetched_at 尝试即落戳（拉空也落，防连点烧配额）。失败必须
+    留日志（10-25 立规），响应不吐错误细节。"""
+    wanted = req.name.strip()
+    try:
+        with factory() as session:
+            row = _find_poi_for_photos(session, req.city, wanted)
+            if row is None:
+                # 餐厅回退（2026-11-13）：找图按钮对餐位/餐厅名同样成立——
+                # restaurants 与 pois 回源列同构（0020），链/写回零分支复用。
+                row = _find_restaurant_for_photos(session, req.city, wanted)
+            if row is None:
+                raise HTTPException(status_code=404, detail="poi not found")
+            if row.photos:
+                return PhotosFetchResponse(
+                    photos=row.photos, photos_source=row.photos_source, fetched=False
+                )
+            now = datetime.now()
+            if in_cooldown(row.photos_fetched_at, now):
+                return PhotosFetchResponse(
+                    photos=list(row.photos or []),
+                    photos_source=row.photos_source,
+                    fetched=False,
+                )
+            photos: list | None = None
+            source: str | None = None
+            try:
+                settings = get_settings()
+                amap = (
+                    AmapClient(key=settings.amap_api_key, timeout_seconds=10.0)
+                    if settings.amap_api_key
+                    else None
+                )
+                photos, source = await fetch_photo_chain(row, amap=amap)
+            except Exception:
+                logger.warning(
+                    "photos_fetch: chain failed, poi=%s city=%s name=%s",
+                    row.id,
+                    req.city,
+                    wanted,
+                    exc_info=True,
+                )
+            row.photos_fetched_at = now
+            if photos:
+                row.photos = photos
+                row.photos_source = source
+            session.commit()
+            return PhotosFetchResponse(
+                photos=list(photos or []),
+                photos_source=row.photos_source,
+                fetched=bool(photos),
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning(
+            "photos_fetch: store unavailable, city=%s name=%s",
+            req.city,
+            wanted,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+
+
+@router.post("/photos/report-dead", status_code=204)
+def photos_report_dead(
+    req: PhotosDeadReport,
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> Response:
+    """F4 死图上报（fire-and-forget）：photos_fetch_fail += 1，恒 204——
+    前端 onerror 不等结果。未知/坏 poi_id 留 warning 日志（静默吞掉
+    不允许），响应层无差别 204 防探测。"""
+    try:
+        poi_uuid = uuid.UUID(req.poi_id)
+    except (ValueError, AttributeError):
+        logger.warning("photos_report_dead: bad poi_id=%r", req.poi_id)
+        return Response(status_code=204)
+    with factory() as session:
+        row = session.get(Poi, poi_uuid)
+        if row is None:
+            # 餐厅回退（2026-11-13）：气泡出参 poi_id 可能是 restaurants 行
+            # （detail 回退命中餐厅）——死图计数落在同构 photos_fetch_fail 列。
+            row = session.get(Restaurant, poi_uuid)
+        if row is None:
+            logger.warning("photos_report_dead: unknown poi_id=%s", req.poi_id)
+            return Response(status_code=204)
+        row.photos_fetch_fail = (row.photos_fetch_fail or 0) + 1
+        session.commit()
+    return Response(status_code=204)
 
 
 def get_poi_store() -> PoiDetailStore:
@@ -319,3 +545,57 @@ def search_pois(
             )
         )
     return out
+
+
+# --- 用户可选两级标签树（DESIGN user_tag_two_level_2026-11-10 §一，w12_0022）---
+
+
+class PoiTagGroup(BaseModel):
+    """二级标签计数项：tag 为受控词表成员，count 为库内命中行数。"""
+
+    tag: str
+    count: int
+
+
+class PoiTagFamily(BaseModel):
+    """一级大类节点：groups 按设计 §一 表序全量返回（0 计数组照常在）。"""
+
+    family: str
+    groups: list[PoiTagGroup]
+
+
+@router.get("/tags", response_model=list[PoiTagFamily])
+def poi_tags_tree(
+    factory: Callable[[], Session] = Depends(get_poi_session_factory),
+) -> list[PoiTagFamily]:
+    """POI 用户可选两级标签树（选择器全菜单）：一级 7 族 × 二级 25 组。
+
+    count 为库内 pois.user_groups 命中行数（jsonb_array_elements_text
+    聚合；hotel/food/transport 行不进标签，WHERE 双保险过滤）。映射唯一
+    来源 app/services/poi_tag_selector.py（user_family/user_groups 由
+    backfill_poi_user_tags 只填空回填）；结构（族序/组序）取自
+    GROUPS_BY_FAMILY，与库内是否有货无关，前端可直接渲染选择器。
+    """
+    try:
+        with factory() as session:
+            rows = session.execute(
+                text(
+                    "SELECT grp, count(*) FROM pois, "
+                    "jsonb_array_elements_text(user_groups) AS grp "
+                    "WHERE user_groups IS NOT NULL "
+                    "AND (category IS NULL "
+                    "     OR lower(category) NOT IN ('hotel', 'food', 'transport')) "
+                    "GROUP BY grp"
+                )
+            ).all()
+    except Exception:
+        logger.warning("poi_tags_tree: store unavailable", exc_info=True)
+        raise HTTPException(status_code=503, detail="poi store unavailable") from None
+    counts = {t: int(n) for t, n in rows}
+    return [
+        PoiTagFamily(
+            family=fam,
+            groups=[PoiTagGroup(tag=g, count=counts.get(g, 0)) for g in groups],
+        )
+        for fam, groups in GROUPS_BY_FAMILY.items()
+    ]

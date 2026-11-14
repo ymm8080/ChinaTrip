@@ -202,3 +202,17 @@ def test_scorer_pinned_early_show_exempt():
     sc = plan_score(plan)
 
     assert sc.soft["early_show"] == 0  # 铁律 19：用户钉场不罚
+
+
+def test_scorer_sessionless_early_show_zero_penalty():
+    """无场次演出不罚早场（2026-11-06 拍板：无场次按正常景点逻辑排，
+    不再默认晚场——早场软罚只打真场次，LNS 不把无场次演出挪回晚场）。"""
+    show = _scored_show_plan(pinned=False)
+    show.opening_hours = None
+    day = DayPlan(day=1, base_city="西安", items=[show, _lunch()])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+
+    sc = plan_score(plan)
+
+    assert sc.soft["early_show"] == 0
+    assert sc.counts["early_show"] == 0

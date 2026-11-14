@@ -43,7 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db import get_session_factory  # noqa: E402
-from app.models import Poi  # noqa: E402
+from app.models import Poi, Restaurant  # noqa: E402
 
 _OPS = Path(__file__).resolve().parent
 MISS_FILES = {
@@ -88,52 +88,55 @@ def _as_uuid(k: str):
 
 
 def _select_rows(
-    limit: int, missed: dict[str, str], *, require_location: bool = False
+    limit: int,
+    missed: dict[str, str],
+    *,
+    require_location: bool = False,
+    table: str = "pois",
 ) -> list:
-    from sqlalchemy import case, not_, or_
+    """2026-11-14 用户拍板：停止取 rating（单源去哪儿收割停用）——
 
+    两表目标口径均收窄为 hours-only；restaurants 为新增目标表
+    （2026-11-12 创建，hours 缺口 100%）。"""
+    from sqlalchemy import case, not_
+
+    model = Restaurant if table == "restaurants" else Poi
     with get_session_factory()() as session:
-        q = session.query(Poi).filter(
-            Poi.status == "active",
-            Poi.city.isnot(None),
-            Poi.city != "",
-            or_(Poi.opening_hours.is_(None), Poi.rating.is_(None)),
+        q = session.query(model).filter(
+            model.status == "active",
+            model.city.isnot(None),
+            model.city != "",
+            model.opening_hours.is_(None),
         )
         if require_location:
             # amap 引擎现只剩 /place/around（text 被 WAF deny），无坐标
             # 的行不可处理；放进批次还会让首行直接熔断整批。
-            q = q.filter(Poi.location.isnot(None))
+            q = q.filter(model.location.isnot(None))
         if missed:
             ids = [u for u in (_as_uuid(k) for k in missed) if u is not None]
             if ids:
-                q = q.filter(not_(Poi.id.in_(ids)))
-        # 既有优先级序列（2026-11-03 用户指令「按既有优先级清单填」）：
-        # 与 app/jobs/enrich_ctrip_detail._source_rank 同序——规划器最先
-        # 挑出的行（unesco/5a/博物馆系/artmuseum）先吃每日配额。
-        rank = case(
-            *[
-                (Poi.source == src, rank_)
-                for rank_, src in enumerate(
-                    (
-                        "unesco",
-                        "5a",
-                        "museum1",
-                        "museum2",
-                        "museum3",
-                        "artmuseum",
-                        "amap",
-                        "chinatravel",
-                        "osm",
-                    )
-                )
-            ],
-            else_=5,
-        )
-        rows = (
-            q.order_by(rank, Poi.rating.desc().nullslast(), Poi.id)
-            .limit(limit)
-            .all()
-        )
+                q = q.filter(not_(model.id.in_(ids)))
+        if table == "pois":
+            # 既有优先级序列（2026-11-03 用户指令「按既有优先级清单填」）：
+            # 直接取铁律 canonical 表 app.services.source_tier.SOURCE_PRIORITY
+            # （2026-11-08 用户拍板 +curated）——规划器最先挑出的行先吃每日配额。
+            from app.services.source_tier import SOURCE_PRIORITY
+
+            rank = case(
+                *[
+                    (Poi.source == src, rank_)
+                    for rank_, src in enumerate(SOURCE_PRIORITY)
+                ],
+                else_=len(SOURCE_PRIORITY),
+            )
+            rows = (
+                q.order_by(rank, Poi.rating.desc().nullslast(), Poi.id)
+                .limit(limit)
+                .all()
+            )
+        else:
+            # restaurants：无名录序，按城市+id 稳定顺序推进
+            rows = q.order_by(Restaurant.city, Restaurant.id).limit(limit).all()
         session.expunge_all()
     return rows
 
@@ -228,9 +231,7 @@ async def _run_baidu(limit: int, concurrency: int) -> dict:
             new_missed[str(row.id)] = f"baidu no_match（{date.today().isoformat()}）"
         else:
             stats["matched_no_fields"] += 1
-            new_missed[str(row.id)] = (
-                f"baidu 无目标字段（{date.today().isoformat()}）"
-            )
+            new_missed[str(row.id)] = f"baidu 无目标字段（{date.today().isoformat()}）"
 
     await asyncio.gather(*(_guarded(r) for r in rows))
     # 台账只含已尝试且确定性失败的行（未尝试行不入 new_missed）——配额
@@ -245,7 +246,11 @@ async def _run_baidu(limit: int, concurrency: int) -> dict:
 
 
 def _write_row_amap(factory, poi_id, out: dict) -> list[str]:
-    """逐列只填空；与 enrich_amap_detail 同口径（amap 触点）。"""
+    """逐列只填空；与 enrich_amap_detail 同口径（amap 触点）。
+
+    2026-11-10 用户拍板：amap 不再取 rating（评分权威归携程/百度，
+    存量 amap 评分由携程详情页覆盖），amap 只出 hours/phone/商圈/照片。
+    """
     written: list[str] = []
     with factory() as session:
         row = session.get(Poi, poi_id)
@@ -255,15 +260,6 @@ def _write_row_amap(factory, poi_id, out: dict) -> list[str]:
             row.opening_hours = str(out["opening_hours"]).strip()[:200]
             row.hours_source = "amap"
             written.append("opening_hours")
-        if row.rating is None and out.get("rating"):
-            try:
-                rv = float(out["rating"])
-            except (TypeError, ValueError):
-                rv = None
-            if rv is not None and 0 <= rv <= 5:
-                row.rating = rv
-                row.rating_source = "amap"
-                written.append("rating")
         if row.phone is None and out.get("tel"):
             row.phone = str(out["tel"]).strip()[:50]
             written.append("phone")
@@ -278,7 +274,9 @@ def _write_row_amap(factory, poi_id, out: dict) -> list[str]:
     return written
 
 
-async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict:
+async def _run_amap(
+    limit: int, concurrency: int, *, delay: float = 0.0, table: str = "pois"
+) -> dict:
     from app.config import get_settings
     from app.jobs.enrich_baidu_map import _match_name, _variants
     from app.services.amap_client import (
@@ -289,7 +287,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
     )
 
     missed = _load_missed("amap")
-    rows = _select_rows(limit, missed, require_location=True)
+    rows = _select_rows(limit, missed, require_location=True, table=table)
     stats: dict = {
         "engine": "amap",
         "selected": len(rows),
@@ -310,6 +308,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
         return stats
 
     client = AmapClient(key=settings.amap_api_key, timeout_seconds=10.0)
+    model = Restaurant if table == "restaurants" else Poi
     sem = asyncio.Semaphore(max(1, concurrency))
     new_missed: dict[str, str] = {}
     # 配额/WAF/10002 首撞后整批短路：不再对死端点逐行重试（限量烧干）。
@@ -349,7 +348,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
         if not matched or not _match_name(matched, variants):
             return "no_match"
         written = await asyncio.to_thread(
-            _write_row_amap, get_session_factory(), row.id, out
+            _write_row_amap, get_session_factory(), row.id, out, model=model
         )
         if written:
             for col in written:
@@ -397,9 +396,7 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
             new_missed[str(row.id)] = f"amap no_match（{date.today().isoformat()}）"
         else:
             stats["matched_no_fields"] += 1
-            new_missed[str(row.id)] = (
-                f"amap 无目标字段（{date.today().isoformat()}）"
-            )
+            new_missed[str(row.id)] = f"amap 无目标字段（{date.today().isoformat()}）"
 
     await asyncio.gather(*(_guarded(r) for r in rows))
     # 同 baidu：台账只含已尝试的确定性失败行，配额/WAF 停批也照写。
@@ -409,10 +406,14 @@ async def _run_amap(limit: int, concurrency: int, *, delay: float = 0.0) -> dict
 
 
 async def run(
-    limit: int, concurrency: int, engine: str, delay: float = 0.0
+    limit: int,
+    concurrency: int,
+    engine: str,
+    delay: float = 0.0,
+    table: str = "pois",
 ) -> dict:
     if engine == "amap":
-        return await _run_amap(limit, concurrency, delay=delay)
+        return await _run_amap(limit, concurrency, delay=delay, table=table)
     return await _run_baidu(limit, concurrency)
 
 
@@ -423,10 +424,37 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=2)
     # 2026-11-04：/v5/place/around 连发约百次返 10002，请求间留间隔更稳。
     parser.add_argument("--delay", type=float, default=0.0)
+    # 2026-11-14：--table restaurants（hours 缺口 100%，amap around 主场）
+    parser.add_argument("--table", choices=("pois", "restaurants"), default="pois")
     args = parser.parse_args()
-    stats = asyncio.run(
-        run(args.limit, args.concurrency, args.engine, delay=args.delay)
-    )
+    # 防重叠锁（2026-11-04 5 分钟节拍调度用）：新鲜（<15min）即让位——
+    # 手动/日批 cmd/调度器谁先到谁跑，后来者直接退出不叠加实例。
+    import os
+    import time
+
+    lock = _OPS / "fill_hr.lock"
+    try:
+        if time.time() - os.path.getmtime(lock) < 15 * 60:
+            print(json.dumps({"skipped": "lock_fresh"}))
+            return
+    except OSError:
+        pass
+    lock.write_text(str(time.time()), encoding="utf-8")
+    try:
+        stats = asyncio.run(
+            run(
+                args.limit,
+                args.concurrency,
+                args.engine,
+                delay=args.delay,
+                table=args.table,
+            )
+        )
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
     print(json.dumps(stats, ensure_ascii=False))
     sys.exit(2 if stats.get("quota_stop") else 0)
 

@@ -12,8 +12,8 @@ function over the shared domain models — no I/O, no LLM, no DB.
     4 跨城衔接缓冲（VisitItem↔TransferItem ≥90 分钟）→ validate_plan
     5 同日多段跨城（seq 递增唯一 + 互相缓冲）→ validate_plan
     6 节奏量化（日步行 ≤15km×人群系数；游览占比 ≥55%）→ validate_plan
-    7 相邻观光对间隔 ≥ 打车腿（零车程背靠背绊网；生成端由 solver
-      保证，此处回溯兜底旧载荷）→ validate_plan
+    7 相邻对象对间隔 ≥ 打车腿（零车程背靠背绊网；2026-11-13 起餐/
+      酒店/钉件同口径，仅同址≤SAME_VENUE_KM 与无坐标对豁免）→ validate_plan
     10 只动当天及之后 → validate_change_scope
     19 钉死点（pinned 不得被移动/改时间/删除）→ validate_pinned
 
@@ -57,7 +57,9 @@ from app.services.itinerary.models import (
 )
 from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
+    SAME_VENUE_KM,
     _is_big_site,
+    fusion_food_nested,
     generic_entry_cap,
 )
 from app.services.lang_ctx import L
@@ -94,13 +96,14 @@ def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     return 2.0 * _EARTH_RADIUS_KM * asin(sqrt(h))
 
 
-# 打车模型常量（用户拍板 2026-10-31「打车时间=车程+半小时叫车」）：
-# 车程=直线×1.3 绕行 ÷ 35km/h 均混车速，另加 30 分钟叫车/等待；≤1.5km
-# 近距共址按步行（不白付叫车开销）；单腿上限 180 分钟。选点腿费/必去
-# 放日/solver 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
+# 打车模型常量（2026-11-14 用户拍板：车速 70km/h 城市均速、叫车等待 15 分钟；
+# 此前 35km/h + 30 分钟，把 57km 的慕田峪→市区算成 2 小时）：
+# 车程=直线×1.3 绕行 ÷ 70km/h，另加 15 分钟叫车/等待；≤1.5km 近距共址按
+# 步行（不白付叫车开销）；单腿上限 180 分钟。选点腿费/必去放日/solver
+# 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
 TRAVEL_LEG_CAP_MIN = 180
-TAXI_HAIL_MINUTES = 30
-TAXI_MIN_PER_KM = 1.3 / 35 * 60  # ≈2.23 分钟/公里（直线×绕行÷车速）
+TAXI_HAIL_MINUTES = 15
+TAXI_MIN_PER_KM = 1.3 / 70 * 60  # ≈1.11 分钟/公里（直线×绕行÷70km/h）
 TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
 #: 步行估算分钟/公里（×1.3 绕行 / 80m/min）——近距腿与卡片展示共用。
 TRAVEL_MIN_PER_KM = 1000.0 * 1.3 / 80.0
@@ -118,17 +121,27 @@ def taxi_leg_min(km: float) -> int:
 
 
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
-    """相邻两点 a→b 需要的走行分钟；豁免对（餐/酒店贴点、钉点、无坐标）
-    返回 None 表示不校验。口径与兜底 _leg_windows 的 pad 一致：
-    max(30, taxi_leg_min(haversine))。"""
-    for v in (a, b):
-        if (v.category or "") in ("food", "hotel"):
-            return None  # 餐位贴点/入住卡：拍板语义，不按腿隔开
-        if v.pinned:
-            return None  # 铁律 19：钉是用户安排非引擎节奏
-        if v.location is None:
-            return None  # 无坐标算不出腿（占位午餐等）
-    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(haversine_km(a.location, b.location)))
+    """相邻两点 a→b 需要的走行分钟。
+
+    2026-11-13 用户拍板「路途时间和距离在所有 OBJECT 里都要正确计算
+    （HOTEL/餐饮/活动/景点）」：旧按类目豁免（餐/酒店贴点、钉点）是
+    「同址」的粗糙代理，撤除——改为距离语义：
+
+    - 双方有坐标且同址（≤SAME_VENUE_KM）：返回 None——同址嵌套/并
+      块尾（2026-11-12/11-10 拍板）按真实距离天然免隔腿，不再按类目
+      一刀切；
+    - 双方有坐标：max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))——
+      餐/酒店/钉件与观光件同口径（秦俑情 11:00 散场→41km 外餐厅
+      12:20 零车程案：钉不可挪由铁律 19 管移动，本条管间隔计算与披露）；
+    - 任一方无坐标：返回 None（算不出），调用方须留痕。
+    口径与兜底 _leg_windows 的 pad 一致：max(30, taxi_leg_min(haversine))。
+    """
+    if a.location is None or b.location is None:
+        return None
+    km = haversine_km(a.location, b.location)
+    if km <= SAME_VENUE_KM:
+        return None  # 同址不隔腿（嵌套/并块尾按距离语义豁免）
+    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))
 
 
 def _eff_end_minutes(item: VisitItem | TransferItem) -> int | None:
@@ -148,6 +161,19 @@ def _report(violations: list[RuleViolation]) -> ValidationReport:
 # --- iron rule 1: same-day VisitItem time overlap -------------------------
 
 
+def _nested_food_pair(a: VisitItem, b: VisitItem) -> bool:
+    """同址餐饮融合嵌套（2026-11-12 用户拍板「街区天然有餐饮，不应该互斥
+    相撞...街区的时间里包含了餐厅时间」）：food 卡完整落在同址（≤
+    SAME_VENUE_KM）宿主卡窗内=时间包含语义，不判铁律 1 双订。判定定义
+    点 solver.fusion_food_nested；部分溢出/非同址照旧报错。"""
+    return fusion_food_nested(
+        a,
+        b,
+        (_minutes(a.start_time), _minutes(a.end_time)),
+        (_minutes(b.start_time), _minutes(b.end_time)),
+    )
+
+
 def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
@@ -156,6 +182,8 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
     out = []
     for prev, cur in zip(timed, timed[1:]):
         if _minutes(prev.end_time) > _minutes(cur.start_time):
+            if _nested_food_pair(prev, cur):
+                continue  # 同址餐饮融合豁免（拍板）：街区时间包含餐厅时间
             out.append(
                 RuleViolation(
                     rule_id=1,
@@ -180,9 +208,9 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
 
 def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     """零车程背靠背绊网（2026-11-03 Day2 大明宫→城墙 15:00 事故）：
-    相邻已排观光对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免对见
-    travel_gap_needed（餐/酒店贴点、钉点、无坐标）。solver 生成端已
-    保证；此处回溯兜底旧 session 载荷与任何漏网路径，触即 error 披露。"""
+    相邻已排对象对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免口径
+    见 travel_gap_needed（2026-11-13 起仅同址/无坐标豁免，餐/酒店/钉
+    件照算——solver 生成端漏网由此处披露兜底）。"""
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
         key=lambda v: (v.start_time, v.end_time),
@@ -491,7 +519,8 @@ def _check_delivery_gates(
        优先级倒挂（凑数点霸下午、必去挂日尾渲染成四点以后）；
     ② 同日下午（≥13:00 开场）大点 ≥2=warning（下午单大点，2026-11-04
        拍板「超过 80 分钟的下午就放一个」）；
-    ③ 白天入场闸超限=warning（大点 >15:30 / 普通 >16:30 开场，夜游/
+    ③ 白天入场开场闸超限=warning（2026-11-07 用户再拍板：观光须 16:00
+       前安排（开场），时长可跨界收尾；大点 15:30 开场带并列上限；夜游/
        演出/餐/酒店/用户钉住有时刻豁免面与 solver generic_entry_cap
        完全同口径）——仅在营业窗已知（poi_id 命中 hours）时判，避免
        poi_hours=[] 的结构校验调用对夜开场馆误报。
@@ -532,10 +561,10 @@ def _check_delivery_gates(
                     severity=RuleSeverity.warning,
                     message=L(
                         f"第{day_no}天 「{v.name}」{v.start_time.strftime('%H:%M')}"
-                        " 开场晚于白天入场闸",
+                        " 开场——白天观光须 16:00 前安排（大点最晚 15:30 开场）",
                         f'Day {day_no}: "{v.name}" starts '
-                        f"{v.start_time.strftime('%H:%M')} after the daytime "
-                        "entry cap",
+                        f"{v.start_time.strftime('%H:%M')} — daytime sights "
+                        "must be scheduled by 16:00 (big sites by 15:30)",
                     ),
                     item_ids=[v.item_id],
                     day=day_no,
@@ -589,6 +618,22 @@ def validate_plan(
     return _report(violations)
 
 
+_SCOPE_IGNORE_FIELDS = ("distance_to_next_km", "next_walk_minutes", "leg_source")
+
+
+def _scope_key(day: DayPlan):
+    """铁律 10 的语义比较键：腿标注字段（legs.annotate_legs 出口端恒补的
+    展示字段）归一化后比——旧计划从存储进来无标注，新计划经 mutate 出口
+    必带标注，整对象相等比较会把纯展示漂移误报成越界（2026-11-10 GAP-4）。"""
+    return (
+        day.base_city,
+        tuple(
+            i.model_copy(update={f: None for f in _SCOPE_IGNORE_FIELDS})
+            for i in day.items
+        ),
+    )
+
+
 def validate_change_scope(
     old_plan: ItineraryPlan, new_plan: ItineraryPlan, *, from_day: int
 ) -> ValidationReport:
@@ -601,11 +646,7 @@ def validate_change_scope(
             continue
         old_d = old_days[day_no]
         new_d = new_days.get(day_no)
-        if (
-            new_d is None
-            or new_d.base_city != old_d.base_city
-            or list(new_d.items) != list(old_d.items)
-        ):
+        if new_d is None or _scope_key(new_d) != _scope_key(old_d):
             violations.append(
                 RuleViolation(
                     rule_id=10,

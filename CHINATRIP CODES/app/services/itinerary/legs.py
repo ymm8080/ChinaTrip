@@ -15,6 +15,7 @@ replaces the estimate with measured walking legs; leg_source flips to
 """
 
 from app.services.itinerary.models import (
+    GeoPoint,
     ItineraryPlan,
     TransferItem,
     VisitItem,
@@ -24,6 +25,41 @@ from app.services.itinerary.rules import haversine_km
 DETOUR_FACTOR = 1.3  # straight-line -> walking-route correction
 WALK_METERS_PER_MINUTE = 80.0  # ≈ 4.8 km/h sightseeing pace
 MIN_LEG_KM = 0.05  # below this the two stops are effectively co-located
+
+
+def _point(item: VisitItem) -> GeoPoint | None:
+    """Leg math point: real POI coords, else a meal card's inherited anchor."""
+    return item.location or item.anchor_location
+
+
+def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
+    """Re-anchor blank meal cards (午饭/晚饭自由安排) on the previous stop.
+
+
+    2026-11-13 用户指令「BLANK LUNCH CARD 默认取上一站地址」：占位餐卡没有
+    POI，卡面地址与「距下一站」腿都从当天前一落脚点继承。每次调用按当前
+    顺序重算（幂等）——占位卡被拖到别处/其前面插入新条目，锚自动跟到新的
+    前一站；跨城交通卡之后或当天首件没有可继承的落脚点则一律清空，绝不把
+    出发城地址带过换乘卡。
+    """
+    for day in plan.days:
+        last: VisitItem | None = None
+        for item in day.items:
+            if isinstance(item, TransferItem):
+                last = None
+                continue
+            if item.anchor_from_prev:
+                if last is not None and last.location is not None:
+                    item.address = last.address
+                    item.address_en = last.address_en
+                    item.anchor_location = last.location
+                else:
+                    item.address = None
+                    item.address_en = None
+                    item.anchor_location = None
+            if item.location is not None:
+                last = item
+    return plan
 
 
 def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
@@ -39,12 +75,10 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
             if isinstance(item, TransferItem) or item.start_time is None:
                 last = None
                 continue
-            if (
-                last is not None
-                and last.location is not None
-                and item.location is not None
-            ):
-                km = haversine_km(last.location, item.location)
+            last_pt = _point(last) if last is not None else None
+            cur_pt = _point(item)
+            if last_pt is not None and cur_pt is not None:
+                km = haversine_km(last_pt, cur_pt)
                 if km >= MIN_LEG_KM:
                     out.append((last, item, km))
             last = item
@@ -53,6 +87,8 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
 
 def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
     """Fill/clear the leg fields of every day in ``plan`` (in place)."""
+    # 空餐卡先贴前一站（地址 + 锚点），腿链才能算出「餐 → 下一站」
+    resolve_meal_anchors(plan)
     for day in plan.days:
         for item in day.items:
             if not isinstance(item, TransferItem):

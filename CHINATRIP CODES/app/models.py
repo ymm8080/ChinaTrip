@@ -1,12 +1,14 @@
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 from geoalchemy2 import Geography, WKBElement
 from sqlalchemy import (
     ARRAY,
     TIME,
     TIMESTAMP,
+    BigInteger,
     Boolean,
+    Date,
     Float,
     ForeignKey,
     Index,
@@ -88,6 +90,11 @@ class Poi(Base):
     intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
+    # 照片回源元数据（DESIGN poi_photos_functional_design §3-F2/F4，
+    # 0020）：fetched_at 是 24h 点击冷却键——尝试即落戳（拉空也落），
+    # photos 本体仍只填空；fetch_fail 由死图上报端点累加。
+    photos_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    photos_fetch_fail: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     best_visit_time: Mapped[str | None] = mapped_column(
         String(10), server_default=text("'any'")
     )
@@ -120,6 +127,32 @@ class Poi(Base):
     reservation_required: Mapped[bool | None] = mapped_column(Boolean)
     reservation_advance_days: Mapped[int | None] = mapped_column(Integer)
     booking_url: Mapped[str | None] = mapped_column(String(500))
+    # 用户可选二级标签（DESIGN user_tag_two_level_2026-11-10 §一，w12_0022）：
+    # 一级 7 族 × 二级 25 组受控词表。映射唯一来源
+    # app/services/poi_tag_selector.py（规则级联 + review 粗词碰撞消解；
+    # 类目命中恒保留封顶、定族优先），由 app/jobs/backfill_poi_user_tags.py
+    # 只填空回填；hotel/food/transport/category=None 服务类行恒空，
+    # 未命中不猜（留空）。
+    user_family: Mapped[str | None] = mapped_column(String(50))
+    user_groups: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    # v2.6 TripAdvisor (Terra) 富化列（2026-11-14，w12_0032）：1000 次免费
+    # 配额 = 1000 次 GET /locations/{id} 详情调用，一次拿全一个地点的 TA
+    # 反馈。ta_location_id 映射走免费通道（搜索引擎解析公开 URL 的 d(\d+)，
+    # 已用故宫 d319086 验证）。全部只填空；时间敏感字段真相仍归高德/携程
+    # 回源链——ta_opening_hours / ta_suggested_duration_min 只做校验/补空/
+    # 展示参考，绝不回写主列；ta_rating 与主 rating 分列避免互踩。
+    ta_location_id: Mapped[str | None] = mapped_column(String(20))
+    ta_geo_id: Mapped[str | None] = mapped_column(String(20))
+    ta_status: Mapped[str | None] = mapped_column(String(20))  # OPEN / CLOSED
+    ta_url: Mapped[str | None] = mapped_column(String(500))
+    ta_rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    ta_opening_hours: Mapped[str | None] = mapped_column(String(500))
+    ta_suggested_duration_min: Mapped[int | None] = mapped_column(Integer)
+    # TA 英文简介（descriptions 默认 locale，TA 数据全取英文）——
+    # intro_en 只填空来源之一
+    ta_intro_en: Mapped[str | None] = mapped_column(Text)
+    # 详情拉取时间——配额记账键（每 POI 一次 /locations/{id}）
+    ta_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
@@ -153,6 +186,12 @@ class Restaurant(Base):
     name_en: Mapped[str | None] = mapped_column(String(200))
     cuisine: Mapped[str | None] = mapped_column(String(50))
     cuisine_en: Mapped[str | None] = mapped_column(String(50))
+    # 用户可选二级标签（DESIGN user_tag_two_level_2026-11-10 §二）：
+    # cuisine 575 原值粗化 → family(6)/group(21)，推导列，原值列不动。
+    # 映射唯一来源 app/services/cuisine_taxonomy.py，回填走
+    # app/jobs/backfill_cuisine_group.py（fill-empty-only）。
+    cuisine_family: Mapped[str | None] = mapped_column(String(50))
+    cuisine_group: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str | None] = mapped_column(
         String(20), server_default=text("'active'")
     )
@@ -181,7 +220,23 @@ class Restaurant(Base):
     intro_en: Mapped[str | None] = mapped_column(Text)
     photos: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     photos_source: Mapped[str | None] = mapped_column(String(20))
+    # 同 pois（0020）：回源冷却戳 + 死图计数，语义见 Poi 侧注释。
+    photos_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    photos_fetch_fail: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     origin: Mapped[str | None] = mapped_column(String(20))
+    # v2.6 TripAdvisor (Terra) 富化列（2026-11-14，w12_0034）：与 pois.ta_*
+    # 完全同款 9 列（语义见 Poi 侧注释），餐厅独立底库同批走猫途鹰免费
+    # 映射 + 详情拉取。全部只填空；时间敏感真相仍归高德/携程回源链。
+    ta_location_id: Mapped[str | None] = mapped_column(String(20))
+    ta_geo_id: Mapped[str | None] = mapped_column(String(20))
+    ta_status: Mapped[str | None] = mapped_column(String(20))  # OPEN / CLOSED
+    ta_url: Mapped[str | None] = mapped_column(String(500))
+    ta_rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    ta_intro_en: Mapped[str | None] = mapped_column(Text)
+    ta_opening_hours: Mapped[str | None] = mapped_column(String(500))
+    ta_suggested_duration_min: Mapped[int | None] = mapped_column(Integer)
+    # 详情拉取时间——配额记账键（每餐厅一次 /locations/{id}）
+    ta_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     # 规划引擎升级 0009：restaurants 专属富化列（C 组 + 评论域）。
     rating_count: Mapped[int | None] = mapped_column(Integer)
     review_tags: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
@@ -260,6 +315,57 @@ class PoiStat(Base):
     )
 
 
+class TripadvisorLocation(Base):
+    """TripAdvisor (Terra) 地点详情原始镜像（2026-11-14 定调，w12_0033）。
+
+    1000 次免费配额 = 1000 次 GET /locations/{id}（默认 locale 全英文）。
+    响应整条入 payload（JSONB 留档，与 trip_items.payload 同惯例），常用
+    字段提取成列便于查询。映射关系：pois.ta_location_id 正向引用本表
+    location_id；本表 poi_id 反向引用（补数据/核对用）。纯镜像表——
+    规划侧只读 pois.ta_*，本表不回填任何主列。
+    """
+
+    __tablename__ = "tripadvisor_locations"
+    __table_args__ = (
+        Index("idx_ta_locations_poi", "poi_id"),
+        Index("idx_ta_locations_geo", "geo_id"),
+    )
+
+    # TA 地点 ID（公开 URL d(\d+)，如故宫 319086）——自然主键
+    location_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # 反向映射：已归属的 POI（未映射为 NULL）
+    poi_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pois.id")
+    )
+    # 整条 API 响应留档（names/descriptions/addresses/urls/opening_hours/
+    # traveler_ratings 全量，含 breakdowns、language_counts 等未提列字段）
+    payload: Mapped[dict] = mapped_column(JSONB)
+
+    # --- 提取列（payload 的查询友好投影） -------------------------------
+    geo_id: Mapped[int | None] = mapped_column(BigInteger)
+    geo: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str | None] = mapped_column(String(20))  # OPEN / CLOSED
+    name_en: Mapped[str | None] = mapped_column(String(200))
+    intro_en: Mapped[str | None] = mapped_column(Text)
+    address_en: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    phone: Mapped[str | None] = mapped_column(String(50))
+    website_official: Mapped[str | None] = mapped_column(String(300))
+    rating: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    rating_count: Mapped[int | None] = mapped_column(Integer)
+    photos_total_count: Mapped[int | None] = mapped_column(Integer)
+    opening_hours_formatted: Mapped[str | None] = mapped_column(String(500))
+    # TA 原始值（单位：小时）；换算分钟在读取侧做
+    recommended_visit_length: Mapped[int | None] = mapped_column(Integer)
+
+    # fetched_at 配额记账（每 POI 一次）；updated_at latest-wins 更新戳
+    fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=text("NOW()")
+    )
+
+
 class WeatherReport(Base):
     # v2.5 参考数据域：城市天气快照（高德天气 API，上游中国气象局）。
     # latest-wins：每 (source, adcode, kind) 仅存最新一行——report_time 是
@@ -315,6 +421,22 @@ class Itinerary(Base):
         Boolean, server_default=text("false")
     )
     share_token: Mapped[str | None] = mapped_column(String(64))
+    # 2026-11-13（用户拍板 trip HEADER：CREATION DATE / CREATOR / DELETION
+    # FLAG / TRIP ID / TRIP NAME / LAST CHANGE DATE+TIME）：软删标记、创建人、
+    # 最后变更时刻。title=行程名，created_at=创建日期，owner_*=归属。
+    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    creator_name: Mapped[str | None] = mapped_column(String(100))
+    last_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # 2026-11-13（用户拍板 HEADER 列）：起始/结束城市、旅行城市一/二
+    # 与各自天数、旅行开始日期。
+    start_city: Mapped[str | None] = mapped_column(String(50))
+    end_city: Mapped[str | None] = mapped_column(String(50))
+    dest_city_1: Mapped[str | None] = mapped_column(String(50))
+    dest_days_1: Mapped[int | None] = mapped_column(Integer)
+    dest_city_2: Mapped[str | None] = mapped_column(String(50))
+    dest_days_2: Mapped[int | None] = mapped_column(Integer)
+    travel_start_date: Mapped[date | None] = mapped_column(Date)
 
 
 class ItinerarySnapshot(Base):
@@ -374,6 +496,10 @@ class ItineraryItem(Base):
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
+    # 2026-11-14（用户拍板「TRIP ITEM 也要 USER ID 列，打开页面按 USER ID
+    # 出内容；不需要设备列」）：明细行冗余用户键——不 JOIN 头表也能按用户
+    # 直查；值由保存路径从头表带下来。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itinerary_snapshots.id")
     )
@@ -385,6 +511,69 @@ class ItineraryItem(Base):
     start_time: Mapped[time | None] = mapped_column(TIME)
     end_time: Mapped[time | None] = mapped_column(TIME)
     draft: Mapped[bool | None] = mapped_column(Boolean, server_default=text("true"))
+    # 2026-11-13（用户拍板「TRIP 详情数据库：EACH DATE AND TIME AND SITES,
+    # ALTERNATIVE INFORMATION」）：点位名/城/类别/地址/备选一并落库。
+    name: Mapped[str | None] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(50))
+    category: Mapped[str | None] = mapped_column(String(40))
+    address: Mapped[str | None] = mapped_column(String(200))
+    alternatives: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    # 2026-11-13（用户拍板明细列：DURATION / SCHEDULE DATE /
+    # ALTERNATIVE 1-3）：时长、具体日期、备选名单独成列，方便查询。
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    schedule_date: Mapped[date | None] = mapped_column(Date)
+    alt1: Mapped[str | None] = mapped_column(String(200))
+    alt2: Mapped[str | None] = mapped_column(String(200))
+    alt3: Mapped[str | None] = mapped_column(String(200))
+    # 2026-11-13（用户「先想清楚还缺什么」）：可回溯列——plan item_id /
+    # POI 业务号 / 行种类 / 城际段起止城与班次（transfer 行没有 name）。
+    item_ref: Mapped[str | None] = mapped_column(String(64))
+    poi_ref: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str | None] = mapped_column(String(20))
+    from_city: Mapped[str | None] = mapped_column(String(50))
+    to_city: Mapped[str | None] = mapped_column(String(50))
+    transport_no: Mapped[str | None] = mapped_column(String(32))
+    # 2026-11-13：VisitItem/酒店/交通/餐卡全量留档（整条 item dump）
+    payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    must_visit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    tier: Mapped[int | None] = mapped_column(SmallInteger)
+    site_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    note: Mapped[str | None] = mapped_column(Text)
+    seq: Mapped[int | None] = mapped_column(Integer)
+    # 2026-11-13（用户「VisitItem/酒店/交通/餐卡都要在详情表里」）：
+    # 各类实体自己的业务字段（卡片文案之外的真身）。
+    meal_slot: Mapped[str | None] = mapped_column(String(16))
+    transport_mode: Mapped[str | None] = mapped_column(String(16))
+    hotel_name: Mapped[str | None] = mapped_column(String(200))
+    placeholder: Mapped[bool | None] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+
+
+class ItineraryChangeLog(Base):
+    """每次「💾 保存行程」的变更日志（2026-11-13 用户拍板）。
+
+    USER / USER NAME / CHANGES ——设备、账号、变更人与逐条 diff 全落库，
+    供行程中心审计与回放。"""
+
+    __tablename__ = "itinerary_change_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("itineraries.id")
+    )
+    itinerary_ref: Mapped[str | None] = mapped_column(String(64))
+    owner_device_id: Mapped[str | None] = mapped_column(String(100))
+    owner_account_id: Mapped[str | None] = mapped_column(String(100))
+    actor_name: Mapped[str | None] = mapped_column(String(100))
+    changed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("NOW()")
+    )
+    sync_version: Mapped[int | None] = mapped_column(Integer)
+    summary: Mapped[str | None] = mapped_column(Text)
+    changes: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    snapshot_id: Mapped[str | None] = mapped_column(String(64))
 
 
 class ExecutionEvent(Base):
@@ -468,6 +657,10 @@ class ActionHandoff(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
+    # 2026-11-14（用户拍板「预订/代订埋点也要 USER ID 列，不需要设备列」）：
+    # 归属键 = 登录账号字符串（owner_account_id=用户名/邮箱，与行程头同源）；
+    # users.id 外键留空（users 表非账号真源）。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
@@ -505,9 +698,23 @@ class TripItem(Base):
     __tablename__ = "trip_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    # 2026-11-13（用户拍板「心愿单/已排期/不想去/已订 都应该是数据库的
+    # 数据」）：行归属设备 + 业务行程号原样入库（itinerary_id 是 uuid
+    # 外键，未保存的工作行程没有对应行，FK 落不了；ref 列让挂靠/无挂靠
+    # 在库里可查、可 JOIN）。
+    owner_device_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    itinerary_ref: Mapped[str | None] = mapped_column(String(64), index=True)
     itinerary_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("itineraries.id")
     )
+    # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：规划会话建行
+    # 时写入会话号——非空 = 草稿，看板/心愿单视图不返回；点「💾 保存行程」
+    # 时清空转正，删行程时按 itinerary_ref 一并软删。
+    draft_session_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # 2026-11-14（用户拍板「心愿单/已排期也是 USER ID 的数据」）：登录账号
+    # （用户名/邮箱字符串，与行程头 owner_account_id 同源）——打开行程中心
+    # 按设备或账号出本用户的内容，换设备登录也能看到。
+    owner_account_id: Mapped[str | None] = mapped_column(String(100), index=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
@@ -535,6 +742,31 @@ class TripItem(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP, server_default=text("NOW()")
     )
+    # 心愿单数据库化（2026-11-13 用户拍板）：CREATED BY / ARRANGED /
+    # 删除审计 / EXCLUSION 都是数据库事实（wish_items 视图直接可查）。
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    arranged: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    exclusion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deletion_flag: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    deletion_date: Mapped[date | None] = mapped_column(Date)
+    deletion_time: Mapped[time | None] = mapped_column(TIME)
+    deleted_by: Mapped[str | None] = mapped_column(String(64))
+    # 规划字段（2026-11-13）：点位类型/时长/必去/钉住/名录档/坐标/具体
+    # 日期时刻/雨天属性/用户原话——都是规划器 VisitItem 上的决策输入。
+    kind: Mapped[str | None] = mapped_column(String(20))
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    must_visit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    tier: Mapped[int | None] = mapped_column(SmallInteger)
+    site_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    planned_date: Mapped[date | None] = mapped_column(Date)
+    start_time: Mapped[time | None] = mapped_column(TIME)
+    end_time: Mapped[time | None] = mapped_column(TIME)
+    raw_command: Mapped[str | None] = mapped_column(String(1000))
+    # rain_ok 来自 POIS（室内/露天），天气本身每日刷新不入库
+    rain_ok: Mapped[str | None] = mapped_column(String(10))
     # 心愿单条目全量文档（dict 原样，含自由字符串 id）；列化的字段只是
     # 给 PG 侧查询用的投影（trip_cities 按 city 扫）
     payload: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))

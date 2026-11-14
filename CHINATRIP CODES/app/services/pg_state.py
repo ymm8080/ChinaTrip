@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid as uuid_mod
-from datetime import datetime
+from datetime import date, datetime, time, timezone
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -29,7 +29,14 @@ from app.services.itinerary_store import (
     ItineraryRecord,
     Snapshot,
 )
-from app.services.trip_items import STATUS_WISHLIST, TripItemService
+from app.services.trip_changes import trip_header_fields
+from app.services.trip_items import (
+    STATUS_BOOKED,
+    STATUS_WISHLIST,
+    InvalidTransitionError,
+    NotFoundError,
+    TripItemService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +85,48 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
 
 
+def _parse_date(value: object) -> "date | None":
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except ValueError:
+        return None
+
+
+def _parse_time(value: object) -> "time | None":
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.timetz().replace(tzinfo=None)
+    raw = str(value)
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).time()
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(raw).timetz().replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _wish_source_column(raw: str | None) -> str:
+    """心愿单 SOURCE 列归一（2026-11-13 用户拍板：manual / conversation）。
+
+    payload 保留原始来源（chat/paste/agent_recommend…）供状态机判定；
+    只有数据库列归一到用户口径的两个值。
+    """
+    value = (raw or "manual").strip()
+    if value in ("chat", "conversation"):
+        return "conversation"
+    if value in ("manual", "paste"):
+        return "manual"
+    return value
+
+
 def _trip_title(cities: list[str]) -> str | None:
     if not cities:
         return None
@@ -90,6 +139,9 @@ def record_to_row_values(record: ItineraryRecord) -> dict:
         "id": _pg_uuid_loose(record.itinerary_id, "it_"),
         "cities": list(record.plan.cities or []),
         "title": _trip_title(record.plan.cities or []),
+        # 2026-11-13（用户拍板 HEADER 列）：起始/结束城、旅行城市+天数、
+        # 开始日期随每次 put 同步（跨进程读口也看得到）。
+        **trip_header_fields(record.plan),
         "working_sync_version": record.working_sync_version,
         "active_snapshot_id": (
             _pg_uuid_loose(record.active_snapshot_id, "snap_")
@@ -131,11 +183,43 @@ def item_to_row_values(item: dict) -> dict:
     return {
         "id": _pg_uuid_loose(item.get("id")),
         "itinerary_id": _pg_uuid_loose(item.get("itinerary_id"), "it_"),
+        # 2026-11-13 数据库事实化：业务行程号与设备归属都进列（挂靠可查）
+        "itinerary_ref": (item.get("itinerary_id") or None),
+        # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：会话草稿
+        # 标记进列，看板/心愿单视图过滤；保存行程时清空转正
+        "draft_session_id": (item.get("draft_session_id") or None),
+        # 2026-11-14（用户拍板「心愿单也是 USER ID 的数据」）：登录账号列
+        "owner_account_id": (item.get("owner_account_id") or None),
+        "owner_device_id": (item.get("owner_device_id") or None),
+        # 心愿单数据库字段（2026-11-13 拍板）
+        "created_by": (item.get("created_by") or item.get("owner_device_id") or None),
+        "arranged": (item.get("status") or "") in ("scheduled", "booked"),
+        "exclusion_flag": bool(item.get("exclusion_flag"))
+        or (item.get("status") or "") == "unwanted",
+        "deletion_flag": bool(item.get("deletion_flag")),
+        "deletion_date": _parse_date(item.get("deletion_date")),
+        "deletion_time": _parse_time(item.get("deletion_time")),
+        "deleted_by": (item.get("deleted_by") or None),
+        # 规划字段（2026-11-13）：点位类型/时长/必去/钉住/名录档/坐标/
+        # 具体日期时刻/雨天属性/原话——心愿行直接可算日容量与归簇
+        "kind": (item.get("kind") or None),
+        "duration_minutes": item.get("duration_minutes"),
+        "must_visit": bool(item.get("must_visit")),
+        "pinned": bool(item.get("pinned")),
+        "tier": item.get("tier"),
+        "site_rank": item.get("site_rank"),
+        "latitude": item.get("latitude"),
+        "longitude": item.get("longitude"),
+        "planned_date": _parse_date(item.get("planned_date")),
+        "start_time": _parse_time(item.get("start_time")),
+        "end_time": _parse_time(item.get("end_time")),
+        "rain_ok": (item.get("rain_ok") or None),
+        "raw_command": (item.get("raw_command") or None),
         "name": item.get("name"),
         "city": item.get("city"),
         "note": item.get("note"),
         "status": item.get("status") or STATUS_WISHLIST,
-        "source": item.get("source") or "manual",
+        "source": _wish_source_column(item.get("source")),
         "poi_id": _pg_uuid(item.get("poi_id")),
         "day": item.get("day"),
         "position": item.get("position"),
@@ -178,7 +262,7 @@ class PgItineraryStore(InMemoryItineraryStore):
         records: dict[str, ItineraryRecord] = {}
         with self._session_factory() as session:
             for row in session.query(Itinerary).all():
-                if not row.plan:
+                if not row.plan or row.is_deleted:
                     continue
                 try:
                     record = ItineraryRecord.model_validate(row.plan)
@@ -207,7 +291,8 @@ class PgItineraryStore(InMemoryItineraryStore):
             return None
         with self._session_factory() as session:
             row = session.get(Itinerary, uid)
-            if row is None or not row.plan:
+            # 2026-11-13 软删：头表 is_deleted 的行视为不存在（记录仍留审计）
+            if row is None or not row.plan or row.is_deleted:
                 return None
             return ItineraryRecord.model_validate(row.plan)
 
@@ -252,27 +337,58 @@ class PgItineraryStore(InMemoryItineraryStore):
 
     def delete(self, itinerary_id: str) -> bool:
         removed = super().delete(itinerary_id)
-        if removed and self._pg_ok:
-            # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
-            # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
-            # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
-            # 行从 PG 复活。键必须与写库一致。
-            uid = _pg_uuid_loose(itinerary_id, "it_")
-            if uid is not None:
-                try:
-                    with self._session_factory() as session:
-                        session.query(ItineraryDay).filter(
-                            ItineraryDay.itinerary_id == uid
-                        ).delete()
-                        session.query(ItinerarySnapshot).filter(
-                            ItinerarySnapshot.itinerary_id == uid
-                        ).delete()
-                        session.query(Itinerary).filter(Itinerary.id == uid).delete()
-                        session.commit()
-                except Exception as exc:
-                    logger.warning(
-                        "pg_state: 行程 %s 删除写穿失败: %s", itinerary_id, exc
-                    )
+        if not self._pg_ok:
+            return removed
+        # 与 _write_pg 同款 loose 代理键（2026-10-30 删除复活事故）：存量
+        # 行程业务 id 是 it-<8hex> 短格式，严格版解析为 None 会整段跳过
+        # PG 删除——API 照样 204/「已删除」toast，下次 list 读穿透又把
+        # 行从 PG 复活。键必须与写库一致。
+        uid = _pg_uuid_loose(itinerary_id, "it_")
+        if uid is None:
+            return removed
+        try:
+            with self._session_factory() as session:
+                # 2026-11-13（删行程后行程复活/排期没回心愿单）：trip_items
+                # 的 itinerary_id 是指向 itineraries 的外键——释放后残留死
+                # 行程 id 时 DELETE 撞 FK，异常被吞、接口照样 204，下次
+                # list 又把行程读回来。删前统一摘引用（列 + payload 同源
+                # 清空），跨进程/未回灌内存的行也被覆盖。
+                session.execute(
+                    text(
+                        "UPDATE trip_items t"
+                        " SET itinerary_id = NULL,"
+                        " payload = (COALESCE(t.payload, '{}'::jsonb)"
+                        " - 'itinerary_id')"
+                        " || jsonb_build_object("
+                        " 'trip_name',"
+                        " COALESCE(i.title, array_to_string(i.cities, ' → ')))"
+                        " FROM itineraries i"
+                        " WHERE i.id = :uid AND t.itinerary_id = :uid"
+                    ),
+                    {"uid": uid},
+                )
+                # 2026-11-13 软删（用户拍板 DELETION FLAG）：明细/快照留审计，
+                # 读口按 itineraries.is_deleted 过滤——不再物理删三表。
+                # 2026-11-13（用户拍板 trip HEADER 带 DELETION FLAG）：
+                # 改为软删——行留审计，读口按 is_deleted 过滤；明细/快照
+                # 保留可回放（change log 另有逐次 diff）。
+                now = datetime.now(timezone.utc)
+                result = session.execute(
+                    text(
+                        "UPDATE itineraries"
+                        " SET is_deleted = TRUE,"
+                        " deleted_at = :now, updated_at = :now"
+                        " WHERE id = :uid AND is_deleted = FALSE"
+                    ),
+                    {"uid": uid, "now": now},
+                )
+                rowcount = getattr(result, "rowcount", None)
+                # 假库/驱动不给 rowcount 时按「SQL 无异常即成功」；真库用行数
+                deleted = 1 if rowcount is None else rowcount
+                session.commit()
+                return removed or bool(deleted)
+        except Exception as exc:
+            logger.warning("pg_state: 行程 %s 删除写穿失败: %s", itinerary_id, exc)
         return removed
 
     def _write_pg(self, record: ItineraryRecord) -> None:
@@ -341,18 +457,132 @@ class PgTripItemService(TripItemService):
         self._boot_load()
 
     def _pg_reload_items(self) -> None:
-        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。"""
+        """全量回灌内存（boot 与 list 读穿透共用）；payload 为权威。
+
+        2026-11-13 看板 500（KeyError: 'created_at'）：旧版 H5 迁移/
+        旁路恢复脚本写库的 payload 协议不完整（可能没有 created_at，
+        列里也是 NULL）。payload 缺失的投影列在此按列补齐，created_at
+        最终退到 updated_at——下游 list_groups/去重不再裸取键。"""
         items: dict[str, dict] = {}
         with self._session_factory() as session:
             for row in session.query(TripItem).all():
+                # 软删行（DELETION FLAG）永不回灌内存——心愿单/看板不显示
+                if getattr(row, "deletion_flag", False):
+                    continue
                 payload = row.payload
-                if isinstance(payload, dict) and payload.get("id"):
-                    items[str(payload["id"])] = payload
+                if not (isinstance(payload, dict) and payload.get("id")):
+                    continue
+                payload = dict(payload)
+                for field in (
+                    "name",
+                    "city",
+                    "note",
+                    "status",
+                    "source",
+                    "day",
+                    "position",
+                    "address",
+                    "opening_hours",
+                    "owner_device_id",
+                    "itinerary_ref",
+                    "draft_session_id",
+                    "owner_account_id",
+                ):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value
+                for field in ("created_at", "updated_at"):
+                    if payload.get(field):
+                        continue
+                    value = getattr(row, field, None)
+                    if value is None and field == "created_at":
+                        value = row.updated_at
+                    if value is not None:
+                        payload[field] = value.isoformat()
+                for field in (
+                    "kind",
+                    "duration_minutes",
+                    "tier",
+                    "site_rank",
+                    "latitude",
+                    "longitude",
+                    "rain_ok",
+                    "raw_command",
+                ):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value
+                for field in ("planned_date", "start_time", "end_time"):
+                    if payload.get(field) is None:
+                        value = getattr(row, field, None)
+                        if value is not None:
+                            payload[field] = value.isoformat()
+                payload["must_visit"] = bool(getattr(row, "must_visit", False))
+                payload["pinned"] = bool(getattr(row, "pinned", False))
+                payload["created_by"] = payload.get("created_by") or getattr(
+                    row, "created_by", None
+                )
+                payload["arranged"] = bool(getattr(row, "arranged", False))
+                payload["exclusion_flag"] = bool(getattr(row, "exclusion_flag", False))
+                items[str(payload["id"])] = payload
         self._items = items
+
+    def purge_stale_drafts(self, *, days: int = 7) -> int:
+        """过期心愿草稿物理清理（2026-11-14）：草稿从未进过心愿单（看板/
+        视图都不可见），保留 N 天只是给「保存行程」留转正窗口——超过就删，
+        别让未保存行程的行在库里无限堆积。迁移回填的 legacy 草稿同样按
+        建行时间清。"""
+        if not self._pg_ok:
+            return 0
+        # 2026-11-14 用户拍板「心愿单被删也要在数据库里留档/打删除标记」：
+        # 过期草稿不物理删——打 DELETION FLAG + 日期/时间/人（wish_items
+        # 视图本就整列透出，审计可查），读口（_pg_reload_items/看板）不再返回。
+        now = datetime.now(timezone.utc)
+        try:
+            with self._session_factory() as session, session.begin():
+                result = session.execute(
+                    text(
+                        "UPDATE trip_items"
+                        " SET deletion_flag = TRUE,"
+                        "     deletion_date = :ddate,"
+                        "     deletion_time = :dtime,"
+                        "     deleted_by = 'draft-expired',"
+                        "     payload = COALESCE(payload, '{}'::jsonb)"
+                        "       || jsonb_build_object("
+                        "            'deletion_flag', TRUE,"
+                        "            'deletion_date', :ddate_iso,"
+                        "            'deletion_time', :dtime,"
+                        "            'deleted_by', 'draft-expired')"
+                        " WHERE draft_session_id IS NOT NULL AND deletion_flag = FALSE"
+                        "   AND created_at < NOW() - (:days || ' days')::interval"
+                    ),
+                    {
+                        "days": days,
+                        "ddate": now.date(),
+                        "dtime": now.strftime("%H:%M:%S"),
+                        "ddate_iso": now.date().isoformat(),
+                    },
+                )
+                rowcount = getattr(result, "rowcount", None)
+                purged = int(rowcount or 0)
+        except Exception:
+            logger.warning("pg_state: 心愿草稿过期清理失败", exc_info=True)
+            return 0
+        if purged:
+            logger.info(
+                "pg_state: 心愿草稿过期清理 %d 行（>%d 天未保存）", purged, days
+            )
+            self._pg_reload_items()
+        return purged
 
     def _boot_load(self) -> None:
         try:
             self._pg_reload_items()
+            # 过期草稿清理由应用启动钩子（app.main._lifespan）调
+            # purge_stale_drafts()——boot 阶段不多开会话，测试桩按会话数
+            # 断言的用例不受影响。
         except OperationalError as exc:
             self._pg_ok = False
             logger.warning("pg_state: PG 不可达，trip items 降级纯内存: %s", exc)
@@ -368,10 +598,22 @@ class PgTripItemService(TripItemService):
         except Exception:
             logger.warning("pg_state: trip items 读穿透失败，本轮用内存", exc_info=True)
 
-    def list_groups(self, itinerary_id: str | None = None) -> dict:
+    def list_groups(
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        *,
+        include_drafts: bool = True,
+    ) -> dict:
         # 读穿透（PG 读权威）：看板/规划收口每次回库取新，跨进程排期立即可见。
         self._try_refresh()
-        return super().list_groups(itinerary_id)
+        return super().list_groups(
+            itinerary_id,
+            owner_device_id,
+            owner_account_id,
+            include_drafts=include_drafts,
+        )
 
     def create(self, name: str, *, source: str, **kwargs) -> dict:
         """跨进程幂等创建（2026-10-28 用户报告心愿单多条 西湖）：:8000 与
@@ -396,6 +638,7 @@ class PgTripItemService(TripItemService):
                     self._enrich_duplicate(
                         payload,
                         name=name,
+                        source=source,
                         note=kwargs.get("note"),
                         city=kwargs.get("city"),
                         poi_id=kwargs.get("poi_id"),
@@ -429,12 +672,17 @@ class PgTripItemService(TripItemService):
         参数自比较恒真事故），规范化/双向包含等模糊逻辑也不该在 SQL 里重
         写一份。表为几十行级、创建低频，全量拉取代价可忽略；PG 故障期的
         纯内存行仍由 super().create() 的内存查重兜底。"""
+        # 2026-11-14：草稿行只在本会话内参与查重——别的未保存会话留下的
+        # 草稿不能把新会话的心愿「吸」成一条看不见的行（本会话重说一遍
+        # 仍要命中自己的草稿，防重复建行）。
         rows = session.execute(
             text(
                 "SELECT payload FROM trip_items"
-                " WHERE status <> 'unwanted'"
+                " WHERE status <> 'unwanted' AND deletion_flag = false"
+                " AND (draft_session_id IS NULL OR draft_session_id = :draft_sid)"
                 " ORDER BY created_at ASC NULLS LAST"
-            )
+            ),
+            {"draft_sid": kwargs.get("draft_session_id") or ""},
         ).all()
         items = []
         for row in rows:
@@ -450,6 +698,10 @@ class PgTripItemService(TripItemService):
             city=kwargs.get("city"),
             poi_id=kwargs.get("poi_id"),
             items=items,
+            # 2026-11-13 数据库事实化：查重同样按设备——别的设备的同名行
+            # 不是同一条心愿（否则冒烟/别的浏览器会把用户的行动手合并）
+            owner_device_id=kwargs.get("owner_device_id"),
+            owner_account_id=kwargs.get("owner_account_id"),
         )
 
     def _insert_on(self, session, values: dict) -> None:
@@ -482,22 +734,123 @@ class PgTripItemService(TripItemService):
         self._write_through(item_id)
         return item
 
-    def delete(self, item_id: str) -> None:
-        super().delete(item_id)
-        if not self._pg_ok:
-            return
+    def release_itinerary(
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
+    ) -> list[dict]:
+        """跨进程释放（2026-11-13）：删行程可能落在没回灌内存的进程上
+        （排期写在另一端口 / 另一实例）——内存里一条该行程的行都没有时先
+        回库取权威，否则漏放的 scheduled 行会被 store 级 FK 清理留下半截
+        状态（无行程却仍排期）。内存有命中就不重灌（避免冲掉热行）。"""
+        if (
+            self._pg_ok
+            and itinerary_id
+            and not any(
+                it.get("itinerary_id") == itinerary_id for it in self._items.values()
+            )
+        ):
+            self._try_refresh()
+        return super().release_itinerary(itinerary_id, now=now, actor=actor)
+
+    def commit_drafts(
+        self,
+        itinerary_id: str,
+        session_id: str | None = None,
+        owner_account_id: str | None = None,
+    ) -> int:
+        """保存行程 = 心愿草稿转正（2026-11-14）。跨进程兜底：本进程内存里
+        可能没有另一端口建的草稿行，先按 SQL 清标记（payload 同源），再
+        回灌内存；FK 列只在行程确实存在时补。"""
+        committed = super().commit_drafts(itinerary_id, session_id, owner_account_id)
+        if not (self._pg_ok and itinerary_id):
+            return committed
+        uid = _pg_uuid_loose(itinerary_id, "it_")
         try:
-            with self._session_factory() as session:
-                uid = _pg_uuid(item_id)
+            with self._session_factory() as session, session.begin():
+                result = session.execute(
+                    text(
+                        "UPDATE trip_items t"
+                        " SET draft_session_id = NULL,"
+                        " owner_account_id = COALESCE(t.owner_account_id, :acct),"
+                        " itinerary_ref = COALESCE(t.itinerary_ref, :ref),"
+                        " payload = (COALESCE(t.payload, '{}'::jsonb)"
+                        "   - 'draft_session_id')"
+                        "   || jsonb_build_object("
+                        "        'itinerary_id',"
+                        "        COALESCE(t.payload->>'itinerary_id', :ref))"
+                        " WHERE t.draft_session_id IS NOT NULL"
+                        "   AND (t.draft_session_id = :sid OR t.itinerary_ref = :ref)"
+                    ),
+                    {
+                        "ref": itinerary_id,
+                        "sid": session_id or "",
+                        "acct": owner_account_id or "",
+                    },
+                )
+                rowcount = getattr(result, "rowcount", None)
+                if rowcount:
+                    committed += int(rowcount)
                 if uid is not None:
-                    session.query(TripItem).filter(TripItem.id == uid).delete()
-                else:
-                    session.query(TripItem).filter(
-                        TripItem.payload["id"].astext == item_id
-                    ).delete()
-                session.commit()
-        except Exception as exc:
-            logger.warning("pg_state: 条目 %s 删除写穿失败: %s", item_id, exc)
+                    session.execute(
+                        text(
+                            "UPDATE trip_items SET itinerary_id = :uid"
+                            " WHERE itinerary_ref = :ref AND itinerary_id IS NULL"
+                            "   AND EXISTS (SELECT 1 FROM itineraries i"
+                            "                WHERE i.id = :uid)"
+                        ),
+                        {"uid": uid, "ref": itinerary_id},
+                    )
+            self._pg_reload_items()
+        except Exception:
+            logger.warning(
+                "pg_state: 心愿草稿转正失败 itinerary=%s", itinerary_id, exc_info=True
+            )
+        return committed
+
+    def purge_itinerary(
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
+    ) -> list[dict]:
+        """删行程 = 名下心愿单一并删除（2026-11-14）。跨进程兜底：本进程
+        内存里没有该行程的行时先回库取权威，否则漏删的行会在删行程后
+        继续挂在死行程上（看板又冒出来）。"""
+        if (
+            self._pg_ok
+            and itinerary_id
+            and not any(
+                it.get("itinerary_id") == itinerary_id for it in self._items.values()
+            )
+        ):
+            self._try_refresh()
+        return super().purge_itinerary(itinerary_id, now=now, actor=actor)
+
+    def delete(self, item_id: str, *, actor: str | None = None) -> None:
+        """删除 = 软删（2026-11-13 用户拍板「心愿单也是数据库」）：行保留，
+        打 DELETION FLAG + 删除日期/时间/人留档，看板不再返回。booked 有
+        真实订单仍拒绝（先退订）；source=plan 引擎行同样软删。"""
+        item = self._items.get(item_id)
+        if item is None:
+            raise NotFoundError(item_id)
+        if item.get("status") == STATUS_BOOKED:
+            raise InvalidTransitionError("booked_not_deletable")
+        now = datetime.now(timezone.utc)
+        payload = dict(item)
+        payload["deletion_flag"] = True
+        payload["deletion_date"] = now.date().isoformat()
+        payload["deletion_time"] = now.strftime("%H:%M:%S")
+        payload["deleted_by"] = actor or item.get("owner_device_id")
+        self._items[item_id] = payload
+        self._write_through(item_id)
+        del self._items[item_id]
+        logger.info(
+            "trip_item_soft_deleted id=%s by=%s", item_id, payload["deleted_by"]
+        )
 
     def import_item(self, payload: dict) -> bool:
         """迁移脚本入口：整条 dict 入内存并写穿（幂等 upsert by id）。"""
@@ -539,8 +892,23 @@ class PgTripItemService(TripItemService):
         with self._session_factory() as session:
             row = session.get(TripItem, values["id"])
             if row is None:
+                # 2026-11-13 PK/payload 错位兼容：历史恢复行的 PK 列与
+                # payload id 不一致，只按 PK get 会 miss → 误插一条新行，
+                # 旧行成幽灵（看板删不掉/重复计数）。按 payload id 兜底
+                # 命中后就地更新，绝不改 PK（避免与既有行主键冲突）。
+                payload_id = (values.get("payload") or {}).get("id")
+                if payload_id:
+                    row = (
+                        session.query(TripItem)
+                        .filter(TripItem.payload["id"].astext == str(payload_id))
+                        .first()
+                    )
+            if row is None:
                 row = TripItem(id=values["id"])
                 session.add(row)
-            for key, val in values.items():
+                updates = values
+            else:
+                updates = {k: v for k, v in values.items() if k != "id"}
+            for key, val in updates.items():
                 setattr(row, key, val)
             session.commit()

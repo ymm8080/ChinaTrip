@@ -176,8 +176,9 @@ def test_transfer_missing_end_time_is_filled():
         day=1,
         base_city="北京",
         # 城市侧闸（2026-11-02）：转场日 16:00 的条目须是到达城（上海）；
-        # 出发城条目不得排在离城交通之后。
-        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海")],
+        # 出发城条目不得排在离城交通之后。30 分钟点 16:00-16:30 收尾
+        # 在 11-05 结束闸内（60 分钟点 16:00-17:00 已是被废除的形态）。
+        items=[transfer, _visit("v", poi_id="p_afternoon", city="上海", dur=30)],
     )
     hours = [PoiHours(poi_id="p_afternoon", opens=time(16, 0), closes=time(18, 0))]
 
@@ -187,7 +188,7 @@ def test_transfer_missing_end_time_is_filled():
     out_transfer = next(i for i in solved.items if i.item_id == "t1")
     assert out_transfer.end_time == time(11, 0)
     visit = next(i for i in solved.items if i.item_id == "v")
-    assert (visit.start_time, visit.end_time) == (time(16, 0), time(17, 0))
+    assert (visit.start_time, visit.end_time) == (time(16, 0), time(16, 30))
 
 
 def test_same_city_transfer_leg_does_not_gate():
@@ -425,26 +426,31 @@ def test_plan_poi_hours_parses_lunch_break_complement():
     assert ws == [(9 * 60, 12 * 60), (13 * 60 + 30, 17 * 60)]
 
 
-# --- S5 演出晚间档（show_booking_design §4，2026-10-26） ----------------------
+# --- 无场次演出两档分流（2026-11-11 拍板，取代 2026-11-06「按正常景点排」）---
 
 
-def test_show_slot_starts_2010_and_may_pass_day_end():
-    """场演事件：20:10-20:45 开演域，可越常规日终 21:00（散场 21:30 后）。"""
+def test_show_without_sessions_schedules_like_normal_sight():
+    """无场次 SHOW 落位域自中午起开：不钉 20:10 晚场，也不回落日始 9 点。
+
+    2026-11-06 曾拍板「按正常景点排」，实际效果是随日始落到 09:00（无场次
+    晨卡事故）；2026-11-11 用户改拍「无场次 SHOW 设成可以下午或者晚上」，
+    下界抬到 12:00，上界仍按日终收口。
+    """
     day = DayPlan(
         day=1,
         base_city="西安",
         items=[_visit("v_show", poi_id="p_all", dur=80, best_visit_time="show")],
     )
-    # 无营业时间条目（种子行未回源 hours 前的常态）→ 开演域 20:10-20:45
+    # 无营业时间条目、无场次串 → 下午或晚上域，makespan 取最早可行 = 正午
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
     start = _minutes(solved.items[0].start_time)
-    assert 20 * 60 + 10 <= start <= 20 * 60 + 45
-    assert _minutes(solved.items[0].end_time) > 21 * 60  # 场演即当日收尾
+    assert start == 12 * 60
+    assert _minutes(solved.items[0].end_time) == start + 80
 
 
-def test_show_slot_with_show_hours_pinned_to_2010():
-    """带场演营业时间（19:00-21:30）时收窄为 20:10 整点开演、21:30 散场。"""
+def test_show_with_show_hours_starts_at_window_open():
+    """带场演营业时间（19:00-21:30）时落在窗内最早可行位：19:00 开场 20:20 散场。"""
     hours = [PoiHours(poi_id="p_show", opens=time(19, 0), closes=time(21, 30))]
     day = DayPlan(
         day=1,
@@ -453,12 +459,12 @@ def test_show_slot_with_show_hours_pinned_to_2010():
     )
     solved = solve_day(day, poi_hours=hours)
     assert solved is not None
-    assert _minutes(solved.items[0].start_time) == 20 * 60 + 10
-    assert _minutes(solved.items[0].end_time) == 21 * 60 + 30
+    assert _minutes(solved.items[0].start_time) == 19 * 60
+    assert _minutes(solved.items[0].end_time) == 20 * 60 + 20
 
 
-def test_show_slot_triggers_on_entertainment_category():
-    """库行 category=entertainment 同样进晚间档（import_shows 种子路径）。"""
+def test_entertainment_category_without_sessions_schedules_normally():
+    """库行 category=entertainment 无场次同样按正常景点逻辑（种子路径）。"""
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -466,7 +472,7 @@ def test_show_slot_triggers_on_entertainment_category():
     )
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    assert _minutes(solved.items[0].start_time) >= 20 * 60 + 10
+    assert _minutes(solved.items[0].start_time) == 9 * 60
 
 
 def test_show_and_daytime_visit_share_day_without_overlap():
@@ -488,7 +494,7 @@ def test_show_and_daytime_visit_share_day_without_overlap():
     show = next(i for i in solved.items if i.item_id == "v_show")
     dayt = next(i for i in solved.items if i.item_id == "v_day")
     assert _minutes(dayt.end_time) <= _minutes(show.start_time)
-    assert _minutes(show.start_time) == 20 * 60 + 10
+    assert _minutes(show.start_time) == 19 * 60  # 场演营业窗开门即排
 
 
 # --- 2026-10-30 走行分离（travel-aware arcs）+ 不可行回落 ---------------------
@@ -596,14 +602,14 @@ def test_food_dinner_uncapped_while_scenic_capped():
     assert dinner.start_time >= time(17, 0)
 
 
-def test_late_open_venue_capped_gate_boundary_placeable():
-    """白天开到晚间的场馆（08:30-22:00）晨满（09:00-16:30 固定件）：
-    2026-11-03「最晚 16:30 开场」口径下 16:30 整点开场合法（闸含端点），
-    solver 直排 16:30-17:45——旧「最晚 16:30 结束」口径的整日降级 +
-    兜底溢傍晚放行废除（第1天城墙 18:43 事故回归）。75 分钟轻点：
-    11-04 大点（>80min）闸加严 15:30 后，16:30 边界开场只对轻点合法。"""
+def test_late_open_venue_end_gate_boundary_not_placeable():
+    """2026-11-05 终裁（武侯祠 15:23+90=16:53 判违规）：闸=结束闸，
+    观光占用须 16:30 前收尾——晨满（09:00-16:30 固定件）后 75 分钟
+    轻点唯一档 16:30-17:45 越闸 → 整日降级（「16:30 整点开场合法」的
+    11-03 开场口径废除）；固定件收尾腾到 14:30 时，15:00-16:15 照常
+    可排（同一闸内的对照锚）。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
-    day = DayPlan(
+    day_blocked = DayPlan(
         day=1,
         base_city="西安",
         items=[
@@ -617,9 +623,95 @@ def test_late_open_venue_capped_gate_boundary_placeable():
             _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
         ],
     )
+    assert solve_day(day_blocked, poi_hours=hours) is None
 
-    solved = solve_day(day, poi_hours=hours)
-
-    assert solved is not None  # 16:30 整点开场在闸内
+    day_free = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _visit(
+                "blocker",
+                poi_id="p_b",
+                dur=330,
+                pinned=True,
+                start_time=time(9, 0),
+            ),  # 09:00-14:30
+            _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
+        ],
+    )
+    solved = solve_day(day_free, poi_hours=hours)
+    assert solved is not None
     v = next(i for i in solved.items if i.item_id == "v_late")
-    assert _minutes(v.start_time) == 16 * 60 + 30
+    # 固定件 14:30 收尾后紧接可排（CP 实选 14:30 背靠背），收尾必须在闸内
+    assert v.start_time >= time(14, 30)
+    assert v.end_time is not None and v.end_time <= time(16, 30)
+
+
+def test_night_combo_pair_schedules_back_to_back():
+    """夜档贴排组合（2026-11-07 拍板「不是各排各卡，而是两卡贴排，作为
+    一个 SITE 排列组合」）：≤1.5km 的夜档点（bvt=show）与普通观光点绑成
+    一个排程单元——普通点贴排在夜档点开场前收尾（大雁塔 13:00-16:00 →
+    长安十二时辰 16:00 形态），夜档点守 16:00 后开场。"""
+    hours = [_ALL_DAY]
+    near = dict(
+        dyt={
+            "lon": 108.959,
+            "lat": 34.218,
+        },
+        shier={"lon": 108.964, "lat": 34.221},  # ~0.55km，绑
+    )
+    for scheduler in ("insertion", "cp"):
+        items = [
+            _visit("dyt", poi_id="p_all", dur=180, location=near["dyt"]),
+            _visit(
+                "shier",
+                poi_id="p_all",
+                dur=240,
+                location=near["shier"],
+                best_visit_time="show",
+            ),
+        ]
+        plan = ItineraryPlan(
+            itinerary_id="it_night_combo",
+            cities=["西安"],
+            days=[DayPlan(day=1, base_city="西安", items=items)],
+        )
+        solved = solve_plan(plan, poi_hours=hours, scheduler=scheduler)
+        assert solved is not None, scheduler
+        dyt = next(i for i in solved.days[0].items if i.item_id == "dyt")
+        shier = next(i for i in solved.days[0].items if i.item_id == "shier")
+        assert _minutes(shier.start_time) >= 16 * 60, scheduler
+        gap = _minutes(shier.start_time) - _minutes(dyt.end_time)
+        assert 0 <= gap <= 30, scheduler  # 贴排：间隔仅走行分钟
+        assert _minutes(dyt.start_time) >= 12 * 60, scheduler  # 下午档非晨头
+
+
+def test_night_combo_far_pair_not_bound():
+    """>1.5km 的夜档点不绑：两卡各排各卡（贴排只属贴邻组合）。"""
+    hours = [_ALL_DAY]
+    items = [
+        _visit(
+            "dyt_far",
+            poi_id="p_all",
+            dur=180,
+            location={"lon": 109.009, "lat": 34.218},  # ~4.7km，不绑
+        ),
+        _visit(
+            "shier",
+            poi_id="p_all",
+            dur=240,
+            location={"lon": 108.964, "lat": 34.221},
+            best_visit_time="show",
+        ),
+    ]
+    plan = ItineraryPlan(
+        itinerary_id="it_night_combo_far",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=items)],
+    )
+    solved = solve_plan(plan, poi_hours=hours, scheduler="insertion")
+    assert solved is not None
+    dyt = next(i for i in solved.days[0].items if i.item_id == "dyt_far")
+    shier = next(i for i in solved.days[0].items if i.item_id == "shier")
+    gap = _minutes(shier.start_time) - _minutes(dyt.end_time)
+    assert _minutes(shier.start_time) < 16 * 60 or abs(gap) > 30

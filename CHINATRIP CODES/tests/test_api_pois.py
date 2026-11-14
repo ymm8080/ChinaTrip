@@ -49,7 +49,11 @@ def make_row(**over) -> SimpleNamespace:
         tags=["michelin_1star", "black_pearl_1diamond"],
         tags_source="manual",
         intro="吊脚楼建筑群",
+        intro_en="Stilted building complex",
         intro_source="wikidata",
+        review_summary="夜景出片，江景位要早占",
+        review_summary_en="Great night views; claim a riverside spot early",
+        review_summary_source="llm_distill",
         photos=PHOTOS,
         photos_source="wikidata",
         best_visit_time="night",
@@ -135,7 +139,11 @@ def test_exact_hit_returns_200_with_new_fields():
         "tags",
         "tags_source",
         "intro",
+        "intro_en",
         "intro_source",
+        "review_summary",
+        "review_summary_en",
+        "review_summary_source",
         "photos",
         "photos_source",
         "best_visit_time",
@@ -338,6 +346,43 @@ def test_reservation_seed_name_containment_match():
     assert body["reservation_release_time"] is None  # 名单 "00:00"=未注明 → 出参 None
 
 
+def test_review_summary_passthrough():
+    """P7b 证据链透出（2026-11-10）：enrich 管道已入库的点评综述
+    （review_summary/_en/_source）经详情端点纯读侧透出，H5 简介气泡渲染。"""
+    session = FakeSession([[make_row()]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["review_summary"] == "夜景出片，江景位要早占"
+    assert body["review_summary_en"] == (
+        "Great night views; claim a riverside spot early"
+    )
+    assert body["review_summary_source"] == "llm_distill"
+
+
+def test_review_summary_null_when_unfilled():
+    """未蒸馏行（三列全空）→ 出参 null，H5 跳过不渲染该位。"""
+    session = FakeSession(
+        [
+            [
+                make_row(
+                    review_summary=None,
+                    review_summary_en=None,
+                    review_summary_source=None,
+                )
+            ]
+        ]
+    )
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "洪崖洞"}
+    )
+    body = resp.json()
+    assert body["review_summary"] is None
+    assert body["review_summary_en"] is None
+    assert body["review_summary_source"] is None
+
+
 def test_ticket_price_passthrough():
     """ctrip 刷新链回填的票价列 → 出参 int 原样（此前无任何 API 暴露票价）。"""
     session = FakeSession(
@@ -350,3 +395,80 @@ def test_ticket_price_passthrough():
     assert body["ticket_price_min"] == 40
     assert body["ticket_price_max"] == 60
     assert body["ticket_source"] == "ctrip"
+
+
+# --- 餐厅回退（2026-11-13 读侧接线）：pois 未命中回落 restaurants 表 ----------
+
+
+REST_UUID = "22222222-2222-2222-2222-222222222222"
+REST_PHOTOS = [{"title": "堂食", "url": "https://img.example/yuzhilan.jpg"}]
+
+
+def make_rest_row(**over) -> SimpleNamespace:
+    base = dict(
+        id=REST_UUID,
+        source="michelin",
+        origin="michelin",
+        city="成都市",
+        name_zh="玉芝兰",
+        name_en="Yu Zhi Lan",
+        cuisine="chinese",
+        status="active",
+        address="长顺下街",
+        opening_hours="11:30-14:00,17:30-21:00",
+        hours_source=None,
+        phone="028-12345678",
+        website=None,
+        rating=4.8,
+        rating_source="michelin",
+        tags=["michelin_1star"],
+        tags_source="michelin",
+        intro="川菜高端派代表",
+        intro_en="Fine-dining Sichuan icon",
+        intro_source="michelin",
+        photos=REST_PHOTOS,
+        photos_source="wikimedia",
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+def test_restaurant_fallback_returns_photos_and_tags():
+    """行程卡餐位/餐厅名：pois 两段全空 → restaurants 精确命中 →
+    同形状出参（照片/米其林徽标/简介随气泡直出）。"""
+    session = FakeSession([[], [], [make_rest_row()]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "成都", "name": "玉芝兰"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["poi_id"] == REST_UUID
+    assert body["source"] == "michelin"
+    assert body["category"] == "chinese"  # cuisine 映射进 category
+    assert body["photos"] == REST_PHOTOS
+    assert body["photos_source"] == "wikimedia"
+    assert body["tags"] == ["michelin_1star"]
+    assert body["intro"] == "川菜高端派代表"
+    assert body["suggested_duration_min"] is None  # 餐厅侧无此列
+    assert body["reservation_required"] is None
+
+
+def test_restaurant_fallback_exact_before_fuzzy():
+    row = make_rest_row(name_zh="老码头火锅（春熙路店）")
+    # contains 模糊段命中
+    session = FakeSession([[], [], [], [row]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "成都", "name": "老码头火锅"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name_zh"] == "老码头火锅（春熙路店）"
+
+
+def test_both_tables_miss_returns_404():
+    """两表都查无 → 404 语义不变（H5 静默跳过）。"""
+    session = FakeSession([[], [], [], []])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "重庆", "name": "查无此店"}
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "poi not found"}

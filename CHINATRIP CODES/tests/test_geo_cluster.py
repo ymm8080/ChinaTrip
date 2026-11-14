@@ -37,6 +37,30 @@ def test_cluster_days_degenerate_inputs():
     assert cluster_days([_c("a", 1, 1)], 0) == [None]
 
 
+def test_cluster_days_distance_cap_10km():
+    # 片区归属距离上限（2026-11-07 用户拍板「geo_cluster 距离上限 10 公
+    # 里」）：k 耗尽后 55km 离群点不再被拖进最近簇（旧版大足石刻挂进成
+    # 都市区簇=「同片区同天」假象）→ None 走无归属路径；近点不受影响。
+    cands = [
+        _c("城1", 104.06, 30.66),
+        _c("城2", 104.07, 30.66),  # ~1km，正常归属
+        _c("远点", 104.55, 30.66),  # ~47km，k=1 时无处安放
+    ]
+    assert cluster_days(cands, 1) == [0, 0, None]
+    # k=2 时远点自成一簇（种子），归属正常
+    assert cluster_days(cands, 2) == [0, 0, 1]
+
+
+def test_cluster_days_cap_boundary_just_under():
+    # 边界：~9km 点仍归属（上限内），~11km 不归属
+    cands = [
+        _c("锚", 104.06, 30.66),
+        _c("近", 104.06, 30.74),  # ~8.9km
+        _c("远", 104.06, 30.76),  # ~11.1km
+    ]
+    assert cluster_days(cands, 1) == [0, 0, None]
+
+
 def test_area_labels_fallback_to_index():
     cands = [_c("a", 121.5, 31.2), _c("b", 121.5, 31.21)]
     clusters = cluster_days(cands, 1)
@@ -96,15 +120,37 @@ def test_premium_coverage_gaps_flags_silk_road_component():
 
 
 def test_source_tier_silk_road_component_top_ladder():
-    # 丝路点段（unesco_silk_road）与全量世遗同档 tier=1，压过 5A——
-    # 世界遗产有更高的优先权（2026-11-02 大雁塔事故）。
+    # 串号遗产（unesco_* 点段标）三态（2026-11-08 未央宫案三拍）：
+    # 高质（quality≥4.5）=真遗产子项，高过 5A（2026-11-02 大雁塔
+    # 事故口径保留；2026-11-13 国际站升首档后 unesco 落梯子 2、
+    # 5A 落 3）；无评分/低质=3A 遗址骨架借标登顶的事故面，回落
+    # 本源档（5a→3、无名录源→11）。
     from app.services.agent.plan import _source_tier
 
-    assert _source_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}) == 1
-    assert _source_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}) == 1
-    assert _source_tier({"source": "5a", "tags": ["unesco_karst"]}) == 1
     assert (
-        _source_tier({"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"]}) == 1
+        _source_tier(
+            {"source": "relicpark", "tags": ["unesco_silk_road"], "rating": 4.6}
+        )
+        == 2
     )
-    assert _source_tier({"source": "5a", "tags": ["5a"]}) == 2
+    assert (
+        _source_tier(
+            {"source": "5a", "tags": ["5a", "intl", "unesco_silk_road"], "rating": 4.7}
+        )
+        == 2
+    )
+    assert (
+        _source_tier(
+            {"source": "5a", "tags": ["5a", "unesco_ming_tombs"], "rating": 4.8}
+        )
+        == 2
+    )
+    # 无质量背书：回落本源档（未央宫案——relicpark 骨架 11 / 5A 源 3）
+    assert _source_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}) == 11
+    assert _source_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}) == 3
+    assert _source_tier({"source": "5a", "tags": ["unesco_karst"]}) == 3
+    assert _source_tier({"source": "5a", "tags": ["5a"]}) == 3
     assert _source_tier({"source": "relicpark", "tags": ["relicpark"]}) == 11
+    # 全量世遗本体（裸 unesco）无条件梯子 2
+    assert _source_tier({"source": "unesco"}) == 2
+    assert _source_tier({"tags": ["unesco"]}) == 2

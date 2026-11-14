@@ -10,11 +10,53 @@
 ③雨天替补可用演出——①/②/③段与夜间窗对调按原口径取室内候选
   （2026-11-02 用户更正：并未要求剔除演出），同天重复由主闸裁并；
 ④均衡回填联动——已有演出的一天不补第二场演出。
+
+2026-11-08 长恨歌案四刀之三落在本文件（终装侧）：
+⑤停演季闸——opening_hours 含「演出季X-Y月/冬季停演」窄模式且行程月
+  与演出季全无交集 → 该夜场退出自动收尾桶+披露，选择落到下一张在季
+  演出（室内替代）；
+⑥演出日按最近簇选日——夜场不再盲钉窗口末日，某天已有点距场馆
+  ≤5km（_NEAR_SAMEDAY_KM）时演出改钉该天（同址 0km 必须同日）；
+⑦夜场桶落选张（shows[1:]）不再无痕消失——2026-11-08 二拍升级：落选张
+  逐张落位（各按自场馆最近簇/无演出日，每天一场仍守），全窗无位才披露；
+⑨⑩场馆亲和护栏（2026-11-08 秦俑情案第五刀）——评分器拆簇软罚
+  （venue_strand）+ LNS 演出软钉：重排/挪天家族不得把贴场馆簇的
+  演出挪去无锚日，容量溢出让弱卡让位。
+
+2026-11-08 唐宴案三拍（终装侧）：
+⑪宴秀占场——curated 宴会（唐宴/御宴宫，food+宴秀语素）本身就是当日
+  那场「show」：同日不得再叠演出/第二场宴秀，宴秀留场优先并披露；
+⑫认领避宴日——聚簇认领不得把演出认领进宴日（唐乐宫被「贴同日」
+  认领进 D2 唐宴日实录）；换座（_reunite）同样双侧避宴日；
+⑬就近留场——同日多场竞争按距当日簇最近 tiebreak（梦回大唐 0km 留、
+  唐乐宫 12km 让；旧口径按在册序会留错的那个）；
+⑭挤兑救援（四拍）——挪位后仍无时刻待删的强锚演出（全程任一日有
+  ≤5km 场馆伴）与同城占席弱锚演出换位：强锚顶上晚位、弱锚承接
+  死亡（梦回大唐 0km 贴芙蓉园顶掉 7km 无强锚唐乐宫）。
 """
 
 import asyncio
+from datetime import time
 
-from app.services.agent.plan import PlanningAgent
+from app.services.agent.plan import (
+    PlanningAgent,
+    _day_has_dinner_show,
+    _dedupe_visit_keepers,
+    _enforce_show_per_day,
+    _fallback_sequence_times,
+    _is_dinner_show_item,
+    _is_show_banquet_item,
+    _is_show_item,
+    _probe_visit_slot,
+)
+from app.services.itinerary.models import (
+    DayPlan,
+    GeoPoint,
+    ItineraryPlan,
+    VisitItem,
+)
+from app.services.itinerary.scoring import PEN_VENUE_STRAND, plan_score
+from app.services.itinerary.solver import _visit_spec
 from app.services.poi_details import PoiDetailStore
 
 
@@ -65,17 +107,76 @@ def _day_show(name, lon, lat, *, dur=80):
     }
 
 
-def _night_show(name, lon, lat, *, dur=80):
+def _night_show(name, lon, lat, *, dur=80, hours="19:30-21:00"):
     """仅夜场演出（opening_hours 无「多场/全天/日场」→ 晚档收尾桶）。"""
     return {
         "name": name,
         "city": "西安",
         "category": "entertainment",
         "best_visit_time": "show",
-        "opening_hours": "19:30-21:00",
+        "opening_hours": hours,
         "location": {"lon": lon, "lat": lat},
         "suggested_duration_min": dur,
     }
+
+
+def _placed(
+    item_id, name, day, lon, lat, dur, *, start=None, show=False, category=None
+):
+    """已落位 VisitItem（第五刀回归锚用）：start 给小时即有起止时刻，
+    缺省=无时刻卡；show=True 走演出口径（entertainment+多场次）。"""
+    st = time(start, 0) if start is not None else None
+    en = None
+    if st is not None:
+        m = st.hour * 60 + st.minute + dur
+        en = time(m // 60, m % 60)
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        category=("entertainment" if show else (category or "sight")),
+        best_visit_time=("show" if show else "any"),
+        city="西安",
+        day=day,
+        duration_minutes=dur,
+        location=GeoPoint(lon=lon, lat=lat),
+        start_time=st,
+        end_time=en,
+        opening_hours=("多场（约11:00/14:00/17:00）" if show else None),
+    )
+
+
+def test_theme_block_explicit_evening_hard_window_all_paths():
+    """2026-11-12 复申拍板：显式 evening 标的主题街区照吃夜游窗——11-08
+    「可夜可昼」只管无标的行（test_theme_block_evening.py ⑥ 组）。三镜像
+    （spec/探针/兜底）同一硬窗。"""
+    theme = VisitItem(
+        item_id="theme",
+        name="测试主题街区",
+        category="citywalk",
+        city="西安",
+        day=1,
+        duration_minutes=240,
+        location=GeoPoint(lon=_MTY[0], lat=_MTY[1]),
+        best_visit_time="evening",
+        opening_hours="10:00-22:00",
+    )
+    spec = _visit_spec(theme, {})
+    assert spec is not None and spec.lo == 17 * 60
+    assert _probe_visit_slot(theme, [], [], {}, 21 * 60 + 30) == 17 * 60
+
+    ordinary = _placed("ordinary", "普通参访", 1, *_DOWNTOWN, 90, category="attraction")
+    show = _placed("show", "晚间演出", 1, *_QFJ, 80, start=19, show=True)
+    show.start_time = time(19, 30)
+    show.end_time = time(20, 50)
+    plan = ItineraryPlan(
+        itinerary_id="it-theme-soft",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[ordinary, theme, show])],
+    )
+    _fallback_sequence_times(plan)
+    # 晚场被单场演出占死：240min 夜游窗放不下 → 留无时刻走挪日/披露链，
+    # 绝不退档塞正午（修复前兜底把它顺排成 12:30-16:30 正午卡）。
+    assert theme.start_time is None
 
 
 def test_gate_keeps_one_show_per_day_disclosed():
@@ -216,3 +317,815 @@ def test_collect_candidates_reserves_show_rows_outside_window():
     show_names = [c["name"] for c in candidates if c["name"].startswith("《")]
     assert len(show_names) == 3  # 保位上限 3：第 4 行演出不进池
     assert "《驼铃传奇》秀" not in show_names
+
+
+# ---------- 2026-11-08 长恨歌案：停演季闸 / 最近簇选日 / 落选张披露 ----------
+
+_chg_hours = "仅夜场（约20:10/21:35两场；演出季4-10月，冬季停演）"
+
+
+def test_night_show_off_season_skipped_with_disclosure():
+    # ⑥停演季闸：11 月行程撞「演出季4-10月」停演期——《长恨歌》退出
+    # 自动夜场桶并披露；选择自然落到下一张在季演出《梦回大唐》。
+    cands = [
+        _sight("兵马俑", *_LINTONG, dur=90, tags=["5a"]),
+        _night_show("《长恨歌》", *_LINTONG, hours=_chg_hours),
+        _night_show("《梦回大唐》", *_DOWNTOWN),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, notes=notes, start_date="2026-11-10"
+    )
+    names = [it["name"] for it in items]
+    assert "《长恨歌》" not in names  # 停演期退出自动夜场桶
+    assert "《梦回大唐》" in names  # 落到下一张在季演出
+    assert any("演出季4-10月" in n and "停演" in n and "《长恨歌》" in n for n in notes)
+
+
+def test_night_show_season_spanning_trip_not_blocked():
+    # ⑥防误伤：跨季行程（10月末起）与演出季 4-10 月有交集 → 照排不拦。
+    cands = [_night_show("《长恨歌》", *_LINTONG, hours=_chg_hours)]
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, start_date="2026-10-31"
+    )
+    assert [it["name"] for it in items] == ["《长恨歌》"]
+
+
+def test_night_show_follows_same_site_daytime_cluster():
+    # ⑦最近簇选日：末日逢雨把同址白天点（华清宫，露天）钉去 day1，夜场
+    # 不再盲钉窗口末日——按最近簇选日改钉 day1，同址 0km 必须同日。
+    cands = [
+        _sight("华清宫", *_LINTONG, dur=120, rain_ok="no"),
+        _night_show("《长恨歌》", *_LINTONG),
+    ]
+    items = PlanningAgent._deterministic_selection(
+        cands, 3, {"西安": (1, 3)}, rain_days={"西安": {3}}
+    )
+    day_of = {it["name"]: it["day"] for it in items}
+    assert day_of["华清宫"] == 1  # 末日逢雨：露天点去 day1（拉日圈失效）
+    assert day_of["《长恨歌》"] == 1  # 演出日反向拉到白天簇（同址同日）
+
+
+def test_extra_night_shows_all_placed_one_per_day():
+    # ⑧二拍（2026-11-08 用户拍板：取消「每城只自动排一场夜场」）：两张
+    # 夜场各落一天——每天一场仍守（11-02 拍板），落选张不再只披露不排。
+    cands = [
+        _sight("兵马俑", *_LINTONG, dur=90, tags=["5a"]),
+        _night_show("《长恨歌》", *_LINTONG),
+        _night_show("《梦回大唐》", *_DOWNTOWN),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, notes=notes
+    )
+    names = [it["name"] for it in items]
+    day_of = {it["name"]: it["day"] for it in items}
+    assert "《长恨歌》" in names and "《梦回大唐》" in names
+    assert day_of["《长恨歌》"] != day_of["《梦回大唐》"]  # 一天一场闸
+    assert day_of["《长恨歌》"] == day_of["兵马俑"]  # 落位贴最近簇（同址同日）
+    assert not any("未排" in n for n in notes)  # 都排下了：无未排披露
+
+
+def test_extra_night_shows_disclosed_when_window_full():
+    # ⑧二拍配套：三张夜场挤两天窗口——每天一场守闸，第三张点名披露
+    # （要保留请说），不静默消失。
+    cands = [
+        _sight("兵马俑", *_LINTONG, dur=90, tags=["5a"]),
+        _night_show("《长恨歌》", *_LINTONG),
+        _night_show("《梦回大唐》", *_DOWNTOWN),
+        _night_show("《驼铃传奇》秀", *_DOWNTOWN),
+    ]
+    notes: list[str] = []
+    items = PlanningAgent._deterministic_selection(
+        cands, 2, {"西安": (1, 2)}, notes=notes
+    )
+    names = [it["name"] for it in items]
+    shows_placed = [n for n in names if n.startswith("《") or n.endswith("秀")]
+    assert "《长恨歌》" in names and "《梦回大唐》" in names  # 每天一场=两张
+    assert "《驼铃传奇》秀" not in names  # 第三张无日可落
+    assert len(shows_placed) == 2
+    assert any("未排" in n and "《驼铃传奇》秀" in n for n in notes)
+
+
+def test_plan_score_penalizes_show_stranded_from_venue_cluster():
+    # ⑨场馆亲和拆簇罚（E2E 5月探针实录）：《秦俑情》被「跨天全局重排」
+    # 挪去市区日、兵马俑留临潼日=双件拆离场馆簇——55km 脱簇在 travel 软项
+    # 只值 -2 拦不住；同日贴排（0.95km 成伴）不罚。
+    bmy = _placed(
+        "v-bmy", "兵马俑", 2, 109.27, 34.38, 180, start=9, category="attraction"
+    )
+    qyq = _placed("v-qyq", "《秦俑情》", 2, 109.278, 34.384, 80, start=17, show=True)
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)
+    home = ItineraryPlan(
+        itinerary_id="it-home",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms]),
+            DayPlan(day=2, base_city="西安", items=[bmy, qyq]),
+        ],
+    )
+    stranded = ItineraryPlan(
+        itinerary_id="it-strand",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[hms, qyq.model_copy(update={"day": 1})],
+            ),
+            DayPlan(day=2, base_city="西安", items=[bmy]),
+        ],
+    )
+    assert plan_score(home).soft["venue_strand"] == 0
+    assert plan_score(stranded).soft["venue_strand"] == -2 * PEN_VENUE_STRAND
+
+
+def test_gate_reclaims_show_to_near_mate_day():
+    # ⑧二拍聚簇认领（mc2 多城案实录）：选层把《秦俑情》落在市区无伴日、
+    # 兵马俑在另一无演出日——终装闸把演出挪回伴的日子（贴排口径），并
+    # 披露「贴同日改排」；挪后兜底重排给出时刻。
+    qyq = _placed("v-qyq", "《秦俑情》", 1, 109.278, 34.384, 80, start=17, show=True)
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)
+    bmy = _placed(
+        "v-bmy", "兵马俑", 2, 109.27, 34.38, 180, start=9, category="attraction"
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-mc2",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, qyq]),
+            DayPlan(day=2, base_city="西安", items=[bmy]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    qyq_it = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "《秦俑情》"
+    )
+    bmy_it = next(
+        i for d in plan.days for i in d.items if getattr(i, "name", "") == "兵马俑"
+    )
+    assert qyq_it.day == 2 and bmy_it.day == 2  # 演出挪回兵马俑日（~1km 伴）
+    assert qyq_it.start_time is not None  # 挪后兜底重排有时刻
+    assert any("秦俑情" in str(a) and "同日" in str(a) for a in plan.assumptions)
+
+
+def test_gate_noop_leaves_compliant_plan_untouched():
+    # 闸未动作零副作用：每天已一场且都贴簇 → 假设零新增、时刻不被重洗。
+    bmy = _placed(
+        "v-bmy", "兵马俑", 1, 109.27, 34.38, 180, start=9, category="attraction"
+    )
+    qyq = _placed("v-qyq", "《秦俑情》", 1, 109.278, 34.384, 80, start=17, show=True)
+    hms = _placed("v-hms", "回民街", 2, 108.94, 34.26, 90, start=9)
+    plan = ItineraryPlan(
+        itinerary_id="it-ok",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[bmy, qyq]),
+            DayPlan(day=2, base_city="西安", items=[hms]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert plan.assumptions == []
+    assert qyq.start_time == time(17, 0)  # 未被重排洗动
+    assert bmy.start_time == time(9, 0)
+
+
+def test_lns_keeps_day_show_with_overloaded_venue_cluster():
+    # ⑩场馆亲和软钉（秦俑情案第五刀主锚）：临潼日=兵马俑180+华清宫120+
+    # 骊山60+秦俑情80 超载排不下——修复通道不得把贴兵马俑（~1km）的
+    # 《秦俑情》挪去市区日：演出软钉不挪；要让位/拆日重建也是弱卡让，
+    # 兵马俑锚点同守（venue_strand 罚管另一侧拆簇）。
+    agent = PlanningAgent(NoLLM())
+    day1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9),
+            _placed("v-dyt", "大雁塔", 1, 108.96, 34.22, 90, start=14),
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="西安",
+        items=[
+            _placed(
+                "v-bmy", "兵马俑", 2, 109.27, 34.38, 180, start=9, category="attraction"
+            ),
+            _placed(
+                "v-hqg",
+                "华清宫",
+                2,
+                109.212,
+                34.366,
+                120,
+                start=14,
+                category="attraction",
+            ),
+            _placed("v-lsh", "骊山", 2, 109.217, 34.365, 60),
+            _placed("v-qyq", "《秦俑情》", 2, 109.278, 34.384, 80, show=True),
+        ],
+    )
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day1, day2])
+    picked = [
+        {"name": n}
+        for n in ("回民街", "大雁塔", "兵马俑", "华清宫", "骊山", "《秦俑情》")
+    ]
+
+    moves, base_s, final_s = agent._global_resched(plan, picked, [])
+
+    assert final_s > base_s  # 超载信号确有修复
+    all_items = [i for d in plan.days for i in d.items if isinstance(i, VisitItem)]
+    qyq_it = next(i for i in all_items if i.name == "《秦俑情》")
+    bmy_it = next(i for i in all_items if i.name == "兵马俑")
+    assert qyq_it.day == 2  # 演出不挪——必须贴兵马俑线路
+    assert bmy_it.day == 2  # 锚点同守——不从另一侧拆簇
+    assert all("秦俑情" not in m for m in moves)  # 披露不得点名演出挪动
+
+
+# ---------- 2026-11-08 唐宴案三拍：宴秀占场 / 认领避宴日 / 就近留场 ----------
+
+_QFJ = (108.9743, 34.2127)  # 大唐芙蓉园簇（御宴宫/《梦回大唐》同址锚）
+_MTY = (108.9660, 34.2129)  # 曼蒂广场（长安十二时辰·唐宴）
+_TLG = (108.9701, 34.3217)  # 唐乐宫（城北四海唐人街，距曲江簇 ~12km）
+
+
+def _banquet(
+    item_id,
+    name,
+    day,
+    lon,
+    lat,
+    *,
+    poi_id=None,
+    dur=120,
+    hours="午宴12:30场；晚宴18:30场（预订制）",
+):
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        category="food",
+        city="西安",
+        day=day,
+        duration_minutes=dur,
+        location=GeoPoint(lon=lon, lat=lat),
+        opening_hours=hours,
+        poi_id=poi_id or f"curated:西安:{name}",
+    )
+
+
+def test_banquet_show_occupies_day_second_show_moves_off():
+    # ⑪宴秀占场（沪→西→沪案 D2 实录）：御宴宫(宴)+唐宴(宴)+唐乐宫(演)
+    # 三叠一天——终闸把宴秀计入当日演出位：宴秀留场（御宴宫 0km 贴簇
+    # 首留），唐乐宫挪去无演出日，披露点名「宴秀」；唐宴按五拍「宴类
+    # 簇跟随」取消（D1 回民街/D3 城墙都 >5km 无簇伴，不孤放别日）。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 2, *_TLG, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[_placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)],
+            ),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, tang, tlg]),
+            DayPlan(
+                day=3,
+                base_city="西安",
+                items=[
+                    _placed(
+                        "v-cq",
+                        "城墙",
+                        3,
+                        108.9405,
+                        34.2569,
+                        120,
+                        start=9,
+                        category="attraction",
+                    )
+                ],
+            ),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2  # 宴秀留场（0km 贴簇）
+    assert day_of["唐乐宫《大唐女皇》"] != 2  # 宴日演出让位
+    # ⑮宴类簇跟随（2026-11-08 五拍「毕竟只是 FOOD」）：唐宴被挤出 D2、
+    # 目标日均无 ≤5km 簇伴 → 不孤放别日、取消+披露
+    assert "长安十二时辰·唐宴" not in day_of
+    assert any("唐宴" in str(a) and "不孤放" in str(a) for a in plan.assumptions)
+    # 宴日不再叠任何演出/第二宴秀
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+    assert any("宴秀" in str(a) and "唐乐宫" in str(a) for a in plan.assumptions)
+
+
+def test_orphaned_banquet_is_cancelled_after_venue_moves_away():
+    # 无街区卡场景下④孤宴取消语义不变：venue 是普通景点（非 citywalk、
+    # 名无街区语素），孤宴无处可胶 → 原取消口径。若 venue 是同址街区卡，
+    # 2026-11-12「街区同址晚间体验胶块日」拍板取代本语义——见
+    # test_orphaned_block_banquet_glues_to_block_day。
+    banquet = _banquet("v-banquet", "测试宴秀", 1, *_MTY)
+    banquet.start_time = time(11, 30)
+    banquet.end_time = time(12, 30)
+    banquet.pinned = True
+    banquet.soft_pin = True
+    venue = _placed(
+        "v-venue", "同区景点", 2, *_MTY, 240, start=10, category="attraction"
+    )
+    show = _placed("v-show", "同区演出", 2, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-orphan-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    _placed("v-far-b", "远区乙", 1, *_LINTONG, 90, start=12),
+                    banquet,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[venue, show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert all(banquet not in d.items for d in plan.days)
+    assert venue.day == 2 and show.day == 2
+    assert any("测试宴秀" in str(a) and "不孤放" in str(a) for a in plan.assumptions)
+
+
+def test_orphaned_block_banquet_glues_to_block_day():
+    # 2026-11-12 拍板「街区同址晚间体验胶块日」：孤宴（D1 无 ≤5km 伴）同城
+    # 有块日（D3 同址街区 0km）→ 胶去块日；块日原有演出被胶块宴挤出
+    # （无处可挪→未排披露）。旧「取消」口径只保留给真无街区场景。
+    banquet = _banquet("v-banquet", "测试宴秀", 1, *_MTY)
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    show = _placed("v-show", "同区演出", 3, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-block-glue",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    banquet,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[]),
+            DayPlan(day=3, base_city="西安", items=[block, show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["测试宴秀"] == 3  # 胶去块日
+    assert day_of["同区演出"] != 3  # 非钉演出让位
+    assert any(
+        "同址街区晚间体验" in str(a) and "测试宴秀" in str(a) for a in plan.assumptions
+    )
+
+
+def test_orphaned_block_show_glues_to_block_day():
+    # 类级证明（非宴秀变体）：贴街区 0km 的纯演出卡落错日（D1 无
+    # ≤5km 伴）→ 同样胶去块日；块日远距演出被挤走。规则不认卡型只认
+    # 「街区同址 + 落错日」，换任何城市同类场景同裁决。
+    near_show = _placed(
+        "v-near-show", "街区同址演出", 1, *_MTY, 80, start=19, show=True
+    )
+    block = _placed(
+        "v-block", "测试主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    far_show = _placed("v-far-show", "远区演出", 3, *_TLG, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-block-glue-show",
+        cities=["西安"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="西安",
+                items=[
+                    _placed("v-far-a", "远区甲", 1, *_LINTONG, 90, start=9),
+                    near_show,
+                ],
+            ),
+            DayPlan(day=2, base_city="西安", items=[]),
+            DayPlan(day=3, base_city="西安", items=[block, far_show]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["街区同址演出"] == 3  # 胶去块日
+    assert day_of["远区演出"] != 3  # 远距孤演让位
+    assert any(
+        "同址街区晚间体验" in str(a) and "街区同址演出" in str(a)
+        for a in plan.assumptions
+    )
+
+
+def test_block_colocated_banquet_beats_far_show_on_block_day():
+    # 2026-11-12 用户案回归锚（沪→西→沪 D3 实录）：块日（大雁塔簇+
+    # 长安十二时辰街区）晚位被 13km 唐乐宫占、同址唐宴孤放取消——
+    # 「第三天要安排特色宴会应选街区同址唐宴」：唐宴胶块日留场，
+    # 唐乐宫（孤锚 12km）不得占块日晚位。
+    dyt = _placed("v-dyt", "大雁塔", 3, *_QFJ, 90, start=10, category="attraction")
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 3, *_MTY, 240, start=12, category="citywalk"
+    )
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 3, *_TLG, 80, start=19, show=True)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 1, *_MTY)  # 选层落错日
+    zl = _placed(
+        "v-zl", "西安钟楼", 2, 108.943, 34.2611, 60, start=12, category="attraction"
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-tang-banquet",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[tang]),
+            DayPlan(day=2, base_city="西安", items=[zl]),
+            DayPlan(day=3, base_city="西安", items=[dyt, block, tlg]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["长安十二时辰·唐宴"] == 3  # 胶块日且留场
+    assert day_of["唐乐宫《大唐女皇》"] != 3  # 13km 孤演不占块日
+    assert any(
+        "同址街区晚间体验" in str(a) and "唐宴" in str(a) for a in plan.assumptions
+    )
+    assert any("唐乐宫" in str(a) for a in plan.assumptions)
+
+
+def test_banquet_declared_sessions_drive_fallback_slot():
+    # 2026-11-12「声明场次的宴秀按场次落」回归锚：宴秀卡声明 午宴12:30/
+    # 晚宴18:30 场，此前 sessions=[] 走普通餐槽链被塞 12:00 半小时任意
+    # 午餐——修复后晚场空时按 ≥15:00 晚场优先落声明晚宴场 18:30。
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 1, *_MTY)
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet-sessions",
+        cities=["西安"],
+        days=[DayPlan(day=1, base_city="西安", items=[tang])],
+    )
+    _fallback_sequence_times(plan)
+    assert tang.start_time == time(18, 30)
+    assert tang.end_time == time(20, 30)
+
+
+def test_block_day_same_venue_experience_wins_over_near_show():
+    # 2026-11-12 二拍「同址决胜」回归锚（沪→西→沪 5 天实录）：块日两张
+    # 体验同进胶块档（同址宴 0.1km vs 贴邻演出 0.77km），演出与当天锚
+    # 同址 0km、锚距 tiebreak 反转致同址宴被逐出块日（gate glued 后又
+    # moved 走）。规则：块日那晚=距街区卡最近的那张，锚距不得反转同址。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    block = _placed(
+        "v-block", "长安十二时辰主题街区", 2, *_MTY, 240, start=12, category="citywalk"
+    )
+    near_show = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, start=19, show=True)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    bmy = _placed("v-bmy", "兵马俑", 3, *_LINTONG, 90, start=10, category="attraction")
+    plan = ItineraryPlan(
+        itinerary_id="it-block-same-venue",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, block, near_show, tang]),
+            DayPlan(day=3, base_city="西安", items=[bmy]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["长安十二时辰·唐宴"] == 2  # 同址体验留块日
+    assert day_of["《梦回大唐》"] != 2  # 贴邻演出让位
+    assert any("《梦回大唐》" in str(a) and "改排" in str(a) for a in plan.assumptions)
+
+
+def test_dedupe_twin_prefers_banquet_nearer_to_block():
+    # 2026-11-12 拍板平手 tiebreak：宫宴餐秀组两宴（御宴宫 0.77km vs
+    # 唐宴 0km 贴街区）同名孪生去重时留贴街区者——先到先得曾留错
+    # （御宴宫留、唐宴并掉），留下的随后被孤宴取消=整组蒸发。
+    block = VisitItem(
+        item_id="v-block",
+        name="长安十二时辰主题街区",
+        category="citywalk",
+        city="西安",
+        day=3,
+        duration_minutes=240,
+        location=GeoPoint(lon=_MTY[0], lat=_MTY[1]),
+    )
+    yys = _banquet("v-yys", "御宴宫", 3, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 3, *_MTY)
+    keepers, dropped = _dedupe_visit_keepers([yys, block, tang])
+    assert any(k.name == "长安十二时辰·唐宴" for k in keepers)
+    assert "御宴宫" in dropped
+
+
+def test_claim_never_targets_banquet_day():
+    # ⑫认领避宴日：《梦回大唐》在 D3 无 ≤5km 伴、D2 芙蓉园 0km 有伴，
+    # 但 D2 已是宴日（御宴宫占场）→ 不认领，留 D3 不动、零披露。
+    dyt = _placed("v-dyt", "大唐芙蓉园", 2, *_QFJ, 120, start=9, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    wall = _placed(
+        "v-cq", "城墙·碑林", 3, 108.9405, 34.2569, 150, start=9, category="attraction"
+    )
+    mhd = _placed("v-mhd", "《梦回大唐》", 3, *_QFJ, 80, start=19, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-claim",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys]),
+            DayPlan(day=3, base_city="西安", items=[wall, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    mhd_it = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if getattr(i, "name", "") == "《梦回大唐》"
+    )
+    assert mhd_it.day == 3  # 宴日不是认领目标
+    assert plan.assumptions == []  # 零副作用
+    assert yys.day == 2 and mhd_it.start_time == time(19, 0)
+
+
+def test_nearest_show_kept_on_contested_day():
+    # ⑬就近留场（「要排 SHOW 也应该找最近的」）：D2 两场演出竞争——
+    # 《梦回大唐》同址 0km、唐乐宫 12km，且唐乐宫在册序在前（旧口径
+    # 会留错的那个）：留近者，远者挪去 D1。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 2, *_TLG, 80, start=19, show=True)
+    mhd = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-near",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, tlg, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["《梦回大唐》"] == 2  # 就近者留场
+    assert day_of["唐乐宫《大唐女皇》"] == 1  # 远者让位挪日
+
+
+def test_plain_curated_restaurant_does_not_occupy_show_slot():
+    # ⑪防误伤：curated 普通餐厅（失重餐厅类，名/时段无宴秀语素）不占
+    # 演出位——同日演出照常，零动作零披露。
+    spc = _banquet("v-spc", "失重餐厅", 1, 108.94, 34.26, hours="10:00-22:00")
+    mhd = _placed("v-mhd", "《梦回大唐》", 1, *_QFJ, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 1, *_QFJ, 90, start=9, category="attraction")
+    plan = ItineraryPlan(
+        itinerary_id="it-plain",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[dyt, spc, mhd]),
+            DayPlan(day=2, base_city="西安", items=[]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    assert plan.assumptions == []
+    assert spc.day == 1 and mhd.day == 1  # 普通餐不触发清算
+
+
+def test_squeeze_swap_rescues_anchored_show():
+    # ⑭挤兑救援（四拍「要排 SHOW 也应该找最近的」）：D3《梦回大唐》
+    # 场次 12:00/12:30 全撞城墙 9:00-13:00 固定窗（±30+打车 pad）→挪位后
+    # 仍无时刻待删，但 0km 贴 D2 大雁塔（强锚）；D1 唐乐宫在席但最近锚仅
+    # 7.4km 回民街（弱锚）→ 换位：强锚顶 D1、弱锚去 D3 承接；驼铃（无日
+    # 可挪）披露删除。
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 120, start=9, category="sight")
+    tlg = _placed("v-tlg", "唐乐宫《大唐女皇》", 1, *_TLG, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 120, start=9, category="sight")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    wall = _placed(
+        "v-cq", "城墙·碑林", 3, 108.9405, 34.2569, 240, start=9, category="sight"
+    )
+    mhd = VisitItem(
+        item_id="v-mhd",
+        name="《梦回大唐》",
+        category="entertainment",
+        best_visit_time="show",
+        city="西安",
+        day=3,
+        duration_minutes=80,
+        location=GeoPoint(lon=_QFJ[0], lat=_QFJ[1]),
+        opening_hours="多场（约12:00/12:30）",
+    )
+    tuoling = _placed("v-tlq", "《驼铃传奇》", 3, 109.01, 34.45, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-squeeze",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, tlg]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys]),
+            DayPlan(day=3, base_city="西安", items=[wall, mhd, tuoling]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["《梦回大唐》"] == 1  # 强锚顶上 D1 并获得时刻
+    assert day_of["唐乐宫《大唐女皇》"] == 3  # 弱锚让位承接
+    mhd_it = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.name == "《梦回大唐》"
+    )
+    assert mhd_it.start_time is not None
+    assert yys.day == 2  # 宴秀不受挤兑影响
+    assert any("换位" in str(a) for a in plan.assumptions)
+    assert any("驼铃传奇" in str(a) and "未排" in str(a) for a in plan.assumptions)
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+# ---------- 2026-11-08 雁塔案五拍：宴类簇跟随 / 最弱锚牺牲兜底 ----------
+
+
+def test_banquet_moves_only_to_cluster_mate_day():
+    # ⑮宴类簇跟随（五拍）：唐宴被挤出 D2 后，目标日 D3 有 ≤5km 簇伴
+    # （曼蒂广场旁的白天点）→ 整簇合法挪日、照常挪不取消。
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 90, start=10, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    tang = _banquet("v-tang", "长安十二时辰·唐宴", 2, *_MTY)
+    mate = _placed(
+        "v-mtds",
+        "曼蒂广场白天点",
+        3,
+        108.9680,
+        34.2130,
+        60,
+        start=14,
+        category="attraction",
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-banquet-mate",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, tang]),
+            DayPlan(day=3, base_city="西安", items=[mate]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2
+    assert day_of["长安十二时辰·唐宴"] == 3  # 目标日有簇伴→照常挪
+    assert day_of["曼蒂广场白天点"] == 3
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+def test_no_free_day_sacrifices_weakest_anchored_show():
+    # ⑯最弱锚牺牲兜底（雁塔案回归锚）：全城无空演出日时不再直接删本卡
+    # ——D1 孤演《驼铃传奇》（~22km 无簇伴）被删腾位，贴簇强锚的
+    # 《梦回大唐》（D2 0km 贴大雁塔）改落 D1；钉住宴御宴宫留场 D2。
+    hms = _placed("v-hms", "回民街", 1, 108.94, 34.26, 90, start=9)
+    tlq = _placed("v-tlq", "《驼铃传奇》", 1, 109.01, 34.45, 80, start=19, show=True)
+    dyt = _placed("v-dyt", "大雁塔", 2, *_QFJ, 120, start=9, category="attraction")
+    yys = _banquet("v-yys", "御宴宫", 2, *_QFJ)
+    yys.pinned = True
+    mhd = _placed("v-mhd", "《梦回大唐》", 2, *_QFJ, 80, show=True)
+    plan = ItineraryPlan(
+        itinerary_id="it-sacrifice",
+        cities=["西安"],
+        days=[
+            DayPlan(day=1, base_city="西安", items=[hms, tlq]),
+            DayPlan(day=2, base_city="西安", items=[dyt, yys, mhd]),
+        ],
+    )
+    _enforce_show_per_day(plan)
+    day_of = {
+        i.name: i.day for d in plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert day_of["御宴宫"] == 2  # 钉住宴留场
+    assert day_of["《梦回大唐》"] == 1  # 贴簇强锚顶掉孤演的日子
+    assert "《驼铃传奇》" not in day_of  # 最弱锚（距当日簇最远无伴）被删
+    assert any("驼铃传奇" in str(a) and "让位" in str(a) for a in plan.assumptions)
+    for d in plan.days:
+        occupied = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (_is_show_item(i) or _is_show_banquet_item(i))
+        ]
+        assert len(occupied) <= 1, "同日多场演出/宴秀：%r" % [i.name for i in occupied]
+
+
+# ---------- 2026-11-11 拍板：晚宴秀直接作为晚饭卡（占晚餐槽） ----------
+
+
+def _dinner_show_case(name, *, category, opening_hours=None, poi_id="p1"):
+    return VisitItem(
+        item_id="x",
+        name=name,
+        poi_id=poi_id,
+        category=category,
+        city="西安",
+        day=1,
+        duration_minutes=80,
+        best_visit_time="show" if category == "entertainment" else None,
+        opening_hours=opening_hours,
+    )
+
+
+def test_dinner_show_item_recognises_dinner_with_show():
+    """2026-11-11 用户拍板「唐乐宫就是带表演的晚宴，晚宴应该直接作为晚饭
+    卡」：SHOW 卡名字/营业时段带宴席语素即占晚餐槽。"""
+    # 时段带「晚宴秀」（唐乐宫口径：仅夜场（晚宴秀，约19:30一场））
+    assert _is_dinner_show_item(
+        _dinner_show_case(
+            "某剧院",
+            category="entertainment",
+            opening_hours="仅夜场（晚宴秀，约19:30一场）",
+        )
+    )
+    # 名字带「餐秀」
+    assert _is_dinner_show_item(
+        _dinner_show_case("某沉浸式餐秀", category="entertainment")
+    )
+    # 名字带「伴宴」
+    assert _is_dinner_show_item(
+        _dinner_show_case("某乐舞伴宴", category="entertainment")
+    )
+
+
+def test_dinner_show_item_does_not_swallow_plain_shows():
+    """普通演出不是晚宴——不得因占晚餐槽被免掉晚饭。"""
+    for nm, oh in (
+        ("《长恨歌》演出", "仅夜场（约20:10/21:35两场）"),
+        ("《驼铃传奇》秀", "多场（约15:00/20:00，旺季加场至4场）"),
+        ("《西安千古情》", "多场（约14:00/16:30，旺季11:00起加场）"),
+    ):
+        assert not _is_dinner_show_item(
+            _dinner_show_case(nm, category="entertainment", opening_hours=oh)
+        ), nm
+
+
+def test_dinner_show_item_ignores_non_show_categories():
+    """food 宴卡走 _is_show_banquet_item 既有口径；观光点带「宴」字不误伤。"""
+    assert not _is_dinner_show_item(
+        _dinner_show_case("保定宴饮食博物馆", category="museum")
+    )
+    assert not _is_dinner_show_item(_dinner_show_case("某餐馆", category="food"))
+
+
+def test_day_has_dinner_show_covers_day_items():
+    d = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _dinner_show_case(
+                "唐乐宫《大唐女皇》",
+                category="entertainment",
+                opening_hours="仅夜场（晚宴秀，约19:30一场）",
+            )
+        ],
+    )
+    assert _day_has_dinner_show(d)
+    empty = DayPlan(day=2, base_city="西安", items=[])
+    assert not _day_has_dinner_show(empty)

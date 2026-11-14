@@ -444,6 +444,16 @@ class Train12306Source:
             rows_by_combo = await asyncio.gather(
                 *(_rows(pair) for pair in combos), return_exceptions=True
             )
+            failures = [r for r in rows_by_combo if isinstance(r, BaseException)]
+            if failures and len(failures) == len(rows_by_combo):
+                # 全组合皆败（2026-11-07 实录：反爬封锁 leftTicket 全路径
+                # 302→error.html）= 源故障，不是「无车」——必须抛错让熔断
+                # 计数与降级链可见；此前静默返回空被上层当健康空结果，
+                # 熔断永不触发、cache 层还会负缓存「真无票」6 小时。
+                first = failures[0]
+                if isinstance(first, Exception):
+                    raise first
+                raise TrainSourceError(f"12306 fetch failed: {first!r}")
             options: list[TrainOption] = []
             # 同一班跨组合只留一张（2026-11-01：站名∪电报码宽锚后同一班
             # 会从多组合各锚一次，G1970 上海/上海南 双卡实录）——物理班次
@@ -513,6 +523,7 @@ class Train12306Source:
         if self._active_path:
             pending.insert(0, self._active_path)  # 上个组合命中的路径优先
         tried: set[str] = set()
+        last_hint = ""
         while pending:
             path = pending.pop(0)
             if path in tried:
@@ -526,10 +537,14 @@ class Train12306Source:
                 hint = _redirect_hint(response)
                 if hint and hint not in tried and hint not in pending:
                     pending.insert(0, hint)
+                last_hint = f"HTTP {response.status_code}"
                 continue
             try:
                 payload = response.json()
             except ValueError:
+                # 跟随后落点非 JSON（反爬封锁实录：mormhweb/logFiles/
+                # error.html）——留进错误信息供日志一眼判「封锁 vs 无车」
+                last_hint = f"non-JSON body at {response.url.path}"
                 continue
             data = payload.get("data") if isinstance(payload, dict) else None
             result = data.get("result") if isinstance(data, dict) else None
@@ -539,6 +554,7 @@ class Train12306Source:
             return [row.split("|") for row in result if isinstance(row, str)]
         raise TrainSourceError(
             f"all 12306 leftTicket paths failed for {from_code}->{to_code}"
+            + (f" (last: {last_hint})" if last_hint else "")
         )
 
 

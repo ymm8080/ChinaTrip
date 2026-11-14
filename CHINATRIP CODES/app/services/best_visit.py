@@ -13,8 +13,8 @@ import re
 SLOTS = ("sunrise", "morning", "afternoon", "evening", "sunset", "any")
 
 # 名称规则：按序匹配，先命中先返回。保守起见只放明确信号——
-# 「洪崖洞」这类名字本身无夜信号的 POI 绝不能误伤（夜景语义
-# 由「洪崖洞夜景」这类显式命名或后续 LLM 层补充）。
+# 名字本身无夜信号的 POI（如滨江洞窟类景点）绝不能误伤（夜景语义
+# 由「XX夜景」这类显式命名或后续 LLM 层补充）。
 RULES: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(

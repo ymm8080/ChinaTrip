@@ -180,6 +180,8 @@ class HandoffRecord(BaseModel):
     order_ref: str | None = None
     source_channel: str | None = None
     refund_summary: str | None = None
+    # 2026-11-14（用户拍板「预订埋点也要 USER ID 列」）：登录账号随行留档
+    owner_account_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -237,6 +239,7 @@ class HandoffStore:
         channel: str,
         url: str,
         refund_summary: str | None = None,
+        owner_account_id: str | None = None,
     ) -> HandoffRecord:
         """跳转埋点：新建 opened 记录，不推进状态。"""
         now = datetime.now(timezone.utc)
@@ -247,6 +250,8 @@ class HandoffStore:
             url=url,
             status=STATUS_OPENED,
             refund_summary=refund_summary,
+            # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+            owner_account_id=owner_account_id,
             created_at=now,
             updated_at=now,
         )
@@ -401,6 +406,8 @@ def persist_handoff(record: HandoffRecord) -> None:
                     channel=record.channel,
                     deeplink=record.url,
                     status=record.status,
+                    # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+                    owner_account_id=getattr(record, "owner_account_id", None),
                     order_ref=record.order_ref,
                     source_channel=record.source_channel,
                     refund_policy=(
@@ -414,5 +421,8 @@ def persist_handoff(record: HandoffRecord) -> None:
             row.status = record.status
             row.order_ref = record.order_ref
             row.source_channel = record.source_channel
+            # 2026-11-14：状态推进不改归属；仅补空 USER ID
+            if getattr(record, "owner_account_id", None) and not row.owner_account_id:
+                row.owner_account_id = record.owner_account_id
             row.updated_at = datetime.now(timezone.utc)
         session.commit()

@@ -773,8 +773,11 @@ def test_amap_city_overrides_wrong_extracted_city():
     item, day = _plan_visit(session, "十八梯")
     assert item is not None and item.city == "重庆"  # …amap truth wins
     assert day.base_city == "重庆"
-    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
-    assert wishlist["十八梯"]["city"] == "重庆"
+    # 2026-11-12 拍板（已安排分区补源）：排上的心愿行翻进已安排分区，
+    # amap 覆写的城市保留在行上。
+    groups = trip_items.list_groups()
+    row = next(r for r in groups["scheduled"] if r["name"] == "十八梯")
+    assert row["city"] == "重庆"
 
 
 def test_off_trip_amap_truth_not_scheduled():

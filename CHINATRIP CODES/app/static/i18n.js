@@ -1,13 +1,17 @@
-/* 双语全量（DESIGN language_dual_system）：H5 i18n。
+/* 多语言骨架（DESIGN language_nlang_switch_design_2026-11-03 §2.2）：H5 i18n。
  * UI 文案走字典：静态节点 data-i18n / data-i18n-ph / data-i18n-title（首跑把原文中文存进
  * data-*-orig 作回退，来回切换幂等）；JS 动态文案走 I18N.tf(key, 中文原文)，只要求 en 词典
  * 必有——「选英文则全英文」由 ops/check_h5_static.js 机器把关。
  * 数据文案走 I18N.pick(_en ?? 中文) / I18N.city(城市名)，服务端并出回退。
+ * 多语言：DICT/LANGS 顶层键=语言短码（zh/en/ja/ko…），半翻译语言按 key 逐条回退
+ * 链 loc→en→zh（zh 恒兜底原文）——加语言 = LANGS 加一行 + DICT 加一个顶层键，
+ * 机制零改动；后端 SUPPORTED 同步钉在 tests/test_lang_sync.py。L3 偶发语言不进
+ * 注册表，靠 <html lang> 正确标注引导浏览器整页翻译。
  */
 (function () {
   "use strict";
   var DICT = {
-    "zh-CN": {
+    "zh": {
       "nav.plan": "📋 规划", "nav.t9n": "🔤 翻译", "nav.nav": "🧭 导航",
       "nav.itin": "🗓 行程", "nav.trips": "🗂 行程中心", "nav.book": "🎫 预订",
       "nav.me": "👤 个人主页",
@@ -15,7 +19,7 @@
       "plan.refresh.banner": "🔄 已重新载入行程，距离/步行已实测刷新",
       "plan.bkShow": "🎭 演出票", "plan.bkSite": "🎫 景点票",
       "auth.login": "登录", "auth.cancel": "取消", "auth.sendCode": "发送验证码",
-      "locale.toggle": "🌐 EN",
+      "locale.toggle": "🌐 EN", "locale.menu": "选择语言",
       "card.pinned": "📌 已钉住", "card.pin": "📌 钉住", "card.del": "🗑 删除",
       "card.rename": "✏️", "card.rename.title": "✏️ 改关键字，从库内匹配替换；无匹配回车留空",
       "card.rename.ph": "输入关键字，从库内匹配替换", "card.rename.searching": "库内检索中…",
@@ -25,17 +29,26 @@
       "card.rename.food": "美食", "card.rename.show": "演出", "card.rename.noloc": "无坐标",
       "card.rename.done": "已换成「", "card.rename.doneSuf": "」",
       "card.rename.dup": "行程里已有这一站", "card.rename.blanked": "已留空——当天只保留餐点",
+      "card.alt.popHint": "同级备选：点击换为该点", "card.alt.lv.unesco": "UNESCO",
+      "card.alt.lv.5a": "5A", "card.alt.lv.intl": "国际榜", "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A",
+      "card.alt.lv.want": "想去",
+      "card.alt.drag.title": "拖 ⠿ 到任意两天之间插入（点 chip 是原位换点）",
+      "card.alt.inserting": "插入中…（正在重排当天时链）",
       "card.minutes": " 分钟", "card.to_next": "↓ 距下一站 ",
       "card.walk": " · 步行约 ", "card.walk_min": " 分钟",
       "card.taxi": " · 车程约 ", "card.taxi_min": " 分钟（含叫车）",
+      "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "一键直唤高德打车页：起点=当前位置，终点=下一站", "card.callTaxi.noCoord": "该站无坐标，请到导航页手动搜索终点",
       "card.leg_amap": "（地图实测）", "card.leg_est": "（直线估算）",
       "card.grab": "抢票直达 →", "card.hours_unknown": "🕐 营业时间待确认（以现场为准）",
+      "card.resv.none": "预约信息无",
       "card.showPref": "演出票务", "card.showGo": "订票直达 →",
       "card.km": " km",
       "pay.title": "💳 支付 / 代订收款", "pay.mine": "🔄 我的付款",
       "pay.note": "Visa/Mastercard/Amex/JCB · 支付宝 · 微信支付",
       "pay.go": "💳 去支付 / 存卡",
       "pay.kind.pay_now": "立即支付报价", "pay.kind.save_method": "保存银行卡（代订扣款）",
+      "brief.none": "暂无简介信息",
+      "brief.findPhoto": "🔍 找图", "brief.findPhotoNone": "🔍 暂无图",
       "nav.call": "📞 咨询",
       "call.title": "通话咨询", "call.unit.min": " 分钟",
       "call.slogan": "付费与真人坐席实时通话；$1=5 分钟，余额可累积，到点自动结束",
@@ -68,7 +81,7 @@
       "plan.refresh.banner": "🔄 Itinerary reloaded — distances & walk times re-measured",
       "plan.slow.timeout": "⚠ Background re-planning still running (over 2 min); refresh this page later, or check the latest saved version on the 🗓 Itinerary tab.",
       "auth.login": "Log in", "auth.cancel": "Cancel", "auth.sendCode": "Send code",
-      "locale.toggle": "🌐 中",
+      "locale.toggle": "🌐 中", "locale.menu": "Language",
       "card.pinned": "📌 Pinned", "card.pin": "📌 Pin", "card.del": "🗑 Remove",
       "card.rename": "✏️", "card.rename.title": "✏️ Type a keyword to swap from the library; Enter on no match clears the slot",
       "card.rename.ph": "Type a keyword to match the POI library", "card.rename.searching": "Searching the library…",
@@ -78,13 +91,36 @@
       "card.rename.food": "Food", "card.rename.show": "Show", "card.rename.noloc": "no coords",
       "card.rename.done": "Replaced with \u201c", "card.rename.doneSuf": "\u201d",
       "card.rename.dup": "Already in this itinerary", "card.rename.blanked": "Slot cleared — meals remain",
+      "card.alt.popHint": "Same-level alternative: click to swap in", "card.alt.lv.unesco": "UNESCO",
+      "card.alt.lv.5a": "5A", "card.alt.lv.intl": "Intl list", "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A",
+      "card.alt.lv.want": "Want",
+      "card.alt.drag.title": "Drag ⠿ to insert between any two stops (click the chip to swap in place)",
+      "card.alt.inserting": "Inserting… (re-sequencing that day)",
       "card.minutes": " min", "card.to_next": "↓ ",
       "card.walk": " · ~", "card.walk_min": " min walk",
       "card.leg_amap": " (measured)", "card.leg_est": " (straight-line)",
       "card.grab": "Get tickets →", "card.hours_unknown": "🕐 Hours TBC (check on site)",
+      "card.resv.none": "No reservation info",
       "card.showPref": "Show tickets", "card.showGo": "Book →",
       "card.km": " km to next",
       "card.taxi": " · ~", "card.taxi_min": " min by taxi",
+      "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "Open Amap taxi directly: origin = current location, destination = next stop", "card.callTaxi.noCoord": "No coordinates for this stop — search the destination on the Navigation tab",
+      "card.mt": "Meituan", "card.mt.title": "Open Meituan dining channel for table booking / ordering; your registered traveler profile is attached and status is checked every 2 minutes until complete",
+      "card.hotel.book": "Book hotel", "card.hotel.book.title": "Pull Ctrip / Meituan / Fliggy channel cards for tonight's hotel; falls back to the day's last located sight when the hotel isn't verified yet",
+      "card.hotel.book.title.morning": "This morning card points at last night's stay — pull Ctrip / Meituan / Fliggy channel cards for the previous night; falls back to the previous day's last located sight when the hotel isn't verified yet",
+      "card.hotel.set.title": "Type a hotel name — verified against live map data and written onto tonight's card (name + address)",
+      "card.hotel.set.title.morning": "Type a hotel name — verified against live map data and written onto this morning's departure card; the night card is synced too (name + address)",
+      "card.hotel.ph": "Type a hotel name — verified, then set on the hotel card",
+      "card.hotel.searching": "Searching map data…",
+      "card.hotel.noMatch": "No verified match — try another name",
+      "card.hotel.noMatchErr": "Couldn't verify that hotel — try another name",
+      "card.hotel.done": "✅ Hotel verified and set",
+      "card.hotel.noAnchor": "Can't locate tonight yet: verify the hotel with ✏️ first, or add a located sight to this day",
+      "card.tmode.flight.title": "Switch to flight: re-query flights and update times automatically",
+      "card.tmode.train.title": "Switch to train: re-query trains and update times automatically",
+      "card.tno": "🔢 Flight/Train no.", "card.tno.title": "Enter a flight or train number (e.g. CA1234 / G1234); times are validated and updated automatically",
+      "card.tno.ph": "CA1234 / G1234", "card.tno.ok": "✅ Schedule matched — times updated",
+      "card.tbook.flight": "🎟 Book on Qunar / Fliggy", "card.tbook.train": "🎟 Book on 12306",
       "pay.title": "💳 Pay / Concierge", "pay.mine": "🔄 My payments",
       "pay.note": "Visa/Mastercard/Amex/JCB · Alipay · WeChat Pay",
       "pay.go": "💳 Pay / Save card",
@@ -152,7 +188,20 @@
       "auth.ok.reset": "Password reset — log in with the new one",
       "auth.ok.loggedOut": "Logged out — trips shown by device ID again",
       "infra.requesting": "Working…",
-      "infra.err.network": "Network error: cannot reach the API (check the service / API base)",
+      "infra.err.network": "Network error: cannot reach the API (auto-retried for ~40 s; the service may be restarting — please try again shortly)",
+      "infra.retrying": "Service is not responding — retrying automatically…",
+      "infra.newShell": "A new version is ready — this page was not reloaded because it has a trip in progress; refresh when you are ready",
+      "infra.no_flight_found": "No flight found for that date/city pair — leg unchanged",
+      "infra.no_train_found": "No train found for that date/city pair — leg unchanged",
+      "infra.number_not_found": "Flight/train number not in the schedule library (check the input or try another day)",
+      "infra.bad_number_format": "Bad number format: flight e.g. CA1234 / 3U8881, train e.g. G1234 / D2288",
+      "infra.mode_not_supported": "This leg cannot be switched to that transport mode",
+      "infra.booking_unavailable": "In-city drive/transit segment — no tickets to book",
+      "infra.no_match": "No such place in the library — try another keyword",
+      "infra.duplicate_in_plan": "Already in this trip (same site or the same substitute group)",
+      "infra.city_mismatch": "That alternative belongs to another city — drop it on a day in that city",
+      "infra.no_slot": "That day is full — even evicting lower-priority stops makes no room (pinned / must-visit / curated / meal / stay cards stay)",
+      "infra.poi_store_unavailable": "POI library is unavailable right now — try again shortly",
       "infra.err.apiBase": "「API base」 accepts only http:// or https:// — using this site instead",
       "infra.amap_timeout": "Amap timed out — try again shortly",
       "infra.amap_not_configured": "Amap not configured (missing API key)",
@@ -167,7 +216,9 @@
       "plan.noStart": "(no start date set)",
       "plan.startDays.title": "Departure city gets transport only — this day count is excluded",
       "plan.summaryToggle.title": "Expand / collapse the parameter form",
-      "plan.cityStart": "From city", "plan.via1": "Via city 1", "plan.via2": "Via city 2", "plan.via3": "Via city 3", "plan.cityEnd": "To city",
+      "plan.cityStart": "From city", "plan.via1": "Via city 1", "plan.via2": "Via city 2", "plan.cityEnd": "To city",
+      "plan.transport": "Transport", "plan.transport.auto": "Auto by distance", "plan.transport.train": "🚄 Train", "plan.transport.flight": "✈️ Flight",
+      "plan.transport.title": "Intercity transport for the whole route — default picks train/flight by distance (over 600 km flies); fine-tune per leg after planning",
       "plan.dayUnit": "days", "plan.startDate": "Start date", "plan.pref": "Preferences",
       "plan.pref.ph": "e.g. museums, no spicy food",
       "plan.totalPre": "Total", "plan.totalMid": "days · ends",
@@ -282,6 +333,13 @@
       "bk.siteListSuf": " · Sight tickets",
       "bk.siteRefund": "Sight tickets via manual channel; changes and refunds follow the checkout page (Iron Rule 23, tier C). Tickets are held only ~4–15 minutes after you submit — pay within the window.",
       "bk.hotelDaysOk": "Per-day hotel cards generated from the itinerary: tap a card to find hotels near that day's anchor",
+      "mt.opened": "Meituan booking page opened",
+      "mt.attached.pre": " (traveler profile attached: ", "mt.attached.suf": ")",
+      "mt.watch.start": " · ⏳ auto-check every 2 min, stops when complete",
+      "mt.watch.done": "✅ Booking status: ",
+      "mt.watch.line": "Meituan booking watch (every 2 min) · ",
+      "mt.watch.doneLine": "Meituan booking complete · ",
+      "mt.watch.gone": "(jump record no longer exists — watch stopped)",
       "tc.src.manual": "Manual", "tc.src.chat": "Chat", "tc.src.paste": "Paste", "tc.src.recommend": "Recommended",
       "tc.drag.title": "Drag ⠿ to reorder / move across days",
       "tc.anyCity": "Any", "tc.booked": "Booked", "tc.dayN": "Day {d}",
@@ -341,6 +399,7 @@
       "bk.chan.ctrip": "Ctrip",
       "bk.chan.meituan": "Meituan",
       "bk.chan.qunar": "Qunar",
+      "bk.chan.fliggy": "Fliggy",
       "bk.ciPre": "Check-in <b>",
       "bk.coMid": "</b> → check-out <b>",
       "bk.confirmPre": "⚠️ Before opening ",
@@ -384,6 +443,7 @@
       "brief.diamond": "-diamond",
       "brief.hours": "🕐 Hours: ",
       "brief.none": "No more info yet",
+      "brief.findPhoto": "🔍 Find photos", "brief.findPhotoNone": "🔍 No photos yet",
       "brief.reserveDaysPre": " · book ",
       "brief.reserveDaysSuf": " day(s) ahead",
       "brief.reserveHead": "🎫 Reservation required",
@@ -413,6 +473,8 @@
       "card.itinId": "🧳 Itinerary ",
       "card.paren.pre": " (",
       "card.paren.suf": ")",
+      "card.family.pre": "🚶 Same-street stroll: ",
+      "card.family.dur": " ({n} min)",
       "card.pinned.badge": "Pinned",
       "card.retime.title": "Click to change start time",
       "card.review": "✍️ Review",
@@ -451,7 +513,7 @@
       "itin.del": "🗑 Delete",
       "itin.delConfirmMid": "\" (",
       "itin.delConfirmPre": "Delete itinerary \"",
-      "itin.delConfirmSuf": ")? All its snapshots will be deleted too; scheduled wishes return to the wishlist — this cannot be undone.",
+      "itin.delConfirmSuf": ")? All its snapshots and its wishlist will be deleted too (booked orders are kept) — this cannot be undone.",
       "itin.deleted": "Deleted itinerary ",
       "itin.edit": "✏️ Edit",
       "itin.editLoaded": "Loaded into Plan — just say what to change; tap '💾 Save Itinerary' to overwrite",
@@ -578,15 +640,27 @@
       "plan.echo.none": "none",
       "plan.echo.prefPre": "; Preferences: ",
       "plan.echo.start": "Start planning: ",
+      "plan.echo.transport": "; Transport: ",
       "plan.echo.totalPre": ", ",
       "plan.echo.totalSuf": " days",
+      "plan.echo.text": "Start planning: ",
+      "plan.intake.go": "✅ Plan with these details",
+      "plan.intake.arrTime": "Arrival time that day (local)",
+      "plan.intake.depTime": "Departure (takeoff / train) time",
+      "plan.intake.end": "End",
+      "plan.intake.start": "Start",
+      "plan.intake.hint": "Start-row time = arrival time that day; end-row time = departure (takeoff/train) time. Defaults 08:30 / 21:30 — change one and the engine pins it; with a number the real schedule wins (your time is the fallback).",
+      "plan.intake.lead": "Pick the start and end dates; add a flight/train number if you have one (optional). A side without a number is planned as a full day.",
+      "plan.intake.needDate": "Pick the start date first",
+      "plan.intake.noPh": "Flight / train no. (optional)",
+      "plan.intake.title": "🧭 Trip brief",
       "plan.err.send": "❌ Send failed: ",
       "plan.err.sessionLost": "❌ Session expired: go to the Itinerary tab and tap “✏️ Edit” again. Your message is back in the input box.",
       "plan.export": "⬇️ Export",
       "plan.fb.recorded": "Recorded — thanks for the feedback!",
       "plan.first.done": "First draft ready ✅ tweak it just by chatting (multi-turn).",
       "plan.gen.fail": "❌ Planning failed: ",
-      "plan.gen.running": "⏳ Drafting your itinerary (usually within 10 s)…",
+      "plan.gen.running": "⏳ Drafting your itinerary (about 30–60 s)…",
       "plan.handoff.pre": "Concierge-payment ref pre-filled: ",
       "plan.handoff.suf": " (start directly from 💳 Pay on the Book tab)",
       "plan.input.phActive": "Keep chatting, e.g. move day-2 sights to day 3; tap the summary above to reopen the parameters",
@@ -601,6 +675,26 @@
       "plan.pref.自然风光": "Nature & scenery",
       "plan.renderFailPre": "⚠ Data came back but rendering broke: ",
       "plan.renderFailTail": " (screenshot and report it)",
+      "plan.route.apply": "✅ Plan with my choices",
+      "plan.route.cardDaysDiff": "Trip-brief card ",
+      "plan.route.conflict": "A few details disagree — pick one per line, then tap the button:",
+      "plan.route.daysDiff": "Days: text ",
+      "plan.route.formDays": "form parameters: ",
+      "plan.route.formSide": "📋 Form",
+      "plan.route.intakeDays": "trip-brief card: ",
+      "plan.route.intakeNos": "card numbers: ",
+      "plan.route.none": "(empty)",
+      "plan.route.nosDiff": "Numbers: text ",
+      "plan.route.textNos": "text numbers: ",
+      "plan.route.useFormSide": "📋 Use the form",
+      "plan.route.useIntakeNos": "📋 Use card numbers",
+      "plan.route.useIntakeSide": "📋 Use the card",
+      "plan.route.useTextNos": "✍️ Use text numbers",
+      "plan.route.useTextSide": "✍️ Use text days",
+      "plan.route.formPre": "Form says: ",
+      "plan.route.textPre": "Your text says: ",
+      "plan.route.useForm": "📋 Use the form parameters",
+      "plan.route.useText": "✍️ Use my text route",
       "plan.replan": "🔄 Replan",
       "plan.replan.confirm": "Start over with a fresh plan? Unsaved changes will be discarded.",
       "plan.replan.toForm": "Back to setup — parameters prefilled from your last input; tweak them and tap “🚀 Start Planning” to regenerate.",
@@ -637,6 +731,11 @@
       "plan.sites.echo": "✅ Must-visit: ",
       "plan.sites.fail": "❌ Confirm failed: ",
       "plan.sites.intro": "Places spotted in your link — tap to mark “must-visit”; only those are written to your trip-center wishlist (skip = not saved):",
+      "plan.sites.introBrief": "Places spotted in your description — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
+      "plan.sites.introImage": "Places spotted in your image — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
+      "plan.photo.title": "Send photos: note screenshots or itinerary shots — places found are added to your wishlist",
+      "plan.photo.reading": "⏳ Reading places from the image…",
+      "plan.photo.fail": "Could not read the image: ",
       "plan.sites.late": "ℹ️ This must-visit round has already closed (perhaps confirmed). Just message me below with any places to add.",
       "plan.sites.none": "(none picked)",
       "plan.sites.writing": "⏳ Writing to your wishlist…",
@@ -724,6 +823,77 @@
       "welcome.plan": "Type your request in the input box below (e.g. \"Shanghai to Hangzhou, 3 days, I like museums\"), then press Enter or click \"🚀 Plan\"; I will ask follow-up questions if details are missing, and you can keep refining the draft through conversation (multi-turn).",
       "welcome.t9n": "Enter the source text, pick a language pair (ZH↔EN/JA/KO, click ⇄ to swap), then press Enter or Send to translate.",
       "welcome.trips": "Three-state board: ✅ booked pinned · 📅 scheduled grouped by day · 💡 wishlist flow. Scheduling needs a day number, marking booked needs an order number; manual/chat/paste all write the same table (Iron Rule 0). Click \"🔄 Refresh board\" above to start.",
+    },
+    /* ---- L2 骨架种子（design nlang §3.2）：高频可见面（导航/规划表单/登录/预订页签/
+     * 常用按钮）先上，其余 key 走回退链逐条落英文（pivot en）——半翻译可安全上线。
+     * 全量种子走 GLM 批量翻译 + 高频 key 人工校订（模式同 dual P3），后续轮次补。 */
+    "ja": {
+      "nav.plan": "📋 プラン", "nav.t9n": "🔤 翻訳", "nav.nav": "🧭 ナビ",
+      "nav.itin": "🗓 旅程", "nav.trips": "🗂 旅行センター", "nav.book": "🎫 予約",
+      "nav.me": "👤 マイページ", "nav.call": "📞 通話",
+      "plan.start": "🚀 プラン作成", "plan.send": "送信",
+      "plan.dayUnit": "日", "plan.startDate": "出発日",
+      "plan.cityStart": "出発都市", "plan.via1": "経由地 1", "plan.via2": "経由地 2",
+      "plan.cityEnd": "到着都市", "plan.pref": "ご希望",
+      "plan.pref.ph": "例：博物館、辛い物は抜き",
+      "plan.unscheduled": "未定",
+      "auth.login": "ログイン", "auth.cancel": "キャンセル", "auth.sendCode": "コード送信",
+      "auth.loginBtn": "ログイン / 登録", "auth.logout": "ログアウト",
+      "card.pinned": "📌 ピン留め済み", "card.pin": "📌 ピン留め", "card.del": "🗑 削除",
+      "card.grab": "チケットへ →", "card.showGo": "予約へ →",
+      "card.hours_unknown": "🕐 営業時間は現地でご確認ください", "card.resv.none": "予約情報なし",
+      "card.alt.lv.unesco": "UNESCO", "card.alt.lv.5a": "5A", "card.alt.lv.intl": "国際リスト",
+      "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A", "card.alt.lv.want": "行きたい",
+      "brief.none": "紹介情報はまだありません",
+      "pay.title": "💳 支払い / 代行", "pay.mine": "🔄 支払い履歴", "pay.go": "💳 支払う / カード保存",
+      "book.train": "🚄 列車", "book.flight": "✈️ 航空券", "book.hotel": "🏨 ホテル",
+      "book.show": "🎭 公演", "book.site": "🎫 観光",
+      "book.trainGo": "🔍 列車を検索", "book.flightGo": "🔍 料金を比較",
+      "book.hotelGo": "🏨 ホテルを探す", "book.showGoBtn": "🎭 公演チケットを探す",
+      "book.siteGoBtn": "🎫 観光チケットを探す",
+      "trips.add": "➕ 行き先を追加", "trips.refresh": "🔄 更新",
+      "tc.zoneBooked": "✅ 予約済み", "tc.zoneWish": "💡 行きたいリスト",
+      "tc.delete": "🗑 削除", "tc.restore": "💡 復元",
+      "me.profile": "旅行者プロフィール", "me.save": "💾 プロフィールを保存",
+      "call.title": "電話相談", "call.start": "通話を開始", "call.end": "通話を終了",
+      "call.close": "閉じる",
+      "t9n.swap": "⇄ 入替", "t9n.send": "送信",
+      "share.copied": "コピーしました", "review.submit": "レビューを送信",
+      "locale.menu": "言語", "locale.toggle.title": "言語を切り替え"
+    },
+    "ko": {
+      "nav.plan": "📋 계획", "nav.t9n": "🔤 번역", "nav.nav": "🧭 내비",
+      "nav.itin": "🗓 일정", "nav.trips": "🗂 여행 센터", "nav.book": "🎫 예약",
+      "nav.me": "👤 마이페이지", "nav.call": "📞 통화",
+      "plan.start": "🚀 계획 시작", "plan.send": "보내기",
+      "plan.dayUnit": "일", "plan.startDate": "출발일",
+      "plan.cityStart": "출발 도시", "plan.via1": "경유지 1", "plan.via2": "경유지 2",
+      "plan.cityEnd": "도착 도시", "plan.pref": "취향",
+      "plan.pref.ph": "예: 박물관, 매운 음식 제외",
+      "plan.unscheduled": "미정",
+      "auth.login": "로그인", "auth.cancel": "취소", "auth.sendCode": "인증번호 전송",
+      "auth.loginBtn": "로그인 / 회원가입", "auth.logout": "로그아웃",
+      "card.pinned": "📌 고정됨", "card.pin": "📌 고정", "card.del": "🗑 삭제",
+      "card.grab": "티켓 예매 →", "card.showGo": "예매 →",
+      "card.hours_unknown": "🕐 영업시간은 현장 기준입니다", "card.resv.none": "예약 정보 없음",
+      "card.alt.lv.unesco": "UNESCO", "card.alt.lv.5a": "5A", "card.alt.lv.intl": "국제 리스트",
+      "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A", "card.alt.lv.want": "가고 싶어요",
+      "brief.none": "소개 정보가 아직 없습니다",
+      "pay.title": "💳 결제 / 대행", "pay.mine": "🔄 결제 내역", "pay.go": "💳 결제 / 카드 저장",
+      "book.train": "🚄 기차", "book.flight": "✈️ 항공", "book.hotel": "🏨 호텔",
+      "book.show": "🎭 공연", "book.site": "🎫 명소",
+      "book.trainGo": "🔍 기차 검색", "book.flightGo": "🔍 요금 비교",
+      "book.hotelGo": "🏨 호텔 찾기", "book.showGoBtn": "🎭 공연 티켓 찾기",
+      "book.siteGoBtn": "🎫 명소 티켓 찾기",
+      "trips.add": "➕ 위시 추가", "trips.refresh": "🔄 새로고침",
+      "tc.zoneBooked": "✅ 예매 완료", "tc.zoneWish": "💡 위시리스트",
+      "tc.delete": "🗑 삭제", "tc.restore": "💡 복원",
+      "me.profile": "여행자 프로필", "me.save": "💾 프로필 저장",
+      "call.title": "통화 상담", "call.start": "통화 시작", "call.end": "통화 종료",
+      "call.close": "닫기",
+      "t9n.swap": "⇄ 뒤집기", "t9n.send": "보내기",
+      "share.copied": "복사했습니다", "review.submit": "리뷰 보내기",
+      "locale.menu": "언어", "locale.toggle.title": "언어 전환"
     }
   };
   /* 城市英文名（双语 P1.6）：主流旅游城市精选；未收录回退中文原文。
@@ -934,30 +1104,70 @@
     "龙岩": "Longyan"
   };
 
+  /* LANGS 注册表（design nlang §2.2）：code = localStorage/DICT 短码，htmlTag =
+   * <html lang>（标注正确才能引导浏览器对 L3 内容整页翻译），native = picker 里的
+   * 母语名（免翻译）。加语言 = 此处加一行 + DICT 加一个同键词典，机制零改动。
+   * 后端 SUPPORTED 注册表同步钉：tests/test_lang_sync.py。 */
+  var LANGS = {
+    "zh": { htmlTag: "zh-CN", native: "中文" },
+    "en": { htmlTag: "en", native: "English" },
+    "ja": { htmlTag: "ja", native: "日本語" },
+    "ko": { htmlTag: "ko", native: "한국어" }
+  };
   var KEY = "ct_locale";
 
+  /* 存量归一（design §6）：老用户 ct_locale 可能存 "zh-CN"；统一折叠成短码 */
+  function normLocale(l) {
+    if (!l) return "zh";
+    l = String(l).trim().toLowerCase();
+    if (l === "zh" || l === "zh-cn" || l === "zh-tw" || l === "zh-hk" || l === "zh-hans") return "zh";
+    if (l === "en" || l === "en-us" || l === "en-gb") return "en";
+    if (l === "ja" || l === "ja-jp") return "ja";
+    if (l === "ko" || l === "ko-kr") return "ko";
+    return LANGS[l] ? l : "zh";
+  }
   function locale() {
-    try { return localStorage.getItem(KEY) === "en" ? "en" : "zh-CN"; }
-    catch (e) { return "zh-CN"; }
+    try { return normLocale(localStorage.getItem(KEY)); } catch (e) { return "zh"; }
   }
   function setLocale(l) {
-    try { localStorage.setItem(KEY, l === "en" ? "en" : "zh-CN"); } catch (e) {}
+    try { localStorage.setItem(KEY, normLocale(l)); } catch (e) {}
     apply();
     /* 通知 JS 动态渲染的部分（如通话页 callRender）按新语言重绘；监听方见 index.html */
     try { window.dispatchEvent(new Event("i18n:change")); } catch (e) {}
   }
-  function t(key) {
-    var d = DICT[locale()] || DICT["zh-CN"];
-    return d[key] != null ? d[key] : (DICT["zh-CN"][key] != null ? DICT["zh-CN"][key] : key);
+  /* 回退链（design §2.2）：半翻译语言按 key 逐条回退，可安全上线——
+   * zh 恒 [zh]（L1 全量，zh 缺词裸显 key 由守门 zh 词条门把关）；
+   * 其余 [loc, en, zh]：骨架语言缺词落英文（pivot），en 再缺落 zh
+   * （与改造前 en→zh 兜底一致，P1 判据 zh/en 逐屏无差异）。 */
+  function chainOf(loc) {
+    if (loc === "zh") return ["zh"];
+    if (loc === "en") return ["en", "zh"];
+    return [loc, "en", "zh"];
   }
-  /* tf：JS 动态文案专用——en 必查词典（守门保证 en 全覆盖）；zh 用调用点内联的中文原文回退，
-   * 词典里无需再维护 zh 条目。fallbackZh 缺省时同 t()。 */
+  function lookup(key) {
+    var c = chainOf(locale());
+    for (var i = 0; i < c.length; i++) {
+      var d = DICT[c[i]];
+      if (d && d[key] != null) return d[key];
+    }
+    return null;
+  }
+  function t(key) {
+    var v = lookup(key);
+    return v != null ? v : key;
+  }
+  /* tf：JS 动态文案专用——en 必查词典（守门保证 en 全覆盖）；zh 用调用点内联的中文原文
+   * 回退，词典里无需再维护 zh 条目。骨架语言（ja/ko…）缺词先查本语言词典、再落英文、
+   * 最后落 zh 原文。fallbackZh 缺省时同 t()。 */
   function tf(key, fallbackZh) {
-    if (locale() === "en") {
+    var loc = locale();
+    if (loc !== "zh") {
+      var j = DICT[loc];
+      if (j && j[key] != null) return j[key];
       var e = DICT["en"][key];
       if (e != null) return e;
     }
-    var z = DICT["zh-CN"][key];
+    var z = DICT["zh"][key];
     if (z != null) return z;
     return fallbackZh != null ? fallbackZh : key;
   }
@@ -965,19 +1175,52 @@
   function stashOnce(node, attr, prop) {
     if (!node.getAttribute(attr)) node.setAttribute(attr, node[prop] || "");
   }
-  /* 城市 EN：规整“XX自治州/地区YY”类拼接 → 取后段；未收录回退原文 */
+  /* 城市 EN：规整“XX自治州/地区YY”类拼接 → 取后段；未收录回退原文。
+   * 多语言骨架期（design §3.2）：CITY_JA/CITY_KO 未建，非 zh 语言统一走 en 拼写
+   * （pivot，浏览器翻译源文本），CITY_JA 等落地后再按语言接专表。 */
   function city(zh) {
-    if (!zh || locale() !== "en") return zh;
+    if (!zh || locale() === "zh") return zh;
     var k = String(zh).replace(/^(.*?)(自治州|地区)/, "");
     return CITY_EN[k] || CITY_EN[zh] || zh;
   }
-  /* 数据文案回退：en 优先取 enKey 且非空，否则中文——翻译未跑完全功能可用 */
+  /* 数据文案回退（design §2.2 pick 语义升级）：locale ≠ zh 优先取 enKey 且非空
+   * （en 即 L2/L3 的 POI 数据源文本，浏览器翻译以此为底），否则中文基列。 */
   function pick(obj, zhKey, enKey) {
     if (!obj) return obj;
-    return (locale() === "en" && obj[enKey]) ? obj[enKey] : obj[zhKey];
+    return (locale() !== "zh" && obj[enKey]) ? obj[enKey] : obj[zhKey];
+  }
+  /* 页内语言切换器（design §2.2：toggle 二元翻板 → picker，母语名 + 当前项勾选）。
+   * 覆层内联样式自足（同 index.html payMock 覆层范式），不依赖页面 CSS；
+   * 点选 → setLocale → 既有 i18n:change 重渲染链，其余接线不动。 */
+  var MENU = null;
+  function escNative(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function closeMenu() { if (MENU) { MENU.remove(); MENU = null; } }
+  function openMenu() {
+    closeMenu();
+    var cur = locale(), codes = [], k;
+    for (k in LANGS) if (Object.prototype.hasOwnProperty.call(LANGS, k)) codes.push(k);
+    var items = codes.map(function (c) {
+      return '<button data-loc="' + c + '" style="display:flex;align-items:center;gap:8px;width:100%;padding:12px 14px;border:0;background:none;font-size:15px;cursor:pointer;text-align:left">'
+        + (c === cur ? "✓" : " ") + "&nbsp;" + escNative(LANGS[c].native)
+        + "</button>";
+    }).join("");
+    var sheet = document.createElement("div");
+    sheet.id = "localeSheet";
+    sheet.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;display:flex;align-items:flex-end;justify-content:center";
+    sheet.innerHTML = '<div role="dialog" aria-label="language" style="background:#fff;color:#111;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom))">'
+      + '<div style="font-weight:600;font-size:15px;padding:2px 4px 10px">' + escNative(tf("locale.menu", "选择语言")) + "</div>"
+      + items + "</div>";
+    sheet.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest("button[data-loc]") : null;
+      if (b) { setLocale(b.getAttribute("data-loc")); closeMenu(); return; }
+      if (ev.target === sheet) closeMenu(); // 点遮罩关闭
+    });
+    document.body.appendChild(sheet);
+    MENU = sheet;
   }
   function apply() {
-    document.documentElement.lang = locale() === "en" ? "en" : "zh-CN";
+    var cur = locale();
+    document.documentElement.lang = (LANGS[cur] && LANGS[cur].htmlTag) || cur;
     var nodes = document.querySelectorAll("[data-i18n]");
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
@@ -997,9 +1240,10 @@
       u.title = tf(u.getAttribute("data-i18n-title"), u.getAttribute("data-i18n-title-orig"));
     }
     var btn = document.getElementById("localeToggle");
-    if (btn) btn.textContent = t("locale.toggle");
+    if (btn) btn.textContent = "🌐 " + (LANGS[cur] ? LANGS[cur].native : cur);
   }
-  function toggle() { setLocale(locale() === "en" ? "zh-CN" : "en"); }
+  /* 旧 toggle 语义升级为「开/关语言 picker」；index.html #localeToggle 点击原样接这里 */
+  function toggle() { if (MENU) closeMenu(); else openMenu(); }
 
   window.I18N = { t: t, tf: tf, pick: pick, city: city, locale: locale, setLocale: setLocale, toggle: toggle, apply: apply };
   document.addEventListener("DOMContentLoaded", apply);

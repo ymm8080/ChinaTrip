@@ -225,6 +225,7 @@ def test_parse_detail_fields_degrades_cleanly():
         "review_tags": None,
         "ticket_price_min": None,
         "ticket_price_max": None,
+        "photos": None,
     }
 
 
@@ -235,3 +236,23 @@ def test_parse_rating_count_plain_number():
 def test_parse_ticket_range():
     lo, hi = parse_ticket("门票¥50-80")
     assert (lo, hi) == (50, 80)
+
+
+def test_parse_detail_photos_whitelist_dedupe_limit():
+    from app.services.ctrip_hours import parse_detail_photos
+
+    html = """
+    <script>window.__INITIAL__={"imageList":[
+      "https://dimg04.c-ctrip.com/images/abc_D_180_180.jpg?proc=autoorient",
+      "https://dimg04.c-ctrip.com/images/abc_D_180_180.jpg?proc=autoorient",
+      "https://evil.example.com/x.jpg",
+      "https://dimg08.c-ctrip.com/images/def_X.jpg"
+    ]}</script>
+    """
+    out = parse_detail_photos(html)
+    assert [o["url"] for o in out] == [
+        "https://dimg04.c-ctrip.com/images/abc_D_180_180.jpg?proc=autoorient",
+        "https://dimg08.c-ctrip.com/images/def_X.jpg",
+    ]
+    assert parse_detail_photos("") == []
+    assert parse_detail_photos("no images here") == []

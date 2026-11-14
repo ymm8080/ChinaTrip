@@ -11,7 +11,7 @@ POST /sync：开站新鲜度巡检（2026-10-28 定稿：**纯读表，从不出
 请求路径零 API 调用（新城市第一次天气也读表，缺数据只提示等管线）。
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -147,9 +147,33 @@ class SyncResult(BaseModel):
     cities: list[CityWeatherStatus] = []
 
 
+# 目的地当地时间（2026-11-12 用户拍板「选目的地当地时间」）：天气新鲜度的
+# 「今天」按行程城市的当地日历日判，不写死单一换算。时区解析层：
+#   * 中国法定单一时区 UTC+8——IANA 无 Asia/Urumqi，乌鲁木齐车站/景区
+#     营业时间/天气服务全用北京时间（民间「新疆时间」UTC+6 不进任何
+#     数据源，按 +8 判才与开门/车次/天气文案对齐）；
+#   * 海外城市上线时在 _CITY_TZ_OVERRIDES 登记 IANA 名（如
+#     "东京": "Asia/Tokyo"）即接入目的地当地时区。
+_CITY_TZ_OVERRIDES: dict[str, str] = {}
+_CN_TZ = timezone(timedelta(hours=8))
+
+
+def _tz_for_city(city: str):
+    name = _CITY_TZ_OVERRIDES.get((city or "").strip())
+    if name:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(name)
+    return _CN_TZ
+
+
+def _today_at(tz) -> str:
+    return datetime.now(tz).date().isoformat()
+
+
 def _today_beijing() -> str:
-    # fetched_at 存 UTC，用户在东八区——按北京时间判「今天」
-    return (datetime.utcnow() + timedelta(hours=8)).date().isoformat()
+    # 兼容旧名：中国境内全部城市（含新疆）目的地当地时区即 UTC+8。
+    return _today_at(_CN_TZ)
 
 
 @router.post("/sync", response_model=SyncResult)
@@ -189,18 +213,24 @@ def sync_weather(
         if row.fetched_at and row.fetched_at > fetched.get(row.adcode, datetime.min):
             fetched[row.adcode] = row.fetched_at
 
-    today = _today_beijing()
+    # fresh 逐城按目的地当地时区判（2026-11-12 拍板）：fetched_at 为 naive
+    # UTC（管线 utcnow 落库），先挂 UTC 再换算到该城时区取日历日比较。
+    def _is_fresh(adcode: str, city: str) -> bool:
+        if adcode not in fetched:
+            return False
+        tz = _tz_for_city(city)
+        stamp = fetched[adcode].replace(tzinfo=timezone.utc).astimezone(tz)
+        return stamp.date().isoformat() == _today_at(tz)
+
     return SyncResult(
-        today=today,
+        today=_today_beijing(),
         cities=[
             CityWeatherStatus(
                 city=adcode_city[adcode],
                 adcode=adcode,
                 fetched_at=fetched.get(adcode),
                 has_data=adcode in fetched,
-                fresh=(fetched[adcode] + timedelta(hours=8)).date().isoformat() == today
-                if adcode in fetched
-                else False,
+                fresh=_is_fresh(adcode, adcode_city[adcode]),
             )
             for adcode in sorted(adcode_city)
         ],

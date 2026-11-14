@@ -22,6 +22,12 @@ and `DESIGN/architecture_diagram.png`; operational notes in `DAILY OPERATION/`.
 - Keep secrets (.env, API keys, tokens) out of the repository - .gitignore covers them.
 - Dates in ISO 8601 (2026-10-17); amounts in CNY where relevant.
 
+## Working rule: never stop to ask mid-task
+
+In case of errors or mid progress: no asking — keep working until the task
+is complete. Decide and continue on your own judgment; report issues in the
+final summary instead of pausing.
+
 ## Iron rule: full source priority list on every fill
 
 Whenever any job, script or backfill fills a POI field from candidate
@@ -31,8 +37,11 @@ source, never an ad-hoc subset, never a job-private ordering. Canonical
 order (the `_SOURCE_PRIORITY` tuple, documented in
 `DESIGN/POIS_DATASOURCE.md` 读侧接线):
 
-    unesco > 5a > museum1 > museum2 > museum3 > artmuseum
+    curated > lonelyplanet > tripadvisor > viator > unesco > 5a
+        > museum1 > museum2 > museum3 > artmuseum
         > street > histown > amap > chinatravel > osm
+    （2026-11-12 需求驱动重排：curated/intl 明站提到官方名录前；
+    行程对话心愿单作为选行最优先信号在具体 job 内先行处理）
 
 - A new source registered into the pool must be appended to this list in
   the same change that introduces it.
@@ -40,6 +49,34 @@ order (the `_SOURCE_PRIORITY` tuple, documented in
   definition rather than re-typing a shortened one).
 - Existing jobs found with a shortened list are a bug: fix them to the
   full list.
+
+## Local dev server (Windows)
+
+## Iron rule: every planning/solver change ships with a REAL E2E test
+
+Unit tests and in-process probes are NOT acceptance in this project. A fix
+counts as done only after it passes a real end-to-end run through the
+running service — the same path the user clicks:
+
+1. **Commit first, then restart through the ops script** (never bare uvicorn;
+   see `DESIGN/OPS_RESTART_PROTOCOL.md`):
+   `powershell -NoProfile -ExecutionPolicy Bypass -File "D:\CHINATRIP\CHINATRIP CODES\ops\restart_h5.ps1"`
+   (add `-Tests` when the tree is green; smoke is mandatory).
+2. **Drive the real HTTP API on a fresh server**, not just unit seams:
+   `POST /api/v1/plan/start` with the *exact user scenario* (same cities,
+   days, `start_date`, intake `arrival_time`/`departure_time`, brief — the
+   H5 intake modal defaults to 08:30/21:30 and IS part of the scenario),
+   then `GET /api/v1/plan/{session_id}` and assert on the returned plan
+   (the specific card's `start_time`, not a proxy).
+3. **For any "user says X is still wrong" report: read the persisted
+   evidence first** — `CHINATRIP CODES/data/h5_state.db` (`plan_sessions`
+   payloads) holds the real session the user just produced; match its
+   `start_time` / `fixed_sessions` / `pinned` before writing code.
+4. **The running process must have the fix**: compare the uvicorn process
+   start time with the commit time. If the commit is newer, restart.
+   Never claim a fix without stating which HEAD the server is running.
+5. Only after the E2E assertion matches: push, then report the server
+   restart + the exact observed card time in the summary.
 
 ## Local dev server (Windows)
 

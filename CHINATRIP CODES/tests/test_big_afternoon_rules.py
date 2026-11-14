@@ -64,19 +64,21 @@ def test_solver_keeps_one_big_in_afternoon():
     assert aft_bigs <= 1
 
 
-def test_solver_big_cap_1530_holds_in_solve():
-    # 大点加严开场闸在 solver 主路成立：单独大点不可能被排到 15:30 后
-    # 开场（普通 60 分钟点仍可 16:00 开场——对照锚）。
+def test_solver_end_cap_holds_in_solve():
+    # 结束闸（11-05 终裁）在 solver 主路成立：240 分钟大点最晚 12:30
+    # 开场（13:00 收尾后不再占用），不可能被排到 15:30 后开场（旧
+    # 开场带）——普通 60 分钟点最晚 15:30 开场（16:00 起排即 17:00
+    # 收尾越闸，对照锚）。
     dm = _visit("dm", "大明宫遗址公园", dur=240, tier=2)
     out = solve_day(DayPlan(day=1, base_city="西安", items=[dm]), poi_hours=[])
     assert out is not None
     starts = {v.item_id: _minutes(v) for v in out.items if isinstance(v, VisitItem)}
-    assert starts["dm"] <= 15 * 60 + 30
+    assert starts["dm"] <= 12 * 60 + 30
     small = _visit("sm", "小点", dur=60, tier=9)
     out2 = solve_day(DayPlan(day=1, base_city="西安", items=[small]), poi_hours=[])
     assert out2 is not None
     starts2 = {v.item_id: _minutes(v) for v in out2.items if isinstance(v, VisitItem)}
-    assert starts2["sm"] <= 16 * 60 + 30
+    assert starts2["sm"] <= 15 * 60 + 30
 
 
 # --- 评分器：同口径软罚 + 硬闸对齐 ---------------------------------------
@@ -142,9 +144,11 @@ def test_scorer_flags_big_after_light():
     assert sc.soft["late_big"] == -PEN_LATE_BIG
 
 
-def test_scorer_big_start_after_1530_is_hard_violation():
+def test_scorer_big_occupying_after_1630_is_hard_violation():
     from app.services.itinerary.scoring import plan_score
 
+    # 11-05 终裁=结束闸：16:00 开场的大点占用到 20:00，越闸计迟
+    # （旧口径断言「16:00 开场>15:30 开场带」同形态，结束闸下语义不变）。
     dm = _visit(
         "dm",
         "大明宫遗址公园",
@@ -161,14 +165,16 @@ def test_scorer_big_start_after_1530_is_hard_violation():
 def test_scorer_street_and_small_sights_not_big():
     from app.services.itinerary.scoring import plan_score
 
-    # 街区 tier8（CityWalk）16:30 开场合法——正是大点后面配的近游。
+    # 街区 tier8（CityWalk）不算大点（下午单大点/晚大点罚不咬），
+    # 但 11-05 终裁起同受结束闸：14:00-16:00 收尾在闸内合法，
+    # 16:30-18:30 占用越闸计迟（旧「街区可开进傍晚」口径废除）。
     hj = _visit(
         "hj",
         "回民街",
         dur=120,
         tier=8,
-        start_time=_t(16, 30),
-        end_time=_t(18, 30),
+        start_time=_t(14, 0),
+        end_time=_t(16, 0),
     )
     dm = _visit(
         "dm",
@@ -183,6 +189,16 @@ def test_scorer_street_and_small_sights_not_big():
     assert sc.counts["afternoon_crowd"] == 0
     assert sc.counts["late_big"] == 0
     assert sc.ok
+    hj_late = _visit(
+        "hj2",
+        "回民街",
+        dur=120,
+        tier=8,
+        start_time=_t(16, 30),
+        end_time=_t(18, 30),
+    )
+    sc2 = plan_score(_plan([dm, hj_late]))
+    assert sc2.counts["late_entries"] == 1
 
 
 # --- 回填配对：大点天优先近旁街区 ----------------------------------------
@@ -408,10 +424,16 @@ def test_service_meta_wish_guard():
     assert _is_service_meta_wish("帮我看看整体行程")
     assert _is_service_meta_wish("帮我查一下攻略")
     assert _is_service_meta_wish("看看天气")
+    # 改排指令整句不是愿望（2026-11-08 成都案 5d978820：整句建行成
+    # must_visits 无坐标占位卡）。
+    assert _is_service_meta_wish("把成都环球中心加回第4天上午")
+    assert _is_service_meta_wish("把环球中心挪到第二天下午")
+    assert _is_service_meta_wish("把青城山排到第3天")
     # 具体地点宾语的真愿望不受影响。
     assert not _is_service_meta_wish("看熊猫")
     assert not _is_service_meta_wish("帮我看看熊猫")
     assert not _is_service_meta_wish("成都大熊猫繁育研究基地")
+    assert not _is_service_meta_wish("把看熊猫加到心愿单")
 
 
 # --- 交付闸：钉住未排=硬违规 / 下午双大点=警告 -----------------------------
@@ -463,3 +485,35 @@ def test_validate_flags_second_afternoon_big_as_warning():
         v for v in rep.violations if v.rule_id == 7 and v.severity.value == "warning"
     ]
     assert hits and "大雁塔" in hits[0].message and "西安城墙" in hits[0].message
+
+
+def test_fallback_big_site_not_forced_to_noon_anymore():
+    """2026-11-14 拍板「IGNORE pinned big site probes from noon rule」：上午
+    已被占时，钉住大点不再压到 12:00 起探——远点打车腿（天安门→慕田峪
+    80 分钟）填 10:00–12:00 空档，大点 11:20 落位而非正午。"""
+    from app.services.agent.plan import _fallback_sequence_times
+    from app.services.itinerary.models import GeoPoint
+
+    tam = _visit(
+        "tam",
+        "天安门广场",
+        dur=90,
+        tier=1,
+        start_time=_t(8, 30),
+        end_time=_t(10, 0),
+        pinned=True,
+        location=GeoPoint(lon=116.4103, lat=39.9115),
+    )
+    mut = _visit(
+        "mut",
+        "慕田峪长城",
+        dur=180,
+        tier=1,
+        pinned=True,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    plan = _plan_with([DayPlan(day=1, base_city="北京", items=[tam, mut])])
+    _fallback_sequence_times(plan)
+    got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
+    assert got["mut"].start_time is not None
+    assert _minutes(got["mut"]) < 12 * 60

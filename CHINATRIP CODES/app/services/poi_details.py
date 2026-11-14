@@ -10,11 +10,11 @@ planning keeps working; the next job run against the DB repopulates it.
 
 from __future__ import annotations
 
+import bisect
 import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from math import log2
 from uuid import uuid4
 
 from sqlalchemy import String, and_, cast, func, or_
@@ -26,9 +26,39 @@ from app.services.poi_classify import duration_upgradable
 # 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
 # order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
 # import 该名，签名不变）
-from app.services.source_tier import catalog_rank, source_tag_key
+from app.services.source_tier import (
+    INTL_PLATFORM_TAGS,
+    INTL_SITE_TAGS,
+    catalog_rank,
+    named_site_count,
+    source_tag_key,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _token_span(positions: dict[str, list[int]], tokens: list[str]) -> int | None:
+    """同时含全部 tokens 的最短连续词窗（词序无关，用于「Great Wall of
+    China at Mutianyu」↔「Mutianyu Great Wall」这类词序不同的名字）。"""
+    anchor = min(tokens, key=lambda t: len(positions[t]))
+    best: int | None = None
+    for start in positions[anchor]:
+        endpoints = [start]
+        for token in tokens:
+            if token == anchor:
+                continue
+            idxs = positions[token]
+            j = bisect.bisect_left(idxs, start)
+            cands = []
+            if j < len(idxs):
+                cands.append(idxs[j])
+            if j:
+                cands.append(idxs[j - 1])
+            endpoints.append(min(cands, key=lambda p: abs(p - start)))
+        span = max(endpoints) - min(endpoints) + 1
+        best = span if best is None else min(best, span)
+    return best
+
 
 # ST_AsText(点几何) → "POINT(lon lat)"（geography 同样 lon 在前）
 _POINT_WKT_RE = re.compile(r"POINT\((\S+) (\S+)\)")
@@ -49,10 +79,11 @@ _DB_DOWN_COOLDOWN_SECONDS = 300.0
 _DB_DOWN_EMPTY_RETRY_SECONDS = 5.0
 
 # 层级档号（2026-11-03 名录序拍板，共享模块 source_tier 全站唯一定义点）：
-# 0=unesco 1=5a 2=国际旅行网站 3=国际平台 4=短视频 5=小红书 6=街区
-# 7=风景名胜 8=4a 9=3a 10=未分层——取代 2026-10-25 四档（4/3/2/1）与
-# 2026-10-25/26「intl 与 5A 同档」拍板。小值优先；boost 逐档递减
-# （未列=1.0）；6 街区/7 风景名胜不打层级牌（_TIER_TAG 缺档即不注入）。
+# 2026-11-13 用户拍板：0=国际旅行网站(TA/LP/Viator/curated) 1=unesco
+# 2=5a 3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4a 9=3a
+# 10=未分层——国际站升到 unesco/5A 之前（与回填 SOURCE_PRIORITY 对齐）。
+# 小值优先；boost 逐档递减（未列=1.0）；6 街区/7 风景名胜不打层级牌
+# （_TIER_TAG 缺档即不注入）。
 _TIER_BOOST = {
     0: 1.8,
     1: 1.6,
@@ -66,9 +97,9 @@ _TIER_BOOST = {
     9: 1.05,
 }
 _TIER_TAG = {
-    0: "unesco",
-    1: "5a",
-    2: "intl",
+    0: "intl",
+    1: "unesco",
+    2: "5a",
     3: "intl",
     4: "intl",
     5: "intl",
@@ -121,10 +152,11 @@ def order_source_tags(tags: list[str]) -> list[str]:
 
 def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
     """单行层级判定（读侧通用，2026-10-28 从 top_pois_in_city 提出共用）：
-    名录序 catalog_rank（2026-11-03 拍板，取代 2026-10-25/26「intl 与
-    5A 同档」；unesco_* 前缀族视同全量世遗）→ 3a 兜底档 → 全库名单
-    互含 → 10=未分层。返回档号小值优先：0=unesco 1=5a 2=国际旅行网站
-    3=国际平台 4=短视频 5=小红书 6=街区 7=风景名胜 8=4a 9=3a。"""
+    名录序 catalog_rank（2026-11-13 拍板：国际站 > unesco > 5A，取代
+    2026-11-03 的 unesco > 5A > 国际站；unesco_* 前缀族视同全量世遗）
+    → 3a 兜底档 → 全库名单互含 → 10=未分层。返回档号小值优先：
+    0=国际旅行网站 1=unesco 2=5a 3=国际平台 4=短视频 5=小红书 6=街区
+    7=风景名胜 8=4a 9=3a。"""
     r = catalog_rank(h.get("source"), h.get("tags"))
     if r is not None:
         return r
@@ -140,13 +172,25 @@ def hit_tier(h: dict, heritage: list[tuple[str, int]]) -> int:
 
 
 def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
-    """判定层级并把层级标签并入 tags（档 2-5 统一打 intl 牌；6 街区/
+    """判定层级并把层级标签并入 tags（档 0/3-5 统一打 intl 牌；6 街区/
     7 风景名胜无牌不注入），返回层级。读侧（top_pois_in_city /
-    search_keyword / api/pois）共用。"""
+    search_keyword / api/pois）共用。
+
+    2026-11-13 国际站升首档后补一道名录来源牌：混合行（如 source=unesco
+    + ta/lp 双榜）赢档是国际站（档 0 打 intl），但 unesco/5A 本体牌不能
+    因此丢——按来源/既有 tag 追加 provenance 牌（unesco 优先于 5a）。
+    """
     tier = hit_tier(h, heritage)
-    tag = _TIER_TAG.get(tier)
-    if tag and tag not in (h.get("tags") or []):
-        h["tags"] = order_source_tags([*(h.get("tags") or []), tag])
+    tags = {str(t).strip().lower() for t in (h.get("tags") or [])}
+    src = str(h.get("source") or "").strip().lower()
+    prov = None
+    if src == "unesco" or any(t.startswith("unesco") for t in tags):
+        prov = "unesco"
+    elif src == "5a" or "5a" in tags:
+        prov = "5a"
+    to_add = [t for t in (_TIER_TAG.get(tier), prov) if t and t not in tags]
+    if to_add:
+        h["tags"] = order_source_tags([*(h.get("tags") or []), *to_add])
     return tier
 
 
@@ -209,6 +253,7 @@ _MEM_ROW_SLOTS = (
     "source",
     "rating",
     "rating_count",
+    "rating_source",
     "tags",
     "best_visit_time",
     "suggested_duration_min",
@@ -258,6 +303,10 @@ def _candidate_from_row(row, loc_txt: str | None) -> dict:
         "source": row.source,
         "rating": rating,
         "rating_count": row.rating_count,
+        # 评分跨源贴标尺（2026-11-07 拍板）：引擎 _quality 对 baidu 评分
+        # ×0.9——rating_source 必须随候选投影下传（292 行有 baidu 评分，
+        # 多为 baidu enrich 回填到非 baidu 行，不能按 source 推断）。
+        "rating_source": row.rating_source,
         "tags": row.tags or [],
         "best_visit_time": row.best_visit_time or "any",
         "suggested_duration_min": row.suggested_duration_min,
@@ -373,13 +422,16 @@ class PoiDetailStore:
         limit: int = 200,
         sources: tuple[str, ...] | None = None,
         city: str | None = None,
-    ) -> list[tuple[str, str | None, str | None, str | None, str | None]]:
+    ) -> list[tuple[str, str | None, str | None, str | None, str | None, str | None]]:
         """POIs whose hours are missing or older than 30 days (job targets;
         _STALE_AFTER 月度节奏 2026-10-28 定稿).
 
-        返回 (source_poi_id, city, name_zh, source, location) 五元组；
-        location 为 amap-ready "lon,lat"（GCJ-02，无坐标行 None）——链③
-        text 配额尽(10021)时 client 降级 around-search 要用（2026-10-24）。
+        返回 (source_poi_id, city, name_zh, source, location, hours_source)
+        六元组；location 为 amap-ready "lon,lat"（GCJ-02，无坐标行
+        None）——链③ text 配额尽(10021)时 client 降级 around-search 要用
+        （2026-10-24）；hours_source 供 refresh 链行级护闸（'show' 行的
+        opening_hours 是人工核好的场次时刻，不接受图商开放时间覆写，
+        2026-11-07）。
         sources 非 None 时只返回指定 source 的行（骨架行按渠道分批回源
         用）。city 过滤必须在 SQL 层做——查询无 ORDER BY，limit 窗口是
         物理顺序前 N 行；若窗口外过滤，单城刷批次会拿不到行（2026-10-23
@@ -412,6 +464,7 @@ class PoiDetailStore:
                                 r.name_zh,
                                 r.source,
                                 f"{m.group(1)},{m.group(2)}" if m else None,
+                                r.hours_source,
                             )
                         )
                     return out
@@ -421,7 +474,9 @@ class PoiDetailStore:
                     "poi_details: db unreachable, memory fallback",
                     exc_info=True,
                 )
-        out: list[tuple[str, str | None, str | None, str | None, str | None]] = []
+        out: list[
+            tuple[str, str | None, str | None, str | None, str | None, str | None]
+        ] = []
         nonactive = self._nonactive_pids()
         for pid, v in self._memory.items():
             if pid in nonactive:
@@ -436,6 +491,7 @@ class PoiDetailStore:
                         v.get("name"),
                         v.get("source") or "amap",
                         f"{loc[0]},{loc[1]}" if loc else None,
+                        v.get("hours_source"),
                     )
                 )
         if sources is not None:
@@ -462,9 +518,9 @@ class PoiDetailStore:
     def get_by_name(self, city: str | None, name: str) -> dict | None:
         """Exact-name lookup so appended rows serve later no-poi_id items.
 
-        city 口径（2026-11-01 北京钟楼案，用户拍板「应选西安钟楼而不是
-        北京钟楼」）：带 city 时只认同城行——「钟楼」这类多城重名 POI，
-        旧版全库 .first() 把北京行过继给西安条目（poi_id/地址/英文简介
+        city 口径（2026-11-01 多城重名 POI 案，用户拍板「应选目标城行而不是
+        异地同名行」）：带 city 时只认同城行——多城重名 POI，
+        旧版全库 .first() 把异地行过继给本城条目（poi_id/地址/英文简介
         整套易主）。同城无行宁可 None（零配额自愈链会走图商补齐），
         绝不用异地行冒充；city=None（fast_lane 语义）维持全库命中。
         """
@@ -726,12 +782,196 @@ class PoiDetailStore:
         best = max(rows_out, key=pick)
         return best
 
+    # 自由输入点名（2026-11-14「规划引擎根本不读输入」）：英文名/别名按词
+    # 边界整段短语匹配，单词型名字只认长度 ≥6 的专名（Mutianyu），防
+    # beijing/hutong 这类通用词把整城点成必去；住宿行剔除——长段描述里
+    # 「北京天坛东门亚朵酒店」这类行比景点名字更早命中。
+    _TEXT_NAME_MIN_LATIN_TOKEN = 6
+    _TEXT_STAY_MARKS = (
+        "酒店",
+        "宾馆",
+        "民宿",
+        "客栈",
+        "公寓",
+        "青旅",
+        "hotel",
+        "hostel",
+        "guesthouse",
+        "resort",
+        "apartment",
+    )
+    _TEXT_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+    # 词窗上限（2026-11-14）：「Great Wall of China at Mutianyu」这类英文
+    # 语序与库名（Mutianyu Great Wall）不同，按「同样的词在几词之内都出现」
+    # 判命中，7 词够容一个介词短语，又不至于把段首段尾的词拼成假命中。
+    _TEXT_MAX_SPAN = 7
+    _TEXT_STOPWORDS = frozenset(
+        ("the", "of", "and", "at", "in", "on", "a", "an", "de", "la", "le", "du")
+    )
+
+    @classmethod
+    def _text_row_is_stay(cls, name_zh, name_en, category) -> bool:
+        cat = (category or "").strip().lower()
+        if any(mark in cat for mark in ("hotel", "lodging", "stay", "住宿")):
+            return True
+        hay = f"{name_zh or ''} {name_en or ''}".lower()
+        return any(mark in hay for mark in cls._TEXT_STAY_MARKS)
+
+    def match_text_names(
+        self, city: str | None, text: str, *, limit: int = 8
+    ) -> list[dict]:
+        """自由输入里点名的真实地点（2026-11-14 起步页长描述案）。
+
+        用户把一趟行程写成一段话（“… starting with Tiananmen Square and the
+        Forbidden City … Temple of Heaven … Summer Palace”），此前整段只当
+        偏好串，品类 token 一个不中，等于引擎没读。这里按 name_zh /
+        name_en / 别名在文中取名：中文名/别名按整串出现；英文名/别名按词
+        边界短语匹配（「Temple of Heaven」「Forbidden City」），单词型名字
+        只认长度 ≥6 的专名（「Mutianyu」）。住宿行剔除。
+        返回轻量行 [{name, city, category}]，按命中短语长度降序。
+        """
+        probe = (text or "").strip()
+        if not probe:
+            return []
+        city_names = None
+        if city:
+            c = city.strip()
+            city_names = {c, f"{c}市", c.removesuffix("市")} - {""}
+        spaced = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", probe.lower())
+        words = spaced.split()
+        positions: dict[str, list[int]] = {}
+        for idx, word in enumerate(words):
+            positions.setdefault(word, []).append(idx)
+
+        def latin_score(v: str) -> int | None:
+            vtoks = re.sub(r"[^0-9a-z]+", " ", v.lower()).split()
+            if not vtoks:
+                return None
+            content = [
+                t for t in vtoks if t not in self._TEXT_STOPWORDS and len(t) >= 3
+            ]
+            if not content:
+                return None
+            if len(vtoks) == 1:
+                token = vtoks[0]
+                if len(token) < self._TEXT_NAME_MIN_LATIN_TOKEN:
+                    return None
+                return len(token) if token in positions else None
+            if not all(t in positions for t in vtoks):
+                return None
+            span = _token_span(positions, vtoks)
+            if span is None or span > self._TEXT_MAX_SPAN:
+                return None
+            # 命中字符数：更具体的名字（慕田峪长城 > 长城）得分更高
+            return sum(len(t) for t in content)
+
+        def best_score(name_zh: str, name_en: str, aliases) -> int | None:
+            variants = [name_zh, name_en]
+            variants.extend(a for a in (aliases or []) if isinstance(a, str))
+            best: int | None = None
+            for variant in variants:
+                v = (variant or "").strip()
+                if len(v) < 2:
+                    continue
+                if self._TEXT_CJK_RE.search(v):
+                    if v in probe:
+                        best = max(best or 0, len(v))
+                    continue
+                score = latin_score(v)
+                if score is not None:
+                    best = max(best or 0, score)
+            return best
+
+        hits: dict[str, tuple[int, str, str | None, str | None]] = {}
+
+        def consider(name_zh, name_en, aliases, category, row_city) -> None:
+            name = (name_zh or "").strip()
+            if not name or self._text_row_is_stay(name_zh, name_en, category):
+                return
+            score = best_score(name_zh, name_en, aliases)
+            if score is None:
+                return
+            prev = hits.get(name)
+            if prev is None or score > prev[0]:
+                hits[name] = (score, name, row_city, category)
+
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi.name_zh,
+                        Poi.name_en,
+                        Poi.name_aliases,
+                        Poi.category,
+                        Poi.city,
+                    ).filter((Poi.status.is_(None)) | (Poi.status == "active"))
+                    if city_names:
+                        q = q.filter(Poi.city.in_(city_names))
+                    for row in q.all():
+                        consider(*row)
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: text name match failed, memory fallback",
+                    exc_info=True,
+                )
+        nonactive = self._nonactive_pids()
+        for pid, value in self._memory.items():
+            if pid in nonactive:
+                continue
+            if city_names and (value.get("city") or "") not in city_names:
+                continue
+            consider(
+                value.get("name"),
+                value.get("name_en"),
+                value.get("name_aliases") or value.get("aliases"),
+                value.get("category"),
+                value.get("city"),
+            )
+        ranked = sorted(hits.values(), key=lambda h: (-h[0], h[1]))
+        # 泛名让位（2026-11-14）：文里写了「at Mutianyu」时，慕田峪长城 与
+        # 泛卡「长城」会同时命中——名字被另一个命中名包含的行丢掉，留下
+        # 更具体的那个（用户点名的是那一段长城）。
+        names = [h[1] for h in ranked]
+        kept = [
+            h
+            for h in ranked
+            if not any(h[1] != other and h[1] in other for other in names)
+        ]
+        return [
+            {"name": name, "city": row_city, "category": category}
+            for _score, name, row_city, category in kept[:limit]
+        ]
+
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
+    # 主池住宿出池（2026-11-07 实测：成都 top-30 窗口混入 2 家 intl/layla
+    # 标签酒店——易宁阁/西金中心，top_pois_in_city 只排 food 不排 hotel）
+    _STAY_CATEGORY_MARKS = ("hotel", "酒店", "宾馆", "民宿", "客栈")
+    # 餐饮入池豁免标（2026-11-07 用户指令「WE CAN CHOOSE RESTRANT IN SITE
+    # IN CASE THEY ARE HV TAG LIKE KLOOK TRIPADVISOR ETC」）：带国际荐点
+    # 标（ta/lp/viator/curated + 16 平台含 klook/裸 intl 伞标）的餐饮行
+    # 当知名餐厅入主池（选点提示词本有用餐锚点消费口径）；住宿无此豁免。
+    _REC_TAGS: frozenset[str] = frozenset(INTL_SITE_TAGS | INTL_PLATFORM_TAGS)
 
     @classmethod
     def _row_is_food(cls, category: str | None) -> bool:
         c = (category or "").strip()
         return any(mark in c for mark in cls._FOOD_CATEGORY_MARKS)
+
+    @classmethod
+    def _row_has_rec_tag(cls, tags: list | tuple | set | None) -> bool:
+        tagset = {str(t).strip().lower() for t in (tags or [])}
+        return bool(tagset & cls._REC_TAGS)
+
+    @classmethod
+    def _row_is_nonvisit(cls, category: str | None, tags: list | None = None) -> bool:
+        """住宿恒出池；餐饮出池但带国际荐点标（ta/lp/viator/curated/klook
+        等）的知名餐厅豁免入池（2026-11-07 用户指令，top_pois_in_city
+        专用，search_keyword/备选池不受影响）。"""
+        c = (category or "").strip()
+        if any(mark in c for mark in cls._STAY_CATEGORY_MARKS):
+            return True
+        return cls._row_is_food(c) and not cls._row_has_rec_tag(tags)
 
     def _heritage_names(self) -> list[tuple[str, int]]:
         """全库 unesco/5A 名单行 (name_zh, tier)——读时并档用，不限城。"""
@@ -744,15 +984,16 @@ class PoiDetailStore:
                         .filter(Poi.source.in_(["unesco", "5a"]))
                         .all()
                     )
-                    # 档号随 2026-11-03 名录序：unesco=0、5a=1（小值优先）
-                    return [(name, 0 if src == "unesco" else 1) for name, src in rows]
+                    # 档号随 2026-11-13 名录序：国际站=0、unesco=1、
+                    # 5a=2（小值优先）——heritage 名单只收 unesco/5a。
+                    return [(name, 1 if src == "unesco" else 2) for name, src in rows]
             except Exception:
                 self._note_db_failure()
                 logger.warning("poi_details: heritage list query failed", exc_info=True)
         for v in self._memory.values():
             src = v.get("source")
             if src in ("unesco", "5a"):
-                out.append((v.get("name") or "", 0 if src == "unesco" else 1))
+                out.append((v.get("name") or "", 1 if src == "unesco" else 2))
         return out
 
     def _nonactive_pids(self) -> set[str]:
@@ -813,13 +1054,18 @@ class PoiDetailStore:
         self, city: str, limit: int = 30, *, exclude_food: bool = True
     ) -> list[dict]:
         """引擎候选主池（DESIGN 8.1.1，2026-10-24）：同城确定性排序取 top N。
+        住宿出池（2026-11-07：住宿行此前一直占窗口席位）；餐饮出池但带
+        国际荐点标（ta/lp/viator/curated/klook 等）的知名餐厅豁免入池
+        （2026-11-07 用户指令——选点提示词「用餐锚点」消费口径接通）。
 
-        score = rating × log2(1 + rating_count) × 标签加成（tags 含
-        unesco/5A 乘 1.5）；有坐标优先；无评分行按（有标签、有坐标）
-        垫底但保留——5A/UNESCO 骨架可能尚未回源评分，不能因冷启动被
-        埋没。返回 search_keyword 同形状 + 富化字段（rating_count/
-        tags/best_visit_time/suggested_duration_min/indoor/rain_ok/
-        review_tags/intro 摘要 ≤60 字）；location 为 (lon, lat) 元组。
+        score = rating × 标签加成（tags 含 unesco/5A 乘 1.5）；rating_count
+        只作同分 tie-break（2026-11-13 用户拍板「纯评分优先」——迪士尼
+        4.6×23450 条点评不再压过豫园 4.8×0 条）；有坐标优先；无评分行按
+        （有标签、有坐标）垫底但保留——5A/UNESCO 骨架可能尚未回源评分，
+        不能因冷启动被埋没。返回 search_keyword 同形状 + 富化字段
+        （rating_count/tags/best_visit_time/suggested_duration_min/
+        indoor/rain_ok/review_tags/intro 摘要 ≤60 字）；location 为
+        (lon, lat) 元组。
         """
         c = (city or "").strip().removesuffix("市")
         city_names = ({c, f"{c}市"} - {""}) if c else set()
@@ -831,8 +1077,10 @@ class PoiDetailStore:
             # tier 取负在前——无评分的 5A/unesco 名单行也要压过裸 4.8 的
             # 边缘点（城市阳台事件）。
             rating = h.get("rating") or 0.0
-            count = h.get("rating_count") or 0
-            quality = rating * (1 + (log2(1 + count) if count else 0))
+            try:
+                count = int(h.get("rating_count") or 0)
+            except (TypeError, ValueError):
+                count = 0
             tier = h.get("_tier")
             if tier is None:
                 tier = 10  # 未分层（防御：出库前必经 apply_tier_tag）
@@ -846,10 +1094,18 @@ class PoiDetailStore:
             # tier 挤进前 30，消费端坐标闸剔除后池子只剩 3-6 行，检索配额
             # 一死整城落占位（10-30 成都/上海/重庆实录 no_loc_skipped=24-27）。
             # 骨架行垫底保留，backfill 补齐坐标后自动回到前列。
+            # 第三键=纯评分（2026-11-13 用户拍板）：rating_count 退为同分
+            # tie-break（第四键），点评量不再压评分。
+            # 第五键=名录宽度（2026-11-13 豫园案）：同档同评分并count并列时
+            # 多站背书行先（旧稳定键是 DB 物理序，ta/lp/sygic/mindtrip 四站
+            # 地标被单站零分行压到池尾）。不跨档、不改有评分行次序。
+            # 注意 rows_out.sort(reverse=True)：本键取正值才是「多者先」。
             return (
                 1 if h.get("location") else 0,
                 -tier,
-                round(quality * boost, 3),
+                round(float(rating) * boost, 3),
+                count,
+                named_site_count(h.get("source"), h.get("tags")),
             )
 
         rows_out: list[dict] = []
@@ -868,12 +1124,38 @@ class PoiDetailStore:
                             | and_(
                                 *[
                                     ~Poi.category.like(f"%{mark}%")
-                                    for mark in self._FOOD_CATEGORY_MARKS
+                                    for mark in (
+                                        *self._FOOD_CATEGORY_MARKS,
+                                        *self._STAY_CATEGORY_MARKS,
+                                    )
                                 ]
                             )
                         )
                     q = q.limit(2000)
                     rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
+                    if exclude_food:
+                        # 荐点餐厅豁免（2026-11-07 用户指令）：带国际荐点标
+                        # 的餐饮行单独捞回（主流 food 行已在上一查询被 SQL
+                        # 排除，带 tags 的 food 行全库个位数，二次小查询
+                        # 不构成池稀释；住宿不享豁免照旧排除）。
+                        fq = session.query(
+                            Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                        ).filter(
+                            Poi.city.in_(city_names),
+                            (Poi.status.is_(None)) | (Poi.status == "active"),
+                            Poi.tags.isnot(None),
+                            or_(
+                                *[
+                                    Poi.category.like(f"%{mark}%")
+                                    for mark in self._FOOD_CATEGORY_MARKS
+                                ]
+                            ),
+                        )
+                        rows_out.extend(
+                            _candidate_from_row(r, t)
+                            for r, t in fq.all()
+                            if self._row_has_rec_tag(r.tags)
+                        )
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -888,7 +1170,9 @@ class PoiDetailStore:
                     continue
                 if (v.get("city") or "").removesuffix("市") != c:
                     continue
-                if exclude_food and self._row_is_food(v.get("category")):
+                if exclude_food and self._row_is_nonvisit(
+                    v.get("category"), v.get("tags")
+                ):
                     continue
                 loc = v.get("location")
                 rows_out.append(
@@ -901,10 +1185,130 @@ class PoiDetailStore:
         for h in rows_out:
             tier = apply_tier_tag(h, heritage)
             h["_tier"] = tier
+        # 同分最终按名字定序（2026-11-13 豫园案）：DB 查询无 ORDER BY，
+        # 稳定排序的并列键=连接返回的物理行序，跨连接会漂——同输入同输出
+        # 被破坏（豫园时而在池内第 11、时而掉出选点）。先按名字升序预排，
+        # 再按 score 稳定排序，并列组内永远同名序。
+        rows_out.sort(key=lambda h: str(h.get("name") or ""))
         rows_out.sort(key=score, reverse=True)
         for h in rows_out:  # 私有排序键，出库前剥掉
             h.pop("_tier", None)
         return rows_out[:limit]
+
+    def recommendation_food_in_city(self, city: str, limit: int = 10) -> list[dict]:
+        """荐点餐厅（2026-11-07 用户指令「有标记推荐的没进槽位…FIX IT」）：
+        库内带国际荐点标（ta/lp/viator/curated/klook 等，同主池豁免
+        _REC_TAGS 判定）的餐饮行，供餐槽位与图商实时检索并池——live
+        amap 关键词搜索覆盖不到我们点名的店（红鼎宴/失重餐厅类）。
+
+        返回 top_pois_in_city 同形状 hit + `rec_tagged: True` 键；无坐标
+        骨架行照回（餐槽位由 rank_by_detour 的 999 垫底带兜住，无动线
+        时不挡点名店进槽）。排序=有坐标>口碑（荐点行全库个位数，无需
+        名录档细化）。DB 故障回落内存库，与读侧其他口径同款。"""
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+        hits: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                        Poi.tags.isnot(None),
+                        or_(
+                            *[
+                                Poi.category.like(f"%{mark}%")
+                                for mark in self._FOOD_CATEGORY_MARKS
+                            ]
+                        ),
+                    )
+                    for row, loc_txt in q.limit(50).all():
+                        if not self._row_has_rec_tag(row.tags):
+                            continue
+                        hit = _candidate_from_row(row, loc_txt)
+                        hit["rec_tagged"] = True
+                        hits.append(hit)
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: recommendation_food db failed, memory fallback",
+                    exc_info=True,
+                )
+                hits = []
+        if not hits:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                if not self._row_is_food(v.get("category")):
+                    continue
+                if not self._row_has_rec_tag(v.get("tags")):
+                    continue
+                loc = v.get("location")
+                loc_txt = f"POINT({loc[0]} {loc[1]})" if loc else None
+                hit = _memory_candidate_row(pid, v, loc_txt)
+                hit["rec_tagged"] = True
+                hits.append(hit)
+        hits.sort(
+            key=lambda h: (h.get("location") is not None, h.get("rating") or 0),
+            reverse=True,
+        )
+        return hits[:limit]
+
+    def alternatives_pool(self, city: str) -> list[dict]:
+        """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city
+        同一套 DB/内存双路）：不按热度截 top N——同级备选按档号过滤后
+        池子本来就小，截断会把同档冷门行提前埋掉。返回 search_keyword
+        同形状 hit + `_tier`（hit_tier 名录档号，0=国际站..10=未分层，
+        私有键不剥——消费方 poi_alternatives 直接用）。含餐行（备选规则
+        自己按主点类别筛）；DB 故障回落内存库，与 top_pois_in_city 同款。
+        """
+        c = (city or "").strip().removesuffix("市")
+        city_names = ({c, f"{c}市"} - {""}) if c else set()
+        if not city_names:
+            return []
+        rows_out: list[dict] = []
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = session.query(
+                        Poi, func.ST_AsText(Poi.location).label("loc_txt")
+                    ).filter(
+                        Poi.city.in_(city_names),
+                        (Poi.status.is_(None)) | (Poi.status == "active"),
+                    )
+                    q = q.limit(3000)
+                    rows_out = [_candidate_from_row(r, t) for r, t in q.all()]
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: alternatives_pool db failed, memory fallback",
+                    exc_info=True,
+                )
+                rows_out = []
+        if not rows_out:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("city") or "").removesuffix("市") != c:
+                    continue
+                loc = v.get("location")
+                rows_out.append(
+                    _memory_candidate_row(
+                        pid, v, f"POINT({loc[0]} {loc[1]})" if loc else None
+                    )
+                )
+        heritage = self._heritage_names()
+        for h in rows_out:
+            h["_tier"] = apply_tier_tag(h, heritage)
+        return rows_out
 
     def upsert(
         self,

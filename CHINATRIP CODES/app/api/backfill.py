@@ -14,6 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.api.itineraries import _account_from_auth
 from app.services.backfill import (
     AllianceFeedItem,
     HandoffNotFoundError,
@@ -79,12 +80,15 @@ def get_handoff_store() -> HandoffStore:
 async def create_handoff(
     request: CreateHandoffRequest,
     store: HandoffStore = Depends(get_handoff_store),
+    account: str | None = Depends(_account_from_auth),
 ) -> HandoffRecord:
     return store.create(
         action_type=request.action_type,
         channel=request.channel,
         url=request.url,
         refund_summary=request.refund_summary,
+        # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+        owner_account_id=account,
     )
 
 
@@ -145,6 +149,19 @@ async def list_handoffs(
     store: HandoffStore = Depends(get_handoff_store),
 ) -> list[HandoffRecord]:
     return store.list_records(status)
+
+
+@router.get("/handoffs/{record_id}")
+async def get_handoff(
+    record_id: str,
+    store: HandoffStore = Depends(get_handoff_store),
+) -> dict:
+    """单条跳转记录（2026-11-07）：🍴 餐位美团预订跟踪器的轮询数据源——
+    H5 每 2 分钟拉一次，状态离开 opened（粘贴回填/手动标记确认）即停。"""
+    record = store.get(record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="handoff_not_found")
+    return {"record": record}
 
 
 @router.post("/alliance-sync")

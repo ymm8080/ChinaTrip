@@ -15,12 +15,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
+from app.api.itineraries import _account_from_auth
 from app.models import Poi
 from app.services.booking_auto import (
     availability_tiers_safe,
     build_order_intent,
     build_reservation_tasks,
     check_availability,
+    restaurant_booking_link,
 )
 from app.services.lang_ctx import L
 
@@ -235,8 +237,10 @@ def _channel_of(url: str) -> str:
 async def order_intent(
     request: OrderIntentRequest,
     x_forwarded_for: str | None = Header(default=None, alias="X-Forwarded-For"),
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
     *,
     tpl_request: Request,
+    account: str | None = Depends(_account_from_auth),
 ) -> dict:
     """L3 伪闭环（2026-10-25，ACP 就绪前的等价体验）：发起即落
     action_handoffs 留痕（opened）——用户渠道付款后回来「订单 → 粘贴
@@ -268,6 +272,8 @@ async def order_intent(
             action_type="site_ticket",
             channel=_channel_of(intent.authorization_url),
             url=intent.authorization_url,
+            # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+            owner_account_id=account,
             refund_summary=L(
                 "人工渠道预订，退改以下单页为准（铁律 23 C 级）",
                 "Manual-channel booking; changes and refunds follow the checkout page",
@@ -288,6 +294,110 @@ async def order_intent(
         "geo_channel": channel_geo,
         "client_ip": ip,
     }
+
+
+class RestaurantIntentRequest(BaseModel):
+    """🍴 餐位/餐厅美团预订意图请求（2026-11-07 用户拍板）。
+
+    traveler_id 缺省取登记列表第一条（个人主页「出行人资料」顺序）；
+    未登记 → contact=None 诚实缺省（不编造资料）。
+    """
+
+    name: str = Field(min_length=1, max_length=200)
+    city: str | None = Field(default=None, max_length=50)
+    traveler_id: str | None = Field(default=None, max_length=64)
+
+
+@router.post("/restaurant-intent")
+async def restaurant_intent(
+    request: RestaurantIntentRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    account: str | None = Depends(_account_from_auth),
+) -> dict:
+    """🍴 餐位/餐厅美团预订意图（2026-11-07 用户拍板：行程卡餐位旁按钮直达）。
+
+    跳美团美食频道搜店（restaurant_booking_link，商户页=订座/点单菜单）。
+    出行人资料以**脱敏形态**挂响应与跳转埋点（travelers 层隐私纪律：
+    证件号/手机号明文永不出服务层）——美团侧表单由用户本人账号登录
+    自动带入，平台不提供第三方预填，诚实口径不编造。跳转即落
+    action_handoffs（action_type=restaurant），H5 起每 2 分钟轮询
+    GET /backfill/handoffs/{id} 直到离开 opened（粘贴回填/手动标记），
+    即「scheduler every 2 minutes till complete」。铁律 22：下单与
+    支付动作永远在渠道侧，本端点只留痕与跟踪。
+    """
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    url = restaurant_booking_link(request.name, request.city)
+    intent = build_order_intent(
+        request.name,
+        request.city,
+        requested="L3",
+        booking_url=url,
+    )
+    contact = _registered_contact(x_device_id, account, request.traveler_id)
+    handoff_id: str | None = None
+    try:
+        from app.api.backfill import get_handoff_store
+
+        record = get_handoff_store().create(
+            action_type="restaurant",
+            channel=_channel_of(url),
+            url=url,
+            # 2026-11-14（用户拍板「预订埋点按 USER ID 落库」）
+            owner_account_id=account,
+            refund_summary=L(
+                "人工渠道预订，退改以下单页为准（铁律 23 C 级）",
+                "Manual-channel booking; changes and refunds follow the checkout page",
+            ),
+        )
+        handoff_id = record.id
+    except Exception:  # 失败留日志，不阻塞跳转（回填仍可手动建单）
+        logger.warning(
+            "restaurant_intent: handoff create failed, name=%s city=%s url=%s",
+            request.name,
+            request.city,
+            url,
+            exc_info=True,
+        )
+    return {
+        **intent.model_dump(),
+        "handoff_id": handoff_id,
+        "contact": contact,
+    }
+
+
+def _registered_contact(
+    x_device_id: str,
+    account: str | None,
+    traveler_id: str | None,
+) -> dict | None:
+    """出行人资料脱敏投影（travelers 层同 owner 口径：登录账号/匿名设备）。
+
+    travelers 层不可用（库缺席等）→ None + 留日志，不阻塞跳转。
+    """
+    try:
+        from app.api.travelers import get_travelers_service
+
+        owner = account if account else f"device:{x_device_id}"
+        rows = get_travelers_service().list_for_owner(owner)
+        pick = None
+        if traveler_id:
+            pick = next((t for t in rows if t.get("id") == traveler_id), None)
+        if pick is None and rows:
+            pick = rows[0]
+        if pick is None:
+            return None
+        return {
+            "traveler_id": pick.get("id"),
+            "label": pick.get("label") or None,
+            "name": (pick.get("full_name_zh") or pick.get("full_name_en") or "")
+            or None,
+            "name_en": pick.get("full_name_en") or None,
+            "phone_masked": pick.get("phone_masked") or None,
+        }
+    except Exception:
+        logger.warning("restaurant_intent: traveler contact unavailable", exc_info=True)
+        return None
 
 
 class TierSelectRequest(BaseModel):

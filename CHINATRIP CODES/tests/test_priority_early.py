@@ -117,6 +117,13 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
         VisitItem(item_id="a1", name=n1, city="西安", day=1, duration_minutes=90),
         VisitItem(item_id="a2", name=n2, city="西安", day=1, duration_minutes=90),
     ]
+    # day2 恰留一个 90min 合法窗（15:00-16:30，结束闸内）——旧夹具
+    # （乙 14:00-18:20）在 11-05 结束闸+宿主探测下无可宿主 slot，
+    # 救援全落 day3、阶梯测试失去分辨力。开场闸 90min 杂点 ≤15:00
+    # 开场（990-90=900）：乙须 ≤14:30 收（±30 腿垫后空窗 15:00 起
+    # 恰压 cap 边界）——甲 9:00-11:00 / 午餐 flex 11:30 / 乙 12:30-14:30。
+    # 已有丙（无时刻）顶满 4 件闸：王牌占走唯一窗后 untimed 件对探针
+    # 不可见（同窗竞位盲区），第二件搬迁靠 4 件硬顶收口去 day3。
     d2 = [
         VisitItem(
             item_id="b1",
@@ -124,17 +131,17 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
             city="西安",
             day=2,
             start_time=time(9, 0),
-            end_time=time(13, 20),
-            duration_minutes=260,
+            end_time=time(11, 0),
+            duration_minutes=120,
         ),
         VisitItem(
             item_id="b2",
             name="已有乙",
             city="西安",
             day=2,
-            start_time=time(14, 0),
-            end_time=time(18, 20),
-            duration_minutes=260,
+            start_time=time(12, 30),
+            end_time=time(14, 30),
+            duration_minutes=120,
         ),
         VisitItem(
             item_id="b3",
@@ -142,9 +149,16 @@ def _stranded_plan(n1: str = "低档小点", n2: str = "世遗王牌") -> Itiner
             city="西安",
             day=2,
             category="food",
-            start_time=time(12, 0),
-            end_time=time(13, 0),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
             duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="b4",
+            name="已有丙",
+            city="西安",
+            day=2,
+            duration_minutes=90,
         ),
     ]
     return ItineraryPlan(
@@ -205,10 +219,13 @@ def _lns_plan() -> ItineraryPlan:
         end_time=time(12, 0),
         duration_minutes=180,
     )
-    # 600 分钟巨点：day2 空窗（12:30 后 540'）与 day3（占日点后）都装
-    # 不下——唯一「解法」是把定时王牌腾去 day3 上午给巨点让位。
+    # 390 分钟巨点（11-05 结束闸下日容 ≤450：600min 永无解、让位机制
+    # 失去意义；390 = 王牌占 day2 上午时午后空窗 12:00-16:30 装不下、
+    # 王牌走后全天 09:00-15:00 恰可）：唯一「解法」是把定时王牌腾去
+    # day3 上午给巨点让位。占日点 pinned（铁律 19）豁免结束闸——
+    # unpinned 12:30-21:30 在 CP 里越闸不可行，resched 会拒绝挪王牌。
     u = VisitItem(
-        item_id="v3", name="未排巨点", city="西安", day=2, duration_minutes=600
+        item_id="v3", name="未排巨点", city="西安", day=2, duration_minutes=390
     )
     w = VisitItem(
         item_id="v4",
@@ -218,6 +235,7 @@ def _lns_plan() -> ItineraryPlan:
         start_time=time(12, 30),
         end_time=time(21, 30),
         duration_minutes=540,
+        pinned=True,
     )
     return ItineraryPlan(
         itinerary_id="p",
@@ -250,21 +268,27 @@ def _run_lns(plan: ItineraryPlan):
 
 
 def test_preclaim_full_ladder_spreads_by_cap():
-    # 全档预占位（2026-11-02 用户拍板「全部优先级都要考虑」）：同坐标
-    # 消腿噪声，4/日闸下高档先满 day1、次档顺延 day2。
+    # 全档预占位（2026-11-02 用户拍板「全部优先级都要考虑」）：4/日闸
+    # 下高档先满 day1、次档顺延 day2。2026-11-13 名录序重排后梯子为
+    # 国际站（lp）> unesco > 5A：丁/戊 lp 先占，甲馆（unesco）次之，
+    # 5A 两件争第 4 席、余件顺延 day2。坐标按 lon 逐件 +0.02°（≈1.9km）
+    # 错开（同点夹具互认会被伞名孪生吸收并卡绕开闸；族卡已废，贴邻
+    # 同日圈 5km——1.9km 在圈内，同日软偏好与高档先满 day1 同向）；时长
+    # 90→60 消腿噪声（>1.5km 腿按打车口径 34min/跳，90×4+腿会先撞 360
+    # 预算闸、盖过本测要验的 4/日闸语义）。
     cands = [
-        _sight("甲馆", *_C1, dur=90, tags=["unesco"]),
-        _sight("乙5a", *_C1, dur=90, tags=["5a"]),
-        _sight("丙5a", *_C1, dur=90, tags=["5a"]),
-        _sight("丁lp", *_C1, dur=90, tags=["lp"]),
-        _sight("戊lp", *_C1, dur=90, tags=["lp"]),
+        _sight("甲馆", 108.94, 34.26, dur=60, tags=["unesco"]),
+        _sight("乙5a", 108.96, 34.26, dur=60, tags=["5a"]),
+        _sight("丙5a", 108.98, 34.26, dur=60, tags=["5a"]),
+        _sight("丁lp", 109.00, 34.26, dur=60, tags=["lp"]),
+        _sight("戊lp", 109.02, 34.26, dur=60, tags=["lp"]),
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     day_of = {it["name"]: it["day"] for it in items}
-    assert day_of["甲馆"] == 1
-    assert day_of["乙5a"] == 1 and day_of["丙5a"] == 1
-    assert day_of["丁lp"] == 1  # 池序第 4 件，day1 恰好满 4 点
-    assert day_of["戊lp"] == 2  # 次档顺延，不越档抢更早的天
+    assert day_of["丁lp"] == 1 and day_of["戊lp"] == 1  # 国际站首档先占
+    assert day_of["甲馆"] == 1  # unesco 次档
+    # 5A 两件：一件补 day1 第 4 席，另一件顺延 day2，不越档抢更早的天
+    assert sorted([day_of["乙5a"], day_of["丙5a"]]) == [1, 2]
 
 
 def test_lns_may_relocate_timed_tier1_when_it_unlocks():

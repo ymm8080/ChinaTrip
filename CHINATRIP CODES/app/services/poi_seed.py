@@ -189,6 +189,11 @@ CATEGORY_MAP: dict[str, str] = {
     "车站/机场/码头/口岸": "transport",
     "剧场/戏院/艺术馆/展览": "art",
     "街区/商圈/夜市": "citywalk",
+    # 受控值直通（2026-11-07）：citywalk 已在库流通（34 行）；tea_experience
+    # 为拍板新档（人民公园=茶体验），上游直传时不再被 fuzzy 匹配洗成 None
+    "citywalk": "citywalk",
+    "tea_experience": "tea_experience",
+    "茶体验": "tea_experience",
     "游船/观光车/渡轮": "entertainment",
     "博物馆/纪念馆": "museum",
     "公园/广场": "park",
@@ -281,7 +286,7 @@ def seed_upsert(
     cat = normalize_category(category)
     indoor = rain_ok = floor = None
     if hasattr(model, "suggested_duration_min"):  # Poi：插入即分类填列
-        cat, indoor, rain_ok, floor = classify(name_zh, cat)
+        cat, indoor, rain_ok, floor = classify(name_zh, cat, city=city)
     if lonlat is None and wgs84_lonlat is not None:
         lonlat = wgs84_to_gcj02(*wgs84_lonlat)
     try:

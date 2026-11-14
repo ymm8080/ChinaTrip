@@ -83,6 +83,79 @@ def test_annotation_is_idempotent():
     assert plan == snapshot
 
 
+def _meal_placeholder(start: time = time(12, 20)) -> VisitItem:
+    return VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="西安",
+        day=1,
+        start_time=start,
+        end_time=time(start.hour, start.minute + 30),
+        duration_minutes=30,
+        anchor_from_prev=True,
+    )
+
+
+def test_blank_lunch_card_inherits_previous_stop_address():
+    """2026-11-13 西安 D2 案：秦俑情 12:20 散场 → 「午饭（自由安排）」空白
+    卡（无地址、无腿）→ 华清宫。空卡须吃上一站地址，「餐 → 下一站」照算。"""
+    site = _visit("《秦俑情》", 109.2808, 34.3804)
+    site.address = "陕西省西安市临潼区秦陵街道秦俑村村委会"
+    site.end_time = time(12, 20)
+    lunch = _meal_placeholder()
+    nxt = _visit("华清宫", 109.2150, 34.3588)
+    nxt.start_time = time(13, 4)
+    plan = _plan(site, lunch, nxt)
+    annotate_legs(plan)
+    assert lunch.address == site.address
+    # 与上一站同址 → 进餐卡的腿不显示（0km），卡片地址仍继承
+    assert site.distance_to_next_km is None
+    # 餐卡 → 下一站的腿现在算得出来
+    assert lunch.distance_to_next_km is not None
+    assert lunch.next_walk_minutes is not None
+    assert lunch.leg_source == "estimate"
+
+
+def test_meal_card_without_previous_stop_stays_blank():
+    lunch = _meal_placeholder()
+    nxt = _visit("华清宫", 109.2150, 34.3588)
+    nxt.start_time = time(13, 4)
+    plan = _plan(lunch, nxt)
+    annotate_legs(plan)
+    assert lunch.address is None
+    assert lunch.distance_to_next_km is None
+
+
+def test_legacy_meal_card_is_adopted_on_refresh():
+    """旧行程自愈：上线前落库的午饭占位卡没有 anchor_from_prev 标记，
+    refresh_legs 补标后同一回合 annotate 即回填上一站地址。"""
+    from app.services.agent.plan import PlanningAgent
+
+    site = _visit("《秦俑情》", 109.2808, 34.3804)
+    site.address = "陕西省西安市临潼区秦陵街道秦俑村村委会"
+    site.end_time = time(12, 20)
+    legacy = _meal_placeholder()
+    legacy.anchor_from_prev = False  # 旧载荷形态
+    plan = _plan(site, legacy)
+    PlanningAgent._adopt_legacy_meal_anchors(plan)
+    annotate_legs(plan)
+    assert legacy.address == site.address
+    assert legacy.anchor_location == site.location
+
+
+def test_meal_card_anchor_resets_across_transfer():
+    site = _visit("A", 116.40, 39.90)
+    site.address = "A 地址"
+    site.end_time = time(10, 0)
+    hop = TransferItem(item_id="t1", day=1, seq=1, from_city="北京", to_city="上海")
+    lunch = _meal_placeholder(start=time(13, 0))
+    plan = _plan(site, hop, lunch)
+    annotate_legs(plan)
+    # 换乘卡之后不继承出发城地址
+    assert lunch.address is None
+
+
 def test_mutate_pipeline_output_is_annotated():
     plan = _plan(
         VisitItem(

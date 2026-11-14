@@ -18,6 +18,10 @@
  *      数据比对字面量白名单（香港/澳门），否则 FAIL 并列出全部位置。
  *      预剥离纯数据声明 CITYS/PLAN_CITIES/ORI（城市表/计划城市表/方位表：仅作数据比对
  *      或经 I18N.city() 渲染，与文案无关）；三者任一在文件里找不到即 FAIL（剥离规则失效告警）。
+ *   D. 腿坐标门（2026-11-13 空餐卡渲染中断案）：取真实函数体在 stub 里跑——
+ *      空餐卡（自由安排的午饭/晚饭，location=null 只有 anchor_location）的
+ *      打车/步行链接必须吃锚点坐标；起终点都没坐标时必须返回空串（调用点降级
+ *      纯文字），绝不许读 from.location.lat 抛 TypeError 把整卡打成「渲染中断」。
  * 任一项失败 exit 1。 */
 "use strict";
 const fs = require("fs");
@@ -258,13 +262,14 @@ function findZhViolations(tokens) {
  *   CITYS/PLAN_CITIES  城市坐标/规划城市表：经 I18N.city() 渲染；
  *   ORI                方位表：与高德数据比对，仅 emoji 上屏；
  *   AMAP_DETAIL_ZH/AUTH_ERR_CN  高德 detail 码/后端账号错误码 → 中文，调用点 tf("前缀."+code, 表[code])；
+ *   TRANSFER_DETAIL_ZH  路途行程改乘/班次号 422 detail 码 → 中文，调用点 tf("infra."+code, 表[code])（2026-11-04）；
  *   MODE_CN/BRIEF_TAGS/PREFS/REVIEW_TAGS/t9nName  交通方式/简报标签/偏好/点评标签/译向名，同上调用点动态包裹。
  * 锚点正则只负责"找到"声明头；数组/对象本体含嵌套括号，故从起始括号起做
  * 字符串感知的配平扫描到配对闭括号，再吞可选 ";"。整段替换为等长空白（保留 \n）
  * → 行号零漂移。返回 {code, found}：found 为本次命中的声明名集合。 */
 const ZH_DATA_NAMES = ["CITYS", "PLAN_CITIES", "ORI", "AMAP_DETAIL_ZH", "AUTH_ERR_CN",
   "MODE_CN", "BRIEF_TAGS", "PREFS", "REVIEW_TAGS", "t9nName",
-  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH", "TV_DOC_ZH", "WELCOME"]; // TV_DOC_ZH 证件类型 code→中文兜底，tvDocLabel 调用点 tf(key, 表[code]) 动态包裹 // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹（WELCOME 为 [flowId, key, zh 兜底] 行，i18n:change 时重写欢迎气泡）
+  "TC_SRC", "BK_CHANNEL", "BK_KIND_ZH", "PAY_STATUS_ZH", "TV_DOC_ZH", "TRANSFER_DETAIL_ZH", "PLAN_EDIT_DETAIL_ZH", "WELCOME"]; // TV_DOC_ZH 证件类型 code→中文兜底，tvDocLabel 调用点 tf(key, 表[code]) 动态包裹 // 各「code→中文兜底」表：调用点 tf("前缀."+code, 表[code]) 动态包裹（WELCOME 为 [flowId, key, zh 兜底] 行，i18n:change 时重写欢迎气泡）
 const ZH_DATA_DECL_RE = new RegExp("(?:var|const|let)\\s+(" + ZH_DATA_NAMES.join("|") + ")\\s*=\\s*([\\[{])", "g");
 function stripZhDataArrays(code) {
   const found = new Set();
@@ -321,11 +326,121 @@ function gateC() {
     ok("残留门 index.html " + blocks.length + " 个脚本块无未包裹中文（已预剥离 CITYS/PLAN_CITIES/ORI）");
 }
 
+
+/* ---------- D. 腿坐标门（2026-11-13 空餐卡渲染中断） ---------- */
+function gateD() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("腿坐标门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  const pick = (name) => {
+    const start = src.indexOf("function " + name + "(");
+    if (start < 0) return null;
+    let i = src.indexOf("{", start), depth = 0;
+    for (; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}") { depth--; if (depth === 0) return src.slice(start, i + 1); }
+    }
+    return null;
+  };
+  const code = ["legPoint", "amapWalkUrl", "navDriveUrl"].map(pick).join("\n");
+  if (code.indexOf("function legPoint") < 0 || code.indexOf("function navDriveUrl") < 0) {
+    fail("腿坐标门: 找不到 legPoint/amapWalkUrl/navDriveUrl（函数改名？同步更新本门）");
+    return;
+  }
+  const vm = require("vm");
+  const sandbox = { isFinite, encodeURIComponent, MAP_VENDOR: "baidu" };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  try { vm.runInContext(code, sandbox); }
+  catch (e) { fail("腿坐标门: 函数体无法执行: " + e.message); return; }
+  const meal = { name: "午饭（自由安排）", location: null, anchor_location: { lon: 108.9, lat: 34.2 } };
+  const next = { name: "下一站", location: { lon: 109.3, lat: 34.4 }, city: "西安" };
+  let drive, walk, none;
+  try {
+    drive = sandbox.navDriveUrl(meal, next);
+    walk = sandbox.amapWalkUrl(meal);
+    none = sandbox.navDriveUrl({ name: "无坐标" }, { name: "无坐标二" });
+  } catch (e) {
+    fail("腿坐标门: 空餐卡腿抛错（即渲染中断的 TypeError）: " + e.message);
+    return;
+  }
+  if (!/^https:\/\/api\.map\.baidu\.com\/direction\?origin=34\.2,108\.9/.test(drive))
+    fail("腿坐标门: 空餐卡打车腿没吃锚点坐标: " + drive);
+  if (walk.indexOf("location=") < 0)
+    fail("腿坐标门: 空餐卡步行链接缺目标坐标: " + walk);
+  if (none !== "")
+    fail("腿坐标门: 起终点都没坐标应返回空串（降级纯文字），实得: " + none);
+  ok("腿坐标门 空餐卡腿吃锚点坐标、无坐标降级纯文字");
+}
+
+/* ---------- E. 备选拖入门（2026-11-14 备选 chip 可拖） ---------- */
+/* planAltDrop 是 chip 落进时间轴的唯一入口：落点→after_item_id、日首 null、
+   跨天拖整卡不误触。抽函数跑真身（不是复述逻辑），改名必须同步本门。 */
+function gateE() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("备选拖入门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  const m = src.match(/function planAltDrop\(evt, box, plan\) \{[\s\S]*?\r?\n\}\r?\n/);
+  if (!m) { fail("备选拖入门: 找不到 planAltDrop（改名？同步更新本门）"); return; }
+  const mk = (cls, attrs, children) => {
+    const node = {
+      _cls: new Set(String(cls || "").split(/\s+/).filter(Boolean)),
+      _attrs: attrs || {},
+      children: children || [],
+      _removed: false,
+      classList: { contains: (c) => node._cls.has(c) },
+      getAttribute: (k) => (k in node._attrs ? node._attrs[k] : null),
+      remove: () => { node._removed = true; },
+    };
+    return node;
+  };
+  let calls = [];
+  const api = (path2, body, method) => {
+    calls.push({ path: path2, body, method });
+    return Promise.resolve({ plan: { days: [] } });
+  };
+  const I18N = { tf: (k, zh) => zh };
+  const box = { replaced: 0, replaceWith: () => { box.replaced++; } };
+  const factory = new Function(
+    "api", "I18N", "planSession", "toast", "sitePopHideNow", "failToast", "planCard",
+    m[0] + "\nreturn planAltDrop;"
+  );
+  const drop = factory(api, I18N, { session_id: "sid1" }, () => {}, () => {}, () => {}, () => ({}));
+
+  /* ① 落在两件之间：after_item_id = 前一张 visit-block */
+  const chip = mk("alt-swap-box", { "data-alt-name": "灵隐寺", "data-alt-host": "v1" });
+  const day = mk("day-items", { "data-day": "2" }, [mk("visit-block", { "data-id": "v1" }), chip, mk("visit-block", { "data-id": "v2" })]);
+  drop({ item: chip, to: day }, box, { days: [] });
+  if (calls.length !== 1) { fail("备选拖入门: 两件之间落点应发 1 次插入请求，实得 " + calls.length); return; }
+  const c0 = calls[0];
+  if (c0.path !== "/api/v1/plan/sid1/items/v1/insert-alt") fail("备选拖入门: 请求路径不对: " + c0.path);
+  if (!c0.body || c0.body.name !== "灵隐寺" || c0.body.day !== 2 || c0.body.after_item_id !== "v1")
+    fail("备选拖入门: 载荷不对: " + JSON.stringify(c0.body));
+  if (!chip._removed) fail("备选拖入门: 克隆 chip 没从时间轴撤走");
+
+  /* ② 落在日首：after_item_id 为 null */
+  calls = [];
+  const chip2 = mk("alt-swap-box", { "data-alt-name": "豫园", "data-alt-host": "v9" });
+  drop({ item: chip2, to: mk("day-items", { "data-day": "1" }, [chip2, mk("visit-block", { "data-id": "v1" })]) }, box, { days: [] });
+  if (calls.length !== 1 || !calls[0].body || calls[0].body.after_item_id !== null)
+    fail("备选拖入门: 日首落点应 after_item_id=null，实得 " + JSON.stringify(calls[0] && calls[0].body));
+
+  /* ③ 跨天拖整卡（.visit-block 跨列表）不触发插入 */
+  calls = [];
+  drop({ item: mk("visit-block", { "data-id": "v3" }), to: mk("day-items", { "data-day": "3" }, []) }, box, { days: [] });
+  if (calls.length) fail("备选拖入门: 跨天拖整卡不应发插入请求");
+
+  ok("备选拖入门 chip 落点→after_item_id、日首 null、整卡拖不误触");
+}
+
+
 /* ---------- 入口：直接运行才执行；被 require 时只导出分词器供 harness 复用 ---------- */
 function main() {
   gateA();
   gateB();
   gateC();
+  gateD();
+  gateE();
   if (failed) { console.error("\n" + failed + " 项未过——见上方 FAIL"); process.exit(1); }
   console.log("\nH5 静态守门全部通过");
 }

@@ -1,7 +1,8 @@
-"""source_tier 共享模块守卫测试（2026-11-03 名录序全站唯一定义点）。
+"""source_tier 共享模块守卫测试（2026-11-13 名录序：国际站 > unesco > 5A）。
 
 catalog_rank 全档判定 / order_source_tags 展示序 / source_tag_key
-unesco 前缀族 / tags_source_wins 权威闸 / SOURCE_PRIORITY 11 项铁律
+unesco 前缀族 / tags_source_wins 权威闸 / SOURCE_PRIORITY 15 项铁律
+（2026-11-12 需求驱动重排）
 （CLAUDE.md Iron rule 精确全文）。"""
 
 from app.services.source_tier import (
@@ -16,10 +17,10 @@ from app.services.source_tier import (
 
 
 def test_catalog_rank_each_tier():
-    assert catalog_rank("unesco", []) == 0  # 08 世界遗产
-    assert catalog_rank("5a", []) == 1  # 02 5A
-    assert catalog_rank("tripadvisor", []) == 2  # 05 国际旅行网站
-    assert catalog_rank("baidu", ["curated"]) == 2  # curated 算国际网站档
+    assert catalog_rank("tripadvisor", []) == 0  # 05 国际旅行网站（2026-11-13 升首档）
+    assert catalog_rank("baidu", ["curated"]) == 0  # curated 算国际网站档
+    assert catalog_rank("unesco", []) == 1  # 08 世界遗产
+    assert catalog_rank("5a", []) == 2  # 02 5A
     assert catalog_rank("sygic", []) == 3  # 10 国际平台
     assert catalog_rank("tiktok", []) == 4  # 11 短视频
     assert catalog_rank("youtube", []) == 4
@@ -34,9 +35,9 @@ def test_catalog_rank_each_tier():
 
 def test_catalog_rank_unesco_prefix_family():
     # unesco_* 前缀族（丝路/明清陵寝/喀斯特…）视同 unesco，压过行上 5a
-    assert catalog_rank("baidu", ["unesco_silk_road"]) == 0
-    assert catalog_rank("5a", ["unesco_ming_tombs"]) == 0
-    assert catalog_rank(None, ["unesco_karst"]) == 0
+    assert catalog_rank("baidu", ["unesco_silk_road"]) == 1
+    assert catalog_rank("5a", ["unesco_ming_tombs"]) == 1
+    assert catalog_rank(None, ["unesco_karst"]) == 1
 
 
 def test_catalog_rank_specific_site_beats_umbrella_intl():
@@ -46,7 +47,7 @@ def test_catalog_rank_specific_site_beats_umbrella_intl():
     assert catalog_rank(None, ["intl", "tiktok"]) == 4
     assert catalog_rank(None, ["sygic", "tiktok"]) == 3
     assert catalog_rank(None, ["intl"]) == 3
-    assert catalog_rank(None, ["ta", "intl"]) == 2
+    assert catalog_rank(None, ["ta", "intl"]) == 0
 
 
 def test_catalog_rank_xiaohongshu_chinese_tag():
@@ -103,11 +104,15 @@ def test_tags_source_wins_authority_gate():
     assert tags_source_wins("mct", "glm")
 
 
-# --- SOURCE_PRIORITY：字段回填铁律 11 项全序（一个字不改） -------------------
+# --- SOURCE_PRIORITY：字段回填铁律全序（2026-11-12 需求驱动重排） ------
 
 
 def test_source_priority_iron_rule_full_list():
     assert SOURCE_PRIORITY == (
+        "curated",
+        "lonelyplanet",
+        "tripadvisor",
+        "viator",
         "unesco",
         "5a",
         "museum1",

@@ -21,11 +21,13 @@ User-Agent / Api-User-Agent 同串：
     ChinaTrip-POI-library/0.1
     (https://github.com/chinatrip; mailto:dev@chinatrip.local)
 
-注：--with-amap-photos 目前是预留空开关（no-op）——AmapClient 现有方法
-均不透出 photos 数组（v3 search_poi 经 _normalize_poi 丢弃 photos，v5
-search_hours/place_hours 只回 business 字段），高德 photos 兜底待
-AmapClient 增加返回 photos 的方法后再接；不改 amap_client.py。
-因此本 job 全程同步 httpx，无需 asyncio。
+注：--with-amap-photos 目前是预留空开关（no-op）。头注历史（2026-11-11
+修正）：旧注"AmapClient 现有方法均不透出 photos"已过时——enrich_amap_detail
+后 AmapClient.place_hours/search_poi（v5 show_fields=business,photos / v3
+extensions=all）均可回 photos 并由 _normalize_poi 收口；但 photos 回填现走
+独立链 app/services/poi_photos.py（点击端点 + backfill_photos job），本
+job 不再在 amap 侧做 photos 兜底，开关维持 no-op。
+本 job 全程同步 httpx，无需 asyncio。
 
 用法：
     python -m app.jobs.backfill_intro [--limit 100] [--city 重庆] [--with-amap-photos]

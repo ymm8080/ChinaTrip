@@ -1,0 +1,741 @@
+# -*- coding: utf-8 -*-
+"""2026-11-05 成都青城山—都江堰被整卡删除回归（到达日搁浅王牌救援）：
+
+1. tier1 王牌在到达日装不下（12:00 落地 + 150min 地板 = 14:30 起，
+   180min 收 17:30 > 17:00 闭馆），次日 4 件满员无宿主天——旧路径
+   整卡删除世遗；现路径从次日弹出最低档非钉参访（金沙 tier11）
+   让位，王牌挪入次日；让位者无宿主天按原口径移除留痕。
+2. 控制组：非王牌（tier11）搁浅仍走原删除口径，不让座。
+3. 让座后仍进不去（同日互远闸挡宿主天）→ 被弹者还回原天，
+   王牌按原口径移除——弹座不能造成二次破坏。
+"""
+
+from __future__ import annotations
+
+from datetime import time
+
+from app.services.agent.plan import (
+    PlanningAgent,
+    _geo_cluster_day,
+    _reconcile_transfer_days,
+    _rehome_untimed_visits,
+    _transfer_day_sweep,
+)
+from app.services.itinerary.models import (
+    DayPlan,
+    GeoPoint,
+    ItineraryPlan,
+    TransferItem,
+    VisitItem,
+)
+
+_CD = GeoPoint(lon=104.06, lat=30.66)  # 成都市区
+_DJY = GeoPoint(lon=103.62, lat=31.00)  # 都江堰（距成都 ~48km）
+_KD = GeoPoint(lon=102.22, lat=30.05)  # 康定（距都江堰 ~168km，互远）
+_CQ = GeoPoint(lon=106.55, lat=29.56)  # 重庆渝中
+
+
+def _visit(name, tier, *, minutes=90, loc=_CD, hours=None, pinned=False, city="成都"):
+    return VisitItem(
+        item_id=name,
+        name=name,
+        city=city,
+        day=1,
+        duration_minutes=minutes,
+        tier=tier,
+        pinned=pinned,
+        category="sight",
+        location=loc,
+        poi_id=f"poi_{name}",
+        opening_hours=hours,
+    )
+
+
+def _premium(hours="08:30-17:00", loc=_DJY):
+    v = _visit("青城山—都江堰", 1, minutes=180, loc=loc, hours=hours)
+    v.day = 1
+    return v
+
+
+def _plan(day1_items, day2_items):
+    day1 = DayPlan(day=1, base_city="成都", items=day1_items)
+    day2 = DayPlan(day=2, base_city="成都", items=day2_items)
+    for v in day2_items:
+        v.day = 2
+    return ItineraryPlan(itinerary_id="it1", cities=["上海", "成都"], days=[day1, day2])
+
+
+def _arrival_leg():
+    return TransferItem(
+        item_id="t1",
+        day=1,
+        seq=1,
+        mode="train",
+        from_city="上海",
+        to_city="成都",
+        start_time=time(8, 0),
+        end_time=time(12, 0),
+    )
+
+
+def _visit_names(plan: ItineraryPlan) -> set[str]:
+    return {i.name for d in plan.days for i in d.items if isinstance(i, VisitItem)}
+
+
+_TIERS = {
+    "青城山—都江堰": 1,
+    "金沙遗址博物馆": 11,
+    "宽窄巷子": 8,
+    "武侯祠": 9,
+    "成都大熊猫繁育研究基地": 11,
+}
+
+
+def test_premium_rescued_eject_yields_slot():
+    """王牌挪入满员次日，最低档非钉参访让位且无处可排被移除。"""
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=120),
+        _visit("宽窄巷子", 8),
+        _visit("武侯祠", 9),
+        _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True),
+    ]
+    plan = _plan([_arrival_leg(), _premium()], day2)
+    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
+    names_d2 = {i.name for i in plan.days[1].items}
+    assert "青城山—都江堰" in names_d2
+    moved = next(i for i in plan.days[1].items if i.name == "青城山—都江堰")
+    assert moved.day == 2
+    assert moved.start_time is None
+    all_names = _visit_names(plan)
+    assert "金沙遗址博物馆" not in all_names  # 让位后无宿主天 → 移除留痕
+    assert any("让位" in n for n in notes)
+
+
+def test_non_premium_stranded_still_removed():
+    """控制组：tier11 搁浅点不触发让座，按原口径删除。"""
+    day2 = [
+        _visit("宽窄巷子", 8),
+        _visit("武侯祠", 9),
+        _visit("人民公园", 11),
+        _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True),
+    ]
+    stranded = _visit("金沙遗址博物馆", 11, minutes=180, hours="08:30-17:00")
+    plan = _plan([_arrival_leg(), stranded], day2)
+    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
+    all_names = _visit_names(plan)
+    assert "金沙遗址博物馆" not in all_names
+    assert any("已从行程移除" in n for n in notes)
+    assert {i.name for i in plan.days[1].items} == {
+        "宽窄巷子",
+        "武侯祠",
+        "人民公园",
+        "成都大熊猫繁育研究基地",
+    }
+
+
+def test_eject_restored_when_premium_still_cannot_host():
+    """让座后王牌仍被互远闸挡住 → 被弹者还回原天，王牌照旧移除。"""
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=120),
+        _visit("宽窄巷子", 8, loc=_KD),  # 与王牌互远 → 宿主天被闸
+        _visit("武侯祠", 9),
+        _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True),
+    ]
+    plan = _plan([_arrival_leg(), _premium()], day2)
+    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
+    all_names = _visit_names(plan)
+    # 王牌没救成（原口径移除），被弹者原样留在次日
+    assert "青城山—都江堰" not in all_names
+    d2_names = {i.name for i in plan.days[1].items if isinstance(i, VisitItem)}
+    assert "金沙遗址博物馆" in d2_names
+    assert any("已从行程移除" in n for n in notes)
+    assert not any("让位" in n for n in notes)
+
+
+# ---- 清算层让位救援（2026-11-05 成渝案三段）：兜底排序排不出 → 挪日
+# 挪不动 → 旧路径整卡删除；现路径名点让位腾座 ----
+
+
+def _timed(v, hh=9, mm=0):
+    v.start_time = time(hh, mm)
+    return v
+
+
+def _tplan(day1_items, day2_items):
+    d1 = DayPlan(day=1, base_city="上海", items=day1_items)
+    d2 = DayPlan(day=2, base_city="成都", items=day2_items)
+    for v in day2_items:
+        v.day = 2
+    return ItineraryPlan(itinerary_id="it2", cities=["上海", "成都"], days=[d1, d2])
+
+
+_T2 = {
+    "青城山—都江堰": 1,
+    "金沙遗址博物馆": 11,
+    "宽窄巷子": 8,
+    "武侯祠": 9,
+    "人民公园": 11,
+    "洪崖洞": 8,
+    "李子坝轻轨站": 9,
+    "四面山": 8,
+    # d2 档位显式化：金沙唯一最高档 → 弹座确定弹金沙（腾上午实位），
+    # 其余压档避免码点序把青羊宫/望江楼顶成被弹者
+    "望江楼公园": 10,
+    "青羊宫": 10,
+    "杜甫草堂": 9,
+    "文殊院": 11,
+}
+
+
+def test_transfer_sweep_yields_for_premium():
+    """转场日清算：王牌无宿主天 → 从同城满员日弹最低档腾座。
+
+    宿主天实位探针终审（2026-11-05 洪崖洞案）：让位后探针须找到
+    真实可排座（腿占段+16:30 开场闸+营业窗）才认宿主——被弹者
+    （金沙 tier11 @9:00）腾出整个上午，其余点压到下午。"""
+    premium = _premium(loc=_CD)  # 市区内点：腿窗不外扩，上午腾座即可排
+    premium.day = 1
+    day2 = [
+        _timed(_visit("金沙遗址博物馆", 11, minutes=90), 9),
+        _timed(_visit("宽窄巷子", 8, minutes=90), 13, 30),
+        _timed(_visit("武侯祠", 9, minutes=90), 15),
+        _timed(_visit("人民公园", 10, minutes=90), 16, 30),
+    ]
+    plan = _tplan([_arrival_leg(), premium], day2)
+    notes = _transfer_day_sweep(plan, frozenset(), dict(_T2))
+    d2_names = {i.name for i in plan.days[1].items}
+    assert "青城山—都江堰" in d2_names
+    moved = next(i for i in plan.days[1].items if i.name == "青城山—都江堰")
+    assert moved.day == 2
+    assert moved.start_time is None
+    # 被弹者无宿主天（池内无同城日）→ 按口径移除留痕
+    assert "金沙遗址博物馆" not in d2_names
+    assert any("让位" in n for n in notes)
+
+
+def test_transfer_sweep_non_premium_no_yield():
+    """控制组：tier11 无时刻杂卡不触发让位，按原口径移除。"""
+    stranded = _visit("金沙遗址博物馆", 11, minutes=180, hours="08:30-17:00")
+    stranded.day = 1
+    day2 = [
+        _timed(_visit("宽窄巷子", 8, minutes=90)),
+        _timed(_visit("武侯祠", 9, minutes=90), 10),
+        _timed(_visit("人民公园", 11, minutes=90), 12),
+        _timed(_visit("成都大熊猫繁育研究基地", 11, minutes=90, pinned=True), 14),
+    ]
+    plan = _tplan([_arrival_leg(), stranded], day2)
+    notes = _transfer_day_sweep(plan, frozenset(), dict(_T2))
+    assert "金沙遗址博物馆" not in _visit_names(plan)
+    assert any("已从行程移除" in n for n in notes)
+    assert not any("让位" in n for n in notes)
+
+
+def test_rehome_sweep_yields_for_premium():
+    """挪日扫尾：普通日满员收不下王牌 → 同城日让位腾座；被弹者
+    满城无宿主 → 移除留痕。
+
+    实位探针终审口径：d1（自家日）先试让位——文殊院腾座后探针仍
+    被上午点 ±腿占段（成都→都江堰 ~56km 折 ~156min）挡死 → 原样
+    还座换 d2；d2 弹金沙@9:00（tier11 最低）腾出上午实位（其余点
+    ≥15:00，腿窗不回压上午）。"""
+    stray = _premium()
+    stray.day = 1
+    day1 = [
+        _timed(_visit("人民公园", 11, minutes=90)),
+        _timed(_visit("宽窄巷子", 8, minutes=90), 10),
+        _timed(_visit("武侯祠", 9, minutes=90), 12),
+        _timed(_visit("文殊院", 11, minutes=90), 14),
+        stray,
+    ]
+    day2 = [
+        _timed(_visit("金沙遗址博物馆", 11, minutes=90), 9),
+        _timed(_visit("望江楼公园", 11, minutes=90), 15),
+        _timed(_visit("青羊宫", 11, minutes=90), 16, 30),
+        _timed(_visit("杜甫草堂", 9, minutes=90), 18),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it3", cities=["成都"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), dict(_T2))
+    d2_names = {i.name for i in plan.days[1].items}
+    assert "青城山—都江堰" in d2_names
+    # 被弹者（档位最低者）腾座后回填原日或他日——不静默消失
+    assert any("让位" in n for n in notes)
+    assert any("已改排第" in n or "无处可排" in n for n in notes)
+
+
+def test_yield_gate_tier8_ejects_lower_prestige():
+    """洪崖洞案：tier8 名点享让位权，弹出 tier9 杂点（李子坝级）；
+    实位探针终审——弹武侯祠@9:00 腾出上午实座（其余点 ≥13:30）。"""
+    hongya = _visit("洪崖洞", 8, minutes=90, loc=_CQ, city="重庆")
+    hongya.day = 1
+    d1 = DayPlan(day=1, base_city="重庆", items=[hongya])
+    day2 = [
+        _timed(_visit("武侯祠", 9, minutes=90, loc=_CQ, city="重庆"), 9),
+        _timed(_visit("四面山", 8, minutes=90, loc=_CQ, city="重庆"), 13, 30),
+        _timed(_visit("李子坝轻轨站", 9, minutes=90, loc=_CQ, city="重庆"), 15),
+        _timed(_visit("宽窄巷子", 8, minutes=90, loc=_CQ, city="重庆"), 16, 30),
+    ]
+    d2 = DayPlan(day=2, base_city="重庆", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it4", cities=["重庆"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), dict(_T2))
+    d2_names = {i.name for i in plan.days[1].items}
+    assert "洪崖洞" in d2_names
+    assert any("让位" in n for n in notes)
+
+
+def test_rehome_yields_before_bouncing_to_arrival_day():
+    """E2E 案回放（2026-11-05 session ea3e8305）：王牌滞留第2天时纯
+    挪日会「结构上成功」挪进第1天到达日（容量闸不识营业窗——12:00
+    落地+180min 名点终排必死）。现口径名点先让位：同城日弹低档腾座，
+    王牌留在自家日，被弹者改排他日。"""
+    premium = _premium()
+    premium.day = 2
+    d1 = DayPlan(day=1, base_city="上海", items=[_arrival_leg()])
+    day2 = [
+        _timed(_visit("成都大熊猫繁育研究基地", 11, minutes=150, pinned=True), 8),
+        _timed(_visit("宽窄巷子", 8, minutes=90), 14),
+        premium,
+    ]
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it5", cities=["上海", "成都"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), dict(_T2))
+    assert premium.day == 2  # 不被挪进到达日
+    assert any("让位" in n for n in notes)
+
+
+def test_yield_multi_eject_fits_big_block():
+    """连续弹座（2026-11-07 环球中心案）：240min 大块头单弹一个
+    180min 杂点腾不出整块（腿窗垫圈后最大缺口 < 240min）——连续弹
+    两个 tier11 杂点后实位探针才过（10:00-14:00 整块，营业窗
+    10:00-22:00 内、入场闸 12:30 前）；档位更高的 tier9 与钉座不弹，
+    大块头保完整时长落位。旧口径单弹失败即弃 → 大块头被终局清算
+    蒸发。"""
+    big = _visit("成都环球中心", 3, minutes=240, hours="10:00-22:00")
+    big.day = 2
+    day2 = [
+        _timed(_visit("天府广场", 11, minutes=180), 9),  # 09:00-12:00
+        _timed(_visit("东郊记忆", 11, minutes=180), 12),  # 12:00-15:00
+        _timed(_visit("文殊院", 9, minutes=90), 17),  # 17:00-18:30 档高不弹
+        _timed(
+            _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True), 19
+        ),  # 19:00-21:00 钉座不弹
+        big,
+    ]
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    # d1 填满（4 件硬顶 + 无 240min 级缺口）：断掉「弹一座后大块头
+    # 干脆挪去空日」的捷径，逼出连续弹二座、大块头留原日的路径。
+    d1_items = [
+        _timed(_visit("人民公园", 11, minutes=180), 9),
+        _timed(_visit("青羊宫", 10, minutes=180), 12),
+        _timed(_visit("望江楼公园", 10, minutes=180), 15),
+        _timed(_visit("宽窄巷子", 8, minutes=120, pinned=True), 17, 30),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=d1_items)
+    for v in d1_items:
+        v.day = 1
+    plan = ItineraryPlan(itinerary_id="it6", cities=["成都"], days=[d1, d2])
+    tiers = {
+        "成都环球中心": 3,
+        "天府广场": 11,
+        "东郊记忆": 11,
+        "成都大熊猫繁育研究基地": 11,
+        "文殊院": 9,
+    }
+    notes = _rehome_untimed_visits(plan, frozenset(), tiers)
+    d2_names = {i.name for i in plan.days[1].items}
+    # 大块头让位成功留在原日（没被挪走更没被清算）
+    assert "成都环球中心" in d2_names
+    assert big.day == 2
+    # 连续弹座生效：两个 tier11 杂点都腾了座（单弹一个探针不过）
+    assert "天府广场" not in d2_names
+    assert "东郊记忆" not in d2_names
+    # 档位更高（tier9）与钉座不动
+    assert "文殊院" in d2_names
+    assert "成都大熊猫繁育研究基地" in d2_names
+    # 被弹者有交代（改排他日或移除留痕），披露含让位字样
+    assert any("让位" in n for n in notes)
+    assert all(
+        any("已改排第" in n or "无处可排" in n for n in notes if name in n)
+        for name in ("天府广场", "东郊记忆")
+    )
+
+
+# ---- 必去到达日搁浅强制救援（2026-11-07 熊猫基地案）：主路径
+# reconcile 此前不传 protect，必去按杂卡蒸发；且熊猫 tier11 被弹座
+# tier≤2 闸挡死。现口径：protect 内必去先挪同城后续天（大点先排落
+# 早晨头档），日满则 force 弹座（档闸豁免），仍不行才披露换天。----
+
+
+def test_must_stranded_on_arrival_day_force_rescued_to_day2_morning():
+    """必去（tier11 熊猫基地）挂到达日 12:00 落地装不下，次日 4 件
+    满员无宿主 → force 弹座挪入次日（清时刻交排程，大点先排落
+    早晨）；被弹者无宿主天移除留痕，必去绝不蒸发。"""
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-17:00")
+    panda.day = 1
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=90),
+        _visit("宽窄巷子", 8, minutes=90),
+        _visit("武侯祠", 9, minutes=90),
+        _visit("人民公园", 10, minutes=90),
+    ]
+    plan = _plan([_arrival_leg(), panda], day2)
+    notes = _reconcile_transfer_days(
+        plan,
+        tier_by_name=dict(_TIERS),
+        protect=frozenset({"成都大熊猫繁育研究基地"}),
+    )
+    assert "成都大熊猫繁育研究基地" in _visit_names(plan)  # 在册不删
+    moved = next(i for i in plan.days[1].items if i.name == "成都大熊猫繁育研究基地")
+    assert moved.day == 2
+    assert moved.start_time is None
+    assert any("已挪至第2天" in n for n in notes)
+    assert any("让位" in n for n in notes)
+
+
+def test_must_stranded_no_host_no_ejects_discloses():
+    """控制组：后续天全钉（弹座池空）→ 必去原地保留 + 披露换天，
+    不删不静默。"""
+    panda = _visit("成都大熊猫繁育研究基地", 11, minutes=180, hours="07:30-17:00")
+    panda.day = 1
+    day2 = [
+        _visit("金沙遗址博物馆", 11, minutes=90, pinned=True),
+        _visit("宽窄巷子", 8, minutes=90, pinned=True),
+        _visit("武侯祠", 9, minutes=90, pinned=True),
+        _visit("人民公园", 10, minutes=90, pinned=True),
+    ]
+    plan = _plan([_arrival_leg(), panda], day2)
+    notes = _reconcile_transfer_days(
+        plan,
+        tier_by_name=dict(_TIERS),
+        protect=frozenset({"成都大熊猫繁育研究基地"}),
+    )
+    names_d1 = {i.name for i in plan.days[0].items if isinstance(i, VisitItem)}
+    assert "成都大熊猫繁育研究基地" in names_d1  # 原地保留
+    assert panda.day == 1
+    assert any("必去" in n for n in notes)
+    assert not any("已从行程移除" in n for n in notes)
+
+
+# ---- 零弹座跨日探针（2026-11-08 西安永兴坊案）：弹座只腾本日容量，
+# 对别日宿主毫无贡献——同城他日本就收得下时先直接挪日零牺牲，
+# 不再出现「含光门为永兴坊让位、永兴坊却落他日」的两头空。----
+
+
+def test_yield_zero_eject_crossday_no_sacrifice():
+    """名点本日满员排不下，同城空日本就收得下 → 直接挪日，当日
+    低档点（旧口径的牺牲品）原地不动，零让位披露。"""
+    tiers = {"永兴坊名点": 3, "低档杂点": 11}
+    stray = _visit("永兴坊名点", 3, minutes=90)
+    stray.day = 1
+    day1 = [
+        _timed(_visit("低档杂点", 11, minutes=90), 9),
+        _timed(_visit("宽窄巷子", 8, minutes=90, pinned=True), 13, 30),
+        _timed(_visit("武侯祠", 9, minutes=90, pinned=True), 15),
+        _timed(_visit("人民公园", 11, minutes=90, pinned=True), 16, 30),
+        stray,
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=[])
+    plan = ItineraryPlan(itinerary_id="it-zy", cities=["成都"], days=[d1, d2])
+    notes = _rehome_untimed_visits(plan, frozenset(), tiers)
+    d1_names = {i.name for i in d1.items if isinstance(i, VisitItem)}
+    assert stray.day == 2
+    assert any(i.name == "永兴坊名点" for i in d2.items)
+    # 牺牲品零损失：原日原地，没被弹出
+    assert "低档杂点" in d1_names
+    assert not any("让位" in n for n in notes)
+    assert any("已挪至第2天" in n for n in notes)
+
+
+def test_yield_no_uncashable_stack_same_day():
+    """叠加兑现审（2026-11-08 永兴坊案两头空）：第一名点先落第2天后，
+    第二名点探针独审「可行」（单点实位过），但克隆真裁决证明同日
+    两笔承诺兑现不了（终排贪心只活其一、含光门牺牲换死座实录）
+    ——必须拒落，第二名留在原日等终闸清算。"""
+    tiers = {"永兴坊名点": 3, "后到名点": 4}
+    stray1 = _visit("永兴坊名点", 3, minutes=90, hours="08:30-12:30")
+    stray1.day = 1
+    stray2 = _visit("后到名点", 4, minutes=90, hours="08:30-12:30")
+    stray2.day = 1
+    day1 = [
+        _timed(_visit("宽窄巷子", 8, minutes=90, pinned=True), 9),
+        _timed(_visit("武侯祠", 9, minutes=90, pinned=True), 11),
+        _timed(_visit("人民公园", 11, minutes=90, pinned=True), 13),
+        _timed(_visit("杜甫草堂", 12, minutes=90, pinned=True), 15),
+        stray1,
+        stray2,
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(
+        day=2,
+        base_city="成都",
+        items=[_timed(_visit("锁位锚点", 7, minutes=90, pinned=True), 9)],
+    )
+    plan = ItineraryPlan(itinerary_id="it-nodbl", cities=["成都"], days=[d1, d2])
+    _rehome_untimed_visits(plan, frozenset(), tiers)
+    d2_names = [i.name for i in d2.items if isinstance(i, VisitItem)]
+    # 第一名独占可兑现窗；第二名被叠加兑现审拒落，留在原日
+    assert "永兴坊名点" in d2_names
+    assert "后到名点" not in d2_names
+    assert any(i.name == "后到名点" for i in d1.items)
+
+
+# ---- 点名必排（2026-11-13 用户拍板「插入的景点排不上就删其它景点」）：
+#  钉住点名件（pinned）无时刻走 _finalize_untimed_visits 验证制救生链——
+#  克隆试宿 + _must_visit_room_sweep 按「删其它（非钉）景点腾位」+ 真解裁决：
+#  采纳才生效（全有全无），删光都排不下回滚留灰卡披露。转场日路径见
+#  test_transfer_day_must_force_ejects_from_later_day（force 弹座直调）。----
+
+_MUST_TIERS = {
+    "用户点名馆": 11,
+    "弱杂点甲": 11,
+    "弱杂点乙": 11,
+    "次弱点": 10,
+    "中档点": 9,
+}
+
+
+def _timed_full(v, hh=9, mm=0):
+    v.start_time = time(hh, mm)
+    end = hh * 60 + mm + (v.duration_minutes or 90)
+    v.end_time = time(end // 60, end % 60)
+    return v
+
+
+def _greedy_solve(max_minutes: int):
+    """假 _solve：无时刻参访按最早空档贪心落时刻，超过 max_minutes 的
+    条目永远排不上（模拟物理装不下）；不校营业窗（夹具自行用钉死条目
+    堵住禁窗）。"""
+
+    def _solve(plan, meal_flex=True, **kw):
+        for day in plan.days:
+            busy = []
+            for v in day.items:
+                if (
+                    isinstance(v, VisitItem)
+                    and v.start_time is not None
+                    and v.end_time is not None
+                ):
+                    busy.append(
+                        (
+                            v.start_time.hour * 60 + v.start_time.minute,
+                            v.end_time.hour * 60 + v.end_time.minute,
+                        )
+                    )
+            for v in day.items:
+                if not (
+                    isinstance(v, VisitItem)
+                    and v.start_time is None
+                    and (v.category or "") not in ("food", "hotel")
+                ):
+                    continue
+                dur = v.duration_minutes or 90
+                if dur > max_minutes:
+                    continue
+                s = 9 * 60
+                while s + dur <= 21 * 60 + 30:
+                    clash = next((b for b in busy if b[0] < s + dur and s < b[1]), None)
+                    if clash is None:
+                        v.start_time = time(s // 60, s % 60)
+                        v.end_time = time((s + dur) // 60, (s + dur) % 60)
+                        busy.append((s, s + dur))
+                        break
+                    s = clash[1]
+        return plan
+
+    return _solve
+
+
+def test_must_regular_day_ejects_others_into_verified_rescue():
+    """普通日无时刻点名件（180min、营业窗 08:30-17:00）：第1天被钉死
+    条目压满（无可弹），第2天非钉件满员——救生链克隆试宿按「排不上删
+    其它（非钉）腾位」挤掉最迟档两件、真解裁决采纳；高档幸存者与钉件
+    不动，被挤者留痕可指定其他天加回；第1天失败试宿原样不动（全有全无）。"""
+    must = _visit("用户点名馆", 11, minutes=180, hours="08:30-17:00", pinned=True)
+    day1 = [
+        must,
+        _timed_full(_visit("钉死点甲", 5, minutes=90, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点乙", 5, minutes=120, pinned=True), 11, 30),
+        _timed_full(_visit("钉死点丙", 5, minutes=180, pinned=True), 14, 0),
+        _timed_full(_visit("钉死点丁", 5, minutes=240, pinned=True), 17, 0),
+    ]
+    day2 = [
+        _timed_full(_visit("弱杂点乙", 11, minutes=90), 9, 0),
+        _timed_full(_visit("弱杂点甲", 11, minutes=90), 11, 0),
+        _timed_full(_visit("次弱点", 10, minutes=90), 13, 0),
+        _timed_full(_visit("中档点", 9, minutes=90), 15, 0),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it-must1", cities=["成都"], days=[d1, d2])
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(600)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
+    must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
+    assert must_out.day == 2 and must_out.start_time is not None, "删弱腾位后必须落档"
+    assert must_out.pinned, "采纳后按落档时刻回钉"
+    assert any("救生改排" in str(a) for a in out.assumptions)
+    d2_names = {i.name for i in out.days[1].items}
+    # 连续腾位：单挤一件只有 120min 整档 < 180，最迟档两件都被挤
+    assert "次弱点" not in d2_names
+    assert "中档点" not in d2_names
+    assert "弱杂点甲" in d2_names and "弱杂点乙" in d2_names  # 档高者不动
+    d1_names = {i.name for i in out.days[0].items}
+    for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁"):
+        assert n in d1_names, "第1天失败试宿原样归还"
+    unplaced_names = {u.name for u in out.unplaced}
+    assert "次弱点" in unplaced_names and "中档点" in unplaced_names
+    assert any("让位" in str(a) for a in out.assumptions)
+
+
+def test_must_all_pinned_floor_rolls_back_with_disclosure():
+    """地板：全城皆钉（弹座池空）+ 假解对 300min 恒排不上——删无可删，
+    点名件回滚原天留灰卡，绝不删钉件凑数（删光都排不下才落披露）。"""
+    must = _visit("用户点名馆", 11, minutes=300, hours="08:30-17:00", pinned=True)
+    day1 = [
+        must,
+        _timed_full(_visit("钉死点甲", 5, minutes=120, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点乙", 5, minutes=120, pinned=True), 11, 30),
+        _timed_full(_visit("钉死点丙", 5, minutes=150, pinned=True), 14, 0),
+    ]
+    day2 = [
+        _timed_full(_visit("钉死点丁", 5, minutes=120, pinned=True), 9, 0),
+        _timed_full(_visit("钉死点戊", 5, minutes=120, pinned=True), 13, 0),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    for v in day2:
+        v.day = 2
+    plan = ItineraryPlan(itinerary_id="it-must2", cities=["成都"], days=[d1, d2])
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._solve = _greedy_solve(240)  # type: ignore[method-assign]
+    out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
+    must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
+    assert must_out.day == 1 and must_out.start_time is None, "不可行即回滚留灰卡"
+    assert not any("救生改排" in str(a) for a in out.assumptions)
+    names = _visit_names(out)
+    for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁", "钉死点戊"):
+        assert n in names, "删无可删时谁都不删"
+    assert not out.unplaced
+
+
+def test_transfer_day_must_force_ejects_from_later_day():
+    """转场日（到达腿）无时刻点名件：force 弹座挪入同城满员次日——
+    此前 tier11 点名件被档闸挡在弹座外只能滞留披露（rule 4 死局）。"""
+    must = _visit("用户点名馆", 11, minutes=180, hours="08:30-17:00")
+    must.day = 1
+    day1 = [_arrival_leg(), must]
+    day2 = [
+        _timed(_visit("弱杂点乙", 11, minutes=90), 9),
+        _timed(_visit("弱杂点甲", 11, minutes=90), 11),
+        _timed(_visit("次弱点", 10, minutes=90), 13),
+        _timed(_visit("中档点", 9, minutes=90), 15),
+    ]
+    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d2 = DayPlan(day=2, base_city="成都", items=day2)
+    plan = ItineraryPlan(itinerary_id="it-must3", cities=["成都"], days=[d1, d2])
+    notes = _transfer_day_sweep(plan, frozenset({"用户点名馆"}), dict(_MUST_TIERS))
+    d2_names = {i.name for i in d2.items}
+    assert "用户点名馆" in d2_names
+    assert must.day == 2
+    assert "弱杂点乙" not in d2_names  # 最弱档被弹（改排/移除留痕）
+    assert any("让位" in n for n in notes)
+    assert any("已改排第" in n or "无处可排" in n for n in notes)
+
+
+# ---- 地理排族择日（2026-11-13「插入的景点按地理排族」）：同城多天不轮转
+#  撒布，插入件落进离它最近的簇所在天。----
+
+
+def test_geo_cluster_day_picks_nearest_cluster_day():
+    d1 = DayPlan(day=1, base_city="成都", items=[_visit("点A", 11, loc=_CD)])
+    d2 = DayPlan(day=2, base_city="成都", items=[_visit("点B", 11, loc=_DJY)])
+    assert _geo_cluster_day([d1, d2], _DJY, fallback=1) == 2
+    assert _geo_cluster_day([d1, d2], _CD, fallback=2) == 1
+    # 无坐标 / 空池 → 调用方轮转 fallback
+    assert _geo_cluster_day([d1, d2], None, fallback=1) == 1
+    assert _geo_cluster_day([], _CD, fallback=3) == 3
+    # 全城无已布点 → fallback
+    d3 = DayPlan(day=3, base_city="成都", items=[])
+    assert _geo_cluster_day([d3], _CD, fallback=3) == 3
+
+
+# ---- 点名餐厅地理族择日（2026-11-13 用户扩面拍板：参考点全类型含餐/
+#  酒店；醉长安案回归锚——餐数最少的远郊日不再是默认归属）----
+
+
+def test_named_restaurant_picks_nearest_cluster_day_over_fewest_meals():
+    from types import SimpleNamespace
+
+    _ZHONGLOU = GeoPoint(lon=108.94, lat=34.26)  # 西安钟鼓楼
+    _DAYANGTA = GeoPoint(lon=108.96, lat=34.22)  # 大雁塔（~5km）
+    _CHENGQIANG = GeoPoint(lon=108.95, lat=34.25)  # 城墙（~2km）
+    _BINGMAYONG = GeoPoint(lon=109.28, lat=34.38)  # 兵马俑（~35km）
+
+    def _auto_food(iid, loc):
+        f = _visit(iid, 11, loc=loc)
+        f.category = "food"
+        return f
+
+    days = [
+        DayPlan(
+            day=1,
+            base_city="西安",
+            items=[
+                _visit("大雁塔", 11, loc=_DAYANGTA),
+                _auto_food("food-d1", _DAYANGTA),
+            ],
+        ),
+        DayPlan(
+            day=2,
+            base_city="西安",
+            items=[
+                _visit("钟楼", 11, loc=_ZHONGLOU),
+                _visit("鼓楼", 11, loc=_ZHONGLOU),
+                # Day2 已有自动餐 → 「餐数最少」口径会把点名餐厅均衡去远郊日
+                _auto_food("food-d2", _ZHONGLOU),
+            ],
+        ),
+        DayPlan(
+            day=3,
+            base_city="西安",
+            items=[_visit("城墙", 11, loc=_CHENGQIANG)],
+        ),
+        DayPlan(day=4, base_city="西安", items=[_visit("兵马俑", 1, loc=_BINGMAYONG)]),
+    ]
+    for d in days:
+        for i in d.items:
+            i.day = d.day
+    agent = PlanningAgent.__new__(PlanningAgent)
+    session = SimpleNamespace(plan=SimpleNamespace(days=days))
+    # 先验 fallback（无坐标 → 餐数最少日；Day3/4 同 0 餐取天数小者）——
+    # 放前面：点名件入选会让位掉当天自动餐，先测免互相污染。
+    blind = agent._food_visit(
+        session,
+        name="无名馆",
+        city="西安",
+        location=None,
+        poi_id=None,
+        item_id="must-blind",
+    )
+    assert blind.day == 3
+    food = agent._food_visit(
+        session,
+        name="醉长安",
+        city="西安",
+        location=_ZHONGLOU,
+        poi_id="poi-zui",
+        item_id="must-zuichangan",
+    )
+    assert food.day == 2, "点名餐厅应落最近地理簇日（钟鼓楼），非餐数最少的远郊日"
