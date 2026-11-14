@@ -121,13 +121,22 @@ def test_summarize_prefers_the_ride_that_covers_the_distance():
         _plan(
             9600,
             _ride_seg(
-                _ride("地铁2号线外环", kind="railway", duration_s=2400,
-                      departure_stop="前门站", arrival_stop="东直门站")
+                _ride(
+                    "地铁2号线外环",
+                    kind="railway",
+                    duration_s=2400,
+                    departure_stop="前门站",
+                    arrival_stop="东直门站",
+                )
             ),
             _walk_seg(200, 180),
             _ride_seg(
-                _ride("980路快车", duration_s=7200,
-                      departure_stop="东直门站", arrival_stop="密云站")
+                _ride(
+                    "980路快车",
+                    duration_s=7200,
+                    departure_stop="东直门站",
+                    arrival_stop="密云站",
+                )
             ),
         )
     ]
@@ -144,9 +153,14 @@ def test_summarize_marks_once_a_day_departure():
         _plan(
             3600,
             _ride_seg(
-                _ride("密51路区间", duration_s=3300,
-                      departure_stop="密云站", arrival_stop="沙岭七队站",
-                      departure_time="11:00", last_time="11:00")
+                _ride(
+                    "密51路区间",
+                    duration_s=3300,
+                    departure_stop="密云站",
+                    arrival_stop="沙岭七队站",
+                    departure_time="11:00",
+                    last_time="11:00",
+                )
             ),
         )
     ]
@@ -179,12 +193,14 @@ def test_summarize_returns_none_without_usable_plan():
 
 def test_note_is_clamped_for_long_chains():
     rides = [
-        _ride(f"线路{i}", departure_stop=f"站{i}", arrival_stop=f"站{i + 1}",
-              duration_s=600)
+        _ride(
+            f"线路{i}",
+            departure_stop=f"站{i}",
+            arrival_stop=f"站{i + 1}",
+            duration_s=600,
+        )
         for i in range(6)
     ]
-    zh, en = build_note(
-        rides, total_minutes=200, walk_minutes=12, gateway="终点站"
-    )
+    zh, en = build_note(rides, total_minutes=200, walk_minutes=12, gateway="终点站")
     assert len(zh) <= 300 and len(en) <= 300
     assert "…" in zh
