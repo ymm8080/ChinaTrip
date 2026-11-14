@@ -58,7 +58,13 @@ def test_lunch_card_follows_same_venue_host_end(city: str, host_name: str):
     loc = GeoPoint(lon=116.4, lat=39.9)
     host = _item("v1", host_name, "attraction", city, time(9, 0), 180, loc=loc)
     resto = _item(
-        "food-d1-lunch-1", "同址餐厅", "food", city, time(16, 15), 30, loc=loc,
+        "food-d1-lunch-1",
+        "同址餐厅",
+        "food",
+        city,
+        time(16, 15),
+        30,
+        loc=loc,
         soft_pin=True,
     )
     plan = _plan([host, resto], city)
@@ -70,8 +76,14 @@ def test_lunch_card_follows_same_venue_host_end(city: str, host_name: str):
 def test_system_dinner_id_stays_dinner_when_drifted_to_noon():
     """成都 day3 的 food-d3-dinner-1 被漂到 12:00，仍归晚卡、落 17:30。"""
     resto = _item(
-        "food-d3-dinner-1", "某晚宴", "food", "成都", time(12, 0), 60,
-        day=3, soft_pin=True,
+        "food-d3-dinner-1",
+        "某晚宴",
+        "food",
+        "成都",
+        time(12, 0),
+        60,
+        day=3,
+        soft_pin=True,
     )
     plan = _plan([resto], "成都", day=3)
     _bind_real_food_to_cards(plan)
@@ -91,8 +103,14 @@ def test_one_card_one_restaurant_prefers_user_card():
     """同一天两张午卡餐厅：用户卡保留，系统自动补餐撤除。"""
     user = _item("v9", "用户午市", "food", "上海", time(12, 0), 90)
     auto = _item(
-        "food-d2-lunch-1", "系统午市", "food", "上海", time(16, 15), 30,
-        day=2, soft_pin=True,
+        "food-d2-lunch-1",
+        "系统午市",
+        "food",
+        "上海",
+        time(16, 15),
+        30,
+        day=2,
+        soft_pin=True,
     )
     plan = _plan([user, auto], "上海", day=2)
     notes = _bind_real_food_to_cards(plan)
@@ -103,7 +121,12 @@ def test_one_card_one_restaurant_prefers_user_card():
 def test_lunch_without_location_falls_back_to_noon():
     """无坐标可贴 → 回正窗 12:00，仍在 [11:30,12:30] 内。"""
     resto = _item(
-        "food-d1-lunch-1", "无坐标餐厅", "food", "上海", time(16, 15), 30,
+        "food-d1-lunch-1",
+        "无坐标餐厅",
+        "food",
+        "上海",
+        time(16, 15),
+        30,
         soft_pin=True,
     )
     plan = _plan([resto], "上海")

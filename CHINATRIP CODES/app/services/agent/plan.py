@@ -11052,7 +11052,8 @@ def _meal_chain_yieldable(other: object) -> bool:
         and not is_hotel_morning(other)
         and not is_lunch_placeholder(other)
         and not is_dinner_placeholder(other)
-        and str(other.category or "") not in (
+        and str(other.category or "")
+        not in (
             "food",
             "hotel",
             "entertainment",
@@ -11133,9 +11134,7 @@ def _nested_block_food(day: DayPlan, item: VisitItem) -> bool:
     return False
 
 
-def _same_venue_times(
-    day: DayPlan, item: VisitItem, lo: int, hi: int
-) -> list[int]:
+def _same_venue_times(day: DayPlan, item: VisitItem, lo: int, hi: int) -> list[int]:
     """餐厅同址（≤SAME_VENUE_KM）景点的起/止时刻，筛在卡窗内的那些。
 
     午卡开席不是写死 12:00/12:30：同址餐厅贴同址景点的 12:30 开场就
@@ -11198,8 +11197,7 @@ def _place_meal_card(
                 if not _fits_hours_window(hours, t, dur):
                     continue
                 blocked = any(
-                    t < fe and t + dur > fs
-                    for fs, fe in _real_food_blockers(day, item)
+                    t < fe and t + dur > fs for fs, fe in _real_food_blockers(day, item)
                 )
                 if not blocked:
                     return t, dur
@@ -11293,9 +11291,7 @@ def _bind_real_food_to_cards(plan: ItineraryPlan) -> list[str]:
                     f"{item.end_time.strftime('%H:%M')}",
                 )
             )
-        day.items.sort(
-            key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
-        )
+        day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
     return notes
 
 
