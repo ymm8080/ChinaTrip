@@ -266,6 +266,7 @@ def test_fit_merges_duplicate_site_cards():
     assert names == ["颐和园"]
     assert any("重复卡" in str(n) for n in notes)
 
+
 def test_fit_keeps_rain_outdoor_when_no_dry_day():
     """雨日换不到干日：保留原时刻只披露，绝不下成未排。"""
     item = _visit("v1", "天安门广场", start=time(9, 0), rain_ok="no")
