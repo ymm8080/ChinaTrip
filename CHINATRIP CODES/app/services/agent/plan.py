@@ -260,6 +260,13 @@ _DAY_MIX_KM = 25.0
 # =远郊，反之亦然——11-13 西安案 180min 大点距城心 6km 但距酒店 11km
 # 被用户点名为违规）。缺锚/缺坐标=不可核即不拦（11-08 同口径）。
 _EP_LIGHT_KM = 8.0
+# 放松类（2026-11-14 用户「空到达日可以补城市漫步/看秀/按摩卡/餐卡」）：
+# 库里没有独立「按摩」类目（汤泉/汗蒸/水疗/足疗/SPA 散在 other/
+# entertainment/attraction/theme_park），只能按名字语素认。到达日只收
+# ≤120 分钟的轻件——180 分钟级汤泉全天块仍按重磅出端点日。
+_RELAX_NAME_MARKS = (
+    "按摩", "足疗", "足道", "水疗", "沐足", "汤泉", "汗蒸", "SPA", "spa"
+)
 # 返程日参访件上限（2026-11-05 重庆案「飞机五点的为什么没安排」）：
 # 离城上午闸（solver `_leaving_morning_cap`，11-03 拍板「离城日默认上
 # 午排点」）把返程日条目收尾压在 min(12:00, 发车−90)；选点时发车时刻
@@ -683,12 +690,40 @@ def _arrival_simple_visit(v: "VisitItem") -> bool:
     return _street_like_visit(v)
 
 
+_EP_SIGHT_MAX_MIN = 120
+
+
+def _arrival_sight_visit(v: "VisitItem") -> bool:
+    """到达日「轻量真实景点」判据（2026-11-14 用户拍板「这些城市漫步需要
+    找到景点：餐卡和按摩卡先找附近 5 公里内评价高的点，找不到就找 8 公里
+    内」）：景点/街区/古迹类、非重磅王牌（tier>3）、时长 ≤120 分钟=到达日
+    合法内容（距离闸另由 _stay_out 管 ≤_EP_LIGHT_KM）。
+
+    2026-11-14 用户「为什么要把（钟楼/小雁塔这类）卡清扫挪走？」：判据只
+    看「近处 + 短时」——≤120 分钟的景点/街区即可陪端点日，不再按 tier≤3
+    一票否决（市中心 4A 钟楼 90 分钟、小雁塔 120 分钟本来就该留在到达/
+    离城日）。真正该出端点日的是 >120 分钟的大块头（兵马俑 240、陕历博
+    240、城墙·碑林 180）与远郊（距离闸 _stay_out ≤_EP_LIGHT_KM 另管）。
+    """
+    if str(getattr(v, "category", "") or "").strip().lower() not in (
+        _ARRIVAL_SIGHT_CATS
+    ):
+        return False
+    if (getattr(v, "tier", None) or 11) <= 2:
+        # 5A 王牌（兵马俑/陕历博级）永远不进端点日（11-13 拍板保留）。
+        return False
+    dur = getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES
+    return 0 < dur <= _EP_SIGHT_MAX_MIN
 def _arrival_heavy_visit(v: "VisitItem") -> bool:
     """到达日重磅卡（终装清扫①出到达日判据，_arrival_simple_visit 的
     补集收窄版）：tier≤3 王牌、主题街区演出块、>80min 大块头（非简卡
     口径）——小型非街区轻点（≤80min 博物馆/寺观等）不算重磅（到达日
     收轻内容 2026-11-05 拍板），餐酒娱演出另列不受理。"""
     if _arrival_simple_visit(v):
+        return False
+    if _arrival_sight_visit(v):
+        # 轻量真实景点（≤120 分钟、非王牌）不算重磅（2026-11-14 拍板：
+        # 到达日的城市漫步要落在真景点上，不能被 80 分钟通用阈值判重）。
         return False
     if (getattr(v, "tier", None) or 11) <= 3:
         return True
@@ -715,10 +750,16 @@ def _endpoint_content_visit(v: "VisitItem") -> bool:
         return True
     if str(getattr(v, "category", "") or "").strip().lower() == "tea_experience":
         return True
+    if _arrival_sight_visit(v):
+        return True
     if str(getattr(v, "item_id", "") or "").startswith("citywalk-ph-d"):
         # 到达日「城市漫步（自由安排）」占位卡（2026-11-13 六拍）：重跑
         # 清扫时按合法端点内容认，不再补第二张。
         return True
+    # 按摩/汤泉/汗蒸类放松件（2026-11-14 用户「或者 SHOW，或者按摩卡」）：
+    # 轻件（≤120 分钟）算合法端点内容；180 分钟级汤泉仍由重磅闸出。
+    if _is_relax_item(v):
+        return (getattr(v, "duration_minutes", None) or DEFAULT_VISIT_MINUTES) <= 120
     return _is_show_item(v)
 
 
@@ -1299,6 +1340,15 @@ def _cand_endpoint_content(cand: dict) -> bool:
     茶/演出单列），保证选点落位与终装闸同口径。"""
     if _cand_is_show(cand):
         return True
+    # 放松类（按摩/汤泉/汗蒸，2026-11-14 「或者按摩卡」）：轻件（≤120 分钟）
+    # 与街区/演出同权进端点日；180 分钟级汤泉照旧出局。
+    if any(m in str(cand.get("name") or "") for m in _RELAX_NAME_MARKS):
+        minutes0 = cand.get("suggested_duration_min") or cand.get("duration_minutes")
+        try:
+            if int(minutes0 or 0) <= 120 and _source_tier(cand) > 3:
+                return True
+        except (TypeError, ValueError):
+            pass
     cat = str(cand.get("category") or "").strip().lower()
     if cat == "tea_experience":
         return True
@@ -8300,121 +8350,280 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
             plan.assumptions.extend(_drop_untimed_visits(plan, protect))
 
 
-def heal_arrival_light(plan: ItineraryPlan) -> None:
-    """出站自愈（2026-11-13 六拍）：旧行程的空到达日补「城市漫步（自由
-    安排）」，缺餐卡的日子按 _ensure_meal_cards 补——用户刷新/打开行程即修，
-    不必重新规划。
+_ARRIVAL_SIGHT_CATS = (
+    "citywalk",
+    "historic",
+    "ancient_town",
+    "park",
+    "viewpoint",
+    "art",
+    "gallery",
+    "attraction",
+    "museum",
+)
 
-    空到达日的旧行程常已经挂着一张「回酒店·夜间休息」卡（空日直接落到
-    入住后），它会把这天判成「已排满」。这里按建单时序重放一遍：先摘夜卡
-    →补漫步（落地后到 21:30 之间 ≥90 分钟空窗）→补餐卡→夜卡挂到末尾
-    （+30 分钟）。只碰「整天没有任何参访件」的到达日，重跑幂等。
+
+def _nearby_poi_rows(
+    city: str, lon: float, lat: float, radius_m: int = 8000, limit: int = 120
+) -> list[dict]:
+    """同城半径内的 POI 行（2026-11-14「先找 5 公里内评价高的点，找不到就
+    找 8 公里内」）：PostGIS 圈选 + 评分排序，返回 _candidate_from_row 同形
+    dict（含 _tier）。DB 不可用/异常返回 []（调用方退到餐卡占位，不硬造）。
     """
-    groups: dict[str, list[DayPlan]] = {}
-    for d0 in plan.days:
-        keys = {str(d0.base_city or "").removesuffix("市")}
-        for i0 in d0.items:
-            if isinstance(i0, VisitItem):
-                if str(getattr(i0, "category", "") or "") not in ("food", "hotel"):
-                    keys.add(str(getattr(i0, "city", "") or "").removesuffix("市"))
-            elif isinstance(i0, TransferItem):
-                keys.add(str(getattr(i0, "to_city", "") or "").removesuffix("市"))
-        for c0 in keys:
-            if c0:
-                groups.setdefault(c0, []).append(d0)
+    c = (city or "").strip().removesuffix("市")
+    if not c or lon is None or lat is None:
+        return []
+    try:
+        from geoalchemy2 import Geography
+        from sqlalchemy import func
 
-    single_city = len({str(c).removesuffix("市") for c in (plan.cities or [])}) <= 1
-    touched = False
-    pending_nights: list[tuple[DayPlan, VisitItem]] = []
-    for vcity, days in groups.items():
-        for d0 in days:
-            if not _day_is_arrival(d0, vcity):
-                continue
-            if any(
-                isinstance(i0, VisitItem)
-                and str(getattr(i0, "category", "") or "") not in ("food", "hotel")
-                for i0 in d0.items
-            ):
-                continue
-            has_arr_leg = any(
-                isinstance(t0, TransferItem)
-                and str(t0.to_city or "").strip().removesuffix("市") == vcity
-                for t0 in d0.items
+        from app.db import get_session_factory
+        from app.models import Poi
+        from app.services.poi_details import _candidate_from_row
+    except Exception:  # pragma: no cover
+        return []
+    out: list[dict] = []
+    try:
+        factory = get_session_factory()
+        with factory() as session:
+            q = (
+                session.query(Poi, func.ST_AsText(Poi.location).label("loc_txt"))
+                .filter(
+                    Poi.city.in_({c, f"{c}市"}),
+                    (Poi.status.is_(None)) | (Poi.status == "active"),
+                    Poi.location.isnot(None),
+                    func.ST_DWithin(
+                        func.cast(Poi.location, Geography),
+                        func.cast(
+                            func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326),
+                            Geography,
+                        ),
+                        float(radius_m),
+                    ),
+                )
+                .order_by(
+                    Poi.rating.desc().nullslast(),
+                    Poi.rating_count.desc().nullslast(),
+                )
+                .limit(limit)
             )
-            if not (has_arr_leg or (single_city and d0.day == 1)):
+            out = [_candidate_from_row(r, t) for r, t in q.all()]
+    except Exception:
+        logger.warning(
+            "plan: nearby poi query failed city=%s lon=%s lat=%s",
+            city,
+            lon,
+            lat,
+            exc_info=True,
+        )
+        return []
+    try:
+        from app.services.poi_details import apply_tier_tag
+
+        heritage = []
+        for h in out:
+            h["_tier"] = apply_tier_tag(h, heritage)
+    except Exception:  # pragma: no cover
+        pass
+    return out
+
+
+def _pick_arrival_nearby(
+    cands: list[dict],
+    anchor_xy: tuple[float, float] | None,
+    *,
+    exclude: set[str],
+    radii_km: tuple[float, ...] = (5.0, 8.0),
+) -> dict | None:
+    """空到达日补位挑选器（2026-11-14 用户拍板「城市漫步要找到景点；餐卡和
+    按摩卡先找附近 5 公里内评价高的点，找不到就找 8 公里内」）。
+
+    分级：景点 → 演出 → 按摩/汤泉 → 餐厅；每级先 5 公里圈，圈内按评价
+    （rating，其次 rating_count，再次距离近）挑最优；空则退 8 公里圈同口径。
+    候选须 ≤120 分钟且不在行程里（exclude 按名字）；缺锚=不挑（不可核不硬塞）。
+    """
+    if anchor_xy is None:
+        return None
+    ax, ay = anchor_xy
+
+    def _xy(c: dict) -> tuple[float, float] | None:
+        # 库查出来的 location 是 (lon, lat) 元组，图商候选是 {"lon","lat"}
+        # 字典——两种都要认（2026-11-14 实测：只认字典导致整池被判无坐标）。
+        loc = c.get("location")
+        if isinstance(loc, dict) and loc.get("lon") is not None:
+            try:
+                return (float(loc["lon"]), float(loc["lat"]))
+            except (TypeError, ValueError):
+                return None
+        if isinstance(loc, (tuple, list)) and len(loc) >= 2:
+            try:
+                return (float(loc[0]), float(loc[1]))
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _km(c: dict) -> float | None:
+        xy = _xy(c)
+        if xy is None:
+            return None
+        return _xy_km((ax, ay), xy)
+
+    def _mins(c: dict) -> int:
+        try:
+            raw = c.get("suggested_duration_min") or c.get("duration_minutes") or 0
+            return int(raw)
+        except (TypeError, ValueError):
+            return 0
+
+    def _rating(c: dict) -> tuple[float, float]:
+        def _f(v: object) -> float:
+            try:
+                return float(v)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return 0.0
+
+        return (_f(c.get("rating")), _f(c.get("rating_count")))
+
+    def _pick(tier_items: list[dict]) -> dict | None:
+        for radius in radii_km:
+            scored: list[tuple[float, float, float, dict]] = []
+            for c in tier_items:
+                name = str(c.get("name") or "")
+                if not name or name in exclude:
+                    continue
+                if _mins(c) > 120:
+                    continue
+                km = _km(c)
+                if km is None or km > radius:
+                    continue
+                rating, count = _rating(c)
+                scored.append((-rating, -count, km, c))
+            if scored:
+                scored.sort(key=lambda t: (t[0], t[1], t[2]))
+                return scored[0][3]
+        return None
+
+    sight = [
+        c
+        for c in cands
+        if str(c.get("category") or "").lower() in _ARRIVAL_SIGHT_CATS
+        or any(m in str(c.get("name") or "") for m in _STREET_NAME_MARKS)
+    ]
+    show = [c for c in cands if _cand_is_show(c)]
+    relax = [
+        c
+        for c in cands
+        if any(m in str(c.get("name") or "") for m in _RELAX_NAME_MARKS)
+    ]
+    food = [c for c in cands if str(c.get("category") or "").lower() == "food"]
+    tiers = (sight, show, relax, food)
+    for tier_items in tiers:
+        hit = _pick(tier_items)
+        if hit is not None:
+            return hit
+    return None
+
+
+def _recruit_arrival_light(
+    plan: ItineraryPlan, day: DayPlan, vcity: str
+) -> VisitItem | None:
+    """空到达日优先从「想去」池召回轻内容（2026-11-14 用户「城市漫步（自由
+    安排）或者 SHOW，或者按摩卡，或者餐卡」）：街区/演出/茶/按摩 ≤120 分钟
+    且距酒店（无则城心锚）≤_EP_LIGHT_KM 的候选直接落位，落不下才退到
+    「自由漫步」占位。返回落位条目（时刻由调用方统一重排）；无合适候选
+    返回 None（不消耗 plan.unplaced）。
+    """
+    hotel = _head_hotel_anchor(day, plan)
+    med = _urban_medoid(
+        [
+            (float(i.location.lon), float(i.location.lat))
+            for d0 in plan.days
+            for i in d0.items
+            if isinstance(i, VisitItem)
+            and str(getattr(i, "city", "") or "").removesuffix("市") == vcity
+            and getattr(i, "location", None) is not None
+            and getattr(i.location, "lon", None) is not None
+        ]
+    )
+    for k, u in enumerate(list(plan.unplaced)):
+        if str(getattr(u, "city", "") or "").removesuffix("市") != vcity:
+            continue
+        if (u.duration_minutes or DEFAULT_VISIT_MINUTES) > 120:
+            continue
+        cat = str(getattr(u, "category", "") or "").lower()
+        name = str(getattr(u, "name", "") or "")
+        relax = any(m in name for m in _RELAX_NAME_MARKS)
+        if not (
+            cat in ("citywalk", "entertainment", "tea_experience")
+            or relax
+            or _is_show_item(
+                VisitItem(item_id="probe", name=name, city=vcity, day=day.day)
+            )
+        ):
+            continue
+        loc = getattr(u, "location", None)
+        if loc is None or getattr(loc, "lon", None) is None:
+            continue
+        if hotel is not None and getattr(hotel, "location", None) is not None:
+            if _head_dist_km(hotel, u) > _EP_LIGHT_KM:
                 continue
-            if any(
-                str(getattr(i0, "item_id", "") or "").startswith("citywalk-ph-d")
-                for i0 in d0.items
+        elif med is not None:
+            if (
+                haversine_km(
+                    GeoPoint(lon=float(loc.lon), lat=float(loc.lat)),
+                    GeoPoint(lon=med[0], lat=med[1]),
+                )
+                > _EP_LIGHT_KM
             ):
                 continue
-            # 摘夜卡（空日的夜卡落到入住后，会把窗口判死）
-            nights = [i0 for i0 in list(d0.items) if is_hotel_night(i0)]
-            for n0 in nights:
-                d0.items.remove(n0)
-            _fx, _tg, _fl, _xf = _day_fixed_windows(d0)
-            _ends = [e for _s, e, _src in _fx]
-            _last = max(_ends) if _ends else None
-            _start = _last + 30 if _last is not None else None
-            if _start is not None and _start + 90 <= 21 * 60 + 30:
-                _end = _start + 90
-                _hotel = _head_hotel_anchor(d0, plan)
-                d0.items.append(
-                    VisitItem(
-                        item_id=f"citywalk-ph-d{d0.day}",
-                        name=L("城市漫步（自由安排）", "City walk (free time)"),
-                        city=vcity,
-                        day=d0.day,
-                        duration_minutes=_end - _start,
-                        location=(_hotel.location if _hotel is not None else None),
-                        category="citywalk",
-                        start_time=_time_of(_start),
-                        end_time=_time_of(_end),
-                        soft_pin=True,
-                    )
-                )
-                logger.info(
-                    "plan: heal arrival day %s with free city walk %s-%s",
-                    d0.day,
-                    _time_of(_start),
-                    _time_of(_end),
-                )
-                plan.assumptions.append(
-                    L(
-                        f"第{d0.day}天为到达日，落地后有空档，已排一段酒店周边"
-                        f"自由漫步（{_time_of(_start).strftime('%H:%M')}–"
-                        f"{_time_of(_end).strftime('%H:%M')}），可按需换成具体"
-                        "街区/演出/餐厅",
-                        f"Day {d0.day} is the arrival day; a free walk near the "
-                        f"hotel was added ({_time_of(_start).strftime('%H:%M')}–"
-                        f"{_time_of(_end).strftime('%H:%M')}) — swap it for a "
-                        "specific block, show or restaurant any time",
-                    )
-                )
-                touched = True
-            # 夜卡先摘着，等餐卡补齐后再挂末尾（否则夜卡被当固定窗挡晚餐，
-            # 出现「回酒店 17:30 → 晚饭 18:30」的倒序）
-            for n0 in nights:
-                pending_nights.append((d0, n0))
-    if touched:
-        # 缺餐卡补齐（至少晚餐不豁免）：旧行程刷新即长回晚卡。
-        _ensure_meal_cards(plan)
-    for d0, n0 in pending_nights:
-        dur0 = n0.duration_minutes or 60
-        # 用当天全部已排条目（含餐占位）算末尾——_day_fixed_windows 会跳过
-        # 餐占位，按它算夜卡会与晚餐并排（17:30 回酒店 + 17:30 晚饭实锤）。
-        _ends2 = [
-            _item_end_minutes(i0)
-            for i0 in d0.items
-            if i0 is not n0 and getattr(i0, "start_time", None) is not None
-        ]
-        _ends2 = [e for e in _ends2 if e is not None]
-        _base = max(_ends2) if _ends2 else 20 * 60
-        _st = min(_base + 30, 21 * 60 + 30 - dur0)
-        n0.start_time = _time_of(_st)
-        n0.end_time = _time_of(_st + dur0)
-        d0.items.append(n0)
-        d0.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+        else:
+            continue
+        v = VisitItem(
+            item_id=f"v-rec-d{day.day}-{k}",
+            name=u.name,
+            name_en=getattr(u, "name_en", None),
+            poi_id=getattr(u, "poi_id", None),
+            category=u.category or "citywalk",
+            city=vcity,
+            day=day.day,
+            duration_minutes=u.duration_minutes or DEFAULT_VISIT_MINUTES,
+            location=loc,
+            tier=getattr(u, "tier", None),
+        )
+        tgt = _host_day_for_visit(
+            [day], vcity, v.duration_minutes or DEFAULT_VISIT_MINUTES,
+            visit=v, all_days=plan.days, _rescue=True,
+        )
+        if tgt is None:
+            continue
+        day.items.append(v)
+        plan.unplaced = [x for x in plan.unplaced if x is not u]
+        logger.info(
+            "plan: arrival day %s recruited %s from wishlist pool", day.day, v.name
+        )
+        plan.assumptions.append(
+            L(
+                f"第{day.day}天为到达日，已把「{v.name}」补进当天"
+                "（近酒店、轻量，可按需换成其它街区/演出/按摩）",
+                f'Day {day.day} is the arrival day; "{v.name}" was added '
+                "(near the hotel, light) — swap it for another block, show "
+                "or spa any time",
+            )
+        )
+        return v
+    return None
+
+
+def heal_arrival_light(plan: ItineraryPlan) -> None:
+    """出站自愈（2026-11-13 六拍 / 11-14 二拍）：旧行程的空到达日出站前补
+    餐卡（至少晚餐不豁免），刷新即修不必重规划。
+
+    真实景点/演出/按摩不在这里补：读路径没有 DB 句柄，硬造只会又变成假卡。
+    这些由规划期的 PlanningAgent._fill_arrival_day_nearby 从库里挑 5 公里内
+    的点（用户 2026-11-14「城市漫步要找到景点；餐卡和按摩卡找附近 5 公里
+    内的点」）。
+    """
+    _ensure_meal_cards(plan)
 
 
 def _endpoint_day_light_sweep(
@@ -8978,64 +9187,12 @@ def _endpoint_day_light_sweep(
                 and str(getattr(i, "category", "") or "") not in ("food", "hotel")
                 for i in d.items
             ):
-                # 2026-11-13 六拍（用户「到达日不能整天没有安排：附近的
-                # CITYWALK/演出/餐厅都行」）：留白前先补一段酒店周边自由
-                # 漫步——落地后到夜卡之间还有 ≥90 分钟空窗就插占位卡
-                # （锚=酒店，无酒店则不带坐标；名字带「自由安排」不假装
-                # 是具体景点，用户可自行换成街区/演出）。
-                _fx, _tg, _fl, _xf = _day_fixed_windows(d)
-                # 夜卡（回酒店·夜间休息）是当天尾巴不是约束——重跑清扫时
-                # 它已在册，按它算「最后一个结束」会把漫步窗判死（20:00
-                # 夜卡 → 20:30 起 + 90 分钟越 21:30）。改用它当上限。
-                _night_start = None
-                _ends: list[int] = []
-                for _s, _e, _src in _fx:
-                    if _src is not None and is_hotel_night(_src):
-                        _night_start = (
-                            _s if _night_start is None else min(_night_start, _s)
-                        )
-                        continue
-                    _ends.append(_e)
-                _last = max(_ends) if _ends else None
-                _start = _last + 30 if _last is not None else None
-                _limit = _night_start - 30 if _night_start is not None else 21 * 60 + 30
-                if _start is not None and _start + 90 <= _limit:
-                    _end = _start + 90
-                    _hotel = _head_hotel_anchor(d, plan)
-                    _cw = VisitItem(
-                        item_id=f"citywalk-ph-d{d.day}",
-                        name=L("城市漫步（自由安排）", "City walk (free time)"),
-                        city=vcity,
-                        day=d.day,
-                        duration_minutes=_end - _start,
-                        location=(_hotel.location if _hotel is not None else None),
-                        category="citywalk",
-                        start_time=_time_of(_start),
-                        end_time=_time_of(_end),
-                        soft_pin=True,
-                    )
-                    d.items.append(_cw)
-                    logger.info(
-                        "plan: endpoint-light arrival day %s filled with "
-                        "free city walk %s-%s",
-                        d.day,
-                        _cw.start_time,
-                        _cw.end_time,
-                    )
-                    plan.assumptions.append(
-                        L(
-                            f"第{d.day}天为到达日，落地后有空档，已排一段"
-                            f"酒店周边自由漫步（{_cw.start_time.strftime('%H:%M')}"
-                            f"–{_cw.end_time.strftime('%H:%M')}），可按需换成"
-                            "具体街区/演出/餐厅",
-                            f"Day {d.day} is the arrival day; a free walk "
-                            f"near the hotel was added "
-                            f"({_cw.start_time.strftime('%H:%M')}–"
-                            f"{_cw.end_time.strftime('%H:%M')}) — swap it "
-                            "for a specific block, show or restaurant "
-                            "any time",
-                        )
-                    )
+                if _recruit_arrival_light(plan, d, vcity) is not None:
+                    moved = True
+                    continue
+                # 2026-11-14 用户「城市漫步要找到景点」：不再造假「城市漫步
+                # （自由安排）」占位——真实景点由规划期 _fill_arrival_day_nearby
+                # 从库里挑（5 公里内）；这里只留「本天没排进」的披露。
                 else:
                     logger.info(
                         "plan: endpoint-light empty arrival day %s "
@@ -11728,6 +11885,14 @@ def _is_show_item(item: VisitItem) -> bool:
     """演出条目（与 solver._is_show 同口径：best_visit_time=show 或
     entertainment 类）。"""
     return item.best_visit_time == "show" or item.category == "entertainment"
+def _is_relax_item(item: "VisitItem") -> bool:
+    """放松类件（2026-11-14「或者按摩卡」拍板）：名字带按摩/足疗/水疗/
+    汤泉/汗蒸/SPA 语素且非餐宿——库里这类散在 other/entertainment/
+    attraction/theme_park，category 不可靠，只能按名字认。"""
+    if str(getattr(item, "category", "") or "") in ("food", "hotel"):
+        return False
+    name = str(getattr(item, "name", "") or "")
+    return any(m in name for m in _RELAX_NAME_MARKS)
 
 
 # 宴秀语素唯一定义点已下沉 solver（2026-11-12「声明场次的宴秀按场次落」：
@@ -22317,6 +22482,207 @@ class PlanningAgent:
             transfers.append(transfer)
         return transfers, assumptions
 
+    async def _fill_endpoint_day_nearby(self, plan: ItineraryPlan) -> None:
+        """空端点日（到达日 + 离开日）补真实内容（2026-11-14 用户三拍：
+        「这些城市漫步需要找到景点」「餐卡和按摩卡先找附近 5 公里内评价
+        高的点，找不到就找 8 公里内」「离开日也是这个逻辑吗」——同口径）。
+
+        逐级从同城候选池挑：景点（含博物馆）→ 演出 → 按摩/汤泉 → 餐厅；
+        每级先 5 公里圈按评价（rating，其次 rating_count，再次距离）挑，
+        空则 8 公里圈同口径；5A/4A（tier≤3）大点与 >120 分钟不进（到达日/
+        离开日按 11-13 拍板只收轻量内容，挑了也会被清扫挪走）。
+
+        落位：到达日走 _host_day_for_visit 实位探针（窗口由 fixed 窗算）；
+        离开日必须塞进发车前窗口（_first_free_gap，fixed 窗已含发车 −90），
+        塞不进就不补（宁可留白，不硬塞进在途时段）。餐件找晚卡空档。
+        都挑不到就留空，餐卡层仍会补晚饭占位，绝不静默空日。
+        """
+        if self._poi_details is None:
+            return
+        groups: dict[str, list[DayPlan]] = {}
+        for d0 in plan.days:
+            keys = {str(d0.base_city or "").removesuffix("市")}
+            for i0 in d0.items:
+                if isinstance(i0, VisitItem):
+                    if str(getattr(i0, "category", "") or "") not in ("food", "hotel"):
+                        keys.add(str(getattr(i0, "city", "") or "").removesuffix("市"))
+                elif isinstance(i0, TransferItem):
+                    keys.add(str(getattr(i0, "to_city", "") or "").removesuffix("市"))
+            for c0 in keys:
+                if c0:
+                    groups.setdefault(c0, []).append(d0)
+
+        single_city = len({str(c).removesuffix("市") for c in (plan.cities or [])}) <= 1
+        changed = False
+        pool_cache: dict[str, list[dict]] = {}
+        for vcity, days in groups.items():
+            for day in days:
+                is_arrival = _day_is_arrival(day, vcity)
+                is_departure = _day_is_return_home(day, plan.days) or any(
+                    isinstance(t, TransferItem)
+                    and t.start_time is not None
+                    and str(t.from_city or "").strip().removesuffix("市") == vcity
+                    for t in day.items
+                )
+                if not (is_arrival or is_departure):
+                    continue
+                if any(
+                    isinstance(i, VisitItem)
+                    and str(getattr(i, "category", "") or "") not in ("food", "hotel")
+                    for i in day.items
+                ):
+                    continue
+                if is_arrival:
+                    has_arr = any(
+                        isinstance(t, TransferItem)
+                        and str(t.to_city or "").strip().removesuffix("市") == vcity
+                        for t in day.items
+                    )
+                    if not (has_arr or (single_city and day.day == 1)):
+                        # 首日无落地腿=出发城自己的首日（多城行程的离城边日）
+                        if not is_departure:
+                            continue
+                hotel = _head_hotel_anchor(day, plan)
+                anchor: tuple[float, float] | None = None
+                if hotel is not None and getattr(hotel, "location", None) is not None:
+                    anchor = (float(hotel.location.lon), float(hotel.location.lat))
+                if anchor is None:
+                    anchor = _urban_medoid(
+                        [
+                            (float(i.location.lon), float(i.location.lat))
+                            for d0 in plan.days
+                            for i in d0.items
+                            if isinstance(i, VisitItem)
+                            and str(getattr(i, "city", "") or "").removesuffix("市")
+                            == vcity
+                            and getattr(i, "location", None) is not None
+                            and getattr(i.location, "lon", None) is not None
+                        ]
+                    )
+                if anchor is None:
+                    continue
+                if vcity not in pool_cache:
+                    # 直接查库（5→8 公里圈，评分排序）：agent 的 poi_details
+                    # 句柄在降级态只剩内存几十行，挑不到真点。
+                    pool_cache[vcity] = await asyncio.to_thread(
+                        _nearby_poi_rows, vcity, anchor[0], anchor[1], 8000, 120
+                    )
+                exclude = {
+                    str(getattr(i, "name", "") or "")
+                    for d0 in plan.days
+                    for i in d0.items
+                }
+                cand = _pick_arrival_nearby(
+                    pool_cache[vcity], anchor, exclude=exclude, radii_km=(5.0, 8.0)
+                )
+                if cand is None:
+                    logger.debug(
+                        "plan: arrival-fill no candidate day=%s city=%s pool=%d",
+                        day.day,
+                        vcity,
+                        len(pool_cache[vcity]),
+                    )
+                if cand is None:
+                    continue
+                cat = str(cand.get("category") or "").lower()
+                name = str(cand.get("name") or "")
+                loc = cand.get("location")
+                if isinstance(loc, dict):
+                    lon, lat = loc.get("lon"), loc.get("lat")
+                elif isinstance(loc, (tuple, list)) and len(loc) >= 2:
+                    lon, lat = loc[0], loc[1]
+                else:
+                    lon, lat = None, None
+                if lon is None or lat is None:
+                    continue
+                raw_dur = cand.get("suggested_duration_min") or 90
+                try:
+                    dur = min(120, int(raw_dur))
+                except (TypeError, ValueError):
+                    dur = 90
+                v = VisitItem(
+                    item_id=f"v-near-d{day.day}-{len(day.items)}",
+                    name=name,
+                    name_en=cand.get("name_en"),
+                    poi_id=cand.get("source_poi_id"),
+                    category="food" if cat == "food" else (cat or "citywalk"),
+                    city=vcity,
+                    day=day.day,
+                    duration_minutes=dur,
+                    location=GeoPoint(lon=float(lon), lat=float(lat)),
+                    opening_hours=cand.get("opening_hours"),
+                    best_visit_time=cand.get("best_visit_time"),
+                    tier=cand.get("_tier"),
+                )
+                if cat == "food":
+                    fixed, _tg0, _fl0, _x0 = _day_fixed_windows(day)
+                    blocked = [(s0, e0) for s0, e0, _src in fixed]
+                    gap = _first_free_gap(
+                        blocked,
+                        [17 * 60 + 30, 18 * 60, 17 * 60, 18 * 60 + 30, 19 * 60],
+                        (60, 45),
+                    )
+                    if gap is None:
+                        continue
+                    st, dur2 = gap
+                    v.duration_minutes = dur2
+                    v.start_time = _time_of(st)
+                    v.end_time = _time_of(st + dur2)
+                    day.items.append(v)
+                    changed = True
+                elif is_departure:
+                    # 离开日：必须塞进发车/登机前的窗口（fixed 窗已含 −90
+                    # 缓冲），塞不进就不补（绝不硬塞进在途时段）。
+                    fixed, _tg1, _fl1, _x1 = _day_fixed_windows(day)
+                    blocked = [(s1, e1) for s1, e1, _src in fixed]
+                    gap = _first_free_gap(
+                        blocked,
+                        [9 * 60, 10 * 60, 14 * 60, 8 * 60 + 30, 15 * 60],
+                        (dur, 90, 60),
+                    )
+                    if gap is None:
+                        continue
+                    st, dur3 = gap
+                    v.duration_minutes = dur3
+                    v.start_time = _time_of(st)
+                    v.end_time = _time_of(st + dur3)
+                    day.items.append(v)
+                    changed = True
+                else:
+                    tgt = _host_day_for_visit(
+                        [day],
+                        vcity,
+                        dur,
+                        visit=v,
+                        all_days=plan.days,
+                        _rescue=True,
+                    )
+                    if tgt is None:
+                        continue
+                    day.items.append(v)
+                    changed = True
+                km = _xy_km(anchor, (float(lon), float(lat)))
+                logger.info(
+                    "plan: arrival day %s filled with nearby %s (%s, %.1fkm,"
+                    " rating=%s)",
+                    day.day,
+                    name,
+                    cat or "?",
+                    km,
+                    cand.get("rating"),
+                )
+                plan.assumptions.append(
+                    L(
+                        f"第{day.day}天为到达日，已按「近处优先、评价优先」补上"
+                        f"「{name}」（距酒店/城心约 {km:.1f} 公里），可按需替换",
+                        f'Day {day.day} is the arrival day; "{name}" was added '
+                        f"(about {km:.1f} km from the hotel/city center, "
+                        "closest high-rated option) — swap it any time",
+                    )
+                )
+        if changed:
+            _fallback_sequence_times(plan)
+
     async def _assemble_plan(
         self,
         cities: list[str],
@@ -23086,7 +23452,13 @@ class PlanningAgent:
         # 披露双向对账（各排程相位可合力把重磅/远卡/多张卡塞进端点日；
         # 轻卡落位靠排程顺序雨日→到达日→正常日→离城日自然发生，本清
         # 扫绝不跨日挪卡补，宁可空日）。
+        # 空到达日补真实内容（2026-11-14）：库里挑 5→8 公里内的景点/演出/
+        # 按摩/餐厅，落位后由终装清扫对账（不再造假「自由漫步」占位）。
+        await self._fill_endpoint_day_nearby(plan)
         _endpoint_day_light_sweep(plan, must_names)
+        # 清扫可能把端点日唯一一张卡判重磅/偏远挪走（挪完就空了）——
+        # 再补一次（幂等：有内容的端点日直接跳过）。
+        await self._fill_endpoint_day_nearby(plan)
         plan.assumptions.extend(_retime_real_food_cards(plan))
         # 卡=槽位、餐厅=数据：餐厅必须填进午/茶/晚卡，不许自带一套自由时刻
         plan.assumptions.extend(_bind_real_food_to_cards(plan))
