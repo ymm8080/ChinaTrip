@@ -406,10 +406,21 @@ def test_stamp_overwrites_pinned_form_time_directly():
     p = ItineraryPlan(
         itinerary_id="it-flag-overwrite",
         cities=["北京"],
-        days=[DayPlan(day=1, base_city="北京", items=[
-            _visit("tam", "天安门广场", pinned=True, start_time=_t(8, 30),
-                   fixed_sessions=None),
-        ])],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="北京",
+                items=[
+                    _visit(
+                        "tam",
+                        "天安门广场",
+                        pinned=True,
+                        start_time=_t(8, 30),
+                        fixed_sessions=None,
+                    ),
+                ],
+            )
+        ],
         start_date="2026-11-25",  # 升旗 7:10
     )
     _apply_flag_schedule(p)
