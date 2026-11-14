@@ -48,11 +48,29 @@ def _opencode_adapter(settings: Settings, *, model: str, vision: bool) -> LLMAda
     )
 
 
+def _ark_adapter(settings: Settings, *, model: str, vision: bool) -> LLMAdapter:
+    """火山方舟 Plan 网关（OpenAI-compatible，无私有头；2026-11-14 切主力）。
+
+    与 OpenCode Go 同为 OpenAI 协议，直接复用 ZhipuGLMAdapter 的通用客户端。
+    视觉同模型（doubao-seed-2-0-pro 支持图入参）。
+    """
+    return ZhipuGLMAdapter(
+        api_key=settings.ark_api_key,
+        base_url=settings.ark_base_url,
+        model=model,
+        timeout_seconds=settings.glm_timeout_seconds,
+        vision_model=model if vision else settings.glm_model_vision,
+        vision_fallback_models=[],
+    )
+
+
 def get_llm_adapter(settings: Settings) -> LLMAdapter:
     if settings.llm_backend == "mock":
         return MockLLMAdapter()
     if settings.llm_backend == "opencode":
         return _opencode_adapter(settings, model=settings.opencode_model, vision=True)
+    if settings.llm_backend == "ark":
+        return _ark_adapter(settings, model=settings.ark_model, vision=True)
     if settings.llm_backend == "zhipu":
         return ZhipuGLMAdapter(
             api_key=settings.glm_api_key,
@@ -73,6 +91,8 @@ def get_flash_adapter(settings: Settings) -> LLMAdapter:
         return MockLLMAdapter()
     if settings.llm_backend == "opencode":
         return _opencode_adapter(settings, model=settings.opencode_model, vision=False)
+    if settings.llm_backend == "ark":
+        return _ark_adapter(settings, model=settings.ark_model, vision=False)
     if settings.llm_backend == "zhipu":
         return ZhipuGLMAdapter(
             api_key=settings.glm_api_key,

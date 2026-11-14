@@ -241,6 +241,40 @@ def test_untimed_meal_gets_default_dinner_slot_when_block_dropped():
     assert kept.end_time == time(19, 30)
 
 
+def test_system_pinned_banquet_still_nests_into_block():
+    """系统钉（pinned+soft_pin）不是用户权威：同日同址仍要嵌进街区窗。
+
+    11-14 实录：唐宴被排程自己钉在 11:30 午卡（pinned=True, soft_pin=True），
+    硬钉守卫把它跳过后，街区与晚宴同天却不嵌窗。
+    """
+    block = _block(day=2, start=time(17, 0), end=time(21, 0))
+    tang = _tang(day=2, start=time(11, 30), end=time(12, 0))
+    tang.pinned = True
+    tang.soft_pin = True
+    plan = _plan([DayPlan(day=2, base_city="西安", items=[block, tang])])
+
+    notes = _bind_block_family(plan)
+
+    assert tang.start_time == time(18, 30), "系统钉也该嵌回街区窗"
+    assert tang.end_time == time(19, 30)
+    assert notes and any("已嵌入" in str(n) for n in notes)
+
+
+def test_user_pinned_banquet_is_not_moved_across_days():
+    """用户手钉（soft_pin=False）跨天不搬：铁律 19 仍是最高权威。"""
+    tang = _tang(day=2, start=time(18, 30))
+    tang.pinned = True  # 用户 pin 端点：soft_pin 保持 False
+    block = _block(day=3, start=time(17, 0), end=time(21, 0))
+    plan = _plan([
+        DayPlan(day=2, base_city="西安", items=[tang]),
+        DayPlan(day=3, base_city="西安", items=[block]),
+    ])
+
+    _bind_block_family(plan)
+
+    assert tang.day == 2, "用户钉住的卡不许被家族规则跨天搬走"
+
+
 def test_pinned_block_wins_over_short_window_and_dinner_dropped():
     """街区卡被用户钉住时反过来：删餐厅留街区（铁律 19）。"""
     d2 = DayPlan(day=2, base_city="西安", items=[_tang(day=2, start=time(18, 30))])

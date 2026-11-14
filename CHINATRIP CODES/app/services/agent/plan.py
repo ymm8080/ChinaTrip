@@ -12123,8 +12123,14 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
         for gday, guest in guests:
             if guest not in gday.items:
                 continue
-            if getattr(guest, "pinned", False):
-                # 铁律 19：用户亲手钉过的卡（日/时刻）是最高权威，不硬搬
+            if getattr(guest, "pinned", False) and not getattr(
+                guest, "soft_pin", False
+            ):
+                # 铁律 19：用户亲手钉过时刻的卡（pin/retime/move 端点恒
+                # soft_pin=False）是最高权威，不硬搬；系统钉（soft_pin=True，
+                # 餐卡/宴秀排程自己摆的位、用户没确认过时刻）不是用户权威，
+                # 仍归街区家族规则——否则同日同址的「街区+晚宴」连嵌窗都做不了
+                # （11-14 实录：唐宴 pinned+soft_pin 被跳，卡留在 11:30 午卡）。
                 continue
             if gday is not host_day:
                 if guest.start_time is not None:
@@ -12205,7 +12211,10 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
                 # 街卡还是餐卡」（倾向删街卡）：这顿的场次/开席落在午/晚
                 # 正餐档 → 删街区卡、留餐厅；夹在怪时段 → 删餐厅、留街区。
                 # 街区卡被用户亲手钉住时一律删餐厅（铁律 19）。
-                if not getattr(host, "pinned", False) and _meal_slot_time_ok(guest):
+                if not (
+                    getattr(host, "pinned", False)
+                    and not getattr(host, "soft_pin", False)
+                ) and _meal_slot_time_ok(guest):
                     if guest.start_time is None:
                         start = _meal_slot_default_start(
                             guest, orig_start.get(id(guest))

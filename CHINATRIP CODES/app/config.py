@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     # Zhipu GLM cloud API (OpenAI-compatible). Personal key, zero GPU cost.
-    llm_backend: str = "mock"  # "mock" | "zhipu" | "opencode"
+    llm_backend: str = "mock"  # "mock" | "zhipu" | "opencode" | "ark"
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-5.3-flash"
@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     opencode_model: str = "deepseek-v4.1-flash"
     # Go 网关硬性要求稳定会话头（缺了直接 400 MissingSessionID）。
     opencode_session_id: str = "chinatrip"
+    # 火山方舟（Ark）Plan 订阅网关（OpenAI-compatible；2026-11-14 用户拍板
+    # 「OpenCode Go 额度用尽 → 现在使用方舟 API」）。模型须在 agent plan
+    # 兼容清单内（doubao-seed-2-0-pro-260215 实测可用），否则 404 UnsupportedModel。
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/plan/v3"
+    ark_model: str = "doubao-seed-2-0-pro-260215"
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
     # ASR 后端开关（translation_pipeline_design_2026-10-30 P0）：
