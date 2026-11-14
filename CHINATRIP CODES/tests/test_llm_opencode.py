@@ -63,6 +63,7 @@ def test_opencode_factory_wires_go_gateway():
     assert isinstance(flash, ZhipuGLMAdapter)
     assert flash.model == "deepseek-v4.1-flash"
 
+
 def _capture(adapter: ZhipuGLMAdapter) -> list[dict]:
     import json
 
