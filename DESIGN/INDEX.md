@@ -24,6 +24,7 @@
 - [UPGRADE COST](UPGRADE%20COST.md) — 阿里云 GPU 自建 vLLM 最低成本估算与升级触发条件（v2.0 配套）
 - [POI 照片功能设计 2026-11-11](poi_photos_functional_design_2026-11-11.md) — **待拍板**：存 URL 不存二进制；三路分层=库直读画廊(F1)/点击确定性回源 amap→百度→wikimedia 只填空+24h冷却(F2)/AI 找图兜底 `_PHOTO_AI_ENABLED=False` 能力闸(F3)；死图上报复拉+30天刷新(F4)；实测覆盖 16.9%(1,650/9,787)、restaurants 0；**悬停浮层首图已拍板落地(e8ed183,sw v76,CDP双案PASS)**；顺手台账=enrich_amap_detail 漏标 photos_source 1,449 行/backfill_intro 过时头注
 - [天安门升降旗时刻设计 2026-11-14](tiananmen_flag_schedule_design_2026-11-14.md) — **与代码同步**：官方公告页（表格为嵌入 PNG）→ OCR 分带解析（月名列弃用改用「升/降」表头定位 + 日号稳健回归 + 单格修复）→ 校验闸门 → 落库**只追加批次**（flag_cache.db，读最新批次）+ DESIGN 快照 + 种子随仓库分发；引擎接线=天安门广场当日开始时间=升旗时刻（`fixed_sessions` 点域锚，可破 8:30 日始，铁律 19 优先）；实测 743/744 逐格一致（修复格已披露）
+- [POI 到达方式设计 2026-11-15](poi_access_design_2026-11-15.md) — **与代码同步**：`pois.access_*` 摘要列（w12_0037：方式/城心门到门分钟/下车站/接驳分钟/一句话含首末班）+ `app.jobs.backfill_poi_access` 城心口径回填（transit 商链 baidu>amap、>15km、只填空、--force 重算）；不是为了加一列自由文本——多方案/有班次/起点依赖三条决定「摘要 + 可回填」；H5 站点气泡与悬停浮层新增「🚌 怎么去」；顺手修百度真实嵌套 transit 形状（旧解析 segments 恒空）与 5A 徽标重复；二期=poi_access 明细表 + 出行方式偏好 + 引擎接驳腿
 
 ## 🗄 历史版本
 

@@ -91,6 +91,15 @@ class PoiDetail(BaseModel):
     booking_url: str | None = None
     ticket_price_min: float | None = None
     ticket_price_max: float | None = None
+    # 到达方式摘要（2026-11-15，w12_0037）：城心 → POI 公共交通最优方案，
+    # app.jobs.backfill_poi_access 回填；H5 站点卡「怎么去」一行。
+    access_mode: str | None = None
+    access_minutes: int | None = None
+    access_gateway: str | None = None
+    access_gateway_minutes: int | None = None
+    access_note: str | None = None
+    access_note_en: str | None = None
+    access_source: str | None = None
     ticket_source: str | None = None
 
 
@@ -132,6 +141,13 @@ _COLS = (
     Poi.ticket_price_min,
     Poi.ticket_price_max,
     Poi.ticket_source,
+    Poi.access_mode,
+    Poi.access_minutes,
+    Poi.access_gateway,
+    Poi.access_gateway_minutes,
+    Poi.access_note,
+    Poi.access_note_en,
+    Poi.access_source,
 )
 
 
@@ -228,6 +244,13 @@ def _to_model(row: Poi, tags: list | None = None) -> PoiDetail:
         ticket_price_min=float(tmin) if tmin is not None else None,
         ticket_price_max=float(tmax) if tmax is not None else None,
         ticket_source=row.ticket_source,
+        access_mode=row.access_mode,
+        access_minutes=row.access_minutes,
+        access_gateway=row.access_gateway,
+        access_gateway_minutes=row.access_gateway_minutes,
+        access_note=row.access_note,
+        access_note_en=row.access_note_en,
+        access_source=row.access_source,
     )
 
 

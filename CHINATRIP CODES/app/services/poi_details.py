@@ -188,7 +188,12 @@ def apply_tier_tag(h: dict, heritage: list[tuple[str, int]]) -> int:
         prov = "unesco"
     elif src == "5a" or "5a" in tags:
         prov = "5a"
-    to_add = [t for t in (_TIER_TAG.get(tier), prov) if t and t not in tags]
+    # 同名去重：5A 行的层级牌与来源牌都叫 5a，逐项判 `t not in tags` 会让
+    # 同一枚徽标挂两次（['5a', '5a']，站点卡渲染两遍）。
+    to_add: list[str] = []
+    for cand in (_TIER_TAG.get(tier), prov):
+        if cand and cand not in tags and cand not in to_add:
+            to_add.append(cand)
     if to_add:
         h["tags"] = order_source_tags([*(h.get("tags") or []), *to_add])
     return tier
@@ -402,6 +407,15 @@ class PoiDetailStore:
                         "address_en": row.address_en,
                         "intro_en": row.intro_en,
                         "opening_hours_en": row.opening_hours_en,
+                        # 到达方式（2026-11-15，w12_0037）：城心口径摘要，
+                        # 卡片「怎么去」与引擎粗判共用同一组列。
+                        "access_mode": row.access_mode,
+                        "access_minutes": row.access_minutes,
+                        "access_gateway": row.access_gateway,
+                        "access_gateway_minutes": row.access_gateway_minutes,
+                        "access_note": row.access_note,
+                        "access_note_en": row.access_note_en,
+                        "access_source": row.access_source,
                         "hours_updated_at": (
                             row.hours_updated_at.isoformat()
                             if row.hours_updated_at

@@ -65,6 +65,14 @@ def make_row(**over) -> SimpleNamespace:
         ticket_price_min=None,
         ticket_price_max=None,
         ticket_source=None,
+        # 到达方式摘要（w12_0037）：默认空，远郊件由回填任务写入。
+        access_mode=None,
+        access_minutes=None,
+        access_gateway=None,
+        access_gateway_minutes=None,
+        access_note=None,
+        access_note_en=None,
+        access_source=None,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -472,3 +480,31 @@ def test_both_tables_miss_returns_404():
     )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "poi not found"}
+
+
+def test_access_fields_surface_for_far_site():
+    """远郊件到达方式随详情下发（H5 「怎么去」一行 + 引擎粗判共用）。"""
+    row = make_row(
+        name_zh="慕田峪长城",
+        city="北京",
+        access_mode="shuttle",
+        access_minutes=128,
+        access_gateway="慕田峪长城站",
+        access_gateway_minutes=8,
+        access_note="乘 慕田峪长城景区直达车前门线：前门站 → 慕田峪长城站",
+        access_note_en="Take the Mutianyu direct shuttle: Qianmen -> Mutianyu",
+        access_source="baidu-transit",
+    )
+    session = FakeSession([[row]])
+    resp = make_app(session).get(
+        "/api/pois/detail", params={"city": "北京", "name": "慕田峪长城"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["access_mode"] == "shuttle"
+    assert body["access_minutes"] == 128
+    assert body["access_gateway"] == "慕田峪长城站"
+    assert body["access_gateway_minutes"] == 8
+    assert "前门站" in body["access_note"]
+    assert body["access_note_en"].startswith("Take the Mutianyu")
+    assert body["access_source"] == "baidu-transit"

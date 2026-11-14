@@ -2454,6 +2454,13 @@ function enrichBrief(info, city, name) {
       const price = lo != null && hi != null && lo !== hi ? "¥" + lo + "-" + hi : "¥" + (lo != null ? lo : hi);
       book.push("💰 " + esc(price) + (p.ticket_source ? '<span class="muted">' + I18N.tf("brief.sourcePre", "（来源：") + esc(p.ticket_source) + I18N.tf("brief.sourceClose", "）") + "</span>" : ""));
     }
+    // 到达方式（2026-11-15，w12_0037）：城心口径的公共交通最优方案。远郊件
+    // （慕田峪这类）没有这行，用户只看得到地址，看不到「景区直达车末班 12:00」。
+    const access = I18N.pick(p, "access_note", "access_note_en");
+    if (access) {
+      const accessSrc = p.access_source ? '<span class="muted">' + I18N.tf("brief.sourcePre", "（来源：") + esc(p.access_source) + I18N.tf("brief.sourceClose", "）") + "</span>" : "";
+      bits.push("🚌 " + I18N.tf("brief.access", "怎么去：") + esc(access) + accessSrc);
+    }
     if (p.intro) bits.push("📖 " + esc(p.intro) + (p.intro_source ? '<span class="muted">' + I18N.tf("brief.sourcePre","（来源：") + esc(p.intro_source) + I18N.tf("brief.sourceClose","）") + "</span>" : ""));
     // P7b 证据链透出（2026-11-10）：点评综述（enrich 管道已入库，纯读侧）；
     // 双语 I18N.pick 同 intro 口径，source 小字标注复用 brief.sourcePre/Close
@@ -2581,6 +2588,9 @@ async function sitePopShow(link) {
   if (isAlt && planBits) bits.push('<span class="muted">' + esc(planBits) + "</span>");
   if (p.address) bits.push(I18N.tf("brief.addr","📍 地址：") + esc(p.address));
   if (p.opening_hours) bits.push(I18N.tf("brief.hours","🕐 开放时间：") + esc(p.opening_hours));
+  // 到达方式（w12_0037）：远郊件悬停就能看到「景区直达车末班 12:00」这类班次。
+  const popAccess = I18N.pick(p, "access_note", "access_note_en");
+  if (popAccess) bits.push("🚌 " + I18N.tf("brief.access", "怎么去：") + esc(popAccess));
   pop.innerHTML = sitePopHead(name, city) +
     (bits.length ? '<div style="margin-top:2px">' + bits.join("<br>") + "</div>"
                  : '<div class="muted" style="margin-top:2px">' + I18N.t("brief.none") + "</div>");

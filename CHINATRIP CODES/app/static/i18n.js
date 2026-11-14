@@ -438,6 +438,7 @@
       "bk.trainEcho": "🚄 Train link: ",
       "bk.unified": "Nationwide flat price",
       "bk.willOpen": "About to open: ",
+      "brief.access": "🚌 Getting there: ",
       "brief.addr": "📍 Address: ",
       "brief.blackPearl": "Black Pearl ",
       "brief.diamond": "-diamond",

@@ -115,6 +115,18 @@ class Poi(Base):
     business_area: Mapped[str | None] = mapped_column(String(50))
     indoor: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
     rain_ok: Mapped[str | None] = mapped_column(String(10))  # yes/no/partial
+    # 到达方式摘要（2026-11-15，w12_0037）：城心 → POI 的公共交通最优方案，
+    # app.jobs.backfill_poi_access 回填（高德/百度 transit 链），站点卡展示
+    # 「怎么去」，引擎据 access_mode 粗判远郊/需班次件；精确接驳腿属二期
+    # poi_access 明细表 + solver。
+    access_mode: Mapped[str | None] = mapped_column(String(16))
+    access_minutes: Mapped[int | None] = mapped_column(Integer)
+    access_gateway: Mapped[str | None] = mapped_column(String(100))
+    access_gateway_minutes: Mapped[int | None] = mapped_column(Integer)
+    access_note: Mapped[str | None] = mapped_column(String(300))
+    access_note_en: Mapped[str | None] = mapped_column(String(300))
+    access_source: Mapped[str | None] = mapped_column(String(20))
+    access_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     name_aliases: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     duration_source: Mapped[str | None] = mapped_column(String(20))
     review_summary: Mapped[str | None] = mapped_column(Text)
