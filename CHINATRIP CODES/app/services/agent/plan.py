@@ -10284,10 +10284,28 @@ def _fallback_sequence_times(
                     # 被宿主真时段完整包含 → 嵌套不挡；部分溢出/非同址照旧
                     # 挡。fixed 与 _leg_windows 同源同序，zip 对齐取 src。
                     if (visit.category or "") != "food":
-                        for fs, fe in _leg_windows(fixed, visit):
-                            if s < fe and s + dur > fs:
-                                return True
-                        return False
+                        # 同址融合反向豁免（2026-11-13 用户拍板「街区 240 分钟
+                        # 本身包含同址晚宴，是硬绑定」）：宿主卡（街区/景点）
+                        # 落位时，同址（≤SAME_VENUE_KM）声明场次餐若整段嵌进
+                        # 候选窗，不占宿主窗——否则 240min 街区被同日 18:30 宴
+                        # 卡判死、街区挪别天而宴卡孤留（长安十二时辰·唐宴实
+                        # 录）。溢出宿主窗/非同址/普通餐卡照旧挡。
+                        for (fs, fe), (_rs, _re, src) in zip(
+                            _leg_windows(fixed, visit), fixed
+                        ):
+                            if not (s < fe and s + dur > fs):
+                                continue
+                            if (
+                                src is not None
+                                and src is not visit
+                                and isinstance(src, VisitItem)
+                                and src.start_time is not None
+                                and fusion_food_nested(
+                                    visit, src, (s, s + dur), (fs, fe)
+                                )
+                            ):
+                                continue
+                            return True
                     for (fs, fe), (_rs, _re, src) in zip(
                         _leg_windows(fixed, visit), fixed
                     ):
@@ -10430,12 +10448,16 @@ def _fallback_sequence_times(
                 advanced = True
                 while advanced:
                     advanced = False
-                    for fs, fe in _leg_windows(fixed, visit):
-                        if t < fe and t + dur > fs:
-                            t = fe
-                            advanced = True
-                            break
-                t = _advance_past_combo(t, dur)
+                    for (fs, fe), (_rs, _re, src) in zip(
+                        _leg_windows(fixed, visit), fixed
+                    ):
+                        if not (t < fe and t + dur > fs):
+                            continue
+                        if _block_family_window(src, visit, t, dur):
+                            continue
+                        t = fe
+                        advanced = True
+                        break
                 _sh_hours = hours_by_poi.get(visit.poi_id)
                 if _is_show_item(visit) and _sh_hours is not None and _sh_hours.windows:
                     # 多场次演出齐场（2026-11-08 贴场馆演出 D2 甩空日案）：场次
@@ -10508,12 +10530,16 @@ def _fallback_sequence_times(
                             _adv = True
                             while _adv:
                                 _adv = False
-                                for fs, fe in _leg_windows(fixed, visit):
-                                    if _tc < fe and _tc + dur > fs:
-                                        _tc = fe
-                                        _adv = True
-                                        break
-                            _tc = _advance_past_combo(_tc, dur)
+                                for (fs, fe), (_rs, _re, src) in zip(
+                                    _leg_windows(fixed, visit), fixed
+                                ):
+                                    if not (_tc < fe and _tc + dur > fs):
+                                        continue
+                                    if _block_family_window(src, visit, _tc, dur):
+                                        continue
+                                    _tc = fe
+                                    _adv = True
+                                    break
                             if _tc != _cand:
                                 continue
                             if (
@@ -10550,12 +10576,16 @@ def _fallback_sequence_times(
                     advanced = True
                     while advanced:
                         advanced = False
-                        for fs, fe in _leg_windows(fixed, visit):
-                            if tf < fe and tf + dur > fs:
-                                tf = fe
-                                advanced = True
-                                break
-                    tf = _advance_past_combo(tf, dur)
+                        for (fs, fe), (_rs, _re, src) in zip(
+                            _leg_windows(fixed, visit), fixed
+                        ):
+                            if not (tf < fe and tf + dur > fs):
+                                continue
+                            if _block_family_window(src, visit, tf, dur):
+                                continue
+                            tf = fe
+                            advanced = True
+                            break
                     if (
                         tf + dur <= day_end
                         and (cap is None or tf <= cap)
@@ -11536,11 +11566,13 @@ def _probe_visit_slot(
                 t = seg_o
                 advanced = True
             break  # 命中第一个未关段即止（t 段内或已推到段开）
-        for fs, fe in _leg_windows(fixed, visit):
-            if t < fe and t + dur > fs:
-                t = fe
-                advanced = True
-                break
+        for (fs, fe), (_rs, _re, src) in zip(_leg_windows(fixed, visit), fixed):
+            if not (t < fe and t + dur > fs):
+                continue
+            if _block_family_window(src, visit, t, dur):
+                continue
+            t = fe
+            advanced = True
     if cap_max is not None and t > cap_max:
         return None
     hours = hours_by_poi.get(visit.poi_id)
@@ -11963,6 +11995,307 @@ def _best_anchor_km(plan: ItineraryPlan, v: VisitItem) -> float:
                 continue
             best = min(best, haversine_km(i.location, vloc))
     return best
+
+
+def _block_family_host(v: VisitItem) -> bool:
+    """街区宿主身份（2026-11-13 用户拍板「街区和餐饮是一族」）：品类
+    citywalk 或名字带「主题街区/步行街」语素（库实测演出源行
+    category=entertainment，品类不可靠时名字兜底，同 _street_block_mate）。"""
+    if str(v.category or "") == "citywalk":
+        return True
+    return bool(_STREET_DISTRICT_RE.search(str(v.name or "")))
+
+
+def _block_family_guest(v: VisitItem) -> bool:
+    """同址宴秀身份：food 卡 + 声明场次（午宴/晚宴场）。嵌套豁免只认
+    声明场次餐（fusion_food_nested 口径），普通餐卡不成族。"""
+    return str(v.category or "") == "food" and bool(
+        show_session_starts(v.opening_hours)
+    )
+
+
+def _block_family_window(src, visit: VisitItem, start: int, dur: int) -> bool:
+    """该已排窗能否被这张街区宿主整段包住：同址（≤SAME_VENUE_KM）声明场次
+    宴秀 + 候选窗 [start, start+dur] 完整包含它——街区时间里包含这顿晚宴
+    （2026-11-13 拍板），落位游标推进/撞窗判定都不当墙。"""
+    if src is None or src is visit or not isinstance(src, VisitItem):
+        return False
+    if not _block_family_host(visit) or not _block_family_guest(src):
+        return False
+    vloc = getattr(visit, "location", None)
+    sloc = getattr(src, "location", None)
+    if vloc is None or sloc is None:
+        return False
+    if haversine_km(vloc, sloc) > SAME_VENUE_KM:
+        return False
+    fs = _minutes_of(src.start_time) if src.start_time else None
+    fe = _item_end_minutes(src)
+    if fs is None or fe is None:
+        return False
+    return start <= fs and fe <= start + dur
+
+
+def _meal_slot_time_ok(item: VisitItem) -> bool:
+    """这顿的时间是否合适午餐/晚餐（2026-11-14 用户口径「先看时间是否
+    合适午餐晚餐，再决定删街卡还是餐卡」）：声明场次优先，其次当前开席
+    时刻；午 11:30-12:30、晚 17:00-20:30 命中即算。下午茶档不算正餐，
+    夹在怪时段同样不算。"""
+    starts = list(show_session_starts(item.opening_hours) or [])
+    if item.start_time is not None:
+        starts.append(_minutes_of(item.start_time))
+    if not starts:
+        # 无场次也无时刻的真餐卡：本来就按餐卡落位（默认晚饭档），算合适
+        return True
+    main_meals = (
+        MEAL_CARD_SLOT_WINDOWS["lunch"],
+        MEAL_CARD_SLOT_WINDOWS["dinner"],
+    )
+    for start in starts:
+        for lo, hi in main_meals:
+            if lo <= start <= hi:
+                return True
+    return False
+
+
+def _meal_slot_default_start(item: VisitItem, prefer: int | None = None) -> int:
+    """无时刻时的落卡开席：原时刻仍落在正餐档就照旧，其次声明场次里挑
+    第一个正餐档，最后按晚饭默认位。"""
+    main_meals = (
+        MEAL_CARD_SLOT_WINDOWS["lunch"],
+        MEAL_CARD_SLOT_WINDOWS["dinner"],
+    )
+    if prefer is not None and any(lo <= prefer <= hi for lo, hi in main_meals):
+        return prefer
+    sessions = [
+        start
+        for start in show_session_starts(item.opening_hours) or []
+        if any(lo <= start <= hi for lo, hi in main_meals)
+    ]
+    if sessions:
+        # 取最晚的正餐场次（晚宴优先；只做午市场的店自然落午档）
+        return max(sessions)
+    return MEAL_CARD_SLOT_DEFAULT["dinner"]
+
+
+def _bind_block_family(plan: ItineraryPlan) -> list[str]:
+    """街区 + 同址宴秀硬绑同日（2026-11-13 用户拍板：长安十二时辰街区
+    240 分钟本身包含晚宴唐宴，「街区和餐饮是一族，可以删除一项，但是
+    不能分开」）。
+
+    结构相位（挪日扫尾/必去救生/终闸清算/每场闸）各自只认自己的目标，
+    能把街区与同址宴秀拆到两天（11-13 新测实录：唐宴 D2 18:30、街区
+    D3 17:00-21:00）。交付前统一对账：宴卡跟街区走（街区是大件宿主），
+    合回后把宴卡整段嵌进街区窗内（嵌套不判双订、不记走行，
+    fusion_food_nested 口径）；宿主日已有别的宴/演时先让那张去客卡原日
+    （同城才搬），搬不动就宁删客卡留痕——绝不拆天交付。
+
+    宿主窗实在容不下这顿（2026-11-14 用户拍板「先看时间是否合适午餐
+    晚餐，再决定删街卡还是餐卡」+「倾向于删街卡」）：这顿在午/晚正餐档
+    → 删街区卡、留餐厅（按餐卡落位）；夹在怪时段 → 删餐厅、留街区。
+    街区卡被用户钉住时一律删餐厅（铁律 19）。
+    """
+    notes: list[str] = []
+    orig_start: dict[int, int] = {}
+    hosts = [
+        (d, i)
+        for d in plan.days
+        for i in list(d.items)
+        if isinstance(i, VisitItem) and _block_family_host(i)
+    ]
+    for host_day, host in hosts:
+        if host not in host_day.items:
+            continue
+        hloc = getattr(host, "location", None)
+        if hloc is None:
+            continue
+        hcity = str(host.city or host_day.base_city or "").strip().removesuffix("市")
+        guests = [
+            (d, i)
+            for d in plan.days
+            for i in list(d.items)
+            if i is not host
+            and isinstance(i, VisitItem)
+            and _block_family_guest(i)
+            and str(i.city or d.base_city or "").strip().removesuffix("市") == hcity
+            and getattr(i, "location", None) is not None
+            and haversine_km(hloc, i.location) <= SAME_VENUE_KM
+        ]
+        for gday, guest in guests:
+            if guest not in gday.items:
+                continue
+            if getattr(guest, "pinned", False):
+                # 铁律 19：用户亲手钉过的卡（日/时刻）是最高权威，不硬搬
+                continue
+            if gday is not host_day:
+                if guest.start_time is not None:
+                    orig_start[id(guest)] = _minutes_of(guest.start_time)
+                gday.items.remove(guest)
+                guest.day = host_day.day
+                guest.start_time = None
+                guest.end_time = None
+                host_day.items.append(guest)
+                notes.append(
+                    L(
+                        f"「{guest.name}」与同址街区「{host.name}」是一族，"
+                        f"已合回第{host_day.day}天（街区时间里包含这顿晚宴）",
+                        f'"{guest.name}" is family with the co-located block '
+                        f'"{host.name}" and was reunited on day {host_day.day} '
+                        "(the block time includes this dinner)",
+                    )
+                )
+                # 宿主日已有别的宴/演：先让位到客卡原日（同城且当日无演出）
+                for rival in [
+                    i
+                    for i in list(host_day.items)
+                    if i is not guest
+                    and isinstance(i, VisitItem)
+                    and (_is_show_item(i) or _is_show_banquet_item(i))
+                ]:
+                    if (
+                        str(gday.base_city or "").strip().removesuffix("市") == hcity
+                        and not _day_show_taken(gday)
+                    ):
+                        host_day.items.remove(rival)
+                        rival.day = gday.day
+                        rival.start_time = None
+                        rival.end_time = None
+                        gday.items.append(rival)
+                        notes.append(
+                            L(
+                                f"「{rival.name}」为同址街区晚宴「{guest.name}」"
+                                f"让位，改排第{gday.day}天",
+                                f'"{rival.name}" yields to the co-located block '
+                                f'banquet "{guest.name}" and moves to day {gday.day}',
+                            )
+                        )
+                    else:
+                        host_day.items.remove(rival)
+                        plan.unplaced.append(
+                            UnplacedCandidate(
+                                name=rival.name,
+                                name_en=getattr(rival, "name_en", None),
+                                poi_id=rival.poi_id,
+                                category=rival.category,
+                                tier=getattr(rival, "tier", None),
+                                duration_minutes=rival.duration_minutes,
+                                location=getattr(rival, "location", None),
+                                city=rival.city,
+                                day_hint=host_day.day,
+                                reason="block_family",
+                            )
+                        )
+                        notes.append(
+                            L(
+                                f"第{host_day.day}天为同址街区晚宴「{guest.name}」"
+                                f"腾位，「{rival.name}」已移出行程（需要可手动加回）",
+                                f"Day {host_day.day} makes room for the co-located "
+                                f'block banquet "{guest.name}"; "{rival.name}" was '
+                                "removed (add it back manually if needed)",
+                            )
+                        )
+                gday = host_day
+            if host.start_time is None:
+                continue
+            hs = _minutes_of(host.start_time)
+            he = _item_end_minutes(host)
+            if he is None:
+                he = hs + (host.duration_minutes or DEFAULT_VISIT_MINUTES)
+            fdur = guest.duration_minutes or DEFAULT_VISIT_MINUTES
+            if he - hs < fdur:
+                # 2026-11-14 用户拍板「先看时间是否合适午餐晚餐，再决定删
+                # 街卡还是餐卡」（倾向删街卡）：这顿的场次/开席落在午/晚
+                # 正餐档 → 删街区卡、留餐厅；夹在怪时段 → 删餐厅、留街区。
+                # 街区卡被用户亲手钉住时一律删餐厅（铁律 19）。
+                if not getattr(host, "pinned", False) and _meal_slot_time_ok(guest):
+                    if guest.start_time is None:
+                        start = _meal_slot_default_start(
+                            guest, orig_start.get(id(guest))
+                        )
+                        guest.start_time = _time_of(start)
+                        guest.end_time = _time_of(start + fdur)
+                    host_day.items.remove(host)
+                    plan.unplaced.append(
+                        UnplacedCandidate(
+                            name=host.name,
+                            name_en=getattr(host, "name_en", None),
+                            poi_id=host.poi_id,
+                            category=host.category,
+                            tier=getattr(host, "tier", None),
+                            duration_minutes=host.duration_minutes,
+                            location=getattr(host, "location", None),
+                            city=host.city,
+                            day_hint=host_day.day,
+                            reason="block_family",
+                        )
+                    )
+                    notes.append(
+                        L(
+                            f"第{host_day.day}天「{host.name}」的时段容不下同址晚宴"
+                            f"「{guest.name}」，但这顿 "
+                            f"{_fmt_hm(guest.start_time)} 正合适午餐/晚餐"
+                            "（倾向删街卡）——两者不可拆天，已移出街区卡、"
+                            "保留这顿（按餐卡落位，街区卡需要可手动加回）",
+                            f'The day-{host_day.day} block "{host.name}" window '
+                            f'cannot hold the co-located dinner "{guest.name}", '
+                            f"but {_fmt_hm(guest.start_time)} is a proper meal "
+                            "slot; they must not be split, so the block was "
+                            "removed and the meal kept (add the block back "
+                            "manually if needed)",
+                        )
+                    )
+                    break
+                host_day.items.remove(guest)
+                plan.unplaced.append(
+                    UnplacedCandidate(
+                        name=guest.name,
+                        name_en=getattr(guest, "name_en", None),
+                        poi_id=guest.poi_id,
+                        category=guest.category,
+                        tier=getattr(guest, "tier", None),
+                        duration_minutes=guest.duration_minutes,
+                        location=getattr(guest, "location", None),
+                        city=guest.city,
+                        day_hint=host_day.day,
+                        reason="block_family",
+                    )
+                )
+                notes.append(
+                    L(
+                        f"第{host_day.day}天「{host.name}」的时段容不下同址晚宴"
+                        f"「{guest.name}」，两者不可拆天，已移出晚宴"
+                        "（需要可手动加回）",
+                        f'The day-{host_day.day} block "{host.name}" window cannot '
+                        f'hold the co-located dinner "{guest.name}"; they must not '
+                        "be split, so the dinner was removed (add it back manually "
+                        "if needed)",
+                    )
+                )
+                continue
+            gs = _minutes_of(guest.start_time) if guest.start_time else None
+            ge = _item_end_minutes(guest) if guest.start_time else None
+            if gs is not None and ge is not None and hs <= gs and ge <= he:
+                continue
+            sessions = [
+                x
+                for x in show_session_starts(guest.opening_hours)
+                if hs <= x and x + fdur <= he
+            ]
+            start = max(sessions) if sessions else he - fdur
+            start = min(max(start, hs), he - fdur)
+            guest.start_time = _time_of(start)
+            guest.end_time = _time_of(start + fdur)
+            notes.append(
+                L(
+                    f"「{guest.name}」已嵌入同址街区「{host.name}」时段"
+                    f"（{_fmt_hm(guest.start_time)}-{_fmt_hm(guest.end_time)}，"
+                    "街区时间里包含这顿晚宴）",
+                    f'"{guest.name}" is nested inside the co-located block '
+                    f'"{host.name}" window '
+                    f"({_fmt_hm(guest.start_time)}-{_fmt_hm(guest.end_time)}; the "
+                    "block time includes this dinner)",
+                )
+            )
+    return notes
 
 
 def _enforce_show_per_day(plan: ItineraryPlan) -> None:
@@ -22724,6 +23057,8 @@ class PlanningAgent:
         # 演出贴场馆换座（2026-11-08 沪→西→沪案终拍）：先于每场闸对账
         # 把被容量漏斗甩离场馆的演出换回场馆日（占座者互换，不增占位）。
         _reunite_show_with_venue(plan)
+        # 街区+同址宴秀硬绑同日（2026-11-13 拍板）：先于每场闸对账——闸的
+        # 「胶块档」会把同址体验留在块日、把别的宴/演挪走。
         # 每场闸终装（2026-11-08 xa 案 D2 双演出撞日）：选层各相位互不
         # 知情，终装统一对账——同日两场保首场、余场挪无演出日/移除披露。
         _enforce_show_per_day(plan)
@@ -22748,6 +23083,7 @@ class PlanningAgent:
         # 卡=槽位、餐厅=数据：餐厅必须填进午/茶/晚卡，不许自带一套自由时刻
         plan.assumptions.extend(_bind_real_food_to_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=self._auto_restaurants)
+        # 交付前最后一道：街区与同址宴秀绝不允许拆天（终装各相位仍可挪卡）
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
