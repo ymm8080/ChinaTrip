@@ -320,3 +320,131 @@ def test_assignment_is_idempotent():
 def test_usable_day_capacity_constant_matches_day_window():
     # 08:30–21:30 扣两餐 150 与酒店卡 60
     assert P._MUST_DAY_USABLE_MIN == (1290 - 510) - 150 - 60
+
+def test_meal_card_yields_before_the_sight_when_day_is_impossible():
+    """整日只剩饭点那一格时，宁可动餐卡（必去压到饭点，餐卡随后改时刻/缩
+    时长），也不缩景点时长、不删景点（用户 2026-11-15「整日完全无法放下
+    景点族，可以调整餐卡的开始时间，长短的调整」）。"""
+    d1 = DayPlan(
+        base_city="北京",
+        day=1,
+        items=[
+            _visit("v-gg", "故宫博物院", dur=60, day=1, rank=0, loc=GUGONG),
+            _visit(
+                "v-b1",
+                "国家博物馆",
+                dur=150,
+                day=1,
+                rank=50,
+                loc=GUGONG,
+                start=time(9, 0),
+                must=False,
+                pinned=True,
+                hours="09:00-17:00",
+            ),
+            _visit(
+                "v-b2",
+                "首都博物馆",
+                dur=480,
+                day=1,
+                rank=51,
+                loc=GUGONG,
+                start=time(13, 30),
+                must=False,
+                pinned=True,
+                hours="09:00-17:00",
+            ),
+        ],
+    )
+    plan = _plan([d1])
+    _pin_musts_by_importance(plan)
+    _, gg = _timed(plan, "故宫博物院")
+    assert gg.start_time is not None
+    assert gg.start_time.hour == 12  # 压进午饭档，餐卡让位
+    assert gg.duration_minutes == 60  # 景点时长不缩
+    assert not plan.unplaced  # 没删任何景点
+
+
+def test_sight_duration_and_day_start_are_never_shrunk():
+    """必去时长与 08:30 日始是本通道的固定输入，不会为塞下而改。"""
+    assert not hasattr(P, "_must_pin_attempts")
+    d1 = DayPlan(
+        base_city="北京",
+        day=1,
+        items=[
+            _visit("v-gg", "故宫博物院", dur=150, day=1, rank=0, loc=GUGONG),
+            _visit(
+                "v-b1",
+                "国家博物馆",
+                dur=600,
+                day=1,
+                rank=50,
+                loc=GUGONG,
+                start=time(9, 0),
+                must=False,
+                pinned=True,
+                hours="09:00-17:00",
+            ),
+        ],
+    )
+    plan = _plan([d1])
+    _pin_musts_by_importance(plan)
+    _, gg = _timed(plan, "故宫博物院")
+    assert gg.duration_minutes == 150
+    if gg.start_time is not None:
+        assert gg.start_time.hour * 60 + gg.start_time.minute >= P.DAY_START_MINUTES
+
+
+def test_weather_day_penalty_ladder_matches_user_ruling():
+    """不下雨工作日(0) < 下雨工作日(室内 60) < 不下雨周末(90) < 下雨周末。"""
+    plan = _beijing_two_days()
+    plan.start_date = "2026-11-16"  # 周一
+    outdoor = [
+        _visit("o1", "慕田峪长城", dur=180, rank=0, loc=MUTIANYU, cat="nature"),
+        _visit("o2", "司马台长城", dur=180, rank=1, loc=MUTIANYU, cat="nature"),
+    ]
+    indoor = [
+        _visit("i1", "故宫博物院", dur=120, rank=0, loc=GUGONG, cat="museum"),
+        _visit("i2", "国家博物馆", dur=120, rank=1, loc=GUGONG, cat="museum"),
+    ]
+    dry_weekday = P._must_weather_day_penalty(plan, outdoor, 3, None)  # 周三
+    rainy_weekday_indoor = P._must_weather_day_penalty(
+        plan, indoor, 3, {"北京": {3}}
+    )
+    dry_weekend = P._must_weather_day_penalty(plan, outdoor, 6, None)  # 周六
+    rainy_weekend = P._must_weather_day_penalty(plan, outdoor, 6, {"北京": {6}})
+    assert dry_weekday == 0
+    assert 0 < rainy_weekday_indoor < dry_weekend
+    assert dry_weekend < rainy_weekend
+
+
+def test_remote_outdoor_family_avoids_the_rainy_day():
+    """雨天在第一天时，远郊露天族让给室内的，自己排到不下雨的那天。"""
+    d1 = DayPlan(
+        base_city="北京",
+        day=1,
+        items=[
+            _visit(
+                "v-mty", "慕田峪长城", dur=180, day=1, rank=0, loc=MUTIANYU,
+                cat="nature",
+            ),
+        ],
+    )
+    d2 = DayPlan(
+        base_city="北京",
+        day=2,
+        items=[
+            _visit("v-yhy", "颐和园", dur=90, day=2, rank=0, loc=YIHEYUAN),
+        ],
+    )
+    plan = _plan([d1, d2])
+    plan.start_date = "2026-11-16"  # 周一 / 周二
+    _assign_must_family_days(plan, rain_days={"北京": {1}})
+    day_of = {
+        i.name: d.day
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.must
+    }
+    assert day_of["慕田峪长城"] == 2  # 露天远郊避开雨天
+    assert day_of["颐和园"] == 1  # 室内的可以接下雨的工作日

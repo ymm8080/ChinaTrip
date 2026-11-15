@@ -5140,6 +5140,13 @@ def _planned_duplicate_visit(
         for item in day.items:
             if not isinstance(item, VisitItem):
                 continue
+            # 无时刻且未钉的卡在出站层被剔除（2026-11-13 拍板「未安排卡不
+            # 显示」）：用户看板上根本没有这一站，备选装配又用的是剔除后的
+            # 副本（同一站被重新亮成 chip）——这里按重复拦就成了「看板没有
+            # 却说已经有了」（2026-11-15 恭王府实录）。这类行交给调用方就地
+            # 复用排期，不算重复。
+            if item.start_time is None and not item.pinned:
+                continue
             if _same_site(name, item.name) or (poi_id and item.poi_id == poi_id):
                 return item
             if _substitute_dup(
@@ -5832,7 +5839,9 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # 已打标也强制纠正（2026-11-14 UAT：行程中心载入/编辑旧行程
                 # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
                 # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
-                flag_min = min(t.hour * 60 + t.minute for t in item.fixed_sessions)
+                flag_min = min(
+                    t.hour * 60 + t.minute for t in item.fixed_sessions
+                )
                 if (
                     item.start_time is not None
                     and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
@@ -11637,6 +11646,29 @@ def _fallback_sequence_times(
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
+def _meal_card_back_to_default(
+    meal: VisitItem,
+    is_lunch: bool,
+    blockers: list[tuple[int, int]],
+    day_end: int,
+) -> bool:
+    """占位餐卡回正（2026-11-15 用户拍板「饭卡 1 HOUR DEFAULT AS LUNCH /
+    1.5 HOUR DEFAULT AS DINNER」）：被挤短/挤偏的占位卡，只要默认档
+    （午饭 12:00–13:00、晚饭 19:00–20:30）整段空闲就恢复默认起止与时长；
+    默认档被钉住件/转场/酒店挡住则保持现状（紧日程允许缩到 30 分钟）。"""
+    canon_start = 12 * 60 if is_lunch else 19 * 60
+    canon_dur = LUNCH_DURATION_MINUTES if is_lunch else MEAL_DURATION_MINUTES
+    if canon_start + canon_dur > day_end:
+        return False
+    for fs, fe in blockers:
+        if canon_start < fe and canon_start + canon_dur > fs:
+            return False
+    meal.start_time = _time_of(canon_start)
+    meal.end_time = _time_of(canon_start + canon_dur)
+    meal.duration_minutes = canon_dur
+    return True
+
+
 def _retime_meal_placeholders(
     plan: ItineraryPlan, *, ensure_cards: bool = True
 ) -> None:
@@ -11708,6 +11740,9 @@ def _retime_meal_placeholders(
                     day.day,
                     meal.item_id,
                 )
+                continue
+            # 宽松日回正：默认档整段空闲就把占位卡恢复成默认时长/时刻。
+            if _meal_card_back_to_default(meal, is_lunch, meal_blockers, day_end):
                 continue
             current_end = _item_end_minutes(meal)
             current_start = _minutes_of(meal.start_time) if meal.start_time else None
@@ -13029,6 +13064,16 @@ class _MealBandAnchor:
     location = None
 
 
+# 天气×日期偏好罚时（2026-11-15 用户拍板）：远郊/露天景点优先不下雨的
+# 工作日；室内点可以排下雨的工作日；再不行才排不下雨的周末/节假日；下雨的
+# 周末/节假日是最后选择。罚时只影响「族定天」，不改任何硬闸。
+_MUST_RAIN_OUTDOOR_PENALTY = 240
+_MUST_RAIN_INDOOR_PENALTY = 60
+_MUST_WEEKEND_PENALTY = 90
+_MUST_RAIN_WEEKEND_EXTRA = 120
+_MUST_REMOTE_RAIN_EXTRA = 60
+
+
 def _must_visit_families(plan: ItineraryPlan) -> list[list[VisitItem]]:
     """必去观光件按 ≤NEAR_SAMEDAY_KM 单链聚族（同片区一家人）。"""
     fams: list[list[VisitItem]] = []
@@ -13075,7 +13120,83 @@ def _must_day_load(plan: ItineraryPlan, day: DayPlan) -> int:
     return total
 
 
-def _assign_must_family_days(plan: ItineraryPlan) -> list[str]:
+def _day_is_weekend(plan: ItineraryPlan, day_no: int) -> bool:
+    """当天是否周末（周六/周日）。无出发日期时按工作日处理（宁可不动）。"""
+    iso = _leg_date_iso(plan.start_date, day_no)
+    if not iso:
+        return False
+    try:
+        return _date.fromisoformat(iso).weekday() >= 5
+    except ValueError:
+        return False
+
+
+def _family_is_outdoor(fam: list[VisitItem]) -> bool:
+    """族里最重要的那件是不是露天（rain_ok=False 或自然/山野类）。"""
+    key = min(fam, key=_must_rank_key)
+    if getattr(key, "rain_ok", None) is False:
+        return True
+    return (key.category or "") in ("nature", "outdoor", "park", "scenic")
+
+
+def _family_is_remote(fam: list[VisitItem], plan: ItineraryPlan) -> bool:
+    """族心离行程城市中心 >DISTRICT_DAY_KM 视为远郊族。"""
+    pts = [
+        GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+        for v in fam
+        if getattr(v, "location", None) is not None
+    ]
+    if not pts:
+        return False
+    allp = [
+        GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+        for d in plan.days
+        for v in d.items
+        if isinstance(v, VisitItem) and getattr(v, "location", None) is not None
+    ]
+    if not allp:
+        return False
+    cx = sum(p.lon for p in allp) / len(allp)
+    cy = sum(p.lat for p in allp) / len(allp)
+    center = GeoPoint(lon=cx, lat=cy)
+    near = min(haversine_km(p, center) for p in pts)
+    return near > _DISTRICT_DAY_KM
+
+
+def _must_weather_day_penalty(
+    plan: ItineraryPlan,
+    fam: list[VisitItem],
+    day_no: int,
+    rain_days: dict[str, set[int]] | None,
+) -> int:
+    """族落到某天的天气/日期罚时（用户四级优先）。"""
+    rainy = False
+    if rain_days:
+        cities = {(v.city or "") for v in fam}
+        for c in cities:
+            if day_no in rain_days.get(_norm_city_key(c), set()):
+                rainy = True
+                break
+    outdoor = _family_is_outdoor(fam)
+    penalty = 0
+    if rainy:
+        penalty += (
+            _MUST_RAIN_OUTDOOR_PENALTY if outdoor else _MUST_RAIN_INDOOR_PENALTY
+        )
+        if _family_is_remote(fam, plan):
+            penalty += _MUST_REMOTE_RAIN_EXTRA
+    if _day_is_weekend(plan, day_no):
+        penalty += _MUST_WEEKEND_PENALTY
+        if rainy:
+            penalty += _MUST_RAIN_WEEKEND_EXTRA
+    return penalty
+
+
+def _assign_must_family_days(
+    plan: ItineraryPlan,
+    *,
+    rain_days: dict[str, set[int]] | None = None,
+) -> list[str]:
     """必去族定天（2026-11-14 用户四段式拍板①「先按地理分组」）。
 
     必去按 ≤NEAR_SAMEDAY_KM 单链聚族后：
@@ -13143,6 +13264,7 @@ def _assign_must_family_days(plan: ItineraryPlan) -> list[str]:
                 if near > _DISTRICT_DAY_KM:
                     pen = _MUST_CROSS_AREA_PENALTY_MIN
             cost = placed_dur.get(day.day, 0) + dur + pen
+            cost += _must_weather_day_penalty(plan, fam, day.day, rain_days)
             over = max(0, cost - _MUST_DAY_USABLE_MIN)
             score = over * 10 + cost
             if best is None or score < best[0]:
@@ -13326,7 +13448,11 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             and getattr(v, "must", False)
             and (v.category or "") not in ("food", "hotel")
         ]
-        timed = [v for v in musts if v.start_time is not None]
+        # 升旗锚（fixed_sessions，2026-11-14 数据库旗时最高优先级）不参与
+        # 本通道的重排：既不清它的时刻，也不拿它跟别的件比先后。
+        timed = [
+            v for v in musts if v.start_time is not None and not v.fixed_sessions
+        ]
         if timed:
             chain_all = _must_chain_order(day, musts)
             seq = sorted(timed, key=lambda v: v.start_time)
@@ -13350,7 +13476,11 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                         "(long-haul sights first)",
                     )
                 )
-        remaining = [v for v in musts if v.start_time is None]
+        remaining = [
+            v
+            for v in musts
+            if v.start_time is None and not v.fixed_sessions
+        ]
         if not remaining:
             continue
         guard = 0
@@ -13358,11 +13488,28 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             guard += 1
             mv = _must_chain_order(day, remaining)[0]
             dur = mv.duration_minutes or DEFAULT_VISIT_MINUTES
-            fixed, _tight, _flex, xfer = _day_fixed_windows(day)
-            fixed = _with_meal_bands(fixed, dur)
-            start = _probe_visit_slot(
-                mv, fixed, xfer, hours_by_poi, day_end, floor=DAY_START_MINUTES
-            )
+
+            def _try_start() -> int | None:
+                """两段探位（2026-11-15 用户澄清「可调餐卡的开始时间、长短」）：
+                先带餐段保护带探（餐卡保持默认档），放不下再放宽探——放宽后
+                必去会压到饭点，餐卡随后由餐卡通道改时刻/缩时长让位；景点
+                自己的时长与 08:30 日始不动。"""
+                fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+                got = _probe_visit_slot(
+                    mv,
+                    _with_meal_bands(fixed, dur),
+                    xfer,
+                    hours_by_poi,
+                    day_end,
+                    floor=DAY_START_MINUTES,
+                )
+                if got is not None:
+                    return got
+                return _probe_visit_slot(
+                    mv, fixed, xfer, hours_by_poi, day_end, floor=DAY_START_MINUTES
+                )
+
+            start = _try_start()
             removed: list[VisitItem] = []
             if start is None:
                 victims = sorted(
@@ -13379,16 +13526,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                 for w in victims:
                     day.items.remove(w)
                     removed.append(w)
-                    fixed2, _t2, _f2, xfer2 = _day_fixed_windows(day)
-                    fixed2 = _with_meal_bands(fixed2, dur)
-                    start = _probe_visit_slot(
-                        mv,
-                        fixed2,
-                        xfer2,
-                        hours_by_poi,
-                        day_end,
-                        floor=DAY_START_MINUTES,
-                    )
+                    start = _try_start()
                     if start is not None:
                         break
                 if start is None:
@@ -26290,8 +26428,10 @@ class PlanningAgent:
             )
         )
         # ① 必去族定天（2026-11-14 四段式拍板）：同片区整族归一天，不同
-        # 片区同天计双程通勤，超容才拆。
-        plan.assumptions.extend(_assign_must_family_days(plan))
+        # 片区同天计双程通勤，超容才拆；再叠 2026-11-15 的雨日/周末偏好。
+        plan.assumptions.extend(
+            _assign_must_family_days(plan, rain_days=rain_days)
+        )
         # ② 必去钉时：按重要度+约束强度先占时刻，塞不下删当日最低优先件，
         # 其余景点交给 solve 在空档排。
         plan.assumptions.extend(_pin_musts_by_importance(plan))
@@ -29968,7 +30108,22 @@ class PlanningAgent:
             raise ValueError("city_mismatch")
         new_pid = str(cand.get("source_poi_id") or "") or None
         xy = _cand_xy(cand)
-        if (
+        # 看板看不到的无时刻卡（出站剔除 + 备选重新亮成 chip）：同一站命中
+        # 就复用它、挪到落点排期，不再 422「已经有了」，也不再建第二张卡
+        # （2026-11-15 恭王府：拖进来报重复，看板上却根本没有这一站）。
+        hidden = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem)
+                and i.start_time is None
+                and not i.pinned
+                and (_same_site(new_name, i.name) or (new_pid and i.poi_id == new_pid))
+            ),
+            None,
+        )
+        if hidden is None and (
             _planned_duplicate_visit(
                 plan,
                 name=new_name,
@@ -29984,39 +30139,6 @@ class PlanningAgent:
         candidate = plan.model_copy(deep=True)
         day = next(d for d in candidate.days if d.day == new_day)
         location = GeoPoint(lon=xy[0], lat=xy[1]) if xy is not None else None
-        try:
-            dur = int(cand.get("suggested_duration_min") or 0)
-        except (TypeError, ValueError):
-            dur = 0
-        if dur <= 0:
-            dur = host.duration_minutes or DEFAULT_VISIT_MINUTES
-        dur = max(30, min(dur, 480))
-        fresh = VisitItem(
-            item_id=self.alloc_item_id(candidate),
-            name=new_name,
-            poi_id=new_pid,
-            category=(str(cand.get("category") or "") or host.category),
-            city=host.city,
-            location=location,
-            address=cand.get("address"),
-            name_en=cand.get("name_en"),
-            address_en=cand.get("address_en"),
-            intro_en=cand.get("intro_en"),
-            opening_hours=cand.get("opening_hours"),
-            opening_hours_en=cand.get("opening_hours_en"),
-            best_visit_time=_sched_best_visit(cand),
-            booking_url=cand.get("booking_url"),
-            reservation_hint=_reservation_hint(new_name, cand),
-            rain_ok=cand.get("rain_ok"),
-            # 名录档随候选走（与 replace_item 同口径：不带档会被当未分层）
-            tier=_source_tier(cand),
-            site_rank=_site_rank(cand),
-            day=new_day,
-            duration_minutes=dur,
-            # 用户亲手拖进来的点=必去卡（后续让位/重规划都不静默丢），
-            # 但刻意不 pin——它要像其它条目一样还能再拖。
-            must=True,
-        )
         if after_item_id is None:
             pos = next(
                 (k for k, i in enumerate(day.items) if isinstance(i, VisitItem)),
@@ -30026,6 +30148,60 @@ class PlanningAgent:
             pos = (
                 next(k for k, i in enumerate(day.items) if i.item_id == after_item_id)
                 + 1
+            )
+        if hidden is not None:
+            fresh = next(
+                i
+                for d in candidate.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == hidden.item_id
+            )
+            src_day = next(
+                d for d in candidate.days if any(i is fresh for i in d.items)
+            )
+            idx = next(k for k, i in enumerate(src_day.items) if i is fresh)
+            src_day.items.pop(idx)
+            if src_day is day and idx < pos:
+                pos -= 1
+            fresh.day = new_day
+            fresh.must = True
+            if not fresh.poi_id and new_pid:
+                fresh.poi_id = new_pid
+            if fresh.location is None and location is not None:
+                fresh.location = location
+        else:
+            try:
+                dur = int(cand.get("suggested_duration_min") or 0)
+            except (TypeError, ValueError):
+                dur = 0
+            if dur <= 0:
+                dur = host.duration_minutes or DEFAULT_VISIT_MINUTES
+            dur = max(30, min(dur, 480))
+            fresh = VisitItem(
+                item_id=self.alloc_item_id(candidate),
+                name=new_name,
+                poi_id=new_pid,
+                category=(str(cand.get("category") or "") or host.category),
+                city=host.city,
+                location=location,
+                address=cand.get("address"),
+                name_en=cand.get("name_en"),
+                address_en=cand.get("address_en"),
+                intro_en=cand.get("intro_en"),
+                opening_hours=cand.get("opening_hours"),
+                opening_hours_en=cand.get("opening_hours_en"),
+                best_visit_time=_sched_best_visit(cand),
+                booking_url=cand.get("booking_url"),
+                reservation_hint=_reservation_hint(new_name, cand),
+                rain_ok=cand.get("rain_ok"),
+                # 名录档随候选走（与 replace_item 同口径：不带档会被当未分层）
+                tier=_source_tier(cand),
+                site_rank=_site_rank(cand),
+                day=new_day,
+                duration_minutes=dur,
+                # 用户亲手拖进来的点=必去卡（后续让位/重规划都不静默丢），
+                # 但刻意不 pin——它要像其它条目一样还能再拖。
+                must=True,
             )
         day.items.insert(pos, fresh)
         for it in day.items:
