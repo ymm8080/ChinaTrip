@@ -324,7 +324,6 @@ def test_usable_day_capacity_constant_matches_day_window():
     # 08:30–21:30 扣两餐 150 与酒店卡 60
     assert P._MUST_DAY_USABLE_MIN == (1290 - 510) - 150 - 60
 
-
 def test_meal_card_yields_before_the_sight_when_day_is_impossible():
     """整日只剩饭点那一格时，宁可动餐卡（必去压到饭点，餐卡随后改时刻/缩
     时长），也不缩景点时长、不删景点（用户 2026-11-15「整日完全无法放下
@@ -412,7 +411,9 @@ def test_weather_day_penalty_ladder_matches_user_ruling():
         _visit("i2", "国家博物馆", dur=120, rank=1, loc=GUGONG, cat="museum"),
     ]
     dry_weekday = P._must_weather_day_penalty(plan, outdoor, 3, None)  # 周三
-    rainy_weekday_indoor = P._must_weather_day_penalty(plan, indoor, 3, {"北京": {3}})
+    rainy_weekday_indoor = P._must_weather_day_penalty(
+        plan, indoor, 3, {"北京": {3}}
+    )
     dry_weekend = P._must_weather_day_penalty(plan, outdoor, 6, None)  # 周六
     rainy_weekend = P._must_weather_day_penalty(plan, outdoor, 6, {"北京": {6}})
     assert dry_weekday == 0
@@ -421,30 +422,11 @@ def test_weather_day_penalty_ladder_matches_user_ruling():
 
 
 def test_remote_outdoor_family_avoids_the_rainy_day():
-    """雨天在第一天时，远郊露天族让给室内的，自己排到不下雨的那天。"""
-    d1 = DayPlan(
-        base_city="北京",
-        day=1,
-        items=[
-            _visit(
-                "v-mty",
-                "慕田峪长城",
-                dur=180,
-                day=1,
-                rank=0,
-                loc=MUTIANYU,
-                cat="nature",
-            ),
-        ],
-    )
-    d2 = DayPlan(
-        base_city="北京",
-        day=2,
-        items=[
-            _visit("v-yhy", "颐和园", dur=90, day=2, rank=0, loc=YIHEYUAN),
-        ],
-    )
-    plan = _plan([d1, d2])
+    """雨天在第一天时，远郊露天族（慕田峪）让开那天，市区族不受影响。
+
+    用真实三族行程做夹具：只有两只点时质心退化，远郊判定会失真。
+    """
+    plan = _beijing_two_days()
     plan.start_date = "2026-11-16"  # 周一 / 周二
     _assign_must_family_days(plan, rain_days={"北京": {1}})
     day_of = {
@@ -454,7 +436,28 @@ def test_remote_outdoor_family_avoids_the_rainy_day():
         if isinstance(i, VisitItem) and i.must
     }
     assert day_of["慕田峪长城"] == 2  # 露天远郊避开雨天
-    assert day_of["颐和园"] == 1  # 室内的可以接下雨的工作日
+    assert day_of["天安门广场"] == day_of["故宫博物院"]
+
+
+def test_two_remote_families_never_share_a_day():
+    """一天最多一个远郊族：慕田峪那天的补位不会再来一个远郊点。"""
+    plan = _beijing_two_days()
+    plan.start_date = "2026-11-16"
+    _assign_must_family_days(plan)
+    remote_days = []
+    for d in plan.days:
+        hits = [
+            i.name
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and i.must
+            and P._is_remote_point(plan, i.location)
+        ]
+        if hits:
+            remote_days.append((d.day, hits))
+    assert len(remote_days) <= 2
+    for _day, names in remote_days:
+        assert len(names) == 1, names
 
 
 def test_meal_card_not_nested_inside_a_two_hour_sight():
