@@ -79,6 +79,9 @@ PEN_EDGE_DAY_HEAVY = 12  # 边日重磅（2026-11-03 拍板「重要景点不放
 # 到达/离开日」）：转场日上的 tier≤4 重磅点每件计罚；演出/餐/酒店
 # 豁免（拍板明说那两天适合 SHOW——演出不算「重」）；pinned 铁律 19
 # 不罚；tier=None（占位/老数据）不罚。
+PEN_REMOTE_AFTERNOON = 12  # 远郊件午后开场（2026-11-15 拍板「远郊景点
+# BEST VISIT TIME MORNING」）：远郊件 12:00 后开场每件计罚；与
+# solver REMOTE_AFTERNOON_PENALTY 同向（软项，LNS 不把远门那趟挪到下午）。
 PEN_AFTERNOON_CROWD = 12  # 下午超点：每多一个 ≥13:00 开场的大点
 # （2026-11-04 拍板「超过80分钟的一般下午就放一个」，与 solver
 # AFTERNOON_ONE_BIG_PENALTY 同口径同向——LNS 不把第二个大点挪进下午）
@@ -227,6 +230,7 @@ def plan_score(
     morning_crowd = 0
     afternoon_crowd = 0
     late_big = 0
+    remote_late = 0
     early_shows = 0
     cw_morning = 0
     cw_block_early = 0
@@ -445,6 +449,13 @@ def plan_score(
                     entry_cap = ENTRY_CAP_BIG_MINUTES
                 if (v.start_time.hour * 60 + v.start_time.minute) > entry_cap:
                     late_entries += 1
+            # 远郊件午后开场（2026-11-15）：远郊景点最佳游览时段=上午。
+            if (
+                getattr(v, "remote", False)
+                and not (v.pinned and v.start_time is not None)
+                and s >= 12 * 60
+            ):
+                remote_late += 1
             km = getattr(v, "distance_to_next_km", None)
             if km:
                 travel_km += float(km)
@@ -502,6 +513,7 @@ def plan_score(
         "morning_crowd": -PEN_MORNING_CROWD * morning_crowd,
         "afternoon_crowd": -PEN_AFTERNOON_CROWD * afternoon_crowd,
         "late_big": -PEN_LATE_BIG * late_big,
+        "remote_afternoon": -PEN_REMOTE_AFTERNOON * remote_late,
         "early_show": -PEN_EARLY_SHOW * early_shows,
         "citywalk_morning": -PEN_CITYWALK_MORNING * cw_morning,
         "theme_block_early": -PEN_THEME_BLOCK_EARLY * cw_block_early,
@@ -526,6 +538,7 @@ def plan_score(
         "morning_crowd": morning_crowd,
         "afternoon_crowd": afternoon_crowd,
         "late_big": late_big,
+        "remote_afternoon": remote_late,
         "early_show": early_shows,
         "citywalk_morning": cw_morning,
         "theme_block_early": cw_block_early,

@@ -565,7 +565,7 @@ def test_start_brief_opens_sites_confirm_round():
     client = client_for(agent)
     body = start(
         client,
-        {"cities": ["北京"], "days": 2, "preferences": "历史建筑", "brief": brief},
+        {"cities": ["北京"], "days": 2, "preferences": "历史建筑", "brief": brief, "arrival_date": "2026-11-20", "departure_date": "2026-11-21"},
     ).json()
 
     # 先问确认，不出行程、不入库
@@ -915,6 +915,7 @@ def test_start_brief_overrides_prefilled_form_route():
             "days": 3,
             "preferences": "博物馆",
             "brief": "从北京出发，去成都玩2天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-21",
         },
     ).json()
     assert body["state"] == "confirm_route"
@@ -927,6 +928,7 @@ def test_start_brief_overrides_prefilled_form_route():
             "days": 3,
             "preferences": "博物馆",
             "brief": "从北京出发，去成都玩2天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-21",
             "route_source": "brief",
         },
     ).json()
@@ -945,6 +947,7 @@ def test_start_brief_single_city_keeps_form_origin():
             "days": 2,
             "preferences": "博物馆",
             "brief": "成都2天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-21",
         },
     ).json()
     assert body["state"] == "confirm_route"
@@ -956,6 +959,7 @@ def test_start_brief_single_city_keeps_form_origin():
             "days": 2,
             "preferences": "博物馆",
             "brief": "成都2天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-21",
             "route_source": "brief",
         },
     ).json()
@@ -2777,6 +2781,7 @@ def test_route_conflict_between_text_and_form_asks_user():
             "days": 3,
             "preferences": "",
             "brief": "西安 2 天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-22",
         },
     )
     assert resp.status_code == 200
@@ -2799,6 +2804,7 @@ def test_route_conflict_user_picks_form():
             "days": 3,
             "preferences": "喜欢走路",
             "brief": "西安 2 天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-22",
             "route_source": "form",
         },
     )
@@ -2820,6 +2826,7 @@ def test_route_conflict_user_picks_text():
             "days": 3,
             "preferences": "西安 2 天",
             "brief": "西安 2 天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-21",
             "route_source": "brief",
         },
     )
@@ -2841,6 +2848,7 @@ def test_no_route_conflict_when_text_matches_form():
             "days": 3,
             "preferences": "喜欢走路",
             "brief": "上海到杭州玩3天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-22",
         },
     )
     assert resp.status_code == 200
@@ -2886,6 +2894,7 @@ def test_numbers_diff_between_text_and_card():
             "days": 3,
             "preferences": "喜欢走路",
             "brief": "乘CA1234去杭州玩3天",
+            "arrival_date": "2026-11-20", "departure_date": "2026-11-22",
         },
     )
     assert resp.status_code == 200
@@ -2939,3 +2948,62 @@ def test_number_override_lands_on_session():
     session = store.get(sid, device_id="device-1")
     assert session.arrival_no == "G1234"
     assert session.departure_no == "CA888"
+def test_text_with_date_skips_intake_card():
+    """文字里读得出出发日期=信息足够：不弹行前卡，直接按文字日期生成
+    （2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "11月20日去北京 2 天",
+            "brief": "11月20日去北京 2 天",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    plan = body["plan"]
+    assert plan["cities"] == ["北京"]
+    assert len(plan["days"]) == 2
+    assert plan["start_date"] == "2026-11-20"
+
+
+def test_text_without_date_asks_intake_card():
+    """文字读不出出发日期：返回 state=intake（行前卡收集），不开会话。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "北京 2 天",
+            "brief": "北京 2 天",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "intake"
+
+
+def test_text_without_date_but_card_info_provided_proceeds():
+    """行前卡提交后重发（带到达/离开日期）：不再要求弹卡，直接生成。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "北京 2 天",
+            "brief": "北京 2 天",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-21",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert len(body["plan"]["days"]) == 2

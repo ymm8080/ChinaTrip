@@ -324,7 +324,6 @@ def test_usable_day_capacity_constant_matches_day_window():
     # 08:30–21:30 扣两餐 150 与酒店卡 60
     assert P._MUST_DAY_USABLE_MIN == (1290 - 510) - 150 - 60
 
-
 def test_meal_card_yields_before_the_sight_when_day_is_impossible():
     """整日只剩饭点那一格时，宁可动餐卡（必去压到饭点，餐卡随后改时刻/缩
     时长），也不缩景点时长、不删景点（用户 2026-11-15「整日完全无法放下
@@ -412,7 +411,9 @@ def test_weather_day_penalty_ladder_matches_user_ruling():
         _visit("i2", "国家博物馆", dur=120, rank=1, loc=GUGONG, cat="museum"),
     ]
     dry_weekday = P._must_weather_day_penalty(plan, outdoor, 3, None)  # 周三
-    rainy_weekday_indoor = P._must_weather_day_penalty(plan, indoor, 3, {"北京": {3}})
+    rainy_weekday_indoor = P._must_weather_day_penalty(
+        plan, indoor, 3, {"北京": {3}}
+    )
     dry_weekend = P._must_weather_day_penalty(plan, outdoor, 6, None)  # 周六
     rainy_weekend = P._must_weather_day_penalty(plan, outdoor, 6, {"北京": {6}})
     assert dry_weekday == 0

@@ -25,7 +25,7 @@ import re
 import uuid
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from time import perf_counter
 from typing import Literal
 
@@ -1176,6 +1176,67 @@ def _cand_is_curated(cand: dict) -> bool:
     if "curated" in tags:
         return True
     return str(cand.get("source_poi_id") or "").startswith("curated:")
+
+
+def _mark_remote_visits(plan: ItineraryPlan) -> int:
+    """远郊件打标（2026-11-15 用户拍板「远郊景点 BEST VISIT TIME MORNING」）。
+
+    口径与日间混排闸（_enforce_day_zones）同源：城心锚优先城市中心表
+    （weather_open_meteo.CITY_COORDS），缺表回退同城点云 medoid；观光件距
+    城心 >_DAY_MIX_KM 即远郊。只写 VisitItem.remote（引擎侧据此「头档优先
+    + 午后开场软罚」），不删卡不挪卡。
+
+    豁免面：餐/酒店/交通（不是参访点）、演出与夜属性点（时段由场次和夜景
+    决定，与「上午」相斥）、用户自钉有时刻的卡（铁律 19，用户安排优先）、
+    缺坐标的卡（不猜）。幂等：每次全量重算——换城/拖卡后旧标自动清掉。
+    返回标中的件数。
+    """
+    pts_by_city: dict[str, list[tuple[float, float]]] = {}
+    for d in plan.days:
+        for i in d.items:
+            if isinstance(i, VisitItem) and i.location is not None:
+                city = str(i.city or d.base_city or "")
+                pts_by_city.setdefault(city, []).append(
+                    (float(i.location.lon), float(i.location.lat))
+                )
+    anchors = {c: _urban_medoid(pts) for c, pts in pts_by_city.items() if pts}
+    try:  # 城心锚优先用城市中心表（同 _enforce_day_zones 口径）
+        from app.services.weather_open_meteo import CITY_COORDS
+
+        for _c in list(anchors):
+            _xy_c = CITY_COORDS.get(_c)
+            if _xy_c:
+                anchors[_c] = (float(_xy_c[1]), float(_xy_c[0]))
+    except Exception:  # noqa: BLE001 — 锚表缺失退回 medoid
+        pass
+    marked = 0
+    for d in plan.days:
+        for i in d.items:
+            if not isinstance(i, VisitItem):
+                continue
+            i.remote = False
+            if (i.category or "") in (
+                "food",
+                "hotel",
+                "transport",
+                "entertainment",
+            ):
+                continue
+            if str(i.best_visit_time or "").lower() in ("evening", "sunset", "show"):
+                continue
+            if i.pinned and i.start_time is not None:
+                continue
+            anchor = anchors.get(str(i.city or d.base_city or ""))
+            if i.location is None or anchor is None:
+                continue
+            km = haversine_km(
+                GeoPoint(lon=float(i.location.lon), lat=float(i.location.lat)),
+                GeoPoint(lon=anchor[0], lat=anchor[1]),
+            )
+            if km > _DAY_MIX_KM:
+                i.remote = True
+                marked += 1
+    return marked
 
 
 def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> list[dict]:
@@ -2523,6 +2584,9 @@ def _cn_number(token: str) -> int | None:
 
 def _parse_days(text: str) -> int | None:
     """Days-of-trip out of a free-text answer (“3天”“三日游”“就 5 个人玩”)."""
+    # 日期串里的数字不是天数（2026-11-15「11月20日去北京 2 天」被读成 20 天）：
+    # 先把 YYYY-MM-DD / N月N日(号) 掩掉再匹配（ clarify 答案同理不吃日期数字）。
+    text = _TEXT_DATE_MASK_RE.sub("□", text)
     for match in _ARABIC_DAYS_RE.finditer(text):
         n = int(match.group(1))
         if 1 <= n <= 30:
@@ -2591,6 +2655,49 @@ def _trip_brief(text: str) -> tuple[list[str], int | None] | None:
     if days is None and len(cities) < 2:
         return None
     return cities, days
+
+
+_TEXT_YMD_RE = re.compile(r"(\d{4})[-年/.](\d{1,2})[-月/.](\d{1,2})[日号]?")
+_TEXT_MD_RE = re.compile(r"(\d{1,2})月(\d{1,2})[日号]")
+_TEXT_DATE_MASK_RE = re.compile(
+    r"(\d{4}[-年/.]\d{1,2}[-月/.]\d{1,2}[日号]?|\d{1,2}月\d{1,2}[日号])"
+)
+_TEXT_OFFSET_WORDS = {"今天": 0, "明天": 1, "后天": 2, "大后天": 3}
+_TEXT_WEEKDAY = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+
+
+def _parse_text_start_date(text: str) -> str | None:
+    """文字里的出发日期 → ISO（2026-11-15 用户拍板「行前卡只在文字输入且信息
+    不足时弹出」——读得出日期=信息足够，直接生成）。识别 YYYY-MM-DD、
+    「11月20日/号」、「今天/明天/后天/大后天」、「下周X/周X/星期X」；今天按
+    北京时间（UTC+8）。读不出 None。"""
+    text = str(text or "")
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    m = _TEXT_YMD_RE.search(text)
+    if m:
+        try:
+            return _date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            pass
+    m = _TEXT_MD_RE.search(text)
+    if m:
+        try:
+            candidate = _date(today.year, int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            return None
+        if candidate < today:
+            candidate = _date(today.year + 1, int(m.group(1)), int(m.group(2)))
+        return candidate.isoformat()
+    for word, offset in _TEXT_OFFSET_WORDS.items():
+        if word in text:
+            return (today + timedelta(days=offset)).isoformat()
+    m = re.search(r"(?:下?周|星期|礼拜)([一二三四五六日天])", text)
+    if m:
+        target = _TEXT_WEEKDAY.get(m.group(1))
+        if target is not None:
+            offset = (target - today.weekday()) % 7 or 7
+            return (today + timedelta(days=offset)).isoformat()
+    return None
 
 
 def _resolve_brief_cities(brief_cities: list[str], form_cities: list[str]) -> list[str]:
@@ -10773,6 +10880,9 @@ def _is_head_candidate(v: VisitItem) -> bool:
         return False
     if (v.best_visit_time or "") in ("evening", "sunset", "show"):
         return False
+    # 远郊件恒为头档候选（2026-11-15，与 solver._is_head_candidate 同口径）。
+    if v.remote:
+        return True
     return bool(v.pinned) or (v.tier is not None and v.tier <= 3)
 
 
@@ -10986,6 +11096,9 @@ def _fallback_sequence_times(
     顺序、不跳下午第二大点——2026-10-24 拍板「用户顺序权威」压过
     2026-11-04 的大点先排口径（那只约束引擎自动排期）。
     """
+    # 远郊打标（2026-11-15「远郊景点 BEST VISIT TIME MORNING」）：兜底
+    # 排序直接读 item.remote，编辑/拖卡/换点路径不经 _solve 也要先落标。
+    _mark_remote_visits(plan)
     # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
     # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：非演出观光点
@@ -11131,6 +11244,10 @@ def _fallback_sequence_times(
                     1 if _is_theme_block(v) else 0,
                     0 if _is_head_candidate(v) else 1,
                     0 if v.pinned else 1,
+                    # 远郊件先落位（2026-11-15「远郊景点 BEST VISIT TIME
+                    # MORNING」）：一天一趟远门，排早不排晚——用户钉住件
+                    # 仍压在上面（铁律 19）。
+                    0 if getattr(v, "remote", False) else 1,
                     -_head_dist(v) if _is_head_candidate(v) else 0.0,
                     # 点名件按地理链走（2026-11-14「排族、排日期、排方向」）：
                     # 时长不是优先因子，先按最近邻链定序，再按大点/时长兜底。
@@ -11724,8 +11841,8 @@ def _fallback_sequence_times(
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
-    _clamp_chain_gaps(plan)
 
+    _clamp_chain_gaps(plan)
 
 def _meal_card_back_to_default(
     meal: VisitItem,
@@ -29797,6 +29914,7 @@ class PlanningAgent:
         # ——soft_pin 午餐锚可顺延≤90 分钟让 180/240 分钟上午大点整段落
         # 进上午；编辑/重排路径保持关，用户手钉的时刻仍走铁律 19 钉死。
         try:
+            _mark_remote_visits(plan)
             return self._solver(
                 plan,
                 poi_hours=_plan_poi_hours(plan),

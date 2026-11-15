@@ -66,6 +66,7 @@ from app.services.agent.plan import (
     _find_transfer_item,
     _leg_date_iso,
     _normalize_city,
+    _parse_text_start_date,
     _resolve_brief_cities,
     _trip_brief,
     clarify_questions,
@@ -569,6 +570,21 @@ async def start_plan(
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
+    # 行前卡只在「文字输入且信息不足」时弹出（2026-11-15 用户拍板）：文字里
+    # 读得出出发日期=信息足够，直接生成；读不出且行前卡信息也没给 → 先弹卡
+    # （state=intake，不开会话）。
+    brief_text = (request.brief or "").strip()
+    text_date = _parse_text_start_date(brief_text) if brief_text else None
+    if (
+        request.route_source is None
+        and brief_text
+        and not request.arrival_date
+        and not request.departure_date
+        and text_date is None
+    ):
+        return {"state": "intake"}
+    if text_date and not request.start_date:
+        request = request.model_copy(update={"start_date": text_date})
     # 差异确认（2026-11-14 用户拍板三条）：①表单没填+有文字 → 默认按文字；
     # ②表单和文字都填了 → 摆出差异让用户确认；③行前卡信息和文字不同 → 同样
     # 摆出差异。统一收集 diffs，任何一条且用户还没选边 → confirm_route。

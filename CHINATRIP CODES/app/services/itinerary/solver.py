@@ -332,6 +332,14 @@ BIG_FIRST_PENALTY = 10_000
 # 兜底层另有同口径的上午头档置换与排序镜像
 # （plan._morning_head_displacement / 兜底排序键）。
 HEAD_FIRST_PENALTY = 10_000
+# 远郊件上午开场（2026-11-15 用户拍板「远郊景点 BEST VISIT TIME MORNING」）：
+# 远郊景点（装配期 item.remote，距城心 >_DAY_MIX_KM）是「当天唯一的一趟
+# 远门」——最佳游览时段=上午：早出发、把整个白天交给它，回程不摸黑。三条
+# 落地：①远郊件恒为头档候选（_is_head_candidate，先抢上午头档）；②12:00
+# 后开场计软罚（与其它时段偏好同量纲 ×100）；③上午被钉住件/到达地板占死
+# 时照付罚放行——软偏好绝不把远郊件判成排不下（与「上午一个点」同哲学）。
+REMOTE_AFTERNOON_MINUTES = 12 * 60
+REMOTE_AFTERNOON_PENALTY = 10_000
 # 午餐软钉（2026-11-01 用户拍板修正：时刻最多提前或延后半小时、用餐
 # 时长可缩短半小时）：初始排程的 12 点午餐锚是排程默认而非用户约束
 # ——meal_flex=True（仅初次排程）时对 soft_pin 餐点开滑窗+时长区间
@@ -462,6 +470,18 @@ def _is_citywalk(item: VisitItem) -> bool:
     return not _is_theme_block(item)
 
 
+def _is_remote_visit(item: VisitItem) -> bool:
+    """远郊件（2026-11-15 拍板「远郊景点 BEST VISIT TIME MORNING」）。
+
+    判定只看装配期打标 ``item.remote``（``plan._mark_remote_visits`` 按距
+    城心 >_DAY_MIX_KM 落标，与日间混排闸同口径）——solver 不查城心锚表、
+    不重复算距离；用户自钉有时刻是用户的安排（铁律 19），不吃时段偏好。
+    """
+    if item.pinned and item.start_time is not None:
+        return False
+    return bool(item.remote)
+
+
 def _is_head_candidate(item: VisitItem) -> bool:
     """头档候选判定（2026-11-05 拍板，见 HEAD_FIRST_PENALTY 注块）：钉住
     或 tier≤3 高排序、非餐/酒店/演出/夜属性。用户自钉有时刻（铁律 19）
@@ -473,6 +493,10 @@ def _is_head_candidate(item: VisitItem) -> bool:
         return False
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return False
+    # 远郊件恒为头档候选（2026-11-15）：一天只跑那一趟远门，早出发——tier
+    # 高低不改变「远者先走」。
+    if item.remote:
+        return True
     return bool(item.pinned) or (item.tier is not None and item.tier <= 3)
 
 
@@ -973,6 +997,8 @@ def _head_pick(
         cands,
         key=lambda v: (
             0 if v.pinned else 1,
+            # 远郊件优先（2026-11-15）：同时候选里先给远门那趟排上午头档。
+            0 if v.remote else 1,
             v.tier if v.tier is not None else 11,
             -_dist(v),
             -(v.duration_minutes or DEFAULT_VISIT_MINUTES),
@@ -995,6 +1021,7 @@ def _add_travel_objective(
     inversion_penalty: object = 0,
     head_penalty: object = 0,
     cw_penalty: object = 0,
+    remote_late_penalty: object = 0,
     combo_penalty: object = 0,
 ) -> None:
     """Minimise total travel between chronologically adjacent visits.
@@ -1047,6 +1074,7 @@ def _add_travel_objective(
         + inversion_penalty
         + head_penalty
         + cw_penalty
+        + remote_late_penalty
         + combo_penalty
     )
 
@@ -1065,6 +1093,7 @@ def _add_makespan_objective(
     inversion_penalty: object = 0,
     head_penalty: object = 0,
     cw_penalty: object = 0,
+    remote_late_penalty: object = 0,
     combo_penalty: object = 0,
 ) -> None:
     """Minimise the end of the last item of the day (earliest finish)."""
@@ -1099,6 +1128,7 @@ def _add_makespan_objective(
         + inversion_penalty
         + head_penalty
         + cw_penalty
+        + remote_late_penalty
         + combo_penalty
     )
 
@@ -1380,6 +1410,22 @@ def solve_day(
             if cw_lits or blk_lits
             else 0
         )
+        # 远郊件上午开场（2026-11-15 拍板，见 REMOTE_AFTERNOON_MINUTES 注块）：
+        # 远郊件 12:00 后开场计软罚（×100 与走行同量纲）。上午被钉住件/到达
+        # 地板占死时 lit 恒 1、罚为常数不改择优——软偏好不拦可行性。
+        remote_late_lits: list[cp_model.IntVar] = []
+        for spec, start in zip(specs, starts):
+            if not _is_remote_visit(spec.item):
+                continue
+            lit = model.NewBoolVar(f"rlate_{spec.item.item_id}")
+            model.Add(start >= REMOTE_AFTERNOON_MINUTES).OnlyEnforceIf(lit)
+            model.Add(start < REMOTE_AFTERNOON_MINUTES).OnlyEnforceIf(lit.Not())
+            remote_late_lits.append(lit)
+        remote_late_penalty: object = (
+            sum(remote_late_lits) * (REMOTE_AFTERNOON_PENALTY * 100)
+            if remote_late_lits
+            else 0
+        )
         # 夜档贴排组合（2026-11-07 拍板「两卡贴排，作为一个 SITE 排列组
         # 合」）：普通点须贴排在夜档点开场前收尾——顺序颠倒平罚 + 组合内
         # 间隙分钟罚 + 夜档点早于 16:00 开场平罚；物理不可行时照付罚放行
@@ -1429,6 +1475,7 @@ def solve_day(
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
                 cw_penalty=cw_penalty,
+                remote_late_penalty=remote_late_penalty,
                 combo_penalty=combo_penalty,
             )
         else:
@@ -1445,6 +1492,7 @@ def solve_day(
                 inversion_penalty=inversion_penalty,
                 head_penalty=head_penalty,
                 cw_penalty=cw_penalty,
+                remote_late_penalty=remote_late_penalty,
                 combo_penalty=combo_penalty,
             )
 
@@ -1682,6 +1730,13 @@ def insertion_schedule_day(
             return CITYWALK_AFTERNOON_PENALTY if t < CITYWALK_AFTERNOON_MINUTES else 0
         return 0
 
+    def _remote_late_cost(t: int, item: VisitItem) -> int:
+        # 远郊件上午开场（2026-11-15 拍板）：12:00 后开场计罚——量纲同其它
+        # 时段偏好，压过单次插入走行差；pinned 有时刻走锚点通道（铁律 19）。
+        if t < REMOTE_AFTERNOON_MINUTES or not _is_remote_visit(item):
+            return 0
+        return REMOTE_AFTERNOON_PENALTY
+
     def _afternoon_big_cost(t: int, item: VisitItem) -> int:
         # 下午单大点（2026-11-04 拍板）：候选会是当日第二个 ≥13:00 开场
         # 大点时计罚——豁免面与「上午一个点」一致（用户自钉有时刻不计，
@@ -1872,6 +1927,7 @@ def insertion_schedule_day(
                         + _big_first_cost(t, spec.item)
                         + _head_first_cost(t, spec.item)
                         + _cw_afternoon_cost(t, spec.item)
+                        + _remote_late_cost(t, spec.item)
                         + (
                             -FUSION_NEST_BONUS
                             if _fusion_host_span(t, dur, spec.item)
@@ -2143,9 +2199,17 @@ def insertion_schedule_day(
                             b is _head_p and a is not _head_p and _is_head_candidate(a)
                         ):
                             head_viol += 1
+            remote_late = sum(
+                1
+                for o in occupied
+                if isinstance(o[2], VisitItem)
+                and o[0] >= REMOTE_AFTERNOON_MINUTES
+                and _is_remote_visit(o[2])
+            )
             return (
                 travel
                 + max(0, mornings - 1) * MORNING_ONE_SITE_PENALTY
+                + remote_late * REMOTE_AFTERNOON_PENALTY
                 + max(0, aft_bigs - 1) * AFTERNOON_ONE_BIG_PENALTY
                 + inversions * BIG_FIRST_PENALTY
                 + head_viol * HEAD_FIRST_PENALTY

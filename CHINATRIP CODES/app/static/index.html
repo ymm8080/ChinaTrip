@@ -3129,6 +3129,9 @@ function planRenderReply(holder, body, opts) {
     go.onclick = () => planStartConfirmedByPicks(diffs, picks);
     box.appendChild(go);
     holder.appendChild(box);
+  } else if (body.state === "intake") {
+    // 文字信息不足（读不出出发日期）：弹行前卡收集，提交后重发
+    planIntakeFromState();
   } else {
     if (body.state === "resto_confirm" && (body.restos || []).length) {
       // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
@@ -3280,13 +3283,21 @@ async function planStartConfirmedByPicks(diffs, picks) {
   return planStartConfirmed(routeSource, overrides);
 }
 
+// state=intake 分支（2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）：
+// 弹行前卡收集 开始/结束日期·班次·时刻，提交后带卡值重发 /plan/start。
+async function planIntakeFromState() {
+  const intake = await planIntakeAsk({ date: "" });
+  await planStartConfirmed(null, { intakeValues: intake });
+}
+
 async function planStartConfirmed(routeSource, overrides) {
   const s = planLastStart;
   if (!s) return;
   const ov = overrides || {};
+  const iv = ov.intakeValues || s.intake; // 行前卡提交值优先（state=intake 重发）
   planTouch();
   planWorking = true;
-  PLAN.startDate = s.startDate || "";
+  PLAN.startDate = iv.start_date || s.startDate || "";
   addMsg("flow-plan", "user", routeSource === "brief"
     ? I18N.tf("plan.route.useText","✍️ 用文字路线")
     : routeSource === "form"
@@ -3299,18 +3310,18 @@ async function planStartConfirmed(routeSource, overrides) {
       days: s.formDays,
       preferences: s.prefs,
       city_days: s.cityDays,
-      start_date: s.startDate || undefined,
+      start_date: iv.start_date || s.startDate || undefined,
       intercity_mode: planTransportMode(),
       lang: I18N.locale(),
       brief: routeSource === "brief" ? s.brief : undefined,
       images: s.images && s.images.length ? s.images : undefined,
-      arrival_no: s.intake.arrival_no || undefined,
-      arrival_date: s.intake.arrival_date || undefined,
-      arrival_time: s.intake.arrival_time || undefined,
-      departure_no: s.intake.departure_no || undefined,
-      departure_date: s.intake.departure_date || undefined,
-      departure_time: s.intake.departure_time || undefined,
-      intake: true,
+      arrival_no: iv.arrival_no || undefined,
+      arrival_date: iv.arrival_date || undefined,
+      arrival_time: iv.arrival_time || undefined,
+      departure_no: iv.departure_no || undefined,
+      departure_date: iv.departure_date || undefined,
+      departure_time: iv.departure_time || undefined,
+      intake: true, // 卡已提交：放宽语义 opting-in
     };
     if (routeSource) payload.route_source = routeSource;
     if (ov.days_override) payload.days_override = ov.days_override;
@@ -3318,7 +3329,7 @@ async function planStartConfirmed(routeSource, overrides) {
     if (ov.departure_no_override) payload.departure_no_override = ov.departure_no_override;
     const body = await api("/api/v1/plan/start", payload);
     planFormSyncFromPlan(body.plan);
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, start_date: s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: s.intake.arrival_no || undefined, arrival_time: s.intake.arrival_time || undefined, departure_no: s.intake.departure_no || undefined, departure_time: s.intake.departure_time || undefined, arrival_date: s.intake.arrival_date || undefined, departure_date: s.intake.departure_date || undefined, intake: true } });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, start_date: iv.start_date || s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: iv.arrival_no || undefined, arrival_time: iv.arrival_time || undefined, departure_no: iv.departure_no || undefined, departure_time: iv.departure_time || undefined, arrival_date: iv.arrival_date || undefined, departure_date: iv.departure_date || undefined, intake: true } });
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
     planRenderSafe(holder, body, { first: true });
@@ -3336,7 +3347,10 @@ async function planStartConfirmed(routeSource, overrides) {
 async function planStartCore(extraPref, images) {
   planTouch(); // 新一局开跑：作废在途的自动载入，旧行程不许再画回来
   const textMode = !!extraPref; // 打字开局：只读文字，表单默认值一概不取
-  const intake = await planIntakeAsk({ date: textMode ? "" : (document.getElementById("planStartDate").value || "") });
+  // 行前卡改由后端判定（2026-11-15 用户再拍板「行前卡只在用户输入文字并且
+  // 信息不足时弹出」）：文字里读得出出发日期=信息足够，直接生成；读不出才由
+  // /plan/start 返回 state=intake 弹卡收集。表单开局不弹卡。
+  const intake = { skipped: true };
   planWorking = true;
   // 没动过表单的表单开局也不把默认值当意图（用户拍板「默认值不该变成行程」）：
   // 城市/天数交给后端追问；行前卡只收开始/结束信息，路线仍以文字/表单意图为准。
@@ -3376,7 +3390,8 @@ async function planStartCore(extraPref, images) {
       departure_time: intake.departure_time || undefined,
       arrival_date: intake.arrival_date || undefined,
       departure_date: intake.departure_date || undefined,
-      intake: true, // 行前卡 opting-in：跳过/没填也按「全天游玩」放宽
+      // 行前卡标志只在「卡已提交」的重发时携带（后端判信息不足才弹卡）。
+      intake: undefined,
     });
     if (body.state === "confirm_route") {
       // 文字 vs 表单路线冲突：等用户在确认卡上选边（不开会话、不生成）
@@ -3384,7 +3399,7 @@ async function planStartCore(extraPref, images) {
       planRenderSafe(holder, body);
     } else {
     planFormSyncFromPlan(body.plan); // 后端按简报改了路线时，表单/摘要跟着新行程走
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: intake.arrival_no || undefined, arrival_time: intake.arrival_time || undefined, departure_no: intake.departure_no || undefined, departure_time: intake.departure_time || undefined, arrival_date: intake.arrival_date || undefined, departure_date: intake.departure_date || undefined, intake: true } }); // origin 供会话丢失后自动重建 + 重新规划预填（含出发日期）
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: intake.arrival_no || undefined, arrival_time: intake.arrival_time || undefined, departure_no: intake.departure_no || undefined, departure_time: intake.departure_time || undefined, arrival_date: intake.arrival_date || undefined, departure_date: intake.departure_date || undefined, intake: undefined } }); // origin 供会话丢失后自动重建（intake 标志仅卡提交重发携带）
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });

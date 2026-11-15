@@ -388,7 +388,9 @@ class TripItemService:
             # 不在这里删除（写口已加合并闸，历史行由一次性清理收口）。
             def _collapse_key(item: dict) -> tuple[str, str]:
                 owner = str(
-                    item.get("owner_account_id") or item.get("owner_device_id") or ""
+                    item.get("owner_account_id")
+                    or item.get("owner_device_id")
+                    or ""
                 )
                 return (owner, _wish_key(str(item.get("name") or "")))
 
@@ -879,7 +881,9 @@ class TripItemService:
             kwargs: dict = {"exclusion_flag": True}
             if base != raw_note:
                 kwargs["note"] = base
-            other_trip = bool(itinerary_id and item.get("itinerary_id") != itinerary_id)
+            other_trip = bool(
+                itinerary_id and item.get("itinerary_id") != itinerary_id
+            )
             if other_trip and item.get("status") in (STATUS_SCHEDULED, STATUS_BOOKED):
                 # 别趟行程里已排上/已订的同一站：只打排除标，不动它的档期
                 return self.update(item["id"], **kwargs)

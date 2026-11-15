@@ -139,6 +139,11 @@ class VisitItem(BaseModel):
     # sunset/sunrise/any），solver 据此收窄开窗（夜景自动排晚上）；
     # None = 无信号（老数据/占位），按全天窗处理。
     best_visit_time: str | None = None
+    # 远郊件（2026-11-15 用户拍板「远郊景点 BEST VISIT TIME MORNING」）：
+    # 装配期按距城心 >_DAY_MIX_KM 打标（plan._mark_remote_visits，与日间
+    # 混排闸同口径）。solver 把它当头档优先件——远郊景点最佳游览时段=上午
+    # （早出发跑全天），排到 12:00 后开场计软罚，不拦可行性。
+    remote: bool = False
     # 升旗时刻锚（flag_schedule 设计 2026-11-14）：装配期按官方升降旗表
     # 打标的精确开始时刻（仅天安门广场；plan._apply_flag_schedule 落标）。
     # solver 两路（CP/最廉插入）都把它当完全钉死项：start 恰落该点，且可
