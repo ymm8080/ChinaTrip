@@ -2659,17 +2659,11 @@ function planSaveBar(plan) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
       planTouch(); // 用户明确要重开一局：在途的自动载入立即作废
-      const orig = planSession.origin || {};
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧对话流整段清掉，才是真·全新页
-      planFormPrefill({
-        cities: orig.cities || [],
-        cityDays: orig.city_days || {},
-        startDate: orig.start_date || PLAN.startDate || "",
-        prefs: orig.preferences || "",
-      });
-      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
-      toast(I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
+      planFormReset(); // 重新规划不再预填（2026-11-15 用户拍板）：表单回初始默认值
+      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到全新规划：填好上方参数，或直接在下面输入需求。"));
+      toast(I18N.tf("plan.replan.toForm","已回到全新规划：填好上方参数，或直接在下面输入需求。"));
       document.getElementById("flow-plan").scrollTop = 0;
     };
     bar.appendChild(re);
@@ -2684,19 +2678,9 @@ function planSaveBar(plan) {
       planTouch(); // 重新规划=真·全新一局：在途自动载入作废
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧行程消息流整段清掉，才是真·全新页
-      // 预填上次参数（2026-10-28 用户规则）：城市取行程城市；各城天数按行程卡逐日
-      // base_city 反推（转场日计入其到达城，与原表单或有 ±1 出入，反正用户可改再点开始）；
-      // 出发日期用行程快照 start_date（itinEdit 已把基准还原进 PLAN.startDate）
-      const perCity = {};
-      (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
-      planFormPrefill({
-        cities: rLike.cities, // planSetSession(null) 已清 planSession，城市用建 bar 时捕获的 rLike.cities
-        cityDays: perCity,
-        startDate: plan.start_date || PLAN.startDate || "",
-        prefs: null, // 行程会话没有原始偏好，保留偏好输入框现状
-      });
-      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
-      toast(I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。"));
+      planFormReset(); // 重新规划不再预填（2026-11-15 用户拍板，覆写 2026-10-28「带上次输入」）：表单回初始默认值
+      addMsg("flow-plan", "sys", I18N.tf("plan.replan.toForm","已回到全新规划：填好上方参数，或直接在下面输入需求。"));
+      toast(I18N.tf("plan.replan.toForm","已回到全新规划：填好上方参数，或直接在下面输入需求。"));
       document.getElementById("flow-plan").scrollTop = 0;
     };
     const ex = el('<button class="btn" data-role="itin-export">' + I18N.tf("plan.export","⬇️ 导出") + "</button>");
@@ -2714,18 +2698,10 @@ function planSaveBar(plan) {
     const re = el('<button class="btn" data-role="plan-replan">' + I18N.tf("plan.replan","🔄 重新规划") + "</button>");
     re.onclick = () => {
       planTouch(); // 用户明确要重开一局：在途的自动载入立即作废
-      const perCity = {};
-      (plan.days || []).forEach(d => { if (d.base_city) perCity[d.base_city] = (perCity[d.base_city] || 0) + 1; });
       planSetSession(null);
       document.getElementById("flow-plan").textContent = ""; // 旧消息流整段清掉，才是真·全新页
-      const ok = planFormPrefill({
-        cities: plan.cities || [],
-        cityDays: perCity,
-        startDate: plan.start_date || PLAN.startDate || "",
-        prefs: null, // 行程卡反推不出原始偏好，保留偏好输入框现状
-      });
-      const msg = ok ? I18N.tf("plan.replan.toForm","已回到初始设置：参数已按上次输入预填，改完点「🚀 开始规划」重新生成。")
-                     : I18N.tf("plan.replan.toFormBlank","已回到全新规划：请填好上方参数后点「🚀 开始规划」。");
+      planFormReset(); // 重新规划不再预填（2026-11-15 用户拍板）：表单回初始默认值
+      const msg = I18N.tf("plan.replan.toForm","已回到全新规划：填好上方参数，或直接在下面输入需求。");
       addMsg("flow-plan", "sys", msg);
       toast(msg);
       document.getElementById("flow-plan").scrollTop = 0;
@@ -2776,7 +2752,7 @@ document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
 
 // 城市五控件：起始/中间1-3/结束下拉 + 每城天数；[中文, 英文] 与后端 KNOWN_CITIES/CITY_ALIASES 保持一致
 const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangzhou"],["苏州","Suzhou"],["南京","Nanjing"],["西安","Xi'an"],["成都","Chengdu"],["重庆","Chongqing"],["广州","Guangzhou"],["深圳","Shenzhen"],["天津","Tianjin"],["武汉","Wuhan"],["长沙","Changsha"],["厦门","Xiamen"],["青岛","Qingdao"],["大连","Dalian"],["三亚","Sanya"],["丽江","Lijiang"],["桂林","Guilin"],["洛阳","Luoyang"],["敦煌","Dunhuang"],["兰州","Lanzhou"],["拉萨","Lhasa"],["昆明","Kunming"],["大理","Dali"],["张家界","Zhangjiajie"],["黄山","Huangshan"],["无锡","Wuxi"],["绍兴","Shaoxing"],["嘉兴","Jiaxing"],["舟山","Zhoushan"],["哈尔滨","Harbin"],["沈阳","Shenyang"],["长春","Changchun"],["郑州","Zhengzhou"],["济南","Jinan"],["福州","Fuzhou"],["泉州","Quanzhou"],["威海","Weihai"],["珠海","Zhuhai"]];
-const PLAN = { startDate: "", formPristine: null, formPrefilled: false };
+const PLAN = { startDate: "", formPristine: null, formPrefilled: false, formUserTouched: false };
 
 // 路线 = 起始 → 中间1-2（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
 // （起始城市只排出发交通不排活动，其天数框禁用不参与计算）
@@ -2846,9 +2822,12 @@ function planCityRender() {
   const en = I18N.locale() !== "zh"; // ja/ko 骨架期城市名走 en 拼写（CITY_JA/KO 未建）；value 恒中文=API 契约
   const label = ([c, enName]) => en ? enName : (c + " " + enName);
   const opts = PLAN_CITIES.map(p => '<option value="' + p[0] + '">' + label(p) + "</option>").join("");
-  const cur = { s: s.value || "上海", e: e.value || "上海",
+  // 起始城市默认「未选」（2026-11-15 用户拍板「SET DEFAULT START CITY AS NONE」）：
+  // 不再兜底上海——初始/重置后为空，planRouteForm 会把空城滤掉（cities 交给
+  // 文字解析或后端追问）；结束城市默认不变。
+  const cur = { s: s.value, e: e.value || "上海",
     via: [1, 2].map(i => document.getElementById("planVia" + i).value || "") };
-  s.innerHTML = opts; s.value = cur.s;
+  s.innerHTML = '<option value="">' + I18N.tf("plan.cityNone","（未选）") + "</option>" + opts; s.value = cur.s;
   e.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts; e.value = cur.e;
   for (let i = 1; i <= 2; i++) {
     const v = document.getElementById("planVia" + i);
@@ -2877,6 +2856,11 @@ window.addEventListener("i18n:change", planCityRender);
   }
   planTotalRefresh();
   PLAN.formPristine = planFormSnapshot(); // 默认值基线：比对才知道用户动没动过表单
+  // 用户亲手改过表单（2026-11-15 用户实报）：重新规划/自动载入的预填不算——
+  // 文字开局只有亲手填过的表单参数才随请求带去后端做差异确认。
+  ["planStartCity", "planStartDays", "planVia1", "planVia1Days", "planVia2",
+   "planVia2Days", "planEndCity", "planEndDays", "planStartDate", "planTransport"]
+    .forEach(id => document.getElementById(id).addEventListener("change", () => { PLAN.formUserTouched = true; }));
 })();
 // 第 n 天的 ISO 日期（YYYY-MM-DD）；未设开始日期返回 ""
 function todayBeijingIso() {
@@ -2929,6 +2913,19 @@ function planSetSession(s) {
   if (s) { form.style.display = "none"; bar.style.display = "flex"; planSummaryRefresh(); }
   else { form.style.display = "flex"; bar.style.display = "none"; }
   document.getElementById("planInput").placeholder = s ? I18N.tf("plan.input.phActive","继续对话，例如：把第二天的景点挪到第三天；点上方摘要可展开改参数") : I18N.tf("plan.input.phIdle","自由对话：输入需求（如：上海到杭州 3 天，喜欢博物馆）回车即开始规划；开始后在这里继续调整");
+}
+// 重新规划不再预填上次参数（2026-11-15 用户拍板「BEIJING IS AUTO FILLED WHICH
+// SHOULD NOT HAPPEN」，覆写 2026-10-28「重新规划=带上次输入」）：表单回到页面
+// 初始默认值（PLAN.formPristine 快照），用户重新填写或直接打字（文字开局只读
+// 文字；JS 赋值不触发 change，formUserTouched 不会被误置）。
+function planFormReset() {
+  const base = PLAN.formPristine || {};
+  Object.keys(base).forEach(id => {
+    const e2 = document.getElementById(id);
+    if (e2) e2.value = base[id];
+  });
+  PLAN.startDate = base.planStartDate || "";
+  planTotalRefresh();
 }
 // 预填参数表单（2026-10-28 用户规则：重新规划=回到初始设置并带上次输入）：
 // cities=[起始,…中间0-2,结束]，cityDays 城市→天数（只读中间/结束城），startDate 出发日期，
@@ -3334,10 +3331,12 @@ async function planStartCore(extraPref, images) {
   // 没动过表单的表单开局也不把默认值当意图（用户拍板「默认值不该变成行程」）：
   // 城市/天数交给后端追问；行前卡只收开始/结束信息，路线仍以文字/表单意图为准。
   const formIntent = !textMode && planFormDirty(); // 只有真动过表单才算意图
-  // 文字模式但表单被用户改过：表单参数也随请求带去后端做「文字 vs 表单」差异
-  // 确认（2026-11-14 用户拍板）；纯默认表单仍不发（不把默认值当意图）。
+  // 文字模式但表单被用户亲手改过：表单参数也随请求带去后端做「文字 vs 表单」
+  // 差异确认（2026-11-14 用户拍板）；纯默认表单仍不发。重新规划/自动载入的
+  // 预填不算亲手改（2026-11-15 用户实报：打「北京 2 天」被注入上海出发城）——
+  // 只读文字，城市/天数全从文字解析，不注入出发城。
   const r =
-    formIntent || (textMode && planFormDirty())
+    formIntent || (textMode && PLAN.formUserTouched)
       ? planRouteForm()
       : { cities: [], cityDays: {}, total: 0 };
   const prefs = textMode ? extraPref : [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
