@@ -13497,11 +13497,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
         while remaining and guard < 20:
             guard += 1
             pending = [v for v in order if v in remaining]
-            mv = (
-                pending[0]
-                if pending
-                else _must_day_order(day, remaining)[0]
-            )
+            mv = pending[0] if pending else _must_day_order(day, remaining)[0]
             dur = mv.duration_minutes or DEFAULT_VISIT_MINUTES
 
             def _try_start() -> int | None:
