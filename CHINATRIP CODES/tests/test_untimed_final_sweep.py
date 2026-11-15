@@ -121,6 +121,7 @@ def _bare_agent(solve_result=None) -> PlanningAgent:
     """跳过 __init__ 的裸 agent：_finalize_untimed_visits 只用 self._solve
     + self._wish_bindings（2026-11-15 起收口会读心愿绑定，裸 agent 需补空字典）。"""
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = lambda plan, meal_flex=True, **kw: solve_result  # type: ignore[method-assign]
     agent._wish_bindings = {}
     return agent
@@ -226,7 +227,8 @@ def test_finalize_sweeps_room_for_pinned_panda_after_fillers_timed():
     out = _bare_agent(solve_result=None)._finalize_untimed_visits(plan)
     d2 = out.days[0]
     panda = next(i for i in d2.items if i.item_id == "v8")
-    assert panda.start_time == _t(12, 0) and panda.end_time == _t(15, 0), (
+    # 2026-11-14 撤正午起探：上午头档被占后第二点 11:30 起（不再等 12:00）
+    assert panda.start_time == _t(11, 30) and panda.end_time == _t(14, 30), (
         "钉住必去必须拿到整档时刻，不得无时刻交付"
     )
     names = [i.name for i in d2.items]
@@ -597,6 +599,7 @@ def _rescue_plan() -> ItineraryPlan:
 def test_crossday_rescue_moves_pinned_must_to_feasible_day():
     plan = _rescue_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan)
     must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
@@ -615,6 +618,7 @@ def test_crossday_rescue_rolls_back_when_target_infeasible():
     按 11-13 第三拍移除落 unplaced+披露，不得灰卡滞留端点日。"""
     plan = _rescue_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=240)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan)
     assert all(
@@ -659,6 +663,7 @@ def test_crossday_rescue_repins_must_and_rigidifies_pinned_meals():
         return base_solve(p, meal_flex=meal_flex, **kw)
 
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _spy_solve  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan)
     must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
@@ -750,6 +755,7 @@ def test_rescue_includes_protect_named_must():
     腾位」——裸挪禁，验证制救生必达）。"""
     plan = _rescue_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, notes = agent._must_visit_crossday_rescue(plan, protect={"某必去大点"})
     must = next(i for d in out.days for i in d.items if i.item_id == "must-1")
@@ -820,6 +826,7 @@ def test_rescue_prefers_non_endpoint_day():
     对钉住件无解，先落端点日=把灰卡换成新违规（用户可见「两项」）。"""
     plan = _departure_day_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, _notes = agent._must_visit_crossday_rescue(plan, protect={"离城日必去"})
     must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
@@ -886,6 +893,7 @@ def test_rescue_moves_timed_endpoint_stay_violator():
         assumptions=[],
     )
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
     must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
@@ -987,6 +995,7 @@ def test_rescue_removes_unplaceable_endpoint_stay_violator():
     在到达/离城日，也不得「孤窗兜底」搬进另一侧端点日；披露加回路径。"""
     plan = _stay_violator_on_return_day()
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
     assert all(
@@ -1007,6 +1016,7 @@ def test_rescue_keeps_curated_stay_violator_when_unplaceable():
     只适用于非 curated 卡）。"""
     plan = _stay_violator_on_return_day(curated=True)
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, notes = agent._must_visit_crossday_rescue(plan, protect={"离城日大点"})
     must = next(i for d in out.days for i in d.items if i.item_id == "must-d3")
@@ -1077,6 +1087,7 @@ def test_rescue_stay_bad_gate_ignores_normal_day():
         assumptions=[],
     )
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, notes = agent._must_visit_crossday_rescue(plan, protect={"普通日大点"})
     must = next(i for d in out.days for i in d.items if i.item_id == "must-normal")
@@ -1144,6 +1155,7 @@ def test_rescue_prunes_stale_disclosure_but_keeps_stray_mate():
         assumptions=["必去 「救生甲」、「滞留乙」 排不上时刻，请告诉我换天或换时刻"],
     )
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, _notes = agent._must_visit_crossday_rescue(plan, protect={"救生甲", "滞留乙"})
     a = next(i for d in out.days for i in d.items if i.item_id == "must-a")
@@ -1200,6 +1212,7 @@ def test_rescue_includes_pinned_untimed_show():
         assumptions=[],
     )
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=400)  # type: ignore[method-assign]
     out, _notes = agent._must_visit_crossday_rescue(plan, protect={"某钉住演出"})
     show = next(i for d in out.days for i in d.items if i.item_id == "show-1")
@@ -1237,6 +1250,7 @@ def test_finalize_fallback_runs_after_solve_success_for_pinned_must():
         itinerary_id="it-fb-after-ok", cities=["成都"], days=[day], assumptions=[]
     )
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     # 假 solve 恒返回计划（≠None=「成功」）但 120min 条目在 max=60 下
     # 永不落档——正是旧码跳过兜底的形态。
     agent._solve = _greedy_solve(max_minutes=60)  # type: ignore[method-assign]

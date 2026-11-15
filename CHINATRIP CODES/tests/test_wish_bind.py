@@ -178,7 +178,8 @@ def test_sync_heals_stale_binding_to_real_poi(monkeypatch):
     }
     agent._wish_bindings["看熊猫"] = stale
     session.wish_bindings["看熊猫"] = stale
-    agent._sync_wish_rows(session)
+    # 2026-11-15 拍板：心愿行只在保存行程时落库/自愈（commit_wish_drafts）
+    agent.commit_wish_drafts(session)
     assert session.wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
     assert agent._wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
     rows = svc.list_groups(session.plan.itinerary_id)
@@ -201,6 +202,8 @@ def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
     session = asyncio.run(
         agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
     )
+    # 2026-11-15 拍板：规划期不落库——commit_wish_drafts 模拟「保存行程」
+    agent.commit_wish_drafts(session)
     rows = svc.list_groups()
     assert any(r["name"] == "看熊猫" for r in rows["scheduled"])
     # 模拟重排删点：把基地从计划里拿掉，再跑收口
@@ -210,7 +213,7 @@ def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
             for i in day.items
             if not (isinstance(i, VisitItem) and i.name == "成都大熊猫繁育研究基地")
         ]
-    agent._sync_wish_rows(session)
+    agent.commit_wish_drafts(session)
     rows = svc.list_groups()
     assert not any(r["name"] == "看熊猫" for r in rows["scheduled"])
     row = next(r for r in rows["wishlist"] if r["name"] == "看熊猫")
@@ -271,6 +274,7 @@ def test_wish_binds_out_of_pool_library_row(monkeypatch):
     assert "都江堰水利工程" in names
     assert "看成都附近的水利工程" not in names
     assert llm.calls == 0
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         (
@@ -312,6 +316,7 @@ def test_absorb_reopens_scheduled_row_for_new_trip(monkeypatch):
     assert "看成都附近的水利工程" in session.must_visits
     names = [v.name for v in _visits(session)]
     assert "都江堰水利工程" in names
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row2 = next(
         r
@@ -582,6 +587,7 @@ def test_wish_water_llm_bind_full_flow(monkeypatch):
     assert "青城山都江堰旅游景区" in names
     assert "看成都附近的水利工程" not in names
     assert llm.calls == 1
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         r
@@ -631,6 +637,7 @@ def test_add_must_visits_binds_water_wish_incremental(monkeypatch):
     names = [v.name for v in _visits(session)]
     assert "青城山都江堰旅游景区" in names
     assert "看成都附近的水利工程" not in names
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         (
