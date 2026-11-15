@@ -21,6 +21,7 @@ from app.services.agent.hotel_stays import (
     is_hotel_checkin,
     is_hotel_morning,
     is_hotel_night,
+    paired_hotel_card,
     reanchor_hotel_cards,
     reanchor_hotel_mornings,
     sync_hotel_pair,
@@ -775,15 +776,16 @@ def test_sync_hotel_stay_fills_whole_stay():
     _fill_night(night)
     pair, filled = sync_hotel_stay(days, night, hotel_name="丽枫酒店钟楼店")
     assert pair is not None and pair.item_id == "hotel-morning-d2"
-    # 夜卡 d2/d3/d4 + 晨卡 d3/d4（d2 是配对卡，由 sync_hotel_pair 写）
-    assert filled == 5
+    # 夜卡 d2/d3/d4 + 晨卡 d1/d3/d4（首日晨卡=本段起点当晚夜卡的出发点；
+    # d2 是配对卡，由 sync_hotel_pair 写）
+    assert filled == 6
     for dp in days:
         card = next(i for i in dp.items if is_hotel_night(i))
         assert card.name == "丽枫酒店钟楼店"
         assert card.poi_id == "B1"
         assert card.address == "碑林区南大街1号"
         assert card.location is not None and card.location.lon == 108.95
-    for dp in days[1:]:
+    for dp in days:  # 首日晨卡同样继承本段酒店（2026-11-15）
         card = next(i for i in dp.items if is_hotel_morning(i))
         assert card.name == "🏨 从酒店出发（丽枫酒店钟楼店）"
         assert card.poi_id == "B1"
@@ -796,7 +798,7 @@ def test_sync_hotel_stay_from_morning_card():
     pair, filled = sync_hotel_stay(days, morning, hotel_name="晨卡酒店")
     assert pair is not None and is_hotel_night(pair)
     assert pair.name == "晨卡酒店"
-    assert filled == 5
+    assert filled == 6  # 首日晨卡也随本段铺开（2026-11-15）
 
 
 def test_sync_hotel_stay_keeps_other_verified_hotel():
@@ -806,8 +808,8 @@ def test_sync_hotel_stay_keeps_other_verified_hotel():
     night1 = next(i for i in days[0].items if is_hotel_night(i))
     _fill_night(night1)
     _, filled = sync_hotel_stay(days, night1, hotel_name="丽枫酒店钟楼店")
-    # 夜卡 d2/d4 + 晨卡 d3（别的夜卡都已是别的酒店）
-    assert filled == 3
+    # 夜卡 d2/d4 + 晨卡 d1/d3（别的夜卡都已是别的酒店）
+    assert filled == 4
     assert night3.name == "另一家酒店" and night3.poi_id == "B9"
     morning4 = next(i for i in days[3].items if is_hotel_morning(i))
     assert morning4.poi_id is None  # 第3晚住别家，第4天晨卡不得被本段覆盖
@@ -823,7 +825,7 @@ def test_hotel_stay_bounds_split_by_city():
     night = next(i for i in days[0].items if is_hotel_night(i))
     _fill_night(night)
     _, filled = sync_hotel_stay(days, night, hotel_name="丽枫酒店钟楼店")
-    assert filled == 2  # 夜卡 d2 + 晨卡 d3（d2 是配对卡）
+    assert filled == 3  # 夜卡 d2 + 晨卡 d1/d3（d2 是配对卡；首日晨卡 2026-11-15）
     night3 = next(i for i in days[2].items if is_hotel_night(i))
     morning4 = next(i for i in days[3].items if is_hotel_morning(i))
     assert night3.poi_id is None and morning4.poi_id is None
@@ -879,3 +881,86 @@ def test_reanchor_hotel_cards_keeps_card_first_in_day_order():
     reanchor_hotel_cards(days)
     # 回拨后展示序必须按时间重排：晨卡仍是当天第一张卡
     assert d2.items[0] is card
+
+
+
+def test_attach_morning_card_on_first_whole_day():
+    """整天在城里的首日（无落地腿/无入住卡）同样以酒店卡开头（2026-11-15）。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _visit(
+                "w1", day=1, city="上海", start_time=time(8, 30), end_time=time(10, 30)
+            ),
+        ],
+    )
+    d2 = DayPlan(
+        day=2,
+        base_city="上海",
+        items=[
+            _visit(
+                "w2", day=2, city="上海", start_time=time(9, 0), end_time=time(11, 0)
+            ),
+        ],
+    )
+    days = [d1, d2]
+    attach_hotel_nights(days)
+    notes = attach_hotel_mornings(days)
+    assert notes and "第1、2天" in notes[0]
+    card = next(i for i in d1.items if is_hotel_morning(i))
+    assert card.item_id == "hotel-morning-d1"
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
+    assert d1.items[0] is card  # 当天第一张卡
+    first = next(i for i in d1.items if i.item_id == "w1")
+    assert first.start_time == time(9, 0)  # 首站让到出发卡之后
+    assert any(is_hotel_morning(i) for i in d2.items)
+
+
+def test_attach_morning_first_day_skipped_when_landing():
+    """首日有落地城际腿=落地日：不插出发卡（当天从落地开始排）。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[
+            _flight(1, start=(8, 0), end=(10, 30), frm="上海", to="西安"),
+            _visit("w1", start_time=time(13, 0), end_time=time(15, 0)),
+        ],
+    )
+    d2 = DayPlan(day=2, base_city="西安", items=[_visit("w2", day=2)])
+    days = [d1, d2]
+    attach_hotel_stays(days)
+    attach_hotel_nights(days)
+    attach_hotel_mornings(days)
+    assert not any(is_hotel_morning(i) for i in d1.items)
+    assert any(is_hotel_morning(i) for i in d2.items)
+
+
+def test_attach_morning_first_day_needs_its_own_night_card():
+    """首日当晚不住店（没有夜卡）→ 首日不插出发卡。"""
+    d1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _visit("w1", start_time=time(9, 0), end_time=time(11, 0)),
+        ],
+    )
+    assert attach_hotel_mornings([d1]) == []
+    assert not any(is_hotel_morning(i) for i in d1.items)
+
+
+def test_drop_orphan_first_day_morning():
+    """删首日夜卡=这一晚不住店：首日出发卡随之清理（次日也断了起点）。"""
+    days = _multi_night_days()
+    days[0].items = [i for i in days[0].items if not is_hotel_night(i)]
+    dropped = drop_orphan_hotel_mornings(days)
+    assert dropped == ["hotel-morning-d1", "hotel-morning-d2"]
+    assert not any(is_hotel_morning(i) for d in days[:2] for i in d.items)
+
+
+def test_paired_card_first_day_morning_pairs_same_night():
+    """首日晨卡没有「前一晚」：set-hotel 配对当晚夜卡。"""
+    days = _multi_night_days()
+    morning = next(i for i in days[0].items if is_hotel_morning(i))
+    pair = paired_hotel_card(days, morning)
+    assert pair is not None and is_hotel_night(pair) and pair.day == 1

@@ -968,10 +968,12 @@ def test_v0_amap_failure_falls_back_to_placeholder_candidates():
     )
     assert session.state == "ready"
     assert any("占位" in a for a in session.assumptions)
-    # 2 = 占位条目 + 落地首停入住卡；每晚酒店卡（2026-11-07）另计不占
+    # 2 个占位条目 + 酒店骨架卡：首日「从酒店出发」（2026-11-15 整天行程
+    # 首日也要酒店卡）+ 每晚夜卡
     day1 = session.plan.days[0].items
-    assert len(day1) == 3
+    assert len(day1) == 4
     assert sum(1 for i in day1 if is_hotel_night(i)) == 1
+    assert sum(1 for i in day1 if is_hotel_morning(i)) == 1
 
 
 def test_v0_degraded_store_refuses_placeholder_candidates():
@@ -3688,7 +3690,7 @@ def test_v0_hours_chain_source_follows_vendor_attr():
         agent.start(device_id="d1", cities=["上海"], days=1, preferences="博物馆")
     )
     assert session.state == "ready"
-    visits = all_visits(session)
+    visits = non_hotel_visits(session)  # 首日出发卡不是候选条目
     assert visits and visits[0].opening_hours == "09:00-17:00"
     row = store.get("B00000000")
     assert row["hours_source"] == "baidu_detail"

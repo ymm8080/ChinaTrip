@@ -17,7 +17,8 @@ solver 锚定落位、用户可拖/可改时/可删（删后即走 ② 口径）
 HOTEL. 加酒店卡」）：前一晚住店（当天有 hotel-night 卡）的次日开头
 插「🏨 从酒店出发」晨卡——卡占 30 分钟（早餐/退房），卡尾到当天首个
 行程预留 30 分钟起程；酒店身份随夜卡 set-hotel 双向同步（夜卡 ↔
-次日晨卡），点 ✏️ 同样可验证酒店名。首日=落地日不插（另有入住卡）。
+次日晨卡），点 ✏️ 同样可验证酒店名。首日=落地日（有入住卡/城际腿）
+不插；整天待在城里的首日同样以酒店为起点（2026-11-15 用户拍板）。
 同段住宿=同城连续夜：一次 ✏️ 把尚未验证的夜卡/晨卡全段铺开；夜卡被
 删/移走 → 次日晨卡在编辑/删除回合自动清理（2026-11-13 续）。
 """
@@ -504,25 +505,51 @@ def _morning_window(
     return start, end
 
 
-def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
-    """到达后每天以酒店为出发点：给「前一晚住店」的次日开头插晨卡。
+def _is_arrival_day(dp: DayPlan) -> bool:
+    """首日是否「落地日」：当天有酒店入住卡，或有飞机/火车的城际腿。
 
-    判定=前一天有 hotel-night 卡（前一晚没住酒店/夜车/末段回家不插）；
-    首日=落地日不插（当天另有酒店入住卡）。窗口=当天首个非酒店件开场
-    前预留起程（跨城交通按铁律 4 的 90 分钟缓冲）、卡占 30 分钟；空天
-    08:30–09:00。酒店名/地址/坐标从夜卡继承（set-hotel 后由
+    2026-11-15 用户「plan two whole days，start card should be hotel card」：
+    整天待在城里的首日既没有落地腿、也没有入住卡——它就是从酒店出发的
+    一天，不能再被「首日=落地日」的旧闸整日跳过出发卡。
+    """
+    if any(is_hotel_checkin(i) for i in dp.items):
+        return True
+    return any(
+        isinstance(i, TransferItem)
+        and getattr(i, "mode", None) in ("train", "flight")
+        and bool((i.to_city or "").strip())
+        for i in dp.items
+    )
+
+
+def _stay_night_card(by_day: dict[int, DayPlan], day: int) -> VisitItem | None:
+    """某天「出发点酒店」对应的夜卡：首日=当晚夜卡（前一晚在行程外），
+    其余天=前一晚夜卡（没住店/夜车=当天没有出发点）。"""
+    if day <= 1:
+        return _night_card_of(by_day.get(day))
+    return _night_card_of(by_day.get(day - 1))
+
+
+def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
+    """每天以酒店为出发点：给「当晚/前一晚住店」的那天开头插晨卡。
+
+    判定=当天有出发用的夜卡（首日=当晚夜卡，其余天=前一晚夜卡；没住
+    酒店/夜车/末段回家不插）；首日若本身是落地日（有入住卡或城际腿）
+    不插——那天从落地开始，另有入住卡兜住（2026-11-15 用户拍板：整天
+    在城里的两天行程，第1天开头也要是酒店卡）。窗口=当天首个非酒店件
+    开场前预留起程（跨城交通按铁律 4 的 90 分钟缓冲）、卡占 30 分钟；
+    空天 08:30–09:00。酒店名/地址/坐标从夜卡继承（set-hotel 后由
     sync_hotel_pair 双向续写）。幂等：已有晨卡的天不重复插；编辑/修复
     路径不复活已删卡（同夜卡口径）。
     """
     inserted: list[int] = []
     by_day = {dp.day: dp for dp in day_plans}
     for dp in day_plans:
-        if dp.day <= 1 or any(is_hotel_morning(i) for i in dp.items):
+        if any(is_hotel_morning(i) for i in dp.items):
             continue
-        prev = by_day.get(dp.day - 1)
-        if prev is None:
+        if dp.day <= 1 and _is_arrival_day(dp):
             continue
-        night = next((i for i in prev.items if is_hotel_night(i)), None)
+        night = _stay_night_card(by_day, dp.day)
         if night is None:
             continue
         first = _first_timed_item(dp)
@@ -588,7 +615,9 @@ def paired_hotel_card(day_plans: list[DayPlan], item: object) -> VisitItem | Non
             return None
         return next((i for i in nxt.items if is_hotel_morning(i)), None)
     if is_hotel_morning(item):
-        prev = _day_with(day_plans, item.day - 1)
+        # 首日晨卡没有「前一晚」夜卡：配对当晚夜卡（整段的出发点酒店）
+        src_day = item.day if item.day <= 1 else item.day - 1
+        prev = _day_with(day_plans, src_day)
         if prev is None:
             return None
         return next((i for i in prev.items if is_hotel_night(i)), None)
@@ -764,7 +793,8 @@ def sync_hotel_stay(
             id(night) in same_ids or (night is not item and _same_hotel(night, item))
         )
         if same_hotel and night is not None:
-            morning = _morning_card_of(by_day.get(d + 1))
+            # 首日晨卡没有「前一晚」夜卡：它归本段起点当晚的夜卡
+            morning = _morning_card_of(by_day.get(d if d <= 1 else d + 1))
             if (
                 morning is not None
                 and morning is not item
@@ -782,11 +812,12 @@ def drop_orphan_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
     by_day = {dp.day: dp for dp in day_plans}
     dropped: list[str] = []
     for dp in day_plans:
-        if dp.day <= 1:
-            continue
-        prev = by_day.get(dp.day - 1)
-        if prev is None or _night_card_of(prev) is not None:
-            continue
+        if dp.day > 1:
+            prev = by_day.get(dp.day - 1)
+            if prev is None or _night_card_of(prev) is not None:
+                continue
+        elif _night_card_of(dp) is not None:
+            continue  # 首日：出发点=当晚夜卡，夜卡还在就不清理
         for card in [i for i in dp.items if is_hotel_morning(i)]:
             dp.items.remove(card)
             dropped.append(card.item_id)
