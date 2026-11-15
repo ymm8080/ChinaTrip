@@ -275,6 +275,19 @@ def _stop_name(stop: object) -> str | None:
     return _as_str(stop.get("name")) if isinstance(stop, dict) else None
 
 
+def _stop_point(stop: object) -> dict | None:
+    """高德公交站坐标 "lon,lat" → {"lon", "lat"}（GCJ-02）。"""
+    if not isinstance(stop, dict):
+        return None
+    parts = (_as_str(stop.get("location")) or "").split(",")
+    if len(parts) != 2:
+        return None
+    try:
+        return {"lon": float(parts[0]), "lat": float(parts[1])}
+    except ValueError:
+        return None
+
+
 def _normalize_ride(kind: str, line: dict) -> dict:
     return {
         "kind": kind,
@@ -282,6 +295,8 @@ def _normalize_ride(kind: str, line: dict) -> dict:
         "type": _as_str(line.get("type")),
         "departure_stop": _stop_name(line.get("departure_stop")),
         "arrival_stop": _stop_name(line.get("arrival_stop")),
+        "departure_location": _stop_point(line.get("departure_stop")),
+        "arrival_location": _stop_point(line.get("arrival_stop")),
         "via_stops": _parse_int(line.get("via_num"), default=0),
         "departure_time": _as_str(line.get("departure_time")),
     }

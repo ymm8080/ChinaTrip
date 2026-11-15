@@ -21,6 +21,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.itinerary.models import GeoPoint, ItineraryPlan, VisitItem
+from app.services.itinerary.rules import haversine_km, taxi_leg_min
+
 #: 出行方式排序（取「主干那一段」用）：数字越大越算主干。
 MODE_RANK: dict[str, int] = {
     "walk": 0,
@@ -254,10 +257,39 @@ def _clamp(text: str, limit: int = 300) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def summarize(plans: list[Any] | None) -> dict[str, Any] | None:
+def _coord(point: Any, axis: int) -> float | None:
+    """{"lon":..,"lat":..} → 对应坐标（axis 0=lon 1=lat）；缺省 None。"""
+    if not isinstance(point, dict):
+        return None
+    key = "lon" if axis == 0 else "lat"
+    try:
+        return float(point[key])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _taxi_between(point: Any, poi_point: tuple[float, float] | None) -> int | None:
+    """落客点 → 景区门口 的打车分钟（打车模型同源）；坐标缺一不算。"""
+    lon = _coord(point, 0)
+    lat = _coord(point, 1)
+    if lon is None or lat is None or poi_point is None:
+        return None
+    km = haversine_km(
+        GeoPoint(lon=lon, lat=lat),
+        GeoPoint(lon=float(poi_point[0]), lat=float(poi_point[1])),
+    )
+    return taxi_leg_min(km)
+
+
+def summarize(
+    plans: list[Any] | None,
+    *,
+    poi_point: tuple[float, float] | None = None,
+) -> dict[str, Any] | None:
     """转乘方案组 → ``pois.access_*`` 写入值（取最快的一条）。
 
-    返回 ``None`` = 无法判定（无方案/无时长），调用方跳过不写。
+    ``poi_point`` = (lon, lat)：落客点离景区太远时用它算末段打车分钟；缺省
+    则末段只报步行（无法估算打车）。返回 ``None`` = 无法判定。
     """
     usable = [
         plan
@@ -292,6 +324,21 @@ def summarize(plans: list[Any] | None) -> dict[str, Any] | None:
     # 下车点离景区口太远时，那几分钟不是「步行」而是需要接驳/打车，别把它
     # 当步行分钟报给卡片（龙门涧实录：166 分钟「步行」实际是 13km 山路）。
     walkable = gateway_meters < TAXI_PICKUP_METERS
+    # 末段：可步行=步行分钟；不可步行且两端有坐标=打车模型估算（落客点到大门）
+    last_mile = gateway_minutes
+    if not walkable:
+        last_mile = _taxi_between(
+            (rides[-1].get("arrival_location") or {}) if rides else {}, poi_point
+        )
+
+    boarding = rides[0] if rides else None
+    board_loc = (boarding or {}).get("departure_location") or {}
+    service_minutes = sum(_minutes(r.get("duration_s")) for r in rides) if rides else 0
+    walk_total = sum(
+        _minutes(obj.get("duration_s")) for kind, obj in seq if kind == "walk"
+    )
+    wait_minutes = max(0, total_minutes - service_minutes - walk_total) if rides else 0
+
     return {
         "access_mode": mode,
         "access_minutes": total_minutes,
@@ -299,4 +346,49 @@ def summarize(plans: list[Any] | None) -> dict[str, Any] | None:
         "access_gateway_minutes": gateway_minutes if walkable else None,
         "access_note": note,
         "access_note_en": note_en,
+        # 接驳腿量（w12_0038）：引擎按「打车到乘车点 → 候车 → 班次 → 落客」算腿
+        "access_boarding": _clamp(
+            str((boarding or {}).get("departure_stop") or ""), 100
+        )
+        or None,
+        "access_boarding_lon": _coord(board_loc, 0),
+        "access_boarding_lat": _coord(board_loc, 1),
+        "access_service_minutes": service_minutes or None,
+        "access_wait_minutes": wait_minutes,
+        "access_last_mile_minutes": last_mile,
     }
+
+
+def attach_access(
+    plan: ItineraryPlan, profiles: dict[tuple[str, str], dict[str, Any]]
+) -> int:
+    """把库内到达方式档案挂到行程卡上（幂等）。返回命中的卡数。
+
+    只挂「有班次接驳」的点（train/shuttle/ferry）——其余点继续走打车模型，
+    卡片行为零变化。键先按 (city, name)，再退回 ("", name)（同名跨城兜底）。
+    """
+    filled = 0
+    for day in plan.days:
+        for item in day.items:
+            if not isinstance(item, VisitItem) or item.access_mode:
+                continue
+            prof = profiles.get((item.city, item.name)) or profiles.get(
+                ("", item.name)
+            )
+            if not prof:
+                continue
+            mode = prof.get("access_mode")
+            if mode not in ("train", "shuttle", "ferry"):
+                continue
+            if prof.get("access_service_minutes") is None:
+                continue
+            lon, lat = prof.get("access_boarding_lon"), prof.get("access_boarding_lat")
+            if lon is None or lat is None:
+                continue
+            item.access_mode = mode
+            item.access_boarding = GeoPoint(lon=float(lon), lat=float(lat))
+            item.access_service_minutes = prof.get("access_service_minutes")
+            item.access_wait_minutes = prof.get("access_wait_minutes") or 0
+            item.access_last_mile_minutes = prof.get("access_last_mile_minutes") or 0
+            filled += 1
+    return filled

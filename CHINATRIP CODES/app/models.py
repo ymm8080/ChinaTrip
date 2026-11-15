@@ -127,6 +127,14 @@ class Poi(Base):
     access_note_en: Mapped[str | None] = mapped_column(String(300))
     access_source: Mapped[str | None] = mapped_column(String(20))
     access_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    # 接驳腿量（2026-11-15 用户口径「一般是 TAXI + 引擎接驳腿」，w12_0038）：
+    # 引擎按「打车到乘车点 → 候车 → 班次 → 落客接驳」算腿时用；打车兜底不看这组。
+    access_boarding: Mapped[str | None] = mapped_column(String(100))
+    access_boarding_lon: Mapped[float | None] = mapped_column(Numeric(9, 6))
+    access_boarding_lat: Mapped[float | None] = mapped_column(Numeric(9, 6))
+    access_service_minutes: Mapped[int | None] = mapped_column(Integer)
+    access_wait_minutes: Mapped[int | None] = mapped_column(Integer)
+    access_last_mile_minutes: Mapped[int | None] = mapped_column(Integer)
     name_aliases: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     duration_source: Mapped[str | None] = mapped_column(String(20))
     review_summary: Mapped[str | None] = mapped_column(Text)

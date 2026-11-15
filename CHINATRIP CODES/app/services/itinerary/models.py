@@ -100,6 +100,16 @@ class VisitItem(BaseModel):
     distance_to_next_km: float | None = None
     next_walk_minutes: int | None = None
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
+    # 到达方式 / 接驳腿（2026-11-15 用户口径「一般是 TAXI + 引擎接驳腿」）：
+    # 默认市内腿按打车模型；命中 train/shuttle/ferry（有班次的景区专线、市郊
+    # 铁路、轮渡）时改走接驳链 = 打车到乘车点 → 候车 → 班次 → 落客接驳。
+    # 数据来自 pois.access_*（w12_0037/0038），装配期由 poi_access.attach_access
+    # 从库内档案挂到卡上；缺字段一律回退打车口径。
+    access_mode: str | None = None
+    access_boarding: GeoPoint | None = None
+    access_service_minutes: int | None = None
+    access_wait_minutes: int | None = None
+    access_last_mile_minutes: int | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
     # 必去/心愿卡（plan._merge_must_visits 装配期落标）：铁律 19 的去重

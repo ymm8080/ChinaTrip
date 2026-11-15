@@ -47,7 +47,7 @@ _EXCLUDED_CATEGORIES = ("hotel", "food", "transport", "service")
 _SELECT_SQL = """
 SELECT id, name_zh, city, category,
        ST_Y(location::geometry), ST_X(location::geometry),
-       access_updated_at
+       access_updated_at, access_mode
 FROM pois
 WHERE (status IS NULL OR status = 'active')
   AND location IS NOT NULL
@@ -63,8 +63,13 @@ def _candidates(
     min_km: float,
     limit: int,
     force: bool,
+    only_modes: tuple[str, ...] = (),
 ) -> list[tuple]:
-    """远郊候选（按距城心由远到近），限量取前 N。"""
+    """远郊候选（按距城心由远到近），限量取前 N。
+
+    ``only_modes`` = 只重算已回填成这些方式的行（补列/修口径时用，避免把
+    3000+ 个点全部重跑一遍烧配额）。
+    """
     with factory() as session:
         rows = session.execute(
             text(_SELECT_SQL)
@@ -72,8 +77,10 @@ def _candidates(
             .params(excluded=tuple(_EXCLUDED_CATEGORIES))
         ).all()
     out: list[tuple] = []
-    for pid, name, row_city, category, lat, lon, updated in rows:
+    for pid, name, row_city, category, lat, lon, updated, row_mode in rows:
         if updated is not None and not force:
+            continue
+        if only_modes and (row_mode or "") not in only_modes:
             continue
         if city and (row_city or "") not in (city, city + "市"):
             continue
@@ -121,9 +128,17 @@ async def run(
     concurrency: int = 4,
     force: bool = False,
     dry_run: bool = False,
+    only_modes: tuple[str, ...] = (),
 ) -> int:
     factory = get_session_factory()
-    rows = _candidates(factory, city=city, min_km=min_km, limit=limit, force=force)
+    rows = _candidates(
+        factory,
+        city=city,
+        min_km=min_km,
+        limit=limit,
+        force=force,
+        only_modes=only_modes,
+    )
     by_city: dict[str, int] = {}
     for row in rows:
         by_city[str(row[2])] = by_city.get(str(row[2]), 0) + 1
@@ -145,7 +160,7 @@ async def run(
             plans, vendor = await _plans_for(
                 chain, city=str(row_city), lon=lon, lat=lat, latch=latch
             )
-            summary = summarize(plans)
+            summary = summarize(plans, poi_point=(lon, lat))
             if not summary:
                 stats["failed"] += 1
                 print(f"  ✗ {row_city} {name}（{km:.0f}km）无方案")
@@ -186,6 +201,11 @@ def main() -> None:
         "--concurrency", type=int, default=4, help="并发条数（默认 4，同一 AK 别调高）"
     )
     parser.add_argument("--force", action="store_true", help="重算已填行")
+    parser.add_argument(
+        "--only-modes",
+        default="",
+        help="只重算已回填成这些方式的行（逗号分隔，如 train,shuttle,ferry）",
+    )
     parser.add_argument("--dry-run", action="store_true", help="只打印不写库")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -197,6 +217,9 @@ def main() -> None:
             sleep=args.sleep,
             concurrency=args.concurrency,
             force=args.force,
+            only_modes=tuple(
+                m.strip() for m in args.only_modes.split(",") if m.strip()
+            ),
             dry_run=args.dry_run,
         )
     )

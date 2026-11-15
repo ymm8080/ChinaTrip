@@ -384,6 +384,59 @@ class PoiDetailStore:
         """
         return self._factory is not None and (time.monotonic() < self._db_down_until)
 
+    def access_profiles(
+        self, cities: list[str] | None = None
+    ) -> dict[tuple[str, str], dict]:
+        """库内到达方式档案（只取有班次接驳的行），键 (city, name)。
+
+        规划装配用：``poi_access.attach_access`` 据此把接驳量挂到卡上。一次
+        查询、进程内按城市集缓存（调用方缓存），失败静默空表（打车兜底）。
+        """
+        out: dict[tuple[str, str], dict] = {}
+        if not self._db_available():
+            return out
+        try:
+            with self._factory() as session:
+                q = session.query(
+                    Poi.city,
+                    Poi.name_zh,
+                    Poi.access_mode,
+                    Poi.access_boarding,
+                    Poi.access_boarding_lon,
+                    Poi.access_boarding_lat,
+                    Poi.access_service_minutes,
+                    Poi.access_wait_minutes,
+                    Poi.access_last_mile_minutes,
+                ).filter(Poi.access_mode.isnot(None))
+                if cities:
+                    variants: list[str] = []
+                    for city in cities:
+                        bare = city[:-1] if city.endswith("市") else city
+                        variants.extend([bare, bare + "市"])
+                    if variants:
+                        q = q.filter(Poi.city.in_(sorted(set(variants))))
+                rows = q.all()
+        except Exception:
+            self._note_db_failure()
+            logger.warning("poi_details: access profile read failed", exc_info=True)
+            return out
+        for row in rows:
+            prof = {
+                "access_mode": row[2],
+                "access_boarding": row[3],
+                "access_boarding_lon": float(row[4]) if row[4] is not None else None,
+                "access_boarding_lat": float(row[5]) if row[5] is not None else None,
+                "access_service_minutes": row[6],
+                "access_wait_minutes": row[7],
+                "access_last_mile_minutes": row[8],
+            }
+            name = (row[1] or "").strip()
+            if not name:
+                continue
+            out[(str(row[0] or ""), name)] = prof
+            out.setdefault(("", name), prof)
+        return out
+
     # --- read ---------------------------------------------------------------
 
     def get(self, source_poi_id: str) -> dict | None:

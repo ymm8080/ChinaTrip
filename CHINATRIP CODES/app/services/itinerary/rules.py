@@ -120,6 +120,28 @@ def taxi_leg_min(km: float) -> int:
     return min(TRAVEL_LEG_CAP_MIN, round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES)
 
 
+#: 有班次接驳的到达方式：这几种点按「打车到乘车点 + 候车 + 班次 + 落客」算腿。
+SCHEDULED_ACCESS_MODES = ("train", "shuttle", "ferry")
+
+
+def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
+    """a → b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""
+    if b.access_mode not in SCHEDULED_ACCESS_MODES:
+        return None
+    if a.location is None or b.access_boarding is None:
+        return None
+    if not b.access_service_minutes:
+        return None
+    head = taxi_leg_min(haversine_km(a.location, b.access_boarding))
+    return max(
+        TRAVEL_GAP_FLOOR_MIN,
+        head
+        + (b.access_wait_minutes or 0)
+        + b.access_service_minutes
+        + (b.access_last_mile_minutes or 0),
+    )
+
+
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
     """相邻两点 a→b 需要的走行分钟。
 
@@ -141,6 +163,11 @@ def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
     km = haversine_km(a.location, b.location)
     if km <= SAME_VENUE_KM:
         return None  # 同址不隔腿（嵌套/并块尾按距离语义豁免）
+    chain = access_chain_minutes(a, b)
+    if chain is not None:
+        # 班次点（景区专线/市郊铁路/轮渡）：打车直达口径换成接驳链，排期
+        # 才排得下——慕田峪打车 81 分钟、实际专线 2 小时 15 分。
+        return chain
     return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))
 
 

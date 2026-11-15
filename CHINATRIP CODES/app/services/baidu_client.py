@@ -571,6 +571,19 @@ _RIDE_KINDS = {
 }
 
 
+def _bd_point(loc: object) -> dict | None:
+    """百度站点坐标 {"lng","lat"}（BD09）→ {"lon","lat"}（GCJ-02）。"""
+    if not isinstance(loc, dict):
+        return None
+    try:
+        lng = float(loc.get("lng"))
+        lat = float(loc.get("lat"))
+    except (TypeError, ValueError):
+        return None
+    lon, lat = bd09_to_gcj02(lng, lat)
+    return {"lon": lon, "lat": lat}
+
+
 def _normalize_transit_steps(steps: list) -> tuple[list[dict], int]:
     """百度 transit 方案 steps -> 高德 segments 形状。
 
@@ -638,6 +651,10 @@ def _normalize_transit_steps(steps: list) -> tuple[list[dict], int]:
         except (TypeError, ValueError):
             pass
         table = detail.get("shuttle_time_table")
+        start_info = detail.get("start_info")
+        end_info = detail.get("end_info")
+        start_info = start_info if isinstance(start_info, dict) else {}
+        end_info = end_info if isinstance(end_info, dict) else {}
         return {
             "kind": kind,
             "name": _as_str(detail.get("name")) or _as_str(vehicle.get("name")) or "",
@@ -653,6 +670,8 @@ def _normalize_transit_steps(steps: list) -> tuple[list[dict], int]:
             "time_table": [t for t in (table or []) if isinstance(t, str)]
             if isinstance(table, list)
             else [],
+            "departure_location": _bd_point(start_info.get("start_location")),
+            "arrival_location": _bd_point(end_info.get("end_location")),
             "duration_s": _parse_int(step.get("duration")),
             "vehicle_type": _parse_int(vtype),
         }
