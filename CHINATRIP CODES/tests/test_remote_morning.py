@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """远郊景点上午开场（2026-11-15 用户拍板「远郊景点 BEST VISIT TIME MORNING」）。
 
 口径：装配期按距城心 >_DAY_MIX_KM 打 VisitItem.remote（plan._mark_remote_visits，
@@ -55,7 +55,11 @@ def test_remote_visit_is_always_head_candidate():
     assert not _is_head_candidate(_visit("mt", "慕田峪长城", dur=210, tier=9))
     assert not _is_head_candidate(
         _visit(
-            "ng", "古北水镇夜游", dur=120, tier=2, remote=True,
+            "ng",
+            "古北水镇夜游",
+            dur=120,
+            tier=2,
+            remote=True,
             best_visit_time="evening",
         )
     )
@@ -120,8 +124,12 @@ def test_mark_remote_visits_by_city_center():
                         best_visit_time="evening",
                     ),
                     _visit(
-                        "fd", "慕田峪餐厅", dur=60, lon=116.5600,
-                        lat=40.4300, category="food",
+                        "fd",
+                        "慕田峪餐厅",
+                        dur=60,
+                        lon=116.5600,
+                        lat=40.4300,
+                        category="food",
                     ),
                 ],
             )
@@ -157,19 +165,32 @@ def test_fallback_sequence_puts_remote_first():
 def test_deterministic_selection_keeps_remote_day_apart():
     # 回归护栏：远郊打标不改「远郊件不与城心簇同日」（分天口径仍由混排闸管）。
     cands = [
-        {"name": "故宫博物院", "city": "北京", "category": "attraction",
-         "suggested_duration_min": 120, "location": {"lon": 116.397, "lat": 39.9163}},
-        {"name": "天安门广场", "city": "北京", "category": "attraction",
-         "suggested_duration_min": 90, "location": {"lon": 116.3975, "lat": 39.9087}},
-        {"name": "慕田峪长城", "city": "北京", "category": "attraction",
-         "suggested_duration_min": 210, "location": {"lon": 116.5646, "lat": 40.4319}},
+        {
+            "name": "故宫博物院",
+            "city": "北京",
+            "category": "attraction",
+            "suggested_duration_min": 120,
+            "location": {"lon": 116.397, "lat": 39.9163},
+        },
+        {
+            "name": "天安门广场",
+            "city": "北京",
+            "category": "attraction",
+            "suggested_duration_min": 90,
+            "location": {"lon": 116.3975, "lat": 39.9087},
+        },
+        {
+            "name": "慕田峪长城",
+            "city": "北京",
+            "category": "attraction",
+            "suggested_duration_min": 210,
+            "location": {"lon": 116.5646, "lat": 40.4319},
+        },
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"北京": (1, 2)})
     mt = next((it for it in items if it["name"] == "慕田峪长城"), None)
     city_days = {
-        it["day"]
-        for it in items
-        if it["name"] in ("故宫博物院", "天安门广场")
+        it["day"] for it in items if it["name"] in ("故宫博物院", "天安门广场")
     }
     if mt is not None:
         assert mt["day"] not in city_days
