@@ -13206,6 +13206,22 @@ def _must_weather_day_penalty(
     return penalty
 
 
+def _family_has_strong_constraint(fam: list[VisitItem]) -> bool:
+    """族里有没有「必须先定日子」的强约束（2026-11-15 用户拍板）：升旗日
+    （fixed_sessions）/ 演出场次 SHOW TIME / 宴会时间 / 最佳参访时段。"""
+    for v in fam:
+        if getattr(v, "fixed_sessions", None):
+            return True
+        if _is_show_item(v) and _has_usable_time_info(v.opening_hours):
+            return True
+        slot = str(getattr(v, "best_visit_time", "") or "").strip().lower()
+        if slot in ("morning", "sunrise", "sunset", "evening", "night"):
+            return True
+        if (v.category or "") == "food" and "宴" in str(v.name or ""):
+            return True
+    return False
+
+
 def _assign_must_family_days(
     plan: ItineraryPlan,
     *,
@@ -13293,7 +13309,18 @@ def _assign_must_family_days(
             return here
         return min(scores, key=lambda k: scores[k])
 
-    ordered = sorted(fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f)))
+    # 2026-11-15 用户口径：先强约束（升旗日/SHOW TIME/宴会/BEST VISIT TIME），
+    # 再族的总时长（大块头难塞先定），再远郊因素，最后才比名录秩——
+    # 不是「多成员族优先、单点族比价」。
+    ordered = sorted(
+        fams,
+        key=lambda f: (
+            0 if _family_has_strong_constraint(f) else 1,
+            -fam_duration(f),
+            0 if _family_is_remote(f, plan) else 1,
+            min(_must_rank_key(v) for v in f),
+        ),
+    )
     for fam in ordered:
         target_no = pick(fam)
         placed_dur[target_no] = placed_dur.get(target_no, 0) + fam_duration(fam)
@@ -13631,16 +13658,9 @@ _SAME_PARK_KM = 1.0
 # 住宿类名字不进景点补位（2026-11-15：长城脚下的公社这类住宿/会所被当成
 # 下午的景点补进来，用户要的是景点或体验类活动）。
 _LODGING_KEYS = (
-    "酒店",
-    "饭店",
-    "民宿",
-    "度假",
-    "公社",
-    "会所",
-    "公寓",
-    "客栈",
-    "宾馆",
-    "大酒店",
+    "酒店", "饭店", "民宿", "度假",
+    "公社", "会所", "公寓", "客栈",
+    "宾馆", "大酒店",
 )
 
 _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
@@ -13788,7 +13808,9 @@ def _fill_leftover_with_diverse_sights(
                 for u in pool
                 if not _too_close_to_plan(plan, u)
                 and not _in_park_of_existing(plan, u.name)
-                and not any(k in str(u.name or "") for k in _LODGING_KEYS)
+                and not any(
+                    k in str(u.name or "") for k in _LODGING_KEYS
+                )
             ]
             if not pool:
                 break
