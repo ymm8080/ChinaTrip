@@ -29911,6 +29911,80 @@ class PlanningAgent:
         )
         return report, summary, notes
 
+    def reflow_after_delete(
+        self, session: PlanSession, *, days: set[int]
+    ) -> list[str]:
+        """删卡后的当天时间链压缩（2026-11-15 用户「删掉天安门后后面的
+        故宫没有做相应调整」）：删一张卡后，受影响天按列表顺序重新起排——
+        未钉住/未软钉的景点、以及引擎锁定的必去（must+pinned，时刻由
+        `_pin_musts_by_importance` 钉的；删掉前一张后最佳档位已变）清空时刻
+        后按列表顺序 + 游标 + 营业窗探针补位，后面的卡自动上移填洞。
+        不参与重排：用户手钉卡（pinned 且非 must，铁律 19 钉死）、软钉餐卡/
+        酒店卡（由餐卡通道与 reanchor 接管）、升旗/场次锚（fixed_sessions
+        与演出场次时钟来自数据库）。纯计算，不调 LLM。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        candidate = plan.model_copy(deep=True)
+        wanted = {int(d) for d in days}
+        for day in candidate.days:
+            if day.day not in wanted:
+                continue
+            for it in day.items:
+                if not isinstance(it, VisitItem):
+                    continue
+                if it.soft_pin or (it.category or "") in ("food", "hotel"):
+                    continue
+                if getattr(it, "fixed_sessions", None):
+                    continue
+                if _is_show_item(it):
+                    continue
+                if it.pinned and not getattr(it, "must", False):
+                    continue
+                it.start_time = None
+                it.end_time = None
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
+        # 列表顺序 + 游标落位（不能直接用 _fallback_sequence_times：它的
+        # 游标从日始起走，列表前面的钉住锚不会先推进——删掉 08:30 的卡后，
+        # 13:00 的卡会被塞回 08:30，与 10:30 的钉住卡时间倒挂）。
+        hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(candidate)}
+        day_end = 21 * 60 + 30
+        for day in candidate.days:
+            if day.day not in wanted:
+                continue
+            fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            cursor = DAY_START_MINUTES
+            for it in day.items:
+                if not isinstance(it, VisitItem):
+                    continue
+                if it.start_time is not None:
+                    cursor = max(cursor, _item_end_minutes(it) or cursor)
+                    continue
+                dur = it.duration_minutes or DEFAULT_VISIT_MINUTES
+                start = _probe_visit_slot(
+                    it, fixed, xfer, hours_by_poi, day_end, floor=cursor
+                )
+                if start is None:
+                    logger.warning(
+                        "plan: delete reflow could not place %s on day %d",
+                        it.name,
+                        day.day,
+                    )
+                    continue
+                it.start_time = _time_of(start)
+                it.end_time = _time_of(start + dur)
+                fixed.append((start, start + dur, it))
+                cursor = start + dur
+        # 餐占位让位（同编辑回合口径）：景点上移后午饭/晚饭占位挪到空窗，
+        # 不凭空新增餐卡。
+        _retime_meal_placeholders(candidate, ensure_cards=False)
+        reanchor_hotel_cards(candidate.days)
+        annotate_legs(candidate)
+        self._replay_measured_legs(candidate)
+        session.plan = candidate
+        return notes
+
     def _apply_transfer_schedule(
         self,
         session: PlanSession,

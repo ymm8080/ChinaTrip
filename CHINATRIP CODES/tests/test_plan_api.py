@@ -1222,6 +1222,103 @@ def test_delete_guard_chain_400_404():
     assert resp.json() == {"detail": "item_not_found"}
 
 
+def _delete_reflow_visit(iid, name, start, end, dur, **kw):
+    from datetime import time as dtime
+
+    return VisitItem(
+        item_id=iid,
+        name=name,
+        category=kw.pop("category", "sight"),
+        city="北京",
+        day=1,
+        start_time=dtime(*start),
+        end_time=dtime(*end),
+        duration_minutes=dur,
+        **kw,
+    )
+
+
+def _delete_reflow_app(items):
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    store.save(
+        PlanSession(
+            session_id="s-del",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-del",
+                cities=["北京"],
+                days=[DayPlan(day=1, base_city="北京", items=items)],
+            ),
+        )
+    )
+    return app
+
+
+def test_delete_reflows_following_cards_up_same_day():
+    """删卡后当天后面的卡上移补位（2026-11-15 用户：删天安门后故宫没调整）。"""
+    tian = _delete_reflow_visit("v1", "天安门广场", (8, 30), (10, 0), 90)
+    gugong = _delete_reflow_visit("v2", "故宫博物院", (10, 30), (12, 30), 120)
+    lunch = _delete_reflow_visit(
+        "food-lunch-ph-d1",
+        "午饭（自由安排）",
+        (12, 30),
+        (13, 0),
+        30,
+        category="food",
+        soft_pin=True,
+    )
+    tiantan = _delete_reflow_visit("v3", "天坛", (13, 0), (14, 0), 60)
+    app = _delete_reflow_app([tian, gugong, lunch, tiantan])
+    with TestClient(app) as client:
+        resp = client.post("/api/v1/plan/s-del/items/v1/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    got = {i["name"]: i for d in resp.json()["plan"]["days"] for i in d["items"]}
+    assert got["故宫博物院"]["start_time"] == "08:30:00"
+    assert got["故宫博物院"]["end_time"] == "10:30:00"
+    assert got["天坛"]["start_time"] >= got["故宫博物院"]["end_time"]
+    assert got["午饭（自由安排）"]["start_time"] >= got["故宫博物院"]["end_time"]
+
+
+def test_delete_reflows_engine_pinned_must_visit():
+    """引擎锁定的必去（must+pinned）也随删除上移：钉的是「别挪天/别丢」，
+    前一张没了最佳档位就变，必须重排（否则 08:30-10:30 空着）。"""
+    tian = _delete_reflow_visit(
+        "v1", "天安门广场", (8, 30), (10, 0), 90, pinned=True, must=True
+    )
+    gugong = _delete_reflow_visit(
+        "v2", "故宫博物院", (10, 30), (12, 30), 120, pinned=True, must=True
+    )
+    tiantan = _delete_reflow_visit("v3", "天坛", (13, 0), (14, 0), 60)
+    app = _delete_reflow_app([tian, gugong, tiantan])
+    with TestClient(app) as client:
+        resp = client.post("/api/v1/plan/s-del/items/v1/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    got = {i["name"]: i for d in resp.json()["plan"]["days"] for i in d["items"]}
+    assert got["故宫博物院"]["start_time"] == "08:30:00"
+    assert got["故宫博物院"]["pinned"] is True
+
+
+def test_delete_keeps_user_pinned_card_and_says_so():
+    """用户手钉卡（pinned 非 must）不随删除移动（铁律 19），回复点名说明。"""
+    tian = _delete_reflow_visit("v1", "天安门广场", (8, 30), (10, 0), 90)
+    gugong = _delete_reflow_visit(
+        "v2", "故宫博物院", (10, 30), (12, 30), 120, pinned=True
+    )
+    tiantan = _delete_reflow_visit("v3", "天坛", (13, 0), (14, 0), 60)
+    app = _delete_reflow_app([tian, gugong, tiantan])
+    with TestClient(app) as client:
+        resp = client.post("/api/v1/plan/s-del/items/v1/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()
+    got = {i["name"]: i for d in data["plan"]["days"] for i in d["items"]}
+    assert got["故宫博物院"]["start_time"] == "10:30:00"
+    assert got["天坛"]["start_time"] >= "10:30:00"
+    assert "钉住" in data["reply"]
+
+
 # --- POST /plan/{id}/items/{item_id}/move（2026-10-24 规划页拖拽）-----------
 
 

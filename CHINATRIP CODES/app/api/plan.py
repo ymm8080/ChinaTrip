@@ -1087,12 +1087,24 @@ async def delete_plan_item(
     if item is None:
         raise HTTPException(status_code=404, detail="item_not_found")
     plan_before = session.plan
+    day_of_item = next(d for d in plan_before.days if item in d.items)
     diffs = [DiffOp(op="remove", item_id=item_id)]
     # 2026-11-13 续（每天出发点是 HOTEL）：删夜卡=这一晚不住店，次日
     # 「🏨 从酒店出发」晨卡一并移除——否则次日仍声称从酒店出发。
     pair = paired_hotel_card(plan_before.days, item) if is_hotel_night(item) else None
     if pair is not None:
         diffs.append(DiffOp(op="remove", item_id=pair.item_id))
+    # 删掉这张卡后，当天后面的卡要跟着上移补位（2026-11-15 用户：删
+    # 天安门后故宫没做相应调整）——删除位置之后的用户手钉卡会挡住
+    # 重排，回复里点名说明，别让用户以为没生效。
+    follow_pinned = [
+        i.name
+        for i in list(day_of_item.items)[list(day_of_item.items).index(item) + 1 :]
+        if isinstance(i, VisitItem)
+        and i.pinned
+        and not i.soft_pin
+        and not getattr(i, "must", False)
+    ]
     new_plan, _, _ = mutate(
         plan_before,
         diffs,
@@ -1100,6 +1112,10 @@ async def delete_plan_item(
         post_apply=lambda p: reanchor_hotel_cards(p.days, keep_ids={item_id}),
     )
     session.plan = new_plan
+    affected_days = {item.day}
+    if pair is not None:
+        affected_days.add(pair.day)
+    agent.reflow_after_delete(session, days=affected_days)
     # 2026-11-14：未保存行程里新建的排除行同样是草稿（看板不显示）
     agent.sync_removals_to_trip_items(plan_before, diffs, session=session)
     await agent.refresh_legs(session)
@@ -1114,6 +1130,14 @@ async def delete_plan_item(
         reply = L(
             f"已删除 {item.name}，已记入不想去",
             f"Deleted {item.name} — recorded under 'not interested'",
+        )
+    if follow_pinned:
+        pinned_names = "、".join(follow_pinned)
+        pinned_names_en = ", ".join(follow_pinned)
+        reply += L(
+            f"（后面的{pinned_names}是钉住的，保持原时间；要跟着上移可先在卡上解钉）",
+            f" ({pinned_names_en} stay pinned at their times; "
+            "unpin them to let them shift up)",
         )
     return _plan_turn_body(session, reply, None)
 
