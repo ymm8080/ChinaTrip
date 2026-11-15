@@ -18191,7 +18191,7 @@ class PlanningAgent:
         """心愿城市记录（2026-11-15 用户拍板「心愿单只在保存/删除时进
         数据库」）：规划期间不再写心愿行——城市随绑定/会话状态走
         （wish_bindings[name]["city"] / session.site_cities），保存行程
-        物化成行时一并落库。保留入口只为兼容既有调用。""";
+        物化成行时一并落库。保留入口只为兼容既有调用。"""
         return
 
     async def _brief_site_round(
@@ -20478,7 +20478,9 @@ class PlanningAgent:
                 if target is not None:
                     break
             off_trip = bool(
-                city and trip_cities and _norm_city(city).removesuffix("市") not in trip_cities
+                city
+                and trip_cities
+                and _norm_city(city).removesuffix("市") not in trip_cities
             )
             row = None
             try:
@@ -20494,9 +20496,7 @@ class PlanningAgent:
                     note=note,
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
-                    must_visit=(
-                        name in (session.must_visits or []) and not dropped
-                    ),
+                    must_visit=(name in (session.must_visits or []) and not dropped),
                 )
                 committed += 1
             except (InvalidSourceError, ValueError):
@@ -20509,9 +20509,7 @@ class PlanningAgent:
                         row["id"], status=STATUS_UNWANTED, note=note
                     )
                 except Exception:
-                    logger.warning(
-                        "plan: wish materialize unwanted failed %s", name
-                    )
+                    logger.warning("plan: wish materialize unwanted failed %s", name)
                 continue
             if off_trip or target is None or target.start_time is None:
                 continue
@@ -20852,7 +20850,9 @@ class PlanningAgent:
         if itin not in (session.linked_itins or []):
             session.linked_itins.append(itin)
 
-    def _sync_planned_rows(self, session: PlanSession, *, at_save: bool = False) -> None:
+    def _sync_planned_rows(
+        self, session: PlanSession, *, at_save: bool = False
+    ) -> None:
         """行程中心「已安排」分区对齐心愿单（2026-11-13 拍板：已排期只放
         已排的心愿单）。
 
@@ -30961,14 +30961,16 @@ class PlanningAgent:
     ) -> str:
         """coverage 之后的追问收尾：落实写回已补上城市的剔除；仍空着
         的并入 pending_wish_cities（与旧 pending 去重），返回追问文本。
-        2026-11-15：城市读会话（site_cities/绑定），不再读行。""";
+        2026-11-15：城市读会话（site_cities/绑定），不再读行。"""
         if not unresolved:
             return ""
         pending = list(session.pending_wish_cities)
         for wish, _row in unresolved:
             fresh_city = (session.site_cities.get(wish) or "").strip()
             if not fresh_city:
-                _bound = (session.wish_bindings or {}).get(wish) or self._wish_bindings.get(
+                _bound = (session.wish_bindings or {}).get(
+                    wish
+                ) or self._wish_bindings.get(
                     wish,
                 )
                 fresh_city = str((_bound or {}).get("city") or "").strip()
