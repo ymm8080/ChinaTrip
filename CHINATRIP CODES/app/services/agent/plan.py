@@ -3232,6 +3232,14 @@ _WISH_VERB_RE = re.compile(
 )
 
 
+def _same_wish_name(a: str, b: str) -> bool:
+    """同一愿望名（2026-11-15）：归一后等值才算命中——「看变脸表演」不等于
+    模型解析出的「川剧变脸表演（蜀风雅韵）」，只有真同一站时才吸附。"""
+    ka = _wish_key(a or "")
+    kb = _wish_key(b or "")
+    return bool(ka) and ka == kb
+
+
 def _wish_core(wish: str) -> str:
     """Strip the leading intent verb off a wish phrase so 「看变脸表演」
     matches a plan item named 「川剧变脸表演（蜀风雅韵）」 (both core to
@@ -13309,16 +13317,18 @@ def _assign_must_family_days(
             return here
         return min(scores, key=lambda k: scores[k])
 
-    # 2026-11-15 用户口径：先强约束（升旗日/SHOW TIME/宴会/BEST VISIT TIME），
-    # 再族的总时长（大块头难塞先定），再远郊因素，最后才比名录秩——
-    # 不是「多成员族优先、单点族比价」。
+    # 2026-11-15 用户口径（选日子这一层）：①强约束（升旗日/SHOW TIME/宴会/
+    # BEST VISIT TIME）②族的总时长 ③远郊因素。**名录秩/档位不参与选日子**，
+    # 它是日子定下来之后的日内优化（`_must_day_order` 那层才比）。
+    # 末位键只为确定性（族大小、首件名），不带优先级语义。
     ordered = sorted(
         fams,
         key=lambda f: (
             0 if _family_has_strong_constraint(f) else 1,
             -fam_duration(f),
             0 if _family_is_remote(f, plan) else 1,
-            min(_must_rank_key(v) for v in f),
+            -len(f),
+            str(f[0].name or ""),
         ),
     )
     for fam in ordered:
@@ -13658,16 +13668,9 @@ _SAME_PARK_KM = 1.0
 # 住宿类名字不进景点补位（2026-11-15：长城脚下的公社这类住宿/会所被当成
 # 下午的景点补进来，用户要的是景点或体验类活动）。
 _LODGING_KEYS = (
-    "酒店",
-    "饭店",
-    "民宿",
-    "度假",
-    "公社",
-    "会所",
-    "公寓",
-    "客栈",
-    "宾馆",
-    "大酒店",
+    "酒店", "饭店", "民宿", "度假",
+    "公社", "会所", "公寓", "客栈",
+    "宾馆", "大酒店",
 )
 
 _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
@@ -13815,7 +13818,9 @@ def _fill_leftover_with_diverse_sights(
                 for u in pool
                 if not _too_close_to_plan(plan, u)
                 and not _in_park_of_existing(plan, u.name)
-                and not any(k in str(u.name or "") for k in _LODGING_KEYS)
+                and not any(
+                    k in str(u.name or "") for k in _LODGING_KEYS
+                )
             ]
             if not pool:
                 break
@@ -18342,11 +18347,28 @@ class PlanningAgent:
     # --- v0 generation ----------------------------------------------------
 
     def _backfill_wish_city(self, name: str, city: str) -> None:
-        """心愿城市记录（2026-11-15 用户拍板「心愿单只在保存/删除时进
-        数据库」）：规划期间不再写心愿行——城市随绑定/会话状态走
-        （wish_bindings[name]["city"] / session.site_cities），保存行程
-        物化成行时一并落库。保留入口只为兼容既有调用。"""
-        return
+        """已存心愿行的城市回填（2026-11-15 口径调整）：规划期间不**新建**
+        心愿行（不复制/不缓存），但用户自己已经在心愿单里的行，解析出城市
+        后就地补空城——只改已存行，绝不建行。新愿望的城市随会话走
+        （session.site_cities / wish_sources），保存行程时物化进库。"""
+        if self._trip_items is None or not (city or "").strip():
+            return
+        try:
+            groups = self._trip_items.list_groups(None)
+        except Exception:
+            return
+        for zone in ("wishlist", "scheduled"):
+            for row in groups.get(zone, []) or []:
+                if not _same_wish_name(str(row.get("name") or ""), name):
+                    continue
+                if str(row.get("city") or "").strip():
+                    continue
+                try:
+                    self._trip_items.update(row["id"], city=city)
+                except Exception:
+                    logger.warning(
+                        "plan: wish city backfill failed id=%s", row.get("id")
+                    )
 
     async def _brief_site_round(
         self, session: PlanSession, images: list[tuple[bytes, str]] | None = None
@@ -20626,8 +20648,9 @@ class PlanningAgent:
                     ):
                         target = item
                         break
-                    # 名字命中即可（无 poi_id 的用户点名条目也要能对上）
-                    if target is None and _name_dup(name, item.name):
+                    # 名字命中即可（无 poi_id 的用户点名条目也要能对上），
+                    # 但只认同一愿望名——包含关系不吸附（2026-11-15）
+                    if target is None and _same_wish_name(name, item.name):
                         target = item
                 if target is not None:
                     break
@@ -20641,8 +20664,9 @@ class PlanningAgent:
                 row = self._trip_items.create(
                     name,
                     source=source,
-                    # 保存行程 = 写库时刻：直接落正式行（无草稿）
-                    itinerary_id=(None if off_trip else itinerary_id),
+                    # 保存行程 = 写库时刻：直接落正式行（无草稿），并挂本次
+                    # 行程（删行程时统一 TRIP ID 清空退回心愿单）
+                    itinerary_id=itinerary_id,
                     owner_device_id=session.device_id,
                     owner_account_id=account_id,
                     created_by=session.device_id,
@@ -21045,7 +21069,10 @@ class PlanningAgent:
                 r
                 for r in rows
                 if (item.poi_id and r.get("poi_id") and r["poi_id"] == item.poi_id)
-                or _name_dup(str(r.get("name") or ""), item.name)
+                # 2026-11-15：用户原话心愿（「看变脸表演」）不能因为包含关系被
+                # 吸附到模型解析出的具名落点（「川剧变脸表演（蜀风雅韵）」）上
+                # 翻成已排期——核名只认同一愿望名（归一后等值）。
+                or _same_wish_name(str(r.get("name") or ""), item.name)
             ]
             # 2026-11-14：别会话草稿/别行程的行不认领；已挂本行程的行优先，
             # 其次无绑定行——防同一心愿的多行被轮流翻牌成已排期。
