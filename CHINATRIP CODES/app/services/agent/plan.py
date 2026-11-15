@@ -13585,12 +13585,28 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
 # 补空档三层顺序（2026-11-15 用户拍板）：INTL 集合优先 → 其它类型（SHOW/
 # 喝茶/按摩等体验类）→ 最后按优先级。标签口径与库 source/tags 一致。
 _INTL_TAG_KEYS = {
-    "intl", "lp", "layla", "ta", "viator", "klook", "tripadvisor",
-    "tui", "sygic", "culturetrip", "mindtrip",
+    "intl",
+    "lp",
+    "layla",
+    "ta",
+    "viator",
+    "klook",
+    "tripadvisor",
+    "tui",
+    "sygic",
+    "culturetrip",
+    "mindtrip",
 }
 _EXPERIENCE_CATEGORIES = {
-    "entertainment", "tea_experience", "spa", "massage", "show",
-    "performance", "experience", "theatre", "theater",
+    "entertainment",
+    "tea_experience",
+    "spa",
+    "massage",
+    "show",
+    "performance",
+    "experience",
+    "theatre",
+    "theater",
 }
 _EXPERIENCE_TAG_KEYS = {"show", "tea", "massage", "spa", "performance", "experience"}
 _EXPERIENCE_NAME_KEYS = ("茶馆", "按摩", "剧场", "剧院", "戏", "秀")
@@ -20552,9 +20568,7 @@ class PlanningAgent:
                     note=note,
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
-                    must_visit=(
-                        name in (session.must_visits or []) and not dropped
-                    ),
+                    must_visit=(name in (session.must_visits or []) and not dropped),
                 )
                 committed += 1
             except ValueError:
@@ -20567,9 +20581,7 @@ class PlanningAgent:
                         row["id"], status=STATUS_UNWANTED, note=note
                     )
                 except Exception:
-                    logger.warning(
-                        "plan: wish materialize unwanted failed %s", name
-                    )
+                    logger.warning("plan: wish materialize unwanted failed %s", name)
                 continue
             if off_trip or target is None or target.start_time is None:
                 continue
