@@ -576,16 +576,34 @@ async def start_plan(
     # （state=intake，不开会话）。
     brief_text = (request.brief or "").strip()
     text_date = _parse_text_start_date(brief_text) if brief_text else None
+    parsed_brief = _trip_brief(brief_text) if brief_text else None
+    text_days = parsed_brief[1] if parsed_brief else None
+    # 信息不足=缺「任何必填项」（2026-11-15 用户拍板二拍「不止是出发日期」）：
+    # 文字读不出出发日期、或读得出日期却读不出天数/结束日 → 都弹行前卡
+    # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
+    insufficient = text_date is None or text_days is None
     if (
         request.route_source is None
         and brief_text
         and not request.arrival_date
         and not request.departure_date
-        and text_date is None
+        and insufficient
     ):
-        return {"state": "intake"}
+        return {"state": "intake", "start_date_hint": text_date}
     if text_date and not request.start_date:
         request = request.model_copy(update={"start_date": text_date})
+    # 行前卡提交后的天数推导（2026-11-15 用户实报「填了开始/结束日期还问玩
+    # 几天」）：request.days 缺省且卡给了到达/离开日期 → 天数=跨度，不再追问。
+    if not request.days and request.arrival_date and request.departure_date:
+        try:
+            span = (
+                date.fromisoformat(str(request.departure_date)[:10])
+                - date.fromisoformat(str(request.arrival_date)[:10])
+            ).days + 1
+            if span >= 1:
+                request = request.model_copy(update={"days": span})
+        except ValueError:
+            pass
     # 差异确认（2026-11-14 用户拍板三条）：①表单没填+有文字 → 默认按文字；
     # ②表单和文字都填了 → 摆出差异让用户确认；③行前卡信息和文字不同 → 同样
     # 摆出差异。统一收集 diffs，任何一条且用户还没选边 → confirm_route。

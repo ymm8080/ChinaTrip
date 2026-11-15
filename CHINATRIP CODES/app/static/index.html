@@ -3130,8 +3130,8 @@ function planRenderReply(holder, body, opts) {
     box.appendChild(go);
     holder.appendChild(box);
   } else if (body.state === "intake") {
-    // 文字信息不足（读不出出发日期）：弹行前卡收集，提交后重发
-    planIntakeFromState();
+    // 文字信息不足（缺出发日期或天数/结束日）：弹行前卡收集，提交后重发
+    planIntakeFromState(body);
   } else {
     if (body.state === "resto_confirm" && (body.restos || []).length) {
       // 链接里认出的餐饮店离景点都超 5 公里：先问哪些要安排、哪些不安排，行程卡照常显示
@@ -3285,8 +3285,10 @@ async function planStartConfirmedByPicks(diffs, picks) {
 
 // state=intake 分支（2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）：
 // 弹行前卡收集 开始/结束日期·班次·时刻，提交后带卡值重发 /plan/start。
-async function planIntakeFromState() {
-  const intake = await planIntakeAsk({ date: "" });
+async function planIntakeFromState(stateBody) {
+  const intake = await planIntakeAsk({
+    date: (stateBody && stateBody.start_date_hint) || "", // 文字里的日期预填开始
+  });
   await planStartConfirmed(null, { intakeValues: intake });
 }
 
