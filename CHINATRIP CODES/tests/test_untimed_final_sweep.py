@@ -118,9 +118,11 @@ def _plan() -> ItineraryPlan:
 
 
 def _bare_agent(solve_result=None) -> PlanningAgent:
-    """跳过 __init__ 的裸 agent：_finalize_untimed_visits 只用 self._solve。"""
+    """跳过 __init__ 的裸 agent：_finalize_untimed_visits 只用 self._solve
+    + self._wish_bindings（2026-11-15 起收口会读心愿绑定，裸 agent 需补空字典）。"""
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._solve = lambda plan, meal_flex=True, **kw: solve_result  # type: ignore[method-assign]
+    agent._wish_bindings = {}
     return agent
 
 
