@@ -120,28 +120,31 @@ def test_fallback_farther_wish_displaces_morning_head():
     plan = _plan(_chengdu_day(panda_loc=_PANDA_FAR, js_loc=_JS_NEAR))
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
-    assert _minutes(got["panda"]) == 9 * 60  # 熊猫吃上午头档
+    assert _minutes(got["panda"]) == 8 * 60 + 30  # 熊猫吃上午头档
     assert _minutes(got["js"]) >= 12 * 60  # 金沙退让午后
     assert got["lunch"].start_time is not None  # 午餐硬窗保住
 
 
 def test_fallback_no_distance_data_no_displacement():
-    # 缺距离数据（无锚/无坐标）→ 不换：金沙原位 09:00，熊猫走下午头档。
+    # 缺距离数据（无锚/无坐标）→ 不换：金沙原位 09:00，熊猫排上午第二档。
+    # 2026-11-14 拍板撤掉「正午起探」：上午头档占 09:00-11:00 后，剩余点
+    # 仍按游标落位（熊猫 11:30 起），挤占时餐卡让位（紧凑日午餐在途中解决）。
     plan = _plan(_chengdu_day())
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
     assert _minutes(got["js"]) == 9 * 60
-    assert _minutes(got["panda"]) >= 12 * 60
-    assert got["lunch"].start_time is not None
+    assert _minutes(got["panda"]) == 11 * 60 + 30
+    assert "lunch" not in got  # 窗满丢餐（紧凑日口径）
 
 
 def test_fallback_closer_candidate_does_not_displace():
-    # 熊猫更近（1km < 金沙 7km）→ 不换（上午给更远的点）。
+    # 熊猫更近（1km < 金沙 7km）→ 不换（上午给更远的点）；熊猫仍按游标
+    # 落上午第二档（2026-11-14 撤正午起探）。
     plan = _plan(_chengdu_day(panda_loc=_PANDA_CLOSER, js_loc=_JS_NEAR))
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
     assert _minutes(got["js"]) == 9 * 60
-    assert _minutes(got["panda"]) >= 12 * 60
+    assert _minutes(got["panda"]) == 11 * 60 + 30
 
 
 def test_fallback_same_city_hotel_anchor_across_days():
@@ -150,28 +153,29 @@ def test_fallback_same_city_hotel_anchor_across_days():
     plan = _plan(DayPlan(day=1, base_city="成都", items=[_hotel(day=1)]), day2)
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[1].items if isinstance(v, VisitItem)}
-    assert _minutes(got["panda"]) == 9 * 60
+    assert _minutes(got["panda"]) == 8 * 60 + 30
     assert _minutes(got["js"]) >= 12 * 60
 
 
 def test_fallback_displacement_reverts_when_panda_cannot_fit():
-    # 240min 级：上午装不下（午餐硬窗保不住）→ 原头档归还、熊猫下午头档。
+    # 240min 级：上午装不下（午餐硬窗保不住）→ 原头档归还，熊猫改落上午
+    # 第二档 11:31 起（2026-11-14 撤正午起探；餐卡让位）。
     plan = _plan(_chengdu_day(panda_dur=240, panda_loc=_PANDA_FAR, js_loc=_JS_NEAR))
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
     assert _minutes(got["js"]) == 9 * 60  # 金沙原位
-    assert _minutes(got["panda"]) >= 12 * 60  # 熊猫正午头档
-    assert got["lunch"].start_time is not None
+    assert _minutes(got["panda"]) >= 11 * 60 + 30  # 上午第二档（原头档之后）
+    assert "lunch" not in got  # 紧凑日窗满丢餐
 
 
 def test_fallback_user_pinned_head_untouchable():
-    # 金沙为用户自钉（铁律 19）→ 不置换，熊猫走下午头档。
+    # 金沙为用户自钉（铁律 19）→ 不置换，熊猫落上午第二档（撤正午闸后）。
     day = _chengdu_day(panda_loc=_PANDA_FAR, js_loc=_JS_NEAR, js_pinned=True)
     plan = _plan(day)
     _fallback_sequence_times(plan)
     got = {v.item_id: v for v in plan.days[0].items if isinstance(v, VisitItem)}
     assert _minutes(got["js"]) == 9 * 60
-    assert _minutes(got["panda"]) >= 12 * 60
+    assert _minutes(got["panda"]) >= 11 * 60 + 30
 
 
 def test_insertion_head_candidate_takes_morning_head():
@@ -184,7 +188,7 @@ def test_insertion_head_candidate_takes_morning_head():
     )
     assert out is not None
     starts = {v.item_id: _minutes(v) for v in out.items if isinstance(v, VisitItem)}
-    assert starts["cand"] == 9 * 60
+    assert starts["cand"] == 8 * 60 + 30
     assert starts["big"] >= 12 * 60
 
 
