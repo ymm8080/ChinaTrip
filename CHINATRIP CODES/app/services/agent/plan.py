@@ -12038,9 +12038,7 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
                 meal.duration_minutes = int(meal.duration_minutes or 0) + want_dur
             meal_new_start = meal_start - shift_back
             meal.start_time = _time_of(meal_new_start)
-            meal.end_time = _time_of(
-                meal_new_start + int(meal.duration_minutes or 60)
-            )
+            meal.end_time = _time_of(meal_new_start + int(meal.duration_minutes or 60))
             for item, new_start, dur in moves:
                 item.start_time = _time_of(new_start)
                 item.end_time = _time_of(new_start + dur)
@@ -12079,6 +12077,7 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
             idx += 1
 
     return notes
+
 
 #: 真餐卡兜底落位窗（2026-11-13 用户拍板「餐厅选中就该落午餐卡/晚餐卡」）：
 #: 选层按「午→晚」预排的餐窗可能物理不可行（落地日 12:00 才到、目标日

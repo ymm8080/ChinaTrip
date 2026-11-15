@@ -27,8 +27,18 @@ _LUNCH_PT = GeoPoint(lon=116.397, lat=39.913)
 _GUGONG = GeoPoint(lon=116.397, lat=39.928)
 
 
-def _place(item_id: str, name: str, start: time, dur: int, *, hours=None, loc=None,
-           category="attraction", pinned=False, must=False) -> VisitItem:
+def _place(
+    item_id: str,
+    name: str,
+    start: time,
+    dur: int,
+    *,
+    hours=None,
+    loc=None,
+    category="attraction",
+    pinned=False,
+    must=False,
+) -> VisitItem:
     end_min = start.hour * 60 + start.minute + dur
     return VisitItem(
         item_id=item_id,
@@ -84,8 +94,9 @@ def test_lunch_leg_gap_pushes_museum_later():
         hours="11月1日至3月31日,周二至周日08:30-16:30(15:30停止检票)",
         loc=_GUGONG,
     )
-    tiantan = _place("v2", "天坛", time(14, 30), 60,
-                     hours="今天06:30-22:00开放（21:00停止入园）")
+    tiantan = _place(
+        "v2", "天坛", time(14, 30), 60, hours="今天06:30-22:00开放（21:00停止入园）"
+    )
     plan = _plan(lunch, gugong, tiantan)
     notes = _open_meal_leg_gaps(plan)
     # 午卡补回 60 分钟
