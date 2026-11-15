@@ -16042,6 +16042,10 @@ class PlanningAgent:
         self._wish_bindings: dict[str, dict] = {}
         self._wish_bind_misses: set[str] = set()
         self._poi_details = poi_details
+        # 到达方式档案源（接驳链）：规则层不自动读库，这里显式注入一次。
+        from app.services.poi_access import configure_profiles
+
+        configure_profiles(poi_details)
         self._ctrip_hours = ctrip_hours
         self._link_reader = (
             link_reader

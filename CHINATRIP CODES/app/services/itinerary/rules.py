@@ -124,22 +124,45 @@ def taxi_leg_min(km: float) -> int:
 SCHEDULED_ACCESS_MODES = ("train", "shuttle", "ferry")
 
 
+def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int, int]:
+    """b 的接驳量：卡上字段优先；没有就按 (city, name) 查一次城市档案。
+
+    为什么要有第二来源：solver 矩阵会先 attach 档案，但心愿快路径 / 兜底
+    重排 / 单点加卡都不经过矩阵——同一天不能出现两套腿口径。
+    """
+    mode = b.access_mode
+    boarding = b.access_boarding
+    service = b.access_service_minutes or 0
+    wait = b.access_wait_minutes or 0
+    last = b.access_last_mile_minutes or 0
+    if mode is None and b.name:
+        try:
+            from app.services.poi_access import profile_for
+
+            prof = profile_for(getattr(b, "city", None), b.name) or {}
+        except Exception:  # noqa: BLE001 — 档案不可用=打车兜底
+            prof = {}
+        if prof:
+            mode = prof.get("access_mode")
+            service = prof.get("access_service_minutes") or 0
+            wait = prof.get("access_wait_minutes") or 0
+            last = prof.get("access_last_mile_minutes") or 0
+            lon = prof.get("access_boarding_lon")
+            lat = prof.get("access_boarding_lat")
+            if lon is not None and lat is not None:
+                boarding = GeoPoint(lon=float(lon), lat=float(lat))
+    return mode, boarding, service, wait, last
+
+
 def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
     """a → b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""
-    if b.access_mode not in SCHEDULED_ACCESS_MODES:
+    mode, boarding, service, wait, last = _access_profile(b)
+    if mode not in SCHEDULED_ACCESS_MODES:
         return None
-    if a.location is None or b.access_boarding is None:
+    if a.location is None or boarding is None or not service:
         return None
-    if not b.access_service_minutes:
-        return None
-    head = taxi_leg_min(haversine_km(a.location, b.access_boarding))
-    return max(
-        TRAVEL_GAP_FLOOR_MIN,
-        head
-        + (b.access_wait_minutes or 0)
-        + b.access_service_minutes
-        + (b.access_last_mile_minutes or 0),
-    )
+    head = taxi_leg_min(haversine_km(a.location, boarding))
+    return max(TRAVEL_GAP_FLOOR_MIN, head + wait + service + last)
 
 
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:

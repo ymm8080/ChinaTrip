@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from app.services.itinerary.models import GeoPoint, ItineraryPlan, VisitItem
@@ -390,3 +391,50 @@ def attach_access(
             item.access_last_mile_minutes = prof.get("access_last_mile_minutes") or 0
             filled += 1
     return filled
+
+
+#: 城市级到达方式档案缓存（进程内，TTL 10 分钟）。行程改卡、心愿快路径、
+#: 兜底重排都不经过 solver 矩阵，靠这个入口也能拿到接驳链——否则同一天里
+#: 「矩阵算 143 分钟、快路径算 81 分钟」两套口径。
+_CITY_PROFILE_CACHE: dict[str, tuple[float, dict[tuple[str, str], dict]]] = {}
+_CITY_PROFILE_TTL_SECONDS = 600.0
+
+
+#: 档案源由 agent 显式注入（``configure_profiles``）。不默认去读库：规则层是
+#: 纯函数，测试与离线调用不能被 DB 口径污染（历史上 fake 名字撞上真行会改坏
+#: 期望值）。
+_PROFILE_STORE: Any | None = None
+
+
+def configure_profiles(store: Any | None) -> None:
+    """注入档案源（PlanningAgent 初始化时调用；None = 关闭档案查询）。"""
+    global _PROFILE_STORE
+    _PROFILE_STORE = store
+    _CITY_PROFILE_CACHE.clear()
+
+
+def city_profiles(city: str | None) -> dict[tuple[str, str], dict]:
+    key = str(city or "")
+    store = _PROFILE_STORE
+    if not key or store is None:
+        return {}
+    hit = _CITY_PROFILE_CACHE.get(key)
+    now = time.monotonic()
+    if hit and now - hit[0] < _CITY_PROFILE_TTL_SECONDS:
+        return hit[1]
+    try:
+        profiles = store.access_profiles([key])
+    except Exception:  # noqa: BLE001 — 档案读失败一律回退打车模型
+        profiles = {}
+    _CITY_PROFILE_CACHE[key] = (now, profiles)
+    return profiles
+
+
+def profile_for(city: str | None, name: str | None) -> dict[str, Any] | None:
+    """取某点档案（先 (city, name)，再同名跨城兜底）；无档案返回 None。"""
+    if not name:
+        return None
+    profiles = city_profiles(city)
+    if not profiles:
+        return None
+    return profiles.get((str(city or ""), name)) or profiles.get(("", name))

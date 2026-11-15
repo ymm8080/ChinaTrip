@@ -74,3 +74,36 @@
 - 百度 transit 的步行段时长偶有不合理（2km 报 8 分钟），本设计只做「是否可步行」的距离闸，不修正图商时长；
 - 夜间/当日末班之后的可用性未建模（首末班只进文案）；
 - 脏行 `八达岭慕田峪长城旅游区`（5A 名录行，坐标落在八达岭）保留：它是官方 5A 复合实体，非重复行。
+
+## 8 引擎接驳腿（2026-11-15 二拍「一般是 TAXI + 引擎接驳腿」）
+
+口径：市内腿**默认仍是打车模型**（`rules.taxi_leg_min`，70km/h + 15 分钟叫车）；
+命中 `access_mode ∈ {train, shuttle, ferry}`（景区专线 / 市郊铁路 / 轮渡）的点，
+这条腿改走**接驳链**：
+
+```
+打车(上一站 → 乘车点) + 候车 + 车上 + 落客接驳 = 门到门
+```
+
+数据（w12_0038）：`access_boarding` / `_lon` / `_lat`（首段乘车点）、
+`access_service_minutes`（车上）、`access_wait_minutes`（候车/换乘）、
+`access_last_mile_minutes`（落客点 → 景区门口：可步行=步行，否则打车估算）。
+站点坐标来自 transit 归一：高德 `buslines[].x_stop.location`、百度
+`vehicle_info.detail.start_info/end_info`（BD09 → GCJ-02）。
+
+链路：`VisitItem` 带 `access_*`；`rules.access_chain_minutes` 出链值，
+`travel_gap_needed` 命中即用；`_travel_matrix` 先 `attach_access` 再建矩阵，且
+不再用打车值盖掉更长的链值（旧码 `max(needed, taxi)` 会把 143 分钟压回 81）。
+
+**口径一致性**：矩阵只覆盖 solver；心愿快路径 / 兜底重排 / 单点加卡都不经过
+矩阵，所以 `poi_access.profile_for(city, name)` 提供城市级档案缓存（TTL 10 分钟，
+由 PlanningAgent 初始化时 `configure_profiles(store)` 显式注入——规则层不自动读
+库，避免测试/离线调用被 DB 口径污染）。
+
+实测（真机，2026-11-15）：北京 2 天 + 心愿「我要去慕田峪长城」——慕田峪落
+第 2 天，其后一条腿按 143 分钟计（打车口径 81 分钟），下一站被顺延到 16:47。
+
+**已知边界（下一步）**：当天的**首件**是班次点时，头部锚点仍是 30 分钟默认值
+——酒店卡只有名字没有坐标，`hotel_stays` 的「最早 8:30 离店」也算不出
+「06:37 出门才赶得上 09:00 的专线」。要修这条，需要给酒店卡落坐标（或退到
+城心锚）后把链值接进头部锚点。
