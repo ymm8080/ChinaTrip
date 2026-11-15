@@ -402,3 +402,43 @@ def test_morning_slot_pushes_first_scheduled_visit_after_chain():
     assert _open_morning_slot(day) is True
     assert mty.start_time >= time(10, 30)  # 08:30 + 接驳链（≥126 分钟）
     assert after.start_time >= mty.end_time
+
+
+def test_fallback_clamps_scheduled_gap_after_soft_lunch(monkeypatch):
+    """兜底/加卡路径收口：午饭后到班次点必须留够接驳链，不再 30 分钟。"""
+    import app.services.poi_access as pa
+    from app.services.agent import plan as plan_mod
+    from app.services.itinerary.models import time as _t
+
+    monkeypatch.setattr(
+        pa,
+        "profile_for",
+        lambda city, name: {
+            "access_mode": "shuttle",
+            "access_boarding_lon": 116.398256,
+            "access_boarding_lat": 39.898886,
+            "access_service_minutes": 108,
+            "access_wait_minutes": 10,
+            "access_last_mile_minutes": 8,
+        }
+        if name == "慕田峪长城"
+        else None,
+    )
+    lunch = _visit("lunch", "午饭（自由安排）", 116.4109, 39.9097)
+    lunch.category = "food"
+    lunch.soft_pin = True
+    lunch.start_time = _t(12, 0)
+    lunch.end_time = _t(13, 0)
+    lunch.duration_minutes = 60
+    mty = _visit("mty", "慕田峪长城", 116.5598, 40.4267)
+    mty.duration_minutes = 180
+    am = _visit("am", "恭王府", 116.3833, 39.9322)
+    am.start_time = _t(8, 30)
+    am.end_time = _t(10, 30)
+    am.duration_minutes = 120
+    day = DayPlan(day=1, base_city="北京", items=[am, lunch, mty])
+    plan = ItineraryPlan(itinerary_id="it-4", cities=["北京"], days=[day])
+    plan_mod._fallback_sequence_times(plan, keep_list_order=True)
+    start = mty.start_time.hour * 60 + mty.start_time.minute
+    end_prev = lunch.end_time.hour * 60 + lunch.end_time.minute
+    assert start >= end_prev + 120  # 候车 10 + 车上 108 + 落客 8 的下界
