@@ -4630,7 +4630,11 @@ def _item_end_minutes(item: VisitItem | TransferItem) -> int | None:
     return end.hour * 60 + end.minute
 
 
-def _minutes_of(t: time) -> int:
+def _minutes_of(t: time | None) -> int | None:
+    """time → 分钟；None 原样返回（未排时刻的卡在窗口/接驳探针里很常见：
+    调用点普遍按「拿不到时刻就跳过」写，别在这里炸 AttributeError）。"""
+    if t is None:
+        return None
     return t.hour * 60 + t.minute
 
 

@@ -17,7 +17,6 @@ from datetime import time
 from app.services.agent.plan import (
     PlanningAgent,
     _geo_cluster_day,
-    _reconcile_transfer_days,
     _rehome_untimed_visits,
     _transfer_day_sweep,
 )
@@ -92,7 +91,10 @@ _TIERS = {
 
 
 def test_premium_rescued_eject_yields_slot():
-    """王牌挪入满员次日，最低档非钉参访让位且无处可排被移除。"""
+    """王牌挪入满员次日：名点让位腾座，被弹者按 2026-11-12 口径先挪同城天。
+
+    到达日救援已从 _reconcile_transfer_days（只处理离城侧）挪到
+    _transfer_day_sweep（到达/出发两侧都管）。"""
     day2 = [
         _visit("金沙遗址博物馆", 11, minutes=120),
         _visit("宽窄巷子", 8),
@@ -100,14 +102,16 @@ def test_premium_rescued_eject_yields_slot():
         _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True),
     ]
     plan = _plan([_arrival_leg(), _premium()], day2)
-    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
-    names_d2 = {i.name for i in plan.days[1].items}
+    notes = _transfer_day_sweep(plan, frozenset(), dict(_TIERS))
+    names_d2 = {i.name for i in plan.days[1].items if isinstance(i, VisitItem)}
     assert "青城山—都江堰" in names_d2
     moved = next(i for i in plan.days[1].items if i.name == "青城山—都江堰")
     assert moved.day == 2
     assert moved.start_time is None
+    # 2026-11-12「无保护件也先挪日」：让位者不静默消失，先挪同城天重排
     all_names = _visit_names(plan)
-    assert "金沙遗址博物馆" not in all_names  # 让位后无宿主天 → 移除留痕
+    assert "金沙遗址博物馆" in all_names
+    assert "金沙遗址博物馆" not in names_d2
     assert any("让位" in n for n in notes)
 
 
@@ -121,7 +125,7 @@ def test_non_premium_stranded_still_removed():
     ]
     stranded = _visit("金沙遗址博物馆", 11, minutes=180, hours="08:30-17:00")
     plan = _plan([_arrival_leg(), stranded], day2)
-    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
+    notes = _transfer_day_sweep(plan, frozenset(), dict(_TIERS))
     all_names = _visit_names(plan)
     assert "金沙遗址博物馆" not in all_names
     assert any("已从行程移除" in n for n in notes)
@@ -133,8 +137,11 @@ def test_non_premium_stranded_still_removed():
     }
 
 
-def test_eject_restored_when_premium_still_cannot_host():
-    """让座后王牌仍被互远闸挡住 → 被弹者还回原天，王牌照旧移除。"""
+def test_eject_kept_when_premium_rescued_but_mate_unrehousable():
+    """王牌救援仍成功；被弹且无处可挪的名点（康定互远）才移除留痕。
+
+    旧语义「王牌进不去 → 被弹者还回原天」已废：2026-11-12 起让位链是
+    「名点先让位再挪日」，让位后宿主编排一定有座，剩下的只是落哪儿。"""
     day2 = [
         _visit("金沙遗址博物馆", 11, minutes=120),
         _visit("宽窄巷子", 8, loc=_KD),  # 与王牌互远 → 宿主天被闸
@@ -142,14 +149,15 @@ def test_eject_restored_when_premium_still_cannot_host():
         _visit("成都大熊猫繁育研究基地", 11, minutes=120, pinned=True),
     ]
     plan = _plan([_arrival_leg(), _premium()], day2)
-    notes = _reconcile_transfer_days(plan, tier_by_name=dict(_TIERS))
+    notes = _transfer_day_sweep(plan, frozenset(), dict(_TIERS))
     all_names = _visit_names(plan)
-    # 王牌没救成（原口径移除），被弹者原样留在次日
-    assert "青城山—都江堰" not in all_names
+    # 王牌救成；被弹者里能挪同城天的（金沙/武侯祠）挪回，挪不动的宽窄巷子移除
+    assert "青城山—都江堰" in all_names
     d2_names = {i.name for i in plan.days[1].items if isinstance(i, VisitItem)}
-    assert "金沙遗址博物馆" in d2_names
+    assert "金沙遗址博物馆" not in d2_names
+    assert "宽窄巷子" not in all_names
+    assert any("让位" in n for n in notes)
     assert any("已从行程移除" in n for n in notes)
-    assert not any("让位" in n for n in notes)
 
 
 # ---- 清算层让位救援（2026-11-05 成渝案三段）：兜底排序排不出 → 挪日
@@ -388,10 +396,10 @@ def test_must_stranded_on_arrival_day_force_rescued_to_day2_morning():
         _visit("人民公园", 10, minutes=90),
     ]
     plan = _plan([_arrival_leg(), panda], day2)
-    notes = _reconcile_transfer_days(
+    notes = _transfer_day_sweep(
         plan,
-        tier_by_name=dict(_TIERS),
-        protect=frozenset({"成都大熊猫繁育研究基地"}),
+        frozenset({"成都大熊猫繁育研究基地"}),
+        dict(_TIERS),
     )
     assert "成都大熊猫繁育研究基地" in _visit_names(plan)  # 在册不删
     moved = next(i for i in plan.days[1].items if i.name == "成都大熊猫繁育研究基地")
@@ -413,10 +421,10 @@ def test_must_stranded_no_host_no_ejects_discloses():
         _visit("人民公园", 10, minutes=90, pinned=True),
     ]
     plan = _plan([_arrival_leg(), panda], day2)
-    notes = _reconcile_transfer_days(
+    notes = _transfer_day_sweep(
         plan,
-        tier_by_name=dict(_TIERS),
-        protect=frozenset({"成都大熊猫繁育研究基地"}),
+        frozenset({"成都大熊猫繁育研究基地"}),
+        dict(_TIERS),
     )
     names_d1 = {i.name for i in plan.days[0].items if isinstance(i, VisitItem)}
     assert "成都大熊猫繁育研究基地" in names_d1  # 原地保留
@@ -580,6 +588,7 @@ def test_must_regular_day_ejects_others_into_verified_rescue():
         v.day = 2
     plan = ItineraryPlan(itinerary_id="it-must1", cities=["成都"], days=[d1, d2])
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(600)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
     must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
@@ -587,15 +596,17 @@ def test_must_regular_day_ejects_others_into_verified_rescue():
     assert must_out.pinned, "采纳后按落档时刻回钉"
     assert any("救生改排" in str(a) for a in out.assumptions)
     d2_names = {i.name for i in out.days[1].items}
-    # 连续腾位：单挤一件只有 120min 整档 < 180，最迟档两件都被挤
-    assert "次弱点" not in d2_names
-    assert "中档点" not in d2_names
-    assert "弱杂点甲" in d2_names and "弱杂点乙" in d2_names  # 档高者不动
+    # 日始 08:30 后必去吃的是「上午整档」：被弹的是挡在 09:00/11:00 的
+    # 最低档两件（弱杂点 11），档高者（次弱点 10 / 中档点 9）原地不动——
+    # 旧口径「挤最迟档两件」是必去只能落下午时段的产物。
+    assert "弱杂点甲" not in d2_names and "弱杂点乙" not in d2_names
+    assert "次弱点" in d2_names and "中档点" in d2_names
+    assert must_out.start_time is not None and must_out.start_time.hour < 12
     d1_names = {i.name for i in out.days[0].items}
     for n in ("钉死点甲", "钉死点乙", "钉死点丙", "钉死点丁"):
         assert n in d1_names, "第1天失败试宿原样归还"
     unplaced_names = {u.name for u in out.unplaced}
-    assert "次弱点" in unplaced_names and "中档点" in unplaced_names
+    assert "弱杂点甲" in unplaced_names and "弱杂点乙" in unplaced_names
     assert any("让位" in str(a) for a in out.assumptions)
 
 
@@ -619,6 +630,7 @@ def test_must_all_pinned_floor_rolls_back_with_disclosure():
         v.day = 2
     plan = ItineraryPlan(itinerary_id="it-must2", cities=["成都"], days=[d1, d2])
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     agent._solve = _greedy_solve(240)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan, frozenset(), dict(_MUST_TIERS))
     must_out = next(i for d in out.days for i in d.items if i.name == "用户点名馆")
@@ -718,6 +730,7 @@ def test_named_restaurant_picks_nearest_cluster_day_over_fewest_meals():
         for i in d.items:
             i.day = d.day
     agent = PlanningAgent.__new__(PlanningAgent)
+    agent._wish_bindings = {}
     session = SimpleNamespace(plan=SimpleNamespace(days=days))
     # 先验 fallback（无坐标 → 餐数最少日；Day3/4 同 0 餐取天数小者）——
     # 放前面：点名件入选会让位掉当天自动餐，先测免互相污染。

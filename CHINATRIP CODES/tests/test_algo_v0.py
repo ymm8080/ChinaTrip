@@ -953,8 +953,11 @@ def test_must_prefers_geo_near_day_over_earlier_far_day():
         "location": {"lon": 104.15, "lat": 30.74},  # 北郊：市中心 ~10km、都江堰 ~50km
         "suggested_duration_min": 60,
     }
+    # 端点日（末日=离城日）不吃 >8km 非轻必去（2026-11-13「出发日和到达日
+    # 一样：不能去远郊」）——熊猫基地距城心 ~18km，故把窗口放到 4 天，
+    # 末日 day4 作离城日，day3 才是可落的地理近距天。
     out = PlanningAgent._merge_must_visits(
-        picked, ["看熊猫"], ["成都"], 3, {"成都": (2, 3)}, bindings={"看熊猫": panda}
+        picked, ["看熊猫"], ["成都"], 4, {"成都": (2, 4)}, bindings={"看熊猫": panda}
     )
     placed = next(s for s in out if s.get("must"))
     assert placed["day"] == 3  # 地理近距天，不是更早的都江堰天
