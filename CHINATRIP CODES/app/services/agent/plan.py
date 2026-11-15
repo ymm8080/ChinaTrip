@@ -5142,12 +5142,14 @@ def _planned_duplicate_visit(
                 continue
             # 无时刻且未钉的卡在出站层被剔除（2026-11-13 拍板「未安排卡不
             # 显示」）：用户看板上根本没有这一站，备选装配又用的是剔除后的
-            # 副本（同一站被重新亮成 chip）——这里按重复拦就成了「看板没有
-            # 却说已经有了」（2026-11-15 恭王府实录）。这类行交给调用方就地
-            # 复用排期，不算重复。
-            if item.start_time is None and not item.pinned:
-                continue
-            if _same_site(name, item.name) or (poi_id and item.poi_id == poi_id):
+            # 副本（同一站被重新亮成 chip）——同名/同 POI 按重复拦就成了
+            # 「看板没有却说已经有了」（2026-11-15 恭王府实录）。这类卡由
+            # 调用方就地复用（拖入）或换入时并入（点击换点），不算重复；
+            # 同体验替代组仍拦（隐藏卡不等于没排过等价体验）。
+            hidden = item.start_time is None and not item.pinned
+            if not hidden and (
+                _same_site(name, item.name) or (poi_id and item.poi_id == poi_id)
+            ):
                 return item
             if _substitute_dup(
                 name,
@@ -29929,8 +29931,15 @@ class PlanningAgent:
             else None
         )
         if any(
-            _same_site(new_name, i.name)
-            or (new_pid and i.poi_id == new_pid)
+            (
+                # 隐藏的无时刻同名卡可以并入（换入后清掉），不算重复；
+                # 同体验替代组照旧拦（含隐藏卡）
+                not (i.start_time is None and not i.pinned)
+                and (
+                    _same_site(new_name, i.name)
+                    or (new_pid and i.poi_id == new_pid)
+                )
+            )
             or _substitute_dup(
                 new_name,
                 i.name,
@@ -29994,6 +30003,18 @@ class PlanningAgent:
             duration_minutes=dur,
         )
         day.items[idx] = fresh
+        # 隐藏同名卡并入（同一站在会话里只留一张）：换入点在看板上没见过、
+        # 但会话里躺着无时刻同名卡时，换完把它清掉，别等出站再亮成幽灵 chip。
+        for _d in candidate.days:
+            for _it in list(_d.items):
+                if (
+                    _it is not fresh
+                    and isinstance(_it, VisitItem)
+                    and _it.start_time is None
+                    and not _it.pinned
+                    and _same_site(new_name, _it.name)
+                ):
+                    _d.items.remove(_it)
         # 重排时间链（move/retime 同款）：当天非 pinned 景点时间清空后
         # 按列表顺序重排；pinned 项与系统餐锚保持原时刻为固定锚点
         for it in day.items:
