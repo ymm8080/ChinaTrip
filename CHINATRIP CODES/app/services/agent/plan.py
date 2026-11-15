@@ -13369,9 +13369,37 @@ def _with_meal_bands(
     return [*fixed, *((s, e, _MealBandAnchor()) for s, e in _MUST_MEAL_BLOCK_BANDS)]
 
 
-def _must_chain_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
-    """同天必去的先后（用户「再排相邻的景点」）：远郊大点先出门（长途走
-    早段少堵），其余从当天起点（酒店卡坐标）就近串联。"""
+def _must_anchor(day: DayPlan, musts: list[VisitItem]) -> VisitItem:
+    """当日锚点（2026-11-15 用户拍板「按最重要度或者某景点时间强约束锚碇
+    时间」）：升旗/固定场次 > 有场次的演出 > 有最佳时段（日出/日落/夜）的
+    点 > 名录秩最高的点（同级取大块头）。"""
+
+    def _key(v: VisitItem) -> tuple:
+        if getattr(v, "fixed_sessions", None):
+            return (0, 0, 0, 0, 0)
+        if _is_show_item(v) and _has_usable_time_info(v.opening_hours):
+            return (1, 0, 0, 0, 0)
+        slot = str(v.best_visit_time or "").strip().lower()
+        if slot in ("morning", "sunrise", "sunset", "evening", "night"):
+            return (2, 0, 0, 0, 0)
+        rank, tier, neg_dur = _must_rank_key(v)
+        return (3, rank, tier, neg_dur, 0)
+
+    return min(musts, key=_key)
+
+
+def _must_day_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
+    """当天的必去先后（用户口径：锚定时间 → 选方向 → 顺路排下去）。
+
+    先取锚点（强约束/最重要），再把它余下的必去按「从锚出发的方向」排序：
+    分别算沿任意一条主轴的两个走向的总路程，取总路程更短的那条；缺坐标时
+    退回名录秩顺序。不引入「从酒店就近串联」的中间概念。
+    """
+    if not musts:
+        return []
+    if len(musts) == 1:
+        return list(musts)
+    anchor = _must_anchor(day, musts)
 
     def _pt(v: VisitItem) -> GeoPoint | None:
         loc = getattr(v, "location", None)
@@ -13379,45 +13407,36 @@ def _must_chain_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
             return None
         return GeoPoint(lon=float(loc.lon), lat=float(loc.lat))
 
-    start: GeoPoint | None = None
-    for it in day.items:
-        if isinstance(it, VisitItem) and (it.category or "") == "hotel":
-            start = _pt(it)
-            if start is not None:
-                break
-    if start is None:
-        for it in day.items:
-            if isinstance(it, VisitItem) and (it.category or "") not in (
-                "food",
-                "hotel",
-            ):
-                start = _pt(it)
-                if start is not None:
-                    break
-    far: list[VisitItem] = []
-    rest = list(musts)
-    if start is not None:
-        far = [
-            v for v in rest if _pt(v) is not None and haversine_km(start, _pt(v)) > 40
-        ]
-        rest = [v for v in rest if v not in far]
-        far.sort(key=lambda v: -haversine_km(start, _pt(v)))
-    order: list[VisitItem] = list(far)
-    cur = start
-    while rest:
-        if cur is None:
-            order.extend(rest)
-            break
-        nxt = min(
-            rest,
-            key=lambda v: haversine_km(cur, _pt(v)) if _pt(v) is not None else 1e9,
-        )
-        rest.remove(nxt)
-        order.append(nxt)
-        nxt_pt = _pt(nxt)
-        if nxt_pt is not None:
-            cur = nxt_pt
-    return order
+    apt = _pt(anchor)
+    rest = [v for v in musts if v is not anchor]
+    if apt is None or any(_pt(v) is None for v in rest):
+        return [anchor, *sorted(rest, key=_must_rank_key)]
+    # 主轴：锚 → 其余质心
+    cpts = [_pt(v) for v in rest]
+    cx = sum(p.lon for p in cpts) / len(cpts)
+    cy = sum(p.lat for p in cpts) / len(cpts)
+    dx, dy = cx - apt.lon, cy - apt.lat
+    if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+        return [anchor, *sorted(rest, key=_must_rank_key)]
+
+    def _proj(v: VisitItem) -> float:
+        p = _pt(v)
+        return (p.lon - apt.lon) * dx + (p.lat - apt.lat) * dy
+
+    asc = sorted(rest, key=lambda v: (_proj(v), _must_rank_key(v)))
+    desc = list(reversed(asc))
+
+    def _travel(seq: list[VisitItem]) -> float:
+        total = 0.0
+        cur = apt
+        for v in seq:
+            p = _pt(v)
+            total += haversine_km(cur, p)
+            cur = p
+        return total
+
+    forward = asc if _travel(asc) <= _travel(desc) else desc
+    return [anchor, *forward]
 
 
 def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
@@ -13448,7 +13467,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
         # 本通道的重排：既不清它的时刻，也不拿它跟别的件比先后。
         timed = [v for v in musts if v.start_time is not None and not v.fixed_sessions]
         if timed:
-            chain_all = _must_chain_order(day, musts)
+            chain_all = _must_day_order(day, musts)
             seq = sorted(timed, key=lambda v: v.start_time)
             rank_in_chain = {id(v): i for i, v in enumerate(chain_all)}
             out_of_order = [rank_in_chain[id(v)] for v in seq] != sorted(
@@ -13474,9 +13493,15 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
         if not remaining:
             continue
         guard = 0
+        order = _must_day_order(day, remaining)
         while remaining and guard < 20:
             guard += 1
-            mv = _must_chain_order(day, remaining)[0]
+            pending = [v for v in order if v in remaining]
+            mv = (
+                pending[0]
+                if pending
+                else _must_day_order(day, remaining)[0]
+            )
             dur = mv.duration_minutes or DEFAULT_VISIT_MINUTES
 
             def _try_start() -> int | None:
