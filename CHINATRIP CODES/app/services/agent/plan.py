@@ -12029,6 +12029,9 @@ def _retime_meal_placeholders(
 _LEG_DETOUR_FACTOR = 1.3
 _LEG_WALK_M_PER_MINUTE = 80.0
 _LEG_MIN_MINUTES = 5
+#: 坐标缺失（线性遗产「北京中轴线」、占位卡无锚等）时的市内短驳兜底：
+#: 不能返回 0——那等于「同址」，0 分钟衔接会被放行。
+_LEG_UNKNOWN_MINUTES = 15
 
 
 def _leg_minutes_estimate(a: VisitItem, b: VisitItem) -> int:
@@ -12039,7 +12042,7 @@ def _leg_minutes_estimate(a: VisitItem, b: VisitItem) -> int:
     pa = getattr(a, "location", None) or getattr(a, "anchor_location", None)
     pb = getattr(b, "location", None) or getattr(b, "anchor_location", None)
     if pa is None or pb is None:
-        return 0
+        return _LEG_UNKNOWN_MINUTES
     try:
         km = haversine_km(pa, pb)
     except Exception:  # noqa: BLE001 - 脏坐标不拦排程
