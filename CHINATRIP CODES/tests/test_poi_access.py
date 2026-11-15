@@ -413,16 +413,18 @@ def test_fallback_clamps_scheduled_gap_after_soft_lunch(monkeypatch):
     monkeypatch.setattr(
         pa,
         "profile_for",
-        lambda city, name: {
-            "access_mode": "shuttle",
-            "access_boarding_lon": 116.398256,
-            "access_boarding_lat": 39.898886,
-            "access_service_minutes": 108,
-            "access_wait_minutes": 10,
-            "access_last_mile_minutes": 8,
-        }
-        if name == "慕田峪长城"
-        else None,
+        lambda city, name: (
+            {
+                "access_mode": "shuttle",
+                "access_boarding_lon": 116.398256,
+                "access_boarding_lat": 39.898886,
+                "access_service_minutes": 108,
+                "access_wait_minutes": 10,
+                "access_last_mile_minutes": 8,
+            }
+            if name == "慕田峪长城"
+            else None
+        ),
     )
     lunch = _visit("lunch", "午饭（自由安排）", 116.4109, 39.9097)
     lunch.category = "food"
