@@ -13668,9 +13668,16 @@ _SAME_PARK_KM = 1.0
 # 住宿类名字不进景点补位（2026-11-15：长城脚下的公社这类住宿/会所被当成
 # 下午的景点补进来，用户要的是景点或体验类活动）。
 _LODGING_KEYS = (
-    "酒店", "饭店", "民宿", "度假",
-    "公社", "会所", "公寓", "客栈",
-    "宾馆", "大酒店",
+    "酒店",
+    "饭店",
+    "民宿",
+    "度假",
+    "公社",
+    "会所",
+    "公寓",
+    "客栈",
+    "宾馆",
+    "大酒店",
 )
 
 _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
@@ -13818,9 +13825,7 @@ def _fill_leftover_with_diverse_sights(
                 for u in pool
                 if not _too_close_to_plan(plan, u)
                 and not _in_park_of_existing(plan, u.name)
-                and not any(
-                    k in str(u.name or "") for k in _LODGING_KEYS
-                )
+                and not any(k in str(u.name or "") for k in _LODGING_KEYS)
             ]
             if not pool:
                 break
