@@ -11900,6 +11900,186 @@ def _retime_meal_placeholders(
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
+# --- 餐卡→景点留腿（2026-11-15 用户拍板「午饭卡 11:30–12:00 紧贴故宫
+# 12:00 开场显然是不合适的」「故宫为什么不晚点安排」）--------------------
+# 餐卡落位（_retime_meal_placeholders / _retime_real_food_cards）只避固定
+# 窗，不吃「餐 → 下一景点」的通勤腿：午卡 11:30–12:00 收了，故宫 12:00
+# 开场，出场到馆 0 分钟（rule 7「散场到开场仅 0 分钟，打车约需 30 分钟」）。
+# 本闸在餐卡全部落定后对账：餐卡与紧邻景点之间补齐通勤腿——餐卡被压短
+# 的先补回默认时长（午 60/晚 90），再把景点及其后时链整体顺延；顺延会
+# 顶破营业窗/日终/用户手钉时，退一步把餐卡前移；两条都不行才原样放行
+# 并披露（宁留 0 分钟可见，不静默塞进闭馆后）。
+_LEG_DETOUR_FACTOR = 1.3
+_LEG_WALK_M_PER_MINUTE = 80.0
+_LEG_MIN_MINUTES = 5
+
+
+def _leg_minutes_estimate(a: VisitItem, b: VisitItem) -> int:
+    """两站之间步行分钟估算（与 legs.annotate_legs 同口径：直线 ×1.3，80m/min）。
+
+    坐标缺失返回 0（不臆造腿，交下游按无腿处理）。
+    """
+    pa = getattr(a, "location", None) or getattr(a, "anchor_location", None)
+    pb = getattr(b, "location", None) or getattr(b, "anchor_location", None)
+    if pa is None or pb is None:
+        return 0
+    try:
+        km = haversine_km(pa, pb)
+    except Exception:  # noqa: BLE001 - 脏坐标不拦排程
+        return 0
+    if km * 1000.0 < 50.0:
+        return 0
+    if km <= 1.2:
+        # 短距步行（与 legs.annotate_legs 同口径：直线 ×1.3，80m/min）
+        minutes = km * 1000.0 * _LEG_DETOUR_FACTOR / _LEG_WALK_M_PER_MINUTE
+        return max(_LEG_MIN_MINUTES, int(round(minutes)))
+    # 更远是车行不是步行（20km 按步行算出 248 分钟会把远郊日错判成
+    # 「车程太长」）：市内 15km/h 折 4 分钟/km，上限 90 分钟。
+    return min(90, max(10, int(round(km * 4.0))))
+
+
+def _meal_gap_movable(item: object) -> bool:
+    """顺延链可动的条目：观光/演出/餐占位可动；升旗钉、用户手钉（非必去）、
+    酒店卡、城际腿不动。"""
+    if not isinstance(item, VisitItem):
+        return False
+    if item.fixed_sessions:
+        return False
+    if item.pinned and not item.must:
+        return False  # 用户手钉（铁律 19）
+    if _is_show_item(item):
+        return False  # 演出/固定场次时钟来自场馆，挪了就是错场
+    return not (is_hotel_night(item) or is_hotel_morning(item))
+
+
+def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
+    """餐卡与紧邻景点之间补齐通勤腿（终装最后一道，夜卡/晨卡之前）。"""
+    notes: list[str] = []
+    day_end = 21 * 60 + 30
+    for day in plan.days:
+        if any(isinstance(i, TransferItem) for i in day.items):
+            continue  # 城际日另有铁律 4 窗，整段顺延风险大，交转场闸
+        chain = sorted(
+            (
+                i
+                for i in day.items
+                if isinstance(i, VisitItem) and i.start_time is not None
+            ),
+            key=lambda i: _minutes_of(i.start_time),
+        )
+        idx = 0
+        while idx < len(chain) - 1:
+            meal, site = chain[idx], chain[idx + 1]
+            if str(getattr(meal, "category", "") or "") != "food":
+                idx += 1
+                continue
+            if str(getattr(site, "category", "") or "") in ("food", "hotel"):
+                idx += 1
+                continue
+            need = _leg_minutes_estimate(meal, site)
+            if need <= 0:
+                idx += 1
+                continue
+            meal_end = _item_end_minutes(meal)
+            if meal_end is None:
+                idx += 1
+                continue
+            gap = _minutes_of(site.start_time) - meal_end
+            # ① 餐卡被压短（占位件）先补回默认时长
+            slot = _meal_card_slot(meal) or (
+                "lunch" if is_lunch_placeholder(meal) else "dinner"
+            )
+            want_dur = 0
+            if is_lunch_placeholder(meal) or is_dinner_placeholder(meal):
+                default_dur = MEAL_CARD_SLOT_DURATIONS.get(slot, (60, 45, 30))[0]
+                if int(meal.duration_minutes or 0) < default_dur:
+                    want_dur = default_dur - int(meal.duration_minutes or 0)
+            delta = max(0, need - gap)
+            if delta <= 0 and want_dur <= 0:
+                idx += 1
+                continue
+            # 需要额外腾出的时间是「补时长 + 缺的通勤腿」；优先让餐卡自己前移
+            # （保持后面动线紧凑，2026-11-15「故宫为什么不晚点安排」二裁：
+            # 午卡已在窗口下限时前移不了，才把景点顺延）。
+            slot_lo = 11 * 60 + 30 if slot == "lunch" else 17 * 60
+            meal_start = _minutes_of(meal.start_time)
+            prev_item = chain[idx - 1] if idx > 0 else None
+            earliest = slot_lo
+            if prev_item is not None and prev_item is not meal:
+                prev_end = _item_end_minutes(prev_item)
+                if prev_end is not None:
+                    earliest = max(
+                        earliest, prev_end + _leg_minutes_estimate(prev_item, meal)
+                    )
+            needed = want_dur + delta
+            shift_back = max(0, min(needed, meal_start - earliest))
+            remaining = needed - shift_back
+            moves: list[tuple[VisitItem, int, bool]] = []
+            ok = True
+            for item in chain[idx + 1 :]:
+                if not _meal_gap_movable(item):
+                    if item is site:
+                        ok = False  # 紧邻景点本身不可挪（手钉/演出/升旗锚）
+                    break  # 钉住件是边界：链到此为止，不越过它推后面的卡
+                dur = int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
+                new_start = _minutes_of(item.start_time) + remaining
+                if new_start + dur > day_end:
+                    ok = False
+                    break
+                if not _fits_hours_window(_hours_from_visit(item), new_start, dur):
+                    ok = False
+                    break
+                moves.append((item, new_start, dur))
+            if not (ok and (moves or shift_back)):
+                idx += 1
+                continue
+            # 落盘：餐卡前移 + 补时长，景点与其后按剩余量顺延
+            if want_dur:
+                meal.duration_minutes = int(meal.duration_minutes or 0) + want_dur
+            meal_new_start = meal_start - shift_back
+            meal.start_time = _time_of(meal_new_start)
+            meal.end_time = _time_of(
+                meal_new_start + int(meal.duration_minutes or 60)
+            )
+            for item, new_start, dur in moves:
+                item.start_time = _time_of(new_start)
+                item.end_time = _time_of(new_start + dur)
+            day.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+            if shift_back:
+                notes.append(
+                    L(
+                        f"第{day.day}天 餐卡前移到 {meal.start_time:%H:%M}，"
+                        f"给「{site.name}」留出 {need} 分钟通勤",
+                        f"Day {day.day}: meal card moved earlier to "
+                        f"{meal.start_time:%H:%M} to keep {need} min of travel "
+                        f'before "{site.name}"',
+                    )
+                )
+            if remaining and moves:
+                notes.append(
+                    L(
+                        f"第{day.day}天 餐卡与「{site.name}」之间补足通勤 {need} 分钟，"
+                        f"「{site.name}」顺延到 {site.start_time:%H:%M}",
+                        f"Day {day.day}: {need} min of travel added between the meal "
+                        f'card and "{site.name}"; it now starts at '
+                        f"{site.start_time:%H:%M}",
+                    )
+                )
+            # 顺延后重新取链，避免同一张餐卡被重复处理
+            chain = sorted(
+                (
+                    i
+                    for i in day.items
+                    if isinstance(i, VisitItem) and i.start_time is not None
+                ),
+                key=lambda i: _minutes_of(i.start_time),
+            )
+            idx += 1
+
+    return notes
+
 #: 真餐卡兜底落位窗（2026-11-13 用户拍板「餐厅选中就该落午餐卡/晚餐卡」）：
 #: 选层按「午→晚」预排的餐窗可能物理不可行（落地日 12:00 才到、目标日
 #: 12:30 已被景点占住），失败日的兜底序列又把餐排除在外、终局清算再按铁律
@@ -27358,6 +27538,10 @@ class PlanningAgent:
         _retime_meal_placeholders(plan, ensure_cards=self._auto_restaurants)
         # 交付前最后一道：街区与同址宴秀绝不允许拆天（终装各相位仍可挪卡）
         plan.assumptions.extend(_bind_block_family(plan))
+        # 餐卡→景点留腿（2026-11-15 用户拍板「午饭卡 11:30–12:00 紧贴故宫
+        # 12:00 开场显然是不合适的」）：餐卡落位只避固定窗不吃通勤腿，
+        # 收口前把「餐→下一景点」的腿补出来，景点顺延而不是硬贴。
+        plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
