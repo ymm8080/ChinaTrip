@@ -477,7 +477,9 @@ def _is_remote_visit(item: VisitItem) -> bool:
     城心 >_DAY_MIX_KM 落标，与日间混排闸同口径）——solver 不查城心锚表、
     不重复算距离；用户自钉有时刻是用户的安排（铁律 19），不吃时段偏好。
     """
-    if item.pinned and item.start_time is not None:
+    # 铁律 19 只豁免用户手钉；引擎钉住的必去（pinned+must）照常算远郊，
+    # 否则远郊必去永远拿不到上午头档（2026-11-15 二拍）。
+    if item.pinned and not item.must and item.start_time is not None:
         return False
     return bool(item.remote)
 

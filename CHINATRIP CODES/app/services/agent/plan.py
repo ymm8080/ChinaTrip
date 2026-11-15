@@ -1224,7 +1224,11 @@ def _mark_remote_visits(plan: ItineraryPlan) -> int:
                 continue
             if str(i.best_visit_time or "").lower() in ("evening", "sunset", "show"):
                 continue
-            if i.pinned and i.start_time is not None:
+            # 2026-11-15 用户拍板「远郊景点 BEST VISIT TIME MORNING」二拍：
+            # 铁律 19 只豁免用户手钉（pinned 且非必去）；引擎钉住的必去
+            # （pinned+must）正是最该抢上午头档的远郊件，旧口径把它们全
+            # 跳过，等于「远郊必去」永远打不上标。
+            if i.pinned and not getattr(i, "must", False) and i.start_time is not None:
                 continue
             anchor = anchors.get(str(i.city or d.base_city or ""))
             if i.location is None or anchor is None:
@@ -11047,11 +11051,16 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
                 if loc is not None:
                     prev_located = cand
                     break
+            # 与校验/矩阵同一条腿口径（travel_gap_needed）：班次点走接驳链，
+            # 普通城市点走「打车 + 半小时叫车」的下界——旧口径只认接驳链，
+            # 市内景点对全是 None，0 分钟硬贴就这样漏到交付。
             chain = (
-                access_chain_minutes(prev_located, cur)
+                travel_gap_needed(prev_located, cur)
                 if prev_located is not None
                 else head_chain_minutes(cur)
             )
+            if chain is None and prev_located is not None:
+                chain = _leg_minutes_estimate(prev_located, cur)
             if not chain:
                 continue
             prev_end = (
@@ -11069,14 +11078,34 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             start = _minutes_of(cur.start_time)
             if start >= need:
                 continue
+            if cur.pinned and not getattr(cur, "must", False) and not cur.soft_pin:
+                # 用户手钉（铁律 19）：不挪它，交给校验点名。
+                continue
+            if need + (cur.duration_minutes or DEFAULT_VISIT_MINUTES) > 21 * 60 + 30:
+                if (
+                    not cur.must
+                    and not cur.fixed_sessions
+                    and (cur.category or "") not in ("food", "hotel")
+                ):
+                    # 可选卡收口后顶到 21:30 之后：让位并留痕，不留 23:15。
+                    if cur in day.items:
+                        day.items.remove(cur)
+                    notes.append(
+                        L(
+                            f"第{day.day}天「{cur.name}」超出日终 21:30，已让位",
+                            f'Day {day.day} "{cur.name}" overflowed the 21:30 day '
+                            "end and was dropped",
+                        )
+                    )
+                continue
             rows: list[tuple[VisitItem, int, int]] = []
             blocked = False
-            # 本件落到 need，后面的件按「不早于原时刻、不早于前件尾」最小重排——
-            # 等量平移会把晚饭一起推 112 分钟（19:00 → 20:52），最小重排只在
-            # 真被压住时才让位。
+            # 本件落到 need，后面的件按「不早于原时刻、不早于前件尾」最小重排。
+            # 等量平移会把晚饭一起推 112 分钟（19:00 → 20:52）。
             cur_dur = cur.duration_minutes or DEFAULT_VISIT_MINUTES
             rows.append((cur, need, need + cur_dur))
             cursor_end = need + cur_dur
+            prev_item = cur
             for later in timed[idx + 1 :]:
                 orig = _minutes_of(later.start_time)
                 if later.end_time is not None:
@@ -11085,16 +11114,49 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
                     dur = later.duration_minutes
                 else:
                     dur = DEFAULT_VISIT_MINUTES
-                s = max(orig, cursor_end)
+                # 顺延链里每一对也要吃腿：只按前件尾排会重新贴成 0 分钟
+                # （颐和园 19:30 散场 → 梵高 19:30 开场）。
+                leg = travel_gap_needed(prev_item, later)
+                if leg is None:
+                    leg = _leg_minutes_estimate(prev_item, later)
+                s = max(orig, cursor_end + int(leg or 0))
                 e = s + dur
-                if e >= 24 * 60:
+                if e >= 24 * 60 or e > 21 * 60 + 30:
+                    if (
+                        not later.must
+                        and not later.fixed_sessions
+                        and (later.category or "") not in ("food", "hotel")
+                    ):
+                        # 收口日的可选卡（演出/体验/街区）顶到 21:30 之后：
+                        # 不留 23:15 的荒谬时刻，直接让位并留痕。
+                        if later in day.items:
+                            day.items.remove(later)
+                        notes.append(
+                            L(
+                                f"第{day.day}天「{later.name}」超出日终 21:30，已让位",
+                                f'Day {day.day} "{later.name}" overflowed the 21:30 '
+                                "day end and was dropped",
+                            )
+                        )
+                        continue
                     blocked = True
                     break
-                if later.pinned and not later.soft_pin:
+                # 铁律 19 只认用户手钉（pinned 且非必去）；引擎托管的必去
+                # （pinned+must）随行进链后移——否则「故宫 11:00 散场、天坛
+                # 11:00 开场」这种 0 分钟硬贴会一直留在交付里。班次锚不动。
+                if later.fixed_sessions:
+                    blocked = True
+                    break
+                if (
+                    later.pinned
+                    and not getattr(later, "must", False)
+                    and not later.soft_pin
+                ):
                     blocked = True
                     break
                 rows.append((later, s, e))
                 cursor_end = e
+                prev_item = later
             if blocked:
                 continue
             for later, s, e in rows:
@@ -13831,6 +13893,110 @@ def _assign_must_family_days(
     return notes
 
 
+def _separate_remote_must_days(plan: ItineraryPlan) -> list[str]:
+    """远郊必去占一天（2026-11-15 用户拍板「远郊景点……也适合占一天」）。
+
+    远郊那趟是全天的大动作：先给它在「别的必去最少」的那天安家，再把那天
+    的城心必去挪到另一天（只搬引擎托管的 must；用户手钉不动）。旧版把
+    慕田峪和天安门/故宫/天坛拼在同一天，上午被钉住条目占满，慕田峪只能
+    落到 14:30 下午档。没有宿主日就原样保留（不静默删卡）。
+    """
+    notes: list[str] = []
+    remote = [
+        v
+        for d in plan.days
+        for v in d.items
+        if isinstance(v, VisitItem)
+        and getattr(v, "must", False)
+        and (v.category or "") not in ("food", "hotel")
+        and getattr(v, "remote", False)
+    ]
+    if not remote:
+        return notes
+
+    def _home_day(v: VisitItem) -> DayPlan | None:
+        return next((d for d in plan.days if v in d.items), None)
+
+    def _other_musts(day: DayPlan, keep: VisitItem) -> list[VisitItem]:
+        return [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v is not keep
+            and getattr(v, "must", False)
+            and (v.category or "") not in ("food", "hotel")
+            and not getattr(v, "remote", False)
+        ]
+
+    for r in remote:
+        home = _home_day(r)
+        if home is None:
+            continue
+        dur = int(r.duration_minutes or DEFAULT_VISIT_MINUTES)
+        hosts = [d for d in plan.days if _day_free_minutes(d) >= dur]
+        if not hosts:
+            hosts = list(plan.days)
+        tgt = min(
+            hosts,
+            key=lambda d: (
+                len(_other_musts(d, r)),
+                0 if d is home else 1,
+                -_day_free_minutes(d),
+                d.day,
+            ),
+        )
+        if tgt is not home:
+            home.items.remove(r)
+            r.day = tgt.day
+            r.start_time = None
+            r.end_time = None
+            r.pinned = False
+            tgt.items.append(r)
+            notes.append(
+                L(
+                    f"远郊「{r.name}」改到第{tgt.day}天上午档（当天不再拼城心必去）",
+                    f'Remote "{r.name}" moved to day {tgt.day} morning (no city '
+                    "must-visits that day)",
+                )
+            )
+        for v in _other_musts(tgt, r):
+            alt = [
+                d
+                for d in plan.days
+                if d is not tgt
+                and not any(
+                    isinstance(i, VisitItem)
+                    and getattr(i, "must", False)
+                    and getattr(i, "remote", False)
+                    for i in d.items
+                )
+                and _day_free_minutes(d)
+                >= int(v.duration_minutes or DEFAULT_VISIT_MINUTES)
+            ]
+            if not alt:
+                continue
+            dest = max(alt, key=_day_free_minutes)
+            tgt.items.remove(v)
+            v.day = dest.day
+            v.start_time = None
+            v.end_time = None
+            v.pinned = False
+            dest.items.append(v)
+            dest.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+            notes.append(
+                L(
+                    f"远郊那天只留「{r.name}」：必去「{v.name}」改到第{dest.day}天",
+                    f'Remote day kept for "{r.name}": must-visit "{v.name}" '
+                    f"moved to day {dest.day}",
+                )
+            )
+    for d in plan.days:
+        d.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+    return notes
+
+
 def _must_rank_key(v: VisitItem) -> tuple:
     """必去重要度键（2026-11-14 用户拍板「按重要度和约束强者钉住时间」）：
     名录秩升序 → 档位升序 → 时长降序（同等重要度时大块头先占位）。"""
@@ -13998,7 +14164,9 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
         if not remaining:
             continue
         guard = 0
-        order = _must_day_order(day, remaining)
+        # 方向锚要看整天（含升旗/固定场次）：只拿 remaining 选锚会把 300 分钟的
+        # 颐和园当锚，城心簇（天安门→故宫→天坛）反而被挤散。
+        order = [v for v in _must_day_order(day, musts) if v in remaining]
         while remaining and guard < 20:
             guard += 1
             pending = [v for v in order if v in remaining]
@@ -14321,12 +14489,31 @@ def _fill_leftover_with_diverse_sights(
                 )
             ]
             day_remote = _day_already_remote(plan, day)
+            # 补空档的「多类型多体验」硬闸（2026-11-15 用户拍板 HIGH PRIORITY）：
+            # 当天已有远郊大趟、或必去观光件已占满 5 小时，就只补体验类
+            # （演出/茶事/按摩/CityWalk），不再补第二张同类观光卡。
+            day_heavy_must = (
+                sum(
+                    int(v.duration_minutes or DEFAULT_VISIT_MINUTES)
+                    for v in day.items
+                    if isinstance(v, VisitItem)
+                    and getattr(v, "must", False)
+                    and (v.category or "") not in ("food", "hotel")
+                )
+                >= 300
+            )
             pool = [
                 u
                 for u in pool
                 if not _too_close_to_plan(plan, u)
                 # 一天最多一个远郊族：当天已有远郊就不再补远处的
                 and not (day_remote and _is_remote_point(plan, u.location))
+                # 多类型多体验：重日/远郊日只补体验类，不再堆观光件
+                and not (
+                    (day_remote or day_heavy_must)
+                    and not _is_experience_candidate(u)
+                    and (u.category or "") not in ("citywalk", "food")
+                )
                 and not _in_park_of_existing(plan, u.name)
                 and not any(k in str(u.name or "") for k in _LODGING_KEYS)
             ]
@@ -19857,6 +20044,18 @@ class PlanningAgent:
         )
         for zh_note, en_note in rebalance_notes:
             llm_assumptions.append(L(zh_note, en_note))
+        # 多类型多体验（2026-11-15 用户拍板 HIGH PRIORITY）：必去已占满 5 小时
+        # 的天不再补同类观光点（演出/体验/CityWalk/餐饮照常补）。
+        picked, _trimmed = self._trim_optional_sights_on_heavy_days(picked)
+        if _trimmed:
+            llm_assumptions.append(
+                L(
+                    "重日只留必去与体验类，不再堆同类观光点："
+                    + "、".join(z for z, _ in _trimmed),
+                    "Heavy days keep must-visits and experiences only; skipped: "
+                    + ", ".join(e for _, e in _trimmed),
+                )
+            )
         # §8.2.6 计划级查全率：候选池 5A/UNESCO 未入选 → 假设区告警
         premium_gap = premium_coverage_gaps(
             [spec["name"] for spec in picked], candidates, same_site=_same_site
@@ -25711,6 +25910,56 @@ class PlanningAgent:
         return kept, dropped
 
     @staticmethod
+    def _trim_optional_sights_on_heavy_days(
+        picked: list[dict],
+    ) -> tuple[list[dict], list[tuple[str, str]]]:
+        """重日不再堆同类观光件（2026-11-15 用户拍板「多类型多体验」）。
+
+        当天必去观光件已占满 5 小时（如颐和园 300 分钟）时，非必去的
+        attraction/museum/park/temple/historic/nature 不再补进来——用户点名
+        的「颐和园 + 恭王府」就是这种堆法；演出/体验/CityWalk/餐饮不受限。
+        """
+        heavy_days: dict[int, int] = {}
+        for spec in picked:
+            if spec.get("must") and (spec.get("category") or "") not in (
+                "food",
+                "hotel",
+                "entertainment",
+            ):
+                heavy_days[spec["day"]] = heavy_days.get(spec["day"], 0) + int(
+                    spec.get("duration_minutes") or DEFAULT_VISIT_MINUTES
+                )
+        sight_cats = {
+            "attraction",
+            "museum",
+            "park",
+            "temple",
+            "historic",
+            "nature",
+            "scenic",
+            "sight",
+            "garden",
+        }
+        kept: list[dict] = []
+        dropped: list[tuple[str, str]] = []
+        for spec in picked:
+            cat = str(spec.get("category") or "")
+            if (
+                not spec.get("must")
+                and heavy_days.get(spec["day"], 0) >= 300
+                and cat in sight_cats
+            ):
+                dropped.append(
+                    (
+                        f"第{spec['day']}天 {spec['name']}",
+                        f"day {spec['day']} {spec['name']}",
+                    )
+                )
+                continue
+            kept.append(spec)
+        return kept, dropped
+
+    @staticmethod
     def _rebalance_days(
         picked: list[dict],
         candidates: list[dict],
@@ -27403,6 +27652,10 @@ class PlanningAgent:
         # ① 必去族定天（2026-11-14 四段式拍板）：同片区整族归一天，不同
         # 片区同天计双程通勤，超容才拆；再叠 2026-11-15 的雨日/周末偏好。
         plan.assumptions.extend(_assign_must_family_days(plan, rain_days=rain_days))
+        # 远郊必去占一天（2026-11-15 用户拍板）：先打远郊标，再把城心必去
+        # 从远郊那天挪走（没有宿主日就原样保留）。
+        _mark_remote_visits(plan)
+        plan.assumptions.extend(_separate_remote_must_days(plan))
         # ② 必去钉时：按重要度+约束强度先占时刻，塞不下删当日最低优先件，
         # 其余景点交给 solve 在空档排。
         plan.assumptions.extend(_pin_musts_by_importance(plan))
@@ -27726,7 +27979,7 @@ class PlanningAgent:
         # 收口前把「餐→下一景点」的腿补出来，景点顺延而不是硬贴。
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 班次点接驳链收口（2026-11-15）：solver 解成功时不走兜底，
-        # 「午饭 12:00-13:00 → 慕田峪 13:30」就漏在这儿——统一在夜卡/
+        # 「午饭 12:00-13:00 → 慕田峪 13:30」就漏在这里——统一在夜卡/
         # 晨卡之前把链值补齐，夜卡才贴得住修正后的末件。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
@@ -29513,6 +29766,8 @@ class PlanningAgent:
         # ① 地理分组先定天（2026-11-14 四段式拍板）：必去同片区整族归一天，
         # 不同片区同天要计双程通勤，族定天后再钉时刻。
         notes = _assign_must_family_days(plan)
+        _mark_remote_visits(plan)
+        notes.extend(_separate_remote_must_days(plan))
         # 无场次演出先摘（用户拍板：没有场次信息的不提案）
         notes.extend(_drop_sessionless_shows(plan))
         # ② 必去钉时先行：灰卡必去按重要度+约束抢时刻，塞不下删当日最弱
@@ -29535,6 +29790,9 @@ class PlanningAgent:
         # 最后按类型多样性把优先级高的下一个景点补进空余时间。
         _retime_meal_placeholders(plan)
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
+        # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
+        # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
+        plan.assumptions.extend(_clamp_chain_gaps(plan))
         _bench: list[UnplacedCandidate] = []
         if self._poi_details is not None:
             for _city in plan.cities:
@@ -32072,6 +32330,9 @@ class PlanningAgent:
         notes.extend(_bind_real_food_to_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=False)
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
+        # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
+        # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
+        plan.assumptions.extend(_clamp_chain_gaps(plan))
         # 行程单模糊去重收口（2026-10-28）：三条交付分支（干净落定/
         # 保底原样/半成品）统一过闸——2026-10-24 版只挂在「无硬校验错误」
         # 分支，编辑失败回合会跳过合并，历史脏对子继续露出。
