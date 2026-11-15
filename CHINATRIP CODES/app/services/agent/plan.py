@@ -13582,6 +13582,54 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
     return notes
 
 
+# 补空档三层顺序（2026-11-15 用户拍板）：INTL 集合优先 → 其它类型（SHOW/
+# 喝茶/按摩等体验类）→ 最后按优先级。标签口径与库 source/tags 一致。
+_INTL_TAG_KEYS = {
+    "intl", "lp", "layla", "ta", "viator", "klook", "tripadvisor",
+    "tui", "sygic", "culturetrip", "mindtrip",
+}
+_EXPERIENCE_CATEGORIES = {
+    "entertainment", "tea_experience", "spa", "massage", "show",
+    "performance", "experience", "theatre", "theater",
+}
+_EXPERIENCE_TAG_KEYS = {"show", "tea", "massage", "spa", "performance", "experience"}
+_EXPERIENCE_NAME_KEYS = ("茶馆", "按摩", "剧场", "剧院", "戏", "秀")
+
+
+def _cand_tags(u) -> set[str]:
+    return {str(t).lower() for t in (getattr(u, "tags", None) or [])}
+
+
+def _is_intl_candidate(u) -> bool:
+    return bool(_cand_tags(u) & _INTL_TAG_KEYS)
+
+
+# 补位同址闸（2026-11-15）：候选与行程里任一点 ≤0.4km 视作同一园区/建筑群
+# （如天坛园区里的皇穹宇），不再当新景点补进来。
+_SAME_PARK_KM = 1.0
+
+
+def _too_close_to_plan(plan: ItineraryPlan, u) -> bool:
+    loc = getattr(u, "location", None)
+    if loc is None:
+        return False
+    for d in plan.days:
+        for i in d.items:
+            if not isinstance(i, VisitItem) or i.location is None:
+                continue
+            if haversine_km(loc, i.location) <= _SAME_PARK_KM:
+                return True
+    return False
+
+
+def _is_experience_candidate(u) -> bool:
+    if (getattr(u, "category", "") or "").lower() in _EXPERIENCE_CATEGORIES:
+        return True
+    if _cand_tags(u) & _EXPERIENCE_TAG_KEYS:
+        return True
+    return any(k in str(getattr(u, "name", "") or "") for k in _EXPERIENCE_NAME_KEYS)
+
+
 def _bench_candidates_from_library(
     rows: list[dict], *, city: str, avoid: set[str] | None = None
 ) -> list[UnplacedCandidate]:
@@ -13612,6 +13660,7 @@ def _bench_candidates_from_library(
                 location=point,
                 city=city,
                 reason="library_bench",
+                tags=[str(t) for t in (row.get("tags") or [])],
             )
         )
     return out
@@ -13669,6 +13718,7 @@ def _fill_leftover_with_diverse_sights(
                     and not _has_usable_time_info(getattr(u, "opening_hours", None))
                 )
             ]
+            pool = [u for u in pool if not _too_close_to_plan(plan, u)]
             if not pool:
                 break
             tail = next(
@@ -13695,10 +13745,16 @@ def _fill_leftover_with_diverse_sights(
 
             pool.sort(
                 key=lambda u: (
+                    # ① INTL 集合优先 ② 其它类型（SHOW/喝茶/按摩等体验类）
+                    # ③ 其余；同层内先「当天还没有的类型」，再按优先级。
+                    0
+                    if _is_intl_candidate(u)
+                    else (1 if _is_experience_candidate(u) else 2),
                     0 if (u.category or "") not in have_types else 1,
+                    0 if getattr(u, "reason", None) != "library_bench" else 1,
                     u.tier if u.tier is not None else 99,
                     u.site_rank if getattr(u, "site_rank", None) is not None else 99,
-                    round(_km(u) / 10.0),  # 同档时先近后远（10km 一档）
+                    round(_km(u) / 10.0),
                     -(u.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
             )
@@ -20496,7 +20552,9 @@ class PlanningAgent:
                     note=note,
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
-                    must_visit=(name in (session.must_visits or []) and not dropped),
+                    must_visit=(
+                        name in (session.must_visits or []) and not dropped
+                    ),
                 )
                 committed += 1
             except ValueError:
@@ -20509,7 +20567,9 @@ class PlanningAgent:
                         row["id"], status=STATUS_UNWANTED, note=note
                     )
                 except Exception:
-                    logger.warning("plan: wish materialize unwanted failed %s", name)
+                    logger.warning(
+                        "plan: wish materialize unwanted failed %s", name
+                    )
                 continue
             if off_trip or target is None or target.start_time is None:
                 continue
@@ -28844,7 +28904,7 @@ class PlanningAgent:
             for _city in plan.cities:
                 try:
                     _rows = await asyncio.to_thread(
-                        self._poi_details.top_pois_in_city, _city, 40
+                        self._poi_details.top_pois_in_city, _city, 80
                     )
                 except Exception:
                     logger.warning(

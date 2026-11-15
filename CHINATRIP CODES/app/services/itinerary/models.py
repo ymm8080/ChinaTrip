@@ -214,6 +214,9 @@ class UnplacedCandidate(BaseModel):
     day_hint: int | None = None
     # yield_must=必去让位被挤 / yield_rain=雨天软规则落选 / cap=日容量弃排
     reason: str | None = None
+    # 库行标签透传（2026-11-15「INTL 集合优先，其次找其它类型」）：补空档
+    # 排序用它认 INTL（intl/lp/ta/layla…）与体验类（show/tea/massage…）。
+    tags: list[str] | None = None
 
 
 class PlanAlternative(BaseModel):
