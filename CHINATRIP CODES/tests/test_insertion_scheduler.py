@@ -115,23 +115,29 @@ def test_insertion_180_big_morning_abuts_lunch():
     assert solved is not None
     big = next(i for i in solved.items if i.item_id == "big")
     lunch = next(i for i in solved.items if i.item_id == "lunch-1")
-    assert big.start_time == time(9, 0)  # 无 matrix 背靠背合法：紧贴午餐
-    assert lunch.start_time == time(12, 0)
+    assert big.start_time == time(8, 30)  # 无 matrix 背靠背合法：紧贴午餐
+    # 日始 08:30（2026-11-14）：180 分钟吃 08:30-11:30，软钉午餐滑到窗首 11:30
+    assert big.end_time == time(11, 30)
+    assert lunch.start_time == time(11, 30)
 
 
-def test_insertion_240_big_after_shortened_lunch():
+def test_insertion_240_big_fills_morning_then_lunch():
+    """日始 08:30 后 240 分钟大点正好吃满上午（08:30-12:30），午餐贴后满时长。
+
+    挂旧名「贴缩短午餐后」时前提是「上午容量只到 12:30=210 分钟」，
+    2026-11-14 日始改 08:30 后 240 分钟塞得进上午，前提已不成立——
+    现形态=大点先吃满上午，午餐在硬窗末 12:30 开餐（不缩时长）。
+    """
     v = _visit("big", dur=240)
     day = DayPlan(day=1, base_city="西安", items=[v, _lunch()])
     solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     big = next(i for i in solved.items if i.item_id == "big")
     lunch = next(i for i in solved.items if i.item_id == "lunch-1")
-    # ±30+缩30：上午容量 12:30（=210 分钟）装不下 240——贴缩短午餐后
-    assert _mins(big.start_time) >= 12 * 60
-    assert _mins(lunch.start_time) >= 11 * 60  # 允许提前
-    assert lunch.end_time <= big.start_time  # 无重叠
-    lunch_span = _mins(lunch.end_time) - _mins(lunch.start_time)
-    assert lunch_span >= 30  # 缩短下限 30 分钟
+    assert big.start_time == time(8, 30)
+    assert big.end_time == time(12, 30)
+    assert lunch.start_time == time(12, 30)  # 硬窗末，贴大点尾部
+    assert lunch.end_time == time(13, 30)  # 不用缩短
 
 
 def test_insertion_entry_cap_16_for_regular_sights():
@@ -378,9 +384,11 @@ def test_insertion_sunset_window_lower_bound():
     assert 16 * 60 <= _mins(deck2.start_time) <= 19 * 60 - 60
 
 
-# ---- 晚宴就近并块（2026-11-10「餐卡可推迟/并景点卡」拍板兑现） ------------
-# 宴秀晚宴落不进晚餐窗、但与当日近距晚场参访块同址时，粘接块尾不丢餐
-# （长安十二时辰·唐宴被夜档组合块挤掉案：块 16:00-20:00 恰是该宴场馆）。
+# ---- 同址宴秀嵌进晚场街区（2026-11-14 拍板「街区天然有餐饮，可以融合」） --
+# 同址（≤SAME_VENUE_KM）餐卡整段落在宿主观光窗内=嵌套，不算双订、不丢餐
+# （solver.fusion_food_nested + FUSION_NEST_BONUS；用户 2026-11-15 再确认
+# 「宴秀晚餐排进 16:00-20:00 的钉住街区里是 BY DESIGN」）。餐卡软钉
+# （soft_pin）仍可按 meal_flex 在 ±30 内滑动。
 
 _SITE = GeoPoint(lon=108.94, lat=34.21)
 _FAR = GeoPoint(lon=109.10, lat=34.21)  # 同纬度差 0.16° ≈ 15km > 5km 圈
@@ -414,7 +422,7 @@ def _banquet_dinner(*, location) -> VisitItem:
     )
 
 
-def test_dinner_glues_after_co_located_evening_block():
+def test_banquet_dinner_nests_inside_co_located_evening_block():
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -422,14 +430,18 @@ def test_dinner_glues_after_co_located_evening_block():
     )
     solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
+    block = next(i for i in solved.items if i.item_id == "block")
     dinner = next(i for i in solved.items if i.item_id == "dinner-b")
-    assert dinner.start_time == time(20, 0)  # 粘参访块尾部，不丢餐
-    assert dinner.end_time == time(21, 0)
+    # 嵌套形态：宴秀整段落在街区窗内（同址），不另占块尾时段、不丢餐
+    assert block.start_time == time(16, 0) and block.end_time == time(20, 0)
+    assert block.start_time <= dinner.start_time
+    assert dinner.end_time <= block.end_time
+    assert _mins(dinner.end_time) - _mins(dinner.start_time) == 60
 
 
-def test_dinner_glues_with_travel_gap_after_evening_block():
-    # 矩阵闸回归（2026-11-10 西安案）：同址双卡矩阵走行 >0 时不得零间隙
-    # 硬贴被拒→丢餐；并块须接走行分钟（与 ①b 贴排组合同口径）。
+def test_banquet_dinner_nests_inside_evening_block_despite_matrix_gap():
+    # 矩阵走行 >0 不破坏嵌套（2026-11-14 口径）：同址宴秀仍整段嵌在街区窗内，
+    # 不因「零间隙不合法」被推出宿主窗、也不丢餐。
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -440,9 +452,11 @@ def test_dinner_glues_with_travel_gap_after_evening_block():
         day, poi_hours=[], meal_flex=True, travel_minutes=matrix
     )
     assert solved is not None
+    block = next(i for i in solved.items if i.item_id == "block")
     dinner = next(i for i in solved.items if i.item_id == "dinner-b")
-    assert dinner.start_time == time(20, 10)
-    assert dinner.end_time == time(21, 10)
+    assert block.start_time == time(16, 0) and block.end_time == time(20, 0)
+    assert block.start_time <= dinner.start_time
+    assert dinner.end_time <= block.end_time
 
 
 def test_dinner_far_from_evening_block_still_drops():

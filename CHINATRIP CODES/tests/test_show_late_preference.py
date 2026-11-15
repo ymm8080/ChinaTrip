@@ -74,7 +74,7 @@ def test_insertion_prefers_late_session():
     assert solved is not None
     starts = _starts(solved)
     assert starts["qyq"] == time(17, 0)  # 晚场优先，不占上午
-    assert starts["sight"] == time(9, 0)  # 上午名额留给观光点
+    assert starts["sight"] == time(8, 30)  # 上午名额留给观光点
 
 
 def test_insertion_early_only_sessions_still_schedule():
@@ -128,7 +128,7 @@ def test_fallback_prefers_late_session():
 
     starts = _starts(day)
     assert starts["qyq"] == time(17, 0)
-    assert starts["sight"] == time(9, 0)
+    assert starts["sight"] == time(8, 30)
 
 
 def test_fallback_late_session_infeasible_falls_to_early():

@@ -93,7 +93,10 @@ def test_show_session_starts_parses_single_session_declarations():
     assert show_session_starts("仅夜场（约20:10一场）") == [20 * 60 + 10]
     assert show_session_starts("仅夜场（约20:00一场，旺季加场）") == [20 * 60]
     assert show_session_starts("夜场为主（约20:00一场）") == [20 * 60]
-    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [20 * 60]
+    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [
+        16 * 60,
+        20 * 60,
+    ]
     # 列表式之外补拾遗漏的「约」点（《只有峨眉山》日场列表 + 夜场单点）
     assert show_session_starts("多场（云之上日场约14:00/16:00+夜场约19:30）") == [
         14 * 60,
@@ -345,7 +348,7 @@ def test_fallback_places_180min_sight_before_lunch():
 
     _fallback_sequence_times(plan)
 
-    assert v.start_time == time(9, 0) and v.end_time == time(12, 0)
+    assert v.start_time == time(8, 30) and v.end_time == time(11, 30)
 
 
 def test_fallback_failure_does_not_poison_cursor():
@@ -436,8 +439,8 @@ def test_fallback_sessionless_nonshow_entertainment_schedules_normally():
     _fallback_sequence_times(plan)
 
     assert s.start_time is not None
-    assert s.start_time == time(9, 0)
-    assert s.end_time == time(10, 20)
+    assert s.start_time == time(8, 30)
+    assert s.end_time == time(9, 50)
 
 
 def test_fallback_session_show_lands_on_session():
@@ -512,7 +515,7 @@ def test_morning_fill_adds_indoor_museum():
 
     assert added == "陕西历史博物馆"
     visit = next(i for i in day.items if i.name == "陕西历史博物馆")
-    assert visit.start_time == time(9, 0)
+    assert visit.start_time == time(8, 30)
 
 
 def test_morning_fill_rainy_day_rejects_outdoor():
@@ -598,20 +601,23 @@ def _big(day=1, dur=240):
     return _visit("big", dur=dur, day=day)
 
 
-def test_meal_flex_rule_240min_big_lands_after_shortened_lunch():
-    """2026-11-01 规则修正（±30 分钟 + 时长可缩 30）：240 分钟大点塞不进
-    上午窗（≤12:30=210 分钟容量）——贴着缩短的午餐后落位；午餐开餐
-    ±30 内、时长 ≥30；全程无重叠。"""
+def test_meal_flex_rule_240min_big_fills_morning_then_lunch():
+    """日始 08:30（2026-11-14）后 240 分钟大点正好吃满上午窗（08:30-12:30）。
+
+    旧口径「上午容量 ≤12:30-08:30=240 分钟装不下 240 分钟」的前提已反转：
+    现在 240 分钟刚好装满上午，软钉午餐滑到硬窗末 12:30 开餐、不必缩时长。
+    """
     day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
     solved = solve_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.items}
     ends = {i.item_id: i.end_time for i in solved.items}
-    # 午餐在 ±30 窗内开餐
+    assert starts["big"] == time(8, 30)
+    assert ends["big"] == time(12, 30)
+    # 午餐仍在硬窗内开餐（12:30 = 窗末），满时长贴着大点
     assert time(11, 30) <= starts["lunch-1"] <= time(12, 30)
-    # 大点贴着午餐可行域后落位（makespan 最优=缩短午餐 11:30-12:00 + 12:00 起）
-    assert starts["big"] == time(12, 0)
-    assert ends["big"] == time(16, 0)
+    assert starts["lunch-1"] == time(12, 30)
+    assert ends["lunch-1"] == time(13, 30)
     # 无重叠
     assert ends["lunch-1"] <= starts["big"] or ends["big"] <= starts["lunch-1"]
 
@@ -623,7 +629,7 @@ def test_meal_flex_180min_big_keeps_morning_zero_drift():
     solved = solve_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.items}
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
     assert starts["lunch-1"] == time(12, 0)
 
 
@@ -637,7 +643,7 @@ def test_user_pinned_lunch_stays_hard_under_meal_flex():
     starts = {i.item_id: i.start_time for i in solved.items}
     assert starts["lunch-1"] == time(12, 0)  # 纹丝不动
     # NoOverlap 允许紧贴：大点 09:00-12:00 恰好接午餐 12:00（合法且更优）
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
 
 
 def test_meal_flex_off_keeps_system_lunch():
@@ -657,22 +663,24 @@ def test_solve_plan_forwards_meal_flex():
     solved = solve_plan(plan, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.days[0].items}
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
 
 
 def test_fallback_delays_system_lunch_but_not_user_pinned():
-    """兜底口径对齐：soft_pin 午餐按 2026-11-03 开餐硬窗 [11:30, 12:30]
-    裁决——240 分钟大点 09:00-13:00 整段压窗 → 当天移除（不再无界顺延）；
-    用户手钉午餐不动，大点让到下午。"""
+    """兜底口径对齐：soft_pin 午餐按 2026-11-03 开餐硬窗 [11:30, 12:30] 裁决。
+
+    日始 08:30（2026-11-14）后 240 分钟大点是 08:30-12:30，不再「整段压窗」：
+    软钉午餐滑到窗末 12:30 保住（不再移除）；用户手钉午餐仍纹丝不动、
+    大点让到下午 13:00-17:00。"""
     from app.services.agent.plan import _fallback_sequence_times
 
     soft_day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
     soft_plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[soft_day])
     _fallback_sequence_times(soft_plan)
     s = {i.item_id: i.start_time for i in soft_day.items}
-    assert s["big"] == time(9, 0)
-    # 硬窗被大点整段压满：移除（铁律 20 同义，不产 8pm 午餐）
-    assert "lunch-1" not in s
+    assert s["big"] == time(8, 30)
+    # 大点 08:30-12:30 恰好收在硬窗末：软钉午餐保留在 12:30（不再被移除）
+    assert s["lunch-1"] == time(12, 30)
 
     hard_day = DayPlan(
         day=1, base_city="西安", items=[_soft_lunch(soft=False), _big(dur=240)]
@@ -799,7 +807,7 @@ def test_morning_borrow_moves_bmy_to_blank_rainy_morning():
     assert res == ("秦始皇兵马俑博物馆", "陕西历史博物馆", 4)
     bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 3
-    assert bmy.start_time == time(9, 0)
+    assert bmy.start_time == time(8, 30)
     assert _morning_occupied(day4)  # 钟楼 11:00 仍在
     slb = next(i for i in day4.items if i.name == "陕西历史博物馆")
     assert slb.start_time is not None
@@ -911,7 +919,7 @@ def test_morning_borrow_tries_next_donor_when_best_blanks_donor():
     assert res == ("回民街", None, 2)
     hj2 = next(i for i in day3.items if i.name == "回民街")
     assert hj2.day == 3
-    assert hj2.start_time == time(9, 0)
+    assert hj2.start_time == time(8, 30)
     bmy = next(i for i in day4.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 4  # 最佳候选整体还原，不残留半挪状态
     assert _morning_occupied(day2)  # 碑林 11:00 仍在
@@ -942,7 +950,7 @@ def test_morning_borrow_can_move_must_wish_item():
     assert res[0] == "秦始皇兵马俑博物馆"  # 必去点=最佳亲和候选，被借入 day3
     bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 3
-    assert bmy.start_time == time(9, 0)
+    assert bmy.start_time == time(8, 30)
     assert _morning_occupied(day4)  # 钟楼 11:00 仍在，必去点未消失
 
 
@@ -989,7 +997,7 @@ def test_morning_fill_overflow_adds_shortest_when_budget_soft():
     added = agent._morning_fill(plan, day, [], cands, allow_overflow=True)
     assert added == "短点丙"
     visit = next(i for i in day.items if i.name == "短点丙")
-    assert visit.start_time == time(9, 0)
+    assert visit.start_time == time(8, 30)
 
 
 def test_morning_fill_never_refills_same_heritage_site():

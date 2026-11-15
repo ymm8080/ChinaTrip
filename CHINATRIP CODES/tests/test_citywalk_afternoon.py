@@ -78,7 +78,7 @@ def test_cp_plain_sight_still_morning():
     day = DayPlan(day=1, base_city="西安", items=[_sight()])
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    assert _starts(solved)["sight"] == time(9, 0)  # 普通观光点不吃街区罚
+    assert _starts(solved)["sight"] == time(8, 30)  # 普通观光点不吃街区罚
 
 
 def test_cp_pinned_citywalk_untouched():
@@ -98,7 +98,7 @@ def test_cp_morning_sight_plus_afternoon_citywalk_shape():
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
     starts = _starts(solved)
-    assert starts["sight"] == time(9, 0)
+    assert starts["sight"] == time(8, 30)
     assert starts["cw"] >= time(13, 0)
 
 
@@ -110,7 +110,7 @@ def test_insertion_citywalk_afternoon():
     solved = insertion_schedule_day(day, poi_hours=[])
     assert solved is not None
     starts = _starts(solved)
-    assert starts["sight"] == time(9, 0)  # 大点先插上午
+    assert starts["sight"] == time(8, 30)  # 大点先插上午
     assert starts["cw"] == time(13, 0)  # 街区让上午、落下午场
 
 

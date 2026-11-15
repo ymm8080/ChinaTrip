@@ -1071,7 +1071,7 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
         assumptions=[],
     )
     _fallback_sequence_times(plan)
-    assert big.start_time is not None and big.start_time.hour == 9
+    assert big.start_time is not None and big.start_time.hour == 8
     assert big.end_time is not None and big.end_time.hour == 13
     # 午餐硬窗 [11:30, 12:30] 被大点整段压满：移除（不插 8pm 午餐）
     assert lunch not in plan.days[0].items
@@ -1136,7 +1136,7 @@ def test_fallback_lunch_moves_earlier_within_30min():
     _fallback_sequence_times(plan)
     lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
     visit = next(v for v in plan.days[0].items if v.item_id == "v1")
-    assert visit.start_time == _t(9, 0)
+    assert visit.start_time == _t(8, 30)
     assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
     assert lunch.end_time == _t(12, 30)  # 全时长 60 分钟
 
@@ -1152,7 +1152,7 @@ def test_fallback_lunch_earlier_and_shortened_30min():
     _fallback_sequence_times(plan)
     lunch = next(v for v in plan.days[0].items if v.item_id == "l1")
     visit = next(v for v in plan.days[0].items if v.item_id == "v1")
-    assert visit.start_time == _t(9, 0)
+    assert visit.start_time == _t(8, 30)
     assert lunch.start_time == _t(11, 30)  # 提前 30 分钟
     assert lunch.end_time == _t(12, 0)  # 缩短为 30 分钟
     assert lunch.duration_minutes == 30
