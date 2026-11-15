@@ -556,6 +556,10 @@ def test_morning_window():
     assert _morning_window(540) == (510, 540)
     assert _morning_window(390) == (330, 360)  # 首件 06:30 → 05:30-06:00
     assert _morning_window(30) is None  # 首件 00:30 放不下
+    # 2026-11-16 用户实报「day1 酒店出发 09:52」：首件是 2h22 的慕田峪时，
+    # 晨卡应回到 08:30-09:00（09:00 离店），不能按 30 分钟车程贴到 09:52。
+    assert _morning_window(11 * 60 + 22, chain=142) == (510, 540)
+    assert _morning_window(10 * 60 + 52, chain=142) == (510, 540)
     # 首件是跨城交通：按交通方式留值机/进站缓冲（飞机 3h / 火车 2h）
     # 18:00 航班：15:00 前离店（卡占最后一档 14:30-15:00）
     assert _morning_window(1080, transfer=True, transfer_mode="flight") == (870, 900)

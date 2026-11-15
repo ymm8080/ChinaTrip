@@ -357,9 +357,10 @@ def _open_morning_slot(dp: DayPlan) -> bool:
     首件」的旧窗口，绝不让卡压住硬时刻件。
     """
     chain = _head_access_chain(dp)
-    head_target = (
-        HOTEL_MORNING_EARLIEST_MINUTES + chain if chain else HOTEL_MORNING_READY_MINUTES
-    )
+    # 卡占 08:30-09:00（早餐/退房），09:00 才是真正离店时刻；远郊首件按
+    # 「离店 + 接驳链」顺移（慕田峪 142 分钟 → 11:22 起），不再用 08:30 起算
+    # 造出「09:52 离店、10:52 到 2 小时外景区」的假时刻（2026-11-16 用户实报）。
+    head_target = HOTEL_MORNING_READY_MINUTES + chain
     fixed: list[VisitItem | TransferItem] = []
     early: list[VisitItem | TransferItem] = []
     for item in dp.items:
@@ -484,6 +485,7 @@ def _morning_window(
     *,
     transfer: bool = False,
     transfer_mode: str | None = None,
+    chain: int = 0,
 ) -> tuple[int, int] | None:
     """晨卡 [start, end)（分钟）：首件开场前预留起程时间，卡占前
     _MINUTES 分钟；空天 08:30–09:00。首件是跨城交通时按铁律 4 的
@@ -494,6 +496,9 @@ def _morning_window(
         if transfer
         else HOTEL_MORNING_GAP_MINUTES
     )
+    # 酒店没坐标时 travel_gap_needed 算不出腿：用首件的头部接驳链兜底，
+    # 否则「2 小时 22 分的慕田峪」会被当成 30 分钟车程，晨卡落到 09:52。
+    gap = max(gap, chain)
     end = first_start - gap if first_start is not None else 9 * 60
     start = end - HOTEL_MORNING_MINUTES
     if first_start is not None and start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
@@ -561,6 +566,7 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
             _minutes_of(first.start_time) if first is not None else None,
             transfer=isinstance(first, TransferItem),
             transfer_mode=getattr(first, "mode", None),
+            chain=0 if isinstance(first, TransferItem) else _head_access_chain(dp),
         )
         if window is None:
             continue
@@ -685,6 +691,9 @@ def reanchor_hotel_mornings(
                 gap = travel_gap_needed(card, first)
                 if gap is not None:
                     need = max(need, gap)
+            else:
+                # 酒店卡没坐标（占位/未验证店名）：按首件头部接驳链兜底。
+                need = max(need, _head_access_chain(dp))
             first_start = _minutes_of(first.start_time)
             end = first_start - need
         start = end - HOTEL_MORNING_MINUTES
