@@ -29463,6 +29463,7 @@ class PlanningAgent:
         # 收尾顺序（用户 2026-11-15）：景点排完 → 再放餐卡/餐厅 →
         # 最后按类型多样性把优先级高的下一个景点补进空余时间。
         _retime_meal_placeholders(plan)
+        plan.assumptions.extend(_open_meal_leg_gaps(plan))
         _bench: list[UnplacedCandidate] = []
         if self._poi_details is not None:
             for _city in plan.cities:
@@ -30372,6 +30373,7 @@ class PlanningAgent:
         # 餐占位让位（同编辑回合口径）：景点上移后午饭/晚饭占位挪到空窗，
         # 不凭空新增餐卡。
         _retime_meal_placeholders(candidate, ensure_cards=False)
+        candidate.assumptions.extend(_open_meal_leg_gaps(candidate))
         reanchor_hotel_cards(candidate.days)
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
@@ -31282,6 +31284,7 @@ class PlanningAgent:
         meal_notes = _retime_real_food_cards(candidate)
         meal_notes += _bind_real_food_to_cards(candidate)
         _retime_meal_placeholders(candidate, ensure_cards=False)
+        candidate.assumptions.extend(_open_meal_leg_gaps(candidate))
         for note in meal_notes:
             if f"第{new_day}天" in note and note not in notes:
                 notes.append(note)
@@ -31934,6 +31937,7 @@ class PlanningAgent:
                     # 安排）」是软卡撞车，不该耗一轮 LLM 修复——先把占位
                     # 挪到空窗再复检，挪不动（真空窗不足）才留给修复轮。
                     _retime_meal_placeholders(applied, ensure_cards=False)
+                    applied.assumptions.extend(_open_meal_leg_gaps(applied))
                     report = validate_plan(applied, poi_hours=[])
                     hard = [
                         v for v in report.violations if v.severity == RuleSeverity.error
@@ -31999,6 +32003,7 @@ class PlanningAgent:
         notes.extend(_retime_real_food_cards(plan))
         notes.extend(_bind_real_food_to_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=False)
+        plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 行程单模糊去重收口（2026-10-28）：三条交付分支（干净落定/
         # 保底原样/半成品）统一过闸——2026-10-24 版只挂在「无硬校验错误」
         # 分支，编辑失败回合会跳过合并，历史脏对子继续露出。
