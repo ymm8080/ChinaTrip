@@ -20496,9 +20496,7 @@ class PlanningAgent:
                     note=note,
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
-                    must_visit=(
-                        name in (session.must_visits or []) and not dropped
-                    ),
+                    must_visit=(name in (session.must_visits or []) and not dropped),
                 )
                 committed += 1
             except ValueError:
@@ -20511,9 +20509,7 @@ class PlanningAgent:
                         row["id"], status=STATUS_UNWANTED, note=note
                     )
                 except Exception:
-                    logger.warning(
-                        "plan: wish materialize unwanted failed %s", name
-                    )
+                    logger.warning("plan: wish materialize unwanted failed %s", name)
                 continue
             if off_trip or target is None or target.start_time is None:
                 continue
