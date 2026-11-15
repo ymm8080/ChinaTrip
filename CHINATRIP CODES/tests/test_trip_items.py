@@ -503,7 +503,7 @@ def test_release_itinerary_returns_wishes_with_blank_trip_id():
     """2026-11-14 二拍：删行程 = 名下心愿行 TRIP ID 清空退回心愿单——
     排期项回心愿单栏（day/position/booking 清空、ARRANGED 取消、note 剥
     「已安排」尾段），心愿单/不想去行原地保留只摘绑定，booked 只解绑，
-    别的行程/无行程行不受牵连；不再删除、不再重建克隆。""";
+    别的行程/无行程行不受牵连；不再删除、不再重建克隆。"""
     svc = TripItemService()
     wish = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
     svc.update(
@@ -550,7 +550,7 @@ def test_release_itinerary_returns_wishes_with_blank_trip_id():
 
 def test_release_itinerary_commits_orphan_drafts():
     """挂在被删行程上的会话草稿行：行程没了「保存行程」不会再发生——
-    释放时转正为无行程心愿行（draft 清空 + TRIP ID 清空）。""";
+    释放时转正为无行程心愿行（draft 清空 + TRIP ID 清空）。"""
     svc = TripItemService()
     draft = svc.create(
         "豫园",
@@ -573,6 +573,7 @@ def test_release_itinerary_without_rows_or_id_is_noop():
     svc = TripItemService()
     assert svc.release_itinerary("ghost-trip") == []
     assert svc.release_itinerary("") == []
+
 
 def test_drafts_hidden_from_board_until_committed():
     """没点「保存行程」→ 心愿行是草稿：看板/单条读口都不返回；转正后可见。"""
@@ -610,7 +611,7 @@ def test_commit_drafts_only_touches_session_or_itinerary_rows():
 
 def test_delete_itinerary_returns_wishes_to_wishlist_endpoint():
     """行程页 🗑 删除：行程连同快照删除，名下心愿行退回心愿单栏
-    （TRIP ID 清空）；booked 保留订单；没挂行程的心愿行不受牵连。""";
+    （TRIP ID 清空）；booked 保留订单；没挂行程的心愿行不受牵连。"""
     app, store = make_app_with_store()
     record = ItineraryService(store).create("dev-1", ["杭州"], days_count=2)
     with TestClient(app) as client:
@@ -619,7 +620,7 @@ def test_delete_itinerary_returns_wishes_to_wishlist_endpoint():
         booked_item = create_item(client, itinerary_id=record.itinerary_id, name="b")
         schedule(client, booked_item["id"], 2)
         book(client, booked_item["id"])
-        loose = create_item(client, name="loose")  # 不挂行程：自己的心愿
+        create_item(client, name="loose")  # 不挂行程：自己的心愿
 
         resp = client.delete(
             f"/api/v1/itineraries/{record.itinerary_id}",
@@ -645,6 +646,7 @@ def test_delete_itinerary_returns_wishes_to_wishlist_endpoint():
             ).status_code
             == 404
         )
+
 
 def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
     """释放机制上线前的存量孤儿（行程被旁路删除）：看板 GET 就地回

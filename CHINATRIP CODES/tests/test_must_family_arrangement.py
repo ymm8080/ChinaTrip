@@ -324,6 +324,7 @@ def test_usable_day_capacity_constant_matches_day_window():
     # 08:30–21:30 扣两餐 150 与酒店卡 60
     assert P._MUST_DAY_USABLE_MIN == (1290 - 510) - 150 - 60
 
+
 def test_meal_card_yields_before_the_sight_when_day_is_impossible():
     """整日只剩饭点那一格时，宁可动餐卡（必去压到饭点，餐卡随后改时刻/缩
     时长），也不缩景点时长、不删景点（用户 2026-11-15「整日完全无法放下
@@ -411,9 +412,7 @@ def test_weather_day_penalty_ladder_matches_user_ruling():
         _visit("i2", "国家博物馆", dur=120, rank=1, loc=GUGONG, cat="museum"),
     ]
     dry_weekday = P._must_weather_day_penalty(plan, outdoor, 3, None)  # 周三
-    rainy_weekday_indoor = P._must_weather_day_penalty(
-        plan, indoor, 3, {"北京": {3}}
-    )
+    rainy_weekday_indoor = P._must_weather_day_penalty(plan, indoor, 3, {"北京": {3}})
     dry_weekend = P._must_weather_day_penalty(plan, outdoor, 6, None)  # 周六
     rainy_weekend = P._must_weather_day_penalty(plan, outdoor, 6, {"北京": {6}})
     assert dry_weekday == 0
@@ -428,7 +427,12 @@ def test_remote_outdoor_family_avoids_the_rainy_day():
         day=1,
         items=[
             _visit(
-                "v-mty", "慕田峪长城", dur=180, day=1, rank=0, loc=MUTIANYU,
+                "v-mty",
+                "慕田峪长城",
+                dur=180,
+                day=1,
+                rank=0,
+                loc=MUTIANYU,
                 cat="nature",
             ),
         ],
@@ -467,12 +471,21 @@ def test_meal_card_not_nested_inside_a_two_hour_sight():
         duration_minutes=60,
     )
     short_site = _visit(
-        "s2h", "恭王府", dur=120, must=False, loc=GUGONG,
+        "s2h",
+        "恭王府",
+        dur=120,
+        must=False,
+        loc=GUGONG,
         start=time(11, 30),
     )
     big_site = _visit(
-        "s3h", "慕田峪长城", dur=180, must=False, loc=GUGONG,
-        start=time(11, 30), cat="nature",
+        "s3h",
+        "慕田峪长城",
+        dur=180,
+        must=False,
+        loc=GUGONG,
+        start=time(11, 30),
+        cat="nature",
     )
     day_short = DayPlan(base_city="北京", day=1, items=[lunch, short_site])
     assert P._meal_nesting_host(day_short, lunch, 12 * 60, 60) is None
