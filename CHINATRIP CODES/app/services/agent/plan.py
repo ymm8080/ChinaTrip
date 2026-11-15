@@ -29911,9 +29911,7 @@ class PlanningAgent:
         )
         return report, summary, notes
 
-    def reflow_after_delete(
-        self, session: PlanSession, *, days: set[int]
-    ) -> list[str]:
+    def reflow_after_delete(self, session: PlanSession, *, days: set[int]) -> list[str]:
         """删卡后的当天时间链压缩（2026-11-15 用户「删掉天安门后后面的
         故宫没有做相应调整」）：删一张卡后，受影响天按列表顺序重新起排——
         未钉住/未软钉的景点、以及引擎锁定的必去（must+pinned，时刻由
