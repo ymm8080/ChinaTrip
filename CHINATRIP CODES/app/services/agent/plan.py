@@ -13625,6 +13625,48 @@ def _is_intl_candidate(u) -> bool:
 _SAME_PARK_KM = 1.0
 
 
+# 园区母子闸（2026-11-15 用户「动」）：母点已在行程里时，园区内的子点不再
+# 作为「新景点」补进空档——皇穹宇/祈年殿之类是天坛园区的一部分，不是第 2 天
+# 的新景点。库行常缺坐标，所以按名字归属判，而不是只靠距离。
+# 住宿类名字不进景点补位（2026-11-15：长城脚下的公社这类住宿/会所被当成
+# 下午的景点补进来，用户要的是景点或体验类活动）。
+_LODGING_KEYS = (
+    "酒店", "饭店", "民宿", "度假",
+    "公社", "会所", "公寓", "客栈",
+    "宾馆", "大酒店",
+)
+
+_PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
+    "天坛": ("皇穹宇", "祈年殿", "回音壁", "圜丘", "神乐署", "斋宫", "双环万寿亭"),
+    "故宫": ("太和殿", "乾清宫", "珍宝馆", "钟表馆", "御花园", "角楼"),
+    "颐和园": ("佛香阁", "长廊", "十七孔桥", "苏州街", "谐趣园", "文昌阁"),
+    "圆明园": ("大水法", "西洋楼", "蓬岛瑶台"),
+    "长城": ("慕田峪", "八达岭", "司马台", "居庸关", "金山岭", "箭扣", "正关台"),
+    "天安门广场": ("人民英雄纪念碑", "毛主席纪念堂"),
+    "恭王府": ("福字碑", "大戏楼"),
+}
+
+
+def _in_park_of_existing(plan: ItineraryPlan, name: str) -> bool:
+    """候选是否属于行程里已排点的同一园区（母点在行程 → 子点不补）。"""
+    cand = _norm_site_name(name)
+    if not cand:
+        return False
+    for d in plan.days:
+        for i in d.items:
+            if not isinstance(i, VisitItem):
+                continue
+            host = _norm_site_name(i.name)
+            if not host:
+                continue
+            if cand in host or host in cand:
+                return True  # 名字互相包含 = 同一个点
+            for parent, children in _PARK_CHILD_HINTS.items():
+                if parent in host and any(c in cand for c in children):
+                    return True
+    return False
+
+
 def _too_close_to_plan(plan: ItineraryPlan, u) -> bool:
     loc = getattr(u, "location", None)
     if loc is None:
@@ -13734,7 +13776,15 @@ def _fill_leftover_with_diverse_sights(
                     and not _has_usable_time_info(getattr(u, "opening_hours", None))
                 )
             ]
-            pool = [u for u in pool if not _too_close_to_plan(plan, u)]
+            pool = [
+                u
+                for u in pool
+                if not _too_close_to_plan(plan, u)
+                and not _in_park_of_existing(plan, u.name)
+                and not any(
+                    k in str(u.name or "") for k in _LODGING_KEYS
+                )
+            ]
             if not pool:
                 break
             tail = next(
