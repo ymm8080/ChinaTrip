@@ -145,16 +145,19 @@ def _timed(plan, name):
     raise AssertionError(f"{name} not in plan")
 
 
-def test_families_group_by_five_km():
+def test_families_group_by_five_km_three_families():
+    """5km 单链聚族：市区三件套 / 颐和园 / 慕田峪 三族（用户 2026-11-15 拍板）。"""
     plan = _beijing_two_days()
     fams = _must_visit_families(plan)
-    names = sorted(tuple(sorted(v.name for v in f)) for f in fams)
+    names = [tuple(sorted(v.name for v in f)) for f in fams]
+    city = next(n for n in names if "天安门广场" in n)
+    assert set(city) == {"天安门广场", "故宫博物院", "天坛"}
+    assert ("颐和园",) in names
     assert ("慕田峪长城",) in names
-    flat = [n for tup in names for n in tup]
-    assert "天安门广场" in flat and "故宫博物院" in flat
 
 
-def test_downtown_family_takes_one_day_remote_goes_to_the_other():
+def test_remote_sight_gets_its_own_day_others_join_the_city_cluster():
+    """市区三件套独占一天；颐和园按距离并入同一天；慕田峪单独一天且宽松。"""
     plan = _beijing_two_days()
     _assign_must_family_days(plan)
     day_of = {}
@@ -163,8 +166,8 @@ def test_downtown_family_takes_one_day_remote_goes_to_the_other():
             if isinstance(i, VisitItem) and i.must:
                 day_of[i.name] = d.day
     assert day_of["天安门广场"] == day_of["故宫博物院"] == day_of["天坛"]
+    assert day_of["颐和园"] == day_of["天安门广场"]  # 离市区族 14km，比 53km 外顺路
     assert day_of["慕田峪长城"] != day_of["天安门广场"]
-    assert day_of["颐和园"] == day_of["慕田峪长城"]
 
 
 def test_remote_sight_is_pinned_before_local_in_the_same_day():
@@ -321,7 +324,6 @@ def test_usable_day_capacity_constant_matches_day_window():
     # 08:30–21:30 扣两餐 150 与酒店卡 60
     assert P._MUST_DAY_USABLE_MIN == (1290 - 510) - 150 - 60
 
-
 def test_meal_card_yields_before_the_sight_when_day_is_impossible():
     """整日只剩饭点那一格时，宁可动餐卡（必去压到饭点，餐卡随后改时刻/缩
     时长），也不缩景点时长、不删景点（用户 2026-11-15「整日完全无法放下
@@ -409,7 +411,9 @@ def test_weather_day_penalty_ladder_matches_user_ruling():
         _visit("i2", "国家博物馆", dur=120, rank=1, loc=GUGONG, cat="museum"),
     ]
     dry_weekday = P._must_weather_day_penalty(plan, outdoor, 3, None)  # 周三
-    rainy_weekday_indoor = P._must_weather_day_penalty(plan, indoor, 3, {"北京": {3}})
+    rainy_weekday_indoor = P._must_weather_day_penalty(
+        plan, indoor, 3, {"北京": {3}}
+    )
     dry_weekend = P._must_weather_day_penalty(plan, outdoor, 6, None)  # 周六
     rainy_weekend = P._must_weather_day_penalty(plan, outdoor, 6, {"北京": {6}})
     assert dry_weekday == 0
@@ -424,12 +428,7 @@ def test_remote_outdoor_family_avoids_the_rainy_day():
         day=1,
         items=[
             _visit(
-                "v-mty",
-                "慕田峪长城",
-                dur=180,
-                day=1,
-                rank=0,
-                loc=MUTIANYU,
+                "v-mty", "慕田峪长城", dur=180, day=1, rank=0, loc=MUTIANYU,
                 cat="nature",
             ),
         ],
@@ -452,3 +451,41 @@ def test_remote_outdoor_family_avoids_the_rainy_day():
     }
     assert day_of["慕田峪长城"] == 2  # 露天远郊避开雨天
     assert day_of["颐和园"] == 1  # 室内的可以接下雨的工作日
+
+
+def test_meal_card_not_nested_inside_a_two_hour_sight():
+    """只有 ≥3 小时的大点才允许「游览途中用餐」吞掉餐卡；2 小时的普通景点
+    必须把景点顺延到餐后（否则就是双订）。"""
+    lunch = VisitItem(
+        item_id=P.LUNCH_PLACEHOLDER_ID_PREFIX + "d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+    )
+    short_site = _visit(
+        "s2h", "恭王府", dur=120, must=False, loc=GUGONG,
+        start=time(11, 30),
+    )
+    big_site = _visit(
+        "s3h", "慕田峪长城", dur=180, must=False, loc=GUGONG,
+        start=time(11, 30), cat="nature",
+    )
+    day_short = DayPlan(base_city="北京", day=1, items=[lunch, short_site])
+    assert P._meal_nesting_host(day_short, lunch, 12 * 60, 60) is None
+    day_big = DayPlan(base_city="北京", day=1, items=[lunch, big_site])
+    assert P._meal_nesting_host(day_big, lunch, 12 * 60, 60) is big_site
+
+
+def test_remote_family_prefers_a_relaxed_day():
+    """远郊族落在「已经很挤」的天要记罚时（宽松优先，不硬塞）。"""
+    plan = _beijing_two_days()
+    plan.start_date = "2026-11-16"
+    remote = [
+        _visit("r1", "慕田峪长城", dur=180, rank=0, loc=MUTIANYU, cat="nature"),
+    ]
+    assert P._family_is_remote(remote, plan) is True
+    assert P._MUST_REMOTE_CROWD_PENALTY > 0

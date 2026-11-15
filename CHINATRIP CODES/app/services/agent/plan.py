@@ -12268,8 +12268,11 @@ def _meal_nesting_host(
         e = _item_end_minutes(other)
         if e is None or not (s <= t and t + dur <= e):
             continue
-        # 宿主至少比餐卡长 30 分钟——「游览途中用餐」是逛大点顺便吃，
-        # 30 分钟小点装不下一餐，不为吃停脚。
+        # 宿主必须是「大点」（2026-11-15 收窄）：整段包含餐卡只对 ≥3 小时
+        # 的观光件成立；2 小时的普通景点不再把午饭吞成双订——放得下就让
+        # 景点顺延到餐后。
+        if (e - s) < _MUST_MEAL_BLOCK_MIN_DUR:
+            continue
         if (e - s) - dur < 30:
             continue
         if is_lunch_placeholder(item) or is_dinner_placeholder(item):
@@ -13047,6 +13050,12 @@ def _enforce_site_day_fit(
 _MUST_DAY_USABLE_MIN = (1290 - 510) - 150 - 60
 # 跨片区同天的双程通勤罚时（≈75 分钟单程，远郊大点/跨城片区口径）。
 _MUST_CROSS_AREA_PENALTY_MIN = 150
+# 远郊族落进「已经很挤」那天的罚时（远郊要宽松，也不一定整天）。
+_MUST_REMOTE_CROWD_PENALTY = 180
+# 单点族选天的「宽松地板」：那天剩余可放景点的分钟低于此值算挤。
+_MUST_RELAX_FLOOR_MIN = 180
+# 稳定性冗余：族已在「不差于最优 + 该值」的天上就不搬（幂等）。
+_MUST_STAY_SLACK_MIN = 30
 # 餐段保护带（2026-11-15 用户「PUT LUNCH ON 12 AND PUT 天坛 AFTER LUNCH」）：
 # 短于 3 小时的必去不许横跨午饭 12:00–13:00 / 晚饭 19:00–20:30，宁可排到
 # 餐后——否则餐卡只能缩着嵌进景点里显示成「双订」。3 小时以上的大点仍可
@@ -13163,6 +13172,13 @@ def _family_is_remote(fam: list[VisitItem], plan: ItineraryPlan) -> bool:
     return near > _DISTRICT_DAY_KM
 
 
+def _day_free_minutes(day: DayPlan) -> int:
+    """当天在已排件之外还剩多少分钟可放景点（可用窗 − 已占窗）。"""
+    fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
+    occupied = sum(max(0, e - s) for s, e, _src in fixed)
+    return max(0, _MUST_DAY_USABLE_MIN - occupied)
+
+
 def _must_weather_day_penalty(
     plan: ItineraryPlan,
     fam: list[VisitItem],
@@ -13195,19 +13211,18 @@ def _assign_must_family_days(
     *,
     rain_days: dict[str, set[int]] | None = None,
 ) -> list[str]:
-    """必去族定天（2026-11-14 用户四段式拍板①「先按地理分组」）。
+    """必去族定天（2026-11-14 四段式 + 2026-11-15 四因子细化）。
 
-    必去按 ≤NEAR_SAMEDAY_KM 单链聚族后：
+    单点族（如颐和园）落哪天，看四件事（用户原话「看某天的空余时间，天气，
+    相对距离，以及是否室内或者远郊景点来决定加入到哪天」）：
 
-    - **多成员族（≥2 件同片区）独占一天**：它是一天的地基（天安门+故宫+
-      天坛 一天），定天代价 = 当天已提交负载 + 本族时长 + 跨片区双程通勤
-      罚时，超容量记重罚；
-    - **单点族**（远郊大点/独立园林）先塞**非核心天**（有核心族的天要留给
-      那片区的邻居件），按同一代价挑最省的天；
-    - 天真不够时单点族仍按最小代价落到核心天，绝不静默丢。
+    - 空余时间 `_day_free_minutes`：放不下按缺口重罚、太挤轻罚；
+    - 天气 `_must_weather_day_penalty`：露天/室内 × 雨日 × 周末；
+    - 相对距离：与那天已提交必去的最近距离，跨片区记通勤罚；
+    - 室内/远郊：远郊族要宽松，落进挤天再加罚。
 
-    整族搬（清时刻，时刻交给 `_pin_musts_by_importance` 重钉）；族已同天
-    零改动（幂等）。
+    稳定性：族已在「不差于最优 + _MUST_STAY_SLACK_MIN」的天上就不搬（幂等）。
+    整族搬只清时刻与钉位，时刻交给 `_pin_musts_by_importance` 重钉。
     """
     notes: list[str] = []
     fams = _must_visit_families(plan)
@@ -13225,13 +13240,6 @@ def _assign_must_family_days(
             if getattr(v, "location", None) is not None
         ]
 
-    def day_pts(items: list[VisitItem]) -> list[GeoPoint]:
-        return [
-            GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
-            for v in items
-            if getattr(v, "location", None) is not None
-        ]
-
     def anchor_no(fam: list[VisitItem]) -> int:
         by_day: dict[int, list[VisitItem]] = {}
         for v in fam:
@@ -13240,63 +13248,57 @@ def _assign_must_family_days(
         tied = [d for d, v in by_day.items() if len(v) == most]
         return min(tied, key=lambda d: min(_must_rank_key(v) for v in by_day[d]))
 
-    ordered = sorted(fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f)))
-    cores = [f for f in ordered if len(f) >= 2]
-    singles = [f for f in ordered if len(f) < 2]
-    placed_items: dict[int, list[VisitItem]] = {}
     placed_dur: dict[int, int] = {}
-    core_days: set[int] = set()
-    decision: dict[int, int] = {}
 
-    def pick(fam: list[VisitItem], allowed: list[DayPlan]) -> int | None:
+    def score(fam: list[VisitItem], day: DayPlan) -> int | None:
+        if any((v.city or "") and not _day_hosts_city(day, v.city) for v in fam):
+            return None
         dur = fam_duration(fam)
         fpts = fam_pts(fam)
-        best: tuple[int, int] | None = None
-        for day in allowed:
-            if any((v.city or "") and not _day_hosts_city(day, v.city) for v in fam):
-                continue
-            pen = 0
-            opts = day_pts(placed_items.get(day.day, []))
-            if fpts and opts:
-                near = min(haversine_km(p, o) for p in fpts for o in opts)
-                if near > _DISTRICT_DAY_KM:
-                    pen = _MUST_CROSS_AREA_PENALTY_MIN
-            cost = placed_dur.get(day.day, 0) + dur + pen
-            cost += _must_weather_day_penalty(plan, fam, day.day, rain_days)
-            over = max(0, cost - _MUST_DAY_USABLE_MIN)
-            score = over * 10 + cost
-            if best is None or score < best[0]:
-                best = (score, day.day)
-        return None if best is None else best[1]
+        free_min = _day_free_minutes(day)
+        shortfall = max(0, dur - free_min)
+        pen = 0
+        opts = [
+            GeoPoint(lon=float(v.location.lon), lat=float(v.location.lat))
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and getattr(v, "must", False)
+            and (v.category or "") not in ("food", "hotel")
+            and v not in fam
+            and getattr(v, "location", None) is not None
+        ]
+        if fpts and opts:
+            near = min(haversine_km(p, o) for p in fpts for o in opts)
+            if near > _DISTRICT_DAY_KM:
+                pen = _MUST_CROSS_AREA_PENALTY_MIN
+        cost = placed_dur.get(day.day, 0) + dur + pen
+        cost += shortfall * 4
+        cost += max(0, _MUST_RELAX_FLOOR_MIN - free_min) // 3
+        if _family_is_remote(fam, plan) and free_min < dur + _MUST_RELAX_FLOOR_MIN:
+            cost += _MUST_REMOTE_CROWD_PENALTY
+        cost += _must_weather_day_penalty(plan, fam, day.day, rain_days)
+        return cost
 
-    for fam in cores:
-        # 核心族优先选没人用的天；都有人用就挑最省的
-        free = [d for d in plan.days if d.day not in core_days]
-        target = pick(fam, free) if free else None
-        if target is None:
-            target = pick(fam, plan.days)
-        if target is None:
-            target = anchor_no(fam)
-        decision[id(fam)] = target
-        core_days.add(target)
-        placed_items.setdefault(target, []).extend(fam)
-        placed_dur[target] = placed_dur.get(target, 0) + fam_duration(fam)
+    def pick(fam: list[VisitItem]) -> int:
+        scores: dict[int, int] = {}
+        for day in plan.days:
+            got = score(fam, day)
+            if got is not None:
+                scores[day.day] = got
+        if not scores:
+            return anchor_no(fam)
+        best = min(scores.values())
+        here = anchor_no(fam)
+        if scores.get(here, 10**9) <= best + _MUST_STAY_SLACK_MIN:
+            return here
+        return min(scores, key=lambda k: scores[k])
 
-    for fam in singles:
-        others = [d for d in plan.days if d.day not in core_days]
-        target = pick(fam, others) if others else None
-        if target is None:
-            target = pick(fam, plan.days)
-        if target is None:
-            target = anchor_no(fam)
-        decision[id(fam)] = target
-        placed_items.setdefault(target, []).extend(fam)
-        placed_dur[target] = placed_dur.get(target, 0) + fam_duration(fam)
-
-    for fam in fams:
-        target_no = decision.get(id(fam))
-        if target_no is None:
-            continue
+    ordered = sorted(
+        fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f))
+    )
+    for fam in ordered:
+        target_no = pick(fam)
+        placed_dur[target_no] = placed_dur.get(target_no, 0) + fam_duration(fam)
         target = day_by_no.get(target_no)
         if target is None:
             continue
@@ -13579,6 +13581,93 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             day.items.sort(
                 key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
             )
+    return notes
+
+
+def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
+    """景点排完、餐卡排完之后，用空余时间补「类型多样」的下一个景点。
+
+    用户 2026-11-15 拍板的收尾顺序：①先把景点排完 ②再看有没有多余 slot
+    放餐卡/餐厅 ③最后还有多余时间，按类型多样性原则挑优先级高的下一个景点
+    穿插进去。本函数是第③步：只从 `plan.unplaced` 里取非必去、非手建、非精选
+    的可选项，按 档位/秩 升序，优先选「当天还没有的类型」（category），
+    放得下才补；补进去就从 unplaced 移除并披露。
+    """
+    notes: list[str] = []
+    day_end = 21 * 60 + 30
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    for day in plan.days:
+        guard = 0
+        while plan.unplaced and guard < 4:
+            guard += 1
+            have_types = {
+                (i.category or "")
+                for i in day.items
+                if isinstance(i, VisitItem)
+                and (i.category or "") not in ("food", "hotel")
+            }
+            fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            pool = [
+                u
+                for u in plan.unplaced
+                if (u.category or "") not in ("food", "hotel")
+                # 无场次/无具体时段的演出不补（用户拍板「无场次演出不被提案」）
+                and not (
+                    (u.category or "") in ("show", "performance", "entertainment")
+                    and not _has_usable_time_info(getattr(u, "opening_hours", None))
+                )
+            ]
+            if not pool:
+                break
+            pool.sort(
+                key=lambda u: (
+                    0 if (u.category or "") not in have_types else 1,
+                    u.tier if u.tier is not None else 99,
+                    u.site_rank if getattr(u, "site_rank", None) is not None else 99,
+                    -(u.duration_minutes or DEFAULT_VISIT_MINUTES),
+                )
+            )
+            placed = False
+            for cand in pool:
+                dur = int(cand.duration_minutes or DEFAULT_VISIT_MINUTES)
+                probe_item = VisitItem(
+                    item_id=f"extras-{day.day}-{cand.poi_id or cand.name}",
+                    name=cand.name,
+                    name_en=cand.name_en,
+                    poi_id=cand.poi_id,
+                    category=cand.category,
+                    city=cand.city or (plan.cities[0] if plan.cities else ""),
+                    day=day.day,
+                    duration_minutes=dur,
+                    tier=cand.tier,
+                    site_rank=getattr(cand, "site_rank", None),
+                    location=cand.location,
+                )
+                start = _probe_visit_slot(
+                    probe_item, fixed, xfer, hours_by_poi, day_end,
+                    floor=DAY_START_MINUTES,
+                )
+                if start is None:
+                    continue
+                probe_item.start_time = _time_of(start)
+                probe_item.end_time = _time_of(start + dur)
+                day.items.append(probe_item)
+                day.items.sort(
+                    key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+                )
+                plan.unplaced = [u for u in plan.unplaced if u is not cand]
+                notes.append(
+                    L(
+                        f"第{day.day}天还有空档，按类型多样性补了「{probe_item.name}」"
+                        f"（{probe_item.start_time:%H:%M}）",
+                        f'Day {day.day} had spare time — added "{probe_item.name}" '
+                        f"({probe_item.start_time:%H:%M}) for variety",
+                    )
+                )
+                placed = True
+                break
+            if not placed:
+                break
     return notes
 
 
@@ -28563,7 +28652,10 @@ class PlanningAgent:
         notes.extend(rescue_notes)
         # 救生试宿的求解可能丢了占位餐卡（meal slot infeasible → dropped）：
         # 餐卡=槽位对账补回/重排（含重叠对账），再重算直连腿。
+        # 收尾顺序（用户 2026-11-15）：景点排完 → 再放餐卡/餐厅 →
+        # 最后按类型多样性把优先级高的下一个景点补进空余时间。
         _retime_meal_placeholders(plan)
+        notes.extend(_fill_leftover_with_diverse_sights(plan))
         annotate_legs(plan)
         for note in notes:
             if note not in plan.assumptions:
