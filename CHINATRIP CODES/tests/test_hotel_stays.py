@@ -883,7 +883,6 @@ def test_reanchor_hotel_cards_keeps_card_first_in_day_order():
     assert d2.items[0] is card
 
 
-
 def test_attach_morning_card_on_first_whole_day():
     """整天在城里的首日（无落地腿/无入住卡）同样以酒店卡开头（2026-11-15）。"""
     d1 = DayPlan(
