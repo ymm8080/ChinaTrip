@@ -351,10 +351,9 @@ def test_insert_alt_city_mismatch_rejected():
         ),
     )
     with pytest.raises(ValueError) as exc:
-        asyncio.run(
-            agent.insert_alternative(session, "v1", name="灵隐寺", new_day=2)
-        )
+        asyncio.run(agent.insert_alternative(session, "v1", name="灵隐寺", new_day=2))
     assert str(exc.value) == "city_mismatch"
+
 
 GONGWANGFU = {
     "source_poi_id": "5a_006",
@@ -424,6 +423,7 @@ def test_insert_alt_reuses_hidden_untimed_card_instead_of_duplicate():
     assert moved.item_id == "v9"
     assert moved.day == 2
     assert moved.start_time is not None and moved.must
+
 
 def test_replace_hidden_twin_is_merged_not_duplicate():
     """同一个根因的点击换点路径：备选把隐藏的无时刻卡亮成 chip，点它不能

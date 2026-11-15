@@ -29935,10 +29935,7 @@ class PlanningAgent:
                 # 隐藏的无时刻同名卡可以并入（换入后清掉），不算重复；
                 # 同体验替代组照旧拦（含隐藏卡）
                 not (i.start_time is None and not i.pinned)
-                and (
-                    _same_site(new_name, i.name)
-                    or (new_pid and i.poi_id == new_pid)
-                )
+                and (_same_site(new_name, i.name) or (new_pid and i.poi_id == new_pid))
             )
             or _substitute_dup(
                 new_name,
