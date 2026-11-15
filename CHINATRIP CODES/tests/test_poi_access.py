@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from datetime import time
+
 from app.services.itinerary.models import DayPlan, GeoPoint, ItineraryPlan, VisitItem
 from app.services.itinerary.rules import travel_gap_needed
 from app.services.poi_access import attach_access, build_note, classify_ride, summarize
@@ -269,10 +271,7 @@ def test_attach_access_skips_profile_without_boarding_point():
         ],
     )
     profiles = {
-        ("北京", "慕田峪长城"): {
-            "access_mode": "train",
-            "access_service_minutes": 60,
-        }
+        ("北京", "慕田峪长城"): {"access_mode": "train", "access_service_minutes": 60}
     }
     assert attach_access(plan, profiles) == 0
     assert plan.days[0].items[0].access_mode is None
@@ -358,3 +357,48 @@ def test_travel_gap_reads_city_profile_when_card_has_no_fields(monkeypatch):
     mty = _visit("b", "慕田峪长城", 116.5598, 40.4267)
     chain = travel_gap_needed(hotel, mty)
     assert chain is not None and chain >= 126
+
+
+def test_head_chain_minutes_uses_city_center_proxy():
+    item = _visit(
+        "m",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.398256, lat=39.898886),
+        access_service_minutes=108,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+    )
+    from app.services.poi_access import head_chain_minutes
+
+    head = head_chain_minutes(item)
+    assert head is not None and head >= 126  # 候车 10 + 车上 108 + 落客 8 起
+
+
+def test_morning_slot_pushes_first_scheduled_visit_after_chain():
+    from app.services.agent.hotel_stays import _open_morning_slot
+
+    mty = _visit(
+        "m",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.398256, lat=39.898886),
+        access_service_minutes=108,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+    )
+    mty.start_time = time(8, 30)
+    mty.end_time = time(12, 0)
+    mty.duration_minutes = 210
+    after = _visit("n", "午饭（自由安排）", 116.5598, 40.4267)
+    after.start_time = time(12, 0)
+    after.end_time = time(13, 0)
+    after.duration_minutes = 60
+    day = DayPlan(day=2, base_city="北京", items=[mty, after])
+    assert _open_morning_slot(day) is True
+    assert mty.start_time >= time(10, 30)  # 08:30 + 接驳链（≥126 分钟）
+    assert after.start_time >= mty.end_time

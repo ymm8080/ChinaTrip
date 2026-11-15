@@ -24,6 +24,7 @@ from typing import Any
 
 from app.services.itinerary.models import GeoPoint, ItineraryPlan, VisitItem
 from app.services.itinerary.rules import haversine_km, taxi_leg_min
+from app.services.weather_open_meteo import CITY_COORDS
 
 #: 出行方式排序（取「主干那一段」用）：数字越大越算主干。
 MODE_RANK: dict[str, int] = {
@@ -438,3 +439,42 @@ def profile_for(city: str | None, name: str | None) -> dict[str, Any] | None:
     if not profiles:
         return None
     return profiles.get((str(city or ""), name)) or profiles.get(("", name))
+
+
+def head_chain_minutes(item: Any) -> int | None:
+    """当天首件的头部接驳分钟（城心 → 乘车点 + 候车 + 车上 + 落客）。
+
+    为什么用城心代理：酒店卡只有名字没有坐标时，头部锚点只能给 30 分钟默认
+    值——「08:30 出发、09:00 到慕田峪」这种日历对不上专线 2 小时 15 分。用
+    城心当出发锚是保守下界（真实酒店只会更远），把首件推到排得下的时刻。
+    非班次点 / 缺档案返回 None（调用方维持原逻辑）。
+    """
+    mode = getattr(item, "access_mode", None)
+    boarding = getattr(item, "access_boarding", None)
+    service = getattr(item, "access_service_minutes", None)
+    wait = getattr(item, "access_wait_minutes", None) or 0
+    last = getattr(item, "access_last_mile_minutes", None) or 0
+    if mode is None or boarding is None or not service:
+        prof = (
+            profile_for(getattr(item, "city", None), getattr(item, "name", None)) or {}
+        )
+        mode = prof.get("access_mode")
+        service = prof.get("access_service_minutes")
+        wait = prof.get("access_wait_minutes") or 0
+        last = prof.get("access_last_mile_minutes") or 0
+        lon = prof.get("access_boarding_lon")
+        lat = prof.get("access_boarding_lat")
+        if lon is not None and lat is not None:
+            boarding = GeoPoint(lon=float(lon), lat=float(lat))
+        else:
+            boarding = None
+    if mode not in ("train", "shuttle", "ferry") or boarding is None or not service:
+        return None
+    city = str(getattr(item, "city", None) or "").strip()
+    center = CITY_COORDS.get(city)
+    if not center:
+        return None
+    head = taxi_leg_min(
+        haversine_km(GeoPoint(lon=float(center[1]), lat=float(center[0])), boarding)
+    )
+    return head + int(wait) + int(service) + int(last)

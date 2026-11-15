@@ -327,6 +327,26 @@ def _day_overlaps(dp: DayPlan) -> bool:
     return any(spans[i][1] > spans[i + 1][0] for i in range(len(spans) - 1))
 
 
+def _head_access_chain(dp: DayPlan) -> int:
+    """当天首件的接驳链分钟（没有班次档案 / 首件是转场件时 0）。
+
+    2026-11-15「TAXI + 引擎接驳腿」：慕田峪这类点从城心出发要 2 小时+，
+    08:30 离店 09:00 到景区是假时刻——首件必须按链值顺移。
+    """
+    timed = sorted(
+        [i for i in dp.items if i.start_time is not None and not is_hotel_morning(i)],
+        key=lambda i: _minutes_of(i.start_time),
+    )
+    if not timed or isinstance(timed[0], TransferItem):
+        return 0
+    try:
+        from app.services.poi_access import head_chain_minutes
+
+        return head_chain_minutes(timed[0]) or 0
+    except Exception:  # noqa: BLE001 — 档案不可用=维持旧排法
+        return 0
+
+
 def _open_morning_slot(dp: DayPlan) -> bool:
     """把当天首站让到 09:00 之后，给「08:30 离店」的出发卡腾出日始。
 
@@ -335,6 +355,10 @@ def _open_morning_slot(dp: DayPlan) -> bool:
     早于日始的时刻=硬约束（早班车/用户手钉时刻），不挪——调用方回落到「卡贴
     首件」的旧窗口，绝不让卡压住硬时刻件。
     """
+    chain = _head_access_chain(dp)
+    head_target = (
+        HOTEL_MORNING_EARLIEST_MINUTES + chain if chain else HOTEL_MORNING_READY_MINUTES
+    )
     fixed: list[VisitItem | TransferItem] = []
     early: list[VisitItem | TransferItem] = []
     for item in dp.items:
@@ -348,7 +372,7 @@ def _open_morning_slot(dp: DayPlan) -> bool:
         is_early = (
             HOTEL_MORNING_EARLIEST_MINUTES
             <= _minutes_of(item.start_time)
-            < HOTEL_MORNING_READY_MINUTES
+            < max(HOTEL_MORNING_READY_MINUTES, head_target)
         )
         if isinstance(item, TransferItem) or hard:
             if is_early:
@@ -363,7 +387,9 @@ def _open_morning_slot(dp: DayPlan) -> bool:
         key=lambda i: _minutes_of(i.start_time),
     )
     snapshot = [(i, i.start_time, i.end_time) for i in ordered]
-    delta = HOTEL_MORNING_READY_MINUTES - _minutes_of(early[0].start_time)
+    delta = max(HOTEL_MORNING_READY_MINUTES, head_target) - _minutes_of(
+        early[0].start_time
+    )
     for item in early:
         s = _minutes_of(item.start_time) + delta
         e = (
