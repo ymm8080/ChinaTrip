@@ -13293,7 +13293,9 @@ def _assign_must_family_days(
             return here
         return min(scores, key=lambda k: scores[k])
 
-    ordered = sorted(fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f)))
+    ordered = sorted(
+        fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f))
+    )
     for fam in ordered:
         target_no = pick(fam)
         placed_dur[target_no] = placed_dur.get(target_no, 0) + fam_duration(fam)
@@ -13582,7 +13584,47 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
     return notes
 
 
-def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
+def _bench_candidates_from_library(
+    rows: list[dict], *, city: str, avoid: set[str] | None = None
+) -> list[UnplacedCandidate]:
+    """城市库 top_pois_in_city 的行 → 补空档候选（2026-11-15：用户问
+    「潘家园设成 inactive 后还有什么可推荐」，补空档池不能只靠先前让位的
+    残件，池见底时要能给出库里的下一批）。"""
+    avoid_set = {_norm_site_name(a) for a in (avoid or set()) if str(a or "").strip()}
+    out: list[UnplacedCandidate] = []
+    for row in rows or []:
+        name = str(row.get("name") or "").strip()
+        if not name or _norm_site_name(name) in avoid_set:
+            continue
+        loc = row.get("location")
+        point = None
+        if isinstance(loc, (tuple, list)) and len(loc) == 2:
+            point = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+        elif isinstance(loc, dict):
+            point = GeoPoint(lon=float(loc["lon"]), lat=float(loc["lat"]))
+        out.append(
+            UnplacedCandidate(
+                name=name,
+                name_en=row.get("name_en"),
+                poi_id=row.get("poi_id") or row.get("id"),
+                category=row.get("category"),
+                tier=row.get("tier"),
+                duration_minutes=row.get("suggested_duration_min")
+                or row.get("duration_minutes"),
+                location=point,
+                city=city,
+                reason="library_bench",
+            )
+        )
+    return out
+
+
+def _fill_leftover_with_diverse_sights(
+    plan: ItineraryPlan,
+    *,
+    avoid: set[str] | None = None,
+    bench: list[UnplacedCandidate] | None = None,
+) -> list[str]:
     """景点排完、餐卡排完之后，用空余时间补「类型多样」的下一个景点。
 
     用户 2026-11-15 拍板的收尾顺序：①先把景点排完 ②再看有没有多余 slot
@@ -13596,7 +13638,7 @@ def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
         guard = 0
-        while plan.unplaced and guard < 4:
+        while (plan.unplaced or bench) and guard < 4:
             guard += 1
             have_types = {
                 (i.category or "")
@@ -13605,10 +13647,26 @@ def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
                 and (i.category or "") not in ("food", "hotel")
             }
             fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            avoid_set = {
+                _norm_site_name(a) for a in (avoid or set()) if str(a or "").strip()
+            }
+            seen_names = {
+                _norm_site_name(i.name)
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem)
+            }
+            source = list(plan.unplaced) + [
+                b
+                for b in (bench or [])
+                if _norm_site_name(b.name) not in seen_names
+            ]
             pool = [
                 u
-                for u in plan.unplaced
+                for u in source
                 if (u.category or "") not in ("food", "hotel")
+                # 用户设为 inactive / 避开的点不补（2026-11-15）
+                and _norm_site_name(u.name) not in avoid_set
                 # 无场次/无具体时段的演出不补（用户拍板「无场次演出不被提案」）
                 and not (
                     (u.category or "") in ("show", "performance", "entertainment")
@@ -13617,11 +13675,34 @@ def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
             ]
             if not pool:
                 break
+            tail = next(
+                (
+                    i.location
+                    for i in sorted(
+                        (
+                            i
+                            for i in day.items
+                            if isinstance(i, VisitItem) and i.start_time is not None
+                        ),
+                        key=lambda i: i.start_time,
+                        reverse=True,
+                    )
+                    if getattr(i, "location", None) is not None
+                ),
+                None,
+            )
+
+            def _km(u) -> float:
+                if tail is None or getattr(u, "location", None) is None:
+                    return 0.0
+                return haversine_km(tail, u.location)
+
             pool.sort(
                 key=lambda u: (
                     0 if (u.category or "") not in have_types else 1,
                     u.tier if u.tier is not None else 99,
                     u.site_rank if getattr(u, "site_rank", None) is not None else 99,
+                    round(_km(u) / 10.0),  # 同档时先近后远（10km 一档）
                     -(u.duration_minutes or DEFAULT_VISIT_MINUTES),
                 )
             )
@@ -13643,7 +13724,7 @@ def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
                 )
                 start = _probe_visit_slot(
                     probe_item,
-                    fixed,
+                    _with_meal_bands(fixed, dur),
                     xfer,
                     hours_by_poi,
                     day_end,
@@ -13658,6 +13739,8 @@ def _fill_leftover_with_diverse_sights(plan: ItineraryPlan) -> list[str]:
                     key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
                 )
                 plan.unplaced = [u for u in plan.unplaced if u is not cand]
+                if bench:
+                    bench[:] = [b for b in bench if b is not cand]
                 notes.append(
                     L(
                         f"第{day.day}天还有空档，按类型多样性补了「{probe_item.name}」"
@@ -28657,7 +28740,30 @@ class PlanningAgent:
         # 收尾顺序（用户 2026-11-15）：景点排完 → 再放餐卡/餐厅 →
         # 最后按类型多样性把优先级高的下一个景点补进空余时间。
         _retime_meal_placeholders(plan)
-        notes.extend(_fill_leftover_with_diverse_sights(plan))
+        _bench: list[UnplacedCandidate] = []
+        if self._poi_details is not None:
+            for _city in plan.cities:
+                try:
+                    _rows = await asyncio.to_thread(
+                        self._poi_details.top_pois_in_city, _city, 40
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: top_pois_in_city failed for %s", _city, exc_info=True
+                    )
+                    continue
+                _bench.extend(
+                    _bench_candidates_from_library(
+                        _rows, city=_city, avoid=set(session.avoid_sites or ())
+                    )
+                )
+        notes.extend(
+            _fill_leftover_with_diverse_sights(
+                plan,
+                avoid=set(session.avoid_sites or ()),
+                bench=_bench,
+            )
+        )
         annotate_legs(plan)
         for note in notes:
             if note not in plan.assumptions:
