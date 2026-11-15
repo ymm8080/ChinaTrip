@@ -154,16 +154,34 @@ def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int
     return mode, boarding, service, wait, last
 
 
-def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
-    """a → b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""
+def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
+    """a 鈫?b 的接驳链拆分：taxi_km=到乘车点的打车段；minutes=全链分钟。
+
+    2026-11-16 用户拍板「网页正确显示时间和成本预估」：成本要把打车到乘车点
+    的里程单独拿出来计价（接驳段票价另计）。
+    """
     mode, boarding, service, wait, last = _access_profile(b)
     if mode not in SCHEDULED_ACCESS_MODES:
         return None
     _from = a.location or getattr(a, "anchor_location", None)
     if _from is None or boarding is None or not service:
         return None
-    head = taxi_leg_min(haversine_km(_from, boarding))
-    return max(TRAVEL_GAP_FLOOR_MIN, head + wait + service + last)
+    taxi_km = haversine_km(_from, boarding)
+    head = taxi_leg_min(taxi_km)
+    return {
+        "mode": mode,
+        "minutes": max(TRAVEL_GAP_FLOOR_MIN, head + wait + service + last),
+        "taxi_km": taxi_km,
+        "wait": wait,
+        "service": service,
+        "last": last,
+    }
+
+
+def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
+    """a 鈫?b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""
+    got = access_breakdown(a, b)
+    return got["minutes"] if got else None
 
 
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:

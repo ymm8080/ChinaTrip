@@ -14,13 +14,25 @@ replaces the estimate with measured walking legs; leg_source flips to
 "amap").
 """
 
+from app.services.itinerary.fares import (
+    access_fare_estimate,
+    estimate_taxi_fare,
+)
 from app.services.itinerary.models import (
     GeoPoint,
     ItineraryPlan,
     TransferItem,
     VisitItem,
 )
-from app.services.itinerary.rules import haversine_km
+from app.services.itinerary.rules import (
+    TAXI_WALK_MAX_KM,
+    TRAVEL_MIN_PER_KM,
+    access_breakdown,
+    haversine_km,
+    taxi_leg_min,
+    travel_gap_needed,
+)
+from app.services.lang_ctx import L
 
 DETOUR_FACTOR = 1.3  # straight-line -> walking-route correction
 WALK_METERS_PER_MINUTE = 80.0  # ≈ 4.8 km/h sightseeing pace
@@ -93,11 +105,33 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
         for item in day.items:
             if not isinstance(item, TransferItem):
                 _clear_leg(item)
-    for a, _b, km in leg_pairs(plan):
+    for a, b, km in leg_pairs(plan):
         a.distance_to_next_km = round(km, 2)
         meters = km * 1000.0 * DETOUR_FACTOR
         a.next_walk_minutes = max(1, round(meters / WALK_METERS_PER_MINUTE))
         a.leg_source = "estimate"
+        # 2026-11-16 用户拍板「网页正确显示时间和成本预估」：腿的时间用后端
+        # 统一口径（含景区专线接驳链），成本按城市价目表估；前端只展示。
+        city = a.city or b.city or ""
+        br = access_breakdown(a, b)
+        if br is not None:
+            a.next_leg_mode = "access"
+            a.next_leg_minutes = int(br["minutes"])
+            a.next_leg_cost_cny = estimate_taxi_fare(
+                city, float(br["taxi_km"])
+            ) + access_fare_estimate(br["mode"])
+            a.next_leg_cost_note = L(
+                "含接驳票价估算", "includes an estimated shuttle fare"
+            )
+        elif km <= TAXI_WALK_MAX_KM:
+            a.next_leg_mode = "walk"
+            a.next_leg_minutes = max(1, round(km * TRAVEL_MIN_PER_KM))
+            a.next_leg_cost_cny = 0
+        else:
+            a.next_leg_mode = "taxi"
+            need = travel_gap_needed(a, b)
+            a.next_leg_minutes = int(need) if need is not None else taxi_leg_min(km)
+            a.next_leg_cost_cny = estimate_taxi_fare(city, km)
     return plan
 
 
@@ -105,3 +139,7 @@ def _clear_leg(item: VisitItem) -> None:
     item.distance_to_next_km = None
     item.next_walk_minutes = None
     item.leg_source = None
+    item.next_leg_minutes = None
+    item.next_leg_mode = None
+    item.next_leg_cost_cny = None
+    item.next_leg_cost_note = None

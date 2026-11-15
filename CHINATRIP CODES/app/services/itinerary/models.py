@@ -100,6 +100,13 @@ class VisitItem(BaseModel):
     distance_to_next_km: float | None = None
     next_walk_minutes: int | None = None
     leg_source: Literal["estimate", "amap", "baidu"] | None = None
+    # 2026-11-16 用户拍板「网页正确显示时间和成本预估」：腿的展示口径由后端
+    # 统一算（含景区专线接驳链），前端不再用直线公式自算；成本按城市出租车
+    # 价目表估，接驳段另加默认票价。
+    next_leg_minutes: int | None = None
+    next_leg_mode: Literal["taxi", "walk", "access"] | None = None
+    next_leg_cost_cny: int | None = None
+    next_leg_cost_note: str | None = None
     # 到达方式 / 接驳腿（2026-11-15 用户口径「一般是 TAXI + 引擎接驳腿」）：
     # 默认市内腿按打车模型；命中 train/shuttle/ferry（有班次的景区专线、市郊
     # 铁路、轮渡）时改走接驳链 = 打车到乘车点 → 候车 → 班次 → 落客接驳。

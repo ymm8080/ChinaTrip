@@ -29,6 +29,7 @@ from app.services.itinerary.models import (
     HOTEL_SETTLE_MINUTES,
     INTERCITY_BUFFER_MINUTES,
     DayPlan,
+    GeoPoint,
     TransferItem,
     VisitItem,
     departure_buffer_minutes,
@@ -584,6 +585,19 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
             soft_pin=True,
         )
         _copy_hotel_identity(night, card)
+        if card.location is None:
+            # 酒店占位卡没有坐标时，给一个城心锚（与 head_chain_minutes 同源）：
+            # 「距下一站」腿/接驳时间与成本才显示得出来（2026-11-16 用户拍板）。
+            try:
+                from app.services.weather_open_meteo import CITY_COORDS
+
+                xy = CITY_COORDS.get(
+                    str(card.city or dp.base_city or "").removesuffix("市")
+                )
+                if xy:
+                    card.anchor_location = GeoPoint(lon=float(xy[1]), lat=float(xy[0]))
+            except Exception:  # noqa: BLE001 - 锚表缺失不影响主流程
+                pass
         dp.items.insert(0, card)
         inserted.append(dp.day)
     if not inserted:
