@@ -92,6 +92,7 @@ from app.services.itinerary.rules import (
     TRAVEL_GAP_FLOOR_MIN,
     TRAVEL_LEG_CAP_MIN,
     TRAVEL_MIN_PER_KM,
+    access_chain_minutes,
     taxi_leg_min,
     travel_gap_needed,
     travel_gap_violations,
@@ -10750,6 +10751,12 @@ def _leg_windows(
             and sloc is not None
         ):
             pad = max(30, _taxi_leg_min(haversine_km(sloc, vloc)))
+            # 班次接驳（TAXI + 接驳腿）：兜底/加卡路径没有矩阵，靠这条把
+            # 专线/铁路的链值算进占窗——否则默认 30 分钟会把 2 小时+ 的
+            # 车程当成就近可达。
+            _chain = access_chain_minutes(src, visit) if src is not visit else None
+            if _chain:
+                pad = max(pad, _chain)
             out.append((fs - (pad - 30), fe + (pad - 30)))
         else:
             out.append((fs, fe))
