@@ -139,9 +139,7 @@ class _StopAfterStart(PlanningAgent):
 
 
 def test_start_lets_typed_brief_beat_form_defaults():
-    agent = _StopAfterStart(
-        ExplodingLLM(), amap_client=None, poi_details=SitesStore()
-    )
+    agent = _StopAfterStart(ExplodingLLM(), amap_client=None, poi_details=SitesStore())
     session = run(
         agent.start(
             device_id="d1",
@@ -159,9 +157,7 @@ def test_start_lets_typed_brief_beat_form_defaults():
 
 
 def test_start_brief_without_day_count_keeps_form_days():
-    agent = _StopAfterStart(
-        ExplodingLLM(), amap_client=None, poi_details=SitesStore()
-    )
+    agent = _StopAfterStart(ExplodingLLM(), amap_client=None, poi_details=SitesStore())
     session = run(
         agent.start(
             device_id="d1",
@@ -176,9 +172,7 @@ def test_start_brief_without_day_count_keeps_form_days():
 
 
 def test_start_keeps_form_route_when_brief_matches_it():
-    agent = _StopAfterStart(
-        ExplodingLLM(), amap_client=None, poi_details=SitesStore()
-    )
+    agent = _StopAfterStart(ExplodingLLM(), amap_client=None, poi_details=SitesStore())
     session = run(
         agent.start(
             device_id="d1",

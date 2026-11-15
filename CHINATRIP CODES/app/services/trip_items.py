@@ -770,9 +770,8 @@ class TripItemService:
             row_dev = item.get("owner_device_id")
             row_acct = item.get("owner_account_id")
             if row_dev is not None or row_acct is not None:
-                mine = (
-                    (owner_device_id is not None and row_dev == owner_device_id)
-                    or (owner_account_id is not None and row_acct == owner_account_id)
+                mine = (owner_device_id is not None and row_dev == owner_device_id) or (
+                    owner_account_id is not None and row_acct == owner_account_id
                 )
                 if not mine:
                     continue

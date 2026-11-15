@@ -244,8 +244,7 @@ def _dry_run() -> None:  # pragma: no cover — ops 工具入口
             continue
         for p in periods:
             counts[p] += 1
-    print(f"rows={total} with_opening_hours={with_hours} "
-          f"unparsable={len(unparsable)}")
+    print(f"rows={total} with_opening_hours={with_hours} unparsable={len(unparsable)}")
     for p in MEAL_PERIODS:
         print(f"  {p}: {counts[p]}")
     if unparsable:

@@ -19,8 +19,8 @@ from sqlalchemy import text
 from app.db import get_session_factory
 from app.models import Poi
 from app.services.poi_tag_selector import (
-    GROUPS_BY_FAMILY,
     _EXCLUDED_CATEGORIES,
+    GROUPS_BY_FAMILY,
     classify_poi,
 )
 

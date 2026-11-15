@@ -1,6 +1,5 @@
 """price_band 档位与 amap cost 抽取单测（DESIGN §四 / price_level 链）。"""
 
-import pytest
 
 from app.services.amap_client import _hours_result, _parse_cost
 from app.services.price_band import band_for_cost

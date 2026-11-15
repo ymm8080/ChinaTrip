@@ -4,9 +4,9 @@
 # 中间城市与结束城市同城时，旧版 planRouteForm() 把整行（含用户填的 3 天）丢弃，
 # 结束城市默认 1 天顶上，请求 days 塌成 1。守门脚本逐案钉住「同城并天不丢天」，
 # 本机没有 node 时 skip，不阻塞其他平台/CI。
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 

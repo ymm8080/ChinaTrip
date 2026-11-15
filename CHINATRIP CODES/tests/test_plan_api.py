@@ -2680,6 +2680,8 @@ def test_no_route_conflict_when_text_matches_form():
     assert resp.status_code == 200
     body = resp.json()
     assert body["state"] == "ready"
+
+
 def test_route_days_diff_between_text_and_card_dates():
     """文字 2 天、行前卡日期跨度 4 天（表单天数与文字一致）：
     不静默裁决，confirm_route 摆出 days 差异（用户拍板③）。"""

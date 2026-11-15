@@ -317,8 +317,12 @@ def test_lunch_on_12_and_movable_site_moves_after_lunch():
     （用户拍板「THE CORRECT SOLUTION IS TO PUT LUNCH ON 12 AND PUT 天坛
     AFTER LUNCH」）。"""
     tiantan = _visit(
-        "v18", "天坛", dur=60, start=time(12, 0),
-        loc=(116.4128, 39.8836), address="天坛公园",
+        "v18",
+        "天坛",
+        dur=60,
+        start=time(12, 0),
+        loc=(116.4128, 39.8836),
+        address="天坛公园",
     )
     day = DayPlan(day=1, base_city="北京", items=[tiantan])
     plan = _plan([day])
@@ -333,8 +337,13 @@ def test_lunch_survives_next_to_pinned_site():
     """压住卡窗的是用户钉住件（铁律 19）→ 钉件不动；卡缩时贴窗或嵌套宿主
     （游览途中用餐），绝不双订、不静默丢。"""
     tiantan = _visit(
-        "v18", "天坛", dur=60, start=time(12, 0), pinned=True,
-        loc=(116.4128, 39.8836), address="天坛公园",
+        "v18",
+        "天坛",
+        dur=60,
+        start=time(12, 0),
+        pinned=True,
+        loc=(116.4128, 39.8836),
+        address="天坛公园",
     )
     day = DayPlan(day=1, base_city="北京", items=[tiantan])
     plan = _plan([day])
@@ -374,8 +383,12 @@ def test_overlap_reconcile_moves_movable_site_after_lunch():
     卡原位不动（d6fed2a0 双 12:00 病形）。"""
     lunch = _lunch_ph(1, time(12, 0), 60)
     tiantan = _visit(
-        "v18", "天坛", dur=60, start=time(12, 0),
-        loc=(116.4128, 39.8836), address="天坛公园",
+        "v18",
+        "天坛",
+        dur=60,
+        start=time(12, 0),
+        loc=(116.4128, 39.8836),
+        address="天坛公园",
     )
     day = DayPlan(day=1, base_city="北京", items=[lunch, tiantan])
     plan = _plan([day])
@@ -389,8 +402,13 @@ def test_overlap_reconcile_when_pinned_site_holds_window():
     绝不双订。"""
     lunch = _lunch_ph(1, time(12, 0), 60)
     tiantan = _visit(
-        "v18", "天坛", dur=60, start=time(12, 0), pinned=True,
-        loc=(116.4128, 39.8836), address="天坛公园",
+        "v18",
+        "天坛",
+        dur=60,
+        start=time(12, 0),
+        pinned=True,
+        loc=(116.4128, 39.8836),
+        address="天坛公园",
     )
     day = DayPlan(day=1, base_city="北京", items=[lunch, tiantan])
     plan = _plan([day])

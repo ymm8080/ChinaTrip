@@ -14,14 +14,14 @@ def test_two_independent_reviews_required():
 def test_multi_tag_ordering_by_votes():
     """多标签按票数降序；同票按词表序（约会氛围在词表前于家庭聚餐）。"""
     prose = [
-        "适合约会的地方",                       # 约会 1
-        "约会纪念日都合适",                     # 约会 2
-        "带娃家庭聚餐不错",                     # 家庭 1
-        "家庭聚会首选，亲子友好",               # 家庭 2
-        "窗外就是外滩夜景，江景绝美",           # 江景 1
-        "夜景无敌，江景位值得等",               # 江景 2
-        "本地人常去的街坊店",                   # 本地 1
-        "当地人从小吃到大",                     # 本地 2
+        "适合约会的地方",  # 约会 1
+        "约会纪念日都合适",  # 约会 2
+        "带娃家庭聚餐不错",  # 家庭 1
+        "家庭聚会首选，亲子友好",  # 家庭 2
+        "窗外就是外滩夜景，江景绝美",  # 江景 1
+        "夜景无敌，江景位值得等",  # 江景 2
+        "本地人常去的街坊店",  # 本地 1
+        "当地人从小吃到大",  # 本地 2
     ]
     tags = extract_review_tags(prose)
     assert tags[0] in ("约会氛围", "江景夜景位")  # 票数并列 2，词表序在前
@@ -33,7 +33,10 @@ def test_traditional_and_english_keywords():
     """繁体与英文关键词同一词表。"""
     prose_tw = ["建議有重要約會或者紀念日來", "很適合約會的餐廳"]
     assert extract_review_tags(prose_tw) == ["约会氛围"]
-    prose_en = ["Great for business dinners with private rooms", "We booked a private room for our business meal"]
+    prose_en = [
+        "Great for business dinners with private rooms",
+        "We booked a private room for our business meal",
+    ]
     assert extract_review_tags(prose_en) == ["商务宴请"]
 
 

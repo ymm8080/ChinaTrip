@@ -20,11 +20,34 @@ import re
 _RULES: list[tuple[str, tuple[str, ...]]] = [
     (
         "约会氛围",
-        ("约会", "約會", "纪念日", "紀念日", "求婚", "romantic", "date night", "anniversary"),
+        (
+            "约会",
+            "約會",
+            "纪念日",
+            "紀念日",
+            "求婚",
+            "romantic",
+            "date night",
+            "anniversary",
+        ),
     ),
     (
         "江景夜景位",
-        ("江景", "夜景", "河景", "外滩", "外灘", "海景", "窗边", "窗邊", "灯光秀", "燈光秀", "river view", "night view", "skyline"),
+        (
+            "江景",
+            "夜景",
+            "河景",
+            "外滩",
+            "外灘",
+            "海景",
+            "窗边",
+            "窗邊",
+            "灯光秀",
+            "燈光秀",
+            "river view",
+            "night view",
+            "skyline",
+        ),
     ),
     (
         "老字号",
@@ -32,19 +55,65 @@ _RULES: list[tuple[str, tuple[str, ...]]] = [
     ),
     (
         "深夜营业",
-        ("深夜", "宵夜", "宵夜檔", "凌晨", "夜宵", "营业到", "營業到", "通宵", "late night", "after midnight"),
+        (
+            "深夜",
+            "宵夜",
+            "宵夜檔",
+            "凌晨",
+            "夜宵",
+            "营业到",
+            "營業到",
+            "通宵",
+            "late night",
+            "after midnight",
+        ),
     ),
     (
         "本地人常去",
-        ("本地人", "当地人", "當地人", "街坊", "回头客", "回頭客", "where locals", "locals eat"),
+        (
+            "本地人",
+            "当地人",
+            "當地人",
+            "街坊",
+            "回头客",
+            "回頭客",
+            "where locals",
+            "locals eat",
+        ),
     ),
     (
         "商务宴请",
-        ("商务", "商務", "宴请", "宴請", "包间", "包間", "包厢", "包廂", "business dinner", "business meal", "private room"),
+        (
+            "商务",
+            "商務",
+            "宴请",
+            "宴請",
+            "包间",
+            "包間",
+            "包厢",
+            "包廂",
+            "business dinner",
+            "business meal",
+            "private room",
+        ),
     ),
     (
         "家庭聚餐",
-        ("家庭", "带娃", "帶娃", "带孩子", "帶孩子", "亲子", "親子", "多人", "聚会", "聚會", "family", "kids", "group dinner"),
+        (
+            "家庭",
+            "带娃",
+            "帶娃",
+            "带孩子",
+            "帶孩子",
+            "亲子",
+            "親子",
+            "多人",
+            "聚会",
+            "聚會",
+            "family",
+            "kids",
+            "group dinner",
+        ),
     ),
 ]
 
@@ -90,7 +159,9 @@ def extract_prose(html: str) -> list[str]:
     return out
 
 
-def extract_review_tags(prose: list[str] | None, *, min_hits: int = _MIN_HITS) -> list[str]:
+def extract_review_tags(
+    prose: list[str] | None, *, min_hits: int = _MIN_HITS
+) -> list[str]:
     """评论正文列表 → 点评标签（≥min_hits 条独立正文命中同一标签才算）。
 
     命中计数按「出现过该关键词的正文条数」（同一正文重复命中只计一次）；

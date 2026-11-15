@@ -30,11 +30,15 @@ def test_parse_multi_window_and_annotations():
         (990, 1260),
     ]
     # 中文分号分段 + 括号注释剥掉
-    assert parse_opening_windows("11:00-14:00；17:00-21:30（汉文化主题演艺+唐风换装）") == [
+    assert parse_opening_windows(
+        "11:00-14:00；17:00-21:30（汉文化主题演艺+唐风换装）"
+    ) == [
         (660, 840),
         (1020, 1290),
     ]
-    assert parse_opening_windows("今天08:30-17:00开放（16:30停止入园）") == [(510, 1020)]
+    assert parse_opening_windows("今天08:30-17:00开放（16:30停止入园）") == [
+        (510, 1020)
+    ]
 
 
 def test_parse_cross_midnight_and_all_day():
@@ -52,15 +56,17 @@ def test_parse_noise_tails_are_stripped():
     assert parse_opening_windows("周二至周日 09:00-17:00,节假日以官方通知为准") == [
         (540, 1020)
     ]
-    assert parse_opening_windows("周一至周日 09:00-17:00 最晚进入16:30") == [(540, 1020)]
-    assert parse_opening_windows("今天08:00-18:00开放") == [(480, 1080)]
-    assert parse_opening_windows("周一至周日 00:00-24:00；具体营业状态以当天开放情况为准") == [
-        (0, 1440)
-    ]
-    # 休息日注记剥掉不致失败（meal_periods 无日粒度，取开放日窗口）
-    assert parse_opening_windows("周一 全天关闭；周二至周日 09:00-17:00 最晚进入16:30") == [
+    assert parse_opening_windows("周一至周日 09:00-17:00 最晚进入16:30") == [
         (540, 1020)
     ]
+    assert parse_opening_windows("今天08:00-18:00开放") == [(480, 1080)]
+    assert parse_opening_windows(
+        "周一至周日 00:00-24:00；具体营业状态以当天开放情况为准"
+    ) == [(0, 1440)]
+    # 休息日注记剥掉不致失败（meal_periods 无日粒度，取开放日窗口）
+    assert parse_opening_windows(
+        "周一 全天关闭；周二至周日 09:00-17:00 最晚进入16:30"
+    ) == [(540, 1020)]
 
 
 def test_parse_unparsable_returns_empty_not_guess():
@@ -205,9 +211,7 @@ def test_allowed_slots_explicit_meal_periods_win():
     assert _allowed_slots_for(None, None, ["early_tea"]) == frozenset({"lunch"})
     assert _allowed_slots_for(None, None, ["afternoon_tea"]) == frozenset({"lunch"})
     # 仅晚市餐秀：显式 dinner 锁死单槽
-    assert _allowed_slots_for("11:00-21:00", None, ["dinner"]) == frozenset(
-        {"dinner"}
-    )
+    assert _allowed_slots_for("11:00-21:00", None, ["dinner"]) == frozenset({"dinner"})
 
 
 def test_allowed_slots_empty_or_unknown_falls_back():

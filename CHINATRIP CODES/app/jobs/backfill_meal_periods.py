@@ -57,9 +57,7 @@ def run(*, limit: int = 20000, dry_run: bool = False) -> int:
             if db_row is None or db_row.meal_periods is not None:
                 continue  # 写前复查（只填空语义）
             # 写前重算：读-写间隙 opening_hours 可能被回源链补上
-            periods2 = infer_meal_periods(
-                db_row.opening_hours, db_row.cuisine_group
-            )
+            periods2 = infer_meal_periods(db_row.opening_hours, db_row.cuisine_group)
             db_row.meal_periods = periods2
             session.commit()
             written += 1

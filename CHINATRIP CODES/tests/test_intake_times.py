@@ -138,10 +138,7 @@ def test_no_intake_info_relaxes_to_full_days() -> None:
     asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
 
     assert not [
-        i
-        for d in session.plan.days
-        for i in d.items
-        if isinstance(i, TransferItem)
+        i for d in session.plan.days for i in d.items if isinstance(i, TransferItem)
     ]
     joined = " ".join(session.assumptions)
     assert "第1天" in joined and "全天" in joined
@@ -153,10 +150,7 @@ def test_unparseable_time_counts_as_unfilled() -> None:
     session = _session(arrival_time="下午两点", intake_done=True)
     asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
     assert not [
-        i
-        for d in session.plan.days
-        for i in d.items
-        if isinstance(i, TransferItem)
+        i for d in session.plan.days for i in d.items if isinstance(i, TransferItem)
     ]
     joined = " ".join(session.assumptions)
     assert "第1天" in joined and "全天" in joined
@@ -178,6 +172,8 @@ def test_single_leg_trip_pins_the_outbound_only() -> None:
     asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
     assert session.plan.days[0].items[0].end_time == time(11, 45)
     assert len(session.plan.days) == 2
+
+
 def test_one_city_plan_absorbs_arrival_time_via_synthetic_leg() -> None:
     """单城行程没有城际腿：到达时刻也要被吸收——补一条合成到达腿，当天
     非钉景点清时刻重排到到达之后（用户实报「时刻没被 PLANNING ENGINE
@@ -219,10 +215,7 @@ def test_one_city_plan_absorbs_arrival_time_via_synthetic_leg() -> None:
     asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
 
     legs = [
-        i
-        for d in session.plan.days
-        for i in d.items
-        if isinstance(i, TransferItem)
+        i for d in session.plan.days for i in d.items if isinstance(i, TransferItem)
     ]
     assert len(legs) == 1 and legs[0].end_time == time(15, 30)
     assert legs[0].to_city == "西安"
@@ -280,9 +273,7 @@ def test_no_info_on_one_city_plan_changes_nothing() -> None:
 def test_arrival_date_targets_its_day() -> None:
     """到达日期不等于出发日期：按日期换算到对应天序落位。"""
     session = _session(arrival_date="2026-11-17", arrival_time="14:00")
-    session.plan = session.plan.model_copy(
-        update={"start_date": "2026-11-16"}
-    )
+    session.plan = session.plan.model_copy(update={"start_date": "2026-11-16"})
     asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
 
     legs = {
@@ -293,6 +284,8 @@ def test_arrival_date_targets_its_day() -> None:
     assert legs[1] and legs[1][0].end_time == time(10, 30)
     assert legs[2] and legs[2][0].end_time == time(14, 0)
     assert any("第2天" in a and "14:00" in a for a in session.assumptions)
+
+
 def test_number_not_found_falls_back_to_user_time() -> None:
     """班次号查不到 + 用户把时刻从默认改掉：该时刻=运输腿到达/离开时刻，
     回退按时刻落位（2026-11-14 用户口径），不再静默丢弃。"""
