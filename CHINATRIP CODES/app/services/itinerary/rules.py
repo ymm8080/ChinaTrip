@@ -135,7 +135,7 @@ def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int
     service = b.access_service_minutes or 0
     wait = b.access_wait_minutes or 0
     last = b.access_last_mile_minutes or 0
-    if mode is None and b.name:
+    if (mode is None or boarding is None or not service) and b.name:
         try:
             from app.services.poi_access import profile_for
 
@@ -143,8 +143,8 @@ def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int
         except Exception:  # noqa: BLE001 — 档案不可用=打车兜底
             prof = {}
         if prof:
-            mode = prof.get("access_mode")
-            service = prof.get("access_service_minutes") or 0
+            mode = mode or prof.get("access_mode")
+            service = service or prof.get("access_service_minutes") or 0
             wait = prof.get("access_wait_minutes") or 0
             last = prof.get("access_last_mile_minutes") or 0
             lon = prof.get("access_boarding_lon")
@@ -159,9 +159,10 @@ def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
     mode, boarding, service, wait, last = _access_profile(b)
     if mode not in SCHEDULED_ACCESS_MODES:
         return None
-    if a.location is None or boarding is None or not service:
+    _from = a.location or getattr(a, "anchor_location", None)
+    if _from is None or boarding is None or not service:
         return None
-    head = taxi_leg_min(haversine_km(a.location, boarding))
+    head = taxi_leg_min(haversine_km(_from, boarding))
     return max(TRAVEL_GAP_FLOOR_MIN, head + wait + service + last)
 
 

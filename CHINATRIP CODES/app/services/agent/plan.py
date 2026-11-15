@@ -11019,17 +11019,17 @@ def _morning_head_displacement(
 
 
 def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
-    """兜底排时收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
+    """兜底/加卡收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
 
-    为什么要在兜底之后单独收：`_fallback_sequence_times` 的落位探针按
-    「前件尾 / 营业窗 / 占窗」推进，腿时靠占窗 pad 表达；聊天加卡、删卡重排
-    这类路径没有 solver 矩阵，专线 2 小时+ 会被排成 30 分钟（慕田峪实录：
-    午饭 13:00 → 13:30）。这里按天做一次前向收口：链值不足就把本件及之后
-    的件整体后移。
+    两种锚：
+    * 前一件有坐标（景点/酒店卡）→ 打车(前件→乘车点) + 候车 + 车上 + 落客；
+    * 前一件是没坐标的餐占位/晨卡 → 按城心头部链（保守下界）算。
 
     保守边界：后移越过午夜、或撞上用户手钉卡（铁律 19）时整段跳过——宁可
-    留旧时刻也不破钉；餐/酒店软卡照常跟着走（它们本就跟着景点尾巴）。
+    留旧时刻也不破钉；餐/酒店软卡照常跟着走。
     """
+    from app.services.poi_access import head_chain_minutes
+
     notes: list[str] = []
     for day in plan.days:
         timed = [
@@ -11039,14 +11039,33 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
         ]
         timed.sort(key=lambda i: _minutes_of(i.start_time))
         for idx in range(1, len(timed)):
-            prev, cur = timed[idx - 1], timed[idx]
-            chain = access_chain_minutes(prev, cur)
+            cur = timed[idx]
+            prev_located = None
+            for back in range(idx - 1, -1, -1):
+                cand = timed[back]
+                loc = cand.location or getattr(cand, "anchor_location", None)
+                if loc is not None:
+                    prev_located = cand
+                    break
+            chain = (
+                access_chain_minutes(prev_located, cur)
+                if prev_located is not None
+                else head_chain_minutes(cur)
+            )
             if not chain:
                 continue
-            prev_end = _minutes_of(prev.end_time) if prev.end_time else None
+            prev_end = (
+                _minutes_of(timed[idx - 1].end_time)
+                if timed[idx - 1].end_time is not None
+                else None
+            )
             if prev_end is None:
                 continue
             need = prev_end + chain
+            # 日终闸：推到 21:30 之后只会把晚饭/夜卡拖成 22:52，宁可保留
+            # 原时刻让校验去点名（不制造更差的时刻表）。
+            if need + (cur.duration_minutes or DEFAULT_VISIT_MINUTES) > 21 * 60 + 30:
+                continue
             start = _minutes_of(cur.start_time)
             if start >= need:
                 continue
@@ -11071,6 +11090,30 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             for later, s, e in rows:
                 later.start_time = time(s // 60, s % 60)
                 later.end_time = time(e // 60, e % 60)
+            # 夜卡跟着整体后移会漂到 22:52 这种荒谬时刻：收口后按「末件尾 + 30」
+            # 重新贴一次（与 reanchor_hotel_cards 同口径，这里只动夜卡）。
+            try:
+                from app.services.agent.hotel_stays import is_hotel_night
+            except Exception:  # noqa: BLE001
+                is_hotel_night = None
+            if is_hotel_night is not None:
+                rests = [i for i in timed if not is_hotel_night(i)]
+                last_end = max(
+                    (_minutes_of(i.end_time) for i in rests if i.end_time is not None),
+                    default=None,
+                )
+                if last_end is not None:
+                    for card in timed:
+                        if not is_hotel_night(card):
+                            continue
+                        card.start_time = time(
+                            min(23, (last_end + 30) // 60) % 24,
+                            (last_end + 30) % 60,
+                        )
+                        card.end_time = time(
+                            min(23, (last_end + 90) // 60) % 24,
+                            (last_end + 90) % 60,
+                        )
             notes.append(
                 L(
                     f"第{day.day}天「{cur.name}」按接驳行程改到 "
@@ -11080,8 +11123,6 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
                 )
             )
     return notes
-
-
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -11841,8 +11882,8 @@ def _fallback_sequence_times(
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
-    _clamp_chain_gaps(plan)
 
+    _clamp_chain_gaps(plan)
 
 def _meal_card_back_to_default(
     meal: VisitItem,
