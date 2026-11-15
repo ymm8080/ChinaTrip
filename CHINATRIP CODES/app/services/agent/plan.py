@@ -13064,6 +13064,8 @@ _MUST_REMOTE_CROWD_PENALTY = 180
 _MUST_RELAX_FLOOR_MIN = 180
 # 稳定性冗余：族已在「不差于最优 + 该值」的天上就不搬（幂等）。
 _MUST_STAY_SLACK_MIN = 30
+# 远郊景点口径（不同于「同片区 15km」）：离行程中心 >25km 才算远郊。
+_REMOTE_SIGHT_KM = 25.0
 # 餐段保护带（2026-11-15 用户「PUT LUNCH ON 12 AND PUT 天坛 AFTER LUNCH」）：
 # 短于 3 小时的必去不许横跨午饭 12:00–13:00 / 晚饭 19:00–20:30，宁可排到
 # 餐后——否则餐卡只能缩着嵌进景点里显示成「双订」。3 小时以上的大点仍可
@@ -13277,6 +13279,17 @@ def _assign_must_family_days(
     def score(fam: list[VisitItem], day: DayPlan) -> int | None:
         if any((v.city or "") and not _day_hosts_city(day, v.city) for v in fam):
             return None
+        # 一天最多一个远郊族（2026-11-15 用户两裁）：远郊族不落已有远郊的天
+        if _family_is_remote(fam, plan):
+            others = [
+                v
+                for v in day.items
+                if isinstance(v, VisitItem)
+                and (v.category or "") not in ("food", "hotel")
+                and v not in fam
+            ]
+            if any(_is_remote_point(plan, v.location) for v in others):
+                return None
         dur = fam_duration(fam)
         fpts = fam_pts(fam)
         free_min = _day_free_minutes(day)
@@ -13668,16 +13681,9 @@ _SAME_PARK_KM = 1.0
 # 住宿类名字不进景点补位（2026-11-15：长城脚下的公社这类住宿/会所被当成
 # 下午的景点补进来，用户要的是景点或体验类活动）。
 _LODGING_KEYS = (
-    "酒店",
-    "饭店",
-    "民宿",
-    "度假",
-    "公社",
-    "会所",
-    "公寓",
-    "客栈",
-    "宾馆",
-    "大酒店",
+    "酒店", "饭店", "民宿", "度假",
+    "公社", "会所", "公寓", "客栈",
+    "宾馆", "大酒店",
 )
 
 _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
@@ -13689,6 +13695,40 @@ _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
     "天安门广场": ("人民英雄纪念碑", "毛主席纪念堂"),
     "恭王府": ("福字碑", "大戏楼"),
 }
+
+
+def _plan_center(plan: ItineraryPlan) -> GeoPoint | None:
+    """行程中心（全部有坐标条目的质心）。"""
+    pts = [
+        i.location
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.location is not None
+    ]
+    if not pts:
+        return None
+    return GeoPoint(
+        lon=sum(p.lon for p in pts) / len(pts),
+        lat=sum(p.lat for p in pts) / len(pts),
+    )
+
+
+def _is_remote_point(plan: ItineraryPlan, loc: GeoPoint | None) -> bool:
+    """该坐标离行程中心 >_DISTRICT_DAY_KM 即远郊。"""
+    center = _plan_center(plan)
+    if center is None or loc is None:
+        return False
+    return haversine_km(center, loc) > _REMOTE_SIGHT_KM
+
+
+def _day_already_remote(plan: ItineraryPlan, day: DayPlan) -> bool:
+    """当天是否已经有远郊观光件（=已经有远郊族的成员）。"""
+    return any(
+        isinstance(i, VisitItem)
+        and (i.category or "") not in ("food", "hotel")
+        and _is_remote_point(plan, i.location)
+        for i in day.items
+    )
 
 
 def _in_park_of_existing(plan: ItineraryPlan, name: str) -> bool:
@@ -13820,12 +13860,17 @@ def _fill_leftover_with_diverse_sights(
                     and not _has_usable_time_info(getattr(u, "opening_hours", None))
                 )
             ]
+            day_remote = _day_already_remote(plan, day)
             pool = [
                 u
                 for u in pool
                 if not _too_close_to_plan(plan, u)
+                # 一天最多一个远郊族：当天已有远郊就不再补远处的
+                and not (day_remote and _is_remote_point(plan, u.location))
                 and not _in_park_of_existing(plan, u.name)
-                and not any(k in str(u.name or "") for k in _LODGING_KEYS)
+                and not any(
+                    k in str(u.name or "") for k in _LODGING_KEYS
+                )
             ]
             if not pool:
                 break
