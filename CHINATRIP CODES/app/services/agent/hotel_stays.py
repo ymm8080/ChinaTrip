@@ -357,10 +357,10 @@ def _open_morning_slot(dp: DayPlan) -> bool:
     首件」的旧窗口，绝不让卡压住硬时刻件。
     """
     chain = _head_access_chain(dp)
-    # 卡占 08:30-09:00（早餐/退房），09:00 才是真正离店时刻；远郊首件按
-    # 「离店 + 接驳链」顺移（慕田峪 142 分钟 → 11:22 起），不再用 08:30 起算
-    # 造出「09:52 离店、10:52 到 2 小时外景区」的假时刻（2026-11-16 用户实报）。
-    head_target = HOTEL_MORNING_READY_MINUTES + chain
+    # 2026-11-16 用户拍板「从酒店出发 08:30」：出发时刻锚在 08:30（晨卡起点），
+    # 首件按「08:30 + 接驳链」顺移（慕田峪 142 分钟 → 10:52 起）；晨卡 08:30-
+    # 09:00 的 30 分钟是打包/退房窗口，接驳从 08:30 起算。
+    head_target = HOTEL_MORNING_EARLIEST_MINUTES + chain
     fixed: list[VisitItem | TransferItem] = []
     early: list[VisitItem | TransferItem] = []
     for item in dp.items:
