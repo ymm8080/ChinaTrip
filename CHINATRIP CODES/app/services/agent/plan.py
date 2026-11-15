@@ -5839,9 +5839,7 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # 已打标也强制纠正（2026-11-14 UAT：行程中心载入/编辑旧行程
                 # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
                 # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
-                flag_min = min(
-                    t.hour * 60 + t.minute for t in item.fixed_sessions
-                )
+                flag_min = min(t.hour * 60 + t.minute for t in item.fixed_sessions)
                 if (
                     item.start_time is not None
                     and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
@@ -13180,9 +13178,7 @@ def _must_weather_day_penalty(
     outdoor = _family_is_outdoor(fam)
     penalty = 0
     if rainy:
-        penalty += (
-            _MUST_RAIN_OUTDOOR_PENALTY if outdoor else _MUST_RAIN_INDOOR_PENALTY
-        )
+        penalty += _MUST_RAIN_OUTDOOR_PENALTY if outdoor else _MUST_RAIN_INDOOR_PENALTY
         if _family_is_remote(fam, plan):
             penalty += _MUST_REMOTE_RAIN_EXTRA
     if _day_is_weekend(plan, day_no):
@@ -13450,9 +13446,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
         ]
         # 升旗锚（fixed_sessions，2026-11-14 数据库旗时最高优先级）不参与
         # 本通道的重排：既不清它的时刻，也不拿它跟别的件比先后。
-        timed = [
-            v for v in musts if v.start_time is not None and not v.fixed_sessions
-        ]
+        timed = [v for v in musts if v.start_time is not None and not v.fixed_sessions]
         if timed:
             chain_all = _must_chain_order(day, musts)
             seq = sorted(timed, key=lambda v: v.start_time)
@@ -13476,11 +13470,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                         "(long-haul sights first)",
                     )
                 )
-        remaining = [
-            v
-            for v in musts
-            if v.start_time is None and not v.fixed_sessions
-        ]
+        remaining = [v for v in musts if v.start_time is None and not v.fixed_sessions]
         if not remaining:
             continue
         guard = 0
@@ -26429,9 +26419,7 @@ class PlanningAgent:
         )
         # ① 必去族定天（2026-11-14 四段式拍板）：同片区整族归一天，不同
         # 片区同天计双程通勤，超容才拆；再叠 2026-11-15 的雨日/周末偏好。
-        plan.assumptions.extend(
-            _assign_must_family_days(plan, rain_days=rain_days)
-        )
+        plan.assumptions.extend(_assign_must_family_days(plan, rain_days=rain_days))
         # ② 必去钉时：按重要度+约束强度先占时刻，塞不下删当日最低优先件，
         # 其余景点交给 solve 在空档排。
         plan.assumptions.extend(_pin_musts_by_importance(plan))
