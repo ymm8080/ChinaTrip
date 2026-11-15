@@ -29957,6 +29957,12 @@ class PlanningAgent:
                 if not isinstance(it, VisitItem):
                     continue
                 if it.start_time is not None:
+                    if is_lunch_placeholder(it) or is_dinner_placeholder(it):
+                        # 占位餐卡是可让位的软锚（2026-11-13「餐卡优先让位」
+                        # 口径）：不推进游标——否则 12:00 的午饭占位会把
+                        # 后面的卡顶到 13:00，删卡上移失效；餐卡由
+                        # _retime_meal_placeholders 挪进空窗。
+                        continue
                     cursor = max(cursor, _item_end_minutes(it) or cursor)
                     continue
                 dur = it.duration_minutes or DEFAULT_VISIT_MINUTES

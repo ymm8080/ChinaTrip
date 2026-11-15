@@ -1282,6 +1282,31 @@ def test_delete_reflows_following_cards_up_same_day():
     assert got["午饭（自由安排）"]["start_time"] >= got["故宫博物院"]["end_time"]
 
 
+def test_delete_reflow_lunch_placeholder_does_not_block_morning():
+    """12:00 午饭软占位不挡游标（2026-11-15 实测复现：删 08:30 天安门后
+    后面的恭王府仍卡在 13:00，因为游标被 12:00 的午饭占位顶到 13:00）。"""
+    tian = _delete_reflow_visit("v1", "天安门广场", (8, 30), (10, 0), 90)
+    lunch = _delete_reflow_visit(
+        "food-lunch-ph-d1",
+        "午饭（自由安排）",
+        (12, 0),
+        (13, 0),
+        60,
+        category="food",
+        soft_pin=True,
+    )
+    gongwang = _delete_reflow_visit("v2", "恭王府", (13, 0), (15, 0), 120)
+    zhonggu = _delete_reflow_visit("v3", "钟鼓楼", (15, 30), (17, 0), 90)
+    app = _delete_reflow_app([tian, lunch, gongwang, zhonggu])
+    with TestClient(app) as client:
+        resp = client.post("/api/v1/plan/s-del/items/v1/delete", headers=DEVICE_HEADERS)
+    assert resp.status_code == 200
+    got = {i["name"]: i for d in resp.json()["plan"]["days"] for i in d["items"]}
+    assert got["恭王府"]["start_time"] == "08:30:00"
+    assert got["钟鼓楼"]["start_time"] >= got["恭王府"]["end_time"]
+    assert got["午饭（自由安排）"]["start_time"] >= got["钟鼓楼"]["end_time"]
+
+
 def test_delete_reflows_engine_pinned_must_visit():
     """引擎锁定的必去（must+pinned）也随删除上移：钉的是「别挪天/别丢」，
     前一张没了最佳档位就变，必须重排（否则 08:30-10:30 空着）。"""
