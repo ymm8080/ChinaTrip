@@ -66,6 +66,7 @@ from app.services.agent.plan import (
     _find_transfer_item,
     _leg_date_iso,
     _normalize_city,
+    _open_meal_leg_gaps,
     _parse_text_start_date,
     _resolve_brief_cities,
     _trip_brief,
@@ -958,6 +959,10 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
         heal_arrival_light(session.plan)
+        # 餐卡与紧邻景点的通勤腿（2026-11-15）：出站最后一道对账。
+        # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
+        # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
+        session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
         # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
         body["plan"] = (

@@ -30373,7 +30373,6 @@ class PlanningAgent:
         # 餐占位让位（同编辑回合口径）：景点上移后午饭/晚饭占位挪到空窗，
         # 不凭空新增餐卡。
         _retime_meal_placeholders(candidate, ensure_cards=False)
-        candidate.assumptions.extend(_open_meal_leg_gaps(candidate))
         reanchor_hotel_cards(candidate.days)
         annotate_legs(candidate)
         self._replay_measured_legs(candidate)
@@ -31284,7 +31283,6 @@ class PlanningAgent:
         meal_notes = _retime_real_food_cards(candidate)
         meal_notes += _bind_real_food_to_cards(candidate)
         _retime_meal_placeholders(candidate, ensure_cards=False)
-        candidate.assumptions.extend(_open_meal_leg_gaps(candidate))
         for note in meal_notes:
             if f"第{new_day}天" in note and note not in notes:
                 notes.append(note)
@@ -31937,7 +31935,6 @@ class PlanningAgent:
                     # 安排）」是软卡撞车，不该耗一轮 LLM 修复——先把占位
                     # 挪到空窗再复检，挪不动（真空窗不足）才留给修复轮。
                     _retime_meal_placeholders(applied, ensure_cards=False)
-                    applied.assumptions.extend(_open_meal_leg_gaps(applied))
                     report = validate_plan(applied, poi_hours=[])
                     hard = [
                         v for v in report.violations if v.severity == RuleSeverity.error
