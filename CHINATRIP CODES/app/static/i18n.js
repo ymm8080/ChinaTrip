@@ -214,6 +214,7 @@
       "plan.unscheduled": "TBD",
       "plan.mode.cross": "Cross-city",
       "plan.noStart": "(no start date set)",
+      "plan.noEnd": "(no end city set)",
       "plan.startDays.title": "Departure city gets transport only — this day count is excluded",
       "plan.summaryToggle.title": "Expand / collapse the parameter form",
       "plan.cityNone": "(not set)",

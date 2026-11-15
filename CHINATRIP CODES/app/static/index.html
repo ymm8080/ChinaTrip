@@ -2786,10 +2786,12 @@ function planRouteForm() {
   // 结束城市选「（不经过）」时 end 是空串：空城不进 cities/city_days
   //（2026-11-13：origin 里带 "上海" + ""，/plan/start 收到空城串）。
   if (end) cityDays[end] = endDays;
+  // 结束城市留空（默认「未选」）时不计 endDays（2026-11-15）：那些天数属于
+  // 不存在的结束城，别混进合计。
   return {
     cities: [start, ...mids.map(m => m.city), end].filter(c => !!c),
     cityDays,
-    total: mids.reduce((s, m) => s + m.days, 0) + endDays,
+    total: mids.reduce((s, m) => s + m.days, 0) + (end ? endDays : 0),
   };
 }
 // 交通方式（2026-11-07 拍板）：全程城际段去程/途经/返程统一口径——auto=后端距离闸
@@ -2805,11 +2807,13 @@ function planTotalRefresh() {
   const sd = document.getElementById("planStartDate").value;
   const d = sd ? new Date(sd + "T00:00:00") : null;
   const endEl = document.getElementById("planEndDate");
-  if (d && !isNaN(d.getTime())) {
+  if (d && !isNaN(d.getTime()) && r.total >= 1) {
     d.setDate(d.getDate() + (r.total - 1)); // 行程最后一天（第 total 天）
     endEl.textContent = d.getFullYear() + "-" +
       String(d.getMonth() + 1).padStart(2, "0") + "-" +
       String(d.getDate()).padStart(2, "0");
+  } else if (r.total < 1) {
+    endEl.textContent = I18N.tf("plan.noEnd","（未选结束城市）");
   } else {
     endEl.textContent = I18N.tf("plan.noStart","（未设开始日期）");
   }
@@ -2825,10 +2829,12 @@ function planCityRender() {
   // 起始城市默认「未选」（2026-11-15 用户拍板「SET DEFAULT START CITY AS NONE」）：
   // 不再兜底上海——初始/重置后为空，planRouteForm 会把空城滤掉（cities 交给
   // 文字解析或后端追问）；结束城市默认不变。
-  const cur = { s: s.value, e: e.value || "上海",
+  // 结束城市默认「未选」（2026-11-15 用户拍板「结束城市保持其默认值 NULL」）：
+  // 去掉「上海」兜底；空值选项 label 用 plan.cityNone（via 城仍用「不经过」）。
+  const cur = { s: s.value, e: e.value,
     via: [1, 2].map(i => document.getElementById("planVia" + i).value || "") };
   s.innerHTML = '<option value="">' + I18N.tf("plan.cityNone","（未选）") + "</option>" + opts; s.value = cur.s;
-  e.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts; e.value = cur.e;
+  e.innerHTML = '<option value="">' + I18N.tf("plan.cityNone","（未选）") + "</option>" + opts; e.value = cur.e;
   for (let i = 1; i <= 2; i++) {
     const v = document.getElementById("planVia" + i);
     v.innerHTML = '<option value="">' + I18N.tf("plan.viaNone","（不经过）") + "</option>" + opts;
@@ -2924,6 +2930,10 @@ function planFormReset() {
     const e2 = document.getElementById(id);
     if (e2) e2.value = base[id];
   });
+  // 起始城一律回「未选」（2026-11-15 用户再拍板「START CITY SHOULD NOT AUTO
+  // FILL AS BEIJING, IT SHOULD BE DEFAULT NULL」）：显式置空，不依赖快照旧值。
+  document.getElementById("planStartCity").value = "";
+  document.getElementById("planEndCity").value = ""; // 结束城也回「未选」（2026-11-15）
   PLAN.startDate = base.planStartDate || "";
   planTotalRefresh();
 }
