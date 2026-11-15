@@ -34,8 +34,11 @@ def _cand(
     suggested=None,
     tags=None,
     loc=None,
+    hours: str | None = None,
 ):
     c: dict = {"name": name, "city": city, "category": cat}
+    if hours is not None:
+        c["opening_hours"] = hours
     if show:
         c["best_visit_time"] = "show"
     if suggested is not None:
@@ -186,8 +189,14 @@ def test_algo_show_closes_city_last_day_extra_show_takes_no_show_day():
     有演出；旧「落选即弃」语义由 b0a55e7 撤下，此锚改锁新拍板）。"""
     cands = [
         _cand("宽窄巷子", "成都"),
-        _cand("变脸表演", "成都", cat="entertainment", suggested=105),
-        _cand("蜀风雅韵", "成都", show=True),
+        _cand(
+            "变脸表演",
+            "成都",
+            cat="entertainment",
+            suggested=105,
+            hours="仅夜场（约19:30一场）",
+        ),
+        _cand("蜀风雅韵", "成都", show=True, hours="仅夜场（约20:10一场）"),
         _cand("人民公园", "成都"),
     ]
     items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 3)})
@@ -205,7 +214,9 @@ def test_algo_show_closes_city_last_day_extra_show_takes_no_show_day():
 
 
 def test_algo_show_without_suggested_defaults_90():
-    cands = [_cand("川剧秀", "成都", cat="entertainment")]
+    cands = [
+        _cand("川剧秀", "成都", cat="entertainment", hours="仅夜场（约19:30一场）")
+    ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"成都": (1, 2)})
     assert items[0]["duration_minutes"] == 90
 
@@ -226,12 +237,14 @@ def test_algo_needs_no_rating_fields_and_is_deterministic():
     a = PlanningAgent._deterministic_selection(cands, 2, {"上海": (1, 2)})
     b = PlanningAgent._deterministic_selection(list(cands), 2, {"上海": (1, 2)})
     assert a == b
-    assert len(a) == 9  # 8 游览点（每日闸 4×2 天全放下）+ 1 场演出
+    # 2026-11-14 拍板：无真场次的演出不进自动通道（「HAS NO SHOW TIME
+    # INFORMATION, WHY WE PICK IT UP?」）——剩 8 个游览点（每日闸 4×2）
+    assert len(a) == 8
 
 
 def test_algo_clamps_day_into_total_days():
     cands = [
-        _cand("演出", "成都", cat="entertainment"),
+        _cand("演出", "成都", cat="entertainment", hours="仅夜场（约19:30一场）"),
         _cand("景点", "成都"),
     ]
     items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 4)})
@@ -245,7 +258,7 @@ def test_algo_show_avoids_return_day_when_evening_blocked():
     # 钉 day5 撞 17:00 航班 → day5 两卡 None 时间 + 全计划顺序兜底降级）
     cands = [
         _cand("景点A", "西安"),
-        _cand("夜场秀", "西安", cat="entertainment"),
+        _cand("夜场秀", "西安", cat="entertainment", hours="仅夜场（约19:30一场）"),
     ]
     items = PlanningAgent._deterministic_selection(
         cands, 5, {"西安": (1, 5), "上海": (5, 5)}, transfer_days={1, 5}
@@ -258,7 +271,7 @@ def test_algo_show_stays_on_last_day_without_return_leg():
     # 末日无返程腿（transfer_days 不含总天数）：夜场照旧钉城市末日
     cands = [
         _cand("景点A", "成都"),
-        _cand("变脸表演", "成都", cat="entertainment"),
+        _cand("变脸表演", "成都", cat="entertainment", hours="仅夜场（约19:30一场）"),
     ]
     items = PlanningAgent._deterministic_selection(
         cands, 3, {"成都": (1, 3)}, transfer_days={1}
@@ -276,7 +289,9 @@ def test_show_day_budget_reserves_show_minutes():
         _cand(f"点{i:02d}", "成都", suggested=90, loc=(104.06, 30.66))
         for i in range(14)
     ]
-    cands.append(_cand("夜场秀", "成都", cat="entertainment"))
+    cands.append(
+        _cand("夜场秀", "成都", cat="entertainment", hours="仅夜场（约19:30一场）")
+    )
     items = PlanningAgent._deterministic_selection(
         cands, 5, {"成都": (1, 5)}, transfer_days={1, 5}
     )
@@ -297,7 +312,13 @@ def test_algo_show_adjacent_sight_co_schedules_with_pinned_show():
     cands = [
         near,
         far,
-        _cand("锦里古戏台", "成都", cat="entertainment", loc=(104.0588, 30.6502)),
+        _cand(
+            "锦里古戏台",
+            "成都",
+            cat="entertainment",
+            loc=(104.0588, 30.6502),
+            hours="仅夜场（约19:30一场）",
+        ),
     ]
     items = PlanningAgent._deterministic_selection(cands, 3, {"成都": (1, 3)})
     day = {it["name"]: it["day"] for it in items}
@@ -1072,9 +1093,13 @@ def test_fallback_shifts_lunch_for_oversize_morning_visit():
     )
     _fallback_sequence_times(plan)
     assert big.start_time is not None and big.start_time.hour == 8
-    assert big.end_time is not None and big.end_time.hour == 13
-    # 午餐硬窗 [11:30, 12:30] 被大点整段压满：移除（不插 8pm 午餐）
-    assert lunch not in plan.days[0].items
+    assert big.end_time is not None and big.end_time.hour == 12
+    assert big.end_time.minute == 30
+    # 日始 08:30 后 240 分钟大点收在 12:30=硬窗末：午餐保住、贴后满时长
+    # （旧口径「整段压满 → 移除」的前提已不成立）
+    assert lunch in plan.days[0].items
+    assert lunch.start_time is not None and lunch.start_time.hour == 12
+    assert lunch.start_time.minute == 30
 
 
 def _mini_plan_with_lunch(lunch_start, show=None, visit_dur=120):
