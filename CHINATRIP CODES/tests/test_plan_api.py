@@ -159,6 +159,12 @@ def start(client: TestClient, body: dict, headers=None):
     )
 
 
+def _session(client: TestClient, agent: PlanningAgent, sid: str):
+    """取会话本体（看规划期只写会话态、没写库）。"""
+    store = client.app.dependency_overrides[get_plan_sessions]()
+    return store.get(sid, device_id=DEVICE_HEADERS["X-Device-ID"])
+
+
 def message(client: TestClient, session_id: str, text: str, headers=None):
     return client.post(
         f"/api/v1/plan/{session_id}/message",
@@ -493,8 +499,21 @@ def test_sites_confirm_endpoint_writes_only_picked():
     data = r.json()
     assert data["state"] == "ready"
     assert data["plan"] is not None
-    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["西湖"]
+    # 2026-11-15 用户拍板：规划期不写心愿行（不复制/不缓存），点选结果记会话
+    assert svc.list_groups()["wishlist"] == []
+    session = _session(client, agent, sid)
+    assert "西湖" in session.wish_sources
+    assert "灵隐寺" not in session.wish_sources
+    assert "西溪湿地" not in session.wish_sources
     assert "未点选的 2 个地点没有写入心愿单" in data["reply"]
+    # 保存行程 = 心愿单落库的唯一写时刻
+    r = client.post(
+        f"/api/v1/plan/{sid}/save", json={"name": "杭州两日"}, headers=DEVICE_HEADERS
+    )
+    assert r.status_code == 201
+    names = [i["name"] for zone in svc.list_groups().values() for i in zone]
+    assert "西湖" in names
+    assert "灵隐寺" not in names and "西溪湿地" not in names
 
     # the round is closed: a second confirm is a 409
     r = client.post(
@@ -566,8 +585,16 @@ def test_start_brief_opens_sites_confirm_round():
     data = r.json()
     assert data["state"] == "ready"
     assert data["plan"] is not None
-    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["天坛"]
+    # 2026-11-15 拍板：规划期不写行，点选的必去记在会话
+    assert svc.list_groups()["wishlist"] == []
+    assert "天坛" in _session(client, agent, sid).wish_sources
     assert "你确认的" in data["reply"]
+    r = client.post(
+        f"/api/v1/plan/{sid}/save", json={"name": "北京两日"}, headers=DEVICE_HEADERS
+    )
+    assert r.status_code == 201
+    names = [i["name"] for zone in svc.list_groups().values() for i in zone]
+    assert "天坛" in names
 
 
 class VisionStubAdapter(StubAdapter):
@@ -623,7 +650,15 @@ def test_images_endpoint_opens_site_round():
     assert r.status_code == 200
     data = r.json()
     assert data["state"] == "ready"
-    assert [i["name"] for i in svc.list_groups()["wishlist"]] == ["天坛"]
+    # 2026-11-15 拍板：规划期不写行；保存才物化
+    assert svc.list_groups()["wishlist"] == []
+    assert "天坛" in _session(client, agent, sid).wish_sources
+    r = client.post(
+        f"/api/v1/plan/{sid}/save", json={"name": "北京两日"}, headers=DEVICE_HEADERS
+    )
+    assert r.status_code == 201
+    names = [i["name"] for zone in svc.list_groups().values() for i in zone]
+    assert "天坛" in names
 
 
 # --- POST /plan/{id}/save：显式落库（2026-10-20 产品规则） -------------------
@@ -1155,7 +1190,16 @@ def test_delete_removes_pinned_item_and_marks_unwanted():
     names = [i.get("name") for d in data["plan"]["days"] for i in d["items"]]
     assert "雷峰塔" not in names  # pinned item is NOT blocked by rule 19
     assert data["reply"] == "已删除 雷峰塔，已记入不想去"
-    assert svc.calls == [("雷峰塔", iid, "杭州")]
+    # 2026-11-15 拍板：规划期不写库——排除项先记会话，保存时打 EXCLUSION
+    assert svc.calls == []
+    assert "雷峰塔" in _session(client, agent, sid).avoid_sites
+    r = client.post(
+        f"/api/v1/plan/{sid}/save", json={"name": "沪杭两日"}, headers=DEVICE_HEADERS
+    )
+    assert r.status_code == 201
+    # 城市留档来自会话 site_cities（删卡时该点已不在行程，按会话城市兜底）
+    assert [c[0] for c in svc.calls] == ["雷峰塔"]
+    assert svc.calls[0][1] == iid
 
 
 def test_delete_guard_chain_400_404():
