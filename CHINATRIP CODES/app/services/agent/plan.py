@@ -20496,10 +20496,12 @@ class PlanningAgent:
                     note=note,
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
-                    must_visit=(name in (session.must_visits or []) and not dropped),
+                    must_visit=(
+                        name in (session.must_visits or []) and not dropped
+                    ),
                 )
                 committed += 1
-            except (InvalidSourceError, ValueError):
+            except ValueError:
                 logger.warning("plan: wish materialize create failed %s", name)
                 continue
             if dropped:
@@ -20509,7 +20511,9 @@ class PlanningAgent:
                         row["id"], status=STATUS_UNWANTED, note=note
                     )
                 except Exception:
-                    logger.warning("plan: wish materialize unwanted failed %s", name)
+                    logger.warning(
+                        "plan: wish materialize unwanted failed %s", name
+                    )
                 continue
             if off_trip or target is None or target.start_time is None:
                 continue
@@ -20542,7 +20546,7 @@ class PlanningAgent:
                     city=city,
                 )
                 committed += 1
-            except (InvalidSourceError, ValueError):
+            except ValueError:
                 logger.warning("plan: exclusion materialize failed %s", name)
         return committed
 
@@ -30946,7 +30950,8 @@ class PlanningAgent:
                             notes.append(
                                 L(
                                     f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
-                                    f"{wish} saved to your wishlist ({city}, not part of this trip)",
+                                    f"{wish} saved to your wishlist "
+                                    f"({city}, not part of this trip)",
                                 )
                             )
                 elif not is_category:
@@ -30970,9 +30975,7 @@ class PlanningAgent:
             if not fresh_city:
                 _bound = (session.wish_bindings or {}).get(
                     wish
-                ) or self._wish_bindings.get(
-                    wish,
-                )
+                ) or self._wish_bindings.get(wish)
                 fresh_city = str((_bound or {}).get("city") or "").strip()
             if fresh_city:
                 pending = [p for p in pending if p != wish]
