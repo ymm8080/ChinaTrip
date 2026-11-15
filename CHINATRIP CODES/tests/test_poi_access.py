@@ -444,3 +444,103 @@ def test_fallback_clamps_scheduled_gap_after_soft_lunch(monkeypatch):
     start = mty.start_time.hour * 60 + mty.start_time.minute
     end_prev = lunch.end_time.hour * 60 + lunch.end_time.minute
     assert start >= end_prev + 120  # 候车 10 + 车上 108 + 落客 8 的下界
+
+
+def test_clamp_repacks_later_cards_without_pushing_dinner(monkeypatch):
+    """收口用最小重排：慕田峪后移，晚饭不该被等量推 112 分钟。"""
+    import app.services.poi_access as pa
+    from app.services.agent import plan as plan_mod
+    from app.services.itinerary.models import time as _t
+
+    profile = {
+        "access_mode": "shuttle",
+        "access_boarding_lon": 116.398256,
+        "access_boarding_lat": 39.898886,
+        "access_service_minutes": 108,
+        "access_wait_minutes": 10,
+        "access_last_mile_minutes": 8,
+    }
+    monkeypatch.setattr(
+        pa,
+        "profile_for",
+        lambda city, name: profile if name == "慕田峪长城" else None,
+    )
+
+    lunch = _visit("lunch", "午饭（自由安排）", 116.4109, 39.9097)
+    lunch.category = "food"
+    lunch.soft_pin = True
+    lunch.start_time = _t(12, 0)
+    lunch.end_time = _t(13, 0)
+
+    mty = _visit("mty", "慕田峪长城", 116.5598, 40.4267)
+    mty.start_time = _t(13, 30)
+    mty.end_time = _t(17, 30)
+    mty.duration_minutes = 240
+
+    dinner = _visit("dinner", "晚饭（自由安排）", 116.4109, 39.9097)
+    dinner.category = "food"
+    dinner.soft_pin = True
+    dinner.start_time = _t(19, 0)
+    dinner.end_time = _t(20, 30)
+
+    day = DayPlan(day=1, base_city="北京", items=[lunch, mty, dinner])
+    plan = ItineraryPlan(itinerary_id="it-5", cities=["北京"], days=[day])
+    plan_mod._clamp_chain_gaps(plan)
+
+    start = mty.start_time.hour * 60 + mty.start_time.minute
+    dinner_start = dinner.start_time.hour * 60 + dinner.start_time.minute
+    assert start >= 15 * 60 + 20, "慕田峪 应按链值后移到 15:22 之后"
+    assert dinner_start <= 19 * 60 + 40, "晚饭只该让位到 19:40 以内"
+
+
+def test_meal_before_chain_site_keeps_remote_transfer(monkeypatch):
+    """午饭 12:00-13:00 → 慕田峪 13:30 必须按接驳链顺延（终装餐腿 + 收口两道）。"""
+    import app.services.poi_access as pa
+    from app.services.agent import plan as plan_mod
+    from app.services.itinerary.models import time as _t
+
+    profile = {
+        "access_mode": "shuttle",
+        "access_boarding_lon": 116.398256,
+        "access_boarding_lat": 39.898886,
+        "access_service_minutes": 108,
+        "access_wait_minutes": 10,
+        "access_last_mile_minutes": 8,
+    }
+    monkeypatch.setattr(
+        pa,
+        "profile_for",
+        lambda city, name: profile if name == "慕田峪长城" else None,
+    )
+
+    lunch = _visit("lunch", "午饭（自由安排）", 116.4109, 39.9097)
+    lunch.location = None  # 占位餐卡：只有名字没有坐标（线上真实形态）
+    lunch.category = "food"
+    lunch.soft_pin = True
+    lunch.start_time = _t(12, 0)
+    lunch.end_time = _t(13, 0)
+    lunch.duration_minutes = 60
+
+    mty = _visit("mty", "慕田峪长城", 116.5598, 40.4267)
+    mty.city = "北京"
+    mty.start_time = _t(13, 30)
+    mty.end_time = _t(17, 30)
+    mty.duration_minutes = 240
+
+    dinner = _visit("dinner", "晚饭（自由安排）", 116.4109, 39.9097)
+    dinner.location = None
+    dinner.category = "food"
+    dinner.soft_pin = True
+    dinner.start_time = _t(19, 0)
+    dinner.end_time = _t(20, 30)
+    dinner.duration_minutes = 90
+
+    day = DayPlan(day=2, base_city="北京", items=[lunch, mty, dinner])
+    plan = ItineraryPlan(itinerary_id="it-6", cities=["北京"], days=[day])
+
+    plan_mod._open_meal_leg_gaps(plan)
+    plan_mod._clamp_chain_gaps(plan)
+
+    meal_end = lunch.end_time.hour * 60 + lunch.end_time.minute
+    start = mty.start_time.hour * 60 + mty.start_time.minute
+    assert start - meal_end >= 140, "午饭→慕田峪 必须留够接驳链（约 142 分钟）"

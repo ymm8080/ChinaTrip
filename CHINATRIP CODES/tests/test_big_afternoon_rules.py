@@ -374,7 +374,10 @@ def test_fallback_schedules_big_before_street():
     plan = _plan_with([DayPlan(day=1, base_city="西安", items=[hj, dm])])
     _fallback_sequence_times(plan)
     starts = {v.item_id: _minutes(v) for v in plan.days[0].items if v.start_time}
-    assert starts["dm"] == 9 * 60
+    # 日头下限是 DAY_START_MINUTES（08:30）——大点吃头档，不再固定 09:00。
+    from app.services.itinerary.solver import DAY_START_MINUTES
+
+    assert starts["dm"] == DAY_START_MINUTES
     assert starts["dm"] < starts["hj"]
 
 

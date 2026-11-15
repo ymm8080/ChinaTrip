@@ -11069,22 +11069,32 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             start = _minutes_of(cur.start_time)
             if start >= need:
                 continue
-            delta = need - start
             rows: list[tuple[VisitItem, int, int]] = []
             blocked = False
-            for later in timed[idx:]:
-                s = _minutes_of(later.start_time) + delta
+            # 本件落到 need，后面的件按「不早于原时刻、不早于前件尾」最小重排——
+            # 等量平移会把晚饭一起推 112 分钟（19:00 → 20:52），最小重排只在
+            # 真被压住时才让位。
+            cur_dur = cur.duration_minutes or DEFAULT_VISIT_MINUTES
+            rows.append((cur, need, need + cur_dur))
+            cursor_end = need + cur_dur
+            for later in timed[idx + 1 :]:
+                orig = _minutes_of(later.start_time)
                 if later.end_time is not None:
-                    e = _minutes_of(later.end_time) + delta
+                    dur = _minutes_of(later.end_time) - orig
+                elif later.duration_minutes is not None:
+                    dur = later.duration_minutes
                 else:
-                    e = s
+                    dur = DEFAULT_VISIT_MINUTES
+                s = max(orig, cursor_end)
+                e = s + dur
                 if e >= 24 * 60:
                     blocked = True
                     break
-                if later is not cur and later.pinned and not later.soft_pin:
+                if later.pinned and not later.soft_pin:
                     blocked = True
                     break
                 rows.append((later, s, e))
+                cursor_end = e
             if blocked:
                 continue
             for later, s, e in rows:
@@ -12117,6 +12127,8 @@ def _meal_gap_movable(item: object) -> bool:
 
 def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
     """餐卡与紧邻景点之间补齐通勤腿（终装最后一道，夜卡/晨卡之前）。"""
+    from app.services.poi_access import head_chain_minutes
+
     notes: list[str] = []
     day_end = 21 * 60 + 30
     for day in plan.days:
@@ -12140,6 +12152,15 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
                 idx += 1
                 continue
             need = _leg_minutes_estimate(meal, site)
+            # 班次点（景区专线/市郊铁路/轮渡）不吃 15 分钟城内短驳估值：
+            # 餐卡有坐标走车→乘车点链，没坐标按城心头部链兜底，否则
+            # 「午饭 12:00-13:00 → 慕田峪 13:30」这种 30 分钟硬贴又回来了。
+            # 注意：本函数内 chain 是当天排序列表，这里另起名字
+            access_min = access_chain_minutes(meal, site)
+            if access_min is None:
+                access_min = head_chain_minutes(site)
+            if access_min:
+                need = max(need, access_min)
             if need <= 0:
                 idx += 1
                 continue
@@ -27704,6 +27725,10 @@ class PlanningAgent:
         # 12:00 开场显然是不合适的」）：餐卡落位只避固定窗不吃通勤腿，
         # 收口前把「餐→下一景点」的腿补出来，景点顺延而不是硬贴。
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
+        # 班次点接驳链收口（2026-11-15）：solver 解成功时不走兜底，
+        # 「午饭 12:00-13:00 → 慕田峪 13:30」就漏在这儿——统一在夜卡/
+        # 晨卡之前把链值补齐，夜卡才贴得住修正后的末件。
+        plan.assumptions.extend(_clamp_chain_gaps(plan))
         # 每晚酒店卡（2026-11-07 用户指令「CREATE NEW SLOT FOR HOTEL IN
         # THE LAST OF THE DAY」）：排程全部收口（solver/兜底/清算/终闸）
         # 之后按当天最终时链在每天末尾插「回酒店·夜间休息」软锚卡——
