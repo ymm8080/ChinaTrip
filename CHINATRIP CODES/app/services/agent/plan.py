@@ -10908,6 +10908,70 @@ def _morning_head_displacement(
     )
 
 
+def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
+    """兜底排时收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
+
+    为什么要在兜底之后单独收：`_fallback_sequence_times` 的落位探针按
+    「前件尾 / 营业窗 / 占窗」推进，腿时靠占窗 pad 表达；聊天加卡、删卡重排
+    这类路径没有 solver 矩阵，专线 2 小时+ 会被排成 30 分钟（慕田峪实录：
+    午饭 13:00 → 13:30）。这里按天做一次前向收口：链值不足就把本件及之后
+    的件整体后移。
+
+    保守边界：后移越过午夜、或撞上用户手钉卡（铁律 19）时整段跳过——宁可
+    留旧时刻也不破钉；餐/酒店软卡照常跟着走（它们本就跟着景点尾巴）。
+    """
+    notes: list[str] = []
+    for day in plan.days:
+        timed = [
+            i
+            for i in day.items
+            if isinstance(i, VisitItem) and i.start_time is not None
+        ]
+        timed.sort(key=lambda i: _minutes_of(i.start_time))
+        for idx in range(1, len(timed)):
+            prev, cur = timed[idx - 1], timed[idx]
+            chain = access_chain_minutes(prev, cur)
+            if not chain:
+                continue
+            prev_end = _minutes_of(prev.end_time) if prev.end_time else None
+            if prev_end is None:
+                continue
+            need = prev_end + chain
+            start = _minutes_of(cur.start_time)
+            if start >= need:
+                continue
+            delta = need - start
+            rows: list[tuple[VisitItem, int, int]] = []
+            blocked = False
+            for later in timed[idx:]:
+                s = _minutes_of(later.start_time) + delta
+                if later.end_time is not None:
+                    e = _minutes_of(later.end_time) + delta
+                else:
+                    e = s
+                if e >= 24 * 60:
+                    blocked = True
+                    break
+                if later is not cur and later.pinned and not later.soft_pin:
+                    blocked = True
+                    break
+                rows.append((later, s, e))
+            if blocked:
+                continue
+            for later, s, e in rows:
+                later.start_time = time(s // 60, s % 60)
+                later.end_time = time(e // 60, e % 60)
+            notes.append(
+                L(
+                    f"第{day.day}天「{cur.name}」按接驳行程改到 "
+                    f"{need // 60:02d}:{need % 60:02d} 起",
+                    f'Day {day.day} "{cur.name}" moved to '
+                    f"{need // 60:02d}:{need % 60:02d} for the transfer chain",
+                )
+            )
+    return notes
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -11660,6 +11724,8 @@ def _fallback_sequence_times(
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
+
+    _clamp_chain_gaps(plan)
 
 def _meal_card_back_to_default(
     meal: VisitItem,
@@ -12701,6 +12767,23 @@ def _probe_visit_slot(
             t = fe
             advanced = True
             break
+        # 班次接驳（2026-11-15「TAXI + 接驳腿」）：兜底/加卡路径不经过 solver
+        # 矩阵，前一落位卡到本件的腿按接驳链补——否则专线 2 小时+ 会被当成
+        # 30 分钟就近可达（慕田峪：午饭 13:00 → 13:30 实录）。放在窗推之后，
+        # 链值把 t 顶进别的窗时靠外层 while 再推一轮，必然收敛。
+        _prev, _prev_end = None, -1
+        for _fs, _fe, _src in fixed:
+            if not isinstance(_src, VisitItem) or _src is visit:
+                continue
+            _real_end = _minutes_of(_src.end_time)
+            if _real_end is None or _real_end > t or _real_end <= _prev_end:
+                continue
+            _prev, _prev_end = _src, _real_end
+        if _prev is not None:
+            _chain = access_chain_minutes(_prev, visit)
+            if _chain and t < _prev_end + _chain:
+                t = _prev_end + _chain
+                advanced = True
     if cap_max is not None and t > cap_max:
         return None
     hours = hours_by_poi.get(visit.poi_id)
