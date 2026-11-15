@@ -10,8 +10,17 @@ import asyncio
 import json
 from datetime import time
 
-from app.services.agent.plan import PlanningAgent, PlanSession
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.api.itineraries import get_entitlement_service, get_store
+from app.api.itineraries import router as itineraries_router
+from app.api.plan import get_plan_sessions, get_planning_agent
+from app.api.plan import router as plan_router
+from app.services.agent.plan import PlanningAgent, PlanSession, PlanSessionStore
+from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.itinerary import DayPlan, GeoPoint, ItineraryPlan, VisitItem
+from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.trip_items import TripItemService
 
@@ -85,9 +94,7 @@ def test_save_materializes_wishes_into_rows():
     进已排期（note 已安排），没排上的进心愿单；排除项打 EXCLUSION。"""
     svc = TripItemService()
     agent = PlanningAgent(StubAdapter(), trip_items=svc)
-    session = _session(
-        wish_sources={"豫园": {"source": "chat", "note": "来自聊天", "city": "上海"}}
-    )
+    session = _session(wish_sources={"豫园": {"source": "chat", "note": "来自聊天", "city": "上海"}})
     session.must_visits = ["豫园"]
     session.avoid_sites = ["迪士尼"]
     # 排期里有豫园（外滩之后）：物化时应翻已排期

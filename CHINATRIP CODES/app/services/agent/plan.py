@@ -15966,6 +15966,10 @@ class PlanSession(BaseModel):
     # 自由输入点名的排除项（2026-11-14 北京小众案）：「尽量避开故宫、长城」
     # 里的地点不是必去，是排除项——不进 must_visits，选点池同名候选直接出局。
     avoid_sites: list[str] = Field(default_factory=list)
+    # 心愿来源留档（2026-11-15 用户拍板「心愿单只在保存/删除时进数据库」）：
+    # 规划期间建的心愿不再落库——名字 → {source, note, city, dropped}，
+    # 保存行程时 materialize_wish_rows 按它物化成正式行。
+    wish_sources: dict[str, dict] = Field(default_factory=dict)
 
 
 def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
@@ -17075,12 +17079,10 @@ class PlanningAgent:
         """未保存行程的心愿行是会话草稿（2026-11-14 用户拍板：
         「WHEN I DO NOT SAVE TRIP, 心愿单 should not be saved」）。
 
-        新建行程要等用户点「💾 保存行程」才把心愿行转正；载入已存行程的
-        改动（✏️ 修改）里，行程本身已经在库里，心愿单改动即时生效。
-        返回会话号（草稿标记）或 None（已保存/编辑既有行程）。"""
-        if session.source_itinerary_id or session.wish_committed:
-            return None
-        return session.session_id
+        2026-11-15 用户拍板「心愿单只在保存/删除时进数据库」：规划期间
+        不再建草稿行（愿望走会话 wish_sources，保存物化）——恒 None。
+        保留入口只为兼容既有调用。"""
+        return None
 
     def _record_link_sites(
         self,
@@ -17091,13 +17093,12 @@ class PlanningAgent:
         origin: str = "link",
     ) -> None:
         """Product rule 2026-10-20: only the user-picked mandatory sites
-        land in the trip-center wishlist; optional/unpicked candidates
-        stay out of the DB (one「必去：…」away if wanted later)."""
-        if self._trip_items is None:
-            return
+        land in the trip-center wishlist. 2026-11-15 用户拍板「心愿单只在
+        保存/删除时进数据库」：规划期间不再建行——来源/城市/备注先记在
+        会话（wish_sources），保存行程时物化成正式行。"""
         kinds = kinds or {}
-        itinerary_id = session.plan.itinerary_id if session.plan is not None else None
         source = "chat" if origin in ("brief", "image") else "paste"
+        sources = dict(session.wish_sources or {})
         for site in mandatory:
             label = (
                 L("必去·餐饮", "Must-visit · food")
@@ -17122,21 +17123,7 @@ class PlanningAgent:
                     f"来自链接 {url}（{label}）",
                     f"From a shared link {url} ({label})",
                 )
-            try:
-                self._trip_items.create(
-                    site,
-                    source=source,
-                    itinerary_id=itinerary_id,
-                    owner_device_id=session.device_id,
-                    city=city,
-                    note=note,
-                    # 2026-11-14：未保存行程的心愿行是草稿（看板不显示）
-                    draft_session_id=self._wish_draft_session(session),
-                    # USER ID 键（登录账号，换设备登录也能看到）
-                    owner_account_id=getattr(session, "account_id", None),
-                )
-            except ValueError:
-                logger.warning("plan: trip item create failed for %s", site)
+            sources[site] = {"source": source, "note": note, "city": city}
             # §5.3：链接解析按 POI 聚合计数（小红书热度代理，只存统计）
             try:
                 from app.services.poi_feedback import get_poi_feedback_store
@@ -17144,6 +17131,7 @@ class PlanningAgent:
                 get_poi_feedback_store().note_link_mention(site, city)
             except Exception:
                 logger.warning("plan: note_link_mention failed", exc_info=True)
+        session.wish_sources = sources
 
     async def _add_must_visits(
         self,
@@ -18200,32 +18188,11 @@ class PlanningAgent:
     # --- v0 generation ----------------------------------------------------
 
     def _backfill_wish_city(self, name: str, city: str) -> None:
-        """心愿单定城补写（2026-10-28 拍板：心愿单条目尽量带城市）。
-
-        只写回空城行，不覆盖用户手填/已定城市；模糊同站行写回一条即止。
-        Best-effort——任何失败只留日志，绝不阻塞规划回合。"""
-        if self._trip_items is None or not (city or "").strip():
-            return
-        city = (city or "").strip().removesuffix("市")
-        try:
-            for group in self._trip_items.list_groups().values():
-                for it in group:
-                    if (it.get("city") or "").strip():
-                        continue
-                    if _name_dup(it.get("name") or "", name):
-                        try:
-                            self._trip_items.update(it["id"], city=city)
-                        except Exception:
-                            logger.warning(
-                                "plan: wish city write-back failed for %s",
-                                name,
-                                exc_info=True,
-                            )
-                        return
-        except Exception:
-            logger.warning(
-                "plan: wish city backfill failed for %s", name, exc_info=True
-            )
+        """心愿城市记录（2026-11-15 用户拍板「心愿单只在保存/删除时进
+        数据库」）：规划期间不再写心愿行——城市随绑定/会话状态走
+        （wish_bindings[name]["city"] / session.site_cities），保存行程
+        物化成行时一并落库。保留入口只为兼容既有调用。""";
+        return
 
     async def _brief_site_round(
         self, session: PlanSession, images: list[tuple[bytes, str]] | None = None
@@ -20423,39 +20390,174 @@ class PlanningAgent:
     def commit_wish_drafts(
         self, session: PlanSession, account: str | None = None
     ) -> int:
-        """点「💾 保存行程」= 本会话心愿行转正（2026-11-14 用户拍板
-        「WHEN I DO NOT SAVE TRIP, 心愿单 should not be saved」的对偶：
-        保存了就该进心愿单）。清掉 draft_session_id 后看板即可见；
-        之后再聊出来的心愿行也直接是正式行（行程已在库）。"""
+        """点「💾 保存行程」= 心愿单落库的唯一写时刻（2026-11-15 用户拍板
+        「心愿单只在 保存新行程/保存修改/删除 时进数据库；规划期间不写库、
+        不复制、不缓存」）：把会话里记下的心愿（must_visits / created_sites /
+        wish_bindings / wish_sources / avoid_sites）按最终排期物化成
+        trip_items 行，然后一次对账（翻已排期/回心愿单/去重）。返回落库行数。
+        """
         if self._trip_items is None or session.plan is None:
             return 0
-        itinerary_id = session.plan.itinerary_id
-        hook = getattr(self._trip_items, "commit_drafts", None)
-        committed = (
-            hook(
-                itinerary_id,
-                session.session_id,
-                owner_account_id=(account or getattr(session, "account_id", None)),
-            )
-            if callable(hook)
-            else 0
-        )
+        committed = self.materialize_wish_rows(session, account=account)
+        self.sync_trip_rows(session, at_save=True)
         session.wish_committed = True
         logger.info(
-            "plan: wish drafts committed itinerary=%s rows=%s",
-            itinerary_id,
+            "plan: wish rows materialized itinerary=%s rows=%s",
+            session.plan.itinerary_id,
             committed,
         )
-        return int(committed or 0)
+        return committed
 
-    def sync_trip_rows(self, session: PlanSession) -> None:
-        """行程↔看板对账入口（2026-11-13 用户报「陕历博在行程里被安排，却没从
-        心愿单翻到已排期」）：打开/保存/载入行程都跑一遍——心愿单里已被本行程
-        落排的点翻已排期，已排期里本行程已经没有的点回心愿单。Best-effort，
-        绝不阻塞请求。"""
+    def materialize_wish_rows(
+        self, session: PlanSession, *, account: str | None = None
+    ) -> int:
+        """会话心愿 → trip_items 行（保存行程的时刻才写库）：按名字去重复用
+        已存行；排进行程的翻 scheduled（note 已安排 + 规划字段），没排上的
+        落心愿单（城市留档）；排除项（avoid_sites）打 EXCLUSION；城市不在
+        本次行程的心愿落无行程心愿行。Best-effort。"""
+        if self._trip_items is None or session.plan is None:
+            return 0
+        plan = session.plan
+        itinerary_id = plan.itinerary_id
+        account_id = account or getattr(session, "account_id", None)
+        trip_cities = {
+            _norm_city(c or "").removesuffix("市")
+            for c in session.cities
+            if (c or "").strip()
+        }
+        for day in plan.days:
+            day_cities = {
+                _norm_city(i.city or "").removesuffix("市")
+                for i in day.items
+                if isinstance(i, VisitItem) and (i.city or "").strip()
+            }
+            if day_cities:
+                trip_cities |= day_cities
+        names: list[str] = []
+        for source in (
+            session.must_visits,
+            session.created_sites,
+            list((session.wish_sources or {}).keys()),
+            list((session.wish_bindings or {}).keys()),
+        ):
+            for name in source:
+                if name and not any(_same_site(name, n) for n in names):
+                    names.append(name)
+        committed = 0
+        for name in names:
+            bound = (session.wish_bindings or {}).get(name) or self._wish_bindings.get(
+                name
+            )
+            city = (
+                session.site_cities.get(name)
+                or str((bound or {}).get("city") or "").strip().removesuffix("市")
+                or (session.wish_sources or {}).get(name, {}).get("city")
+                or None
+            )
+            if city == "":
+                city = None
+            meta = (session.wish_sources or {}).get(name) or {}
+            source = str(meta.get("source") or "chat")
+            note = str(meta.get("note") or "") or L("来自聊天", "From chat")
+            dropped = bool(meta.get("dropped"))
+            target = None
+            for day in plan.days:
+                for item in day.items:
+                    if not isinstance(item, VisitItem):
+                        continue
+                    if (
+                        bound is not None
+                        and item.poi_id
+                        and item.poi_id == str(bound.get("source_poi_id") or "")
+                    ):
+                        target = item
+                        break
+                    # 名字命中即可（无 poi_id 的用户点名条目也要能对上）
+                    if target is None and _name_dup(name, item.name):
+                        target = item
+                if target is not None:
+                    break
+            off_trip = bool(
+                city and trip_cities and _norm_city(city).removesuffix("市") not in trip_cities
+            )
+            row = None
+            try:
+                row = self._trip_items.create(
+                    name,
+                    source=source,
+                    # 保存行程 = 写库时刻：直接落正式行（无草稿）
+                    itinerary_id=(None if off_trip else itinerary_id),
+                    owner_device_id=session.device_id,
+                    owner_account_id=account_id,
+                    created_by=session.device_id,
+                    city=city,
+                    note=note,
+                    poi_id=str((bound or {}).get("source_poi_id") or "") or None,
+                    raw_command=name,
+                    must_visit=(
+                        name in (session.must_visits or []) and not dropped
+                    ),
+                )
+                committed += 1
+            except (InvalidSourceError, ValueError):
+                logger.warning("plan: wish materialize create failed %s", name)
+                continue
+            if dropped:
+                # 用户在追问轮撤掉的心愿：物化成 unwanted 行（心愿单移除留痕）
+                try:
+                    self._trip_items.update(
+                        row["id"], status=STATUS_UNWANTED, note=note
+                    )
+                except Exception:
+                    logger.warning(
+                        "plan: wish materialize unwanted failed %s", name
+                    )
+                continue
+            if off_trip or target is None or target.start_time is None:
+                continue
+            when = _wish_when_text(session, target)
+            tail = L(
+                f"已安排：{target.name}（第{target.day}天{when[0]}）",
+                f"Scheduled: {target.name} (day {target.day}{when[1]})",
+            )
+            full_note = f"{note}｜{tail}" if note and note not in tail else tail
+            try:
+                self._trip_items.update(
+                    row["id"],
+                    status=STATUS_SCHEDULED,
+                    day=target.day,
+                    note=full_note,
+                    **self._wish_row_plan_fields(session, target),
+                )
+            except Exception:
+                logger.warning(
+                    "plan: wish materialize schedule failed %s", name, exc_info=True
+                )
+        # 排除项（用户删掉的站点）：EXCLUSION 行（2026-11-13 拍板口径，
+        # 落库时刻=保存行程）
+        for name in session.avoid_sites or []:
+            try:
+                city = session.site_cities.get(name)
+                self._trip_items.mark_excluded(
+                    name,
+                    itinerary_id=itinerary_id,
+                    city=city,
+                )
+                committed += 1
+            except (InvalidSourceError, ValueError):
+                logger.warning("plan: exclusion materialize failed %s", name)
+        return committed
+
+    def sync_trip_rows(self, session: PlanSession, *, at_save: bool = False) -> None:
+        """行程↔看板对账（2026-11-15 用户拍板「心愿单只在 保存新行程/保存
+        修改/删除 时进数据库」）：只在保存行程时对账——规划回合内不再写
+        心愿行（不落库、不复制、不缓存），看板保持「最后一次保存」的状态。
+        Best-effort，绝不阻塞请求。"""
+        if not at_save:
+            return
         try:
-            self._sync_wish_rows(session)
-            self._sync_planned_rows(session)
+            self._sync_wish_rows(session, at_save=True)
+            self._sync_planned_rows(session, at_save=True)
             # 2026-11-14（用户报「已排期里同一个心愿出现两三条」）：对账收尾
             # 顺手去重——同一行程里同名心愿行只留一行（已排期优先、最早建
             # 的留任），多余行软删留档自愈。
@@ -20497,14 +20599,15 @@ class PlanningAgent:
             "end_time": item.end_time.strftime("%H:%M") if item.end_time else None,
         }
 
-    def _sync_wish_rows(self, session: PlanSession) -> None:
+    def _sync_wish_rows(self, session: PlanSession, *, at_save: bool = False) -> None:
         """心愿行收口（2026-10-30 拍板「行程中心已排期写清楚」）：已绑定
         进排期的心愿——补挂行程归属（聊天建行时 plan 未定→None，按行程
         过滤不可见）、翻 scheduled（已排期区可见）、note 写「已安排：落
         实点 · 第X天 日期 时间」。未绑定/占位行只补挂归属。重组行程会换
         itinerary_id：本会话挂过的旧 id 记在 session.linked_itins，允许重
-        挂。Best-effort，绝不阻塞规划回合。"""
-        if self._trip_items is None or session.plan is None:
+        挂。2026-11-15 用户拍板「心愿单只在保存/删除时进数据库」：只在
+        保存行程的对账里跑（at_save=True）。Best-effort。"""
+        if not at_save or self._trip_items is None or session.plan is None:
             return
         itin = session.plan.itinerary_id
         if not itin:
@@ -20749,7 +20852,7 @@ class PlanningAgent:
         if itin not in (session.linked_itins or []):
             session.linked_itins.append(itin)
 
-    def _sync_planned_rows(self, session: PlanSession) -> None:
+    def _sync_planned_rows(self, session: PlanSession, *, at_save: bool = False) -> None:
         """行程中心「已安排」分区对齐心愿单（2026-11-13 拍板：已排期只放
         已排的心愿单）。
 
@@ -20761,8 +20864,9 @@ class PlanningAgent:
         unwanted 用户表态不动；无既有行则不建行。历史 source=plan 引擎行
         （补源 scheduled 行/翻牌失败残渣）本轮一律清扫，booked/unwanted
         例外。行按名字全局去重、跟随当前行程——与 _sync_wish_rows 同语义。
+        2026-11-15 用户拍板：只在保存行程的对账里跑（at_save=True）。
         Best-effort。"""
-        if self._trip_items is None or session.plan is None:
+        if not at_save or self._trip_items is None or session.plan is None:
             return
         itin = session.plan.itinerary_id
         if not itin:
@@ -20773,7 +20877,6 @@ class PlanningAgent:
             for item in day.items
             if isinstance(item, VisitItem)
             and item.start_time is not None
-            and item.poi_id
             and ((item.category or "") != "food" or _is_show_banquet_item(item))
             and (item.category or "") != "hotel"
         ]
@@ -30539,11 +30642,12 @@ class PlanningAgent:
         *,
         session: "PlanSession | None" = None,
     ) -> None:
-        """Chat/button deletes flow to the trip center (2026-10-20): each
-        removed visit is recorded as「不想去」so the wishlist stops
-        re-suggesting it. Best-effort — service errors never block the
-        plan turn. Call only after the diffs applied successfully."""
-        if self._trip_items is None or not plan_before.itinerary_id:
+        """Chat/button deletes (2026-10-20): each removed visit stops the
+        wishlist from re-suggesting it. 2026-11-15 用户拍板「心愿单只在
+        保存/删除时进数据库」：规划期间不写排除行——记入会话
+        avoid_sites（选点闸即时生效），保存行程物化时打 EXCLUSION 落库。
+        Call only after the diffs applied successfully."""
+        if session is None:
             return
         by_id = {
             i.item_id: i
@@ -30551,33 +30655,16 @@ class PlanningAgent:
             for i in d.items
             if isinstance(i, VisitItem)
         }
+        removed: list[str] = list(session.avoid_sites or [])
         for op in diffs:
             if op.op != "remove" or not op.item_id:
                 continue
             item = by_id.get(op.item_id)
-            if item is None:
+            if item is None or not (item.name or "").strip():
                 continue
-            try:
-                # 2026-11-13 用户拍板：删站点 = 回心愿单 + 排除标记
-                # （不再塞进「不想去」分区；心愿单里仍可见）
-                self._trip_items.mark_excluded(
-                    item.name,
-                    itinerary_id=plan_before.itinerary_id,
-                    city=item.city,
-                    # 2026-11-14：未保存行程里新建的排除行同样是草稿
-                    draft_session_id=(
-                        self._wish_draft_session(session)
-                        if session is not None
-                        else None
-                    ),
-                    owner_account_id=(
-                        getattr(session, "account_id", None)
-                        if session is not None
-                        else None
-                    ),
-                )
-            except ValueError:
-                logger.warning("plan: mark_unwanted failed for %s", item.name)
+            if not any(_same_site(item.name, n) for n in removed):
+                removed.append(item.name)
+        session.avoid_sites = removed
 
     @staticmethod
     def _coerce_wishes(raw: object) -> list[str]:
@@ -30794,160 +30881,98 @@ class PlanningAgent:
                         _, _, readd_note = await self._add_must_visits(session, [wish])
                         if readd_note:
                             readd_notes.append(readd_note)
-            if session.plan is not None:
-                self._sync_wish_rows(session)
-                self._sync_planned_rows(session)
         except Exception:
             logger.warning("plan: wish sync-time bind failed", exc_info=True)
-        itinerary_id = session.plan.itinerary_id if session.plan else None
-        known: list[dict] = [
-            it
-            for group in self._trip_items.list_groups(None, session.device_id).values()
-            for it in group
-        ]
+        # 2026-11-15 用户拍板「心愿单只在 保存新行程/保存修改/删除 时进
+        # 数据库」：规划期间不再建行/翻行（不落库、不复制、不缓存）——愿望
+        # 记入会话（wish_sources 带来源/城市/愿望原话），保存行程时
+        # materialize_wish_rows 按最终排期物化成正式行。
+        sources = dict(session.wish_sources or {})
         trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}
         notes: list[str] = list(readd_notes)
         unresolved: list[tuple[str, dict]] = []
         for wish in wishes:
             if _is_service_meta_wish(wish):
-                # 服务型请求不建心愿行（2026-11-04「帮我看看天气」误建行
-                # 事故）：是让引擎干活的指令，不是可排期的地点。
+                # 服务型请求不是可排期的地点（2026-11-04 天气误建行事故）
                 logger.info("plan: chat wish skipped as service meta: %s", wish)
                 continue
             if _is_trip_brief_wish(wish):
-                # 2026-11-13（用户拍板「去成都玩三天不能算心愿单」）：
-                # 「去X玩N天」是整趟行程简报，不是可排期的点位。
+                # 「去X玩N天」是整趟行程简报，不是可排期的点位（2026-11-13）
                 logger.info("plan: chat wish skipped as trip brief: %s", wish)
                 continue
             try:
-                existing = next(
-                    (it for it in known if _name_dup(it["name"], wish)), None
+                is_category = (
+                    _category_search_keyword(wish) is not None
+                    and wish not in proper_override
                 )
-                if existing is None:
-                    is_category = (
-                        _category_search_keyword(wish) is not None
-                        and wish not in proper_override
-                    )
-                    city = None
-                    city_from_trip = False
-                    if is_category:
-                        # 泛称愿望自动落地（2026-10-28 用户拍板，去除每轮
-                        # 冒烟最后一处 clarify 摩擦）：行程城市已定且唯一→行
-                        # 直接记该城，不再追问「哪个城市」。2026-11-08 城市
-                        # 闸收口：先吃 WISH_CITY_HINTS——喝茶/茶馆是成都心
-                        # 愿，提示城写死（不在行程→记城+提示，不再就近硬
-                        # 塞）；无提示品类愿望（咖啡/夜市/博物馆…）才是
-                        # 「适合所有城市」，多城/未定→留空就近落实。行名
-                        # 维持用户原话（2026-10-24 逐字拍板不变）。
-                        bare_cities = {
-                            (c or "").strip().removesuffix("市")
-                            for c in session.cities
-                            if (c or "").strip()
-                        }
-                        hint = _wish_city_hint(wish)
-                        if hint:
-                            city = hint
-                        elif len(bare_cities) == 1:
-                            city = session.cities[0]
-                            city_from_trip = True
-                    else:
-                        city = await self._resolve_wish_city(wish)
-                        if not city:
-                            # 2026-11-13（用户拍板「心愿单的城市必须在
-                            # 插入的时候就标注城市」）：解析落空时吃语义
-                            # 绑定的落点城市——插入即带城，不留空行。
-                            _bound = (session.wish_bindings or {}).get(
-                                wish
-                            ) or self._wish_bindings.get(wish)
-                            _bcity = str((_bound or {}).get("city") or "").strip()
-                            if _bcity and not _is_unspecified(_bcity):
-                                city = _bcity
-                    from app.services.wish_seed import seed_from_pois
-
-                    _seed = seed_from_pois(wish, city)
-                    row = self._trip_items.create(
-                        wish,
-                        source="chat",
-                        itinerary_id=itinerary_id,
-                        owner_device_id=session.device_id,
-                        note=L("来自聊天", "From chat"),
-                        city=city,
-                        # 2026-11-14：未保存行程的心愿行是草稿（看板不显示）
-                        draft_session_id=self._wish_draft_session(session),
-                        # USER ID 键（登录账号，换设备登录也能看到）
-                        owner_account_id=getattr(session, "account_id", None),
-                        # 用户原话留档（心愿单数据库 raw_command）
-                        raw_command=wish,
-                        # POIS 点位属性（类别/时长/档位/坐标/rain_ok）
-                        kind=_seed.get("kind"),
-                        duration_minutes=_seed.get("duration_minutes"),
-                        tier=_seed.get("tier"),
-                        site_rank=_seed.get("site_rank"),
-                        latitude=_seed.get("latitude"),
-                        longitude=_seed.get("longitude"),
-                        rain_ok=_seed.get("rain_ok"),
-                        must_visit=True,
-                    )
-                    known.append(
-                        {
-                            "id": row["id"],
-                            "name": wish,
-                            "status": STATUS_WISHLIST,
-                            "city": city,
-                        }
-                    )
-                    if city:
-                        if not city_from_trip:
-                            # 行自带城（单城泛称）必在城内，不走「行程未含」
-                            # 提示；专名行与提示城品类行（2026-11-08 城市闸）
-                            # 维持原判。
-                            bare = _norm_city(city).removesuffix("市")
-                            if trip_cities and bare not in trip_cities:
-                                notes.append(
-                                    L(
-                                        f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
-                                        f'"{wish}" saved to your wishlist ({city}, not '
-                                        f"part of this trip)",
-                                    )
+                city = None
+                city_from_trip = False
+                if is_category:
+                    # 泛称愿望自动落地（2026-10-28 拍板）：行程城市唯一→记
+                    # 该城；提示城写死（2026-11-08 城市闸）；多城/未定→留空。
+                    bare_cities = {
+                        (c or "").strip().removesuffix("市")
+                        for c in session.cities
+                        if (c or "").strip()
+                    }
+                    hint = _wish_city_hint(wish)
+                    if hint:
+                        city = hint
+                    elif len(bare_cities) == 1:
+                        city = session.cities[0]
+                        city_from_trip = True
+                else:
+                    city = await self._resolve_wish_city(wish)
+                    if not city:
+                        # 解析落空时吃语义绑定的落点城市（2026-11-13 拍板）
+                        _bound = (session.wish_bindings or {}).get(
+                            wish
+                        ) or self._wish_bindings.get(wish)
+                        _bcity = str((_bound or {}).get("city") or "").strip()
+                        if _bcity and not _is_unspecified(_bcity):
+                            city = _bcity
+                # 城市留档（会话）：wish_sources + site_cities
+                if city:
+                    session.site_cities.setdefault(wish, city)
+                sources[wish] = {
+                    "source": "chat",
+                    "note": L("来自聊天", "From chat"),
+                    "city": city,
+                }
+                if city:
+                    if not city_from_trip:
+                        bare = _norm_city(city).removesuffix("市")
+                        if trip_cities and bare not in trip_cities:
+                            notes.append(
+                                L(
+                                    f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",
+                                    f"{wish} saved to your wishlist ({city}, not part of this trip)",
                                 )
-                    elif not is_category:
-                        # 泛称愿望不定城也不再进追问队列——多城/未定时就近
-                        # 落实是既定语义，问城只会白耗一轮。
-                        unresolved.append((wish, row))
-                elif existing["status"] == STATUS_UNWANTED:
-                    self._trip_items.update(existing["id"], status=STATUS_WISHLIST)
+                            )
+                elif not is_category:
+                    unresolved.append((wish, {}))
             except ValueError:
                 logger.warning("plan: trip wish sync failed for %s", wish)
-        # 2026-10-31（看+动物名案）：本回合新建的行此刻才存在——头部 76d 块
-        # 收口不到它们（行程已安排而行仍 wishlist/无城市/未挂行程）。此处
-        # 补：绑定城市回填空城行 + 行收口（翻已排期/note/挂行程）。
-        try:
-            for wish in wishes:
-                bound = (session.wish_bindings or {}).get(
-                    wish
-                ) or self._wish_bindings.get(wish)
-                if bound is not None:
-                    bcity = str(bound.get("city") or "").removesuffix("市").strip()
-                    if bcity:
-                        self._backfill_wish_city(wish, bcity)
-            if session.plan is not None:
-                self._sync_wish_rows(session)
-                self._sync_planned_rows(session)
-        except Exception:
-            logger.warning("plan: wish post-create sync failed", exc_info=True)
+        session.wish_sources = sources
         return notes, unresolved
 
     def _finalize_wish_cities(
         self, session: PlanSession, unresolved: list[tuple[str, dict]]
     ) -> str:
         """coverage 之后的追问收尾：落实写回已补上城市的剔除；仍空着
-        的并入 pending_wish_cities（与旧 pending 去重），返回追问文本。"""
-        if self._trip_items is None or not unresolved:
+        的并入 pending_wish_cities（与旧 pending 去重），返回追问文本。
+        2026-11-15：城市读会话（site_cities/绑定），不再读行。""";
+        if not unresolved:
             return ""
         pending = list(session.pending_wish_cities)
-        for wish, row in unresolved:
-            fresh = self._trip_items.get(row["id"]) if row.get("id") else None
-            if fresh is not None and (fresh.get("city") or "").strip():
+        for wish, _row in unresolved:
+            fresh_city = (session.site_cities.get(wish) or "").strip()
+            if not fresh_city:
+                _bound = (session.wish_bindings or {}).get(wish) or self._wish_bindings.get(
+                    wish,
+                )
+                fresh_city = str((_bound or {}).get("city") or "").strip()
+            if fresh_city:
                 pending = [p for p in pending if p != wish]
                 continue
             if wish not in pending:
@@ -30960,15 +30985,12 @@ class PlanningAgent:
     ) -> tuple[PlanSession, str, ChangeSummary | None] | None:
         """心愿城市追问的答复轮：确定性解析不烧 LLM。点名的心愿按名字
         之后的片段取答复；只挂一条时整句话都算。可辨「都可以」（不绑
-        城市）与「不要了」（转 unwanted）。解析不出返回 None，正常走
-        对话流程，不困住用户。"""
-        if self._trip_items is None or not session.pending_wish_cities:
+        城市）与「不要了」（心愿撤掉，物化时落 unwanted 行）。2026-11-15
+        用户拍板「心愿单只在保存/删除时进数据库」：答复只写会话
+        （site_cities/wish_sources/must_visits），不再读写行。解析不出
+        返回 None，正常走对话流程，不困住用户。"""
+        if not session.pending_wish_cities:
             return None
-        itinerary_id = session.plan.itinerary_id if session.plan else None
-        groups = self._trip_items.list_groups(itinerary_id, session.device_id)
-        rows = {
-            it["name"]: it for group in groups.values() for it in group if it.get("id")
-        }
         pending = list(session.pending_wish_cities)
         parts: list[str] = []
         answered: set[str] = set()
@@ -30983,20 +31005,24 @@ class PlanningAgent:
                 seg = text
             if seg is None:
                 continue
-            row = rows.get(name)
-            if row is None:
-                answered.add(name)  # 行已不在：追问自然解除
-                continue
             seg = seg.strip().strip(_WISH_SEG_TRIM)
             if _WISH_DROP_RE.search(seg):
-                try:
-                    self._trip_items.update(row["id"], status=STATUS_UNWANTED)
-                except Exception:
-                    logger.warning("plan: wish drop failed for %s", name)
+                # 撤掉心愿：会话记录 dropped，物化时落 unwanted 行
+                meta = dict((session.wish_sources or {}).get(name) or {})
+                meta["dropped"] = True
+                meta.setdefault("note", L("来自聊天", "From chat"))
+                session.wish_sources = {
+                    **(session.wish_sources or {}),
+                    name: meta,
+                }
+                if name in (session.must_visits or []):
+                    session.must_visits = [
+                        m for m in session.must_visits if not _same_site(m, name)
+                    ]
                 parts.append(
                     L(
                         f"「{name}」已从心愿单移除",
-                        f'"{name}" removed from your wishlist',
+                        f"{name} removed from your wishlist",
                     )
                 )
                 answered.add(name)
@@ -31004,7 +31030,7 @@ class PlanningAgent:
                 parts.append(
                     L(
                         f"「{name}」按不限城市记",
-                        f'"{name}" noted with no city preference',
+                        f"{name} noted with no city preference",
                     )
                 )
                 answered.add(name)
@@ -31013,12 +31039,15 @@ class PlanningAgent:
                     _match_city_token(text) if len(pending) == 1 else None
                 )
                 if city:
-                    try:
-                        self._trip_items.update(row["id"], city=city)
-                    except Exception:
-                        logger.warning("plan: wish city set failed for %s", name)
+                    session.site_cities[name] = city
+                    meta = dict((session.wish_sources or {}).get(name) or {})
+                    meta["city"] = city
+                    session.wish_sources = {
+                        **(session.wish_sources or {}),
+                        name: meta,
+                    }
                     parts.append(
-                        L(f"「{name}」已记到{city}", f'"{name}" noted under {city}')
+                        L(f"「{name}」已记到{city}", f"{name} noted under {city}")
                     )
                     answered.add(name)
         if not answered:
