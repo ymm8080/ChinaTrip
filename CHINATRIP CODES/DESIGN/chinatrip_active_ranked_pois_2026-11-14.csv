@@ -1,0 +1,1327 @@
+﻿rank,rank_label,city,city_en,name_zh,name_en,name_en_src,category,source,tags,rating
+0,国际旅行网站,三亚,Sanya,四川小胡子海鲜（第一市场总店）,Sichuan Xiaohuzi Seafood,db,food,curated,curated,
+0,国际旅行网站,三亚,Sanya,林姐香味海鲜（第一市场总店）,Linjie Xiangwei Seafood,db,food,curated,curated,
+0,国际旅行网站,上海,Shanghai,M50创意园,M50 Art District,db,park,lonelyplanet,"lp, intl",4.6
+0,国际旅行网站,上海,Shanghai,上海中心大厦,Shanghai Tower,db,nature,amap,"lp, intl, layla",
+0,国际旅行网站,上海,Shanghai,上海博物馆,Shanghai Museum,db,museum,museum1,"lp, intl, sygic, 国家一级博物馆",4.6
+0,国际旅行网站,上海,Shanghai,上海迪士尼乐园,Shanghai Disneyland,db,theme_park,lonelyplanet,"lp, intl, sygic",4.6
+0,国际旅行网站,上海,Shanghai,东方明珠广播电视塔,Oriental Pearl Radio and TV Tower,db,attraction,baidu,"ta, lp, intl, sygic, 5a",4.7
+0,国际旅行网站,上海,Shanghai,南京东路步行街,East Nanjing Rd Pedestrian Street,db,attraction,baidu,"lp, intl, kkday, layla",4.7
+0,国际旅行网站,上海,Shanghai,外滩,The Bund,db,nature,amap,"ta, lp, intl, layla",4.8
+0,国际旅行网站,上海,Shanghai,新天地,Xintiandi,db,attraction,amap,"lp, intl, sygic",
+0,国际旅行网站,上海,Shanghai,武康路,Wukang Road,db,attraction,chinatravel,"lp, intl",
+0,国际旅行网站,上海,Shanghai,田子坊,Tianzifang,db,ancient_town,amap,"lp, intl, layla",4.5
+0,国际旅行网站,上海,Shanghai,福和慧,Fu He Hui Vegetarian,db,food,baidu,curated,4.3
+0,国际旅行网站,上海,Shanghai,老吉士酒家（天平路店）,Jesse Restaurant (Tianping Rd),db,food,baidu,curated,3.4
+0,国际旅行网站,上海,Shanghai,豫园,Yu Garden,db,park,amap,"ta, lp, intl, sygic, mindtrip",4.8
+0,国际旅行网站,上海,Shanghai,静安寺,Jing'an Temple,db,attraction,amap,"lp, intl, layla",
+0,国际旅行网站,上海,Shanghai,黄浦江游览（东方明珠码头）,Huangpu River Cruise (Oriental Pearl Pier),db,theme_park,chinatravel,"lp, intl",
+0,国际旅行网站,丽江,Lijiang,88号小吃店,No.88 Snack Shop,db,food,curated,curated,
+0,国际旅行网站,丽江,Lijiang,丽江古城,Old Town of Lijiang,db,attraction,unesco,"unesco, lp, intl",4.7
+0,国际旅行网站,丽江,Lijiang,丽江御宴,Lijiang Royal Banquet,db,food,curated,"curated, intl",4.4
+0,国际旅行网站,丽江,Lijiang,云上盛宴·长街宴,Yun Shang Chang Jie Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,丽江,Lijiang,古城区丽江古城景区,"Lijiang Old Town Scenic Area, Gucheng District",db,attraction,5a,"5a, lp, intl",4.7
+0,国际旅行网站,丽江,Lijiang,滇西王子·梦回丽江（忠义巷店）,Dianxi Wangzi,db,food,curated,curated,
+0,国际旅行网站,丽江,Lijiang,虎跳峡,Tiger Leaping Gorge,db,nature,lonelyplanet,"lp, intl",4.7
+0,国际旅行网站,丽江,Lijiang,阿妈意纳西饮食院（五一街小石桥）,Amayi Naxi Cuisine,db,food,curated,curated,4.5
+0,国际旅行网站,乌鲁木齐,Urumqi,大巴扎宴艺大剧院,Grand Bazaar Banquet & Arts Theatre,db,food,curated,"curated, intl",
+0,国际旅行网站,乌鲁木齐,Urumqi,楼兰秘烤（七道湾店）,Loulan Secret BBQ,db,food,baidu,curated,5.0
+0,国际旅行网站,乌鲁木齐,Urumqi,血站大盘鸡（西北路总店）,Xuezhan Da Pan Ji,db,food,baidu,curated,1.3
+0,国际旅行网站,乐山,Leshan,市中区乐山大佛景区,"Leshan Giant Buddha Scenic Area, Shizhong District",db,attraction,5a,"5a, lp, intl",4.7
+0,国际旅行网站,保亭,Baoting,槟榔谷黎苗长桌宴,Li & Miao Long Table Banquet (Binlang Valley),db,food,curated,"curated, intl",
+0,国际旅行网站,兰州,Lanzhou,阿西娅羊羔肉·大砂坪总店,Axiya Lamb Restaurant (Dashaping Flagship),db,food,curated,curated,
+0,国际旅行网站,兰州,Lanzhou,马大胡子羊羔肉（总店）,Ma Da Hu Zi Lamb,db,food,curated,curated,3.0
+0,国际旅行网站,兰州,Lanzhou,马子禄牛肉面（大众巷总店）,Ma Zilu Beef Noodles,db,food,baidu,curated,1.1
+0,国际旅行网站,北京,Beijing,798艺术区,798 Art District,db,gallery,amap,"ta, intl",4.5
+0,国际旅行网站,北京,Beijing,八达岭长城,Badaling Great Wall,db,nature,amap,"ta, lp, intl, tui",4.8
+0,国际旅行网站,北京,Beijing,南锣鼓巷,Nanluoguxiang Hutong,db,attraction,amap,"lp, intl, layla",4.6
+0,国际旅行网站,北京,Beijing,四季民福烤鸭店（故宫店）,Siji Minfu Roast Duck (Palace Museum),db,food,baidu,curated,5.0
+0,国际旅行网站,北京,Beijing,天坛,Temple of Heaven,db,temple,unesco,"unesco, 5a, ta, lp, intl, klook, layla",4.7
+0,国际旅行网站,北京,Beijing,天安门广场,Tiananmen Square,db,attraction,chinatravel,"ta, lp, intl, sygic, layla",
+0,国际旅行网站,北京,Beijing,御仙都·皇家菜博物馆,Yuxiandu Royal Cuisine Museum,db,food,curated,"curated, intl",4.6
+0,国际旅行网站,北京,Beijing,慕田峪长城,Mutianyu Great Wall,db,nature,amap,"ta, lp, intl, klook, tui",
+0,国际旅行网站,北京,Beijing,提督·TIDU（前门创始店）,TIDU Roast Duck (Qianmen),db,food,baidu,curated,4.8
+0,国际旅行网站,北京,Beijing,故宫博物院,The Palace Museum,db,museum,museum1,"5a, ta, lp, intl, sygic, klook, mindtrip, layla, tui, 国家一级博物馆",4.9
+0,国际旅行网站,北京,Beijing,景山公园,Jingshan Park,db,attraction,baidu,"lp, intl, layla",4.6
+0,国际旅行网站,北京,Beijing,潘家园旧货市场,Panjiayuan Antique Market,db,attraction,lonelyplanet,"lp, intl",
+0,国际旅行网站,北京,Beijing,白家大院,Bai Jia Da Yuan Royal Mansion Cuisine,db,food,curated,"curated, intl",
+0,国际旅行网站,北京,Beijing,钟鼓楼,Bell and Drum Towers,db,historic,amap,"lp, intl, sygic",
+0,国际旅行网站,北京,Beijing,颐和园,Summer Palace,db,park,unesco,"unesco, 5a, ta, lp, intl, klook, culturetrip",4.7
+0,国际旅行网站,北京,Beijing,鼓楼,Drum Tower,db,historic,amap,"lp, intl, sygic",
+0,国际旅行网站,南京,Nanjing,中华门瓮城,Zhonghua Gate Wengcheng (Barbican),db,attraction,amap,"curated, intl",
+0,国际旅行网站,南京,Nanjing,中山陵景区,Sun Yat-sen Mausoleum Scenic Area,db,nature,amap,"curated, intl, 5a",4.6
+0,国际旅行网站,南京,Nanjing,侵华日军南京大屠杀遇难同胞纪念馆,Nanjing Massacre Memorial Hall,db,attraction,tripadvisor,"ta, intl",4.6
+0,国际旅行网站,南京,Nanjing,六朝沉浸式晚宴,Immersive Six Dynasties Dining & Show Experience,db,food,curated,"curated, intl",
+0,国际旅行网站,南京,Nanjing,南京博物院,Nanjing Museum,db,museum,museum1,"curated, intl, 国家一级博物馆",4.7
+0,国际旅行网站,南京,Nanjing,南京城墙,Nanjing City Wall,db,attraction,amap,"curated, intl, 国家一级博物馆",4.7
+0,国际旅行网站,南京,Nanjing,南京大牌档（德基广场店）,Nanjing Da Pai Dang (Deji Plaza),db,food,curated,curated,
+0,国际旅行网站,南京,Nanjing,南京夫子庙-秦淮风光带-长干里,Nanjing Fuzimiao - Qinhuai Scenic Belt - Changganli,db,attraction,amap,"ta, intl",
+0,国际旅行网站,南京,Nanjing,南京总统府,Presidential Palace,db,museum,amap,"curated, intl",
+0,国际旅行网站,南京,Nanjing,夫子庙,Confucius Temple (Fuzimiao),db,attraction,amap,"ta, intl, 5a",4.6
+0,国际旅行网站,南京,Nanjing,宴天下·宴乐,Yan Tian Xia Yan Le Immersive Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,南京,Nanjing,明孝陵,Ming Xiaoling Mausoleum,db,attraction,amap,"unesco_ming_tombs, curated, intl, 国家二级博物馆",4.6
+0,国际旅行网站,南京,Nanjing,江南灶中餐厅（香格里拉）,Jiangnan Wok (Shangri-La Nanjing),db,food,baidu,curated,4.4
+0,国际旅行网站,南宁,Nanning,漾宴邕城1939,Yang Ban Yongcheng 1939,db,food,curated,"curated, intl",
+0,国际旅行网站,南昌,Nanchang,南昌里·市井南昌菜（万寿宫店）,Nanchangli City Cuisine,db,food,curated,curated,5.0
+0,国际旅行网站,南昌,Nanchang,滕阁宴·千里逢迎,Tengge Banquet,db,food,curated,"curated, intl",4.5
+0,国际旅行网站,南昌,Nanchang,老三样（船山路店）,Lao San Yang,db,food,curated,curated,4.0
+0,国际旅行网站,厦门,Xiamen,上青本港海鲜（后江埭路店）,Shangqing Seafood,db,food,baidu,curated,4.9
+0,国际旅行网站,厦门,Xiamen,临家闽南菜（环岛路店）,Linjia Minnan Cuisine,db,food,baidu,curated,4.7
+0,国际旅行网站,厦门,Xiamen,福建土楼（永定高北土楼群）,Fujian Tulou (Gaobei Cluster),db,historic,lonelyplanet,"lp, intl",
+0,国际旅行网站,厦门,Xiamen,闽南大院,Minnan Grand Courtyard,db,food,curated,"curated, intl",
+0,国际旅行网站,厦门,Xiamen,黄都礼宴,Huangdu Li Banquet Palace Show,db,food,curated,"curated, intl",
+0,国际旅行网站,厦门,Xiamen,鼓浪屿,Gulangyu Island,db,attraction,unesco,"unesco, lp, intl, 5a",4.5
+0,国际旅行网站,合肥,Hefei,叙宴·合肥店,Xu Yan Hefei Tang Banquet (Chang'an Fu),db,food,curated,"curated, intl",4.3
+0,国际旅行网站,合肥,Hefei,庐州太太（滨湖店）,Luzhou Taitai,db,food,baidu,curated,4.1
+0,国际旅行网站,合肥,Hefei,庐州荟·原著合肥味（望湖城店）,Luzhouhui Hefei Cuisine,db,food,baidu,curated,4.3
+0,国际旅行网站,呼伦贝尔,Hulunbuir,巴尔虎蒙古部落·魂系巴尔虎篝火晚会,Bargut Mongol Tribe Campfire & Roast Lamb Ritual,db,food,curated,"curated, intl",4.5
+0,国际旅行网站,呼和浩特,Hohhot,蒙御宴·火锅餐秀,Meng Yu Yan Mongolian Imperial Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,哈尔滨,Harbin,哈尔滨冰雪大世界,Harbin Ice and Snow World,db,theme_park,lonelyplanet,"lp, intl",4.4
+0,国际旅行网站,哈尔滨,Harbin,圣索菲亚大教堂,Saint Sophia Cathedral,db,attraction,lonelyplanet,"lp, intl",4.7
+0,国际旅行网站,哈尔滨,Harbin,张包铺（道外店）,Zhang Bao Pu Baozi,db,food,curated,curated,
+0,国际旅行网站,哈尔滨,Harbin,红门御宴·沉浸式游宴,Hongmen Royal Immersive Banquet,db,food,curated,"curated, intl",4.6
+0,国际旅行网站,哈尔滨,Harbin,老厨家（中央大街西七道街店）,Lao Chu Jia (Central Avenue),db,food,curated,curated,3.5
+0,国际旅行网站,嘉峪关,Jiayuguan,嘉峪关文物景区,Jiayuguan Cultural Relics Scenic Area,db,attraction,5a,"5a, lp, intl",4.5
+0,国际旅行网站,大同,Datong,北魏宫宴,Northern Wei Palace Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,大理,Dali,再回首凉鸡米线（人民路一店）,Zaihuishou Cold Chicken Noodles,db,food,curated,curated,
+0,国际旅行网站,大理,Dali,段公子·精品云南菜（人民路店）,Master Duan's Yunnan Cuisine,db,food,curated,curated,
+0,国际旅行网站,大理,Dali,礼颂宴（天憙园）,Li Song Banquet at Tianxi Garden,db,food,curated,"curated, intl",
+0,国际旅行网站,大连,Dalian,品海楼（老虎滩渔人码头店）,Pin Hai Lou (Laohutan),db,food,curated,curated,4.5
+0,国际旅行网站,大连,Dalian,日丰园·海肠水饺（小平岛总店）,Rifengyuan Sea Intestine Dumplings,db,food,curated,curated,
+0,国际旅行网站,大连,Dalian,禧宴·囍·沉浸式宫廷宴,Xi Immersive Palace Banquet (Dalian),db,food,curated,"curated, intl",
+0,国际旅行网站,天津,Tianjin,宴宾楼饭庄（总店）,Yanbinlou Restaurant,db,food,baidu,curated,2.6
+0,国际旅行网站,天津,Tianjin,敘宴·王府宴,Xu Yan Royal Mansion Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,天津,Tianjin,桂园餐厅（五大道店）,Guiyuan Restaurant (Wudadao),db,food,baidu,curated,4.7
+0,国际旅行网站,宁波,Ningbo,宴外宴·红楼沉浸式演艺餐秀,Yanwai Yan Red Chamber Show Feast (Ningbo),db,food,curated,"curated, intl",
+0,国际旅行网站,宁波,Ningbo,新石浦（天一店）,Xin Shipu Seafood,db,food,curated,curated,
+0,国际旅行网站,宁波,Ningbo,明州艺宴·沉浸式文化餐秀,Mingzhou Yiyan Immersive Show Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,宁波,Ningbo,缸鸭狗（天一广场店）,Gangyagou Tangyuan,db,food,baidu,curated,4.4
+0,国际旅行网站,宁波,Ningbo,贴阁碧（东渡路店）,Tiegebi Ningbo Cuisine,db,food,curated,curated,
+0,国际旅行网站,广州,Guangzhou,光孝寺,Guangxiao Temple,db,attraction,amap,"lp, intl",4.7
+0,国际旅行网站,广州,Guangzhou,广州塔,Canton Tower,db,attraction,amap,"ta, intl",
+0,国际旅行网站,广州,Guangzhou,惠食佳（东风店）,Hui Shi Jia,db,food,curated,curated,
+0,国际旅行网站,广州,Guangzhou,沙面,Shamian Island,db,nature,amap,"ta, intl",
+0,国际旅行网站,广州,Guangzhou,炳胜品味（海印总店）,Bingsheng Pinwei,db,food,baidu,curated,5.0
+0,国际旅行网站,广州,Guangzhou,珠江夜游,Pearl River Night Cruise,db,theme_park,chinatravel,"ta, lp, intl",
+0,国际旅行网站,广州,Guangzhou,珠江夜游广州塔财富码头,Pearl River Night Cruise – Canton Tower Caifu Wharf,db,theme_park,chinatravel,"ta, lp, intl",
+0,国际旅行网站,广州,Guangzhou,荣华楼,Ronghua Lou Cantonese Opera Teahouse,db,food,curated,"curated, intl",
+0,国际旅行网站,广州,Guangzhou,长隆野生动物世界,Chimelong Safari Park,db,theme_park,amap,"ta, intl",
+0,国际旅行网站,广州,Guangzhou,陈家祠,Chen Clan Ancestral Hall,db,attraction,chinatravel,"curated, intl",
+0,国际旅行网站,广州,Guangzhou,陶陶居酒家（第十甫路总店）,Tao Tao Ju (Di-shi-fu Rd),db,food,baidu,curated,5.0
+0,国际旅行网站,开封,Kaifeng,清明上河·宋宴,Song Dynasty Banquet at Millennium City Park,db,food,curated,"curated, intl",4.6
+0,国际旅行网站,张家界,Zhangjiajie,向王盛宴,Xiang Wang Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,张家界,Zhangjiajie,武陵源,Wulingyuan,db,attraction,unesco,"unesco, ta, viator, intl",4.6
+0,国际旅行网站,张家界,Zhangjiajie,武陵源天门山旅游区,Wulingyuan Tianmen Mountain Tourist Area,db,attraction,5a,"5a, lp, intl",4.6
+0,国际旅行网站,张掖,Zhangye,七彩丹霞景区,Rainbow Danxia Scenic Area,db,attraction,5a,"5a, lp, intl",4.7
+0,国际旅行网站,惠州,Huizhou,丽景宫宴·大唐餐秀,Lijing Palace Tang Banquet Show (Huizhou),db,food,curated,"curated, intl",
+0,国际旅行网站,成都,Chengdu,人民公园,Renmin Park,db,tea_experience,baidu,"lp, intl, layla",
+0,国际旅行网站,成都,Chengdu,失重餐厅(环球中心店),SPACELAB Restaurant (Chengdu Global Center),db,food,curated,"curated, intl",
+0,国际旅行网站,成都,Chengdu,宽窄巷子,Kuanzhai Alley (Wide & Narrow Alleys),db,citywalk,amap,"lp, intl, layla",4.6
+0,国际旅行网站,成都,Chengdu,成都大熊猫繁育研究基地,Chengdu Research Base of Giant Panda Breeding,db,zoo,amap,"ta, lp, intl, mindtrip, layla",4.6
+0,国际旅行网站,成都,Chengdu,成都杜甫草堂博物馆,Chengdu Du Fu Thatched Cottage Museum,db,museum,museum1,"curated, intl, mindtrip, 4a, 国家一级博物馆",4.7
+0,国际旅行网站,成都,Chengdu,成都环球中心,Chengdu Global Center,db,attraction,amap,"curated, intl",4.6
+0,国际旅行网站,成都,Chengdu,柴门饭儿（远洋太古里店）,Chai Men Fan Er (Taikoo Li),db,food,curated,curated,4.7
+0,国际旅行网站,成都,Chengdu,红鼎宴,Hongdingyan Imperial Hotpot Dinner Show,db,food,curated,"curated, intl",
+0,国际旅行网站,成都,Chengdu,蜀宴赋,Shu Yan Fu,db,food,amap,"curated, intl",
+0,国际旅行网站,成都,Chengdu,都江堰景区,Dujiangyan Irrigation System,db,nature,amap,"curated, intl",
+0,国际旅行网站,成都,Chengdu,马旺子·川小馆（太古里店）,Ma Wang Zi Sichuan Bistro (Taikoo Li),db,food,baidu,curated,4.5
+0,国际旅行网站,扬州,Yangzhou,长乐盐商宴,Changle Salt Merchant Banquet,db,food,curated,"curated, intl",4.7
+0,国际旅行网站,拉萨,Lhasa,城关区布达拉宫景区,"Potala Palace Scenic Area, Chengguan District",db,attraction,5a,"5a, ta, viator, intl",4.7
+0,国际旅行网站,拉萨,Lhasa,蒲巴仓·演艺藏餐厅,Po Ba Tsang Tibetan Show Restaurant (Lhasa),db,food,curated,"curated, intl",
+0,国际旅行网站,拉萨,Lhasa,香巴拉礼赞·金马宴民族歌舞演艺,Ode to Shambhala Golden Horse Banquet (Lhasa),db,food,curated,"curated, intl",4.7
+0,国际旅行网站,敦煌,Dunhuang,敦煌盛宴大殿,Dunhuang Silk Road Grand Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,敦煌,Dunhuang,莫高窟,Mogao Caves,db,nature,unesco,"unesco, lp, intl",4.4
+0,国际旅行网站,敦煌,Dunhuang,靖远尕六美味羊羔肉,Jingyuan Galiu Lamb Restaurant,db,food,baidu,curated,4.3
+0,国际旅行网站,敦煌,Dunhuang,顺张黄面馆,Shunzhang Yellow Noodles,db,food,baidu,curated,1.2
+0,国际旅行网站,昆明,Kunming,建新园（云纺店）,Jianxinyuan Rice Noodles,db,food,curated,curated,2.6
+0,国际旅行网站,昆明,Kunming,福照楼（胜利堂店）,Fuzhaolou Steam Pot Chicken,db,food,curated,curated,
+0,国际旅行网站,昆明,Kunming,觉宴,Jue Banquet Ancient Dian Show,db,food,curated,"curated, intl",
+0,国际旅行网站,昆明,Kunming,醉云喃（东西寺塔步行街店）,Zuiyunnan Yunnan Cuisine,db,food,curated,curated,5.0
+0,国际旅行网站,晋中,Jinzhong,平遥大戏堂·晋商乡音,Pingyao Grand Theater Jinshang Banquet Show,db,food,curated,"curated, intl",
+0,国际旅行网站,杭州,Hangzhou,宫宴·宋韵沉浸式宫廷御宴,Gong Yan Song Dynasty Imperial Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,杭州,Hangzhou,拱宸桥·桥西历史文化街区,Grand Canal: Gongchen Bridge & Qiaoxi Block,db,attraction,curated,"curated, intl",4.6
+0,国际旅行网站,杭州,Hangzhou,杭州西湖风景区,"West Lake Scenic Area, Xihu District",db,attraction,5a,"5a, ta, lp, intl, unesco",4.8
+0,国际旅行网站,杭州,Hangzhou,桂语山房（满觉陇店）,Guiyu Mountain House,db,food,baidu,curated,4.6
+0,国际旅行网站,杭州,Hangzhou,清河坊街,Qinghefang Street,db,attraction,amap,"curated, intl",4.6
+0,国际旅行网站,杭州,Hangzhou,灵隐寺,Lingyin Temple,db,attraction,amap,"curated, intl",4.7
+0,国际旅行网站,杭州,Hangzhou,灵隐飞来峰景区,Lingyin Feilai Peak Scenic Area,db,nature,amap,"curated, intl",4.6
+0,国际旅行网站,杭州,Hangzhou,西溪国家湿地公园,Xixi National Wetland Park,db,attraction,baidu,"curated, intl",4.6
+0,国际旅行网站,杭州,Hangzhou,金沙厅（四季酒店）,Jin Sha Restaurant (Four Seasons Hangzhou),db,food,curated,curated,4.6
+0,国际旅行网站,杭州,Hangzhou,龙井村,Longjing Village,db,attraction,chinatravel,"lp, intl",
+0,国际旅行网站,桂林,Guilin,崇善米粉（依仁路店）,Chongshan Rice Noodles,db,food,curated,curated,4.3
+0,国际旅行网站,桂林,Guilin,椿记烧鹅（中山中路总店）,Chunji Roast Goose,db,food,curated,curated,5.0
+0,国际旅行网站,桂林,Guilin,漓江风景区,Li River Scenic Area,db,attraction,5a,"5a, ta, lp, intl",4.8
+0,国际旅行网站,桂林,Guilin,龙脊梯田,Longji Rice Terraces,db,nature,lonelyplanet,"lp, intl",4.5
+0,国际旅行网站,桂林,Guilin,龙脊长桌宴,Longji Long Table Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,东湖生态旅游风景区,East Lake Scenic Area,db,nature,curated,"curated, intl, 5a",4.7
+0,国际旅行网站,武汉,Wuhan,宴华赋·唐风沉浸式宫宴餐秀,Yanhua Fu Tang Banquet Show (Wuhan),db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,昙华林,Tanhualin Historic Block,db,historic,amap,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,楚汉宫宴·沉浸式宫廷礼宴,Chuhan Palace Banquet (Wuhan),db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,武汉叙宴,Xu Yan Wuhan Tang Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,汉口1930·一场民国盛宴,Hankou 1930 Republic-era Immersive Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,湖北省博物馆,Hubei Provincial Museum,db,museum,museum1,"curated, intl, 国家一级博物馆",4.9
+0,国际旅行网站,武汉,Wuhan,知音号·长江漂移剧场晚宴席,Zhiyin Hao River Show Dinner Cruise,db,food,curated,"curated, intl",
+0,国际旅行网站,武汉,Wuhan,肥肥虾庄（石牌岭总店）,Feifei Crayfish House,db,food,curated,curated,
+0,国际旅行网站,武汉,Wuhan,融厨湖北菜·非遗武昌鱼藕汤（江汉路总店）,Rongchu Hubei Cuisine,db,food,curated,curated,4.9
+0,国际旅行网站,武汉,Wuhan,黄鹤楼公园,Yellow Crane Tower Park,db,attraction,5a,"5a, curated, intl, xiaohongshu",4.6
+0,国际旅行网站,沈阳,Shenyang,南谣逸境·颁金宴,Banjin Banquet (Nanyao Yijing Shengyang),db,food,curated,"curated, intl",4.7
+0,国际旅行网站,沈阳,Shenyang,奉天小馆（万象城店）,Fengtian Xiao Guan (Mixc),db,food,curated,curated,
+0,国际旅行网站,沈阳,Shenyang,老边饺子馆（中街店）,Laobian Dumplings (Zhongjie),db,food,baidu,curated,4.6
+0,国际旅行网站,沈阳,Shenyang,马家烧麦（总店）,Ma Family Shaomai,db,food,curated,curated,
+0,国际旅行网站,泉州,Quanzhou,好成财牛排馆（涂门街总店）,Haochengcai Beef Steak House,db,food,curated,curated,4.4
+0,国际旅行网站,泉州,Quanzhou,寻花宴·沉浸式闽南非遗餐秀,Xunhua Banquet Minnan Heritage Dinner Show,db,food,curated,"curated, intl",
+0,国际旅行网站,泉州,Quanzhou,斯丹姜母鸭（涂门街总店）,Sidans Ginger Duck,db,food,curated,curated,4.4
+0,国际旅行网站,洛阳,Luoyang,武皇盛宴,Wu Huang Grand Feast,db,food,curated,"curated, intl",4.7
+0,国际旅行网站,济南,Jinan,秀宴·齐鲁文化美食剧场,Xiu Yan Qilu Culinary Theater (Jinan),db,entertainment,baidu,"curated, intl",
+0,国际旅行网站,济南,Jinan,老济南四合院（王府池子12号院店）,Lao Jinan Siheyuan,db,food,baidu,curated,4.6
+0,国际旅行网站,济南,Jinan,魁盛居百年鲁菜馆（县西巷店）,Kuishengju Shandong Cuisine,db,food,baidu,curated,4.3
+0,国际旅行网站,深圳,Shenzhen,世界之窗,Window of the World,db,theme_park,amap,"curated, intl",
+0,国际旅行网站,深圳,Shenzhen,佳宁娜潮州菜（佳宁娜广场店）,Jianingna Chaozhou Cuisine,db,food,curated,curated,
+0,国际旅行网站,深圳,Shenzhen,八合里牛肉火锅（购物公园店）,Baheli Beef Hotpot,db,food,baidu,curated,4.4
+0,国际旅行网站,深圳,Shenzhen,华侨城创意文化园,OCT-LOFT Creative Culture Park,db,park,amap,"lp, intl",
+0,国际旅行网站,深圳,Shenzhen,大梅沙海滨公园,Dameisha Beach,db,attraction,curated,"curated, intl",4.6
+0,国际旅行网站,深圳,Shenzhen,敘宴·长安赋,Xu Yan Chang'an Fu Tang Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,深圳,Shenzhen,润园四季椰子鸡（卓越INTOWN店）,Runyuan Siji Coconut Chicken,db,food,baidu,curated,4.5
+0,国际旅行网站,深圳,Shenzhen,深圳湾公园,Shenzhen Bay Park,db,attraction,baidu,"curated, intl",
+0,国际旅行网站,温州,Wenzhou,五马集·海鲜大牌档（五马街店）,Wumaji Seafood Canteen,db,food,curated,curated,4.2
+0,国际旅行网站,温州,Wenzhou,守英猪脏粉（仓桥街店）,Shouying Zhuzang Fen,db,food,baidu,curated,4.2
+0,国际旅行网站,温州,Wenzhou,宋宴·遇见东坡,Song Feast Meeting Su Dongpo (Wenzhou),db,food,curated,"curated, intl",
+0,国际旅行网站,温州,Wenzhou,益展坊·海鲜排档（智慧谷店）,Yizhanfang Seafood,db,food,curated,curated,0.0
+0,国际旅行网站,烟台,Yantai,颂金园·兰齐宴赋,Songjinyuan Lanqi Banquet (Zhaoyuan),db,food,curated,"curated, intl",
+0,国际旅行网站,福州,Fuzhou,同利肉燕老铺（三坊七巷本铺）,Tongli Rouyan,db,food,baidu,curated,4.7
+0,国际旅行网站,福州,Fuzhou,御宴·沉浸式宫廷盛宴,Yu Banquet Immersive Palace Feast (Fuzhou),db,food,curated,"curated, intl",5.0
+0,国际旅行网站,福州,Fuzhou,老福洲徐记（斗东店）,Laofuzhou Xuji,db,food,curated,curated,4.2
+0,国际旅行网站,绍兴,Shaoxing,绍兴宴·解放路店,Shaoxing Banquet (Jiefang Road),db,food,curated,curated,
+0,国际旅行网站,苏州,Suzhou,吴宫御宴,Suzhou Wugong Imperial Banquet Experience,db,food,curated,"curated, intl",
+0,国际旅行网站,苏州,Suzhou,周庄,Zhouzhuang,db,ancient_town,amap,"curated, intl",
+0,国际旅行网站,苏州,Suzhou,平江路历史街区,Pingjiang Road Historic Block,db,attraction,amap,"curated, intl",
+0,国际旅行网站,苏州,Suzhou,拙政园,Humble Administrator's Garden,db,park,unesco,"unesco, lp, intl",4.6
+0,国际旅行网站,苏州,Suzhou,松鹤楼（观前街店）,Songhelou (Guanqian St),db,food,baidu,curated,4.7
+0,国际旅行网站,苏州,Suzhou,苏州博物馆,Suzhou Museum,db,museum,amap,"curated, intl",
+0,国际旅行网站,苏州,Suzhou,虎丘山风景名胜区,Tiger Hill Scenic Area,db,nature,amap,"unesco, curated, intl",4.7
+0,国际旅行网站,苏州,Suzhou,裕兴记（西北街总店）,Yuxingji Noodle House,db,food,curated,curated,
+0,国际旅行网站,西双版纳,Xishuangbanna,云雀金湾·傣家孔雀宴手抓饭（二店）,Yunque Jinwan Dai Peacock Feast Restaurant (2nd Branch),db,food,curated,curated,
+0,国际旅行网站,西双版纳,Xishuangbanna,喃傣·手抓饭孔雀宴（二分店）,Nandai Peacock Feast Hand-Pulled Rice (2nd Branch),db,food,curated,curated,
+0,国际旅行网站,西双版纳,Xishuangbanna,澜沧江·湄公河之夜歌舞篝火晚会,Mekong Night Campfire Show with Dinner (Manting Park),db,food,curated,"curated, intl",
+0,国际旅行网站,西双版纳,Xishuangbanna,璽宴·傣王禮宴,Xi Yan Dai King Ritual Feast,db,food,curated,"curated, intl",
+0,国际旅行网站,西双版纳,Xishuangbanna,西双版纳傣王宴,Dai King Banquet (Gaozhuang Xishuangjing),db,food,curated,"curated, intl",
+0,国际旅行网站,西宁,Xining,沙力海美食广场（北大街总店）,Shalihai Food Plaza,db,food,curated,curated,5.0
+0,国际旅行网站,西宁,Xining,清真·益鑫羊肉手抓馆（花园北街店）,Yixin Hand-grabbed Lamb,db,food,curated,curated,4.4
+0,国际旅行网站,西宁,Xining,藏王宴,Tibetan King Banquet (Xining),db,food,curated,"curated, intl",
+0,国际旅行网站,西安,Xi'an,华清宫,Huaqing Palace,db,attraction,curated,"5a, curated, intl",4.7
+0,国际旅行网站,西安,Xi'an,大雁塔大唐芙蓉园景区,Dayan Pagoda and Tang Paradise Scenic Area,db,attraction,5a,"unesco_silk_road, 5a, lp, intl, sygic, layla",4.7
+0,国际旅行网站,西安,Xi'an,御宴宫,Royal Banquet Hall (Tang Paradise),db,food,curated,"curated, intl",
+0,国际旅行网站,西安,Xi'an,秦始皇帝陵博物院,Emperor Qinshihuang's Mausoleum Site Museum (Terracotta Army),db,attraction,5a,"unesco, 5a, ta, lp, intl, mindtrip, 国家一级博物馆",4.7
+0,国际旅行网站,西安,Xi'an,西安钟楼,Bell Tower of Xi'an,db,attraction,manual,"lp, intl, mindtrip, layla, landmark",
+0,国际旅行网站,西安,Xi'an,醉长安（钟楼旗舰店）,Zui Chang'an (Bell Tower),db,food,curated,curated,4.7
+0,国际旅行网站,西安,Xi'an,长安十二时辰·唐宴,Tang Banquet at Chang'an 12 Hours,db,food,curated,"curated, intl",4.1
+0,国际旅行网站,西安,Xi'an,长安十二时辰主题街区,Chang'an Twelve Hours Theme Block,db,citywalk,show,"intl, sygic, show, curated",
+0,国际旅行网站,西安,Xi'an,长安大牌档之西游漫记（大悦城店）,Chang'an Da Pai Dang Xiyou (Dayuecheng),db,food,baidu,curated,4.7
+0,国际旅行网站,贵阳,Guiyang,丝恋红汤丝娃娃（万科广场店）,Silian Siwawa,db,food,baidu,curated,4.3
+0,国际旅行网站,贵阳,Guiyang,树厨地道黔菜（花果园购物中心店）,Shuchu Guizhou Cuisine,db,food,curated,curated,
+0,国际旅行网站,贵阳,Guiyang,玲珑宴会,Linglong Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,贵阳,Guiyang,老凯俚酸汤鱼（省府店）,Laokaili Sour Soup Fish,db,food,curated,curated,
+0,国际旅行网站,迪庆,Diqing,康赞土司宴,Kangzan Chieftain Feast (Shangri-La),db,food,curated,"curated, intl",
+0,国际旅行网站,迪庆,Diqing,扎雅土司宴,Zhaya Tusi Feast (Shangri-La),db,food,curated,"curated, intl",
+0,国际旅行网站,郑州,Zhengzhou,大唐剧宴·沉浸式宫廷餐秀,Datang Drama Banquet (Zhengzhou),db,food,curated,"curated, intl",
+0,国际旅行网站,郑州,Zhengzhou,方中山胡辣汤（顺河路总店）,Fangzhongshan Hu Spicy Soup,db,food,baidu,curated,5.0
+0,国际旅行网站,郑州,Zhengzhou,解家河南菜（华山路店）,Xiejia Henan Cuisine,db,food,curated,curated,
+0,国际旅行网站,重庆,Chongqing,两江夜游,Two Rivers Night Cruise,db,attraction,curated,"curated, intl",4.2
+0,国际旅行网站,重庆,Chongqing,庆渝宴,Qing Yu Banquet Palace Show,db,food,curated,"curated, intl",4.5
+0,国际旅行网站,重庆,Chongqing,李子坝轻轨站,Liziba Light Rail Station,db,transport,chinatravel,"curated, intl",4.5
+0,国际旅行网站,重庆,Chongqing,杨记隆府·江湖菜（解放碑总店）,Yang Ji Long Fu Jianghu Cuisine,db,food,curated,curated,
+0,国际旅行网站,重庆,Chongqing,洪崖洞,Hongyadong,db,ancient_town,amap,"ta, lp, intl",4.7
+0,国际旅行网站,重庆,Chongqing,珮姐老火锅（洪崖洞店）,Pei Jie Old Hotpot (Hongyadong),db,food,baidu,curated,5.0
+0,国际旅行网站,重庆,Chongqing,礼宴巴国·巴国礼乐宴,Ba Kingdom Ceremony Banquet,db,food,curated,"curated, intl",
+0,国际旅行网站,重庆,Chongqing,重庆磁器口古镇,"Ciqikou Ancient Town, Chongqing",db,attraction,4a,"curated, intl, tui, 4a",4.7
+0,国际旅行网站,重庆,Chongqing,长江索道,Yangtze River Cableway,db,attraction,amap,"ta, intl",4.2
+0,国际旅行网站,长春,Changchun,见东方·吉时飨宴,Jishi Feast by Jian Dongfang (Changchun),db,food,curated,"curated, intl",4.6
+0,国际旅行网站,长沙,Changsha,炊烟小炒黄牛肉（华夏店）,Chuanyan Stir-fried Beef,db,food,baidu,curated,5.0
+0,国际旅行网站,长沙,Changsha,费大厨辣椒炒肉（坡子街店）,Fei Da Chu Chili Pork,db,food,baidu,curated,4.0
+0,国际旅行网站,长沙,Changsha,鱼王传,Yu Wang Chuan,db,food,curated,"curated, intl",
+0,国际旅行网站,阳朔,Yangshuo,侗王夜宴（天籁·蝴蝶泉）,Dong King Night Banquet (Butterfly Spring),db,food,curated,"curated, intl",4.1
+0,国际旅行网站,阳朔,Yangshuo,遇龙河,Yulong River,db,nature,lonelyplanet,"lp, intl",4.4
+0,国际旅行网站,阳朔,Yangshuo,阳朔西街,West Street (Yangshuo),db,attraction,lonelyplanet,"lp, intl",4.5
+0,国际旅行网站,青岛,Qingdao,兰齐宴赋·沉浸式宫廷盛宴,Lanqi Yanyu Immersive Palace Feast (Qingdao),db,food,curated,"curated, intl",4.8
+0,国际旅行网站,青岛,Qingdao,开海·红岛海鲜虾水饺（新湛路店）,Kaihai Shrimp Dumplings,db,food,baidu,curated,4.6
+0,国际旅行网站,青岛,Qingdao,船歌鱼水饺（湛山店）,Chuan'ge Fish Dumplings,db,food,curated,curated,4.5
+0,国际旅行网站,青岛,Qingdao,观赋宴·唐风沉浸式盛宴,Guanfu Feast Tang-style Show (Qingdao),db,food,curated,"curated, intl",
+0,国际旅行网站,香港,Hong Kong,太平山顶,Victoria Peak (The Peak),db,nature,tripadvisor,"ta, intl",
+0,国际旅行网站,黄山,Huangshan,黄山区黄山风景区,"Huangshan Scenic Area, Huangshan District",db,attraction,5a,"5a, ta, viator, intl",4.9
+0,国际旅行网站,黔东南,Qiandongnan,苗家长桌宴（西江千户苗寨）,Miao Long Table Banquet (Xijiang),db,food,curated,"curated, intl",4.3
+1,世界遗产,,,丝绸之路：长安—天山廊道的路网,Silk Roads: the Routes Network of Chang'an-Tianshan Corridor,db,nature,unesco,unesco,
+1,世界遗产,,,中国南方喀斯特,South China Karst,db,nature,unesco,unesco,
+1,世界遗产,,,中国黄（渤）海候鸟栖息地（第一期）,Migratory Bird Sanctuaries along the Coast of Yellow Sea-Bohai Gulf (Phase I),db,nature,unesco,unesco,
+1,世界遗产,,,云南三江并流保护区,Three Parallel Rivers of Yunnan Protected Areas,db,nature,unesco,unesco,
+1,世界遗产,,,四川大熊猫栖息地,"Sichuan Giant Panda Sanctuaries - Wolong, Mt Siguniang and Jiajin Mountains",db,nature,unesco,unesco,
+1,世界遗产,,,大运河,The Grand Canal,db,historic,unesco,"unesco, unesco_grand_canal",
+1,世界遗产,,,明清皇家陵寝,Imperial Tombs of the Ming and Qing Dynasties,db,attraction,unesco,unesco,
+1,世界遗产,上饶,Shangrao,三清山,Mount Sanqing,db,nature,unesco,"unesco, 5a",4.7
+1,世界遗产,东营,Dongying,黄河口生态旅游区,Yellow River Estuary Ecotourism Area,db,attraction,5a,"unesco_yellow_bohai, 5a",4.2
+1,世界遗产,临夏,Linxia,临夏州炳灵寺世界文化遗产旅游区,"Bingling Temple World Cultural Heritage Tourism Zone, Linxia Prefecture",db,attraction,5a,"unesco_silk_road, 5a",
+1,世界遗产,临夏,Linxia,炳靈寺石窟,Bingling Temple Grottoes,db,historic,manual,unesco_silk_road,
+1,世界遗产,乌鲁木齐,Urumqi,新疆天山,Xinjiang Tianshan,db,nature,unesco,unesco,
+1,世界遗产,乐山,Leshan,峨眉山—乐山大佛,"Mount Emei Scenic Area, including Leshan Giant Buddha Scenic Area",db,attraction,unesco,unesco,4.7
+1,世界遗产,九江,Jiujiang,庐山国家公园,Lushan Quaternary Glaciation National Geopark,db,nature,unesco,unesco,5.0
+1,世界遗产,保定,Baoding,清西陵景区,Western Qing Tombs Scenic Area,db,attraction,5a,"unesco_ming_tombs, 5a",4.7
+1,世界遗产,北京,Beijing,北京中轴线,Beijing Central Axis,db,historic,unesco,unesco,5.0
+1,世界遗产,北京,Beijing,周口店北京人遗址,Zhoukoudian Site,db,attraction,unesco,"unesco, 国家一级博物馆",4.5
+1,世界遗产,北京,Beijing,定陵,Dingling Tomb,db,attraction,amap,unesco_ming_tombs,4.6
+1,世界遗产,北京,Beijing,昌平区明十三陵景区,"Ming Tombs Scenic Area, Changping District",db,attraction,5a,"unesco_ming_tombs, 5a, intl, tui",4.6
+1,世界遗产,北京,Beijing,明茂陵,Ming Maoling Mausoleum,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,北京,Beijing,昭陵,Zhaoling Mausoleum,db,attraction,chinatravel,"unesco_ming_tombs, intl, tui",
+1,世界遗产,北京,Beijing,长城,The Great Wall,db,nature,unesco,"unesco, intl, klook, mindtrip, tui",4.7
+1,世界遗产,北京,Beijing,长陵,Changling Tomb,db,attraction,chinatravel,unesco_ming_tombs,
+1,世界遗产,十堰,Shiyan,武当山古建筑群,Ancient Building Complex in the Wudang Mountains,db,nature,unesco,unesco,5.0
+1,世界遗产,南京,Nanjing,仇成墓,Tomb of Qiu Cheng,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南京,Nanjing,吴祯墓,Tomb of Wu Zhen,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南京,Nanjing,吴良墓,Tomb of Wu Liang,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南京,Nanjing,常遇春墓,Tomb of Chang Yuchun,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南京,Nanjing,徐达墓,Tomb of Xu Da,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南京,Nanjing,李文忠墓,Tomb of Li Wenzhong,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,南平,Nanping,武夷山,Mount Wuyi,db,nature,unesco,unesco,4.6
+1,世界遗产,吐鲁番,Turpan,交河故城,Jiaohe Ruins,db,historic,manual,unesco_silk_road,
+1,世界遗产,大同,Datong,云冈石窟,Yungang Grottoes,db,nature,unesco,"unesco, 5a",4.8
+1,世界遗产,天水,Tianshui,麦积区麦积山景区,"Maijishan Scenic Area, Maiji District",db,attraction,5a,"unesco_silk_road, 5a",4.5
+1,世界遗产,安阳,Anyang,殷墟,Yin Xu,db,ruins,unesco,unesco,4.8
+1,世界遗产,崇左,Chongzuo,花山岩画,Huashan Rock Art,db,nature,unesco,"unesco, 5a",4.7
+1,世界遗产,忻州,Xinzhou,五台山,Mount Wutai,db,nature,unesco,"unesco, 5a",4.6
+1,世界遗产,恩施,Enshi,唐崖土司城遗址,Tangya Tusi Site,db,historic,manual,unesco_tusi_sites,
+1,世界遗产,恩施,Enshi,湖北神农架国家公园,"Shennongjia National Park, Hubei",db,nature,unesco,unesco,
+1,世界遗产,成都,Chengdu,青城山都江堰旅游景区,Qingcheng Mountain & Dujiangyan Scenic Area,db,attraction,5a,"5a, unesco",4.6
+1,世界遗产,承德,Chengde,承德避暑山庄和外八庙,Chengde Mountain Resort and Its Outlying Temples,db,nature,unesco,unesco,4.6
+1,世界遗产,抚顺,Fushun,清永陵,Qing Yongling Tomb,db,historic,manual,unesco_ming_tombs,
+1,世界遗产,拉萨,Lhasa,拉萨布达拉宫历史建筑群,"Historic Ensemble of the Potala Palace, Lhasa",db,attraction,unesco,unesco,4.7
+1,世界遗产,敦煌,Dunhuang,悬泉置遗址,Xuanquanzhi Site,db,historic,manual,unesco_silk_road,
+1,世界遗产,敦煌,Dunhuang,玉门关,Yumen Pass,db,historic,manual,unesco_silk_road,
+1,世界遗产,昆明,Kunming,石林彝族自治县石林风景区,"Stone Forest Scenic Area, Shilin Yi Autonomous County",db,attraction,5a,"unesco_karst, 5a",4.7
+1,世界遗产,昌吉,Changji,北庭故城遗址,Beiting Ancient City Site,db,historic,manual,unesco_silk_road,
+1,世界遗产,晋中,Jinzhong,平遥古城,Pingyao Ancient City,db,attraction,unesco,unesco,4.6
+1,世界遗产,普洱,Pu'er,普洱景迈山古茶林文化景观,Cultural Landscape of Old Tea Forests of the Jingmai Mountain in Pu’er,db,nature,unesco,unesco,
+1,世界遗产,景德镇,Jingdezhen,景德镇手工瓷业遗存,Jingdezhen Handicraft Porcelain Industry Sites,db,historic,unesco,unesco,4.1
+1,世界遗产,杭州,Hangzhou,京杭大运河杭州景区,Beijing-Hangzhou Grand Canal Hangzhou Scenic Area,db,nature,amap,"4a, unesco_grand_canal",4.4
+1,世界遗产,杭州,Hangzhou,良渚古城遗址,Liangzhu Site,db,attraction,unesco,unesco,4.4
+1,世界遗产,桂林,Guilin,桂林喀斯特,Guilin Karst,db,nature,manual,unesco_karst,
+1,世界遗产,汉中,Hanzhong,张骞墓,Zhang Qian's Tomb,db,historic,manual,unesco_silk_road,
+1,世界遗产,江门,Jiangmen,开平碉楼与村落,Kaiping Diaolou and Villages,db,attraction,unesco,"unesco, 5a",4.8
+1,世界遗产,沈阳,Shenyang,明清故宫（北京故宫、沈阳故宫）,Imperial Palaces of the Ming and Qing Dynasties in Beijing and Shenyang,db,attraction,unesco,"unesco, 4a",4.7
+1,世界遗产,河池,Hechi,环江喀斯特,Huanjiang Karst,db,nature,manual,unesco_karst,
+1,世界遗产,泉州,Quanzhou,泉州：宋元中国的世界海洋商贸中心,Quanzhou: Emporium of the World in Song-Yuan China,db,nature,unesco,unesco,
+1,世界遗产,泰安,Tai'an,泰山,Mount Taishan,db,nature,unesco,unesco,4.7
+1,世界遗产,洛阳,Luoyang,函谷关,Hangu Pass,db,historic,manual,unesco_silk_road,
+1,世界遗产,洛阳,Luoyang,定鼎门,Dingding Gate,db,historic,manual,unesco_silk_road,
+1,世界遗产,洛阳,Luoyang,龙门石窟,Longmen Grottoes,db,nature,unesco,"unesco, 5a",4.7
+1,世界遗产,济宁,Jining,曲阜的孔庙、孔林、孔府,Temple and Cemetery of Confucius and the Kong Family Mansion in Qufu,db,attraction,unesco,unesco,4.6
+1,世界遗产,澳门,Macau,三街會館,Kuan Tai Temple (Sam Kai Vui Kun),db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,仁慈堂大樓,Holy House of Mercy Building,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,伯多祿五世劇院,Dom Pedro V Theatre,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,何東圖書館,Robert Ho Tung Library,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,基督教墳場,Christian Cemetery,db,memorial,unesco,unesco,
+1,世界遗产,澳门,Macau,大三巴牌坊,Ruins of St. Paul's,db,attraction,unesco,unesco,4.7
+1,世界遗产,澳门,Macau,大炮台,Mount Fortress (Fortaleza do Monte),db,castle,unesco,unesco,4.7
+1,世界遗产,澳门,Macau,媽閣廟,A-Ma Temple,db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,東方基金會會址,Fundação Oriente Former Site,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,東望洋燈塔,Guia Lighthouse,db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,民政總署大樓,Leal Senado Building,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,澳门历史城区,Historic Centre of Macao,db,historic,unesco,unesco,4.7
+1,世界遗产,澳门,Macau,玫瑰聖母堂,Igreja da Se (St. Dominic's Church),db,church,unesco,unesco,
+1,世界遗产,澳门,Macau,聖奧斯定教堂,St. Augustine's Church,db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,聖安多尼教堂 (澳門),St. Anthony's Church (Macau),db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,聖母聖誕主教座堂,Cathedral of the Nativity of the Blessed Virgin Mary,db,church,unesco,unesco,
+1,世界遗产,澳门,Macau,聖母雪地殿教堂,Chapel of Our Lady of the Snows,db,attraction,unesco,unesco,
+1,世界遗产,澳门,Macau,聖老楞佐堂,St. Lawrence's Church,db,church,unesco,unesco,
+1,世界遗产,澳门,Macau,聖若瑟修院及聖堂,St. Joseph's Seminary and Church,db,church,unesco,unesco,
+1,世界遗产,澳门,Macau,議事亭前地,Senado Square,db,historic,unesco,unesco,
+1,世界遗产,澳门,Macau,馬禮遜教堂,Morrison Chapel,db,attraction,unesco,unesco,
+1,世界遗产,玉树,Yushu,可可西里,Qinghai Hoh Xil,db,nature,unesco,unesco,4.5
+1,世界遗产,玉溪,Yuxi,澄江化石地,Chengjiang Fossil Site,db,nature,unesco,unesco,4.2
+1,世界遗产,盐城,Yancheng,大丰区中华麋鹿园景区,Dafeng Chinese Milu Deer Park,db,attraction,5a,"unesco_yellow_bohai, 5a",4.5
+1,世界遗产,盐城,Yancheng,盐城市丹顶鹤湿地生态旅游区,Yancheng Red-crowned Crane Wetland Ecological Tourism Area,db,nature,baidu,"4a, unesco_yellow_bohai",
+1,世界遗产,红河,Honghe,红河哈尼梯田,Honghe Hani Rice Terraces,db,nature,unesco,unesco,4.5
+1,世界遗产,苏州,Suzhou,沧浪亭,Canglang Pavilion,db,garden,amap,unesco,
+1,世界遗产,苏州,Suzhou,狮子林,Lion Grove Garden,db,garden,amap,unesco,
+1,世界遗产,苏州,Suzhou,环秀山庄,Huanxiu Villa,db,nature,amap,unesco,
+1,世界遗产,苏州,Suzhou,留园,Liuyuan Garden (Lingering Garden),db,park,amap,unesco,
+1,世界遗产,苏州,Suzhou,网师园,Master of the Nets Garden,db,park,amap,unesco,
+1,世界遗产,苏州,Suzhou,耦园,Couple's Retreat Garden,db,park,amap,unesco,
+1,世界遗产,苏州,Suzhou,艺圃,Yipu Garden (Garden of Cultivation),db,garden,amap,unesco,
+1,世界遗产,苏州,Suzhou,苏州园林,Suzhou Gardens,db,park,unesco,unesco,4.9
+1,世界遗产,苏州,Suzhou,退思园,Tuisi Garden (Retreat & Reflection Garden),db,park,amap,unesco,
+1,世界遗产,荆门,Jingmen,明显陵文化旅游景区,Xianling Mausoleum Cultural Tourism Scenic Area,db,attraction,5a,"unesco_ming_tombs, 5a",4.7
+1,世界遗产,西安,Xi'an,兴教寺塔,Xingjiao Temple Pagoda,db,historic,manual,unesco_silk_road,
+1,世界遗产,西安,Xi'an,小雁塔,Small Wild Goose Pagoda (Xi'an Museum),db,attraction,baidu,"unesco_silk_road, intl, sygic, 4a",
+1,世界遗产,连云港,Lianyungang,云台山风景名胜区,Yuntai Mountain Scenic Area,db,nature,scenic,unesco_karst,
+1,世界遗产,迪庆,Diqing,三江并流风景名胜区,Three Parallel Rivers Scenic Area,db,nature,scenic,unesco_three_parallel_rivers,
+1,世界遗产,通化,Tonghua,角抵塚,Jiaodi Tomb,db,historic,unesco,unesco,
+1,世界遗产,通化,Tonghua,高句丽王城、王陵及贵族墓葬,Capital Cities and Tombs of the Ancient Koguryo Kingdom,db,attraction,unesco,unesco,5.0
+1,世界遗产,遵义,Zunyi,中国丹霞,China Danxia,db,nature,unesco,unesco,3.8
+1,世界遗产,遵化,Zunhua,清东陵景区,Eastern Qing Tombs Scenic Area,db,attraction,5a,"unesco_ming_tombs, 5a",4.6
+1,世界遗产,郑州,Zhengzhou,登封“天地之中”历史建筑群,Historic Monuments of Dengfeng in “The Centre of Heaven and Earth”,db,historic,unesco,unesco,
+1,世界遗产,郑州,Zhengzhou,登封市,Dengfeng City,db,historic,unesco,unesco,4.4
+1,世界遗产,郑州,Zhengzhou,通济渠郑州段,Tongji Canal (Zhengzhou Section),db,historic,unesco,unesco,
+1,世界遗产,重庆,Chongqing,大足石刻,Dazu Rock Carvings,db,historic,unesco,"unesco, 5a, intl, tui, 国家一级博物馆",4.6
+1,世界遗产,重庆,Chongqing,武隆县喀斯特旅游区,Wulong Karst Tourist Area,db,attraction,5a,"unesco_karst, 5a",4.6
+1,世界遗产,重庆,Chongqing,金佛山,Jinfoshan (Jinfo Mountain),db,nature,amap,unesco_karst,
+1,世界遗产,铜仁,Tongren,梵净山,Fanjingshan,db,nature,unesco,"unesco, 5a",4.6
+1,世界遗产,银川,Yinchuan,西夏陵,Xixia Imperial Tombs,db,attraction,unesco,"unesco, 4a",4.6
+1,世界遗产,锡林郭勒,Xilingol,元上都,Site of Xanadu (Yuan Shangdu),db,historic,unesco,unesco,4.2
+1,世界遗产,阿克苏,Aksu,克孜尔千佛洞,Kizil Thousand-Buddha Caves,db,historic,manual,unesco_silk_road,
+1,世界遗产,阿克苏,Aksu,苏巴什佛寺遗址,Subash Buddhist Temple Ruins,db,historic,manual,unesco_silk_road,
+1,世界遗产,阿坝,Ngawa,九寨沟风景名胜区,Jiuzhaigou Valley Scenic and Historic Interest Area,db,nature,unesco,"unesco, 5a",
+1,世界遗产,阿坝,Ngawa,黄龙风景名胜区,Huanglong Scenic and Historic Interest Area,db,nature,unesco,unesco,4.6
+1,世界遗产,阿拉善盟,Alxa,巴丹吉林沙漠,Badain Jaran Desert,db,nature,unesco,unesco,4.5
+1,世界遗产,黄山,Huangshan,皖南古村落西递和宏村,Ancient Villages in Southern Anhui – Xidi and Hongcun,db,attraction,unesco,unesco,4.6
+1,世界遗产,黄山,Huangshan,黄山,Mount Huangshan,db,nature,unesco,unesco,4.8
+1,世界遗产,黔南,Qiannan,黔南布依族苗族自治州荔波县樟江景区,"Zhangjiang Scenic Area, Libo County, Qiannan Buyei and Miao Autonomous Prefecture",db,attraction,5a,"unesco_karst, 5a",
+1,世界遗产,龙岩,Longyan,福建土楼,Fujian Tulou,db,historic,unesco,"unesco, 5a",4.5
+2,5A 级景区,三亚,Sanya,天涯海角游览区,Tianya Haijiao Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,三亚,Sanya,崖州区南山大小洞天旅游区,"Nanshan Daxiaodongtian Tourism Zone, Yazhou District",db,attraction,5a,5a,4.7
+2,5A 级景区,三亚,Sanya,崖州区南山文化旅游区,"Nanshan Cultural Tourism Zone, Yazhou District",db,attraction,5a,5a,4.7
+2,5A 级景区,三亚,Sanya,海棠区蜈支洲岛旅游区,"Wuzhizhou Island Tourist Area, Haitang District",db,attraction,5a,5a,4.6
+2,5A 级景区,三明,Sanming,泰宁县泰宁风景旅游区,"Taining Scenic Tourism Area, Taining County",db,attraction,5a,5a,4.5
+2,5A 级景区,上海,Shanghai,上海科技馆,Shanghai Science and Technology Museum,db,museum,museum1,"intl, 国家一级博物馆, watchmojo, 5a",4.7
+2,5A 级景区,上海,Shanghai,上海野生动物园,Shanghai Wild Animal Park,db,attraction,5a,5a,4.7
+2,5A 级景区,上海,Shanghai,崇明区西沙明珠湖景区,"Xisha Mingzhu Lake Scenic Area, Chongming District",db,attraction,5a,5a,
+2,5A 级景区,上饶,Shangrao,婺源县江湾景区,"Jiangwan Scenic Area, Wuyuan County",db,attraction,5a,5a,3.9
+2,5A 级景区,上饶,Shangrao,弋阳县龟峰景区,"Guifeng Scenic Area, Yiyang County",db,attraction,5a,5a,4.6
+2,5A 级景区,上饶,Shangrao,篁岭村,Huangling Village,db,attraction,histvillage,"histvillage, 5a",
+2,5A 级景区,东阳,Dongyang,横店影视城景区,Hengdian World Studios,db,attraction,5a,5a,4.7
+2,5A 级景区,中卫,Zhongwei,沙坡头区沙坡头旅游景区,"Shapotou Tourist Scenic Area, Shapotou District",db,attraction,5a,5a,4.8
+2,5A 级景区,中山,Zhongshan,中山市孙中山故里旅游区,"Sun Yat-sen Hometown Tourist Area, Zhongshan",db,nature,5a,5a,4.8
+2,5A 级景区,临汾,Linfen,云丘山景区,Yunqiu Mountain Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,临汾,Linfen,洪洞大槐树寻根祭祖园景区,Hongtong Great Pagoda Tree Root-Seeking and Ancestor-Worshipping Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,临汾,Linfen,黄河壶口瀑布旅游区,Hukou Waterfall of the Yellow River Tourist Area,db,attraction,5a,5a,4.7
+2,5A 级景区,临沂,Linyi,山东沂蒙山旅游区,"Yimeng Mountain Tourist Area, Shandong",db,attraction,5a,5a,4.7
+2,5A 级景区,临沂,Linyi,萤火虫水洞·地下大峡谷旅游区,Firefly Cave & Underground Grand Canyon Tourist Area,db,attraction,5a,5a,4.1
+2,5A 级景区,丹江口,Danjiangkou,武当山风景区,Wudang Mountain Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,丽水,Lishui,云和梯田景区,Yunhe Terraced Fields Scenic Area,db,attraction,5a,5a,4.8
+2,5A 级景区,丽水,Lishui,缙云仙都景区,Jinyun Xiandu Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,丽江,Lijiang,玉龙纳西族自治县玉龙雪山景区,"Yulong Snow Mountain Scenic Area, Yulong Naxi Autonomous County",db,attraction,5a,5a,4.4
+2,5A 级景区,乌鲁木齐,Urumqi,天山大峡谷,Tianshan Grand Canyon,db,attraction,5a,5a,4.3
+2,5A 级景区,乐清,Yueqing,雁荡山风景区,Yandang Mountain Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,九江,Jiujiang,庐山西海景区,Lushan West Sea Scenic Area,db,attraction,5a,5a,4.3
+2,5A 级景区,五大连池,Wudalianchi,五大连池景区,Wudalianchi Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,井冈山,Jinggangshan,井冈山风景旅游区,Jinggangshan Scenic Area,db,attraction,5a,5a,4.8
+2,5A 级景区,介休,Jiexiu,绵山风景名胜区,Mianshan Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,伊春,Yichun,汤旺河区林海奇石景区,"Forest Sea and Strange Stones Scenic Area, Tangwanghe District",db,attraction,5a,5a,5.0
+2,5A 级景区,伊犁,Ili,伊梨哈萨克自治州特克斯县喀拉峻景区,"Kalajun Scenic Area, Tekes County, Ili Kazakh Autonomous Prefecture",db,attraction,5a,5a,4.6
+2,5A 级景区,伊犁,Ili,伊犁哈萨克自治州新源县那拉提旅游风景区,"Nalati Tourist Scenic Area, Xinyuan County, Ili Kazakh Autonomous Prefecture",db,attraction,5a,5a,4.5
+2,5A 级景区,佛山,Foshan,南海区西樵山景区,"Xiqiao Mountain Scenic Area, Nanhai District",db,attraction,5a,5a,4.4
+2,5A 级景区,佛山,Foshan,长鹿旅游休博园,Changlu Tourism and Leisure Expo Park,db,attraction,5a,5a,4.7
+2,5A 级景区,保亭,Baoting,呀诺达雨林文化旅游区,Yanoda Rainforest Cultural Tourism Zone,db,attraction,5a,5a,4.3
+2,5A 级景区,保亭,Baoting,海南槟榔谷黎苗文化旅游区,Hainan Binglanggu Li and Miao Cultural Heritage Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,保定,Baoding,安新县白洋淀景区,"Baiyangdian Scenic Area, Anxin County",db,attraction,5a,5a,4.0
+2,5A 级景区,保定,Baoding,涞水县野三坡景区,"Yesanpo Scenic Area, Laishui County",db,attraction,5a,5a,4.6
+2,5A 级景区,保定,Baoding,涞源县白石山景区,"Baishi Mountain Scenic Area, Laiyuan County",db,attraction,5a,5a,4.7
+2,5A 级景区,保山,Baoshan,腾冲县火山热海旅游区,Tengchong Volcano and Rehai Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,信阳,Xinyang,鸡公山景区,Jigong Mountain Scenic Area,db,attraction,5a,"5a, 4a",4.4
+2,5A 级景区,克拉玛依,Karamay,世界魔鬼城景区,World Devil City Scenic Area,db,attraction,5a,5a,4.3
+2,5A 级景区,六安,Lu'an,舒城县万佛湖风景区,"Wanfo Lake Scenic Area, Shucheng County",db,attraction,5a,5a,
+2,5A 级景区,六安,Lu'an,金寨县天堂寨旅游景区,"Tiantangzhai Tourist Area, Jinzhai County",db,attraction,5a,5a,
+2,5A 级景区,兴安,Hinggan,阿尔山·柴河旅游景区,Arxan-Chaihe Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,北京,Beijing,八达岭慕田峪长城旅游区,Badaling-Mutianyu Great Wall Tourist Area,db,attraction,5a,"5a, intl, klook, tui",4.8
+2,5A 级景区,北京,Beijing,北京大运河文化旅游景区,Beijing Grand Canal Cultural Tourism Area,db,attraction,5a,5a,
+2,5A 级景区,北京,Beijing,海淀区圆明园景区,"Old Summer Palace Scenic Area, Haidian District",db,attraction,5a,"5a, intl, klook",4.6
+2,5A 级景区,北京,Beijing,西城区恭王府景区,"Prince Gong's Mansion Scenic Area, Xicheng District",db,attraction,5a,5a,4.8
+2,5A 级景区,北海,Beihai,涠洲岛南湾鳄鱼山景区,"Nanwan Crocodile Hill Scenic Area, Weizhou Island",db,attraction,5a,5a,4.4
+2,5A 级景区,华阴,Huayin,华山风景区,Mount Hua Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,南充,Nanchong,南充市朱德故里景区,"Zhu De Hometown Scenic Area, Nanchong",db,nature,5a,5a,4.5
+2,5A 级景区,南宁,Nanning,青秀区青秀山旅游区,"Qingxiu Mountain Tourist Area, Qingxiu District",db,attraction,5a,5a,4.8
+2,5A 级景区,南昌,Nanchang,滕王阁旅游区,Tengwang Pavilion Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,南通,Nantong,崇川区濠河风景区,"Haohe Scenic Area, Chongchuan District",db,attraction,5a,5a,4.6
+2,5A 级景区,南阳,Nanyang,西峡恐龙遗迹园－伏牛山－老界岭旅游区,Funiu Mountain Laojieling China Dinosaur Site Park Tourist Area,db,attraction,5a,5a,4.4
+2,5A 级景区,博尔塔拉,Bortala,赛里木湖景区,Sayram Lake Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,厦门,Xiamen,厦门园林植物园景区,Xiamen Botanical Garden,db,attraction,5a,5a,4.6
+2,5A 级景区,句容,Jurong,茅山景区,Maoshan Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,台州,Taizhou,仙居县神仙居景区,"Shenxianju Scenic Area, Xianju County",db,attraction,5a,5a,4.7
+2,5A 级景区,台州,Taizhou,台州府城文化旅游区,Taizhou Fucheng Cultural Tourism Zone,db,attraction,5a,5a,4.7
+2,5A 级景区,台州,Taizhou,天台县天台山景区,"Tiantai Mountain Scenic Area, Tiantai County",db,attraction,5a,5a,4.7
+2,5A 级景区,合肥,Hefei,肥西县三河古镇景区,"Sanhe Ancient Town Scenic Area, Feixi County",db,attraction,5a,5a,4.7
+2,5A 级景区,吐鲁番,Turpan,高昌区葡萄沟风景区,"Grape Valley Scenic Area, Gaochang District",db,attraction,5a,5a,4.2
+2,5A 级景区,吴忠,Wuzhong,青铜峡黄河大峡谷旅游区,Qingtongxia Yellow River Grand Canyon Tourist Area,db,attraction,5a,5a,4.7
+2,5A 级景区,周口,Zhoukou,太昊伏羲陵文化旅游区,Taihao Fuxi Mausoleum Cultural Tourism Area,db,attraction,5a,5a,4.7
+2,5A 级景区,呼伦贝尔,Hulunbuir,呼伦贝尔大草原·莫尔格勒河景区,Hulunbuir Grassland · Moergele River Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,咸宁,Xianning,三国赤壁古战场景区,Three Kingdoms Chibi Ancient Battlefield Scenic Area,db,attraction,5a,5a,4.2
+2,5A 级景区,哈尔滨,Harbin,塔克拉玛干·三五九旅文化旅游区,Taklamakan 359 Brigade Cultural Tourism Area,db,attraction,5a,5a,
+2,5A 级景区,哈尔滨,Harbin,松北区太阳岛景区,"Sun Island Scenic Area, Songbei District",db,attraction,5a,5a,4.5
+2,5A 级景区,唐山,Tangshan,南湖·开滦旅游景区,Nanhu Kailuan Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,商洛,Shangluo,商南县金丝峡景区,"Jinsixia Scenic Area, Shangnan County",db,attraction,5a,5a,4.4
+2,5A 级景区,喀什,Kashgar,喀什古城景区,Kashgar Ancient City Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,喀什,Kashgar,喀什地区帕米尔旅游区,Pamir Tourist Area in Kashgar Prefecture,db,attraction,5a,5a,4.6
+2,5A 级景区,喀什,Kashgar,新疆维吾尔自治区喀什地区喀什市喀什古城印象一条街-九龙泉特色商业街区,"Kashgar Ancient City Impression Street - Jiulongquan Characteristic Commercial Block, Kashgar, Xinjiang Uygur Autonomous Region",db,historic,street,"5a, 国家级旅游休闲街区",
+2,5A 级景区,喀什,Kashgar,金湖杨景区,"Golden Populus euphratica Scenic Area, Zepu County, Kashgar",db,attraction,5a,5a,
+2,5A 级景区,嘉兴,Jiaxing,南湖区南湖旅游区,"South Lake Tourist Area, Nanhu District",db,attraction,5a,5a,4.9
+2,5A 级景区,嘉兴,Jiaxing,嘉善县西塘古镇旅游景区,"Xitang Ancient Town Scenic Area, Jiashan County",db,attraction,5a,5a,4.5
+2,5A 级景区,大兴安岭,Daxinganling,大兴安岭地区漠河县北极村旅游景区,"Beiji (Arctic) Village Scenic Area, Mohe County, Daxing'anling",db,attraction,5a,5a,
+2,5A 级景区,大理,Dali,崇圣寺三塔文化旅游区,Chongsheng Temple and the Three Pagodas Cultural Tourism Zone,db,attraction,5a,5a,
+2,5A 级景区,大连,Dalian,老虎滩海洋公园老虎滩极地馆,Laohutan Ocean Park - Laohutan Polar Aquarium,db,attraction,5a,5a,4.4
+2,5A 级景区,大连,Dalian,金州区金石滩景区,"Golden Pebble Beach Scenic Area, Jinzhou District",db,attraction,5a,5a,4.6
+2,5A 级景区,天津,Tianjin,南开区天津古文化街旅游区,"Tianjin Ancient Culture Street Tourist Area, Nankai District",db,attraction,5a,5a,4.7
+2,5A 级景区,天津,Tianjin,蓟州区盘山风景名胜区,"Panshan Scenic Area, Jizhou District",db,attraction,5a,5a,4.6
+2,5A 级景区,太原,Taiyuan,晋祠天龙山景区,Jinci Temple and Tianlong Mountain Scenic Area,db,attraction,5a,"5a, intl, xiaohongshu",4.8
+2,5A 级景区,威海,Weihai,环翠区刘公岛景区,"Liugong Island Scenic Area, Huancui District",db,attraction,5a,5a,4.6
+2,5A 级景区,威海,Weihai,环翠区威海华夏城景区,"Weihai Huaxia City Scenic Area, Huancui District",db,attraction,5a,5a,4.6
+2,5A 级景区,宁安,Ning'an,镜泊湖景区,Jingpo Lake Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,宁德,Ningde,白水洋·鸳鸯溪旅游景区,Pingnan County Scenic Area,db,attraction,5a,5a,5.0
+2,5A 级景区,宁波,Ningbo,天一阁·月湖景区,Tianyi Pavilion · Moon Lake Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,宁波,Ningbo,奉化区溪口滕头旅游景区,Fenghua Xikou-Tengtou Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,安庆,Anqing,潜山县天柱山风景区,"Tianzhushan Scenic Area, Qianshan County",db,attraction,5a,5a,4.7
+2,5A 级景区,安阳,Anyang,殷都区殷墟景区,Yindu District Yin Ruins Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,安阳,Anyang,红旗渠太行大峡谷旅游景区,Red Flag Canal Taihang Grand Canyon Tourist Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,安顺,Anshun,西秀区龙宫景区,"Longgong Scenic Area, Xixiu District",db,attraction,5a,5a,4.5
+2,5A 级景区,安顺,Anshun,镇宁布依族苗族自治县黄果树瀑布景区,"Huangguoshu Waterfall Scenic Area, Zhenning Buyei and Miao Autonomous County",db,attraction,5a,"5a, intl, xiaohongshu",4.5
+2,5A 级景区,宜昌,Yichang,三峡大坝旅游区,Three Gorges Dam Tourist Area,db,attraction,5a,5a,4.7
+2,5A 级景区,宜昌,Yichang,三峡大瀑布景区,Three Gorges Waterfall Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,宜昌,Yichang,夷陵区三峡人家风景区,"Three Gorges Tribe Scenic Area, Yiling District",db,attraction,5a,5a,4.5
+2,5A 级景区,宜昌,Yichang,屈原故里文化旅游区,Qu Yuan's Hometown Cultural Tourism Area,db,attraction,5a,5a,4.5
+2,5A 级景区,宜昌,Yichang,长阳土家族自治县清江画廊景区,"Qingjiang Gallery Scenic Area, Changyang Tujia Autonomous County",db,attraction,5a,5a,4.6
+2,5A 级景区,宜春,Yichun,袁州区明月山旅游区,"Mingyue Mountain Tourist Area, Yuanzhou District",db,attraction,5a,5a,4.5
+2,5A 级景区,宝鸡,Baoji,法门文化景区,"Famen Temple Buddhist Culture Scenic Area, Fufeng County",db,attraction,5a,5a,5.0
+2,5A 级景区,宝鸡,Baoji,眉县太白山旅游景区,"Taibai Mountain Scenic Area, Meixian",db,attraction,5a,5a,4.5
+2,5A 级景区,宣城,Xuancheng,绩溪县龙川景区,"Longchuan Scenic Area, Jixi County",db,attraction,5a,5a,4.4
+2,5A 级景区,宿迁,Suqian,洪泽湖湿地景区,Hongze Lake Wetland Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,岳阳,Yueyang,岳阳楼君山岛景区,Yueyang Tower and Junshan Island Scenic Area,db,attraction,5a,5a,4.2
+2,5A 级景区,峨眉山,Emeishan,峨眉山景区,Mount Emei Scenic Area,db,attraction,5a,"5a, 国家二级博物馆",
+2,5A 级景区,崇左,Chongzuo,德天跨国瀑布景区,Detian Transnational Waterfall Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,巴中,Bazhong,光雾山旅游景区,Guangwu Mountain Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,巴音郭楞,Bayingolin,巴音郭楞蒙古自治州博湖县博斯腾湖景区,"Bosten Lake Scenic Area, Bohu County, Bayingolin Mongol Autonomous Prefecture",db,attraction,5a,5a,4.2
+2,5A 级景区,巴音郭楞,Bayingolin,巴音郭楞蒙古自治州和静县巴音布鲁克景区,"Bayingbulak Scenic Area, Hejing County, Bayingolin Mongol Autonomous Prefecture",db,attraction,5a,5a,4.5
+2,5A 级景区,常州,Changzhou,新北区环球恐龙城景区,"Universal Dinosaur City Scenic Area, Xinbei District",db,attraction,5a,5a,
+2,5A 级景区,常州,Changzhou,武进区春秋淹城旅游区,"Yancheng Spring and Autumn Amusement Land, Wujin District",db,attraction,5a,5a,4.1
+2,5A 级景区,常德,Changde,桃花源旅游区,Taohuayuan Tourist Area,db,attraction,5a,5a,4.7
+2,5A 级景区,常熟,Changshu,沙家浜虞山尚湖旅游区,Shajiabang Yushan Shanghu Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,平凉,Pingliang,崆峒区崆峒山风景名胜区,"Kongtong Mountain Scenic Area, Kongtong District",db,attraction,5a,5a,4.5
+2,5A 级景区,平顶山,Pingdingshan,鲁山县尧山中原大佛景区,"Yaoshan Central Plains Giant Buddha Scenic Area, Lushan County",db,attraction,5a,5a,4.4
+2,5A 级景区,广元,Guangyuan,剑门蜀道剑门关旅游景区,Jianmen Pass Jianmen Shu Road Tourist Area,db,attraction,5a,5a,4.6
+2,5A 级景区,广安,Guang'an,广安市邓小平故里旅游区,"Deng Xiaoping Hometown Tourist Area, Guang'an",db,nature,5a,5a,4.8
+2,5A 级景区,广州,Guangzhou,番禺区长隆旅游度假区,"Chimelong Tourist Resort, Panyu District",db,attraction,5a,5a,
+2,5A 级景区,广州,Guangzhou,白云山景区,"Baiyun Mountain Scenic Area, Baiyun District",db,attraction,5a,5a,4.7
+2,5A 级景区,庐山,Lushan,庐山风景名胜区,Lushan National Park,db,attraction,5a,5a,
+2,5A 级景区,延安,Yan'an,延安市延安革命纪念地景区,"Yan'an Revolutionary Heritage Scenic Area, Yan'an",db,nature,5a,5a,4.6
+2,5A 级景区,延安,Yan'an,延川黄河乾坤湾景区,Yanchuan Yellow River Qiankun Bay Scenic Area,db,attraction,5a,"5a, 4a",4.6
+2,5A 级景区,延安,Yan'an,黄陵县黄帝陵景区,"Mausoleum of the Yellow Emperor Scenic Area, Huangling County",db,attraction,5a,5a,4.7
+2,5A 级景区,延边,Yanbian,长白山景区,Changbai Mountain Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,开封,Kaifeng,龙亭区清明上河园景区,"Millennium City Park (Qingming Riverside Landscape Garden), Longting District",db,attraction,5a,5a,4.6
+2,5A 级景区,徐州,Xuzhou,泉山区云龙湖景区,"Yunlong Lake Scenic Area, Quanshan District",db,attraction,5a,5a,4.7
+2,5A 级景区,忻州,Xinzhou,代县雁门关景区,"Yanmen Pass Scenic Area, Dai County",db,attraction,5a,5a,4.7
+2,5A 级景区,恩施,Enshi,恩施大峡谷景区,Enshi Grand Canyon Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,恩施,Enshi,恩施州腾龙洞景区,Enshi Prefecture Tenglong Cave Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,恩施,Enshi,神农溪纤夫文化旅游区,Shennongxi Tracker Cultural Tourism Zone,db,attraction,5a,5a,
+2,5A 级景区,惠州,Huizhou,博罗县罗浮山景区,"Luofu Mountain Scenic Area, Boluo County",db,attraction,5a,5a,4.6
+2,5A 级景区,惠州,Huizhou,惠州西湖旅游景区,Huizhou West Lake Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,成都,Chengdu,安仁古镇景区,Anren Ancient Town Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,扬州,Yangzhou,瘦西湖风景区,"Slender West Lake Scenic Area, Hanjiang District",db,attraction,5a,5a,4.7
+2,5A 级景区,承德,Chengde,承德避暑山庄及周围寺庙景区,Chengde Mountain Resort and Outlying Temples Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,承德,Chengde,金山岭长城景区,Jinshanling Great Wall Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,抚州,Fuzhou,资溪县大觉山景区,"Dajue Mountain Scenic Area, Zixi County",db,attraction,5a,5a,4.6
+2,5A 级景区,拉萨,Lhasa,城关区大昭寺景区,"Jokhang Temple Scenic Area, Chengguan District",db,attraction,5a,5a,4.5
+2,5A 级景区,敦化,Dunhua,六鼎山文化旅游区,Liuding Mountain Cultural Tourism Area,db,attraction,5a,5a,4.5
+2,5A 级景区,敦煌,Dunhuang,鸣沙山月牙泉景区,Mingsha Mountain and Crescent Moon Spring Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,文山,Wenshan,文山州普者黑旅游景区,Wenshan Prefecture Puzhehei Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,新乡,Xinxiang,八里沟景区,Baligou Scenic Area,db,attraction,5a,5a,4.3
+2,5A 级景区,无锡,Wuxi,中央电视台无锡影视基地三国水浒城景区,CCTV Wuxi Film and Television Base - Three Kingdoms and Water Margin City,db,attraction,5a,5a,4.5
+2,5A 级景区,无锡,Wuxi,惠山古镇景区,Huishan Ancient Town Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,无锡,Wuxi,滨湖区灵山大佛景区,"Grand Buddha at Lingshan Scenic Area, Binhu District",db,attraction,5a,5a,4.7
+2,5A 级景区,无锡,Wuxi,滨湖区鼋头渚旅游风景区,"Yuantouzhu Scenic Area, Binhu District",db,attraction,5a,5a,
+2,5A 级景区,日喀则,Shigatse,日喀则扎什伦布寺景区,"Tashilhunpo Monastery Scenic Area, Shigatse",db,attraction,5a,5a,4.6
+2,5A 级景区,昆山,Kunshan,周庄古镇景区,Zhouzhuang Water Town Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,昆明,Kunming,盘龙区昆明世博园景区,"Kunming World Expo Park Scenic Area, Panlong District",db,attraction,5a,5a,4.7
+2,5A 级景区,昌吉,Changji,昌吉回族自治州江布拉克景区,"Jiangbulak Scenic Area, Changji Hui Autonomous Prefecture",db,attraction,5a,5a,
+2,5A 级景区,晋中,Jinzhong,乔家大院景区,Qiao Family Compound Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,晋中,Jinzhong,平遥县平遥古城景区,"Pingyao Ancient City Scenic Area, Pingyao County",db,attraction,5a,5a,4.6
+2,5A 级景区,晋城,Jincheng,皇城相府生态文化旅游区,Royal Prime Minister's Palace Ecological and Cultural Tourist Area,db,attraction,5a,5a,4.6
+2,5A 级景区,景德镇,Jingdezhen,昌江区古窑民俗博览区,"Ancient Kiln Folk Custom Museum Area, Changjiang District",db,attraction,5a,5a,4.5
+2,5A 级景区,曲阜,Qufu,明故城三孔旅游区,Ming Gucheng Three Confucian Sites Tourist Area,db,attraction,5a,5a,4.6
+2,5A 级景区,本溪,Benxi,五女山景区,Wunü Mountain Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,本溪,Benxi,本溪满族自治县本溪水洞景区,"Benxi Water Cave Scenic Area, Benxi Manchu Autonomous County",db,attraction,5a,5a,4.6
+2,5A 级景区,杭州,Hangzhou,淳安县千岛湖风景区,"Qiandao Lake Scenic Area, Chun'an County",db,attraction,5a,5a,4.4
+2,5A 级景区,杭州,Hangzhou,西湖区西溪湿地旅游区,"Xixi Wetland Tourist Area, Xihu District",db,attraction,5a,5a,4.5
+2,5A 级景区,松原,Songyuan,前郭查干湖景区,Qianguo Chagan Lake Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,林芝,Nyingchi,林芝巴松措景区,Nyingchi Basum Tso Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,林芝,Nyingchi,雅鲁藏布大峡谷旅游景区,Yarlung Tsangpo Grand Canyon Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,枣庄,Zaozhuang,台儿庄区台儿庄古城景区,Tai'erzhuang Ancient City Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,柳州,Liuzhou,程阳八寨景区,Chengyang Bazhai Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,株洲,Zhuzhou,炎帝陵景区,Yan Emperor Mausoleum Scenic Area,db,attraction,5a,5a,4.2
+2,5A 级景区,桂林,Guilin,两江四湖,Two Rivers and Four Lakes,db,attraction,5a,5a,4.5
+2,5A 级景区,桂林,Guilin,乐满地度假世界,Land of Leisure Resort World,db,attraction,5a,5a,
+2,5A 级景区,桂林,Guilin,独秀峰·靖江王城景区,Duxiu Peak and Jingjiang Princes' Palace Scenic Area,db,attraction,5a,5a,4.9
+2,5A 级景区,桐乡,Tongxiang,乌镇古镇旅游区,Wuzhen Ancient Town Scenic Area,db,attraction,5a,"5a, 中国历史文化名镇",4.5
+2,5A 级景区,梅州,Meizhou,雁南飞茶田景区,"Yannanfei Tea Field Scenic Area, Meixian District",db,attraction,5a,5a,4.4
+2,5A 级景区,武夷山,Wuyishan,武夷山风景名胜区,Wuyishan Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,武汉,Wuhan,黄陂区木兰文化生态旅游区,"Mulan Cultural Ecological Tourism Area, Huangpi District",db,attraction,5a,5a,4.4
+2,5A 级景区,毕节,Bijie,织金洞景区,Zhijin Cave Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,毕节,Bijie,黔西县百里杜鹃景区,"Baili Dujuan Scenic Area, Qianxi County",db,attraction,5a,5a,4.3
+2,5A 级景区,永城,Yongcheng,芒砀山汉文化旅游景区,Mangdang Mountain Han Culture Tourism Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,江山,Jiangshan,江郎山·廿八都旅游区,Jianglang Mountain · Nianbadu Tourist Area,db,attraction,5a,5a,4.4
+2,5A 级景区,池州,Chizhou,青阳县九华山风景区,"Jiuhua Mountain Scenic Area, Qingyang County",db,attraction,5a,5a,4.8
+2,5A 级景区,沈阳,Shenyang,沈阳植物园,Shenyang Botanical Garden,db,attraction,baidu,5a,4.6
+2,5A 级景区,河源,Heyuan,万绿湖风景区,Wanlv Lake Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,泉州,Quanzhou,丰泽区清源山风景名胜区,"Qingyuan Mountain Scenic Area, Fengze District",db,attraction,5a,5a,4.4
+2,5A 级景区,泰安,Tai'an,泰山区泰山景区,"Mount Tai Scenic Area, Taishan District",db,attraction,5a,5a,4.6
+2,5A 级景区,泰州,Taizhou,溱湖旅游景区,Qinhu National Wetland Park,db,attraction,5a,5a,4.5
+2,5A 级景区,洛阳,Luoyang,嵩县白云山景区,Song County Baiyun Mountain Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,洛阳,Luoyang,新安县龙潭大峡谷景区,"Longtan Grand Canyon Scenic Area, Xin'an County",db,attraction,5a,5a,4.5
+2,5A 级景区,洛阳,Luoyang,栾川县老君山鸡冠洞旅游区,"Laojun Mountain–Jiguan Cave Scenic Area, Luanchuan County",db,attraction,5a,5a,4.4
+2,5A 级景区,济南,Jinan,历下区天下第一泉景区,"First Spring Scenic Area, Lixia District",db,attraction,5a,5a,4.6
+2,5A 级景区,济宁,Jining,微山湖旅游区,Weishan Lake Tourist Area,db,attraction,5a,5a,4.0
+2,5A 级景区,海东,Haidong,互助土族故土园旅游区,Huzhu Tu Nationality Homeland Tourism Area,db,attraction,5a,5a,4.3
+2,5A 级景区,海北,Haibei,海北州阿咪东索景区,"Amidongso Scenic Area, Haibei Prefecture",db,attraction,5a,5a,4.0
+2,5A 级景区,海南,Hainan,青海湖风景区,Qinghai Lake Scenic Area,db,attraction,5a,5a,4.1
+2,5A 级景区,淄博,Zibo,周村古商城景区,Zhoucun Ancient Commercial City,db,attraction,5a,5a,4.5
+2,5A 级景区,淮安,Huai'an,淮安市周恩来故里景区,"Zhou Enlai Hometown Scenic Area, Huai'an",db,nature,5a,5a,4.6
+2,5A 级景区,深圳,Shenzhen,南山区华侨城旅游度假区,"Overseas Chinese Town (OCT) Tourist Resort, Nanshan District",db,attraction,5a,5a,4.5
+2,5A 级景区,深圳,Shenzhen,龙华区观澜湖休闲旅游区,"Mission Hills Leisure Tourism Zone, Longhua District",db,attraction,5a,5a,4.4
+2,5A 级景区,温州,Wenzhou,刘伯温故里景区,Liu Bowen Hometown Scenic Area,db,attraction,5a,5a,4.8
+2,5A 级景区,湖州,Huzhou,南浔古镇景区,"Nanxun Ancient Town Scenic Area, Nanxun District",db,attraction,5a,5a,4.6
+2,5A 级景区,湘西,Xiangxi,湘西土家族苗族自治州凤凰古城旅游区,"Fenghuang Ancient Town, Xiangxi Tujia and Miao Autonomous Prefecture",db,attraction,5a,5a,4.8
+2,5A 级景区,湘西,Xiangxi,矮寨·十八洞·德夯大峡谷景区,Aizhai Shibadong Dehang Grand Canyon Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,溧阳,Liyang,天目湖景区,Tianmu Lake Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,滁州,Chuzhou,琅琊山景区,Langya Mountain Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,满洲里,Manzhouli,中俄边境旅游区,China-Russia Border Tourism Area,db,attraction,5a,5a,4.5
+2,5A 级景区,灵武,Lingwu,水洞沟旅游区,Shuidonggou Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,焦作,Jiaozuo,云台山神农山青天河风景区,"Yuntai Mountain, Shennong Mountain and Qingtianhe Scenic Area",db,attraction,5a,5a,4.3
+2,5A 级景区,瑞金,Ruijin,共和国摇篮景区,Cradle of the Republic Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,甘孜,Garze,甘孜州稻城亚丁旅游景区,"Daocheng Yading Tourist Area, Garze Prefecture",db,attraction,5a,5a,
+2,5A 级景区,甘孜,Garze,甘孜藏族自治州泸定县海螺沟景区,"Hailuogou Scenic Area, Luding County, Garze Tibetan Autonomous Prefecture",db,attraction,5a,5a,4.6
+2,5A 级景区,登封,Dengfeng,嵩山少林景区,"Shaolin Temple Scenic Area, Mount Song",db,attraction,5a,5a,4.5
+2,5A 级景区,百色,Baise,百色市百色起义纪念园景区,"Baise Uprising Memorial Park Scenic Area, Baise",db,nature,5a,5a,4.5
+2,5A 级景区,盘锦,Panjin,红海滩风景廊道景区,Red Beach Scenic Corridor Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,石嘴山,Shizuishan,平罗县沙湖旅游景区,"Sand Lake Scenic Area, Pingluo County",db,attraction,5a,5a,4.5
+2,5A 级景区,石家庄,Shijiazhuang,石家庄平山县西柏坡景区,"Xibaipo Scenic Area, Pingshan County, Shijiazhuang",db,attraction,5a,5a,4.8
+2,5A 级景区,神农架林区,Shennongjia,神农架林区神农架生态旅游区,"Shennongjia Ecological Tourism Area, Shennongjia Forestry District",db,attraction,5a,5a,
+2,5A 级景区,福州,Fuzhou,鼓楼区三坊七巷景区,"Three Lanes and Seven Alleys Scenic Area, Gulou District",db,attraction,5a,5a,4.6
+2,5A 级景区,福鼎,Fuding,太姥山旅游区,Taimu Mountain Tourist Area,db,attraction,5a,5a,4.7
+2,5A 级景区,秦皇岛,Qinhuangdao,山海关景区,Shanhaiguan Scenic Area,db,attraction,baidu,5a,4.5
+2,5A 级景区,绍兴,Shaoxing,鲁迅故里·沈园景区,Lu Xun's Hometown and Shen Garden Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,绵阳,Mianyang,北川羌族自治县羌城旅游区,Beichuan Qiang Ethnic Tourism Area,db,attraction,5a,5a,4.5
+2,5A 级景区,肇庆,Zhaoqing,星湖旅游景区,Xinghu Tourist Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,腾冲,Tengchong,和顺古镇景区,Heshun Ancient Town Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,舟山,Zhoushan,普陀区普陀山风景区,"Mount Putuo Scenic Area, Putuo District",db,attraction,5a,5a,4.7
+2,5A 级景区,芜湖,Wuhu,鸠江区方特旅游区,"Fantawild Tourist Area, Jiujiang District",db,attraction,5a,5a,4.4
+2,5A 级景区,苏州,Suzhou,吴中区太湖旅游区,"Taihu Tourism Area, Wuzhong District",db,attraction,5a,5a,4.6
+2,5A 级景区,苏州,Suzhou,吴江区同里古镇景区,"Tongli Ancient Town Scenic Area, Wujiang District",db,attraction,5a,5a,4.5
+2,5A 级景区,苏州,Suzhou,金鸡湖旅游区,Jinji Lake National Business Tourism Demonstration Zone,db,attraction,5a,5a,4.6
+2,5A 级景区,莆田,Putian,湄洲岛妈祖文化旅游区,Meizhou Island Mazu Cultural Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,萍乡,Pingxiang,武功山景区,Wugong Mountain Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,蓬莱,Penglai,蓬莱阁三仙山八仙过海旅游区,Penglai Pavilion Three Immortals Mountain Eight Immortals Crossing the Sea Tourist Area,db,attraction,5a,"5a, intl, xiaohongshu",
+2,5A 级景区,虎林,Hulin,虎头旅游景区,Hutou Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,衡水,Hengshui,衡水湖旅游景区,Hengshui Lake Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,衡阳,Hengyang,南岳区衡山旅游区,"Mount Heng Tourist Area, Nanyue District",db,attraction,5a,5a,4.5
+2,5A 级景区,衢州,Quzhou,开化县根宫佛国文化旅游区,"Root Palace Buddhist Kingdom Cultural Tourism Area, Kaihua County",db,attraction,5a,5a,4.5
+2,5A 级景区,襄阳,Xiangyang,古隆中景区,Gulongzhong Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,西双版纳,Xishuangbanna,中国科学院西双版纳热带植物园,"Xishuangbanna Tropical Botanical Garden, Chinese Academy of Sciences",db,attraction,5a,5a,
+2,5A 级景区,西宁,Xining,湟中县塔尔寺景区,"Kumbum Monastery (Ta'er Temple) Scenic Area, Huangzhong County",db,attraction,5a,5a,4.7
+2,5A 级景区,西安,Xi'an,城墙·碑林历史文化景区,City Wall · Stele Forest Historical and Cultural Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,贵阳,Guiyang,花溪区青岩古镇景区,"Qingyan Ancient Town Scenic Area, Huaxi District",db,attraction,5a,5a,4.3
+2,5A 级景区,贺州,Hezhou,黄姚古镇景区,Huangyao Ancient Town Scenic Area,db,attraction,5a,"5a, 4a",4.3
+2,5A 级景区,资兴,Zixing,东江湖旅游区,Dongjiang Lake Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,赣州,Ganzhou,三百山景区,Sanbaishan Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,赤峰,Chifeng,阿斯哈图石阵旅游区,Asihatu Stone Forest Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,连云港,Lianyungang,海州区花果山景区,"Huaguo Mountain Scenic Area, Haizhou District",db,attraction,5a,5a,4.5
+2,5A 级景区,连云港,Lianyungang,连岛景区,Liandao Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,连州,Lianzhou,地下河旅游景区,Underground River Tourist Area,db,attraction,5a,5a,4.8
+2,5A 级景区,迪庆,Diqing,普达措国家公园,Potatso National Park,db,attraction,5a,5a,4.4
+2,5A 级景区,通化,Tonghua,高句丽文物古迹旅游景区,Goguryeo Cultural Relics and Historic Sites Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,遵义,Zunyi,赤水丹霞旅游区,Chishui Danxia Tourism Area,db,attraction,5a,5a,4.5
+2,5A 级景区,邯郸,Handan,永年县广府古城景区,"Guangfu Ancient City Scenic Area, Yongnian County",db,attraction,5a,5a,4.3
+2,5A 级景区,邯郸,Handan,涉县娲皇宫景区,"Wahuang Palace Scenic Area, Shexian",db,attraction,5a,5a,4.6
+2,5A 级景区,邵阳,Shaoyang,新宁县崀山景区,"Langshan Scenic Area, Xinning County",db,attraction,5a,5a,4.7
+2,5A 级景区,鄂尔多斯,Ordos,伊金霍洛旗成吉思汗陵旅游区,"Genghis Khan Mausoleum Tourist Area, Ejin Horo Banner",db,attraction,5a,5a,4.3
+2,5A 级景区,鄂尔多斯,Ordos,达拉特旗响沙湾旅游景区,"Xiangshawan Tourist Scenic Area, Dalad Banner",db,attraction,5a,5a,4.4
+2,5A 级景区,重庆,Chongqing,万盛黑山谷-龙鳞石海风景区,Wansheng Heishan Valley - Longlin Stone Sea Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,重庆,Chongqing,云阳县龙缸景区,"Longgang Scenic Area, Yunyang County",db,attraction,5a,5a,4.6
+2,5A 级景区,重庆,Chongqing,小三峡小小三峡旅游区,Little Three Gorges and Mini Three Gorges Tourist Area,db,attraction,5a,5a,4.3
+2,5A 级景区,重庆,Chongqing,彭水县阿依河景区,"Ayi River Scenic Area, Pengshui County",db,attraction,5a,5a,3.8
+2,5A 级景区,重庆,Chongqing,江津区四面山景区,"Simian Mountain Scenic Area, Jiangjin District",db,attraction,5a,5a,4.5
+2,5A 级景区,重庆,Chongqing,涪陵区武陵山大裂谷景区,"Wuling Mountain Grand Canyon Scenic Area, Fuling District",db,attraction,5a,5a,4.6
+2,5A 级景区,重庆,Chongqing,白帝城·瞿塘峡景区,Baidicheng-Qutang Gorge Scenic Area,db,attraction,5a,5a,4.6
+2,5A 级景区,重庆,Chongqing,酉阳土家族苗族自治县桃花源旅游景区,"Taoyuan (Peach Blossom Spring) Scenic Area, Youyang Tujia and Miao Autonomous County",db,attraction,5a,5a,4.4
+2,5A 级景区,重庆,Chongqing,金佛山-神龙峡风景区,Jinfoshan-Shenlongxia Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,重庆,Chongqing,黔江区濯水景区,"Zhuoshui Scenic Area, Qianjiang District",db,attraction,5a,5a,4.6
+2,5A 级景区,金华,Jinhua,双龙风景名胜区,Shuanglong Scenic Area,db,nature,scenic,5a,
+2,5A 级景区,银川,Yinchuan,宁夏镇北堡西部影视城,Ningxia Zhenbeipu Western Film Studio,db,attraction,5a,5a,
+2,5A 级景区,镇江,Zhenjiang,金山·焦山·北固山风景区,Sanshan Scenic Area,db,attraction,5a,5a,5.0
+2,5A 级景区,长春,Changchun,伪满皇宫博物院,Museum of the Imperial Palace of Manchukuo,db,attraction,5a,5a,4.6
+2,5A 级景区,长春,Changchun,南关区世界雕塑公园景区,"World Sculpture Park, Nanguan District",db,attraction,5a,5a,4.7
+2,5A 级景区,长春,Changchun,南关区净月潭景区,"Jingyuetan Scenic Area, Nanguan District",db,attraction,5a,5a,4.7
+2,5A 级景区,长春,Changchun,南关区长影世纪城景区,"Changchun Film Century City Scenic Area, Nanguan District",db,attraction,5a,5a,4.1
+2,5A 级景区,长沙,Changsha,宁乡县花明楼景区,"Huaminglou Scenic Area, Ningxiang County",db,attraction,5a,5a,4.7
+2,5A 级景区,长沙,Changsha,岳麓山-橘子洲旅游区,Yuelu Mountain-Orange Isle Tourist Area,db,attraction,5a,5a,4.6
+2,5A 级景区,长治,Changzhi,壶关太行山大峡谷八泉峡景区,"Baquan Gorge, Huguan Taihang Grand Canyon",db,attraction,5a,5a,4.6
+2,5A 级景区,阆中,Langzhong,阆中古城旅游景区,Langzhong Ancient Town Tourist Attraction,db,attraction,5a,5a,4.6
+2,5A 级景区,阜康,Fukang,天山天池风景名胜区,Tianshan Tianchi Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,阜阳,Fuyang,颍上县八里河风景区,"Balihe Scenic Area, Yingshang County",db,attraction,5a,5a,4.2
+2,5A 级景区,阳江,Yangjiang,海陵岛大角湾海上丝路旅游区,Hailing Island Dajiaowan Maritime Silk Road Tourist Area,db,attraction,5a,5a,4.4
+2,5A 级景区,阿克苏,Aksu,阿克苏地区天山托木尔景区,"Tianshan Tomur Scenic Area, Aksu Prefecture",db,nature,5a,5a,
+2,5A 级景区,阿勒泰,Altay,伊犁哈萨克自治州阿勒泰地区富蕴县可可托海景区,"Koktokay Scenic Area, Fuyun County, Altay Prefecture, Ili Kazakh Autonomous Prefecture",db,attraction,5a,5a,4.6
+2,5A 级景区,阿勒泰,Altay,伊犁哈萨克自治州阿勒泰地区布尔津县喀纳斯景区,"Kanas Scenic Area, Burqin County, Altay Prefecture, Ili Kazakh Autonomous Prefecture",db,attraction,5a,5a,
+2,5A 级景区,阿勒泰,Altay,新疆生产建设兵团第十师白沙湖景区,"Baisha Lake Scenic Area, 10th Division of Xinjiang Production and Construction Corps",db,attraction,5a,5a,
+2,5A 级景区,阿坝,Ngawa,阿坝藏族羌族自治州四姑娘山景区,"Mount Siguniang Scenic Area, Aba Tibetan and Qiang Autonomous Prefecture",db,attraction,5a,5a,
+2,5A 级景区,阿坝,Ngawa,阿坝藏族羌族自治州松潘县黄龙风景名胜区,"Huanglong Scenic Area, Songpan County, Aba Tibetan and Qiang Autonomous Prefecture",db,attraction,5a,5a,4.8
+2,5A 级景区,阿坝,Ngawa,阿坝藏族羌族自治州汶川县汶川特别旅游区,"Wenchuan Special Tourism Area, Wenchuan County, Aba Tibetan and Qiang Autonomous Prefecture",db,attraction,5a,5a,3.7
+2,5A 级景区,阿拉善盟,Alxa,阿拉善盟胡杨林旅游区,Alashan Populus Euphratica Forest Tourist Area,db,attraction,5a,5a,
+2,5A 级景区,陇南,Longnan,官鹅沟景区,Guan'e Gou Scenic Area,db,attraction,5a,5a,4.3
+2,5A 级景区,陵水,Lingshui,陵水县分界洲岛旅游区,"Fenjiezhou Island Tourist Area, Lingshui County",db,attraction,5a,5a,4.5
+2,5A 级景区,雅安,Ya'an,碧峰峡旅游景区,Bifengxia Scenic Area,db,attraction,5a,5a,4.4
+2,5A 级景区,青岛,Qingdao,奥帆海洋文化旅游区,Olympic Sailing Center and Marine Culture Tourism Area,db,attraction,5a,5a,4.6
+2,5A 级景区,青岛,Qingdao,崂山区崂山景区,"Laoshan Scenic Area, Laoshan District",db,attraction,5a,5a,4.7
+2,5A 级景区,青州,Qingzhou,青州古城景区,Qingzhou Ancient City Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,鞍山,Anshan,千山景区,Qianshan Scenic Area,db,attraction,5a,5a,4.7
+2,5A 级景区,韶关,Shaoguan,仁化县丹霞山景区,"Danxia Mountain Scenic Area, Renhua County",db,attraction,5a,5a,4.6
+2,5A 级景区,韶山,Shaoshan,韶山旅游区,Shaoshan Tourist Area,db,attraction,5a,5a,4.5
+2,5A 级景区,马鞍山,Ma'anshan,长江采石矶文化生态旅游区,Yangtze River Caishiji Cultural Ecotourism Area,db,attraction,5a,"5a, intl, xiaohongshu",4.6
+2,5A 级景区,驻马店,Zhumadian,遂平县嵖岈山旅游景区,"Chaya Mountain Scenic Area, Suiping County",db,attraction,5a,5a,4.5
+2,5A 级景区,鹰潭,Yingtan,龙虎山风景名胜区,Longhu Mountain Scenic Area,db,attraction,5a,5a,4.5
+2,5A 级景区,黄山,Huangshan,古徽州文化旅游区,Ancient Huizhou Cultural Tourism Zone,db,attraction,5a,5a,4.3
+2,5A 级景区,黄山,Huangshan,宏村,Hongcun,db,attraction,histvillage,"5a, histvillage",4.8
+2,5A 级景区,黄山,Huangshan,西递村,Xidi Village,db,attraction,histvillage,"5a, histvillage",
+2,5A 级景区,黔东南,Qiandongnan,黔东南州镇远古城旅游景区,"Zhenyuan Ancient Town Scenic Area, Qiandongnan",db,attraction,5a,5a,4.5
+2,5A 级景区,黔西南,Qianxinan,黔西南州万峰林景区,"Wanfenglin Scenic Area, Qianxinan Prefecture",db,nature,5a,5a,4.7
+2,5A 级景区,龙口,Longkou,南山景区,Nanshan Scenic Area,db,attraction,5a,5a,
+2,5A 级景区,龙岩,Longyan,上杭县古田旅游区,"Gutian Tourist Area, Shanghang County",db,attraction,5a,5a,5.0
+2,5A 级景区,龙岩,Longyan,冠豸山风景名胜区,Guanzhai Mountain Scenic Area,db,nature,scenic,5a,
+3,国际平台荐点,上海,Shanghai,上海之巅观光厅,Top of Shanghai Observatory,db,nature,amap,"intl, layla, 4a",4.6
+3,国际平台荐点,上海,Shanghai,上海北外滩国客中心景区,"North Bund International Cruise Terminal Scenic Area, Shanghai",db,nature,baidu,"intl, layla, 4a",
+3,国际平台荐点,上海,Shanghai,上海博物馆(东馆),Shanghai Museum (East Branch),db,museum,amap,"intl, sygic",4.6
+3,国际平台荐点,上海,Shanghai,上海外滩12号大楼,"Building No. 12, The Bund, Shanghai",db,nature,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,上海外滩星空艺术馆,Shanghai Bund Starry Sky Art Museum,db,nature,amap,"intl, layla",4.4
+3,国际平台荐点,上海,Shanghai,上海外滩沙美大楼ZHotel,"ZHotel in the Samee Building, the Bund, Shanghai",db,nature,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,上海外滩美术馆,Rockbund Art Museum,db,museum,artmuseum,"intl, sygic, kkday, layla",4.6
+3,国际平台荐点,上海,Shanghai,上海外滩花间堂·愉园,Shanghai Bund Blossom Hill · Yuyuan,db,nature,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,上海天际线,Shanghai skyline,db,attraction,wonderplan,"intl, wonderplan",
+3,国际平台荐点,上海,Shanghai,上海市黄浦区新天地石库门街区,"Shikumen Block, Xintiandi, Huangpu District, Shanghai",db,historic,street,"intl, sygic, 国家级旅游休闲街区",
+3,国际平台荐点,上海,Shanghai,上海朱家角珠溪里舍,Shanghai Zhujiajiao Zhuxi Lishe,db,nature,chinatravel,"intl, sygic",
+3,国际平台荐点,上海,Shanghai,上海环球金融中心,Shanghai World Financial Center,db,nature,amap,"intl, sygic",4.3
+3,国际平台荐点,上海,Shanghai,上海迪士尼度假区,Shanghai Disney Resort,db,nature,amap,"intl, sygic",
+3,国际平台荐点,上海,Shanghai,中华艺术宫,China Art Museum,db,attraction,amap,"intl, sygic",
+3,国际平台荐点,上海,Shanghai,中华艺术宫（上海美术馆）,China Art Museum (Shanghai Art Museum),db,museum,artmuseum,"intl, sygic, 国家重点美术馆",
+3,国际平台荐点,上海,Shanghai,北外滩国客中心,North Bund International Cruise Terminal,db,nature,amap,"intl, layla",4.5
+3,国际平台荐点,上海,Shanghai,北外滩国客中心沙滩嘉年华,North Bund International Cruise Terminal Beach Carnival,db,theme_park,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,外滩ART.333,The Bund ART.333,db,nature,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,外滩万国建筑博览群,Bund International Architecture Exhibition Group,db,nature,amap,"intl, layla",
+3,国际平台荐点,上海,Shanghai,外滩源,Rockbund,db,nature,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,外滩观光隧道,Bund Sightseeing Tunnel,db,nature,amap,"intl, layla",
+3,国际平台荐点,上海,Shanghai,朱家角大清邮局,"Great Qing Post Office, Zhujiajiao",db,other,chinatravel,"intl, sygic",
+3,国际平台荐点,上海,Shanghai,朱家角镇,Zhujiajiao Town,db,ancient_town,histown,"intl, sygic, 中国历史文化名镇",
+3,国际平台荐点,上海,Shanghai,法租界,Shanghai French Concession,db,attraction,layla,"intl, sygic, layla",
+3,国际平台荐点,上海,Shanghai,浦江游览,Huangpu River Cruise,db,attraction,amap,"intl, layla",
+3,国际平台荐点,上海,Shanghai,玉佛禅寺,Jade Buddha Temple,db,attraction,amap,"intl, sygic",
+3,国际平台荐点,上海,Shanghai,田子坊石库门,Tianzifang Shikumen,db,ancient_town,chinatravel,"intl, layla",
+3,国际平台荐点,上海,Shanghai,白玉兰广场,White Magnolia Plaza,db,attraction,chinatravel,"intl, layla",
+3,国际平台荐点,北京,Beijing,teamLab无相艺术空间,teamLab Massless Art Space,db,attraction,amap,"intl, klook",
+3,国际平台荐点,北京,Beijing,万寿寺,Wanshou Temple,db,attraction,chinatravel,"intl, mindtrip",
+3,国际平台荐点,北京,Beijing,万春亭,Wanchunting,db,attraction,baidu,"intl, mindtrip",
+3,国际平台荐点,北京,Beijing,中国国家博物馆,National Museum of China,db,museum,museum1,"intl, 国家一级博物馆, sygic",4.6
+3,国际平台荐点,北京,Beijing,什刹海,Shichahai,db,nature,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,什刹海游船,Shichahai Boat Cruise,db,nature,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,八达岭古长城(残长城),Badaling Ancient Great Wall (Remnant Great Wall),db,nature,amap,"intl, tui",
+3,国际平台荐点,北京,Beijing,八达岭水关长城景区,Badaling Water Pass Great Wall (Shuiguan),db,nature,baidu,"intl, tui, 4a",
+3,国际平台荐点,北京,Beijing,北京动物园,Beijing Zoo,db,park,chinatravel,"intl, klook, 4a",3.6
+3,国际平台荐点,北京,Beijing,北京动物园游船码头,Beijing Zoo Cruise Boat Dock,db,theme_park,amap,"intl, klook",
+3,国际平台荐点,北京,Beijing,北京南锣鼓巷古韵坊四合院漫心府,"Guyunfang Courtyard Manxinfu, Nanluoguxiang, Beijing",db,attraction,chinatravel,"intl, layla",
+3,国际平台荐点,北京,Beijing,北京奥林匹克公园,Beijing Olympic Park,db,attraction,baidu,"intl, layla",4.6
+3,国际平台荐点,北京,Beijing,北京市东城区王府井商业街区,"Wangfujing Commercial Block, Dongcheng District, Beijing",db,historic,street,"intl, sygic, 国家级旅游休闲街区",
+3,国际平台荐点,北京,Beijing,北京王府井天主教堂,"Wangfujing Catholic Church, Beijing",db,attraction,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,北京环球度假区,Universal Beijing Resort,db,theme_park,amap,"intl, klook",
+3,国际平台荐点,北京,Beijing,北京黄花城水长城漫心府,Beijing Huanghuacheng Waterside Great Wall Manxin Mansion,db,nature,chinatravel,"intl, tui",
+3,国际平台荐点,北京,Beijing,司马台长城,Simatai Great Wall,db,nature,amap,"intl, klook, tui",4.7
+3,国际平台荐点,北京,Beijing,后海,Houhai Lake,db,park,chinatravel,"intl, sygic",
+3,国际平台荐点,北京,Beijing,国家体育场·鸟巢,Beijing National Stadium,db,attraction,baidu,"intl, layla",
+3,国际平台荐点,北京,Beijing,圆明园,Old Summer Palace (Yuanmingyuan),db,park,amap,"intl, klook",
+3,国际平台荐点,北京,Beijing,天安门城楼,Tiananmen Gate Tower,db,historic,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,居庸关长城,Juyongguan Great Wall,db,nature,amap,"intl, tui, 4a",
+3,国际平台荐点,北京,Beijing,慕田峪长城索道滑道,Mutianyu Great Wall Cableway and Slide,db,nature,amap,"intl, klook, tui",4.8
+3,国际平台荐点,北京,Beijing,故宫珍宝馆,Treasure Gallery of the Palace Museum,db,attraction,amap,"intl, mindtrip",
+3,国际平台荐点,北京,Beijing,故宫钟表馆,"Gallery of Clocks and Watches, Palace Museum",db,attraction,amap,"intl, mindtrip, layla",
+3,国际平台荐点,北京,Beijing,文化和旅游部恭王府博物馆,"Prince Kung's Palace Museum, Ministry of Culture and Tourism",db,museum,museum1,"intl, 国家一级博物馆, sygic, klook",4.8
+3,国际平台荐点,北京,Beijing,水关长城,Shuiguan Great Wall,db,nature,amap,"intl, tui",
+3,国际平台荐点,北京,Beijing,王府井,Wangfujing,db,citywalk,chinatravel,"intl, sygic, layla",
+3,国际平台荐点,北京,Beijing,皇极殿,Hall of Great Supremacy,db,attraction,baidu,"intl, mindtrip",
+3,国际平台荐点,北京,Beijing,皇穹宇,Huangqiongyu (Imperial Vault of Heaven),db,temple,chinatravel,"intl, layla",
+3,国际平台荐点,北京,Beijing,神乐署,Divine Music Administration,db,historic,chinatravel,"intl, layla",
+3,国际平台荐点,北京,Beijing,神路景区,Shenlu Scenic Area,db,attraction,amap,"intl, tui",
+3,国际平台荐点,北京,Beijing,箭扣长城,Jiankou Great Wall,db,nature,chinatravel,"intl, tui",
+3,国际平台荐点,北京,Beijing,老北京胡同游,Old Beijing Hutong Tour,db,historic,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,角楼,Corner Tower,db,historic,amap,"intl, mindtrip, tui",
+3,国际平台荐点,北京,Beijing,钟楼,Bell Tower,db,historic,amap,"intl, sygic",
+3,国际平台荐点,北京,Beijing,长城之漫观景台,Great Wall Romance Viewing Platform,db,nature,chinatravel,"intl, tui",
+3,国际平台荐点,北京,Beijing,长城脚下的公社,Commune by the Great Wall,db,other,chinatravel,"intl, tui",
+3,国际平台荐点,北京,Beijing,颐和园冰雪嘉年华,Summer Palace Ice and Snow Carnival,db,theme_park,chinatravel,"intl, culturetrip",4.7
+3,国际平台荐点,北京,Beijing,黄花城水长城,Huanghuacheng Water Great Wall,db,nature,amap,"intl, tui",
+3,国际平台荐点,成都,Chengdu,成都武侯祠博物馆,Chengdu Wuhou Shrine Museum,db,museum,museum1,"intl, mindtrip, 国家一级博物馆",4.6
+3,国际平台荐点,成都,Chengdu,春熙路,Chunxi Road,db,citywalk,amap,"intl, layla",4.7
+3,国际平台荐点,成都,Chengdu,武侯祠·锦里,Wuhou Shrine · Jinli Block,db,citywalk,street,"intl, mindtrip, layla, 国家级旅游休闲街区",4.6
+3,国际平台荐点,成都,Chengdu,熊猫谷,Panda Valley,db,nature,amap,"intl, mindtrip, layla",4.5
+3,国际平台荐点,成都,Chengdu,西蜀第一街牌坊,First Street of Western Shu Archway,db,citywalk,amap,"intl, mindtrip, layla",
+3,国际平台荐点,成都,Chengdu,锦里古戏台,Jinli Ancient Stage,db,art,chinatravel,"intl, layla",
+3,国际平台荐点,西安,Xi'an,永兴坊,Yongxingfang,db,attraction,baidu,"intl, sygic",
+3,国际平台荐点,西安,Xi'an,西安博物院,Xi'an Museum,db,museum,museum1,"intl, sygic, 国家一级博物馆",4.8
+3,国际平台荐点,西安,Xi'an,西安市钟鼓楼博物馆,Xi'an Bell and Drum Tower Museum,db,museum,museum3,"intl, mindtrip, layla, 国家三级博物馆",4.0
+3,国际平台荐点,西安,Xi'an,西安鼓楼,Xi'an Drum Tower Museum,db,attraction,baidu,"intl, sygic, layla",
+3,国际平台荐点,西安,Xi'an,陕西历史博物馆,Shaanxi History Museum,db,museum,museum1,"intl, layla, xiaohongshu, 国家一级博物馆",4.8
+3,国际平台荐点,重庆,Chongqing,磁器口转运楼,Ciqikou Zhuanyun Building,db,ancient_town,amap,"intl, tui",
+3,国际平台荐点,重庆,Chongqing,芙蓉洞,Furong Cave,db,nature,amap,"intl, tui",
+3,国际平台荐点,重庆,Chongqing,重庆长江三峡游船,Chongqing Yangtze River Three Gorges Cruise,db,theme_park,chinatravel,"intl, tui",
+3,国际平台荐点,香港,Hong Kong,天坛大佛,Big Buddha,db,attraction,tui,"intl, tui",
+4,短视频与社媒,张家界,Zhangjiajie,宝峰湖游船,Baofeng Lake Cruise,db,attraction,tiktok,"intl, tiktok",
+5,小红书,丽江,Lijiang,玉湖村,Yuhu Village,db,attraction,manual,"intl, xiaohongshu",
+5,小红书,九江,Jiujiang,庐山风景名胜区,Mount Lushan Scenic Area,db,nature,scenic,"intl, xiaohongshu",
+5,小红书,大理,Dali,周城村,Zhoucheng Village,db,attraction,manual,"intl, xiaohongshu",
+5,小红书,太原,Taiyuan,太原市晋祠博物馆,Taiyuan Jinci Museum,db,museum,museum1,"intl, xiaohongshu, 国家一级博物馆",4.8
+5,小红书,太原,Taiyuan,晋祠,Jinci Temple,db,attraction,reservation,"intl, xiaohongshu",
+5,小红书,安阳,Anyang,修定寺塔,Xiuding Temple Pagoda,db,attraction,xiaohongshu,"intl, xiaohongshu",
+5,小红书,安阳,Anyang,灵泉寺石窟,Lingquan Temple Grottoes,db,attraction,xiaohongshu,"intl, xiaohongshu",
+5,小红书,扬州,Yangzhou,个园,Ge Garden,db,park,reservation,"intl, xiaohongshu",4.8
+5,小红书,景德镇,Jingdezhen,三宝村,Sanbao Village,db,attraction,manual,"intl, xiaohongshu",4.3
+5,小红书,景德镇,Jingdezhen,景德镇中国陶瓷博物馆,Jingdezhen China Ceramics Museum,db,museum,museum1,"intl, xiaohongshu, 国家一级博物馆",4.3
+5,小红书,桂林,Guilin,象鼻山,Elephant Trunk Hill,db,attraction,xiaohongshu,"intl, xiaohongshu",
+5,小红书,武汉,Wuhan,夜上黄鹤楼,Yellow Crane Tower by Night,db,attraction,amap,"intl, xiaohongshu",4.6
+5,小红书,武汉,Wuhan,黄鹤楼故址,Site of the Former Yellow Crane Tower,db,historic,chinatravel,"intl, xiaohongshu",
+5,小红书,泉州,Quanzhou,洛阳桥,Luoyang Bridge,db,attraction,xiaohongshu,"intl, xiaohongshu",4.7
+5,小红书,潮州,Chaozhou,龙湖古寨,Longhu Ancient Village,db,attraction,xiaohongshu,"intl, xiaohongshu",
+5,小红书,绍兴,Shaoxing,绍兴市兰亭书法博物馆,Shaoxing Lanting Calligraphy Museum,db,museum,museum3,"intl, xiaohongshu, 国家三级博物馆",4.3
+6,国家级旅游休闲街区,三亚,Sanya,海南省三亚市吉阳区大东海国际滨海旅游休闲街区,"Dadonghai International Coastal Tourism and Leisure Block, Jiyang District, Sanya, Hainan",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,三亚,Sanya,海南省三亚市吉阳区鸿洲码头旅游休闲街区,"Hongzhou Wharf Tourism and Leisure Block, Jiyang District, Sanya, Hainan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,上海,Shanghai,上海市徐汇区衡复音乐街区,"Hengfu Music Block, Xuhui District, Shanghai",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,上海,Shanghai,上海市长宁区愚园艺术生活街区,"Yuyuan Art Life Block, Changning District, Shanghai",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,上海,Shanghai,上海市青浦区蟠龙天地街区,"Panlong Tiandi Block, Qingpu District, Shanghai",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,上海,Shanghai,上海市静安区静安嘉里中心—安义路街区,"Jing'an Kerry Centre—Anyi Road Block, Jing'an District, Shanghai",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,上海,Shanghai,思南公馆街区,Sinan Mansions Historic Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,上海,Shanghai,武康路-安福路街区,Wukang Road–Anfu Road Block,db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,上饶,Shangrao,江西省上饶市信州区金龙岗青年艺术街区,"Jinlonggang Youth Art Block, Xinzhou District, Shangrao, Jiangxi",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,上饶,Shangrao,江西省上饶市广信区望仙谷岩铺老街旅游休闲街区,"Yanpu Old Street Tourist and Leisure Block, Wangxian Valley, Guangxin District, Shangrao, Jiangxi Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,上饶,Shangrao,饶州古镇旅游休闲街区,Raozhou Ancient Town Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,中卫,Zhongwei,宁夏回族自治区中卫市沙坡头区向阳街旅游休闲街区,"Xiangyang Street Tourism and Leisure Block, Shapotou District, Zhongwei City, Ningxia Hui Autonomous Region",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,中山,Zhongshan,广东省中山市孙文西路旅游休闲街区,"Sunwen West Road Tourism and Leisure Block, Zhongshan, Guangdong",db,historic,street,国家级旅游休闲街区,3.7
+6,国家级旅游休闲街区,临夏,Linxia,八坊十三巷,Bafang Thirteen Alleys,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,临沂,Linyi,山东省临沂市兰山区灯火兰山·新琅琊旅游休闲街区,"Denghuo Lanshan · New Langya Tourism and Leisure Block, Lanshan District, Linyi, Shandong Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,丹东,Dandong,辽宁省丹东市振兴区安东老街,"Andong Old Street, Zhenxing District, Dandong, Liaoning Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,丽江,Lijiang,大研花巷旅游休闲街区,Dayan Flower Lane Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,乌鲁木齐,Urumqi,大巴扎旅游休闲街区,Grand Bazaar Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,乐山,Leshan,四川省乐山市市中区上中顺特色街区,"Shangzhongshun Characteristic Block, Shizhong District, Leshan City, Sichuan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,亳州,Bozhou,安徽省亳州市谯城区亳州北关历史街区,"Bozhou Beiguan Historic Block, Guancheng District, Bozhou, Anhui Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,伊犁,Ili,六星街历史文化街区,Liuxing Street Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,伊犁,Ili,新疆维吾尔自治区伊犁哈萨克自治州特克斯县离街民俗风情步行街,"Lijie Folk Custom Pedestrian Street, Tekes County, Ili Kazakh Autonomous Prefecture, Xinjiang",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,佛山,Foshan,广东省佛山市禅城区南风古灶旅游休闲街区,"Nanfeng Ancient Kiln Tourism and Leisure Block, Chancheng District, Foshan, Guangdong Province",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,佳木斯,Jiamusi,黑龙江省佳木斯市向阳区油坊胡同美食步行街,"Youfang Hutong Food Pedestrian Street, Xiangyang District, Jiamusi, Heilongjiang Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,保定,Baoding,河北省保定市莲池区西大街,"West Street, Lianchi District, Baoding",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,儋州,Danzhou,海南省儋州市环海艺术美食街区,"Huanhai Art & Food Block, Danzhou City, Hainan Province",db,citywalk,street,"国家级旅游休闲街区, citywalk",
+6,国家级旅游休闲街区,兰州,Lanzhou,甘肃省兰州市西固区河口古镇旅游休闲街区,"Hekou Ancient Town Tourism and Leisure Block, Xigu District, Lanzhou, Gansu Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,凉山,Liangshan,四川省凉山彝族自治州西昌市唐园旅游休闲街区,"Tangyuan Tourism and Leisure Block, Xichang City, Liangshan Yi Autonomous Prefecture, Sichuan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,包头,Baotou,内蒙古自治区包头市东河区乔家金街旅游休闲街区,"Qiaojiajin Street Tourism and Leisure Block, Donghe District, Baotou, Inner Mongolia",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,北京,Beijing,北京市昌平区乐多港假日广场旅游休闲街区,"Le Joy Holiday Plaza Tourist Leisure Block, Changping District, Beijing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,北京,Beijing,北京市海淀区华熙LIVE·五棵松旅游休闲街区,"Huaxi LIVE·Wukesong Tourism and Leisure Block, Haidian District, Beijing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,北京,Beijing,北京市石景山区模式口历史文化街区,"Moshikou Historic and Cultural Block, Shijingshan District, Beijing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,北海,Beihai,广西壮族自治区北海市海城区北海老城历史文化旅游街区,"Beihai Old Town Historic and Cultural Tourism Block, Haicheng District, Beihai, Guangxi",db,historic,street,国家级旅游休闲街区,4.3
+6,国家级旅游休闲街区,十堰,Shiyan,湖北省十堰市房县西关印象旅游休闲街区,"Xiguan Impression Tourism and Leisure Block, Fang County, Shiyan, Hubei",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,南宁,Nanning,老南宁·三街两巷历史文化街区,Lao Nanning · Three Streets and Two Alleys Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,南昌,Nanchang,江西省南昌市西湖区万寿宫旅游休闲街区,"Wanshougong Tourism and Leisure Block, Xihu District, Nanchang, Jiangxi Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,可克达拉,Kokdala,新疆生产建设兵团第四师可克达拉市草原之夜文化旅游休闲街区,Xinjiang Production and Construction Corps Fourth Division Kokdala City 'Grassland Night' Culture and Tourism Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,台州,Taizhou,浙江省台州市临海市紫阳街,"Ziyang Historic Street, Linhai, Taizhou, Zhejiang Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,合肥,Hefei,罍街,Lei Street,db,historic,street,国家级旅游休闲街区,4.3
+6,国家级旅游休闲街区,吴忠,Wuzhong,宁夏回族自治区吴忠市利通区光耀旅游休闲街区,"Guangyao Tourism and Leisure Block, Litong District, Wuzhong City, Ningxia Hui Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,呼伦贝尔,Hulunbuir,内蒙古自治区呼伦贝尔市海拉尔区呼伦贝尔古城旅游休闲街区,"Hulunbuir Ancient Town Tourism and Leisure Block, Hailar District, Hulunbuir, Inner Mongolia",db,historic,street,国家级旅游休闲街区,5.0
+6,国家级旅游休闲街区,呼和浩特,Hohhot,内蒙古自治区呼和浩特市新城区恼包旅游休闲街区,"Naobao Tourism and Leisure Block, Xincheng District, Hohhot, Inner Mongolia Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,呼和浩特,Hohhot,塞上老街旅游休闲街区,Saishang Old Street Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,和田,Hotan,新疆维吾尔自治区和田地区和田市团城旅游休闲街区,"Tuancheng Tourism and Leisure Block, Hotan City, Hotan Prefecture, Xinjiang Uygur Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,哈尔滨,Harbin,中央大街步行街,Central Street Pedestrian Street,db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,哈尔滨,Harbin,黑龙江省哈尔滨市道外区中华巴洛克历史文化街区,"Chinese Baroque Historic and Cultural Block, Daowai District, Harbin, Heilongjiang Province",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,唐山,Tangshan,培仁历史文化街,Peiren Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,唐山,Tangshan,河北省唐山市丰南区河头老街文化街区,"Hetou Old Street Cultural Block, Fengnan District, Tangshan, Hebei Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,唐山,Tangshan,河北省唐山市路北区启新1889文化旅游街区,"Qixin 1889 Cultural Tourism Block, Lubei District, Tangshan, Hebei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,四平,Siping,吉林省四平市铁西区仁兴里沉浸式文旅街区,"Renxingli Immersive Cultural Tourism Block, Tiexi District, Siping City, Jilin Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,大理,Dali,云南省大理白族自治州大理市双廊镇民族文化街,"Shuanglang Town Ethnic Culture Street, Dali City, Dali Bai Autonomous Prefecture, Yunnan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,大理,Dali,云南省大理白族自治州巍山彝族回族自治县南诏古街,"Nanzhao Historic Street, Weishan Yi and Hui Autonomous County, Dali Bai Autonomous Prefecture, Yunnan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,大连,Dalian,辽宁省大连市中山区海昌·东方水城旅游休闲街区,"Haichang Oriental Water Town Tourism and Leisure Block, Zhongshan District, Dalian, Liaoning Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,天津,Tianjin,天津市南开区古文化街,"GulCulture Street (Ancient Culture Street), Nankai District, Tianjin",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,天津,Tianjin,天津市河北区意风区旅游休闲街区,"Italian Style Area Tourism and Leisure Block, Hebei District, Tianjin",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,天津,Tianjin,天津市蓟州区渔阳古街,"Yuyang Historic Street, Jizhou District, Tianjin",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,天津,Tianjin,杨柳青古镇街区,Yangliuqing Ancient Town Historic Block,db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,太原,Taiyuan,山西省太原市晋源区太原古县城十字街,"Cross Street, Taiyuan Ancient County Town, Jinyuan District, Taiyuan, Shanxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,太原,Taiyuan,山西省太原市迎泽区钟楼步行街,"Zhonglou Pedestrian Street, Yingze District, Taiyuan, Shanxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,宁波,Ningbo,浙江省宁波市海曙区南塘河历史文化街区,"Nantang River Historic and Cultural Block, Haishu District, Ningbo, Zhejiang Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,宁波,Ningbo,老外滩街区,"Laowaitan Historic Block (The Bund, Ningbo)",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,安庆,Anqing,安徽省安庆市迎江区安庆古城·倒扒狮历史文化街区,"Anqing Ancient Town · Daobashi Historic and Cultural Block (Yingjiang District, Anqing, Anhui)",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,安康,Ankang,秦巴老街,Qinba Historic Street,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,宜宾,Yibin,四川省宜宾市翠屏区僰道历史文化旅游休闲街区,"Bodao Historic Cultural Tourism and Leisure Block, Cuiping District, Yibin, Sichuan Province",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,宝鸡,Baoji,陕西省宝鸡市高新区石鼓文化城旅游休闲街区,"Shigu Culture City Tourism and Leisure Block, Gaoxin District, Baoji, Shaanxi",db,historic,street,国家级旅游休闲街区,4.9
+6,国家级旅游休闲街区,山南,Shannan,西藏自治区山南市乃东区昌珠镇扎西曲登,"Zhaxi Qudeng, Changzhu Town, Naidong District, Shannan City, Tibet Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,岳阳,Yueyang,湖南省岳阳市岳阳楼区洞庭南路历史文化街区,"Dongting South Road Historic and Cultural Block, Yueyanglou District, Yueyang City, Hunan Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,巴彦淖尔,Bayannur,内蒙古自治区巴彦淖尔市临河区黄河湾步行街,"Yellow River Bay Pedestrian Street, Linhe District, Bayannur, Inner Mongolia",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,常州,Changzhou,江苏省常州市天宁区青果巷历史文化街区,"Qingguo Lane Historic and Cultural Block, Tianning District, Changzhou, Jiangsu Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,常州,Changzhou,江苏省常州市钟楼区三堡街旅游休闲街区,"Sanbao Street Tourism and Leisure Block, Zhonglou District, Changzhou, Jiangsu Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,常德,Changde,河街,Changde Hejie Historic Area,db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,开封,Kaifeng,河南省开封市鼓楼区鼓楼特色文化旅游休闲街区,"Gulou Cultural Tourism and Leisure Block, Gulou District, Kaifeng, Henan Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,开封,Kaifeng,河南省开封市龙亭区七盛角旅游休闲街区,"Qishengjiao Tourism and Leisure Block, Longting District, Kaifeng, Henan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,张家口,Zhangjiakou,河北省张家口市崇礼区富龙风铃乐谷休闲街区,"Fulong Fengling Legu Leisure Block, Chongli District, Zhangjiakou, Hebei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,徐州,Xuzhou,江苏省徐州市云龙区户部山—回龙窝街区,"Hubu Mountain—Huilongwo Historic Area, Yunlong District, Xuzhou, Jiangsu Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,忻州,Xinzhou,古城文旅休闲生活街区,Xinzhou Ancient City Cultural Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,怀化,Huaihua,湖南省怀化市洪江市黔阳古城旅游休闲街区,"Qianyang Ancient Town Tourism and Leisure Block, Hongjiang City, Huaihua, Hunan Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,恩施,Enshi,湖北省恩施土家族苗族自治州宣恩县仙山贡水兴隆老街,"Xingshan Gongshui Xinglong Old Street, Xuan'en County, Enshi Tujia and Miao Autonomous Prefecture, Hubei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,惠州,Huizhou,广东省惠州市惠城区水东街,"Shuidong Street, Huicheng District, Huizhou",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,惠州,Huizhou,广东省惠州市惠城区祝屋巷,"Zhuwu Lane, Huicheng District, Huizhou, Guangdong",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,成都,Chengdu,四川省成都市成华区望平坊旅游休闲街区,"Wangpingfang Tourism and Leisure Block, Chenghua District, Chengdu, Sichuan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,扬州,Yangzhou,江苏省扬州市高邮市运河·盂城驿街区,"Canal · Yucheng Post Station Block, Gaoyou, Yangzhou, Jiangsu Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,承德,Chengde,河北省承德市双滦区鼎盛·元宝街,"Dingsheng Yuanbao Street, Shuangluan District, Chengde, Hebei Province",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,承德,Chengde,金龙旅游休闲街区,Jinlong Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,抚州,Fuzhou,江西省抚州市临川区文昌里旅游休闲街区,"Wenchangli Tourism and Leisure Block, Linchuan District, Fuzhou City, Jiangxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,抚州,Fuzhou,江西省抚州市黎川县明清古城老街,"Ming-Qing Ancient Town Old Street, Lichuan County, Fuzhou, Jiangxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,拉萨,Lhasa,慈觉林藏院风情街,Cijuelin Tibetan-style Historic Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,无锡,Wuxi,清名桥历史文化街区,Qingming Bridge Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,昆明,Kunming,云南省昆明市石林彝族自治县中国石林双龙旅游休闲街区,"China Shilong Tourism and Leisure Block, Shilin Yi Autonomous County, Kunming, Yunnan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,昌都,Qamdo,茶马城街区,Chamacheng Historic Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,晋中,Jinzhong,山西省晋中市平遥县又见平遥文化产业园区印象新街,"Impression New Street, Encounter Pingyao Cultural Industry Park, Pingyao County, Jinzhong, Shanxi",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,朝阳,Chaoyang,三里屯太古里,Taikoo Li Sanlitun,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,朝阳,Chaoyang,北京市朝阳区751旅游休闲街区,"751 Tourism and Leisure Block, Chaoyang District, Beijing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,杭州,Hangzhou,浙江省杭州市临平区运河·塘栖古镇历史风情街区,Canal · Tangqi Ancient Town Historic Scenic Block,db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,杭州,Hangzhou,浙江省杭州市拱墅区桥西历史文化街区,"Qiaoxi Historic and Cultural Block, Gongshu District, Hangzhou, Zhejiang Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,杭州,Hangzhou,清河坊历史文化街区,Qinghefang Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,柳州,Liuzhou,广西壮族自治区柳州市鱼峰区窑埠古镇街区,"Yaobu Ancient Town Block, Yufeng District, Liuzhou, Guangxi Zhuang Autonomous Region",db,historic,street,国家级旅游休闲街区,4.1
+6,国家级旅游休闲街区,桂林,Guilin,东西巷历史文化街区,Dongxi Lane Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,桂林,Guilin,广西壮族自治区桂林市阳朔县阳朔西街,"Yangshuo West Street, Yangshuo County, Guilin, Guangxi Zhuang Autonomous Region",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,楚雄,Chuxiong,云南省楚雄彝族自治州楚雄市彝人古镇主题街区,"Yiren Ancient Town Theme Block, Chuxiong City, Chuxiong Yi Autonomous Prefecture, Yunnan Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,榆林,Yulin,陕西省榆林市榆阳区榆林古城休闲街区,"Yulin Ancient Town Leisure Block, Yuyang District, Yulin City, Shaanxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,榆林,Yulin,陕西省榆林市榆阳区榆林夫子庙文化旅游步行街,"Yulin Confucius Temple Cultural Tourism Pedestrian Street (Yuyang District, Yulin, Shaanxi)",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,武汉,Wuhan,湖北省武汉市武昌区昙华林历史文化街区,"Tanhualin Historic and Cultural Block, Wuchang District, Wuhan, Hubei Province",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,武汉,Wuhan,湖北省武汉市江岸区吉庆民俗街区,"Jiqing Folk Custom Block, Jiang'an District, Wuhan, Hubei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,武汉,Wuhan,湖北省武汉市江岸区黎黄陂路历史文化街区,"Lihuangpi Road Historic and Cultural Block, Jiang'an District, Wuhan, Hubei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,武汉,Wuhan,湖北省武汉市江汉区江汉路步行街区,"Jianghan Road Pedestrian Block, Jianghan District, Wuhan, Hubei Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,永州,Yongzhou,湖南省永州市零陵区柳子街,"Liuzi Street, Lingling District, Yongzhou City, Hunan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,汉中,Hanzhong,陕西省汉中市留坝县留坝厅老街,"Liuba Ting Historic Street, Liuba County, Hanzhong, Shaanxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,江门,Jiangmen,广东省江门市蓬江区启明里,"Qimingli Historic Area, Pengjiang District, Jiangmen, Guangdong",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,沈阳,Shenyang,中街旅游休闲街区,Zhongjie Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,沈阳,Shenyang,辽宁省沈阳市和平区沈阳老北市旅游休闲街区,"Shenyang Laobeishi Tourism and Leisure Block, Heping District, Shenyang, Liaoning Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,沈阳,Shenyang,辽宁省沈阳市铁西区红梅文创园旅游休闲街区,"Hongmei Cultural and Creative Park Tourism and Leisure Block, Tiexi District, Shenyang, Liaoning Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,泉州,Quanzhou,福建省泉州市鲤城区泉州中山路旅游休闲街区,"Zhongshan Road Tourism and Leisure Block, Licheng District, Quanzhou, Fujian Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,洛阳,Luoyang,河南省洛阳市涧西区广州市场步行街,"Guangzhou Market Pedestrian Street, Jianxi District, Luoyang",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,洛阳,Luoyang,洛阳古城历史文化街区,Luoyang Ancient City Historic Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,济南,Jinan,山东省济南市槐荫区印象济南·泉世界文化旅游休闲街区,"Impression Jinan · Spring World Cultural Tourism and Leisure Block, Huaiyin District, Jinan, Shandong Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,济南,Jinan,百花洲历史文化街区,Baihuazhou Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,海东,Haidong,青海省海东市平安区平安驿·河湟民俗文化体验街,"Ping'an Post Hehuang Folk Culture Experience Street, Ping'an District, Haidong City, Qinghai Province",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,海口,Haikou,海南省海口市琼山区高兴里潮酷文化街区,"Gaoxingli Trendy Culture Block, Qiongshan District, Haikou, Hainan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,海口,Haikou,骑楼建筑历史文化街区,Haikou Qilou Historic and Cultural Block,db,historic,street,"国家级旅游休闲街区, 4a",
+6,国家级旅游休闲街区,海西,Haixi,青海省海西蒙古族藏族自治州格尔木市旱码头·1960旅游休闲街区,"Hanmatou · 1960 Tourism and Leisure Block, Golmud, Haixi Mongol and Tibetan Autonomous Prefecture, Qinghai Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,淄博,Zibo,古商城历史文化街区,Gushangcheng Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,淮北,Huaibei,安徽省淮北市相山区隋唐运河古镇旅游休闲街区,"Sui-Tang Canal Ancient Town Tourism and Leisure Block, Xiangshan District, Huaibei, Anhui Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,淮安,Huai'an,江苏省淮安市清江浦区御码头运河文化美食休闲街区,"Yumatou Canal Culture Food and Leisure Block, Qingjiangpu District, Huai'an, Jiangsu",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,深圳,Shenzhen,广东省深圳市南山区南头古城旅游休闲街区,"Nantou Ancient Town Tourism and Leisure Block, Nanshan District, Shenzhen, Guangdong",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,温州,Wenzhou,五马历史文化街区,Wuma Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,湖州,Huzhou,浙江省湖州市吴兴区湖州小西街-衣裳街-状元街旅游休闲街区,"Huzhou Xiaoxi Street–Yishang Street–Zhuangyuan Street Tourism and Leisure Block, Wuxing District, Huzhou, Zhejiang",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,湘西,Xiangxi,湖南省湘西土家族苗族自治州吉首市乾州古城旅游休闲街区,"Qianzhou Ancient Town Tourism and Leisure Block, Jishou City, Xiangxi Tujia and Miao Autonomous Prefecture, Hunan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,漳州,Zhangzhou,福建省漳州市芗城区漳州古城旅游休闲街区,"Zhangzhou Ancient Town Tourism and Leisure Block, Xiangcheng District, Zhangzhou, Fujian Province",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,潮州,Chaozhou,牌坊街,Paifang Street,db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,烟台,Yantai,山东省烟台市芝罘区朝阳街,"Chaoyang Street Historic Area, Zhifu District, Yantai",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,焦作,Jiaozuo,河南省焦作市修武县岸上旅游休闲街区,"Anshang Tourism and Leisure Block, Xiuwu County, Jiaozuo City, Henan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,牡丹江,Mudanjiang,黑龙江省牡丹江市东安区东一中俄风情街,"Dongyi China-Russia Style Block, Dong'an District, Mudanjiang, Heilongjiang Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,甘孜,Garze,四川省甘孜藏族自治州理塘县仁康古街,"Renkang Historic Street, Litang County, Garze Tibetan Autonomous Prefecture, Sichuan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,白山,Baishan,白桦旅游休闲街区,Baihua Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,石家庄,Shijiazhuang,河北省石家庄市新华区湾里庙步行街,"Wanlimiao Pedestrian Street, Xinhua District, Shijiazhuang, Hebei Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,石河子,Shihezi,幸福路步行街,Xingfu Road Pedestrian Street,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,福州,Fuzhou,三坊七巷历史文化街区,Sanfang Qixiang Historic and Cultural Block (Three Lanes and Seven Alleys),db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,福州,Fuzhou,上下杭历史文化街区,Shangxiahang Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,第十二师,12th Division,新疆生产建设兵团第十二师104团新天润美食天街,"Xintianrun Food Street, 104th Regiment, 12th Division, Xinjiang Production and Construction Corps",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,红河,Honghe,临安古城主题特色街区,Lin'an Ancient Town Theme Special Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,芜湖,Wuhu,安徽省芜湖市镜湖区芜湖古城旅游休闲街区,"Wuhu Ancient Town Tourism and Leisure Block, Jinghu District, Wuhu City, Anhui Province",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,苏州,Suzhou,平江历史街区,Pingjiang Historic Block,db,historic,street,"国家级旅游休闲街区, 4a",4.6
+6,国家级旅游休闲街区,苏州,Suzhou,江苏省苏州市苏州工业园区李公堤旅游休闲街区,"Li Gong Di Tourism and Leisure Block, Suzhou Industrial Park, Suzhou, Jiangsu Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,莆田,Putian,福建省莆田市荔城区兴化府历史文化街区,"Xinghua Fu Historic and Cultural Block, Licheng District, Putian City, Fujian Province",db,historic,street,国家级旅游休闲街区,4.9
+6,国家级旅游休闲街区,衢州,Quzhou,浙江省衢州市柯城区水亭门历史文化街区,"Shuitingmen Historic and Cultural Block, Kecheng District, Quzhou City, Zhejiang Province",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,襄阳,Xiangyang,襄阳北街,Xiangyang North Street,db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,西双版纳,Xishuangbanna,云南省西双版纳傣族自治州景洪市湄公河星光夜市旅游休闲街区,"Mekong Starlight Night Market Tourism and Leisure Block, Jinghong City, Xishuangbanna Dai Autonomous Prefecture, Yunnan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,西宁,Xining,唐道·637休闲文旅步行街,Tangdao 637 Leisure & Cultural Pedestrian Street,db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,西安,Xi'an,陕西省西安市曲江新区大唐不夜城步行街,"Datang Everbright City Pedestrian Street, Qujiang New District, Xi'an, Shaanxi Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,贵阳,Guiyang,贵州省贵阳市南明区青云路步行街,"Qingyun Road Pedestrian Street, Nanming District, Guiyang, Guizhou Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,赣州,Ganzhou,江西省赣州市章贡区郁孤台旅游休闲街区,"Yugu Terrace Tourism and Leisure Block, Zhanggong District, Ganzhou, Jiangxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,运城,Yuncheng,山西省运城市盐湖区岚山根·运城印象步行街,"Lanshangen · Yuncheng Impression Pedestrian Street, Yanhu District, Yuncheng, Shanxi Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,通化,Tonghua,吉林省梅河口市东北不夜城旅游休闲街区,"Dongbei Buyecheng (Never-Sleep City) Tourism and Leisure Block, Meihekou City, Jilin Province",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,郑州,Zhengzhou,德化步行街,Dehua Pedestrian Street,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,郑州,Zhengzhou,河南省郑州市金水区郑州记忆1952油化厂旅游休闲街区,"Zhengzhou Memory 1952 Oil Chemical Factory Tourism and Leisure Block, Jinshui District, Zhengzhou, Henan Province",db,historic,street,国家级旅游休闲街区,4.5
+6,国家级旅游休闲街区,郴州,Chenzhou,湖南省郴州市苏仙区裕后街,"Yuhou Street, Suxian District, Chenzhou, Hunan Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,酒泉,Jiuquan,甘肃省酒泉市敦煌市敦煌夜市文化旅游休闲街区,"Dunhuang Night Market Cultural Tourism Leisure Block, Dunhuang, Jiuquan, Gansu Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,大九街旅游休闲街区,Dajiu Street Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,弹子石老街,Danzishi Old Street,db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市九龙坡区杨家坪步行街旅游休闲街区,"Yangjiaping Pedestrian Street Tourism and Leisure Block, Jiulongpo District, Chongqing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市南岸区龙门浩老街,"Longmenhao Old Street, Nan'an District, Chongqing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市南川区南川东街,"Nanchuan East Street, Nanchuan District, Chongqing",db,historic,street,国家级旅游休闲街区,4.4
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市江北区观音桥商圈旅游休闲街区,"Guanyinqiao Business District Tourist and Leisure Block, Jiangbei District, Chongqing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市渝中区十八梯传统风貌区,"Shibati Traditional Style Area, Yuzhong District, Chongqing",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市渝中区贰厂文创街区,Chongqing Yuzhong District Testbed 2 Creative Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,重庆,Chongqing,重庆市酉阳土家族苗族自治县酉州古城步行街,"Youzhou Ancient Town Pedestrian Street, Youyang Tujia and Miao Autonomous County, Chongqing",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,金华,Jinhua,浙江省金华市婺城区婺州古城历史文化街区,Wuzhou Ancient City Historic and Cultural Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,钦州,Qinzhou,广西壮族自治区钦州市钦南区钦州老街,"Qinzhou Old Street, Qinnan District, Qinzhou, Guangxi",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,铜仁,Tongren,贵州省铜仁市碧江区中南门历史文化旅游休闲街区,"Zhongnanmen Historic Cultural Tourism and Leisure Block, Bijiang District, Tongren City, Guizhou Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,银川,Yinchuan,宁夏回族自治区银川市西夏区贺兰山·漫葡小镇旅游休闲街区,"Helan Mountain · Manpu Town Tourism and Leisure Block, Xixia District, Yinchuan, Ningxia Hui Autonomous Region",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,银川,Yinchuan,怀远旅游休闲街区,Huaiyuan Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,镇江,Zhenjiang,江苏省镇江市润州区西津渡历史文化街区,"Xijindu Historic and Cultural Block, Runzhou District, Zhenjiang, Jiangsu Province",db,historic,street,国家级旅游休闲街区,4.7
+6,国家级旅游休闲街区,长春,Changchun,吉林省长春市朝阳区红旗街旅游休闲街区,"Hongqi Street Tourism and Leisure Block, Chaoyang District, Changchun, Jilin Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,长沙,Changsha,太平街,Taiping Street,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,长沙,Changsha,湖南省长沙市开福区潮宗街,"Chaozong Street, Kaifu District, Changsha, Hunan Province",db,historic,street,国家级旅游休闲街区,4.8
+6,国家级旅游休闲街区,阿克苏,Aksu,新疆维吾尔自治区阿克苏地区库车市热斯坦旅游休闲街区,"Restan Tourism and Leisure Block, Kuqa City, Aksu Prefecture, Xinjiang Uygur Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,阿勒泰,Altay,新疆维吾尔自治区阿勒泰地区阿勒泰市五百里风情街,"Wubaili Fengqing Street (Five-Hundred-Li Scenic Street), Altay City, Altay Prefecture, Xinjiang Uygur Autonomous Region",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,阿拉善盟,Alxa,内蒙古自治区阿拉善盟阿拉善左旗定远营古城旅游休闲街区,Dingyuanying Ancient Town Tourism and Leisure Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,陇南,Longnan,甘肃省陇南市武都区古今里旅游休闲街区,"Gu Jinli Tourism and Leisure Block, Wudu District, Longnan City, Gansu Province",db,historic,street,国家级旅游休闲街区,4.3
+6,国家级旅游休闲街区,青岛,Qingdao,山东省青岛市大鲍岛文化旅游休闲街区,"Dabaodao Cultural Tourism and Leisure Block, Qingdao, Shandong Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,青岛,Qingdao,山东省青岛市市北区台东旅游休闲街区,"Taidong Tourism and Leisure Block, Shibei District, Qingdao, Shandong Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,青岛,Qingdao,山东省青岛市黄岛区金沙滩啤酒城旅游休闲街区,"Golden Beach Beer City Tourism and Leisure Block, Huangdao District, Qingdao, Shandong Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,马鞍山,Ma'anshan,安徽省马鞍山市雨山区长江不夜城旅游休闲街区,"Changjiang Sleepless City Tourism and Leisure Block, Yushan District, Ma'anshan, Anhui",db,historic,street,国家级旅游休闲街区,4.6
+6,国家级旅游休闲街区,黄山,Huangshan,黎阳映像街区,Liyang Yingxiang Block,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,黔东南,Qiandongnan,贵州省黔东南苗族侗族自治州丹寨县云上丹寨旅游休闲街区,"Yunshang Danzhai Tourism and Leisure Block, Danzhai County, Qiandongnan Miao and Dong Autonomous Prefecture, Guizhou Province",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,黔东南,Qiandongnan,镇远古城文化步行街,Zhenyuan Ancient Town Cultural Pedestrian Street,db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,黔南,Qiannan,贵州省黔南布依族苗族自治州荔波县荔波古镇旅游休闲街区,"Libo Ancient Town Tourist and Leisure Block, Libo County, Qiannan Buyei and Miao Autonomous Prefecture, Guizhou",db,historic,street,国家级旅游休闲街区,
+6,国家级旅游休闲街区,龙岩,Longyan,福建省龙岩市长汀县店头街历史文化街区,"Diantou Street Historic and Cultural Block, Changting County, Longyan City, Fujian Province",db,historic,street,国家级旅游休闲街区,4.6
+7,国家级风景名胜,三亚,Sanya,三亚热带海滨风景名胜区,Sanya Tropical Coastal Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,三明,Sanming,桃源洞-鳞隐石林风景名胜区,Taoyuandong - Linyin Stone Forest Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,三明,Sanming,泰宁风景名胜区,Taining Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,三明,Sanming,玉华洞风景名胜区,Yuhua Cave Scenic Area,db,nature,scenic,,4.5
+7,国家级风景名胜,上饶,Shangrao,大茅山风景名胜区,Damao Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,上饶,Shangrao,灵山风景名胜区,Lingshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,上饶,Shangrao,神农源风景名胜区,Shennongyuan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,上饶,Shangrao,龟峰风景名胜区,Guifeng Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,丹东,Dandong,凤凰山风景名胜区,Fenghuang Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,丹东,Dandong,青山沟风景名胜区,Qingshangou Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,丽水,Lishui,仙都风景名胜区,Xiandu Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,丽江,Lijiang,丽江玉龙雪山风景名胜区,Lijiang Jade Dragon Snow Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,乐山,Leshan,峨眉山风景名胜区,Mount Emei Scenic Area,db,nature,scenic,,4.8
+7,国家级风景名胜,九江,Jiujiang,云居山-柘林湖风景名胜区,Yunju Mountain - Zhelin Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,佛山,Foshan,西樵山风景名胜区,Xiqiao Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,保定,Baoding,野三坡风景名胜区,Yesanpo Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,保山,Baoshan,腾冲地热火山风景名胜区,Tengchong Geothermal and Volcano Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,凉山,Liangshan,邛海-螺髻山风景名胜区,Qionghai-Luojishan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,北京,Beijing,八达岭-十三陵风景名胜区,Badaling-Ming Tombs Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,北京,Beijing,石花洞风景名胜区,Shihua Cave Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,十堰,Shiyan,丹江口水库风景名胜区,Danjiangkou Reservoir Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,十堰,Shiyan,武当山风景名胜区,Wudang Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,南平,Nanping,佛子山风景名胜区,Fozishan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,南平,Nanping,宝山风景名胜区,Baoshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,南昌,Nanchang,梅岭-滕王阁风景名胜区,Meiling - Tengwang Pavilion Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,厦门,Xiamen,鼓浪屿-万石山风景名胜区,Gulangyu-Wanshi Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,台州,Taizhou,仙居风景名胜区,Xianju National Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,台州,Taizhou,天台山风景名胜区,Tiantai Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,台州,Taizhou,方山-长屿硐天风景名胜区,Fangshan-Changyudongtian Scenic and Historic Interest Area,db,nature,scenic,,4.6
+7,国家级风景名胜,台州,Taizhou,桃渚风景名胜区,Taozhu Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,合肥,Hefei,巢湖风景名胜区,Chaohu Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,吉安,Ji'an,井冈山风景名胜区,Jinggangshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,吕梁,Lvliang,碛口风景名胜区,Qikou Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,呼伦贝尔,Hulunbuir,扎兰屯风景名胜区,Zhalantun Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,呼伦贝尔,Hulunbuir,额尔古纳风景名胜区,Erguna Scenic Area,db,nature,scenic,,4.2
+7,国家级风景名胜,咸宁,Xianning,九宫山风景名胜区,Jiugongshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,咸宁,Xianning,陆水风景名胜区,Lushui Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,哈尔滨,Harbin,太阳岛风景名胜区,Taiyangdao Scenic Area (Sun Island),db,nature,scenic,,
+7,国家级风景名胜,固原,Guyuan,须弥山石窟风景名胜区,Xumishan Grottoes Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,大同,Datong,恒山风景名胜区,Mount Heng Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,大连,Dalian,大连海滨-旅顺口风景名胜区,Dalian Seaside-Lvshunkou Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,大连,Dalian,金石滩风景名胜区,Jinshitan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,天水,Tianshui,麦积山风景名胜区,Maiji Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,娄底,Loudi,紫鹊界梯田-梅山龙宫风景名胜区,Ziquejie Terraces - Meishan Dragon Palace Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宁德,Ningde,九龙漈风景名胜区,Jiulongji Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宁德,Ningde,太姥山风景名胜区,Taimu Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宁德,Ningde,福安白云山风景名胜区,Fu'an Baiyun Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宁德,Ningde,鸳鸯溪风景名胜区,Yuanyang Stream Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宁波,Ningbo,雪窦山风景名胜区,Xuedou Mountain Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,安庆,Anqing,天柱山风景名胜区,Tianzhu Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,安庆,Anqing,花亭湖风景名胜区,Huating Lake Scenic Area,db,nature,scenic,,4.4
+7,国家级风景名胜,安阳,Anyang,林虑山风景名胜区,Linlüshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,安顺,Anshun,紫云格凸河穿洞风景名胜区,Ziyun Getu River Chuandong Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,安顺,Anshun,黄果树风景名胜区,Huangguoshu Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,安顺,Anshun,龙宫风景名胜区,Longgong (Dragon Palace) Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宜宾,Yibin,石海洞乡风景名胜区,Shihai Dongxiang Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,宜昌,Yichang,长江三峡风景名胜区,Yangtze Three Gorges Scenic Area,db,nature,scenic,,4.8
+7,国家级风景名胜,宝鸡,Baoji,宝鸡天台山风景名胜区,Baoji Tiantai Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宣城,Xuancheng,太极洞风景名胜区,Taiji Cave Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,宣城,Xuancheng,龙川风景名胜区,Longchuan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,山南,Shannan,雅砻河风景名胜区,Yalong River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,岳阳,Yueyang,岳阳楼洞庭湖风景名胜区,Yueyang Tower - Dongting Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,岳阳,Yueyang,福寿山-汨罗江风景名胜区,Foushou Mountain - Miluo River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,崇左,Chongzuo,花山风景名胜区,Huashan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,巴中,Bazhong,光雾山-诺水河风景名胜区,Guangwushan-Nuoshuihe Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,巴音郭楞,Bayingolin,博斯腾湖风景名胜区,Bosten Lake Scenic Area,db,nature,scenic,,4.1
+7,国家级风景名胜,平凉,Pingliang,关山莲花台风景名胜区,Guanshan Lianhuatai Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,平顶山,Pingdingshan,石人山风景名胜区,Shiren Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,广元,Guangyuan,剑门蜀道风景名胜区,Jianmen Shudao Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,广元,Guangyuan,白龙湖风景名胜区,Bailong Lake Scenic Area,db,nature,scenic,,5.0
+7,国家级风景名胜,广元,Guangyuan,米仓山大峡谷风景名胜区,Micang Mountain Grand Canyon Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,延安,Yan'an,黄帝陵风景名胜区,Mausoleum of the Yellow Emperor Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,延边,Yanbian,仙景台风景名胜区,Xianjingtai Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,德宏,Dehong,瑞丽江-大盈江风景名胜区,Ruili River - Daying River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,怀化,Huaihua,万佛山-侗寨风景名胜区,Wanfoshan - Dong Villages Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,惠州,Huizhou,惠州西湖风景名胜区,Huizhou West Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,惠州,Huizhou,罗浮山风景名胜区,Luofu Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,成都,Chengdu,天台山风景名胜区,Tiantai Mountain Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,扬州,Yangzhou,蜀岗瘦西湖风景名胜区,Shugang-Slender West Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,承德,Chengde,承德避暑山庄外八庙风景名胜区,Chengde Mountain Resort and Eight Outer Temples Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,拉萨,Lhasa,纳木措-念青唐古拉山风景名胜区,Namtso-Nyenchen Tanglha Mountain Scenic Area,db,nature,scenic,,4.5
+7,国家级风景名胜,文山,Wenshan,普者黑风景名胜区,Puzhehei Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,昆明,Kunming,昆明滇池风景名胜区,Kunming Dianchi Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,昆明,Kunming,路南石林风景名胜区,Lunan Stone Forest Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,昌吉,Changji,天山天池风景名胜区,Tianshan Tianchi Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,景德镇,Jingdezhen,高岭-瑶里风景名胜区,Gaoling-Yaoli Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,本溪,Benxi,本溪水洞风景名胜区,Benxi Water Cave Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,杭州,Hangzhou,富春江-新安江风景名胜区,Fuchun River - Xin'an River Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,桂林,Guilin,桂林漓江风景名胜区,Guilin Lijiang River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,毕节,Bijie,九洞天风景名胜区,Jiudongtian Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,永州,Yongzhou,九嶷山-舜帝陵风景名胜区,Jiuyishan Mountain-Shundi Mausoleum Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,池州,Chizhou,九华山风景名胜区,Jiuhua Mountain Scenic Area,db,nature,scenic,,4.8
+7,国家级风景名胜,池州,Chizhou,齐山-平天湖风景名胜区,Qi Mountain - Pingtian Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,洛阳,Luoyang,洛阳龙门风景名胜区,Luoyang Longmen Scenic Area,db,nature,scenic,国家二级博物馆,4.4
+7,国家级风景名胜,淄博,Zibo,博山风景名胜区,Boshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,深圳,Shenzhen,梧桐山风景名胜区,Wutong Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,温州,Wenzhou,楠溪江风景名胜区,Nanxi River Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,温州,Wenzhou,百丈漈-飞云湖风景名胜区,Baizhangji-Feiyun Lake Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,温州,Wenzhou,雁荡山风景名胜区,Yandang Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,渭南,Weinan,华山风景名胜区,Mount Hua Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,渭南,Weinan,合阳洽川风景名胜区,Heyang Qichuan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湖州,Huzhou,莫干山风景名胜区,Mogan Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湘潭,Xiangtan,韶山风景名胜区,Shaoshan Scenic Area,db,nature,scenic,,4.8
+7,国家级风景名胜,湘西,Xiangxi,凤凰风景名胜区,Fenghuang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湘西,Xiangxi,德夯风景名胜区,Dehang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湘西,Xiangxi,猛洞河风景名胜区,Mengdong River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湘西,Xiangxi,里耶-乌龙山风景名胜区,Liye–Wulong Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,湛江,Zhanjiang,湖光岩风景名胜区,Huguangyan Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,漳州,Zhangzhou,灵通山风景名胜区,Lingtongshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,潍坊,Weifang,青州风景名胜区,Qingzhou Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,烟台,Yantai,胶东半岛海滨风景名胜区,Jiaodong Peninsula Coastal Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,焦作,Jiaozuo,王屋山-云台山风景名胜区,Wangwu Mountain - Yuntai Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,焦作,Jiaozuo,神农山风景名胜区,Shennong Mountain Scenic Area,db,nature,scenic,,4.1
+7,国家级风景名胜,焦作,Jiaozuo,青天河风景名胜区,Qingtianhe Scenic Area,db,nature,scenic,,4.3
+7,国家级风景名胜,牡丹江,Mudanjiang,镜泊湖风景名胜区,Jingpo Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,甘孜,Garze,贡嘎山风景名胜区,Gongga Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,石家庄,Shijiazhuang,西柏坡-天桂山风景名胜区,Xibaipo-Tiangui Mountain Scenic Area,db,nature,scenic,,4.5
+7,国家级风景名胜,福州,Fuzhou,十八重溪风景名胜区,Shibachongxi Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,福州,Fuzhou,海坛风景名胜区,Haitan Scenic Area,db,nature,scenic,,4.1
+7,国家级风景名胜,福州,Fuzhou,鼓山风景名胜区,Gushan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,秦皇岛,Qinhuangdao,秦皇岛北戴河风景名胜区,Qinhuangdao Beidaihe Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,红河,Honghe,建水风景名胜区,Jianshui Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,红河,Honghe,阿庐风景名胜区,Alu Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,绍兴,Shaoxing,天姥山风景名胜区,Tianmu Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,绍兴,Shaoxing,浣江-五泄风景名胜区,Huanjiang-Wuxie Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,肇庆,Zhaoqing,肇庆星湖风景名胜区,Zhaoqing Seven Star Crags Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,舟山,Zhoushan,嵊泗列岛风景名胜区,Shengsi Islands Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,舟山,Zhoushan,普陀山风景名胜区,Mount Putuo Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,莆田,Putian,湄洲岛风景名胜区,Meizhou Island Scenic Area,db,nature,scenic,,4.5
+7,国家级风景名胜,萍乡,Pingxiang,杨岐山风景名胜区,Yangqi Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,衡阳,Hengyang,衡山风景名胜区,Mount Heng Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,衢州,Quzhou,江郎山风景名胜区,Jianglang Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,襄阳,Xiangyang,隆中风景名胜区,Longzhong Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,西双版纳,Xishuangbanna,西双版纳风景名胜区,Xishuangbanna Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,西安,Xi'an,临潼骊山风景名胜区,"Lishan Mountain Scenic Area, Lintong",db,nature,scenic,,
+7,国家级风景名胜,贵阳,Guiyang,红枫湖风景名胜区,Hongfeng Lake Scenic Area,db,nature,scenic,,3.8
+7,国家级风景名胜,赣州,Ganzhou,小武当风景名胜区,Xiaowudang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,赣州,Ganzhou,汉仙岩风景名胜区,Hanxianyan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,赣州,Ganzhou,瑞金风景名胜区,Ruijin Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,运城,Yuncheng,五老峰风景名胜区,Wulao Peak Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,遵义,Zunyi,赤水风景名胜区,Chishui Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,那曲,Nagqu,唐古拉山-怒江源风景名胜区,Tanggula Mountains-Nujiang Source Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,邯郸,Handan,响堂山风景名胜区,Xiangtang Mountain Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,邯郸,Handan,太行大峡谷风景名胜区,Taihang Grand Canyon Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,邯郸,Handan,娲皇宫风景名胜区,Wahuang Palace Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,邵阳,Shaoyang,南山风景名胜区,Nanshan Scenic Area,db,nature,scenic,,4.4
+7,国家级风景名胜,邵阳,Shaoyang,崀山风景名胜区,Langshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,邵阳,Shaoyang,白水洞风景名胜区,Baishui Cave Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,邵阳,Shaoyang,虎形山-花瑶风景名胜区,Huxingshan-Huayao Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,郑州,Zhengzhou,嵩山风景名胜区,Mount Song Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,郑州,Zhengzhou,郑州黄河风景名胜区,Zhengzhou Yellow River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,郴州,Chenzhou,东江湖风景名胜区,Dongjiang Lake Scenic Area,db,nature,scenic,,2.4
+7,国家级风景名胜,郴州,Chenzhou,苏仙岭-万华岩风景名胜区,Suxianling - Wanhuayan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,酒泉,Jiuquan,鸣沙山-月牙泉风景名胜区,Mingsha Mountain and Crescent Lake Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,重庆,Chongqing,天坑地缝风景名胜区,Tiankeng Difeng (Sinkholes and Fissures) Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,重庆,Chongqing,潭獐峡风景名胜区,Tanjia Gorge Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,金华,Jinhua,大盘山风景名胜区,Dapan Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,金华,Jinhua,大红岩风景名胜区,Dahongyan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,金华,Jinhua,方岩风景名胜区,Fangyan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,铜仁,Tongren,九龙洞风景名胜区,Jiulong Cave Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,铜仁,Tongren,沿河乌江山峡风景名胜区,Yanhe Wujiang Gorge Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,铜仁,Tongren,石阡温泉群风景名胜区,Shiqian Hot Spring Group Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,银川,Yinchuan,西夏王陵风景名胜区,Western Xia Imperial Tombs Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,锦州,Jinzhou,医巫闾山风景名胜区,Yiwulü Mountain Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,长春,Changchun,"""八大部""-净月潭风景名胜区",Eight Great Ministries - Jingyuetan National Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,长沙,Changsha,岳麓山风景名胜区,Yuelu Mountain Scenic Area,db,nature,scenic,,4.8
+7,国家级风景名胜,长沙,Changsha,沩山风景名胜区,Weishan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,阿克苏,Aksu,托木尔大峡谷风景名胜区,Tomur Grand Canyon Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,阿坝,Ngawa,四姑娘山风景名胜区,Mount Siguniang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,阿里,Ngari,土林-古格风景名胜区,Earth Forest - Guge Scenic Area,db,nature,scenic,,4.6
+7,国家级风景名胜,随州,Suizhou,大洪山风景名胜区,Dahongshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,青岛,Qingdao,青岛崂山风景名胜区,Qingdao Laoshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,鞍山,Anshan,鞍山千山风景名胜区,Qianshan Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,韶关,Shaoguan,丹霞山风景名胜区,Danxia Mountain Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,马鞍山,Ma'anshan,采石风景名胜区,Caishi Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黄山,Huangshan,花山谜窟-渐江风景名胜区,Huashan Mysterious Grottoes - Jian River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黑河,Heihe,五大连池风景名胜区,Wudalianchi Scenic Area,db,nature,scenic,,4.7
+7,国家级风景名胜,黑河,Heihe,大沾河风景名胜区,Dazhanhe Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,黔东南,Qiandongnan,㵲阳河风景名胜区,Wuyang River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔东南,Qiandongnan,榕江苗山侗水风景名胜区,Rongjiang Miaoshan Dongshui Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔东南,Qiandongnan,黎平侗乡风景名胜区,Liping Dong Township Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔南,Qiannan,平塘风景名胜区,Pingtang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔南,Qiannan,瓮安江界河风景名胜区,Weng'an Jiangjie River Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔南,Qiannan,荔波樟江风景名胜区,Libo Zhangjiang Scenic Area,db,nature,scenic,,
+7,国家级风景名胜,黔南,Qiannan,都匀斗篷山-剑江风景名胜区,Doupengshan-Jianjiang Scenic and Historic Interest Area,db,nature,scenic,,
+7,国家级风景名胜,黔西南,Qianxinan,马岭河峡谷风景名胜区,Maling River Canyon Scenic Area,db,nature,scenic,,
+8,4A 级景区,上海,Shanghai,七宝古镇,Qibao Ancient Town,db,attraction,amap,4a,4.5
+8,4A 级景区,上海,Shanghai,上海中国航海博物馆,"China Maritime Museum, Shanghai",db,museum,museum1,"国家一级博物馆, 4a",4.8
+8,4A 级景区,上海,Shanghai,上海动物园,Shanghai Zoo,db,nature,amap,4a,4.8
+8,4A 级景区,上海,Shanghai,上海古猗园,"Guyi Garden, Shanghai",db,nature,baidu,4a,
+8,4A 级景区,上海,Shanghai,上海国际时尚中心,Shanghai International Fashion Center,db,nature,baidu,4a,
+8,4A 级景区,上海,Shanghai,上海城市规划展示馆,Shanghai Urban Planning Exhibition Hall,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,上海大观园,Shanghai Grand View Garden,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,上海影视乐园,Shanghai Film and TV Park,db,nature,amap,4a,4.3
+8,4A 级景区,上海,Shanghai,上海杜莎夫人蜡像馆,Madame Tussauds Shanghai,db,museum,amap,4a,
+8,4A 级景区,上海,Shanghai,上海植物园,Shanghai Botanical Garden,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,上海欢乐谷,Shanghai Happy Valley,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,上海海洋水族馆,Shanghai Ocean Aquarium,db,museum,amap,4a,
+8,4A 级景区,上海,Shanghai,上海辰山植物园,Shanghai Chenshan Botanical Garden,db,nature,amap,4a,4.8
+8,4A 级景区,上海,Shanghai,新场古镇,Xinchang Ancient Town,db,attraction,amap,4a,
+8,4A 级景区,上海,Shanghai,枫泾古镇,Fengjing Ancient Town,db,attraction,amap,4a,
+8,4A 级景区,上海,Shanghai,比斯特上海购物村,Bicester Village Shanghai,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,碧海金沙,Bihai Jinsha (Blue Sea and Golden Sand Beach),db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,金山城市沙滩,Jinshan City Beach,db,nature,amap,4a,
+8,4A 级景区,上海,Shanghai,金茂大厦88层观光厅,Jin Mao Tower 88th Floor Observation Deck,db,viewpoint,amap,4a,
+8,4A 级景区,上海,Shanghai,锦江乐园,Jinjiang Amusement Park,db,theme_park,amap,4a,
+8,4A 级景区,上饶,Shangrao,万年县神农源景区,"Shennongyuan Scenic Area, Wannian County",db,nature,baidu,4a,
+8,4A 级景区,上饶,Shangrao,三清山田园牧歌景区,"Pastoral Pastoral Scenic Area, Mount Sanqingshan",db,nature,baidu,4a,
+8,4A 级景区,上饶,Shangrao,三清山神仙谷景区,"Shenxian Valley Scenic Area, Mount Sanqingshan",db,nature,baidu,4a,
+8,4A 级景区,上饶,Shangrao,婺源县严田风景区,"Yantian Scenic Area, Wuyuan County",db,nature,baidu,4a,
+8,4A 级景区,东莞,Dongguan,东莞市可园博物馆,Dongguan Keyuan Museum,db,museum,museum2,"国家二级博物馆, 4a",4.5
+8,4A 级景区,保定,Baoding,保定直隶总督署博物馆,Baoding Zhili Governor-General's Office Museum,db,museum,museum2,"国家二级博物馆, 4a",4.6
+8,4A 级景区,信阳,Xinyang,信阳文新茶村,Xinyang Wenxin Tea Village,db,attraction,baidu,4a,
+8,4A 级景区,信阳,Xinyang,安山景区,Anshan Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,信阳,Xinyang,新县许世友将军故里景区,"General Xu Shiyou's Hometown Scenic Area, Xin County",db,nature,baidu,4a,
+8,4A 级景区,信阳,Xinyang,河南西九华山景区,Henan West Jiuhua Mountain Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,信阳,Xinyang,灵龙湖生态文化旅游区,Linglong Lake Ecological Cultural Tourism Area,db,nature,baidu,4a,
+8,4A 级景区,兰州,Lanzhou,兰州西部恐龙水乐园景区,Lanzhou Western Dinosaur Water Park,db,theme_park,baidu,4a,
+8,4A 级景区,北京,Beijing,中国紫檀博物馆,China Red Sandalwood Museum,db,museum,chinatravel,4a,
+8,4A 级景区,北京,Beijing,中国航空博物馆,China Aviation Museum,db,museum,chinatravel,4a,
+8,4A 级景区,北京,Beijing,中央电视塔景区,Central Radio & TV Tower,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,乐多港假日广场景区,Leduo Port Holiday Plaza Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,仙居谷风景区,Xianju Valley Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,八奇洞景区,Baqi Cave Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,北京凤凰岭景区,Beijing Phoenix Ridge Scenic Area,db,nature,amap,4a,4.6
+8,4A 级景区,北京,Beijing,北京十渡风景区,"Shidu Scenic Area, Beijing",db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,北京园博园景区,Beijing Garden Expo Park,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,北京国际鲜花港,Beijing International Flower Port,db,garden,amap,4a,
+8,4A 级景区,北京,Beijing,北京圣莲山旅游风景区,"Shenglian Mountain Scenic Area, Beijing",db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,北京天文馆,Beijing Planetarium,db,museum,museum1,"国家一级博物馆, 4a",4.5
+8,4A 级景区,北京,Beijing,北京汽车博物馆,Beijing Auto Museum,db,museum,museum1,"国家一级博物馆, 4a",4.7
+8,4A 级景区,北京,Beijing,北京海洋馆,Beijing Aquarium,db,museum,amap,4a,
+8,4A 级景区,北京,Beijing,北京野生动物园,Beijing Wildlife Park,db,theme_park,amap,4a,
+8,4A 级景区,北京,Beijing,孔庙和国子监博物馆,Confucius Temple and Imperial College Museum,db,museum,museum2,"国家二级博物馆, 4a",4.8
+8,4A 级景区,北京,Beijing,潭柘寺,Tanzhe Temple,db,attraction,amap,4a,
+8,4A 级景区,北京,Beijing,金海湖风景区,Jinhai Lake Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,北京,Beijing,银山塔林,Yinshan Pagoda Forest,db,nature,amap,4a,4.6
+8,4A 级景区,北京,Beijing,黑龙潭风景区,Black Dragon Pool Scenic Area,db,nature,amap,4a,3.7
+8,4A 级景区,十堰,Shiyan,十堰市博物馆,Shiyan Municipal Museum,db,museum,museum2,"国家二级博物馆, 4a",1.0
+8,4A 级景区,南京,Nanjing,水墨大埝旅游区,Shuimo Danian Tourist Area,db,theme_park,chinatravel,4a,
+8,4A 级景区,南京,Nanjing,汤山紫清湖旅游区,Tangshan Ziqing Lake Tourist Area,db,nature,amap,4a,
+8,4A 级景区,南京,Nanjing,牛首山文化旅游区,Niushou Mountain Cultural Tourism Zone,db,nature,amap,4a,
+8,4A 级景区,南阳,Nanyang,七十二潭景区,Qishiertan Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,南阳,Nanyang,中原二龙山风景区,Zhongyuan Erlongshan Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,南阳,Nanyang,内乡县衙博物馆,Neixiang County Government Office Museum,db,museum,baidu,4a,
+8,4A 级景区,南阳,Nanyang,南阳卧龙岗武侯祠,Nanyang Wolonggang Wuhou Shrine,db,attraction,baidu,4a,
+8,4A 级景区,南阳,Nanyang,龙潭沟景区,Longtangou Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,吉林,Jilin,松花湖风景名胜区,Songhua Lake Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,周口,Zhoukou,太昊陵,Taihao Mausoleum,db,attraction,baidu,4a,
+8,4A 级景区,周口,Zhoukou,老子故里旅游区,Laozi Hometown Tourist Area,db,nature,baidu,4a,
+8,4A 级景区,周口,Zhoukou,野生动物世界景区,Wildlife World Scenic Area,db,theme_park,baidu,4a,
+8,4A 级景区,大连,Dalian,大连武术文化博物馆,Dalian Wushu Culture Museum,db,museum,museum3,"国家三级博物馆, 4a",4.6
+8,4A 级景区,宁波,Ningbo,奉化博物馆,Fenghua Museum,db,museum,museum2,"国家二级博物馆, 4a",3.7
+8,4A 级景区,宿迁,Suqian,宿迁市龙王庙行宫景区,Suqian Longwang Temple Temporary Palace Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,平顶山,Pingdingshan,三苏园景区,Sansu Garden Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,平顶山,Pingdingshan,叶县县衙博物馆,Yexian County Government Office Museum,db,museum,baidu,4a,
+8,4A 级景区,平顶山,Pingdingshan,姚庄旅游区,Yaozhuang Tourist Area,db,nature,baidu,4a,
+8,4A 级景区,平顶山,Pingdingshan,豫晨滨湖田园生态旅游区,Yuchen Lakeside Pastoral Eco-Tourism Area,db,nature,baidu,4a,
+8,4A 级景区,平顶山,Pingdingshan,马街书会景区,Majie Book Fair Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,广州,Guangzhou,南沙天后宫,Nansha Tianhou Palace,db,attraction,amap,4a,4.5
+8,4A 级景区,广州,Guangzhou,广东科学中心,Guangdong Science Center,db,museum,amap,4a,4.6
+8,4A 级景区,广州,Guangzhou,广州动物园,Guangzhou Zoo,db,theme_park,amap,4a,4.4
+8,4A 级景区,广州,Guangzhou,广州市中国共产党第三次全国代表大会会址纪念馆旅游区,"Memorial Museum of the Third National Congress of the Communist Party of China, Guangzhou",db,museum,baidu,4a,
+8,4A 级景区,广州,Guangzhou,广州市中山纪念堂,"Sun Yat-sen Memorial Hall, Guangzhou",db,nature,baidu,4a,
+8,4A 级景区,广州,Guangzhou,广州市九龙湖度假区,"Kowloon Lake Resort, Guangzhou",db,nature,baidu,4a,
+8,4A 级景区,广州,Guangzhou,广州市北京路文化旅游区,Guangzhou Beijing Road Cultural Tourism Area,db,nature,baidu,4a,
+8,4A 级景区,广州,Guangzhou,广州市城市规划展览中心,Guangzhou Urban Planning Exhibition Center,db,museum,chinatravel,4a,
+8,4A 级景区,广州,Guangzhou,正佳广场商贸旅游区,Zhengjia Plaza Commerce and Tourism Area,db,attraction,amap,4a,4.6
+8,4A 级景区,开封,Kaifeng,开封包公祠旅游开发有限公司,Kaifeng Bao Gong Temple (Lord Bao Memorial Temple),db,attraction,baidu,4a,
+8,4A 级景区,开封,Kaifeng,爱思嘉·农业嘉年华景区,Aisijia Agricultural Carnival Scenic Area,db,nature,baidu,4a,4.3
+8,4A 级景区,徐州,Xuzhou,刘邦故里文化景区,Liu Bang Hometown Cultural Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,徐州,Xuzhou,徐州市凤鸣海景区,Xuzhou Fengming Sea Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,徐州,Xuzhou,徐州市水月禅寺景区,"Shuiyue Chan Temple Scenic Area, Xuzhou",db,nature,baidu,4a,
+8,4A 级景区,惠州,Huizhou,惠州市南昆山大观园生态度假区,Huizhou Nankun Mountain Daguan Garden Ecological Resort,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,东郊记忆,Eastern Suburb Memory,db,attraction,amap,4a,4.6
+8,4A 级景区,成都,Chengdu,丹景台旅游景区,Danjingtai Tourist Area,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,五凤溪古镇,Wufengxi Ancient Town,db,attraction,amap,4a,
+8,4A 级景区,成都,Chengdu,农科村景区,Nongke Village Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,凤凰湖旅游景区,Fenghuang Lake Tourist Area,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,天府花溪谷,Tianfu Huaxi Valley,db,nature,amap,4a,
+8,4A 级景区,成都,Chengdu,宝山旅游区,Baoshan Tourist Area,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,成都国色天乡乐园,Chengdu Guosetianxiang Amusement Park,db,theme_park,baidu,4a,
+8,4A 级景区,成都,Chengdu,成都市宝光桂湖文化旅游区,Chengdu Baoguang Temple and Guihu Lake Cultural Tourism Area,db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,成都市西岭雪山景区,"Xiling Snow Mountain Scenic Area, Chengdu",db,nature,baidu,4a,
+8,4A 级景区,成都,Chengdu,成都欢乐谷,Happy Valley Chengdu,db,nature,amap,4a,4.8
+8,4A 级景区,成都,Chengdu,望丛祠,Wangcong Temple,db,attraction,baidu,4a,
+8,4A 级景区,成都,Chengdu,洛带古镇,Luodai Ancient Town,db,attraction,amap,4a,4.6
+8,4A 级景区,成都,Chengdu,灌县古城,Guanxian Ancient City,db,attraction,amap,4a,
+8,4A 级景区,成都,Chengdu,白鹿音乐小镇,Bailu Music Town,db,attraction,amap,4a,4.2
+8,4A 级景区,扬州,Yangzhou,高邮市文游台景区,Gaoyou Wenyoutai Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,拉萨,Lhasa,西藏牦牛博物馆,Tibet Yak Museum,db,museum,museum2,"国家二级博物馆, 4a",4.6
+8,4A 级景区,无锡,Wuxi,无锡宜兴市竹海风景区,"Bamboo Sea Scenic Area, Yixing, Wuxi",db,nature,baidu,4a,
+8,4A 级景区,杭州,Hangzhou,下姜村,Xiajiang Village,db,attraction,amap,4a,
+8,4A 级景区,杭州,Hangzhou,严州古城景区,Yanzhou Ancient Town Scenic Area,db,ancient_town,chinatravel,4a,
+8,4A 级景区,杭州,Hangzhou,千岛湖石林景区,Qiandao Lake Stone Forest Scenic Area,db,nature,amap,4a,4.3
+8,4A 级景区,杭州,Hangzhou,大明山景区,Damingshan Scenic Area,db,nature,amap,4a,4.6
+8,4A 级景区,杭州,Hangzhou,建德航空小镇,Jiande Aviation Town,db,theme_park,chinatravel,4a,4.4
+8,4A 级景区,杭州,Hangzhou,杭州宋城,Hangzhou Songcheng,db,theme_park,amap,4a,4.7
+8,4A 级景区,杭州,Hangzhou,超山风景名胜区,Chaoshan Mountain Scenic Area,db,nature,amap,4a,4.5
+8,4A 级景区,杭州,Hangzhou,雷峰塔,Leifeng Pagoda,db,attraction,amap,4a,4.5
+8,4A 级景区,柳州,Liuzhou,柳州博物馆,Liuzhou Museum,db,museum,baidu,4a,
+8,4A 级景区,柳州,Liuzhou,柳州工业博物馆,Liuzhou Industrial Museum,db,museum,museum1,"国家一级博物馆, 4a",4.8
+8,4A 级景区,柳州,Liuzhou,柳州市立鱼峰风景区,"Liyufeng Scenic Area, Liuzhou",db,nature,baidu,4a,
+8,4A 级景区,柳州,Liuzhou,柳州白莲洞洞穴科学博物馆,Liuzhou Bailiandong Cave Science Museum,db,museum,museum2,"国家二级博物馆, 4a",4.6
+8,4A 级景区,桂林,Guilin,七星景区,Seven Star Park,db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,恭城红岩村景区,Gongcheng Hongyan Village Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,桂林全州县湘山·湘源历史文化旅游区,"Xiangshan · Xiangyuan Historic and Cultural Tourism Zone, Quanzhou County, Guilin",db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,桂林在水一汸景区,Guilin Zaishui Yifang Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,桂林愚自乐园艺术园,"Yuzi Paradise Art Park, Guilin",db,theme_park,baidu,4a,
+8,4A 级景区,桂林,Guilin,桂林穿山景区,"Chuanshan Scenic Area, Guilin",db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,老山界龙潭江景区,Laoshanjie Longtanjiang Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,桂林,Guilin,阳朔三千漓中国山水人文度假区,Yangshuo Sanqian Li Chinese Landscape Cultural Resort,db,nature,baidu,4a,
+8,4A 级景区,梅州,Meizhou,梅州市球王故里文化旅游区,"Hometown of the Ball King Cultural Tourism Area, Meizhou",db,nature,baidu,4a,
+8,4A 级景区,梅州,Meizhou,梅州市百侯名镇旅游区,Meizhou Baihou Famous Town Tourism Area,db,nature,baidu,4a,
+8,4A 级景区,梅州,Meizhou,梅州市雁山湖国际花园度假村,Meizhou Yanshanhu International Garden Resort,db,nature,baidu,4a,
+8,4A 级景区,楚雄,Chuxiong,楚雄彝族自治州博物馆,Chuxiong Yi Autonomous Prefecture Museum,db,museum,museum2,"国家二级博物馆, 4a",4.7
+8,4A 级景区,武汉,Wuhan,武汉野生动物王国,Wuhan Wildlife Kingdom,db,theme_park,amap,4a,
+8,4A 级景区,武汉,Wuhan,武钢文化旅游区,WISCO Cultural Tourism Area,db,other,chinatravel,4a,
+8,4A 级景区,池州,Chizhou,池州市秀山门博物馆,Chizhou Xiushan Gate Museum,db,museum,museum3,"国家三级博物馆, 4a",4.2
+8,4A 级景区,河池,Hechi,河池宜州怀远古镇景区,"Huaiyuan Ancient Town Scenic Area, Yizhou, Hechi",db,nature,baidu,4a,
+8,4A 级景区,泉州,Quanzhou,福建中国闽台缘博物馆,China Museum for Fujian-Taiwan Kinship,db,museum,baidu,4a,
+8,4A 级景区,泉州,Quanzhou,英良石材自然历史博物馆景区,Yingliang Stone Natural History Museum Scenic Area,db,museum,baidu,4a,
+8,4A 级景区,泰州,Taizhou,兴化市沙沟古镇景区,Xinghua Shagou Ancient Town Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,泰州,Taizhou,泰州市口岸雕花楼景区,Taizhou Kou'an Carved Flower Tower Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,洛阳,Luoyang,二里头夏都遗址博物馆,Erlitou Site Museum of the Xia Capital,db,museum,museum1,"国家一级博物馆, 4a",4.7
+8,4A 级景区,济宁,Jining,上九山村,Shangjiushan Village,db,nature,histvillage,"histvillage, 4a",
+8,4A 级景区,玉林,Yulin,玉林容县都峤山风景区,"Duqiao Mountain Scenic Area, Rong County, Yulin",db,nature,baidu,4a,
+8,4A 级景区,福州,Fuzhou,平潭68海里景区,Pingtan 68 Nautical Miles Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,福州,Fuzhou,石竹山景区,Shizhu Mountain Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,秦皇岛,Qinhuangdao,集发农业梦想王国,Jifa Agricultural Dream Kingdom,db,theme_park,baidu,4a,
+8,4A 级景区,苏州,Suzhou,苏州市七里山塘景区,Suzhou Qilishantang Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,西宁,Xining,青海藏医药文化博物馆,Qinghai Tibetan Medicine Culture Museum,db,museum,museum1,"国家一级博物馆, 4a",4.7
+8,4A 级景区,西宁,Xining,青藏高原自然博物馆,Qinghai-Tibet Plateau Natural History Museum,db,museum,baidu,4a,
+8,4A 级景区,辽阳,Liaoyang,辽阳博物馆,Liaoyang Museum,db,museum,museum2,"国家二级博物馆, 4a",4.7
+8,4A 级景区,郑州,Zhengzhou,杜甫故里,Du Fu's Hometown,db,attraction,baidu,4a,
+8,4A 级景区,郑州,Zhengzhou,竹林长寿山景区,Zhulin Changshou Mountain Scenic Area,db,nature,baidu,4a,
+8,4A 级景区,重庆,Chongqing,丰都雪玉洞景区,Fengdu Xueyu Cave Scenic Area,db,nature,amap,4a,4.2
+8,4A 级景区,重庆,Chongqing,仙女山归原小镇,Xiannü Mountain Guiyuan Town,db,nature,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,兰英大峡谷,Lanying Grand Canyon,db,nature,amap,4a,5.0
+8,4A 级景区,重庆,Chongqing,奉节龙桥河景区,Fengjie Longqiao River Scenic Area,db,nature,amap,4a,
+8,4A 级景区,重庆,Chongqing,巫山博物馆,Wushan Museum,db,museum,museum2,"国家二级博物馆, 4a",4.6
+8,4A 级景区,重庆,Chongqing,潼南大佛寺,Tongnan Grand Buddha Temple,db,attraction,amap,4a,
+8,4A 级景区,重庆,Chongqing,石柱万寿山景区,Shizhu Wanshou Mountain Scenic Area,db,nature,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,綦江古剑山风景区,Qijiang Gujian Mountain Scenic Area,db,nature,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,重庆三峡移民纪念馆,Chongqing Three Gorges Migration Memorial Hall,db,museum,museum1,"国家一级博物馆, 4a",4.7
+8,4A 级景区,重庆,Chongqing,重庆动物园,Chongqing Zoo,db,theme_park,amap,4a,4.7
+8,4A 级景区,重庆,Chongqing,重庆工业文化博览园,Chongqing Industrial Culture Expo Park,db,museum,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,重庆市规划展览馆,Chongqing Planning Exhibition Hall,db,museum,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,重庆欢乐谷,Chongqing Happy Valley,db,nature,amap,4a,
+8,4A 级景区,重庆,Chongqing,重庆海兰云天温泉度假区,Chongqing Hailan Yuntian Hot Spring Resort,db,attraction,chinatravel,4a,
+8,4A 级景区,重庆,Chongqing,重庆湖广会馆,Chongqing Huguang Guild Hall,db,nature,amap,4a,
+8,4A 级景区,重庆,Chongqing,重庆科技馆,Chongqing Science and Technology Museum,db,museum,amap,4a,
+8,4A 级景区,重庆,Chongqing,重庆统景温泉风景区,Chongqing Tongjing Hot Spring Scenic Area,db,attraction,chinatravel,4a,
+8,4A 级景区,鞍山,Anshan,鞍钢博物馆,Ansteel Museum,db,museum,museum1,"国家一级博物馆, 4a",4.9
+8,4A 级景区,黄山,Huangshan,雄村,Xiongcun Village,db,attraction,histvillage,"histvillage, 4a",
+8,4A 级景区,黑河,Heihe,黑河市瑷珲历史陈列馆,"Aihui History Museum, Heihe City",db,museum,museum1,"国家一级博物馆, 4a",4.5

@@ -1,0 +1,243 @@
+{
+ "attractions": {
+  "1438470": {
+   "name_zh": "刘公岛",
+   "name_en": "",
+   "reviews": 203
+  },
+  "1466541": {
+   "name_zh": "威海国际海水浴场",
+   "name_en": "",
+   "reviews": 137
+  },
+  "2003536": {
+   "name_zh": "威海公园",
+   "name_en": "",
+   "reviews": 43
+  },
+  "2003532": {
+   "name_zh": "威海环翠楼公园",
+   "name_en": "",
+   "reviews": 37
+  },
+  "2003531": {
+   "name_zh": "威海甲午海战纪念馆",
+   "name_en": "",
+   "reviews": 35
+  },
+  "2003819": {
+   "name_zh": "刘公岛国家森林公园",
+   "name_en": "",
+   "reviews": 37
+  },
+  "2003535": {
+   "name_zh": "刘公岛博览园",
+   "name_en": "",
+   "reviews": 40
+  },
+  "1979645": {
+   "name_zh": "中日甲午战争博物馆",
+   "name_en": "",
+   "reviews": 21
+  },
+  "1814203": {
+   "name_zh": "威海海上公园",
+   "name_en": "",
+   "reviews": 21
+  },
+  "1814201": {
+   "name_zh": "定远舰旅游区",
+   "name_en": "",
+   "reviews": 22
+  },
+  "1814264": {
+   "name_zh": "威海卧龙山",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1814248": {
+   "name_zh": "威海影视城",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3743237": {
+   "name_zh": "华夏城旅游风景区",
+   "name_en": "",
+   "reviews": 19
+  },
+  "1871082": {
+   "name_zh": "环翠楼公园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2003534": {
+   "name_zh": "威海仙姑顶",
+   "name_en": "",
+   "reviews": 19
+  },
+  "33254642": {
+   "name_zh": "Weihai Xiao Shi Dao",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2003908": {
+   "name_zh": "威海水上公园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1814253": {
+   "name_zh": "仙姑顶",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2003914": {
+   "name_zh": "威海文化名居博物馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "1814246": {
+   "name_zh": "威海海湾大桥",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2003912": {
+   "name_zh": "逸云斋美术馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3363143": {
+   "name_zh": "威海永旺佳世客购物中心",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2003796": {
+   "name_zh": "里口山国家森林公园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5120618": {
+   "name_zh": "威海国际展览中心",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2003913": {
+   "name_zh": "威海明尚美术馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5120616": {
+   "name_zh": "小吃一条街",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3362429": {
+   "name_zh": "振华商厦",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1814255": {
+   "name_zh": "正棋山",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1979831": {
+   "name_zh": "威海裕霞苑",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2003910": {
+   "name_zh": "塔山公园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5120615": {
+   "name_zh": "威海名店街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1814207": {
+   "name_zh": "双岛森林公园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5120613": {
+   "name_zh": "威海市科技馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5120614": {
+   "name_zh": "水岸文化风情街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "11650906": {
+   "name_zh": "脑洞社区",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2003915": {
+   "name_zh": "威海画院",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5120617": {
+   "name_zh": "威海市群众艺术馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1814218": {
+   "name_zh": "北洋海军提督署",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3362431": {
+   "name_zh": "华联商厦(新威路)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362430": {
+   "name_zh": "大润发",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2003112": {
+   "name_zh": "海战馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5120609": {
+   "name_zh": "海峰商业街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "8862643": {
+   "name_zh": "维多利亚海湾",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5120622": {
+   "name_zh": "威海经济技术开发区展览中心",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362367": {
+   "name_zh": "华联购物广场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2003909": {
+   "name_zh": "颐鑫公园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362536": {
+   "name_zh": "威海百货大楼",
+   "name_en": "",
+   "reviews": 1
+  }
+ },
+ "gid": "297459",
+ "pages_crawled": {
+  "attractions": 4
+ }
+}

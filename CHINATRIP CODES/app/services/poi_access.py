@@ -373,7 +373,9 @@ def attach_access(
         for item in day.items:
             if not isinstance(item, VisitItem) or item.access_mode:
                 continue
-            prof = profiles.get((item.city, item.name)) or profiles.get(("", item.name))
+            prof = profiles.get((item.city, item.name)) or profiles.get(
+                ("", item.name)
+            )
             if not prof:
                 continue
             mode = prof.get("access_mode")

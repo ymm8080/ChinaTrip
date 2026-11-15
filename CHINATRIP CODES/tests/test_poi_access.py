@@ -123,22 +123,13 @@ def test_summarize_prefers_the_ride_that_covers_the_distance():
         _plan(
             9600,
             _ride_seg(
-                _ride(
-                    "地铁2号线外环",
-                    kind="railway",
-                    duration_s=2400,
-                    departure_stop="前门站",
-                    arrival_stop="东直门站",
-                )
+                _ride("地铁2号线外环", kind="railway", duration_s=2400,
+                      departure_stop="前门站", arrival_stop="东直门站")
             ),
             _walk_seg(200, 180),
             _ride_seg(
-                _ride(
-                    "980路快车",
-                    duration_s=7200,
-                    departure_stop="东直门站",
-                    arrival_stop="密云站",
-                )
+                _ride("980路快车", duration_s=7200,
+                      departure_stop="东直门站", arrival_stop="密云站")
             ),
         )
     ]
@@ -155,14 +146,9 @@ def test_summarize_marks_once_a_day_departure():
         _plan(
             3600,
             _ride_seg(
-                _ride(
-                    "密51路区间",
-                    duration_s=3300,
-                    departure_stop="密云站",
-                    arrival_stop="沙岭七队站",
-                    departure_time="11:00",
-                    last_time="11:00",
-                )
+                _ride("密51路区间", duration_s=3300,
+                      departure_stop="密云站", arrival_stop="沙岭七队站",
+                      departure_time="11:00", last_time="11:00")
             ),
         )
     ]
@@ -195,17 +181,16 @@ def test_summarize_returns_none_without_usable_plan():
 
 def test_note_is_clamped_for_long_chains():
     rides = [
-        _ride(
-            f"线路{i}",
-            departure_stop=f"站{i}",
-            arrival_stop=f"站{i + 1}",
-            duration_s=600,
-        )
+        _ride(f"线路{i}", departure_stop=f"站{i}", arrival_stop=f"站{i + 1}",
+              duration_s=600)
         for i in range(6)
     ]
-    zh, en = build_note(rides, total_minutes=200, walk_minutes=12, gateway="终点站")
+    zh, en = build_note(
+        rides, total_minutes=200, walk_minutes=12, gateway="终点站"
+    )
     assert len(zh) <= 300 and len(en) <= 300
     assert "…" in zh
+
 
 
 # --- 引擎接驳腿（2026-11-15「一般是 TAXI + 引擎接驳腿」）-------------------------
@@ -213,12 +198,8 @@ def test_note_is_clamped_for_long_chains():
 
 def _visit(item_id, name, lon, lat, **over):
     return VisitItem(
-        item_id=item_id,
-        name=name,
-        city="北京",
-        day=1,
-        location=GeoPoint(lon=lon, lat=lat),
-        **over,
+        item_id=item_id, name=name, city="北京", day=1,
+        location=GeoPoint(lon=lon, lat=lat), **over
     )
 
 
@@ -269,7 +250,10 @@ def test_attach_access_skips_profile_without_boarding_point():
         ],
     )
     profiles = {
-        ("北京", "慕田峪长城"): {"access_mode": "train", "access_service_minutes": 60}
+        ("北京", "慕田峪长城"): {
+            "access_mode": "train",
+            "access_service_minutes": 60,
+        }
     }
     assert attach_access(plan, profiles) == 0
     assert plan.days[0].items[0].access_mode is None
@@ -278,10 +262,7 @@ def test_attach_access_skips_profile_without_boarding_point():
 def test_travel_gap_uses_gateway_chain_for_scheduled_site():
     hotel = _visit("a", "酒店", 116.4074, 39.9042)
     mty = _visit(
-        "b",
-        "慕田峪长城",
-        116.5598,
-        40.4267,
+        "b", "慕田峪长城", 116.5598, 40.4267,
         access_mode="shuttle",
         access_boarding=GeoPoint(lon=116.4046, lat=39.9052),
         access_service_minutes=92,
@@ -329,3 +310,27 @@ def test_travel_matrix_uses_chain_when_access_profile_is_passed():
     assert plain >= 30
     assert chained > plain
     assert chained >= 108 + 10 + 8
+
+
+def test_travel_gap_reads_city_profile_when_card_has_no_fields(monkeypatch):
+    """心愿快路径/兜底重排不经过矩阵：卡上没字段时按库内档案查一次。"""
+    import app.services.poi_access as pa
+
+    monkeypatch.setattr(
+        pa,
+        "profile_for",
+        lambda city, name: {
+            "access_mode": "shuttle",
+            "access_boarding_lon": 116.398256,
+            "access_boarding_lat": 39.898886,
+            "access_service_minutes": 108,
+            "access_wait_minutes": 10,
+            "access_last_mile_minutes": 8,
+        }
+        if name == "慕田峪长城"
+        else None,
+    )
+    hotel = _visit("a", "王府井酒店", 116.4109, 39.9097)
+    mty = _visit("b", "慕田峪长城", 116.5598, 40.4267)
+    chain = travel_gap_needed(hotel, mty)
+    assert chain is not None and chain >= 126

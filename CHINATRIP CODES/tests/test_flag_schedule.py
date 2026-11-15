@@ -436,10 +436,7 @@ def test_enforce_existing_fixed_rewrites_drifted_start():
     被行编辑/默认值改回 08:30、会话 start_date 缺失——打标函数对已打标
     件同样强制纠正（按已存旗时，不需日期）。"""
     item = _visit(
-        "tam",
-        "天安门广场",
-        pinned=True,
-        start_time=_t(8, 30),
+        "tam", "天安门广场", pinned=True, start_time=_t(8, 30),
         fixed_sessions=[_t(7, 8)],
     )
     p = ItineraryPlan(

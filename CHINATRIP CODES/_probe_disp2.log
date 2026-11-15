@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "D:\CHINATRIP/CHINATRIP CODES\app\api\plan.py", line 31, in <module>
+    from app.api.itineraries import (
+  File "D:\CHINATRIP/CHINATRIP CODES\app\api\itineraries.py", line 21, in <module>
+    from app.services.accounts import AccountService, parse_bearer_token
+  File "D:\CHINATRIP/CHINATRIP CODES\app\services\accounts.py", line 32, in <module>
+    from app.services.state_persist import SqliteStateBackend
+  File "D:\CHINATRIP/CHINATRIP CODES\app\services\state_persist.py", line 29, in <module>
+    from app.services.agent.plan import PlanSession, PlanSessionStore, heal_item_ids
+  File "D:\CHINATRIP/CHINATRIP CODES\app\services\agent\__init__.py", line 3, in <module>
+    from app.services.agent.plan import (
+  File "D:\CHINATRIP/CHINATRIP CODES\app\services\agent\plan.py", line 20335
+    ],
+     ^
+SyntaxError: invalid syntax

@@ -499,40 +499,80 @@ def test_list_items_without_itinerary_id_skip_name_field():
 # 草稿标记，看板/接口不返回；点「保存行程」提交后才可见。
 
 
-def test_purge_itinerary_deletes_related_wishes_keeps_booked_and_others():
+def test_release_itinerary_returns_wishes_with_blank_trip_id():
+    """2026-11-14 二拍：删行程 = 名下心愿行 TRIP ID 清空退回心愿单——
+    排期项回心愿单栏（day/position/booking 清空、ARRANGED 取消、note 剥
+    「已安排」尾段），心愿单/不想去行原地保留只摘绑定，booked 只解绑，
+    别的行程/无行程行不受牵连；不再删除、不再重建克隆。""";
     svc = TripItemService()
     wish = svc.create("灵隐寺", source="chat", itinerary_id="t1", city="杭州")
-    svc.update(wish["id"], status="scheduled", day=2, position=3.0)
+    svc.update(
+        wish["id"],
+        status="scheduled",
+        day=2,
+        position=3.0,
+        note="来自聊天｜已安排：灵隐寺（第2天 11月20日 09:00）",
+    )
     parked = svc.create("河坊街", source="chat", itinerary_id="t1")
-    booked = svc.create("宋城", source="manual", itinerary_id="t1")
+    unwanted = svc.create("宋城", source="chat", itinerary_id="t1")
+    svc.update(unwanted["id"], status="unwanted")
+    booked = svc.create("西湖游船", source="manual", itinerary_id="t1")
     svc.update(booked["id"], status="scheduled", day=1)
     svc.update(booked["id"], status="booked", booking_id="BK-9")
     other = svc.create("外滩", source="manual", itinerary_id="t2")
     svc.update(other["id"], status="scheduled", day=1)
     stray = svc.create("随手记", source="manual")
-    svc.update(stray["id"], status="scheduled", day=1)
 
-    purged = svc.purge_itinerary("t1", actor="dev-1")
+    released = svc.release_itinerary("t1", actor="dev-1")
 
-    assert {r["name"] for r in purged} == {"灵隐寺", "河坊街"}
-    assert svc.get(wish["id"]) is None
-    assert svc.get(parked["id"]) is None
-    # 不再重建回心愿单（旧 release 语义已废）
-    assert svc.list_groups()["wishlist"] == []
-    # booked 保留真实订单、只摘行程绑定；别行程与无行程行原样
+    assert {r["name"] for r in released} >= {"灵隐寺", "河坊街"}
+    row = next(r for r in released if r["name"] == "灵隐寺")
+    assert row["status"] == "wishlist"
+    assert row["itinerary_id"] is None  # TRIP ID 清空
+    assert row["arranged"] is False
+    assert row["day"] is None and row["position"] is None
+    assert row["note"] == "来自聊天"  # 「已安排」尾段已剥
+    # 心愿单/不想去行原地保留（只摘绑定）
+    assert svc.get(parked["id"])["itinerary_id"] is None
+    assert svc.get(parked["id"])["status"] == "wishlist"
+    assert svc.get(unwanted["id"])["itinerary_id"] is None
+    assert svc.get(unwanted["id"])["status"] == "unwanted"
+    # booked 保留真实订单、只摘绑定；别的行程与无行程行原样
     assert svc.get(booked["id"])["status"] == "booked"
     assert svc.get(booked["id"])["booking_id"] == "BK-9"
     assert svc.get(booked["id"])["itinerary_id"] is None
     assert svc.get(other["id"])["itinerary_id"] == "t2"
     assert svc.get(other["id"])["status"] == "scheduled"
-    assert svc.get(stray["id"])["status"] == "scheduled"
+    assert svc.get(stray["id"])["status"] == "wishlist"
+    # 心愿单栏可见（退回来了，不是删掉）
+    assert "灵隐寺" in {r["name"] for r in svc.list_groups()["wishlist"]}
 
 
-def test_purge_itinerary_without_rows_or_id_is_noop():
+def test_release_itinerary_commits_orphan_drafts():
+    """挂在被删行程上的会话草稿行：行程没了「保存行程」不会再发生——
+    释放时转正为无行程心愿行（draft 清空 + TRIP ID 清空）。""";
     svc = TripItemService()
-    assert svc.purge_itinerary("ghost-trip") == []
-    assert svc.purge_itinerary("") == []
+    draft = svc.create(
+        "豫园",
+        source="chat",
+        itinerary_id="t1",
+        draft_session_id="sess-1",
+    )
+    svc.update(draft["id"], status="scheduled", day=1)
 
+    released = svc.release_itinerary("t1")
+
+    assert [r["name"] for r in released] == ["豫园"]
+    row = svc.get(draft["id"])
+    assert row["draft_session_id"] is None
+    assert row["itinerary_id"] is None
+    assert row["status"] == "wishlist"
+
+
+def test_release_itinerary_without_rows_or_id_is_noop():
+    svc = TripItemService()
+    assert svc.release_itinerary("ghost-trip") == []
+    assert svc.release_itinerary("") == []
 
 def test_drafts_hidden_from_board_until_committed():
     """没点「保存行程」→ 心愿行是草稿：看板/单条读口都不返回；转正后可见。"""
@@ -568,9 +608,9 @@ def test_commit_drafts_only_touches_session_or_itinerary_rows():
     assert svc.get(other["id"])["draft_session_id"] == "s9"
 
 
-def test_delete_itinerary_purges_related_wishlist_endpoint():
-    """行程页 🗑 删除：行程连同快照、关联心愿单一起删除；booked 保留订单；
-    没挂行程的心愿行不受牵连。"""
+def test_delete_itinerary_returns_wishes_to_wishlist_endpoint():
+    """行程页 🗑 删除：行程连同快照删除，名下心愿行退回心愿单栏
+    （TRIP ID 清空）；booked 保留订单；没挂行程的心愿行不受牵连。""";
     app, store = make_app_with_store()
     record = ItineraryService(store).create("dev-1", ["杭州"], days_count=2)
     with TestClient(app) as client:
@@ -589,13 +629,15 @@ def test_delete_itinerary_purges_related_wishlist_endpoint():
 
         body = client.get("/api/v1/trip-items").json()
         assert body["scheduled"] == []
-        names = [r["name"] for group in body.values() for r in group]
-        assert "s" not in names  # 不再退回心愿单
+        released = next(r for r in body["wishlist"] if r["name"] == "s")
+        # 退回心愿单（不是删掉）：TRIP ID 清空、排期字段清空
+        assert released["itinerary_id"] is None
+        assert released["arranged"] is False
+        assert released["day"] is None and released["position"] is None
         assert [r["name"] for r in body["bookings"]] == ["b"]
         assert body["bookings"][0]["itinerary_id"] is None
-        assert [r["name"] for r in body["wishlist"]] == ["loose"]
-        assert loose["itinerary_id"] is None
-        # 行程本身确已删除（清理没有挡住删除）
+        assert "loose" in [r["name"] for r in body["wishlist"]]
+        # 行程本身确已删除（释放没有挡住删除）
         assert (
             client.get(
                 f"/api/v1/itineraries/{record.itinerary_id}",
@@ -603,7 +645,6 @@ def test_delete_itinerary_purges_related_wishlist_endpoint():
             ).status_code
             == 404
         )
-
 
 def test_list_self_heals_scheduled_orphans_on_deleted_itinerary():
     """释放机制上线前的存量孤儿（行程被旁路删除）：看板 GET 就地回
@@ -1210,3 +1251,48 @@ def test_commit_drafts_stamps_owner_account():
     committed = svc.get(row["id"])
     assert committed["owner_account_id"] == "acc-1"
     assert committed["draft_session_id"] is None
+
+
+def test_commit_orphan_drafts_adopts_dead_trip_rows_at_save():
+    """保存行程时收编同用户挂在死行程上的孤儿草稿：名字命中→重绑到本行程
+    （对账后进已排期）；没命中→转正为无行程心愿行（TRIP ID 清空）；
+    别人的草稿不动。"""
+    svc = TripItemService()
+    mine_hit = svc.create(
+        "天坛",
+        source="chat",
+        itinerary_id="dead1",
+        owner_device_id="dev-1",
+        draft_session_id="sA",
+    )
+    svc.update(mine_hit["id"], status="scheduled", day=1)
+    mine_miss = svc.create(
+        "豫园",
+        source="chat",
+        itinerary_id="dead1",
+        owner_device_id="dev-1",
+        draft_session_id="sA",
+    )
+    other = svc.create(
+        "故宫",
+        source="chat",
+        itinerary_id="dead2",
+        owner_device_id="dev-2",
+        draft_session_id="sB",
+    )
+
+    committed = svc.commit_orphan_drafts(
+        "t-live",
+        owner_device_id="dev-1",
+        match_names={"天坛", "颐和园"},
+    )
+
+    assert committed == 2
+    hit = svc.get(mine_hit["id"])
+    assert hit["draft_session_id"] is None
+    assert hit["itinerary_id"] == "t-live"
+    miss = svc.get(mine_miss["id"])
+    assert miss["draft_session_id"] is None
+    assert miss["itinerary_id"] is None
+    assert miss["status"] == "wishlist"
+    assert svc.get(other["id"])["draft_session_id"] == "sB"  # 别人的不动

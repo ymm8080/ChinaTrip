@@ -775,7 +775,7 @@ class PgTripItemService(TripItemService):
                         "UPDATE trip_items t"
                         " SET draft_session_id = NULL,"
                         " owner_account_id = COALESCE(t.owner_account_id, :acct),"
-                        " itinerary_ref = COALESCE(t.itinerary_ref, :ref),"
+                        " itinerary_ref = :ref,"
                         " payload = (COALESCE(t.payload, '{}'::jsonb)"
                         "   - 'draft_session_id')"
                         "   || jsonb_build_object("
@@ -809,26 +809,6 @@ class PgTripItemService(TripItemService):
                 "pg_state: 心愿草稿转正失败 itinerary=%s", itinerary_id, exc_info=True
             )
         return committed
-
-    def purge_itinerary(
-        self,
-        itinerary_id: str,
-        *,
-        now: datetime | None = None,
-        actor: str | None = None,
-    ) -> list[dict]:
-        """删行程 = 名下心愿单一并删除（2026-11-14）。跨进程兜底：本进程
-        内存里没有该行程的行时先回库取权威，否则漏删的行会在删行程后
-        继续挂在死行程上（看板又冒出来）。"""
-        if (
-            self._pg_ok
-            and itinerary_id
-            and not any(
-                it.get("itinerary_id") == itinerary_id for it in self._items.values()
-            )
-        ):
-            self._try_refresh()
-        return super().purge_itinerary(itinerary_id, now=now, actor=actor)
 
     def delete(self, item_id: str, *, actor: str | None = None) -> None:
         """删除 = 软删（2026-11-13 用户拍板「心愿单也是数据库」）：行保留，

@@ -1,0 +1,91 @@
+﻿# -*- coding: utf-8 -*-
+import io
+NL = chr(10)
+p = r"D:\CHINATRIP\CHINATRIP CODES\app\services\agent\plan.py"
+t = io.open(p, encoding="utf-8", newline=None).read()
+
+# 1) replace sync_wishes_to_trip_items body (keep head binding loop)
+start = t.index("    async def sync_wishes_to_trip_items(\n")
+head_end_marker = "                        if readd_note:\n                            readd_notes.append(readd_note)\n"
+head_end = t.index(head_end_marker) + len(head_end_marker)
+end = t.index("    def _finalize_wish_cities(\n")
+head = t[start:head_end]
+new_tail = NL.join([
+'        # 2026-11-15 用户拍板「心愿单只在 保存新行程/保存修改/删除 时进',
+'        # 数据库」：规划期间不再建行/翻行（不落库、不复制、不缓存）——愿望',
+'        # 记入会话（wish_sources 带来源/城市/愿望原话），保存行程时',
+'        # materialize_wish_rows 按最终排期物化成正式行。',
+'        sources = dict(session.wish_sources or {})',
+'        trip_cities = {_norm_city(c).removesuffix("市") for c in session.cities}',
+'        notes: list[str] = list(readd_notes)',
+'        unresolved: list[tuple[str, dict]] = []',
+'        for wish in wishes:',
+'            if _is_service_meta_wish(wish):',
+'                # 服务型请求不是可排期的地点（2026-11-04 天气误建行事故）',
+'                logger.info("plan: chat wish skipped as service meta: %s", wish)',
+'                continue',
+'            if _is_trip_brief_wish(wish):',
+'                # 「去X玩N天」是整趟行程简报，不是可排期的点位（2026-11-13）',
+'                logger.info("plan: chat wish skipped as trip brief: %s", wish)',
+'                continue',
+'            try:',
+'                is_category = (',
+'                    _category_search_keyword(wish) is not None',
+'                    and wish not in proper_override',
+'                )',
+'                city = None',
+'                city_from_trip = False',
+'                if is_category:',
+'                    # 泛称愿望自动落地（2026-10-28 拍板）：行程城市唯一→记',
+'                    # 该城；提示城写死（2026-11-08 城市闸）；多城/未定→留空。',
+'                    bare_cities = {',
+'                        (c or "").strip().removesuffix("市")',
+'                        for c in session.cities',
+'                        if (c or "").strip()',
+'                    }',
+'                    hint = _wish_city_hint(wish)',
+'                    if hint:',
+'                        city = hint',
+'                    elif len(bare_cities) == 1:',
+'                        city = session.cities[0]',
+'                        city_from_trip = True',
+'                else:',
+'                    city = await self._resolve_wish_city(wish)',
+'                    if not city:',
+'                        # 解析落空时吃语义绑定的落点城市（2026-11-13 拍板）',
+'                        _bound = (session.wish_bindings or {}).get(',
+'                            wish',
+'                        ) or self._wish_bindings.get(wish)',
+'                        _bcity = str((_bound or {}).get("city") or "").strip()',
+'                        if _bcity and not _is_unspecified(_bcity):',
+'                            city = _bcity',
+'                # 城市留档（会话）：wish_sources + site_cities',
+'                if city:',
+'                    session.site_cities.setdefault(wish, city)',
+'                sources[wish] = {',
+'                    "source": "chat",',
+'                    "note": L("来自聊天", "From chat"),',
+'                    "city": city,',
+'                }',
+'                if city:',
+'                    if not city_from_trip:',
+'                        bare = _norm_city(city).removesuffix("市")',
+'                        if trip_cities and bare not in trip_cities:',
+'                            notes.append(',
+'                                L(',
+'                                    f"「{wish}」已记入心愿单（{city}，本次行程未含{city}）",',
+'                                    f\\"{wish}\\" saved to your wishlist ({city}, not \\".',
+'                                )',
+'                            )',
+'                elif not is_category:',
+'                    unresolved.append((wish, {}))',
+'            except ValueError:',
+'                logger.warning("plan: trip wish sync failed for %s", wish)',
+'        session.wish_sources = sources',
+'        return notes, unresolved',
+'',
+'',
+])
+t = t[:head_end] + new_tail + t[end:]
+io.open(p, "w", encoding="utf-8", newline="\r\n").write(t)
+print("sync wishes rewritten")

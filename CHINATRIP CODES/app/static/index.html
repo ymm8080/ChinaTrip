@@ -3227,6 +3227,11 @@ document.getElementById("intakeGo").onclick = () => {
   const val = id => (document.getElementById(id).value || "").trim();
   const startDate = val("intakeArrDate"); // 行程开始日期=「开始」日期
   if (!startDate) { toast(I18N.tf("plan.intake.needDate", "先选开始日期")); return; }
+  // 开始/结束日期都必填（2026-11-15 用户拍板「给 ERROR IF NOT INPUT」）：
+  // 缺结束日期报错；结束早于开始也报错。
+  const endDate = val("intakeDepDate");
+  if (!endDate) { toast(I18N.tf("plan.intake.needEndDate", "再选结束日期（离开日）")); return; }
+  if (endDate < startDate) { toast(I18N.tf("plan.intake.badOrder", "结束日期不能早于开始日期")); return; }
   const arrTime = val("intakeArrTime");
   const depTime = val("intakeDepTime");
   planIntakeClose({
@@ -4430,7 +4435,7 @@ async function itinSavedLoad() {
       if (r.share_enabled) mk(I18N.tf("itin.shareOff", "🚫 关闭分享"), (b) => itinShareOff(r, b));
       mk(I18N.tf("itin.del", "🗑 删除"), (b) => {
         const label = (r.cities || []).map(c => I18N.city(c)).join(" → ") || r.itinerary_id;
-        if (!confirm(I18N.tf("itin.delConfirmPre", "确定删除行程「") + label + I18N.tf("itin.delConfirmMid", "」（") + r.itinerary_id + I18N.tf("itin.delConfirmSuf", "）？将连同它的全部快照、以及这条行程关联的心愿单一并删除（已订订单保留），操作不可恢复。"))) return;
+        if (!confirm(I18N.tf("itin.delConfirmPre", "确定删除行程「") + label + I18N.tf("itin.delConfirmMid", "」（") + r.itinerary_id + I18N.tf("itin.delConfirmSuf", "）？将连同它的全部快照一起删除；这条行程关联的心愿会退回心愿单（行程关联解除，已订订单保留），操作不可恢复。"))) return;
         busy(b, async () => {
           try {
             await api("/api/v1/itineraries/" + r.itinerary_id, undefined, "DELETE");

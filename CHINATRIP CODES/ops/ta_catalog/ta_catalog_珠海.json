@@ -1,0 +1,878 @@
+{
+ "attractions": {
+  "6419024": {
+   "name_zh": "珠海长隆海洋王国",
+   "name_en": "",
+   "reviews": 611
+  },
+  "1825210": {
+   "name_zh": "珠海情侣路",
+   "name_en": "",
+   "reviews": 443
+  },
+  "1843609": {
+   "name_zh": "渔女雕像",
+   "name_en": "",
+   "reviews": 372
+  },
+  "2050391": {
+   "name_zh": "珠海湾仔海鲜街",
+   "name_en": "",
+   "reviews": 204
+  },
+  "2051391": {
+   "name_zh": "珠海御温泉渡假村",
+   "name_en": "",
+   "reviews": 94
+  },
+  "1372772": {
+   "name_zh": "圆明新园",
+   "name_en": "",
+   "reviews": 232
+  },
+  "3211377": {
+   "name_zh": "拱北口岸购物广场",
+   "name_en": "",
+   "reviews": 168
+  },
+  "3362041": {
+   "name_zh": "华发商业广场",
+   "name_en": "",
+   "reviews": 48
+  },
+  "15758060": {
+   "name_zh": "珠海歌剧院",
+   "name_en": "",
+   "reviews": 27
+  },
+  "550615": {
+   "name_zh": "珠海海滨公园",
+   "name_en": "",
+   "reviews": 94
+  },
+  "3579322": {
+   "name_zh": "野狸岛",
+   "name_en": "",
+   "reviews": 49
+  },
+  "1797541": {
+   "name_zh": "金台寺",
+   "name_en": "",
+   "reviews": 46
+  },
+  "1797594": {
+   "name_zh": "海泉湾海洋温泉",
+   "name_en": "",
+   "reviews": 105
+  },
+  "550737": {
+   "name_zh": "东澳岛",
+   "name_en": "",
+   "reviews": 47
+  },
+  "1797549": {
+   "name_zh": "珠海国际赛车场",
+   "name_en": "",
+   "reviews": 34
+  },
+  "1795875": {
+   "name_zh": "白莲洞公园",
+   "name_en": "",
+   "reviews": 31
+  },
+  "2051390": {
+   "name_zh": "珠海外伶仃岛",
+   "name_en": "",
+   "reviews": 42
+  },
+  "3363587": {
+   "name_zh": "口岸购物广场",
+   "name_en": "",
+   "reviews": 33
+  },
+  "1825208": {
+   "name_zh": "梅溪牌坊",
+   "name_en": "",
+   "reviews": 25
+  },
+  "1843582": {
+   "name_zh": "珠海景山公园",
+   "name_en": "",
+   "reviews": 50
+  },
+  "1843586": {
+   "name_zh": "珠海观光索道",
+   "name_en": "",
+   "reviews": 31
+  },
+  "11816440": {
+   "name_zh": "长隆横琴剧院",
+   "name_en": "",
+   "reviews": 11
+  },
+  "1825161": {
+   "name_zh": "淇澳岛",
+   "name_en": "",
+   "reviews": 27
+  },
+  "1843581": {
+   "name_zh": "珠海淇澳红树林",
+   "name_en": "",
+   "reviews": 16
+  },
+  "1843574": {
+   "name_zh": "石景山公园",
+   "name_en": "",
+   "reviews": 40
+  },
+  "3362047": {
+   "name_zh": "扬名广场",
+   "name_en": "",
+   "reviews": 15
+  },
+  "8858292": {
+   "name_zh": "珠海国际会展中心",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2050368": {
+   "name_zh": "珠海农业科学研究中心",
+   "name_en": "",
+   "reviews": 21
+  },
+  "9814647": {
+   "name_zh": "珠海普陀寺",
+   "name_en": "",
+   "reviews": 9
+  },
+  "1825181": {
+   "name_zh": "梦幻水城",
+   "name_en": "",
+   "reviews": 25
+  },
+  "1843074": {
+   "name_zh": "珠海荷包岛",
+   "name_en": "",
+   "reviews": 23
+  },
+  "15850186": {
+   "name_zh": "海韵城",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1843592": {
+   "name_zh": "杨氏大宗祠",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5116916": {
+   "name_zh": "珠海莲花路商业街",
+   "name_en": "",
+   "reviews": 24
+  },
+  "1843600": {
+   "name_zh": "珠海海滨浴场",
+   "name_en": "",
+   "reviews": 53
+  },
+  "1843587": {
+   "name_zh": "万象城",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1842845": {
+   "name_zh": "御温泉度假村",
+   "name_en": "",
+   "reviews": 15
+  },
+  "5116909": {
+   "name_zh": "珠海北山广场美食街",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1795905": {
+   "name_zh": "白石街",
+   "name_en": "",
+   "reviews": 9
+  },
+  "34329021": {
+   "name_zh": "TCM Cultural Experience Center",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362199": {
+   "name_zh": "珠海免税商场",
+   "name_en": "",
+   "reviews": 11
+  },
+  "1825157": {
+   "name_zh": "庙湾岛",
+   "name_en": "",
+   "reviews": 9
+  },
+  "1843070": {
+   "name_zh": "东澳岛铳城",
+   "name_en": "",
+   "reviews": 8
+  },
+  "5116964": {
+   "name_zh": "珠海十字门中央商务区展示中心",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843578": {
+   "name_zh": "珠海三叠泉",
+   "name_en": "",
+   "reviews": 23
+  },
+  "26867627": {
+   "name_zh": "Nutrition Exploratorium",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2617262": {
+   "name_zh": "板樟山森林公园",
+   "name_en": "",
+   "reviews": 9
+  },
+  "3362050": {
+   "name_zh": "珠海百货广场",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5116925": {
+   "name_zh": "珠海水湾酒吧街",
+   "name_en": "",
+   "reviews": 11
+  },
+  "5116927": {
+   "name_zh": "珠海牛津街",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1843590": {
+   "name_zh": "珠海湾",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1843602": {
+   "name_zh": "唐家三庙",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843571": {
+   "name_zh": "珠海凤凰山",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1843081": {
+   "name_zh": "珠海海洋生态馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3362049": {
+   "name_zh": "珠都国际广场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "9608816": {
+   "name_zh": "会同村",
+   "name_en": "",
+   "reviews": 4
+  },
+  "33087566": {
+   "name_zh": "Gongbei Port",
+   "name_en": "",
+   "reviews": 1
+  },
+  "33065831": {
+   "name_zh": "Nine State Harbor",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050423": {
+   "name_zh": "珠海一棵树休闲庄园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1843595": {
+   "name_zh": "陈芳家宅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1843605": {
+   "name_zh": "望慈山房",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18433231": {
+   "name_zh": "富華里",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116915": {
+   "name_zh": "珠海横琴新区规划建设展示厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3363518": {
+   "name_zh": "澳海城百货",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843607": {
+   "name_zh": "唐家共乐园",
+   "name_en": "",
+   "reviews": 7
+  },
+  "14031178": {
+   "name_zh": "斗门旧街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1797523": {
+   "name_zh": "桂山岛",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2051371": {
+   "name_zh": "飞沙滩",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4096758": {
+   "name_zh": "唐家湾古镇",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5116926": {
+   "name_zh": "珠海侨光社区商业街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11624401": {
+   "name_zh": "古元美术馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843580": {
+   "name_zh": "珠海市体育中心",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1843576": {
+   "name_zh": "石博园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843573": {
+   "name_zh": "拱北莲花亭",
+   "name_en": "",
+   "reviews": 2
+  },
+  "21247180": {
+   "name_zh": "创新方",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843076": {
+   "name_zh": "武林源",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843575": {
+   "name_zh": "珠海天湖",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1843591": {
+   "name_zh": "珠海市博物馆",
+   "name_en": "",
+   "reviews": 28
+  },
+  "5116921": {
+   "name_zh": "珠海南北风味美食街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5116919": {
+   "name_zh": "珠海海鲜街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362045": {
+   "name_zh": "新天地购物中心",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1843594": {
+   "name_zh": "炮台山海关遗址",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2050444": {
+   "name_zh": "珠海和田度假村",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051295": {
+   "name_zh": "珠海九洲岛",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843583": {
+   "name_zh": "石景山庄",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050288": {
+   "name_zh": "珠海石溪风景区",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3362593": {
+   "name_zh": "尚都时尚百货",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362489": {
+   "name_zh": "米兰百货",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5116857": {
+   "name_zh": "广东省珠海市斗门区新民路步行街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843584": {
+   "name_zh": "蔡昌故居",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843610": {
+   "name_zh": "白海豚自然保护区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843588": {
+   "name_zh": "担杆岛自然保护区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843599": {
+   "name_zh": "前山寨城墙",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843601": {
+   "name_zh": "石溪摩崖石刻群",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1843579": {
+   "name_zh": "珠海市体育馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050394": {
+   "name_zh": "珠海高栏岛",
+   "name_en": "",
+   "reviews": 1
+  },
+  "754414": {
+   "name_zh": "白沥岛",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1797477": {
+   "name_zh": "金湾金海滩",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5116958": {
+   "name_zh": "友谊商业街",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1797506": {
+   "name_zh": "鳄鱼岛",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843597": {
+   "name_zh": "苏曼殊故居",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1843596": {
+   "name_zh": "中药谷",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050778": {
+   "name_zh": "珠海银沙滩生态园",
+   "name_en": "",
+   "reviews": 9
+  },
+  "1843077": {
+   "name_zh": "银沙滩",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116908": {
+   "name_zh": "珠海拱北步行街",
+   "name_en": "",
+   "reviews": 8
+  },
+  "33094724": {
+   "name_zh": "Chimelong Spaceship",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362048": {
+   "name_zh": "迎宾百货广场",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5116931": {
+   "name_zh": "珠海万事得商业街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "9770465": {
+   "name_zh": "棕泉水疗",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1423425": {
+   "name_zh": "珍珠乐园",
+   "name_en": "",
+   "reviews": 17
+  },
+  "1843577": {
+   "name_zh": "横琴蚝园",
+   "name_en": "",
+   "reviews": 3
+  },
+  "8384964": {
+   "name_zh": "喵之茶屋",
+   "name_en": "",
+   "reviews": 2
+  },
+  "34656142": {
+   "name_zh": "4-hour service from Zhuhai to Guangzhou - Buick GL8 Business Car",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34350256": {
+   "name_zh": "China Vistas | Zhuhai",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363927": {
+   "name_zh": "DANDYMOOD",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33987369": {
+   "name_zh": "GZY Elite - Zhuhai",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34446150": {
+   "name_zh": "Interact China - Chinese Aesthetic Store",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34446138": {
+   "name_zh": "Interact China - Chinese Aesthetic Store",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34447172": {
+   "name_zh": "Interact China - Chinese Aesthetic Store",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18942364": {
+   "name_zh": "Leslie Lee",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34728395": {
+   "name_zh": "Li's Local Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26926548": {
+   "name_zh": "Nature Spring",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20897897": {
+   "name_zh": "Samtour of Chengdu OTC Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12550443": {
+   "name_zh": "非艺艺术空间",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8857979": {
+   "name_zh": "农科中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116904": {
+   "name_zh": "珠海澳门街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362039": {
+   "name_zh": "百分百购物中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116906": {
+   "name_zh": "珠海白石街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1795808": {
+   "name_zh": "白藤湖易乐园度假区",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843073": {
+   "name_zh": "宝镜湾遗址",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843072": {
+   "name_zh": "宝镜湾摩崖石刻",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13215726": {
+   "name_zh": "玄峰赛车",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116910": {
+   "name_zh": "珠海财源道商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843080": {
+   "name_zh": "草堂湾沙丘遗址",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116912": {
+   "name_zh": "珠海翠薇阁陶瓷艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843603": {
+   "name_zh": "古元故居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843585": {
+   "name_zh": "卢慕贞故居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843604": {
+   "name_zh": "苏兆征故居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1797512": {
+   "name_zh": "金苹果乐园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363397": {
+   "name_zh": "好旺家百货",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116914": {
+   "name_zh": "珠海广场食街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33280224": {
+   "name_zh": "广东享飞通航飞行基地",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116911": {
+   "name_zh": "珠海官塘村商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051372": {
+   "name_zh": "黄杨山",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116913": {
+   "name_zh": "珠海汇金商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116920": {
+   "name_zh": "珠海金源商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843075": {
+   "name_zh": "拉塔石炮台",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116918": {
+   "name_zh": "珠海莲花万景城特色美食一条街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362043": {
+   "name_zh": "茂业百货",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362044": {
+   "name_zh": "南国商场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5305543": {
+   "name_zh": "珠海南厦商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116929": {
+   "name_zh": "珠海青岛多彩扎啤美食音乐广场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116924": {
+   "name_zh": "珠海仁恒星园商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116923": {
+   "name_zh": "珠海荣泰商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843079": {
+   "name_zh": "三灶万人坟",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32709717": {
+   "name_zh": "四个朋友",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843608": {
+   "name_zh": "珠海苏东坡纪念馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116922": {
+   "name_zh": "珠海台湾风情街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116928": {
+   "name_zh": "珠海旺角酒吧街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116930": {
+   "name_zh": "珠海五洲世派街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116933": {
+   "name_zh": "珠海香洲区科技馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362046": {
+   "name_zh": "鑫宝路商业广场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843071": {
+   "name_zh": "西枕湾",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116932": {
+   "name_zh": "珠海杨匏安陈列馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116937": {
+   "name_zh": "珠海银都食街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116935": {
+   "name_zh": "珠海谊一商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116960": {
+   "name_zh": "造贝商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843589": {
+   "name_zh": "植蜂园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116963": {
+   "name_zh": "中国国际航空航天博览会",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1843598": {
+   "name_zh": "中山亭",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051294": {
+   "name_zh": "珠海宝镜湾摩崖石刻画",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2050269": {
+   "name_zh": "珠海四大佛山",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2050429": {
+   "name_zh": "珠海沙湾古遗址",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116968": {
+   "name_zh": "珠海市艺术馆",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "297418",
+ "pages_crawled": {
+  "attractions": 2
+ }
+}

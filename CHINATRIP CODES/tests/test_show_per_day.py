@@ -310,6 +310,9 @@ def test_collect_candidates_reserves_show_rows_outside_window():
             name=nm,
             category="entertainment",
             source="show",
+            # 2026-11-14 拍板「无场次演出不被提案」：保位通道只收有真
+            # 场次/具体时段的行，夹具补场次串。
+            opening_hours="19:30场",
             location=(109.0 + j * 0.01, 34.3),
         )
     agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
@@ -317,6 +320,35 @@ def test_collect_candidates_reserves_show_rows_outside_window():
     show_names = [c["name"] for c in candidates if c["name"].startswith("《")]
     assert len(show_names) == 3  # 保位上限 3：第 4 行演出不进池
     assert "《驼铃传奇》秀" not in show_names
+
+
+def test_sessionless_show_rows_not_rescued():
+    """无场次演出的库行不进保位通道（2026-11-14 用户拍板「无场次演出
+    不被提案；有场次演出可以被提案」——国家大剧院案）。"""
+    store = PoiDetailStore()
+    for i in range(30):
+        store.upsert(
+            "F%02d" % i,
+            city="西安",
+            name="普通点%02d" % i,
+            category="attraction",
+            location=(108.9 + i * 0.001, 34.2),
+            rating=4.8,
+            rating_count=1000,
+        )
+    store.upsert(
+        "SH0",
+        city="西安",
+        name="国家大剧院",
+        category="entertainment",
+        source="show",
+        opening_hours="场次随排期（档期制，以当日公告为准）",
+        location=(109.0, 34.3),
+    )
+    agent = PlanningAgent(NoLLM(), amap_client=None, poi_details=store)
+    candidates, _ = run(agent._collect_candidates(["西安"]))
+    names = [c["name"] for c in candidates]
+    assert "国家大剧院" not in names
 
 
 # ---------- 2026-11-08 长恨歌案：停演季闸 / 最近簇选日 / 落选张披露 ----------

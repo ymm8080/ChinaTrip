@@ -1,0 +1,574 @@
+排名文件模式: 1326 个 (city,name) 对，302 城
+台账重试行: 987
+本批 1054 行（pois 1054 + restaurants 0；source 序: ['4a', '5a', 'amap', 'baidu', 'chinatravel', 'curated', 'histvillage', 'layla']…）
+  [catalog] 三亚/attractions 增量加深 3→45 页（已有 124 条）
+  [catalog] 三亚/attractions 第4页 +0（累计 124/145）
+  [catalog] 三亚/attractions 第5页 +0（累计 124/145）
+  [catalog] 三亚/attractions 第6页 +0（累计 124/?）
+  [skip] 三明 gID 解析失败（暂时性，不入台账）
+  [catalog] 上海/attractions 缓存复用 1001 条（已爬 45 页）
+  [catalog] 上饶/attractions 增量加深 3→45 页（已有 7 条）
+  [catalog] 上饶/attractions 第4页 +0（累计 7/?）
+  [skip] 东莞 gID 解析失败（暂时性，不入台账）
+  [skip] 东营 gID 解析失败（暂时性，不入台账）
+  [skip] 东阳 gID 解析失败（暂时性，不入台账）
+  [skip] 中卫 gID 解析失败（暂时性，不入台账）
+  [skip] 中山 gID 解析失败（暂时性，不入台账）
+  [skip] 临夏 gID 解析失败（暂时性，不入台账）
+  [skip] 临汾 gID 解析失败（暂时性，不入台账）
+  [skip] 临沂 gID 解析失败（暂时性，不入台账）
+  [skip] 丹东 gID 解析失败（暂时性，不入台账）
+  [skip] 丹江口 gID 解析失败（暂时性，不入台账）
+  [skip] 丽水 gID 解析失败（暂时性，不入台账）
+  [skip] 丽江 gID 解析失败（暂时性，不入台账）
+  [skip] 乌鲁木齐 gID 解析失败（暂时性，不入台账）
+  [skip] 乐山 gID 解析失败（暂时性，不入台账）
+  [skip] 乐清 gID 解析失败（暂时性，不入台账）
+  [skip] 九江 gID 解析失败（暂时性，不入台账）
+  [skip] 五大连池 gID 解析失败（暂时性，不入台账）
+  [skip] 井冈山 gID 解析失败（暂时性，不入台账）
+  [skip] 亳州 gID 解析失败（暂时性，不入台账）
+  [skip] 介休 gID 解析失败（暂时性，不入台账）
+  [skip] 伊春 gID 解析失败（暂时性，不入台账）
+  [skip] 伊犁 gID 解析失败（暂时性，不入台账）
+  [skip] 佛山 gID 解析失败（暂时性，不入台账）
+  [skip] 佳木斯 gID 解析失败（暂时性，不入台账）
+  [skip] 保亭 gID 解析失败（暂时性，不入台账）
+  [skip] 保定 gID 解析失败（暂时性，不入台账）
+  [skip] 保山 gID 解析失败（暂时性，不入台账）
+  [skip] 信阳 gID 解析失败（暂时性，不入台账）
+  [skip] 儋州 gID 解析失败（暂时性，不入台账）
+  [skip] 克拉玛依 gID 解析失败（暂时性，不入台账）
+  [skip] 六安 gID 解析失败（暂时性，不入台账）
+  [skip] 兰州 gID 解析失败（暂时性，不入台账）
+  [skip] 兴安 gID 解析失败（暂时性，不入台账）
+  [skip] 凉山 gID 解析失败（暂时性，不入台账）
+  [skip] 包头 gID 解析失败（暂时性，不入台账）
+  [catalog] 北京/attractions 增量加深 3→45 页（已有 1196 条）
+  [catalog] 北京/attractions 第4页 +0（累计 1196/1164）
+  [skip] 北海 gID 解析失败（暂时性，不入台账）
+  [skip] 十堰 gID 解析失败（暂时性，不入台账）
+  [skip] 华阴 gID 解析失败（暂时性，不入台账）
+  [catalog] 南京/attractions 增量加深 2→45 页（已有 471 条）
+  [catalog] 南京/attractions 第3页 +0（累计 471/196）
+  [catalog] 南京/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 南充 gID 解析失败（暂时性，不入台账）
+  [skip] 南宁 gID 解析失败（暂时性，不入台账）
+  [skip] 南平 gID 解析失败（暂时性，不入台账）
+  [skip] 南昌 gID 解析失败（暂时性，不入台账）
+  [skip] 南通 gID 解析失败（暂时性，不入台账）
+  [skip] 南阳 gID 解析失败（暂时性，不入台账）
+  [skip] 博尔塔拉 gID 解析失败（暂时性，不入台账）
+  [skip] 厦门 gID 解析失败（暂时性，不入台账）
+  [skip] 句容 gID 解析失败（暂时性，不入台账）
+  [skip] 可克达拉 gID 解析失败（暂时性，不入台账）
+  [skip] 台州 gID 解析失败（暂时性，不入台账）
+  [skip] 合肥 gID 解析失败（暂时性，不入台账）
+  [skip] 吉安 gID 解析失败（暂时性，不入台账）
+  [skip] 吉林 gID 解析失败（暂时性，不入台账）
+  [skip] 吐鲁番 gID 解析失败（暂时性，不入台账）
+  [skip] 吕梁 gID 解析失败（暂时性，不入台账）
+  [skip] 吴忠 gID 解析失败（暂时性，不入台账）
+  [skip] 周口 gID 解析失败（暂时性，不入台账）
+  [skip] 呼伦贝尔 gID 解析失败（暂时性，不入台账）
+  [skip] 呼和浩特 gID 解析失败（暂时性，不入台账）
+  [skip] 和田 gID 解析失败（暂时性，不入台账）
+  [skip] 咸宁 gID 解析失败（暂时性，不入台账）
+  [skip] 哈尔滨 gID 解析失败（暂时性，不入台账）
+  [skip] 唐山 gID 解析失败（暂时性，不入台账）
+  [skip] 商洛 gID 解析失败（暂时性，不入台账）
+  [skip] 喀什 gID 解析失败（暂时性，不入台账）
+  [skip] 嘉兴 gID 解析失败（暂时性，不入台账）
+  [skip] 嘉峪关 gID 解析失败（暂时性，不入台账）
+  [skip] 四平 gID 解析失败（暂时性，不入台账）
+  [skip] 固原 gID 解析失败（暂时性，不入台账）
+  [skip] 大兴安岭 gID 解析失败（暂时性，不入台账）
+  [skip] 大同 gID 解析失败（暂时性，不入台账）
+  [skip] 大理 gID 解析失败（暂时性，不入台账）
+  [catalog] 大连/attractions 增量加深 2→45 页（已有 314 条）
+  [catalog] 大连/attractions 第3页 +0（累计 314/209）
+  [catalog] 大连/restaurants 增量加深 41→45 页（已有 1179 条）
+  [catalog] 大连/restaurants 第42页 +0（累计 1179/1179）
+  [skip] 天水 gID 解析失败（暂时性，不入台账）
+  [skip] 天津 gID 解析失败（暂时性，不入台账）
+  [skip] 太原 gID 解析失败（暂时性，不入台账）
+  [skip] 娄底 gID 解析失败（暂时性，不入台账）
+  [skip] 宁安 gID 解析失败（暂时性，不入台账）
+  [skip] 宁德 gID 解析失败（暂时性，不入台账）
+  [skip] 宁波 gID 解析失败（暂时性，不入台账）
+  [skip] 安庆 gID 解析失败（暂时性，不入台账）
+  [skip] 安康 gID 解析失败（暂时性，不入台账）
+  [skip] 安阳 gID 解析失败（暂时性，不入台账）
+  [skip] 安顺 gID 解析失败（暂时性，不入台账）
+  [skip] 宜宾 gID 解析失败（暂时性，不入台账）
+  [skip] 宜昌 gID 解析失败（暂时性，不入台账）
+  [skip] 宜春 gID 解析失败（暂时性，不入台账）
+  [skip] 宝鸡 gID 解析失败（暂时性，不入台账）
+  [skip] 宣城 gID 解析失败（暂时性，不入台账）
+  [skip] 宿迁 gID 解析失败（暂时性，不入台账）
+  [skip] 山南 gID 解析失败（暂时性，不入台账）
+  [skip] 岳阳 gID 解析失败（暂时性，不入台账）
+  [skip] 峨眉山 gID 解析失败（暂时性，不入台账）
+  [skip] 崇左 gID 解析失败（暂时性，不入台账）
+  [skip] 巴中 gID 解析失败（暂时性，不入台账）
+  [skip] 巴彦淖尔 gID 解析失败（暂时性，不入台账）
+  [skip] 巴音郭楞 gID 解析失败（暂时性，不入台账）
+  [skip] 常州 gID 解析失败（暂时性，不入台账）
+  [skip] 常德 gID 解析失败（暂时性，不入台账）
+  [skip] 常熟 gID 解析失败（暂时性，不入台账）
+  [skip] 平凉 gID 解析失败（暂时性，不入台账）
+  [skip] 平顶山 gID 解析失败（暂时性，不入台账）
+  [skip] 广元 gID 解析失败（暂时性，不入台账）
+  [skip] 广安 gID 解析失败（暂时性，不入台账）
+  [catalog] 广州/attractions 增量加深 2→45 页（已有 492 条）
+  [catalog] 广州/attractions 第3页 +0（累计 492/409）
+  [skip] 庐山 gID 解析失败（暂时性，不入台账）
+  [skip] 延安 gID 解析失败（暂时性，不入台账）
+  [skip] 延边 gID 解析失败（暂时性，不入台账）
+  [skip] 开封 gID 解析失败（暂时性，不入台账）
+  [skip] 张家口 gID 解析失败（暂时性，不入台账）
+  [skip] 张家界 gID 解析失败（暂时性，不入台账）
+  [skip] 张掖 gID 解析失败（暂时性，不入台账）
+  [skip] 徐州 gID 解析失败（暂时性，不入台账）
+  [skip] 德宏 gID 解析失败（暂时性，不入台账）
+  [skip] 忻州 gID 解析失败（暂时性，不入台账）
+  [skip] 怀化 gID 解析失败（暂时性，不入台账）
+  [skip] 恩施 gID 解析失败（暂时性，不入台账）
+  [skip] 惠州 gID 解析失败（暂时性，不入台账）
+  [catalog] 成都/attractions 增量加深 2→45 页（已有 460 条）
+  [catalog] 成都/attractions 第3页 +0（累计 460/225）
+  [catalog] 成都/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 扬州 gID 解析失败（暂时性，不入台账）
+  [skip] 承德 gID 解析失败（暂时性，不入台账）
+  [skip] 抚州 gID 解析失败（暂时性，不入台账）
+  [skip] 抚顺 gID 解析失败（暂时性，不入台账）
+  [skip] 拉萨 gID 解析失败（暂时性，不入台账）
+  [skip] 敦化 gID 解析失败（暂时性，不入台账）
+  [skip] 敦煌 gID 解析失败（暂时性，不入台账）
+  [skip] 文山 gID 解析失败（暂时性，不入台账）
+  [skip] 新乡 gID 解析失败（暂时性，不入台账）
+  [catalog] 无锡/attractions 增量加深 2→45 页（已有 144 条）
+  [catalog] 无锡/attractions 第3页 +0（累计 144/80）
+  [skip] 日喀则 gID 解析失败（暂时性，不入台账）
+  [skip] 昆山 gID 解析失败（暂时性，不入台账）
+  [skip] 昆明 gID 解析失败（暂时性，不入台账）
+  [skip] 昌吉 gID 解析失败（暂时性，不入台账）
+  [skip] 昌都 gID 解析失败（暂时性，不入台账）
+  [skip] 晋中 gID 解析失败（暂时性，不入台账）
+  [skip] 晋城 gID 解析失败（暂时性，不入台账）
+  [skip] 普洱 gID 解析失败（暂时性，不入台账）
+  [skip] 景德镇 gID 解析失败（暂时性，不入台账）
+  [skip] 曲阜 gID 解析失败（暂时性，不入台账）
+  [skip] 朝阳 gID 解析失败（暂时性，不入台账）
+  [skip] 本溪 gID 解析失败（暂时性，不入台账）
+  [catalog] 杭州/attractions 增量加深 2→45 页（已有 530 条）
+  [catalog] 杭州/attractions 第3页 +0（累计 530/298）
+  [catalog] 杭州/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 松原 gID 解析失败（暂时性，不入台账）
+  [skip] 林芝 gID 解析失败（暂时性，不入台账）
+  [skip] 枣庄 gID 解析失败（暂时性，不入台账）
+  [skip] 柳州 gID 解析失败（暂时性，不入台账）
+  [skip] 株洲 gID 解析失败（暂时性，不入台账）
+  [catalog] 桂林/attractions 增量加深 2→45 页（已有 96 条）
+  [catalog] 桂林/attractions 第3页 +0（累计 96/96）
+  [catalog] 桂林/restaurants 增量加深 2→45 页（已有 337 条）
+  [catalog] 桂林/restaurants 第3页 +0（累计 337/337）
+  [skip] 桐乡 gID 解析失败（暂时性，不入台账）
+  [skip] 梅州 gID 解析失败（暂时性，不入台账）
+  [skip] 楚雄 gID 解析失败（暂时性，不入台账）
+  [skip] 榆林 gID 解析失败（暂时性，不入台账）
+  [skip] 武夷山 gID 解析失败（暂时性，不入台账）
+  [catalog] 武汉/attractions 增量加深 2→45 页（已有 558 条）
+  [catalog] 武汉/attractions 第3页 +0（累计 558/231）
+  [catalog] 武汉/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 毕节 gID 解析失败（暂时性，不入台账）
+  [skip] 永城 gID 解析失败（暂时性，不入台账）
+  [skip] 永州 gID 解析失败（暂时性，不入台账）
+  [skip] 汉中 gID 解析失败（暂时性，不入台账）
+  [skip] 江山 gID 解析失败（暂时性，不入台账）
+  [skip] 江门 gID 解析失败（暂时性，不入台账）
+  [skip] 池州 gID 解析失败（暂时性，不入台账）
+  [catalog] 沈阳/attractions 增量加深 2→45 页（已有 268 条）
+  [catalog] 沈阳/attractions 第3页 +0（累计 268/145）
+  [catalog] 沈阳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 河池 gID 解析失败（暂时性，不入台账）
+  [skip] 河源 gID 解析失败（暂时性，不入台账）
+  [skip] 泉州 gID 解析失败（暂时性，不入台账）
+  [skip] 泰安 gID 解析失败（暂时性，不入台账）
+  [skip] 泰州 gID 解析失败（暂时性，不入台账）
+  [catalog] 洛阳/attractions 增量加深 2→45 页（已有 109 条）
+  [catalog] 洛阳/attractions 第3页 +0（累计 109/82）
+  [catalog] 洛阳/restaurants 增量加深 2→45 页（已有 149 条）
+  [catalog] 洛阳/restaurants 第3页 +0（累计 149/149）
+  [catalog] 济南/attractions 增量加深 2→45 页（已有 223 条）
+  [catalog] 济南/attractions 第3页 +0（累计 223/113）
+  [catalog] 济南/restaurants 增量加深 29→45 页（已有 866 条）
+  [catalog] 济南/restaurants 第30页 +0（累计 866/866）
+  [skip] 济宁 gID 解析失败（暂时性，不入台账）
+  [skip] 海东 gID 解析失败（暂时性，不入台账）
+  [skip] 海北 gID 解析失败（暂时性，不入台账）
+  [skip] 海南 gID 解析失败（暂时性，不入台账）
+  [skip] 海口 gID 解析失败（暂时性，不入台账）
+  [skip] 海西 gID 解析失败（暂时性，不入台账）
+  [skip] 淄博 gID 解析失败（暂时性，不入台账）
+  [skip] 淮北 gID 解析失败（暂时性，不入台账）
+  [skip] 淮安 gID 解析失败（暂时性，不入台账）
+  [catalog] 深圳/attractions 增量加深 2→45 页（已有 515 条）
+  [catalog] 深圳/attractions 第3页 +0（累计 515/414）
+  [catalog] 深圳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 温州 gID 解析失败（暂时性，不入台账）
+  [skip] 渭南 gID 解析失败（暂时性，不入台账）
+  [skip] 湖州 gID 解析失败（暂时性，不入台账）
+  [skip] 湘潭 gID 解析失败（暂时性，不入台账）
+  [skip] 湘西 gID 解析失败（暂时性，不入台账）
+  [skip] 湛江 gID 解析失败（暂时性，不入台账）
+  [skip] 溧阳 gID 解析失败（暂时性，不入台账）
+  [skip] 滁州 gID 解析失败（暂时性，不入台账）
+  [skip] 满洲里 gID 解析失败（暂时性，不入台账）
+  [skip] 漳州 gID 解析失败（暂时性，不入台账）
+  [skip] 潍坊 gID 解析失败（暂时性，不入台账）
+  [skip] 潮州 gID 解析失败（暂时性，不入台账）
+  [catalog] 澳门/attractions 增量加深 2→45 页（已有 497 条）
+  [catalog] 澳门/attractions 第3页 +0（累计 497/335）
+  [skip] 灵武 gID 解析失败（暂时性，不入台账）
+  [skip] 烟台 gID 解析失败（暂时性，不入台账）
+  [skip] 焦作 gID 解析失败（暂时性，不入台账）
+  [skip] 牡丹江 gID 解析失败（暂时性，不入台账）
+  [skip] 玉林 gID 解析失败（暂时性，不入台账）
+  [skip] 玉树 gID 解析失败（暂时性，不入台账）
+  [skip] 玉溪 gID 解析失败（暂时性，不入台账）
+  [skip] 瑞金 gID 解析失败（暂时性，不入台账）
+  [skip] 甘孜 gID 解析失败（暂时性，不入台账）
+  [skip] 登封 gID 解析失败（暂时性，不入台账）
+  [skip] 白山 gID 解析失败（暂时性，不入台账）
+  [skip] 百色 gID 解析失败（暂时性，不入台账）
+  [skip] 盐城 gID 解析失败（暂时性，不入台账）
+  [skip] 盘锦 gID 解析失败（暂时性，不入台账）
+  [skip] 石嘴山 gID 解析失败（暂时性，不入台账）
+  [skip] 石家庄 gID 解析失败（暂时性，不入台账）
+  [skip] 石河子 gID 解析失败（暂时性，不入台账）
+  [skip] 神农架林区 gID 解析失败（暂时性，不入台账）
+  [skip] 福州 gID 解析失败（暂时性，不入台账）
+  [skip] 福鼎 gID 解析失败（暂时性，不入台账）
+  [skip] 秦皇岛 gID 解析失败（暂时性，不入台账）
+  [skip] 第十二师 gID 解析失败（暂时性，不入台账）
+  [skip] 红河 gID 解析失败（暂时性，不入台账）
+  [catalog] 绍兴/attractions 增量加深 4→45 页（已有 45 条）
+  [catalog] 绍兴/attractions 第5页 +0（累计 45/?）
+  [catalog] 绍兴/restaurants 增量加深 2→45 页（已有 129 条）
+  [catalog] 绍兴/restaurants 第3页 +0（累计 129/129）
+  [skip] 绵阳 gID 解析失败（暂时性，不入台账）
+  [skip] 肇庆 gID 解析失败（暂时性，不入台账）
+  [skip] 腾冲 gID 解析失败（暂时性，不入台账）
+  [catalog] 舟山/attractions 增量加深 2→45 页（已有 51 条）
+  [catalog] 舟山/attractions 第3页 +26（累计 77/87）
+  [catalog] 舟山/attractions 第4页 +0（累计 77/?）
+  [skip] 芜湖 gID 解析失败（暂时性，不入台账）
+  [catalog] 苏州/attractions 增量加深 2→45 页（已有 218 条）
+  [catalog] 苏州/attractions 第3页 +0（累计 218/218）
+  [catalog] 苏州/restaurants 增量加深 31→45 页（已有 874 条）
+  [catalog] 苏州/restaurants 第32页 +0（累计 874/874）
+  [skip] 荆门 gID 解析失败（暂时性，不入台账）
+  [skip] 莆田 gID 解析失败（暂时性，不入台账）
+  [skip] 萍乡 gID 解析失败（暂时性，不入台账）
+  [skip] 蓬莱 gID 解析失败（暂时性，不入台账）
+  [skip] 虎林 gID 解析失败（暂时性，不入台账）
+  [skip] 衡水 gID 解析失败（暂时性，不入台账）
+  [skip] 衡阳 gID 解析失败（暂时性，不入台账）
+  [skip] 衢州 gID 解析失败（暂时性，不入台账）
+  [skip] 襄阳 gID 解析失败（暂时性，不入台账）
+  [skip] 西双版纳 gID 解析失败（暂时性，不入台账）
+  [skip] 西宁 gID 解析失败（暂时性，不入台账）
+  [catalog] 西安/attractions 增量加深 2→45 页（已有 475 条）
+  [catalog] 西安/attractions 第3页 +0（累计 475/244）
+  [catalog] 西安/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 贵阳 gID 解析失败（暂时性，不入台账）
+  [skip] 贺州 gID 解析失败（暂时性，不入台账）
+  [skip] 资兴 gID 解析失败（暂时性，不入台账）
+  [skip] 赣州 gID 解析失败（暂时性，不入台账）
+  [skip] 赤峰 gID 解析失败（暂时性，不入台账）
+  [skip] 辽阳 gID 解析失败（暂时性，不入台账）
+  [skip] 运城 gID 解析失败（暂时性，不入台账）
+  [skip] 连云港 gID 解析失败（暂时性，不入台账）
+  [skip] 连州 gID 解析失败（暂时性，不入台账）
+  [skip] 迪庆 gID 解析失败（暂时性，不入台账）
+  [skip] 通化 gID 解析失败（暂时性，不入台账）
+  [skip] 遵义 gID 解析失败（暂时性，不入台账）
+  [skip] 遵化 gID 解析失败（暂时性，不入台账）
+  [skip] 那曲 gID 解析失败（暂时性，不入台账）
+  [skip] 邯郸 gID 解析失败（暂时性，不入台账）
+  [skip] 邵阳 gID 解析失败（暂时性，不入台账）
+  [skip] 郑州 gID 解析失败（暂时性，不入台账）
+  [skip] 郴州 gID 解析失败（暂时性，不入台账）
+  [skip] 鄂尔多斯 gID 解析失败（暂时性，不入台账）
+  [skip] 酒泉 gID 解析失败（暂时性，不入台账）
+  [skip] 重庆 gID 解析失败（暂时性，不入台账）
+  [skip] 金华 gID 解析失败（暂时性，不入台账）
+  [skip] 钦州 gID 解析失败（暂时性，不入台账）
+  [skip] 铜仁 gID 解析失败（暂时性，不入台账）
+  [skip] 银川 gID 解析失败（暂时性，不入台账）
+  [skip] 锡林郭勒 gID 解析失败（暂时性，不入台账）
+  [skip] 锦州 gID 解析失败（暂时性，不入台账）
+  [skip] 镇江 gID 解析失败（暂时性，不入台账）
+  [skip] 长春 gID 解析失败（暂时性，不入台账）
+  [skip] 长沙 gID 解析失败（暂时性，不入台账）
+  [skip] 长治 gID 解析失败（暂时性，不入台账）
+  [skip] 阆中 gID 解析失败（暂时性，不入台账）
+  [skip] 阜康 gID 解析失败（暂时性，不入台账）
+  [skip] 阜阳 gID 解析失败（暂时性，不入台账）
+  [skip] 阳朔 gID 解析失败（暂时性，不入台账）
+  [skip] 阳江 gID 解析失败（暂时性，不入台账）
+  [skip] 阿克苏 gID 解析失败（暂时性，不入台账）
+  [skip] 阿勒泰 gID 解析失败（暂时性，不入台账）
+  [skip] 阿坝 gID 解析失败（暂时性，不入台账）
+  [skip] 阿拉善盟 gID 解析失败（暂时性，不入台账）
+  [skip] 阿里 gID 解析失败（暂时性，不入台账）
+  [skip] 陇南 gID 解析失败（暂时性，不入台账）
+  [skip] 陵水 gID 解析失败（暂时性，不入台账）
+  [skip] 随州 gID 解析失败（暂时性，不入台账）
+  [skip] 雅安 gID 解析失败（暂时性，不入台账）
+  [catalog] 青岛/attractions 增量加深 2→45 页（已有 333 条）
+  [catalog] 青岛/attractions 第3页 +0（累计 333/207）
+  [catalog] 青岛/restaurants 增量加深 40→45 页（已有 1150 条）
+  [catalog] 青岛/restaurants 第41页 +0（累计 1150/1150）
+  [skip] 青州 gID 解析失败（暂时性，不入台账）
+  [skip] 鞍山 gID 解析失败（暂时性，不入台账）
+  [skip] 韶关 gID 解析失败（暂时性，不入台账）
+  [skip] 韶山 gID 解析失败（暂时性，不入台账）
+  [skip] 香港 gID 解析失败（暂时性，不入台账）
+  [skip] 马鞍山 gID 解析失败（暂时性，不入台账）
+  [skip] 驻马店 gID 解析失败（暂时性，不入台账）
+  [skip] 鹰潭 gID 解析失败（暂时性，不入台账）
+  [skip] 黄山 gID 解析失败（暂时性，不入台账）
+  [skip] 黑河 gID 解析失败（暂时性，不入台账）
+  [skip] 黔东南 gID 解析失败（暂时性，不入台账）
+  [skip] 黔南 gID 解析失败（暂时性，不入台账）
+  [skip] 黔西南 gID 解析失败（暂时性，不入台账）
+  [skip] 龙口 gID 解析失败（暂时性，不入台账）
+  [skip] 龙岩 gID 解析失败（暂时性，不入台账）
+  [warn] 恭城红岩村景区（桂林/nature）无过阈候选
+  [warn] 桂林全州县湘山·湘源历史文化旅游区（桂林/nature）无过阈候选
+  [warn] 北京圣莲山旅游风景区（北京/nature）无过阈候选
+  [warn] 伯多祿五世劇院（澳门/historic）无过阈候选
+  [warn] 媽閣廟（澳门/attraction）无过阈候选
+  [warn] 乐满地度假世界（桂林/attraction）无过阈候选
+  [warn] 长安十二时辰·唐宴（西安/food）无过阈候选
+  [warn] 农科村景区（成都/nature）无过阈候选
+  [warn] 河南省洛阳市涧西区广州市场步行街（洛阳/historic）无过阈候选
+  [warn] 禧宴·囍·沉浸式宫廷宴（大连/food）无过阈候选
+  [warn] 吴良墓（南京/historic）无过阈候选
+  [warn] 阳朔三千漓中国山水人文度假区（桂林/nature）无过阈候选
+  [warn] 广州市中山纪念堂（广州/nature）无过阈候选
+  [warn] 武汉叙宴（武汉/food）无过阈候选
+  [warn] 成都市西岭雪山景区（成都/nature）无过阈候选
+  [warn] 灵山风景名胜区（上饶/nature）无过阈候选
+  [warn] 乐多港假日广场景区（北京/nature）无过阈候选
+  [warn] 丹景台旅游景区（成都/nature）无过阈候选
+  [warn] 婺源县严田风景区（上饶/nature）无过阈候选
+  [warn] 牛首山文化旅游区（南京/nature）无过阈候选
+  [warn] 五凤溪古镇（成都/attraction）无过阈候选
+  [warn] 严州古城景区（杭州/ancient_town）无过阈候选
+  [warn] 辽宁省沈阳市铁西区红梅文创园旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 七星景区（桂林/nature）无过阈候选
+  [warn] 楚汉宫宴·沉浸式宫廷礼宴（武汉/food）无过阈候选
+  [warn] 秀宴·齐鲁文化美食剧场（济南/entertainment）无过阈候选
+  [warn] 崂山区崂山景区（青岛/attraction）无过阈候选
+  [warn] 上海国际时尚中心（上海/nature）无过阈候选
+  [warn] 广西壮族自治区桂林市阳朔县阳朔西街（桂林/historic）无过阈候选
+  [warn] 万春亭（北京/attraction）无过阈候选
+  [warn] 嵊泗列岛风景名胜区（舟山/nature）无过阈候选
+  [warn] 桂林在水一汸景区（桂林/nature）无过阈候选
+  [warn] 千岛湖石林景区（杭州/nature）无过阈候选
+  [warn] 成都市宝光桂湖文化旅游区（成都/nature）无过阈候选
+  [warn] 徐达墓（南京/historic）无过阈候选
+  [warn] 李文忠墓（南京/historic）无过阈候选
+  [warn] 常遇春墓（南京/historic）无过阈候选
+  [warn] 吴祯墓（南京/historic）无过阈候选
+  [warn] 桂林喀斯特（桂林/nature）无过阈候选
+  [warn] 南谣逸境·颁金宴（沈阳/food）无过阈候选
+  [warn] 红鼎宴（成都/food）无过阈候选
+  [warn] 观赋宴·唐风沉浸式盛宴（青岛/food）无过阈候选
+  [warn] 吴宫御宴（苏州/food）无过阈候选
+  [warn] 失重餐厅(环球中心店)（成都/food）无过阈候选
+  [warn] 明茂陵（北京/historic）无过阈候选
+  [warn] 黄陂区木兰文化生态旅游区（武汉/attraction）无过阈候选
+  [warn] 滨湖区鼋头渚旅游风景区（无锡/attraction）无过阈候选
+  [warn] 篁岭村（上饶/attraction）无过阈候选
+  [warn] 婺源县江湾景区（上饶/attraction）无过阈候选
+  [warn] 定陵（北京/attraction）无过阈候选
+  [warn] 辽宁省沈阳市和平区沈阳老北市旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 山东省青岛市市北区台东旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 上海市徐汇区衡复音乐街区（上海/historic）无过阈候选
+  [warn] 饶州古镇旅游休闲街区（上饶/historic）无过阈候选
+  [warn] 四川省成都市成华区望平坊旅游休闲街区（成都/historic）无过阈候选
+  [warn] 下姜村（杭州/attraction）无过阈候选
+  [warn] 环秀山庄（苏州/nature）无过阈候选
+  [warn] 天安门广场（北京/attraction）无过阈候选
+  [warn] 富春江-新安江风景名胜区（杭州/nature）无过阈候选
+  [warn] 安仁古镇景区（成都/attraction）无过阈候选
+  [warn] 桂林漓江风景名胜区（桂林/nature）无过阈候选
+  [warn] 仇成墓（南京/historic）无过阈候选
+  [warn] 外滩观光隧道（上海/nature）无过阈候选
+  [warn] 神农源风景名胜区（上饶/nature）无过阈候选
+  [warn] 北京大运河文化旅游景区（北京/attraction）无过阈候选
+  [warn] 龙脊长桌宴（桂林/food）无过阈候选
+  [warn] 六朝沉浸式晚宴（南京/food）无过阈候选
+  [warn] 御宴宫（西安/food）无过阈候选
+  [warn] 宴天下·宴乐（南京/food）无过阈候选
+  [warn] 宫宴·宋韵沉浸式宫廷御宴（杭州/food）无过阈候选
+  [warn] 天安门城楼（北京/historic）无过阈候选
+  [warn] 山东省青岛市大鲍岛文化旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 山东省济南市槐荫区印象济南·泉世界文化旅游休闲街区（济南/historic）无过阈候选
+  [warn] 宝山旅游区（成都/nature）无过阈候选
+  [warn] 凤凰湖旅游景区（成都/nature）无过阈候选
+  [warn] 浣江-五泄风景名胜区（绍兴/nature）无过阈候选
+  [warn] 馬禮遜教堂（澳门/attraction）无过阈候选
+  [warn] 洛阳古城历史文化街区（洛阳/historic）无过阈候选
+  [warn] 长城脚下的公社（北京/other）无过阈候选
+  [warn] 金州区金石滩景区（大连/attraction）无过阈候选
+  [warn] 裕兴记（西北街总店）（苏州/food）无过阈候选
+  [warn] 融厨湖北菜·非遗武昌鱼藕汤（江汉路总店）（武汉/food）无过阈候选
+  [warn] 海南省三亚市吉阳区鸿洲码头旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 长安大牌档之西游漫记（大悦城店）（西安/food）无过阈候选
+  [warn] 魁盛居百年鲁菜馆（县西巷店）（济南/food）无过阈候选
+  [warn] 南锣鼓巷（北京/attraction）无过阈候选
+  [warn] 八合里牛肉火锅（购物公园店）（深圳/food）无过阈候选
+  [warn] 日丰园·海肠水饺（小平岛总店）（大连/food）无过阈候选
+  [warn] 函谷关（洛阳/historic）无过阈候选
+  [warn] 佳宁娜潮州菜（佳宁娜广场店）（深圳/food）无过阈候选
+  [warn] 大茅山风景名胜区（上饶/nature）无过阈候选
+  [warn] 老济南四合院（王府池子12号院店）（济南/food）无过阈候选
+  [warn] 武皇盛宴（洛阳/food）无过阈候选
+  [warn] 广州市中国共产党第三次全国代表大会会址纪念馆旅游区（广州/museum）无过阈候选
+  [warn] 奉天小馆（万象城店）（沈阳/food）无过阈候选
+  [warn] 北京凤凰岭景区（北京/nature）无过阈候选
+  [warn] 大明山景区（杭州/nature）无过阈候选
+  [warn] 湖北省武汉市江岸区黎黄陂路历史文化街区（武汉/historic）无过阈候选
+  [warn] 建德航空小镇（杭州/theme_park）无过阈候选
+  [warn] 万年县神农源景区（上饶/nature）无过阈候选
+  [warn] 漓江风景区（桂林/attraction）无过阈候选
+  [warn] 兰齐宴赋·沉浸式宫廷盛宴（青岛/food）无过阈候选
+  [warn] 肥肥虾庄（石牌岭总店）（武汉/food）无过阈候选
+  [warn] 三亚热带海滨风景名胜区（三亚/nature）无过阈候选
+  [warn] 栾川县老君山鸡冠洞旅游区（洛阳/attraction）无过阈候选
+  [warn] 临潼骊山风景名胜区（西安/nature）无过阈候选
+  [warn] 基督教墳場（澳门/memorial）无过阈候选
+  [warn] 绍兴宴·解放路店（绍兴/food）无过阈候选
+  [warn] 敘宴·长安赋（深圳/food）无过阈候选
+  [warn] 宴华赋·唐风沉浸式宫宴餐秀（武汉/food）无过阈候选
+  [warn] 法租界（上海/attraction）无过阈候选
+  [warn] 辽宁省大连市中山区海昌·东方水城旅游休闲街区（大连/historic）无过阈候选
+  [warn] 海南省三亚市吉阳区大东海国际滨海旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 百花洲历史文化街区（济南/historic）无过阈候选
+  [warn] 上海天际线（上海/attraction）无过阈候选
+  [warn] 广东省深圳市南山区南头古城旅游休闲街区（深圳/historic）无过阈候选
+  [warn] 上海朱家角珠溪里舍（上海/nature）无过阈候选
+  [warn] 北京市石景山区模式口历史文化街区（北京/historic）无过阈候选
+  [warn] 北京市昌平区乐多港假日广场旅游休闲街区（北京/historic）无过阈候选
+  [warn] 龟峰风景名胜区（上饶/nature）无过阈候选
+  [warn] 青岛崂山风景名胜区（青岛/nature）无过阈候选
+  [warn] 老山界龙潭江景区（桂林/nature）无过阈候选
+  [warn] 天姥山风景名胜区（绍兴/nature）无过阈候选
+  [warn] 北京王府井天主教堂（北京/attraction）无过阈候选
+  [warn] 望丛祠（成都/attraction）无过阈候选
+  [warn] 都江堰景区（成都/nature）无过阈候选
+  [warn] 武汉野生动物王国（武汉/theme_park）无过阈候选
+  [warn] 二里头夏都遗址博物馆（洛阳/museum）无过阈候选
+  [warn] 白鹿音乐小镇（成都/attraction）无过阈候选
+  [warn] 江西省上饶市信州区金龙岗青年艺术街区（上饶/historic）无过阈候选
+  [warn] 广州市城市规划展览中心（广州/museum）无过阈候选
+  [warn] 北京南锣鼓巷古韵坊四合院漫心府（北京/attraction）无过阈候选
+  [warn] 水墨大埝旅游区（南京/theme_park）无过阈候选
+  [warn] 東方基金會會址（澳门/historic）无过阈候选
+  [warn] 海棠区蜈支洲岛旅游区（三亚/attraction）无过阈候选
+  [warn] 锦里古戏台（成都/art）无过阈候选
+  [warn] 外滩ART.333（上海/nature）无过阈候选
+  [warn] 崖州区南山文化旅游区（三亚/attraction）无过阈候选
+  [warn] 武钢文化旅游区（武汉/other）无过阈候选
+  [warn] 长陵（北京/attraction）无过阈候选
+  [warn] 吴中区太湖旅游区（苏州/attraction）无过阈候选
+  [warn] 新安县龙潭大峡谷景区（洛阳/attraction）无过阈候选
+  [warn] 淳安县千岛湖风景区（杭州/attraction）无过阈候选
+  [warn] 崖州区南山大小洞天旅游区（三亚/attraction）无过阈候选
+  [warn] 东西巷历史文化街区（桂林/historic）无过阈候选
+  [warn] 仙居谷风景区（北京/nature）无过阈候选
+  [warn] 大连武术文化博物馆（大连/museum）无过阈候选
+  [warn] 侵华日军南京大屠杀遇难同胞纪念馆（南京/attraction）无过阈候选
+  [warn] 天台山风景名胜区（成都/nature）无过阈候选
+  [warn] 八奇洞景区（北京/nature）无过阈候选
+  [warn] 长安十二时辰主题街区（西安/citywalk）无过阈候选
+  [warn] 平江历史街区（苏州/historic）无过阈候选
+  [warn] 天府花溪谷（成都/nature）无过阈候选
+  [warn] 玫瑰聖母堂（澳门/church）无过阈候选
+  [warn] 灌县古城（成都/attraction）无过阈候选
+  [warn] 北外滩国客中心沙滩嘉年华（上海/theme_park）无过阈候选
+  [warn] 长城之漫观景台（北京/nature）无过阈候选
+  [warn] 弋阳县龟峰景区（上饶/attraction）无过阈候选
+  [warn] 龙华区观澜湖休闲旅游区（深圳/attraction）无过阈候选
+  [warn] 西蜀第一街牌坊（成都/citywalk）无过阈候选
+  [warn] 北京中轴线（北京/historic）无过阈候选
+  [warn] 民政總署大樓（澳门/historic）无过阈候选
+  [warn] 三街會館（澳门/attraction）无过阈候选
+  [ok] pois:上海中心大厦（上海/nature） ← d9814601（1.00）
+  [ok] pois:东方明珠广播电视塔（上海/attraction） ← d311602（1.00）
+  [ok] pois:武康路（上海/attraction） ← d9778716（1.00）
+  [ok] pois:故宫博物院（北京/museum） ← d319086（1.00）
+  [ok] pois:中山陵景区（南京/nature） ← d491400（1.00）
+  [ok] pois:明孝陵（南京/attraction） ← d1402765（1.00）
+  [ok] pois:广州塔（广州/attraction） ← d2008063（1.00）
+  [ok] pois:沙面（广州/nature） ← d311560（1.00）
+  [ok] pois:陈家祠（广州/attraction） ← d311546（1.00）
+  [ok] pois:成都大熊猫繁育研究基地（成都/zoo） ← d457089（1.00）
+  [ok] pois:杭州西湖风景区（杭州/attraction） ← d386917（1.00）
+  [ok] pois:灵隐寺（杭州/attraction） ← d378945（1.00）
+  [ok] pois:东湖生态旅游风景区（武汉/nature） ← d1827023（1.00）
+  [ok] pois:昙华林（武汉/historic） ← d7148014（1.00）
+  [ok] pois:拙政园（苏州/park） ← d505717（1.00）
+  [ok] pois:虎丘山风景名胜区（苏州/nature） ← d487767（1.00）
+  [ok] pois:昌平区明十三陵景区（北京/attraction） ← d319105（1.00）
+  [ok] pois:青城山都江堰旅游景区（成都/attraction） ← d319637（1.00）
+  [ok] pois:明清故宫（北京故宫、沈阳故宫）（沈阳/attraction） ← d488834（1.00）
+  [ok] pois:龙门石窟（洛阳/nature） ← d1567326（1.00）
+  [ok] pois:小雁塔（西安/attraction） ← d506717（1.00）
+  [ok] pois:番禺区长隆旅游度假区（广州/attraction） ← d1842884（1.00）
+  [ok] pois:白云山景区（广州/attraction） ← d490438（1.00）
+  [ok] pois:西湖区西溪湿地旅游区（杭州/attraction） ← d568756（1.00）
+  [ok] pois:金鸡湖旅游区（苏州/attraction） ← d1813978（1.00）
+  [ok] pois:万寿寺（北京/attraction） ← d1797649（1.00）
+  [ok] pois:什刹海（北京/nature） ← d324010（1.00）
+  [ok] pois:皇穹宇（北京/temple） ← d548224（1.00）
+  [ok] pois:西安博物院（西安/museum） ← d506717（1.00）
+  [ok] pois:八达岭-十三陵风景名胜区（北京/nature） ← d319105（1.00）
+  [ok] pois:洛阳龙门风景名胜区（洛阳/nature） ← d1567326（1.00）
+  [ok] pois:黄浦江游览（东方明珠码头）（上海/theme_park） ← d1793303（0.95）
+  [ok] pois:中华门瓮城（南京/attraction） ← d1799127（0.95）
+  [ok] pois:南京城墙（南京/attraction） ← d1799127（0.95）
+  [ok] pois:珠江夜游（广州/theme_park） ← d2008063（0.95）
+  [ok] pois:珠江夜游广州塔财富码头（广州/theme_park） ← d2008063（0.95）
+  [ok] pois:西溪国家湿地公园（杭州/attraction） ← d568756（0.95）
+  [ok] pois:平江路历史街区（苏州/attraction） ← d1999601（0.95）
+  [ok] pois:昭陵（北京/attraction） ← d319105（0.95）
+  [ok] pois:上海之巅观光厅（上海/nature） ← d9814601（0.95）
+  [ok] pois:上海外滩星空艺术馆（上海/nature） ← d311595（0.95）
+  [ok] pois:上海外滩沙美大楼ZHotel（上海/nature） ← d311595（0.95）
+  [ok] pois:上海外滩花间堂·愉园（上海/nature） ← d311595（0.95）
+  [ok] pois:浦江游览（上海/attraction） ← d1793303（0.95）
+  [ok] pois:故宫钟表馆（北京/attraction） ← d319086（0.95）
+  [ok] pois:神路景区（北京/attraction） ← d319105（0.95）
+  [ok] pois:成都武侯祠博物馆（成都/museum） ← d508982（0.95）
+  [ok] pois:武侯祠·锦里（成都/citywalk） ← d508982（0.95）
+  [ok] pois:熊猫谷（成都/nature） ← d457089（0.95）
+  [ok] pois:武康路-安福路街区（上海/historic） ← d9778716（0.95）
+  [ok] pois:浙江省杭州市临平区运河·塘栖古镇历史风情街区（杭州/historic） ← d4799860（0.95）
+  [ok] pois:湖北省武汉市武昌区昙华林历史文化街区（武汉/historic） ← d7148014（0.95）
+  [ok] pois:江苏省苏州市苏州工业园区李公堤旅游休闲街区（苏州/historic） ← d1486974（0.95）
+  [ok] pois:陕西省西安市曲江新区大唐不夜城步行街（西安/historic） ← d2234014（0.95）
+  [ok] pois:梧桐山风景名胜区（深圳/nature） ← d1843641（0.95）
+  [ok] pois:金茂大厦88层观光厅（上海/viewpoint） ← d311586（0.95）
+  [ok] pois:北京十渡风景区（北京/nature） ← d1793465（0.95）
+  [ok] pois:汤山紫清湖旅游区（南京/nature） ← d1799093（0.95）
+  [ok] pois:广州市北京路文化旅游区（广州/nature） ← d1843665（0.95）
+台账重写: 保留 987 行滚动重试
+
+完成：写库 59，未匹配 987（已入台账，下次跳过）
+exit=0

@@ -1,0 +1,2493 @@
+{
+ "attractions": {
+  "10781016": {
+   "name_zh": "观光缆车",
+   "name_en": "",
+   "reviews": 453
+  },
+  "2509090": {
+   "name_zh": "表演湖",
+   "name_en": "",
+   "reviews": 921
+  },
+  "7256947": {
+   "name_zh": "澳门旅游塔",
+   "name_en": "",
+   "reviews": 674
+  },
+  "1868250": {
+   "name_zh": "郑家大屋",
+   "name_en": "",
+   "reviews": 503
+  },
+  "2515594": {
+   "name_zh": "新濠天地",
+   "name_en": "",
+   "reviews": 569
+  },
+  "619161": {
+   "name_zh": "澳门历史城区",
+   "name_en": "",
+   "reviews": 2792
+  },
+  "2165996": {
+   "name_zh": "澳门大熊猫馆",
+   "name_en": "",
+   "reviews": 719
+  },
+  "446837": {
+   "name_zh": "圣保罗大教堂遗址(大三巴牌坊)",
+   "name_en": "",
+   "reviews": 8010
+  },
+  "325619": {
+   "name_zh": "澳门旅游塔会展娱乐中心",
+   "name_en": "",
+   "reviews": 2510
+  },
+  "1584784": {
+   "name_zh": "路环岛",
+   "name_en": "",
+   "reviews": 514
+  },
+  "1758117": {
+   "name_zh": "澳门博物馆",
+   "name_en": "",
+   "reviews": 837
+  },
+  "1652948": {
+   "name_zh": "东望洋炮台",
+   "name_en": "",
+   "reviews": 633
+  },
+  "2535490": {
+   "name_zh": "氹仔村",
+   "name_en": "",
+   "reviews": 740
+  },
+  "446843": {
+   "name_zh": "大炮台",
+   "name_en": "",
+   "reviews": 881
+  },
+  "487320": {
+   "name_zh": "西望洋主教堂",
+   "name_en": "",
+   "reviews": 314
+  },
+  "10788767": {
+   "name_zh": "澳门巴黎铁塔",
+   "name_en": "",
+   "reviews": 477
+  },
+  "482100": {
+   "name_zh": "议事亭前地",
+   "name_en": "",
+   "reviews": 3958
+  },
+  "1590798": {
+   "name_zh": "玫瑰圣母堂",
+   "name_en": "",
+   "reviews": 1183
+  },
+  "321092": {
+   "name_zh": "妈阁庙",
+   "name_en": "",
+   "reviews": 1474
+  },
+  "3642985": {
+   "name_zh": "东望洋灯塔",
+   "name_en": "",
+   "reviews": 256
+  },
+  "3922441": {
+   "name_zh": "澳门银河酒店影舞银光",
+   "name_en": "",
+   "reviews": 390
+  },
+  "1978099": {
+   "name_zh": "龙环葡韵住宅式博物馆",
+   "name_en": "",
+   "reviews": 366
+  },
+  "321115": {
+   "name_zh": "民政总署大楼",
+   "name_en": "",
+   "reviews": 282
+  },
+  "645404": {
+   "name_zh": "金光大道度假区",
+   "name_en": "",
+   "reviews": 303
+  },
+  "506176": {
+   "name_zh": "卢廉若公园",
+   "name_en": "",
+   "reviews": 218
+  },
+  "1652947": {
+   "name_zh": "圣方济各圣堂",
+   "name_en": "",
+   "reviews": 273
+  },
+  "592480": {
+   "name_zh": "福隆新街",
+   "name_en": "",
+   "reviews": 257
+  },
+  "1807543": {
+   "name_zh": "外港客运码头",
+   "name_en": "",
+   "reviews": 492
+  },
+  "1867905": {
+   "name_zh": "风顺堂",
+   "name_en": "",
+   "reviews": 190
+  },
+  "2005224": {
+   "name_zh": "澳门科学馆",
+   "name_en": "",
+   "reviews": 293
+  },
+  "1591931": {
+   "name_zh": "邮政总局",
+   "name_en": "",
+   "reviews": 216
+  },
+  "1642548": {
+   "name_zh": "大堂",
+   "name_en": "",
+   "reviews": 224
+  },
+  "1590804": {
+   "name_zh": "玫瑰圣母广场",
+   "name_en": "",
+   "reviews": 191
+  },
+  "487312": {
+   "name_zh": "澳门大赛车博物馆",
+   "name_en": "",
+   "reviews": 364
+  },
+  "12715167": {
+   "name_zh": "炫逸水疗（澳门喜来登大酒店）",
+   "name_en": "",
+   "reviews": 42
+  },
+  "1831174": {
+   "name_zh": "圣奥斯定广场",
+   "name_en": "",
+   "reviews": 178
+  },
+  "487309": {
+   "name_zh": "澳门海事博物馆",
+   "name_en": "",
+   "reviews": 187
+  },
+  "8775219": {
+   "name_zh": "影汇之星",
+   "name_en": "",
+   "reviews": 209
+  },
+  "8358132": {
+   "name_zh": "澳门百老汇",
+   "name_en": "",
+   "reviews": 160
+  },
+  "2035682": {
+   "name_zh": "松山缆车",
+   "name_en": "",
+   "reviews": 152
+  },
+  "2562036": {
+   "name_zh": "澳门银河",
+   "name_en": "",
+   "reviews": 168
+  },
+  "1650946": {
+   "name_zh": "卢家大屋",
+   "name_en": "",
+   "reviews": 152
+  },
+  "2003218": {
+   "name_zh": "澳氹大桥",
+   "name_en": "",
+   "reviews": 274
+  },
+  "34279083": {
+   "name_zh": "Sites de Apostas Chinesas Confiáveis",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2512388": {
+   "name_zh": "澳门特别行政区政府旅游局",
+   "name_en": "",
+   "reviews": 359
+  },
+  "1831217": {
+   "name_zh": "何东图书馆",
+   "name_en": "",
+   "reviews": 97
+  },
+  "1832898": {
+   "name_zh": "伯多禄五世剧院 ",
+   "name_en": "",
+   "reviews": 117
+  },
+  "12955799": {
+   "name_zh": "氹仔客运码头",
+   "name_en": "",
+   "reviews": 82
+  },
+  "2175270": {
+   "name_zh": "观音像",
+   "name_en": "",
+   "reviews": 185
+  },
+  "482098": {
+   "name_zh": "澳门艺术博物馆",
+   "name_en": "",
+   "reviews": 87
+  },
+  "506173": {
+   "name_zh": "白鸽巢前地",
+   "name_en": "",
+   "reviews": 128
+  },
+  "1641988": {
+   "name_zh": "大堂广场",
+   "name_en": "",
+   "reviews": 125
+  },
+  "8723638": {
+   "name_zh": "大三巴哪吒廟",
+   "name_en": "",
+   "reviews": 186
+  },
+  "1867929": {
+   "name_zh": "圣若瑟修道院圣堂",
+   "name_en": "",
+   "reviews": 82
+  },
+  "2232627": {
+   "name_zh": "黑沙滩",
+   "name_en": "",
+   "reviews": 147
+  },
+  "2238815": {
+   "name_zh": "澳门渔人码头",
+   "name_en": "",
+   "reviews": 379
+  },
+  "2103225": {
+   "name_zh": "石排湾郊野公园",
+   "name_en": "",
+   "reviews": 63
+  },
+  "1583179": {
+   "name_zh": "仁慈堂博物馆",
+   "name_en": "",
+   "reviews": 111
+  },
+  "10791327": {
+   "name_zh": "巴黎人购物中心",
+   "name_en": "",
+   "reviews": 102
+  },
+  "2509059": {
+   "name_zh": "塔石体育馆",
+   "name_en": "",
+   "reviews": 70
+  },
+  "1892906": {
+   "name_zh": "路凼历史馆",
+   "name_en": "",
+   "reviews": 60
+  },
+  "321112": {
+   "name_zh": "普济禅院",
+   "name_en": "",
+   "reviews": 51
+  },
+  "1878995": {
+   "name_zh": "圣味基坟场及圣弥额尔小堂",
+   "name_en": "",
+   "reviews": 77
+  },
+  "1776256": {
+   "name_zh": "圣安多尼堂",
+   "name_en": "",
+   "reviews": 93
+  },
+  "2035825": {
+   "name_zh": "澳门大学",
+   "name_en": "",
+   "reviews": 66
+  },
+  "590871": {
+   "name_zh": "圣奥斯定堂",
+   "name_en": "",
+   "reviews": 85
+  },
+  "1978136": {
+   "name_zh": "亚美打利庇卢大马路",
+   "name_en": "",
+   "reviews": 54
+  },
+  "1977828": {
+   "name_zh": "嘉模圣母堂",
+   "name_en": "",
+   "reviews": 61
+  },
+  "3922676": {
+   "name_zh": "望德堂坊 - 文物保護區",
+   "name_en": "",
+   "reviews": 36
+  },
+  "2337433": {
+   "name_zh": "妈祖文化村",
+   "name_en": "",
+   "reviews": 51
+  },
+  "6603520": {
+   "name_zh": "Travessa da Paixao",
+   "name_en": "",
+   "reviews": 39
+  },
+  "7738066": {
+   "name_zh": "俊秀巷",
+   "name_en": "",
+   "reviews": 41
+  },
+  "591237": {
+   "name_zh": "圣母雪地殿教堂",
+   "name_en": "",
+   "reviews": 64
+  },
+  "7261658": {
+   "name_zh": "十月初五日街",
+   "name_en": "",
+   "reviews": 44
+  },
+  "1832196": {
+   "name_zh": "港务局大楼",
+   "name_en": "",
+   "reviews": 93
+  },
+  "2509082": {
+   "name_zh": "南湾湖",
+   "name_en": "",
+   "reviews": 52
+  },
+  "2509064": {
+   "name_zh": "亚婆井前地",
+   "name_en": "",
+   "reviews": 107
+  },
+  "321118": {
+   "name_zh": "澳门国父纪念馆",
+   "name_en": "",
+   "reviews": 46
+  },
+  "7080987": {
+   "name_zh": "黑沙水库郊野公园",
+   "name_en": "",
+   "reviews": 43
+  },
+  "2003220": {
+   "name_zh": "北帝庙",
+   "name_en": "",
+   "reviews": 43
+  },
+  "1952371": {
+   "name_zh": "妈阁庙前地",
+   "name_en": "",
+   "reviews": 70
+  },
+  "2092469": {
+   "name_zh": "望德圣母堂",
+   "name_en": "",
+   "reviews": 43
+  },
+  "9706224": {
+   "name_zh": "民政总署画廊",
+   "name_en": "",
+   "reviews": 34
+  },
+  "15634642": {
+   "name_zh": "港珠澳大桥",
+   "name_en": "",
+   "reviews": 40
+  },
+  "13989945": {
+   "name_zh": "視博廣場",
+   "name_en": "",
+   "reviews": 19
+  },
+  "482099": {
+   "name_zh": "典当业展示馆",
+   "name_en": "",
+   "reviews": 36
+  },
+  "25347349": {
+   "name_zh": "teamLab SuperNature Macao",
+   "name_en": "",
+   "reviews": 21
+  },
+  "3362665": {
+   "name_zh": "新八佰伴百货",
+   "name_en": "",
+   "reviews": 107
+  },
+  "6614694": {
+   "name_zh": "路环图书馆",
+   "name_en": "",
+   "reviews": 29
+  },
+  "7269121": {
+   "name_zh": "莲峰庙",
+   "name_en": "",
+   "reviews": 26
+  },
+  "11650940": {
+   "name_zh": "金沙剧场",
+   "name_en": "",
+   "reviews": 21
+  },
+  "1633154": {
+   "name_zh": "板樟堂街",
+   "name_en": "",
+   "reviews": 46
+  },
+  "2509097": {
+   "name_zh": "加思栏花园",
+   "name_en": "",
+   "reviews": 31
+  },
+  "6614697": {
+   "name_zh": "天后古庙",
+   "name_en": "",
+   "reviews": 23
+  },
+  "7810733": {
+   "name_zh": "Macau Design Center",
+   "name_en": "",
+   "reviews": 22
+  },
+  "2071720": {
+   "name_zh": "澳门回归贺礼陈列馆",
+   "name_en": "",
+   "reviews": 22
+  },
+  "9564238": {
+   "name_zh": "The Boulevard (新濠影汇)",
+   "name_en": "",
+   "reviews": 68
+  },
+  "8178955": {
+   "name_zh": "时尚汇",
+   "name_en": "",
+   "reviews": 20
+  },
+  "321130": {
+   "name_zh": "基督教坟",
+   "name_en": "",
+   "reviews": 48
+  },
+  "2003217": {
+   "name_zh": "妈祖庙",
+   "name_en": "",
+   "reviews": 34
+  },
+  "2509083": {
+   "name_zh": "西湾湖",
+   "name_en": "",
+   "reviews": 35
+  },
+  "13436902": {
+   "name_zh": "松山市政公园",
+   "name_en": "",
+   "reviews": 14
+  },
+  "1211700": {
+   "name_zh": "消防博物馆",
+   "name_en": "",
+   "reviews": 23
+  },
+  "3647973": {
+   "name_zh": "圣物宝库",
+   "name_en": "",
+   "reviews": 25
+  },
+  "1918459": {
+   "name_zh": "澳门特别行政区政府总部",
+   "name_en": "",
+   "reviews": 24
+  },
+  "1807699": {
+   "name_zh": "东方基金会会址（英国东印度公司旧址）",
+   "name_en": "",
+   "reviews": 30
+  },
+  "7738611": {
+   "name_zh": "利玛窦铜像",
+   "name_en": "",
+   "reviews": 32
+  },
+  "7080990": {
+   "name_zh": "花城公园",
+   "name_en": "",
+   "reviews": 21
+  },
+  "10020720": {
+   "name_zh": "澳門花車巡遊",
+   "name_en": "",
+   "reviews": 24
+  },
+  "1650956": {
+   "name_zh": "三街会馆",
+   "name_en": "",
+   "reviews": 46
+  },
+  "7053847": {
+   "name_zh": "艺竹苑",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2515925": {
+   "name_zh": "Flora 花园",
+   "name_en": "",
+   "reviews": 33
+  },
+  "1642580": {
+   "name_zh": "天主教艺术博物馆",
+   "name_en": "",
+   "reviews": 46
+  },
+  "14108821": {
+   "name_zh": "康公夜市",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2064417": {
+   "name_zh": "华士古达嘉马花园",
+   "name_en": "",
+   "reviews": 45
+  },
+  "2514937": {
+   "name_zh": "康公庙",
+   "name_en": "",
+   "reviews": 29
+  },
+  "13429516": {
+   "name_zh": "Q立方王国",
+   "name_en": "",
+   "reviews": 10
+  },
+  "7738586": {
+   "name_zh": "耶稣会纪念广场",
+   "name_en": "",
+   "reviews": 35
+  },
+  "6558562": {
+   "name_zh": "望厦炮台",
+   "name_en": "",
+   "reviews": 22
+  },
+  "16951908": {
+   "name_zh": "Calcada da Igreja de S. Lazaro",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1633167": {
+   "name_zh": "买草地街",
+   "name_en": "",
+   "reviews": 25
+  },
+  "6116127": {
+   "name_zh": "美高梅展艺空间",
+   "name_en": "",
+   "reviews": 13
+  },
+  "1776254": {
+   "name_zh": "旧城壁",
+   "name_en": "",
+   "reviews": 70
+  },
+  "10276833": {
+   "name_zh": "鲁班先师木工艺陈列馆",
+   "name_en": "",
+   "reviews": 11
+  },
+  "7738550": {
+   "name_zh": "天后宫",
+   "name_en": "",
+   "reviews": 18
+  },
+  "2092464": {
+   "name_zh": "八角亭图书馆",
+   "name_en": "",
+   "reviews": 26
+  },
+  "591155": {
+   "name_zh": "孙中山纪念馆",
+   "name_en": "",
+   "reviews": 13
+  },
+  "6614696": {
+   "name_zh": "观音古庙",
+   "name_en": "",
+   "reviews": 18
+  },
+  "2509034": {
+   "name_zh": "螺丝山公园",
+   "name_en": "",
+   "reviews": 15
+  },
+  "17205791": {
+   "name_zh": "Grand Taipa Viewing Platform",
+   "name_en": "",
+   "reviews": 5
+  },
+  "11917739": {
+   "name_zh": "松山军用隧道",
+   "name_en": "",
+   "reviews": 12
+  },
+  "2509044": {
+   "name_zh": "金莲花广场",
+   "name_en": "",
+   "reviews": 69
+  },
+  "7080986": {
+   "name_zh": "通讯博物馆",
+   "name_en": "",
+   "reviews": 12
+  },
+  "15596949": {
+   "name_zh": "路环步行径",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3922615": {
+   "name_zh": "疯堂十号",
+   "name_en": "",
+   "reviews": 16
+  },
+  "23749705": {
+   "name_zh": "Plaza Premium Lounge (Departures)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "34136040": {
+   "name_zh": "Wynn Macau Fountain",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1997154": {
+   "name_zh": "友誼大橋",
+   "name_en": "",
+   "reviews": 34
+  },
+  "7080983": {
+   "name_zh": "雕塑公园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "6614690": {
+   "name_zh": "新中央酒店",
+   "name_en": "",
+   "reviews": 13
+  },
+  "2064440": {
+   "name_zh": "肥利喇亚美打大马路",
+   "name_en": "",
+   "reviews": 15
+  },
+  "4178327": {
+   "name_zh": "望厦山市政公园",
+   "name_en": "",
+   "reviews": 15
+  },
+  "2509055": {
+   "name_zh": "塔石艺文馆",
+   "name_en": "",
+   "reviews": 19
+  },
+  "17366866": {
+   "name_zh": "大潭山環山徑",
+   "name_en": "",
+   "reviews": 5
+  },
+  "25369129": {
+   "name_zh": "Ny8 New Yaohan (grand Lisboa Palace)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "7080984": {
+   "name_zh": "澳门林则徐纪念馆",
+   "name_en": "",
+   "reviews": 24
+  },
+  "17118197": {
+   "name_zh": "司打口",
+   "name_en": "",
+   "reviews": 8
+  },
+  "4249382": {
+   "name_zh": "名店城儿童洞穴",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2509102": {
+   "name_zh": "卡梅尔花园",
+   "name_en": "",
+   "reviews": 12
+  },
+  "11911834": {
+   "name_zh": "沙梨頭圖書館",
+   "name_en": "",
+   "reviews": 7
+  },
+  "18758184": {
+   "name_zh": "下环街市",
+   "name_en": "",
+   "reviews": 5
+  },
+  "24114865": {
+   "name_zh": "Shoppes At Londoner",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362842": {
+   "name_zh": "DFS全球免税店",
+   "name_en": "",
+   "reviews": 22
+  },
+  "16665848": {
+   "name_zh": "意度亚玛忌士前地",
+   "name_en": "",
+   "reviews": 5
+  },
+  "10472752": {
+   "name_zh": "望厦圣方济各堂",
+   "name_en": "",
+   "reviews": 6
+  },
+  "10087843": {
+   "name_zh": "关前正街",
+   "name_en": "",
+   "reviews": 11
+  },
+  "25369148": {
+   "name_zh": "H853 Fun Factory (lisboeta)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "25261934": {
+   "name_zh": "Grand Lisboa Palace Shopping Mall",
+   "name_en": "",
+   "reviews": 3
+  },
+  "7080988": {
+   "name_zh": "澳门保安部队博物馆",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1807557": {
+   "name_zh": "佐治･欧华利塑像",
+   "name_en": "",
+   "reviews": 28
+  },
+  "8775232": {
+   "name_zh": "菩提园",
+   "name_en": "",
+   "reviews": 6
+  },
+  "23886830": {
+   "name_zh": "Nova Mall",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2003219": {
+   "name_zh": "土地庙",
+   "name_en": "",
+   "reviews": 12
+  },
+  "12726512": {
+   "name_zh": "九澳村",
+   "name_en": "",
+   "reviews": 6
+  },
+  "14920272": {
+   "name_zh": "黑沙龙爪角海岸径",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2509079": {
+   "name_zh": "宋玉生广场",
+   "name_en": "",
+   "reviews": 17
+  },
+  "7080989": {
+   "name_zh": "土地暨自然博物馆",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2232625": {
+   "name_zh": "竹湾沙滩",
+   "name_en": "",
+   "reviews": 12
+  },
+  "2512390": {
+   "name_zh": "加思栏炮台",
+   "name_en": "",
+   "reviews": 12
+  },
+  "7080912": {
+   "name_zh": "佳景乐园",
+   "name_en": "",
+   "reviews": 14
+  },
+  "2035832": {
+   "name_zh": "茶文化馆",
+   "name_en": "",
+   "reviews": 32
+  },
+  "8070632": {
+   "name_zh": "友谊雕塑",
+   "name_en": "",
+   "reviews": 30
+  },
+  "33066642": {
+   "name_zh": "澳门威尼斯人度假区",
+   "name_en": "",
+   "reviews": 2
+  },
+  "23656394": {
+   "name_zh": "东西艺术廊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25272774": {
+   "name_zh": "Ecological Trail (taipa Wetlands)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17723249": {
+   "name_zh": "十字花园",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2035694": {
+   "name_zh": "海月水母水族箱",
+   "name_en": "",
+   "reviews": 13
+  },
+  "7269118": {
+   "name_zh": "三角花园",
+   "name_en": "",
+   "reviews": 20
+  },
+  "33011998": {
+   "name_zh": "Macau Plaza Premium First (departures)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "33072928": {
+   "name_zh": "Elizabeth Tower",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13954001": {
+   "name_zh": "南湾‧雅文湖畔",
+   "name_en": "",
+   "reviews": 7
+  },
+  "28037049": {
+   "name_zh": "Super Fun Zone",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7141852": {
+   "name_zh": "巨型财神雕像",
+   "name_en": "",
+   "reviews": 9
+  },
+  "15592565": {
+   "name_zh": "四面佛",
+   "name_en": "",
+   "reviews": 6
+  },
+  "28037030": {
+   "name_zh": "Studio City Water Park",
+   "name_en": "",
+   "reviews": 1
+  },
+  "9610812": {
+   "name_zh": "饶宗颐学艺馆",
+   "name_en": "",
+   "reviews": 12
+  },
+  "28054903": {
+   "name_zh": "Grand Resort Deck",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20283538": {
+   "name_zh": "Wetland in Avenida da Praia, Taipa",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1956980": {
+   "name_zh": "同善堂医院",
+   "name_en": "",
+   "reviews": 8
+  },
+  "9706222": {
+   "name_zh": "六屋围",
+   "name_en": "",
+   "reviews": 6
+  },
+  "32789808": {
+   "name_zh": "Avenida Da Praia Grande",
+   "name_en": "",
+   "reviews": 1
+  },
+  "32701826": {
+   "name_zh": "Harry Potter The Experience",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6614701": {
+   "name_zh": "谭僊圣庙",
+   "name_en": "",
+   "reviews": 11
+  },
+  "15051082": {
+   "name_zh": "沙梨头土地庙",
+   "name_en": "",
+   "reviews": 7
+  },
+  "20297792": {
+   "name_zh": "大潭山郊野公園",
+   "name_en": "",
+   "reviews": 2
+  },
+  "482101": {
+   "name_zh": "女娲庙",
+   "name_en": "",
+   "reviews": 20
+  },
+  "6614689": {
+   "name_zh": "崔诺枝大屋",
+   "name_en": "",
+   "reviews": 9
+  },
+  "11954640": {
+   "name_zh": "三婆庙",
+   "name_en": "",
+   "reviews": 7
+  },
+  "20265538": {
+   "name_zh": "A-Ma Goddess Statue",
+   "name_en": "",
+   "reviews": 2
+  },
+  "25412396": {
+   "name_zh": "Fondant Art Exhibition (MGM Cotai)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "9608865": {
+   "name_zh": "包公庙",
+   "name_en": "",
+   "reviews": 8
+  },
+  "18929619": {
+   "name_zh": "恋爱・电影馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "10757593": {
+   "name_zh": "嘉模会堂",
+   "name_en": "",
+   "reviews": 9
+  },
+  "16725324": {
+   "name_zh": "民国大马路",
+   "name_en": "",
+   "reviews": 5
+  },
+  "17118191": {
+   "name_zh": "关闸",
+   "name_en": "",
+   "reviews": 8
+  },
+  "4831680": {
+   "name_zh": "澳门历史档案馆",
+   "name_en": "",
+   "reviews": 10
+  },
+  "27148632": {
+   "name_zh": "Wynn Palace Shopping Mall",
+   "name_en": "",
+   "reviews": 4
+  },
+  "9729586": {
+   "name_zh": "马礼逊教堂",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4428636": {
+   "name_zh": "澳门时尚廊",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2516638": {
+   "name_zh": "童梦天地",
+   "name_en": "",
+   "reviews": 43
+  },
+  "2413797": {
+   "name_zh": "竹林寺",
+   "name_en": "",
+   "reviews": 12
+  },
+  "34032792": {
+   "name_zh": "Homage to the Macanese Diaspora Monument",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13436295": {
+   "name_zh": "东方拱门",
+   "name_en": "",
+   "reviews": 9
+  },
+  "20903119": {
+   "name_zh": "Guia Fortress Information Office",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6614686": {
+   "name_zh": "高可宁大宅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "6614695": {
+   "name_zh": "三圣宫",
+   "name_en": "",
+   "reviews": 12
+  },
+  "33075331": {
+   "name_zh": "Changing of the Guard",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11960146": {
+   "name_zh": "艺术广场",
+   "name_en": "",
+   "reviews": 5
+  },
+  "19274232": {
+   "name_zh": "Macao Central Library",
+   "name_en": "",
+   "reviews": 4
+  },
+  "18757197": {
+   "name_zh": "下环街",
+   "name_en": "",
+   "reviews": 3
+  },
+  "18928938": {
+   "name_zh": "中西药局旧址",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17353054": {
+   "name_zh": "Morpheus Boutique",
+   "name_en": "",
+   "reviews": 3
+  },
+  "18758206": {
+   "name_zh": "仁慈堂右巷",
+   "name_en": "",
+   "reviews": 4
+  },
+  "7269115": {
+   "name_zh": "永定街",
+   "name_en": "",
+   "reviews": 7
+  },
+  "9706236": {
+   "name_zh": "得胜花园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "17205809": {
+   "name_zh": "Ponto Mais Elevato Da Taipa",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17672654": {
+   "name_zh": "Erb Spa Macau",
+   "name_en": "",
+   "reviews": 1
+  },
+  "16894804": {
+   "name_zh": "Taipa Village Art Space",
+   "name_en": "",
+   "reviews": 2
+  },
+  "10757715": {
+   "name_zh": "三巴门土地庙",
+   "name_en": "",
+   "reviews": 4
+  },
+  "9768279": {
+   "name_zh": "冼星海纪念铜像",
+   "name_en": "",
+   "reviews": 8
+  },
+  "27419378": {
+   "name_zh": "Galeries Lafayette Macau",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15239643": {
+   "name_zh": "药山禅院",
+   "name_en": "",
+   "reviews": 3
+  },
+  "25295379": {
+   "name_zh": "Treasure of Sacred Art of St. Joseph’s Seminary",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10757618": {
+   "name_zh": "氹仔医灵庙(嘉善堂)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "26330967": {
+   "name_zh": "Lai Chi Vun Shipyards",
+   "name_en": "",
+   "reviews": 2
+  },
+  "18996010": {
+   "name_zh": "沙梨头更馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19882055": {
+   "name_zh": "Tourist Information (The Hong Kong-Zhuhai-Macao Bridge Frontier Post at Macao Port)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "10633406": {
+   "name_zh": "DFS 旗下澳门T广场美妆世界澳门银河店",
+   "name_en": "",
+   "reviews": 4
+  },
+  "25244606": {
+   "name_zh": "Iec Long Firecracker Factory",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12812586": {
+   "name_zh": "海事工房1号 - 当代艺术中心",
+   "name_en": "",
+   "reviews": 5
+  },
+  "9681567": {
+   "name_zh": "圣雅各伯小堂",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6561671": {
+   "name_zh": "高士德大马路",
+   "name_en": "",
+   "reviews": 13
+  },
+  "19736835": {
+   "name_zh": "屈臣氏 - 澳门威尼斯人店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20283456": {
+   "name_zh": "Inclined Elevator (Grand Taipa Viewing Platform)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20283471": {
+   "name_zh": "Tin Hau Temple (Cultural Village)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20255696": {
+   "name_zh": "Memorial of the 1844 Wanghai Treaty",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17118172": {
+   "name_zh": "Alice in the Wonderland",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17366906": {
+   "name_zh": "禮賓府",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17118148": {
+   "name_zh": "Instituto Cultural de Macau (ICM)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17353048": {
+   "name_zh": "Pavilion of Exhibitions and Artistic Shows for Young People",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19692126": {
+   "name_zh": "Sai Van Bridge",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17366916": {
+   "name_zh": "Jardim da Penha",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19929668": {
+   "name_zh": "Chocolate Fountain (MGM Cotai)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19882063": {
+   "name_zh": "Tourist Information (Taipa Ferry Terminal)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19882000": {
+   "name_zh": "Tourist Information - Outer Harbour Ferry Terminal",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17366935": {
+   "name_zh": "Largo do Carmo",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17366976": {
+   "name_zh": "Avenida 5 de Outubro",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17780254": {
+   "name_zh": "澳巴",
+   "name_en": "",
+   "reviews": 8
+  },
+  "17366989": {
+   "name_zh": "Hotel Bela Vista",
+   "name_en": "",
+   "reviews": 2
+  },
+  "10784148": {
+   "name_zh": "庇山耶街",
+   "name_en": "",
+   "reviews": 4
+  },
+  "6558555": {
+   "name_zh": "艺园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "16882039": {
+   "name_zh": "Feira Do Carmo",
+   "name_en": "",
+   "reviews": 3
+  },
+  "7763749": {
+   "name_zh": "莲溪庙",
+   "name_en": "",
+   "reviews": 9
+  },
+  "7080985": {
+   "name_zh": "留声机博物馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2509069": {
+   "name_zh": "南湾湖激光音乐喷泉",
+   "name_en": "",
+   "reviews": 8
+  },
+  "6614692": {
+   "name_zh": "路环市政街市",
+   "name_en": "",
+   "reviews": 7
+  },
+  "10379404": {
+   "name_zh": "澳门十六浦3D奇幻世界",
+   "name_en": "",
+   "reviews": 7
+  },
+  "5484296": {
+   "name_zh": "荷兰园二马路",
+   "name_en": "",
+   "reviews": 7
+  },
+  "8705268": {
+   "name_zh": "营地大街休息区",
+   "name_en": "",
+   "reviews": 8
+  },
+  "16656573": {
+   "name_zh": "大三巴哪咤展馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "10765059": {
+   "name_zh": "观音堂",
+   "name_en": "",
+   "reviews": 5
+  },
+  "10757776": {
+   "name_zh": "新桥花园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "20098996": {
+   "name_zh": "Na Zha Gu Miao (Shi Shan Na Zha Miao)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4249381": {
+   "name_zh": "历险Q立方金光名店店",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17780341": {
+   "name_zh": "Banco Nacional Ultramarino",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17366897": {
+   "name_zh": "Blue House",
+   "name_en": "",
+   "reviews": 2
+  },
+  "18844606": {
+   "name_zh": "Casa Jardine",
+   "name_en": "",
+   "reviews": 2
+  },
+  "9770131": {
+   "name_zh": "Cinema Alegria",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20139396": {
+   "name_zh": "Ferrira Amaral Square",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6561655": {
+   "name_zh": "G32 Gallery影艺廊",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20099022": {
+   "name_zh": "Largo do Pagode do Bazar",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20099033": {
+   "name_zh": "Leisure Area in Praca de Jorge Alvares",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20368829": {
+   "name_zh": "Olympic Sports Centre",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17366996": {
+   "name_zh": "Ricci School",
+   "name_en": "",
+   "reviews": 2
+  },
+  "19881182": {
+   "name_zh": "The Moosa Houses",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20099008": {
+   "name_zh": "Travessa do Roquete",
+   "name_en": "",
+   "reviews": 2
+  },
+  "20260970": {
+   "name_zh": "Avenida do Coronel Mesquita",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26264170": {
+   "name_zh": "Building at No. 2, Estrada Nova",
+   "name_en": "",
+   "reviews": 1
+  },
+  "34034190": {
+   "name_zh": "Calçada do Quartel",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20344686": {
+   "name_zh": "Camilo Pessanha Statue",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19881179": {
+   "name_zh": "Casa de Portugal em Macau",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20368826": {
+   "name_zh": "Centro Comercial Teatro Capitol",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26264173": {
+   "name_zh": "Chun Chou Tong Pavilion",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20317700": {
+   "name_zh": "Coloane Arboretum",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20265543": {
+   "name_zh": "Coloane Health Clinic",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20254430": {
+   "name_zh": "Coloane Pier",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19864823": {
+   "name_zh": "Convent of the Precious Blood",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25277935": {
+   "name_zh": "Don Don Donki",
+   "name_en": "",
+   "reviews": 1
+  },
+  "34089720": {
+   "name_zh": "Don Don Donki (Studio City)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20283653": {
+   "name_zh": "Fontaine Wallace",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26263253": {
+   "name_zh": "Former site of Taipa Ferry Terminal",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17546482": {
+   "name_zh": "Gate of Understanding Monument",
+   "name_en": "",
+   "reviews": 1
+  },
+  "32877239": {
+   "name_zh": "Henry Dunant Viewpoint & Monument",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18996378": {
+   "name_zh": "House on Estrada do Engenheiro Trigo",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19849988": {
+   "name_zh": "Institute of European Studies of Macau",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26261326": {
+   "name_zh": "Jardim do Monumento",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17632175": {
+   "name_zh": "Largo do Presidente Antonio Ramalho Eanes",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20254434": {
+   "name_zh": "Luis de Camoes Statue",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17367004": {
+   "name_zh": "Macao Conservatory",
+   "name_en": "",
+   "reviews": 1
+  },
+  "23957353": {
+   "name_zh": "Mong-ha Villas",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26263249": {
+   "name_zh": "Our Lady of Mercy Nursing Home",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19881843": {
+   "name_zh": "Rua Central",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20324158": {
+   "name_zh": "Seng Wong Temple",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19851844": {
+   "name_zh": "St. Raphael Hospital and Garden",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26841816": {
+   "name_zh": "Taipa Fortress",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17323147": {
+   "name_zh": "Temple of Divinity of Medicine",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25269789": {
+   "name_zh": "The House Of Macao Literature",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19882041": {
+   "name_zh": "Tourist Information (Border Gate)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "16932863": {
+   "name_zh": "Wall of St. Francis Fortress",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20283660": {
+   "name_zh": "Wallace Fountain",
+   "name_en": "",
+   "reviews": 1
+  },
+  "23957324": {
+   "name_zh": "Xian Xinghai Memorial Museum",
+   "name_en": "",
+   "reviews": 1
+  },
+  "23957351": {
+   "name_zh": "Zheng Guanying Memorial Museum",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18929275": {
+   "name_zh": "澳门基本法纪念馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "26527772": {
+   "name_zh": "澳门伦敦人皇家马车",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20297728": {
+   "name_zh": "何贤公园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20297798": {
+   "name_zh": "若瑟 山度士 飞利拉雕像",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18996026": {
+   "name_zh": "石敢当行台",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2516648": {
+   "name_zh": "牛房仓库",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5951579": {
+   "name_zh": "机动运动俱乐部",
+   "name_en": "",
+   "reviews": 13
+  },
+  "17783851": {
+   "name_zh": "友谊广场",
+   "name_en": "",
+   "reviews": 5
+  },
+  "9792104": {
+   "name_zh": "DFS 旗下澳门T广场新濠天地店",
+   "name_en": "",
+   "reviews": 14
+  },
+  "18996354": {
+   "name_zh": "Kou Hening Mansion (Avenida da Praia Grande)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "19882057": {
+   "name_zh": "Tourist Information (Macau International Airport)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "25448606": {
+   "name_zh": "英国馬莎",
+   "name_en": "",
+   "reviews": 2
+  },
+  "25105288": {
+   "name_zh": "DFS Macau, Shoppes at Londoner",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25465752": {
+   "name_zh": "Fila",
+   "name_en": "",
+   "reviews": 1
+  },
+  "20342767": {
+   "name_zh": "Isala Spa",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25465721": {
+   "name_zh": "MLB",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19735895": {
+   "name_zh": "Mannings - Venetian Macao",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14014997": {
+   "name_zh": "T Galleria by DFS, Macau, MGM COTAI",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25465763": {
+   "name_zh": "马拉松",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25464726": {
+   "name_zh": "屈臣氏",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25447035": {
+   "name_zh": "斯凯奇",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10691770": {
+   "name_zh": "Sky Shuttle Helicopters",
+   "name_en": "",
+   "reviews": 7
+  },
+  "6614612": {
+   "name_zh": "澳门壹号广场",
+   "name_en": "",
+   "reviews": 13
+  },
+  "18995584": {
+   "name_zh": "T Galleria Beauty By DFS, Macau, Wynn Palace",
+   "name_en": "",
+   "reviews": 2
+  },
+  "25367388": {
+   "name_zh": "The Salon At Wynn Palace",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17634687": {
+   "name_zh": "Nirvana Spa",
+   "name_en": "",
+   "reviews": 2
+  },
+  "33071140": {
+   "name_zh": "Zensa Spa",
+   "name_en": "",
+   "reviews": 1
+  },
+  "8875221": {
+   "name_zh": "华纳满Fun童乐园",
+   "name_en": "",
+   "reviews": 16
+  },
+  "8802929": {
+   "name_zh": "派驰",
+   "name_en": "",
+   "reviews": 46
+  },
+  "6636505": {
+   "name_zh": "金獅吧",
+   "name_en": "",
+   "reviews": 37
+  },
+  "33071149": {
+   "name_zh": "AI Wonderland",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464730": {
+   "name_zh": "APM Monaco",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446788": {
+   "name_zh": "AUM    ",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16835237": {
+   "name_zh": "After 5 Bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34548698": {
+   "name_zh": "Anglican Missionary Area of Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18343414": {
+   "name_zh": "Anytime Fitness Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446770": {
+   "name_zh": "Armani Exchange",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25448603": {
+   "name_zh": "BYREDO",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446771": {
+   "name_zh": "Bauhaus",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33216123": {
+   "name_zh": "Be Your Herb 萃玥",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33086394": {
+   "name_zh": "Black Cab Escape",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23563948": {
+   "name_zh": "CGV电影院 澳门",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26901970": {
+   "name_zh": "CN Travel (H.K.) Limited",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446775": {
+   "name_zh": "Calvin Klein Underwear",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806762": {
+   "name_zh": "Casino Plaza (Macau) / Grand Lisboa Palace",
+   "name_en": "",
+   "reviews": 0
+  },
+  "22949937": {
+   "name_zh": "Century Holiday OTA",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34703235": {
+   "name_zh": "Chiu Iat Travel Agency Limited",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33090235": {
+   "name_zh": "Chong Kio Enterprise Limited",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34329066": {
+   "name_zh": "Chong Kio Farmacia Chinesa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25465723": {
+   "name_zh": "Cigar Emporium",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806379": {
+   "name_zh": "City of Dreams Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33075336": {
+   "name_zh": "Crystal Palace",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25447028": {
+   "name_zh": "Descente",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33086404": {
+   "name_zh": "Double Decker Adventures",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25447029": {
+   "name_zh": "EA7",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18153050": {
+   "name_zh": "EASY TRAVEL",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18141880": {
+   "name_zh": "EASY TRAVEL",
+   "name_en": "",
+   "reviews": 0
+  },
+  "31213871": {
+   "name_zh": "Elife Macau China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446755": {
+   "name_zh": "Fila Kids",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17801890": {
+   "name_zh": "Flex Fitness Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464750": {
+   "name_zh": "G-Shock Casio",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34107475": {
+   "name_zh": "GZY Elite - Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27674223": {
+   "name_zh": "Go Out Mall",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34790121": {
+   "name_zh": "Grand Lisboa Palace",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25455536": {
+   "name_zh": "Guess",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25398656": {
+   "name_zh": "HonMaca Bus",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33075330": {
+   "name_zh": "It's Tea Time",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32862466": {
+   "name_zh": "Jack Lin Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33073391": {
+   "name_zh": "Jardim Secreto",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25319293": {
+   "name_zh": "KS Travel Company Limited",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34660961": {
+   "name_zh": "Kansai Holiday – Macau Transfers & Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25210144": {
+   "name_zh": "Kara Salon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27728190": {
+   "name_zh": "Khons Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19283266": {
+   "name_zh": "Kokthai Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33073407": {
+   "name_zh": "Le Salon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25455546": {
+   "name_zh": "Levi's",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25444429": {
+   "name_zh": "Life by Original",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071180": {
+   "name_zh": "Lisboa Salon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25448556": {
+   "name_zh": "Liège 烈日比利时窝夫",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25465761": {
+   "name_zh": "Lululemon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25210146": {
+   "name_zh": "M's Beauty Salon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34056384": {
+   "name_zh": "M8",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26589021": {
+   "name_zh": "Macao Data eSim : 0.5GB/daily to 20GB-30Days",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33030159": {
+   "name_zh": "Macau Daily Chauffeur",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33310287": {
+   "name_zh": "Macau Getaway Private Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20969205": {
+   "name_zh": "Macau Timepiece Museum",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32758758": {
+   "name_zh": "Macau, Hong Kong with Trevotour Travels",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33073392": {
+   "name_zh": "Martial Arts Arena",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446792": {
+   "name_zh": "Maryling",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446867": {
+   "name_zh": "Mini Mdreams",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34233689": {
+   "name_zh": "Mini k bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071160": {
+   "name_zh": "Morpheus Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071141": {
+   "name_zh": "Nuwa Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34657101": {
+   "name_zh": "Official Guide: Macao Southern Private Tour & Pandas",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34664965": {
+   "name_zh": "PISA LUXURY Macau Tower",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34664963": {
+   "name_zh": "PISA LUXURY Senado Square",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33407713": {
+   "name_zh": "Picasso: Beauty And Drama",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13412186": {
+   "name_zh": "Private China Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34601144": {
+   "name_zh": "RSTGlobal Macao",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12413198": {
+   "name_zh": "Royal Thai Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806752": {
+   "name_zh": "Sands Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33072937": {
+   "name_zh": "Shakespeare's Hall",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17632199": {
+   "name_zh": "Stardustudio",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17659657": {
+   "name_zh": "Stardustudio, Stardust Journey",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071143": {
+   "name_zh": "Studio City Cinema",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071122": {
+   "name_zh": "Studio City Event Center",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806747": {
+   "name_zh": "Studio City Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33072944": {
+   "name_zh": "Studio City The Spa at Epic Tower",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28037033": {
+   "name_zh": "Super Fun Zone",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34145075": {
+   "name_zh": "T & T Beauty Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33285841": {
+   "name_zh": "TREVOPEDIA",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21095685": {
+   "name_zh": "Talixo",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33071158": {
+   "name_zh": "The 16 Foot Massage",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28128120": {
+   "name_zh": "The Grande Praça",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33072929": {
+   "name_zh": "The Londoner Arena",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806334": {
+   "name_zh": "The Londoner Macao",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33072915": {
+   "name_zh": "The Londoner Macao Façade",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25448604": {
+   "name_zh": "The Mineral Boutique",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446782": {
+   "name_zh": "The North Face",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33075333": {
+   "name_zh": "The Original 1966 London Bus",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806212": {
+   "name_zh": "The Parisian Macao",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20999718": {
+   "name_zh": "The Photo Experiences",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25367376": {
+   "name_zh": "The Salon",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33073388": {
+   "name_zh": "The Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33073384": {
+   "name_zh": "The Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26282317": {
+   "name_zh": "The Spa at Wynn Palace",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806199": {
+   "name_zh": "The Venetian Macao",
+   "name_en": "",
+   "reviews": 0
+  },
+  "24073603": {
+   "name_zh": "V Retreat V养生",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33086415": {
+   "name_zh": "V Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464778": {
+   "name_zh": "V&A x 点睛品",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21210019": {
+   "name_zh": "Vinca Foot Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33075332": {
+   "name_zh": "Walk with the Stars",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34806238": {
+   "name_zh": "Wynn Palace",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34115942": {
+   "name_zh": "Yo Tours Macau",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27757629": {
+   "name_zh": "Yoga Light",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446759": {
+   "name_zh": "Zara Home",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20895472": {
+   "name_zh": "Zen Spa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446831": {
+   "name_zh": "爱步   ",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446766": {
+   "name_zh": "愛慕   ",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13496122": {
+   "name_zh": "澳门巴黎人水世界",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7080909": {
+   "name_zh": "全艺社",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25454127": {
+   "name_zh": "巴宝莉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446826": {
+   "name_zh": "宝缇嘉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33118115": {
+   "name_zh": "媽閣塘片區 Barra District",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446799": {
+   "name_zh": "财致黄金",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446765": {
+   "name_zh": "卡奴迪路",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464732": {
+   "name_zh": "卡地亚",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25465755": {
+   "name_zh": "中国李宁",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464736": {
+   "name_zh": "周大福珠宝",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464769": {
+   "name_zh": "帝舵",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464740": {
+   "name_zh": "丰盛钟表珠宝",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464782": {
+   "name_zh": "古驰",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464717": {
+   "name_zh": "金城中药房",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464757": {
+   "name_zh": "心动珠宝",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464714": {
+   "name_zh": "口福",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446803": {
+   "name_zh": "浪琴   ",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464759": {
+   "name_zh": "劳力士",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446807": {
+   "name_zh": "六福珠宝",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464784": {
+   "name_zh": "珑骧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25455552": {
+   "name_zh": "馬吉拉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446777": {
+   "name_zh": "玛尼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33066641": {
+   "name_zh": "美高梅剧院",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446898": {
+   "name_zh": "泡泡玛特",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446814": {
+   "name_zh": "瑞士雷达表",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32987440": {
+   "name_zh": "融和靜樂正念冥想中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464762": {
+   "name_zh": "瑞士天梭表",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23587727": {
+   "name_zh": "smallWORLD Experience",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464711": {
+   "name_zh": "汤丽柏琦",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28128209": {
+   "name_zh": "天幕廣場",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446844": {
+   "name_zh": "托德斯",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446816": {
+   "name_zh": "谢瑞麟  ",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25464775": {
+   "name_zh": "雅典表",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25446817": {
+   "name_zh": "誉一钟表",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21046203": {
+   "name_zh": "无忧杂货店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32236406": {
+   "name_zh": "zowoyoo",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "664891",
+ "pages_crawled": {
+  "attractions": 3
+ }
+}

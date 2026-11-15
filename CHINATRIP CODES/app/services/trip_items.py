@@ -591,19 +591,16 @@ class TripItemService:
         now: datetime | None = None,
         actor: str | None = None,
     ) -> list[dict]:
-        """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
-        不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
-        booking_id 清空，note 剥「已安排」尾段），并解除行程绑定（2026-11-13
-        用户拍板「删行程时排期部分退回心愿单」：留着死行程 id 会让
-        trip_items.itinerary_id 外键挡住行程删除，接口 204 后行程复活）。
-        吸收/_sync_wish_rows 仍按名字把心愿行 force 换绑新行程，不靠旧 id
-        留痕。booked 行保留真实订单、只摘绑定；wishlist/unwanted 行本就
-        在原位。返回被释放的行（PG 子类经 update 写穿落库）。
+        """行程被手工删除（2026-11-14 二拍，覆盖同日早些的「一并删除」口径）：
+        名下心愿行不删——TRIP ID 清空（itinerary_ref/payload 同源清空，
+        wish_items 视图的 trip_id 随之空白），排期项退回心愿单栏（day/
+        position/booking_id 清空、note 剥「已安排」尾段、ARRANGED 取消），
+        心愿单/不想去行只摘绑定原地保留，本会话草稿行转正为无行程心愿行。
+        booked 是真实订单（订单栏自有真相），只摘绑定不删。返回被释放的行。
 
-        2026-11-12 拍板「心愿单只收用户输入」分流：source=plan 的引擎行
-        不得落心愿单——死行程时直接删除（2026-11-13 起引擎行不再补源
-        重建：已排期只放已排的心愿单），删除留日志；用户来源行
-        （chat/manual/paste/agent_recommend）维持回心愿单。"""
+        兜底：清完后仍挂着该行程的行一律解绑，否则 PG 外键会挡下行程删除
+        （接口 204 后行程复活）。释放后的行回到「无行程心愿行」，之后被
+        新行程落排时按名字重新认领挂靠。"""
         if not itinerary_id:
             return []
         bound = [
@@ -615,67 +612,50 @@ class TripItemService:
         for item in bound:
             item_id = item["id"]
             status = item.get("status")
-            source = str(item.get("source") or "")
-            if source == "plan":
-                # 引擎补源行不是用户心愿（2026-11-12 拍板）：只软删不重建
-                try:
-                    self.delete(item_id, actor=actor)
-                except InvalidTransitionError:
-                    continue
-                continue
             if status == STATUS_BOOKED:
-                # 真实订单不重建、不删除：只摘行程绑定（订单栏自有真相）
+                # 真实订单不退回：只摘行程绑定（订单栏自有真相）
                 self.unbind_itinerary(item_id, now=now)
                 continue
-            if status == STATUS_UNWANTED:
-                # 用户明确「不想去」的项不复活：软删留档即可
-                try:
-                    self.delete(item_id, actor=actor)
-                except InvalidTransitionError:
-                    continue
-                continue
-            # 2026-11-13 用户拍板：旧行软删留档（DELETION FLAG + 日期/
-            # 时间/人），排期项重建为无行程心愿行（ARRANGED=False → 心愿单）
-            raw_note = str(item.get("note") or "")
-            base = strip_scheduled_note(raw_note)
-            clone_source = source if source in SOURCES else "manual"
-            # 用户拍板：删行程时 ARRANGED 取消（已安排 → 心愿单）——旧行先
-            # 回心愿单态（清天序/时刻）再软删留档，审计里不会再声称已排期
+            # 草稿行转正：行程没了，「保存行程」不会再发生——按用户口径
+            # 退回心愿单（清 draft 标记 + 摘行程绑定）。注意改存储行本体，
+            # 不是上面的 dict 拷贝。
+            stored = self._items.get(item_id)
+            if stored is not None and stored.get("draft_session_id"):
+                stored["draft_session_id"] = None
+                self._persist(item_id)
             try:
-                self.update(item_id, status=STATUS_WISHLIST, now=now)
-            except InvalidTransitionError:
-                pass
-            try:
-                self.delete(item_id, actor=actor)
-            except InvalidTransitionError:
-                continue
-            try:
-                released.append(
-                    self.create(
-                        str(item.get("name") or ""),
-                        source=clone_source,
-                        itinerary_id=None,
-                        owner_device_id=item.get("owner_device_id"),
-                        created_by=item.get("created_by"),
-                        city=item.get("city"),
-                        note=base or None,
-                        poi_id=item.get("poi_id"),
-                        address=item.get("address"),
-                        opening_hours=item.get("opening_hours"),
-                        now=now,
+                if status == STATUS_SCHEDULED:
+                    # 排期项回心愿单：状态机清 day/position/booking_id/
+                    # planned_date/start_time/end_time，ARRANGED 取消；
+                    # note 剥「已安排」尾段，心愿单不再声称已安排
+                    raw_note = str(item.get("note") or "")
+                    base = strip_scheduled_note(raw_note)
+                    kwargs: dict = {}
+                    if base != raw_note:
+                        kwargs["note"] = base
+                    released.append(
+                        self.update(item_id, status=STATUS_WISHLIST, **kwargs)
                     )
-                )
-            except (InvalidSourceError, ValueError):
-                logger.warning(
-                    "trip_item_release_clone_failed id=%s name=%s",
-                    item_id,
-                    item.get("name"),
-                )
+                else:
+                    # 心愿单/不想去行：原地保留，只摘行程绑定
+                    released.append(
+                        dict(self.unbind_itinerary(item_id, now=now) or item)
+                    )
+            except (InvalidTransitionError, NotFoundError):
+                continue
         # 兜底：仍挂着该行程的行（booked/unwanted 之外的异常态）一律解绑，
         # 否则 PG 外键会挡下行程删除（204 后行程复活）。
         for item in list(self._items.values()):
             if item.get("itinerary_id") == itinerary_id:
                 self.unbind_itinerary(item["id"], now=now)
+        # 返回按最新状态重取（update/unbind 都可能改过行）
+        released = [self.get(r["id"]) or r for r in released]
+        logger.info(
+            "trip_itinerary_released itinerary=%s rows=%d actor=%s",
+            itinerary_id,
+            len(released),
+            actor,
+        )
         return released
 
     def commit_drafts(
@@ -698,8 +678,10 @@ class TripItemService:
             if item.get("itinerary_id") != itinerary_id and draft_sid != session_id:
                 continue
             item["draft_session_id"] = None
-            if not item.get("itinerary_id"):
-                item["itinerary_id"] = itinerary_id
+            # 2026-11-14 深夜（用户报「保存了行程，心愿不在已排期」）：会话
+            # 中途重开过新行程时，行的 ref 还是旧草稿 id——转正一律重绑到
+            # 本次保存的行程（这些行就是本会话许的愿）。
+            item["itinerary_id"] = itinerary_id
             # 转正即落 USER ID（登录账号）——看板按用户出内容
             if owner_account_id and not item.get("owner_account_id"):
                 item["owner_account_id"] = owner_account_id
@@ -760,50 +742,64 @@ class TripItemService:
             )
         return removed
 
-    def purge_itinerary(
+    def commit_orphan_drafts(
         self,
         itinerary_id: str,
         *,
-        now: datetime | None = None,
-        actor: str | None = None,
-    ) -> list[dict]:
-        """删行程 = 名下心愿单一并删除（2026-11-14 用户拍板：
-        「当行程被用户删除时，它的相关心愿单没有被删除」）。
-
-        与旧 release_itinerary 的区别：不再把排期项重建回心愿单——心愿单
-        随行程走，行程没了就一起走。booked 是真实订单（订单栏自有真相），
-        只摘行程绑定、不删；其余状态（wishlist/scheduled/unwanted）一律
-        软删留档（DELETION FLAG + 日期/时间/人）。返回被删的行。
-
-        PG 外键兜底同旧法：清完后仍挂着该行程的行一律解绑，否则 DELETE
-        /itineraries/{id} 会被 FK 挡下（接口 204、刷新后又复活）。"""
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        match_names: set[str] | None = None,
+    ) -> int:
+        """收编孤儿心愿草稿（2026-11-14 深夜，用户报「保存了行程，心愿
+        却不在已排期」）：同一用户在多次规划/重开行程时聊出的心愿行挂着
+        死掉的中途行程号（ref 不是任何已存行程）——保存本次行程时一并
+        收编：名字命中本次行程点位的重绑到本行程（对账后进已排期），
+        没命中的转正为无行程心愿行。别人的草稿、已存行程的行不动。
+        返回收编行数。PG 侧靠读穿透保证内存是库内权威后再改."""
         if not itinerary_id:
-            return []
-        rows = [
-            dict(item)
-            for item in self._items.values()
-            if item.get("itinerary_id") == itinerary_id
-        ]
-        purged: list[dict] = []
-        for item in rows:
-            if item.get("status") == STATUS_BOOKED:
-                self.unbind_itinerary(item["id"], now=now)
-                continue
-            try:
-                self.delete(item["id"], actor=actor)
-            except (InvalidTransitionError, NotFoundError):
-                continue
-            purged.append(item)
+            return 0
+        refresh = getattr(self, "_try_refresh", None)
+        if callable(refresh):
+            refresh()
+        committed = 0
         for item in list(self._items.values()):
+            if not item.get("draft_session_id") or item.get("deletion_flag"):
+                continue
             if item.get("itinerary_id") == itinerary_id:
-                self.unbind_itinerary(item["id"], now=now)
-        logger.info(
-            "trip_itinerary_purged itinerary=%s rows=%d actor=%s",
-            itinerary_id,
-            len(purged),
-            actor,
-        )
-        return purged
+                continue  # 已挂本行程：commit_drafts 已处理
+            row_dev = item.get("owner_device_id")
+            row_acct = item.get("owner_account_id")
+            if row_dev is not None or row_acct is not None:
+                mine = (
+                    (owner_device_id is not None and row_dev == owner_device_id)
+                    or (owner_account_id is not None and row_acct == owner_account_id)
+                )
+                if not mine:
+                    continue
+            stored = self._items.get(item["id"])
+            if stored is None:
+                continue
+            name = str(stored.get("name") or "")
+            matched = match_names is None or any(
+                _wish_match(_wish_key(name), _wish_key(n)) for n in match_names
+            )
+            stored["draft_session_id"] = None
+            if matched:
+                stored["itinerary_id"] = itinerary_id
+            else:
+                # 没命中本次行程：TRIP ID 清空，回到无行程心愿行
+                stored["itinerary_id"] = None
+            stored["updated_at"] = _iso_now(None)
+            self._persist(item["id"])
+            committed += 1
+            logger.info(
+                "trip_orphan_draft_committed itinerary=%s name=%s matched=%s id=%s",
+                itinerary_id,
+                name,
+                matched,
+                item["id"],
+            )
+        return committed
 
     def mark_excluded(
         self,

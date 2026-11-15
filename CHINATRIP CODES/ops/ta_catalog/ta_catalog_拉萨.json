@@ -1,0 +1,1531 @@
+{
+ "attractions": {
+  "7691648": {
+   "name_zh": "Tibet Vista",
+   "name_en": "",
+   "reviews": 2824
+  },
+  "6894032": {
+   "name_zh": "Songtsan Tibet Travel",
+   "name_en": "",
+   "reviews": 172
+  },
+  "2436808": {
+   "name_zh": "西藏高原旅游的一日游",
+   "name_en": "",
+   "reviews": 473
+  },
+  "319162": {
+   "name_zh": "布达拉宫",
+   "name_en": "",
+   "reviews": 2524
+  },
+  "325691": {
+   "name_zh": "拉萨大昭寺",
+   "name_en": "",
+   "reviews": 1235
+  },
+  "325684": {
+   "name_zh": "八角街",
+   "name_en": "",
+   "reviews": 631
+  },
+  "325688": {
+   "name_zh": "哲蚌寺",
+   "name_en": "",
+   "reviews": 323
+  },
+  "325695": {
+   "name_zh": "色拉寺",
+   "name_en": "",
+   "reviews": 717
+  },
+  "325693": {
+   "name_zh": "罗布林卡",
+   "name_en": "",
+   "reviews": 278
+  },
+  "338238": {
+   "name_zh": "甘丹寺",
+   "name_en": "",
+   "reviews": 128
+  },
+  "2540155": {
+   "name_zh": "叶巴",
+   "name_en": "",
+   "reviews": 89
+  },
+  "1871401": {
+   "name_zh": "西藏博物馆",
+   "name_en": "",
+   "reviews": 209
+  },
+  "550614": {
+   "name_zh": "小昭寺",
+   "name_en": "",
+   "reviews": 71
+  },
+  "625752": {
+   "name_zh": "青藏铁路",
+   "name_en": "",
+   "reviews": 160
+  },
+  "5117983": {
+   "name_zh": "西藏自治区拉萨市八廓街步行街",
+   "name_en": "",
+   "reviews": 41
+  },
+  "9792098": {
+   "name_zh": "阿尼仓空寺",
+   "name_en": "",
+   "reviews": 30
+  },
+  "1871146": {
+   "name_zh": "拉萨药王山",
+   "name_en": "",
+   "reviews": 44
+  },
+  "14014651": {
+   "name_zh": "Tibet Mountain Focus Outdoors",
+   "name_en": "",
+   "reviews": 11
+  },
+  "13384073": {
+   "name_zh": "Tibet Travel Guide",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1871175": {
+   "name_zh": "宗角禄康公园",
+   "name_en": "",
+   "reviews": 22
+  },
+  "1871466": {
+   "name_zh": "药王山摩崖",
+   "name_en": "",
+   "reviews": 17
+  },
+  "2319297": {
+   "name_zh": "帕邦喀寺",
+   "name_en": "",
+   "reviews": 16
+  },
+  "2003241": {
+   "name_zh": "拉萨“三圈”",
+   "name_en": "",
+   "reviews": 13
+  },
+  "459782": {
+   "name_zh": "青浦山洞",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2387177": {
+   "name_zh": "乃琼寺",
+   "name_en": "",
+   "reviews": 15
+  },
+  "8862627": {
+   "name_zh": "巴松错",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1871416": {
+   "name_zh": "下密院寺",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1870959": {
+   "name_zh": "仓姑寺",
+   "name_en": "",
+   "reviews": 13
+  },
+  "1871497": {
+   "name_zh": "扎基寺",
+   "name_en": "",
+   "reviews": 14
+  },
+  "1871145": {
+   "name_zh": "拉鲁湿地国家自然保护区",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1871358": {
+   "name_zh": "唐蕃会盟碑",
+   "name_en": "",
+   "reviews": 6
+  },
+  "23655187": {
+   "name_zh": "Utopia Shop",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23815171": {
+   "name_zh": "Drikung Kagyu West Rigsum Gonpo Temple",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28988780": {
+   "name_zh": "Tibet Museum Of Natural Sciences",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15668548": {
+   "name_zh": "西藏牦牛博物馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4810336": {
+   "name_zh": "仙足岛",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19819283": {
+   "name_zh": "Jampey Lhakhang",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1871205": {
+   "name_zh": "木如寺印经院",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1871501": {
+   "name_zh": "扎耶巴洞窟群",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2369446": {
+   "name_zh": "羊八井温泉",
+   "name_en": "",
+   "reviews": 16
+  },
+  "19819275": {
+   "name_zh": "Barkhor Mani Lhakhang",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1871403": {
+   "name_zh": "西藏体育馆",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5117974": {
+   "name_zh": "布达拉宫珍宝馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1871481": {
+   "name_zh": "宇妥桥",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10261573": {
+   "name_zh": "功德林寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12157117": {
+   "name_zh": "桑丁寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1889828": {
+   "name_zh": "曲桑寺",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3363847": {
+   "name_zh": "天海商城",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3363845": {
+   "name_zh": "蓝盾儿童商场",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1871152": {
+   "name_zh": "朗孜夏监狱",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5117988": {
+   "name_zh": "西藏自治区拉萨市温州商贸城",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5117982": {
+   "name_zh": "西藏天海夜市",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1871484": {
+   "name_zh": "御制平定西藏碑",
+   "name_en": "",
+   "reviews": 41
+  },
+  "13989987": {
+   "name_zh": "Tibet Nature Tour",
+   "name_en": "",
+   "reviews": 6
+  },
+  "19256856": {
+   "name_zh": "himalayan window",
+   "name_en": "",
+   "reviews": 9
+  },
+  "27938998": {
+   "name_zh": "Kailash Mansarovar Yatra",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19767833": {
+   "name_zh": "Zhuoma Tour",
+   "name_en": "",
+   "reviews": 5
+  },
+  "16717601": {
+   "name_zh": "Tibet Holiday",
+   "name_en": "",
+   "reviews": 9
+  },
+  "19126028": {
+   "name_zh": "Tibet Viator",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3339845": {
+   "name_zh": "Dropenling 拉萨乡村手工艺品店",
+   "name_en": "",
+   "reviews": 21
+  },
+  "16660528": {
+   "name_zh": "Feel Tibet Tour",
+   "name_en": "",
+   "reviews": 6
+  },
+  "12403440": {
+   "name_zh": "最美西藏",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2003313": {
+   "name_zh": "玛吉阿米",
+   "name_en": "",
+   "reviews": 22
+  },
+  "34506323": {
+   "name_zh": "71ASIA Tours Tibet",
+   "name_en": "",
+   "reviews": 2
+  },
+  "13335753": {
+   "name_zh": "Tibet Kailash Travel & Tours",
+   "name_en": "",
+   "reviews": 5
+  },
+  "32696202": {
+   "name_zh": "Tibet Holiday International Travel Co,. Ltd",
+   "name_en": "",
+   "reviews": 2
+  },
+  "15596959": {
+   "name_zh": "Tibet Reise Experte",
+   "name_en": "",
+   "reviews": 8
+  },
+  "33273671": {
+   "name_zh": "Tibet Tashi Delek Sightseeing",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13503593": {
+   "name_zh": "Mysterious Tibet",
+   "name_en": "",
+   "reviews": 3
+  },
+  "12005404": {
+   "name_zh": "Lets Go to Tibet",
+   "name_en": "",
+   "reviews": 3
+  },
+  "34122696": {
+   "name_zh": "Hidden Land Tour 藏域秘境",
+   "name_en": "",
+   "reviews": 1
+  },
+  "27798172": {
+   "name_zh": "康宁盲人按摩所（blind Massage）",
+   "name_en": "",
+   "reviews": 2
+  },
+  "28106306": {
+   "name_zh": "Tibet FIT Travel",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14027276": {
+   "name_zh": "Travel West China",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18856045": {
+   "name_zh": "喀瓦坚羊毛手工藏毯",
+   "name_en": "",
+   "reviews": 2
+  },
+  "26661913": {
+   "name_zh": "Vacation Travel",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1871147": {
+   "name_zh": "拉萨游乐园",
+   "name_en": "",
+   "reviews": 7
+  },
+  "8832209": {
+   "name_zh": "Tibet Group Tours的一日游",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17693252": {
+   "name_zh": "Tibet Map",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19384805": {
+   "name_zh": "Remote Destinations Travel",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17811576": {
+   "name_zh": "Tibet Trips",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15593954": {
+   "name_zh": "Voyages Tibet",
+   "name_en": "",
+   "reviews": 1
+  },
+  "34384108": {
+   "name_zh": "CHINA Vistas | Tibet",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12643709": {
+   "name_zh": "Tibet Everest Tour",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17847884": {
+   "name_zh": "矮房子音乐",
+   "name_en": "",
+   "reviews": 2
+  },
+  "15062800": {
+   "name_zh": "Potala Trip",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12441666": {
+   "name_zh": "TibetAdvisor",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17829058": {
+   "name_zh": "AZ Tibet Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19000028": {
+   "name_zh": "Abenteuer Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14021666": {
+   "name_zh": "Adventure Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8865474": {
+   "name_zh": "Adventures In Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33233206": {
+   "name_zh": "Beauty Of Tibet Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33075337": {
+   "name_zh": "BonQuest - Guided Road Trip To Lhasa From Chengdu Via Route 318",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33094458": {
+   "name_zh": "BonQuest China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20818870": {
+   "name_zh": "China Adventure Travel Ltd",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19870221": {
+   "name_zh": "China Toruk Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14032137": {
+   "name_zh": "China Units",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18341446": {
+   "name_zh": "ChinaViator",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34296683": {
+   "name_zh": "Cho Oyu Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32825621": {
+   "name_zh": "Dynasty Tour-Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12422731": {
+   "name_zh": "Easy Tibet Travel Service",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17839313": {
+   "name_zh": "Erlebnisreisen Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34081964": {
+   "name_zh": "Eternal Himalaya Kailash Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23454911": {
+   "name_zh": "Everest Kailash Tours and Treks",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26631626": {
+   "name_zh": "Feel Tibetan Culture and Free Your Mind For 10 Days & 9 Nights",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17622688": {
+   "name_zh": "Global Hiking China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "24867404": {
+   "name_zh": "Greattibettour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32789732": {
+   "name_zh": "Hello China Trip Lhasa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32969383": {
+   "name_zh": "Hello China Trip Lhasa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "22688734": {
+   "name_zh": "Himalayan Glacier",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34068231": {
+   "name_zh": "Holyland Adventure Tours and Travels Pvt.Ltd",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34696505": {
+   "name_zh": "Interstellar Cloud Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34255554": {
+   "name_zh": "Kailash Yatra",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12537244": {
+   "name_zh": "Khawakarpotibettravel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27934671": {
+   "name_zh": "Miki Travel Asia",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26799639": {
+   "name_zh": "Mountain Everest discovery trip",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15046281": {
+   "name_zh": "Mysterious Tibet",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27148602": {
+   "name_zh": "Oriental Aesthetic Limited",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17580295": {
+   "name_zh": "Pema's Tibetan Blind Massage",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13412192": {
+   "name_zh": "Private China Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34692517": {
+   "name_zh": "Red Thread Lhasa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34750431": {
+   "name_zh": "Ride in China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20947003": {
+   "name_zh": "Samtour of Chengdu OTC Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19513032": {
+   "name_zh": "SilkRoadTrips",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26662174": {
+   "name_zh": "Snowy Plateau Tibet 10D9N",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19083729": {
+   "name_zh": "TDL Travel Service",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33088294": {
+   "name_zh": "Tenzin Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32748399": {
+   "name_zh": "Travel Player",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12620805": {
+   "name_zh": "Travel Tibet China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34056523": {
+   "name_zh": "VTribe-Lhasa",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20905173": {
+   "name_zh": "Visit Our China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34410690": {
+   "name_zh": "Ximalaya",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33303907": {
+   "name_zh": "Xinghe Travel - Tibet Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34732487": {
+   "name_zh": "Xingyue Global International Tourism",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32876320": {
+   "name_zh": "Tibet -hellochinatrip",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12403495": {
+   "name_zh": "Tibet Advisor",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15812340": {
+   "name_zh": "Tibet China Youth Travel Service",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12419438": {
+   "name_zh": "Tibet Dream Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34374162": {
+   "name_zh": "Tibet Evan Tour Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "11954645": {
+   "name_zh": "Tibet Expert",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12367065": {
+   "name_zh": "Tibet Group Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8514102": {
+   "name_zh": "Tibet Guru的一日游",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32701535": {
+   "name_zh": "Tibet Holiday International Tour Company",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17464603": {
+   "name_zh": "Tibet Host",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12453216": {
+   "name_zh": "Tibet Manasarovar travel agent",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13859945": {
+   "name_zh": "Tibet Overseas Travel Service",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15343233": {
+   "name_zh": "Tibet Sunny Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28040473": {
+   "name_zh": "Tibet Tour Package",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20954194": {
+   "name_zh": "Tibet Travel Expert",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19076959": {
+   "name_zh": "Tibet Vision",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19082538": {
+   "name_zh": "TibetNow",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33517025": {
+   "name_zh": "Tibetanstravel Travel service Co.Ltd",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363343": {
+   "name_zh": "百益百货",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117973": {
+   "name_zh": "八一路格拉丹东商业行",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1870963": {
+   "name_zh": "策满林",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2501904": {
+   "name_zh": "初刚温泉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4787338": {
+   "name_zh": "次巴拉康寺",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1865179": {
+   "name_zh": "达扎路恭纪功碑",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23954898": {
+   "name_zh": "珠穆朗玛峰凯拉什徒步旅行社",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871203": {
+   "name_zh": "磨磐山关帝庙",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33444817": {
+   "name_zh": "jupiter legend corporation",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117976": {
+   "name_zh": "朗孜厦陈列馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12237607": {
+   "name_zh": "老巷酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117977": {
+   "name_zh": "拉萨女人街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117979": {
+   "name_zh": "罗林新天地休闲第一街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871223": {
+   "name_zh": "娘热度假村",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363846": {
+   "name_zh": "尼桑辰波商场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363176": {
+   "name_zh": "奇圣牦牛肉店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34056219": {
+   "name_zh": "青出旅游有限公司",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34319308": {
+   "name_zh": "去西藏旅游",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2003314": {
+   "name_zh": "容中尔甲郎玛厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117978": {
+   "name_zh": "圣宝缘地质矿产陈列厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10439121": {
+   "name_zh": "醍醐艺术空间",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19736782": {
+   "name_zh": "献光明盲人按摩中心(丹杰林店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117984": {
+   "name_zh": "西藏大学校展室",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117980": {
+   "name_zh": "西藏收藏家协会会员藏品展示厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117981": {
+   "name_zh": "西藏藏医药文化博览中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117985": {
+   "name_zh": "西藏展览中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33065814": {
+   "name_zh": "西藏山之灵旅行社有限公司",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19525535": {
+   "name_zh": "西藏王-台灣老王在西藏",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18995974": {
+   "name_zh": "西藏扎西德勒国旅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117990": {
+   "name_zh": "西藏自治区拉萨市圣龙广场步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117987": {
+   "name_zh": "西藏自治区群众艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117986": {
+   "name_zh": "西藏自治区政协文史馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33502520": {
+   "name_zh": "阳光神龙旅行社",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34451339": {
+   "name_zh": "逸辰唐韵welcome to explore beautiful China",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "restaurants": {
+  "5040317": {
+   "name_zh": "更潘藏家厨房",
+   "name_en": "",
+   "reviews": 459
+  },
+  "2336842": {
+   "name_zh": "卓玛拉宫餐厅",
+   "name_en": "",
+   "reviews": 162
+  },
+  "1520103": {
+   "name_zh": "Dunya Restaurant",
+   "name_en": "",
+   "reviews": 287
+  },
+  "3174938": {
+   "name_zh": "Namaste Restaurant",
+   "name_en": "",
+   "reviews": 117
+  },
+  "1545944": {
+   "name_zh": "顶峰咖啡店",
+   "name_en": "",
+   "reviews": 132
+  },
+  "1544751": {
+   "name_zh": "拉萨厨房",
+   "name_en": "",
+   "reviews": 213
+  },
+  "1926718": {
+   "name_zh": "tashi I",
+   "name_en": "",
+   "reviews": 81
+  },
+  "1553237": {
+   "name_zh": "雪域餐厅",
+   "name_en": "",
+   "reviews": 190
+  },
+  "5230807": {
+   "name_zh": "光明港琼甜茶馆",
+   "name_en": "",
+   "reviews": 42
+  },
+  "5055346": {
+   "name_zh": "玛吉阿米",
+   "name_en": "",
+   "reviews": 47
+  },
+  "7347824": {
+   "name_zh": "安多诺增藏餐馆",
+   "name_en": "",
+   "reviews": 26
+  },
+  "2151014": {
+   "name_zh": "西藏满斋餐厅",
+   "name_en": "",
+   "reviews": 88
+  },
+  "27711905": {
+   "name_zh": "Overflow Café",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4865684": {
+   "name_zh": "娜玛瑟德餐厅",
+   "name_en": "",
+   "reviews": 18
+  },
+  "5578005": {
+   "name_zh": "新满斋",
+   "name_en": "",
+   "reviews": 57
+  },
+  "1884239": {
+   "name_zh": "吉曲饭店",
+   "name_en": "",
+   "reviews": 31
+  },
+  "2553353": {
+   "name_zh": "Makye Ame Tibetan Restaurant",
+   "name_en": "",
+   "reviews": 43
+  },
+  "33595482": {
+   "name_zh": "Lhasa Kitchen",
+   "name_en": "",
+   "reviews": 4
+  },
+  "8281349": {
+   "name_zh": "蒲巴仓-演艺藏餐厅",
+   "name_en": "",
+   "reviews": 19
+  },
+  "4746956": {
+   "name_zh": "Lhasa java coffee",
+   "name_en": "",
+   "reviews": 12
+  },
+  "10353011": {
+   "name_zh": "藏喜",
+   "name_en": "",
+   "reviews": 18
+  },
+  "4743396": {
+   "name_zh": "Deleg Coffee",
+   "name_en": "",
+   "reviews": 17
+  },
+  "15682725": {
+   "name_zh": "龙轩中餐厅",
+   "name_en": "",
+   "reviews": 9
+  },
+  "8555752": {
+   "name_zh": "宴庭中餐厅",
+   "name_en": "",
+   "reviews": 180
+  },
+  "15756488": {
+   "name_zh": "皓月大堂吧",
+   "name_en": "",
+   "reviews": 8
+  },
+  "11773556": {
+   "name_zh": "拉萨娜玛瑟德餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "15682722": {
+   "name_zh": "阳光全日餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "4861716": {
+   "name_zh": "西藏牛排餐厅",
+   "name_en": "",
+   "reviews": 13
+  },
+  "4864557": {
+   "name_zh": "雪莲餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "10712536": {
+   "name_zh": "KITE Cafe",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2367467": {
+   "name_zh": "风转咖啡馆",
+   "name_en": "",
+   "reviews": 17
+  },
+  "4862562": {
+   "name_zh": "刚吉餐厅",
+   "name_en": "",
+   "reviews": 12
+  },
+  "14155310": {
+   "name_zh": "美食之王",
+   "name_en": "",
+   "reviews": 10
+  },
+  "1514845": {
+   "name_zh": "香格里拉大酒店",
+   "name_en": "",
+   "reviews": 11
+  },
+  "5055891": {
+   "name_zh": "牦牛酸奶坊",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1544749": {
+   "name_zh": "Medoe Karphu",
+   "name_en": "",
+   "reviews": 6
+  },
+  "6280784": {
+   "name_zh": "宗莲藏素",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5230811": {
+   "name_zh": "仓姑寺甜茶馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "17528104": {
+   "name_zh": "Penz Patatas",
+   "name_en": "",
+   "reviews": 3
+  },
+  "11773578": {
+   "name_zh": "拉萨香格里拉大酒店- 云顶咖啡厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1545948": {
+   "name_zh": "丹杰林咖啡餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "27796633": {
+   "name_zh": "Ice Chili American Restaurant And Bar",
+   "name_en": "",
+   "reviews": 2
+  },
+  "33216118": {
+   "name_zh": "Zimsahak Cafe",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7010289": {
+   "name_zh": "大措咖啡",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4863458": {
+   "name_zh": "雪山尼玛藏餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4862649": {
+   "name_zh": "西藏牛排餐厅(宇拓路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "14937044": {
+   "name_zh": "蒋萝意式餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1510400": {
+   "name_zh": "拉萨迪欧咖啡(布达拉宫广场店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "23698706": {
+   "name_zh": "K's Espresso",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057439": {
+   "name_zh": "老拉萨粥坊",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5995614": {
+   "name_zh": "古林坊",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1946662": {
+   "name_zh": "新nanglo餐厅",
+   "name_en": "",
+   "reviews": 3
+  },
+  "17423790": {
+   "name_zh": "新满斋餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861039": {
+   "name_zh": "味江土鲢鱼餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862728": {
+   "name_zh": "老革命甜茶馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "15225896": {
+   "name_zh": "阿刁甜茶",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4860984": {
+   "name_zh": "驴窝餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "14936996": {
+   "name_zh": "吖啦嗦 (大昭寺店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14045007": {
+   "name_zh": "天湖妙境",
+   "name_en": "",
+   "reviews": 2
+  },
+  "11773540": {
+   "name_zh": "雪神宮藏式餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10664658": {
+   "name_zh": "歪树花园餐酒吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863740": {
+   "name_zh": "福朋喜来登酒店餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "19117024": {
+   "name_zh": "清水荷花素食餐厅(拉萨店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4935974": {
+   "name_zh": "蒲巴仓藏家私房菜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4934006": {
+   "name_zh": "民间藏餐屋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4935797": {
+   "name_zh": "胡四川菜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3421264": {
+   "name_zh": "Dechenling",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4784073": {
+   "name_zh": "Fav. Kitchen",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5571616": {
+   "name_zh": "德克士拉萨一店餐厅",
+   "name_en": "",
+   "reviews": 11
+  },
+  "7998178": {
+   "name_zh": "扎西曲塔餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057641": {
+   "name_zh": "老鱼饭局",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864180": {
+   "name_zh": "蓉和酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4355284": {
+   "name_zh": "Oh Dan Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1544753": {
+   "name_zh": "Lowoo",
+   "name_en": "",
+   "reviews": 3
+  },
+  "15064531": {
+   "name_zh": "川香园 - 拉萨香格里拉大酒店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864545": {
+   "name_zh": "怪牛藏餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "800903": {
+   "name_zh": "伊特劳尔",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2336826": {
+   "name_zh": "狂牛餐厅",
+   "name_en": "",
+   "reviews": 25
+  },
+  "21331821": {
+   "name_zh": "Kharta Karpo Blind Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23568134": {
+   "name_zh": "Lamo Traditional Tibetan Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4856225": {
+   "name_zh": "Saffron",
+   "name_en": "",
+   "reviews": 0
+  },
+  "29444030": {
+   "name_zh": "Social Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25239401": {
+   "name_zh": "Wasai Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10482974": {
+   "name_zh": "阿可丁藏式面包坊(古城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15687188": {
+   "name_zh": "阿玫沃咖啡餐吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057394": {
+   "name_zh": "两岸咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863681": {
+   "name_zh": "查果藏餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933816": {
+   "name_zh": "第五站咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865617": {
+   "name_zh": "东北饺子馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17414730": {
+   "name_zh": "沸腾珠峰",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935555": {
+   "name_zh": "哥比伦咖啡餐吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8774752": {
+   "name_zh": "古林坊咖啡(城中店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7050238": {
+   "name_zh": "广东会馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861241": {
+   "name_zh": "光美川菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4255966": {
+   "name_zh": "灰太狼烤羊村",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056291": {
+   "name_zh": "金阁首席美食会所",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864464": {
+   "name_zh": "机器猫咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055201": {
+   "name_zh": "奎英砂锅鲢鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057081": {
+   "name_zh": "蓝岸咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934020": {
+   "name_zh": "老凉粉店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055053": {
+   "name_zh": "良木缘咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056410": {
+   "name_zh": "龙抄手",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862069": {
+   "name_zh": "驴窝走停咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6700122": {
+   "name_zh": "群霞金凤羊肉火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13335576": {
+   "name_zh": "如意林卡藏餐吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865418": {
+   "name_zh": "蜀九香火锅酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933335": {
+   "name_zh": "水丽坊私家菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233623": {
+   "name_zh": "思香园食坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236457": {
+   "name_zh": "四川会馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933292": {
+   "name_zh": "唐东家宴",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860927": {
+   "name_zh": "香格里拉藏餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237425": {
+   "name_zh": "湘君府大酒店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17423695": {
+   "name_zh": "新满斋餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864460": {
+   "name_zh": "藏红花餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12827062": {
+   "name_zh": "张四烤羊肉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861802": {
+   "name_zh": "扎西小吃",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864476": {
+   "name_zh": "卓嘎甜茶馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933849": {
+   "name_zh": "自贡盐帮菜",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "294223",
+ "pages_crawled": {
+  "attractions": 1,
+  "restaurants": 1
+ }
+}

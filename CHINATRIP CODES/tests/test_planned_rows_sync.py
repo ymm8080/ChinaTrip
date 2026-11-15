@@ -71,7 +71,7 @@ def test_engine_attraction_creates_no_scheduled_row():
     svc = TripItemService()
     agent = _agent(svc)
     plan = _plan_with([_item("宽窄巷子", poi_id="KZ01")])
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     assert svc.list_groups("it-test")["scheduled"] == []
     assert svc.list_groups("it-test")["wishlist"] == []
 
@@ -83,7 +83,7 @@ def test_planned_wish_row_flips_out_of_wishlist():
     svc.create("看熊猫", source="chat", city="成都")
     agent = _agent(svc)
     plan = _plan_with([_item("成都大熊猫繁育研究基地", poi_id="PANDA01")])
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     groups = svc.list_groups("it-test")
     assert not any(r["name"] == "看熊猫" for r in groups["wishlist"])
     row = next(r for r in groups["scheduled"] if r["name"] == "看熊猫")
@@ -109,7 +109,7 @@ def test_placeholder_and_food_cards_stay_out():
             _item("午餐占位", poi_id="F1", cat="food"),
         ]
     )
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     assert svc.list_groups("it-test")["scheduled"] == []
 
 
@@ -121,7 +121,7 @@ def test_unwanted_row_not_resurrected():
     svc.update(row["id"], status="unwanted")
     agent = _agent(svc)
     plan = _plan_with([_item("宽窄巷子", poi_id="KZ01")])
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     # 行无行程归属（itinerary_id=None），按全局组验证状态不被翻牌
     groups = svc.list_groups()
     assert any(r["name"] == "宽窄巷子" for r in groups["unwanted"])
@@ -135,7 +135,7 @@ def test_engine_scheduled_row_removed_even_when_point_still_planned():
     engine = _make_engine_row(svc, "宽窄巷子", poi_id="KZ01")
     agent = _agent(svc)
     plan = _plan_with([_item("宽窄巷子", poi_id="KZ01")])
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     assert svc.get(engine["id"]) is None
     assert svc.list_groups("it-test")["scheduled"] == []
 
@@ -147,7 +147,7 @@ def test_engine_scheduled_row_removed_when_item_leaves_plan():
     engine = _make_engine_row(svc, "宽窄巷子", poi_id="KZ01")
     agent = _agent(svc)
     session = _session(agent, _plan_with([_item("人民公园", poi_id="RM01")]))
-    agent._sync_planned_rows(session)
+    agent._sync_planned_rows(session, at_save=True)
     assert svc.get(engine["id"]) is None
     assert svc.list_groups("it-test")["scheduled"] == []
 
@@ -192,6 +192,8 @@ def test_empty_wishes_still_flip_existing_wish_rows():
         agent.sync_wishes_to_trip_items(session, [], user_texts=None)
     )
     assert notes == [] and unresolved == []
+    # 2026-11-15：规划回合不再写心愿行——对账/翻牌挪到保存行程时
+    agent.sync_trip_rows(session, at_save=True)
     groups = svc.list_groups("it-test")
     assert not any(r["name"] == "看熊猫" for r in groups["wishlist"])
     assert any(r["name"] == "看熊猫" for r in groups["scheduled"])
@@ -212,7 +214,7 @@ def test_user_wish_flip_failure_leaves_row_in_wishlist(monkeypatch):
 
     monkeypatch.setattr(svc, "update", _boom)
     session = _session(agent, _plan_with([_item("看熊猫", poi_id="PANDA01")]))
-    agent._sync_planned_rows(session)
+    agent._sync_planned_rows(session, at_save=True)
     groups = svc.list_groups("it-test")
     assert any(r["id"] == wish["id"] for r in groups["wishlist"])
     assert groups["scheduled"] == []
@@ -227,7 +229,7 @@ def test_engine_rows_stuck_in_wishlist_swept():
     )
     agent = _agent(svc)
     session = _session(agent, _plan_with([_item("宽窄巷子", poi_id="KZ01")]))
-    agent._sync_planned_rows(session)
+    agent._sync_planned_rows(session, at_save=True)
     groups = svc.list_groups("it-test")
     assert not any(r["source"] == "plan" for r in groups["wishlist"])
     assert groups["scheduled"] == []
@@ -239,7 +241,7 @@ def test_engine_rows_stuck_in_wishlist_swept():
     )
     agent2 = _agent(svc2)
     session2 = _session(agent2, _plan_with([_item("西安钟楼", poi_id="BELL01")]))
-    agent2._sync_planned_rows(session2)
+    agent2._sync_planned_rows(session2, at_save=True)
     assert svc2.get(stuck["id"]) is None
     assert svc2.list_groups("it-test")["scheduled"] == []
 
@@ -255,7 +257,7 @@ def test_scheduled_row_bound_to_trip_but_point_left_plan_reverts():
     assert svc.list_groups("it-test")["scheduled"]
     agent = _agent(svc)
     session = _session(agent, _plan_with([_item("人民公园", poi_id="RM01")]))
-    agent._sync_planned_rows(session)
+    agent._sync_planned_rows(session, at_save=True)
     groups = svc.list_groups("it-test")
     assert not any(r["name"] == "外滩" for r in groups["scheduled"])
     got = next(r for r in groups["wishlist"] if r["name"] == "外滩")
@@ -270,7 +272,7 @@ def test_revert_skips_rows_of_other_itineraries():
     svc.update(row["id"], status="scheduled", day=2)
     agent = _agent(svc)
     plan = _plan_with([_item("人民公园", poi_id="RM01")])
-    agent._sync_planned_rows(_session(agent, plan))
+    agent._sync_planned_rows(_session(agent, plan), at_save=True)
     groups = svc.list_groups("it-other")
     assert any(r["name"] == "外滩" for r in groups["scheduled"])
 
@@ -286,7 +288,7 @@ def test_sync_trip_rows_flips_without_any_wish_names():
         agent, _plan_with([_item("陕西历史博物馆", poi_id="M1", start="12:35")])
     )
     assert session.must_visits == [] and session.wish_bindings == {}
-    agent.sync_trip_rows(session)
+    agent.sync_trip_rows(session, at_save=True)
     groups = svc.list_groups("it-test")
     assert not any(r["name"] == "陕西历史博物馆" for r in groups["wishlist"])
     row = next(r for r in groups["scheduled"] if r["name"] == "陕西历史博物馆")
@@ -318,7 +320,7 @@ def test_route_endpoint_city_wish_not_absorbed():
         session_id="s1", device_id="d1", cities=["上海", "成都", "上海"]
     )
     session.plan = plan
-    agent._sync_wish_rows(session)
+    agent._sync_wish_rows(session, at_save=True)
     got = svc.get(row["id"])
     assert got["status"] == "wishlist"
     assert not got.get("itinerary_id")

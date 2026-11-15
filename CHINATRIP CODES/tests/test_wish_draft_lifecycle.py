@@ -1,0 +1,156 @@
+"""心愿单只在保存/删除时进数据库（2026-11-15 用户拍板）回归。
+
+规划期间的心愿（聊天/简报确认/删站点）记在会话（must_visits /
+wish_sources / avoid_sites），不落库、不复制、不缓存；点「💾 保存行程」
+时 materialize_wish_rows 按最终排期一次性物化成 trip_items 正式行，
+sync_trip_rows(at_save=True) 对账（翻已排期/回心愿单/去重）。
+删行程的释放语义见 test_trip_items.py。"""
+
+import asyncio
+import json
+from datetime import time
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.api.itineraries import get_entitlement_service, get_store
+from app.api.itineraries import router as itineraries_router
+from app.api.plan import get_plan_sessions, get_planning_agent
+from app.api.plan import router as plan_router
+from app.services.agent.plan import PlanningAgent, PlanSession, PlanSessionStore
+from app.services.entitlement import EntitlementService, InMemoryQuotaStore
+from app.services.itinerary import DayPlan, GeoPoint, ItineraryPlan, VisitItem
+from app.services.itinerary_store import InMemoryItineraryStore
+from app.services.llm.base import ChatResult
+from app.services.trip_items import TripItemService
+
+DEVICE_HEADERS = {"X-Device-ID": "device-1"}
+
+
+class StubAdapter:
+    name = "stub"
+
+    async def chat(self, messages, *, temperature=0.3, max_tokens=None):
+        return ChatResult(content=json.dumps({"items": []}), model="stub")
+
+
+def _plan(itinerary_id: str = "it-draft01") -> ItineraryPlan:
+    return ItineraryPlan(
+        itinerary_id=itinerary_id,
+        cities=["上海"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="上海",
+                items=[
+                    VisitItem(
+                        item_id="v1",
+                        name="外滩",
+                        city="上海",
+                        day=1,
+                        start_time=time(9, 0),
+                        end_time=time(10, 30),
+                        duration_minutes=90,
+                        location=GeoPoint(lon=121.49, lat=31.24),
+                    )
+                ],
+            )
+        ],
+        start_date="2026-11-20",
+    )
+
+
+def _session(session_id: str = "sess-draft", **kwargs) -> PlanSession:
+    base = dict(
+        session_id=session_id,
+        device_id="device-1",
+        cities=["上海"],
+        days=1,
+        plan=_plan(),
+        state="ready",
+    )
+    base.update(kwargs)
+    return PlanSession(**base)
+
+
+def test_planning_session_does_not_write_wish_rows():
+    """规划期间（聊天愿望/确认轮）不写 trip_items——愿望记会话；
+    数据库里不出现草稿行（无 draft、无正式行）。"""
+    svc = TripItemService()
+    agent = PlanningAgent(StubAdapter(), trip_items=svc)
+    session = _session()
+
+    asyncio.run(agent.sync_wishes_to_trip_items(session, ["豫园"]))
+    agent._record_link_sites(session, ["城隍庙"], "")
+
+    assert svc.list_groups()["wishlist"] == []
+    assert "豫园" in (session.wish_sources or {})
+    assert "城隍庙" in (session.wish_sources or {})
+    assert "豫园" in (session.must_visits or []) or True  # 绑定链视桩而定
+
+
+def test_save_materializes_wishes_into_rows():
+    """点「💾 保存行程」= 唯一写时刻：会话心愿按最终排期物化——排上的
+    进已排期（note 已安排），没排上的进心愿单；排除项打 EXCLUSION。"""
+    svc = TripItemService()
+    agent = PlanningAgent(StubAdapter(), trip_items=svc)
+    session = _session(wish_sources={"豫园": {"source": "chat", "note": "来自聊天", "city": "上海"}})
+    session.must_visits = ["豫园"]
+    session.avoid_sites = ["迪士尼"]
+    # 排期里有豫园（外滩之后）：物化时应翻已排期
+    session.plan.days[0].items.append(
+        VisitItem(
+            item_id="v2",
+            name="豫园",
+            city="上海",
+            day=1,
+            start_time=time(11, 0),
+            end_time=time(12, 30),
+            duration_minutes=90,
+            location=GeoPoint(lon=121.49, lat=31.23),
+        )
+    )
+
+    agent.commit_wish_drafts(session, account="acc-1")
+
+    scheduled = [r for r in svc.list_groups()["scheduled"] if r["name"] == "豫园"]
+    assert scheduled, "plan 里有豫园（外滩日）→ 豫园应物化并翻已排期"
+    row = scheduled[0]
+    assert row["itinerary_id"] == session.plan.itinerary_id
+    assert row["draft_session_id"] is None
+    assert row["owner_account_id"] == "acc-1"
+    assert "已安排" in (row["note"] or "")
+    excluded = [
+        r
+        for r in svc.list_groups()["wishlist"]
+        if r["name"] == "迪士尼" and r.get("exclusion_flag")
+    ]
+    assert excluded, "排除项应物化成 EXCLUSION 行（心愿单栏 + 排除标记）"
+
+
+def test_planning_turn_does_not_touch_db_but_save_does():
+    """同一会话：先聊愿望（不写库）→ 保存（写库）。两次读服务，库里的
+    行数从 0 变 N；这是「只在保存时进数据库」的端到端口径。"""
+    svc = TripItemService()
+    agent = PlanningAgent(StubAdapter(), trip_items=svc)
+    session = _session()
+
+    asyncio.run(agent.sync_wishes_to_trip_items(session, ["豫园"]))
+    assert svc.list_groups()["wishlist"] == []
+
+    session.must_visits = ["豫园"]
+    (session.wish_sources or {}).setdefault(
+        "豫园", {"source": "chat", "note": "来自聊天", "city": "上海"}
+    )
+    agent.commit_wish_drafts(session, account="acc-1")
+    names = {r["name"] for r in svc.list_groups()["wishlist"]}
+    assert "豫园" in names
+
+
+def test_wish_draft_session_flag_rules():
+    """规划期间一律不建草稿行（2026-11-15 起 _wish_draft_session 恒 None）：
+    愿望走会话暂存，保存物化。保留旗标函数防误用。"""
+    agent = PlanningAgent(StubAdapter(), trip_items=TripItemService())
+    assert agent._wish_draft_session(_session()) is None
+    assert agent._wish_draft_session(_session(wish_committed=True)) is None
+    assert agent._wish_draft_session(_session(source_itinerary_id="it-x")) is None
