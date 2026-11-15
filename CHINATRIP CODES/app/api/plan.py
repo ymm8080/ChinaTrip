@@ -721,6 +721,10 @@ async def start_plan(
     session.account_id = account or session.account_id
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
+    if session.plan is not None:
+        # 餐卡与紧邻景点的通勤腿（2026-11-15）：/plan/start 自己组响应、
+        # 不走 _plan_turn_body，出站闸在这里也跑一次（幂等）。
+        session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
         return body
