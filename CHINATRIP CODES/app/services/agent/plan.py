@@ -13293,9 +13293,7 @@ def _assign_must_family_days(
             return here
         return min(scores, key=lambda k: scores[k])
 
-    ordered = sorted(
-        fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f))
-    )
+    ordered = sorted(fams, key=lambda f: (-len(f), min(_must_rank_key(v) for v in f)))
     for fam in ordered:
         target_no = pick(fam)
         placed_dur[target_no] = placed_dur.get(target_no, 0) + fam_duration(fam)
@@ -13657,9 +13655,7 @@ def _fill_leftover_with_diverse_sights(
                 if isinstance(i, VisitItem)
             }
             source = list(plan.unplaced) + [
-                b
-                for b in (bench or [])
-                if _norm_site_name(b.name) not in seen_names
+                b for b in (bench or []) if _norm_site_name(b.name) not in seen_names
             ]
             pool = [
                 u
