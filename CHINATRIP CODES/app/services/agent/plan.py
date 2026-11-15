@@ -11123,6 +11123,8 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
                 )
             )
     return notes
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -11882,8 +11884,8 @@ def _fallback_sequence_times(
         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
-
     _clamp_chain_gaps(plan)
+
 
 def _meal_card_back_to_default(
     meal: VisitItem,
