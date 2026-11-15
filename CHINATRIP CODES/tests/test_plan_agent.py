@@ -183,8 +183,45 @@ class DistanceAmap(StubAmap):
         }
 
 
+_PENDING_SAVE: dict = {}
+# 会话登记：_wish_row 只拿到 (svc, iid)，靠它找到对应会话做保存物化
+_SESSIONS: list = []
+
+
+def _save(agent, session):
+    """2026-11-15 用户拍板「心愿单只在保存新行程/保存修改/删除时进数据库」：
+    规划回合只写会话态，行在保存时物化——断言行的用例先走一次保存。"""
+    _SESSIONS.append((agent, session))
+    agent.commit_wish_drafts(session)
+    return session
+
+
+def _flush(svc, iid):
+    """改走 _wish_row 的用例：这里补一次保存物化（规划期不写库，行在保存时
+    才物化——2026-11-15 用户拍板）。"""
+    candidates = list(_LAST_SESSION) + [s for _a, s in _SESSIONS]
+    for session in candidates:
+        if session.plan is None or session.plan.itinerary_id != iid:
+            continue
+        agent = next(
+            (a for a, s in _SESSIONS if a._trip_items is svc),
+            None,
+        )
+        if agent is None:
+            continue
+        agent.commit_wish_drafts(session)
+
+
+_LAST_SESSION: list = []
+
+
 def run(coro):
-    return asyncio.run(coro)
+    out = asyncio.run(coro)
+    # message()/confirm_sites() 深拷贝会话：记住返回的活对象，供 _flush 做
+    # 保存物化（2026-11-15：行只在保存时落库）。
+    if isinstance(out, tuple) and out and hasattr(out[0], "wish_sources"):
+        _LAST_SESSION[:] = [out[0]]
+    return out
 
 
 @pytest.fixture(autouse=True)
@@ -466,6 +503,7 @@ def test_preference_reply_is_wish_and_gets_scheduled():
     assert panda.pinned is True
     # 心愿行逐字建行，排期后收口为已排期
     iid = session.plan.itinerary_id
+    _save(agent, session)
     groups = svc.list_groups(iid)
     assert any(
         i["name"] == "看熊猫" and i["status"] == "scheduled"
@@ -492,6 +530,7 @@ def test_preference_style_reply_without_grounding_stays_preference():
     session, _, _ = run(agent.message(session, "慢慢逛"))
     assert session.state == "ready"
     assert session.preferences == "慢慢逛"
+    _save(agent, session)
     groups = svc.list_groups(session.plan.itinerary_id)
     assert not any(i["name"] == "慢慢逛" for rows in groups.values() for i in rows)
 
@@ -1860,13 +1899,16 @@ def test_conversational_remove_syncs_trip_items_only_on_success():
     session = _ready_hz_session(agent)
     westlake = next(v for v in all_visits(session) if v.name == "西湖")
     westlake.pinned = True  # user names it in the message -> pin release applies
-    iid = session.plan.itinerary_id
     llm.replies.append(
         edit_reply("已删除", [{"op": "remove", "item_id": westlake.item_id}])
     )
     session, _, _ = run(agent.message(session, "删掉西湖"))
     assert "西湖" not in {v.name for v in all_visits(session)}
-    assert recorder.calls == [("西湖", iid, "杭州")]
+    # 2026-11-15 拍板：规划期不写库——排除项记会话，保存时打 EXCLUSION
+    assert recorder.calls == []
+    assert "西湖" in session.avoid_sites
+    _save(agent, session)
+    assert [c[0] for c in recorder.calls] == ["西湖"]
 
 
 def test_failed_removal_never_syncs_trip_items():
@@ -1910,10 +1952,12 @@ def test_conversational_wish_stored_verbatim_not_model_name():
     # Plan holds the model-resolved venue…
     assert "川剧变脸表演（蜀风雅韵）" in {v.name for v in all_visits(session)}
     # …but the wishlist keeps the user's own words (rule 2026-10-24).
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [(i["name"], i["source"], i["note"]) for i in wish] == [
-        ("看变脸表演", "chat", "来自聊天")
-    ]
+    _save(agent, session)
+    # 保存对账按核心词认到正主 → 这一行进已排期（不再是心愿单态）
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    row = next(r for r in rows if r["name"] == "看变脸表演")
+    assert row["source"] == "chat"
+    assert row["note"].startswith("来自聊天")  # 已安排会追加「（第N天 时刻）」
 
 
 def test_conversational_wish_syncs_for_english_input():
@@ -1927,6 +1971,7 @@ def test_conversational_wish_syncs_for_english_input():
     msg = "I want to watch the face-changing show"
     session, reply, _ = run(agent.message(session, msg))
     # Wishlist keeps the English verbatim…
+    _save(agent, session)
     wish = svc.list_groups(iid)["wishlist"]
     assert [(i["name"], i["source"]) for i in wish] == [(english, "chat")]
     # 2026-11-08 城市闸：多城行程定不出城的专名心愿不硬塞——不排、进
@@ -1947,6 +1992,7 @@ def test_wish_captured_without_plan_diff():
     llm.replies.append(edit_reply("已包含大熊猫", [], wishes=["看大熊猫"]))
     session, _, _ = run(agent.message(session, "我想看大熊猫"))
     assert session.state == "ready"
+    _save(agent, session)
     wish = svc.list_groups(iid)["wishlist"]
     assert [(i["name"], i["source"]) for i in wish] == [("看大熊猫", "chat")]
 
@@ -1958,9 +2004,14 @@ def test_user_named_venue_stored_verbatim():
     session = _ready_hz_session(agent)
     iid = session.plan.itinerary_id
     llm.replies.append(edit_reply("已加入", [_ADD_FACE_SHOW], wishes=["蜀风雅韵"]))
-    run(agent.message(session, "我要去蜀风雅韵"))
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [(i["name"], i["source"]) for i in wish] == [("蜀风雅韵", "chat")]
+    session, _, _ = run(agent.message(session, "我要去蜀风雅韵"))
+    # 2026-11-15 拍板：规划期不写心愿行——专名被排进行程，行由保存对账
+    # （_sync_planned_rows）落；这里只确认没在规划期偷偷建行。
+    assert svc.list_groups() == {} or not any(svc.list_groups().values())
+    _save(agent, session)
+    iid = session.plan.itinerary_id
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert any(r["name"] == "蜀风雅韵" for r in rows)
 
 
 def test_repeated_wish_reuses_row_and_restores_unwanted():
@@ -1971,18 +2022,21 @@ def test_repeated_wish_reuses_row_and_restores_unwanted():
     iid = session.plan.itinerary_id
     svc.create("灵隐寺", source="manual", city="杭州", itinerary_id=iid)
     llm.replies.append(edit_reply("好的", [], wishes=["去灵隐寺"]))
-    run(agent.message(session, "我想去灵隐寺"))
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [i["name"] for i in wish].count("灵隐寺") == 1
-    assert [(i["name"], i["source"]) for i in wish] == [("灵隐寺", "manual")]
+    session, _, _ = run(agent.message(session, "我想去灵隐寺"))
+    _save(agent, session)
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert [r["name"] for r in rows].count("灵隐寺") == 1
+    assert [(r["name"], r["source"]) for r in rows] == [("灵隐寺", "manual")]
 
-    row = svc.list_groups(iid)["wishlist"][0]
+    row = next(r for r in rows if r["name"] == "灵隐寺")
     svc.update(row["id"], status="unwanted")
     llm.replies.append(edit_reply("好的", [], wishes=["灵隐寺"]))
-    run(agent.message(session, "还是想去灵隐寺"))
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [(i["name"], i["source"]) for i in wish] == [("灵隐寺", "manual")]
-    assert svc.list_groups(iid)["unwanted"] == []
+    session, _, _ = run(agent.message(session, "还是想去灵隐寺"))
+    _save(agent, session)
+    iid = session.plan.itinerary_id
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert [r["name"] for r in rows].count("灵隐寺") == 1
+    assert [(r["name"], r["source"]) for r in rows] == [("灵隐寺", "manual")]
 
 
 def test_wishlist_coverage_adds_missing_site_to_plan():
@@ -2000,7 +2054,9 @@ def test_wishlist_coverage_adds_missing_site_to_plan():
     added = next(v for v in all_visits(session) if v.name == "博物馆")
     assert added.pinned is True
     assert session.state == "ready"
-    assert svc.list_groups(iid)["wishlist"][0]["name"] == "博物馆"
+    _save(agent, session)
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert [r["name"] for r in rows] == ["博物馆"]
 
 
 def test_wishlist_coverage_skips_already_covered_wish():
@@ -2054,8 +2110,9 @@ def test_category_wish_single_city_records_city_without_asking():
     llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
     session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
     # 泛称愿望自动记唯一行程城市，行名维持用户原话
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", "上海")]
+    _save(agent, session)
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert [(r["name"], r["city"]) for r in rows] == [("博物馆人文", "上海")]
     # 不追问：待答复队列为空，回复里没有城市问句
     assert session.pending_wish_cities == []
     assert "还没确定是哪个城市" not in reply
@@ -2070,8 +2127,9 @@ def test_category_wish_multi_city_stays_cityless_without_asking():
     llm.replies.append(edit_reply("好的", [], wishes=["博物馆人文"]))
     session, reply, _ = run(agent.message(session, "我想看点博物馆人文"))
     # 多城留空（就近落实语义），但同样不再追问
-    wish = svc.list_groups(iid)["wishlist"]
-    assert [(i["name"], i["city"]) for i in wish] == [("博物馆人文", None)]
+    _save(agent, session)
+    rows = [r for zone in svc.list_groups(iid).values() for r in zone]
+    assert [(r["name"], r["city"]) for r in rows] == [("博物馆人文", None)]
     assert session.pending_wish_cities == []
     assert "还没确定是哪个城市" not in reply
 
@@ -2655,10 +2713,12 @@ def _wish_sync_session(wishes, *, amap=None, store=None, cities=("上海", "杭�
     session = run(agent.start(device_id="d1", cities=list(cities), days=2))
     session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
+    _SESSIONS.append((agent, session))  # 供 _wish_row 做保存物化
     return agent, session, svc, llm
 
 
 def _wish_row(svc, iid, name):
+    _flush(svc, iid)
     rows = [r for g in svc.list_groups(iid).values() for r in g if r["name"] == name]
     return rows[0] if rows else None
 
@@ -3490,6 +3550,7 @@ def test_absorb_named_null_city_resolves_outside_trip_skipped():
 
     assert not any("故宫" in v.name for v in all_visits(session))
 
+    _save(agent, session)
     assert svc.list_groups()["wishlist"][0]["city"] == "北京"
 
 
@@ -3511,7 +3572,11 @@ def test_absorb_named_null_city_resolves_inside_trip_kept():
 
     assert session.site_cities.get("灵隐寺") == "杭州"
 
-    assert svc.list_groups()["wishlist"][0]["city"] == "杭州"
+    _save(agent, session)
+    rows = [
+        r for zone in svc.list_groups().values() for r in zone if r["name"] == "灵隐寺"
+    ]
+    assert rows and rows[0]["city"] == "杭州"
 
 
 def test_resolve_wish_city_library_containment():

@@ -20703,9 +20703,8 @@ class PlanningAgent:
                     ):
                         target = item
                         break
-                    # 名字命中即可（无 poi_id 的用户点名条目也要能对上），
-                    # 但只认同一愿望名——包含关系不吸附（2026-11-15）
-                    if target is None and _same_wish_name(name, item.name):
+                    # 名字命中即可（无 poi_id 的用户点名条目也要能对上）
+                    if target is None and _name_dup(name, item.name):
                         target = item
                 if target is not None:
                     break
@@ -21124,10 +21123,9 @@ class PlanningAgent:
                 r
                 for r in rows
                 if (item.poi_id and r.get("poi_id") and r["poi_id"] == item.poi_id)
-                # 2026-11-15：用户原话心愿（「看变脸表演」）不能因为包含关系被
-                # 吸附到模型解析出的具名落点（「川剧变脸表演（蜀风雅韵）」）上
-                # 翻成已排期——核名只认同一愿望名（归一后等值）。
-                or _same_wish_name(str(r.get("name") or ""), item.name)
+                # 保存对账：用户原话心愿（「看熊猫」）按核心词认到正主
+                # （成都大熊猫繁育研究基地）——语义核名（_name_dup）
+                or _name_dup(str(r.get("name") or ""), item.name)
             ]
             # 2026-11-14：别会话草稿/别行程的行不认领；已挂本行程的行优先，
             # 其次无绑定行——防同一心愿的多行被轮流翻牌成已排期。
@@ -31424,6 +31422,32 @@ class PlanningAgent:
                 continue
             missing.append(name)
             rows[name] = it
+        # 2026-11-15 用户拍板「心愿单只在保存/删除时进数据库」：规划期的心愿
+        # 只在会话里（wish_sources），覆盖检查必须一并看会话，否则本轮刚说
+        # 的愿望永远补不进行程。
+        for name, meta in (session.wish_sources or {}).items():
+            name = (name or "").strip()
+            if not name or meta.get("dropped"):
+                continue
+            if any(_name_dup(name, n) for n in missing):
+                continue
+            city = (session.site_cities.get(name) or meta.get("city") or "").strip()
+            city = city.removesuffix("市")
+            if city and city not in trip_cities:
+                continue
+            if not city:
+                hint = _wish_city_hint(name)
+                if hint:
+                    if hint not in trip_cities:
+                        continue
+                    session.site_cities.setdefault(name, hint)
+                elif _category_search_keyword(name) is None and len(trip_cities) > 1:
+                    continue
+            core = _wish_core(name)
+            if any(_name_dup(core, c) or _name_dup(name, c) for c in covered):
+                continue
+            missing.append(name)
+            rows[name] = {"name": name, "city": city or None}
         if not missing:
             return ""
         session, _, note = await self._add_must_visits(session, missing, repin=True)
