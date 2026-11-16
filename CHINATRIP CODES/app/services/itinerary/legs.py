@@ -136,6 +136,16 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+def _url(raw) -> str:
+    """把库里的裸域名补成 https（EN 预订链接常没写 scheme）；空值回空串。"""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if text.startswith(("http://", "https://")):
+        return text
+    return "https://" + text.lstrip("/")
+
+
 def _clock(minutes) -> str | None:
     """570 → '09:30'；空值/越界回 None（前端只当补充信息）。"""
     try:
@@ -197,12 +207,14 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
             a.city or b.city, float(br.get("taxi_km") or 0.0)
         ),
         "access_cost": access_fare_estimate(br.get("mode")),
-        "booking_url": _pick("access_ticket_url")
-        or getattr(b, "booking_url", None)
-        or "",
-        "official_url": _pick("access_official_url")
-        or getattr(b, "website", None)
-        or "",
+        # 购票优先用景点自己的预约入口（比线路页更贴近下单动作），
+        # 官网用官方时刻表/说明页；两个都缺才留空，前端不出死链。
+        "booking_url": _url(
+            getattr(b, "booking_url", None) or _pick("access_ticket_url")
+        ),
+        "official_url": _url(
+            _pick("access_official_url") or getattr(b, "website", None)
+        ),
     }
     return details
 

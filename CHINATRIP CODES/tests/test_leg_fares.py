@@ -239,7 +239,7 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
         access_fare_text="往返车费 80 元",
         access_ticket_url="https://en.mutianyugreatwall.com/pdf/one-day",
         access_official_url="https://en.mutianyugreatwall.com/pdf/one-day",
-        booking_url="https://en.mutianyugreatwall.com/reservation-center/tickets",
+        booking_url="en.mutianyugreatwall.com/reservation-center/tickets",  # 裸域名（库里真实形态）
     )
     plan = ItineraryPlan(
         itinerary_id="x",
@@ -264,6 +264,9 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     assert detail["service_minutes"] == 90
     assert detail["walk_minutes"] == 8
     assert detail["taxi_cost"] > 0 and detail["access_cost"] == 20
-    assert "mutianyugreatwall" in detail["booking_url"]
+    assert detail["booking_url"].startswith("https://")
+    assert detail["booking_url"] == (
+        "https://en.mutianyugreatwall.com/reservation-center/tickets"
+    )
     assert "mutianyugreatwall" in detail["official_url"]
     assert "80" in detail["fare_text"]
