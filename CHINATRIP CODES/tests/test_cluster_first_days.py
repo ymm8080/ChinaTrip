@@ -150,9 +150,10 @@ def test_zero_distance_family_reduces_global_weakest_member():
     )
     day_of = {it["name"]: it["day"] for it in items}
     assert {day_of[n] for n in ("远一", "远二", "远三", "远四")} == {1}
-    # 弱件被减出族（全局最弱件）后退回散件池，但 2026-11-13「日间混排
-    # 收口」不放它进有城心件的天、也没有无城心件的空日 → 移出并留痕
-    assert "弱件" not in day_of
+    # 弱件被减出族（全局最弱件）后退回散件池。2026-11-16「>50km 算
+    # 远郊」后 42km 属中性带（50km 内）可与城心件同日 → 落非族日；
+    # 减员披露仍须点名。
+    assert day_of["弱件"] != 1
     assert any("弱件" in n for n in notes)
 
 
@@ -354,11 +355,11 @@ def test_weak_edge_beyond_1km_not_in_atomic_family():
     原子完整落 day1，弱边两件留零散（2km 内仍受 tight_kin 软偏好，
     落哪天不锚）。"""
     cands = [
-        _c("钟楼", (104.0600, 30.66), dur=40, city="西安"),
-        _c("鼓楼", (104.0610, 30.66), dur=40, city="西安"),
-        _c("城墙碑林", (104.0640, 30.66), tier=2, dur=90, city="西安"),
-        _c("小雁塔", (104.0640, 30.6423), dur=60, city="西安"),  # ↔城墙碑林 ~1.96km
-        _c("碑林博物馆", (104.0760, 30.6585), dur=60, city="西安"),  # ↔城墙碑林 ~1.16km
+        _c("钟楼", (104.0600, 30.66), dur=40, city="成都"),
+        _c("鼓楼", (104.0610, 30.66), dur=40, city="成都"),
+        _c("城墙碑林", (104.0640, 30.66), tier=2, dur=90, city="成都"),
+        _c("小雁塔", (104.0640, 30.6423), dur=60, city="成都"),  # ↔城墙碑林 ~1.96km
+        _c("碑林博物馆", (104.0760, 30.6585), dur=60, city="成都"),  # ↔城墙碑林 ~1.16km
     ]
     notes: list[str] = []
     items = PlanningAgent._deterministic_selection(
@@ -381,9 +382,9 @@ def test_all_small_family_claims_arrival_day():
     通道只收端点合法内容（简单街区/茶/演出），夹具改用带街/巷语素的
     轻量三人组，仍验 170≤180 的剔腿判据。"""
     cands = [
-        _c("钟楼街", (104.0600, 30.66), dur=40, city="西安"),
-        _c("鼓楼街", (104.0690, 30.66), dur=40, city="西安"),
-        _c("城墙根巷", (104.0780, 30.66), dur=90, city="西安"),
+        _c("钟楼街", (104.0600, 30.66), dur=40, city="成都"),
+        _c("鼓楼街", (104.0690, 30.66), dur=40, city="成都"),
+        _c("城墙根巷", (104.0780, 30.66), dur=90, city="成都"),
     ]
     items = PlanningAgent._deterministic_selection(
         cands,
@@ -404,8 +405,8 @@ def test_important_family_gets_450_clean_day_waiver():
     loose」散装混日（探针 r2 实录：大雁塔混 30km 异簇 d3）；有豁免
     整族原子落净日 d1。"""
     cands = [
-        _c("大雁塔", (104.0600, 30.66), tier=2, dur=240, city="西安"),
-        _c("十二时辰", (104.0680, 30.66), dur=180, city="西安"),  # ↔大雁塔 ~0.77km
+        _c("大雁塔", (104.0600, 30.66), tier=2, dur=240, city="成都"),
+        _c("十二时辰", (104.0680, 30.66), dur=180, city="成都"),  # ↔大雁塔 ~0.77km
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"西安": (1, 2)})
     day_of = {it["name"]: it["day"] for it in items}

@@ -1006,7 +1006,9 @@ def test_soft_gate_shape_and_beyond_pool_tail_stays_hard():
         _cand(f"远填{i}", "成都", suggested=180, loc=(104.06 + (i + 1) * 0.02, 30.66))
         for i in range(5)
     ]
-    cands += [_cand(f"补{i}", "成都", suggested=60, loc=g2) for i in range(4)]
+    # 补 组用城心坐标：都江堰坐标 56km 在 2026-11-16「>50km 算远郊」
+    # 口径下是远郊件（独占一天），会与软闸语义混在一起。
+    cands += [_cand(f"补{i}", "成都", suggested=60, loc=g1) for i in range(4)]
     notes: list[str] = []
     items = PlanningAgent._deterministic_selection(
         cands, 2, {"成都": (1, 2)}, notes=notes
@@ -1045,8 +1047,13 @@ def test_taxi_leg_model_drive_plus_hail():
     # 远距：车程（km×绕行/车速）+ 半小时叫车
     assert _taxi_leg_min(5.0) == round(5.0 * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES
     assert _taxi_leg_min(50.0) == round(50.0 * _TAXI_MIN_PER_KM) + _TAXI_HAIL_MINUTES
-    # 跨区一日游量级封顶
-    assert _taxi_leg_min(300.0) == _TRAVEL_LEG_CAP_MIN
+    # 城际段（100-400km）按真实车程不封顶（2026-11-16 拍板「远点
+    # 必须算得出来」：300km 压成 180 分钟会让千岛湖/武隆排进半天）
+    assert _taxi_leg_min(300.0) == round(300.0 * _TAXI_MIN_PER_KM) + (
+        _TAXI_HAIL_MINUTES
+    )
+    # >400km 视为毒坐标（跨城串号），仍按市内封顶兜底
+    assert _taxi_leg_min(900.0) == _TRAVEL_LEG_CAP_MIN
 
 
 def test_taxi_model_allows_midrange_same_day():

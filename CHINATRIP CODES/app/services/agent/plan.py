@@ -1454,13 +1454,30 @@ def _is_full_day_item(it: dict) -> bool:
         return False
 
 
-def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list[dict]:
-    """整日件独占一天：整日件所在日只留餐饮/酒店；轻件改投空位天，
-    挪不动的移出并点名（绝不为了轻件让整日件与人拼天）。"""
+def _enforce_full_day(
+    items: list[dict],
+    notes: list[str] | None = None,
+    *,
+    off_limits: set[int] | frozenset[int] | None = None,
+    day_city: dict[int, str] | None = None,
+) -> list[dict]:
+    """整日件/远郊件独占一天：一天最多一件整日件或 >50km 远郊件，所在日
+    只留餐饮/酒店；轻件改投同城空位天，挪不动的移出并点名（绝不为了轻件
+    让整日件与人拼天）。
+
+    多出的整日/远郊件只认「同城且零游览件」的空天，没有就移出并点名——
+    端点日/返程日不接收（上午闸窗口内物理排不下，2026-11-05 重庆案），
+    也绝不跨城挪件（2026-11-16 CI 回归：熊猫基地被挪进重庆天）。
+    """
 
     def _meal(it: dict) -> bool:
         return str(it.get("category") or "") in ("food", "hotel")
 
+    def _city(it: dict) -> str:
+        return str(it.get("city") or "").strip()
+
+    off = set(off_limits or ())
+    city_of = day_city or {}
     days = sorted({x.get("day") for x in items if x.get("day")})
     if not days:
         return items
@@ -1468,34 +1485,82 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
     def _sights(d):
         return [x for x in items if x.get("day") == d and not _meal(x)]
 
-    full = [x for x in items if _needs_own_day(x) and not _meal(x)]
-    dropped: list[dict] = []
-    for fd in full:
-        if fd.get("day") is None:
-            continue
+    def _same_city(d: int, city: str) -> bool:
+        return not city or not city_of or city_of.get(d, city) == city
+
+    def _premium_full(it: dict) -> bool:
+        """高质名点/王牌（tier≤3 或 rating≥4.5）：可挤掉轻件独占一天
+        （2026-11-05 池上限不逐高质名点拍板：quality≥4.5 名点与 tier≤2
+        同权追回）；普通远郊/整日填件只认空天，绝不抢别人的日。"""
+        if _source_tier(it) <= 3:
+            return True
+        try:
+            return float(it.get("rating") or 0) >= 4.5
+        except (TypeError, ValueError):
+            return False
+
+    def _free_day(it: dict, blocked: set[int]) -> int | None:
+        """同城、零游览件、非端点日的空天；高质名点退一步可挤最空的
+        同城日（其轻件按第②段改投/移出）。"""
+        want = _city(it)
+        empty = next(
+            (
+                d
+                for d in days
+                if d not in blocked
+                and d not in off
+                and not _sights(d)
+                and _same_city(d, want)
+            ),
+            None,
+        )
+        if empty is not None or not _premium_full(it):
+            return empty
         cand_days = [
             d
             for d in days
-            if d == fd.get("day") or not any(_needs_own_day(x) for x in _sights(d))
+            if d not in blocked
+            and d not in off
+            and _same_city(d, want)
+            and not any(_needs_own_day(x) and x is not it for x in _sights(d))
         ]
         if not cand_days:
+            return None
+        return min(cand_days, key=lambda d: (len(_sights(d)), d))
+
+    dropped: list[dict] = []
+    # ① 一天最多一件整日/远郊件：多出的先找同城空天，没有就移出
+    kept_day: dict[int, dict] = {}
+    surplus: list[dict] = []
+    for it in items:
+        if _meal(it) or not _needs_own_day(it) or not it.get("day"):
             continue
-        target = min(
-            cand_days,
-            key=lambda d: (len(_sights(d)), 0 if d == fd.get("day") else 1, d),
-        )
-        if target != fd.get("day"):
-            fd["day"] = target
-        for other in list(_sights(fd.get("day"))):
-            if other is fd or _needs_own_day(other):
-                continue
+        d = it["day"]
+        if d in kept_day:
+            surplus.append(it)
+        else:
+            kept_day[d] = it
+    for it in surplus:
+        # 天不够时宽松保留原日（旧口径：宁排勿缺）——远郊件多枚挤窗
+        # 的常态是雨日/端点日二选一，硬丢会把用户点整片抹掉。
+        dest = _free_day(it, set(kept_day))
+        if dest is None:
+            continue
+        it["day"] = dest
+        kept_day[dest] = it
+    # ② 整日件所在日只留餐饮/酒店：轻件改投同城空位天，挪不动的移出
+    for d, fd in list(kept_day.items()):
+        for other in [x for x in _sights(d) if x is not fd and not _needs_own_day(x)]:
+            want = _city(other)
             dest = next(
                 (
-                    d
-                    for d in days
-                    if d != fd.get("day")
-                    and len(_sights(d)) < 4
-                    and not any(_needs_own_day(x) for x in _sights(d))
+                    e
+                    for e in days
+                    if e != d
+                    and e not in off
+                    and len(_sights(e)) < 4
+                    and not any(_needs_own_day(x) for x in _sights(e))
+                    and _same_city(e, want)
                 ),
                 None,
             )
@@ -1510,7 +1575,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
         if notes is not None:
             notes.append(
                 "、".join(f"「{x.get('name')}」" for x in dropped)
-                + " 为整日件（迪士尼/动物园/科技馆类）腾整天，本次未排入（要加回请说）"
+                + " 为整日/远郊件腾整天（一天只排一件），本次未排入（要加回请说）"
             )
     return items
 
@@ -22862,6 +22927,9 @@ class PlanningAgent:
                 # 回填借池外补量绕过「风景区 1/行程」上限。
                 "tags": cand.get("tags"),
                 "source": cand.get("source"),
+                # 质量分随规格下传（整日/远郊件独占判定要区分高质名点与
+                # 普通填件：2026-11-05 池上限不逐高质名点拍板）。
+                "rating": cand.get("rating"),
                 # 露天标记随规格下传：末端混排闸（_enforce_day_zones）只用
                 # 规格字典，原始 rain_ok 已在规格里丢失——不带下去雨日
                 # 硬闸会在收口最后一刻被洗掉
@@ -26315,7 +26383,15 @@ class PlanningAgent:
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
         _enforce_day_zones(items, notes, rainy_days=rainy_here)
-        _enforce_full_day(items, notes)
+        _full_off = set()
+        if days in (transfer_days or frozenset()) or days in (
+            tail_return_days or frozenset()
+        ):
+            _full_off.add(days)
+        _day_city = {
+            d: _c for _c, (_a, _b) in (ranges or {}).items() for d in range(_a, _b + 1)
+        }
+        _enforce_full_day(items, notes, off_limits=_full_off, day_city=_day_city)
         return items
 
     @staticmethod

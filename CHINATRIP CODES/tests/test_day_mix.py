@@ -24,7 +24,9 @@ def test_far_sight_does_not_share_day_with_city_cluster():
         _cand("东方明珠", 121.4998, 31.2397, 165),
         _cand("外滩", 121.4903, 31.2398, 120),
         _cand("南京东路步行街", 121.4823, 31.2367),
-        _cand("上海野生动物园", 121.7133, 31.0469, 240),
+        # 2026-11-16「>50km 算远郊」：原 30.6km 动物园已属中性带，
+        # 远郊锚点改用滴水湖方向 ~58km 的大点。
+        _cand("上海野生动物园", 122.0500, 31.0500, 240),
     ]
     items = PlanningAgent._deterministic_selection(cands, 2, {"上海": (1, 2)})
     zoo = next((it for it in items if it["name"] == "上海野生动物园"), None)

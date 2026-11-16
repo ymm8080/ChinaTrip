@@ -212,10 +212,10 @@ def test_single_city_return_day_rejects_heavy_urban_family():
             "成都",
             minutes=180,
             tags=["unesco"],
-            loc=(106.578, 29.560),
+            loc=(104.060, 30.660),  # 成都城心（原重庆坐标 250km=远郊件）
         ),
-        _cand("重族二", "成都", minutes=60, loc=(106.580, 29.560)),
-        _cand("重族三", "成都", minutes=60, loc=(106.582, 29.560)),
+        _cand("重族二", "成都", minutes=60, loc=(104.062, 30.660)),
+        _cand("重族三", "成都", minutes=60, loc=(104.064, 30.660)),
     ]
     for cand in cands:
         cand["rain_ok"] = "partial"

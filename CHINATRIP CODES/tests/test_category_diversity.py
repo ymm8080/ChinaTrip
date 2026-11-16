@@ -329,21 +329,25 @@ def _bucket_cand(name, city, cat, *, rating=4.5, source=None, loc=(108.94, 34.26
 def test_itinerary_cap_museum_one_per_itinerary():
     """博物馆类（museum/gallery/memorial/art）每行程 1 个、跨城共享：
     成渝线成都先占，重庆的博物馆不再入池（2026-11-07 拍板）。"""
+    # 坐标必须与 city 匹配：默认西安坐标离成渝 465km，2026-11-16
+    # 「>50km 算远郊」后全成远郊件（不占行程配额），桶上限无从验证。
     cands = [
-        _bucket_cand("博物馆A", "成都", "museum", rating=4.5),
-        _bucket_cand("博物馆B", "成都", "museum", rating=4.4),
-        _bucket_cand("市点1", "成都", "attraction", rating=4.6),
-        _bucket_cand("市点2", "成都", "attraction", rating=4.6),
-        _bucket_cand("博物馆C", "重庆", "museum", rating=4.5),
-        _bucket_cand("渝点1", "重庆", "attraction", rating=4.6),
+        _bucket_cand("博物馆A", "成都", "museum", rating=4.5, loc=(104.06, 30.66)),
+        _bucket_cand("博物馆B", "成都", "museum", rating=4.4, loc=(104.08, 30.66)),
+        _bucket_cand("市点1", "成都", "attraction", rating=4.6, loc=(104.10, 30.66)),
+        _bucket_cand("市点2", "成都", "attraction", rating=4.6, loc=(104.12, 30.66)),
+        _bucket_cand("博物馆C", "重庆", "museum", rating=4.5, loc=(106.55, 29.56)),
+        _bucket_cand("渝点1", "重庆", "attraction", rating=4.6, loc=(106.57, 29.56)),
     ]
     notes: list[str] = []
     items = PlanningAgent._deterministic_selection(
         cands, 4, {"成都": (1, 2), "重庆": (3, 4)}, notes=notes
     )
     names = {it["name"] for it in items}
-    assert "博物馆A" in names
-    assert "博物馆B" not in names  # 成都池内第 2 家被行程桶裁
+    # 成都两家只留一家（池序/就近预占决定谁先占桶位），另一家让位
+    kept = {"博物馆A", "博物馆B"} & names
+    assert len(kept) == 1
+    assert ("博物馆A" if kept == {"博物馆B"} else "博物馆B") not in names
     assert "博物馆C" not in names  # 重庆再进博物馆：行程账本已满
     assert {"市点1", "市点2", "渝点1"} <= names
     assert any("行程内博物馆" in n for n in notes)

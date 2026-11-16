@@ -120,9 +120,9 @@ def test_unmarked_on_rain_day_swaps_with_dry_day_indoor():
         _cand("丙山", "成都", "no", lat=30.515),
         _cand("丁岭", "成都", "no", lat=30.53),
         _cand("戊峰", "成都", "no", lat=30.545),
-        _cand("甲馆", "成都", "yes", lat=31.5, dur=120),
-        _cand("乙馆", "成都", "yes", lat=31.5),
-        _cand("磁街区", "成都", None, lat=31.5),
+        _cand("甲馆", "成都", "yes", lat=30.70, dur=120),
+        _cand("乙馆", "成都", "yes", lat=30.70),
+        _cand("磁街区", "成都", None, lat=30.70),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
@@ -149,9 +149,9 @@ def test_unmarked_kept_with_umbrella_note_when_nothing_to_swap():
         _cand("丁岭", "成都", "no", lat=30.515),
         _cand("戊峰", "成都", "no", lat=30.53),
         _cand("己山", "成都", "no", lat=30.545),
-        _cand("甲馆", "成都", "yes", lat=31.5, dur=120),
-        _cand("乙馆", "成都", "yes", lat=31.5),
-        _cand("磁街区", "成都", None, lat=31.5),
+        _cand("甲馆", "成都", "yes", lat=30.70, dur=120),
+        _cand("乙馆", "成都", "yes", lat=30.70),
+        _cand("磁街区", "成都", None, lat=30.70),
     ]
     notes: list[str] = []
     picked = PlanningAgent._deterministic_selection(
