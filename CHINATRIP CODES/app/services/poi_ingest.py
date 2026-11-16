@@ -612,11 +612,7 @@ def merge_place(
             if only_ids is not None:
                 # 人工点名：按 id 直取（跨城标签也能取到），不做内核/城市筛选
                 wanted = {str(x) for x in only_ids}
-                uuid_like = [
-                    x
-                    for x in wanted
-                    if len(x) == 36 and x.count("-") == 4
-                ]
+                uuid_like = [x for x in wanted if len(x) == 36 and x.count("-") == 4]
                 rows = _query_rows(
                     session,
                     city=None,
