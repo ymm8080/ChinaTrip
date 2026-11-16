@@ -734,6 +734,7 @@ def test_name_overlap_rejects_midfix_subfacilities():
     assert not _name_overlap("圆明园", "颐和园")
     assert not _name_overlap("秦始皇帝陵", "秦始皇兵马俑博物馆")
 
+
 def test_match_text_names_core_matches_short_wish_but_not_city_prefix():
     """用户只写地名内核（朱家角），底库行是全称（朱家角古镇）也要认；
     但内核只有城市名（上海老街 → 上海）或带括号分店标记的行不许泛化命中。"""
