@@ -15,7 +15,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | City | Attraction | English name | Mode | Boarding | First | Last | Ride (min) | official_status | window | fare | URL |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 上海 | 上海影视乐园 | Shanghai Film and TV Park | train | 人民广场站(3口) | 05:20 | 21:57 | 58 | no_official_page | baidu |  |  |
-| 上海 | 上海梵高星空艺术馆 | Shanghai Van Gogh Starry Sky Art Museum | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | no_official_page | baidu |  |  |
+| 上海 | 上海梵高星空艺术馆 |  | shuttle |  |  |  |  |  |  |  |  |
 | 上海 | 东林寺 | Donglin Temple | bus | 人民广场站 | 08:30 | 08:30 | 58 | no_official_page | baidu |  |  |
 | 上海 | 州桥老街 |  | shuttle |  |  |  |  |  |  |  |  |
 | 上海 | 张堰镇 |  | shuttle |  |  |  |  |  |  |  |  |
@@ -40,7 +40,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 北京 | 长城之漫观景台 |  | shuttle |  |  |  |  |  |  |  |  |
 | 北京 | 雁柏山庄 |  | shuttle |  |  |  |  |  |  |  |  |
 | 北京 | 雁栖湖 | Yanqi Lake | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | no_official_page | baidu |  |  |
-| 南京 | 濮塘风景区 | Putang Scenic Area | shuttle | 鸡鸣寺站(5口) | 13:10 | 13:10 | 113 | no_official_page | baidu |  |  |
+| 南京 | 濮塘风景区 |  | shuttle |  |  |  |  |  |  |  |  |
 | 广州 | 广州融创乐园 | Guangzhou Sunac Land | train | 北京路站(B口) | 08:48 | 08:48 | 87 | no_official_page | baidu |  |  |
 | 广州 | 广州融创体育世界 |  | train |  |  |  |  |  |  |  |  |
 | 广州 | 广州融创大马戏-奇幻秘境 |  | train |  |  |  |  |  |  |  |  |
@@ -80,8 +80,8 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 三渡悬崖漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 下姜村 |  | train |  |  |  |  |  |  |  |  |
 | 杭州 | 临安博物馆 | Lin'an Museum | shuttle | 武林广场北②站 | 07:10 | 19:30 | 58 | no_official_page | baidu |  |  |
-| 杭州 | 九溪十八涧 | Jiuxi Shibajian (Nine Creeks and Eighteen Gullies) | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
-| 杭州 | 九溪烟树 | Nine Creeks and Misty Trees | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
+| 杭州 | 九溪十八涧 |  | shuttle |  |  |  |  |  |  |  |  |
+| 杭州 | 九溪烟树 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 九龙溪漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 凌云天桥 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 千岛湖冰火岛ATV山地越野车俱乐部 |  | shuttle |  |  |  |  |  |  |  |  |
@@ -121,7 +121,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 西天目风景区 | West Tianmu Mountain Scenic Area | shuttle | 武林门站 | 09:30 | 15:30 | 122 | no_official_page | baidu |  |  |
 | 杭州 | 轻野小坞Glamping露营地 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 金峰峡谷漂流 |  | shuttle |  |  |  |  |  |  |  |  |
-| 杭州 | 钱王祠 | Qianwang Temple (King Qian's Shrine) | shuttle | 武林门站 | 09:30 | 15:30 | 163 | no_official_page | baidu |  |  |
+| 杭州 | 钱王祠 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 雅鲁激流探险漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 青山殿村 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 青山湖水上森林 | Qingshan Lake Water Forest | shuttle | 武林广场北②站 | 07:10 | 19:30 | 66 | no_official_page | baidu |  |  |
@@ -129,11 +129,11 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 龙潭峡谷漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 深圳 | 梧桐山艺术小镇 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 七都镇 |  | shuttle |  |  |  |  |  |  |  |  |
-| 苏州 | 上方山森林动物世界 | Shangfangshan Forest Animal World | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 105 | no_official_page | baidu |  |  |
+| 苏州 | 上方山森林动物世界 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 双湖欢乐园 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 淀山湖 |  | bus |  |  |  |  |  |  |  |  |
 | 苏州 | 淀山湖庄园露营地 |  | bus |  |  |  |  |  |  |  |  |
-| 苏州 | 苏州御窑金砖博物馆 | Suzhou Imperial Kiln Golden Brick Museum | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 123 | verified | baidu | official | https://www.szyyjzbwg.com/jq.html |
+| 苏州 | 苏州御窑金砖博物馆 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 阳澄湖水上公园游乐场 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 震泽古镇 | Zhenze Ancient Town | shuttle | 桐泾北路 |  |  | 23 | no_official_page |  |  |  |
 | 苏州 | 震泽镇 |  | shuttle |  |  |  |  |  |  |  |  |
