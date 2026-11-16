@@ -319,6 +319,17 @@
     background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;
     box-shadow:0 6px 20px rgba(0,0,0,.22);padding:8px 10px;font-size:13px;line-height:1.55}
   .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
+  /* 接驳路线箱（2026-11-16）：每段一行，图标+段名+量化值，手机上不再糊成一段 */
+  .legbox{margin:2px 2px 8px;padding:8px 10px;border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:8px;background:var(--panel);font-size:13px;line-height:1.55;color:var(--text)}
+  .legbox .lh{font-weight:700;color:var(--accent);margin-bottom:4px;font-size:13px}
+  .legbox .lr{display:flex;gap:8px;align-items:baseline;padding:4px 0}
+  .legbox .lr + .lr{border-top:1px dashed var(--border)}
+  .legbox .li{flex:0 0 18px;text-align:center;font-size:15px}
+  .legbox .lb{flex:0 0 auto;font-weight:700;min-width:2.6em;color:var(--text)}
+  .legbox .lv{flex:1 1 auto;color:var(--text);word-break:break-word}
+  .legbox .lm{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;line-height:1.6}
+
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
@@ -2007,51 +2018,48 @@ function planCard(plan) {
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
-          // 接驳路线拆分（2026-11-16 用户拍板：酒店→专线上车点（距离+时间）→专线车程→下车步行，
-          // 并给班次、票价、购票/官网链接）。数据全部来自后端 next_leg_detail。
+          // 结构化接驳卡片（2026-11-16 用户拍板「TRANSPORTATION SHOULD SHOW LEG CLEARLY」，
+          // 四拍定稿：固定三行表格——打车段 / 专线段 / 购票与官网，图标+段名+量化值）。
           const legD = it.next_leg_detail;
           if (legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
-            const kmTxt = (Number(legD.taxi_km) || 0).toFixed(1);
-            const hops = [];
+            const rows = [];
+            const tips = [];
             if ((Number(legD.taxi_km) || 0) > 0.05) {
-              hops.push(I18N.tf("card.hop.taxi", "🚕 打车到 {stop} {km} km · 约 {n} 分钟")
-                .replace("{stop}", esc(legD.gateway || ""))
-                .replace("{km}", kmTxt)
-                .replace("{n}", String(legD.taxi_minutes || 0)));
+              rows.push('<div class="lr"><span class="li">\uD83D\uDE95</span><span class="lb">' +
+                I18N.tf("card.hop.lTaxi", "打车") + '</span><span class="lv">' +
+                I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
+                  .replace("{km}", (Number(legD.taxi_km) || 0).toFixed(1))
+                  .replace("{n}", String(legD.taxi_minutes || 0))
+                  .replace("{stop}", esc(legD.gateway || "")) + "</span></div>");
             }
             if (legD.service_name) {
-              let ride = I18N.tf("card.hop.ride", "🚌 {name} {depart} 发车 · 车程约 {n} 分钟")
-                .replace("{name}", esc(legD.service_name))
-                .replace("{depart}", legD.depart_time || I18N.tf("card.hop.asap", "首班后随到随走"))
-                .replace("{n}", String(legD.service_minutes || 0));
-              if ((legD.wait_minutes || 0) > 0) ride += I18N.tf("card.hop.wait", "（候车 {n} 分钟）").replace("{n}", String(legD.wait_minutes));
-              hops.push(ride);
+              const parts = [];
+              if (legD.depart_time) parts.push(I18N.tf("card.hop.departAt", "{t} 发车").replace("{t}", legD.depart_time));
+              parts.push(I18N.tf("card.hop.rideMin", "车程 {n} 分钟").replace("{n}", String(legD.service_minutes || 0)));
+              if ((legD.wait_minutes || 0) > 0) parts.push(I18N.tf("card.hop.waitMin", "候车 {n} 分钟").replace("{n}", String(legD.wait_minutes)));
+              if ((legD.walk_minutes || 0) > 0) parts.push(I18N.tf("card.hop.walkMin", "下车步行 {n} 分钟").replace("{n}", String(legD.walk_minutes)));
+              if (legD.arrive_time) parts.push(I18N.tf("card.hop.arriveAt", "约 {t} 到").replace("{t}", legD.arrive_time));
+              rows.push('<div class="lr"><span class="li">\uD83D\uDE8C</span><span class="lb">' +
+                I18N.tf("card.hop.lRide", "专线") + '</span><span class="lv">' + parts.join(" \u00b7 ") + "</span></div>");
+              tips.push(legD.service_name);
+              if (legD.operator) tips.push(legD.operator);
             }
-            if ((legD.walk_minutes || 0) > 0) {
-              hops.push(I18N.tf("card.hop.walk", "🚶 {stop} 下车 · 步行 {n} 分钟")
-                .replace("{stop}", esc(legD.alight || legD.gateway || ""))
-                .replace("{n}", String(legD.walk_minutes)));
-            }
-            if (hops.length) {
-              blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + I18N.tf("card.hop.title", "🚏 接驳路线：") + hops.join(" → ") + "</div>"));
-            }
-            const when = [];
-            if (Array.isArray(legD.departures) && legD.departures.length) {
-              when.push(I18N.tf("card.hop.times", "🕘 班次 {times}").replace("{times}", legD.departures.join(" / ")));
-            }
-            if (Array.isArray(legD.returns) && legD.returns.length) {
-              when.push(I18N.tf("card.hop.returns", "返程 {times}").replace("{times}", legD.returns.join(" / ")));
-            }
+            const pay = [];
             if ((legD.taxi_cost || 0) + (legD.access_cost || 0) > 0) {
-              when.push(I18N.tf("card.hop.cost", "打车约 ¥{a} + 接驳约 ¥{b}")
+              pay.push(I18N.tf("card.hop.cost", "打车约 ¥{a} + 接驳约 ¥{b}")
                 .replace("{a}", String(legD.taxi_cost || 0)).replace("{b}", String(legD.access_cost || 0)));
             }
-            if (when.length) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + when.join(" · ") + "</div>"));
-            const ticket = [];
-            if (legD.fare_text) ticket.push("🎟 " + esc(legD.fare_text));
-            if (legD.booking_url) ticket.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.booking_url) + '">' + I18N.tf("card.hop.book", "购票/预约 →") + "</a>");
-            if (legD.official_url && legD.official_url !== legD.booking_url) ticket.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.official_url) + '">' + I18N.tf("card.hop.official", "官网 →") + "</a>");
-            if (ticket.length) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + ticket.join(" · ") + "</div>"));
+            if (legD.booking_url) pay.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.booking_url) + '">' + I18N.tf("card.hop.book", "购票/预约 →") + "</a>");
+            if (legD.official_url && legD.official_url !== legD.booking_url) pay.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.official_url) + '">' + I18N.tf("card.hop.official", "官网 →") + "</a>");
+            if (pay.length) {
+              if (Array.isArray(legD.departures) && legD.departures.length) tips.push(I18N.tf("card.hop.times", "班次 {times}").replace("{times}", legD.departures.join(" / ")));
+              if (Array.isArray(legD.returns) && legD.returns.length) tips.push(I18N.tf("card.hop.returns", "返程 {times}").replace("{times}", legD.returns.join(" / ")));
+              if (legD.fare_text) tips.push(legD.fare_text);
+              const titleAttr = tips.length ? ' title="' + esc(tips.join(" \u00b7 ")) + '"' : "";
+              rows.push('<div class="lr"><span class="li">\uD83C\uDF9F</span><span class="lb">' +
+                I18N.tf("card.hop.lPay", "购票") + '</span><span class="lv"' + titleAttr + ">" + pay.join(" \u00b7 ") + "</span></div>");
+            }
+            if (rows.length) blk.appendChild(el('<div class="legbox">' + rows.join("") + "</div>"));
           }
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
