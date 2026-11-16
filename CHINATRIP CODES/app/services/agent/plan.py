@@ -30976,6 +30976,13 @@ class PlanningAgent:
         # 下面按新下限重新看空档（腿是派生态，动了就重算）。
         if reanchor_hotel_mornings(session.plan.days):
             annotate_legs(session.plan)
+        # 先把族归位再补空档（2026-11-16「ALWAYS」）：盘面先符合聚族规则，
+        # 否则远郊件还钉在市区天，补点又把市区件塞进它该占的那天。
+        for note in _apply_geo_invariants(session.plan, relax_pins=True):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+            if note not in session.assumptions:
+                session.assumptions.append(note)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
         # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
         _filled = any(
@@ -30990,13 +30997,6 @@ class PlanningAgent:
             return []
         if _filled and not _holes:
             return []
-        # 先把族归位再补空档（2026-11-16「ALWAYS」）：盘面先符合聚族规则，
-        # 否则远郊件还钉在市区天，补点又把市区件塞进它该占的那天。
-        for note in _apply_geo_invariants(session.plan, relax_pins=True):
-            if note not in session.plan.assumptions:
-                session.plan.assumptions.append(note)
-            if note not in session.assumptions:
-                session.assumptions.append(note)
         notes = await self._fill_leftover_time(
             session.plan,
             avoid=set(session.avoid_sites or ()),
