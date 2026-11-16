@@ -22,24 +22,24 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 上海 | 村口大树 | The Big Tree at the Village Entrance | bus | 人民广场站(3口) | 09:05 | 09:05 | 100 | pending | baidu |  |  |
 | 上海 | 金山城市沙滩 | Jinshan City Beach | train | 人民广场站(3口) | 05:20 | 21:57 | 107 | pending | baidu |  |  |
 | 上海 | 飞越上海(第一百货店) | Flying Over Shanghai (First Department Store) | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | pending | baidu |  |  |
-| 北京 | 九谷口自然风景区 | Jiugukou Natural Scenic Area | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 165 | pending | baidu |  |  |
-| 北京 | 八奇洞景区 | Baqi Cave Scenic Area | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | pending | baidu |  |  |
+| 北京 | 九谷口自然风景区 | Jiugukou Natural Scenic Area | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 165 | no_official_page | baidu |  |  |
+| 北京 | 八奇洞景区 | Baqi Cave Scenic Area | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/118181 |
 | 北京 | 八达岭长城 | Badaling Great Wall | shuttle | 前门站 | 06:30 | 11:00 | 91 | pending | baidu |  |  |
 | 北京 | 八达岭长城 | Badaling Great Wall | shuttle | Deshengmen (877) / Huangtudian (S2) / Qi |  |  |  | verified | official |  | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
-| 北京 | 北京二锅头酒博物馆 | Beijing Erguotou Wine Museum | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 73 | pending | baidu |  |  |
-| 北京 | 北京黄花城水长城漫心府 | Beijing Huanghuacheng Waterside Great Wall Manxin Mansion | bus | 王府井站(C4西南口) | 07:00 | 16:00 | 146 | pending | baidu |  |  |
-| 北京 | 古北口镇 | Gubeikou Town | shuttle | 前门站 | 09:00 | 09:00 | 141 | pending | baidu |  |  |
-| 北京 | 居庸关长城 | Juyongguan Great Wall | shuttle | 王府井站(C4西南口) | 09:00 | 09:00 | 60 | pending | baidu |  |  |
+| 北京 | 北京二锅头酒博物馆 | Beijing Erguotou Wine Museum | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 73 | verified | baidu | official | https://www.redstarwine.cn/fwzx/cgfw/cindex1.html |
+| 北京 | 北京黄花城水长城漫心府 | Beijing Huanghuacheng Waterside Great Wall Manxin Mansion | bus | 王府井站(C4西南口) | 07:00 | 16:00 | 146 | verified | baidu | official | https://huanghuacheng.com/index.php/Ticket/publicity.htm |
+| 北京 | 古北口镇 | Gubeikou Town | shuttle | 前门站 | 09:00 | 09:00 | 141 | no_official_page | baidu |  |  |
+| 北京 | 居庸关长城 | Juyongguan Great Wall | shuttle | 王府井站(C4西南口) | 09:00 | 09:00 | 60 | no_official_page | baidu |  |  |
 | 北京 | 慕田峪长城 | Mutianyu Great Wall | shuttle | Qianmen Street north entrance (Beijing H | 07:30 | 10:30 | 90 | verified | official |  | https://en.mutianyugreatwall.com/pdf/one-day |
-| 北京 | 慕田峪长城索道滑道 | Mutianyu Great Wall Cableway and Slide | shuttle | 前门站 | 07:00 | 12:00 | 109 | pending | baidu |  |  |
-| 北京 | 潭柘寺 | Tanzhe Temple | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | pending | baidu |  |  |
-| 北京 | 焦庄户村 | Jiaozhuanghu Village | shuttle | 王府井站(C4西南口) | 07:30 | 15:30 | 113 | pending | baidu |  |  |
-| 北京 | 百里山水画廊 | Baili Landscape Gallery | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 181 | pending | baidu |  |  |
-| 北京 | 箭扣长城 | Jiankou Great Wall | bus | 王府井站(C4西南口) | 05:50 | 20:00 | 119 | pending | baidu |  |  |
-| 北京 | 詹天佑纪念馆 | Zhan Tianyou Memorial Hall | shuttle | 前门站 | 06:30 | 11:00 | 92 | pending | baidu |  |  |
-| 北京 | 长城之漫观景台 | Great Wall Romance Viewing Platform | shuttle | 前门站 | 06:30 | 11:00 | 92 | pending | baidu |  |  |
-| 北京 | 雁柏山庄 | Yanbai Villa | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | pending | baidu |  |  |
-| 北京 | 雁栖湖 | Yanqi Lake | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | pending | baidu |  |  |
+| 北京 | 慕田峪长城索道滑道 | Mutianyu Great Wall Cableway and Slide | shuttle | 前门站 | 07:00 | 12:00 | 109 | verified | baidu | official | https://en.mutianyugreatwall.com/pdf/one-day |
+| 北京 | 潭柘寺 | Tanzhe Temple | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/117841 |
+| 北京 | 焦庄户村 | Jiaozhuanghu Village | shuttle | 王府井站(C4西南口) | 07:30 | 15:30 | 113 | verified | baidu | official | http://www.bjsupervision.gov.cn/lzdt/202101/t20210105_72 |
+| 北京 | 百里山水画廊 | Baili Landscape Gallery | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 181 | verified | baidu | official | http://www.blsshl.com/index.php/menpiao.html |
+| 北京 | 箭扣长城 | Jiankou Great Wall | bus | 王府井站(C4西南口) | 05:50 | 20:00 | 119 | no_official_page | baidu |  |  |
+| 北京 | 詹天佑纪念馆 | Zhan Tianyou Memorial Hall | shuttle | 前门站 | 06:30 | 11:00 | 92 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/101638 |
+| 北京 | 长城之漫观景台 | Great Wall Romance Viewing Platform | shuttle | 前门站 | 06:30 | 11:00 | 92 | verified | baidu |  | https://www.badaling.cn/ |
+| 北京 | 雁柏山庄 | Yanbai Villa | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | verified | baidu |  | https://www.slhhotels.cn/hotel/yanbai-villa |
+| 北京 | 雁栖湖 | Yanqi Lake | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | no_official_page | baidu |  |  |
 | 南京 | 濮塘风景区 | Putang Scenic Area | shuttle | 鸡鸣寺站(5口) | 13:10 | 13:10 | 113 | pending | baidu |  |  |
 | 广州 | 广州融创乐园 | Guangzhou Sunac Land | train | 北京路站(B口) | 08:48 | 08:48 | 87 | pending | baidu |  |  |
 | 广州 | 广州融创体育世界 | Guangzhou Sunac Sports World | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
