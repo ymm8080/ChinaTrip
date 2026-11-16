@@ -61,6 +61,7 @@ def _candidates(
     *,
     city: str | None,
     min_km: float,
+    max_km: float = 0.0,
     limit: int,
     force: bool,
     only_modes: tuple[str, ...] = (),
@@ -90,7 +91,7 @@ def _candidates(
         center = GeoPoint(lon=float(anchor[1]), lat=float(anchor[0]))
         here = GeoPoint(lon=float(lon), lat=float(lat))
         km = haversine_km(center, here)
-        if km < min_km:
+        if km < min_km or (max_km and km > max_km):
             continue
         out.append((pid, name, row_city, km, float(lon), float(lat)))
     out.sort(key=lambda r: r[3], reverse=True)
@@ -124,6 +125,7 @@ async def run(
     city: str | None = None,
     limit: int = 200,
     min_km: float = 15.0,
+    max_km: float = 0.0,
     sleep: float = 0.2,
     concurrency: int = 4,
     force: bool = False,
@@ -135,6 +137,7 @@ async def run(
         factory,
         city=city,
         min_km=min_km,
+        max_km=max_km,
         limit=limit,
         force=force,
         only_modes=only_modes,
@@ -196,6 +199,12 @@ def main() -> None:
     parser.add_argument(
         "--min-km", type=float, default=15.0, help="只回填距城心超过此距离的点"
     )
+    parser.add_argument(
+        "--max-km",
+        type=float,
+        default=0.0,
+        help="超过该距离直接跳过（0=不限；三峡类 300km+ 点白烧配额）",
+    )
     parser.add_argument("--sleep", type=float, default=0.2, help="每条之间歇秒")
     parser.add_argument(
         "--concurrency", type=int, default=4, help="并发条数（默认 4，同一 AK 别调高）"
@@ -214,6 +223,7 @@ def main() -> None:
             city=args.city,
             limit=args.limit,
             min_km=args.min_km,
+            max_km=args.max_km,
             sleep=args.sleep,
             concurrency=args.concurrency,
             force=args.force,

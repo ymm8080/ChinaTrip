@@ -24,8 +24,8 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 上海 | 飞越上海(第一百货店) |  | shuttle |  |  |  |  |  |  |  |  |
 | 北京 | 九谷口自然风景区 | Jiugukou Natural Scenic Area | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 165 | no_official_page | baidu |  |  |
 | 北京 | 八奇洞景区 | Baqi Cave Scenic Area | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/118181 |
-| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | 前门站 | 06:30 | 11:00 | 91 | verified | baidu | official | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
-| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | Deshengmen (877) / Huangtudian (S2) / Qi |  |  |  | verified | official |  | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
+| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | Qianmen Dispatch Center (~30m south of M |  |  | 100 | verified | official | official | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
+| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | Metro Beitucheng Station (B/C exit, NE c | 06:00 | 12:30 | 70 | verified | official | official | https://www.bjbus.com/home/fun_news_detail.php?uNewsCode |
 | 北京 | 北京二锅头酒博物馆 | Beijing Erguotou Wine Museum | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 73 | verified | baidu | official | https://www.redstarwine.cn/fwzx/cgfw/cindex1.html |
 | 北京 | 北京黄花城水长城漫心府 |  | bus |  |  |  |  |  |  |  |  |
 | 北京 | 古北口镇 | Gubeikou Town | shuttle | 前门站 | 09:00 | 09:00 | 141 | no_official_page | baidu |  |  |
@@ -55,7 +55,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 成都 | 安仁古镇-公馆老街 |  | bus |  |  |  |  |  |  |  |  |
 | 成都 | 安仁古镇景区 | Anren Ancient Town Scenic Area | shuttle | 孵化园站(E1口) | 08:45 | 17:15 | 57 | verified | baidu | official | https://new.china-anren.com/ |
 | 成都 | 安仁镇 |  | shuttle |  |  |  |  |  |  |  |  |
-| 成都 | 宝山旅游景区 | Baoshan Tourist Attraction | shuttle | 孵化园站(E1口) | 06:40 | 17:30 | 170 | verified | baidu | official | https://baike.baidu.com/item/宝山旅游景区/17644705 |
+| 成都 | 宝山旅游景区 | Baoshan Tourist Attraction | shuttle | 孵化园站(E1口) | 06:40 | 17:30 | 170 | no_official_page | baidu |  |  |
 | 成都 | 宝山温泉 |  | shuttle |  |  |  |  |  |  |  |  |
 | 成都 | 成都市西岭雪山景区 | Xiling Snow Mountain Scenic Area, Chengdu | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
 | 成都 | 日月坪 | Riyueping | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
@@ -69,7 +69,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 成都 | 花水湾豪生百乐汤温泉 |  | shuttle |  |  |  |  |  |  |  |  |
 | 成都 | 西岭峡谷漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 成都 | 西岭雪山 | Xiling Snow Mountain | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
-| 成都 | 都江堰中华大熊猫苑(原熊猫乐园) | Dujiangyan Panda Base (formerly Panda Paradise) | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | no_official_page | baidu |  |  |
+| 成都 | 都江堰中华大熊猫苑(原熊猫乐园) | Dujiangyan Panda Base (formerly Panda Paradise) | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | verified | baidu |  | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 青城前山-索道 | Qingcheng Front Mountain - Ropeway | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 青城山 | Mount Qingcheng | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 青城山尊铂森林温泉 |  | train |  |  |  |  |  |  |  |  |
@@ -79,7 +79,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | OMG心跳乐园 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 三渡悬崖漂流 |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 下姜村 |  | train |  |  |  |  |  |  |  |  |
-| 杭州 | 临安博物馆 | Lin'an Museum | shuttle | 武林广场北②站 | 07:10 | 19:30 | 58 | verified | baidu | official | https://wy.lanews.com.cn/ |
+| 杭州 | 临安博物馆 | Lin'an Museum | shuttle | 武林广场北②站 | 07:10 | 19:30 | 58 | no_official_page | baidu |  |  |
 | 杭州 | 九溪十八涧 | Jiuxi Shibajian (Nine Creeks and Eighteen Gullies) | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 九溪烟树 | Nine Creeks and Misty Trees | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 九龙溪漂流 |  | shuttle |  |  |  |  |  |  |  |  |
