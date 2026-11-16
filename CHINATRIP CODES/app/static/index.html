@@ -2158,7 +2158,7 @@ function planCard(plan) {
               });
               blk.appendChild(el('<div class="legbox"><div class="legopts">' + blocks.join("") + "</div></div>"));
               const picksRow = hopPickRow(it, legD, legD.direction === "return" ? "return" : "out");
-              if (picksRow) blk.appendChild(el(picksRow));
+              if (picksRow) blk.appendChild(frag(picksRow)); // 去程+返程两行：el() 只取首节点
             } else {
             const rows = [];
             const tips = [];
@@ -2221,7 +2221,7 @@ function planCard(plan) {
             }
             if (rows.length) blk.appendChild(el('<div class="legbox">' + rows.join("") + "</div>"));
             const picksRow = hopPickRow(it, legD, isRet ? "return" : "out");
-            if (picksRow) blk.appendChild(el(picksRow));
+            if (picksRow) blk.appendChild(frag(picksRow)); // 去程+返程两行：el() 只取首节点
             }
           }
         }

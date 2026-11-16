@@ -434,6 +434,36 @@ function gateE() {
 }
 
 
+/* ---------- F. 接驳两行班次门（2026-11-16 返程行不渲染案） ----------
+ * hopPickRow 返回「去程行 + 返程行」两段 HTML；调用处必须用 frag() 挂载。
+ * el() 只回 firstChild（见 el 实现），会把返程行整段吞掉——用户实报
+ * 「still no backward transportation information」正是此因。
+ */
+function gateF() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("接驳两行班次门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  if (!/function hopPickRow\(/.test(src)) {
+    fail("接驳两行班次门: 找不到 hopPickRow（改名？同步更新本门）");
+    return;
+  }
+  if (!/const ret = \(Array\.isArray\(legD\.returns\)/.test(src)) {
+    fail("接驳两行班次门: hopPickRow 不再拼返程行（去程/返程两行是 2026-11-16 拍板）");
+    return;
+  }
+  const bad = src.match(/appendChild\(el\(picksRow\)\)/g) || [];
+  if (bad.length) {
+    fail("接驳两行班次门: " + bad.length + " 处仍用 el(picksRow) —— el() 只取首节点会吞掉返程行，改 frag()");
+    return;
+  }
+  const good = src.match(/appendChild\(frag\(picksRow\)\)/g) || [];
+  if (good.length < 2) {
+    fail("接驳两行班次门: 只找到 " + good.length + " 处 frag(picksRow)（应 2 处：多方式块 + 单方式块）");
+    return;
+  }
+  ok("接驳两行班次门 去程+返程两行用 frag() 挂载（" + good.length + " 处）");
+}
+
 /* ---------- 入口：直接运行才执行；被 require 时只导出分词器供 harness 复用 ---------- */
 function main() {
   gateA();
@@ -441,6 +471,7 @@ function main() {
   gateC();
   gateD();
   gateE();
+  gateF();
   if (failed) { console.error("\n" + failed + " 项未过——见上方 FAIL"); process.exit(1); }
   console.log("\nH5 静态守门全部通过");
 }
