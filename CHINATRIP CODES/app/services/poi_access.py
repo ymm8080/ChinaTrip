@@ -23,7 +23,11 @@ import time
 from typing import Any
 
 from app.services.itinerary.models import GeoPoint, ItineraryPlan, VisitItem
-from app.services.itinerary.rules import haversine_km, taxi_leg_min
+from app.services.itinerary.rules import (
+    MORNING_RUSH_EXTRA_MINUTES,
+    haversine_km,
+    taxi_leg_min,
+)
 from app.services.weather_open_meteo import CITY_COORDS
 
 #: 出行方式排序（取「主干那一段」用）：数字越大越算主干。
@@ -485,7 +489,9 @@ def profile_for(city: str | None, name: str | None) -> dict[str, Any] | None:
     return profiles.get((str(city or ""), name)) or profiles.get(("", name))
 
 
-def head_chain_minutes(item: Any, *, depart_minute: int | None = None) -> int | None:
+def head_chain_minutes(
+    item: Any, *, depart_minute: int | None = None, morning_rush: bool = False
+) -> int | None:
     """当天首件的头部接驳分钟（打车到乘车点 + 候车 + 车上 + 落客）。
 
     为什么用城心代理：酒店卡只有名字没有坐标时，头部锚点只能给 30 分钟默认
@@ -523,7 +529,7 @@ def head_chain_minutes(item: Any, *, depart_minute: int | None = None) -> int | 
         return None
     head = taxi_leg_min(
         haversine_km(GeoPoint(lon=float(center[1]), lat=float(center[0])), boarding)
-    )
+    ) + (MORNING_RUSH_EXTRA_MINUTES if morning_rush else 0)
     board = (depart_minute if depart_minute is not None else 9 * 60) + head
     try:
         from app.services import access_services

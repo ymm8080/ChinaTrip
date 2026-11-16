@@ -34,7 +34,10 @@ from app.services.itinerary.models import (
     VisitItem,
     departure_buffer_minutes,
 )
-from app.services.itinerary.rules import travel_gap_needed
+from app.services.itinerary.rules import (
+    morning_departure_anchor,
+    travel_gap_needed,
+)
 from app.services.lang_ctx import L
 
 HOTEL_CHECKIN_ID_PREFIX = "hotel-checkin"
@@ -347,14 +350,18 @@ def _head_access_chain(dp: DayPlan) -> int:
         # 晨卡口径：08:30 出发 → 到乘车点后取最快一班（时刻表），
         # 与 access_breakdown 的腿值同源，免得卡上时间比腿短半小时。
         return (
-            head_chain_minutes(timed[0], depart_minute=HOTEL_MORNING_EARLIEST_MINUTES)
+            head_chain_minutes(
+                timed[0],
+                depart_minute=HOTEL_MORNING_EARLIEST_MINUTES,
+                morning_rush=True,
+            )
             or 0
         )
     except Exception:  # noqa: BLE001 — 档案不可用=维持旧排法
         return 0
 
 
-def _open_morning_slot(dp: DayPlan) -> bool:
+def _open_morning_slot(dp: DayPlan, *, head_target: int | None = None) -> bool:
     """把当天首站让到 09:00 之后，给「08:30 离店」的出发卡腾出日始。
 
     只做纯算术平移（件间隔、营业窗判定、腿时长都不变）：日始 08:30 开场
@@ -362,11 +369,12 @@ def _open_morning_slot(dp: DayPlan) -> bool:
     早于日始的时刻=硬约束（早班车/用户手钉时刻），不挪——调用方回落到「卡贴
     首件」的旧窗口，绝不让卡压住硬时刻件。
     """
-    chain = _head_access_chain(dp)
-    # 2026-11-16 用户拍板「从酒店出发 08:30」：出发时刻锚在 08:30（晨卡起点），
-    # 首件按「08:30 + 接驳链」顺移（慕田峪 142 分钟 → 10:52 起）；晨卡 08:30-
-    # 09:00 的 30 分钟是打包/退房窗口，接驳从 08:30 起算。
-    head_target = HOTEL_MORNING_EARLIEST_MINUTES + chain
+    if head_target is None:
+        chain = _head_access_chain(dp)
+        # 2026-11-16 用户拍板「从酒店出发 08:30」：出发时刻锚在 08:30（晨卡起点），
+        # 首件按「08:30 + 接驳链」顺移（慕田峪 142 分钟 → 10:52 起）；晨卡 08:30-
+        # 09:00 的 30 分钟是打包/退房窗口，接驳从 08:30 起算。
+        head_target = HOTEL_MORNING_EARLIEST_MINUTES + chain
     fixed: list[VisitItem | TransferItem] = []
     early: list[VisitItem | TransferItem] = []
     for item in dp.items:
@@ -541,6 +549,38 @@ def _stay_night_card(by_day: dict[int, DayPlan], day: int) -> VisitItem | None:
     return _night_card_of(by_day.get(day - 1))
 
 
+def _morning_anchor_for(
+    dp: DayPlan,
+    first: VisitItem,
+    from_point: GeoPoint | None,
+    city: str | None,
+) -> dict | None:
+    """晨卡→首站班次锚定（2026-11-16 用户拍板「拿班次时间当硬铆钉，回算出酒店时间」）。
+
+    打车起点与 access_breakdown 同源（a.location or a.anchor_location）：
+    已验证酒店=夜卡/晨卡真坐标；占位卡=城心锚（CITY_COORDS，与晨卡兜底锚同源）。
+    返回 dict(hotel_start/depart/first_start/...)；非班次件/无时刻表返回 None
+    （调用方走旧窗口，绝不让锚定挡排期）。
+    """
+    if from_point is None:
+        try:
+            from app.services.weather_open_meteo import CITY_COORDS
+
+            xy = CITY_COORDS.get(
+                str(city or dp.base_city or "").removesuffix("市")
+            )
+            if xy:
+                from_point = GeoPoint(lon=float(xy[1]), lat=float(xy[0]))
+        except Exception:  # noqa: BLE001 — 锚表缺失不影响旧窗口
+            from_point = None
+    if from_point is None:
+        return None
+    try:
+        return morning_departure_anchor(first, from_point=from_point)
+    except Exception:  # noqa: BLE001 — 档案/班次库不可用=走旧窗口
+        return None
+
+
 def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
     """每天以酒店为出发点：给「当晚/前一晚住店」的那天开头插晨卡。
 
@@ -564,19 +604,39 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
         if night is None:
             continue
         first = _first_timed_item(dp)
+        anchor = None
         if first is not None and not isinstance(first, TransferItem):
             # 首站让到 09:00 之后，卡才能落 08:30-09:00（2026-11-14）
-            _open_morning_slot(dp)
+            anchor = _morning_anchor_for(dp, first, night.location, night.city)
+            _open_morning_slot(
+                dp, head_target=anchor["first_start"] if anchor else None
+            )
             first = _first_timed_item(dp)
-        window = _morning_window(
-            _minutes_of(first.start_time) if first is not None else None,
-            transfer=isinstance(first, TransferItem),
-            transfer_mode=getattr(first, "mode", None),
-            chain=0 if isinstance(first, TransferItem) else _head_access_chain(dp),
-        )
-        if window is None:
-            continue
-        s, e = window
+        if anchor is not None and (
+            first is None or _minutes_of(first.start_time) < anchor["first_start"]
+        ):
+            # 首件是硬钉/固定场次，推不到锚定开场：回落旧窗口（卡贴首件）
+            anchor = None
+        if anchor is not None:
+            # 班次硬铆钉（2026-11-16 用户拍板「拿班次时间当硬铆钉，回算出酒店
+            # 时间」）：晨卡起点=班次−打车(含早高峰)，恒准点赶上、候车归零；
+            # 首站开场已由 _open_morning_slot 推到「班次+车上+落客」。
+            s = anchor["hotel_start"]
+            e = s + HOTEL_MORNING_MINUTES
+        else:
+            window = _morning_window(
+                _minutes_of(first.start_time) if first is not None else None,
+                transfer=isinstance(first, TransferItem),
+                transfer_mode=getattr(first, "mode", None),
+                chain=(
+                    0
+                    if isinstance(first, TransferItem)
+                    else _head_access_chain(dp)
+                ),
+            )
+            if window is None:
+                continue
+            s, e = window
         card = VisitItem(
             item_id=f"{HOTEL_MORNING_ID_PREFIX}-d{dp.day}",
             name=hotel_morning_label(night.name),
@@ -687,10 +747,39 @@ def reanchor_hotel_mornings(
         if card is None or card.item_id in keep:
             continue
         first = _first_timed_item(dp)
+        anchor = None
         if first is not None and not isinstance(first, TransferItem):
-            if _open_morning_slot(dp):
+            anchor = _morning_anchor_for(
+                dp,
+                first,
+                card.location or getattr(card, "anchor_location", None),
+                card.city,
+            )
+            if _open_morning_slot(
+                dp, head_target=anchor["first_start"] if anchor else None
+            ):
                 touched.add(dp.day)
             first = _first_timed_item(dp)
+        if anchor is not None and (
+            first is None or _minutes_of(first.start_time) < anchor["first_start"]
+        ):
+            # 首件是硬钉/固定场次，推不到锚定开场：回落旧窗口（卡贴首件）
+            anchor = None
+        if anchor is not None:
+            # 班次硬铆钉（2026-11-16 用户拍板）：晨卡起点=班次−打车(含早高峰)，
+            # 卡占 30 分钟；幂等（已在锚定窗口则不再写）。
+            start = anchor["hotel_start"]
+            end = start + HOTEL_MORNING_MINUTES
+            if (
+                _minutes_of(card.start_time) == start
+                and _minutes_of(card.end_time) == end
+            ):
+                continue
+            card.start_time = time(start // 60, start % 60)
+            card.end_time = time(end // 60, end % 60)
+            card.duration_minutes = HOTEL_MORNING_MINUTES
+            touched.add(dp.day)
+            continue
         if first is None:
             # 空天（2026-11-13 续）：当天已无可排件，卡回日始前
             # 08:30–09:00——与初次插入的空天窗口同口径，不留在

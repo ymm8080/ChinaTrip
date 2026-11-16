@@ -25,9 +25,11 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.rules import (
+    MORNING_RUSH_EXTRA_MINUTES,
     TAXI_WALK_MAX_KM,
     TRAVEL_MIN_PER_KM,
     _access_profile,
+    _is_morning_hotel,
     access_breakdown,
     haversine_km,
     taxi_leg_min,
@@ -249,6 +251,7 @@ def _options_detail(
     city: str,
 ) -> dict:
     """多方式候选块明细：推荐项平铺为顶层字段（兼容旧读法），全量进 options。"""
+    _rush = MORNING_RUSH_EXTRA_MINUTES if _is_morning_hotel(a) else 0
     for o in opts:
         if (
             o.get("boarding_lon") is not None
@@ -260,7 +263,7 @@ def _options_detail(
                 GeoPoint(lon=float(o["boarding_lon"]), lat=float(o["boarding_lat"])),
             )
             o["taxi_km"] = round(km, 2)
-            o["taxi_minutes"] = taxi_leg_min(km)
+            o["taxi_minutes"] = taxi_leg_min(km) + _rush
         else:
             o.setdefault("taxi_km", br.get("taxi_km"))
             o.setdefault("taxi_minutes", br.get("taxi_minutes"))
@@ -279,6 +282,11 @@ def _options_detail(
         "mode": "access",
         "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
         "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "taxi_rush_note": (
+            L("含早高峰 15′", "incl. 15' rush-hour traffic")
+            if int(br.get("rush") or 0) > 0
+            else ""
+        ),
         "wait_minutes": int(rec.get("wait_minutes") or 0),
         "service_minutes": int(rec.get("ride_minutes") or 0),
         "walk_minutes": int(rec.get("last_mile_minutes") or 0),
@@ -331,6 +339,11 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         "mode": "access",
         "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
         "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "taxi_rush_note": (
+            L("含早高峰 15′", "incl. 15' rush-hour traffic")
+            if int(br.get("rush") or 0) > 0
+            else ""
+        ),
         "wait_minutes": int(br.get("wait") or 0),
         "service_minutes": int(br.get("service") or 0),
         "walk_minutes": int(br.get("last") or 0),
@@ -390,6 +403,11 @@ def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         "direction": "return",
         "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
         "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "taxi_rush_note": (
+            L("含早高峰 15′", "incl. 15' rush-hour traffic")
+            if int(br.get("rush") or 0) > 0
+            else ""
+        ),
         "wait_minutes": int(br.get("wait") or 0),
         "service_minutes": ride,
         "walk_minutes": int(br.get("last") or 0),

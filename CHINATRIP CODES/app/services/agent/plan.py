@@ -11308,7 +11308,7 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             chain = (
                 travel_gap_needed(prev_located, cur)
                 if prev_located is not None
-                else head_chain_minutes(cur)
+                else head_chain_minutes(cur, morning_rush=True)
             )
             if chain is None and prev_located is not None:
                 chain = _leg_minutes_estimate(prev_located, cur)

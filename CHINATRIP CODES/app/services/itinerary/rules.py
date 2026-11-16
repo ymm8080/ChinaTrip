@@ -123,6 +123,11 @@ def taxi_leg_min(km: float) -> int:
 #: 有班次接驳的到达方式：这几种点按「打车到乘车点 + 候车 + 班次 + 落客」算腿。
 SCHEDULED_ACCESS_MODES = ("train", "shuttle", "ferry")
 
+#: 早高峰附加（2026-11-16 用户拍板「所有早上 TAXI 自动加上 15 分钟早高峰额外时间」）：
+#: 晨卡（从酒店出发）的打车段统一 +15 分钟——08:30-09:00 离店正撞早高峰；
+#: 普通景间腿不加。
+MORNING_RUSH_EXTRA_MINUTES = 15
+
 
 def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int, int]:
     """b 的接驳量：卡上字段优先；没有就按 (city, name) 查一次城市档案。
@@ -297,6 +302,86 @@ def _return_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     }
 
 
+def morning_departure_anchor(
+    b: VisitItem,
+    *,
+    from_point: GeoPoint | None,
+    base_minute: int = 8 * 60 + 30,
+) -> dict | None:
+    """晨卡→班次件的早高峰锚定（2026-11-16 用户拍板「拿班次时间当硬铆钉，
+    回算出酒店时间」）。
+
+    口径与腿同源（service_options + access_breakdown）：打车段 = 酒店/城心锚
+    → 各方式自己的乘车点 + 15′ 早高峰；board0 = base + 打车（含早高峰）；
+    班次取推荐块（换乘少+时间短）的下一班 depart（时刻表口径，无时刻表不锚）；
+    回算离店时刻 = depart − 打车（含早高峰）——depart ≥ board0 保证回算值
+    ≥ base（恒赶得上）；首站开场 = depart + 车上 + 落客。锚定后候车恒 0。
+    非班次件 / 无上车点 / 无时刻表 / 固定场次件返回 None（调用方走旧窗口）。
+    """
+    if getattr(b, "fixed_sessions", None):
+        return None  # 场次时钟来自场馆，班次硬铆钉不与场次抢锚
+    mode, boarding, service, wait, last = _access_profile(b)
+    if mode not in SCHEDULED_ACCESS_MODES:
+        return None  # 回城返向链不参与晨卡锚定
+    if from_point is None or (boarding is None and not b.name):
+        return None
+
+    def _taxi(coords):
+        point = (
+            GeoPoint(lon=float(coords[0]), lat=float(coords[1]))
+            if coords
+            else boarding
+        )
+        if point is None:
+            return 0
+        head = taxi_leg_min(haversine_km(from_point, point))
+        return head + MORNING_RUSH_EXTRA_MINUTES
+
+    options: list[dict] = []
+    try:
+        from app.services import access_services
+
+        options = access_services.service_options(
+            getattr(b, "city", None),
+            b.name,
+            board_minutes=base_minute,
+            ride_fallback=service,
+            last_fallback=last,
+            wait_fallback=wait,
+            taxi_minutes=_taxi,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=不锚定（走旧窗口）
+        options = []
+    if options:
+        opt = options[0]
+        head = int(opt.get("taxi_minutes") or 0)
+        depart = _hhmm_minutes(opt.get("depart"))
+        ride = int(opt.get("ride_minutes") or 0)
+        last_mile = int(opt.get("last_mile_minutes") or 0)
+    else:
+        # 无班次库（离线/测试）：按卡上官方时刻 + 档案值兜底，口径不变
+        head = _taxi(None)
+        depart, ride, last_mile, _w = _fastest_ride(
+            getattr(b, "city", None),
+            b.name,
+            base_minute + head,
+            service,
+            last,
+            getattr(b, "access_depart_times", None),
+        )
+    if depart is None:
+        return None
+    return {
+        "hotel_start": depart - head,
+        "depart": depart,
+        "first_start": depart + ride + last_mile,
+        "taxi_minutes": head,
+        "wait": 0,
+        "service": ride,
+        "last": last_mile,
+    }
+
+
 def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     """a → b 的接驳链拆分（2026-11-16 用户拍板「显示打车段/专线/步行」）。
 
@@ -315,6 +400,9 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         return None
     taxi_km = haversine_km(_from, boarding)
     head = taxi_leg_min(taxi_km)
+    # 早高峰：晨卡出发的打车段 +15 分钟（2026-11-16 用户拍板「所有早上 TAXI
+    # 自动加上 15 分钟早高峰额外时间」）——各方式乘车点共用这一笔。
+    rush = MORNING_RUSH_EXTRA_MINUTES if _is_morning_hotel(a) else 0
     a_end = None
     if getattr(a, "end_time", None) is not None:
         a_end = a.end_time.hour * 60 + a.end_time.minute
@@ -342,10 +430,10 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         if not add_head:
             return 0
         if not coords:
-            return head
+            return head + rush
         return taxi_leg_min(
             haversine_km(_from, GeoPoint(lon=float(coords[0]), lat=float(coords[1])))
-        )
+        ) + rush
 
     # 2026-11-16 用户拍板「不同方式分 BLOCK 并排，默认换乘少+时间短」：
     # 每个官方班次行出一块，排序 (换乘, 全程, 票价)，腿时间与推荐块同口径。
@@ -378,7 +466,13 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         wait_minutes = int(opt.get("wait_minutes") or 0)
         board = a_end_min + head
     else:
-        board = (a_end + head) if a_end is not None else 9 * 60
+        if a_end is not None:
+            # 打车段含早高峰（与 options 分支 _taxi_to 同口径）：
+            # board / minutes / taxi_minutes 一起按含早高峰的车程算。
+            head += rush
+            board = a_end + head
+        else:
+            board = 9 * 60
         depart, ride, last_mile, wait_minutes = _fastest_ride(
             getattr(b, "city", None),
             b.name,
@@ -399,6 +493,7 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         "minutes": minutes,
         "taxi_km": taxi_km,
         "taxi_minutes": head,
+        "rush": rush,
         "wait": max(0, wait_minutes or 0),
         "service": ride,
         "last": last_mile,

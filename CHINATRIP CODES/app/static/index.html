@@ -2069,7 +2069,9 @@ function planCard(plan) {
                     I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
                       .replace("{km}", (Number(o.taxi_km) || 0).toFixed(1))
                       .replace("{n}", String(o.taxi_minutes || 0))
-                      .replace("{stop}", esc(o.boarding_stop || "")) + "</span></div>");
+                      .replace("{stop}", esc(o.boarding_stop || ""))
+                    + (legD.taxi_rush_note ? " (" + esc(legD.taxi_rush_note) + ")" : "")
+                    + "</span></div>");
                 } else if (o.boarding_stop) {
                   rows.push('<div class="lr"><span class="li">\uD83D\uDE8F</span><span class="lb">' +
                     I18N.tf("card.hop.lBoard", "乘车点") + '</span><span class="lv">' + esc(o.boarding_stop) + "</span></div>");
@@ -2126,7 +2128,9 @@ function planCard(plan) {
                 I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
                   .replace("{km}", (Number(legD.taxi_km) || 0).toFixed(1))
                   .replace("{n}", String(legD.taxi_minutes || 0))
-                  .replace("{stop}", esc(legD.gateway || "")) + "</span></div>");
+                  .replace("{stop}", esc(legD.gateway || ""))
+                + (legD.taxi_rush_note ? " (" + esc(legD.taxi_rush_note) + ")" : "")
+                + "</span></div>");
             }
             if (legD.service_name) {
               const parts = [];

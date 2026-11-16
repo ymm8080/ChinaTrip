@@ -200,10 +200,11 @@ def test_morning_hotel_chain_uses_checkout_time_and_timetable():
         br = rules.access_breakdown(hotel, mt)
     finally:
         access_services.configure_store(None)
-    assert br["board"] == 8 * 60 + 46  # 08:30 + 16 分钟打车
+    assert br["board"] == 8 * 60 + 46 + 15  # 08:30 + 16 打车 + 15′ 早高峰 = 09:01
+    assert br["rush"] == 15
     assert br["depart"] == 9 * 60 + 30
-    assert br["wait"] == 44
-    assert br["minutes"] == 16 + 44 + 90 + 8  # 158
+    assert br["wait"] == 44 - 15  # 早高峰吃进候车：09:30 − 09:01
+    assert br["minutes"] == 31 + 29 + 90 + 8  # 158（班次不变，候车被早高峰吃掉）
 
 
 def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
@@ -257,11 +258,12 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     assert detail["service_name"].startswith("前门旅游专线")
     assert detail["departures"] == ["07:30", "08:30", "09:30", "10:30"]
     assert detail["returns"] == ["14:30", "15:30", "16:30"]
-    assert detail["board_time"] == "08:46"
+    assert detail["board_time"] == "09:01"
     assert detail["depart_time"] == "09:30"
     assert detail["arrive_time"] == "11:08"
     assert detail["taxi_km"] > 0.5
-    assert detail["taxi_minutes"] >= 16
+    assert detail["taxi_minutes"] >= 31
+    assert "早高峰" in detail["taxi_rush_note"]
     assert detail["service_minutes"] == 90
     assert detail["walk_minutes"] == 8
     # 无班次库行=按模式估算
@@ -663,3 +665,151 @@ def test_return_chain_when_card_only_has_profile_archive():
         access_services.configure_store(None)
         poi_access.configure_profiles(None)
         poi_access._CITY_PROFILE_CACHE.clear()
+
+
+def test_morning_departure_anchor_back_calcs_hotel_start():
+    """班次硬铆钉（2026-11-16 拍板）：08:30 离店+16 打车+15′ 早高峰=09:01 到站，
+    取可达最早班 09:30 → 回算离店 08:59（到站即发车，候车归零），首站 11:08 开场。
+    """
+    from app.services import access_services
+    from app.services.itinerary import rules
+
+    access_services.configure_store(_FakeStore([_svc_row()]))
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+    )
+    try:
+        got = rules.morning_departure_anchor(
+            mt, from_point=GeoPoint(lon=116.4074, lat=39.9042)
+        )
+    finally:
+        access_services.configure_store(None)
+    assert got is not None
+    assert got["taxi_minutes"] == 31  # 16 打车 + 15′ 早高峰
+    assert got["depart"] == 9 * 60 + 30  # 09:01 到站后的可达最早班
+    assert got["hotel_start"] == 9 * 60 + 30 - 31  # 回算离店 08:59
+    assert got["hotel_start"] >= 8 * 60 + 30  # 不早于日始
+    assert got["wait"] == 0  # 到站即发车
+    assert got["first_start"] == 9 * 60 + 30 + 90 + 8  # 11:08 开场
+
+
+def test_morning_anchor_requires_shuttle_timetable_and_real_boarding():
+    """锚定只吃「班次接驳件 + 有时刻表」：普通景点/无时刻表返回 None（走旧窗口）。"""
+    from app.services import access_services
+    from app.services.itinerary import rules
+
+    access_services.configure_store(None)
+    plain = _v("p", "故宫", 116.397, 39.916)
+    assert (
+        rules.morning_departure_anchor(
+            plain, from_point=GeoPoint(lon=116.4074, lat=39.9042)
+        )
+        is None
+    )
+    mt_no_tt = _v(
+        "mt2",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_last_mile_minutes=8,
+        access_depart_times=[],
+        access_wait_minutes=10,
+    )
+    # 无 store、无卡上时刻表：不锚定（经验值兜底）
+    assert (
+        rules.morning_departure_anchor(
+            mt_no_tt, from_point=GeoPoint(lon=116.4074, lat=39.9042)
+        )
+        is None
+    )
+    # 无打车起点（酒店/城心锚都缺）：不锚定
+    assert rules.morning_departure_anchor(mt_no_tt, from_point=None) is None
+
+
+def test_morning_rush_buffers_only_the_hotel_departure_taxi():
+    """早高峰 15′ 只加晨卡出发的打车段；景间腿不重复加。"""
+    from app.services.itinerary import rules
+
+    hotel = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发",
+        city="北京",
+        day=1,
+        category="hotel",
+        duration_minutes=30,
+        location=None,
+        anchor_location=GeoPoint(lon=116.4074, lat=39.9042),
+        start_time=time(8, 30),
+        end_time=time(9, 0),
+    )
+    site = _v("s", "前门大街", 116.3982, 39.8988)
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_last_mile_minutes=8,
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+    )
+    got = rules.access_breakdown(hotel, mt)
+    assert got is not None and got["rush"] == 15
+    got2 = rules.access_breakdown(site, mt)
+    assert got2 is not None and got2["rush"] == 0
+
+
+def test_attach_morning_card_anchors_to_nearest_departure():
+    """attach 接锚定：晨卡 08:30 默认离店 → 班次 09:30 → 卡改 08:59-09:29；
+    首站按「班次+车上+落客」11:08 开场（到站即发车）。"""
+    from app.services import access_services
+    from app.services.agent.hotel_stays import attach_hotel_mornings, is_hotel_morning
+
+    access_services.configure_store(_FakeStore([_svc_row()]))
+    try:
+        night = VisitItem(
+            item_id="hotel-night-d1",
+            name="丽枫酒店",
+            city="北京",
+            day=1,
+            category="hotel",
+            duration_minutes=60,
+            start_time=time(21, 30),
+            end_time=time(22, 30),
+        )
+        mt = _v(
+            "mt",
+            "慕田峪长城",
+            116.5598,
+            40.4267,
+            access_mode="shuttle",
+            access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+            access_service_minutes=90,
+            access_wait_minutes=10,
+            access_last_mile_minutes=8,
+            access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        )
+        days = [DayPlan(day=1, base_city="北京", items=[night, mt])]
+        attach_hotel_mornings(days)
+        card = next(i for i in days[0].items if is_hotel_morning(i))
+        assert (card.start_time, card.end_time) == (time(8, 59), time(9, 29))
+        assert (mt.start_time, mt.end_time) == (time(11, 8), time(12, 8))
+        # 幂等：再跑一遍（已有晨卡不重复插）
+        assert attach_hotel_mornings(days) == []
+        card2 = next(i for i in days[0].items if is_hotel_morning(i))
+        assert (card2.start_time, card2.end_time) == (time(8, 59), time(9, 29))
+    finally:
+        access_services.configure_store(None)
