@@ -502,6 +502,9 @@ async def start_plan_from_itinerary(
     # 无时刻的旧行程先让位清算+跨日救生（能排即排、低优先件让位），
     # 再实测腿（救生重排过的相邻对才有真腿）。
     await agent.heal_must_coverage(session)
+    # 空档补点（2026-11-16 上海案）：旧行程开档也补一次——幂等（已有补点
+    # 披露即跳过），反复打开不会叠加。
+    await agent.fill_leftover_gaps(session)
     await agent.refresh_legs(session)
     # 旗时最高优先级（2026-11-14 UAT：载入旧行程天安门仍是 8:30）：
     # 开档即按数据库旗时纠正（含 fixed 已在册被行编辑改回的时刻）。

@@ -14917,6 +14917,30 @@ def _bench_candidates_from_library(
     return out
 
 
+#: 补空档的一天观光件上限（与选点期 _cap_sights_per_day 同口径）
+_DAY_SIGHT_CAP = 4
+#: 重日（必去观光件 ≥5 小时）仍允许补进来的短件上限（2026-11-16 上海案）
+_HEAVY_DAY_SHORT_MAX_MINUTES = 90
+#: 补点最小件：<60 分钟的边角料不补（上海 D1 11:00-11:30 观景厅=凑数）
+_LEFTOVER_FILL_MIN_MINUTES = 60
+#: 补点披露文案（幂等标记：assumptions 里出现即视为已补过，反复开页不叠加）
+_LEFTOVER_FILL_MARKS = ("按类型多样性补了", "for variety")
+
+
+def _day_fill_floor(day: DayPlan) -> int:
+    """补空档的当天起始下限：晨卡（从酒店出发）卡尾优先，其次 08:30。
+
+    2026-11-16 上海案：探针原来写死 DAY_START_MINUTES，补点把景点排到了
+    「10:30 从酒店出发」卡之前（08:30-10:30 人还在酒店）。
+    """
+    for item in day.items:
+        if is_hotel_morning(item):
+            end = _item_end_minutes(item)
+            if end is not None:
+                return int(end)
+    return DAY_START_MINUTES
+
+
 def _fill_leftover_with_diverse_sights(
     plan: ItineraryPlan,
     *,
@@ -14930,11 +14954,31 @@ def _fill_leftover_with_diverse_sights(
     穿插进去。本函数是第③步：只从 `plan.unplaced` 里取非必去、非手建、非精选
     的可选项，按 档位/秩 升序，优先选「当天还没有的类型」（category），
     放得下才补；补进去就从 unplaced 移除并披露。
+
+    2026-11-16 上海案三修：①一天最多 4 张观光卡（与选点期同口径）；
+    ②晨卡（从酒店出发）卡尾是当天起始下限；③真实餐卡按实际时刻当墙。
+    重日只补 ≤90 分钟的短件（原来一刀切，3 小时空档也补不进）。
     """
     notes: list[str] = []
+    if any(
+        mark in str(note) for note in plan.assumptions for mark in _LEFTOVER_FILL_MARKS
+    ):
+        return notes
     day_end = 21 * 60 + 30
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
+        # 一天最多 4 张观光卡（2026-11-16 上海案）：补点是加法，不能再往
+        # 满档日塞第 5 张——选点期 _cap_sights_per_day 同口径。
+        if (
+            sum(
+                1
+                for i in day.items
+                if isinstance(i, VisitItem)
+                and (i.category or "") not in ("food", "hotel")
+            )
+            >= _DAY_SIGHT_CAP
+        ):
+            continue
         guard = 0
         while (plan.unplaced or bench) and guard < 4:
             guard += 1
@@ -14945,6 +14989,20 @@ def _fill_leftover_with_diverse_sights(
                 and (i.category or "") not in ("food", "hotel")
             }
             fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+            # 真实餐卡也是墙：_day_fixed_windows 故意跳过午/晚占位卡（给大块头
+            # 让位），补点是收尾步、餐卡已在盘面——不挡就会像上海 D1 那样把
+            # 景点压到 11:45 的午饭上（2026-11-16）。
+            meal_windows = [
+                (s, e, item)
+                for item in day.items
+                if isinstance(item, VisitItem)
+                and (item.category or "") == "food"
+                for s in [_minutes_of(item.start_time)]
+                for e in [_item_end_minutes(item)]
+                if s is not None and e is not None
+            ]
+            walls = [*fixed, *meal_windows]
+            floor = _day_fill_floor(day)
             avoid_set = {
                 _norm_site_name(a) for a in (avoid or set()) if str(a or "").strip()
             }
@@ -14961,6 +15019,10 @@ def _fill_leftover_with_diverse_sights(
                 u
                 for u in source
                 if (u.category or "") not in ("food", "hotel")
+                # 边角料不补（2026-11-16）：30 分钟观景厅塞进 45 分钟空档
+                # 只是凑数，宁缺勿滥
+                and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
+                >= _LEFTOVER_FILL_MIN_MINUTES
                 # 用户设为 inactive / 避开的点不补（2026-11-15）
                 and _norm_site_name(u.name) not in avoid_set
                 # 无场次/无具体时段的演出不补（用户拍板「无场次演出不被提案」）
@@ -14994,6 +15056,10 @@ def _fill_leftover_with_diverse_sights(
                     (day_remote or day_heavy_must)
                     and not _is_experience_candidate(u)
                     and (u.category or "") not in ("citywalk", "food")
+                    # 重日仍有 ≥90 分钟真空档时放短件进来（2026-11-16 上海
+                    # D2：博物馆 180+外滩 120=300 判重日，14:03-17:00 全挡死）
+                    and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
+                    > _HEAVY_DAY_SHORT_MAX_MINUTES
                 )
                 and not _in_park_of_existing(plan, u.name)
                 and not any(k in str(u.name or "") for k in _LODGING_KEYS)
@@ -15055,11 +15121,11 @@ def _fill_leftover_with_diverse_sights(
                 )
                 start = _probe_visit_slot(
                     probe_item,
-                    _with_meal_bands(fixed, dur),
+                    _with_meal_bands(walls, dur),
                     xfer,
                     hours_by_poi,
                     day_end,
-                    floor=DAY_START_MINUTES,
+                    floor=floor,
                 )
                 if start is None:
                     continue
@@ -20621,6 +20687,10 @@ class PlanningAgent:
                     logger.info("plan: final room sweep rolled back (no gain)")
 
         session.plan = plan
+        # 收尾第③步（2026-11-15 拍板，2026-11-16 接线）：景点→餐卡→空档按
+        # 类型多样性补点。此前只在「必去覆盖自愈」里调用，正常生成的计划永远
+        # 补不到（上海 D1 16:30-19:00、D2 14:03-17:00 就这么空着）。
+        await self.fill_leftover_gaps(session)
         session.assumptions = list(plan.assumptions)
         self._sync_wish_rows(session)
         self._sync_planned_rows(session)
@@ -30350,6 +30420,66 @@ class PlanningAgent:
                 return_exceptions=True,
             )
 
+    async def _fill_leftover_time(
+        self, plan: ItineraryPlan, *, avoid: set[str] | None = None
+    ) -> list[str]:
+        """收尾第③步的候选池装配（2026-11-15 拍板，2026-11-16 接线）。
+
+        池 = plan.unplaced + 同城库 top 200。top 80 里演出/茶事/按摩一个都
+        没有（上海 0/80、北京 0/80），重日与傍晚档就永远补不进东西。
+        """
+        if self._poi_details is None:
+            return []
+        bench: list[UnplacedCandidate] = []
+        for city in plan.cities:
+            try:
+                rows = await asyncio.to_thread(
+                    self._poi_details.top_pois_in_city, city, 200
+                )
+            except Exception:
+                logger.warning(
+                    "plan: top_pois_in_city failed for %s", city, exc_info=True
+                )
+                continue
+            bench.extend(
+                _bench_candidates_from_library(rows, city=city, avoid=set(avoid or ()))
+            )
+        return _fill_leftover_with_diverse_sights(
+            plan, avoid=set(avoid or ()), bench=bench
+        )
+
+    async def fill_leftover_gaps(self, session: PlanSession) -> list[str]:
+        """空档补点（收尾第③步）的公开入口：正常生成与开档刷新都调它。
+
+        幂等由 `_fill_leftover_with_diverse_sights` 的披露标记保证——同一份
+        行程反复打开不会越补越多。
+        """
+        if session.plan is None:
+            return []
+        # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
+        if any(
+            mark in str(note)
+            for note in session.plan.assumptions
+            for mark in _LEFTOVER_FILL_MARKS
+        ):
+            return []
+        notes = await self._fill_leftover_time(
+            session.plan, avoid=set(session.avoid_sites or ())
+        )
+        if notes:
+            for note in notes:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                # session.assumptions 同步（GET 响应体读的是它，不改就看不到补点披露）
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
+            # 腿是派生态：新卡两侧邻居都变了，交付前重算一次（纯数学，零网络）
+            annotate_legs(session.plan)
+            logger.info(
+                "plan: session %s 空档补点 %d 处", session.session_id, len(notes)
+            )
+        return notes
+
     async def heal_must_coverage(self, session: PlanSession) -> list[str]:
         """开局必去覆盖自愈（2026-11-14 用户拍板「故宫 IS IN WISH LIST, MUST
         VISIT, HIGHEST PRIORITY, WHY NOT ARRANGED」）：旧行程里钉住/必去观光件
@@ -30409,30 +30539,7 @@ class PlanningAgent:
         # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
         # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
-        _bench: list[UnplacedCandidate] = []
-        if self._poi_details is not None:
-            for _city in plan.cities:
-                try:
-                    _rows = await asyncio.to_thread(
-                        self._poi_details.top_pois_in_city, _city, 80
-                    )
-                except Exception:
-                    logger.warning(
-                        "plan: top_pois_in_city failed for %s", _city, exc_info=True
-                    )
-                    continue
-                _bench.extend(
-                    _bench_candidates_from_library(
-                        _rows, city=_city, avoid=set(session.avoid_sites or ())
-                    )
-                )
-        notes.extend(
-            _fill_leftover_with_diverse_sights(
-                plan,
-                avoid=set(session.avoid_sites or ()),
-                bench=_bench,
-            )
-        )
+        notes.extend(await self.fill_leftover_gaps(session))
         annotate_legs(plan)
         for note in notes:
             if note not in plan.assumptions:
