@@ -14,6 +14,9 @@ replaces the estimate with measured walking legs; leg_source flips to
 "amap").
 """
 
+import json
+from pathlib import Path
+
 from app.services.itinerary.fares import (
     access_fare_estimate,
     estimate_taxi_fare,
@@ -401,14 +404,68 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+#: 规划页外链白名单（2026-11-16 用户拍板「post 出去的链接必须先验证」）。
+#: 由 app/jobs/verify_access_links.py 实检生成；不在白名单 / verdict=dead 的
+#: 链接一律不出——宁缺勿滥，不再把死链或没核实的页面贴到行程卡上。
+_VERIFIED_LINKS_FILE = (
+    Path(__file__).resolve().parents[2] / "data" / "verified_links.json"
+)
+_LINK_CACHE: dict = {"mtime": None, "links": {}}
+
+
+def _verified_links() -> dict:
+    """读白名单（按 mtime 热更新；文件缺失=全部拒发，不出未验证链接）。"""
+    try:
+        mtime = _VERIFIED_LINKS_FILE.stat().st_mtime
+    except OSError:
+        return {}
+    if _LINK_CACHE["mtime"] == mtime:
+        return _LINK_CACHE["links"]
+    links: dict = {}
+    try:
+        payload = json.loads(_VERIFIED_LINKS_FILE.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and isinstance(payload.get("links"), dict):
+            links = payload["links"]
+    except (OSError, ValueError):
+        links = {}  # 白名单损坏=不出链（宁可没有链接，也不贴未验证页面）
+    _LINK_CACHE["mtime"] = mtime
+    _LINK_CACHE["links"] = links
+    return links
+
+
 def _url(raw) -> str:
-    """把库里的裸域名补成 https（EN 预订链接常没写 scheme）；空值回空串。"""
+    """库里的链接先归一成绝对地址，再按实检白名单放行（2026-11-16 用户拍板）。
+
+    旧实现只补 https 就贴出去：八达岭「购票/预约」指向 ticket.badaling.cn，
+    实测 TLS 握手失败 + http 404 = 死链。现在只发 app/data/verified_links.json
+    里实检通过的（ok / ok_http_only / ok_retry / blocked_bot）；ok_http_only
+    用 http 展示地址（站点本身不支持 TLS）。未在白名单=未验证，一并拒发。
+    """
     text = str(raw or "").strip()
     if not text:
         return ""
-    if text.startswith(("http://", "https://")):
-        return text
-    return "https://" + text.lstrip("/")
+    if not text.startswith(("http://", "https://")):
+        text = "https://" + text.lstrip("/")
+    # 双 scheme 候选：库里可能存 http（站点不支持 TLS），调用方也可能给裸域名
+    links = _verified_links()
+    matched = text
+    entry = links.get(text)
+    if not isinstance(entry, dict):
+        alt = (
+            "http://" + text[len("https://") :]
+            if text.startswith("https://")
+            else "https://" + text[len("http://") :]
+        )
+        entry = links.get(alt)
+        if isinstance(entry, dict):
+            matched = alt
+    if not isinstance(entry, dict):
+        return ""
+    verdict = str(entry.get("verdict") or "").strip().lower()
+    if verdict in ("", "dead", "unknown"):
+        return ""
+    display = str(entry.get("display_url") or "").strip()
+    return display or matched
 
 
 def _clock(minutes) -> str | None:
@@ -453,10 +510,12 @@ def _options_detail(
             float(_fare) if _fare is not None else access_fare_estimate(o.get("mode"))
         )
         # 购票优先景点自身预约入口（与旧口径一致），官网用班次行/景点官网
-        o["booking_url"] = _url(getattr(b, "booking_url", None) or o.get("ticket_url"))
-        o["official_url"] = _url(
-            o.get("official_url") or o.get("ticket_url") or getattr(b, "website", None)
+        o["booking_url"] = _url(getattr(b, "booking_url", None)) or _url(
+            o.get("ticket_url")
         )
+        o["official_url"] = _url(o.get("official_url")) or _url(
+            o.get("ticket_url")
+        ) or _url(getattr(b, "website", None))
     rec = opts[0]
     return {
         "mode": "access",
@@ -555,12 +614,10 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         "access_cost": access_fare_estimate(br.get("mode")),
         # 购票优先用景点自己的预约入口（比线路页更贴近下单动作），
         # 官网用官方时刻表/说明页；两个都缺才留空，前端不出死链。
-        "booking_url": _url(
-            getattr(b, "booking_url", None) or _pick("access_ticket_url")
-        ),
-        "official_url": _url(
-            _pick("access_official_url") or getattr(b, "website", None)
-        ),
+        "booking_url": _url(getattr(b, "booking_url", None))
+        or _url(_pick("access_ticket_url")),
+        "official_url": _url(_pick("access_official_url"))
+        or _url(getattr(b, "website", None)),
     }
     return details
 
@@ -614,12 +671,10 @@ def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
             a.city or b.city, float(br.get("taxi_km") or 0.0)
         ),
         "access_cost": access_fare_estimate(br.get("mode")),
-        "booking_url": _url(
-            getattr(a, "booking_url", None) or _pick("access_ticket_url")
-        ),
-        "official_url": _url(
-            _pick("access_official_url") or getattr(a, "website", None)
-        ),
+        "booking_url": _url(getattr(a, "booking_url", None))
+        or _url(_pick("access_ticket_url")),
+        "official_url": _url(_pick("access_official_url"))
+        or _url(getattr(a, "website", None)),
     }
 
 

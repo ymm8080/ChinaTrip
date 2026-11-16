@@ -1,0 +1,32 @@
+[
+  {
+    "name_zh": "珠江夜游",
+    "city": "广州",
+    "booking_url": null,
+    "website": "www.zhujiangyou.com"
+  },
+  {
+    "name_zh": "市中区乐山大佛景区",
+    "city": "乐山",
+    "booking_url": null,
+    "website": "www.lsdftravel.com"
+  },
+  {
+    "name_zh": "湖北省博物馆",
+    "city": "武汉",
+    "booking_url": "pcticket.hbww.org.cn/",
+    "website": "www.hbww.org"
+  },
+  {
+    "name_zh": "八达岭长城",
+    "city": "北京",
+    "booking_url": "ticket.badaling.cn",
+    "website": "www.badaling.cn"
+  },
+  {
+    "name_zh": "珠江夜游广州塔财富码头",
+    "city": "广州",
+    "booking_url": null,
+    "website": "www.zhujiangyou.com"
+  }
+]

@@ -1,0 +1,1214 @@
+{
+  "generated_at": "2026-11-16T06:30:53+00:00",
+  "source": "app.jobs.verify_access_links",
+  "counts": {
+    "total": 78,
+    "dead": 7,
+    "ok": 61,
+    "blocked_bot": 10
+  },
+  "links": {
+    "http://www.bjsupervision.gov.cn/lzdt/202101/t20210105_72326.html": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.bjsupervision.gov.cn/lzdt/202101/t20210105_72326.html",
+        "ok": true,
+        "title": "北京焦庄户地道战遗址纪念馆_廉洁地图_北京纪检监察网"
+      },
+      "sources": [
+        "access.official:焦庄户村/地铁1号线八通线 → 地铁17号线 → … → 舞彩浅山赏秋接驳专线（3 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.blsshl.com/index.php/menpiao.html": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.blsshl.com/index.php/menpiao.html",
+        "ok": true,
+        "title": "门票销售_百里山水画廊"
+      },
+      "sources": [
+        "access.official:百里山水画廊/地铁1号线八通线 → 地铁17号线 → … → 宝山寺通勤班车（4 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.chinacittaslow.com/index.php?c=article&id=798": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.chinacittaslow.com/index.php?c=article&id=798",
+        "ok": true,
+        "title": "高淳老街"
+      },
+      "sources": [
+        "access.official:高淳老街/地铁 S1→S9 至高淳站 + 公交 101/105/游1 至泮池园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.chinacittaslow.com/index.php?c=article&id=975": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.chinacittaslow.com/index.php?c=article&id=975",
+        "ok": true,
+        "title": "桠溪国际慢城"
+      },
+      "sources": [
+        "access.official:高淳国际慢城/待核：官方班次待补"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.fcty.com/": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.fcty.com/",
+        "ok": true,
+        "title": "���ݸ���������Դ�羰���ο������޹�˾"
+      },
+      "sources": [
+        "access.official:富春桃源/地铁3号线 → 504路 → 富阳至万市专线（2 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.hbww.org": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.hbww.org.cn/home/index.html",
+        "ok": true,
+        "title": "湖北省博物馆"
+      },
+      "sources": [
+        "pois.website:湖北省博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.lsdftravel.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.lsdftravel.com",
+        "ok": true,
+        "title": "乐山大佛"
+      },
+      "sources": [
+        "pois.website:市中区乐山大佛景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "http://www.zhujiangyou.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "http://www.zhujiangyou.com",
+        "ok": true,
+        "title": "�齭ҹ��|�齭ҹ����Ʊ|�齭ҹ�ζ�Ʊ---�齭����Ʊ��˾"
+      },
+      "sources": [
+        "pois.website:珠江夜游",
+        "pois.website:珠江夜游广州塔财富码头"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://bjgyol.com.cn": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: EE certificate key too weak (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: EE certificate key too weak (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: EE certificate key too weak (_ssl.c:1010)'))"
+      },
+      "sources": [
+        "pois.booking:景山公园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://en.mutianyugreatwall.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://en.mutianyugreatwall.com",
+        "ok": true,
+        "title": "Mutianyu Great Wall"
+      },
+      "sources": [
+        "pois.website:慕田峪长城"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://en.mutianyugreatwall.com/pdf/one-day": {
+      "verdict": "ok_retry",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "retry": {
+        "status": 200,
+        "final_url": "https://en.mutianyugreatwall.com/pdf/one-day",
+        "ok": true,
+        "title": ""
+      },
+      "sources": [
+        "access.ticket:慕田峪长城/前门旅游专线（前门大街北口）",
+        "access.official:慕田峪长城/前门旅游专线（前门大街北口）",
+        "access.source:慕田峪长城/前门旅游专线（前门大街北口）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://en.mutianyugreatwall.com/reservation-center/tickets": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://en.mutianyugreatwall.com/reservation-center/tickets",
+        "ok": true,
+        "title": ""
+      },
+      "sources": [
+        "pois.booking:慕田峪长城"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://fjnjtulou.com": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": 404,
+        "ok": false,
+        "error": "HTTPError 404"
+      },
+      "sources": [
+        "pois.website:福建土楼（永定高北土楼群）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/luoyang198/144931182.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《唐宫乐宴》"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/133979300.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:长安十二时辰主题街区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/136558.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《长恨歌》演出"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/139266.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《梦回大唐》"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/139278.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:唐乐宫《大唐女皇》"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/148417460.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《秦俑情》"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/4336373.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《驼铃传奇》秀"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://gs.ctrip.com/html5/you/sight/xian7/5709479.html": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 432,
+        "ok": false,
+        "error": "HTTPError 432"
+      },
+      "sources": [
+        "pois.booking:《西安千古情》"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://intl.dpm.org.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://intl.dpm.org.cn/index.html",
+        "ok": true,
+        "title": "The Palace Museum"
+      },
+      "sources": [
+        "pois.booking:故宫博物院"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://intl.dpm.org.cn/index.html?l=en": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://intl.dpm.org.cn/index.html?l=en",
+        "ok": true,
+        "title": "The Palace Museum"
+      },
+      "sources": [
+        "pois.website:故宫博物院"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://m.panda.org.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://m.panda.org.cn",
+        "ok": true,
+        "title": "成都大熊猫繁育研究基地"
+      },
+      "sources": [
+        "pois.booking:成都大熊猫繁育研究基地"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://pcticket.hbww.org.cn/": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://pcticket.hbww.org.cn/",
+        "ok": true,
+        "title": "湖北省博物馆"
+      },
+      "sources": [
+        "pois.booking:湖北省博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://s.visitbeijing.com.cn/attraction/101638": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://s.visitbeijing.com.cn/attraction/101638",
+        "ok": true,
+        "title": "詹天佑纪念馆"
+      },
+      "sources": [
+        "access.official:詹天佑纪念馆/八达岭长城景区直达车前门线"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://web.lotsmall.cn/index?m_id=1939": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://web.lotsmall.cn/index?m_id=1939",
+        "ok": true,
+        "title": ""
+      },
+      "sources": [
+        "pois.website:拙政园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://webpc.cddfct.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://webpc.cddfct.cn",
+        "ok": true,
+        "title": "售票"
+      },
+      "sources": [
+        "pois.booking:成都杜甫草堂博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://whpwm.cdwuhouci.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://whpwm.cdwuhouci.cn/index",
+        "ok": true,
+        "title": "首页"
+      },
+      "sources": [
+        "pois.website:武侯祠"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://wp.longjitour.com": {
+      "verdict": "ok_http_only",
+      "display_url": "http://wp.longjitour.com",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": 200,
+        "final_url": "http://wp.longjitour.com",
+        "ok": true,
+        "title": "桂林龙脊梯田景区 | 桂林龙脊梯田景区唯一官方网站——订票享折扣 正规品质游-桂林龙脊梯田景区"
+      },
+      "sources": [
+        "pois.website:龙脊梯田"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.798artdistrict.com.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.798artdistrict.com.cn",
+        "ok": true,
+        "title": "798艺术区|798 Art District - 北京七九八"
+      },
+      "sources": [
+        "pois.website:798艺术区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.badaling.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.badaling.cn/website/pc/index.html",
+        "ok": true,
+        "title": "八达岭"
+      },
+      "sources": [
+        "pois.booking:八达岭长城",
+        "pois.website:八达岭长城"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.beijing.gov.cn/renwen/sy/whkb/201906/t20190604_1866217.html": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.beijing.gov.cn/renwen/sy/whkb/201906/t20190604_1866217.html",
+        "ok": true,
+        "title": "八达岭长城启动全网实名预约售票_文化快报_首都之窗_北京市人民政府门户网站"
+      },
+      "sources": [
+        "access.official:八达岭长城/前门旅游专线（旅游公交1线 · 前门发车中心 → 八达岭）",
+        "access.source:八达岭长城/前门旅游专线（旅游公交1线 · 前门发车中心 → 八达岭）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.bjbus.com/home/fun_news_detail.php?uNewsCode=00010198&uNewsType=1": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.bjbus.com/home/fun_news_detail.php?uNewsCode=00010198&uNewsType=1",
+        "ok": true,
+        "title": "北京公共交通集团-|线路查询|公交换乘|商务班车|定制公交|公交e路通|实时公交"
+      },
+      "sources": [
+        "access.official:八达岭长城/877路（地铁北土城站 → 八达岭长城）",
+        "access.source:八达岭长城/877路（地铁北土城站 → 八达岭长城）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.bjjspark.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.bjjspark.cn",
+        "ok": true,
+        "title": "北京市景山公园"
+      },
+      "sources": [
+        "pois.website:景山公园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.bjlyjszx.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://83531111.com/",
+        "ok": true,
+        "title": "北京旅游集散中心-官方唯一咨询电话 010-83531111"
+      },
+      "sources": [
+        "access.ticket:八达岭长城/前门旅游专线（旅游公交1线 · 前门发车中心 → 八达岭）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.bmy.com.cn": {
+      "verdict": "ok_retry",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "retry": {
+        "status": 200,
+        "final_url": "https://www.bmy.com.cn/index.html",
+        "ok": true,
+        "title": "秦始皇帝陵博物院官网"
+      },
+      "sources": [
+        "pois.website:秦始皇帝陵博物院"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.cantontower.com": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 412,
+        "ok": false,
+        "error": "HTTPError 412"
+      },
+      "sources": [
+        "pois.website:广州塔"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.cddfct.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.cddfct.cn",
+        "ok": true,
+        "title": "成都杜甫草堂博物馆"
+      },
+      "sources": [
+        "pois.website:成都杜甫草堂博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.chimelong.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.chimelong.com",
+        "ok": true,
+        "title": "长隆旅游度假区"
+      },
+      "sources": [
+        "pois.website:长隆野生动物世界"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.cqsuodao.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.cqsuodao.com",
+        "ok": true,
+        "title": "重庆公共交通运营有限公司索道分公司"
+      },
+      "sources": [
+        "pois.website:长江索道"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.djy517.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.djy517.com",
+        "ok": true,
+        "title": "都江堰旅游门户网-都江堰旅游官网平台"
+      },
+      "sources": [
+        "pois.website:都江堰景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.djy517.com/online.html?channelCode=mpyd": {
+      "verdict": "ok_retry",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "retry": {
+        "status": 200,
+        "final_url": "https://www.djy517.com/online.html?channelCode=mpyd",
+        "ok": true,
+        "title": "门票预订"
+      },
+      "sources": [
+        "access.official:青城前山-索道/地铁1号线 → 地铁1号线 → … → 都江堰旅游公交专线6（11 次换乘）",
+        "access.official:青城山/地铁1号线 → 地铁1号线 → … → 都江堰101路（11 次换乘）",
+        "access.official:泰安古镇/地铁1号线 → 地铁1号线 → … → 青城后山景区直通车（11 次换乘）",
+        "access.official:都江堰中华大熊猫苑(原熊猫乐园)/地铁1号线 → 地铁1号线 → … → 都江堰101路（11 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.gzcjc.com.cn": {
+      "verdict": "ok_retry",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(TimeoutError('_ssl.c:993: The handshake operation timed out'))"
+      },
+      "retry": {
+        "status": 200,
+        "final_url": "https://www.gzcjc.com.cn/MYwebsite/rc/my_index.htm",
+        "ok": true,
+        "title": "广东民间工艺博物馆_陈氏书院_陈家祠"
+      },
+      "sources": [
+        "pois.website:陈家祠"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.hqc.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.hqc.cn",
+        "ok": true,
+        "title": "华清宫(华清池·骊山) - 长恨歌,1212西安事变,西安旅游,陕西旅游,杨贵妃,唐文化"
+      },
+      "sources": [
+        "pois.website:华清宫"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.hrbicesnow.com": {
+      "verdict": "ok_retry",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "retry": {
+        "status": 200,
+        "final_url": "https://www.hrbicesnow.com",
+        "ok": true,
+        "title": "冰雪大世界股份有限公司"
+      },
+      "sources": [
+        "pois.website:哈尔滨冰雪大世界"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.huangpi.gov.cn/fbjd_33/xxgkml/gysyjs/ly/202312/t20231212_2317979.html": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.huangpi.gov.cn/fbjd_33/xxgkml/gysyjs/ly/202312/t20231212_2317979.html",
+        "ok": true,
+        "title": "黄陂区A级旅游景区基本情况"
+      },
+      "sources": [
+        "access.official:木兰清凉寨/待核：官方班次待补",
+        "access.official:黄陂区木兰文化生态旅游区/待核：官方班次待补"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.huangshan.com.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.huangshan.com.cn/home?m_id=730",
+        "ok": true,
+        "title": ""
+      },
+      "sources": [
+        "pois.website:黄山区黄山风景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.jinshasitemuseum.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.jinshasitemuseum.com",
+        "ok": true,
+        "title": "成都金沙遗址博物馆"
+      },
+      "sources": [
+        "pois.website:成都金沙遗址博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.liangjiangyou.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.liangjiangyou.com",
+        "ok": true,
+        "title": "重庆两江游_重庆夜景游_重庆两江夜游船票游轮订票官网"
+      },
+      "sources": [
+        "pois.website:两江夜游"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.mgk.org.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.mgk.org.cn",
+        "ok": true,
+        "title": "莫高窟预约网:首页"
+      },
+      "sources": [
+        "pois.website:莫高窟"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.mingshisanling.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.mingshisanling.com",
+        "ok": true,
+        "title": "明十三陵官网 - 5A级旅游景区 | 世界文化遗产"
+      },
+      "sources": [
+        "pois.website:明十三陵"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.nj1937.org": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(gaierror(11001, 'getaddrinfo failed'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(gaierror(11001, 'getaddrinfo failed'))"
+      },
+      "http": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(gaierror(11001, 'getaddrinfo failed'))"
+      },
+      "sources": [
+        "pois.website:侵华日军南京大屠杀遇难同胞纪念馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.njmuseum.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.njmuseum.com",
+        "ok": true,
+        "title": "南京博物院"
+      },
+      "sources": [
+        "pois.website:南京博物院"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.panda.org.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.panda.org.cn",
+        "ok": true,
+        "title": "成都大熊猫繁育研究基地"
+      },
+      "sources": [
+        "pois.website:成都大熊猫繁育研究基地"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.potalapalace.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.potalapalace.cn",
+        "ok": true,
+        "title": "布达拉宫官方网站"
+      },
+      "sources": [
+        "pois.website:城关区布达拉宫景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.redstarwine.cn/fwzx/cgfw/cindex1.html": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.redstarwine.cn/fwzx/cgfw/cindex1.html",
+        "ok": true,
+        "title": "北京二锅头酒博物馆-参观服务"
+      },
+      "sources": [
+        "access.official:北京二锅头酒博物馆/地铁1号线八通线 → 地铁17号线 → 快速直达专线197路（2 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.shanghaidisneyresort.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.shanghaidisneyresort.com",
+        "ok": true,
+        "title": "上海迪士尼度假区官方网站"
+      },
+      "sources": [
+        "pois.website:上海迪士尼乐园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.shanghaitower.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.shanghaitower.com",
+        "ok": true,
+        "title": "上海中心大厦  -Shanghai Tower-「官方网站」"
+      },
+      "sources": [
+        "pois.website:上海中心大厦"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.sstm.org.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.sstm.org.cn",
+        "ok": true,
+        "title": "上海科技馆官网"
+      },
+      "sources": [
+        "pois.website:上海博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.summerpalace.net.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.summerpalace.net.cn",
+        "ok": true,
+        "title": "颐和园官网"
+      },
+      "sources": [
+        "pois.website:颐和园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.szmuseum.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.szmuseum.com",
+        "ok": true,
+        "title": "苏州博物馆"
+      },
+      "sources": [
+        "pois.website:苏州博物馆"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.thepeak.com.hk": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 403,
+        "ok": false,
+        "error": "HTTPError 403"
+      },
+      "sources": [
+        "pois.website:太平山顶"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.tiantanpark.com": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": 504,
+        "ok": false,
+        "error": "HTTPError 504"
+      },
+      "sources": [
+        "pois.website:天坛"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.xgllhtx.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.xgllhtx.cn",
+        "ok": true,
+        "title": "迪庆州香格里拉虎跳峡旅游经营有限公司-虎跳峡景区-官网"
+      },
+      "sources": [
+        "pois.website:虎跳峡"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.xiling.cn/website/survey/tour": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.xiling.cn/website/survey/tour",
+        "ok": true,
+        "title": "景区攻略-景区游览"
+      },
+      "sources": [
+        "access.official:成都市西岭雪山景区/地铁9号线 → 安仁古镇假日旅游专线 → … → 西花旅游专线（3 次换乘）",
+        "access.official:西岭雪山/地铁9号线 → 安仁古镇假日旅游专线 → … → 西花旅游专线（3 次换乘）",
+        "access.official:日月坪/地铁9号线 → 安仁古镇假日旅游专线 → … → 西花旅游专线（3 次换乘）"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.xintiandi.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.xintiandi.com",
+        "ok": true,
+        "title": "首页 | XINTIANDI"
+      },
+      "sources": [
+        "pois.website:新天地"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.xixiwetland.com.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://xixiwetland.com.cn/index?m_id=1045",
+        "ok": true,
+        "title": ""
+      },
+      "sources": [
+        "pois.website:西溪国家湿地公园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.xmferry.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.xmferry.com",
+        "ok": true,
+        "title": "厦门轮渡有限公司"
+      },
+      "sources": [
+        "pois.website:鼓浪屿"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.ysylh.cn": {
+      "verdict": "ok_http_only",
+      "display_url": "http://www.ysylh.cn",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "TimeoutError('The read operation timed out')"
+      },
+      "http": {
+        "status": 200,
+        "final_url": "http://www.ysylh.cn",
+        "ok": true,
+        "title": "�����ӹ���"
+      },
+      "sources": [
+        "pois.website:遇龙河"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.yugarden.com.cn": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": 504,
+        "ok": false,
+        "error": "HTTPError 504"
+      },
+      "retry": {
+        "status": 504,
+        "ok": false,
+        "error": "HTTPError 504"
+      },
+      "http": {
+        "status": 504,
+        "ok": false,
+        "error": "HTTPError 504"
+      },
+      "sources": [
+        "pois.website:豫园"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.zgyd1921.com": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1010)'))"
+      },
+      "sources": [
+        "pois.website:中国共产党一大·二大·四大纪念馆景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://www.zjg.gov.cn/zjg/aboutajjq/202308/d343cad2df234f3fa0229c4253bca0fe.shtml": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://www.zjg.gov.cn/zjg/aboutajjq/202308/d343cad2df234f3fa0229c4253bca0fe.shtml",
+        "ok": true,
+        "title": "香山景区（国家AAAA级旅游景区） - 张家港市人民政府"
+      },
+      "sources": [
+        "access.official:香山景区/待核：官方班次待补"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://ylj.suzhou.gov.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://ylj.suzhou.gov.cn",
+        "ok": true,
+        "title": "苏州园林绿化管理局-首页"
+      },
+      "sources": [
+        "pois.booking:虎丘山风景名胜区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://yuyue2026.tamgw.beijing.gov.cn": {
+      "verdict": "dead",
+      "display_url": "",
+      "detail": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "retry": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "http": {
+        "status": null,
+        "ok": false,
+        "error": "URLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1010)'))"
+      },
+      "sources": [
+        "pois.website:天安门广场"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://zhujiajiao.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://zhujiajiao.com",
+        "ok": true,
+        "title": "朱家角古镇旅游区 - 朱家角古镇旅游区 【官网】 | Zhujiajiao Ancient Town Zhujiajiao, Shanghai, China"
+      },
+      "sources": [
+        "pois.website:朱家角古镇"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://zschina.nanjing.gov.cn": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://zschina.nanjing.gov.cn",
+        "ok": true,
+        "title": "南京市中山陵园管理局"
+      },
+      "sources": [
+        "pois.website:明孝陵"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    },
+    "https://zydanxia.com": {
+      "verdict": "ok",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://zydanxia.com",
+        "ok": true,
+        "title": "张掖七彩丹霞旅游景区"
+      },
+      "sources": [
+        "pois.website:七彩丹霞景区"
+      ],
+      "checked_at": "2026-11-16T06:30:53+00:00"
+    }
+  }
+}
