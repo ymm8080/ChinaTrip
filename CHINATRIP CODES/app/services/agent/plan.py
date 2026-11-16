@@ -32914,6 +32914,9 @@ class PlanningAgent:
             removed = []
         if removed is None:
             removed = _resequence()
+            # 让位后的盘面可能刚好够「收缩/容忍」：再试一次，别急着 422
+            if removed is None and _flex_fallback():
+                removed = []
         if removed is None:
             # 当天让位到顶仍排不下：整单不落（会话里仍是原行程），前端提示
             raise ValueError("no_slot")
@@ -32933,6 +32936,8 @@ class PlanningAgent:
                 more = []
             if more is None:
                 more = _resequence()
+                if more is None and _flex_fallback():
+                    more = []
             if more is None:
                 raise ValueError("no_slot")
             removed = removed + more
