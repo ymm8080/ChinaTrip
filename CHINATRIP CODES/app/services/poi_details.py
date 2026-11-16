@@ -22,6 +22,7 @@ from sqlalchemy import String, and_, cast, func, or_
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
+from app.services.poi_names import place_core
 
 # 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
 # order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
@@ -947,6 +948,24 @@ class PoiDetailStore:
                 score = latin_score(v)
                 if score is not None:
                     best = max(best or 0, score)
+            if best is None:
+                # 2026-11-16（用户「insert zhujiajiao」案）：用户口头只写地名
+                # 内核（「朱家角」），底库行是全称（「朱家角古镇」）——整串
+                # 匹配永远不中，只有 LLM 通道能救，LLM 一挂这句话就被丢掉。
+                # 内核命中给低分（内核长度），同场有全称命中时全称仍排前。
+                # 收紧：内核 ≥3 字（「上海老街」的内核是「上海」，2 字会把全城
+                # 都吸进来）、名字带括号分店标记不走（上海博物馆(东馆)）。
+                raw = (name_zh or "").strip()
+                core = place_core(raw)
+                if (
+                    core
+                    and core != raw
+                    and len(core) >= 3
+                    and "(" not in raw
+                    and "（" not in raw
+                    and core in probe
+                ):
+                    best = len(core)
             return best
 
         hits: dict[str, tuple[int, str, str | None, str | None]] = {}

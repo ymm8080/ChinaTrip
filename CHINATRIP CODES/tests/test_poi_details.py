@@ -733,3 +733,26 @@ def test_name_overlap_rejects_midfix_subfacilities():
     assert not _name_overlap("颐和园文创商店", "颐和园")
     assert not _name_overlap("圆明园", "颐和园")
     assert not _name_overlap("秦始皇帝陵", "秦始皇兵马俑博物馆")
+
+def test_match_text_names_core_matches_short_wish_but_not_city_prefix():
+    """用户只写地名内核（朱家角），底库行是全称（朱家角古镇）也要认；
+    但内核只有城市名（上海老街 → 上海）或带括号分店标记的行不许泛化命中。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "p1", city="上海", name="朱家角古镇", source="4a", category="attraction"
+    )
+    store.upsert(
+        "p2", city="上海", name="上海老街(人民路)", source="x", category="nature"
+    )
+    store.upsert("p3", city="上海", name="上海博物馆", source="m1", category="museum")
+
+    hits = store.match_text_names("上海", "上海 2 天，想去朱家角、外滩、上海博物馆")
+    names = [h["name"] for h in hits]
+
+    assert "朱家角古镇" in names
+    assert "上海博物馆" in names
+    assert "上海老街(人民路)" not in names
+    # 全称写法（既有的整串匹配通道）不受影响
+    assert [h["name"] for h in store.match_text_names("上海", "想去朱家角古镇")] == [
+        "朱家角古镇"
+    ]
