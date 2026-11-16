@@ -259,6 +259,7 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     assert detail["departures"] == ["07:30", "08:30", "09:30", "10:30"]
     assert detail["returns"] == ["14:30", "15:30", "16:30"]
     assert detail["board_time"] == "09:01"
+    assert detail["next_item_id"] == "mt"  # 去程卡上的返程 chips 按下一站卡回推
     assert detail["depart_time"] == "09:30"
     assert detail["arrive_time"] == "11:08"
     assert detail["taxi_km"] > 0.5

@@ -1904,23 +1904,32 @@ function hotelStayLabel(plan, it) {
 // 接驳班次 chips（2026-11-16 用户拍板「班次可以点击选取重排」）：去程/返程
 // 班次全列出来，当前那班高亮；点其它班次 → POST /departure 按该班重排当天。
 function hopPickRow(it, legD, dir) {
-  const times = dir === "return"
-    ? (Array.isArray(legD.returns) && legD.returns.length ? legD.returns : legD.departures)
-    : (Array.isArray(legD.departures) ? legD.departures : []);
-  if (!Array.isArray(times) || !times.length) return "";
-  const cur = String(legD.depart_time || "").slice(0, 5);
-  const label = dir === "return"
-    ? I18N.tf("card.hop.pickRet", "返程班次")
-    : I18N.tf("card.hop.pickOut", "去程班次");
-  const chips = times.map(function (t) {
-    const on = cur && String(t).slice(0, 5) === cur;
-    return '<button class="hop-pick" data-action="hopdepart" data-item-id="' + esc(it.item_id) +
-      '" data-dir="' + dir + '" data-depart="' + esc(t) + '"' +
-      ' style="border:1px solid #b9c9e0;border-radius:12px;padding:1px 9px;font-size:12px;cursor:pointer;background:' +
-      (on ? "#dbe9ff" : "#fff") + ';font-weight:' + (on ? "700" : "400") + '">' + esc(t) + "</button>";
-  }).join("");
-  return '<div class="hop-picks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 2px 8px 2px">' +
-    '<span class="muted" style="font-size:12px">' + label + "</span>" + chips + "</div>";
+  const mkRow = function (times, d, cur, itemId) {
+    if (!Array.isArray(times) || !times.length) return "";
+    const label = d === "return"
+      ? I18N.tf("card.hop.pickRet", "返程班次")
+      : I18N.tf("card.hop.pickOut", "去程班次");
+    const chips = times.map(function (t) {
+      const on = cur && String(t).slice(0, 5) === String(cur).slice(0, 5);
+      return '<button class="hop-pick" data-action="hopdepart" data-item-id="' + esc(itemId) +
+        '" data-dir="' + d + '" data-depart="' + esc(t) + '"' +
+        ' style="border:1px solid #b9c9e0;border-radius:12px;padding:1px 9px;font-size:12px;cursor:pointer;background:' +
+        (on ? "#dbe9ff" : "#fff") + ';font-weight:' + (on ? "700" : "400") + '">' + esc(t) + "</button>";
+    }).join("");
+    return '<div class="hop-picks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 2px 8px 2px">' +
+      '<span class="muted" style="font-size:12px">' + label + "</span>" + chips + "</div>";
+  };
+  // 同一个接驳卡：去程按本卡回算离店，返程按下一站卡回推离场（2026-11-16
+  // 「来回程都显示出来、班次可点选重排」）。
+  if (dir === "return") {
+    return mkRow(Array.isArray(legD.returns) && legD.returns.length ? legD.returns : legD.departures,
+      "return", legD.depart_time, it.item_id);
+  }
+  const out = mkRow(legD.departures, "out", legD.depart_time, it.item_id);
+  const ret = (Array.isArray(legD.returns) && legD.returns.length && legD.next_item_id)
+    ? mkRow(legD.returns, "return", "", legD.next_item_id)
+    : "";
+  return out + ret;
 }
 
 

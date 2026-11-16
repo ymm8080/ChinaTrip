@@ -451,6 +451,8 @@ def _options_detail(
         "returns": rec.get("returns") or [],
         "fare_text": rec.get("fare_text"),
         "board_time": _clock(br.get("board")),
+        # 下一站卡 id：去程卡上点「返程班次」时按它回推离场（2026-11-16）
+        "next_item_id": getattr(b, "item_id", None),
         "depart_time": rec.get("depart"),
         "arrive_time": rec.get("arrive"),
         "taxi_cost": rec.get("taxi_cost"),
@@ -508,6 +510,8 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         "returns": _pick("access_return_times") or [],
         "fare_text": _pick("access_fare_text"),
         "board_time": _clock(br.get("board")),
+        # 下一站卡 id：去程卡上点「返程班次」时按它回推离场（2026-11-16）
+        "next_item_id": getattr(b, "item_id", None),
         "depart_time": _clock(br.get("depart")),
         "arrive_time": _clock(
             (br.get("depart") or 0)
@@ -575,6 +579,8 @@ def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         "returns": [],
         "fare_text": _pick("access_fare_text"),
         "board_time": _clock(br.get("board")),
+        # 下一站卡 id：去程卡上点「返程班次」时按它回推离场（2026-11-16）
+        "next_item_id": getattr(b, "item_id", None),
         "depart_time": _clock(depart),
         "arrive_time": _clock(depart + ride if depart is not None else None),
         "taxi_cost": estimate_taxi_fare(
