@@ -575,9 +575,7 @@ def _morning_anchor_for(
     if from_point is None:
         return None
     try:
-        return morning_departure_anchor(
-            first, from_point=from_point, chosen=chosen
-        )
+        return morning_departure_anchor(first, from_point=from_point, chosen=chosen)
     except Exception:  # noqa: BLE001 — 档案/班次库不可用=走旧窗口
         return None
 

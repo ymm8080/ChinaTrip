@@ -3142,7 +3142,8 @@ def _departure_session_app():
                 cities=["北京"],
                 days=[
                     DayPlan(
-                        day=1, base_city="北京",
+                        day=1,
+                        base_city="北京",
                         items=[morning, mt, lunch, night],
                     )
                 ],

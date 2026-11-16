@@ -31109,7 +31109,7 @@ class PlanningAgent:
         day_plan = next(d for d in plan.days if d.day == item.day)
         idx = day_plan.items.index(item)
         nxt = next(
-            (i for i in day_plan.items[idx + 1:] if isinstance(i, VisitItem)),
+            (i for i in day_plan.items[idx + 1 :] if isinstance(i, VisitItem)),
             None,
         )
         dep_min = depart.hour * 60 + depart.minute
