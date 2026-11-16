@@ -2006,7 +2006,18 @@ function planCard(plan) {
           let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
           if (it.next_walk_minutes != null) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
-            for (let j = idx + 1; j < d.items.length; j++) if (!d.items[j].from_city) { nxt = d.items[j]; break; }
+            // 回城链挂景区卡后，同址占位餐卡（锚在本站的午饭/晚饭）不作导航终点：
+            // 否则出一张 0 公里的驾车链接（2026-11-16 用户实报无回城段）。
+            const here0 = legPoint(it);
+            const retLeg = !!(it.next_leg_detail && it.next_leg_detail.direction === "return");
+            for (let j = idx + 1; j < d.items.length; j++) {
+              const cand = d.items[j];
+              if (cand.from_city) continue;
+              const cp = retLeg ? legPoint(cand) : null;
+              if (here0 && cp && Math.abs(here0.lon - cp.lon) < 0.005 && Math.abs(here0.lat - cp.lat) < 0.005) continue;
+              nxt = cand;
+              break;
+            }
             const km = it.distance_to_next_km;
             if (km <= 1.5) {
               // 打车模型：≤1.5km 近距步行口径（不付叫车开销，与后端 _taxi_leg_min 同式）

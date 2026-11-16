@@ -530,10 +530,14 @@ def test_anchored_meal_inherits_access_and_return_chain():
     gap = rules.travel_gap_needed(lunch, wfj)
     assert gap == 8 + 44 + 90 + br["taxi_minutes"]  # 链值，不是打车下限
     annotate_legs(plan)
-    detail = lunch.next_leg_detail
+    # 回城链挂回景区卡（占位餐卡不重复显示）
+    detail = mt.next_leg_detail
     assert detail is not None and detail["direction"] == "return"
     assert detail["service_name"].startswith("前门旅游专线")
     assert detail["gateway"].startswith("慕田峪长城")
+    assert detail["depart_time"] == "14:30"
+    assert lunch.next_leg_detail is None
+    assert lunch.next_leg_mode is None
     # 锚离开班次点：档案清空，腿回打车模型
     plan.days[0].items.remove(lunch)
     plan.days[0].items.append(lunch)
@@ -653,14 +657,16 @@ def test_return_chain_when_card_only_has_profile_archive():
             assumptions=[],
         )
         annotate_legs(plan)
-        detail = lunch.next_leg_detail
+        # 回城链挂回景区卡（占位餐卡不重复显示）
+        detail = mt.next_leg_detail
         assert detail is not None and detail["direction"] == "return"
         assert detail["service_name"].startswith("前门旅游专线")
         assert detail["gateway"].startswith("慕田峪长城")
         assert detail["alight"].startswith("前门大街北口")
         assert detail["departures"] == ["14:30", "15:30", "16:30"]
         assert detail["depart_time"] == "14:30"
-        assert lunch.next_leg_mode == "access"
+        assert mt.next_leg_mode == "access"
+        assert lunch.next_leg_detail is None
     finally:
         access_services.configure_store(None)
         poi_access.configure_profiles(None)

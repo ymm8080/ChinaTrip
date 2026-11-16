@@ -26,6 +26,8 @@ from app.services.itinerary.models import (
 )
 from app.services.itinerary.rules import (
     MORNING_RUSH_EXTRA_MINUTES,
+    SAME_VENUE_KM,
+    SCHEDULED_ACCESS_MODES,
     TAXI_WALK_MAX_KM,
     TRAVEL_MIN_PER_KM,
     _access_profile,
@@ -218,6 +220,72 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             need = travel_gap_needed(a, b)
             a.next_leg_minutes = int(need) if need is not None else taxi_leg_min(km)
             a.next_leg_cost_cny = estimate_taxi_fare(city, km)
+    _lift_return_over_placeholders(plan)
+    return plan
+
+
+def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
+    """回城腿挂回景区卡（2026-11-16 用户实报「NO BACK ARRANGEMENT」）。
+
+    景区散场后紧跟着同址占位餐卡（午饭/晚饭锚在本站）时，腿对是 0 公里不
+    成腿——回城链会挂在占位卡上，用户看景区卡却什么都没有。这里把这段回
+    城链按「占位卡散场」起算，明细挂回景区卡；占位卡上同一段隐藏（同一段
+    回城不重复显示）。幂等：annotate 每轮先清腿字段，本函数按当前布局重算。
+    """
+    for day in plan.days:
+        timed = [
+            item
+            for item in day.items
+            if isinstance(item, VisitItem) and item.start_time is not None
+        ]
+        for pos in range(len(timed) - 2):
+            a = timed[pos]
+            if a.next_leg_minutes is not None:
+                continue
+            mode, _terminal, service, _wait, _last = _access_profile(a)
+            if mode not in SCHEDULED_ACCESS_MODES or not service:
+                continue
+            b = timed[pos + 1]
+            c = timed[pos + 2]
+            if not getattr(b, "anchor_from_prev", False):
+                continue
+            a_pt, b_pt, c_pt = _point(a), _point(b), _point(c)
+            if a_pt is None or b_pt is None or c_pt is None:
+                continue
+            if haversine_km(a_pt, b_pt) > SAME_VENUE_KM:
+                continue
+            proxy = a.model_copy(
+                update={"start_time": b.start_time, "end_time": b.end_time}
+            )
+            br = access_breakdown(proxy, c)
+            if br is None or br.get("direction") != "return":
+                continue
+            km = haversine_km(a_pt, c_pt)
+            a.distance_to_next_km = round(km, 2)
+            a.next_walk_minutes = max(
+                1, round(km * 1000.0 * DETOUR_FACTOR / WALK_METERS_PER_MINUTE)
+            )
+            a.leg_source = "estimate"
+            a.next_leg_mode = "access"
+            a.next_leg_minutes = int(br["minutes"])
+            _fare = br.get("fare_cny")
+            a.next_leg_cost_cny = estimate_taxi_fare(
+                a.city or c.city, float(br["taxi_km"])
+            ) + (
+                float(_fare) if _fare is not None else access_fare_estimate(br["mode"])
+            )
+            a.next_leg_cost_note = L(
+                "含接驳票价估算", "includes an estimated shuttle fare"
+            )
+            a.next_leg_detail = _access_return_detail(proxy, c, br)
+            # 占位卡上的同一段隐藏（不重复显示）
+            b.distance_to_next_km = None
+            b.next_walk_minutes = None
+            b.next_leg_mode = None
+            b.next_leg_minutes = None
+            b.next_leg_cost_cny = None
+            b.next_leg_cost_note = None
+            b.next_leg_detail = None
     return plan
 
 
