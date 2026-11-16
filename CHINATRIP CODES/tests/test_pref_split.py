@@ -203,9 +203,10 @@ def test_pref_round_style_option_reply_stays_preference_no_row():
     assert llm.calls == 0
 
 
-def test_pref_round_specific_wish_still_builds_row():
+def test_pref_round_specific_wish_still_builds_row(monkeypatch):
     """拍板①同时成立：点名具体对象的回复（看熊猫）仍走心愿管线建行——
     语义绑定命中真实 POI 即可，不依赖 LLM（库内核心词路径）。"""
+    monkeypatch.setenv("PLAN_SELECT_MODE", "algorithm")
     store = PoiDetailStore()
     store.upsert(
         "B-PANDA-BASE",
@@ -226,8 +227,8 @@ def test_pref_round_specific_wish_still_builds_row():
     session, _reply, _ = run(agent.message(session, "看熊猫"))
     assert session.state == "ready"
     assert session.preferences == "看熊猫"
-    rows = _all_rows(svc)
-    assert any((i.get("name") or "") == "看熊猫" for i in rows), "具体愿望仍须逐字建行"
+    # 2026-11-15 拍板：规划期不落库，愿望记会话（保存行程才物化成行）
+    assert "看熊猫" in session.wish_sources, "具体愿望仍须逐字建行"
     names = [
         getattr(v, "name", "")
         for d in session.plan.days
@@ -460,7 +461,7 @@ def test_chat_edit_round_hallucinated_wish_not_grounded_no_row():
     session, _reply, _ = run(
         agent.message(session, "第4天上午太空了，把成都环球中心加回第4天上午")
     )
-    names = [i.get("name") or "" for i in _all_rows(svc)]
+    names = list((session.wish_sources or {}).keys())
     assert not any("熊猫" in n for n in names)
     assert not any(n == "lunches" for n in names)
     assert any("环球中心" in n for n in names)

@@ -91,33 +91,41 @@ def test_generic_entry_cap_start_based_all_days():
 
 
 def test_arrival_day_wall_not_placed_after_gate():
-    # 13:20 落地 +150 地板 = 15:50 起排；2026-11-07 开场闸 16:00：
-    # 60' 轻点 15:50 开场合法（16:50 跨界收尾）；120'/330' 大点越
+    # 13:20 落地 +120 地板（火车 2h，2026-11-14）= 15:20 起排；2026-11-07 开场闸 16:00：
+    # 60' 轻点 15:20 开场合法（16:50 跨界收尾）；120'/330' 大点越
     # 15:30 开场带 → 整日降级（挪日）。
     short = DayPlan(day=1, base_city="上海", items=[_train(), _visit("x", dur=60)])
     solved = solve_day(short, poi_hours=[])
     assert solved is not None
     stroll = next(i for i in solved.items if isinstance(i, VisitItem) and i.name == "x")
-    assert stroll.start_time == time(15, 50)
+    assert stroll.start_time == time(15, 20)
+    # 120' 大点 15:20 开场合法（≤15:30 大点带，17:20 跨界收尾）；
+    # 330' 也不再判死：日终 21:00 前收得住（15:20+330=20:50），大点带只管开场
     for dur in (120, 330):
         day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("x", dur=dur)])
-        assert solve_day(day, poi_hours=[]) is None
+        solved_d = solve_day(day, poi_hours=[])
+        assert solved_d is not None
+        got = next(
+            i for i in solved_d.items if isinstance(i, VisitItem) and i.name == "x"
+        )
+        assert got.start_time == time(15, 20)
     long_day = DayPlan(
         day=1, base_city="上海", items=[_train(), _visit("wall", dur=330)]
     )
+    # 插入主路更严（入场闸+窗整段校验）→ 330' 仍判当天装不下
     assert insertion_schedule_day(long_day, poi_hours=[]) is None
 
 
 def test_cp_midday_arrival_places_before_start_gate():
-    # 13:20 落地 → 地板 15:50；2026-11-07 开场闸 16:00：60' 轻点
-    # 15:50 开场合法（跨界收尾）——到达日午后不再一律降级。
+    # 13:20 落地 → 地板 15:20；2026-11-07 开场闸 16:00：60' 轻点
+    # 15:20 开场合法（跨界收尾）——到达日午后不再一律降级。
     day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)])
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
     stroll = next(
         i for i in solved.items if isinstance(i, VisitItem) and i.name == "stroll"
     )
-    assert stroll.start_time == time(15, 50)
+    assert stroll.start_time == time(15, 20)
 
 
 def test_insertion_midday_arrival_places_before_start_gate():
@@ -150,7 +158,7 @@ def test_cp_normal_day_cap_still_binds():
 
 def test_reconcile_midday_arrival_moves_all_under_end_gate():
     # 13:20 落地窗 [15:50, 21:30]；2026-11-07 开场闸 16:00：
-    # 60' 轻点 15:50 开场合法（留 day1）；90' 大点越 15:30 开场带
+    # 60' 轻点 15:20 开场合法（留 day1）；90' 大点越 15:30 开场带
     # → v2/v3 挪 day2（11-03 开场口径 → 11-07 开场闸）
     day1 = DayPlan(
         day=1,
@@ -178,9 +186,10 @@ def test_reconcile_midday_arrival_moves_all_under_end_gate():
     assert any("进城" in str(n) or "inbound" in str(n) for n in notes)
 
 
-def test_reconcile_capacity_prefers_lower_tier():
-    # 容量溢出裁汰按 tier 序（夜游件不受白闸、按日终窗计）：tier1 留、
-    # tier9 让位
+def test_reconcile_capacity_moves_whole_arrival_batch():
+    # 到达日容量收口已并入 _transfer_day_sweep：C 容量装不下的整组挪同城
+    # 更晚一天（2026-11-12 起「先挪日」），不再按 tier 就地裁汰；
+    # 本用例锁「不静默丢件」这个不变式。
     day1 = DayPlan(
         day=1,
         base_city="上海",
@@ -193,17 +202,17 @@ def test_reconcile_capacity_prefers_lower_tier():
     )
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])
-    _reconcile_transfer_days(plan, tier_by_name={"big": 1, "small": 1, "extra": 9})
-    assert _find(day1, "big").day == 1
-    assert _find(day1, "small").day == 1
-    moved = next(i for d in plan.days for i in d.items if i.item_id == "extra")
-    assert moved.day == 2
+    _transfer_day_sweep(plan, frozenset(), {"big": 1, "small": 1, "extra": 9})
+    for vid in ("big", "small", "extra"):
+        moved = next(i for d in plan.days for i in d.items if i.item_id == vid)
+        assert moved.day == 2, "到达日装不下 → 整组挪同城次日，不静默丢"
 
 
 def test_reconcile_hours_close_moves_to_later_day():
-    # 落地后闭馆装不下（15:50 开游 90' 进 17:00 闭馆）→ 不留当天等
+    # 落地后闭馆装不下（15:20 开游 90' 进 17:00 闭馆）→ 不留当天等
     # None-None 卡，直接挪 day2
-    w = _visit("museum", dur=90, poi_id="museum", opening_hours="09:00-17:00")
+    # 15:20 落地起排 + 120' 会压过 17:00 闭馆（90' 恰好收在 16:50，装得下）
+    w = _visit("museum", dur=120, poi_id="museum", opening_hours="09:00-17:00")
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), w])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])

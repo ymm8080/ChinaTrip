@@ -295,7 +295,11 @@ def test_final_lunch_placeholder_retimes_after_structural_move():
     )
     day = DayPlan(day=1, base_city="测试城", items=[lunch, visit])
     _retime_meal_placeholders(_plan([day]))
-    assert (lunch.start_time, lunch.end_time) == (time(12, 30), time(14, 0))
+    # 2026-11-14 拍板：午餐默认 1 小时（原 1.5h）——餐窗是硬锚，撞窗的
+    # 参访顺延而不是把午餐推走（冲突由 visit 让位）
+    assert (lunch.start_time, lunch.end_time) == (time(12, 0), time(13, 0))
+    moved = next(i for i in day.items if i.item_id == "moved-visit")
+    assert moved.start_time == time(13, 30)
 
 
 def test_final_dinner_placeholder_moves_or_drops_without_overlap():
@@ -312,12 +316,16 @@ def test_final_dinner_placeholder_moves_or_drops_without_overlap():
     )
     day = DayPlan(day=1, base_city="测试城", items=[dinner, show])
     _retime_meal_placeholders(_plan([day]))
-    assert (dinner.start_time, dinner.end_time) == (time(18, 50), time(19, 50))
+    # 2026-11-14 拍板：晚餐默认 1.5 小时、默认锚 19:00——演出 18:50 散场
+    # 正好接得上，不再把晚饭提前贴场
+    assert (dinner.start_time, dinner.end_time) == (time(19, 0), time(20, 30))
 
     blocked = _meal_placeholder("food-dinner-ph-d1", time(17, 30), 60)
     day = DayPlan(day=1, base_city="测试城", items=[blocked, show])
     _retime_meal_placeholders(_plan([day]))
-    assert blocked not in day.items
+    # 17:30 的晚饭与演出整段相撞 → 让到默认晚锚 19:00-20:30（不丢餐）
+    moved = next(i for i in day.items if i.item_id == "food-dinner-ph-d1")
+    assert (moved.start_time, moved.end_time) == (time(19, 0), time(20, 30))
 
 
 def test_final_placeholder_never_moves_real_meal():
@@ -347,7 +355,8 @@ def test_final_dinner_real_food_keeps_lunch_placeholder():
     day = DayPlan(day=1, base_city="测试城", items=[lunch, dinner_real])
     _retime_meal_placeholders(_plan([day]))
     assert lunch in day.items
-    assert (lunch.start_time, lunch.end_time) == (time(11, 30), time(13, 0))
+    # 午餐占位默认 1 小时（2026-11-14）
+    assert (lunch.start_time, lunch.end_time) == (time(12, 0), time(13, 0))
     assert (dinner_real.start_time, dinner_real.end_time) == (time(17, 30), time(19, 0))
 
 
