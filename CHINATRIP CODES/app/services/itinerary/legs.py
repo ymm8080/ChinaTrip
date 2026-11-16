@@ -285,12 +285,14 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
     last_pt = _point(last)
     if last_pt is None:
         return
+    same_site = [last]
     for after in timed[timed.index(last) + 1 :]:
         after_pt = _point(after)
         if after_pt is None:
             continue
         if haversine_km(last_pt, after_pt) > SAME_VENUE_KM:
             return  # 后面有真实下一站：正常腿链负责
+        same_site.append(after)
     mode, terminal, service, _wait, _last = _access_profile(last)
     home = VisitItem(
         item_id="__city-terminal__",
@@ -300,9 +302,27 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         duration_minutes=0,
         location=terminal,
     )
-    br = access_breakdown(last, home)
-    if br is None or br.get("direction") != "return":
+    # board 基逐档试：景点散场 → 同址占位卡散场（午饭/晚饭），取「仍有返程
+    # 班的最后一档」——晚饭 19 点在景区时不该拿 20:30 去赶 16:30 的末班。
+    best: tuple[VisitItem, dict] | None = None
+    fallback: tuple[VisitItem, dict] | None = None
+    for base in same_site:
+        proxy = last.model_copy(
+            update={"start_time": base.start_time, "end_time": base.end_time}
+        )
+        br = access_breakdown(proxy, home)
+        if br is None or br.get("direction") != "return":
+            continue
+        if fallback is None:
+            fallback = (proxy, br)
+        if br.get("depart") is None:
+            continue
+        best = (proxy, br)
+    if best is None:
+        best = fallback
+    if best is None:
         return
+    proxy, br = best
     km = haversine_km(last_pt, terminal)
     last.distance_to_next_km = round(km, 2)
     last.next_walk_minutes = max(
@@ -317,7 +337,7 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         estimate_taxi_fare(last.city, _taxi_km) if _taxi_km > 0.05 else 0
     ) + (float(_fare) if _fare is not None else access_fare_estimate(br["mode"]))
     last.next_leg_cost_note = L("含接驳票价估算", "includes an estimated shuttle fare")
-    detail = _access_return_detail(last, home, br)
+    detail = _access_return_detail(proxy, home, br)
     detail["next_stop"] = detail.get("alight") or ""
     detail["to_city"] = True
     last.next_leg_detail = detail
