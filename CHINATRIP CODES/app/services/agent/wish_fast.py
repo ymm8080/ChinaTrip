@@ -205,21 +205,36 @@ def _looks_like_place(name: str) -> bool:
 
 def parse_place_request(text: str) -> str | None:
     """「我要去豫园」/「add Yu Garden」→「豫园」；不是单点口吻 → None。"""
+    return parse_place_request_detail(text)[0]
+
+
+def parse_place_request_detail(text: str) -> tuple[str | None, bool]:
+    """同 parse_place_request，多回一个「是否裸地名」（整句只有名字、没有动词）。
+
+    裸地名不走向量/图商检索：短句闲聊（「谢谢」「好的」）也符合「像个地名」，
+    只有底库精确/内核命中才允许接管，否则交主车道（2026-11-16）。
+    """
     raw = (text or "").strip()
     if not raw or len(raw) > _MAX_TEXT_CHARS:
-        return None
+        return None, False
     if any(token in raw for token in _BLOCKERS):
-        return None
+        return None, False
     if _MULTI_PLACE.search(raw) or _DAYS_PHRASE.search(raw):
-        return None
+        return None, False
     for pattern in _PATTERNS:
         match = pattern.match(raw)
         if not match:
             continue
         name = _clean_name(match.group("name"))
         if _looks_like_place(name):
-            return name
-    return None
+            return name, False
+    # 2026-11-16（用户「NOW I TYPE IN ZHUJIAJIAO」案）：整句就是一个地名
+    # （「ZHUJIAJIAO」「朱家角」）也当单点心愿——但只认底库能落地的名字
+    # （见 _resolve_poi 的 allow_network=False），查不到就回主车道，绝不硬加。
+    bare = _clean_name(raw)
+    if len(bare.split()) <= 3 and _looks_like_place(bare):
+        return bare, True
+    return None, False
 
 
 def _point(poi: dict | None) -> GeoPoint | None:
@@ -838,13 +853,34 @@ async def _exact_poi(agent, city: str, name: str) -> dict | None:
     return exact[0]
 
 
-async def _resolve_poi(agent, session, name: str):
-    """专名 → (poi, city)：先底库精确同名，再底库模糊，再图商（同名）。"""
+async def _resolve_poi(agent, session, name: str, *, allow_network: bool = True):
+    """专名 → (poi, city)：先底库精确同名，再内核（中英）兜底，再底库模糊，
+    最后图商（同名）。allow_network=False（整句裸地名）时最后一步不做——
+    「谢谢」这类短句也长得像地名，不能让闲聊触发图商检索。"""
     cities = [c for c in dict.fromkeys(session.cities or []) if (c or "").strip()]
     for city in cities:
         poi = await _exact_poi(agent, city, name)
         if poi:
             return poi, str(poi.get("city") or city).strip() or city
+    # 2026-11-16：专名内核兜底（ZHUJIAJIAO / 朱家角 → 朱家角古镇）——底库
+    # 唯一行是全称（name_en=Zhujiajiao Ancient Town），精确同名查不到；这里
+    # 复用简报读点同一口径（match_text_names 中英内核），命中的整名再走一次
+    # 精确取行，拿到的仍是库内真行（坐标/地址/类别齐全）。
+    store = getattr(agent, "_poi_details", None)
+    if store is not None:
+        for city in cities:
+            try:
+                core_hits = await asyncio.to_thread(store.match_text_names, city, name)
+            except Exception:
+                logger.warning("plan: fast wish core lookup failed", exc_info=True)
+                core_hits = []
+            for hit in core_hits or []:
+                hit_name = str(hit.get("name") or "").strip()
+                if not hit_name:
+                    continue
+                poi = await _exact_poi(agent, city, hit_name)
+                if poi:
+                    return poi, str(poi.get("city") or city).strip() or city
     lookup = getattr(agent, "_poi_library_lookup", None)
     if lookup is not None:
         for city in cities:
@@ -856,7 +892,7 @@ async def _resolve_poi(agent, session, name: str):
             if poi:
                 return poi, str(poi.get("city") or city).strip() or city
     lookup_net = getattr(agent, "_lookup_poi", None)
-    if lookup_net is not None:
+    if allow_network and lookup_net is not None:
         for city in cities:
             try:
                 poi = await lookup_net(name, city)
@@ -969,10 +1005,10 @@ async def try_fast_wish(agent, session, text: str):
         session, "pending_wish_cities", None
     ):
         return None
-    name = parse_place_request(text)
+    name, bare = parse_place_request_detail(text)
     if name is None:
         return None
-    poi, city = await _resolve_poi(agent, session, name)
+    poi, city = await _resolve_poi(agent, session, name, allow_network=not bare)
     kind = _poi_kind(poi) if poi else None
     if kind == "other":
         logger.info(

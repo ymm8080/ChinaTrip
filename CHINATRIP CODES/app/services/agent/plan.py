@@ -136,7 +136,7 @@ from app.services.llm import (
     parse_json_content,
 )
 from app.services.poi_details import PoiDetailStore
-from app.services.poi_names import place_core
+from app.services.poi_names import place_core, place_core_en
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
@@ -3045,6 +3045,50 @@ def _brief_day_value(raw) -> int | None:
     except (TypeError, ValueError):
         return None
     return day if 1 <= day <= 30 else None
+
+
+_DAYS_ONLY_RE = re.compile(r"(\d+|[一二三四五六七八九十两]+)(天|日)")
+
+
+def _brief_is_route_declaration(text: str, cities: list[str] | None) -> bool:
+    """短句是不是纯路线声明（「北京」「上海 2 天」「3 天」）：不是地名，不读点。
+
+    2026-11-14 的护栏（短句不当描述读）保留在这个更窄的口径里：短句只有在
+    「整句是城市名/天数」时才直接跳过，其余交给 _brief_bare_place 按整句
+    地名认（2026-11-16 用户「NOW I TYPE IN ZHUJIAJIAO」案）。
+    """
+    probe = re.sub(r"\s+", "", text or "")
+    if not probe:
+        return True
+    if _DAYS_ONLY_RE.fullmatch(probe):
+        return True
+    for city in cities or []:
+        name = re.sub(r"\s+", "", city or "").removesuffix("市")
+        if name and probe in (name, f"{name}市", f"{name}天", f"{name}日"):
+            return True
+    return False
+
+
+def _brief_bare_place(text: str, row: dict) -> bool:
+    """短简报只认「整句就是这个地名」的命中（2026-11-16 ZHUJIAJIAO 案）。
+
+    短句没有上下文：用户打「ZHUJIAJIAO」要认出「朱家角古镇」，打「北京」
+    不能把底库同城景点全拉进来。比较用归一后的中文名 / 英文名 / 地名内核
+    （大小写与空格不敏感），必须整句相等，不做包含匹配。
+    """
+
+    def norm(value: str | None) -> str:
+        return re.sub(r"\s+", " ", value or "").strip().lower()
+
+    probe = norm(text)
+    if not probe:
+        return False
+    for value in (row.get("name"), row.get("name_en")):
+        if not value:
+            continue
+        if probe in (norm(value), norm(place_core(value)), norm(place_core_en(value))):
+            return True
+    return False
 
 
 def _text_site_kind(category: str | None) -> str:
@@ -20035,7 +20079,14 @@ class PlanningAgent:
             return [], []
         session.brief_mined = True
         text = (session.brief_text or session.preferences or "").strip()
-        if len(text) < _MIN_BRIEF_TEXT or find_urls(text):
+        if find_urls(text):
+            return [], []
+        # 2026-11-16（用户「NOW I TYPE IN ZHUJIAJIAO」案）：短句也要读，但只认
+        # 「整句就是这个地名」的命中（ZHUJIAJIAO / 朱家角），且不开 LLM 通道
+        # ——「北京 2 天」这类路线声明仍然不会凭空变成景点（_MIN_BRIEF_TEXT
+        # 的护栏从「整句不读」收紧成「只读整句地名」）。
+        short = len(text) < _MIN_BRIEF_TEXT
+        if short and _brief_is_route_declaration(text, session.cities):
             return [], []
         pool = list(session.cities[1:] if len(session.cities) > 1 else session.cities)
         pool = [c for c in pool if c]
@@ -20077,6 +20128,8 @@ class PlanningAgent:
                     )
                     continue
                 for row in rows or []:
+                    if short and not _brief_bare_place(text, row):
+                        continue
                     library.append(
                         (
                             str(row.get("name") or ""),
@@ -20085,7 +20138,7 @@ class PlanningAgent:
                         )
                     )
         llm_rows: list[tuple[str, str, str, int | None]] = []
-        if len(library) < MAX_BRIEF_SITES:
+        if not short and len(library) < MAX_BRIEF_SITES:
             for name, kind, city, day in await self._brief_sites_from_llm(text):
                 canonical = await self._canonical_brief_site(
                     name, city or pool[0], pool

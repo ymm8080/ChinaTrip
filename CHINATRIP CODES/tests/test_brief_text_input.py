@@ -307,6 +307,38 @@ def test_mine_brief_sites_skips_short_text_and_never_calls_llm():
     assert store.match_calls == []
 
 
+def test_mine_brief_sites_reads_bare_english_place_name():
+    """短句整句就是一个地名也要读（2026-11-16 用户「NOW I TYPE IN
+    ZHUJIAJIAO」）：没有动词、没有描述，但整句就是专名——按底库英文名内核
+    认出「朱家角古镇」；同城的其它行不许借机混进来。"""
+    store = SitesStore(
+        rows_by_city={
+            "上海": [
+                {
+                    "name": "朱家角古镇",
+                    "name_en": "Zhujiajiao Ancient Town",
+                    "city": "上海",
+                    "category": "attraction",
+                },
+                {
+                    "name": "外滩",
+                    "name_en": "The Bund",
+                    "city": "上海",
+                    "category": "nature",
+                },
+            ]
+        }
+    )
+    agent = PlanningAgent(ExplodingLLM(), amap_client=None, poi_details=store)
+    session = _session(
+        cities=["上海"], preferences="ZHUJIAJIAO", brief_text="ZHUJIAJIAO"
+    )
+
+    added, _notes = run(agent._mine_brief_sites(session))
+
+    assert added == ["朱家角古镇"]
+
+
 def test_mine_brief_sites_runs_once_per_session():
     store = SitesStore(
         rows_by_city={"北京": [{"name": "天坛", "city": "北京", "category": "temple"}]}

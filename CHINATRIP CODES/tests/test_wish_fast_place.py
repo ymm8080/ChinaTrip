@@ -433,3 +433,13 @@ def test_place_wish_tiananmen_starts_at_flag_rise_time():
     )
     assert placement is not None
     assert placement.item.start_time == _time(6, 58)
+
+
+def test_parse_place_request_accepts_bare_place_name():
+    """整句就是一个地名也接管（2026-11-16 用户「NOW I TYPE IN ZHUJIAJIAO」）：
+    用户只打一个专名、没有动词，旧解析要求「去/加/visit」一律返回 None，
+    短句就掉进主车道被当偏好。能不能落地仍由 _resolve_poi 决定。"""
+    assert parse_place_request("ZHUJIAJIAO") == "ZHUJIAJIAO"
+    assert parse_place_request("Zhujiajiao") == "Zhujiajiao"
+    assert parse_place_request("朱家角") == "朱家角"
+    assert parse_place_request("  ZHUJIAJIAO  ") == "ZHUJIAJIAO"

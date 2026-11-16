@@ -991,7 +991,7 @@ class PoiDetailStore:
                     best = len(core)
             return best
 
-        hits: dict[str, tuple[int, str, str | None, str | None]] = {}
+        hits: dict[str, tuple[int, str, str | None, str | None, str | None]] = {}
 
         def consider(name_zh, name_en, aliases, category, row_city) -> None:
             name = (name_zh or "").strip()
@@ -1002,7 +1002,7 @@ class PoiDetailStore:
                 return
             prev = hits.get(name)
             if prev is None or score > prev[0]:
-                hits[name] = (score, name, row_city, category)
+                hits[name] = (score, name, name_en, row_city, category)
 
         if self._db_available():
             try:
@@ -1048,8 +1048,13 @@ class PoiDetailStore:
             if not any(h[1] != other and h[1] in other for other in names)
         ]
         return [
-            {"name": name, "city": row_city, "category": category}
-            for _score, name, row_city, category in kept[:limit]
+            {
+                "name": name,
+                "name_en": name_en,
+                "city": row_city,
+                "category": category,
+            }
+            for _score, name, name_en, row_city, category in kept[:limit]
         ]
 
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
