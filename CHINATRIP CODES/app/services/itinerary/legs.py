@@ -401,7 +401,24 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
                 item.next_leg_cost_note = None
                 item.next_leg_detail = None
         _attach_tail_return(day, timed)
+    _gate_item_links(plan)
     return plan
+
+
+def _gate_item_links(plan: ItineraryPlan) -> None:
+    """行程卡预约按钮的链接也过白名单闸（2026-11-16 用户拍板「链接先验证」）。
+
+    卡面 🎫 预约按钮用的就是 VisitItem.booking_url，与腿行链接同源同风险
+    （景山公园 bjgyol.com.cn 这类死链同样会从卡面出去）；幂等。
+    """
+    for day in plan.days:
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            raw_value = getattr(item, "booking_url", None)
+            if not raw_value:
+                continue
+            item.booking_url = _url(raw_value) or None
 
 
 #: 规划页外链白名单（2026-11-16 用户拍板「post 出去的链接必须先验证」）。

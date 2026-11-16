@@ -80,3 +80,37 @@ def test_corrupt_whitelist_drops_everything(tmp_path, monkeypatch):
     monkeypatch.setattr(legs, "_VERIFIED_LINKS_FILE", path)
     monkeypatch.setattr(legs, "_LINK_CACHE", {"mtime": None, "links": {}})
     assert legs._url("https://www.badaling.cn") == ""
+
+
+def test_card_booking_url_gated_on_annotate(tmp_path, monkeypatch):
+    """卡面 🎫 预约按钮的 booking_url 同样过闸：死链清空，活链补全 scheme。"""
+    from datetime import time
+
+    from app.services.itinerary.legs import annotate_legs
+    from app.services.itinerary.models import (
+        DayPlan,
+        GeoPoint,
+        ItineraryPlan,
+        VisitItem,
+    )
+
+    _gate(tmp_path, monkeypatch, {"https://www.badaling.cn": {"verdict": "ok"}})
+    base = dict(
+        city="北京", day=1, duration_minutes=60, category="sight",
+        location=GeoPoint(lon=116.41, lat=39.91),
+        start_time=time(9, 0), end_time=time(10, 0),
+    )
+    dead = VisitItem(
+        item_id="d", name="景山公园", booking_url="https://bjgyol.com.cn", **base
+    )
+    alive = VisitItem(
+        item_id="a", name="八达岭长城", booking_url="www.badaling.cn", **base
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x", cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[dead, alive])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    assert dead.booking_url is None
+    assert alive.booking_url == "https://www.badaling.cn"
