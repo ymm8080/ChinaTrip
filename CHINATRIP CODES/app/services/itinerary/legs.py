@@ -147,9 +147,7 @@ def _clock(minutes) -> str | None:
     return f"{value // 60:02d}:{value % 60:02d}"
 
 
-def _access_detail(
-    a: VisitItem, b: VisitItem, br: dict
-) -> dict:
+def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
     """接驳腿拆分（2026-11-16 用户拍板：网页要看清楚打车段/专线/步行/预约）。
 
     数据优先用卡上已挂的官方班次（w12_0039）；没有就现场查一次
@@ -189,12 +187,15 @@ def _access_detail(
         "board_time": _clock(br.get("board")),
         "depart_time": _clock(br.get("depart")),
         "arrive_time": _clock(
-            (br.get("depart") or 0) + int(br.get("service") or 0)
+            (br.get("depart") or 0)
+            + int(br.get("service") or 0)
             + int(br.get("last") or 0)
             if br.get("depart") is not None
             else None
         ),
-        "taxi_cost": estimate_taxi_fare(a.city or b.city, float(br.get("taxi_km") or 0.0)),
+        "taxi_cost": estimate_taxi_fare(
+            a.city or b.city, float(br.get("taxi_km") or 0.0)
+        ),
         "access_cost": access_fare_estimate(br.get("mode")),
         "booking_url": _pick("access_ticket_url")
         or getattr(b, "booking_url", None)

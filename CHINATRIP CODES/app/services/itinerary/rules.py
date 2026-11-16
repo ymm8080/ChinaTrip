@@ -203,9 +203,7 @@ def _fastest_ride(
     if got is None:
         # 班次库不可用：退回卡上自带的官方时刻表（同一「最快到景区」口径）
         times = [
-            m
-            for m in (_hhmm_minutes(t) for t in (departures or []))
-            if m is not None
+            m for m in (_hhmm_minutes(t) for t in (departures or [])) if m is not None
         ]
         nxt = next((t for t in sorted(times) if t >= board), None)
         if nxt is None:
@@ -233,8 +231,10 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     if getattr(a, "end_time", None) is not None:
         a_end = a.end_time.hour * 60 + a.end_time.minute
     elif getattr(a, "start_time", None) is not None:
-        a_end = a.start_time.hour * 60 + a.start_time.minute + int(
-            getattr(a, "duration_minutes", None) or 0
+        a_end = (
+            a.start_time.hour * 60
+            + a.start_time.minute
+            + int(getattr(a, "duration_minutes", None) or 0)
         )
     # 晨卡（「从酒店出发」占位，08:30-09:00 打包窗口）不是真的在酒店玩半小时：
     # 排期口径一直是「接驳链从晨卡开始时打」，这里对齐，免得卡上时间比腿短 30 分钟。
@@ -269,6 +269,7 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         "board": board,
         "depart": depart,
     }
+
 
 def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
     """a 鈫?b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""

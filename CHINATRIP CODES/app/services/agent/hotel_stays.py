@@ -347,9 +347,7 @@ def _head_access_chain(dp: DayPlan) -> int:
         # 晨卡口径：08:30 出发 → 到乘车点后取最快一班（时刻表），
         # 与 access_breakdown 的腿值同源，免得卡上时间比腿短半小时。
         return (
-            head_chain_minutes(
-                timed[0], depart_minute=HOTEL_MORNING_EARLIEST_MINUTES
-            )
+            head_chain_minutes(timed[0], depart_minute=HOTEL_MORNING_EARLIEST_MINUTES)
             or 0
         )
     except Exception:  # noqa: BLE001 — 档案不可用=维持旧排法

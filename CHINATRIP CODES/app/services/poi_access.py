@@ -541,4 +541,3 @@ def head_chain_minutes(item: Any, *, depart_minute: int | None = None) -> int | 
         _depart, ride, last_mile, wait_minutes = got
         return head + wait_minutes + ride + last_mile
     return head + int(wait) + int(service) + int(last)
-

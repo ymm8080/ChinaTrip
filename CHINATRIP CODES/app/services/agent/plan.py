@@ -11323,7 +11323,9 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             # 本来就是从开始时刻打的（access_breakdown 同口径）——别把半小时
             # 算两遍，否则远郊首站会被推后整整 30 分钟。
             _prev_item = timed[idx - 1]
-            if str(getattr(_prev_item, "item_id", "") or "").startswith("hotel-morning"):
+            if str(getattr(_prev_item, "item_id", "") or "").startswith(
+                "hotel-morning"
+            ):
                 _start_min = _minutes_of(_prev_item.start_time)
                 if _start_min is not None:
                     prev_end = _start_min

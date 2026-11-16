@@ -90,6 +90,7 @@ def test_annotate_legs_taxi_and_walk():
     # b → 无下一站：清空
     assert b.next_leg_minutes is None
 
+
 class _FakeStore:
     """假班次源（access_services.configure_store 的入参形状）。"""
 
@@ -149,7 +150,9 @@ def test_fastest_plan_picks_earliest_arrival_at_shuttle_stop():
     from app.services import access_services
 
     slow = _svc_row(service_name="慢线", outbound_times=["09:00"], ride_minutes=150)
-    fast = _svc_row(service_name="快线", outbound_times=["08:30", "09:30"], ride_minutes=90)
+    fast = _svc_row(
+        service_name="快线", outbound_times=["08:30", "09:30"], ride_minutes=90
+    )
     access_services.configure_store(_FakeStore([slow, fast]))
     try:
         got = access_services.fastest_plan("北京", "慕田峪长城", 8 * 60 + 46)
@@ -157,7 +160,7 @@ def test_fastest_plan_picks_earliest_arrival_at_shuttle_stop():
         access_services.configure_store(None)
     assert got is not None
     depart, ride, last, wait = got
-    assert depart == 9 * 60 + 30   # 08:30 已发车，赶 09:30（慢线 09:00 到得更晚）
+    assert depart == 9 * 60 + 30  # 08:30 已发车，赶 09:30（慢线 09:00 到得更晚）
     assert ride == 90
     assert last == 8
     assert wait == 44
@@ -197,10 +200,10 @@ def test_morning_hotel_chain_uses_checkout_time_and_timetable():
         br = rules.access_breakdown(hotel, mt)
     finally:
         access_services.configure_store(None)
-    assert br["board"] == 8 * 60 + 46   # 08:30 + 16 分钟打车
+    assert br["board"] == 8 * 60 + 46  # 08:30 + 16 分钟打车
     assert br["depart"] == 9 * 60 + 30
     assert br["wait"] == 44
-    assert br["minutes"] == 16 + 44 + 90 + 8   # 158
+    assert br["minutes"] == 16 + 44 + 90 + 8  # 158
 
 
 def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
