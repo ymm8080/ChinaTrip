@@ -1852,6 +1852,101 @@ def test_duration_refreshes_legs_and_persists():
     assert card.duration_minutes == 120
 
 
+def test_duration_pushes_pinned_follower_instead_of_overlapping():
+    """2026-11-16 用户「WHEN DURATION IS UPDATED, FOLLOWING SITES DOES NOT
+    HAVE CARD TIME AUTO ADJUSTED」：必去心愿卡都带 pin，旧实现清空重排时
+    跳过钉住件 → 延长后的卡直接压住下一站。现在按时间链把被压住的钉住件
+    顺延（钉住标记保留），并在假设标注里写清顺延到几点。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    session = _session(client, agent, sid)
+    day2 = next(d for d in session.plan.days if d.day == 2)
+    day2.items = [i for i in day2.items if not isinstance(i, VisitItem)] + [
+        VisitItem(
+            item_id="a1",
+            name="甲",
+            city="杭州",
+            day=2,
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            duration_minutes=120,
+        ),
+        VisitItem(
+            item_id="a2",
+            name="乙",
+            city="杭州",
+            day=2,
+            pinned=True,
+            start_time=time(11, 30),
+            end_time=time(13, 0),
+            duration_minutes=90,
+        ),
+    ]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/a1/duration",
+        json={"minutes": 180},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    jia = _visit(data, "甲")
+    assert jia["end_time"] == "12:00:00"
+    yi = _visit(data, "乙")
+    assert _hm(yi["start_time"]) >= _hm(jia["end_time"])  # 不再重叠
+    assert _hm(yi["start_time"]) > _hm("11:30:00")  # 真的顺延了
+    assert _hm(yi["end_time"]) - _hm(yi["start_time"]) == timedelta(minutes=90)
+    assert yi["pinned"] is True
+    assert any("顺延" in a for a in data["plan"]["assumptions"])
+
+
+def test_duration_leaves_non_conflicting_followers_alone():
+    """不冲突的后续卡保持原时刻：旧实现清空后整体紧排，会把 15:00 的下一站
+    拉回到前一站后面（实测 15:36 → 14:36）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    session = _session(client, agent, sid)
+    day2 = next(d for d in session.plan.days if d.day == 2)
+    day2.items = [i for i in day2.items if not isinstance(i, VisitItem)] + [
+        VisitItem(
+            item_id="a1",
+            name="甲",
+            city="杭州",
+            day=2,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="a2",
+            name="乙",
+            city="杭州",
+            day=2,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            duration_minutes=60,
+        ),
+    ]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/a1/duration",
+        json={"minutes": 90},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert _visit(data, "甲")["end_time"] == "10:30:00"
+    yi = _visit(data, "乙")
+    assert yi["start_time"] == "15:00:00"  # 有空隙就不动
+    assert yi["end_time"] == "16:00:00"
+
+
 def test_duration_overflow_discloses_dropped_card():
     """加长把当天后段挤出去：卡不许悄悄消失——回复与假设标注写「已转为想去」
     （出站层把无时刻参访卡撤成 chip），被撤的卡进 plan.unplaced。"""

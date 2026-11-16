@@ -11642,6 +11642,81 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
     return notes
 
 
+def _ripple_after_duration(
+    day: DayPlan, anchor: VisitItem, *, day_end: int = 21 * 60 + 30
+) -> tuple[list[tuple[str, int, int]], list[str]]:
+    """用户改完停留时长后，把当天被压住的后续件按时间链顺延。
+
+    2026-11-16 用户「WHEN DURATION IS UPDATED, FOLLOWING SITES DOES NOT
+    HAVE CARD TIME AUTO ADJUSTED」：旧实现把当天非钉住件清空后整体重排，
+    钉住件（必去心愿都带 pin）与系统餐锚停在原时刻 → 与延长后的卡重叠；
+    不冲突的卡反被重新紧排（15:36 的下一站被拉到 14:36）。
+
+    现在只推真正冲突的件：后续件留有空隙就原地不动（整天形状不变）；钉住
+    件也推——钉住是「别让引擎随便挪我」，不是「允许时间重叠」。推完会越过
+    日终（21:30）的参访件不硬塞，退回无时刻（出站层转「想去」chip，由调用
+    方披露）。占位餐卡（自由安排，可嵌在景点块内）与酒店卡不参与顺延。
+    返回 (移动清单 [(name, old_start_minutes, new_start_minutes)], 撤下名)。
+    """
+    start_min = _minutes_of(anchor.start_time)
+    if start_min is None:
+        return [], []
+    cursor = _item_end_minutes(anchor)
+    if cursor is None:
+        cursor = start_min + int(anchor.duration_minutes or 0)
+    prev: VisitItem = anchor
+    moved: list[tuple[str, int, int]] = []
+    dropped: list[str] = []
+
+    def _movable(it: VisitItem) -> bool:
+        # 占位餐卡是「自由安排」的标签，本就允许嵌在景点块内（_nested_block_food）；
+        # 酒店卡由 reanchor_hotel_cards 统一跟随，都不参与顺延。
+        if is_lunch_placeholder(it) or is_dinner_placeholder(it):
+            return False
+        if is_hotel_night(it) or is_hotel_morning(it):
+            return False
+        return (it.category or "") != "hotel"
+
+    followers = sorted(
+        (
+            i
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and i is not anchor
+            and _movable(i)
+            and i.start_time is not None
+            and (_minutes_of(i.start_time) or 0) >= start_min
+        ),
+        key=lambda i: _minutes_of(i.start_time) or 0,
+    )
+    for it in followers:
+        s = _minutes_of(it.start_time)
+        if s is None:
+            continue
+        dur = it.duration_minutes
+        if not dur:
+            e = _item_end_minutes(it)
+            dur = max(0, (e - s) if e is not None else 0)
+        need = cursor + (travel_gap_needed(prev, it) or 0)
+        if s >= need:
+            # 有空隙：原位不动（旧实现会把它拉紧到前一站后面）
+            cursor = _item_end_minutes(it) or (s + dur)
+            prev = it
+            continue
+        if (it.category or "") != "food" and need + dur > day_end:
+            # 推完越过日终：不硬塞，退回无时刻（出站层转「想去」）
+            it.start_time = None
+            it.end_time = None
+            dropped.append(it.name)
+            continue
+        it.start_time = _time_of(need)
+        it.end_time = _time_of(need + dur) if need + dur < 24 * 60 else None
+        moved.append((it.name, s, need))
+        cursor = need + dur
+        prev = it
+    return moved, dropped
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -31408,9 +31483,9 @@ class PlanningAgent:
         should able to change duration in addition to site name」）。
 
         与 retime_item 同款用户权威路径：用户显式给的时长即最高优先——
-        本卡成固定锚点（开始时刻保留、结束=开始+新时长），当天其余非钉住
-        景点清空时间后按顺序游标重排并按时间排序。酒店卡/系统餐位是系统
-        骨架（时长由规则算）→ ``duration_locked``。纯计算。
+        本卡成固定锚点（开始时刻保留、结束=开始+新时长），当天后续件按
+        时间链顺延（只推被压住的，见 ``_ripple_after_duration``）。酒店卡/
+        系统餐位是系统骨架（时长由规则算）→ ``duration_locked``。纯计算。
         """
         plan = session.plan
         if plan is None:
@@ -31461,16 +31536,10 @@ class PlanningAgent:
         }
         day_no = edited.day
         day = next(d for d in candidate.days if d.day == day_no)
-        for it in day.items:
-            if (
-                isinstance(it, VisitItem)
-                and it.item_id != item_id
-                and not it.pinned
-                and not it.soft_pin
-            ):
-                # 系统餐锚保留时刻（同 retime：清了会被游标链乱排）
-                it.start_time = None
-                it.end_time = None
+        # 后续卡按时间链顺延（2026-11-16 用户「following sites does not have
+        # card time auto adjusted」）：不再「清空全天后重排」——那会让钉住/
+        # 餐锚卡停在原地与延长后的卡重叠，还会把不冲突的卡重新紧排。
+        shifted, _dropped = _ripple_after_duration(day, edited)
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
         # 加长把后段挤出当天要如实披露（2026-11-13「未安排卡不显示」口径）：
@@ -31489,6 +31558,15 @@ class PlanningAgent:
                 f"{joined} 当天排不下，已转为「想去」",
                 f"{joined} no longer fits today — moved to Wanted",
             )
+            notes.append(note)
+            candidate.assumptions.append(note)
+        # 顺延了谁也要说一声（用户点开「假设标注」能看到时间怎么变的）
+        if shifted:
+            joined = "、".join(
+                f"{name} {_fmt_hm(_time_of(old))}→{_fmt_hm(_time_of(new))}"
+                for name, old, new in shifted
+            )
+            note = L(f"后续顺延：{joined}", f"Shifted later: {joined}")
             notes.append(note)
             candidate.assumptions.append(note)
         # 时长变化会带动当天首/末件——酒店卡跟随（同 retime 口径）
