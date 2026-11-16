@@ -56,6 +56,8 @@ class _Store:
                 "fare_cny": 80,
                 "fare_kind": "round_trip",
                 "last_mile_minutes": 8,
+                "official_status": "verified",
+                "window_source": "official",
             }
         ]
 

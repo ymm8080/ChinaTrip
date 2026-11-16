@@ -28,6 +28,13 @@ _CACHE_TTL_SECONDS = 600.0
 #: 规则层不隐式读库，测试与离线调用不被真实库污染）。
 _STORE: Any | None = None
 
+#: 官方严格模式（2026-11-16 用户拍板「Official only — deactivate map-vendor
+#: timetables」）：只认 official_status=verified 的班次行；地图商实测的
+#: 首末班一律当「没有时刻表」——排期退回纯打车模型，绝不拿未核实的窗
+#: 去卡用户的时间。
+STRICT_OFFICIAL = True
+
+
 #: 流水发车但只给了首末班时的默认发车间隔（分钟）。15 分钟是景区专线常见档。
 DEFAULT_HEADWAY_MINUTES = 15
 
@@ -217,6 +224,21 @@ def configure_store(store: Any | None) -> None:
     _CACHE.clear()
 
 
+def _is_official_row(row: dict[str, Any]) -> bool:
+    """该班次行的时刻是否来自官方核实
+    （official_status=verified 且 window_source=official）。
+    """
+    if str(row.get("official_status") or "").strip().lower() != "verified":
+        return False
+    source = str(row.get("window_source") or "").strip().lower()
+    return source in ("", "official")
+
+
+def is_official_poi(city: str | None, name: str | None) -> bool:
+    """该点是否有官方核实的班次时刻（严格模式下决定要不要吃接驳链）。"""
+    return bool(services_for(city, name))
+
+
 def city_services(city: str | None) -> dict[tuple[str, str], list[Service]]:
     """某城全部班次，键 (city, poi_name)。源缺失/报错一律空表（退回均值链）。"""
     key = str(city or "").strip()
@@ -233,6 +255,8 @@ def city_services(city: str | None) -> dict[tuple[str, str], list[Service]]:
         rows = []
     out: dict[tuple[str, str], list[Service]] = {}
     for row in rows:
+        if STRICT_OFFICIAL and not _is_official_row(row):
+            continue
         service = _to_service(row)
         out.setdefault((service.city, service.poi_name), []).append(service)
     _CACHE[key] = (now, out)

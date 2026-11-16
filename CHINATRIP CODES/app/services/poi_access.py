@@ -400,6 +400,13 @@ def attach_access(
             mode = prof.get("access_mode")
             if mode not in ("train", "shuttle", "ferry"):
                 continue
+            # 官方严格模式（2026-11-16 用户拍板）：没有官方核实的班次时刻，
+            # 就当这站没有班次——按纯打车模型排，不吃地图商估的接驳链。
+            from app.services import access_services as _svc
+
+            if _svc.STRICT_OFFICIAL and _svc._STORE is not None:
+                if not _svc.is_official_poi(item.city, item.name):
+                    continue
             if prof.get("access_service_minutes") is None:
                 continue
             lon, lat = prof.get("access_boarding_lon"), prof.get("access_boarding_lat")
