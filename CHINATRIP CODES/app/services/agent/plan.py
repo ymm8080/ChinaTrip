@@ -136,6 +136,7 @@ from app.services.llm import (
     parse_json_content,
 )
 from app.services.poi_details import PoiDetailStore
+from app.services.poi_names import place_core
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
@@ -3629,6 +3630,24 @@ def _site_dup(a: str, b: str) -> bool:
     return _same_site(_wish_core(a), _wish_core(b))
 
 
+def _town_dup(a: str, b: str) -> bool:
+    """同地名判定（2026-11-16 朱家角双卡案）：削掉通用尾缀后内核相同即同一
+    地方——「朱家角古镇」vs「朱家角镇」vs「朱家角景区」是同一个水乡，底库
+    里却是两三条独立行（渠道骨架 / 名录行 / 行政区行），用户一句话插朱家角
+    结果两天各一张卡。
+
+    只认尾缀差异（``poi_names.place_core``）；两卡都有坐标时仍过 ``_same_visit``
+    的 2km 地理闸——同名内核但确属两地的行不会被并。泛名山岳那条 2km 保护
+    口径不变。
+    """
+    ca, cb = place_core(a), place_core(b)
+    if not ca or ca != cb:
+        return False
+    # 至少一侧真的削掉了尾缀，否则交给既有通道（避免把「西湖」这类原名
+    # 相等也记到本通道上，便于排查）
+    return ca != str(a or "").strip() or cb != str(b or "").strip()
+
+
 def _cand_xy(entry: dict) -> tuple[float, float] | None:
     loc = entry.get("location")
     if isinstance(loc, dict) and loc.get("lon") is not None:
@@ -4197,6 +4216,7 @@ def _same_visit(a: VisitItem, b: VisitItem) -> bool:
         or composite
         or sibling
         or _site_dup(a.name, b.name)
+        or _town_dup(a.name, b.name)
         or _show_dup(a.name, b.name)
     ):
         return False
@@ -21723,6 +21743,16 @@ class PlanningAgent:
                 _wish_candidate_rank(best),
             )
             return best
+        # 2026-11-16（用户拍板「不在 pois 里就从高德取地址/交通写回底库」）：
+        # 底库没有可绑的行 → 图商检索补建（坐标 + 地址 + access_*）落库，
+        # 朱家角这类「库里有名字没骨架 / 库里根本没有」的点也能按普通点排
+        # 期，不再落一张没地址没腿的空卡。
+        ensured = await self._bind_wish_from_map(name, city)
+        if ensured is not None:
+            self._wish_bindings[name] = ensured
+            self._backfill_wish_city(name, str(ensured.get("city") or ""))
+            logger.info("plan: wish map bind %s -> %s", name, ensured.get("name"))
+            return ensured
         llm_pool: list[dict] = []
         if self._poi_details is not None and not _is_unspecified(city):
             try:
@@ -21741,6 +21771,40 @@ class PlanningAgent:
             self._wish_bindings[name] = picked
             self._backfill_wish_city(name, str(picked.get("city") or ""))
         return picked
+
+    async def _bind_wish_from_map(self, name: str, city: str) -> dict | None:
+        """心愿绑定兜底档：底库没有可绑的行时走图商补建（poi_ingest）。
+
+        只在真图商链可用时启用（测试/离线装配下 ``_search_chain`` 为空，
+        保持零网络零库的确定性）。返回绑定形状（带 ``location`` dict /
+        ``source_poi_id`` / ``address`` / ``suggested_duration_min``）。
+        """
+        probe = (name or "").strip()
+        if len(probe) < 2 or not self._search_chain:
+            return None
+        try:
+            from app.services.poi_ingest import ensure_poi
+
+            ensured = await ensure_poi(
+                probe,
+                None if _is_unspecified(city) else city,
+                chain=list(self._search_chain),
+            )
+        except Exception:  # noqa: BLE001 — 兜底档失败按原路径（LLM）继续
+            logger.warning("plan: wish map ingest failed %s", probe, exc_info=True)
+            return None
+        if ensured is None or ensured.latitude is None or ensured.longitude is None:
+            return None
+        return {
+            "name": ensured.name,
+            "city": ensured.city,
+            "source_poi_id": ensured.poi_id,
+            "poi_id": ensured.poi_id,
+            "address": ensured.address,
+            "category": ensured.kind,
+            "suggested_duration_min": ensured.duration_minutes,
+            "location": {"lon": ensured.longitude, "lat": ensured.latitude},
+        }
 
     def commit_wish_drafts(
         self, session: PlanSession, account: str | None = None

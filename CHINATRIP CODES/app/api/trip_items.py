@@ -122,6 +122,29 @@ async def create_trip_item(
     from app.services.wish_seed import seed_from_pois
 
     seed = seed_from_pois(request.name, city)
+    # 2026-11-16（用户拍板「不在 pois 里就从高德取地址/交通写回底库，再按
+    # 普通点排期」）：底库没这号点、或只有没骨架的同名行（朱家角古镇 ctrip
+    # 骨架）→ 图商检索补建/补全坐标+地址，远点顺带补 access_* 交通摘要。
+    # 已有坐标+地址的普通建行不调图商（零额外延迟）；失败退回旧行为。
+    if not seed.get("latitude") or not seed.get("address"):
+        try:
+            from app.services.poi_ingest import ensure_poi
+
+            # 建心愿是高频链路：只做库内合并/兄弟行回填，绝不在请求里打
+            # 图商（高德检索留给规划绑定与运维作业，见 poi_ingest.ensure_poi）。
+            ensured = await ensure_poi(request.name, city, map_lookup=False)
+        except Exception:  # noqa: BLE001 — 补建是增强，不能拖垮建行
+            ensured = None
+            logger.warning(
+                "trip-items: poi ingest failed name=%s", request.name, exc_info=True
+            )
+        if ensured is not None:
+            filled = ensured.as_dict()
+            seed = {
+                **filled,
+                **{k: v for k, v in seed.items() if v not in (None, "", [])},
+            }
+            city = city or filled.get("city")
     try:
         return service.create(
             request.name,
@@ -135,9 +158,11 @@ async def create_trip_item(
             owner_account_id=account,
             city=city,
             note=request.note,
-            poi_id=request.poi_id,
-            address=request.address,
-            opening_hours=request.opening_hours,
+            # 2026-11-16：心愿行挂回底库行（换点/详情/接驳都靠它），地址与
+            # 开放时间同样从补好的点带出——卡面不再空白。
+            poi_id=request.poi_id or seed.get("poi_id"),
+            address=request.address or seed.get("address"),
+            opening_hours=request.opening_hours or seed.get("opening_hours"),
             raw_command=request.raw_command or request.note,
             kind=request.kind or seed.get("kind"),
             duration_minutes=seed.get("duration_minutes"),
