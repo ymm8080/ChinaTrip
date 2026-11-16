@@ -327,8 +327,7 @@ def test_return_leg_shuttle_chain_from_remote_stop():
         8 + (14 * 60 + 30 - (12 * 60 + 38 + 8)) + 90 + detail["taxi_minutes"]
     )
     assert mt.next_leg_cost_cny == (
-        estimate_taxi_fare("北京", detail["taxi_km"])
-        + access_fare_estimate("shuttle")
+        estimate_taxi_fare("北京", detail["taxi_km"]) + access_fare_estimate("shuttle")
     )
 
 

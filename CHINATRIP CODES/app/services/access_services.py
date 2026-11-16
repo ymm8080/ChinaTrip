@@ -364,9 +364,7 @@ def fastest_return_plan(
     （调用方退档案经验值）。"""
     best: tuple[tuple[int, int], int, int] | None = None
     for svc in services_for(city, name):
-        ride = int(
-            svc.return_ride_minutes or svc.ride_minutes or ride_fallback or 0
-        )
+        ride = int(svc.return_ride_minutes or svc.ride_minutes or ride_fallback or 0)
         for depart in sorted(svc.returns()):
             if depart < int(board_minutes):
                 continue

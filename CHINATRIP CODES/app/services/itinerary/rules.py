@@ -235,8 +235,7 @@ def _fastest_return_ride(
     times = [
         m
         for m in (
-            _hhmm_minutes(t)
-            for t in (getattr(a, "access_return_times", None) or [])
+            _hhmm_minutes(t) for t in (getattr(a, "access_return_times", None) or [])
         )
         if m is not None
     ]
@@ -261,8 +260,10 @@ def _return_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     if getattr(a, "end_time", None) is not None:
         a_end = a.end_time.hour * 60 + a.end_time.minute
     elif getattr(a, "start_time", None) is not None:
-        a_end = a.start_time.hour * 60 + a.start_time.minute + int(
-            getattr(a, "duration_minutes", None) or 0
+        a_end = (
+            a.start_time.hour * 60
+            + a.start_time.minute
+            + int(getattr(a, "duration_minutes", None) or 0)
         )
     board = a_end + front if a_end is not None else None
     ride = int(getattr(a, "access_ride_minutes", None) or service)
