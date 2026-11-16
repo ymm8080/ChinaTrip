@@ -75,11 +75,11 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 成都 | 青城山尊铂森林温泉 | Mount Qingcheng Zunbo Forest Hot Springs | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
 | 成都 | 飞沙堰 | Flying Sand Weir | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
 | 成都 | 黄龙溪廊桥 | Huanglongxi Corridor Bridge | shuttle | 锦城广场东站(A口) | 09:00 | 09:00 | 47 | no_official_page | baidu |  |  |
-| 杭州 | COOL漂流乐园 | COOL Rafting Park | shuttle | 武林门站 | 09:30 | 15:30 | 172 | pending | baidu |  |  |
+| 杭州 | COOL漂流乐园 | COOL Rafting Park | shuttle | 武林门站 | 09:30 | 15:30 | 172 | no_official_page | baidu |  |  |
 | 杭州 | OMG心跳乐园 | OMG Heartbeat Park | shuttle | 武林门站(A2口) | 13:00 | 13:00 | 223 | no_official_page | baidu |  |  |
-| 杭州 | 三渡悬崖漂流 | Sandu Cliff Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 136 | pending | baidu |  |  |
+| 杭州 | 三渡悬崖漂流 | Sandu Cliff Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 136 | no_official_page | baidu |  |  |
 | 杭州 | 下姜村 | Xiajiang Village | train | 武林门站 | 10:30 | 15:30 | 696 | no_official_page | baidu |  |  |
-| 杭州 | 临安博物馆 | Lin'an Museum | shuttle | 武林广场北②站 | 07:10 | 19:30 | 58 | pending | baidu |  |  |
+| 杭州 | 临安博物馆 | Lin'an Museum | shuttle | 武林广场北②站 | 07:10 | 19:30 | 58 | verified | baidu | official | https://wy.lanews.com.cn/ |
 | 杭州 | 九溪十八涧 | Jiuxi Shibajian (Nine Creeks and Eighteen Gullies) | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 九溪烟树 | Nine Creeks and Misty Trees | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 九龙溪漂流 | Jiulongxi Rafting | shuttle | 武林门站 | 11:00 | 11:00 | 318 | no_official_page | baidu |  |  |
@@ -100,15 +100,15 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 天目山景区 | Tianmu Mountain Scenic Area | shuttle | 武林门站 | 09:30 | 15:30 | 119 | no_official_page | baidu |  |  |
 | 杭州 | 天目溪漂流 | Tianmu Creek Rafting | shuttle | 武林门站(A2口) | 13:00 | 13:00 | 223 | no_official_page | baidu |  |  |
 | 杭州 | 天路飞车 | Tianlu Stunt Car Show | shuttle | 武林门站(A2口) | 13:00 | 13:00 | 227 | no_official_page | baidu |  |  |
-| 杭州 | 富春桃源 | Fuchun Taoyuan | shuttle | 武林门站(A2口) | 09:40 | 09:40 | 141 | pending | baidu |  |  |
-| 杭州 | 富阳龙鳞坝景区 | Fuyang Longlin Dam Scenic Area | shuttle | 武林门站(A2口) | 10:00 | 10:00 | 135 | pending | baidu |  |  |
+| 杭州 | 富春桃源 | Fuchun Taoyuan | shuttle | 武林门站(A2口) | 09:40 | 09:40 | 141 | verified | baidu | official | http://www.fcty.com/ |
+| 杭州 | 富阳龙鳞坝景区 | Fuyang Longlin Dam Scenic Area | shuttle | 武林门站(A2口) | 10:00 | 10:00 | 135 | no_official_page | baidu |  |  |
 | 杭州 | 山湾湾激流探险 | Shanwanwan Whitewater Rafting Adventure | shuttle | 武林门站 | 09:30 | 15:30 | 250 | no_official_page | baidu |  |  |
 | 杭州 | 径山寺 | Jingshan Temple | shuttle | 密渡桥站 | 08:00 | 08:00 | 98 | no_official_page | baidu |  |  |
 | 杭州 | 杭州国家版本馆 (文润阁) |  | shuttle |  |  |  |  |  |  |  |  |
 | 杭州 | 杭州径山寺溪山竹院 | Xishan Bamboo Courtyard, Jingshan Temple, Hangzhou | shuttle | 密渡桥站 | 08:00 | 08:00 | 107 | no_official_page | baidu |  |  |
-| 杭州 | 柳溪江 | Liuxi River | shuttle | 武林门站 | 09:30 | 15:30 | 129 | pending | baidu |  |  |
-| 杭州 | 浙西凉源峡漂流 | Liangyuan Gorge Rafting, Western Zhejiang | shuttle | 混堂桥站 | 09:00 | 09:00 | 199 | pending | baidu |  |  |
-| 杭州 | 湖源溪漂流 | Huyuan Stream Rafting | shuttle | 武林门站(A2口) | 10:00 | 10:00 | 145 | pending | baidu |  |  |
+| 杭州 | 柳溪江 | Liuxi River | shuttle | 武林门站 | 09:30 | 15:30 | 129 | no_official_page | baidu |  |  |
+| 杭州 | 浙西凉源峡漂流 | Liangyuan Gorge Rafting, Western Zhejiang | shuttle | 混堂桥站 | 09:00 | 09:00 | 199 | no_official_page | baidu |  |  |
+| 杭州 | 湖源溪漂流 | Huyuan Stream Rafting | shuttle | 武林门站(A2口) | 10:00 | 10:00 | 145 | no_official_page | baidu |  |  |
 | 杭州 | 王子谷漂流 | Wangzi Valley Rafting | shuttle | 混堂桥站 | 09:30 | 09:30 | 283 | no_official_page | baidu |  |  |
 | 杭州 | 瑶琳仙境 | Yaolin Fairyland | shuttle | 混堂桥站 | 09:40 | 09:40 | 189 | no_official_page | baidu |  |  |
 | 杭州 | 石舍村 | Shishe Village | bus | 武林门站(A2口) | 12:20 | 12:20 | 305 | no_official_page | baidu |  |  |
@@ -121,11 +121,11 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 西天目风景区 | West Tianmu Mountain Scenic Area | shuttle | 武林门站 | 09:30 | 15:30 | 122 | no_official_page | baidu |  |  |
 | 杭州 | 轻野小坞Glamping露营地 | Qingye Xiaowu Glamping Campsite | shuttle | 武林门站 | 08:00 | 08:00 | 108 | no_official_page | baidu |  |  |
 | 杭州 | 金峰峡谷漂流 | Jinfeng Canyon Rafting | shuttle | 武林门站 | 11:00 | 11:00 | 526 | no_official_page | baidu |  |  |
-| 杭州 | 钱王祠 | Qianwang Temple (King Qian's Shrine) | shuttle | 武林门站 | 09:30 | 15:30 | 163 | pending | baidu |  |  |
+| 杭州 | 钱王祠 | Qianwang Temple (King Qian's Shrine) | shuttle | 武林门站 | 09:30 | 15:30 | 163 | no_official_page | baidu |  |  |
 | 杭州 | 雅鲁激流探险漂流 | Yalu Rapids Adventure Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 383 | no_official_page | baidu |  |  |
-| 杭州 | 青山殿村 | Qingshandian Village | shuttle | 武林门站(A2口) | 06:30 | 18:30 | 185 | pending | baidu |  |  |
-| 杭州 | 青山湖水上森林 | Qingshan Lake Water Forest | shuttle | 武林广场北②站 | 07:10 | 19:30 | 66 | pending | baidu |  |  |
-| 杭州 | 龙井峡漂流 | Longjing Gorge Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 151 | pending | baidu |  |  |
+| 杭州 | 青山殿村 | Qingshandian Village | shuttle | 武林门站(A2口) | 06:30 | 18:30 | 185 | no_official_page | baidu |  |  |
+| 杭州 | 青山湖水上森林 | Qingshan Lake Water Forest | shuttle | 武林广场北②站 | 07:10 | 19:30 | 66 | no_official_page | baidu |  |  |
+| 杭州 | 龙井峡漂流 | Longjing Gorge Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 龙潭峡谷漂流 | Longtan Gorge Rafting | shuttle | 武林门站 | 11:00 | 11:00 | 341 | no_official_page | baidu |  |  |
 | 深圳 | 梧桐山艺术小镇 |  | shuttle |  |  |  |  |  |  |  |  |
 | 苏州 | 七都镇 | Qidu Town | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 93 | pending | baidu |  |  |
