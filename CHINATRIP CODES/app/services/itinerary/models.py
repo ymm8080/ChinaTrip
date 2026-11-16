@@ -132,6 +132,10 @@ class VisitItem(BaseModel):
     access_operator: str | None = None
     access_depart_times: list[str] | None = None
     access_return_times: list[str] | None = None
+    # 用户在接驳卡上点选的班次（2026-11-16 拍板「班次可以点击选取重排」）：
+    # 点过就按点选值回算离店/离场时刻，后续重排/重建不被默认班次覆盖。
+    access_chosen_depart: str | None = None
+    access_chosen_return: str | None = None
     access_ticket_url: str | None = None
     access_official_url: str | None = None
     next_leg_detail: dict | None = None

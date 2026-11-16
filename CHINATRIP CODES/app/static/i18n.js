@@ -107,6 +107,8 @@
       "card.taxi": " · ~", "card.taxi_min": " min by taxi",
       "card.access": " · ~", "card.access_min": " min by shuttle", "card.fare": " · ~¥",
       "card.hop.title": "🚏 Transfer route: ", "card.hop.taxi": "🚕 taxi to {stop} {km} km · ~{n} min", "card.hop.ride": "🚌 {name} departs {depart} · ~{n} min ride", "card.hop.wait": " (wait {n} min)", "card.hop.walk": "🚶 alight {stop} · {n} min walk", "card.hop.asap": "runs from first departure", "card.hop.times": "🕘 departures {times}", "card.hop.returns": "return {times}", "card.hop.cost": "taxi ~¥{a} + shuttle ~¥{b}", "card.hop.book": "Book/reserve →", "card.hop.official": "Official site →",
+    "card.hop.pickOut": "Outbound departures",
+    "card.hop.pickRet": "Return departures",
       "card.hop.title": "🚏 Transfer route", "card.hop.lTaxi": "Taxi", "card.hop.lRide": "Shuttle", "card.hop.lRideShort": "Shuttle", "card.hop.lPay": "Tickets", "card.hop.valTaxi": "taxi {km} km · ~{n} min → {stop}", "card.hop.lWalk": "Walk", "card.hop.valTaxi": "{stop} · {km} km · ~{n} min by taxi", "card.hop.valRide": "{name} · departs {depart} · {n} min ride", "card.hop.valWalk": "{stop} · {n} min walk", "card.hop.arrive": " · arrive ~{t}",
       "card.hop.departAt": "departs {t}", "card.hop.rideMin": "{n} min ride", "card.hop.waitMin": "{n} min wait", "card.hop.walkMin": "{n} min walk", "card.hop.arriveAt": "arrive ~{t}", "card.hop.alightAt": "arrive ~{t} at {stop}", "card.hop.valTaxi": "taxi {km} km · ~{n} min → {stop}",
       "card.hop.reco": "Best", "card.hop.lBoard": "Boarding", "card.hop.noTT": "Check official timetable", "card.hop.xfers": "{n} transfer(s)",

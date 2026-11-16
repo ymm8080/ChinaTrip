@@ -554,6 +554,7 @@ def _morning_anchor_for(
     first: VisitItem,
     from_point: GeoPoint | None,
     city: str | None,
+    chosen: str | None = None,
 ) -> dict | None:
     """晨卡→首站班次锚定（2026-11-16 用户拍板「拿班次时间当硬铆钉，回算出酒店时间」）。
 
@@ -574,7 +575,9 @@ def _morning_anchor_for(
     if from_point is None:
         return None
     try:
-        return morning_departure_anchor(first, from_point=from_point)
+        return morning_departure_anchor(
+            first, from_point=from_point, chosen=chosen
+        )
     except Exception:  # noqa: BLE001 — 档案/班次库不可用=走旧窗口
         return None
 
@@ -750,6 +753,7 @@ def reanchor_hotel_mornings(
                 first,
                 card.location or getattr(card, "anchor_location", None),
                 card.city,
+                chosen=getattr(card, "access_chosen_depart", None),
             )
             if _open_morning_slot(
                 dp, head_target=anchor["first_start"] if anchor else None

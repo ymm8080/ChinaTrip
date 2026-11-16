@@ -92,6 +92,7 @@ from app.services.itinerary.rules import (
     TRAVEL_GAP_FLOOR_MIN,
     TRAVEL_LEG_CAP_MIN,
     TRAVEL_MIN_PER_KM,
+    access_breakdown,
     access_chain_minutes,
     taxi_leg_min,
     travel_gap_needed,
@@ -31071,6 +31072,95 @@ class PlanningAgent:
             ],
             affected_items_count=1,
         )
+        return report, summary, notes
+
+    def set_access_departure(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        direction: str,
+        depart: time,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """接驳班次点选重排（2026-11-16 用户拍板「班次可以点击选取重排」）。
+
+        direction="out"：晨卡（hotel-morning）按所点去程班次回算离店时刻
+        （离店 = 班次 − 打车(含早高峰)），当天其余件按序重排；
+        direction="return"：景区卡按所点返程班次回推离场时刻
+        （离场 = 班次 − 走回乘车点分钟），当天其余件按序重排。
+        点选值落卡（access_chosen_depart / access_chosen_return），后续
+        重排/重建不被默认班次覆盖（用户显式选择最高优先，同铁律 19）。
+        纯计算，走 retime_item 的游标链。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        item = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if item is None:
+            raise ValueError("item_not_found")
+        day_plan = next(d for d in plan.days if d.day == item.day)
+        idx = day_plan.items.index(item)
+        nxt = next(
+            (i for i in day_plan.items[idx + 1:] if isinstance(i, VisitItem)),
+            None,
+        )
+        dep_min = depart.hour * 60 + depart.minute
+        br = access_breakdown(item, nxt) if nxt is not None else None
+        if direction == "out":
+            if not (item.item_id or "").startswith("hotel-morning"):
+                raise ValueError("not_morning_card")
+            head = int((br or {}).get("taxi_minutes") or 0)
+            start_min = max(0, dep_min - head)
+            chosen_field = "access_chosen_depart"
+            label = L(
+                f"第{day_plan.day}天 按 {_fmt_hm(depart)} 班次出发",
+                f"Day {day_plan.day}: depart on the {_fmt_hm(depart)} shuttle",
+            )
+        elif direction == "return":
+            if br is None or br.get("direction") != "return":
+                raise ValueError("no_return_leg")
+            front = int(br.get("last") or 0)
+            end_min = max(0, dep_min - front)
+            start_min = max(
+                0, end_min - int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
+            )
+            chosen_field = "access_chosen_return"
+            label = L(
+                f"第{day_plan.day}天 {item.name} 按 {_fmt_hm(depart)} 返程班次离场",
+                f"Day {day_plan.day}: leave {item.name} on the "
+                f"{_fmt_hm(depart)} return shuttle",
+            )
+        else:
+            raise ValueError("bad_direction")
+        report, _summary, notes = self.retime_item(
+            session,
+            item_id,
+            start=time(start_min // 60, start_min % 60),
+        )
+        target = next(
+            (
+                i
+                for d in session.plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if target is not None:
+            setattr(target, chosen_field, _fmt_hm(depart))
+        if direction == "out" and target is not None:
+            # 级联不认锚定链（travel_gap_needed 对锚点卡不下放）：按点选班次
+            # 重放晨卡窗口，并把首站推到「班次 + 车上 + 落客」。
+            reanchor_hotel_mornings(session.plan.days)
+        summary = ChangeSummary(change_summary=[label], affected_items_count=1)
         return report, summary, notes
 
     def reflow_after_delete(self, session: PlanSession, *, days: set[int]) -> list[str]:

@@ -1901,6 +1901,29 @@ function hotelStayLabel(plan, it) {
 }
 
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
+// 接驳班次 chips（2026-11-16 用户拍板「班次可以点击选取重排」）：去程/返程
+// 班次全列出来，当前那班高亮；点其它班次 → POST /departure 按该班重排当天。
+function hopPickRow(it, legD, dir) {
+  const times = dir === "return"
+    ? (Array.isArray(legD.returns) && legD.returns.length ? legD.returns : legD.departures)
+    : (Array.isArray(legD.departures) ? legD.departures : []);
+  if (!Array.isArray(times) || !times.length) return "";
+  const cur = String(legD.depart_time || "").slice(0, 5);
+  const label = dir === "return"
+    ? I18N.tf("card.hop.pickRet", "返程班次")
+    : I18N.tf("card.hop.pickOut", "去程班次");
+  const chips = times.map(function (t) {
+    const on = cur && String(t).slice(0, 5) === cur;
+    return '<button class="hop-pick" data-action="hopdepart" data-item-id="' + esc(it.item_id) +
+      '" data-dir="' + dir + '" data-depart="' + esc(t) + '"' +
+      ' style="border:1px solid #b9c9e0;border-radius:12px;padding:1px 9px;font-size:12px;cursor:pointer;background:' +
+      (on ? "#dbe9ff" : "#fff") + ';font-weight:' + (on ? "700" : "400") + '">' + esc(t) + "</button>";
+  }).join("");
+  return '<div class="hop-picks" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 2px 8px 2px">' +
+    '<span class="muted" style="font-size:12px">' + label + "</span>" + chips + "</div>";
+}
+
+
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
@@ -2122,6 +2145,8 @@ function planCard(plan) {
                 return '<div class="legopt">' + head + rows.join("") + "</div>";
               });
               blk.appendChild(el('<div class="legbox"><div class="legopts">' + blocks.join("") + "</div></div>"));
+              const picksRow = hopPickRow(it, legD, legD.direction === "return" ? "return" : "out");
+              if (picksRow) blk.appendChild(el(picksRow));
             } else {
             const rows = [];
             const tips = [];
@@ -2183,6 +2208,8 @@ function planCard(plan) {
                 I18N.tf("card.hop.lPay", "购票") + '</span><span class="lv"' + titleAttr + ">" + pay.join(" \u00b7 ") + "</span></div>");
             }
             if (rows.length) blk.appendChild(el('<div class="legbox">' + rows.join("") + "</div>"));
+            const picksRow = hopPickRow(it, legD, isRet ? "return" : "out");
+            if (picksRow) blk.appendChild(el(picksRow));
             }
           }
         }
@@ -2385,6 +2412,17 @@ function planCard(plan) {
         });
         input.addEventListener("blur", () => {
           if (!done) { done = true; box.replaceWith(planCard(plan)); }
+        });
+      } else if (action === "hopdepart") {
+        // 接驳卡点选班次（2026-11-16）：点哪班就按那班回算离店/离场并重排当天
+        const hopDir = btn.getAttribute("data-dir") || "out";
+        const hopDep = btn.getAttribute("data-depart") || "";
+        if (!hopDep) return;
+        busy(btn, async () => {
+          try {
+            const body = await api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: hopDir, depart: hopDep }, "POST");
+            box.replaceWith(planCard(body.plan));
+          } catch (err) { failToast(err); box.replaceWith(planCard(plan)); }
         });
       } else if (action === "pin") {
         const cur = btn.getAttribute("data-pinned") === "1";

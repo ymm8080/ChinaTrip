@@ -938,10 +938,37 @@ def _strip_untimed_items(plan):
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
-    替代项，没有未安排项），再挂同级备选 chip。所有返回完整行程的端点
-    （start / from-itinerary / _plan_turn_body 一族）统一走本入口，禁止
-    旁路。"""
-    return _plan_with_alternatives(_strip_untimed_items(plan))
+    替代项，没有未安排项），再把晨卡收成「出发时刻点」（2026-11-16 拍板
+    「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
+    返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
+    统一走本入口，禁止旁路。"""
+    return _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+
+
+def _morning_point_cards(plan):
+    """晨卡=出发时刻点（2026-11-16 用户拍板）：出站副本上把 hotel-morning
+    卡的结束时间收成开始时间、时长归 0——「只有出发时间，没有 DURATION」。
+    非变异：会话本体仍保留 30 分钟打包窗口（排期口径靠 start），只在
+    下发副本上收。"""
+    if plan is None:
+        return plan
+    mornings = [
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and (i.item_id or "").startswith("hotel-morning")
+    ]
+    if not mornings:
+        return plan
+    out = plan.model_copy(deep=True)
+    for d in out.days:
+        for i in d.items:
+            if isinstance(i, VisitItem) and (i.item_id or "").startswith(
+                "hotel-morning"
+            ):
+                i.end_time = i.start_time
+                i.duration_minutes = 0
+    return out
 
 
 def _plan_with_alternatives(plan):
@@ -1264,6 +1291,62 @@ async def retime_plan_item(
         summary.change_summary[0]
         if summary.change_summary
         else L("已调整时间", "Time updated")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
+class PlanDepartureRequest(BaseModel):
+    item_id: str
+    direction: Literal["out", "return"] = "out"
+    depart: str  # "HH:MM"
+
+
+@router.post("/plan/{session_id}/departure")
+async def select_plan_departure(
+    session_id: str,
+    request: PlanDepartureRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """接驳卡点选班次重排（2026-11-16 用户拍板「班次可以点击选取重排」）：
+
+    去程点选 → 晨卡按该班次回算离店时刻（离店 = 班次 − 打车含早高峰）；
+    返程点选 → 景区卡按该返程班次回推离场时刻；当天其余件按序重排。
+    点选值落卡，后续重建不被默认班次覆盖。
+    """
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    raw = (request.depart or "").strip()
+    try:
+        hour, _, minute = raw.partition(":")
+        depart_at = time(int(hour), int(minute[:2] or "0"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="bad_depart") from None
+    try:
+        _, summary, notes = agent.set_access_departure(
+            session,
+            request.item_id,
+            direction=request.direction,
+            depart=depart_at,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("已按所选班次重排", "Re-planned on the selected departure")
     )
     reply = base + (f"（{'；'.join(notes)}）" if notes else "")
     return _plan_turn_body(session, reply, None)

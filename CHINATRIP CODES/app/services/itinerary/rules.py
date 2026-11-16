@@ -235,6 +235,10 @@ def _fastest_return_ride(
     返回 (发车, 车上分钟, 候车分钟)；班次库不可用且卡上没有返程时刻表
     → (None, ride_fallback, None)（候车由调用方退档案经验值）。
     """
+    chosen = _hhmm_minutes(getattr(a, "access_chosen_return", None))
+    if chosen is not None and chosen >= board:
+        # 用户在接驳卡上点选过返程班次（2026-11-16 拍板）：优先按点选值
+        return chosen, ride_fallback, chosen - board
     try:
         from app.services import access_services
 
@@ -316,15 +320,17 @@ def morning_departure_anchor(
     *,
     from_point: GeoPoint | None,
     base_minute: int = 8 * 60 + 30,
+    chosen: str | None = None,
 ) -> dict | None:
     """晨卡→班次件的早高峰锚定（2026-11-16 用户拍板「拿班次时间当硬铆钉，
     回算出酒店时间」）。
 
     口径与腿同源（service_options + access_breakdown）：打车段 = 酒店/城心锚
-    → 各方式自己的乘车点 + 15′ 早高峰；board0 = base + 打车（含早高峰）；
-    班次取推荐块（换乘少+时间短）的下一班 depart（时刻表口径，无时刻表不锚）；
-    回算离店时刻 = depart − 打车（含早高峰）——depart ≥ board0 保证回算值
-    ≥ base（恒赶得上）；首站开场 = depart + 车上 + 落客。锚定后候车恒 0。
+    → 各方式自己的乘车点 + 15′ 早高峰；班次取推荐块（换乘少+时间短）的
+    **08:30 起第一班**（2026-11-16 拍板「默认慕田峪 8:30 班车来计算」，同一
+    口径也让「到站即发车」成立：回算离店 = depart − 打车(含早高峰)，可为
+    07:59 这类早于日始的时刻——班次是硬铆钉）；`chosen` = 用户点选的班次，
+    优先于默认值。首站开场 = depart + 车上 + 落客，锚定后候车恒 0。
     非班次件 / 无上车点 / 无时刻表 / 固定场次件返回 None（调用方走旧窗口）。
     """
     if getattr(b, "fixed_sessions", None):
@@ -362,9 +368,18 @@ def morning_departure_anchor(
     if options:
         opt = options[0]
         head = int(opt.get("taxi_minutes") or 0)
-        depart = _hhmm_minutes(opt.get("depart"))
         ride = int(opt.get("ride_minutes") or 0)
         last_mile = int(opt.get("last_mile_minutes") or 0)
+        depart = _hhmm_minutes(chosen)
+        if depart is None:
+            # 默认：推荐块「08:30 起第一班」（用户拍板「默认慕田峪 8:30
+            # 班车来计算」）——离开时刻由它回算，可早于 08:30 日始。
+            times = [
+                m
+                for m in (_hhmm_minutes(s) for s in (opt.get("departures") or []))
+                if m is not None and m >= base_minute
+            ]
+            depart = min(times) if times else _hhmm_minutes(opt.get("depart"))
     else:
         # 无班次库（离线/测试）：按卡上官方时刻 + 档案值兜底，口径不变
         head = _taxi(None)

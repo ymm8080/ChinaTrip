@@ -3066,3 +3066,192 @@ def test_text_without_date_but_card_info_provided_proceeds():
     body = resp.json()
     assert body["state"] == "ready"
     assert len(body["plan"]["days"]) == 2
+
+
+def _departure_session_app():
+    """造一个带「晨卡→慕田峪班次点」的 ready 会话 + 假班次库（点选班次端点用）。"""
+    from datetime import time as dtime
+
+    from app.services import access_services
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    morning = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(9, 0),
+        duration_minutes=30,
+        soft_pin=True,
+        anchor_location=GeoPoint(lon=116.4074, lat=39.9042),
+    )
+    mt = VisitItem(
+        item_id="mt",
+        name="慕田峪长城",
+        category="sight",
+        city="北京",
+        day=1,
+        start_time=dtime(11, 8),
+        end_time=dtime(14, 8),
+        duration_minutes=180,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_last_mile_minutes=8,
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 8),
+        end_time=dtime(15, 8),
+        duration_minutes=60,
+        soft_pin=True,
+        anchor_location=GeoPoint(lon=116.42, lat=39.92),
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(21, 0),
+        end_time=dtime(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    store.save(
+        PlanSession(
+            session_id="s-dep",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-dep",
+                cities=["北京"],
+                days=[
+                    DayPlan(
+                        day=1, base_city="北京",
+                        items=[morning, mt, lunch, night],
+                    )
+                ],
+            ),
+        )
+    )
+    return app, access_services
+
+
+def test_departure_endpoint_out_reanchors_card_and_reflows():
+    """点去程班次 09:30：晨卡 = 09:30 − 打车 31 = 08:59；首站 = 09:30+90+8 = 11:08。"""
+    from app.services import access_services
+
+    app, _ = _departure_session_app()
+    fake = access_services.configure_store
+
+    class _Store:
+        def access_services(self, cities):
+            return [
+                dict(
+                    city="北京",
+                    poi_name="慕田峪长城",
+                    mode="shuttle",
+                    service_name="前门旅游专线",
+                    operator="北京旅游集散中心",
+                    boarding_stop="前门大街北口",
+                    boarding_lon=116.3982,
+                    boarding_lat=39.8988,
+                    alight_stop="慕田峪长城 P1/P4 停车场",
+                    outbound_first="07:30",
+                    outbound_last="10:30",
+                    outbound_times=["07:30", "08:30", "09:30", "10:30"],
+                    ride_minutes=90,
+                    last_mile_minutes=8,
+                    return_first="14:30",
+                    return_last="16:30",
+                    return_times=["14:30", "15:30", "16:30"],
+                    official_status="verified",
+                    window_source="official",
+                )
+            ]
+
+    fake(_Store())
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-dep/departure",
+                json={
+                    "item_id": "hotel-morning-d1",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            data = r.json()
+            items = {i["item_id"]: i for i in data["plan"]["days"][0]["items"]}
+            card = items["hotel-morning-d1"]
+            assert card["start_time"].startswith("08:59")
+            # 晨卡=出发时刻点（无 DURATION 出站）
+            assert card["end_time"].startswith("08:59")
+            assert card["duration_minutes"] == 0
+            assert items["mt"]["start_time"].startswith("11:08")
+    finally:
+        access_services.configure_store(None)
+
+
+def test_departure_endpoint_return_shifts_visit_and_leg_departs_on_time():
+    """点返程班次 15:30：离场 = 15:30 − 走回乘车点 8 = 15:22 结束。"""
+    from app.services import access_services
+
+    app, _ = _departure_session_app()
+
+    class _Store:
+        def access_services(self, cities):
+            return [
+                dict(
+                    city="北京",
+                    poi_name="慕田峪长城",
+                    mode="shuttle",
+                    service_name="前门旅游专线",
+                    operator="北京旅游集散中心",
+                    boarding_stop="前门大街北口",
+                    boarding_lon=116.3982,
+                    boarding_lat=39.8988,
+                    alight_stop="慕田峪长城 P1/P4 停车场",
+                    outbound_first="07:30",
+                    outbound_last="10:30",
+                    outbound_times=["07:30", "08:30", "09:30", "10:30"],
+                    ride_minutes=90,
+                    last_mile_minutes=8,
+                    return_first="14:30",
+                    return_last="16:30",
+                    return_times=["14:30", "15:30", "16:30"],
+                    official_status="verified",
+                    window_source="official",
+                )
+            ]
+
+    access_services.configure_store(_Store())
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-dep/departure",
+                json={"item_id": "mt", "direction": "return", "depart": "15:30"},
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            mt = items["mt"]
+            assert mt["end_time"].startswith("15:22")
+            assert mt["access_chosen_return"] == "15:30"
+    finally:
+        access_services.configure_store(None)

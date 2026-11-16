@@ -674,8 +674,9 @@ def test_return_chain_when_card_only_has_profile_archive():
 
 
 def test_morning_departure_anchor_back_calcs_hotel_start():
-    """班次硬铆钉（2026-11-16 拍板）：08:30 离店+16 打车+15′ 早高峰=09:01 到站，
-    取可达最早班 09:30 → 回算离店 08:59（到站即发车，候车归零），首站 11:08 开场。
+    """班次硬铆钉（2026-11-16 拍板）：默认取推荐块「08:30 起第一班」=08:30 班，
+    回算离店 = 08:30 − 31（打车 16+早高峰 15）= 07:59（到站即发车、候车归零），
+    首站 = 08:30 + 90 + 8 = 10:08 开场。
     """
     from app.services import access_services
     from app.services.itinerary import rules
@@ -701,11 +702,10 @@ def test_morning_departure_anchor_back_calcs_hotel_start():
         access_services.configure_store(None)
     assert got is not None
     assert got["taxi_minutes"] == 31  # 16 打车 + 15′ 早高峰
-    assert got["depart"] == 9 * 60 + 30  # 09:01 到站后的可达最早班
-    assert got["hotel_start"] == 9 * 60 + 30 - 31  # 回算离店 08:59
-    assert got["hotel_start"] >= 8 * 60 + 30  # 不早于日始
+    assert got["depart"] == 8 * 60 + 30  # 默认 = 08:30 起第一班
+    assert got["hotel_start"] == 8 * 60 + 30 - 31  # 回算离店 07:59
     assert got["wait"] == 0  # 到站即发车
-    assert got["first_start"] == 9 * 60 + 30 + 90 + 8  # 11:08 开场
+    assert got["first_start"] == 8 * 60 + 30 + 90 + 8  # 10:08 开场
 
 
 def test_morning_anchor_requires_shuttle_timetable_and_real_boarding():
@@ -779,8 +779,8 @@ def test_morning_rush_buffers_only_the_hotel_departure_taxi():
 
 
 def test_attach_morning_card_anchors_to_nearest_departure():
-    """attach 接锚定：晨卡 08:30 默认离店 → 班次 09:30 → 卡改 08:59-09:29；
-    首站按「班次+车上+落客」11:08 开场（到站即发车）。"""
+    """attach 接锚定：默认 08:30 班 → 卡 07:59-08:29；首站「班次+车上+落客」
+    10:08 开场（到站即发车）。"""
     from app.services import access_services
     from app.services.agent.hotel_stays import attach_hotel_mornings, is_hotel_morning
 
@@ -811,11 +811,68 @@ def test_attach_morning_card_anchors_to_nearest_departure():
         days = [DayPlan(day=1, base_city="北京", items=[night, mt])]
         attach_hotel_mornings(days)
         card = next(i for i in days[0].items if is_hotel_morning(i))
-        assert (card.start_time, card.end_time) == (time(8, 59), time(9, 29))
-        assert (mt.start_time, mt.end_time) == (time(11, 8), time(12, 8))
+        assert (card.start_time, card.end_time) == (time(7, 59), time(8, 29))
+        assert (mt.start_time, mt.end_time) == (time(10, 8), time(11, 8))
         # 幂等：再跑一遍（已有晨卡不重复插）
         assert attach_hotel_mornings(days) == []
         card2 = next(i for i in days[0].items if is_hotel_morning(i))
-        assert (card2.start_time, card2.end_time) == (time(8, 59), time(9, 29))
+        assert (card2.start_time, card2.end_time) == (time(7, 59), time(8, 29))
     finally:
         access_services.configure_store(None)
+
+
+def test_morning_anchor_honors_user_picked_departure():
+    """点选班次优先（2026-11-16「班次可以点击选取重排」）：点 09:30 → 离店 08:59，
+    首站 11:08；不再回默认的 08:30 班。"""
+    from app.services import access_services
+    from app.services.itinerary import rules
+
+    access_services.configure_store(_FakeStore([_svc_row()]))
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_last_mile_minutes=8,
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+    )
+    try:
+        got = rules.morning_departure_anchor(
+            mt,
+            from_point=GeoPoint(lon=116.4074, lat=39.9042),
+            chosen="09:30",
+        )
+    finally:
+        access_services.configure_store(None)
+    assert got is not None
+    assert got["depart"] == 9 * 60 + 30
+    assert got["hotel_start"] == 9 * 60 + 30 - 31  # 08:59
+    assert got["first_start"] == 9 * 60 + 30 + 90 + 8  # 11:08
+
+
+def test_return_leg_honors_user_picked_return():
+    """点选返程优先：卡上 access_chosen_return=15:30，回城腿就按 15:30 发车。"""
+    from app.services.itinerary import rules
+
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_last_mile_minutes=8,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_chosen_return="15:30",
+        end_time=time(14, 8),
+    )
+    nxt = _v("nx", "提督餐厅", 116.42, 39.92)
+    br = rules.access_breakdown(mt, nxt)
+    assert br is not None and br["direction"] == "return"
+    assert br["depart"] == 15 * 60 + 30
+    # board = 14:08 + 走回乘车点 8 分 = 14:16 → 候车 74 分钟
+    assert br["wait"] == 15 * 60 + 30 - (14 * 60 + 8 + 8)
