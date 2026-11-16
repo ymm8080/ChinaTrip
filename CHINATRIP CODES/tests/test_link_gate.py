@@ -4,6 +4,7 @@
 八达岭卡「购票/预约」指向 ticket.badaling.cn（TLS 握手失败 + http 404 死链）。
 现在 legs._url 只放行 app/data/verified_links.json 里实检通过的链接。
 """
+
 import json
 
 from app.services.itinerary import legs
@@ -11,9 +12,7 @@ from app.services.itinerary import legs
 
 def _gate(tmp_path, monkeypatch, links: dict):
     path = tmp_path / "verified_links.json"
-    path.write_text(
-        json.dumps({"links": links}, ensure_ascii=False), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"links": links}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(legs, "_VERIFIED_LINKS_FILE", path)
     monkeypatch.setattr(legs, "_LINK_CACHE", {"mtime": None, "links": {}})
     return path

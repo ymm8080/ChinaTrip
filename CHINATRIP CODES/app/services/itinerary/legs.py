@@ -513,9 +513,11 @@ def _options_detail(
         o["booking_url"] = _url(getattr(b, "booking_url", None)) or _url(
             o.get("ticket_url")
         )
-        o["official_url"] = _url(o.get("official_url")) or _url(
-            o.get("ticket_url")
-        ) or _url(getattr(b, "website", None))
+        o["official_url"] = (
+            _url(o.get("official_url"))
+            or _url(o.get("ticket_url"))
+            or _url(getattr(b, "website", None))
+        )
     rec = opts[0]
     return {
         "mode": "access",

@@ -17,6 +17,7 @@
 * dead        —— 网络失败/4xx(非反爬)/5xx/DNS 失败，一律不进白名单。
 读取侧（legs._url）只放行前四类；dead/未在白名单=不出链接。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -96,7 +97,7 @@ def classify(url: str) -> dict:
         return result
     # https 握手失败类 → 换 http 再试
     if url.startswith("https://"):
-        http_url = "http://" + url[len("https://"):]
+        http_url = "http://" + url[len("https://") :]
         http_res = _get(http_url)
         result["http"] = http_res
         if http_res["ok"]:
