@@ -401,6 +401,10 @@ _STREET_DISTRICT_RE = re.compile("主题街区|街区|步行街")
 
 def _itin_cap_bucket(cand: dict) -> str | None:
     """候选 → 行程级上限桶名（museum/scenic/citywalk），不受限返回 None。"""
+    if _is_remote_daytrip(cand):
+        # >50km 远郊件自成一天，不与市区件抢同一批日位，也不占行程级配额
+        # （2026-11-16：千岛湖作为唯一必去仍被 scenic 2 上限挤掉）。
+        return None
     cat = str(cand.get("category") or "").strip()
     src = str(cand.get("source") or "").strip().lower()
     if cat in ("museum", "gallery", "memorial", "art"):
@@ -1368,6 +1372,79 @@ def _enforce_day_zones(
     return items
 
 
+def _item_xy(it: dict) -> tuple[float, float] | None:
+    """dict 条目的 (lon, lat)；GeoPoint/dict/tuple 三种形态都认。"""
+
+    loc = it.get("location")
+
+    if isinstance(loc, GeoPoint):
+        return (float(loc.lon), float(loc.lat))
+
+    try:
+        if isinstance(loc, dict) and loc.get("lon") is not None:
+            return (float(loc["lon"]), float(loc["lat"]))
+
+        if isinstance(loc, (tuple, list)) and len(loc) == 2:
+            return (float(loc[0]), float(loc[1]))
+
+    except (TypeError, ValueError):
+        return None
+
+    return None
+
+
+def _remote_km_of(it: dict) -> float | None:
+    """条目离所属城心的公里数；无坐标/无城心锚返回 None。"""
+
+    xy = _item_xy(it)
+
+    if xy is None:
+        return None
+
+    try:
+        from app.services.weather_open_meteo import CITY_COORDS
+
+        center = CITY_COORDS.get(str(it.get("city") or ""))
+
+        if not center:
+            return None
+
+        return haversine_km(
+            GeoPoint(lon=xy[0], lat=xy[1]),
+            GeoPoint(lon=float(center[1]), lat=float(center[0])),
+        )
+
+    except Exception:  # noqa: BLE001 — 锚表异常不能拦排程
+        return None
+
+
+def _is_remote_daytrip(it: dict) -> bool:
+    """>REMOTE_ACCESS_KM（50km）远郊件必须独占一天。
+
+
+
+    2026-11-16 用户「WHY CAN NOT CALCULATE FOR SITES FAR AWAYS FROM CITY
+
+    CENTER. WE NEED」+ 拍板「>50km 算远郊」：千岛湖 142km 往返车程 ≈346 分钟，
+
+    与市区件拼天必然「装不成」，旧口径把整条丢掉；独占一天才排得下。
+
+    """
+
+    if str(it.get("category") or "") in ("food", "hotel"):
+        return False
+
+    km = _remote_km_of(it)
+
+    return km is not None and km > REMOTE_ACCESS_KM
+
+
+def _needs_own_day(it: dict) -> bool:
+    """独占一天：整日件（时长 ≥ 一日预算）或 >50km 远郊件。"""
+
+    return _is_full_day_item(it) or _is_remote_daytrip(it)
+
+
 def _is_full_day_item(it: dict) -> bool:
     """整日件（迪士尼/野生动物园/科技馆）：时长 ≥ 一日预算(360) 即独占一天。"""
     minutes = it.get("duration_minutes") or it.get("suggested_duration_min") or 0
@@ -1391,7 +1468,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
     def _sights(d):
         return [x for x in items if x.get("day") == d and not _meal(x)]
 
-    full = [x for x in items if _is_full_day_item(x) and not _meal(x)]
+    full = [x for x in items if _needs_own_day(x) and not _meal(x)]
     dropped: list[dict] = []
     for fd in full:
         if fd.get("day") is None:
@@ -1399,7 +1476,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
         cand_days = [
             d
             for d in days
-            if d == fd.get("day") or not any(_is_full_day_item(x) for x in _sights(d))
+            if d == fd.get("day") or not any(_needs_own_day(x) for x in _sights(d))
         ]
         if not cand_days:
             continue
@@ -1410,7 +1487,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
         if target != fd.get("day"):
             fd["day"] = target
         for other in list(_sights(fd.get("day"))):
-            if other is fd or _is_full_day_item(other):
+            if other is fd or _needs_own_day(other):
                 continue
             dest = next(
                 (
@@ -1418,7 +1495,7 @@ def _enforce_full_day(items: list[dict], notes: list[str] | None = None) -> list
                     for d in days
                     if d != fd.get("day")
                     and len(_sights(d)) < 4
-                    and not any(_is_full_day_item(x) for x in _sights(d))
+                    and not any(_needs_own_day(x) for x in _sights(d))
                 ),
                 None,
             )
