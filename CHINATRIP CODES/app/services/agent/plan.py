@@ -15222,6 +15222,10 @@ _DAY_SIGHT_CAP = 4
 _HEAVY_DAY_SHORT_MAX_MINUTES = 90
 #: 补点最小件：<60 分钟的边角料不补（上海 D1 11:00-11:30 观景厅=凑数）
 _LEFTOVER_FILL_MIN_MINUTES = 60
+#: 补点最大件：填空不是「定整天」（2026-11-16 用户「取多个多类型的景点」）——
+#: 迪士尼 480 分钟这种整天大块一补就吃掉上午+下午，午餐只能嵌进景点里；
+#: 补点只补 ≤4 小时的件，整天大点交给选点期决定。
+_LEFTOVER_FILL_MAX_MINUTES = 240
 #: 补点披露文案（幂等标记：assumptions 里出现即视为已补过，反复开页不叠加）
 _LEFTOVER_FILL_MARKS = ("按类型多样性补了", "for variety")
 
@@ -15318,13 +15322,16 @@ def _fill_leftover_with_diverse_sights(
                 and (i.category or "") not in ("food", "hotel")
             }
             fixed, _tight, _flex, xfer = _day_fixed_windows(day)
-            # 真实餐卡也是墙：_day_fixed_windows 故意跳过午/晚占位卡（给大块头
-            # 让位），补点是收尾步、餐卡已在盘面——不挡就会像上海 D1 那样把
-            # 景点压到 11:45 的午饭上（2026-11-16）。
+            # 餐卡不是铆钉卡（2026-11-16 用户「餐卡不能算铆钉卡」）：午饭/
+            # 晚饭占位卡可挪可删，不当墙挡补点——补完由 _retime_meal_
+            # placeholders 把占位挪进新空档（缩时长/就地解决是既有口径）。
+            # 只有真实餐厅卡（已订位=铆钉）仍按墙处理。
             meal_windows = [
                 (s, e, item)
                 for item in day.items
-                if isinstance(item, VisitItem) and (item.category or "") == "food"
+                if isinstance(item, VisitItem)
+                and (item.category or "") == "food"
+                and not (is_lunch_placeholder(item) or is_dinner_placeholder(item))
                 for s in [_minutes_of(item.start_time)]
                 for e in [_item_end_minutes(item)]
                 if s is not None and e is not None
@@ -15351,6 +15358,9 @@ def _fill_leftover_with_diverse_sights(
                 # 只是凑数，宁缺勿滥
                 and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
                 >= _LEFTOVER_FILL_MIN_MINUTES
+                # 整天大块不当填空（同上）
+                and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
+                <= _LEFTOVER_FILL_MAX_MINUTES
                 # 用户设为 inactive / 避开的点不补（2026-11-15）
                 and _norm_site_name(u.name) not in avoid_set
                 # 无场次/无具体时段的演出不补（用户拍板「无场次演出不被提案」）
@@ -15489,6 +15499,11 @@ def _fill_leftover_with_diverse_sights(
                 break
             if not placed:
                 break
+    # 餐占位让位收口（2026-11-16 用户「餐卡不能算铆钉卡」）：补点可以跨过午/
+    # 晚饭占位，补完把占位挪进新空档（缩时长/就地解决是既有口径）；
+    # ensure_cards=False——补点是加法收尾，不新增/去重餐卡。
+    if notes:
+        _retime_meal_placeholders(plan, ensure_cards=False)
     return notes
 
 

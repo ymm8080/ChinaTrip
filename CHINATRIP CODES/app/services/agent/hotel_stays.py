@@ -39,6 +39,7 @@ from app.services.itinerary.rules import (
     travel_gap_needed,
 )
 from app.services.lang_ctx import L
+from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
 
 HOTEL_CHECKIN_ID_PREFIX = "hotel-checkin"
 
@@ -479,12 +480,23 @@ def _copy_hotel_identity(src: VisitItem, dst: VisitItem) -> None:
     dst.location = src.location.model_copy() if src.location is not None else None
 
 
-def _first_timed_item(dp: DayPlan) -> VisitItem | TransferItem | None:
-    """当天首个有时刻的行程件（夜卡/晨卡自身不计；无时刻件跳过）。"""
+def _first_timed_item(
+    dp: DayPlan, *, skip_placeholders: bool = False
+) -> VisitItem | TransferItem | None:
+    """当天首个有时刻的行程件（夜卡/晨卡自身不计；无时刻件跳过）。
+
+    skip_placeholders=True 时跳过「午饭/晚饭（自由安排）」占位卡：餐卡不是
+    铆钉卡（2026-11-16 用户「餐卡不能算铆钉卡」），晨卡不能从一张可挪可删的
+    占位卡倒推出「10:30 才出发」。
+    """
     best: VisitItem | TransferItem | None = None
     best_min: int | None = None
     for item in dp.items:
         if is_hotel_morning(item) or is_hotel_night(item):
+            continue
+        if skip_placeholders and (
+            is_lunch_placeholder(item) or is_dinner_placeholder(item)
+        ):
             continue
         if item.start_time is None:
             continue
@@ -749,7 +761,8 @@ def reanchor_hotel_mornings(
         card = next((i for i in dp.items if is_hotel_morning(i)), None)
         if card is None or card.item_id in keep:
             continue
-        first = _first_timed_item(dp)
+        # 餐占位不是铆钉（2026-11-16）：首件按真实件算，只有餐占位的天=08:30
+        first = _first_timed_item(dp, skip_placeholders=True)
         anchor = None
         if first is not None and not isinstance(first, TransferItem):
             anchor = _morning_anchor_for(
