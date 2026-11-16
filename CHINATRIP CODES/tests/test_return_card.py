@@ -8,6 +8,7 @@
 3. 卡按时间排在当天时间轴里（回城 14:30 晚于午饭 14:08，必须排在午饭之后）；
 4. 只在响应副本上生成——会话本体不落卡；景区卡留一行回城提示。
 """
+
 from datetime import time
 
 from app.api.plan import _plan_for_response
@@ -70,6 +71,7 @@ def _lunch():
     return _placeholder(
         "food-lunch-ph-d1", "午饭（自由安排）", time(13, 8), time(14, 8)
     )
+
 
 def _night(start=time(21, 0), end=time(22, 0)):
     return VisitItem(
@@ -134,8 +136,7 @@ def test_return_card_is_separate_and_sorted_after_lunch():
     # 会话本体不落卡
     assert len(plan.days[0].items) == 4
     assert all(
-        not (i.item_id or "").startswith(RETURN_CARD_PREFIX)
-        for i in plan.days[0].items
+        not (i.item_id or "").startswith(RETURN_CARD_PREFIX) for i in plan.days[0].items
     )
 
 

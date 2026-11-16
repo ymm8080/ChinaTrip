@@ -502,9 +502,7 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
     out = plan.model_copy(deep=True)
     for day in out.days:
         day.items = [
-            i
-            for i in day.items
-            if not (i.item_id or "").startswith(RETURN_CARD_PREFIX)
+            i for i in day.items if not (i.item_id or "").startswith(RETURN_CARD_PREFIX)
         ]
         site = None
         for item in day.items:
