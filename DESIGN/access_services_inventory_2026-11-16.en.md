@@ -45,13 +45,13 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 广州 | 广州融创体育世界 | Guangzhou Sunac Sports World | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
 | 广州 | 广州融创大马戏-奇幻秘境 | Guangzhou Sunac Grand Circus - Fantasy Secret Realm | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
 | 广州 | 蝴蝶谷 | Butterfly Valley | train | 中山纪念堂(市总工会)③站 | 09:26 | 20:45 | 202 | pending | baidu |  |  |
-| 成都 | 中铁花水湾四季温泉谷 | CRETC Huashuiwan Four Seasons Hot Spring Valley | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | pending | baidu |  |  |
+| 成都 | 中铁花水湾四季温泉谷 | CRETC Huashuiwan Four Seasons Hot Spring Valley | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | no_official_page | baidu |  |  |
 | 成都 | 九龙峡漂流 | Jiulong Gorge Rafting | shuttle | 锦悦西路站 | 13:40 | 13:40 | 168 | no_official_page | baidu |  |  |
-| 成都 | 伏龙观 | Fulong Temple | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
-| 成都 | 又一村 | Youyicun | shuttle | 孵化园站(E1口) | 07:30 | 19:00 | 369 | pending | baidu |  |  |
+| 成都 | 伏龙观 | Fulong Temple | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
+| 成都 | 又一村 | Youyicun | shuttle | 孵化园站(E1口) | 07:30 | 19:00 | 369 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 四川建川博物馆聚落 | Jianchuan Museum Cluster, Sichuan | shuttle | 孵化园站(E1口) | 08:45 | 17:15 | 72 | verified | baidu | official | https://www.jc-museum.cn/en/ticket |
 | 成都 | 四川省建川博物馆 | Jianchuan Museum, Sichuan Province | shuttle | 孵化园站(E1口) | 08:45 | 17:15 | 72 | verified | baidu | official | https://www.jc-museum.cn/en/ticket |
-| 成都 | 天然图画 | Natural Picture Scenic Spot | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
+| 成都 | 天然图画 | Natural Picture Scenic Spot | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 安仁古镇-公馆老街 | Anren Ancient Town - Mansion Old Street | bus | 孵化园站(E1口) | 08:30 | 08:30 | 66 | verified | baidu | official | https://new.china-anren.com/ |
 | 成都 | 安仁古镇景区 | Anren Ancient Town Scenic Area | shuttle | 孵化园站(E1口) | 08:45 | 17:15 | 57 | verified | baidu | official | https://new.china-anren.com/ |
 | 成都 | 安仁镇 | Anren Town | shuttle | 孵化园站(E1口) | 08:45 | 17:15 | 57 | verified | baidu | official | https://new.china-anren.com/ |
@@ -59,21 +59,21 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 成都 | 宝山温泉 | Baoshan Hot Springs | shuttle | 孵化园站(E1口) | 06:40 | 17:30 | 175 | verified | baidu | official | https://baike.baidu.com/item/宝山旅游景区/17644705 |
 | 成都 | 成都市西岭雪山景区 | Xiling Snow Mountain Scenic Area, Chengdu | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
 | 成都 | 日月坪 | Riyueping | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
-| 成都 | 普照寺 | Puzhao Temple | train | 孵化园站(E1口) | 07:36 | 07:36 | 334 | pending | baidu |  |  |
-| 成都 | 月城湖 | Yuecheng Lake | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
-| 成都 | 泰安古镇 | Tai'an Ancient Town | shuttle | 孵化园站(E1口) | 07:30 | 19:00 | 369 | pending | baidu |  |  |
+| 成都 | 普照寺 | Puzhao Temple | train | 孵化园站(E1口) | 07:36 | 07:36 | 334 | no_official_page | baidu |  |  |
+| 成都 | 月城湖 | Yuecheng Lake | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
+| 成都 | 泰安古镇 | Tai'an Ancient Town | shuttle | 孵化园站(E1口) | 07:30 | 19:00 | 369 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 浪朗地中海水上乐园 | Langlang Mediterranean Water Park | shuttle | 孵化园站(E1口) | 07:10 | 19:30 | 105 | no_official_page | baidu |  |  |
 | 成都 | 熊猫小匠研学体验基地 | Panda Little Craftsman Study Tour Experience Base | train | 孵化园站(E1口) | 07:36 | 07:36 | 336 | no_official_page | baidu |  |  |
-| 成都 | 花水湾温泉度假区 | Huashuiwan Hot Spring Resort | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | pending | baidu |  |  |
-| 成都 | 花水湾第一村温泉 | Huashuiwan First Village Hot Springs | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | pending | baidu |  |  |
-| 成都 | 花水湾豪生百乐汤温泉 | Huashuiwan Howard Johnson Bailetang Hot Spring | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | pending | baidu |  |  |
+| 成都 | 花水湾温泉度假区 | Huashuiwan Hot Spring Resort | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | no_official_page | baidu |  |  |
+| 成都 | 花水湾第一村温泉 | Huashuiwan First Village Hot Springs | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | no_official_page | baidu |  |  |
+| 成都 | 花水湾豪生百乐汤温泉 | Huashuiwan Howard Johnson Bailetang Hot Spring | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | no_official_page | baidu |  |  |
 | 成都 | 西岭峡谷漂流 | Xiling Gorge Rafting | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 143 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
 | 成都 | 西岭雪山 | Xiling Snow Mountain | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 167 | verified | baidu | official | https://www.xiling.cn/website/survey/tour |
-| 成都 | 都江堰中华大熊猫苑(原熊猫乐园) | Dujiangyan Panda Base (formerly Panda Paradise) | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | pending | baidu |  |  |
-| 成都 | 青城前山-索道 | Qingcheng Front Mountain - Ropeway | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
-| 成都 | 青城山 | Mount Qingcheng | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | pending | baidu |  |  |
-| 成都 | 青城山尊铂森林温泉 | Mount Qingcheng Zunbo Forest Hot Springs | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
-| 成都 | 飞沙堰 | Flying Sand Weir | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | pending | baidu |  |  |
+| 成都 | 都江堰中华大熊猫苑(原熊猫乐园) | Dujiangyan Panda Base (formerly Panda Paradise) | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | no_official_page | baidu |  |  |
+| 成都 | 青城前山-索道 | Qingcheng Front Mountain - Ropeway | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
+| 成都 | 青城山 | Mount Qingcheng | train | 孵化园站(E1口) | 07:36 | 07:36 | 327 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
+| 成都 | 青城山尊铂森林温泉 | Mount Qingcheng Zunbo Forest Hot Springs | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | no_official_page | baidu |  |  |
+| 成都 | 飞沙堰 | Flying Sand Weir | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
 | 成都 | 黄龙溪廊桥 | Huanglongxi Corridor Bridge | shuttle | 锦城广场东站(A口) | 09:00 | 09:00 | 47 | no_official_page | baidu |  |  |
 | 杭州 | COOL漂流乐园 | COOL Rafting Park | shuttle | 武林门站 | 09:30 | 15:30 | 172 | no_official_page | baidu |  |  |
 | 杭州 | OMG心跳乐园 | OMG Heartbeat Park | shuttle | 武林门站(A2口) | 13:00 | 13:00 | 223 | no_official_page | baidu |  |  |
