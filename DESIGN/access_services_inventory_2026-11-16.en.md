@@ -24,7 +24,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 上海 | 飞越上海(第一百货店) | Flying Over Shanghai (First Department Store) | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | pending | baidu |  |  |
 | 北京 | 九谷口自然风景区 | Jiugukou Natural Scenic Area | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 165 | no_official_page | baidu |  |  |
 | 北京 | 八奇洞景区 | Baqi Cave Scenic Area | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/118181 |
-| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | 前门站 | 06:30 | 11:00 | 91 | pending | baidu |  |  |
+| 北京 | 八达岭长城 | Badaling Great Wall | shuttle | 前门站 | 06:30 | 11:00 | 91 | verified | baidu | official | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
 | 北京 | 八达岭长城 | Badaling Great Wall | shuttle | Deshengmen (877) / Huangtudian (S2) / Qi |  |  |  | verified | official |  | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
 | 北京 | 北京二锅头酒博物馆 | Beijing Erguotou Wine Museum | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 73 | verified | baidu | official | https://www.redstarwine.cn/fwzx/cgfw/cindex1.html |
 | 北京 | 北京黄花城水长城漫心府 | Beijing Huanghuacheng Waterside Great Wall Manxin Mansion | bus | 王府井站(C4西南口) | 07:00 | 16:00 | 146 | verified | baidu | official | https://huanghuacheng.com/index.php/Ticket/publicity.htm |
@@ -128,13 +128,13 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 杭州 | 龙井峡漂流 | Longjing Gorge Rafting | shuttle | 武林门站 | 09:30 | 15:30 | 151 | no_official_page | baidu |  |  |
 | 杭州 | 龙潭峡谷漂流 | Longtan Gorge Rafting | shuttle | 武林门站 | 11:00 | 11:00 | 341 | no_official_page | baidu |  |  |
 | 深圳 | 梧桐山艺术小镇 |  | shuttle |  |  |  |  |  |  |  |  |
-| 苏州 | 七都镇 | Qidu Town | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 93 | pending | baidu |  |  |
-| 苏州 | 上方山森林动物世界 | Shangfangshan Forest Animal World | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 105 | pending | baidu |  |  |
-| 苏州 | 双湖欢乐园 | Shuanghu Amusement Park | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 110 | pending | baidu |  |  |
-| 苏州 | 淀山湖 | Dianshan Lake | bus | 桐泾北路站(1口) | 09:30 | 09:30 | 125 | pending | baidu |  |  |
-| 苏州 | 淀山湖庄园露营地 | Dianshan Lake Manor Campground | bus | 桐泾北路站(1口) | 09:30 | 09:30 | 162 | pending | baidu |  |  |
-| 苏州 | 苏州御窑金砖博物馆 | Suzhou Imperial Kiln Golden Brick Museum | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 123 | pending | baidu |  |  |
-| 苏州 | 阳澄湖水上公园游乐场 | Yangcheng Lake Water Park Amusement Park | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 123 | pending | baidu |  |  |
-| 苏州 | 震泽古镇 | Zhenze Ancient Town | shuttle | 桐泾北路 |  |  | 23 | pending |  |  |  |
-| 苏州 | 震泽镇 | Zhenze Town | shuttle | 桐泾北路站(1口) | 09:15 | 09:15 | 139 | pending | baidu |  |  |
-| 苏州 | 黎里镇 | Lili Town | shuttle | 桐泾北路站(1口) | 06:10 | 18:25 | 110 | pending | baidu |  |  |
+| 苏州 | 七都镇 | Qidu Town | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 93 | no_official_page | baidu |  |  |
+| 苏州 | 上方山森林动物世界 | Shangfangshan Forest Animal World | shuttle | 桐泾北路站(1口) | 06:30 | 18:10 | 105 | no_official_page | baidu |  |  |
+| 苏州 | 双湖欢乐园 | Shuanghu Amusement Park | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 110 | no_official_page | baidu |  |  |
+| 苏州 | 淀山湖 | Dianshan Lake | bus | 桐泾北路站(1口) | 09:30 | 09:30 | 125 | no_official_page | baidu |  |  |
+| 苏州 | 淀山湖庄园露营地 | Dianshan Lake Manor Campground | bus | 桐泾北路站(1口) | 09:30 | 09:30 | 162 | no_official_page | baidu |  |  |
+| 苏州 | 苏州御窑金砖博物馆 | Suzhou Imperial Kiln Golden Brick Museum | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 123 | verified | baidu | official | https://www.szyyjzbwg.com/jq.html |
+| 苏州 | 阳澄湖水上公园游乐场 | Yangcheng Lake Water Park Amusement Park | shuttle | 桐泾北路站(1口) | 07:30 | 20:30 | 123 | no_official_page | baidu |  |  |
+| 苏州 | 震泽古镇 | Zhenze Ancient Town | shuttle | 桐泾北路 |  |  | 23 | no_official_page |  |  |  |
+| 苏州 | 震泽镇 | Zhenze Town | shuttle | 桐泾北路站(1口) | 09:15 | 09:15 | 139 | no_official_page | baidu |  |  |
+| 苏州 | 黎里镇 | Lili Town | shuttle | 桐泾北路站(1口) | 06:10 | 18:25 | 110 | no_official_page | baidu |  |  |
