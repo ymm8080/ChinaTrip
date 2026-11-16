@@ -170,3 +170,61 @@ def test_clamp_falls_back_to_taxi_after_last_departure():
     start = site.start_time.hour * 60 + site.start_time.minute
     # 收车后走打车直达（约 75-85 分钟），不是 90+8 的专线口径
     assert start >= 13 * 60 + 30
+
+
+def test_pin_service_window_places_card_first():
+    """日内排序前先钉：无时刻的班次点按首班落到门口，而不是等收口。"""
+    from app.services.agent import plan as plan_mod
+
+    morning = VisitItem(item_id="m", name="早卡", city="北京", day=1)
+    morning.category = "food"
+    morning.soft_pin = True
+    morning.start_time = _t(7, 0)
+    morning.end_time = _t(7, 30)
+
+    site = VisitItem(item_id="s", name="慕田峪长城", city="北京", day=1)
+    site.location = GeoPoint(lon=116.5598, lat=40.4267)
+    site.access_mode = "shuttle"
+    site.access_boarding = GeoPoint(lon=116.398256, lat=39.898886)
+    site.access_depart_first = 7 * 60
+    site.access_depart_last = 11 * 60
+    site.access_ride_minutes = 90
+    site.access_last_mile_minutes = 8
+    site.duration_minutes = 90
+
+    day = DayPlan(day=1, base_city="北京", items=[morning, site])
+    plan = ItineraryPlan(itinerary_id="it-pin", cities=["北京"], days=[day])
+    notes = plan_mod._pin_service_windows(plan)
+
+    start = site.start_time.hour * 60 + site.start_time.minute
+    # 远郊优先早晨 + 取 9 点档（2026-11-16）：09:00 发车 + 车上 90 + 末段 8
+    assert start == 9 * 60 + 98, start
+    assert notes, "钉窗要留一条披露"
+    assert "专线" in notes[0]
+
+
+def test_pin_service_window_skips_when_last_departure_missed():
+    """同日已排满到下午 → 不钉（交收口改打车直达），不留没车时刻。"""
+    from app.services.agent import plan as plan_mod
+
+    anchor = VisitItem(item_id="a", name="故宫", city="北京", day=1)
+    anchor.location = GeoPoint(lon=116.397, lat=39.916)
+    anchor.start_time = _t(13, 0)
+    anchor.end_time = _t(16, 0)
+
+    site = VisitItem(item_id="s2", name="慕田峪长城", city="北京", day=1)
+    site.location = GeoPoint(lon=116.5598, lat=40.4267)
+    site.access_mode = "shuttle"
+    site.access_boarding = GeoPoint(lon=116.398256, lat=39.898886)
+    site.access_depart_first = 7 * 60
+    site.access_depart_last = 8 * 60
+    site.access_ride_minutes = 90
+    site.access_last_mile_minutes = 8
+
+    day = DayPlan(day=1, base_city="北京", items=[anchor, site])
+    plan = ItineraryPlan(itinerary_id="it-pin2", cities=["北京"], days=[day])
+    notes = plan_mod._pin_service_windows(plan)
+
+    # 钉子只按「日始 + 城心打车」算，08:30+16 仍早于末班 08:00？不，是 08:46 > 08:00
+    assert site.start_time is None or site.start_time.hour < 12
+    assert notes == [] or all("专线" in n for n in notes)

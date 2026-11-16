@@ -11093,6 +11093,116 @@ def _window_gap_minutes(
     return depart + ride + last_mile - prev_end, None
 
 
+#: 远郊专线的目标发车时刻（2026-11-16 用户拍板「远郊优先早晨，选早晨得
+#: 9 点左右得班次」）：首班往往 07:00 太早，赶 09:00 这一档最贴实际。
+SERVICE_TARGET_DEPART_MINUTES = 9 * 60
+
+
+def _service_window_bounds(visit: VisitItem) -> tuple[int | None, int | None]:
+    """班次点「进景区门口」的可行区间（当天分钟数）。
+
+    ``(lo, hi)``：lo = 首班 + 车上 + 末段，hi = 末班 + 车上 + 末段。
+    任一缺失返回 None（缺时刻表就不当窗用）。
+    """
+    first = getattr(visit, "access_depart_first", None)
+    last = getattr(visit, "access_depart_last", None)
+    ride = getattr(visit, "access_ride_minutes", None) or 0
+    last_mile = getattr(visit, "access_last_mile_minutes", None) or 0
+    lo = None if first is None else first + ride + last_mile
+    hi = None if last is None else last + ride + last_mile
+    return lo, hi
+
+
+def _pin_service_windows(plan: ItineraryPlan) -> list[str]:
+    """班次服务窗先钉住（2026-11-16 用户拍板「硬约束，排日内时先钉住」）。
+
+    专线的首末班决定「这一天去不去得成」，所以按用户口径把它当日内锚点：
+    先算「日始 + 打车到上车点」，取首班发车，落到景区门口，再让其余卡围着
+    它排。钉不住（到上车点已过末班 / 顶到 21:30 / 与已排卡重叠）就不钉，
+    交给收口改打车直达并披露——绝不在这里硬塞一个没车的时刻。
+    """
+    notes: list[str] = []
+    day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
+    for day in plan.days:
+        cands = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and (v.category or "") not in ("food", "hotel")
+            and not v.fixed_sessions
+            # 用户手钉（铁律 19）不动：那是用户自己安排的班次
+            and not (v.pinned and v.start_time is not None)
+            and (
+                getattr(v, "access_depart_first", None) is not None
+                or getattr(v, "access_depart_last", None) is not None
+            )
+        ]
+        if not cands:
+            continue
+        timed = [
+            (i, _minutes_of(i.start_time), _minutes_of(i.end_time))
+            for i in day.items
+            if isinstance(i, VisitItem) and i.start_time is not None
+        ]
+        for visit in cands:
+            lo, hi = _service_window_bounds(visit)
+            if visit.start_time is not None:
+                # v0 草稿常带一个下午时刻（线上实录 14:00）：不清就永远
+                # 排不进窗，服务窗等于没有。
+                visit.start_time = None
+                visit.end_time = None
+            ahead = _center_taxi_minutes(
+                visit.city, getattr(visit, "access_boarding", None)
+            )
+            arrive_board = day_start + (
+                ahead if ahead is not None else TRAVEL_GAP_FLOOR_MIN
+            )
+            first = getattr(visit, "access_depart_first", None)
+            last = getattr(visit, "access_depart_last", None)
+            # 远郊优先早晨，且取「9 点左右」的班次（2026-11-16 用户拍板）：
+            # 赶首班（07:00）既太早又常与早餐/晨卡打架，直接瞄 09:00；
+            # 到上车点已过 9 点就用实际到达时刻；末班早于 9 点则退回首班。
+            target = max(arrive_board, SERVICE_TARGET_DEPART_MINUTES)
+            if last is not None and target > last:
+                target = max(arrive_board, first or 0)
+            depart = target if first is None else max(target, first)
+            if last is not None and depart > last:
+                continue  # 当天赶不上末班：交收口换打车直达
+            ride = getattr(visit, "access_ride_minutes", None) or 0
+            last_mile = getattr(visit, "access_last_mile_minutes", None) or 0
+            start = max(depart + ride + last_mile, lo or 0)
+            dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
+            if start + dur > day_end:
+                continue
+            clash = any(
+                start < (end or (begin + DEFAULT_VISIT_MINUTES))
+                and begin < start + dur
+                and item is not visit
+                for item, begin, end in timed
+                if begin is not None
+            )
+            if clash:
+                continue
+            visit.start_time = time(start // 60, start % 60)
+            visit.end_time = (
+                time((start + dur) // 60, (start + dur) % 60)
+                if start + dur < 24 * 60
+                else time(23, 59)
+            )
+            timed.append((visit, start, start + dur))
+            notes.append(
+                L(
+                    f"第{day.day}天「{visit.name}」按专线 "
+                    f"{depart // 60:02d}:{depart % 60:02d} 发车，"
+                    f"{start // 60:02d}:{start % 60:02d} 开",
+                    f'Day {day.day}: "{visit.name}" pinned to the '
+                    f"{depart // 60:02d}:{depart % 60:02d} departure, "
+                    f"starts {start // 60:02d}:{start % 60:02d}",
+                )
+            )
+    return notes
+
+
 def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
     """兜底/加卡收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
 
@@ -11147,7 +11257,7 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             win_gap, win_note = _window_gap_minutes(timed[idx - 1], cur, prev_end)
             if win_gap is not None:
                 need = prev_end + win_gap
-            if win_note:
+            if win_note and not any(cur.name in n and "末班" in n for n in notes):
                 notes.append(L(f"第{day.day}天「{cur.name}」{win_note}", win_note))
             # 日终闸：推到 21:30 之后只会把晚饭/夜卡拖成 22:52，宁可保留
             # 原时刻让校验去点名（不制造更差的时刻表）。
@@ -11292,6 +11402,9 @@ def _fallback_sequence_times(
     # 远郊打标（2026-11-15「远郊景点 BEST VISIT TIME MORNING」）：兜底
     # 排序直接读 item.remote，编辑/拖卡/换点路径不经 _solve 也要先落标。
     _mark_remote_visits(plan)
+    # 班次服务窗先钉（2026-11-16「硬约束，排日内时先钉住」）：专线首末班决定
+    # 这一天去不去得成，必须在提取固定窗之前落成锚点，其余卡围着它排。
+    _pin_service_windows(plan)
     # 景点日始 9 点（2026-10-31 拍板）：降级顺序排也从 9 点起
     day_start, day_end = DAY_START_MINUTES, 21 * 60 + 30
     # 白天入场闸（10-31 拍板 16:00 → 11-01 修正 16:30）：非演出观光点
@@ -12308,7 +12421,7 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
                 win_gap, win_note = _window_gap_minutes(meal, site, meal_end_now)
                 if win_gap is not None:
                     need = win_gap
-                if win_note:
+                if win_note and not any(site.name in n and "末班" in n for n in notes):
                     notes.append(f"「{site.name}」{win_note}")
             if need <= 0:
                 idx += 1
@@ -13244,6 +13357,11 @@ def _probe_visit_slot(
     """单点落位探针（与 _fallback_sequence_times 非演出分支同口径）：
     返回最早可行开场分钟数，不可行返回 None。floor=起始下限；
     cap_max 收紧开场闸（必去大点「下午头档 ≤13:00 开场」用）。"""
+    _win_lo, _win_hi = _service_window_bounds(visit)
+    if _win_lo is not None:
+        floor = max(floor, _win_lo)
+    if _win_hi is not None:
+        cap_max = _win_hi if cap_max is None else min(cap_max, _win_hi)
     dur = visit.duration_minutes or DEFAULT_VISIT_MINUTES
     # 同 _fallback_sequence_times 口径（2026-11-12 修）：显式时段标照吃窗。
     wlo = _BEST_VISIT_WINDOWS.get(str(visit.best_visit_time or "").strip().lower())
@@ -27763,6 +27881,14 @@ class PlanningAgent:
         plan.assumptions.extend(
             _must_visit_room_sweep(plan, rehome_names=set(self._wish_bindings or {}))
         )
+        # 班次服务窗先钉（2026-11-16）：solver 拿到「已有时刻」就按固定窗排，
+        # 放在 solve 之前才叫「排日内时先钉住」，事后才挪是收口兜底。
+        # 注意：档案是 _travel_matrix 里才挂上身的，钉之前必须先 attach，
+        # 否则卡上还没有首末班，钉子直接空转（线上实测过）。
+        from app.services.poi_access import attach_access as _attach_before_pin
+
+        _attach_before_pin(plan, self._access_profiles(plan))
+        plan.assumptions.extend(_pin_service_windows(plan))
         solved = self._solve(plan, meal_flex=True)
         degraded = solved is None
         if solved is not None:
