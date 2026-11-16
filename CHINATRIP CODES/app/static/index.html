@@ -319,17 +319,13 @@
     background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;
     box-shadow:0 6px 20px rgba(0,0,0,.22);padding:8px 10px;font-size:13px;line-height:1.55}
   .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
-  /* 接驳路线箱（2026-11-16）：每段一行，图标+段名+量化值，手机上不再糊成一段 */
-  .legbox{margin:2px 2px 8px;padding:8px 10px;border:1px solid var(--border);border-left:3px solid var(--accent);
-    border-radius:8px;background:var(--panel);font-size:13px;line-height:1.55;color:var(--text)}
-  .legbox .lh{font-weight:700;color:var(--accent);margin-bottom:4px;font-size:13px}
-  .legbox .lr{display:flex;gap:8px;align-items:baseline;padding:4px 0}
-  .legbox .lr + .lr{border-top:1px dashed var(--border)}
-  .legbox .li{flex:0 0 18px;text-align:center;font-size:15px}
-  .legbox .lb{flex:0 0 auto;font-weight:700;min-width:2.6em;color:var(--text)}
-  .legbox .lv{flex:1 1 auto;color:var(--text);word-break:break-word}
-  .legbox .lm{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;line-height:1.6}
-
+  /* 接驳三行（2026-11-16）：与卡内其它行同色同字号，只靠「图标+段名」两列对齐做结构，
+     不自带底色/边框/强调色（用户拍板「颜色跟其它一样」） */
+  .legbox{margin:0 2px 6px;font-size:13px;line-height:1.55;color:inherit}
+  .legbox .lr{display:flex;gap:6px;align-items:baseline;padding:1px 0}
+  .legbox .li{flex:0 0 18px;text-align:center;font-size:14px}
+  .legbox .lb{flex:0 0 auto;font-weight:600;min-width:2.6em;color:inherit}
+  .legbox .lv{flex:1 1 auto;color:inherit;word-break:break-word}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
