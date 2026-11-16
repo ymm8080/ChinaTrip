@@ -6,7 +6,7 @@ PlanSessionStore per app, dependency overrides only.
 
 import json
 import os
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -1731,6 +1731,173 @@ def test_retime_guard_chain_400_404():
     )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "item_not_found"}
+
+
+# --- POST /plan/{id}/items/{item_id}/duration（2026-11-16 编辑面板改时长）---
+
+
+def _hm(ts: str) -> datetime:
+    return datetime.strptime(ts, "%H:%M:%S")
+
+
+def test_duration_sets_length_and_resequences_day():
+    """2026-11-16 用户拍板「site edit button should able to change duration
+    in addition to site name」：改时长保留开始时刻、结束=开始+新时长，当天
+    其余景点按序游标重排且全部有时间。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    v = _visit(body, "雷峰塔")
+    vid, start0 = v["item_id"], v["start_time"]
+    assert start0  # 兜底排时给过时刻
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/duration",
+        json={"minutes": 150},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    got = _visit(data, "雷峰塔")
+    assert got["duration_minutes"] == 150
+    assert got["start_time"] == start0  # 改时长不动起点
+    assert _hm(got["end_time"]) == _hm(start0) + timedelta(minutes=150)
+    day2 = _day_visits(data, 2)
+    starts = [x["start_time"] for x in day2 if x["start_time"]]
+    assert starts == sorted(starts)  # 展示顺序=时间顺序
+    assert all(x["start_time"] for x in day2)  # 其余景点重排出时间
+    # 回复里带人话摘要（用户改完知道改成了多少）
+    assert "150" in data["reply"]
+
+
+def test_duration_guard_chain_and_locked_slots():
+    """改时长端点护栏：设备/会话/条目 400-404 链、越界 422、系统骨架 422。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/duration", json={"minutes": 90}
+    )
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "missing_device_id"}
+    resp = client.post(
+        "/api/v1/plan/no-such/items/v1/duration",
+        json={"minutes": 90},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "session_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/v_none/duration",
+        json={"minutes": 90},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "item_not_found"}
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/duration",
+        json={"minutes": 5},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422  # 15–720 闸
+    # 系统餐位是骨架（时长由规则算）：不允许手改
+    meal = next(
+        i
+        for d in body["plan"]["days"]
+        for i in d["items"]
+        if i.get("item_id", "").startswith("food-lunch-ph")
+    )
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{meal['item_id']}/duration",
+        json={"minutes": 60},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "duration_locked"}
+
+
+def test_duration_refreshes_legs_and_persists():
+    """改时长后实测腿必须刷新（与 pin/retime 同款），且新时长落会话。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    calls: list[str] = []
+
+    async def _spy(session) -> None:
+        calls.append("refresh")
+
+    agent.refresh_legs = _spy  # type: ignore[method-assign]
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/duration",
+        json={"minutes": 120},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    assert calls == ["refresh"]
+    session = _session(client, agent, sid)
+    card = next(
+        i
+        for d in session.plan.days
+        for i in d.items
+        if getattr(i, "item_id", None) == vid
+    )
+    assert card.duration_minutes == 120
+
+
+def test_duration_overflow_discloses_dropped_card():
+    """加长把当天后段挤出去：卡不许悄悄消失——回复与假设标注写「已转为想去」
+    （出站层把无时刻参访卡撤成 chip），被撤的卡进 plan.unplaced。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    session = _session(client, agent, sid)
+    day2 = next(d for d in session.plan.days if d.day == 2)
+    # 固定形状：甲 09:00-10:00（60），乙 11:00-16:00（300）；餐/酒店骨架保留
+    day2.items = [i for i in day2.items if not isinstance(i, VisitItem)] + [
+        VisitItem(
+            item_id="a1",
+            name="甲",
+            city="杭州",
+            day=2,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            duration_minutes=60,
+        ),
+        VisitItem(
+            item_id="a2",
+            name="乙",
+            city="杭州",
+            day=2,
+            start_time=time(11, 0),
+            end_time=time(16, 0),
+            duration_minutes=300,
+        ),
+    ]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/a1/duration",
+        json={"minutes": 540},  # 甲 09:00-18:00，乙 300' 当天再排不下
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "乙" in data["reply"] and "排不下" in data["reply"]
+    assert any("排不下" in a for a in data["plan"]["assumptions"])
+    unplaced = [u.get("name") for u in data["plan"].get("unplaced") or []]
+    assert "乙" in unplaced
+    assert _visit(data, "甲")["duration_minutes"] == 540
 
 
 # --- 条目变更触发实测腿刷新（用户拍板 2026-10-28）--------------------------

@@ -311,6 +311,12 @@
   .rename-item b{max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rename-item span{color:var(--muted)}
   .rename-hint{padding:6px 8px;font-size:12px;color:var(--muted)}
+  /* ⏱ 停留时长（2026-11-16 用户拍板：编辑面板除换点外还能改时长） */
+  .rename-dur{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+  .rename-dur-lbl{font-size:12px;color:var(--muted)}
+  .rename-dur-in{width:66px;font:inherit;border:1px solid var(--muted);border-radius:6px;padding:3px 6px;background:var(--panel);color:var(--text)}
+  .rename-dur-unit{font-size:12px;color:var(--muted)}
+  .rename-dur-chip{padding:2px 8px;font-size:12px}
   .sortable-ghost{opacity:.35;border-style:dashed}
   .sortable-chosen{box-shadow:0 3px 12px rgba(0,0,0,.18)}
   .day-tiles{display:flex;flex-direction:column;gap:6px;margin-top:3px}
@@ -1656,7 +1662,49 @@ function startRenameEditor(btn, box, plan, id) {
   if (!sid) return;
   const city = btn.getAttribute("data-city") || "";
   const selfName = btn.getAttribute("data-name") || "";
+  const durNow = parseInt(btn.getAttribute("data-dur") || "0", 10) || 0;
+  const hotelSlot = btn.getAttribute("data-hotel") === "1";
   const holder = el('<div class="rename-box"></div>');
+  // ⏱ 停留时长（2026-11-16 用户拍板「site edit button should able to change
+  // duration in addition to site name」）：同一块面板里既能换点也能改时长。
+  // 快捷档点一下即提交，数值框回车/「应用」提交；后端保留开始时刻、把结束
+  // 推后并按序重排当天其余卡。酒店卡时长由入住/退房算，不给手改。
+  let durIn = null;
+  let durApply = null;
+  if (!hotelSlot) {
+    const durRow = el('<div class="rename-dur"></div>');
+    const durLbl = el('<span class="rename-dur-lbl"></span>');
+    durLbl.textContent = I18N.tf("card.dur.title", "⏱ 停留时长");
+    durIn = document.createElement("input");
+    durIn.type = "number";
+    durIn.className = "rename-dur-in";
+    durIn.min = "15";
+    durIn.max = "720";
+    durIn.step = "15";
+    durIn.value = String(durNow || 60);
+    const durUnit = el('<span class="rename-dur-unit"></span>');
+    durUnit.textContent = I18N.tf("card.dur.unit", "分钟");
+    durApply = el('<button class="btn mini ghost" type="button"></button>');
+    durApply.textContent = I18N.tf("card.dur.apply", "应用");
+    durRow.appendChild(durLbl);
+    durRow.appendChild(durIn);
+    durRow.appendChild(durUnit);
+    durRow.appendChild(durApply);
+    [45, 60, 90, 120, 150, 180].forEach(n => {
+      const chip = el('<button class="btn mini ghost rename-dur-chip" type="button"></button>');
+      chip.textContent = n + "′";
+      chip.addEventListener("mousedown", (ev) => ev.preventDefault());
+      chip.addEventListener("click", () => { durIn.value = String(n); applyDuration(); });
+      durRow.appendChild(chip);
+    });
+    durApply.addEventListener("mousedown", (ev) => ev.preventDefault());
+    durApply.addEventListener("click", () => applyDuration());
+    durIn.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); close(); return; }
+      if (ev.key === "Enter") { ev.preventDefault(); applyDuration(); }
+    });
+    holder.appendChild(durRow);
+  }
   const input = document.createElement("input");
   input.type = "text";
   input.className = "rename-in";
@@ -1735,6 +1783,25 @@ function startRenameEditor(btn, box, plan, id) {
       })
       .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
   };
+  // ⏱ 应用停留时长：开始时刻保留、结束=开始+新时长；当天其余卡按序顺延
+  const applyDuration = () => {
+    if (st.done) return;
+    const n = parseInt(durIn.value, 10);
+    if (!n || n < 15 || n > 720) { toast(I18N.tf("card.dur.bad", "停留时长请填 15–720 分钟")); return; }
+    if (n === durNow) { close(); return; } // 没改就不发请求
+    st.done = true;
+    durIn.disabled = true;
+    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/duration", { minutes: n }, "POST")
+      .then(body => {
+        box.replaceWith(planCard(body.plan));
+        toast(I18N.tf("card.dur.done", "已改为 {n} 分钟").replace("{n}", n));
+      })
+      .catch(err => {
+        if (err && err.detail === "duration_locked") toast(I18N.tf("card.dur.locked", "酒店/系统餐位的时长由系统排，不能手改"));
+        else failToast(err);
+        box.replaceWith(planCard(plan));
+      });
+  };
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") { ev.preventDefault(); close(); return; }
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
@@ -1753,7 +1820,8 @@ function startRenameEditor(btn, box, plan, id) {
       clearSlot(); // 库内无匹配/已清空 → 留空（用户拍板：只显示午餐、晚餐）
     }
   });
-  input.addEventListener("blur", () => { setTimeout(() => close(), 180); });
+  // 面板内改时长时别被名字输入框的失焦关掉：焦点还在面板里就算继续编辑
+  input.addEventListener("blur", () => { setTimeout(() => { if (!st.done && !holder.contains(document.activeElement)) close(); }, 180); });
   drawHint(I18N.tf("card.rename.ph", "输入关键字，从库内匹配替换"));
   search(); // 打开即列出当前点的同类候选（排除自身）
 }
@@ -1989,7 +2057,7 @@ function planCard(plan) {
           ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
           : "";
         if (planSession && planSession.session_id && !isSynth) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口）
-          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '"' + (isHotelSlot ? ' data-hotel="1"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）

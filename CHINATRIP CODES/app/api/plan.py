@@ -1302,6 +1302,54 @@ async def retime_plan_item(
     return _plan_turn_body(session, reply, None)
 
 
+class PlanDurationRequest(BaseModel):
+    # 停留时长（分钟）：15 下限=再短就不值得单开一张卡；720 上限=一整天
+    minutes: int = Field(ge=15, le=720)
+
+
+@router.post("/plan/{session_id}/items/{item_id}/duration")
+async def set_plan_item_duration(
+    session_id: str,
+    item_id: str,
+    request: PlanDurationRequest,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    agent: PlanningAgent = Depends(get_planning_agent),
+    store: PlanSessionStore = Depends(get_plan_sessions),
+) -> dict:
+    """行程卡编辑面板改停留时长（2026-11-16 用户拍板「site edit button
+
+    should able to change duration in addition to site name」）：与
+    /retime 同款用户权威路径——本卡成固定锚点（开始时刻保留、结束=开始+
+    新时长），当天其余非钉住件按序重排并按时间排序。酒店卡/系统餐位是
+    系统骨架（时长由规则算）→ 422 duration_locked。
+    """
+    if not x_device_id:
+        raise HTTPException(status_code=400, detail="missing_device_id")
+    session = store.get(session_id, device_id=x_device_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if session.plan is None:
+        raise HTTPException(status_code=400, detail="no_plan")
+    try:
+        _, summary, notes = agent.set_item_duration(
+            session, item_id, minutes=request.minutes
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "item_not_found":
+            raise HTTPException(status_code=404, detail="item_not_found") from None
+        raise HTTPException(status_code=422, detail=code) from None
+    await agent.refresh_legs(session)
+    store.save(session)
+    base = (
+        summary.change_summary[0]
+        if summary.change_summary
+        else L("已改停留时长", "Visit length updated")
+    )
+    reply = base + (f"（{'；'.join(notes)}）" if notes else "")
+    return _plan_turn_body(session, reply, None)
+
+
 class PlanDepartureRequest(BaseModel):
     item_id: str
     direction: Literal["out", "return"] = "out"

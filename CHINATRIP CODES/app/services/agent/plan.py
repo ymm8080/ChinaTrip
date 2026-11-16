@@ -31291,6 +31291,118 @@ class PlanningAgent:
         )
         return report, summary, notes
 
+    def set_item_duration(
+        self,
+        session: PlanSession,
+        item_id: str,
+        *,
+        minutes: int,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """规划页编辑面板改停留时长（2026-11-16 用户拍板「site edit button
+        should able to change duration in addition to site name」）。
+
+        与 retime_item 同款用户权威路径：用户显式给的时长即最高优先——
+        本卡成固定锚点（开始时刻保留、结束=开始+新时长），当天其余非钉住
+        景点清空时间后按顺序游标重排并按时间排序。酒店卡/系统餐位是系统
+        骨架（时长由规则算）→ ``duration_locked``。纯计算。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        visit = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            ),
+            None,
+        )
+        if visit is None:
+            raise ValueError("item_not_found")
+        if (
+            (visit.category or "") == "hotel"
+            or is_hotel_night(visit)
+            or is_hotel_morning(visit)
+            or is_lunch_placeholder(visit)
+            or is_dinner_placeholder(visit)
+        ):
+            raise ValueError("duration_locked")
+
+        candidate = plan.model_copy(deep=True)
+        edited = next(
+            i
+            for d in candidate.days
+            for i in d.items
+            if isinstance(i, VisitItem) and i.item_id == item_id
+        )
+        old_dur = edited.duration_minutes
+        edited.duration_minutes = minutes
+        # 起点保留（用户改的是「待多久」，不是「几点到」）：已有开始时刻的
+        # 直接把结束推后，没有时刻的交给下方兜底游标链落位。
+        if edited.start_time is not None:
+            start_min = edited.start_time.hour * 60 + edited.start_time.minute
+            end_min = start_min + minutes
+            edited.end_time = (
+                time(end_min // 60, end_min % 60) if end_min < 24 * 60 else None
+            )
+        # 改前谁有时刻（判「被本次改动挤出去」用，已在无时刻的真撤件不重复提）
+        original_times = {
+            i.item_id: i.start_time
+            for d in plan.days
+            for i in d.items
+            if isinstance(i, VisitItem)
+        }
+        day_no = edited.day
+        day = next(d for d in candidate.days if d.day == day_no)
+        for it in day.items:
+            if (
+                isinstance(it, VisitItem)
+                and it.item_id != item_id
+                and not it.pinned
+                and not it.soft_pin
+            ):
+                # 系统餐锚保留时刻（同 retime：清了会被游标链乱排）
+                it.start_time = None
+                it.end_time = None
+        notes = _reconcile_transfer_days(candidate, user_edit=True)
+        _fallback_sequence_times(candidate, keep_list_order=True)
+        # 加长把后段挤出当天要如实披露（2026-11-13「未安排卡不显示」口径）：
+        # 出站层会把无时刻的参访卡撤成「想去」chip——卡不能悄悄消失，回复
+        # 与假设标注都写一句，用户才知道今天少了什么、可以换天/换点。
+        pushed = [
+            it.name
+            for it in day.items
+            if isinstance(it, VisitItem)
+            and it.start_time is None
+            and original_times.get(it.item_id) is not None
+        ]
+        if pushed:
+            joined = "、".join(pushed)
+            note = L(
+                f"{joined} 当天排不下，已转为「想去」",
+                f"{joined} no longer fits today — moved to Wanted",
+            )
+            notes.append(note)
+            candidate.assumptions.append(note)
+        # 时长变化会带动当天首/末件——酒店卡跟随（同 retime 口径）
+        reanchor_hotel_cards(candidate.days, keep_ids={item_id})
+        report = validate_plan(candidate, poi_hours=[])
+        annotate_legs(candidate)
+        self._replay_measured_legs(candidate)
+        session.plan = candidate
+        summary = ChangeSummary(
+            change_summary=[
+                L(
+                    f"第{day_no}天 {visit.name} 停留 {old_dur or 0} → {minutes} 分钟",
+                    f"Day {day_no}: {visit.name} visit length "
+                    f"{old_dur or 0} → {minutes} min",
+                )
+            ],
+            affected_items_count=1,
+        )
+        return report, summary, notes
+
     def set_access_departure(
         self,
         session: PlanSession,
