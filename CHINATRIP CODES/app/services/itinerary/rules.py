@@ -413,9 +413,9 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     （_return_breakdown，同拍板「回城也是一样的接驳三段」）。
     """
     mode, boarding, service, wait, last = _access_profile(b)
-    if mode not in SCHEDULED_ACCESS_MODES:
-        # b 不是班次点：a 是班次点（或锚在其上的占位卡）→ 回城返向链；
-        # a 也不是班次点 → None，走打车模型。
+    if mode not in SCHEDULED_ACCESS_MODES or getattr(b, "anchor_from_prev", False):
+        # b 不是班次点（锚定占位卡也不算——它只是站在景区上，不是目的地）：
+        # a 是班次点（或锚在其上的占位卡）→ 回城返向链；a 也不是 → None。
         return _return_breakdown(a, b)
     _from = a.location or getattr(a, "anchor_location", None)
     if _from is None or boarding is None or not service:

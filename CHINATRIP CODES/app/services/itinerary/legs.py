@@ -260,23 +260,35 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
 
 
 def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
-    """当天最后一站是班次点：没有下一站可配对，也出「回城段」（2026-11-16）。
+    """当天最后一站是班次点：没有真实下一站时也出「回城段」（2026-11-16）。
 
-    用户实报（保存行程 it-17867636 的 Day1 只有慕田峪一站）：散场后怎么回城
-    在卡上完全看不到。这里按返程链补「步行回乘车点 → 返程班 → 到市区落点」，
-    detail 标 ``to_city``，前端腿行前缀从「距下一站」换成「回城」。
+    用户实报（行程 it-17867636：Day1 只有慕田峪；另一形状是午饭/晚饭都锚在
+    景区、夜卡没坐标）：散场后怎么回城在卡上完全看不到。这里按返程链补
+    「步行回乘车点 → 返程班 → 到市区落点」，detail 标 ``to_city``，前端腿行
+    前缀「回城」。
     """
     if not timed:
         return
-    last = timed[-1]
-    if last.next_leg_minutes is not None:
-        return
-    mode, terminal, service, _wait, _last = _access_profile(last)
-    if mode not in SCHEDULED_ACCESS_MODES or terminal is None or not service:
+    last = None
+    for item in reversed(timed):
+        if getattr(item, "anchor_from_prev", False):
+            continue  # 占位卡只是站在景区上，不是班次点
+        mode_i, terminal_i, service_i, _w_i, _l_i = _access_profile(item)
+        if mode_i in SCHEDULED_ACCESS_MODES and service_i and terminal_i is not None:
+            last = item
+            break
+    if last is None or last.next_leg_minutes is not None:
         return
     last_pt = _point(last)
     if last_pt is None:
         return
+    for after in timed[timed.index(last) + 1 :]:
+        after_pt = _point(after)
+        if after_pt is None:
+            continue
+        if haversine_km(last_pt, after_pt) > SAME_VENUE_KM:
+            return  # 后面有真实下一站：正常腿链负责
+    mode, terminal, service, _wait, _last = _access_profile(last)
     home = VisitItem(
         item_id="__city-terminal__",
         name="市区",
@@ -311,10 +323,11 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
 def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
     """回城腿挂回景区卡（2026-11-16 用户实报「NO BACK ARRANGEMENT」）。
 
-    景区散场后紧跟着同址占位餐卡（午饭/晚饭锚在本站）时，腿对是 0 公里不
-    成腿——回城链会挂在占位卡上，用户看景区卡却什么都没有。这里把这段回
-    城链按「占位卡散场」起算，明细挂回景区卡；占位卡上同一段隐藏（同一段
-    回城不重复显示）。幂等：annotate 每轮先清腿字段，本函数按当前布局重算。
+    景区散场后紧跟着同址占位卡（午饭/晚饭锚在本站）时，腿对是 0 公里不成腿，
+    回城链会挂在占位卡上或干脆没有。这里找「景区卡 → 第一个真实下一站」的
+    返向链（board 按最后一张同址占位卡的散场时刻起算），明细挂回景区卡；占
+    位卡上的同一段隐藏（同一段回城不重复显示）。幂等：annotate 每轮先清腿字
+    段，本函数按当前布局重算。
     """
     for day in plan.days:
         timed = [
@@ -322,24 +335,35 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
             for item in day.items
             if isinstance(item, VisitItem) and item.start_time is not None
         ]
-        for pos in range(len(timed) - 2):
-            a = timed[pos]
+        for pos, a in enumerate(timed):
+            if getattr(a, "anchor_from_prev", False):
+                continue  # 占位卡不是回城起点：挂回真实景区卡
             if a.next_leg_minutes is not None:
                 continue
             mode, _terminal, service, _wait, _last = _access_profile(a)
             if mode not in SCHEDULED_ACCESS_MODES or not service:
                 continue
-            b = timed[pos + 1]
-            c = timed[pos + 2]
-            if not getattr(b, "anchor_from_prev", False):
+            a_pt = _point(a)
+            if a_pt is None:
                 continue
-            a_pt, b_pt, c_pt = _point(a), _point(b), _point(c)
-            if a_pt is None or b_pt is None or c_pt is None:
-                continue
-            if haversine_km(a_pt, b_pt) > SAME_VENUE_KM:
+            board_item = a
+            c: VisitItem | None = None
+            for nxt in timed[pos + 1 :]:
+                nxt_pt = _point(nxt)
+                if nxt_pt is None:
+                    continue
+                if haversine_km(a_pt, nxt_pt) > SAME_VENUE_KM:
+                    c = nxt
+                    break
+                board_item = nxt  # 同址占位卡：回城从它的散场时刻起算
+            c_pt = _point(c) if c is not None else None
+            if c is None or c_pt is None:
                 continue
             proxy = a.model_copy(
-                update={"start_time": b.start_time, "end_time": b.end_time}
+                update={
+                    "start_time": board_item.start_time,
+                    "end_time": board_item.end_time,
+                }
             )
             br = access_breakdown(proxy, c)
             if br is None or br.get("direction") != "return":
@@ -362,14 +386,17 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
                 "含接驳票价估算", "includes an estimated shuttle fare"
             )
             a.next_leg_detail = _access_return_detail(proxy, c, br)
-            # 占位卡上的同一段隐藏（不重复显示）
-            b.distance_to_next_km = None
-            b.next_walk_minutes = None
-            b.next_leg_mode = None
-            b.next_leg_minutes = None
-            b.next_leg_cost_cny = None
-            b.next_leg_cost_note = None
-            b.next_leg_detail = None
+            # 同址占位卡上的同一段隐藏（不重复显示）
+            for item in timed[pos + 1 :]:
+                if item is c:
+                    break
+                item.distance_to_next_km = None
+                item.next_walk_minutes = None
+                item.next_leg_mode = None
+                item.next_leg_minutes = None
+                item.next_leg_cost_cny = None
+                item.next_leg_cost_note = None
+                item.next_leg_detail = None
         _attach_tail_return(day, timed)
     return plan
 

@@ -474,6 +474,81 @@ def test_dinner_placeholder_anchors_to_hotel_and_return_leg_from_scenic():
     assert dinner.next_leg_minutes is None
 
 
+def test_tail_return_when_dinner_and_night_stay_on_site():
+    """用户的真实形状：慕田峪 → 午饭/晚饭锚在景区 → 夜卡无坐标。
+
+    晚饭继承班次档案也不能把回城链判成去程；夜卡没坐标也要在慕田峪卡上
+    出回城段（2026-11-16 用户拍板「游玩时间结束后应该有一个回城腿」）。
+    """
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=time(10, 8),
+        end_time=time(13, 8),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_ride_minutes=90,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_service_name="前门旅游专线（前门大街北口）",
+        access_boarding_stop="前门大街北口（北京旅游集散中心发车点）",
+        access_alight_stop="慕田峪长城 P1/P4 停车场",
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        anchor_from_prev=True,
+        start_time=time(13, 8),
+        end_time=time(14, 8),
+    )
+    dinner = VisitItem(
+        item_id="food-dinner-ph-d1",
+        name="晚饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        duration_minutes=90,
+        anchor_from_prev=True,
+        start_time=time(19, 0),
+        end_time=time(20, 30),
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        start_time=time(21, 0),
+        end_time=time(22, 0),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, lunch, dinner, night])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    assert mt.next_leg_mode == "access"
+    detail = mt.next_leg_detail
+    assert detail is not None and detail["direction"] == "return"
+    assert detail["to_city"] is True
+    assert detail["depart_time"] == "14:30"  # 13:08 散场 + 8 分钟 → 14:30 班
+    assert detail["gateway"].startswith("慕田峪长城")
+    assert detail["alight"].startswith("前门大街北口")
+    # 同址占位卡都不显示重复腿
+    assert lunch.next_leg_minutes is None
+    assert dinner.next_leg_minutes is None
+
+
 def test_tail_return_chain_when_remote_is_last_of_day():
     """当天最后一站是班次点（用户行程 Day1 只有慕田峪）：也出回城段。"""
     mt = _v(
