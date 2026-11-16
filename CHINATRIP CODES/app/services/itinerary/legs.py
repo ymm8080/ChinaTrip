@@ -128,9 +128,7 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
                     # 接驳档案随锚走：占位餐卡锚在班次点上时继承该站
                     # 的返程链字段（2026-11-16「回城三段」）；档案
                     # 优先用规则层解析值（卡上没有也能吃 profile）。
-                    mode, boarding, service, wait, last_mile = (
-                        _access_profile(last)
-                    )
+                    mode, boarding, service, wait, last_mile = _access_profile(last)
                     item.access_mode = mode
                     item.access_boarding = boarding
                     item.access_service_minutes = service or None
