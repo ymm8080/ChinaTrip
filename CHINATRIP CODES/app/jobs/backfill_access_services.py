@@ -85,7 +85,9 @@ _UPSERT_SQL = text(
         return_frequency_minutes, return_ride_minutes, return_arrive_last,
         fare_cny, fare_kind, fare_note, ticket_channel, ticket_url,
         last_mile_minutes, note, note_en, source, source_url,
-        fetched_at, active, updated_at)
+        fetched_at, active, updated_at,
+        official_status, window_source)
+
     VALUES (
         :city, :poi_name, :mode, :service_name, :operator,
         :boarding_stop, :boarding_lon, :boarding_lat,
@@ -95,7 +97,7 @@ _UPSERT_SQL = text(
         NULL, NULL, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL,
         :last_mile_minutes, :note, :note_en, :source, :source_url,
-        :fetched_at, TRUE, now())
+        :fetched_at, TRUE, now(), :official_status, :window_source)
     ON CONFLICT (city, poi_name, service_name) DO UPDATE SET
         mode = EXCLUDED.mode,
         boarding_stop = EXCLUDED.boarding_stop,
@@ -114,6 +116,8 @@ _UPSERT_SQL = text(
         note_en = EXCLUDED.note_en,
         source = EXCLUDED.source,
         source_url = EXCLUDED.source_url,
+        official_status = EXCLUDED.official_status,
+        window_source = EXCLUDED.window_source,
         fetched_at = EXCLUDED.fetched_at,
         active = TRUE,
         updated_at = now()
@@ -242,6 +246,10 @@ def backfill(
                 "source": "baidu-transit",
                 "source_url": None,
                 "fetched_at": datetime.now(UTC).replace(tzinfo=None),
+                "official_status": "pending",
+                "window_source": (
+                    "baidu" if (parsed["first"] or parsed["single"]) else None
+                ),
             }
             # 上车点坐标从 pois 里没有单列（只有名字），留空由引擎按档案兜底
             if parsed["first"] or parsed["single"]:
