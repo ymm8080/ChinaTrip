@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>远郊景点交通审核台 / Remote Access Review</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e6ea;--text:#1f2329;--muted:#6b7280;
+        --ok:#0a7d43;--warn:#b45309;--bad:#b91c1c;--accent:#1d4ed8}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.5 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);
+         padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  h1{font-size:16px;margin:0 12px 0 0}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;
+        cursor:pointer;color:var(--muted);font-size:12px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grow{flex:1}
+  main{padding:12px 16px 64px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+        border-radius:10px;overflow:hidden}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13px}
+  th{background:#fafbfc;font-weight:600;color:var(--muted);position:sticky;top:56px}
+  tr:hover td{background:#fafbff}
+  .st{font-size:12px;padding:1px 8px;border-radius:999px;display:inline-block}
+  .st.verified{background:#e7f6ed;color:var(--ok)}
+  .st.pending{background:#fef3c7;color:var(--warn)}
+  .st.no_official_page{background:#fde8e8;color:var(--bad)}
+  input[type=text],input[type=number]{width:100%;border:1px solid var(--line);border-radius:6px;
+        padding:4px 6px;font:inherit;background:#fff}
+  input.sm{width:72px}
+  .row-actions{display:flex;gap:6px;align-items:center}
+  button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;
+         cursor:pointer;font:inherit}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .muted{color:var(--muted);font-size:12px}
+  .toast{position:fixed;right:16px;bottom:16px;background:#111;color:#fff;padding:8px 12px;
+         border-radius:8px;opacity:0;transition:opacity .2s;font-size:13px}
+  .toast.on{opacity:.95}
+  a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>远郊景点交通审核台</h1>
+  <div class="chips" id="statusChips">
+    <button class="chip on" data-status="">全部</button>
+    <button class="chip" data-status="verified">官方已核</button>
+    <button class="chip" data-status="pending">待核</button>
+    <button class="chip" data-status="no_official_page">无官网</button>
+  </div>
+  <div class="chips" id="cityChips"></div>
+  <div class="grow"></div>
+  <span class="muted" id="meta">加载中…</span>
+  <button id="reload">刷新</button>
+</header>
+<main>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:10%">城市 / 景点</th>
+        <th style="width:8%">方式</th>
+        <th style="width:14%">上车点</th>
+        <th style="width:9%">首班 / 末班</th>
+        <th style="width:7%">车上(分)</th>
+        <th style="width:9%">票价</th>
+        <th style="width:10%">官方 URL</th>
+        <th style="width:9%">状态</th>
+        <th style="width:12%">来源</th>
+        <th style="width:12%"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const API = "/api/v1/access-services";
+let STATE = { items: [], status: "", city: "" };
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("on");
+  setTimeout(() => el.classList.remove("on"), 1600);
+}
+
+function esc(s) {
+  return (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
+function statusChip(st) {
+  const label = st === "verified" ? "官方已核" : st === "no_official_page" ? "无官网" : "待核";
+  return `<span class="st ${esc(st||"pending")}">${label}</span>`;
+}
+
+function render() {
+  const body = document.getElementById("rows");
+  body.innerHTML = STATE.items.map(it => {
+    const status = it.official_status || "pending";
+    return `<tr data-id="${it.id}">
+      <td><b>${esc(it.poi_name)}</b><div class="muted">${esc(it.city)} · ${esc(it.poi_name_en)}</div></td>
+      <td>${esc(it.mode)}</td>
+      <td><input type="text" data-f="boarding_stop" value="${esc(it.boarding_stop)}"></td>
+      <td><input type="text" class="sm" data-f="outbound_first" value="${esc(it.outbound_first)}">
+          <input type="text" class="sm" data-f="outbound_last" value="${esc(it.outbound_last)}"></td>
+      <td><input type="number" class="sm" data-f="ride_minutes" value="${it.ride_minutes ?? ""}"></td>
+      <td><input type="number" class="sm" data-f="fare_cny" value="${it.fare_cny ?? ""}">
+          <div class="muted">${esc(it.fare_note || "")}</div></td>
+      <td><input type="text" data-f="official_url" value="${esc(it.official_url || "")}">
+          <div class="muted">${esc(it.source || "")}</div></td>
+      <td>${statusChip(status)}
+          <select data-f="official_status">
+            <option value="pending" ${status==="pending"?"selected":""}>待核</option>
+            <option value="verified" ${status==="verified"?"selected":""}>官方已核</option>
+            <option value="no_official_page" ${status==="no_official_page"?"selected":""}>无官网</option>
+          </select></td>
+      <td class="muted">窗:${esc(it.window_source || "-")}<br>票:${esc(it.fare_source || "-")}</td>
+      <td><div class="row-actions">
+        <button class="primary" data-act="save">保存</button>
+        <button data-act="official">标官方</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("meta").textContent =
+    `${STATE.items.length} 行 · ${STATE.city || "全部城市"} · ${STATE.status || "全部状态"}`;
+}
+
+async function load() {
+  const qs = new URLSearchParams({ city: STATE.city, status: STATE.status });
+  const res = await fetch(`${API}?${qs}`, { cache: "no-store" });
+  const data = await res.json();
+  STATE.items = data.items || [];
+  render();
+  await loadSummary();
+}
+
+async function loadSummary() {
+  const res = await fetch(`${API}/summary`, { cache: "no-store" });
+  const data = await res.json();
+  const byCity = {};
+  let total = 0, verified = 0;
+  (data.buckets || []).forEach(b => {
+    byCity[b.city] = (byCity[b.city] || 0) + b.count;
+    total += b.count;
+    if (b.status === "verified") verified += b.count;
+  });
+  const chips = document.getElementById("cityChips");
+  chips.innerHTML = Object.keys(byCity).sort()
+    .map(c => `<button class="chip ${STATE.city===c?"on":""}" data-city="${esc(c)}">${esc(c)} ${byCity[c]}</button>`)
+    .join("");
+  document.getElementById("meta").textContent =
+    `${total} 行 · 官方已核 ${verified} · ${STATE.city || "全部城市"}`;
+}
+
+function collect(tr) {
+  const payload = {};
+  tr.querySelectorAll("[data-f]").forEach(el => {
+    const f = el.dataset.f;
+    let v = el.value;
+    if (v === "") return;
+    if (el.type === "number") v = Number(v);
+    payload[f] = v;
+  });
+  return payload;
+}
+
+document.addEventListener("click", async ev => {
+  const chip = ev.target.closest(".chip");
+  if (chip) {
+    if (chip.dataset.city !== undefined) STATE.city = chip.dataset.city;
+    else STATE.status = chip.dataset.status;
+    document.querySelectorAll("#statusChips .chip").forEach(c =>
+      c.classList.toggle("on", c.dataset.status === STATE.status));
+    await load();
+    return;
+  }
+  const btn = ev.target.closest("button[data-act]");
+  if (!btn) return;
+  const tr = btn.closest("tr");
+  const id = tr.dataset.id;
+  const payload = collect(tr);
+  if (btn.dataset.act === "official") payload.mark_official = true;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    toast("已保存");
+    await load();
+  } catch (err) {
+    toast("保存失败: " + err.message.slice(0, 80));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("reload").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>

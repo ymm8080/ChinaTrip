@@ -133,6 +133,9 @@ def create_app() -> FastAPI:
     app.include_router(itineraries_router)
     app.include_router(plan_router)
     app.include_router(pois_router)
+    from app.api.access_services import router as access_services_router
+
+    app.include_router(access_services_router)
     app.include_router(navi_router)
     app.include_router(hotels_router)
     app.include_router(bookings_router)
