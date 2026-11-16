@@ -270,3 +270,136 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     )
     assert "mutianyugreatwall" in detail["official_url"]
     assert "80" in detail["fare_text"]
+
+
+def test_return_leg_shuttle_chain_from_remote_stop():
+    """回城腿（2026-11-16 用户拍板「回城也是一样的接驳三段」）：慕田峪 →
+    市区走返向链（步行回乘车点 → 返程班 → 市区落点打车），不是打车直线。"""
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=time(11, 8),
+        end_time=time(12, 38),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_ride_minutes=90,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_service_name="前门旅游专线（前门大街北口）",
+        access_operator="北京旅游集散中心",
+        access_boarding_stop="前门大街北口（北京旅游集散中心发车点）",
+        access_alight_stop="慕田峪长城 P1/P4 停车场",
+        access_fare_text="往返车费 80 元",
+    )
+    wfj = _v(
+        "wfj",
+        "王府井",
+        116.4109,
+        39.9097,
+        start_time=time(15, 8),
+        end_time=time(16, 38),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, wfj])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    assert mt.next_leg_mode == "access"
+    detail = mt.next_leg_detail
+    assert detail is not None
+    assert detail["direction"] == "return"
+    assert detail["gateway"].startswith("慕田峪长城")
+    assert detail["alight"].startswith("前门大街北口")
+    assert detail["next_stop"] == "王府井"
+    assert detail["departures"] == ["14:30", "15:30", "16:30"]
+    assert detail["board_time"] == "12:46"  # 12:38 散场 + 8 分钟走回乘车点
+    assert detail["depart_time"] == "14:30"  # 最快返程班
+    assert detail["arrive_time"] == "16:00"  # 14:30 + 90 车程到市区落点
+    assert detail["walk_minutes"] == 8
+    assert detail["taxi_km"] < 5  # 市区落点→王府井，不是 58km 打车直线
+    assert mt.next_leg_minutes == (
+        8 + (14 * 60 + 30 - (12 * 60 + 38 + 8)) + 90 + detail["taxi_minutes"]
+    )
+    assert mt.next_leg_cost_cny == (
+        estimate_taxi_fare("北京", detail["taxi_km"])
+        + access_fare_estimate("shuttle")
+    )
+
+
+def test_anchored_meal_inherits_access_and_return_chain():
+    """锚在班次点上的占位餐卡继承接驳档案：回城腿挂餐卡上仍是接驳三段，
+    排期隔隙同口径吃返向链；锚离开班次点档案即清（幂等重算）。"""
+    from app.services.itinerary import rules
+    from app.services.itinerary.legs import resolve_meal_anchors
+
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=time(11, 8),
+        end_time=time(12, 38),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_ride_minutes=90,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_service_name="前门旅游专线（前门大街北口）",
+        access_operator="北京旅游集散中心",
+        access_boarding_stop="前门大街北口（北京旅游集散中心发车点）",
+        access_alight_stop="慕田峪长城 P1/P4 停车场",
+        access_fare_text="往返车费 80 元",
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        anchor_from_prev=True,
+        start_time=time(12, 38),
+        end_time=time(13, 38),
+    )
+    wfj = _v(
+        "wfj",
+        "王府井",
+        116.4109,
+        39.9097,
+        start_time=time(15, 8),
+        end_time=time(16, 38),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, lunch, wfj])],
+        assumptions=[],
+    )
+    resolve_meal_anchors(plan)
+    assert lunch.access_mode == "shuttle"
+    assert lunch.access_return_times == ["14:30", "15:30", "16:30"]
+    br = rules.access_breakdown(lunch, wfj)
+    assert br is not None and br["direction"] == "return"
+    assert br["board"] == 13 * 60 + 46  # 13:38 散场 + 8 分钟走回乘车点
+    assert br["depart"] == 14 * 60 + 30
+    gap = rules.travel_gap_needed(lunch, wfj)
+    assert gap == 8 + 44 + 90 + br["taxi_minutes"]  # 链值，不是打车下限
+    annotate_legs(plan)
+    detail = lunch.next_leg_detail
+    assert detail is not None and detail["direction"] == "return"
+    assert detail["service_name"].startswith("前门旅游专线")
+    assert detail["gateway"].startswith("慕田峪长城")
+    # 锚离开班次点：档案清空，腿回打车模型
+    plan.days[0].items.remove(lunch)
+    plan.days[0].items.append(lunch)
+    resolve_meal_anchors(plan)
+    assert lunch.access_mode is None
+    assert lunch.access_return_times is None

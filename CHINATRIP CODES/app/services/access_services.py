@@ -142,6 +142,22 @@ class Service:
         spans = self.departures()
         return spans[0] if spans else self.outbound_first
 
+    def returns(self) -> list[int]:
+        """返程发车时刻（升序）。显式列表优先，缺则按返程首末班
+        + 间隔展开发车（2026-11-16 回城三段）。"""
+        if self.return_times:
+            return sorted(self.return_times)
+        first, last = self.return_first, self.return_last
+        if first is None or last is None or last < first:
+            return []
+        step = self.return_frequency_minutes or DEFAULT_HEADWAY_MINUTES
+        out: list[int] = []
+        cursor = first
+        while cursor <= last:
+            out.append(cursor)
+            cursor += max(5, step)
+        return out
+
     # --- 排期 ---------------------------------------------------------
     def plan_leg(
         self, arrive_boarding: int, *, ride_fallback: int | None = None
@@ -333,3 +349,31 @@ def fastest_plan(
         return None
     _key, depart, ride, last = best
     return depart, ride, last, max(0, depart - int(board_minutes))
+
+
+def fastest_return_plan(
+    city: str | None,
+    name: str | None,
+    board_minutes: int,
+    *,
+    ride_fallback: int | None = None,
+) -> tuple[int, int, int] | None:
+    """给定「离开景区走回返程乘车点」的时刻，挑最快回市区的一班
+    （2026-11-16 用户拍板「回城也是一样的接驳三段」的返向口径）。
+    返回 (发车, 车上分钟, 候车分钟)；没有官方返程时刻表返回 None
+    （调用方退档案经验值）。"""
+    best: tuple[tuple[int, int], int, int] | None = None
+    for svc in services_for(city, name):
+        ride = int(
+            svc.return_ride_minutes or svc.ride_minutes or ride_fallback or 0
+        )
+        for depart in sorted(svc.returns()):
+            if depart < int(board_minutes):
+                continue
+            key = (depart + ride, depart)
+            if best is None or key < best[0]:
+                best = (key, depart, ride)
+    if best is None:
+        return None
+    _key, depart, ride = best
+    return depart, ride, max(0, depart - int(board_minutes))

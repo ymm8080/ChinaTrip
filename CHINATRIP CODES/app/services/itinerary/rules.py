@@ -213,15 +213,102 @@ def _fastest_ride(
     return depart, ride, last, wait
 
 
+def _fastest_return_ride(
+    a: VisitItem, board: int, ride_fallback: int
+) -> tuple[int | None, int, int | None]:
+    """挑「离开景区后最快回市区」的一班（fastest_return_plan 同口径）。
+
+    返回 (发车, 车上分钟, 候车分钟)；班次库不可用且卡上没有返程时刻表
+    → (None, ride_fallback, None)（候车由调用方退档案经验值）。
+    """
+    try:
+        from app.services import access_services
+
+        got = access_services.fastest_return_plan(
+            getattr(a, "city", None), a.name, board, ride_fallback=ride_fallback
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        got = None
+    if got is not None:
+        return got
+    # 班次库不可用：退回卡上自带的官方返程时刻表（同一「最快回城」口径）
+    times = [
+        m
+        for m in (
+            _hhmm_minutes(t)
+            for t in (getattr(a, "access_return_times", None) or [])
+        )
+        if m is not None
+    ]
+    nxt = next((m for m in sorted(times) if m >= board), None)
+    if nxt is None:
+        return None, ride_fallback, None
+    return nxt, ride_fallback, nxt - board
+
+
+def _return_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
+    """a（班次点或锚在其上的占位卡）→ b（市区下一站）的回城返向链。
+
+    2026-11-16 用户拍板「回城也是一样的接驳三段」：步行回乘车点 →
+    候返程班 → 专线回市区落点 → 打车到下一站。没有官方返程时刻表时
+    候车退档案经验值（发车=None）。b 也是班次点时不走这里（去程优先）。
+    """
+    mode, terminal, service, wait, last = _access_profile(a)
+    if mode not in SCHEDULED_ACCESS_MODES or terminal is None or not service:
+        return None
+    front = int(getattr(a, "access_last_mile_minutes", None) or last or 0)
+    a_end = None
+    if getattr(a, "end_time", None) is not None:
+        a_end = a.end_time.hour * 60 + a.end_time.minute
+    elif getattr(a, "start_time", None) is not None:
+        a_end = a.start_time.hour * 60 + a.start_time.minute + int(
+            getattr(a, "duration_minutes", None) or 0
+        )
+    board = a_end + front if a_end is not None else None
+    ride = int(getattr(a, "access_ride_minutes", None) or service)
+    depart: int | None = None
+    wait_minutes: int | None = None
+    if board is not None:
+        depart, ride, wait_minutes = _fastest_return_ride(a, board, ride)
+    if wait_minutes is None:
+        wait_minutes = wait
+    b_loc = b.location or getattr(b, "anchor_location", None)
+    taxi_km = 0.0
+    taxi_minutes = 0
+    if b_loc is not None:
+        taxi_km = haversine_km(terminal, b_loc)
+        taxi_minutes = taxi_leg_min(taxi_km)
+    minutes = max(
+        TRAVEL_GAP_FLOOR_MIN,
+        front + (wait_minutes or 0) + ride + taxi_minutes,
+    )
+    return {
+        "mode": mode,
+        "minutes": minutes,
+        "taxi_km": taxi_km,
+        "taxi_minutes": taxi_minutes,
+        "wait": max(0, wait_minutes or 0),
+        "service": ride,
+        "last": front,
+        "board": board,
+        "depart": depart,
+        "direction": "return",
+    }
+
+
 def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     """a → b 的接驳链拆分（2026-11-16 用户拍板「显示打车段/专线/步行」）。
 
     打车到乘车点（距离/分钟）→ 候车 → 专线车程 → 落客步行；班次按
     「到站后最快到景区」挑（没有官方时刻表才用档案经验值）。
+    b 不是班次点而 a 是（或锚在其上的占位卡）→ 返向回城链
+    （_return_breakdown，同拍板「回城也是一样的接驳三段」）。
     """
     mode, boarding, service, wait, last = _access_profile(b)
     if mode not in SCHEDULED_ACCESS_MODES:
-        return None
+        # b 不是班次点：a 是班次点（或锚在其上的占位卡）→ 回城返向链；
+        # a 也不是班次点 → None，走打车模型。
+        return _return_breakdown(a, b)
     _from = a.location or getattr(a, "anchor_location", None)
     if _from is None or boarding is None or not service:
         return None
@@ -290,12 +377,25 @@ def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
     - 双方有坐标：max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))——
       餐/酒店/钉件与观光件同口径（秦俑情 11:00 散场→41km 外餐厅
       12:20 零车程案：钉不可挪由铁律 19 管移动，本条管间隔计算与披露）；
-    - 任一方无坐标：返回 None（算不出），调用方须留痕。
+    - 任一方无坐标：返回 None（算不出），调用方须留痕；例外=锚在
+      班次点上的占位卡（继承档案后按回城返向链算，2026-11-16）。
     口径与兜底 _leg_windows 的 pad 一致：max(30, taxi_leg_min(haversine))。
     """
-    if a.location is None or b.location is None:
+    b_loc = b.location
+    if b_loc is None:
         return None
-    km = haversine_km(a.location, b.location)
+    a_loc = a.location
+    if a_loc is None:
+        # 锚定占位卡（午饭/晚饭）自己没有坐标：仅当锚在班次点上（继承
+        # 了接驳档案）时回城返向链才成立（2026-11-16「回城三段」）；
+        # 其余锚卡维持 None，不放大豁免口径。
+        mode_a, _terminal, service_a, _wait_a, _last_a = _access_profile(a)
+        if mode_a not in SCHEDULED_ACCESS_MODES or not service_a:
+            return None
+        a_loc = getattr(a, "anchor_location", None)
+        if a_loc is None:
+            return None
+    km = haversine_km(a_loc, b_loc)
     if km <= SAME_VENUE_KM:
         return None  # 同址不隔腿（嵌套/并块尾按距离语义豁免）
     chain = access_chain_minutes(a, b)

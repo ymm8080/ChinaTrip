@@ -2044,7 +2044,15 @@ function planCard(plan) {
           if (legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
             const rows = [];
             const tips = [];
-            if ((Number(legD.taxi_km) || 0) > 0.05) {
+            const isRet = legD.direction === "return";
+            if (isRet && (Number(legD.walk_minutes) || 0) > 0) {
+              rows.push('<div class="lr"><span class="li">\uD83D\uDEB6</span><span class="lb">' +
+                I18N.tf("card.hop.lWalk", "步行") + '</span><span class="lv">' +
+                I18N.tf("card.hop.valWalk", "{n} 分钟 → {stop}")
+                  .replace("{n}", String(legD.walk_minutes || 0))
+                  .replace("{stop}", esc(legD.gateway || "")) + "</span></div>");
+            }
+            if (!isRet && (Number(legD.taxi_km) || 0) > 0.05) {
               rows.push('<div class="lr"><span class="li">\uD83D\uDE95</span><span class="lb">' +
                 I18N.tf("card.hop.lTaxi", "打车") + '</span><span class="lv">' +
                 I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
@@ -2057,12 +2065,24 @@ function planCard(plan) {
               if (legD.depart_time) parts.push(I18N.tf("card.hop.departAt", "{t} 发车").replace("{t}", legD.depart_time));
               parts.push(I18N.tf("card.hop.rideMin", "车程 {n} 分钟").replace("{n}", String(legD.service_minutes || 0)));
               if ((legD.wait_minutes || 0) > 0) parts.push(I18N.tf("card.hop.waitMin", "候车 {n} 分钟").replace("{n}", String(legD.wait_minutes)));
-              if ((legD.walk_minutes || 0) > 0) parts.push(I18N.tf("card.hop.walkMin", "下车步行 {n} 分钟").replace("{n}", String(legD.walk_minutes)));
-              if (legD.arrive_time) parts.push(I18N.tf("card.hop.arriveAt", "约 {t} 到").replace("{t}", legD.arrive_time));
+              if (!isRet && (legD.walk_minutes || 0) > 0) parts.push(I18N.tf("card.hop.walkMin", "下车步行 {n} 分钟").replace("{n}", String(legD.walk_minutes)));
+              if (legD.arrive_time) {
+                parts.push(isRet
+                  ? I18N.tf("card.hop.alightAt", "约 {t} 到 {stop}").replace("{t}", legD.arrive_time).replace("{stop}", esc(legD.alight || ""))
+                  : I18N.tf("card.hop.arriveAt", "约 {t} 到").replace("{t}", legD.arrive_time));
+              }
               rows.push('<div class="lr"><span class="li">\uD83D\uDE8C</span><span class="lb">' +
                 I18N.tf("card.hop.lRide", "专线") + '</span><span class="lv">' + parts.join(" \u00b7 ") + "</span></div>");
               tips.push(legD.service_name);
               if (legD.operator) tips.push(legD.operator);
+            }
+            if (isRet && (Number(legD.taxi_km) || 0) > 0.05) {
+              rows.push('<div class="lr"><span class="li">\uD83D\uDE95</span><span class="lb">' +
+                I18N.tf("card.hop.lTaxi", "打车") + '</span><span class="lv">' +
+                I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
+                  .replace("{km}", (Number(legD.taxi_km) || 0).toFixed(1))
+                  .replace("{n}", String(legD.taxi_minutes || 0))
+                  .replace("{stop}", esc(legD.next_stop || "")) + "</span></div>");
             }
             const pay = [];
             if ((legD.taxi_cost || 0) + (legD.access_cost || 0) > 0) {

@@ -44,6 +44,31 @@ def _point(item: VisitItem) -> GeoPoint | None:
     return item.location or item.anchor_location
 
 
+# 占位卡随锚继承的接驳字段（2026-11-16「回城也是一样的接驳三段」）：
+# 占位餐卡锚在班次点上时按该站的返程链算腿/隔隙——否则回城腿只剩
+# 一条打车直线。幂等：每次 annotate 按当前锚重拷/清空。
+_ACCESS_COPY_ATTRS = (
+    "access_mode",
+    "access_boarding",
+    "access_service_minutes",
+    "access_wait_minutes",
+    "access_last_mile_minutes",
+    "access_service_name",
+    "access_depart_first",
+    "access_depart_last",
+    "access_ride_minutes",
+    "access_return_last",
+    "access_fare_text",
+    "access_boarding_stop",
+    "access_alight_stop",
+    "access_operator",
+    "access_depart_times",
+    "access_return_times",
+    "access_ticket_url",
+    "access_official_url",
+)
+
+
 def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
     """Re-anchor blank meal cards (午饭/晚饭自由安排) on the previous stop.
 
@@ -65,10 +90,17 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
                     item.address = last.address
                     item.address_en = last.address_en
                     item.anchor_location = last.location
+                    # 接驳档案随锚走：占位餐卡锚在班次点上时继承该站
+                    # 的返程链字段（2026-11-16「回城三段」）；锚离开
+                    # 班次点就清掉，幂等重算不残留。
+                    for attr in _ACCESS_COPY_ATTRS:
+                        setattr(item, attr, getattr(last, attr, None))
                 else:
                     item.address = None
                     item.address_en = None
                     item.anchor_location = None
+                    for attr in _ACCESS_COPY_ATTRS:
+                        setattr(item, attr, None)
             if item.location is not None:
                 last = item
     return plan
@@ -123,7 +155,11 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             a.next_leg_cost_note = L(
                 "含接驳票价估算", "includes an estimated shuttle fare"
             )
-            a.next_leg_detail = _access_detail(a, b, br)
+            a.next_leg_detail = (
+                _access_return_detail(a, b, br)
+                if br.get("direction") == "return"
+                else _access_detail(a, b, br)
+            )
         elif km <= TAXI_WALK_MAX_KM:
             a.next_leg_mode = "walk"
             a.next_leg_minutes = max(1, round(km * TRAVEL_MIN_PER_KM))
@@ -217,6 +253,54 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         ),
     }
     return details
+
+
+def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
+    """回城腿拆分（2026-11-16 用户拍板「回城也是一样的接驳三段」）。
+
+    段序与去程镜像：步行回乘车点 → 返程专线 → 市区落点打车到下一站；
+    班次/票价/预约读 a 的返程档案（锚定占位餐卡已随锚继承），购票/官网
+    仍优先景点自己的预约入口。
+    """
+
+    def _pick(attr: str, fallback=None):
+        val = getattr(a, attr, None)
+        if val not in (None, "", []):
+            return val
+        return fallback
+
+    depart = br.get("depart")
+    ride = int(br.get("service") or 0)
+    return {
+        "mode": "access",
+        "direction": "return",
+        "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
+        "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "wait_minutes": int(br.get("wait") or 0),
+        "service_minutes": ride,
+        "walk_minutes": int(br.get("last") or 0),
+        "gateway": _pick("access_alight_stop") or "返程乘车点",
+        "alight": _pick("access_boarding_stop"),
+        "next_stop": b.name,
+        "service_name": _pick("access_service_name") or "",
+        "operator": _pick("access_operator"),
+        "departures": _pick("access_return_times") or [],
+        "returns": [],
+        "fare_text": _pick("access_fare_text"),
+        "board_time": _clock(br.get("board")),
+        "depart_time": _clock(depart),
+        "arrive_time": _clock(depart + ride if depart is not None else None),
+        "taxi_cost": estimate_taxi_fare(
+            a.city or b.city, float(br.get("taxi_km") or 0.0)
+        ),
+        "access_cost": access_fare_estimate(br.get("mode")),
+        "booking_url": _url(
+            getattr(a, "booking_url", None) or _pick("access_ticket_url")
+        ),
+        "official_url": _url(
+            _pick("access_official_url") or getattr(a, "website", None)
+        ),
+    }
 
 
 def _clear_leg(item: VisitItem) -> None:
