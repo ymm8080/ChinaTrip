@@ -232,3 +232,58 @@ def test_dedupe_plan_visits_merges_town_suffix_twins():
     assert dropped == ["朱家角古镇"]
     names = [i.name for d in plan.days for i in d.items if isinstance(i, VisitItem)]
     assert names == ["朱家角镇"]
+
+
+# --- 点名合并（only_ids：异名同地的 A 档候选） ------------------------------
+
+
+def test_merge_place_only_ids_merges_cross_core_rows(monkeypatch):
+    """洞庭东山 / 东山镇 内核不同，普通 merge_place 抓不到，only_ids 要能合。"""
+    rows = [
+        _row(
+            "洞庭东山",
+            pid="a",
+            lon=120.40,
+            lat=31.07,
+            address="A",
+            category="nature",
+        ),
+        _row(
+            "东山镇",
+            pid="b",
+            lon=120.41,
+            lat=31.07,
+            address="B",
+            category="ancient_town",
+        ),
+        _row("东山镇人民政府", pid="c", lon=120.42, lat=31.07),
+    ]
+    monkeypatch.setattr(ingest, "_query_rows", lambda *a, **k: list(rows))
+
+    result = merge_place(
+        "东山镇", "上海", dry_run=True, only_ids=["a", "b"], keep_id="a"
+    )
+
+    assert result is not None
+    assert result.keeper.id == "a"
+    assert [r.name for r in result.retired] == ["东山镇"]
+    assert "name_aliases" in result.filled
+
+
+def test_merge_place_only_ids_needs_two_rows(monkeypatch):
+    monkeypatch.setattr(
+        ingest, "_query_rows", lambda *a, **k: [_row("洞庭东山", pid="a")]
+    )
+    assert merge_place("洞庭东山", "上海", dry_run=True, only_ids=["a"]) is None
+
+
+def test_merge_place_only_ids_rejects_far_rows(monkeypatch):
+    """点名合并也要过 10km 地距闸：跨城标签可以（周庄=昆山/苏州），真远不行。"""
+    from dataclasses import replace
+
+    rows = [
+        _row("洞庭东山", pid="a", lon=120.40, lat=31.07),
+        replace(_row("东山镇", pid="b", lon=116.40, lat=39.90), city="北京"),
+    ]
+    monkeypatch.setattr(ingest, "_query_rows", lambda *a, **k: list(rows))
+    assert merge_place("东山镇", "上海", dry_run=True, only_ids=["a", "b"]) is None

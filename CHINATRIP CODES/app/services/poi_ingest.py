@@ -402,6 +402,7 @@ def _query_rows(
     like: str | None = None,
     active_only: bool = True,
     limit: int = 50,
+    ids: list[Any] | None = None,
 ) -> list[PoiRow]:
     q = session.query(Poi, _lon(), _lat())
     if active_only:
@@ -409,7 +410,9 @@ def _query_rows(
     names = _city_names(city)
     if names:
         q = q.filter(Poi.city.in_(names))
-    if exact is not None:
+    if ids is not None:
+        q = q.filter(Poi.id.in_(ids))
+    elif exact is not None:
         q = q.filter(Poi.name_zh == exact)
     elif like is not None:
         q = q.filter(Poi.name_zh.like(f"%{like}%"))
@@ -586,6 +589,7 @@ def merge_place(
     factory: Callable[[], Any] | None = None,
     dry_run: bool = False,
     keep_id: Any = None,
+    only_ids: list[str] | None = None,
 ) -> MergeResult | None:
     """同一个地方只留一条有效记录：信息最全的当 keeper，其余置 inactive。
 
@@ -593,30 +597,86 @@ def merge_place(
     （任一方缺坐标时只信内核）。keeper 缺的字段从其余行**只填空**抄过来；
     其余行 ``status='inactive'``（不删行）。``keep_id`` 可指定 keeper（数据
     修复时用），但仍只在同地名族内生效。``dry_run`` 只算不写。
+
+    ``only_ids``（2026-11-16 全库模糊去重 A 档）：只合点名的几行，跳过「同内核 + 10km」
+    筛选——用于人工审过的异名同地（洞庭东山/东山镇、柳州市博物馆/柳州博物馆）。
+    仍要求同一城市，且至少 2 行；``keep_id`` 不在其中时按完整度选。
     """
     factory = factory or get_session_factory()
     probe = (name or "").strip()
     core = place_core(probe)
-    if not core:
+    if not core and only_ids is None:
         return None
     try:
         with factory() as session:
-            rows = _query_rows(
-                session, city=city, like=core, active_only=False, limit=50
-            )
-            rows = [r for r in rows if place_core(r.name) == core]
+            if only_ids is not None:
+                # 人工点名：按 id 直取（跨城标签也能取到），不做内核/城市筛选
+                wanted = {str(x) for x in only_ids}
+                uuid_like = [
+                    x
+                    for x in wanted
+                    if len(x) == 36 and x.count("-") == 4
+                ]
+                rows = _query_rows(
+                    session,
+                    city=None,
+                    like=None,
+                    active_only=False,
+                    limit=5000,
+                    ids=uuid_like or None,
+                )
+                rows = [
+                    r
+                    for r in rows
+                    if str(r.id) in wanted or f"{r.source}:{r.source_poi_id}" in wanted
+                ]
+            else:
+                rows = _query_rows(
+                    session, city=city, like=core, active_only=False, limit=50
+                )
+                rows = [r for r in rows if place_core(r.name) == core]
     except Exception:  # noqa: BLE001
         logger.warning("poi_ingest: merge lookup %s failed", probe, exc_info=True)
         return None
-    if not rows:
+    if len(rows) < 2:
         return None
+    if only_ids is not None:
+        # only_ids 守卫：坐标齐全时按 10km 判同地（跨城标签很常见：周庄=昆山/苏州），
+        # 缺坐标才退回「同城」字符串比较。
+        located = [r for r in rows if r.has_location]
+        if len(located) < len(rows):
+            cities = {((r.city or "").strip() or "?") for r in rows}
+            if len(cities) > 1:
+                logger.warning("poi_ingest: merge only_ids across cities %s", cities)
+                return None
     # ``keep_id`` 只换「谁当幸存行」，不能拿它过滤候选（否则 others 恒空）
     keeper: PoiRow | None = None
     if keep_id is not None:
         keeper = next((r for r in rows if str(r.id) == str(keep_id)), None)
     if keeper is None:
         keeper = max(rows, key=_keeper_rank)
-    others = [r for r in rows if r.id != keeper.id and _same_place(keeper, r)]
+    if only_ids is not None and keeper.has_location:
+        far = [
+            r
+            for r in rows
+            if r.id != keeper.id
+            and r.has_location
+            and haversine_km(
+                GeoPoint(lon=keeper.lon, lat=keeper.lat),
+                GeoPoint(lon=r.lon, lat=r.lat),
+            )
+            > MERGE_MAX_KM
+        ]
+        if far:
+            logger.warning(
+                "poi_ingest: merge only_ids far rows %s", [r.name for r in far]
+            )
+            return None
+    others = [
+        r
+        for r in rows
+        if r.id != keeper.id and (only_ids is not None or _same_place(keeper, r))
+    ]
     if not others:
         return None
 
