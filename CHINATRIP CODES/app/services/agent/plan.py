@@ -14995,8 +14995,7 @@ def _fill_leftover_with_diverse_sights(
             meal_windows = [
                 (s, e, item)
                 for item in day.items
-                if isinstance(item, VisitItem)
-                and (item.category or "") == "food"
+                if isinstance(item, VisitItem) and (item.category or "") == "food"
                 for s in [_minutes_of(item.start_time)]
                 for e in [_item_end_minutes(item)]
                 if s is not None and e is not None
