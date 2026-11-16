@@ -19,6 +19,7 @@ from app.services.itinerary.fares import (
     estimate_taxi_fare,
 )
 from app.services.itinerary.models import (
+    DayPlan,
     GeoPoint,
     ItineraryPlan,
     TransferItem,
@@ -117,42 +118,76 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
     顺序重算（幂等）——占位卡被拖到别处/其前面插入新条目，锚自动跟到新的
     前一站；跨城交通卡之后或当天首件没有可继承的落脚点则一律清空，绝不把
     出发城地址带过换乘卡。
+
+    2026-11-16 晚饭例外（用户拍板「当晚餐没有地址取下一个景点的地址，那就是
+    酒店」）：占位晚饭若前站是远郊班次点、后站是市区落脚点（酒店），锚改取
+    后站——景区散场后的晚饭跟着回城走，回城腿才从景区卡起算。
     """
     for day in plan.days:
-        last: VisitItem | None = None
-        for item in day.items:
-            if isinstance(item, TransferItem):
-                last = None
+        items = day.items
+        for idx, item in enumerate(items):
+            if not isinstance(item, VisitItem) or not item.anchor_from_prev:
                 continue
-            if item.anchor_from_prev:
-                if last is not None and last.location is not None:
-                    item.address = last.address
-                    item.address_en = last.address_en
-                    item.anchor_location = last.location
-                    # 接驳档案随锚走：占位餐卡锚在班次点上时继承该站
-                    # 的返程链字段（2026-11-16「回城三段」）；档案
-                    # 优先用规则层解析值（卡上没有也能吃 profile）。
-                    mode, boarding, service, wait, last_mile = _access_profile(last)
-                    item.access_mode = mode
-                    item.access_boarding = boarding
-                    item.access_service_minutes = service or None
-                    item.access_wait_minutes = wait
-                    item.access_last_mile_minutes = last_mile
-                    for attr, val in _service_window(last).items():
-                        setattr(item, attr, val)
-                else:
-                    item.address = None
-                    item.address_en = None
-                    item.anchor_location = None
-                    item.access_mode = None
-                    item.access_boarding = None
-                    item.access_service_minutes = None
-                    item.access_wait_minutes = None
-                    item.access_last_mile_minutes = None
-                    for attr in _ACCESS_WINDOW_ATTRS:
-                        setattr(item, attr, None)
-            if item.location is not None:
-                last = item
+            prev_loc: VisitItem | None = None
+            for back in range(idx - 1, -1, -1):
+                cand = items[back]
+                if isinstance(cand, TransferItem):
+                    break  # 换乘卡断锚：绝不把出发城地址带过换乘卡
+                if cand.location is not None:
+                    prev_loc = cand
+                    break
+            anchor = prev_loc
+            next_loc: VisitItem | None = None
+            for fwd in range(idx + 1, len(items)):
+                cand = items[fwd]
+                if isinstance(cand, TransferItem):
+                    break
+                if _point(cand) is not None:
+                    next_loc = cand
+                    break
+            # 晚饭占位默认跟着「下一站」吃（2026-11-16 用户拍板「当晚餐没有
+            # 地址取下一个景点的地址，那就是酒店」）：景区散场后的晚饭不留在
+            # 景区——锚到下一站（酒店），回城腿才会从景区散场起算。
+            if (
+                str(item.item_id or "").startswith("food-dinner-ph")
+                and prev_loc is not None
+                and next_loc is not None
+            ):
+                mode_p, _tp, service_p, _wp, _lp = _access_profile(prev_loc)
+                mode_n, _tn, service_n, _wn, _ln = _access_profile(next_loc)
+                if (
+                    mode_p in SCHEDULED_ACCESS_MODES
+                    and service_p
+                    and mode_n not in SCHEDULED_ACCESS_MODES
+                ):
+                    anchor = next_loc
+            anchor_pt = _point(anchor) if anchor is not None else None
+            if anchor is not None and anchor_pt is not None:
+                item.address = anchor.address
+                item.address_en = anchor.address_en
+                item.anchor_location = anchor_pt
+                # 接驳档案随锚走：占位餐卡锚在班次点上时继承该站的返程链
+                # 字段（2026-11-16「回城三段」）；档案优先用规则层解析值
+                # （卡上没有也能吃 profile）。
+                mode, boarding, service, wait, last_mile = _access_profile(anchor)
+                item.access_mode = mode
+                item.access_boarding = boarding
+                item.access_service_minutes = service or None
+                item.access_wait_minutes = wait
+                item.access_last_mile_minutes = last_mile
+                for attr, val in _service_window(anchor).items():
+                    setattr(item, attr, val)
+            else:
+                item.address = None
+                item.address_en = None
+                item.anchor_location = None
+                item.access_mode = None
+                item.access_boarding = None
+                item.access_service_minutes = None
+                item.access_wait_minutes = None
+                item.access_last_mile_minutes = None
+                for attr in _ACCESS_WINDOW_ATTRS:
+                    setattr(item, attr, None)
     return plan
 
 
@@ -224,6 +259,57 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
+    """当天最后一站是班次点：没有下一站可配对，也出「回城段」（2026-11-16）。
+
+    用户实报（保存行程 it-17867636 的 Day1 只有慕田峪一站）：散场后怎么回城
+    在卡上完全看不到。这里按返程链补「步行回乘车点 → 返程班 → 到市区落点」，
+    detail 标 ``to_city``，前端腿行前缀从「距下一站」换成「回城」。
+    """
+    if not timed:
+        return
+    last = timed[-1]
+    if last.next_leg_minutes is not None:
+        return
+    mode, terminal, service, _wait, _last = _access_profile(last)
+    if mode not in SCHEDULED_ACCESS_MODES or terminal is None or not service:
+        return
+    last_pt = _point(last)
+    if last_pt is None:
+        return
+    home = VisitItem(
+        item_id="__city-terminal__",
+        name="市区",
+        city=last.city,
+        day=day.day,
+        duration_minutes=0,
+        location=terminal,
+    )
+    br = access_breakdown(last, home)
+    if br is None or br.get("direction") != "return":
+        return
+    km = haversine_km(last_pt, terminal)
+    last.distance_to_next_km = round(km, 2)
+    last.next_walk_minutes = max(
+        1, round(km * 1000.0 * DETOUR_FACTOR / WALK_METERS_PER_MINUTE)
+    )
+    last.leg_source = "estimate"
+    last.next_leg_mode = "access"
+    last.next_leg_minutes = int(br["minutes"])
+    _fare = br.get("fare_cny")
+    _taxi_km = float(br["taxi_km"])
+    last.next_leg_cost_cny = (
+        estimate_taxi_fare(last.city, _taxi_km) if _taxi_km > 0.05 else 0
+    ) + (float(_fare) if _fare is not None else access_fare_estimate(br["mode"]))
+    last.next_leg_cost_note = L(
+        "含接驳票价估算", "includes an estimated shuttle fare"
+    )
+    detail = _access_return_detail(last, home, br)
+    detail["next_stop"] = detail.get("alight") or ""
+    detail["to_city"] = True
+    last.next_leg_detail = detail
+
+
 def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
     """回城腿挂回景区卡（2026-11-16 用户实报「NO BACK ARRANGEMENT」）。
 
@@ -286,6 +372,7 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
             b.next_leg_cost_cny = None
             b.next_leg_cost_note = None
             b.next_leg_detail = None
+        _attach_tail_return(day, timed)
     return plan
 
 
@@ -431,8 +518,10 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
             if br.get("depart") is not None
             else None
         ),
-        "taxi_cost": estimate_taxi_fare(
-            a.city or b.city, float(br.get("taxi_km") or 0.0)
+        "taxi_cost": (
+            estimate_taxi_fare(a.city or b.city, float(br.get("taxi_km") or 0.0))
+            if float(br.get("taxi_km") or 0.0) > 0.05
+            else 0
         ),
         "access_cost": access_fare_estimate(br.get("mode")),
         # 购票优先用景点自己的预约入口（比线路页更贴近下单动作），

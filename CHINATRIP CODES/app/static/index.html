@@ -2048,7 +2048,7 @@ function planCard(plan) {
               legSeg = walkHref
                 ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + walkHref + '" title="' + I18N.tf("card.walk.titlePre","在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
                 : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
-            } else if (nxt) {
+            } else if (nxt || (it.next_leg_detail && it.next_leg_detail.to_city)) {
               // 打车（默认出行）：车程=直线×1.3 绕行÷35km/h + 半小时叫车，封顶 180 分钟
               // 2026-11-16 用户拍板：腿的时间/成本以后端为准（含景区专线接驳链），
               // 旧会话没有 next_leg_minutes 才回落直线公式。
@@ -2073,7 +2073,10 @@ function planCard(plan) {
           const callBtn = taxiP
             ? ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + esc(taxiDest.name) + '" data-lon="' + taxiP.lon + '" data-lat="' + taxiP.lat + '" title="' + I18N.tf("card.callTaxi.title","一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>"
             : "";
-          const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
+          const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)
+            ? I18N.tf("card.to_city", "回城 ")
+            : I18N.t("card.to_next");
+          const leg = legFrom + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
           // 结构化接驳卡片（2026-11-16 用户拍板「TRANSPORTATION SHOULD SHOW LEG CLEARLY」，

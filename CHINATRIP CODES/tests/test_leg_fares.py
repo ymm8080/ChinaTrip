@@ -410,6 +410,110 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
         assert "booking_url" in o and "official_url" in o
 
 
+def test_dinner_placeholder_anchors_to_hotel_and_return_leg_from_scenic():
+    """晚饭占位不留在景区：锚到下一站（酒店），回城腿从景区散场起算。"""
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=time(11, 8),
+        end_time=time(14, 8),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_ride_minutes=90,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_service_name="前门旅游专线（前门大街北口）",
+        access_boarding_stop="前门大街北口（北京旅游集散中心发车点）",
+        access_alight_stop="慕田峪长城 P1/P4 停车场",
+    )
+    dinner = VisitItem(
+        item_id="food-dinner-ph-d1",
+        name="晚饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        anchor_from_prev=True,
+        start_time=time(19, 0),
+        end_time=time(20, 0),
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        location=GeoPoint(lon=116.4074, lat=39.9042),
+        address="北京市东城区某酒店",
+        start_time=time(20, 30),
+        end_time=time(21, 30),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, dinner, night])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    # 晚饭锚到酒店（下一站），不再留在景区
+    assert dinner.address == "北京市东城区某酒店"
+    assert dinner.anchor_location is not None
+    assert mt.next_leg_mode == "access"
+    detail = mt.next_leg_detail
+    assert detail is not None and detail["direction"] == "return"
+    assert detail["depart_time"] == "14:30"  # 14:08 散场 + 8 分钟 → 14:16 → 14:30
+    assert detail["next_stop"] == "晚饭（自由安排）"
+    assert mt.next_leg_minutes > 90
+    # 晚饭→夜卡同址（都在酒店）：不成腿
+    assert dinner.next_leg_minutes is None
+
+
+def test_tail_return_chain_when_remote_is_last_of_day():
+    """当天最后一站是班次点（用户行程 Day1 只有慕田峪）：也出回城段。"""
+    mt = _v(
+        "mt",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=time(11, 8),
+        end_time=time(14, 8),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=90,
+        access_wait_minutes=10,
+        access_last_mile_minutes=8,
+        access_ride_minutes=90,
+        access_return_times=["14:30", "15:30", "16:30"],
+        access_service_name="前门旅游专线（前门大街北口）",
+        access_boarding_stop="前门大街北口（北京旅游集散中心发车点）",
+        access_alight_stop="慕田峪长城 P1/P4 停车场",
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    assert mt.next_leg_mode == "access"
+    detail = mt.next_leg_detail
+    assert detail is not None
+    assert detail["direction"] == "return"
+    assert detail["to_city"] is True
+    assert detail["gateway"].startswith("慕田峪长城")
+    assert detail["alight"].startswith("前门大街北口")
+    assert detail["board_time"] == "14:16"  # 14:08 散场 + 8 分钟走回乘车点
+    assert detail["depart_time"] == "14:30"
+    assert detail["arrive_time"] == "16:00"
+    assert mt.next_leg_minutes == 8 + (14 * 60 + 30 - (14 * 60 + 8 + 8)) + 90
+    assert mt.next_leg_cost_cny == access_fare_estimate("shuttle")
+
+
 def test_return_leg_shuttle_chain_from_remote_stop():
     """回城腿（2026-11-16 用户拍板「回城也是一样的接驳三段」）：慕田峪 →
     市区走返向链（步行回乘车点 → 返程班 → 市区落点打车），不是打车直线。"""
