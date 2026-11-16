@@ -218,6 +218,93 @@ def test_fill_keeps_skipping_filled_day_without_opening_hole():
     assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("豫园", 90)]) == []
 
 
+def test_fill_uses_afternoon_after_incity_return_leg():
+    """同城回城腿（access-*）不套 90 分钟跨城缓冲：15:01 落地后下午要能用。
+
+    2026-11-16 用户「day1 回城以后才三四点，为什么不安排其它节目？」：
+    朱家角回城卡 14:00-15:01 被旧口径铺成 12:30-16:31，普通件进场闸
+    15:30 之后整段下午判死，补点永远补不进来。
+    """
+    from app.services.agent.plan import _day_fixed_windows
+    from app.services.itinerary.models import TransferItem
+
+    ret = TransferItem(
+        item_id="access-return-extras-2-朱家角大清邮局",
+        day=2,
+        seq=0,
+        from_city="",
+        to_city="",
+        mode="car",
+        start_time=time(14, 0),
+        end_time=time(15, 1),
+        duration_minutes=61,
+    )
+    day = DayPlan(
+        day=2,
+        base_city="上海",
+        items=[
+            _hm(time(8, 30), time(9, 0)),
+            _v(
+                "zjj",
+                "朱家角古镇",
+                time(9, 0),
+                time(12, 0),
+                cat="attraction",
+                lon=121.05,
+                lat=31.11,
+            ),
+            _food("午饭", time(12, 0), time(13, 0)),
+            _v(
+                "post",
+                "大清邮局",
+                time(13, 10),
+                time(14, 10),
+                cat="other",
+                lon=121.05,
+                lat=31.11,
+            ),
+            ret,
+            _food("晚饭", time(19, 10), time(20, 40)),
+        ],
+    )
+    fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
+    win = next(w for w in fixed if w[2] is None)
+    # 只有 15 分钟换乘余量，不是 ±90 跨城缓冲
+    assert win[:2] == (14 * 60 - 15, 15 * 60 + 1 + 15)
+    plan = ItineraryPlan(itinerary_id="t", cities=["上海"], days=[day], assumptions=[])
+    notes = _fill_leftover_with_diverse_sights(
+        plan, bench=[_cand("田子坊", 90, 121.47, 31.21)]
+    )
+    assert notes
+    placed = next(i for i in day.items if getattr(i, "name", "") == "田子坊")
+    assert placed.start_time >= time(15, 1)
+    assert placed.end_time <= time(19, 0)
+
+
+def test_intercity_transfer_keeps_ninety_minute_buffer():
+    """真跨城腿仍是铁律 4 的 90 分钟衔接缓冲（别把同城口径扩大化）。"""
+    from app.services.agent.plan import _day_fixed_windows
+    from app.services.itinerary.models import TransferItem
+
+    leg = TransferItem(
+        item_id="x1",
+        day=1,
+        seq=0,
+        from_city="上海",
+        to_city="北京",
+        mode="train",
+        start_time=time(14, 0),
+        end_time=time(18, 0),
+        duration_minutes=240,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[leg])
+    from app.services.itinerary.models import arrival_floor_minutes
+
+    fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
+    win = next(w for w in fixed if w[2] is None)
+    assert win[:2] == (14 * 60 - 90, 18 * 60 + arrival_floor_minutes("train"))
+
+
 class _FakeDetails:
     def top_pois_in_city(self, city, limit=30, **kw):
         return [

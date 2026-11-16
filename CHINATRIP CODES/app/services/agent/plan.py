@@ -13771,6 +13771,22 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
 
 
+#: 同城接驳腿（回城/换乘打车）的换乘缓冲（分钟）：不是跨城衔接，腿自身
+#: 时长已含车程，只留上下车余量（2026-11-16 回城后下午补不进件案）。
+INCITY_TRANSFER_PAD_MINUTES = 15
+
+
+def _is_incity_transfer(item: TransferItem) -> bool:
+    """同城接驳腿：合成接驳腿（access-*）/ 两端同城 / 两端都空。"""
+    if str(getattr(item, "item_id", "") or "").startswith("access-"):
+        return True
+    frm = _norm_city(getattr(item, "from_city", "") or "")
+    to = _norm_city(getattr(item, "to_city", "") or "")
+    if frm and to:
+        return frm == to
+    return not frm and not to
+
+
 def _day_fixed_windows(
     day: DayPlan,
 ) -> tuple[
@@ -13812,13 +13828,21 @@ def _day_fixed_windows(
             # 落地侧首停地板（2026-11-01）：火车/飞机到达侧首个观光
             # ≥ 落地 +150（有入住卡时卡占 [te+90, te+150]）；餐饮走
             # fixed_tight 贴点通道，仍按铁律 4 缓冲 90。
-            arr_pad = (
-                arrival_floor_minutes(item.mode)
-                if item.mode in ("train", "flight")
-                else buf
-            )
-            fixed.append((s - buf, e + arr_pad, None))
-            fixed_tight.append((s - buf, e + buf))
+            if _is_incity_transfer(item):
+                # 同城回城/接驳：腿自身时长=车程，不再叠 90 分钟跨城缓冲
+                # （2026-11-16 用户「回城以后才三四点，为什么不安排其它
+                # 节目」——旧口径把 14:00-15:01 的回城卡铺成 12:30-16:31，
+                # 普通件进场闸 15:30 之后整段下午被判死）。
+                leg_buf = arr_pad = INCITY_TRANSFER_PAD_MINUTES
+            else:
+                leg_buf = buf
+                arr_pad = (
+                    arrival_floor_minutes(item.mode)
+                    if item.mode in ("train", "flight")
+                    else buf
+                )
+            fixed.append((s - leg_buf, e + arr_pad, None))
+            fixed_tight.append((s - leg_buf, e + leg_buf))
         elif (
             getattr(item, "category", "") == "food"
             and s < 15 * 60
