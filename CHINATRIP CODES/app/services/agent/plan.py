@@ -4140,7 +4140,7 @@ def _museum_card(item: VisitItem) -> bool:
 
 def _visit_keep_rank(
     item: VisitItem, street_dmin_km: float | None = None
-) -> tuple[int, int, int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, int, int, int, float]:
     """Which twin to keep: must (铁律19) > resolved POI > pinned > museum
     card > real city > 大-字号旗舰; ties keep the earlier entry
     (replacement happens on strictly-greater rank only). must 层
@@ -4157,6 +4157,9 @@ def _visit_keep_rank(
     的那个随后被孤放取消整组蒸发实录；贴街区者即块日本身那场。"""
     return (
         1 if item.must else 0,
+        # 有坐标者优先（2026-11-16 朱家角案）：无坐标孪生（骨架/退役行）
+        # 抢到 keeper 后卡无腿无地图，聚族也认不出它——必须让真身赢。
+        1 if item.location is not None else 0,
         1 if item.poi_id else 0,
         1 if item.pinned else 0,
         # 名录王牌（unesco/5A 档）优先于博物馆卡（2026-11-04 成渝案：
@@ -4334,6 +4337,29 @@ def _dedupe_visit_keepers(
         else:
             dropped.append(item.name)
     return keepers, dropped
+
+
+def _apply_geo_invariants(plan: ItineraryPlan) -> list[str]:
+    """交付边界的地理不变式（2026-11-16 用户拍板「聚族→按族时长/强约束定天→
+    日内铆钉+地理排序」）：紧簇归位 → 簇日纯度。
+
+    任何在 _assemble_plan 之后动盘的通道（空档补点/开页/编辑）都必须再过
+    一次——否则补点能把 44km 外的件塞进陆家嘴簇日（上海 D1 大清邮局实录），
+    或把远郊件夹进市区天。幂等：干净盘面零改动。
+    """
+    notes: list[str] = []
+    _reunite_tight_kin(plan)
+    dropped = _purify_cluster_days(plan)
+    if dropped:
+        notes.append(
+            L(
+                f"按地理聚族重排：{'、'.join(dropped)} 与同日簇相距过远，已移出",
+                "Geographic regroup: "
+                + ", ".join(dropped)
+                + " sat too far from its day's cluster and was moved out",
+            )
+        )
+    return notes
 
 
 def dedupe_plan_visits(plan: ItineraryPlan) -> list[str]:
@@ -30769,6 +30795,17 @@ class PlanningAgent:
             session.plan, avoid=set(session.avoid_sites or ())
         )
         if notes:
+            # 补点后必须再过地理不变式：紧簇归位 + 簇日纯度（2026-11-16）。
+            # 补点只看空档，会把 44km 外的件塞进簇日（上海 D1 大清邮局案）。
+            notes.extend(_apply_geo_invariants(session.plan))
+            live_names = {
+                str(i.name)
+                for d in session.plan.days
+                for i in d.items
+                if isinstance(i, VisitItem)
+            }
+            # 被簇闸移出的补点件撤回「已补」披露，避免说了补了却看不到
+            notes = [n for n in notes if any(nm and nm in n for nm in live_names)]
             for note in notes:
                 if note not in session.plan.assumptions:
                     session.plan.assumptions.append(note)
@@ -30865,6 +30902,16 @@ class PlanningAgent:
         """
         if session.plan is None:
             return
+
+        # 地理不变式先过一遍（2026-11-16「ALWAYS」）：开页/拖卡/换点/改时
+        # 之后盘面都可能出现异簇混日或同族拆天——每次动盘边界统一收口。
+        for note in _apply_geo_invariants(session.plan):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+        if session.assumptions:
+            for note in session.plan.assumptions:
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
 
         # 双语 P1 补链（2026-10-30）：先做一次库读详情刷（地址与
         # _en 字段只填空，零网络）——打开/重开旧行程即自愈英文
