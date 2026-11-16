@@ -2113,14 +2113,14 @@ function planCard(plan) {
           let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
           if (it.next_walk_minutes != null) {
             let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
-            // 回城链挂景区卡后，同址占位餐卡（锚在本站的午饭/晚饭）不作导航终点：
-            // 否则出一张 0 公里的驾车链接（2026-11-16 用户实报无回城段）。
+            // 同址占位餐卡（锚在本站的午饭/晚饭）不作导航终点：否则出一张
+            // 0 公里的驾车链接（2026-11-16 朱家角案「回程又没了」：腿挂回
+            // 景区卡后，下一张卡还是锚在景区的午饭；回城段同款跳过）。
             const here0 = legPoint(it);
-            const retLeg = !!(it.next_leg_detail && it.next_leg_detail.direction === "return");
             for (let j = idx + 1; j < d.items.length; j++) {
               const cand = d.items[j];
               if (cand.from_city) continue;
-              const cp = retLeg ? legPoint(cand) : null;
+              const cp = legPoint(cand);
               if (here0 && cp && Math.abs(here0.lon - cp.lon) < 0.005 && Math.abs(here0.lat - cp.lat) < 0.005) continue;
               nxt = cand;
               break;

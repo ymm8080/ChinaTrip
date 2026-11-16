@@ -109,12 +109,13 @@ def test_blank_lunch_card_inherits_previous_stop_address():
     plan = _plan(site, lunch, nxt)
     annotate_legs(plan)
     assert lunch.address == site.address
-    # 与上一站同址 → 进餐卡的腿不显示（0km），卡片地址仍继承
-    assert site.distance_to_next_km is None
-    # 餐卡 → 下一站的腿现在算得出来
-    assert lunch.distance_to_next_km is not None
-    assert lunch.next_walk_minutes is not None
-    assert lunch.leg_source == "estimate"
+    # 2026-11-16 朱家角案：同址占位餐卡不背腿——腿挂回前一站（景区卡），
+    # 餐卡只留继承地址；否则景区卡下面什么都没有（用户实报「回程又没了」）
+    assert site.distance_to_next_km is not None
+    assert site.next_walk_minutes is not None
+    assert site.leg_source == "estimate"
+    assert lunch.distance_to_next_km is None
+    assert lunch.next_leg_minutes is None
 
 
 def test_meal_card_without_previous_stop_stays_blank():

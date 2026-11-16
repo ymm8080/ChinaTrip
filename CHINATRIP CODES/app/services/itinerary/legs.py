@@ -165,6 +165,23 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
                     and mode_n not in SCHEDULED_ACCESS_MODES
                 ):
                     anchor = next_loc
+            # 2026-11-16 上海朱家角案：远郊末站之后的晚饭不留在景区（打车回城
+            # 再吃）——前站离城市锚点 ≥ TAIL_RETURN_MIN_KM、后面又没有真实下一站
+            # 时清锚，别把 19:00 的晚饭写在景区停车场地址上。
+            if (
+                str(item.item_id or "").startswith("food-dinner-ph")
+                and anchor is not None
+                and anchor is prev_loc
+                and next_loc is None
+            ):
+                _prev_pt = _point(anchor)
+                _city_pt, _city_name = _day_city_anchor(day)
+                if (
+                    _prev_pt is not None
+                    and _city_pt is not None
+                    and haversine_km(_prev_pt, _city_pt) >= TAIL_RETURN_MIN_KM
+                ):
+                    anchor = None
             anchor_pt = _point(anchor) if anchor is not None else None
             if anchor is not None and anchor_pt is not None:
                 item.address = anchor.address
@@ -210,7 +227,19 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                 continue
             last_pt = _point(last) if last is not None else None
             cur_pt = _point(item)
-            if last_pt is not None and cur_pt is not None:
+            if cur_pt is None:
+                # 无坐标卡（占位餐卡没锚）不吃链：腿直接连到再下一个带地址
+                # 的卡（2026-11-16 用户口径「餐卡没地址就取再下个景点的地址」）
+                continue
+            if (
+                getattr(item, "anchor_from_prev", False)
+                and last_pt is not None
+                and haversine_km(last_pt, cur_pt) <= SAME_VENUE_KM
+            ):
+                # 同址占位餐卡对腿透明：腿仍从前一个真实站点出发（朱家角 →
+                # 静安寺，不是「午饭 → 静安寺」），2026-11-16 用户口径
+                continue
+            if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
                 if km >= MIN_LEG_KM:
                     out.append((last, item, km))
@@ -260,7 +289,215 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             a.next_leg_minutes = int(need) if need is not None else taxi_leg_min(km)
             a.next_leg_cost_cny = estimate_taxi_fare(city, km)
     _lift_return_over_placeholders(plan)
+    _lift_legs_off_placeholders(plan)
+    _attach_leg_returns(plan)
+    _gate_item_links(plan)
     return plan
+
+
+#: 回城段最低距离（2026-11-16 上海朱家角案）：当天最后一个真实站点离城市锚点
+#: （酒店夜卡 / 晨卡 / 城心）超过这个距离、后面又只剩同址占位餐卡和没坐标的
+#: 酒店卡时，就算没有班次档案（朱家角走地铁 17 号线或打车回）也要出一条
+#: 「回城」——用户实报「从朱家角回去回程又没了」。
+TAIL_RETURN_MIN_KM = 10.0
+#: 上限：再远就不是同城日归（跨城由换乘卡负责，2026-11-16 脏坐标案）。
+TAIL_RETURN_MAX_KM = 120.0
+
+
+#: 酒店锚点离本城城心的最大合理距离：超过视为过期锚（跨城改点后晨卡还挂着
+#: 上一座城的城心，2026-11-16 杭州天里上海锚案），改用城心。
+CITY_ANCHOR_MAX_KM = 80.0
+
+
+def _city_center(day: DayPlan) -> GeoPoint | None:
+    city = str(day.base_city or "").removesuffix("市")
+    try:
+        from app.services.weather_open_meteo import CITY_COORDS
+
+        xy = CITY_COORDS.get(city)
+    except Exception:  # noqa: BLE001 — 城心表不可用=不出回城段
+        xy = None
+    if xy is None:
+        return None
+    return GeoPoint(lon=float(xy[1]), lat=float(xy[0]))
+
+
+def _day_city_anchor(day: DayPlan) -> tuple[GeoPoint | None, str]:
+    """回城段的目的地代理：酒店夜卡真坐标 → 晨卡锚点 → 城心（过期锚丢弃）。"""
+    center = _city_center(day)
+
+    def _sane(point: GeoPoint | None) -> bool:
+        if point is None:
+            return False
+        return center is None or haversine_km(point, center) <= CITY_ANCHOR_MAX_KM
+
+    morning: GeoPoint | None = None
+    for item in day.items:
+        if not isinstance(item, VisitItem):
+            continue
+        iid = str(item.item_id or "")
+        if iid.startswith("hotel-night"):
+            pt = _point(item)
+            if _sane(pt):
+                return pt, item.name or L("酒店", "hotel")
+        elif iid.startswith("hotel-morning") and morning is None:
+            pt = _point(item)
+            if _sane(pt):
+                morning = pt
+    if morning is not None:
+        return morning, L("市区", "city centre")
+    if center is None:
+        return None, ""
+    return center, L("市区", "city centre")
+
+
+def _lift_legs_off_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
+    """占位餐卡不背腿：同址占位卡上的腿挂回前一个真实站点（2026-11-16 朱家角案）。
+
+    用户口径「朱家角回城是从朱家角的地址到下个卡地址（餐卡没地址就去再下个
+    景点的地址）」：午饭/晚饭占位卡锚在景区上时，腿其实是从景区出发的；挂在
+    餐卡上＝景区卡下面什么都没有，用户看不到回程。班次点（慕田峪）的三段
+    回城链已由 :func:`_lift_return_over_placeholders` 处理，这里只搬剩下的
+    打车腿（没有接驳档案的远郊点）。
+    """
+
+    def _move(src: VisitItem, dst: VisitItem) -> None:
+        dst.distance_to_next_km = src.distance_to_next_km
+        dst.next_walk_minutes = src.next_walk_minutes
+        dst.leg_source = src.leg_source
+        dst.next_leg_mode = src.next_leg_mode
+        dst.next_leg_minutes = src.next_leg_minutes
+        dst.next_leg_cost_cny = src.next_leg_cost_cny
+        dst.next_leg_cost_note = src.next_leg_cost_note
+        dst.next_leg_detail = src.next_leg_detail
+        _clear_leg(src)
+
+    for day in plan.days:
+        items = day.items
+        for idx, item in enumerate(items):
+            if not isinstance(item, VisitItem) or not item.anchor_from_prev:
+                continue
+            if item.next_leg_minutes is None:
+                continue
+            item_pt = _point(item)
+            if item_pt is None:
+                continue
+            site: VisitItem | None = None
+            for back in range(idx - 1, -1, -1):
+                cand = items[back]
+                if isinstance(cand, TransferItem):
+                    break  # 换乘卡断锚
+                if not isinstance(cand, VisitItem):
+                    continue
+                if cand.anchor_from_prev or _is_morning_hotel(cand):
+                    continue
+                cand_pt = _point(cand)
+                if cand_pt is None:
+                    continue
+                if haversine_km(cand_pt, item_pt) <= SAME_VENUE_KM:
+                    site = cand
+                break
+            if site is None or site.next_leg_minutes is not None:
+                continue
+            _move(item, site)
+    return plan
+
+
+def _attach_leg_returns(plan: ItineraryPlan) -> None:
+    """当天收口：班次点三段回城链 + 远郊末站打车回城段（每天各一次）。"""
+    for day in plan.days:
+        timed = [
+            item
+            for item in day.items
+            if isinstance(item, VisitItem) and item.start_time is not None
+        ]
+        _attach_tail_return(day, timed)
+        _attach_plain_tail_return(day, timed)
+
+
+def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
+    """末站是远郊点、后面没有真实下一站：按打车口径补「回城」段（2026-11-16）。
+
+    班次点（慕田峪那种专线）走 :func:`_attach_tail_return` 的接驳三段链；
+    朱家角这类「地铁/打车去、打车回」的远郊点没有班次档案，旧逻辑一条腿都
+    不出——景区卡下面空着，用户看不到任何回程。这里只管「当天最后一个真实
+    站点 → 城市锚点」这一条：够远（≥ TAIL_RETURN_MIN_KM）、后面没有真下一站、
+    自己也还没有腿时才挂；detail 标 ``direction=return`` + ``to_city``，出站
+    装配会把它投影成独立的「回城」卡。
+    """
+    anchor_pt, anchor_name = _day_city_anchor(day)
+    if anchor_pt is None:
+        return
+    last: VisitItem | None = None
+    for item in timed:
+        if getattr(item, "anchor_from_prev", False):
+            continue  # 占位餐卡不是真实站点
+        if _is_morning_hotel(item):
+            continue
+        if str(item.item_id or "").startswith("hotel-night"):
+            continue
+        if _point(item) is None:
+            continue
+        last = item
+    if last is None or last.next_leg_minutes is not None:
+        return
+    last_pt = _point(last)
+    if last_pt is None:
+        return
+    # 后面还有真实下一站（有坐标且不同址）：普通腿链负责，不重复出回城段
+    for after in timed[timed.index(last) + 1 :]:
+        after_pt = _point(after)
+        if after_pt is None:
+            continue
+        if haversine_km(last_pt, after_pt) > SAME_VENUE_KM:
+            return
+    if last.city and day.base_city and last.city != day.base_city:
+        return  # 跨城串号（上海天里塞杭州件）：换乘卡负责，不挂回城段
+    km = haversine_km(last_pt, anchor_pt)
+    if km < TAIL_RETURN_MIN_KM or km > TAIL_RETURN_MAX_KM:
+        return
+    start_min = _clock_minutes(last.end_time or last.start_time)
+    minutes = taxi_leg_min(km)
+    if minutes is None:
+        return
+    last.distance_to_next_km = round(km, 2)
+    last.next_walk_minutes = max(
+        1, round(km * 1000.0 * DETOUR_FACTOR / WALK_METERS_PER_MINUTE)
+    )
+    last.leg_source = "estimate"
+    last.next_leg_mode = "taxi"
+    last.next_leg_minutes = int(minutes)
+    last.next_leg_cost_cny = estimate_taxi_fare(last.city or day.base_city, km)
+    last.next_leg_cost_note = None
+    last.next_leg_detail = {
+        "mode": "taxi",
+        "direction": "return",
+        "to_city": True,
+        "taxi_km": round(km, 2),
+        "taxi_minutes": int(minutes),
+        "taxi_rush_note": "",
+        "wait_minutes": 0,
+        "service_minutes": int(minutes),
+        "walk_minutes": 0,
+        "gateway": "",
+        "alight": "",
+        "next_stop": anchor_name,
+        "service_name": "",
+        "operator": None,
+        "departures": [],
+        "returns": [],
+        "fare_text": None,
+        "board_time": _clock(start_min),
+        "next_item_id": None,
+        "depart_time": _clock(start_min),
+        "arrive_time": (
+            _clock(start_min + int(minutes)) if start_min is not None else None
+        ),
+        "taxi_cost": estimate_taxi_fare(last.city or day.base_city, km),
+        "access_cost": 0,
+        "booking_url": None,
+        "official_url": None,
+    }
 
 
 def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
@@ -421,8 +658,6 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
                 item.next_leg_cost_cny = None
                 item.next_leg_cost_note = None
                 item.next_leg_detail = None
-        _attach_tail_return(day, timed)
-    _gate_item_links(plan)
     return plan
 
 

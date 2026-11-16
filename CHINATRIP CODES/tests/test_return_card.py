@@ -192,3 +192,131 @@ def test_return_card_attach_is_idempotent():
     # 提示行不重复叠加
     site = next(i for i in second.days[0].items if i.item_id == "mt")
     assert site.return_hint and site.return_hint.count("回城") == 1
+
+
+# 2026-11-16 上海朱家角实报「从朱家角回去回程又没了」：末站是远郊点、没有班次
+# 档案（地铁 17 号线/打车），后面只剩同址占位餐卡和没坐标的酒店卡——旧逻辑一条
+# 腿都不出。这里按打车口径补「回城」段，出站投影成独立卡。
+
+
+def _morning(anchor_lon=121.4737, anchor_lat=31.2304):
+    return VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="上海",
+        day=1,
+        anchor_location=GeoPoint(lon=anchor_lon, lat=anchor_lat),
+        start_time=time(10, 0),
+        end_time=time(10, 30),
+        duration_minutes=30,
+        soft_pin=True,
+    )
+
+
+def _zhujiajiao():
+    return VisitItem(
+        item_id="v96",
+        name="朱家角古镇",
+        name_en="Zhujiajiao Ancient Town",
+        category="attraction",
+        city="上海",
+        day=1,
+        location=GeoPoint(lon=121.05052418499841, lat=31.11416165422822),
+        start_time=time(11, 0),
+        end_time=time(15, 0),
+        duration_minutes=240,
+    )
+
+
+def _shanghai_plan(last_stop=None):
+    items = [
+        _morning(),
+        last_stop or _zhujiajiao(),
+        VisitItem(
+            item_id="food-lunch-ph-d1",
+            name="午饭（自由安排）",
+            category="food",
+            city="上海",
+            day=1,
+            anchor_from_prev=True,
+            start_time=time(11, 30),
+            end_time=time(12, 0),
+            duration_minutes=30,
+        ),
+        VisitItem(
+            item_id="food-dinner-ph-d1",
+            name="晚饭（自由安排）",
+            category="food",
+            city="上海",
+            day=1,
+            anchor_from_prev=True,
+            start_time=time(19, 0),
+            end_time=time(20, 30),
+            duration_minutes=90,
+        ),
+        VisitItem(
+            item_id="hotel-night-d1",
+            name="🏨 回酒店·夜间休息",
+            category="hotel",
+            city="上海",
+            day=1,
+            start_time=time(21, 0),
+            end_time=time(22, 0),
+            duration_minutes=60,
+        ),
+    ]
+    return ItineraryPlan(
+        itinerary_id="x",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=items)],
+        assumptions=[],
+    )
+
+
+def test_plain_tail_return_when_last_stop_has_no_shuttle():
+    """远郊末站没有班次档案：也要出「回城」卡（打车口径，不空着）。"""
+    plan = _shanghai_plan()
+    annotate_legs(plan)
+    site = plan.days[0].items[1]
+    detail = site.next_leg_detail
+    assert detail is not None
+    assert detail["direction"] == "return" and detail["to_city"] is True
+    assert detail["mode"] == "taxi" and detail["service_name"] == ""
+    assert detail["taxi_km"] > 40
+    assert detail["depart_time"] == "15:00"
+    assert site.next_leg_minutes == detail["taxi_minutes"]
+
+    out = _plan_for_response(plan)
+    ids = [i.item_id for i in out.days[0].items]
+    card_id = f"{RETURN_CARD_PREFIX}v96"
+    assert card_id in ids, ids
+    card = next(i for i in out.days[0].items if i.item_id == card_id)
+    assert "回城" in card.name
+    assert card.start_time == time(15, 0)
+    assert card.end_time == time(16, 2)
+    assert ids.index(card_id) < ids.index("food-dinner-ph-d1")
+    site_out = next(i for i in out.days[0].items if i.item_id == "v96")
+    assert site_out.return_hint and "15:00" in site_out.return_hint
+    # 晚饭不再留在景区停车场：回城后再吃
+    dinner = next(i for i in out.days[0].items if i.item_id == "food-dinner-ph-d1")
+    assert dinner.anchor_location is None and dinner.address is None
+
+
+def test_no_plain_tail_return_for_city_stop():
+    """市内末站（离锚点 2 km）不挂「回城」，免得每张末卡都多一行。"""
+    near = _v(
+        "bund",
+        "外滩",
+        121.4903,
+        31.2414,
+        start_time=time(17, 0),
+        end_time=time(19, 0),
+    )
+    plan = _shanghai_plan(near)
+    annotate_legs(plan)
+    assert near.next_leg_detail is None
+    out = _plan_for_response(plan)
+    assert not [
+        i for i in out.days[0].items if (i.item_id or "").startswith(RETURN_CARD_PREFIX)
+    ]

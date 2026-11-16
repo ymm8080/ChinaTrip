@@ -1056,3 +1056,58 @@ def test_return_leg_honors_user_picked_return():
     assert br["depart"] == 15 * 60 + 30
     # board = 14:08 + 走回乘车点 8 分 = 14:16 → 候车 74 分钟
     assert br["wait"] == 15 * 60 + 30 - (14 * 60 + 8 + 8)
+
+
+def test_taxi_leg_lifted_from_anchored_lunch_to_scenic_card():
+    """2026-11-16 上海朱家角案：午饭占位卡锚在景区上时，腿挂回景区卡。
+
+    用户口径「朱家角回城是从朱家角的地址到下个卡地址（餐卡没地址就去再下个
+    景点的地址）」——景区卡下方必须看得到回程。
+    """
+    zjj = VisitItem(
+        item_id="v11",
+        name="朱家角古镇",
+        category="attraction",
+        city="上海",
+        day=1,
+        location=GeoPoint(lon=121.05052418499841, lat=31.11416165422822),
+        start_time=time(11, 29),
+        end_time=time(12, 59),
+        duration_minutes=90,
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        anchor_from_prev=True,
+        start_time=time(14, 29),
+        end_time=time(15, 29),
+        duration_minutes=60,
+    )
+    jingan = VisitItem(
+        item_id="v7",
+        name="静安寺",
+        category="attraction",
+        city="上海",
+        day=1,
+        location=GeoPoint(lon=121.4453, lat=31.2231),
+        start_time=time(15, 53),
+        end_time=time(17, 23),
+        duration_minutes=90,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[zjj, lunch, jingan])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    assert lunch.anchor_location is not None  # 地址仍继承景区
+    assert zjj.distance_to_next_km and zjj.distance_to_next_km > 30
+    assert zjj.next_leg_mode == "taxi"
+    assert zjj.next_leg_minutes and zjj.next_leg_minutes > 30
+    # 占位卡不背同一段腿
+    assert lunch.distance_to_next_km is None
+    assert lunch.next_leg_minutes is None
