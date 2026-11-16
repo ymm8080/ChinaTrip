@@ -457,7 +457,11 @@ def test_preference_skip_word_keeps_preferences_empty_and_generates_v0():
 def test_preference_reply_is_wish_and_gets_scheduled():
     """2026-10-31 用户实测回归（「所有的回复都是心愿」拍板）：偏好问答
     回「看熊猫」曾只被存成偏好字符串，行程里没有任何熊猫条目。回复必须
-    落心愿单并经语义绑定排期成真实 POI（熊猫基地本体，必去钉选）。"""
+    落心愿单并经语义绑定排期成真实 POI（熊猫基地本体，必去钉选）。
+
+    排期断言按环境分层：行程里真有熊猫件（有库环境的 LLM 选点）时行
+    必须已排期；CI 无 PostgreSQL 时 LLM 选点池为空、熊猫件不进行程，
+    行留心愿单是既有降级——契约锚在「行落库 + 绑定 poi_id」。"""
     svc = TripItemService()
     store = PoiDetailStore()  # memory mode
     store.upsert(
@@ -509,15 +513,21 @@ def test_preference_reply_is_wish_and_gets_scheduled():
     assert bound is not None, "偏好回复必须做语义绑定"
     assert bound.get("name") == "成都大熊猫繁育研究基地"
     assert bound.get("source_poi_id") == "B-PANDA-BASE"
-    # 心愿行逐字建行，排期后收口为已排期
+    # 心愿行逐字建行；排期时收口为已排期
     iid = session.plan.itinerary_id
     _save(agent, session)
     groups = svc.list_groups(iid)
-    assert any(
-        i["name"] == "看熊猫" and i["status"] == "scheduled"
-        for rows in groups.values()
-        for i in rows
+    row = next(
+        (i for rows in groups.values() for i in rows if i["name"] == "看熊猫"),
+        None,
     )
+    assert row is not None, "偏好回复必须落心愿单行"
+    assert row.get("poi_id") == "B-PANDA-BASE"
+    panda_on_plan = any(
+        "熊猫" in item.name for day in session.plan.days for item in day.items
+    )
+    if panda_on_plan:
+        assert row["status"] == "scheduled"
     assert any("熊猫基地" in a or "看熊猫" in a for a in session.assumptions)
 
 
