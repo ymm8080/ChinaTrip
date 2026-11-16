@@ -1,4 +1,4 @@
-﻿"""时长收缩 / 30 分钟容忍（2026-11-16 用户拍板）。
+"""时长收缩 / 30 分钟容忍（2026-11-16 用户拍板）。
 
 口径：
 - 非强约束景点（非演出/宴会/交通/餐宿、非用户钉住）60<d<90 可缩 1-15 分钟、
@@ -72,17 +72,52 @@ def test_shrink_band_matches_user_rule() -> None:
 def test_place_with_flex_shrinks_to_anchor() -> None:
     """豫园 90 分钟、16:30 闭园：15:15-16:30 按 75 分钟收口。"""
     plan, day = _plan(
-        _item("v47", "上海博物馆", "09:00", "12:00", dur=180, category="museum",
-              pinned=True, location=MUSEUM),
-        _item("food-lunch-ph-d1", "午饭（自由安排）", "12:00", "13:00", dur=60,
-              category="food"),
-        _item("v49", "朱家角镇", "13:03", "14:03", dur=60, pinned=True,
-              location=ZHUJIAJIAO),
-        _item("v46", "外滩", "17:00", "19:00", dur=120, category="nature",
-              pinned=True, location=BUND),
+        _item(
+            "v47",
+            "上海博物馆",
+            "09:00",
+            "12:00",
+            dur=180,
+            category="museum",
+            pinned=True,
+            location=MUSEUM,
+        ),
+        _item(
+            "food-lunch-ph-d1",
+            "午饭（自由安排）",
+            "12:00",
+            "13:00",
+            dur=60,
+            category="food",
+        ),
+        _item(
+            "v49",
+            "朱家角镇",
+            "13:03",
+            "14:03",
+            dur=60,
+            pinned=True,
+            location=ZHUJIAJIAO,
+        ),
+        _item(
+            "v46",
+            "外滩",
+            "17:00",
+            "19:00",
+            dur=120,
+            category="nature",
+            pinned=True,
+            location=BUND,
+        ),
     )
     visit = _item(
-        "v1", "豫园", None, None, dur=90, category="park", location=YUYUAN,
+        "v1",
+        "豫园",
+        None,
+        None,
+        dur=90,
+        category="park",
+        location=YUYUAN,
         opening_hours="周二至周日 09:00-16:30(16:00停止入馆)",
     )
     placed = plan_mod._place_with_flex(plan, day, visit)
@@ -116,6 +151,7 @@ def test_place_with_flex_refuses_hard_item() -> None:
         _item("v1", "前站", "13:30", "15:00", dur=90, pinned=True),
         _item("v2", "后站", "16:55", "21:00", dur=245, pinned=True),
     )
-    visit = _item("v9", "豫园", None, None, dur=80, category="park",
-                  location=YUYUAN, pinned=True)
+    visit = _item(
+        "v9", "豫园", None, None, dur=80, category="park", location=YUYUAN, pinned=True
+    )
     assert plan_mod._place_with_flex(plan, day, visit) is None
