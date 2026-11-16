@@ -150,12 +150,8 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             a.next_leg_mode = "access"
             a.next_leg_minutes = int(br["minutes"])
             _fare = br.get("fare_cny")
-            a.next_leg_cost_cny = estimate_taxi_fare(
-                city, float(br["taxi_km"])
-            ) + (
-                float(_fare)
-                if _fare is not None
-                else access_fare_estimate(br["mode"])
+            a.next_leg_cost_cny = estimate_taxi_fare(city, float(br["taxi_km"])) + (
+                float(_fare) if _fare is not None else access_fare_estimate(br["mode"])
             )
             a.next_leg_cost_note = L(
                 "含接驳票价估算", "includes an estimated shuttle fare"
@@ -228,9 +224,7 @@ def _options_detail(
             float(_fare) if _fare is not None else access_fare_estimate(o.get("mode"))
         )
         # 购票优先景点自身预约入口（与旧口径一致），官网用班次行/景点官网
-        o["booking_url"] = _url(
-            getattr(b, "booking_url", None) or o.get("ticket_url")
-        )
+        o["booking_url"] = _url(getattr(b, "booking_url", None) or o.get("ticket_url"))
         o["official_url"] = _url(
             o.get("official_url") or o.get("ticket_url") or getattr(b, "website", None)
         )

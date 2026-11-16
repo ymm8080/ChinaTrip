@@ -451,12 +451,8 @@ def service_options(
             "transfers": transfers_of(svc.service_name),
             "depart": fmt_minutes(depart) if depart is not None else None,
             "arrive": fmt_minutes(arrive) if arrive is not None else None,
-            "departures": [
-                fmt_minutes(m) for m in svc.departures() if fmt_minutes(m)
-            ],
-            "returns": [
-                fmt_minutes(m) for m in svc.return_times if fmt_minutes(m)
-            ],
+            "departures": [fmt_minutes(m) for m in svc.departures() if fmt_minutes(m)],
+            "returns": [fmt_minutes(m) for m in svc.return_times if fmt_minutes(m)],
             "fare_cny": fare,
             "fare_text": svc.fare_text(),
             "ticket_url": svc.ticket_url or svc.official_url,

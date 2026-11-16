@@ -404,11 +404,7 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         "last": last_mile,
         "board": board,
         "depart": depart,
-        "fare_cny": (
-            options[0].get("fare_cny")
-            if options
-            else None
-        ),
+        "fare_cny": (options[0].get("fare_cny") if options else None),
         "options": options,
     }
 
