@@ -117,6 +117,16 @@ class VisitItem(BaseModel):
     access_service_minutes: int | None = None
     access_wait_minutes: int | None = None
     access_last_mile_minutes: int | None = None
+    # 远郊专线时刻表（2026-11-16 用户拍板「班次服务窗建硬约束」）：数据来自
+    # poi_access_services（w12_0039），装配期由 attach_access 挂到卡上。
+    # 有窗的卡，排程先算「到上车点」的时刻，再按班次落到景区门口；
+    # 赶不上末班 = 换天/换打车直达，绝不硬塞一个没车的时刻。
+    access_service_name: str | None = None
+    access_depart_first: int | None = None
+    access_depart_last: int | None = None
+    access_ride_minutes: int | None = None
+    access_return_last: int | None = None
+    access_fare_text: str | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
     # 必去/心愿卡（plan._merge_must_visits 装配期落标）：铁律 19 的去重

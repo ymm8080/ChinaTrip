@@ -11026,6 +11026,37 @@ def _morning_head_displacement(
     )
 
 
+def _center_taxi_minutes(city: str | None, dst) -> int | None:
+    """城心 → 目的点的打车分钟（坐标缺失时的保守兜底）。"""
+    if dst is None:
+        return None
+    try:
+        from app.services.weather_open_meteo import CITY_COORDS
+
+        key = str(city or "").strip()
+        center = CITY_COORDS.get(key) or CITY_COORDS.get(key + "市")
+        if not center:
+            return None
+        return taxi_leg_min(
+            haversine_km(GeoPoint(lon=float(center[1]), lat=float(center[0])), dst)
+        )
+    except Exception:  # noqa: BLE001 — 兜底失败不影响主流程
+        return None
+
+
+def _taxi_minutes_to(src: VisitItem | None, dst) -> int | None:
+    """src 卡（有坐标或锚）→ 目的点（GeoPoint）的打车分钟；缺坐标返回 None。"""
+    if src is None or dst is None:
+        return None
+    origin = src.location or getattr(src, "anchor_location", None)
+    if origin is None:
+        return None
+    try:
+        return taxi_leg_min(haversine_km(origin, dst))
+    except Exception:  # noqa: BLE001 — 脏坐标不拦排程
+        return None
+
+
 def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
     """兜底/加卡收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
 
@@ -11075,6 +11106,44 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             if prev_end is None:
                 continue
             need = prev_end + chain
+            # 远郊专线服务窗（2026-11-16 用户拍板「班次服务窗建硬约束，超窗就
+            # 换天/换方式」）：先算「到上车点」的时刻，再按班次落到景区门口；
+            # 赶不上末班就改打车直达并留痕——绝不留一个「没车的时刻」。
+            win_first = getattr(cur, "access_depart_first", None)
+            win_last = getattr(cur, "access_depart_last", None)
+            if win_first is not None or win_last is not None:
+                board = getattr(cur, "access_boarding", None)
+                # 锚必须是**紧邻前一件的收尾**：拿更早有坐标的那张卡算车程
+                # 会把「午饭 12:30 收尾」当成「10:00 收尾」，窗判定直接失效。
+                ahead = _taxi_minutes_to(timed[idx - 1], board)
+                if ahead is None:
+                    ahead = _center_taxi_minutes(cur.city, board)
+                arrive_board = prev_end + (ahead or 0)
+                if win_last is not None and arrive_board > win_last:
+                    direct = _taxi_minutes_to(timed[idx - 1], cur.location)
+                    if direct is None:
+                        direct = _taxi_minutes_to(prev_located, cur.location)
+                    if direct is None:
+                        direct = _center_taxi_minutes(cur.city, cur.location)
+                    if direct:
+                        need = prev_end + direct
+                    notes.append(
+                        L(
+                            f"第{day.day}天「{cur.name}」专线末班 "
+                            f"{win_last // 60:02d}:{win_last % 60:02d} 已赶不上，"
+                            "这段改打车直达",
+                            f"Day {day.day}: last shuttle at "
+                            f"{win_last // 60:02d}:{win_last % 60:02d} missed, "
+                            f'taxi straight to "{cur.name}"',
+                        )
+                    )
+                else:
+                    ride = getattr(cur, "access_ride_minutes", None) or 0
+                    last_mile = getattr(cur, "access_last_mile_minutes", None) or 0
+                    depart = arrive_board
+                    if win_first is not None and depart < win_first:
+                        depart = win_first
+                    need = depart + ride + last_mile
             # 日终闸：推到 21:30 之后只会把晚饭/夜卡拖成 22:52，宁可保留
             # 原时刻让校验去点名（不制造更差的时刻表）。
             if need + (cur.duration_minutes or DEFAULT_VISIT_MINUTES) > 21 * 60 + 30:
@@ -17229,6 +17298,17 @@ class PlanningAgent:
         from app.services.poi_access import configure_profiles
 
         configure_profiles(poi_details)
+        # 远郊专线班次表（w12_0039）：排期要知道首末班/车上分钟/票价，同样
+        # 显式注入——规则层不隐式读库，测试喂假表即可。
+        from app.services.access_service_store import AccessServiceStore
+        from app.services.access_services import configure_store
+
+        _service_factory = getattr(poi_details, "_factory", None)
+        configure_store(
+            AccessServiceStore(_service_factory)
+            if _service_factory is not None
+            else None
+        )
         self._ctrip_hours = ctrip_hours
         self._link_reader = (
             link_reader
@@ -27981,6 +28061,11 @@ class PlanningAgent:
         # 餐卡→景点留腿（2026-11-15 用户拍板「午饭卡 11:30–12:00 紧贴故宫
         # 12:00 开场显然是不合适的」）：餐卡落位只避固定窗不吃通勤腿，
         # 收口前把「餐→下一景点」的腿补出来，景点顺延而不是硬贴。
+        # 班次窗上身（2026-11-16）：attach 只在矩阵路径跑过的话，兜底/编辑
+        # 路径的卡没有首末班，服务窗就形同虚设——这里每个收口段前补一次（幂等）。
+        from app.services.poi_access import attach_access as _attach_access
+
+        _attach_access(plan, self._access_profiles(plan))
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 班次点接驳链收口（2026-11-15）：solver 解成功时不走兜底，
         # 「午饭 12:00-13:00 → 慕田峪 13:30」就漏在这里——统一在夜卡/
@@ -28018,6 +28103,9 @@ class PlanningAgent:
         # 2 分钟腿原是对同址主题街区，街区挪尾后城心簇锚成新邻居仍背旧腿；
         # 邻锚对 33.7km 外贴场馆演出的 2 分钟腿同源）。annotate_legs 幂等，
         # 交付边界统一重算+实测缓存回放（零网络）。
+        # 交付前最后一道（2026-11-16）：上游任何相位把班次点贴回「没车的
+        # 时刻」，这里再收一次（幂等；末班已过 → 打车直达并留痕）。
+        plan.assumptions.extend(_clamp_chain_gaps(plan))
         annotate_legs(plan)
         if self._leg_cache:
             self._replay_measured_legs(plan)
@@ -29793,6 +29881,11 @@ class PlanningAgent:
         # 收尾顺序（用户 2026-11-15）：景点排完 → 再放餐卡/餐厅 →
         # 最后按类型多样性把优先级高的下一个景点补进空余时间。
         _retime_meal_placeholders(plan)
+        # 班次窗上身（2026-11-16）：attach 只在矩阵路径跑过的话，兜底/编辑
+        # 路径的卡没有首末班，服务窗就形同虚设——这里每个收口段前补一次（幂等）。
+        from app.services.poi_access import attach_access as _attach_access
+
+        _attach_access(plan, self._access_profiles(plan))
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
         # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
@@ -32333,6 +32426,11 @@ class PlanningAgent:
         notes.extend(_retime_real_food_cards(plan))
         notes.extend(_bind_real_food_to_cards(plan))
         _retime_meal_placeholders(plan, ensure_cards=False)
+        # 班次窗上身（2026-11-16）：attach 只在矩阵路径跑过的话，兜底/编辑
+        # 路径的卡没有首末班，服务窗就形同虚设——这里每个收口段前补一次（幂等）。
+        from app.services.poi_access import attach_access as _attach_access
+
+        _attach_access(plan, self._access_profiles(plan))
         plan.assumptions.extend(_open_meal_leg_gaps(plan))
         # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
         # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。

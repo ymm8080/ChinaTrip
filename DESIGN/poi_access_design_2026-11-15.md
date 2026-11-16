@@ -107,3 +107,65 @@
 ——酒店卡只有名字没有坐标，`hotel_stays` 的「最早 8:30 离店」也算不出
 「06:37 出门才赶得上 09:00 的专线」。要修这条，需要给酒店卡落坐标（或退到
 城心锚）后把链值接进头部锚点。
+
+
+---
+
+## 2026-11-16 追加：远郊专线时刻表（poi_access_services）
+
+用户口径原文：「远郊景区专线，无论火车还是直达巴士，需要先搜网络或者高德地图数据
+拿到接驳的出发地点和时刻表，路途时间，到达时间，回程出发时间，回城到达时间，
+票价，票价采购等信息然后存入远郊景点交通 DATABASE。每次运行 PLANNING 时候只需要
+加上 HOTEL 到接驳出发点的 TAXI 腿。当然之前直达的腿也可以保留。」并确认
+「班次服务窗也建成硬约束（超窗就换天/换方式）」。
+
+### 为什么另开一张表
+
+`pois.access_*`（w12_0037/0038）是「一句话摘要 + 一段接驳链均值」：够卡片展示，
+也能粗略排期，但没有时刻表。实测后果：慕田峪专线末班 12:00，引擎照样排出
+「14:54 到景区」——那班车早收车了。
+
+### 表结构（w12_0039，一条线路一行）
+
+| 组 | 列 |
+|---|---|
+| 归属 | `city` / `poi_name` / `mode` / `service_name` / `operator` |
+| 上车点（酒店→这里打车） | `boarding_stop` / `boarding_lon` / `boarding_lat` |
+| 落客点 | `alight_stop` / `alight_lon` / `alight_lat` |
+| 去程时刻 | `outbound_times`(JSONB 显式列表) / `outbound_first` / `outbound_last` / `outbound_frequency_minutes` / `ride_minutes` |
+| 回程时刻 | `return_times` / `return_first` / `return_last` / `return_frequency_minutes` / `return_ride_minutes` / `return_arrive_last` |
+| 票价与采购 | `fare_cny` / `fare_kind`(round_trip/one_way/free) / `fare_note` / `ticket_channel` / `ticket_url` |
+| 末段 | `last_mile_minutes` |
+| 文案 | `note` / `note_en` |
+| 溯源 | `source`(web:/amap:/baidu:) / `source_url` / `fetched_at` / `active` |
+
+唯一键 `(city, poi_name, service_name)`：同一点可以有多条线路（专线/市郊铁路/公交），
+导入按线路覆盖，不动别的线路。
+
+### 数据怎么进来
+
+1. `python -m app.jobs.import_access_services --file DESIGN/data/access_services_*.json`
+   —— 人工/半自动核对过的 JSON，带 `source`/`source_url`，可重复导入（先 `--dry-run` 看一遍）；
+2. 「搜网络 / 高德」这条路：本仓 `map_provider` 目前只暴露 `transit_route`，线路检索
+   （首末班/票价）留了 `--from-amap` 的口子，需要时补 `amap_client` 的 `bus/linename`。
+
+### 排期口径（硬约束）
+
+* 卡上有窗（`access_depart_first/last`）时，`_clamp_chain_gaps` 先算
+  「紧邻前一件收尾 + 打车到上车点」的时刻，再按班次落到门口：
+  `到门口 = max(到上车点, 首班) + 车上 + 末段`；
+* 到上车点晚于末班 → **改打车直达**（城里→景区门，按打车模型）并写一条
+  「专线末班 HH:MM 已赶不上，这段改打车直达」的披露；
+* 换天的结构化重排（`_enforce_site_day_fit`）保持原样：本层只保证「不留没车的时刻」，
+  需要换天时由上游按既有规则挪卡。
+
+### 装配
+
+`poi_access.attach_access` 在挂接驳量时顺带挂窗口（`_attach_service_window`）；
+`_assemble_plan` 每个收口段前与交付前各调一次（幂等），兜底/编辑路径也拿得到窗。
+
+### 现状数据（2026-11-16）
+
+北京 · 慕田峪长城 · 慕田峪长城通游专线（前门线）：前门 07:00–11:00 流水（20 分钟一班），
+车上 90 分钟，回程 13:00–16:00，往返 80 元，购票=北京旅游集散中心（需预约），
+来源 bendibao（见 seed JSON 的 `source_url`）。

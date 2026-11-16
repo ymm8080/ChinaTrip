@@ -474,8 +474,8 @@ def test_clamp_repacks_later_cards_without_pushing_dinner(monkeypatch):
 
     mty = _visit("mty", "慕田峪长城", 116.5598, 40.4267)
     mty.start_time = _t(13, 30)
-    mty.end_time = _t(17, 30)
-    mty.duration_minutes = 240
+    mty.end_time = _t(15, 0)
+    mty.duration_minutes = 90
 
     dinner = _visit("dinner", "晚饭（自由安排）", 116.4109, 39.9097)
     dinner.category = "food"

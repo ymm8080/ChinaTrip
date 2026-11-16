@@ -361,6 +361,26 @@ def summarize(
     }
 
 
+def _attach_service_window(item: VisitItem) -> None:
+    """把远郊专线时刻表挂到卡上（无班次数据则保持均值链口径）。"""
+    from app.services import access_services
+
+    service = access_services.best_service(item.city, item.name)
+    if service is None:
+        return
+    item.access_service_name = service.service_name
+    item.access_depart_first = service.first_departure()
+    item.access_depart_last = service.last_departure()
+    item.access_ride_minutes = service.ride_minutes or item.access_service_minutes
+    item.access_return_last = service.return_last
+    item.access_fare_text = service.fare_text()
+    # 有明确车上分钟时以时刻表为准（均值链可能来自另一条线路）
+    if service.ride_minutes:
+        item.access_service_minutes = service.ride_minutes
+    if service.last_mile_minutes is not None:
+        item.access_last_mile_minutes = service.last_mile_minutes
+
+
 def attach_access(
     plan: ItineraryPlan, profiles: dict[tuple[str, str], dict[str, Any]]
 ) -> int:
@@ -390,6 +410,7 @@ def attach_access(
             item.access_service_minutes = prof.get("access_service_minutes")
             item.access_wait_minutes = prof.get("access_wait_minutes") or 0
             item.access_last_mile_minutes = prof.get("access_last_mile_minutes") or 0
+            _attach_service_window(item)
             filled += 1
     return filled
 

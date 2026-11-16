@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "fetched_at": "2026-11-16",
+  "services": [
+    {
+      "city": "北京",
+      "poi_name": "慕田峪长城",
+      "mode": "shuttle",
+      "service_name": "慕田峪长城通游专线（前门线）",
+      "operator": "北京旅游集散中心",
+      "boarding_stop": "前门站（前门大街北口路西侧）",
+      "boarding_lon": 116.398256,
+      "boarding_lat": 39.898886,
+      "alight_stop": "慕田峪长城 P4 停车场",
+      "alight_lon": 116.559802,
+      "alight_lat": 40.426662,
+      "outbound_times": [],
+      "outbound_first": "07:00",
+      "outbound_last": "11:00",
+      "outbound_frequency_minutes": 20,
+      "ride_minutes": 90,
+      "return_times": [],
+      "return_first": "13:00",
+      "return_last": "16:00",
+      "return_frequency_minutes": 20,
+      "return_ride_minutes": 90,
+      "return_arrive_last": "17:30",
+      "fare_cny": 80,
+      "fare_kind": "round_trip",
+      "fare_note": "往返车费 80 元（返程不坐不退）",
+      "ticket_channel": "北京旅游集散中心（需提前预约购票）",
+      "ticket_url": "https://m.bj.bendibao.com/news/387317.html",
+      "last_mile_minutes": 8,
+      "note": "前门 07:00–11:00 流水发车，车程约 90 分钟；回程 13:00–16:00 从 P4 停车场流水发车，经鸟巢/水立方终到前门。",
+      "note_en": "Departures from Qianmen 07:00-11:00 (about 90 min); return from P4 lot 13:00-16:00 via the Olympic Park to Qianmen.",
+      "source": "web:bendibao",
+      "source_url": "https://m.bj.bendibao.com/news/387317.html"
+    }
+  ]
+}
