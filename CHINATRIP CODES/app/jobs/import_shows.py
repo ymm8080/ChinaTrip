@@ -246,6 +246,23 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rows = load_rows(args.csv)
+        if not args.dry_run:
+            # 2026-11-16 用户拍板「audit before input any url」：购票链接先实检，
+            # 死链/未验证置空，不落库；反爬拦截（携程 432 等）视为可用。
+            from app.services import link_audit
+
+            for r in rows:
+                raw_url = (r.get("ctrip_url") or "").strip()
+                if not raw_url:
+                    continue
+                url, entry = link_audit.audit_or_none(raw_url)
+                if url is None:
+                    logger.warning(
+                        "演出导入：购票链接未过审计 %s (%s) -> 置空",
+                        raw_url,
+                        (entry or {}).get("verdict"),
+                    )
+                r["ctrip_url"] = url or ""
     except FileNotFoundError:
         print(json.dumps({"error": f"csv not found: {args.csv}"}, ensure_ascii=True))
         return 1

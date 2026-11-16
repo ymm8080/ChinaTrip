@@ -29,6 +29,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 from app.db import get_session_factory
+from app.services import link_audit
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,13 @@ def _prune(session, rows: list[dict]) -> int:
     return dropped
 
 
-def import_file(path: Path, *, dry_run: bool = False, prune: bool = False) -> int:
+def import_file(
+    path: Path,
+    *,
+    dry_run: bool = False,
+    prune: bool = False,
+    audit_links: bool = True,
+) -> int:
     rows = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(rows, dict):
         rows = rows.get("services") or []
@@ -179,8 +186,18 @@ def import_file(path: Path, *, dry_run: bool = False, prune: bool = False) -> in
     factory = get_session_factory()
     with factory() as session:
         dropped = _prune(session, rows) if prune else 0
+        dead_links: list[str] = []
         for row in rows:
+            if audit_links:
+                # 2026-11-16 用户拍板「audit before input any url」：死链不落库
+                dead_links.extend(
+                    link_audit.audit_row_fields(
+                        row, ("ticket_url", "official_url", "source_url")
+                    )
+                )
             session.execute(_SQL, _payload(row))
+        if dead_links:
+            logger.warning("链接审计剔除 %d 条死链：%s", len(dead_links), dead_links)
         session.commit()
     logger.info("导入 %d 条班次（下线 %d 条旧线路）：%s", len(rows), dropped, path.name)
     return len(rows)
@@ -195,9 +212,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="同 POI 不在本文件里的旧线路置为 active=false",
     )
+    parser.add_argument(
+        "--skip-link-audit",
+        action="store_true",
+        help="跳过入库前外链实检（默认每条 URL 必检，死链置空不落库）",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    count = import_file(args.file, dry_run=args.dry_run, prune=args.prune_poi)
+    count = import_file(
+        args.file,
+        dry_run=args.dry_run,
+        prune=args.prune_poi,
+        audit_links=not args.skip_link_audit,
+    )
     print(f"OK {count} 条")
     return 0
 
