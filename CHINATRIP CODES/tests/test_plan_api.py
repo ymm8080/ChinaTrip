@@ -1781,9 +1781,7 @@ def test_duration_guard_chain_and_locked_slots():
     ).json()
     sid = body["session_id"]
     vid = _visit(body, "西湖")["item_id"]
-    resp = client.post(
-        f"/api/v1/plan/{sid}/items/{vid}/duration", json={"minutes": 90}
-    )
+    resp = client.post(f"/api/v1/plan/{sid}/items/{vid}/duration", json={"minutes": 90})
     assert resp.status_code == 400
     assert resp.json() == {"detail": "missing_device_id"}
     resp = client.post(
