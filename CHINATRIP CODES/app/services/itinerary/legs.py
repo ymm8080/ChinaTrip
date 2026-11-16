@@ -762,9 +762,7 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
         site_end_min = _clock_minutes(site.end_time)
         start_min = _clock_minutes(start)
         clamped_return_start = False
-        if site_end_min is not None and (
-            start_min is None or start_min < site_end_min
-        ):
+        if site_end_min is not None and (start_min is None or start_min < site_end_min):
             start = _time_of(site_end_min)
             start_min = site_end_min
             clamped_return_start = True

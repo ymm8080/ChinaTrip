@@ -1,4 +1,4 @@
-﻿"""Multi-city progressive planning agent (design v2.0 §6.1-§6.3, §6.9).
+"""Multi-city progressive planning agent (design v2.0 §6.1-§6.3, §6.9).
 
 Thin orchestration on purpose (§6.2: no agent framework). The LLM owns
 understanding, POI selection and human phrasing; every deterministic step —
