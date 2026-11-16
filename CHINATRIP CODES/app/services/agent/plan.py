@@ -15449,6 +15449,21 @@ def _fill_leftover_with_diverse_sights(
                 and getattr(i.location, "lon", None) is not None
                 and getattr(i.location, "lat", None) is not None
             ]
+            # 回城日的「回城之后」属于市区（2026-11-16 用户「回城以后才三四
+            # 点，为什么不安排其它节目」）：同城回城腿之后补的点按市区簇算，
+            # 把酒店/夜卡锚与城心并入亲和锚点——否则朱家角那天的市区候选
+            # 全被 5km 亲和闸挡死，回城后整段下午永远补不进东西。
+            if any(
+                isinstance(i, TransferItem) and _is_incity_transfer(i)
+                for i in day.items
+            ):
+                for i in day.items:
+                    if (
+                        isinstance(i, VisitItem)
+                        and (i.category or "") == "hotel"
+                        and getattr(i, "location", None) is not None
+                    ):
+                        day_pts.append((float(i.location.lon), float(i.location.lat)))
             # 同地内核去重：朱家角古镇/朱家角镇这类同一地方的另一张卡不再补。
             seen_cores = {
                 place_core(i.name)
