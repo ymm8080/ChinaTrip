@@ -11142,6 +11142,32 @@ def _window_gap_minutes(
 SERVICE_TARGET_DEPART_MINUTES = 9 * 60
 
 
+def _dedupe_assumptions(notes: list) -> list:
+    """同一条披露只留一条（2026-11-16）。
+
+    收口/餐腿/交付三道都会对同一个班次点打「专线末班 HH:MM 已赶不上」，
+    原先连打三条。按「引号里的卡名 + 关键词」归一。
+    """
+    seen: set[str] = set()
+    out: list = []
+    for note in notes:
+        text = note if isinstance(note, str) else str(note)
+        if "专线末班" in text or "改打车直达" in text:
+            name = ""
+            start = text.find("「")
+            end = text.find("」")
+            if start >= 0 and end > start:
+                name = text[start + 1 : end]
+            key = f"last-departure|{name}"
+        else:
+            key = text
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(note)
+    return out
+
+
 def _service_window_bounds(visit: VisitItem) -> tuple[int | None, int | None]:
     """班次点「进景区门口」的可行区间（当天分钟数）。
 
@@ -28368,6 +28394,7 @@ class PlanningAgent:
         # 交付前最后一道（2026-11-16）：上游任何相位把班次点贴回「没车的
         # 时刻」，这里再收一次（幂等；末班已过 → 打车直达并留痕）。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
+        plan.assumptions = _dedupe_assumptions(plan.assumptions)
         annotate_legs(plan)
         if self._leg_cache:
             self._replay_measured_legs(plan)
