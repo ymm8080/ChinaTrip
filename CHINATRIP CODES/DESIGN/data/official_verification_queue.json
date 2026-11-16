@@ -2,9 +2,8 @@
   "generated_at": "2026-11-16",
   "rule": "official_status: verified = 官方页已核（写 official_url/fare/线路）；no_official_page = 确认无官网；pending = 待核。window_source=official 才允许排期使用首末班（access_services.STRICT_OFFICIAL）。",
   "counts": {
-    "no_official_page": 80,
-    "verified": 35,
-    "pending": 4
+    "no_official_page": 84,
+    "verified": 35
   },
   "rows": [
     {
@@ -476,7 +475,7 @@
       "outbound_last": "08:48",
       "ride_minutes": 87,
       "fare_cny": null,
-      "official_status": "pending",
+      "official_status": "no_official_page",
       "official_url": null,
       "window_source": "baidu",
       "fare_source": null,
@@ -493,7 +492,7 @@
       "outbound_last": "09:12",
       "ride_minutes": 68,
       "fare_cny": null,
-      "official_status": "pending",
+      "official_status": "no_official_page",
       "official_url": null,
       "window_source": "baidu",
       "fare_source": null,
@@ -510,7 +509,7 @@
       "outbound_last": "09:12",
       "ride_minutes": 68,
       "fare_cny": null,
-      "official_status": "pending",
+      "official_status": "no_official_page",
       "official_url": null,
       "window_source": "baidu",
       "fare_source": null,
@@ -527,7 +526,7 @@
       "outbound_last": "20:45",
       "ride_minutes": 202,
       "fare_cny": null,
-      "official_status": "pending",
+      "official_status": "no_official_page",
       "official_url": null,
       "window_source": "baidu",
       "fare_source": null,

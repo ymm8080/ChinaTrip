@@ -41,10 +41,10 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 北京 | 雁柏山庄 | Yanbai Villa | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | verified | baidu |  | https://www.slhhotels.cn/hotel/yanbai-villa |
 | 北京 | 雁栖湖 | Yanqi Lake | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | no_official_page | baidu |  |  |
 | 南京 | 濮塘风景区 | Putang Scenic Area | shuttle | 鸡鸣寺站(5口) | 13:10 | 13:10 | 113 | no_official_page | baidu |  |  |
-| 广州 | 广州融创乐园 | Guangzhou Sunac Land | train | 北京路站(B口) | 08:48 | 08:48 | 87 | pending | baidu |  |  |
-| 广州 | 广州融创体育世界 | Guangzhou Sunac Sports World | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
-| 广州 | 广州融创大马戏-奇幻秘境 | Guangzhou Sunac Grand Circus - Fantasy Secret Realm | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
-| 广州 | 蝴蝶谷 | Butterfly Valley | train | 中山纪念堂(市总工会)③站 | 09:26 | 20:45 | 202 | pending | baidu |  |  |
+| 广州 | 广州融创乐园 | Guangzhou Sunac Land | train | 北京路站(B口) | 08:48 | 08:48 | 87 | no_official_page | baidu |  |  |
+| 广州 | 广州融创体育世界 | Guangzhou Sunac Sports World | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | no_official_page | baidu |  |  |
+| 广州 | 广州融创大马戏-奇幻秘境 | Guangzhou Sunac Grand Circus - Fantasy Secret Realm | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | no_official_page | baidu |  |  |
+| 广州 | 蝴蝶谷 | Butterfly Valley | train | 中山纪念堂(市总工会)③站 | 09:26 | 20:45 | 202 | no_official_page | baidu |  |  |
 | 成都 | 中铁花水湾四季温泉谷 | CRETC Huashuiwan Four Seasons Hot Spring Valley | shuttle | 孵化园站(E1口) | 10:50 | 10:50 | 129 | no_official_page | baidu |  |  |
 | 成都 | 九龙峡漂流 | Jiulong Gorge Rafting | shuttle | 锦悦西路站 | 13:40 | 13:40 | 168 | no_official_page | baidu |  |  |
 | 成都 | 伏龙观 | Fulong Temple | train | 孵化园站(E1口) | 07:36 | 07:36 | 333 | verified | baidu | official | https://www.djy517.com/online.html?channelCode=mpyd |
