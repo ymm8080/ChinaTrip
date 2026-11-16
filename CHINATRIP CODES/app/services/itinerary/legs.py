@@ -755,13 +755,26 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
             start = site.end_time
         if start is None:
             continue
+        # 回城不得早于末站散场（2026-11-16 用户拍板「回城开始时间肯定是最后
+        # 一个景点的结束时间」）：腿明细可能在上游补点/顺延之前算好，
+        # depart_time 会落后于卡面 end_time（上海 D1 回城 16:00 vs 汽车乐园
+        # 16:46 实拍）——出站投影时按卡面钳一次。
+        site_end_min = _clock_minutes(site.end_time)
+        start_min = _clock_minutes(start)
+        clamped_return_start = False
+        if site_end_min is not None and (
+            start_min is None or start_min < site_end_min
+        ):
+            start = _time_of(site_end_min)
+            start_min = site_end_min
+            clamped_return_start = True
         arrive = _parse_clock_text(detail.get("arrive_time"))
-        if arrive is None:
+        if arrive is None or clamped_return_start:
             spent = detail.get("service_minutes")
             if spent is None:
                 spent = site.next_leg_minutes or 0
             walk = int(detail.get("walk_minutes") or 0)
-            arrive = _time_of(_clock_minutes(start) + walk + int(spent))
+            arrive = _time_of((start_min or 0) + walk + int(spent))
         name, name_en = _return_card_name(detail)
         card = VisitItem(
             item_id=f"{RETURN_CARD_PREFIX}{site.item_id}",
@@ -781,6 +794,11 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
         card_detail = dict(detail)
         card_detail["owner_item_id"] = site.item_id
         card_detail["to_city"] = True
+        # 钳过的回城时刻同步回明细，前端腿行与卡片一致
+        if clamped_return_start:
+            card_detail["depart_time"] = _clock(start_min)
+            card_detail["board_time"] = _clock(start_min)
+            card_detail["arrive_time"] = _clock(_clock_minutes(arrive))
         card.next_leg_detail = card_detail
         hint = _return_hint_text(detail)
         # 明细留在景区卡上（下一轮装配还要用它重算回城卡，幂等）；

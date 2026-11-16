@@ -1,4 +1,4 @@
-"""Multi-city progressive planning agent (design v2.0 §6.1-§6.3, §6.9).
+﻿"""Multi-city progressive planning agent (design v2.0 §6.1-§6.3, §6.9).
 
 Thin orchestration on purpose (§6.2: no agent framework). The LLM owns
 understanding, POI selection and human phrasing; every deterministic step —
@@ -15474,6 +15474,13 @@ def _fill_leftover_with_diverse_sights(
                 == str(day.base_city or "").strip().removesuffix("市")
             }
             seen_cores.discard("")
+            # 当天有「回城」段时不做族亲和限制（2026-11-16）：上午在远郊、
+            # 回城后下午就在市区——空档属于市区，不是第二个片区。
+            day_has_return = any(
+                (isinstance(i, VisitItem) and (i.next_leg_detail or {}).get("to_city"))
+                or str(getattr(i, "item_id", "") or "").startswith("access-return-")
+                for i in day.items
+            )
             avoid_set = {
                 _norm_site_name(a) for a in (avoid or set()) if str(a or "").strip()
             }
@@ -15541,6 +15548,7 @@ def _fill_leftover_with_diverse_sights(
                 # 族亲和：当天已有件时只补 5km 内
                 and not (
                     day_pts
+                    and not day_has_return
                     and getattr(u, "location", None) is not None
                     and getattr(u.location, "lon", None) is not None
                     and min(
