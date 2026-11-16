@@ -45,7 +45,7 @@ def _food(name, start, end, lon=121.49, lat=31.24):
     return _v(name, name, start, end, cat="food", lon=lon, lat=lat)
 
 
-def _cand(name, dur, lon=121.52, lat=31.20, *, cat="sight"):
+def _cand(name, dur, lon=121.52, lat=31.20, *, cat="sight", bvt=None):
     return UnplacedCandidate(
         name=name,
         category=cat,
@@ -53,6 +53,7 @@ def _cand(name, dur, lon=121.52, lat=31.20, *, cat="sight"):
         location=GeoPoint(lon=lon, lat=lat),
         city="上海",
         poi_id=name,
+        best_visit_time=bvt,
     )
 
 
@@ -163,6 +164,24 @@ def test_fill_is_idempotent_via_disclosure_marker():
     first = _fill_leftover_with_diverse_sights(plan, bench=[_cand("测试景点", 90)])
     assert first
     assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("另一个点", 90)]) == []
+
+
+def test_evening_candidate_never_before_five_pm():
+    """best_visit_time=evening 的件不得排到 17:00 之前（浦江游览 12:45 案）。"""
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _food("午饭", time(12, 0), time(13, 0)),
+            _food("晚饭", time(19, 0), time(20, 30)),
+        ]
+    )
+    notes = _fill_leftover_with_diverse_sights(
+        plan, bench=[_cand("浦江夜游", 120, bvt="evening")]
+    )
+    assert notes
+    placed = _placed(plan, "浦江夜游")
+    assert placed.start_time >= time(17, 0)
+    assert placed.end_time <= time(19, 0)
 
 
 class _FakeDetails:

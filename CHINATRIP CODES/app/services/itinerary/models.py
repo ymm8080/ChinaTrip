@@ -256,6 +256,9 @@ class UnplacedCandidate(BaseModel):
     # 库行标签透传（2026-11-15「INTL 集合优先，其次找其它类型」）：补空档
     # 排序用它认 INTL（intl/lp/ta/layla…）与体验类（show/tea/massage…）。
     tags: list[str] | None = None
+    # 最佳时段透传（2026-11-16 浦江游览案）：补点探针要按它取窗——
+    # evening 件（17:00-21:00）此前被排到 12:45，就是这里丢了字段。
+    best_visit_time: str | None = None
 
 
 class PlanAlternative(BaseModel):

@@ -1,0 +1,18 @@
+{
+  "reason": "evening cruise: 240min cannot fit 17:00-21:00 with dinner",
+  "rows": [
+    {
+      "name_zh": "黄浦江游览（东方明珠码头）",
+      "source": "chinatravel",
+      "status": "active",
+      "category": "theme_park",
+      "best_visit_time": "evening",
+      "suggested_duration_min": 240,
+      "tags": [
+        "lp",
+        "intl"
+      ],
+      "opening_hours": null
+    }
+  ]
+}

@@ -8952,6 +8952,9 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                         name=victim.name,
                                         name_en=getattr(victim, "name_en", None),
                                         poi_id=victim.poi_id,
+                                        best_visit_time=getattr(
+                                            victim, "best_visit_time", None
+                                        ),
                                         category=victim.category,
                                         tier=getattr(victim, "tier", None),
                                         duration_minutes=victim.duration_minutes,
@@ -9113,6 +9116,9 @@ def _day_purity_sweep(plan: ItineraryPlan, protect: frozenset[str] | set[str]) -
                                     name=weak.name,
                                     name_en=weak.name_en,
                                     poi_id=weak.poi_id,
+                                    best_visit_time=getattr(
+                                        weak, "best_visit_time", None
+                                    ),
                                     category=weak.category,
                                     tier=weak.tier,
                                     duration_minutes=weak.duration_minutes,
@@ -10079,6 +10085,9 @@ def _endpoint_day_light_sweep(
                         name=v.name,
                         name_en=v.name_en,
                         poi_id=v.poi_id,
+                        best_visit_time=getattr(
+                            v, "best_visit_time", None
+                        ),
                         category=v.category,
                         tier=v.tier,
                         duration_minutes=v.duration_minutes,
@@ -10253,6 +10262,9 @@ def _endpoint_day_light_sweep(
                                 name=v.name,
                                 name_en=v.name_en,
                                 poi_id=v.poi_id,
+                                best_visit_time=getattr(
+                                    v, "best_visit_time", None
+                                ),
                                 category=v.category,
                                 tier=v.tier,
                                 duration_minutes=v.duration_minutes,
@@ -10442,6 +10454,9 @@ def _endpoint_day_light_sweep(
                             name=v.name,
                             name_en=v.name_en,
                             poi_id=v.poi_id,
+                            best_visit_time=getattr(
+                                v, "best_visit_time", None
+                            ),
                             category=v.category,
                             tier=v.tier,
                             duration_minutes=v.duration_minutes,
@@ -14969,6 +14984,9 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                         name=w.name,
                         name_en=w.name_en,
                         poi_id=w.poi_id,
+                        best_visit_time=getattr(
+                            w, "best_visit_time", None
+                        ),
                         category=w.category,
                         tier=w.tier,
                         duration_minutes=w.duration_minutes,
@@ -15174,6 +15192,7 @@ def _bench_candidates_from_library(
                 city=city,
                 reason="library_bench",
                 tags=[str(t) for t in (row.get("tags") or [])],
+                best_visit_time=row.get("best_visit_time"),
             )
         )
     return out
@@ -15379,6 +15398,9 @@ def _fill_leftover_with_diverse_sights(
                     tier=cand.tier,
                     site_rank=getattr(cand, "site_rank", None),
                     location=cand.location,
+                    best_visit_time=getattr(
+                        cand, "best_visit_time", None
+                    ),
                 )
                 start = _probe_visit_slot(
                     probe_item,
@@ -15452,6 +15474,9 @@ def _drop_sessionless_shows(plan: ItineraryPlan) -> list[str]:
                     name=item.name,
                     name_en=item.name_en,
                     poi_id=item.poi_id,
+                    best_visit_time=getattr(
+                        item, "best_visit_time", None
+                    ),
                     category=item.category,
                     tier=item.tier,
                     duration_minutes=item.duration_minutes,
@@ -15700,6 +15725,9 @@ def _must_visit_room_sweep(
                             name=victim.name,
                             name_en=victim.name_en,
                             poi_id=victim.poi_id,
+                            best_visit_time=getattr(
+                                victim, "best_visit_time", None
+                            ),
                             category=victim.category,
                             tier=victim.tier,
                             duration_minutes=victim.duration_minutes,
@@ -16180,6 +16208,9 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
                                 name=rival.name,
                                 name_en=getattr(rival, "name_en", None),
                                 poi_id=rival.poi_id,
+                                best_visit_time=getattr(
+                                    rival, "best_visit_time", None
+                                ),
                                 category=rival.category,
                                 tier=getattr(rival, "tier", None),
                                 duration_minutes=rival.duration_minutes,
@@ -16227,6 +16258,9 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
                             name=host.name,
                             name_en=getattr(host, "name_en", None),
                             poi_id=host.poi_id,
+                            best_visit_time=getattr(
+                                host, "best_visit_time", None
+                            ),
                             category=host.category,
                             tier=getattr(host, "tier", None),
                             duration_minutes=host.duration_minutes,
@@ -16258,6 +16292,9 @@ def _bind_block_family(plan: ItineraryPlan) -> list[str]:
                         name=guest.name,
                         name_en=getattr(guest, "name_en", None),
                         poi_id=guest.poi_id,
+                        best_visit_time=getattr(
+                            guest, "best_visit_time", None
+                        ),
                         category=guest.category,
                         tier=getattr(guest, "tier", None),
                         duration_minutes=guest.duration_minutes,
@@ -17960,6 +17997,9 @@ def _seat_unplaced_musts(plan: ItineraryPlan, alloc, must_names: set[str]):
                 name=cand.name,
                 name_en=cand.name_en,
                 poi_id=cand.poi_id,
+                best_visit_time=getattr(
+                    cand, "best_visit_time", None
+                ),
                 category=cand.category,
                 city=cand.city or tday.base_city,
                 location=cand.location,
@@ -29208,6 +29248,9 @@ class PlanningAgent:
                                         name=v.name,
                                         name_en=v.name_en,
                                         poi_id=v.poi_id,
+                                        best_visit_time=getattr(
+                                            v, "best_visit_time", None
+                                        ),
                                         category=v.category,
                                         tier=v.tier,
                                         duration_minutes=v.duration_minutes,
@@ -29455,6 +29498,9 @@ class PlanningAgent:
                             name=cur_must.name,
                             name_en=cur_must.name_en,
                             poi_id=cur_must.poi_id,
+                            best_visit_time=getattr(
+                                cur_must, "best_visit_time", None
+                            ),
                             category=cur_must.category,
                             tier=cur_must.tier,
                             duration_minutes=cur_must.duration_minutes,
