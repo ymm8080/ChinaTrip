@@ -4339,7 +4339,46 @@ def _dedupe_visit_keepers(
     return keepers, dropped
 
 
-def _apply_geo_invariants(plan: ItineraryPlan) -> list[str]:
+#: 补点族亲和半径（2026-11-16「聚族定天」）：当天已有件时只补 ≤5km 的
+#: 候选——空档补点不得给某天引入第二个片区。空天不受限。
+_CLUSTER_FILL_KM = 5.0
+
+
+def _clamp_to_morning_floor(plan: ItineraryPlan) -> None:
+    """挪日时刻不得早于当天「从酒店出发」晨卡（2026-11-16 上海案）。
+
+    聚族挪日会清时刻，_fallback_sequence_times 从 08:30 起排；晨卡在更晚
+    时刻时被挪件会排到出发前。这里按晨卡卡尾把该日可动件整体顺延，重叠
+    链式后推（must/soft_pin 是用户钉的时刻，不动）。
+    """
+    for day in plan.days:
+        floor = _day_fill_floor(day)
+        timed = sorted(
+            (
+                i
+                for i in day.items
+                if isinstance(i, VisitItem)
+                and i.start_time is not None
+                and not getattr(i, "must", False)
+                and not getattr(i, "soft_pin", False)
+                and str(i.category or "") not in ("food", "hotel")
+            ),
+            key=lambda i: _minutes_of(i.start_time) or 0,
+        )
+        cursor = floor
+        for it in timed:
+            start = _minutes_of(it.start_time) or 0
+            dur = it.duration_minutes or DEFAULT_VISIT_MINUTES
+            if start < cursor:
+                it.start_time = _time_of(cursor)
+                it.end_time = _time_of(cursor + dur)
+                start = cursor
+            cursor = start + dur
+
+
+def _apply_geo_invariants(
+    plan: ItineraryPlan, *, relax_pins: bool = False
+) -> list[str]:
     """交付边界的地理不变式（2026-11-16 用户拍板「聚族→按族时长/强约束定天→
     日内铆钉+地理排序」）：紧簇归位 → 簇日纯度。
 
@@ -4349,7 +4388,40 @@ def _apply_geo_invariants(plan: ItineraryPlan) -> list[str]:
     """
     notes: list[str] = []
     _reunite_tight_kin(plan)
-    dropped = _purify_cluster_days(plan)
+    dropped = _purify_cluster_days(plan, relax_pins=relax_pins)
+    if relax_pins and any(
+        isinstance(i, VisitItem) and i.start_time is None
+        for d in plan.days
+        for i in d.items
+    ):
+        # 挪日清掉的时刻：兜底排期 + 晨卡下限钳制；仍排不进的移出（装不下删）
+        _fallback_sequence_times(plan)
+        _clamp_to_morning_floor(plan)
+        for d in plan.days:
+            for i in list(d.items):
+                if (
+                    isinstance(i, VisitItem)
+                    and i.start_time is None
+                    and not getattr(i, "must", False)
+                    and str(i.category or "") not in ("food", "hotel")
+                ):
+                    d.items.remove(i)
+                    i.day = d.day
+                    plan.unplaced.append(
+                        UnplacedCandidate(
+                            name=i.name,
+                            name_en=getattr(i, "name_en", None),
+                            poi_id=i.poi_id,
+                            category=i.category,
+                            tier=getattr(i, "tier", None),
+                            duration_minutes=i.duration_minutes,
+                            location=getattr(i, "location", None),
+                            city=i.city,
+                            best_visit_time=getattr(i, "best_visit_time", None),
+                            reason="cluster_day",
+                        )
+                    )
+                    dropped.append(i.name)
     if dropped:
         notes.append(
             L(
@@ -7345,7 +7417,9 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
             )
 
 
-def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
+def _purify_cluster_days(
+    plan: ItineraryPlan, *, relax_pins: bool = False
+) -> list[str]:
     """簇日纯度闸（2026-11-08 拍板「异簇不混日」）：成族之日（同簇可数
     件 ≥2 在册）不得插排其它非同族景点——级联（选层溢出停泊/弹座让位/
     重排）把距全簇 >5km 的可数件楔进簇日污染片区连贯（城心簇锚→弹座→楔进
@@ -7443,10 +7517,14 @@ def _purify_cluster_days(plan: ItineraryPlan) -> list[str]:
         for v in list(day.items):
             if not _countable(v, day) or id(v) in kin_ids:
                 continue
+            # 引擎钉住件 pinned-only 不算强约束（2026-11-16「按族定天」）：
+            # must/soft_pin 是用户意图，pinned 只是引擎排期占位。只在补点/
+            # 装配这类引擎重建路径放开（relax_pins=True）；用户拖卡/改时
+            # 之后的 refresh 保持铁律 19，不抢用户的 pin。
             if (
-                getattr(v, "pinned", False)
-                or getattr(v, "soft_pin", False)
+                getattr(v, "soft_pin", False)
                 or getattr(v, "must", False)
+                or (getattr(v, "pinned", False) and not relax_pins)
             ):
                 continue
             vxy = v.location
@@ -15091,6 +15169,7 @@ _LODGING_KEYS = (
     "客栈",
     "宾馆",
     "大酒店",
+    "里舍",
 )
 
 _PARK_CHILD_HINTS: dict[str, tuple[str, ...]] = {
@@ -15338,6 +15417,26 @@ def _fill_leftover_with_diverse_sights(
             ]
             walls = [*fixed, *meal_windows]
             floor = _day_fill_floor(day)
+            # 族亲和（2026-11-16）：当天已有可数件时只补同片区候选。
+            day_pts = [
+                (float(i.location.lon), float(i.location.lat))
+                for i in day.items
+                if isinstance(i, VisitItem)
+                and (i.category or "") not in ("food", "hotel")
+                and getattr(i, "location", None) is not None
+                and getattr(i.location, "lon", None) is not None
+                and getattr(i.location, "lat", None) is not None
+            ]
+            # 同地内核去重：朱家角古镇/朱家角镇这类同一地方的另一张卡不再补。
+            seen_cores = {
+                place_core(i.name)
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem)
+                and str(i.city or "").strip().removesuffix("市")
+                == str(day.base_city or "").strip().removesuffix("市")
+            }
+            seen_cores.discard("")
             avoid_set = {
                 _norm_site_name(a) for a in (avoid or set()) if str(a or "").strip()
             }
@@ -15401,6 +15500,21 @@ def _fill_leftover_with_diverse_sights(
                 )
                 and not _in_park_of_existing(plan, u.name)
                 and not any(k in str(u.name or "") for k in _LODGING_KEYS)
+                and place_core(u.name) not in seen_cores
+                # 族亲和：当天已有件时只补 5km 内
+                and not (
+                    day_pts
+                    and getattr(u, "location", None) is not None
+                    and getattr(u.location, "lon", None) is not None
+                    and min(
+                        haversine_km(
+                            GeoPoint(lon=_x, lat=_y),
+                            GeoPoint(lon=u.location.lon, lat=u.location.lat),
+                        )
+                        for _x, _y in day_pts
+                    )
+                    > _CLUSTER_FILL_KM
+                )
             ]
             if not pool:
                 break
@@ -30854,6 +30968,13 @@ class PlanningAgent:
             return []
         if _filled and not _holes:
             return []
+        # 先把族归位再补空档（2026-11-16「ALWAYS」）：盘面先符合聚族规则，
+        # 否则远郊件还钉在市区天，补点又把市区件塞进它该占的那天。
+        for note in _apply_geo_invariants(session.plan, relax_pins=True):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+            if note not in session.assumptions:
+                session.assumptions.append(note)
         notes = await self._fill_leftover_time(
             session.plan,
             avoid=set(session.avoid_sites or ()),
@@ -30862,7 +30983,7 @@ class PlanningAgent:
         if notes:
             # 补点后必须再过地理不变式：紧簇归位 + 簇日纯度（2026-11-16）。
             # 补点只看空档，会把 44km 外的件塞进簇日（上海 D1 大清邮局案）。
-            notes.extend(_apply_geo_invariants(session.plan))
+            notes.extend(_apply_geo_invariants(session.plan, relax_pins=True))
             live_names = {
                 str(i.name)
                 for d in session.plan.days

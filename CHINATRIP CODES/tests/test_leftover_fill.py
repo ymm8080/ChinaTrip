@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """空档补点（收尾第③步）2026-11-16 上海案：下限/餐窗/重日短件/上限/幂等。"""
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ def test_heavy_day_still_takes_a_short_sight():
         ]
     )
     notes = _fill_leftover_with_diverse_sights(
-        plan, bench=[_cand("短景点", 60, 121.55, 31.18)]
+        plan, bench=[_cand("短景点", 60, 121.50, 31.22)]
     )
     assert notes
     assert _placed(plan, "短景点").start_time == time(13, 0)
