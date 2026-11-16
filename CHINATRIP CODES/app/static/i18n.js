@@ -106,6 +106,7 @@
       "card.km": " km to next",
       "card.taxi": " · ~", "card.taxi_min": " min by taxi",
       "card.access": " · ~", "card.access_min": " min by shuttle", "card.fare": " · ~¥",
+      "card.hop.title": "🚏 Transfer route: ", "card.hop.taxi": "🚕 taxi to {stop} {km} km · ~{n} min", "card.hop.ride": "🚌 {name} departs {depart} · ~{n} min ride", "card.hop.wait": " (wait {n} min)", "card.hop.walk": "🚶 alight {stop} · {n} min walk", "card.hop.asap": "runs from first departure", "card.hop.times": "🕘 departures {times}", "card.hop.returns": "return {times}", "card.hop.cost": "taxi ~¥{a} + shuttle ~¥{b}", "card.hop.book": "Book/reserve →", "card.hop.official": "Official site →",
       "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "Open Amap taxi directly: origin = current location, destination = next stop", "card.callTaxi.noCoord": "No coordinates for this stop — search the destination on the Navigation tab",
       "card.mt": "Meituan", "card.mt.title": "Open Meituan dining channel for table booking / ordering; your registered traveler profile is attached and status is checked every 2 minutes until complete",
       "card.hotel.book": "Book hotel", "card.hotel.book.title": "Pull Ctrip / Meituan / Fliggy channel cards for tonight's hotel; falls back to the day's last located sight when the hotel isn't verified yet",

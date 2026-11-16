@@ -2007,6 +2007,52 @@ function planCard(plan) {
           const leg = I18N.t("card.to_next") + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
             (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
           blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
+          // 接驳路线拆分（2026-11-16 用户拍板：酒店→专线上车点（距离+时间）→专线车程→下车步行，
+          // 并给班次、票价、购票/官网链接）。数据全部来自后端 next_leg_detail。
+          const legD = it.next_leg_detail;
+          if (legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
+            const kmTxt = (Number(legD.taxi_km) || 0).toFixed(1);
+            const hops = [];
+            if ((Number(legD.taxi_km) || 0) > 0.05) {
+              hops.push(I18N.tf("card.hop.taxi", "🚕 打车到 {stop} {km} km · 约 {n} 分钟")
+                .replace("{stop}", esc(legD.gateway || ""))
+                .replace("{km}", kmTxt)
+                .replace("{n}", String(legD.taxi_minutes || 0)));
+            }
+            if (legD.service_name) {
+              let ride = I18N.tf("card.hop.ride", "🚌 {name} {depart} 发车 · 车程约 {n} 分钟")
+                .replace("{name}", esc(legD.service_name))
+                .replace("{depart}", legD.depart_time || I18N.tf("card.hop.asap", "首班后随到随走"))
+                .replace("{n}", String(legD.service_minutes || 0));
+              if ((legD.wait_minutes || 0) > 0) ride += I18N.tf("card.hop.wait", "（候车 {n} 分钟）").replace("{n}", String(legD.wait_minutes));
+              hops.push(ride);
+            }
+            if ((legD.walk_minutes || 0) > 0) {
+              hops.push(I18N.tf("card.hop.walk", "🚶 {stop} 下车 · 步行 {n} 分钟")
+                .replace("{stop}", esc(legD.alight || legD.gateway || ""))
+                .replace("{n}", String(legD.walk_minutes)));
+            }
+            if (hops.length) {
+              blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + I18N.tf("card.hop.title", "🚏 接驳路线：") + hops.join(" → ") + "</div>"));
+            }
+            const when = [];
+            if (Array.isArray(legD.departures) && legD.departures.length) {
+              when.push(I18N.tf("card.hop.times", "🕘 班次 {times}").replace("{times}", legD.departures.join(" / ")));
+            }
+            if (Array.isArray(legD.returns) && legD.returns.length) {
+              when.push(I18N.tf("card.hop.returns", "返程 {times}").replace("{times}", legD.returns.join(" / ")));
+            }
+            if ((legD.taxi_cost || 0) + (legD.access_cost || 0) > 0) {
+              when.push(I18N.tf("card.hop.cost", "打车约 ¥{a} + 接驳约 ¥{b}")
+                .replace("{a}", String(legD.taxi_cost || 0)).replace("{b}", String(legD.access_cost || 0)));
+            }
+            if (when.length) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + when.join(" · ") + "</div>"));
+            const ticket = [];
+            if (legD.fare_text) ticket.push("🎟 " + esc(legD.fare_text));
+            if (legD.booking_url) ticket.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.booking_url) + '">' + I18N.tf("card.hop.book", "购票/预约 →") + "</a>");
+            if (legD.official_url && legD.official_url !== legD.booking_url) ticket.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(legD.official_url) + '">' + I18N.tf("card.hop.official", "官网 →") + "</a>");
+            if (ticket.length) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + ticket.join(" · ") + "</div>"));
+          }
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));

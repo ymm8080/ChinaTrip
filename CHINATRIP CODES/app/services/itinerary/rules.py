@@ -154,11 +154,72 @@ def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int
     return mode, boarding, service, wait, last
 
 
-def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
-    """a 鈫?b 的接驳链拆分：taxi_km=到乘车点的打车段；minutes=全链分钟。
+def _is_morning_hotel(item: VisitItem) -> bool:
+    """当天「从酒店出发」晨卡（占位，id=hotel-morning-dN）。"""
+    return str(getattr(item, "item_id", "") or "").startswith("hotel-morning")
 
-    2026-11-16 用户拍板「网页正确显示时间和成本预估」：成本要把打车到乘车点
-    的里程单独拿出来计价（接驳段票价另计）。
+
+def _hhmm_minutes(text: str | None) -> int | None:
+    """'09:30' → 570；脏值返回 None。"""
+    raw = str(text or "").strip().replace("：", ":")
+    if ":" not in raw:
+        return None
+    head, _, tail = raw.partition(":")
+    try:
+        hour, minute = int(head), int(tail[:2])
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return hour * 60 + minute
+
+
+def _fastest_ride(
+    city: str | None,
+    name: str | None,
+    board: int | None,
+    ride_fallback: int,
+    last_fallback: int,
+    departures: list[str] | None = None,
+) -> tuple[int | None, int, int, int]:
+    """挑「到景区最早」的一班（与 access_services.fastest_plan 同一口径）。
+
+    没有官方时刻表时回落档案经验值（发车=None、候车用档案值）。
+    """
+    if board is None:
+        board = 9 * 60  # 无前件时刻：用户口径「远郊专线通常 9 点前后」
+    try:
+        from app.services import access_services
+
+        got = access_services.fastest_plan(
+            city,
+            name,
+            board,
+            ride_fallback=ride_fallback,
+            last_fallback=last_fallback,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        got = None
+    if got is None:
+        # 班次库不可用：退回卡上自带的官方时刻表（同一「最快到景区」口径）
+        times = [
+            m
+            for m in (_hhmm_minutes(t) for t in (departures or []))
+            if m is not None
+        ]
+        nxt = next((t for t in sorted(times) if t >= board), None)
+        if nxt is None:
+            return None, ride_fallback, last_fallback, 0
+        return nxt, ride_fallback, last_fallback, nxt - board
+    depart, ride, last, wait = got
+    return depart, ride, last, wait
+
+
+def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
+    """a → b 的接驳链拆分（2026-11-16 用户拍板「显示打车段/专线/步行」）。
+
+    打车到乘车点（距离/分钟）→ 候车 → 专线车程 → 落客步行；班次按
+    「到站后最快到景区」挑（没有官方时刻表才用档案经验值）。
     """
     mode, boarding, service, wait, last = _access_profile(b)
     if mode not in SCHEDULED_ACCESS_MODES:
@@ -168,15 +229,46 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         return None
     taxi_km = haversine_km(_from, boarding)
     head = taxi_leg_min(taxi_km)
+    a_end = None
+    if getattr(a, "end_time", None) is not None:
+        a_end = a.end_time.hour * 60 + a.end_time.minute
+    elif getattr(a, "start_time", None) is not None:
+        a_end = a.start_time.hour * 60 + a.start_time.minute + int(
+            getattr(a, "duration_minutes", None) or 0
+        )
+    # 晨卡（「从酒店出发」占位，08:30-09:00 打包窗口）不是真的在酒店玩半小时：
+    # 排期口径一直是「接驳链从晨卡开始时打」，这里对齐，免得卡上时间比腿短 30 分钟。
+    if _is_morning_hotel(a) and getattr(a, "start_time", None) is not None:
+        a_end = a.start_time.hour * 60 + a.start_time.minute
+    board = a_end + head if a_end is not None else None
+    if board is None:
+        board = 9 * 60  # 无前件时刻：用户口径「远郊专线通常 9 点前后」
+    depart, ride, last_mile, wait_minutes = _fastest_ride(
+        getattr(b, "city", None),
+        b.name,
+        board,
+        service,
+        last,
+        getattr(b, "access_depart_times", None),
+    )
+    if depart is None:
+        # 没有官方时刻表：沿用卡上档案（车上分钟 + 经验候车）
+        ride, last_mile, wait_minutes = service, last, wait
+    minutes = max(
+        TRAVEL_GAP_FLOOR_MIN,
+        head + (wait_minutes or 0) + ride + last_mile,
+    )
     return {
         "mode": mode,
-        "minutes": max(TRAVEL_GAP_FLOOR_MIN, head + wait + service + last),
+        "minutes": minutes,
         "taxi_km": taxi_km,
-        "wait": wait,
-        "service": service,
-        "last": last,
+        "taxi_minutes": head,
+        "wait": max(0, wait_minutes or 0),
+        "service": ride,
+        "last": last_mile,
+        "board": board,
+        "depart": depart,
     }
-
 
 def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
     """a 鈫?b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""

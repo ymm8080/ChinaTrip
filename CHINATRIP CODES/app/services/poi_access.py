@@ -362,19 +362,35 @@ def summarize(
 
 
 def _attach_service_window(item: VisitItem) -> None:
-    """把远郊专线时刻表挂到卡上（无班次数据则保持均值链口径）。"""
+    """把远郊专线时刻表挂到卡上（2026-11-16 用户拍板「显示班次/票价/预约」）。
+
+    选「到乘车点后最快到景区」的一条（fastest_service，参考 09:00 到站），
+    并把乘车点/下车站/首末班/发车时刻/票价/预约与官网 URL 一起挂上。
+    """
     from app.services import access_services
 
-    service = access_services.best_service(item.city, item.name)
+    service = access_services.fastest_service(
+        item.city, item.name, arrive_boarding=9 * 60
+    )
     if service is None:
         return
     item.access_service_name = service.service_name
+    item.access_boarding_stop = service.boarding_stop
+    item.access_alight_stop = service.alight_stop
+    item.access_operator = service.operator
     item.access_depart_first = service.first_departure()
     item.access_depart_last = service.last_departure()
+    item.access_depart_times = [
+        fmt for m in service.departures() if (fmt := access_services.fmt_minutes(m))
+    ]
+    item.access_return_times = [
+        fmt for m in service.return_times if (fmt := access_services.fmt_minutes(m))
+    ]
     item.access_ride_minutes = service.ride_minutes or item.access_service_minutes
     item.access_return_last = service.return_last
     item.access_fare_text = service.fare_text()
-    # 有明确车上分钟时以时刻表为准（均值链可能来自另一条线路）
+    item.access_ticket_url = service.ticket_url or service.official_url
+    item.access_official_url = service.official_url or service.ticket_url
     if service.ride_minutes:
         item.access_service_minutes = service.ride_minutes
     if service.last_mile_minutes is not None:
@@ -469,13 +485,16 @@ def profile_for(city: str | None, name: str | None) -> dict[str, Any] | None:
     return profiles.get((str(city or ""), name)) or profiles.get(("", name))
 
 
-def head_chain_minutes(item: Any) -> int | None:
-    """当天首件的头部接驳分钟（城心 → 乘车点 + 候车 + 车上 + 落客）。
+def head_chain_minutes(item: Any, *, depart_minute: int | None = None) -> int | None:
+    """当天首件的头部接驳分钟（打车到乘车点 + 候车 + 车上 + 落客）。
 
     为什么用城心代理：酒店卡只有名字没有坐标时，头部锚点只能给 30 分钟默认
     值——「08:30 出发、09:00 到慕田峪」这种日历对不上专线 2 小时 15 分。用
     城心当出发锚是保守下界（真实酒店只会更远），把首件推到排得下的时刻。
-    非班次点 / 缺档案返回 None（调用方维持原逻辑）。
+
+    候车按官方时刻表算（2026-11-16 用户拍板 MOST TIME SAVING METHOD）：
+    ``depart_minute`` = 当天出发时刻（晨卡 08:30），到乘车点后取最快一班；
+    没给就按 09:00 口径。无时刻表/无档案回落经验值，绝不让排期因缺数据卡死。
     """
     mode = getattr(item, "access_mode", None)
     boarding = getattr(item, "access_boarding", None)
@@ -505,4 +524,21 @@ def head_chain_minutes(item: Any) -> int | None:
     head = taxi_leg_min(
         haversine_km(GeoPoint(lon=float(center[1]), lat=float(center[0])), boarding)
     )
+    board = (depart_minute if depart_minute is not None else 9 * 60) + head
+    try:
+        from app.services import access_services
+
+        got = access_services.fastest_plan(
+            city,
+            getattr(item, "name", None),
+            board,
+            ride_fallback=int(service),
+            last_fallback=int(last),
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        got = None
+    if got is not None:
+        _depart, ride, last_mile, wait_minutes = got
+        return head + wait_minutes + ride + last_mile
     return head + int(wait) + int(service) + int(last)
+

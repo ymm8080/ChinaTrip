@@ -127,6 +127,14 @@ class VisitItem(BaseModel):
     access_ride_minutes: int | None = None
     access_return_last: int | None = None
     access_fare_text: str | None = None
+    access_boarding_stop: str | None = None
+    access_alight_stop: str | None = None
+    access_operator: str | None = None
+    access_depart_times: list[str] | None = None
+    access_return_times: list[str] | None = None
+    access_ticket_url: str | None = None
+    access_official_url: str | None = None
+    next_leg_detail: dict | None = None
     # Iron rule 19: user-confirmed items must not be moved by solver/LLM.
     pinned: bool = False
     # 必去/心愿卡（plan._merge_must_visits 装配期落标）：铁律 19 的去重

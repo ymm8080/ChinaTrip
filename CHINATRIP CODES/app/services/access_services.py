@@ -96,6 +96,8 @@ class Service:
     note_en: str | None = None
     source: str | None = None
     source_url: str | None = None
+    official_url: str | None = None
+    official_status: str | None = None
 
     # --- 窗判定 -------------------------------------------------------
     def departures(self) -> list[int]:
@@ -214,6 +216,8 @@ def _to_service(row: dict[str, Any]) -> Service:
         note_en=row.get("note_en"),
         source=row.get("source"),
         source_url=row.get("source_url"),
+        official_url=row.get("official_url"),
+        official_status=row.get("official_status"),
     )
 
 
@@ -279,3 +283,53 @@ def best_service(city: str | None, name: str | None) -> Service | None:
         return None
     with_window = [s for s in items if s.outbound_first is not None or s.outbound_times]
     return (with_window or items)[0]
+
+
+def fastest_service(
+    city: str | None, name: str | None, *, arrive_boarding: int | None = None
+) -> Service | None:
+    """按「到乘车点后最快到景区」挑一条班次（2026-11-16 用户拍板
+    「MOST TIME SAVING METHOD」）：逐条算 next_departure → 到景区时刻，
+    取最早；并列时取票价低。没有时刻表时回落 best_service。"""
+    items = services_for(city, name)
+    if not items:
+        return None
+    if arrive_boarding is None:
+        arrive_boarding = 9 * 60  # 用户口径：远郊专线通常 9 点前后
+    best: Service | None = None
+    best_key: tuple | None = None
+    for svc in items:
+        _verdict, _depart, arrive = svc.plan_leg(arrive_boarding)
+        if arrive is None:
+            continue
+        key = (arrive, svc.fare_cny if svc.fare_cny is not None else 10**9)
+        if best_key is None or key < best_key:
+            best, best_key = svc, key
+    return best or best_service(city, name)
+
+
+def fastest_plan(
+    city: str | None,
+    name: str | None,
+    board_minutes: int,
+    *,
+    ride_fallback: int | None = None,
+    last_fallback: int | None = None,
+) -> tuple[int, int, int, int] | None:
+    """给定到乘车点时刻，挑「到景区最早」的一班（用户拍板 2026-11-16
+    MOST TIME SAVING METHOD）。返回 (发车, 车上分钟, 落客步行分钟, 候车分钟)；
+    没有官方时刻表返回 None（调用方退回档案经验值）。"""
+    best: tuple[tuple[int, int], int, int, int] | None = None
+    for svc in services_for(city, name):
+        ride = int(svc.ride_minutes or ride_fallback or 0)
+        last = int(svc.last_mile_minutes or last_fallback or 0)
+        for depart in sorted(svc.departures()):
+            if depart < int(board_minutes):
+                continue
+            key = (depart + ride + last, depart)
+            if best is None or key < best[0]:
+                best = (key, depart, ride, last)
+    if best is None:
+        return None
+    _key, depart, ride, last = best
+    return depart, ride, last, max(0, depart - int(board_minutes))

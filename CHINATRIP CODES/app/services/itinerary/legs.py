@@ -123,6 +123,7 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             a.next_leg_cost_note = L(
                 "含接驳票价估算", "includes an estimated shuttle fare"
             )
+            a.next_leg_detail = _access_detail(a, b, br)
         elif km <= TAXI_WALK_MAX_KM:
             a.next_leg_mode = "walk"
             a.next_leg_minutes = max(1, round(km * TRAVEL_MIN_PER_KM))
@@ -135,6 +136,76 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+def _clock(minutes) -> str | None:
+    """570 → '09:30'；空值/越界回 None（前端只当补充信息）。"""
+    try:
+        value = int(minutes)
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= value < 24 * 60):
+        return None
+    return f"{value // 60:02d}:{value % 60:02d}"
+
+
+def _access_detail(
+    a: VisitItem, b: VisitItem, br: dict
+) -> dict:
+    """接驳腿拆分（2026-11-16 用户拍板：网页要看清楚打车段/专线/步行/预约）。
+
+    数据优先用卡上已挂的官方班次（w12_0039）；没有就现场查一次
+    ``access_services``（读不到就只给打车+时长，不编 URL）。
+    """
+    svc = None
+    if not getattr(b, "access_service_name", None):
+        try:
+            from app.services import access_services
+
+            svc = access_services.fastest_service(
+                b.city, b.name, arrive_boarding=9 * 60
+            )
+        except Exception:  # noqa: BLE001 - 班次库不可用不影响腿展示
+            svc = None
+
+    def _pick(attr: str, fallback=None):
+        val = getattr(b, attr, None)
+        if val not in (None, "", []):
+            return val
+        return getattr(svc, attr, None) if svc is not None else fallback
+
+    details = {
+        "mode": "access",
+        "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
+        "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "wait_minutes": int(br.get("wait") or 0),
+        "service_minutes": int(br.get("service") or 0),
+        "walk_minutes": int(br.get("last") or 0),
+        "gateway": _pick("access_boarding_stop") or "乘车点",
+        "alight": _pick("access_alight_stop"),
+        "service_name": _pick("access_service_name") or "",
+        "operator": _pick("access_operator"),
+        "departures": _pick("access_depart_times") or [],
+        "returns": _pick("access_return_times") or [],
+        "fare_text": _pick("access_fare_text"),
+        "board_time": _clock(br.get("board")),
+        "depart_time": _clock(br.get("depart")),
+        "arrive_time": _clock(
+            (br.get("depart") or 0) + int(br.get("service") or 0)
+            + int(br.get("last") or 0)
+            if br.get("depart") is not None
+            else None
+        ),
+        "taxi_cost": estimate_taxi_fare(a.city or b.city, float(br.get("taxi_km") or 0.0)),
+        "access_cost": access_fare_estimate(br.get("mode")),
+        "booking_url": _pick("access_ticket_url")
+        or getattr(b, "booking_url", None)
+        or "",
+        "official_url": _pick("access_official_url")
+        or getattr(b, "website", None)
+        or "",
+    }
+    return details
+
+
 def _clear_leg(item: VisitItem) -> None:
     item.distance_to_next_km = None
     item.next_walk_minutes = None
@@ -143,3 +214,4 @@ def _clear_leg(item: VisitItem) -> None:
     item.next_leg_mode = None
     item.next_leg_cost_cny = None
     item.next_leg_cost_note = None
+    item.next_leg_detail = None
