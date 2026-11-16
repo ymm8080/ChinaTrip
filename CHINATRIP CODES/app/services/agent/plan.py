@@ -11057,6 +11057,42 @@ def _taxi_minutes_to(src: VisitItem | None, dst) -> int | None:
         return None
 
 
+def _window_gap_minutes(
+    prev: VisitItem | None, cur: VisitItem, prev_end: int
+) -> tuple[int | None, str | None]:
+    """班次点从「前一件收尾」到「进景区门口」需要的分钟 + 可选披露。
+
+    返回 ``(minutes, note)``：
+
+    * 无窗（卡上没有首末班）→ ``(None, None)``，调用方按原口径；
+    * 窗内 → 到门口 = max(到上车点, 首班) + 车上 + 末段，减去 prev_end 即间隔；
+    * 到上车点晚于末班 → 改打车直达（前件无坐标时按城心兜底），note 说明原因。
+    """
+
+    win_first = getattr(cur, "access_depart_first", None)
+    win_last = getattr(cur, "access_depart_last", None)
+    if win_first is None and win_last is None:
+        return None, None
+    board = getattr(cur, "access_boarding", None)
+    ahead = _taxi_minutes_to(prev, board) if prev is not None else None
+    if ahead is None:
+        ahead = _center_taxi_minutes(cur.city, board)
+    arrive_board = prev_end + (ahead or 0)
+    if win_last is not None and arrive_board > win_last:
+        direct = _taxi_minutes_to(prev, cur.location) if prev is not None else None
+        if direct is None:
+            direct = _center_taxi_minutes(cur.city, cur.location)
+        note = (
+            f"专线末班 {win_last // 60:02d}:{win_last % 60:02d} 已赶不上，"
+            "这段改打车直达"
+        )
+        return direct, note
+    ride = getattr(cur, "access_ride_minutes", None) or 0
+    last_mile = getattr(cur, "access_last_mile_minutes", None) or 0
+    depart = arrive_board if win_first is None else max(arrive_board, win_first)
+    return depart + ride + last_mile - prev_end, None
+
+
 def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
     """兜底/加卡收口：班次点前一件 → 本件的腿按接驳链补足（2026-11-15）。
 
@@ -11106,44 +11142,13 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
             if prev_end is None:
                 continue
             need = prev_end + chain
-            # 远郊专线服务窗（2026-11-16 用户拍板「班次服务窗建硬约束，超窗就
-            # 换天/换方式」）：先算「到上车点」的时刻，再按班次落到景区门口；
-            # 赶不上末班就改打车直达并留痕——绝不留一个「没车的时刻」。
-            win_first = getattr(cur, "access_depart_first", None)
-            win_last = getattr(cur, "access_depart_last", None)
-            if win_first is not None or win_last is not None:
-                board = getattr(cur, "access_boarding", None)
-                # 锚必须是**紧邻前一件的收尾**：拿更早有坐标的那张卡算车程
-                # 会把「午饭 12:30 收尾」当成「10:00 收尾」，窗判定直接失效。
-                ahead = _taxi_minutes_to(timed[idx - 1], board)
-                if ahead is None:
-                    ahead = _center_taxi_minutes(cur.city, board)
-                arrive_board = prev_end + (ahead or 0)
-                if win_last is not None and arrive_board > win_last:
-                    direct = _taxi_minutes_to(timed[idx - 1], cur.location)
-                    if direct is None:
-                        direct = _taxi_minutes_to(prev_located, cur.location)
-                    if direct is None:
-                        direct = _center_taxi_minutes(cur.city, cur.location)
-                    if direct:
-                        need = prev_end + direct
-                    notes.append(
-                        L(
-                            f"第{day.day}天「{cur.name}」专线末班 "
-                            f"{win_last // 60:02d}:{win_last % 60:02d} 已赶不上，"
-                            "这段改打车直达",
-                            f"Day {day.day}: last shuttle at "
-                            f"{win_last // 60:02d}:{win_last % 60:02d} missed, "
-                            f'taxi straight to "{cur.name}"',
-                        )
-                    )
-                else:
-                    ride = getattr(cur, "access_ride_minutes", None) or 0
-                    last_mile = getattr(cur, "access_last_mile_minutes", None) or 0
-                    depart = arrive_board
-                    if win_first is not None and depart < win_first:
-                        depart = win_first
-                    need = depart + ride + last_mile
+            # 班次服务窗（2026-11-16 用户拍板「超窗就换天/换方式」）：口径与
+            # 餐腿相位共用 _window_gap_minutes，避免两处各算一套。
+            win_gap, win_note = _window_gap_minutes(timed[idx - 1], cur, prev_end)
+            if win_gap is not None:
+                need = prev_end + win_gap
+            if win_note:
+                notes.append(L(f"第{day.day}天「{cur.name}」{win_note}", win_note))
             # 日终闸：推到 21:30 之后只会把晚饭/夜卡拖成 22:52，宁可保留
             # 原时刻让校验去点名（不制造更差的时刻表）。
             if need + (cur.duration_minutes or DEFAULT_VISIT_MINUTES) > 21 * 60 + 30:
@@ -12290,12 +12295,21 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
             # 班次点（景区专线/市郊铁路/轮渡）不吃 15 分钟城内短驳估值：
             # 餐卡有坐标走车→乘车点链，没坐标按城心头部链兜底，否则
             # 「午饭 12:00-13:00 → 慕田峪 13:30」这种 30 分钟硬贴又回来了。
-            # 注意：本函数内 chain 是当天排序列表，这里另起名字
+            # 注意：本函数内 chain 是当天排序列表，这里另起名字。
             access_min = access_chain_minutes(meal, site)
             if access_min is None:
                 access_min = head_chain_minutes(site)
             if access_min:
                 need = max(need, access_min)
+            meal_end_now = _item_end_minutes(meal)
+            if meal_end_now is None:
+                meal_end_now = _minutes_of(meal.start_time)
+            if meal_end_now is not None:
+                win_gap, win_note = _window_gap_minutes(meal, site, meal_end_now)
+                if win_gap is not None:
+                    need = win_gap
+                if win_note:
+                    notes.append(f"「{site.name}」{win_note}")
             if need <= 0:
                 idx += 1
                 continue
