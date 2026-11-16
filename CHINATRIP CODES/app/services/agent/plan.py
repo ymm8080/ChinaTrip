@@ -1243,7 +1243,11 @@ def _mark_remote_visits(plan: ItineraryPlan) -> int:
     return marked
 
 
-def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> list[dict]:
+def _enforce_day_zones(
+    items: list[dict],
+    notes: list[str] | None = None,
+    rainy_days: set[int] | None = None,
+) -> list[dict]:
     """日间混排收口（2026-11-13 拍板）：城心件与远郊件不同日。远郊件先
     改投「无城心件」的日子（空日/远郊日），没有可投日才移出并留痕——
     留在城心日会把一天变成 60km 折返（上海野生动物园 27km 实录）。"""
@@ -1308,16 +1312,40 @@ def _enforce_day_zones(items: list[dict], notes: list[str] | None = None) -> lis
             for far in [x for x in sights if zones[id(x)] == 2]:
                 if far in dropped:
                     continue
+                def _hosts(d2: int) -> bool:
+                    return (
+                        d2 != d
+                        and all(_zone(x) != 0 for x in _sights(d2))
+                        and len(_sights(d2)) < 4
+                    )
+
+                # 露天/未标注件不改投雨日（2026-11-02「雨日是硬闸」）：
+                # 混排收口不能把雨日避让出来的件洗回雨天
+                _rain_sensitive = (
+                    far.get("_rain_exposed")
+                    or far.get("_rain_unmarked")
+                    or _rain_exposed(far)
+                    or _rain_unmarked(far)
+                )
                 target = next(
                     (
                         d2
                         for d2 in days
-                        if d2 != d
-                        and all(_zone(x) != 0 for x in _sights(d2))
-                        and len(_sights(d2)) < 4
+                        if _hosts(d2)
+                        and not (_rain_sensitive and d2 in (rainy_days or set()))
                     ),
                     None,
                 )
+                if (
+                    target is None
+                    and _rain_sensitive
+                    and rainy_days
+                    and any(_hosts(d2) for d2 in days if d2 in rainy_days)
+                ):
+                    # 雨闸挡住的不是「没地方」，是「下雨不能去」——别把
+                    # 用户点当远郊累赘移除（对调层刚换好的件会被这一刀
+                    # 删掉）：原地保留，交披露。
+                    continue
                 if target is None:
                     dropped.append(far)
                 else:
@@ -1458,8 +1486,23 @@ def _cand_endpoint_content(cand: dict) -> bool:
             return False
     except (TypeError, ValueError):
         return False
-    return cat == "citywalk" or any(
+    if cat == "citywalk" or any(
         m in str(cand.get("name") or "") for m in _STREET_NAME_MARKS
+    ):
+        return True
+    # 轻量真实景点镜像（2026-11-14 拍板「到达日的城市漫步要落在真景点
+    # 上」/ _arrival_sight_visit 的候选版）：景点/街区/古迹类、非王牌、
+    # 短时（≤80 分钟大点阈值）算端点合法内容。90-120 分钟的市内点仍
+    # 交出选点层——落地缓冲 + 16:30 闸根本排不进，选点层收了也只会
+    # 在终装被挪走（选点/清扫自相矛盾的另一半）。
+    try:
+        short_minutes = int(minutes or 0)
+    except (TypeError, ValueError):
+        short_minutes = 0
+    return bool(
+        (cat in _ARRIVAL_SIGHT_CATS or cat == "sight")
+        and 0 < short_minutes <= BIG_SITE_MIN_MINUTES
+        and not _cand_is_big(cand)
     )
 
 
@@ -11304,9 +11347,22 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
                     dur = DEFAULT_VISIT_MINUTES
                 # 顺延链里每一对也要吃腿：只按前件尾排会重新贴成 0 分钟
                 # （颐和园 19:30 散场 → 梵高 19:30 开场）。
-                leg = travel_gap_needed(prev_item, later)
-                if leg is None:
-                    leg = _leg_minutes_estimate(prev_item, later)
+                # 例外：餐卡占位（午饭/晚饭「自由安排」）是槽位不是实体，
+                # 它贴在前一站/城心，本身不带跨城通勤——按腿推会把晚饭
+                # 从 19:00 顶到 21:46 再整段放弃收口。
+                if (
+                    is_lunch_placeholder(later)
+                    or is_dinner_placeholder(later)
+                    or (
+                        (later.category or "") == "food"
+                        and getattr(later, "soft_pin", False)
+                    )
+                ):
+                    leg = 0
+                else:
+                    leg = travel_gap_needed(prev_item, later)
+                    if leg is None:
+                        leg = _leg_minutes_estimate(prev_item, later)
                 s = max(orig, cursor_end + int(leg or 0))
                 e = s + dur
                 if e >= 24 * 60 or e > 21 * 60 + 30:
@@ -12130,6 +12186,16 @@ def _fallback_sequence_times(
                     break
             if placed is None:
                 day.items.remove(meal)
+                # 永不静默（2026-11-14 拍板「归零必须披露」）：窗被整段占满
+                # 而丢卡，同样按 _ensure_meal_cards 的同一句话披露
+                note = L(
+                    f"第{day.day}天行程紧凑：午餐建议在游览途中就地解决"
+                    "（未单独留午饭卡时段）",
+                    f"Day {day.day}: packed schedule — have lunch during the "
+                    "site visits (no separate lunch slot held)",
+                )
+                if note not in plan.assumptions:
+                    plan.assumptions.append(note)
                 logger.warning(
                     "plan: lunch window 11:30-12:30 full on day %d — drop %s",
                     day.day,
@@ -12866,6 +12932,7 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
     timed.sort(key=lambda i: _minutes_of(i.start_time))
     cursor = start + dur
     moves: list[tuple[VisitItem, time, time, int]] = []
+    prev_moved: VisitItem | None = None
     for other in timed:
         s = _minutes_of(other.start_time)
         e = _item_end_minutes(other)
@@ -12877,8 +12944,14 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
             break
         if not _meal_chain_yieldable(other):
             return False
-        # 同址景点可紧贴餐卡尾；被压住的下一件留 10 分钟通勤
-        new_start = cursor if not moves else cursor + 10
+        # 同址景点可紧贴餐卡尾；被压住的下一件按真实腿距让位（2026-11-16：
+        # 旧写死 10 分钟通勤，让位后出站链成背靠背 10 分钟，与校验/兜底
+        # 的 travel_gap_needed 口径打架）
+        if prev_moved is None:
+            new_start = cursor
+        else:
+            leg = travel_gap_needed(prev_moved, other) or 0
+            new_start = cursor + leg
         new_dur = max(30, e - s)
         new_end = new_start + new_dur
         if new_end > day_end:
@@ -12887,6 +12960,7 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
             return False
         moves.append((other, _time_of(new_start), _time_of(new_end), new_dur))
         cursor = new_end
+        prev_moved = other
     for other, new_start, new_end, new_dur in moves:
         other.start_time = new_start
         other.end_time = new_end
@@ -21986,6 +22060,11 @@ class PlanningAgent:
             return
         rows = [r for g in groups.values() for r in g]
         cur_sid = self._wish_draft_session(session)
+        trip_cities = {
+            _norm_city(str(c or "")).removesuffix("市")
+            for c in (session.cities or [])
+            if str(c or "").strip()
+        }
         for item in planned:
             matches = [
                 r
@@ -22003,6 +22082,17 @@ class PlanningAgent:
                 if not str(r.get("draft_session_id") or "")
                 or str(r.get("draft_session_id")) == (cur_sid or "")
             ]
+            # 城闸镜像（2026-11-08 拍板「不把西安心愿挂进成都重庆」，
+            # 与 _sync_wish_rows 的 _wish_row_eligible 同口径）：别城
+            # 心愿行即便与本行程同名条目撞名，也不换绑、不翻已排期。
+            if trip_cities:
+                matches = [
+                    r
+                    for r in matches
+                    if not (r.get("city") or "").strip().removesuffix("市")
+                    or _norm_city(str(r.get("city") or "")).removesuffix("市")
+                    in trip_cities
+                ]
             bound_rows = [r for r in matches if r.get("itinerary_id") == itin]
             if bound_rows:
                 row = sorted(
@@ -22655,6 +22745,11 @@ class PlanningAgent:
                 # 回填借池外补量绕过「风景区 1/行程」上限。
                 "tags": cand.get("tags"),
                 "source": cand.get("source"),
+                # 露天标记随规格下传：末端混排闸（_enforce_day_zones）只用
+                # 规格字典，原始 rain_ok 已在规格里丢失——不带下去雨日
+                # 硬闸会在收口最后一刻被洗掉
+                "_rain_exposed": _rain_exposed(cand),
+                "_rain_unmarked": _rain_unmarked(cand),
             }
 
         # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
@@ -24868,6 +24963,10 @@ class PlanningAgent:
                             # ∪ 伞名对联（同进退）；单元内任一成员过不了
                             # 保护闸（钉/演出/自建/curated/餐宿）则整组不
                             # 可让，整组最强成员仍弱于入件才可让。
+                            # 多样保位行（商业/城走/茶，2026-11-07 拍板「要与
+                            # 5A 竞争」）不入让位名单：无档填充行不得把它们
+                            # 挤出池（只允许王牌 tier≤3 顶替）。
+                            _shed_by_premium = _source_tier(cand) <= 3
                             _guard = {
                                 p: not (
                                     c.get("must")
@@ -24877,6 +24976,10 @@ class PlanningAgent:
                                     or c.get("created")
                                     or c.get("curated")
                                     or str(c.get("category") or "") in ("food", "hotel")
+                                    or (
+                                        not _shed_by_premium
+                                        and _cand_diversity_group(c) is not None
+                                    )
                                 )
                                 for p, c in placed[d]
                             }
@@ -25059,6 +25162,19 @@ class PlanningAgent:
                                 ):
                                     continue
                                 if _rain_blocked(cand_v, d):
+                                    continue
+                                # 未标注室内外的件不往雨日里拉（2026-11-05
+                                # 软口径 + 对调层）：否则对调层刚把「磁街区
+                                # ↔ 丙馆」换好，愈合轮又把它拉回雨日族里，
+                                # 留下「丙馆被换走、磁街区没走」的半拉子。
+                                if (
+                                    d in rainy_here
+                                    and _rain_unmarked(cand_v)
+                                    and any(
+                                        x not in rainy_here
+                                        for x in range(lo, hi + 1)
+                                    )
+                                ):
                                     continue
                                 if _far_km(xy_v, d) > _SOFT_FAR_KM:
                                     continue
@@ -26082,7 +26198,7 @@ class PlanningAgent:
                         )
             for idx, cand in enumerate(foods):
                 items.append(_item(cand, lo + idx % span, MEAL_DURATION_MINUTES))
-        _enforce_day_zones(items, notes)
+        _enforce_day_zones(items, notes, rainy_days=rainy_here)
         _enforce_full_day(items, notes)
         return items
 
@@ -26610,6 +26726,11 @@ class PlanningAgent:
                         and (_source_tier(s0) <= 3 or _cand_is_big(s0))
                     )
                     and not _rb_return_reject(s0, t)
+                    # 露天不进雨天（2026-11-02 硬闸，与回填/选点同口径）：
+                    # 分流只能把露天件挪去干日，否则雨日避让被均衡洗掉
+                    and not (
+                        _rain_exposed(s0) and t in city_rain.get(city, set())
+                    )
                 ]
                 if not targets:
                     return False
@@ -26680,6 +26801,9 @@ class PlanningAgent:
                             and (_source_tier(g) <= 3 or _cand_is_big(g))
                         ) or _rb_return_reject(g, t):
                             ok = False  # 王牌/大块头/出市区圈不进返程日
+                            break
+                        if _rain_exposed(g) and t in city_rain.get(city, set()):
+                            ok = False  # 露天件不整组搬进雨天（同单件口径）
                             break
                     if ok and day_load[t] + total <= _budget(t):
                         g_targets.append(t)
@@ -30694,6 +30818,55 @@ class PlanningAgent:
                     released.append((item.item_id, op))
         return released
 
+    def _drop_unconfirmed_pin_diffs(
+        self, plan: ItineraryPlan, diffs: list[DiffOp], user_text: str
+    ) -> tuple[list[DiffOp], list[str]]:
+        """铁律 19 反向闸（2026-11-16）：用户**没点名**的钉住卡，不许被
+        LLM 的 remove/retime/move 静默改动。
+
+        `_release_confirmed_pins` 管「点名=授权」；本函数管剩下的那一半
+        ——无名指代（「把那里改到 10:00」）即便模型给了 item_id，也不能
+        悄悄改用户亲手确认过的卡。实测回归：无名 retime 直接落在钉住卡上、
+        校验告警也没进回复，用户看到的是「已调整」。
+        """
+        if not diffs or not user_text:
+            return diffs, []
+        pinned_names = {
+            it.item_id: (it.name or "")
+            for day in plan.days
+            for it in day.items
+            if isinstance(it, VisitItem) and it.pinned
+        }
+        if not pinned_names:
+            return diffs, []
+        kept: list[DiffOp] = []
+        dropped: list[str] = []
+        for op in diffs:
+            name = pinned_names.get(op.item_id or "")
+            if (
+                op.op in ("remove", "retime", "move")
+                and name
+                and name not in user_text
+            ):
+                dropped.append(name)
+                continue
+            kept.append(op)
+        notes: list[str] = []
+        if dropped:
+            names = L(
+                "、".join(f"「{n}」" for n in dict.fromkeys(dropped)),
+                ", ".join(f'"{n}"' for n in dict.fromkeys(dropped)),
+            )
+            notes.append(
+                L(
+                    f"{names} 是你确认过的卡（已钉住），这次没点名就不动它；"
+                    "要改请直接说名字",
+                    f"{names} is user-confirmed (pinned) — it stays untouched "
+                    "unless you name it; say the name to change it",
+                )
+            )
+        return kept, notes
+
     def move_item(
         self,
         session: PlanSession,
@@ -32457,6 +32630,9 @@ class PlanningAgent:
                             if (it.category or "") != "food":
                                 it.soft_pin = False
         plan_before = session.plan
+        diffs, pin_notes = self._drop_unconfirmed_pin_diffs(
+            plan_before, diffs, user_text
+        )
         released = self._release_confirmed_pins(plan_before, diffs, user_text)
         current_diffs = diffs
         applied: ItineraryPlan | None = None
@@ -32526,6 +32702,8 @@ class PlanningAgent:
             current_diffs = repaired
 
         notes: list[str] = []
+        # 无名不动钉住卡（铁律 19 反向闸）的披露先落地，用户看得见
+        notes.extend(pin_notes)
         if applied is not None and drop_notes:
             notes.extend(drop_notes)
         if not error_text:

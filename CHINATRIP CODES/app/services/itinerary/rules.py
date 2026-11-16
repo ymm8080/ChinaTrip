@@ -687,7 +687,17 @@ def validate_plan(
     return _report(violations)
 
 
-_SCOPE_IGNORE_FIELDS = ("distance_to_next_km", "next_walk_minutes", "leg_source")
+# 腿标注的展示字段全集（annotate_legs 出口端恒补）：2026-11-16 补
+# next_leg_minutes/mode/cost_cny——2026-11-13 加腿模式与费用后 model_copy
+# 只归一三键，纯展示漂移又被判成「早于 from_day 却变了」（铁律 10 误报）
+_SCOPE_IGNORE_FIELDS = (
+    "distance_to_next_km",
+    "next_walk_minutes",
+    "leg_source",
+    "next_leg_minutes",
+    "next_leg_mode",
+    "next_leg_cost_cny",
+)
 
 
 def _scope_key(day: DayPlan):

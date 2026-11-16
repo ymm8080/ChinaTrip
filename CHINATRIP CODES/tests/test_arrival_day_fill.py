@@ -158,9 +158,17 @@ def test_late_dinner_card_when_evening_blocked_until_2015():
     _retime_meal_placeholders(plan, ensure_cards=True)
 
     dinner = [i for i in d1.items if "晚饭" in str(i.name)]
-    assert dinner, "晚窗被占也要补迟场晚卡"
-    assert dinner[0].start_time >= time(20, 30)
-    assert dinner[0].duration_minutes >= 30
+    assert dinner, "晚窗被占也要补晚饭卡"
+    # 2026-11-14 拍板「饭卡不专属景点，任何观光件都可嵌套」：晚窗整段
+    # 落在 16:40-20:15 长块内时，晚卡按嵌套留在块内（锚回填宿主站），
+    # 只有块内没有窗口才走迟场 20:30/30-45 分钟；两路都算合规
+    card = dinner[0]
+    nested = time(16, 40) <= card.start_time and card.end_time <= time(20, 15)
+    late = card.start_time >= time(20, 30) and card.duration_minutes >= 30
+    assert nested or late, (
+        f"晚卡 {card.start_time}-{card.end_time} 既不嵌套在宿主窗内，"
+        "也不是迟场补位"
+    )
 
 
 # ------------------------------------------------ 空到达日：不造假占位

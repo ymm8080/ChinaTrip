@@ -185,6 +185,9 @@ def test_plan_turn_body_exit_strips(monkeypatch):
     monkeypatch.setattr("app.api.plan._plan_with_alternatives", lambda p: p)
     monkeypatch.setattr("app.api.plan.current_violations", lambda s: [])
     session = SimpleNamespace(
+        # 2026-11-13 换局起 _plan_turn_body 回 session_id（前端换指针用）
+        session_id="s-strip",
+        device_id="dev-1",
         state="ready",
         plan=_plan(
             [
@@ -198,7 +201,14 @@ def test_plan_turn_body_exit_strips(monkeypatch):
         pending_restos=[],
     )
     body = _plan_turn_body(session, "reply", None)
-    names = [v.name for d in body["plan"].days for v in d.items]
+    # 出站餐卡自愈（2026-11-13/15）会给这一天补午饭卡——本条只验「无时刻
+    # 非钉卡被剥离」，餐卡是槽位不是参访件，过滤后再比
+    names = [
+        v.name
+        for d in body["plan"].days
+        for v in d.items
+        if (v.category or "") not in ("food", "hotel")
+    ]
     assert names == ["已排点", "钉住灰卡"]
     unplaced_names = [c.name for c in body["plan"].unplaced]
     assert "想排没排进的点" in unplaced_names

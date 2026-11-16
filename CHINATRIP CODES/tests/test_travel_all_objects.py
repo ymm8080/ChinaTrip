@@ -95,7 +95,9 @@ def test_rule7_message_mentions_taxi_minutes():
     report = validate_plan(plan, poi_hours=[])
     v = next(v for v in report.violations if v.rule_id == 7)
     need = travel_gap_needed(_show(), _restaurant())
-    assert need is not None and need > 60
+    # 2026-11-16：城市出租车价目表落地后 34km 只需 53 分钟（旧断言写死
+    # 「>60」是全城统一 105 分钟时代的数字），改为与价目表同源推导
+    assert need == max(30, taxi_leg_min(_KM))
     assert str(need) in v.message
 
 
@@ -239,8 +241,13 @@ def test_insertion_never_places_restaurant_within_leg_of_show():
     assert solved is not None
     placed = next(i for i in solved.items if i.item_id == "food-zuichangan")
     assert placed.start_time is not None
-    gap = placed.start_time.hour * 60 + placed.start_time.minute - (12 * 60 + 20)
-    assert gap >= need, (
-        f"餐厅 {placed.start_time} 开场，距散场仅 {gap} 分钟，"
-        f"打车需 {need} 分钟——插入主路不得零车程贴脸"
+    placed_min = placed.start_time.hour * 60 + placed.start_time.minute
+    gap_after = placed_min - (12 * 60 + 20)
+    # 插位可在演出之后，也可整体挪到演出之前（08:30-10:00）——
+    # 两种都合法，判据是「与演出的净间隔 ≥ 打车腿」，只查后侧会误报
+    gap_before = 11 * 60 - (placed_min + placed.duration_minutes)
+    assert max(gap_after, gap_before) >= need, (
+        f"餐厅 {placed.start_time} 与演出（11:00-12:20）净间隔 "
+        f"后{gap_after}/前{gap_before} 分钟，打车需 {need} 分钟"
+        "——插入主路不得零车程贴脸"
     )

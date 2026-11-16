@@ -99,7 +99,9 @@ def test_fallback_honors_taxi_leg_from_earlier_anchor():
     assert zl.start_time is not None, "钟楼应可落位（日 4 空档充足）"
     zl_start = zl.start_time.hour * 60 + zl.start_time.minute
     leg = _taxi_leg_min(haversine_km(BMY_LOC, ZL_LOC))
-    assert leg >= 100, "兵马俑→西安钟楼打车腿应约 106 分钟"
+    # 2026-11-16 起打车腿按城市出租车价目表（西安 34km ≈ 53 分钟），
+    # 不再是全城统一 106 分钟——只锁「腿非零且在合理区间」+ 起排含腿
+    assert 40 <= leg <= 120, f"兵马俑→西安钟楼打车腿异常：{leg} 分钟"
     assert zl_start >= 10 * 60 + 30 + leg, (
         f"钟楼 {zl.start_time} 早于 散场10:30+腿{leg}分——兜底又无视车程"
     )
@@ -202,10 +204,14 @@ def test_leg_windows_widens_all_located_anchors():
         (9 * 60, 10 * 60 + 30, far),
     ]
     view = _leg_windows(fixed, far)
+    # pad = max(30, 腿)：腿不足 30 分钟时不额外放宽（城市价目表下市内
+    # 短腿常见 25 分钟，旧公式 leg-30 会算成负数）
     leg = _taxi_leg_min(haversine_km(BMY_LOC, ZL_LOC))
-    assert view[0] == (8 * 60 + 30 - (leg - 30), 11 * 60 + (leg - 30))
+    pad = max(30, leg)
+    assert view[0] == (8 * 60 + 30 - (pad - 30), 11 * 60 + (pad - 30))
     mleg = _taxi_leg_min(haversine_km(meal.location, ZL_LOC))
-    assert view[1] == (12 * 60 - (mleg - 30), 13 * 60 + (mleg - 30))
+    mpad = max(30, mleg)
+    assert view[1] == (12 * 60 - (mpad - 30), 13 * 60 + (mpad - 30))
     assert view[2] == (7 * 60, 7 * 60 + 30)  # 落地腿缓冲不动
     assert view[3] == (9 * 60, 10 * 60 + 30)  # 自身窗不动
 

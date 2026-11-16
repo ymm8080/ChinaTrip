@@ -187,11 +187,19 @@ def test_heal_repairs_stale_zero_gap_chain():
     notes = heal_leg_gaps(plan)
     assert notes, "事故载荷应触发自愈"
     v1 = next(v for v in day.items if v.item_id == "v1")
-    lunch = next(v for v in day.items if v.category == "food")
     assert (v1.start_time, v1.end_time) == (_t(9, 0), _t(11, 0)), "违规点之前的好排不动"
-    assert lunch.start_time is not None and _t(11, 30) <= lunch.start_time < _t(
-        13, 30
-    ), "餐保底（11-03 硬窗内贴点；兜底重排可贴点平移，不得消失）"
+    # 餐卡口径（2026-11-03 v2.3 + 2026-11-14「不轻易丢、丢必披露」）：
+    # 90 分钟大点被兜底排进 [11:30,12:30] 整段占满时餐卡可丢——但必须
+    # 留披露；仍在窗内时则须落在硬窗内
+    lunch = next((v for v in day.items if v.category == "food"), None)
+    if lunch is None:
+        assert any("就地解决" in note for note in plan.assumptions), (
+            "餐卡被窗满挤掉却无披露——绝不静默丢卡"
+        )
+    else:
+        assert lunch.start_time is not None and _t(11, 30) <= lunch.start_time < _t(
+            13, 30
+        ), "餐保底（11-03 硬窗内贴点；兜底重排可贴点平移）"
     for a, b in _sight_pairs(day):
         if a.start_time is None or b.start_time is None:
             continue

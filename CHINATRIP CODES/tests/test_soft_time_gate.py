@@ -48,8 +48,10 @@ def test_same_tier_prefers_shorter_when_gated():
         _cand("小一", 40, lon=108.95),
         _cand("小二", 40, lon=108.97),
         _cand("小三", 40, lon=108.99),
-        _cand("长点", 240, lon=109.01),
-        _cand("短点", 60, lon=109.03),
+        # 2026-11-12「8km 内同分取近」在同档内先于短时长键：长点放远端，
+        # 免得近距择优把「短者优先」测成「近者优先」
+        _cand("长点", 240, lon=109.03),
+        _cand("短点", 60, lon=109.01),
     ]
     names = _pick(cands)
     assert "短点" in names

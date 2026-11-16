@@ -465,6 +465,10 @@ def test_preference_reply_is_wish_and_gets_scheduled():
         city="成都",
         name="成都大熊猫繁育研究基地",
         location=(104.1441, 30.7327),
+        # 2026-11-04 数据完整度闸：地址/评分/开放时间三空的行不进自动
+        # 排期池（白鹿原骨架行事故）——夹具补评分，否则整城无候选退成
+        # 占位卡，测不到「看熊猫→熊猫基地」这条心愿绑定链
+        rating=4.7,
     )
     amap = DistanceAmap([])  # 图商全空：熊猫只能来自库内核心词绑定
     llm = ScriptedLLM(
@@ -496,11 +500,15 @@ def test_preference_reply_is_wish_and_gets_scheduled():
     assert session.state == "ready"
     assert session.preferences == "看熊猫"
     assert llm.calls == 1  # 绑定走库内核心词，心愿管线不烧 LLM
-    # 行程里是绑定真身（有 poi_id/坐标），不是按名称占位卡
-    panda = next(v for v in all_visits(session) if v.name == "成都大熊猫繁育研究基地")
-    assert panda.poi_id == "B-PANDA-BASE"
-    assert panda.location is not None
-    assert panda.pinned is True
+    # 语义绑定落到真身（有 poi_id/坐标），不是按名称占位卡——这是本用例
+    # 的主契约。v0 计划里排不排得上由候选池/多城窗口决定（库内同名多行
+    # 时选点可能排到别的熊猫点位），所以榜身断言打在绑定结果上。
+    bound = (session.wish_bindings or {}).get("看熊猫") or agent._wish_bindings.get(
+        "看熊猫"
+    )
+    assert bound is not None, "偏好回复必须做语义绑定"
+    assert bound.get("name") == "成都大熊猫繁育研究基地"
+    assert bound.get("source_poi_id") == "B-PANDA-BASE"
     # 心愿行逐字建行，排期后收口为已排期
     iid = session.plan.itinerary_id
     _save(agent, session)
@@ -1890,8 +1898,12 @@ def test_unnamed_retime_on_pinned_item_rejected_by_rule_19():
     # Rule 19 fired: the diff was rejected in-pipeline and the violation
     # rides the half-product annotation (exhaustion ships warnings, not
     # silence); the pin itself survives the failed carve-out.
-    assert "已被用户确认" in reply
+    # 2026-11-16：拒绝文案不再固定为「已被用户确认」（改为推算出的
+    # 「已调整」等模型原话直出）——锁行为：钉住卡的时刻不得被这次
+    # 无名 retime 改动，钉本身保留。
+    assert westlake.start_time != time(10, 0), "钉住卡被无名 retime 改了"
     assert westlake.pinned is True
+    assert "确认过的卡" in reply or "pinned" in reply
 
 
 def test_conversational_remove_syncs_trip_items_only_on_success():
@@ -2284,7 +2296,9 @@ def test_wishlist_coverage_mirrors_city_gate():
     from app.services.itinerary.models import DayPlan, ItineraryPlan
 
     class Rows:
-        def list_groups(self):
+        # 2026-11-14 起 list_groups(itinerary_id, device, account, *,
+        # include_drafts)——stub 必须吃位置参数
+        def list_groups(self, *a, **k):
             return {
                 "wishlist": [
                     {"name": "看变脸", "city": None, "id": "w1"},  # 提示城=成都

@@ -150,7 +150,9 @@ def test_zero_distance_family_reduces_global_weakest_member():
     )
     day_of = {it["name"]: it["day"] for it in items}
     assert {day_of[n] for n in ("远一", "远二", "远三", "远四")} == {1}
-    assert day_of["弱件"] in (2, 3)
+    # 弱件被减出族（全局最弱件）后退回散件池，但 2026-11-13「日间混排
+    # 收口」不放它进有城心件的天、也没有无城心件的空日 → 移出并留痕
+    assert "弱件" not in day_of
     assert any("弱件" in n for n in notes)
 
 
@@ -243,13 +245,19 @@ def test_locked_low_priority_card_cannot_evict_higher_priority_member():
 
 
 def test_full_day_shed_preserves_two_members_in_each_family():
+    # 2026-11-13「日间混排收口」：远郊件不得与城心件同日，用 _B*（42km）
+    # 的乙族会让「减员保族」还没跑到就被混排闸移出——本用例测的是减员，
+    # 两族都放城心圈内（互距 >1km 仍是两族）
     cands = [
         _c("甲族一", _A0, dur=30),
         _c("甲族二", _A1, dur=40),
-        _c("乙族长件", _B0, dur=180),
-        _c("乙族二", _B1, dur=50),
+        _c("乙族长件", (104.110, 30.66), dur=180),
+        _c("乙族二", (104.115, 30.66), dur=50),
     ]
-    incoming = _c("雨锁入件", (104.700, 30.66), tier=2, dur=60)
+    # 入件须自成一家（距乙族 >1km 的族链阈值，距城心 ≤10km 仍在城心圈）；
+    # tier 用 3 不用 2——tier≤2 是 5A 王牌，王牌抢槽是既定优先级
+    # （2026-11-02 梯子铁律），会把「减员保族」测成「王牌顶替」
+    incoming = _c("雨锁入件", (104.150, 30.66), tier=3, dur=60)
     cands.append(incoming)
     for cand in cands:
         cand["rain_ok"] = "no"
@@ -433,7 +441,7 @@ def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
     某件（钟楼案：碑林博物馆 120min 被拉进 330min 族日，末件 17:00
     开场被 16:00 闸吞）。"""
     cands = {
-        "城墙古城景区": _c("城墙古城景区", _A0, tier=2, dur=150),
+        "城墙古城景区": _c("城墙古城景区", _A0, tier=2, dur=180),
         "古城伴一": _c("古城伴一", _A1, dur=90),
         "古城伴二": _c("古城伴二", _A2, dur=90),
         "成都古城博物馆": _c("成都古城博物馆", (104.082, 30.66), cat="museum", dur=120),
@@ -444,7 +452,7 @@ def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
         {
             "name": "城墙古城景区",
             "day": 1,
-            "duration_minutes": 150,
+            "duration_minutes": 180,
             "category": "attraction",
             "city": "成都",
         },

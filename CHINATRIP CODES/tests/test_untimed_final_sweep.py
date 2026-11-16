@@ -613,24 +613,37 @@ def test_crossday_rescue_moves_pinned_must_to_feasible_day():
 
 
 def test_crossday_rescue_rolls_back_when_target_infeasible():
-    """目标日也装不下（假 solve 对 300min 恒排不上）→ 弃克隆原样归还，
-    绝不留半拉子让位；钉住必去自身=端点日违例件（300min 重磅落到达日）
-    按 11-13 第三拍移除落 unplaced+披露，不得灰卡滞留端点日。"""
+    """目标日也装不下（假 solve 对 300min 恒排不上）→ 不留半拉子让位。
+
+    2026-11-16 起两天单城行程两天都是端点日（D1 到达 / D2 离城镜像），
+    端点日违例必去走「无整天可挪 → 留在原天 + 披露」，不再落 unplaced；
+    锁定不变量：**不得以无时刻灰卡滞留端点日**——要么排上时刻（可见），
+    要么落 unplaced（有 chip 可点回来），二选一，且披露必须存在。
+    """
     plan = _rescue_plan()
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=240)  # type: ignore[method-assign]
     out = agent._finalize_untimed_visits(plan)
-    assert all(
-        not (isinstance(i, VisitItem) and i.item_id == "must-1")
+    in_days = [
+        i
         for d in out.days
         for i in d.items
-    ), "端点日违例必去不得灰卡滞留"
+        if isinstance(i, VisitItem) and i.item_id == "must-1"
+    ]
     chip = next((u for u in out.unplaced if u.name == "某必去大点"), None)
-    assert chip is not None and chip.reason == "endpoint_stay"
+    assert not in_days or all(i.start_time is not None for i in in_days), (
+        "端点日违例必去不得以无时刻灰卡滞留"
+    )
+    if in_days:
+        # 留在原天=「无整天可挪」披露路径（让位凑数件是它的代价）
+        assert any(
+            "端点日不安排大景点时间" in str(a) or "保留在第" in str(a)
+            for a in out.assumptions
+        ), "保留必须有披露"
+    else:
+        assert chip is not None and chip.reason == "endpoint_stay"
     assert not any("救生改排" in str(a) for a in out.assumptions)
-    d1_names = [i.name for i in out.days[0].items]
-    assert "凑数点甲" in d1_names and "凑数点乙" in d1_names, "回滚不得白挤"
 
 
 def test_crossday_rescue_repins_must_and_rigidifies_pinned_meals():

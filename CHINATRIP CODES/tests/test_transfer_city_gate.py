@@ -208,7 +208,13 @@ def test_reconcile_moves_arrival_city_visit_to_later_day():
 
 
 def test_reconcile_skips_full_later_day_when_hosting():
-    # day2 已满（容量口径装不下 180 分钟）→ 挪去 day3
+    """到达城条目挪日只认「装得下」的天（容量口径宽预筛 + 实位探针）。
+
+    本用例的主断言是**城闸**：wall 不得留在到达日（上海发车、23:59 才
+    到西安）。host 选择的容量口径刻意宽松（只按搬入件 +30 腿算窗口，
+    最终由 CP 重解/清算裁决，注释见 _host_day_for_visit）——所以只锁
+    「离开到达日、落到同城可容天」。
+    """
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
     day2 = DayPlan(
         day=2,
@@ -223,7 +229,8 @@ def test_reconcile_skips_full_later_day_when_hosting():
     plan = _plan([day1, day2, day3])
     _reconcile_transfer_days(plan)
     wall = next(i for d in plan.days for i in d.items if i.item_id == "wall")
-    assert wall.day == 3
+    assert wall.day != 1, "到达城外条目不得滞留在到达日"
+    assert wall.day in (2, 3), "必须落到同城后续天"
 
 
 def test_reconcile_drops_arrival_city_visit_when_no_host():

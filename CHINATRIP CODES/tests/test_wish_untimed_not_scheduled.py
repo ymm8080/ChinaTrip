@@ -67,8 +67,10 @@ def test_untimed_wish_row_stays_wishlist():
         "source_poi_id": "m1_f1fd2d8d516e",
         "location": None,
     }
-    agent._sync_wish_rows(_session(_plan(_museum(timed=False))))
-    agent._sync_planned_rows(_session(_plan(_museum(timed=False))))
+    # 2026-11-15：心愿行只在「保存行程」时刻落库（_sync_wish_rows 默认
+    # at_save=False 直接返回），要看行必须走 commit_wish_drafts
+    _s = _session(_plan(_museum(timed=False)))
+    agent.commit_wish_drafts(_s)
 
     fresh = svc.get(row["id"])
     assert fresh["status"] == "wishlist"
@@ -87,8 +89,7 @@ def test_timed_wish_row_schedules():
         "location": None,
     }
     session = _session(_plan(_museum(timed=True)))
-    agent._sync_wish_rows(session)
-    agent._sync_planned_rows(session)
+    agent.commit_wish_drafts(session)
 
     fresh = svc.get(row["id"])
     assert fresh["status"] == "scheduled"

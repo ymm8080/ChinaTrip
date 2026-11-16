@@ -206,8 +206,12 @@ def test_rule1_still_fires_on_spill_beyond_host_window():
 
 
 def test_rule1_still_fires_on_plain_meal_overlap():
-    # 无声明场次的普通餐卡（2026-11-10 并块尾机制管辖）不占同址宿主窗：
-    # 嵌套豁免只认声明场次餐，普通餐重叠照旧判双订。
+    """同址普通餐卡在宿主窗内=嵌套，不判双订（2026-11-14 拍板覆写）。
+
+    旧口径「嵌套豁免只认声明场次餐」已被用户拍板推翻：「LUNCH/DINNER
+    CARD IS NOT EXCLUSIVE TO SITES……SAME APPLIED TO other sites」——
+    fusion_food_nested 撤掉场次闸后，同址餐卡进任何观光件窗内都是嵌套
+    （远距/溢出窗尾的双订判据仍由相邻两条用例守）。"""
     host = _host(
         "某主题街区",
         _BLOCK_XY,
@@ -228,6 +232,6 @@ def test_rule1_still_fires_on_plain_meal_overlap():
         days=[_day_with([host, plain])],
     )
     report = validate_plan(plan, poi_hours=[])
-    assert any(v.rule_id == 1 for v in report.violations), (
-        "普通餐重叠仍须判双订（嵌套豁免只管声明场次餐）"
+    assert not [v for v in report.violations if v.rule_id == 1], (
+        "同址餐卡进宿主窗内是嵌套（2026-11-14 拍板），不得判双订"
     )

@@ -44,8 +44,21 @@ def test_tea_diversity_group_registered():
 
 def test_show_quality_beats_pool_order():
     # 库序在前、无评分的夜店 vs 4.9 分川剧院：演出席位按名声分择优。
-    nightclub = _cand("PLAY HOUSE(世外桃源店)", "entertainment", dur=90)
-    opera = _cand("蜀兿剧院·变脸川剧·盖碗茶", "entertainment", dur=80, rating=4.9)
+    # 2026-11-14 拍板「没有真实场次信息的演出不进自动通道」→ 夹具必须
+    # 带可解析场次（_has_usable_time_info 认「19:30」+场次语素）。
+    nightclub = _cand(
+        "PLAY HOUSE(世外桃源店)",
+        "entertainment",
+        dur=90,
+        opening_hours="仅夜场（约19:30一场）",
+    )
+    opera = _cand(
+        "蜀兿剧院·变脸川剧·盖碗茶",
+        "entertainment",
+        dur=80,
+        rating=4.9,
+        opening_hours="仅夜场（约19:30一场）",
+    )
     picked = PlanningAgent._deterministic_selection(
         [nightclub, opera], 1, {"成都": (1, 1)}
     )

@@ -406,8 +406,12 @@ def test_overload_rebalance_keeps_kin_pair_on_day():
 
 
 def test_experience_types_rank_right_after_premium():
-    """体验型中国特色活动（tea_experience 等）梯子紧跟王牌：1 天 4 席
-    满池时 4.0 分茶馆压过 4.6 分图商点入选（2026-11-07 拍板「多放」）。"""
+    """体验型中国特色活动（tea_experience 等）：1 天 4 席满池时两只茶馆
+    都能入选（2026-11-07 拍板「每个行程最少两个」）。
+
+    2026-11-12 追加拍板「8km 内选评分高的（差 ≥0.3 取高分）」在同档内
+    压过 11-07 的体验型优先——4.0 茶馆贴邻 4.6 图商点会被评分键顶后。
+    本用例因此给茶馆高分（4.7），测的是「体验型 ≥2 保底」本身。"""
     # 坐标错开 >1.5km（同点互认会被伞名孪生吸收并卡——4 席会变 5 件，
     # 验席位须独立点；族卡已废，贴邻同日圈 5km 软偏好不破断言）。
     cands = [
@@ -422,10 +426,10 @@ def test_experience_types_rank_right_after_premium():
     ]
     cands += [
         _bucket_cand(
-            "茶馆甲", "成都", "tea_experience", rating=4.0, loc=(104.12, 30.66)
+            "茶馆甲", "成都", "tea_experience", rating=4.7, loc=(104.12, 30.66)
         ),
         _bucket_cand(
-            "茶馆乙", "成都", "tea_experience", rating=4.0, loc=(104.14, 30.66)
+            "茶馆乙", "成都", "tea_experience", rating=4.7, loc=(104.14, 30.66)
         ),
     ]
     items = PlanningAgent._deterministic_selection(cands, 1, {"成都": (1, 1)})

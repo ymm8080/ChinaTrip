@@ -179,7 +179,9 @@ class RecordingItems:
     def __init__(self) -> None:
         self.updates: list = []
 
-    def list_groups(self):
+    # 2026-11-14 起 list_groups(itinerary_id, owner_device_id,
+    # owner_account_id, *, include_drafts)——stub 必须吃位置参数
+    def list_groups(self, *a, **k):
         return {"wishlist": [{"name": "西安碑林博物馆", "city": "西安", "id": "w1"}]}
 
     def update(self, *a, **k):

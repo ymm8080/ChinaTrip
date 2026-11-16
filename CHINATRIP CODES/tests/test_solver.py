@@ -472,7 +472,8 @@ def test_entertainment_category_without_sessions_schedules_normally():
     )
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    assert _minutes(solved.items[0].start_time) == 9 * 60
+    # 日始 08:30（DAY_START_MINUTES，2026-11-14 拍板），旧 09:00 断言作废
+    assert _minutes(solved.items[0].start_time) == 8 * 60 + 30
 
 
 def test_show_and_daytime_visit_share_day_without_overlap():

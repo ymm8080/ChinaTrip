@@ -213,6 +213,10 @@ def test_pref_round_specific_wish_still_builds_row(monkeypatch):
         city="成都",
         name="成都大熊猫繁育研究基地",
         location=(104.1441, 30.7327),
+        # 2026-11-04 数据完整度闸：地址/评分/开放时间三空的行不进自动
+        # 排期池（白鹿原骨架行事故）——夹具补评分，否则整城无候选退成
+        # 占位卡，测不到「看熊猫→熊猫基地」这条心愿绑定链
+        rating=4.7,
     )
     llm = CountingBoomLLM()
     svc = TripItemService()

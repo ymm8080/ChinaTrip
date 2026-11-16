@@ -428,10 +428,13 @@ def test_confirm_brief_round_writes_picked_only():
 
     session, reply, _ = run(agent.confirm_sites(session, ["天坛"]))
 
-    assert [name for name, _ in recorder.created] == ["天坛"]
-    assert recorder.created[0][1]["source"] == "chat"
-    assert "文字/视频描述" in recorder.created[0][1]["note"]
+    # 2026-11-15 拍板「心愿单只在保存行程时进数据库」：确认轮只把心愿
+    # 记在会话里（must_visits），落库发生在保存那一刻。
+    assert recorder.created == [], "规划期间不得写库"
     assert session.must_visits == ["天坛"]
+    # 保存时刻才物化（2026-11-15）；本用例不进生成管线（plan=None），
+    # commit_wish_drafts 直接返回 0——落库路径见 test_trip_items.py /
+    # test_wish_draft_lifecycle.py，这里只锁「确认轮不写库 + 记心愿」。
     assert session.pending_sites == []
     assert session.pending_sites_source == "link"
     assert "未点选" in reply
@@ -537,7 +540,8 @@ def test_confirm_after_image_round_writes_picked_row():
     session, _ = run(agent.image_site_round(session, [(b"img", "image/jpeg")]))
     session, reply, _ = run(agent.confirm_sites(session, ["天坛"]))
 
-    assert [name for name, _ in recorder.created] == ["天坛"]
-    assert recorder.created[0][1]["source"] == "chat"
-    assert "图片" in recorder.created[0][1]["note"]
+    # 2026-11-15「心愿单只在保存行程时进数据库」：图片轮确认也只是记
+    # 心愿，不写库（note 里的「图片」留痕由保存物化时带出）
+    assert recorder.created == [], "规划期间不得写库"
+    assert session.must_visits == ["天坛"]
     assert "你确认的" in reply

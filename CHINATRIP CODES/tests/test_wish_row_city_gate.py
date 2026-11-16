@@ -88,7 +88,7 @@ def test_off_trip_wish_row_is_not_relinked_or_scheduled():
             )
         ],
     )
-    agent._sync_wish_rows(_session(["上海", "成都", "重庆", "上海"], plan))
+    agent.commit_wish_drafts(_session(["上海", "成都", "重庆", "上海"], plan))
 
     fresh = svc.get(row["id"])
     assert fresh["status"] == "wishlist"
@@ -118,7 +118,7 @@ def test_in_trip_wish_row_still_schedules():
             )
         ],
     )
-    agent._sync_wish_rows(_session(["成都"], plan))
+    agent.commit_wish_drafts(_session(["成都"], plan))
 
     fresh = svc.get(row["id"])
     assert fresh["status"] == "scheduled"

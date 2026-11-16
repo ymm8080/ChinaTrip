@@ -200,7 +200,9 @@ def test_compress_uses_canonical_gap_beyond_short_leg_floor():
     c = _timed(_sight("c", dur=60), 12, 0, 13, 0)
     c.location = GeoPoint(lon=108.9, lat=34.2)
     a = _visit("show", dur=80, best_visit_time="evening")
-    a.location = GeoPoint(lon=108.965, lat=34.2)
+    # 2026-11-16 城市出租车价目表：6km=22、14km=30（都贴地板），测不出
+    # 「超出短腿地板用真实腿」的语义 —— 拉到 ~28km（46 分钟）
+    a.location = GeoPoint(lon=109.2, lat=34.2)
     _timed(a, 17, 0, 18, 20)
     plan = _plan_with(c, a)
     need = travel_gap_needed(c, a)
