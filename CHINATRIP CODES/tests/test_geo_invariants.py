@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """地理不变式（聚族→定天→日内）2026-11-16：去重/簇日/族亲和/晨卡下限。"""
 
 from __future__ import annotations

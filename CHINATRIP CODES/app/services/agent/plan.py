@@ -7417,9 +7417,7 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
             )
 
 
-def _purify_cluster_days(
-    plan: ItineraryPlan, *, relax_pins: bool = False
-) -> list[str]:
+def _purify_cluster_days(plan: ItineraryPlan, *, relax_pins: bool = False) -> list[str]:
     """簇日纯度闸（2026-11-08 拍板「异簇不混日」）：成族之日（同簇可数
     件 ≥2 在册）不得插排其它非同族景点——级联（选层溢出停泊/弹座让位/
     重排）把距全簇 >5km 的可数件楔进簇日污染片区连贯（城心簇锚→弹座→楔进
