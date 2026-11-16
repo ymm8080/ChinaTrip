@@ -166,6 +166,7 @@ def test_fill_is_idempotent_via_disclosure_marker():
     assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("另一个点", 90)]) == []
 
 
+
 def test_evening_candidate_never_before_five_pm():
     """best_visit_time=evening 的件不得排到 17:00 之前（浦江游览 12:45 案）。"""
     plan = _plan(
@@ -182,6 +183,40 @@ def test_evening_candidate_never_before_five_pm():
     placed = _placed(plan, "浦江夜游")
     assert placed.start_time >= time(17, 0)
     assert placed.end_time <= time(19, 0)
+
+
+def test_fill_refills_morning_when_card_moved_back_to_day_start():
+    """晨卡回拨日始后上午空出来：已有「补过」标记也要再补一次（上海 D1）。"""
+    card = _hm(time(8, 30), time(9, 0))
+    plan = _plan(
+        [
+            card,
+            _food("午饭", time(11, 45), time(12, 45)),
+            _food("晚饭", time(19, 0), time(20, 30)),
+        ],
+        assumptions=["第1天还有空档，按类型多样性补了「黄浦江游览」（12:45）"],
+    )
+    notes = _fill_leftover_with_diverse_sights(plan, bench=[_cand("豫园", 90)])
+    assert notes
+    placed = _placed(plan, "豫园")
+    assert placed.start_time == time(9, 0)
+    assert placed.end_time == time(10, 30)
+    # 补完上午不再有 opening hole → 第二次必须空转（不越补越多）
+    assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("另一个点", 90)]) == []
+
+
+def test_fill_keeps_skipping_filled_day_without_opening_hole():
+    """已补过 + 首件就在日始：仍是零改动（旧幂等口径不回退）。"""
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _v("a", "景点A", time(9, 0), time(10, 30), lon=121.44, lat=31.24),
+            _food("午饭", time(11, 45), time(12, 45)),
+            _food("晚饭", time(19, 0), time(20, 30)),
+        ],
+        assumptions=["第1天还有空档，按类型多样性补了「景点A」（09:00）"],
+    )
+    assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("豫园", 90)]) == []
 
 
 class _FakeDetails:

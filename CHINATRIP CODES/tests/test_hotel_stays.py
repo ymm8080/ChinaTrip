@@ -569,6 +569,10 @@ def test_morning_window():
     # 晨卡应回到 08:30-09:00（09:00 离店），不能按 30 分钟车程贴到 09:52。
     assert _morning_window(11 * 60 + 22, chain=142) == (510, 540)
     assert _morning_window(10 * 60 + 52, chain=142) == (510, 540)
+    # 2026-11-16 上海案（用户「FIRST CARD STARTS AT 10:30 WHICH SHOLD B 8:30」）：
+    # 首件是 11:45 午饭（无接驳链）时，卡不能贴到 10:30——出发卡=当天起点。
+    assert _morning_window(11 * 60 + 45) == (510, 540)
+    assert _morning_window(15 * 60) == (510, 540)
     # 首件是跨城交通：按交通方式留值机/进站缓冲（飞机 3h / 火车 2h）
     # 18:00 航班：15:00 前离店（卡占最后一档 14:30-15:00）
     assert _morning_window(1080, transfer=True, transfer_mode="flight") == (870, 900)
@@ -708,6 +712,39 @@ def test_reanchor_morning_pulls_back_for_far_hotel_only_earlier():
     card.start_time, card.end_time = time(8, 0), time(8, 30)
     reanchor_hotel_mornings([day], keep_ids={"hotel-morning-d2"})
     assert (card.start_time, card.end_time) == (time(8, 0), time(8, 30))
+
+
+def test_reanchor_pulls_late_morning_card_back_to_day_start():
+    """晨卡贴 11:45 午饭滑到 10:30 → 回拨 08:30-09:00（2026-11-16 上海案）。"""
+    card = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="上海",
+        day=1,
+        start_time=time(10, 30),
+        end_time=time(11, 0),
+        duration_minutes=30,
+        soft_pin=True,
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="上海",
+        day=1,
+        start_time=time(11, 45),
+        end_time=time(12, 45),
+        duration_minutes=60,
+        soft_pin=True,
+        anchor_from_prev=True,
+    )
+    day = DayPlan(day=1, base_city="上海", items=[card, lunch])
+    assert reanchor_hotel_mornings([day]) == {1}
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
+    # 幂等：已在日始窗口的卡时刻不再变（返回值是「重算过的天」，含空转）
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
 
 
 def test_dedupe_keeps_night_and_morning_cards():

@@ -15240,11 +15240,38 @@ def _day_fill_floor(day: DayPlan) -> int:
     return DAY_START_MINUTES
 
 
+#: 当天开门就是空地：第一张真实件比有效日始晚 ≥90 分钟（2026-11-16 上海案）
+_OPENING_HOLE_MINUTES = 90
+
+
+def _day_opening_hole(day: DayPlan) -> bool:
+    """当天上午整块空着（首件离日始 ≥90 分钟）→ 补点要能再进来。
+
+    2026-11-16 上海案（用户「WHY DAY1 IS NOT ARRANGED, FIRST CARD STARTS AT
+    10:30 WHICH SHOLD B 8:30」）：晨卡贴首件滑到 10:30、补点下限跟着变
+    10:30，08:30-11:45 这块上午永远没人补；而披露标记「已补过」又把整份
+    行程的补点关死——开多少次还是空上午。空天（一件时刻都没有）不算，
+    空天由插入/填空通道管。
+    """
+    floor = _day_fill_floor(day)
+    starts = [
+        _minutes_of(item.start_time)
+        for item in day.items
+        if isinstance(item, VisitItem)
+        and item.start_time is not None
+        and not is_hotel_morning(item)
+    ]
+    if not starts:
+        return False
+    return min(starts) - floor >= _OPENING_HOLE_MINUTES
+
+
 def _fill_leftover_with_diverse_sights(
     plan: ItineraryPlan,
     *,
     avoid: set[str] | None = None,
     bench: list[UnplacedCandidate] | None = None,
+    morning_only: bool = False,
 ) -> list[str]:
     """景点排完、餐卡排完之后，用空余时间补「类型多样」的下一个景点。
 
@@ -15259,13 +15286,16 @@ def _fill_leftover_with_diverse_sights(
     重日只补 ≤90 分钟的短件（原来一刀切，3 小时空档也补不进）。
     """
     notes: list[str] = []
-    if any(
+    # 披露标记只锁「已经补过的那几天」：开档把晨卡回拨日始后上午空出来的
+    # 天（_day_opening_hole）仍然要补一次（2026-11-16 上海案）。
+    filled = any(
         mark in str(note) for note in plan.assumptions for mark in _LEFTOVER_FILL_MARKS
-    ):
-        return notes
+    )
     day_end = 21 * 60 + 30
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
+        if (filled or morning_only) and not _day_opening_hole(day):
+            continue
         # 一天最多 4 张观光卡（2026-11-16 上海案）：补点是加法，不能再往
         # 满档日塞第 5 张——选点期 _cap_sights_per_day 同口径。
         if (
@@ -30749,7 +30779,11 @@ class PlanningAgent:
             )
 
     async def _fill_leftover_time(
-        self, plan: ItineraryPlan, *, avoid: set[str] | None = None
+        self,
+        plan: ItineraryPlan,
+        *,
+        avoid: set[str] | None = None,
+        morning_only: bool = False,
     ) -> list[str]:
         """收尾第③步的候选池装配（2026-11-15 拍板，2026-11-16 接线）。
 
@@ -30773,10 +30807,12 @@ class PlanningAgent:
                 _bench_candidates_from_library(rows, city=city, avoid=set(avoid or ()))
             )
         return _fill_leftover_with_diverse_sights(
-            plan, avoid=set(avoid or ()), bench=bench
+            plan, avoid=set(avoid or ()), bench=bench, morning_only=morning_only
         )
 
-    async def fill_leftover_gaps(self, session: PlanSession) -> list[str]:
+    async def fill_leftover_gaps(
+        self, session: PlanSession, *, morning_only: bool = False
+    ) -> list[str]:
         """空档补点（收尾第③步）的公开入口：正常生成与开档刷新都调它。
 
         幂等由 `_fill_leftover_with_diverse_sights` 的披露标记保证——同一份
@@ -30784,15 +30820,29 @@ class PlanningAgent:
         """
         if session.plan is None:
             return []
+        # 晨卡先回日始（2026-11-16 上海案「FIRST CARD STARTS AT 10:30」）：旧
+        # 行程的卡贴晚首件滑到 10:30，补点下限跟着变——先回拨 08:30-09:00，
+        # 下面按新下限重新看空档（腿是派生态，动了就重算）。
+        if reanchor_hotel_mornings(session.plan.days):
+            annotate_legs(session.plan)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
-        if any(
+        # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
+        _filled = any(
             mark in str(note)
             for note in session.plan.assumptions
             for mark in _LEFTOVER_FILL_MARKS
-        ):
+        )
+        _holes = any(_day_opening_hole(d) for d in session.plan.days)
+        # 读闸口径（2026-11-16）：GET 刷新只治「上午空着」，不主动往行程里
+        # 加新卡——页刷一次多一张卡是用户最怕的不稳定。
+        if morning_only and not _holes:
+            return []
+        if _filled and not _holes:
             return []
         notes = await self._fill_leftover_time(
-            session.plan, avoid=set(session.avoid_sites or ())
+            session.plan,
+            avoid=set(session.avoid_sites or ()),
+            morning_only=morning_only,
         )
         if notes:
             # 补点后必须再过地理不变式：紧簇归位 + 簇日纯度（2026-11-16）。

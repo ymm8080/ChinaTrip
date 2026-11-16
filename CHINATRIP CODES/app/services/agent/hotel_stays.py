@@ -514,6 +514,12 @@ def _morning_window(
     # 否则「2 小时 22 分的慕田峪」会被当成 30 分钟车程，晨卡落到 09:52。
     gap = max(gap, chain)
     end = first_start - gap if first_start is not None else 9 * 60
+    # 2026-11-16 上海案（用户「FIRST CARD STARTS AT 10:30 WHICH SHOLD B 8:30」）：
+    # 首件晚（11:45 午饭）时旧逻辑把卡贴到首件前 30 分钟 → 10:30 才「出发」。
+    # 出发卡是当天起点，不是首件倒推：晚于 09:00 的窗口一律收回 08:30-09:00。
+    # 跨城交通日除外——那天卡要贴航班/车次的值机进站缓冲。
+    if not transfer and end > HOTEL_MORNING_READY_MINUTES:
+        end = HOTEL_MORNING_READY_MINUTES
     start = end - HOTEL_MORNING_MINUTES
     if first_start is not None and start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
         # 最早 08:30 出发：卡压到 08:30 起，与首站贴排（路程并入卡内）。
@@ -802,6 +808,10 @@ def reanchor_hotel_mornings(
                 need = max(need, _head_access_chain(dp))
             first_start = _minutes_of(first.start_time)
             end = first_start - need
+            # 同 _morning_window（2026-11-16 上海案）：出发卡是当天起点，
+            # 不从「晚首件 − 路程」倒推出一张 10:30 的卡。
+            if not isinstance(first, TransferItem):
+                end = min(end, HOTEL_MORNING_READY_MINUTES)
         start = end - HOTEL_MORNING_MINUTES
         if start < HOTEL_MORNING_EARLIEST_MINUTES <= end:
             # 最早 08:30 离店（2026-11-14）：卡压到日始，与首站贴排

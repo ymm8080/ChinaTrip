@@ -560,6 +560,10 @@ async def get_plan_session(
     # 与干日耐雨组合对调，钉/场次/餐酒店不动；双语披露进 assumptions。
     for note in agent.rain_rebalance_days(session):
         logger.warning("plan/session %s rain-swap: %s", session_id, note)
+    # 空档补点读闸（2026-11-16 上海案）：开页只治「上午空着」——晨卡先回
+    # 08:30 日始，上午空出来的天按类型多样性补点；无空上午的行程零成本空转，
+    # 绝不在刷新时往行程里加新卡。
+    await agent.fill_leftover_gaps(session, morning_only=True)
     await agent.refresh_legs(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
