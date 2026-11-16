@@ -9,6 +9,7 @@
     python -m app.jobs.verify_access_links --dry-run     # 只打印，不写文件
     python -m app.jobs.verify_access_links --out app/data/verified_links.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -82,9 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         logger.info("dry-run: 不写白名单")
         return 0
-    target = link_audit.write_whitelist(
-        links, args.out or link_audit.WHITELIST_PATH
-    )
+    target = link_audit.write_whitelist(links, args.out or link_audit.WHITELIST_PATH)
     logger.info("白名单已写入 %s", target)
     return 0
 

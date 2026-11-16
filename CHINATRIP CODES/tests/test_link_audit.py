@@ -1,4 +1,5 @@
 """外链审计（audit before input）单元测试——离线，注入假 _get。"""
+
 import json
 from pathlib import Path
 

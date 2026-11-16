@@ -222,8 +222,10 @@ def main(argv: list[str] | None = None) -> int:
         results[name] = rule
         if days != rule["advance_days"]:
             diffs.append(f"{name}: 提前天数 {days} → {rule['advance_days']}")
-        if not args.dry_run and _audit_source(rule) and _apply_db(
-            _session_factory(), name, rule
+        if (
+            not args.dry_run
+            and _audit_source(rule)
+            and _apply_db(_session_factory(), name, rule)
         ):
             db_hits += 1
     # 别名进快照（标注 inherited，不参与 diff/写表——主馆行已覆盖）
