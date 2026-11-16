@@ -520,7 +520,13 @@ async def get_itinerary(
     account: str | None = Depends(_account_from_auth),
 ) -> ItineraryRecord:
     device = _require_device(x_device_id)
-    return _owned_record(store, itinerary_id, device, account)
+    record = _owned_record(store, itinerary_id, device, account)
+    # 同站合并读闸（2026-11-16 朱家角双卡案，与 /plan/{id} GET 同模式）：
+    # 历史行程里同一个地方被两行 POI 各排一天，打开即合并并回写——不要求
+    # 用户重新规划。幂等：无重复时 dedupe 返回空、不写库。
+    if dedupe_plan_visits(record.plan):
+        store.put(record)
+    return record
 
 
 @router.put("/itineraries/{itinerary_id}")
