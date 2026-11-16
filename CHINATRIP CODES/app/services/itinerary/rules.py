@@ -328,9 +328,7 @@ def morning_departure_anchor(
 
     def _taxi(coords):
         point = (
-            GeoPoint(lon=float(coords[0]), lat=float(coords[1]))
-            if coords
-            else boarding
+            GeoPoint(lon=float(coords[0]), lat=float(coords[1])) if coords else boarding
         )
         if point is None:
             return 0
@@ -431,9 +429,14 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
             return 0
         if not coords:
             return head + rush
-        return taxi_leg_min(
-            haversine_km(_from, GeoPoint(lon=float(coords[0]), lat=float(coords[1])))
-        ) + rush
+        return (
+            taxi_leg_min(
+                haversine_km(
+                    _from, GeoPoint(lon=float(coords[0]), lat=float(coords[1]))
+                )
+            )
+            + rush
+        )
 
     # 2026-11-16 用户拍板「不同方式分 BLOCK 并排，默认换乘少+时间短」：
     # 每个官方班次行出一块，排序 (换乘, 全程, 票价)，腿时间与推荐块同口径。

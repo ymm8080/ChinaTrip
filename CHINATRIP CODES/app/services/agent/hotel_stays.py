@@ -566,9 +566,7 @@ def _morning_anchor_for(
         try:
             from app.services.weather_open_meteo import CITY_COORDS
 
-            xy = CITY_COORDS.get(
-                str(city or dp.base_city or "").removesuffix("市")
-            )
+            xy = CITY_COORDS.get(str(city or dp.base_city or "").removesuffix("市"))
             if xy:
                 from_point = GeoPoint(lon=float(xy[1]), lat=float(xy[0]))
         except Exception:  # noqa: BLE001 — 锚表缺失不影响旧窗口
@@ -629,9 +627,7 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
                 transfer=isinstance(first, TransferItem),
                 transfer_mode=getattr(first, "mode", None),
                 chain=(
-                    0
-                    if isinstance(first, TransferItem)
-                    else _head_access_chain(dp)
+                    0 if isinstance(first, TransferItem) else _head_access_chain(dp)
                 ),
             )
             if window is None:
