@@ -757,3 +757,72 @@ def test_match_text_names_core_matches_short_wish_but_not_city_prefix():
     assert [h["name"] for h in store.match_text_names("上海", "想去朱家角古镇")] == [
         "朱家角古镇"
     ]
+
+
+class _TextMatchQuery:
+    """match_text_names 的 DB 桩：过滤条件不参与，回全量给定行。"""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _TextMatchSession:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def query(self, *cols):
+        return _TextMatchQuery(self._rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _store_with_rows(rows) -> PoiDetailStore:
+    return PoiDetailStore(session_factory=lambda: _TextMatchSession(rows))
+
+
+def test_match_text_names_english_core_matches_proper_noun():
+    """英文专名也要认（2026-11-16 用户「WHY ZHUJIAJIAO IS NOT RECOGNIZED」）：
+    底库英文名是全称 Zhujiajiao Ancient Town，用户在文字里只写 ZHUJIAJIAO
+    ——整名匹配要求 Ancient/Town 也在文里，永远不中。削尾缀取内核后按整词
+    命中；园林类名字（Shanghai Botanical Garden）不受影响，不会因为文里写了
+    Shanghai 就把植物园拉进必去。"""
+    rows = [
+        (
+            "朱家角古镇",
+            "Zhujiajiao Ancient Town",
+            ["朱家角古镇景区"],
+            "attraction",
+            "上海",
+        ),
+        ("外滩", "The Bund", None, "nature", "上海"),
+        ("上海博物馆", "Shanghai Museum", None, "museum", "上海"),
+        ("上海植物园", "Shanghai Botanical Garden", None, "nature", "上海"),
+        ("上海老街(人民路)", "Shanghai Old Street", None, "nature", "上海"),
+    ]
+    store = _store_with_rows(rows)
+
+    names = [
+        h["name"]
+        for h in store.match_text_names(
+            "上海",
+            "2DAYS' SHANGHAI TRIP INCLDING ZHUJIAJIAO , SHANGHAI MUSEUM, "
+            "THE BUND AND OTHERS",
+        )
+    ]
+
+    assert "朱家角古镇" in names
+    assert "上海博物馆" in names
+    assert "外滩" in names
+    assert "上海植物园" not in names
+    # 老街类名字不削（削完只剩城市词 Shanghai → 任何句子都会命中）
+    assert "上海老街(人民路)" not in names

@@ -22,7 +22,7 @@ from sqlalchemy import String, and_, cast, func, or_
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
-from app.services.poi_names import place_core
+from app.services.poi_names import place_core, place_core_en
 
 # 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
 # order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
@@ -933,6 +933,27 @@ class PoiDetailStore:
             # 命中字符数：更具体的名字（慕田峪长城 > 长城）得分更高
             return sum(len(t) for t in content)
 
+        def latin_core_score(v: str) -> int | None:
+            """英文专名内核命中（2026-11-16 用户「WHY ZHUJIAJIAO IS NOT
+            RECOGNIZED」案）：底库英文名是全称（Zhujiajiao Ancient Town），
+            用户只写专名（Zhujiajiao / ZHUJIAJIAO）——整名匹配要求所有词都
+            在文里，永远不中。削掉聚落/景区类通用尾缀后只剩一个 ≥6 字符的
+            专名，且该词整词出现在文里才算命中（不做子串，也不认城市词：
+            「Shanghai Botanical Garden」内核仍是两词，不会因写了 Shanghai
+            就把植物园拉进来）。"""
+            core = place_core_en(v)
+            if core == v:
+                return None
+            toks = core.split()
+            if len(toks) != 1:
+                return None
+            token = toks[0].lower()
+            if len(token) < self._TEXT_NAME_MIN_LATIN_TOKEN:
+                return None
+            if token in self._TEXT_STOPWORDS:
+                return None
+            return len(token) if token in positions else None
+
         def best_score(name_zh: str, name_en: str, aliases) -> int | None:
             variants = [name_zh, name_en]
             variants.extend(a for a in (aliases or []) if isinstance(a, str))
@@ -946,6 +967,8 @@ class PoiDetailStore:
                         best = max(best or 0, len(v))
                     continue
                 score = latin_score(v)
+                if score is None:
+                    score = latin_core_score(v)
                 if score is not None:
                     best = max(best or 0, score)
             if best is None:

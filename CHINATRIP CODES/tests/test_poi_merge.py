@@ -100,6 +100,11 @@ def test_place_core_strips_generic_suffixes():
     assert place_core("朱家角大清邮局") == "朱家角大清邮局"
     assert place_core("西湖") == "西湖"
     assert place_core("朱家角古镇（青浦）") == "朱家角"
+    # 英文全称同一口径（2026-11-16 用户「ZHUJIAJIAO 认不出」案）：只削聚落/
+    # 景区类尾缀，园林/博物馆这类不动
+    assert place_core("Zhujiajiao Ancient Town") == "Zhujiajiao"
+    assert place_core("Wuzhen Water Town") == "Wuzhen"
+    assert place_core("Shanghai Botanical Garden") == "Shanghai Botanical Garden"
 
 
 # --- 图商命中挑选 -----------------------------------------------------------
