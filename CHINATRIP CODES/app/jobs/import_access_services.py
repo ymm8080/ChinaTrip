@@ -67,6 +67,16 @@ _FIELDS = (
     "source_url",
 )
 
+#: 同点多余线路下线（2026-11-16）：换官方口径时旧线路（如第三方口径的
+#: 「通游专线（前门线）」）不能留着占位，否则引擎会挑到旧班次。
+_PRUNE_SQL = text(
+    """
+    UPDATE poi_access_services SET active = FALSE, updated_at = now()
+     WHERE city = :city AND poi_name = :poi_name
+       AND service_name <> ALL(:keep)
+    """
+)
+
 _SQL = text(
     """
     INSERT INTO poi_access_services (city, poi_name, mode, service_name, operator,
@@ -131,7 +141,22 @@ def _payload(row: dict) -> dict:
     return out
 
 
-def import_file(path: Path, *, dry_run: bool = False) -> int:
+def _prune(session, rows: list[dict]) -> int:
+    """同点多余线路下线；返回下线行数。"""
+    seen: dict[tuple[str, str], list[str]] = {}
+    for row in rows:
+        key = (row.get("city") or "", row.get("poi_name") or "")
+        seen.setdefault(key, []).append(row.get("service_name") or "")
+    dropped = 0
+    for (city, poi), keep in seen.items():
+        result = session.execute(
+            _PRUNE_SQL, {"city": city, "poi_name": poi, "keep": keep}
+        )
+        dropped += result.rowcount or 0
+    return dropped
+
+
+def import_file(path: Path, *, dry_run: bool = False, prune: bool = False) -> int:
     rows = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(rows, dict):
         rows = rows.get("services") or []
@@ -153,10 +178,11 @@ def import_file(path: Path, *, dry_run: bool = False) -> int:
         return len(rows)
     factory = get_session_factory()
     with factory() as session:
+        dropped = _prune(session, rows) if prune else 0
         for row in rows:
             session.execute(_SQL, _payload(row))
         session.commit()
-    logger.info("导入 %d 条班次：%s", len(rows), path.name)
+    logger.info("导入 %d 条班次（下线 %d 条旧线路）：%s", len(rows), dropped, path.name)
     return len(rows)
 
 
@@ -164,9 +190,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="导入远郊专线班次")
     parser.add_argument("--file", required=True, type=Path)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--prune-poi",
+        action="store_true",
+        help="同 POI 不在本文件里的旧线路置为 active=false",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    count = import_file(args.file, dry_run=args.dry_run)
+    count = import_file(args.file, dry_run=args.dry_run, prune=args.prune_poi)
     print(f"OK {count} 条")
     return 0
 
