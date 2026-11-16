@@ -14,14 +14,14 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 
 | City | Attraction | English name | Mode | Boarding | First | Last | Ride (min) | official_status | window | fare | URL |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 上海 | 上海影视乐园 | Shanghai Film and TV Park | train | 人民广场站(3口) | 05:20 | 21:57 | 58 | pending | baidu |  |  |
-| 上海 | 上海梵高星空艺术馆 | Shanghai Van Gogh Starry Sky Art Museum | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | pending | baidu |  |  |
-| 上海 | 东林寺 | Donglin Temple | bus | 人民广场站 | 08:30 | 08:30 | 58 | pending | baidu |  |  |
-| 上海 | 州桥老街 | Zhouqiao Old Street | shuttle | 成都北路南京西路站 | 08:40 | 08:40 | 61 | pending | baidu |  |  |
-| 上海 | 张堰镇 | Zhangyan Town | shuttle | 人民广场站(3口) | 06:00 | 23:45 | 195 | pending | baidu |  |  |
-| 上海 | 村口大树 | The Big Tree at the Village Entrance | bus | 人民广场站(3口) | 09:05 | 09:05 | 100 | pending | baidu |  |  |
-| 上海 | 金山城市沙滩 | Jinshan City Beach | train | 人民广场站(3口) | 05:20 | 21:57 | 107 | pending | baidu |  |  |
-| 上海 | 飞越上海(第一百货店) | Flying Over Shanghai (First Department Store) | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | pending | baidu |  |  |
+| 上海 | 上海影视乐园 | Shanghai Film and TV Park | train | 人民广场站(3口) | 05:20 | 21:57 | 58 | no_official_page | baidu |  |  |
+| 上海 | 上海梵高星空艺术馆 | Shanghai Van Gogh Starry Sky Art Museum | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | no_official_page | baidu |  |  |
+| 上海 | 东林寺 | Donglin Temple | bus | 人民广场站 | 08:30 | 08:30 | 58 | no_official_page | baidu |  |  |
+| 上海 | 州桥老街 | Zhouqiao Old Street | shuttle | 成都北路南京西路站 | 08:40 | 08:40 | 61 | no_official_page | baidu |  |  |
+| 上海 | 张堰镇 | Zhangyan Town | shuttle | 人民广场站(3口) | 06:00 | 23:45 | 195 | no_official_page | baidu |  |  |
+| 上海 | 村口大树 | The Big Tree at the Village Entrance | bus | 人民广场站(3口) | 09:05 | 09:05 | 100 | no_official_page | baidu |  |  |
+| 上海 | 金山城市沙滩 | Jinshan City Beach | train | 人民广场站(3口) | 05:20 | 21:57 | 107 | no_official_page | baidu |  |  |
+| 上海 | 飞越上海(第一百货店) | Flying Over Shanghai (First Department Store) | shuttle | 人民广场站(3口) | 06:00 | 22:30 | 57 | no_official_page | baidu |  |  |
 | 北京 | 九谷口自然风景区 | Jiugukou Natural Scenic Area | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 165 | no_official_page | baidu |  |  |
 | 北京 | 八奇洞景区 | Baqi Cave Scenic Area | shuttle | 东城三里河站 | 09:00 | 09:00 | 61 | verified | baidu | official | https://s.visitbeijing.com.cn/attraction/118181 |
 | 北京 | 八达岭长城 | Badaling Great Wall | shuttle | 前门站 | 06:30 | 11:00 | 91 | verified | baidu | official | https://www.beijing.gov.cn/renwen/sy/whkb/201906/t201906 |
@@ -40,7 +40,7 @@ Nothing is invented: rows whose timetable is map-vendor measured are marked
 | 北京 | 长城之漫观景台 | Great Wall Romance Viewing Platform | shuttle | 前门站 | 06:30 | 11:00 | 92 | verified | baidu |  | https://www.badaling.cn/ |
 | 北京 | 雁柏山庄 | Yanbai Villa | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | verified | baidu |  | https://www.slhhotels.cn/hotel/yanbai-villa |
 | 北京 | 雁栖湖 | Yanqi Lake | shuttle | 王府井站(C4西南口) | 09:10 | 09:10 | 101 | no_official_page | baidu |  |  |
-| 南京 | 濮塘风景区 | Putang Scenic Area | shuttle | 鸡鸣寺站(5口) | 13:10 | 13:10 | 113 | pending | baidu |  |  |
+| 南京 | 濮塘风景区 | Putang Scenic Area | shuttle | 鸡鸣寺站(5口) | 13:10 | 13:10 | 113 | no_official_page | baidu |  |  |
 | 广州 | 广州融创乐园 | Guangzhou Sunac Land | train | 北京路站(B口) | 08:48 | 08:48 | 87 | pending | baidu |  |  |
 | 广州 | 广州融创体育世界 | Guangzhou Sunac Sports World | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
 | 广州 | 广州融创大马戏-奇幻秘境 | Guangzhou Sunac Grand Circus - Fantasy Secret Realm | train | 纪念堂站(D1口) | 09:12 | 09:12 | 68 | pending | baidu |  |  |
