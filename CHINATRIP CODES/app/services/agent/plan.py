@@ -1312,6 +1312,7 @@ def _enforce_day_zones(
             for far in [x for x in sights if zones[id(x)] == 2]:
                 if far in dropped:
                     continue
+
                 def _hosts(d2: int) -> bool:
                     return (
                         d2 != d
@@ -25171,8 +25172,7 @@ class PlanningAgent:
                                     d in rainy_here
                                     and _rain_unmarked(cand_v)
                                     and any(
-                                        x not in rainy_here
-                                        for x in range(lo, hi + 1)
+                                        x not in rainy_here for x in range(lo, hi + 1)
                                     )
                                 ):
                                     continue
@@ -26728,9 +26728,7 @@ class PlanningAgent:
                     and not _rb_return_reject(s0, t)
                     # 露天不进雨天（2026-11-02 硬闸，与回填/选点同口径）：
                     # 分流只能把露天件挪去干日，否则雨日避让被均衡洗掉
-                    and not (
-                        _rain_exposed(s0) and t in city_rain.get(city, set())
-                    )
+                    and not (_rain_exposed(s0) and t in city_rain.get(city, set()))
                 ]
                 if not targets:
                     return False
@@ -30843,11 +30841,7 @@ class PlanningAgent:
         dropped: list[str] = []
         for op in diffs:
             name = pinned_names.get(op.item_id or "")
-            if (
-                op.op in ("remove", "retime", "move")
-                and name
-                and name not in user_text
-            ):
+            if op.op in ("remove", "retime", "move") and name and name not in user_text:
                 dropped.append(name)
                 continue
             kept.append(op)
