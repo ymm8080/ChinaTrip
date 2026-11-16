@@ -12,7 +12,7 @@ poi_access_services 都重新刷数据库」。
   `baidu-transit`）落成班次行：上车点/落客站/车上分钟/末段步行都是实测值，
   首末班从 `access_note` 里解析（`首班 07:00 / 末班 12:00` 或 `仅 08:30 一班`）。
 
-「远郊」判据：dist(城心, POI) > `--min-km`（默认 25），与 `_mark_remote_visits`
+「远郊」判据：dist(城心, POI) > `--min-km`（默认 50），与 `_mark_remote_visits`
 同口径；城心取 `weather_open_meteo.CITY_COORDS`。
 
 用法：
@@ -38,7 +38,7 @@ from app.services.weather_open_meteo import CITY_COORDS
 logger = logging.getLogger(__name__)
 
 #: 与移动端一致的「远郊」门槛（公里）。
-REMOTE_KM = 10.0
+REMOTE_KM = 50.0
 
 #: 只回填有班次的接驳方式（与 itinerary.rules.SCHEDULED_ACCESS_MODES 同集合，
 #: 另加 bus：城市公交也要留档，但引擎侧只有 train/shuttle/ferry 吃链）。

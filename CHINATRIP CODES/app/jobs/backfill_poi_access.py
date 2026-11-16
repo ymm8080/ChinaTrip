@@ -124,7 +124,7 @@ async def run(
     *,
     city: str | None = None,
     limit: int = 200,
-    min_km: float = 10.0,
+    min_km: float = 50.0,
     max_km: float = 0.0,
     sleep: float = 0.2,
     concurrency: int = 4,
