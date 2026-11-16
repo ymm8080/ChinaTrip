@@ -1301,7 +1301,15 @@ async def switch_transfer_mode(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
-    await agent.refresh_legs(session)
+    except PoiStoreUnavailableError:
+        # 班次重查链路库降级：干净 503 与 plan/start 同口径（PR 评审 rule 3）。
+        logger.warning("plan/transfers_mode poi_store_unavailable")
+        raise HTTPException(status_code=503, detail="poi_store_unavailable")
+    try:
+        await agent.refresh_legs(session)
+    except PoiStoreUnavailableError:
+        # 实测腿刷新是增强步骤：库降级保留直线估算，不挡已生效的改乘。
+        logger.warning("plan/transfers_mode refresh poi_store_unavailable")
     store.save(session)
     base = (
         summary.change_summary[0]
@@ -1344,7 +1352,15 @@ async def set_transfer_number(
         if code == "item_not_found":
             raise HTTPException(status_code=404, detail="item_not_found") from None
         raise HTTPException(status_code=422, detail=code) from None
-    await agent.refresh_legs(session)
+    except PoiStoreUnavailableError:
+        # 班次查询链路库降级：干净 503 与 plan/start 同口径（PR 评审 rule 3）。
+        logger.warning("plan/transfers_number poi_store_unavailable")
+        raise HTTPException(status_code=503, detail="poi_store_unavailable")
+    try:
+        await agent.refresh_legs(session)
+    except PoiStoreUnavailableError:
+        # 实测腿刷新是增强步骤：库降级保留直线估算，不挡已生效的班次回填。
+        logger.warning("plan/transfers_number refresh poi_store_unavailable")
     store.save(session)
     base = (
         summary.change_summary[0]
@@ -1395,6 +1411,12 @@ async def transfer_booking_links(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="invalid_booking") from exc
+    except Exception as exc:
+        # 渠道上游（12306 班次库等）故障不裸 500：502 + 日志，前端可重试。
+        logger.warning("transfer booking links upstream failed: %r", exc)
+        raise HTTPException(
+            status_code=502, detail="booking_service_unavailable"
+        ) from exc
 
 
 class PlanReplaceRequest(BaseModel):
@@ -1564,7 +1586,11 @@ async def set_plan_hotel(
     # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
     _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
     reanchor_hotel_cards(session.plan.days)
-    await agent.refresh_legs(session)
+    try:
+        await agent.refresh_legs(session)
+    except PoiStoreUnavailableError:
+        # 实测腿刷新是增强步骤：库降级保留直线估算，不挡已写回的酒店卡。
+        logger.warning("plan/set_hotel refresh poi_store_unavailable")
     store.save(session)
     addr_zh = f"（{address}）" if address else ""
     addr_en = f" ({address})" if address else ""
