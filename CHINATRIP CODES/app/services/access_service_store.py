@@ -27,7 +27,7 @@ class AccessServiceStore:
                    return_frequency_minutes, return_ride_minutes,
                    return_arrive_last, fare_cny, fare_kind, fare_note,
                    ticket_channel, ticket_url, last_mile_minutes,
-                   note, note_en, source, source_url
+                   note, note_en, source, source_url,
                    official_url, official_status, window_source, fare_source,
                    poi_name_en, service_name_en, boarding_stop_en
               FROM poi_access_services

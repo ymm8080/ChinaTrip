@@ -328,20 +328,68 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
     # 排期口径一直是「接驳链从晨卡开始时打」，这里对齐，免得卡上时间比腿短 30 分钟。
     if _is_morning_hotel(a) and getattr(a, "start_time", None) is not None:
         a_end = a.start_time.hour * 60 + a.start_time.minute
-    board = a_end + head if a_end is not None else None
-    if board is None:
-        board = 9 * 60  # 无前件时刻：用户口径「远郊专线通常 9 点前后」
-    depart, ride, last_mile, wait_minutes = _fastest_ride(
-        getattr(b, "city", None),
-        b.name,
-        board,
-        service,
-        last,
-        getattr(b, "access_depart_times", None),
-    )
-    if depart is None:
-        # 没有官方时刻表：沿用卡上档案（车上分钟 + 经验候车）
-        ride, last_mile, wait_minutes = service, last, wait
+    # 无前件时刻：用户口径「远郊专线通常 9 点前后」（此时不再叠加打车段，
+    # 与既有 fastest_plan 口径一致）；有前件时刻才按「前件结束 + 打车到乘车点」。
+    if a_end is not None:
+        a_end_min = a_end
+        add_head = True
+    else:
+        a_end_min = 9 * 60
+        add_head = False
+
+    def _taxi_to(coords):
+        # 各方式自己的乘车点坐标 → 打车分钟；无坐标回档案乘车点的打车段
+        if not add_head:
+            return 0
+        if not coords:
+            return head
+        return taxi_leg_min(
+            haversine_km(_from, GeoPoint(lon=float(coords[0]), lat=float(coords[1])))
+        )
+
+    # 2026-11-16 用户拍板「不同方式分 BLOCK 并排，默认换乘少+时间短」：
+    # 每个官方班次行出一块，排序 (换乘, 全程, 票价)，腿时间与推荐块同口径。
+    options: list[dict] = []
+    try:
+        from app.services import access_services
+
+        options = access_services.service_options(
+            getattr(b, "city", None),
+            b.name,
+            board_minutes=a_end_min,
+            ride_fallback=service,
+            last_fallback=last,
+            wait_fallback=wait,
+            taxi_minutes=_taxi_to,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        options = []
+    if options:
+        opt = options[0]
+        head = int(opt.get("taxi_minutes") or 0)
+        if opt.get("boarding_lon") is not None and opt.get("boarding_lat") is not None:
+            boarding = GeoPoint(
+                lon=float(opt["boarding_lon"]), lat=float(opt["boarding_lat"])
+            )
+            taxi_km = haversine_km(_from, boarding)
+        depart = _hhmm_minutes(opt.get("depart"))
+        ride = int(opt.get("ride_minutes") or 0)
+        last_mile = int(opt.get("last_mile_minutes") or 0)
+        wait_minutes = int(opt.get("wait_minutes") or 0)
+        board = a_end_min + head
+    else:
+        board = (a_end + head) if a_end is not None else 9 * 60
+        depart, ride, last_mile, wait_minutes = _fastest_ride(
+            getattr(b, "city", None),
+            b.name,
+            board,
+            service,
+            last,
+            getattr(b, "access_depart_times", None),
+        )
+        if depart is None:
+            # 没有官方时刻表：沿用卡上档案（车上分钟 + 经验候车）
+            ride, last_mile, wait_minutes = service, last, wait
     minutes = max(
         TRAVEL_GAP_FLOOR_MIN,
         head + (wait_minutes or 0) + ride + last_mile,
@@ -356,6 +404,12 @@ def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
         "last": last_mile,
         "board": board,
         "depart": depart,
+        "fare_cny": (
+            options[0].get("fare_cny")
+            if options
+            else None
+        ),
+        "options": options,
     }
 
 

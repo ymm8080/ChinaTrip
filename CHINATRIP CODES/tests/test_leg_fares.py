@@ -239,7 +239,8 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
         access_fare_text="往返车费 80 元",
         access_ticket_url="https://en.mutianyugreatwall.com/pdf/one-day",
         access_official_url="https://en.mutianyugreatwall.com/pdf/one-day",
-        booking_url="en.mutianyugreatwall.com/reservation-center/tickets",  # 裸域名（库里真实形态）
+        # 裸域名（库里真实形态）
+        booking_url="en.mutianyugreatwall.com/reservation-center/tickets",
     )
     plan = ItineraryPlan(
         itinerary_id="x",
@@ -263,6 +264,7 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     assert detail["taxi_minutes"] >= 16
     assert detail["service_minutes"] == 90
     assert detail["walk_minutes"] == 8
+    # 无班次库行=按模式估算
     assert detail["taxi_cost"] > 0 and detail["access_cost"] == 20
     assert detail["booking_url"].startswith("https://")
     assert detail["booking_url"] == (
@@ -270,6 +272,140 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
     )
     assert "mutianyugreatwall" in detail["official_url"]
     assert "80" in detail["fare_text"]
+
+
+def test_service_options_rank_fewer_transfers_then_shorter():
+    """多方式分块：默认推荐=换乘少，其次时间短（2026-11-16 用户拍板）。"""
+    from app.services import access_services
+
+    direct_slow = _svc_row(
+        service_name="前门旅游专线",
+        mode="shuttle",
+        boarding_stop="前门发车中心",
+        ride_minutes=100,
+        fare_cny=50.0,
+    )
+    transfer_fast = _svc_row(
+        service_name="57路 → 通游专线21路（1 次换乘）",
+        mode="bus",
+        boarding_stop="东城三里河站",
+        ride_minutes=60,
+        fare_cny=10.0,
+    )
+    access_services.configure_store(_FakeStore([transfer_fast, direct_slow]))
+    try:
+        opts = access_services.service_options(
+            "北京",
+            "慕田峪长城",
+            board_minutes=9 * 60,
+            ride_fallback=90,
+            last_fallback=8,
+            wait_fallback=10,
+            taxi_minutes=lambda coords: 20 if coords else 0,
+        )
+    finally:
+        access_services.configure_store(None)
+    assert [o["service_name"] for o in opts] == [
+        "前门旅游专线",
+        "57路 → 通游专线21路（1 次换乘）",
+    ]
+    assert opts[0]["recommended"] is True
+    assert opts[0]["transfers"] == 0
+    assert opts[1]["transfers"] == 1
+    assert opts[0]["has_timetable"] is True
+    assert opts[0]["boarding_stop"] == "前门发车中心"
+    assert opts[0]["taxi_minutes"] == 20
+    assert opts[0]["depart"] == "09:30"  # 09:20 到乘车点，赶 09:30 班
+    assert opts[0]["wait_minutes"] == 10
+    assert opts[0]["total_minutes"] == 20 + 10 + 100 + 8
+
+
+def test_access_breakdown_multi_mode_options_and_clear_gateway():
+    """八达岭案：多方式行拆开后，腿按推荐项算，明细带 options 且乘车点清晰。"""
+    from app.services import access_services
+
+    train = _svc_row(
+        poi_name="八达岭长城",
+        service_name="市郊铁路 S2线",
+        mode="train",
+        boarding_stop="黄土店站",
+        boarding_lon=116.37,
+        boarding_lat=40.05,
+        alight_stop="八达岭站",
+        ride_minutes=70,
+        fare_cny=6.0,
+        last_mile_minutes=10,
+        outbound_times=["07:26", "08:26", "09:26"],
+    )
+    bus = _svc_row(
+        poi_name="八达岭长城",
+        service_name="877路",
+        mode="bus",
+        boarding_stop="德胜门站",
+        boarding_lon=116.385,
+        boarding_lat=39.949,
+        alight_stop="八达岭站",
+        ride_minutes=80,
+        fare_cny=12.0,
+        last_mile_minutes=10,
+        outbound_times=["06:30", "07:30", "08:30"],
+    )
+    access_services.configure_store(_FakeStore([train, bus]))
+    a = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发",
+        city="北京",
+        day=1,
+        category="hotel",
+        duration_minutes=30,
+        location=None,
+        anchor_location=GeoPoint(lon=116.4074, lat=39.9042),
+        start_time=time(8, 30),
+        end_time=time(9, 0),
+    )
+    b = _v(
+        "bd",
+        "八达岭长城",
+        116.02,
+        40.36,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.397708, lat=39.898894),
+        access_service_minutes=91,
+        access_wait_minutes=10,
+        access_last_mile_minutes=3,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[a, b])],
+        assumptions=[],
+    )
+    try:
+        annotate_legs(plan)
+    finally:
+        access_services.configure_store(None)
+    detail = a.next_leg_detail
+    opts = detail["options"]
+    assert len(opts) == 2
+    assert opts[0]["recommended"] is True
+    # 乘车点是清晰单站名（不是三站拼一串），且与推荐块一致
+    assert detail["gateway"] == opts[0]["boarding_stop"]
+    assert " / " not in (detail["gateway"] or "")
+    assert detail["service_name"] == opts[0]["service_name"]
+    assert detail["options"][0]["boarding_stop"] in ("黄土店站", "德胜门站")
+    # 腿分钟 = 推荐项 打车+候车+车程+步行（同口径）
+    assert a.next_leg_minutes == (
+        opts[0]["taxi_minutes"]
+        + opts[0]["wait_minutes"]
+        + opts[0]["ride_minutes"]
+        + opts[0]["last_mile_minutes"]
+    )
+    assert a.next_leg_mode == "access"
+    # 每块都有打车估算与购票/官网链接字段
+    for o in opts:
+        assert o["taxi_minutes"] >= 0
+        assert "taxi_cost" in o
+        assert "booking_url" in o and "official_url" in o
 
 
 def test_return_leg_shuttle_chain_from_remote_stop():

@@ -326,6 +326,10 @@
   .legbox .li{flex:0 0 18px;text-align:center;font-size:14px}
   .legbox .lb{flex:0 0 auto;font-weight:600;min-width:2.6em;color:inherit}
   .legbox .lv{flex:1 1 auto;color:inherit;word-break:break-word}
+  /* 多方式并排块（2026-11-16 用户拍板：接驳车/火车分 BLOCK 并排，默认换乘少+时间短）：
+     与三行版同色同字号，块与块用细分割线区分，推荐项标题加 ★ */
+  .legbox .legopts{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:2px 0}
+  .legbox .legopt{flex:1 1 210px;min-width:0;border:1px solid var(--border);border-radius:10px;padding:3px 8px 5px;background:transparent}
   .bf-row{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);cursor:pointer;font-size:13px}
   .bf-row.sel{border-color:var(--accent);background:var(--accent-soft)}
   .sug{opacity:.65}
@@ -2042,6 +2046,70 @@ function planCard(plan) {
           // 四拍定稿：固定三行表格——打车段 / 专线段 / 购票与官网，图标+段名+量化值）。
           const legD = it.next_leg_detail;
           if (legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
+            const opts = Array.isArray(legD.options) ? legD.options.filter(function (o) { return o && o.service_name; }) : [];
+            if (opts.length > 1) {
+              // 多方式并排块（2026-11-16 用户拍板：有接驳车/火车等不同方式时分 BLOCK 并排，
+              // 默认★推荐=换乘少+时间短，后端 options 已按此排序）；乘车点按方式各显清晰站名。
+              const modeIcon = { train: "\uD83D\uDE84", shuttle: "\uD83D\uDE8C", bus: "\uD83D\uDE8D", ferry: "\u26F4", metro: "\uD83D\uDE87" };
+              const modeLbl = function (m) {
+                if (m === "train") return I18N.tf("card.hop.mode.train", "火车");
+                if (m === "metro") return I18N.tf("card.hop.mode.metro", "地铁");
+                if (m === "bus") return I18N.tf("card.hop.mode.bus", "公交");
+                if (m === "ferry") return I18N.tf("card.hop.mode.ferry", "轮渡");
+                return I18N.tf("card.hop.mode.shuttle", "接驳车");
+              };
+              const blocks = opts.slice(0, 3).map(function (o) {
+                const rows = [];
+                const tips = [];
+                const noTT = o.has_timetable === false;
+                if (noTT) tips.push(I18N.tf("card.hop.noTT", "班次以官网为准"));
+                if ((Number(o.taxi_km) || 0) > 0.05 && o.boarding_stop) {
+                  rows.push('<div class="lr"><span class="li">\uD83D\uDE95</span><span class="lb">' +
+                    I18N.tf("card.hop.lTaxi", "打车") + '</span><span class="lv">' +
+                    I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
+                      .replace("{km}", (Number(o.taxi_km) || 0).toFixed(1))
+                      .replace("{n}", String(o.taxi_minutes || 0))
+                      .replace("{stop}", esc(o.boarding_stop || "")) + "</span></div>");
+                } else if (o.boarding_stop) {
+                  rows.push('<div class="lr"><span class="li">\uD83D\uDE8F</span><span class="lb">' +
+                    I18N.tf("card.hop.lBoard", "乘车点") + '</span><span class="lv">' + esc(o.boarding_stop) + "</span></div>");
+                }
+                if (o.ride_minutes != null) {
+                  const parts = [];
+                  if (o.depart) parts.push(I18N.tf("card.hop.departAt", "{t} 发车").replace("{t}", o.depart));
+                  parts.push(I18N.tf("card.hop.rideMin", "车程 {n} 分钟").replace("{n}", String(o.ride_minutes || 0)));
+                  if ((o.wait_minutes || 0) > 0) parts.push(I18N.tf("card.hop.waitMin", "候车 {n} 分钟").replace("{n}", String(o.wait_minutes)));
+                  if ((o.last_mile_minutes || 0) > 0) parts.push(I18N.tf("card.hop.walkMin", "下车步行 {n} 分钟").replace("{n}", String(o.last_mile_minutes)));
+                  if (o.arrive && !noTT) parts.push(I18N.tf("card.hop.arriveAt", "约 {t} 到").replace("{t}", o.arrive));
+                  if (noTT) parts.push(I18N.tf("card.hop.noTT", "班次以官网为准"));
+                  rows.push('<div class="lr"><span class="li">' + (modeIcon[o.mode] || "\uD83D\uDE8C") + '</span><span class="lb">' +
+                    modeLbl(o.mode) + '</span><span class="lv">' + parts.join(" \u00b7 ") + "</span></div>");
+                  tips.push(o.service_name);
+                  if (o.operator) tips.push(o.operator);
+                  if ((o.transfers || 0) > 0) tips.push(I18N.tf("card.hop.xfers", "{n} 次换乘").replace("{n}", String(o.transfers)));
+                }
+                const pay = [];
+                if ((o.taxi_cost || 0) + (o.access_cost || 0) > 0) {
+                  pay.push(I18N.tf("card.hop.cost", "打车约 ¥{a} + 接驳约 ¥{b}")
+                    .replace("{a}", String(o.taxi_cost || 0)).replace("{b}", String(o.access_cost || 0)));
+                }
+                if (o.booking_url) pay.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(o.booking_url) + '">' + I18N.tf("card.hop.book", "购票/预约 →") + "</a>");
+                if (o.official_url && o.official_url !== o.booking_url) pay.push('<a class="leg-link" target="_blank" rel="noopener" href="' + esc(o.official_url) + '">' + I18N.tf("card.hop.official", "官网 →") + "</a>");
+                if (pay.length) {
+                  if (Array.isArray(o.departures) && o.departures.length) tips.push(I18N.tf("card.hop.times", "班次 {times}").replace("{times}", o.departures.join(" / ")));
+                  if (Array.isArray(o.returns) && o.returns.length) tips.push(I18N.tf("card.hop.returns", "返程 {times}").replace("{times}", o.returns.join(" / ")));
+                  if (o.fare_text) tips.push(o.fare_text);
+                  const titleAttr = tips.length ? ' title="' + esc(tips.join(" \u00b7 ")) + '"' : "";
+                  rows.push('<div class="lr"><span class="li">\uD83C\uDF9F</span><span class="lb">' +
+                    I18N.tf("card.hop.lPay", "购票") + '</span><span class="lv"' + titleAttr + ">" + pay.join(" \u00b7 ") + "</span></div>");
+                }
+                const head = '<div class="lr"><span class="li">' + (modeIcon[o.mode] || "\uD83D\uDE8C") + '</span><span class="lb">' + modeLbl(o.mode) +
+                  '</span><span class="lv">' + (o.recommended ? "<b>★ " + I18N.tf("card.hop.reco", "推荐") + "</b> " : "") +
+                  esc(o.service_name || "") + "</span></div>";
+                return '<div class="legopt">' + head + rows.join("") + "</div>";
+              });
+              blk.appendChild(el('<div class="legbox"><div class="legopts">' + blocks.join("") + "</div></div>"));
+            } else {
             const rows = [];
             const tips = [];
             const isRet = legD.direction === "return";
@@ -2100,6 +2168,7 @@ function planCard(plan) {
                 I18N.tf("card.hop.lPay", "购票") + '</span><span class="lv"' + titleAttr + ">" + pay.join(" \u00b7 ") + "</span></div>");
             }
             if (rows.length) blk.appendChild(el('<div class="legbox">' + rows.join("") + "</div>"));
+            }
           }
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));

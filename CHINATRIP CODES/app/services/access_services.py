@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -375,3 +376,97 @@ def fastest_return_plan(
         return None
     _key, depart, ride = best
     return depart, ride, max(0, depart - int(board_minutes))
+
+
+def transfers_of(service_name: str | None) -> int:
+    """线路名里的换乘次数：「（2 次换乘）」→ 2；没写按 0（直达线）。"""
+    match = re.search(r"(\d+)\s*次换乘", str(service_name or ""))
+    return int(match.group(1)) if match else 0
+
+
+def service_options(
+    city: str | None,
+    name: str | None,
+    *,
+    board_minutes: int = 9 * 60,
+    ride_fallback: int | None = None,
+    last_fallback: int | None = None,
+    wait_fallback: int = 0,
+    taxi_minutes: Any = None,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    """同一景点「不同方式」的候选块（2026-11-16 用户拍板：有接驳车/火车等
+    不同方式时分 BLOCK 并排展示，默认选换乘少、时间短的）。
+
+    每个官方班次行出一块；``taxi_minutes(coords)`` 由调用方注入（算到该
+    乘车点的打车分钟，coords=None 时回 0）。排序键 = (换乘次数, 全程分钟,
+    票价)，第一个即推荐项（recommended=True）。没有时刻表的行按档案经验
+    值估全程，照样出块（乘车点/购票渠道/车程估算照展示，班次标注「以官网
+    为准」）。
+    """
+    board0 = int(board_minutes if board_minutes is not None else 9 * 60)
+    ranked: list[tuple[tuple, dict[str, Any]]] = []
+    for svc in services_for(city, name):
+        ride = int(svc.ride_minutes or ride_fallback or 0)
+        last = int(
+            svc.last_mile_minutes
+            if svc.last_mile_minutes is not None
+            else (last_fallback or 0)
+        )
+        coords = None
+        if svc.boarding_lon is not None and svc.boarding_lat is not None:
+            coords = (float(svc.boarding_lon), float(svc.boarding_lat))
+        head = 0
+        if taxi_minutes is not None:
+            try:
+                head = int(taxi_minutes(coords) or 0)
+            except Exception:  # noqa: BLE001 - 打车估算失败不影响出块
+                head = 0
+        head = max(0, head)
+        board = board0 + head
+        depart = svc.next_departure(board)
+        if depart is not None:
+            wait = max(0, depart - board)
+            has_tt = True
+            arrive = depart + ride + last
+        else:
+            wait = max(0, int(wait_fallback or 0))
+            has_tt = False
+            arrive = board + wait + ride + last
+        total = head + wait + ride + last
+        fare = svc.fare_cny
+        opt = {
+            "mode": svc.mode or "shuttle",
+            "service_name": svc.service_name,
+            "operator": svc.operator,
+            "boarding_stop": svc.boarding_stop,
+            "boarding_lon": coords[0] if coords else None,
+            "boarding_lat": coords[1] if coords else None,
+            "alight_stop": svc.alight_stop,
+            "taxi_minutes": head,
+            "wait_minutes": wait,
+            "ride_minutes": ride,
+            "last_mile_minutes": last,
+            "has_timetable": has_tt,
+            "transfers": transfers_of(svc.service_name),
+            "depart": fmt_minutes(depart) if depart is not None else None,
+            "arrive": fmt_minutes(arrive) if arrive is not None else None,
+            "departures": [
+                fmt_minutes(m) for m in svc.departures() if fmt_minutes(m)
+            ],
+            "returns": [
+                fmt_minutes(m) for m in svc.return_times if fmt_minutes(m)
+            ],
+            "fare_cny": fare,
+            "fare_text": svc.fare_text(),
+            "ticket_url": svc.ticket_url or svc.official_url,
+            "official_url": svc.official_url or svc.ticket_url,
+            "total_minutes": total,
+        }
+        key = (opt["transfers"], total, fare if fare is not None else 10**9)
+        ranked.append((key, opt))
+    ranked.sort(key=lambda pair: pair[0])
+    out = [opt for _key, opt in ranked[: max(1, int(limit))]]
+    if out:
+        out[0]["recommended"] = True
+    return out

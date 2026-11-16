@@ -149,9 +149,14 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
         if br is not None:
             a.next_leg_mode = "access"
             a.next_leg_minutes = int(br["minutes"])
+            _fare = br.get("fare_cny")
             a.next_leg_cost_cny = estimate_taxi_fare(
                 city, float(br["taxi_km"])
-            ) + access_fare_estimate(br["mode"])
+            ) + (
+                float(_fare)
+                if _fare is not None
+                else access_fare_estimate(br["mode"])
+            )
             a.next_leg_cost_note = L(
                 "含接驳票价估算", "includes an estimated shuttle fare"
             )
@@ -193,12 +198,86 @@ def _clock(minutes) -> str | None:
     return f"{value // 60:02d}:{value % 60:02d}"
 
 
+def _options_detail(
+    a: VisitItem,
+    b: VisitItem,
+    br: dict,
+    opts: list[dict],
+    _from,
+    city: str,
+) -> dict:
+    """多方式候选块明细：推荐项平铺为顶层字段（兼容旧读法），全量进 options。"""
+    for o in opts:
+        if (
+            o.get("boarding_lon") is not None
+            and o.get("boarding_lat") is not None
+            and _from is not None
+        ):
+            km = haversine_km(
+                _from,
+                GeoPoint(lon=float(o["boarding_lon"]), lat=float(o["boarding_lat"])),
+            )
+            o["taxi_km"] = round(km, 2)
+            o["taxi_minutes"] = taxi_leg_min(km)
+        else:
+            o.setdefault("taxi_km", br.get("taxi_km"))
+            o.setdefault("taxi_minutes", br.get("taxi_minutes"))
+        o["taxi_cost"] = estimate_taxi_fare(city, float(o.get("taxi_km") or 0.0))
+        _fare = o.get("fare_cny")
+        o["access_cost"] = (
+            float(_fare) if _fare is not None else access_fare_estimate(o.get("mode"))
+        )
+        # 购票优先景点自身预约入口（与旧口径一致），官网用班次行/景点官网
+        o["booking_url"] = _url(
+            getattr(b, "booking_url", None) or o.get("ticket_url")
+        )
+        o["official_url"] = _url(
+            o.get("official_url") or o.get("ticket_url") or getattr(b, "website", None)
+        )
+    rec = opts[0]
+    return {
+        "mode": "access",
+        "taxi_km": round(float(br.get("taxi_km") or 0.0), 2),
+        "taxi_minutes": int(br.get("taxi_minutes") or 0),
+        "wait_minutes": int(rec.get("wait_minutes") or 0),
+        "service_minutes": int(rec.get("ride_minutes") or 0),
+        "walk_minutes": int(rec.get("last_mile_minutes") or 0),
+        "gateway": rec.get("boarding_stop") or "乘车点",
+        "alight": rec.get("alight_stop"),
+        "service_name": rec.get("service_name") or "",
+        "operator": rec.get("operator"),
+        "departures": rec.get("departures") or [],
+        "returns": rec.get("returns") or [],
+        "fare_text": rec.get("fare_text"),
+        "board_time": _clock(br.get("board")),
+        "depart_time": rec.get("depart"),
+        "arrive_time": rec.get("arrive"),
+        "taxi_cost": rec.get("taxi_cost"),
+        "access_cost": rec.get("access_cost"),
+        "booking_url": rec.get("booking_url"),
+        "official_url": rec.get("official_url"),
+        "options": opts,
+    }
+
+
 def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
     """接驳腿拆分（2026-11-16 用户拍板：网页要看清楚打车段/专线/步行/预约）。
 
     数据优先用卡上已挂的官方班次（w12_0039）；没有就现场查一次
     ``access_services``（读不到就只给打车+时长，不编 URL）。
+    2026-11-16 二拍：同站有接驳车/火车等多种方式时，``options`` 出
+    多个候选块（换乘少+时间短者 recommended），乘车点按方式各显清晰站名。
     """
+    _from = a.location or getattr(a, "anchor_location", None)
+    city = a.city or b.city or ""
+    opts = [
+        dict(o)
+        for o in (br.get("options") or [])
+        if isinstance(o, dict) and o.get("service_name")
+    ]
+    if opts:
+        return _options_detail(a, b, br, opts, _from, city)
+
     svc = None
     if not getattr(b, "access_service_name", None):
         try:
