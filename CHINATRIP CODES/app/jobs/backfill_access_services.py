@@ -38,7 +38,7 @@ from app.services.weather_open_meteo import CITY_COORDS
 logger = logging.getLogger(__name__)
 
 #: 与移动端一致的「远郊」门槛（公里）。
-REMOTE_KM = 25.0
+REMOTE_KM = 10.0
 
 #: 只回填有班次的接驳方式（与 itinerary.rules.SCHEDULED_ACCESS_MODES 同集合，
 #: 另加 bus：城市公交也要留档，但引擎侧只有 train/shuttle/ferry 吃链）。

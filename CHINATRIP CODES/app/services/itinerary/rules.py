@@ -113,11 +113,20 @@ TRAVEL_GAP_FLOOR_MIN = 30
 
 
 def taxi_leg_min(km: float) -> int:
-    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程+半小时叫车；
-    ≤1.5km 近距退步行口径；封顶 TRAVEL_LEG_CAP_MIN。"""
+    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程 + 叫车分钟。
+
+    ≤1.5km 近距退步行口径；市内腿封顶 ``TRAVEL_LEG_CAP_MIN``（180 分钟，
+    防小概率堵车放大）。**≥100km 属城际，不封顶**（2026-11-16 用户「远点
+    必须算得出来」）：300km 被压成 180 分钟会让千岛湖/武隆这类点排进半天。
+    """
     if km <= TAXI_WALK_MAX_KM:
         return round(km * TRAVEL_MIN_PER_KM)
-    return min(TRAVEL_LEG_CAP_MIN, round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES)
+    raw = round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES
+    # 100-400km 是真实城际（千岛湖 142 / 武隆 119 / 三峡 350）：按真实车程；
+    # >400km 视为毒坐标（跨城串号），仍按市内封顶兜底，不把一天排成 16 小时。
+    if 100.0 <= km <= 400.0:
+        return raw
+    return min(TRAVEL_LEG_CAP_MIN, raw)
 
 
 #: 有班次接驳的到达方式：这几种点按「打车到乘车点 + 候车 + 班次 + 落客」算腿。
