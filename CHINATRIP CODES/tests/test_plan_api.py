@@ -6,7 +6,7 @@ PlanSessionStore per app, dependency overrides only.
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, time
 
 import pytest
 from fastapi import FastAPI
@@ -38,7 +38,13 @@ from app.services.agent.plan import (
 )
 from app.services.entitlement import EntitlementService, InMemoryQuotaStore
 from app.services.gate import RequestGate
-from app.services.itinerary import DayPlan, GeoPoint, ItineraryPlan, VisitItem
+from app.services.itinerary import (
+    DayPlan,
+    GeoPoint,
+    ItineraryPlan,
+    TransferItem,
+    VisitItem,
+)
 from app.services.itinerary_store import InMemoryItineraryStore
 from app.services.llm.base import ChatResult
 from app.services.llm.zhipu import LLMError
@@ -1388,6 +1394,8 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
+            # 晚饭占位件同理（2026-11-07 起每晚都有餐窗占位）
+            and not i.get("item_id", "").startswith("food-dinner-ph")
             # 酒店入住卡/每晚酒店卡/次日晨卡无坐标/不回填（2026-11-01/11-07/11-13）
             and not i.get("item_id", "").startswith("hotel-checkin")
             and not i.get("item_id", "").startswith("hotel-night")
@@ -1410,6 +1418,21 @@ def test_move_same_day_reorder_resequences_times():
     # 一个白天点——同日重排机制改挂无转场的 day2 全天验证。
     _append_visit(session, 2, "v4", "灵隐寺", 13, 0, 90)
     _append_visit(session, 2, "v5", "河坊街", 16, 0, 60)
+    # 夹具口径（2026-11-16）：城市表末尾不再自动合成回程腿——本用例要验
+    # 的「离城日上午闸」得自己把 17:00 返程腿放回 day2。
+    session.plan.days[1].items.append(
+        TransferItem(
+            item_id="t-return",
+            day=2,
+            seq=9,
+            mode="flight",
+            from_city="杭州",
+            to_city="上海",
+            start_time=time(17, 0),
+            end_time=time(20, 0),
+            duration_minutes=180,
+        )
+    )
     resp = client.post(
         f"/api/v1/plan/{sid}/items/v5/move",
         json={"day": 2, "after_item_id": "v2"},
@@ -1447,7 +1470,23 @@ def test_move_cross_day_to_head():
     ).json()
     sid = body["session_id"]
     # 08:00 火车闸（2026-11-03）：day1 落地后仅容一个点，跨天挪头改挂
-    # day1→day2 方向（西湖挪去 day2 头部）。
+    # day1→day2 方向（西湖挪去 day2 头部）。回程腿自己补（夹具不再自动合成）。
+    _app = client.app
+    store = _app.dependency_overrides[get_plan_sessions]()
+    _sess = store.get(sid, device_id="device-1")
+    _sess.plan.days[1].items.append(
+        TransferItem(
+            item_id="t-return",
+            day=2,
+            seq=9,
+            mode="flight",
+            from_city="杭州",
+            to_city="上海",
+            start_time=time(17, 0),
+            end_time=time(20, 0),
+            duration_minutes=180,
+        )
+    )
     resp = client.post(
         f"/api/v1/plan/{sid}/items/v1/move",
         json={"day": 2, "after_item_id": None},
@@ -1599,15 +1638,15 @@ def test_fallback_sequence_keeps_list_order_then_sorts_by_time():
     seq = [(v.name, v.start_time) for v in visits if v.start_time is not None]
     starts = [t for _, t in seq]
     assert starts == sorted(starts)  # 展示顺序=时间顺序
-    # 2026-11-01 落地首停：高铁到达侧首个观光 ≥ 落地+150（原 +90）
-    assert seq[0] == ("甲", dtime(13, 47))  # 首个空档（高铁 11:17+150min 地板）
-    assert seq[1] == ("丙", dtime(15, 17))  # 甲+30 腿游标
+    # 2026-11-14 拍板：火车落地缓冲 2 小时（飞机 3 小时）——首个观光
+    # ≥ 落地 11:17+120 = 13:17（旧 150 分钟口径的 13:47 作废）
+    assert seq[0] == ("甲", dtime(13, 17))  # 首个空档（高铁 11:17+120min 地板）
+    assert seq[1] == ("乙", dtime(14, 47))  # 甲+30 腿游标
     assert seq[2] == ("夜游", dtime(17, 17))  # pinned 锚点
-    # 2026-11-07 开场闸 16:00（大点 15:30 带）：乙 120min 甲+30 腿
-    # 15:17 起 ≤ 15:30 但 17:17 收尾撞夜游钉（±30 腿垫）→ 顺延越带留空；
-    # 丙 90min 15:17-16:47 恰贴夜游腿垫前 → 合法。夜游（pinned）不受闸。
+    # 2026-11-07 开场闸 16:00（大点 15:30 带）：乙 120min 14:47 起 ≤15:30 合法，
+    # 17:17 收尾贴夜游腿垫；丙 90min 只能接 17:17 之后 → 越日终留空。
     untimed = [v.name for v in visits if v.start_time is None]
-    assert untimed == ["乙"]
+    assert untimed == ["丙"]
 
 
 # --- POST /plan/{id}/items/{item_id}/retime（2026-10-24 点时间戳改时间）-----
@@ -1860,6 +1899,7 @@ def test_refresh_legs_backfills_missing_locations():
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
         # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
+        and not str(i.get("item_id", "")).startswith("food-dinner-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
@@ -1904,6 +1944,7 @@ def test_get_plan_session_returns_refreshed_plan():
         # 午饭占位件无 POI 可回填（设计上不烧配额，2026-10-31）；酒店
         # 入住卡/每晚酒店卡/次日晨卡同理（2026-11-01/11-07/11-13）
         and not str(i.get("item_id", "")).startswith("food-lunch-ph")
+        and not str(i.get("item_id", "")).startswith("food-dinner-ph")
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
