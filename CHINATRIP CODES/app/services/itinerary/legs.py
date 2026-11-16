@@ -301,9 +301,7 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
     last.next_leg_cost_cny = (
         estimate_taxi_fare(last.city, _taxi_km) if _taxi_km > 0.05 else 0
     ) + (float(_fare) if _fare is not None else access_fare_estimate(br["mode"]))
-    last.next_leg_cost_note = L(
-        "含接驳票价估算", "includes an estimated shuttle fare"
-    )
+    last.next_leg_cost_note = L("含接驳票价估算", "includes an estimated shuttle fare")
     detail = _access_return_detail(last, home, br)
     detail["next_stop"] = detail.get("alight") or ""
     detail["to_city"] = True
