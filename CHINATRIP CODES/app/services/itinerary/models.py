@@ -107,6 +107,11 @@ class VisitItem(BaseModel):
     next_leg_mode: Literal["taxi", "walk", "access"] | None = None
     next_leg_cost_cny: int | None = None
     next_leg_cost_note: str | None = None
+    # 独立回城卡（2026-11-16 用户拍板「回程卡应该是独立卡」）：合成卡只在
+    # 响应副本上生成，前端据 synthetic 隐藏改点/钉住/删除等编辑入口。
+    synthetic: bool = False
+    # 景区卡上的回城提示（回城段已独立成卡时留一行，不再重复整段明细）。
+    return_hint: str | None = None
     # 到达方式 / 接驳腿（2026-11-15 用户口径「一般是 TAXI + 引擎接驳腿」）：
     # 默认市内腿按打车模型；命中 train/shuttle/ferry（有班次的景区专线、市郊
     # 铁路、轮渡）时改走接驳链 = 打车到乘车点 → 候车 → 班次 → 落客接驳。

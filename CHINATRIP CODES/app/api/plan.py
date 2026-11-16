@@ -86,6 +86,7 @@ from app.services.fast_lane import FastLane
 from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
+from app.services.itinerary.legs import attach_return_cards
 from app.services.itinerary.models import UnplacedCandidate
 from app.services.itinerary_store import (
     ItineraryRecord,
@@ -942,7 +943,12 @@ def _plan_for_response(plan):
     「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
     返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
     统一走本入口，禁止旁路。"""
-    return _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+    plan = _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+    try:
+        return attach_return_cards(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan return cards attach failed", exc_info=True)
+        return plan
 
 
 def _morning_point_cards(plan):

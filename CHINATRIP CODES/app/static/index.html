@@ -1921,11 +1921,12 @@ function hopPickRow(it, legD, dir) {
   };
   // 同一个接驳卡：去程按本卡回算离店，返程按下一站卡回推离场（2026-11-16
   // 「来回程都显示出来、班次可点选重排」）。
+  const ownerId = legD.owner_item_id || it.item_id; // 回城卡：点班次仍按景区卡重排
   if (dir === "return") {
     return mkRow(Array.isArray(legD.returns) && legD.returns.length ? legD.returns : legD.departures,
-      "return", legD.depart_time, it.item_id);
+      "return", legD.depart_time, ownerId);
   }
-  const out = mkRow(legD.departures, "out", legD.depart_time, it.item_id);
+  const out = mkRow(legD.departures, "out", legD.depart_time, ownerId);
   const ret = (Array.isArray(legD.returns) && legD.returns.length && legD.next_item_id)
     ? mkRow(legD.returns, "return", "", legD.next_item_id)
     : "";
@@ -1972,6 +1973,8 @@ function planCard(plan) {
         const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
         const isNight = (it.item_id || "").indexOf("hotel-night") === 0; // 每晚酒店卡（2026-11-07）
         const isMorning = (it.item_id || "").indexOf("hotel-morning") === 0; // 次日从酒店出发卡（2026-11-13）
+        // 合成卡（2026-11-16 独立回城卡）：后端只在响应副本上生成，卡上没有可编辑实体
+        const isSynth = !!it.synthetic;
         const isHotelSlot = isNight || isMorning; // ✏️ 走 set-hotel 验证写回
         // 🍴 美团订（2026-11-07 用户拍板）：餐位/餐厅卡名右侧直达美团美食频道
         // 订座/点单，注册出行人资料后端脱敏挂单，跳转后每 2 分钟跟踪至完成。
@@ -1985,7 +1988,7 @@ function planCard(plan) {
         const htlBtn = it.category === "hotel"
           ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
           : "";
-        if (planSession && planSession.session_id) { // 会话内：换点/钉住/删除可点（数据端点见下方委托监听）
+        if (planSession && planSession.session_id && !isSynth) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口）
           tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '"' + (isHotelSlot ? ' data-hotel="1"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
@@ -1993,10 +1996,10 @@ function planCard(plan) {
           tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }
         // 悬停简介走 .site-pop 浮层（本行下方 JS），不再挂原生 title（双 tooltip 重叠）
-        const handle = (planSession && planSession.session_id && !it.pinned)
+        const handle = (planSession && planSession.session_id && !it.pinned && !isSynth)
           ? '<span class="drag-handle" title="' + I18N.tf("card.drag.title","拖 ⠿ 排序 / 跨天") + '">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
-        const timeCell = (planSession && planSession.session_id)
+        const timeCell = (planSession && planSession.session_id && !isSynth)
           ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
         // 同级备选（2026-11-05 拍板「每个点要有一个备选，尤其 UNESCO/5A/
@@ -2031,8 +2034,10 @@ function planCard(plan) {
         if (Array.isArray(it.stops) && it.stops.length) {
           blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + '"><div class="muted">' + I18N.tf("card.family.pre","🚶 同街联游：") + "</div>" + it.stops.map(s => '<div class="muted">· ' + esc(I18N.pick(s, "name", "name_en")) + ((s.duration_minutes || 0) ? I18N.tf("card.family.dur","（{n} 分钟）").replace("{n}", s.duration_minutes) : "") + "</div>").join("") + "</div>"));
         }
-        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : (it.category === "hotel" ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ((it.category === "hotel" || isSynth) ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
+        // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
+        if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
         if (typeof it.distance_to_next_km === "number") {
           let legSeg = "";
           let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
@@ -2091,7 +2096,9 @@ function planCard(plan) {
           // 结构化接驳卡片（2026-11-16 用户拍板「TRANSPORTATION SHOULD SHOW LEG CLEARLY」，
           // 四拍定稿：固定三行表格——打车段 / 专线段 / 购票与官网，图标+段名+量化值）。
           const legD = it.next_leg_detail;
-          if (legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
+          // 回城段已独立成卡（it.return_hint）：本卡只留一行提示，不再重复整段块
+          const retMoved = !!(it.return_hint && legD && legD.direction === "return");
+          if (!retMoved && legD && legD.service_name !== undefined && (legD.mode === "access" || legD.taxi_km != null)) {
             const opts = Array.isArray(legD.options) ? legD.options.filter(function (o) { return o && o.service_name; }) : [];
             if (opts.length > 1) {
               // 多方式并排块（2026-11-16 用户拍板：有接驳车/火车等不同方式时分 BLOCK 并排，

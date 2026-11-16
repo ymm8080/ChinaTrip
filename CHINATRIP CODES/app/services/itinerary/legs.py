@@ -15,6 +15,7 @@ replaces the estimate with measured walking legs; leg_source flips to
 """
 
 import json
+from datetime import time as dt_time
 from pathlib import Path
 
 from app.services.itinerary.fares import (
@@ -423,6 +424,150 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
         _attach_tail_return(day, timed)
     _gate_item_links(plan)
     return plan
+
+
+RETURN_CARD_PREFIX = "access-return-"
+
+
+def _clock_minutes(value) -> int | None:
+    """time → 当天分钟数（None 透传）。"""
+    if value is None:
+        return None
+    return value.hour * 60 + value.minute
+
+
+def _time_of(minutes: int) -> dt_time:
+    """当天分钟数 → time（夹在 00:00..23:59）。"""
+    minutes = max(0, min(23 * 60 + 59, int(minutes)))
+    return dt_time(minutes // 60, minutes % 60)
+
+
+def _parse_clock_text(text) -> dt_time | None:
+    """'14:30' → time；空值/坏值 None。"""
+    if not text:
+        return None
+    try:
+        hh, mm = str(text)[:5].split(":")
+        return dt_time(int(hh), int(mm))
+    except (TypeError, ValueError):
+        return None
+
+
+def _return_card_name(detail: dict) -> tuple[str, str]:
+    service = (detail.get("service_name") or "").strip()
+    service_en = (detail.get("service_name_en") or "").strip()
+    if service:
+        return (
+            L(f"🚌 回城 · {service}", f"🚌 Return · {service_en or service}"),
+            f"🚌 Return · {service_en or service}",
+        )
+    return (L("🚌 回城（打车回市区）", "🚌 Return to city (taxi)"), "")
+
+
+def _return_hint_text(detail: dict) -> str:
+    depart = detail.get("depart_time") or ""
+    arrive = detail.get("arrive_time") or ""
+    alight = detail.get("alight") or ""
+    if not (depart or arrive):
+        return ""
+    zh = "🚌 回城" + (f" {depart}" if depart else "")
+    en = "🚌 Return" + (f" {depart}" if depart else "")
+    if arrive:
+        zh += f" · 约 {arrive} 到 {alight}" if alight else f" · 约 {arrive}"
+        en += f" · arrives {arrive}" + (f" at {alight}" if alight else "")
+    elif alight:
+        zh += f" · 到 {alight}"
+        en += f" at {alight}"
+    return L(zh, en)
+
+
+def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
+    """把回城段投影成一张独立卡（2026-11-16 用户拍板）。
+
+    用户口径：①回城卡开始=游玩结束时间，有 SHUTTLE 就取最近的返程班次发车；
+    ②回城卡落在午饭/晚饭同址占位卡之后——按时间排序（回城 14:30 晚于午饭
+    14:08，不能排在午饭前面）。
+
+    做法：读 ``annotate_legs`` 已经算好的返程链（景区卡 next_leg_detail,
+    direction=return），在响应副本上生成 ``access-return-<景区卡>`` 卡：
+    开始=班次发车（无时刻表用上一段结束），结束=到市区落点；插到「最后一张
+    开始时间 ≤ 发车时刻」的条目之后；景区卡清腿、只留一行 ``return_hint``。
+    ``detail.owner_item_id`` 指回景区卡，前端点班次仍按景区卡重排。
+
+    只在 ``_plan_for_response`` 出站副本上调用——session/DB 不落卡，求解器、
+    编辑链、心愿单同步都不受影响（幂等：每轮先按前缀摘掉旧卡）。
+    """
+    if plan is None:
+        return plan
+    out = plan.model_copy(deep=True)
+    for day in out.days:
+        day.items = [
+            i
+            for i in day.items
+            if not (i.item_id or "").startswith(RETURN_CARD_PREFIX)
+        ]
+        site = None
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            detail = item.next_leg_detail or {}
+            if detail.get("direction") == "return":
+                site = item
+                break
+        if site is None:
+            continue
+        detail = dict(site.next_leg_detail or {})
+        start = _parse_clock_text(detail.get("depart_time"))
+        if start is None:
+            start = site.end_time
+        if start is None:
+            continue
+        arrive = _parse_clock_text(detail.get("arrive_time"))
+        if arrive is None:
+            spent = detail.get("service_minutes")
+            if spent is None:
+                spent = site.next_leg_minutes or 0
+            walk = int(detail.get("walk_minutes") or 0)
+            arrive = _time_of(_clock_minutes(start) + walk + int(spent))
+        name, name_en = _return_card_name(detail)
+        card = VisitItem(
+            item_id=f"{RETURN_CARD_PREFIX}{site.item_id}",
+            name=name,
+            name_en=name_en or None,
+            category="transfer",
+            city=site.city,
+            day=day.day,
+            start_time=start,
+            end_time=arrive,
+            duration_minutes=max(
+                0, (_clock_minutes(arrive) or 0) - (_clock_minutes(start) or 0)
+            ),
+            address=detail.get("gateway") or None,
+            synthetic=True,
+        )
+        card_detail = dict(detail)
+        card_detail["owner_item_id"] = site.item_id
+        card_detail["to_city"] = True
+        card.next_leg_detail = card_detail
+        hint = _return_hint_text(detail)
+        # 明细留在景区卡上（下一轮装配还要用它重算回城卡，幂等）；
+        # 摘要行清掉，前端按 return_hint 跳过这整段块（不重复显示）。
+        site.return_hint = hint or None
+        site.distance_to_next_km = None
+        site.next_walk_minutes = None
+        site.next_leg_mode = None
+        site.next_leg_minutes = None
+        site.next_leg_cost_cny = None
+        site.next_leg_cost_note = None
+        cut = 0
+        for pos, item in enumerate(day.items):
+            start_min = _clock_minutes(getattr(item, "start_time", None))
+            if start_min is None:
+                continue
+            if start_min <= (_clock_minutes(start) or 0):
+                cut = pos + 1
+        day.items.insert(cut, card)
+    return out
 
 
 def _gate_item_links(plan: ItineraryPlan) -> None:
