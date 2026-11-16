@@ -538,3 +538,128 @@ def test_anchored_meal_inherits_access_and_return_chain():
     resolve_meal_anchors(plan)
     assert lunch.access_mode is None
     assert lunch.access_return_times is None
+
+
+class _FakeProfileStore:
+    """假档案源（poi_access.configure_profiles 的入参形状）。"""
+
+    def __init__(self, profiles):
+        self._profiles = profiles
+
+    def access_profiles(self, cities=None):
+        return dict(self._profiles)
+
+
+def test_outbound_detail_fills_window_from_service_store():
+    """卡上没有窗口字段（wish 快路径）时，去程明细从班次库补线名/乘车点/班次，
+    不再只剩「乘车点」占位、专线行消失。"""
+    from app.services import access_services
+
+    access_services.configure_store(_FakeStore([_svc_row()]))
+    try:
+        hotel = VisitItem(
+            item_id="hotel-morning-d1",
+            name="🏨 从酒店出发",
+            city="北京",
+            day=1,
+            category="hotel",
+            duration_minutes=30,
+            location=None,
+            anchor_location=GeoPoint(lon=116.4074, lat=39.9042),
+            start_time=time(8, 30),
+            end_time=time(9, 0),
+        )
+        mt = _v(
+            "mt",
+            "慕田峪长城",
+            116.5598,
+            40.4267,
+            access_mode="shuttle",
+            access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+            access_service_minutes=90,
+            access_wait_minutes=10,
+            access_last_mile_minutes=8,
+        )
+        plan = ItineraryPlan(
+            itinerary_id="x",
+            cities=["北京"],
+            days=[DayPlan(day=1, base_city="北京", items=[hotel, mt])],
+            assumptions=[],
+        )
+        annotate_legs(plan)
+        detail = hotel.next_leg_detail
+        assert detail is not None and detail["mode"] == "access"
+        assert detail["service_name"].startswith("前门旅游专线")
+        assert detail["gateway"].startswith("前门大街北口")
+        assert detail["alight"].startswith("慕田峪长城")
+        assert "07:30" in detail["departures"]
+        assert "14:30" in detail["returns"]
+    finally:
+        access_services.configure_store(None)
+
+
+def test_return_chain_when_card_only_has_profile_archive():
+    """wish 快路径不经过 attach_access：卡上只有 profile 档案（无窗口字段）
+    时，锚定午餐卡继承档案、回城腿仍出三段——线名/返程班次按班次库补。"""
+    from app.services import access_services, poi_access
+
+    profile = {
+        ("北京", "慕田峪长城"): dict(
+            access_mode="shuttle",
+            access_service_minutes=90,
+            access_wait_minutes=10,
+            access_last_mile_minutes=8,
+            access_boarding_lon=116.3982,
+            access_boarding_lat=39.8988,
+        )
+    }
+    access_services.configure_store(_FakeStore([_svc_row()]))
+    poi_access.configure_profiles(_FakeProfileStore(profile))
+    poi_access._CITY_PROFILE_CACHE.clear()
+    try:
+        mt = _v(
+            "mt",
+            "慕田峪长城",
+            116.5598,
+            40.4267,
+            start_time=time(11, 8),
+            end_time=time(12, 38),
+        )
+        lunch = VisitItem(
+            item_id="food-lunch-ph-d1",
+            name="午饭（自由安排）",
+            category="food",
+            city="北京",
+            day=1,
+            duration_minutes=60,
+            anchor_from_prev=True,
+            start_time=time(12, 38),
+            end_time=time(13, 38),
+        )
+        wfj = _v(
+            "wfj",
+            "王府井",
+            116.4109,
+            39.9097,
+            start_time=time(15, 8),
+            end_time=time(16, 38),
+        )
+        plan = ItineraryPlan(
+            itinerary_id="x",
+            cities=["北京"],
+            days=[DayPlan(day=1, base_city="北京", items=[mt, lunch, wfj])],
+            assumptions=[],
+        )
+        annotate_legs(plan)
+        detail = lunch.next_leg_detail
+        assert detail is not None and detail["direction"] == "return"
+        assert detail["service_name"].startswith("前门旅游专线")
+        assert detail["gateway"].startswith("慕田峪长城")
+        assert detail["alight"].startswith("前门大街北口")
+        assert detail["departures"] == ["14:30", "15:30", "16:30"]
+        assert detail["depart_time"] == "14:30"
+        assert lunch.next_leg_mode == "access"
+    finally:
+        access_services.configure_store(None)
+        poi_access.configure_profiles(None)
+        poi_access._CITY_PROFILE_CACHE.clear()

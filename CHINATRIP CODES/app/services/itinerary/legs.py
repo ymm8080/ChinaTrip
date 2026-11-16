@@ -27,6 +27,7 @@ from app.services.itinerary.models import (
 from app.services.itinerary.rules import (
     TAXI_WALK_MAX_KM,
     TRAVEL_MIN_PER_KM,
+    _access_profile,
     access_breakdown,
     haversine_km,
     taxi_leg_min,
@@ -44,29 +45,63 @@ def _point(item: VisitItem) -> GeoPoint | None:
     return item.location or item.anchor_location
 
 
-# 占位卡随锚继承的接驳字段（2026-11-16「回城也是一样的接驳三段」）：
-# 占位餐卡锚在班次点上时按该站的返程链算腿/隔隙——否则回城腿只剩
-# 一条打车直线。幂等：每次 annotate 按当前锚重拷/清空。
-_ACCESS_COPY_ATTRS = (
-    "access_mode",
-    "access_boarding",
-    "access_service_minutes",
-    "access_wait_minutes",
-    "access_last_mile_minutes",
+# 占位卡随锚继承的窗口字段（2026-11-16「回城也是一样的接驳三段」）：
+# 卡上没有就按 (city, name) 查一次班次库（wish 快路径不经过 attach_access，
+# 只靠 profile 档案算链，窗口字段得在这里补——否则专线行没有线名/落点）。
+_ACCESS_WINDOW_ATTRS = (
     "access_service_name",
+    "access_boarding_stop",
+    "access_alight_stop",
+    "access_operator",
     "access_depart_first",
     "access_depart_last",
     "access_ride_minutes",
     "access_return_last",
     "access_fare_text",
-    "access_boarding_stop",
-    "access_alight_stop",
-    "access_operator",
     "access_depart_times",
     "access_return_times",
     "access_ticket_url",
     "access_official_url",
 )
+
+
+def _service_window(item: VisitItem) -> dict:
+    """班次点窗口字段：卡上有就原样；没有就按 (city, name) 查班次库。
+
+    返回的键都是 VisitItem 上的 access_* 名，值可直接 setattr 回卡。
+    """
+    window = {attr: getattr(item, attr, None) for attr in _ACCESS_WINDOW_ATTRS}
+    if window.get("access_service_name"):
+        return window
+    try:
+        from app.services import access_services
+
+        svc = access_services.fastest_service(
+            getattr(item, "city", None), item.name, arrive_boarding=9 * 60
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=不挂窗口
+        svc = None
+    if svc is None:
+        return window
+    return {
+        "access_service_name": svc.service_name,
+        "access_boarding_stop": svc.boarding_stop,
+        "access_alight_stop": svc.alight_stop,
+        "access_operator": svc.operator,
+        "access_depart_first": svc.first_departure(),
+        "access_depart_last": svc.last_departure(),
+        "access_ride_minutes": svc.ride_minutes,
+        "access_return_last": svc.return_last,
+        "access_fare_text": svc.fare_text(),
+        "access_depart_times": [
+            f for m in svc.departures() if (f := access_services.fmt_minutes(m))
+        ],
+        "access_return_times": [
+            f for m in svc.returns() if (f := access_services.fmt_minutes(m))
+        ],
+        "access_ticket_url": svc.ticket_url or svc.official_url,
+        "access_official_url": svc.official_url or svc.ticket_url,
+    }
 
 
 def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
@@ -91,15 +126,28 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
                     item.address_en = last.address_en
                     item.anchor_location = last.location
                     # 接驳档案随锚走：占位餐卡锚在班次点上时继承该站
-                    # 的返程链字段（2026-11-16「回城三段」）；锚离开
-                    # 班次点就清掉，幂等重算不残留。
-                    for attr in _ACCESS_COPY_ATTRS:
-                        setattr(item, attr, getattr(last, attr, None))
+                    # 的返程链字段（2026-11-16「回城三段」）；档案
+                    # 优先用规则层解析值（卡上没有也能吃 profile）。
+                    mode, boarding, service, wait, last_mile = (
+                        _access_profile(last)
+                    )
+                    item.access_mode = mode
+                    item.access_boarding = boarding
+                    item.access_service_minutes = service or None
+                    item.access_wait_minutes = wait
+                    item.access_last_mile_minutes = last_mile
+                    for attr, val in _service_window(last).items():
+                        setattr(item, attr, val)
                 else:
                     item.address = None
                     item.address_en = None
                     item.anchor_location = None
-                    for attr in _ACCESS_COPY_ATTRS:
+                    item.access_mode = None
+                    item.access_boarding = None
+                    item.access_service_minutes = None
+                    item.access_wait_minutes = None
+                    item.access_last_mile_minutes = None
+                    for attr in _ACCESS_WINDOW_ATTRS:
                         setattr(item, attr, None)
             if item.location is not None:
                 last = item
@@ -272,22 +320,14 @@ def _access_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
     if opts:
         return _options_detail(a, b, br, opts, _from, city)
 
-    svc = None
-    if not getattr(b, "access_service_name", None):
-        try:
-            from app.services import access_services
-
-            svc = access_services.fastest_service(
-                b.city, b.name, arrive_boarding=9 * 60
-            )
-        except Exception:  # noqa: BLE001 - 班次库不可用不影响腿展示
-            svc = None
+    window = _service_window(b)
 
     def _pick(attr: str, fallback=None):
         val = getattr(b, attr, None)
         if val not in (None, "", []):
             return val
-        return getattr(svc, attr, None) if svc is not None else fallback
+        got = window.get(attr)
+        return got if got not in (None, "", []) else fallback
 
     details = {
         "mode": "access",
@@ -336,11 +376,14 @@ def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
     仍优先景点自己的预约入口。
     """
 
+    window = _service_window(a)
+
     def _pick(attr: str, fallback=None):
         val = getattr(a, attr, None)
         if val not in (None, "", []):
             return val
-        return fallback
+        got = window.get(attr)
+        return got if got not in (None, "", []) else fallback
 
     depart = br.get("depart")
     ride = int(br.get("service") or 0)
