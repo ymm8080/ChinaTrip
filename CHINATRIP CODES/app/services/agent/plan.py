@@ -13774,6 +13774,9 @@ def _compress_before_evening_anchor(plan: ItineraryPlan) -> None:
 #: 同城接驳腿（回城/换乘打车）的换乘缓冲（分钟）：不是跨城衔接，腿自身
 #: 时长已含车程，只留上下车余量（2026-11-16 回城后下午补不进件案）。
 INCITY_TRANSFER_PAD_MINUTES = 15
+#: 城际 car/bus 的衔接缓冲（2026-11-16 用户拍板 90→30）：包车/城际大巴
+#: 门到门，不要机场车站的值机进站时间。
+ROAD_TRANSFER_BUFFER_MINUTES = 30
 
 
 def _is_incity_transfer(item: TransferItem) -> bool:
@@ -13834,6 +13837,11 @@ def _day_fixed_windows(
                 # 节目」——旧口径把 14:00-15:01 的回城卡铺成 12:30-16:31，
                 # 普通件进场闸 15:30 之后整段下午被判死）。
                 leg_buf = arr_pad = INCITY_TRANSFER_PAD_MINUTES
+            elif (item.mode or "").lower() in ("car", "bus"):
+                # 2026-11-16 用户拍板：城际 car/bus 的 90 分钟衔接缓冲一起
+                # 收到 30——包车/城际大巴是门到门，不需要机场/车站那套
+                # 值机进站时间。
+                leg_buf = arr_pad = ROAD_TRANSFER_BUFFER_MINUTES
             else:
                 leg_buf = buf
                 arr_pad = (
