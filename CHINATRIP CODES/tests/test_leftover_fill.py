@@ -166,7 +166,6 @@ def test_fill_is_idempotent_via_disclosure_marker():
     assert _fill_leftover_with_diverse_sights(plan, bench=[_cand("另一个点", 90)]) == []
 
 
-
 def test_evening_candidate_never_before_five_pm():
     """best_visit_time=evening 的件不得排到 17:00 之前（浦江游览 12:45 案）。"""
     plan = _plan(
