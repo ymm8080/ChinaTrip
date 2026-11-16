@@ -2038,7 +2038,9 @@ function planCard(plan) {
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
-        if (typeof it.distance_to_next_km === "number") {
+        const hasKm = typeof it.distance_to_next_km === "number";
+        // 合成卡（独立回城卡）本身就是一段路：没有「距下一站」也要出接驳块
+        if (hasKm || isSynth) {
           let legSeg = "";
           let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
           if (it.next_walk_minutes != null) {
@@ -2087,12 +2089,14 @@ function planCard(plan) {
           const callBtn = taxiP
             ? ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + esc(taxiDest.name) + '" data-lon="' + taxiP.lon + '" data-lat="' + taxiP.lat + '" title="' + I18N.tf("card.callTaxi.title","一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>"
             : "";
-          const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)
-            ? I18N.tf("card.to_city", "回城 ")
-            : I18N.t("card.to_next");
-          const leg = legFrom + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
-            (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
-          blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
+          if (hasKm) {
+            const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)
+              ? I18N.tf("card.to_city", "回城 ")
+              : I18N.t("card.to_next");
+            const leg = legFrom + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
+              (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
+            blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
+          }
           // 结构化接驳卡片（2026-11-16 用户拍板「TRANSPORTATION SHOULD SHOW LEG CLEARLY」，
           // 四拍定稿：固定三行表格——打车段 / 专线段 / 购票与官网，图标+段名+量化值）。
           const legD = it.next_leg_detail;
@@ -2234,7 +2238,7 @@ function planCard(plan) {
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
-        else if (it.category !== "food" && it.category !== "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">🎫 ' + I18N.tf("card.resv.none","预约信息无") + "</div>"));
+        else if (!isSynth && it.category !== "food" && it.category !== "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">🎫 ' + I18N.tf("card.resv.none","预约信息无") + "</div>"));
         blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
