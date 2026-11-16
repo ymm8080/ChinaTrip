@@ -121,6 +121,7 @@
       "card.hotel.noMatchErr": "Couldn't verify that hotel — try another name",
       "card.hotel.done": "✅ Hotel verified and set",
       "card.hotel.noAnchor": "Can't locate tonight yet: verify the hotel with ✏️ first, or add a located sight to this day",
+      "card.hotel.stay": "{n}-night stay", "card.hotel.stayRange": " ({ci} → {co})",
       "card.tmode.flight.title": "Switch to flight: re-query flights and update times automatically",
       "card.tmode.train.title": "Switch to train: re-query trains and update times automatically",
       "card.tno": "🔢 Flight/Train no.", "card.tno.title": "Enter a flight or train number (e.g. CA1234 / G1234); times are validated and updated automatically",

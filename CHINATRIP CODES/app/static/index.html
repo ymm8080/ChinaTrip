@@ -1872,6 +1872,29 @@ function dayActivityCity(d) {
   return "";
 }
 
+// 酒店夜卡住宿时长（2026-11-16 用户拍板「酒店卡 HAS NO DURATION」）：夜卡不再显示
+// 无意义的 60 分钟占位——按连续夜卡聚出这段住宿（未验证占位卡=同城连续夜，已验证
+// 卡=同名连续夜），显示「住 N 晚（入住 MM-DD → 退房 MM-DD）」；日期与天头
+// planDateIso 同源（PLAN.startDate），无出发日期只显示晚数。
+function hotelStayLabel(plan, it) {
+  const byDay = {};
+  ((plan && plan.days) || []).forEach(dd => {
+    (dd.items || []).forEach(x => {
+      if ((x.item_id || "").indexOf("hotel-night-d") === 0 && byDay[dd.day] === undefined) byDay[dd.day] = x;
+    });
+  });
+  // 同一段住宿=相邻天的夜卡同名且同城（占位卡同名同城；已验证卡=同名酒店；
+  // 线上 payload name_en 恒为 null，不可用作占位判定——同名同城双闸防跨城误并）
+  const sameStay = (x) => !!x && (x.name || "") === (it.name || "") && (x.city || "") === (it.city || "");
+  let f = it.day || 1, l = it.day || 1;
+  while (sameStay(byDay[f - 1])) f--;
+  while (sameStay(byDay[l + 1])) l++;
+  let out = I18N.tf("card.hotel.stay", "住 {n} 晚").replace("{n}", String(l - f + 1));
+  const ci = planDateIso(f), co = planDateIso(l + 1);
+  if (ci && co) out += I18N.tf("card.hotel.stayRange", "（{ci} → {co}）").replace("{ci}", ci.slice(5)).replace("{co}", co.slice(5));
+  return out;
+}
+
 // 行程卡片：按天分组 + 条目时间轴（VisitItem / TransferItem 混排）
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
@@ -1963,7 +1986,7 @@ function planCard(plan) {
                 '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" data-city="' + esc(it.city) + '" data-bits="' + esc(bits.join(" · ")) + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + '</button></span>';
             }).join("") + "</span>"
           : "";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (it.duration_minutes || 0) + I18N.t("card.minutes") + tail + "</span>" + altChips + "</div></div>");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>" + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
         // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
         // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
