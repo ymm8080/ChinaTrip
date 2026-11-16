@@ -13780,6 +13780,150 @@ def _probe_visit_slot(
     return None
 
 
+#: 非强约束景点的时长收缩档（2026-11-16 用户拍板）：60<d<90 可缩 1-15 分钟，
+#: d≥90 可缩 15-30 分钟。演出/宴会/交通/餐宿与用户钉住件不缩。
+_FLEX_DURATION_EXEMPT = ("food", "hotel", "show", "performance", "entertainment")
+#: 与硬锚（钉住卡/场次/闭园）差 ≤30 分钟时接受（2026-11-16 用户拍板
+#: 「diff within 30 minutes, accept」），从强约束的时间点倒排贴放。
+_FLEX_TOLERANCE_MINUTES = 30
+
+
+def _flex_allowed(item) -> bool:
+    """非强约束件（2026-11-16 拍板）：演出/宴会/交通/餐宿与用户钉住卡是
+    当场硬时刻（缩时长/吃掉车程缓冲等于改合同），其余景点可收缩、可容忍。"""
+    if not isinstance(item, VisitItem):
+        return False
+    if item.pinned or item.soft_pin:
+        return False
+    if (item.category or "") in _FLEX_DURATION_EXEMPT:
+        return False
+    if getattr(item, "fixed_sessions", None):
+        return False
+    return not _is_show_item(item)
+
+
+def _shrink_band(item) -> tuple[int, int]:
+    """可收缩档 (最小分钟, 最大分钟)；不可缩返回 (0, 0)。
+
+    2026-11-16 用户拍板：非强约束景点 60<时长<90 可缩 1-15 分钟、时长
+    ≥90 可缩 15-30 分钟；演出/宴会/交通/餐宿与用户钉住卡不缩（它们是
+    当场硬时刻，缩时长等于改合同）。
+    """
+    if not _flex_allowed(item):
+        return (0, 0)
+    dur = int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
+    if 60 < dur < 90:
+        return (1, 15)
+    if dur >= 90:
+        return (15, 30)
+    return (0, 0)
+
+
+def _place_with_flex(
+    plan: ItineraryPlan,
+    day: DayPlan,
+    visit: VisitItem,
+    *,
+    tolerance: int = _FLEX_TOLERANCE_MINUTES,
+) -> tuple[int, int, str] | None:
+    """加法路径（拖入备选 / 空档补点）的兜底落位：先原时长，再按
+    2026-11-16 拍板「时长收缩 + ≤30 分钟容忍，从硬锚倒排」。
+
+    与 `_fallback_sequence_times` 的分工：本函数**不动任何已排卡**（纯探针），
+    只给新卡在既有盘面上找位置——拖入/补点失败时用它兜底，补点时用它替代
+    单次全时长探针。返回 (开场分钟, 实际时长, 披露文案)；放不下 None。
+
+    ① 原时长能放就放（口径与 `_probe_visit_slot` 完全一致）；
+    ② 放不下 → 非强约束景点按档收缩（先小档后大档），**贴着下一张硬锚
+       倒排**（end = 锚前沿），剩余空隙留在前面；
+    ③ 仍放不下且只差 ≤30 分钟 → 容忍（只吃下一站的车程缓冲，不压任何卡）；
+    ④ 都不行返回 None（调用方保持原行程 / 跳过该候选）。
+    """
+    dur0 = int(visit.duration_minutes or DEFAULT_VISIT_MINUTES)
+    fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+    walls = [*fixed]
+    # 真实餐卡也是墙（占位餐在 _day_fixed_windows 里已按设计跳过）
+    walls += [
+        (s, e, it)
+        for it in day.items
+        if isinstance(it, VisitItem)
+        and it is not visit
+        and (it.category or "") == "food"
+        for s in [_minutes_of(it.start_time)]
+        for e in [_item_end_minutes(it)]
+        if s is not None and e is not None
+    ]
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    day_end = 21 * 60 + 30
+    floor = _day_fill_floor(day)
+
+    def probe(dur: int, wall_list) -> int | None:
+        visit.duration_minutes = dur
+        try:
+            return _probe_visit_slot(
+                visit,
+                _with_meal_bands(wall_list, dur),
+                xfer,
+                hours_by_poi,
+                day_end,
+                floor=floor,
+            )
+        finally:
+            visit.duration_minutes = dur0
+
+    start = probe(dur0, walls)
+    if start is not None:
+        return (start, dur0, "")
+
+    # 最早到达（时长压到 1 分钟探）+ 该空隙的硬锚前沿（下一张卡的放宽窗起点）
+    arrive = probe(1, walls)
+    if arrive is None:
+        return None
+    limit = next(
+        (
+            fs
+            for (fs, _fe), (_rs, _re, _src) in zip(_leg_windows(walls, visit), walls)
+            if fs >= arrive
+        ),
+        None,
+    )
+    lo, hi = _shrink_band(visit)
+    if hi:
+        for cut in sorted({lo, hi}):
+            dur = max(30, dur0 - cut)
+            if dur >= dur0:
+                continue
+            start = probe(dur, walls)
+            if start is None:
+                continue
+            if limit is not None and limit - dur >= arrive:
+                start = limit - dur  # 从硬锚倒排：贴着下一站前沿收口
+            note = L(
+                f"「{visit.name}」{dur0}→{dur} 分钟"
+                f"（非强约束景点，按下一站硬锚倒排收缩）",
+                f'"{visit.name}" {dur0}→{dur} min (flexible stop, '
+                "trimmed to fit before the next anchor)",
+            )
+            return (start, dur, note)
+
+    # ③ ≤30 分钟差异容忍：只吃掉下一站的车程缓冲，不压任何卡本身
+    if tolerance > 0 and _flex_allowed(visit):
+        # 容忍 = 只吃掉下一站的车程缓冲：把墙前沿右移 tolerance 分钟
+        # （墙本身是「卡前 start - 车程」，右移后仍不压卡本体）
+        tol_walls = [(min(fs + tolerance, fe), fe, src) for fs, fe, src in walls]
+        start = probe(dur0, tol_walls)
+        if start is not None:
+            gap = "" if limit is None else f"差 {max(0, arrive + dur0 - limit)} 分钟"
+            note = L(
+                f"「{visit.name}」{gap}（≤{tolerance} 分钟容忍），已按硬锚倒排贴放",
+                f'"{visit.name}" is within {tolerance} min of the next anchor — '
+                "scheduled backwards from it",
+            )
+            return (start, dur0, note)
+    return None
+
+
+
 # --- 景点三轴校核（2026-11-14 用户拍板「sites should check city, date, weather」）
 
 _WEEKDAY_ZH = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
@@ -15201,8 +15345,15 @@ def _fill_leftover_with_diverse_sights(
                     day_end,
                     floor=floor,
                 )
+                flex_note = ""
                 if start is None:
-                    continue
+                    # 2026-11-16 拍板：全时长放不下 → 非强约束景点按档收缩 /
+                    # ≤30 分钟容忍，贴硬锚倒排再试（豫园 90→75 卡进 16:30）
+                    flexed = _place_with_flex(plan, day, probe_item)
+                    if flexed is None:
+                        continue
+                    start, dur, flex_note = flexed
+                    probe_item.duration_minutes = dur
                 probe_item.start_time = _time_of(start)
                 probe_item.end_time = _time_of(start + dur)
                 day.items.append(probe_item)
@@ -15220,6 +15371,9 @@ def _fill_leftover_with_diverse_sights(
                         f"({probe_item.start_time:%H:%M}) for variety",
                     )
                 )
+                if flex_note:
+                    # 收缩/容忍的披露单独一条（用户要知道这件为什么变短）
+                    notes.append(flex_note)
                 placed = True
                 break
             if not placed:
@@ -32636,20 +32790,56 @@ class PlanningAgent:
             and it.start_time is not None
         ]
 
-        def _resequence() -> list[VisitItem] | None:
+        def _resequence(*, evict: bool = True) -> list[VisitItem] | None:
             for it, _p, _s in meal_flags:
                 it.pinned, it.soft_pin = True, False
             try:
                 _fallback_sequence_times(candidate, keep_list_order=True)
                 d = next(dd for dd in candidate.days if dd.day == new_day)
+                if not evict:
+                    # 只排不让位（2026-11-16）：先看「一张卡都不撤」能不能
+                    # 排下；排不下再交给 _flex_fallback / 让位链
+                    untimed = any(
+                        isinstance(i, VisitItem) and i.start_time is None
+                        for i in d.items
+                    )
+                    return None if untimed else []
                 return _evict_until_clean(candidate, d, fresh, location)
             finally:
                 for it, p, s in meal_flags:
                     it.pinned, it.soft_pin = p, s
 
+        def _flex_fallback() -> bool:
+            """非强约束景点兜底（2026-11-16 拍板）：时长按档收缩，仍差
+            ≤30 分钟就接受、贴着下一张硬锚倒排。只动新卡，不动其它卡。"""
+            d_now = next(dd for dd in candidate.days if dd.day == new_day)
+            if any(
+                isinstance(i, VisitItem) and i is not fresh and i.start_time is None
+                for i in d_now.items
+            ):
+                # 还有别的无时刻件：那是让位链的活，别用「只动新卡」的兜底
+                # 绕过它们（否则烂摊子原样留在当天）
+                return False
+            placed = _place_with_flex(candidate, day, fresh)
+            if placed is None:
+                return False
+            start, dur, note = placed
+            fresh.duration_minutes = dur
+            fresh.start_time = time(start // 60, start % 60)
+            fresh.end_time = time((start + dur) // 60, (start + dur) % 60)
+            if note and note not in notes:
+                notes.append(note)
+            return True
+
         from app.services.agent.wish_fast import _evict_until_clean
 
-        removed = _resequence()
+        removed = _resequence(evict=False)
+        if removed is None and _flex_fallback():
+            # 2026-11-16 拍板：非强约束景点先按「时长收缩 / ≤30 分钟容忍」
+            # 贴硬锚倒排——不动其它卡、不让位；成了就不撤任何一条
+            removed = []
+        if removed is None:
+            removed = _resequence()
         if removed is None:
             # 当天让位到顶仍排不下：整单不落（会话里仍是原行程），前端提示
             raise ValueError("no_slot")
@@ -32662,8 +32852,13 @@ class PlanningAgent:
             if f"第{new_day}天" in note and note not in notes:
                 notes.append(note)
         if fresh.start_time is None:
-            # 餐卡收口把新卡挤出时链 → 再让一次位，仍排不下就整单不落
-            more = _resequence()
+            # 餐卡收口把新卡挤出时链 → 先试收缩/容忍，再让一次位，
+            # 仍排不下就整单不落
+            more = _resequence(evict=False)
+            if more is None and _flex_fallback():
+                more = []
+            if more is None:
+                more = _resequence()
             if more is None:
                 raise ValueError("no_slot")
             removed = removed + more
