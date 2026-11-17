@@ -50,7 +50,7 @@ Conventions: **Inputs/Outputs** are design-level types above. **Covers** = AS-IS
 
 **F-01 `parse_intent(text|form|link, today) -> TripRequest draft`**
 LLM-first facts + regex fallback (dates EN/CN, days, day1_start, cities, avoid, wishes); schema validation drops bad fields silently; ambiguity triggers confirmation cards per the three-trigger contract (unique hit = no question).
-Covers D1. Resolves: keeps B-10/B-12/B-13 semantics; **B-16** — form/preferences 「必去：…」 must produce `musts[]` on the fresh structured path too (explicit requirement, currently missing).
+Covers D1. Resolves: keeps B-10/B-12/B-13 semantics; **B-16** — form/preferences 「必去：…」 must produce `musts[]` on the fresh structured path too (explicit requirement, currently missing). Question policy follows the three-trigger contract across `clarify_questions`, `wish_city_question`, `_resto_question`, `_type_ask_hit`, `_pref_question` and the wish/link/brief parsing family.
 
 **F-02 `bind_requests(draft, library) -> RequestedItem[]`**
 Name→POI binding incl. typo prefix/near tiers and fuzzy candidate cards; twin/dup resolution (`_twin_cover` semantics); city gate (out-of-city wishes disclosed, not scheduled); importance ranking.
@@ -76,7 +76,7 @@ Covers D4, D12. Resolves B-07 semantics; supplies C-01/C-02.
 
 **F-13 `weather_conditions(forecast, candidates) -> per-(cid,day) penalty|forbid`**
 `weather_reports` × indoor/rain_ok; rainy-day outdoor = heavy penalty or forbid (heavy rain); rain_outdoor reason emitted for disclosure.
-Covers D7. Feeds objective②/conditional constraints.
+Covers D7. Feeds objective②/conditional constraints. `coverage.py` (`premium_coverage_gaps`, `rain_swap_advice`) supplies premium-gap detection and rain-swap candidates.
 
 **F-14 `access_legs(remote_candidates, profiles) -> interval templates`**
 Outbound/return intervals with board windows, ride, last-mile, return-last; **the same templates drive C-08 and F-30**, so card times ≡ leg times.
@@ -100,7 +100,7 @@ Covers D3/D4. Resolves **B-01** (no invisible state exists), B-06 (an item is ei
 | C-01 | Open windows / closed weekdays / seasonal | `_fits_hours_window`, `_closed_weekdays` |
 | C-02 | Entry cap 16:30/big 15:30 + open-form & night exemptions | `generic_entry_cap`, `_hours_open_form`, `_hours_evening_only` (B-07) |
 | C-03 | NoOverlap incl. travel arcs (intra-day sequence + travel time) | solver NoOverlap + `_travel_matrix` |
-| C-04 | User pins = iron rule 19 (fixed time); engine pins = must-stay, retimable | **D5** (2a56cda), reopen guards (B-09) |
+| C-04 | User pins = iron rule 19 (fixed time); engine pins = must-stay, retimable; **fixed sessions** from flag schedule (`_apply_flag_schedule`), comment day-start (`_apply_comment_day_start`), user-chosen shuttle departure (`set_access_departure`) | **D5** (2a56cda), reopen guards (B-09) |
 | C-05 | Endpoint days only with timed intercity legs; no transport info = full day | B-11 (438bcfa), `_apply_intake_times` |
 | C-06 | Remote-day exclusivity: day with remote cluster item → other items same cluster or none | `_separate_remote_must_days`, `_day_already_remote`, third-cluster eviction (B-08) |
 | C-07 | Same city / same river-side per day; multi-city day ranges | `_enforce_day_zones`, `_city_side_ok` |
@@ -145,7 +145,7 @@ Resolves B-01/E-4 (honest "why"), B-04 (no 「未收敛」 hand-wave).
 
 **F-30 `materialize_plan(Solution, FactSnapshot) -> ItineraryPlan`**
 Cards start/end come from solution intervals; access-leg cards come from the **same** F-14 intervals (card ≡ leg by construction); a requested item not present becomes an `unplaced` entry with reason + disclosure — **an untimed requested card is a type error** (assert in tests).
-Resolves B-01, B-03c.
+Resolves B-01, B-03c. Assembly entry points retained and driven by the same solution intervals: `annotate_legs` (leg/fare materialisation) and `attach_return_cards`; reservation-hint helpers attach here.
 
 **F-31 `meal_card_assembly(Solution) -> meal cards + anchors`**
 Meal cards anchored at solution locations: remote-day lunch at the remote site (or post-visit), city meals at the neighbouring visit; address from the POI record, never "previous city item".
@@ -158,6 +158,10 @@ Covers D9/D11/D13 assembly.
 **F-33 `disclosure_renderer(slack log, certificate, weather, coverage) -> bilingual lines`**
 All disclosures from structured reasons (not LLM invention); bilingual by `lang`; 「求解器未收敛，时间已按顺序兜底排列」 is **deleted** — replaced by certificate/relaxation lines.
 Resolves B-04 wording + B-01/E-3 visibility.
+
+**F-34 `session_trip_center_sync(plan, session) -> synced stores`**
+Session persistence and trip-center (行程中心) sync: `sync_trip_rows`, `_sync_wish_rows`, `_sync_planned_rows`, `sync_removals_to_trip_items`, `ensure_unique_item_ids`, session-store plumbing (`get_plan_session_store`, `live_itinerary_ids`, `alloc_item_id`). Wish rows mirror scheduled/unplaced state with disclosures; removals propagate; item ids stay unique.
+Covers D10/D13. Engine-independent; behavior unchanged, driven by F-30's materialised plan.
 
 ### Module E — Acceptance & runtime invariants (stay outside)
 
@@ -204,7 +208,7 @@ Covers D10; resolves B-09 semantics, B-20 implementation.
 | B-19 颐和园 300 min | F-15, F-26 | duration tiers + honest certificate | **policy decision needed (§7-Q1)** |
 | B-20 pin provenance | F-51, C-04 | D5 user/engine pin split | lands with P1 |
 
-**Domain coverage**: D1→F-01/02, D2→F-10/F-23, D3→F-20/C-05/06/07/12, D4→F-12/F-15/C-01/02, D5→C-09/10/F-22/F-31, D6→F-11/F-14/C-08, D7→F-13, D8→F-11/C-06/07/15, D9→C-14/F-23/F-32, D10→F-50/51, D11→F-33/F-40, D12→F-12/C-11, D13→C-13/F-32, D14→F-24/41/42. Every AS-IS function from the parity matrix maps to exactly one fate: constraint (C-xx), objective (F-23), input (F-10…F-15), assembly (F-30…F-33), gate (F-40), or retired executor (ripple/flex/fallback/LLM-repair — semantics absorbed by C-xx/F-25).
+**Domain coverage**: D1→F-01/02, D2→F-10/F-23, D3→F-20/C-05/06/07/12, D4→F-12/F-15/C-01/02, D5→C-09/10/F-22/F-31, D6→F-11/F-14/C-08, D7→F-13, D8→F-11/C-06/07/15, D9→C-14/F-23/F-32, D10→F-50/51, D11→F-33/F-40, D12→F-12/C-11, D13→C-13/F-32/F-34, D14→F-24/41/42. Every AS-IS function from the parity matrix maps to exactly one fate: constraint (C-xx), objective (F-23), input (F-10…F-15), assembly (F-30…F-33), gate (F-40), or retired executor (ripple/flex/fallback/LLM-repair — semantics absorbed by C-xx/F-25).
 
 ## 5. What the global model does NOT solve alone (be explicit)
 
@@ -231,3 +235,14 @@ Covers D10; resolves B-09 semantics, B-20 implementation.
 - **Q5 Objective weights**: importance weights for must/wish tiers and the weather penalty scale, migrated from `_MUST_RAIN_*` and `plan_score` constants (keep numeric parity where possible).
 
 **Next step on user approval**: review this package, settle Q1–Q5, then implement P1 (F-01…F-26) in the side module with G-01 as the first golden test.
+
+---
+
+## 8. Coverage audit (647 functions, 2026-11-17)
+
+Mechanical verification that this design covers all current functionality and rules — full per-function mapping in `cpsat_coverage_audit_2026-11-17.md`.
+
+- 647 engine functions scanned (`agent/plan.py` + 12 `itinerary/` modules).
+- 235 explicitly cited in the four design docs; **367 more mapped to rule families** (rules.py validators, leg/return assembly, fixed-session anchors, block-family/umbrella binding, cluster cohesion, endpoint classifiers, meal slot/nesting, solver cost terms, intent/question policy, geo/id/store engineering…); **45 pure utilities** (formatting/tiny predicates/local closures) carry no user-visible rule of their own.
+- Added by this audit: F-34 (session & trip-center sync); C-04 now names fixed sessions from `_apply_flag_schedule`, `_apply_comment_day_start`, `set_access_departure`; F-30 names `annotate_legs`/`attach_return_cards`; F-01 names the question-policy functions; F-13 names `premium_coverage_gaps`/`rain_swap_advice`; `rules.py` validators (`validate_plan`, `_check_*`, travel-gap) are explicitly F-40 acceptance invariants.
+- Standing rule: any function found hereafter that is not in this audit gets added to the appendix and to the parity checklist, and blocks the P3 switch until mapped.
