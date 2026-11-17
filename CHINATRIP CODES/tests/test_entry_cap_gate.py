@@ -16,6 +16,9 @@
   （营业窗+日终 21:30 照卡）；11-05 的「结束闸=开场+时长≤16:30」
   作废（240min 级大块头被压成必须上午整块开场，环球中心类下午档
   结构性无解）。大点 15:30 开场带保留为并列上限。
+- **2026-11-17 用户拍板（晚闸口径 v2）**：晚闸是 16:30，只适用于
+  有明确开放时间的封闭景点；开放形态（无营业窗/全天窗，M50创意园·
+  武康路类商业街 citywalk）豁免——16:00→16:30 拨回 2026-11-01 原值。
 """
 
 from datetime import time as _t
@@ -23,7 +26,7 @@ from datetime import time as _t
 from app.services.itinerary.models import DayPlan, ItineraryPlan, PoiHours, VisitItem
 from app.services.itinerary.solver import generic_entry_cap
 
-CAP = 16 * 60
+CAP = 16 * 60 + 30
 
 
 def _visit(**kw):
@@ -45,8 +48,9 @@ def _visit(**kw):
 
 
 def test_entry_cap_start_based_plain_sight():
-    # 2026-11-07 再拍板：观光须 16:00 前安排（开场），时长可跨界收尾
-    # ——各时长统一最晚 16:00 开场，不再按时长回减。
+    # 2026-11-17 拍板「晚闸是 16:30」：各时长统一最晚 16:30 开场；开放
+    # 形态（无窗/全天窗）的豁免在删除层执行（test_evening_gate_outbound
+    # 的 _evict_evening_gate_breachers），solver 排程带照旧。
     assert generic_entry_cap(_visit(duration_minutes=30), None) == CAP
     assert generic_entry_cap(_visit(), None) == CAP
     # 90min > 80min = 大点 → 15:30 开场带并列上限。
@@ -60,7 +64,7 @@ def test_entry_cap_big_sight_cap_and_exemptions():
     # （16:00 开场闸之下取 15:30）。
     big = _visit(duration_minutes=120)
     assert generic_entry_cap(big, None) == 15 * 60 + 30
-    # 街区轻游（tier8=CityWalk）不算大点，走通用 16:00 开场闸。
+    # 街区轻游（tier8=CityWalk）不算大点，走通用 16:30 开场闸。
     street = _visit(duration_minutes=120, tier=8)
     assert generic_entry_cap(street, None) == CAP
     # 夜属性大点（夜景公园 best_visit_time=evening）走夜游豁免不设闸。

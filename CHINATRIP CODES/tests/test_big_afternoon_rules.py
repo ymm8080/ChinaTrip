@@ -166,8 +166,8 @@ def test_scorer_street_and_small_sights_not_big():
     from app.services.itinerary.scoring import plan_score
 
     # 街区 tier8（CityWalk）不算大点（下午单大点/晚大点罚不咬），
-    # 但 11-05 终裁起同受结束闸：14:00-16:00 收尾在闸内合法，
-    # 16:30-18:30 占用越闸计迟（旧「街区可开进傍晚」口径废除）。
+    # 但 11-05 终裁起同受闸：14:00-16:00 在闸内合法；2026-11-17 普带
+    # 16:30 压线开场合法，16:45-18:45 占用越闸计迟。
     hj = _visit(
         "hj",
         "回民街",
@@ -194,8 +194,8 @@ def test_scorer_street_and_small_sights_not_big():
         "回民街",
         dur=120,
         tier=8,
-        start_time=_t(16, 30),
-        end_time=_t(18, 30),
+        start_time=_t(16, 45),
+        end_time=_t(18, 45),
     )
     sc2 = plan_score(_plan([dm, hj_late]))
     assert sc2.counts["late_entries"] == 1

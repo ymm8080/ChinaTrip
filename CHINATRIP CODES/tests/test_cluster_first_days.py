@@ -416,8 +416,8 @@ def test_important_family_gets_450_clean_day_waiver():
 def test_entry_cap_feasible_arithmetic():
     """⑨四轮锚（纯算术）：入场闸镜像——09:00(540) 起、已有负载按单块
     前置、相邻 30 分钟隔、降序连排，任一件开场超其入场闸即不可排。
-    大点帽 15:30(930)、普帽 16:00(960)（solver.generic_entry_cap 常量
-    镜像）。"""
+    大点帽 15:30(930)、普帽 16:30(990)（solver.generic_entry_cap 常量
+    镜像，2026-11-17 拍板拨回）。"""
     # 空日 180+120+90：540→750→900，末件 90 开场 15:00 ≤16:00 可排
     assert _entry_cap_feasible(540, 0, 0, [(180, 930), (120, 930), (90, 960)])
     # +60 末件：90 后 t=1020(17:00) > 16:00 —— 钟楼案形，账面 450 预算
@@ -432,7 +432,7 @@ def test_entry_cap_feasible_arithmetic():
     assert _entry_cap_feasible(540, 330, 3, [(60, 960)])
     # 帽口径：>80min 普通景点=大点帽 930，≤80min=普帽 960
     assert _cand_entry_cap(_c("大块景点", _A0, dur=120)) == 15 * 60 + 30
-    assert _cand_entry_cap(_c("小块景点", _A0, dur=60)) == 16 * 60
+    assert _cand_entry_cap(_c("小块景点", _A0, dur=60)) == 16 * 60 + 30
 
 
 def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
@@ -508,16 +508,16 @@ def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
 
 
 def test_cap_infeasible_family_sheds_endpoint_with_disclosure():
-    """⑪四轮锚（钟楼案选层形）：四员族 180+120+90+60=450min——tier2
-    成员在场净日 450 预算豁免账面可落（三轮①），但降序连排末件 60
-    开场 17:00 > 16:00 帽物理排不下（终排只会无声挤死它）。四轮起认
+    """⑪四轮锚（钟楼案选层形）：四员族 180+120+120+60=480min——tier2
+    成员在场净日预算账面可落（三轮①），但降序连排末件 60 开场越
+    16:30 帽物理排不下（终排只会无声挤死它）。四轮起认
     领时刻即拦：整族不可行→减地理直径端点对中更次要的轻端（tier11
     > 重员一 tier2），余三员原子落 day1，轻端另日安排+披露留痕——
     挤死不可能发生。"""
     cands = [
         _c("重员一", (104.0600, 30.66), tier=2, dur=180),
         _c("重员二", (104.0680, 30.66), dur=120),
-        _c("中员", (104.0750, 30.66), dur=90),
+        _c("中员", (104.0750, 30.66), dur=120),
         _c("轻端", (104.0820, 30.66), dur=60),
     ]
     notes: list[str] = []
@@ -525,7 +525,7 @@ def test_cap_infeasible_family_sheds_endpoint_with_disclosure():
         cands, 2, {"成都": (1, 2)}, notes=notes
     )
     day_of = {it["name"]: it["day"] for it in items}
-    # 余三员原子落 day1（390min，450 豁免账面过+入场闸物理过）
+    # 余三员原子落 day1（420min，预算账面过+入场闸物理过）
     assert day_of["重员一"] == day_of["重员二"] == day_of["中员"] == 1
     # 轻端被减员另日安排，不再占着 day1 席位等终排无声挤死
     assert day_of["轻端"] == 2
@@ -539,9 +539,9 @@ def test_ace_family_displaces_weaker_family_with_disclosure():
     量型（cap4/budget/entry_cap——雨/远/边日闸弹人没用）时，把目标日
     已落地件与入件并一组观察，按「重要度小、重复度高」逐件减员腾位。
 
-    布形：弱族四员 180+120+90+60=450 形（一员 5a 挂联伞名博物馆对），
+    布形：弱族四员 180+120+120+60=480 形（一员 5a 挂联伞名博物馆对），
     入场闸物理不可排→预可行 0 最先处理→减地理端点（60min 弱端）后
-    三员 390 占 day1；王牌族 2 员 240+180=420（一员 unesco 一员 5a、
+    三员 420 占 day1；王牌族 2 员 240+180=420（一员 unesco 一员 5a、
     硬露天 rain_ok=no 锁死雨日 day2）→ day1 cap4 拒、day2 雨拒→
     弹让：最弱散件先弹（族形 2 保持、账面仍不合），伞名对联整组弹出
     （族形清零合法、孤员悬日不许）→420≤450 入账，王牌族原子落 day1，
@@ -549,7 +549,7 @@ def test_ace_family_displaces_weaker_family_with_disclosure():
     cands = [
         _c("城墙古城景区", (104.0500, 30.66), tier=2, dur=180),
         _c("江畔乙", (104.0580, 30.66), dur=120),
-        _c("成都古城博物馆", (104.0660, 30.66), cat="museum", dur=90),
+        _c("成都古城博物馆", (104.0660, 30.66), cat="museum", dur=120),
         _c("汀丁", (104.0740, 30.66), dur=60),
         _c("王牌A", (103.9000, 30.66), tier=1, dur=240),
         _c("副A", (103.9050, 30.66), tier=2, dur=180),

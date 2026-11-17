@@ -114,6 +114,7 @@ from app.services.itinerary.solver import (
     THEME_BLOCK_AFTERNOON_MINUTES,
     TIGHT_CLUSTER_KM,
     _city_side,
+    _hours_open_form,
     _is_big_site,
     _is_theme_block,
     _leaving_morning_cap,
@@ -1646,7 +1647,8 @@ def _cand_endpoint_content(cand: dict) -> bool:
 def _cand_entry_cap(cand: dict) -> int:
     """入场闸镜像（组合排日四轮，2026-11-08 城心簇锚案）：选层无
     VisitItem/PoiHours 可依，按常量镜像 solver.generic_entry_cap 的
-    口径——夜属性/演出=日终 21:30、大点=15:30、其余=16:00。选层
+    口径——夜属性/演出=日终 21:30、大点=15:30、其余=16:30（2026-11-17
+    拍板拨回）。选层
     尚无时刻概念，pinned+有时刻豁免在认领时无从生效，不认。"""
     if _night_cand(cand) or _cand_is_show(cand):
         return 21 * 60 + 30
@@ -12897,6 +12899,72 @@ def _meal_card_back_to_default(
 _LUNCH_FIRST_MIN_KM = 15.0
 
 
+def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
+    """白天晚闸出站闸（2026-11-17）：把开场晚于 generic_entry_cap 的
+    「有明确开放时间的封闭景点」移出行程，转 plan.unplaced
+    （reason=evening_gate）并返回披露行。
+
+    顺序兜底排时（求解器未收敛）与换序/顺延链不复检入场闸——上海案
+    静安寺 16:15 即此漏出。口径全部复用 solver.generic_entry_cap：
+    大点 15:30/其余 16:30 开场带（2026-11-17 拍板）；开放形态（无
+    营业窗/全天窗，M50创意园/武康路/新天地类）在本地 _hours_open_form
+    判定不拦；开场过闸才违规，时长自然跨闸合法；pinned+有时刻=铁律19
+    用户确认时刻同样不拦。餐卡/酒店卡不是观光件，跳过。幂等：移出件
+    落 unplaced 后无时刻，重跑不再命中。
+    """
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    evicted = []
+    for day in plan.days:
+        keep = []
+        for it in day.items:
+            if (
+                isinstance(it, VisitItem)
+                and it.start_time is not None
+                and (it.category or "") not in ("food", "hotel")
+            ):
+                win = hours_by_poi.get(it.poi_id) or _hours_from_visit(it)
+                # 开放形态豁免（2026-11-17 拍板「M50/武康路类商业街
+                # citywalk 不是封闭景区没有开放时间，晚闸豁免」）在
+                # 删除层本地判定：无窗/全天窗不拦；排程内部带照旧。
+                cap = (
+                    None
+                    if _hours_open_form(win)
+                    else generic_entry_cap(it, win)
+                )
+                if (
+                    cap is not None
+                    and (it.start_time.hour * 60 + it.start_time.minute) > cap
+                ):
+                    evicted.append((day.day, it, cap))
+                    continue
+            keep.append(it)
+        day.items = keep
+    notes = []
+    for day_no, it, cap in evicted:
+        plan.unplaced = list(plan.unplaced or []) + [
+            UnplacedCandidate(
+                name=it.name,
+                name_en=getattr(it, "name_en", None),
+                poi_id=it.poi_id,
+                category=it.category,
+                duration_minutes=it.duration_minutes,
+                location=it.location,
+                city=it.city,
+                day_hint=day_no,
+                reason="evening_gate",
+                best_visit_time=getattr(it, "best_visit_time", None),
+            )
+        ]
+        cap_txt = "%02d:%02d" % (cap // 60, cap % 60)
+        notes.append(
+            "「%s」是有明确开放时间的封闭景点（晚闸 %s 后不再入场），"
+            "只能从 %s 开场，已移出行程转想排——想保留可改约白天时段"
+            "或指定其他天"
+            % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
+        )
+    return notes
+
+
 def _lunch_before_destination_visit(plan: ItineraryPlan) -> list[str]:
     """先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭（约 12:00）再游玩」）。
 
@@ -14420,7 +14488,12 @@ def _place_with_flex(
     #: 白天入场闸（generic_entry_cap，2026-11-17 上海中心大厦案）：硬锚
     #: 倒排的收口起点同样不得越过闸——闸是政策墙，30 分钟容忍与收缩
     #: 都无权推迟开场；越闸时保留探针给出的闸前起点。
-    snap_cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
+    #: 候选件尚未入 plan 时 hours 地图查不到（poi_id 键缺席）——回退
+    #: _hours_from_visit 自产窗，否则开放形态豁免会误放封闭大点贴锚
+    #: （2026-11-17 晚闸口径 v2 三修）。
+    snap_cap = generic_entry_cap(
+        visit, hours_by_poi.get(visit.poi_id) or _hours_from_visit(visit)
+    )
     if hi:
         for cut in sorted({lo, hi}):
             dur = max(30, dur0 - cut)
@@ -31957,6 +32030,21 @@ class PlanningAgent:
                 if note not in session.assumptions:
                     session.assumptions.append(note)
             evicted.extend(swapped)
+        # 白天晚闸出站闸（2026-11-17 静安寺 16:15 案）：顺序兜底与
+        # 顺延链可能把「有明确开放时间的封闭景点」推过
+        # generic_entry_cap（大点 15:30/其余 16:30）；开放形态
+        # （无窗/全天窗）与夜豁免面由该函数本身判定不拦。按拍板
+        # 「闸后放不下就删」：移出行程转想排+披露；在已补短路之前
+        # 跑，旧会话开档即治。
+        gated = _evict_evening_gate_breachers(session.plan)
+        if gated:
+            annotate_legs(session.plan)
+            for note in gated:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
+            evicted.extend(gated)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
         # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
         _filled = any(

@@ -78,12 +78,12 @@ def _find(day, item_id):
 
 
 def test_generic_entry_cap_start_based_all_days():
-    # 2026-11-07 再拍板：闸=开场闸 16:00（时长可跨界收尾，营业窗+日终
-    # 照卡）；大点 15:30 开场带并列上限。转场日与普通日一闸到底。
+    # 2026-11-17 拍板：闸=开场闸 16:30（时长可跨界收尾，营业窗+日终
+    # 照卡）；大点 15:30 开场带并列上限。开放形态豁免在删除层执行。
     light = _visit("stroll", dur=60)
     w = PoiHours(poi_id="stroll", opens=time(9, 0), closes=time(21, 0))
-    assert generic_entry_cap(light, w) == 960
-    assert generic_entry_cap(light, None) == 960
+    assert generic_entry_cap(light, w) == 16 * 60 + 30
+    assert generic_entry_cap(light, None) == 16 * 60 + 30
     big = _visit("wall", dur=120)
     wb = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
     assert generic_entry_cap(big, wb) == 930
@@ -157,17 +157,28 @@ def test_cp_normal_day_cap_still_binds():
 
 
 def test_reconcile_midday_arrival_moves_all_under_end_gate():
-    # 13:20 落地窗 [15:50, 21:30]；2026-11-07 开场闸 16:00：
-    # 60' 轻点 15:20 开场合法（留 day1）；90' 大点越 15:30 开场带
-    # → v2/v3 挪 day2（11-03 开场口径 → 11-07 开场闸）
+    # 13:20 落地窗 [15:50, 21:30]；2026-11-17 开场闸 16:30：
+    # 60' 轻点 15:20 开场合法（留 day1）；90' 大点（挂受限营业窗=
+    # 封闭景点口径）越 15:30 开场带 → v2/v3 挪 day2。无窗=开放形态
+    # 豁免不挪（2026-11-17），故 v2/v3 必须带窗才能保住挪日语义。
     day1 = DayPlan(
         day=1,
         base_city="上海",
         items=[
             _train(),
             _visit("v1", dur=60),
-            _visit("v2", dur=90),
-            _visit("v3", dur=90),
+            _visit(
+                "v2",
+                dur=90,
+                poi_id="v2",
+                opening_hours="周一至周日 09:00-18:00",
+            ),
+            _visit(
+                "v3",
+                dur=90,
+                poi_id="v3",
+                opening_hours="周一至周日 09:00-18:00",
+            ),
         ],
     )
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])

@@ -82,7 +82,8 @@ def test_cap_theme_block_exempt_in_flipped_shape():
 
 
 def test_cap_plain_sight_unchanged():
-    assert generic_entry_cap(_sight(dur=60), None) == 16 * 60
+    # 2026-11-17 拍板：普带 16:30（开放形态豁免在删除层，带照旧）。
+    assert generic_entry_cap(_sight(dur=60), None) == 16 * 60 + 30
     assert generic_entry_cap(_sight(dur=120), None) == 15 * 60 + 30
 
 
@@ -180,8 +181,8 @@ def test_compress_chain_against_evening_anchor():
     _timed(a, 19, 0, 20, 20)
     plan = _plan_with(m, c, a)
     _compress_before_evening_anchor(plan)
-    assert c.start_time == time(16, 0)  # delta 被闸钳到 16:00 开场
-    assert c.end_time == time(17, 20)
+    assert c.start_time == time(16, 30)  # delta 被闸钳到 16:30 开场（2026-11-17）
+    assert c.end_time == time(17, 50)
     assert m.start_time == time(9, 0)  # 晨件不动
 
 
@@ -224,7 +225,7 @@ def test_compress_chain_breaks_at_food():
     a = _timed(_visit("show", dur=80, best_visit_time="evening"), 19, 0, 20, 20)
     plan = _plan_with(lunch, c, a)
     _compress_before_evening_anchor(plan)
-    assert c.start_time == time(16, 0)
+    assert c.start_time == time(16, 30)  # 2026-11-17 普带 16:30
     assert lunch.start_time == time(12, 0)  # 餐不动
 
 

@@ -608,7 +608,8 @@ def test_late_open_venue_end_gate_boundary_not_placeable():
     观光占用须 16:30 前收尾——晨满（09:00-16:30 固定件）后 75 分钟
     轻点唯一档 16:30-17:45 越闸 → 整日降级（「16:30 整点开场合法」的
     11-03 开场口径废除）；固定件收尾腾到 14:30 时，15:00-16:15 照常
-    可排（同一闸内的对照锚）。"""
+    可排（同一闸内的对照锚）。2026-11-17 普带 16:00→16:30：blocker
+    相应延到 16:45（16:45 开场越 16:30 闸仍整日降级）。"""
     hours = [PoiHours(poi_id="p_late", opens=time(8, 30), closes=time(22, 0))]
     day_blocked = DayPlan(
         day=1,
@@ -617,10 +618,10 @@ def test_late_open_venue_end_gate_boundary_not_placeable():
             _visit(
                 "blocker",
                 poi_id="p_b",
-                dur=450,
+                dur=465,
                 pinned=True,
                 start_time=time(9, 0),
-            ),  # 09:00-16:30
+            ),  # 09:00-16:45
             _visit("v_late", poi_id="p_late", dur=75, category="attraction"),
         ],
     )

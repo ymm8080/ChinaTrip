@@ -30,6 +30,7 @@ def _item(
     pinned: bool = False,
     location: GeoPoint | None = None,
     opening_hours: str | None = None,
+    poi_id: str | None = None,
 ) -> VisitItem:
     return VisitItem(
         item_id=item_id,
@@ -43,6 +44,7 @@ def _item(
         pinned=pinned,
         location=location,
         opening_hours=opening_hours,
+        poi_id=poi_id,
     )
 
 
@@ -148,7 +150,16 @@ def test_place_with_flex_snap_respects_entry_cap() -> None:
             pinned=True,
         ),
     )
-    visit = _item("v9", "上海中心大厦", None, None, dur=125, category="viewpoint")
+    visit = _item(
+        "v9",
+        "上海中心大厦",
+        None,
+        None,
+        dur=125,
+        category="viewpoint",
+        poi_id="tower",
+        opening_hours="周一至周日 08:30-22:00 最晚进入21:30",
+    )
     placed = plan_mod._place_with_flex(plan, day, visit)
     assert placed is not None
     start, dur, note = placed

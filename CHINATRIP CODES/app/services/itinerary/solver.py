@@ -292,7 +292,8 @@ def effective_show_sessions(
 #: 钉且有时刻（铁律 19）、夜间属性点（best_visit_time=evening/
 #: sunset/show）、仅晚间开放的场馆（全窗开 ≥17:00=夜游类）、餐饮/
 #: 酒店/交通/演出类条目。大点另有 15:30 开场带（并列上限）。
-_GENERIC_ENTRY_CAP_MINUTES = 16 * 60
+#: 2026-11-17 用户三述「晚闸是 16:30」：16:00→16:30，拨回 2026-11-01 原拍板值。
+_GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
 
 # 大点三口径（2026-11-04 用户拍板「大型的旅游景区不适合放下午16:00。
 # 超过80分钟的一般下午就放一个。然后搭配一个近距离的CITYWALK。当天
@@ -627,6 +628,33 @@ def _night_combo_pairs(specs: list["_VisitSpec"]) -> list[tuple[int, int]]:
     return pairs
 
 
+_OPEN_FORM_ALLDAY_OPEN_MAX = 6 * 60
+_OPEN_FORM_ALLDAY_CLOSE_MIN = 22 * 60
+
+
+def _hours_open_form(window: PoiHours | None) -> bool:
+    """开放形态判定（2026-11-17 拍板「晚闸只管有明确开放时间的封闭
+    景点」）：无营业窗（M50创意园/武康路类商业街、citywalk）或窗
+    全天不设限（00:00-24:00/全天开放，新天地/田子坊类）→ True。
+    库实测：开放街区行要么 hours 为空、要么 00:00-24:00；封闭景点
+    （静安寺 07:30-18:00/豫园 09:00-16:30/观光塔 08:30-22:00）都是
+    受限窗，不命中。"""
+    if window is None:
+        return True
+    if window.windows:
+        return all(
+            _to_minutes(o) <= _OPEN_FORM_ALLDAY_OPEN_MAX
+            and _to_minutes(c) >= _OPEN_FORM_ALLDAY_CLOSE_MIN
+            for o, c in window.windows
+        )
+    if window.opens is None or window.closes is None:
+        return True
+    return (
+        _to_minutes(window.opens) <= _OPEN_FORM_ALLDAY_OPEN_MAX
+        and _to_minutes(window.closes) >= _OPEN_FORM_ALLDAY_CLOSE_MIN
+    )
+
+
 def _hours_evening_only(window: PoiHours | None) -> bool:
     """夜游类场馆：所有开放段都从 17:00 后才开始（白天无档，不豁免则
     永远排不进）。白天开到晚间的场馆（如 07:30-18:00）不再豁免——
@@ -651,7 +679,14 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
     须 16:00 前安排（开场），时长可以自然跨过 16:00，营业窗 + 日终
     21:30 照卡（2026-11-05 的「结束闸=开场+时长≤16:30」口径作废——
     它把 240min 级大块头压成「必须上午整块开场」，大型综合体类下午档
-    结构性无解）。大点 15:30 开场带（2026-11-04）保留为并列上限。"""
+    结构性无解）。大点 15:30 开场带（2026-11-04）保留为并列上限。
+
+    2026-11-17（用户拍板「晚闸是 16:30，适用于有明确开放时间的封闭
+    景点；M50/武康路类商业街 citywalk 不是封闭景区没有开放时间，
+    晚闸豁免」）：普通带 16:00→16:30。开放形态豁免只在删除层执行
+    （plan._evict_evening_gate_breachers 本地 _hours_open_form 判定）
+    ——排程内部带照旧，避免插入/头档排序面被重塑。
+    """
     if item.pinned and item.start_time is not None:
         # 铁律 19：用户确认过的时刻优先于默认排程规则。系统必去钉可能
         # 落在排不上时间的条目上（降级日）——无时刻即无「用户确认时刻」
