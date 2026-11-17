@@ -83,7 +83,8 @@
    "indoor": null,
    "rain_ok": "no",
    "suggested_duration_min": 90,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   },
   {
    "cid": "c2",
@@ -100,7 +101,8 @@
    "indoor": null,
    "rain_ok": null,
    "suggested_duration_min": 60,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   },
   {
    "cid": "c3",
@@ -117,7 +119,8 @@
    "indoor": null,
    "rain_ok": "no",
    "suggested_duration_min": 180,
-   "remote": true
+   "remote": true,
+   "city": "北京"
   },
   {
    "cid": "c4",
@@ -134,7 +137,8 @@
    "indoor": null,
    "rain_ok": "true",
    "suggested_duration_min": 120,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   },
   {
    "cid": "c5",
@@ -151,7 +155,8 @@
    "indoor": null,
    "rain_ok": "no",
    "suggested_duration_min": 150,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   },
   {
    "cid": "c6",
@@ -168,7 +173,8 @@
    "indoor": null,
    "rain_ok": "yes",
    "suggested_duration_min": 90,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   },
   {
    "cid": "c7",
@@ -185,7 +191,8 @@
    "indoor": null,
    "rain_ok": "no",
    "suggested_duration_min": 300,
-   "remote": false
+   "remote": false,
+   "city": "北京"
   }
  ],
  "access_profiles": [

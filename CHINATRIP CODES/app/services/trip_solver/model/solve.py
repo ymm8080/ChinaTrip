@@ -74,11 +74,14 @@ def solve(
                 }
             )
 
+    from .c05_c08 import extract_access_legs
+
     return Solution(
         status="OPTIMAL" if status == "OPTIMAL" else "FEASIBLE",
         items=items,
         unplaced=unplaced,
         wall_ms=wall_ms,
+        access_legs=extract_access_legs(bundle, enriched, solver),
     )
 
 

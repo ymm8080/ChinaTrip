@@ -48,6 +48,7 @@ class CandidateItem:
     rain_ok: Optional[str] = None
     suggested_duration_min: Optional[int] = None
     remote: bool = False
+    city: Optional[str] = None  # C-07 city coherence (multi-city requests)
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,7 @@ class Solution:
     slack_level: int = 0
     certificate: list[str] = field(default_factory=list)
     wall_ms: Optional[int] = None
+    access_legs: list[dict] = field(default_factory=list)  # C-08 intervals
 
 
 def validate_snapshot(snapshot: FactSnapshot) -> list[str]:

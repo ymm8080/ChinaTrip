@@ -163,11 +163,13 @@ def dedupe_unplaced_against_scheduled(
 
 
 def demote_untimed_musts(plan: ItineraryPlan, *, lang: str = "zh") -> list[str]:
-    """B-01（2026-11-17 颐和园案）：必去/钉住的无时刻灰卡不是合法终态。
+    """B-01（2026-11-17 颐和园案）：必去的无时刻灰卡不是合法终态。
 
     出站闸里把这类卡降级成 unplaced（reason=must_unseated，day_hint=原天）
     并补披露——必去要么带时刻在场、要么可见地落在想去+披露，绝不挂灰卡。
     幂等：降级后灰卡不存在，二次运行为空。
+    用户手钉卡（pinned、非 must；铁律 19）不降级——那是用户自己的安排，
+    出站口径保留在行程里（test_untimed_response_strip）。
     """
     notes: list[str] = []
     for day in plan.days:
@@ -178,7 +180,7 @@ def demote_untimed_musts(plan: ItineraryPlan, *, lang: str = "zh") -> list[str]:
                 continue
             if (item.category or "") in ("food", "hotel"):
                 continue
-            if not (item.pinned or getattr(item, "must", False)):
+            if not getattr(item, "must", False):
                 continue
             known_poi = {u.poi_id for u in (plan.unplaced or []) if u.poi_id}
             known_names = {_norm(u.name) for u in (plan.unplaced or [])}
@@ -215,6 +217,41 @@ def demote_untimed_musts(plan: ItineraryPlan, *, lang: str = "zh") -> list[str]:
     return notes
 
 
+def _distinct_must_needles(must_names: list[str]) -> list[str]:
+    """点名必去去重后的规范名（互含算同体）——罗列判定用它数「一行里
+    出现了几个点名必去」，同名异写（故宫/故宫博物院）不数成两个。"""
+    out: list[str] = []
+    for name in must_names:
+        n = _norm(name)
+        if not n:
+            continue
+        if not any(n in m or m in n for m in out):
+            out.append(n)
+    return out
+
+
+def _dedicated_mentions(req: str, texts: list[str], needles: list[str]) -> bool:
+    """这段文案是否对 req 构成「个别披露」。
+
+    旧口径「名字出现在任何披露文案里就算」过于宽松（2026-11-17 上海
+    一日游案）：『外滩、豫园、朱家角古镇…位于出发城市 上海，出发日只
+    安排交通，未列入行程』把五个必去塞进一行通用规则话术——名字全在，
+    用户却看不到针对任何一个的告知，审计据此沉默。收窄：文案提到
+    ≥2 个点名必去 = 罗列行，对谁都不算披露；只提到请求名本身 =
+    个别披露，照旧算（让位/未排入等单点文案不受影响）。
+    """
+    needle = _norm(req)
+    if not needle:
+        return False
+    for t in texts:
+        tn = _norm(t)
+        if needle not in tn:
+            continue
+        if sum(1 for m in needles if m in tn) <= 1:
+            return True
+    return False
+
+
 def missing_must_visits(
     plan: ItineraryPlan,
     must_names: list[str] | None,
@@ -224,23 +261,41 @@ def missing_must_visits(
     """返回既没排上、也不在 unplaced、也无任何披露的必去名（静默丢失集）。
 
     disclosed：行程 assumptions 之外的会话级披露文案（如 session.assumptions）。
+    披露只认「个别披露」（_dedicated_mentions）——罗列行不算。
     """
     if not must_names:
         return []
     scheduled = _scheduled_names(plan)
     unplaced = [(u.name, getattr(u, "name_en", None)) for u in (plan.unplaced or [])]
     texts = [t for t in list(plan.assumptions or []) + list(disclosed or []) if t]
+    needles = _distinct_must_needles(must_names)
     missing: list[str] = []
     for req in must_names:
         if any(_name_matches(req, n, e) for n, e in scheduled):
             continue
         if any(_name_matches(req, n, e) for n, e in unplaced):
             continue
-        needle = _norm(req)
-        if needle and any(needle in _norm(t) for t in texts):
+        if _dedicated_mentions(req, texts, needles):
             continue
         missing.append(req)
     return missing
+
+
+def unarranged_must_visits(
+    plan: ItineraryPlan, must_names: list[str] | None
+) -> list[str]:
+    """未排上必去名册（2026-11-17 一日游案）：点名必去里没有任何天卡承载
+    的名字——含已落 unplaced（想去 chip）与静默丢失的。H5 拿它出非折叠
+    横幅：assumptions 是折叠块用户看不见，「必去未排上」必须有一眼可见
+    的告知面。纯函数；名字匹配与覆盖审计同源（双胞胎容忍）。"""
+    if not must_names:
+        return []
+    scheduled = _scheduled_names(plan)
+    return [
+        req
+        for req in must_names
+        if not any(_name_matches(req, n, e) for n, e in scheduled)
+    ]
 
 
 def ensure_must_disclosure(
@@ -248,6 +303,7 @@ def ensure_must_disclosure(
     must_names: list[str] | None,
     *,
     disclosed: list[str] | None = None,
+    lang: str = "zh",
 ) -> list[str]:
     """对静默丢失的必去补披露行；幂等（补过的行本身就是披露，二次不补）。
 
@@ -257,8 +313,16 @@ def ensure_must_disclosure(
     if not missing:
         return []
     lines = [
-        f"必去「{name}」未排入行程，且此前无让位披露——覆盖审计自动补记"
-        "（必去不允许无声消失）。"
+        (
+            f"必去「{name}」未排入行程，且此前无让位披露——覆盖审计自动补记"
+            "（必去不允许无声消失）。"
+            if (lang or "zh") != "en"
+            else (
+                f"Must-visit '{name}' is not on the itinerary and had no prior "
+                "disclosure — coverage audit auto-logged it (must-visits are "
+                "never silently dropped)."
+            )
+        )
         for name in missing
     ]
     plan.assumptions = list(plan.assumptions or []) + lines

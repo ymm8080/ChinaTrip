@@ -249,9 +249,11 @@ def test_fallback_pinned_untimed_places_inside_hours_when_slot_exists():
     assert panda.end_time == _t(16, 0)
 
 
-def test_solver_day_with_pinned_untimed_degrades_not_places():
-    """solver 主路对 pinned+未排件本来就按日降级（_visit_spec None）——
-    锁行为：不得因闸口径变化而改成硬排。"""
+def test_solver_day_with_pinned_untimed_schedules_like_normal():
+    """2026-11-17 契约（e6133a4）：pinned 是「必在」标记而非时刻契约——
+    无时刻的钉按普通可排条目走，不再 insertion/CP 双 None 整日判死
+    （旧契约是「求解器未收敛」兜底披露全勤的根因，live 2/2 + replay
+    4/4 实证）；铁律 19 只保护有时刻的钉。"""
     from app.services.itinerary.solver import insertion_schedule_day, solve_day
 
     panda = _panda_item()
@@ -264,5 +266,19 @@ def test_solver_day_with_pinned_untimed_degrades_not_places():
             windows=[(_t(7, 30), _t(12, 0)), (_t(12, 0), _t(17, 0))],
         )
     ]
-    assert insertion_schedule_day(day, poi_hours=hours) is None
-    assert solve_day(day, poi_hours=hours) is None
+    out = insertion_schedule_day(day, poi_hours=hours)
+    assert out is not None
+    scheduled = next(v for v in out.items if v.item_id == "v10")
+    assert scheduled.start_time is not None and scheduled.end_time is not None
+    # 营业窗内（日始 08:30 后；两段窗 07:30-12:00 / 12:00-17:00）
+    start = scheduled.start_time.hour * 60 + scheduled.start_time.minute
+    end = scheduled.end_time.hour * 60 + scheduled.end_time.minute
+    assert 510 <= start
+    assert end <= 17 * 60
+    cp = solve_day(day, poi_hours=hours)
+    assert cp is not None
+    cp_item = next(v for v in cp.items if v.item_id == "v10")
+    assert cp_item.start_time is not None and cp_item.end_time is not None
+    cp_start = cp_item.start_time.hour * 60 + cp_item.start_time.minute
+    cp_end = cp_item.end_time.hour * 60 + cp_item.end_time.minute
+    assert 510 <= cp_start and cp_end <= 17 * 60

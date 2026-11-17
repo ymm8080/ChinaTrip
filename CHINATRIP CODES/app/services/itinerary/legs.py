@@ -43,7 +43,7 @@ from app.services.itinerary.rules import (
     travel_gap_needed,
 )
 from app.services.lang_ctx import L
-from app.services.restaurants import is_dinner_placeholder
+from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
 
 DETOUR_FACTOR = 1.3  # straight-line -> walking-route correction
 WALK_METERS_PER_MINUTE = 80.0  # ≈ 4.8 km/h sightseeing pace
@@ -242,6 +242,17 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+def _next_point_after(items: list, idx: int) -> GeoPoint | None:
+    """idx 之后第一张带坐标的非换乘卡的坐标（换乘卡断链 → None）。"""
+    for cand in items[idx + 1 :]:
+        if isinstance(cand, TransferItem):
+            return None
+        pt = _point(cand)
+        if pt is not None:
+            return pt
+    return None
+
+
 def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
     """Adjacent same-day visit pairs worth measuring, with straight-line km.
 
@@ -252,11 +263,18 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
     同址占位餐卡照常进链（2026-11-17 用户口径「从朱家角到豫园是午饭之后，
     距离下一站应该放在午饭后，而不是朱家角」）：锚在本站的午饭/晚饭卡成为
     新的出发卡——0 公里到锚不成腿，去下一站的腿挂在餐卡上（餐后出发）。
-    无坐标卡（没锚的占位卡）仍不吃链：腿直接连到再下一个带地址的卡。"""
+    无坐标卡（没锚的占位卡）仍不吃链：腿直接连到再下一个带地址的卡。
+    「贴下一站」的午饭占位卡不吃链（2026-11-17 慕田峪复验案）：先午餐后
+    游览把午饭锚到远郊点上、排在远郊卡之前——它在链上透明，去程腿直接连
+    前站 → 远郊点（班次链照常）；不透明的话去程对是「前站 → 饭卡(=远郊点)」，
+    占位卡不是合法目的地（access_breakdown 只肯给返向链）→ 退化成打车 59km
+    去吃饭，专线整段消失。晚饭占位不在其列：远郊散场后的晚饭锚在回城
+    下一站（酒店）上，2026-11-16 拍板的回城链 next_stop=晚饭 口径不动。"""
     out: list[tuple[VisitItem, VisitItem, float]] = []
     for day in plan.days:
+        items = day.items
         last: VisitItem | None = None
-        for item in day.items:
+        for idx, item in enumerate(items):
             if isinstance(item, TransferItem) or item.start_time is None:
                 last = None
                 continue
@@ -266,6 +284,10 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                 # 无坐标卡（占位餐卡没锚）不吃链：腿直接连到再下一个带地址
                 # 的卡（2026-11-16 用户口径「餐卡没地址就取再下个景点的地址」）
                 continue
+            if is_lunch_placeholder(item) and getattr(item, "anchor_from_prev", False):
+                nxt_pt = _next_point_after(items, idx)
+                if nxt_pt is not None and haversine_km(cur_pt, nxt_pt) <= SAME_VENUE_KM:
+                    continue  # 贴下一站：不吃链、也不当出发卡
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
                 if km >= MIN_LEG_KM:

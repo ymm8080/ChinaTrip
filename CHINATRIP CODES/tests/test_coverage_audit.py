@@ -9,8 +9,10 @@ from app.services.itinerary.models import (
 )
 from app.services.itinerary.request_coverage import (
     dedupe_unplaced_against_scheduled,
+    demote_untimed_musts,
     ensure_must_disclosure,
     missing_must_visits,
+    unarranged_must_visits,
 )
 
 
@@ -152,3 +154,85 @@ def test_dedupe_unplaced_noop_on_empty():
     empty_days = ItineraryPlan(itinerary_id="it-x", cities=[], days=[])
     empty_days.unplaced = [UnplacedCandidate(name="豫园")]
     assert dedupe_unplaced_against_scheduled(empty_days) == []
+
+
+def test_unarranged_must_visits_lists_unscheduled_only():
+    """未排上名册：已排不列；想去/静默都列——H5 非折叠横幅的数据面
+    （2026-11-17 一日游案：折叠假设块用户看不见，告知必须一眼可见）。"""
+    plan = _plan(_visit("外滩"), unplaced=[UnplacedCandidate(name="豫园")])
+    assert unarranged_must_visits(plan, ["外滩", "豫园", "天坛"]) == ["豫园", "天坛"]
+    assert unarranged_must_visits(plan, []) == []
+    assert unarranged_must_visits(plan, None) == []
+
+
+def test_unarranged_musts_twin_names_covered():
+    plan = _plan(_visit("上海中心大厦"))
+    assert unarranged_must_visits(plan, ["中心大厦"]) == []
+
+
+def test_enumeration_line_is_not_disclosure():
+    """罗列行对谁都不算披露（2026-11-17 上海一日游案）：『外滩、豫园、
+    朱家角古镇 位于出发城市 上海，出发日只安排交通，未列入行程』把三个
+    必去塞进一行通用规则话术——名字全在，告知为零，审计必须补专行。"""
+    plan = _plan(_visit("迪士尼乐园"))
+    plan.assumptions = [
+        "外滩、豫园、朱家角古镇 位于出发城市 上海，出发日只安排交通，未列入行程"
+    ]
+    musts = ["外滩", "豫园", "朱家角古镇"]
+    assert missing_must_visits(plan, musts) == musts
+    lines = ensure_must_disclosure(plan, musts)
+    assert len(lines) == 3
+    # 幂等：专行已落（每行只提一个必去=个别披露），二次不补
+    assert ensure_must_disclosure(plan, musts) == []
+    assert missing_must_visits(plan, musts) == []
+
+
+def test_single_site_prose_disclosure_still_counts():
+    """收窄只打罗列行：单点让位/未排入的散文披露照旧算（旧行为不回退）。"""
+    plan = _plan(_visit("外滩"))
+    plan.assumptions = ["豫园因时间不够未排入，已让位"]
+    assert missing_must_visits(plan, ["豫园", "外滩"]) == []
+
+
+def test_ensure_must_disclosure_english_lines():
+    plan = _plan(_visit("外滩"))
+    lines = ensure_must_disclosure(plan, ["豫园"], lang="en")
+    assert len(lines) == 1
+    assert "Must-visit '豫园'" in lines[0]
+    assert missing_must_visits(plan, ["豫园"]) == []
+
+
+def test_audit_gate_sets_unarranged_musts():
+    """出站闸把未排上必去名册落到 plan.unarranged_musts（H5 横幅数据面），
+    静默丢失件照旧补披露；幂等。"""
+    from app.api.plan import _audit_must_coverage
+    from app.services.agent.plan import PlanSession
+
+    session = PlanSession(
+        session_id="s-audit-unarranged",
+        device_id="d-test",
+        must_visits=["外滩", "豫园", "天坛"],
+        lang="zh",
+        plan=_plan(_visit("外滩"), unplaced=[UnplacedCandidate(name="豫园")]),
+    )
+    _audit_must_coverage(session)
+    assert session.plan.unarranged_musts == ["豫园", "天坛"]
+    assert any("天坛" in a for a in session.plan.assumptions)
+    # 幂等：二次过闸名册一致，披露不重复
+    lines_before = len([a for a in session.plan.assumptions if "未排入行程" in a])
+    _audit_must_coverage(session)
+    assert session.plan.unarranged_musts == ["豫园", "天坛"]
+    assert (
+        len([a for a in session.plan.assumptions if "未排入行程" in a]) == lines_before
+    )
+
+
+def test_demote_pinned_non_must_card_stays_placed():
+    """手钉卡（pinned、非 must；铁律 19）不降级——用户自己的安排出站保留。"""
+    visit = _visit("朱家角古镇")
+    visit.pinned = True
+    plan = _plan(visit)
+    notes = demote_untimed_musts(plan, lang="zh")
+    assert notes == []
+    assert [i.name for i in plan.days[0].items] == ["朱家角古镇"]
+    assert plan.unplaced == []

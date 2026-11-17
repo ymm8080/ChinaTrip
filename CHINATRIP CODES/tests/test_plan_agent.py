@@ -21,10 +21,12 @@ from app.services.agent.plan import (
     MAX_REPAIR_ROUNDS,
     POI_KEYWORD,
     PlanningAgent,
+    PlanSession,
     _category_search_keyword,
     _dedupe_visit_keepers,
     _meal_city_at,
     _plan_lunch_slot,
+    _requested_day_count,
     _site_dup,
     clarify_questions,
     current_violations,
@@ -33,6 +35,7 @@ from app.services.flights import FlightService
 from app.services.itinerary import (
     DayPlan,
     GeoPoint,
+    ItineraryPlan,
     RuleSeverity,
     TransferItem,
     VisitItem,
@@ -3945,3 +3948,170 @@ def test_v0_transfer_day_dinner_searches_arrival_city():
     # 午餐被 90 分钟衔接缓冲推出窗外不搜；唯一餐厅检索=晚餐、城=西安
     assert amap.calls, "dinner search should have run"
     assert all(city == "西安" for _, city in amap.calls)
+
+
+# --- 行程总天数修改（2026-11-17「I WANT TWO DAYS TRIP」编辑案）--------------
+# 单日行程上用户要 2 天：LLM 的 move 指向新的一天，服务端先把天数补齐再套
+# diff——不再出现「已改为2天」+「未能生效（目标第2天不存在）」的自相矛盾。
+
+
+def _beijing_one_day_session() -> PlanSession:
+    """单日北京行程，5 张观光卡（复刻 UAT 现场顺序）。"""
+
+    def visit(idx, name, start, minutes):
+        return VisitItem(
+            item_id=f"v{idx}",
+            name=name,
+            city="北京",
+            day=1,
+            duration_minutes=minutes,
+            start_time=start,
+            end_time=start,
+        )
+
+    items = [
+        visit(1, "天安门广场", time(8, 30), 60),
+        visit(2, "故宫", time(9, 40), 120),
+        visit(3, "慕田峪长城", time(13, 0), 180),
+        visit(4, "天坛", time(16, 10), 90),
+        visit(5, "颐和园", time(17, 50), 120),
+    ]
+    plan = ItineraryPlan(
+        itinerary_id="it_bj",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=items)],
+    )
+    return PlanSession(
+        session_id="s_bj",
+        device_id="d1",
+        cities=["北京"],
+        days=1,
+        state="ready",
+        plan=plan,
+    )
+
+
+def test_requested_day_count_edit_lane():
+    """改总天数意图识别：trip-length 句子命中；move 目标（第N天/day N）
+    与时刻、无关闲聊绝不误判（编辑通道宁缺勿错）。"""
+    assert _requested_day_count("I WANT TWO DAYS TRIP", 1) == 2
+    assert _requested_day_count("I want a two-day trip", 1) == 2
+    assert _requested_day_count("make it 3 days", 1) == 3
+    assert _requested_day_count("2 days trip", 1) == 2
+    assert _requested_day_count("玩两天", 1) == 2
+    assert _requested_day_count("改成3天", 1) == 3
+    assert _requested_day_count("2天行程", 1) == 2
+    assert _requested_day_count("行程 3 天", 1) == 3
+    assert _requested_day_count("2天行程", 2) == 2  # 明确说了相同天数=无变化
+    # 增/减量词
+    assert _requested_day_count("加一天", 1) == 2
+    assert _requested_day_count("多两天", 2) == 4
+    assert _requested_day_count("缩短一天", 2) == 1
+    assert _requested_day_count("one more day", 1) == 2
+    assert _requested_day_count("add a day", 1) == 2
+    assert _requested_day_count("shorten to 1 day", 2) == 1
+    assert _requested_day_count("cut 1 day", 2) == 1
+    # move 目标不是总天数（第N天 / day N 一律掩掉）
+    assert _requested_day_count("把天坛挪到第二天", 2) is None
+    assert _requested_day_count("move 故宫 to day 2", 2) is None
+    assert _requested_day_count("第2天上午去故宫", 2) is None
+    # 时刻/无关文本不是天数
+    assert _requested_day_count("LEAVE HOTEL ON 11AM", 1) is None
+    assert _requested_day_count("无特别要求", 2) is None
+    # 裸「N 天」无 trip-length 语境不判天数（编辑通道宁缺勿错；
+    # 「11月20日去北京 2 天」这类整句简报走 start/restart 的 _parse_days）
+    assert _requested_day_count("11月20日去北京 2 天", 1) is None
+
+
+def test_message_two_day_request_applies_llm_moves_to_new_day():
+    session = _beijing_one_day_session()
+    llm = ScriptedLLM(
+        [
+            edit_reply(
+                "已改为 2 天行程：第1天 天安门广场→故宫，第2天 天坛→颐和园",
+                [
+                    {"op": "move", "item_id": "v3", "new_day": 2},
+                    {"op": "move", "item_id": "v4", "new_day": 2},
+                    {"op": "move", "item_id": "v5", "new_day": 2},
+                ],
+            )
+        ]
+    )
+    agent = PlanningAgent(llm)
+    session, reply, _ = run(agent.message(session, "I WANT TWO DAYS TRIP"))
+    assert "未能生效" not in reply
+    assert len(session.plan.days) == 2
+    assert session.days == 2
+    day2 = next(d for d in session.plan.days if d.day == 2)
+    moved_names = {i.name for i in day2.items if isinstance(i, VisitItem)}
+    assert {"慕田峪长城", "天坛", "颐和园"} <= moved_names
+    assert not hard_errors(session)
+
+
+def test_message_two_day_request_fallback_split_without_llm_moves():
+    """LLM 只回话不给 diff：fallback split 把末日可挪卡均分到新天，
+    天数照样扩到 2 天，不交付空天。"""
+    session = _beijing_one_day_session()
+    llm = ScriptedLLM([edit_reply("好的，改为2天。", [])])
+    agent = PlanningAgent(llm)
+    session, reply, _ = run(agent.message(session, "I WANT TWO DAYS TRIP"))
+    assert "未能生效" not in reply
+    assert len(session.plan.days) == 2
+    assert session.days == 2
+    day1 = next(d for d in session.plan.days if d.day == 1)
+    day2 = next(d for d in session.plan.days if d.day == 2)
+    assert day1.items and day2.items
+    assert not hard_errors(session)
+
+
+def test_message_one_day_request_trims_empty_trailing_day():
+    """「改成一天」：LLM 把第 2 天卡挪回第 1 天后，空尾天自动裁掉。"""
+    day1_items = [
+        VisitItem(
+            item_id="v1",
+            name="西湖",
+            city="杭州",
+            day=1,
+            duration_minutes=90,
+            start_time=time(9, 0),
+            end_time=time(10, 30),
+        )
+    ]
+    day2_items = [
+        VisitItem(
+            item_id="v2",
+            name="灵隐寺",
+            city="杭州",
+            day=2,
+            duration_minutes=90,
+            start_time=time(9, 0),
+            end_time=time(10, 30),
+        )
+    ]
+    plan = ItineraryPlan(
+        itinerary_id="it_hz",
+        cities=["杭州"],
+        days=[
+            DayPlan(day=1, base_city="杭州", items=day1_items),
+            DayPlan(day=2, base_city="杭州", items=day2_items),
+        ],
+    )
+    session = PlanSession(
+        session_id="s_hz",
+        device_id="d1",
+        cities=["杭州"],
+        days=2,
+        state="ready",
+        plan=plan,
+    )
+    llm = ScriptedLLM(
+        [edit_reply("已并入一天。", [{"op": "move", "item_id": "v2", "new_day": 1}])]
+    )
+    agent = PlanningAgent(llm)
+    session, reply, _ = run(agent.message(session, "改成一天"))
+    assert "未能生效" not in reply
+    assert len(session.plan.days) == 1
+    assert session.days == 1
+    names = {i.name for i in session.plan.days[0].items if isinstance(i, VisitItem)}
+    assert {"西湖", "灵隐寺"} <= names
+    assert not hard_errors(session)

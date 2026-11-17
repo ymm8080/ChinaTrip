@@ -46,6 +46,10 @@ def _v(
     anchor_from_prev=False,
     anchor_loc=None,
     address=None,
+    access_mode=None,
+    boarding=None,
+    service=None,
+    wait=None,
 ):
     return VisitItem(
         item_id=item_id,
@@ -67,6 +71,12 @@ def _v(
         access_depart_times=access_deps,
         access_ride_minutes=ride,
         access_last_mile_minutes=last_mile,
+        access_mode=access_mode,
+        access_boarding=GeoPoint(lon=boarding[0], lat=boarding[1])
+        if boarding
+        else None,
+        access_service_minutes=service,
+        access_wait_minutes=wait,
         anchor_from_prev=anchor_from_prev,
         anchor_location=GeoPoint(lon=anchor_loc[0], lat=anchor_loc[1])
         if anchor_loc
@@ -126,6 +136,10 @@ def incident_plan() -> ItineraryPlan:
                 access_deps=["07:30", "08:30", "09:30", "10:30"],
                 ride=90,
                 last_mile=8,
+                access_mode="shuttle",
+                boarding=(116.3975, 39.8997),
+                service=90,
+                wait=0,
                 address="北京市怀柔区渤海镇慕田峪村",
             ),
             _v(
@@ -383,3 +397,65 @@ def test_legs_city_day_lunch_still_anchors_prev():
     # city day: next stop is not remote → anchor stays the previous stop
     assert lunch.anchor_location is not None
     assert abs(lunch.anchor_location.lon - 116.393) < 1e-6
+
+
+def test_legs_pre_remote_lunch_transparent_outbound_shuttle_restored():
+    """2026-11-17 慕田峪复验案：读闸改形后去程接驳腿必须重现。
+
+    先午餐后游览把午饭锚到远郊点、排在远郊卡之前——腿链上它必须透明，
+    去程对是「天安门 → 慕田峪」（专线班次明细挂在天安门卡上），而不是
+    「天安门 → 饭卡」退化成打车去远郊。午饭卡自身不吃链（同址 0 公里）。"""
+    from app.services.itinerary.legs import annotate_legs
+
+    plan = incident_plan()
+    run_read_gate(plan)  # evict 老舍茶馆 + retime lunch/慕田峪
+    annotate_legs(plan)
+    d1 = plan.days[0]
+    tiananmen = next(i for i in d1.items if i.name == "天安门广场")
+    lunch = next(i for i in d1.items if i.item_id == "food-lunch-ph-d1")
+    mutianyu = next(i for i in d1.items if i.name == "慕田峪长城")
+    # 天安门卡挂出去程接驳链：09:30 班 → 11:08 到慕田峪（与 retime 同源）
+    assert tiananmen.next_leg_mode == "access"
+    detail = tiananmen.next_leg_detail or {}
+    assert detail.get("next_item_id") == "v50"
+    assert detail.get("depart_time") == "09:30"
+    assert detail.get("arrive_time") == "11:08"
+    # 同址午饭卡不吃链：没有去程腿（也没有伪打车腿）
+    assert lunch.next_leg_mode is None
+    assert lunch.next_leg_detail is None
+    # 远郊卡回城链仍在
+    assert (mutianyu.next_leg_detail or {}).get("direction") == "return"
+
+
+def test_read_gate_reannotates_stale_legs_after_hotfix():
+    """读闸热修动了盘面 → 腿字段按新布局重算（wiring）。
+
+    生成期算好的腿在天安门卡上指向后来被移出的老舍茶馆（打车 1.97km）；
+    _audit_must_coverage 检出 pass 有产出后重跑 annotate，旧腿被专线链
+    覆写。幂等：盘面已一致（无产出）时不再重算。"""
+    from app.api.plan import _audit_must_coverage
+    from app.services.agent.plan import PlanSession
+
+    session = PlanSession(
+        session_id="s-hotfix-reannotate",
+        device_id="d-test",
+        must_visits=MUSTS,
+        lang="zh",
+        plan=incident_plan(),
+    )
+    tiananmen = next(i for i in session.plan.days[0].items if i.name == "天安门广场")
+    # 生成期遗留的旧腿（指向尚未被移出的老舍茶馆）
+    tiananmen.next_leg_mode = "taxi"
+    tiananmen.next_leg_minutes = 30
+    tiananmen.distance_to_next_km = 1.97
+    tiananmen.next_leg_detail = {"mode": "taxi", "next_item_id": "extras-1-老舍茶馆"}
+    _audit_must_coverage(session)
+    assert tiananmen.next_leg_mode == "access"
+    detail = tiananmen.next_leg_detail or {}
+    assert detail.get("next_item_id") == "v50"
+    assert detail.get("depart_time") == "09:30"
+    # 幂等：再跑一遍不再产出、腿保持一致
+    before = dict(tiananmen.next_leg_detail or {})
+    _audit_must_coverage(session)
+    assert tiananmen.next_leg_mode == "access"
+    assert (tiananmen.next_leg_detail or {}) == before

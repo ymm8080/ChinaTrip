@@ -158,6 +158,7 @@ def build(payload_path: str) -> dict:
                 "rain_ok": item.get("rain_ok"),
                 "suggested_duration_min": item.get("duration_minutes"),
                 "remote": bool(item.get("remote")) or name.startswith("慕田峪"),
+                "city": (payload.get("cities") or [None])[0],
             }
         )
 
@@ -238,6 +239,7 @@ def build(payload_path: str) -> dict:
                 "rain_ok": row.get("rain_ok"),
                 "suggested_duration_min": row.get("suggested_duration_min"),
                 "remote": name.startswith("慕田峪"),
+                "city": (payload.get("cities") or [None])[0],
             }
         )
 

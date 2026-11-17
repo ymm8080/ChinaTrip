@@ -323,6 +323,11 @@ class ItineraryPlan(BaseModel):
     # 结构化留痕，装配期作 chip 挂上相关卡右侧；assumptions 自由文本之外
     # 的机器可读池。
     unplaced: list[UnplacedCandidate] = Field(default_factory=list)
+    # 未排上必去名册（2026-11-17 一日游案）：出站审计算出的「点名必去但
+    # 任何天卡都没承载」名单——assumptions 是折叠块用户看不见，H5 拿本
+    # 字段出非折叠横幅（想去 chip 之外的主告知面）。随会话持久化，每次
+    # 过闸重算自愈。
+    unarranged_musts: list[str] = Field(default_factory=list)
     # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
     # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
     start_date: str | None = None

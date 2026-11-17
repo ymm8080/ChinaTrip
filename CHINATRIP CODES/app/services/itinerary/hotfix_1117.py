@@ -19,6 +19,10 @@ generations and old sessions self-heal on GET:
 Untimed must cards themselves are demoted by request_coverage.
 demote_untimed_musts (B-01): a must either has concrete times or lands in
 unplaced with a disclosure — a timeless grey card is not a state.
+
+2026-11-17 慕田峪复验补刀：热修挪盘后腿字段要跟着重算——annotate 只在
+生成期跑过，读闸撤掉的前补点会把旧腿留在卡上、去程接驳链无卡可挂
+（api/plan.py 读闸在本模块任一 pass 有产出时重跑 annotate_legs）。
 """
 
 from __future__ import annotations
@@ -84,13 +88,16 @@ def _is_remote(item) -> bool:
 
 
 def _untimed_musts(plan: "ItineraryPlan") -> list[VisitItem]:
+    """无时刻必去卡（must 标记）——用户手钉卡（铁律 19）不算：钉住是
+    用户自己的安排，不得因它触发让位/降级（test_untimed_response_strip
+    出站口径：钉住卡保留在行程里）。"""
     return [
         v
         for d in plan.days
         for v in d.items
         if isinstance(v, VisitItem)
         and v.start_time is None
-        and (v.pinned or getattr(v, "must", False))
+        and getattr(v, "must", False)
         and (v.category or "") not in ("food", "hotel")
     ]
 

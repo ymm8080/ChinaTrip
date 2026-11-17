@@ -32,6 +32,8 @@ class VarBundle:
     unplaced: dict[str, "cp_model.IntVar"]
     rid_cids: dict[str, list[str]] = field(default_factory=dict)
     cid_day_list: list[tuple[str, int]] = field(default_factory=list)
+    dep_vars: dict = field(default_factory=dict)  # C-08 outbound departures
+    ret_vars: dict = field(default_factory=dict)  # C-08 return departures
 
 
 def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:

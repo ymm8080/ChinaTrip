@@ -2764,6 +2764,10 @@ _EDIT_SYSTEM_PROMPT = (
     ' {"reply":"给用户的一两句话说明","diffs":[{"op":"move|retime|remove|add"'
     ',"item_id":"v1","new_day":2,"new_start_time":"09:30"}]}。'
     "diff 规则：move 换天（带 item_id 和 new_day，可带 new_start_time）；"
+    "用户要改行程总天数时（如「改成2天」「加一天」「I WANT TWO DAYS "
+    "TRIP」）：在 reply 里说明新总天数，并用 move 把景点分配到各天——"
+    "new_day 可以是新增出来的天（服务端会补齐天数），但不得超过用户要的"
+    "总天数；"
     'retime 只改时间（带 item_id 和 new_start_time，格式 "HH:MM"）；remove '
     "；时间规则（2026-11-01）：只有用户原话明确出现的时刻（如「10:00」"
     "「10点半」）才会被原样采用并锁定——用户只表达时段或没提时间时，你"
@@ -2792,16 +2796,15 @@ _EDIT_SYSTEM_PROMPT = (
     "绑定并排期——同类候选（如多个熊猫基地）默认只安排最经典（知名度最"
     "高）、与行程地理上最顺路的一个。reply 先注释结果：安排了什么、第几"
     "天、可替换项（如「都江堰熊猫谷可替换」）。"
-    "回复纪律（2026-11-17 用户二拍「先查底库；信息不全可以且应该问"
-    "用户；猜出大概必须向用户确认」）：①能从底库/会话/当前行程确定的"
-    "（城市、景点、可推的天数、名称拼写）一律自己查、自己定，并在 reply"
-    "里说明依据，不要问；②确实缺、查不到的信息，直接在 reply 里向用户"
-    "提问——一次集中问清，不连环追问；③你的处理与用户原话不一致，或是"
-    "靠猜/近似得来的（拼错的地名按拼写近似认了、推断的城市/日期/天数、"
-    "估计的时长），必须在 reply 里点名并向用户确认（如「ZHUJIAZUI 按拼写"
-    "近似认成了朱家角古镇——如果不是请直接告诉我」）；④同类候选默认安排"
-    "最经典、地理上最顺路的一个并注明可替换项，注释之后可以问用户倾向，"
-    "用户回答想换时再出 diff 换绑。"
+    "回复纪律（2026-11-17 用户三拍）：先查底库——①能从底库/会话/当前行程"
+    "确定的（城市、景点、可推的天数、名称拼写），确定性高的推断不确认，"
+    "一律自己查、自己定，并在 reply 里说明依据，不要问；②确实缺、查不到"
+    "的信息，直接在 reply 里向用户提问——一次集中问清，不连环追问；③只对"
+    "三类情况向用户确认：你的推断与用户说的不符合、同一个输入有多个可能的"
+    "理解、用户意见表明行程有瑕疵（点名说明，如「ZHUJIAZUI 按拼写近似认成"
+    "了朱家角古镇——如果不是请直接告诉我」）；④同类候选默认安排最经典、"
+    "地理上最顺路的一个并注明可替换项，注释之后可以问用户倾向，用户回答"
+    "想换时再出 diff 换绑。"
 )
 
 
@@ -2941,6 +2944,164 @@ _TEXT_TIME_MASK_RE = re.compile(
 )
 _TEXT_OFFSET_WORDS = {"今天": 0, "明天": 1, "后天": 2, "大后天": 3}
 _TEXT_WEEKDAY = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+
+# --- 改总天数意图（2026-11-17「I WANT TWO DAYS TRIP」编辑案） -------------
+# 编辑通道原来把「我要 2 天」当普通 diff 回合：LLM 对只有 1 天的计划发
+# new_day=2 的 move，apply_diffs 直接报「目标第 2 天不存在」，而回复已经
+# 按 2 天口吻写好——用户看到「已改为 2 天」+「未能生效」的自相矛盾。
+# 这里把「改行程长度」从「换到第 N 天」里分出来：第N天/day N 是 move
+# 目标，不是总天数；只有明确说 trip length 的句子才返回新天数。
+_DAY_TARGET_MASK_RE = re.compile(
+    r"第\s*(?:\d{1,2}|[一二两三四五六七八九十]{1,3})\s*[天日]"
+    r"|\bday\s*\d{1,2}\b",
+    re.IGNORECASE,
+)
+_CN_DAY_NUM = r"\d{1,2}|[一二两三四五六七八九十]{1,3}"
+_EN_DAY_NUM = (
+    r"twenty[\s-](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"thirty|twenty|nineteen|eighteen|seventeen|sixteen|fifteen|fourteen|"
+    r"thirteen|twelve|eleven|ten|nine|eight|seven|six|five|four|three|two|one|"
+    r"\d{1,2}"
+)
+_CN_DAYS_ABS_RES = (
+    re.compile(
+        r"(?:改成|改为|变成|调整为|调整成|改到|换成)\s*"
+        rf"(?P<num>{_CN_DAY_NUM})\s*天"
+    ),
+    re.compile(
+        r"(?:玩|待|住|停留|安排|计划|总共|一共|共计|行程|旅行|旅游|出游)"
+        rf"\s*(?:是|为|成|有)?\s*(?P<num>{_CN_DAY_NUM})\s*天"
+    ),
+    re.compile(rf"(?P<num>{_CN_DAY_NUM})\s*天(?:的)?(?:行程|旅行|旅游|之旅|游|行)"),
+)
+_EN_DAYS_ABS_RES = (
+    re.compile(
+        rf"\b(?P<num>{_EN_DAY_NUM})[\s-]*(?:day|days)\s*"
+        r"(?:trip|tour|itinerary|stay|travel|holiday|vacation)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b(?:trip|tour|itinerary|stay|travel|holiday|vacation)\s+"
+        rf"(?:for|of|is|to)?\s*(?P<num>{_EN_DAY_NUM})\s*(?:day|days)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:make\s+it|change\s+(?:it|this|the\s+trip)?|"
+        r"set\s+(?:it|the\s+trip)?)\s+(?:to|into|for)?\s*"
+        rf"(?P<num>{_EN_DAY_NUM})\s*(?:day|days)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:extend|expand|stretch|shorten|cut|reduce)\s+"
+        r"(?:the\s+)?(?:trip|tour|stay)?\s*(?:to|into)\s*"
+        rf"(?P<num>{_EN_DAY_NUM})\s*(?:day|days)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(rf"\bfor\s+(?P<num>{_EN_DAY_NUM})\s+days?\b", re.IGNORECASE),
+)
+_CN_DAYS_ADD_RE = re.compile(
+    r"(?:加|增加|多|延长|再加)\s*(?:上|玩|住|待|安排)?\s*"
+    rf"(?P<num>{_CN_DAY_NUM})\s*天"
+)
+_CN_DAYS_SUB_RE = re.compile(
+    r"(?:减|减少|少|缩短|砍)\s*(?:去|掉|玩|住|待|安排)?\s*"
+    rf"(?P<num>{_CN_DAY_NUM})\s*天"
+)
+_EN_DAYS_ADD_RE = re.compile(
+    r"(?:\badd\b|\bextend\b|\bincrease\b|\bplus\b)\s+"
+    r"(?:(?:the|this|our)\s+)?(?:trip|tour|stay|it)?\s*(?:by\s+)?"
+    rf"(?P<num>{_EN_DAY_NUM})\s*(?:more\s+)?(?:day|days)\b",
+    re.IGNORECASE,
+)
+_EN_DAYS_ADD_ARTICLE_RE = re.compile(
+    r"\b(?:add|extend|increase)\s+(?:a|an|one)\s+(?:more\s+)?(?:day|days)\b",
+    re.IGNORECASE,
+)
+_EN_DAYS_MORE_RE = re.compile(
+    rf"\b(?P<num>{_EN_DAY_NUM})\s+more\s+(?:day|days)\b", re.IGNORECASE
+)
+_EN_DAYS_SUB_RE = re.compile(
+    r"(?:\bcut\b|\bshorten\b|\breduce\b|\bdrop\b)\s+"
+    r"(?:(?:the|this|our)\s+)?(?:trip|tour|stay|it)?\s*(?:by\s+)?"
+    rf"(?P<num>{_EN_DAY_NUM})\s*(?:day|days)\b",
+    re.IGNORECASE,
+)
+_EN_DAYS_LESS_RE = re.compile(
+    rf"\b(?P<num>{_EN_DAY_NUM})\s+(?:day|days)\s+(?:less|fewer)\b",
+    re.IGNORECASE,
+)
+
+
+def _day_number_value(token: str) -> int | None:
+    """「2」「两」「twenty-one」→ int；越界/读不出 None。"""
+    token = (token or "").strip().lower()
+    compound = re.fullmatch(
+        r"(twenty|thirty)[\s-](one|two|three|four|five|six|seven|eight|nine)",
+        token,
+    )
+    if compound is not None:
+        n = _EN_DAY_WORDS[compound.group(1)] + _EN_DAY_WORDS[compound.group(2)]
+    elif token.isdigit():
+        n = int(token)
+    elif token in _EN_DAY_WORDS:
+        n = _EN_DAY_WORDS[token]
+    else:
+        cn = _cn_number(token)
+        if cn is None:
+            return None
+        n = cn
+    return n if 1 <= n <= 30 else None
+
+
+def _requested_day_count(text: str, current: int) -> int | None:
+    """用户这句话要求的**行程总天数**；不是改天数/读不出时 None。
+
+    先把日期、时刻、`第N天`/`day N`（move 目标）掩掉，再按
+    「绝对目标 → 增量（加一天/多两天/one more day）」两轮解析。
+    返回 current 表示用户明确说了与当前相同的天数（调用方按无变化处理）。
+    """
+    raw = str(text or "")
+    if current <= 0 or not raw.strip():
+        return None
+    masked = _TEXT_TIME_MASK_RE.sub("□", _TEXT_DATE_MASK_RE.sub("□", raw))
+    masked = _DAY_TARGET_MASK_RE.sub("□", masked)
+    for pattern in (*_CN_DAYS_ABS_RES, *_EN_DAYS_ABS_RES):
+        match = pattern.search(masked)
+        if match is None:
+            continue
+        n = _day_number_value(match.group("num"))
+        if n is not None:
+            return n
+    for pattern in (
+        _CN_DAYS_ADD_RE,
+        _EN_DAYS_ADD_ARTICLE_RE,
+        _EN_DAYS_ADD_RE,
+        _EN_DAYS_MORE_RE,
+    ):
+        match = pattern.search(masked)
+        if match is None:
+            continue
+        n = (
+            1
+            if pattern is _EN_DAYS_ADD_ARTICLE_RE
+            else _day_number_value(match.group("num"))
+        )
+        if n is None:
+            continue
+        target = current + n
+        if 1 <= target <= 30:
+            return target
+    for pattern in (_CN_DAYS_SUB_RE, _EN_DAYS_SUB_RE, _EN_DAYS_LESS_RE):
+        match = pattern.search(masked)
+        if match is None:
+            continue
+        n = _day_number_value(match.group("num"))
+        if n is None:
+            continue
+        target = current - n
+        if 1 <= target <= 30:
+            return target
+    return None
 
 
 def _parse_text_start_date(text: str) -> str | None:
@@ -5211,6 +5372,118 @@ def _item_line(item: VisitItem | TransferItem) -> str:
 
 def _plan_digest(plan: ItineraryPlan) -> str:
     return "\n".join(_item_line(i) for d in plan.days for i in d.items)
+
+
+def _extension_base_city(plan: ItineraryPlan) -> str:
+    """New trailing day's base city: keep the last destination, not the
+    return-to-origin tail (closed-loop trips end in the origin city)."""
+    if not plan.days:
+        return plan.cities[-1] if plan.cities else _unspecified()
+    dests = {_norm_city(c) for c in (plan.cities[1:] or plan.cities) if c}
+    for day in reversed(plan.days):
+        if _norm_city(day.base_city) in dests:
+            return day.base_city
+    return plan.days[-1].base_city or (
+        plan.cities[-1] if plan.cities else _unspecified()
+    )
+
+
+def _plan_with_extra_days(plan: ItineraryPlan, target: int | None) -> ItineraryPlan:
+    """Copy of ``plan`` grown to ``target`` days (original untouched).
+
+    Day-count edits are applied to a working copy: a move/add diff may target
+    a day the user just asked to add, but the session must stay unchanged if
+    the whole turn fails validation.
+    """
+    if target is None or target <= len(plan.days):
+        return plan
+    grown = plan.model_copy(deep=True)
+    base_city = _extension_base_city(grown)
+    next_day = max((d.day for d in grown.days), default=0) + 1
+    while len(grown.days) < target:
+        grown.days.append(DayPlan(day=next_day, base_city=base_city, items=[]))
+        next_day += 1
+    return grown
+
+
+def _expansion_move_diffs(plan: ItineraryPlan, target: int) -> list[DiffOp]:
+    """Fallback split when the user asks for more days but the LLM sends no
+    move ops targeting them.
+
+    Take the movable (non-pinned, non-food/hotel) sights of the last day and
+    divide them evenly over that day + the newly added days, preserving
+    order. Pinned cards never move (iron rule 19). Returns [] when there is
+    nothing safe to move — the caller then leaves the new day open rather
+    than inventing an itinerary.
+    """
+    if target <= len(plan.days) or not plan.days:
+        return []
+    source = plan.days[-1]
+    movable = sorted(
+        (
+            item
+            for item in source.items
+            if isinstance(item, VisitItem)
+            and not item.pinned
+            and (item.category or "") not in ("food", "hotel")
+            and not (item.item_id or "").startswith(
+                (HOTEL_NIGHT_ID_PREFIX, HOTEL_MORNING_ID_PREFIX)
+            )
+        ),
+        key=lambda item: (item.start_time or time(23, 59), item.item_id),
+    )
+    if len(movable) < 2:
+        return []
+    first_new_day = max((d.day for d in plan.days), default=0) + 1
+    extra_days = first_new_day + (target - len(plan.days)) - 1
+    slots = [source.day, *range(first_new_day, extra_days + 1)]
+    base, remainder = divmod(len(movable), len(slots))
+    diffs: list[DiffOp] = []
+    cursor = 0
+    for index, day_no in enumerate(slots):
+        take = base + (1 if index < remainder else 0)
+        chunk = movable[cursor : cursor + take]
+        cursor += take
+        if index == 0:
+            continue  # the source day keeps its share, no diff needed
+        diffs.extend(
+            DiffOp(op="move", item_id=item.item_id, new_day=day_no) for item in chunk
+        )
+    return diffs
+
+
+def _fit_plan_day_count(plan: ItineraryPlan, target: int | None) -> list[str]:
+    """Trim trailing days for a shrink request; never silently deletes cards.
+
+    Empty trailing days disappear; a day still holding cards is kept and
+    disclosed (the LLM normally moved/removed its cards via diffs first).
+    """
+    notes: list[str] = []
+    if target is None or target <= 0:
+        return notes
+    if len(plan.days) < target:
+        base_city = _extension_base_city(plan)
+        next_day = max((d.day for d in plan.days), default=0) + 1
+        while len(plan.days) < target:
+            plan.days.append(DayPlan(day=next_day, base_city=base_city, items=[]))
+            next_day += 1
+        return notes
+    trailing = [d for d in plan.days if d.day > target]
+    if not trailing:
+        return notes
+    occupied = [d for d in trailing if d.items]
+    if occupied:
+        labels = "、".join(f"第{d.day}天" for d in occupied)
+        notes.append(
+            L(
+                f"{labels}还有安排，暂未缩到 {target} 天——先删掉或挪走那些卡再缩短",
+                f"{labels} still have plans, so the trip is not yet down to "
+                f"{target} days — remove or move those cards first",
+            )
+        )
+        return notes
+    plan.days = [d for d in plan.days if d.day <= target]
+    return notes
 
 
 def _item_end_minutes(item: VisitItem | TransferItem) -> int | None:
@@ -18902,6 +19175,11 @@ def _seat_unplaced_musts(plan: ItineraryPlan, alloc, must_names: set[str]):
     for cand in list(plan.unplaced):
         if cand.name not in must_names:
             continue
+        # 出发城必去（2026-11-17 一日游案）不参与回座：出发城=只安排交通
+        # （产品规则 2026-10-19），回座要么把它塞回出发日、要么塞进别的
+        # 城的天卡（城市错位）——留在 unplaced+披露才是合法终态。
+        if getattr(cand, "reason", None) == "origin_transport_only":
+            continue
         order = sorted(
             plan.days,
             key=lambda d: (d.day != cand.day_hint, len(d.items), d.day),
@@ -29392,6 +29670,11 @@ class PlanningAgent:
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
         ranges = _city_day_ranges(cities, days, city_days)
+        # 出发城被裁的点名必去（2026-11-17 一日游案）：不得进罗列行
+        # 静默消失——落 unplaced（想去 chip 池）+ 逐个专行披露。
+        # 声明在分支外：单城行程不进 len(cities)>1 分支，30148 行的
+        # 无条件读取曾抛 UnboundLocalError（单城 v0 全量崩溃）。
+        origin_dropped_musts: list[dict] = []
         if len(cities) > 1:
             # Product rule 2026-10-19: the origin city is departure-only —
             # drop any picked item there instead of clamping it into a window.
@@ -29401,19 +29684,39 @@ class PlanningAgent:
             for spec in picked:
                 if str(spec.get("city") or "").removesuffix("市") == origin:
                     dropped_names.append(str(spec["name"]))
+                    if spec.get("must"):
+                        origin_dropped_musts.append(spec)
                 else:
                     kept.append(spec)
             if dropped_names:
                 picked = kept
-                assumptions.append(
-                    L(
-                        f"{'、'.join(dropped_names)} 位于出发城市 {cities[0]}，"
-                        "出发日只安排交通，未列入行程",
-                        f"{', '.join(dropped_names)} is in the departure city "
-                        f"{cities[0]}; the departure day is travel-only, so it "
-                        "was left off the itinerary",
+                must_dropped_names = {str(s["name"]) for s in origin_dropped_musts}
+                other_dropped = [
+                    n for n in dropped_names if n not in must_dropped_names
+                ]
+                if other_dropped:
+                    assumptions.append(
+                        L(
+                            f"{'、'.join(other_dropped)} 位于出发城市 {cities[0]}，"
+                            "出发日只安排交通，未列入行程",
+                            f"{', '.join(other_dropped)} is in the departure city "
+                            f"{cities[0]}; the departure day is travel-only, so it "
+                            "was left off the itinerary",
+                        )
                     )
-                )
+                for spec in origin_dropped_musts:
+                    assumptions.append(
+                        L(
+                            f"必去「{spec['name']}」位于出发城市 {cities[0]}，"
+                            "出发日只安排交通，未排入行程——已列入想去"
+                            "（可指定其他日期或缩短停留后加回）",
+                            f"Must-visit '{spec['name']}' is in the departure "
+                            f"city {cities[0]}; the departure day is travel-only, "
+                            "so it was left off the itinerary — moved to the "
+                            "wishlist (specify another day or a shorter stay to "
+                            "add it back)",
+                        )
+                    )
         clamped = 0
         for spec in picked:
             city = str(spec.get("city") or "")
@@ -29845,6 +30148,34 @@ class PlanningAgent:
             assumptions=assumptions + transfer_assumptions,
             start_date=start_date,
         )
+        # 出发城必去落 unplaced（2026-11-17 一日游案）：点名件被
+        # 「出发日只安排交通」裁掉时进想去池，装配期亮 chip；覆盖审计的
+        # 三分律也靠它在场——否则只能靠披露行兜底，想去交互就没了。
+        if origin_dropped_musts:
+
+            def _spec_geo(spec: dict):
+                loc = spec.get("location")
+                if isinstance(loc, dict) and loc.get("lon") is not None:
+                    return loc
+                if isinstance(loc, (tuple, list)) and len(loc) == 2:
+                    return {"lon": loc[0], "lat": loc[1]}
+                return None
+
+            plan.unplaced = list(plan.unplaced or []) + [
+                UnplacedCandidate(
+                    name=str(s["name"]),
+                    name_en=s.get("name_en"),
+                    poi_id=s.get("poi_id") or s.get("source_poi_id"),
+                    category=s.get("category"),
+                    tier=s.get("tier"),
+                    duration_minutes=s.get("duration_minutes"),
+                    location=_spec_geo(s),
+                    city=s.get("city"),
+                    day_hint=s.get("day"),
+                    reason="origin_transport_only",
+                )
+                for s in origin_dropped_musts
+            ]
         # 必取名册提前备好：solve 之后的钉位（:7946 一带）之前，转场清算
         # 就要按铁律 19 跳过它们——排不上时刻的必去以披露交付，绝不删。
         must_names = {spec["name"] for spec in picked if spec.get("must")}
@@ -32767,6 +33098,37 @@ class PlanningAgent:
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
         if not diffs:
+            # 改总天数（2026-11-17「I WANT TWO DAYS TRIP」案）：纯天数诉求
+            # 也走 apply 通道——LLM 没给 diff 时由 fallback split 兜底重分，
+            # 不再走「只回话不动行程」的早退分支。
+            current_days = len(session.plan.days)
+            day_target = _requested_day_count(text, current_days)
+            if day_target == current_days:
+                day_target = None  # 明确说了与当前相同的天数：无变化
+            if day_target is not None and day_target > current_days:
+                diffs = _expansion_move_diffs(session.plan, day_target)
+        else:
+            # LLM 给了 diff：检查它是否真的把卡挪到了新天——只扩天数不挪卡
+            # 会交付一个空天。没有指向新天的 move/add 时补 fallback split。
+            current_days = len(session.plan.days)
+            day_target = _requested_day_count(text, current_days)
+            if day_target == current_days:
+                day_target = None
+            if (
+                day_target is not None
+                and day_target > current_days
+                and not any(
+                    (op.op == "move" and (op.new_day or 0) > current_days)
+                    or (
+                        op.op == "add"
+                        and op.item is not None
+                        and op.item.day > current_days
+                    )
+                    for op in diffs
+                )
+            ):
+                diffs = [*diffs, *_expansion_move_diffs(session.plan, day_target)]
+        if not diffs and day_target is None:
             reply = reply or L("已处理你的消息。", "Your message is handled.")
             sync_notes, unresolved = await self.sync_wishes_to_trip_items(
                 session,
@@ -32792,9 +33154,14 @@ class PlanningAgent:
             session.history.append(ChatMessage(role="assistant", content=reply))
             return session, reply, None
 
-        new_plan, summary, notes = await self._apply_with_repair(session, diffs, text)
+        new_plan, summary, notes = await self._apply_with_repair(
+            session, diffs, text, target_days=day_target
+        )
         session.plan = new_plan
         session.state = "ready"
+        if day_target is not None:
+            # 行程天数落定后回写会话（后续补排/重解都按新天数窗口走）
+            session.days = len(new_plan.days)
         sync_notes, unresolved = await self.sync_wishes_to_trip_items(
             session, wishes, user_texts=self._user_corpus(session)
         )
@@ -34879,7 +35246,12 @@ class PlanningAgent:
         return note
 
     async def _apply_with_repair(
-        self, session: PlanSession, diffs: list[DiffOp], user_text: str
+        self,
+        session: PlanSession,
+        diffs: list[DiffOp],
+        user_text: str,
+        *,
+        target_days: int | None = None,
     ) -> tuple[ItineraryPlan, ChangeSummary | None, list[str]]:
         """Iron rule 0 pipeline + §6.9/§6.4 repair chain.
 
@@ -34890,14 +35262,26 @@ class PlanningAgent:
         (<= 3 rounds, §6.4); exhaustion ships a half-product with warnings,
         and a diff that never applied ships the plan unchanged.
 
+        ``target_days``（2026-11-17 两日行程案）：用户明确要改总天数时，
+        先在**工作副本**上补齐/削减天数再套 diff——LLM 的 new_day 才有
+        合法目标；整回合失败时交付的仍是原计划（天数不动），成功时交付
+        按目标天数收口后的计划。
+
         Returns (delivered plan, change summary, user-visible notes).
         """
         # PR3（2026-11-01 用户批《求解器升级建议》）：LLM 不得发明时间
         # 戳——未见于用户原话的 retime/move 时刻剥成时段偏好，条目解钉
         # 交排程器重排（H5 直接 move/retime 端点是用户动作，不经此处）。
+        original_plan = session.plan
+        plan_before = _plan_with_extra_days(original_plan, target_days)
+        repair_session = (
+            session
+            if plan_before is original_plan
+            else session.model_copy(update={"plan": plan_before})
+        )
         diffs, time_hints = _guard_llm_times(diffs, user_text)
         if time_hints:
-            for day in session.plan.days:
+            for day in original_plan.days:
                 for it in day.items:
                     if not isinstance(it, VisitItem):
                         continue
@@ -34909,7 +35293,6 @@ class PlanningAgent:
                             # 乱排（10:30 排餐类事故）
                             if (it.category or "") != "food":
                                 it.soft_pin = False
-        plan_before = session.plan
         diffs, pin_notes = self._drop_unconfirmed_pin_diffs(
             plan_before, diffs, user_text
         )
@@ -34923,22 +35306,25 @@ class PlanningAgent:
         drop_notes: list[str] = []
         error_text = ""
         hard_count = 0
+        # 天数变化本身就是结构改动（§6.9）：空 diff 也要走 apply->solve->
+        # validate——新的空天要么被 fallback split 填上，要么以空天交付。
+        day_resized = target_days is not None and target_days != len(original_plan.days)
         for round_no in range(MAX_REPAIR_ROUNDS + 1):
             try:
                 drop_notes = []
-                if self._is_structural(current_diffs):
+                if self._is_structural(current_diffs) or day_resized:
                     applied, report, summary, drop_notes = await asyncio.to_thread(
                         self._apply_structural,
-                        session.plan,
+                        plan_before,
                         current_diffs,
                         protect=frozenset(session.must_visits),
                     )
                 else:
                     applied, report, summary = mutate(
-                        session.plan,
+                        plan_before,
                         current_diffs,
                         poi_hours=[],
-                        old_plan=session.plan,
+                        old_plan=original_plan,
                         post_apply=self._reanchor_nights_hook(current_diffs),
                     )
             except PipelineError as exc:
@@ -34977,7 +35363,7 @@ class PlanningAgent:
                 break
             if round_no == MAX_REPAIR_ROUNDS:
                 break
-            repaired = await self._request_repair(session, error_text, user_text)
+            repaired = await self._request_repair(repair_session, error_text, user_text)
             if not repaired:
                 break
             current_diffs = repaired
@@ -34988,7 +35374,9 @@ class PlanningAgent:
         if applied is not None and drop_notes:
             notes.extend(drop_notes)
         if not error_text:
-            plan = applied if applied is not None else session.plan
+            plan = applied if applied is not None else plan_before
+            if target_days is not None:
+                notes.extend(_fit_plan_day_count(plan, target_days))
             # Rule 19 follow-through: a named retime/move keeps its pin at
             # the new slot; removals ride to the trip center as「不想去」.
             want_pin = {item_id for item_id, op in released if op in ("retime", "move")}
@@ -35001,7 +35389,8 @@ class PlanningAgent:
             if any(op.op == "remove" for op in diffs):
                 self.sync_removals_to_trip_items(plan_before, diffs, session=session)
         elif applied is None:
-            plan = session.plan.model_copy(deep=True)
+            # 整回合失败：交付原计划——天数改动（工作副本上补的天）不残留
+            plan = original_plan.model_copy(deep=True)
             notes.append(
                 L(
                     f"这次修改未能生效（{error_text}），行程保持原样",
@@ -35166,8 +35555,10 @@ class PlanningAgent:
         # prompt 让每轮编辑都在偏好约束下出 diffs。
         prefs = (session.preferences or "").strip()
         pref_line = f"\n用户偏好（编辑须保持）：{prefs}\n" if prefs else ""
+        total_days = len(session.plan.days) if session.plan else 0
         return _with_lang(
-            f"{_EDIT_SYSTEM_PROMPT}{pref_line}\n当前行程（item_id 清单）：\n{digest}",
+            f"{_EDIT_SYSTEM_PROMPT}{pref_line}\n当前行程共 {total_days} 天。"
+            f"当前行程（item_id 清单）：\n{digest}",
             session,
         )
 

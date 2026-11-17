@@ -2355,6 +2355,15 @@ function planCard(plan) {
         box.insertBefore(card, box.firstChild);
       }).catch(() => {});
   }
+  // 未排上必去横幅（2026-11-17 一日游案）：assumptions 是折叠块用户不看，
+  // 「必去未排上」必须一眼可见——非折叠卡放在假设块之前（想去 chip 之外的
+  // 主告知面；数据由后端出站审计随 plan.unarranged_musts 下发）。
+  if (plan.unarranged_musts && plan.unarranged_musts.length) {
+    box.appendChild(el('<div style="border:1px solid #e0b25a;border-radius:8px;padding:8px 10px;margin:4px 0;background:#fffbe8"><b>⚠️ ' +
+      I18N.tf("plan.mustUnarranged.title", "必去未排上") + '</b><div style="margin-top:3px">' +
+      I18N.tf("plan.mustUnarranged.body", "以下必去点没有排进行程（已亮在卡片右侧「想去」，可指定其他日期或缩短停留后加回）：") +
+      '<b>' + esc(plan.unarranged_musts.join(I18N.tf("plan.mustUnarranged.sep", "、"))) + '</b></div></div>'));
+  }
   if (plan.assumptions && plan.assumptions.length) {
     const det = el('<details><summary>' + I18N.tf("plan.assumptions.pre","假设标注 ") + plan.assumptions.length + I18N.tf("plan.assumptions.suf"," 条") + "</summary><ul>" +
       plan.assumptions.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul></details>");
@@ -3632,7 +3641,11 @@ async function planStartConfirmed(routeSource, overrides) {
       start_date: iv.start_date || s.startDate || undefined,
       intercity_mode: planTransportMode(),
       lang: I18N.locale(),
-      brief: routeSource === "brief" ? s.brief : undefined,
+      // brief 随重发带上（2026-11-17「文字 2 天、弹窗 1 天没确认」案）：
+      // 行前卡重发（routeSource=null）丢了这句，后端 confirm_route 的
+      // 文字 vs 行前卡差异（拍板③）就没东西可比，卡跨度被静默采用。
+      // 只有选了「按表单」才丢（文字降级为偏好文本）；按文字/未选边都带。
+      brief: routeSource === "form" ? undefined : s.brief,
       images: s.images && s.images.length ? s.images : undefined,
       arrival_no: iv.arrival_no || undefined,
       arrival_date: iv.arrival_date || undefined,

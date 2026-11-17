@@ -54,6 +54,7 @@ def _cand(raw: dict[str, Any]) -> CandidateItem:
         rain_ok=raw.get("rain_ok"),
         suggested_duration_min=raw.get("suggested_duration_min"),
         remote=bool(raw.get("remote", False)),
+        city=raw.get("city"),
     )
 
 

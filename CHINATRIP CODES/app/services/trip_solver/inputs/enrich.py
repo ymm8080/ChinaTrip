@@ -40,6 +40,12 @@ def enrich(
     windows: dict[str, tuple[int, int] | None] = {}
     tiers: dict[str, tuple[int, int, int, bool]] = {}
     keys: list[str] = []
+    pinned_cids = {
+        cand.cid
+        for pin in (getattr(snapshot.request, "pins", ()) or ())
+        for cand in snapshot.candidates
+        if pin.rid == cand.rid or (pin.cid and pin.cid == cand.cid)
+    }
 
     for cand in snapshot.candidates:
         key = cand.poi_id or cand.cid
@@ -53,6 +59,7 @@ def enrich(
             opening_hours_text=cand.opening_hours,
             duration_min=cand.suggested_duration_min,
             tier=cand.tier,
+            pinned_with_time=cand.cid in pinned_cids,
         )
         caps[cand.cid] = (cap, reason)
         tiers[cand.cid] = duration_tier(cand.suggested_duration_min, cand.category)

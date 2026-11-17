@@ -43,6 +43,20 @@ def day_date(start_date: str | None, day: int) -> date | None:
     return base + timedelta(days=day - 1)
 
 
+def _pinned_cids(request, snapshot) -> set[tuple[str, int]]:
+    by_rid: dict[str, list[str]] = {}
+    for cand in snapshot.candidates:
+        if cand.rid:
+            by_rid.setdefault(cand.rid, []).append(cand.cid)
+    out: set[tuple[str, int]] = set()
+    for pin in getattr(request, "pins", ()) or ():
+        for cid in by_rid.get(pin.rid, []):
+            out.add((cid, pin.day))
+        if pin.cid:
+            out.add((pin.cid, pin.day))
+    return out
+
+
 def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     snapshot = enriched.snapshot
     model = bundle.model
@@ -58,6 +72,9 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 continue
             lo = DAY_START_MINUTES
             hi = DAY_END_MINUTES
+            if (cand.cid, day) in _pinned_cids(snapshot.request, snapshot):
+                # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）
+                lo = window[0] if window is not None else 0
             if window is not None:
                 lo = max(lo, window[0])
                 hi = min(hi, window[1])
@@ -80,6 +97,11 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     keys = {c.cid: (c.poi_id or c.cid) for c in candidates}
     for i, a in enumerate(candidates):
         for b in candidates[i + 1 :]:
+            if (
+                keys[a.cid] in enriched.access_by_poi
+                or keys[b.cid] in enriched.access_by_poi
+            ):
+                continue  # C-08 接驳区间替代通用矩阵析取（P1-C2）
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
             for day in bundle.days:
@@ -134,10 +156,21 @@ def add_objective(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
 
 def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
+    from .c05_c08 import (
+        add_c05_endpoints,
+        add_c06_remote_exclusivity,
+        add_c07_city_coherence,
+        add_c08_access,
+    )
+
     bundle = define_variables(enriched)
     add_c01_windows(bundle, enriched)
     add_c02_caps(bundle, enriched)
     add_c03_travel(bundle, enriched)
     add_c04_pins(bundle, enriched)
+    add_c05_endpoints(bundle, enriched)
+    add_c06_remote_exclusivity(bundle, enriched)
+    add_c07_city_coherence(bundle, enriched)
+    add_c08_access(bundle, enriched)
     add_objective(bundle, enriched)
     return bundle

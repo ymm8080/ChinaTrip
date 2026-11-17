@@ -94,12 +94,13 @@ from app.services.itinerary.hotfix_1117 import (
     evict_pre_remote_fillers,
     retime_remote_day_from_access,
 )
-from app.services.itinerary.legs import attach_return_cards
+from app.services.itinerary.legs import annotate_legs, attach_return_cards
 from app.services.itinerary.models import UnplacedCandidate
 from app.services.itinerary.request_coverage import (
     dedupe_unplaced_against_scheduled,
     demote_untimed_musts,
     ensure_must_disclosure,
+    unarranged_must_visits,
 )
 from app.services.itinerary_store import (
     ItineraryRecord,
@@ -619,6 +620,11 @@ async def start_plan(
     text_days = parsed_brief[1] if parsed_brief else None
     if text_days is None and fact_text:
         text_days = _parse_days(fact_text)
+    # 文字明说的天数（拍板③「行前卡信息和文字不同要摆差异」的文字侧）：
+    # 正则口径（brief 天数 → 原句天数兜底）。下面「单日期⇒一日游」只是行前
+    # 卡闸门的推断，不算文字陈述——用户在卡上挑了别的跨度不算和文字打架，
+    # 不进差异（2026-11-17「文字 2 天、弹窗 1 天没确认」案）。
+    stated_days = text_days
     # 只写了一个日期 ⇒ 一日游（2026-11-17 用户拍板「IT MEANS ONLY ONE DAY
     # TRIP」）；写了起止两个日期仍按缺天数处理，行前卡照弹。
     if (
@@ -708,9 +714,17 @@ async def start_plan(
             ).days + 1
         except ValueError:
             card_span = None
-    if parsed is not None and parsed[1] and card_span and parsed[1] != card_span:
-        # 文字天数 vs 行前卡日期跨度（用户拍板③：行前卡信息和文字不同也要摆）
-        diffs.append({"what": "days", "text": parsed[1], "intake": card_span})
+    if (
+        stated_days
+        and card_span
+        and stated_days != card_span
+        and request.days_override is None
+    ):
+        # 文字天数 vs 行前卡日期跨度（用户拍板③：行前卡信息和文字不同也要摆）。
+        # 文字侧用 stated_days：brief 只认正则明说的天数，客户端丢简报把它折
+        # 进 preferences 时照样比得上（2026-11-17「文字 2 天、弹窗 1 天没确
+        # 认」案）；days_override=确认卡已选边，不再二次弹卡。
+        diffs.append({"what": "days", "text": stated_days, "intake": card_span})
     text_nos = _extract_transport_numbers(request.brief)
     card_nos = [
         n
@@ -720,10 +734,22 @@ async def start_plan(
         )
         if n
     ]
-    if text_nos and {n.upper() for n in text_nos} != set(card_nos):
+    if (
+        text_nos
+        and {n.upper() for n in text_nos} != set(card_nos)
+        and request.arrival_no_override is None
+        and request.departure_no_override is None
+    ):
+        # 班次差异；覆写=确认卡已选边（选文字班次的落点），不再二次弹卡
         diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
-    if card_span and request.days and card_span != request.days:
-        # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）
+    if (
+        card_span
+        and request.days
+        and card_span != request.days
+        and request.days_override is None
+    ):
+        # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）；
+        # days_override=确认卡已选边，不再二次弹卡
         diffs.append({"what": "card_days", "intake": card_span, "form": request.days})
     if diffs and request.route_source is None:
         return {
@@ -731,7 +757,7 @@ async def start_plan(
             "diffs": diffs,
             "text_route": {
                 "cities": resolved or [],
-                "days": parsed[1] if parsed else None,
+                "days": stated_days,
             },
             "form_route": {"cities": request.cities, "days": request.days},
         }
@@ -1082,14 +1108,21 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
     lang = getattr(session, "lang", "zh") or "zh"
     must_names = getattr(session, "must_visits", None) or []
-    session.plan.assumptions.extend(
+    notes: list[str] = list(
         evict_fillers_when_must_unseated(session.plan, must_names=must_names, lang=lang)
     )
-    session.plan.assumptions.extend(evict_pre_remote_fillers(session.plan, lang=lang))
-    session.plan.assumptions.extend(
-        retime_remote_day_from_access(session.plan, lang=lang)
-    )
-    for line in demote_untimed_musts(session.plan, lang=lang):
+    notes += evict_pre_remote_fillers(session.plan, lang=lang)
+    notes += retime_remote_day_from_access(session.plan, lang=lang)
+    untimed = demote_untimed_musts(session.plan, lang=lang)
+    if notes or untimed:
+        # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：
+        # annotate 只在生成期跑过，读闸改形后卡面还挂着撤掉的前补点腿、
+        # 去程接驳链整段消失（2026-11-17 慕田峪复验实录：天安门卡挂着
+        # 已被移出的老舍茶馆打车腿，09:30 专线无卡可挂）。幂等，重算
+        # 只覆写展示腿字段。
+        annotate_legs(session.plan)
+    session.plan.assumptions.extend(notes)
+    for line in untimed:
         logger.warning(
             "plan/session %s untimed must demoted: %s",
             session.session_id,
@@ -1100,6 +1133,7 @@ def _audit_must_coverage(session: PlanSession) -> None:
         session.plan,
         getattr(session, "must_visits", None) or [],
         disclosed=session.assumptions or [],
+        lang=lang,
     ):
         logger.warning(
             "plan/session %s must-visit silent drop: %s", session.session_id, line
@@ -1115,6 +1149,10 @@ def _audit_must_coverage(session: PlanSession) -> None:
             session.session_id,
             [d.name for d in dups],
         )
+    # 未排上必去名册（2026-11-17 一日游案）：H5 非折叠横幅的数据面——
+    # 假设块折叠着用户不看，「必去未排上」必须一眼可见（想去 chip 只是
+    # 次要面，无宿主卡时连 chip 都没有）。每次过闸重算，编辑后自愈。
+    session.plan.unarranged_musts = unarranged_must_visits(session.plan, must_names)
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:

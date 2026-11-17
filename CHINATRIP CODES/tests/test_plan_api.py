@@ -3330,6 +3330,113 @@ def test_text_without_date_but_card_info_provided_proceeds():
     assert len(body["plan"]["days"]) == 2
 
 
+def test_intake_resubmit_text_vs_one_day_card_asks_confirm():
+    """行前卡重发带简报（2026-11-17 用户实报「文字 2 天、弹窗 1 天、没让
+    确认」案）：文字说 2 天、卡跨度 1 天 → confirm_route 摆出 days 差异，
+    不静默按卡生成。两步形态=真实 H5 流（先 intake 弹卡、卡值重发）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    first = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "重庆 2 天",
+            "brief": "重庆 2 天",
+            "start_date": "2026-11-20",
+        },
+    )
+    assert first.status_code == 200
+    assert first.json()["state"] == "intake"
+    second = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "重庆 2 天",
+            "brief": "重庆 2 天",
+            "start_date": "2026-11-20",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-20",
+        },
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["state"] == "confirm_route"
+    days = next(d for d in body["diffs"] if d["what"] == "days")
+    assert days["text"] == 2
+    assert days["intake"] == 1
+    assert body["text_route"]["days"] == 2
+
+
+def test_intake_resubmit_days_diff_survives_lost_brief():
+    """行前卡重发丢简报的客户端（H5 修复前形态）：文字折进 preferences、
+    days 差异照样摆（拍板③兜底），不静默按卡生成。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "重庆 2 天",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-20",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "confirm_route"
+    days = next(d for d in body["diffs"] if d["what"] == "days")
+    assert days["text"] == 2
+    assert days["intake"] == 1
+
+
+def test_days_pick_override_suppresses_resubmit_reask():
+    """确认卡 days 选边重发（route_source 空 + days_override）：选过边不再
+    二次弹卡（H5 重发带简报后必须防回环，2026-11-17）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": "重庆 2 天",
+            "brief": "重庆 2 天",
+            "start_date": "2026-11-20",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-20",
+            "days_override": 2,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert len(body["plan"]["days"]) == 2
+
+
+def test_numbers_pick_override_suppresses_resubmit_reask():
+    """确认卡班次选边重发（班次覆写）：选过边不再二次弹卡。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["杭州"],
+            "days": 3,
+            "preferences": "喜欢走路",
+            "brief": "乘CA1234去杭州玩3天",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-22",
+            "arrival_no_override": "CA1234",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+
+
 def _departure_session_app():
     """造一个带「晨卡→慕田峪班次点」的 ready 会话 + 假班次库（点选班次端点用）。"""
     from datetime import time as dtime
