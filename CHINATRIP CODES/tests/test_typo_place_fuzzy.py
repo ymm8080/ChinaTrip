@@ -20,9 +20,7 @@ from app.services.llm.base import ChatResult
 from app.services.poi_details import PoiDetailStore
 from app.services.poi_names import latin_typo_near, latin_typo_prefix
 
-ZJZ_BRIEF = (
-    "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
-)
+ZJZ_BRIEF = "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
 
 
 def run(coro):
@@ -121,8 +119,7 @@ def test_match_text_names_near_rival_proposed_with_prefix_winner():
     # 反向：真写 lujiazui 时只命中陆家嘴——没有前缀容错认过的词，
     # 近距档不开（朱家角古镇不会被反向吸进来）
     names = [
-        h["name"]
-        for h in store.match_text_names(None, "want to see lujiazui skyline")
+        h["name"] for h in store.match_text_names(None, "want to see lujiazui skyline")
     ]
     assert names == ["陆家嘴"]
 
@@ -137,9 +134,7 @@ def test_match_text_names_exact_hits_still_win_over_fuzzy():
 
 
 def test_typo_rival_detects_lujiazui_mapping():
-    assert _brief_typo_rival_row(
-        ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Lujiazui"
-    )
+    assert _brief_typo_rival_row(ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Lujiazui")
     # 名字逐字来自文本（LLM 正常转写）不是竞品
     assert not _brief_typo_rival_row(
         ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Zhujiajiao Ancient Town"
@@ -261,9 +256,7 @@ def test_infer_city_skips_when_sites_span_cities():
     )
     agent = _agent(store, _ScriptedLLM([]))
 
-    inferred = run(
-        agent._infer_city_from_site_text("zhujiazui and zhujiayu village")
-    )
+    inferred = run(agent._infer_city_from_site_text("zhujiazui and zhujiayu village"))
     assert inferred is None
 
 
@@ -271,10 +264,7 @@ def test_infer_city_none_without_hits():
     agent = _agent(_CityRowsStore(all_rows=[]), _ScriptedLLM([]))
     assert run(agent._infer_city_from_site_text("2 days, museums and food")) is None
     assert run(agent._infer_city_from_site_text("")) is None
-    assert (
-        run(agent._infer_city_from_site_text("see https://example.com/trip"))
-        is None
-    )
+    assert run(agent._infer_city_from_site_text("see https://example.com/trip")) is None
 
 
 def test_mine_brief_sites_rival_filter_uses_name_en():

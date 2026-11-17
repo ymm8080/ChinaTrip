@@ -157,7 +157,6 @@ def test_fill_never_adds_contained_row_when_container_planned():
     assert not notes
 
 
-
 def test_dedupe_service_row_child_not_promoted():
     """服务行豁免：游船等「骑在母景点上」的行不是子景点——优先权仍归母项。"""
     lake = _v("西湖", lon=120.1491, lat=30.2431)

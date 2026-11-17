@@ -96,9 +96,13 @@ def test_card_booking_url_gated_on_annotate(tmp_path, monkeypatch):
 
     _gate(tmp_path, monkeypatch, {"https://www.badaling.cn": {"verdict": "ok"}})
     base = dict(
-        city="北京", day=1, duration_minutes=60, category="sight",
+        city="北京",
+        day=1,
+        duration_minutes=60,
+        category="sight",
         location=GeoPoint(lon=116.41, lat=39.91),
-        start_time=time(9, 0), end_time=time(10, 0),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
     )
     dead = VisitItem(
         item_id="d", name="景山公园", booking_url="https://bjgyol.com.cn", **base
@@ -107,7 +111,8 @@ def test_card_booking_url_gated_on_annotate(tmp_path, monkeypatch):
         item_id="a", name="八达岭长城", booking_url="www.badaling.cn", **base
     )
     plan = ItineraryPlan(
-        itinerary_id="x", cities=["北京"],
+        itinerary_id="x",
+        cities=["北京"],
         days=[DayPlan(day=1, base_city="北京", items=[dead, alive])],
         assumptions=[],
     )

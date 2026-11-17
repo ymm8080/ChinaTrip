@@ -1130,9 +1130,7 @@ class PoiDetailStore:
                 "category": category,
                 "fuzzy_word": fuzzy_word,
             }
-            for _score, name, name_en, row_city, category, fuzzy_word in kept[
-                :limit
-            ]
+            for _score, name, name_en, row_city, category, fuzzy_word in kept[:limit]
         ]
 
     def name_city_spread(self, name: str) -> list[str]:

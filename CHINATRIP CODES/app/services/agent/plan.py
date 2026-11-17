@@ -15201,9 +15201,7 @@ def _separate_remote_must_days(
                 d.day,
             ),
         )
-        if tgt is not home and not (
-            preserve_timed and r.start_time is not None
-        ):
+        if tgt is not home and not (preserve_timed and r.start_time is not None):
             home.items.remove(r)
             r.day = tgt.day
             r.start_time = None
@@ -15409,11 +15407,7 @@ def _pin_musts_by_importance(
             ) or any(
                 v.start_time is None and rank_in_chain[id(v)] < len(seq) for v in musts
             )
-            if (
-                out_of_order
-                and len(chain_all) >= 2
-                and not preserve_timed
-            ):
+            if out_of_order and len(chain_all) >= 2 and not preserve_timed:
                 # 顺序违反地理规则（远郊大点压到本地件后面）：当天必去是
                 # 引擎钉位，按用户拍板「先地理分组再钉时」重钉一次。
                 for v in timed:
@@ -16363,9 +16357,7 @@ def _must_visit_room_sweep(
                     if isinstance(v, VisitItem)
                     and v.start_time is not None
                     and not getattr(v, "created", False)
-                    and not (
-                        preserve_timed and getattr(v, "must", False)
-                    )
+                    and not (preserve_timed and getattr(v, "must", False))
                     and (
                         not (v.pinned and not getattr(v, "soft_pin", False))
                         or _weaker_than_target(v)
@@ -21145,9 +21137,7 @@ class PlanningAgent:
         # 确认卡的词要点名告诉用户几个都可能——不静默选边，也不静默丢弃。
         for word, fuzzy_names in fuzzy_offers.items():
             listed = [
-                n
-                for n in fuzzy_names
-                if any(_same_site(n, other) for other in added)
+                n for n in fuzzy_names if any(_same_site(n, other) for other in added)
             ]
             if not listed:
                 continue
@@ -21367,9 +21357,7 @@ class PlanningAgent:
         if len(text) >= _MIN_FACTS_LLM_TEXT:
             facts = await self.trip_facts_from_llm(text) or {}
         if not session.start_date:
-            session.start_date = facts.get("start_date") or _parse_text_start_date(
-                text
-            )
+            session.start_date = facts.get("start_date") or _parse_text_start_date(text)
         if session.days <= 0:
             days = facts.get("days") or _parse_days(text)
             if days is None and session.start_date and _count_text_dates(text) <= 1:
@@ -21464,8 +21452,7 @@ class PlanningAgent:
             return []
         return [
             L(
-                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，"
-                "后续顺延）",
+                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，后续顺延）",
                 f"Day 1 starts at {hm_text} as you asked "
                 f"({target.name} first, the rest follows)",
             )
@@ -29968,9 +29955,7 @@ class PlanningAgent:
                 )
             )
             if degraded:
-                resolved = await asyncio.to_thread(
-                    self._solve, plan, meal_flex=True
-                )
+                resolved = await asyncio.to_thread(self._solve, plan, meal_flex=True)
                 if resolved is not None:
                     resolved.assumptions = plan.assumptions
                     plan = resolved
@@ -30009,9 +29994,7 @@ class PlanningAgent:
         # 测）；pinned 字段随 model_copy 保留（铁律 19 继续生效）；首解
         # 已降级或本程无实测缓存时跳过。
         if not degraded and self._leg_cache:
-            resolved = await asyncio.to_thread(
-                self._solve, plan, meal_flex=True
-            )
+            resolved = await asyncio.to_thread(self._solve, plan, meal_flex=True)
             if resolved is not None:
                 resolved.assumptions = plan.assumptions
                 plan = resolved
@@ -32031,20 +32014,14 @@ class PlanningAgent:
         preserve_reopen = bool(getattr(session, "source_itinerary_id", None))
         notes = _assign_must_family_days(plan, preserve_timed=preserve_reopen)
         _mark_remote_visits(plan)
-        notes.extend(
-            _separate_remote_must_days(plan, preserve_timed=preserve_reopen)
-        )
+        notes.extend(_separate_remote_must_days(plan, preserve_timed=preserve_reopen))
         # 无场次演出先摘（用户拍板：没有场次信息的不提案）
         notes.extend(_drop_sessionless_shows(plan))
         # ② 必去钉时先行：灰卡必去按重要度+约束抢时刻，塞不下删当日最弱
         # 件/更弱必去，再走让位清算。
+        notes.extend(_pin_musts_by_importance(plan, preserve_timed=preserve_reopen))
         notes.extend(
-            _pin_musts_by_importance(plan, preserve_timed=preserve_reopen)
-        )
-        notes.extend(
-            _must_visit_room_sweep(
-                plan, cap_relax=True, preserve_timed=preserve_reopen
-            )
+            _must_visit_room_sweep(plan, cap_relax=True, preserve_timed=preserve_reopen)
         )
         # ③ 必去骨架钉好后，剩余景点与餐卡交给求解器围着骨架排（相邻景点
         # 填空档、餐卡=最后才调的槽位）。
