@@ -37,7 +37,10 @@
   时（band=None）不过滤。
 - 落地细则：同城可选（换点必须当天可行）；排除行程内已有站点与全计划
   已亮过的备选（避免两张卡亮同一个备选）；餐位/酒店卡不挂备选；演出
-  主点（梯档 6）只亮演出备选；距离近者优先（直线距离小 = 换点动线稳）。
+  主点（梯档 6）只亮演出备选；距离近者优先（直线距离小 = 换点动线稳；
+  2026-11-17 二改：带内排序「类别精确 > 距离近 > 时长近 > 评分」——
+  用户拍板「同一个性质」+「alternative prefers closer site」，环球金融
+  中心亮上上海中心大厦卡实录）。
 
 装配入口 attach_plan_alternatives：api/plan._plan_turn_body 在**深拷贝**
 上挂备选（session.plan 本体与持久化会话永不携带展示数据），每城只查
@@ -57,6 +60,7 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.rules import haversine_km
+from app.services.poi_classify import is_accommodation
 from app.services.poi_details import _TIER_TAG
 from app.services.poi_seed import CATEGORY_MAP, normalize_category
 
@@ -65,6 +69,13 @@ logger = logging.getLogger(__name__)
 # 备选默认上限：右侧 chip 区放 3 个以内不挤爆站点行（用户拍板「一个
 # 备选」为底线，多给 2 个供挑剔场景）
 ALT_LIMIT = 3
+
+# 同建筑隔离（2026-11-17 拍板「环球金融中心应是上海中心大厦的备选，
+# 不是豫园的」数据清洗配套）：同一建筑内的体验行（上海中心大厦↔上海
+# 之巅观光厅、东方明珠↔259 米悬空观光廊）不作主点备选——换到自己楼
+# 里的厅等于没换。≤150m 同址即出局，与名称同体闸（_overlap_any）互
+# 补；主点无坐标（near=None）时闸不开。
+SAME_VENUE_KM = 0.15
 
 
 def _dur_capped(h: dict) -> int | None:
@@ -187,6 +198,22 @@ def _band_of(cls: int) -> int:
 def _is_food_row(category: str | None) -> bool:
     c = (category or "").strip()
     return any(m in c for m in _FOOD_MARKS)
+
+
+def _is_hotel_row(h: dict) -> bool:
+    # 住宿行判定（2026-11-17 拍板「沙美大楼 HOTEL 不能成为景点的
+    # ALTERNATIVE，成为 ALTERNATIVE 基本类型应该一致」）：类别受控
+    # hotel / raw 拼写之外再兜名称口径（is_accommodation 与 import
+    # 强制归口/分类守卫同源词表）——「上海外滩沙美大楼ZHotel」类别
+    # 误标 nature 的实录行靠英文名 ZHotel 拦住；词表一处改三处同步。
+    raw = str(h.get("category") or "").strip()
+    if raw:
+        if _norm_cat(raw) == "hotel":
+            return True
+        low = raw.lower()
+        if "hotel" in low or "hostel" in low or "住宿" in raw:
+            return True
+    return is_accommodation(str(h.get("name") or ""))
 
 
 def is_citywalk(
@@ -366,8 +393,10 @@ def pick_alternatives(
     CITYWALK 类标志（None=按主点名/梯档自判，attach 已回库解析时显式传）；
     exclude_same_class = 行程内已有的泛化替代组同档成员名（同城已滤，
     2026-11-07 泛化拍板：已有街区时其它街区不作 chip，点了必撞 duplicate）。
-    返回 PlanAlternative：跨档带出局（同级硬闸），带内同档排前、近档按
-    |Δ档| 补位（chip 亮备选自身档牌）；带内不足 limit 就少给。
+        返回 PlanAlternative：跨档带出局（同级硬闸），带内同档排前、近档按
+        |Δ档| 补位（chip 亮牌披露）；带内排序（2026-11-17 拍板「同一个性
+        质」+「alternative prefers closer site」）：类别精确 > 距离近 >
+        时长近 > 评分。带内不足 limit 就少给。
     """
     exclude_names = set(exclude_names or set())
     exclude_pids = exclude_pids or set()
@@ -430,6 +459,11 @@ def pick_alternatives(
             return "junk_name"  # 描述性短语行（看成都附近的水利工程实录）不是点位
         if _is_food_row(h.get("category")):
             return "food"
+        # 住宿行硬闸（2026-11-17 拍板「备选基本类型应该一致」）：
+        # 酒店/民宿行永不作景点备选——酒店卡本就不挂备选（attach 层），
+        # 加上本闸双向闭合；主点类别缺失（类别闸不开）时也在拦。
+        if _is_hotel_row(h):
+            return "hotel"
         pid = h.get("source_poi_id")
         if pid and pid in exclude_pids:
             return "poi_id"
@@ -441,6 +475,18 @@ def pick_alternatives(
         # （陕西自然博物馆实录）；带内不足就少给，宁缺不滥
         if _band_of(level_class(h.get("_tier"))) != want_band:
             return "band"
+        # 同建筑隔离（模块头 SAME_VENUE_KM 注）：主点楼里的体验行不作备选
+        if near is not None:
+            loc = h.get("location")
+            if isinstance(loc, (tuple, list)) and len(loc) == 2:
+                try:
+                    d = haversine_km(
+                        near, GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
+                    )
+                    if d <= SAME_VENUE_KM:
+                        return "same_venue"
+                except (TypeError, ValueError):
+                    pass
         # 遗址类隔离（双向硬闸）：遗址主点只换遗址，非遗址主点不换遗址
         if row_is_ruins(h) != main_is_ruins:
             return "ruins"
@@ -543,6 +589,8 @@ def pick_alternatives(
         # 餐行/无坐标行）只计数不刷屏。
         structural = gate in (
             "band",
+            "same_venue",
+            "hotel",
             "ruins",
             "citywalk",
             "substitute",
@@ -590,14 +638,19 @@ def pick_alternatives(
         in_band, unknown = cands, []
 
     def rank(h: dict) -> tuple:
+        # 排序口径（2026-11-17 拍板「同一个性质」+「alternative prefers
+        # closer site」）：带内同档 > 同带近档（亮牌披露）> 类别精确
+        # （同性质）> 距离近 > 时长近 > 评分/点评数。实录：环球金融
+        # 中心（viewpoint 272m）此前被同带跨类远线景点压住，亮不上
+        # 上海中心大厦卡。
         return (
             level_key(h),  # 同档 > 同带近档 > 跨带（亮牌披露）
+            cat_key(h),  # 同性质（类别精确）优先于跨类同组
+            dist_km(h) if dist_km(h) is not None else 9999.0,  # 更近优先
             dur_key(h),
-            cat_key(h),
             round(-_quality(h), 3),
             # 点评数退为同分 tie-break（2026-11-13 纯评分优先）
             -_rating_count(h),
-            dist_km(h) if dist_km(h) is not None else 9999.0,
         )
 
     ordered = sorted(in_band, key=rank) + sorted(unknown, key=rank)
@@ -935,7 +988,13 @@ def _attach_unplaced_chips(
     for cand in getattr(plan, "unplaced", None) or ():
         name = str(getattr(cand, "name", "") or "")
         nm = _norm_name(name)
-        if not nm or _is_food_row(getattr(cand, "category", None)):
+        if (
+            not nm
+            or _is_food_row(getattr(cand, "category", None))
+            or _is_hotel_row(
+                {"category": getattr(cand, "category", None), "name": name}
+            )
+        ):
             continue
         if _overlap_any(nm, exclude_names) or nm in used_names:
             continue

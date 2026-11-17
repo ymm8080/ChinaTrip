@@ -1305,8 +1305,10 @@ class PoiDetailStore:
         # 再按 score 稳定排序，并列组内永远同名序。
         rows_out.sort(key=lambda h: str(h.get("name") or ""))
         rows_out.sort(key=score, reverse=True)
-        for h in rows_out:  # 私有排序键，出库前剥掉
-            h.pop("_tier", None)
+        for h in rows_out:  # 私有排序键剥掉，档号正名保留（2026-11-17 补点
+            # 「priority + rating」口径）：此前 bench 候选全拿 tier=None，
+            # 补点排序的档位键失效，只剩标签桶在说话（沙滩嘉年华案）。
+            h["tier"] = h.pop("_tier", None)
         return rows_out[:limit]
 
     def recommendation_food_in_city(self, city: str, limit: int = 10) -> list[dict]:

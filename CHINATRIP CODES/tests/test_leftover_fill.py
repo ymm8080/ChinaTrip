@@ -333,3 +333,102 @@ def test_fill_leftover_gaps_appends_notes_and_is_session_idempotent():
     assert notes
     assert all(n in session.plan.assumptions for n in notes)
     assert asyncio.run(agent.fill_leftover_gaps(session)) == []
+
+
+def test_bench_candidates_carry_tier_and_rating():
+    """bench 候选必须带上库行的档位/评分（2026-11-17）：真实库此前把
+    _tier 出库前剥掉、rating 根本不在候选上——补点排序两个质量键全失效。"""
+    from app.services.agent.plan import _bench_candidates_from_library
+
+    rows = [
+        {
+            "poi_id": "ct_sh_240",
+            "name": "北外滩国客中心沙滩嘉年华",
+            "category": "theme_park",
+            "tier": 3,
+            "rating": None,
+            "suggested_duration_min": 240,
+            "location": (121.5156, 31.2521),
+            "tags": ["intl", "layla"],
+        },
+        {
+            "poi_id": "ct_sh_71",
+            "name": "新天地",
+            "category": "attraction",
+            "tier": 1,
+            "rating": 4.5,
+            "suggested_duration_min": 90,
+            "location": (121.4748, 31.2199),
+            "tags": ["lp", "intl"],
+        },
+    ]
+    by = {c.name: c for c in _bench_candidates_from_library(rows, city="上海")}
+    assert by["新天地"].tier == 1 and by["新天地"].rating == 4.5
+    assert by["北外滩国客中心沙滩嘉年华"].rating is None
+
+
+def test_fill_zero_evidence_intl_tag_loses_to_rated_candidate():
+    """沙滩嘉年华案回归（2026-11-17 用户「补点也要看 priority 与 rating」）：
+    intl 牌+零评分的 bulk 行不得靠快车道压过有口碑的候选——两候选档位
+    同空、同在 bench，rating 降序让有评分的先补（旧行为嘉年华第一）。"""
+    carnival = UnplacedCandidate(
+        name="沙滩嘉年华",
+        category="theme_park",
+        duration_minutes=240,
+        location=GeoPoint(lon=121.52, lat=31.20),
+        city="上海",
+        poi_id="c1",
+        tags=["intl", "layla"],
+        rating=None,
+        reason="library_bench",
+    )
+    rated = UnplacedCandidate(
+        name="有口碑景点",
+        category="attraction",
+        duration_minutes=90,
+        location=GeoPoint(lon=121.48, lat=31.21),
+        city="上海",
+        poi_id="c2",
+        tags=[],
+        rating=4.5,
+        reason="library_bench",
+    )
+    plan = _plan(
+        [_hm(time(8, 30), time(9, 0)), _food("晚饭", time(19, 0), time(20, 30))]
+    )
+    notes = _fill_leftover_with_diverse_sights(plan, bench=[carnival, rated])
+    assert notes
+    assert "有口碑景点" in notes[0]
+    assert _placed(plan, "有口碑景点").start_time == time(9, 0)
+
+
+def test_rated_intl_candidate_keeps_express_lane():
+    """11-15 拍板保留：有口碑的 INTL 候选仍压过同条件的普通候选。"""
+    intl = UnplacedCandidate(
+        name="国际荐点景点",
+        category="attraction",
+        duration_minutes=90,
+        location=GeoPoint(lon=121.50, lat=31.22),
+        city="上海",
+        poi_id="c3",
+        tags=["intl"],
+        rating=4.6,
+        reason="library_bench",
+    )
+    plain = UnplacedCandidate(
+        name="普通景点",
+        category="park",
+        duration_minutes=90,
+        location=GeoPoint(lon=121.46, lat=31.20),
+        city="上海",
+        poi_id="c4",
+        tags=[],
+        rating=4.8,
+        reason="library_bench",
+    )
+    plan = _plan(
+        [_hm(time(8, 30), time(9, 0)), _food("晚饭", time(19, 0), time(20, 30))]
+    )
+    notes = _fill_leftover_with_diverse_sights(plan, bench=[plain, intl])
+    assert notes
+    assert "国际荐点景点" in notes[0]

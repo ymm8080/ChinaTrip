@@ -259,6 +259,10 @@ class UnplacedCandidate(BaseModel):
     # 最佳时段透传（2026-11-16 浦江游览案）：补点探针要按它取窗——
     # evening 件（17:00-21:00）此前被排到 12:45，就是这里丢了字段。
     best_visit_time: str | None = None
+    # 口碑透传（2026-11-17 用户「补点也要看 priority 与 rating」）：补空档
+    # 排序在档位之后按 rating 降序；None=库行无评分（bulk 导入行常见，
+    # 沙滩嘉年华案）——零证据行同时失去 INTL 快车道资格（intl 牌≠口碑）。
+    rating: float | None = None
 
 
 class PlanAlternative(BaseModel):

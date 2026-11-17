@@ -896,3 +896,106 @@ def test_unplaced_chip_want_first_and_capped():
     assert len(got) == ALT_LIMIT
     assert got[0].name == "某被挤点" and got[0].level_tag == "want"
     assert all(a.name != "某被挤点" for a in got[1:])
+
+
+def test_same_venue_row_never_alternative_same_building():
+    # 2026-11-17 用户案配套：上海中心大厦主点——同建筑的「上海之巅观
+    # 光厅」（≈40m）不作备选（换到自己楼里的厅等于没换）；数百米外同
+    # 性质的环球金融中心/东方明珠保留
+    deck = hit("上海之巅观光厅", 0, "viewpoint", 120, 4.6, loc=(121.5003, 31.2403))
+    swfc = hit("上海环球金融中心", 3, "viewpoint", 90, 4.3, loc=(121.5055, 31.2412))
+    pearl = hit(
+        "东方明珠广播电视塔", 0, "attraction", 165, 4.7, loc=(121.4970, 31.2385)
+    )
+    alts = pick_alternatives(
+        [deck, swfc, pearl],
+        category="viewpoint",
+        tier=1,
+        duration_minutes=120,
+        near=GeoPoint(lon=121.5000, lat=31.2400),
+        main_name="上海中心大厦",
+    )
+    names = [a.name for a in alts]
+    assert "上海之巅观光厅" not in names
+    assert {"上海环球金融中心", "东方明珠广播电视塔"} <= set(names)
+
+
+def test_viewpoint_pairs_with_tower_never_garden():
+    # nature 误标清洗（2026-11-17）后的口径回归：viewpoint 行与园林
+    # （park，nature 组）不再互备——环球金融中心是上海中心大厦的备选，
+    # 不是豫园的；园林主点也亮不出摩天楼 chip
+    swfc = hit("上海环球金融中心", 3, "viewpoint", 90, 4.3, loc=(121.5055, 31.2412))
+    yuyuan = hit("豫园", 0, "park", 90, 4.8, loc=(121.4921, 31.2279))
+    tower_alts = pick_alternatives(
+        [swfc, yuyuan],
+        category="viewpoint",
+        tier=1,
+        duration_minutes=120,
+        near=GeoPoint(lon=121.5000, lat=31.2400),
+        main_name="上海中心大厦",
+    )
+    assert [a.name for a in tower_alts] == ["上海环球金融中心"]
+    garden_alts = pick_alternatives(
+        [swfc, yuyuan],
+        category="park",
+        tier=1,
+        duration_minutes=90,
+        near=GeoPoint(lon=121.4921, lat=31.2279),
+        main_name="豫园",
+    )
+    assert [a.name for a in garden_alts] == []
+
+
+# --- 住宿行硬闸（2026-11-17 拍板「沙美大楼 HOTEL 不能成为景点的
+# ALTERNATIVE，成为 ALTERNATIVE 基本类型应该一致」） -------------------------
+
+
+def test_hotel_rows_never_suggested():
+    """酒店行永不作景点备选：ZHotel 误标 nature 行在主点无类别（类别闸
+    不开）时也能被名称口径拦住；类别 hotel 行同理；干净备选不受牵连。"""
+    pool = [
+        hit("某连锁酒店", 10, category="hotel", duration=120),
+        hit(
+            "上海外滩沙美大楼ZHotel",
+            3,
+            "nature",
+            180,
+            4.8,
+            loc=(121.4860, 31.2360),
+            tags=["intl", "layla"],
+        ),
+        hit("干净备选", 0, pid="pid_ok"),
+    ]
+    alts = pick_alternatives(pool, category=None, tier=4, duration_minutes=180)
+    assert [a.name for a in alts] == ["干净备选"]
+
+
+def test_hotel_gate_is_pure_regression_case():
+    """纯回归：池里只有 ZHotel 误标行（premium 同带 + 时长入带 + 主点无
+    类别），改前会亮卡，改后必须一个不给。"""
+    pool = [
+        hit(
+            "上海外滩沙美大楼ZHotel",
+            3,
+            "nature",
+            180,
+            4.8,
+            loc=(121.4860, 31.2360),
+            tags=["intl", "layla"],
+        )
+    ]
+    assert pick_alternatives(pool, category=None, tier=4, duration_minutes=180) == []
+
+
+def test_unplaced_chip_hotel_skipped():
+    """「想排未排」chip 同闸：住宿心愿（含类别误标行）不亮到景点卡右侧。"""
+    plan = _two_day_plan()
+    plan.unplaced.append(_unplaced(name="某酒店", category="hotel"))
+    plan.unplaced.append(
+        _unplaced(name="上海外滩沙美大楼ZHotel", category="nature")
+    )
+    out = attach_plan_alternatives(plan, FakeStore([]))
+    for d in out.days:
+        for it in d.items:
+            if isinstance(it, VisitItem):
+                assert not it.alternatives

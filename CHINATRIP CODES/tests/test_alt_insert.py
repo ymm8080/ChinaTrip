@@ -472,3 +472,32 @@ def test_replace_hidden_twin_is_merged_not_duplicate():
     ]
     assert names.count("西城区恭王府景区") == 1  # 隐藏同名卡已并入
     assert "故宫博物院" not in names
+
+
+def test_insert_alt_hotel_candidate_type_mismatch_422():
+    """备选基本类型一致（2026-11-17 拍板）：住宿候选不能拖进时间轴当景点卡，
+    422 type_mismatch（原行程不动）。"""
+    store = StubAltStore(
+        {
+            "西湖四季酒店": {
+                **LINGYIN,
+                "name": "西湖四季酒店",
+                "category": "hotel",
+                "source_poi_id": "ct_杭州_hotel",
+            }
+        }
+    )
+    agent = PlanningAgent(StubAdapter([V0_JSON]), poi_details=store)
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    host = _visit(body, "雷峰塔")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{host}/insert-alt",
+        json={"name": "西湖四季酒店", "day": 2, "after_item_id": host},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "type_mismatch"}

@@ -147,14 +147,22 @@ _ACCOMMODATION_HINTS = (
     "公寓",
     "客栈",
     "旅馆",
+    "旅舍",
     "招待所",
     "青旅",
 )
+# latin 拼接词（2026-11-17「上海外滩沙美大楼ZHotel」实录）：中文名无
+# 住宿词、英文名 ZHotel/Hostel 含 hotel/hostel——补 latin 口径后
+# import 强制归 hotel、分类守卫返 hotel、备选闸名称口径三处同源。
+_ACCOMMODATION_HINTS_EN = ("hotel", "hostel")
 
 
 def is_accommodation(name: str) -> bool:
     """名称是否命中住宿标记（import_chinatravel 跳过闸 / 分类守卫共用）."""
-    return any(h in (name or "") for h in _ACCOMMODATION_HINTS)
+    if any(h in (name or "") for h in _ACCOMMODATION_HINTS):
+        return True
+    text = (name or "").lower()
+    return any(h in text for h in _ACCOMMODATION_HINTS_EN)
 
 
 _HERITAGE_HINTS = (

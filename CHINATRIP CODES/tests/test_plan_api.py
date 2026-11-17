@@ -3516,3 +3516,30 @@ def test_departure_endpoint_return_shifts_visit_and_leg_departs_on_time():
             assert mt["access_chosen_return"] == "15:30"
     finally:
         access_services.configure_store(None)
+
+
+def test_replace_hotel_candidate_type_mismatch_422():
+    """备选基本类型一致（2026-11-17 拍板「HOTEL 不能成为景点的
+    ALTERNATIVE」）：住宿候选不作景点原位替换，422 type_mismatch。"""
+    cand = dict(
+        REPLACE_CAND,
+        name="杭州湖畔酒店",
+        category="hotel",
+        source_poi_id="ct_杭州_hotel",
+    )
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), poi_details=StubReplaceStore({"杭州湖畔酒店": cand})
+    )
+    client = client_for(agent)
+    body = start(
+        client, {"cities": ["上海", "杭州"], "days": 2, "preferences": "博物馆"}
+    ).json()
+    sid = body["session_id"]
+    vid = _visit(body, "西湖")["item_id"]
+    resp = client.post(
+        f"/api/v1/plan/{sid}/items/{vid}/replace",
+        json={"name": "杭州湖畔酒店"},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": "type_mismatch"}

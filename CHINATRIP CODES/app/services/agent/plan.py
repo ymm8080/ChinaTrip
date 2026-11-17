@@ -15309,6 +15309,13 @@ def _bench_candidates_from_library(
             point = GeoPoint(lon=float(loc[0]), lat=float(loc[1]))
         elif isinstance(loc, dict):
             point = GeoPoint(lon=float(loc["lon"]), lat=float(loc["lat"]))
+        # 口碑下传（2026-11-17 补点「priority + rating」口径）：库行 rating
+        # 安全转 float；None=零证据行（bulk 导入行常见，沙滩嘉年华案）。
+        rating = row.get("rating")
+        try:
+            rating = float(rating) if rating is not None else None
+        except (TypeError, ValueError):
+            rating = None
         out.append(
             UnplacedCandidate(
                 name=name,
@@ -15323,6 +15330,7 @@ def _bench_candidates_from_library(
                 reason="library_bench",
                 tags=[str(t) for t in (row.get("tags") or [])],
                 best_visit_time=row.get("best_visit_time"),
+                rating=rating,
             )
         )
     return out
@@ -15598,14 +15606,23 @@ def _fill_leftover_with_diverse_sights(
 
             pool.sort(
                 key=lambda u: (
-                    # ① INTL 集合优先 ② 其它类型（SHOW/喝茶/按摩等体验类）
-                    # ③ 其余；同层内先「当天还没有的类型」，再按优先级。
+                    # ① 有口碑（rating>0）的 INTL 集合优先 ② 体验类（SHOW/
+                    # 喝茶/按摩等）③ 其余；同层内先「当天还没有的类型」，再按
+                    # 档位/评分（2026-11-17 用户「补点也要看 priority 与
+                    # rating」：intl 牌只证明被国际平台收录过，不证明值得去
+                    # ——北外滩沙滩嘉年华 rating=null 靠 intl 牌抢首选案，
+                    # 零证据行降出快车道，与有评分行同级竞争）。
                     0
-                    if _is_intl_candidate(u)
+                    if (
+                        _is_intl_candidate(u)
+                        and (getattr(u, "rating", None) or 0.0) > 0
+                    )
                     else (1 if _is_experience_candidate(u) else 2),
                     0 if (u.category or "") not in have_types else 1,
                     0 if getattr(u, "reason", None) != "library_bench" else 1,
                     u.tier if u.tier is not None else 99,
+                    # rating 降序（None=0 垫底）：零证据行不再与有评分行并列
+                    -(getattr(u, "rating", None) or 0.0),
                     u.site_rank if getattr(u, "site_rank", None) is not None else 99,
                     round(_km(u) / 10.0),
                     -(u.duration_minutes or DEFAULT_VISIT_MINUTES),
@@ -32842,6 +32859,13 @@ class PlanningAgent:
         new_name = str((cand or {}).get("name") or "").strip()
         if cand is None or not new_name:
             raise ValueError("no_match")
+        # 备选基本类型一致（2026-11-17 拍板「沙美大楼 HOTEL 不能成为
+        # 景点的 ALTERNATIVE」）：住宿候选不作景点替换——酒店走
+        # set-hotel 落卡，不进观光卡位
+        from app.services.poi_alternatives import _is_hotel_row
+
+        if _is_hotel_row(cand):
+            raise ValueError("type_mismatch")
         if visit.soft_pin and (visit.category or "") == "food":
             # 午餐占位/自动顺路餐厅是当天骨架（餐窗由兜底层分层接管），
             # 换掉会把餐锚一起拆掉——H5 不亮编辑钮，服务端同步拦
@@ -33065,6 +33089,12 @@ class PlanningAgent:
         new_name = str((cand or {}).get("name") or "").strip()
         if cand is None or not new_name:
             raise ValueError("no_match")
+        # 备选基本类型一致（2026-11-17 拍板「HOTEL 不能成为景点的
+        # ALTERNATIVE」）：住宿候选不能拖进时间轴当景点卡
+        from app.services.poi_alternatives import _is_hotel_row
+
+        if _is_hotel_row(cand):
+            raise ValueError("type_mismatch")
         # 城闸（2026-11-14）：备选是主点同城候选，只能落同城那天——跨城拖
         # 会把甲城的点插进乙城那天的时链（腿长/营业窗/餐窗全失真）。
         day_city = _day_place_city(target)
