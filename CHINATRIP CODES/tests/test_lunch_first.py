@@ -2,6 +2,7 @@
 """先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭（约 12:00）再游玩」）：
 同址午饭占位被排在游后 → 换序+顺延+披露；真实餐厅卡/午后到达/不同址不换；
 撞硬锚回滚；幂等。"""
+
 from __future__ import annotations
 
 from datetime import time

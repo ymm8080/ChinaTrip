@@ -3,6 +3,7 @@
 重开已存行程（source_itinerary_id 在）时，已带时刻的 pinned/must 卡是硬锚——
 族定天不挪、远郊分离不清、钉时探针不与之重叠、让位梯不 eject；新必去只落
 真空档，落不进保持灰卡+披露。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -185,9 +186,9 @@ def _no_overlap_with(plan, name):
             key=lambda i: i.start_time,
         )
         for o in timed:
-            assert not (
-                me.start_time < o.end_time and o.start_time < me.end_time
-            ), f"{name} overlaps {o.name}"
+            assert not (me.start_time < o.end_time and o.start_time < me.end_time), (
+                f"{name} overlaps {o.name}"
+            )
 
 
 def test_assign_family_preserve_keeps_timed_card_on_its_day():
