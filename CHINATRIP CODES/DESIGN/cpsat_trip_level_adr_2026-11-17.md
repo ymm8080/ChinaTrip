@@ -35,3 +35,15 @@
 - LLM 边界：意图抽取（含 schema 校验+确定性兜底，2026-11-17 已建 wish_fast/_parse_site_answer 先例）与叙述；绝不进放置决策。
 - 披露文案由证书生成时注意双语（lang 会话字段）。
 - CP-SAT 字面量不可行证书对字典序目标的适配：先跑 assumptions 再分层优化，别混在一次求解里。
+
+## D5 pin 溯源契约（2026-11-17 用户拍板「非手动 pinned 可以改时间」）
+
+- 现状缺陷：`pinned` 无「谁钉的」溯源——引擎钉（必去绑定、`_pin_musts_by_importance` 预排时、重开保位硬锚）与用户手动钉同走铁律 19 全钉死（`rules.validate_pinned` 文案自证 "user-confirmed (pinned)"）。e6133a4 已先修最痛一档：pinned+无时刻不再整日判死（「求解器未收敛」披露全勤的根因：绑定层先钉名后钉时的中间态被 solver 按日判死）。
+- 新契约：`VisitItem.pin_source: "user" | "engine" | None`：
+  - **user**：铁律 19 照旧——时刻神圣，不可移/改/删；
+  - **engine**：「必在」保证（不可静默消失，归 P0 覆盖审计三分律管），**时刻完全可重排**——生成期重要度预排时降为 warm-start hint（软偏好/目标项），不再硬窗；编辑/顺延/重排时随盘面浮动；
+  - **None**（存量兼容）：保守按 user 处理（保护既有用户钉），新代码路径一律显式落 source。
+- `validate_pinned` 只对 user 溯源执行铁律 19；engine 钉由三分律/覆盖不变量守护（已排 | unplaced | 披露）。
+- 重开保位（b909d60 硬锚语义）改由「初始时刻 hint」承载——稳定性来自提示与目标函数，不来自刚性约束。
+- 实施归属：**P1 request model 的核心字段**（用户→求解器的意图边界），随纯核一起落；全程级模型的 `requested` 字面量天然承载 engine 语义（presence 硬约束 + start 自由变量）。
+
