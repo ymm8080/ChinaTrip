@@ -2,8 +2,10 @@
 OF THE BUND」→「任何有包含关系的景点 EXCLUSIVE IN THE PLANNING PAGE」）：
 
 外滩万国建筑博览群是外滩沿线的衍生行，两张卡同页=重复。凡「正主名 ⊂ 衍生名」
-的对，规划页只允许出现正主一张卡：行程级去重保正主（不再是先到先得）、开局
-选点保正主、补点池由 _in_park_of_existing 挡衍生行（既有）。
+的对，规划页只允许出现一张卡：二拍「子项目有更高优先权」——被包含的具体子行
+（上海之巅观光厅类）压过容器伞名，行程级去重与开局选点都保子项目（服务行豁
+免：游船/索道等骑在母景点上的行不是子景点，仍保正主）；补点池由
+_in_park_of_existing 挡互含行（既有）。
 """
 
 from datetime import time
@@ -59,19 +61,21 @@ def test_same_visit_still_merges_containment_pair():
     assert _same_visit(_v("外滩"), _v("外滩万国建筑博览群")) is True
 
 
-def test_dedupe_keeps_container_regardless_of_order():
+def test_dedupe_keeps_contained_child_regardless_of_order():
+    """二拍「子项目有更高优先权」：包含对只留被包含的具体子行。"""
     wanguo = _v("外滩万国建筑博览群")
     bund = _v("外滩")
     keepers, dropped = _dedupe_visit_keepers([wanguo, bund])
-    assert [k.name for k in keepers] == ["外滩"]
-    assert dropped == ["外滩万国建筑博览群"]
+    assert [k.name for k in keepers] == ["外滩万国建筑博览群"]
+    assert dropped == ["外滩"]
     keepers2, dropped2 = _dedupe_visit_keepers([bund, wanguo])
-    assert [k.name for k in keepers2] == ["外滩"]
-    assert dropped2 == ["外滩万国建筑博览群"]
+    assert [k.name for k in keepers2] == ["外滩万国建筑博览群"]
+    assert dropped2 == ["外滩"]
 
 
 def test_dedupe_respects_must_and_pin_on_contained_card():
-    """铁律19：衍生卡是必去/钉住时永不让位（仍只留一张卡）。"""
+    """铁律19：任一侧必去/钉住时永不让位（仍只留一张卡）——子项目带
+    must/pinned 固然留子项目；母项带 must/pinned 时也压过子项目优先。"""
     keepers, _ = _dedupe_visit_keepers(
         [_v("外滩万国建筑博览群", must=True), _v("外滩")]
     )
@@ -80,6 +84,15 @@ def test_dedupe_respects_must_and_pin_on_contained_card():
         [_v("外滩万国建筑博览群", pinned=True), _v("外滩")]
     )
     assert [k.name for k in keepers2] == ["外滩万国建筑博览群"]
+    # 母项钉住：子项目优先让位于铁律19
+    keepers3, _ = _dedupe_visit_keepers(
+        [_v("外滩万国建筑博览群"), _v("外滩", must=True)]
+    )
+    assert [k.name for k in keepers3] == ["外滩"]
+    keepers4, _ = _dedupe_visit_keepers(
+        [_v("外滩万国建筑博览群"), _v("外滩", pinned=True)]
+    )
+    assert [k.name for k in keepers4] == ["外滩"]
 
 
 def test_dedupe_plan_visits_writes_assumption():
@@ -96,10 +109,10 @@ def test_dedupe_plan_visits_writes_assumption():
         assumptions=[],
     )
     dropped = dedupe_plan_visits(plan)
-    assert dropped == ["外滩万国建筑博览群"]
+    assert dropped == ["外滩"]
     assert any("已合并重复站点" in str(a) for a in plan.assumptions)
     names = [i.name for d in plan.days for i in d.items]
-    assert names == ["外滩"]
+    assert names == ["外滩万国建筑博览群"]
 
 
 def test_fill_never_adds_contained_row_when_container_planned():
@@ -142,3 +155,16 @@ def test_fill_never_adds_contained_row_when_container_planned():
     names = [i.name for d in plan.days for i in d.items]
     assert "外滩万国建筑博览群" not in names
     assert not notes
+
+
+
+def test_dedupe_service_row_child_not_promoted():
+    """服务行豁免：游船等「骑在母景点上」的行不是子景点——优先权仍归母项。"""
+    lake = _v("西湖", lon=120.1491, lat=30.2431)
+    cruise = _v("西湖游船", lon=120.1520, lat=30.2460)
+    keepers, dropped = _dedupe_visit_keepers([lake, cruise])
+    assert [k.name for k in keepers] == ["西湖"]
+    assert dropped == ["西湖游船"]
+    keepers2, dropped2 = _dedupe_visit_keepers([cruise, lake])
+    assert [k.name for k in keepers2] == ["西湖"]
+    assert dropped2 == ["西湖游船"]

@@ -3132,6 +3132,14 @@ def _contained_twin_pair(a: str, b: str) -> tuple[str, str] | None:
     return None
 
 
+# 子项目服务行豁免（2026-11-17 二拍「包含关系子项目有更高优先权」配套）：
+# 游船/索道/缆车/观光巴士这类「骑在母景点上」的服务行不是子景点——
+# 西湖游船不是西湖的具体子景，优先权仍归母项（rank 裁决）。
+_CONTAINED_CHILD_SERVICE_RE = re.compile(
+    r"游船|游轮|游艇|夜游|索道|缆车|滑道|观光巴士|BUS TOUR|漂流"
+)
+
+
 # 演出活动桶（2026-10-28 变脸多次事故二轮）：同一场演出会以不同场馆名进
 # 行程——「橙煌梨园·看川剧变脸·喝盖碗茶」「变脸表演（川剧）」「蜀兿剧院·
 # 变脸川剧·盖碗茶」「四川省川剧院」「蜀风雅韵」互不包含，containment 判
@@ -4354,16 +4362,21 @@ def _dedupe_visit_keepers(
             keepers.append(item)
             continue
         pair = _contained_twin_pair(str(item.name), str(keepers[twin].name))
-        # 包含对只留正主（2026-11-17 万国案）：先到先得会让「外滩万国建筑
-        # 博览群」占住首位顶掉「外滩」本体。必去/钉住卡仍按铁律19置顶——
-        # 衍生卡带 must/pinned 时不走本闸，交给既有 rank。
+        # 包含对优先子项目（2026-11-17 二拍「子项目有更高优先权」，反转
+        # 同日早先的保正主）：被包含的具体行（上海之巅观光厅类）才是可
+        # 执行的游览本体，压过容器伞名（上海中心大厦）；万国建筑博览群
+        # 类纯衍生行已停用不在池。服务行豁免（游船/索道等骑在母景点上
+        # 的行不是子景点，仍按正主/rank 裁决）。必去/钉住卡仍按铁律19
+        # 置顶——任一侧带 must/pinned 时不走本闸，交给既有 rank。
         if (
             pair is not None
             and not (item.must or item.pinned)
             and not (keepers[twin].must or keepers[twin].pinned)
         ):
-            holder, _held = pair
-            if str(item.name) == holder:
+            holder, held = pair
+            child_service = _CONTAINED_CHILD_SERVICE_RE.search(held)
+            winner = holder if child_service else held
+            if str(item.name) == winner:
                 dropped.append(keepers[twin].name)
                 keepers[twin] = item
             else:
@@ -20469,10 +20482,17 @@ class PlanningAgent:
             )
             if twin_i is not None:
                 pair = _contained_twin_pair(n, added[twin_i])
-                if pair is None or pair[0] != n:
+                if pair is None:
                     return
-                # 正主到得晚也顶掉衍生占位（2026-11-17 万国案）：用户写
-                # 全名时底库两行都命中，长名分高先入列，衍生行抢了正主的位。
+                # 子项目优先（2026-11-17 二拍「子项目有更高优先权」，反转
+                # 同日早先的正主顶替）：用户写全名时底库两行都命中、长名
+                # 分高先入列——被点名的具体子行（衍生名）就是想去的本体，
+                # 母项到得晚不再顶掉它。服务行豁免同 dedupe 闸。
+                holder, held = pair
+                if n != (
+                    holder if _CONTAINED_CHILD_SERVICE_RE.search(held) else held
+                ):
+                    return
                 added[twin_i] = n
             else:
                 added.append(n)
