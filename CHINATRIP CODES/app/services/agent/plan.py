@@ -12926,11 +12926,7 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
                 # 开放形态豁免（2026-11-17 拍板「M50/武康路类商业街
                 # citywalk 不是封闭景区没有开放时间，晚闸豁免」）在
                 # 删除层本地判定：无窗/全天窗不拦；排程内部带照旧。
-                cap = (
-                    None
-                    if _hours_open_form(win)
-                    else generic_entry_cap(it, win)
-                )
+                cap = None if _hours_open_form(win) else generic_entry_cap(it, win)
                 if (
                     cap is not None
                     and (it.start_time.hour * 60 + it.start_time.minute) > cap
@@ -12959,8 +12955,7 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
         notes.append(
             "「%s」是有明确开放时间的封闭景点（晚闸 %s 后不再入场），"
             "只能从 %s 开场，已移出行程转想排——想保留可改约白天时段"
-            "或指定其他天"
-            % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
+            "或指定其他天" % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
         )
     return notes
 
