@@ -41,7 +41,48 @@ So: **a real build, but additive and de-risked** — and smaller than it looks, 
 | **P3** | Flag-gated switch: one small entry diff + rollback switch; P0 gates as acceptance; quiet-window precondition | `api/plan.py` (few lines) | **S (code) / gated** | 0.5–1 | contract/audit suites green; 「求解器未收敛」 disclosures = 0; rollback verified |
 | **P4** | Edit re-solve with hints F-50/F-51 (move/retime/duration/delete/pin) | `trip_solver/edit.py` | **M** | 1 | edit scenarios re-solve deterministically; reopen preserve-pinned green |
 
-## 4. Token-economy operating rules (how each session stays cheap)
+## 4. Dependency graph (DAG)
+
+Legend: **T** = type/code dependency (will not compile or run without it) · **D** = data dependency (needs the real snapshot; synthetic fixtures are used until then, so it never blocks writing code) · **A** = acceptance dependency (only meaningful once the other exists) · **X** = external precondition.
+
+**Global preconditions for every package**: design package complete (done) + **Q1–Q5 settled** (X).
+
+```
+P1-A ──T──> P1-B ────────────────D──────────────┐
+  │T                                          │
+  ├─T──> P1-C1 ──T──> P1-C2 ──T──> P1-D ──T──> P1-E ─┐
+  │T             (soft D on P1-B: F-14/F-11)           │T
+  ├─T──> P2-A (shadow harness)                          │
+  │                                                     ▼
+  └──────────────────────────────► P1-F (assembly + G-01 green)
+                                        │A                     ▲
+                                        ▼                     │
+                                       P2-B ──A──> P3 (+X quiet window)
+P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with P2-B
+```
+
+| Package | Hard depends (T) | Soft / data (D) | Acceptance (A) | Can run in parallel with | Why |
+|---|---|---|---|---|---|
+| P1-A | — (Q1–Q5 X) | — | — | — | produces the types + G-01 fixture every package uses |
+| P1-B | P1-A | — | — | C1 / C2 / D / E, P2-A | adapters need only the types + loader; independent of the model |
+| P1-C1 | P1-A | synthetic matrix/hours until B lands | — | B, P2-A | model builder + variables + C-01…C-04 |
+| P1-C2 | P1-C1 | P1-B (F-14 access templates, F-11 matrix) | — | B, P2-A | extends the same model; access legs need templates (synthetic OK at first) |
+| P1-D | P1-C2 | P1-B (F-13 weather penalties) | — | B, P2-A | adds C-09…C-16 + F-22 remote lunch + objectives |
+| P1-E | P1-D | — | — | B | slack-ladder ordering spans the full constraint set |
+| P1-F | P1-C2, P1-D, P1-E | P1-B (real G-01 snapshot) | — | P2-A | end-to-end assembly + first golden pass |
+| P2-A | P1-A | — | useful reports after P1-F | B / C1 / C2 / D / E | harness compares legacy vs new through the CLI stub; can calibrate legacy determinism early |
+| P2-B | — | P1-F | P2-A + P1-F | P4 | corpus burn-down needs a working new engine + harness |
+| P3 | — | — | P2-B green + full suite + quiet window (X) | — | only after the evidence exists and the external window is open |
+| P4 | P1-E | P1-F (F-34 sync) | — | P2-B | hint re-solve on the finished solver |
+
+**Two-track execution (recommended, matches the session-budget plan)**
+
+- **Track A — model core**: P1-C1 → P1-C2 → P1-D → P1-E → (P4 optional)
+- **Track B — data + harness + assembly**: P1-B → P2-A → P1-F → P2-B
+- **Join point**: P1-F needs P1-E from Track A (and the real snapshot from Track B); P3 needs P2-B green **plus** the external quiet window.
+- Nothing in Track A needs Track B's data to *write code* — synthetic fixtures cover every D edge; the tracks only join for the end-to-end golden pass.
+
+## 5. Token-economy operating rules (how each session stays cheap)
 
 1. **Work from the package spec, never re-scan the repo.** The function inventory, coverage audit and parity matrix already exist; each session reads *its own package section* of the design doc, not the codebase.
 2. **Reuse fixtures, not live probing.** G-01's real session payload is already dumped; every corpus scenario is a static JSON. No repeated live-server reproduction unless something is genuinely new.
@@ -51,7 +92,7 @@ So: **a real build, but additive and de-risked** — and smaller than it looks, 
 6. **Decide Q1–Q5 up front** (below) so no package is reworked for a policy change mid-build.
 7. **Commit at every package boundary** (auto-commit rule). A fresh session always starts from a clean, committed state.
 
-## 5. Prerequisites to start P1-A — Q1–Q5 with proposed defaults
+## 6. Prerequisites to start P1-A — Q1–Q5 with proposed defaults
 
 | Q | Question | Proposed default (say "defaults OK" or override) |
 |---|---|---|
@@ -61,7 +102,7 @@ So: **a real build, but additive and de-risked** — and smaller than it looks, 
 | Q4 | Remote-lunch nesting when arrival < 11:00 | visit first, lunch after, if arrival+lunch would start before 11:00; otherwise lunch at arrival (先午餐后游览) |
 | Q5 | Objective weights | must ≫ wish ≫ fill; keep `_MUST_RAIN_*` and `plan_score` constants numerically where they exist |
 
-## 6. What deliberately stays out of scope (keeps the build small)
+## 7. What deliberately stays out of scope (keeps the build small)
 
 - No changes to intent/LLM prompts, H5 front-end, bookings/payments/travelers, POI backfill pipelines.
 - `plan.py` untouched through P1/P2 (side module + shadow). Only P3 adds a few lines behind a flag.
