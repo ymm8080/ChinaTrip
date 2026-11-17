@@ -88,6 +88,7 @@ from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary.legs import attach_return_cards
 from app.services.itinerary.models import UnplacedCandidate
+from app.services.itinerary.request_coverage import ensure_must_disclosure
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -733,6 +734,8 @@ async def start_plan(
         # 餐卡与紧邻景点的通勤腿（2026-11-15）：/plan/start 自己组响应、
         # 不走 _plan_turn_body，出站闸在这里也跑一次（幂等）。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # 必去覆盖审计同款出站闸：生成响应首屏也不允许必去无声消失。
+        _audit_must_coverage(session)
     if session.state == "clarify":
         body["clarify"] = clarify_questions(session)
         return body
@@ -996,6 +999,26 @@ def _plan_with_alternatives(plan):
         return plan
 
 
+def _audit_must_coverage(session: PlanSession) -> None:
+    """必去覆盖审计（2026-11-17 豫园/外滩静默丢失案）：出站闸最后一道。
+
+    每个 must_visit 在最终行程里必须 已排 / 落 unplaced / 有披露，三者皆无
+    = 静默丢失——ensure_must_disclosure 自动补一条披露行，把「无声消失」
+    机械变成「至少有披露」。只补文案不改排期（选点/求解器重构在途，那片
+    不碰）；幂等，补过的行本身就是披露。
+    """
+    if session.plan is None:
+        return
+    for line in ensure_must_disclosure(
+        session.plan,
+        getattr(session, "must_visits", None) or [],
+        disclosed=session.assumptions or [],
+    ):
+        logger.warning(
+            "plan/session %s must-visit silent drop: %s", session.session_id, line
+        )
+
+
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
     body: dict = {
@@ -1025,6 +1048,8 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # 必去覆盖审计（2026-11-17）：出站闸最后一道——必去无声消失自动补披露。
+        _audit_must_coverage(session)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
         # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
         body["plan"] = (
