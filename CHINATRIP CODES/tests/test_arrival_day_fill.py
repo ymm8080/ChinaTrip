@@ -166,7 +166,8 @@ def test_late_dinner_card_when_evening_blocked_until_2015():
     nested = time(16, 40) <= card.start_time and card.end_time <= time(20, 15)
     late = card.start_time >= time(20, 30) and card.duration_minutes >= 30
     assert nested or late, (
-        f"晚卡 {card.start_time}-{card.end_time} 既不嵌套在宿主窗内，也不是迟场补位"
+        f"晚卡 {card.start_time}-{card.end_time} 既不嵌套在宿主窗内，"
+        "也不是迟场补位"
     )
 
 

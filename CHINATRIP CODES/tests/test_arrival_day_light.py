@@ -178,7 +178,9 @@ def test_heavy_evicted_and_no_recruit_accept_empty():
     c = _v("馆C", 60, _D2B, 2, tier=9)
     st = _v("样本坊", 90, _ST, 3, tier=4)
     dd = _v("馆D", 60, _D3A, 3, tier=9)
-    plan = _plan(_d(1, _arr(1), ace, small), _d(2, b, c), _d(3, _dep(3), st, dd))
+    plan = _plan(
+        _d(1, _arr(1), ace, small), _d(2, b, c), _d(3, _dep(3), st, dd)
+    )
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 2
     assert _day_of(plan, small) == 1

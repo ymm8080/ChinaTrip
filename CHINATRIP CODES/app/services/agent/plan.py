@@ -3230,6 +3230,12 @@ def _brief_bare_place(text: str, row: dict) -> bool:
             continue
         if probe in (norm(value), norm(place_core(value)), norm(place_core_en(value))):
             return True
+    # 模糊行（2026-11-17 ZHUJIAZUI 案用户拍板「GIVE 模糊匹配结果 …
+    # PROPOSE FOR CONFIRMATION」）：整句就是一个拼错的拉丁专名时，
+    # 容错/近距行也放行进确认卡；多词短句仍然整句不读（2026-11-16
+    # 护栏不变：短句只认「整句就是这个地名」）。
+    fuzzy_word = str(row.get("fuzzy_word") or "").strip().lower()
+    return bool(fuzzy_word) and probe == fuzzy_word
     return False
 
 
@@ -12911,10 +12917,10 @@ def _lunch_before_destination_visit(plan: ItineraryPlan) -> list[str]:
     午饭占位卡锚在同址观光卡上、却被排在游后（游玩空肚横跨 12:00-13:00
     午饭带，慕田峪 11:38-14:38 + 午饭 14:38 实录）→ 换序「到了先吃」：
     午饭挪到观光卡原开始时刻（同址零车程），观光卡顺延到午饭后，同日
-    后续冲突件走 _ripple_after_duration 顺延；顺延把件顶过日终（转想去）
+    后续冲突件走 _ripple_after_duration 顺延；顺延顶过日终（转想去）
     或换序后仍重叠（前面钉住件让不开）则整体回滚保持原状——宁可不换
     不破盘。幂等：换序后午饭不再排在游后，条件自然不成立。真实餐厅卡
-    绝不换。触发只认「观光卡开始 ≤13:00」的到达即饭点场景。
+    绝不换。触发只认目的地日（离市区锚 ≥15km）且观光卡开始 ≤13:00。
     """
     from app.services.itinerary.rules import SAME_VENUE_KM
 
@@ -15195,7 +15201,9 @@ def _separate_remote_must_days(
                 d.day,
             ),
         )
-        if tgt is not home and not (preserve_timed and r.start_time is not None):
+        if tgt is not home and not (
+            preserve_timed and r.start_time is not None
+        ):
             home.items.remove(r)
             r.day = tgt.day
             r.start_time = None
@@ -15401,7 +15409,11 @@ def _pin_musts_by_importance(
             ) or any(
                 v.start_time is None and rank_in_chain[id(v)] < len(seq) for v in musts
             )
-            if out_of_order and len(chain_all) >= 2 and not preserve_timed:
+            if (
+                out_of_order
+                and len(chain_all) >= 2
+                and not preserve_timed
+            ):
                 # 顺序违反地理规则（远郊大点压到本地件后面）：当天必去是
                 # 引擎钉位，按用户拍板「先地理分组再钉时」重钉一次。
                 for v in timed:
@@ -16351,7 +16363,9 @@ def _must_visit_room_sweep(
                     if isinstance(v, VisitItem)
                     and v.start_time is not None
                     and not getattr(v, "created", False)
-                    and not (preserve_timed and getattr(v, "must", False))
+                    and not (
+                        preserve_timed and getattr(v, "must", False)
+                    )
                     and (
                         not (v.pinned and not getattr(v, "soft_pin", False))
                         or _weaker_than_target(v)
@@ -21001,6 +21015,7 @@ class PlanningAgent:
         notes: list[str] = []
         library: list[tuple[str, str, str]] = []
         library_en: list[str | None] = []
+        fuzzy_offers: dict[str, list[str]] = {}
 
         def _push(name: str, kind: str, city: str, day: int | None) -> None:
             n = (name or "").strip()
@@ -21059,6 +21074,12 @@ class PlanningAgent:
                         )
                     )
                     library_en.append(row.get("name_en"))
+                    _fw = str(row.get("fuzzy_word") or "").strip().upper()
+                    if _fw:
+                        _fn = str(row.get("name") or "").strip()
+                        _names = fuzzy_offers.setdefault(_fw, [])
+                        if _fn and _fn not in _names:
+                            _names.append(_fn)
         llm_rows: list[tuple[str, str, str, int | None]] = []
         if not short and len(library) < MAX_BRIEF_SITES:
             for name, kind, city, day in await self._brief_sites_from_llm(text):
@@ -21119,6 +21140,27 @@ class PlanningAgent:
             _push(name, kind, city, day)
         for name, kind, city in library:
             _push(name, kind, city, None)
+        # 模糊候选披露（2026-11-17 用户拍板「GIVE 模糊匹配结果 …
+        # PROPOSE FOR CONFIRMATION」）：精确匹配没中、按拼写近似摆上
+        # 确认卡的词要点名告诉用户几个都可能——不静默选边，也不静默丢弃。
+        for word, fuzzy_names in fuzzy_offers.items():
+            listed = [
+                n
+                for n in fuzzy_names
+                if any(_same_site(n, other) for other in added)
+            ]
+            if not listed:
+                continue
+            notes.append(
+                L(
+                    f"「{word}」没有精确匹配，按拼写近似列出："
+                    + "、".join(listed)
+                    + "——不要的点掉",
+                    f'"{word}" had no exact match; closest by spelling: '
+                    + ", ".join(listed)
+                    + " - untick any you do not want",
+                )
+            )
         # 「避开故宫」→ 景山公园顶上（2026-11-14 用户拍板「故宫的替代品是
         # 景山公园」）：替代点进必去，假设区点名两处的关系。
         standins: list[tuple[str, str]] = []
@@ -21325,7 +21367,9 @@ class PlanningAgent:
         if len(text) >= _MIN_FACTS_LLM_TEXT:
             facts = await self.trip_facts_from_llm(text) or {}
         if not session.start_date:
-            session.start_date = facts.get("start_date") or _parse_text_start_date(text)
+            session.start_date = facts.get("start_date") or _parse_text_start_date(
+                text
+            )
         if session.days <= 0:
             days = facts.get("days") or _parse_days(text)
             if days is None and session.start_date and _count_text_dates(text) <= 1:
@@ -21420,7 +21464,8 @@ class PlanningAgent:
             return []
         return [
             L(
-                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，后续顺延）",
+                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，"
+                "后续顺延）",
                 f"Day 1 starts at {hm_text} as you asked "
                 f"({target.name} first, the rest follows)",
             )
@@ -29732,7 +29777,10 @@ class PlanningAgent:
 
         _attach_before_pin(plan, self._access_profiles(plan))
         plan.assumptions.extend(_pin_service_windows(plan))
-        solved = self._solve(plan, meal_flex=True)
+        # 2026-11-17 并发多用户：CP-SAT 求解一次生成连跑多轮，同步
+        # 跑在事件循环上会把全进程请求冻住（实测生成期间 /health
+        # p95 8.2s）——同步求解链放线程池，ortools 释放 GIL 不堵循环。
+        solved = await asyncio.to_thread(self._solve, plan, meal_flex=True)
         degraded = solved is None
         if solved is not None:
             plan = solved
@@ -29920,7 +29968,9 @@ class PlanningAgent:
                 )
             )
             if degraded:
-                resolved = self._solve(plan, meal_flex=True)
+                resolved = await asyncio.to_thread(
+                    self._solve, plan, meal_flex=True
+                )
                 if resolved is not None:
                     resolved.assumptions = plan.assumptions
                     plan = resolved
@@ -29959,7 +30009,9 @@ class PlanningAgent:
         # 测）；pinned 字段随 model_copy 保留（铁律 19 继续生效）；首解
         # 已降级或本程无实测缓存时跳过。
         if not degraded and self._leg_cache:
-            resolved = self._solve(plan, meal_flex=True)
+            resolved = await asyncio.to_thread(
+                self._solve, plan, meal_flex=True
+            )
             if resolved is not None:
                 resolved.assumptions = plan.assumptions
                 plan = resolved
@@ -29978,7 +30030,10 @@ class PlanningAgent:
         sweep_notes = _transfer_day_sweep(plan, must_names, tier_map)
         if sweep_notes:
             plan.assumptions.extend(sweep_notes)
-        plan = self._finalize_untimed_visits(plan, must_names, tier_map)
+        # 同步清算链（内含 CP 重解）放线程池——并发不冻循环。
+        plan = await asyncio.to_thread(
+            self._finalize_untimed_visits, plan, must_names, tier_map
+        )
         # 紧簇亲属归位（2026-11-08 聚合分裂案）：级联（让位弹座/演出闸/
         # 重解）可把 ≤2km 紧簇拆上多天（城心簇锚 D1+邻锚 D4+联票挂牌博物馆块 D2），
         # 楔子剔除只剔不聚——能归位的先归位，归不进的才轮到宁缺勿楔。
@@ -30009,7 +30064,9 @@ class PlanningAgent:
         # 闸挪位/让位后可能留下无时刻卡（mc2 远郊族山岳贴排让位案）：闸是最后
         # 一道动结构的相位，让位所指望的「后续重排」只会来自这里——
         # 再走一遍终闸清算（重解/挪日/回头重试/移除留痕），干净则零开销。
-        plan = self._finalize_untimed_visits(plan, must_names, tier_map)
+        plan = await asyncio.to_thread(
+            self._finalize_untimed_visits, plan, must_names, tier_map
+        )
         # 晚锚右贴压缩（2026-11-08 拍板）：全部排程相位收口后、校验前，
         # 按天把晚场锚前的可动链贴锚收紧（下午死区前移上午）。
         _compress_before_evening_anchor(plan)
@@ -31974,22 +32031,30 @@ class PlanningAgent:
         preserve_reopen = bool(getattr(session, "source_itinerary_id", None))
         notes = _assign_must_family_days(plan, preserve_timed=preserve_reopen)
         _mark_remote_visits(plan)
-        notes.extend(_separate_remote_must_days(plan, preserve_timed=preserve_reopen))
+        notes.extend(
+            _separate_remote_must_days(plan, preserve_timed=preserve_reopen)
+        )
         # 无场次演出先摘（用户拍板：没有场次信息的不提案）
         notes.extend(_drop_sessionless_shows(plan))
         # ② 必去钉时先行：灰卡必去按重要度+约束抢时刻，塞不下删当日最弱
         # 件/更弱必去，再走让位清算。
-        notes.extend(_pin_musts_by_importance(plan, preserve_timed=preserve_reopen))
         notes.extend(
-            _must_visit_room_sweep(plan, cap_relax=True, preserve_timed=preserve_reopen)
+            _pin_musts_by_importance(plan, preserve_timed=preserve_reopen)
+        )
+        notes.extend(
+            _must_visit_room_sweep(
+                plan, cap_relax=True, preserve_timed=preserve_reopen
+            )
         )
         # ③ 必去骨架钉好后，剩余景点与餐卡交给求解器围着骨架排（相邻景点
         # 填空档、餐卡=最后才调的槽位）。
-        _solved = self._solve(plan, meal_flex=True)
+        _solved = await asyncio.to_thread(self._solve, plan, meal_flex=True)
         if _solved is not None:
             plan = _solved
-        plan, rescue_notes = self._must_visit_crossday_rescue(
-            plan, frozenset(session.must_visits or ())
+        plan, rescue_notes = await asyncio.to_thread(
+            self._must_visit_crossday_rescue,
+            plan,
+            frozenset(session.must_visits or ()),
         )
         session.plan = plan
         notes.extend(rescue_notes)
@@ -34748,7 +34813,8 @@ class PlanningAgent:
             try:
                 drop_notes = []
                 if self._is_structural(current_diffs):
-                    applied, report, summary, drop_notes = self._apply_structural(
+                    applied, report, summary, drop_notes = await asyncio.to_thread(
+                        self._apply_structural,
                         session.plan,
                         current_diffs,
                         protect=frozenset(session.must_visits),

@@ -20,7 +20,9 @@ from app.services.llm.base import ChatResult
 from app.services.poi_details import PoiDetailStore
 from app.services.poi_names import latin_typo_near, latin_typo_prefix
 
-ZJZ_BRIEF = "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
+ZJZ_BRIEF = (
+    "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
+)
 
 
 def run(coro):
@@ -101,16 +103,26 @@ _ROWS = [
 def test_match_text_names_typo_token_hits_proper_noun():
     store = _store_with_rows(_ROWS)
     hits = store.match_text_names(None, ZJZ_BRIEF)
-    assert [(h["name"], h["city"]) for h in hits] == [("朱家角古镇", "上海")]
+    # 前缀正主在前，近距竞品（陆家嘴）低分垫底一并摆出待确认；跨城
+    # 近名（朱家峪村，济南）不掺和——拍板「模糊匹配结果 PROPOSE FOR
+    # CONFIRMATION」。
+    assert [(h["name"], h["city"]) for h in hits] == [
+        ("朱家角古镇", "上海"),
+        ("陆家嘴", "上海"),
+    ]
+    assert all(h["fuzzy_word"] == "zhujiazui" for h in hits)
 
 
-def test_match_text_names_typo_never_crosses_to_lujiazui():
+def test_match_text_names_near_rival_proposed_with_prefix_winner():
     store = _store_with_rows(_ROWS)
-    names = [h["name"] for h in store.match_text_names(None, "goto zhujiazui")]
-    assert names == ["朱家角古镇"]
-    # 反向：真写 lujiazui 时命中陆家嘴，也不该把朱家角古镇容错进来
+    hits = store.match_text_names(None, "goto zhujiazui")
+    # 前缀正主（朱家角古镇）排前，近距竞品（陆家嘴）一并列出待确认
+    assert [h["name"] for h in hits] == ["朱家角古镇", "陆家嘴"]
+    # 反向：真写 lujiazui 时只命中陆家嘴——没有前缀容错认过的词，
+    # 近距档不开（朱家角古镇不会被反向吸进来）
     names = [
-        h["name"] for h in store.match_text_names(None, "want to see lujiazui skyline")
+        h["name"]
+        for h in store.match_text_names(None, "want to see lujiazui skyline")
     ]
     assert names == ["陆家嘴"]
 
@@ -125,7 +137,9 @@ def test_match_text_names_exact_hits_still_win_over_fuzzy():
 
 
 def test_typo_rival_detects_lujiazui_mapping():
-    assert _brief_typo_rival_row(ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Lujiazui")
+    assert _brief_typo_rival_row(
+        ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Lujiazui"
+    )
     # 名字逐字来自文本（LLM 正常转写）不是竞品
     assert not _brief_typo_rival_row(
         ZJZ_BRIEF, ["Zhujiajiao Ancient Town"], "Zhujiajiao Ancient Town"
@@ -183,24 +197,25 @@ def _lujiazui_llm_reply() -> str:
     )
 
 
-def test_start_infers_city_from_unique_site_and_drops_typo_rival():
+def test_start_infers_city_and_proposes_fuzzy_rivals():
     zjz = {
         "name": "朱家角古镇",
         "name_en": "Zhujiajiao Ancient Town",
         "city": "上海",
         "category": "attraction",
+        "fuzzy_word": "zhujiazui",
+    }
+    ljz = {
+        "name": "陆家嘴",
+        "name_en": "Lujiazui",
+        "city": "上海",
+        "category": "other",
+        "fuzzy_word": "zhujiazui",
     }
     store = _CityRowsStore(
         all_rows=[zjz],
-        by_city={"上海": [zjz]},
-        known={
-            ("上海", "陆家嘴"): {
-                "name": "陆家嘴",
-                "city": "上海",
-                "category": "other",
-                "name_en": "Lujiazui",
-            }
-        },
+        by_city={"上海": [zjz, ljz]},
+        known={("上海", "陆家嘴"): ljz},
     )
     agent = _agent(store, _ScriptedLLM([_lujiazui_llm_reply()]))
 
@@ -218,12 +233,13 @@ def test_start_infers_city_from_unique_site_and_drops_typo_rival():
     # 城市按唯一点名地点推断，不再问「哪座城市」
     assert session.cities == ["上海"]
     assert session.brief_notes and "上海" in session.brief_notes[0]
-    # 读点确认轮只出正主，LLM 把 ZHUJIAZUI 另认的陆家嘴被压掉
+    # 模糊候选一起上确认卡（前缀正主在前），LLM 的重复映射被压掉
     assert session.state == "site_confirm"
-    assert session.pending_sites == ["朱家角古镇"]
+    assert session.pending_sites == ["朱家角古镇", "陆家嘴"]
     reply = session.history[-1].content
     assert "朱家角古镇" in reply
-    assert "陆家嘴" not in reply
+    assert "陆家嘴" in reply
+    assert "按拼写近似" in reply
 
 
 def test_infer_city_skips_when_sites_span_cities():
@@ -245,7 +261,9 @@ def test_infer_city_skips_when_sites_span_cities():
     )
     agent = _agent(store, _ScriptedLLM([]))
 
-    inferred = run(agent._infer_city_from_site_text("zhujiazui and zhujiayu village"))
+    inferred = run(
+        agent._infer_city_from_site_text("zhujiazui and zhujiayu village")
+    )
     assert inferred is None
 
 
@@ -253,7 +271,10 @@ def test_infer_city_none_without_hits():
     agent = _agent(_CityRowsStore(all_rows=[]), _ScriptedLLM([]))
     assert run(agent._infer_city_from_site_text("2 days, museums and food")) is None
     assert run(agent._infer_city_from_site_text("")) is None
-    assert run(agent._infer_city_from_site_text("see https://example.com/trip")) is None
+    assert (
+        run(agent._infer_city_from_site_text("see https://example.com/trip"))
+        is None
+    )
 
 
 def test_mine_brief_sites_rival_filter_uses_name_en():
@@ -294,3 +315,26 @@ def test_mine_brief_sites_rival_filter_uses_name_en():
     assert added == ["朱家角古镇"]
     assert notes == []
     assert session.must_visits == ["朱家角古镇"]
+
+
+def test_bare_typo_word_short_brief_proposes_fuzzy_candidates():
+    """短句整句就是一个拼错的拉丁词（ZHUJIAZUI）：两个候选都上
+    确认卡并披露（2026-11-17 拍板「GIVE 模糊匹配结果 … PROPOSE FOR
+    CONFIRMATION」）；同城其它行（外滩）不许借机混进短句。
+    """
+    store = _store_with_rows(_ROWS)
+    agent = _agent(store, _ScriptedLLM([]))
+    session = PlanSession(
+        session_id="s-bare-typo",
+        device_id="d1",
+        cities=["上海"],
+        days=1,
+        preferences="ZHUJIAZUI",
+        brief_text="ZHUJIAZUI",
+    )
+
+    added, notes = run(agent._mine_brief_sites(session))
+
+    assert added == ["朱家角古镇", "陆家嘴"]
+    assert any("拼写近似" in n for n in notes)
+    assert session.must_visits == ["朱家角古镇", "陆家嘴"]

@@ -23,6 +23,7 @@ from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
 from app.services.poi_names import (
+    latin_typo_near,
     latin_typo_prefix,
     place_core,
     place_core_en,
@@ -958,10 +959,13 @@ class PoiDetailStore:
                 return None
             return len(token) if token in positions else None
 
-        def best_score(name_zh: str, name_en: str, aliases) -> int | None:
+        def best_score(
+            name_zh: str, name_en: str, aliases
+        ) -> tuple[int, str | None] | None:
             variants = [name_zh, name_en]
             variants.extend(a for a in (aliases or []) if isinstance(a, str))
             best: int | None = None
+            fuzzy_word: str | None = None
             for variant in variants:
                 v = (variant or "").strip()
                 if len(v) < 2:
@@ -1011,20 +1015,55 @@ class PoiDetailStore:
                                 shared = latin_typo_prefix(t, fuzzy_core)
                                 if shared is not None:
                                     best = max(best or 0, shared)
-            return best
+                                    fuzzy_word = t
+            if best is None:
+                return None
+            return best, fuzzy_word
 
-        hits: dict[str, tuple[int, str, str | None, str | None, str | None]] = {}
+        hits: dict[
+            str, tuple[int, str, str | None, str | None, str | None, str | None]
+        ] = {}
+        # 前缀容错认过的词 →（词 → 前缀命中行所在城市集）；近距档
+        # 只对这些词、且只在这些城市里找「另一个映射」（2026-11-17
+        # 用户拍板「GIVE 模糊匹配结果 … PROPOSE FOR CONFIRMATION」）。
+        prefix_ctx: dict[str, set[str]] = {}
+        core_rows: list[tuple[str, str, str, str | None, str | None]] = []
+
+        def _latin_core_of(name_en: str | None) -> str | None:
+            en = (name_en or "").strip()
+            if not en or self._TEXT_CJK_RE.search(en):
+                return None
+            toks = place_core_en(en).split()
+            if len(toks) != 1:
+                return None
+            core = toks[0].lower()
+            if (
+                len(core) < self._TEXT_NAME_MIN_LATIN_TOKEN
+                or core in self._TEXT_STOPWORDS
+            ):
+                return None
+            return core
 
         def consider(name_zh, name_en, aliases, category, row_city) -> None:
             name = (name_zh or "").strip()
             if not name or self._text_row_is_stay(name_zh, name_en, category):
                 return
-            score = best_score(name_zh, name_en, aliases)
-            if score is None:
+            core = _latin_core_of(name_en)
+            if core:
+                core_rows.append(
+                    (name, core, (row_city or "").strip(), category, name_en)
+                )
+            scored = best_score(name_zh, name_en, aliases)
+            if scored is None:
                 return
+            score, fuzzy_word = scored
+            if fuzzy_word:
+                prefix_ctx.setdefault(fuzzy_word, set()).add(
+                    (row_city or "").strip().removesuffix("市")
+                )
             prev = hits.get(name)
             if prev is None or score > prev[0]:
-                hits[name] = (score, name, name_en, row_city, category)
+                hits[name] = (score, name, name_en, row_city, category, fuzzy_word)
 
         if self._db_available():
             try:
@@ -1059,6 +1098,20 @@ class PoiDetailStore:
                 value.get("category"),
                 value.get("city"),
             )
+        # 近距档（2026-11-17 ZHUJIAZUI 案用户拍板「GIVE 模糊匹配结果 …
+        # PROPOSE FOR CONFIRMATION」）：前缀容错认过的词，其另一个近距映射
+        # （zhujiazui → 陆家嘴，距离 2）不再静默选边或静默丢弃——低分一并
+        # 列出，交给确认卡点选。只在前缀命中的同城里找：跨城近名（朱家峪村）
+        # 是撞名不是用户所指。
+        for word, cities_hit in prefix_ctx.items():
+            for name, core, row_city, category, name_en in core_rows:
+                if name in hits:
+                    continue
+                if (row_city or "").strip().removesuffix("市") not in cities_hit:
+                    continue
+                if latin_typo_near(word, core) is None:
+                    continue
+                hits[name] = (1, name, name_en, row_city, category, word)
         ranked = sorted(hits.values(), key=lambda h: (-h[0], h[1]))
         # 泛名让位（2026-11-14）：文里写了「at Mutianyu」时，慕田峪长城 与
         # 泛卡「长城」会同时命中——名字被另一个命中名包含的行丢掉，留下
@@ -1075,8 +1128,11 @@ class PoiDetailStore:
                 "name_en": name_en,
                 "city": row_city,
                 "category": category,
+                "fuzzy_word": fuzzy_word,
             }
-            for _score, name, name_en, row_city, category in kept[:limit]
+            for _score, name, name_en, row_city, category, fuzzy_word in kept[
+                :limit
+            ]
         ]
 
     def name_city_spread(self, name: str) -> list[str]:

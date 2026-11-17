@@ -1,0 +1,1152 @@
+[
+  {
+    "id": "f5f473ff-9bc1-4cd8-9ab1-f75ad68a5ec7",
+    "source": "chinatravel",
+    "source_poi_id": "ct_上海_97",
+    "city": "上海",
+    "name_zh": "SKY RING 屋顶摩天轮",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "2a5a9a66-8dfc-4319-9d22-a1e46dc9e0c9",
+    "source": "amap",
+    "source_poi_id": "ct_上海_88",
+    "city": "上海",
+    "name_zh": "东方明珠259米全透明悬空观光廊",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "f7aed84b-f3dd-4350-8d6a-042e9094e766",
+    "source": "chinatravel",
+    "source_poi_id": "ct_上海_301",
+    "city": "上海",
+    "name_zh": "九曲桥",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "333b58f2-19f3-48df-abfb-ece3b92683eb",
+    "source": "chinatravel",
+    "source_poi_id": "ct_上海_86",
+    "city": "上海",
+    "name_zh": "外白渡桥",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0aa896bf-1dbe-446d-965b-d2a343704d65",
+    "source": "amap",
+    "source_poi_id": "ct_上海_62",
+    "city": "上海",
+    "name_zh": "武康大楼",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "5cc9a3dd-c3d8-4bcd-921d-c0cd9e9ab5b9",
+    "source": "chinatravel",
+    "source_poi_id": "ct_上海_354",
+    "city": "上海",
+    "name_zh": "罗密欧阳台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "3021df16-48a1-4525-afbf-3d70e3f51490",
+    "source": "chinatravel",
+    "source_poi_id": "ct_上海_319",
+    "city": "上海",
+    "name_zh": "观光夜市(威尼斯水城之夜)",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "64faa7dc-5518-49d5-b286-9b49a6ba0a3a",
+    "source": "amap",
+    "source_poi_id": "ct_上海_25",
+    "city": "上海",
+    "name_zh": "金茂大厦88层观光厅",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e58c758b-0ec9-424f-9f1d-819367db5d03",
+    "source": "curated",
+    "source_poi_id": "curated:丽江:丽江御宴",
+    "city": "丽江",
+    "name_zh": "丽江御宴",
+    "category": "food",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "8acc9b8c-cb85-4eb4-911b-e7475b3c0ee4",
+    "source": "chinatravel",
+    "source_poi_id": "ct_北京_276",
+    "city": "北京",
+    "name_zh": "中信证券大厦",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "68eea4c6-c671-4cd2-987e-e0e051657100",
+    "source": "amap",
+    "source_poi_id": "ct_北京_163",
+    "city": "北京",
+    "name_zh": "北京梨园剧场",
+    "category": "entertainment",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "2b80b282-72fd-4f1b-9076-2e05ed349ec2",
+    "source": "amap",
+    "source_poi_id": "ct_北京_52",
+    "city": "北京",
+    "name_zh": "德云社剧场",
+    "category": "entertainment",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "359bb79f-83ee-4906-8190-934dbd7a3a68",
+    "source": "baidu",
+    "source_poi_id": "5cf5d3b0bf74a8f6f82d6110",
+    "city": "北京",
+    "name_zh": "朝阳公园景区",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "84676e4d-96c5-4711-afbd-270a2cead931",
+    "source": "chinatravel",
+    "source_poi_id": "ct_北京_127",
+    "city": "北京",
+    "name_zh": "朝阳剧场杂技",
+    "category": "entertainment",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "21911abc-37bf-42fa-8f06-20df07995dfe",
+    "source": "chinatravel",
+    "source_poi_id": "ct_北京_284",
+    "city": "北京",
+    "name_zh": "盛华屯夜市",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "41ce98e3-2063-4559-b7db-5b5d2fd0a53c",
+    "source": "chinatravel",
+    "source_poi_id": "ct_北京_155",
+    "city": "北京",
+    "name_zh": "长城之漫观景台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "9bb884d3-a989-42d4-b357-741be24449b7",
+    "source": "chinatravel",
+    "source_poi_id": "ct_南京_274",
+    "city": "南京",
+    "name_zh": "亲水圆环景观桥",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "bbdcc2f3-4da9-4842-a506-861d89555b45",
+    "source": "amap",
+    "source_poi_id": "ct_南京_72",
+    "city": "南京",
+    "name_zh": "南京德云社",
+    "category": null,
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "82106220-ce12-4c7e-ade1-61b17df59bd3",
+    "source": "chinatravel",
+    "source_poi_id": "ct_南京_77",
+    "city": "南京",
+    "name_zh": "南京眼-步行桥",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "21cfc439-c57b-4b3f-b0cc-7f7a96746745",
+    "source": "amap",
+    "source_poi_id": "ct_南京_122",
+    "city": "南京",
+    "name_zh": "心印中华门",
+    "category": "other",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "9e85b548-2192-418f-a731-8fadf81b1e77",
+    "source": "chinatravel",
+    "source_poi_id": "ct_南京_129",
+    "city": "南京",
+    "name_zh": "江宁眼摩天轮",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "50336856-10cb-4ead-b3e0-688cdf87b94d",
+    "source": "curated",
+    "source_poi_id": "curated:厦门:闽南大院",
+    "city": "厦门",
+    "name_zh": "闽南大院",
+    "category": "food",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b68ea562-ec44-4edf-b07e-02a1fac04ce9",
+    "source": "street",
+    "source_poi_id": "st_413f3974a376",
+    "city": "可克达拉",
+    "name_zh": "新疆生产建设兵团第四师可克达拉市草原之夜文化旅游休闲街区",
+    "category": "historic",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "33deb93a-d519-4de6-a766-7f764c671e5d",
+    "source": "4a",
+    "source_poi_id": "4a_0928",
+    "city": "天津",
+    "name_zh": "“天津之眼”摩天轮",
+    "category": "attraction",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "fcacdabd-8d0b-4f1f-a625-1cfc595658b3",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_294",
+    "city": "广州",
+    "name_zh": "庙前夜市",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "65911d7d-7673-492e-98cb-2d9042e31f59",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_299",
+    "city": "广州",
+    "name_zh": "沿江路酒吧街",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "7d46843d-9339-4656-b90d-a34d14e18a40",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_5",
+    "city": "广州",
+    "name_zh": "珠江夜游",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "763c52de-e629-424e-9f2c-db03bcb41172",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_253",
+    "city": "广州",
+    "name_zh": "珠江夜游会展中心码头",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b26488b1-c1f7-4efb-a96a-3b10f0cd8e72",
+    "source": "amap",
+    "source_poi_id": "ct_广州_39",
+    "city": "广州",
+    "name_zh": "珠江夜游大沙头码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "f75fd167-8172-420c-8644-f4962d04fcc8",
+    "source": "amap",
+    "source_poi_id": "ct_广州_23",
+    "city": "广州",
+    "name_zh": "珠江夜游天字码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "eda789bb-34c3-4a47-9f72-db71c14aad8b",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_307",
+    "city": "广州",
+    "name_zh": "珠江夜游(太古仓码头)",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "c616bc5e-7f86-470f-b8f4-457a3da6b386",
+    "source": "amap",
+    "source_poi_id": "ct_广州_56",
+    "city": "广州",
+    "name_zh": "珠江夜游广州塔·中大码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "296b2027-69f5-43a8-9525-15cb9cc7df84",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_38",
+    "city": "广州",
+    "name_zh": "珠江夜游广州塔财富码头",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "cf67c336-6153-4855-882c-aac99e4cb0e1",
+    "source": "amap",
+    "source_poi_id": "ct_广州_183",
+    "city": "广州",
+    "name_zh": "珠江夜游(海心沙东区码头)",
+    "category": "transport",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "7bb62cad-2cb8-4c88-9bdc-2bf6315fea4f",
+    "source": "amap",
+    "source_poi_id": "ct_广州_54",
+    "city": "广州",
+    "name_zh": "珠江夜游海心沙西区码头",
+    "category": "transport",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b1183b82-e96c-40f4-8304-fc66aed05921",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_239",
+    "city": "广州",
+    "name_zh": "珠江夜游省总码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "773ae3cb-5a84-4cc2-92e5-4d64365abce8",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_72",
+    "city": "广州",
+    "name_zh": "珠江夜游西堤码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e46ec7bd-1e90-42c1-ac8c-b8d4de75cc29",
+    "source": "chinatravel",
+    "source_poi_id": "ct_广州_193",
+    "city": "广州",
+    "name_zh": "长隆欢乐世界-欢乐摩天轮",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "28fcfc11-395e-4d7d-aedd-27bb6ef54520",
+    "source": "chinatravel",
+    "source_poi_id": "ct_成都_239",
+    "city": "成都",
+    "name_zh": "合江亭",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ab3217e8-1313-4384-9bed-cd5d35d8a76a",
+    "source": "amap",
+    "source_poi_id": "ct_成都_10",
+    "city": "成都",
+    "name_zh": "四川省川剧院",
+    "category": "entertainment",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "a4afa0af-bfd4-45d0-b05f-d76090aa534a",
+    "source": "chinatravel",
+    "source_poi_id": "ct_成都_21",
+    "city": "成都",
+    "name_zh": "成都夜游锦江",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "38c0d9f8-685f-4b17-b1d3-826574cffbff",
+    "source": "chinatravel",
+    "source_poi_id": "ct_成都_1551",
+    "city": "成都",
+    "name_zh": "生机之塔",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "4ac21e05-298b-49c2-a314-d3829e8c2294",
+    "source": "amap",
+    "source_poi_id": "ct_成都_46",
+    "city": "成都",
+    "name_zh": "联华梨园社·春熙剧场川剧变脸秀",
+    "category": "entertainment",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "6890fbcd-fd6c-43ef-89c2-be7e4216b751",
+    "source": "amap",
+    "source_poi_id": "ct_成都_148",
+    "city": "成都",
+    "name_zh": "西蜀第一街牌坊",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "7afaa1cf-2764-46dc-8b2c-07ba0f6d083d",
+    "source": "street",
+    "source_poi_id": "st_e12fefbf57d3",
+    "city": "朝阳",
+    "name_zh": "北京市朝阳区751旅游休闲街区",
+    "category": "historic",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "981b8660-9ca5-4daa-9efd-d7abbad6d4e3",
+    "source": "4a",
+    "source_poi_id": "4a_4052",
+    "city": "朝阳",
+    "name_zh": "朝阳化石谷景区",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0193154a-e695-4c45-823d-d6c0c8f601bd",
+    "source": "4a",
+    "source_poi_id": "4a_4053",
+    "city": "朝阳",
+    "name_zh": "朝阳县千佛洞风景区",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ec76ff84-8dea-4d86-b0cb-0bc7dfa1e45d",
+    "source": "4a",
+    "source_poi_id": "4a_4054",
+    "city": "朝阳",
+    "name_zh": "朝阳市凤凰山景区",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "3b5ee2a0-d98f-4228-9139-87b206e09d0a",
+    "source": "4a",
+    "source_poi_id": "4a_4057",
+    "city": "朝阳",
+    "name_zh": "辽宁朝阳鸟化石国家地质公园景区",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "eb8f845a-0b23-4105-a37a-2c52359c9cfe",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_222",
+    "city": "杭州",
+    "name_zh": "三江两岸专线游船-钱塘江夜游",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "824fb3bc-27bc-4107-b5e1-ad3a6cbaefb5",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_244",
+    "city": "杭州",
+    "name_zh": "千岛之眼摩天轮",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e496d7a7-2b6e-4809-a39e-343089b70c80",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_66",
+    "city": "杭州",
+    "name_zh": "千岛湖伯爵号豪华游轮",
+    "category": "theme_park",
+    "best_visit_time": "morning",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "eef2d84d-2a35-4895-98d0-867d01a3345e",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_97",
+    "city": "杭州",
+    "name_zh": "千岛湖夜游",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "416bc9e5-ae3d-4501-b8bc-d20cb971b7f1",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_126",
+    "city": "杭州",
+    "name_zh": "千岛湖“月光之恋”光影艺术夜游",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "42d74f5f-bebf-48df-ab30-ae92079027eb",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_170",
+    "city": "杭州",
+    "name_zh": "吴山夜市",
+    "category": "nature",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "f2657363-b68b-488b-b9b0-ffe12fe5f474",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_39",
+    "city": "杭州",
+    "name_zh": "天屿山观景台",
+    "category": "nature",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ac4d9581-f9a6-41ed-a5c7-a117f175bae9",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_177",
+    "city": "杭州",
+    "name_zh": "富春江夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0cdcd855-1db2-42c4-9082-66d095ebee5c",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_282",
+    "city": "杭州",
+    "name_zh": "朝天门",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "07c5b0df-0099-49f1-9175-e413da62d534",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_68",
+    "city": "杭州",
+    "name_zh": "杭州运河夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e3edfbb3-7e49-4f54-8e3e-38dfd9f2146d",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_69",
+    "city": "杭州",
+    "name_zh": "武林夜市",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ed356426-44f3-48d4-9c42-49139d15e305",
+    "source": "amap",
+    "source_poi_id": "ct_杭州_192",
+    "city": "杭州",
+    "name_zh": "西湖外事游船",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "058b16ff-d6e5-440e-9fe3-841d8ca7a7e3",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_11",
+    "city": "杭州",
+    "name_zh": "钱塘江夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "87a398ff-4a14-4c94-b1b3-2a07bf58833c",
+    "source": "chinatravel",
+    "source_poi_id": "ct_杭州_62",
+    "city": "杭州",
+    "name_zh": "钱塘江夜游(武林门码头)",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "d2901bcd-e7fc-49a1-a83e-5a1d048dccd8",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_34",
+    "city": "武汉",
+    "name_zh": "东湖之眼摩天轮",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "88c00995-effc-4588-9371-43027f58b417",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_119",
+    "city": "武汉",
+    "name_zh": "保成路夜市",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "a11ad451-7134-441d-ad31-8b41cf20fa90",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_198",
+    "city": "武汉",
+    "name_zh": "古琴号游船",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "607719ae-9824-4531-88ea-b44280d923a1",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_287",
+    "city": "武汉",
+    "name_zh": "大智无界·空中小镇",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "4b305d99-edb0-4f6f-87a7-503be289657a",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_293",
+    "city": "武汉",
+    "name_zh": "搁笔亭",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0004becf-6863-4996-8d58-13e3c6854ca4",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_215",
+    "city": "武汉",
+    "name_zh": "晴川阁夜游(大禹晴川情）",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b65aee70-96d0-4f84-92c8-96bf92042080",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_45",
+    "city": "武汉",
+    "name_zh": "木兰花乡景区(木兰不夜城)",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b21fb864-4dcf-4ef0-ab60-18e17c137cc7",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_5",
+    "city": "武汉",
+    "name_zh": "武汉文旅集团·夜游长江",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "88fdbafe-84aa-4313-add1-dd366b82424e",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_29",
+    "city": "武汉",
+    "name_zh": "武汉文旅集团·汉阳门码头(夜游长江)",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "1ee82801-edf1-4317-8803-b125965d3b0b",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_25",
+    "city": "武汉",
+    "name_zh": "武汉文旅集团·粤汉码头(夜游长江)",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "b9da5f4a-d279-44e8-a9df-ba9af723f25b",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_149",
+    "city": "武汉",
+    "name_zh": "武汉文旅集团·红巷码头(夜游长江)",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "1cdec76c-ba59-4969-b1dd-4c5b7c2f72e6",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_84",
+    "city": "武汉",
+    "name_zh": "武汉文旅集团·苗家码头/武汉关2号码头(夜游长江)",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "2002dd14-8d29-4abe-abe0-d049a7602832",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_138",
+    "city": "武汉",
+    "name_zh": "汉口粤汉码头",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "a678fb8d-c2c9-4721-bd0b-0b367eaa49e2",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_74",
+    "city": "武汉",
+    "name_zh": "百年轮渡·君旅号游船(来源记忆)",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "eeb72f20-9aa1-479f-8d80-5d658505239b",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_31",
+    "city": "武汉",
+    "name_zh": "船长9号游船(夜游长江)",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "f2c96a76-2114-4b4f-9d45-c70a4670800a",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_246",
+    "city": "武汉",
+    "name_zh": "虎泉夜市美食广场",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "edc4ff92-0add-4f84-8318-0cf99abdaa22",
+    "source": "amap",
+    "source_poi_id": "ct_武汉_116",
+    "city": "武汉",
+    "name_zh": "长江武汉关",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "536ef96a-30d8-4bc7-abe0-4d59c469581d",
+    "source": "chinatravel",
+    "source_poi_id": "ct_武汉_248",
+    "city": "武汉",
+    "name_zh": "黄鹤归来铜雕",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "aa3d2edf-cb4b-4a98-ad42-36a5ba6a6d31",
+    "source": "4a",
+    "source_poi_id": "4a_2723",
+    "city": "洛阳",
+    "name_zh": "万安山山顶公园",
+    "category": "nature",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "821eab26-1431-4748-86dc-ac99bd03c308",
+    "source": "chinatravel",
+    "source_poi_id": "ct_深圳_246",
+    "city": "深圳",
+    "name_zh": "东部华侨城-1号观景台",
+    "category": "theme_park",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "6cdf9963-4f72-450f-82b6-776508ef3490",
+    "source": "chinatravel",
+    "source_poi_id": "ct_深圳_130",
+    "city": "深圳",
+    "name_zh": "深圳湾公园-日出剧场",
+    "category": "entertainment",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "d28efd1a-4930-4425-896d-5f3d409df35f",
+    "source": "chinatravel",
+    "source_poi_id": "ct_深圳_89",
+    "city": "深圳",
+    "name_zh": "西乡夜市街",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "86a6b02a-b04c-44ff-a949-fe3e88a1bd74",
+    "source": "street",
+    "source_poi_id": "st_57c64008be86",
+    "city": "烟台",
+    "name_zh": "山东省烟台市芝罘区朝阳街",
+    "category": "historic",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "add1d46b-acb4-43f2-93c7-24bff1a27c10",
+    "source": "chinatravel",
+    "source_poi_id": "ct_苏州_10132",
+    "city": "苏州",
+    "name_zh": "凤凰台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "73672942-8e21-484a-bb22-a84bad7b6f8e",
+    "source": "chinatravel",
+    "source_poi_id": "ct_苏州_76",
+    "city": "苏州",
+    "name_zh": "古运河夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ec3cd22c-8019-45a9-a2df-32cdc1867812",
+    "source": "chinatravel",
+    "source_poi_id": "ct_苏州_134",
+    "city": "苏州",
+    "name_zh": "夜昆山·美食不夜城",
+    "category": "nature",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "1e9a5fda-f150-4ff8-96f6-65974d69a0e5",
+    "source": "amap",
+    "source_poi_id": "ct_苏州_79",
+    "city": "苏州",
+    "name_zh": "夜游护城河",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "150c79f9-7643-4a21-ac18-ff6a29d171be",
+    "source": "chinatravel",
+    "source_poi_id": "ct_苏州_9913",
+    "city": "苏州",
+    "name_zh": "夜游拙政园《拙政问雅》",
+    "category": "other",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "fdabc5c4-4e9c-4312-a66b-15adf4e7639a",
+    "source": "chinatravel",
+    "source_poi_id": "ct_苏州_210",
+    "city": "苏州",
+    "name_zh": "苏州古城之巅观景台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e3eaebe1-ad84-43b5-b933-98de5c521d0f",
+    "source": "street",
+    "source_poi_id": "st_91c943877936",
+    "city": "西安",
+    "name_zh": "陕西省西安市曲江新区大唐不夜城步行街",
+    "category": "historic",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0107bc56-ee1a-4054-b24b-a5abc8229513",
+    "source": "street",
+    "source_poi_id": "st_1f1d2326da2a",
+    "city": "通化",
+    "name_zh": "吉林省梅河口市东北不夜城旅游休闲街区",
+    "category": "historic",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "f8d1f38b-f45f-43fa-9e4c-91616aef29a3",
+    "source": "4a",
+    "source_poi_id": "4a_2573",
+    "city": "邯郸",
+    "name_zh": "武安市朝阳沟",
+    "category": "nature",
+    "best_visit_time": "sunrise",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "ddbb7523-8682-455f-acd5-11b990efcd1c",
+    "source": "street",
+    "source_poi_id": "st_79444637a337",
+    "city": "酒泉",
+    "name_zh": "甘肃省酒泉市敦煌市敦煌夜市文化旅游休闲街区",
+    "category": "historic",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "cb88fdc3-af0d-4993-b506-525adf263e6b",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_219",
+    "city": "重庆",
+    "name_zh": "三峡之巅观景平台",
+    "category": "nature",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "8c369cd7-32d3-46eb-9feb-c8165739e61d",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_264",
+    "city": "重庆",
+    "name_zh": "不夜九街",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "091cb931-6ad0-42c7-87db-961c78cb6b8c",
+    "source": "curated",
+    "source_poi_id": "curated:重庆:两江夜游",
+    "city": "重庆",
+    "name_zh": "两江夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "4b20e189-06b7-480c-9908-fbc085d8170c",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_300",
+    "city": "重庆",
+    "name_zh": "两江汇观景台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "a3823fed-07ce-4f16-986e-a86685796cff",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_61",
+    "city": "重庆",
+    "name_zh": "夜游两江",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "d86ceaa7-ec79-45f7-a12a-f72ea44e596d",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_315",
+    "city": "重庆",
+    "name_zh": "天下第一风雨廊桥",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "fb63440d-19d1-45d7-96dd-a4820dcf4e5f",
+    "source": "amap",
+    "source_poi_id": "ct_重庆_144",
+    "city": "重庆",
+    "name_zh": "天生三桥景区-玻璃观景眺台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "502b81bb-4f82-46e0-a52d-daab5eb5aba0",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_159",
+    "city": "重庆",
+    "name_zh": "山城夜景",
+    "category": "nature",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "e6dc105e-2b1b-48f5-a6fa-1233c80f4844",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_30",
+    "city": "重庆",
+    "name_zh": "朝天门号两江夜景游轮",
+    "category": "theme_park",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "9d88240e-2cfc-4490-aad3-298bb14b9cdf",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_111",
+    "city": "重庆",
+    "name_zh": "李子坝单轨穿楼观景平台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "35cb3baa-cddf-4433-97c6-d8e7f1c472bd",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_3620",
+    "city": "重庆",
+    "name_zh": "较场口夜市",
+    "category": "citywalk",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "73f8fe0c-59e5-4db6-83a9-2f44b297ea12",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_26",
+    "city": "重庆",
+    "name_zh": "重庆WFC会仙楼观景台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "0154abf8-85e7-490b-8604-4b5c7833abdc",
+    "source": "chinatravel",
+    "source_poi_id": "ct_重庆_11",
+    "city": "重庆",
+    "name_zh": "重庆云端之眼观景台",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "c7f52bb3-29f0-4eb6-8cff-715814e34dc6",
+    "source": "amap",
+    "source_poi_id": "ct_重庆_197",
+    "city": "重庆",
+    "name_zh": "重庆国际音乐啤酒节",
+    "category": "other",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "752cc7eb-2c1d-4882-a0b4-4a65e0f8501a",
+    "source": "amap",
+    "source_poi_id": "ct_重庆_75",
+    "city": "重庆",
+    "name_zh": "重庆国际马戏城",
+    "category": null,
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "81fecd66-d856-486f-8700-0b2d46afe949",
+    "source": "amap",
+    "source_poi_id": "ct_重庆_40",
+    "city": "重庆",
+    "name_zh": "重庆夜游",
+    "category": "attraction",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "d830c70c-3f16-4987-9901-8bb92f34b136",
+    "source": "amap",
+    "source_poi_id": "ct_重庆_47",
+    "city": "重庆",
+    "name_zh": "重庆长江索道南站",
+    "category": "viewpoint",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "58b34118-c141-40ce-a8a6-4bc7528cfb6b",
+    "source": "tripadvisor",
+    "source_poi_id": "tripadvisor:香港:太平山顶",
+    "city": "香港",
+    "name_zh": "太平山顶",
+    "category": "nature",
+    "best_visit_time": "sunset",
+    "best_visit_time_source": "heuristic"
+  },
+  {
+    "id": "d50e5597-632a-4cc8-a39b-e50134143df5",
+    "source": "street",
+    "source_poi_id": "st_0e9e082f1398",
+    "city": "马鞍山",
+    "name_zh": "安徽省马鞍山市雨山区长江不夜城旅游休闲街区",
+    "category": "historic",
+    "best_visit_time": "evening",
+    "best_visit_time_source": "heuristic"
+  }
+]

@@ -231,3 +231,15 @@ FLAIR（成都同名）、大蓉和（张家界）、厚贞（上海杨浦）、
 - 新城市 id 发现：任一该城 poi 页 DOM 找 `a[href*='/cy/']`（马房湾=景点教训：poi 页有「美食」链接）。
 - 频道页还有类目分页（如杭州 /cy/10156/1302.html 等 10 页），每页 ~12-15 家——长尾仍有量。
 - 产出节奏：本流水线单城 20-30 分钟 40-70 图；已把两波从 124→204 行（mafengwo 79 家）。
+
+### 2026-11-16 00:08 错峰 amap 批量（调度窗口实录）
+
+- **pois**：`python -m app.jobs.backfill_photos --limit 800` → `{"targets": 800, "hits": 2, "no_data": 730, "errors": 0, "filled": {"photos": 2, "photos_source": 2}, "stop": "quota_exhausted_stop"}`。第 732 行撞日池熔断；当天选中行按 SOURCE_PRIORITY 全是 curated/5a/museum/street/histown 前排（无 amap id，走 around/v3 烧配额），**797 个 amap-id 高价值行排在队尾没轮到**——续跑点：明日窗口优先只跑 amap 源行（需给 job 加源过滤，今日不动代码）。
+- 注：v3 place/text 仍被 WAF 处罚（bixi punish），链上已按警告降级；步链命中 2 行来自 street/histown 段。
+- **restaurants**：`python -m app.jobs.backfill_restaurant_photos --limit 500 --concurrency 2` → `{"targets": 500, "hits": 0, "no_data": 0, "errors": 0, "filled": {}, "stop": "quota_exhausted_stop"}`——**第一行即熔断**：pois 批的 730 次 around 把同 key 日池烧穿，"around 独立配额池"假设在个人 key 上不成立（同一日池）。续跑点：次日 00:00 重置后先跑餐厅池，或与 pois 分 key。今日不重试。
+
+### 2026-11-17 00:06 错峰 amap 批量（窗口被并行自动化抢空）
+
+- **pois**：`backfill_photos --limit 800` → `{"targets": 800, "hits": 0, "no_data": 7, "errors": 0, "filled": {}, "stop": "quota_exhausted_stop"}`——仅 7 行即熔断：日池在 00:00-00:06 已被并行自动化（`run_parallel_automation.py` 23:30 起跑）烧穿；选中行是 chinatravel 段（curated/amap 段均在 24h 冷却内）。7 行均为无坐标 v3 档（WAF punish）落空，非配额行。续跑点：明日 00:00 重置后立即跑，或与并行自动化错开/分 key。
+- **restaurants**：`backfill_restaurant_photos --limit 500 -c 2` → `{"targets": 500, "hits": 0, "no_data": 0, "errors": 0, "filled": {}, "stop": "quota_exhausted_stop"}`——第一行即熔断，与 pois 共享同一日池（再次证实"around 独立配额"不成立）。今日不重试。
+- 附注：ctrip 长会话偶发 `SSL: WRONG_VERSION_NUMBER`（_LIST_URL 握手瞬时失败），链上按警告降级不影响积分。

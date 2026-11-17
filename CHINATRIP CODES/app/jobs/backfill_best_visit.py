@@ -44,6 +44,7 @@ _SYSTEM_PROMPT = (
 )
 
 
+
 def _norm_city(city: str | None) -> str:
     return (city or "").removesuffix("市")
 

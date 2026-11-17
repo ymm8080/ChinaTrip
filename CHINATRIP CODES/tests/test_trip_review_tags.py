@@ -1,7 +1,4 @@
-"""trip_review_tags 正文规则抽取单测。
-
-依据：DESIGN tag_implementation_decisions_2026-11-12 §D4。
-"""
+"""trip_review_tags 正文规则抽取单测（DESIGN tag_implementation_decisions_2026-11-12 §D4）。"""
 
 from app.services.trip_review_tags import extract_prose, extract_review_tags
 

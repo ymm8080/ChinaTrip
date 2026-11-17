@@ -243,7 +243,7 @@ def test_switch_to_flight_without_schedule_returns_422_and_keeps_leg():
 
 def test_rechain_visit_after_earlier_arrival():
     # 原 G1 13:30 到、外滩 16:00 合法；改乘 G9（15:00 到）→ 落地地板
-    # 15:00+120=17:00（2026-11-14 拍板：火车落地缓冲 2h），外滩清时刻重排到 ≥17:00
+    # 15:00+150=17:30，外滩被清时刻重排到 ≥17:30（铁律 4 衔接缓冲）
     g9 = _train("G9", time(9, 0), time(15, 0), 360)
     client, _ = make_client(make_agent(ScriptedTrains([g9]), ScriptedFlights([])))
     resp = _post_transfer(client, "number", {"number": "G9"})
@@ -253,7 +253,7 @@ def test_rechain_visit_after_earlier_arrival():
     visit = _find(plan, "v1")
     assert leg["end_time"] == "15:00:00"
     assert visit["day"] == 1
-    assert visit["start_time"] >= "17:00"
+    assert visit["start_time"] >= "17:30"
 
 
 def test_late_arrival_moves_visit_to_next_day_with_note():

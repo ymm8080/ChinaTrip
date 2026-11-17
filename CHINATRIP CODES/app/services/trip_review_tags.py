@@ -1,6 +1,4 @@
-"""trip.com 评论正文 → 餐厅点评标签 规则抽取。
-
-依据：DESIGN tag_implementation_decisions_2026-11-12 §D4。
+"""trip.com 评论正文 → 餐厅点评标签 规则抽取（DESIGN tag_implementation_decisions_2026-11-12 §D4）。
 
 可行性实证（2026-11-12）：外部结构化点评标签通道全不存在（携程国内美食
 JS 壳 / trip.com /restaurants 404 / 点评美团反爬墙 / baidu·amap 无字段），

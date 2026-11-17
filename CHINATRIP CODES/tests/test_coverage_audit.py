@@ -96,7 +96,9 @@ def test_transfer_items_ignored_and_no_must_no_noise():
 
 
 def test_dedupe_unplaced_removes_exact_duplicates_only():
-    plan = _plan(_visit("上海中心大厦", name_en="Shanghai Tower"), _visit("外滩源"))
+    plan = _plan(
+        _visit("上海中心大厦", name_en="Shanghai Tower"), _visit("外滩源")
+    )
     plan.unplaced = [
         UnplacedCandidate(name="上海中心大厦"),
         UnplacedCandidate(name="别的塔", poi_id="p-x"),
