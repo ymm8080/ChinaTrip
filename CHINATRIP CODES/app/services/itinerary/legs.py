@@ -166,6 +166,21 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
                     and mode_n not in SCHEDULED_ACCESS_MODES
                 ):
                     anchor = next_loc
+            # 先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭再游玩」）：
+            # 换序后午饭占位排在同址观光卡前、前面又没有可继承的落脚点
+            # （晨卡无坐标）——锚改取后站（观光卡），地址/接驳档案随锚，
+            # 否则每次 annotate 都会把午饭地址清空。
+            if (
+                str(item.item_id or "").startswith("food-lunch-ph")
+                and anchor is None
+                and prev_loc is None
+                and next_loc is not None
+                and item.start_time is not None
+                and next_loc.start_time is not None
+                and _clock_minutes(item.start_time)
+                <= _clock_minutes(next_loc.start_time)
+            ):
+                anchor = next_loc
             # 2026-11-16 上海朱家角案：远郊末站之后的晚饭不留在景区（打车回城
             # 再吃）——前站离城市锚点 ≥ TAIL_RETURN_MIN_KM、后面又没有真实下一站
             # 时清锚，别把 19:00 的晚饭写在景区停车场地址上。

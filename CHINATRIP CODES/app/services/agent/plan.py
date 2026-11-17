@@ -12900,6 +12900,123 @@ def _meal_card_back_to_default(
     return True
 
 
+#: 先午餐后游览只认「远道到达」场景：观光卡离当天市区锚 ≥15km
+#: （慕田峪/朱家角这类目的地日）；市区串门日（外滩→豫园）不换。
+_LUNCH_FIRST_MIN_KM = 15.0
+
+
+def _lunch_before_destination_visit(plan: ItineraryPlan) -> list[str]:
+    """先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭（约 12:00）再游玩」）。
+
+    午饭占位卡锚在同址观光卡上、却被排在游后（游玩空肚横跨 12:00-13:00
+    午饭带，慕田峪 11:38-14:38 + 午饭 14:38 实录）→ 换序「到了先吃」：
+    午饭挪到观光卡原开始时刻（同址零车程），观光卡顺延到午饭后，同日
+    后续冲突件走 _ripple_after_duration 顺延；顺延把件顶过日终（转想去）
+    或换序后仍重叠（前面钉住件让不开）则整体回滚保持原状——宁可不换
+    不破盘。幂等：换序后午饭不再排在游后，条件自然不成立。真实餐厅卡
+    绝不换。触发只认「观光卡开始 ≤13:00」的到达即饭点场景。
+    """
+    from app.services.itinerary.rules import SAME_VENUE_KM
+
+    notes: list[str] = []
+    for day in plan.days:
+        for lunch in list(day.items):
+            if not (isinstance(lunch, VisitItem) and is_lunch_placeholder(lunch)):
+                continue
+            if lunch.start_time is None:
+                continue
+            anchor_pt = lunch.anchor_location or lunch.location
+            if anchor_pt is None:
+                continue
+            visit = next(
+                (
+                    v
+                    for v in day.items
+                    if isinstance(v, VisitItem)
+                    and v is not lunch
+                    and (v.category or "") not in ("food", "hotel")
+                    and v.start_time is not None
+                    and v.location is not None
+                    and haversine_km(v.location, anchor_pt) <= SAME_VENUE_KM
+                    and (_minutes_of(v.start_time) or 0) <= 13 * 60
+                ),
+                None,
+            )
+            if visit is None:
+                continue
+            # 目的地日闸：远道到达才换序（市区串门日午饭照旧随带骑）
+            city_pt = _day_city_anchor_pt(day)
+            if (
+                city_pt is None
+                or visit.location is None
+                or haversine_km(city_pt, visit.location) < _LUNCH_FIRST_MIN_KM
+                or (_minutes_of(visit.start_time) or 0) < 10 * 60 + 30
+            ):
+                continue
+            lunch_start = _minutes_of(lunch.start_time)
+            visit_start = _minutes_of(visit.start_time)
+            visit_end = _item_end_minutes(visit)
+            if visit_end is None or lunch_start < visit_end - 5:
+                continue
+            dur_visit = int(visit.duration_minutes or DEFAULT_VISIT_MINUTES)
+            dur_lunch = int(lunch.duration_minutes or 60)
+            new_lunch_start = visit_start
+            new_visit_start = new_lunch_start + dur_lunch
+            if new_visit_start + dur_visit > 21 * 60 + 30:
+                continue
+            snap = [
+                (i, i.start_time, i.end_time)
+                for i in day.items
+                if isinstance(i, VisitItem)
+            ]
+            lunch.start_time = _time_of(new_lunch_start)
+            lunch.end_time = _time_of(new_lunch_start + dur_lunch)
+            visit.start_time = _time_of(new_visit_start)
+            visit.end_time = _time_of(new_visit_start + dur_visit)
+            _moved, _dropped = _ripple_after_duration(day, visit)
+            broken = bool(_dropped)
+            timed = sorted(
+                (
+                    i
+                    for i in day.items
+                    if isinstance(i, VisitItem)
+                    and i.start_time is not None
+                    and (i.category or "") not in ("food", "hotel")
+                ),
+                key=lambda i: _minutes_of(i.start_time),
+            )
+            for a, b in zip(timed, timed[1:]):
+                ae = _item_end_minutes(a)
+                bs = _minutes_of(b.start_time)
+                if ae is not None and bs is not None and ae > bs:
+                    broken = True
+                    break
+            if broken:
+                for i, s, e in snap:
+                    i.start_time = s
+                    i.end_time = e
+                continue
+            for name in _dropped:
+                notes.append(
+                    L(
+                        f"「{name}」先午餐后游览顺延后超出日终，已转为想去候选",
+                        f'"{name}" fell past day end after the lunch-first'
+                        " swap and moved to the want-list",
+                    )
+                )
+            notes.append(
+                L(
+                    f"第{day.day}天先午餐后游览：午饭 "
+                    f"{lunch.start_time:%H:%M} 在{visit.name}，"
+                    f"游览顺延 {visit.start_time:%H:%M}-{visit.end_time:%H:%M}",
+                    f"Day {day.day}: lunch first at {visit.name} "
+                    f"{lunch.start_time:%H:%M}, sightseeing moved to "
+                    f"{visit.start_time:%H:%M}-{visit.end_time:%H:%M}",
+                )
+            )
+    return notes
+
+
 def _retime_meal_placeholders(
     plan: ItineraryPlan, *, ensure_cards: bool = True
 ) -> None:
@@ -14878,6 +14995,7 @@ def _assign_must_family_days(
     plan: ItineraryPlan,
     *,
     rain_days: dict[str, set[int]] | None = None,
+    preserve_timed: bool = False,
 ) -> list[str]:
     """必去族定天（2026-11-14 四段式 + 2026-11-15 四因子细化）。
 
@@ -14996,6 +15114,9 @@ def _assign_must_family_days(
         for v in fam:
             if int(v.day) == target_no:
                 continue
+            # reopen 保位：已带时刻的卡不挪天不清时刻
+            if preserve_timed and v.start_time is not None:
+                continue
             src = day_by_no.get(int(v.day))
             if src is not None and v in src.items:
                 src.items.remove(v)
@@ -15020,7 +15141,9 @@ def _assign_must_family_days(
     return notes
 
 
-def _separate_remote_must_days(plan: ItineraryPlan) -> list[str]:
+def _separate_remote_must_days(
+    plan: ItineraryPlan, *, preserve_timed: bool = False
+) -> list[str]:
     """远郊必去占一天（2026-11-15 用户拍板「远郊景点……也适合占一天」）。
 
     远郊那趟是全天的大动作：先给它在「别的必去最少」的那天安家，再把那天
@@ -15072,7 +15195,9 @@ def _separate_remote_must_days(plan: ItineraryPlan) -> list[str]:
                 d.day,
             ),
         )
-        if tgt is not home:
+        if tgt is not home and not (
+            preserve_timed and r.start_time is not None
+        ):
             home.items.remove(r)
             r.day = tgt.day
             r.start_time = None
@@ -15087,6 +15212,9 @@ def _separate_remote_must_days(plan: ItineraryPlan) -> list[str]:
                 )
             )
         for v in _other_musts(tgt, r):
+            # reopen 保位：已排必去不清时刻不挪天
+            if preserve_timed and v.start_time is not None:
+                continue
             alt = [
                 d
                 for d in plan.days
@@ -15237,7 +15365,9 @@ def _must_day_order(day: DayPlan, musts: list[VisitItem]) -> list[VisitItem]:
     return [anchor, *forward]
 
 
-def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
+def _pin_musts_by_importance(
+    plan: ItineraryPlan, *, preserve_timed: bool = False
+) -> list[str]:
     """必去按「地理顺序 + 重要度/约束」先钉时刻（2026-11-14 用户四段式）。
 
     ①地理分组已由 `_assign_must_family_days` 在天层完成；
@@ -15273,7 +15403,11 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
             ) or any(
                 v.start_time is None and rank_in_chain[id(v)] < len(seq) for v in musts
             )
-            if out_of_order and len(chain_all) >= 2:
+            if (
+                out_of_order
+                and len(chain_all) >= 2
+                and not preserve_timed
+            ):
                 # 顺序违反地理规则（远郊大点压到本地件后面）：当天必去是
                 # 引擎钉位，按用户拍板「先地理分组再钉时」重钉一次。
                 for v in timed:
@@ -15306,6 +15440,16 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
                 必去会压到饭点，餐卡随后由餐卡通道改时刻/缩时长让位；景点
                 自己的时长与 08:30 日始不动。"""
                 fixed, _tight, _flex, xfer = _day_fixed_windows(day)
+                if preserve_timed:
+                    # reopen 保位：探针不得压到已排 pinned/must 卡
+                    fixed = fixed + [
+                        (s, e, v)
+                        for v in musts
+                        if v is not mv
+                        for s in [_minutes_of(v.start_time)]
+                        for e in [_item_end_minutes(v)]
+                        if s is not None and e is not None
+                    ]
                 got = _probe_visit_slot(
                     mv,
                     _with_meal_bands(fixed, dur),
@@ -15322,7 +15466,7 @@ def _pin_musts_by_importance(plan: ItineraryPlan) -> list[str]:
 
             start = _try_start()
             removed: list[VisitItem] = []
-            if start is None:
+            if start is None and not preserve_timed:
                 victims = sorted(
                     [
                         v
@@ -16102,6 +16246,7 @@ def _must_visit_room_sweep(
     plan: ItineraryPlan,
     cap_relax: bool = False,
     rehome_names: set[str] | None = None,
+    preserve_timed: bool = False,
 ) -> list[str]:
     """必去让位清算（2026-11-04 it-b986c4f6 事故）：钉住未排的必去大点
     被同日自动凑数条目占满下午、挤到挂日尾无时刻（替代组正主 180min 被
@@ -16136,6 +16281,18 @@ def _must_visit_room_sweep(
                 fixed, _fixed_tight, _flex_lunches, xfer_windows = _day_fixed_windows(
                     day
                 )
+                if preserve_timed:
+                    # reopen 保位：试宿探针不得压到已排必去
+                    fixed = fixed + [
+                        (s, e, v)
+                        for v in day.items
+                        if isinstance(v, VisitItem)
+                        and getattr(v, "must", False)
+                        and v is not pv
+                        for s in [_minutes_of(v.start_time)]
+                        for e in [_item_end_minutes(v)]
+                        if s is not None and e is not None
+                    ]
                 # 2026-11-14 拍板撤掉「上午已被占从 12:00 起探」：必去大点
                 # 从日始起探——远点路程填上午空档，午餐缩时/嵌套/途中解决。
                 floor = DAY_START_MINUTES
@@ -16200,6 +16357,9 @@ def _must_visit_room_sweep(
                     if isinstance(v, VisitItem)
                     and v.start_time is not None
                     and not getattr(v, "created", False)
+                    and not (
+                        preserve_timed and getattr(v, "must", False)
+                    )
                     and (
                         not (v.pinned and not getattr(v, "soft_pin", False))
                         or _weaker_than_target(v)
@@ -18513,6 +18673,7 @@ def heal_meal_cards(session: PlanSession) -> list[str]:
         return []
     if notes:
         _drop_stale_missing_meal_notes(session.plan)
+    notes.extend(_lunch_before_destination_visit(session.plan))
     if notes or _meal_card_legs_stale(session.plan):
         # 卡位挪动后腿字段（baidu 实测）已对不上新邻接：本地重算直连
         # 距离/步行分钟，下一次 refresh_legs 再补真实路网。
@@ -31731,6 +31892,18 @@ class PlanningAgent:
                     session.plan.assumptions.append(note)
                 if note not in session.assumptions:
                     session.assumptions.append(note)
+        # 先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭再游玩」）：
+        # 同址午饭占位被排在游后 → 换序+顺延+披露；在已补短路之前跑，
+        # 旧会话开档也生效，短路口把披露一并带出。
+        swapped = _lunch_before_destination_visit(session.plan)
+        if swapped:
+            annotate_legs(session.plan)
+            for note in swapped:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
+            evicted.extend(swapped)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
         # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
         _filled = any(
@@ -31801,15 +31974,29 @@ class PlanningAgent:
             return []
         # ① 地理分组先定天（2026-11-14 四段式拍板）：必去同片区整族归一天，
         # 不同片区同天要计双程通勤，族定天后再钉时刻。
-        notes = _assign_must_family_days(plan)
+        # reopen 保位（2026-11-17 用户「不接受遗留：重开挤掉慕田峪」）：
+        # ✏️ 修改/重开已存行程（source_itinerary_id 在）时，已带时刻的
+        # pinned/must 卡是硬锚——族定天不挪、远郊分离不清、钉时探针
+        # 不与之重叠、让位梯不 eject 已排必去；新必去只落真空档，
+        # 落不进保持灰卡+披露（=重开前状态）。
+        preserve_reopen = bool(getattr(session, "source_itinerary_id", None))
+        notes = _assign_must_family_days(plan, preserve_timed=preserve_reopen)
         _mark_remote_visits(plan)
-        notes.extend(_separate_remote_must_days(plan))
+        notes.extend(
+            _separate_remote_must_days(plan, preserve_timed=preserve_reopen)
+        )
         # 无场次演出先摘（用户拍板：没有场次信息的不提案）
         notes.extend(_drop_sessionless_shows(plan))
         # ② 必去钉时先行：灰卡必去按重要度+约束抢时刻，塞不下删当日最弱
         # 件/更弱必去，再走让位清算。
-        notes.extend(_pin_musts_by_importance(plan))
-        notes.extend(_must_visit_room_sweep(plan, cap_relax=True))
+        notes.extend(
+            _pin_musts_by_importance(plan, preserve_timed=preserve_reopen)
+        )
+        notes.extend(
+            _must_visit_room_sweep(
+                plan, cap_relax=True, preserve_timed=preserve_reopen
+            )
+        )
         # ③ 必去骨架钉好后，剩余景点与餐卡交给求解器围着骨架排（相邻景点
         # 填空档、餐卡=最后才调的槽位）。
         _solved = self._solve(plan, meal_flex=True)

@@ -3467,7 +3467,13 @@ def test_departure_endpoint_out_reanchors_card_and_reflows():
             # 晨卡=出发时刻点（无 DURATION 出站）
             assert card["end_time"].startswith("08:59")
             assert card["duration_minutes"] == 0
-            assert items["mt"]["start_time"].startswith("11:08")
+            # 2026-11-17 用户拍板「到景区先吃午饭（约 12:00）再游玩」：
+            # 09:30 班 11:08 到慕田峪 → 午饭 11:08-12:08 同址先吃，
+            # 游览顺延 12:08-15:08（晨卡 08:59 出发不变）。
+            assert items["mt"]["start_time"].startswith("12:08"), items["mt"]["start_time"]
+            assert items["mt"]["end_time"].startswith("15:08")
+            lunch_card = items["food-lunch-ph-d1"]
+            assert lunch_card["start_time"].startswith("11:08")
     finally:
         access_services.configure_store(None)
 
