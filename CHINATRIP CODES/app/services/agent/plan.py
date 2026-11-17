@@ -18129,6 +18129,41 @@ def _panda_waypoint_pass(
     return notes
 
 
+def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
+    """白天入场闸读闸（2026-11-17 二拍「CAN WE FIX THE REMAINING ONE」：
+    M50创意园 16:58/静安寺 16:15 贴晚饭锚收尾案）：出站前最终否决——
+    非钉普通观光卡开场越过 generic_entry_cap（16:00/大点 15:30）的，
+    退回无时刻（转想去）并披露。豁免面与 solver.generic_entry_cap 同源
+    （餐宿/交通/演出/夜属性/仅晚开场馆/主题街区/用户钉住铁律 19）；
+    兜底排程、餐卡顺延、贴锚收口都无权推迟开场。幂等：无时刻卡不再
+    触发；只清时刻不动结构，后续重排仍可合法落位。"""
+    hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
+    notes: list[str] = []
+    for day in plan.days:
+        for it in day.items:
+            if not isinstance(it, VisitItem) or it.start_time is None:
+                continue
+            cap = generic_entry_cap(it, hours_by_poi.get(it.poi_id))
+            if cap is None:
+                continue
+            m = it.start_time.hour * 60 + it.start_time.minute
+            if m <= cap:
+                continue
+            hh, mm = divmod(cap, 60)
+            it.start_time = None
+            it.end_time = None
+            notes.append(
+                L(
+                    f"「{it.name}」{hh}:{mm:02d} 后停止入场（白天入场闸），"
+                    "已转为想去——可指定上午/下午时段加回",
+                    f'"{it.name}" stops entry after {hh}:{mm:02d} '
+                    "(daytime entry gate) — moved to want-to-visit; "
+                    "re-add it in a morning/afternoon slot",
+                )
+            )
+    return notes
+
+
 def heal_leg_gaps(plan: ItineraryPlan) -> list[str]:
     """读路径腿间隔自愈（2026-11-03 Day2 大遗址样本 13:30+90min→联票挂牌 15:00
     零车程事故）：11-02 _leg_windows 改造前的旧 session 兜底产物（锚窗

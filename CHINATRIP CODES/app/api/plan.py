@@ -76,6 +76,7 @@ from app.services.agent.plan import (
     current_violations,
     dedupe_plan_visits,
     drop_dangling_visits,
+    enforce_entry_gate,
     heal_arrival_light,
     heal_item_ids,
     heal_leg_gaps,
@@ -574,6 +575,9 @@ async def get_plan_session(
     await agent.refresh_legs(session)
     # 覆盖审计要在 save 之前跑（2026-11-17）：所有端点都是先落库再组响应，
     # 只在响应层审计会让披露/清脏不落库——GET 是持久化主路径，幂等可重入。
+    # 白天入场闸读闸（2026-11-17 二拍）同位落库：越闸非钉普通观光卡退回
+    # 无时刻+披露（幂等；豁免面与 solver.generic_entry_cap 同源）。
+    session.plan.assumptions.extend(enforce_entry_gate(session.plan))
     _audit_must_coverage(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
@@ -782,6 +786,9 @@ async def start_plan(
     session.account_id = account or session.account_id
     # 同款：save 前审计，生成首屏的披露/清脏直接落库（下方响应层的
     # _audit_must_coverage 保留为兜底，幂等无副作用）。
+    # 白天入场闸读闸同位：生成首屏的越闸卡先清时刻再落库。
+    if session.plan is not None:
+        session.plan.assumptions.extend(enforce_entry_gate(session.plan))
     _audit_must_coverage(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
@@ -789,6 +796,8 @@ async def start_plan(
         # 餐卡与紧邻景点的通勤腿（2026-11-15）：/plan/start 自己组响应、
         # 不走 _plan_turn_body，出站闸在这里也跑一次（幂等）。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # 白天入场闸读闸同款出站闸：生成首屏同样不允许越闸开场。
+        session.plan.assumptions.extend(enforce_entry_gate(session.plan))
         # 必去覆盖审计同款出站闸：生成响应首屏也不允许必去无声消失。
         _audit_must_coverage(session)
     if session.state == "clarify":
@@ -1114,6 +1123,9 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # 白天入场闸读闸（2026-11-17 二拍）：顺延/贴锚/兜底把非钉普通观光
+        # 卡推过 16:00/15:30 开场带的，出站前退回无时刻并披露（幂等）。
+        session.plan.assumptions.extend(enforce_entry_gate(session.plan))
         # 必去覆盖审计（2026-11-17）：出站闸最后一道——必去无声消失自动补披露。
         _audit_must_coverage(session)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
