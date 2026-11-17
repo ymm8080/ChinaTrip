@@ -341,10 +341,13 @@ def _overlap_any(name: str, exclude_names: set[str]) -> bool:
         if _name_overlap(n, ex_s):
             return True
         core_ex = _name_core(ex_s)
-        # ≥2 字核互含即同体（短核 ⊂ 长核带前缀名）；过短单字不认
+        # ≥3 字核互含即同体（短核 ⊂ 长核带前缀名；2026-11-17 由 ≥2 收紧
+        # ——「上海博物馆」核「上海」曾把全库「上海*」行当同体整批排除
+        # （活库实测 exclude 550 行），上海中心大厦卡永远亮不出环球金融
+        # 中心实录；2 字核同体交给 _name_overlap 头/尾互含与子序列闸）
         if (
-            len(core_n) >= 2
-            and len(core_ex) >= 2
+            len(core_n) >= 3
+            and len(core_ex) >= 3
             and (core_n in core_ex or core_ex in core_n)
         ):
             return True

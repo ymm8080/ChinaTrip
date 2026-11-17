@@ -997,3 +997,21 @@ def test_unplaced_chip_hotel_skipped():
         for it in d.items:
             if isinstance(it, VisitItem):
                 assert not it.alternatives
+
+
+def test_city_prefix_core_not_same_entity():
+    # 2026-11-17 实录：行程里有「上海博物馆」（通用尾缀剥离后核「上海」）
+    # 时，≥2 字核互含把全库「上海*」行当同体整批排除（exclude 550 行）
+    # ——环球金融中心亮不上上海中心大厦卡。收紧 ≥3 后跨实体行不再被
+    # 城市前缀核误杀。
+    swfc = hit("上海环球金融中心", 3, "viewpoint", 90, 4.3, loc=(121.5075, 31.2351))
+    alts = pick_alternatives(
+        [swfc],
+        category="viewpoint",
+        tier=1,
+        duration_minutes=120,
+        exclude_names={"上海博物馆"},
+        near=GeoPoint(lon=121.5053, lat=31.2336),
+        main_name="上海中心大厦",
+    )
+    assert [a.name for a in alts] == ["上海环球金融中心"]
