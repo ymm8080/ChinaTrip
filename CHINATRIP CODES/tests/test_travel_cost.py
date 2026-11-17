@@ -16,9 +16,7 @@ from app.services.itinerary.solver import (
 
 
 def _visit(iid, name, dur=60):
-    return VisitItem(
-        item_id=iid, name=name, city="西安", day=1, duration_minutes=dur
-    )
+    return VisitItem(item_id=iid, name=name, city="西安", day=1, duration_minutes=dur)
 
 
 def _transfer(iid="t1"):
