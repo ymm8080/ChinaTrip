@@ -32,6 +32,8 @@ def _item(
     category="attraction",
     bvt=None,
     pinned=False,
+    poi_id=None,
+    opening_hours=None,
 ):
     return VisitItem(
         item_id=iid,
@@ -44,6 +46,8 @@ def _item(
         category=category,
         best_visit_time=bvt,
         pinned=pinned,
+        poi_id=poi_id,
+        opening_hours=opening_hours,
     )
 
 
@@ -56,7 +60,17 @@ def _plan(*items):
 
 
 def test_after_gate_sight_goes_untimed_with_note():
-    plan = _plan(_item("v1", "静安寺", "16:15", "17:45", dur=90))
+    plan = _plan(
+        _item(
+            "v1",
+            "静安寺",
+            "16:15",
+            "17:45",
+            dur=90,
+            poi_id="jas",
+            opening_hours="周一至周日 07:30-18:00",
+        )
+    )
     notes = enforce_entry_gate(plan)
     card = plan.days[0].items[0]
     assert card.start_time is None and card.end_time is None
@@ -66,7 +80,16 @@ def test_after_gate_sight_goes_untimed_with_note():
 def test_big_site_15_30_band():
     # 120 分钟大点 16:00 开场 → 越 15:30 大点开场带
     plan = _plan(
-        _item("v1", "上海中心大厦", "16:00", "18:00", dur=120, category="viewpoint")
+        _item(
+            "v1",
+            "上海中心大厦",
+            "16:00",
+            "18:00",
+            dur=120,
+            category="viewpoint",
+            poi_id="tower",
+            opening_hours="周一至周日 08:30-22:00 最晚进入21:30",
+        )
     )
     notes = enforce_entry_gate(plan)
     assert plan.days[0].items[0].start_time is None
@@ -77,6 +100,32 @@ def test_within_gate_kept():
     plan = _plan(_item("v1", "豫园", "13:42", "15:12", dur=90, category="park"))
     assert enforce_entry_gate(plan) == []
     assert plan.days[0].items[0].start_time is not None
+
+
+def test_open_form_street_after_gate_kept():
+    # 2026-11-17 拍板：M50创意园/武康路类商业街 citywalk 无营业窗=
+    # 开放形态，晚闸豁免——16:58 开场照排不清时刻（与出站闸
+    # _evict_evening_gate_breachers 同口径）；全天窗（00:00-24:00）
+    # 的新天地同理。
+    plan = _plan(
+        _item("m50", "M50创意园", "16:58", "19:28", dur=150, category="citywalk")
+    )
+    assert enforce_entry_gate(plan) == []
+    assert plan.days[0].items[0].start_time is not None
+    plan2 = _plan(
+        _item(
+            "xtd",
+            "新天地",
+            "17:10",
+            "19:10",
+            dur=120,
+            category="attraction",
+            poi_id="xtd",
+            opening_hours="周一至周日 00:00-24:00",
+        )
+    )
+    assert enforce_entry_gate(plan2) == []
+    assert plan2.days[0].items[0].start_time is not None
 
 
 def test_exempt_surface_untouched():
@@ -99,7 +148,17 @@ def test_exempt_surface_untouched():
 
 
 def test_idempotent():
-    plan = _plan(_item("v1", "静安寺", "16:15", "17:45", dur=90))
+    plan = _plan(
+        _item(
+            "v1",
+            "静安寺",
+            "16:15",
+            "17:45",
+            dur=90,
+            poi_id="jas",
+            opening_hours="周一至周日 07:30-18:00",
+        )
+    )
     first = enforce_entry_gate(plan)
     assert first
     assert enforce_entry_gate(plan) == []
@@ -135,7 +194,15 @@ def test_get_readgate_strips_after_gate_sight():
     )
     session.plan = _plan(
         _item("v0", "上午点", "09:00", "10:30", dur=90),
-        _item("v1", "静安寺", "16:15", "17:45", dur=90),
+        _item(
+            "v1",
+            "静安寺",
+            "16:15",
+            "17:45",
+            dur=90,
+            poi_id="jas",
+            opening_hours="周一至周日 07:30-18:00",
+        ),
     )
     store.save(session)
 

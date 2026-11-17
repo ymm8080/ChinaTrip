@@ -18200,9 +18200,12 @@ def _panda_waypoint_pass(
 def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
     """白天入场闸读闸（2026-11-17 二拍「CAN WE FIX THE REMAINING ONE」：
     M50创意园 16:58/静安寺 16:15 贴晚饭锚收尾案）：出站前最终否决——
-    非钉普通观光卡开场越过 generic_entry_cap（16:00/大点 15:30）的，
-    退回无时刻（转想去）并披露。豁免面与 solver.generic_entry_cap 同源
-    （餐宿/交通/演出/夜属性/仅晚开场馆/主题街区/用户钉住铁律 19）；
+    非钉普通观光卡开场越过 generic_entry_cap（16:30/大点 15:30，
+    2026-11-17 拍板拨回）的，退回无时刻（转想去）并披露。豁免面与
+    solver.generic_entry_cap 同源（餐宿/交通/演出/夜属性/仅晚开场馆/
+    主题街区/用户钉住铁律 19）+ 开放形态（无营业窗/全天窗，M50创意园/
+    武康路类商业街 citywalk——与 _evict_evening_gate_breachers 同口径
+    的本地 _hours_open_form 判定，排程内部带语义不变）；
     兜底排程、餐卡顺延、贴锚收口都无权推迟开场。幂等：无时刻卡不再
     触发；只清时刻不动结构，后续重排仍可合法落位。"""
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
@@ -18211,7 +18214,14 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
         for it in day.items:
             if not isinstance(it, VisitItem) or it.start_time is None:
                 continue
-            cap = generic_entry_cap(it, hours_by_poi.get(it.poi_id))
+            win = hours_by_poi.get(it.poi_id) or _hours_from_visit(it)
+            if _hours_open_form(win):
+                # 开放形态豁免（2026-11-17 拍板「M50/武康路类商业街
+                # citywalk 不是封闭景区没有开放时间，晚闸豁免」）——
+                # 无窗/全天窗的开放街区不清时刻，与出站闸
+                # _evict_evening_gate_breachers 同口径。
+                continue
+            cap = generic_entry_cap(it, win)
             if cap is None:
                 continue
             m = it.start_time.hour * 60 + it.start_time.minute
