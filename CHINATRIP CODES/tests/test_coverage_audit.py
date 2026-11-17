@@ -100,9 +100,7 @@ def test_twin_rule_generic_modifier_vs_distinct_site():
     # 反向：必到写全名、排的是邻近短名，同样不算（万国建筑行已停用，
     # 若用户硬写全名，被顶替必须披露而非静默）
     bund = _plan(_visit("外滩"))
-    assert missing_must_visits(bund, ["外滩万国建筑博览群"]) == [
-        "外滩万国建筑博览群"
-    ]
+    assert missing_must_visits(bund, ["外滩万国建筑博览群"]) == ["外滩万国建筑博览群"]
     # 中段互含不算：奥林匹克 ≠ 北京奥林匹克公园（前置/后置才认）
     mid = _plan(_visit("北京奥林匹克公园"))
     assert missing_must_visits(mid, ["奥林匹克"]) == ["奥林匹克"]

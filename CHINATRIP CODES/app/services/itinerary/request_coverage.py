@@ -81,7 +81,7 @@ def _twin_cover(a: str, b: str) -> bool:
     if long.endswith(short):
         return True  # 前置修饰（X ≥2 字即认：城市/区域名不是专名性鉴别位）
     if long.startswith(short):
-        return long[len(short):] in _GENERIC_TAILS
+        return long[len(short) :] in _GENERIC_TAILS
     return False
 
 
