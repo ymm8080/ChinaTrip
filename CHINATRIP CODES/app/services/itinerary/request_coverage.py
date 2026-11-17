@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 
-from app.services.itinerary.models import ItineraryPlan
+from app.services.itinerary.models import ItineraryPlan, UnplacedCandidate
 
 _JUNK_RE = re.compile(r"[\s·、，。,.;；:：!！?？()（）\[\]【】「」\"'`\-—_]+")
 
@@ -59,6 +59,53 @@ def _scheduled_names(plan: ItineraryPlan) -> list[tuple[str, str | None]]:
                 continue  # TransferItem 等无 name 的段卡不参与覆盖匹配
             out.append((name, getattr(item, "name_en", None)))
     return out
+
+
+def _scheduled_entries(
+    plan: ItineraryPlan,
+) -> list[tuple[str | None, str, str | None]]:
+    """已排条目 (poi_id, name, name_en)——TransferItem 等无 name 段卡不参与。"""
+    out: list[tuple[str | None, str, str | None]] = []
+    for day in plan.days:
+        for item in day.items:
+            name = getattr(item, "name", None)
+            if name is None:
+                continue
+            out.append(
+                (getattr(item, "poi_id", None), name, getattr(item, "name_en", None))
+            )
+    return out
+
+
+def dedupe_unplaced_against_scheduled(
+    plan: ItineraryPlan,
+) -> list[UnplacedCandidate]:
+    """已排卡不得同时挂在 unplaced（双在场；2026-11-17 基线排查实锤）。
+
+    只做保守同体判定：poi_id 相同，或 规范名/name_en 全等。包含关系不算
+    ——外滩 vs 外滩源是两个不同景点，互含会把合法 chip 误清（请求侧审计的
+    双胞胎容忍是故意的不对称：请求模糊些防误报，chip 侧严格防误删）。
+    原地收窄 plan.unplaced，返回被移除的重复项——站点已在行程里，chip 本身
+    是脏数据，记日志即可、无披露必要。
+    """
+    sched = _scheduled_entries(plan)
+    if not sched or not plan.unplaced:
+        return []
+    kept: list[UnplacedCandidate] = []
+    removed: list[UnplacedCandidate] = []
+    for u in plan.unplaced:
+        un = _norm(u.name)
+        ue = _norm(u.name_en)
+        dup = any(
+            (u.poi_id and pid and u.poi_id == pid)
+            or (un and un == _norm(n))
+            or (ue and ue == _norm(e))
+            for pid, n, e in sched
+        )
+        (removed if dup else kept).append(u)
+    if removed:
+        plan.unplaced = kept
+    return removed
 
 
 def missing_must_visits(

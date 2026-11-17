@@ -88,7 +88,10 @@ from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary.legs import attach_return_cards
 from app.services.itinerary.models import UnplacedCandidate
-from app.services.itinerary.request_coverage import ensure_must_disclosure
+from app.services.itinerary.request_coverage import (
+    dedupe_unplaced_against_scheduled,
+    ensure_must_disclosure,
+)
 from app.services.itinerary_store import (
     ItineraryRecord,
     ItineraryService,
@@ -1016,6 +1019,17 @@ def _audit_must_coverage(session: PlanSession) -> None:
     ):
         logger.warning(
             "plan/session %s must-visit silent drop: %s", session.session_id, line
+        )
+    # 双在场清脏（2026-11-17 基线排查实锤）：已排卡的必去不得同时挂在
+    # unplaced——保守同体判定（poi_id 相同/规范名全等），互含不算
+    # （外滩 vs 外滩源是两个景点，误清会丢合法 chip）。无披露必要：
+    # 站点已在行程里，chip 本身是脏数据，记日志即可。
+    dups = dedupe_unplaced_against_scheduled(session.plan)
+    if dups:
+        logger.warning(
+            "plan/session %s unplaced duplicate chips removed: %s",
+            session.session_id,
+            [d.name for d in dups],
         )
 
 

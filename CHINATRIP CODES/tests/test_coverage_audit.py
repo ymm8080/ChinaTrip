@@ -8,6 +8,7 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.request_coverage import (
+    dedupe_unplaced_against_scheduled,
     ensure_must_disclosure,
     missing_must_visits,
 )
@@ -92,3 +93,43 @@ def test_transfer_items_ignored_and_no_must_no_noise():
     assert missing_must_visits(plan, ["外滩"]) == []
     assert missing_must_visits(plan, []) == []
     assert ensure_must_disclosure(plan, []) == []
+
+
+def test_dedupe_unplaced_removes_exact_duplicates_only():
+    plan = _plan(
+        _visit("上海中心大厦", name_en="Shanghai Tower"), _visit("外滩源")
+    )
+    plan.unplaced = [
+        UnplacedCandidate(name="上海中心大厦"),
+        UnplacedCandidate(name="别的塔", poi_id="p-x"),
+        UnplacedCandidate(name="whatever", name_en="Shanghai Tower"),
+    ]
+    removed = dedupe_unplaced_against_scheduled(plan)
+    assert [u.name for u in removed] == ["上海中心大厦", "whatever"]
+    assert [u.name for u in plan.unplaced] == ["别的塔"]
+
+
+def test_dedupe_unplaced_by_poi_id():
+    plan = _plan(_visit("观光厅", name_en="Observatory"))
+    plan.days[0].items[0].poi_id = "poi-42"
+    plan.unplaced = [UnplacedCandidate(name="全然不同的名字", poi_id="poi-42")]
+    removed = dedupe_unplaced_against_scheduled(plan)
+    assert len(removed) == 1
+    assert plan.unplaced == []
+
+
+def test_dedupe_unplaced_keeps_twin_names():
+    # 互含不算同体：外滩源已排，外滩是另一个景点，chip 必须保留
+    plan = _plan(_visit("外滩源"))
+    plan.unplaced = [UnplacedCandidate(name="外滩"), UnplacedCandidate(name="外滩")]
+    removed = dedupe_unplaced_against_scheduled(plan)
+    assert removed == []
+    assert [u.name for u in plan.unplaced] == ["外滩", "外滩"]
+
+
+def test_dedupe_unplaced_noop_on_empty():
+    plan = _plan(_visit("外滩"))
+    assert dedupe_unplaced_against_scheduled(plan) == []
+    empty_days = ItineraryPlan(itinerary_id="it-x", cities=[], days=[])
+    empty_days.unplaced = [UnplacedCandidate(name="豫园")]
+    assert dedupe_unplaced_against_scheduled(empty_days) == []
