@@ -170,10 +170,24 @@ def resolve_meal_anchors(plan: ItineraryPlan) -> ItineraryPlan:
             # 换序后午饭占位排在同址观光卡前、前面又没有可继承的落脚点
             # （晨卡无坐标）——锚改取后站（观光卡），地址/接驳档案随锚，
             # 否则每次 annotate 都会把午饭地址清空。
+            # 2026-11-17 慕田峪案：午饭排在远郊观光卡前时，锚一律取后站
+            # （远郊点）——即使前面有市区落脚点（老舍茶馆），否则午饭
+            # 地址/接驳档案被锚到城里，卡面与腿时刻脱节。
+            _mode_n, _t_n, _svc_n, _w_n, _l_n = (
+                _access_profile(next_loc)
+                if next_loc is not None
+                else (None, None, None, None, None)
+            )
+            remote_next = bool(
+                next_loc is not None
+                and (
+                    _mode_n in SCHEDULED_ACCESS_MODES
+                    or getattr(next_loc, "remote", False)
+                )
+            )
             if (
                 str(item.item_id or "").startswith("food-lunch-ph")
-                and anchor is None
-                and prev_loc is None
+                and (anchor is None and prev_loc is None or remote_next)
                 and next_loc is not None
                 and item.start_time is not None
                 and next_loc.start_time is not None

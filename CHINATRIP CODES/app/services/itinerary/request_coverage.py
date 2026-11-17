@@ -23,7 +23,11 @@ from __future__ import annotations
 
 import re
 
-from app.services.itinerary.models import ItineraryPlan, UnplacedCandidate
+from app.services.itinerary.models import (
+    ItineraryPlan,
+    UnplacedCandidate,
+    VisitItem,
+)
 
 _JUNK_RE = re.compile(r"[\s·、，。,.;；:：!！?？()（）\[\]【】「」\"'`\-—_]+")
 
@@ -156,6 +160,59 @@ def dedupe_unplaced_against_scheduled(
     if removed:
         plan.unplaced = kept
     return removed
+
+
+def demote_untimed_musts(plan: ItineraryPlan, *, lang: str = "zh") -> list[str]:
+    """B-01（2026-11-17 颐和园案）：必去/钉住的无时刻灰卡不是合法终态。
+
+    出站闸里把这类卡降级成 unplaced（reason=must_unseated，day_hint=原天）
+    并补披露——必去要么带时刻在场、要么可见地落在想去+披露，绝不挂灰卡。
+    幂等：降级后灰卡不存在，二次运行为空。
+    """
+    notes: list[str] = []
+    for day in plan.days:
+        for item in list(day.items):
+            if not isinstance(item, VisitItem):
+                continue
+            if item.start_time is not None:
+                continue
+            if (item.category or "") in ("food", "hotel"):
+                continue
+            if not (item.pinned or getattr(item, "must", False)):
+                continue
+            known_poi = {u.poi_id for u in (plan.unplaced or []) if u.poi_id}
+            known_names = {_norm(u.name) for u in (plan.unplaced or [])}
+            day.items.remove(item)
+            if item.poi_id and item.poi_id in known_poi:
+                continue
+            if _norm(item.name) in known_names:
+                continue
+            plan.unplaced = list(plan.unplaced or []) + [
+                UnplacedCandidate(
+                    name=item.name,
+                    name_en=getattr(item, "name_en", None),
+                    poi_id=item.poi_id,
+                    category=item.category,
+                    tier=item.tier,
+                    duration_minutes=item.duration_minutes,
+                    location=item.location,
+                    city=item.city,
+                    day_hint=item.day,
+                    reason="must_unseated",
+                )
+            ]
+            notes.append(
+                (
+                    f"必去「{item.name}」暂未排上时刻（当天排不下），已列入"
+                    "想去——可指定其他日期或缩短停留后加回"
+                )
+                if lang != "en"
+                else (
+                    f"Must-visit '{item.name}' could not be timed today; "
+                    "moved to wishlist — specify another day or shorter stay"
+                )
+            )
+    return notes
 
 
 def missing_must_visits(

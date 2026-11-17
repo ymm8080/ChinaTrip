@@ -89,10 +89,16 @@ from app.services.fast_lane import FastLane
 from app.services.flights_variflight import build_flight_service
 from app.services.gate import Lane, RequestGate
 from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
+from app.services.itinerary.hotfix_1117 import (
+    evict_fillers_when_must_unseated,
+    evict_pre_remote_fillers,
+    retime_remote_day_from_access,
+)
 from app.services.itinerary.legs import attach_return_cards
 from app.services.itinerary.models import UnplacedCandidate
 from app.services.itinerary.request_coverage import (
     dedupe_unplaced_against_scheduled,
+    demote_untimed_musts,
     ensure_must_disclosure,
 )
 from app.services.itinerary_store import (
@@ -1073,6 +1079,23 @@ def _audit_must_coverage(session: PlanSession) -> None:
     """
     if session.plan is None:
         return
+    # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
+    lang = getattr(session, "lang", "zh") or "zh"
+    must_names = getattr(session, "must_visits", None) or []
+    session.plan.assumptions.extend(
+        evict_fillers_when_must_unseated(session.plan, must_names=must_names, lang=lang)
+    )
+    session.plan.assumptions.extend(evict_pre_remote_fillers(session.plan, lang=lang))
+    session.plan.assumptions.extend(
+        retime_remote_day_from_access(session.plan, lang=lang)
+    )
+    for line in demote_untimed_musts(session.plan, lang=lang):
+        logger.warning(
+            "plan/session %s untimed must demoted: %s",
+            session.session_id,
+            line,
+        )
+        session.plan.assumptions.append(line)
     for line in ensure_must_disclosure(
         session.plan,
         getattr(session, "must_visits", None) or [],
