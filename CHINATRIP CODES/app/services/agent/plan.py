@@ -1901,6 +1901,26 @@ def _solver_degraded_assumption() -> str:
     )
 
 
+def _append_solve_degradation_notes(
+    plan: "ItineraryPlan", *, degraded: bool, had_untimed: bool
+) -> None:
+    """降级披露拆分（2026-11-17）：真降级（solve 返回 None）才说
+
+    「求解器未收敛」；solver 出解但个别卡没排进理想时段、按顺序留位的
+    ——如实披露留位，不再谎称未收敛（旧口径两者混同，live 实测全勤
+    披露大多其实是后一条；真降级根因已由 e6133a4 修掉）。
+    """
+    if degraded:
+        plan.assumptions.append(_solver_degraded_assumption())
+    elif had_untimed:
+        plan.assumptions.append(
+            L(
+                "部分卡未排进理想时段，已按游览顺序留位",
+                "Some cards got fallback times in visit order",
+            )
+        )
+
+
 MAX_LINK_SITES = 10  # §6.5: sites surfaced from one pasted link
 # 自由输入读点（2026-11-14）：一段描述最多读成几个必去；短于
 # _MIN_BRIEF_TEXT 的句子不读——「北京」两个字是路线声明不是描述。
@@ -29872,14 +29892,17 @@ class PlanningAgent:
             plan = solved
         # 2026-10-31：solver 按日降级后，失败日的 untimed 条目在此顺序
         # 兜底（其余天保住优化解）；降级判定=还有未排时间的参访。
-        if degraded or _has_untimed_visits(plan):
+        had_untimed = _has_untimed_visits(plan)
+        if degraded or had_untimed:
             _fallback_sequence_times(plan)
             # 转场日无时刻卡清算（2026-11-02「第1天无安排」事故）：兜底
             # 仍排不上时刻的转场日参访挪日/移除留痕，再兜底一次给挪过去的
             # 条目落时刻。
             plan.assumptions.extend(_transfer_day_sweep(plan, must_names, tier_map))
             _fallback_sequence_times(plan)
-            plan.assumptions.append(_solver_degraded_assumption())
+            _append_solve_degradation_notes(
+                plan, degraded=degraded, had_untimed=had_untimed
+            )
         # 看熊猫顺路换苑闸（2026-11-11 拍板）：solve/兜底落定后、上午保底
         # 与后续结构相位之前——挪过去的苑卡交给完整下游管线（上午保底/
         # 跨天均衡/转场扫/纯度/楔子/每场闸/终装清扫）统一处置，试排验收
