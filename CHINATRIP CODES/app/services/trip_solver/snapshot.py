@@ -16,6 +16,7 @@ from .types import (
     AccessProfile,
     CandidateItem,
     FactSnapshot,
+    FixedPin,
     RequestedItem,
     TravelLeg,
     TripRequest,
@@ -94,6 +95,15 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
         departure_time=req_raw.get("departure_time"),
         day1_start=req_raw.get("day1_start"),
         lang=req_raw.get("lang", "zh"),
+        pins=tuple(
+            FixedPin(
+                rid=str(p["rid"]),
+                day=int(p["day"]),
+                start_min=int(p["start_min"]),
+                cid=str(p.get("cid", "")),
+            )
+            for p in req_raw.get("pins", ())
+        ),
     )
     return FactSnapshot(
         schema_version=int(raw.get("schema_version", SNAPSHOT_SCHEMA_VERSION)),

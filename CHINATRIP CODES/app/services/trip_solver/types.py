@@ -78,6 +78,16 @@ class TravelLeg:
 
 
 @dataclass(frozen=True)
+class FixedPin:
+    """C-04: an immovable placement (iron rule 19)."""
+
+    rid: str
+    day: int
+    start_min: int
+    cid: str = ""  # optional direct candidate binding
+
+
+@dataclass(frozen=True)
 class TripRequest:
     days: int
     cities: tuple[str, ...]
@@ -89,6 +99,7 @@ class TripRequest:
     departure_time: Optional[str] = None
     day1_start: Optional[str] = None
     lang: str = "zh"
+    pins: tuple["FixedPin", ...] = ()  # C-04 fixed placements
 
 
 @dataclass(frozen=True)
