@@ -243,3 +243,11 @@ FLAIR（成都同名）、大蓉和（张家界）、厚贞（上海杨浦）、
 - **pois**：`backfill_photos --limit 800` → `{"targets": 800, "hits": 0, "no_data": 7, "errors": 0, "filled": {}, "stop": "quota_exhausted_stop"}`——仅 7 行即熔断：日池在 00:00-00:06 已被并行自动化（`run_parallel_automation.py` 23:30 起跑）烧穿；选中行是 chinatravel 段（curated/amap 段均在 24h 冷却内）。7 行均为无坐标 v3 档（WAF punish）落空，非配额行。续跑点：明日 00:00 重置后立即跑，或与并行自动化错开/分 key。
 - **restaurants**：`backfill_restaurant_photos --limit 500 -c 2` → `{"targets": 500, "hits": 0, "no_data": 0, "errors": 0, "filled": {}, "stop": "quota_exhausted_stop"}`——第一行即熔断，与 pois 共享同一日池（再次证实"around 独立配额"不成立）。今日不重试。
 - 附注：ctrip 长会话偶发 `SSL: WRONG_VERSION_NUMBER`（_LIST_URL 握手瞬时失败），链上按警告降级不影响积分。
+
+### 2026-11-17 23:40+ 马蜂窝一城一批（IAB，5 分钟调度接管）
+
+- **西安 5 行入库**：秦始皇帝陵博物院 8 图（poi 2724）、大唐不夜城步行街 8 图（5434638）、长安十二时辰·唐宴 4 图（同址嵌套←主题街区页 123619664）、醉长安（钟楼旗舰店）8 图（餐厅页 34079624）、高家大院 8 图（5423258）。
+- **北京 3 行入库**：红砖美术馆 8 图（9597016）、松美术馆 8 图（33786768）、北京画院美术馆 8 图（864031）。
+- 跳过：木木美术馆（马蜂窝无 POI 页）；石鼓文化城（无页，尾库放弃）。
+- 流程要点：结果卡事实链接=sharejump.php?type=3&id=N（type=3 景点/type=1 餐厅），poi 页可直跳 www.mafengwo.cn/poi/N.html；SPA 站内 goto 对同 host 常不生效需用搜索框；滑块 gate 人工放行一次后整批畅通。
+- **调度**：automation-88f61085 已改造为「每5分钟马蜂窝一城一批收割」（原 00:05 amap 批被替换——连续两晨配额被并行任务抢空，价值降低；收割完可重建）。下一城：北京余量（民生现代美术馆/模式口/华熙五棵松 + 餐厅 新荣记金融街/烤肉宛/炸酱面大王/沃夫冈）→ 上海→广州→成都→杭州→深圳→苏州→南京→武汉→重庆。
