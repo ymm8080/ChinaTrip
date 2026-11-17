@@ -991,9 +991,7 @@ def test_unplaced_chip_hotel_skipped():
     """「想排未排」chip 同闸：住宿心愿（含类别误标行）不亮到景点卡右侧。"""
     plan = _two_day_plan()
     plan.unplaced.append(_unplaced(name="某酒店", category="hotel"))
-    plan.unplaced.append(
-        _unplaced(name="上海外滩沙美大楼ZHotel", category="nature")
-    )
+    plan.unplaced.append(_unplaced(name="上海外滩沙美大楼ZHotel", category="nature"))
     out = attach_plan_alternatives(plan, FakeStore([]))
     for d in out.days:
         for it in d.items:
