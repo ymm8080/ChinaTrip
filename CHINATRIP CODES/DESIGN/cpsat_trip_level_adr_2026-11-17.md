@@ -8,6 +8,9 @@
 - **变量**：每个候选 POI × 天 → `presence`（optional bool）+ `day` + `start`（区间变量）；每个必去/心愿条目一个 `requested` 字面量 + 一个 `unplaced_var`（bool）。硬链：`requested ∧ ¬presence → unplaced_var`——**必去静默丢失在模型层不可表示**，只能翻转 `unplaced_var` 落进 unplaced/披露（现 e9b492c 出站闸的运行时版）。
 - **硬约束**（现 rules.py 铁律的模型化）：开放窗（含 16:00/15:30 白天入场闸，2026-11-17 晚闸口径：SHOW/夜游/夜市豁免、塔类不豁免）、NoOverlap、城际腿缓冲、pinned 时刻、餐锚、班次接驳链。
 - **软约束/目标**（字典序分层，替代手搓代价塔 `_morning_extra_cost/_big_first_cost/...`）：①必去覆盖最大化（按重要度加权）②偏好/多样性/评分（补点排序口径同 2026-11-17 拍板：类别精确>距离>时长>评分）③总车程最小化 ④makespan。
+- **转移结构/地理邻接（2026-11-17 补）**：距离矩阵（`coords.haversine_m`/通勤估计）+ `access_services` 接驳档案（access/board 分钟、票价）作弧权，日内顺序用环/弧变量表达——「地理相邻」不再是 5km/25km 距离闸硬卡，而是目标③总车程最小化 + 日内转移时间约束；「邻近顶替」属审计语义，留在出站闸。
+- **远郊行程腿（2026-11-17 补）**：接驳 access/board 时长=长区间约束（慕田峪类远郊点吃掉大块时间，模型天然不会往远郊日塞市区点）；远郊日专属性=日级聚合约束（当天含远郊簇点→同日其余点须同簇或为空，语义同 `_separate_remote_must_days/_day_already_remote`）；到达/离城端点日=端点约束（行前卡体系同源）。
+- **天气条件化（2026-11-17 补）**：天气是输入数据不是模型内部推理——`weather_reports` 预报 × 库内 indoor/rain_ok 属性（`backfill_indoor_rain` 已回填）作 POI×天 条件；雨日户外点降权/禁排（现 `_MUST_RAIN_OUTDOOR_PENALTY/_MUST_RAIN_INDOOR_PENALTY` 代价语义改为软约束/条件约束），`rain_outdoor` 披露由约束事实生成；预报变更=换输入重解，编辑通道现成。
 - **松弛阶梯替代 LLM 自修复链**：不可行 → 按 D2 声明顺序逐级放软约束（CP-SAT assumptions 字面量），`sufficient_assumptions_for_infeasibility` 直接产出**不可行证书**（「豫园 16:30 闭园 + 朱家角 15:08 回城」）→ 披露文案由证书生成，LLM 只叙述不修排期。
 - **确定性**：固定 `num_workers=1` + 固定搜索种子；同输入同输出（「同输入不同行程」应是红灯测试而非日常）。
 - **编辑重排**：改时长/挪天/删卡 → 上一版解作 solution hint 热启动重解，替换 `_ripple_after_duration/_resequence` 手搓顺延梯。
@@ -23,6 +26,7 @@
 
 - 契约测试全绿（三分律/双在场/双胞胎口径）+ 黄金行程语料（真实事故场景库，持续扩）+ 属性式不变量（同输入逐字节可复现）。
 - 性能：每程几十个景点，CP-SAT 亚秒级；现有 3s 预算不动。
+- **防御纵深**：切流后 P0 出站闸（三分律审计/双在场清脏/入场闸读闸/rain_outdoor 披露）保留为运行时不变量验收线——任何生成路径都过闸，不是排期逻辑的重复执行。
 - 回滚：P2 影子期无风险；P3 保留级联开关一版。
 
 ## D4 风险与坑
