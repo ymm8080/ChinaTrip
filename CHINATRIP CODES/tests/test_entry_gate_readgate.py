@@ -139,9 +139,7 @@ def test_get_readgate_strips_after_gate_sight():
     )
     store.save(session)
 
-    resp = TestClient(app).get(
-        "/api/v1/plan/s-gate", headers={"X-Device-ID": "dev-1"}
-    )
+    resp = TestClient(app).get("/api/v1/plan/s-gate", headers={"X-Device-ID": "dev-1"})
     assert resp.status_code == 200
     body = resp.json()
     days = body["plan"]["days"]
