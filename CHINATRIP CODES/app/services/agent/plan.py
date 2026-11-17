@@ -20489,9 +20489,7 @@ class PlanningAgent:
                 # 分高先入列——被点名的具体子行（衍生名）就是想去的本体，
                 # 母项到得晚不再顶掉它。服务行豁免同 dedupe 闸。
                 holder, held = pair
-                if n != (
-                    holder if _CONTAINED_CHILD_SERVICE_RE.search(held) else held
-                ):
+                if n != (holder if _CONTAINED_CHILD_SERVICE_RE.search(held) else held):
                     return
                 added[twin_i] = n
             else:
