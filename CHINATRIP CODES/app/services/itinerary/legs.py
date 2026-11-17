@@ -43,6 +43,7 @@ from app.services.itinerary.rules import (
     travel_gap_needed,
 )
 from app.services.lang_ctx import L
+from app.services.restaurants import is_dinner_placeholder
 
 DETOUR_FACTOR = 1.3  # straight-line -> walking-route correction
 WALK_METERS_PER_MINUTE = 80.0  # ≈ 4.8 km/h sightseeing pace
@@ -403,6 +404,138 @@ def _lift_legs_off_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+#: 让位档（2026-11-17 用户拍板）：60<d<90 → 1-15；90≤d<120 → 15-30；
+#: d≥120 → 15 起、最多 60（「d>=120 -> above 30」）。
+def _trim_band(dur: int) -> tuple[int, int]:
+    if dur >= 120:
+        return 15, 60
+    if dur >= 90:
+        return 15, 30
+    if dur > 60:
+        return 1, 15
+    return 0, 0
+
+
+def _next_start_after(day: DayPlan, site: VisitItem) -> int | None:
+    """site **散场之后**第一张有时刻的卡的开始分钟（回城段要让路的那张）。
+
+    必须从 site.end 起算：嵌在景点里的同址占位餐卡（anchor_from_prev，午饭
+    11:30 站在 11:00-15:00 的景区卡上）不是「下一张卡」——按 site.start 找
+    会把午饭当成下一站，回城段一算就「超时 270 分钟」，白缩 60 分钟。
+    """
+    s_min = _clock_minutes(site.start_time)
+    end_min = _clock_minutes(site.end_time)
+    if s_min is None:
+        return None
+    floor = end_min if end_min is not None else s_min
+    best: int | None = None
+    for item in day.items:
+        if item is site or getattr(item, "anchor_from_prev", False):
+            continue
+        st = _clock_minutes(getattr(item, "start_time", None))
+        if st is None or st < floor:
+            continue
+        if best is None or st < best:
+            best = st
+    return best
+
+
+def _trim_site_for_return(plan: ItineraryPlan, day: DayPlan) -> None:
+    """回城段压住下一张卡 → 缩短景点，绝不把回城/晚饭往后顶。
+
+    2026-11-17 用户「SHRINK SITES' DURATION」「duration of 汽车 CAN BE
+    REDUCED HALF HOUR OR MORE TO ADOPT THE NEXT CARD」：汽车乐园 240 分钟
+    14:40-18:40 时回城段落到 18:30-19:27，压住 19:10 的晚饭——按档缩短
+    景点让回城段落在下一张卡之前。
+    """
+    timed = [
+        i for i in day.items if isinstance(i, VisitItem) and i.start_time is not None
+    ]
+    site = next(
+        (
+            i
+            for i in reversed(timed)
+            if (i.next_leg_detail or {}).get("direction") == "return"
+        ),
+        None,
+    )
+    if site is None:
+        return
+    detail = site.next_leg_detail or {}
+    arrive = _parse_clock_text(detail.get("arrive_time"))
+    if arrive is None:
+        return
+    nxt = _next_start_after(day, site)
+    if nxt is None:
+        return
+    over = (_clock_minutes(arrive) or 0) - nxt
+    if over <= 0:
+        return
+    # ① 先试「顺延下一张卡」（2026-11-17 用户「先看看 postpone 行不行」）：
+    # 下一张是晚饭占位卡且顺延后仍 ≤19:30 开场 → 挪卡，景点时长不动。
+    nxt_item = next(
+        (
+            i
+            for i in day.items
+            if i is not site and _clock_minutes(getattr(i, "start_time", None)) == nxt
+        ),
+        None,
+    )
+    # 只治「当天收尾」这一段（2026-11-17 用户口径）：下一张必须是晚饭占位卡
+    # 或酒店卡，才是「回城段压住晚饭」的形状；后面还有真实景点时不动——
+    # 那是普通腿链的事，硬缩景点会把白天行程改形（太平森林公园 180→120 案）。
+    _tail_ok = nxt_item is not None and (
+        is_dinner_placeholder(nxt_item)
+        or str(getattr(nxt_item, "item_id", "") or "").startswith("hotel-night")
+        or str(getattr(nxt_item, "category", "") or "") == "hotel"
+    )
+    if not _tail_ok:
+        return
+    if nxt_item is not None and is_dinner_placeholder(nxt_item):
+        moved = _clock_minutes(arrive) or 0
+        if moved <= 19 * 60 + 30:
+            dur = int(nxt_item.duration_minutes or 90)
+            nxt_item.start_time = _time_of(moved)
+            nxt_item.end_time = _time_of(moved + dur)
+            plan.assumptions.append(
+                L(
+                    f"晚饭为接上回城段顺延到 {nxt_item.start_time:%H:%M}",
+                    f"Dinner moved to {nxt_item.start_time:%H:%M} "
+                    "so the return leg fits",
+                )
+            )
+            return
+    lo, hi = _trim_band(int(site.duration_minutes or 0))
+    cut = min(over, hi)
+    if hi <= 0 or cut < lo:
+        return
+    end_min = (_clock_minutes(site.end_time) or 0) - cut
+    start_min = _clock_minutes(site.start_time) or 0
+    if end_min <= start_min:
+        return
+    before_dur = int(site.duration_minutes or 0)
+    span = int(detail.get("service_minutes") or detail.get("taxi_minutes") or 0)
+    new_end = end_min
+    site.end_time = _time_of(new_end)
+    site.duration_minutes = max(30, int(site.duration_minutes or 0) - cut)
+    # 打车回城：发车=散场、到达=散场+车程，直接按新散场重写时刻（班次回城
+    # 是时刻表铆钉，不在这里动）。
+    if span and not detail.get("departures"):
+        upd = dict(detail)
+        upd["board_time"] = _clock(new_end)
+        upd["depart_time"] = _clock(new_end)
+        upd["arrive_time"] = _clock(new_end + span)
+        site.next_leg_detail = upd
+    plan.assumptions.append(
+        L(
+            f"「{site.name}」为接上回城段缩短 "
+            f"{before_dur}→{site.duration_minutes} 分钟",
+            f'"{site.name}" shortened {before_dur}→'
+            f"{site.duration_minutes} min so the return leg fits",
+        )
+    )
+
+
 def _attach_leg_returns(plan: ItineraryPlan) -> None:
     """当天收口：班次点三段回城链 + 远郊末站打车回城段（每天各一次）。"""
     for day in plan.days:
@@ -413,6 +546,7 @@ def _attach_leg_returns(plan: ItineraryPlan) -> None:
         ]
         _attach_tail_return(day, timed)
         _attach_plain_tail_return(day, timed)
+        _trim_site_for_return(plan, day)
 
 
 def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:

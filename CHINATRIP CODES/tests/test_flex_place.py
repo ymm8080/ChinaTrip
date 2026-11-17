@@ -59,7 +59,9 @@ def test_shrink_band_matches_user_rule() -> None:
     assert band(75) == (1, 15)
     assert band(89) == (1, 15)
     assert band(90) == (15, 30)
-    assert band(210) == (15, 30)
+    # 2026-11-17 用户拍板「d>=120 -> above 30」：两小时以上上限放到 60
+    assert band(120) == (15, 60)
+    assert band(210) == (15, 60)
     assert band(60) == (0, 0)
     assert band(45) == (0, 0)
     # 强约束面不缩：用户钉住 / 演出 / 餐 / 宿

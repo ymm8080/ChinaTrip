@@ -12726,13 +12726,12 @@ def _retime_meal_placeholders(
                 if is_lunch
                 else [original_dur]
             )
+            # 晚饭与午饭同口径的餐卡弹性（2026-11-17 用户拍板
+            # 「DINNER CAN STARTS EARLIEST 18, LATEST 19:30」）：晚饭最晚
+            # 19:30 开场，最早 18:00——回城段晚到一点就把晚饭顺延，别压缩
+            # 白天的景点。
             lo, hi = (
-                (11 * 60 + 30, 12 * 60 + 30)
-                if is_lunch
-                else (
-                    max(0, preferred - 30),
-                    min(day_end - original_dur, preferred + 30),
-                )
+                (11 * 60 + 30, 12 * 60 + 30) if is_lunch else (18 * 60, 19 * 60 + 30)
             )
             if ("lunch" if is_lunch else "dinner") in taken_cards:
                 day.items.remove(meal)
@@ -14001,6 +14000,10 @@ def _shrink_band(item) -> tuple[int, int]:
     dur = int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
     if 60 < dur < 90:
         return (1, 15)
+    if dur >= 120:
+        # 2026-11-17 用户拍板「d>=120 -> above 30」：两小时以上的大块能给
+        # 更多余量，上限 60 分钟（再缩就不是这个景点了）。
+        return (15, 60)
     if dur >= 90:
         return (15, 30)
     return (0, 0)
