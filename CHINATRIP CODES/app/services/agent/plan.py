@@ -3109,6 +3109,29 @@ def _same_site(a: str, b: str) -> bool:
     return na == nb or ((na in nb or nb in na) and min(len(na), len(nb)) >= 2)
 
 
+def _contained_twin_pair(a: str, b: str) -> tuple[str, str] | None:
+    """严格包含对（2026-11-17 用户「万国建筑博览群 IS DUPLICATE OF THE
+    BUND…任何有包含关系的景点 EXCLUSIVE IN THE PLANNING PAGE」）：归一后
+    一名是另一名的真子串（两侧 ≥2 字、不相等）→ 返回（正主/容器名,
+    衍生名），否则 None。「外滩」⊂「外滩万国建筑博览群」是同一段江岸的
+    衍生行；削尾后等价名（朱家角古镇/朱家角镇）不算包含对，维持既有
+    先到先得口径。"""
+    # 先剥括号注记再剥意图动词再归一：「变脸表演（川剧）」的（川剧）
+    # 是场馆注记不是名字材料（norm 只剥括号符号不剥内容），注记变体
+    # 不是衍生行；「看变脸表演」vs「变脸表演」是动宾句式——两者都由
+    # 既有 rank 保住，不当包含对（2026-11-17 dedupe_gate/richer-twin
+    # 回归抓出的两个误伤）。
+    na = _norm_site_name(_wish_core(_kin_core_name(a)))
+    nb = _norm_site_name(_wish_core(_kin_core_name(b)))
+    if not na or not nb or na == nb:
+        return None
+    if len(na) >= 2 and na in nb:
+        return (a, b)
+    if len(nb) >= 2 and nb in na:
+        return (b, a)
+    return None
+
+
 # 演出活动桶（2026-10-28 变脸多次事故二轮）：同一场演出会以不同场馆名进
 # 行程——「橙煌梨园·看川剧变脸·喝盖碗茶」「变脸表演（川剧）」「蜀兿剧院·
 # 变脸川剧·盖碗茶」「四川省川剧院」「蜀风雅韵」互不包含，containment 判
@@ -4329,7 +4352,24 @@ def _dedupe_visit_keepers(
         )
         if twin is None:
             keepers.append(item)
-        elif _visit_keep_rank(item, _street_dmin.get(id(item))) > _visit_keep_rank(
+            continue
+        pair = _contained_twin_pair(str(item.name), str(keepers[twin].name))
+        # 包含对只留正主（2026-11-17 万国案）：先到先得会让「外滩万国建筑
+        # 博览群」占住首位顶掉「外滩」本体。必去/钉住卡仍按铁律19置顶——
+        # 衍生卡带 must/pinned 时不走本闸，交给既有 rank。
+        if (
+            pair is not None
+            and not (item.must or item.pinned)
+            and not (keepers[twin].must or keepers[twin].pinned)
+        ):
+            holder, _held = pair
+            if str(item.name) == holder:
+                dropped.append(keepers[twin].name)
+                keepers[twin] = item
+            else:
+                dropped.append(item.name)
+            continue
+        if _visit_keep_rank(item, _street_dmin.get(id(item))) > _visit_keep_rank(
             keepers[twin], _street_dmin.get(id(keepers[twin]))
         ):
             dropped.append(keepers[twin].name)
@@ -20421,12 +20461,22 @@ class PlanningAgent:
             if any(_same_site(n, other) for other in avoid):
                 # 「避开/不去」点名的地点：是排除项，不是必去
                 return
-            if any(_same_site(n, other) for other in added):
-                return
             if any(_same_site(n, other) for other in session.must_visits):
                 return
-            added.append(n)
-            session.site_kinds.setdefault(n, kind or "sight")
+            twin_i = next(
+                (i for i, other in enumerate(added) if _same_site(n, other)),
+                None,
+            )
+            if twin_i is not None:
+                pair = _contained_twin_pair(n, added[twin_i])
+                if pair is None or pair[0] != n:
+                    return
+                # 正主到得晚也顶掉衍生占位（2026-11-17 万国案）：用户写
+                # 全名时底库两行都命中，长名分高先入列，衍生行抢了正主的位。
+                added[twin_i] = n
+            else:
+                added.append(n)
+            session.site_kinds[n] = kind or session.site_kinds.get(n) or "sight"
             session.site_cities.setdefault(n, city)
             if day:
                 # 文本日程：句子写明第几天就落那天（合并层照此钉天）。
