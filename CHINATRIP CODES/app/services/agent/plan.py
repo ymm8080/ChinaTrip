@@ -19096,8 +19096,7 @@ class PlanningAgent:
                 session.brief_notes = [
                     *session.brief_notes,
                     L(
-                        f"目的地城市按你点名的「{_named}」推断为{_city}——"
-                        "如果不对请直接告诉我是哪座城市。",
+                        f"目的地城市按你点名的「{_named}」推断为{_city}。",
                         f"Destination city set to {_city} from the places you "
                         f"named ({_named}).",
                     ),
@@ -20698,8 +20697,7 @@ class PlanningAgent:
                     session.brief_notes = [
                         *session.brief_notes,
                         L(
-                            f"目的地城市按你点名的「{_named}」推断为{_city}——"
-                            "如果不对请直接告诉我是哪座城市。",
+                            f"目的地城市按你点名的「{_named}」推断为{_city}。",
                             f"Destination city set to {_city} from the places "
                             f"you named ({_named}).",
                         ),

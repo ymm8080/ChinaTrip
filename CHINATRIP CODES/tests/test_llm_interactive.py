@@ -118,12 +118,18 @@ def test_edit_question_only_reply_surfaces_to_user():
     assert change is None
 
 
-def test_edit_system_prompt_check_first_then_ask_and_confirm():
-    # 先查库 → 缺了问 → 猜测/近似必须确认；一刀切禁问的措辞已撤
+def test_edit_system_prompt_confirmation_three_triggers():
+    # 三拍：确定性高的推断不确认；只确认①与用户说的不符合②有多个可能
+    # ③用户意见表明行程有瑕疵。先查底库、缺了直接问的纪律不变。
     assert "先查底库" in _EDIT_SYSTEM_PROMPT
-    assert "向用户" in _EDIT_SYSTEM_PROMPT and "确认" in _EDIT_SYSTEM_PROMPT
+    assert "确定性高" in _EDIT_SYSTEM_PROMPT
+    assert "不符合" in _EDIT_SYSTEM_PROMPT
+    assert "有多个可能" in _EDIT_SYSTEM_PROMPT
+    assert "行程有瑕疵" in _EDIT_SYSTEM_PROMPT
+    # 一刀切禁问与「所有猜测都要确认」的旧措辞已撤
     assert "绝不出现任何问句" not in _EDIT_SYSTEM_PROMPT
     assert "NO LLM CAN ASK" not in _EDIT_SYSTEM_PROMPT
+    assert "猜出大概必须向用户确认" not in _EDIT_SYSTEM_PROMPT
     # need_clarification 死通道保持删除（提问走 reply 文本，引擎可见）
     assert "need_clarification" not in _EDIT_SYSTEM_PROMPT
 
