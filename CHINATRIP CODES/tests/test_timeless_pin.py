@@ -87,8 +87,7 @@ def test_solve_plan_timeless_pins_solve():
     solved = solve_plan(plan, poi_hours=[])
     assert solved is not None
     timed = [
-        i for i in solved.days[0].items
-        if isinstance(i, VisitItem) and i.start_time
+        i for i in solved.days[0].items if isinstance(i, VisitItem) and i.start_time
     ]
     assert len(timed) == 5
 
