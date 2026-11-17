@@ -20647,9 +20647,7 @@ class PlanningAgent:
                 self._poi_details.match_text_names, None, probe
             )
         except Exception:
-            logger.warning(
-                "plan: whole-library brief match failed", exc_info=True
-            )
+            logger.warning("plan: whole-library brief match failed", exc_info=True)
             return None
         rows = [r for r in (rows or []) if (str(r.get("city") or "")).strip()]
         if not rows:
