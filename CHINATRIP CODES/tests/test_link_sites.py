@@ -120,6 +120,39 @@ def test_parse_site_answer_unrelated_text_is_none():
     assert _parse_site_answer("第二天改成下午出发", ["总统府"]) is None
 
 
+def test_parse_site_answer_confirm_means_default_all():
+    # 2026-11-17 用户「ZHUJIAJIAO IS NOT RECOGNIZED」案：site_confirm 卡面
+    # 文案承诺「默认全选」，纯确认/同意句必须落地为候选全选，不得走 LLM
+    # 被判「什么都没提到」整轮丢光。
+    sites = ["朱家角古镇", "外滩"]
+    for answer in (
+        "确认",
+        "确认！",
+        "好的，就这样",
+        "全选",
+        "没问题，都去",
+        "OK",
+        "Confirm",
+        "Yes",
+        "Sure",
+        "对",
+    ):
+        assert _parse_site_answer(answer, sites) == (sites, []), answer
+
+
+def test_parse_site_answer_confirm_keep_all_guards():
+    sites = ["朱家角古镇", "外滩"]
+    # 点了名：照旧走拆分/LLM 通道，不整句吞成全选
+    assert _parse_site_answer("确认，朱家角古镇必去", sites) is None
+    assert _parse_site_answer("朱家角古镇", sites) is None
+    # 带排除语义：不吞成全选（LLM 通道负责减选）
+    assert _parse_site_answer("都要，除了外滩", sites) is None
+    # 明确不要：仍然整轮丢弃
+    assert _parse_site_answer("不要了", sites) == ([], [])
+    assert _parse_site_answer("不用了", sites) == ([], [])
+    assert _parse_site_answer("none of them", sites) == ([], [])
+
+
 # --- agent round trip ----------------------------------------------------
 
 

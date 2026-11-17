@@ -17907,7 +17907,45 @@ def _match_site_names(fragment: str, sites: list[str]) -> list[str]:
     return [site for site in sites if any(tok in site or site in tok for tok in tokens)]
 
 
-_SITE_SKIP_RE = re.compile(r"不要了|不去了|不加了|都不要")
+_SITE_SKIP_RE = re.compile(
+    r"不要了|不去了|不加了|都不要|都跳过|不用了"
+    r"|none\s+of\s+them|drop\s+all|skip\s+all"
+)
+# site_confirm 卡面文案承诺「默认全选」（2026-11-17 用户「ZHUJIAJIAO IS NOT
+# RECOGNIZED」案）：纯确认/同意句必须当成全选走，不能再丢给 LLM 判成
+# 「什么都没提到」整轮丢弃。强确认词允许 search（多字、无歧义）；短语气词
+# （好/行/嗯/OK/Yes…）只认整句，防止「行程怎么排」里的「行」误伤。
+_SITE_ALL_KEEP_RE = re.compile(
+    r"全选|全要|都要|都去|默认全选|就按默认|没问题|就这些|就这样|同意|确认|确定|"
+    r"confirm(?:ed)?|agreed|go\s*ahead|sounds\s*good|all\s*good|keep\s*(?:all|them)",
+    re.IGNORECASE,
+)
+_SITE_YES_WORD_RE = re.compile(
+    r"^(?:好的?|好呀|好嘞|可以|行吧?|嗯+|对的?|没错|是(?:的|啊)?|okay?|yes|yep|"
+    r"yeah|sure|ok)$",
+    re.IGNORECASE,
+)
+_SITE_EXCLUDE_RE = re.compile(
+    r"不要|不去|不排|不用|别加|别去|跳过|去掉|除了"
+    r"|\b(?:not|nope|dont|don't|except|without|drop|skip|remove|exclude|none)\b",
+    re.IGNORECASE,
+)
+
+
+def _site_keep_all(text: str, sites: list[str]) -> bool:
+    """整句只是确认/同意、没点名任何候选、也无排除语义 → 默认全选。
+    点了名（含昵称命中）或带排除词的不在此列，照旧走拆分/LLM 通道。"""
+    probe = (text or "").strip()
+    if not probe:
+        return False
+    if _SITE_EXCLUDE_RE.search(probe):
+        return False
+    if _match_site_names(probe, sites):
+        return False
+    if _SITE_ALL_KEEP_RE.search(probe):
+        return True
+    bare = re.sub(r"\W+", "", probe)
+    return bool(_SITE_YES_WORD_RE.fullmatch(bare))
 
 
 def _parse_site_answer(
@@ -17922,6 +17960,10 @@ def _parse_site_answer(
             # Explicit drop (product rule 2026-10-20): the round
             # ends with nothing selected and nothing recorded.
             return [], []
+        if _site_keep_all(text, sites):
+            # 默认全选（2026-11-17）：与卡面文案「默认全选」对齐，纯确认句
+            # =候选全选，不再被 LLM 判「什么都没提」而整轮丢光。
+            return list(sites), []
         return None
     if match.group(1) is not None:
         mandatory = _match_site_names(match.group(1), sites)
