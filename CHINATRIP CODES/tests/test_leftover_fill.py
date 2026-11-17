@@ -512,9 +512,7 @@ def test_return_day_fill_takes_city_circle_candidate():
     city = _cand("田子坊", 90, 121.49, 31.22)
     notes = _fill_leftover_with_diverse_sights(plan, bench=[city])
     assert notes
-    assert any(
-        getattr(i, "name", "") == "田子坊" for i in plan.days[0].items
-    )
+    assert any(getattr(i, "name", "") == "田子坊" for i in plan.days[0].items)
 
 
 def test_day_already_remote_anchors_on_day_city_anchor():

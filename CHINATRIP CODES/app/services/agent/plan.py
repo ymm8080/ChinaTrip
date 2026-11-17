@@ -15503,10 +15503,7 @@ def _evict_third_cluster_extras(plan: ItineraryPlan) -> list[str]:
             )
             if near_cluster:
                 continue
-            if (
-                anchor_pt is not None
-                and haversine_km(anchor_pt, loc) <= _CITY_FILL_KM
-            ):
+            if anchor_pt is not None and haversine_km(anchor_pt, loc) <= _CITY_FILL_KM:
                 continue
             day.items.remove(item)
             notes.append(
@@ -15750,10 +15747,7 @@ def _fill_leftover_with_diverse_sights(
                         for _x, _y in day_pts
                     )
                     > _CLUSTER_FILL_KM
-                    and not (
-                        day_has_return
-                        and _near_day_city_anchor(day, u.location)
-                    )
+                    and not (day_has_return and _near_day_city_anchor(day, u.location))
                 )
             ]
             if not pool:
