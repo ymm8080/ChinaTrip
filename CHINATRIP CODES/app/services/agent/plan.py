@@ -2783,7 +2783,6 @@ _EDIT_SYSTEM_PROMPT = (
 )
 
 
-
 def _cn_number(token: str) -> int | None:
     """Chinese numeral 1-99 (十/十一/二十/二十五…); None when unparseable."""
     if token == "十":
@@ -20665,7 +20664,7 @@ class PlanningAgent:
                         *session.brief_notes,
                         L(
                             f"目的地城市按你点名的「{_named}」推断为{_city}——"
-                        "如果不对请直接告诉我是哪座城市。",
+                            "如果不对请直接告诉我是哪座城市。",
                             f"Destination city set to {_city} from the places "
                             f"you named ({_named}).",
                         ),
