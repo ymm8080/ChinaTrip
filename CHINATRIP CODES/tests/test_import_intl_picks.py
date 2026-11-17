@@ -152,14 +152,14 @@ def test_dry_run_rolls_back():
     assert s.rolled_back and not s.committed
 
 
-def test_insert_applies_best_visit_rules():
-    # 2026-11-01「两江夜游排在白天」事故：intl 骨架行插入时就带时段
-    # 信号（夜游名 → evening，source=heuristic），不再等回填作业补课。
+def test_insert_rows_have_no_heuristic_best_visit():
+    # 2026-11-17 用户拍板「best visit time 不能走 HEURISTIC」：intl 骨架
+    # 行插入不再打规则标签（真夜档由回填作业 llm 层落库）。
     s = FakeSession()
     job.apply_picks(s)
     cruise = next(r for r in s.rows if r.name_zh == "两江夜游")
-    assert cruise.best_visit_time == "evening"
-    assert cruise.best_visit_time_source == "heuristic"
+    assert cruise.best_visit_time is None
+    assert cruise.best_visit_time_source is None
     bund = next(r for r in s.rows if r.name_zh == "外滩")
     assert bund.best_visit_time is None
     assert bund.best_visit_time_source is None

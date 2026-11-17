@@ -130,6 +130,35 @@ def test_place_with_flex_shrinks_to_anchor() -> None:
     assert "90→75" in note
 
 
+def test_place_with_flex_snap_respects_entry_cap() -> None:
+    """硬锚倒排收口不得越过白天入场闸（2026-11-17 上海中心大厦案）。
+
+    120 分钟大点在傍晚硬锚前探得闸前起点 14:30；贴锚收口（17:00-105
+    =15:55）越过 15:30 大点开场带——保留探针起点，不再贴锚。
+    """
+    plan, day = _plan(
+        _item("v0", "上午大块", "09:00", "14:30", dur=330, pinned=True),
+        _item(
+            "v2",
+            "夜档",
+            "17:15",
+            "21:00",
+            dur=225,
+            category="nature",
+            pinned=True,
+        ),
+    )
+    visit = _item("v9", "上海中心大厦", None, None, dur=125, category="viewpoint")
+    placed = plan_mod._place_with_flex(plan, day, visit)
+    assert placed is not None
+    start, dur, note = placed
+    # 全时长 125 与首档收缩 110 都塞不进 16:45 前的空隙；65 分钟可行且
+    # 贴锚收口点 16:45-65=15:40 越过 15:30 大点开场带——保留探针起点 15:00。
+    assert (start // 60, start % 60) == (15, 0)
+    assert dur == 65
+    assert "125→65" in note
+
+
 def test_place_with_flex_tolerates_within_30_minutes() -> None:
     """差 25 分钟（≤30）：不缩时长，贴着下一站前沿顺排。"""
     plan, day = _plan(

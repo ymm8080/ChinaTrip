@@ -1229,29 +1229,34 @@ def test_fallback_evening_item_not_in_daytime():
     assert deck.start_time is not None and deck.start_time >= _t(16, 0)
 
 
-def test_sched_best_visit_fills_missing_signal_by_name():
-    # 2026-11-01 事故根因：intl 骨架行 best_visit_time 停在列默认 any。
-    # 规整层只在缺信号时按名称规则兜底（与回填作业同源）；已有非 any 值
-    # 原样透传（只升不降），住宿类不参访排程。
+def test_sched_best_visit_is_library_passthrough_only():
+    # 2026-11-17 用户拍板「best visit time 不能走 HEURISTIC」（上海中心
+    # 大厦 16:47 晚闸穿透案）：排程时段信号=库值直传——缺信号（None/any）
+    # 绝不按名称/类别现场脑补；真夜档由 llm/ctrip 回填层落库。
     from app.services.agent.plan import _sched_best_visit
 
-    # 缺信号 + 夜游名 → evening
+    # 缺信号一律原样透传（哪怕名字带夜游/观景台——推断层已退役）
     assert (
-        _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "evening"
+        _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "any"
     )
-    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": None}) == "evening"
-    assert _sched_best_visit({"name": "较场口夜市"}) == "evening"
-    assert _sched_best_visit({"name": "南山一棵树观景台"}) == "sunset"
-    # 已有非 any 值原样透传，绝不被名称规则覆盖
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": None}) is None
+    assert _sched_best_visit({"name": "较场口夜市"}) is None
+    assert _sched_best_visit({"name": "南山一棵树观景台"}) is None
+    assert (
+        _sched_best_visit({"name": "上海中心大厦", "best_visit_time": "any"}) == "any"
+    )
+    # 已有非 any 值原样透传（只升不降口径不变）
     assert _sched_best_visit({"name": "两江夜游", "best_visit_time": "show"}) == "show"
     assert (
         _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "morning"})
         == "morning"
     )
-    # 住宿类（名称/类别任一命中）直接透传原值
-    assert (
-        _sched_best_visit({"name": "雅致酒店(珠江夜游店)", "category": "hotel"}) is None
-    )
-    # 无信号无夜名 → 原样 any
-    assert _sched_best_visit({"name": "磁器口古镇", "best_visit_time": "any"}) == "any"
+    # 住宿类直接透传原值
+    hotel_cand = {
+        "name": "雅致酒店(珠江夜游店)",
+        "category": "hotel",
+        "best_visit_time": "any",
+    }
+    assert _sched_best_visit(hotel_cand) == "any"
+    # 空候选 → None
     assert _sched_best_visit(None) is None

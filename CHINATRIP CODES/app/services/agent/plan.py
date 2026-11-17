@@ -46,7 +46,6 @@ from app.services.agent.hotel_stays import (
 )
 from app.services.agent.wish_fast import try_fast_wish
 from app.services.amap_client import AmapQuotaExhaustedError
-from app.services.best_visit import apply_rules
 from app.services.city_fallback import is_city_fallback_point
 from app.services.ctrip_hours import CtripHoursReader
 from app.services.flights import (
@@ -982,27 +981,14 @@ def _night_cand(cand: dict) -> bool:
 
 
 def _sched_best_visit(cand: dict | None) -> str | None:
-    """排程时段信号规整（2026-11-01「两江夜游排在白天」事故）：
-
-    库候选缺时段信号（None/"any"）时用规则引擎（best_visit.apply_rules，
-    与回填作业同源）按名称/类别兜底——intl 骨架行导入时未回填
-    best_visit_time，solver 全天窗把「两江夜游」排进白天。只在缺信号
-    时兜底：库内已有非 any 值（ctrip/llm/heuristic 回填）原样透传，绝
-    不覆盖既有判定（只升不降）；住宿类候选不参访排程，直接透传。
-    """
+    """排程时段信号=库值直传（2026-11-17 用户拍板「best visit time 不能
+    走 HEURISTIC」，上海中心大厦 16:47 晚闸穿透案）：名称/类别规则推断
+    整层退役——「viewpoint→sunset」一刀切曾把都市观光塔豁免进 16:00
+    白天入场闸。库值缺信号（None/any）就照缺，绝不现场脑补；真夜档
+    （夜游/演出/游船）由 llm/ctrip 回填层落库。"""
     if not cand:
         return None
-    raw = cand.get("best_visit_time")
-    bvt = str(raw or "").strip().lower()
-    if bvt and bvt != "any":
-        return raw
-    if str(cand.get("category") or "") == "hotel":
-        return raw
-    slot = apply_rules(
-        str(cand.get("name") or ""),
-        str(cand.get("category") or "") or None,
-    )
-    return slot if slot else raw
+    return cand.get("best_visit_time")
 
 
 # 折卡夜档信号（2026-11-07 主题街区夜场案）：折卡卡面 bvt 原样继承锚——
@@ -14170,6 +14156,10 @@ def _place_with_flex(
         None,
     )
     lo, hi = _shrink_band(visit)
+    #: 白天入场闸（generic_entry_cap，2026-11-17 上海中心大厦案）：硬锚
+    #: 倒排的收口起点同样不得越过闸——闸是政策墙，30 分钟容忍与收缩
+    #: 都无权推迟开场；越闸时保留探针给出的闸前起点。
+    snap_cap = generic_entry_cap(visit, hours_by_poi.get(visit.poi_id))
     if hi:
         for cut in sorted({lo, hi}):
             dur = max(30, dur0 - cut)
@@ -14178,7 +14168,11 @@ def _place_with_flex(
             start = probe(dur, walls)
             if start is None:
                 continue
-            if limit is not None and limit - dur >= arrive:
+            if (
+                limit is not None
+                and limit - dur >= arrive
+                and (snap_cap is None or limit - dur <= snap_cap)
+            ):
                 start = limit - dur  # 从硬锚倒排：贴着下一站前沿收口
             note = L(
                 f"「{visit.name}」{dur0}→{dur} 分钟"

@@ -1,9 +1,13 @@
-"""best_visit_time 启发式规则层 — 三层回填的第一层（纯规则、零成本）.
+"""best_visit_time 枚举契约与营业时间粗推（规则推断层已退役）.
 
-POI 底库为每个景点补 best_visit_time 枚举（见 SLOTS），solver 消费它
-实现「夜景排晚上」。本层只认名称/类别/营业时间里的明确信号，认不出
-一律返回 None（列默认值 "any" 由 DB 层兜底，规则层绝不产出 "any"）。
-后续 LLM 层、携程回源层另行回填，不在本模块。
+SLOTS 是 best_visit_time 的枚举契约；infer_slot_from_hours 供餐饮营业
+窗推断（restaurants.py）复用。
+
+2026-11-17 用户拍板「best visit time 不能走 HEURISTIC」：名称/类别规则
+推断（apply_rules）整层退役——「category=viewpoint → sunset」一刀切曾
+把都市观光塔（上海中心大厦/环球金融中心/金茂观光厅，白天 08:30 开门）
+标成夜属性，豁免 16:00 白天入场闸（16:47/19:00 排期穿透案）。库值只来
+自 llm/ctrip 回填层与人工修正，排程侧只透传，绝不现场脑补。
 """
 
 from __future__ import annotations
@@ -12,54 +16,7 @@ import re
 
 SLOTS = ("sunrise", "morning", "afternoon", "evening", "sunset", "any")
 
-# 名称规则：按序匹配，先命中先返回。保守起见只放明确信号——
-# 名字本身无夜信号的 POI（如滨江洞窟类景点）绝不能误伤（夜景语义
-# 由「XX夜景」这类显式命名或后续 LLM 层补充）。
-RULES: list[tuple[re.Pattern[str], str]] = [
-    (
-        re.compile(
-            "夜市|夜景|夜游|灯光秀|音乐喷泉|酒吧街|夜(.*)(街|市)|两江夜游|不夜城"
-        ),
-        "evening",
-    ),
-    (re.compile("日落|夕阳|晚霞|日出日落|观景台|观景平台|山顶|摩天轮"), "sunset"),
-    (re.compile("日出|朝阳|晨曦"), "sunrise"),
-    (re.compile("晨练|早市"), "morning"),
-]
-
-# 类别规则（apply_rules 在名称之后兜底）：只认明确的英文类别信号；
-# park→any 之类宽泛映射不写（any 是列默认值，不归规则层管）。
-_CATEGORY_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile("viewpoint", re.IGNORECASE), "sunset"),
-    (re.compile("night", re.IGNORECASE), "evening"),
-]
-
 _TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
-
-# 住宿业态守卫（2026-11-01「两江夜游排在白天」事故复盘）：酒店/公寓行
-# 名称常嵌地名/商圈夜信号（「雅致酒店(广州二沙岛珠江夜游店)」「MEISHU
-# 公寓(西湖音乐喷泉店)」），它们不是夜间参访点——名称含住宿词的行不
-# 参与任何时段规则（名称+类别都拦），一律返回 None。
-_LODGING_RE = re.compile("酒店|宾馆|旅馆|民宿|公寓|客栈")
-
-
-def apply_rules(name: str | None, category: str | None = None) -> str | None:
-    """名称规则优先、类别规则兜底；任一命中即返回，无命中返回 None.
-
-    住宿业态名（酒店/公寓等）先拦：其名称里的夜/日出信号是商圈噪音，
-    绝不产出时段（2026-11-01 复盘加固）。
-    """
-    if name:
-        if _LODGING_RE.search(name):
-            return None
-        for pattern, slot in RULES:
-            if pattern.search(name):
-                return slot
-    if category:
-        for pattern, slot in _CATEGORY_RULES:
-            if pattern.search(category):
-                return slot
-    return None
 
 
 def infer_slot_from_hours(opening_hours: str | None) -> str | None:
