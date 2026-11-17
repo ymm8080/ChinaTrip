@@ -240,7 +240,9 @@ Covers D10; resolves B-09 semantics, B-20 implementation.
 - **P3 (switch, single small diff behind a flag)**: F-30…F-33 wired as the plan source; F-40 gates stay as acceptance; quiet-window precondition (48 h or aligned with parallel session) applies **only here**.
 - **P4 (edits)**: F-50/F-51 hint-based re-solve replacing the ripple/resequence ladders.
 
-## 7. Open design questions to settle before implementation
+## 7. Open design questions — **all accepted 2026-11-17 (user 「DEFAULTS OK」)**
+
+**The seven values below are binding design decisions, not proposals.**
 
 - **Q1 Duration tiers**: default clamp policy for outlier `suggested_duration_min` (e.g. 颐和园 300): typ = min(library, 240)? Per-category caps? Always disclose clamps (recommended).
 - **Q2 Fill pool cap**: max unrequested candidates per city/day entering the model (performance vs variety); default proposal ≤ 6/day, only after requested coverage is feasible.

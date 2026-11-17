@@ -110,9 +110,9 @@ P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with 
 6. **Decide Q1–Q5 up front** (below) so no package is reworked for a policy change mid-build.
 7. **Commit at every package boundary** (auto-commit rule). A fresh session always starts from a clean, committed state.
 
-## 7. Prerequisites to start P1-A — Q1–Q7 with proposed defaults
+## 7. Prerequisites — Q1–Q7 (**all accepted 2026-11-17: 「DEFAULTS OK」**)
 
-| Q | Question | Proposed default (say "defaults OK" or override) |
+| Q | Question | Default (accepted 2026-11-17) |
 |---|---|---|
 | Q1 | Duration tiers for outliers (颐和园 300 min) | typ = min(library, 240) for park/garden-type big sites; always disclose clamping |
 | Q2 | Fill-pool cap entering the model | ≤ 6 unrequested candidates per day, only after requested coverage is feasible |
