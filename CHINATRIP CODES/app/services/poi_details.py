@@ -1079,6 +1079,44 @@ class PoiDetailStore:
             for _score, name, name_en, row_city, category in kept[:limit]
         ]
 
+    def name_city_spread(self, name: str) -> list[str]:
+        """同名行分布在哪些城市（active）——城市推断的歧义闸（2026-11-17
+        用户拍板「城市按点名景点反推，除非同名分布在多城」）：同名出现在
+        多个城市时不拿它猜目的地。返回去「市」尾的城市名列表。"""
+        n = (name or "").strip()
+        if not n:
+            return []
+        cities: set[str] = set()
+
+        def _norm(c: object) -> str:
+            return str(c or "").strip().removesuffix("市")
+
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    q = (
+                        session.query(Poi.city)
+                        .filter(Poi.name_zh == n)
+                        .filter((Poi.status.is_(None)) | (Poi.status == "active"))
+                        .distinct()
+                    )
+                    for (c,) in q.all():
+                        cities.add(_norm(c))
+            except Exception:
+                self._note_db_failure()
+                logger.warning(
+                    "poi_details: name city spread db failed, memory fallback",
+                    exc_info=True,
+                )
+        if not cities:
+            nonactive = self._nonactive_pids()
+            for pid, v in self._memory.items():
+                if pid in nonactive:
+                    continue
+                if (v.get("name") or "").strip() == n:
+                    cities.add(_norm(v.get("city")))
+        return sorted(c for c in cities if c)
+
     _FOOD_CATEGORY_MARKS = ("food", "餐饮", "美食", "餐厅")
     # 主池住宿出池（2026-11-07 实测：成都 top-30 窗口混入 2 家 intl/layla
     # 标签酒店——易宁阁/西金中心，top_pois_in_city 只排 food 不排 hotel）

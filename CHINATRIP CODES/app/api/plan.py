@@ -62,11 +62,13 @@ from app.services.agent.plan import (
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
+    _count_text_dates,
     _extract_transport_numbers,
     _find_transfer_item,
     _leg_date_iso,
     _normalize_city,
     _open_meal_leg_gaps,
+    _parse_days,
     _parse_text_start_date,
     _resolve_brief_cities,
     _trip_brief,
@@ -119,6 +121,7 @@ from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
 from app.services.weather import daily_weather_text
+from app.services.web_reader import find_urls
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
 logger = logging.getLogger(__name__)
@@ -587,21 +590,66 @@ async def start_plan(
     # 读得出出发日期=信息足够，直接生成；读不出且行前卡信息也没给 → 先弹卡
     # （state=intake，不开会话）。
     brief_text = (request.brief or "").strip()
-    text_date = _parse_text_start_date(brief_text) if brief_text else None
+    # H5 开局把自由输入折进 preferences（2026-11-17 ZHUJIAZUI 案）：表单
+    # 没填城市/天数时，日期天数从 preferences 原句里读——文字里说了就不
+    # 再弹行前卡。表单齐全时仍只看 brief，不打扰表单用户。
+    pref_text = (
+        (request.preferences or "").strip()
+        if not request.cities and not request.days
+        else ""
+    )
+    fact_text = brief_text or pref_text
+    if find_urls(fact_text):  # 链接流不走行前卡（链接自己进读点管线）
+        fact_text = ""
+    text_date = _parse_text_start_date(fact_text) if fact_text else None
     parsed_brief = _trip_brief(brief_text) if brief_text else None
     text_days = parsed_brief[1] if parsed_brief else None
+    if text_days is None and fact_text:
+        text_days = _parse_days(fact_text)
+    # 只写了一个日期 ⇒ 一日游（2026-11-17 用户拍板「IT MEANS ONLY ONE DAY
+    # TRIP」）；写了起止两个日期仍按缺天数处理，行前卡照弹。
+    if (
+        text_date is not None
+        and text_days is None
+        and not request.days
+        and _count_text_dates(fact_text) <= 1
+    ):
+        text_days = 1
     # 信息不足=缺「任何必填项」（2026-11-15 用户拍板二拍「不止是出发日期」）：
     # 文字读不出出发日期、或读得出日期却读不出天数/结束日 → 都弹行前卡
     # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
     insufficient = text_date is None or text_days is None
     if (
         request.route_source is None
-        and brief_text
+        and fact_text
         and not request.arrival_date
         and not request.departure_date
         and insufficient
     ):
-        return {"state": "intake", "start_date_hint": text_date}
+        # LLM 先读懂日期/天数（2026-11-17 拍板「LLM UNDERSTAND DATE, TIME
+        # DURATION ETC」）：正则读不出的（next Friday / around New Year /
+        # 三晚）交给 LLM；LLM 也读不出才弹行前卡。
+        facts = await agent.trip_facts_from_llm(fact_text) or {}
+        if text_date is None and facts.get("start_date"):
+            text_date = str(facts["start_date"])
+        if text_days is None and facts.get("days"):
+            text_days = int(facts["days"])
+        elif (
+            text_date is not None
+            and text_days is None
+            and not request.days
+            and _count_text_dates(fact_text) <= 1
+        ):
+            text_days = 1
+        insufficient = text_date is None or text_days is None
+        if insufficient:
+            return {"state": "intake", "start_date_hint": text_date}
+        if facts.get("city") and not request.cities:
+            # LLM 读出的城市一并预填——agent.start 不再二次读句（一次 LLM
+            # 读出全部事实，直接灌引擎）。
+            request = request.model_copy(
+                update={"cities": [str(facts["city"])]}
+            )
     if text_date and not request.start_date:
         request = request.model_copy(update={"start_date": text_date})
     # 行前卡提交后的天数推导（2026-11-15 用户实报「填了开始/结束日期还问玩

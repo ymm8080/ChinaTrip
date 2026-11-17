@@ -338,7 +338,8 @@ def test_normalize_city_maps_alias_and_keeps_chinese():
 def test_start_parses_english_cities_from_preferences():
     # H5 no-session composer sends free text as preferences with no cities;
     # the English names must still start the plan instead of clarify→default.
-    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    # 2026-11-17 LLM-first：24 字起自由输入先烧读点 LLM（2 次重试）再生成。
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
     resp = start(
         client_for(agent), {"days": 2, "preferences": "Shanghai then Hangzhou, museums"}
     )
@@ -349,7 +350,8 @@ def test_start_parses_english_cities_from_preferences():
 
 
 def test_message_clarify_answer_with_english_city_generates_plan():
-    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    # 2026-11-17 LLM-first：补答原句 >=24 字先烧读点 LLM（2 次重试）再生成。
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
     client = client_for(agent)
     session_id = start(client, {}).json()["session_id"]  # clarify: info missing
     resp = message(client, session_id, "Shanghai and Hangzhou, 2 days, museums")
