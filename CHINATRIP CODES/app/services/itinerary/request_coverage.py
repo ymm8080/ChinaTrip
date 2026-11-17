@@ -11,10 +11,12 @@ assumptions 无让位披露、unplaced 也没有）。ensure_must_disclosure 对
 自动补一条披露行——把「无声消失」机械地变成「至少有披露」，不改排期、
 不动选点链（并行重构在途，选点/求解器区域不碰）。
 
-纯函数：只依赖领域模型，无 I/O / LLM / DB。名字匹配用保守互含（短侧
-≥2 字），与选点层的包含关系双胞胎（外滩 ↔ 外滩万国建筑博览群）同语义；
-中英文名（name/name_en）都认。与既有 coverage.py（premium 档覆盖/雨天
-建议）职责不同，互不依赖。
+纯函数：只依赖领域模型，无 I/O / LLM / DB。名字匹配认 全等 与「双胞胎
+互含」——互含只在多出部分是通用修饰（城市/区域前缀 ≥2 字，或 古镇/景区/
+博物院/ancient town 类通用尾缀）时算同体：中心大厦=上海中心大厦、朱家角=
+朱家角古镇；外滩 ≠ 外滩源（尾缀「源」非通用，是不同景点——被排成别的
+站点必须披露，不允许静默顶替）。中英文名（name/name_en）都认。与既有
+coverage.py（premium 档覆盖/雨天建议）职责不同，互不依赖。
 """
 
 from __future__ import annotations
@@ -28,9 +30,59 @@ _JUNK_RE = re.compile(r"[\s·、，。,.;；:：!！?？()（）\[\]【】「」
 #: 互含匹配的短侧最小长度（单字过泛，不认）。
 _MIN_CONTAIN_CHARS = 2
 
+#: 通用尾缀（削掉后仍是同一景点）：中文聚落/景区/场馆类 + 英文聚落类
+#: （norm 后无空格，按拼接形态匹配）。尾缀「源/湾/村」这类**专名性后缀
+#: 不列**——外滩源/外滩 是两个景点，互含不算同体。
+_GENERIC_TAILS: tuple[str, ...] = (
+    "古镇",
+    "古城",
+    "景区",
+    "旅游区",
+    "风景区",
+    "度假区",
+    "小镇",
+    "水乡",
+    "湿地",
+    "广场",
+    "博物馆",
+    "博物院",
+    "故里",
+    "遗址",
+    "ancienttown",
+    "ancientcity",
+    "watertown",
+    "watervillage",
+    "oldtown",
+    "scenicarea",
+    "museum",
+)
+
 
 def _norm(name: str | None) -> str:
     return _JUNK_RE.sub("", (name or "").strip().lower())
+
+
+def _twin_cover(a: str, b: str) -> bool:
+    """双胞胎互含判定：多出部分必须是通用修饰才算同一景点。
+
+    - 前置修饰（long = X + short，X ≥2 字）：城市/区域前缀——上海中心大厦
+      之于 中心大厦、杭州西湖 之于 西湖；
+    - 后置通用尾缀（long = short + X，X 在 _GENERIC_TAILS）：朱家角古镇
+      之于 朱家角、Zhujiajiao Ancient Town 之于 zhujiajiao；
+    - 其余互含（含中段互含、≥1 字非通用余量）一律不算：外滩源 ≠ 外滩、
+      北外滩 ≠ 外滩（余量 1 字）——被排成邻近的另一景点必须披露，不允许
+      静默顶替。
+    """
+    if a == b:
+        return True
+    short, long = (a, b) if len(a) <= len(b) else (b, a)
+    if len(short) < _MIN_CONTAIN_CHARS or len(long) - len(short) < 2:
+        return False
+    if long.endswith(short):
+        return True  # 前置修饰（X ≥2 字即认：城市/区域名不是专名性鉴别位）
+    if long.startswith(short):
+        return long[len(short):] in _GENERIC_TAILS
+    return False
 
 
 def _name_matches(
@@ -43,9 +95,7 @@ def _name_matches(
         b = _norm(cand)
         if not b:
             continue
-        if a == b:
-            return True
-        if min(len(a), len(b)) >= _MIN_CONTAIN_CHARS and (a in b or b in a):
+        if _twin_cover(a, b):
             return True
     return False
 

@@ -28,11 +28,12 @@ class _NoLLMAdapter:
         raise AssertionError("契约 GET 读闸不应调 LLM")
 
 
-def _visit(iid, name, start=(9, 0), end=(10, 30)):
+def _visit(iid, name, start=(9, 0), end=(10, 30), name_en=None):
     dur = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1])
     return VisitItem(
         item_id=iid,
         name=name,
+        name_en=name_en,
         city="上海",
         day=1,
         start_time=time(*start),
@@ -117,9 +118,8 @@ def test_scheduled_must_not_also_in_unplaced():
 
 
 def test_unplaced_twin_names_are_not_conflated():
-    # 外滩源已排；外滩是另一个景点——chip 不得被互含误清。
-    # 请求侧审计的互含容忍是故意不对称（防双胞胎误报）：must「外滩」被
-    # 已排「外滩源」视为已覆盖，不补披露。本例锚住两侧口径。
+    # 外滩源已排；外滩是另一个景点——chip 不得被互含误清（dedupe 只认全等/
+    # poi_id）。must「外滩」落在 unplaced 里 = 三分律满足，零噪音。
     app, store = _app_with(
         [_visit("v1", "外滩源")],
         must=["外滩源", "外滩"],
@@ -131,6 +131,65 @@ def test_unplaced_twin_names_are_not_conflated():
     stored = _stored(store)
     assert [u.name for u in stored.plan.unplaced] == ["外滩"]
     assert not [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
+
+
+def test_distinct_site_substitution_gets_disclosed():
+    # 2026-11-17 精化：余量「源」非通用修饰——must「外滩」被排成「外滩源」
+    # 不算覆盖、也不在 unplaced、无披露 → 补披露行（必去不允许被邻近景点
+    # 静默顶替）。
+    app, store = _app_with([_visit("v1", "外滩源")], must=["外滩源", "外滩"])
+    with TestClient(app) as client:
+        r = _get(client)
+    assert r.status_code == 200
+    stored = _stored(store)
+    lines = [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
+    assert len(lines) == 1 and "外滩" in lines[0]
+
+
+def test_yield_disclosure_in_session_counts():
+    # 让位披露已在会话级 assumptions 里（不在 plan.assumptions）——也算已披露，
+    # 不重复补行（真实案：中心大厦因离城日策略移出必去，披露在 session 侧）
+    app, store = _app_with([_visit("v1", "外滩")], must=["豫园", "外滩"])
+    session = store.get("s-ct", device_id="dev-1")
+    session.assumptions = ["豫园因雨天规则未排入，已让位"]
+    store.save(session)
+    with TestClient(app) as client:
+        r = _get(client)
+    assert r.status_code == 200
+    stored = _stored(store)
+    assert not [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
+
+
+def test_english_and_city_modifier_musts_covered():
+    # 英文裸名（ZHUJIAZUI 案）与城市前缀短名（中心大厦案）都算已覆盖，零噪音
+    app, store = _app_with(
+        [
+            _visit("v1", "朱家角古镇", name_en="Zhujiajiao Ancient Town"),
+            _visit("v2", "上海中心大厦", (11, 0), (12, 30)),
+        ],
+        must=["ZHUJIAJIAO", "中心大厦"],
+    )
+    with TestClient(app) as client:
+        r = _get(client)
+    assert r.status_code == 200
+    stored = _stored(store)
+    assert not [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
+
+
+def test_multiple_missing_musts_each_disclosed():
+    # 上海 2 天三必去案形状：多个必去同时被丢——逐个披露，不吞不并
+    app, store = _app_with(
+        [_visit("v1", "外滩")],
+        must=["豫园", "上海中心大厦", "外滩"],
+    )
+    with TestClient(app) as client:
+        r = _get(client)
+    assert r.status_code == 200
+    stored = _stored(store)
+    lines = [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
+    assert len(lines) == 2
+    assert any("豫园" in x for x in lines)
+    assert any("上海中心大厦" in x for x in lines)
 
 
 def test_clean_plan_is_silent():
