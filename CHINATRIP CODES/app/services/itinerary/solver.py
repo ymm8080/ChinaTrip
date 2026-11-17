@@ -913,9 +913,15 @@ def _visit_spec(
         and (item.category or "") == "hotel"
         and item.start_time is not None
     )
-    if item.pinned or soft_meal or soft_hotel:  # 铁律 19 / 系统软锚
-        if item.start_time is None:
-            return None
+    # 铁律 19 / 系统软锚。2026-11-17 修：pinned 是「必在」标记而非时刻
+    # 契约——绑定层先钉名、_pin_musts_by_importance 后钉时，中间态会短暂
+    # 出现 pinned+无时刻；旧契约在此整日判死，是「求解器未收敛」兜底披露
+    # 全勤的根因（live 2/2 + 离线 replay 4/4：D2 三必去 pinned 无时刻 →
+    # insertion/CP 双 None → 整体降级）。无时刻的钉没有可固定的锚——按
+    # 普通可排条目走（仍必出现在输出、不吃钉豁免）；铁律 19 保护的是
+    # 有时刻的钉（用户手钉），语义不变。soft_meal/soft_hotel 按定义
+    # 必带时刻，不受影响。
+    if (item.pinned and item.start_time is not None) or soft_meal or soft_hotel:
         pin = _to_minutes(item.start_time)
         # 声明场次优先于系统餐窗（2026-11-12 用户拍板「一族里有一项
         # 有了制约，移动是整个组合邻排一起移动的，不是中间随便插入
