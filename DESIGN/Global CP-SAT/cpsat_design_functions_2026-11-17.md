@@ -1,6 +1,6 @@
 # Global CP-SAT — Design Function Specification
 
-**Date**: 2026-11-17 · **Status**: design package 2/2, **design only — no implementation** (user decision: design first) · **Inputs**: `cpsat_as_is_2026-11-17.md` (architecture + function inventory + bug register B-01…B-20 + reference incident), `cpsat_feature_parity_2026-11-17.md` (14-domain function matrix), `cpsat_trip_level_adr_2026-11-17.md` (ADR, migration P0–P3)
+**Date**: 2026-11-17 · **Status**: design package 2/2, **design only — no implementation** (user decision: design first) · **Inputs**: `cpsat_as_is_2026-11-17.md` (architecture + function inventory + bug register B-01…B-20 + reference incident), `cpsat_feature_parity_2026-11-17.md` (14-domain function matrix), `cpsat_trip_level_adr_2026-11-17.md` (ADR, migration P0–P3), `cpsat_implementation_phases_2026-11-17.md` (packages + DAG), `cpsat_coverage_audit_2026-11-17.md` (function audit), `cpsat_design_audit_2026-11-17.md` (package audit whose findings this revision applies)
 
 ---
 
@@ -41,6 +41,10 @@ FactSnapshot       TripRequest + candidates + travel matrix + access profiles + 
 Solution           presence[cid,day], start[cid], dur[cid], day[cid], access intervals,
                    unplaced_var[rid] + reason codes, slack log, certificate (if infeasible)
 ```
+
+**Module boundary rules (audit M2)**: `trip_solver/` may import read-only pure helpers from `app/services/itinerary/` (hours/access/fare/geo math) and nothing from `app/services/agent/plan.py`. No DB or network I/O inside solve — everything the solver reads comes from the immutable `FactSnapshot`; I/O happens only in snapshot construction (F-03) and in assembly/edit adapters.
+
+**Snapshot & fixture versioning (audit M3)**: `FactSnapshot.schema_version = 1` (bump on any field change). Golden fixtures are **anonymized** (device/account/session ids stripped) and committed to the repo (`tests/golden/*.json`); when the POI library evolves (hours/durations backfills), fixtures are regenerated and re-blessed in the same commit as the expectation update — never silently.
 
 ## 3. Design functions
 
@@ -101,7 +105,7 @@ Covers D3/D4. Resolves **B-01** (no invisible state exists), B-06 (an item is ei
 | C-02 | Entry cap 16:30/big 15:30 + open-form & night exemptions | `generic_entry_cap`, `_hours_open_form`, `_hours_evening_only` (B-07) |
 | C-03 | NoOverlap incl. travel arcs (intra-day sequence + travel time) | solver NoOverlap + `_travel_matrix` |
 | C-04 | User pins = iron rule 19 (fixed time); engine pins = must-stay, retimable; **fixed sessions** from flag schedule (`_apply_flag_schedule`), comment day-start (`_apply_comment_day_start`), user-chosen shuttle departure (`set_access_departure`) | **D5** (2a56cda), reopen guards (B-09) |
-| C-05 | Endpoint days only with timed intercity legs; no transport info = full day | B-11 (438bcfa), `_apply_intake_times` |
+| C-05 | Endpoint days only with timed intercity legs; no transport info = full day; **city order fixed by intent layer (Q6)** | B-11 (438bcfa), `_apply_intake_times` |
 | C-06 | Remote-day exclusivity: day with remote cluster item → other items same cluster or none | `_separate_remote_must_days`, `_day_already_remote`, third-cluster eviction (B-08) |
 | C-07 | Same city / same river-side per day; multi-city day ranges | `_enforce_day_zones`, `_city_side_ok` |
 | C-08 | Access legs as intervals: board windows, ride, last mile, return-last | `_access_profiles`, shuttle timetables (B-03c) |
@@ -141,6 +145,12 @@ Resolves B-04 (fallback replaced by explicit, disclosed relaxation).
 `sufficient_assumptions_for_infeasibility` → minimal conflicting rule set → reason codes (e.g. 「故宫 15:30 停止检票 + 颐和园需 ≥240min + 天坛 150min ⇒ D2 不可全排」). Reason codes attach to `unplaced_var[rid]`.
 Resolves B-01/E-4 (honest "why"), B-04 (no 「未收敛」 hand-wave).
 
+### Performance envelope (audit M4)
+
+- Budget split per solve: snapshot build **outside** the 3 s CP-SAT budget, target ≤ 300 ms; solve ≤ 3 s (incl. certificate path); assembly ≤ 200 ms. End-to-end worst case ≈ 3.5 s per generation, same order as today's cascade.
+- Model-size bound (from Q2): candidates = requested (musts+wishes) + ≤ 6 fill/day, so variables ≈ (requested + 6·days) × days presence + start/day vars + access intervals. Example: 5 requested + 12 fill × 2 days ≈ 34 presence vars + ~70 time vars — small for CP-SAT; 7 days × (10 + 42) ≈ 364 presence vars is the Q3 stress case.
+- Worst case = INFEASIBLE → F-25 ladder + F-26 certificate, bounded by the same budget; **never** a sequential fallback.
+
 ### Module D — Solution → plan assembly (outside the model)
 
 **F-30 `materialize_plan(Solution, FactSnapshot) -> ItineraryPlan`**
@@ -157,7 +167,7 @@ Covers D9/D11/D13 assembly.
 
 **F-33 `disclosure_renderer(slack log, certificate, weather, coverage) -> bilingual lines`**
 All disclosures from structured reasons (not LLM invention); bilingual by `lang`; 「求解器未收敛，时间已按顺序兜底排列」 is **deleted** — replaced by certificate/relaxation lines.
-Resolves B-04 wording + B-01/E-3 visibility.
+Resolves B-04 wording + B-01/E-3 visibility. Reason-code → bilingual text lives in `trip_solver/disclosure_templates.json`; every certificate reason code must have both-lang entries, and a test asserts 100% code coverage (audit M13).
 
 **F-34 `session_trip_center_sync(plan, session) -> synced stores`**
 Session persistence and trip-center (行程中心) sync: `sync_trip_rows`, `_sync_wish_rows`, `_sync_planned_rows`, `sync_removals_to_trip_items`, `ensure_unique_item_ids`, session-store plumbing (`get_plan_session_store`, `live_itinerary_ids`, `alloc_item_id`). Wish rows mirror scheduled/unplaced state with disclosures; removals propagate; item ids stay unique.
@@ -170,6 +180,10 @@ Covers D10/D13. Engine-independent; behavior unchanged, driven by F-30's materia
 **F-42 `runtime_offload`** — solver runs in `to_thread` (or a worker); event-loop freeze budget ≤ today's post-fix level (p95 target ≤ ~250 ms during generation).
 Covers D11/D14; resolves B-15 regression risk.
 
+**F-35 `entry_adapter` (audit M1)** — the only call path between legacy/api and the new engine: `solve_trip(request, snapshot, *, flag='legacy'|'shadow'|'cpsat', budget, hint=None) -> Solution`, always invoked via `asyncio.to_thread`. `flag` from env `TRIP_SOLVER` (default `legacy`). Timeout/INFEASIBLE → F-25/F-26 certificate, never a fallback sequence. Exceptions: fail loud in tests; in production with flag=cpsat, catch → emit telemetry, fall back to legacy engine **with disclosure** (this is also the P3 rollback path). P0 outbound gates run downstream of either engine, always.
+
+**F-36 `solve_telemetry` (audit M5)** — structured per-solve log: `{snapshot_hash, schema_version, status, wall_ms, n_vars, n_cons, slack_level, unplaced_count, fill_count, hint_used, solver_version}`; feeds the F-62 convergence metric, the P2 diff report, and the P3 rollback triggers. Logged for both engines in shadow so the comparison is apples-to-apples.
+
 ### Module F — Edit & lifecycle
 
 **F-50 `edit_resolve(session, DiffOp) -> Solution`** — move/retime/duration/delete/pin → re-solve with previous solution as hint; reopen keeps already-timed user pins and engine musts as anchors (B-09 guards become C-04 facts).
@@ -180,7 +194,7 @@ Covers D10; resolves B-09 semantics, B-20 implementation.
 
 **F-60 `golden_corpus`** — incident-derived scenarios, starting with **G-01 = session 24379abd** (expected shapes E-1…E-4 in AS-IS §5), plus this week's fixed incidents as regression scenarios (tower late-gate, ZHUJIAZUI, reopen preserve, no-transport full-day, rain rebalance, third-cluster eviction…).
 **F-61 `shadow_compare(snapshot) -> diff report`** — old cascade vs global model on the same snapshot; **relative criteria**: not-worse on every corpus scenario + bug classes eliminated + convergence rate; never requires the old engine to be perfect first.
-**F-62 `acceptance_metrics` (P3 gate)** — parity checklist 14/14 domains; corpus green; 「求解器未收敛」 disclosures = 0; contract/audit suites green; determinism guard green; latency within budget. Failing any ⇒ stay in shadow (zero-risk).
+**F-62 `acceptance_metrics` (P3 gate, thresholds per audit M9)** — parity checklist 14/14 domains; corpus ≥ 12 scenarios incl. G-01, all green; relative criterion per scenario = not-worse (plan-score Δ ≥ −2% vs legacy) **and** violation classes B-01/B-02/B-03/B-06 = 0; convergence (OPTIMAL or FEASIBLE within budget) ≥ 99% of corpus runs; 「求解器未收敛」 disclosures = 0; contract/audit suites green; determinism = byte-identical across 2 runs of every snapshot; latency inside the M4 envelope. Failing any ⇒ stay in shadow (zero-risk).
 
 ## 4. Traceability — every bug has a design mechanism
 
@@ -233,10 +247,23 @@ Covers D10; resolves B-09 semantics, B-20 implementation.
 - **Q3 Trip-level convergence**: prove within the 3 s budget on the largest realistic case (5 musts + ≤12 fill × 2–7 days); if tight, escalate budget per tier with disclosure, never fall back to sequential ordering.
 - **Q4 Remote-lunch semantics**: exact nesting rule when arrival < 11:00 (lunch window not yet open) — visit-then-lunch vs wait; default: visit first if arrival + lunch would start before 11:00.
 - **Q5 Objective weights**: importance weights for must/wish tiers and the weather penalty scale, migrated from `_MUST_RAIN_*` and `plan_score` constants (keep numeric parity where possible).
+- **Q6 Multi-city order** (audit M11): city sequence is fixed by the intent layer (recommended) — the model respects it; only day allocation inside each city is optimized.
+- **Q7 Edit latency** (audit M12): re-solve on edit targets ≤ 800 ms with hint; if exceeded, keep the current plan and disclose 「重排中，稍后自动更新」 while the background re-solve completes.
 
-**Next step on user approval**: review this package, settle Q1–Q5, then implement P1 (F-01…F-26) in the side module with G-01 as the first golden test.
+**Next step on user approval**: review this package, settle Q1–Q7, then implement P1 (F-01…F-26) in the side module with G-01 as the first golden test.
 
 ---
+
+### Constants migration table (audit M10)
+
+| Parameter | Current source of truth | Model value |
+|---|---|---|
+| Generic entry cap | solver `_GENERIC_ENTRY_CAP_MINUTES` (16:30) | 990 min |
+| Big-site entry cap | solver big-site cap (15:30) | 930 min |
+| Rain penalties | `_MUST_RAIN_OUTDOOR_PENALTY=240`, `_MUST_RAIN_INDOOR_PENALTY=60` | 240 / 60 (unchanged) |
+| Fill-pool cap | new (Q2) | ≤ 6 unrequested/day |
+| Duration tier clamp | new (Q1) | typ = min(library, 240) for big park/garden sites, disclosed |
+| Day-load / cluster caps, family weights, head/morning cost terms | solver/scoring/plan constants | **migrate verbatim at P1-B** — lifted from the current constants into the model params file with a source comment; never re-tuned during migration |
 
 ## 8. Coverage audit (647 functions, 2026-11-17)
 

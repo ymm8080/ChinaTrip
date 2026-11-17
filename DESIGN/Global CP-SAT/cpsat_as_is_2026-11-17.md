@@ -1,6 +1,6 @@
 # AS-IS — Current Planning Engine: Architecture, Function Inventory, Bug Register
 
-**Date**: 2026-11-17 · **Status**: design package 1/2 (design-first per user decision; **no implementation in this round**) · **Companions**: `cpsat_trip_level_adr_2026-11-17.md` (architecture decision), `cpsat_feature_parity_2026-11-17.md` (function-level parity matrix), `cpsat_design_functions_2026-11-17.md` (design package 2/2)
+**Date**: 2026-11-17 · **Status**: design package 1/2 (design-first per user decision; **no implementation in this round**) · **Companions**: `cpsat_trip_level_adr_2026-11-17.md` (architecture decision), `cpsat_feature_parity_2026-11-17.md` (function-level parity matrix), `cpsat_design_functions_2026-11-17.md` (design package 2/2), `cpsat_coverage_audit_2026-11-17.md` (function coverage audit), `cpsat_implementation_phases_2026-11-17.md` (phased plan + DAG), `cpsat_design_audit_2026-11-17.md` (package audit)
 
 ---
 
@@ -75,7 +75,7 @@ Full function-level matrix (every domain: current implementation → fate in the
 
 ## 4. Bug register
 
-Class: **S** = structural (decomposed-cascade root), **I** = implementation (single-pass/ wiring), **D** = data. Status: OPEN / PARTIAL / FIXED(commit).
+Class: **S** = structural (decomposed-cascade root), **I** = implementation (single-pass/ wiring), **D** = data. Status: OPEN / PARTIAL / FIXED(commit). Statuses are **as of origin `9ca19ba` (2026-11-17 PM)** — refresh against the latest parallel commits before the P3 gate (audit A8).
 
 | ID | Symptom (evidence) | Root cause | Class | Status |
 |---|---|---|---|---|
@@ -94,7 +94,7 @@ Class: **S** = structural (decomposed-cascade root), **I** = implementation (sin
 | B-13 | English dates unread; 「11AM」 parsed as 11 days | Regex gaps; bare-int fallback unmasked | I | FIXED bd90b8d (LLM-first facts + regex fallback + time masking) |
 | B-14 | Coverage audit only affected the response, DB stayed dirty (dup 67→62 after fix) | `store.save` happened before the audit | I | FIXED fd29906 (audit before save on GET/start) |
 | B-15 | Event loop frozen 8.2s during generation; SQLite cross-process write lock | Sync solver chain on the loop; no WAL/busy_timeout | I | FIXED to_thread (d721b88) + WAL (f4d6d09); **residual ~2.8s freeze OPEN-minor** |
-| B-16 | Form/preferences 「必去：…」 not bound on fresh structured `/plan/start` (brief/message paths bind fine) | Binding channel coverage | I | **OPEN** |
+| B-16 | Form/preferences 「必去：…」 not bound on fresh structured `/plan/start` (brief/message paths bind fine) | Binding channel coverage | I | **OPEN → assigned** (audit M15): new intent layer F-01/F-02, P1-B acceptance = form/preferences 必去 binds on fresh structured start; optional legacy hotfix is out of CP-SAT scope |
 | B-17 | `test_rechain_visit_after_earlier_arrival` red on clean baseline | Parallel transfers area | I | **OPEN** (parallel-session account) |
 | B-18 | `_wish_bindings` singleton draft shared across concurrent sessions (cross-contamination risk) | Process-global draft buffer | I | **OPEN** (risk, no confirmed user incident) |
 | B-19 | 颐和园 `suggested_duration_min=300` (5h) makes a 2-day/5-must trip barely feasible; duration has no tiers | Library duration is a single unbounded value | **D** | **OPEN** (duration tiering/clamping policy needed) |

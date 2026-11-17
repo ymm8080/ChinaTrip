@@ -5,7 +5,7 @@
 ## Method and totals
 
 - Scanned `app/services/agent/plan.py` + 12 `itinerary/` modules (solver/scoring/rules/legs/fares/geo/pipeline/coverage/request_coverage/item_ids/edit_distance/models) for `def` at module or class level: **647 functions**.
-- **235** are explicitly named in the four design documents (ADR / AS-IS / design functions / parity matrix).
+- **235** are explicitly named in the design-package documents then existing (ADR / AS-IS / design functions / parity matrix; the implementation-phases plan and this audit were added later and belong to the same package — audit A7).
 - The remaining **412** were classified by hand into the rule families below (**367 functions**) plus **45 utility/helper functions** (string/time/coordinate formatting, tiny predicates, local closures, store plumbing) whose behaviour is subsumed by the module they serve — they carry no user-visible rule of their own.
 - Result: **every rule-bearing function maps to a design element** (constraint C-xx, objective F-23, input F-10…F-15, assembly F-30…F-34, gate F-40, or a retired executor whose semantics move into the model).
 

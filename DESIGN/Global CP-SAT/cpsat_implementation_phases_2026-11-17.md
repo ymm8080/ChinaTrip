@@ -45,7 +45,7 @@ So: **a real build, but additive and de-risked** — and smaller than it looks, 
 
 Legend: **T** = type/code dependency (will not compile or run without it) · **D** = data dependency (needs the real snapshot; synthetic fixtures are used until then, so it never blocks writing code) · **A** = acceptance dependency (only meaningful once the other exists) · **X** = external precondition.
 
-**Global preconditions for every package**: design package complete (done) + **Q1–Q5 settled** (X).
+**Global preconditions for every package**: design package complete (done) + **Q1–Q7 settled** (X).
 
 ```
 P1-A ──T──> P1-B ────────────────D──────────────┐
@@ -82,7 +82,25 @@ P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with 
 - **Join point**: P1-F needs P1-E from Track A (and the real snapshot from Track B); P3 needs P2-B green **plus** the external quiet window.
 - Nothing in Track A needs Track B's data to *write code* — synthetic fixtures cover every D edge; the tracks only join for the end-to-end golden pass.
 
-## 5. Token-economy operating rules (how each session stays cheap)
+## 5. Audit-driven additions (2026-11-17)
+
+**A9 + M3 — Fixture sanitization & versioning (P1-A)**: G-01's source payload is anonymized before becoming `tests/golden/g01.json` (strip `device_id`, `account_id`, session ids; keep musts/dates/candidates/plan shape). `FactSnapshot.schema_version = 1`; fixture regeneration + expectation re-bless land in the same commit when the POI library changes.
+
+**M7 — Golden assertion schema (P1-A)**: per scenario, an ordered list of assertions `{type, args}`: `sequence` (relative card order), `time_range` (start/end window), `same_venue` (meal anchor == site coords), `card_leg_consistent` (visit.start == leg.arrive + last_mile), `no_unrequested_before` (before the remote access leg), `requested_coverage` (every requested item timed **or** unplaced+disclosure — untimed requested cards are a hard failure), `no_entry_cap_breach`, `disclosure_contains` (bilingual key), `deterministic` (two runs byte-identical). Exact times are asserted **only** where a timetable fixes them (e.g. shuttle 09:30 → arrive 11:08); everything else asserts shape invariants.
+
+**M6 — Shadow operations (P2-A)**: offline batch by default (no in-request double compute): the harness replays committed snapshots through both engines and writes diff reports. Optional live sampling behind flag at ≤ 5% of generations, max 1 extra solve per session. Reports retained ≥ 8 weeks under `DESIGN/Global CP-SAT/shadow/`; reviewed at every P2-B iteration.
+
+**M8 — P3 rollback plan**: instant flag flip `TRIP_SOLVER=legacy` (no data migration — plan/session schemas unchanged). Triggers: any P0-gate violation on live traffic, convergence < 99% on the live sample, error rate above the legacy baseline, or a user-reported regression class. After a rollback, every incident becomes a corpus scenario before the next attempt.
+
+**M12 / Q7 — Edit latency (P4)**: re-solve on edit targets ≤ 800 ms with hint; on overrun, keep the current plan, disclose 「重排中，稍后自动更新」, and finish in background — interactions never block on the solver.
+
+**M14 — P1-B data-readiness checklist (acceptance)**: hours parse success ≥ 99% of candidates; access profile present for every remote candidate; indoor/rain_ok non-null ≥ 95%; duration tier present for 100% of candidates; travel-matrix coverage 100% within selected cities. Any unmet gate fails P1-B acceptance — adapters must not run on bad data.
+
+**M4 (phases part) — P1-E envelope acceptance**: measured snapshot ≤ 300 ms, solve ≤ 3 s including certificate path, assembly ≤ 200 ms; model-size arithmetic documented against the Q2 cap (see design-functions performance envelope).
+
+**M15 — B-16 ownership**: assigned to the new intent layer (F-01/F-02). P1-B acceptance adds 「form/preferences 必去 binds on fresh structured start」; a legacy hotfix is optional and outside this plan.
+
+## 6. Token-economy operating rules (how each session stays cheap)
 
 1. **Work from the package spec, never re-scan the repo.** The function inventory, coverage audit and parity matrix already exist; each session reads *its own package section* of the design doc, not the codebase.
 2. **Reuse fixtures, not live probing.** G-01's real session payload is already dumped; every corpus scenario is a static JSON. No repeated live-server reproduction unless something is genuinely new.
@@ -92,7 +110,7 @@ P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with 
 6. **Decide Q1–Q5 up front** (below) so no package is reworked for a policy change mid-build.
 7. **Commit at every package boundary** (auto-commit rule). A fresh session always starts from a clean, committed state.
 
-## 6. Prerequisites to start P1-A — Q1–Q5 with proposed defaults
+## 7. Prerequisites to start P1-A — Q1–Q7 with proposed defaults
 
 | Q | Question | Proposed default (say "defaults OK" or override) |
 |---|---|---|
@@ -101,8 +119,10 @@ P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with 
 | Q3 | Trip-level convergence within 3 s | measured at P1-E/P2-B; if tight, raise budget per tier **with disclosure** — never fall back to sequential ordering |
 | Q4 | Remote-lunch nesting when arrival < 11:00 | visit first, lunch after, if arrival+lunch would start before 11:00; otherwise lunch at arrival (先午餐后游览) |
 | Q5 | Objective weights | must ≫ wish ≫ fill; keep `_MUST_RAIN_*` and `plan_score` constants numerically where they exist |
+| Q6 | City order on multi-city trips | **intent-layer input** (model respects it) — from audit M11 |
+| Q7 | Edit re-solve latency | ≤ 800 ms with hint; on overrun keep plan + disclose 「重排中」 — from audit M12 |
 
-## 7. What deliberately stays out of scope (keeps the build small)
+## 8. What deliberately stays out of scope (keeps the build small)
 
 - No changes to intent/LLM prompts, H5 front-end, bookings/payments/travelers, POI backfill pipelines.
 - `plan.py` untouched through P1/P2 (side module + shadow). Only P3 adds a few lines behind a flag.

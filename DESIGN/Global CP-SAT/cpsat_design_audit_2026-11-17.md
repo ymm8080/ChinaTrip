@@ -2,6 +2,8 @@
 
 **Date**: 2026-11-17 (evening) · **Scope**: the six documents in `DESIGN/Global CP-SAT/` (ADR, AS-IS, design functions, feature parity, coverage audit, implementation phases) · **Method**: full re-read of the ADR + mechanical cross-reference scan of all six files + consistency check against the current code state and this week's decisions. **Per user instruction: no comments on agreed parts — only what is missing, stale, or needs updating.**
 
+**Status: APPLIED 2026-11-17** — A1–A9 fixed in the respective files; M1–M15 incorporated (M1/M2/M4/M7 into design functions + phases, the rest with their owning packages); Q6/Q7 appended to open questions.
+
 ---
 
 ## A. Stale / inconsistent — mechanical updates, no new decisions needed
