@@ -2770,31 +2770,18 @@ _EDIT_SYSTEM_PROMPT = (
     "绑定并排期——同类候选（如多个熊猫基地）默认只安排最经典（知名度最"
     "高）、与行程地理上最顺路的一个。reply 先注释结果：安排了什么、第几"
     "天、可替换项（如「都江堰熊猫谷可替换」）。"
-    "回复纪律（2026-11-17 用户拍板「NO LLM CAN ASK ANY QUESTIONS TO"
-    " GATHER NECESSARY INFORMATION」）：reply 里绝不出现任何问句——"
-    "不问任何问题；缺什么信息由引擎的确定性澄清轮负责，行程、地点、"
-    "城市、天数等一律先查底库/会话，查得到就自己定并在 reply 里说明。"
-    "同类候选不再用问句征求偏好：默认安排最经典的一个并注明可替换项，"
-    "用户想换时会自己说。"
+    "回复纪律（2026-11-17 用户二拍「先查底库；信息不全可以且应该问"
+    "用户；猜出大概必须向用户确认」）：①能从底库/会话/当前行程确定的"
+    "（城市、景点、可推的天数、名称拼写）一律自己查、自己定，并在 reply"
+    "里说明依据，不要问；②确实缺、查不到的信息，直接在 reply 里向用户"
+    "提问——一次集中问清，不连环追问；③你的处理与用户原话不一致，或是"
+    "靠猜/近似得来的（拼错的地名按拼写近似认了、推断的城市/日期/天数、"
+    "估计的时长），必须在 reply 里点名并向用户确认（如「ZHUJIAZUI 按拼写"
+    "近似认成了朱家角古镇——如果不是请直接告诉我」）；④同类候选默认安排"
+    "最经典、地理上最顺路的一个并注明可替换项，注释之后可以问用户倾向，"
+    "用户回答想换时再出 diff 换绑。"
 )
 
-
-def _strip_llm_questions(text: str) -> str:
-    """LLM 回复纪律（2026-11-17 用户拍板「NO LLM CAN ASK ANY QUESTIONS
-    TO GATHER NECESSARY INFORMATION」）：编辑通道的 reply 是唯一面向
-    用户的自由文本，里面不允许出现任何问句——含问号的整句直接剥掉；
-    缺什么信息由引擎的确定性澄清轮负责（先查底库/会话，查不到的才由
-    clarify 问）。剥完为空返回空串（调用方按空回复走重采样/兜底）。"""
-    probe = (text or "").strip()
-    if not probe or ("?" not in probe and "？" not in probe):
-        return probe
-    # 问句整句删除：非终止符串 + 问号 + 可选尾标点（。/？是独立分隔符，
-    # 不能按 chunk 丢——丢掉问号 chunk 会把问句正文留下）。
-    out = re.sub(r"[^。！？!?；;\n]*[？?]", "", probe)
-    out = re.sub(r"^[。！？!?；;\s，、]+", "", out)
-    # 尾部只清悬挂的分隔符（，、；），保留句号/叹号等正当句尾。
-    out = re.sub(r"[，、；;\s]+$", "", out)
-    return out.strip()
 
 
 def _cn_number(token: str) -> int | None:
@@ -19075,7 +19062,8 @@ class PlanningAgent:
                 session.brief_notes = [
                     *session.brief_notes,
                     L(
-                        f"目的地城市按你点名的「{_named}」推断为{_city}。",
+                        f"目的地城市按你点名的「{_named}」推断为{_city}——"
+                        "如果不对请直接告诉我是哪座城市。",
                         f"Destination city set to {_city} from the places you "
                         f"named ({_named}).",
                     ),
@@ -20676,7 +20664,8 @@ class PlanningAgent:
                     session.brief_notes = [
                         *session.brief_notes,
                         L(
-                            f"目的地城市按你点名的「{_named}」推断为{_city}。",
+                            f"目的地城市按你点名的「{_named}」推断为{_city}——"
+                        "如果不对请直接告诉我是哪座城市。",
                             f"Destination city set to {_city} from the places "
                             f"you named ({_named}).",
                         ),
@@ -32570,9 +32559,9 @@ class PlanningAgent:
                 continue
             try:
                 data = parse_json_content(result.content)
-                # 2026-11-17（NO LLM QUESTIONS 拍板）：问句整句剥掉，
-                # 问句-only 的抽签按空回复走重采样，不把提问漏给用户。
-                reply = _strip_llm_questions(str(data.get("reply") or ""))
+                # 2026-11-17 用户二拍：信息不全时 LLM 直接在 reply 里问用户
+                # （先查底库、猜测需确认——约束在系统提示词里，不在这里硬剥）。
+                reply = str(data.get("reply") or "")
                 diffs = self._coerce_diffs(data.get("diffs"), plan=session.plan)
                 wishes = self._coerce_wishes(data.get("wishes"))
                 if diffs or reply or wishes:
