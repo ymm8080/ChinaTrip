@@ -15294,11 +15294,27 @@ def _is_remote_point(plan: ItineraryPlan, loc: GeoPoint | None) -> bool:
 
 
 def _day_already_remote(plan: ItineraryPlan, day: DayPlan) -> bool:
-    """当天是否已经有远郊观光件（=已经有远郊族的成员）。"""
+    """当天是否已经有远郊观光件（=已经有远郊族的成员）。
+
+    2026-11-17 改口径：锚改用「当天市区落脚点」（legs._day_city_anchor：
+    酒店夜卡真坐标 → 晨卡锚 → 城心），不再用全行程质心——质心会被别的
+    天的远郊件拖偏（慕田峪案：慕田峪把质心拽北后，八达岭观景台 60km
+    反而判「不远」，远郊大趟日漏判成普通日，「远郊日只补体验类」重闸
+    失效）。锚缺失时回退旧质心口径。
+    """
+    anchor_pt = _day_city_anchor_pt(day)
+    if anchor_pt is None:
+        return any(
+            isinstance(i, VisitItem)
+            and (i.category or "") not in ("food", "hotel")
+            and _is_remote_point(plan, i.location)
+            for i in day.items
+        )
     return any(
         isinstance(i, VisitItem)
         and (i.category or "") not in ("food", "hotel")
-        and _is_remote_point(plan, i.location)
+        and getattr(i, "location", None) is not None
+        and haversine_km(anchor_pt, i.location) > _REMOTE_SIGHT_KM
         for i in day.items
     )
 
@@ -15401,6 +15417,106 @@ _LEFTOVER_FILL_MIN_MINUTES = 60
 _LEFTOVER_FILL_MAX_MINUTES = 240
 #: 补点披露文案（幂等标记：assumptions 里出现即视为已补过，反复开页不叠加）
 _LEFTOVER_FILL_MARKS = ("按类型多样性补了", "for variety")
+
+#: 回城日补点的「市区落脚圈」（2026-11-17 慕田峪案）：回城后的空档属于
+#: 市区，豁免只放行距当天市区锚（酒店/晨卡锚/城心）≤25km 的候选——
+#: 城区圈全覆盖（天安门→颐和园 15km），八达岭/慕田峪这类 50km+ 远郊照拒。
+_CITY_FILL_KM = 25.0
+
+
+def _day_city_anchor_pt(day: DayPlan) -> GeoPoint | None:
+    """当天市区锚（legs._day_city_anchor 薄封装：夜卡真坐标→晨卡锚→城心）。"""
+    from app.services.itinerary.legs import _day_city_anchor
+
+    pt, _name = _day_city_anchor(day)
+    return pt
+
+
+def _near_day_city_anchor(day: DayPlan, loc: GeoPoint | None) -> bool:
+    """候选是否落在当天市区落脚圈（回城日补点豁免圈，2026-11-17）。"""
+    if (
+        loc is None
+        or getattr(loc, "lon", None) is None
+        or getattr(loc, "lat", None) is None
+    ):
+        return False
+    pt = _day_city_anchor_pt(day)
+    if pt is None:
+        return False
+    return haversine_km(pt, loc) <= _CITY_FILL_KM
+
+
+def _evict_third_cluster_extras(plan: ItineraryPlan) -> list[str]:
+    """清退「第三个片区」的历史补点件（2026-11-17 慕田峪案回扫）。
+
+    旧口径「回城日族亲和全豁免」落过脏卡：八达岭·长城之漫观景台被补进
+    慕田峪天（离簇 60km、离市区圈 60km），午饭卡上多出 199 分钟「班车+
+    打车 ¥145」怪腿、晚饭锚被拖到延庆——用户「到了慕田峪吃午饭为什么
+    打车回北京」实录。开档按新口径回扫：``extras-`` 补点件既不贴当天簇
+    （≤_CLUSTER_FILL_KM）、又不在市区圈（≤_CITY_FILL_KM）→ 移出并披露。
+    幂等：删完即无；pinned/must/soft_pin 是用户亲手件不动；无簇可判的天
+    不动（宁误留不误删）。
+    """
+    notes: list[str] = []
+    for day in plan.days:
+        day_pts = [
+            (float(i.location.lon), float(i.location.lat))
+            for i in day.items
+            if isinstance(i, VisitItem)
+            # extras- 补点件不算簇锚：否则远卡自己就是自己的簇（自距 0）
+            and not str(i.item_id or "").startswith("extras-")
+            and (i.category or "") not in ("food", "hotel")
+            and getattr(i, "location", None) is not None
+            and getattr(i.location, "lon", None) is not None
+            and getattr(i.location, "lat", None) is not None
+        ]
+        if not day_pts:
+            continue
+        anchor_pt = _day_city_anchor_pt(day)
+        for item in list(day.items):
+            if not isinstance(item, VisitItem):
+                continue
+            if not str(item.item_id or "").startswith("extras-"):
+                continue
+            if (
+                getattr(item, "pinned", False)
+                or getattr(item, "must", False)
+                or getattr(item, "soft_pin", False)
+            ):
+                continue
+            loc = item.location
+            if (
+                loc is None
+                or getattr(loc, "lon", None) is None
+                or getattr(loc, "lat", None) is None
+            ):
+                continue
+            near_cluster = (
+                min(
+                    haversine_km(
+                        GeoPoint(lon=_x, lat=_y),
+                        GeoPoint(lon=loc.lon, lat=loc.lat),
+                    )
+                    for _x, _y in day_pts
+                )
+                <= _CLUSTER_FILL_KM
+            )
+            if near_cluster:
+                continue
+            if (
+                anchor_pt is not None
+                and haversine_km(anchor_pt, loc) <= _CITY_FILL_KM
+            ):
+                continue
+            day.items.remove(item)
+            notes.append(
+                L(
+                    f"第{day.day}天「{item.name}」离当天片区和市区都太远，"
+                    f"已从行程移除——想加回可指定具体日期",
+                    f"Day {day.day}: {item.name} is far off-cluster and was removed",
+                )
+            )
+    return notes
 
 
 def _day_fill_floor(day: DayPlan) -> int:
@@ -15617,10 +15733,13 @@ def _fill_leftover_with_diverse_sights(
                 and not _in_park_of_existing(plan, u.name)
                 and not any(k in str(u.name or "") for k in _LODGING_KEYS)
                 and place_core(u.name) not in seen_cores
-                # 族亲和：当天已有件时只补 5km 内
+                # 族亲和：当天已有件时只补 5km 内；回城日（空档在市区）
+                # 放宽到「市区落脚圈 ≤_CITY_FILL_KM」——但只是放宽不是豁免：
+                # 既不贴当天簇、又在市区圈外的「第三个片区」（八达岭观景台
+                # 之于慕田峪天，离簇离市区都 60km，2026-11-17 用户「到了
+                # 慕田峪吃午饭为什么打车回北京」实录）照拒。
                 and not (
                     day_pts
-                    and not day_has_return
                     and getattr(u, "location", None) is not None
                     and getattr(u.location, "lon", None) is not None
                     and min(
@@ -15631,6 +15750,10 @@ def _fill_leftover_with_diverse_sights(
                         for _x, _y in day_pts
                     )
                     > _CLUSTER_FILL_KM
+                    and not (
+                        day_has_return
+                        and _near_day_city_anchor(day, u.location)
+                    )
                 )
             ]
             if not pool:
@@ -31144,6 +31267,17 @@ class PlanningAgent:
                 session.plan.assumptions.append(note)
             if note not in session.assumptions:
                 session.assumptions.append(note)
+        # 历史脏卡清退（2026-11-17 慕田峪案）：旧「回城日不限距」豁免落进来的
+        # 第三片区补点件开档即清——不必等重新生成；在已补短路之前跑，
+        # 「补过」的旧会话也能被治好。
+        evicted = _evict_third_cluster_extras(session.plan)
+        if evicted:
+            annotate_legs(session.plan)
+            for note in evicted:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
         # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
         _filled = any(
@@ -31155,9 +31289,9 @@ class PlanningAgent:
         # 读闸口径（2026-11-16）：GET 刷新只治「上午空着」，不主动往行程里
         # 加新卡——页刷一次多一张卡是用户最怕的不稳定。
         if morning_only and not _holes:
-            return []
+            return evicted
         if _filled and not _holes:
-            return []
+            return evicted
         notes = await self._fill_leftover_time(
             session.plan,
             avoid=set(session.avoid_sites or ()),
@@ -31186,7 +31320,7 @@ class PlanningAgent:
             logger.info(
                 "plan: session %s 空档补点 %d 处", session.session_id, len(notes)
             )
-        return notes
+        return [*evicted, *notes]
 
     async def heal_must_coverage(self, session: PlanSession) -> list[str]:
         """开局必去覆盖自愈（2026-11-14 用户拍板「故宫 IS IN WISH LIST, MUST

@@ -432,3 +432,191 @@ def test_rated_intl_candidate_keeps_express_lane():
     notes = _fill_leftover_with_diverse_sights(plan, bench=[plain, intl])
     assert notes
     assert "国际荐点景点" in notes[0]
+
+
+def test_return_day_fill_rejects_third_cluster_candidate():
+    """回城日豁免收口（2026-11-17 慕田峪案）：既不贴当天簇、又出市区圈
+    （城心 25km）的候选不得补进回城日——八达岭观景台之于慕田峪天，
+    补进来就在午饭卡上挂出 199 分钟「班车+打车 ¥145」怪腿。"""
+    from app.services.itinerary.models import TransferItem
+
+    ret = TransferItem(
+        item_id="access-return-v-mty",
+        day=1,
+        seq=0,
+        from_city="",
+        to_city="",
+        mode="car",
+        start_time=time(12, 10),
+        end_time=time(13, 0),
+        duration_minutes=50,
+    )
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _v(
+                "mty",
+                "远郊景区",
+                time(9, 0),
+                time(12, 0),
+                cat="nature",
+                must=True,
+                dur=180,
+                lon=121.05,
+                lat=31.11,
+            ),
+            ret,
+            _food("晚饭", time(19, 0), time(20, 30)),
+        ]
+    )
+    far = _cand("第三个片区景点", 90, 121.90, 31.05)
+    assert _fill_leftover_with_diverse_sights(plan, bench=[far]) == []
+    assert not any(
+        getattr(i, "name", "") == "第三个片区景点" for i in plan.days[0].items
+    )
+
+
+def test_return_day_fill_takes_city_circle_candidate():
+    """回城日豁免放行市区圈（≤25km）候选：回城后的空档照旧补市区点。"""
+    from app.services.itinerary.models import TransferItem
+
+    ret = TransferItem(
+        item_id="access-return-v-mty",
+        day=1,
+        seq=0,
+        from_city="",
+        to_city="",
+        mode="car",
+        start_time=time(12, 10),
+        end_time=time(13, 0),
+        duration_minutes=50,
+    )
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _v(
+                "mty",
+                "远郊景区",
+                time(9, 0),
+                time(12, 0),
+                cat="nature",
+                must=True,
+                dur=180,
+                lon=121.05,
+                lat=31.11,
+            ),
+            ret,
+            _food("晚饭", time(19, 0), time(20, 30)),
+        ]
+    )
+    city = _cand("田子坊", 90, 121.49, 31.22)
+    notes = _fill_leftover_with_diverse_sights(plan, bench=[city])
+    assert notes
+    assert any(
+        getattr(i, "name", "") == "田子坊" for i in plan.days[0].items
+    )
+
+
+def test_day_already_remote_anchors_on_day_city_anchor():
+    """远郊日判定改用当天市区锚（2026-11-17）：不再被全行程质心拖偏——
+    慕田峪案里质心北移后八达岭观景台 60km 反而判「不远」。"""
+    from app.services.agent.plan import _day_already_remote
+
+    day1 = DayPlan(
+        day=1,
+        base_city="上海",
+        items=[
+            _v("a", "市区景点A", time(9, 0), time(10, 0), lon=121.47, lat=31.23),
+            _v(
+                "r",
+                "远郊大景区",
+                time(11, 0),
+                time(14, 0),
+                cat="nature",
+                lon=121.47,
+                lat=31.85,
+            ),
+        ],
+    )
+    day2 = DayPlan(
+        day=2,
+        base_city="上海",
+        items=[_v("b", "市区景点B", time(9, 0), time(12, 0), lon=121.47, lat=31.23)],
+    )
+    plan = ItineraryPlan(
+        itinerary_id="t", cities=["上海"], days=[day1, day2], assumptions=[]
+    )
+    # 旧口径：全行程质心 ≈ (121.47, 31.48)，远郊件距质心 ~40km < 50 → 漏判
+    # 新口径：距当天市区锚（城心）~68km > 50 → 判远郊
+    assert _day_already_remote(plan, day1) is True
+
+
+def test_evict_third_cluster_extras_removes_far_and_keeps_cluster_near():
+    """历史脏卡回扫：离簇又离市区圈的 extras- 补点件移出并披露；
+    贴簇的（朱家角大清邮局案）原样保留；二次调用零改动。"""
+    from app.services.agent.plan import _evict_third_cluster_extras
+
+    far = _v(
+        "extras-1-远点观景台",
+        "远点观景台",
+        time(14, 0),
+        time(15, 0),
+        cat="nature",
+        lon=121.90,
+        lat=31.05,
+    )
+    near = _v(
+        "extras-1-近点小馆",
+        "近点小馆",
+        time(15, 10),
+        time(16, 10),
+        cat="other",
+        lon=121.06,
+        lat=31.11,
+    )
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _v("a", "簇内景点", time(9, 0), time(12, 0), lon=121.05, lat=31.11),
+            _food("晚饭", time(19, 0), time(20, 30)),
+            far,
+            near,
+        ]
+    )
+    notes = _evict_third_cluster_extras(plan)
+    assert notes and "远点观景台" in notes[0]
+    names = {i.name for i in plan.days[0].items}
+    assert "远点观景台" not in names
+    assert "近点小馆" in names
+    assert _evict_third_cluster_extras(plan) == []
+
+
+def test_fill_leftover_gaps_evicts_third_cluster_extras_on_old_sessions():
+    """旧会话开档即治（已补短路之前跑）：脏 extras 卡不等人重新生成。"""
+    far = _v(
+        "extras-1-远点观景台",
+        "远点观景台",
+        time(14, 0),
+        time(15, 0),
+        cat="nature",
+        lon=121.90,
+        lat=31.05,
+    )
+    plan = _plan(
+        [
+            _hm(time(8, 30), time(9, 0)),
+            _v("a", "簇内景点", time(9, 0), time(12, 0), lon=121.05, lat=31.11),
+            _food("晚饭", time(19, 0), time(20, 30)),
+            far,
+        ],
+        assumptions=["第1天还有空档，按类型多样性补了「远点观景台」（14:00）"],
+    )
+    agent = PlanningAgent.__new__(PlanningAgent)
+    agent._poi_details = None
+    session = PlanSession(
+        session_id="s2", device_id="d2", cities=["上海"], days=1, plan=plan
+    )
+    notes = asyncio.run(agent.fill_leftover_gaps(session))
+    assert notes and "远点观景台" in notes[0]
+    assert all(i.name != "远点观景台" for i in session.plan.days[0].items)
+    assert all(n in session.plan.assumptions for n in notes)
