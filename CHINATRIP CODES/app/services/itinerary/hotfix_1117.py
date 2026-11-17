@@ -20,6 +20,7 @@ Untimed must cards themselves are demoted by request_coverage.
 demote_untimed_musts (B-01): a must either has concrete times or lands in
 unplaced with a disclosure — a timeless grey card is not a state.
 """
+
 from __future__ import annotations
 
 from datetime import time as _time
@@ -137,9 +138,7 @@ def evict_pre_remote_fillers(plan: "ItineraryPlan", *, lang: str = "zh") -> list
     visit (its outbound access leg). 天安门 → direct departure (E-1)."""
     notes: list[str] = []
     for day in plan.days:
-        remote = [
-            v for v in day.items if _is_remote(v) and v.start_time is not None
-        ]
+        remote = [v for v in day.items if _is_remote(v) and v.start_time is not None]
         if not remote:
             continue
         first_start = min(_mins(v.start_time) for v in remote)
@@ -229,10 +228,7 @@ def retime_remote_day_from_access(
             if chosen:
                 try:
                     target = (
-                        _hhmm_to_min(chosen)
-                        + int(ride)
-                        + int(last_mile)
-                        + lunch_dur
+                        _hhmm_to_min(chosen) + int(ride) + int(last_mile) + lunch_dur
                     )
                 except ValueError:
                     target = None
@@ -245,15 +241,8 @@ def retime_remote_day_from_access(
                     if isinstance(prev, TransferItem):
                         prev_end = _mins(prev.end_time) or 0
                         break
-                    if (
-                        isinstance(prev, VisitItem)
-                        and (prev.category or "") != "food"
-                    ):
-                        prev_end = (
-                            _mins(prev.end_time)
-                            or _mins(prev.start_time)
-                            or 0
-                        )
+                    if isinstance(prev, VisitItem) and (prev.category or "") != "food":
+                        prev_end = _mins(prev.end_time) or _mins(prev.start_time) or 0
                         break
                 earliest = prev_end + _gateway_taxi_minutes(day, idx)
                 dep = next((d for d in sorted(deps) if d >= earliest), None)
@@ -270,9 +259,7 @@ def retime_remote_day_from_access(
             ):
                 ls = target - lunch_dur
                 lunch.start_time = _time(ls // 60, ls % 60)
-                lunch.end_time = _time(
-                    (ls + lunch_dur) // 60, (ls + lunch_dur) % 60
-                )
+                lunch.end_time = _time((ls + lunch_dur) // 60, (ls + lunch_dur) % 60)
                 if visit.location is not None:
                     lunch.anchor_location = visit.location
                     lunch.address = visit.address or lunch.address
