@@ -218,7 +218,12 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
 
     Untimed cards break the chain (2026-11-03 Day4 show→park case): a leg
     into an unscheduled item is meaningless and rendered as an absurd
-    night travel (a 949-minute leg from a 19:30 show to a forest park)."""
+    night travel (a 949-minute leg from a 19:30 show to a forest park).
+
+    同址占位餐卡照常进链（2026-11-17 用户口径「从朱家角到豫园是午饭之后，
+    距离下一站应该放在午饭后，而不是朱家角」）：锚在本站的午饭/晚饭卡成为
+    新的出发卡——0 公里到锚不成腿，去下一站的腿挂在餐卡上（餐后出发）。
+    无坐标卡（没锚的占位卡）仍不吃链：腿直接连到再下一个带地址的卡。"""
     out: list[tuple[VisitItem, VisitItem, float]] = []
     for day in plan.days:
         last: VisitItem | None = None
@@ -231,14 +236,6 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
             if cur_pt is None:
                 # 无坐标卡（占位餐卡没锚）不吃链：腿直接连到再下一个带地址
                 # 的卡（2026-11-16 用户口径「餐卡没地址就取再下个景点的地址」）
-                continue
-            if (
-                getattr(item, "anchor_from_prev", False)
-                and last_pt is not None
-                and haversine_km(last_pt, cur_pt) <= SAME_VENUE_KM
-            ):
-                # 同址占位餐卡对腿透明：腿仍从前一个真实站点出发（朱家角 →
-                # 静安寺，不是「午饭 → 静安寺」），2026-11-16 用户口径
                 continue
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
@@ -290,7 +287,6 @@ def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
             a.next_leg_minutes = int(need) if need is not None else taxi_leg_min(km)
             a.next_leg_cost_cny = estimate_taxi_fare(city, km)
     _lift_return_over_placeholders(plan)
-    _lift_legs_off_placeholders(plan)
     _attach_leg_returns(plan)
     _gate_item_links(plan)
     return plan
@@ -352,60 +348,6 @@ def _day_city_anchor(day: DayPlan) -> tuple[GeoPoint | None, str]:
     return center, L("市区", "city centre")
 
 
-def _lift_legs_off_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
-    """占位餐卡不背腿：同址占位卡上的腿挂回前一个真实站点（2026-11-16 朱家角案）。
-
-    用户口径「朱家角回城是从朱家角的地址到下个卡地址（餐卡没地址就去再下个
-    景点的地址）」：午饭/晚饭占位卡锚在景区上时，腿其实是从景区出发的；挂在
-    餐卡上＝景区卡下面什么都没有，用户看不到回程。班次点（慕田峪）的三段
-    回城链已由 :func:`_lift_return_over_placeholders` 处理，这里只搬剩下的
-    打车腿（没有接驳档案的远郊点）。
-    """
-
-    def _move(src: VisitItem, dst: VisitItem) -> None:
-        dst.distance_to_next_km = src.distance_to_next_km
-        dst.next_walk_minutes = src.next_walk_minutes
-        dst.leg_source = src.leg_source
-        dst.next_leg_mode = src.next_leg_mode
-        dst.next_leg_minutes = src.next_leg_minutes
-        dst.next_leg_cost_cny = src.next_leg_cost_cny
-        dst.next_leg_cost_note = src.next_leg_cost_note
-        dst.next_leg_detail = src.next_leg_detail
-        _clear_leg(src)
-
-    for day in plan.days:
-        items = day.items
-        for idx, item in enumerate(items):
-            if not isinstance(item, VisitItem) or not item.anchor_from_prev:
-                continue
-            if item.next_leg_minutes is None:
-                continue
-            item_pt = _point(item)
-            if item_pt is None:
-                continue
-            site: VisitItem | None = None
-            for back in range(idx - 1, -1, -1):
-                cand = items[back]
-                if isinstance(cand, TransferItem):
-                    break  # 换乘卡断锚
-                if not isinstance(cand, VisitItem):
-                    continue
-                if cand.anchor_from_prev or _is_morning_hotel(cand):
-                    continue
-                cand_pt = _point(cand)
-                if cand_pt is None:
-                    continue
-                if haversine_km(cand_pt, item_pt) <= SAME_VENUE_KM:
-                    site = cand
-                break
-            if site is None or site.next_leg_minutes is not None:
-                continue
-            _move(item, site)
-    return plan
-
-
-#: 让位档（2026-11-17 用户拍板）：60<d<90 → 1-15；90≤d<120 → 15-30；
-#: d≥120 → 15 起、最多 60（「d>=120 -> above 30」）。
 def _trim_band(dur: int) -> tuple[int, int]:
     if dur >= 120:
         return 15, 60

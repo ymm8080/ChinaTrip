@@ -1058,11 +1058,11 @@ def test_return_leg_honors_user_picked_return():
     assert br["wait"] == 15 * 60 + 30 - (14 * 60 + 8 + 8)
 
 
-def test_taxi_leg_lifted_from_anchored_lunch_to_scenic_card():
-    """2026-11-16 上海朱家角案：午饭占位卡锚在景区上时，腿挂回景区卡。
+def test_taxi_leg_shows_on_anchored_lunch_card():
+    """2026-11-17 用户口径：朱家角 → 静安寺的车发生在午饭之后。
 
-    用户口径「朱家角回城是从朱家角的地址到下个卡地址（餐卡没地址就去再下个
-    景点的地址）」——景区卡下方必须看得到回程。
+    「距离下一站应该放在午饭后，而不是朱家角」——腿挂在锚在本站的午饭卡
+    （餐后出发），景区卡不再背这条腿；回城仍由回城链/独立回城卡负责。
     """
     zjj = VisitItem(
         item_id="v11",
@@ -1105,9 +1105,10 @@ def test_taxi_leg_lifted_from_anchored_lunch_to_scenic_card():
     )
     annotate_legs(plan)
     assert lunch.anchor_location is not None  # 地址仍继承景区
-    assert zjj.distance_to_next_km and zjj.distance_to_next_km > 30
-    assert zjj.next_leg_mode == "taxi"
-    assert zjj.next_leg_minutes and zjj.next_leg_minutes > 30
-    # 占位卡不背同一段腿
-    assert lunch.distance_to_next_km is None
-    assert lunch.next_leg_minutes is None
+    # 腿挂在午饭卡（餐后出发去静安寺）
+    assert lunch.distance_to_next_km and lunch.distance_to_next_km > 30
+    assert lunch.next_leg_mode == "taxi"
+    assert lunch.next_leg_minutes and lunch.next_leg_minutes > 30
+    # 景区卡不再背这条腿
+    assert zjj.distance_to_next_km is None
+    assert zjj.next_leg_minutes is None
