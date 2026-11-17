@@ -82,6 +82,11 @@ class TaskStore:
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        # 双进程共享库文件同款（2026-11-17 并发排查）：WAL 文件级持久属性，
+        # busy_timeout 连接级；:memory: 无锁竞争，跳过 journal_mode。
+        if db_path != ":memory:":
+            self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=10000")
         self._conn.row_factory = sqlite3.Row
         with self._lock:
             self._conn.executescript(_SCHEMA)
