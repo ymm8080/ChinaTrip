@@ -136,7 +136,12 @@ from app.services.llm import (
     parse_json_content,
 )
 from app.services.poi_details import PoiDetailStore
-from app.services.poi_names import place_core, place_core_en
+from app.services.poi_names import (
+    latin_typo_near,
+    latin_typo_prefix,
+    place_core,
+    place_core_en,
+)
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
@@ -3088,6 +3093,40 @@ def _brief_bare_place(text: str, row: dict) -> bool:
             continue
         if probe in (norm(value), norm(place_core(value)), norm(place_core_en(value))):
             return True
+    return False
+
+
+def _brief_typo_rival_row(
+    text: str, library_en: list[str | None], name_en: str | None
+) -> bool:
+    """LLM 读出的名字是不是「文本里拼错词」的另一映射（2026-11-17
+    ZHUJIAZUI≠陆家嘴案）：底库已按容错把 zhujiazui 认成 Zhujiajiao，LLM
+    又把同一个词另认成 Lujiazui（编辑距离 2）——这类与底库命中争同一个
+    文本词的 LLM 候选不进确认卡。名字逐字来自文本的（LLM 正常转写）和
+    多词英文名不在此列。"""
+    probe = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", (text or "").lower())
+    words = [w for w in probe.split() if w.isascii() and w.isalpha()]
+    target_toks = place_core_en(name_en or "").split()
+    if len(target_toks) != 1:
+        return False
+    target = target_toks[0].lower()
+    if len(target) < 6:
+        return False
+    for lib_en in library_en or []:
+        toks = place_core_en(lib_en or "").split()
+        if len(toks) != 1:
+            continue
+        base = toks[0].lower()
+        if len(base) < 6:
+            continue
+        for w in words:
+            if len(w) < 6:
+                continue
+            if w == base or latin_typo_prefix(w, base) is not None:
+                if w == target:
+                    return False  # 名字逐字来自文本，正常转写不是竞品
+                if latin_typo_near(w, target) is not None:
+                    return True
     return False
 
 
@@ -18711,6 +18750,30 @@ class PlanningAgent:
             # city is ever recognized (2026-11-12: no silent default city
             # anymore — clarify-exhausted flow asks for the destination).
             session.cities = _parse_cities(session.preferences)
+        if not session.cities:
+            # 2026-11-17（ZHUJIAZUI 案）：城市没写，但句子里点名的地点全库
+            # 唯一落在一座城 → 直接定城，不再问「从哪个城市出发」。假设区
+            # 披露推断依据；跨城命中=拿不准，照旧问。
+            _inferred = await self._infer_city_from_site_text(
+                session.brief_text or session.preferences
+            )
+            if _inferred:
+                _city, _rows = _inferred
+                session.cities = [_city]
+                _named = "、".join(
+                    str(r.get("name") or "") for r in _rows[:3] if r.get("name")
+                )
+                session.brief_notes = [
+                    *session.brief_notes,
+                    L(
+                        f"目的地城市按你点名的「{_named}」推断为{_city}。",
+                        f"Destination city set to {_city} from the places you "
+                        f"named ({_named}).",
+                    ),
+                ]
+                logger.info(
+                    "plan: city inferred from brief sites: %s (%s)", _city, _named
+                )
         wanted = "、".join(session.cities) if session.cities else "（城市未定）"
         session.history.append(
             ChatMessage(
@@ -20284,6 +20347,24 @@ class PlanningAgent:
             cities = _parse_cities(text)
             if cities:
                 session.cities = cities
+            else:
+                # 2026-11-17（ZHUJIAZUI 案）：答复也没写城市但点名了能唯一定
+                # 城的地点 → 按地点定城，不再追问。
+                _inferred = await self._infer_city_from_site_text(text)
+                if _inferred:
+                    _city, _rows = _inferred
+                    session.cities = [_city]
+                    _named = "、".join(
+                        str(r.get("name") or "") for r in _rows[:3] if r.get("name")
+                    )
+                    session.brief_notes = [
+                        *session.brief_notes,
+                        L(
+                            f"目的地城市按你点名的「{_named}」推断为{_city}。",
+                            f"Destination city set to {_city} from the places "
+                            f"you named ({_named}).",
+                        ),
+                    ]
         if session.cities and session.days > 0:
             session = await self._generate_v0(session)
             if session.state == "resto_confirm":
@@ -20483,7 +20564,7 @@ class PlanningAgent:
                     )
                 )
                 continue
-            resolved_name, resolved_city, category = canonical
+            resolved_name, resolved_city, category, _en = canonical
             if any(_same_site(resolved_name, other) for other in seen):
                 continue
             seen.append(resolved_name)
@@ -20550,6 +20631,34 @@ class PlanningAgent:
 
     # --- 自由输入读点（2026-11-14「引擎不读输入」） ------------------
 
+    async def _infer_city_from_site_text(
+        self, text: str
+    ) -> tuple[str, list[dict]] | None:
+        """城市没写时从整库确定性读点推断目的地（2026-11-17 ZHUJIAZUI
+        案用户拍板「there should be no same name sites in different
+        cities」——点名的地点能唯一定城就不再问哪座城市）：全库检索
+        （城市=None）读点名的地点，命中地点全部落在同一座城才返回；
+        跨城命中=真的拿不准，返回 None 照旧问。只走确定性通道，不烧 LLM。"""
+        probe = (text or "").strip()
+        if not probe or find_urls(probe) or self._poi_details is None:
+            return None
+        try:
+            rows = await asyncio.to_thread(
+                self._poi_details.match_text_names, None, probe
+            )
+        except Exception:
+            logger.warning(
+                "plan: whole-library brief match failed", exc_info=True
+            )
+            return None
+        rows = [r for r in (rows or []) if (str(r.get("city") or "")).strip()]
+        if not rows:
+            return None
+        cities = {str(r["city"]).strip().removesuffix("市") for r in rows}
+        if len(cities) != 1:
+            return None
+        return next(iter(cities)), rows
+
     async def _mine_brief_sites(
         self, session: PlanSession, *, commit: bool = True
     ) -> tuple[list[str], list[str]]:
@@ -20583,6 +20692,7 @@ class PlanningAgent:
         added: list[str] = []
         notes: list[str] = []
         library: list[tuple[str, str, str]] = []
+        library_en: list[str | None] = []
 
         def _push(name: str, kind: str, city: str, day: int | None) -> None:
             n = (name or "").strip()
@@ -20640,6 +20750,7 @@ class PlanningAgent:
                             str(row.get("city") or city),
                         )
                     )
+                    library_en.append(row.get("name_en"))
         llm_rows: list[tuple[str, str, str, int | None]] = []
         if not short and len(library) < MAX_BRIEF_SITES:
             for name, kind, city, day in await self._brief_sites_from_llm(text):
@@ -20655,7 +20766,16 @@ class PlanningAgent:
                         )
                     )
                     continue
-                resolved_name, resolved_city, category = canonical
+                resolved_name, resolved_city, category, resolved_en = canonical
+                if _brief_typo_rival_row(text, library_en, resolved_en):
+                    # 同一拼错词的另一个映射（zhujiazui→陆家嘴）不进确认卡
+                    # （2026-11-17 用户拍板「ZHUJIAZUI IS NOT 陆家嘴」）。
+                    logger.info(
+                        "plan: brief LLM site dropped as typo rival: %s (%s)",
+                        resolved_name,
+                        resolved_en,
+                    )
+                    continue
                 llm_rows.append(
                     (
                         resolved_name,
@@ -20765,6 +20885,7 @@ class PlanningAgent:
                     str(row.get("name")).strip(),
                     str(row.get("city") or candidate_city),
                     row.get("category"),
+                    row.get("name_en"),
                 )
             poi = await self._lookup_poi(probe, candidate_city)
             if poi and (poi.get("name") or "").strip():
@@ -20774,6 +20895,7 @@ class PlanningAgent:
                         str(poi["name"]).strip(),
                         poi_city,
                         poi.get("category"),
+                        poi.get("name_en"),
                     )
         return None
 

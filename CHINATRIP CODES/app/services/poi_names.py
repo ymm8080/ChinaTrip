@@ -89,3 +89,67 @@ def place_core(name: str | None) -> str:
     if s.endswith("镇") and len(s) - 1 >= 2:
         s = s[:-1]
     return s
+
+# --- 拉丁专名容错匹配（2026-11-17 ZHUJIAZUI 案）--------------------------
+# 用户打「ZHUJIAZUI」（朱家嘴的拼音，实指朱家角）时底库没有任何行逐字命中：
+# 整词/内核两档都是精确匹配，永远不中，只有 LLM 通道能救——而 LLM 把与这
+# 个词拼写更近的「陆家嘴 Lujiazui」（编辑距离 2）当成了正确答案（实案：
+# 确认卡出现陆家嘴、朱家角古镇反而不见）。这里加第三档「共享词头锚定的容
+# 错匹配」：文本词与专名内核共享前缀 ≥6 且整体编辑距离 ≤4 才算命中
+# （zhujiazui↔zhujiajiao：共享 zhujia、距离 4 → 中；
+#  zhujiazui↔lujiazui：共享前缀 0 → 永不中）。
+# 另配 near 口径（距离 ≤3、不管词头）给规划层判定「同一拼错词的 LLM 竞品
+# 映射」用，不做命中。
+_TYPO_MIN_TOKEN = 6
+_TYPO_MIN_PREFIX = 6
+_TYPO_MAX_DISTANCE = 4
+_TYPO_NEAR_DISTANCE = 3
+
+
+def _latin_edit_distance(a: str, b: str) -> int:
+    """两条小写拉丁串的 Levenshtein 距离（短串，O(len*len) 足够）。"""
+    if a == b:
+        return 0
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _typo_token_ok(value: str) -> bool:
+    return len(value) >= _TYPO_MIN_TOKEN and value.isascii() and value.isalpha()
+
+
+def latin_typo_prefix(token: str, name_token: str) -> int | None:
+    """文本词 ≈ 库名专名内核（容错）：共享前缀 ≥6 且整体距离 ≤4 → 返回
+    共享前缀长度（当命中分），否则 None。参数不区分大小写。"""
+    t = (token or "").strip().lower()
+    n = (name_token or "").strip().lower()
+    if not _typo_token_ok(t) or not _typo_token_ok(n):
+        return None
+    shared = 0
+    for x, y in zip(t, n):
+        if x != y:
+            break
+        shared += 1
+    if shared < _TYPO_MIN_PREFIX:
+        return None
+    if _latin_edit_distance(t, n) > _TYPO_MAX_DISTANCE:
+        return None
+    return shared
+
+
+def latin_typo_near(token: str, name_token: str) -> int | None:
+    """文本词与专名内核编辑距离 ≤3（不管词头）→ 返回距离，否则 None。
+    只给「同一拼错词的另一个映射」判定用，不做命中。"""
+    t = (token or "").strip().lower()
+    n = (name_token or "").strip().lower()
+    if not _typo_token_ok(t) or not _typo_token_ok(n):
+        return None
+    dist = _latin_edit_distance(t, n)
+    return dist if dist <= _TYPO_NEAR_DISTANCE else None

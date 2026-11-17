@@ -22,7 +22,11 @@ from sqlalchemy import String, and_, cast, func, or_
 from app.models import Poi
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
-from app.services.poi_names import place_core, place_core_en
+from app.services.poi_names import (
+    latin_typo_prefix,
+    place_core,
+    place_core_en,
+)
 
 # 层级档位共享模块（2026-11-03 名录序全站唯一定义点）：catalog_rank 判档；
 # order_source_tags 在下方薄委托 source_tag_key（app/jobs 从本模块
@@ -989,6 +993,24 @@ class PoiDetailStore:
                     and core in probe
                 ):
                     best = len(core)
+            if best is None:
+                # 拉丁专名容错（2026-11-17 ZHUJIAZUI 案）：文本里 ≥6 字母的
+                # 词与英文名内核（单 token，聚落尾缀已削）共享前缀 ≥6、整体
+                # 距离 ≤4 → 低分命中（zhujiazui→Zhujiajiao）。完整匹配恒优
+                # 先；前缀锚定保证 lujiazui（共享前缀 0）不会被吸进来。
+                en = (name_en or "").strip()
+                if en and not self._TEXT_CJK_RE.search(en):
+                    core_toks = place_core_en(en).split()
+                    if len(core_toks) == 1:
+                        fuzzy_core = core_toks[0].lower()
+                        if (
+                            len(fuzzy_core) >= self._TEXT_NAME_MIN_LATIN_TOKEN
+                            and fuzzy_core not in self._TEXT_STOPWORDS
+                        ):
+                            for t in positions:
+                                shared = latin_typo_prefix(t, fuzzy_core)
+                                if shared is not None:
+                                    best = max(best or 0, shared)
             return best
 
         hits: dict[str, tuple[int, str, str | None, str | None, str | None]] = {}
