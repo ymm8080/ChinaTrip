@@ -2716,8 +2716,7 @@ _V0_SYSTEM_PROMPT = (
 _EDIT_SYSTEM_PROMPT = (
     "你是行程编辑助手，通过 diff 修改当前行程。只输出一个 JSON 对象："
     ' {"reply":"给用户的一两句话说明","diffs":[{"op":"move|retime|remove|add"'
-    ',"item_id":"v1","new_day":2,"new_start_time":"09:30"}],'
-    '"need_clarification":["..."]}。'
+    ',"item_id":"v1","new_day":2,"new_start_time":"09:30"}]}。'
     "diff 规则：move 换天（带 item_id 和 new_day，可带 new_start_time）；"
     'retime 只改时间（带 item_id 和 new_start_time，格式 "HH:MM"）；remove '
     "；时间规则（2026-11-01）：只有用户原话明确出现的时刻（如「10:00」"
@@ -2746,10 +2745,32 @@ _EDIT_SYSTEM_PROMPT = (
     "回复纪律（2026-10-31 看熊猫案拍板）：wishes 里的愿望由系统自动语义"
     "绑定并排期——同类候选（如多个熊猫基地）默认只安排最经典（知名度最"
     "高）、与行程地理上最顺路的一个。reply 先注释结果：安排了什么、第几"
-    "天、可替换项（如「都江堰熊猫谷可替换」）；之后允许问偏好类选择问题"
-    "（如「倾向去哪个基地？」）——用户回答想换时再出 diff 换绑。注意"
-    "注释在前、提问在后：先让用户看到已经安排上了，再谈要不要换。"
+    "天、可替换项（如「都江堰熊猫谷可替换」）。"
+    "回复纪律（2026-11-17 用户拍板「NO LLM CAN ASK ANY QUESTIONS TO"
+    " GATHER NECESSARY INFORMATION」）：reply 里绝不出现任何问句——"
+    "不问任何问题；缺什么信息由引擎的确定性澄清轮负责，行程、地点、"
+    "城市、天数等一律先查底库/会话，查得到就自己定并在 reply 里说明。"
+    "同类候选不再用问句征求偏好：默认安排最经典的一个并注明可替换项，"
+    "用户想换时会自己说。"
 )
+
+
+def _strip_llm_questions(text: str) -> str:
+    """LLM 回复纪律（2026-11-17 用户拍板「NO LLM CAN ASK ANY QUESTIONS
+    TO GATHER NECESSARY INFORMATION」）：编辑通道的 reply 是唯一面向
+    用户的自由文本，里面不允许出现任何问句——含问号的整句直接剥掉；
+    缺什么信息由引擎的确定性澄清轮负责（先查底库/会话，查不到的才由
+    clarify 问）。剥完为空返回空串（调用方按空回复走重采样/兜底）。"""
+    probe = (text or "").strip()
+    if not probe or ("?" not in probe and "？" not in probe):
+        return probe
+    # 问句整句删除：非终止符串 + 问号 + 可选尾标点（。/？是独立分隔符，
+    # 不能按 chunk 丢——丢掉问号 chunk 会把问句正文留下）。
+    out = re.sub(r"[^。！？!?；;\n]*[？?]", "", probe)
+    out = re.sub(r"^[。！？!?；;\s，、]+", "", out)
+    # 尾部只清悬挂的分隔符（，、；），保留句号/叹号等正当句尾。
+    out = re.sub(r"[，、；;\s]+$", "", out)
+    return out.strip()
 
 
 def _cn_number(token: str) -> int | None:
@@ -32010,7 +32031,9 @@ class PlanningAgent:
                 continue
             try:
                 data = parse_json_content(result.content)
-                reply = str(data.get("reply") or "")
+                # 2026-11-17（NO LLM QUESTIONS 拍板）：问句整句剥掉，
+                # 问句-only 的抽签按空回复走重采样，不把提问漏给用户。
+                reply = _strip_llm_questions(str(data.get("reply") or ""))
                 diffs = self._coerce_diffs(data.get("diffs"), plan=session.plan)
                 wishes = self._coerce_wishes(data.get("wishes"))
                 if diffs or reply or wishes:
