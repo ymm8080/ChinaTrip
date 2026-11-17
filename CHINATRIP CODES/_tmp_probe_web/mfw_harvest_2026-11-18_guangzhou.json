@@ -30,6 +30,48 @@
         "https://p1-q.mafengwo.net/s7/M00/21/9F/wKgB6lO5SACAFunFAACjbwumzbI74.jpeg",
         "https://p1-q.mafengwo.net/s11/M00/05/45/wKgBEFpESBCAGB-nAAQyFSZHGnw34.jpeg"
       ]
+    },
+    {
+      "search": "广东海上丝绸之路博物馆",
+      "poiId": "424",
+      "title": "阳江广东海上丝绸之路博物馆",
+      "urls": [
+        "https://b1-q.mafengwo.net/s12/M00/62/59/wKgED1vlTH-AQKDuAAvZbr5NlJY35.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/C7/89/wKgBEFqO2_2AIulHAAf1_CIwInA57.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/C6/FC/wKgBEFqO27uAakssAAgiMVi-Nf427.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/B8/9A/wKgBEFtEgDGAaa6xAAFvEWS7o8k83.jpeg",
+        "https://p1-q.mafengwo.net/s13/M00/09/05/wKgEaVyS9BCAMaSjAAGw7IjyL9A07.jpeg",
+        "https://p1-q.mafengwo.net/s13/M00/09/07/wKgEaVyS9BGAKemWAAC91rhNEkA25.jpeg",
+        "https://p1-q.mafengwo.net/s13/M00/09/0B/wKgEaVyS9BKAGL4CAAGbisJrZ5I63.jpeg",
+        "https://p1-q.mafengwo.net/s13/M00/08/FD/wKgEaVyS9AiAZPDPAAG0SvnTaOc61.jpeg"
+      ]
+    },
+    {
+      "search": "广东大观博物馆",
+      "poiId": "83930920",
+      "title": "佛山广东大观博物馆",
+      "urls": [
+        "https://p1-q.mafengwo.net/s9/M00/DF/55/wKgBs12A9t6ACkWuAAwApM-hk7E484.jpg",
+        "https://p1-q.mafengwo.net/s19/M00/9C/D7/CoNHgWMRa6spnF1HAAIzZGAYj6U.jpeg",
+        "https://p1-q.mafengwo.net/s16/M00/43/CE/CoUBUmDub4SASZdjAB3I3fvaarE85.jpeg",
+        "https://p1-q.mafengwo.net/s6/M00/88/EC/wKgB4lOUdN-AFyoZAAH6DQ1e64A74.jpeg",
+        "https://p1-q.mafengwo.net/s6/M00/7F/1F/wKgB4lOUaEOAX8UnAAHDVssGz9435.jpeg"
+      ]
+    },
+    {
+      "search": "洪秀全纪念馆",
+      "poiId": "5030981",
+      "title": "广州洪秀全故居纪念馆（花都）",
+      "urls": [
+        "https://p1-q.mafengwo.net/s16/M00/F3/15/CoUBUl_ImYuAKz0fACdFcnN7OvE063.jpg",
+        "https://p1-q.mafengwo.net/s12/M00/71/D4/wKgED1uLjB-AD5ePABXh3E_sfCg35.jpeg",
+        "https://p1-q.mafengwo.net/s12/M00/71/D4/wKgED1uLjCCAT0osABdRj3nb3MM16.jpeg",
+        "https://p1-q.mafengwo.net/s17/M00/02/9F/CoUBXl9c0ASAPmdxAAlN3mM-hcw956.jpg",
+        "https://p1-q.mafengwo.net/s17/M00/02/A3/CoUBXl9c0AaARy8LABxlr9FbJTU653.jpg",
+        "https://p1-q.mafengwo.net/s17/M00/02/A6/CoUBXl9c0AiAL9RsAAvX2PiwsFk315.jpg",
+        "https://p1-q.mafengwo.net/s17/M00/02/A9/CoUBXl9c0AqASO7nAA2-gxnn9jY059.jpg",
+        "https://p1-q.mafengwo.net/s19/M00/E3/71/CoNJt2M5oAkvDmvxAAAXBeZCftk.jpeg"
+      ]
     }
   ]
 }
