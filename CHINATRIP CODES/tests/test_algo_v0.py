@@ -1236,9 +1236,7 @@ def test_sched_best_visit_is_library_passthrough_only():
     from app.services.agent.plan import _sched_best_visit
 
     # 缺信号一律原样透传（哪怕名字带夜游/观景台——推断层已退役）
-    assert (
-        _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "any"
-    )
+    assert _sched_best_visit({"name": "两江夜游", "best_visit_time": "any"}) == "any"
     assert _sched_best_visit({"name": "两江夜游", "best_visit_time": None}) is None
     assert _sched_best_visit({"name": "较场口夜市"}) is None
     assert _sched_best_visit({"name": "南山一棵树观景台"}) is None
