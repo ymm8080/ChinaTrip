@@ -81,6 +81,22 @@ def _plan(*days: DayPlan, cities=("西安",)) -> ItineraryPlan:
     )
 
 
+def _dep(day: int) -> TransferItem:
+    """离城腿（2026-11-17 拍板「无交通信息=全天规划」后，返程日判定需要
+    交通腿——端点日测试夹具显式带腿；无腿末日的全天口径见
+    test_no_leg_last_day_is_fullday_not_return_day）。"""
+    return TransferItem(
+        item_id=f"t-dep-{day}",
+        day=day,
+        seq=1,
+        from_city="西安",
+        to_city="北京",
+        mode="train",
+        start_time=time(16, 0),
+        end_time=time(20, 0),
+    )
+
+
 def _day_of(plan: ItineraryPlan, v: VisitItem) -> int:
     for d in plan.days:
         if any(i is v for i in d.items):
@@ -92,15 +108,16 @@ def _day_of(plan: ItineraryPlan, v: VisitItem) -> int:
 
 
 def test_far_card_evicted_from_single_city_last_day():
-    """单城无腿末日=返程日镜像：出圈远卡挪去有容量的非端点日。"""
+    """单城带离城腿的末日=返程日：出圈远卡挪去有容量的非端点日
+    （无腿末日的全天口径见文末 no_leg 回归）。"""
     a = _v("馆A", 60, _C0, 1, tier=9)
     b = _v("馆B", 60, _D2A, 2, tier=9)
     c = _v("馆C", 60, _D2B, 2, tier=9)
     far = _v("远郊园", 90, _FAR, 3, tier=5)
     near = _v("馆D", 60, _C1, 3, tier=9)
-    plan = _plan(_d(1, a), _d(2, b, c), _d(3, far, near))
+    plan = _plan(_d(1, a), _d(2, b, c), _d(3, _dep(3), far, near))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, far) == 2
+    assert _day_of(plan, far) in (1, 2)
     assert _day_of(plan, near) == 3
     # 11-13 起 90min 非街卡吃重磅翼（「不能安排大景点时间」拍板）：
     # 披露语素为「大景点」；远翼（距锚 >8km）同闸，两翼任一在案即可。
@@ -117,7 +134,8 @@ def test_far_card_removed_to_unplaced_when_no_host():
     a = _v("馆A", 60, _C0, 1, tier=9)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     far = _v("远郊园", 90, _FAR, 3, tier=5)
-    plan = _plan(_d(1, a), _d(2, *full), _d(3, far))
+    fill1 = [_v(f"满D1-{k}", 100, _C1, 1, tier=9) for k in range(3)]
+    plan = _plan(_d(1, a, *fill1), _d(2, *full), _d(3, _dep(3), far))
     _endpoint_day_light_sweep(plan, frozenset())
     assert all(not any(i is far for i in d.items) for d in plan.days), (
         "违例卡不得滞留离城日"
@@ -132,7 +150,8 @@ def test_far_card_kept_and_disclosed_when_no_host_curated():
     a = _v("馆A", 60, _C0, 1, tier=9)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     far = _v("远郊园", 90, _FAR, 3, tier=5, curated=True)
-    plan = _plan(_d(1, a), _d(2, *full), _d(3, far))
+    fill1 = [_v(f"满D1-{k}", 100, _C1, 1, tier=9) for k in range(3)]
+    plan = _plan(_d(1, a, *fill1), _d(2, *full), _d(3, _dep(3), far))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, far) == 3
     assert any("远郊园" in x and "暂保留" in x for x in plan.assumptions)
@@ -167,7 +186,7 @@ def test_departure_leg_day_far_card_evicted():
     far = _v("远郊园", 90, _FAR, 3, tier=5)
     plan = _plan(_d(1, a), _d(2, b, c), _d(3, leg, far), cities=("西安", "北京"))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, far) == 2
+    assert _day_of(plan, far) in (1, 2)
     # 离城腿原位不动
     d3 = next(d for d in plan.days if d.day == 3)
     assert any(isinstance(i, TransferItem) for i in d3.items)
@@ -180,9 +199,9 @@ def test_in_circle_big_card_moves_out_of_return_day():
     a = _v("馆A", 60, _C0, 1, tier=9)
     b = _v("馆B", 60, _D2A, 2, tier=9)
     big = _v("大馆", 120, _C1, 3, tier=5)
-    plan = _plan(_d(1, a), _d(2, b), _d(3, big))
+    plan = _plan(_d(1, a), _d(2, b), _d(3, _dep(3), big))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, big) == 2
+    assert _day_of(plan, big) in (1, 2)
     assert any("大馆" in x and "为大景点" in x for x in plan.assumptions)
 
 
@@ -205,9 +224,9 @@ def test_hotel_anchor_far_card_evicted_and_semantics():
     a = _v("馆A", 60, _C0, 1, tier=9)
     b = _v("馆B", 60, _D2A, 2, tier=9)
     near_center = _v("心边馆", 60, _C1, 3, tier=9)  # 距城心 ~0.1km
-    plan = _plan(_d(1, a), _d(2, b), _d(3, h, near_center))
+    plan = _plan(_d(1, a), _d(2, b), _d(3, _dep(3), h, near_center))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, near_center) == 2
+    assert _day_of(plan, near_center) in (1, 2)
     assert any("心边馆" in x and "距酒店或市中心较远" in x for x in plan.assumptions)
 
 
@@ -237,7 +256,7 @@ def test_empty_return_day_accepted_no_recruit():
     b = _v("馆B", 60, _D2A, 2, tier=9)
     st = _v("样本坊", 90, _ST, 2, tier=4)
     muse = _v("馆D", 60, _C1, 3, tier=9)
-    plan = _plan(_d(1, a), _d(2, b, st), _d(3, muse))
+    plan = _plan(_d(1, a), _d(2, b, st), _d(3, _dep(3), muse))
     _endpoint_day_light_sweep(plan, frozenset())
     # 街卡原地不动（不跨日挪补）
     assert _day_of(plan, st) == 2
@@ -267,10 +286,10 @@ def test_return_day_two_cards_keeps_hotel_nearest():
     b = _v("馆B", 60, _D2A, 2, tier=9)
     near = _v("近馆", 60, _ST, 3, tier=9)  # 距酒店 ~0.55km
     far2 = _v("边馆", 60, _MID, 3, tier=9)  # 圈内（①不挪）但离酒店更远
-    plan = _plan(_d(1, a), _d(2, b), _d(3, h, near, far2))
+    plan = _plan(_d(1, a), _d(2, b), _d(3, _dep(3), h, near, far2))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, near) == 3
-    assert _day_of(plan, far2) == 2
+    assert _day_of(plan, far2) in (1, 2)
     assert any("只安排一项" in x and "边馆" in x for x in plan.assumptions)
 
 
@@ -281,10 +300,10 @@ def test_return_day_two_cards_defaults_to_city_center_without_hotel():
     c = _v("馆C", 60, _D2B, 2, tier=9)
     near = _v("心馆", 60, _C1, 3, tier=9)
     far2 = _v("边馆", 60, _EDGE, 3, tier=9)  # 圈内但明显更靠边缘
-    plan = _plan(_d(1, a), _d(2, b, c), _d(3, near, far2))
+    plan = _plan(_d(1, a), _d(2, b, c), _d(3, _dep(3), near, far2))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, near) == 3
-    assert _day_of(plan, far2) == 2
+    assert _day_of(plan, far2) in (1, 2)
     assert any("只安排一项" in x and "边馆" in x for x in plan.assumptions)
 
 
@@ -310,7 +329,8 @@ def test_return_day_cap_keeps_no_host_card_and_discloses():
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
     near = _v("近馆", 60, _ST, 3, tier=9)
     far2 = _v("边馆", 60, _EDGE, 3, tier=9)
-    plan = _plan(_d(1, a), _d(2, *full), _d(3, h, near, far2))
+    fill1 = [_v(f"满D1-{k}", 100, _C1, 1, tier=9) for k in range(3)]
+    plan = _plan(_d(1, a, *fill1), _d(2, *full), _d(3, _dep(3), h, near, far2))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, near) == 3
     assert _day_of(plan, far2) == 3
@@ -330,3 +350,16 @@ def test_return_day_cap_uncheckable_skips():
     assert _day_of(plan, blind1) == 3
     assert _day_of(plan, blind2) == 3
     assert not any("只安排一项" in x for x in plan.assumptions)
+
+
+def test_no_leg_last_day_is_fullday_not_return_day():
+    """2026-11-17 拍板「无交通信息=全天规划」：单城无城际腿的末日不再
+    镜像判返程日——出圈远卡原地不动、无离城日披露（行前卡没填班次/
+    时刻时 _apply_intake_times 已撤腿按全天重排）。"""
+    a = _v("馆A", 60, _C0, 1, tier=9)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    far = _v("远郊园", 90, _FAR, 3, tier=5)
+    plan = _plan(_d(1, a), _d(2, b), _d(3, far))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, far) == 3
+    assert not any("离城日" in x for x in plan.assumptions)

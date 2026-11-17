@@ -20,6 +20,7 @@ from app.services.itinerary.models import (
     GeoPoint,
     ItineraryPlan,
     PoiHours,
+    TransferItem,
     VisitItem,
 )
 from app.services.itinerary.scoring import plan_score
@@ -195,7 +196,21 @@ def test_host_day_prefers_cluster_territory_over_day_order():
     other_city_day = DayPlan(
         day=1,
         base_city="西安",
-        items=[_big("大明宫旅游景区", 120, _DMG)],
+        items=[
+            # 到达腿（2026-11-17「无交通信息=全天」拍板后，重物殿后只在
+            # 带交通腿的到达日发生——无腿 D1 是全天，日序原形）
+            TransferItem(
+                item_id="t-arr-1",
+                day=1,
+                seq=1,
+                from_city="北京",
+                to_city="西安",
+                mode="train",
+                start_time=time(9, 0),
+                end_time=time(12, 0),
+            ),
+            _big("大明宫旅游景区", 120, _DMG),
+        ],
     )
     other_center = DayPlan(
         day=2,
@@ -210,8 +225,9 @@ def test_host_day_prefers_cluster_territory_over_day_order():
         visit=_big("西安碑林博物馆", 60, _BL),
     )
     assert host2 is other_city_day
-    # 重物镜像（2026-11-08 拍板「到达日只收简单件」）：>80min 重物在无
-    # 腿单城池 day1 视为到达日殿后——宿主首选 day2，轻件照旧日序。
+    # 重物镜像（2026-11-08 拍板「到达日只收简单件」）：>80min 重物在
+    # 带到达腿的 day1 殿后——宿主首选 day2，轻件照旧日序（无腿 D1=
+    # 全天，殿后不发生）。
     host3 = _host_day_for_visit(
         [other_city_day, other_center],
         "西安",

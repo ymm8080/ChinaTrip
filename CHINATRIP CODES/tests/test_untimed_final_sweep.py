@@ -523,9 +523,11 @@ def _greedy_solve(max_minutes: int):
     return _solve
 
 
-def _rescue_plan() -> ItineraryPlan:
+def _rescue_plan(*, legs: bool = False) -> ItineraryPlan:
     """钉住必去 300min 在同日物理装不下（演出钉死傍晚+大点 13:00 起始
-    闸），同城次日全空——跨日救生应把必去挪次日落时刻。"""
+    闸），同城次日全空——跨日救生应把必去挪次日落时刻。legs=True 补
+    到达/离城腿（2026-11-17「无交通信息=全天规划」后，端点日判定需要
+    交通腿——无腿的两天是全天，走 rescue 通道而非端点清扫通道）。"""
     xy = GeoPoint(lon=104.06, lat=30.60)
     day1 = DayPlan(
         day=1,
@@ -591,6 +593,32 @@ def _rescue_plan() -> ItineraryPlan:
         ],
     )
     day2 = DayPlan(day=2, base_city="成都", items=[])
+    if legs:
+        day1.items.insert(
+            0,
+            TransferItem(
+                item_id="t-arr-1",
+                day=1,
+                seq=1,
+                from_city="上海",
+                to_city="成都",
+                mode="train",
+                start_time=_t(8, 0),
+                end_time=_t(9, 0),
+            ),
+        )
+        day2.items.append(
+            TransferItem(
+                item_id="t-dep-2",
+                day=2,
+                seq=1,
+                from_city="成都",
+                to_city="上海",
+                mode="train",
+                start_time=_t(16, 0),
+                end_time=_t(20, 0),
+            ),
+        )
     return ItineraryPlan(
         itinerary_id="it-rescue", cities=["成都"], days=[day1, day2], assumptions=[]
     )
@@ -615,12 +643,13 @@ def test_crossday_rescue_moves_pinned_must_to_feasible_day():
 def test_crossday_rescue_rolls_back_when_target_infeasible():
     """目标日也装不下（假 solve 对 300min 恒排不上）→ 不留半拉子让位。
 
-    2026-11-16 起两天单城行程两天都是端点日（D1 到达 / D2 离城镜像），
-    端点日违例必去走「无整天可挪 → 留在原天 + 披露」，不再落 unplaced；
+    两天单城行程带到达/离城腿时两天都是端点日（2026-11-17「无交通
+    信息=全天规划」后由腿判定；无腿两天=全天走 rescue 通道），端点日
+    违例必去走「无整天可挪 → 留在原天 + 披露」，不再落 unplaced；
     锁定不变量：**不得以无时刻灰卡滞留端点日**——要么排上时刻（可见），
     要么落 unplaced（有 chip 可点回来），二选一，且披露必须存在。
     """
-    plan = _rescue_plan()
+    plan = _rescue_plan(legs=True)
     agent = PlanningAgent.__new__(PlanningAgent)
     agent._wish_bindings = {}
     agent._solve = _greedy_solve(max_minutes=240)  # type: ignore[method-assign]

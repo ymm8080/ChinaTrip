@@ -101,7 +101,7 @@ def test_host_day_departure_day_usable_as_last_resort():
 
 def test_host_day_rejects_heavy_single_city_return_day():
     d4 = DayPlan(day=4, base_city="西安", items=[])
-    d5 = DayPlan(day=5, base_city="西安", items=[])
+    d5 = _return_day()
     heavy = _visit("高优先级小点", 60, _BL)
     heavy.tier = 1
     host = _host_day_for_visit(

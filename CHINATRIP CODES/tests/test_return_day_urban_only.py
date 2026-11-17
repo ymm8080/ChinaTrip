@@ -7,7 +7,8 @@
 
 1. 多城口径：远郊轻点（非王牌≤80min——只有「远」翼能拦）不上返程
    日，让位中段天照排；
-2. 单城镜像：无城际腿行程末日=返程日（tail_return_days 通道）；
+2. 单城镜像：带离城腿行程的末日=返程日（tail_return_days 通道；
+   2026-11-17「无交通信息=全天规划」后无腿末日不再镜像）；
 3. 退化软放：两天窗全边日（到达+返程）远郊件照排——排得上优先于
    排得轻；
 4. 再平衡镜像：超载分流不把远郊件挪进返程日；
@@ -20,6 +21,8 @@
 
 from __future__ import annotations
 
+from datetime import time
+
 from app.services.agent.plan import (
     PlanningAgent,
     _reunite_tight_kin,
@@ -28,6 +31,7 @@ from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
     ItineraryPlan,
+    TransferItem,
     VisitItem,
 )
 
@@ -262,11 +266,28 @@ def test_reunite_keeps_far_kin_off_return_host_day():
             ],
         ),
         DayPlan(day=3, base_city="西安", items=[_visit("v4", "大雁塔小点", 3, _XA3)]),
-        DayPlan(day=4, base_city="西安", items=[_visit("v5", "骊山远点", 4, _LISHAN)]),
+        DayPlan(
+            day=4,
+            base_city="西安",
+            items=[
+                # 离城腿（2026-11-17「无交通信息=全天规划」：返程日须带腿）
+                TransferItem(
+                    item_id="t-dep-4",
+                    day=4,
+                    seq=1,
+                    from_city="西安",
+                    to_city="北京",
+                    mode="train",
+                    start_time=time(16, 0),
+                    end_time=time(20, 0),
+                ),
+                _visit("v5", "骊山远点", 4, _LISHAN),
+            ],
+        ),
     ]
     plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=days)
     _reunite_tight_kin(plan)
-    d4 = [i.name for i in plan.days[3].items]
+    d4 = [i.name for i in plan.days[3].items if isinstance(i, VisitItem)]
     assert "华清宫远点" not in d4, "归位把远郊件聚进返程宿主日——闸失效"
-    d2 = [i.name for i in plan.days[1].items]
+    d2 = [i.name for i in plan.days[1].items if isinstance(i, VisitItem)]
     assert "骊山远点" in d2, "远郊对应改聚非返程日 day2（归位语义保留）"

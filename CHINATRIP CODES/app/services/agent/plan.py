@@ -6612,9 +6612,12 @@ def _day_has_departure(day: DayPlan, vcity: str) -> bool:
 def _day_is_arrival(day: DayPlan, vcity: str) -> bool:
     """到达日（2026-11-08 拍板「到达日只适合简单的 CITYWALK 或 SHOW」
     的镜像识别，与返程日 _day_is_return_home 口径对齐）：带落地 vcity
-    定时腿的天；或首日（单城无腿行程以首日为准；多城出发城首日=离城
-    边日同让）。"""
-    return day.day == 1 or any(
+    定时腿的天。2026-11-17 拍板「无交通信息=全天规划」：不再无条件把
+    D1 判成到达日——行前卡没填班次/时刻时 _apply_intake_times 会撤掉
+    城际腿（2026-11-14 拍板「不填默认全天都可以规划」），单城无腿行
+    程 D1 是全天；多城出发城首日由离城出发腿（_day_has_departure）
+    单独识别，不受本函数影响。"""
+    return any(
         isinstance(t4, TransferItem)
         and t4.start_time is not None
         and str(t4.to_city or "").strip().removesuffix("市") == vcity
@@ -6659,13 +6662,11 @@ def _urban_medoid(pts: list[tuple[float, float]]) -> tuple[float, float] | None:
 
 def _day_is_return_home(day: DayPlan, all_days: list[DayPlan]) -> bool:
     """返程日（返程日市区圈/挪日闸用，2026-11-08 拍板）：带自本城离城
-    出发腿的天；或单城无城际腿行程的末日（镜像单城 D1 到达口径——
-    无城际腿≠无返程，最后一天照旧只收市区内小点/CityWalk）。"""
-    if _day_has_departure(day, str(day.base_city or "").removesuffix("市")):
-        return True
-    if not all_days or day is not all_days[-1]:
-        return False
-    return not any(isinstance(t4, TransferItem) for d4 in all_days for t4 in d4.items)
+    出发腿的天。2026-11-17 拍板「无交通信息=全天规划」：删「单城无城际
+    腿行程的末日」镜像分支——行前卡没填班次/时刻时没有离城腿
+    （_apply_intake_times 已撤腿按全天重排），末日照旧全天规划；all_days
+    形参保留给既有调用方签名。"""
+    return _day_has_departure(day, str(day.base_city or "").removesuffix("市"))
 
 
 def _host_day_for_visit(

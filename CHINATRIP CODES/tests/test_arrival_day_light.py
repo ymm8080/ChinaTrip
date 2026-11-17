@@ -32,6 +32,7 @@ from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
     ItineraryPlan,
+    TransferItem,
     VisitItem,
 )
 
@@ -86,6 +87,36 @@ def _d(day: int, *items) -> DayPlan:
 def _plan(*days: DayPlan) -> ItineraryPlan:
     return ItineraryPlan(
         itinerary_id="it-arrival-light", cities=["西安"], days=list(days)
+    )
+
+
+def _arr(day: int) -> TransferItem:
+    """到达腿（2026-11-17 拍板「无交通信息=全天规划」后，到达日判定需要
+    交通腿——端点日测试夹具显式带腿；无腿首日的全天口径见
+    test_no_leg_first_day_is_fullday_not_arrival）。"""
+    return TransferItem(
+        item_id=f"t-arr-{day}",
+        day=day,
+        seq=1,
+        from_city="北京",
+        to_city="西安",
+        mode="train",
+        start_time=time(9, 0),
+        end_time=time(12, 0),
+    )
+
+
+def _dep(day: int) -> TransferItem:
+    """离城腿（同 _arr——2026-11-17「无交通信息=全天规划」配套）。"""
+    return TransferItem(
+        item_id=f"t-dep-{day}",
+        day=day,
+        seq=1,
+        from_city="西安",
+        to_city="北京",
+        mode="train",
+        start_time=time(16, 0),
+        end_time=time(20, 0),
     )
 
 
@@ -147,7 +178,9 @@ def test_heavy_evicted_and_no_recruit_accept_empty():
     c = _v("馆C", 60, _D2B, 2, tier=9)
     st = _v("样本坊", 90, _ST, 3, tier=4)
     dd = _v("馆D", 60, _D3A, 3, tier=9)
-    plan = _plan(_d(1, ace, small), _d(2, b, c), _d(3, st, dd))
+    plan = _plan(
+        _d(1, _arr(1), ace, small), _d(2, b, c), _d(3, _dep(3), st, dd)
+    )
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 2
     assert _day_of(plan, small) == 1
@@ -174,7 +207,7 @@ def test_heavy_removed_to_unplaced_when_no_host():
     # 需要真正的「非端点满员日」当宿主探针靶：两天单城行程里 D1=到达、
     # D2=返程（2026-11-13「出发日和到达日一样」），满员件自己也会被
     # 端点清扫出局，构造不出无宿主；改三天窗，D2 是唯一整天。
-    plan = _plan(_d(1, ace), _d(2, *full), _d(3))
+    plan = _plan(_d(1, _arr(1), ace), _d(2, *full), _d(3, _dep(3)))
     _endpoint_day_light_sweep(plan, frozenset())
     assert all(not any(i is ace for i in d.items) for d in plan.days), (
         "违例重磅卡不得滞留到达日"
@@ -188,7 +221,7 @@ def test_heavy_kept_and_disclosed_when_no_host_curated():
     """curated 卡永不删：无宿主同样保留+披露（第三拍移除只适用于普通卡）。"""
     ace = _v("王牌A", 120, _C0, 1, tier=1, curated=True)
     full = [_v(f"满员{k}", 100, _D2A, 2, tier=9) for k in range(4)]
-    plan = _plan(_d(1, ace), _d(2, *full))
+    plan = _plan(_d(1, _arr(1), ace), _d(2, *full))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, ace) == 1
     assert any("王牌A" in a and "暂保留" in a for a in plan.assumptions)
@@ -201,9 +234,9 @@ def test_theme_block_treated_heavy_and_evicted():
     b = _v("馆B", 50, _D2A, 2, tier=9)
     c = _v("馆C", 50, _D2B, 2, tier=9)
     dd = _v("馆D", 60, _D3A, 3, tier=9)
-    plan = _plan(_d(1, blk, small), _d(2, b, c), _d(3, dd))
+    plan = _plan(_d(1, _arr(1), blk, small), _d(2, b, c), _d(3, dd))
     _endpoint_day_light_sweep(plan, frozenset())
-    assert _day_of(plan, blk) == 2
+    assert _day_of(plan, blk) in (2, 3)
     assert _day_of(plan, small) == 1
 
 
@@ -219,14 +252,22 @@ def test_compact_family_day_exempt_from_heavy_eviction_but_capped_to_one():
     b = _v("馆B", 60, _D2A, 2, tier=9)
     c = _v("馆C", 60, _D2B, 2, tier=9)
     st = _v("尾坊", 90, _ST, 3, tier=4)
-    plan = _plan(_d(1, a1, a2, a3), _d(2, b, c), _d(3, st))
+    plan = _plan(_d(1, _arr(1), a1, a2, a3), _d(2, b, c), _d(3, st))
     _endpoint_day_light_sweep(plan, frozenset())
     # ① 不当作重磅逐出（族豁免仍在案）
     assert not any("重磅" in x for x in plan.assumptions)
     # ③ 只留一项：恰一员留守到达日，另两名挪去第 2 天
     fam = (a1, a2, a3)
     assert sum(1 for i in plan.days[0].items if any(i is f for f in fam)) == 1
-    assert sum(1 for i in plan.days[1].items if any(i is f for f in fam)) == 2
+    assert (
+        sum(
+            1
+            for d in (plan.days[1], plan.days[2])
+            for i in d.items
+            if any(i is f for f in fam)
+        )
+        == 2
+    )
     assert any("只安排一项" in x for x in plan.assumptions)
 
 
@@ -249,7 +290,7 @@ def test_curated_theme_block_stays_when_all_days_endpoint():
     small = _v("小馆", 60, _C1, 1, tier=9)
     b = _v("馆B", 50, _D2A, 2, tier=9)
     c = _v("馆C", 50, _D2B, 2, tier=9)
-    plan = _plan(_d(1, blk, small), _d(2, b, c))
+    plan = _plan(_d(1, _arr(1), blk, small), _d(2, _dep(2), b, c))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, blk) == 1
     assert blk.curated is True
@@ -267,10 +308,10 @@ def test_arrival_day_capped_to_one_keeps_anchor_nearest():
     b = _v("馆B", 60, _D2A, 2, tier=9)
     c = _v("馆C", 60, _D2B, 2, tier=9)
     st = _v("尾坊", 90, _ST, 3, tier=4)
-    plan = _plan(_d(1, near, far), _d(2, b, c), _d(3, st))
+    plan = _plan(_d(1, _arr(1), near, far), _d(2, b, c), _d(3, st))
     _endpoint_day_light_sweep(plan, frozenset())
     assert _day_of(plan, near) == 1
-    assert _day_of(plan, far) == 2
+    assert _day_of(plan, far) in (2, 3)
     assert any("只安排一项" in x and "远馆" in x for x in plan.assumptions)
 
 
@@ -309,3 +350,15 @@ def test_no_recruit_accept_empty_arrival_day():
     assert _day_of(plan, small) == 1
     # 11-13 六拍：到达日有小馆=已有安排，不补自由漫步占位、不跨日挪卡
     assert not any(i.item_id.startswith("citywalk-ph-d") for i in plan.days[0].items)
+
+
+def test_no_leg_first_day_is_fullday_not_arrival():
+    """2026-11-17 拍板「无交通信息=全天规划」：单城无城际腿的首日不再
+    无条件判到达日——重磅王牌原地不动、无到达日披露。"""
+    ace = _v("王牌A", 120, _C0, 1, tier=1)
+    b = _v("馆B", 60, _D2A, 2, tier=9)
+    c = _v("馆C", 60, _D2B, 2, tier=9)
+    plan = _plan(_d(1, ace), _d(2, b, c))
+    _endpoint_day_light_sweep(plan, frozenset())
+    assert _day_of(plan, ace) == 1
+    assert not any("到达日" in a for a in plan.assumptions)

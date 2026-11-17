@@ -640,6 +640,20 @@ def test_read_gate_keeps_curated_dangling():
     assert any("不删除" in n for n in notes)
 
 
+def _dep_xa(day: int) -> TransferItem:
+    """西安离城腿（2026-11-17「无交通信息=全天规划」配套）。"""
+    return TransferItem(
+        item_id=f"t-dep-{day}",
+        day=day,
+        seq=1,
+        mode="train",
+        from_city="西安",
+        to_city="上海",
+        start_time=time(16, 0),
+        end_time=time(20, 0),
+    )
+
+
 def _leg(day: int = 1, *, to: str = "成都") -> TransferItem:
     return TransferItem(
         item_id=f"t-{day}",
@@ -808,7 +822,11 @@ def test_day_purity_sweep_purges_far_from_arrival_day():
     d1 = DayPlan(
         day=1,
         base_city="西安",
-        items=[_visit("西安大唐西市博物馆", 60, _V, 1, tier=11), lishan],
+        items=[
+            _leg(1, to="西安"),
+            _visit("西安大唐西市博物馆", 60, _V, 1, tier=11),
+            lishan,
+        ],
     )
     d2 = DayPlan(
         day=2,
@@ -822,6 +840,7 @@ def test_day_purity_sweep_purges_far_from_arrival_day():
         day=3,
         base_city="西安",
         items=[
+            _dep_xa(3),
             _visit("西安钟楼", 40, _GL, 3, tier=3),
             _visit("大唐西市", 60, _V, 3, tier=11),
         ],
@@ -838,7 +857,7 @@ def test_day_purity_sweep_does_not_move_far_arrival_card_to_return_day():
     d1 = DayPlan(
         day=1,
         base_city="西安",
-        items=[_visit("市区小点", 60, _V, 1, tier=11), far],
+        items=[_leg(1, to="西安"), _visit("市区小点", 60, _V, 1, tier=11), far],
     )
     d2 = DayPlan(
         day=2,
@@ -852,6 +871,7 @@ def test_day_purity_sweep_does_not_move_far_arrival_card_to_return_day():
         day=3,
         base_city="西安",
         items=[
+            _dep_xa(3),
             _visit("末日一", 40, _GL, 3, tier=3),
             _visit("末日二", 60, _CQ, 3, tier=3),
         ],
@@ -1015,6 +1035,7 @@ def test_day_purity_sweep_family_day_city_stranger_freed_then_merge():
         day=1,
         base_city="西安",
         items=[
+            _leg(1, to="西安"),
             _visit("西安大唐西市博物馆", 60, _V, 1, tier=11),
             _visit("西安钟楼", 40, _GL, 1, tier=3),
             _visit("西安城墙", 60, _CQ, 1, tier=3),
@@ -1026,7 +1047,7 @@ def test_day_purity_sweep_family_day_city_stranger_freed_then_merge():
         items=[_visit("西安鼓楼", 40, _GL, 3, tier=3)],
     )
     d4 = DayPlan(day=4, base_city="西安", items=[bmy, qyq, yxf])
-    d5 = DayPlan(day=5, base_city="西安", items=[hqg])
+    d5 = DayPlan(day=5, base_city="西安", items=[_dep_xa(5), hqg])
     plan = _plan(d1, d3, d4, d5)
     _day_purity_sweep(plan, frozenset())
     assert any(i is yxf for i in d3.items)  # 族日占位者回城（鼓楼近簇伴日）

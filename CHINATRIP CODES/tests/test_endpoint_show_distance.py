@@ -22,6 +22,7 @@ from app.services.itinerary.models import (
     DayPlan,
     GeoPoint,
     ItineraryPlan,
+    TransferItem,
     VisitItem,
 )
 
@@ -91,9 +92,38 @@ def _center_day(day: int, *coords: GeoPoint) -> DayPlan:
     )
 
 
+def _arr(day: int) -> TransferItem:
+    """到达腿（2026-11-17 拍板「无交通信息=全天规划」——端点日判定需
+    交通腿，夹具显式带）。"""
+    return TransferItem(
+        item_id=f"t-arr-{day}",
+        day=day,
+        seq=1,
+        from_city="北京",
+        to_city="西安",
+        mode="train",
+        start_time=time(9, 0),
+        end_time=time(12, 0),
+    )
+
+
+def _dep(day: int) -> TransferItem:
+    """离城腿（同 _arr）。"""
+    return TransferItem(
+        item_id=f"t-dep-{day}",
+        day=day,
+        seq=1,
+        from_city="西安",
+        to_city="北京",
+        mode="train",
+        start_time=time(16, 0),
+        end_time=time(20, 0),
+    )
+
+
 def _tail(day: int) -> DayPlan:
-    """末日=单城镜像返程日（只留一张近处轻街卡）。"""
-    return _d(day, _v("尾坊", 90, _C4, day, tier=4))
+    """末日=带离城腿的返程日（只留一张近处轻街卡；无腿末日=全天）。"""
+    return _d(day, _dep(day), _v("尾坊", 90, _C4, day, tier=4))
 
 
 def _run(plan: ItineraryPlan) -> None:
@@ -108,7 +138,7 @@ def test_far_family_gets_own_day_arrival_far_items_not_dropped():
     """兵马俑+秦俑情在到达日 → 并回临潼族日（第 3 天），一张都不删。"""
     bmy = _v("秦始皇帝陵博物院", 180, _BMY, 1, tier=1)
     show = _show("《秦俑情》", 1)
-    d1 = _d(1, bmy, show)
+    d1 = _d(1, _arr(1), bmy, show)
     d2 = _center_day(2, _C0, _C1, _C2, _C3)
     hqg = _v("华清宫", 90, _HQG, 3, tier=1)
     lsh = _v("骊山", 90, _LSH, 3, tier=9)
@@ -134,7 +164,7 @@ def test_far_family_gets_own_day_arrival_far_items_not_dropped():
 def test_far_family_without_show_also_forms_district_day():
     """无族演的纯片区族同样成族日（旧代码只认「坐族内演出的日」当锚）。"""
     bmy = _v("秦始皇帝陵博物院", 180, _BMY, 1, tier=1)
-    d1 = _d(1, bmy)
+    d1 = _d(1, _arr(1), bmy)
     d2 = _center_day(2, _C0, _C1, _C2, _C3)
     hqg = _v("华清宫", 90, _HQG, 3, tier=1)
     lsh = _v("骊山", 90, _LSH, 3, tier=9)
@@ -168,7 +198,7 @@ def test_far_show_removed_to_unplaced_when_no_host():
         _v("满员2", 60, _C2, 2, tier=9),
         _v("满员3", 60, _C3, 2, tier=9),
     ]
-    plan = _plan(_d(1, show), _d(2, *full), _tail(3))
+    plan = _plan(_d(1, _arr(1), show), _d(2, *full), _tail(3))
     _run(plan)
 
     assert all(not any(i is show for i in d.items) for d in plan.days), (
@@ -190,7 +220,7 @@ def test_pinned_far_show_kept_with_disclosure():
         _v("满员2", 60, _C2, 2, tier=9),
         _v("满员3", 60, _C3, 2, tier=9),
     ]
-    plan = _plan(_d(1, show), _d(2, *full), _tail(3))
+    plan = _plan(_d(1, _arr(1), show), _d(2, *full), _tail(3))
     _run(plan)
 
     assert _day_of(plan, show) == 1
@@ -203,12 +233,13 @@ def test_all_endpoint_days_keeps_show_and_discloses():
     show = _show("《秦俑情》", 1)
     d1 = _d(
         1,
+        _arr(1),
         show,
         _v("城件A", 60, _C0, 1, tier=9),
         _v("城件B", 60, _C1, 1, tier=9),
         _v("城件C", 60, _C2, 1, tier=9),
     )
-    d2 = _d(2, _v("城件D", 60, _C3, 2, tier=9))
+    d2 = _d(2, _dep(2), _v("城件D", 60, _C3, 2, tier=9))
     plan = _plan(d1, d2)
     _run(plan)
 
@@ -222,7 +253,7 @@ def test_far_show_evicted_from_return_day():
     b = _v("城件B", 60, _C1, 1, tier=9)
     c = _v("城件C", 60, _C2, 2, tier=9)
     show = _show("《秦俑情》", 3)
-    plan = _plan(_d(1, a, b), _d(2, c), _d(3, show))
+    plan = _plan(_d(1, _arr(1), a, b), _d(2, c), _d(3, _dep(3), show))
     _run(plan)
 
     assert _day_of(plan, show) == 2, "离城日的远郊演出必须挪走"
@@ -242,7 +273,7 @@ def test_full_district_day_yields_weak_member_for_premium():
     """族日满员时弱族员让位给王牌（2026-11-13 五拍：宁可让骊山落 chip，
     也不能把兵马俑从到达日删掉——「删强留弱」不许可）。"""
     bmy = _v("秦始皇帝陵博物院", 180, _BMY, 1, tier=1)
-    d1 = _d(1, bmy)
+    d1 = _d(1, _arr(1), bmy)
     d2 = _center_day(2, _C0, _C1, _C2, _C3)
     hqg = _v("华清宫", 90, _HQG, 3, tier=1)
     lsh = _v("骊山", 180, _LSH, 3, tier=9)

@@ -261,7 +261,7 @@ def test_rehome_sweep_yields_for_premium():
         _timed(_visit("青羊宫", 11, minutes=90), 16, 30),
         _timed(_visit("杜甫草堂", 9, minutes=90), 18),
     ]
-    d1 = DayPlan(day=1, base_city="成都", items=day1)
+    d1 = DayPlan(day=1, base_city="成都", items=[_arrival_leg(), *day1])
     d2 = DayPlan(day=2, base_city="成都", items=day2)
     for v in day2:
         v.day = 2
