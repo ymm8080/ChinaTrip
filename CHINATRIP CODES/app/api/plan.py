@@ -647,9 +647,7 @@ async def start_plan(
         if facts.get("city") and not request.cities:
             # LLM 读出的城市一并预填——agent.start 不再二次读句（一次 LLM
             # 读出全部事实，直接灌引擎）。
-            request = request.model_copy(
-                update={"cities": [str(facts["city"])]}
-            )
+            request = request.model_copy(update={"cities": [str(facts["city"])]})
     if text_date and not request.start_date:
         request = request.model_copy(update={"start_date": text_date})
     # 行前卡提交后的天数推导（2026-11-15 用户实报「填了开始/结束日期还问玩

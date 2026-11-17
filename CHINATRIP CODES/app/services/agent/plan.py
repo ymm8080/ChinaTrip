@@ -21172,9 +21172,7 @@ class PlanningAgent:
         if len(text) >= _MIN_FACTS_LLM_TEXT:
             facts = await self.trip_facts_from_llm(text) or {}
         if not session.start_date:
-            session.start_date = facts.get("start_date") or _parse_text_start_date(
-                text
-            )
+            session.start_date = facts.get("start_date") or _parse_text_start_date(text)
         if session.days <= 0:
             days = facts.get("days") or _parse_days(text)
             if days is None and session.start_date and _count_text_dates(text) <= 1:
@@ -21269,8 +21267,7 @@ class PlanningAgent:
             return []
         return [
             L(
-                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，"
-                "后续顺延）",
+                f"已按你说的 {hm_text} 出发排第 1 天（先到 {target.name}，后续顺延）",
                 f"Day 1 starts at {hm_text} as you asked "
                 f"({target.name} first, the rest follows)",
             )

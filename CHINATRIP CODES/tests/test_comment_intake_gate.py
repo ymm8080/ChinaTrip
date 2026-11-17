@@ -81,8 +81,7 @@ def test_no_intake_for_single_english_date_comment():
         client_for(agent),
         {
             "preferences": (
-                "I WANT TO GO TO ZHUJIAZUI ON DEC.02. LEAVE HOTEL ON 11AM, "
-                "PLS ARRANGE"
+                "I WANT TO GO TO ZHUJIAZUI ON DEC.02. LEAVE HOTEL ON 11AM, PLS ARRANGE"
             )
         },
     )
@@ -114,9 +113,7 @@ def test_gate_asks_llm_when_regex_cannot_read_date():
 
 def test_intake_still_shown_when_llm_also_blank():
     agent = PlanningAgent(None, amap_client=None, poi_details=_GateStore())
-    resp = start(
-        client_for(agent), {"preferences": "museums and local food please"}
-    )
+    resp = start(client_for(agent), {"preferences": "museums and local food please"})
     body = resp.json()
     assert body["state"] == "intake"
     assert body.get("start_date_hint") is None
@@ -125,9 +122,7 @@ def test_intake_still_shown_when_llm_also_blank():
 def test_intake_still_shown_for_date_range_without_days():
     # 起止两个日期但没写天数：单日期=一日游的拍板不适用，仍要问
     agent = PlanningAgent(None, amap_client=None, poi_details=_GateStore())
-    resp = start(
-        client_for(agent), {"preferences": "trip from Nov 20 to Nov 22"}
-    )
+    resp = start(client_for(agent), {"preferences": "trip from Nov 20 to Nov 22"})
     body = resp.json()
     assert body["state"] == "intake"
     assert body.get("start_date_hint")  # 首日期预填卡

@@ -29,9 +29,7 @@ from app.services.itinerary import DayPlan, ItineraryPlan, VisitItem
 from app.services.llm.base import ChatResult
 from app.services.poi_details import PoiDetailStore
 
-COMMENT = (
-    "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
-)
+COMMENT = "I WANT TO GO TO ZHUJIAZUI ON DEC.02.  LEAVE HOTEL ON 11AM, PLS ARRANGE"
 
 
 class ScriptedLLM:
@@ -143,11 +141,7 @@ def test_trip_facts_from_llm_extracts_and_validates():
 
 def test_trip_facts_from_llm_drops_invalid_fields():
     llm = ScriptedLLM(
-        [
-            _facts_reply(
-                city="NotACity", start_date="bad", days=99, day1_start="25:00"
-            )
-        ]
+        [_facts_reply(city="NotACity", start_date="bad", days=99, day1_start="25:00")]
     )
     agent = PlanningAgent(llm, amap_client=None, poi_details=CommentStore())
     assert asyncio.run(agent.trip_facts_from_llm(COMMENT)) is None
@@ -207,9 +201,7 @@ def test_parse_days_ignores_clock_times():
 
 def test_city_from_text_sites_unique_name():
     agent = PlanningAgent(None, amap_client=None, poi_details=CommentStore())
-    city = asyncio.run(
-        agent._city_from_text_sites("I want to go to Zhujiajiao please")
-    )
+    city = asyncio.run(agent._city_from_text_sites("I want to go to Zhujiajiao please"))
     assert city == "上海"
 
 
@@ -235,9 +227,7 @@ def test_start_understands_comment_without_clarify():
     # 拍板①：LLM 一次读出事实灌进会话（城市/日期/天数/出发时刻）
     llm = ScriptedLLM(
         [
-            _facts_reply(
-                city="上海", start_date=_dec2(), days=1, day1_start="11:00"
-            ),
+            _facts_reply(city="上海", start_date=_dec2(), days=1, day1_start="11:00"),
             _sites_reply("朱家角古镇"),
         ]
     )
@@ -316,9 +306,7 @@ def _mini_plan() -> ItineraryPlan:
 
 def test_apply_comment_day_start_retimes_first_visit():
     agent = PlanningAgent(None, amap_client=None, poi_details=CommentStore())
-    session = PlanSession(
-        session_id="s1", device_id="d1", cities=["上海"], days=1
-    )
+    session = PlanSession(session_id="s1", device_id="d1", cities=["上海"], days=1)
     session.plan = _mini_plan()
     session.comment_day_start = "11:00"
     notes = agent._apply_comment_day_start(session)
@@ -330,9 +318,7 @@ def test_apply_comment_day_start_retimes_first_visit():
 
 def test_apply_comment_day_start_no_target_no_op():
     agent = PlanningAgent(None, amap_client=None, poi_details=CommentStore())
-    session = PlanSession(
-        session_id="s2", device_id="d1", cities=["上海"], days=1
-    )
+    session = PlanSession(session_id="s2", device_id="d1", cities=["上海"], days=1)
     session.plan = ItineraryPlan(
         itinerary_id="it-y",
         cities=["上海"],
