@@ -1,0 +1,528 @@
+{
+ "engine_note": "offline batch: legacy side = recorded runs (tests/golden/legacy/); model side = live double solve (F-41)",
+ "generated_at": "2026-11-18T06:59:43",
+ "corpus_dir": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden",
+ "budget_s": 3.0,
+ "scenarios": [
+  {
+   "scenario": "g01",
+   "snapshot_hash": "6b6950476364d9a90b9cb7bffc88c78b51768b445121b2e6510955068ae04fea",
+   "provenance": {
+    "incident": "Beijing 2 days 2026-11-25, five musts (ids stripped)",
+    "built_at": "2026-11-17",
+    "builder": "tests/golden/build_g01.py",
+    "note": "E-1..E-4 from cpsat_as_is §5; audit M7 schema"
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "sequence",
+    "no_unrequested_before",
+    "time_range",
+    "same_venue",
+    "card_leg_consistent",
+    "time_range",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 17,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "sequence",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "relative order holds: 天安门广场 → 慕田峪长城"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "no unrequested visit before '慕田峪长城' on day 1"
+     },
+     {
+      "type": "time_range",
+      "engine": "cpsat",
+      "status": "skipped",
+      "detail": "scenario sets no pin for '天安门广场' (timetable-fixed time only assertable with the pin)"
+     },
+     {
+      "type": "same_venue",
+      "engine": "cpsat",
+      "status": "pending",
+      "detail": "no meal cards in view (meal assembly F-31 lands in P1-F)"
+     },
+     {
+      "type": "card_leg_consistent",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "visit start == leg arrival (12:08)"
+     },
+     {
+      "type": "time_range",
+      "engine": "cpsat",
+      "status": "skipped",
+      "detail": "scenario sets no pin for '天安门广场' (timetable-fixed time only assertable with the pin)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 6,
+     "fail": 0,
+     "pending": 1,
+     "skipped": 2
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 17,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 0
+    }
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g01_legacy.json",
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "'颐和园' present but untimed (B-01 silent drop)"
+     },
+     {
+      "type": "sequence",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "relative order holds: 天安门广场 → 慕田峪长城"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "unrequested before '慕田峪长城' on day 1: 老舍茶馆 (B-03a)"
+     },
+     {
+      "type": "time_range",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "scenario sets no pin for '天安门广场' (timetable-fixed time only assertable with the pin)"
+     },
+     {
+      "type": "same_venue",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "lunch on day 1 anchored at '老舍茶馆', expected '慕田峪长城' (B-03b')"
+     },
+     {
+      "type": "card_leg_consistent",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "card start 12:38 != leg arrive 14:33 (B-03c)"
+     },
+     {
+      "type": "time_range",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "scenario sets no pin for '天安门广场' (timetable-fixed time only assertable with the pin)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 4 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "runner-level check: legacy determinism needs ≥ 2 recordings of the same request (P2-B calibration)"
+     }
+    ],
+    "violations": [
+     {
+      "bug": "B-01",
+      "day": 2,
+      "evidence": "'颐和园' present untimed and not in unplaced (silent)"
+     },
+     {
+      "bug": "B-02",
+      "day": 1,
+      "evidence": "unrequested '老舍茶馆' holds 09:10 while unseated: 颐和园"
+     },
+     {
+      "bug": "B-02",
+      "day": 2,
+      "evidence": "unrequested '梵高星空艺术馆（王府井旗舰店）' holds 15:30 while unseated: 颐和园"
+     },
+     {
+      "bug": "B-03a",
+      "day": 1,
+      "evidence": "unrequested '老舍茶馆' (09:10) precedes remote '慕田峪长城' (12:38)"
+     },
+     {
+      "bug": "B-03c",
+      "day": 1,
+      "evidence": "'慕田峪长城' card 12:38 ≠ leg arrive 14:33"
+     }
+    ],
+    "violation_counts": {
+     "B-01": 1,
+     "B-02": 2,
+     "B-03a": 1,
+     "B-03c": 1,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 4,
+     "pending": 0,
+     "skipped": 3
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 2
+    }
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   }
+  },
+  {
+   "scenario": "g02_tower_late_gate",
+   "snapshot_hash": "9c596d412b05b561d21d122744a55f138f395e78f2bc2891977d2ce730be5140",
+   "provenance": {
+    "incident": "B-07 tower late-gate: 上海中心大厦 19:00 past cap",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "note": "cap semantics unit-checked in tests (caps[c2]=(930, big-site)); fill placement itself is unrewarded pre-P1-D — the breach check is non-vacuous on any placed card"
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 1,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 1,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 0
+    }
+   },
+   "legacy": null,
+   "not_worse": null
+  },
+  {
+   "scenario": "g03_third_cluster",
+   "snapshot_hash": "1ea03ad61617e40c07e6b7cb530fcf628ad6d30934ebf72082b61b622148a845",
+   "provenance": {
+    "incident": "B-08 third-cluster: 延庆观景台 filled into the 慕田峪 day",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "base": "g01.json (ids stripped)",
+    "note": "carries the incident's 天安门 07:10 flag-schedule pin so the remote day keeps the E-1 shape"
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "sequence",
+    "no_unrequested_before",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 10,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "sequence",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "relative order holds: 天安门广场 → 慕田峪长城"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "no unrequested visit before '慕田峪长城' on day 1"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 4 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 5,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 10,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 0
+    }
+   },
+   "legacy": null,
+   "not_worse": null
+  },
+  {
+   "scenario": "g04_endpoint_transit",
+   "snapshot_hash": "31c2cfafc87d084301de132098127afaa27d91c8b0a6cabf5d7dfe339d1ca59f",
+   "provenance": {
+    "incident": "B-11 endpoint days: arrival/departure times constrain day 1 and the last day",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "base": "g01.json (ids stripped)",
+    "note": "arrival 09:00 → day-1 starts ≥ 11:30 (ARRIVAL_FLOOR 150); departure 19:00 → last day ends ≤ 17:30 (DEPARTURE_BUFFER 90). No-transport G-01 stays a full-day baseline."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "day_start_floor",
+    "day_end_ceiling",
+    "no_unrequested_before",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 13,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "day_start_floor",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "first visit 慕田峪长城 starts 12:08 ≥ 11:30 (C-05 arrival floor)"
+     },
+     {
+      "type": "day_end_ceiling",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "last visit 天安门广场 ends 14:40 ≤ 17:30 (C-05 departure buffer)"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "no unrequested visit before '慕田峪长城' on day 1"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 5,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 13,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 0
+    }
+   },
+   "legacy": null,
+   "not_worse": null
+  }
+ ],
+ "acceptance": {
+  "corpus": [
+   "g01",
+   "g02_tower_late_gate",
+   "g03_third_cluster",
+   "g04_endpoint_transit"
+  ],
+  "legacy_violations_total": {
+   "B-01": 1,
+   "B-02": 2,
+   "B-03a": 1,
+   "B-03c": 1,
+   "B-06": 0
+  },
+  "new_violations_total": {
+   "B-01": 0,
+   "B-02": 0,
+   "B-03a": 0,
+   "B-03c": 0,
+   "B-06": 0
+  },
+  "gates": {
+   "corpus_size": {
+    "value": "4/12",
+    "pass": false,
+    "note": "corpus v1 ships 4; P2-B expands to ≥ 12"
+   },
+   "violation_classes_zero_new": {
+    "value": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "pass": true
+   },
+   "convergence_rate_new": {
+    "value": 1.0,
+    "threshold": 0.99,
+    "pass": true
+   },
+   "determinism_rate": {
+    "value": 1.0,
+    "threshold": 1.0,
+    "pass": true
+   },
+   "not_worse_vs_recording": {
+    "value": "1/1 recorded scenarios",
+    "pass": true
+   },
+   "legacy_no_solution_disclosures": {
+    "value": 0,
+    "pass": true,
+    "note": "recorded legacy baseline must itself be free of 「求解器未收敛」 for a clean comparison"
+   },
+   "plan_score_delta": {
+    "value": null,
+    "pass": null,
+    "note": "pending P1-D tiered objective + P1-F plan materialisation"
+   },
+   "parity_domains_14": {
+    "value": null,
+    "pass": null,
+    "note": "pending P1-F feature-parity checklist"
+   }
+  },
+  "verdict": {
+   "mode": "shadow-instrument (P2-A)",
+   "switch_ready": false,
+   "reason": "P3 switch requires P1-D/E/F (objectives, slack ladder, assembly) + corpus ≥ 12 (P2-B) + quiet window; this report is the baseline measurement, not the gate decision.",
+   "gates_pass": 5,
+   "gates_fail": 1,
+   "gates_pending": 2
+  }
+ }
+}

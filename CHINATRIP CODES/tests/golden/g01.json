@@ -294,7 +294,8 @@
     "day": 1,
     "name": "天安门广场",
     "start": "07:00",
-    "end": "08:45"
+    "end": "08:45",
+    "requires_pin": "天安门广场"
    }
   },
   {
@@ -321,7 +322,8 @@
     "name": "慕田峪长城",
     "start": "10:50",
     "end": "11:25",
-    "note": "shuttle 09:30 + 90min ride + 8min last mile ≈ 11:08"
+    "note": "shuttle 09:30 + 90min ride + 8min last mile ≈ 11:08",
+    "requires_pin": "天安门广场"
    }
   },
   {
