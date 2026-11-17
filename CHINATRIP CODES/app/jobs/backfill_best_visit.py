@@ -3,14 +3,12 @@
 为 POI 底库补 best_visit_time（枚举见 SLOTS），是 solver「夜景排晚上」的
 数据基础。三层优先级 ctrip > llm > heuristic；本作业提供其中两层：
 
-  --stage heuristic  纯本地规则（apply_rules + 营业时间粗推），零成本
-  --stage llm        heuristic 未命中的行走 LLM（zhipu adapter），有成本
+  --stage llm        走 LLM（zhipu adapter）判定后落库，有成本
 
-铁律「只升不降」：已有非 any 值绝不被 heuristic/llm 覆盖，
+铁律「只升不降」：已有非 any 值绝不被 llm 覆盖，
 best_visit_time 为 NULL 或 'any' 的行才可写。
 
 用法：
-    python -m app.jobs.backfill_best_visit --stage heuristic [--limit 500] [--city 重庆]
     python -m app.jobs.backfill_best_visit --stage llm [--limit 50] [--city 重庆]
 """
 
@@ -29,7 +27,7 @@ from sqlalchemy import or_
 from app.config import get_settings
 from app.db import get_session_factory
 from app.models import Poi
-from app.services.best_visit import SLOTS, apply_rules, infer_slot_from_hours
+from app.services.best_visit import SLOTS
 from app.services.llm import (
     ChatMessage,
     LLMError,
@@ -44,9 +42,6 @@ _SYSTEM_PROMPT = (
     '只输出 JSON：{"slot":"..."}，slot 必须是 sunrise/morning/afternoon/'
     "evening/sunset/any 之一；无法判断时用 any。"
 )
-
-_RULES_FN: Callable[[str | None, str | None], str | None] = apply_rules
-_HOURS_FN: Callable[[str | None], str | None] = infer_slot_from_hours
 
 
 def _norm_city(city: str | None) -> str:
@@ -95,22 +90,22 @@ def apply_stage(
     rows: Iterable[Any],
     stage: str,
     *,
-    rules_fn: Callable[[str | None, str | None], str | None] = _RULES_FN,
-    hours_fn: Callable[[str | None], str | None] = _HOURS_FN,
     llm_fn: Callable[[str | None, str | None], str | None] | None = None,
     batch_size: int = 50,
     batch_sleep: float = 1.0,
 ) -> dict:
     """对 select_targets 给出的行执行回填并落库，返回 stats。
 
-    llm_fn(name, category) -> LLM 原始回复文本；请求失败返回 None。
-    解析用 parse_json_content（容忍代码围栏/前后赘述），越界值计 invalid。
+    heuristic 规则层已退役（2026-11-17 用户拍板「best visit time 不能走
+    HEURISTIC」），本作业只剩 llm 层。llm_fn(name, category) -> LLM 原始
+    回复文本；请求失败返回 None。解析用 parse_json_content（容忍代码围
+    栏/前后赘述），越界值计 invalid。
     """
-    if stage not in ("heuristic", "llm"):
+    if stage != "llm":
         raise ValueError(f"unknown stage: {stage!r}")
-    if stage == "llm" and llm_fn is None:
+    if llm_fn is None:
         raise RuntimeError("apply_stage(stage='llm') requires llm_fn")
-    filled_key = f"{stage}_filled"
+    filled_key = "llm_filled"
     stats: dict[str, int] = {
         "targets": 0,
         filled_key: 0,
@@ -124,17 +119,7 @@ def apply_stage(
         if row.best_visit_time not in (None, "any"):
             stats["skipped_not_empty"] += 1
             continue
-        if stage == "heuristic":
-            slot = rules_fn(row.name_zh, row.category) or hours_fn(row.opening_hours)
-            if slot not in SLOTS or slot == "any":
-                stats["no_signal"] += 1
-                continue
-            row.best_visit_time = slot
-            row.best_visit_time_source = "heuristic"
-            session.commit()
-            stats[filled_key] += 1
-            continue
-        # --stage llm：每批之间 sleep，控请求频率
+        # 每批之间 sleep，控请求频率
         if idx and idx % batch_size == 0:
             time.sleep(batch_sleep)
         content = llm_fn(row.name_zh, row.category)  # type: ignore[misc]
@@ -189,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="回填 pois.best_visit_time（只升不降：NULL/any 才可写）"
     )
-    parser.add_argument("--stage", choices=["heuristic", "llm"], required=True)
+    parser.add_argument("--stage", choices=["llm"], default="llm")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--city", help="只回填指定城市（如 重庆）")
     args = parser.parse_args(argv)
@@ -224,11 +209,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         llm_fn = _build_llm_fn(settings)
 
-    limit = (
-        args.limit
-        if args.limit is not None
-        else (500 if args.stage == "heuristic" else 50)
-    )
+    limit = args.limit if args.limit is not None else 50
     factory = get_session_factory()
     with factory() as session:
         rows = select_targets(session, args.stage, args.city, limit)

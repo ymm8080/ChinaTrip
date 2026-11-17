@@ -1,6 +1,6 @@
 # 多语言通用化设计（分层语言策略 + 页内语言切换器）— 2026-11-03
 
-状态：v1.0 设计定稿待实施 ｜ 触发：用户需求「H5 现中英双语，如何灵活支持多语言 + 页面上语言切换」+ 同日拍板「偶发语言直接用浏览器网页翻译，不为一档语言加 POI 列」
+状态：v1.1 设计定稿；P1 机制 + L2 骨架（ja/ko 种子）已于 2026-11-14 落地（见修订记录 v1.2）｜ 触发：用户需求「H5 现中英双语，如何灵活支持多语言 + 页面上语言切换」+ 同日拍板「偶发语言直接用浏览器网页翻译，不为一档语言加 POI 列」
 关联：[language_dual_system_design_2026-10-25.md](language_dual_system_design_2026-10-25.md)（部署边界/分库/`_en` 列的权威设计，**不因本文改变**）、[translation_pipeline_design_2026-10-30.md](translation_pipeline_design_2026-10-30.md)（用户语言口径「中文为主 + 英文，偶尔其它语言」）
 
 ---
@@ -160,3 +160,4 @@ def L(*texts) -> str:
 
 - **v1.0（2026-11-03）**：初稿定稿。机制=位置制 `L(*texts)` + requested→en→zh 回退链 + 前端字典回退链 + picker；分层=L1 产品级（既有）/L2 试点级（字典+prompt 档，数据 serve en）/L3 偶发级（零改动）；拍板零新增 POI 列，JSONB `translations` 降级为产品级毕业通道。
 - **v1.1（2026-11-03）**：追加 §3.5 产物语言机制（用户追问「导入导出都要选中语言」）——导入=prompt 语言档（LLM 结构化一步出选中语言，任意语言零字典）；导出=pivot en 渲染后按需批量翻译（t9n 快车道 + 短语缓存既有基建），缓存持久=懒建设伪列 + 无 schema 校订面，失败回退 en 留日志；缓存即 §3.4 毕业时的 backfill 数据源。§1 补行程导入/导出两行代码事实（导出实为打印 HTML + Excel，`trip_export.py:4-5`；导入 LLM 结构化两段式，`itineraries.py:300,429`）。
+- **v1.2（2026-11-14）**：**P1 机制 + L2 双骨架（ja/ko）落地**（用户指令「build up multiple language skeleton」）。后端：`lang_ctx.py` 升级为位置制 `L(*texts)` + `SUPPORTED=("zh","en","ja","ko")`（zh=0/en=1 冻结）+ `normalize_lang` BCP47 折叠 + `lang_chain`（requested→en→zh）+ `is_en()` 改「非 zh 即走 en 内容」（pivot，zh/en 行为零变化）；plan 会话 lang 白名单改走 `SUPPORTED`；`_LANG_DIRECTIVES` 加 ja/ko 直生成档（§3.2 拍板默认）。前端：`i18n.js` DICT 改短码键（zh-CN→zh，存量 `ct_locale` 读侧归一）+ ja/ko 种子词典（~55 高频 key：导航/规划表单/登录/预订页签/常用按钮，其余按回退链逐 key 落英文）+ `LANGS` 注册表 + 二元 toggle 升级语言 picker（底部弹层、母语名+当前项勾选、选完走既有 `i18n:change` 重渲染链）+ `city`/`pick` 非 zh 走 en 源 + `<html lang>` 按 `LANGS.htmlTag`；`index.html` X-Lang/plan:start lang/share ?lang 直通 `I18N.locale()` 短码（§7 货币 4 处二元保留未动）；`sw.js VERSION` v86（字典变更 bump 铁律）。守门：`tests/test_lang_sync.py` 注册表同步钉（SUPPORTED ⊆ DICT/LANGS 顶层键）+ `test_lang_ctx.py` 回退链/归一/位置制用例；H5 静态守门全绿。**未做（后续轮次）**：CITY_JA/CITY_KO 全量城市名、ja/ko 字典 GLM 全量种子+高频人工校订、产物按需翻译（§3.5）、毕业通道（§3.4）、ja/ko 谁先转产品级的拍板。

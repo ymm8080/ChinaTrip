@@ -18,6 +18,7 @@ from app.services.agent.plan import (
     _composite_dup,
     _name_dup,
     _relic_park_dup,
+    _substitute_dup,
 )
 
 
@@ -214,3 +215,507 @@ def test_same_visit_adjacent_distinct_stays_split():
         day=4,
     )
     assert _same_visit(dayanta, shaanxi_museum) is False
+
+
+# --- ④ 同体验替代组（2026-11-07 熊猫基地/熊猫谷拍板）------------------------
+# 「已经排熊猫基地，就不要排熊猫谷了。两者是替换关系」——同一体验的不同
+# 选址，基地↔谷 ~58km 不是同站但互为替代，一次行程只去一处。无地理闸：
+# 相距越远越要并，与 2km 保护闸方向相反。
+
+
+def _cs(name, lon, lat, city, cat="attraction"):
+    return {
+        "name": name,
+        "category": cat,
+        "city": city,
+        "location": {"lon": lon, "lat": lat},
+    }
+
+
+def _panda_cards():
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    base = VisitItem(
+        item_id="v21",
+        name="成都大熊猫繁育研究基地",
+        poi_id="amap:成都:熊猫基地",
+        category="attraction",
+        city="成都",
+        location=GeoPoint(lon=104.13953, lat=30.73945),
+        day=2,
+    )
+    valley = VisitItem(
+        item_id="v22",
+        name="熊猫谷",
+        poi_id="amap:成都:熊猫谷",
+        category="attraction",
+        city="成都",
+        location=GeoPoint(lon=103.59896, lat=30.96554),
+        day=3,
+    )
+    return base, valley
+
+
+def test_substitute_panda_pair_far_apart_is_twin():
+    """基地 vs 熊猫谷 ~58km：替代组无地理闸，候选层/行程层都判孪生。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    b = _cs("熊猫谷", 103.59896, 30.96554, "成都")
+    assert _substitute_dup(a["name"], b["name"], "成都", "成都") is True
+    assert _cand_twin(a, b) is True
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+
+    base, valley = _panda_cards()
+    assert _same_visit(base, valley) is True
+    keepers, dropped = _dedupe_visit_keepers([base, valley])
+    assert dropped == ["熊猫谷"]  # 平手先到先得：基地是 selection 序先行者
+
+
+def test_substitute_same_experience_trio():
+    """谷 vs 苑（都江堰中华大熊猫苑(原熊猫乐园)）~7km 同城互斥——
+    一次行程只看一次熊猫，三处任两处都不并排。"""
+    a = _cs("熊猫谷", 103.59896, 30.96554, "成都")
+    b = _cs("都江堰中华大熊猫苑(原熊猫乐园)", 103.59485, 30.89953, "成都")
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_cross_city_not_blocked():
+    """异地同名不误伤：汉中熊猫谷/湘西大熊猫苑与成都基地不互斥。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    hz = _cs("熊猫谷", 107.98339, 33.67317, "汉中")
+    xx = _cs("湘西凤凰县中华大熊猫苑", 109.51465, 27.96564, "湘西")
+    assert _cand_twin(a, hz) is False
+    assert _cand_twin(a, xx) is False
+
+
+def test_substitute_hotels_and_venues_not_hit():
+    """酒店挂牌/附属场馆/研学基地/雅安熊猫古城不进替代组：词素不命中。"""
+    a = _cs("成都大熊猫繁育研究基地", 104.13953, 30.73945, "成都")
+    rows = [
+        _cs("京元丽呈酒店(成都熊猫基地店)", 104.11522, 30.74127, "成都", cat="hotel"),
+        _cs("熊猫剧院", 104.14484, 30.74649, "成都", cat="entertainment"),
+        _cs("熊猫时空馆", 104.14609, 30.73139, "成都"),
+        _cs("熊猫小匠研学体验基地", 103.58483, 30.85939, "成都"),
+        _cs("熊猫古城景区", 102.81843, 30.36722, "雅安"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
+def test_dup_blocks_substitute_backfill():
+    """回填守卫（晨间保底/借出日回填/干日回填三处统一口径）：行程已有
+    基地，保底候选熊猫谷必须被 _dup_blocks_item 拦下，不许补成第二卡。"""
+    from app.services.agent.plan import _dup_blocks_item
+
+    base, _valley = _panda_cards()
+    cand = {
+        "name": "熊猫谷",
+        "city": "成都",
+        "source_poi_id": "amap:成都:熊猫谷",
+        "category": "attraction",
+        "location": {"lon": 103.59896, "lat": 30.96554},
+    }
+    assert _dup_blocks_item(cand, base) is True
+
+
+# --- ③ 泛化品类替代组（2026-11-07 拍板「类型+距离」泛化产品逻辑） ----------
+
+
+def test_generic_street_pair_same_city_is_twin():
+    """宽窄巷子 vs 春熙路（~2.6km 同城）：citywalk 白名单品类互斥，
+    一个行程只走一条街区。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert (
+        _substitute_dup(
+            a["name"],
+            b["name"],
+            "成都",
+            "成都",
+            cat_a="citywalk",
+            cat_b="citywalk",
+            xy_a=(104.05360, 30.66370),
+            xy_b=(104.07820, 30.65740),
+        )
+        is True
+    )
+    assert _cand_twin(a, b) is True
+
+
+def test_generic_street_far_suburb_not_twin():
+    """>30km 出城圈不互斥：都江堰古城（~56km）可与成都任一街区并排。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    djy = _cs("都江堰古城", 103.61900, 31.00400, "成都", cat="citywalk")
+    assert _cand_twin(a, djy) is False
+
+
+def test_generic_street_cross_city_not_blocked():
+    """跨城组合（成都+重庆联程）不互斥：城闸先于距离闸。"""
+    a = _cs("宽窄巷子", 104.05360, 30.66370, "成都", cat="citywalk")
+    cq = _cs("洪崖洞民俗风貌区", 106.57830, 29.55820, "重庆", cat="citywalk")
+    assert _cand_twin(a, cq) is False
+
+
+# --- ⑤ 西安钟鼓楼替代组（2026-11-10 拍板「鼓楼和钟楼是 alternative pair，
+#     只取其一」）---------------------------------------------------------------
+# 钟楼/鼓楼/钟鼓楼博物馆是同一登楼体验的不同行（馆在楼上，登楼即登馆），
+# 实测 ~240m 相邻但互为替代——不用地理闸（子串词素在西安商圈词上大面积
+# 误伤，改全名精确 + 钟鼓楼双词素同现）。
+
+
+def test_substitute_belldrum_pair_is_twin():
+    """西安钟楼 vs 西安鼓楼（~240m）：替代组命中即孪生，一个行程只登一楼。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    b = _cs("西安鼓楼", 108.94511, 34.26006, "西安")
+    assert _substitute_dup(a["name"], b["name"], "西安", "西安") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_belldrum_museum_row_in_group():
+    """钟鼓楼博物馆行同组：馆在楼上，登馆即登楼，防「钟楼+钟鼓楼博物馆」
+    双卡；组内互认跨类别（attraction↔museum）precise 同类。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    m = _cs("西安市钟鼓楼博物馆", 108.94400, 34.26070, "西安", cat="museum")
+    assert _substitute_dup(a["name"], m["name"], "西安", "西安") is True
+    assert _cand_twin(a, m) is True
+
+
+def test_substitute_belldrum_cross_city_not_blocked():
+    """异地同名不误伤：北京鼓楼与西安钟楼不互斥（城市闸）。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    bj = _cs("北京鼓楼", 116.39028, 39.94050, "北京")
+    assert _substitute_dup(a["name"], bj["name"], "西安", "北京") is False
+    assert _cand_twin(a, bj) is False
+
+
+def test_substitute_belldrum_merchant_rows_not_hit():
+    """商户行不进组：「钟楼」是西安高频商圈词——水盆羊肉(钟楼西一路
+    总店)类括号后缀商户行不命中替代组（全名精确 + 双词素同现两道都拦；
+    头尾包含型商户名由 containment 闸另行兜底，不在本组口径内）。"""
+    a = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    rows = [
+        _cs(
+            "崇辉澄城水盆羊肉(钟楼西一路总店)", 108.94050, 34.26550, "西安", cat="food"
+        ),
+        _cs("德发长饺子馆(钟楼店)", 108.94300, 34.26000, "西安", cat="food"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
+# --- ⑥ 宫宴餐秀替代组（2026-11-10 拍板「同址同类型的宴是 ALTERNATIVE」+
+#     「尽量多不同类型的体验」「餐卡可以空白」，当日全库体验性宴行复查
+#     定稿）------------------------------------------------------------------
+# 体验性宴会/沉浸式餐秀（仿古乐舞伴宴/换装宫宴/一菜一舞餐秀）同城互为
+# 替代：一次行程只赴一场，已排组员后其余天同组候选被站级判定拦下，晚餐
+# 槽宁空勿重。词素取各城体验宴场馆专名/体验名，普通餐馆名不命中；泛化
+# 品类通道不收餐饮，体验性宴只有具名组一个通道。朝代主题不同（唐风 vs
+# 楚汉 vs 六朝）或体验不同（宫廷宴 vs 民族长桌宴）不并入，宁缺勿滥。
+
+
+def test_substitute_tang_banquet_pair_is_twin():
+    """御宴宫 vs 长安十二时辰·唐宴（同片区同类型体验宴，均 food 行）：
+    具名组无地理闸，候选层判孪生——跨天再排同体验宴被拦，一天一场闸
+    不再把同组宴摊到不同天。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("长安十二时辰·唐宴", 108.96600, 34.21300, "西安", cat="food")
+    assert _substitute_dup(a["name"], b["name"], "西安", "西安") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_tang_banquet_cross_city_not_blocked():
+    """异地同名/同词素不误伤：城市闸先于组判定。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("唐宴", 112.45400, 34.62000, "洛阳", cat="food")
+    assert _substitute_dup(a["name"], b["name"], "西安", "洛阳") is False
+    assert _cand_twin(a, b) is False
+
+
+def test_substitute_tang_banquet_regular_restaurants_not_hit():
+    """普通餐馆不进组：词素不命中，泡馍/饺子馆行与组内宴互不相干
+    （一日三餐天天排是常态，餐饮互斥只认体验性宴专名）。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    rows = [
+        _cs("老孙家泡馍(东关店)", 108.96000, 34.25000, "西安", cat="food"),
+        _cs("德发长饺子馆(钟楼店)", 108.94300, 34.26000, "西安", cat="food"),
+    ]
+    for r in rows:
+        assert _cand_twin(a, r) is False, r["name"]
+
+
+def test_substitute_tang_banquet_and_tower_group_not_crossed():
+    """组间不串：唐风宴组（御宴宫）与双塔组（钟楼）互不相干，可并排。"""
+    a = _cs("御宴宫", 108.97400, 34.21300, "西安", cat="food")
+    b = _cs("西安钟楼", 108.94317, 34.26147, "西安")
+    assert _cand_twin(a, b) is False
+
+
+# --- ⑦ 浦江游览替代组（2026-11-10 全库漏网扫描定稿）--------------------------
+# 同一观光航线体验的多船卡/多码头挂牌：同码头 0km 但船名带引号前缀打断
+# containment，名字通道全漏——同江同航线互为替代，一行程只乘一次。
+
+
+def test_substitute_river_cruise_pair_is_twin():
+    """浦江游览 vs "水晶公主"号黄浦江游船（同码头 0km 实录）：具名组
+    命中即孪生，多船卡/多码头挂牌不再并排。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs('"水晶公主"号黄浦江游船', 121.49000, 31.23000, "上海", cat="entertainment")
+    assert _substitute_dup(a["name"], b["name"], "上海", "上海") is True
+    assert _cand_twin(a, b) is True
+
+
+def test_substitute_river_cruise_cross_city_not_blocked():
+    """异地同词素不误伤：城市闸先于组判定（浙赣地名「浦江」行不互斥）。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs("浦江游览", 119.89000, 29.46000, "金华", cat="entertainment")
+    assert _substitute_dup(a["name"], b["name"], "上海", "金华") is False
+    assert _cand_twin(a, b) is False
+
+
+def test_substitute_river_cruise_unrelated_river_not_hit():
+    """异江游船不进组：钱塘江游览与浦江游览是两条航线，词素不命中。"""
+    a = _cs("浦江游览", 121.49000, 31.23000, "上海", cat="entertainment")
+    b = _cs("钱塘江游览", 120.20000, 30.20000, "杭州", cat="entertainment")
+    assert _cand_twin(a, b) is False
+
+
+def test_museum_not_in_street_group():
+    """泛化按类型不按名：武侯祠博物馆（museum）不在街区白名单，与
+    春熙路（citywalk）可并排。"""
+    a = _cs("成都武侯祠博物馆", 104.04630, 30.64440, "成都", cat="museum")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert _cand_twin(a, b) is False
+
+
+def test_generic_missing_coords_same_city_judged():
+    """候选无坐标（骨架行）：同城即判互斥（宁紧勿松）。"""
+    a = {"name": "宽窄巷子", "category": "citywalk", "city": "成都"}
+    b = {"name": "春熙路", "category": "citywalk", "city": "成都"}
+    assert _cand_twin(a, b) is True
+
+
+def test_panda_and_street_groups_not_crossed():
+    """具名组（熊猫）与泛化组（街区）互不相干：熊猫谷 vs 春熙路可并排。"""
+    a = _cs("熊猫谷", 103.59896, 30.96554, "成都", cat="nature")
+    b = _cs("春熙路", 104.07820, 30.65740, "成都", cat="citywalk")
+    assert _cand_twin(a, b) is False
+
+
+# --- ⑤ 伞名无坐标降级 + 族卡孪生吸收（2026-11-07 碑林双卡案）----------------
+# session be915838 day4 实录：绑定行「西安碑林博物馆」无坐标（坐标要等
+# _enrich_parallel 在两道去重之后才补），「城墙·碑林历史文化景区」5A 伞标
+# 当族卡——伞形闸全程哑火，双卡并排一天。拍板「先类型二选一，再按距离
+# 时间聚合；聚合要把成员显示出来，不许影没」。
+
+
+def _beilin_anchor() -> dict:
+    return {
+        "name": "城墙·碑林历史文化景区",
+        "city": "西安",
+        "category": "attraction",
+        "location": {"lon": 108.94052490245161, "lat": 34.25687582300908},
+    }
+
+
+def test_umbrella_no_coords_same_city_morpheme_twin():
+    """绑定博物馆行无 location：同城+词素降级判同站（双向）。"""
+    from app.services.agent.plan import _umbrella_cand_dup
+
+    m = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    assert _umbrella_cand_dup(_beilin_anchor(), m) is True
+    assert _umbrella_cand_dup(m, _beilin_anchor()) is True
+
+
+def test_umbrella_no_coords_cross_city_or_missing_city_not_twin():
+    """缺城/异地不猜：降级闸不跨城放行。"""
+    from app.services.agent.plan import _umbrella_cand_dup
+
+    bj = {"name": "西安碑林博物馆", "city": "北京", "category": "museum"}
+    bare = {"name": "西安碑林博物馆", "category": "museum"}
+    assert _umbrella_cand_dup(_beilin_anchor(), bj) is False
+    assert _umbrella_cand_dup(_beilin_anchor(), bare) is False
+
+
+def test_umbrella_pair_bundle_recognition():
+    """组合识别（2026-11-07 终裁「还原多卡连排成组合」）：碑林伞名对判
+    同族供跨日捆绑；非伞名对不判族。吸收通道（折卡）已退役。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    bound = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    assert _umbrella_specs_bundle(_beilin_anchor(), bound) is True
+    dayanta = {
+        "name": "大雁塔大唐芙蓉园景区",
+        "city": "西安",
+        "category": "attraction",
+        "location": {"lon": 108.9640, "lat": 34.2180},
+    }
+    shaanxi = {"name": "陕西历史博物馆", "city": "西安", "category": "museum"}
+    assert _umbrella_specs_bundle(dayanta, shaanxi) is False
+
+
+def test_same_visit_umbrella_pair_not_merged():
+    """行程级（2026-11-07 终裁）：博物馆卡 vs 伞形景区卡不再判同站——
+    伞名 visit 去重通道已退役，两卡并存（必去标各随各卡）。"""
+    from app.services.agent.plan import _dedupe_visit_keepers, _same_visit
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    museum = VisitItem(
+        item_id="vm",
+        name="西安碑林博物馆",
+        poi_id="m1_1c7b3030b03e",
+        category="museum",
+        city="西安",
+        location=None,
+        day=4,
+    )
+    fam = VisitItem(
+        item_id="vf",
+        name="城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.94052490245161, lat=34.25687582300908),
+        day=4,
+        must=True,
+    )
+    assert _same_visit(museum, fam) is False
+    keepers, dropped = _dedupe_visit_keepers([museum, fam])
+    assert dropped == []
+    assert {k.poi_id for k in keepers} == {"m1_1c7b3030b03e", "5a_304"}
+
+
+def test_dup_blocks_beilin_museum_backfill():
+    """回填守卫挂伞名通道：行程已有城墙·碑林族卡，保底候选碑林博物馆
+    （无坐标绑定行形态）必须被拦，不许补成第二卡。"""
+    from app.services.agent.plan import _dup_blocks_item
+    from app.services.itinerary.models import GeoPoint, VisitItem
+
+    fam = VisitItem(
+        item_id="vf",
+        name="城墙·碑林历史文化景区",
+        poi_id="5a_304",
+        category="attraction",
+        city="西安",
+        location=GeoPoint(lon=108.94052490245161, lat=34.25687582300908),
+        day=4,
+    )
+    cand = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "source_poi_id": "m1_1c7b3030b03e",
+        "category": "museum",
+    }
+    assert _dup_blocks_item(cand, fam) is True
+
+
+# --- ⑥ 伞名近邻捆绑同日（2026-11-07 终裁「还原多卡连排成组合」）----------
+# 碑林博物馆和城墙·碑林景区两卡并存、判同族半径 5km；跨日的伞名对
+# 拉回同日连排（不再折卡）。
+
+
+def _anchor_at(lon: float) -> dict:
+    s = _beilin_anchor()
+    s["location"] = {"lon": lon, "lat": 34.25687582300908}
+    return s
+
+
+def test_bundle_specs_coords_within_5km():
+    """词素+坐标 ≤5km 判捆绑（同闸 2km 的放宽档）。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    near = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "location": {"lon": 108.9550, "lat": 34.2560},  # ~1.3km
+    }
+    assert _umbrella_specs_bundle(_beilin_anchor(), near) is True
+
+
+def test_bundle_specs_coords_beyond_5km_not_bundle():
+    """>5km 同城词素对不捆绑（异地选址维持互斥原语义）。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    far = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "location": {"lon": 109.0400, "lat": 34.2560},  # ~9km
+    }
+    assert _umbrella_specs_bundle(_beilin_anchor(), far) is False
+
+
+def test_bundle_specs_no_coords_same_city_and_cross_city():
+    """无坐标走同城+词素降级（与伞名闸同口径）；跨城不猜。"""
+    from app.services.agent.plan import _umbrella_specs_bundle
+
+    bound = {"name": "西安碑林博物馆", "city": "西安", "category": "museum"}
+    bj = {"name": "西安碑林博物馆", "city": "北京", "category": "museum"}
+    assert _umbrella_specs_bundle(_beilin_anchor(), bound) is True
+    assert _umbrella_specs_bundle(_beilin_anchor(), bj) is False
+
+
+def test_bundle_pulls_cross_day_pair_to_must_keeper_day():
+    """跨日捆绑：必去碑林博物馆（day3，无坐标）是 keeper，城墙·碑林
+    （day2）拉回 day3——两卡并存同日连排。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
+    museum["must"] = True
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    anchor["must"] = False
+    notes = _bundle_umbrella_spec_days(
+        [museum, anchor], {"西安碑林博物馆": {"source_poi_id": "m1_x"}}
+    )
+    assert notes == ["城墙·碑林历史文化景区→西安碑林博物馆"]
+    assert anchor["day"] == 3
+    assert museum["day"] == 3
+
+
+def test_bundle_same_day_pair_untouched():
+    """同日对不动（两卡并存连排），无披露。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {"name": "西安碑林博物馆", "city": "西安", "category": "museum", "day": 3}
+    anchor = _beilin_anchor()
+    anchor["day"] = 3
+    notes = _bundle_umbrella_spec_days([museum, anchor], {})
+    assert notes == []
+    assert anchor["day"] == 3
+
+
+def test_bundle_beyond_5km_days_untouched():
+    """>5km 不拉日：异地选址各排各天，互斥闸原语义接管。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    museum = {
+        "name": "西安碑林博物馆",
+        "city": "西安",
+        "category": "museum",
+        "day": 3,
+        "location": {"lon": 109.0400, "lat": 34.2560},
+    }
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    notes = _bundle_umbrella_spec_days([museum, anchor], {})
+    assert notes == []
+    assert museum["day"] == 3
+    assert anchor["day"] == 2
+
+
+def test_bundle_cross_city_days_untouched():
+    """跨城词素对不捆绑（城闸先行）。"""
+    from app.services.agent.plan import _bundle_umbrella_spec_days
+
+    bj = {
+        "name": "西安碑林博物馆",
+        "city": "北京",
+        "category": "museum",
+        "day": 3,
+    }
+    anchor = _beilin_anchor()
+    anchor["day"] = 2
+    notes = _bundle_umbrella_spec_days([bj, anchor], {})
+    assert notes == []
+    assert bj["day"] == 3
+    assert anchor["day"] == 2

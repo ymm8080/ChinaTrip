@@ -1,0 +1,31 @@
+{
+  "reason": "coord-less duplicate of 朱家角古镇",
+  "rows": [
+    {
+      "id": "bdd4a1cc-f721-46d1-8c64-804226c9cb37",
+      "source": "histown",
+      "city": "上海",
+      "name_zh": "朱家角镇",
+      "category": "ancient_town",
+      "status": "inactive",
+      "lon": 121.04651016252956,
+      "lat": 31.103649244332725,
+      "address": "上海市青浦区朱家角镇沙家埭路18号上海市青浦区朱家角镇人民政府",
+      "suggested_duration_min": 180,
+      "updated_at": "2026-11-02 23:11:53.604342"
+    },
+    {
+      "id": "dbbea3f4-5a84-460f-a235-8674118eec52",
+      "source": "baidu",
+      "city": "上海",
+      "name_zh": "朱家角镇",
+      "category": "ancient_town",
+      "status": "active",
+      "lon": null,
+      "lat": null,
+      "address": "上海市青浦区朱家角镇沙家埭路18号上海市青浦区朱家角镇人民政府",
+      "suggested_duration_min": 180,
+      "updated_at": "2026-11-16 07:57:17.606578"
+    }
+  ]
+}

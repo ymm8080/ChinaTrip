@@ -27,10 +27,32 @@ STATUSES = frozenset(
     {STATUS_WISHLIST, STATUS_SCHEDULED, STATUS_BOOKED, STATUS_UNWANTED}
 )
 
-SOURCES = frozenset({"manual", "chat", "paste", "agent_recommend", "plan_delete"})
+SOURCES = frozenset(
+    {"manual", "chat", "paste", "agent_recommend", "plan_delete", "plan"}
+)
 
 # Statuses that occupy a (day, position) slot on the timeline.
 _TIMELINE_STATUSES = frozenset({STATUS_SCHEDULED, STATUS_BOOKED})
+
+
+def _as_int(value: object, default: int = 0) -> int:
+    """排序键的宽松数值归一：None/缺键/脏字符串一律落 default。
+
+    payload 是读权威，迁移与旁路脚本写进来的 day/position 可能是字符串
+    （int 与 str 比较 = TypeError = 看板整块 500）。
+    """
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+    """同 _as_int：position 的宽松数值归一。"""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def strip_scheduled_note(note: str | None) -> str:
@@ -158,11 +180,28 @@ class TripItemService:
         *,
         source: str,
         itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        created_by: str | None = None,
         city: str | None = None,
         note: str | None = None,
         poi_id: str | None = None,
         address: str | None = None,
         opening_hours: str | None = None,
+        kind: str | None = None,
+        duration_minutes: int | None = None,
+        tier: int | None = None,
+        site_rank: int | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        rain_ok: str | None = None,
+        must_visit: bool = False,
+        raw_command: str | None = None,
+        # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：规划会话
+        # 建的行是草稿——只有点「💾 保存行程」才转正进心愿单
+        draft_session_id: str | None = None,
+        # 2026-11-14（用户拍板「心愿单/已排期也是 USER ID 的数据」）：登录
+        # 账号随行落库——打开看板按用户出内容，换设备登录也能看到
+        owner_account_id: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         """Idempotent create: returns the existing row instead of a new one
@@ -172,12 +211,24 @@ class TripItemService:
         same wish too — see _find_duplicate for the exact predicate."""
         if source not in SOURCES:
             raise InvalidSourceError(f"invalid_source:{source}")
+        # 2026-11-14：草稿行只在本会话内参与查重——别的未保存会话留下的
+        # 草稿不能把新会话的心愿「吸」成一条看不见的行（本会话重说一遍
+        # 仍要命中自己的草稿，防重复建行）。
+        known = [
+            i
+            for i in self._items.values()
+            if not i.get("draft_session_id")
+            or i.get("draft_session_id") == draft_session_id
+        ]
         duplicate = self._find_duplicate(
             name,
             source=source,
             itinerary_id=itinerary_id,
             city=city,
             poi_id=poi_id,
+            owner_device_id=owner_device_id,
+            owner_account_id=owner_account_id,
+            items=known,
         )
         if duplicate is not None:
             # Same wish, richer info: fill ONLY empty fields of the existing
@@ -186,6 +237,7 @@ class TripItemService:
             self._enrich_duplicate(
                 duplicate,
                 name=name,
+                source=source,
                 note=note,
                 city=city,
                 poi_id=poi_id,
@@ -203,6 +255,28 @@ class TripItemService:
         item = {
             "id": uuid4().hex,
             "itinerary_id": itinerary_id,
+            # 非空 = 草稿（未保存行程），看板/视图不返回（2026-11-14）
+            "draft_session_id": draft_session_id,
+            # USER ID 键（登录账号字符串，与行程头 owner_account_id 同源）
+            "owner_account_id": owner_account_id,
+            # 2026-11-13 数据库事实化：归属设备随行落库（看板按设备读）
+            "owner_device_id": owner_device_id,
+            # 心愿单数据库字段（2026-11-13 拍板）：建行人 / 是否排期 /
+            # 排除标记——ARRANGED 由「有具体日期时刻」决定（update 维护）
+            "created_by": created_by or owner_device_id,
+            "arranged": False,
+            "exclusion_flag": False,
+            # 规划字段（2026-11-13）：建行即记类型与用户原话，排期后补齐
+            "kind": kind,
+            "duration_minutes": duration_minutes,
+            "tier": tier,
+            "site_rank": site_rank,
+            "latitude": latitude,
+            "longitude": longitude,
+            "rain_ok": rain_ok,
+            "raw_command": raw_command,
+            "must_visit": bool(must_visit),
+            "pinned": False,
             "name": name,
             "city": city,
             "note": note,
@@ -226,6 +300,7 @@ class TripItemService:
         item: dict,
         *,
         name: str | None = None,
+        source: str | None = None,
         note: str | None,
         city: str | None,
         poi_id: str | None,
@@ -238,6 +313,11 @@ class TripItemService:
         merge leaves visible trace; bump updated_at when anything changed
         (subclass persistence rides the caller's write-through)."""
         changed = False
+        if source in ("manual", "chat", "paste") and item.get("exclusion_flag"):
+            # 用户再次明确点名（手动/对话/粘贴）→ 解除排除：排除只是
+            # 「删站点后别自动再排」，不是永久黑名单。
+            item["exclusion_flag"] = False
+            changed = True
         for field, value in (
             ("note", note),
             ("city", city),
@@ -262,33 +342,115 @@ class TripItemService:
         item = self._items.get(item_id)
         return dict(item) if item is not None else None
 
-    def list_groups(self, itinerary_id: str | None = None) -> dict:
+    def list_groups(
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        *,
+        include_drafts: bool = True,
+    ) -> dict:
         """Timeline payload (§5): Bookings pinned first, Wishlist stream,
-        Scheduled as the third key — each in its documented order."""
+        Scheduled as the third key — each in its documented order.
+
+        2026-11-13（用户拍板「这些应该都是数据库的数据」）：行归属设备
+        ——带 owner_device_id 时只回该设备的行；不带（脚本/运维）回全量。
+        """
         items = list(self._items.values())
+        if not include_drafts:
+            # 2026-11-14（用户拍板「没保存行程，心愿单就不该保存」）：草稿行
+            # 只在规划引擎内部可见，看板/接口一律不返回
+            items = [i for i in items if not i.get("draft_session_id")]
+        if owner_device_id is not None or owner_account_id is not None:
+            # 2026-11-14（用户拍板「打开行程中心按 USER ID 出内容」）：本
+            # 设备的行 + 本登录账号的行（换设备登录也看得到）都算「我的」；
+            # 无归属（历史行/脚本建行）仍可见——归属列是新事实，不能让老
+            # 数据在升级瞬间集体消失；别人的行（别的设备且别的账号）隐藏。
+            def _mine(item: dict) -> bool:
+                row_dev = item.get("owner_device_id")
+                row_acct = item.get("owner_account_id")
+                if row_dev is None and row_acct is None:
+                    return True  # 历史无归属行：维持原可见口径
+                if owner_device_id is not None and row_dev == owner_device_id:
+                    return True
+                if owner_account_id is not None and row_acct == owner_account_id:
+                    return True
+                return False
+
+            items = [i for i in items if _mine(i)]
         if itinerary_id is not None:
-            items = [i for i in items if i["itinerary_id"] == itinerary_id]
+            items = [i for i in items if i.get("itinerary_id") == itinerary_id]
+
+        if itinerary_id is None:
+            # 2026-11-15（用户报「颐和园在心愿单出现两行」）：全局看板是
+            # 按用户的，同一条心愿只能出现一次——同名（归一愿望键）行收敛
+            # 成一行：已排期/已订优先，其次最早建的那行；被收敛掉的重复行
+            # 不在这里删除（写口已加合并闸，历史行由一次性清理收口）。
+            def _collapse_key(item: dict) -> tuple[str, str]:
+                owner = str(
+                    item.get("owner_account_id") or item.get("owner_device_id") or ""
+                )
+                return (owner, _wish_key(str(item.get("name") or "")))
+
+            def _rank(item: dict) -> tuple[int, str]:
+                order = {
+                    STATUS_BOOKED: 0,
+                    STATUS_SCHEDULED: 1,
+                    STATUS_WISHLIST: 2,
+                    STATUS_UNWANTED: 3,
+                }
+                return (
+                    order.get(str(item.get("status") or ""), 9),
+                    str(item.get("created_at") or ""),
+                )
+
+            best: dict[tuple[str, str], dict] = {}
+            for item in items:
+                key = _collapse_key(item)
+                if not key[1]:
+                    best[(key[0], str(item.get("id")))] = item
+                    continue
+                current = best.get(key)
+                if current is None or _rank(item) < _rank(current):
+                    best[key] = item
+            items = list(best.values())
 
         def timeline_key(item: dict) -> tuple[int, float]:
-            return (item["day"], item["position"])
+            # position None 兜底 0.0：库内行可能在状态机外写入（如 SQL
+            # 级恢复），裸比较 None vs float 直接 TypeError 把整个
+            # list_groups（=每次规划回合的吸收入口）打成 500。
+            # day 同款兜底：旧版 H5 迁移/旁路脚本的 payload 可能缺列。
+            # 2026-11-13 再补类型归一：迁移/导入入口（import_item）可能把
+            # day/position 写成字符串，int 与 str 比较同样 TypeError。
+            return (_as_int(item.get("day")), _as_float(item.get("position")))
+
+        def stamp(item: dict, *fields: str) -> str:
+            # 2026-11-13 看板 500（KeyError: 'created_at'）：payload 是读
+            # 权威，旧版迁移行可能既没有 created_at 也没有 updated_at——
+            # 排序键必须容忍缺键，否则整个看板 GET 直接 500。
+            for field in fields:
+                value = item.get(field)
+                if value:
+                    return str(value)
+            return ""
 
         return {
             "bookings": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_BOOKED),
+                (dict(i) for i in items if i.get("status") == STATUS_BOOKED),
                 key=timeline_key,
             ),
             "wishlist": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_WISHLIST),
-                key=lambda i: i["created_at"],
+                (dict(i) for i in items if i.get("status") == STATUS_WISHLIST),
+                key=lambda i: stamp(i, "created_at", "updated_at"),
                 reverse=True,
             ),
             "scheduled": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_SCHEDULED),
+                (dict(i) for i in items if i.get("status") == STATUS_SCHEDULED),
                 key=timeline_key,
             ),
             "unwanted": sorted(
-                (dict(i) for i in items if i["status"] == STATUS_UNWANTED),
-                key=lambda i: i["updated_at"],
+                (dict(i) for i in items if i.get("status") == STATUS_UNWANTED),
+                key=lambda i: stamp(i, "updated_at", "created_at"),
                 reverse=True,
             ),
         }
@@ -305,6 +467,20 @@ class TripItemService:
         note: str | None = None,
         city: str | None = None,
         booking_id: str | None = None,
+        exclusion_flag: bool | None = None,
+        kind: str | None = None,
+        duration_minutes: int | None = None,
+        must_visit: bool | None = None,
+        pinned: bool | None = None,
+        tier: int | None = None,
+        site_rank: int | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        planned_date: str | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        rain_ok: str | None = None,
+        raw_command: str | None = None,
         now: datetime | None = None,
     ) -> dict:
         item = self._items.get(item_id)
@@ -338,6 +514,10 @@ class TripItemService:
             item["day"] = None
             item["position"] = None
             item["booking_id"] = None
+            # 回心愿单 = 取消具体日期时刻（ARRANGED 语义）
+            item["planned_date"] = None
+            item["start_time"] = None
+            item["end_time"] = None
         else:
             if day is not None:
                 item["day"] = day
@@ -351,8 +531,42 @@ class TripItemService:
             item["note"] = note
         if city is not None:
             item["city"] = city
+        for field, value in (
+            ("kind", kind),
+            ("duration_minutes", duration_minutes),
+            ("must_visit", must_visit),
+            ("pinned", pinned),
+            ("tier", tier),
+            ("site_rank", site_rank),
+            ("latitude", latitude),
+            ("longitude", longitude),
+            ("planned_date", planned_date),
+            ("start_time", start_time),
+            ("end_time", end_time),
+            ("rain_ok", rain_ok),
+            ("raw_command", raw_command),
+        ):
+            if value is not None:
+                item[field] = value
+        # 心愿单数据库字段（2026-11-13 拍板）：ARRANGED = 有具体日期时刻
+        # （已排期/已订且天序在）；EXCLUSION = 用户删站点后明确排除，
+        # 已排进/已订的行自动解除（它就在行程里）。
+        item["arranged"] = target in _TIMELINE_STATUSES and item.get("day") is not None
+        if exclusion_flag is not None:
+            item["exclusion_flag"] = bool(exclusion_flag)
+        elif target == STATUS_UNWANTED:
+            item["exclusion_flag"] = True
+        elif target in _TIMELINE_STATUSES:
+            item["exclusion_flag"] = False
         item["updated_at"] = _iso_now(now)
         return dict(item)
+
+    def _persist(self, item_id: str) -> None:
+        """行落库钩子（2026-11-14）：基类按 `_write_through` 约定（PG 子类
+        实现）；SQLite 子类覆写为整行 JSON 落盘。无钩子 = 纯内存。"""
+        hook = getattr(self, "_write_through", None)
+        if callable(hook):
+            hook(item_id)
 
     def link_itinerary(
         self, item_id: str, itinerary_id: str, *, force: bool = False
@@ -370,12 +584,10 @@ class TripItemService:
             return dict(item)
         item["itinerary_id"] = itinerary_id
         item["updated_at"] = _iso_now(None)
-        hook = getattr(self, "_write_through", None)
-        if callable(hook):
-            hook(item_id)
+        self._persist(item_id)
         return dict(item)
 
-    def delete(self, item_id: str) -> None:
+    def delete(self, item_id: str, *, actor: str | None = None) -> None:
         item = self._items.get(item_id)
         if item is None:
             raise NotFoundError(item_id)
@@ -383,35 +595,304 @@ class TripItemService:
             # §5 timeline integrity: un-book before removing.
             raise InvalidTransitionError("booked_not_deletable")
         del self._items[item_id]
-        logger.info("trip_item_deleted id=%s", item_id)
+        logger.info("trip_item_deleted id=%s actor=%s", item_id, actor)
+
+    def unbind_itinerary(
+        self, item_id: str, *, now: datetime | None = None
+    ) -> dict | None:
+        """解除行程绑定（2026-11-13 删行程拍板）。
+
+        itinerary_id 是指向 itineraries 的外键列：释放回心愿单的行若仍挂
+        被删行程 id，PG 会拿 FK 挡下 DELETE /itineraries/{id}——接口照样
+        204、列表读穿透又把它拉回来（删了又复活）。心愿单行不该挂死行程：
+        清空 itinerary_id 并写穿（PG 子类落列 + payload）。未绑定/不存在
+        幂等返回现状。
+        """
+        item = self._items.get(item_id)
+        if item is None:
+            return None
+        if not item.get("itinerary_id"):
+            return dict(item)
+        item["itinerary_id"] = None
+        item["updated_at"] = _iso_now(now)
+        self._persist(item_id)
+        return dict(item)
 
     def release_itinerary(
-        self, itinerary_id: str, *, now: datetime | None = None
+        self,
+        itinerary_id: str,
+        *,
+        now: datetime | None = None,
+        actor: str | None = None,
     ) -> list[dict]:
-        """行程被手工删除（2026-10-31 拍板）：名下已排期心愿回到心愿单栏，
-        不挂在死行程 id 上——scheduled→wishlist 走状态机（day/position/
-        booking_id 清空，note 剥「已安排」尾段）。itinerary_id 留痕：
-        吸收/_sync_wish_rows 按名字
-        force 换绑新行程。booked 行保留真实订单不动；wishlist/unwanted 行
-        本就在原位。返回被释放的行（PG 子类经 update 写穿落库）。"""
+        """行程被手工删除（2026-11-14 二拍，覆盖同日早些的「一并删除」口径）：
+        名下心愿行不删——TRIP ID 清空（itinerary_ref/payload 同源清空，
+        wish_items 视图的 trip_id 随之空白），排期项退回心愿单栏（day/
+        position/booking_id 清空、note 剥「已安排」尾段、ARRANGED 取消），
+        心愿单/不想去行只摘绑定原地保留，本会话草稿行转正为无行程心愿行。
+        booked 是真实订单（订单栏自有真相），只摘绑定不删。返回被释放的行。
+
+        兜底：清完后仍挂着该行程的行一律解绑，否则 PG 外键会挡下行程删除
+        （接口 204 后行程复活）。释放后的行回到「无行程心愿行」，之后被
+        新行程落排时按名字重新认领挂靠。"""
         if not itinerary_id:
             return []
-        targets = [
-            item["id"]
+        bound = [
+            dict(item)
             for item in self._items.values()
-            if item["itinerary_id"] == itinerary_id
-            and item["status"] == STATUS_SCHEDULED
+            if item.get("itinerary_id") == itinerary_id
         ]
-        released = []
-        for item_id in targets:
-            item = self._items.get(item_id) or {}
+        released: list[dict] = []
+        for item in bound:
+            item_id = item["id"]
+            status = item.get("status")
+            if status == STATUS_BOOKED:
+                # 真实订单不退回：只摘行程绑定（订单栏自有真相）
+                self.unbind_itinerary(item_id, now=now)
+                continue
+            # 草稿行转正：行程没了，「保存行程」不会再发生——按用户口径
+            # 退回心愿单（清 draft 标记 + 摘行程绑定）。注意改存储行本体，
+            # 不是上面的 dict 拷贝。
+            stored = self._items.get(item_id)
+            if stored is not None and stored.get("draft_session_id"):
+                stored["draft_session_id"] = None
+                self._persist(item_id)
+            try:
+                if status == STATUS_SCHEDULED:
+                    # 排期项回心愿单：状态机清 day/position/booking_id/
+                    # planned_date/start_time/end_time，ARRANGED 取消；
+                    # note 剥「已安排」尾段，心愿单不再声称已安排
+                    raw_note = str(item.get("note") or "")
+                    base = strip_scheduled_note(raw_note)
+                    kwargs: dict = {}
+                    if base != raw_note:
+                        kwargs["note"] = base
+                    released.append(
+                        self.update(item_id, status=STATUS_WISHLIST, **kwargs)
+                    )
+                else:
+                    # 心愿单/不想去行：原地保留，只摘行程绑定
+                    released.append(
+                        dict(self.unbind_itinerary(item_id, now=now) or item)
+                    )
+            except (InvalidTransitionError, NotFoundError):
+                continue
+        # 兜底：仍挂着该行程的行（booked/unwanted 之外的异常态）一律解绑，
+        # 否则 PG 外键会挡下行程删除（204 后行程复活）。
+        for item in list(self._items.values()):
+            if item.get("itinerary_id") == itinerary_id:
+                self.unbind_itinerary(item["id"], now=now)
+        # 返回按最新状态重取（update/unbind 都可能改过行）
+        released = [self.get(r["id"]) or r for r in released]
+        logger.info(
+            "trip_itinerary_released itinerary=%s rows=%d actor=%s",
+            itinerary_id,
+            len(released),
+            actor,
+        )
+        return released
+
+    def commit_drafts(
+        self,
+        itinerary_id: str,
+        session_id: str | None = None,
+        owner_account_id: str | None = None,
+    ) -> int:
+        """保存行程 = 心愿草稿转正（2026-11-14 用户拍板「没保存行程，心愿单
+        就不该保存」）：本会话建的草稿行（以及已按名字挂到本行程的草稿行）
+        清掉 draft_session_id、补上行程归属——从这一刻起看板/心愿单可见。
+        返回转正行数。"""
+        if not itinerary_id:
+            return 0
+        committed = 0
+        for item in list(self._items.values()):
+            draft_sid = item.get("draft_session_id")
+            if not draft_sid:
+                continue
+            if item.get("itinerary_id") != itinerary_id and draft_sid != session_id:
+                continue
+            item["draft_session_id"] = None
+            # 2026-11-14 深夜（用户报「保存了行程，心愿不在已排期」）：会话
+            # 中途重开过新行程时，行的 ref 还是旧草稿 id——转正一律重绑到
+            # 本次保存的行程（这些行就是本会话许的愿）。
+            item["itinerary_id"] = itinerary_id
+            # 转正即落 USER ID（登录账号）——看板按用户出内容
+            if owner_account_id and not item.get("owner_account_id"):
+                item["owner_account_id"] = owner_account_id
+            item["updated_at"] = _iso_now(None)
+            committed += 1
+            self._persist(item["id"])
+        if committed:
+            logger.info(
+                "trip_item_drafts_committed itinerary=%s session=%s rows=%d",
+                itinerary_id,
+                session_id,
+                committed,
+            )
+        return committed
+
+    def dedupe_itinerary_rows(
+        self,
+        itinerary_id: str,
+        *,
+        actor: str | None = None,
+    ) -> int:
+        """同一行程里同名心愿行只留一行（2026-11-14 用户报「已排期里同一个
+        心愿出现两三条」的自愈）：历史版本按名字跨会话/跨行程吸收 + 每次
+        重新规划新建一行，导致同一 wish 在已排期滚出多行。保留序 = 已排期
+        （有 day）优先 → created_at 最早；多余行软删留档（booked 真实订单
+        不参与）。返回软删行数。"""
+        if not itinerary_id:
+            return 0
+        rows = [
+            item
+            for item in self._items.values()
+            if item.get("itinerary_id") == itinerary_id
+            and item.get("status") != STATUS_BOOKED
+        ]
+        rows.sort(
+            key=lambda r: (
+                r.get("status") != STATUS_SCHEDULED,
+                str(r.get("created_at") or ""),
+            )
+        )
+        seen: set[str] = set()
+        removed = 0
+        for item in rows:
+            key = _wish_key(str(item.get("name") or ""))
+            if key not in seen:
+                seen.add(key)
+                continue
+            try:
+                self.delete(item["id"], actor=actor or "wish-dedupe")
+            except (InvalidTransitionError, NotFoundError):
+                continue
+            removed += 1
+            logger.info(
+                "trip_item_deduped_in_trip itinerary=%s name=%s id=%s",
+                itinerary_id,
+                item.get("name"),
+                item["id"],
+            )
+        return removed
+
+    def commit_orphan_drafts(
+        self,
+        itinerary_id: str,
+        *,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
+        match_names: set[str] | None = None,
+    ) -> int:
+        """收编孤儿心愿草稿（2026-11-14 深夜，用户报「保存了行程，心愿
+        却不在已排期」）：同一用户在多次规划/重开行程时聊出的心愿行挂着
+        死掉的中途行程号（ref 不是任何已存行程）——保存本次行程时一并
+        收编：名字命中本次行程点位的重绑到本行程（对账后进已排期），
+        没命中的转正为无行程心愿行。别人的草稿、已存行程的行不动。
+        返回收编行数。PG 侧靠读穿透保证内存是库内权威后再改."""
+        if not itinerary_id:
+            return 0
+        refresh = getattr(self, "_try_refresh", None)
+        if callable(refresh):
+            refresh()
+        committed = 0
+        for item in list(self._items.values()):
+            if not item.get("draft_session_id") or item.get("deletion_flag"):
+                continue
+            if item.get("itinerary_id") == itinerary_id:
+                continue  # 已挂本行程：commit_drafts 已处理
+            row_dev = item.get("owner_device_id")
+            row_acct = item.get("owner_account_id")
+            if row_dev is not None or row_acct is not None:
+                mine = (owner_device_id is not None and row_dev == owner_device_id) or (
+                    owner_account_id is not None and row_acct == owner_account_id
+                )
+                if not mine:
+                    continue
+            stored = self._items.get(item["id"])
+            if stored is None:
+                continue
+            name = str(stored.get("name") or "")
+            matched = match_names is None or any(
+                _wish_match(_wish_key(name), _wish_key(n)) for n in match_names
+            )
+            stored["draft_session_id"] = None
+            if matched:
+                stored["itinerary_id"] = itinerary_id
+            else:
+                # 没命中本次行程：TRIP ID 清空，回到无行程心愿行
+                stored["itinerary_id"] = None
+            stored["updated_at"] = _iso_now(None)
+            self._persist(item["id"])
+            committed += 1
+            logger.info(
+                "trip_orphan_draft_committed itinerary=%s name=%s matched=%s id=%s",
+                itinerary_id,
+                name,
+                matched,
+                item["id"],
+            )
+        return committed
+
+    def mark_excluded(
+        self,
+        name: str,
+        *,
+        itinerary_id: str | None = None,
+        city: str | None = None,
+        draft_session_id: str | None = None,
+        owner_account_id: str | None = None,
+    ) -> dict:
+        """删行程里的站点（2026-11-13 用户拍板）：这一项回心愿单栏并打
+        EXCLUSION 标记——用户明确不要它，规划不得自动再排；与「不想去」
+        分区不同，心愿单里仍可见、可手动再排期。没有既有行就建一条。"""
+        # 2026-11-15（用户报「颐和园出现两行」）：排除标记要认领**同一个人
+        # 的同一条心愿**，不能只看同一行程——否则另一行程里的同名心愿行
+        # 和这条 plan_delete 行会并列成两行。命中即就地转排除并改挂本次
+        # 行程；同人多行时只留一行（其余软删留档）。
+        matches: list[dict] = []
+        for item in self._items.values():
+            if item.get("status") == STATUS_UNWANTED:
+                continue
+            row_name = _norm(str(item.get("name") or ""))
+            if not row_name or row_name != _norm(name):
+                continue
+            matches.append(item)
+        if len(matches) > 1:
+            matches.sort(
+                key=lambda i: (
+                    i.get("status") != STATUS_SCHEDULED,
+                    str(i.get("created_at") or ""),
+                )
+            )
+            for extra in matches[1:]:
+                try:
+                    self.delete(extra["id"], actor="mark_excluded")
+                except Exception:
+                    logger.warning(
+                        "trip_items: duplicate row drop failed id=%s", extra.get("id")
+                    )
+            matches = matches[:1]
+        for item in matches:
             raw_note = str(item.get("note") or "")
             base = strip_scheduled_note(raw_note)
-            kwargs: dict = {"now": now}
+            kwargs: dict = {"exclusion_flag": True}
             if base != raw_note:
                 kwargs["note"] = base
-            released.append(self.update(item_id, status=STATUS_WISHLIST, **kwargs))
-        return released
+            other_trip = bool(itinerary_id and item.get("itinerary_id") != itinerary_id)
+            if other_trip and item.get("status") in (STATUS_SCHEDULED, STATUS_BOOKED):
+                # 别趟行程里已排上/已订的同一站：只打排除标，不动它的档期
+                return self.update(item["id"], **kwargs)
+            return self.update(item["id"], status=STATUS_WISHLIST, **kwargs)
+        created = self.create(
+            name,
+            source="plan_delete",
+            itinerary_id=itinerary_id,
+            city=city,
+            draft_session_id=draft_session_id,
+            owner_account_id=owner_account_id,
+        )
+        return self.update(created["id"], status=STATUS_WISHLIST, exclusion_flag=True)
 
     def mark_unwanted(
         self,
@@ -486,6 +967,8 @@ class TripItemService:
         city: str | None,
         poi_id: str | None,
         items: Iterable[dict] | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict | None:
         """Same trip + same thing = one row: poi_id is authoritative when
         both sides carry it, else the wish key (see _wish_key) matched by
@@ -505,6 +988,22 @@ class TripItemService:
         rows straight into this predicate — single implementation, no SQL
         mirror."""
         active = self._items.values() if items is None else items
+        if owner_device_id is not None or owner_account_id is not None:
+            # 2026-11-13：别的用户的同名行不是同一条心愿。2026-11-14（用户
+            # 拍板「心愿单按 USER ID 走」）：同一登录账号换设备也认领同一行
+            # ——设备或账号任一命中即本人；两者都空（历史行）仍参与查重。
+            def _owner_matches(item: dict) -> bool:
+                row_dev = item.get("owner_device_id")
+                row_acct = item.get("owner_account_id")
+                if row_dev is None and row_acct is None:
+                    return True
+                if owner_device_id is not None and row_dev == owner_device_id:
+                    return True
+                if owner_account_id is not None and row_acct == owner_account_id:
+                    return True
+                return False
+
+            active = [i for i in active if _owner_matches(i)]
         if poi_id:
             for item in active:
                 if (

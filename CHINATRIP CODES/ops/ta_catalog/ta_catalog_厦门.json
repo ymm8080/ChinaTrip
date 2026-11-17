@@ -1,0 +1,8436 @@
+{
+ "attractions": {
+  "1372931": {
+   "name_zh": "厦门大学",
+   "name_en": "",
+   "reviews": 1273
+  },
+  "502857": {
+   "name_zh": "南普陀寺",
+   "name_en": "",
+   "reviews": 795
+  },
+  "1131761": {
+   "name_zh": "鼓浪屿",
+   "name_en": "",
+   "reviews": 5744
+  },
+  "1871041": {
+   "name_zh": "鼓浪屿环岛路",
+   "name_en": "",
+   "reviews": 309
+  },
+  "1930394": {
+   "name_zh": "中山路步行街",
+   "name_en": "",
+   "reviews": 877
+  },
+  "2051166": {
+   "name_zh": "厦门园林植物园",
+   "name_en": "",
+   "reviews": 251
+  },
+  "2050819": {
+   "name_zh": "厦门菽庄花园",
+   "name_en": "",
+   "reviews": 264
+  },
+  "1851166": {
+   "name_zh": "厦门钢琴博物馆",
+   "name_en": "",
+   "reviews": 345
+  },
+  "2051168": {
+   "name_zh": "厦门日月谷温泉渡假村",
+   "name_en": "",
+   "reviews": 192
+  },
+  "1871284": {
+   "name_zh": "日光岩",
+   "name_en": "",
+   "reviews": 237
+  },
+  "2072106": {
+   "name_zh": "怀旧鼓浪屿博物馆",
+   "name_en": "",
+   "reviews": 270
+  },
+  "2051173": {
+   "name_zh": "厦门白鹭洲公园",
+   "name_en": "",
+   "reviews": 128
+  },
+  "1851167": {
+   "name_zh": "胡里山炮台",
+   "name_en": "",
+   "reviews": 139
+  },
+  "1864389": {
+   "name_zh": "鼓浪屿国际刻字艺术馆",
+   "name_en": "",
+   "reviews": 214
+  },
+  "2051451": {
+   "name_zh": "海湾公园",
+   "name_en": "",
+   "reviews": 94
+  },
+  "2696994": {
+   "name_zh": "曾厝垵",
+   "name_en": "",
+   "reviews": 204
+  },
+  "3634714": {
+   "name_zh": "环岛路木栈道",
+   "name_en": "",
+   "reviews": 72
+  },
+  "2374720": {
+   "name_zh": "白城沙滩",
+   "name_en": "",
+   "reviews": 70
+  },
+  "2051164": {
+   "name_zh": "厦门国际会展中心",
+   "name_en": "",
+   "reviews": 74
+  },
+  "4799872": {
+   "name_zh": "铁路文化公园",
+   "name_en": "",
+   "reviews": 47
+  },
+  "6418938": {
+   "name_zh": "芙蓉隧道",
+   "name_en": "",
+   "reviews": 72
+  },
+  "561484": {
+   "name_zh": "集美学村",
+   "name_en": "",
+   "reviews": 47
+  },
+  "1871486": {
+   "name_zh": "毓园",
+   "name_en": "",
+   "reviews": 68
+  },
+  "3363679": {
+   "name_zh": "万达广场(仙岳路)",
+   "name_en": "",
+   "reviews": 37
+  },
+  "2003209": {
+   "name_zh": "中山公园",
+   "name_en": "",
+   "reviews": 45
+  },
+  "2051018": {
+   "name_zh": "厦门集美嘉庚园",
+   "name_en": "",
+   "reviews": 70
+  },
+  "2051169": {
+   "name_zh": "厦门园博苑",
+   "name_en": "",
+   "reviews": 84
+  },
+  "3653586": {
+   "name_zh": "厦门轮渡码头",
+   "name_en": "",
+   "reviews": 65
+  },
+  "3362013": {
+   "name_zh": "SM城市广场",
+   "name_en": "",
+   "reviews": 45
+  },
+  "2008735": {
+   "name_zh": "演武大桥",
+   "name_en": "",
+   "reviews": 29
+  },
+  "1871079": {
+   "name_zh": "华侨博物院",
+   "name_en": "",
+   "reviews": 44
+  },
+  "2072111": {
+   "name_zh": "五缘湾湿地公园",
+   "name_en": "",
+   "reviews": 33
+  },
+  "1871015": {
+   "name_zh": "风琴博物馆",
+   "name_en": "",
+   "reviews": 50
+  },
+  "502856": {
+   "name_zh": "集美鳌园",
+   "name_en": "",
+   "reviews": 44
+  },
+  "2051459": {
+   "name_zh": "厦门五老峰",
+   "name_en": "",
+   "reviews": 41
+  },
+  "23516093": {
+   "name_zh": "Mountains To Sea Trail Xiamen",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3653569": {
+   "name_zh": "台湾小吃街",
+   "name_en": "",
+   "reviews": 51
+  },
+  "1871071": {
+   "name_zh": "鸿山公园",
+   "name_en": "",
+   "reviews": 15
+  },
+  "2050889": {
+   "name_zh": "厦门南湖公园",
+   "name_en": "",
+   "reviews": 35
+  },
+  "2220973": {
+   "name_zh": "珍珠湾",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2050892": {
+   "name_zh": "厦门龙舟池",
+   "name_en": "",
+   "reviews": 39
+  },
+  "3634716": {
+   "name_zh": "马拉松群像雕塑",
+   "name_en": "",
+   "reviews": 17
+  },
+  "3374249": {
+   "name_zh": "第八海鲜市场",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2051009": {
+   "name_zh": "厦门金榜公园",
+   "name_en": "",
+   "reviews": 41
+  },
+  "2051438": {
+   "name_zh": "厦门青少年科技馆",
+   "name_en": "",
+   "reviews": 14
+  },
+  "2051455": {
+   "name_zh": "集美旅游区",
+   "name_en": "",
+   "reviews": 22
+  },
+  "592945": {
+   "name_zh": "厦门市博物馆",
+   "name_en": "",
+   "reviews": 29
+  },
+  "2051157": {
+   "name_zh": "厦门观音山沙雕文化公园",
+   "name_en": "",
+   "reviews": 23
+  },
+  "3362866": {
+   "name_zh": "SM新生活广场",
+   "name_en": "",
+   "reviews": 15
+  },
+  "3363107": {
+   "name_zh": "磐基中心",
+   "name_en": "",
+   "reviews": 11
+  },
+  "1851169": {
+   "name_zh": "台湾民俗村",
+   "name_en": "",
+   "reviews": 14
+  },
+  "1851163": {
+   "name_zh": "海沧大桥",
+   "name_en": "",
+   "reviews": 32
+  },
+  "2003309": {
+   "name_zh": "同安影视城",
+   "name_en": "",
+   "reviews": 44
+  },
+  "2051172": {
+   "name_zh": "厦门大桥",
+   "name_en": "",
+   "reviews": 18
+  },
+  "2004029": {
+   "name_zh": "厦门海底世界",
+   "name_en": "",
+   "reviews": 48
+  },
+  "2003208": {
+   "name_zh": "皓月园",
+   "name_en": "",
+   "reviews": 28
+  },
+  "4702083": {
+   "name_zh": "厦门科技馆",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3634695": {
+   "name_zh": "厦大白城",
+   "name_en": "",
+   "reviews": 17
+  },
+  "3362735": {
+   "name_zh": "加州商业广场",
+   "name_en": "",
+   "reviews": 14
+  },
+  "6558465": {
+   "name_zh": "阿罗海购物广场",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1851161": {
+   "name_zh": "天竺山国家森林公园",
+   "name_en": "",
+   "reviews": 12
+  },
+  "2072110": {
+   "name_zh": "狐尾山气象主题公园",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1851162": {
+   "name_zh": "青礁慈济宫",
+   "name_en": "",
+   "reviews": 20
+  },
+  "3362015": {
+   "name_zh": "巴黎春天百货(中山路)",
+   "name_en": "",
+   "reviews": 15
+  },
+  "2051421": {
+   "name_zh": "郑成功演武场遗址",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2051016": {
+   "name_zh": "厦门钟鼓索道",
+   "name_en": "",
+   "reviews": 14
+  },
+  "2051061": {
+   "name_zh": "厦门毓园",
+   "name_en": "",
+   "reviews": 24
+  },
+  "3363054": {
+   "name_zh": "罗宾森购物广场",
+   "name_en": "",
+   "reviews": 11
+  },
+  "1942467": {
+   "name_zh": "文曾路怪坡",
+   "name_en": "",
+   "reviews": 12
+  },
+  "3653498": {
+   "name_zh": "鼓浪屿菜市场龙头农贸市场",
+   "name_en": "",
+   "reviews": 13
+  },
+  "3634647": {
+   "name_zh": "音乐广场",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2051043": {
+   "name_zh": "厦门天界寺",
+   "name_en": "",
+   "reviews": 10
+  },
+  "4787617": {
+   "name_zh": "鼓浪屿百鸟园",
+   "name_en": "",
+   "reviews": 15
+  },
+  "2072108": {
+   "name_zh": "嘉庚公园",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2003308": {
+   "name_zh": "云顶山",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2072104": {
+   "name_zh": "东方鱼骨艺术馆",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5116426": {
+   "name_zh": "厦门湖里金街",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5116480": {
+   "name_zh": "厦门五缘湾商业街A区",
+   "name_en": "",
+   "reviews": 5
+  },
+  "27967302": {
+   "name_zh": "Xiamen Lingling Animal Kingdom",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3653546": {
+   "name_zh": "鼓浪屿人民体育场",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2051167": {
+   "name_zh": "厦门海沧野生动物园",
+   "name_en": "",
+   "reviews": 18
+  },
+  "2072109": {
+   "name_zh": "厦门吕塘香山",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2051022": {
+   "name_zh": "厦门归来堂",
+   "name_en": "",
+   "reviews": 13
+  },
+  "6901232": {
+   "name_zh": "厦门灯塔公园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1871006": {
+   "name_zh": "梵天寺",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2072112": {
+   "name_zh": "仙岳公园",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2050886": {
+   "name_zh": "忠仑公园",
+   "name_en": "",
+   "reviews": 9
+  },
+  "5116421": {
+   "name_zh": "厦门鼓浪屿钢琴艺术馆",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2072120": {
+   "name_zh": "厦门立新摩天轮",
+   "name_en": "",
+   "reviews": 18
+  },
+  "2050896": {
+   "name_zh": "厦门同安孔庙",
+   "name_en": "",
+   "reviews": 5
+  },
+  "15563950": {
+   "name_zh": "红点设计博物馆·厦门",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2051454": {
+   "name_zh": "水上园博园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2051165": {
+   "name_zh": "厦门快乐谷水上乐园",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2072116": {
+   "name_zh": "仙岳山",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4608648": {
+   "name_zh": "海天堂构",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3653335": {
+   "name_zh": "鼓浪石",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2234044": {
+   "name_zh": "梅海岭",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1864387": {
+   "name_zh": "十里长堤",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12618191": {
+   "name_zh": "厦门方特梦幻王国",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1864390": {
+   "name_zh": "虎溪岩",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3653629": {
+   "name_zh": "龙头路商业街",
+   "name_en": "",
+   "reviews": 9
+  },
+  "1865260": {
+   "name_zh": "陈嘉庚纪念馆",
+   "name_en": "",
+   "reviews": 10
+  },
+  "5116463": {
+   "name_zh": "厦门摄影广场",
+   "name_en": "",
+   "reviews": 3
+  },
+  "21329361": {
+   "name_zh": "古龙酱文化园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851164": {
+   "name_zh": "湖里公园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5116462": {
+   "name_zh": "厦门牛庄文创产品街",
+   "name_en": "",
+   "reviews": 8
+  },
+  "3653558": {
+   "name_zh": "福州大学厦门工艺美术学院",
+   "name_en": "",
+   "reviews": 4
+  },
+  "17822793": {
+   "name_zh": "鼓浪屿食物狂想博物馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3634505": {
+   "name_zh": "厦大富万邦商业广场",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5116464": {
+   "name_zh": "厦门大学校史展览馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2687726": {
+   "name_zh": "江头公园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2051005": {
+   "name_zh": "厦门十二龙潭",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5116467": {
+   "name_zh": "厦门上古文化艺术馆",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1845703": {
+   "name_zh": "野山谷生态乐园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2003310": {
+   "name_zh": "北辰山",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3362714": {
+   "name_zh": "瑞景商业广场",
+   "name_en": "",
+   "reviews": 6
+  },
+  "2051174": {
+   "name_zh": "厦门坂头森林公园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5116427": {
+   "name_zh": "厦门虎城美食街",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3653318": {
+   "name_zh": "大德记浴场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "8727869": {
+   "name_zh": "观音寺",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5116433": {
+   "name_zh": "厦门金山花园商业街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6433295": {
+   "name_zh": "厦门图书馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2051026": {
+   "name_zh": "厦门杏林湾钓鱼基地",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5116469": {
+   "name_zh": "厦门世界名人馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5116451": {
+   "name_zh": "厦门女人街",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2003307": {
+   "name_zh": "集美大嶝岛",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3362020": {
+   "name_zh": "世贸商城",
+   "name_en": "",
+   "reviews": 9
+  },
+  "15699707": {
+   "name_zh": "同安古城墙",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13553708": {
+   "name_zh": "鸿山寺",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5773902": {
+   "name_zh": "厦门奥林匹克博物馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116455": {
+   "name_zh": "厦门前埔不夜城",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362513": {
+   "name_zh": "来雅百货(瑞景)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "1871470": {
+   "name_zh": "英雄三岛",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1851165": {
+   "name_zh": "福建海洋珍稀物种自然保护区",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1865234": {
+   "name_zh": "厦门桥梁博物馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2051452": {
+   "name_zh": "大轮山",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050826": {
+   "name_zh": "厦门宋代瓷窑遗址",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1851173": {
+   "name_zh": "厦门小坪森林公园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051010": {
+   "name_zh": "厦门狮山",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2072107": {
+   "name_zh": "厦门汀溪水库",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2072101": {
+   "name_zh": "厦门货币文化馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1870977": {
+   "name_zh": "翠丰温泉",
+   "name_en": "",
+   "reviews": 3
+  },
+  "7697859": {
+   "name_zh": "双龙潭生态运动景区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362488": {
+   "name_zh": "天虹商场(大西洋)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "7896377": {
+   "name_zh": "Zengcuoan Christian Church",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851174": {
+   "name_zh": "同安区博物馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051170": {
+   "name_zh": "火烧屿",
+   "name_en": "",
+   "reviews": 7
+  },
+  "3374258": {
+   "name_zh": "空巷子",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116420": {
+   "name_zh": "厦门归侨史迹馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3634655": {
+   "name_zh": "书法广场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3363339": {
+   "name_zh": "巴黎春天百货(瑞景)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116458": {
+   "name_zh": "厦门规划展览馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3363018": {
+   "name_zh": "天虹商场(名汇)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1871386": {
+   "name_zh": "万石山",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3374253": {
+   "name_zh": "湖里夜市",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050814": {
+   "name_zh": "厦门灌口万宝山观光果园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3374250": {
+   "name_zh": "大嶝对台小商品市场",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362014": {
+   "name_zh": "巴黎春天百货(厦禾路)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050874": {
+   "name_zh": "厦门紫云岩",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1864391": {
+   "name_zh": "华侨亚热带植物引种园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1864386": {
+   "name_zh": "南顺鳄鱼园",
+   "name_en": "",
+   "reviews": 8
+  },
+  "1871258": {
+   "name_zh": "琴园",
+   "name_en": "",
+   "reviews": 7
+  },
+  "3362360": {
+   "name_zh": "来雅百货(思明)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3634665": {
+   "name_zh": "小白鹭艺术中心",
+   "name_en": "",
+   "reviews": 3
+  },
+  "13618395": {
+   "name_zh": "百年邮驿",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3653550": {
+   "name_zh": "圣妈宫",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3374251": {
+   "name_zh": "二市鲜花市场",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13553707": {
+   "name_zh": "碧山岩寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3374244": {
+   "name_zh": "蜂巢山路小商品夜市",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13553712": {
+   "name_zh": "华严寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116429": {
+   "name_zh": "厦门花展馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13553711": {
+   "name_zh": "庆福寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116468": {
+   "name_zh": "厦门尚忠文明街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5116484": {
+   "name_zh": "厦门翔鹭展览馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851168": {
+   "name_zh": "象鼻峰和锁云石",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362917": {
+   "name_zh": "新华都购物广场(莲花)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362018": {
+   "name_zh": "来雅百货(SM)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3653647": {
+   "name_zh": "种德宫",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051425": {
+   "name_zh": "战地观光园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116444": {
+   "name_zh": "厦门闽台特色食品街",
+   "name_en": "",
+   "reviews": 14
+  },
+  "4799742": {
+   "name_zh": "厦门观音山梦幻海岸主题游乐度假区",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1871377": {
+   "name_zh": "同安旅游区",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2051422": {
+   "name_zh": "新碑林",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1865259": {
+   "name_zh": "集美航天城",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362023": {
+   "name_zh": "同安百货商店(中山路)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4799745": {
+   "name_zh": "厦门萤火虫公园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12618190": {
+   "name_zh": "厦门方特水上乐园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362025": {
+   "name_zh": "悦宾商场",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5115977": {
+   "name_zh": "厦门CE尚品街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362731": {
+   "name_zh": "明发商业广场",
+   "name_en": "",
+   "reviews": 6
+  },
+  "10276846": {
+   "name_zh": "黄远堂凤梨酥",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3653548": {
+   "name_zh": "渡口书屋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "18817000": {
+   "name_zh": "突击联盟厦门实弹射击俱乐部",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3630365": {
+   "name_zh": "陶笛驿站",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3630367": {
+   "name_zh": "王孙家的店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3600534": {
+   "name_zh": "杂货（一店）",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19699618": {
+   "name_zh": "南太武高尔夫乡村俱乐部",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7178814": {
+   "name_zh": "Fujian Tours的一日游",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2072100": {
+   "name_zh": "观复博物馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "34714450": {
+   "name_zh": "Xiamen Yuzhou Travel Agency",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374256": {
+   "name_zh": "AZONA A02(世贸商城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374255": {
+   "name_zh": "AZONA A02(加州来雅百货店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8705087": {
+   "name_zh": "Angsana Spa Seaview Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16737402": {
+   "name_zh": "Apple Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17807061": {
+   "name_zh": "Boutique Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34369614": {
+   "name_zh": "CHINA Vistas  XIAMEN",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34384092": {
+   "name_zh": "CHINA Vistas | Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34315977": {
+   "name_zh": "China Miracle Travel - Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19942818": {
+   "name_zh": "China Theme Tour",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34671775": {
+   "name_zh": "China Tour Expert",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15044980": {
+   "name_zh": "China Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34042891": {
+   "name_zh": "China Wandering (CNWD) Travel - Xiamen, Fujian Tulou",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33732057": {
+   "name_zh": "Church of Christ the King",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27967306": {
+   "name_zh": "Clouds Above Xiamen Viewing Platform",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10815109": {
+   "name_zh": "Club Tifanny",
+   "name_en": "",
+   "reviews": 0
+  },
+  "18996080": {
+   "name_zh": "Discover China Trips",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33240128": {
+   "name_zh": "Encounter China Tours - Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19281845": {
+   "name_zh": "Extreme Xiamen Tourism",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374260": {
+   "name_zh": "FEN(思明南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175891": {
+   "name_zh": "Gentiamo",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34069846": {
+   "name_zh": "Guojun trip",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32789737": {
+   "name_zh": "Hello China Trip Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32933966": {
+   "name_zh": "Hello China Trip Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20264792": {
+   "name_zh": "Hotel Indigo Xiamen Harbour Seafood Market Walk",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32990297": {
+   "name_zh": "Interstellar Cloud Tour Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34367464": {
+   "name_zh": "Lvzhanggui travel chartered plane pick-up",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175899": {
+   "name_zh": "MY WAY地下鸡尾酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19759342": {
+   "name_zh": "Meng Bar (2nd Branch)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33038080": {
+   "name_zh": "Mina",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16913922": {
+   "name_zh": "Ping Pong",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13335757": {
+   "name_zh": "Private China Trips",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175905": {
+   "name_zh": "SPACE CLUB",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20956898": {
+   "name_zh": "Samtour of Chengdu OTC Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19694250": {
+   "name_zh": "Trippest Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175884": {
+   "name_zh": "VITIS HOUSE",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20819781": {
+   "name_zh": "Visit Our China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27967313": {
+   "name_zh": "Wuyuan Bay Sailing Harbor",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34706925": {
+   "name_zh": "Xiamen Authentic Private Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34478602": {
+   "name_zh": "Xiamen Cultural Experiences",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34167185": {
+   "name_zh": "Xiamen Fei'e Travel",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34119115": {
+   "name_zh": "Xiamen Private Transfers & Limo Services: Airport, Cruise Port, Hotel Pickups",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34117883": {
+   "name_zh": "Xiamen Private Transfers & Limo Services: Airport, Cruise Port, Hotel Pickups",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34308523": {
+   "name_zh": "Xiamen Private Wellness Experiences",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34320834": {
+   "name_zh": "Xiamen in Local sight",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16805186": {
+   "name_zh": "Yacht",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6732767": {
+   "name_zh": "奥秘之家厦门店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374257": {
+   "name_zh": "b+ab",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362016": {
+   "name_zh": "百家乐百货",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116400": {
+   "name_zh": "厦门巴黎广场步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363338": {
+   "name_zh": "巴黎春天百货(嘉禾)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374252": {
+   "name_zh": "海峡小商品批发市场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19731785": {
+   "name_zh": "城市魔法森林主题公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851171": {
+   "name_zh": "陈化成墓",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363880": {
+   "name_zh": "中华两岸精品中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7256946": {
+   "name_zh": "中国风筝滑雪",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116408": {
+   "name_zh": "厦门东孚城市规划展示馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8281534": {
+   "name_zh": "东屿堂",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116407": {
+   "name_zh": "厦门都市恬园商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33411335": {
+   "name_zh": "ene enu",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3751496": {
+   "name_zh": "恩里克航海俱乐部",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871513": {
+   "name_zh": "珍奇世界自然科普馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1864392": {
+   "name_zh": "苏颂故居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116413": {
+   "name_zh": "厦门福津商业大街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116412": {
+   "name_zh": "厦门福隆美食街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116415": {
+   "name_zh": "厦门福满步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116414": {
+   "name_zh": "厦门富山女人街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116410": {
+   "name_zh": "厦门服饰商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175919": {
+   "name_zh": "银河酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362189": {
+   "name_zh": "金中华百货",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116422": {
+   "name_zh": "厦门光华美食街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871045": {
+   "name_zh": "观海园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116416": {
+   "name_zh": "厦门古城风云游览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8873719": {
+   "name_zh": "海沧青礁慈济祖宫景区",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175896": {
+   "name_zh": "海盗旗",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374247": {
+   "name_zh": "红龙水族馆(开禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374246": {
+   "name_zh": "红龙水族馆(莲花店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374245": {
+   "name_zh": "红龙水族馆(南山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3603565": {
+   "name_zh": "缓缓二店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5303027": {
+   "name_zh": "厦门湖里步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8425495": {
+   "name_zh": "怡道",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362017": {
+   "name_zh": "佳豪百货商行",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116432": {
+   "name_zh": "厦门假日集市地下步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116435": {
+   "name_zh": "厦门晶丰商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871112": {
+   "name_zh": "金海乐园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4789587": {
+   "name_zh": "旧雨今来轩画廊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116438": {
+   "name_zh": "厦门康城商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175922": {
+   "name_zh": "辣蹦酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362359": {
+   "name_zh": "来雅百货(嘉禾总)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362019": {
+   "name_zh": "利万佳购物广场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116453": {
+   "name_zh": "厦门莲坂时尚地下街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116440": {
+   "name_zh": "厦门两岸金融中心展馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851172": {
+   "name_zh": "莲花森林公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34056551": {
+   "name_zh": "鹭途鹰旅行",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175915": {
+   "name_zh": "迈阿密酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4789766": {
+   "name_zh": "梅山寺",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116443": {
+   "name_zh": "厦门名荟苑",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116446": {
+   "name_zh": "厦门摩尔莲花美食街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21352574": {
+   "name_zh": "木之森美学馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20205462": {
+   "name_zh": "尚艇会",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363156": {
+   "name_zh": "欧谷商城",
+   "name_en": "",
+   "reviews": 0
+  },
+  "592858": {
+   "name_zh": "阳春高尔夫俱乐部",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116454": {
+   "name_zh": "厦门柒宝斋文化艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34308235": {
+   "name_zh": "趣淘旅行",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362021": {
+   "name_zh": "天虹商场(汇腾)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362027": {
+   "name_zh": "庄记百货(菡菁里)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362028": {
+   "name_zh": "庄记百货(禾祥西路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362029": {
+   "name_zh": "庄记百货(摩尔)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362026": {
+   "name_zh": "庄记百货(湖里)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362030": {
+   "name_zh": "庄记百货(世贸)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362032": {
+   "name_zh": "庄记百货(西安广场)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362031": {
+   "name_zh": "庄记百货(中山)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116457": {
+   "name_zh": "厦门仁海艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116460": {
+   "name_zh": "厦门博饼民俗街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12618194": {
+   "name_zh": "厦门方特东方神画",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051019": {
+   "name_zh": "厦门灌口凤山庙",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116461": {
+   "name_zh": "厦门国防教育展览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4799747": {
+   "name_zh": "厦门普光寺",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116465": {
+   "name_zh": "厦门市建设成就展示厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116466": {
+   "name_zh": "厦门市青少年天文科技馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19139274": {
+   "name_zh": "厦门双子塔",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116470": {
+   "name_zh": "厦门同安展厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116476": {
+   "name_zh": "厦门王将文化艺术展览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116472": {
+   "name_zh": "厦门文化博览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5116487": {
+   "name_zh": "厦门新萌现代艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374254": {
+   "name_zh": "虾米堂(晃岩路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3374261": {
+   "name_zh": "虾米堂(顶澳仔店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051424": {
+   "name_zh": "苏颂科技馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362022": {
+   "name_zh": "同安百货商店(南门路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34053153": {
+   "name_zh": "唯途旅行",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34589261": {
+   "name_zh": "xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3362024": {
+   "name_zh": "新华都购物广场(美仁宫)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1864388": {
+   "name_zh": "延平故垒",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7697850": {
+   "name_zh": "筼筜湖",
+   "name_en": "",
+   "reviews": 0
+  },
+  "11725547": {
+   "name_zh": "正顺宫",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34064951": {
+   "name_zh": "鹭途鹰（国际）旅行社",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "restaurants": {
+  "5057059": {
+   "name_zh": "凯撒西餐厅",
+   "name_en": "",
+   "reviews": 220
+  },
+  "2098950": {
+   "name_zh": "印度风",
+   "name_en": "",
+   "reviews": 421
+  },
+  "3974012": {
+   "name_zh": "狼群斯美式牛扒皇",
+   "name_en": "",
+   "reviews": 269
+  },
+  "12996374": {
+   "name_zh": "馨石堂",
+   "name_en": "",
+   "reviews": 113
+  },
+  "7891669": {
+   "name_zh": "Odenwalder Restaurant Bar",
+   "name_en": "",
+   "reviews": 119
+  },
+  "2436703": {
+   "name_zh": "Greg′s厦门厦门法国餐厅(摩天轮店)",
+   "name_en": "",
+   "reviews": 152
+  },
+  "12996376": {
+   "name_zh": "福港轩",
+   "name_en": "",
+   "reviews": 95
+  },
+  "10825155": {
+   "name_zh": "琴岸咖啡厅",
+   "name_en": "",
+   "reviews": 107
+  },
+  "7263981": {
+   "name_zh": "莲苑(厦门马哥孛罗东方大酒店)",
+   "name_en": "",
+   "reviews": 81
+  },
+  "1743984": {
+   "name_zh": "墨西哥龙舌狼餐厅",
+   "name_en": "",
+   "reviews": 188
+  },
+  "3791663": {
+   "name_zh": "金橄榄希腊餐厅",
+   "name_en": "",
+   "reviews": 103
+  },
+  "13113688": {
+   "name_zh": "美丽厦门健康美食",
+   "name_en": "",
+   "reviews": 46
+  },
+  "4878699": {
+   "name_zh": "萨穆阿拉伯餐厅",
+   "name_en": "",
+   "reviews": 147
+  },
+  "14027264": {
+   "name_zh": "SIP CONTEMPORARY",
+   "name_en": "",
+   "reviews": 45
+  },
+  "3494769": {
+   "name_zh": "潮福城(湖滨北路店)",
+   "name_en": "",
+   "reviews": 60
+  },
+  "3495039": {
+   "name_zh": "厦门喜来登海浪泛亚餐厅",
+   "name_en": "",
+   "reviews": 56
+  },
+  "4932908": {
+   "name_zh": "小眼镜海鲜大排档",
+   "name_en": "",
+   "reviews": 44
+  },
+  "3494940": {
+   "name_zh": "小眼镜大排档(湖滨中路店)",
+   "name_en": "",
+   "reviews": 77
+  },
+  "3822569": {
+   "name_zh": "The F Bistro",
+   "name_en": "",
+   "reviews": 71
+  },
+  "3494832": {
+   "name_zh": "月华沙茶面",
+   "name_en": "",
+   "reviews": 39
+  },
+  "4862686": {
+   "name_zh": "潮福城大酒楼",
+   "name_en": "",
+   "reviews": 49
+  },
+  "3163810": {
+   "name_zh": "YanYu",
+   "name_en": "",
+   "reviews": 39
+  },
+  "3494960": {
+   "name_zh": "鹭江宾馆观海厅",
+   "name_en": "",
+   "reviews": 60
+  },
+  "4962417": {
+   "name_zh": "海天楼中餐厅",
+   "name_en": "",
+   "reviews": 168
+  },
+  "10034717": {
+   "name_zh": "L’Unico意大利餐厅",
+   "name_en": "",
+   "reviews": 53
+  },
+  "3304291": {
+   "name_zh": "Q吧 (厦门威斯汀酒店)",
+   "name_en": "",
+   "reviews": 67
+  },
+  "4861966": {
+   "name_zh": "将军日本餐厅",
+   "name_en": "",
+   "reviews": 32
+  },
+  "15559330": {
+   "name_zh": "Ay Manuela西班牙餐厅",
+   "name_en": "",
+   "reviews": 18
+  },
+  "3192557": {
+   "name_zh": "lucky full city seafood",
+   "name_en": "",
+   "reviews": 34
+  },
+  "3653568": {
+   "name_zh": "八婆婆烧仙草(轮渡店)",
+   "name_en": "",
+   "reviews": 47
+  },
+  "2457165": {
+   "name_zh": "鹿港小镇(滨北建业店)",
+   "name_en": "",
+   "reviews": 51
+  },
+  "1459406": {
+   "name_zh": "木目心墨西哥餐厅",
+   "name_en": "",
+   "reviews": 64
+  },
+  "7347906": {
+   "name_zh": "明阁中餐厅 (厦门朗豪酒店)",
+   "name_en": "",
+   "reviews": 23
+  },
+  "3494992": {
+   "name_zh": "黄则和花生汤店(中山路总店)",
+   "name_en": "",
+   "reviews": 84
+  },
+  "7338510": {
+   "name_zh": "朗豪咖啡厅 (厦门朗豪酒店)",
+   "name_en": "",
+   "reviews": 41
+  },
+  "4803007": {
+   "name_zh": "星巴克(鹭江道店)",
+   "name_en": "",
+   "reviews": 29
+  },
+  "3494985": {
+   "name_zh": "佳丽海鲜大酒楼(环岛路店)",
+   "name_en": "",
+   "reviews": 28
+  },
+  "3850744": {
+   "name_zh": "Marble牛扒馆",
+   "name_en": "",
+   "reviews": 22
+  },
+  "1750413": {
+   "name_zh": "厦门老别墅西餐厅(白鹤路店)",
+   "name_en": "",
+   "reviews": 38
+  },
+  "12996379": {
+   "name_zh": "大堂吧",
+   "name_en": "",
+   "reviews": 21
+  },
+  "3494833": {
+   "name_zh": "南普陀素菜",
+   "name_en": "",
+   "reviews": 36
+  },
+  "3494762": {
+   "name_zh": "必胜客(鹭江道店)",
+   "name_en": "",
+   "reviews": 23
+  },
+  "8786462": {
+   "name_zh": "新食谱西餐厅 厦门艾美酒店",
+   "name_en": "",
+   "reviews": 23
+  },
+  "8786484": {
+   "name_zh": "乐美中餐厅 (厦门艾美酒店)",
+   "name_en": "",
+   "reviews": 17
+  },
+  "5609826": {
+   "name_zh": "沈家闽南肠粉",
+   "name_en": "",
+   "reviews": 20
+  },
+  "3495032": {
+   "name_zh": "泛太平洋大酒店自助餐",
+   "name_en": "",
+   "reviews": 33
+  },
+  "32997165": {
+   "name_zh": "Indian Food Little India",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2709880": {
+   "name_zh": "Shuyou Seafood Restaurant",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3494849": {
+   "name_zh": "大丰收鱼庄(SM广场店)",
+   "name_en": "",
+   "reviews": 20
+  },
+  "3634584": {
+   "name_zh": "1980烧肉粽(中山路店)",
+   "name_en": "",
+   "reviews": 33
+  },
+  "3494826": {
+   "name_zh": "大中沙茶面",
+   "name_en": "",
+   "reviews": 24
+  },
+  "3653525": {
+   "name_zh": "金兰饼店",
+   "name_en": "",
+   "reviews": 20
+  },
+  "5615436": {
+   "name_zh": "厦门哈瓦那拉丁餐厅酒吧",
+   "name_en": "",
+   "reviews": 24
+  },
+  "4806012": {
+   "name_zh": "宴遇餐饮",
+   "name_en": "",
+   "reviews": 24
+  },
+  "9597068": {
+   "name_zh": "THE F BAKERY",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3653308": {
+   "name_zh": "阿吉仔厦门大元分店",
+   "name_en": "",
+   "reviews": 13
+  },
+  "19449481": {
+   "name_zh": "Bollo 意大利餐厅(龙山万物工场店)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "16797767": {
+   "name_zh": "集美at cafe",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5234932": {
+   "name_zh": "温德姆新南轩中餐厅",
+   "name_en": "",
+   "reviews": 16
+  },
+  "4862611": {
+   "name_zh": "褚家园咖啡馆",
+   "name_en": "",
+   "reviews": 12
+  },
+  "10482423": {
+   "name_zh": "临家闽南菜 (环岛路店)",
+   "name_en": "",
+   "reviews": 14
+  },
+  "13552850": {
+   "name_zh": "黑明餐厅",
+   "name_en": "",
+   "reviews": 7
+  },
+  "10892608": {
+   "name_zh": "百万万汉堡店",
+   "name_en": "",
+   "reviews": 13
+  },
+  "32910130": {
+   "name_zh": "Maison M Wine Bistro",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494868": {
+   "name_zh": "四里沙茶面(湖滨四里店)",
+   "name_en": "",
+   "reviews": 17
+  },
+  "6642629": {
+   "name_zh": "乌糖沙茶面",
+   "name_en": "",
+   "reviews": 14
+  },
+  "8610264": {
+   "name_zh": "北纬24 厦门艾美酒店",
+   "name_en": "",
+   "reviews": 16
+  },
+  "3634588": {
+   "name_zh": "阿卿春卷",
+   "name_en": "",
+   "reviews": 9
+  },
+  "28840829": {
+   "name_zh": "Lone Star",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4692044": {
+   "name_zh": "味友面线(同集路店)",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3494869": {
+   "name_zh": "大丰收鱼庄(加州来雅店)",
+   "name_en": "",
+   "reviews": 19
+  },
+  "1777043": {
+   "name_zh": "爱迪康健康美食",
+   "name_en": "",
+   "reviews": 19
+  },
+  "3653530": {
+   "name_zh": "马拉嗓果汁",
+   "name_en": "",
+   "reviews": 20
+  },
+  "3634605": {
+   "name_zh": "莲欢海蛎煎小吃店",
+   "name_en": "",
+   "reviews": 13
+  },
+  "3304299": {
+   "name_zh": "Zen5es",
+   "name_en": "",
+   "reviews": 17
+  },
+  "32989200": {
+   "name_zh": "Hokklo - Waldorf Astoria Xiamen",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2396947": {
+   "name_zh": "嗨了餐吧",
+   "name_en": "",
+   "reviews": 17
+  },
+  "6833911": {
+   "name_zh": "202特色大排档",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3495009": {
+   "name_zh": "厦门大学芙蓉餐厅",
+   "name_en": "",
+   "reviews": 29
+  },
+  "3653528": {
+   "name_zh": "林记鱼丸",
+   "name_en": "",
+   "reviews": 30
+  },
+  "3958112": {
+   "name_zh": "布拉格咖啡",
+   "name_en": "",
+   "reviews": 19
+  },
+  "2701021": {
+   "name_zh": "Golden Elephant Bay Thai Restaurant",
+   "name_en": "",
+   "reviews": 18
+  },
+  "5057209": {
+   "name_zh": "绿茵扒房",
+   "name_en": "",
+   "reviews": 12
+  },
+  "32837182": {
+   "name_zh": "Little India Xiamen",
+   "name_en": "",
+   "reviews": 3
+  },
+  "10821118": {
+   "name_zh": "红泰餐厅",
+   "name_en": "",
+   "reviews": 18
+  },
+  "5822237": {
+   "name_zh": "Kota的厨房",
+   "name_en": "",
+   "reviews": 16
+  },
+  "7286912": {
+   "name_zh": "石庭花园料理 ",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3494724": {
+   "name_zh": "黄胜记(龙头路店)",
+   "name_en": "",
+   "reviews": 28
+  },
+  "3494925": {
+   "name_zh": "原巷口鱼丸店(龙头路店)",
+   "name_en": "",
+   "reviews": 18
+  },
+  "11823457": {
+   "name_zh": "ADLIB",
+   "name_en": "",
+   "reviews": 10
+  },
+  "16803696": {
+   "name_zh": "刃舞日料·夜吧",
+   "name_en": "",
+   "reviews": 6
+  },
+  "10515959": {
+   "name_zh": "CHIC 1699远洋私厨",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3494813": {
+   "name_zh": "永丰鱼丸(开元路店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3653642": {
+   "name_zh": "叶氏麻糍",
+   "name_en": "",
+   "reviews": 21
+  },
+  "4807801": {
+   "name_zh": "张三疯欧式奶茶店",
+   "name_en": "",
+   "reviews": 45
+  },
+  "14021623": {
+   "name_zh": "海底捞-中山路店（厦门四店）",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2615465": {
+   "name_zh": "Me & You2 Bar and Pizza Restaurant",
+   "name_en": "",
+   "reviews": 24
+  },
+  "3304282": {
+   "name_zh": "Seasonal Tastes",
+   "name_en": "",
+   "reviews": 10
+  },
+  "4804756": {
+   "name_zh": "赵小姐的店(鼓浪屿店)",
+   "name_en": "",
+   "reviews": 22
+  },
+  "3634510": {
+   "name_zh": "乐糖咖啡",
+   "name_en": "",
+   "reviews": 14
+  },
+  "4804742": {
+   "name_zh": "星巴克(筼筜路店)",
+   "name_en": "",
+   "reviews": 15
+  },
+  "3494996": {
+   "name_zh": "舒友海鲜大酒楼(白鹭洲二店)",
+   "name_en": "",
+   "reviews": 11
+  },
+  "4564846": {
+   "name_zh": "星巴克(厦门万达店)",
+   "name_en": "",
+   "reviews": 11
+  },
+  "4864126": {
+   "name_zh": "大同鸭肉粥",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4803244": {
+   "name_zh": "天天渔港大酒楼旗舰店",
+   "name_en": "",
+   "reviews": 13
+  },
+  "3495035": {
+   "name_zh": "马尔龙新疆伊斯兰饭庄(长青路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "33161756": {
+   "name_zh": "Tianyi Italian Restaurant",
+   "name_en": "",
+   "reviews": 2
+  },
+  "33013695": {
+   "name_zh": "Peacock Alley - Waldorf Astoria Xiamen",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494938": {
+   "name_zh": "斯利美休闲站(禾祥西路店)",
+   "name_en": "",
+   "reviews": 16
+  },
+  "7936990": {
+   "name_zh": "Revolucion Cocktail 厦门",
+   "name_en": "",
+   "reviews": 19
+  },
+  "4133549": {
+   "name_zh": "星巴克(SM二期店)",
+   "name_en": "",
+   "reviews": 13
+  },
+  "5963223": {
+   "name_zh": "贝丽西蒙地中海餐厅",
+   "name_en": "",
+   "reviews": 13
+  },
+  "3494795": {
+   "name_zh": "王子饭店",
+   "name_en": "",
+   "reviews": 7
+  },
+  "3495001": {
+   "name_zh": "悦华绿庭自助餐厅",
+   "name_en": "",
+   "reviews": 9
+  },
+  "3494712": {
+   "name_zh": "日舞",
+   "name_en": "",
+   "reviews": 8
+  },
+  "8560200": {
+   "name_zh": "清菜家",
+   "name_en": "",
+   "reviews": 5
+  },
+  "6642630": {
+   "name_zh": "李家大丰收(加州商业广场店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4808150": {
+   "name_zh": "必胜客(厦大店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "3494923": {
+   "name_zh": "金象湾泰国菜(禾祥西店)",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2344975": {
+   "name_zh": "寺咖啡",
+   "name_en": "",
+   "reviews": 16
+  },
+  "19215992": {
+   "name_zh": "Kebab Masters",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494845": {
+   "name_zh": "蔡塘大排档",
+   "name_en": "",
+   "reviews": 8
+  },
+  "3634610": {
+   "name_zh": "天河西门土笋冻",
+   "name_en": "",
+   "reviews": 9
+  },
+  "19255337": {
+   "name_zh": "糖立方",
+   "name_en": "",
+   "reviews": 3
+  },
+  "8090074": {
+   "name_zh": "勝居酒屋",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3494790": {
+   "name_zh": "凯华餐厅",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2151016": {
+   "name_zh": "意大利餐厅",
+   "name_en": "",
+   "reviews": 21
+  },
+  "4564850": {
+   "name_zh": "食汇堂(厦门万达店)",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3494759": {
+   "name_zh": "肯德基(石鼓路店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3653633": {
+   "name_zh": "康家龙头海蛎煎",
+   "name_en": "",
+   "reviews": 12
+  },
+  "4935190": {
+   "name_zh": "Babycat私家御饼屋(龙头路一店)",
+   "name_en": "",
+   "reviews": 14
+  },
+  "2525963": {
+   "name_zh": "佳丽海鲜餐厅",
+   "name_en": "",
+   "reviews": 13
+  },
+  "2344757": {
+   "name_zh": "曾厝垵竹屋餐厅",
+   "name_en": "",
+   "reviews": 17
+  },
+  "3494744": {
+   "name_zh": "麦当劳(厦大店)",
+   "name_en": "",
+   "reviews": 11
+  },
+  "3494959": {
+   "name_zh": "鹭江宾馆西餐厅",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3494831": {
+   "name_zh": "雅子和食餐厅",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2288896": {
+   "name_zh": "新疆阿凡提饭馆",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3494843": {
+   "name_zh": "状元楼食府",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4805170": {
+   "name_zh": "星巴克(机场店)",
+   "name_en": "",
+   "reviews": 12
+  },
+  "3494883": {
+   "name_zh": "盛意小笼汤包",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5235145": {
+   "name_zh": "西必帝咖啡",
+   "name_en": "",
+   "reviews": 10
+  },
+  "32832739": {
+   "name_zh": "粤江春（厦门万象城店）",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494761": {
+   "name_zh": "麦当劳(鼓浪屿店)",
+   "name_en": "",
+   "reviews": 12
+  },
+  "3653532": {
+   "name_zh": "芒果芒果",
+   "name_en": "",
+   "reviews": 11
+  },
+  "3494801": {
+   "name_zh": "荣记鱼粥",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3625961": {
+   "name_zh": "三年二班概念餐厅",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3494809": {
+   "name_zh": "劳松扁食(角滨路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "13235945": {
+   "name_zh": "小诱扒-美利坚厚牛扒(新领荟广场店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4692032": {
+   "name_zh": "宴遇(SM新生活广场SM二期店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "17321869": {
+   "name_zh": "海怪先生",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494867": {
+   "name_zh": "四里沙茶面(建发花园店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4861880": {
+   "name_zh": "上青本港海鲜",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4804342": {
+   "name_zh": "老二市口土笋冻(香港广场店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "6728781": {
+   "name_zh": "漫咖啡",
+   "name_en": "",
+   "reviews": 5
+  },
+  "7396005": {
+   "name_zh": "浪花亭",
+   "name_en": "",
+   "reviews": 6
+  },
+  "13793180": {
+   "name_zh": "阿里元餐厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3494822": {
+   "name_zh": "阿玲面线糊",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494880": {
+   "name_zh": "吴再添小吃店",
+   "name_en": "",
+   "reviews": 10
+  },
+  "3139056": {
+   "name_zh": "Golden Elephant",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4367521": {
+   "name_zh": "星巴克(万达广场店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "7098803": {
+   "name_zh": "捞海坞",
+   "name_en": "",
+   "reviews": 6
+  },
+  "12367637": {
+   "name_zh": "鹭城轩 厦门康莱德酒店",
+   "name_en": "",
+   "reviews": 11
+  },
+  "4564851": {
+   "name_zh": "星巴克(厦门瑞景商业广场店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "7263979": {
+   "name_zh": "马哥孛罗咖啡厅(厦门马哥孛罗东方大酒店)",
+   "name_en": "",
+   "reviews": 20
+  },
+  "3494799": {
+   "name_zh": "心素食坊",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4932830": {
+   "name_zh": "姥姥家私房菜",
+   "name_en": "",
+   "reviews": 3
+  },
+  "12298040": {
+   "name_zh": "鼎泰丰 (磐基店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "3495016": {
+   "name_zh": "京闽中心酒店中餐厅",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4863315": {
+   "name_zh": "闽南大酒店旋转餐厅",
+   "name_en": "",
+   "reviews": 7
+  },
+  "15634435": {
+   "name_zh": "迷迭之乡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12441659": {
+   "name_zh": "里遇",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494820": {
+   "name_zh": "海悦山庄JAZZ餐厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "34618832": {
+   "name_zh": "Banyan Gelato and Coffee",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3297274": {
+   "name_zh": "Paulaner Brauhaus",
+   "name_en": "",
+   "reviews": 34
+  },
+  "4692050": {
+   "name_zh": "大丰收(加州店)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "3494837": {
+   "name_zh": "梅园大酒楼",
+   "name_en": "",
+   "reviews": 12
+  },
+  "2351968": {
+   "name_zh": "京闽北海湾酒店",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2425519": {
+   "name_zh": "厦门老别墅西餐馆（西堤路店）",
+   "name_en": "",
+   "reviews": 18
+  },
+  "12593471": {
+   "name_zh": "黄石屋",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2253248": {
+   "name_zh": "Buona",
+   "name_en": "",
+   "reviews": 9
+  },
+  "6833861": {
+   "name_zh": "墨西哥风情餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2142388": {
+   "name_zh": "Mershaba土耳其餐厅",
+   "name_en": "",
+   "reviews": 14
+  },
+  "3653294": {
+   "name_zh": "阿吉仔厦门同安总店",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4692043": {
+   "name_zh": "黄胜记(中山路店)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "6938731": {
+   "name_zh": "食锦记(罗宾森店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "6439609": {
+   "name_zh": "一刘汤包",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4803028": {
+   "name_zh": "豪享来(思明南路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "19085843": {
+   "name_zh": "Si Patisserie(双子塔店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7178692": {
+   "name_zh": "Macarena西班牙餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4804823": {
+   "name_zh": "舒友海鲜大酒楼(鹭江道店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "1442922": {
+   "name_zh": "厦门必胜客(SM商业城店)",
+   "name_en": "",
+   "reviews": 23
+  },
+  "3494714": {
+   "name_zh": "牛芒(顶澳仔路店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3791733": {
+   "name_zh": "Starbucks",
+   "name_en": "",
+   "reviews": 8
+  },
+  "6833927": {
+   "name_zh": "悦福大酒楼",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494715": {
+   "name_zh": "开元141大排档(开元路老店)",
+   "name_en": "",
+   "reviews": 17
+  },
+  "33262404": {
+   "name_zh": "Tianyun Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495013": {
+   "name_zh": "康师傅私房牛肉面(龙头路店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "28022038": {
+   "name_zh": "曦西cceveryday",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494889": {
+   "name_zh": "喜麟阁私房菜",
+   "name_en": "",
+   "reviews": 6
+  },
+  "6838486": {
+   "name_zh": "比哥鸡排(前埔店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4692042": {
+   "name_zh": "星巴克(世贸商城分店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5054534": {
+   "name_zh": "肯德基(汇景新城店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494982": {
+   "name_zh": "长白山韩国料理(演武路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4932864": {
+   "name_zh": "第八海鲜市场",
+   "name_en": "",
+   "reviews": 8
+  },
+  "32986555": {
+   "name_zh": "Brasserie One - Waldorf Astoria Xiamen",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3653535": {
+   "name_zh": "牛肉香餐室",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4805001": {
+   "name_zh": "豪客来(厦大店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4804583": {
+   "name_zh": "双伟大排档(思明南路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4805295": {
+   "name_zh": "赵小姐的店(中山路店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4566899": {
+   "name_zh": "骨之味(厦门万达店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "10617308": {
+   "name_zh": "黑羊啤酒餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "3494750": {
+   "name_zh": "必胜客(瑞景店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494958": {
+   "name_zh": "鹭江宾馆咖啡厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494854": {
+   "name_zh": "福伯烧仙草(中山路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "14051942": {
+   "name_zh": "Marc",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4935153": {
+   "name_zh": "陶然私房菜",
+   "name_en": "",
+   "reviews": 3
+  },
+  "9597070": {
+   "name_zh": "The F. Spirits",
+   "name_en": "",
+   "reviews": 4
+  },
+  "13367922": {
+   "name_zh": "左稻",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5827451": {
+   "name_zh": "玖号码头西餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "14377278": {
+   "name_zh": "Oldamerican Legend",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4933512": {
+   "name_zh": "阿强海鲜大排档",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17457795": {
+   "name_zh": "逸厨 - 希尔顿格芮精选酒店佳逸酒店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3241369": {
+   "name_zh": "little chilli",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2687362": {
+   "name_zh": "大口日本料理(西堤店)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "4963032": {
+   "name_zh": "Kaffee On 2",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494988": {
+   "name_zh": "百成大同鸭肉粥(豆仔尾路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "9597409": {
+   "name_zh": "随意小厨",
+   "name_en": "",
+   "reviews": 3
+  },
+  "14090038": {
+   "name_zh": "城岸(鼓浪屿店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4963952": {
+   "name_zh": "大丰收",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494930": {
+   "name_zh": "好清香大酒楼(湖滨中路店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4935008": {
+   "name_zh": "湖碟轩彩菜坊",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5233790": {
+   "name_zh": "咏蛙田鸡",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494952": {
+   "name_zh": "佳味再添小吃店",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4565118": {
+   "name_zh": "阿度咖啡",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494717": {
+   "name_zh": "上海·上海(西堤店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "6833856": {
+   "name_zh": "前海酒家",
+   "name_en": "",
+   "reviews": 4
+  },
+  "26840423": {
+   "name_zh": "无味蔬食",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5056571": {
+   "name_zh": "麦咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "19056623": {
+   "name_zh": "A Ji Zi Ji Zhi Bai Huo",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495020": {
+   "name_zh": "马哥孛罗东方西餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4805360": {
+   "name_zh": "哈根达斯(世贸店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3653556": {
+   "name_zh": "林大熊奶茶",
+   "name_en": "",
+   "reviews": 5
+  },
+  "13387039": {
+   "name_zh": "Chello(沙坡尾店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "6838502": {
+   "name_zh": "争鲜回转寿司（万达金街店）",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4860850": {
+   "name_zh": "米茶餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494957": {
+   "name_zh": "老思西沙茶肉串",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4297082": {
+   "name_zh": "江畔餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494777": {
+   "name_zh": "黑猫餐厅",
+   "name_en": "",
+   "reviews": 12
+  },
+  "5236408": {
+   "name_zh": "蛀牙的披萨",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5235880": {
+   "name_zh": "厦大逸夫楼中餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3600537": {
+   "name_zh": "黑糖(顶澳仔店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3763330": {
+   "name_zh": "弁庆日本料理",
+   "name_en": "",
+   "reviews": 4
+  },
+  "6439607": {
+   "name_zh": "晴天见(曾厝垵店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "10482444": {
+   "name_zh": "临家闽南菜(翔安店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4963366": {
+   "name_zh": "阿忠食坊",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495000": {
+   "name_zh": "便所欢乐主题餐厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3494998": {
+   "name_zh": "花树时尚日本料理",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494760": {
+   "name_zh": "麦当劳(石鼓路店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "15319908": {
+   "name_zh": "海岸餐厅及酒吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3642665": {
+   "name_zh": "满记甜品罗宾森店",
+   "name_en": "",
+   "reviews": 4
+  },
+  "19421039": {
+   "name_zh": "老美往事",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6863222": {
+   "name_zh": "香港潮满楼",
+   "name_en": "",
+   "reviews": 4
+  },
+  "8757755": {
+   "name_zh": "悦鼎会海鲜姿造",
+   "name_en": "",
+   "reviews": 3
+  },
+  "15756490": {
+   "name_zh": "锅炉咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4864186": {
+   "name_zh": "菜园子咖啡馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494756": {
+   "name_zh": "美珍香(中山路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494728": {
+   "name_zh": "三摩地",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4803051": {
+   "name_zh": "星巴克(巴黎春天店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3494981": {
+   "name_zh": "亚珠海鲜大酒楼(斗西路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "12211408": {
+   "name_zh": "La pizza",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5233241": {
+   "name_zh": "田王府",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494995": {
+   "name_zh": "佳丽海鲜大酒楼(未来海岸店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4564944": {
+   "name_zh": "舒友海鲜大酒楼(厦门白鹭洲一店)",
+   "name_en": "",
+   "reviews": 11
+  },
+  "3653560": {
+   "name_zh": "樽颂酒窖",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4803824": {
+   "name_zh": "黄则和花生汤店(龙头路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4807697": {
+   "name_zh": "九市牛肉店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3767645": {
+   "name_zh": "骨之味",
+   "name_en": "",
+   "reviews": 3
+  },
+  "13985135": {
+   "name_zh": "邵子牙贡丸.鱼丸(中山路二店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5235739": {
+   "name_zh": "宴遇(SM城市广场店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494838": {
+   "name_zh": "丽珠沙茶面",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4804165": {
+   "name_zh": "老塞行动咖啡馆(金榜店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494707": {
+   "name_zh": "Babycat私家御饼屋(龙头路二店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494754": {
+   "name_zh": "华莱士(财院店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "14153904": {
+   "name_zh": "老码头火锅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2720551": {
+   "name_zh": "Andy's",
+   "name_en": "",
+   "reviews": 6
+  },
+  "3642667": {
+   "name_zh": "满记甜品SM一期五楼美食广场店",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4567001": {
+   "name_zh": "鱼旨寿司",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3495030": {
+   "name_zh": "海悦山庄地中海咖啡厅",
+   "name_en": "",
+   "reviews": 22
+  },
+  "4564946": {
+   "name_zh": "佳丽海鲜大酒楼(厦门宝福店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4804480": {
+   "name_zh": "星巴克(高崎机场店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494742": {
+   "name_zh": "小肥羊(滨北店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5237061": {
+   "name_zh": "八婆婆烧仙草(中闽百汇店)",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4804688": {
+   "name_zh": "金象湾泰国餐厅(五缘店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3455651": {
+   "name_zh": "一麻一辣麻辣香锅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3653579": {
+   "name_zh": "洪濑鸡爪镇邦店",
+   "name_en": "",
+   "reviews": 6
+  },
+  "15580348": {
+   "name_zh": "闽小喃·沙茶面",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494719": {
+   "name_zh": "阿姨家",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807125": {
+   "name_zh": "骨之味(怡景店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4802935": {
+   "name_zh": "Re_cafe(杏林社区店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494901": {
+   "name_zh": "思西沙茶烤肉",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2660252": {
+   "name_zh": "骏豪会香辣诱惑川菜馆",
+   "name_en": "",
+   "reviews": 8
+  },
+  "32923240": {
+   "name_zh": "M Stand(厦门SM广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495029": {
+   "name_zh": "照强鸭肉平价海鲜排档",
+   "name_en": "",
+   "reviews": 3
+  },
+  "13161843": {
+   "name_zh": "赖厝埕扁食店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5056334": {
+   "name_zh": "咖啡六巷",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4936237": {
+   "name_zh": "星巴克咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14086780": {
+   "name_zh": "海底捞火锅(中山路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4545165": {
+   "name_zh": "哈根达斯(集美万达店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4566886": {
+   "name_zh": "黄记煌三汁焖锅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494994": {
+   "name_zh": "佳丽海鲜大酒楼(海湾公园店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494945": {
+   "name_zh": "阿矮海鲜大排档",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4807435": {
+   "name_zh": "康师傅私房牛肉面(高崎机场店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494898": {
+   "name_zh": "老梁炭火烧烤",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4803861": {
+   "name_zh": "年年大丰收(南中广场店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "13387785": {
+   "name_zh": "悦饗中餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "32923469": {
+   "name_zh": "M Stand(厦门星河COCO Park店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5054205": {
+   "name_zh": "鹭岛小鱿鱼",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4860811": {
+   "name_zh": "285蚝味馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808228": {
+   "name_zh": "豪客来(前埔店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807021": {
+   "name_zh": "汇鼎丰",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494757": {
+   "name_zh": "咖啡虫(莲岳路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494916": {
+   "name_zh": "大口日本料理(加州店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3293843": {
+   "name_zh": "Tuscany Grill, Bar and Cafe",
+   "name_en": "",
+   "reviews": 6
+  },
+  "19449441": {
+   "name_zh": "铭聚章鱼土笋冻(松柏店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494999": {
+   "name_zh": "多乐意意大利餐厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "33403388": {
+   "name_zh": "Longyan Hakka Food",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494870": {
+   "name_zh": "牡丹大酒楼(湖滨北路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4804623": {
+   "name_zh": "海外海(曾厝垵店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "9568612": {
+   "name_zh": "Chi Dining 宝龙铂尔曼酒店",
+   "name_en": "",
+   "reviews": 9
+  },
+  "5056952": {
+   "name_zh": "千尊比萨(前埔店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6863226": {
+   "name_zh": "麦当劳(加州得来速店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6861667": {
+   "name_zh": "鲜芋仙(瑞景店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494751": {
+   "name_zh": "必胜客(世贸店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "11980136": {
+   "name_zh": "勒威蚝吧",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5235587": {
+   "name_zh": "吴招治薄饼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4692036": {
+   "name_zh": "九毛肥肠粉",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4862614": {
+   "name_zh": "表妹靓点餐厅",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494879": {
+   "name_zh": "陶乡涮涮锅(湖滨北路总店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494997": {
+   "name_zh": "佰翔酒店自助餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4865661": {
+   "name_zh": "格兰会法餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494972": {
+   "name_zh": "荣记深海鱼火锅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3642565": {
+   "name_zh": "北方人独一处饺子馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2288897": {
+   "name_zh": "水岸咖啡馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5233412": {
+   "name_zh": "悦华酒店展鸿阁",
+   "name_en": "",
+   "reviews": 12
+  },
+  "4805680": {
+   "name_zh": "小宇宙(万达店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494842": {
+   "name_zh": "HKL牛排红酒庄(总店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4934075": {
+   "name_zh": "伽比咖啡",
+   "name_en": "",
+   "reviews": 4
+  },
+  "11827433": {
+   "name_zh": "老知青(中华城店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494746": {
+   "name_zh": "老知青(加州店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4862997": {
+   "name_zh": "好口味煎蟹馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12110336": {
+   "name_zh": "巴渝焰洞子重庆老火锅(厦门万达广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494730": {
+   "name_zh": "怡海苑",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4805344": {
+   "name_zh": "鱼旨寿司(滨北店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494755": {
+   "name_zh": "向阳坊(中山店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494865": {
+   "name_zh": "不二斋面馆(后埭溪路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "19065445": {
+   "name_zh": "香港鸿胜海鲜火锅酒家·鸿馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494723": {
+   "name_zh": "草根堂",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4692040": {
+   "name_zh": "小肥羊(牛庄店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4865251": {
+   "name_zh": "上海上海创意餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494829": {
+   "name_zh": "客坐私房菜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6863195": {
+   "name_zh": "咏蛙田鸡(莲前东路站)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805941": {
+   "name_zh": "德香苑北京烤鸭(万达广场店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4962495": {
+   "name_zh": "汉拿山韩式烤肉",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4935255": {
+   "name_zh": "古山创作料理",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13396332": {
+   "name_zh": "咖啡厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "16894282": {
+   "name_zh": "无味舒食",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806286": {
+   "name_zh": "莆田卤面(大学路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12457379": {
+   "name_zh": "21GRAM Coffee",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805620": {
+   "name_zh": "晴天见(沙波尾店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494748": {
+   "name_zh": "必胜客(东方店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6901307": {
+   "name_zh": "三国居酒屋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5236100": {
+   "name_zh": "战锅演义",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805350": {
+   "name_zh": "千尊比萨(顶澳仔路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4566610": {
+   "name_zh": "壹咖啡(厦门瑞景店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5235097": {
+   "name_zh": "原巷口鱼丸铺",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4804445": {
+   "name_zh": "陶乡涮涮锅(湖东直营店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234587": {
+   "name_zh": "艾美酒店行政酒廊",
+   "name_en": "",
+   "reviews": 3
+  },
+  "8874917": {
+   "name_zh": "Lavue璟",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494740": {
+   "name_zh": "食汇堂(文灶店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4566940": {
+   "name_zh": "黄鹤楼(厦门明发店)",
+   "name_en": "",
+   "reviews": 6
+  },
+  "15296035": {
+   "name_zh": "上屿水产小海鲜餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494934": {
+   "name_zh": "金象湾泰国菜(金榜大厦店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494987": {
+   "name_zh": "同安沃头蠔干粥(厦禾路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494863": {
+   "name_zh": "渔王川菜馆(镇邦路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4862481": {
+   "name_zh": "鼓浪屿李家庄休闲咖啡旅馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4861157": {
+   "name_zh": "曾厝垵咖啡馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "8077307": {
+   "name_zh": "蔻米葡国餐吧",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4804950": {
+   "name_zh": "上岛咖啡(厦禾路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494926": {
+   "name_zh": "禾绿回转寿司(中山路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "6833957": {
+   "name_zh": "味华香牛肉养生馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4934277": {
+   "name_zh": "Moment咖啡酒吧",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806590": {
+   "name_zh": "超吉大盛(九龙城店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4860446": {
+   "name_zh": "香遇巴厘印尼餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "14212439": {
+   "name_zh": "花玺",
+   "name_en": "",
+   "reviews": 2
+  },
+  "14179324": {
+   "name_zh": "芋包王闽南茶楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494739": {
+   "name_zh": "食汇堂(莲花店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "13224978": {
+   "name_zh": "澳为尔咖啡厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234615": {
+   "name_zh": "粤泮湾味皇港式小厨",
+   "name_en": "",
+   "reviews": 3
+  },
+  "14071789": {
+   "name_zh": "Sunset City",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4579488": {
+   "name_zh": "Chatime",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805586": {
+   "name_zh": "老知青(万达店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3495012": {
+   "name_zh": "康师傅私房牛肉面(体育路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4806472": {
+   "name_zh": "上岛咖啡(莲前东路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864935": {
+   "name_zh": "毕思特酒店自助餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805043": {
+   "name_zh": "越城记黑鱼煲(加州店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5235727": {
+   "name_zh": "小肥羊(莲前店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494947": {
+   "name_zh": "鹭发美食大庄园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4864176": {
+   "name_zh": "不见咖啡馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494745": {
+   "name_zh": "老知青(湖里店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5823001": {
+   "name_zh": "CF法餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2637081": {
+   "name_zh": "鹭岛小鱿鱼",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807041": {
+   "name_zh": "老知青(厦禾路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494725": {
+   "name_zh": "月亮河",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494726": {
+   "name_zh": "紫竹园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "24914253": {
+   "name_zh": "CBD 咖啡厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5055450": {
+   "name_zh": "鸣春茶楼",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494836": {
+   "name_zh": "凤缘外婆家",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5235792": {
+   "name_zh": "喜来登酒店宴会厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565259": {
+   "name_zh": "厦门宾馆中餐厅",
+   "name_en": "",
+   "reviews": 7
+  },
+  "3494989": {
+   "name_zh": "亚珠海鲜大酒楼(莲前西路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3600546": {
+   "name_zh": "忘时咖啡厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3419121": {
+   "name_zh": "Yisushi",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4864409": {
+   "name_zh": "萨贝尔意式餐厅",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4805473": {
+   "name_zh": "金刚山韩式烤肉",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806482": {
+   "name_zh": "摩斯汉堡(软二店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494850": {
+   "name_zh": "陶乡涮涮锅(前埔店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "5237809": {
+   "name_zh": "香锅新语",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12282799": {
+   "name_zh": "8号西餐咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4860449": {
+   "name_zh": "悦来福餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803569": {
+   "name_zh": "味千拉面(厦禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933867": {
+   "name_zh": "助屋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "9743206": {
+   "name_zh": "Angry Bull Burger",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233389": {
+   "name_zh": "自钦楼咖啡厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494768": {
+   "name_zh": "汉堡王(世贸商城店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494743": {
+   "name_zh": "麦当劳(帝豪店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494738": {
+   "name_zh": "蔡家坡(厦大店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495031": {
+   "name_zh": "闽南维景酒店旋转餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806238": {
+   "name_zh": "金象湾泰国餐厅(泰越餐厅店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4564869": {
+   "name_zh": "泰之家(厦门曾厝垵店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "12386988": {
+   "name_zh": "蜂大咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4566665": {
+   "name_zh": "放牛斑(厦门新景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12253864": {
+   "name_zh": "西木美式餐厅（阿罗海店）",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5055055": {
+   "name_zh": "鲁瓦克咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "11725497": {
+   "name_zh": "泰自然花园餐吧",
+   "name_en": "",
+   "reviews": 2
+  },
+  "12110310": {
+   "name_zh": "旮里私家咖喱饭",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804363": {
+   "name_zh": "小花妹泡芙(嘉庚店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806777": {
+   "name_zh": "贰吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494979": {
+   "name_zh": "同安沃头蠔干粥(集美店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "23768629": {
+   "name_zh": "善导茶社",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861546": {
+   "name_zh": "盈翠餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495038": {
+   "name_zh": "牡丹国际大酒店自助餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806084": {
+   "name_zh": "大口日本料理(汇腾大厦店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806832": {
+   "name_zh": "re-cafe(吕厝社区店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494942": {
+   "name_zh": "禾绿回转寿司(新生活广场店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494953": {
+   "name_zh": "佳福园海鲜酒楼(曾厝垵店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494922": {
+   "name_zh": "陆缘桂林米粉(斗西路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4861882": {
+   "name_zh": "临家酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807814": {
+   "name_zh": "厦港卤鸭店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494817": {
+   "name_zh": "鹿港小镇(莲前东路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "5235858": {
+   "name_zh": "新陶乡会馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862207": {
+   "name_zh": "港记茶餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "1514843": {
+   "name_zh": "龙苑中餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4808072": {
+   "name_zh": "大高日本料理(湖滨南路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5237576": {
+   "name_zh": "散步猫咖啡旅馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3634507": {
+   "name_zh": "朗地咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "14153900": {
+   "name_zh": "Deniz's Meat Kitchen",
+   "name_en": "",
+   "reviews": 3
+  },
+  "23506122": {
+   "name_zh": "Kong An Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4457986": {
+   "name_zh": "维恩咖啡(成龙店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494824": {
+   "name_zh": "大渔铁板烧(SM新生活广场店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494735": {
+   "name_zh": "骨之味(江头店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805124": {
+   "name_zh": "莲花公园煎蟹(莲花店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "10222620": {
+   "name_zh": "Hu Tong",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6863230": {
+   "name_zh": "瑞可爷爷的店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "10043598": {
+   "name_zh": "不见",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808375": {
+   "name_zh": "味千拉面(万达店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5054926": {
+   "name_zh": "融绘越界食尚餐饮",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6863234": {
+   "name_zh": "希腊风情餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804872": {
+   "name_zh": "越城记黑鱼煲(罗宾森广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4692037": {
+   "name_zh": "沃头蚝干粥(湖滨北路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4308842": {
+   "name_zh": "古厝甜头",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4863044": {
+   "name_zh": "厚海咖啡馆",
+   "name_en": "",
+   "reviews": 4
+  },
+  "8560197": {
+   "name_zh": "阿信厚吐司",
+   "name_en": "",
+   "reviews": 2
+  },
+  "8179531": {
+   "name_zh": "拾膳咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862798": {
+   "name_zh": "峇峇娘惹南洋文化主题餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4864386": {
+   "name_zh": "港顶港式茶餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057440": {
+   "name_zh": "213海鲜大排档",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494954": {
+   "name_zh": "贵州苗家酸汤鱼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4860749": {
+   "name_zh": "姐妹餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806030": {
+   "name_zh": "九龙缘茶会所",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807024": {
+   "name_zh": "橘舍城市咖啡(禾祥西店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494800": {
+   "name_zh": "湾仔美食",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234295": {
+   "name_zh": "小辣椒",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494900": {
+   "name_zh": "曾记海鲜排档",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4964036": {
+   "name_zh": "大渔铁板烧(罗宾森店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494729": {
+   "name_zh": "陶然居(富山店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861461": {
+   "name_zh": "渔嘟嘟主题餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565741": {
+   "name_zh": "阿度茶餐厅(厦门厦禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4865547": {
+   "name_zh": "阿昌餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804351": {
+   "name_zh": "布里斯朵1919咖啡(罗宾森店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4566627": {
+   "name_zh": "春园烤肉王",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4964027": {
+   "name_zh": "大眼镜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565288": {
+   "name_zh": "风波庄",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494784": {
+   "name_zh": "花雕小厨",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861588": {
+   "name_zh": "品佳意式餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5055690": {
+   "name_zh": "栖汐咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494772": {
+   "name_zh": "仙踪林(罗宾森广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807824": {
+   "name_zh": "盛世经典牛排(世贸店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494866": {
+   "name_zh": "天天多多乐(金榜公园店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5232956": {
+   "name_zh": "下里巴人食府",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234059": {
+   "name_zh": "小背篓",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807069": {
+   "name_zh": "鱼翻天烤鱼(厦禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861658": {
+   "name_zh": "MAYDAY咖啡馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807926": {
+   "name_zh": "壹咖啡(金榜店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234995": {
+   "name_zh": "亦品咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807139": {
+   "name_zh": "Re_cafe(金逸文艺店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564953": {
+   "name_zh": "松花江饺子馆(厦门湖滨北路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863603": {
+   "name_zh": "永安餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962736": {
+   "name_zh": "CafeWorks",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803503": {
+   "name_zh": "东稻煮",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4936423": {
+   "name_zh": "放肆私房菜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494791": {
+   "name_zh": "湖锦人家",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494905": {
+   "name_zh": "黄鹤楼大排档",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495011": {
+   "name_zh": "均记煎蟹海鲜餐厅(吕岭路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3424801": {
+   "name_zh": "石家小院",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7612895": {
+   "name_zh": "醉爱私宴会馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808284": {
+   "name_zh": "合记汕头牛肉店(总店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805248": {
+   "name_zh": "惠友餐厅(金尚路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862870": {
+   "name_zh": "吉祥餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4932794": {
+   "name_zh": "秋园海鲜火锅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494899": {
+   "name_zh": "原滋原味酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565946": {
+   "name_zh": "骨元坊",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4803988": {
+   "name_zh": "老酒鬼卤味店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804306": {
+   "name_zh": "邵公馆(金尚店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806337": {
+   "name_zh": "星巴克(罗宾森店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494819": {
+   "name_zh": "阳光棕榈(世贸中心店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804250": {
+   "name_zh": "大高日本料理(莲岳店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806459": {
+   "name_zh": "上野家日本料理(鹭江道店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13608124": {
+   "name_zh": "龙治汉堡(瑞景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933159": {
+   "name_zh": "THE PATRICK'S HOUSE",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804669": {
+   "name_zh": "上岛咖啡(思明南路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805347": {
+   "name_zh": "悦读咖啡(厦大店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494936": {
+   "name_zh": "真真厦港卤味(蜂巢山路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804280": {
+   "name_zh": "厦港渔村",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803540": {
+   "name_zh": "重庆鸡公煲(厦禾店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807566": {
+   "name_zh": "故宫鸭肉店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564922": {
+   "name_zh": "玛琪雅朵咖啡(厦门禾祥店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494780": {
+   "name_zh": "食尚豆捞",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233238": {
+   "name_zh": "晚玖朝伍",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933949": {
+   "name_zh": "幸福路口咖啡酒吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6861638": {
+   "name_zh": "悦芙蓉时尚餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494976": {
+   "name_zh": "高丽雅韩国料理(SM商业城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7332934": {
+   "name_zh": "里约-意大利现代餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494881": {
+   "name_zh": "竹缘阁食素斋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494818": {
+   "name_zh": "摩斯汉堡(思明南路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494732": {
+   "name_zh": "麦当劳(SM城市广场店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "19330141": {
+   "name_zh": "森澜小苑",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19330218": {
+   "name_zh": "猫住咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "19056665": {
+   "name_zh": "鑫佳宝海鲜大排档(美食地标店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864446": {
+   "name_zh": "临家闽南生态酒楼同安店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4692033": {
+   "name_zh": "伊示雅咖啡(机场3号登机口店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4808070": {
+   "name_zh": "咏蛙田鸡(罗宾森店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861839": {
+   "name_zh": "大丰苑酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17558434": {
+   "name_zh": "思屿闽菜",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3424799": {
+   "name_zh": "筷客(乐购店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17450142": {
+   "name_zh": "醉堂",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057681": {
+   "name_zh": "牛排红酒庄",
+   "name_en": "",
+   "reviews": 2
+  },
+  "14108796": {
+   "name_zh": "大厨的餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "17435216": {
+   "name_zh": "小东北餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233200": {
+   "name_zh": "香港传奇(鹭江店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494857": {
+   "name_zh": "牡丹大酒楼(松柏路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565443": {
+   "name_zh": "江枫渔火(厦门海湾公园店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494862": {
+   "name_zh": "元味铁板烧(罗宾森店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4861513": {
+   "name_zh": "安第仕烘焙餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804874": {
+   "name_zh": "番婆冰(同安店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494944": {
+   "name_zh": "阿川海鲜大排档",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5232984": {
+   "name_zh": "老塞行动咖啡",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4933925": {
+   "name_zh": "板栗咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5113552": {
+   "name_zh": "塞尚印象咖啡馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494741": {
+   "name_zh": "小肥羊(禾祥店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4566716": {
+   "name_zh": "盛世经典牛排(厦门明发店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494893": {
+   "name_zh": "小林日本料理",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2314121": {
+   "name_zh": "Tairyo",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4808335": {
+   "name_zh": "豪客来(加州店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4865476": {
+   "name_zh": "伶笼馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4441459": {
+   "name_zh": "厦门喜麟阁私房小厨",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494902": {
+   "name_zh": "小海鲜大排档",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805595": {
+   "name_zh": "中坜新明牛肉面馆(文灶店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4566876": {
+   "name_zh": "百度连锁烤肉餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15194730": {
+   "name_zh": "圓聚",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494967": {
+   "name_zh": "红记德厦门小吃",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4565990": {
+   "name_zh": "Judy's Café(厦门龙头路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494911": {
+   "name_zh": "桔地无烟烧烤&火锅(禾祥西店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494872": {
+   "name_zh": "糊涂火锅城(禾祥西路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494971": {
+   "name_zh": "树树庵日本料理",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4566346": {
+   "name_zh": "台北吴记老锅底(厦门长青店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4692034": {
+   "name_zh": "豪客来(阿罗海店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4566058": {
+   "name_zh": "四海渔村",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4702245": {
+   "name_zh": "Yongjuyou Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14221633": {
+   "name_zh": "腾龙阁｜精品川菜(SM城市广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "14170096": {
+   "name_zh": "全家福(厦大店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494946": {
+   "name_zh": "亚马逊巴西烤肉",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495019": {
+   "name_zh": "哈马星可香沙茶料理",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495008": {
+   "name_zh": "温德姆酒店自助餐",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494785": {
+   "name_zh": "食尚煮意",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1514825": {
+   "name_zh": "厦门樱花日本料理(镇海路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494888": {
+   "name_zh": "海港城大酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804025": {
+   "name_zh": "豪享来(仙岳路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3495037": {
+   "name_zh": "马尔龙新疆伊斯兰饭庄(洪莲中路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4062838": {
+   "name_zh": "Zhuanzhuanle Hotpot",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494727": {
+   "name_zh": "羊公馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804430": {
+   "name_zh": "洞庭土菜馆(厦禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804259": {
+   "name_zh": "豪享来(后滨路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805939": {
+   "name_zh": "吉香炭烧生蚝(湖滨中路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862935": {
+   "name_zh": "嘉和潮苑大酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494939": {
+   "name_zh": "小鱼儿大排档(后埭溪路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494778": {
+   "name_zh": "博赢小聚",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3682613": {
+   "name_zh": "More Spice",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4934687": {
+   "name_zh": "竹田和风料理",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3642672": {
+   "name_zh": "仙踪林SM广场店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7363990": {
+   "name_zh": "热气球Balloon土耳其餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3568407": {
+   "name_zh": "Qifa Seafood Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13953303": {
+   "name_zh": "老街一号",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5056397": {
+   "name_zh": "咖啡聚",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494834": {
+   "name_zh": "南山小肥羊",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11954941": {
+   "name_zh": "西北拉面(天御店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12643541": {
+   "name_zh": "Unico意家餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5054274": {
+   "name_zh": "爱特咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863488": {
+   "name_zh": "灌顶姜母鸭",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864134": {
+   "name_zh": "1921咖啡馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11954951": {
+   "name_zh": "朝味佳自助烤肉",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5055763": {
+   "name_zh": "老塞行动咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805761": {
+   "name_zh": "一谷一麦时尚回转火锅(万达店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6476917": {
+   "name_zh": "唐风卷寿司",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12075622": {
+   "name_zh": "38号码头自助餐厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494749": {
+   "name_zh": "必胜客(明发店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805841": {
+   "name_zh": "豪客来(金鸡亭店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494873": {
+   "name_zh": "陶乡涮涮锅(湖滨南路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804830": {
+   "name_zh": "同安沃头蚝干粥(国贸连锁店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11954957": {
+   "name_zh": "两个番茄(阿罗海城市广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "12000747": {
+   "name_zh": "真馍坊西安小吃(后江埭店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862666": {
+   "name_zh": "槟榔餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494980": {
+   "name_zh": "亚珠海鲜大酒楼(吕岭路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057562": {
+   "name_zh": "日味源烧肉",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494815": {
+   "name_zh": "多福豆花(思明南路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5054240": {
+   "name_zh": "乐巢.乐巢",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5235334": {
+   "name_zh": "渔家湾",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3424802": {
+   "name_zh": "陶乡涮涮锅(世贸店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5056025": {
+   "name_zh": "三号咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4865230": {
+   "name_zh": "翔鹭国际大酒店锦绣自助餐厅",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4564945": {
+   "name_zh": "海敢海鲜餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5037953": {
+   "name_zh": "棒！约翰",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10795231": {
+   "name_zh": "兴旺海鲜城",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4865549": {
+   "name_zh": "食汇来酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5235737": {
+   "name_zh": "私奔咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "10541561": {
+   "name_zh": "金家港海鲜大排档(中山路旗舰店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494966": {
+   "name_zh": "庞比度法国餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494770": {
+   "name_zh": "豪客来(同安车站店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804063": {
+   "name_zh": "粒粒香肉燕皮扁食(鼓浪屿连锁店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494812": {
+   "name_zh": "妙香扁食(演武路店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "9791836": {
+   "name_zh": "一鸣瓦罐(东渡店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494816": {
+   "name_zh": "同安煎蟹(盈翠西路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "8861411": {
+   "name_zh": "塞纳阳光",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962384": {
+   "name_zh": "锅元甲",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3368887": {
+   "name_zh": "Crystal Spoon Thai Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804904": {
+   "name_zh": "山东老家(海沧店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804509": {
+   "name_zh": "好久不见吉它弹唱酒吧(龙头路一店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494794": {
+   "name_zh": "信誉酒楼",
+   "name_en": "",
+   "reviews": 3
+  },
+  "7808213": {
+   "name_zh": "Jinyongxuan South Korean Restaurant",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861941": {
+   "name_zh": "香港传奇",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494955": {
+   "name_zh": "海悦山庄中餐厅",
+   "name_en": "",
+   "reviews": 33
+  },
+  "6894064": {
+   "name_zh": "正宗乌冬面",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4934290": {
+   "name_zh": "松鹤日本料理",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806429": {
+   "name_zh": "上海·上海(加州店)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "4860988": {
+   "name_zh": "耕园居酒屋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1514823": {
+   "name_zh": "海景咖啡厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803814": {
+   "name_zh": "Re_cafe(西堤店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "6982685": {
+   "name_zh": "龙记上海汤包小馆 ",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6884377": {
+   "name_zh": "范小卷",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806995": {
+   "name_zh": "鱼旨寿司(莲花店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5057676": {
+   "name_zh": "咖啡虫",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5236785": {
+   "name_zh": "鱼庄大排档",
+   "name_en": "",
+   "reviews": 5
+  },
+  "6642625": {
+   "name_zh": "小条食堂(百脑汇店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862537": {
+   "name_zh": "如是酒店素斋馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4803732": {
+   "name_zh": "8握寿司(石鼓路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234594": {
+   "name_zh": "我家小厨",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5237760": {
+   "name_zh": "上岛咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494974": {
+   "name_zh": "新疆阿达西饭庄",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807766": {
+   "name_zh": "味千拉面(大润发店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4863096": {
+   "name_zh": "小鱼儿海鲜餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806631": {
+   "name_zh": "富霸王(文灶店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803976": {
+   "name_zh": "禾绿回转寿司(中华城店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4861693": {
+   "name_zh": "东北馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863917": {
+   "name_zh": "悦华酒店餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494886": {
+   "name_zh": "良峰海鲜酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808380": {
+   "name_zh": "天香阁餐厅(松柏路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4860675": {
+   "name_zh": "一容餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494943": {
+   "name_zh": "禾绿回转寿司(瑞景商业广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805737": {
+   "name_zh": "斗牛士(明发广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233633": {
+   "name_zh": "战锅策",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806933": {
+   "name_zh": "咖伦比咖啡(建业路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5237307": {
+   "name_zh": "时光若刻咖啡书吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494973": {
+   "name_zh": "湘厦人湘菜酒楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4935884": {
+   "name_zh": "朴墅庭院私厨",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863737": {
+   "name_zh": "英士达意美餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4964516": {
+   "name_zh": "古柏",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5054951": {
+   "name_zh": "那一家",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862647": {
+   "name_zh": "亚泰餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233399": {
+   "name_zh": "咏哇田鸡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803989": {
+   "name_zh": "老塞行动咖啡集美(石鼓店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804051": {
+   "name_zh": "鱼旨寿司(SM店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4804494": {
+   "name_zh": "厦门甘萃芝旅(莲前西路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806114": {
+   "name_zh": "味千拉面(铜锣湾店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805828": {
+   "name_zh": "前味港式茶餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861856": {
+   "name_zh": "中韩馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864951": {
+   "name_zh": "应菜河老厦门餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804483": {
+   "name_zh": "阿度茶餐厅(SM广场店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494913": {
+   "name_zh": "多桑日本料理(SM店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4932963": {
+   "name_zh": "老厦门本地菜",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4804549": {
+   "name_zh": "魔锅坊麻辣香锅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805556": {
+   "name_zh": "枫多士(厦门禾祥西店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494918": {
+   "name_zh": "松鹤日本料理(长青店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5237467": {
+   "name_zh": "逸景咖啡苑",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933794": {
+   "name_zh": "不见不散酒吧",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494747": {
+   "name_zh": "老知青(富山店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4807263": {
+   "name_zh": "鼓浪屿老字号鱼丸店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803102": {
+   "name_zh": "必胜客(汇景店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4805671": {
+   "name_zh": "樱桃木甜品(万达店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805398": {
+   "name_zh": "元绿回转寿司(瑞景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803811": {
+   "name_zh": "合记汕头牛肉店(江头分店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3642775": {
+   "name_zh": "新食尚文化美食广场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494875": {
+   "name_zh": "鑫客家府第(莲前西路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4692030": {
+   "name_zh": "佳丽海鲜大酒店(海湾店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494912": {
+   "name_zh": "桔地无烟烧烤&火锅(明发商业广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564935": {
+   "name_zh": "松鹤日本料理(厦门繁荣店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806247": {
+   "name_zh": "豪享来(湖滨南路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494950": {
+   "name_zh": "局口水族川味园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4806845": {
+   "name_zh": "阿瓦山寨(斗西店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806169": {
+   "name_zh": "汉阳馆(滨北店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807577": {
+   "name_zh": "黄鹤楼(瑞景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495004": {
+   "name_zh": "植物时光田园餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807405": {
+   "name_zh": "豪享来(瑞景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803778": {
+   "name_zh": "鸡堡餐饮(明发店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808019": {
+   "name_zh": "临家闽南乡土酒楼(大唐世家店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494774": {
+   "name_zh": "一尊皇牛(厦门湖滨东路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494792": {
+   "name_zh": "澳门豆捞(厦门店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494711": {
+   "name_zh": "雅舍",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4565038": {
+   "name_zh": "上岛咖啡(厦门白鹭洲店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494852": {
+   "name_zh": "天天多多乐(后滨路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494860": {
+   "name_zh": "沃头蚝干粥(鼓浪屿店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495036": {
+   "name_zh": "新加坡咖喱大叔料理店(嘉禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2270024": {
+   "name_zh": "曼陀铃咖啡馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4135621": {
+   "name_zh": "棕糖-台湾故事冰",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3747653": {
+   "name_zh": "Parkview Cafe",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494861": {
+   "name_zh": "鑫客家府第(仙岳路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494810": {
+   "name_zh": "鹿港小镇(嘉禾路店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3625793": {
+   "name_zh": "磨玛咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3600535": {
+   "name_zh": "4合院",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494764": {
+   "name_zh": "豪客来(禾祥西店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "3494731": {
+   "name_zh": "汉堡王(SM二期店)",
+   "name_en": "",
+   "reviews": 9
+  },
+  "4566697": {
+   "name_zh": "一口元气寿司(厦门名汇店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494915": {
+   "name_zh": "一口元气寿司(明发店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4808124": {
+   "name_zh": "鱼旨寿司(中华城店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494890": {
+   "name_zh": "鹭景特色餐厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4566043": {
+   "name_zh": "荣誉海鲜大酒楼",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3495023": {
+   "name_zh": "不一样的港式茶餐厅",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807956": {
+   "name_zh": "豪客来(体育路店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "5236104": {
+   "name_zh": "珍珍珍日本拉面",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4933469": {
+   "name_zh": "半自动咖啡",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4962480": {
+   "name_zh": "表妹靚点",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3494776": {
+   "name_zh": "滨北五号",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4545045": {
+   "name_zh": "必胜客(万达店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5057080": {
+   "name_zh": "老聃",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4751429": {
+   "name_zh": "Bingzhou Hoilizhou",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494708": {
+   "name_zh": "D.D.L 西餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15009248": {
+   "name_zh": "KOI PLUS(中华城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "32923464": {
+   "name_zh": "M Stand(厦门磐基店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2614955": {
+   "name_zh": "Ubc Coffee Food C., Ltd",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803485": {
+   "name_zh": "味千拉面(瑞景店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3495015": {
+   "name_zh": "巴贝拉意式休闲餐厅(中华城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494844": {
+   "name_zh": "百里鲜餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933943": {
+   "name_zh": "半岛比萨",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805830": {
+   "name_zh": "潮宫(滨南店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494782": {
+   "name_zh": "集集小镇(厦门店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4963906": {
+   "name_zh": "川香园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933384": {
+   "name_zh": "丹鼎铁板料理",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962600": {
+   "name_zh": "德庄火锅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4566085": {
+   "name_zh": "顶澳大排档",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494827": {
+   "name_zh": "东方红酒楼(故宫路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864969": {
+   "name_zh": "概念旅行馆",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805329": {
+   "name_zh": "骨之味(集源路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494734": {
+   "name_zh": "骨之味(松柏店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4751439": {
+   "name_zh": "汉拿山",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5237221": {
+   "name_zh": "豪佳香餐饮有限公司",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13342336": {
+   "name_zh": "蓝氏钟楼肉粽",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808237": {
+   "name_zh": "老塞行动咖啡馆(槟榔店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564943": {
+   "name_zh": "老牌正宗川菜(厦门嘉禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803232": {
+   "name_zh": "老知青(天虹店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5054476": {
+   "name_zh": "美食美客",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494963": {
+   "name_zh": "黔山苗乡酸汤鱼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494811": {
+   "name_zh": "山东老家(嘉禾路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494797": {
+   "name_zh": "山东老家(源昌店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564933": {
+   "name_zh": "上岛咖啡(厦门海天路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494763": {
+   "name_zh": "圣杰士(老虎城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804263": {
+   "name_zh": "盛世经典牛排(中华城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4933240": {
+   "name_zh": "石山日本怀石料理",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234040": {
+   "name_zh": "糖果记忆咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4564867": {
+   "name_zh": "桃太郎家日本料理",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5234192": {
+   "name_zh": "我家咖啡",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494887": {
+   "name_zh": "鲜蚝馆厦禾店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5235288": {
+   "name_zh": "鑫客家餐饮",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4805531": {
+   "name_zh": "行动咖啡馆(江头店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804528": {
+   "name_zh": "雅米臻品",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4861553": {
+   "name_zh": "叶绿素餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4865265": {
+   "name_zh": "音乐厨房自助餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4803927": {
+   "name_zh": "英士达意美餐厅(老虎城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863083": {
+   "name_zh": "玉仁餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804743": {
+   "name_zh": "越城记黑鱼煲(中华城店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "13614251": {
+   "name_zh": "张三疯欧式奶茶铺(中山路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5236599": {
+   "name_zh": "正宗私家龙头189号",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4806998": {
+   "name_zh": "粥小姐(诚毅学院店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "7020435": {
+   "name_zh": "Miu Miu鲜饮",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4860451": {
+   "name_zh": "Marble扒馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4863150": {
+   "name_zh": "香港维景茶餐厅",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4805382": {
+   "name_zh": "豪客来(杏林店)",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5054378": {
+   "name_zh": "临家闽南乡土酒楼",
+   "name_en": "",
+   "reviews": 2
+  },
+  "4808513": {
+   "name_zh": "牛太郎自助烧烤牛庄店",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4804398": {
+   "name_zh": "豪客来(达意广场店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "3494921": {
+   "name_zh": "大口日本料理(仙岳路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494986": {
+   "name_zh": "佳丽海鲜大酒楼(三秀路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4804955": {
+   "name_zh": "SPRCOFFEE(机场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3494706": {
+   "name_zh": "313海鲜酒楼",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807588": {
+   "name_zh": "鱼翻天烤鱼(莲坂店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962734": {
+   "name_zh": "Bristot 1919",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2452336": {
+   "name_zh": "阅读者咖啡厅",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4805105": {
+   "name_zh": "爱特咖啡(软件园店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4935659": {
+   "name_zh": "玉角海鲜大排档",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3261832": {
+   "name_zh": "Papa John's",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5056688": {
+   "name_zh": "披萨新乐园(Paradiso窑烤)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "4807172": {
+   "name_zh": "必胜客(大润发店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6838479": {
+   "name_zh": "表妹靓点餐厅(七星乐都汇店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "21141169": {
+   "name_zh": "Mimifaso",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11849433": {
+   "name_zh": "豪丽斯咖啡馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "10598387": {
+   "name_zh": "札幌拉面",
+   "name_en": "",
+   "reviews": 6
+  },
+  "10004602": {
+   "name_zh": "Yalla Chicken",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12134135": {
+   "name_zh": "鑫悦楼海鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805046": {
+   "name_zh": "豪享来(海天路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "34754979": {
+   "name_zh": "莱座·福建菜·海鲜·烧烤",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4807930": {
+   "name_zh": "咏蛙田鸡(南中店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "16755005": {
+   "name_zh": "金橄榄- 宝龙一城",
+   "name_en": "",
+   "reviews": 4
+  },
+  "3494705": {
+   "name_zh": "2627朝歌夜弦",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4808186": {
+   "name_zh": "豪客来(江头西路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962508": {
+   "name_zh": "0599食坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934577": {
+   "name_zh": "1039咖啡Bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12542019": {
+   "name_zh": "1078號老北京铜锅涮羊肉(万达店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806379": {
+   "name_zh": "15-8(集美龙舟池店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863985": {
+   "name_zh": "184餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494704": {
+   "name_zh": "1号海岸沙滩音乐餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935202": {
+   "name_zh": "303海鲜排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933568": {
+   "name_zh": "Amoy西餐酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33372969": {
+   "name_zh": "At Cafe Italian Restaurant Xiamen China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "24911108": {
+   "name_zh": "Blue Frog Bar & Grill",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5995653": {
+   "name_zh": "Blue Room",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26670380": {
+   "name_zh": "Buena Vista Restaurant Bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19765816": {
+   "name_zh": "CC everyday",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19730082": {
+   "name_zh": "CCeveryday",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962740": {
+   "name_zh": "Cantone",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7736172": {
+   "name_zh": "Chic & Chill Lounge",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23294468": {
+   "name_zh": "DAC Bistro",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935692": {
+   "name_zh": "DAT European Coffee House咖啡店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33540002": {
+   "name_zh": "Din Tai Fung Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34221568": {
+   "name_zh": "Dragon Tales",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15032409": {
+   "name_zh": "Eckl’s爱氏热狗",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933302": {
+   "name_zh": "FCR咖啡工坊(湖明路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26875801": {
+   "name_zh": "Fine Bento葡萄酒馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19525672": {
+   "name_zh": "Greg's Storm Cuisines",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23709545": {
+   "name_zh": "Heat",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935621": {
+   "name_zh": "Here酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32837178": {
+   "name_zh": "India Restaurants",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32829108": {
+   "name_zh": "Junkai Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963010": {
+   "name_zh": "King's Club",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12000745": {
+   "name_zh": "LOFT48",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962359": {
+   "name_zh": "Le tea",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4889669": {
+   "name_zh": "Ludwig",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32923470": {
+   "name_zh": "M Stand(厦门万象城写字楼A塔店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936623": {
+   "name_zh": "Mayday咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33037452": {
+   "name_zh": "Midai Jazzlive",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33035905": {
+   "name_zh": "Midai Jazzlive",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12181577": {
+   "name_zh": "Mike’s热狗&啤酒",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23709532": {
+   "name_zh": "Min Yen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933309": {
+   "name_zh": "Misoo咖啡酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934212": {
+   "name_zh": "My味(吕厝天虹店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23709719": {
+   "name_zh": "NINE",
+   "name_en": "",
+   "reviews": 0
+  },
+  "24914390": {
+   "name_zh": "Na Pan",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23709714": {
+   "name_zh": "Nine",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17642758": {
+   "name_zh": "No.45",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494709": {
+   "name_zh": "PAOPAO泡泡涮涮锅(明发店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494710": {
+   "name_zh": "PAOPAO泡泡涮涮锅(福隆国际店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3747468": {
+   "name_zh": "Pisces",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19514008": {
+   "name_zh": "R Bar（厦门万丽酒店）",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12326524": {
+   "name_zh": "RASTA Corner Bar Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803542": {
+   "name_zh": "Re-cafe(珍珠湾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806422": {
+   "name_zh": "Re_cafe(思北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175850": {
+   "name_zh": "Reme Roof全海景餐吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "26698943": {
+   "name_zh": "SOUNDSCAPE - W Xiamen",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3651689": {
+   "name_zh": "STEVE's",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566832": {
+   "name_zh": "TROY土耳其餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "8702469": {
+   "name_zh": "Tap 66",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3791676": {
+   "name_zh": "Taste of Greece",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17450180": {
+   "name_zh": "The Bund 乐畔餐吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "23070359": {
+   "name_zh": "The Deck By Indiano John",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3689424": {
+   "name_zh": "Uncle Zeng",
+   "name_en": "",
+   "reviews": 0
+  },
+  "24909181": {
+   "name_zh": "Xiamen Coastline Coffee Shop",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805819": {
+   "name_zh": "阿川海鲜大酒楼旗舰店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962663": {
+   "name_zh": "阿村咸鱼档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566020": {
+   "name_zh": "阿度魔法餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494864": {
+   "name_zh": "阿度茶餐厅(白鹭洲路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494851": {
+   "name_zh": "阿度茶餐厅(莲岳路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19548988": {
+   "name_zh": "阿芳卤面",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803644": {
+   "name_zh": "阿花大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494821": {
+   "name_zh": "阿莲美食园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963306": {
+   "name_zh": "阿吽亭",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494775": {
+   "name_zh": "阿宝小厨(瑞景店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861996": {
+   "name_zh": "阿不茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494859": {
+   "name_zh": "阿呆盐鸭店(东山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935794": {
+   "name_zh": "阿华海鲜大排档(开禾路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934516": {
+   "name_zh": "爱巢咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494787": {
+   "name_zh": "爱家素食",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10306355": {
+   "name_zh": "艾克啡林咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806579": {
+   "name_zh": "味千拉面(富万邦店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804299": {
+   "name_zh": "味千拉面(罗宾森广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494927": {
+   "name_zh": "阿里朗大酒楼(湖滨北路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494928": {
+   "name_zh": "阿里朗大酒楼(莲花南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805812": {
+   "name_zh": "阿龙餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934996": {
+   "name_zh": "am7黑糖咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933831": {
+   "name_zh": "澳头海鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565298": {
+   "name_zh": "阿强大排档(厦门龙头路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807879": {
+   "name_zh": "阿瓦山寨(杏林店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494779": {
+   "name_zh": "阿一天下",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933879": {
+   "name_zh": "阿珠海鲜大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494720": {
+   "name_zh": "百鹭轩",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3424800": {
+   "name_zh": "百岁鱼(仙乐路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804337": {
+   "name_zh": "百岁鱼(仙岳路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963594": {
+   "name_zh": "佰朔茶廊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494847": {
+   "name_zh": "白天鹅食府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6001892": {
+   "name_zh": "百沢甜品咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17547483": {
+   "name_zh": "百川酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17538093": {
+   "name_zh": "百川酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808079": {
+   "name_zh": "百度烤肉(海賊王店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15146557": {
+   "name_zh": "百万万汉堡店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936716": {
+   "name_zh": "伴山咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494906": {
+   "name_zh": "宝船日本料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962499": {
+   "name_zh": "宝龙珍宴酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803742": {
+   "name_zh": "鲍鱼公主",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14973969": {
+   "name_zh": "北疆饭店 (SM城市广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936304": {
+   "name_zh": "本岛日本料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14100754": {
+   "name_zh": "本港人家私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10711819": {
+   "name_zh": "本田",
+   "name_en": "",
+   "reviews": 0
+  },
+  "9748241": {
+   "name_zh": "嘿屋烧肉｜日式烧肉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864977": {
+   "name_zh": "滨北101自助餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864218": {
+   "name_zh": "滨北餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865604": {
+   "name_zh": "滨凯小吃",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963726": {
+   "name_zh": "丙洲海蛎粥",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15023082": {
+   "name_zh": "卜粹串烧啤酒",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935338": {
+   "name_zh": "钵锣嘧咖啡屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934668": {
+   "name_zh": "菠萝蜜多泰国料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15841698": {
+   "name_zh": "大只佬汉堡(沙坡尾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15850138": {
+   "name_zh": "波士曼汉堡（沙坡尾店）",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935835": {
+   "name_zh": "不加糖咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934514": {
+   "name_zh": "布拉格咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056108": {
+   "name_zh": "两岸咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805949": {
+   "name_zh": "美国加州牛肉面(SM店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14100723": {
+   "name_zh": "草根哥泡菜臭豆腐",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34025557": {
+   "name_zh": "卡萨米亚·意式餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805532": {
+   "name_zh": "茶大爷(SM城市广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804213": {
+   "name_zh": "潮流美食城(厦禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963806": {
+   "name_zh": "潮汕砂锅粥",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936175": {
+   "name_zh": "茶屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862778": {
+   "name_zh": "茶油香餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494781": {
+   "name_zh": "诚毅餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934116": {
+   "name_zh": "成智咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15039966": {
+   "name_zh": "城岸",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963836": {
+   "name_zh": "城市烤场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495024": {
+   "name_zh": "陈家村永安农家风味(香莲路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234870": {
+   "name_zh": "重庆火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808125": {
+   "name_zh": "重庆苏大姐火锅(凤屿路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806563": {
+   "name_zh": "重庆苏大姐火锅(嘉莲大厦店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566819": {
+   "name_zh": "重庆小天鹅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864778": {
+   "name_zh": "川粉馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494884": {
+   "name_zh": "传香私房菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860875": {
+   "name_zh": "川味馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056463": {
+   "name_zh": "咖啡猫",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055167": {
+   "name_zh": "咖啡农庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804906": {
+   "name_zh": "大茶坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933286": {
+   "name_zh": "大古海鲜大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494948": {
+   "name_zh": "大金湖特色小吃",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494722": {
+   "name_zh": "大丰园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963978": {
+   "name_zh": "大海鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963983": {
+   "name_zh": "大禾寿司",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933062": {
+   "name_zh": "大红袍私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964065": {
+   "name_zh": "傣妹火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5040287": {
+   "name_zh": "大江户日本料理(洪莲路分店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933660": {
+   "name_zh": "大江户日本料理(嘉禾路总店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12202170": {
+   "name_zh": "大塊排骨锅(思北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803054": {
+   "name_zh": "大毛烧烤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494990": {
+   "name_zh": "大食冠上海汤包(湖滨南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566921": {
+   "name_zh": "得记豆捞",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808326": {
+   "name_zh": "德香苑北京烤鸭(SM店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803173": {
+   "name_zh": "德克士(消防店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233887": {
+   "name_zh": "德州咖啡(百得德扑俱乐部)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933135": {
+   "name_zh": "顶可咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936147": {
+   "name_zh": "鼎味海鲜大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12617234": {
+   "name_zh": "东厂西餐音乐酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4692039": {
+   "name_zh": "东海渔村",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494904": {
+   "name_zh": "东南海鲜酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494828": {
+   "name_zh": "洞庭土菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865006": {
+   "name_zh": "洞庭湖湘菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864794": {
+   "name_zh": "东兴餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933035": {
+   "name_zh": "东屿海鲜坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494949": {
+   "name_zh": "东屿海鲜大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962468": {
+   "name_zh": "斗牛士",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807483": {
+   "name_zh": "斗牛士(莲前东路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805955": {
+   "name_zh": "豆仔尾沙茶面(厦禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34549164": {
+   "name_zh": "跳海酒馆（厦门莲花店）",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4932972": {
+   "name_zh": "杜尚酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494920": {
+   "name_zh": "多桑日本料理(长青路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964285": {
+   "name_zh": "鹅公庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34275322": {
+   "name_zh": "Épanouir Wine Bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33881582": {
+   "name_zh": "ÉPANOUIR Wine Bar",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865689": {
+   "name_zh": "二娃川菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935785": {
+   "name_zh": "二喜海鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934294": {
+   "name_zh": "耳语咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6643547": {
+   "name_zh": "饭先生",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16868038": {
+   "name_zh": "凡悦咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4932853": {
+   "name_zh": "啡凡咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863410": {
+   "name_zh": "沸腾水晶自助火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935062": {
+   "name_zh": "丰尚咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933236": {
+   "name_zh": "凤岗大肠血",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935467": {
+   "name_zh": "凤凰花咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807762": {
+   "name_zh": "凤凰居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934542": {
+   "name_zh": "风情咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803091": {
+   "name_zh": "fic冰淇淋店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863770": {
+   "name_zh": "佛罗仑阳光餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19602677": {
+   "name_zh": "燃全日餐厅（厦门万丽酒店）",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494786": {
+   "name_zh": "四季・彩",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964424": {
+   "name_zh": "福佳斯西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6861370": {
+   "name_zh": "福时记养胃锅(福满店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803562": {
+   "name_zh": "福时记养胃锅(泰和店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4802945": {
+   "name_zh": "福又记猪肚鸡(江头店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495014": {
+   "name_zh": "福隆记胡椒猪肚鸡(后埭溪路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807234": {
+   "name_zh": "甘萃芝旅(瑞景店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6833942": {
+   "name_zh": "赣湘楼(加州店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934987": {
+   "name_zh": "港式咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495005": {
+   "name_zh": "港湾大酒店中餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934203": {
+   "name_zh": "告别咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494983": {
+   "name_zh": "高丽雅韩国料理(湖滨北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494977": {
+   "name_zh": "高丽雅韩国料理(世贸店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964490": {
+   "name_zh": "高山禽韵",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12295567": {
+   "name_zh": "耿福兴",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494914": {
+   "name_zh": "宫宴韩国料理(SM红宝石店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13985150": {
+   "name_zh": "宫廷月亮虾饼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863493": {
+   "name_zh": "枸杞叶小吃",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13552689": {
+   "name_zh": "绿色市集",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933041": {
+   "name_zh": "谷吧酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964526": {
+   "name_zh": "骨味坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804608": {
+   "name_zh": "古早牛肉(祥厝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804676": {
+   "name_zh": "骨之味(凤屿路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494737": {
+   "name_zh": "骨之味(嘉英店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804869": {
+   "name_zh": "骨之味(开禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494736": {
+   "name_zh": "骨之味(同安店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805276": {
+   "name_zh": "骨之味(杏东店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865430": {
+   "name_zh": "观海餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12625105": {
+   "name_zh": "灌县老妈砂锅串串",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964563": {
+   "name_zh": "贵族世家牛排",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494929": {
+   "name_zh": "贵族世家牛排(湖滨南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494919": {
+   "name_zh": "贵族世家牛排(嘉禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566101": {
+   "name_zh": "鼓浪湾酒店自助餐",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862408": {
+   "name_zh": "国惠大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962415": {
+   "name_zh": "锅悦",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495002": {
+   "name_zh": "国家会计学院餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864006": {
+   "name_zh": "海集餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964629": {
+   "name_zh": "海吉尔",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933367": {
+   "name_zh": "海景千禧大酒店咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19218424": {
+   "name_zh": "海浪",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494968": {
+   "name_zh": "海上花园中餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861682": {
+   "name_zh": "海上餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936581": {
+   "name_zh": "海湾公园露天酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936402": {
+   "name_zh": "海鲜大排",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864531": {
+   "name_zh": "海宴大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12000751": {
+   "name_zh": "海誉佛跳墙(集美店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4962340": {
+   "name_zh": "海韵台",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934105": {
+   "name_zh": "韩味阁",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803633": {
+   "name_zh": "韩味停",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964693": {
+   "name_zh": "韩香阁",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933693": {
+   "name_zh": "憨鱼咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13973928": {
+   "name_zh": "帅老外|饼干松饼英国香肠",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494956": {
+   "name_zh": "韩尚宫韩国料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495027": {
+   "name_zh": "汉阳馆韩国传统餐厅(嘉禾路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495025": {
+   "name_zh": "汉阳馆韩国传统餐厅(员当路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495026": {
+   "name_zh": "汉阳馆韩国传统餐厅(长青路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863753": {
+   "name_zh": "豪记茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808143": {
+   "name_zh": "豪佳香牛排人文咖啡馆(江头店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495034": {
+   "name_zh": "豪佳香牛排人文咖啡馆(集美店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805021": {
+   "name_zh": "豪佳香牛排人文咖啡馆(杏林店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4932786": {
+   "name_zh": "好武功私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804003": {
+   "name_zh": "豪享家(海沧店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805730": {
+   "name_zh": "豪享家(杏林店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805788": {
+   "name_zh": "豪享来(莲花南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805878": {
+   "name_zh": "豪享来(外图店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15035948": {
+   "name_zh": "好香邻(金尚店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494910": {
+   "name_zh": "好悦养生餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807036": {
+   "name_zh": "豪客来(吕岭路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565881": {
+   "name_zh": "豪客来(厦门南山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804238": {
+   "name_zh": "豪客来(未来海岸店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807883": {
+   "name_zh": "豪客来(祥福路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805260": {
+   "name_zh": "豪客来(中港花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803665": {
+   "name_zh": "黑糖(顶澳仔店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936052": {
+   "name_zh": "黑糖咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964797": {
+   "name_zh": "禾绿回转寿司(SM)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10059557": {
+   "name_zh": "善酒良食HOMURA居酒屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12110315": {
+   "name_zh": "雅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3642669": {
+   "name_zh": "满记甜品明发店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3642668": {
+   "name_zh": "满记甜品瑞景店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964888": {
+   "name_zh": "泓品牛排",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860683": {
+   "name_zh": "红牡丹大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936624": {
+   "name_zh": "红素酒吧客栈",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494808": {
+   "name_zh": "红运餐厅(明发店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21175872": {
+   "name_zh": "望海观景",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806644": {
+   "name_zh": "后巷Taste-R咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057341": {
+   "name_zh": "花藤蜗居咖啡旅馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056891": {
+   "name_zh": "华廷商务酒店西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056591": {
+   "name_zh": "华祥苑",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862282": {
+   "name_zh": "华丰餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807244": {
+   "name_zh": "华莱士(一中店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054590": {
+   "name_zh": "皇城食府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4802936": {
+   "name_zh": "煌上煌(火车站店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494752": {
+   "name_zh": "黄鹤楼(吕岭店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494758": {
+   "name_zh": "花之霖(湖光路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32989057": {
+   "name_zh": "滙壹西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494895": {
+   "name_zh": "湖景自助餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494788": {
+   "name_zh": "湖南味道",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494891": {
+   "name_zh": "意大利私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235354": {
+   "name_zh": "意大利西红柿西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056965": {
+   "name_zh": "悸念咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862238": {
+   "name_zh": "吉诺寿司",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808212": {
+   "name_zh": "佳福园海鲜酒楼(海湾公园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494978": {
+   "name_zh": "佳福园海鲜酒楼(前埔店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864712": {
+   "name_zh": "佳佳餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056450": {
+   "name_zh": "简爱咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054857": {
+   "name_zh": "江村大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865221": {
+   "name_zh": "将军府大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864942": {
+   "name_zh": "姜母鸭餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860812": {
+   "name_zh": "加斯加海底餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057247": {
+   "name_zh": "街角烘焙坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805407": {
+   "name_zh": "杰克小镇(明发店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494841": {
+   "name_zh": "姐妹大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807637": {
+   "name_zh": "基隆庙口台湾小吃",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495007": {
+   "name_zh": "集美大学万人餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056428": {
+   "name_zh": "金荙来",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4808243": {
+   "name_zh": "金粉食家",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494789": {
+   "name_zh": "金雁酒店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054634": {
+   "name_zh": "矜•咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4564936": {
+   "name_zh": "景福宫韩国料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863616": {
+   "name_zh": "金海滩大酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494773": {
+   "name_zh": "九龙塘2号",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056337": {
+   "name_zh": "九享食府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056381": {
+   "name_zh": "旧爱咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056673": {
+   "name_zh": "九月咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6863196": {
+   "name_zh": "吉野家(加州广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805450": {
+   "name_zh": "橘舍Cafe(思北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056879": {
+   "name_zh": "橘舍城市咖啡(祥店店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803158": {
+   "name_zh": "橘舍轮渡旗舰店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863826": {
+   "name_zh": "居酒屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495028": {
+   "name_zh": "骏豪会围炉港式火锅(仙岳路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862519": {
+   "name_zh": "均记煎蟹餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494835": {
+   "name_zh": "橘色涮涮锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055491": {
+   "name_zh": "橘子咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862547": {
+   "name_zh": "卡鹭岛海鲜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805047": {
+   "name_zh": "咖伦比咖啡(中山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803935": {
+   "name_zh": "卡维拉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055443": {
+   "name_zh": "咖喱咖喱喔",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862893": {
+   "name_zh": "咖喱辣椒泰国餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054511": {
+   "name_zh": "康燕府(富山店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805039": {
+   "name_zh": "卡斯摩咖啡店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056568": {
+   "name_zh": "卡斯摩咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865422": {
+   "name_zh": "客湘来湘菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054832": {
+   "name_zh": "客家厨坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865691": {
+   "name_zh": "客家海景餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494931": {
+   "name_zh": "客家回味餐厅(富山花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494932": {
+   "name_zh": "客家回味餐厅(龙山中路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494933": {
+   "name_zh": "客家回味餐厅(太微山庄店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055776": {
+   "name_zh": "科艺中心咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494713": {
+   "name_zh": "筷客(SM店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055853": {
+   "name_zh": "老八市沙茶面",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806951": {
+   "name_zh": "老二小吃店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934662": {
+   "name_zh": "老港记小鱿鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056041": {
+   "name_zh": "老塞咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806020": {
+   "name_zh": "老塞行动咖啡馆(湖明店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807530": {
+   "name_zh": "老塞行动咖啡馆(金鸡亭店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804408": {
+   "name_zh": "老塞行动咖啡馆(未来海岸店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805585": {
+   "name_zh": "老塞行动咖啡(加州旗舰店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803349": {
+   "name_zh": "老塞行动咖啡(加州商业广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803911": {
+   "name_zh": "老塞行动咖啡(软件园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806913": {
+   "name_zh": "老塞行动咖啡(中山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863106": {
+   "name_zh": "老陈生蚝馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10803990": {
+   "name_zh": "老聃民间菜馆(枋湖店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860799": {
+   "name_zh": "老二餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14108795": {
+   "name_zh": "老来伴",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494924": {
+   "name_zh": "老牌正宗川菜(凤屿路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807995": {
+   "name_zh": "老知青(海沧店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863918": {
+   "name_zh": "拉萨莎洋咖啡餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806244": {
+   "name_zh": "乐陶咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494871": {
+   "name_zh": "鲤鱼门食府(湖滨南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494858": {
+   "name_zh": "鲤鱼门食府(环岛路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862485": {
+   "name_zh": "连城酒家",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055719": {
+   "name_zh": "良木缘咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804972": {
+   "name_zh": "莲花公园煎蟹(凌香路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565146": {
+   "name_zh": "莲花公园煎蟹(厦门莲花店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494823": {
+   "name_zh": "丽景俏江南",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807020": {
+   "name_zh": "李老六火锅(湖明路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565489": {
+   "name_zh": "黎明海鲜大排档",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055241": {
+   "name_zh": "临海听风咖啡旅馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860752": {
+   "name_zh": "利斯本茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864877": {
+   "name_zh": "利斯本海鲜酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "10276783": {
+   "name_zh": "黍糖茶屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494718": {
+   "name_zh": "六千馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934085": {
+   "name_zh": "留声机咖啡屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860855": {
+   "name_zh": "陇上人家",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054837": {
+   "name_zh": "龙室咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19770636": {
+   "name_zh": "龙治汉堡(松柏店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19770624": {
+   "name_zh": "龙治汉堡(中华城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805856": {
+   "name_zh": "龙头北仔饼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862991": {
+   "name_zh": "龙文餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19770786": {
+   "name_zh": "龙治汉堡（万象里店）",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863690": {
+   "name_zh": "鹭风酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860627": {
+   "name_zh": "鹭港海湾酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935386": {
+   "name_zh": "鹭肴海鲜吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057464": {
+   "name_zh": "鲁依斯单人自助牛排",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12000754": {
+   "name_zh": "鹭港川菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13481472": {
+   "name_zh": "鹭江9号",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863309": {
+   "name_zh": "烙儿咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055006": {
+   "name_zh": "萝欧咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804655": {
+   "name_zh": "名典咖啡语茶(城西店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805244": {
+   "name_zh": "名典咖啡语茶(古庄路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057456": {
+   "name_zh": "名典咖啡语茶(莲岳路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862807": {
+   "name_zh": "玛贝乐烘培咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862724": {
+   "name_zh": "麻豆儿时尚主题餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054663": {
+   "name_zh": "玛琪雅朵咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494935": {
+   "name_zh": "玛琪雅朵咖啡(第一医院店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806829": {
+   "name_zh": "玛琪雅朵咖啡(湖滨南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865074": {
+   "name_zh": "玛萨茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056277": {
+   "name_zh": "玛茵咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057480": {
+   "name_zh": "马德莲咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13412038": {
+   "name_zh": "麦上初见(中华城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054744": {
+   "name_zh": "麻辣汇麻辣香锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055163": {
+   "name_zh": "慢3咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934713": {
+   "name_zh": "曼陀罗",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864222": {
+   "name_zh": "猫墅咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055730": {
+   "name_zh": "毛家饭店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "11954956": {
+   "name_zh": "玛琪雅朵咖啡(未来海岸店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805803": {
+   "name_zh": "mayday主题咖啡店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494892": {
+   "name_zh": "马扎罗咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803843": {
+   "name_zh": "梅阿查音乐烧烤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803753": {
+   "name_zh": "美麦茶饮(孙厝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055107": {
+   "name_zh": "美度酒窖",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054760": {
+   "name_zh": "美丽时光咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494766": {
+   "name_zh": "美珍香(禾祥西路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494767": {
+   "name_zh": "美珍香(嘉禾中闽店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055634": {
+   "name_zh": "蒙古王宫",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056574": {
+   "name_zh": "蜜咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863904": {
+   "name_zh": "咪哪咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805615": {
+   "name_zh": "咪欧蛋糕坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494896": {
+   "name_zh": "苗味坊酸汤鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13396340": {
+   "name_zh": "闽吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "12899851": {
+   "name_zh": "闽小鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055512": {
+   "name_zh": "名汇必胜客",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494897": {
+   "name_zh": "明记炖品世家",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933278": {
+   "name_zh": "明郎韩国料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494964": {
+   "name_zh": "明清瓦罐煨汤馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054599": {
+   "name_zh": "魔味咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "14100767": {
+   "name_zh": "魔菇传奇",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057183": {
+   "name_zh": "蘑菇休闲咖啡旅馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804230": {
+   "name_zh": "魔力多饮酷饮吧(乌涂店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860604": {
+   "name_zh": "默契咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806803": {
+   "name_zh": "牧林斋山珍美食城",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055656": {
+   "name_zh": "牡丹万鹏中餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494965": {
+   "name_zh": "牡丹万鹏西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4963154": {
+   "name_zh": "muse de cafe",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055286": {
+   "name_zh": "娜雅咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055700": {
+   "name_zh": "南巢咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494984": {
+   "name_zh": "南山楼韩国料理(南山路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865724": {
+   "name_zh": "南洋风情餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "11874700": {
+   "name_zh": "那些年和家菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057259": {
+   "name_zh": "年轮咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056993": {
+   "name_zh": "年年大丰收",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863640": {
+   "name_zh": "念念家的私厨菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494753": {
+   "name_zh": "牛太郎(富山店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807491": {
+   "name_zh": "牛太郎(集美店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803900": {
+   "name_zh": "菠萝蜜8号",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863764": {
+   "name_zh": "农家餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933740": {
+   "name_zh": "农家海鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055890": {
+   "name_zh": "诺米工坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234505": {
+   "name_zh": "太平洋咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804976": {
+   "name_zh": "太平洋咖啡(世贸店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055523": {
+   "name_zh": "派咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3495003": {
+   "name_zh": "佩拉谷意大利餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865038": {
+   "name_zh": "彭厝海鲜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056085": {
+   "name_zh": "朋家阁",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17301666": {
+   "name_zh": "小粉蕉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5056982": {
+   "name_zh": "朴墅庭院私厨",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15044977": {
+   "name_zh": "蒲港记",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803011": {
+   "name_zh": "秦园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054813": {
+   "name_zh": "庆园丰收",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055258": {
+   "name_zh": "骑士咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494804": {
+   "name_zh": "仁缘素食(SM新生活广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865049": {
+   "name_zh": "日月谷温泉度假村月光亭餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "7289482": {
+   "name_zh": "融-手工芋圆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807997": {
+   "name_zh": "荣誉酒楼(海湾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5054746": {
+   "name_zh": "三十一号的咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936011": {
+   "name_zh": "三宝客家私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864874": {
+   "name_zh": "三乐酒楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234137": {
+   "name_zh": "厦大泡泡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235923": {
+   "name_zh": "厦门柏拉图咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4165976": {
+   "name_zh": "厦门西窗咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33355264": {
+   "name_zh": "厦门江师傅私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861641": {
+   "name_zh": "膳谷",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864724": {
+   "name_zh": "膳谷云南风尚餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865222": {
+   "name_zh": "山舍咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235800": {
+   "name_zh": "善之源",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3494840": {
+   "name_zh": "尚豪咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4807861": {
+   "name_zh": "上岛咖啡(沧虹路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234377": {
+   "name_zh": "上岛咖啡(凤屿路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805403": {
+   "name_zh": "上岛咖啡(莲前大道店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4803723": {
+   "name_zh": "上岛咖啡(莲岳路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237192": {
+   "name_zh": "上岛咖啡(同安分店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805592": {
+   "name_zh": "上海·上海(白楼店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804229": {
+   "name_zh": "上海十三香手抓小龙虾",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566175": {
+   "name_zh": "邵公馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566725": {
+   "name_zh": "圣杰士",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862077": {
+   "name_zh": "圣杰士阳光餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237277": {
+   "name_zh": "盛世经典牛排(罗宾森店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804075": {
+   "name_zh": "盛世经典牛排(演武店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935883": {
+   "name_zh": "神田烧肉料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863297": {
+   "name_zh": "食汇餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4802948": {
+   "name_zh": "食汇鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4806852": {
+   "name_zh": "视际烘焙咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862808": {
+   "name_zh": "食锦汇海鲜餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6938773": {
+   "name_zh": "食锦记(集美店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4805103": {
+   "name_zh": "食锦记滨北店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235956": {
+   "name_zh": "食尚城",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4804624": {
+   "name_zh": "食尚古味蚝干粥(金桥路店)",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "297407",
+ "pages_crawled": {
+  "attractions": 1,
+  "restaurants": 45
+ }
+}

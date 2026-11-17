@@ -1,0 +1,85 @@
+{
+ "attractions": {
+  "2051029": {
+   "name_zh": "三明龙栖山",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051429": {
+   "name_zh": "麒麟山公园",
+   "name_en": "",
+   "reviews": 10
+  },
+  "2221035": {
+   "name_zh": "龟山公园",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1851135": {
+   "name_zh": "三明格氏拷自然保护区",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1851131": {
+   "name_zh": "瑞云山",
+   "name_en": "",
+   "reviews": 4
+  },
+  "1851132": {
+   "name_zh": "仙人谷国家森林公园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2050859": {
+   "name_zh": "三明麒麟山公园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2051434": {
+   "name_zh": "均峰山自然保护区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2050862": {
+   "name_zh": "三明玉虚洞",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051427": {
+   "name_zh": "沙溪河水上旅游区",
+   "name_en": "",
+   "reviews": 3
+  },
+  "2050863": {
+   "name_zh": "三明格氏栲自然保护区",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1851134": {
+   "name_zh": "三元国家森林公园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851133": {
+   "name_zh": "正顺庙",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2050910": {
+   "name_zh": "三明溪河水上旅游区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5119929": {
+   "name_zh": "三明女人街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5119931": {
+   "name_zh": "三明市步行街",
+   "name_en": "",
+   "reviews": 1
+  }
+ },
+ "gid": "1017022"
+}

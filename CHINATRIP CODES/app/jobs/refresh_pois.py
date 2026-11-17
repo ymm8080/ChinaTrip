@@ -199,7 +199,7 @@ async def refresh_pois(
             # --match 阶段已烧尽配额：主循环直接进熔断态
             quota_dead = True
             stats["amap_quota_exhausted"] = True
-    for poi_id, poi_city, name, poi_source, location in targets:
+    for poi_id, poi_city, name, poi_source, location, hours_src in targets:
         upgraded = upgrades.get((poi_source or "", poi_id))
         if upgraded is not None:
             # 回源命中：骨架行已是高德 ID，链② 可直查
@@ -520,7 +520,11 @@ async def refresh_pois(
                     break
                 if address:
                     stats["tencent_addr"] = stats.get("tencent_addr", 0) + 1
-        if hours:
+        if hours and (hours_src or "").strip() != "show":
+            # 行级护闸（2026-11-07）：hours_source='show' 行的 opening_hours
+            # 是人工核好的场次时刻（04 种子 10-31 批次回填），图商链回来的
+            # 「开放时间」描述的是场馆/景区不是场次——suppress 后落入下方
+            # enrich/address/miss 分支（照常盖冷却戳，不重复烧配额）。
             # source=poi_source：按行自身命名空间原位更新——缺省 "amap"
             # 会在骨架行（chinatravel/5a/unesco/show）上查无此行 → 新建
             # 幽灵重复行（2026-10-30 实锤：+46 行 amap 壳、原行仍无地址）；

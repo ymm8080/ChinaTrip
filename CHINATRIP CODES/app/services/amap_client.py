@@ -1,4 +1,5 @@
 import logging
+import re
 
 import httpx
 
@@ -188,6 +189,23 @@ def _normalize_poi(poi: dict) -> dict:
     return normalized
 
 
+def _parse_cost(v: object) -> float | None:
+    """amap v5 business.cost（人均消费，元）→ float；形如 "58" / "58.5"，
+    个别响应带货币符号兜底剥前缀；过闸 1-9999（餐饮人均合理域）。
+    景点类 POI 无此键 → None（fill_restaurant_price 判空跳过）。"""
+    s = _as_str(v)
+    if not s:
+        return None
+    try:
+        f = float(s)
+    except ValueError:
+        m = re.match(r"^[¥￥]?\s*(\d+(?:\.\d+)?)", s)
+        if m is None:
+            return None
+        f = float(m.group(1))
+    return f if 1 <= f <= 9999 else None
+
+
 def _extras(poi: dict) -> dict:
     """0009 富化字段（A2/A3/B1）：photos/tel/business_area——空值不落键，
     回源侧 hit.get(...) 判空即可（只填空语义在 store.upsert 兜底）。"""
@@ -230,6 +248,10 @@ def _hours_result(poi: dict | None) -> dict:
         "address": _as_str(poi.get("address")),
         "poi_id": _as_str(poi.get("id")),
     }
+    # 人均消费（2026-11-11 price_level 链）：同 place_hours，缺省不落键
+    cost = _parse_cost(biz.get("cost"))
+    if cost is not None:
+        result["cost"] = cost
     result.update(_extras(poi))
     return result
 
@@ -253,6 +275,19 @@ def _stop_name(stop: object) -> str | None:
     return _as_str(stop.get("name")) if isinstance(stop, dict) else None
 
 
+def _stop_point(stop: object) -> dict | None:
+    """高德公交站坐标 "lon,lat" → {"lon", "lat"}（GCJ-02）。"""
+    if not isinstance(stop, dict):
+        return None
+    parts = (_as_str(stop.get("location")) or "").split(",")
+    if len(parts) != 2:
+        return None
+    try:
+        return {"lon": float(parts[0]), "lat": float(parts[1])}
+    except ValueError:
+        return None
+
+
 def _normalize_ride(kind: str, line: dict) -> dict:
     return {
         "kind": kind,
@@ -260,6 +295,8 @@ def _normalize_ride(kind: str, line: dict) -> dict:
         "type": _as_str(line.get("type")),
         "departure_stop": _stop_name(line.get("departure_stop")),
         "arrival_stop": _stop_name(line.get("arrival_stop")),
+        "departure_location": _stop_point(line.get("departure_stop")),
+        "arrival_location": _stop_point(line.get("arrival_stop")),
         "via_stops": _parse_int(line.get("via_num"), default=0),
         "departure_time": _as_str(line.get("departure_time")),
     }
@@ -729,6 +766,11 @@ class AmapClient:
             "rating": _as_str(biz.get("rating")),
             "address": _as_str(poi.get("address")),
         }
+        # 人均消费（2026-11-11 price_level 链）：餐饮 POI business 块带
+        # cost，景点类无此键 → None；结果键缺省不落，调用方判空。
+        cost = _parse_cost(biz.get("cost"))
+        if cost is not None:
+            result["cost"] = cost
         result.update(_extras(poi))
         return result
 

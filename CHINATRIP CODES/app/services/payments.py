@@ -121,6 +121,12 @@ class PaymentStore:
     def __init__(self, db_path: str) -> None:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        # 双进程（8000 规划 / 8443 TLS）共享同一库文件：WAL 让读写不互斥，
+        # busy_timeout 让偶发写撞锁等锁而不是立刻 SQLITE_BUSY（2026-11-17
+        # 并发排查：无 WAL 时跨进程写互斥走文件锁长等待）。WAL 是文件级
+        # 持久属性（重复执行无害），busy_timeout 是连接级（每次打开都要设）。
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=10000")
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS payments ("
             "id TEXT PRIMARY KEY, payload TEXT NOT NULL)"

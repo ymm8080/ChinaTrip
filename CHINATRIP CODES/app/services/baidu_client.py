@@ -571,11 +571,30 @@ _RIDE_KINDS = {
 }
 
 
+def _bd_point(loc: object) -> dict | None:
+    """百度站点坐标 {"lng","lat"}（BD09）→ {"lon","lat"}（GCJ-02）。"""
+    if not isinstance(loc, dict):
+        return None
+    try:
+        lng = float(loc.get("lng"))
+        lat = float(loc.get("lat"))
+    except (TypeError, ValueError):
+        return None
+    lon, lat = bd09_to_gcj02(lng, lat)
+    return {"lon": lon, "lat": lat}
+
+
 def _normalize_transit_steps(steps: list) -> tuple[list[dict], int]:
     """百度 transit 方案 steps -> 高德 segments 形状。
 
-    连续 walking 步归并为一段 walking；乘车步（type bus/subway/…）
-    归并前 flush。返回 (segments, 总步行距离米)。
+    线上实测（2026-11-15，慕田峪案）：``steps`` 是「段数组的数组」——每组一段
+    （步行或乘车），段内步带 ``trans_type``（-1 乘车、0/4 步行、1 站内换乘、
+    3 同站换乘）与 ``vehicle_info.detail``（线路名/上下车站/首末班/
+    shuttle_time_table）。此前按文档猜的扁平步数组（步上带 type=walking/
+    subway/bus）继续兼容——两种形状都吃。
+
+    连续 walking 步归并为一段 walking；乘车步归并前 flush。
+    返回 ``(segments, 总步行距离米)``。
     """
     segments: list[dict] = []
     walk_buf: list[dict] = []
@@ -600,31 +619,73 @@ def _normalize_transit_steps(steps: list) -> tuple[list[dict], int]:
             walk_buf = []
             walk_durations = []
 
-    for step in steps:
-        if not isinstance(step, dict):
-            continue
-        kind_raw = (_as_str(step.get("type")) or "").lower()
-        if kind_raw in ("", "walking"):
-            walking_total += _parse_int(step.get("distance"), default=0)
-            walk_buf.append(_normalize_walking_step(step))
-            walk_durations.append(_parse_int(step.get("duration")))
-            continue
-        flush()
+    def step_kind(step: dict) -> str:
+        raw = (_as_str(step.get("type")) or "").lower()
+        if raw == "walking":
+            return "walk"
+        if raw in ("bus", "subway", "railway", "train"):
+            return "ride"
+        trans = step.get("trans_type")
+        try:
+            code = int(trans)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            code = None
+        if code is not None:
+            return "ride" if code == -1 else "walk"
+        text = _as_str(step.get("instructions")) or ""
+        return "walk" if text.startswith("步行") else "ride"
+
+    def ride_from(step: dict) -> dict:
+        vinfo = step.get("vehicle_info")
+        detail = vinfo.get("detail") if isinstance(vinfo, dict) else None
+        detail = detail if isinstance(detail, dict) else {}
         vehicle = step.get("vehicle") if isinstance(step.get("vehicle"), dict) else {}
-        ride = {
-            "kind": _RIDE_KINDS.get(kind_raw, "bus"),
-            "name": _as_str(vehicle.get("name")) or "",
-            "type": _as_str(vehicle.get("type")),
-            "departure_stop": _as_str(step.get("entry")) or None,
-            "arrival_stop": _as_str(step.get("exit")) or None,
-            "via_stops": 0,
-            "departure_time": None,
+        vtype = detail.get("type")
+        if vtype is None:
+            vtype = vehicle.get("type")
+        raw = (_as_str(step.get("type")) or "").lower()
+        kind = _RIDE_KINDS.get(raw, "bus")
+        try:
+            if int(str(vtype)) == 1:  # 百度 vehicle type=1 = 地铁
+                kind = "railway"
+        except (TypeError, ValueError):
+            pass
+        table = detail.get("shuttle_time_table")
+        start_info = detail.get("start_info")
+        end_info = detail.get("end_info")
+        start_info = start_info if isinstance(start_info, dict) else {}
+        end_info = end_info if isinstance(end_info, dict) else {}
+        return {
+            "kind": kind,
+            "name": _as_str(detail.get("name")) or _as_str(vehicle.get("name")) or "",
+            "type": _as_str(vtype),
+            "departure_stop": _as_str(detail.get("on_station"))
+            or _as_str(step.get("entry")),
+            "arrival_stop": _as_str(detail.get("off_station"))
+            or _as_str(step.get("exit")),
+            "via_stops": _parse_int(detail.get("stop_num"), default=0),
+            "departure_time": _as_str(detail.get("first_time"))
+            or _as_str(step.get("departure_time")),
+            "last_time": _as_str(detail.get("last_time")),
+            "time_table": [t for t in (table or []) if isinstance(t, str)]
+            if isinstance(table, list)
+            else [],
+            "departure_location": _bd_point(start_info.get("start_location")),
+            "arrival_location": _bd_point(end_info.get("end_location")),
+            "duration_s": _parse_int(step.get("duration")),
+            "vehicle_type": _parse_int(vtype),
         }
-        segments.append(
-            {
-                "walking": None,
-                "rides": [ride],
-            }
-        )
+
+    for group in steps:
+        for step in group if isinstance(group, list) else [group]:
+            if not isinstance(step, dict):
+                continue
+            if step_kind(step) == "walk":
+                walking_total += _parse_int(step.get("distance"), default=0)
+                walk_buf.append(_normalize_walking_step(step))
+                walk_durations.append(_parse_int(step.get("duration")))
+                continue
+            flush()
+            segments.append({"walking": None, "rides": [ride_from(step)]})
     flush()
     return segments, walking_total

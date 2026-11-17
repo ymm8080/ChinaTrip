@@ -213,6 +213,26 @@ def booking_link_for(name: str, city: str | None = None) -> str:
     return url
 
 
+def restaurant_booking_link(name: str, city: str | None = None) -> str:
+    """🍴 餐饮直达（2026-11-07 用户拍板：行程卡餐位旁按钮）：美团美食频道
+    （meishi）搜店——商户页即订座/点单菜单入口。
+
+    与 booking_link_for 同款联盟参数纪律（alliance 双非空才附加）；
+    餐饮不走 geo 分流——美团是境内餐饮预订主场，境外用户订国内餐厅
+    同样落美团（Trip.com 无对等订座面）。
+    """
+    settings = get_settings()
+    from urllib.parse import quote
+
+    url = settings.booking_restaurant_template_domestic.format(
+        keyword=quote(f"{city or ''}{name}".strip() or name)
+    )
+    if settings.alliance_id and settings.alliance_sid:
+        sep = "&" if "?" in url else "?"
+        url += f"{sep}allianceid={settings.alliance_id}&sid={settings.alliance_sid}"
+    return url
+
+
 # --- L2：库存 Provider（协议 + 注册表；key 未配 → unknown） -------------------
 
 

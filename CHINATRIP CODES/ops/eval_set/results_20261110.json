@@ -1,0 +1,510 @@
+{
+  "meta": {
+    "mode": "live-library",
+    "select_mode": "algorithm",
+    "log": "D:\\CHINATRIP\\CHINATRIP CODES\\devlogs\\eval_run_20261110T084600Z.log",
+    "ran_at": "2026-11-10T08:46:06.058327+00:00"
+  },
+  "totals": {
+    "queries": 12,
+    "ok": 12,
+    "no_plan": 0,
+    "error": 0,
+    "validate_ok": 12,
+    "hard_violations": 0,
+    "degradation_disclosures": 9,
+    "placeholder_items": 6,
+    "llm_calls": 0
+  },
+  "results": [
+    {
+      "id": "sh-2d-museum",
+      "note": "单城两日博物馆偏好",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 11,
+      "transfer_items": 0,
+      "placeholder_items": 1,
+      "placeholder_names": [
+        "上海博物馆"
+      ],
+      "assumptions_total": 15,
+      "degradation_disclosures": 1,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "上海"
+        ],
+        "days_match": true,
+        "plan_days": 2,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "上海：同站重复卡并一，上海外滩美术馆、上海外滩星空艺术馆、东方明珠广播电视塔（保留 上海科技馆、中国共产党一大·二大·四大纪念馆景区、东方明珠、上海野生动物园、崇明区西沙明珠湖景区）；上海：行程内博物馆/风景区/CityWalk 已满品类上限，外滩、上海之巅观光厅、北外滩国客中心让位；第2天返程日上午保底排「中国共产党一大·二大·四大纪念馆景区」（离城上午闸只收轻量点）",
+        "已按偏好优先安排同类景点：博物馆（同类可多个）",
+        "白名单未排（可选加）：上海科技馆（5a）、崇明区西沙明珠湖景区（5a）、东方明珠（5a）、上海野生动物园（5a）",
+        "预约提醒：「上海博物馆」需提前 14 天预约（预约制期间散客提前 14 天、每日 12:00 放票（2024-04 起）；东馆常设展 2024-09 起试行免预约凭证入馆，特展以官方小程序为准；境外游客可用英文预约系统 reservation.shanghaimuseum.net/en（邮箱注册））——外国手机号/护照在小程序常失败——Trip.com/Klook 代抢是标准解法（故宫官网/三星堆境外通道/熊猫基地携程频道/上博英文预约系统=护照可自助；陕历博小程序仅限二代身份证、官网可护照预约；布达拉宫外籍须随团由旅行社代订）；「武康路-安福路街区」无需预约（开放街区（武康大楼底层店铺各自消费））；「中国共产党一大·二大·四大纪念馆景区」需预约（建议 Trip.com/Klook 代抢）",
+        "第1天、第2天午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+        "第1天、第2天晚餐暂未找到合适餐厅，已留晚饭时段（回复可换/删）",
+        "求解器未收敛，时间已按顺序兜底排列",
+        "「武康路-安福路街区」在第1天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "「白玉兰广场」在第2天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "「南京路步行街」已归位第1天，与近邻上海博物馆、思南公馆街区同片区",
+        "「人民广场」的近邻多在第1天，为保第2天片区连贯未楔入，已略过——要加回可指定其他天",
+        "「南京路步行街」在第1天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "sh-5d-xian-elderly",
+      "note": "沪进沪出5天西安闭合腿，带老人慢节奏",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 3,
+      "violations_by_rule": {
+        "6": 3
+      },
+      "visit_items": 19,
+      "transfer_items": 2,
+      "placeholder_items": 2,
+      "placeholder_names": [
+        "西安大唐西市博物馆",
+        "西安碑林博物馆"
+      ],
+      "assumptions_total": 18,
+      "degradation_disclosures": 2,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "上海",
+          "西安",
+          "上海"
+        ],
+        "days_match": true,
+        "plan_days": 5,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "西安：行程内博物馆/风景区/CityWalk 已满品类上限，陕西历史博物馆、西安博物院、西安市钟鼓楼博物馆、陕西自然博物馆、西安半坡博物馆、陕西唐三彩艺术博物馆、西安市临潼区博物馆、西安唐皇城墙含光门遗址博物馆、西安大唐西市博物馆让位；「西安钟楼」所属近距离组合任一天都装不下整组，已按地理端点退回零散安排（组内其余同日连排）；「华清宫」所属近距离组合任一天都装不下整组，已按地理端点退回零散安排（组内其余同日连排）；第2天预报小雨：大雁塔大唐芙蓉园景区（露天）小雨照排，建议备伞",
+        "白名单未排（可选加）：小雁塔（unesco/unesco_silk_road）",
+        "已合并重复站点：西安钟楼",
+        "预约提醒：「大雁塔大唐芙蓉园景区」需预约（建议 Trip.com/Klook 代抢）；「西安鼓楼」无需预约（「北京钟鼓楼」公众号购票参观）；外籍：同国内购票制——现场窗口凭护照购票（OTA 为外籍通用兜底）；「秦始皇帝陵博物院」需预约（建议 Trip.com/Klook 代抢）；「华清宫」需预约（建议 Trip.com/Klook 代抢）",
+        "第1天落地后默认先到酒店安顿（落地约1.5小时到店、休整1小时），当天首个行程不早于落地2.5小时；无需酒店可删除该卡",
+        "已自动安排 2 家顺路餐厅（回复可换/删）",
+        "第3天、第4天、第5天午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+        "第4天晚餐暂未找到合适餐厅，已留晚饭时段（回复可换/删）",
+        "求解器未收敛，时间已按顺序兜底排列",
+        "已合并重复站点：御宴宫、长安十二时辰·唐宴",
+        "「临潼骊山风景名胜区」在第4天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "第2天已有宴秀「长安十二时辰·唐宴」，「《梦回大唐》」改排第5天（演出一天一场）",
+        "「御宴宫」原就近簇已改排其他演出日，宴类跟随当日簇、不孤放别日，已取消（需要可手动加回）",
+        "「《梦回大唐》」与「唐乐宫《大唐女皇》」换位（就近演出优先保留）",
+        "「唐乐宫《大唐女皇》」全天已满，未排（要保留请说）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "bj-4d-first-visit",
+      "note": "北京进出闭合4天首次到访",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 4,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "北京",
+          "北京"
+        ],
+        "days_match": true,
+        "plan_days": 4,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "xian-3d-rain",
+      "note": "西安3天雨天室内+兵马俑心愿",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 2,
+      "violations_by_rule": {
+        "6": 2
+      },
+      "visit_items": 12,
+      "transfer_items": 0,
+      "placeholder_items": 1,
+      "placeholder_names": [
+        "西安碑林博物馆"
+      ],
+      "assumptions_total": 18,
+      "degradation_disclosures": 2,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "西安"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {
+          "兵马俑": false
+        }
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "西安：行程内博物馆/风景区/CityWalk 已满品类上限，陕西历史博物馆、西安博物院、西安市钟鼓楼博物馆、陕西自然博物馆、西安半坡博物馆、陕西唐三彩艺术博物馆、西安市临潼区博物馆、西安唐皇城墙含光门遗址博物馆、西安大唐西市博物馆让位；「西安钟楼」所属近距离组合任一天都装不下整组，已按地理端点退回零散安排（组内其余同日连排）；第1天预报小雨：西安钟楼（半露天）小雨照排，建议备伞；第3天返程日上午保底自第2天借排「西安鼓楼」（离城上午闸只收轻量点）",
+        "跨天均衡：超载天已分流——西安钟楼 -> day 3",
+        "白名单未排（可选加）：华清宫（5a）",
+        "已合并重复站点：小雁塔、西安钟楼",
+        "预约提醒：「大雁塔大唐芙蓉园景区」需预约（建议 Trip.com/Klook 代抢）；「秦始皇帝陵博物院」需预约（建议 Trip.com/Klook 代抢）；「西安鼓楼」无需预约（「北京钟鼓楼」公众号购票参观）；外籍：同国内购票制——现场窗口凭护照购票（OTA 为外籍通用兜底）；「御宴宫」需预约（建议 Trip.com/Klook 代抢）",
+        "已自动安排 2 家顺路餐厅（回复可换/删）",
+        "第3天午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+        "第3天晚餐暂未找到合适餐厅，已留晚饭时段（回复可换/删）",
+        "求解器未收敛，时间已按顺序兜底排列",
+        "已合并重复站点：长安十二时辰·唐宴、御宴宫",
+        "「西安鼓楼」已归位第2天，与近邻城墙·碑林历史文化景区、西安碑林博物馆同片区",
+        "演出一天一场：「唐乐宫《大唐女皇》」离当天其他景点最远，为「《梦回大唐》」让位未排（要保留请说）",
+        "第2天已有宴秀「长安十二时辰·唐宴」，「《梦回大唐》」改排第3天（演出一天一场）",
+        "「西安鼓楼」在第2天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "「秦始皇帝陵博物院」距市区较远，到达日只排轻量近点，其余各天已满，本次未排入",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "cd-4d-panda",
+      "note": "成都闭合4天熊猫心愿",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 4,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "成都",
+          "成都"
+        ],
+        "days_match": true,
+        "plan_days": 4,
+        "must_visits_found": {
+          "熊猫基地": false
+        }
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "hz-3d-westlake",
+      "note": "杭州闭合3天西湖休闲",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 3,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "杭州",
+          "杭州"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "sh-sz-3d-garden",
+      "note": "沪苏沪3天园林短途",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 2,
+      "violations_by_rule": {
+        "6": 2
+      },
+      "visit_items": 13,
+      "transfer_items": 2,
+      "placeholder_items": 1,
+      "placeholder_names": [
+        "苏州城墙博物馆"
+      ],
+      "assumptions_total": 16,
+      "degradation_disclosures": 3,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "上海",
+          "苏州",
+          "上海"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "苏州：行程内博物馆/风景区/CityWalk 已满品类上限，环秀山庄、虎丘山风景名胜区、吴中区太湖旅游区、金鸡湖旅游区、吴江区同里古镇景区、苏州丝绸博物馆、沙家浜风景区、苏州博物馆（苏州民俗博物馆）让位；苏州：同类景点已满2家，网师园、退思园、耦园、留园让位其他类型；夜场一天一场、窗口内已排满：大将汤日式温泉(李公堤店)、富韩沐浴汗蒸(昆山店)未排（要保留请说）",
+        "白名单未排（可选加）：留园（unesco）、网师园（unesco）、退思园（unesco）、环秀山庄（unesco）、虎丘山风景名胜区（unesco）、耦园（unesco）、金鸡湖旅游区（5a）、吴中区太湖旅游区（5a）、吴江区同里古镇景区（5a）",
+        "预约提醒：「京杭大运河」无需预约（多省市线性遗产无统一门票；沿线点段各自开放/购票）；外籍：同国内（点群各点自理，无统一票务）；「拙政园」需预约（建议 Trip.com/Klook 代抢）；「吴宫御宴」需预约（建议 Trip.com/Klook 代抢）",
+        "已自动安排 1 家顺路餐厅（回复可换/删）",
+        "第2天、第3天午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+        "第1天晚餐暂未找到合适餐厅，已留晚饭时段（回复可换/删）",
+        "上海→苏州 无班次，直线约 87 公里，按驾车约 105 分钟占位",
+        "苏州→上海 无班次，直线约 87 公里，按驾车约 105 分钟占位",
+        "「狮子林」在第1天无法安排（10:45 才抵达苏州），已从行程移除——要加回可安排在其他天",
+        "「平江历史街区」在第1天（转场日）排不下时刻且无其他天可挪，已从行程移除——要加回可安排在其他天",
+        "求解器未收敛，时间已按顺序兜底排列",
+        "「Mini Mars亲子家庭中心(东方之门店)」在第2天始终排不下时刻，已从行程移除——要加回可指定其他天",
+        "「枫桥夜泊」与第3天其余景点相距较远，已挪至第2天近景点处",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "cq-3d-nightview",
+      "note": "重庆闭合3天夜景美食",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 3,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "重庆",
+          "重庆"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "nj-3d-history",
+      "note": "南京闭合3天历史博物馆",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 3,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "南京",
+          "南京"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "en-shanghai-3d",
+      "note": "英文单城3天博物馆+ CityWalk",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 3,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "上海",
+          "上海"
+        ],
+        "days_match": true,
+        "plan_days": 3,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "en-bj-xian-6d",
+      "note": "英文北京西安6天火车",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 2,
+      "violations_by_rule": {
+        "6": 2
+      },
+      "visit_items": 16,
+      "transfer_items": 2,
+      "placeholder_items": 1,
+      "placeholder_names": [
+        "西安碑林博物馆"
+      ],
+      "assumptions_total": 16,
+      "degradation_disclosures": 1,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "北京",
+          "西安",
+          "西安",
+          "北京"
+        ],
+        "days_match": true,
+        "plan_days": 6,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "西安：同站重复卡并一，大雁塔大唐芙蓉园景区、小雁塔、秦始皇帝陵博物院、华清宫、城墙·碑林历史文化景区、长安十二时辰主题街区、西安碑林博物馆、陕西历史博物馆、西安博物院、陕西自然博物馆、西安半坡博物馆、陕西唐三彩艺术博物馆、西安市临潼区博物馆、西安唐皇城墙含光门遗址博物馆、西安大唐西市博物馆（保留 大雁塔大唐芙蓉园景区、小雁塔、秦始皇帝陵博物院、华清宫、城墙·碑林历史文化景区）；西安：行程内博物馆/风景区/CityWalk 已满品类上限，陕西历史博物馆、西安博物院、陕西自然博物馆、西安半坡博物馆、陕西唐三彩艺术博物馆、西安市临潼区博物馆、西安唐皇城墙含光门遗址博物馆、西安大唐西市博物馆让位；第6天返程日上午保底排「西安碑林博物馆」（离城上午闸只收轻量点）；夜场一天一场、窗口内已排满：《梦回大唐》、唐乐宫《大唐女皇》、《梦回大唐》未排（要保留请说）",
+        "已合并重复站点：小雁塔、御宴宫、长安十二时辰·唐宴",
+        "预约提醒：「大雁塔大唐芙蓉园景区」需预约（建议 Trip.com/Klook 代抢）；「华清宫」需预约（建议 Trip.com/Klook 代抢）；「秦始皇帝陵博物院」需预约（建议 Trip.com/Klook 代抢）；「御宴宫」需预约（建议 Trip.com/Klook 代抢）",
+        "第1天落地后默认先到酒店安顿（落地约1.5小时到店、休整1小时），当天首个行程不早于落地2.5小时；无需酒店可删除该卡",
+        "已自动安排 2 家顺路餐厅（回复可换/删）",
+        "第6天午餐暂未找到合适餐厅，已留午饭时段（回复可换/删）",
+        "求解器未收敛，时间已按顺序兜底排列",
+        "已跨天全局重排：「秦始皇帝陵博物院」↔「唐乐宫《大唐女皇》」对调（全局评分 -243→-144）",
+        "已合并重复站点：长安十二时辰·唐宴、御宴宫",
+        "「西安碑林博物馆」已归位第4天，与近邻城墙·碑林历史文化景区同片区",
+        "「华清宫」距第4天主片区较远，已移出第4天、改排第3天，保持片区连贯",
+        "「秦始皇帝陵博物院」距第5天主片区较远，已移出第5天、改排第3天，保持片区连贯",
+        "第4天已有宴秀「御宴宫」，「唐乐宫《大唐女皇》」改排第2天（演出一天一场）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    },
+    {
+      "id": "gz-4d-family",
+      "note": "广州闭合4天亲子",
+      "state": "ready",
+      "clarify_count": 0,
+      "status": "ok",
+      "validate_ok": true,
+      "hard_violations": 0,
+      "warning_violations": 0,
+      "violations_by_rule": {},
+      "visit_items": 4,
+      "transfer_items": 0,
+      "placeholder_items": 0,
+      "placeholder_names": [],
+      "assumptions_total": 3,
+      "degradation_disclosures": 0,
+      "llm_calls": 0,
+      "checks": {
+        "cities_match": true,
+        "plan_cities": [
+          "广州",
+          "广州"
+        ],
+        "days_match": true,
+        "plan_days": 4,
+        "must_visits_found": {}
+      },
+      "assumptions": [
+        "假设中等节奏、不早起",
+        "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+        "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡"
+      ]
+    }
+  ]
+}

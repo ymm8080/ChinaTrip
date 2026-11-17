@@ -1,0 +1,364 @@
+[上海] 上海儿童博物馆: keeper=[museum2] id=76bc0986
+    retired [amap] 上海儿童博物馆 id=2a81667a (S1)
+[上海] 上海公安博物馆: keeper=[museum2] id=823738cf
+    fill intro_en <- [amap]
+    retired [amap] 上海公安博物馆 id=76c8a5d6 (S1)
+[上海] 上海博物馆: keeper=[museum1] id=f49decf9
+    retired [amap] 上海博物馆 id=af4ed987 (S1)
+[上海] 上海外滩美术馆: keeper=[artmuseum] id=15a9af4c
+    fill address <- [amap]
+    fill phone <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['RAM', 'Rockbund Art Museum', '外滩美术馆']
+    retired [amap] 上海外滩美术馆 id=91f24f71 (S1)
+[上海] 上海当代艺术博物馆: keeper=[artmuseum] id=238be00d
+    fill address <- [amap]
+    fill phone <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    retired [amap] 上海当代艺术博物馆 id=e5bf113b (S1)
+[上海] 上海犹太难民纪念馆: keeper=[museum2] id=c00b2504
+    aliases += ['上海犹太难民博物馆', '摩西会堂', '摩西会堂旧址']
+    retired [chinatravel] 上海犹太难民纪念馆 id=07532ecd (S1)
+[上海] 上海玻璃博物馆: keeper=[artmuseum] id=a6059c1b
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill phone <- [amap]
+    fill rating <- [amap]
+    fill rating_source <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['G+玻璃主题园', 'SHMOG', 'Shanghai Museum of Glass', '玻璃博物馆']
+    retired [amap] 上海玻璃博物馆 id=fc257116 (S1)
+[上海] 上海科技馆: keeper=[museum1] id=39ac626b
+    fill address <- [baidu]
+    fill phone <- [baidu]
+    fill ticket_price_min <- [baidu]
+    fill ticket_price_max <- [baidu]
+    fill ticket_source <- [baidu]
+    aliases += ['上海科学技术馆']
+    retired [baidu] 上海科技馆 id=76b337de (S1)
+[上海] 上海航宇科普中心: keeper=[museum2] id=0be0ed05
+    retired [chinatravel] 上海航宇科普中心 id=184b5c22 (S1)
+[上海] 浦东美术馆: keeper=[artmuseum] id=82443170
+    retired [amap] 浦东美术馆 id=8d831f87 (S1)
+[上海] 西岸美术馆: keeper=[artmuseum] id=54048323
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    retired [amap] 西岸美术馆 id=ce6b0465 (S1)
+[佛山] 佛山市祖庙博物馆: keeper=[museum1] id=92db6bbe
+    retired [4a] 佛山市祖庙博物馆 id=ad70bb5e (S1)
+[兰州] 甘肃省博物馆: keeper=[museum1] id=3427a037
+    retired [reservation] 甘肃省博物馆 id=90c08f75 (S1)
+[北京] 中国华侨历史博物馆: keeper=[museum1] id=2e0928d2
+    fill address <- [chinatravel]
+    retired [chinatravel] 中国华侨历史博物馆 id=631dd642 (S1)
+[北京] 中国国家博物馆: keeper=[museum1] id=cde9db65
+    aliases += ['NMC', '国博', '国家博物馆']
+    retired [amap] 中国国家博物馆 id=10860147 (S1)
+[北京] 中国地质博物馆: keeper=[museum1] id=6491455e
+    aliases += ['地质博物馆']
+    retired [chinatravel] 中国地质博物馆 id=911750d6 (S1)
+[北京] 中国海关博物馆: keeper=[museum1] id=60497b22
+    aliases += ['海关博物馆']
+    retired [chinatravel] 中国海关博物馆 id=6311c6c8 (S1)
+[北京] 中国电影博物馆: keeper=[museum1] id=e95f4288
+    retired [chinatravel] 中国电影博物馆 id=c9f955da (S1)
+[北京] 中国科学技术馆: keeper=[museum1] id=551d99aa
+    aliases += ['中国科学技术馆新馆', '中国科技馆', '科技馆新馆']
+    retired [amap] 中国科学技术馆 id=905f9d72 (S1)
+[北京] 中国美术馆: keeper=[artmuseum] id=a7e16560
+    aliases += ['NAMOC', 'National Art Museum of China']
+    retired [amap] 中国美术馆 id=15f0bf96 (S1)
+[北京] 中央美术学院美术馆: keeper=[artmuseum] id=739c0ec2
+    fill address <- [chinatravel]
+    aliases += ['CAFA Art Museum', 'CAFA美术馆', '中央美院美术馆', '央美美术馆']
+    retired [chinatravel] 中央美术学院美术馆 id=534a3df9 (S1)
+[北京] 今日美术馆: keeper=[artmuseum] id=2b151b3a
+    fill intro_en <- [chinatravel]
+    retired [chinatravel] 今日美术馆 id=a44770d9 (S1)
+[北京] 北京古代建筑博物馆: keeper=[museum2] id=ba49f343
+    retired [chinatravel] 北京古代建筑博物馆 id=ef3b869d (S1)
+[北京] 北京民俗博物馆: keeper=[museum2] id=6227346e
+    retired [chinatravel] 北京民俗博物馆 id=e300ca1e (S1)
+[北京] 北京汽车博物馆: keeper=[museum1] id=4a0501c2
+    fill intro_en <- [chinatravel]
+    aliases += ['Beijing Auto Museum', '汽车博物馆']
+    retired [chinatravel] 北京汽车博物馆 id=096e4521 (S1)
+[北京] 北海公园游船: keeper=[chinatravel] id=10433794
+    fill address <- [chinatravel]
+    aliases += ['北海划船', '北海荡舟']
+    retired [chinatravel] 北海公园游船 id=62eeda5e (S1)
+[北京] 周口店北京人遗址博物馆: keeper=[museum1] id=a2a8cf76
+    retired [amap] 周口店北京人遗址博物馆 id=625ab97b (S1)
+[北京] 国家自然博物馆: keeper=[museum1] id=c0bce32e
+    fill phone <- [amap]
+    fill rating_count <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_source <- [amap]
+    retired [amap] 国家自然博物馆 id=408acb46 (S1)
+[北京] 孔庙和国子监博物馆: keeper=[museum2] id=e5b06605
+    fill intro_en <- [amap]
+    aliases += ['北京孔庙', '国子监', '孔庙国子监', '成贤街孔庙']
+    retired [amap] 孔庙和国子监博物馆 id=73ec3567 (S1)
+[北京] 故宫博物院: keeper=[museum1] id=ddb2f72d
+    fill intro_en <- [chinatravel]
+    aliases += ['Forbidden City', 'The Palace Museum', '紫禁城']
+    retired [chinatravel] 故宫博物院 id=70fb5e39 (S1)
+[北京] 清华大学艺术博物馆: keeper=[museum1] id=dc592b6c
+    fill intro_en <- [amap]
+    aliases += ['清华艺博']
+    retired [amap] 清华大学艺术博物馆 id=50bde2a6 (S1)
+[北京] 红砖美术馆: keeper=[artmuseum] id=e2884379
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    retired [amap] 红砖美术馆 id=05f7d385 (S1)
+[北京] 首都博物馆: keeper=[museum1] id=1c90e67b
+    fill intro_en <- [amap]
+    retired [amap] 首都博物馆 id=e82e8215 (S1)
+[十堰] 十堰市博物馆: keeper=[museum2] id=b789e600
+    fill address <- [4a]
+    retired [4a] 十堰市博物馆 id=2f751c04 (S1)
+[南京] 南京博物院: keeper=[museum1] id=47338992
+    aliases += ['中央博物院', '南博', '国立中央博物院']
+    retired [amap] 南京博物院 id=ba6eb8a2 (S1)
+[南京] 南京地质博物馆: keeper=[museum2] id=513e96b7
+    fill address <- [amap]
+    fill intro_en <- [amap]
+    retired [amap] 南京地质博物馆 id=26b7cbc9 (S1)
+[南京] 南京城墙博物馆: keeper=[museum1] id=aeed0f2f
+    retired [amap] 南京城墙博物馆 id=affe9fb9 (S1)
+[南京] 四方当代美术馆: keeper=[artmuseum] id=75d8a68b
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    retired [amap] 四方当代美术馆 id=e59cc1d8 (S1)
+[南京] 明孝陵博物馆: keeper=[museum2] id=75d53c5c
+    fill address <- [amap]
+    fill intro_en <- [amap]
+    retired [amap] 明孝陵博物馆 id=35d428a8 (S1)
+[南京] 江苏省美术馆: keeper=[artmuseum] id=7d2780c9
+    aliases += ['国立美术陈列馆旧址', '江苏省美术馆陈列馆', '江苏美术馆']
+    retired [amap] 江苏省美术馆 id=1f39f7d0 (S1)
+[南宁] 广西民族博物馆: keeper=[museum1] id=f2ceb8c8
+    retired [4a] 广西民族博物馆 id=a2d89ae4 (S1)
+[呼和浩特] 内蒙古博物院: keeper=[museum1] id=db940e2b
+    fill intro_en <- [4a]
+    retired [4a] 内蒙古博物院 id=32c56f9c (S1)
+[咸阳] 乾陵博物馆: keeper=[museum1] id=92ce6371
+    retired [4a] 乾陵博物馆 id=73a8991a (S1)
+[咸阳] 昭陵博物馆: keeper=[museum2] id=366b42c2
+    retired [4a] 昭陵博物馆 id=6bba5374 (S1)
+[咸阳] 茂陵博物馆: keeper=[museum2] id=bc73fc1a
+    fill address <- [4a]
+    retired [4a] 茂陵博物馆 id=e75191e1 (S1)
+[商丘] 商丘博物馆: keeper=[museum2] id=d8711bca
+    fill address <- [4a]
+    retired [4a] 商丘博物馆 id=6e8f4b03 (S1)
+[大连] 大连博物馆: keeper=[museum1] id=8dd402c2
+    fill address <- [4a]
+    retired [4a] 大连博物馆 id=b9148031 (S1)
+[大连] 大连自然博物馆: keeper=[museum1] id=816da63e
+    fill address <- [4a]
+    retired [4a] 大连自然博物馆 id=dabe6438 (S1)
+[安阳] 中国文字博物馆: keeper=[museum1] id=12a595d5
+    retired [baidu] 中国文字博物馆 id=52193244 (S1)
+[宜昌] 宜昌博物馆: keeper=[museum1] id=c0b67440
+    retired [4a] 宜昌博物馆 id=c8dfa794 (S1)
+[平顶山] 平顶山博物馆: keeper=[museum1] id=deaf4538
+    retired [4a] 平顶山博物馆 id=27ee08db (S1)
+[广州] 南汉二陵博物馆: keeper=[museum2] id=ad0796d7
+    fill address <- [amap]
+    retired [amap] 南汉二陵博物馆 id=b1b5f3ba (S1)
+[广州] 广东中医药博物馆: keeper=[museum2] id=dba3fcf7
+    retired [chinatravel] 广东中医药博物馆 id=e3ffa23c (S1)
+[广州] 广东民间工艺博物馆: keeper=[museum1] id=831746e6
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['陈氏书院（陈家祠）']
+    retired [amap] 广东民间工艺博物馆 id=96cb7fa6 (S1)
+[广州] 广东省博物馆: keeper=[museum1] id=e0955ea3
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['月光宝盒', '省博', '粤博']
+    retired [amap] 广东省博物馆 id=08b203e4 (S1)
+[广州] 广东美术馆: keeper=[artmuseum] id=2dd817f7
+    retired [amap] 广东美术馆 id=a789c4b5 (S1)
+[广州] 广州博物馆: keeper=[museum1] id=2bffc5ad
+    fill intro_en <- [amap]
+    retired [amap] 广州博物馆 id=fe44a0ae (S1)
+[广州] 广州艺术博物院: keeper=[museum1] id=e83c06d2
+    aliases += ['广州艺博院']
+    retired [amap] 广州艺术博物院 id=8c1a2341 (S1)
+[成都] 四川博物院: keeper=[museum1] id=5f07e7e5
+    fill address <- [amap]
+    fill rating_count <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['川西博物馆']
+    retired [amap] 四川博物院 id=79e1a6d1 (S1)
+[成都] 成都川菜博物馆: keeper=[museum2] id=42ada408
+    retired [amap] 成都川菜博物馆 id=c7f92458 (S1)
+[成都] 成都杜甫草堂博物馆: keeper=[museum1] id=df180c9a
+    retired [4a] 成都杜甫草堂博物馆 id=ade9ecad (S1)
+[成都] 成都武侯祠博物馆: keeper=[museum1] id=32e6cf05
+    retired [4a] 成都武侯祠博物馆 id=8b3585ef (S1)
+[成都] 成都永陵博物馆: keeper=[museum2] id=9d2cb557
+    fill phone <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['前蜀永陵', '永陵', '王建墓']
+    retired [amap] 成都永陵博物馆 id=128208ff (S1)
+[成都] 成都蜀锦织绣博物馆: keeper=[museum2] id=6961e7f4
+    fill phone <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['蜀江锦院']
+    retired [amap] 成都蜀锦织绣博物馆 id=e29314f4 (S1)
+[成都] 成都金沙遗址博物馆: keeper=[museum1] id=85ecd165
+    aliases += ['乌木林', '金沙遗址博物馆', '金沙遗址博物馆乌木林']
+    retired [4a] 成都金沙遗址博物馆 id=d2f37f7b (S1)
+[拉萨] 西藏博物馆: keeper=[museum1] id=36d444c9
+    retired [4a] 西藏博物馆 id=924d8c0f (S1)
+[无锡] 无锡博物院: keeper=[museum1] id=2b7376ba
+    fill address <- [baidu]
+    retired [baidu] 无锡博物院 id=8c0f115a (S1)
+[景德镇] 景德镇中国陶瓷博物馆: keeper=[museum1] id=50bde099
+    fill intro_en <- [reservation]
+    aliases += ['无语菩萨', '沉思罗汉']
+    retired [reservation] 景德镇中国陶瓷博物馆 id=5487dc3a (S1)
+[杭州] 中国丝绸博物馆: keeper=[museum1] id=6612ba69
+    retired [amap] 中国丝绸博物馆 id=ab6f1d01 (S1)
+[杭州] 中国水利博物馆: keeper=[museum1] id=f27d3db4
+    retired [chinatravel] 中国水利博物馆 id=6a596015 (S1)
+[杭州] 中国湿地博物馆: keeper=[museum2] id=da158642
+    retired [chinatravel] 中国湿地博物馆 id=70bce2bd (S1)
+[杭州] 中国茶叶博物馆: keeper=[museum1] id=427d4e93
+    retired [amap] 中国茶叶博物馆 id=c70ee617 (S1)
+[杭州] 天目里美术馆: keeper=[artmuseum] id=03a4f478
+    fill address <- [amap]
+    fill intro_en <- [amap]
+    retired [amap] 天目里美术馆 id=b0edcd4e (S1)
+[杭州] 杭州博物馆: keeper=[museum1] id=c7286689
+    aliases += ['杭博', '杭州历史博物馆']
+    retired [amap] 杭州博物馆 id=f497a20d (S1)
+[杭州] 杭州工艺美术博物馆: keeper=[museum1] id=73cab8f4
+    fill address <- [chinatravel]
+    fill intro_en <- [chinatravel]
+    retired [chinatravel] 杭州工艺美术博物馆 id=b944a082 (S1)
+[杭州] 浙江美术馆: keeper=[artmuseum] id=bc9f8a00
+    retired [chinatravel] 浙江美术馆 id=eef506c3 (S1)
+[杭州] 良渚博物院: keeper=[museum1] id=e0c38ee0
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    fill intro_en <- [amap]
+    retired [amap] 良渚博物院 id=ffdd8b88 (S1)
+[武汉] 中国地质大学逸夫博物馆: keeper=[museum2] id=5b4bd034
+    fill address <- [4a]
+    retired [4a] 中国地质大学逸夫博物馆 id=f8fefd6d (S1)
+[武汉] 武汉博物馆: keeper=[museum1] id=33f81223
+    fill intro_en <- [amap]
+    retired [amap] 武汉博物馆 id=42a0f868 (S1)
+[武汉] 湖北省博物馆: keeper=[museum1] id=1645ac03
+    fill intro_en <- [amap]
+    retired [amap] 湖北省博物馆 id=89cc500c (S1)
+[武汉] 湖北美术馆: keeper=[artmuseum] id=7a0ad914
+    retired [amap] 湖北美术馆 id=8798e038 (S1)
+[沈阳] 沈阳工业博物馆: keeper=[museum2] id=5a79e2b7
+    fill address <- [4a]
+    retired [4a] 沈阳工业博物馆 id=33c4f93f (S1)
+[泉州] 泉州市博物馆: keeper=[museum2] id=9d46cabd
+    fill address <- [4a]
+    retired [4a] 泉州市博物馆 id=265b9371 (S1)
+[深圳] 丽呈朗誉酒店(深圳龙岗中心大运新城店): keeper=[chinatravel] id=0d8bf597
+    retired [chinatravel] 丽呈朗誉酒店(深圳龙岗中心大运新城店) id=1e856a14 (S1)
+[深圳] 海上世界文化艺术中心: keeper=[artmuseum] id=fb2ddd80
+    fill address <- [amap]
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    aliases += ['Design Society', 'SWCAC', '设计互联']
+    retired [amap] 海上世界文化艺术中心 id=136d60a0 (S1)
+[深圳] 深圳南山芒果网大厦亚朵酒店: keeper=[chinatravel] id=ab1cb5cd
+    fill address <- [chinatravel]
+    retired [chinatravel] 深圳南山芒果网大厦亚朵酒店 id=ce9bf5cb (S1)
+[深圳] 深圳博物馆: keeper=[museum1] id=9c99aaa8
+    retired [amap] 深圳博物馆 id=ce088b93 (S1)
+[深圳] 深圳望野博物馆: keeper=[museum2] id=536d3cf2
+    aliases += ['望野博物馆']
+    retired [chinatravel] 深圳望野博物馆 id=412fda5a (S1)
+[渭南] 渭南市博物馆: keeper=[museum2] id=01b8fcad
+    retired [4a] 渭南市博物馆 id=5f64c87a (S1)
+[烟台] 张裕酒文化博物馆: keeper=[museum1] id=4569a151
+    retired [4a] 张裕酒文化博物馆 id=265aa0a5 (S1)
+[自贡] 自贡恐龙博物馆: keeper=[museum1] id=9b8760ae
+    retired [4a] 自贡恐龙博物馆 id=e3837178 (S1)
+[苏州] 苏州丝绸博物馆: keeper=[museum1] id=3de4a039
+    retired [amap] 苏州丝绸博物馆 id=0b311605 (S1)
+[苏州] 苏州御窑金砖博物馆: keeper=[museum2] id=136f0b07
+    fill address <- [amap]
+    aliases += ['御窑金砖博物馆', '金砖博物馆']
+    retired [amap] 苏州御窑金砖博物馆 id=9feb5972 (S1)
+[苏州] 苏州碑刻博物馆: keeper=[museum2] id=561c145b
+    retired [chinatravel] 苏州碑刻博物馆 id=652bf84b (S1)
+[荆州] 荆州博物馆: keeper=[museum1] id=7ad58731
+    retired [4a] 荆州博物馆 id=4a6c5c0e (S1)
+[衡水] 武强年画博物馆: keeper=[museum2] id=cdaf508e
+    fill address <- [4a]
+    retired [4a] 武强年画博物馆 id=d2691168 (S1)
+[西宁] 青海省博物馆: keeper=[museum1] id=2cf3352b
+    retired [4a] 青海省博物馆 id=ddc9128b (S1)
+[西安] 西安半坡博物馆: keeper=[museum1] id=d880b784
+    retired [4a] 西安半坡博物馆 id=c47e6ff5 (S1)
+[西安] 西安博物院: keeper=[museum1] id=ed5bdfa1
+    retired [4a] 西安博物院 id=cb873ff5 (S1)
+[西安] 陕西历史博物馆: keeper=[museum1] id=8af46268
+    fill phone <- [baidu]
+    aliases += ['陕西省博物馆']
+    retired [baidu] 陕西历史博物馆 id=f86901a3 (S1)
+[西安] 陕西自然博物馆: keeper=[museum1] id=42d35dd8
+    fill intro_en <- [4a]
+    retired [4a] 陕西自然博物馆 id=8151a6cc (S1)
+[赤峰] 赤峰博物馆: keeper=[museum1] id=3e285812
+    fill intro_en <- [4a]
+    retired [4a] 赤峰博物馆 id=97dc5ff8 (S1)
+[郑州] 河南博物院: keeper=[museum1] id=0eb17752
+    retired [reservation] 河南博物院 id=a8c79803 (S1)
+[重庆] 大足石刻博物馆: keeper=[museum1] id=f87124da
+    retired [amap] 大足石刻博物馆 id=2b73737f (S1)
+[重庆] 白帝城·瞿塘峡景区: keeper=[5a] id=489131a9
+    retired [chinatravel] 白帝城·瞿塘峡景区 id=1a55ea3a (S1)
+[重庆] 重庆三峡移民纪念馆: keeper=[museum1] id=82e654f0
+    aliases += ['万州三峡移民纪念馆', '三峡移民纪念馆']
+    retired [4a] 重庆三峡移民纪念馆 id=55b94ab1 (S1)
+[重庆] 重庆市开州博物馆: keeper=[museum2] id=cfeb34a6
+    fill address <- [4a]
+    retired [4a] 重庆市开州博物馆 id=9a3a9358 (S1)
+[重庆] 重庆自然博物馆: keeper=[museum1] id=1c26b52e
+    fill intro_en <- [4a]
+    retired [4a] 重庆自然博物馆 id=198b2ca7 (S1)
+[锦州] 锦州市博物馆: keeper=[museum2] id=e767885f
+    fill address <- [4a]
+    retired [4a] 锦州市博物馆 id=6cefa3af (S1)
+[长沙] 湖南博物院: keeper=[museum1] id=25ecbb86
+    aliases += ['湖南省博物馆', '湘博']
+    retired [reservation] 湖南博物院 id=2504d3b3 (S1)
+[青岛] 青岛啤酒博物馆: keeper=[museum1] id=0109fef5
+    retired [4a] 青岛啤酒博物馆 id=ef63c9fa (S1)
+[青岛] 青岛葡萄酒博物馆: keeper=[museum2] id=9cd40c4f
+    retired [4a] 青岛葡萄酒博物馆 id=9fb6abba (S1)
+
+retired 112 loser rows across 112 name groups

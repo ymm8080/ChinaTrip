@@ -23,8 +23,9 @@ def _cand(
     tags=None,
     source=None,
     category="sight",
+    rating=None,
 ):
-    return {
+    d = {
         "name": name,
         "city": city,
         "category": category,
@@ -34,6 +35,10 @@ def _cand(
         "tags": tags or [],
         "source": source,
     }
+    if rating is not None:
+        d["rating"] = rating
+        d["rating_count"] = 100
+    return d
 
 
 def _spec(name, city, day, *, loc=None, minutes=90, must=False, category="sight"):
@@ -118,7 +123,7 @@ def test_rebalance_fills_return_day_under_closed_ranges():
     picked = [_spec("锚点A", "重庆", 2, loc=(106.5, 29.5), minutes=90)]
     candidates = [
         _cand("锚点A", "重庆", loc=(106.5, 29.5), minutes=90),
-        _cand("室内馆", "重庆", loc=(106.51, 29.51), minutes=90),
+        _cand("室内馆", "重庆", loc=(106.51, 29.51), minutes=90, rating="4.7"),
     ]
     out, notes = PlanningAgent._rebalance_days(
         picked,
@@ -156,7 +161,7 @@ def test_rebalance_twin_phantom_does_not_count():
     ]
     candidates = [
         _cand("安仁古镇景区", "成都", loc=(103.6, 30.5), minutes=180),
-        _cand("建川博物馆", "成都", loc=(103.6, 30.51), minutes=90),
+        _cand("建川博物馆", "成都", loc=(103.6, 30.51), minutes=90, rating="4.7"),
     ]
     out, _ = PlanningAgent._rebalance_days(picked, candidates, 2, {"成都": (1, 2)})
     assert any(s["name"] == "建川博物馆" and s["day"] == 2 for s in out)
@@ -186,8 +191,12 @@ def test_rebalance_outdoor_skips_rainy_day():
     picked = [_spec("锚点", "重庆", 1, loc=(106.5, 29.5), minutes=300)]
     candidates = [
         _cand("锚点", "重庆", loc=(106.5, 29.5), minutes=300),
-        _cand("露天峡", "重庆", loc=(106.5, 29.51), minutes=90, rain="no"),
-        _cand("室内馆", "重庆", loc=(106.5, 29.51), minutes=90, rain="yes"),
+        _cand(
+            "露天峡", "重庆", loc=(106.5, 29.51), minutes=90, rain="no", rating="4.7"
+        ),
+        _cand(
+            "室内馆", "重庆", loc=(106.5, 29.51), minutes=90, rain="yes", rating="4.7"
+        ),
     ]
     out, _ = PlanningAgent._rebalance_days(
         picked,
@@ -208,7 +217,7 @@ def test_rebalance_respects_budget_and_cap():
     candidates = [
         _cand("锚点", "成都", loc=(104.0, 30.6), minutes=90),
         _cand("远点", "成都", loc=far, minutes=180),
-        _cand("近点", "成都", loc=(104.0, 30.61), minutes=90),
+        _cand("近点", "成都", loc=(104.0, 30.61), minutes=90, rating="4.7"),
     ]
     out, _ = PlanningAgent._rebalance_days(picked, candidates, 1, {"成都": (1, 1)})
     names = [s["name"] for s in out]
@@ -268,8 +277,32 @@ def test_rebalance_fills_past_half_budget_to_three_quarters():
     candidates = [
         _cand("甲", "西安", loc=(108.96, 34.28), minutes=90),
         _cand("乙", "西安", loc=(108.97, 34.29), minutes=90),
-        _cand("丙", "西安", loc=(108.98, 34.30), minutes=120),
+        _cand("丙", "西安", loc=(108.98, 34.30), minutes=120, rating="4.7"),
     ]
     out, notes = PlanningAgent._rebalance_days(picked, candidates, 1, {"西安": (1, 1)})
     assert any(s["name"] == "丙" for s in out)
+    assert any("回填" in zh for zh, _en in notes)
+
+
+def test_rebalance_importance_gate_skips_unrated_tail():
+    # 2026-11-07 宁空勿杂：无档无评分杂点（天府广场 4.7 无条数类）不进
+    # 回填——空天宁可留白交披露；有评分 quality≥4.5 的同档行照补。
+    picked = [_spec("甲", "成都", 1, loc=(104.0, 30.6), minutes=180)]
+    candidates = [
+        _cand("甲", "成都", loc=(104.0, 30.6), minutes=180),
+        _cand("无档杂点", "成都", loc=(104.0, 30.61), minutes=90),
+    ]
+    out, notes = PlanningAgent._rebalance_days(picked, candidates, 3, {"成都": (1, 3)})
+    assert all(s["name"] != "无档杂点" for s in out)
+    assert not any("回填" in zh for zh, _en in notes)
+
+
+def test_rebalance_rated_quality_tail_still_fills():
+    picked = [_spec("甲", "成都", 1, loc=(104.0, 30.6), minutes=180)]
+    candidates = [
+        _cand("甲", "成都", loc=(104.0, 30.6), minutes=180),
+        _cand("有档名点", "成都", loc=(104.0, 30.61), minutes=90, rating="4.7"),
+    ]
+    out, notes = PlanningAgent._rebalance_days(picked, candidates, 3, {"成都": (1, 3)})
+    assert any(s["name"] == "有档名点" and s["day"] == 2 for s in out)
     assert any("回填" in zh for zh, _en in notes)

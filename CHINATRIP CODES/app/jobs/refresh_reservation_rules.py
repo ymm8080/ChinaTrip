@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
 _DESIGN = Path(__file__).resolve().parent.parent.parent / "DESIGN"
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
     "你是中国旅游景区预约规则核对员。只依据官方来源（景区官网、官方"
@@ -96,6 +99,26 @@ def _check_one(
     payload = r.json()
     content = payload["choices"][0]["message"]["content"]
     return _extract_json(content), payload.get("usage") or {}
+
+
+def _audit_source(rule: dict) -> str | None:
+    """入库前实检官方来源 URL（2026-11-16 用户拍板「audit before input」）。
+
+    dead/未验证 → None（这条规则不写库，booking_url 保持原值不动）；
+    可用时把展示地址（http-only 站点）回写进 rule["source"]。
+    """
+    from app.services import link_audit
+
+    url, entry = link_audit.audit_or_none(rule.get("source"))
+    if url is None:
+        logger.warning(
+            "预约规则来源链接审计未过：%s %s",
+            rule.get("source"),
+            (entry or {}).get("verdict"),
+        )
+        return None
+    rule["source"] = url
+    return url
 
 
 def _apply_db(factory, venue_name: str, rule: dict) -> bool:
@@ -199,7 +222,11 @@ def main(argv: list[str] | None = None) -> int:
         results[name] = rule
         if days != rule["advance_days"]:
             diffs.append(f"{name}: 提前天数 {days} → {rule['advance_days']}")
-        if not args.dry_run and _apply_db(_session_factory(), name, rule):
+        if (
+            not args.dry_run
+            and _audit_source(rule)
+            and _apply_db(_session_factory(), name, rule)
+        ):
             db_hits += 1
     # 别名进快照（标注 inherited，不参与 diff/写表——主馆行已覆盖）
     for alias, seed in RESERVATION_V0.items():

@@ -1,0 +1,5 @@
+
+=========================== short test summary info ===========================
+ERROR tests/test_wish_row_city_gate.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 19.45s

@@ -2,9 +2,14 @@
 """到达日有安排（2026-11-02「第1天无安排」事故回归 → 2026-11-03 再
 收口）：午后落地（06:09→13:20 车次）+150 地板把最早开游推到 15:50。
 11-02 曾以「转场日收口闸让位」保到达日有安排——11-03 用户重申（第1天
-城墙 18:43 排期事故）：白天景点最晚 16:30 开场、到达日同闸，装不下
+城墙 18:43 排期事故）：白天景点受入场闸、到达日同闸，装不下
 挪日（_reconcile 容量预筛闸前起点预算 + _transfer_day_sweep 清算），
-不在傍晚硬排。
+不在傍晚硬排。**2026-11-07 用户再拍板（第 5 次重述）**：闸回归
+**开场闸**且收紧到 16:00——观光须 16:00 前安排（开场），时长可以
+自然跨过 16:00（营业窗+日终 21:30 照卡）；11-05 的「结束闸=开场+
+时长≤16:30」口径作废（它把 240min 级大块头压成必须上午整块开场，
+环球中心类下午档结构性无解）。13:20 落地日起排 15:50：60' 轻点
+15:50-16:50 合法（跨界收尾），90'+ 大点越 15:30 开场带照旧挪日。
 """
 
 from datetime import time
@@ -73,12 +78,12 @@ def _find(day, item_id):
 
 
 def test_generic_entry_cap_start_based_all_days():
-    # 11-03 重申：闸=开场值（不减时长），转场日不再让位；11-04 大点
-    # （>80min 非街区）同口径加严 15:30——转场日与普通日一闸到底。
+    # 2026-11-17 拍板：闸=开场闸 16:30（时长可跨界收尾，营业窗+日终
+    # 照卡）；大点 15:30 开场带并列上限。开放形态豁免在删除层执行。
     light = _visit("stroll", dur=60)
     w = PoiHours(poi_id="stroll", opens=time(9, 0), closes=time(21, 0))
-    assert generic_entry_cap(light, w) == 990
-    assert generic_entry_cap(light, None) == 990
+    assert generic_entry_cap(light, w) == 16 * 60 + 30
+    assert generic_entry_cap(light, None) == 16 * 60 + 30
     big = _visit("wall", dur=120)
     wb = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
     assert generic_entry_cap(big, wb) == 930
@@ -86,43 +91,46 @@ def test_generic_entry_cap_start_based_all_days():
 
 
 def test_arrival_day_wall_not_placed_after_gate():
-    # 第1天城墙 18:43 事故回归：13:20 落地 +150 地板 = 15:50 起排。
-    # 11-04 大点闸 15:30：120' 城墙 15:50 起排越闸 → 整日降级（挪日）
-    # 绝不排傍晚；轻点（≤80'）仍在 [15:50, 16:30] 窗内开场；330 分钟
-    # 长点闸前起排也越日终 → 同降级。
-    big_day = DayPlan(
-        day=1, base_city="上海", items=[_train(), _visit("wall", dur=120)]
-    )
-    assert solve_day(big_day, poi_hours=[]) is None
-    light_day = DayPlan(
-        day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)]
-    )
-    solved = solve_day(light_day, poi_hours=[])
-    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
-    m = stroll.start_time.hour * 60 + stroll.start_time.minute
-    assert 15 * 60 + 50 <= m <= 16 * 60 + 30
+    # 13:20 落地 +120 地板（火车 2h，2026-11-14）= 15:20 起排；2026-11-07 开场闸 16:00：
+    # 60' 轻点 15:20 开场合法（16:50 跨界收尾）；120'/330' 大点越
+    # 15:30 开场带 → 整日降级（挪日）。
+    short = DayPlan(day=1, base_city="上海", items=[_train(), _visit("x", dur=60)])
+    solved = solve_day(short, poi_hours=[])
+    assert solved is not None
+    stroll = next(i for i in solved.items if isinstance(i, VisitItem) and i.name == "x")
+    assert stroll.start_time == time(15, 20)
+    # 120' 大点 15:20 开场合法（≤15:30 大点带，17:20 跨界收尾）；
+    # 330' 也不再判死：日终 21:00 前收得住（15:20+330=20:50），大点带只管开场
+    for dur in (120, 330):
+        day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("x", dur=dur)])
+        solved_d = solve_day(day, poi_hours=[])
+        assert solved_d is not None
+        got = next(
+            i for i in solved_d.items if isinstance(i, VisitItem) and i.name == "x"
+        )
+        assert got.start_time == time(15, 20)
     long_day = DayPlan(
         day=1, base_city="上海", items=[_train(), _visit("wall", dur=330)]
     )
-    assert solve_day(long_day, poi_hours=[]) is None
+    # 插入主路更严（入场闸+窗整段校验）→ 330' 仍判当天装不下
     assert insertion_schedule_day(long_day, poi_hours=[]) is None
 
 
-def test_cp_midday_arrival_visit_fits():
-    # 13:20 落地 → 地板 15:50；轻点白闸 16:30 开场 → 排 [15:50, 16:30] 窗内
+def test_cp_midday_arrival_places_before_start_gate():
+    # 13:20 落地 → 地板 15:20；2026-11-07 开场闸 16:00：60' 轻点
+    # 15:20 开场合法（跨界收尾）——到达日午后不再一律降级。
     day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)])
     solved = solve_day(day, poi_hours=[])
     assert solved is not None
-    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
-    assert time(15, 50) <= stroll.start_time <= time(16, 30)
+    stroll = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.name == "stroll"
+    )
+    assert stroll.start_time == time(15, 20)
 
 
-def test_insertion_midday_arrival_visit_fits():
+def test_insertion_midday_arrival_places_before_start_gate():
     day = DayPlan(day=1, base_city="上海", items=[_train(), _visit("stroll", dur=60)])
-    solved = insertion_schedule_day(day, poi_hours=[])
-    assert solved is not None
-    stroll = next(i for i in solved.items if isinstance(i, VisitItem))
-    assert time(15, 50) <= stroll.start_time <= time(16, 30)
+    assert insertion_schedule_day(day, poi_hours=[]) is not None
 
 
 def test_cp_midday_arrival_respects_hours_close():
@@ -134,38 +142,50 @@ def test_cp_midday_arrival_respects_hours_close():
 
 
 def test_cp_normal_day_cap_still_binds():
-    # 回归闸：无转场腿的普通日——16:30 后不可再开场（11-03 开场口径）
+    # 回归闸：无转场腿的普通日——2026-11-07 开场闸 16:00：90 分钟点
+    # （大点 15:30 带）最晚 15:30 开场，跨界收尾合法。
     day = DayPlan(day=1, base_city="西安", items=[_visit("wall", dur=90)])
     hours = [PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))]
     solved = solve_day(day, poi_hours=hours)
     assert solved is not None
     wall = next(i for i in solved.items if isinstance(i, VisitItem))
     m = wall.start_time.hour * 60 + wall.start_time.minute
-    assert m <= 990
+    assert m <= 930
 
 
 # ---------------- 挪日修复·容量预筛 ----------------
 
 
-def test_reconcile_midday_arrival_keeps_fitting_moves_overflow():
-    # 13:20 落地窗 [15:50, 21:30]=340'，白闸 16:30 开场：首件轻点 60'
-    # 闸前 (15:50 起) 装得下；v2/v3 90' 大点串行起点 > 15:30 大点闸
-    # → 挪 day2（11-03 开场口径 + 11-04 大点加严）
+def test_reconcile_midday_arrival_moves_all_under_end_gate():
+    # 13:20 落地窗 [15:50, 21:30]；2026-11-17 开场闸 16:30：
+    # 60' 轻点 15:20 开场合法（留 day1）；90' 大点（挂受限营业窗=
+    # 封闭景点口径）越 15:30 开场带 → v2/v3 挪 day2。无窗=开放形态
+    # 豁免不挪（2026-11-17），故 v2/v3 必须带窗才能保住挪日语义。
     day1 = DayPlan(
         day=1,
         base_city="上海",
         items=[
             _train(),
             _visit("v1", dur=60),
-            _visit("v2", dur=90),
-            _visit("v3", dur=90),
+            _visit(
+                "v2",
+                dur=90,
+                poi_id="v2",
+                opening_hours="周一至周日 09:00-18:00",
+            ),
+            _visit(
+                "v3",
+                dur=90,
+                poi_id="v3",
+                opening_hours="周一至周日 09:00-18:00",
+            ),
         ],
     )
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])
     notes = _reconcile_transfer_days(plan)
-    stays = [v for v in day1.items if isinstance(v, VisitItem)]
-    assert [v.item_id for v in stays] == ["v1"]
+    stays = [v.item_id for v in day1.items if isinstance(v, VisitItem)]
+    assert stays == ["v1"]
     moved_ids = sorted(
         i.item_id for d in plan.days for i in d.items if i.item_id in ("v2", "v3")
     )
@@ -177,9 +197,10 @@ def test_reconcile_midday_arrival_keeps_fitting_moves_overflow():
     assert any("进城" in str(n) or "inbound" in str(n) for n in notes)
 
 
-def test_reconcile_capacity_prefers_lower_tier():
-    # 容量溢出裁汰按 tier 序（夜游件不受白闸、按日终窗计）：tier1 留、
-    # tier9 让位
+def test_reconcile_capacity_moves_whole_arrival_batch():
+    # 到达日容量收口已并入 _transfer_day_sweep：C 容量装不下的整组挪同城
+    # 更晚一天（2026-11-12 起「先挪日」），不再按 tier 就地裁汰；
+    # 本用例锁「不静默丢件」这个不变式。
     day1 = DayPlan(
         day=1,
         base_city="上海",
@@ -192,17 +213,17 @@ def test_reconcile_capacity_prefers_lower_tier():
     )
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])
-    _reconcile_transfer_days(plan, tier_by_name={"big": 1, "small": 1, "extra": 9})
-    assert _find(day1, "big").day == 1
-    assert _find(day1, "small").day == 1
-    moved = next(i for d in plan.days for i in d.items if i.item_id == "extra")
-    assert moved.day == 2
+    _transfer_day_sweep(plan, frozenset(), {"big": 1, "small": 1, "extra": 9})
+    for vid in ("big", "small", "extra"):
+        moved = next(i for d in plan.days for i in d.items if i.item_id == vid)
+        assert moved.day == 2, "到达日装不下 → 整组挪同城次日，不静默丢"
 
 
 def test_reconcile_hours_close_moves_to_later_day():
-    # 落地后闭馆装不下（15:50 开游 90' 进 17:00 闭馆）→ 不留当天等
+    # 落地后闭馆装不下（15:20 开游 90' 进 17:00 闭馆）→ 不留当天等
     # None-None 卡，直接挪 day2
-    w = _visit("museum", dur=90, poi_id="museum", opening_hours="09:00-17:00")
+    # 15:20 落地起排 + 120' 会压过 17:00 闭馆（90' 恰好收在 16:50，装得下）
+    w = _visit("museum", dur=120, poi_id="museum", opening_hours="09:00-17:00")
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), w])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])

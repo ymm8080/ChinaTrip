@@ -139,7 +139,7 @@ def test_v0_city_days_windows_transfers_and_return_leg():
     session = asyncio.run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州", "苏州"],
+            cities=["上海", "杭州", "苏州", "上海"],
             days=5,
             preferences="园林",
             city_days={"杭州": 2, "苏州": 3},
@@ -148,6 +148,10 @@ def test_v0_city_days_windows_transfers_and_return_leg():
     assert session.state == "ready"
     by_city: dict[str, list[int]] = {}
     for v in visits_of(session):
+        # 酒店卡（落地首停/夜卡/次日从酒店出发）不占城窗语义（2026-11-13
+        # 晨卡上线后它会挂在前一晚城市名下：杭州夜宿 → 第3天晨卡 city=杭州）
+        if (v.category or "") == "hotel":
+            continue
         by_city.setdefault(v.city, []).append(v.day)
     assert all(1 <= d <= 2 for d in by_city["杭州"])
     assert all(3 <= d <= 5 for d in by_city["苏州"])
@@ -195,7 +199,7 @@ def test_return_leg_prefers_evening_train_and_keeps_last_day_visits():
     session = asyncio.run(
         agent.start(
             device_id="d1",
-            cities=["上海", "杭州", "苏州"],
+            cities=["上海", "杭州", "苏州", "上海"],
             days=5,
             preferences="园林",
             city_days={"杭州": 2, "苏州": 3},

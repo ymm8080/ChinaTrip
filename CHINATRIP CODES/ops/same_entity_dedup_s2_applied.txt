@@ -1,0 +1,417 @@
+[上海|七宝] keeper=[amap] 七宝古镇
+    retired [amap] 七宝老街 id=c131026d (S2)
+[上海|思南公馆] keeper=[street] 思南公馆街区
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    fill intro_en <- [amap]
+    aliases += ['思南公馆']
+    retired [amap] 思南公馆 id=720bf1d9 (S2)
+[上海|比斯特上海购物村] keeper=[amap] 比斯特上海购物村
+    tags <- [4a] ['4a']
+    aliases += ['比斯特上海购物村景区']
+    retired [4a] 比斯特上海购物村景区 id=8394ddba (S2)
+[上海|碧海金沙] keeper=[amap] 碧海金沙
+    tags <- [4a] ['4a']
+    aliases += ['碧海金沙景区']
+    retired [4a] 碧海金沙景区 id=a49ba14c (S2)
+[上海|金山城市沙滩] keeper=[amap] 金山城市沙滩
+    tags <- [4a] ['4a']
+    aliases += ['城市沙滩', '金山城市沙滩景区', '金山沙滩']
+    retired [4a] 金山城市沙滩景区 id=5c830fe1 (S2)
+[上饶|三清山] keeper=[unesco] 三清山
+    aliases += ['三清风景名胜区']
+    retired [scenic] 三清山风景名胜区 id=184d7200 (S2)
+[东莞|东莞市可园] keeper=[museum2] 东莞市可园博物馆
+    aliases += ['东莞市可园博物馆景区']
+    retired [4a] 东莞市可园博物馆景区 id=a898ba29 (S2)
+[临汾|黄河壶口瀑布] keeper=[5a] 黄河壶口瀑布旅游区
+    aliases += ['黄河壶口瀑布风景名胜区']
+    retired [scenic] 黄河壶口瀑布风景名胜区 id=a980264c (S2)
+[丹东|鸭绿江] keeper=[4a] 鸭绿江景区
+    fill opening_hours <- [scenic]
+    fill hours_source <- [scenic]
+    fill rating <- [scenic]
+    fill rating_source <- [scenic]
+    aliases += ['鸭绿江公园', '鸭绿江风景区', '鸭绿江风景名胜区']
+    retired [scenic] 鸭绿江风景名胜区 id=0c6ed40c (S2)
+[信阳|鸡公山] keeper=[5a] 鸡公山景区
+    retired [baidu] 鸡公山风景区 id=818c1b13 (S2)
+    aliases += ['万国建筑博物馆', '中国四大避暑胜地之一', '气压嵩衡', '青分楚豫']
+    retired [scenic] 鸡公山风景名胜区 id=15a09487 (S2)
+[北京|中国航空] keeper=[chinatravel] 中国航空博物馆
+    tags <- [4a] ['4a']
+    aliases += ['中国航博馆', '中国航空博物馆旅游区', '小汤山航空博物馆', '航空博物馆']
+    retired [4a] 中国航空博物馆旅游区 id=201a07dd (S2)
+[北京|北京动物园] keeper=[chinatravel] 北京动物园
+    fill rating <- [4a]
+    fill rating_source <- [4a]
+    aliases += ['北京动物园景区']
+    retired [4a] 北京动物园景区 id=002d796c (S2)
+[北京|北京国际鲜花港] keeper=[amap] 北京国际鲜花港
+    fill rating <- [baidu]
+    fill rating_source <- [baidu]
+    tags <- [baidu] ['4a']
+    aliases += ['北京国际鲜花港景区']
+    retired [baidu] 北京国际鲜花港景区 id=9d375333 (S2)
+[北京|北京天文馆] keeper=[museum1] 北京天文馆
+    aliases += ['北京天文馆景区']
+    retired [baidu] 北京天文馆景区 id=4aefa982 (S2)
+[北京|北京汽车] keeper=[museum1] 北京汽车博物馆
+    aliases += ['北京汽车博物馆景区']
+    retired [4a] 北京汽车博物馆景区 id=7e9d04f4 (S2)
+[北京|北京野生动物园] keeper=[amap] 北京野生动物园
+    tags <- [4a] ['4a']
+    aliases += ['北京野生动物园景区']
+    retired [4a] 北京野生动物园景区 id=f92f3260 (S2)
+[北京|史家胡同] keeper=[chinatravel] 史家胡同博物馆
+    aliases += ['史家胡同']
+    retired [chinatravel] 史家胡同 id=1b36fb64 (S2)
+[北京|周口店北京人遗址] keeper=[unesco] 周口店北京人遗址
+    aliases += ['周口店北京人遗址博物馆']
+    retired [museum1] 周口店北京人遗址博物馆 id=a2a8cf76 (S2)
+[北京|天坛] keeper=[unesco] 天坛
+    fill website <- [5a]
+    fill reservation_required <- [5a]
+    aliases += ['北京天坛', '北京市天坛公园']
+    retired [5a] 天坛公园 id=a73df971 (S2)
+[北京|孔庙和国子监] keeper=[museum2] 孔庙和国子监博物馆
+    aliases += ['孔庙和国子监博物馆景区']
+    retired [4a] 孔庙和国子监博物馆景区 id=c252f615 (S2)
+[北京|居庸关长城] keeper=[amap] 居庸关长城
+    aliases += ['居庸关长城景区']
+    retired [4a] 居庸关长城景区 id=a307e28b (S2)
+[北京|明十三陵] keeper=[chinatravel] 明十三陵
+    aliases += ['明十三陵博物馆']
+    retired [museum2] 明十三陵博物馆 id=7f964f73 (S2)
+[北京|潭柘寺] keeper=[amap] 潭柘寺
+    fill rating <- [baidu]
+    fill rating_source <- [baidu]
+    tags <- [baidu] ['4a']
+    aliases += ['岫云寺', '岫云禅寺', '潭柘古刹', '潭柘寺景区']
+    retired [baidu] 潭柘寺景区 id=53f9fa8e (S2)
+[北京|银山塔林] keeper=[amap] 银山塔林
+    fill rating <- [4a]
+    fill rating_source <- [4a]
+    tags <- [4a] ['4a']
+    aliases += ['辽金塔林', '铁壁银山', '银山', '银山塔林风景区']
+    retired [4a] 银山塔林风景区 id=08a0deb2 (S2)
+[北京|颐和园] keeper=[unesco] 颐和园
+    aliases += ['颐和园博物馆']
+    retired [chinatravel] 颐和园博物馆 id=51a67d03 (S2)
+[北京|黑龙潭] keeper=[amap] 黑龙潭风景区
+    fill rating <- [4a]
+    fill rating_source <- [4a]
+    tags <- [4a] ['4a']
+    aliases += ['密云黑龙潭', '黑龙潭旅游区']
+    retired [4a] 黑龙潭旅游区 id=20e77951 (S2)
+[南京|南京城墙] keeper=[amap] 南京城墙
+    fill rating <- [museum1]
+    fill rating_source <- [museum1]
+    aliases += ['南京城墙博物馆']
+    retired [museum1] 南京城墙博物馆 id=aeed0f2f (S2)
+[南京|明孝陵] keeper=[amap] 明孝陵
+    fill rating <- [museum2]
+    fill rating_source <- [museum2]
+    aliases += ['明孝陵博物馆']
+    retired [museum2] 明孝陵博物馆 id=75d53c5c (S2)
+[南京|高淳] keeper=[amap] 高淳老街
+    aliases += ['高淳博物馆']
+    retired [chinatravel] 高淳博物馆 id=90f012b8 (S2)
+[博尔塔拉|赛里木湖] keeper=[5a] 赛里木湖景区
+    aliases += ['赛里木湖风景名胜区']
+    retired [scenic] 赛里木湖风景名胜区 id=d4f9794c (S2)
+[大理|大理] keeper=[4a] 大理古城景区
+    aliases += ['大理风景名胜区']
+    retired [scenic] 大理风景名胜区 id=cb53c73d (S2)
+[大连|大连武术文化] keeper=[museum3] 大连武术文化博物馆
+    aliases += ['大连武术文化博物馆景区']
+    retired [4a] 大连武术文化博物馆景区 id=f4237433 (S2)
+[宁波|奉化] keeper=[museum2] 奉化博物馆
+    fill address <- [4a]
+    aliases += ['奉化博物馆景区']
+    retired [4a] 奉化博物馆景区 id=dec8f19e (S2)
+[峨眉山|峨眉山] keeper=[5a] 峨眉山景区
+    aliases += ['峨眉山博物馆']
+    retired [museum2] 峨眉山博物馆 id=9bcb1281 (S2)
+[巴音郭楞|罗布人村寨] keeper=[4a] 罗布人村寨景区
+    fill intro_en <- [scenic]
+    aliases += ['罗布人村寨风景名胜区']
+    retired [scenic] 罗布人村寨风景名胜区 id=d11bdaa6 (S2)
+[常德|桃花源] keeper=[5a] 桃花源旅游区
+    retired [scenic] 桃花源风景名胜区 id=467263ef (S2)
+[广州|广州市城市规划展览中心] keeper=[chinatravel] 广州市城市规划展览中心
+    tags <- [4a] ['4a']
+    aliases += ['广州市城市规划展览中心旅游区']
+    retired [4a] 广州市城市规划展览中心旅游区 id=a97a4c0c (S2)
+[广州|白云山] keeper=[5a] 白云山景区
+    aliases += ['白云山风景名胜区']
+    retired [scenic] 白云山风景名胜区 id=973bc747 (S2)
+    aliases += ['白云山']
+    retired [amap] 白云山 id=13fc83fb (S2)
+[延边|防川] keeper=[4a] 防川景区
+    fill address <- [scenic]
+    aliases += ['防川风景名胜区']
+    retired [scenic] 防川风景名胜区 id=b4be8c5f (S2)
+[张家口|蔚州] keeper=[4a] 蔚州古城
+    aliases += ['蔚州博物馆']
+    retired [4a] 蔚州博物馆 id=e24ec6a0 (S2)
+[张家界|武陵源] keeper=[unesco] 武陵源
+    aliases += ['武陵源风景名胜区']
+    retired [scenic] 武陵源风景名胜区 id=d14bd846 (S2)
+[忻州|五台山] keeper=[unesco] 五台山
+    aliases += ['五台山风景名胜区']
+    retired [scenic] 五台山风景名胜区 id=5f4eaa90 (S2)
+[成都|五凤溪] keeper=[amap] 五凤溪古镇
+    fill rating <- [baidu]
+    fill rating_source <- [baidu]
+    tags <- [baidu] ['4a']
+    aliases += ['五凤溪景区']
+    retired [baidu] 五凤溪景区 id=f84ba9c2 (S2)
+[成都|四川大学(望江校区)] keeper=[chinatravel] 四川大学(望江校区)
+    fill opening_hours <- [amap]
+    fill hours_source <- [amap]
+    aliases += ['四川大学(望江校区)-博物馆', '四川大学博物馆', '川大博物馆']
+    retired [amap] 四川大学(望江校区)-博物馆 id=762e61f0 (S2)
+[成都|西岭雪山] keeper=[amap] 西岭雪山
+    retired [scenic] 西岭雪山风景名胜区 id=f81e19d8 (S2)
+[成都|青城山都江堰] keeper=[unesco] 青城山—都江堰
+    aliases += ['青城山-都江堰风景名胜区']
+    retired [scenic] 青城山-都江堰风景名胜区 id=8d0334cc (S2)
+[成都|龙门山] keeper=[chinatravel] 龙门山风景区
+    aliases += ['龙门山风景名胜区']
+    retired [scenic] 龙门山风景名胜区 id=84ad51c6 (S2)
+[新余|仙女湖] keeper=[4a] 仙女湖景区
+    fill address <- [scenic]
+    aliases += ['仙女湖风景名胜区']
+    retired [scenic] 仙女湖风景名胜区 id=9b849d22 (S2)
+[杭州|下姜村] keeper=[amap] 下姜村
+    tags <- [4a] ['4a']
+    aliases += ['下姜村景区']
+    retired [4a] 下姜村景区 id=c8b7caf6 (S2)
+[杭州|京杭大运河杭州] keeper=[amap] 京杭大运河杭州景区
+    tags <- [4a] ['4a', 'unesco_grand_canal']
+    aliases += ['京杭大运河·杭州景区']
+    retired [4a] 京杭大运河·杭州景区 id=f5f3f50a (S2)
+[杭州|建德航空小镇] keeper=[chinatravel] 建德航空小镇
+    fill opening_hours <- [4a]
+    fill hours_source <- [4a]
+    fill rating <- [4a]
+    fill rating_source <- [4a]
+    tags <- [4a] ['4a']
+    aliases += ['建德航空小镇景区', '横山钢铁厂旧址', '横钢小镇']
+    retired [4a] 建德航空小镇景区 id=2a98cc8e (S2)
+[杭州|杭州宋城] keeper=[amap] 杭州宋城
+    tags <- [4a] ['4a']
+    aliases += ['杭州宋城景区']
+    retired [4a] 杭州宋城景区 id=75cee669 (S2)
+[杭州|杭州西湖] keeper=[5a] 杭州西湖风景区
+    aliases += ['杭州西湖风景名胜区']
+    retired [scenic] 杭州西湖风景名胜区 id=d23863fc (S2)
+[杭州|超山] keeper=[amap] 超山风景名胜区
+    tags <- [4a] ['4a']
+    retired [4a] 超山风景区 id=f6b10bc8 (S2)
+[杭州|雷峰塔] keeper=[amap] 雷峰塔
+    tags <- [4a] ['4a']
+    aliases += ['雷峰塔景区']
+    retired [4a] 雷峰塔景区 id=980134db (S2)
+[株洲|炎帝陵] keeper=[5a] 炎帝陵景区
+    aliases += ['炎帝陵风景名胜区']
+    retired [scenic] 炎帝陵风景名胜区 id=8bf6f47f (S2)
+[桐乡|乌镇] keeper=[5a] 乌镇古镇旅游区
+    aliases += ['乌镇']
+    retired [histown] 乌镇 id=0aac528e (S2)
+[楚雄|楚雄彝族自治州] keeper=[museum2] 楚雄彝族自治州博物馆
+    aliases += ['楚雄彝族自治州博物馆景区']
+    retired [4a] 楚雄彝族自治州博物馆景区 id=c741ec4a (S2)
+[武汉|黄鹤楼] keeper=[5a] 黄鹤楼公园
+    aliases += ['黄鹤楼']
+    retired [amap] 黄鹤楼 id=8aab5b38 (S2)
+[毕节|织金洞] keeper=[5a] 织金洞景区
+    aliases += ['中国溶洞之王', '打鸡洞', '织金洞国家地质公园']
+    retired [scenic] 织金洞风景名胜区 id=57c8f2d0 (S2)
+[沈阳|沈阳故宫] keeper=[museum1] 沈阳故宫博物院
+    fill address <- [4a]
+    aliases += ['沈阳故宫']
+    retired [4a] 沈阳故宫 id=8fdb30f4 (S2)
+[泰安|泰山] keeper=[unesco] 泰山
+    aliases += ['五岳之首', '泰山风景名胜区']
+    retired [scenic] 泰山风景名胜区 id=2602779b (S2)
+[洛阳|洛阳龙门] keeper=[scenic] 洛阳龙门风景名胜区
+    fill opening_hours <- [museum2]
+    fill hours_source <- [museum2]
+    fill rating <- [museum2]
+    fill rating_source <- [museum2]
+    fill intro_en <- [museum2]
+    tags <- [museum2] ['国家二级博物馆']
+    aliases += ['洛阳龙门博物馆']
+    retired [museum2] 洛阳龙门博物馆 id=4575ad5f (S2)
+[济宁|上九山村] keeper=[histvillage] 上九山村
+    aliases += ['上九山村景区']
+    retired [4a] 上九山村景区 id=8d4b7e65 (S2)
+[海南|青海湖] keeper=[5a] 青海湖风景区
+    aliases += ['青海湖风景名胜区']
+    retired [scenic] 青海湖风景名胜区 id=cd5a6245 (S2)
+[深圳|南头] keeper=[amap] 南头古城
+    aliases += ['南头古城博物馆']
+    retired [amap] 南头古城博物馆 id=ecd9aaa4 (S2)
+[深圳|求水山] keeper=[amap] 求水山景区
+    aliases += ['求水山公园']
+    retired [chinatravel] 求水山公园 id=d2cf9cb1 (S2)
+[深圳|深圳市大鹏新区] keeper=[museum3] 深圳市大鹏新区博物馆
+    fill intro_en <- [chinatravel]
+    aliases += ['深圳市大鹏新区古城博物馆']
+    retired [chinatravel] 深圳市大鹏新区古城博物馆 id=83e797f0 (S2)
+[滁州|琅琊山] keeper=[5a] 琅琊山景区
+    aliases += ['琅琊山', '琅琊山国家森林公园', '琅琊山风景名胜区']
+    retired [scenic] 琅琊山风景名胜区 id=19dc00e8 (S2)
+[石家庄|苍岩山] keeper=[4a] 苍岩山景区
+    fill address <- [scenic]
+    aliases += ['苍岩山风景名胜区']
+    retired [scenic] 苍岩山风景名胜区 id=7a6dc6f0 (S2)
+[福州|青云山] keeper=[4a] 青云山景区
+    fill opening_hours <- [scenic]
+    fill hours_source <- [scenic]
+    fill phone <- [scenic]
+    fill rating <- [scenic]
+    fill rating_source <- [scenic]
+    fill ticket_price_min <- [scenic]
+    fill ticket_price_max <- [scenic]
+    fill ticket_source <- [scenic]
+    aliases += ['永泰青云山', '青云山风景名胜区']
+    retired [scenic] 青云山风景名胜区 id=04384053 (S2)
+[芜湖|鸠兹] keeper=[4a] 鸠兹古镇风景区
+    aliases += ['鸠兹风景区']
+    retired [4a] 鸠兹风景区 id=da372283 (S2)
+[苏州|太湖] keeper=[chinatravel] 太湖
+    aliases += ['太湖风景名胜区']
+    retired [scenic] 太湖风景名胜区 id=8881722e (S2)
+[苏州|苏州园林] keeper=[unesco] 苏州园林
+    aliases += ['苏州园林博物馆']
+    retired [amap] 苏州园林博物馆 id=9f375d3c (S2)
+[苏州|苏州湾] keeper=[chinatravel] 苏州湾博物馆
+    aliases += ['苏州湾旅游区']
+    retired [chinatravel] 苏州湾旅游区 id=6ccf2245 (S2)
+[苏州|金鸡湖] keeper=[5a] 金鸡湖旅游区
+    aliases += ['苏州金鸡湖', '金鸡湖', '金鸡湖景区', '金鸡湖风景区']
+    retired [amap] 金鸡湖 id=22f09a6c (S2)
+[萍乡|武功山] keeper=[5a] 武功山景区
+    aliases += ['云中草原', '武功山', '武功山国家地质公园', '武功山金顶', '武功山风景名胜区', '萍乡武功山']
+    retired [scenic] 武功山风景名胜区 id=2f3a3d78 (S2)
+[葫芦岛|兴城海滨] keeper=[4a] 兴城海滨风景区
+    fill intro_en <- [scenic]
+    aliases += ['兴城海滨风景名胜区']
+    retired [scenic] 兴城海滨风景名胜区 id=0442f8eb (S2)
+[西宁|青海藏医药文化] keeper=[museum1] 青海藏医药文化博物馆
+    aliases += ['藏医药博物馆', '青海藏医药文化博物院', '青海藏文化博物院']
+    retired [4a] 青海藏医药文化博物院 id=2aa54ae9 (S2)
+[赣州|三百山] keeper=[5a] 三百山景区
+    aliases += ['三百山风景名胜区']
+    retired [scenic] 三百山风景名胜区 id=b0aaaa0b (S2)
+[辽阳|辽阳] keeper=[museum2] 辽阳博物馆
+    fill address <- [4a]
+    aliases += ['辽阳博物馆景区']
+    retired [4a] 辽阳博物馆景区 id=781ded1e (S2)
+[邢台|崆山白云洞] keeper=[4a] 崆山白云洞旅游区
+    fill address <- [scenic]
+    aliases += ['崆山白云洞风景名胜区']
+    retired [scenic] 崆山白云洞风景名胜区 id=a4cc2d29 (S2)
+[重庆|兰英大峡谷] keeper=[amap] 兰英大峡谷
+    tags <- [4a] ['4a']
+    aliases += ['兰英大峡谷景区']
+    retired [4a] 兰英大峡谷景区 id=9b13366e (S2)
+[重庆|南温泉] keeper=[chinatravel] 南温泉风景区
+    aliases += ['南温泉']
+    retired [chinatravel] 南温泉 id=6ffc645e (S2)
+[重庆|四面山] keeper=[amap] 四面山
+    aliases += ['四面山风景名胜区']
+    retired [scenic] 四面山风景名胜区 id=9ab98090 (S2)
+[重庆|大足石刻] keeper=[unesco] 大足石刻
+    aliases += ['大足石刻博物馆', '大足石刻研究院']
+    retired [museum1] 大足石刻博物馆 id=f87124da (S2)
+[重庆|文峰] keeper=[chinatravel] 文峰古街
+    aliases += ['文峰景区']
+    retired [chinatravel] 文峰景区 id=d4134078 (S2)
+[重庆|濯水] keeper=[amap] 濯水古镇
+    fill phone <- [amap]
+    fill rating <- [amap]
+    fill rating_source <- [amap]
+    fill ticket_price_min <- [amap]
+    fill ticket_price_max <- [amap]
+    fill ticket_source <- [amap]
+    aliases += ['蒲花暗河']
+    retired [amap] 濯水景区 id=294adea8 (S2)
+[重庆|芙蓉江] keeper=[chinatravel] 芙蓉江
+    aliases += ['芙蓉江风景名胜区']
+    retired [scenic] 芙蓉江风景名胜区 id=bc2c26f2 (S2)
+[重庆|重庆欢乐谷] keeper=[amap] 重庆欢乐谷
+    tags <- [4a] ['4a']
+    aliases += ['重庆欢乐谷景区']
+    retired [4a] 重庆欢乐谷景区 id=cfcf2276 (S2)
+[重庆|重庆缙云山] keeper=[4a] 重庆缙云山景区
+    fill intro_en <- [scenic]
+    aliases += ['重庆缙云山风景名胜区']
+    retired [scenic] 重庆缙云山风景名胜区 id=0d0da9ec (S2)
+[重庆|金佛山] keeper=[amap] 金佛山
+    tags <- [scenic] ['unesco_karst']
+    aliases += ['金佛山风景名胜区']
+    retired [scenic] 金佛山风景名胜区 id=d94444b4 (S2)
+[金华|仙华山] keeper=[4a] 仙华山景区
+    fill address <- [scenic]
+    aliases += ['仙华山风景名胜区', '浦江仙华山']
+    retired [scenic] 仙华山风景名胜区 id=36992295 (S2)
+[铜仁|梵净山] keeper=[unesco] 梵净山
+    aliases += ['梵净山国家级自然保护区', '梵净山国家级风景名胜区', '梵净山旅游区', '梵净山风景区']
+    retired [5a] 梵净山旅游区 id=b1328dc3 (S2)
+[鞍山|鞍钢] keeper=[museum1] 鞍钢博物馆
+    fill address <- [4a]
+    aliases += ['鞍钢博物馆景区']
+    retired [4a] 鞍钢博物馆景区 id=aaedfaa2 (S2)
+[黄山|雄村] keeper=[histvillage] 雄村
+    aliases += ['雄村景区']
+    retired [4a] 雄村景区 id=e0cb80d4 (S2)
+[黄山|黄山] keeper=[unesco] 黄山
+    aliases += ['邒山', '黄山风景区', '黄山风景名胜区', '黄海']
+    retired [scenic] 黄山风景名胜区 id=34731912 (S2)
+[黄山|齐云山] keeper=[4a] 齐云山风景区
+    fill address <- [scenic]
+    fill opening_hours <- [scenic]
+    fill hours_source <- [scenic]
+    fill rating <- [scenic]
+    fill rating_source <- [scenic]
+    fill intro_en <- [scenic]
+    aliases += ['齐云山风景名胜区']
+    retired [scenic] 齐云山风景名胜区 id=356fdc6a (S2)
+
+retired 100 loser rows; missing-decision groups: 3
+  MISSING [成都|杜甫草堂] [amap] 杜甫草堂博物馆 (rating=4.7, dur=90, tags=['intl', 'mindtrip']) id=523eb7f0, [amap] 杜甫草堂 (rating=None, dur=120, tags=['curated', 'intl', 'mindtrip']) id=acc6b7f4
+  MISSING [杭州|西湖] [amap] 西湖风景名胜区 (rating=4.7, dur=180, tags=['ta', 'lp', 'intl']) id=54f3fcae, [amap] 西湖博物馆 (rating=None, dur=90, tags=None) id=4825c414
+  MISSING [柳州|柳州工业] [museum1] 柳州工业博物馆 (rating=4.8, dur=120, tags=['国家一级博物馆']) id=c2f80a94, [4a] 柳州工业博物馆景区 (rating=None, dur=180, tags=['4a']) id=a183757a
+unused decisions (check typos): [('成都', '成都杜甫草堂博物馆')]
+
+=== pass 2（补拍板：柳州工业博物馆、杭州西湖风景名胜区；tags 改并集语义）===
+[杭州|西湖] keeper=[amap] 西湖风景名胜区
+    aliases += ['西湖博物馆']
+    retired [amap] 西湖博物馆 id=4825c414 (S2)
+[柳州|柳州工业] keeper=[museum1] 柳州工业博物馆
+    tags union <- [4a] ['4a']
+    aliases += ['柳州工业博物馆景区']
+    retired [4a] 柳州工业博物馆景区 id=a183757a (S2)
+
+=== S3 拆分组补刀（同城同实体但核不同：带城市前缀 / 拆两核组）===
+keeper=[5a] 杭州西湖风景区
+    tags union <- [amap] ['ta', 'lp', 'intl']
+    aliases += ['杭州西湖文化景观', '西湖', '西湖博物馆', '西湖风景名胜区']
+    retired [amap] 西湖风景名胜区 id=54f3fcae (group)
+keeper=[museum1] 成都杜甫草堂博物馆
+    fill ticket_price_min/max+ticket_source <- [amap]; fill intro_en; fill website; fill booking_url
+    tags union <- [amap] ['curated']
+    aliases += ['杜甫草堂博物馆', '成都杜甫草堂']
+    retired [amap] 杜甫草堂博物馆 id=523eb7f0 / 杜甫草堂 id=acc6b7f4 (group)
+
+=== tags 并集回收（ops/recover_tags_union.py，全历史 retired 行按别名+同城治愈）===
+healed=30（天坛+5a、秦始皇帝陵博物院+ta/lp、乌镇+中国历史文化名镇、鸡公山+4a 等）
+orphans=47（早期轮退役行别名未指向 keeper，留台账不乱写）
+
+=== 终态重扫（2026-11-06）===
+active=13690  S1=0  S2=0  S3=75（S3 未授权不动）
+本轮共退役 105 行：13,795 -> 13,690

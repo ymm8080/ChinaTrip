@@ -9,12 +9,18 @@ from datetime import time
 
 from app.services.itinerary.models import (
     DayPlan,
+    GeoPoint,
     ItineraryPlan,
     PoiHours,
     TransferItem,
     VisitItem,
 )
+from app.services.itinerary.rules import validate_plan
 from app.services.itinerary.solver import insertion_schedule_day, solve_plan
+from app.services.restaurants import (
+    DINNER_PLACEHOLDER_ID_PREFIX,
+    LUNCH_PLACEHOLDER_ID_PREFIX,
+)
 
 _ALL_DAY = PoiHours(poi_id="p_all", opens=time(8, 0), closes=time(21, 0))
 
@@ -109,23 +115,29 @@ def test_insertion_180_big_morning_abuts_lunch():
     assert solved is not None
     big = next(i for i in solved.items if i.item_id == "big")
     lunch = next(i for i in solved.items if i.item_id == "lunch-1")
-    assert big.start_time == time(9, 0)  # 无 matrix 背靠背合法：紧贴午餐
-    assert lunch.start_time == time(12, 0)
+    assert big.start_time == time(8, 30)  # 无 matrix 背靠背合法：紧贴午餐
+    # 日始 08:30（2026-11-14）：180 分钟吃 08:30-11:30，软钉午餐滑到窗首 11:30
+    assert big.end_time == time(11, 30)
+    assert lunch.start_time == time(11, 30)
 
 
-def test_insertion_240_big_after_shortened_lunch():
+def test_insertion_240_big_fills_morning_then_lunch():
+    """日始 08:30 后 240 分钟大点正好吃满上午（08:30-12:30），午餐贴后满时长。
+
+    挂旧名「贴缩短午餐后」时前提是「上午容量只到 12:30=210 分钟」，
+    2026-11-14 日始改 08:30 后 240 分钟塞得进上午，前提已不成立——
+    现形态=大点先吃满上午，午餐在硬窗末 12:30 开餐（不缩时长）。
+    """
     v = _visit("big", dur=240)
     day = DayPlan(day=1, base_city="西安", items=[v, _lunch()])
     solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     big = next(i for i in solved.items if i.item_id == "big")
     lunch = next(i for i in solved.items if i.item_id == "lunch-1")
-    # ±30+缩30：上午容量 12:30（=210 分钟）装不下 240——贴缩短午餐后
-    assert _mins(big.start_time) >= 12 * 60
-    assert _mins(lunch.start_time) >= 11 * 60  # 允许提前
-    assert lunch.end_time <= big.start_time  # 无重叠
-    lunch_span = _mins(lunch.end_time) - _mins(lunch.start_time)
-    assert lunch_span >= 30  # 缩短下限 30 分钟
+    assert big.start_time == time(8, 30)
+    assert big.end_time == time(12, 30)
+    assert lunch.start_time == time(12, 30)  # 硬窗末，贴大点尾部
+    assert lunch.end_time == time(13, 30)  # 不用缩短
 
 
 def test_insertion_entry_cap_16_for_regular_sights():
@@ -146,6 +158,114 @@ def test_insertion_entry_cap_16_for_regular_sights():
     assert solved is not None
     late = next(i for i in solved.items if i.item_id == "late")
     assert _mins(late.start_time) <= 16 * 60
+
+
+def test_infeasible_meal_placeholders_do_not_keep_stale_times():
+    cases = [
+        (
+            LUNCH_PLACEHOLDER_ID_PREFIX,
+            time(12, 0),
+            time(13, 30),
+            90,
+            _visit(
+                "fixed-lunch-visit",
+                dur=120,
+                category="attraction",
+                pinned=True,
+                start_time=time(12, 0),
+                end_time=time(14, 0),
+            ),
+        ),
+        (
+            DINNER_PLACEHOLDER_ID_PREFIX,
+            time(17, 30),
+            time(18, 30),
+            60,
+            _visit(
+                "fixed-dinner-show",
+                dur=80,
+                category="entertainment",
+                best_visit_time="show",
+                pinned=True,
+                start_time=time(17, 30),
+                end_time=time(18, 50),
+            ),
+        ),
+    ]
+    for prefix, start, end, dur, fixed in cases:
+        placeholder = _visit(
+            f"{prefix}-d1",
+            dur=dur,
+            category="food",
+            start_time=start,
+            end_time=end,
+            soft_pin=True,
+        )
+        solved = insertion_schedule_day(
+            DayPlan(day=1, base_city="西安", items=[fixed, placeholder]),
+            poi_hours=[],
+        )
+        assert solved is not None
+        assert all(i.item_id != placeholder.item_id for i in solved.items)
+        report = validate_plan(_plan([solved]), poi_hours=[])
+        assert not [v for v in report.violations if v.rule_id == 1]
+
+
+def test_infeasible_real_meal_is_untimed_not_stale():
+    fixed = _visit(
+        "fixed-show",
+        dur=80,
+        category="entertainment",
+        best_visit_time="show",
+        pinned=True,
+        start_time=time(17, 30),
+        end_time=time(18, 50),
+    )
+    meal = _visit(
+        "restaurant-dinner",
+        dur=60,
+        category="food",
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        soft_pin=True,
+    )
+    solved = insertion_schedule_day(
+        DayPlan(day=1, base_city="西安", items=[fixed, meal]),
+        poi_hours=[],
+    )
+    assert solved is not None
+    kept = next(i for i in solved.items if i.item_id == meal.item_id)
+    assert kept.start_time is None and kept.end_time is None
+
+
+def test_placeholder_lunch_soft_move_still_fits_meal_window():
+    fixed = _visit(
+        "fixed-afternoon",
+        dur=180,
+        category="attraction",
+        pinned=True,
+        start_time=time(12, 0),
+        end_time=time(15, 0),
+    )
+    lunch = _visit(
+        f"{LUNCH_PLACEHOLDER_ID_PREFIX}-d1",
+        dur=90,
+        category="food",
+        start_time=time(12, 0),
+        end_time=time(13, 30),
+        soft_pin=True,
+    )
+    solved = insertion_schedule_day(
+        DayPlan(day=1, base_city="西安", items=[fixed, lunch]),
+        poi_hours=[],
+        meal_flex=True,
+    )
+    assert solved is not None
+    kept = next(i for i in solved.items if i.item_id == lunch.item_id)
+    assert time(11, 30) <= kept.start_time <= time(12, 30)
+    assert kept.duration_minutes >= 30
+    report = validate_plan(_plan([solved]), poi_hours=[])
+    assert not [v for v in report.violations if v.rule_id == 1]
 
 
 def test_insertion_none_when_evening_show_blocked_by_flight():
@@ -262,3 +382,90 @@ def test_insertion_sunset_window_lower_bound():
     deck2 = next(i for i in solved.items if i.item_id == "deck")
     assert deck2.start_time is not None
     assert 16 * 60 <= _mins(deck2.start_time) <= 19 * 60 - 60
+
+
+# ---- 同址宴秀嵌进晚场街区（2026-11-14 拍板「街区天然有餐饮，可以融合」） --
+# 同址（≤SAME_VENUE_KM）餐卡整段落在宿主观光窗内=嵌套，不算双订、不丢餐
+# （solver.fusion_food_nested + FUSION_NEST_BONUS；用户 2026-11-15 再确认
+# 「宴秀晚餐排进 16:00-20:00 的钉住街区里是 BY DESIGN」）。餐卡软钉
+# （soft_pin）仍可按 meal_flex 在 ±30 内滑动。
+
+_SITE = GeoPoint(lon=108.94, lat=34.21)
+_FAR = GeoPoint(lon=109.10, lat=34.21)  # 同纬度差 0.16° ≈ 15km > 5km 圈
+
+
+def _evening_block() -> VisitItem:
+    return _visit(
+        "block",
+        dur=240,
+        category="street",
+        location=_SITE,
+        pinned=True,
+        start_time=time(16, 0),
+        end_time=time(20, 0),
+    )
+
+
+def _banquet_dinner(*, location) -> VisitItem:
+    return VisitItem(
+        item_id="dinner-b",
+        name="主题宴（宴秀晚宴）",
+        category="food",
+        city="西安",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+        pinned=True,
+        soft_pin=True,
+        location=location,
+    )
+
+
+def test_banquet_dinner_nests_inside_co_located_evening_block():
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_SITE)],
+    )
+    solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    block = next(i for i in solved.items if i.item_id == "block")
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    # 嵌套形态：宴秀整段落在街区窗内（同址），不另占块尾时段、不丢餐
+    assert block.start_time == time(16, 0) and block.end_time == time(20, 0)
+    assert block.start_time <= dinner.start_time
+    assert dinner.end_time <= block.end_time
+    assert _mins(dinner.end_time) - _mins(dinner.start_time) == 60
+
+
+def test_banquet_dinner_nests_inside_evening_block_despite_matrix_gap():
+    # 矩阵走行 >0 不破坏嵌套（2026-11-14 口径）：同址宴秀仍整段嵌在街区窗内，
+    # 不因「零间隙不合法」被推出宿主窗、也不丢餐。
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_SITE)],
+    )
+    matrix = {("block", "dinner-b"): 10, ("dinner-b", "block"): 10}
+    solved = insertion_schedule_day(
+        day, poi_hours=[], meal_flex=True, travel_minutes=matrix
+    )
+    assert solved is not None
+    block = next(i for i in solved.items if i.item_id == "block")
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    assert block.start_time == time(16, 0) and block.end_time == time(20, 0)
+    assert block.start_time <= dinner.start_time
+    assert dinner.end_time <= block.end_time
+
+
+def test_dinner_far_from_evening_block_still_drops():
+    day = DayPlan(
+        day=1,
+        base_city="西安",
+        items=[_evening_block(), _banquet_dinner(location=_FAR)],
+    )
+    solved = insertion_schedule_day(day, poi_hours=[], meal_flex=True)
+    assert solved is not None
+    dinner = next(i for i in solved.items if i.item_id == "dinner-b")
+    assert dinner.start_time is None  # 远距不粘接，维持「窗满丢餐」降级

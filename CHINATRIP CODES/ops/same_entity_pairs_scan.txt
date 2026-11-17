@@ -1,0 +1,10 @@
+[上海|S3互含] keeper=[artmuseum] 龙美术馆  (loser [amap] 宝龙美术馆)
+[南京|S3互含] keeper=[amap] 心印中华门  (loser [amap] 中华门)
+[南京|S3互含] keeper=[amap] 雨花石博物馆  (loser [chinatravel] 夫子庙雨花石博物馆)
+[南京|S3互含] keeper=[amap] 秦淮河画舫  (loser [amap] 外秦淮河画舫)
+[庆阳|S3互含] keeper=[museum3] 正宁县博物馆  (loser [museum3] 宁县博物馆)
+[杭州|S3互含] keeper=[amap] 东天目山景区  (loser [amap] 天目山景区)
+[杭州|S3互含] keeper=[chinatravel] 新安江  (loser [chinatravel] 梦幻新安江)
+[阿勒泰|S3互含] keeper=[4a] 滨河景区  (loser [4a] 克兰河滨河景区)
+
+active=13623  S1=0 S2=0 S3=8

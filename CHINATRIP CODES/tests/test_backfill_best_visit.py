@@ -102,7 +102,7 @@ def test_select_targets_llm_excludes_heuristic_marked():
 
 def test_select_targets_respects_limit():
     session = _FakeSession([_row(f"poi{i}") for i in range(5)])
-    assert len(select_targets(session, "heuristic", None, 3)) == 3
+    assert len(select_targets(session, "llm", None, 3)) == 3
 
 
 def test_norm_city():
@@ -111,66 +111,8 @@ def test_norm_city():
     assert _norm_city(None) == ""
 
 
-# --- heuristic stage ------------------------------------------------------
-
-
-def test_heuristic_hit_writes_source():
-    session = _FakeSession()
-    row = _row("两江夜游")
-    stats = apply_stage(
-        session,
-        [row],
-        "heuristic",
-        rules_fn=lambda name, cat: "evening",
-        hours_fn=lambda hours: None,
-    )
-    assert stats["targets"] == 1
-    assert stats["heuristic_filled"] == 1
-    assert row.best_visit_time == "evening"
-    assert row.best_visit_time_source == "heuristic"
-    assert session.commits == 1
-
-
-def test_heuristic_falls_back_to_hours():
-    hours_fn_calls = []
-
-    def hours_fn(hours):
-        hours_fn_calls.append(hours)
-        return "morning"
-
-    session = _FakeSession()
-    row = _row("无名景点", opening_hours="06:00-10:00")
-    stats = apply_stage(
-        session,
-        [row],
-        "heuristic",
-        rules_fn=lambda name, cat: None,
-        hours_fn=hours_fn,
-    )
-    assert hours_fn_calls == ["06:00-10:00"]
-    assert stats["heuristic_filled"] == 1
-    assert row.best_visit_time == "morning"
-    assert row.best_visit_time_source == "heuristic"
-
-
-def test_heuristic_no_signal_counts():
-    session = _FakeSession()
-    row = _row("普通景点")
-    stats = apply_stage(
-        session,
-        [row],
-        "heuristic",
-        rules_fn=lambda name, cat: None,
-        hours_fn=lambda hours: None,
-    )
-    assert stats["no_signal"] == 1
-    assert stats["heuristic_filled"] == 0
-    assert row.best_visit_time is None
-    assert session.commits == 0
-
-
 def test_non_empty_row_never_overwritten():
-    """铁律只升不降：已有 evening 不被规则覆盖，计 skipped_not_empty."""
+    """铁律只升不降：已有 evening 不被 llm 层覆盖，计 skipped_not_empty."""
     session = _FakeSession()
     row = _row(
         "两江夜游",
@@ -180,12 +122,11 @@ def test_non_empty_row_never_overwritten():
     stats = apply_stage(
         session,
         [row],
-        "heuristic",
-        rules_fn=lambda name, cat: "morning",  # 恶意试图降级
-        hours_fn=lambda hours: "morning",
+        "llm",
+        llm_fn=lambda name, cat: "morning",  # 恶意试图降级（行非空不会走到）
     )
     assert stats["skipped_not_empty"] == 1
-    assert stats["heuristic_filled"] == 0
+    assert stats["llm_filled"] == 0
     assert row.best_visit_time == "evening"
     assert row.best_visit_time_source == "ctrip"
     assert session.commits == 0

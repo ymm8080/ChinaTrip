@@ -1,0 +1,526 @@
+{
+ "pages_crawled": {
+  "attractions": 2,
+  "restaurants": 2
+ },
+ "attractions": {
+  "487762": {
+   "name_zh": "开元寺",
+   "name_en": "",
+   "reviews": 183
+  },
+  "501313": {
+   "name_zh": "清源山",
+   "name_en": "",
+   "reviews": 121
+  },
+  "1865217": {
+   "name_zh": "泉州海外交通史博物馆",
+   "name_en": "",
+   "reviews": 44
+  },
+  "1851129": {
+   "name_zh": "东西塔",
+   "name_en": "",
+   "reviews": 44
+  },
+  "2051465": {
+   "name_zh": "通淮关岳庙",
+   "name_en": "",
+   "reviews": 39
+  },
+  "501315": {
+   "name_zh": "清净寺",
+   "name_en": "",
+   "reviews": 63
+  },
+  "1851128": {
+   "name_zh": "泉州博物馆",
+   "name_en": "",
+   "reviews": 23
+  },
+  "2050901": {
+   "name_zh": "福建泉州承天寺",
+   "name_en": "",
+   "reviews": 25
+  },
+  "1851130": {
+   "name_zh": "泉州府文庙",
+   "name_en": "",
+   "reviews": 29
+  },
+  "2232624": {
+   "name_zh": "西湖公园",
+   "name_en": "",
+   "reviews": 22
+  },
+  "501312": {
+   "name_zh": "洛阳桥",
+   "name_en": "",
+   "reviews": 33
+  },
+  "1851127": {
+   "name_zh": "泉州天后宫",
+   "name_en": "",
+   "reviews": 23
+  },
+  "5118700": {
+   "name_zh": "中山中路步行街",
+   "name_en": "",
+   "reviews": 8
+  },
+  "600520": {
+   "name_zh": "老子塑像",
+   "name_en": "",
+   "reviews": 20
+  },
+  "2051458": {
+   "name_zh": "泉州东湖公园",
+   "name_en": "",
+   "reviews": 17
+  },
+  "4799727": {
+   "name_zh": "元妙观",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2051445": {
+   "name_zh": "泉州李贽故居",
+   "name_en": "",
+   "reviews": 7
+  },
+  "2051194": {
+   "name_zh": "弘一法师纪念馆",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2051051": {
+   "name_zh": "泉州草庵",
+   "name_en": "",
+   "reviews": 6
+  },
+  "5118679": {
+   "name_zh": "领Show天地",
+   "name_en": "",
+   "reviews": 7
+  },
+  "33983785": {
+   "name_zh": "Quanzhou Xunpu Village",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1851123": {
+   "name_zh": "泉州森林公园",
+   "name_en": "",
+   "reviews": 10
+  },
+  "16695254": {
+   "name_zh": "泉州花巷天主堂",
+   "name_en": "",
+   "reviews": 3
+  },
+  "5118694": {
+   "name_zh": "温陵美食街",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1871096": {
+   "name_zh": "基督教泉南堂",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4789792": {
+   "name_zh": "闽台缘博物馆",
+   "name_en": "",
+   "reviews": 11
+  },
+  "1851125": {
+   "name_zh": "泉州港古建筑",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1871418": {
+   "name_zh": "仙公山",
+   "name_en": "",
+   "reviews": 6
+  },
+  "1871278": {
+   "name_zh": "泉州湾古船陈列馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "2051447": {
+   "name_zh": "泉州状元街",
+   "name_en": "",
+   "reviews": 6
+  },
+  "16695257": {
+   "name_zh": "中山公园",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1851066": {
+   "name_zh": "老君岩造像",
+   "name_en": "",
+   "reviews": 9
+  },
+  "13354745": {
+   "name_zh": "源和1916创意产业园",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1871383": {
+   "name_zh": "涂门街",
+   "name_en": "",
+   "reviews": 13
+  },
+  "1851126": {
+   "name_zh": "德济门遗址",
+   "name_en": "",
+   "reviews": 7
+  },
+  "16695262": {
+   "name_zh": "开闽三王祠",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1864383": {
+   "name_zh": "百源川池",
+   "name_en": "",
+   "reviews": 4
+  },
+  "2051184": {
+   "name_zh": "泉州游乐园",
+   "name_en": "",
+   "reviews": 11
+  },
+  "2051025": {
+   "name_zh": "泉州伊斯兰教圣墓",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19730064": {
+   "name_zh": "北滨江公园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5118690": {
+   "name_zh": "三青现代城商业街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1864384": {
+   "name_zh": "富美宫",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2051004": {
+   "name_zh": "泉州石狮海洋世界",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1871347": {
+   "name_zh": "宿燕寺",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3362812": {
+   "name_zh": "SM购物广场",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2050885": {
+   "name_zh": "泉州花桥慈济宫",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1851124": {
+   "name_zh": "泉州东湖动物园",
+   "name_en": "",
+   "reviews": 4
+  },
+  "5118718": {
+   "name_zh": "泉州金街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "3362183": {
+   "name_zh": "大洋百货(温陵路)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1871009": {
+   "name_zh": "芳草园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "3363515": {
+   "name_zh": "中闽百汇",
+   "name_en": "",
+   "reviews": 1
+  },
+  "16695285": {
+   "name_zh": "基督教泉西堂",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5118719": {
+   "name_zh": "泉州后城旅游文化街",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5118681": {
+   "name_zh": "泉州市北门旅游购物街",
+   "name_en": "",
+   "reviews": 2
+  },
+  "1871535": {
+   "name_zh": "状元街",
+   "name_en": "",
+   "reviews": 4
+  }
+ },
+ "restaurants": {
+  "4546443": {
+   "name_zh": "The Brickyard",
+   "name_en": "",
+   "reviews": 24
+  },
+  "27683473": {
+   "name_zh": "卡萨诺瓦 意大利餐厅(泰禾广场店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "5055331": {
+   "name_zh": "泉州酒店西餐厅",
+   "name_en": "",
+   "reviews": 8
+  },
+  "10487305": {
+   "name_zh": "蓝氏钟楼肉粽",
+   "name_en": "",
+   "reviews": 4
+  },
+  "4864813": {
+   "name_zh": "浔埔海鲜酒楼",
+   "name_en": "",
+   "reviews": 6
+  },
+  "4964748": {
+   "name_zh": "豪客来",
+   "name_en": "",
+   "reviews": 8
+  },
+  "5237785": {
+   "name_zh": "悦园咖啡厅",
+   "name_en": "",
+   "reviews": 5
+  },
+  "25313438": {
+   "name_zh": "彩丰楼中餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5233409": {
+   "name_zh": "温陵美食楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "5236921": {
+   "name_zh": "星巴克(宝洲路店)",
+   "name_en": "",
+   "reviews": 5
+  },
+  "4861406": {
+   "name_zh": "深沪名粳馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "15098417": {
+   "name_zh": "黑松露创意融合料理(海山创意园店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "25368900": {
+   "name_zh": "纳湾法国美食餐厅",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4864362": {
+   "name_zh": "亚咪咕凯撒比萨餐厅",
+   "name_en": "",
+   "reviews": 4
+  },
+  "13335614": {
+   "name_zh": "在云端咖啡(南益店)",
+   "name_en": "",
+   "reviews": 2
+  },
+  "8093127": {
+   "name_zh": "兴源古厝饭店",
+   "name_en": "",
+   "reviews": 2
+  },
+  "33408294": {
+   "name_zh": "Dongchen Beef Shop",
+   "name_en": "",
+   "reviews": 1
+  },
+  "33406671": {
+   "name_zh": "Hongshi Fashi Vietnam Cuisine",
+   "name_en": "",
+   "reviews": 1
+  },
+  "33406841": {
+   "name_zh": "Jinkoufu Honglai Chinese Sauerkraut Mian",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4863849": {
+   "name_zh": "五排五号咖啡馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "18816508": {
+   "name_zh": "鸡腿怣",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15857579": {
+   "name_zh": "家力饮食店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4962506": {
+   "name_zh": "大丰收鱼庄(德辉广场店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4862092": {
+   "name_zh": "公园壹号咖啡馆",
+   "name_en": "",
+   "reviews": 3
+  },
+  "19139637": {
+   "name_zh": "乐捞沙茶面(六灌路店)",
+   "name_en": "",
+   "reviews": 1
+  },
+  "4936552": {
+   "name_zh": "东兴牛肉店(庄府巷)",
+   "name_en": "",
+   "reviews": 8
+  },
+  "34221521": {
+   "name_zh": "All-Day Dining Restaurant",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32923461": {
+   "name_zh": "M Stand(泉州中骏世界城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "32923463": {
+   "name_zh": "M Stand(泉州晋江宝龙广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20159851": {
+   "name_zh": "Shu Yuan Restaurant (Donghu)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33403660": {
+   "name_zh": "The Local Café & Bar Quanzhou",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933320": {
+   "name_zh": "UD咖啡(打锡店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4932921": {
+   "name_zh": "巴黎城西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19121474": {
+   "name_zh": "八鲜过海(东海泰禾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15208990": {
+   "name_zh": "巴浪鱼咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055300": {
+   "name_zh": "堤后咖啡客栈",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4964479": {
+   "name_zh": "赣湘楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933419": {
+   "name_zh": "哥顿酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25313423": {
+   "name_zh": "古码头咖啡厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "17304410": {
+   "name_zh": "侯阿婆·烧肉粽(南益广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5057124": {
+   "name_zh": "黄鹤楼(美食街店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933987": {
+   "name_zh": "酒乐日本料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5055026": {
+   "name_zh": "康桥",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865371": {
+   "name_zh": "十二味生活咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861524": {
+   "name_zh": "王牌川菜馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19098478": {
+   "name_zh": "西贝莜面村(浦西万达店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235547": {
+   "name_zh": "羊咩咩DIY烘焙坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "25313432": {
+   "name_zh": "虞·日本餐厅",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "303693"
+}

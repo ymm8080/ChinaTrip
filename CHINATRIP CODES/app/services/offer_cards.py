@@ -22,6 +22,8 @@ from urllib.parse import quote
 from app.config import Settings
 from app.services.bookings import (
     _refund_channel_page,
+    fliggy_booking_url,
+    fliggy_hotel_url,
     flight_booking,
     hotel_booking,
     train_booking,
@@ -31,8 +33,8 @@ from app.services.trains import get_train_service
 
 __all__ = ["flight_offer_cards", "hotel_offer_cards", "train_offer_cards"]
 
-# 稳定性序（同价时的次序）：携程 > 去哪儿 > 美团
-_STABILITY_ORDER = ("ctrip", "qunar", "meituan")
+# 稳定性序（同价时的次序）：携程 > 去哪儿 > 美团 > 飞猪（2026-11-04 飞猪入组）
+_STABILITY_ORDER = ("ctrip", "qunar", "meituan", "fliggy")
 
 # MVP 确定性 mock 基价（元）；接入真实联盟 API 后替换 _mock_price_yuan 即可
 _BASE_PRICE_YUAN: dict[str, float] = {"hotel": 350.0, "flight": 760.0}
@@ -69,6 +71,19 @@ def _meituan_refund_summary() -> str:
     return L(
         _MEITUAN_REFUND_SUMMARY,
         "Refund policy per the Meituan checkout page; pick a 'free "
+        "cancellation' room when possible",
+    )
+
+
+# fliggy 在 bookings.py 的退改摘要表里是机票文案；酒店卡按渠道单列时
+# 换酒店自己的铁律 23 兜底文案（2026-11-07 每晚酒店卡飞猪入组）
+_FLIGGY_HOTEL_REFUND_SUMMARY = "退改政策以飞猪下单页展示为准；建议选「免费取消」房型"
+
+
+def _fliggy_hotel_refund_summary() -> str:
+    return L(
+        _FLIGGY_HOTEL_REFUND_SUMMARY,
+        "Refund policy per the Fliggy checkout page; pick a 'free "
         "cancellation' room when possible",
     )
 
@@ -195,14 +210,19 @@ def hotel_offer_cards(
     region: str = "cn",
     settings: Settings,
 ) -> dict:
-    """酒店候选卡（步骤1 查询）：cn=携程+美团；overseas 隐藏美团卡（只剩 1 张）。
+    """酒店候选卡（步骤1 查询）：cn=携程+美团+飞猪（2026-11-07 飞猪入组，
+    飞猪退改摘要换酒店文案）；overseas 隐藏美团卡（携程+飞猪 2 张）。
 
     坐标/日期校验沿用 bookings.hotel_booking 既有口径，不合法抛 ValueError。
     """
     handoff = hotel_booking(
         city, near_poi_name, lon=lon, lat=lat, checkin=checkin, checkout=checkout
     )["handoff"]
-    channel_urls = {"ctrip": handoff["url"], "meituan": handoff["fallback"]["url"]}
+    channel_urls = {
+        "ctrip": handoff["url"],
+        "meituan": handoff["fallback"]["url"],
+        "fliggy": fliggy_hotel_url(city, near_poi_name, checkin, checkout),
+    }
     if region == "overseas":
         channel_urls.pop("meituan")
     norm = _norm_query(
@@ -217,7 +237,11 @@ def hotel_offer_cards(
             "region": region,
         },
     )
-    return _assemble("hotel", channel_urls, norm=norm, settings=settings)
+    cards = _assemble("hotel", channel_urls, norm=norm, settings=settings)
+    for card in cards["cards"]:
+        if card["channel"] == "fliggy":
+            card["refund_summary"] = _fliggy_hotel_refund_summary()
+    return cards
 
 
 def flight_offer_cards(
@@ -228,11 +252,16 @@ def flight_offer_cards(
     region: str = "cn",
     settings: Settings,
 ) -> dict:
-    """机票候选卡（步骤1 查询）：携程主渠道+去哪儿兜底（机票无美团卡）。"""
+    """机票候选卡（步骤1 查询）：携程主渠道+去哪儿兜底+飞猪（机票无美团卡）。
+
+    2026-11-04 用户拍板：规划页路途行程点「去哪儿/飞猪」跳转——飞猪以
+    第三渠道入组，退改摘要走 bookings._REFUND_SUMMARIES["fliggy"]（铁律 23）。
+    """
     handoff = flight_booking(from_city, to_city, date)["handoff"]
     channel_urls = {
         handoff["channel"]: handoff["url"],
         handoff["fallback"]["channel"]: handoff["fallback"]["url"],
+        "fliggy": fliggy_booking_url(from_city, to_city, date),
     }
     norm = _norm_query(
         "flight",

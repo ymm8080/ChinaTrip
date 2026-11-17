@@ -1,0 +1,1488 @@
+INFO:     127.0.0.1:2866 - "GET /health HTTP/1.1" 200 OK
+
+===== start 2026-11-13 12:43:08 =====
+INFO:     Started server process [15228]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:app.main:pg keepalive: db up (latch cleared)
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:43:24.709103+00:00", "trace_id": "47fb5743fd1f41ea91ac0de97ea65d23", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 9}
+INFO:     127.0.0.1:3137 - "GET /health HTTP/1.1" 200 OK
+INFO:app.services.trip_items:trip_item_deleted id=744807be27f84a58ac89a7a017a13b6a
+INFO:app.services.trip_items:trip_item_deleted id=ab5c4079974e458e9ca762e9cc33f49d
+INFO:app.services.trip_items:trip_item_deleted id=7b3b9b6362af42ae871dc365a00e1e38
+INFO:app.services.trip_items:trip_item_deleted id=0546dc5906ad4809b6fde2bb2a337253
+INFO:app.services.trip_items:trip_item_deleted id=33e2224eb3fe405d92ac8ca9a1ae6c8d
+INFO:app.services.trip_items:trip_item_deleted id=7a4d9123217b4b57ab91eee10b2832a4
+INFO:app.services.trip_items:trip_item_deleted id=24d44a42e78a49cf89e277aa058f1874
+INFO:app.services.trip_items:trip_item_deleted id=02506be761c4498e962b727e8e60811f
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:43:25.528929+00:00", "trace_id": "af5a18e1284842fda36710bd12a81beb", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/trip-items", "status_code": 200, "duration_ms": 496}
+INFO:     127.0.0.1:3140 - "GET /api/v1/trip-items HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:43:26.619015+00:00", "trace_id": "a4e02576c6994a7988d15be904ceb040", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:3141 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:43:38.727158+00:00", "trace_id": "5b3b83e5c33b467593d7c857076507e3", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/trip-items", "status_code": 200, "duration_ms": 37}
+INFO:     127.0.0.1:3179 - "GET /api/v1/trip-items HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:44:26.343024+00:00", "trace_id": "5f5f7a25fbcf42aa89470861dfb95e12", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:4013 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:45:26.085693+00:00", "trace_id": "09b20483c9b5408bac363d0d1852e8cb", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:5276 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:46:26.178479+00:00", "trace_id": "d770f7e2bbf740a0919230fc1507130f", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:5838 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:47:26.557733+00:00", "trace_id": "c519c8ceac0042c99d35a3b7f99bf0b5", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:6530 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:48:26.235972+00:00", "trace_id": "7f55d0eb66794b02bb3de54e2e18958e", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:6880 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.006047+00:00", "trace_id": "17da1d3ef5fb47cf94c35e001f6b620d", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/auth/me", "status_code": 200, "duration_ms": 48}
+INFO:     127.0.0.1:7895 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.022048+00:00", "trace_id": "dba632727b8d468da415bc622d270b0f", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/itineraries", "status_code": 200, "duration_ms": 63}
+INFO:     127.0.0.1:7894 - "GET /api/v1/itineraries HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.388752+00:00", "trace_id": "171ab8113d954fb4b905b74e86fa993c", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/provider", "status_code": 200, "duration_ms": 21}
+INFO:     127.0.0.1:7895 - "GET /api/v1/amap/provider HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.397287+00:00", "trace_id": "9643bea820304397b1160af1f733693c", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/records", "status_code": 200, "duration_ms": 235}
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.398281+00:00", "trace_id": "8448f3e3c3d04e77a7e167909bc989f1", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/packages", "status_code": 200, "duration_ms": 301}
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.407282+00:00", "trace_id": "e7b835322e414ed2850187e5affefb41", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/balance", "status_code": 200, "duration_ms": 245}
+INFO:     127.0.0.1:7896 - "GET /api/v1/call/records HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7898 - "GET /api/v1/call/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7897 - "GET /api/v1/call/balance HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:12.888842+00:00", "trace_id": "122b0304af134b258886bfe013392719", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/weather/sync", "status_code": 200, "duration_ms": 792}
+INFO:     127.0.0.1:7899 - "POST /api/weather/sync HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349788%2C121.372434 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:19.038064+00:00", "trace_id": "d4de77bae84a471d8c6634559159deb7", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 3759}
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349788%2C121.372434 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:23.447917+00:00", "trace_id": "819bcc9e358a4d2caba816e8435cc3da", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 3339}
+INFO:app.services.agent.plan:plan: wish off-trip skip 成都环球中心 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: wish off-trip skip 看熊猫 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: city 西安 candidates library=33 no_loc_skipped=0 no_data_skipped=9 fallback_skipped=4 total=33
+INFO:app.services.agent.plan:plan: wish covered bind 陕西历史博物馆 -> 陕西历史博物馆 (pool=33 rank=(1, 0, 2, 4.8, -7) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 永兴坊 -> 永兴坊 (pool=33 rank=(0, 0, 2, 0.0, -3) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 秦始皇帝陵博物院 -> 秦始皇帝陵博物院 (pool=33 rank=(1, 1, 2, 4.7, -8) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 华清宫 -> 华清宫 (pool=33 rank=(0, 1, 2, 4.7, -3) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 临潼骊山风景名胜区 -> 临潼骊山风景名胜区 (pool=33 rank=(0, 0, 2, 0.0, -9) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 大雁塔大唐芙蓉园景区 -> 大雁塔大唐芙蓉园景区 (pool=33 rank=(0, 1, 2, 4.7, -10) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 长安十二时辰主题街区 -> 长安十二时辰主题街区 (pool=33 rank=(0, 0, 2, 0.0, -10) ladder=True)
+INFO:app.services.agent.plan:plan: wish covered bind 西安钟楼 -> 醉长安（钟楼旗舰店） (pool=33 rank=(0, 0, 2, 4.7, -10) ladder=True)
+INFO:app.services.agent.plan:plan: night show 《长恨歌》演出 in off-season, excluded from finale bucket (trip months=[11])
+INFO:app.services.agent.plan:plan: return-urban circle city=西安 r=15.0km out=['《秦俑情》', '秦始皇帝陵博物院', '华清宫']
+INFO:app.services.agent.plan:plan: cluster-first elig=11/12 excluded=[('《秦俑情》', 'entertainment', False)]
+INFO:app.services.agent.plan:plan: cluster-first combos formed: [['大雁塔大唐芙蓉园景区', '长安十二时辰主题街区'], ['城墙·碑林历史文化景区', '西安钟楼', '西安鼓楼'], ['秦始皇帝陵博物院', '华清宫']]
+INFO:app.services.agent.plan:plan: cluster-first family [城墙·碑林历史文化景区、西安钟楼、西安鼓楼] -> day 2 (size=3)
+INFO:app.services.agent.plan:plan: cluster-first family [大雁塔大唐芙蓉园景区、长安十二时辰主题街区] -> day 3 (size=2)
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] rejected on all days: [(1, 'arrival:edge'), (2, 'cap4'), (3, 'budget'), (4, 'edge')]
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 via tier-priority displacement, evicted=['西安鼓楼', '西安钟楼', '城墙·碑林历史文化景区']
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 (size=2)
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 小雁塔 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim district-mate 大明宫旅游景区 -> days [4, 3] first
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 陕西历史博物馆 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim show landed 《秦俑情》 -> day 2 (strict)
+INFO:app.services.agent.plan:plan: extra night shows pending=['唐乐宫《大唐女皇》', '大唐不夜城'] show-days-used=[2, 3]
+INFO:app.services.agent.plan:plan: night shows unplaced (no day free of shows in window): 唐乐宫《大唐女皇》、大唐不夜城
+INFO:app.services.agent.plan:plan: v0 candidates 0.24s + select[algorithm] 0.11s (33 candidates)
+INFO:app.services.itinerary.solver:plan: night-combo anchored 秦始皇帝陵博物院 15:00:00-16:30:00 -> 《秦俑情》 17:00:00-18:20:00
+INFO:app.services.itinerary.solver:solver: dinner glue declined day 2 长安十二时辰·唐宴 (no evening mate within 5km)
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 2 长安十二时辰·唐宴 -> keep unscheduled
+INFO:app.services.itinerary.solver:plan: night-combo skip 长安十二时辰主题街区 no feasible slot
+INFO:app.services.itinerary.solver:plan: night-combo skip 《梦回大唐》 no feasible slot
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: lunch window 11:30-12:30 full on day 1 — drop v11
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d2 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d3 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d4 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:32.435928+00:00", "trace_id": "fd95492b3ca8483689eb00152786f592", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8146 - "GET /health HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349788%2C121.372434 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:33.185516+00:00", "trace_id": "f078df90b225458180d307e6d1b717a3", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 6035}
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:34.371113+00:00", "trace_id": "c9610a0f4c044f05a4d8e8127c4bba02", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/trip-items", "status_code": 200, "duration_ms": 29}
+INFO:     127.0.0.1:8193 - "GET /api/v1/trip-items HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/direction/v2/walking?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&origin=34.222805%2C108.968437&destination=34.218948%2C108.980725 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/direction/v2/walking?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&origin=34.392110%2C109.288514&destination=34.386297%2C109.287424 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/direction/v2/walking?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&origin=34.218948%2C108.980725&destination=34.222805%2C108.968437 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/direction/v2/walking?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&origin=34.365098%2C109.221499&destination=34.392110%2C109.288514 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/direction/v2/walking?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&origin=34.379116%2C109.219418&destination=34.263020%2C108.949654 "HTTP/1.1 200 OK"
+INFO:app.services.agent.plan:plan: legs 5 route calls in 5.79s
+INFO:app.services.agent.plan:plan: enrich done in 5.79s
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: must-visit room sweep evicted 《梦回大唐》 for 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 秦始皇帝陵博物院 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 秦始皇帝陵博物院 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 大雁塔大唐芙蓉园景区 to day 2 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 大雁塔大唐芙蓉园景区 day 3 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 长安十二时辰主题街区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 长安十二时辰主题街区 to day 4 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 长安十二时辰主题街区 day 3 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+INFO:app.services.agent.plan:plan: wedge strays evicted: 西安鼓楼
+WARNING:app.services.agent.plan:plan: show-per-day gate glued block experience 长安十二时辰·唐宴 day 2 -> 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 3 长安大牌档之西游漫记（大悦城店） -> keep unscheduled
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 4 醉长安（钟楼旗舰店） -> keep unscheduled
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 秦始皇帝陵博物院 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 秦始皇帝陵博物院 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 大雁塔大唐芙蓉园景区 to day 2 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 大雁塔大唐芙蓉园景区 day 3 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安十二时辰主题街区 day 2 starts 30 min after pinned 秦始皇帝陵博物院 ends — leg is 108 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安十二时辰主题街区 day 2 starts 30 min after 秦始皇帝陵博物院 ends — leg is 108 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 长安十二时辰主题街区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.agent.plan:plan: cross-day rescue moved pinned must 长安十二时辰主题街区 day 3 -> 4
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: purity family merge 临潼骊山风景名胜区 day 4 -> day 2
+INFO:app.services.agent.plan:plan: purity family show retime day 2 count 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 临潼骊山风景名胜区 on day 2
+WARNING:app.services.agent.plan:plan: purity rollback 临潼骊山风景名胜区 day 2 -> day 4 (untimed after move)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: endpoint-light empty return day 4 (no simple card; accepted per 11-11 ruling)
+INFO:app.services.agent.plan:plan: endpoint-light cap keeps pinned 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: endpoint-light cap keeps pinned 临潼骊山风景名胜区 on day 4
+WARNING:app.services.agent.plan:plan v0 delivered with 6 hard violations
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 永兴坊 -> 永兴坊 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 秦始皇帝陵博物院 -> 秦始皇帝陵博物院 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 华清宫 -> 华清宫 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 临潼骊山风景名胜区 -> 临潼骊山风景名胜区 day 4
+INFO:app.services.agent.plan:plan: wish row scheduled 大雁塔大唐芙蓉园景区 -> 大雁塔大唐芙蓉园景区 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 长安十二时辰主题街区 -> 长安十二时辰·唐宴 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 西安钟楼 -> 醉长安（钟楼旗舰店） day 4
+INFO:app.services.trip_items:trip_item_created source=plan
+INFO:app.services.agent.plan:plan: planned row scheduled 《秦俑情》 -> day 2
+INFO:app.services.agent.plan:plan: planned row scheduled 长安十二时辰·唐宴 -> day 3
+INFO:app.services.agent.plan:plan: planned row scheduled 长安十二时辰主题街区 -> day 4
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=永兴坊 pool=47 picked=3 drops={'band': 20, 'category': 1, 'duration': 2, 'exclude': 8, 'food': 5, 'show_row': 7}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=陕西历史博物馆 pool=47 picked=1 drops={'band': 20, 'category': 1, 'exclude': 13, 'food': 5, 'show_row': 7}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=华清宫 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 14, 'food': 5, 'show_row': 7}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=秦始皇帝陵博物院 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 14, 'food': 5, 'show_row': 7}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: main=《秦俑情》 pool=47 picked=3 drops={'exclude': 14, 'food': 5, 'not_show': 21}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=大雁塔大唐芙蓉园景区 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 17, 'food': 5, 'show_row': 4}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 临潼骊山风景名胜区 gate=ruins
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 临潼骊山风景名胜区 gate=citywalk
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=临潼骊山风景名胜区 pool=47 picked=0 drops={'band': 19, 'citywalk': 1, 'exclude': 17, 'food': 5, 'ruins': 1, 'show_row': 4}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 长安十二时辰主题街区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 长安十二时辰主题街区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 长安十二时辰主题街区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 长安十二时辰主题街区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 长安十二时辰主题街区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 长安十二时辰主题街区 gate=citywalk
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 长安十二时辰主题街区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 长安十二时辰主题街区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 长安十二时辰主题街区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 长安十二时辰主题街区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 长安十二时辰主题街区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=长安十二时辰主题街区 pool=47 picked=0 drops={'band': 20, 'citywalk': 1, 'exclude': 17, 'food': 5, 'show_row': 4}
+INFO:app.services.poi_alternatives:alternatives: unplaced chip 《梦回大唐》 -> host 大雁塔大唐芙蓉园景区 (day 3, reason=yield_must)
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:36.693596+00:00", "trace_id": "bc52778bdb4b4e98980cf6a6d159120d", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/plan/start", "status_code": 200, "duration_ms": 13089}
+INFO:     127.0.0.1:8044 - "POST /api/v1/plan/start HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:36.714121+00:00", "trace_id": "a276cfab2b3744ec9f8be470a9518488", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/weather", "status_code": 200, "duration_ms": 11}
+INFO:     127.0.0.1:8044 - "GET /api/weather?city=%E8%A5%BF%E5%AE%89 HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:36.722120+00:00", "trace_id": "779ed76a3a0747d5aad3dc58a4f8ca6c", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/booking-auto/tasks", "status_code": 200, "duration_ms": 4}
+INFO:     127.0.0.1:8044 - "POST /api/v1/booking-auto/tasks HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:36.729647+00:00", "trace_id": "80cebd5995e64c899a3fc2fa8cb772ea", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/visa/240h", "status_code": 200, "duration_ms": 5}
+INFO:     127.0.0.1:8044 - "GET /api/v1/visa/240h?cities=%E4%B8%8A%E6%B5%B7%2C%E8%A5%BF%E5%AE%89%2C%E4%B8%8A%E6%B5%B7&entry_date=2026-11-16&exit_date=2026-11-20 HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:49:58.698251+00:00", "trace_id": "9b0efb5e2540449c8982a1c7b14a0506", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/h5/sw.js", "status_code": 304, "duration_ms": 174}
+INFO:     127.0.0.1:8215 - "GET /h5/sw.js HTTP/1.1" 304 Not Modified
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:27.645305+00:00", "trace_id": "e95b175a8db14e4fa1b6a3b0d58817af", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8532 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.150642+00:00", "trace_id": "42291cae7e324cc3b6985ea687c9d122", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/auth/me", "status_code": 200, "duration_ms": 8}
+INFO:     127.0.0.1:8216 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.356879+00:00", "trace_id": "7a4995a7215742dc989321aaa67f1453", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/itineraries", "status_code": 200, "duration_ms": 16}
+INFO:     127.0.0.1:8216 - "GET /api/v1/itineraries HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.365881+00:00", "trace_id": "950c5208a8d0418ea5c218843674bb87", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/packages", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:8216 - "GET /api/v1/call/packages HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.429889+00:00", "trace_id": "4144b98720fc4f0d81c32e228b34cc17", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/weather/sync", "status_code": 200, "duration_ms": 48}
+INFO:     127.0.0.1:8216 - "POST /api/weather/sync HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.435885+00:00", "trace_id": "4566586400d9468d8449ae70d72bc16f", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/balance", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:8216 - "GET /api/v1/call/balance HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.442882+00:00", "trace_id": "3dcea2b5016d403ead2ecd93b32246e2", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/call/records", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:8216 - "GET /api/v1/call/records HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:31.449430+00:00", "trace_id": "34a672e26b8c4b4599c3458d97e30477", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/provider", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:8216 - "GET /api/v1/amap/provider HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:35.244526+00:00", "trace_id": "a425c2d176854c88a995075d3b997125", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/h5/sw.js", "status_code": 304, "duration_ms": 2}
+INFO:     127.0.0.1:8216 - "GET /h5/sw.js HTTP/1.1" 304 Not Modified
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349836%2C121.372354 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:39.476193+00:00", "trace_id": "e413439978334536a684a0a52012329a", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 3208}
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349836%2C121.372354 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:43.807730+00:00", "trace_id": "8fd6241186854f128e160e91a101ae7f", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 3025}
+INFO:app.services.agent.plan:plan: wish off-trip skip 成都环球中心 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: wish off-trip skip 看熊猫 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: city 西安 candidates library=33 no_loc_skipped=0 no_data_skipped=9 fallback_skipped=4 total=33
+INFO:app.services.agent.plan:plan: wish covered bind 《秦俑情》 -> 《秦俑情》 (pool=33 rank=(0, 0, 2, 0.0, -5) ladder=True)
+INFO:app.services.agent.plan:plan: night show 《长恨歌》演出 in off-season, excluded from finale bucket (trip months=[11])
+INFO:app.services.agent.plan:plan: return-urban circle city=西安 r=15.0km out=['《秦俑情》', '秦始皇帝陵博物院', '华清宫']
+INFO:app.services.agent.plan:plan: cluster-first elig=11/12 excluded=[('《秦俑情》', 'entertainment', False)]
+INFO:app.services.agent.plan:plan: cluster-first combos formed: [['大雁塔大唐芙蓉园景区', '长安十二时辰主题街区'], ['城墙·碑林历史文化景区', '西安钟楼', '西安鼓楼'], ['秦始皇帝陵博物院', '华清宫']]
+INFO:app.services.agent.plan:plan: cluster-first family [城墙·碑林历史文化景区、西安钟楼、西安鼓楼] -> day 2 (size=3)
+INFO:app.services.agent.plan:plan: cluster-first family [大雁塔大唐芙蓉园景区、长安十二时辰主题街区] -> day 3 (size=2)
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] rejected on all days: [(1, 'arrival:edge'), (2, 'cap4'), (3, 'budget'), (4, 'edge')]
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 via tier-priority displacement, evicted=['西安鼓楼', '西安钟楼', '城墙·碑林历史文化景区']
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 (size=2)
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 小雁塔 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim district-mate 大明宫旅游景区 -> days [4, 3] first
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 陕西历史博物馆 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim show landed 《秦俑情》 -> day 2 (strict)
+INFO:app.services.agent.plan:plan: extra night shows pending=['唐乐宫《大唐女皇》', '大唐不夜城'] show-days-used=[2, 3]
+INFO:app.services.agent.plan:plan: night shows unplaced (no day free of shows in window): 唐乐宫《大唐女皇》、大唐不夜城
+INFO:app.services.agent.plan:plan: v0 candidates 0.06s + select[algorithm] 0.08s (33 candidates)
+INFO:app.services.itinerary.solver:plan: night-combo anchored 秦始皇帝陵博物院 14:55:00-16:25:00 -> 《秦俑情》 17:00:00-18:20:00
+INFO:app.services.itinerary.solver:solver: dinner glue declined day 2 长安十二时辰·唐宴 (no evening mate within 5km)
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 2 长安十二时辰·唐宴 -> keep unscheduled
+INFO:app.services.itinerary.solver:plan: night-combo skip 长安十二时辰主题街区 no feasible slot
+INFO:app.services.itinerary.solver:plan: night-combo skip 《梦回大唐》 no feasible slot
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: lunch window 11:30-12:30 full on day 1 — drop v28
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d2 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d3 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d4 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:app.services.agent.plan:plan: enrich done in 0.16s
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 秦始皇帝陵博物院 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 秦始皇帝陵博物院 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 大雁塔大唐芙蓉园景区 to day 2 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 大雁塔大唐芙蓉园景区 day 3 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d3 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d2 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d4 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 3 长安大牌档之西游漫记（大悦城店） -> keep unscheduled
+INFO:app.services.agent.plan:plan: show eviction 《梦回大唐》 day 3 -> 4 for 长安十二时辰主题街区 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: show-per-day gate glued block experience 长安十二时辰·唐宴 day 2 -> 3
+WARNING:app.services.agent.plan:plan: show-per-day gate moved 《梦回大唐》 day 3 -> 4
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 《梦回大唐》 on day 4
+WARNING:app.services.agent.plan:plan: show-per-day gate dropped untimed 《梦回大唐》
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 3 长安大牌档之西游漫记（大悦城店） -> keep unscheduled
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 4 醉长安（钟楼旗舰店） -> keep unscheduled
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.agent.plan:plan: must-visit room sweep evicted 长安十二时辰主题街区 for 秦始皇帝陵博物院 on day 3
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.agent.plan:plan: cross-day rescue moved pinned must 秦始皇帝陵博物院 day 2 -> 3
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.agent.plan:plan: cross-day rescue moved pinned must 大雁塔大唐芙蓉园景区 day 3 -> 2
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: purity family merge 秦始皇帝陵博物院 day 3 -> day 2
+WARNING:app.services.agent.plan:plan: purity family split 临潼骊山风景名胜区 stays day 4 (anchor day 2 full)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 秦始皇帝陵博物院 on day 2
+WARNING:app.services.agent.plan:plan: purity rollback 秦始皇帝陵博物院 day 2 -> day 3 (untimed after move)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: endpoint-light empty return day 4 (no simple card; accepted per 11-11 ruling)
+INFO:app.services.agent.plan:plan: endpoint-light cap keeps pinned 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan v0 delivered with 7 hard violations
+INFO:app.services.agent.plan:plan: wish row scheduled 永兴坊 -> 永兴坊 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 秦始皇帝陵博物院 -> 秦始皇帝陵博物院 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 华清宫 -> 华清宫 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 《秦俑情》 -> 《秦俑情》 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 大雁塔大唐芙蓉园景区 -> 大雁塔大唐芙蓉园景区 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 长安十二时辰主题街区 -> 长安十二时辰·唐宴 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 临潼骊山风景名胜区 -> 临潼骊山风景名胜区 day 4
+INFO:app.services.agent.plan:plan: wish row scheduled 西安钟楼 -> 醉长安（钟楼旗舰店） day 4
+INFO:app.services.agent.plan:plan: planned row scheduled 长安十二时辰·唐宴 -> day 3
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=永兴坊 pool=47 picked=3 drops={'band': 20, 'category': 1, 'duration': 2, 'exclude': 7, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=陕西历史博物馆 pool=47 picked=1 drops={'band': 20, 'category': 1, 'exclude': 12, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=华清宫 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 13, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=大雁塔大唐芙蓉园景区 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 13, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: main=《秦俑情》 pool=47 picked=3 drops={'exclude': 13, 'food': 5, 'not_show': 21}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=秦始皇帝陵博物院 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 16, 'food': 5, 'show_row': 5}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 临潼骊山风景名胜区 gate=ruins
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 临潼骊山风景名胜区 gate=citywalk
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=临潼骊山风景名胜区 pool=47 picked=0 drops={'band': 19, 'citywalk': 1, 'exclude': 16, 'food': 5, 'ruins': 1, 'show_row': 5}
+INFO:app.services.poi_alternatives:alternatives: unplaced chip 长安十二时辰主题街区 -> host 秦始皇帝陵博物院 (day 3, reason=yield_must)
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:46.941589+00:00", "trace_id": "d9d929438a4847d7bb88baf589b39250", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/plan/start", "status_code": 200, "duration_ms": 2830}
+INFO:     127.0.0.1:8565 - "POST /api/v1/plan/start HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:46.981671+00:00", "trace_id": "ced410c19a114a328b2cc343dc6566bb", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/booking-auto/tasks", "status_code": 200, "duration_ms": 6}
+INFO:     127.0.0.1:8565 - "POST /api/v1/booking-auto/tasks HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:47.030261+00:00", "trace_id": "5c766bc9455c4cf78de9f357b6f207c9", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/weather", "status_code": 200, "duration_ms": 20}
+INFO:     127.0.0.1:8565 - "GET /api/weather?city=%E8%A5%BF%E5%AE%89 HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:47.090883+00:00", "trace_id": "cb119d3413c4458ca01f1916f19ead0b", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/visa/240h", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:8566 - "GET /api/v1/visa/240h?cities=%E4%B8%8A%E6%B5%B7%2C%E8%A5%BF%E5%AE%89%2C%E4%B8%8A%E6%B5%B7&entry_date=2026-11-16&exit_date=2026-11-20 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://api.map.baidu.com/reverse_geocoding/v3/?ak=pC11eKB7ZrwYB4ScjaL0VIrAWpdiYpx9&output=json&location=31.349836%2C121.372354 "HTTP/1.1 200 OK"
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:50:50.799353+00:00", "trace_id": "e6b52f5d3b0f4ff994efb9f2cc5072f2", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/amap/regeo", "status_code": 200, "duration_ms": 3000}
+INFO:     127.0.0.1:8566 - "GET /api/v1/amap/regeo?lon=121.36576623131315&lat=31.34409876685238 HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:51:27.999580+00:00", "trace_id": "5cc6be37a7984730bfc3f1bff804a192", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8891 - "GET /health HTTP/1.1" 200 OK
+INFO:app.services.agent.plan:plan: wish off-trip skip 成都环球中心 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: wish off-trip skip 看熊猫 city=成都 trip_cities=['上海', '西安', '上海']
+INFO:app.services.agent.plan:plan: city 西安 candidates library=33 no_loc_skipped=0 no_data_skipped=9 fallback_skipped=4 total=33
+INFO:app.services.agent.plan:plan: night show 《长恨歌》演出 in off-season, excluded from finale bucket (trip months=[11])
+INFO:app.services.agent.plan:plan: return-urban circle city=西安 r=15.0km out=['《秦俑情》', '秦始皇帝陵博物院', '华清宫']
+INFO:app.services.agent.plan:plan: cluster-first elig=11/12 excluded=[('《秦俑情》', 'entertainment', False)]
+INFO:app.services.agent.plan:plan: cluster-first combos formed: [['大雁塔大唐芙蓉园景区', '长安十二时辰主题街区'], ['城墙·碑林历史文化景区', '西安钟楼', '西安鼓楼'], ['秦始皇帝陵博物院', '华清宫']]
+INFO:app.services.agent.plan:plan: cluster-first family [城墙·碑林历史文化景区、西安钟楼、西安鼓楼] -> day 2 (size=3)
+INFO:app.services.agent.plan:plan: cluster-first family [大雁塔大唐芙蓉园景区、长安十二时辰主题街区] -> day 3 (size=2)
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] rejected on all days: [(1, 'arrival:edge'), (2, 'cap4'), (3, 'budget'), (4, 'edge')]
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 via tier-priority displacement, evicted=['西安鼓楼', '西安钟楼', '城墙·碑林历史文化景区']
+INFO:app.services.agent.plan:plan: cluster-first family [秦始皇帝陵博物院、华清宫] -> day 2 (size=2)
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 小雁塔 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim district-mate 大明宫旅游景区 -> days [4, 3] first
+INFO:app.services.agent.plan:plan: preclaim walk-adjacent 陕西历史博物馆 -> days [3] first
+INFO:app.services.agent.plan:plan: preclaim show landed 《秦俑情》 -> day 2 (strict)
+INFO:app.services.agent.plan:plan: extra night shows pending=['唐乐宫《大唐女皇》', '大唐不夜城'] show-days-used=[2, 3]
+INFO:app.services.agent.plan:plan: night shows unplaced (no day free of shows in window): 唐乐宫《大唐女皇》、大唐不夜城
+INFO:app.services.agent.plan:plan: v0 candidates 0.04s + select[algorithm] 0.06s (33 candidates)
+INFO:app.services.itinerary.solver:plan: night-combo anchored 秦始皇帝陵博物院 14:55:00-16:25:00 -> 《秦俑情》 17:00:00-18:20:00
+INFO:app.services.itinerary.solver:solver: dinner glue declined day 2 长安十二时辰·唐宴 (no evening mate within 5km)
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 2 长安十二时辰·唐宴 -> keep unscheduled
+INFO:app.services.itinerary.solver:plan: night-combo skip 长安十二时辰主题街区 no feasible slot
+INFO:app.services.itinerary.solver:plan: night-combo skip 《梦回大唐》 no feasible slot
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: lunch window 11:30-12:30 full on day 1 — drop v45
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d2 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d3 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 陕西历史博物馆 later=d4 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+INFO:app.services.agent.plan:plan: enrich done in 0.16s
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 秦始皇帝陵博物院 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 秦始皇帝陵博物院 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 0 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 0 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 大雁塔大唐芙蓉园景区 to day 2 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 大雁塔大唐芙蓉园景区 day 3 infeasible everywhere; stays (disclosed)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 0 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d3 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d2 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 长安十二时辰主题街区 later=d4 baseline=None zero_target=None
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d4 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.agent.plan:yield: 西安鼓楼 later=d2 baseline=None zero_target=3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 西安鼓楼 on day 4
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰·唐宴 on day 2
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 长安十二时辰主题街区 on day 3
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 3 长安大牌档之西游漫记（大悦城店） -> keep unscheduled
+INFO:app.services.agent.plan:plan: show eviction 《梦回大唐》 day 3 -> 4 for 长安十二时辰主题街区 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: show-per-day gate glued block experience 长安十二时辰·唐宴 day 2 -> 3
+WARNING:app.services.agent.plan:plan: show-per-day gate moved 《梦回大唐》 day 3 -> 4
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 《梦回大唐》 on day 4
+WARNING:app.services.agent.plan:plan: show-per-day gate dropped untimed 《梦回大唐》
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 3 长安大牌档之西游漫记（大悦城店） -> keep unscheduled
+INFO:app.services.itinerary.solver:solver: meal slot infeasible day 4 醉长安（钟楼旗舰店） -> keep unscheduled
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 2 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 3 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 1 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 永兴坊 day 1 starts 0 min after pinned \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 永兴坊 day 1 starts 0 min after \U0001f3e8 酒店入住（放行李·休整） ends — leg is 30 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 陕西历史博物馆 to day 4 infeasible; rolling back
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 华清宫 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 华清宫 day 2 infeasible everywhere; stays (disclosed)
+WARNING:app.services.agent.plan:plan: must-visit room sweep evicted 长安十二时辰主题街区 for 秦始皇帝陵博物院 on day 3
+WARNING:app.services.itinerary.solver:solver: 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after pinned 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 长安大牌档之西游漫记（大悦城店） day 3 starts 30 min after 大雁塔大唐芙蓉园景区 ends — leg is 34 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.agent.plan:plan: cross-day rescue moved pinned must 秦始皇帝陵博物院 day 2 -> 3
+WARNING:app.services.itinerary.solver:solver: 醉长安（钟楼旗舰店） day 4 starts 92 min after pinned 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.itinerary.solver:solver: pinned 醉长安（钟楼旗舰店） day 4 starts 92 min after 临潼骊山风景名胜区 ends — leg is 106 min (under-counted travel)
+WARNING:app.services.agent.plan:plan: cross-day rescue moved pinned must 大雁塔大唐芙蓉园景区 day 3 -> 2
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 2 infeasible; rolling back
+INFO:app.services.agent.plan:plan: cross-day rescue of pinned must 临潼骊山风景名胜区 to day 3 infeasible; rolling back
+WARNING:app.services.agent.plan:plan: cross-day rescue of stay-violating must 临潼骊山风景名胜区 day 4 infeasible everywhere; stays (disclosed)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: purity family merge 秦始皇帝陵博物院 day 3 -> day 2
+WARNING:app.services.agent.plan:plan: purity family split 临潼骊山风景名胜区 stays day 4 (anchor day 2 full)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 秦始皇帝陵博物院 on day 2
+WARNING:app.services.agent.plan:plan: purity rollback 秦始皇帝陵博物院 day 2 -> day 3 (untimed after move)
+WARNING:app.services.agent.plan:plan: fallback sequencing could not place 陕西历史博物馆 on day 1
+INFO:app.services.agent.plan:plan: endpoint-light empty return day 4 (no simple card; accepted per 11-11 ruling)
+INFO:app.services.agent.plan:plan: endpoint-light cap keeps pinned 陕西历史博物馆 on day 1
+WARNING:app.services.agent.plan:plan v0 delivered with 7 hard violations
+INFO:app.services.agent.plan:plan: wish row scheduled 永兴坊 -> 永兴坊 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 华清宫 -> 华清宫 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 《秦俑情》 -> 《秦俑情》 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 大雁塔大唐芙蓉园景区 -> 大雁塔大唐芙蓉园景区 day 2
+INFO:app.services.agent.plan:plan: wish row scheduled 秦始皇帝陵博物院 -> 秦始皇帝陵博物院 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 陕西历史博物馆 -> 陕西历史博物馆 day 1
+INFO:app.services.agent.plan:plan: wish row scheduled 长安十二时辰主题街区 -> 长安十二时辰·唐宴 day 3
+INFO:app.services.agent.plan:plan: wish row scheduled 临潼骊山风景名胜区 -> 临潼骊山风景名胜区 day 4
+INFO:app.services.agent.plan:plan: wish row scheduled 西安钟楼 -> 醉长安（钟楼旗舰店） day 4
+INFO:app.services.agent.plan:plan: planned row scheduled 长安十二时辰·唐宴 -> day 3
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 永兴坊 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 永兴坊 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 永兴坊 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=永兴坊 pool=47 picked=3 drops={'band': 20, 'category': 1, 'duration': 2, 'exclude': 7, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 陕西历史博物馆 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 陕西历史博物馆 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 陕西历史博物馆 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 陕西历史博物馆 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=陕西历史博物馆 pool=47 picked=1 drops={'band': 20, 'category': 1, 'exclude': 12, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 华清宫 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 华清宫 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 华清宫 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 华清宫 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=华清宫 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 13, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《复活的军团》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 大雁塔大唐芙蓉园景区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《长恨歌》演出 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 唐乐宫《大唐女皇》 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 大雁塔大唐芙蓉园景区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 大雁塔大唐芙蓉园景区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 大雁塔大唐芙蓉园景区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=大雁塔大唐芙蓉园景区 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 13, 'food': 5, 'show_row': 8}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 《秦俑情》 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 《秦俑情》 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 《秦俑情》 gate=not_show
+INFO:app.services.poi_alternatives:alternatives: main=《秦俑情》 pool=47 picked=3 drops={'exclude': 13, 'food': 5, 'not_show': 21}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 秦始皇帝陵博物院 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 秦始皇帝陵博物院 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 秦始皇帝陵博物院 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 秦始皇帝陵博物院 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=秦始皇帝陵博物院 pool=47 picked=0 drops={'band': 20, 'category': 1, 'exclude': 16, 'food': 5, 'show_row': 5}
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰·唐宴 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 西安钟楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 大明宫旅游景区 for main 临潼骊山风景名胜区 gate=ruins
+INFO:app.services.poi_alternatives:alternatives: drop 西安美术馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安鼓楼 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 《驼铃传奇》秀 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 陕西科技大学轻工业博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《梦回大唐》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 兴教寺塔 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安秦砖汉瓦博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 御宴宫 for main 临潼骊山风景名胜区 gate=food
+INFO:app.services.poi_alternatives:alternatives: drop 陕西中医药博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省西安市曲江新区大唐不夜城步行街 for main 临潼骊山风景名胜区 gate=citywalk
+INFO:app.services.poi_alternatives:alternatives: drop 陕西自然博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 《西安千古情》 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安曲江艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 临潼区华清池景区 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西水利博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市临潼区博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市钟鼓楼博物馆 for main 临潼骊山风景名胜区 gate=exclude
+INFO:app.services.poi_alternatives:alternatives: drop 西安交通大学博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西省美术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市高家大院古典服饰博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安半坡博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安唐皇城墙含光门遗址博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安市水墨长安艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 西安大唐西市博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 陕西唐三彩艺术博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: drop 长安十二时辰主题街区 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 大唐不夜城 for main 临潼骊山风景名胜区 gate=show_row
+INFO:app.services.poi_alternatives:alternatives: drop 西安市羊文化博物馆 for main 临潼骊山风景名胜区 gate=band
+INFO:app.services.poi_alternatives:alternatives: main=临潼骊山风景名胜区 pool=47 picked=0 drops={'band': 19, 'citywalk': 1, 'exclude': 16, 'food': 5, 'ruins': 1, 'show_row': 5}
+INFO:app.services.poi_alternatives:alternatives: unplaced chip 长安十二时辰主题街区 -> host 秦始皇帝陵博物院 (day 3, reason=yield_must)
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:51:36.602944+00:00", "trace_id": "ea677a54a2bb4774bc26cd9004038537", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/plan/start", "status_code": 200, "duration_ms": 1754}
+INFO:     127.0.0.1:8925 - "POST /api/v1/plan/start HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:51:36.614999+00:00", "trace_id": "6b58f6fa05b84c6db31060cc2b305e67", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/visa/240h", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:8926 - "GET /api/v1/visa/240h?cities=%E4%B8%8A%E6%B5%B7%2C%E8%A5%BF%E5%AE%89%2C%E4%B8%8A%E6%B5%B7&entry_date=2026-11-16&exit_date=2026-11-20 HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:51:36.615997+00:00", "trace_id": "44fba2ba23844afe869b44359f8fa8b2", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "POST", "path": "/api/v1/booking-auto/tasks", "status_code": 200, "duration_ms": 5}
+INFO:     127.0.0.1:8925 - "POST /api/v1/booking-auto/tasks HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:51:42.737984+00:00", "trace_id": "7647d03143df40a4b316383eea7b5b6b", "device_id": "dev-hs4e9vhk", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/api/v1/itineraries", "status_code": 200, "duration_ms": 10}
+INFO:     127.0.0.1:8970 - "GET /api/v1/itineraries HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:52:30.269738+00:00", "trace_id": "fcbc8f9c640243459fc6cb7c7b4e975b", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:9155 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:53:26.452776+00:00", "trace_id": "3bffe6631a24473ba1a6f03a9c106f42", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:9399 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:54:26.205484+00:00", "trace_id": "e3b2252719744d82a6b382ed9a6b39f3", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:9590 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:55:26.116714+00:00", "trace_id": "3226b05e631345ed949e3f9869f708b7", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:9795 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:56:26.705753+00:00", "trace_id": "2e71f84a1bd04dd199b5bd0a4cd4c0e5", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:10108 - "GET /health HTTP/1.1" 200 OK
+
+===== start 2026-11-13 12:57:02 =====
+INFO:     Started server process [5552]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:app.main:pg keepalive: db up (latch cleared)
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:57:26.310468+00:00", "trace_id": "e2177af5171a4c9b93cf0bb8bad5f14e", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 5}
+INFO:     127.0.0.1:10442 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:58:26.207730+00:00", "trace_id": "d7a7ec7ece5945c594dfa800d3948ec4", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:10637 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T04:59:26.174974+00:00", "trace_id": "092433f7e6d84927ab08fd67543887cc", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:10999 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:00:26.200657+00:00", "trace_id": "37933755978749e8a61d04086db55284", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 3}
+INFO:     127.0.0.1:11185 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:01:26.357992+00:00", "trace_id": "419d49e705d14e7fba6ccc331f9b233a", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:11436 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:02:26.155506+00:00", "trace_id": "86b5722ab72a45709582e3b085834424", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:11638 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:03:26.404299+00:00", "trace_id": "50497b1ebcfe4a228f341711eca548fa", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8285 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:04:26.474905+00:00", "trace_id": "764ddcb276d3453fa14672d6b137f0f3", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8114 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:05:26.158336+00:00", "trace_id": "273c114de4be4c9eb142c3e847a02d65", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:6184 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:06:26.134498+00:00", "trace_id": "87884c8e790742ecbbaf25fffbdb8fda", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:7133 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:07:26.137564+00:00", "trace_id": "a3511bfc42374ff799c617fcbd158214", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:7465 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:08:26.144152+00:00", "trace_id": "e80e53d5559c46e4928a8d9cd69be09d", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:7558 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:09:26.227910+00:00", "trace_id": "88d16505309b42ffbeba1b7c677c447b", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:7726 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:10:26.170793+00:00", "trace_id": "f53bc924ce824b76877dfcaface1a942", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8006 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:11:26.165438+00:00", "trace_id": "577fef0c9e904dbbb267f3df8f181573", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8208 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:12:26.157791+00:00", "trace_id": "e74a4674a316432ab81e9afdef04ec29", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8316 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:13:26.187540+00:00", "trace_id": "c2e5532a79fc47fdbe9b43141c2cd7a4", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8464 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:14:26.239664+00:00", "trace_id": "4c196227ed8443d7981ac0d6e9a75aed", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 1}
+INFO:     127.0.0.1:8625 - "GET /health HTTP/1.1" 200 OK
+INFO:chinatrip.usage:{"ts": "2026-11-13T05:15:26.179915+00:00", "trace_id": "2e410860c1df43859bed2353fbcf0bcd", "device_id": "-", "client_ip": "127.0.0.1", "region": "CN", "method": "GET", "path": "/health", "status_code": 200, "duration_ms": 2}
+INFO:     127.0.0.1:8760 - "GET /health HTTP/1.1" 200 OK

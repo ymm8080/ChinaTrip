@@ -1,0 +1,321 @@
+{
+ "attractions": {
+  "319120": {
+   "name_zh": "莫高窟",
+   "name_en": "",
+   "reviews": 896
+  },
+  "2297317": {
+   "name_zh": "鸣沙山",
+   "name_en": "",
+   "reviews": 457
+  },
+  "1774311": {
+   "name_zh": "月牙泉风景名胜区",
+   "name_en": "",
+   "reviews": 394
+  },
+  "1851254": {
+   "name_zh": "雅丹国家地质公园",
+   "name_en": "",
+   "reviews": 184
+  },
+  "8331253": {
+   "name_zh": "沙州夜市",
+   "name_en": "",
+   "reviews": 101
+  },
+  "1851255": {
+   "name_zh": "玉门关",
+   "name_en": "",
+   "reviews": 118
+  },
+  "502858": {
+   "name_zh": "敦煌博物馆",
+   "name_en": "",
+   "reviews": 90
+  },
+  "3673858": {
+   "name_zh": "敦煌大剧院",
+   "name_en": "",
+   "reviews": 29
+  },
+  "1864440": {
+   "name_zh": "汉长城",
+   "name_en": "",
+   "reviews": 98
+  },
+  "1864438": {
+   "name_zh": "敦煌石窟艺术保护研究陈列中心",
+   "name_en": "",
+   "reviews": 55
+  },
+  "2079868": {
+   "name_zh": "西千佛洞",
+   "name_en": "",
+   "reviews": 47
+  },
+  "2079852": {
+   "name_zh": "敦煌雷音寺",
+   "name_en": "",
+   "reviews": 22
+  },
+  "5119798": {
+   "name_zh": "敦煌石窟文物保护研究陈列中心",
+   "name_en": "",
+   "reviews": 16
+  },
+  "1864439": {
+   "name_zh": "反弹琵琶雕像",
+   "name_en": "",
+   "reviews": 38
+  },
+  "8353578": {
+   "name_zh": "西晋墓",
+   "name_en": "",
+   "reviews": 10
+  },
+  "1851253": {
+   "name_zh": "敦煌古城",
+   "name_en": "",
+   "reviews": 57
+  },
+  "1851251": {
+   "name_zh": "敦煌西湖自然保护区",
+   "name_en": "",
+   "reviews": 9
+  },
+  "2079832": {
+   "name_zh": "敦煌南湖",
+   "name_en": "",
+   "reviews": 8
+  },
+  "2003051": {
+   "name_zh": "藏经洞文物陈列馆",
+   "name_en": "",
+   "reviews": 7
+  },
+  "1851257": {
+   "name_zh": "阳关博物馆",
+   "name_en": "",
+   "reviews": 12
+  },
+  "1851249": {
+   "name_zh": "大方盘城",
+   "name_en": "",
+   "reviews": 8
+  },
+  "5119796": {
+   "name_zh": "敦煌商业步行街",
+   "name_en": "",
+   "reviews": 12
+  },
+  "5119795": {
+   "name_zh": "莫高特产展示园",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1851252": {
+   "name_zh": "敦煌寿昌城",
+   "name_en": "",
+   "reviews": 5
+  },
+  "487064": {
+   "name_zh": "敦煌白马塔",
+   "name_en": "",
+   "reviews": 29
+  },
+  "2079899": {
+   "name_zh": "敦煌安西桥湾城",
+   "name_en": "",
+   "reviews": 3
+  },
+  "18714592": {
+   "name_zh": "白馬塔大橋",
+   "name_en": "",
+   "reviews": 1
+  },
+  "2079898": {
+   "name_zh": "敦煌民俗博物馆",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1851256": {
+   "name_zh": "阳关沙漠森林公园",
+   "name_en": "",
+   "reviews": 5
+  },
+  "1864444": {
+   "name_zh": "渥洼池",
+   "name_en": "",
+   "reviews": 2
+  },
+  "5119793": {
+   "name_zh": "敦煌历史博览园",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1864441": {
+   "name_zh": "湾腰墩自然保护区",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1864442": {
+   "name_zh": "西云观",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851248": {
+   "name_zh": "悬泉置遗址",
+   "name_en": "",
+   "reviews": 1
+  },
+  "1851250": {
+   "name_zh": "三危山景区",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2003050": {
+   "name_zh": "石窟艺术陈列中心",
+   "name_en": "",
+   "reviews": 2
+  },
+  "2088625": {
+   "name_zh": "酒泉海市蜃楼",
+   "name_en": "",
+   "reviews": 1
+  },
+  "25323640": {
+   "name_zh": "Peter Huang Private Tour Guide in Gansu",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34706933": {
+   "name_zh": "Project Human, Earth, Universe Dunhuang",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34157575": {
+   "name_zh": "Silk Road Horizons",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34317476": {
+   "name_zh": "Silk Road Tours China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13908814": {
+   "name_zh": "Silk Road Tours China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15758026": {
+   "name_zh": "Tours by China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20289188": {
+   "name_zh": "Unique Beijing Tours",
+   "name_en": "",
+   "reviews": 0
+  },
+  "21152970": {
+   "name_zh": "Visit Our China",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15694242": {
+   "name_zh": "Ws China Trips",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5120993": {
+   "name_zh": "敦煌地矿陈列馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "28586941": {
+   "name_zh": "敦煌光电博览园(超级镜子发电站)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "20463392": {
+   "name_zh": "happychinatours",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "restaurants": {
+  "10594637": {
+   "name_zh": "清莲素食",
+   "name_en": "",
+   "reviews": 43
+  },
+  "23369585": {
+   "name_zh": "Memory Box Cafe",
+   "name_en": "",
+   "reviews": 7
+  },
+  "4340646": {
+   "name_zh": "Sha zhou shi chang",
+   "name_en": "",
+   "reviews": 19
+  },
+  "8369047": {
+   "name_zh": "顺张黄面馆",
+   "name_en": "",
+   "reviews": 17
+  },
+  "33862504": {
+   "name_zh": "Dunhuang Chengbianbian Barbecue",
+   "name_en": "",
+   "reviews": 2
+  },
+  "23369419": {
+   "name_zh": "Shazhou Huyang Menbing",
+   "name_en": "",
+   "reviews": 1
+  },
+  "11670747": {
+   "name_zh": "靖远尕六美味羊羔肉",
+   "name_en": "",
+   "reviews": 1
+  },
+  "17623723": {
+   "name_zh": "江海早餐店",
+   "name_en": "",
+   "reviews": 1
+  },
+  "15615055": {
+   "name_zh": "手工臊子面",
+   "name_en": "",
+   "reviews": 1
+  },
+  "6998100": {
+   "name_zh": "敦煌国鱼馆",
+   "name_en": "",
+   "reviews": 2
+  },
+  "8570979": {
+   "name_zh": "Shirley's Cafe",
+   "name_en": "",
+   "reviews": 7
+  },
+  "15757670": {
+   "name_zh": "聚相合",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15686487": {
+   "name_zh": "小龍門老火锅",
+   "name_en": "",
+   "reviews": 0
+  }
+ },
+ "gid": "303695",
+ "pages_crawled": {
+  "attractions": 1,
+  "restaurants": 1
+ }
+}

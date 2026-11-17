@@ -1,0 +1,22 @@
+﻿fix(plan): 酒店出发卡按首件接驳链回拨（day1 09:52 实报）
+
+用户实录：day1 只有慕田峪（头部接驳链 142 分钟），「🏨 从酒店出发」却显示
+09:52-10:22，10:52 就到景区——2 小时 22 分的路程被当成 30 分钟。
+
+根因：酒店占位卡没有坐标，_morning_window / reanchor_hotel_mornings 只拿到
+30 分钟地板；而首件已被 _open_morning_slot 按「08:30 + 接驳链」顺到 10:52，
+晨卡于是贴成「首件 − 60 分钟」。
+
+修：
+1. _open_morning_slot 的头部目标改为「09:00（晨卡收尾=真正离店）+ 接驳链」
+   —— 慕田峪 142 分钟 → 首件 11:22 起，不再用 08:30 起算造假时刻。
+2. _morning_window 新增 chain 形参，gap = max(30, chain)；attach 时传首件
+   头部链。
+3. reanchor_hotel_mornings：酒店卡无坐标时用 _head_access_chain 兜底，
+   不再只按 30 分钟。
+
+结果：day1 晨卡 08:30-09:00，慕田峪 11:22-14:22，午饭 14:22；rule 7 违例 0
+（仅剩「有效游览占比 52%」软提示，远郊日属正常）。
+
+测试：test_morning_window 补 chain=142 → 08:30-09:00 两例；hotel_stays
+42 绿 + 3 红=既有基线（干净 HEAD 复验同集合）；ruff 全绿。

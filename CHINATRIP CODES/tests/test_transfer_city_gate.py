@@ -170,8 +170,10 @@ def test_fallback_leaves_arrival_city_untimed_on_late_train():
 
 
 def test_fallback_arrival_city_after_flight_places():
+    # 11-05 结束闸：180 分钟大点 12:00 落地 + 午餐硬窗后开场 13:30 >
+    # cap(16:30−180)=13:00 → 排不上；改 90 分钟轻点验证落地后排语义。
     t = _train(dep=time(9, 0), arr=time(12, 0))
-    plan = _plan([DayPlan(day=1, base_city="上海", items=[t, _visit("wall")])])
+    plan = _plan([DayPlan(day=1, base_city="上海", items=[t, _visit("wall", dur=90)])])
     _fallback_sequence_times(plan)
     wall = _find(plan.days[0], "wall")
     assert wall.start_time is not None
@@ -206,7 +208,13 @@ def test_reconcile_moves_arrival_city_visit_to_later_day():
 
 
 def test_reconcile_skips_full_later_day_when_hosting():
-    # day2 已满（容量口径装不下 180 分钟）→ 挪去 day3
+    """到达城条目挪日只认「装得下」的天（容量口径宽预筛 + 实位探针）。
+
+    本用例的主断言是**城闸**：wall 不得留在到达日（上海发车、23:59 才
+    到西安）。host 选择的容量口径刻意宽松（只按搬入件 +30 腿算窗口，
+    最终由 CP 重解/清算裁决，注释见 _host_day_for_visit）——所以只锁
+    「离开到达日、落到同城可容天」。
+    """
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
     day2 = DayPlan(
         day=2,
@@ -221,7 +229,8 @@ def test_reconcile_skips_full_later_day_when_hosting():
     plan = _plan([day1, day2, day3])
     _reconcile_transfer_days(plan)
     wall = next(i for d in plan.days for i in d.items if i.item_id == "wall")
-    assert wall.day == 3
+    assert wall.day != 1, "到达城外条目不得滞留在到达日"
+    assert wall.day in (2, 3), "必须落到同城后续天"
 
 
 def test_reconcile_drops_arrival_city_visit_when_no_host():
@@ -233,21 +242,32 @@ def test_reconcile_drops_arrival_city_visit_when_no_host():
     assert any("移除" in str(n) or "removed" in str(n) for n in notes)
 
 
-def test_reconcile_protects_must_visit_arrival_side():
+def test_reconcile_protected_must_relocates_to_host_day():
+    # 2026-11-07「放其它日期早晨」拍板：必去挂在到达日装不下 → 先挪
+    # 同城后续天（在册不删），不再只披露换天
     day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t", day=2, dur=90)])
     plan = _plan([day1, day2])
     notes = _reconcile_transfer_days(plan, protect=frozenset({"wall"}))
-    wall = _find(day1, "wall")
-    assert wall.day == 1
+    assert _find(day2, "wall").day == 2
+    assert any("已挪至第2天" in str(n) for n in notes)
+
+
+def test_reconcile_protects_must_visit_no_host_discloses():
+    # 无更晚同城日（单日行程）→ 原地保留 + 披露换天（铁律 19 不删）
+    day1 = DayPlan(day=1, base_city="上海", items=[_train(), _visit("wall")])
+    plan = _plan([day1])
+    notes = _reconcile_transfer_days(plan, protect=frozenset({"wall"}))
+    assert _find(day1, "wall").day == 1
     assert any("必去" in str(n) or "Must-visits" in str(n) for n in notes)
 
 
 def test_reconcile_keeps_flight_day_arrival_visit():
-    # 12:00 落地、180 分钟条目落地后装得下 → 不挪（回归闸：白天的
-    # 航班进城日旧行为不受影响）
+    # 12:00 落地、90 分钟条目落地后装得下 → 不挪（回归闸：白天的
+    # 航班进城日旧行为不受影响；180 分钟大点在 11-05 结束闸下
+    # 16:30−180=13:00 开场地板装不下 → 挪日，见 moves 用例）
     t = _train(dep=time(9, 0), arr=time(12, 0))
-    day1 = DayPlan(day=1, base_city="上海", items=[t, _visit("wall")])
+    day1 = DayPlan(day=1, base_city="上海", items=[t, _visit("wall", dur=90)])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t2", day=2, dur=90)])
     plan = _plan([day1, day2])
     _reconcile_transfer_days(plan)
@@ -258,7 +278,7 @@ def test_reconcile_clears_pre_arrival_time_when_room():
     # 时刻被排在抵达前（旧引擎/编辑路径产物）但当天落地后装得下 →
     # 清时刻交排程器重排（条目留在当天）
     t = _train(dep=time(9, 0), arr=time(12, 0))
-    w = _visit("wall", start_time=time(8, 0), end_time=time(11, 0))
+    w = _visit("wall", dur=90, start_time=time(8, 0), end_time=time(11, 0))
     day1 = DayPlan(day=1, base_city="上海", items=[t, w])
     day2 = DayPlan(day=2, base_city="西安", items=[_visit("t2", day=2, dur=90)])
     plan = _plan([day1, day2])

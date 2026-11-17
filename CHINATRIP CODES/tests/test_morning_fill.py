@@ -23,6 +23,8 @@ from app.services.itinerary.models import (
     VisitItem,
 )
 from app.services.itinerary.solver import (
+    effective_show_sessions,
+    is_sessionless_show,
     show_session_starts,
     solve_day,
 )
@@ -81,6 +83,171 @@ def test_show_session_starts_parses_session_lists():
     ]
     assert show_session_starts("09:00-17:00") == []
     assert show_session_starts("") == []
+
+
+def test_show_session_starts_parses_single_session_declarations():
+    # 2026-11-11 唐乐宫事故：仅夜场单场演出解析出空表 → 落「无场次按正常
+    # 景点排」→ 钉到 DAY_START 09:00。单场声明也是场次真值。
+    assert show_session_starts("仅夜场（晚宴秀，约19:30一场）") == [19 * 60 + 30]
+    assert show_session_starts("仅夜场（约19:40一场）") == [19 * 60 + 40]
+    assert show_session_starts("仅夜场（约20:10一场）") == [20 * 60 + 10]
+    assert show_session_starts("仅夜场（约20:00一场，旺季加场）") == [20 * 60]
+    assert show_session_starts("夜场为主（约20:00一场）") == [20 * 60]
+    assert show_session_starts("夜场为主（演出季约20:00，旺季加16:00场）") == [
+        16 * 60,
+        20 * 60,
+    ]
+    # 列表式之外补拾遗漏的「约」点（《只有峨眉山》日场列表 + 夜场单点）
+    assert show_session_starts("多场（云之上日场约14:00/16:00+夜场约19:30）") == [
+        14 * 60,
+        16 * 60,
+        19 * 60 + 30,
+    ]
+    # 区间/滚动窗不是场次点，不得误判成单场
+    assert show_session_starts("全天多剧场滚动（约10:00-21:00）") == []
+    assert show_session_starts("全天多剧场滚动（约9:00-21:00，18+剧目按排期）") == []
+    assert (
+        show_session_starts("夜间街区演艺（约16:30-22:00滚动，不倒翁约19:00起）") == []
+    )
+    assert show_session_starts("夜场为主（晚间场约19:00-20:00，以当日公告为准）") == []
+    # 真无场次仍回空（场次点解析不认这两类文案）——两档分流在
+    # effective_show_sessions / is_sessionless_show，不在解析层
+    assert show_session_starts("场次随排期（驻场/巡演）") == []
+    assert show_session_starts("多场（含下午场，以当日公告为准）") == []
+
+
+def test_show_session_starts_admits_late_second_sessions():
+    # 2026-11-11 用户拍板「晚二场信息可以显示出来」：场次上界此前卡在
+    # DAY_END_MINUTES=21:00，21:10/21:35/21:40 的晚二场被滤掉只剩首晚场。
+    assert show_session_starts(
+        "仅夜场（约20:10/21:35两场；演出季4-10月，冬季停演）"
+    ) == [
+        20 * 60 + 10,
+        21 * 60 + 35,
+    ]
+    assert show_session_starts("仅夜场（拉萨，约20:00/21:40两场）") == [
+        20 * 60,
+        21 * 60 + 40,
+    ]
+    assert show_session_starts("仅夜场（约19:30/21:10两场）") == [
+        19 * 60 + 30,
+        21 * 60 + 10,
+    ]
+
+
+def test_effective_show_sessions_defaults_tba_show_to_1930():
+    # 2026-11-11 用户拍板「以当日现场为准的宴会或者 SHOW 设成晚上」——
+    # **只有**自称以公告/现场为准的场次不可知演出回落 19:30 默认晚场。
+    assert effective_show_sessions("show", "多场（含下午场，以当日公告为准）") == [
+        19 * 60 + 30
+    ]
+    assert effective_show_sessions(
+        "show", "夜场为主（晚间场约19:00-20:00，以当日公告为准）"
+    ) == [19 * 60 + 30]
+    assert effective_show_sessions("show", "仅夜场（以当日现场为准）") == [19 * 60 + 30]
+    assert effective_show_sessions(None, "多场（含下午场，以当日公告为准）") == []
+    # entertainment 但 bvt='any' 的室内体验馆/游乐场不是 SHOW（全天开放），
+    # 回落 [] 仍按正常景点排，不得被钉到 19:30。
+    assert effective_show_sessions("any", "周一至周日 10:00-22:00 最晚进入21:15") == []
+    # 有真场次时不被默认值覆盖
+    assert effective_show_sessions(
+        "show", "仅夜场（约20:10/21:35两场；演出季4-10月，冬季停演）"
+    ) == [20 * 60 + 10, 21 * 60 + 35]
+
+
+def test_effective_show_sessions_leaves_plain_sessionless_show_unpinned():
+    # 2026-11-11 用户拍板「无场次 SHOW 设成可以下午或者晚上」：不带
+    # 「以当日公告/现场为准」语素的无场次演出不回落 19:30 点窗，交
+    # is_sessionless_show 走下午或晚上域。
+    assert effective_show_sessions("show", "场次随排期（驻场/巡演）") == []
+    assert effective_show_sessions("show", "全天多剧场滚动（约10:00-21:00）") == []
+    assert effective_show_sessions("show", None) == []
+
+
+def test_is_sessionless_show_splits_the_two_tiers():
+    assert is_sessionless_show("show", "场次随排期（驻场/巡演）") is True
+    assert is_sessionless_show("show", "全天多剧场滚动（约10:00-21:00）") is True
+    assert is_sessionless_show("show", None) is True
+    # 以当日公告/现场为准 → 归「晚上」档，不是「下午或晚上」档
+    assert is_sessionless_show("show", "多场（含下午场，以当日公告为准）") is False
+    assert is_sessionless_show("show", "仅夜场（以当日现场为准）") is False
+    # 有真场次的走场次点窗通道
+    assert is_sessionless_show("show", "仅夜场（约19:30一场）") is False
+    # 非 SHOW 条目不适用
+    assert is_sessionless_show("any", "场次随排期") is False
+    assert is_sessionless_show(None, None) is False
+
+
+def test_solve_day_tba_show_lands_on_default_evening_slot():
+    """「以当日公告为准」的无场次 SHOW 落 19:30 默认晚场（2026-11-11 拍板）。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="多场（含下午场，以当日公告为准）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time == time(19, 30)
+
+
+def test_solve_day_plain_sessionless_show_stays_out_of_the_morning():
+    """无场次 SHOW 落位域自中午起开（2026-11-11 拍板「下午或者晚上」）——
+    不再重演无场次演出被钉到 09:00 的晨卡事故。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="场次随排期（驻场/巡演）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time is not None
+    assert got.start_time >= time(12, 0)
+
+
+def test_solve_day_late_second_session_is_reachable():
+    """晚二场放行后，首晚场被占时应能落到 21:35 而非整日不可行。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="仅夜场（约20:10/21:35两场）",
+    )
+    blocker = VisitItem(
+        item_id="fix",
+        name="fix",
+        city="西安",
+        day=1,
+        start_time=time(20, 0),
+        end_time=time(21, 0),
+        duration_minutes=60,
+        pinned=True,
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, blocker, _lunch()])
+
+    solved = solve_day(day, poi_hours=[])
+
+    assert solved is not None
+    got = next(
+        i for i in solved.items if isinstance(i, VisitItem) and i.item_id == "show"
+    )
+    assert got.start_time == time(21, 35)
 
 
 def test_show_session_starts_empty_for_none():
@@ -181,7 +348,7 @@ def test_fallback_places_180min_sight_before_lunch():
 
     _fallback_sequence_times(plan)
 
-    assert v.start_time == time(9, 0) and v.end_time == time(12, 0)
+    assert v.start_time == time(8, 30) and v.end_time == time(11, 30)
 
 
 def test_fallback_failure_does_not_poison_cursor():
@@ -223,15 +390,57 @@ def test_fallback_failure_does_not_poison_cursor():
     assert small.start_time is not None  # 不被前面失败顶飞
 
 
-def test_fallback_evening_show_never_morning():
-    s = _visit("show", dur=80, best_visit_time="show", category="entertainment")
+def test_fallback_tba_show_lands_on_default_evening_slot():
+    """「以当日公告为准」的无场次 SHOW 兜底落 19:30（2026-11-11 用户拍板
+    「以当日现场为准的宴会或者 SHOW 设成晚上」）。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="多场（含下午场，以当日公告为准）",
+    )
     day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
     plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
 
     _fallback_sequence_times(plan)
 
     assert s.start_time is not None
-    assert s.start_time.hour >= 17
+    assert s.start_time == time(19, 30)
+    assert s.end_time == time(20, 50)
+
+
+def test_fallback_plain_sessionless_show_starts_no_earlier_than_noon():
+    """无场次 SHOW 兜底自中午起探（2026-11-11 拍板「可以下午或者晚上」）——
+    不回落日始 09:00，也不被钉死 19:30。"""
+    s = _visit(
+        "show",
+        dur=80,
+        best_visit_time="show",
+        category="entertainment",
+        opening_hours="场次随排期（驻场/巡演）",
+    )
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+
+    _fallback_sequence_times(plan)
+
+    assert s.start_time is not None
+    assert s.start_time >= time(12, 0)
+
+
+def test_fallback_sessionless_nonshow_entertainment_schedules_normally():
+    """entertainment 但 bvt='any' 的室内体验馆不是 SHOW（全天开放）——
+    不吃 19:30 默认晚场，随游标正常落位（2026-11-11 拍板的收窄面）。"""
+    s = _visit("venue", dur=80, best_visit_time="any", category="entertainment")
+    day = DayPlan(day=1, base_city="西安", items=[s, _lunch()])
+    plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[day])
+
+    _fallback_sequence_times(plan)
+
+    assert s.start_time is not None
+    assert s.start_time == time(8, 30)
+    assert s.end_time == time(9, 50)
 
 
 def test_fallback_session_show_lands_on_session():
@@ -306,7 +515,7 @@ def test_morning_fill_adds_indoor_museum():
 
     assert added == "陕西历史博物馆"
     visit = next(i for i in day.items if i.name == "陕西历史博物馆")
-    assert visit.start_time == time(9, 0)
+    assert visit.start_time == time(8, 30)
 
 
 def test_morning_fill_rainy_day_rejects_outdoor():
@@ -392,20 +601,23 @@ def _big(day=1, dur=240):
     return _visit("big", dur=dur, day=day)
 
 
-def test_meal_flex_rule_240min_big_lands_after_shortened_lunch():
-    """2026-11-01 规则修正（±30 分钟 + 时长可缩 30）：240 分钟大点塞不进
-    上午窗（≤12:30=210 分钟容量）——贴着缩短的午餐后落位；午餐开餐
-    ±30 内、时长 ≥30；全程无重叠。"""
+def test_meal_flex_rule_240min_big_fills_morning_then_lunch():
+    """日始 08:30（2026-11-14）后 240 分钟大点正好吃满上午窗（08:30-12:30）。
+
+    旧口径「上午容量 ≤12:30-08:30=240 分钟装不下 240 分钟」的前提已反转：
+    现在 240 分钟刚好装满上午，软钉午餐滑到硬窗末 12:30 开餐、不必缩时长。
+    """
     day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
     solved = solve_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.items}
     ends = {i.item_id: i.end_time for i in solved.items}
-    # 午餐在 ±30 窗内开餐
+    assert starts["big"] == time(8, 30)
+    assert ends["big"] == time(12, 30)
+    # 午餐仍在硬窗内开餐（12:30 = 窗末），满时长贴着大点
     assert time(11, 30) <= starts["lunch-1"] <= time(12, 30)
-    # 大点贴着午餐可行域后落位（makespan 最优=缩短午餐 11:30-12:00 + 12:00 起）
-    assert starts["big"] == time(12, 0)
-    assert ends["big"] == time(16, 0)
+    assert starts["lunch-1"] == time(12, 30)
+    assert ends["lunch-1"] == time(13, 30)
     # 无重叠
     assert ends["lunch-1"] <= starts["big"] or ends["big"] <= starts["lunch-1"]
 
@@ -417,7 +629,7 @@ def test_meal_flex_180min_big_keeps_morning_zero_drift():
     solved = solve_day(day, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.items}
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
     assert starts["lunch-1"] == time(12, 0)
 
 
@@ -431,7 +643,7 @@ def test_user_pinned_lunch_stays_hard_under_meal_flex():
     starts = {i.item_id: i.start_time for i in solved.items}
     assert starts["lunch-1"] == time(12, 0)  # 纹丝不动
     # NoOverlap 允许紧贴：大点 09:00-12:00 恰好接午餐 12:00（合法且更优）
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
 
 
 def test_meal_flex_off_keeps_system_lunch():
@@ -451,22 +663,24 @@ def test_solve_plan_forwards_meal_flex():
     solved = solve_plan(plan, poi_hours=[], meal_flex=True)
     assert solved is not None
     starts = {i.item_id: i.start_time for i in solved.days[0].items}
-    assert starts["big"] == time(9, 0)
+    assert starts["big"] == time(8, 30)
 
 
 def test_fallback_delays_system_lunch_but_not_user_pinned():
-    """兜底口径对齐：soft_pin 午餐按 2026-11-03 开餐硬窗 [11:30, 12:30]
-    裁决——240 分钟大点 09:00-13:00 整段压窗 → 当天移除（不再无界顺延）；
-    用户手钉午餐不动，大点让到下午。"""
+    """兜底口径对齐：soft_pin 午餐按 2026-11-03 开餐硬窗 [11:30, 12:30] 裁决。
+
+    日始 08:30（2026-11-14）后 240 分钟大点是 08:30-12:30，不再「整段压窗」：
+    软钉午餐滑到窗末 12:30 保住（不再移除）；用户手钉午餐仍纹丝不动、
+    大点让到下午 13:00-17:00。"""
     from app.services.agent.plan import _fallback_sequence_times
 
     soft_day = DayPlan(day=1, base_city="西安", items=[_soft_lunch(), _big(dur=240)])
     soft_plan = ItineraryPlan(itinerary_id="it1", cities=["西安"], days=[soft_day])
     _fallback_sequence_times(soft_plan)
     s = {i.item_id: i.start_time for i in soft_day.items}
-    assert s["big"] == time(9, 0)
-    # 硬窗被大点整段压满：移除（铁律 20 同义，不产 8pm 午餐）
-    assert "lunch-1" not in s
+    assert s["big"] == time(8, 30)
+    # 大点 08:30-12:30 恰好收在硬窗末：软钉午餐保留在 12:30（不再被移除）
+    assert s["lunch-1"] == time(12, 30)
 
     hard_day = DayPlan(
         day=1, base_city="西安", items=[_soft_lunch(soft=False), _big(dur=240)]
@@ -475,7 +689,9 @@ def test_fallback_delays_system_lunch_but_not_user_pinned():
     _fallback_sequence_times(hard_plan)
     h = {i.item_id: i.start_time for i in hard_day.items}
     assert h["lunch-1"] == time(12, 0)  # 用户钉不动
-    assert h["big"] == time(13, 0)  # 大点让到下午
+    # 2026-11-07 开场闸 16:00（大点 15:30 带）：240 分钟大点 13:00 起
+    # ≤ 15:30 → 让到下午 13:00-17:00 合法（11-05 结束闸口径已废）
+    assert h["big"] == time(13, 0)
 
 
 # ---------- 6) 预算=偏好 + 跨天借调（2026-11-01 拍板） ----------
@@ -591,7 +807,7 @@ def test_morning_borrow_moves_bmy_to_blank_rainy_morning():
     assert res == ("秦始皇兵马俑博物馆", "陕西历史博物馆", 4)
     bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 3
-    assert bmy.start_time == time(9, 0)
+    assert bmy.start_time == time(8, 30)
     assert _morning_occupied(day4)  # 钟楼 11:00 仍在
     slb = next(i for i in day4.items if i.name == "陕西历史博物馆")
     assert slb.start_time is not None
@@ -703,7 +919,7 @@ def test_morning_borrow_tries_next_donor_when_best_blanks_donor():
     assert res == ("回民街", None, 2)
     hj2 = next(i for i in day3.items if i.name == "回民街")
     assert hj2.day == 3
-    assert hj2.start_time == time(9, 0)
+    assert hj2.start_time == time(8, 30)
     bmy = next(i for i in day4.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 4  # 最佳候选整体还原，不残留半挪状态
     assert _morning_occupied(day2)  # 碑林 11:00 仍在
@@ -734,7 +950,7 @@ def test_morning_borrow_can_move_must_wish_item():
     assert res[0] == "秦始皇兵马俑博物馆"  # 必去点=最佳亲和候选，被借入 day3
     bmy = next(i for i in day3.items if i.name == "秦始皇兵马俑博物馆")
     assert bmy.day == 3
-    assert bmy.start_time == time(9, 0)
+    assert bmy.start_time == time(8, 30)
     assert _morning_occupied(day4)  # 钟楼 11:00 仍在，必去点未消失
 
 
@@ -781,7 +997,7 @@ def test_morning_fill_overflow_adds_shortest_when_budget_soft():
     added = agent._morning_fill(plan, day, [], cands, allow_overflow=True)
     assert added == "短点丙"
     visit = next(i for i in day.items if i.name == "短点丙")
-    assert visit.start_time == time(9, 0)
+    assert visit.start_time == time(8, 30)
 
 
 def test_morning_fill_never_refills_same_heritage_site():

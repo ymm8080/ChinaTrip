@@ -152,14 +152,55 @@ def test_dry_run_rolls_back():
     assert s.rolled_back and not s.committed
 
 
-def test_insert_applies_best_visit_rules():
-    # 2026-11-01「两江夜游排在白天」事故：intl 骨架行插入时就带时段
-    # 信号（夜游名 → evening，source=heuristic），不再等回填作业补课。
+def test_insert_rows_have_no_heuristic_best_visit():
+    # 2026-11-17 用户拍板「best visit time 不能走 HEURISTIC」：intl 骨架
+    # 行插入不再打规则标签（真夜档由回填作业 llm 层落库）。
     s = FakeSession()
     job.apply_picks(s)
     cruise = next(r for r in s.rows if r.name_zh == "两江夜游")
-    assert cruise.best_visit_time == "evening"
-    assert cruise.best_visit_time_source == "heuristic"
+    assert cruise.best_visit_time is None
+    assert cruise.best_visit_time_source is None
     bund = next(r for r in s.rows if r.name_zh == "外滩")
     assert bund.best_visit_time is None
     assert bund.best_visit_time_source is None
+
+
+def test_curated_food_rows_inserted_with_food_category():
+    """2026-11-07 用户点名指令：RESTRANT 失重餐厅/红鼎宴 HIGH PRIORITY
+    ——curated 种子行 category 显式跟行（food），source/tags_source=
+    curated（名录档 2，选点 boost 1.5），tags 按 SOURCE_TAG_ORDER 排。"""
+    s = FakeSession()
+    stats = job.apply_picks(s)
+    assert stats["errors"] == 0
+    shizhong = next(r for r in s.rows if r.name_zh == "失重餐厅(环球中心店)")
+    assert shizhong.city == "成都"
+    assert shizhong.category == "food"
+    assert shizhong.source == "curated"
+    assert shizhong.tags_source == "curated"
+    assert {"curated", "intl"} <= set(shizhong.tags)
+    assert shizhong.source_poi_id == "curated:成都:失重餐厅(环球中心店)"
+    hongding = next(r for r in s.rows if r.name_zh == "红鼎宴")
+    assert hongding.category == "food"
+    assert "红鼎艳" in (hongding.name_aliases or [])
+
+
+def test_curated_merge_upgrades_other_category_and_keeps_source():
+    """2026-11-07 指令：SITE 成都环球中心 HIGH PRIORITY——在库 amap
+    other 泛类行走 merge（SKIP IF THERE IS 不重插），curated+intl 打标
+    且 other→attraction 随种子升类；tags_source 按权威闸落 curated。"""
+    existing = _row("成都", "成都环球中心", source="amap", tags=None)
+    existing.category = "other"
+    s = FakeSession([existing])
+    stats = job.apply_picks(s)
+    assert stats["errors"] == 0
+    assert stats["merge"] >= 1
+    assert existing.source == "amap"  # 非旧版 intl 行，source 保留原值
+    assert existing.category == "attraction"
+    assert {"curated", "intl"} <= set(existing.tags)
+    assert existing.tags_source == "curated"
+    # 在库正名行（春熙路类）不在种子时绝不被误碰——种子无春熙路条目
+    chunxi = _row("成都", "春熙路", source="amap", tags=["intl", "layla"])
+    s2 = FakeSession([chunxi])
+    stats2 = job.apply_picks(s2)
+    assert stats2["errors"] == 0
+    assert "curated" not in (chunxi.tags or [])

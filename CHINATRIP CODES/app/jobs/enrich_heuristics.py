@@ -99,7 +99,9 @@ def enrich(factory, *, limit: int, with_duration: bool) -> dict:
         name = (r.name_zh or "").strip()
         if not name:
             continue
-        cat, indoor, rain_ok, floor = _classify(name, r.category, r.address)
+        cat, indoor, rain_ok, floor = _classify(
+            name, r.category, r.address, city=r.city
+        )
         if with_duration and cat is None:
             floor = None  # 类别都定不了，地板值不硬塞
         written = _write_row(

@@ -1,0 +1,15 @@
+[
+  {
+    "name_zh": "八达岭长城",
+    "city": "北京",
+    "access_mode": "shuttle",
+    "access_minutes": 122,
+    "access_gateway": "八达岭长城站",
+    "access_boarding": "前门站",
+    "access_boarding_lon": "116.397708",
+    "access_boarding_lat": "39.898894",
+    "access_service_minutes": 91,
+    "access_wait_minutes": 10,
+    "access_last_mile_minutes": 3
+  }
+]

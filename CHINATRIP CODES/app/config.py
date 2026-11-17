@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     # Zhipu GLM cloud API (OpenAI-compatible). Personal key, zero GPU cost.
-    llm_backend: str = "mock"  # "mock" | "zhipu"
+    llm_backend: str = "mock"  # "mock" | "zhipu" | "opencode" | "ark"
     glm_api_key: str = ""
     glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-5.3-flash"
@@ -21,6 +21,29 @@ class Settings(BaseSettings):
     # (design §6.12: >=80% requests must not reach the main model).
     glm_model_flash: str = "glm-5.3-flash"
     glm_timeout_seconds: float = 60.0
+    # OpenCode Go 订阅（OpenAI-compatible 推理网关，2026-11-11 起主力会话
+    # 走 Go 包月——智谱免费额度按日死）。模型 2026-11-14 由用户拍板切
+    # glm-5.3-flash（网关实测供该模型且可吃图；此前 deepseek-v4.1-flash）。
+    # 会话模块（gate/规划/对话编辑）用这一对；ASR/视觉回填仍走 glm_*。
+    opencode_api_key: str = ""
+    opencode_base_url: str = "https://opencode.ai/inference/go/openai/v1"
+    opencode_model: str = "glm-5.3-flash"
+    # Go 网关硬性要求稳定会话头（缺了直接 400 MissingSessionID）。
+    opencode_session_id: str = "chinatrip"
+    # 推理模型输出上限（2026-11-14 用户拍板「max_tokens 拉到最大」）。
+    # 推理模型（glm-5.3-flash / 此前 deepseek-v4.1-flash）先把 max_tokens
+    # 吃进 reasoning，调用点的小额度
+    # （select 32 / gate 200 / 索引输出 1600）会把正文挤成空串（实测
+    # content="" + finish=length）。会话链一律按网关硬顶发——实测区间
+    # 1..393216（1000000 直接 400 invalid_request_error），故取 393216。
+    # 调低即重新饿死正文；方舟链不在本次范围。
+    opencode_max_tokens: int = 393216
+    # 火山方舟（Ark）Plan 订阅网关（OpenAI-compatible；2026-11-14 用户拍板
+    # 「OpenCode Go 额度用尽 → 现在使用方舟 API」）。模型须在 agent plan
+    # 兼容清单内（doubao-seed-2-0-pro-260215 实测可用），否则 404 UnsupportedModel。
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/plan/v3"
+    ark_model: str = "doubao-seed-2-0-pro-260215"
     # 智谱语音识别（H5 语音输入，替代大陆不可达的 Chrome Web Speech）
     asr_model: str = "glm-asr-2512"
     # ASR 后端开关（translation_pipeline_design_2026-10-30 P0）：
@@ -107,6 +130,18 @@ class Settings(BaseSettings):
     # 重启 uvicorn 不再清空进行中会话与已存行程。
     state_db_url: str = "sqlite:///data/h5_state.db"
 
+    # 天安门升（降）旗时刻（app/services/flag_schedule.py）：官方年度公告页
+    # （表格为嵌入 PNG，OCR 解析）→ 落库 + DESIGN 快照。写路径只追加
+    # （每次抓取=一个 fetched_at 批次，INSERT 不 UPDATE，读取取最新批次），
+    # 与 train_cache 同一「留史只追加」口径。
+    flag_schedule_enabled: bool = True  # False => 查询恒 None，零行为
+    flag_schedule_source_url: str = (
+        "https://tamgw.beijing.gov.cn/sy/sjqsj/202512/t20251222_4356494.html"
+    )
+    flag_schedule_timeout_seconds: float = 15.0
+    flag_schedule_db_url: str = "sqlite:///data/flag_cache.db"
+    flag_schedule_snapshot_dir: str = "DESIGN"  # 快照 CSV 输出目录
+
     # CP-SAT solver budget (design §6.9 / iron rule 8: 3s latency budget).
     solver_time_budget_seconds: float = 3.0
 
@@ -169,6 +204,12 @@ class Settings(BaseSettings):
     )
     booking_search_template_domestic: str = (
         "https://www.meituan.com/xiuxianyule/{keyword}"
+    )
+    # 🍴 餐饮直达（2026-11-07 用户拍板：行程卡餐位旁按钮）：美团美食频道
+    # （meishi）搜店=订座/点单菜单入口——xiuxianyule 是休闲/景区口径，
+    # 餐饮须走 meishi 分区，不能复用上面的模板。
+    booking_restaurant_template_domestic: str = (
+        "https://www.meituan.com/meishi/{keyword}"
     )
     booking_region_file: str = "data/cn_ip_ranges.txt"
 

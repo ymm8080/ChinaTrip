@@ -1,0 +1,17 @@
+                  id                  | city |                     name_zh                      |   category    |   source    |        tags_before         
+--------------------------------------+------+--------------------------------------------------+---------------+-------------+----------------------------
+ dbba1c59-a1d7-4345-baa8-773bbbdab275 | 上海 | 丽呈别院(上海三甲新天地旅游度假区店)             | hotel         | chinatravel | ["intl", "sygic"]
+ fc5f290d-0cdd-4a74-a179-82783f0950dc | 上海 | 独角兽星空艺术馆 田子坊旗舰店                    | entertainment | chinatravel | ["intl", "layla"]
+ 881079cc-00d0-4116-94e3-adde929f8b0b | 上海 | 锦江都城(上海新天地田子坊店)                     | hotel         | chinatravel | ["intl", "sygic", "layla"]
+ 1071158f-727f-4f89-820b-28cbc72f411c | 上海 | 飞跃上海(南京路步行街来福士店)                   | entertainment | chinatravel | ["intl", "kkday", "layla"]
+ 3a20d9ae-1c11-406c-b459-49a071eb1131 | 成都 | 悬空飞越剧场(春熙路茂业百货店)                   | entertainment | chinatravel | ["intl", "layla"]
+ 7fb4a3b3-4c8f-4f74-b6b5-b3e4f19ebade | 成都 | 易宁阁宽窄别院(成都宽窄巷子地铁站店)             | hotel         | chinatravel | ["intl", "layla"]
+ b455767f-e741-4924-99d4-09fac736b398 | 成都 | 梵隐·花间庭院villa朴墅(成都春熙路太古里店)       | hotel         | chinatravel | ["intl", "layla"]
+ 24302d8c-e855-4190-8cc8-e5769d396255 | 成都 | 汤悦温泉(春熙路)店                               | entertainment | chinatravel | ["intl", "layla"]
+ a7e6f1f3-5890-4d46-8e58-e4b4978bf6fd | 成都 | 沐云紫汉服体验写真(武侯锦里店)                   | entertainment | chinatravel | ["intl", "layla"]
+ 5a9a3270-6076-4738-947f-67d60caf740a | 成都 | 西金中心·云曦天际S公馆(春熙路西部国际金融中心店) | hotel         | chinatravel | ["intl", "layla"]
+ a86c61cc-64fb-4834-aecd-3d8b318939f2 | 成都 | 长藤鬼校(春熙路IFS店)                            | entertainment | chinatravel | ["intl", "layla"]
+ 6588ae82-b714-4cb7-94d8-96579f6ad67f | 武汉 | 隐居伴山(黄鹤楼昙华林店)                         | hotel         | chinatravel | ["intl", "xiaohongshu"]
+ c97719c4-f935-45a2-bbc2-cbaf9f5032a0 | 重庆 | 李子坝轻轨站                                     | transport     | chinatravel | ["curated", "intl"]
+(13 rows)
+

@@ -1,0 +1,41 @@
+diff --git a/CHINATRIP CODES/app/services/agent/plan.py b/CHINATRIP CODES/app/services/agent/plan.py
+index fa55a58..cc5c516 100644
+--- a/CHINATRIP CODES/app/services/agent/plan.py	
++++ b/CHINATRIP CODES/app/services/agent/plan.py	
+@@ -4927,6 +4927,7 @@ def _drop_surplus_auto_meals(plan: ItineraryPlan) -> None:
+     用户卡/精选卡永不让位；同日两张都是系统件时留先落位的一张。撤卡
+     留痕走 assumptions，绝不静默消失。
+     """
++
+     notes: list[str] = []
+     for day in plan.days:
+         by_card: dict[str, list[VisitItem]] = {}
+@@ -11077,7 +11078,7 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
+             cur_dur = cur.duration_minutes or DEFAULT_VISIT_MINUTES
+             rows.append((cur, need, need + cur_dur))
+             cursor_end = need + cur_dur
+-            for later in timed[idx + 1:]:
++            for later in timed[idx + 1 :]:
+                 orig = _minutes_of(later.start_time)
+                 if later.end_time is not None:
+                     dur = _minutes_of(later.end_time) - orig
+@@ -11133,6 +11134,8 @@ def _clamp_chain_gaps(plan: ItineraryPlan) -> list[str]:
+                 )
+             )
+     return notes
++
++
+ def _fallback_sequence_times(
+     plan: ItineraryPlan, *, keep_list_order: bool = False
+ ) -> None:
+@@ -11892,9 +11895,9 @@ def _fallback_sequence_times(
+         # 展示顺序=时间顺序：拖拽重排后列表按 start_time 排，未排出时间的垫底
+         day.items.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+ 
+-
+     _clamp_chain_gaps(plan)
+ 
++
+ def _meal_card_back_to_default(
+     meal: VisitItem,
+     is_lunch: bool,

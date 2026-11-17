@@ -471,3 +471,89 @@ def test_geocode_bad_location_returns_none():
     client = BaiduClient(ak="test", transport=httpx.MockTransport(handler))
     out = asyncio.run(client.geocode("不存在的地方"))
     assert out["lon"] is None and out["lat"] is None
+
+
+def test_transit_route_real_nested_shape_with_vehicle_detail():
+    """线上真实形状（2026-11-15 慕田峪实测）：steps 是「段数组的数组」。
+
+    段内步带 trans_type（-1 乘车 / 0、4 步行）与 vehicle_info.detail
+    （线路名、上下车站、首末班、shuttle_time_table）；此前按文档猜的扁平
+    步数组会让 segments 恒空，H5 导航页只剩「N 分钟」没有换乘细节。
+    """
+    body = {
+        "status": 0,
+        "result": {
+            "routes": [
+                {
+                    "distance": 78605,
+                    "duration": 7647,
+                    "price": "80",
+                    "steps": [
+                        [
+                            {
+                                "distance": 369,
+                                "duration": 316,
+                                "instructions": "步行369米",
+                                "trans_type": 0,
+                                "vehicle_info": {"type": 5, "detail": None},
+                            }
+                        ],
+                        [
+                            {
+                                "distance": 76272,
+                                "duration": 5546,
+                                "instructions": "前门站乘景区直达车到慕田峪长城站",
+                                "trans_type": -1,
+                                "vehicle_info": {
+                                    "type": 3,
+                                    "detail": {
+                                        "name": "慕田峪长城景区直达车前门线",
+                                        "type": 10,
+                                        "on_station": "前门站",
+                                        "off_station": "慕田峪长城站",
+                                        "stop_num": 1,
+                                        "first_time": "07:00",
+                                        "last_time": "12:00",
+                                        "shuttle_time_table": ["07:00"],
+                                    },
+                                },
+                            }
+                        ],
+                        [
+                            {
+                                "distance": 1964,
+                                "duration": 480,
+                                "instructions": "步行2.0公里",
+                                "trans_type": 4,
+                                "vehicle_info": {"type": 5, "detail": None},
+                            }
+                        ],
+                    ],
+                }
+            ]
+        },
+    }
+    handler, _ = ok_handler(body)
+    plans = asyncio.run(
+        make_client(handler).transit_route(
+            "116.404,39.905", "116.560,40.427", city="北京"
+        )
+    )
+    plan = plans[0]
+    assert plan["duration_s"] == 7647
+    assert plan["walking_distance_m"] == 2333
+    segments = plan["segments"]
+    assert len(segments) == 3
+    assert segments[0]["walking"]["duration_s"] == 316
+    assert segments[0]["rides"] == []
+    assert segments[1]["walking"] is None
+    ride = segments[1]["rides"][0]
+    assert ride["name"] == "慕田峪长城景区直达车前门线"
+    assert ride["departure_stop"] == "前门站"
+    assert ride["arrival_stop"] == "慕田峪长城站"
+    assert ride["departure_time"] == "07:00"
+    assert ride["last_time"] == "12:00"
+    assert ride["time_table"] == ["07:00"]
+    assert ride["duration_s"] == 5546
+    assert ride["vehicle_type"] == 10
+    assert segments[2]["walking"]["duration_s"] == 480

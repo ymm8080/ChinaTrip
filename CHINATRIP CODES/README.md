@@ -49,7 +49,7 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `GET /h5/` | 单页 H5 冒烟页（App 式交互测试面）：左栏 规划/翻译/导航/行程/预订 五模块 + 手写瓦片地图（高德栅格瓦片，无 SDK 无 key）+ 模拟导航/偏航重路由 + 预订确认浮层（退改摘要先行） |
 | `POST/GET/PATCH/DELETE /api/v1/trip-items…` | 行程中心三态（设计 v2.4 §5/铁律 0 同源）：wishlist→scheduled（须 day）→booked（须 booking_id）状态机 + 撤销；手动/对话/粘贴写同一张表；Bookings 置顶 + Wishlist 流 |
 | `POST /api/v1/offers/cards` | 转链交易中心（设计 v2.3 §6.11）：候选卡片组 2–4 渠道确定性比价 workflow——排序佣金权重为零、12306 全国统一价、同价按稳定性标「同价」、国外隐藏美团、深链服务端注入（alliance_id/sid 占位）、disclaimer 恒挂 |
-| `POST /api/v1/backfill/handoffs…` · `/paste-return` · `/undo` · `/manual` · `/alliance-sync` | 订单回填三层管道（设计 v2.4）：粘贴回填为主（conf<0.8 不落库进待确认）+ 手动标记兜底 + 联盟订单同步 mock；双源验证状态机 opened→user_confirmed→alliance_verified→settled（returned 逆向）；paste/manual 可撤销 |
+| `POST /api/v1/backfill/handoffs…` · `/paste-return` · `/undo` · `/manual` · `/alliance-sync` · `GET /handoffs/{id}` | 订单回填三层管道（设计 v2.4）：粘贴回填为主（conf<0.8 不落库进待确认）+ 手动标记兜底 + 联盟订单同步 mock；双源验证状态机 opened→user_confirmed→alliance_verified→settled（returned 逆向）；paste/manual 可撤销 |
 | `GET/PUT /api/v1/profile` · `POST /distill…/undo` | 全局 Agent 画像层（设计 v2.4 §6.14）：可查看可修正（手改字段蒸馏不覆盖）+ 确定性蒸馏 MVP（零 LLM，conf≥0.8 应用带 applied_id 可撤销，<0.8 进 suggestions） |
 | `POST/GET /api/v1/links…` · `/{id}/reparse` · `/{id}/to-wishlist` | 个人主页链接历史（双来源 user_paste/agent_recommend）：重新解析 + 加入心愿单（写同一张 trip_items） |
 | `POST /api/v1/auth/email/code` · `/auth/email/register` · `/auth/register` · `/auth/login` · `/auth/logout` · `/auth/password/reset` · `GET /auth/me` | 自定义邮箱+密码账号（设计 v2.4.1/2.4.2，决策速查 9）：注册/登录即认领当前设备匿名行程（owner_account_id）；SMTP 未配置=开发态回显验证码；Bearer 鉴权，OAuth 留待企业主体 |
@@ -57,7 +57,7 @@ docker compose up -d db            # PostGIS（可选，测试不需要数据库
 | `GET /api/weather` · `POST /api/weather/sync` | 城市天气只读 feed（v2.5 参考数据域，weather_reports 快照表：高德 3 日 + Open-Meteo 14 天）；sync 开站巡检纯读表逐城回报 has_data/fresh（从不出网；抓取只属每日 08:10 管线，全量 40 城） |
 | `GET /api/v1/visa/240h` | 240h 过境免签行程校验（§14.3-G2）：确定性纯函数零 LLM 零外呼——行程页绿/红横幅数据源 |
 | `POST /api/v1/feedback/vote` · `/visit` · `/review` · `GET /feedback/poi` | 互动闭环（§4）：卡片👍👎 / 行中打卡 / 行后点评 / 「去过的人说」聚合——零 LLM 零外呼 |
-| `GET /api/v1/booking-auto/tiers` · `POST /tasks` · `/check` · `/select` · `/order-intent` · `GET /selected` · `/shows` · `/sites` | 预约自动化三档栈（booking_design 2026-10-25）：L1 抢票日历 / L2 渠道可订性 / L3 下单闭环预填（17 馆名单+降级链）+ 🎭 演出目录（show_booking S5）+ 🎫 景点目录/热门榜/geo 分流 |
+| `GET /api/v1/booking-auto/tiers` · `POST /tasks` · `/check` · `/select` · `/order-intent` · `GET /selected` · `/shows` · `/sites` · `POST /restaurant-intent` | 预约自动化三档栈（booking_design 2026-10-25）：L1 抢票日历 / L2 渠道可订性 / L3 下单闭环预填（17 馆名单+降级链）+ 🎭 演出目录（show_booking S5）+ 🎫 景点目录/热门榜/geo 分流 |
 | `POST /api/v1/payments/checkout` · `GET /mine` · `GET /{id}` · `POST /{id}/confirm` · `/{id}/charge` · `POST /webhook/stripe` | 客户付款层（payments_design 2026-10-25；铁律 22 不变只收款不代交易）：pay_now/save_method 双形态、mock 网关先行（支付宝 wap 主通道待资质，stripe 预留）、webhook 验签、运营扣款 X-Operator-Token 守卫 |
 | `POST /api/v1/call/orders` · `GET /packages` · `/balance` · `/records` · `POST /sessions` · `GET /sessions/{id}` · `POST /sessions/{id}/end` · `POST /orders/{id}/confirm` · 坐席 `GET /agent/queue` · `POST /agent/sessions/{id}/answer|end` · `POST /webhooks/{provider}` | 真人通话咨询（paid_call_service_design v1.2）：预付费分钟账本（$1=5min）+ 服务端权威会话（到点强结/提前挂断退整分钟/120s 未接通全退）+ X-Agent-Key 护门（未配 503 错键 401）；SQLite 侧库三表 |
 | `GET/POST /api/v1/travelers` · `PUT/DELETE /{id}` · `DELETE /` · `GET /export` | 出行人资料（CLIENT_DATA_REQUIREMENTS）：代客预订实名档案 CRUD——列表/读取只回脱敏形（证件/手机打星），export 唯一明文出口带审计，DELETE / 清空本人数据（被遗忘权），consent 必须 true |

@@ -520,7 +520,13 @@ async def get_itinerary(
     account: str | None = Depends(_account_from_auth),
 ) -> ItineraryRecord:
     device = _require_device(x_device_id)
-    return _owned_record(store, itinerary_id, device, account)
+    record = _owned_record(store, itinerary_id, device, account)
+    # 同站合并读闸（2026-11-16 朱家角双卡案，与 /plan/{id} GET 同模式）：
+    # 历史行程里同一个地方被两行 POI 各排一天，打开即合并并回写——不要求
+    # 用户重新规划。幂等：无重复时 dedupe 返回空、不写库。
+    if dedupe_plan_visits(record.plan):
+        store.put(record)
+    return record
 
 
 @router.put("/itineraries/{itinerary_id}")
@@ -534,6 +540,11 @@ async def mutate_itinerary(
 ) -> dict:
     device = _require_device(x_device_id)
     record = _owned_record(store, itinerary_id, device, account)
+    # 旗时最高优先级（2026-11-14 UAT 五修）：行程中心行编辑/保存即按数据库
+    # 旗时纠正天安门开始时刻——旧行程里的 8:30 不得随 mutates 留存。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(record.plan)
     try:
         record, report, summary = service.mutate(
             record, request.diffs, poi_hours=request.poi_hours
@@ -655,6 +666,141 @@ async def export_itinerary(
     )
 
 
+@router.get("/itineraries/{itinerary_id}/detail")
+async def get_itinerary_detail(
+    itinerary_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> dict:
+    """行程详情（2026-11-13 用户拍板「TRIP 详情页面」）：库里存的逐日明细
+
+    ——日期 / 城市 / 时段 / 点位名 / 时长 / 备选 1-3。读的是 itinerary_days +
+    itinerary_items（保存时重建的那份），不是 plan JSON。
+    """
+    device = _require_device(x_device_id)
+    record = _owned_record(store, itinerary_id, device, account)
+    from app.models import ItineraryDay, ItineraryItem
+
+    uid = _pg_uuid_loose(itinerary_id, "it_")
+    if uid is None:
+        return {"itinerary_id": itinerary_id, "days": []}
+    factory = get_session_factory()
+    with factory() as session:
+        days = (
+            session.query(ItineraryDay)
+            .filter(
+                ItineraryDay.itinerary_id == uid, ItineraryDay.snapshot_id.is_(None)
+            )
+            .order_by(ItineraryDay.day)
+            .all()
+        )
+        items = (
+            session.query(ItineraryItem)
+            .filter(
+                ItineraryItem.itinerary_id == uid, ItineraryItem.snapshot_id.is_(None)
+            )
+            .order_by(ItineraryItem.day, ItineraryItem.position)
+            .all()
+        )
+        by_day: dict[int, list[dict]] = {}
+        for row in items:
+            by_day.setdefault(row.day, []).append(
+                {
+                    "name": row.name,
+                    "city": row.city,
+                    "category": row.category,
+                    "address": row.address,
+                    "schedule_date": row.schedule_date.isoformat()
+                    if row.schedule_date
+                    else None,
+                    "start_time": row.start_time.strftime("%H:%M")
+                    if row.start_time
+                    else None,
+                    "end_time": row.end_time.strftime("%H:%M")
+                    if row.end_time
+                    else None,
+                    "duration_minutes": row.duration_minutes,
+                    "alternative_1": row.alt1,
+                    "alternative_2": row.alt2,
+                    "alternative_3": row.alt3,
+                    # 2026-11-13（用户：VisitItem/酒店/交通/餐卡都要在详情里）
+                    "kind": row.kind,
+                    "item_ref": row.item_ref,
+                    "poi_ref": row.poi_ref,
+                    "from_city": row.from_city,
+                    "to_city": row.to_city,
+                    "transport_mode": row.transport_mode,
+                    "transport_no": row.transport_no,
+                    "meal_slot": row.meal_slot,
+                    "hotel_name": row.hotel_name,
+                    "placeholder": bool(row.placeholder),
+                    "alternatives": row.alternatives,
+                }
+            )
+        return {
+            "itinerary_id": itinerary_id,
+            "start_city": (record.plan.cities or [None])[0]
+            if record.plan.cities
+            else None,
+            "end_city": (record.plan.cities or [None])[-1]
+            if record.plan.cities
+            else None,
+            "travel_start_date": record.plan.start_date,
+            "days": [
+                {
+                    "day": d.day,
+                    "city": d.base_city,
+                    "items": by_day.get(d.day, []),
+                }
+                for d in days
+            ],
+        }
+
+
+@router.get("/itineraries/{itinerary_id}/changes")
+async def list_itinerary_changes(
+    itinerary_id: str,
+    x_device_id: str | None = Header(default=None, alias="X-Device-ID"),
+    store: ItineraryStore = Depends(get_store),
+    account: str | None = Depends(_account_from_auth),
+) -> list[dict]:
+    """行程变更日志（2026-11-13 用户拍板「CHANGE LOG … USER, USER NAME,
+    CHANGES AFTER CLICK SAVE BUTTON」）：按保存时刻倒序回放。"""
+    device = _require_device(x_device_id)
+    _owned_record(store, itinerary_id, device, account)
+
+    from app.models import ItineraryChangeLog
+
+    uid = _pg_uuid_loose(itinerary_id, "it_")
+    if uid is None:
+        return []
+    factory = get_session_factory()
+    with factory() as session:
+        rows = (
+            session.query(ItineraryChangeLog)
+            .filter(ItineraryChangeLog.itinerary_id == uid)
+            .order_by(ItineraryChangeLog.changed_at.desc())
+            .limit(200)
+            .all()
+        )
+        return [
+            {
+                "id": str(r.id),
+                "itinerary_id": r.itinerary_ref or itinerary_id,
+                "changed_at": r.changed_at.isoformat() if r.changed_at else None,
+                "sync_version": r.sync_version,
+                "summary": r.summary,
+                "changes": r.changes or [],
+                "owner_device_id": r.owner_device_id,
+                "owner_account_id": r.owner_account_id,
+                "actor_name": r.actor_name,
+                "snapshot_id": r.snapshot_id,
+            }
+            for r in rows
+        ]
+
+
 @router.delete("/itineraries/{itinerary_id}", status_code=204)
 async def delete_itinerary(
     itinerary_id: str,
@@ -665,11 +811,17 @@ async def delete_itinerary(
 ) -> None:
     """Delete an owned itinerary together with its snapshots (2026-10-20:
     「行程」页 per-trip 查看/删除 buttons). Unknown / foreign-owner ids
-    answer 404 like every other route (no enumeration). 2026-10-31（用户
-    拍板）：删行程前名下 scheduled 行先回心愿单栏（day/position/booking_id
-    清空；booked 保留真实订单不动）——先释放后删除，释放失败行程仍在，
-    可重试。trip_items 依旧不物理删除：看板自有真相（铁律 0）。"""
+    answer 404 like every other route (no enumeration).
+
+    2026-11-14 二拍（覆盖同日「一并删除」口径，回到 2026-10-31 的释放
+    语义并补全）：删行程时名下心愿行不删——TRIP ID 清空退回心愿单
+    （排期项回心愿单栏、草稿转正、booked 只摘绑定），行保留在心愿单里
+    等下一次规划再认领。"""
     device = _require_device(x_device_id)
     _owned_record(store, itinerary_id, device, account)
-    trip_items.release_itinerary(itinerary_id)
-    store.delete(itinerary_id)
+    # 2026-11-14 二拍：删行程 = 名下心愿行 TRIP ID 清空退回心愿单——
+    # 排期项回心愿单栏、草稿转正，booked 只解绑（不删不重建）。
+    trip_items.release_itinerary(itinerary_id, actor=device)
+    if not store.delete(itinerary_id):
+        # 写穿失败只告警（假库/未缓存误判）；外键已由 store 删前清理
+        logger.warning("itinerary delete reported miss id=%s", itinerary_id)

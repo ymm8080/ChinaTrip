@@ -77,19 +77,20 @@ def test_leaving_morning_cap_matrix():
     # <12:00 发车=日始（必令出发城条目不可行=整日无安排）
     assert _leaving_morning_cap("car", 17 * 60) is None
     assert _leaving_morning_cap(None, 17 * 60) is None
-    assert _leaving_morning_cap("train", 13 * 60) == 11 * 60 + 30  # 发车−90
+    # 2026-11-14 拍板：火车离城缓冲 2 小时（飞机 3 小时）
+    assert _leaving_morning_cap("train", 13 * 60) == 11 * 60  # 发车−120
     assert _leaving_morning_cap("train", 17 * 60) == 12 * 60  # 正午收口
     assert _leaving_morning_cap("flight", 20 * 60) == 12 * 60
     assert _leaving_morning_cap("bus", 15 * 60) == 12 * 60
-    assert _leaving_morning_cap("train", 11 * 60 + 45) == 9 * 60  # 无安排
+    assert _leaving_morning_cap("train", 11 * 60 + 45) == 8 * 60 + 30  # 无安排（日始）
 
 
 # ---------------- 求解器层（插入主路 + CP 兜底） ----------------
 
 
 def test_afternoon_train_sites_end_by_noon_insertion():
-    # 17:00 发车：两个 90 分钟点全部上午收尾（9:00-10:30、10:30-12:00），
-    # 午后整段留白
+    # 17:00 发车：两个 90 分钟点全部上午收尾（08:30-10:00、10:00-11:30，
+    # 日始 08:30），午后整段留白
     day = DayPlan(
         day=1,
         base_city="西安",
@@ -100,7 +101,7 @@ def test_afternoon_train_sites_end_by_noon_insertion():
     ends = sorted(
         _minutes(i.end_time) for i in solved.items if isinstance(i, VisitItem)
     )
-    assert ends == [10 * 60 + 30, 12 * 60]
+    assert ends == [10 * 60, 11 * 60 + 30]
 
 
 def test_afternoon_train_sites_end_by_noon_cp():
@@ -129,8 +130,8 @@ def test_night_flight_sites_end_by_noon():
     solved = insertion_schedule_day(day, poi_hours=[])
     assert solved is not None
     v1 = next(i for i in solved.items if isinstance(i, VisitItem))
-    assert _minutes(v1.start_time) == 9 * 60
-    assert _minutes(v1.end_time) == 11 * 60
+    assert _minutes(v1.start_time) == 8 * 60 + 30
+    assert _minutes(v1.end_time) == 10 * 60 + 30
 
 
 def test_early_afternoon_train_cap_is_dep_minus_buffer():
@@ -239,7 +240,7 @@ def test_fallback_leaving_day_visit_morning_only():
     day = plan.days[0]
     fit = next(i for i in day.items if i.item_id == "v_fit")
     big = next(i for i in day.items if i.item_id == "v_big")
-    assert (fit.start_time, fit.end_time) == (time(9, 0), time(10, 30))
+    assert (fit.start_time, fit.end_time) == (time(8, 30), time(10, 0))
     assert big.start_time is None
 
 

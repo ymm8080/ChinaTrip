@@ -93,6 +93,15 @@ def public_trip_payload(record: ItineraryRecord) -> dict:
                 kind = "transfer"
             payload = item.model_dump(include=fields)
             payload["kind"] = kind
+            if kind == "visit" and getattr(item, "stops", None):
+                # 同街族子站 chips（2026-11-07 并卡拍板）：名字/类别/时长
+                # 外发；poi_id 是库内部号，白名单口径不外泄。
+                payload["stops"] = [
+                    s.model_dump(
+                        include={"name", "name_en", "category", "duration_minutes"}
+                    )
+                    for s in item.stops
+                ]
             items.append(payload)
         days.append({"day": day.day, "base_city": day.base_city, "items": items})
     return {

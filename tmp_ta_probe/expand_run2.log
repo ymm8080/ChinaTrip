@@ -1,0 +1,2659 @@
+台账重试行: 895
+本批 2395 行（pois 1817 + restaurants 578；source 序: ['5a', 'amap', 'artmuseum', 'baidu', 'chinatravel', 'curated', 'histown', 'histvillage']…）
+  [catalog] 三亚/attractions 第1页 +30（累计 30/78）
+  [catalog] 三亚/attractions 第2页 +29（累计 59/78）
+  [catalog] 三亚/attractions 第3页 +18（累计 77/78）
+  [catalog] 三亚/attractions 第4页 +22（累计 99/145）
+  [catalog] 三亚/attractions 第5页 +25（累计 124/145）
+  [catalog] 三亚/attractions 第6页 +0（累计 124/?）
+  [catalog] 三亚/restaurants 第1页 +30（累计 30/501）
+  [catalog] 三亚/restaurants 第2页 +30（累计 60/501）
+  [catalog] 三亚/restaurants 第3页 +30（累计 90/501）
+  [catalog] 三亚/restaurants 第4页 +30（累计 120/501）
+  [catalog] 三亚/restaurants 第5页 +30（累计 150/501）
+  [catalog] 三亚/restaurants 第6页 +30（累计 180/501）
+  [catalog] 三亚/restaurants 第7页 +30（累计 210/501）
+  [catalog] 三亚/restaurants 第8页 +30（累计 240/501）
+  [catalog] 三亚/restaurants 第9页 +30（累计 270/501）
+  [catalog] 三亚/restaurants 第10页 +30（累计 300/501）
+  [catalog] 三亚/restaurants 第11页 +30（累计 330/501）
+  [catalog] 三亚/restaurants 第12页 +30（累计 360/501）
+  [catalog] 三亚/restaurants 第13页 +30（累计 390/501）
+  [catalog] 三亚/restaurants 第14页 +30（累计 420/501）
+  [catalog] 三亚/restaurants 第15页 +30（累计 450/501）
+  [catalog] 三亚/restaurants 第16页 +30（累计 480/501）
+  [catalog] 三亚/restaurants 第17页 +21（累计 501/501）
+  [catalog] 上海/attractions 第1页 +30（累计 30/952）
+  [catalog] 上海/attractions 第2页 +30（累计 60/952）
+  [catalog] 上海/attractions 第3页 +28（累计 88/952）
+  [catalog] 上海/attractions 第4页 +28（累计 116/952）
+  [catalog] 上海/attractions 第5页 +30（累计 146/952）
+  [catalog] 上海/attractions 第6页 +30（累计 176/952）
+  [catalog] 上海/attractions 第7页 +29（累计 205/952）
+  [catalog] 上海/attractions 第8页 +30（累计 235/952）
+  [catalog] 上海/attractions 第9页 +30（累计 265/952）
+  [catalog] 上海/attractions 第10页 +29（累计 294/952）
+  [catalog] 上海/attractions 第11页 +28（累计 322/952）
+  [catalog] 上海/attractions 第12页 +30（累计 352/952）
+  [catalog] 上海/attractions 第13页 +30（累计 382/952）
+  [catalog] 上海/attractions 第14页 +29（累计 411/952）
+  [catalog] 上海/attractions 第15页 +30（累计 441/952）
+  [catalog] 上海/attractions 第16页 +29（累计 470/952）
+  [catalog] 上海/attractions 第17页 +29（累计 499/952）
+  [catalog] 上海/attractions 第18页 +30（累计 529/952）
+  [catalog] 上海/attractions 第19页 +28（累计 557/952）
+  [catalog] 上海/attractions 第20页 +28（累计 585/952）
+  [catalog] 上海/hotels 第1页 +30（累计 30/10000）
+  [catalog] 上海/hotels 第2页 +30（累计 60/10000）
+  [catalog] 上海/hotels 第3页 +30（累计 90/10000）
+  [catalog] 上海/hotels 第4页 +30（累计 120/10000）
+  [catalog] 上海/hotels 第5页 +30（累计 150/10000）
+  [catalog] 上海/hotels 第6页 +30（累计 180/10000）
+  [catalog] 上海/hotels 第7页 +30（累计 210/10000）
+  [catalog] 上海/hotels 第8页 +30（累计 240/10000）
+  [catalog] 上海/hotels 第9页 +30（累计 270/10000）
+  [catalog] 上海/hotels 第10页 +30（累计 300/10000）
+  [catalog] 上海/hotels 第11页 +30（累计 330/10000）
+  [catalog] 上海/hotels 第12页 +30（累计 360/10000）
+  [catalog] 上海/hotels 第13页 +30（累计 390/10000）
+  [catalog] 上海/hotels 第14页 +30（累计 420/10000）
+  [catalog] 上海/hotels 第15页 +30（累计 450/10000）
+  [catalog] 上海/hotels 第16页 +30（累计 480/10000）
+  [catalog] 上海/hotels 第17页 +30（累计 510/10000）
+  [catalog] 上海/hotels 第18页 +30（累计 540/10000）
+  [catalog] 上海/hotels 第19页 +30（累计 570/10000）
+  [catalog] 上海/hotels 第20页 +30（累计 600/10000）
+  [catalog] 上海/restaurants 第1页 +30（累计 30/10000）
+  [catalog] 上海/restaurants 第2页 +30（累计 60/10000）
+  [catalog] 上海/restaurants 第3页 +30（累计 90/10000）
+  [catalog] 上海/restaurants 第4页 +30（累计 120/10000）
+  [catalog] 上海/restaurants 第5页 +30（累计 150/10000）
+  [catalog] 上海/restaurants 第6页 +30（累计 180/10000）
+  [catalog] 上海/restaurants 第7页 +30（累计 210/10000）
+  [catalog] 上海/restaurants 第8页 +30（累计 240/10000）
+  [catalog] 上海/restaurants 第9页 +30（累计 270/10000）
+  [catalog] 上海/restaurants 第10页 +30（累计 300/10000）
+  [catalog] 上海/restaurants 第11页 +30（累计 330/10000）
+  [catalog] 上海/restaurants 第12页 +30（累计 360/10000）
+  [catalog] 上海/restaurants 第13页 +30（累计 390/10000）
+  [catalog] 上海/restaurants 第14页 +30（累计 420/10000）
+  [catalog] 上海/restaurants 第15页 +30（累计 450/10000）
+  [catalog] 上海/restaurants 第16页 +30（累计 480/10000）
+  [catalog] 上海/restaurants 第17页 +30（累计 510/10000）
+  [catalog] 上海/restaurants 第18页 +30（累计 540/10000）
+  [catalog] 上海/restaurants 第19页 +30（累计 570/10000）
+  [catalog] 上海/restaurants 第20页 +30（累计 600/10000）
+  [city-geo] 上饶 → g1016927（搜狗解包）
+  [catalog] 上饶/attractions 第1页 +7（累计 7/7）
+  [skip] 丽江 gID 解析失败（暂时性，不入台账）
+  [catalog] 北京/attractions 缓存复用 1196 条
+  [catalog] 北京/hotels 缓存复用 600 条
+  [catalog] 北京/restaurants 缓存复用 1350 条
+  [catalog] 南京/attractions 第1页 +29（累计 29/196）
+  [catalog] 南京/attractions 第2页 +30（累计 59/196）
+  [catalog] 南京/attractions 第3页 +30（累计 89/196）
+  [catalog] 南京/attractions 第4页 +30（累计 119/196）
+  [catalog] 南京/attractions 第5页 +30（累计 149/196）
+  [catalog] 南京/attractions 第6页 +30（累计 179/196）
+  [catalog] 南京/attractions 第7页 +16（累计 195/196）
+  [catalog] 南京/attractions 第8页 +28（累计 223/489）
+  [catalog] 南京/attractions 第9页 +30（累计 253/489）
+  [catalog] 南京/attractions 第10页 +30（累计 283/489）
+  [catalog] 南京/attractions 第11页 +29（累计 312/489）
+  [catalog] 南京/attractions 第12页 +30（累计 342/489）
+  [catalog] 南京/attractions 第13页 +30（累计 372/489）
+  [catalog] 南京/attractions 第14页 +30（累计 402/489）
+  [catalog] 南京/attractions 第15页 +30（累计 432/489）
+  [catalog] 南京/attractions 第16页 +30（累计 462/489）
+  [catalog] 南京/attractions 第17页 +9（累计 471/489）
+  [catalog] 南京/attractions 第18页 +0（累计 471/?）
+  [catalog] 南京/restaurants 第1页 +30（累计 30/2778）
+  [catalog] 南京/restaurants 第2页 +30（累计 60/2778）
+  [catalog] 南京/restaurants 第3页 +30（累计 90/2778）
+  [catalog] 南京/restaurants 第4页 +30（累计 120/2778）
+  [catalog] 南京/restaurants 第5页 +30（累计 150/2778）
+  [catalog] 南京/restaurants 第6页 +30（累计 180/2778）
+  [catalog] 南京/restaurants 第7页 +30（累计 210/2778）
+  [catalog] 南京/restaurants 第8页 +30（累计 240/2778）
+  [catalog] 南京/restaurants 第9页 +30（累计 270/2778）
+  [catalog] 南京/restaurants 第10页 +30（累计 300/2778）
+  [catalog] 南京/restaurants 第11页 +30（累计 330/2778）
+  [catalog] 南京/restaurants 第12页 +30（累计 360/2778）
+  [catalog] 南京/restaurants 第13页 +30（累计 390/2778）
+  [catalog] 南京/restaurants 第14页 +30（累计 420/2778）
+  [catalog] 南京/restaurants 第15页 +30（累计 450/2778）
+  [catalog] 南京/restaurants 第16页 +30（累计 480/2778）
+  [catalog] 南京/restaurants 第17页 +30（累计 510/2778）
+  [catalog] 南京/restaurants 第18页 +30（累计 540/2778）
+  [catalog] 南京/restaurants 第19页 +30（累计 570/2778）
+  [catalog] 南京/restaurants 第20页 +30（累计 600/2778）
+  [catalog] 大连/attractions 第1页 +30（累计 30/209）
+  [catalog] 大连/attractions 第2页 +30（累计 60/209）
+  [catalog] 大连/attractions 第3页 +30（累计 90/209）
+  [catalog] 大连/attractions 第4页 +29（累计 119/209）
+  [catalog] 大连/attractions 第5页 +29（累计 148/209）
+  [catalog] 大连/attractions 第6页 +30（累计 178/209）
+  [catalog] 大连/attractions 第7页 +29（累计 207/209）
+  [catalog] 大连/attractions 第8页 +7（累计 214/343）
+  [catalog] 大连/attractions 第9页 +29（累计 243/343）
+  [catalog] 大连/attractions 第10页 +30（累计 273/343）
+  [catalog] 大连/attractions 第11页 +29（累计 302/343）
+  [catalog] 大连/attractions 第12页 +12（累计 314/343）
+  [catalog] 大连/attractions 第13页 +0（累计 314/?）
+  [catalog] 大连/restaurants 第1页 +30（累计 30/1179）
+  [catalog] 大连/restaurants 第2页 +30（累计 60/1179）
+  [catalog] 大连/restaurants 第3页 +30（累计 90/1179）
+  [catalog] 大连/restaurants 第4页 +30（累计 120/1179）
+  [catalog] 大连/restaurants 第5页 +30（累计 150/1179）
+  [catalog] 大连/restaurants 第6页 +30（累计 180/1179）
+  [catalog] 大连/restaurants 第7页 +30（累计 210/1179）
+  [catalog] 大连/restaurants 第8页 +30（累计 240/1179）
+  [catalog] 大连/restaurants 第9页 +30（累计 270/1179）
+  [catalog] 大连/restaurants 第10页 +30（累计 300/1179）
+  [catalog] 大连/restaurants 第11页 +30（累计 330/1179）
+  [catalog] 大连/restaurants 第12页 +30（累计 360/1179）
+  [catalog] 大连/restaurants 第13页 +30（累计 390/1179）
+  [catalog] 大连/restaurants 第14页 +30（累计 420/1179）
+  [catalog] 大连/restaurants 第15页 +30（累计 450/1179）
+  [catalog] 大连/restaurants 第16页 +30（累计 480/1179）
+  [catalog] 大连/restaurants 第17页 +30（累计 510/1179）
+  [catalog] 大连/restaurants 第18页 +30（累计 540/1179）
+  [catalog] 大连/restaurants 第19页 +30（累计 570/1179）
+  [catalog] 大连/restaurants 第20页 +30（累计 600/1179）
+  [catalog] 广州/attractions 第1页 +29（累计 29/409）
+  [catalog] 广州/attractions 第2页 +30（累计 59/409）
+  [catalog] 广州/attractions 第3页 +30（累计 89/409）
+  [catalog] 广州/attractions 第4页 +29（累计 118/409）
+  [catalog] 广州/attractions 第5页 +27（累计 145/409）
+  [catalog] 广州/attractions 第6页 +29（累计 174/409）
+  [catalog] 广州/attractions 第7页 +28（累计 202/409）
+  [catalog] 广州/attractions 第8页 +30（累计 232/409）
+  [catalog] 广州/attractions 第9页 +30（累计 262/409）
+  [catalog] 广州/attractions 第10页 +29（累计 291/409）
+  [catalog] 广州/attractions 第11页 +29（累计 320/409）
+  [catalog] 广州/attractions 第12页 +29（累计 349/409）
+  [catalog] 广州/attractions 第13页 +29（累计 378/409）
+  [catalog] 广州/attractions 第14页 +18（累计 396/409）
+  [catalog] 广州/attractions 第15页 +0（累计 396/1060）
+  [catalog] 广州/attractions 第16页 +1（累计 397/1060）
+  [catalog] 广州/attractions 第17页 +7（累计 404/1060）
+  [catalog] 广州/attractions 第18页 +28（累计 432/1060）
+  [catalog] 广州/attractions 第19页 +30（累计 462/1060）
+  [catalog] 广州/attractions 第20页 +30（累计 492/1060）
+  [catalog] 广州/restaurants 第1页 +30（累计 30/6648）
+  [catalog] 广州/restaurants 第2页 +30（累计 60/6648）
+  [catalog] 广州/restaurants 第3页 +30（累计 90/6648）
+  [catalog] 广州/restaurants 第4页 +30（累计 120/6648）
+  [catalog] 广州/restaurants 第5页 +30（累计 150/6648）
+  [catalog] 广州/restaurants 第6页 +30（累计 180/6648）
+  [catalog] 广州/restaurants 第7页 +30（累计 210/6648）
+  [catalog] 广州/restaurants 第8页 +30（累计 240/6648）
+  [catalog] 广州/restaurants 第9页 +30（累计 270/6648）
+  [catalog] 广州/restaurants 第10页 +30（累计 300/6648）
+  [catalog] 广州/restaurants 第11页 +30（累计 330/6648）
+  [catalog] 广州/restaurants 第12页 +30（累计 360/6648）
+  [catalog] 广州/restaurants 第13页 +30（累计 390/6648）
+  [catalog] 广州/restaurants 第14页 +30（累计 420/6648）
+  [catalog] 广州/restaurants 第15页 +30（累计 450/6648）
+  [catalog] 广州/restaurants 第16页 +30（累计 480/6648）
+  [catalog] 广州/restaurants 第17页 +30（累计 510/6648）
+  [catalog] 广州/restaurants 第18页 +30（累计 540/6648）
+  [catalog] 广州/restaurants 第19页 +30（累计 570/6648）
+  [catalog] 广州/restaurants 第20页 +30（累计 600/6648）
+  [catalog] 成都/attractions 第1页 +30（累计 30/225）
+  [catalog] 成都/attractions 第2页 +29（累计 59/225）
+  [catalog] 成都/attractions 第3页 +30（累计 89/225）
+  [catalog] 成都/attractions 第4页 +30（累计 119/225）
+  [catalog] 成都/attractions 第5页 +30（累计 149/225）
+  [catalog] 成都/attractions 第6页 +30（累计 179/225）
+  [catalog] 成都/attractions 第7页 +30（累计 209/225）
+  [catalog] 成都/attractions 第8页 +15（累计 224/225）
+  [catalog] 成都/attractions 第9页 +12（累计 236/883）
+  [catalog] 成都/attractions 第10页 +10（累计 246/883）
+  [catalog] 成都/attractions 第11页 +6（累计 252/883）
+  [catalog] 成都/attractions 第12页 +2（累计 254/883）
+  [catalog] 成都/attractions 第13页 +1（累计 255/883）
+  [catalog] 成都/attractions 第14页 +25（累计 280/883）
+  [catalog] 成都/attractions 第15页 +30（累计 310/883）
+  [catalog] 成都/attractions 第16页 +30（累计 340/883）
+  [catalog] 成都/attractions 第17页 +30（累计 370/883）
+  [catalog] 成都/attractions 第18页 +30（累计 400/883）
+  [catalog] 成都/attractions 第19页 +30（累计 430/883）
+  [catalog] 成都/attractions 第20页 +30（累计 460/883）
+  [catalog] 成都/hotels 第1页 +30（累计 30/10000）
+  [catalog] 成都/hotels 第2页 +27（累计 57/10000）
+  [catalog] 成都/hotels 第3页 +30（累计 87/10000）
+  [catalog] 成都/hotels 第4页 +30（累计 117/10000）
+  [catalog] 成都/hotels 第5页 +27（累计 144/10000）
+  [catalog] 成都/hotels 第6页 +30（累计 174/10000）
+  [catalog] 成都/hotels 第7页 +27（累计 201/10000）
+  [catalog] 成都/hotels 第8页 +30（累计 231/10000）
+  [catalog] 成都/hotels 第9页 +27（累计 258/10000）
+  [catalog] 成都/hotels 第10页 +30（累计 288/10000）
+  [catalog] 成都/hotels 第11页 +30（累计 318/10000）
+  [catalog] 成都/hotels 第12页 +30（累计 348/10000）
+  [catalog] 成都/hotels 第13页 +30（累计 378/10000）
+  [catalog] 成都/hotels 第14页 +30（累计 408/10000）
+  [catalog] 成都/hotels 第15页 +30（累计 438/10000）
+  [catalog] 成都/hotels 第16页 +27（累计 465/10000）
+  [catalog] 成都/hotels 第17页 +30（累计 495/10000）
+  [catalog] 成都/hotels 第18页 +27（累计 522/10000）
+  [catalog] 成都/hotels 第19页 +30（累计 552/10000）
+  [catalog] 成都/hotels 第20页 +30（累计 582/10000）
+  [catalog] 成都/restaurants 第1页 +30（累计 30/3380）
+  [catalog] 成都/restaurants 第2页 +30（累计 60/3380）
+  [catalog] 成都/restaurants 第3页 +30（累计 90/3380）
+  [catalog] 成都/restaurants 第4页 +30（累计 120/3380）
+  [catalog] 成都/restaurants 第5页 +30（累计 150/3380）
+  [catalog] 成都/restaurants 第6页 +30（累计 180/3380）
+  [catalog] 成都/restaurants 第7页 +30（累计 210/3380）
+  [catalog] 成都/restaurants 第8页 +30（累计 240/3380）
+  [catalog] 成都/restaurants 第9页 +30（累计 270/3380）
+  [catalog] 成都/restaurants 第10页 +30（累计 300/3380）
+  [catalog] 成都/restaurants 第11页 +30（累计 330/3380）
+  [catalog] 成都/restaurants 第12页 +30（累计 360/3380）
+  [catalog] 成都/restaurants 第13页 +30（累计 390/3380）
+  [catalog] 成都/restaurants 第14页 +30（累计 420/3380）
+  [catalog] 成都/restaurants 第15页 +30（累计 450/3380）
+  [catalog] 成都/restaurants 第16页 +30（累计 480/3380）
+  [catalog] 成都/restaurants 第17页 +30（累计 510/3380）
+  [catalog] 成都/restaurants 第18页 +30（累计 540/3380）
+  [catalog] 成都/restaurants 第19页 +30（累计 570/3380）
+  [catalog] 成都/restaurants 第20页 +30（累计 600/3380）
+  [catalog] 杭州/attractions 第1页 +30（累计 30/298）
+  [catalog] 杭州/attractions 第2页 +30（累计 60/298）
+  [catalog] 杭州/attractions 第3页 +30（累计 90/298）
+  [catalog] 杭州/attractions 第4页 +30（累计 120/298）
+  [catalog] 杭州/attractions 第5页 +30（累计 150/298）
+  [catalog] 杭州/attractions 第6页 +30（累计 180/298）
+  [catalog] 杭州/attractions 第7页 +28（累计 208/298）
+  [catalog] 杭州/attractions 第8页 +30（累计 238/298）
+  [catalog] 杭州/attractions 第9页 +29（累计 267/298）
+  [catalog] 杭州/attractions 第10页 +28（累计 295/298）
+  [catalog] 杭州/attractions 第11页 +1（累计 296/619）
+  [catalog] 杭州/attractions 第12页 +3（累计 299/619）
+  [catalog] 杭州/attractions 第13页 +21（累计 320/619）
+  [catalog] 杭州/attractions 第14页 +30（累计 350/619）
+  [catalog] 杭州/attractions 第15页 +30（累计 380/619）
+  [catalog] 杭州/attractions 第16页 +30（累计 410/619）
+  [catalog] 杭州/attractions 第17页 +30（累计 440/619）
+  [catalog] 杭州/attractions 第18页 +30（累计 470/619）
+  [catalog] 杭州/attractions 第19页 +30（累计 500/619）
+  [catalog] 杭州/attractions 第20页 +30（累计 530/619）
+  [catalog] 杭州/hotels 第1页 +30（累计 30/10000）
+  [catalog] 杭州/hotels 第2页 +30（累计 60/10000）
+  [catalog] 杭州/hotels 第3页 +30（累计 90/10000）
+  [catalog] 杭州/hotels 第4页 +30（累计 120/10000）
+  [catalog] 杭州/hotels 第5页 +30（累计 150/10000）
+  [catalog] 杭州/hotels 第6页 +30（累计 180/10000）
+  [catalog] 杭州/hotels 第7页 +30（累计 210/10000）
+  [catalog] 杭州/hotels 第8页 +30（累计 240/10000）
+  [catalog] 杭州/hotels 第9页 +30（累计 270/10000）
+  [catalog] 杭州/hotels 第10页 +30（累计 300/10000）
+  [catalog] 杭州/hotels 第11页 +30（累计 330/10000）
+  [catalog] 杭州/hotels 第12页 +30（累计 360/10000）
+  [catalog] 杭州/hotels 第13页 +30（累计 390/10000）
+  [catalog] 杭州/hotels 第14页 +30（累计 420/10000）
+  [catalog] 杭州/hotels 第15页 +30（累计 450/10000）
+  [catalog] 杭州/hotels 第16页 +30（累计 480/10000）
+  [catalog] 杭州/hotels 第17页 +30（累计 510/10000）
+  [catalog] 杭州/hotels 第18页 +30（累计 540/10000）
+  [catalog] 杭州/hotels 第19页 +30（累计 570/10000）
+  [catalog] 杭州/hotels 第20页 +30（累计 600/10000）
+  [catalog] 杭州/restaurants 第1页 +30（累计 30/3031）
+  [catalog] 杭州/restaurants 第2页 +30（累计 60/3031）
+  [catalog] 杭州/restaurants 第3页 +30（累计 90/3031）
+  [catalog] 杭州/restaurants 第4页 +30（累计 120/3031）
+  [catalog] 杭州/restaurants 第5页 +30（累计 150/3031）
+  [catalog] 杭州/restaurants 第6页 +30（累计 180/3031）
+  [catalog] 杭州/restaurants 第7页 +30（累计 210/3031）
+  [catalog] 杭州/restaurants 第8页 +30（累计 240/3031）
+  [catalog] 杭州/restaurants 第9页 +30（累计 270/3031）
+  [catalog] 杭州/restaurants 第10页 +30（累计 300/3031）
+  [catalog] 杭州/restaurants 第11页 +30（累计 330/3031）
+  [catalog] 杭州/restaurants 第12页 +30（累计 360/3031）
+  [catalog] 杭州/restaurants 第13页 +30（累计 390/3031）
+  [catalog] 杭州/restaurants 第14页 +30（累计 420/3031）
+  [catalog] 杭州/restaurants 第15页 +30（累计 450/3031）
+  [catalog] 杭州/restaurants 第16页 +30（累计 480/3031）
+  [catalog] 杭州/restaurants 第17页 +30（累计 510/3031）
+  [catalog] 杭州/restaurants 第18页 +30（累计 540/3031）
+  [catalog] 杭州/restaurants 第19页 +30（累计 570/3031）
+  [catalog] 杭州/restaurants 第20页 +30（累计 600/3031）
+  [catalog] 桂林/attractions 第1页 +30（累计 30/96）
+  [catalog] 桂林/attractions 第2页 +30（累计 60/96）
+  [catalog] 桂林/attractions 第3页 +30（累计 90/96）
+  [catalog] 桂林/attractions 第4页 +6（累计 96/96）
+  [catalog] 桂林/restaurants 第1页 +30（累计 30/337）
+  [catalog] 桂林/restaurants 第2页 +30（累计 60/337）
+  [catalog] 桂林/restaurants 第3页 +30（累计 90/337）
+  [catalog] 桂林/restaurants 第4页 +30（累计 120/337）
+  [catalog] 桂林/restaurants 第5页 +30（累计 150/337）
+  [catalog] 桂林/restaurants 第6页 +30（累计 180/337）
+  [catalog] 桂林/restaurants 第7页 +30（累计 210/337）
+  [catalog] 桂林/restaurants 第8页 +30（累计 240/337）
+  [catalog] 桂林/restaurants 第9页 +30（累计 270/337）
+  [catalog] 桂林/restaurants 第10页 +30（累计 300/337）
+  [catalog] 桂林/restaurants 第11页 +30（累计 330/337）
+  [catalog] 桂林/restaurants 第12页 +7（累计 337/337）
+  [city-geo] 武汉 → g297437（搜狗解包）
+  [catalog] 武汉/attractions 第1页 +29（累计 29/231）
+  [catalog] 武汉/attractions 第2页 +25（累计 54/231）
+  [catalog] 武汉/attractions 第3页 +29（累计 83/231）
+  [catalog] 武汉/attractions 第4页 +29（累计 112/231）
+  [catalog] 武汉/attractions 第5页 +29（累计 141/231）
+  [catalog] 武汉/attractions 第6页 +28（累计 169/231）
+  [catalog] 武汉/attractions 第7页 +29（累计 198/231）
+  [catalog] 武汉/attractions 第8页 +21（累计 219/231）
+  [catalog] 武汉/attractions 第9页 +28（累计 247/588）
+  [catalog] 武汉/attractions 第10页 +30（累计 277/588）
+  [catalog] 武汉/attractions 第11页 +29（累计 306/588）
+  [catalog] 武汉/attractions 第12页 +25（累计 331/588）
+  [catalog] 武汉/attractions 第13页 +30（累计 361/588）
+  [catalog] 武汉/attractions 第14页 +30（累计 391/588）
+  [catalog] 武汉/attractions 第15页 +29（累计 420/588）
+  [catalog] 武汉/attractions 第16页 +30（累计 450/588）
+  [catalog] 武汉/attractions 第17页 +30（累计 480/588）
+  [catalog] 武汉/attractions 第18页 +30（累计 510/588）
+  [catalog] 武汉/attractions 第19页 +30（累计 540/588）
+  [catalog] 武汉/attractions 第20页 +18（累计 558/588）
+  [catalog] 武汉/restaurants 第1页 +30（累计 30/1955）
+  [catalog] 武汉/restaurants 第2页 +30（累计 60/1955）
+  [catalog] 武汉/restaurants 第3页 +30（累计 90/1955）
+  [catalog] 武汉/restaurants 第4页 +30（累计 120/1955）
+  [catalog] 武汉/restaurants 第5页 +30（累计 150/1955）
+  [catalog] 武汉/restaurants 第6页 +30（累计 180/1955）
+  [catalog] 武汉/restaurants 第7页 +30（累计 210/1955）
+  [catalog] 武汉/restaurants 第8页 +30（累计 240/1955）
+  [catalog] 武汉/restaurants 第9页 +30（累计 270/1955）
+  [catalog] 武汉/restaurants 第10页 +30（累计 300/1955）
+  [catalog] 武汉/restaurants 第11页 +30（累计 330/1955）
+  [catalog] 武汉/restaurants 第12页 +30（累计 360/1955）
+  [catalog] 武汉/restaurants 第13页 +30（累计 390/1955）
+  [catalog] 武汉/restaurants 第14页 +30（累计 420/1955）
+  [catalog] 武汉/restaurants 第15页 +30（累计 450/1955）
+  [catalog] 武汉/restaurants 第16页 +30（累计 480/1955）
+  [catalog] 武汉/restaurants 第17页 +30（累计 510/1955）
+  [catalog] 武汉/restaurants 第18页 +30（累计 540/1955）
+  [catalog] 武汉/restaurants 第19页 +30（累计 570/1955）
+  [catalog] 武汉/restaurants 第20页 +30（累计 600/1955）
+  [catalog] 沈阳/attractions 第1页 +29（累计 29/145）
+  [catalog] 沈阳/attractions 第2页 +30（累计 59/145）
+  [catalog] 沈阳/attractions 第3页 +28（累计 87/145）
+  [catalog] 沈阳/attractions 第4页 +28（累计 115/145）
+  [catalog] 沈阳/attractions 第5页 +25（累计 140/145）
+  [catalog] 沈阳/attractions 第6页 +28（累计 168/281）
+  [catalog] 沈阳/attractions 第7页 +29（累计 197/281）
+  [catalog] 沈阳/attractions 第8页 +30（累计 227/281）
+  [catalog] 沈阳/attractions 第9页 +30（累计 257/281）
+  [catalog] 沈阳/attractions 第10页 +11（累计 268/281）
+  [catalog] 沈阳/attractions 第11页 +0（累计 268/?）
+  [catalog] 沈阳/restaurants 第1页 +30（累计 30/1446）
+  [catalog] 沈阳/restaurants 第2页 +30（累计 60/1446）
+  [catalog] 沈阳/restaurants 第3页 +30（累计 90/1446）
+  [catalog] 沈阳/restaurants 第4页 +30（累计 120/1446）
+  [catalog] 沈阳/restaurants 第5页 +30（累计 150/1446）
+  [catalog] 沈阳/restaurants 第6页 +30（累计 180/1446）
+  [catalog] 沈阳/restaurants 第7页 +30（累计 210/1446）
+  [catalog] 沈阳/restaurants 第8页 +30（累计 240/1446）
+  [catalog] 沈阳/restaurants 第9页 +30（累计 270/1446）
+  [catalog] 沈阳/restaurants 第10页 +30（累计 300/1446）
+  [catalog] 沈阳/restaurants 第11页 +30（累计 330/1446）
+  [catalog] 沈阳/restaurants 第12页 +30（累计 360/1446）
+  [catalog] 沈阳/restaurants 第13页 +30（累计 390/1446）
+  [catalog] 沈阳/restaurants 第14页 +30（累计 420/1446）
+  [catalog] 沈阳/restaurants 第15页 +30（累计 450/1446）
+  [catalog] 沈阳/restaurants 第16页 +30（累计 480/1446）
+  [catalog] 沈阳/restaurants 第17页 +30（累计 510/1446）
+  [catalog] 沈阳/restaurants 第18页 +30（累计 540/1446）
+  [catalog] 沈阳/restaurants 第19页 +30（累计 570/1446）
+  [catalog] 沈阳/restaurants 第20页 +30（累计 600/1446）
+  [catalog] 洛阳/attractions 第1页 +30（累计 30/82）
+  [catalog] 洛阳/attractions 第2页 +29（累计 59/82）
+  [catalog] 洛阳/attractions 第3页 +22（累计 81/82）
+  [catalog] 洛阳/attractions 第4页 +28（累计 109/118）
+  [catalog] 洛阳/attractions 第5页 +0（累计 109/?）
+  [catalog] 洛阳/restaurants 第1页 +30（累计 30/149）
+  [catalog] 洛阳/restaurants 第2页 +30（累计 60/149）
+  [catalog] 洛阳/restaurants 第3页 +30（累计 90/149）
+  [catalog] 洛阳/restaurants 第4页 +30（累计 120/149）
+  [catalog] 洛阳/restaurants 第5页 +29（累计 149/149）
+  [catalog] 深圳/attractions 第1页 +30（累计 30/414）
+  [catalog] 深圳/attractions 第2页 +30（累计 60/414）
+  [catalog] 深圳/attractions 第3页 +30（累计 90/414）
+  [catalog] 深圳/attractions 第4页 +30（累计 120/414）
+  [catalog] 深圳/attractions 第5页 +30（累计 150/414）
+  [catalog] 深圳/attractions 第6页 +30（累计 180/414）
+  [catalog] 深圳/attractions 第7页 +30（累计 210/414）
+  [catalog] 深圳/attractions 第8页 +30（累计 240/414）
+  [catalog] 深圳/attractions 第9页 +29（累计 269/414）
+  [catalog] 深圳/attractions 第10页 +30（累计 299/414）
+  [catalog] 深圳/attractions 第11页 +30（累计 329/414）
+  [catalog] 深圳/attractions 第12页 +30（累计 359/414）
+  [catalog] 深圳/attractions 第13页 +28（累计 387/414）
+  [catalog] 深圳/attractions 第14页 +23（累计 410/414）
+  [catalog] 深圳/attractions 第15页 +0（累计 410/764）
+  [catalog] 深圳/attractions 第16页 +0（累计 410/764）
+  [catalog] 深圳/attractions 第17页 +15（累计 425/764）
+  [catalog] 深圳/attractions 第18页 +30（累计 455/764）
+  [catalog] 深圳/attractions 第19页 +30（累计 485/764）
+  [catalog] 深圳/attractions 第20页 +30（累计 515/764）
+  [catalog] 深圳/restaurants 第1页 +30（累计 30/1409）
+  [catalog] 深圳/restaurants 第2页 +30（累计 60/1409）
+  [catalog] 深圳/restaurants 第3页 +30（累计 90/1409）
+  [catalog] 深圳/restaurants 第4页 +30（累计 120/1409）
+  [catalog] 深圳/restaurants 第5页 +30（累计 150/1409）
+  [catalog] 深圳/restaurants 第6页 +30（累计 180/1409）
+  [catalog] 深圳/restaurants 第7页 +30（累计 210/1409）
+  [catalog] 深圳/restaurants 第8页 +30（累计 240/1409）
+  [catalog] 深圳/restaurants 第9页 +30（累计 270/1409）
+  [catalog] 深圳/restaurants 第10页 +30（累计 300/1409）
+  [catalog] 深圳/restaurants 第11页 +30（累计 330/1409）
+  [catalog] 深圳/restaurants 第12页 +30（累计 360/1409）
+  [catalog] 深圳/restaurants 第13页 +30（累计 390/1409）
+  [catalog] 深圳/restaurants 第14页 +30（累计 420/1409）
+  [catalog] 深圳/restaurants 第15页 +30（累计 450/1409）
+  [catalog] 深圳/restaurants 第16页 +30（累计 480/1409）
+  [catalog] 深圳/restaurants 第17页 +30（累计 510/1409）
+  [catalog] 深圳/restaurants 第18页 +30（累计 540/1409）
+  [catalog] 深圳/restaurants 第19页 +30（累计 570/1409）
+  [catalog] 深圳/restaurants 第20页 +30（累计 600/1409）
+  [catalog] 澳门/attractions 第1页 +30（累计 30/335）
+  [catalog] 澳门/attractions 第2页 +30（累计 60/335）
+  [catalog] 澳门/attractions 第3页 +30（累计 90/335）
+  [catalog] 澳门/attractions 第4页 +29（累计 119/335）
+  [catalog] 澳门/attractions 第5页 +29（累计 148/335）
+  [catalog] 澳门/attractions 第6页 +30（累计 178/335）
+  [catalog] 澳门/attractions 第7页 +30（累计 208/335）
+  [catalog] 澳门/attractions 第8页 +30（累计 238/335）
+  [catalog] 澳门/attractions 第9页 +30（累计 268/335）
+  [catalog] 澳门/attractions 第10页 +30（累计 298/335）
+  [catalog] 澳门/attractions 第11页 +30（累计 328/335）
+  [catalog] 澳门/attractions 第12页 +5（累计 333/335）
+  [catalog] 澳门/attractions 第13页 +1（累计 334/589）
+  [catalog] 澳门/attractions 第14页 +6（累计 340/589）
+  [catalog] 澳门/attractions 第15页 +18（累计 358/589）
+  [catalog] 澳门/attractions 第16页 +30（累计 388/589）
+  [catalog] 澳门/attractions 第17页 +30（累计 418/589）
+  [catalog] 澳门/attractions 第18页 +30（累计 448/589）
+  [catalog] 澳门/attractions 第19页 +30（累计 478/589）
+  [catalog] 澳门/attractions 第20页 +19（累计 497/589）
+  [skip] 苏州 gID 解析失败（暂时性，不入台账）
+  [catalog] 西安/attractions 第1页 +30（累计 30/244）
+  [catalog] 西安/attractions 第2页 +28（累计 58/244）
+  [catalog] 西安/attractions 第3页 +30（累计 88/244）
+  [catalog] 西安/attractions 第4页 +30（累计 118/244）
+  [catalog] 西安/attractions 第5页 +30（累计 148/244）
+  [catalog] 西安/attractions 第6页 +30（累计 178/244）
+  [catalog] 西安/attractions 第7页 +30（累计 208/244）
+  [catalog] 西安/attractions 第8页 +29（累计 237/244）
+  [catalog] 西安/attractions 第9页 +4（累计 241/244）
+  [catalog] 西安/attractions 第10页 +2（累计 243/657）
+  [catalog] 西安/attractions 第11页 +0（累计 243/657）
+  [catalog] 西安/attractions 第12页 +3（累计 246/657）
+  [catalog] 西安/attractions 第13页 +22（累计 268/657）
+  [catalog] 西安/attractions 第14页 +30（累计 298/657）
+  [catalog] 西安/attractions 第15页 +30（累计 328/657）
+  [catalog] 西安/attractions 第16页 +30（累计 358/657）
+  [catalog] 西安/attractions 第17页 +30（累计 388/657）
+  [catalog] 西安/attractions 第18页 +30（累计 418/657）
+  [catalog] 西安/attractions 第19页 +30（累计 448/657）
+  [catalog] 西安/attractions 第20页 +27（累计 475/657）
+  [catalog] 西安/restaurants 第1页 +30（累计 30/1785）
+  [catalog] 西安/restaurants 第2页 +30（累计 60/1785）
+  [catalog] 西安/restaurants 第3页 +30（累计 90/1785）
+  [catalog] 西安/restaurants 第4页 +30（累计 120/1785）
+  [catalog] 西安/restaurants 第5页 +30（累计 150/1785）
+  [catalog] 西安/restaurants 第6页 +30（累计 180/1785）
+  [catalog] 西安/restaurants 第7页 +30（累计 210/1785）
+  [catalog] 西安/restaurants 第8页 +30（累计 240/1785）
+  [catalog] 西安/restaurants 第9页 +30（累计 270/1785）
+  [catalog] 西安/restaurants 第10页 +30（累计 300/1785）
+  [catalog] 西安/restaurants 第11页 +30（累计 330/1785）
+  [catalog] 西安/restaurants 第12页 +30（累计 360/1785）
+  [catalog] 西安/restaurants 第13页 +30（累计 390/1785）
+  [catalog] 西安/restaurants 第14页 +30（累计 420/1785）
+  [catalog] 西安/restaurants 第15页 +30（累计 450/1785）
+  [catalog] 西安/restaurants 第16页 +30（累计 480/1785）
+  [catalog] 西安/restaurants 第17页 +30（累计 510/1785）
+  [catalog] 西安/restaurants 第18页 +30（累计 540/1785）
+  [catalog] 西安/restaurants 第19页 +30（累计 570/1785）
+  [catalog] 西安/restaurants 第20页 +30（累计 600/1785）
+  [skip] 郑州 gID 解析失败（暂时性，不入台账）
+  [skip] 重庆 gID 解析失败（暂时性，不入台账）
+  [catalog] 青岛/attractions 第1页 +29（累计 29/207）
+  [catalog] 青岛/attractions 第2页 +30（累计 59/207）
+  [catalog] 青岛/attractions 第3页 +30（累计 89/207）
+  [catalog] 青岛/attractions 第4页 +30（累计 119/207）
+  [catalog] 青岛/attractions 第5页 +30（累计 149/207）
+  [catalog] 青岛/attractions 第6页 +30（累计 179/207）
+  [catalog] 青岛/attractions 第7页 +27（累计 206/207）
+  [catalog] 青岛/attractions 第8页 +16（累计 222/351）
+  [catalog] 青岛/attractions 第9页 +30（累计 252/351）
+  [catalog] 青岛/attractions 第10页 +30（累计 282/351）
+  [catalog] 青岛/attractions 第11页 +30（累计 312/351）
+  [catalog] 青岛/attractions 第12页 +21（累计 333/351）
+  [catalog] 青岛/attractions 第13页 +0（累计 333/?）
+  [catalog] 青岛/restaurants 第1页 +30（累计 30/1150）
+  [catalog] 青岛/restaurants 第2页 +30（累计 60/1150）
+  [catalog] 青岛/restaurants 第3页 +30（累计 90/1150）
+  [catalog] 青岛/restaurants 第4页 +30（累计 120/1150）
+  [catalog] 青岛/restaurants 第5页 +30（累计 150/1150）
+  [catalog] 青岛/restaurants 第6页 +30（累计 180/1150）
+  [catalog] 青岛/restaurants 第7页 +30（累计 210/1150）
+  [catalog] 青岛/restaurants 第8页 +30（累计 240/1150）
+  [catalog] 青岛/restaurants 第9页 +30（累计 270/1150）
+  [catalog] 青岛/restaurants 第10页 +30（累计 300/1150）
+  [catalog] 青岛/restaurants 第11页 +30（累计 330/1150）
+  [catalog] 青岛/restaurants 第12页 +30（累计 360/1150）
+  [catalog] 青岛/restaurants 第13页 +30（累计 390/1150）
+  [catalog] 青岛/restaurants 第14页 +30（累计 420/1150）
+  [catalog] 青岛/restaurants 第15页 +30（累计 450/1150）
+  [catalog] 青岛/restaurants 第16页 +30（累计 480/1150）
+  [catalog] 青岛/restaurants 第17页 +30（累计 510/1150）
+  [catalog] 青岛/restaurants 第18页 +30（累计 540/1150）
+  [catalog] 青岛/restaurants 第19页 +30（累计 570/1150）
+  [catalog] 青岛/restaurants 第20页 +30（累计 600/1150）
+  [warn] 兰齐宴赋·沉浸式宫廷盛宴（青岛/food）无过阈候选
+  [warn] 南谣逸境·颁金宴（沈阳/food）无过阈候选
+  [warn] 武皇盛宴（洛阳/food）无过阈候选
+  [warn] 禧宴·囍·沉浸式宫廷宴（大连/food）无过阈候选
+  [warn] 日丰园·海肠水饺（小平岛总店）（大连/food）无过阈候选
+  [warn] 奉天小馆（万象城店）（沈阳/food）无过阈候选
+  [warn] 马家烧麦（总店）（沈阳/food）无过阈候选
+  [warn] 观赋宴·唐风沉浸式盛宴（青岛/food）无过阈候选
+  [warn] 崖州区南山大小洞天旅游区（三亚/attraction）无过阈候选
+  [warn] 崖州区南山文化旅游区（三亚/attraction）无过阈候选
+  [warn] 崂山区崂山景区（青岛/attraction）无过阈候选
+  [warn] 海棠区蜈支洲岛旅游区（三亚/attraction）无过阈候选
+  [warn] 金州区金石滩景区（大连/attraction）无过阈候选
+  [warn] 新安县龙潭大峡谷景区（洛阳/attraction）无过阈候选
+  [warn] 栾川县老君山鸡冠洞旅游区（洛阳/attraction）无过阈候选
+  [warn] 二里头夏都遗址博物馆（洛阳/museum）无过阈候选
+  [warn] 大连金州博物馆（大连/museum）无过阈候选
+  [warn] 洛阳隋唐大运河文化博物馆（洛阳/museum）无过阈候选
+  [warn] 洛阳周公庙博物馆（洛阳/museum）无过阈候选
+  [warn] 洛阳三彩艺术博物馆（洛阳/museum）无过阈候选
+  [warn] 大连市世纪留声音乐文化博物馆（大连/museum）无过阈候选
+  [warn] 沈阳工业博物馆（沈阳/museum）无过阈候选
+  [warn] 辽宁天巳历史博物馆（沈阳/museum）无过阈候选
+  [warn] 洛阳市隋唐城遗址博物馆（洛阳/museum）无过阈候选
+  [warn] 青岛宝龙美术博物馆（青岛/museum）无过阈候选
+  [warn] 新安县博物馆（洛阳/museum）无过阈候选
+  [warn] 大连武术文化博物馆（大连/museum）无过阈候选
+  [warn] 青岛市黄岛区博物馆（青岛/museum）无过阈候选
+  [warn] 大连贝壳博物馆（大连/museum）无过阈候选
+  [warn] 青岛·海底隧道博物馆（青岛/museum）无过阈候选
+  [warn] 青岛胶东非物质文化遗产博物馆（青岛/museum）无过阈候选
+  [warn] 青岛市即墨区博物馆（青岛/museum）无过阈候选
+  [warn] 青岛市即墨区即墨老酒博物馆（青岛/museum）无过阈候选
+  [warn] 青岛消防博物馆（青岛/museum）无过阈候选
+  [warn] 沈阳古旧钟表博物馆（沈阳/museum）无过阈候选
+  [warn] 洛阳牡丹瓷博物馆（洛阳/museum）无过阈候选
+  [warn] 大连花园口经济区民俗博物馆（大连/museum）无过阈候选
+  [warn] 莱西市博物馆（青岛/museum）无过阈候选
+  [warn] 青岛黄海学院博物馆（青岛/museum）无过阈候选
+  [warn] 平度市博物馆（青岛/museum）无过阈候选
+  [warn] 洛阳隋唐大运河博物馆（洛阳/museum）无过阈候选
+  [warn] 洛阳平乐正骨博物馆（洛阳/museum）无过阈候选
+  [warn] 青岛道路交通博物馆（青岛/museum）无过阈候选
+  [warn] 青岛金石艺术博物馆（青岛/museum）无过阈候选
+  [warn] 辽宁省沈阳市铁西区红梅文创园旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 海南省三亚市吉阳区大东海国际滨海旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 辽宁省大连市中山区海昌·东方水城旅游休闲街区（大连/historic）无过阈候选
+  [warn] 辽宁省沈阳市和平区沈阳老北市旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 海南省三亚市吉阳区鸿洲码头旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 洛阳古城历史文化街区（洛阳/historic）无过阈候选
+  [warn] 河南省洛阳市涧西区广州市场步行街（洛阳/historic）无过阈候选
+  [warn] 山东省青岛市大鲍岛文化旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 山东省青岛市市北区台东旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 雨花台科技乐园游乐场（南京/theme_park）无过阈候选
+  [warn] 遇见博物馆·南京馆（南京/museum）无过阈候选
+  [warn] 方山风景旅游度假区（南京/nature）无过阈候选
+  [warn] 独角兽星空艺术馆（南京/entertainment）无过阈候选
+  [warn] 中山码头（南京/nature）无过阈候选
+  [warn] 拉贝旧居（南京/historic）无过阈候选
+  [warn] 龙出没穿越漂流（南京/nature）无过阈候选
+  [warn] 江苏大剧院（南京/entertainment）无过阈候选
+  [warn] 南京德云社（南京/）无过阈候选
+  [warn] 牛首山弘觉寺塔（南京/nature）无过阈候选
+  [warn] 陵门（南京/attraction）无过阈候选
+  [warn] 天生桥景区（南京/nature）无过阈候选
+  [warn] 可口可乐博物馆（南京/museum）无过阈候选
+  [warn] 金陵美术馆（南京/museum）无过阈候选
+  [warn] 无想水镇（南京/ancient_town）无过阈候选
+  [warn] 石湫影视基地（南京/theme_park）无过阈候选
+  [warn] 达摩古洞（南京/temple）无过阈候选
+  [warn] 南京悬空玻璃艺术馆（南京/entertainment）无过阈候选
+  [warn] 云幽谷旅游区（南京/nature）无过阈候选
+  [warn] 南京龙出没乐园（南京/theme_park）无过阈候选
+  [warn] 长江江豚科教中心（南京/museum）无过阈候选
+  [warn] 明潮那些事儿浸入式数字体验馆（南京/museum）无过阈候选
+  [warn] 佘村明清代建筑群（南京/attraction）无过阈候选
+  [warn] 南京大学(鼓楼校区)-校史博物馆（南京/museum）无过阈候选
+  [warn] 浦口珍珠泉野生动物生态园（南京/theme_park）无过阈候选
+  [warn] 佛顶宫（南京/attraction）无过阈候选
+  [warn] 南京理工大学-兵器博物馆（南京/museum）无过阈候选
+  [warn] 小熊猫馆（南京/other）无过阈候选
+  [warn] 南京利济巷慰安所旧址陈列馆（南京/museum）无过阈候选
+  [warn] 金陵小城（南京/attraction）无过阈候选
+  [warn] 先锋书店(玄武湖分店)（南京/nature）无过阈候选
+  [warn] 幕府山（南京/nature）无过阈候选
+  [warn] 南京海昌海洋探索馆（南京/nature）无过阈候选
+  [warn] 中国科举博物馆(江南贡院)（南京/museum）无过阈候选
+  [warn] 南京失恋博物展（南京/museum）无过阈候选
+  [warn] 南京国际博览中心（南京/attraction）无过阈候选
+  [warn] 江宁爱情隧道（南京/other）无过阈候选
+  [warn] 华昌龙之谷奇幻新大陆（南京/nature）无过阈候选
+  [warn] 金牛湖野生动物王国（南京/nature）无过阈候选
+  [warn] 江宁博物馆（南京/museum）无过阈候选
+  [warn] 雨花石博物馆（南京/museum）无过阈候选
+  [warn] 雨花台（南京/memorial）无过阈候选
+  [warn] 南京欢乐谷（南京/nature）无过阈候选
+  [warn] 金牛湖风景区（南京/nature）无过阈候选
+  [warn] 南京美术馆（南京/museum）无过阈候选
+  [warn] 大塘金香草谷（南京/nature）无过阈候选
+  [warn] 夫子庙小吃广场(东牌楼店)（南京/citywalk）无过阈候选
+  [warn] 南京森林大世界亲子主题乐园（南京/theme_park）无过阈候选
+  [warn] 华谊兄弟（南京）电影小镇（南京/theme_park）无过阈候选
+  [warn] 牛首山文化旅游区（南京/nature）无过阈候选
+  [warn] 秦大士故居（南京/attraction）无过阈候选
+  [warn] 不老村（南京/attraction）无过阈候选
+  [warn] 解放门（南京/other）无过阈候选
+  [warn] 东庐山观音寺（南京/nature）无过阈候选
+  [warn] 固城湖水慢城（南京/nature）无过阈候选
+  [warn] 大浪淘沙(冼村路店)（广州/entertainment）无过阈候选
+  [warn] 南沙慧谷超级堤（广州/nature）无过阈候选
+  [warn] 碧水峡漂流（广州/nature）无过阈候选
+  [warn] 广州野恩动物乐园（广州/theme_park）无过阈候选
+  [warn] 南沙滨海泳场（广州/nature）无过阈候选
+  [warn] 幻境空间元宇宙体验馆(广州店)（广州/entertainment）无过阈候选
+  [warn] 鱼珠码头（广州/attraction）无过阈候选
+  [warn] 广东奥体中心（广州/）无过阈候选
+  [warn] 溪头旅游村（广州/attraction）无过阈候选
+  [warn] 广州好普艺术博物馆（广州/museum）无过阈候选
+  [warn] 广州翼·空港文旅小镇（广州/ancient_town）无过阈候选
+  [warn] 荔枝湾涌（广州/other）无过阈候选
+  [warn] 广州钧明欢乐世界（广州/theme_park）无过阈候选
+  [warn] 头号玩家广东广州跳伞基地（广州/other）无过阈候选
+  [warn] 上下九步行街（广州/attraction）无过阈候选
+  [warn] 生态设计小镇（广州/other）无过阈候选
+  [warn] 广东省凉茶博物馆（广州/museum）无过阈候选
+  [warn] 广东科学馆（广州/museum）无过阈候选
+  [warn] 天人山水大地艺术园（广州/nature）无过阈候选
+  [warn] 正佳赛博运动空间（广州/theme_park）无过阈候选
+  [warn] 天池（广州/other）无过阈候选
+  [warn] 大丰门景区（广州/nature）无过阈候选
+  [warn] 黄金海岸水上乐园（广州/nature）无过阈候选
+  [warn] 五羊石雕（广州/attraction）无过阈候选
+  [warn] 七彩澳游世界（广州/theme_park）无过阈候选
+  [warn] 保利世贸博览馆（广州/）无过阈候选
+  [warn] 春阳台（广州/）无过阈候选
+  [warn] 白云飞索（广州/theme_park）无过阈候选
+  [warn] 广州华夏世嘉都市乐园（广州/theme_park）无过阈候选
+  [warn] 飞越丛林探险乐园（广州/theme_park）无过阈候选
+  [warn] 天龙溪自然风景区（广州/nature）无过阈候选
+  [warn] 广州青少年科技馆（广州/museum）无过阈候选
+  [warn] 正佳极地海洋世界（广州/nature）无过阈候选
+  [warn] 欧洲风情街（广州/attraction）无过阈候选
+  [warn] 千泷沟大瀑布（广州/nature）无过阈候选
+  [warn] 盖碗儿梨园•川剧变脸吐火表演剧院•非遗传承展示基地(天府广场店)（成都/entertainment）无过阈候选
+  [warn] 成都华熙LIVE·528M空间（成都/）无过阈候选
+  [warn] 成都金融城演艺中心（成都/）无过阈候选
+  [warn] 玉垒阁（成都/attraction）无过阈候选
+  [warn] 卧铁（成都/other）无过阈候选
+  [warn] 锦城湖（成都/nature）无过阈候选
+  [warn] 联华梨园社·春熙剧场川剧变脸秀（成都/entertainment）无过阈候选
+  [warn] 二王庙（成都/attraction）无过阈候选
+  [warn] 成都画院（成都/gallery）无过阈候选
+  [warn] 七重空间大国重器互动体验馆（成都/attraction）无过阈候选
+  [warn] 云顶水乡旅游度假区（成都/attraction）无过阈候选
+  [warn] 美洲四季滑雪场（成都/nature）无过阈候选
+  [warn] 地心引力减压娱乐蹦床团建中心（成都/other）无过阈候选
+  [warn] 汉昭烈庙（成都/attraction）无过阈候选
+  [warn] 鱼嘴滑翔伞俱乐部(都江堰店)（成都/other）无过阈候选
+  [warn] 杰克船长的奇幻动物世界（成都/theme_park）无过阈候选
+  [warn] 宝山旅游景区（成都/nature）无过阈候选
+  [warn] 梵高星空艺术馆（成都春熙路旗舰店）（成都/entertainment）无过阈候选
+  [warn] 熊猫时空馆（成都/museum）无过阈候选
+  [warn] 道明竹艺村（成都/attraction）无过阈候选
+  [warn] 南宝山旅游度假区（成都/nature）无过阈候选
+  [warn] 金龙长城（成都/nature）无过阈候选
+  [warn] 四川大飞机科普馆（成都/museum）无过阈候选
+  [warn] 超级时空魔方(成都)元宇宙体验馆（成都/entertainment）无过阈候选
+  [warn] 三道堰（成都/ancient_town）无过阈候选
+  [warn] 月城湖（成都/nature）无过阈候选
+  [warn] 刘湘墓（成都/attraction）无过阈候选
+  [warn] 麓湖水城（成都/nature）无过阈候选
+  [warn] 成都松鼠部落（成都/theme_park）无过阈候选
+  [warn] 天府花溪谷（成都/nature）无过阈候选
+  [warn] 易园园林艺术博物馆（成都/museum）无过阈候选
+  [warn] 光严禅院（成都/temple）无过阈候选
+  [warn] 青城前山-索道（成都/nature）无过阈候选
+  [warn] 西岭峡谷漂流（成都/nature）无过阈候选
+  [warn] 日月坪（成都/other）无过阈候选
+  [warn] 成都凤凰山体育中心（成都/nature）无过阈候选
+  [warn] 明月村（成都/attraction）无过阈候选
+  [warn] 灌县古城（成都/attraction）无过阈候选
+  [warn] 都江堰景区（成都/nature）无过阈候选
+  [warn] 成都科幻馆（成都/museum）无过阈候选
+  [warn] 锦门·沉浸式民国景区（成都/nature）无过阈候选
+  [warn] 伏龙观（成都/temple）无过阈候选
+  [warn] 西蜀第一街牌坊（成都/citywalk）无过阈候选
+  [warn] 洛带恐龙大世界（成都/theme_park）无过阈候选
+  [warn] 都江堰中华大熊猫苑(原熊猫乐园)（成都/theme_park）无过阈候选
+  [warn] 成都市天府美术馆（成都/museum）无过阈候选
+  [warn] 蓝色气流高空跳伞（成都/other）无过阈候选
+  [warn] 川西竹海景区（成都/nature）无过阈候选
+  [warn] 明城墙（成都/attraction）无过阈候选
+  [warn] 蜀风雅韵川剧院（成都/entertainment）无过阈候选
+  [warn] 问花村（成都/attraction）无过阈候选
+  [warn] 新都尖锋旱雪四季滑雪场（成都/nature）无过阈候选
+  [warn] 五凤溪古镇（成都/attraction）无过阈候选
+  [warn] 熊猫主题邮局（成都/）无过阈候选
+  [warn] 水井坊博物馆（成都/museum）无过阈候选
+  [warn] 仰天窝广场（成都/attraction）无过阈候选
+  [warn] 成都融创水世界（成都/theme_park）无过阈候选
+  [warn] 成都世纪城新国际会展中心（成都/）无过阈候选
+  [warn] 飞沙堰（成都/historic）无过阈候选
+  [warn] 洛带博客楼（成都/attraction）无过阈候选
+  [warn] 香香巷（成都/attraction）无过阈候选
+  [warn] 成都悬空玻璃艺术馆（成都/entertainment）无过阈候选
+  [warn] 成都融创文旅城（成都/theme_park）无过阈候选
+  [warn] 蓝色气流跳伞滑翔伞俱乐部（成都/other）无过阈候选
+  [warn] 九龙沟漂流（成都/nature）无过阈候选
+  [warn] 南宋德寿宫遗址博物馆（杭州/museum）无过阈候选
+  [warn] 白云溪漂流（杭州/nature）无过阈候选
+  [warn] 杭州龙出没探险漂流（杭州/nature）无过阈候选
+  [warn] 杭州森泊水乐园（杭州/theme_park）无过阈候选
+  [warn] 下姜村（杭州/attraction）无过阈候选
+  [warn] 太湖源（杭州/nature）无过阈候选
+  [warn] 千岛湖燃擎·卡丁车俱乐部（杭州/nature）无过阈候选
+  [warn] OMG心跳乐园（杭州/theme_park）无过阈候选
+  [warn] 千岛湖伯爵号豪华游轮（杭州/nature）无过阈候选
+  [warn] 天子地梦幻乐园（杭州/theme_park）无过阈候选
+  [warn] 小河直街历史文化街区（杭州/attraction）无过阈候选
+  [warn] 双溪漂流景区（杭州/nature）无过阈候选
+  [warn] 千岛湖文渊狮城度假区（杭州/nature）无过阈候选
+  [warn] 千岛湖天迹热气球（杭州/nature）无过阈候选
+  [warn] 梅城古镇（杭州/attraction）无过阈候选
+  [warn] 王子谷漂流（杭州/nature）无过阈候选
+  [warn] 梅峰岛（杭州/nature）无过阈候选
+  [warn] 杭州龙坞茶村（杭州/attraction）无过阈候选
+  [warn] 千岛湖希尔顿休闲游艇俱乐部（杭州/nature）无过阈候选
+  [warn] 高庄（杭州/）无过阈候选
+  [warn] 千岛湖啤酒博物院（杭州/nature）无过阈候选
+  [warn] 黄山尖（杭州/nature）无过阈候选
+  [warn] 梵高星空艺术馆(杭州旗舰店)（杭州/entertainment）无过阈候选
+  [warn] 宝石流霞（杭州/viewpoint）无过阈候选
+  [warn] 四眼井（杭州/other）无过阈候选
+  [warn] 杭州湘湖游船（杭州/nature）无过阈候选
+  [warn] 永福禅寺（杭州/attraction）无过阈候选
+  [warn] 杭州悬空玻璃艺术馆（杭州/entertainment）无过阈候选
+  [warn] 龙山岛（杭州/nature）无过阈候选
+  [warn] 蓝湾水上乐园（杭州/theme_park）无过阈候选
+  [warn] 如梦上塘（杭州/）无过阈候选
+  [warn] 杭州长乔亲子乐园（杭州/theme_park）无过阈候选
+  [warn] 千岛湖沪马探险乐园（杭州/nature）无过阈候选
+  [warn] 中国动漫博物馆（杭州/museum）无过阈候选
+  [warn] 千岛湖植物园（杭州/nature）无过阈候选
+  [warn] 杭州卧龙胜境漂流乐园（杭州/nature）无过阈候选
+  [warn] 千岛湖中心湖区（杭州/nature）无过阈候选
+  [warn] 北山街历史文化街区（杭州/nature）无过阈候选
+  [warn] 灵栖洞（杭州/nature）无过阈候选
+  [warn] 富春山居号游船（杭州/nature）无过阈候选
+  [warn] 千岛湖明豪湖边有个乐园（杭州/nature）无过阈候选
+  [warn] 森泊幻想岛（杭州/nature）无过阈候选
+  [warn] 富春桃源（杭州/attraction）无过阈候选
+  [warn] 千岛湖城中湖休闲游（杭州/nature）无过阈候选
+  [warn] 千岛湖天屿景区（杭州/nature）无过阈候选
+  [warn] 虎啸峡激流探险漂流（杭州/nature）无过阈候选
+  [warn] 宝寿山景区（杭州/nature）无过阈候选
+  [warn] 超级格乐利雅粉红城堡（杭州/other）无过阈候选
+  [warn] 城隍阁景区（杭州/attraction）无过阈候选
+  [warn] 杭州奥体中心体育馆（杭州/）无过阈候选
+  [warn] 白云源（杭州/nature）无过阈候选
+  [warn] 芹川村（杭州/attraction）无过阈候选
+  [warn] 千岛湖东南湖区（杭州/nature）无过阈候选
+  [warn] 马岭天观（杭州/attraction）无过阈候选
+  [warn] 凌云天桥（杭州/other）无过阈候选
+  [warn] 风之谷（杭州/nature）无过阈候选
+  [warn] 千岛湖豪华休闲游（杭州/nature）无过阈候选
+  [warn] 良渚文化村（杭州/attraction）无过阈候选
+  [warn] 九龙溪漂流（杭州/nature）无过阈候选
+  [warn] 青山湖水上森林（杭州/nature）无过阈候选
+  [warn] 杭州运河夜游（杭州/attraction）无过阈候选
+  [warn] 乌龟潭（杭州/nature）无过阈候选
+  [warn] 天目溪漂流（杭州/nature）无过阈候选
+  [warn] 大芬美术馆（深圳/museum）无过阈候选
+  [warn] 龙岗区科技馆（深圳/museum）无过阈候选
+  [warn] 深圳美术馆(东湖馆)（深圳/museum）无过阈候选
+  [warn] 深圳大鹏金沙湾沙滩（深圳/nature）无过阈候选
+  [warn] 深圳音乐厅（深圳/entertainment）无过阈候选
+  [warn] 园山风景区（深圳/nature）无过阈候选
+  [warn] 大梅沙帆船游艇俱乐部（深圳/attraction）无过阈候选
+  [warn] 大鹏半岛洲际游艇航海中心（深圳/nature）无过阈候选
+  [warn] 观澜版画村（深圳/attraction）无过阈候选
+  [warn] 罗湖美术馆（深圳/museum）无过阈候选
+  [warn] 沙鱼涌沙滩（深圳/nature）无过阈候选
+  [warn] 沙井古墟（深圳/ancient_town）无过阈候选
+  [warn] 香蜜湖1979文化创意园（深圳/nature）无过阈候选
+  [warn] 深圳书城(中心城店)（深圳/）无过阈候选
+  [warn] 深圳珠宝博物馆（深圳/museum）无过阈候选
+  [warn] 宝安科技馆（深圳/museum）无过阈候选
+  [warn] 日军侵华碉堡（深圳/historic）无过阈候选
+  [warn] 水围1368文化街区（深圳/attraction）无过阈候选
+  [warn] 海上彩虹号（深圳/nature）无过阈候选
+  [warn] 卡鲁冰雪世界（深圳/theme_park）无过阈候选
+  [warn] 南澳蓝宝石沙滩（深圳/nature）无过阈候选
+  [warn] 大梅沙海滩水乐园（深圳/nature）无过阈候选
+  [warn] 深圳独角兽星空艺术馆（深圳/entertainment）无过阈候选
+  [warn] 东部通航·空中的士直升机飞行基地(大中华店)（深圳/）无过阈候选
+  [warn] 地王观光·深港之窗（深圳/viewpoint）无过阈候选
+  [warn] 茶翁古镇（深圳/attraction）无过阈候选
+  [warn] 情人岛（深圳/nature）无过阈候选
+  [warn] 西涌滨海旅游度假区（深圳/nature）无过阈候选
+  [warn] 坪山美术馆（深圳/museum）无过阈候选
+  [warn] 大澳湾沙滩（深圳/nature）无过阈候选
+  [warn] 深圳机场码头游船（深圳/attraction）无过阈候选
+  [warn] 深圳妇儿大厦-儿童探索馆（深圳/museum）无过阈候选
+  [warn] 小凉帽农场（深圳/attraction）无过阈候选
+  [warn] 海昌·乐漫冰雪王国(深圳海雅店)（深圳/entertainment）无过阈候选
+  [warn] 大梅沙海滨栈道（深圳/nature）无过阈候选
+  [warn] 星高度梦想水世界（深圳/theme_park）无过阈候选
+  [warn] 欢乐港湾（深圳/theme_park）无过阈候选
+  [warn] 杨梅坑（深圳/other）无过阈候选
+  [warn] 冰纷万象滑冰场（深圳/other）无过阈候选
+  [warn] 观澜海洋世界（深圳/nature）无过阈候选
+  [warn] 探洞工场(欢乐海岸店)（深圳/entertainment）无过阈候选
+  [warn] 星河发展中心大厦-健身中心（深圳/）无过阈候选
+  [warn] 愿望塔（深圳/attraction）无过阈候选
+  [warn] 玫瑰海岸文化旅游度假区（深圳/nature）无过阈候选
+  [warn] 东部华侨城大侠谷（深圳/nature）无过阈候选
+  [warn] 客家土楼(福建)（深圳/historic）无过阈候选
+  [warn] 七星湾游艇会（深圳/attraction）无过阈候选
+  [warn] 深圳teamLab共创！未来园（深圳/park）无过阈候选
+  [warn] 深圳失恋博物馆（东门老街旗舰店）（深圳/entertainment）无过阈候选
+  [warn] 南澳第一沙滩（深圳/nature）无过阈候选
+  [warn] 玫瑰小镇（深圳/theme_park）无过阈候选
+  [warn] 盐田海滨栈道（深圳/nature）无过阈候选
+  [warn] 二十四史书院（深圳/attraction）无过阈候选
+  [warn] 深圳市天文台（深圳/viewpoint）无过阈候选
+  [warn] 直升机空中游览飞行观光（深圳/other）无过阈候选
+  [warn] 东部华侨城（深圳/theme_park）无过阈候选
+  [warn] 大湾区一号（港珠澳大桥航线）（深圳/attraction）无过阈候选
+  [warn] 背仔角灯塔（深圳/attraction）无过阈候选
+  [warn] 观澜山水田园文化园（深圳/nature）无过阈候选
+  [warn] 大梅沙海滩（深圳/nature）无过阈候选
+  [warn] 西涌（深圳/nature）无过阈候选
+  [warn] 官湖沙滩（深圳/nature）无过阈候选
+  [warn] 深圳红立方（深圳/）无过阈候选
+  [warn] 深圳华润大厦艺术中心（深圳/attraction）无过阈候选
+  [warn] 海贝湾潜水基地（深圳/nature）无过阈候选
+  [warn] 法拉帝游艇海钓俱乐部（深圳/nature）无过阈候选
+  [warn] 沙鱼涌（深圳/attraction）无过阈候选
+  [warn] 湾区游轮（深圳/）无过阈候选
+  [warn] 云里梦想乐园（深圳/theme_park）无过阈候选
+  [warn] 观澜湖生态运动公社（深圳/nature）无过阈候选
+  [warn] 华强北博物馆（深圳/museum）无过阈候选
+  [warn] 深圳美术馆(新馆)（深圳/museum）无过阈候选
+  [warn] 荷兰花卉小镇（深圳/theme_park）无过阈候选
+  [warn] 玫瑰海岸沙滩（深圳/nature）无过阈候选
+  [warn] 大梅沙游艇出租中心（深圳/attraction）无过阈候选
+  [warn] 深圳观光巴士（深圳/citywalk）无过阈候选
+  [warn] 深圳坝光海上跳伞基地（深圳/nature）无过阈候选
+  [warn] 森林小火车站（深圳/attraction）无过阈候选
+  [warn] 背仔角沙滩（深圳/nature）无过阈候选
+  [warn] 广州不可思议运动街区（广州/theme_park）无过阈候选
+  [warn] 动吧donbar（陆家嘴旅游环线）（上海/theme_park）无过阈候选
+  [warn] 桂峰村（广州/attraction）无过阈候选
+  [warn] 天主教广州教区露德圣母堂（广州/temple）无过阈候选
+  [warn] 万博中心（广州/citywalk）无过阈候选
+  [warn] 广州白云国际会议中心（广州/other）无过阈候选
+  [warn] 成都之上公寓(春熙路太古里店)（成都/hotel）无过阈候选
+  [warn] SFEEL设计师酒店(成都太古里天府广场店)（成都/hotel）无过阈候选
+  [warn] 宽融套房酒店(成都春熙路太古里店)（成都/hotel）无过阈候选
+  [warn] 上海静安寺淮海中路亚朵X酒店（上海/hotel）无过阈候选
+  [warn] 派潭镇（广州/nature）无过阈候选
+  [warn] 天荟里酒店(成都东郊记忆店)（成都/hotel）无过阈候选
+  [warn] 增城区正果镇正果老街景区（广州/attraction）无过阈候选
+  [warn] 广州番禺直升机观光游览区（广州/theme_park）无过阈候选
+  [warn] 广州都市双层观光巴士（粤陶巴）（广州/theme_park）无过阈候选
+  [warn] 建德航空小镇（杭州/theme_park）无过阈候选
+  [warn] 雪极星城市滑雪中心（杭州/theme_park）无过阈候选
+  [warn] 新安江龙舟漂游（杭州/theme_park）无过阈候选
+  [warn] 广州融创大马戏-奇幻秘境（广州/theme_park）无过阈候选
+  [warn] Bright Land 耀心岛-亲子乐园（上海/theme_park）无过阈候选
+  [warn] 大吉沙（广州/nature）无过阈候选
+  [warn] 千岛秘境（杭州/theme_park）无过阈候选
+  [warn] X-META·风起洛阳·沉浸式全感VR·元宇宙主题乐园（上海/theme_park）无过阈候选
+  [warn] 熊猫岛亲亲乐园（成都/theme_park）无过阈候选
+  [warn] 浦东机场博物馆（上海/museum）无过阈候选
+  [warn] 上海百万石温泉酒店(星愿湖店)（上海/hotel）无过阈候选
+  [warn] 金陵东路渡口（上海/attraction）无过阈候选
+  [warn] 宿适轻奢酒店(上海火车站汉中路地铁站店)（上海/hotel）无过阈候选
+  [warn] 上海携程美居酒店（上海/hotel）无过阈候选
+  [warn] 上海星河吉酒店（上海/hotel）无过阈候选
+  [warn] 汤连得·多喜温泉（闵行店）（上海/attraction）无过阈候选
+  [warn] 上海悦麓花园酒店（上海/hotel）无过阈候选
+  [warn] 九曲桥（上海/viewpoint）无过阈候选
+  [warn] 时光漫步S酒店(上海火车站苏州河店)（上海/hotel）无过阈候选
+  [warn] 海上花岛玫瑰汤泉（上海/other）无过阈候选
+  [warn] 白玉兰广场（上海/attraction）无过阈候选
+  [warn] 上海广富林大酒店（上海/hotel）无过阈候选
+  [warn] 沐屿新集（上海/other）无过阈候选
+  [warn] 太阳岛沙滩（上海/theme_park）无过阈候选
+  [warn] 久事体育旗忠网球中心（上海/theme_park）无过阈候选
+  [warn] 国际马戏剧场（上海/entertainment）无过阈候选
+  [warn] 旅笼酒店(上海浦东张江店)（上海/hotel）无过阈候选
+  [warn] 上海梧桐人家酒店（上海/hotel）无过阈候选
+  [warn] 上海古美智选假日酒店（上海/hotel）无过阈候选
+  [warn] 锦江都城经典上海南京路步行街外滩新城饭店（上海/hotel）无过阈候选
+  [warn] 超级时空魔方（元宇宙体验馆上海宝山区店）（上海/theme_park）无过阈候选
+  [warn] 崇明金茂凯悦酒店（上海/hotel）无过阈候选
+  [warn] 上海林溪·水岸度假屋（上海/nature）无过阈候选
+  [warn] 上海虹桥国展美居酒店（上海/hotel）无过阈候选
+  [warn] 古镇泗泾（上海/attraction）无过阈候选
+  [warn] 上海白厦Pagoda君亭设计酒店（上海/hotel）无过阈候选
+  [warn] 奉贤渔人码头（上海/attraction）无过阈候选
+  [warn] 涟泉大江户(上海莘庄店)（上海/entertainment）无过阈候选
+  [warn] 上海宝安大酒店（上海/hotel）无过阈候选
+  [warn] 上海滴水湖假日酒店（上海/hotel）无过阈候选
+  [warn] 上海国际贵都大饭店（上海/hotel）无过阈候选
+  [warn] 巨鹿路（上海/attraction）无过阈候选
+  [warn] 建筑模型博物馆（上海/museum）无过阈候选
+  [warn] 济州四季（上海/hotel）无过阈候选
+  [warn] 上海蓝天宾馆（上海/hotel）无过阈候选
+  [warn] 上海浦东华美达大酒店（上海/hotel）无过阈候选
+  [warn] 上海柏思特酒店（上海/hotel）无过阈候选
+  [warn] 上海金桥钻石碧云苑服务公寓（上海/hotel）无过阈候选
+  [warn] 太保家园乐养度假酒店（上海/hotel）无过阈候选
+  [warn] 都市观光巴士（上海/other）无过阈候选
+  [warn] 浦东开发陈列馆（上海/museum）无过阈候选
+  [warn] 馨庐花园酒店(上海国际旅游度假区店)（上海/hotel）无过阈候选
+  [warn] 上海浦东国际机场（上海/nature）无过阈候选
+  [warn] 上海静安凯宾斯基全套房酒店（上海/hotel）无过阈候选
+  [warn] 上海衡山逸居·花漾柘湖民宿（上海/hotel）无过阈候选
+  [warn] 上海陆家嘴丽呈酒店（上海/hotel）无过阈候选
+  [warn] 安和花园酒店（上海/hotel）无过阈候选
+  [warn] 上海陆家嘴东方明珠亚朵S酒店（上海/hotel）无过阈候选
+  [warn] 交通银行耀雪冰雪世界（上海/theme_park）无过阈候选
+  [warn] 上海村上民宿（上海/hotel）无过阈候选
+  [warn] 上海天禧嘉福璞缇酒店（上海/hotel）无过阈候选
+  [warn] 上海古象杉丽酒店（上海/hotel）无过阈候选
+  [warn] 松江梦幻水世界（上海/theme_park）无过阈候选
+  [warn] 上海镛舍酒店（上海/hotel）无过阈候选
+  [warn] 上海汾阳花园酒店（上海/hotel）无过阈候选
+  [warn] 上海Grand Inn西郊公寓酒店（上海/hotel）无过阈候选
+  [warn] 悦庭华府（上海/hotel）无过阈候选
+  [warn] 上海青少年科技探索馆（上海/museum）无过阈候选
+  [warn] 上海陆家嘴万信R酒店（上海/hotel）无过阈候选
+  [warn] 上海金仓永华大酒店（上海/hotel）无过阈候选
+  [warn] 上海崇明云朵·墅酒店（上海/hotel）无过阈候选
+  [warn] EVA初号机（上海/theme_park）无过阈候选
+  [warn] 和颐至尊酒店(上海人民广场南京路步行街店)（上海/hotel）无过阈候选
+  [warn] 麦新格国际酒店(上海国际旅游度假区店周浦地铁站店)（上海/hotel）无过阈候选
+  [warn] 上海自然回响度假村（上海/nature）无过阈候选
+  [warn] 上海朱家角香遇独立民宿（上海/hotel）无过阈候选
+  [warn] 和平饭店博物馆（上海/hotel）无过阈候选
+  [warn] 上海宝华喜来登酒店（上海/hotel）无过阈候选
+  [warn] 上海易沃至尚酒店（上海/hotel）无过阈候选
+  [warn] 遇见博物馆·上海静安馆（上海/museum）无过阈候选
+  [warn] 上海如砚酒店（上海/hotel）无过阈候选
+  [warn] 上海协信莎玛长风服务式公寓（上海/hotel）无过阈候选
+  [warn] 汤连得温泉馆（长清店）（上海/attraction）无过阈候选
+  [warn] 上海远洋宾馆（上海/hotel）无过阈候选
+  [warn] 上海吉臣维景酒店（上海/hotel）无过阈候选
+  [warn] 上海失恋博物馆（上海/entertainment）无过阈候选
+  [warn] 上海潜艇展览馆（上海/museum）无过阈候选
+  [warn] 奉贤博物馆（上海/museum）无过阈候选
+  [warn] 上海朱家角安麓酒店（上海/hotel）无过阈候选
+  [warn] 花筑·上海市外桃源民宿(上海国际旅游度假区店)（上海/hotel）无过阈候选
+  [warn] 石库门老街（上海/attraction）无过阈候选
+  [warn] 北外滩国客中心沙滩嘉年华（上海/theme_park）无过阈候选
+  [warn] MElAND CLUB(虹桥万象城店)（上海/entertainment）无过阈候选
+  [warn] 南汇沙滩（上海/nature）无过阈候选
+  [warn] 钟书阁(松江泰晤士小镇店)（上海/attraction）无过阈候选
+  [warn] 消失的法老—胡夫金字塔沉浸式探索体验展（上海/museum）无过阈候选
+  [warn] 上海南站（上海/nature）无过阈候选
+  [warn] 同济大学(四平路校区)（上海/attraction）无过阈候选
+  [warn] 中国兵器博览馆（上海/museum）无过阈候选
+  [warn] 静安体育中心（上海/theme_park）无过阈候选
+  [warn] 黑色博物馆BLACK MUSEUM（上海/museum）无过阈候选
+  [warn] 上海昆虫博物馆（上海/museum）无过阈候选
+  [warn] 上海张江CitiGO欢阁酒店X（上海/hotel）无过阈候选
+  [warn] 万和至臻酒店(上海日月光打浦桥地铁站店)（上海/hotel）无过阈候选
+  [warn] 超体空间SoReal VR（迪士尼小镇店）（上海/theme_park）无过阈候选
+  [warn] 徐家汇观象台(上海气象博物馆)（上海/museum）无过阈候选
+  [warn] SKY RING 屋顶摩天轮（上海/theme_park）无过阈候选
+  [warn] 思南路（上海/attraction）无过阈候选
+  [warn] 汤连得温泉馆（118店）（上海/other）无过阈候选
+  [warn] 上海外滩雅致酒店（上海/hotel）无过阈候选
+  [warn] 上海长宁天山路亚朵S酒店（上海/hotel）无过阈候选
+  [warn] 桔子水晶上海北外滩酒店（上海/hotel）无过阈候选
+  [warn] 观光夜市(威尼斯水城之夜)（上海/citywalk）无过阈候选
+  [warn] 上海虹桥机场佰翔花园酒店（上海/hotel）无过阈候选
+  [warn] MELAND CLUB(瑞虹天地太阳宫店)（上海/entertainment）无过阈候选
+  [warn] 上海五角场柏阳君亭酒店（上海/hotel）无过阈候选
+  [warn] 上海吉臣维景酒店·吉满汉（上海/hotel）无过阈候选
+  [warn] 魔都360°球幕宇宙探索馆（上海/theme_park）无过阈候选
+  [warn] 上海圣诺亚皇冠假日酒店（上海/hotel）无过阈候选
+  [warn] 幻境空间超级元宇宙(上海店)（上海/entertainment）无过阈候选
+  [warn] 上海龙湖霞菲公馆（上海/nature）无过阈候选
+  [warn] 上海悦华大酒店（上海/hotel）无过阈候选
+  [warn] 上海远洲逸廷酒店(虹桥机场店)（上海/hotel）无过阈候选
+  [warn] 上海大众空港宾馆（上海/hotel）无过阈候选
+  [warn] 北大街（上海/attraction）无过阈候选
+  [warn] 上海宝燕酒店（上海/hotel）无过阈候选
+  [warn] 2024上海夜生活节（上海/nature）无过阈候选
+  [warn] 上海徐家汇A.T.HOUSE·LA DAME南丹（上海/nature）无过阈候选
+  [warn] 远望1号（上海/theme_park）无过阈候选
+  [warn] 沙美大楼（上海/citywalk）无过阈候选
+  [warn] 老上海1930风情街（上海/nature）无过阈候选
+  [warn] 云起美术馆（上海/museum）无过阈候选
+  [warn] 上海虹桥站（上海/nature）无过阈候选
+  [warn] 上海黑石M+酒店（上海/hotel）无过阈候选
+  [warn] 锦江都城经典上海青年会人民广场酒店（上海/hotel）无过阈候选
+  [warn] 生命的纪元 Life Chronicles（上海/art）无过阈候选
+  [warn] 百乐门（上海/art）无过阈候选
+  [warn] 東禾九谷悦泊鄉乡村酒店（上海/hotel）无过阈候选
+  [warn] 丽怡酒店(上海虹口足球场赤峰路地铁站店)（上海/hotel）无过阈候选
+  [warn] 上海极乐汤川沙温泉酒店（上海/hotel）无过阈候选
+  [warn] 过来·花海客栈(上海国际旅游度假区店)（上海/hotel）无过阈候选
+  [warn] 上海松江凯悦酒店（上海/hotel）无过阈候选
+  [warn] 上海张江筑桥居·后社公寓（上海/hotel）无过阈候选
+  [warn] 上海华纳风格大酒店（上海/hotel）无过阈候选
+  [warn] 华晶丽呈睿轩上海北外滩酒店（上海/hotel）无过阈候选
+  [warn] 东方绿舟度假酒店(花园酒店)（上海/hotel）无过阈候选
+  [warn] 极限PLAY运动娱乐新世界·团建派对表演休闲馆·室内高空游乐园（上海/theme_park）无过阈候选
+  [warn] 上海邻家美利亚酒店（上海/hotel）无过阈候选
+  [warn] 不觉晓CAMPING(上海迪士尼营地店)（上海/nature）无过阈候选
+  [warn] 上海恩然邦臣酒店（上海/hotel）无过阈候选
+  [warn] 上海浦东川沙诺富特酒店（上海/hotel）无过阈候选
+  [warn] 上海浦东川沙智选假日酒店（上海/hotel）无过阈候选
+  [warn] 静安·秋果酒店(上海静安寺南京西路店)（上海/hotel）无过阈候选
+  [warn] 上海静安逸扉酒店（上海/hotel）无过阈候选
+  [warn] OPARTMENT远东饭店（上海/hotel）无过阈候选
+  [warn] 致敬大师・毕加索艺术中心（上海/museum）无过阈候选
+  [warn] 上海富豪金丰酒店（上海/hotel）无过阈候选
+  [warn] 世界技能博物馆（上海/museum）无过阈候选
+  [warn] 上海景苑水庄酒店（上海/hotel）无过阈候选
+  [warn] 上海静安暻阁酒店（上海/hotel）无过阈候选
+  [warn] 芳香小镇·啟耕民宿（上海/hotel）无过阈候选
+  [warn] 上海美致豪酒店(宝山店)（上海/hotel）无过阈候选
+  [warn] 上海光大国际大酒店（上海/hotel）无过阈候选
+  [warn] 老码头（上海/attraction）无过阈候选
+  [warn] 上海唐镇智选假日酒店（上海/hotel）无过阈候选
+  [warn] 嘉虹酒店(上海浦东机场川沙地铁站店)（上海/hotel）无过阈候选
+  [warn] 上海万达汽车乐园（上海/theme_park）无过阈候选
+  [warn] 蝶舍·MAISON PAPILLON（上海/hotel）无过阈候选
+  [warn] 上海隧道科技馆（上海/museum）无过阈候选
+  [warn] 上海静安博邻行政公寓（上海/hotel）无过阈候选
+  [warn] 上引生活水世界（上海/theme_park）无过阈候选
+  [warn] 上海虹桥古北禧瑞酒店（上海/hotel）无过阈候选
+  [warn] 邻家露营地（上海/other）无过阈候选
+  [warn] 上海锦江都城经典南京东路外滩酒店（上海/hotel）无过阈候选
+  [warn] 百诺巧克力博物馆（上海/museum）无过阈候选
+  [warn] 上海虹桥西郊庄园丽笙大酒店（上海/hotel）无过阈候选
+  [warn] 村口大树（上海/other）无过阈候选
+  [warn] 上海五角场Pagoda君亭设计酒店（上海/hotel）无过阈候选
+  [warn] 中国近现代新闻出版博物馆（上海/museum）无过阈候选
+  [warn] 上海中庚聚龙酒店（上海/hotel）无过阈候选
+  [warn] A TOMPSON HOTEL(丰盛里)（上海/hotel）无过阈候选
+  [warn] 上海淮海公馆漫心府（上海/nature）无过阈候选
+  [warn] 上海陆家嘴滨江禧玥酒店（上海/hotel）无过阈候选
+  [warn] 上海馨乐庭徐家汇公寓酒店（上海/hotel）无过阈候选
+  [warn] 上海驿岛酒店(安亭汽车城店)（上海/hotel）无过阈候选
+  [warn] KIINA（上海/other）无过阈候选
+  [warn] 上海海鸥丽晶酒店（上海/hotel）无过阈候选
+  [warn] 颠倒艺术馆(上海旗舰店)（上海/entertainment）无过阈候选
+  [warn] 上海·蓝人秀（上海/theme_park）无过阈候选
+  [warn] 时光漫步S酒店(上海复旦大学五角场地铁站店)（上海/hotel）无过阈候选
+  [warn] 上海画一养生度假村（上海/nature）无过阈候选
+  [warn] 银灯食府（广州/food）无过阈候选
+  [warn] 上海外滩浦华大酒店·讚·法式铁板烧（上海/food）无过阈候选
+  [warn] 大無烧肉(卓悦中心店)（深圳/food）无过阈候选
+  [warn] 皖宴(龙柏饭店店)（上海/food）无过阈候选
+  [warn] 上海会馆(香港名都店)（上海/food）无过阈候选
+  [warn] 菁禧荟(外滩店)（上海/food）无过阈候选
+  [warn] 上海URSIDE酒店·有在西餐食堂·BISTRO BY URSIDE（上海/food）无过阈候选
+  [warn] HORITA堀田（上海/food）无过阈候选
+  [warn] 上海金陵紫金山大酒店·JSTONE·牛排馆（上海/food）无过阈候选
+  [warn] 植藤(铜仁店)（上海/food）无过阈候选
+  [warn] 老滋味农家乐(崇明店)（上海/food）无过阈候选
+  [warn] 外滩会(广东路店)（上海/food）无过阈候选
+  [warn] 阿吾罗日本料理(K11艺术中心店)（上海/food）无过阈候选
+  [warn] 上海宝龙丽笙酒店·北纬31度西餐厅（上海/food）无过阈候选
+  [warn] 三林本帮馆(中林街店)（上海/food）无过阈候选
+  [warn] 金孔雀(国金中心店)（上海/food）无过阈候选
+  [warn] OTTiMO（上海/food）无过阈候选
+  [warn] 三川·小町Mikawa(愚园路店)（上海/food）无过阈候选
+  [warn] 外滩·林家一(中央商场店)（上海/food）无过阈候选
+  [warn] 克比土耳其印度餐厅Pera(巨鹿路店)（上海/food）无过阈候选
+  [warn] THE FRIENDS CAFE老友记主题店(哈尔滨路店)（上海/food）无过阈候选
+  [warn] 沪上馨和小馆(新会路店)（上海/food）无过阈候选
+  [warn] 客觀民間菜（上海/food）无过阈候选
+  [warn] 酒一烧鸟·酒场（上海/food）无过阈候选
+  [warn] AZUL italiano意大利餐厅(白玉兰广场店)（上海/food）无过阈候选
+  [warn] 大龍發记·香港饭店(中庚漫游城店)（上海/food）无过阈候选
+  [warn] 杏花樓(黄河路店)（上海/food）无过阈候选
+  [warn] 令谷花开·惊世料理(湖北路店)（上海/food）无过阈候选
+  [warn] 杨记齐齐哈尔烤肉(总店)（上海/food）无过阈候选
+  [warn] GOOD FELLAS(延安东路店)（上海/food）无过阈候选
+  [warn] 虞面斋常熟野蕈（Xun）面馆（上海/food）无过阈候选
+  [warn] AZUL italiano意大利餐厅(大洋千树店)（上海/food）无过阈候选
+  [warn] 悦·中餐厅（上海/food）无过阈候选
+  [warn] Crush Wine Bistro（上海/food）无过阈候选
+  [warn] 鹿园 MOOSE(长宁店)（上海/food）无过阈候选
+  [warn] 老码头（上海/food）无过阈候选
+  [warn] 蟹家大院·十里洋场(外滩店)（上海/food）无过阈候选
+  [warn] 皇廷御宴中餐厅（上海/food）无过阈候选
+  [warn] 钟路商会·缘家(虹泉路店)（上海/food）无过阈候选
+  [warn] CRAZYONES西班牙海鲜饭(美罗城店)（上海/food）无过阈候选
+  [warn] 大無烧肉(恒隆广场店)（上海/food）无过阈候选
+  [warn] 上海老饭店(豫园店)（上海/food）无过阈候选
+  [warn] 兴兴·海派本帮菜（上海/food）无过阈候选
+  [warn] 沪西老弄堂面馆(广东路店)（上海/food）无过阈候选
+  [warn] 旺池川萃(世纪汇店)（上海/food）无过阈候选
+  [warn] 东平潮（上海/food）无过阈候选
+  [warn] 金时代顺风港湾(爱琴海购物中心店)（上海/food）无过阈候选
+  [warn] 蟹尊苑(巨鹿店)（上海/food）无过阈候选
+  [warn] 鲁采LU STYLE(环宇荟店)（上海/food）无过阈候选
+  [warn] The Boiling Crab宝灵蟹手抓海鲜(中国首店)（上海/food）无过阈候选
+  [warn] 万禾都市农场 Brunch·Bistro(长宁来福士店)（上海/food）无过阈候选
+  [warn] 喜粤8号(汝南街总店)（上海/food）无过阈候选
+  [warn] 冯爸面馆(陕西南路店)（上海/food）无过阈候选
+  [warn] 德大西餐社（上海/food）无过阈候选
+  [warn] simply thai天泰(上海静安嘉里中心店)（上海/food）无过阈候选
+  [warn] Anokhi 南亚融合料理(衡山路店)（上海/food）无过阈候选
+  [warn] 食好点(上海旗舰店）（上海/food）无过阈候选
+  [warn] 荣家黄鱼面(南京西路店)（上海/food）无过阈候选
+  [warn] 大一海鲜火锅(大沽路店)（上海/food）无过阈候选
+  [warn] 熙唐宴（上海/food）无过阈候选
+  [warn] 上海外滩万达瑞华酒店·游宴一品淮扬（上海/food）无过阈候选
+  [warn] 东方司宴 SIYA CUISINE(外滩店)（上海/food）无过阈候选
+  [warn] 筱爷叔·上海传统手工菜(松江旗舰店)（上海/food）无过阈候选
+  [warn] 怡和1915(滨江国际广场店)（上海/food）无过阈候选
+  [warn] Jstone.Italian Kitchen &Bar(世纪汇店)（上海/food）无过阈候选
+  [warn] 乐凯撒披萨(静安大悦城店)（上海/food）无过阈候选
+  [warn] Wine&Dine Le Bouchon法式酒馆（上海/food）无过阈候选
+  [warn] 耘粹坊（上海/food）无过阈候选
+  [warn] 思南江宴(复兴中路店)（上海/food）无过阈候选
+  [warn] 上房火鍋(外滩店)（上海/food）无过阈候选
+  [warn] Bistro Sola（上海/food）无过阈候选
+  [warn] ATELIER IZAKAYA 2.0（上海/food）无过阈候选
+  [warn] Bar à Vin（上海/food）无过阈候选
+  [warn] 我家餐厅(华山路店)（上海/food）无过阈候选
+  [warn] 金芬食府（上海/food）无过阈候选
+  [warn] 潮府馆·潮州菜(世纪公园店)（上海/food）无过阈候选
+  [warn] 上海东方滨江大酒店(国际会议中心)·鱼香阁（上海/food）无过阈候选
+  [warn] TVB花苑茶餐厅（上海/food）无过阈候选
+  [warn] 凯悦咖啡厅·中厨房（上海/food）无过阈候选
+  [warn] 柴门荟(前滩太古里店)（上海/food）无过阈候选
+  [warn] 美新点心店(陕西北路店)（上海/food）无过阈候选
+  [warn] 润苑大酒楼(徐汇店)（上海/food）无过阈候选
+  [warn] 上海康莱德酒店·欧赛朵地中海餐厅（上海/food）无过阈候选
+  [warn] 醉东Oriental House(静安嘉里店)（上海/food）无过阈候选
+  [warn] 恰酒吧（上海/food）无过阈候选
+  [warn] 润苑·悦椿轩(徐汇万科中心店)（上海/food）无过阈候选
+  [warn] 唔哩赞·崇明私藏菜(建国西路店)（上海/food）无过阈候选
+  [warn] 三清潭烧鹅(兴业太古汇店)（上海/food）无过阈候选
+  [warn] 荟廷·晶萃(凯德晶萃店)（上海/food）无过阈候选
+  [warn] 上海新锦江大酒店·蓝天旋转餐厅（上海/food）无过阈候选
+  [warn] 临江宴(陆家嘴店)（上海/food）无过阈候选
+  [warn] Babbo巴博意大利餐厅（上海/food）无过阈候选
+  [warn] MAYITA小玛雅墨西哥餐厅(新天地店)（上海/food）无过阈候选
+  [warn] 瑞福园联谊餐室(茂名南路店)（上海/food）无过阈候选
+  [warn] Mr Young焗诱·潮园(新乐坊店)（上海/food）无过阈候选
+  [warn] KOKOROWA(外滩店)（上海/food）无过阈候选
+  [warn] 上海吉臣维景酒店·久席·四季淮扬(静安店)（上海/food）无过阈候选
+  [warn] 黑石炉家深夜酒场(浦东店)（上海/food）无过阈候选
+  [warn] 親父的右腕(中山公园店)（上海/food）无过阈候选
+  [warn] 楼上火锅(茂名南路店)（上海/food）无过阈候选
+  [warn] mufmuf渔味料理(白玉兰广场店)（上海/food）无过阈候选
+  [warn] 鮨青(恒基名人购物中心店)（上海/food）无过阈候选
+  [warn] 上海半岛酒店·YI LONG COURT逸龙阁（上海/food）无过阈候选
+  [warn] 珍宝海鲜JUMBO SEAFOOD(ifc店)（上海/food）无过阈候选
+  [warn] O'mills Sourdough Bakery&Bistro(永嘉路店)（上海/food）无过阈候选
+  [warn] 馋三尺蟹粉小笼(人民广场店)（上海/food）无过阈候选
+  [warn] 三川·十酒Izakaya(南昌路店)（上海/food）无过阈候选
+  [warn] LOVE爱泰（上海/food）无过阈候选
+  [warn] 思南汇酒楼（上海/food）无过阈候选
+  [warn] Jstone.Italian Kitchen &Bar(世茂52+ 店)（上海/food）无过阈候选
+  [warn] 潮禧·潮汕菜(长寿路店)（上海/food）无过阈候选
+  [warn] BrewDog(招商局广场店)（上海/food）无过阈候选
+  [warn] 醉辉皇(上海中心大厦店)（上海/food）无过阈候选
+  [warn] THE WANG王品(上海中心店)（上海/food）无过阈候选
+  [warn] 吴记鲜定味(吴中路店)（上海/food）无过阈候选
+  [warn] 小山日本料理(兴业太古汇店)（上海/food）无过阈候选
+  [warn] 长征刨冰(控江路店)（上海/food）无过阈候选
+  [warn] 玖乐火锅（上海/food）无过阈候选
+  [warn] 新光酒家方亮蟹宴(黄浦店)（上海/food）无过阈候选
+  [warn] 巴奴毛肚火锅(人广来福士店)（上海/food）无过阈候选
+  [warn] 海金滋(陕西南路店)（上海/food）无过阈候选
+  [warn] 土古里日式烧肉（上海/food）无过阈候选
+  [warn] 古仓·餐厅(松江店)（上海/food）无过阈候选
+  [warn] 紫阳花园大酒楼（上海/food）无过阈候选
+  [warn] 罗密欧阳台（上海/food）无过阈候选
+  [warn] Jing Alley 靖里小馆(茂名南路店)（上海/food）无过阈候选
+  [warn] G7牛食堂（上海/food）无过阈候选
+  [warn] 美人鱼餐厅(海昌海洋公园店)（上海/food）无过阈候选
+  [warn] 无味舒食(七宝店)（上海/food）无过阈候选
+  [warn] 菲斯特花园西餐厅(时代金融中心店)（上海/food）无过阈候选
+  [warn] 皇朝尊会(龙之梦大酒店)（上海/food）无过阈候选
+  [warn] 庄氏隆兴·蟹粉面道(南京东路店)（上海/food）无过阈候选
+  [warn] 懿·EAST(陆家嘴中心店)（上海/food）无过阈候选
+  [warn] 煌庭大院(陆家浜路店)（上海/food）无过阈候选
+  [warn] 伯衡55·吉品轩(乌鲁木齐南路店)（上海/food）无过阈候选
+  [warn] 黄鱼馆Jhouse(外滩店)（上海/food）无过阈候选
+  [warn] 生活如沸·顺德水牛奶火锅(大学路店)（上海/food）无过阈候选
+  [warn] 莫奈花园（上海/food）无过阈候选
+  [warn] 三玛璐酒楼(汉口路店)（上海/food）无过阈候选
+  [warn] 合興發茶冰室(人民广场店)（上海/food）无过阈候选
+  [warn] LE VERRE a vin by MIG（上海/food）无过阈候选
+  [warn] Ultraviolet by Paul Pairet（上海/food）无过阈候选
+  [warn] Obscura by 唐香（上海/food）无过阈候选
+  [warn] 铁屋（上海/food）无过阈候选
+  [warn] 东郊宾馆心悦自助餐厅（上海/food）无过阈候选
+  [warn] WS Cafe & Lounge（上海/food）无过阈候选
+  [warn] 井福渔炎(恒隆广场店)（上海/food）无过阈候选
+  [warn] 邀菓(南京东路店)（上海/food）无过阈候选
+  [warn] Pizzeria S（上海/food）无过阈候选
+  [warn] 上海浦东嘉里大酒店·THE MEAT∙扒餐厅（上海/food）无过阈候选
+  [warn] 荣府宴(南阳路店)（上海/food）无过阈候选
+  [warn] 简厨·湖南菜(凌空SOHO店)（上海/food）无过阈候选
+  [warn] 栗原家の日本料理串焼専門店（上海/food）无过阈候选
+  [warn] 上海兴国宾馆丽笙精选·丽宫中餐厅（上海/food）无过阈候选
+  [warn] 雲和面馆YUNHENOODLE(华山路店)（上海/food）无过阈候选
+  [warn] Large Eight Italy Lounge&Restaurant大八意大利酒廊西餐厅(1862时尚艺术中心店)（上海/food）无过阈候选
+  [warn] 新镇江上海富春小笼馆（上海/food）无过阈候选
+  [warn] 顺席(肇嘉浜路店)（上海/food）无过阈候选
+  [warn] 大肠面（上海/food）无过阈候选
+  [warn] 闲逸廊（上海/food）无过阈候选
+  [warn] 宁国素斋(华泾路店)（上海/food）无过阈候选
+  [warn] HOMES飨宴(滨江大道店)（上海/food）无过阈候选
+  [warn] 御延公馆·上海菜(南京东路店)（上海/food）无过阈候选
+  [warn] AJIYA炭火烤肉(仙霞路店)（上海/food）无过阈候选
+  [warn] 君东记本帮面馆(天钥桥路店)（上海/food）无过阈候选
+  [warn] 鸟沢TORISAWĀ(静安嘉里中心店)（上海/food）无过阈候选
+  [warn] Wolfgang’s Steakhouse沃夫冈牛排馆（上海/food）无过阈候选
+  [warn] 荷风细雨·中国茶宴(世纪大道店)（上海/food）无过阈候选
+  [warn] 上海璞丽酒店·斐霓丝PHENIX（上海/food）无过阈候选
+  [warn] 老正兴菜馆(福州路店)（上海/food）无过阈候选
+  [warn] 逸采EASEFUL CUISINE(静安店)（上海/food）无过阈候选
+  [warn] Jstone.Italian Kitchen &Bar(绿地外滩中心店)（上海/food）无过阈候选
+  [warn] 哈罗德茶室·The Harrods Tea Rooms(查公馆店)（上海/food）无过阈候选
+  [warn] 浦之舟(滨江大道店)（上海/food）无过阈候选
+  [warn] POP露台餐厅·望江阁（上海/food）无过阈候选
+  [warn] 鼎王无老锅(静安店)（上海/food）无过阈候选
+  [warn] 东方景宴(思南公馆店)（上海/food）无过阈候选
+  [warn] Spicy Gangster 不问江湖（上海/food）无过阈候选
+  [warn] 广舟(香格里拉店)（上海/food）无过阈候选
+  [warn] 上海马勒别墅饭店·中餐厅（上海/food）无过阈候选
+  [warn] 食廬(虹桥南丰城店)（上海/food）无过阈候选
+  [warn] Takumi炉端割烹(静安嘉里中心店)（上海/food）无过阈候选
+  [warn] 玲姐·海鲜火锅(思南公馆店)（上海/food）无过阈候选
+  [warn] 遇外滩(BFC外滩金融中心店)（上海/food）无过阈候选
+  [warn] Thai Gallery泰廊餐厅（上海/food）无过阈候选
+  [warn] 美龄缘·缘起一席家宴(洛克外滩源店)（上海/food）无过阈候选
+  [warn] 牧羊餐厅（上海/food）无过阈候选
+  [warn] 蟹家大院 · 独揽江景(滨江店)（上海/food）无过阈候选
+  [warn] 黄鱼馆·至臻(静安店)（上海/food）无过阈候选
+  [warn] 西郊5号·Maggie 5（上海/food）无过阈候选
+  [warn] 黑门和牛(新天地店)（上海/food）无过阈候选
+  [warn] COMMUNE幻师(江宁路店)（上海/food）无过阈候选
+  [warn] 甬府小鲜(陆家嘴中心店)（上海/food）无过阈候选
+  [warn] Royal Banquet Hall 皇家宴会厅（上海/food）无过阈候选
+  [warn] 上海左庭上院酒店·叶叶菩提(太原别墅店)（上海/food）无过阈候选
+  [warn] 瑞华樟园（上海/food）无过阈候选
+  [warn] 蜀城巷子老成都火锅(潍坊路店)（上海/food）无过阈候选
+  [warn] 聪菜馆(六合大厦店)（上海/food）无过阈候选
+  [warn] 柿合缘新京菜(国金中心商场店)（上海/food）无过阈候选
+  [warn] BELLOCO倍乐(静安店)（上海/food）无过阈候选
+  [warn] 泰珍荟 Siam Memory（上海/food）无过阈候选
+  [warn] Geneva日内瓦亲子餐厅（上海/food）无过阈候选
+  [warn] 梅匠·微醺小酒馆（上海/food）无过阈候选
+  [warn] Yasmine’s茉莉西餐厅(碧云路店)（上海/food）无过阈候选
+  [warn] 乐意坊Alla Torre意大利手工披萨(陆家嘴店)（上海/food）无过阈候选
+  [warn] 胖子面（上海/food）无过阈候选
+  [warn] 米禾良日料(人民广场店)（上海/food）无过阈候选
+  [warn] 上海东郊宾馆·麒麟阁（上海/food）无过阈候选
+  [warn] 双塔老饭店（上海/food）无过阈候选
+  [warn] 耕海蟹将军(万象城店)（上海/food）无过阈候选
+  [warn] 尚蒸燚蒸汽海鲜(上海总店)（上海/food）无过阈候选
+  [warn] 上海朱家角安麓酒店·安麓全日餐厅（上海/food）无过阈候选
+  [warn] Solo(衡山路店)（上海/food）无过阈候选
+  [warn] 上海外滩茂悦大酒店·非常时髦餐厅VUE Restaurant（上海/food）无过阈候选
+  [warn] 顺峰顺水顺德菜(龙华店)（上海/food）无过阈候选
+  [warn] 玺粤轩(九号商场店)（上海/food）无过阈候选
+  [warn] 珍宝海鲜JUMBO Seafood(尚嘉店)（上海/food）无过阈候选
+  [warn] 金匠寿司(中庚漫游城店)（上海/food）无过阈候选
+  [warn] CASANOVA意大利餐厅(外滩店)（上海/food）无过阈候选
+  [warn] 椒点（上海/food）无过阈候选
+  [warn] 逸轩中餐厅（上海/food）无过阈候选
+  [warn] そば道·荞麦道日本料理（上海/food）无过阈候选
+  [warn] 权茂上海菜(上海中心大厦店)（上海/food）无过阈候选
+  [warn] 930私房菜(宜川路店)（上海/food）无过阈候选
+  [warn] 上海虹口三至喜来登酒店·Miyabi·雅日本餐厅&酒吧（上海/food）无过阈候选
+  [warn] 东京屋(武定路店)（上海/food）无过阈候选
+  [warn] 清真·宁夏印象·盐池滩羊肉体验店(江宁路店)（上海/food）无过阈候选
+  [warn] 莆田餐厅PUTIEN(环贸iapm店)（上海/food）无过阈候选
+  [warn] 沪上馨和小馆(陆家浜路店)（上海/food）无过阈候选
+  [warn] 四季民福烤鸭店(外滩外白渡桥店)（上海/food）无过阈候选
+  [warn] 令谷花开·惊世料理(静安店)（上海/food）无过阈候选
+  [warn] 上海嘉定凯悦酒店·享悦中餐厅（上海/food）无过阈候选
+  [warn] 酉前·Yakitori·烧鸟(复兴荟店)（上海/food）无过阈候选
+  [warn] 圆苑(淮海路店)（上海/food）无过阈候选
+  [warn] 煲宫猪肚鸡(新世界美食广场店)（上海/food）无过阈候选
+  [warn] 上海苏宁宝丽嘉酒店·Cafe Bellagio西餐厅（上海/food）无过阈候选
+  [warn] Primotable by Jstone.高桌牛排馆(BFC外滩金融中心店)（上海/food）无过阈候选
+  [warn] 上海锦江都城经典南京东路外滩酒店·环球西餐厅(外滩店)（上海/food）无过阈候选
+  [warn] 清晨家烤肉(BFC外滩金融中心店)（上海/food）无过阈候选
+  [warn] 欧巴炭烤肉오빠숯불구이(虹泉路店)（上海/food）无过阈候选
+  [warn] 冷三先生냉삼선생(首尔夜市店)（上海/food）无过阈候选
+  [warn] 圆苑(金茂店)（上海/food）无过阈候选
+  [warn] 云之缘云南民族菜Lotus Eatery(定西路店)（上海/food）无过阈候选
+  [warn] 贤合庄卤味火锅(魔都旗舰店)（上海/food）无过阈候选
+  [warn] 九鼎轩脆毛肚火锅(南京东路店)（上海/food）无过阈候选
+  [warn] 叙宴（上海旗舰店）（上海/food）无过阈候选
+  [warn] 红盔甲(淮海中路店)（上海/food）无过阈候选
+  [warn] 哈灵面馆(广西北路店)（上海/food）无过阈候选
+  [warn] 东平草堂（上海/food）无过阈候选
+  [warn] 晶浦会(上海中心大厦店)（上海/food）无过阈候选
+  [warn] 威皇广福和小海鲜(襄阳南路店)（上海/food）无过阈候选
+  [warn] BIANCHI PLUS白安其(浦东嘉里城店)（上海/food）无过阈候选
+  [warn] 文杏馆·昕 MAISON GINKGO（上海/food）无过阈候选
+  [warn] 临江仙(东大名路店)（上海/food）无过阈候选
+  [warn] 上海威斯汀大饭店·水晶苑中餐厅（上海/food）无过阈候选
+  [warn] bananaGG(茂名北路店)（上海/food）无过阈候选
+  [warn] 煲宫猪肚鸡(悦荟广场店)（上海/food）无过阈候选
+  [warn] K L A Y现代印度餐厅(北京西路店)（上海/food）无过阈候选
+  [warn] 清真·贯贯吉穆斯林餐厅(浙江中路店)（上海/food）无过阈候选
+  [warn] 京云华烤鸭·点心(新世界店)（上海/food）无过阈候选
+  [warn] 样样体面(宝安支路店)（上海/food）无过阈候选
+  [warn] 森SEN餐厅 SOLOX(兴业太古汇店)（上海/food）无过阈候选
+  [warn] 上海虹桥康得思酒店·明阁（上海/food）无过阈候选
+  [warn] 四如春食府（上海/food）无过阈候选
+  [warn] 鸿姐老火锅(静安店)（上海/food）无过阈候选
+  [warn] 甬府(黄浦店)（上海/food）无过阈候选
+  [warn] OMBRA露台花园西餐厅（上海/food）无过阈候选
+  [warn] DA·MARCO大马可意大利餐厅(京华店)（上海/food）无过阈候选
+  [warn] 福源沁(静安店)（上海/food）无过阈候选
+  [warn] 帕蓝·暹罗料理(大学路店)（上海/food）无过阈候选
+  [warn] 上海南新雅皇冠假日酒店·金莱全日餐厅（上海/food）无过阈候选
+  [warn] 新光酒家方亮蟹宴(世纪公园店)（上海/food）无过阈候选
+  [warn] 上面坊酥鸭大面(东诸安浜路店)（上海/food）无过阈候选
+  [warn] The Market Lane ·极(新天地旗舰店)（上海/food）无过阈候选
+  [warn] 悦江(梅赛德斯奔驰店)（上海/food）无过阈候选
+  [warn] 顺昌仁寿灌蛋(七宝老街店)（上海/food）无过阈候选
+  [warn] 古弄饭店·本地人农家菜（上海/food）无过阈候选
+  [warn] 上海素凯泰酒店·La Scala意大利餐厅（上海/food）无过阈候选
+  [warn] 过去进行食·90年代记忆博物馆（上海/food）无过阈候选
+  [warn] Odelice!欧膳(新乐路店)（上海/food）无过阈候选
+  [warn] 莲餐厅·湖北菜(中山公园店)（上海/food）无过阈候选
+  [warn] 红KURENAI（上海/food）无过阈候选
+  [warn] Cheeva Thai（上海/food）无过阈候选
+  [warn] 南兴园（上海/food）无过阈候选
+  [warn] 那时新疆·且末(LCM置汇旭辉广场店)（上海/food）无过阈候选
+  [warn] Oyster Fieast牛排生蚝站（上海/food）无过阈候选
+  [warn] Nomad（上海/food）无过阈候选
+  [warn] 小芳廷（上海/food）无过阈候选
+  [warn] 乐忻皇朝(上海中心大厦店)（上海/food）无过阈候选
+  [warn] R.MANDA（上海/food）无过阈候选
+  [warn] 上海上引+（上海/food）无过阈候选
+  [warn] IL GIARDINO意大利餐厅by wineapp(尚嘉中心店)（上海/food）无过阈候选
+  [warn] AZUL蓝坊拉丁餐厅（上海/food）无过阈候选
+  [warn] J Prime牛排海鲜餐厅(人民广场店)（上海/food）无过阈候选
+  [warn] CAMINETTO 炼舍（上海/food）无过阈候选
+  [warn] 平壤高丽馆(尊茂店)（上海/food）无过阈候选
+  [warn] 元古雲境(五原路店)（上海/food）无过阈候选
+  [warn] 鳗满·活烤鳗鱼专门店(上海丰盛里店)（上海/food）无过阈候选
+  [warn] 聚酒锅日料·精品火锅(金虹桥商场店)（上海/food）无过阈候选
+  [warn] Mr & Mrs Bund by Paul Pairet（上海/food）无过阈候选
+  [warn] MERCADO 505 Gourmet Restaurant（上海/food）无过阈候选
+  [warn] 咏心·上海点心(静安大悦城店)（上海/food）无过阈候选
+  [warn] Erman岩烧牛排(虹桥南丰城店)（上海/food）无过阈候选
+  [warn] 梅龙镇酒家(南京西路总店)（上海/food）无过阈候选
+  [warn] 南麓·浙里(外滩店)（上海/food）无过阈候选
+  [warn] LES NUAGES 云（上海/food）无过阈候选
+  [warn] 谷沙屋面铺（上海/food）无过阈候选
+  [warn] 無語 焼鳥&酒場（上海/food）无过阈候选
+  [warn] 成隆行·蟹王府(九江路店)（上海/food）无过阈候选
+  [warn] 壹泰Ethai·朝天椒·泰焗(新天地店)（上海/food）无过阈候选
+  [warn] HORIGUCHI COFFEE堀口咖啡（上海/food）无过阈候选
+  [warn] 正院上海公馆(1885广场店)（上海/food）无过阈候选
+  [warn] 酒吞(乐坊店)（上海/food）无过阈候选
+  [warn] 上海静安凯宾斯基全套房酒店·西餐厅 1Eins Bistro & Lounge（上海/food）无过阈候选
+  [warn] 转角·上海老弄堂(淮海路店)（上海/food）无过阈候选
+  [warn] 细记港九宵夜大牌档(东湖路总店)（上海/food）无过阈候选
+  [warn] 阿童牟日式和牛烧肉(力宝广场店)（上海/food）无过阈候选
+  [warn] 家全七福酒家(静安店)（上海/food）无过阈候选
+  [warn] 珍宝海鲜JUMBO SEAFOOD(环贸店)（上海/food）无过阈候选
+  [warn] C Cafe(朵云书院旗舰店)（上海/food）无过阈候选
+  [warn] THE PRESS(申报馆店)（上海/food）无过阈候选
+  [warn] 胡麻(静安嘉里店)（上海/food）无过阈候选
+  [warn] 小船日式料理（上海/food）无过阈候选
+  [warn] 拉蒂娜巴西牛排馆Latina Brazilian Steakhouse (陆家嘴店)（上海/food）无过阈候选
+  [warn] 庆春朴门(前滩太古里店)（上海/food）无过阈候选
+  [warn] 长寿粗面馆(殷高西路店)（上海/food）无过阈候选
+  [warn] 海味观(老西门店)（上海/food）无过阈候选
+  [warn] 音昱听堂Thought for Food by The Living Room（上海/food）无过阈候选
+  [warn] 汉来海港·海鲜自助餐厅(七宝万科店)（上海/food）无过阈候选
+  [warn] くろぎ Kurogi 黑木（上海/food）无过阈候选
+  [warn] 一面春风(武康路店)（上海/food）无过阈候选
+  [warn] 大隐割烹料理(静安店)（上海/food）无过阈候选
+  [warn] 熊猫老灶火锅(TX淮海路店)（上海/food）无过阈候选
+  [warn] 阿根酒家(襄阳南路店)（上海/food）无过阈候选
+  [warn] 逸道(思南公馆店)（上海/food）无过阈候选
+  [warn] 上海外滩W酒店·艳中餐厅 YEN（上海/food）无过阈候选
+  [warn] 万岛日本料理铁板烧(吴中店)（上海/food）无过阈候选
+  [warn] 老乾杯(外滩店)（上海/food）无过阈候选
+  [warn] Jstone.Italian Kitchen &Bar(虹梅路店)（上海/food）无过阈候选
+  [warn] 皇朝会(外滩店)（上海/food）无过阈候选
+  [warn] 樽宴（上海/food）无过阈候选
+  [warn] 福1015(愚园路店)（上海/food）无过阈候选
+  [warn] 京炉·北京烤鸭火锅(第一百货店)（上海/food）无过阈候选
+  [warn] High·云涧 By 光与盐(前滩中心店)（上海/food）无过阈候选
+  [warn] 晓疆山·大美新疆菜(白玉兰广场店)（上海/food）无过阈候选
+  [warn] 洞天食府(北大街店)（上海/food）无过阈候选
+  [warn] SHAUGHNESSY 干式熟成牛排馆（上海/food）无过阈候选
+  [warn] 上海宝格丽酒店·IL RISTORANTE - NIKO ROMITO（上海/food）无过阈候选
+  [warn] 新荣记(南京西路店)（上海/food）无过阈候选
+  [warn] 上海新天地朗廷酒店·凯旋餐厅 Cachet（上海/food）无过阈候选
+  [warn] 舜记餐厅(陕西南路店)（上海/food）无过阈候选
+  [warn] 上海国际饭店·帆声西饼屋(黄河路店)（上海/food）无过阈候选
+  [warn] 杏花樓(福州路总店)（上海/food）无过阈候选
+  [warn] Tomacado花厨(One ITC店)（上海/food）无过阈候选
+  [warn] eat n work(正大广场店)（上海/food）无过阈候选
+  [warn] 雍福会(永福路店)（上海/food）无过阈候选
+  [warn] 光明玖壹玖(西藏北路店)（上海/food）无过阈候选
+  [warn] 博多新记·粤菜(复兴店)（上海/food）无过阈候选
+  [warn] Laderach 莱德拉(环贸iapm店)（上海/food）无过阈候选
+  [warn] 花园一号(中央路店)（南京/food）无过阈候选
+  [warn] 南京恒大酒店·大三元中餐厅（南京/food）无过阈候选
+  [warn] 1886德国汽车餐厅(艾尚天地店)（南京/food）无过阈候选
+  [warn] 袁老大龙虾(石鼓路总店)（南京/food）无过阈候选
+  [warn] 勿相忘串串香(水平方店)（南京/food）无过阈候选
+  [warn] 扉宴·江浙名菜(新街口店)（南京/food）无过阈候选
+  [warn] 南京威斯汀温泉度假酒店·云汀中餐厅（南京/food）无过阈候选
+  [warn] 水浒烤肉·大灶台(南湖店)（南京/food）无过阈候选
+  [warn] 渔寿司(艾尚天地店)（南京/food）无过阈候选
+  [warn] 和食佬石锅主题餐厅(明瓦廊店)（南京/food）无过阈候选
+  [warn] 掬豆·山野云贵菜(老门东店)（南京/food）无过阈候选
+  [warn] 南京颐和芥子园酒店·万国春中菜馆（南京/food）无过阈候选
+  [warn] 七欣天品蟹轩(南京国际大厦店)（南京/food）无过阈候选
+  [warn] DQ(南京金轮店)（南京/food）无过阈候选
+  [warn] 巴子面馆(玉带园店)（南京/food）无过阈候选
+  [warn] 翠贝卡好莱坞电影主题酒吧(王府园路店)（南京/food）无过阈候选
+  [warn] 陈家鸭子店(文体西路店)（南京/food）无过阈候选
+  [warn] 老头爱马仕酸豇豆炒饭(丰富路店)（南京/food）无过阈候选
+  [warn] 南京金陵饭店·金海湾自助餐厅（南京/food）无过阈候选
+  [warn] 南京金茂威斯汀大酒店·湖景知味西餐厅（南京/food）无过阈候选
+  [warn] Bon par l'Arôme 芳芳简餐(新城市广场店)（南京/food）无过阈候选
+  [warn] 嘻游记烤肉·料理(金鹰世界店)（南京/food）无过阈候选
+  [warn] 啫一·古法粤菜(乐基广场店)（南京/food）无过阈候选
+  [warn] 左庭右院鲜牛肉火锅(河西金鹰店)（南京/food）无过阈候选
+  [warn] 小牛哈尼韩式水煎肉(新街口店)（南京/food）无过阈候选
+  [warn] 十个坛小酒馆(南京首店)（南京/food）无过阈候选
+  [warn] 馬伍旺川菜(应天大街绿溢广场店)（南京/food）无过阈候选
+  [warn] 啫一•古法粤菜(艾尚天地店)（南京/food）无过阈候选
+  [warn] 老佛爷炭火蛙锅(金鹰世界店)（南京/food）无过阈候选
+  [warn] 串酒屋·成都串串火锅烧烤(新街口店)（南京/food）无过阈候选
+  [warn] 醺花园餐厅(紫金文化广场店)（南京/food）无过阈候选
+  [warn] 南山翁新概念川菜(花园路店)（南京/food）无过阈候选
+  [warn] 许记大碗皮肚面馆(三条巷店)（南京/food）无过阈候选
+  [warn] 独一道邵伯龙虾(雨花西路店)（南京/food）无过阈候选
+  [warn] 好记·金陵宴(建邺吾悦店)（南京/food）无过阈候选
+  [warn] 云海肴(南京河西金鹰店)（南京/food）无过阈候选
+  [warn] 草桥清真牛肉锅贴扁食店(红土桥店)（南京/food）无过阈候选
+  [warn] 和食佬石锅主题餐厅(新街口羊皮巷店)（南京/food）无过阈候选
+  [warn] 盆钵满东北地炉烤肉(云锦路店)（南京/food）无过阈候选
+  [warn] 递酒烤场(湛江路店)（南京/food）无过阈候选
+  [warn] 鱼四季创作日本料理(江宁金鹰店)（南京/food）无过阈候选
+  [warn] 勿相忘串串香(虹悦城店)（南京/food）无过阈候选
+  [warn] 哈根达斯(南京环宇城店)（南京/food）无过阈候选
+  [warn] KOMO COFFEE(石头城店)（南京/food）无过阈候选
+  [warn] 甜小兔Tiyo's Cake(万达店)（南京/food）无过阈候选
+  [warn] 香港名發茶冰厅(中山南路店)（南京/food）无过阈候选
+  [warn] 陇味府满(长乐路店)（南京/food）无过阈候选
+  [warn] 土蚝金竹笼蒸蚝(乐基广场店)（南京/food）无过阈候选
+  [warn] 丛野家烤肉店·鲜牛肉·东北烤肉(国展南林大学店)（南京/food）无过阈候选
+  [warn] 花·fleur古董西餐厅(老门东店)（南京/food）无过阈候选
+  [warn] 新石器烤肉(虹悦城店)（南京/food）无过阈候选
+  [warn] 瓦库(老门东店)（南京/food）无过阈候选
+  [warn] 付小姐在成都(南京吾悦广场店)（南京/food）无过阈候选
+  [warn] 丈母娘的饭局(龙江店)（南京/food）无过阈候选
+  [warn] 本馨·川菜(环宇城旗舰店)（南京/food）无过阈候选
+  [warn] 渔家傲·烤全鱼(清江苏宁广场店)（南京/food）无过阈候选
+  [warn] 朱小乐龙虾 · 羊蝎子火锅(凤凰西街店)（南京/food）无过阈候选
+  [warn] 老马路串串香火锅(南湖店)（南京/food）无过阈候选
+  [warn] 六朝松茶馆(老门东店)（南京/food）无过阈候选
+  [warn] 蜀香龙门火锅(湖南路六店)（南京/food）无过阈候选
+  [warn] 薛记食堂·小马哥龙虾(凤凰西街店)（南京/food）无过阈候选
+  [warn] 海盗船长·海鲜大酒楼（南京/food）无过阈候选
+  [warn] 晓彭肥肠鸡（南京/food）无过阈候选
+  [warn] 金陵一哥龙虾·精菜馆(水木秦淮店)（南京/food）无过阈候选
+  [warn] 老新隆李氏牛肉锅贴(南湖店)（南京/food）无过阈候选
+  [warn] 辛香汇·锦里(紫峰店)（南京/food）无过阈候选
+  [warn] 韩聚HANKUU（南京/food）无过阈候选
+  [warn] 御池宫(明发新城店)（南京/food）无过阈候选
+  [warn] 成都娃娃花园餐厅 Garden Restaurant & Lounge（南京/food）无过阈候选
+  [warn] 肥前屋·活烤鳗鱼の人気专门店（南京/food）无过阈候选
+  [warn] 稻田熹·酒處(江东中路店)（南京/food）无过阈候选
+  [warn] 百年尹氏汤包(湖南路狮子桥店)（南京/food）无过阈候选
+  [warn] 红厨巷淮扬菜(熙南里店)（南京/food）无过阈候选
+  [warn] 烤无戒·现拌烤肉(夫子庙店)（南京/food）无过阈候选
+  [warn] 冯三孃跷脚牛肉(新街口直营店)（南京/food）无过阈候选
+  [warn] 水林间寿喜烧自助(仙林金鹰店)（南京/food）无过阈候选
+  [warn] 德天肥牛海鲜火锅(大光路店)（南京/food）无过阈候选
+  [warn] 青意小馆（南京/food）无过阈候选
+  [warn] 安东鸡(荔枝广场店)（南京/food）无过阈候选
+  [warn] 集时小白楼(高楼门5号店)（南京/food）无过阈候选
+  [warn] 桃源村糕团(珠江路店)（南京/food）无过阈候选
+  [warn] 蘑菇餐厅(小火瓦巷店)（南京/food）无过阈候选
+  [warn] 金手鼓·新疆菜(南京店)（南京/food）无过阈候选
+  [warn] BOPEYE·波派炸鸡(环宇城店)（南京/food）无过阈候选
+  [warn] 狮子桥食府(狮子桥店)（南京/food）无过阈候选
+  [warn] 狮王府(金茂览秀城店)（南京/food）无过阈候选
+  [warn] 啾包·Chirps Bistro（南京/food）无过阈候选
+  [warn] 大江胡同（北京/citywalk）无过阈候选
+  [warn] 中国共产党第一次全国代表大会会址（上海/memorial）无过阈候选
+  [warn] 七里扬帆（杭州/other）无过阈候选
+  [warn] 佳龙酒店(北京朝阳门总店)（北京/hotel）无过阈候选
+  [warn] 桔子水晶北京国贸建国门酒店（北京/hotel）无过阈候选
+  [warn] 大水法（北京/historic）无过阈候选
+  [warn] 伯多祿五世劇院（澳门/historic）无过阈候选
+  [warn] 樂·墨瑞（北京/other）无过阈候选
+  [warn] 媽閣廟（澳门/attraction）无过阈候选
+  [warn] 北京国贸CBD亚朵S酒店xFunsCenter（北京/hotel）无过阈候选
+  [warn] 北京日出东方凯宾斯基酒店·Magnolia（北京/hotel）无过阈候选
+  [warn] 乐满地度假世界（桂林/attraction）无过阈候选
+  [warn] 上海市徐汇区土山湾博物馆（上海/museum）无过阈候选
+  [warn] 震旦博物馆（上海/museum）无过阈候选
+  [warn] 栖湖饭店（北京/hotel）无过阈候选
+  [warn] 长安十二时辰·唐宴（西安/food）无过阈候选
+  [warn] 北京大方瑞廷西郊酒店（北京/hotel）无过阈候选
+  [warn] 成都华希昆虫博物馆（成都/museum）无过阈候选
+  [warn] 西岸美术馆（上海/museum）无过阈候选
+  [warn] 万泉河洗浴（北京/other）无过阈候选
+  [warn] 武汉叙宴（武汉/food）无过阈候选
+  [warn] 知音号·长江漂移剧场晚宴席（武汉/food）无过阈候选
+  [warn] 泰莲庭溪畔酒店(北京雁栖湖店)（北京/hotel）无过阈候选
+  [warn] 南京市现代陶瓷博物馆（南京/museum）无过阈候选
+  [warn] 北京朗丽兹西山花园酒店（北京/hotel）无过阈候选
+  [warn] 武汉市新洲区博物馆（武汉/museum）无过阈候选
+  [warn] 葛源镇（上饶/ancient_town）无过阈候选
+  [warn] 杭州千岛湖开元森泊焕境乐园（杭州/nature）无过阈候选
+  [warn] 长隆水上乐园（广州/theme_park）无过阈候选
+  [warn] 琉璃渠村（北京/attraction）无过阈候选
+  [warn] 四川省川剧院（成都/entertainment）无过阈候选
+  [warn] 西安美术馆（西安/museum）无过阈候选
+  [warn] 浙江省现代陶瓷艺术博物馆（杭州/museum）无过阈候选
+  [warn] 南翔镇（上海/ancient_town）无过阈候选
+  [warn] 奈尔宝家庭中心(悦汇城店)（广州/）无过阈候选
+  [warn] 楚汉宫宴·沉浸式宫廷礼宴（武汉/food）无过阈候选
+  [warn] 广东中医药博物馆（广州/museum）无过阈候选
+  [warn] 新叶古村（杭州/attraction）无过阈候选
+  [warn] 深坑秘境乐园-上海世茂精灵之城主题乐园（上海/nature）无过阈候选
+  [warn] 1192弄老上海风情街(世纪汇广场店)（上海/citywalk）无过阈候选
+  [warn] 广西壮族自治区桂林市阳朔县阳朔西街（桂林/historic）无过阈候选
+  [warn] 万春亭（北京/attraction）无过阈候选
+  [warn] 深圳市罗湖区惠风古陶博物馆（深圳/museum）无过阈候选
+  [warn] 深圳市大鹏新区博物馆（深圳/museum）无过阈候选
+  [warn] 东湖海洋乐园东湖大马戏（武汉/nature）无过阈候选
+  [warn] 陕西科技大学轻工业博物馆（西安/museum）无过阈候选
+  [warn] 深圳市艺之卉百年时尚博物馆（深圳/museum）无过阈候选
+  [warn] 上饶市博物馆（上饶/museum）无过阈候选
+  [warn] 千岛湖石林景区（杭州/nature）无过阈候选
+  [warn] 上海市金山区博物馆（上海/museum）无过阈候选
+  [warn] 上海市银行博物馆（上海/museum）无过阈候选
+  [warn] 南宫旅游度假区（北京/attraction）无过阈候选
+  [warn] 红鼎宴（成都/food）无过阈候选
+  [warn] 失重餐厅(环球中心店)（成都/food）无过阈候选
+  [warn] 北京唐山大厦（北京/nature）无过阈候选
+  [warn] 黄陂区木兰文化生态旅游区（武汉/attraction）无过阈候选
+  [warn] 霸天虎过山车（北京/nature）无过阈候选
+  [warn] 桔子水晶北京安贞酒店（北京/hotel）无过阈候选
+  [warn] 古北水镇望京楼酒店（北京/hotel）无过阈候选
+  [warn] 罨画池（成都/garden）无过阈候选
+  [warn] 湖北省武汉市江岸区吉庆民俗街区（武汉/historic）无过阈候选
+  [warn] 北京福庭酒店（北京/hotel）无过阈候选
+  [warn] 外滩（上海/nature）无过阈候选
+  [warn] 广东中国客家博物馆（广州/museum）无过阈候选
+  [warn] 广东海上丝绸之路博物馆（广州/museum）无过阈候选
+  [warn] 广东大观博物馆（广州/museum）无过阈候选
+  [warn] 婺源县江湾景区（上饶/attraction）无过阈候选
+  [warn] 浙江中医药大学浙江中医药博物馆（杭州/museum）无过阈候选
+  [warn] 北京望京科技园亚朵酒店（北京/hotel）无过阈候选
+  [warn] 张园（上海/park）无过阈候选
+  [warn] 北京和平里旅居酒店（北京/hotel）无过阈候选
+  [warn] 桔子水晶北京总部基地酒店（北京/hotel）无过阈候选
+  [warn] 定陵（北京/attraction）无过阈候选
+  [warn] 上海工艺美术博物馆（上海/museum）无过阈候选
+  [warn] 海鸥岛（广州/nature）无过阈候选
+  [warn] 创极速光轮（上海/theme_park）无过阈候选
+  [warn] 上海市徐汇区衡复音乐街区（上海/historic）无过阈候选
+  [warn] 武康大楼（上海/viewpoint）无过阈候选
+  [warn] 虹桥丽宝广场（上海/attraction）无过阈候选
+  [warn] 饶州古镇旅游休闲街区（上饶/historic）无过阈候选
+  [warn] 四川省成都市成华区望平坊旅游休闲街区（成都/historic）无过阈候选
+  [warn] 成都许燎源现代设计艺术博物馆（成都/museum）无过阈候选
+  [warn] 嘉定镇（上海/ancient_town）无过阈候选
+  [warn] 广州亚运城综合体育馆（广州/attraction）无过阈候选
+  [warn] 高淳老街（南京/attraction）无过阈候选
+  [warn] 五凤镇（成都/ancient_town）无过阈候选
+  [warn] ORIENS LUMINA焕光森林•东方曦望（上海/attraction）无过阈候选
+  [warn] 练塘镇（上海/ancient_town）无过阈候选
+  [warn] 固城湾（南京/other）无过阈候选
+  [warn] 天目里美术馆（杭州/museum）无过阈候选
+  [warn] 富春江夜游（杭州/attraction）无过阈候选
+  [warn] 上海纺织博物馆（上海/museum）无过阈候选
+  [warn] 桂林甑皮岩遗址博物馆（桂林/museum）无过阈候选
+  [warn] 杭州开元森泊度假乐园（杭州/theme_park）无过阈候选
+  [warn] 广州市花都区洪秀全纪念馆（广州市花都区博物馆）（广州/museum）无过阈候选
+  [warn] 西安秦砖汉瓦博物馆（西安/museum）无过阈候选
+  [warn] 梵高星空艺术馆（王府井旗舰店）（北京/entertainment）无过阈候选
+  [warn] 垂云通天河（杭州/attraction）无过阈候选
+  [warn] 安仁古镇景区（成都/attraction）无过阈候选
+  [warn] 浙江中鑫艺术博物馆（杭州/museum）无过阈候选
+  [warn] 千岛湖啤酒小镇（杭州/nature）无过阈候选
+  [warn] 杭州国家版本馆 (文润阁)（杭州/attraction）无过阈候选
+  [warn] 外滩观光隧道（上海/nature）无过阈候选
+  [warn] 广州市越秀区博物馆（广州/museum）无过阈候选
+  [warn] 广州市迪士普音响博物馆（广州/museum）无过阈候选
+  [warn] 江苏省江海博物馆（南京/museum）无过阈候选
+  [warn] 崇州市博物馆（成都/museum）无过阈候选
+  [warn] 清河坊历史文化街区（杭州/historic）无过阈候选
+  [warn] 广州市普公古陶瓷博物馆（广州/museum）无过阈候选
+  [warn] 北京大运河文化旅游景区（北京/attraction）无过阈候选
+  [warn] 凤凰中心（北京/gallery）无过阈候选
+  [warn] 崇明区西沙明珠湖景区（上海/attraction）无过阈候选
+  [warn] 龙脊长桌宴（桂林/food）无过阈候选
+  [warn] 六朝沉浸式晚宴（南京/food）无过阈候选
+  [warn] 御宴宫（西安/food）无过阈候选
+  [warn] 龙井峡漂流（杭州/nature）无过阈候选
+  [warn] 观澜古墟（深圳/ancient_town）无过阈候选
+  [warn] 宴天下·宴乐（南京/food）无过阈候选
+  [warn] 宫宴·宋韵沉浸式宫廷御宴（杭州/food）无过阈候选
+  [warn] 江苏警官学院博物馆（南京/museum）无过阈候选
+  [warn] 平北抗日战争纪念馆（北京/museum）无过阈候选
+  [warn] 中国化工博物馆（北京/museum）无过阈候选
+  [warn] 望京SOHO（北京/）无过阈候选
+  [warn] 上海老街(人民路)（上海/nature）无过阈候选
+  [warn] 南宫五洲植物乐园（北京/theme_park）无过阈候选
+  [warn] 中国华侨历史博物馆（北京/museum）无过阈候选
+  [warn] 太庙街门（北京/attraction）无过阈候选
+  [warn] 陕西中医药博物馆（西安/museum）无过阈候选
+  [warn] 侏罗纪世界大冒险（北京/theme_park）无过阈候选
+  [warn] 成都中医药大学博物馆（成都/museum）无过阈候选
+  [warn] 天安门城楼（北京/historic）无过阈候选
+  [warn] 百里山水画廊（北京/nature）无过阈候选
+  [warn] 广富林水下博物馆（上海/museum）无过阈候选
+  [warn] 中国传媒大学传媒博物馆（北京/museum）无过阈候选
+  [warn] 上海船厂滨江绿地（上海/nature）无过阈候选
+  [warn] 元通镇（成都/ancient_town）无过阈候选
+  [warn] 深圳美术馆（深圳/museum）无过阈候选
+  [warn] 上海民生现代美术馆（上海/museum）无过阈候选
+  [warn] 馬禮遜教堂（澳门/attraction）无过阈候选
+  [warn] 安仁镇（成都/ancient_town）无过阈候选
+  [warn] 成都毛家湾艺术博物馆（成都/museum）无过阈候选
+  [warn] 南沙游艇会（广州/attraction）无过阈候选
+  [warn] 上海市黄浦区新天地石库门街区（上海/historic）无过阈候选
+  [warn] 罗店镇（上海/ancient_town）无过阈候选
+  [warn] 东天目山景区（杭州/nature）无过阈候选
+  [warn] 河口镇（上饶/ancient_town）无过阈候选
+  [warn] 四川省建川博物馆（成都/museum）无过阈候选
+  [warn] 迪士尼小镇（上海/theme_park）无过阈候选
+  [warn] 淳溪镇（南京/ancient_town）无过阈候选
+  [warn] 成都川菜博物馆（成都/museum）无过阈候选
+  [warn] 平乐镇（成都/ancient_town）无过阈候选
+  [warn] 大运河博物馆（北京/museum）无过阈候选
+  [warn] 钱学森与武汉生物工程学院博物馆（武汉/museum）无过阈候选
+  [warn] 浙江华茂艺术教育博物馆（杭州/museum）无过阈候选
+  [warn] 融厨湖北菜·非遗武昌鱼藕汤（江汉路总店）（武汉/food）无过阈候选
+  [warn] 川沙新镇（上海/ancient_town）无过阈候选
+  [warn] 南锣鼓巷（北京/attraction）无过阈候选
+  [warn] 浙江美术馆（杭州/museum）无过阈候选
+  [warn] 南京市溧水区博物馆（南京/museum）无过阈候选
+  [warn] 广州市岭南金融博物馆（广州/museum）无过阈候选
+  [warn] 佳宁娜潮州菜（佳宁娜广场店）（深圳/food）无过阈候选
+  [warn] 陕西水利博物馆（西安/museum）无过阈候选
+  [warn] 黄龙溪镇（成都/ancient_town）无过阈候选
+  [warn] 广州体育文化博物馆（广州亚运会亚残运会博物馆）（广州/museum）无过阈候选
+  [warn] 疯狂动物城（上海/theme_park）无过阈候选
+  [warn] 湖北明清古建筑博物馆（武汉/museum）无过阈候选
+  [warn] 桔子水晶北京南锣鼓巷酒店（北京/hotel）无过阈候选
+  [warn] 北京凤凰岭景区（北京/nature）无过阈候选
+  [warn] 奈尔宝家庭中心(卓悦店)（深圳/entertainment）无过阈候选
+  [warn] 南京城墙中山门登城口（南京/nature）无过阈候选
+  [warn] 广州融创体育世界（广州/theme_park）无过阈候选
+  [warn] 大明山景区（杭州/nature）无过阈候选
+  [warn] 湖北省武汉市江岸区黎黄陂路历史文化街区（武汉/historic）无过阈候选
+  [warn] 汉口1930·一场民国盛宴（武汉/food）无过阈候选
+  [warn] 漓江风景区（桂林/attraction）无过阈候选
+  [warn] 大余湾（武汉/ancient_town）无过阈候选
+  [warn] 肥肥虾庄（石牌岭总店）（武汉/food）无过阈候选
+  [warn] 鼓楼（南京/historic）无过阈候选
+  [warn] 西安市临潼区博物馆（西安/museum）无过阈候选
+  [warn] 桐庐县博物馆（杭州/museum）无过阈候选
+  [warn] 基督教墳場（澳门/memorial）无过阈候选
+  [warn] 北京市东城区王府井商业街区（北京/historic）无过阈候选
+  [warn] 中国美术学院美术馆（杭州/museum）无过阈候选
+  [warn] 江苏省美术馆（南京/museum）无过阈候选
+  [warn] 敘宴·长安赋（深圳/food）无过阈候选
+  [warn] 宴华赋·唐风沉浸式宫宴餐秀（武汉/food）无过阈候选
+  [warn] 上海世博会博物馆（上海/museum）无过阈候选
+  [warn] 深圳市梵亚艺术博物馆（深圳/museum）无过阈候选
+  [warn] 西安交通大学博物馆（西安/museum）无过阈候选
+  [warn] 海底世界馆（上海/nature）无过阈候选
+  [warn] 成都天台山旅游景区（成都/nature）无过阈候选
+  [warn] 广东省深圳市南山区南头古城旅游休闲街区（深圳/historic）无过阈候选
+  [warn] 北京市石景山区模式口历史文化街区（北京/historic）无过阈候选
+  [warn] 北京市海淀区华熙LIVE·五棵松旅游休闲街区（北京/historic）无过阈候选
+  [warn] 北京市昌平区乐多港假日广场旅游休闲街区（北京/historic）无过阈候选
+  [warn] 龙兴寺（成都/attraction）无过阈候选
+  [warn] 龙门镇（杭州/ancient_town）无过阈候选
+  [warn] 飞跃四川(春熙路茂业百货店)（成都/entertainment）无过阈候选
+  [warn] 石塘镇（上饶/ancient_town）无过阈候选
+  [warn] 恭城镇（桂林/ancient_town）无过阈候选
+  [warn] 樱花大道（南京/attraction）无过阈候选
+  [warn] 蜀兿剧院·变脸川剧·盖碗茶（成都/entertainment）无过阈候选
+  [warn] 千岛湖红山谷景区（杭州/nature）无过阈候选
+  [warn] 四川建川博物馆聚落（成都/museum）无过阈候选
+  [warn] 徐家汇书院（上海/）无过阈候选
+  [warn] 飞越浙江(杭州乐园旗舰店)（杭州/entertainment）无过阈候选
+  [warn] 立巢航空博物馆（成都/museum）无过阈候选
+  [warn] 成都热雪奇迹（成都/nature）无过阈候选
+  [warn] 茅家埠景区（杭州/nature）无过阈候选
+  [warn] 音乐百花谷（成都/nature）无过阈候选
+  [warn] 元通古镇（成都/attraction）无过阈候选
+  [warn] 东方绿舟景区（上海/theme_park）无过阈候选
+  [warn] 西岭雪山大飞水风景区（成都/nature）无过阈候选
+  [warn] TaxiWay飞行中心(广州塔店)（广州/entertainment）无过阈候选
+  [warn] 青芝坞（杭州/attraction）无过阈候选
+  [warn] 生命奥秘博物馆（成都/museum）无过阈候选
+  [warn] 蛟龙港·海滨城（成都/nature）无过阈候选
+  [warn] 正佳自然科学博物馆（广州/museum）无过阈候选
+  [warn] 白水寨风景名胜区（广州/nature）无过阈候选
+  [warn] 南湖梦幻岛（成都/nature）无过阈候选
+  [warn] 广州市文化馆(新馆)（广州/attraction）无过阈候选
+  [warn] 花舞人间（成都/theme_park）无过阈候选
+  [warn] 雅鲁激流探险漂流（杭州/nature）无过阈候选
+  [warn] 丹景山（成都/nature）无过阈候选
+  [warn] 正佳科学馆·正佳天文馆（广州/museum）无过阈候选
+  [warn] 荒野之国（成都/theme_park）无过阈候选
+  [warn] 704工程(林彪杭州行宫)（杭州/attraction）无过阈候选
+  [warn] 龙门古镇（杭州/attraction）无过阈候选
+  [warn] 蔚然花海（成都/nature）无过阈候选
+  [warn] BUS TOUR 上海观光游（上海/nature）无过阈候选
+  [warn] 花都香草世界（广州/theme_park）无过阈候选
+  [warn] 北京王府井天主教堂（北京/attraction）无过阈候选
+  [warn] 老君山（成都/nature）无过阈候选
+  [warn] 国家会展中心(上海)（上海/nature）无过阈候选
+  [warn] 泰安古镇（成都/attraction）无过阈候选
+  [warn] 太古仓（广州/historic）无过阈候选
+  [warn] 北京民生现代美术馆（北京/museum）无过阈候选
+  [warn] 毛主席纪念堂（北京/memorial）无过阈候选
+  [warn] 水利工程（成都/other）无过阈候选
+  [warn] 沙面堂（广州/temple）无过阈候选
+  [warn] 千岛湖高空跳伞（杭州/nature）无过阈候选
+  [warn] 千岛湖欢乐水世界（杭州/nature）无过阈候选
+  [warn] 玄武门城墙（南京/attraction）无过阈候选
+  [warn] 北京孔庙（北京/attraction）无过阈候选
+  [warn] 森林海嬉水乐园（广州/nature）无过阈候选
+  [warn] 西安市水墨长安艺术博物馆（西安/museum）无过阈候选
+  [warn] 成都融创乐园（成都/theme_park）无过阈候选
+  [warn] 超级时空魔方(上海元宇宙体验馆)（上海/entertainment）无过阈候选
+  [warn] 弘阳未来世界（南京/theme_park）无过阈候选
+  [warn] 乐多港·卡乐星球（北京/theme_park）无过阈候选
+  [warn] 千岛湖景区（杭州/nature）无过阈候选
+  [warn] 玉渡山景区（北京/nature）无过阈候选
+  [warn] 黄龙溪（成都/ancient_town）无过阈候选
+  [warn] 正佳企鹅冰雪世界（广州/theme_park）无过阈候选
+  [warn] 武汉旅游观光巴士（武汉/other）无过阈候选
+  [warn] 上海梵高星空艺术馆（上海/entertainment）无过阈候选
+  [warn] 北京市档案馆（北京/museum）无过阈候选
+  [warn] 钱塘江游船(滨江码头)（杭州/attraction）无过阈候选
+  [warn] 宝能广州国际体育演艺中心（广州/）无过阈候选
+  [warn] 三岔湖景区（成都/nature）无过阈候选
+  [warn] 天目山景区（杭州/nature）无过阈候选
+  [warn] 琴溪香谷景区（杭州/nature）无过阈候选
+  [warn] 杭州运河游船（杭州/attraction）无过阈候选
+  [warn] 白鹿音乐小镇（成都/attraction）无过阈候选
+  [warn] 西岭雪山（成都/nature）无过阈候选
+  [warn] 江西省上饶市信州区金龙岗青年艺术街区（上饶/historic）无过阈候选
+  [warn] 北京工艺美术博物馆(北投新奥购物中心店)（北京/museum）无过阈候选
+  [warn] 蓝精灵乐园-上海世茂精灵之城主题乐园（上海/nature）无过阈候选
+  [warn] 疯狂的麦咭(广州体验馆)（广州/theme_park）无过阈候选
+  [warn] 瑶琳仙境（杭州/attraction）无过阈候选
+  [warn] 東方基金會會址（澳门/historic）无过阈候选
+  [warn] 安澜桥（成都/attraction）无过阈候选
+  [warn] 东门市井（成都/attraction）无过阈候选
+  [warn] 拱宸桥（杭州/attraction）无过阈候选
+  [warn] 刘氏庄园博物馆（成都/museum）无过阈候选
+  [warn] 地坛（北京/temple）无过阈候选
+  [warn] 大慈岩风景区（杭州/nature）无过阈候选
+  [warn] 深圳（宝安）劳务工博物馆（深圳/museum）无过阈候选
+  [warn] 天屿山观景台（杭州/nature）无过阈候选
+  [warn] 小猪佩奇的玩趣世界（上海/theme_park）无过阈候选
+  [warn] 蜀兿剧院·川剧表演(太古里店)（成都/entertainment）无过阈候选
+  [warn] 彭州市博物馆（成都/museum）无过阈候选
+  [warn] 淳安县千岛湖风景区（杭州/attraction）无过阈候选
+  [warn] 东西巷历史文化街区（桂林/historic）无过阈候选
+  [warn] 北京奥运博物馆（北京/museum）无过阈候选
+  [warn] 深圳市金石艺术博物馆（深圳/museum）无过阈候选
+  [warn] 南汉二陵博物馆（广州/museum）无过阈候选
+  [warn] 陕西唐三彩艺术博物馆（西安/museum）无过阈候选
+  [warn] 横峰县博物馆（上饶/museum）无过阈候选
+  [warn] 侵华日军南京大屠杀遇难同胞纪念馆（南京/attraction）无过阈候选
+  [warn] 张堰镇（上海/ancient_town）无过阈候选
+  [warn] 广州货币金融博物馆（广州/museum）无过阈候选
+  [warn] 成都蜀锦织绣博物馆（成都/museum）无过阈候选
+  [warn] 北京市海淀区中关村村史馆（北京/museum）无过阈候选
+  [warn] 彭州市万木留香家具博物馆（成都/museum）无过阈候选
+  [warn] 深圳望野博物馆（深圳/museum）无过阈候选
+  [warn] 延庆博物馆（北京/museum）无过阈候选
+  [warn] 铁像寺水街（成都/attraction）无过阈候选
+  [warn] 飞越上海(第一百货店)（上海/entertainment）无过阈候选
+  [warn] 东湖楚风园（武汉/nature）无过阈候选
+  [warn] 老钱工作室(先锋书店)（南京/）无过阈候选
+  [warn] 玫瑰聖母堂（澳门/church）无过阈候选
+  [warn] 上海星空艺术馆（上海/nature）无过阈候选
+  [warn] 悬空玻璃艺术馆（北京/entertainment）无过阈候选
+  [warn] 北京刘老根大舞台（北京/）无过阈候选
+  [warn] 坡峰岭（北京/nature）无过阈候选
+  [warn] 鹏新嘉定海洋世界（上海/nature）无过阈候选
+  [warn] 梦回大唐古风沉浸式乐园（上海/theme_park）无过阈候选
+  [warn] 上海市闵行区博物馆（上海/museum）无过阈候选
+  [warn] 上海邮轮中心（上海/nature）无过阈候选
+  [warn] 北京金海湖碧波岛度假区（北京/nature）无过阈候选
+  [warn] 北京国际会议中心（北京/）无过阈候选
+  [warn] 佛顶寺（南京/attraction）无过阈候选
+  [warn] 广富林文化展示馆（上海/museum）无过阈候选
+  [warn] 上海奇迹花园（上海/nature）无过阈候选
+  [warn] 上海JOYPOLIS世嘉都市乐园（上海/nature）无过阈候选
+  [warn] 迪士尼朋友见面处（上海/other）无过阈候选
+  [warn] 西安市羊文化博物馆（西安/museum）无过阈候选
+  [warn] 云上海洋馆（上海/museum）无过阈候选
+  [warn] 都江堰景区鱼嘴分水堤（成都/nature）无过阈候选
+  [warn] 周浦花海（上海/nature）无过阈候选
+  [warn] 通州运河游船（北京/attraction）无过阈候选
+  [warn] 751活的3D博物馆（北京/museum）无过阈候选
+  [warn] 263米主观光层（上海/viewpoint）无过阈候选
+  [warn] 梅花剧社·非遗川剧变脸（成都/entertainment）无过阈候选
+  [warn] 勅建弘慈广济寺（北京/attraction）无过阈候选
+  [warn] 和平菓局（北京/attraction）无过阈候选
+  [warn] 华熙Live·五棵松（北京/）无过阈候选
+  [warn] 高淳国际慢城（南京/attraction）无过阈候选
+  [warn] 钟山风景名胜区-燕雀湖（南京/nature）无过阈候选
+  [warn] 街子古镇（成都/attraction）无过阈候选
+  [warn] 东昌路渡口（上海/attraction）无过阈候选
+  [warn] 阿派朗创造力乐园（北京/theme_park）无过阈候选
+  [warn] 未来水世界（北京/theme_park）无过阈候选
+  [warn] 中粮祥云小镇（北京/）无过阈候选
+  [warn] 北京曲水兰亭水疗（北京/）无过阈候选
+  [warn] 川沙古镇（上海/attraction）无过阈候选
+  [warn] 南池子美术馆（北京/museum）无过阈候选
+  [warn] 无想山（南京/nature）无过阈候选
+  [warn] 米奇大街（上海/attraction）无过阈候选
+  [warn] 北京奥林匹克塔（北京/attraction）无过阈候选
+  [warn] 申城观光双层巴士（上海/citywalk）无过阈候选
+  [warn] 东湖海洋乐园（武汉/nature）无过阈候选
+  [warn] 五指山（广州/nature）无过阈候选
+  [warn] 三庆园（北京/park）无过阈候选
+  [warn] 千岛湖森林氧吧（杭州/nature）无过阈候选
+  [warn] 安徒生童话乐园（上海/theme_park）无过阈候选
+  [warn] 韩国街（上海/attraction）无过阈候选
+  [warn] 上海国际邮轮节（上海/nature）无过阈候选
+  [warn] 喜玛拉雅美术馆（上海/museum）无过阈候选
+  [warn] 张裕爱斐堡酒庄（北京/attraction）无过阈候选
+  [warn] 北京乐高探索中心（北京/theme_park）无过阈候选
+  [warn] 威尼斯小镇（上海/other）无过阈候选
+  [warn] 德云社剧场（北京/entertainment）无过阈候选
+  [warn] 弋阳县龟峰景区（上饶/attraction）无过阈候选
+  [warn] 九谷口自然风景区（北京/nature）无过阈候选
+  [warn] 龙华区观澜湖休闲旅游区（深圳/attraction）无过阈候选
+  [warn] 月湖风景区（武汉/nature）无过阈候选
+  [warn] 梨树沟休闲谷（北京/nature）无过阈候选
+  [warn] 北京中轴线（北京/historic）无过阈候选
+  [warn] 民政總署大樓（澳门/historic）无过阈候选
+  [warn] 中国西部国际博览城（成都/）无过阈候选
+  [warn] 朵云书院·旗舰店（上海/）无过阈候选
+  [warn] 北京(通州)大运河文化旅游景区（北京/nature）无过阈候选
+  [warn] 三街會館（澳门/attraction）无过阈候选
+  [warn] 北京厨房(SKP店)（北京/food）无过阈候选
+  [warn] 雪崴(中国红街店)（北京/food）无过阈候选
+  [warn] 德川家日本料理(中关村店)（北京/food）无过阈候选
+  [warn] JEN北京新国贸饭店·三五堂·自助餐（北京/food）无过阈候选
+  [warn] 兴顺饭庄(交道口南大街店)（北京/food）无过阈候选
+  [warn] 烤肉宛饭庄(南礼士路店)（北京/food）无过阈候选
+  [warn] Some Some cocktail&kitchen（北京/food）无过阈候选
+  [warn] 屋里厢上海菜馆（北京/food）无过阈候选
+  [warn] SPACELAB失重餐厅(蓝色港湾店)（北京/food）无过阈候选
+  [warn] 106餐厅(山水文园店)（北京/food）无过阈候选
+  [warn] 北京北平国际青年旅舍·北平花园·北平咖啡(南锣鼓巷店)（北京/food）无过阈候选
+  [warn] 城南居(北电大厦店)（北京/food）无过阈候选
+  [warn] 六必居(前门店)（北京/food）无过阈候选
+  [warn] 品质伊骊(人大创始店)（北京/food）无过阈候选
+  [ok] pois:明清故宫（北京故宫、沈阳故宫）（沈阳/attraction） ← d488834（1.00）
+  [ok] pois:龙门石窟（洛阳/nature） ← d1567326（1.00）
+  [ok] pois:奥帆海洋文化旅游区（青岛/attraction） ← d1870907（1.00）
+  [ok] pois:天涯海角游览区（三亚/attraction） ← d503338（1.00）
+  [ok] pois:嵩县白云山景区（洛阳/attraction） ← d2220991（1.00）
+  [ok] pois:辽宁省博物馆（沈阳/museum） ← d1823398（1.00）
+  [ok] pois:大连自然博物馆（大连/museum） ← d1848115（1.00）
+  [ok] pois:青岛啤酒博物馆（青岛/museum） ← d1810486（1.00）
+  [ok] pois:大连博物馆（大连/museum） ← d1848117（1.00）
+  [ok] pois:洛阳博物馆（洛阳/museum） ← d503344（1.00）
+  [ok] pois:青岛海洋科技馆（青岛海产博物馆、青岛水族馆）（青岛/museum） ← d1979861（1.00）
+  [ok] pois:青岛市博物馆（青岛/museum） ← d1810488（1.00）
+  [ok] pois:沈阳新乐遗址博物馆（沈阳/museum） ← d1848322（1.00）
+  [ok] pois:沈阳金融博物馆（沈阳/museum） ← d1871301（1.00）
+  [ok] pois:青岛贝壳博物馆（青岛/museum） ← d12726480（1.00）
+  [ok] pois:辽宁古生物博物馆（沈阳/museum） ← d13840418（1.00）
+  [ok] pois:洛阳民俗博物馆（洛阳/museum） ← d1865067（1.00）
+  [ok] pois:青岛葡萄酒博物馆（青岛/museum） ← d4799716（1.00）
+  [ok] pois:洛阳周王城天子驾六博物馆（洛阳/museum） ← d1834692（1.00）
+  [ok] pois:青岛市民俗博物馆（青岛/museum） ← d1979661（1.00）
+  [ok] pois:崖城镇（三亚/ancient_town） ← d1864823（1.00）
+  [ok] pois:鸡鸣寺（南京/attraction） ← d1724071（1.00）
+  [ok] pois:紫金山天文台（南京/nature） ← d505686（1.00）
+  [ok] pois:阳山碑材（南京/nature） ← d1799092（1.00）
+  [ok] pois:颐和路公馆区（南京/attraction） ← d1799069（1.00）
+  [ok] pois:梅花山（南京/nature） ← d7141865（1.00）
+  [ok] pois:美龄宫（南京/attraction） ← d1864790（1.00）
+  [ok] pois:江苏科技馆（南京/museum） ← d5116252（1.00）
+  [ok] pois:南京海底世界（南京/nature） ← d1814155（1.00）
+  [ok] pois:六朝博物馆（南京/museum） ← d10091992（1.00）
+  [ok] pois:江宁织造博物馆（南京/museum） ← d6904946（1.00）
+  [ok] pois:狮子桥步行美食街（南京/citywalk） ← d8098179（1.00）
+  [ok] pois:德基艺术博物馆（南京/museum） ← d27995240（1.00）
+  [ok] pois:宏觉寺（南京/attraction） ← d4787666（1.00）
+  [ok] pois:南京国际展览中心（南京/） ← d5116244（1.00）
+  [ok] pois:南京1912街（南京/attraction） ← d5116248（1.00）
+  [ok] pois:中华门（南京/ruins） ← d459774（1.00）
+  [ok] pois:南京奥体中心（南京/） ← d1799085（1.00）
+  [ok] pois:银杏湖乐园（南京/nature） ← d10091451（1.00）
+  [ok] pois:南唐二陵（南京/attraction） ← d1799091（1.00）
+  [ok] pois:南京总统府（南京/museum） ← d1515763（1.00）
+  [ok] pois:古猿人洞（南京/attraction） ← d1813871（1.00）
+  [ok] pois:朝天宫（南京/attraction） ← d459771（1.00）
+  [ok] pois:珍珠泉风景区（南京/nature） ← d1865093（1.00）
+  [ok] pois:南京长江大桥（南京/attraction） ← d505678（1.00）
+  [ok] pois:秦淮河（南京/nature） ← d505673（1.00）
+  [ok] pois:太平天国历史博物馆(瞻园)（南京/museum） ← d505680（1.00）
+  [ok] pois:灵谷景区（南京/nature） ← d459768（1.00）
+  [ok] pois:钟山风景名胜区（南京/nature） ← d6418931（1.00）
+  [ok] pois:石塘竹海（南京/nature） ← d4799808（1.00）
+  [ok] pois:栖霞山（南京/nature） ← d491413（1.00）
+  [ok] pois:南京古生物博物馆（南京/museum） ← d1799157（1.00）
+  [ok] pois:夫子庙大成殿（南京/attraction） ← d1799130（1.00）
+  [ok] pois:广州塔（广州/attraction） ← d2008063（1.00）
+  [ok] pois:大河马水上世界（广州/theme_park） ← d1795895（1.00）
+  [ok] pois:怀圣寺（广州/attraction） ← d311550（1.00）
+  [ok] pois:广州海事博物馆（广州/museum） ← d24917199（1.00）
+  [ok] pois:广州市都城隍庙（广州/attraction） ← d2425531（1.00）
+  [ok] pois:广州地铁博物馆（广州/museum） ← d12198196（1.00）
+  [ok] pois:余荫山房（广州/nature） ← d1842893（1.00）
+  [ok] pois:长隆野生动物世界（广州/theme_park） ← d1371635（1.00）
+  [ok] pois:黄埔古港（广州/historic） ← d6982715（1.00）
+  [ok] pois:南沙湿地（广州/nature） ← d4605938（1.00）
+  [ok] pois:南粤苑（广州/museum） ← d12198239（1.00）
+  [ok] pois:琶洲塔（广州/attraction） ← d1825205（1.00）
+  [ok] pois:广州长隆度假区（广州/theme_park） ← d1842884（1.00）
+  [ok] pois:沙面（广州/nature） ← d311560（1.00）
+  [ok] pois:大慈寺（成都/attraction） ← d1795836（1.00）
+  [ok] pois:昭觉寺（成都/attraction） ← d1824601（1.00）
+  [ok] pois:成都动物园（成都/theme_park） ← d1795953（1.00）
+  [ok] pois:锦江剧场（成都/entertainment） ← d13441359（1.00）
+  [ok] pois:刘备墓（成都/attraction） ← d1824123（1.00）
+  [ok] pois:中国泰迪熊博物馆（成都/museum） ← d4178416（1.00）
+  [ok] pois:四川美术馆（成都/museum） ← d8608035（1.00）
+  [ok] pois:青羊宫（成都/attraction） ← d457093（1.00）
+  [ok] pois:四川科技馆（成都/museum） ← d2476331（1.00）
+  [ok] pois:武林广场（杭州/attraction） ← d1808016（1.00）
+  [ok] pois:郭庄（杭州/garden） ← d1807717（1.00）
+  [ok] pois:杭州野生动物世界（杭州/theme_park） ← d1807834（1.00）
+  [ok] pois:西湖文化广场（杭州/nature） ← d7022665（1.00）
+  [ok] pois:三潭印月（杭州/attraction） ← d1807975（1.00）
+  [ok] pois:天下第一财神庙（杭州/attraction） ← d1808044（1.00）
+  [ok] pois:京杭大运河博物馆（杭州/museum） ← d9714467（1.00）
+  [ok] pois:香积寺（杭州/attraction） ← d7886399（1.00）
+  [ok] pois:塘栖古镇（杭州/attraction） ← d4799860（1.00）
+  [ok] pois:断桥残雪（杭州/viewpoint） ← d1807744（1.00）
+  [ok] pois:大兜路历史文化街区（杭州/attraction） ← d12214434（1.00）
+  [ok] pois:钱塘苏小小之墓（杭州/attraction） ← d1807745（1.00）
+  [ok] pois:北高峰（杭州/viewpoint） ← d1742632（1.00）
+  [ok] pois:九溪烟树（杭州/nature） ← d1807918（1.00）
+  [ok] pois:杭州国际博览中心（杭州/） ← d13297231（1.00）
+  [ok] pois:浙江自然博物院(杭州馆)（杭州/museum） ← d2004153（1.00）
+  [ok] pois:欢乐海岸海洋奇梦馆（深圳/nature） ← d4582527（1.00）
+  [ok] pois:大芬油画村（深圳/attraction） ← d2051368（1.00）
+  [ok] pois:深圳野生动物园（深圳/theme_park） ← d1843283（1.00）
+  [ok] pois:何香凝美术馆（深圳/museum） ← d1797535（1.00）
+  [ok] pois:海上田园（深圳/nature） ← d1797586（1.00）
+  [ok] pois:东冲（深圳/nature） ← d1843175（1.00）
+  [ok] pois:桔钓沙（深圳/nature） ← d1805714（1.00）
+  [ok] pois:南头古城（深圳/ancient_town） ← d9757747（1.00）
+  [ok] pois:东山寺（深圳/nature） ← d4787516（1.00）
+  [ok] pois:深圳科学馆（深圳/museum） ← d5115551（1.00）
+  [ok] pois:世界之窗（深圳/theme_park） ← d502989（1.00）
+  [ok] pois:七娘山（深圳/nature） ← d1825195（1.00）
+  [ok] pois:浪骑游艇会（深圳/attraction） ← d1864518（1.00）
+  [ok] pois:深圳市民中心（深圳/other） ← d8090201（1.00）
+  [ok] pois:青青世界（深圳/theme_park） ← d1825235（1.00）
+  [ok] pois:华侨城创意文化园（深圳/park） ← d7371131（1.00）
+  [ok] pois:甘坑古镇（深圳/attraction） ← d12685067（1.00）
+  [ok] pois:弘法寺（深圳/attraction） ← d1797556（1.00）
+  [ok] pois:深圳湾体育中心（深圳/） ← d8444888（1.00）
+  [ok] pois:求水山景区（深圳/nature） ← d1825150（1.00）
+  [ok] pois:深圳市当代艺术与城市规划馆（深圳/museum） ← d33025759（1.00）
+  [ok] pois:凤凰古村（深圳/attraction） ← d12726499（1.00）
+  [ok] pois:华·美术馆（深圳/museum） ← d559095（1.00）
+  [ok] pois:璞晶唯庭酒店(上海人民广场新闸路地铁站店)（上海/hotel） ← d1000001402（1.00）
+  [ok] pois:上海静安寺智选假日酒店（上海/hotel） ← d1000001528（1.00）
+  [ok] pois:南宋御街（杭州/attraction） ← d14077531（1.00）
+  [ok] pois:苏州河（上海/other） ← d1979457（1.00）
+  [ok] pois:上海雅居乐万豪侯爵酒店（上海/hotel） ← d1954359（1.00）
+  [ok] pois:上海静安英迪格酒店（上海/hotel） ← d15153307（1.00）
+  [ok] pois:上海馨乐庭长寿路公寓酒店（上海/hotel） ← d1000001206（1.00）
+  [ok] pois:桔子水晶上海浦东机场酒店（上海/hotel） ← d1000001570（1.00）
+  [ok] pois:上海嘉定南翔亚朵酒店（上海/hotel） ← d1000000926（1.00）
+  [ok] pois:上海浦东丽晶酒店（上海/hotel） ← d2722669（1.00）
+  [ok] pois:上海陆家嘴上海中心亚朵酒店（上海/hotel） ← d1000000849（1.00）
+  [ok] pois:上海玩具总动员酒店（上海/hotel） ← d10537922（1.00）
+  [ok] pois:上海瑞金洲际酒店（上海/hotel） ← d309509（1.00）
+  [ok] pois:上海虹桥温德姆酒店（上海/hotel） ← d1796809（1.00）
+  [ok] pois:乍浦路桥（上海/attraction） ← d9597784（1.00）
+  [ok] pois:上海浦东文华东方酒店（上海/hotel） ← d3831513（1.00）
+  [ok] pois:上海虹桥睿景酒店(国家会展中心店)（上海/hotel） ← d1000000065（1.00）
+  [ok] pois:上海嘉定菊园智慧中心亚朵酒店（上海/hotel） ← d1000000975（1.00）
+  [ok] pois:上海和平饭店（上海/hotel） ← d303020（1.00）
+  [ok] pois:上海淳大万丽酒店（上海/hotel） ← d1745677（1.00）
+  [ok] pois:上海静安洲际酒店（上海/hotel） ← d1468085（1.00）
+  [ok] pois:snh48星梦剧院（上海/entertainment） ← d6483066（1.00）
+  [ok] pois:上海体育场（上海/theme_park） ← d1871296（1.00）
+  [ok] pois:州桥老街（上海/attraction） ← d4809590（1.00）
+  [ok] pois:上海大都会海逸酒店（上海/hotel） ← d24983952（1.00）
+  [ok] pois:上海扬子饭店（上海/hotel） ← d1395506（1.00）
+  [ok] pois:花筑·半移堂民宿(上海青溪老街店)（上海/hotel） ← d1000001339（1.00）
+  [ok] pois:上海虹桥西郊假日酒店(虹桥机场店)（上海/hotel） ← d1536067（1.00）
+  [ok] pois:上海中航虹桥机场泊悦酒店（上海/hotel） ← d4067061（1.00）
+  [ok] pois:上海波特曼丽思卡尔顿酒店（上海/hotel） ← d302253（1.00）
+  [ok] pois:世纪广场（上海/attraction） ← d1793286（1.00）
+  [ok] pois:上海陆家嘴滨江大道亚朵X酒店（上海/hotel） ← d1000000030（1.00）
+  [ok] pois:上海夏阳湖皇冠假日酒店（上海/hotel） ← d2512384（1.00）
+  [ok] pois:西岸艺术中心（上海/art） ← d12882174（1.00）
+  [ok] pois:上海梯加酒店（上海/hotel） ← d1000001661（1.00）
+  [ok] pois:上海衡山路十二号华邑酒店（上海/hotel） ← d3258620（1.00）
+  [ok] pois:上海养云安缦酒店（上海/hotel） ← d13194980（1.00）
+  [ok] pois:上海宝格丽酒店（上海/hotel） ← d14111510（1.00）
+  [ok] pois:马勒别墅（上海/historic） ← d311574（1.00）
+  [ok] pois:上海虹桥康得思酒店（上海/hotel） ← d12078951（1.00）
+  [ok] pois:上生新所（上海/citywalk） ← d17477492（1.00）
+  [ok] pois:上海浦东丽思卡尔顿酒店（上海/hotel） ← d1654265（1.00）
+  [ok] pois:上海虹桥宾馆（上海/hotel） ← d307542（1.00）
+  [ok] pois:上海衡山花园酒店（上海/hotel） ← d302185（1.00）
+  [ok] pois:桔子水晶上海中山公园酒店（上海/hotel） ← d1000001668（1.00）
+  [ok] pois:上海复旦皇冠假日酒店（上海/hotel） ← d619842（1.00）
+  [ok] pois:上海大华长风华邑酒店（上海/hotel） ← d25223836（1.00）
+  [ok] pois:上海扬子江丽笙精选酒店（上海/hotel） ← d299749（1.00）
+  [ok] pois:上海西郊宾馆（上海/hotel） ← d585849（1.00）
+  [ok] pois:长乐路（上海/attraction） ← d612138（1.00）
+  [ok] pois:上海五角场大学路亚朵酒店（上海/hotel） ← d1000000625（1.00）
+  [ok] pois:国家会展中心上海洲际酒店（上海/hotel） ← d10681467（1.00）
+  [ok] pois:上海新天地安达仕酒店（上海/hotel） ← d2411000（1.00）
+  [ok] pois:上海浦东喜来登由由公寓（上海/hotel） ← d648151（1.00）
+  [ok] pois:乡里宿民宿（上海/hotel） ← d1000000485（1.00）
+  [ok] pois:上海外滩滨江珍宝酒店（上海/hotel） ← d1000001458（1.00）
+  [ok] pois:上海漫画博物馆（上海/museum） ← d2516664（1.00）
+  [ok] pois:上海南京路步行街假日酒店（上海/hotel） ← d1000000737（1.00）
+  [ok] pois:上海朱家角宽璟酒店（上海/hotel） ← d1000001220（1.00）
+  [ok] pois:上海虹桥国家会展中心智选假日酒店（上海/hotel） ← d1000001234（1.00）
+  [ok] pois:上海外滩华尔道夫酒店（上海/hotel） ← d1800802（1.00）
+  [ok] pois:上海宝龙丽笙酒店（上海/hotel） ← d10088357（1.00）
+  [ok] pois:上海虹桥金臣皇冠假日酒店（上海/hotel） ← d1005959130（1.00）
+  [ok] pois:外白渡桥（上海/viewpoint） ← d1396504（1.00）
+  [ok] pois:上海静安铂尔曼酒店（上海/hotel） ← d1778139（1.00）
+  [ok] pois:上海静安大融城亚朵酒店（上海/hotel） ← d1000002158（1.00）
+  [ok] pois:复星艺术中心（上海/art） ← d12836492（1.00）
+  [ok] pois:上海佘山世茂洲际酒店(世茂深坑酒店)（上海/hotel） ← d15308426（1.00）
+  [ok] pois:上海虹桥雅高美爵酒店（上海/hotel） ← d651560（1.00）
+  [ok] pois:上海滴水湖斯南格尔精选酒店（上海/hotel） ← d1000001353（1.00）
+  [ok] pois:上海陆家嘴八佰伴兰欧酒店（上海/hotel） ← d1000000597（1.00）
+  [ok] pois:上海徐家汇禧玥酒店（上海/hotel） ← d1000000037（1.00）
+  [ok] pois:上海长兴宋品酒店（上海/hotel） ← d1000000765（1.00）
+  [ok] pois:上海浦东香格里拉大酒店（上海/hotel） ← d307540（1.00）
+  [ok] pois:上海圣淘沙万怡酒店（上海/hotel） ← d1005918110（1.00）
+  [ok] pois:上海素凯泰酒店（上海/hotel） ← d12863849（1.00）
+  [ok] pois:上海松江开元名都大酒店（上海/hotel） ← d630959（1.00）
+  [ok] pois:上海新世界丽笙大酒店（上海/hotel） ← d575893（1.00）
+  [ok] pois:上海静安昆仑大酒店（上海/hotel） ← d300597（1.00）
+  [ok] pois:上海五角场INNO创智亚朵X酒店（上海/hotel） ← d1000000527（1.00）
+  [ok] pois:上海新金桥智选假日酒店（上海/hotel） ← d1005921288（1.00）
+  [ok] pois:上海浦东星河湾酒店（上海/hotel） ← d1770517（1.00）
+  [ok] pois:上海五角场辉盛坊公寓酒店（上海/hotel） ← d1000000989（1.00）
+  [ok] pois:上海建业里嘉佩乐酒店（上海/hotel） ← d12534027（1.00）
+  [ok] pois:上海外滩璞硯酒店（上海/hotel） ← d1000000695（1.00）
+  [ok] pois:刘海粟美术馆（上海/museum） ← d1979508（1.00）
+  [ok] pois:上海虹桥迎宾馆（上海/hotel） ← d307500（1.00）
+  [ok] pois:上海马勒别墅饭店（上海/hotel） ← d308220（1.00）
+  [ok] pois:上海建工浦江皇冠假日酒店（上海/hotel） ← d12652232（1.00）
+  [ok] pois:上海柏悦酒店（上海/hotel） ← d1158822（1.00）
+  [ok] pois:上海古井假日酒店（上海/hotel） ← d307426（1.00）
+  [ok] pois:上海滴水湖洲际酒店（上海/hotel） ← d25223801（1.00）
+  [ok] pois:上海西岸美高梅酒店（上海/hotel） ← d15857942（1.00）
+  [ok] pois:上海国展宝龙丽筠酒店（上海/hotel） ← d11849983（1.00）
+  [ok] pois:上海大华锦绣皇冠假日酒店（上海/hotel） ← d1590284（1.00）
+  [ok] pois:上海静安瑞吉酒店（上海/hotel） ← d12498402（1.00）
+  [ok] pois:上海淮海路新天地雅诗阁酒店公寓（上海/hotel） ← d1745751（1.00）
+  [ok] pois:朱家角大清邮局（上海/other） ← d15758097（1.00）
+  [ok] pois:滨江大道（上海/attraction） ← d311576（1.00）
+  [ok] pois:黛茂诗酒店(上海豫园老西门地铁站店)（上海/hotel） ← d1000001654（1.00）
+  [ok] pois:上海阿纳迪酒店（上海/hotel） ← d11980344（1.00）
+  [ok] restaurants:老吉士酒家(天平路店)（上海/food） ← d10835953（1.00）
+  [ok] restaurants:福1088（上海/food） ← d969336（1.00）
+  [ok] restaurants:福和慧（上海/food） ← d10232557（1.00）
+  [ok] restaurants:星巴克臻选上海烘焙工坊（上海/food） ← d13225025（1.00）
+  [ok] restaurants:Jean Georges（上海/food） ← d941902（1.00）
+  [ok] restaurants:福1039（上海/food） ← d15556078（1.00）
+  [ok] restaurants:Ministry Of Crab（上海/food） ← d15319814（1.00）
+  [ok] restaurants:随堂里（上海/food） ← d15829499（1.00）
+  [ok] restaurants:晶采轩(芮欧百货店)（上海/food） ← d8774786（1.00）
+  [ok] restaurants:THE NEST（上海/food） ← d7940079（1.00）
+  [ok] restaurants:Hakkasan（上海/food） ← d6510103（1.00）
+  [ok] restaurants:Epices & Foie Gras（上海/food） ← d8261321（1.00）
+  [ok] restaurants:上海滩餐厅(新天地店)（上海/food） ← d10251864（1.00）
+  [ok] pois:上海中国航海博物馆（上海/museum） ← d2220946（1.00）
+  [ok] pois:成都永陵博物馆（成都/museum） ← d508964（1.00）
+  [ok] pois:宽窄巷子（成都/citywalk） ← d1832089（1.00）
+  [ok] pois:上海玻璃博物馆（上海/museum） ← d3451504（1.00）
+  [ok] pois:仁慈堂大樓（澳门/historic） ← d1583179（1.00）
+  [ok] pois:聖安多尼教堂 (澳門)（澳门/attraction） ← d1776256（1.00）
+  [ok] pois:上海辰山植物园（上海/nature） ← d2234026（1.00）
+  [ok] pois:玉佛禅寺（上海/attraction） ← d311596（1.00）
+  [ok] pois:光孝寺（广州/attraction） ← d311547（1.00）
+  [ok] pois:湖北美术馆（武汉/museum） ← d6781021（1.00）
+  [ok] pois:广州市荔湾区博物馆（广州/museum） ← d1805709（1.00）
+  [ok] pois:中国丝绸博物馆（杭州/museum） ← d513660（1.00）
+  [ok] pois:杭州博物馆（杭州/museum） ← d1807909（1.00）
+  [ok] pois:上海野生动物园（上海/attraction） ← d459922（1.00）
+  [ok] pois:武汉美术馆（武汉/museum） ← d3322895（1.00）
+  [ok] pois:深圳博物馆（深圳/museum） ← d1842921（1.00）
+  [ok] pois:余德耀美术馆（上海/museum） ← d6948522（1.00）
+  [ok] pois:大炮台（澳门/castle） ← d446843（1.00）
+  [ok] pois:广东省博物馆（广州/museum） ← d32696128（1.00）
+  [ok] pois:良渚博物院（杭州/museum） ← d2003357（1.00）
+  [ok] pois:上海科技馆（上海/museum） ← d550362（1.00）
+  [ok] pois:豫园（上海/park） ← d324259（1.00）
+  [ok] pois:上海犹太难民纪念馆（上海/museum） ← d2239837（1.00）
+  [ok] pois:广东科学中心（广州/museum） ← d2051316（1.00）
+  [ok] pois:广州艺术博物院（广州/museum） ← d311549（1.00）
+  [ok] pois:秦始皇帝陵博物院（西安/attraction） ← d321017（1.00）
+  [ok] pois:成都欢乐谷（成都/nature） ← d1871605（1.00）
+  [ok] pois:杭州宋城（杭州/theme_park） ← d1808113（1.00）
+  [ok] pois:西安博物院（西安/museum） ← d506717（1.00）
+  [ok] pois:国色天乡陆地乐园（成都/theme_park） ← d1801407（1.00）
+  [ok] pois:上海市历史博物馆（上海/museum） ← d14028261（1.00）
+  [ok] pois:广州东方博物馆（广州/museum） ← d15044569（1.00）
+  [ok] pois:深圳欢乐谷（深圳/nature） ← d639992（1.00）
+  [ok] pois:广州圣心大教堂（广州/attraction） ← d553965（1.00）
+  [ok] pois:思南公馆街区（上海/historic） ← d3618697（1.00）
+  [ok] pois:青城山（成都/nature） ← d319637（1.00）
+  [ok] pois:杭州西湖风景区（杭州/attraction） ← d386917（1.00）
+  [ok] pois:平湖秋月（杭州/nature） ← d490456（1.00）
+  [ok] pois:东湖生态旅游风景区（武汉/nature） ← d1827023（1.00）
+  [ok] pois:黄鹤楼公园（武汉/attraction） ← d504962（1.00）
+  [ok] pois:灵隐飞来峰景区（杭州/nature） ← d378945（1.00）
+  [ok] pois:中山陵景区（南京/nature） ← d491400（1.00）
+  [ok] pois:万松书院（杭州/historic） ← d1808027（1.00）
+  [ok] pois:华林禅寺（广州/attraction） ← d1797610（1.00）
+  [ok] pois:文殊院（成都/temple） ← d457103（1.00）
+  [ok] pois:四川大学博物馆（成都/museum） ← d457097（1.00）
+  [ok] pois:上海城市规划展示馆（上海/nature） ← d554654（1.00）
+  [ok] pois:荣华楼（广州/food） ← d3503258（1.00）
+  [ok] pois:钱王祠（杭州/attraction） ← d2003992（1.00）
+  [ok] pois:浦东美术馆（上海/museum） ← d28126444（1.00）
+  [ok] pois:聖老楞佐堂（澳门/church） ← d1867905（1.00）
+  [ok] pois:杭州动物园（杭州/theme_park） ← d1549183（1.00）
+  [ok] pois:广东美术馆（广州/museum） ← d324040（1.00）
+  [ok] pois:上海航宇科普中心（上海/museum） ← d5113499（1.00）
+  [ok] pois:上海市长宁区愚园艺术生活街区（上海/historic） ← d33277861（1.00）
+  [ok] pois:长江文明馆（武汉自然博物馆）（武汉/museum） ← d15122856（1.00）
+  [ok] pois:西安曲江艺术博物馆（西安/museum） ← d8768842（1.00）
+  [ok] pois:澳门历史城区（澳门/historic） ← d619161（1.00）
+  [ok] pois:惠食佳（东风店）（广州/food） ← d3503329（1.00）
+  [ok] pois:崇善米粉（依仁路店）（桂林/food） ← d4676722（1.00）
+  [ok] pois:华清宫（西安/attraction） ← d324508（1.00）
+  [ok] pois:广州博物馆（广州/museum） ← d321102（1.00）
+  [ok] pois:广州十三行博物馆（广州/museum） ← d14920306（1.00）
+  [ok] pois:北外滩国客中心（上海/nature） ← d16648081（1.00）
+  [ok] pois:江汉关博物馆（武汉国民政府旧址纪念馆、詹天佑故居博物馆）（武汉/museum） ← d1827005（1.00）
+  [ok] pois:成都杜甫草堂博物馆（成都/museum） ← d488516（1.00）
+  [ok] pois:大梅沙海滨公园（深圳/attraction） ← d1795837（1.00）
+  [ok] pois:白云山景区（广州/attraction） ← d490438（1.00）
+  [ok] pois:金山城市沙滩（上海/nature） ← d1793253（1.00）
+  [ok] pois:中国地质大学逸夫博物馆（武汉/museum） ← d2234060（1.00）
+  [ok] pois:深圳市南山博物馆（深圳/museum） ← d14087109（1.00）
+  [ok] pois:武汉琴台钢琴博物馆（武汉/museum） ← d15350191（1.00）
+  [ok] pois:南京大牌档（德基广场店）（南京/food） ← d941189（1.00）
+  [ok] pois:龙脊梯田（桂林/nature） ← d21386238（1.00）
+  [ok] pois:木兰清凉寨（武汉/attraction） ← d1826997（1.00）
+  [ok] pois:雷峰塔（杭州/attraction） ← d1652601（1.00）
+  [ok] pois:聖母聖誕主教座堂（澳门/church） ← d1642548（1.00）
+  [ok] pois:南京博物院（南京/museum） ← d1799046（1.00）
+  [ok] pois:M50创意园（上海/park） ← d1793297（1.00）
+  [ok] pois:西安市钟鼓楼博物馆（西安/museum） ← d1801562（1.00）
+  [ok] pois:六和塔（杭州/attraction） ← d517692（1.00）
+  [ok] pois:上海儿童博物馆（上海/museum） ← d1979413（1.00）
+  [ok] pois:成都环球中心（成都/attraction） ← d4759978（1.00）
+  [ok] pois:清河坊街（杭州/attraction） ← d1645910（1.00）
+  [ok] pois:上海动物园（上海/nature） ← d459923（1.00）
+  [ok] pois:长隆欢乐世界（广州/theme_park） ← d1580078（1.00）
+  [ok] pois:海上世界文化艺术中心（深圳/museum） ← d13296922（1.00）
+  [ok] pois:胡雪岩故居（杭州/attraction） ← d1808103（1.00）
+  [ok] pois:明孝陵（南京/attraction） ← d1402765（1.00）
+  [ok] pois:南京地质博物馆（南京/museum） ← d1799165（1.00）
+  [ok] pois:四川博物院（成都/museum） ← d1824371（1.00）
+  [ok] pois:上海当代艺术博物馆（上海/museum） ← d3610717（1.00）
+  [ok] pois:上海公安博物馆（上海/museum） ← d1793266（1.00）
+  [ok] pois:湖北省博物馆（武汉/museum） ← d324274（1.00）
+  [ok] pois:杭州西湖博物馆总馆（杭州/museum） ← d4944219（1.00）
+  [ok] pois:广东民间工艺博物馆（广州/museum） ← d311546（1.00）
+  [ok] pois:杭州西溪湿地博物馆（杭州/museum） ← d7042012（1.00）
+  [ok] pois:洛带镇（成都/ancient_town） ← d1775459（1.00）
+  [ok] pois:深圳市中英街历史博物馆（深圳/museum） ← d1843642（1.00）
+  [ok] pois:成都市美术馆（成都/museum） ← d33084547（1.00）
+  [ok] pois:帽峰山景区（广州/nature） ← d1825222（1.00）
+  [ok] pois:深圳市关山月美术馆（深圳/museum） ← d2050600（1.00）
+  [ok] pois:杭州胡庆余堂中药博物馆（杭州/museum） ← d2004033（1.00）
+  [ok] pois:四方当代美术馆（南京/museum） ← d13215680（1.00）
+  [ok] pois:上海国际赛车场（上海/nature） ← d1396508（1.00）
+  [ok] pois:中国茶叶博物馆（杭州/museum） ← d513668（1.00）
+  [ok] pois:长洲岛（广州/nature） ← d4787630（1.00）
+  [ok] pois:陕西省美术博物馆（西安/museum） ← d14206262（1.00）
+  [ok] pois:西安市高家大院古典服饰博物馆（西安/museum） ← d1801452（1.00）
+  [ok] pois:长隆飞鸟乐园（广州/theme_park） ← d2050559（1.00）
+  [ok] pois:粤剧艺术博物馆（广州/museum） ← d15308215（1.00）
+  [ok] pois:老门东牌坊（南京/attraction） ← d6433564（1.00）
+  [ok] pois:上海迪士尼乐园（上海/theme_park） ← d10383031（1.00）
+  [ok] pois:上海博物馆(东馆)（上海/museum） ← d27458358（1.00）
+  [ok] pois:三和老爷车博物馆（成都/museum） ← d12195216（1.00）
+  [ok] pois:花城广场（广州/attraction） ← d3478072（1.00）
+  [ok] pois:海上世界（深圳/nature） ← d10483080（1.00）
+  [ok] pois:广州海洋馆（广州/museum） ← d2051388（1.00）
+  [ok] pois:ARTE全沉浸式美术馆·成都（成都/museum） ← d34497198（1.00）
+  [ok] pois:南京中国科举博物馆（南京/museum） ← d3808087（1.00）
+  [ok] pois:武汉博物馆（武汉/museum） ← d1827016（1.00）
+  [ok] pois:京杭大运河杭州景区（杭州/nature） ← d2003582（1.00）
+  [ok] pois:南翔古镇（上海/attraction） ← d1850820（1.00）
+  [ok] pois:上海城市历史发展陈列馆（上海/museum） ← d1979451（1.00）
+  [ok] pois:粤海关博物馆（广州/museum） ← d2051355（1.00）
+  [ok] pois:灵山景区（杭州/nature） ← d2004026（1.00）
+  [ok] pois:龙美术馆（上海/museum） ← d4174537（1.00）
+  [ok] pois:白堤（杭州/attraction） ← d1807743（1.00）
+  [ok] pois:深圳古生物博物馆（深圳/museum） ← d1843198（1.00）
+  [ok] pois:西泠印社（杭州/museum） ← d1411213（1.00）
+  [ok] pois:上海中心大厦（上海/nature） ← d9814601（1.00）
+  [ok] pois:满觉陇（杭州/nature） ← d1807849（1.00）
+  [ok] pois:东林寺（上海/attraction） ← d3368894（1.00）
+  [ok] pois:上海自然博物馆（上海/museum） ← d17623994（1.00）
+  [ok] pois:上海乐高探索中心（上海/nature） ← d10554157（1.00）
+  [ok] pois:上海植物园（上海/nature） ← d1555465（1.00）
+  [ok] pois:上海世博展览馆（上海/museum） ← d5114530（1.00）
+  [ok] pois:中国水利博物馆（杭州/museum） ← d15829720（1.00）
+  [ok] pois:上海天文馆（上海/museum） ← d28107993（1.00）
+  [ok] pois:上海外滩美术馆（上海/museum） ← d5114523（1.00）
+  [ok] pois:西安半坡博物馆（西安/museum） ← d1801447（1.00）
+  [ok] pois:西安唐皇城墙含光门遗址博物馆（西安/museum） ← d1805614（1.00）
+  [ok] pois:锦江乐园（上海/theme_park） ← d459908（1.00）
+  [ok] pois:天河体育中心（广州/） ← d1843446（1.00）
+  [ok] pois:城墙·碑林历史文化景区（西安/attraction） ← d459901（1.00）
+  [ok] pois:正佳广场商贸旅游区（广州/attraction） ← d3361778（1.00）
+  [ok] pois:龙华寺（上海/attraction） ← d1237345（1.00）
+  [ok] pois:红山森林动物园（南京/nature） ← d2219152（1.00）
+  [ok] pois:广州动物园（广州/theme_park） ← d550329（1.00）
+  [ok] pois:杭州乐园（杭州/theme_park） ← d1147350（1.00）
+  [ok] pois:天府广场（成都/attraction） ← d8607122（1.00）
+  [ok] pois:上海大自然野生昆虫馆（上海/nature） ← d5114561（1.00）
+  [ok] pois:上海海洋水族馆（上海/museum） ← d459905（1.00）
+  [ok] pois:浙江省科技馆（杭州/museum） ← d2221034（1.00）
+  [ok] pois:陕西历史博物馆（西安/museum） ← d325698（1.00）
+  [ok] pois:磁浮列车（上海/） ← d9594458（1.00）
+  [ok] pois:上海大观园（上海/nature） ← d491432（1.00）
+  [ok] pois:南京市民俗博物馆（南京/museum） ← d1799088（1.00）
+  [ok] pois:泰晤士小镇（上海/attraction） ← d2221062（1.00）
+  [ok] pois:二沙岛（广州/nature） ← d1797507（1.00）
+  [ok] pois:浙江省博物馆（杭州/museum） ← d1807824（1.00）
+  [ok] pois:西安大唐西市博物馆（西安/museum） ← d7146530（1.00）
+  [ok] pois:上海环球金融中心（上海/nature） ← d1196260（1.00）
+  [ok] pois:杭州烂苹果乐园（杭州/theme_park） ← d10723921（1.00）
+  [ok] pois:南京大报恩寺遗址博物馆（南京/museum） ← d10332527（1.00）
+  [ok] pois:成都大熊猫繁育研究基地（成都/zoo） ← d457089（1.00）
+  [ok] pois:南屏晚钟（杭州/temple） ← d1807945（1.00）
+  [ok] pois:成都自然博物馆（成都/museum） ← d25462209（1.00）
+  [ok] pois:东郊记忆（成都/attraction） ← d2411494（1.00）
+  [ok] pois:上天竺法喜讲寺（杭州/attraction） ← d2220998（1.00）
+  [ok] pois:大佛古寺（广州/attraction） ← d4787625（1.00）
+  [ok] pois:广州热雪奇迹（广州/nature） ← d32823301（1.00）
+  [ok] pois:独秀峰·靖江王城景区（桂林/attraction） ← d1834794（1.00）
+  [ok] pois:上海博物馆（上海/museum） ← d311592（1.00）
+  [ok] pois:西湖区西溪湿地旅游区（杭州/attraction） ← d568756（1.00）
+  [ok] pois:上海土山湾博物馆（上海/museum） ← d3646876（1.00）
+  [ok] pois:湖北地质博物馆（武汉/museum） ← d18899632（1.00）
+  [ok] pois:桂林市靖江王陵博物馆（桂林/museum） ← d1834432（1.00）
+  [ok] pois:桂林博物馆（桂林/museum） ← d1864542（1.00）
+  [ok] pois:环球中心海洋乐园（成都/nature） ← d7738076（1.00）
+  [ok] pois:三清山（上饶/nature） ← d1546141（1.00）
+  [ok] pois:浦发银行东方体育中心（上海/） ← d2236566（1.00）
+  [ok] pois:上海千古情（上海/nature） ← d34531087（1.00）
+  [ok] pois:静安寺（上海/attraction） ← d311585（1.00）
+  [ok] pois:滴水湖（上海/nature） ← d1793279（1.00）
+  [ok] pois:1933老场坊（上海/historic） ← d1438183（1.00）
+  [ok] pois:田子坊（上海/ancient_town） ← d1372928（1.00）
+  [ok] pois:大雁塔大唐芙蓉园景区（西安/attraction） ← d324509（1.00）
+  [ok] pois:上海欢乐谷（上海/nature） ← d1889821（1.00）
+  [ok] pois:上海杜莎夫人蜡像馆（上海/museum） ← d1022087（1.00）
+  [ok] pois:上海电影博物馆（上海/museum） ← d4724771（1.00）
+  [ok] pois:枫泾古镇（上海/attraction） ← d1793250（1.00）
+  [ok] pois:灵隐寺（杭州/attraction） ← d490457（1.00）
+  [ok] pois:上海观复博物馆（上海/museum） ← d13086221（1.00）
+  [ok] pois:金茂大厦（上海/other） ← d311586（1.00）
+  [ok] pois:太阳岛旅游度假区（上海/nature） ← d1805645（1.00）
+  [ok] pois:南海神庙（广州/nature） ← d1825193（1.00）
+  [ok] pois:上海世博园（上海/nature） ← d1774609（1.00）
+  [ok] pois:上海汽车博物馆（上海/museum） ← d1979498（1.00）
+  [ok] pois:比斯特上海购物村（上海/nature） ← d12284921（1.00）
+  [ok] pois:南越王博物院(王墓展区)（广州/museum） ← d457131（1.00）
+  [ok] pois:七宝古镇（上海/attraction） ← d1979462（1.00）
+  [ok] pois:何東圖書館（澳门/historic） ← d1831217（1.00）
+  [ok] pois:聖奧斯定教堂（澳门/attraction） ← d590871（1.00）
+  [ok] pois:議事亭前地（澳门/historic） ← d482100（1.00）
+  [ok] restaurants:三号黄浦会Canton Table（上海/food） ← d13214166（0.97）
+  [ok] restaurants:Vedas印度餐厅(常熟路店)（上海/food） ← d1219819（0.97）
+  [ok] pois:品海楼（老虎滩渔人码头店）（大连/food） ← d3429433（0.95）
+  [ok] pois:船歌鱼水饺（湛山店）（青岛/food） ← d3408036（0.95）
+  [ok] pois:林姐香味海鲜（第一市场总店）（三亚/food） ← d4692073（0.95）
+  [ok] pois:四川小胡子海鲜（第一市场总店）（三亚/food） ← d4135624（0.95）
+  [ok] pois:老虎滩海洋公园老虎滩极地馆（大连/attraction） ← d553700（0.95）
+  [ok] pois:青岛德国总督楼旧址博物馆（青岛市城市文化遗产保护中心）（青岛/museum） ← d1810235（0.95）
+  [ok] pois:洛阳古墓博物馆（河南古代壁画馆）（洛阳/museum） ← d1834276（0.95）
+  [ok] pois:中街旅游休闲街区（沈阳/historic） ← d1438963（0.95）
+  [ok] pois:山东省青岛市黄岛区金沙滩啤酒城旅游休闲街区（青岛/historic） ← d1898245（0.95）
+  [ok] pois:毗卢寺（南京/attraction） ← d2248127（0.95）
+  [ok] pois:南京云锦博物馆（南京/museum） ← d5995445（0.95）
+  [ok] pois:WeLope玄武湖探险乐园（南京/nature） ← d1799163（0.95）
+  [ok] pois:汤山方山国家地质公园博物馆（南京/museum） ← d1799093（0.95）
+  [ok] pois:南京台城（南京/historic） ← d1799159（0.95）
+  [ok] pois:南京中山植物园（南京/nature） ← d1814079（0.95）
+  [ok] pois:紫金山昆虫博物馆（南京/museum） ← d541893（0.95）
+  [ok] pois:南京夫子庙-秦淮风光带-长干里（南京/attraction） ← d459767（0.95）
+  [ok] pois:狮子山景区（南京/nature） ← d1799146（0.95）
+  [ok] pois:音乐台（南京/other） ← d1814154（0.95）
+  [ok] pois:中华门瓮城（南京/attraction） ← d1799127（0.95）
+  [ok] pois:六榕寺（广州/attraction） ← d311552（0.95）
+  [ok] pois:北京路步行街（广州/attraction） ← d1843665（0.95）
+  [ok] pois:三元宫（广州/attraction） ← d1843690（0.95）
+  [ok] pois:珠江夜游广州塔·中大码头（广州/attraction） ← d550693（0.95）
+  [ok] pois:广东省古村落小洲村（广州/attraction） ← d1842960（0.95）
+  [ok] pois:黄大仙祠（广州/attraction） ← d2051304（0.95）
+  [ok] pois:白鹅潭大湾区艺术中心（广州/gallery） ← d2051300（0.95）
+  [ok] pois:珠江琶醍啤酒文化创意艺术区（广州/attraction） ← d11677863（0.95）
+  [ok] pois:广州荔枝湾游船（广州/attraction） ← d1843133（0.95）
+  [ok] pois:成都龙泉洛带跳伞 Skydive Lodi（成都/other） ← d2003130（0.95）
+  [ok] pois:宝光寺（成都/attraction） ← d508949（0.95）
+  [ok] pois:文殊坊（成都/historic） ← d5302983（0.95）
+  [ok] pois:蜀宴赋（成都/food） ← d27983018（0.95）
+  [ok] pois:岳飞墓（杭州/attraction） ← d517628（0.95）
+  [ok] pois:浙江省博物馆(之江馆区)（杭州/museum） ← d9748535（0.95）
+  [ok] pois:深圳蛇口海洋科普馆（深圳/nature） ← d554669（0.95）
+  [ok] pois:锦绣中华（深圳/theme_park） ← d491514（0.95）
+  [ok] pois:中英街（深圳/attraction） ← d2051386（0.95）
+  [ok] pois:小梅沙度假村（深圳/attraction） ← d1843640（0.95）
+  [ok] pois:大运中心体育场（深圳/） ← d12685065（0.95）
+  [ok] pois:大鹏所城（深圳/ancient_town） ← d1843163（0.95）
+  [ok] pois:招商蛇口邮轮母港游览（深圳/attraction） ← d17784777（0.95）
+  [ok] pois:深圳平安金融中心云际观光层（深圳/viewpoint） ← d15239653（0.95）
+  [ok] pois:深圳大鹏半岛国家地质自然公园博物馆（深圳/museum） ← d2050598（0.95）
+  [ok] pois:深圳会展中心（福田馆）（深圳/） ← d2051364（0.95）
+  [ok] pois:金色海岸（深圳/nature） ← d2051353（0.95）
+  [ok] pois:金沙遗址博物馆-遗迹馆（成都/museum） ← d1769021（0.95）
+  [ok] pois:艺龙酒店(杭州武林广场建国北路店)（杭州/hotel） ← d1000016242（0.95）
+  [ok] pois:农民运动讲习所旧址（广州/historic） ← d550621（0.95）
+  [ok] pois:桔子水晶上海虹桥枢纽国展中心酒店（上海/hotel） ← d1006088371（0.95）
+  [ok] pois:上海世博中心亚朵酒店（上海/hotel） ← d1000000261（0.95）
+  [ok] pois:上海之鱼木莲庄酒店（上海/hotel） ← d1000000562（0.95）
+  [ok] pois:云和夜泊酒店(上海虹桥枢纽国展中心店)（上海/hotel） ← d1000002046（0.95）
+  [ok] pois:上海五角场大柏树亚朵酒店（上海/hotel） ← d1000000072（0.95）
+  [ok] pois:和颐至尚酒店(上海张江金科路店)（上海/hotel） ← d1006087118（0.95）
+  [ok] pois:上海陆家嘴八佰伴亚朵酒店（上海/hotel） ← d1000001367（0.95）
+  [ok] pois:上海当代艺术馆（上海/nature） ← d1553207（0.95）
+  [ok] pois:和颐酒店(上海金桥店)（上海/hotel） ← d1000001514（0.95）
+  [ok] pois:“蓝森号”黄浦江游轮（上海/theme_park） ← d1793303（0.95）
+  [ok] pois:独角兽星空艺术馆 田子坊旗舰店（上海/entertainment） ← d23143588（0.95）
+  [ok] pois:上海万信福朋喜来登酒店（上海/hotel） ← d639049（0.95）
+  [ok] pois:圣三一堂（上海/temple） ← d1979420（0.95）
+  [ok] pois:上海中心J酒店·弋酒廊Yi Lounge（上海/hotel） ← d23474387（0.95）
+  [ok] pois:上海虹桥国际机场（上海/nature） ← d7106234（0.95）
+  [ok] pois:上海隐居繁华武康路公馆（上海/nature） ← d9778716（0.95）
+  [ok] pois:上海浦东绿地铂骊酒店（上海/hotel） ← d1816157（0.95）
+  [ok] pois:上海宽居云涧花园酒店（上海/hotel） ← d1000000114（0.95）
+  [ok] pois:黄浦江•东方明珠炫游浦江主题游船（上海/theme_park） ← d311602（0.95）
+  [ok] pois:上海宝山上大路亚朵酒店（上海/hotel） ← d1006090331（0.95）
+  [ok] pois:上海迪士尼乐园酒店·Lumiere's Kitchen 卢米亚厨房（上海/hotel） ← d10592517（0.95）
+  [ok] pois:复旦大学（上海/attraction） ← d1979517（0.95）
+  [ok] pois:上海馨乐庭淞虹路服务公寓（上海/hotel） ← d1000001052（0.95）
+  [ok] pois:上海艾迪逊酒店·Club Room艾迪逊空间（上海/hotel） ← d14140998（0.95）
+  [ok] pois:上海外滩花间堂·愉园（上海/nature） ← d311595（0.95）
+  [ok] pois:上海皇廷花园酒店（上海/hotel） ← d12218498（0.95）
+  [ok] pois:上海北外滩金辉索菲特酒店（上海/hotel） ← d582821（0.95）
+  [ok] pois:沪华名都酒店（上海/hotel） ← d1000001304（0.95）
+  [ok] pois:桔子酒店(上海浦东国际旅游度假区崇溪路店)（上海/hotel） ← d1000001185（0.95）
+  [ok] pois:建国璞隐酒店(上海陆家嘴世博中心店)（上海/hotel） ← d1026124450（0.95）
+  [ok] pois:桔子酒店(上海外滩虹口足球场店)（上海/hotel） ← d1006082176（0.95）
+  [ok] pois:上海外滩W酒店·池畔酒吧 WET® Bar（上海/hotel） ← d12263352（0.95）
+  [ok] pois:美豪丽致酒店(上海徐家汇衡山路店)（上海/hotel） ← d1006090562（0.95）
+  [ok] pois:顾村公园自然谷恐龙乐园（上海/theme_park） ← d2234022（0.95）
+  [ok] pois:黄河路（上海/attraction） ← d5114916（0.95）
+  [ok] pois:上海前滩香格里拉大酒店（上海/hotel） ← d24175585（0.95）
+  [ok] pois:维也纳国际酒店(上海新国际博览中心康桥地铁站店)（上海/hotel） ← d1000001549（0.95）
+  [ok] pois:上海虹桥九亭科创走廊希尔顿欢朋酒店（上海/hotel） ← d1852262（0.95）
+  [ok] pois:上海虹桥君丽假日酒店（上海/hotel） ← d5927621（0.95）
+  [ok] pois:临港冰雪明城酒店（上海/hotel） ← d1000000492（0.95）
+  [ok] pois:上海金茂君悦大酒店·金茂俱乐部Club Jin Mao（上海/hotel） ← d302999（0.95）
+  [ok] pois:上海浦东大道丽呈酒店（上海/hotel） ← d1000001675（0.95）
+  [ok] pois:上海松江广富林宰相府酒店·怡园（上海/hotel） ← d1000000709（0.95）
+  [ok] pois:全季酒店(上海虹桥古北财富中心店)（上海/hotel） ← d1006083569（0.95）
+  [ok] restaurants:Ginger(兴国路店)（上海/food） ← d3700870（0.95）
+  [ok] restaurants:上海王宝和大酒店·上海餐厅（上海/food） ← d1572056（0.95）
+  [ok] restaurants:DA VITTORIO SHANGHAI(外滩店)（上海/food） ← d17707240（0.95）
+  [ok] restaurants:南翔馒头店(豫园店)（上海/food） ← d10260512（0.95）
+  [ok] restaurants:上海中心J酒店·锦筵（上海/food） ← d26732066（0.95）
+  [ok] restaurants:人和馆(肇嘉浜路店)（上海/food） ← d10835963（0.95）
+  [ok] restaurants:上海威斯汀大饭店·帕戈意大利餐厅(河南中路店)（上海/food） ← d2056193（0.95）
+  [ok] restaurants:MUST(武定路店)（上海/food） ← d4155158（0.95）
+  [ok] restaurants:上海浦东香格里拉·怡咖啡海鲜自助餐厅（上海/food） ← d806220（0.95）
+  [ok] restaurants:上海新天地朗廷酒店·唐阁（上海/food） ← d4447964（0.95）
+  [ok] restaurants:上海明珠大饭店（上海/food） ← d3656598（0.95）
+  [ok] restaurants:GREEN & SAFE(新天地店)（上海/food） ← d3607357（0.95）
+  [ok] restaurants:RAW EATERY AND WOOD GRILL(创意园店)（上海/food） ← d10488757（0.95）
+  [ok] restaurants:The Fellas(外滩店)（上海/food） ← d10839793（0.95）
+  [ok] restaurants:御宝轩(益丰·外滩源店)（上海/food） ← d5952762（0.95）
+  [ok] restaurants:Stone Sal 言盐西餐厅(东湖路店)（上海/food） ← d16755011（0.95）
+  [ok] restaurants:晟永興(外滩店)（上海/food） ← d26583846（0.95）
+  [ok] restaurants:Cafe del Volcan(永康路店)（上海/food） ← d4572522（0.95）
+  [ok] restaurants:Texas Roadhouse(世纪汇广场店)（上海/food） ← d15349512（0.95）
+  [ok] restaurants:绿波廊(豫园店)（上海/food） ← d1196210（0.95）
+  [ok] restaurants:克比印度餐厅kebabs on the grille(大拇指广场店)（上海/food） ← d8646887（0.95）
+  [ok] restaurants:The Captain船长餐厅&酒吧（上海/food） ← d3337259（0.95）
+  [ok] restaurants:孔乙己酒家(文庙店)（上海/food） ← d4605842（0.95）
+  [ok] restaurants:上海浦东嘉里大酒店·The COOK·厨餐厅·自助餐（上海/food） ← d2257750（0.95）
+  [ok] restaurants:El Bodegon阿根廷秘鲁餐厅(常熟路店)（上海/food） ← d15647352（0.95）
+  [ok] restaurants:Calix(新天地店)（上海/food） ← d10169180（0.95）
+  [ok] restaurants:上海佘山世茂洲际酒店(世茂深坑酒店)·彩丰楼 中餐厅（上海/food） ← d15530856（0.95）
+  [ok] restaurants:COLCA 秘鲁西班牙餐厅(衡山路店)（上海/food） ← d12792749（0.95）
+  [ok] restaurants:上海静安香格里拉大酒店·两咖啡自助餐厅（上海/food） ← d4555259（0.95）
+  [ok] restaurants:耶里夏丽(陆家嘴正大广场店)（上海/food） ← d4704092（0.95）
+  [ok] restaurants:夜上海(新天地太平湖店)（上海/food） ← d1065414（0.95）
+  [ok] restaurants:Tsuru  鹤日本料理（上海/food） ← d7896071（0.95）
+  [ok] restaurants:壳里西餐厅Coquille Seafood Bistro(蒙自路店)（上海/food） ← d6556281（0.95）
+  [ok] restaurants:上海和平饭店·茉莉酒廊（上海/food） ← d4596850（0.95）
+  [ok] restaurants:上海威斯汀大饭店·威斯汀舞台餐厅（上海/food） ← d1803852（0.95）
+  [ok] restaurants:大壶春(四川中路店)（上海/food） ← d13088570（0.95）
+  [ok] restaurants:上海浦东文华东方酒店·雍颐庭（上海/food） ← d6373304（0.95）
+  [ok] restaurants:Highline(淮海路店)（上海/food） ← d12244730（0.95）
+  [ok] restaurants:夏朵花园(复兴西路店)（上海/food） ← d3391702（0.95）
+  [ok] restaurants:Speak Low彼楼（上海/food） ← d7885820（0.95）
+  [ok] restaurants:海底捞火锅(人民广场店)（上海/food） ← d2399881（0.95）
+  [ok] restaurants:ROOF 325 RESTAURANT  BAR（上海/food） ← d7776430（0.95）
+  [ok] restaurants:Chateau Dionne·CD(上海建国西路店)（上海/food） ← d11657950（0.95）
+  [ok] restaurants:毛豆阿姨酒家(静安寺店)（上海/food） ← d4938928（0.95）
+  [ok] restaurants:弦月窗LUNETTE BY AMANDA(复兴路店)（上海/food） ← d12792696（0.95）
+  [ok] restaurants:Maison Lameloise 莱美露滋(上海中心店)（上海/food） ← d15326967（0.95）
+  [ok] restaurants:上海和平饭店·华懋阁（上海/food） ← d1925951（0.95）
+  [ok] restaurants:上海镛舍酒店·Frasca(南京西路店)（上海/food） ← d16662116（0.95）
+  [ok] restaurants:上海宝华喜来登酒店·采悦轩中餐厅（上海/food） ← d1569417（0.95）
+  [ok] restaurants:Restaurant Cuivre古铜法式餐厅（上海/food） ← d2464658（0.95）
+  [ok] restaurants:Zeitgeist塞德斯德国餐厅(同乐坊店)（上海/food） ← d12437251（0.95）
+  [ok] restaurants:上海宝格丽酒店·宝丽轩中餐厅（上海/food） ← d15272945（0.95）
+  [ok] restaurants:Bella Vita美好生活意大利餐厅(海防路店)（上海/food） ← d8630110（0.95）
+  [ok] restaurants:上海新世界丽笙大酒店·旋景餐厅（上海/food） ← d1552293（0.95）
+  [ok] restaurants:孔雀川菜(长宁来福士店)（上海/food） ← d12230781（0.95）
+  [ok] restaurants:莫尔顿牛排坊(浦东ifc店)（上海/food） ← d2198994（0.95）
+  [ok] restaurants:上海静安香格里拉大酒店·1515牛排馆·酒吧（上海/food） ← d4549873（0.95）
+  [ok] restaurants:THE CANNERY(愚园路店)（上海/food） ← d11486508（0.95）
+  [ok] restaurants:Kathleen's Waitan 凯圣琳K外滩西餐厅(外滩店)（上海/food） ← d15293198（0.95）
+  [ok] restaurants:上海和平饭店·龙凤厅（上海/food） ← d1052934（0.95）
+  [ok] restaurants:爱玲EILEEN(环球金融中心店)（上海/food） ← d7896100（0.95）
+  [ok] restaurants:上海静安香格里拉大酒店·Calypso地中海餐厅·酒廊（上海/food） ← d6280797（0.95）
+  [ok] restaurants:Mercato by Jean-Georges意大利餐厅（上海/food） ← d3393807（0.95）
+  [ok] restaurants:Liquid Laundry(淮海中路店)（上海/food） ← d6652261（0.95）
+  [ok] restaurants:泰安门(镇宁路店)（上海/food） ← d15698065（0.95）
+  [ok] restaurants:南京古南都饭店·那古野日本料理（南京/food） ← d3402622（0.95）
+  [ok] restaurants:南京大牌档(龙江新城市广场店)（南京/food） ← d3401155（0.95）
+  [ok] restaurants:COSTA COFFEE(江苏广电2期店)（南京/food） ← d3985308（0.95）
+  [ok] restaurants:必胜客(虹悦城店)（南京/food） ← d3402665（0.95）
+  [ok] restaurants:清真马祥兴菜馆(云南北路店)（南京/food） ← d3401229（0.95）
+  [ok] restaurants:小厨娘淮扬菜(环宇城店)（南京/food） ← d4963865（0.95）
+  [ok] restaurants:南京狮子楼（南京/food） ← d3402078（0.95）
+  [ok] restaurants:满记甜品(吾悦广场店)（南京/food） ← d3403007（0.95）
+  [ok] restaurants:星巴克(凯瑟琳广场店)（南京/food） ← d3402216（0.95）
+  [ok] pois:琴台故径（成都/historic） ← d5115859（0.95）
+  [ok] pois:新场古镇（上海/attraction） ← d1979450（0.95）
+  [ok] pois:圆玄道观（广州/attraction） ← d1842991（0.95）
+  [ok] pois:湖北省武汉市武昌区昙华林历史文化街区（武汉/historic） ← d7148014（0.95）
+  [ok] pois:碧海金沙（上海/nature） ← d1793221（0.95）
+  [ok] pois:成都武侯祠博物馆（成都/museum） ← d508982（0.95）
+  [ok] pois:上海大学博物馆（上海/museum） ← d9564195（0.95）
+  [ok] pois:上海蟠龙天地（上海/nature） ← d27691009（0.95）
+  [ok] pois:拱宸桥·桥西历史文化街区（杭州/attraction） ← d7151871（0.95）
+  [ok] pois:上海长风海洋世界（上海/nature） ← d1793293（0.95）
+  [ok] pois:湖北省武汉市江汉区江汉路步行街区（武汉/historic） ← d1864937（0.95）
+  [ok] pois:新天地（上海/attraction） ← d324169（0.95）
+  [ok] pois:浙江大学艺术与考古博物馆（杭州/museum） ← d1967321（0.95）
+  [ok] pois:夫子庙（南京/attraction） ← d5116312（0.95）
+  [ok] pois:武汉大学万林艺术博物馆（武汉/museum） ← d7236850（0.95）
+  [ok] pois:广州融创乐园（广州/theme_park） ← d17703541（0.95）
+  [ok] pois:聖若瑟修院及聖堂（澳门/church） ← d1867929（0.95）
+  [ok] pois:陕西省西安市曲江新区大唐不夜城步行街（西安/historic） ← d2234014（0.95）
+  [ok] pois:武汉市晴川阁管理处（武汉大禹文化博物馆）（武汉/museum） ← d1826994（0.95）
+  [ok] pois:沙湾镇（广州/ancient_town） ← d1797489（0.95）
+  [ok] pois:東望洋燈塔（澳门/attraction） ← d1652948（0.95）
+  [ok] pois:椿记烧鹅（中山中路总店）（桂林/food） ← d3345197（0.95）
+  [ok] pois:金沙厅（四季酒店）（杭州/food） ← d2091009（0.95）
+  [ok] pois:径山寺（杭州/nature） ← d1807873（0.95）
+  [ok] pois:成都博物馆（成都/museum） ← d10813335（0.95）
+  [ok] pois:成都龙泉山丹景台旅游景区（成都/nature） ← d2003181（0.95）
+  [ok] pois:柴门饭儿（远洋太古里店）（成都/food） ← d11917017（0.95）
+  [ok] pois:醉长安（钟楼旗舰店）（西安/food） ← d10292116（0.95）
+  [ok] pois:江西省上饶市广信区望仙谷岩铺老街旅游休闲街区（上饶/historic） ← d33023656（0.95）
+  [ok] pois:杭州工艺美术博物馆（杭州/museum） ← d6614621（0.95）
+  [ok] pois:南沙天后宫（广州/attraction） ← d2051392（0.95）
+  [ok] pois:浦东新区南汇博物馆（上海/museum） ← d555055（0.95）
+  [ok] pois:中华艺术宫（上海美术馆）（上海/museum） ← d5114484（0.95）
+  [ok] pois:上海市静安区静安嘉里中心—安义路街区（上海/historic） ← d12202177（0.95）
+  [ok] pois:淮海路（上海/nature） ← d1018223（0.95）
+  [ok] pois:钱塘江大桥（杭州/attraction） ← d2003584（0.95）
+  [ok] pois:浙江省博物馆孤山馆区（杭州/museum） ← d517693（0.95）
+  [ok] pois:南越王博物院(王宫展区)（广州/museum） ← d1825238（0.95）
+  [ok] pois:深圳欢乐海岸（深圳/nature） ← d8113653（0.95）
+  [ok] pois:黄龙洞景区（杭州/nature） ← d2003581（0.95）
+  [ok] pois:黄龙体育中心（杭州/） ← d2003776（0.95）
+  [ok] pois:上海大世界（上海/nature） ← d459907（0.95）
+  [ok] pois:城隍庙（上海/attraction） ← d555286（0.95）
+  [ok] pois:春熙路（成都/citywalk） ← d5115902（0.95）
+  [ok] pois:梅家坞村（杭州/attraction） ← d1807931（0.95）
+  [ok] pois:两江四湖（桂林/attraction） ← d1856221（0.95）
+  [ok] pois:莲花山旅游区（广州/nature） ← d2051315（0.95）
+  [ok] pois:超山风景名胜区（杭州/nature） ← d1808014（0.95）
+  [ok] pois:南山区华侨城旅游度假区（深圳/attraction） ← d3595325（0.95）
+  [ok] pois:明蜀王陵博物馆（成都/museum） ← d1834343（0.95）
+  [ok] pois:深圳市龙岗区客家民俗博物馆（深圳/museum） ← d1797565（0.95）
+  [ok] pois:世纪大道樱桃园（上海/attraction） ← d552358（0.95）
+  [ok] pois:外滩万国建筑博览群（上海/nature） ← d1979523（0.95）
+  [ok] pois:张爱玲故居（上海/attraction） ← d3638549（0.95）
+  [ok] pois:上海佛罗伦萨小镇（上海/nature） ← d8556102（0.95）
+  [ok] pois:大三巴牌坊（澳门/attraction） ← d446837（0.95）
+  [ok] pois:聖母雪地殿教堂（澳门/attraction） ← d591237（0.95）
+  [ok] pois:上海徐家汇A.T.HOUSE酒店（上海/hotel） ← d1000000618（0.94）
+  [ok] pois:深圳市儿童乐园（深圳/theme_park） ← d6558584（0.92）
+  [ok] pois:徐家汇天主教堂（上海/attraction） ← d1967885（0.92）
+  [ok] pois:上海大宁国际亚朵酒店（上海/hotel） ← d1000000730（0.92）
+  [ok] pois:上海中港汇铂尔曼大酒店（上海/hotel） ← d630096（0.92）
+  [ok] pois:上海大船酒店（上海/hotel） ← d1478708（0.91）
+  [ok] pois:上海虹桥美仑美奂酒店（上海/hotel） ← d1000000478（0.91）
+  [ok] pois:上海中星铂尔曼大酒店（上海/hotel） ← d4925900（0.91）
+  [ok] pois:上海浦东绿地假日酒店（上海/hotel） ← d2039114（0.91）
+  [ok] restaurants:上海浦东丽晶酒店·Camelia餐厅（上海/food） ← d4286845（0.91）
+  [ok] restaurants:8½ Otto e Mezzo BOMBANA(外滩店)（上海/food） ← d2639454（0.91）
+  [ok] pois:深圳华侨城旅游度假区（深圳/theme_park） ← d2050777（0.90）
+  [ok] pois:丽呈别院·城市琪遇(上海国际旅游度假区秀沿路地铁站店)（上海/hotel） ← d1000001444（0.90）
+  [ok] pois:景莱酒店·臻选(上海徐家汇交通大学店)·晶焱上海菜(南丹路店)（上海/hotel） ← d1000001493（0.90）
+  [ok] restaurants:上海艾迪逊酒店· 顶层酒吧 ROOF（上海/food） ← d15056379（0.90）
+  [ok] restaurants:上海外滩英迪格酒店·Quay江畔餐厅（上海/food） ← d3254550（0.90）
+  [ok] restaurants:上海外滩华尔道夫酒店·蔚景阁（上海/food） ← d3803001（0.90）
+  [ok] restaurants:上海外滩W酒店·标帜餐厅 The Kitchen Table（上海/food） ← d12880989（0.90）
+  [ok] restaurants:上海凯宾斯基大酒店·阿尔贝鲁西班牙餐厅（上海/food） ← d11797678（0.90）
+  [ok] restaurants:上海静安瑞吉酒店·Seki-Tei 石亭日餐厅（上海/food） ← d12880998（0.90）
+  [ok] restaurants:Da Ivo 哒伊沃 意大利魔镜餐厅（上海/food） ← d7163028（0.90）
+  [ok] restaurants:东方明珠·空中旋转餐厅（上海/food） ← d3449881（0.90）
+  [ok] restaurants:晴空·日本料理(BFC外滩金融中心店)（上海/food） ← d3450037（0.90）
+  [ok] restaurants:SENSO 意大利餐厅（上海/food） ← d2102063（0.90）
+  [ok] restaurants:乐意坊 Alla Torre 意大利手工披萨 (缤谷店)（上海/food） ← d4806875（0.90）
+  [ok] restaurants:莱莱小笼·乔艾（上海/food） ← d27715712（0.90）
+  [ok] restaurants:Efes Turkish & Mediterranean Cuisine 艾菲斯餐厅(陆家嘴店)（上海/food） ← d3786795（0.90）
+  [ok] restaurants:上海静安瑞吉酒店·Yan Ting 宴庭中餐厅（上海/food） ← d12971804（0.90）
+  [ok] restaurants:上海浦东丽晶酒店·尚席中餐厅·粤菜（上海/food） ← d9997775（0.90）
+  [ok] restaurants:拉蒂娜·巴西牛排馆 Latina·Brazilian Steakhouse(铜仁路店)（上海/food） ← d5040332（0.90）
+  [ok] restaurants:上海浦东丽思卡尔顿酒店·金轩中餐厅（上海/food） ← d7227449（0.90）
+  [ok] restaurants:上海浦东丽思卡尔顿酒店·FLAIR顶层餐厅酒吧（上海/food） ← d2661749（0.90）
+  [ok] restaurants:东方明珠·可口可乐欢乐餐厅（上海/food） ← d10378374（0.90）
+  [ok] restaurants:南京晶丽酒店·南京精菜馆（南京/food） ← d3401436（0.90）
+  [ok] restaurants:民国红公馆·秦淮八艳(夫子庙店)（南京/food） ← d13476360（0.90）
+  [ok] restaurants:万福炭火烤肉·日本料理(张府园店)（南京/food） ← d3401204（0.90）
+  [ok] pois:上海五角场金储广场亚朵酒店（上海/hotel） ← d1000001962（0.90）
+  [ok] pois:爱群大厦（广州/viewpoint） ← d1795941（0.89）
+  [ok] pois:上海维景酒店(虹桥机场国家会展中心店)（上海/hotel） ← d1000000044（0.89）
+  [ok] pois:朱家角镇（上海/ancient_town） ← d1805650（0.89）
+  [ok] pois:上海浦东中心万枫酒店（上海/hotel） ← d1006090198（0.88）
+  [ok] pois:上海静安寺亚朵X酒店（上海/hotel） ← d1000000646（0.87）
+  [ok] restaurants:大董(环贸iapm店)（上海/food） ← d8701701（0.87）
+  [ok] pois:武林夜市（杭州/citywalk） ← d7854380（0.86）
+  [ok] pois:上海虹桥临空智选假日酒店（上海/hotel） ← d1006087013（0.86）
+  [ok] pois:青岛电影博物馆（青岛/museum） ← d7073452（0.86）
+  [ok] pois:安顺廊桥（成都/attraction） ← d9757726（0.86）
+  [ok] pois:净慈禅寺（杭州/attraction） ← d1807944（0.86）
+  [ok] pois:上海徐家汇GROW瑞贝庭公寓酒店（上海/hotel） ← d1000001262（0.86）
+  [ok] restaurants:艾利爵士顶层餐厅（上海/food） ← d2231474（0.86）
+  [ok] pois:高桥镇（上海/ancient_town） ← d7115617（0.86）
+  [ok] pois:良渚古城遗址（杭州/attraction） ← d8837594（0.86）
+  [ok] pois:南京西路（上海/attraction） ← d321173（0.86）
+  [ok] pois:上海影视乐园（上海/nature） ← d1979520（0.86）
+  [ok] pois:陕西自然博物馆（西安/museum） ← d1839882（0.86）
+  [ok] pois:大圩镇（桂林/ancient_town） ← d8062018（0.86）
+  [ok] pois:上海浦东南万枫酒店（上海/hotel） ← d1022288877（0.85）
+  [ok] pois:上海艺龙酒店（上海/hotel） ← d299746（0.85）
+台账重写: 保留 1570 行滚动重试
+
+完成：写库 718，未匹配 1570（已入台账，下次跳过）
+exit=0

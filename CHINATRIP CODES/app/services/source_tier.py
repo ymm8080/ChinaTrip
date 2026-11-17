@@ -1,9 +1,10 @@
 """来源档位共享常量（全站唯一定义点）。
 
-名录采纳优先序（用户 2026-11-03 拍板，编号=DESIGN/POIS DATASOURCE 名录文件序）：
+名录采纳优先序（用户 2026-11-13 拍板，与回填 SOURCE_PRIORITY 对齐）：
 
-    08 世界遗产(unesco) > 02 5A(5a)
-        > 05 国际旅行网站推荐(ta/lp/viator/curated)
+    05 国际旅行网站推荐(ta/lp/viator/curated)
+        > 08 世界遗产(unesco)
+        > 02 5A(5a)
         > 10 国际平台中国推荐(sygic/klook/... 16 站)
         > 11 短视频与社媒(tiktok/instagram/youtube)
         > 12 小红书(xiaohongshu)
@@ -76,11 +77,35 @@ SHORTVIDEO_SOURCES = frozenset({"tiktok", "instagram", "youtube"})
 SHORTVIDEO_TAGS = SHORTVIDEO_SOURCES
 
 
+def named_site_count(
+    source: str | None,
+    tags: list[str] | tuple[str, ...] | set[str] | None,
+) -> int:
+    """具名国际荐点站数（source + tags 去重，不含 intl 伞标）。
+
+    同档同分并列时的稳定 tie-break（2026-11-13 豫园案）：豫园 amap 行
+    带 ta/lp/sygic/mindtrip 四站背书但 rating 尚未回填，quality=0 与
+    南京东路/新天地等零分单站行同分——旧排序的稳定键是 DB 物理序，多站
+    地标被排到单站行之后（上海池第 18 位）。名录宽度只补并列序，不跨档、
+    不改有评分行的相对次序。
+    """
+    src = str(source or "").strip().lower()
+    tagset = {str(t).strip().lower() for t in (tags or [])}
+    sites = tagset & (INTL_SITE_TAGS | (INTL_PLATFORM_TAGS - {"intl"}))
+    if src in INTL_SITE_SOURCES or src in INTL_PLATFORM_SOURCES:
+        sites.add(src)
+    return len(sites)
+
+
 def catalog_rank(
     source: str | None,
     tags: list[str] | tuple[str, ...] | set[str] | None,
 ) -> int | None:
-    """名录档序号（0 起，小值优先）：0=unesco ... 8=4a。
+    """名录档序号（0 起，小值优先）：0=国际旅行网站 ... 8=4a。
+
+    2026-11-13 用户拍板：TA/LP/Viator（及 curated）高于 unesco/5A——
+    规划器/徽章序与回填 SOURCE_PRIORITY 对齐（curated/LP/TA/Viator >
+    unesco > 5A）。旧序 unesco > 5A > 国际站 作废。
 
     返回 None = 不在名录序（museum*/3a/show/amap/osm 等其他源），
     由各消费口径决定「其他」档怎么落。判定先走明站（具体站点标签）
@@ -90,11 +115,11 @@ def catalog_rank(
     """
     src = str(source or "").strip().lower()
     tagset = {str(t).strip().lower() for t in (tags or [])}
-    if src == "unesco" or any(t == "unesco" or t.startswith("unesco_") for t in tagset):
-        return 0
-    if src == "5a" or "5a" in tagset:
-        return 1
     if src in INTL_SITE_SOURCES or tagset & INTL_SITE_TAGS:
+        return 0
+    if src == "unesco" or any(t == "unesco" or t.startswith("unesco_") for t in tagset):
+        return 1
+    if src == "5a" or "5a" in tagset:
         return 2
     platform_specific_tags = INTL_PLATFORM_TAGS - {"intl"}
     if src in INTL_PLATFORM_SOURCES or tagset & platform_specific_tags:
@@ -170,10 +195,19 @@ def order_source_tags(tags: list[str]) -> list[str]:
 
 # ---------------------------------------------------------------- 字段回填铁律
 
-# CLAUDE.md Iron rule 全文（canonical order，一个字不改；拼写 chinatravel）。
+# CLAUDE.md Iron rule 全文（canonical order；拼写 chinatravel）。
 # 各回填 job 必须 import 本常量，不得手抄短表；池里有而此表没有的源，
 # 由该 job 以「元组拼接追加在尾部」的方式带上（同 change 内追加是规矩）。
+# 2026-11-08 用户拍板：curated 升入优先组。
+# 2026-11-12 用户拍板（需求驱动序）：回填选行优先级跟「谁会出现在行程里/
+# 被点开」走——curated（人工精选，含行程对话心愿的落地行）与 intl 明站
+# （lonelyplanet/tripadvisor/viator）提到官方名录（unesco/5a）之前；
+# 注意 catalog_rank（规划器/徽章档位）是另一条独立序，本次未动。
 SOURCE_PRIORITY: tuple[str, ...] = (
+    "curated",
+    "lonelyplanet",
+    "tripadvisor",
+    "viator",
     "unesco",
     "5a",
     "museum1",

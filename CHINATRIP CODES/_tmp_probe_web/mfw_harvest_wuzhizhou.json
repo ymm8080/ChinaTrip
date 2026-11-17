@@ -1,0 +1,16 @@
+{
+  "session": "2026-11-12 IAB 会话收割（第三批，用户过闸 poi/1230 后即收）",
+  "entries": [
+    {"search": "蜈支洲岛", "poiId": "1230", "title": "三亚蜈支洲岛旅游风景区", "urls": [
+      "https://p1-q.mafengwo.net/s18/M00/9E/6B/CoUBYGDQVqCATZ3LABiJKHsgH8c10.jpeg",
+      "https://p1-q.mafengwo.net/s17/M00/D2/49/CoUBXmEaSPGAaE0DABPXNfusSvE352.jpg",
+      "https://p1-q.mafengwo.net/s14/M00/51/82/wKgE2l1JatyABq5uAApTKQysEpc39.jpeg",
+      "https://p1-q.mafengwo.net/s13/M00/74/3A/wKgEaVy1tFOAPALKACFVSKMBoL493.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/F5/4F/wKgED1v6uzGAfeSBAAOqkrtJb-c12.jpeg",
+      "https://p1-q.mafengwo.net/s16/M00/10/A4/CoUBUl69AsKAfpRqACEqajOHiA4166.jpg",
+      "https://p1-q.mafengwo.net/s12/M00/F5/26/wKgED1xB2CaANK18AA4SUdxdLKk54.jpeg",
+      "https://p1-q.mafengwo.net/s12/M00/2B/50/wKgED1wUhaeASPozADKBFPDwJVU00.jpeg"
+    ]},
+    {"search": "西柏坡", "poiId": null, "title": "石家庄平山县西柏坡景区（待收割）", "urls": []}
+  ]
+}

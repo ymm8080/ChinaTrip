@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "tripadvisor-terra": {
+      "type": "http",
+      "url": "https://docs.terra.tripadvisor.com/mcp"
+    },
     "amap-maps": {
       "command": "C:\\Users\\91454\\AppData\\Local\\Programs\\AutoClaw2\\resources\\vendor\\node\\node.exe",
       "args": [

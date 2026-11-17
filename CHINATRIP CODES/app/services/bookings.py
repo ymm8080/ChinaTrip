@@ -14,7 +14,13 @@ from urllib.parse import quote
 
 from app.services.lang_ctx import L
 
-__all__ = ["flight_booking", "hotel_booking", "train_booking"]
+__all__ = [
+    "flight_booking",
+    "fliggy_booking_url",
+    "fliggy_hotel_url",
+    "hotel_booking",
+    "train_booking",
+]
 
 # 中国范围（境外坐标交给渠道没有意义；同 deeplinks.py 口径）
 _LON_MIN, _LON_MAX = 73.0, 136.0
@@ -36,6 +42,11 @@ _REFUND_SUMMARIES = {
         "机票退改签以去哪儿/携程下单页展示为准（各航班舱位规则不同，以页面实收为准）",
         "Flight refunds/changes per the Qunar/Ctrip checkout page (rules "
         "vary by flight and fare class - final fee per page)",
+    ),
+    "fliggy": (
+        "机票退改签以飞猪下单页展示为准（各航班舱位规则不同，以页面实收为准）",
+        "Flight refunds/changes per the Fliggy checkout page (rules vary "
+        "by flight and fare class - final fee per page)",
     ),
     "ctrip": (
         "退改政策以携程/美团下单页展示为准；建议选「免费取消」房型",
@@ -95,6 +106,31 @@ async def train_booking(
         },
         "refund_policy": _refund_channel_page("12306"),
     }
+
+
+def fliggy_booking_url(from_city: str, to_city: str, date: str) -> str:
+    """飞猪机票列表页深链（2026-11-04 规划页路途订票新增渠道）。
+
+    设计 §6.11 已注明机票渠道「deeplink 带参规范未证实——P0 真机实测」：
+    参数未命中时飞猪回退城市/日期选择页，页面本身可打开，属可接受兜底。
+    """
+    return (
+        "https://flight.fliggy.com/flightlist.htm"
+        f"?depCity={_enc(from_city)}&arrCity={_enc(to_city)}&depDate={date}"
+    )
+
+
+def fliggy_hotel_url(city: str, keyword: str, checkin: str, checkout: str) -> str:
+    """飞猪酒店列表页深链（2026-11-07 每晚酒店卡第三渠道入组）。
+
+    参数规范未证实（同机票深链口径）：未命中时飞猪回退城市/日期选择页，
+    页面本身可打开，属可接受兜底。
+    """
+    return (
+        "https://hotel.fliggy.com/list.htm"
+        f"?city={_enc(city)}&k={_enc(keyword)}"
+        f"&checkin={checkin}&checkout={checkout}"
+    )
 
 
 def flight_booking(from_city: str, to_city: str, date: str) -> dict:

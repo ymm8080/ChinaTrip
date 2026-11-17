@@ -175,6 +175,38 @@ def test_refresh_address_only_persists_when_hours_miss():
     assert store.stale_pois() == []  # 冷却戳仍生效，不烧下轮
 
 
+class _VenueHoursAmap:
+    """detail/search 只带回场馆开放时间（图商口径）。"""
+
+    async def place_hours(self, poi_id):
+        return None
+
+    async def search_hours(self, keyword, city=None, location=None):
+        return {"opening_hours": "09:00-17:00", "rating": None, "address": "某路1号"}
+
+
+def test_refresh_show_hours_guard_20261107():
+    """hours_source='show' 行护闸：人工场次不被图商开放时间覆写；
+    地址照常落库、冷却戳照盖（2026-11-07，04 种子场次保护）。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "S1",
+        city="西安",
+        name="《长恨歌》演出",
+        source="show",
+        opening_hours="仅夜场（约20:10/21:35两场）",
+        hours_source="show",
+    )
+    store.get("S1")["hours_updated_at"] = None  # 手模拟 30 天窗满，进 stale 窗口
+    stats = asyncio.run(refresh_pois(store, _NullCtrip(), _VenueHoursAmap(), limit=10))
+    got = store.get("S1")
+    assert stats["address_only"] == 1  # hours 抑制后走 address 分支
+    assert got["opening_hours"] == "仅夜场（约20:10/21:35两场）"
+    assert got["hours_source"] == "show"
+    assert got["address"] == "某路1号"  # 地址/富化照常
+    assert store.stale_pois() == []  # 抑制后仍盖冷却戳，不烧下轮
+
+
 def test_stale_pois_returns_amap_location_string():
     store = PoiDetailStore()
     store.upsert("L1", city="重庆", name="有坐标", location=(106.578, 29.5628))
@@ -384,6 +416,110 @@ def test_top_pois_in_city_orders_by_quality_and_keeps_tag_rows():
     assert top["location"] == (106.5, 29.5)
 
 
+def test_top_pois_in_city_excludes_hotel_rows():
+    """主池住宿出池（2026-11-07 实测：成都窗口混入 2 家 intl 标签酒店）。
+    餐饮出池语义不变；中文类别（酒店/民宿）同拦。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "H1",
+        city="成都",
+        name="易宁阁宽窄别院(成都宽窄巷子地铁站店)",
+        category="hotel",
+        location=(104.05, 30.66),
+        rating=4.7,
+    )
+    store.upsert(
+        "H2",
+        city="成都",
+        name="梵隐·花间庭院villa朴墅",
+        category="酒店",
+        location=(104.06, 30.65),
+        rating=4.8,
+    )
+    store.upsert(
+        "S1",
+        city="成都",
+        name="春熙路",
+        category="attraction",
+        location=(104.08, 30.66),
+        rating=4.7,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert names == ["春熙路"]
+
+
+def test_top_pois_in_city_rec_tag_food_rows_stay_in_pool():
+    """荐点餐厅入池豁免（2026-11-07 用户指令「WE CAN CHOOSE RESTRANT IN
+    SITE IN CASE THEY ARE HV TAG LIKE KLOOK TRIPADVISOR ETC」）：带国际
+    荐点标（klook/ta/curated 等）的餐饮行保留主池（选点提示词「用餐锚点」
+    口径接通）；无标餐饮照旧出池；荐点标酒店不享豁免照旧出池。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "F1",
+        city="成都",
+        name="失重餐厅(环球中心店)",
+        category="food",
+        location=(104.061, 30.574),
+        rating=4.5,
+    )
+    store._memory["F1"]["tags"] = ["curated", "intl"]
+    store.upsert(
+        "F2",
+        city="成都",
+        name="teamLab联名咖啡",
+        category="food",
+        location=(104.07, 30.58),
+        rating=4.6,
+    )
+    store._memory["F2"]["tags"] = ["klook"]
+    store.upsert(
+        "F3",
+        city="成都",
+        name="无名苍蝇馆子",
+        category="food",
+        location=(104.08, 30.59),
+        rating=4.9,
+    )
+    store.upsert(
+        "F4",
+        city="成都",
+        name="非荐点标餐厅",
+        category="food",
+        location=(104.081, 30.591),
+        rating=4.9,
+    )
+    store._memory["F4"]["tags"] = ["国家一级博物馆"]
+    store.upsert(
+        "H1",
+        city="成都",
+        name="带荐点标酒店",
+        category="hotel",
+        location=(104.09, 30.60),
+        rating=4.9,
+    )
+    store._memory["H1"]["tags"] = ["intl", "layla"]
+    store.upsert(
+        "S1",
+        city="成都",
+        name="环球中心",
+        category="attraction",
+        location=(104.062, 30.575),
+        rating=4.6,
+    )
+    names = [h["name"] for h in store.top_pois_in_city("成都", 10)]
+    assert "失重餐厅(环球中心店)" in names
+    assert "teamLab联名咖啡" in names
+    assert "无名苍蝇馆子" not in names
+    assert "非荐点标餐厅" not in names
+    assert "带荐点标酒店" not in names
+    assert "环球中心" in names
+    # 餐饮行 category 原样带出（选点层按 food 消费，不冒充 sight）
+    hit = next(
+        h for h in store.top_pois_in_city("成都", 10) if h["name"] == "teamLab联名咖啡"
+    )
+    assert hit["category"] == "food"
+
+
 # --- search_keyword 读侧 tier 并列裁决 (2026-10-28 泛称愿望落地) --------------
 
 
@@ -564,18 +700,18 @@ def test_store_get_by_name_city_scoped():
 
 
 def test_hit_tier_unesco_silk_road_component():
-    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档（2026-11-03 名录序
-    档号 0 起小值优先；原 11-02 大雁塔事故修复：点段代表行来源
+    """丝路廊道点段（unesco_silk_road）读侧同 unesco 档（2026-11-13 名录序
+    国际站 > unesco > 5A；原 11-02 大雁塔事故修复：点段代表行来源
     5a/relicpark 各异，只认 source 永远升不了档）。"""
     from app.services.poi_details import hit_tier
 
-    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 0
-    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 0
-    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 0
+    assert hit_tier({"source": "relicpark", "tags": ["unesco_silk_road"]}, []) == 1
+    assert hit_tier({"source": "5a", "tags": ["unesco_ming_tombs"]}, []) == 1
+    assert hit_tier({"source": "5a", "tags": ["5a", "unesco_silk_road"]}, []) == 1
     # 5a source 明站压 intl 伞标签（catalog_rank 判定序）
-    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 1
-    # 国际旅行网站档（ta/lp/viator/curated 明站）
-    assert hit_tier({"source": "baidu", "tags": ["lp"]}, []) == 2
+    assert hit_tier({"source": "5a", "tags": ["intl"]}, []) == 2
+    # 国际旅行网站档（ta/lp/viator/curated 明站）现为最高名录档 0
+    assert hit_tier({"source": "baidu", "tags": ["lp"]}, []) == 0
     # 裸 intl 伞标按国际平台档计（共享模块既有约定：05/10 两路 import
     # 都写 intl 伞标，无站点明细时归平台档）
     assert hit_tier({"source": "baidu", "tags": ["intl"]}, []) == 3
@@ -597,3 +733,96 @@ def test_name_overlap_rejects_midfix_subfacilities():
     assert not _name_overlap("颐和园文创商店", "颐和园")
     assert not _name_overlap("圆明园", "颐和园")
     assert not _name_overlap("秦始皇帝陵", "秦始皇兵马俑博物馆")
+
+
+def test_match_text_names_core_matches_short_wish_but_not_city_prefix():
+    """用户只写地名内核（朱家角），底库行是全称（朱家角古镇）也要认；
+    但内核只有城市名（上海老街 → 上海）或带括号分店标记的行不许泛化命中。"""
+    store = PoiDetailStore()
+    store.upsert(
+        "p1", city="上海", name="朱家角古镇", source="4a", category="attraction"
+    )
+    store.upsert(
+        "p2", city="上海", name="上海老街(人民路)", source="x", category="nature"
+    )
+    store.upsert("p3", city="上海", name="上海博物馆", source="m1", category="museum")
+
+    hits = store.match_text_names("上海", "上海 2 天，想去朱家角、外滩、上海博物馆")
+    names = [h["name"] for h in hits]
+
+    assert "朱家角古镇" in names
+    assert "上海博物馆" in names
+    assert "上海老街(人民路)" not in names
+    # 全称写法（既有的整串匹配通道）不受影响
+    assert [h["name"] for h in store.match_text_names("上海", "想去朱家角古镇")] == [
+        "朱家角古镇"
+    ]
+
+
+class _TextMatchQuery:
+    """match_text_names 的 DB 桩：过滤条件不参与，回全量给定行。"""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _TextMatchSession:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def query(self, *cols):
+        return _TextMatchQuery(self._rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _store_with_rows(rows) -> PoiDetailStore:
+    return PoiDetailStore(session_factory=lambda: _TextMatchSession(rows))
+
+
+def test_match_text_names_english_core_matches_proper_noun():
+    """英文专名也要认（2026-11-16 用户「WHY ZHUJIAJIAO IS NOT RECOGNIZED」）：
+    底库英文名是全称 Zhujiajiao Ancient Town，用户在文字里只写 ZHUJIAJIAO
+    ——整名匹配要求 Ancient/Town 也在文里，永远不中。削尾缀取内核后按整词
+    命中；园林类名字（Shanghai Botanical Garden）不受影响，不会因为文里写了
+    Shanghai 就把植物园拉进必去。"""
+    rows = [
+        (
+            "朱家角古镇",
+            "Zhujiajiao Ancient Town",
+            ["朱家角古镇景区"],
+            "attraction",
+            "上海",
+        ),
+        ("外滩", "The Bund", None, "nature", "上海"),
+        ("上海博物馆", "Shanghai Museum", None, "museum", "上海"),
+        ("上海植物园", "Shanghai Botanical Garden", None, "nature", "上海"),
+        ("上海老街(人民路)", "Shanghai Old Street", None, "nature", "上海"),
+    ]
+    store = _store_with_rows(rows)
+
+    names = [
+        h["name"]
+        for h in store.match_text_names(
+            "上海",
+            "2DAYS' SHANGHAI TRIP INCLDING ZHUJIAJIAO , SHANGHAI MUSEUM, "
+            "THE BUND AND OTHERS",
+        )
+    ]
+
+    assert "朱家角古镇" in names
+    assert "上海博物馆" in names
+    assert "外滩" in names
+    assert "上海植物园" not in names
+    # 老街类名字不削（削完只剩城市词 Shanghai → 任何句子都会命中）
+    assert "上海老街(人民路)" not in names

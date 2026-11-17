@@ -16,13 +16,15 @@ Generated 2026-10-17. Everything installed **without admin rights**, all heavy t
 | Amap MCP | workspace `mcp\node_modules\@amap\amap-maps-mcp-server` | 0.0.8, stdio, needs `AMAP_MAPS_API_KEY` |
 | Sentry MCP | workspace `mcp\node_modules\@sentry\mcp-server` | 0.42.0, stdio, needs `SENTRY_ACCESS_TOKEN` |
 | Postgres MCP (crystaldba) | `D:\dev\venvs\postgres-mcp` (isolated venv, Python 3.12, mcp 1.30.0) | 0.3.0, stdio, needs `DATABASE_URI`; use `--access-mode unrestricted` to allow write/EXPLAIN during dev |
+| TripAdvisor Terra MCP (remote) | `https://docs.terra.tripadvisor.com/mcp` (hosted, no local install) | streamable HTTP; tools `list-specs` / `search-endpoints` / `get-endpoint` / `execute-request`. MCP handshake needs no auth — pass the Content API key (`TRIPADVISOR_API_KEY`) as a header inside `execute-request` HAR calls. Docs: https://docs.terra.tripadvisor.com/docs/mcp |
 | Node used by MCP configs | `C:\Users\91454\AppData\Local\Programs\AutoClaw2\resources\vendor\node\node.exe` | v24.20.0 (absolute paths in mcp.json so any client works) |
 
 ## MCP wiring (already done)
 
 - `D:\chinatrip\.mcp.json` — project-scoped config for Claude Code (auto-loaded when Claude Code runs in `D:\chinatrip`).
 - `mcp/mcp.json` (this folder) — same content, kept as the annotated master copy.
-- Servers: `amap-maps`, `sentry`, `postgres`, `dart`.
+- Servers: `tripadvisor-terra` (remote HTTP), `amap-maps`, `sentry`, `postgres`, `dart`.
+- Added 2026-11-14: `tripadvisor-terra` (remote, URL only — no command/env). `TRIPADVISOR_API_KEY` set as a Windows user env var and in `mcp/.env` (gitignored); key source: `D:\YMM\YMM ID & PW.docx`.
 
 Credentials are referenced as `${VAR}` placeholders (Claude Code expands env vars). For clients without expansion (e.g. some Cursor versions), replace `${...}` inline or set Windows user env vars:
 

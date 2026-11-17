@@ -53,3 +53,34 @@ def test_reservation_hint_seed_fallback_zh_unchanged():
     assert hint.startswith("需提前 7 天预约（")
     assert "护照可约" in hint
     assert "代抢" in hint  # FOREIGNER_TIP
+
+
+def test_reservation_hint_csv_no_reservation_zh():
+    """09 表全量判词兜底：大足石刻=实名购票制无需预约（2026-10-29 已核），
+    渠道+外籍护照购票口径都上卡。"""
+    hint = _reservation_hint("大足石刻", {})
+    assert hint is not None
+    assert hint.startswith("无需预约（「大足石刻」公众号")
+    assert "外籍：同国内购票制" in hint  # 现场窗口凭护照购票
+
+
+def test_reservation_hint_csv_no_reservation_en():
+    set_lang("en")
+    hint = _reservation_hint("大足石刻", {})
+    assert hint is not None
+    assert hint.startswith("No reservation needed (「大足石刻」公众号")
+    assert "foreigners: 同国内购票制" in hint
+
+
+def test_reservation_hint_csv_required_row():
+    """良渚古城：09 表需预约行（提前 1-7 天）不在名单 v0——走 CSV 兜底。"""
+    hint = _reservation_hint("良渚古城遗址", {})
+    assert hint is not None
+    assert hint.startswith("需提前 7 天预约")
+    assert "「良渚古城」微信公众号" in hint
+    assert "护照线上预约难" in hint  # 外籍口径
+
+
+def test_reservation_hint_unknown_site_none():
+    """库列/名单/09 表全不命中 → None（前端兜底「预约信息无」）。"""
+    assert _reservation_hint("某某无名景点", {}) is None

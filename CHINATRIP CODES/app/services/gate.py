@@ -29,6 +29,19 @@ _RULE_RESTAURANT = re.compile(r"吃什么|餐厅|好吃")
 _RULE_WISHLIST = re.compile(r"心愿单|想去的地方")
 _RULE_REPLAN = re.compile(r"重排|改行程|换个顺序|跨天")
 
+# 单点加心愿口吻（2026-11-13）：直进主车道，不花一次 Flash 分类；
+# 落位由 agent 的 wish_fast 确定性快路径完成（不是重排）。
+_RULE_PLACE_VISIT = re.compile(
+    r"^(?!.*(?:哪|怎么去|什么|几点|好吃))"
+    r"(?:请|麻烦)?(?:帮我)?(?:我)?(?:想|要|打算|计划|准备)?"
+    r"(?:去|到|参观|游览|逛逛|逛|打卡|吃|尝尝|住|入住)"
+)
+_RULE_PLACE_VISIT_EN = re.compile(
+    r"^(?:please\s+)?(?:i\s+(?:want|would\s+like|'d\s+like)\s+to\s+"
+    r"(?:go\s+to|visit|see)|(?:go\s+to|visit))\s+\S",
+    re.IGNORECASE,
+)
+
 _SHORT_TEXT_MAX_CHARS = 80
 
 _FLASH_SYSTEM_PROMPT = (
@@ -91,6 +104,9 @@ def _match_rule(text: str) -> tuple[Lane, str] | None:
         return Lane.fast, "restaurant"
     if _RULE_WISHLIST.search(text):
         return Lane.fast, "wishlist"
+    if _RULE_PLACE_VISIT.match(text) or _RULE_PLACE_VISIT_EN.match(text):
+        # 单点加心愿：主车道（落位走 wish_fast 确定性快路径）。
+        return Lane.main, "attraction_visit"
     if _RULE_REPLAN.search(text):
         return Lane.slow, "replan"
     return None

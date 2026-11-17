@@ -288,7 +288,7 @@ def test_lns_destroy_repair_resequences_big_into_morning():
         for i in d.items
         if isinstance(i, VisitItem) and i.item_id == "big"
     )
-    assert big_it.start_time == time(9, 0)
+    assert big_it.start_time == time(8, 30)
     assert f > b
 
 

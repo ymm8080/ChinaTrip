@@ -1,0 +1,29 @@
+﻿feat(plan): 腿的时间/成本按后端统一口径（远郊接驳链 + 城市出租车价目）
+
+用户实报：行程时间按默认远郊接驳链算时，网页只按直线×1.3/35km/h 自算
+「车程约 156 分钟」，与卡片 2h22 的接驳链对不上，也没有成本预估。
+
+后端：
+* 新增 itinerary/fares.py：40 个主要城市出租车价目（起步价/起步公里/里程价，
+  未知城市回落 10+2.0/km）；接驳票价默认值 shuttle 20 / ferry 10 / train 5。
+* rules.access_breakdown：把 打车到乘车点 + 候车 + 专线 + 落客 拆开，
+  access_chain_minutes 改为复用它。
+* VisitItem 新增 next_leg_minutes / next_leg_mode / next_leg_cost_cny /
+  next_leg_cost_note；legs.annotate_legs 统一填写：
+  - 接驳链：mode=access，时间=链值（慕田峪 142），成本=打车到乘车点 +
+    接驳票价（北京起步 13 + 20 = 33）；
+  - 普通段：mode=taxi，时间=travel_gap_needed（≥30 地板），成本按城市价目；
+  - ≤1.5km：mode=walk，成本 0。
+* 酒店占位卡无坐标时给城心锚（CITY_COORDS）：晨卡→慕田峪这条腿才显示得出来。
+
+前端（index.html/i18n.js/sw v108）：
+* 腿行优先用 next_leg_minutes/next_leg_cost_cny；接驳段显示
+  「↓ 距下一站 59.5 km · 接驳约 142 分钟（含候车/专线）· 约 ¥33」，
+  普通段「车程约 30 分钟（含叫车）· 约 ¥13」；旧会话无字段回落原公式。
+
+关于高德：路线 API 只返回距离/时长/过路费，不提供出租车票价；高德打车是
+合作方接口（需商户资质），所以展示预估用本地价目表 + 现有距离/实测腿，
+更准时可把直线距离换成高德驾车里程，票价仍按城市表算。
+
+测试：tests/test_leg_fares.py 3 例（价目表/接驳链时间+成本/打车与步行）；
+plan_api 5 红 + plan_agent 3 红 + hotel_stays 3 红=既有基线；H5 静态守门全绿。

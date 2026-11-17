@@ -1,0 +1,773 @@
+排名文件模式: 625 个规划页站点对，39 城
+台账重试行: 314
+本批 322 行（pois 317 + restaurants 5；source 序: ['4a', '5a', 'amap', 'baidu', 'chinatravel', 'curated', 'histvillage', 'layla']…）
+  [catalog] 三亚/attractions 增量加深 7→45 页（已有 124 条）
+  [catalog] 三亚/attractions 第8页 +0（累计 124/?）
+  [catalog] 上海/attractions 缓存复用 1001 条（已爬 45 页）
+  [catalog] 丽江/attractions 增量加深 0→45 页（已有 63 条）
+  [catalog] 丽江/attractions 第1页 +0（累计 63/63）
+  [catalog] 丽江/restaurants 增量加深 0→45 页（已有 266 条）
+  [catalog] 丽江/restaurants 第1页 +0（累计 266/266）
+  [catalog] 兰州/attractions 增量加深 0→45 页（已有 47 条）
+  [catalog] 兰州/attractions 第1页 +0（累计 47/47）
+  [catalog] 兰州/restaurants 增量加深 0→45 页（已有 229 条）
+  [catalog] 兰州/restaurants 第1页 +0（累计 229/229）
+  [catalog] 北京/attractions 增量加深 5→45 页（已有 1196 条）
+  [catalog] 北京/attractions 第6页 +0（累计 1196/1164）
+  [catalog] 南京/attractions 增量加深 4→45 页（已有 471 条）
+  [catalog] 南京/attractions 第5页 +0（累计 471/196）
+  [catalog] 南京/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 厦门/attractions 增量加深 0→45 页（已有 335 条）
+  [catalog] 厦门/attractions 第1页 +0（累计 335/192）
+  [catalog] 厦门/restaurants 增量加深 0→45 页（已有 600 条）
+  [catalog] 厦门/restaurants 第1页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第2页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第3页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第4页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第5页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第6页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第7页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第8页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第9页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第10页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第11页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第12页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第13页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第14页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第15页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第16页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第17页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第18页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第19页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第20页 +0（累计 600/1587）
+  [catalog] 厦门/restaurants 第21页 +30（累计 630/1587）
+  [catalog] 厦门/restaurants 第22页 +30（累计 660/1587）
+  [catalog] 厦门/restaurants 第23页 +30（累计 690/1587）
+  [catalog] 厦门/restaurants 第24页 +30（累计 720/1587）
+  [catalog] 厦门/restaurants 第25页 +30（累计 750/1587）
+  [catalog] 厦门/restaurants 第26页 +30（累计 780/1587）
+  [catalog] 厦门/restaurants 第27页 +30（累计 810/1587）
+  [catalog] 厦门/restaurants 第28页 +30（累计 840/1587）
+  [catalog] 厦门/restaurants 第29页 +30（累计 870/1587）
+  [catalog] 厦门/restaurants 第30页 +30（累计 900/1587）
+  [catalog] 厦门/restaurants 第31页 +30（累计 930/1587）
+  [catalog] 厦门/restaurants 第32页 +30（累计 960/1587）
+  [catalog] 厦门/restaurants 第33页 +30（累计 990/1587）
+  [catalog] 厦门/restaurants 第34页 +30（累计 1020/1587）
+  [catalog] 厦门/restaurants 第35页 +30（累计 1050/1587）
+  [catalog] 厦门/restaurants 第36页 +30（累计 1080/1587）
+  [catalog] 厦门/restaurants 第37页 +30（累计 1110/1587）
+  [catalog] 厦门/restaurants 第38页 +30（累计 1140/1587）
+  [catalog] 厦门/restaurants 第39页 +30（累计 1170/1587）
+  [catalog] 厦门/restaurants 第40页 +30（累计 1200/1587）
+  [catalog] 厦门/restaurants 第41页 +30（累计 1230/1587）
+  [catalog] 厦门/restaurants 第42页 +30（累计 1260/1587）
+  [catalog] 厦门/restaurants 第43页 +30（累计 1290/1587）
+  [catalog] 厦门/restaurants 第44页 +30（累计 1320/1587）
+  [catalog] 厦门/restaurants 第45页 +30（累计 1350/1587）
+  [catalog] 哈尔滨/attractions 增量加深 0→45 页（已有 254 条）
+  [catalog] 哈尔滨/attractions 第1页 +0（累计 254/143）
+  [catalog] 哈尔滨/restaurants 增量加深 0→45 页（已有 600 条）
+  [catalog] 哈尔滨/restaurants 第1页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第2页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第3页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第4页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第5页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第6页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第7页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第8页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第9页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第10页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第11页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第12页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第13页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第14页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第15页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第16页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第17页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第18页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第19页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第20页 +0（累计 600/761）
+  [catalog] 哈尔滨/restaurants 第21页 +30（累计 630/761）
+  [catalog] 哈尔滨/restaurants 第22页 +30（累计 660/761）
+  [catalog] 哈尔滨/restaurants 第23页 +30（累计 690/761）
+  [catalog] 哈尔滨/restaurants 第24页 +30（累计 720/761）
+  [catalog] 哈尔滨/restaurants 第25页 +30（累计 750/761）
+  [catalog] 哈尔滨/restaurants 第26页 +11（累计 761/761）
+  [catalog] 嘉兴/attractions 增量加深 0→45 页（已有 49 条）
+  [catalog] 嘉兴/attractions 第1页 +0（累计 49/30）
+  [catalog] 大理/attractions 增量加深 0→45 页（已有 48 条）
+  [catalog] 大理/attractions 第1页 +0（累计 48/48）
+  [catalog] 大理/restaurants 增量加深 0→45 页（已有 164 条）
+  [catalog] 大理/restaurants 第1页 +0（累计 164/164）
+  [catalog] 大连/attractions 增量加深 4→45 页（已有 314 条）
+  [catalog] 大连/attractions 第5页 +0（累计 314/209）
+  [catalog] 大连/restaurants 增量加深 43→45 页（已有 1179 条）
+  [catalog] 大连/restaurants 第44页 +0（累计 1179/1179）
+  [catalog] 天津/attractions 增量加深 0→45 页（已有 460 条）
+  [catalog] 天津/attractions 第1页 +0（累计 460/248）
+  [catalog] 天津/restaurants 增量加深 0→45 页（已有 600 条）
+  [catalog] 天津/restaurants 第1页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第2页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第3页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第4页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第5页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第6页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第7页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第8页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第9页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第10页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第11页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第12页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第13页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第14页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第15页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第16页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第17页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第18页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第19页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第20页 +0（累计 600/2394）
+  [catalog] 天津/restaurants 第21页 +30（累计 630/2394）
+  [catalog] 天津/restaurants 第22页 +30（累计 660/2394）
+  [catalog] 天津/restaurants 第23页 +30（累计 690/2394）
+  [catalog] 天津/restaurants 第24页 +30（累计 720/2394）
+  [catalog] 天津/restaurants 第25页 +30（累计 750/2394）
+  [catalog] 天津/restaurants 第26页 +30（累计 780/2394）
+  [catalog] 天津/restaurants 第27页 +30（累计 810/2394）
+  [catalog] 天津/restaurants 第28页 +30（累计 840/2394）
+  [catalog] 天津/restaurants 第29页 +30（累计 870/2394）
+  [catalog] 天津/restaurants 第30页 +30（累计 900/2394）
+  [catalog] 天津/restaurants 第31页 +30（累计 930/2394）
+  [catalog] 天津/restaurants 第32页 +30（累计 960/2394）
+  [catalog] 天津/restaurants 第33页 +30（累计 990/2394）
+  [catalog] 天津/restaurants 第34页 +30（累计 1020/2394）
+  [catalog] 天津/restaurants 第35页 +30（累计 1050/2394）
+  [catalog] 天津/restaurants 第36页 +30（累计 1080/2394）
+  [catalog] 天津/restaurants 第37页 +30（累计 1110/2394）
+  [catalog] 天津/restaurants 第38页 +30（累计 1140/2394）
+  [catalog] 天津/restaurants 第39页 +30（累计 1170/2394）
+  [catalog] 天津/restaurants 第40页 +30（累计 1200/2394）
+  [catalog] 天津/restaurants 第41页 +30（累计 1230/2394）
+  [catalog] 天津/restaurants 第42页 +30（累计 1260/2394）
+  [catalog] 天津/restaurants 第43页 +30（累计 1290/2394）
+  [catalog] 天津/restaurants 第44页 +30（累计 1320/2394）
+  [catalog] 天津/restaurants 第45页 +30（累计 1350/2394）
+  [catalog] 广州/attractions 增量加深 4→45 页（已有 492 条）
+  [catalog] 广州/attractions 第5页 +0（累计 492/409）
+  [catalog] 张家界/attractions 增量加深 0→45 页（已有 202 条）
+  [catalog] 张家界/attractions 第1页 +0（累计 202/45）
+  [catalog] 张家界/restaurants 增量加深 0→45 页（已有 178 条）
+  [catalog] 张家界/restaurants 第1页 +0（累计 178/178）
+  [catalog] 成都/attractions 增量加深 4→45 页（已有 460 条）
+  [catalog] 成都/attractions 第5页 +0（累计 460/225）
+  [catalog] 成都/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 拉萨/attractions 增量加深 0→45 页（已有 186 条）
+  [catalog] 拉萨/attractions 第1页 +0（累计 186/54）
+  [catalog] 拉萨/restaurants 增量加深 0→45 页（已有 118 条）
+  [catalog] 拉萨/restaurants 第1页 +0（累计 118/118）
+  [catalog] 敦煌/attractions 增量加深 0→45 页（已有 49 条）
+  [catalog] 敦煌/attractions 第1页 +0（累计 49/38）
+  [catalog] 敦煌/restaurants 增量加深 0→45 页（已有 13 条）
+  [catalog] 敦煌/restaurants 第1页 +0（累计 13/13）
+  [catalog] 无锡/attractions 增量加深 7→45 页（已有 144 条）
+  [catalog] 无锡/attractions 第8页 +0（累计 144/?）
+  [catalog] 昆明/attractions 增量加深 0→45 页（已有 276 条）
+  [catalog] 昆明/attractions 第1页 +0（累计 276/106）
+  [catalog] 昆明/restaurants 增量加深 0→45 页（已有 600 条）
+  [catalog] 昆明/restaurants 第1页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第2页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第3页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第4页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第5页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第6页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第7页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第8页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第9页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第10页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第11页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第12页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第13页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第14页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第15页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第16页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第17页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第18页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第19页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第20页 +0（累计 600/682）
+  [catalog] 昆明/restaurants 第21页 +30（累计 630/682）
+  [catalog] 昆明/restaurants 第22页 +30（累计 660/682）
+  [catalog] 昆明/restaurants 第23页 +22（累计 682/682）
+  [catalog] 杭州/attractions 增量加深 4→45 页（已有 530 条）
+  [catalog] 杭州/attractions 第5页 +0（累计 530/298）
+  [catalog] 杭州/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 桂林/attractions 增量加深 4→45 页（已有 96 条）
+  [catalog] 桂林/attractions 第5页 +11（累计 107/359）
+  [catalog] 桂林/attractions 第6页 +8（累计 115/359）
+  [catalog] 桂林/attractions 第7页 +30（累计 145/359）
+  [catalog] 桂林/attractions 第8页 +30（累计 175/359）
+  [catalog] 桂林/attractions 第9页 +30（累计 205/359）
+  [catalog] 桂林/attractions 第10页 +30（累计 235/359）
+  [catalog] 桂林/attractions 第11页 +30（累计 265/359）
+  [catalog] 桂林/attractions 第12页 +29（累计 294/359）
+  [catalog] 桂林/attractions 第13页 +0（累计 294/?）
+  [catalog] 桂林/restaurants 增量加深 4→45 页（已有 337 条）
+  [catalog] 桂林/restaurants 第5页 +0（累计 337/337）
+  [catalog] 武汉/attractions 增量加深 4→45 页（已有 558 条）
+  [catalog] 武汉/attractions 第5页 +0（累计 558/231）
+  [catalog] 武汉/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 沈阳/attractions 增量加深 4→45 页（已有 268 条）
+  [catalog] 沈阳/attractions 第5页 +0（累计 268/145）
+  [catalog] 沈阳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 泉州/attractions 第1页 +30（累计 30/55）
+  [catalog] 泉州/attractions 第2页 +25（累计 55/55）
+  [catalog] 泉州/restaurants 第1页 +30（累计 30/48）
+  [catalog] 泉州/restaurants 第2页 +18（累计 48/48）
+  [catalog] 洛阳/attractions 增量加深 5→45 页（已有 109 条）
+  [catalog] 洛阳/attractions 第6页 +0（累计 109/?）
+  [catalog] 洛阳/restaurants 增量加深 4→45 页（已有 149 条）
+  [catalog] 洛阳/restaurants 第5页 +0（累计 149/149）
+  [catalog] 济南/attractions 增量加深 4→45 页（已有 223 条）
+  [catalog] 济南/attractions 第5页 +0（累计 223/238）
+  [catalog] 济南/attractions 第6页 +0（累计 223/238）
+  [catalog] 济南/attractions 第7页 +0（累计 223/238）
+  [catalog] 济南/attractions 第8页 +0（累计 223/238）
+  [catalog] 济南/attractions 第9页 +0（累计 223/?）
+  [catalog] 济南/restaurants 增量加深 31→45 页（已有 866 条）
+  [catalog] 济南/restaurants 第32页 +0（累计 866/866）
+  [catalog] 深圳/attractions 增量加深 4→45 页（已有 515 条）
+  [catalog] 深圳/attractions 第5页 +0（累计 515/414）
+  [catalog] 深圳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 福州/attractions 第1页 +30（累计 30/104）
+  [catalog] 福州/attractions 第2页 +29（累计 59/104）
+  [catalog] 福州/attractions 第3页 +29（累计 88/104）
+  [catalog] 福州/attractions 第4页 +14（累计 102/104）
+  [catalog] 福州/attractions 第5页 +30（累计 132/169）
+  [catalog] 福州/attractions 第6页 +19（累计 151/169）
+  [catalog] 福州/attractions 第7页 +0（累计 151/?）
+  [catalog] 福州/restaurants 第1页 +30（累计 30/868）
+  [catalog] 福州/restaurants 第2页 +30（累计 60/868）
+  [catalog] 福州/restaurants 第3页 +30（累计 90/868）
+  [catalog] 福州/restaurants 第4页 +30（累计 120/868）
+  [catalog] 福州/restaurants 第5页 +30（累计 150/868）
+  [catalog] 福州/restaurants 第6页 +30（累计 180/868）
+  [catalog] 福州/restaurants 第7页 +30（累计 210/868）
+  [catalog] 福州/restaurants 第8页 +30（累计 240/868）
+  [catalog] 福州/restaurants 第9页 +30（累计 270/868）
+  [catalog] 福州/restaurants 第10页 +30（累计 300/868）
+  [catalog] 福州/restaurants 第11页 +30（累计 330/868）
+  [catalog] 福州/restaurants 第12页 +30（累计 360/868）
+  [catalog] 福州/restaurants 第13页 +30（累计 390/868）
+  [catalog] 福州/restaurants 第14页 +30（累计 420/868）
+  [catalog] 福州/restaurants 第15页 +30（累计 450/868）
+  [catalog] 福州/restaurants 第16页 +30（累计 480/868）
+  [catalog] 福州/restaurants 第17页 +30（累计 510/868）
+  [catalog] 福州/restaurants 第18页 +30（累计 540/868）
+  [catalog] 福州/restaurants 第19页 +30（累计 570/868）
+  [catalog] 福州/restaurants 第20页 +30（累计 600/868）
+  [catalog] 福州/restaurants 第21页 +30（累计 630/868）
+  [catalog] 福州/restaurants 第22页 +30（累计 660/868）
+  [catalog] 福州/restaurants 第23页 +30（累计 690/868）
+  [catalog] 福州/restaurants 第24页 +30（累计 720/868）
+  [catalog] 福州/restaurants 第25页 +30（累计 750/868）
+  [catalog] 福州/restaurants 第26页 +30（累计 780/868）
+  [catalog] 福州/restaurants 第27页 +30（累计 810/868）
+  [catalog] 福州/restaurants 第28页 +30（累计 840/868）
+  [catalog] 福州/restaurants 第29页 +28（累计 868/868）
+  [catalog] 绍兴/attractions 增量加深 6→45 页（已有 45 条）
+  [catalog] 绍兴/attractions 第7页 +0（累计 45/?）
+  [catalog] 绍兴/restaurants 增量加深 4→45 页（已有 129 条）
+  [catalog] 绍兴/restaurants 第5页 +0（累计 129/129）
+  [catalog] 舟山/attractions 增量加深 5→45 页（已有 77 条）
+  [catalog] 舟山/attractions 第6页 +0（累计 77/?）
+  [catalog] 苏州/attractions 增量加深 4→45 页（已有 218 条）
+  [catalog] 苏州/attractions 第5页 +0（累计 218/218）
+  [catalog] 苏州/restaurants 增量加深 33→45 页（已有 874 条）
+  [catalog] 苏州/restaurants 第34页 +0（累计 874/874）
+  [catalog] 西安/attractions 增量加深 4→45 页（已有 475 条）
+  [catalog] 西安/attractions 第5页 +0（累计 475/244）
+  [catalog] 西安/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 郑州/attractions 第1页 +29（累计 29/72）
+  [catalog] 郑州/attractions 第2页 +30（累计 59/72）
+  [catalog] 郑州/attractions 第3页 +12（累计 71/72）
+  [catalog] 郑州/attractions 第4页 +30（累计 101/156）
+  [catalog] 郑州/attractions 第5页 +30（累计 131/156）
+  [catalog] 郑州/attractions 第6页 +6（累计 137/156）
+  [catalog] 郑州/attractions 第7页 +0（累计 137/?）
+  [catalog] 郑州/restaurants 第1页 +30（累计 30/672）
+  [catalog] 郑州/restaurants 第2页 +30（累计 60/672）
+  [catalog] 郑州/restaurants 第3页 +30（累计 90/672）
+  [catalog] 郑州/restaurants 第4页 +30（累计 120/672）
+  [catalog] 郑州/restaurants 第5页 +30（累计 150/672）
+  [catalog] 郑州/restaurants 第6页 +30（累计 180/672）
+  [catalog] 郑州/restaurants 第7页 +30（累计 210/672）
+  [catalog] 郑州/restaurants 第8页 +30（累计 240/672）
+  [catalog] 郑州/restaurants 第9页 +30（累计 270/672）
+  [catalog] 郑州/restaurants 第10页 +30（累计 300/672）
+  [catalog] 郑州/restaurants 第11页 +30（累计 330/672）
+  [catalog] 郑州/restaurants 第12页 +30（累计 360/672）
+  [catalog] 郑州/restaurants 第13页 +30（累计 390/672）
+  [catalog] 郑州/restaurants 第14页 +30（累计 420/672）
+  [catalog] 郑州/restaurants 第15页 +30（累计 450/672）
+  [catalog] 郑州/restaurants 第16页 +30（累计 480/672）
+  [catalog] 郑州/restaurants 第17页 +30（累计 510/672）
+  [catalog] 郑州/restaurants 第18页 +30（累计 540/672）
+  [catalog] 郑州/restaurants 第19页 +30（累计 570/672）
+  [catalog] 郑州/restaurants 第20页 +30（累计 600/672）
+  [catalog] 郑州/restaurants 第21页 +30（累计 630/672）
+  [catalog] 郑州/restaurants 第22页 +30（累计 660/672）
+  [catalog] 郑州/restaurants 第23页 +12（累计 672/672）
+  [catalog] 重庆/attractions 第1页 +29（累计 29/240）
+  [catalog] 重庆/attractions 第2页 +29（累计 58/240）
+  [catalog] 重庆/attractions 第3页 +29（累计 87/240）
+  [catalog] 重庆/attractions 第4页 +29（累计 116/240）
+  [catalog] 重庆/attractions 第5页 +28（累计 144/240）
+  [catalog] 重庆/attractions 第6页 +28（累计 172/240）
+  [catalog] 重庆/attractions 第7页 +30（累计 202/240）
+  [catalog] 重庆/attractions 第8页 +30（累计 232/240）
+  [catalog] 重庆/attractions 第9页 +1（累计 233/622）
+  [catalog] 重庆/attractions 第10页 +3（累计 236/622）
+  [catalog] 重庆/attractions 第11页 +29（累计 265/622）
+  [catalog] 重庆/attractions 第12页 +30（累计 295/622）
+  [catalog] 重庆/attractions 第13页 +30（累计 325/622）
+  [catalog] 重庆/attractions 第14页 +30（累计 355/622）
+  [catalog] 重庆/attractions 第15页 +30（累计 385/622）
+  [catalog] 重庆/attractions 第16页 +29（累计 414/622）
+  [catalog] 重庆/attractions 第17页 +30（累计 444/622）
+  [catalog] 重庆/attractions 第18页 +30（累计 474/622）
+  [catalog] 重庆/attractions 第19页 +30（累计 504/622）
+  [catalog] 重庆/attractions 第20页 +30（累计 534/622）
+  [catalog] 重庆/attractions 第21页 +22（累计 556/622）
+  [catalog] 重庆/attractions 第22页 +0（累计 556/?）
+  [catalog] 重庆/restaurants 第1页 +30（累计 30/1652）
+  [catalog] 重庆/restaurants 第2页 +30（累计 60/1652）
+  [catalog] 重庆/restaurants 第3页 +30（累计 90/1652）
+  [catalog] 重庆/restaurants 第4页 +30（累计 120/1652）
+  [catalog] 重庆/restaurants 第5页 +30（累计 150/1652）
+  [catalog] 重庆/restaurants 第6页 +30（累计 180/1652）
+  [catalog] 重庆/restaurants 第7页 +30（累计 210/1652）
+  [catalog] 重庆/restaurants 第8页 +30（累计 240/1652）
+  [catalog] 重庆/restaurants 第9页 +30（累计 270/1652）
+  [catalog] 重庆/restaurants 第10页 +30（累计 300/1652）
+  [catalog] 重庆/restaurants 第11页 +30（累计 330/1652）
+  [catalog] 重庆/restaurants 第12页 +30（累计 360/1652）
+  [catalog] 重庆/restaurants 第13页 +30（累计 390/1652）
+  [catalog] 重庆/restaurants 第14页 +30（累计 420/1652）
+  [catalog] 重庆/restaurants 第15页 +30（累计 450/1652）
+  [catalog] 重庆/restaurants 第16页 +30（累计 480/1652）
+  [catalog] 重庆/restaurants 第17页 +30（累计 510/1652）
+  [catalog] 重庆/restaurants 第18页 +30（累计 540/1652）
+  [catalog] 重庆/restaurants 第19页 +30（累计 570/1652）
+  [catalog] 重庆/restaurants 第20页 +30（累计 600/1652）
+  [catalog] 重庆/restaurants 第21页 +30（累计 630/1652）
+  [catalog] 重庆/restaurants 第22页 +30（累计 660/1652）
+  [catalog] 重庆/restaurants 第23页 +30（累计 690/1652）
+  [catalog] 重庆/restaurants 第24页 +30（累计 720/1652）
+  [catalog] 重庆/restaurants 第25页 +30（累计 750/1652）
+  [catalog] 重庆/restaurants 第26页 +30（累计 780/1652）
+  [catalog] 重庆/restaurants 第27页 +30（累计 810/1652）
+  [catalog] 重庆/restaurants 第28页 +30（累计 840/1652）
+  [catalog] 重庆/restaurants 第29页 +30（累计 870/1652）
+  [catalog] 重庆/restaurants 第30页 +30（累计 900/1652）
+  [catalog] 重庆/restaurants 第31页 +30（累计 930/1652）
+  [catalog] 重庆/restaurants 第32页 +30（累计 960/1652）
+  [catalog] 重庆/restaurants 第33页 +30（累计 990/1652）
+  [catalog] 重庆/restaurants 第34页 +30（累计 1020/1652）
+  [catalog] 重庆/restaurants 第35页 +30（累计 1050/1652）
+  [catalog] 重庆/restaurants 第36页 +30（累计 1080/1652）
+  [catalog] 重庆/restaurants 第37页 +30（累计 1110/1652）
+  [catalog] 重庆/restaurants 第38页 +30（累计 1140/1652）
+  [catalog] 重庆/restaurants 第39页 +30（累计 1170/1652）
+  [catalog] 重庆/restaurants 第40页 +30（累计 1200/1652）
+  [catalog] 重庆/restaurants 第41页 +30（累计 1230/1652）
+  [catalog] 重庆/restaurants 第42页 +30（累计 1260/1652）
+  [catalog] 重庆/restaurants 第43页 +30（累计 1290/1652）
+  [catalog] 重庆/restaurants 第44页 +30（累计 1320/1652）
+  [catalog] 重庆/restaurants 第45页 +30（累计 1350/1652）
+  [catalog] 长春/attractions 第1页 +29（累计 29/68）
+  [catalog] 长春/attractions 第2页 +30（累计 59/68）
+  [catalog] 长春/attractions 第3页 +8（累计 67/68）
+  [catalog] 长春/attractions 第4页 +30（累计 97/133）
+  [catalog] 长春/attractions 第5页 +13（累计 110/133）
+  [catalog] 长春/attractions 第6页 +0（累计 110/?）
+  [catalog] 长春/restaurants 第1页 +30（累计 30/700）
+  [catalog] 长春/restaurants 第2页 +30（累计 60/700）
+  [catalog] 长春/restaurants 第3页 +30（累计 90/700）
+  [catalog] 长春/restaurants 第4页 +30（累计 120/700）
+  [catalog] 长春/restaurants 第5页 +30（累计 150/700）
+  [catalog] 长春/restaurants 第6页 +30（累计 180/700）
+  [catalog] 长春/restaurants 第7页 +30（累计 210/700）
+  [catalog] 长春/restaurants 第8页 +30（累计 240/700）
+  [catalog] 长春/restaurants 第9页 +30（累计 270/700）
+  [catalog] 长春/restaurants 第10页 +30（累计 300/700）
+  [catalog] 长春/restaurants 第11页 +30（累计 330/700）
+  [catalog] 长春/restaurants 第12页 +30（累计 360/700）
+  [catalog] 长春/restaurants 第13页 +30（累计 390/700）
+  [catalog] 长春/restaurants 第14页 +30（累计 420/700）
+  [catalog] 长春/restaurants 第15页 +30（累计 450/700）
+  [catalog] 长春/restaurants 第16页 +30（累计 480/700）
+  [catalog] 长春/restaurants 第17页 +30（累计 510/700）
+  [catalog] 长春/restaurants 第18页 +30（累计 540/700）
+  [catalog] 长春/restaurants 第19页 +30（累计 570/700）
+  [catalog] 长春/restaurants 第20页 +30（累计 600/700）
+  [catalog] 长春/restaurants 第21页 +30（累计 630/700）
+  [catalog] 长春/restaurants 第22页 +30（累计 660/700）
+  [catalog] 长春/restaurants 第23页 +30（累计 690/700）
+  [catalog] 长春/restaurants 第24页 +10（累计 700/700）
+  [catalog] 长沙/attractions 第1页 +28（累计 28/78）
+  [catalog] 长沙/attractions 第2页 +29（累计 57/78）
+  [catalog] 长沙/attractions 第3页 +18（累计 75/78）
+  [catalog] 长沙/attractions 第4页 +25（累计 100/196）
+  [catalog] 长沙/attractions 第5页 +30（累计 130/196）
+  [catalog] 长沙/attractions 第6页 +29（累计 159/196）
+  [catalog] 长沙/attractions 第7页 +15（累计 174/196）
+  [catalog] 长沙/attractions 第8页 +0（累计 174/?）
+  [catalog] 长沙/restaurants 第1页 +30（累计 30/795）
+  [catalog] 长沙/restaurants 第2页 +30（累计 60/795）
+  [catalog] 长沙/restaurants 第3页 +30（累计 90/795）
+  [catalog] 长沙/restaurants 第4页 +30（累计 120/795）
+  [catalog] 长沙/restaurants 第5页 +30（累计 150/795）
+  [catalog] 长沙/restaurants 第6页 +30（累计 180/795）
+  [catalog] 长沙/restaurants 第7页 +30（累计 210/795）
+  [catalog] 长沙/restaurants 第8页 +30（累计 240/795）
+  [catalog] 长沙/restaurants 第9页 +30（累计 270/795）
+  [catalog] 长沙/restaurants 第10页 +30（累计 300/795）
+  [catalog] 长沙/restaurants 第11页 +30（累计 330/795）
+  [catalog] 长沙/restaurants 第12页 +30（累计 360/795）
+  [catalog] 长沙/restaurants 第13页 +30（累计 390/795）
+  [catalog] 长沙/restaurants 第14页 +30（累计 420/795）
+  [catalog] 长沙/restaurants 第15页 +30（累计 450/795）
+  [catalog] 长沙/restaurants 第16页 +30（累计 480/795）
+  [catalog] 长沙/restaurants 第17页 +30（累计 510/795）
+  [catalog] 长沙/restaurants 第18页 +30（累计 540/795）
+  [catalog] 长沙/restaurants 第19页 +30（累计 570/795）
+  [catalog] 长沙/restaurants 第20页 +30（累计 600/795）
+  [catalog] 长沙/restaurants 第21页 +30（累计 630/795）
+  [catalog] 长沙/restaurants 第22页 +30（累计 660/795）
+  [catalog] 长沙/restaurants 第23页 +30（累计 690/795）
+  [catalog] 长沙/restaurants 第24页 +30（累计 720/795）
+  [catalog] 长沙/restaurants 第25页 +30（累计 750/795）
+  [catalog] 长沙/restaurants 第26页 +30（累计 780/795）
+  [catalog] 长沙/restaurants 第27页 +15（累计 795/795）
+  [catalog] 青岛/attractions 增量加深 4→45 页（已有 333 条）
+  [catalog] 青岛/attractions 第5页 +0（累计 333/207）
+  [catalog] 青岛/restaurants 增量加深 42→45 页（已有 1150 条）
+  [catalog] 青岛/restaurants 第43页 +0（累计 1150/1150）
+  [catalog] 黄山/attractions 第1页 +30（累计 30/50）
+  [catalog] 黄山/attractions 第2页 +20（累计 50/50）
+  [warn] 恭城红岩村景区（桂林/nature）无过阈候选
+  [warn] 丽江御宴（丽江/food）无过阈候选
+  [warn] 桂林全州县湘山·湘源历史文化旅游区（桂林/nature）无过阈候选
+  [warn] 仙女山归原小镇（重庆/nature）无过阈候选
+  [warn] 北京圣莲山旅游风景区（北京/nature）无过阈候选
+  [warn] 虎跳峡（丽江/nature）无过阈候选
+  [warn] 通济渠郑州段（郑州/historic）无过阈候选
+  [warn] 乐满地度假世界（桂林/attraction）无过阈候选
+  [warn] 重庆市南岸区龙门浩老街（重庆/historic）无过阈候选
+  [warn] 向王盛宴（张家界/food）无过阈候选
+  [warn] 觉宴（昆明/food）无过阈候选
+  [warn] 重庆市九龙坡区杨家坪步行街旅游休闲街区（重庆/historic）无过阈候选
+  [warn] 长安十二时辰·唐宴（西安/food）无过阈候选
+  [warn] 农科村景区（成都/nature）无过阈候选
+  [warn] 河南省洛阳市涧西区广州市场步行街（洛阳/historic）无过阈候选
+  [warn] 御宴·沉浸式宫廷盛宴（福州/food）无过阈候选
+  [warn] 禧宴·囍·沉浸式宫廷宴（大连/food）无过阈候选
+  [warn] 吴良墓（南京/historic）无过阈候选
+  [warn] 阳朔三千漓中国山水人文度假区（桂林/nature）无过阈候选
+  [warn] 广州市中山纪念堂（广州/nature）无过阈候选
+  [warn] 闽南大院（厦门/food）无过阈候选
+  [warn] 武汉叙宴（武汉/food）无过阈候选
+  [warn] 嵩山风景名胜区（郑州/nature）无过阈候选
+  [warn] 成都市西岭雪山景区（成都/nature）无过阈候选
+  [warn] 沩山风景名胜区（长沙/nature）无过阈候选
+  [warn] 乐多港假日广场景区（北京/nature）无过阈候选
+  [warn] 潭獐峡风景名胜区（重庆/nature）无过阈候选
+  [warn] 丹景台旅游景区（成都/nature）无过阈候选
+  [warn] 兰州西部恐龙水乐园景区（兰州/theme_park）无过阈候选
+  [warn] 牛首山文化旅游区（南京/nature）无过阈候选
+  [warn] 五凤溪古镇（成都/attraction）无过阈候选
+  [warn] 湖南省长沙市开福区潮宗街（长沙/historic）无过阈候选
+  [warn] 两江夜游（重庆/attraction）无过阈候选
+  [warn] 路南石林风景名胜区（昆明/nature）无过阈候选
+  [warn] 古徽州文化旅游区（黄山/attraction）无过阈候选
+  [warn] 严州古城景区（杭州/ancient_town）无过阈候选
+  [warn] 辽宁省沈阳市铁西区红梅文创园旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 七星景区（桂林/nature）无过阈候选
+  [warn] 楚汉宫宴·沉浸式宫廷礼宴（武汉/food）无过阈候选
+  [warn] 秀宴·齐鲁文化美食剧场（济南/entertainment）无过阈候选
+  [warn] 十八重溪风景名胜区（福州/nature）无过阈候选
+  [warn] 崂山区崂山景区（青岛/attraction）无过阈候选
+  [warn] 德化步行街（郑州/historic）无过阈候选
+  [warn] 上海国际时尚中心（上海/nature）无过阈候选
+  [warn] 广西壮族自治区桂林市阳朔县阳朔西街（桂林/historic）无过阈候选
+  [warn] 万春亭（北京/attraction）无过阈候选
+  [warn] 黎阳映像街区（黄山/historic）无过阈候选
+  [warn] 巫山博物馆（重庆/museum）无过阈候选
+  [warn] 嵊泗列岛风景名胜区（舟山/nature）无过阈候选
+  [warn] 重庆统景温泉风景区（重庆/attraction）无过阈候选
+  [warn] 天坑地缝风景名胜区（重庆/nature）无过阈候选
+  [warn] 桂林在水一汸景区（桂林/nature）无过阈候选
+  [warn] 千岛湖石林景区（杭州/nature）无过阈候选
+  [warn] 成都市宝光桂湖文化旅游区（成都/nature）无过阈候选
+  [warn] 云阳县龙缸景区（重庆/attraction）无过阈候选
+  [warn] 徐达墓（南京/historic）无过阈候选
+  [warn] 李文忠墓（南京/historic）无过阈候选
+  [warn] 常遇春墓（南京/historic）无过阈候选
+  [warn] 吴祯墓（南京/historic）无过阈候选
+  [warn] 桂林喀斯特（桂林/nature）无过阈候选
+  [warn] 南谣逸境·颁金宴（沈阳/food）无过阈候选
+  [warn] 红鼎宴（成都/food）无过阈候选
+  [warn] 观赋宴·唐风沉浸式盛宴（青岛/food）无过阈候选
+  [warn] 鱼王传（长沙/food）无过阈候选
+  [warn] 敘宴·王府宴（天津/food）无过阈候选
+  [warn] 礼颂宴（天憙园）（大理/food）无过阈候选
+  [warn] 吴宫御宴（苏州/food）无过阈候选
+  [warn] 礼宴巴国·巴国礼乐宴（重庆/food）无过阈候选
+  [warn] 失重餐厅(环球中心店)（成都/food）无过阈候选
+  [warn] 明茂陵（北京/historic）无过阈候选
+  [warn] 丽江玉龙雪山风景名胜区（丽江/nature）无过阈候选
+  [warn] 英良石材自然历史博物馆景区（泉州/museum）无过阈候选
+  [warn] 黄陂区木兰文化生态旅游区（武汉/attraction）无过阈候选
+  [warn] 滨湖区鼋头渚旅游风景区（无锡/attraction）无过阈候选
+  [warn] 定陵（北京/attraction）无过阈候选
+  [warn] 辽宁省沈阳市和平区沈阳老北市旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 山东省青岛市市北区台东旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 上海市徐汇区衡复音乐街区（上海/historic）无过阈候选
+  [warn] 云南省大理白族自治州大理市双廊镇民族文化街（大理/historic）无过阈候选
+  [warn] 天津市蓟州区渔阳古街（天津/historic）无过阈候选
+  [warn] 云南省大理白族自治州巍山彝族回族自治县南诏古街（大理/historic）无过阈候选
+  [warn] 四川省成都市成华区望平坊旅游休闲街区（成都/historic）无过阈候选
+  [warn] 下姜村（杭州/attraction）无过阈候选
+  [warn] 环秀山庄（苏州/nature）无过阈候选
+  [warn] 天安门广场（北京/attraction）无过阈候选
+  [warn] 寻花宴·沉浸式闽南非遗餐秀（泉州/food）无过阈候选
+  [warn] 福建土楼（永定高北土楼群）（厦门/historic）无过阈候选
+  [warn] 富春江-新安江风景名胜区（杭州/nature）无过阈候选
+  [warn] 安仁古镇景区（成都/attraction）无过阈候选
+  [warn] 桂林漓江风景名胜区（桂林/nature）无过阈候选
+  [warn] 仇成墓（南京/historic）无过阈候选
+  [warn] 外滩观光隧道（上海/nature）无过阈候选
+  [warn] 西递村（黄山/attraction）无过阈候选
+  [warn] 北京大运河文化旅游景区（北京/attraction）无过阈候选
+  [warn] 大唐剧宴·沉浸式宫廷餐秀（郑州/food）无过阈候选
+  [warn] 龙脊长桌宴（桂林/food）无过阈候选
+  [warn] 六朝沉浸式晚宴（南京/food）无过阈候选
+  [warn] 御宴宫（西安/food）无过阈候选
+  [warn] 宴天下·宴乐（南京/food）无过阈候选
+  [warn] 云上盛宴·长街宴（丽江/food）无过阈候选
+  [warn] 宫宴·宋韵沉浸式宫廷御宴（杭州/food）无过阈候选
+  [warn] 芙蓉洞（重庆/nature）无过阈候选
+  [warn] 天安门城楼（北京/historic）无过阈候选
+  [warn] 綦江古剑山风景区（重庆/nature）无过阈候选
+  [warn] 山东省青岛市大鲍岛文化旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 山东省济南市槐荫区印象济南·泉世界文化旅游休闲街区（济南/historic）无过阈候选
+  [warn] 宝山旅游区（成都/nature）无过阈候选
+  [warn] 凤凰湖旅游景区（成都/nature）无过阈候选
+  [warn] 甘肃省兰州市西固区河口古镇旅游休闲街区（兰州/historic）无过阈候选
+  [warn] 皖南古村落西递和宏村（黄山/attraction）无过阈候选
+  [warn] 浣江-五泄风景名胜区（绍兴/nature）无过阈候选
+  [warn] 平潭68海里景区（福州/nature）无过阈候选
+  [warn] 洛阳古城历史文化街区（洛阳/historic）无过阈候选
+  [warn] 庆渝宴（重庆/food）无过阈候选
+  [warn] 云南省昆明市石林彝族自治县中国石林双龙旅游休闲街区（昆明/historic）无过阈候选
+  [warn] 长城脚下的公社（北京/other）无过阈候选
+  [warn] 金州区金石滩景区（大连/attraction）无过阈候选
+  [warn] 黔江区濯水景区（重庆/attraction）无过阈候选
+  [warn] 城关区大昭寺景区（拉萨/attraction）无过阈候选
+  [warn] 白帝城·瞿塘峡景区（重庆/attraction）无过阈候选
+  [warn] 宴宾楼饭庄（总店）（天津/food）无过阈候选
+  [warn] 马大胡子羊羔肉（总店）（兰州/food）无过阈候选
+  [warn] 裕兴记（西北街总店）（苏州/food）无过阈候选
+  [warn] 融厨湖北菜·非遗武昌鱼藕汤（江汉路总店）（武汉/food）无过阈候选
+  [warn] 费大厨辣椒炒肉（坡子街店）（长沙/food）无过阈候选
+  [warn] 阿妈意纳西饮食院（五一街小石桥）（丽江/food）无过阈候选
+  [warn] 老福洲徐记（斗东店）（福州/food）无过阈候选
+  [warn] 海南省三亚市吉阳区鸿洲码头旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 长安大牌档之西游漫记（大悦城店）（西安/food）无过阈候选
+  [warn] 魁盛居百年鲁菜馆（县西巷店）（济南/food）无过阈候选
+  [warn] 南锣鼓巷（北京/attraction）无过阈候选
+  [warn] 醉云喃（东西寺塔步行街店）（昆明/food）无过阈候选
+  [warn] 同利肉燕老铺（三坊七巷本铺）（福州/food）无过阈候选
+  [warn] 八合里牛肉火锅（购物公园店）（深圳/food）无过阈候选
+  [warn] 上青本港海鲜（后江埭路店）（厦门/food）无过阈候选
+  [warn] 杨记隆府·江湖菜（解放碑总店）（重庆/food）无过阈候选
+  [warn] 珮姐老火锅（洪崖洞店）（重庆/food）无过阈候选
+  [warn] 日丰园·海肠水饺（小平岛总店）（大连/food）无过阈候选
+  [warn] 再回首凉鸡米线（人民路一店）（大理/food）无过阈候选
+  [warn] 斯丹姜母鸭（涂门街总店）（泉州/food）无过阈候选
+  [warn] 方中山胡辣汤（顺河路总店）（郑州/food）无过阈候选
+  [warn] 解家河南菜（华山路店）（郑州/food）无过阈候选
+  [warn] 函谷关（洛阳/historic）无过阈候选
+  [warn] 佳宁娜潮州菜（佳宁娜广场店）（深圳/food）无过阈候选
+  [warn] 老济南四合院（王府池子12号院店）（济南/food）无过阈候选
+  [warn] 武皇盛宴（洛阳/food）无过阈候选
+  [warn] 石竹山景区（福州/nature）无过阈候选
+  [warn] 上下杭历史文化街区（福州/historic）无过阈候选
+  [warn] 广州市中国共产党第三次全国代表大会会址纪念馆旅游区（广州/museum）无过阈候选
+  [warn] 好成财牛排馆（涂门街总店）（泉州/food）无过阈候选
+  [warn] 奉天小馆（万象城店）（沈阳/food）无过阈候选
+  [warn] 炊烟小炒黄牛肉（华夏店）（长沙/food）无过阈候选
+  [warn] 香巴拉礼赞·金马宴民族歌舞演艺（拉萨/food）无过阈候选
+  [warn] 北京凤凰岭景区（北京/nature）无过阈候选
+  [warn] 福建省泉州市鲤城区泉州中山路旅游休闲街区（泉州/historic）无过阈候选
+  [warn] 大明山景区（杭州/nature）无过阈候选
+  [warn] 湖北省武汉市江岸区黎黄陂路历史文化街区（武汉/historic）无过阈候选
+  [warn] 建德航空小镇（杭州/theme_park）无过阈候选
+  [warn] 杜甫故里（郑州/attraction）无过阈候选
+  [warn] 漓江风景区（桂林/attraction）无过阈候选
+  [warn] 兰齐宴赋·沉浸式宫廷盛宴（青岛/food）无过阈候选
+  [warn] 肥肥虾庄（石牌岭总店）（武汉/food）无过阈候选
+  [warn] 三亚热带海滨风景名胜区（三亚/nature）无过阈候选
+  [warn] 栾川县老君山鸡冠洞旅游区（洛阳/attraction）无过阈候选
+  [warn] 宁乡县花明楼景区（长沙/attraction）无过阈候选
+  [warn] 大九街旅游休闲街区（重庆/historic）无过阈候选
+  [warn] 临潼骊山风景名胜区（西安/nature）无过阈候选
+  [warn] 红门御宴·沉浸式游宴（哈尔滨/food）无过阈候选
+  [warn] 见东方·吉时飨宴（长春/food）无过阈候选
+  [warn] 绍兴宴·解放路店（绍兴/food）无过阈候选
+  [warn] 敦煌盛宴大殿（敦煌/food）无过阈候选
+  [warn] 酉阳土家族苗族自治县桃花源旅游景区（重庆/attraction）无过阈候选
+  [warn] 敘宴·长安赋（深圳/food）无过阈候选
+  [warn] 宴华赋·唐风沉浸式宫宴餐秀（武汉/food）无过阈候选
+  [warn] 阿西娅羊羔肉·大砂坪总店（兰州/food）无过阈候选
+  [warn] 蓟州区盘山风景名胜区（天津/attraction）无过阈候选
+  [warn] 涪陵区武陵山大裂谷景区（重庆/attraction）无过阈候选
+  [warn] 彭水县阿依河景区（重庆/attraction）无过阈候选
+  [warn] 法租界（上海/attraction）无过阈候选
+  [warn] 辽宁省大连市中山区海昌·东方水城旅游休闲街区（大连/historic）无过阈候选
+  [warn] 海南省三亚市吉阳区大东海国际滨海旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 百花洲历史文化街区（济南/historic）无过阈候选
+  [warn] 上海天际线（上海/attraction）无过阈候选
+  [warn] 广东省深圳市南山区南头古城旅游休闲街区（深圳/historic）无过阈候选
+  [warn] 上海朱家角珠溪里舍（上海/nature）无过阈候选
+  [warn] 北京市石景山区模式口历史文化街区（北京/historic）无过阈候选
+  [warn] 重庆市酉阳土家族苗族自治县酉州古城步行街（重庆/historic）无过阈候选
+  [warn] 石林彝族自治县石林风景区（昆明/attraction）无过阈候选
+  [warn] 重庆市渝中区贰厂文创街区（重庆/historic）无过阈候选
+  [warn] 慈觉林藏院风情街（拉萨/historic）无过阈候选
+  [warn] 北京市昌平区乐多港假日广场旅游休闲街区（北京/historic）无过阈候选
+  [warn] 青岛崂山风景名胜区（青岛/nature）无过阈候选
+  [warn] 老山界龙潭江景区（桂林/nature）无过阈候选
+  [warn] 天姥山风景名胜区（绍兴/nature）无过阈候选
+  [warn] 丰都雪玉洞景区（重庆/nature）无过阈候选
+  [warn] 北京王府井天主教堂（北京/attraction）无过阈候选
+  [warn] 望丛祠（成都/attraction）无过阈候选
+  [warn] 潼南大佛寺（重庆/attraction）无过阈候选
+  [warn] 南湖区南湖旅游区（嘉兴/attraction）无过阈候选
+  [warn] 都江堰景区（成都/nature）无过阈候选
+  [warn] 武汉野生动物王国（武汉/theme_park）无过阈候选
+  [warn] 奉节龙桥河景区（重庆/nature）无过阈候选
+  [warn] 二里头夏都遗址博物馆（洛阳/museum）无过阈候选
+  [warn] 玉龙纳西族自治县玉龙雪山景区（丽江/attraction）无过阈候选
+  [warn] 竹林长寿山景区（郑州/nature）无过阈候选
+  [warn] 玉湖村（丽江/attraction）无过阈候选
+  [warn] 白鹿音乐小镇（成都/attraction）无过阈候选
+  [warn] 广州市城市规划展览中心（广州/museum）无过阈候选
+  [warn] 北京南锣鼓巷古韵坊四合院漫心府（北京/attraction）无过阈候选
+  [warn] 宏村（黄山/attraction）无过阈候选
+  [warn] 水墨大埝旅游区（南京/theme_park）无过阈候选
+  [warn] 海棠区蜈支洲岛旅游区（三亚/attraction）无过阈候选
+  [warn] 锦里古戏台（成都/art）无过阈候选
+  [warn] 外滩ART.333（上海/nature）无过阈候选
+  [warn] 崖州区南山文化旅游区（三亚/attraction）无过阈候选
+  [warn] 登封“天地之中”历史建筑群（郑州/historic）无过阈候选
+  [warn] 武钢文化旅游区（武汉/other）无过阈候选
+  [warn] 长陵（北京/attraction）无过阈候选
+  [warn] 吴中区太湖旅游区（苏州/attraction）无过阈候选
+  [warn] 武隆县喀斯特旅游区（重庆/attraction）无过阈候选
+  [warn] 纳木措-念青唐古拉山风景名胜区（拉萨/nature）无过阈候选
+  [warn] 新安县龙潭大峡谷景区（洛阳/attraction）无过阈候选
+  [warn] 嘉善县西塘古镇旅游景区（嘉兴/attraction）无过阈候选
+  [warn] 淳安县千岛湖风景区（杭州/attraction）无过阈候选
+  [warn] 崖州区南山大小洞天旅游区（三亚/attraction）无过阈候选
+  [warn] 东西巷历史文化街区（桂林/historic）无过阈候选
+  [warn] 仙居谷风景区（北京/nature）无过阈候选
+  [warn] 大连武术文化博物馆（大连/museum）无过阈候选
+  [warn] 侵华日军南京大屠杀遇难同胞纪念馆（南京/attraction）无过阈候选
+  [warn] 重庆市南川区南川东街（重庆/historic）无过阈候选
+  [warn] 河南省郑州市金水区郑州记忆1952油化厂旅游休闲街区（郑州/historic）无过阈候选
+  [warn] 天台山风景名胜区（成都/nature）无过阈候选
+  [warn] 八奇洞景区（北京/nature）无过阈候选
+  [warn] 海坛风景名胜区（福州/nature）无过阈候选
+  [warn] 长安十二时辰主题街区（西安/citywalk）无过阈候选
+  [warn] 平江历史街区（苏州/historic）无过阈候选
+  [warn] 天府花溪谷（成都/nature）无过阈候选
+  [warn] 灌县古城（成都/attraction）无过阈候选
+  [warn] 北外滩国客中心沙滩嘉年华（上海/theme_park）无过阈候选
+  [warn] 长城之漫观景台（北京/nature）无过阈候选
+  [warn] 磁器口转运楼（重庆/ancient_town）无过阈候选
+  [warn] 重庆工业文化博览园（重庆/museum）无过阈候选
+  [warn] 重庆欢乐谷（重庆/nature）无过阈候选
+  [warn] 塔克拉玛干·三五九旅文化旅游区（哈尔滨/attraction）无过阈候选
+  [warn] 龙华区观澜湖休闲旅游区（深圳/attraction）无过阈候选
+  [warn] 石柱万寿山景区（重庆/nature）无过阈候选
+  [warn] 西蜀第一街牌坊（成都/citywalk）无过阈候选
+  [warn] 北京中轴线（北京/historic）无过阈候选
+  [warn] 泉州：宋元中国的世界海洋商贸中心（泉州/nature）无过阈候选
+  [warn] 登封市（郑州/historic）无过阈候选
+  [warn] 裕兴记(演艺中心店)（苏州/food）无过阈候选
+  [warn] 八合里牛肉火锅(振中路店)（深圳/food）无过阈候选
+  [warn] 八合里牛肉火锅(东园店)（深圳/food）无过阈候选
+  [warn] 肥肥虾庄(石牌岭总店)（武汉/food）无过阈候选
+  [warn] 珮姐老火锅(北城天街店)（重庆/food）无过阈候选
+  [ok] pois:花山谜窟-渐江风景名胜区（黄山/nature） ← d1824755（1.00）
+  [ok] pois:金佛山-神龙峡风景区（重庆/attraction） ← d1814812（1.00）
+  [ok] pois:城关区布达拉宫景区（拉萨/attraction） ← d319162（1.00）
+  [ok] pois:兰英大峡谷（重庆/nature） ← d32841080（1.00）
+  [ok] pois:重庆市规划展览馆（重庆/museum） ← d1814916（1.00）
+  [ok] pois:太平街（长沙/historic） ← d14054911（1.00）
+  [ok] pois:福建中国闽台缘博物馆（泉州/museum） ← d4789792（1.00）
+  [ok] pois:悬泉置遗址（敦煌/historic） ← d1851248（1.00）
+  [ok] pois:周城村（大理/attraction） ← d1800993（1.00）
+  [ok] pois:玉门关（敦煌/historic） ← d1851255（1.00）
+  [ok] pois:顺张黄面馆（敦煌/food） ← d8369047（1.00）
+  [ok] pois:靖远尕六美味羊羔肉（敦煌/food） ← d11670747（1.00）
+  [ok] pois:临家闽南菜（环岛路店）（厦门/food） ← d10482423（1.00）
+  [ok] pois:重庆湖广会馆（重庆/nature） ← d1814784（1.00）
+  [ok] pois:金佛山（重庆/nature） ← d1814812（1.00）
+  [ok] pois:伪满皇宫博物院（长春/attraction） ← d1864608（1.00）
+  [ok] pois:雄村（黄山/attraction） ← d8862662（1.00）
+  [ok] pois:重庆磁器口古镇（重庆/attraction） ← d502852（1.00）
+  [ok] pois:重庆动物园（重庆/theme_park） ← d447511（1.00）
+  [ok] pois:洪崖洞（重庆/ancient_town） ← d1814790（1.00）
+  [ok] pois:重庆科技馆（重庆/museum） ← d5115592（1.00）
+  [ok] pois:洛阳桥（泉州/attraction） ← d501312（1.00）
+  [ok] pois:重庆海兰云天温泉度假区（重庆/attraction） ← d2068807（1.00）
+  [ok] pois:南关区净月潭景区（长春/attraction） ← d1864610（1.00）
+  [ok] pois:岳麓山-橘子洲旅游区（长沙/attraction） ← d505432（1.00）
+  [ok] pois:南关区长影世纪城景区（长春/attraction） ← d1864609（1.00）
+  [ok] pois:李子坝轻轨站（重庆/transport） ← d15758086（1.00）
+  [ok] pois:黄山（黄山/nature） ← d550738（1.00）
+  [ok] pois:马子禄牛肉面（大众巷总店）（兰州/food） ← d3424465（0.96）
+  [ok] pois:鼓浪屿-万石山风景名胜区（厦门/nature） ← d1131761（0.95）
+  [ok] pois:鼓山风景名胜区（福州/nature） ← d561401（0.95）
+  [ok] pois:丰泽区清源山风景名胜区（泉州/attraction） ← d501313（0.95）
+  [ok] pois:郑州黄河风景名胜区（郑州/nature） ← d502659（0.95）
+  [ok] pois:大足石刻（重庆/historic） ← d5115596（0.95）
+  [ok] pois:三坊七巷历史文化街区（福州/historic） ← d17323125（0.95）
+  [ok] pois:重庆长江三峡游船（重庆/theme_park） ← d354070（0.95）
+  [ok] pois:岳麓山风景名胜区（长沙/nature） ← d505432（0.95）
+  [ok] pois:万盛黑山谷-龙鳞石海风景区（重庆/attraction） ← d1814801（0.95）
+  [ok] pois:杨柳青古镇街区（天津/historic） ← d1814669（0.95）
+  [ok] pois:天津市南开区古文化街（天津/historic） ← d488842（0.95）
+  [ok] pois:鼓楼区三坊七巷景区（福州/attraction） ← d17323125（0.95）
+  [ok] pois:"八大部"-净月潭风景名胜区（长春/nature） ← d1864610（0.95）
+  [ok] pois:桂园餐厅（五大道店）（天津/food） ← d3502677（0.95）
+  [ok] pois:太阳岛风景名胜区（哈尔滨/nature） ← d600741（0.95）
+  [ok] pois:江津区四面山景区（重庆/attraction） ← d1814810（0.95）
+  [ok] pois:长江索道（重庆/attraction） ← d321018（0.95）
+  [ok] pois:重庆三峡移民纪念馆（重庆/museum） ← d354070（0.95）
+  [ok] pois:弹子石老街（重庆/historic） ← d13084537（0.95）
+  [ok] pois:宝峰湖游船（张家界/attraction） ← d1805463（0.95）
+  [ok] pois:吉林省长春市朝阳区红旗街旅游休闲街区（长春/historic） ← d3363189（0.95）
+  [ok] pois:昆明滇池风景名胜区（昆明/nature） ← d488808（0.95）
+  [ok] pois:小三峡小小三峡旅游区（重庆/attraction） ← d354070（0.95）
+  [ok] pois:重庆市渝中区十八梯传统风貌区（重庆/historic） ← d10257051（0.95）
+  [ok] pois:丽江古城（丽江/attraction） ← d1238293（0.95）
+  [ok] pois:南关区世界雕塑公园景区（长春/attraction） ← d1851544（0.95）
+  [ok] pois:黄山区黄山风景区（黄山/attraction） ← d550738（0.95）
+  [ok] pois:黄都礼宴（厦门/food） ← d11823457（0.88）
+  [ok] pois:重庆市江北区观音桥商圈旅游休闲街区（重庆/historic） ← d5287864（0.88）
+台账重写: 保留 255 行滚动重试
+
+完成：写库 58，未匹配 255（已入台账，下次跳过）
+exit=0

@@ -1,0 +1,22 @@
+[
+ {
+  "id": "32b082d8-0717-43b2-8777-7d1830950ce4",
+  "source_poi_id": "ct_\u4e0a\u6d77_8503",
+  "city": "\u4e0a\u6d77",
+  "name_zh": "KIINA",
+  "category": "other",
+  "status": "active",
+  "new_status": "inactive",
+  "why": "KIINA=LLM \u8bc6\u522b\u5931\u8d25\u884c\uff1bBUS TOUR=\u89c2\u5149\u5df4\u58eb\u670d\u52a1\uff0c\u5747\u4e0d\u53ef\u4f5c\u89c4\u5212\u666f\u70b9"
+ },
+ {
+  "id": "0304b379-ed19-4325-85de-f7bed04dcff4",
+  "source_poi_id": "ct_\u4e0a\u6d77_48",
+  "city": "\u4e0a\u6d77",
+  "name_zh": "BUS TOUR \u4e0a\u6d77\u89c2\u5149\u6e38",
+  "category": "entertainment",
+  "status": "active",
+  "new_status": "inactive",
+  "why": "KIINA=LLM \u8bc6\u522b\u5931\u8d25\u884c\uff1bBUS TOUR=\u89c2\u5149\u5df4\u58eb\u670d\u52a1\uff0c\u5747\u4e0d\u53ef\u4f5c\u89c4\u5212\u666f\u70b9"
+ }
+]

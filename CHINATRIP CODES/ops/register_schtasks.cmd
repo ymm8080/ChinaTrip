@@ -29,6 +29,11 @@ rem driver with miss ledger; ~100 searches/day personal quota, quota-stop;
 rem registered live on 2026-11-03, see ops/fill_hours_rating_driver.py)
 schtasks /Create /F /TN "ChinaTrip\POI hours+rating daily" /TR "\"%OPS%\poi_hours_rating_daily.cmd\"" /SC DAILY /ST 03:55
 
+rem coords backfill nightly (2026-11-03: baidu geocode daily quota reset chase;
+rem ledger cleared+backed up each run, driver+extras idempotent, log
+rem devlogs\coords_round4.log; DELETE this task once active location NULL = 0)
+schtasks /Create /F /TN "ChinaTrip\coords nightly" /TR "\"%OPS%\coords_round4.cmd\"" /SC DAILY /ST 00:20
+
 rem ===== Weather (amap/baidu weather API; upstream CMA; 08/11/18 forecasts) =====
 rem 2026-10-28 cadence decision: weather refreshes ONCE daily; 08:10 right
 rem after the ~08:00 CST morning forecast update, FULL 40-city coverage so any

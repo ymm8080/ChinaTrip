@@ -43,6 +43,7 @@ from app.services.ctrip_hours import (
     parse_hours,
 )
 from app.services.poi_classify import duration_upgradable
+from app.services.review_tag_coarse import coarse_tags
 from app.services.source_tier import SOURCE_PRIORITY
 
 logger = logging.getLogger(__name__)
@@ -191,6 +192,9 @@ _TARGET_COLS = (
     Poi.review_tags.is_(None),
     Poi.opening_hours.is_(None),
     Poi.rating.is_(None),
+    # 2026-11-10 用户拍板：amap 设的 rating 由携程覆盖（权威源切换），
+    # 覆盖完成后 rating_source='ctrip'，行自然离开目标集。
+    Poi.rating_source == "amap",
     # 2026-10-25 拍板：heuristic 时长地板可被 ctrip 真值升级（update），
     # 只填空的行也要回头重富化
     Poi.duration_source == "heuristic",
@@ -289,15 +293,24 @@ def _write_row(factory, poi_id, f: dict) -> list[str]:
             row.ticket_source = "ctrip"
             written.append("ticket")
         tags = _gate_tags(f.get("review_tags"))
+        # 粗化入写（DESIGN user_tag_two_level_2026-11-10 §五）：携程细词
+        # → 12 个用户可选粗标签，原词对照表 app/services/review_tag_coarse.py
+        tags = coarse_tags(tags)
         if row.review_tags is None and tags:
             row.review_tags = tags
             row.review_tags_source = "ctrip"
             written.append("review_tags")
         r = f.get("rating")
-        if row.rating is None and isinstance(r, (int, float)) and 0 <= r <= 5:
-            row.rating = float(r)
-            row.rating_source = "ctrip"
-            written.append("rating")
+        if isinstance(r, (int, float)) and 0 <= r <= 5:
+            if row.rating is None:
+                row.rating = float(r)
+                row.rating_source = "ctrip"
+                written.append("rating")
+            elif row.rating_source == "amap" and float(r) != float(row.rating):
+                # 2026-11-10 用户拍板：amap 设的 rating 由携程覆盖
+                row.rating = float(r)
+                row.rating_source = "ctrip"
+                written.append("rating")
         session.commit()
     return written
 

@@ -1,0 +1,27 @@
+样本 10 行（amap 评分行，优先组打头）:
+  unesco     北京       颐和园                amap=4.7
+  unesco     北京       天坛                 amap=4.7
+  unesco     苏州       拙政园                amap=4.6
+  unesco     杭州       良渚古城遗址             amap=4.4
+  unesco     成都       青城山—都江堰            amap=4.6
+  unesco     重庆       大足石刻               amap=4.6
+  unesco     北京       长城                 amap=4.7
+  5a         上海       上海野生动物园            amap=4.7
+  5a         成都       安仁古镇景区             amap=4.5
+  5a         重庆       黔江区濯水景区            amap=4.6
+
+=== 逐行对比（基准=ctrip）===
+  颐和园            amap=4.7(db) ctrip=4.7(base) qunar=4.7(ok(4268080051)) |Δa=0.0 Δq=0.0
+  天坛             amap=4.7(db) ctrip=4.7(base) qunar=4.8(ok(1053903287)) |Δa=0.0 Δq=0.1
+  拙政园            amap=4.6(db) ctrip=4.6(base) qunar=4.6(ok(641515105)) |Δa=0.0 Δq=0.0
+  良渚古城遗址         amap=4.4(db) ctrip=4.4(base) qunar=None(not-in-list) |Δa=0.0 Δq=-
+  青城山—都江堰        amap=4.6(db) ctrip=4.6(base) qunar=4.6(ok(2833668773)) |Δa=0.0 Δq=0.0
+  大足石刻           amap=4.6(db) ctrip=4.6(base) qunar=4.6(ok(1184661441)) |Δa=0.0 Δq=0.0
+  长城             amap=4.7(db) ctrip=4.7(base) qunar=4.8(ok(777857128)) |Δa=0.0 Δq=0.1
+  上海野生动物园        amap=4.7(db) ctrip=4.7(base) qunar=4.7(ok(2180662363)) |Δa=0.0 Δq=0.0
+  安仁古镇景区         amap=4.5(db) ctrip=4.5(base) qunar=4.5(ok(397599110)) |Δa=0.0 Δq=0.0
+  黔江区濯水景区        amap=4.6(db) ctrip=4.6(base) qunar=None(not-in-list) |Δa=0.0 Δq=-
+
+amap vs ctrip: n=10 平均|Δ|=0.00
+qunar vs ctrip: n=8 平均|Δ|=0.02
+覆盖率（本样本内拿到分）: amap 100%（存量） ctrip 10/10 qunar 8/10

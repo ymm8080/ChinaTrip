@@ -1,0 +1,34 @@
+feat(plan): 远郊接驳腿显示拆分（打车→专线→步行）+ 按时刻表挑最快班次
+
+用户拍板（2026-11-16）：
+①「远郊接驳 SHOULD PICK UP MOST TIME SAVING METHOD … TIMING AROUND 9AM」——
+   到乘车点后按官方时刻表挑「到景区最早」的一班，不再用平均候车；
+②「TRANSPORTATION SHOULD SHOW LEG CLEARLY」——规划页要看清
+   酒店→专线上车点（距离+时间）→ 专线车程 → 落客步行，并给班次/票价/预约与官网链接。
+
+后端
+- access_services：Service 补 official_url/official_status；新增
+  fastest_service / fastest_plan（同一「最快到景区」口径，读官方时刻表）。
+- access_service_store：SELECT 补 official_url/official_status/window_source/
+  fare_source/poi_name_en/service_name_en/boarding_stop_en（此前把官方 URL 读丢）。
+- poi_access：_attach_service_window 挂车点/下车站/运营方/发车时刻/返程时刻/
+  票价/购票与官网 URL；head_chain_minutes 收 depart_minute，候车按时刻表算。
+- rules.access_breakdown：接驳链逐段拆分（taxi_km/taxi_minutes/wait/service/last），
+  班次按最快到景区挑；晨卡（hotel-morning）以离店时刻 08:30 起算，避免卡上时间
+  比腿短 30 分钟；无时刻表时回落卡上 access_depart_times / 档案经验值。
+- legs：VisitItem.next_leg_detail（mode/taxi/候车/专线/步行/班次/返程/票价/
+  打车与接驳分项成本/预约与官网 URL/到站发车到达时刻）。
+- plan._clamp_chain_gaps：晨卡的 30 分钟打包窗不再重复计入接驳链。
+
+前端（sw v109）
+- 行程卡腿行下新增「🚏 接驳路线」三行：打车到乘车点（km/分钟）→ 专线（发车/
+  车程/候车）→ 下车步行；班次与返程时刻、打车¥+接驳¥分项、票价与购票/官网链接。
+- i18n 补 card.hop.* 英文词条（en 覆盖门全绿）。
+
+验证
+- tests/test_leg_fares.py 新增 3 例（最快班次挑选、晨卡 08:30 口径链值 158 分钟、
+  腿行 detail 全套字段）→ 6 绿；plan_api/plan_agent/meal_cards/hotel_stays/
+  remote_must_day/intake_times/big_afternoon 317 绿。
+- node ops/check_h5_static.js 全绿。
+- 真机（双口 smoke PASS）：Day1 08:30 酒店 → leg access 158 分钟 ¥33 →
+  慕田峪 11:08–14:08（此前 10:34 起，卡与腿自相矛盾）。

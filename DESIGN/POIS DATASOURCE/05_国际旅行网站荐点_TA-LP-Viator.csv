@@ -1,99 +1,99 @@
-﻿city,name_zh,name_en,sites,site_sources,alias_zh
-北京,故宫博物院,The Palace Museum (Forbidden City),ta|lp,tripadvisor|lonelyplanet,
-北京,慕田峪长城,Mutianyu Great Wall,ta|lp,tripadvisor|lonelyplanet,
-北京,八达岭长城,Badaling Great Wall,ta|lp,tripadvisor|lonelyplanet,
-北京,颐和园,Summer Palace,ta|lp,tripadvisor|lonelyplanet,颐和园景区
-北京,天坛公园,Temple of Heaven Park,ta|lp,tripadvisor|lonelyplanet,天坛
-北京,天安门广场,Tiananmen Square,ta|lp,tripadvisor|lonelyplanet,
-北京,景山公园,Jingshan Park,lp,lonelyplanet,
-北京,钟鼓楼,Drum & Bell Towers,lp,lonelyplanet,鼓楼
-北京,南锣鼓巷,Nanluoguxiang Hutong,lp,lonelyplanet,
-北京,明十三陵,Ming Tombs,lp,lonelyplanet,十三陵
-北京,潘家园旧货市场,Panjiayuan Antique Market,lp,lonelyplanet,潘家园
-北京,798艺术区,798 Art District,ta,tripadvisor,
-上海,外滩,The Bund,ta|lp,tripadvisor|lonelyplanet,
-上海,豫园,Yu Garden,ta|lp,tripadvisor|lonelyplanet,
-上海,东方明珠,Oriental Pearl TV Tower,ta|lp,tripadvisor|lonelyplanet,东方明珠广播电视塔
-上海,上海中心大厦,Shanghai Tower,lp,lonelyplanet,
-上海,田子坊,Tianzifang,lp,lonelyplanet,
-上海,新天地,Xintiandi,lp,lonelyplanet,
-上海,武康路,Wukang Road & Former French Concession,lp,lonelyplanet,
-上海,静安寺,Jing'an Temple,lp,lonelyplanet,
-上海,南京东路步行街,East Nanjing Rd Pedestrian Street,lp,lonelyplanet,
-上海,上海博物馆,Shanghai Museum,lp,lonelyplanet,
-上海,M50创意园,M50 Art District,lp,lonelyplanet,
-上海,上海迪士尼乐园,Shanghai Disneyland,lp,lonelyplanet,
-上海,中共一大纪念馆,Site of the First CPC National Congress,lp,lonelyplanet,中国共产党一大·二大·四大纪念馆景区
-上海,朱家角古镇,Zhujiajiao Water Town,lp,lonelyplanet,朱家角古镇景区
-上海,黄浦江游览,Huangpu River Cruise,lp,lonelyplanet,黄浦江游览（东方明珠码头）
-苏州,拙政园,Humble Administrator's Garden,lp,lonelyplanet,
-苏州,苏州博物馆,Suzhou Museum,curated,curated,
-苏州,平江路历史街区,Pingjiang Road Historic Block,curated,curated,
-苏州,七里山塘,Shantang Street,curated,curated,山塘街
-苏州,虎丘山风景名胜区,Tiger Hill Scenic Area,curated,curated,虎丘
-苏州,周庄古镇,Zhouzhuang Water Town,curated,curated,周庄
-杭州,西湖风景名胜区,West Lake,ta|lp,tripadvisor|lonelyplanet,杭州西湖文化景观|西湖
-杭州,灵隐飞来峰,Lingyin Temple & Feilai Peak,curated,curated,飞来峰|灵隐飞来峰景区|灵隐寺
-杭州,龙井村,Longjing Tea Village,lp,lonelyplanet,龙井问茶
-杭州,清河坊历史街区,Qinghefang (Hefang St) Historic Block,curated,curated,清河坊街|河坊街
-杭州,拱宸桥·桥西历史文化街区,Grand Canal: Gongchen Bridge & Qiaoxi Block,curated,curated,
-杭州,西溪国家湿地公园,Xixi National Wetland Park,curated,curated,西溪湿地
-南京,中山陵园风景区,Sun Yat-sen Mausoleum,curated,curated,中山陵景区|中山陵
-南京,明孝陵,Ming Xiaoling Mausoleum,curated,curated,
-南京,夫子庙秦淮风光带,Confucius Temple & Qinhuai River,ta,tripadvisor,南京夫子庙-秦淮风光带-长干里|夫子庙
-南京,南京城墙（中华门）,Nanjing City Wall (Zhonghua Gate),curated,curated,中华门瓮城|南京城墙
-南京,南京总统府,Presidential Palace,curated,curated,总统府
-南京,南京博物院,Nanjing Museum,curated,curated,
-南京,侵华日军南京大屠杀遇难同胞纪念馆,Nanjing Massacre Memorial Hall,ta,tripadvisor,
-广州,广州塔,Canton Tower,ta,tripadvisor,
-广州,沙面岛,Shamian Island,ta,tripadvisor,沙面|沙面公园
-广州,长隆野生动物世界,Chimelong Safari Park,ta,tripadvisor,长隆野生动物园
-广州,珠江夜游,Pearl River Night Cruise,ta|lp,tripadvisor|lonelyplanet,珠江夜游广州塔财富码头
-广州,陈家祠,Chen Clan Ancestral Hall,curated,curated,陈家祠旅游区
-广州,光孝寺,Guangxiao Temple,lp,lonelyplanet,
-深圳,世界之窗,Window of the World,curated,curated,
-深圳,华侨城创意文化园,OCT-LOFT Creative Culture Park,lp,lonelyplanet,
-深圳,深圳湾公园,Shenzhen Bay Park,curated,curated,
-深圳,大梅沙海滨公园,Dameisha Beach,curated,curated,大梅沙海滨浴场
-成都,成都大熊猫繁育研究基地,Chengdu Research Base of Giant Panda Breeding,ta|lp,tripadvisor|lonelyplanet,大熊猫繁育研究基地
-成都,宽窄巷子,Kuanzhai Alley (Wide & Narrow Alleys),lp,lonelyplanet,
-成都,锦里古街,Jinli Ancient Street,curated,curated,锦里
-成都,武侯祠,Wuhou Shrine,curated,curated,成都武侯祠
-成都,杜甫草堂,Du Fu Thatched Cottage,curated,curated,成都杜甫草堂
-成都,成都市人民公园,People's Park (Heming Teahouse),lp,lonelyplanet,人民公园
-成都,金沙遗址博物馆,Jinsha Site Museum,lp,lonelyplanet,成都金沙遗址博物馆
-成都,都江堰景区,Dujiangyan Irrigation System,curated,curated,都江堰水利工程|都江堰风景区
-重庆,洪崖洞民俗风貌区,Hongyadong (Hongya Cave),ta|lp,tripadvisor|lonelyplanet,洪崖洞
-重庆,长江索道,Yangtze River Cableway,ta,tripadvisor,重庆长江索道
-重庆,磁器口古镇,Ciqikou Ancient Town,curated,curated,磁器口
-重庆,李子坝轻轨站,Liziba Station (Metro through Building),curated,curated,李子坝站
-重庆,两江夜游,Two Rivers Night Cruise,curated,curated,朝天门两江夜游
-武汉,黄鹤楼,Yellow Crane Tower,curated,curated,黄鹤楼公园
-武汉,湖北省博物馆,Hubei Provincial Museum,curated,curated,
-武汉,东湖生态旅游风景区,East Lake Scenic Area,curated,curated,武汉东湖|东湖风景区
-武汉,昙华林,Tanhualin Historic Block,curated,curated,昙华林历史文化街区
-西安,秦始皇帝陵博物院（兵马俑）,Terracotta Warriors,ta|lp,tripadvisor|lonelyplanet,秦始皇兵马俑博物馆|兵马俑
-西安,西安城墙,Xi'an City Wall,lp,lonelyplanet,西安明城墙
-西安,大雁塔,Giant Wild Goose Pagoda,lp,lonelyplanet,大雁塔大唐芙蓉园景区
-西安,回民街,Muslim Quarter (Beiyuanmen),lp,lonelyplanet,北院门历史文化街区
-西安,西安钟楼,Xi'an Bell Tower,lp,lonelyplanet,钟楼
-西安,华清宫,Huaqing Palace,curated,curated,华清池
-乐山,乐山大佛,Leshan Giant Buddha,lp,lonelyplanet,市中区乐山大佛景区|乐山大佛景区
-敦煌,莫高窟,Mogao Grottoes,lp,lonelyplanet,敦煌莫高窟
-张掖,张掖七彩丹霞景区,Zhangye Rainbow Danxia,lp,lonelyplanet,七彩丹霞|张掖丹霞
-嘉峪关,嘉峪关,Jiayuguan Fort,lp,lonelyplanet,嘉峪关文物景区
-桂林,漓江,Li River,ta|lp,tripadvisor|lonelyplanet,漓江风景区
-桂林,龙脊梯田,Longji Rice Terraces,lp,lonelyplanet,龙胜龙脊梯田
-阳朔,遇龙河,Yulong River,lp,lonelyplanet,阳朔遇龙河
-阳朔,阳朔西街,West Street (Yangshuo),lp,lonelyplanet,西街
-张家界,张家界国家森林公园,Zhangjiajie National Forest Park,ta|viator,tripadvisor|viator,武陵源
-张家界,天门山,Tianmen Mountain,lp,lonelyplanet,武陵源天门山旅游区
-丽江,虎跳峡,Tiger Leaping Gorge,lp,lonelyplanet,
-丽江,丽江古城,Lijiang Old Town,lp,lonelyplanet,古城区丽江古城景区|大研古城
-哈尔滨,哈尔滨冰雪大世界,Harbin Ice and Snow World,lp,lonelyplanet,冰雪大世界
-哈尔滨,圣索菲亚大教堂,Saint Sophia Cathedral,lp,lonelyplanet,圣索菲亚教堂
-厦门,鼓浪屿,Gulangyu Island,lp,lonelyplanet,思明区鼓浪屿风景名胜区
-厦门,福建土楼（永定高北土楼群）,Fujian Tulou (Gaobei Cluster),lp,lonelyplanet,福建土楼|永定土楼|高北土楼群
-黄山,黄山风景区,Yellow Mountains (Huangshan),ta|viator,tripadvisor|viator,黄山区黄山风景区
-拉萨,布达拉宫,Potala Palace,ta|viator,tripadvisor|viator,城关区布达拉宫景区
-香港,太平山顶,Victoria Peak (The Peak),ta,tripadvisor,太平山
+﻿city,name_zh,name_en,sites,site_sources,alias_zh,official_web_en,official_booking_foreigners,official_social_intl,verify_status,channel_src
+北京,故宫博物院,The Palace Museum (Forbidden City),ta|lp,tripadvisor|lonelyplanet,,intl.dpm.org.cn/index.html?l=en,intl.dpm.org.cn 英文版护照实名购票（提前7天、无当日票）,—,verified,见08文件#439
+北京,慕田峪长城,Mutianyu Great Wall,ta|lp,tripadvisor|lonelyplanet,,en.mutianyugreatwall.com,en.mutianyugreatwall.com/reservation-center/tickets 护照实名、提前15天,—,verified,见08文件#438
+北京,八达岭长城,Badaling Great Wall,ta|lp,tripadvisor|lonelyplanet,,www.badaling.cn,ticket.badaling.cn 官方票务平台，2024-07起护照直订,—,verified,见08文件#438
+北京,颐和园,Summer Palace,ta|lp,tripadvisor|lonelyplanet,,www.summerpalace.net.cn（含英文版 /en）,官方微信公众号“颐和园”/“畅游公园”平台护照实名预约,—,verified,WebSearch 2026-11-05：官网 summerpalace.net.cn 确证；summerpalace-china.com 未获官方信息已弃用
+北京,天坛公园,Temple of Heaven Park,ta|lp,tripadvisor|lonelyplanet,,www.tiantanpark.com,官方微信公众号“天坛”/“畅游公园”平台护照实名预约；咨询010-67012402,—,verified,WebSearch 2026-11-05：tiantanpark.com 官网确证
+北京,天安门广场,Tiananmen Square,ta|lp,tripadvisor|lonelyplanet,,yuyue2026.tamgw.beijing.gov.cn（天安门地区参观预约平台）,免费实名预约：小程序“天安门广场预约参观”（提前1-9日，4时段，不设现场入场）,—,verified,WebSearch 2026-11-06
+北京,景山公园,Jingshan Park,lp,lonelyplanet,,www.bjjspark.cn（景山公园官网）,“畅游公园”平台/官网 bjgyol.com.cn 实名购票（¥2；花节¥10）,—,verified,WebSearch 2026-11-06
+北京,钟鼓楼,Drum & Bell Towers,lp,lonelyplanet,鼓楼,—,公众号“北京钟鼓楼”实名购票（鼓楼¥20/钟楼¥10/联票¥30）,—,verified,WebSearch 2026-11-06
+北京,南锣鼓巷,Nanluoguxiang Hutong,lp,lonelyplanet,,—,免费开放街区，无门票,—,verified,免费开放
+北京,明十三陵,Ming Tombs,lp,lonelyplanet,,www.mingshisanling.com（明十三陵官网，含在线预订页）,官网/“昌平文旅集团”小程序/官方抖音预约（长陵旺季¥45/总神道¥30/居庸关¥45）,—,verified,WebSearch 2026-11-06
+北京,潘家园旧货市场,Panjiayuan Antique Market,lp,lonelyplanet,潘家园,—,免费市集（周四至周日开放；朝阳区政府收录）,—,verified,WebSearch 2026-11-06
+北京,798艺术区,798 Art District,ta,tripadvisor,,www.798artdistrict.com.cn（798艺术区官方）,免费开放园区,—,verified,WebSearch 2026-11-06
+上海,外滩,The Bund,ta|lp,tripadvisor|lonelyplanet,,—,免费开放滨江步道，无门票,—,verified,免费开放
+上海,豫园,Yu Garden,ta|lp,tripadvisor|lonelyplanet,,www.yugarden.com.cn（豫园官网）,官方小程序“上海豫园”购票（智能购票+语音导览）,—,verified,WebSearch 2026-11-06：官方渠道确证
+上海,东方明珠,Oriental Pearl TV Tower,ta|lp,tripadvisor|lonelyplanet,,www.orientalpearltower.com（东方明珠官网）,公众号/小程序“东方明珠”→预约购票（选日期时段实名购票）,—,verified,WebSearch 2026-11-06
+上海,上海中心大厦,Shanghai Tower,lp,lonelyplanet,,www.shanghaitower.com（上海中心官网）,官方渠道/OTA购票118层“上海之巅”观光厅,—,verified,WebSearch 2026-11-06
+上海,田子坊,Tianzifang,lp,lonelyplanet,,—,免费开放街区，无门票,—,verified,免费开放
+上海,新天地,Xintiandi,lp,lonelyplanet,,www.xintiandi.com（新天地官网）,免费开放街区（一大纪念馆另预约）,—,verified,WebSearch 2026-11-06
+上海,武康路,Wukang Road & Former French Concession,lp,lonelyplanet,,—,免费开放街区，无门票,—,verified,免费开放
+上海,静安寺,Jing'an Temple,lp,lonelyplanet,,—,现场购香票（平日¥50；7:30-17:00开放，香期提早）,—,verified,WebSearch 2026-11-06
+上海,南京东路步行街,East Nanjing Rd Pedestrian Street,lp,lonelyplanet,,—,免费开放步行街,—,verified,免费开放
+上海,上海博物馆,Shanghai Museum,lp,lonelyplanet,,www.sstm.org.cn（上海科技馆官网，含购票/预约入口）,官方微信“上海科技馆”或小程序（可一站购买科技馆/自博馆/天文馆三馆票；周一闭馆）,—,verified,WebSearch 2026-11-06
+上海,M50创意园,M50 Art District,lp,lonelyplanet,,—,免费开放艺术园区,—,verified,免费开放
+上海,上海迪士尼乐园,Shanghai Disneyland,lp,lonelyplanet,,www.shanghaidisneyresort.com,官网/官方App购票（英文，支持外卡）,—,verified,官方英文站，2026-11核
+上海,中共一大纪念馆,Site of the First CPC National Congress,lp,lonelyplanet,中国共产党一大·二大·四大纪念馆景区,www.zgyd1921.com（一大纪念馆官网）,免费预约：公众号/小程序“中共一大纪念馆”,—,verified,WebSearch 2026-11-06
+上海,朱家角古镇,Zhujiajiao Water Town,lp,lonelyplanet,,zhujiajiao.com（朱家角古镇官网）,官网/官方服务号在线预订（游客中心课植园路555号换票）,—,verified,WebSearch 2026-11-06
+上海,黄浦江游览,Huangpu River Cruise,lp,lonelyplanet,,jtw.sh.gov.cn/pjl/index.html（市交通委浦江游览官方页）,公众号“东方明珠”官方购票/官方小程序（经典游¥130起/餐饮航班¥328）,—,verified,WebSearch 2026-11-06：官方渠道确证
+苏州,拙政园,Humble Administrator's Garden,lp,lonelyplanet,,web.lotsmall.cn/index?m_id=1939（苏州园林旅游网·园林局官方）,官方微信“苏州园林旅游”/“君到苏州”实名预约购票（拙政园旺季¥80）,—,verified,WebSearch 2026-11-06：园林局 ylj.suzhou.gov.cn 确证
+苏州,苏州博物馆,Suzhou Museum,curated,curated,,www.szmuseum.com（苏州博物馆官网）,全预约制：官网/公众号/小程序提前7天（免费；每日8:00-23:00放票）,—,verified,WebSearch 2026-11-06
+苏州,平江路历史街区,Pingjiang Road Historic Block,curated,curated,,—,免费开放街区，无门票,—,verified,免费开放
+苏州,七里山塘,Shantang Street,curated,curated,山塘街,—,免费开放街区（个别馆点收费）,—,verified,免费开放
+苏州,虎丘山风景名胜区,Tiger Hill Scenic Area,curated,curated,,,官网购票（淡季¥60/旺季¥70；园林局 ylj.suzhou.gov.cn）,—,verified,—
+苏州,周庄古镇,Zhouzhuang Water Town,curated,curated,,www.zhouzhuang.net（周庄官网，含票务页）,官方总入口：微信小程序“周庄旅游”分时预约（当日一次有效；住宿客可办3日多次）,—,verified,WebSearch 2026-11-06
+杭州,西湖风景名胜区,West Lake,ta|lp,tripadvisor|lonelyplanet,杭州西湖文化景观|西湖,—,免费开放，无门票,—,verified,免费开放
+杭州,灵隐飞来峰,Lingyin Temple & Feilai Peak,curated,curated,,,**2025-12-01起飞来峰景区免票开放**：实名预约分时游览（原¥45门票+¥30香花券取消；小程序“杭州灵隐飞来峰”）,—,verified,—
+杭州,龙井村,Longjing Tea Village,lp,lonelyplanet,龙井问茶,—,免费开放茶村,—,verified,免费开放
+杭州,清河坊历史街区,Qinghefang (Hefang St) Historic Block,curated,curated,清河坊街|河坊街,—,免费开放街区,—,verified,免费开放
+杭州,拱宸桥·桥西历史文化街区,Grand Canal: Gongchen Bridge & Qiaoxi Block,curated,curated,,—,免费开放街区,—,verified,免费开放
+杭州,西溪国家湿地公园,Xixi National Wetland Park,curated,curated,,www.xixiwetland.com.cn（西溪湿地官网）,官方微信“西溪湿地”/“西湖旅游”→门票购买→立即预约（¥80+电瓶船¥60）,—,verified,WebSearch 2026-11-06
+南京,中山陵园风景区,Sun Yat-sen Mausoleum,curated,curated,,zschina.nanjing.gov.cn（中山陵园管理局官网）,官方微信“南京钟山风景区”/小程序预约购票（中山陵免费预约、周一陵寝不开放；明孝陵¥70；套票¥90）,—,verified,WebSearch 2026-11-06
+南京,明孝陵,Ming Xiaoling Mausoleum,curated,curated,,zschina.nanjing.gov.cn（中山陵园管理局官网）,官方微信“南京钟山风景区”购票（明孝陵¥70，凭预约证件+二维码入园）,—,verified,WebSearch 2026-11-06
+南京,夫子庙秦淮风光带,Confucius Temple & Qinhuai River,ta,tripadvisor,,—,风光带免费开放；收费点单独购票（科举博物馆¥50/大成殿¥30/外秦淮游船日¥60夜¥80）,—,verified,WebSearch 2026-11-06：南京文旅网 njlyw.cn
+南京,南京城墙（中华门）,Nanjing City Wall (Zhonghua Gate),curated,curated,,www.njcitywall.com（南京城墙官网）,官网/官方公众号实名预约购票（中华门约¥50；年卡¥90不限次）,—,verified,WebSearch 2026-11-06：南京市文旅局确证
+南京,南京总统府,Presidential Palace,curated,curated,,—,官方微信小程序“南京总统府”实名购票（¥35，可提前2日；周一闭馆；咨询025-84578700）,—,verified,WebSearch 2026-11-06
+南京,南京博物院,Nanjing Museum,curated,curated,,www.njmuseum.com（南京博物院官网）,官方微信“南京博物院”→参观预约，或官网“服务—参观预约”（免费；每日18:00放票、提前7日；周一闭馆）,—,verified,WebSearch 2026-11-06
+南京,侵华日军南京大屠杀遇难同胞纪念馆,Nanjing Massacre Memorial Hall,ta,tripadvisor,,www.nj1937.org（纪念馆官网）,免费：官方公众号实名预约,—,verified,WebSearch 2026-11-06
+广州,广州塔,Canton Tower,ta,tripadvisor,,www.cantontower.com（广州塔官网，含购票指引）,官网/官方渠道实名购票登塔（9:30-22:30，入塔截至22:00）,—,verified,WebSearch 2026-11-06
+广州,沙面岛,Shamian Island,ta,tripadvisor,沙面|沙面公园,—,免费开放街区,—,verified,免费开放
+广州,长隆野生动物世界,Chimelong Safari Park,ta,tripadvisor,,www.chimelong.com（英文版 chimelongresort.com）,官方小程序/官网购票（英文页支持外卡）,官方小程序/官网购票（英文页支持外卡）,verified,官网直连核验 2026-11-05
+广州,珠江夜游,Pearl River Night Cruise,ta|lp,tripadvisor|lonelyplanet,珠江夜游广州塔财富码头,www.zhujiangyou.com（珠江游总票务·官方）,官网订票8.8折（大沙头/天字/广州塔等码头；020-83753751）,—,verified,WebSearch 2026-11-06
+广州,陈家祠,Chen Clan Ancestral Hall,curated,curated,陈家祠旅游区,www.gzcjc.com.cn（广东民间工艺博物馆官网）,公众号“广东民间工艺博物馆”实名购票（¥10）,—,verified,WebSearch 2026-11-06
+广州,光孝寺,Guangxiao Temple,lp,lonelyplanet,,—,现场购香票约¥5（020-81077170；8:00-16:30）,—,verified,WebSearch 2026-11-06
+深圳,世界之窗,Window of the World,curated,curated,,—,官方微站/小程序“i深圳世界之窗”线上购票（全日票约¥220；咨询0755-26608000）,—,verified,WebSearch 2026-11-06
+深圳,华侨城创意文化园,OCT-LOFT Creative Culture Park,lp,lonelyplanet,,—,免费开放园区,—,verified,免费开放
+深圳,深圳湾公园,Shenzhen Bay Park,curated,curated,,—,免费开放公园,—,verified,免费开放
+深圳,大梅沙海滨公园,Dameisha Beach,curated,curated,大梅沙海滨浴场,—,公众号“预约大梅沙”（旺季及周末节假日需预约，凭确认短信入园）,—,verified,WebSearch 2026-11-06
+成都,成都大熊猫繁育研究基地,Chengdu Research Base of Giant Panda Breeding,ta|lp,tripadvisor|lonelyplanet,大熊猫繁育研究基地,www.panda.org.cn（熊猫基地官网）,官方预约 m.panda.org.cn（¥55，可提前14日）,—,verified,WebSearch 2026-11-06
+成都,宽窄巷子,Kuanzhai Alley (Wide & Narrow Alleys),lp,lonelyplanet,,—,免费开放街区,—,verified,免费开放
+成都,锦里古街,Jinli Ancient Street,curated,curated,锦里,—,免费开放街区,—,verified,免费开放
+成都,武侯祠,Wuhou Shrine,curated,curated,,whpwm.cdwuhouci.cn（成都武侯祠博物馆官网）,官网/公众号“成都武侯祠”预约购票（¥50；17:00停止入馆）,—,verified,WebSearch 2026-11-06
+成都,杜甫草堂,Du Fu Thatched Cottage,curated,curated,,www.cddfct.cn（杜甫草堂博物馆官网）,官网在线售票 webpc.cddfct.cn（¥50；团队提前1-3工作日审核享9折）,—,verified,WebSearch 2026-11-06
+成都,成都市人民公园,People's Park (Heming Teahouse),lp,lonelyplanet,人民公园,—,免费开放公园,—,verified,免费开放
+成都,金沙遗址博物馆,Jinsha Site Museum,lp,lonelyplanet,成都金沙遗址博物馆,www.jinshasitemuseum.com（金沙遗址官网）,⚠️2025-12-05起闭馆提升改造，预计2027-04-30重开（票务恢复后经官网/小程序）,—,verified,WebSearch 2026-11-06
+成都,都江堰景区,Dujiangyan Irrigation System,curated,curated,都江堰水利工程|都江堰风景区,www.djy517.com（都江堰旅游门户网）,公众号“青城山都江堰”分时预约（¥80，日限流4.8万）,—,verified,WebSearch 2026-11-06
+重庆,洪崖洞民俗风貌区,Hongyadong (Hongya Cave),ta|lp,tripadvisor|lonelyplanet,洪崖洞,—,免费开放；官方“洪崖洞”微信小程序预约（节假日人流管制）,—,verified,WebSearch 2026-11-06
+重庆,长江索道,Yangtze River Cableway,ta,tripadvisor,重庆长江索道,www.cqsuodao.com（重庆索道公司官网）,官网/公众号“重庆索道公司”购票（单程¥30/往返¥50）,—,verified,WebSearch 2026-11-06
+重庆,磁器口古镇,Ciqikou Ancient Town,curated,curated,磁器口,—,免费开放古镇,—,verified,免费开放
+重庆,李子坝轻轨站,Liziba Station (Metro through Building),curated,curated,李子坝站,—,轨道交通站，免费,—,verified,免费开放
+重庆,两江夜游,Two Rivers Night Cruise,curated,curated,,www.liangjiangyou.com（重庆两江游官网）,官网/公众号“重庆交运两江游”购票（夜班¥138起，朝天门码头登船；023-63108939）,—,verified,WebSearch 2026-11-06
+武汉,黄鹤楼,Yellow Crane Tower,curated,curated,黄鹤楼公园,—,公众号“黄鹤楼”购票（见02#194已核）,—,verified,WebSearch 2026-11-06
+武汉,湖北省博物馆,Hubei Provincial Museum,curated,curated,,www.hbww.org（湖北省博物馆官网）,预约系统 pcticket.hbww.org.cn/微信小程序（免费，可约未来5天含候补）,—,verified,WebSearch 2026-11-06
+武汉,东湖生态旅游风景区,East Lake Scenic Area,curated,curated,武汉东湖|东湖风景区,—,免费开放景区,—,verified,免费开放
+武汉,昙华林,Tanhualin Historic Block,curated,curated,昙华林历史文化街区,—,免费开放街区,—,verified,免费开放
+西安,秦始皇帝陵博物院（兵马俑）,Terracotta Warriors,ta|lp,tripadvisor|lonelyplanet,秦始皇兵马俑博物馆|兵马俑,www.bmy.com.cn,官网/官方小程序护照实名预约,—,verified,见08文件#441
+西安,西安城墙,Xi'an City Wall,lp,lonelyplanet,西安明城墙,“遇见城墙售票”微信小程序（无独立官网售票；¥54，网络实名预约）,官方微信“西安城墙”购票（护照实名）,—,verified,WebSearch 2026-11-06：官方小程序确证
+西安,大雁塔,Giant Wild Goose Pagoda,lp,lonelyplanet,大雁塔大唐芙蓉园景区,—,微信“大慈恩寺”小程序购票（¥10+登塔另购；见02#313已核）,—,verified,WebSearch 2026-11-06
+西安,回民街,Muslim Quarter (Beiyuanmen),lp,lonelyplanet,北院门历史文化街区,—,免费开放街区,—,verified,免费开放
+西安,西安钟楼,Xi'an Bell Tower,lp,lonelyplanet,钟楼,—,“游陕西”小程序/官方公众号购票（029-87276420；见02#313钟鼓楼）,—,verified,WebSearch 2026-11-06
+西安,华清宫,Huaqing Palace,curated,curated,华清池,www.hqc.cn（华清宫官网）,官网在线预订（¥120两日；见02#311已核）,—,verified,WebSearch 2026-11-06
+乐山,乐山大佛,Leshan Giant Buddha,lp,lonelyplanet,市中区乐山大佛景区|乐山大佛景区,www.lsdftravel.com,“大佛旅游”微信/支付宝小程序购票,—,verified,见08文件#779
+敦煌,莫高窟,Mogao Grottoes,lp,lonelyplanet,敦煌莫高窟,www.mgk.org.cn,官网/微信小程序“莫高窟参观预约网”护照可订,—,verified,见08文件#440
+张掖,张掖七彩丹霞景区,Zhangye Rainbow Danxia,lp,lonelyplanet,,zydanxia.com（张掖七彩丹霞官网，在线订票）,官方微信“张掖七彩丹霞旅游景区”购票（2025-07起¥70/人次；咨询0936-5623666）,—,verified,WebSearch 2026-11-06
+嘉峪关,嘉峪关,Jiayuguan Fort,lp,lonelyplanet,,—,官方微信“嘉峪关长城”实名预约购票（¥110，团队预约0937-6396110；含关城/长城第一墩/悬壁长城）,—,verified,WebSearch 2026-11-06：官网存在但域名未获直接确证，渠道以官方微信为准
+桂林,漓江,Li River,ta|lp,tripadvisor|lonelyplanet,,www.liriver.com.cn（桂林漓江景区旅游官网）；ljjq.com（网络购票）,官方微信“漓江售票处”→预约购票选航段/日期/线路（四星船成人约¥360；当天票建议官网/码头购）,—,verified,WebSearch 2026-11-06
+桂林,龙脊梯田,Longji Rice Terraces,lp,lonelyplanet,,wp.longjitour.com（龙脊梯田唯一官网）,官网订票/官方微信小程序购票（约¥80-178视票型；缆车现场购）,—,verified,WebSearch 2026-11-06
+阳朔,遇龙河,Yulong River,lp,lonelyplanet,,www.ysylh.cn（阳朔遇龙河景区官网）,小程序“遇龙河景区竹筏漂游票”（提前1天20:00放票，刷身份证入场）,—,verified,WebSearch 2026-11-06
+阳朔,阳朔西街,West Street (Yangshuo),lp,lonelyplanet,西街,—,免费开放街区,—,verified,免费开放
+张家界,张家界国家森林公园,Zhangjiajie National Forest Park,ta|viator,tripadvisor|viator,,www.zhangjiajieforestpark.com（森林公园官网在线预约）,小程序“张家界一机游”/官网预约（森林公园约¥225四日有效；全程联票¥518）,—,verified,WebSearch 2026-11-06
+张家界,天门山,Tianmen Mountain,lp,lonelyplanet,,www.tianmenshan.com.cn（天门山官网，多语言购票）；tianmenmount.com（预约）,官方统一票务平台：微信小程序“张家界一机游”（武陵源一票制4日多次，每次需分时预约；2026-10起天门山仅C线入园）,—,verified,WebSearch 2026-11-06：湖南省政府等确证
+丽江,虎跳峡,Tiger Leaping Gorge,lp,lonelyplanet,,www.xgllhtx.cn（迪庆香格里拉虎跳峡旅游经营公司官网）,官网/官方渠道购票（¥45/次；售票处距上虎跳约5公里需乘车进入）,—,verified,WebSearch 2026-11-06
+丽江,丽江古城,Lijiang Old Town,lp,lonelyplanet,古城区丽江古城景区|大研古城,—,古城免费；公众号“丽江古城景区”提前1天预约（古维费¥50/365天；见08#811已核）,—,verified,WebSearch 2026-11-06
+哈尔滨,哈尔滨冰雪大世界,Harbin Ice and Snow World,lp,lonelyplanet,,www.hrbicesnow.com（官网）；ice.hrbicesnow.com（微信商城购票）,官方商城/携程Trip外籍可购（标准票¥328；免票人群微信商城预约每日限2000）,—,verified,WebSearch 2026-11-06：哈尔滨市政府确证
+哈尔滨,圣索菲亚大教堂,Saint Sophia Cathedral,lp,lonelyplanet,,—,无独立官网；官方公众号实名预约分场次（约¥20-25）,—,verified,WebSearch 2026-11-06
+厦门,鼓浪屿,Gulangyu Island,lp,lonelyplanet,,www.xmferry.com（厦门轮渡官网）,小程序“屿见厦门”实名预约（提前15天每日9:00放票；游客往返¥35普通/¥80豪华，刷身份证登船）,—,verified,WebSearch 2026-11-06
+厦门,福建土楼（永定高北土楼群）,Fujian Tulou (Gaobei Cluster),lp,lonelyplanet,福建土楼|永定土楼|高北土楼群,fjnjtulou.com（南靖官网）；永定公众号“福建土楼永定景区”,高北¥50含承启楼/联票¥98（见02#137已核）,—,verified,WebSearch 2026-11-06
+黄山,黄山风景区,Yellow Mountains (Huangshan),ta|viator,tripadvisor|viator,黄山区黄山风景区,www.huangshan.com.cn,“黄山旅游官方平台”小程序护照实名预约,—,verified,见08文件#547
+拉萨,布达拉宫,Potala Palace,ta|viator,tripadvisor|viator,城关区布达拉宫景区,www.potalapalace.cn,“布达拉宫票务预订系统”小程序护照注册、提前10天,—,verified,见08文件#707
+香港,太平山顶,Victoria Peak (The Peak),ta,tripadvisor,太平山,www.thepeak.com.hk（太平山顶官网）,官网/官方App购山顶缆车票（英文，支持外卡）,—,verified,WebSearch 2026-11-06

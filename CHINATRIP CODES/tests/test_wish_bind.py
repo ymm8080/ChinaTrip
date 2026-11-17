@@ -178,7 +178,8 @@ def test_sync_heals_stale_binding_to_real_poi(monkeypatch):
     }
     agent._wish_bindings["看熊猫"] = stale
     session.wish_bindings["看熊猫"] = stale
-    agent._sync_wish_rows(session)
+    # 2026-11-15 拍板：心愿行只在保存行程时落库/自愈（commit_wish_drafts）
+    agent.commit_wish_drafts(session)
     assert session.wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
     assert agent._wish_bindings["看熊猫"]["source_poi_id"] == "PANDA01"
     rows = svc.list_groups(session.plan.itinerary_id)
@@ -201,6 +202,8 @@ def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
     session = asyncio.run(
         agent.start(device_id="d1", cities=["成都"], days=2, preferences="随便")
     )
+    # 2026-11-15 拍板：规划期不落库——commit_wish_drafts 模拟「保存行程」
+    agent.commit_wish_drafts(session)
     rows = svc.list_groups()
     assert any(r["name"] == "看熊猫" for r in rows["scheduled"])
     # 模拟重排删点：把基地从计划里拿掉，再跑收口
@@ -210,7 +213,7 @@ def test_sync_reverts_scheduled_row_when_plan_drops_poi(monkeypatch):
             for i in day.items
             if not (isinstance(i, VisitItem) and i.name == "成都大熊猫繁育研究基地")
         ]
-    agent._sync_wish_rows(session)
+    agent.commit_wish_drafts(session)
     rows = svc.list_groups()
     assert not any(r["name"] == "看熊猫" for r in rows["scheduled"])
     row = next(r for r in rows["wishlist"] if r["name"] == "看熊猫")
@@ -271,6 +274,7 @@ def test_wish_binds_out_of_pool_library_row(monkeypatch):
     assert "都江堰水利工程" in names
     assert "看成都附近的水利工程" not in names
     assert llm.calls == 0
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         (
@@ -312,6 +316,7 @@ def test_absorb_reopens_scheduled_row_for_new_trip(monkeypatch):
     assert "看成都附近的水利工程" in session.must_visits
     names = [v.name for v in _visits(session)]
     assert "都江堰水利工程" in names
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row2 = next(
         r
@@ -582,6 +587,7 @@ def test_wish_water_llm_bind_full_flow(monkeypatch):
     assert "青城山都江堰旅游景区" in names
     assert "看成都附近的水利工程" not in names
     assert llm.calls == 1
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         r
@@ -631,6 +637,7 @@ def test_add_must_visits_binds_water_wish_incremental(monkeypatch):
     names = [v.name for v in _visits(session)]
     assert "青城山都江堰旅游景区" in names
     assert "看成都附近的水利工程" not in names
+    agent.commit_wish_drafts(session)
     itin = session.plan.itinerary_id
     row = next(
         (
@@ -665,3 +672,53 @@ def test_wish_bind_prefers_classic_5a_over_shorter_rival():
     # 反向次序同样稳定（max 不受输入顺序影响）
     picked = agent._wish_bind_candidate("看熊猫", [base, valley])
     assert picked is not None and picked["source_poi_id"] == "PANDA01"
+
+
+def test_wish_bind_canonical_member_beats_higher_rated_rival():
+    """2026-11-07 用户拍板「优选熊猫基地」：intl 荐点入库后谷也挂档级
+    标签（classic 平局），正主序压住评分漂移——谷 4.9 > 基地 4.6 仍绑
+    基地；非组员杂行（熊猫挂牌酒店）被正主序垫底，不会凭高分类翻盘
+    （2026-11-07 谷错绑事故回归锚）。"""
+    agent = PlanningAgent(CountingLLM())
+    valley = {
+        "source_poi_id": "PANDAVALLEY",
+        "name": "都江堰熊猫谷",
+        "city": "成都",
+        "category": "nature",
+        "rating": 4.9,
+        "tags": ["intl"],  # 与基地同为 tier≤2：classic 平局
+        "location": (103.60, 31.01),
+    }
+    base = {
+        "source_poi_id": "PANDA01",
+        "name": "成都大熊猫繁育研究基地",
+        "city": "成都",
+        "category": "zoo",
+        "rating": 4.6,
+        "tags": ["intl"],
+        "location": (104.14, 30.73),
+    }
+    junk = {
+        "source_poi_id": "PANDAJUNK",
+        "name": "成都熊猫很困酒店",
+        "city": "成都",
+        "category": "hotel",
+        "rating": 4.8,
+        "tags": [],
+        "location": (104.05, 30.67),
+    }
+    for order in ([valley, base, junk], [junk, base, valley]):
+        picked = agent._wish_bind_candidate("看熊猫", order)
+        assert picked is not None and picked["source_poi_id"] == "PANDA01"
+
+
+def test_substitute_canon_rank_order():
+    """正主序（2026-11-07 拍板「优选熊猫基地」）：正主 0、其他组员 1、
+    非组员 2。"""
+    from app.services.agent.plan import _substitute_canon_rank
+
+    assert _substitute_canon_rank("成都大熊猫繁育研究基地") == 0
+    assert _substitute_canon_rank("都江堰熊猫谷") == 1
+    assert _substitute_canon_rank("都江堰中华大熊猫苑(原熊猫乐园)") == 1
+    assert _substitute_canon_rank("宽窄巷子") == 2
+    assert _substitute_canon_rank("") == 2

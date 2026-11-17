@@ -516,3 +516,16 @@ def test_record_channel_tripcom_alias_boosts_confidence():
     assert applied is True
     assert parsed.confidence == 0.9
     assert record.status == "user_confirmed"
+
+
+# --- 单条读取（2026-11-07：🍴 餐位美团跟踪器每 2 分钟轮询的数据源） -------------
+
+
+def test_get_handoff_by_id_and_404():
+    client = TestClient(make_app())
+    rec = create_handoff(client)
+    got = client.get("/api/v1/backfill/handoffs/" + rec["id"])
+    assert got.status_code == 200
+    assert got.json()["record"]["id"] == rec["id"]
+    assert got.json()["record"]["status"] == "opened"
+    assert client.get("/api/v1/backfill/handoffs/missing").status_code == 404

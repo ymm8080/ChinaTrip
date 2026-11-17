@@ -1,0 +1,29 @@
+样本 10 行（amap 评分行，优先组打头）:
+  unesco     北京       颐和园                amap=4.7
+  unesco     北京       天坛                 amap=4.7
+  unesco     苏州       拙政园                amap=4.6
+  unesco     杭州       良渚古城遗址             amap=4.4
+  unesco     成都       青城山—都江堰            amap=4.6
+  unesco     重庆       大足石刻               amap=4.6
+  unesco     北京       长城                 amap=4.7
+  5a         上海       上海野生动物园            amap=4.7
+  5a         成都       安仁古镇景区             amap=4.5
+  5a         重庆       黔江区濯水景区            amap=4.6
+
+=== 逐行对比（基准=ctrip）===
+Traceback (most recent call last):
+  File "D:\CHINATRIP\CHINATRIP CODES\ops\_rating_quality_compare.py", line 182, in <module>
+    asyncio.run(main())
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "D:\CHINATRIP\CHINATRIP CODES\ops\_rating_quality_compare.py", line 166, in main
+    dq = f"{abs(q - c):.1f}" if (q is not None and c is not None) else "-"
+                ~~^~~
+TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'

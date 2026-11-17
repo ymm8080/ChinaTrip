@@ -106,7 +106,8 @@ def test_rain_exposure_weights():
         ],
     )
     rainy = plan_score(_plan([day]), rain_days={"西安": {1}})
-    assert rainy.soft["rain_exposed"] == -25  # -15 露天 -10 半露天
+    # -15 露天 -10 半露天 -5 未标注室内外（2026-11-05 磁器口案拍板）
+    assert rainy.soft["rain_exposed"] == -30
     dry = plan_score(_plan([day]))
     assert dry.soft["rain_exposed"] == 0
 
@@ -117,7 +118,8 @@ def test_budget_overflow_is_soft():
         base_city="西安",
         items=[
             _v("big", dur=240, start=time(9, 0), end=time(13, 0)),
-            _v("big2", dur=180, start=time(14, 0), end=time(17, 0)),
+            # 13:30-16:30：11-05 结束闸内（旧 14:00-17:00 夹具会被晚闸硬罚）
+            _v("big2", dur=180, start=time(13, 30), end=time(16, 30)),
         ],
     )
     sc = plan_score(_plan([day]))

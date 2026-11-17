@@ -157,6 +157,30 @@ def test_sync_stale_city_reports_without_fetching():
     assert body["cities"][0]["fresh"] is False
 
 
+# --- 目的地当地时间（2026-11-12 用户拍板）-------------------------------------
+
+
+def test_destination_tz_china_single_official_tz_includes_xinjiang():
+    """「今天」按目的地当地时间判。中国法定单一时区 UTC+8——IANA 无
+    Asia/Urumqi，乌鲁木齐车站/景区营业时间/天气服务全用北京时间（民间
+    新疆时间 UTC+6 不进数据源），故新疆城市目的地时区仍是 +8。"""
+    for city in ("北京", "乌鲁木齐", "喀什"):
+        tz = weather_api._tz_for_city(city)
+        assert tz.utcoffset(datetime(2026, 11, 12)) == timedelta(hours=8), city
+
+
+def test_sync_fresh_boundary_utc_yesterday_beijing_today():
+    """跨日边界：UTC 昨天 16:30 = 北京今天 00:30——naive UTC 时间戳先挂
+    UTC 再按目的地时区取日历日，仍判新鲜（replace(tzinfo) 路径锚）。"""
+    bj_today = datetime.strptime(weather_api._today_beijing(), "%Y-%m-%d")
+    fetched_utc = bj_today + timedelta(hours=0, minutes=30) - timedelta(hours=8)
+    client = make_client([make_row(fetched_at=fetched_utc)])
+
+    resp = client.post("/api/weather/sync", json={"cities": ["北京"]})
+    assert resp.status_code == 200
+    assert resp.json()["cities"][0]["fresh"] is True
+
+
 def test_sync_new_city_reports_no_data():
     """新行程城市第一次 sync：表里还没有（等每日管线全量班）→ has_data=False，
     不报错也不出网。"""

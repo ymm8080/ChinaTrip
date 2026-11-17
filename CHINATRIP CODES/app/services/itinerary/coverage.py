@@ -51,7 +51,14 @@ def premium_coverage_gaps(
         else:
             hit = name in picked
         if not hit:
-            missing.append({"name": name, "tags": premium})
+            # 同站孪生行去重（2026-11-04 成渝案：白帝城·瞿塘峡 5a+
+            # chinatravel 双行同名同披露两次）
+            if same_site is not None:
+                dup = any(same_site(name, m["name"]) for m in missing)
+            else:
+                dup = name in {m["name"] for m in missing}
+            if not dup:
+                missing.append({"name": name, "tags": premium})
         if max_missing is not None and len(missing) >= max_missing:
             break
     return missing

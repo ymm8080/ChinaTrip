@@ -1,0 +1,36 @@
+样本 10 行（amap 评分行，优先组打头）:
+  curated    重庆       两江夜游               amap=4.2
+  curated    西安       华清宫                amap=4.7
+  museum1    北京       民航博物馆              amap=4.6
+  museum1    北京       中国现代文学馆            amap=4.7
+  museum1    北京       中国华侨历史博物馆          amap=4.6
+  museum1    苏州       苏州丝绸博物馆            amap=4.6
+  museum1    西安       陕西自然博物馆            amap=4.7
+  museum1    北京       北京汽车博物馆            amap=4.7
+  museum1    杭州       杭州工艺美术博物馆          amap=4.7
+  museum1    北京       民族文化宫              amap=4.1
+
+=== 逐行对比（基准=ctrip）===
+  两江夜游           amap=4.2(no-page) ctrip=None(no-page) qunar=None(list-err) |Δa=- Δq=-
+  华清宫            amap=4.7(no-page) ctrip=None(no-page) qunar=4.6(ok(2005661316)) |Δa=- Δq=-
+  民航博物馆          amap=4.6(no-page) ctrip=None(no-page) qunar=None(not-in-list) |Δa=- Δq=-
+  中国现代文学馆        amap=4.7(no-page) ctrip=None(no-page) qunar=None(not-in-list) |Δa=- Δq=-
+  中国华侨历史博物馆      amap=4.6(no-page) ctrip=None(no-page) qunar=None(not-in-list) |Δa=- Δq=-
+  苏州丝绸博物馆        amap=4.6(no-page) ctrip=None(no-page) qunar=None(not-in-list) |Δa=- Δq=-
+  陕西自然博物馆        amap=4.7(no-page) ctrip=None(no-page) qunar=None(not-in-list) |Δa=- Δq=-
+Traceback (most recent call last):
+  File "D:\CHINATRIP\CHINATRIP CODES\ops\_rating_quality_compare.py", line 182, in <module>
+    asyncio.run(main())
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\91454\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "D:\CHINATRIP\CHINATRIP CODES\ops\_rating_quality_compare.py", line 165, in main
+    da = f"{abs(a - c):.1f}" if (a is not None and c is not None) else "-"
+                ~~^~~
+TypeError: unsupported operand type(s) for -: 'decimal.Decimal' and 'float'

@@ -295,3 +295,101 @@ def test_geocode_chain_falls_over_quota_dead_vendor_and_labels_actual_vendor():
     geo = asyncio.run(chain.geocode("成都某路", city="成都"))
     assert geo["lon"] == 104.0
     assert chain.last_vendor == "amap"
+
+
+# --- 2026-11-04 P1#1 回退点入库闸：解析点=城市 gov 点→拒绝 ------------------
+
+
+def _cq_row(i, name="金佛山", address=None):
+    r = _row(i, name)
+    r.city = "重庆"
+    if address is not None:
+        r.address = address
+    return r
+
+
+def test_geocode_city_fallback_point_rejected_falls_to_search():
+    # 解析点=渝中区政府（城市回退点，距城 0km 恒过 500km 闸）→拒绝不入库，
+    # 退检索链按名搜补上（181 行投毒的根因路径，P1#1）。
+    from app.jobs.backfill_locations import backfill_rows
+
+    class CqGeocoder(StubGeocoder):
+        async def geocode(self, address, *, city=None):
+            self.calls += 1
+            return {"lon": 106.550464, "lat": 29.563761, "level": "门址"}
+
+    store = StoreStub()
+    geo = CqGeocoder()
+    hit = [{"name": "金佛山", "city": "重庆", "location": "107.19,29.03"}]
+    search = StubSearch("amap", hits=hit)
+    stats = asyncio.run(backfill_rows(store, [search], [_cq_row(1)], geocoder=geo))
+    assert stats["geocode_fallback_rejected"] == 1
+    assert stats["filled"] == 1
+    assert stats["by_vendor"] == {"amap": 1}  # 检索链补上，不是 geocode
+    assert store.upserts[0][1]["location"] == (107.19, 29.03)
+
+
+def test_geocode_fallback_point_without_search_hit_stays_empty():
+    # 回退点被拒且检索无命中：宁缺勿错不落库（留待 donor/回源修复）。
+    from app.jobs.backfill_locations import backfill_rows
+
+    class CqGeocoder(StubGeocoder):
+        async def geocode(self, address, *, city=None):
+            return {"lon": 106.550464, "lat": 29.563761, "level": "门址"}
+
+    stats = asyncio.run(
+        backfill_rows(
+            StoreStub(), [StubSearch("amap")], [_cq_row(1)], geocoder=CqGeocoder()
+        )
+    )
+    assert stats["geocode_fallback_rejected"] == 1
+    assert stats["filled"] == 0
+    assert stats["missed"] == 1
+
+
+def test_fallback_family_address_skips_geocode_track():
+    # 地址同型闸：行地址=「渝中区上清寺」系（geocoder 写入的政府驻地
+    # 地址，地址本身已投毒）→ geocode 轨道不烧配额，退检索按名搜。
+    from app.jobs.backfill_locations import backfill_rows
+
+    store = StoreStub()
+    geo = StubGeocoder()
+    hit = [{"name": "金佛山", "city": "重庆", "location": "107.19,29.03"}]
+    search = StubSearch("amap", hits=hit)
+    stats = asyncio.run(
+        backfill_rows(
+            store,
+            [search],
+            [_cq_row(1, address="重庆市渝中区上清寺人民支路69号")],
+            geocoder=geo,
+        )
+    )
+    assert geo.calls == 0  # 地址投毒，geocode 一次都不撞
+    assert stats["fallback_addr_skipped"] == 1
+    assert stats["filled"] == 1
+    assert stats["by_vendor"] == {"amap": 1}
+
+
+def test_search_hit_at_fallback_point_rejected():
+    # 检索命中落回退点（同名 gov POI 类命中）→拒绝不落库。
+    from app.jobs.backfill_locations import backfill_rows
+
+    hit = [{"name": "金佛山", "city": "重庆", "location": "106.550464,29.563761"}]
+    stats = asyncio.run(
+        backfill_rows(StoreStub(), [StubSearch("amap", hits=hit)], [_cq_row(1)])
+    )
+    assert stats["search_fallback_rejected"] == 1
+    assert stats["filled"] == 0
+
+
+def test_other_city_geocode_results_unaffected():
+    # 注册表外城市（成都）不误伤：geocode 正常落库。
+    from app.jobs.backfill_locations import backfill_rows
+
+    store = StoreStub()
+    stats = asyncio.run(
+        backfill_rows(store, [StubSearch("amap")], [_row(1)], geocoder=StubGeocoder())
+    )
+    assert stats["geocode_fallback_rejected"] == 0
+    assert stats["filled"] == 1
+    assert stats["geocode_filled"] == 1

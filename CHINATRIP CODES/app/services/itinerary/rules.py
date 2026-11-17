@@ -12,8 +12,8 @@ function over the shared domain models — no I/O, no LLM, no DB.
     4 跨城衔接缓冲（VisitItem↔TransferItem ≥90 分钟）→ validate_plan
     5 同日多段跨城（seq 递增唯一 + 互相缓冲）→ validate_plan
     6 节奏量化（日步行 ≤15km×人群系数；游览占比 ≥55%）→ validate_plan
-    7 相邻观光对间隔 ≥ 打车腿（零车程背靠背绊网；生成端由 solver
-      保证，此处回溯兜底旧载荷）→ validate_plan
+    7 相邻对象对间隔 ≥ 打车腿（零车程背靠背绊网；2026-11-13 起餐/
+      酒店/钉件同口径，仅同址≤SAME_VENUE_KM 与无坐标对豁免）→ validate_plan
     10 只动当天及之后 → validate_change_scope
     19 钉死点（pinned 不得被移动/改时间/删除）→ validate_pinned
 
@@ -57,7 +57,9 @@ from app.services.itinerary.models import (
 )
 from app.services.itinerary.solver import (
     AFTERNOON_START_MINUTES,
+    SAME_VENUE_KM,
     _is_big_site,
+    fusion_food_nested,
     generic_entry_cap,
 )
 from app.services.lang_ctx import L
@@ -94,13 +96,14 @@ def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
     return 2.0 * _EARTH_RADIUS_KM * asin(sqrt(h))
 
 
-# 打车模型常量（用户拍板 2026-10-31「打车时间=车程+半小时叫车」）：
-# 车程=直线×1.3 绕行 ÷ 35km/h 均混车速，另加 30 分钟叫车/等待；≤1.5km
-# 近距共址按步行（不白付叫车开销）；单腿上限 180 分钟。选点腿费/必去
-# 放日/solver 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
+# 打车模型常量（2026-11-14 用户拍板：车速 70km/h 城市均速、叫车等待 15 分钟；
+# 此前 35km/h + 30 分钟，把 57km 的慕田峪→市区算成 2 小时）：
+# 车程=直线×1.3 绕行 ÷ 70km/h，另加 15 分钟叫车/等待；≤1.5km 近距共址按
+# 步行（不白付叫车开销）；单腿上限 180 分钟。选点腿费/必去放日/solver
+# 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
 TRAVEL_LEG_CAP_MIN = 180
-TAXI_HAIL_MINUTES = 30
-TAXI_MIN_PER_KM = 1.3 / 35 * 60  # ≈2.23 分钟/公里（直线×绕行÷车速）
+TAXI_HAIL_MINUTES = 15
+TAXI_MIN_PER_KM = 1.3 / 70 * 60  # ≈1.11 分钟/公里（直线×绕行÷70km/h）
 TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
 #: 步行估算分钟/公里（×1.3 绕行 / 80m/min）——近距腿与卡片展示共用。
 TRAVEL_MIN_PER_KM = 1000.0 * 1.3 / 80.0
@@ -110,25 +113,470 @@ TRAVEL_GAP_FLOOR_MIN = 30
 
 
 def taxi_leg_min(km: float) -> int:
-    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程+半小时叫车；
-    ≤1.5km 近距退步行口径；封顶 TRAVEL_LEG_CAP_MIN。"""
+    """点间走行分钟（打车模型，用户拍板 2026-10-31）：车程 + 叫车分钟。
+
+    ≤1.5km 近距退步行口径；市内腿封顶 ``TRAVEL_LEG_CAP_MIN``（180 分钟，
+    防小概率堵车放大）。**≥100km 属城际，不封顶**（2026-11-16 用户「远点
+    必须算得出来」）：300km 被压成 180 分钟会让千岛湖/武隆这类点排进半天。
+    """
     if km <= TAXI_WALK_MAX_KM:
         return round(km * TRAVEL_MIN_PER_KM)
-    return min(TRAVEL_LEG_CAP_MIN, round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES)
+    raw = round(km * TAXI_MIN_PER_KM) + TAXI_HAIL_MINUTES
+    # 100-400km 是真实城际（千岛湖 142 / 武隆 119 / 三峡 350）：按真实车程；
+    # >400km 视为毒坐标（跨城串号），仍按市内封顶兜底，不把一天排成 16 小时。
+    if 100.0 <= km <= 400.0:
+        return raw
+    return min(TRAVEL_LEG_CAP_MIN, raw)
+
+
+#: 有班次接驳的到达方式：这几种点按「打车到乘车点 + 候车 + 班次 + 落客」算腿。
+SCHEDULED_ACCESS_MODES = ("train", "shuttle", "ferry")
+
+#: 早高峰附加（2026-11-16 用户拍板「所有早上 TAXI 自动加上 15 分钟早高峰额外时间」）：
+#: 晨卡（从酒店出发）的打车段统一 +15 分钟——08:30-09:00 离店正撞早高峰；
+#: 普通景间腿不加。
+MORNING_RUSH_EXTRA_MINUTES = 15
+
+
+def _access_profile(b: VisitItem) -> tuple[str | None, GeoPoint | None, int, int, int]:
+    """b 的接驳量：卡上字段优先；没有就按 (city, name) 查一次城市档案。
+
+    为什么要有第二来源：solver 矩阵会先 attach 档案，但心愿快路径 / 兜底
+    重排 / 单点加卡都不经过矩阵——同一天不能出现两套腿口径。
+    """
+    mode = b.access_mode
+    boarding = b.access_boarding
+    service = b.access_service_minutes or 0
+    wait = b.access_wait_minutes or 0
+    last = b.access_last_mile_minutes or 0
+    if (mode is None or boarding is None or not service) and b.name:
+        try:
+            from app.services.poi_access import profile_for
+
+            prof = profile_for(getattr(b, "city", None), b.name) or {}
+        except Exception:  # noqa: BLE001 — 档案不可用=打车兜底
+            prof = {}
+        if prof:
+            mode = mode or prof.get("access_mode")
+            service = service or prof.get("access_service_minutes") or 0
+            wait = prof.get("access_wait_minutes") or 0
+            last = prof.get("access_last_mile_minutes") or 0
+            lon = prof.get("access_boarding_lon")
+            lat = prof.get("access_boarding_lat")
+            if lon is not None and lat is not None:
+                boarding = GeoPoint(lon=float(lon), lat=float(lat))
+    return mode, boarding, service, wait, last
+
+
+def _is_morning_hotel(item: VisitItem) -> bool:
+    """当天「从酒店出发」晨卡（占位，id=hotel-morning-dN）。"""
+    return str(getattr(item, "item_id", "") or "").startswith("hotel-morning")
+
+
+def _hhmm_minutes(text: str | None) -> int | None:
+    """'09:30' → 570；脏值返回 None。"""
+    raw = str(text or "").strip().replace("：", ":")
+    if ":" not in raw:
+        return None
+    head, _, tail = raw.partition(":")
+    try:
+        hour, minute = int(head), int(tail[:2])
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return hour * 60 + minute
+
+
+def _fastest_ride(
+    city: str | None,
+    name: str | None,
+    board: int | None,
+    ride_fallback: int,
+    last_fallback: int,
+    departures: list[str] | None = None,
+) -> tuple[int | None, int, int, int]:
+    """挑「到景区最早」的一班（与 access_services.fastest_plan 同一口径）。
+
+    没有官方时刻表时回落档案经验值（发车=None、候车用档案值）。
+    """
+    if board is None:
+        board = 9 * 60  # 无前件时刻：用户口径「远郊专线通常 9 点前后」
+    try:
+        from app.services import access_services
+
+        got = access_services.fastest_plan(
+            city,
+            name,
+            board,
+            ride_fallback=ride_fallback,
+            last_fallback=last_fallback,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        got = None
+    if got is None:
+        # 班次库不可用：退回卡上自带的官方时刻表（同一「最快到景区」口径）
+        times = [
+            m for m in (_hhmm_minutes(t) for t in (departures or [])) if m is not None
+        ]
+        nxt = next((t for t in sorted(times) if t >= board), None)
+        if nxt is None:
+            return None, ride_fallback, last_fallback, 0
+        return nxt, ride_fallback, last_fallback, nxt - board
+    depart, ride, last, wait = got
+    return depart, ride, last, wait
+
+
+def _fastest_return_ride(
+    a: VisitItem, board: int, ride_fallback: int
+) -> tuple[int | None, int, int | None]:
+    """挑「离开景区后最快回市区」的一班（fastest_return_plan 同口径）。
+
+    返回 (发车, 车上分钟, 候车分钟)；班次库不可用且卡上没有返程时刻表
+    → (None, ride_fallback, None)（候车由调用方退档案经验值）。
+    """
+    chosen = _hhmm_minutes(getattr(a, "access_chosen_return", None))
+    if chosen is not None and chosen >= board:
+        # 用户在接驳卡上点选过返程班次（2026-11-16 拍板）：优先按点选值
+        return chosen, ride_fallback, chosen - board
+    try:
+        from app.services import access_services
+
+        got = access_services.fastest_return_plan(
+            getattr(a, "city", None), a.name, board, ride_fallback=ride_fallback
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        got = None
+    if got is not None:
+        return got
+    # 班次库不可用：退回卡上自带的官方返程时刻表（同一「最快回城」口径）
+    times = [
+        m
+        for m in (
+            _hhmm_minutes(t) for t in (getattr(a, "access_return_times", None) or [])
+        )
+        if m is not None
+    ]
+    nxt = next((m for m in sorted(times) if m >= board), None)
+    if nxt is None:
+        return None, ride_fallback, None
+    return nxt, ride_fallback, nxt - board
+
+
+def _return_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
+    """a（班次点或锚在其上的占位卡）→ b（市区下一站）的回城返向链。
+
+    2026-11-16 用户拍板「回城也是一样的接驳三段」：步行回乘车点 →
+    候返程班 → 专线回市区落点 → 打车到下一站。没有官方返程时刻表时
+    候车退档案经验值（发车=None）。b 也是班次点时不走这里（去程优先）。
+    """
+    mode, terminal, service, wait, last = _access_profile(a)
+    if mode not in SCHEDULED_ACCESS_MODES or terminal is None or not service:
+        return None
+    front = int(getattr(a, "access_last_mile_minutes", None) or last or 0)
+    a_end = None
+    if getattr(a, "end_time", None) is not None:
+        a_end = a.end_time.hour * 60 + a.end_time.minute
+    elif getattr(a, "start_time", None) is not None:
+        a_end = (
+            a.start_time.hour * 60
+            + a.start_time.minute
+            + int(getattr(a, "duration_minutes", None) or 0)
+        )
+    board = a_end + front if a_end is not None else None
+    ride = int(getattr(a, "access_ride_minutes", None) or service)
+    depart: int | None = None
+    wait_minutes: int | None = None
+    if board is not None:
+        depart, ride, wait_minutes = _fastest_return_ride(a, board, ride)
+    if wait_minutes is None:
+        wait_minutes = wait
+    b_loc = b.location or getattr(b, "anchor_location", None)
+    taxi_km = 0.0
+    taxi_minutes = 0
+    if b_loc is not None:
+        taxi_km = haversine_km(terminal, b_loc)
+        taxi_minutes = taxi_leg_min(taxi_km)
+    minutes = max(
+        TRAVEL_GAP_FLOOR_MIN,
+        front + (wait_minutes or 0) + ride + taxi_minutes,
+    )
+    return {
+        "mode": mode,
+        "minutes": minutes,
+        "taxi_km": taxi_km,
+        "taxi_minutes": taxi_minutes,
+        "wait": max(0, wait_minutes or 0),
+        "service": ride,
+        "last": front,
+        "board": board,
+        "depart": depart,
+        "direction": "return",
+    }
+
+
+def morning_departure_anchor(
+    b: VisitItem,
+    *,
+    from_point: GeoPoint | None,
+    base_minute: int = 8 * 60 + 30,
+    chosen: str | None = None,
+) -> dict | None:
+    """晨卡→班次件的早高峰锚定（2026-11-16 用户拍板「拿班次时间当硬铆钉，
+    回算出酒店时间」）。
+
+    口径与腿同源（service_options + access_breakdown）：打车段 = 酒店/城心锚
+    → 各方式自己的乘车点 + 15′ 早高峰；班次取推荐块（换乘少+时间短）的
+    **08:30 起第一班**（2026-11-16 拍板「默认慕田峪 8:30 班车来计算」，同一
+    口径也让「到站即发车」成立：回算离店 = depart − 打车(含早高峰)，可为
+    07:59 这类早于日始的时刻——班次是硬铆钉）；`chosen` = 用户点选的班次，
+    优先于默认值。首站开场 = depart + 车上 + 落客，锚定后候车恒 0。
+    非班次件 / 无上车点 / 无时刻表 / 固定场次件返回 None（调用方走旧窗口）。
+    """
+    if getattr(b, "fixed_sessions", None):
+        return None  # 场次时钟来自场馆，班次硬铆钉不与场次抢锚
+    mode, boarding, service, wait, last = _access_profile(b)
+    if mode not in SCHEDULED_ACCESS_MODES:
+        return None  # 回城返向链不参与晨卡锚定
+    if from_point is None or (boarding is None and not b.name):
+        return None
+
+    def _taxi(coords):
+        point = (
+            GeoPoint(lon=float(coords[0]), lat=float(coords[1])) if coords else boarding
+        )
+        if point is None:
+            return 0
+        head = taxi_leg_min(haversine_km(from_point, point))
+        return head + MORNING_RUSH_EXTRA_MINUTES
+
+    options: list[dict] = []
+    try:
+        from app.services import access_services
+
+        options = access_services.service_options(
+            getattr(b, "city", None),
+            b.name,
+            board_minutes=base_minute,
+            ride_fallback=service,
+            last_fallback=last,
+            wait_fallback=wait,
+            taxi_minutes=_taxi,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=不锚定（走旧窗口）
+        options = []
+    if options:
+        opt = options[0]
+        head = int(opt.get("taxi_minutes") or 0)
+        ride = int(opt.get("ride_minutes") or 0)
+        last_mile = int(opt.get("last_mile_minutes") or 0)
+        depart = _hhmm_minutes(chosen)
+        if depart is None:
+            # 默认：推荐块「08:30 起第一班」（用户拍板「默认慕田峪 8:30
+            # 班车来计算」）——离开时刻由它回算，可早于 08:30 日始。
+            times = [
+                m
+                for m in (_hhmm_minutes(s) for s in (opt.get("departures") or []))
+                if m is not None and m >= base_minute
+            ]
+            depart = min(times) if times else _hhmm_minutes(opt.get("depart"))
+    else:
+        # 无班次库（离线/测试）：按卡上官方时刻 + 档案值兜底，口径不变
+        head = _taxi(None)
+        depart, ride, last_mile, _w = _fastest_ride(
+            getattr(b, "city", None),
+            b.name,
+            base_minute + head,
+            service,
+            last,
+            getattr(b, "access_depart_times", None),
+        )
+    if depart is None:
+        return None
+    return {
+        "hotel_start": depart - head,
+        "depart": depart,
+        "first_start": depart + ride + last_mile,
+        "taxi_minutes": head,
+        "wait": 0,
+        "service": ride,
+        "last": last_mile,
+    }
+
+
+def access_breakdown(a: VisitItem, b: VisitItem) -> dict | None:
+    """a → b 的接驳链拆分（2026-11-16 用户拍板「显示打车段/专线/步行」）。
+
+    打车到乘车点（距离/分钟）→ 候车 → 专线车程 → 落客步行；班次按
+    「到站后最快到景区」挑（没有官方时刻表才用档案经验值）。
+    b 不是班次点而 a 是（或锚在其上的占位卡）→ 返向回城链
+    （_return_breakdown，同拍板「回城也是一样的接驳三段」）。
+    """
+    mode, boarding, service, wait, last = _access_profile(b)
+    if mode not in SCHEDULED_ACCESS_MODES or getattr(b, "anchor_from_prev", False):
+        # b 不是班次点（锚定占位卡也不算——它只是站在景区上，不是目的地）：
+        # a 是班次点（或锚在其上的占位卡）→ 回城返向链；a 也不是 → None。
+        return _return_breakdown(a, b)
+    _from = a.location or getattr(a, "anchor_location", None)
+    if _from is None or boarding is None or not service:
+        return None
+    taxi_km = haversine_km(_from, boarding)
+    head = taxi_leg_min(taxi_km)
+    # 早高峰：晨卡出发的打车段 +15 分钟（2026-11-16 用户拍板「所有早上 TAXI
+    # 自动加上 15 分钟早高峰额外时间」）——各方式乘车点共用这一笔。
+    rush = MORNING_RUSH_EXTRA_MINUTES if _is_morning_hotel(a) else 0
+    a_end = None
+    if getattr(a, "end_time", None) is not None:
+        a_end = a.end_time.hour * 60 + a.end_time.minute
+    elif getattr(a, "start_time", None) is not None:
+        a_end = (
+            a.start_time.hour * 60
+            + a.start_time.minute
+            + int(getattr(a, "duration_minutes", None) or 0)
+        )
+    # 晨卡（「从酒店出发」占位，08:30-09:00 打包窗口）不是真的在酒店玩半小时：
+    # 排期口径一直是「接驳链从晨卡开始时打」，这里对齐，免得卡上时间比腿短 30 分钟。
+    if _is_morning_hotel(a) and getattr(a, "start_time", None) is not None:
+        a_end = a.start_time.hour * 60 + a.start_time.minute
+    # 无前件时刻：用户口径「远郊专线通常 9 点前后」（此时不再叠加打车段，
+    # 与既有 fastest_plan 口径一致）；有前件时刻才按「前件结束 + 打车到乘车点」。
+    if a_end is not None:
+        a_end_min = a_end
+        add_head = True
+    else:
+        a_end_min = 9 * 60
+        add_head = False
+
+    def _taxi_to(coords):
+        # 各方式自己的乘车点坐标 → 打车分钟；无坐标回档案乘车点的打车段
+        if not add_head:
+            return 0
+        if not coords:
+            return head + rush
+        return (
+            taxi_leg_min(
+                haversine_km(
+                    _from, GeoPoint(lon=float(coords[0]), lat=float(coords[1]))
+                )
+            )
+            + rush
+        )
+
+    # 2026-11-16 用户拍板「不同方式分 BLOCK 并排，默认换乘少+时间短」：
+    # 每个官方班次行出一块，排序 (换乘, 全程, 票价)，腿时间与推荐块同口径。
+    options: list[dict] = []
+    try:
+        from app.services import access_services
+
+        options = access_services.service_options(
+            getattr(b, "city", None),
+            b.name,
+            board_minutes=a_end_min,
+            ride_fallback=service,
+            last_fallback=last,
+            wait_fallback=wait,
+            taxi_minutes=_taxi_to,
+        )
+    except Exception:  # noqa: BLE001 - 班次库不可用=档案经验值
+        options = []
+    if options:
+        opt = options[0]
+        head = int(opt.get("taxi_minutes") or 0)
+        if opt.get("boarding_lon") is not None and opt.get("boarding_lat") is not None:
+            boarding = GeoPoint(
+                lon=float(opt["boarding_lon"]), lat=float(opt["boarding_lat"])
+            )
+            taxi_km = haversine_km(_from, boarding)
+        depart = _hhmm_minutes(opt.get("depart"))
+        ride = int(opt.get("ride_minutes") or 0)
+        last_mile = int(opt.get("last_mile_minutes") or 0)
+        wait_minutes = int(opt.get("wait_minutes") or 0)
+        board = a_end_min + head
+    else:
+        if a_end is not None:
+            # 打车段含早高峰（与 options 分支 _taxi_to 同口径）：
+            # board / minutes / taxi_minutes 一起按含早高峰的车程算。
+            head += rush
+            board = a_end + head
+        else:
+            board = 9 * 60
+        depart, ride, last_mile, wait_minutes = _fastest_ride(
+            getattr(b, "city", None),
+            b.name,
+            board,
+            service,
+            last,
+            getattr(b, "access_depart_times", None),
+        )
+        if depart is None:
+            # 没有官方时刻表：沿用卡上档案（车上分钟 + 经验候车）
+            ride, last_mile, wait_minutes = service, last, wait
+    minutes = max(
+        TRAVEL_GAP_FLOOR_MIN,
+        head + (wait_minutes or 0) + ride + last_mile,
+    )
+    return {
+        "mode": mode,
+        "minutes": minutes,
+        "taxi_km": taxi_km,
+        "taxi_minutes": head,
+        "rush": rush,
+        "wait": max(0, wait_minutes or 0),
+        "service": ride,
+        "last": last_mile,
+        "board": board,
+        "depart": depart,
+        "fare_cny": (options[0].get("fare_cny") if options else None),
+        "options": options,
+    }
+
+
+def access_chain_minutes(a: VisitItem, b: VisitItem) -> int | None:
+    """a 鈫?b 的接驳链分钟；b 不是班次点或缺接驳量时返回 None（走打车模型）。"""
+    got = access_breakdown(a, b)
+    return got["minutes"] if got else None
 
 
 def travel_gap_needed(a: VisitItem, b: VisitItem) -> int | None:
-    """相邻两点 a→b 需要的走行分钟；豁免对（餐/酒店贴点、钉点、无坐标）
-    返回 None 表示不校验。口径与兜底 _leg_windows 的 pad 一致：
-    max(30, taxi_leg_min(haversine))。"""
-    for v in (a, b):
-        if (v.category or "") in ("food", "hotel"):
-            return None  # 餐位贴点/入住卡：拍板语义，不按腿隔开
-        if v.pinned:
-            return None  # 铁律 19：钉是用户安排非引擎节奏
-        if v.location is None:
-            return None  # 无坐标算不出腿（占位午餐等）
-    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(haversine_km(a.location, b.location)))
+    """相邻两点 a→b 需要的走行分钟。
+
+    2026-11-13 用户拍板「路途时间和距离在所有 OBJECT 里都要正确计算
+    （HOTEL/餐饮/活动/景点）」：旧按类目豁免（餐/酒店贴点、钉点）是
+    「同址」的粗糙代理，撤除——改为距离语义：
+
+    - 双方有坐标且同址（≤SAME_VENUE_KM）：返回 None——同址嵌套/并
+      块尾（2026-11-12/11-10 拍板）按真实距离天然免隔腿，不再按类目
+      一刀切；
+    - 双方有坐标：max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))——
+      餐/酒店/钉件与观光件同口径（秦俑情 11:00 散场→41km 外餐厅
+      12:20 零车程案：钉不可挪由铁律 19 管移动，本条管间隔计算与披露）；
+    - 任一方无坐标：返回 None（算不出），调用方须留痕；例外=锚在
+      班次点上的占位卡（继承档案后按回城返向链算，2026-11-16）。
+    口径与兜底 _leg_windows 的 pad 一致：max(30, taxi_leg_min(haversine))。
+    """
+    b_loc = b.location
+    if b_loc is None:
+        return None
+    a_loc = a.location
+    if a_loc is None:
+        # 锚定占位卡（午饭/晚饭）自己没有坐标：仅当锚在班次点上（继承
+        # 了接驳档案）时回城返向链才成立（2026-11-16「回城三段」）；
+        # 其余锚卡维持 None，不放大豁免口径。
+        mode_a, _terminal, service_a, _wait_a, _last_a = _access_profile(a)
+        if mode_a not in SCHEDULED_ACCESS_MODES or not service_a:
+            return None
+        a_loc = getattr(a, "anchor_location", None)
+        if a_loc is None:
+            return None
+    km = haversine_km(a_loc, b_loc)
+    if km <= SAME_VENUE_KM:
+        return None  # 同址不隔腿（嵌套/并块尾按距离语义豁免）
+    chain = access_chain_minutes(a, b)
+    if chain is not None:
+        # 班次点（景区专线/市郊铁路/轮渡）：打车直达口径换成接驳链，排期
+        # 才排得下——慕田峪打车 81 分钟、实际专线 2 小时 15 分。
+        return chain
+    return max(TRAVEL_GAP_FLOOR_MIN, taxi_leg_min(km))
 
 
 def _eff_end_minutes(item: VisitItem | TransferItem) -> int | None:
@@ -148,6 +596,19 @@ def _report(violations: list[RuleViolation]) -> ValidationReport:
 # --- iron rule 1: same-day VisitItem time overlap -------------------------
 
 
+def _nested_food_pair(a: VisitItem, b: VisitItem) -> bool:
+    """同址餐饮融合嵌套（2026-11-12 用户拍板「街区天然有餐饮，不应该互斥
+    相撞...街区的时间里包含了餐厅时间」）：food 卡完整落在同址（≤
+    SAME_VENUE_KM）宿主卡窗内=时间包含语义，不判铁律 1 双订。判定定义
+    点 solver.fusion_food_nested；部分溢出/非同址照旧报错。"""
+    return fusion_food_nested(
+        a,
+        b,
+        (_minutes(a.start_time), _minutes(a.end_time)),
+        (_minutes(b.start_time), _minutes(b.end_time)),
+    )
+
+
 def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
@@ -156,6 +617,8 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
     out = []
     for prev, cur in zip(timed, timed[1:]):
         if _minutes(prev.end_time) > _minutes(cur.start_time):
+            if _nested_food_pair(prev, cur):
+                continue  # 同址餐饮融合豁免（拍板）：街区时间包含餐厅时间
             out.append(
                 RuleViolation(
                     rule_id=1,
@@ -180,9 +643,9 @@ def _check_time_conflicts(day_no: int, visits: list[VisitItem]) -> list[RuleViol
 
 def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViolation]:
     """零车程背靠背绊网（2026-11-03 Day2 大明宫→城墙 15:00 事故）：
-    相邻已排观光对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免对见
-    travel_gap_needed（餐/酒店贴点、钉点、无坐标）。solver 生成端已
-    保证；此处回溯兜底旧 session 载荷与任何漏网路径，触即 error 披露。"""
+    相邻已排对象对的间隔必须 ≥ 打车腿（无坐标对 ≥30 地板）。豁免口径
+    见 travel_gap_needed（2026-11-13 起仅同址/无坐标豁免，餐/酒店/钉
+    件照算——solver 生成端漏网由此处披露兜底）。"""
     timed = sorted(
         (v for v in visits if v.start_time is not None and v.end_time is not None),
         key=lambda v: (v.start_time, v.end_time),
@@ -491,7 +954,8 @@ def _check_delivery_gates(
        优先级倒挂（凑数点霸下午、必去挂日尾渲染成四点以后）；
     ② 同日下午（≥13:00 开场）大点 ≥2=warning（下午单大点，2026-11-04
        拍板「超过 80 分钟的下午就放一个」）；
-    ③ 白天入场闸超限=warning（大点 >15:30 / 普通 >16:30 开场，夜游/
+    ③ 白天入场开场闸超限=warning（2026-11-07 用户再拍板：观光须 16:00
+       前安排（开场），时长可跨界收尾；大点 15:30 开场带并列上限；夜游/
        演出/餐/酒店/用户钉住有时刻豁免面与 solver generic_entry_cap
        完全同口径）——仅在营业窗已知（poi_id 命中 hours）时判，避免
        poi_hours=[] 的结构校验调用对夜开场馆误报。
@@ -532,10 +996,10 @@ def _check_delivery_gates(
                     severity=RuleSeverity.warning,
                     message=L(
                         f"第{day_no}天 「{v.name}」{v.start_time.strftime('%H:%M')}"
-                        " 开场晚于白天入场闸",
+                        " 开场——白天观光须 16:00 前安排（大点最晚 15:30 开场）",
                         f'Day {day_no}: "{v.name}" starts '
-                        f"{v.start_time.strftime('%H:%M')} after the daytime "
-                        "entry cap",
+                        f"{v.start_time.strftime('%H:%M')} — daytime sights "
+                        "must be scheduled by 16:00 (big sites by 15:30)",
                     ),
                     item_ids=[v.item_id],
                     day=day_no,
@@ -589,6 +1053,32 @@ def validate_plan(
     return _report(violations)
 
 
+# 腿标注的展示字段全集（annotate_legs 出口端恒补）：2026-11-16 补
+# next_leg_minutes/mode/cost_cny——2026-11-13 加腿模式与费用后 model_copy
+# 只归一三键，纯展示漂移又被判成「早于 from_day 却变了」（铁律 10 误报）
+_SCOPE_IGNORE_FIELDS = (
+    "distance_to_next_km",
+    "next_walk_minutes",
+    "leg_source",
+    "next_leg_minutes",
+    "next_leg_mode",
+    "next_leg_cost_cny",
+)
+
+
+def _scope_key(day: DayPlan):
+    """铁律 10 的语义比较键：腿标注字段（legs.annotate_legs 出口端恒补的
+    展示字段）归一化后比——旧计划从存储进来无标注，新计划经 mutate 出口
+    必带标注，整对象相等比较会把纯展示漂移误报成越界（2026-11-10 GAP-4）。"""
+    return (
+        day.base_city,
+        tuple(
+            i.model_copy(update={f: None for f in _SCOPE_IGNORE_FIELDS})
+            for i in day.items
+        ),
+    )
+
+
 def validate_change_scope(
     old_plan: ItineraryPlan, new_plan: ItineraryPlan, *, from_day: int
 ) -> ValidationReport:
@@ -601,11 +1091,7 @@ def validate_change_scope(
             continue
         old_d = old_days[day_no]
         new_d = new_days.get(day_no)
-        if (
-            new_d is None
-            or new_d.base_city != old_d.base_city
-            or list(new_d.items) != list(old_d.items)
-        ):
+        if new_d is None or _scope_key(new_d) != _scope_key(old_d):
             violations.append(
                 RuleViolation(
                     rule_id=10,

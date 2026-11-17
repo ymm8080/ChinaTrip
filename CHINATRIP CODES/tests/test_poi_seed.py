@@ -202,10 +202,14 @@ def test_seed_upsert_normalized_category_gets_floor():
 
 
 def test_seed_upsert_low_confidence_name_stays_skeleton():
-    """分类不出的名称不硬塞：地板/类别全空（清扫链后续兜底）。"""
+    """分类不出的名称不硬塞：地板/类别全空（清扫链后续兜底）。
+
+    2026-11-12 起「茶社/茶馆/茶楼…」是 tea_experience 类级语素（鹤鸣
+    茶社拍板），旧夹具「昆曲茶社」已能分类 → 换真正无 hints 的名称。
+    """
     factory = FakeFactory()
     out = seed_upsert(
-        factory, Poi, source="osm", source_poi_id="n8", city="苏州", name_zh="昆曲茶社"
+        factory, Poi, source="osm", source_poi_id="n8", city="苏州", name_zh="云栖人家"
     )
     assert out == "created"
     (row,) = factory.session.added
@@ -521,3 +525,11 @@ def test_gate_key_conflict_shadow_wins_venue():
     assert row.source == "museum1"
     assert row.location is not None
     assert shadow.status == "retired"
+
+
+def test_normalize_category_direct_pass_20261107():
+    """受控值直通行：citywalk/tea_experience 原样落库（2026-11-07 新档），
+    茶体验中文别名归 tea_experience。"""
+    assert normalize_category("citywalk") == "citywalk"
+    assert normalize_category("tea_experience") == "tea_experience"
+    assert normalize_category("茶体验") == "tea_experience"

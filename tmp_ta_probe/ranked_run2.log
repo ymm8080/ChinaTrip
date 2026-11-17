@@ -1,0 +1,241 @@
+排名文件模式: 625 个规划页站点对，39 城
+台账重试行: 309
+本批 326 行（pois 321 + restaurants 5；source 序: ['4a', '5a', 'amap', 'baidu', 'chinatravel', 'curated', 'histvillage', 'layla']…）
+  [catalog] 三亚/attractions 增量加深 6→45 页（已有 124 条）
+  [catalog] 三亚/attractions 第7页 +0（累计 124/?）
+  [catalog] 上海/attractions 缓存复用 1001 条（已爬 45 页）
+  [skip] 丽江 gID 解析失败（暂时性，不入台账）
+  [skip] 兰州 gID 解析失败（暂时性，不入台账）
+  [catalog] 北京/attractions 增量加深 4→45 页（已有 1196 条）
+  [catalog] 北京/attractions 第5页 +0（累计 1196/1164）
+  [catalog] 南京/attractions 增量加深 3→45 页（已有 471 条）
+  [catalog] 南京/attractions 第4页 +0（累计 471/196）
+  [catalog] 南京/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 厦门 gID 解析失败（暂时性，不入台账）
+  [skip] 哈尔滨 gID 解析失败（暂时性，不入台账）
+  [skip] 嘉兴 gID 解析失败（暂时性，不入台账）
+  [skip] 大理 gID 解析失败（暂时性，不入台账）
+  [catalog] 大连/attractions 增量加深 3→45 页（已有 314 条）
+  [catalog] 大连/attractions 第4页 +0（累计 314/209）
+  [catalog] 大连/restaurants 增量加深 42→45 页（已有 1179 条）
+  [catalog] 大连/restaurants 第43页 +0（累计 1179/1179）
+  [skip] 天津 gID 解析失败（暂时性，不入台账）
+  [catalog] 广州/attractions 增量加深 3→45 页（已有 492 条）
+  [catalog] 广州/attractions 第4页 +0（累计 492/409）
+  [skip] 张家界 gID 解析失败（暂时性，不入台账）
+  [catalog] 成都/attractions 增量加深 3→45 页（已有 460 条）
+  [catalog] 成都/attractions 第4页 +0（累计 460/225）
+  [catalog] 成都/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 拉萨 gID 解析失败（暂时性，不入台账）
+  [skip] 敦煌 gID 解析失败（暂时性，不入台账）
+  [catalog] 无锡/attractions 增量加深 3→45 页（已有 144 条）
+  [catalog] 无锡/attractions 第4页 +0（累计 144/155）
+  [catalog] 无锡/attractions 第5页 +0（累计 144/155）
+  [catalog] 无锡/attractions 第6页 +0（累计 144/155）
+  [catalog] 无锡/attractions 第7页 +0（累计 144/?）
+  [skip] 昆明 gID 解析失败（暂时性，不入台账）
+  [catalog] 杭州/attractions 增量加深 3→45 页（已有 530 条）
+  [catalog] 杭州/attractions 第4页 +0（累计 530/298）
+  [catalog] 杭州/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 桂林/attractions 增量加深 3→45 页（已有 96 条）
+  [catalog] 桂林/attractions 第4页 +0（累计 96/96）
+  [catalog] 桂林/restaurants 增量加深 3→45 页（已有 337 条）
+  [catalog] 桂林/restaurants 第4页 +0（累计 337/337）
+  [catalog] 武汉/attractions 增量加深 3→45 页（已有 558 条）
+  [catalog] 武汉/attractions 第4页 +0（累计 558/231）
+  [catalog] 武汉/restaurants 缓存复用 1350 条（已爬 45 页）
+  [catalog] 沈阳/attractions 增量加深 3→45 页（已有 268 条）
+  [catalog] 沈阳/attractions 第4页 +0（累计 268/145）
+  [catalog] 沈阳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 泉州 gID 解析失败（暂时性，不入台账）
+  [catalog] 洛阳/attractions 增量加深 3→45 页（已有 109 条）
+  [catalog] 洛阳/attractions 第4页 +0（累计 109/118）
+  [catalog] 洛阳/attractions 第5页 +0（累计 109/?）
+  [catalog] 洛阳/restaurants 增量加深 3→45 页（已有 149 条）
+  [catalog] 洛阳/restaurants 第4页 +0（累计 149/149）
+  [catalog] 济南/attractions 增量加深 3→45 页（已有 223 条）
+  [catalog] 济南/attractions 第4页 +0（累计 223/113）
+  [catalog] 济南/restaurants 增量加深 30→45 页（已有 866 条）
+  [catalog] 济南/restaurants 第31页 +0（累计 866/866）
+  [catalog] 深圳/attractions 增量加深 3→45 页（已有 515 条）
+  [catalog] 深圳/attractions 第4页 +0（累计 515/414）
+  [catalog] 深圳/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 福州 gID 解析失败（暂时性，不入台账）
+  [catalog] 绍兴/attractions 增量加深 5→45 页（已有 45 条）
+  [catalog] 绍兴/attractions 第6页 +0（累计 45/?）
+  [catalog] 绍兴/restaurants 增量加深 3→45 页（已有 129 条）
+  [catalog] 绍兴/restaurants 第4页 +0（累计 129/129）
+  [catalog] 舟山/attractions 增量加深 4→45 页（已有 77 条）
+  [catalog] 舟山/attractions 第5页 +0（累计 77/?）
+  [catalog] 苏州/attractions 增量加深 3→45 页（已有 218 条）
+  [catalog] 苏州/attractions 第4页 +0（累计 218/218）
+  [catalog] 苏州/restaurants 增量加深 32→45 页（已有 874 条）
+  [catalog] 苏州/restaurants 第33页 +0（累计 874/874）
+  [catalog] 西安/attractions 增量加深 3→45 页（已有 475 条）
+  [catalog] 西安/attractions 第4页 +0（累计 475/244）
+  [catalog] 西安/restaurants 缓存复用 1350 条（已爬 45 页）
+  [skip] 郑州 gID 解析失败（暂时性，不入台账）
+  [skip] 重庆 gID 解析失败（暂时性，不入台账）
+  [skip] 长春 gID 解析失败（暂时性，不入台账）
+  [skip] 长沙 gID 解析失败（暂时性，不入台账）
+  [catalog] 青岛/attractions 增量加深 3→45 页（已有 333 条）
+  [catalog] 青岛/attractions 第4页 +0（累计 333/207）
+  [catalog] 青岛/restaurants 增量加深 41→45 页（已有 1150 条）
+  [catalog] 青岛/restaurants 第42页 +0（累计 1150/1150）
+  [skip] 黄山 gID 解析失败（暂时性，不入台账）
+  [warn] 肥肥虾庄(石牌岭总店)（武汉/food）无过阈候选
+  [warn] 八合里牛肉火锅(振中路店)（深圳/food）无过阈候选
+  [warn] 八合里牛肉火锅(东园店)（深圳/food）无过阈候选
+  [warn] 裕兴记(演艺中心店)（苏州/food）无过阈候选
+  [warn] 恭城红岩村景区（桂林/nature）无过阈候选
+  [warn] 桂林全州县湘山·湘源历史文化旅游区（桂林/nature）无过阈候选
+  [warn] 北京圣莲山旅游风景区（北京/nature）无过阈候选
+  [warn] 乐满地度假世界（桂林/attraction）无过阈候选
+  [warn] 长安十二时辰·唐宴（西安/food）无过阈候选
+  [warn] 农科村景区（成都/nature）无过阈候选
+  [warn] 河南省洛阳市涧西区广州市场步行街（洛阳/historic）无过阈候选
+  [warn] 禧宴·囍·沉浸式宫廷宴（大连/food）无过阈候选
+  [warn] 吴良墓（南京/historic）无过阈候选
+  [warn] 阳朔三千漓中国山水人文度假区（桂林/nature）无过阈候选
+  [warn] 广州市中山纪念堂（广州/nature）无过阈候选
+  [warn] 武汉叙宴（武汉/food）无过阈候选
+  [warn] 成都市西岭雪山景区（成都/nature）无过阈候选
+  [warn] 乐多港假日广场景区（北京/nature）无过阈候选
+  [warn] 丹景台旅游景区（成都/nature）无过阈候选
+  [warn] 牛首山文化旅游区（南京/nature）无过阈候选
+  [warn] 五凤溪古镇（成都/attraction）无过阈候选
+  [warn] 严州古城景区（杭州/ancient_town）无过阈候选
+  [warn] 辽宁省沈阳市铁西区红梅文创园旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 七星景区（桂林/nature）无过阈候选
+  [warn] 楚汉宫宴·沉浸式宫廷礼宴（武汉/food）无过阈候选
+  [warn] 秀宴·齐鲁文化美食剧场（济南/entertainment）无过阈候选
+  [warn] 崂山区崂山景区（青岛/attraction）无过阈候选
+  [warn] 上海国际时尚中心（上海/nature）无过阈候选
+  [warn] 广西壮族自治区桂林市阳朔县阳朔西街（桂林/historic）无过阈候选
+  [warn] 万春亭（北京/attraction）无过阈候选
+  [warn] 嵊泗列岛风景名胜区（舟山/nature）无过阈候选
+  [warn] 桂林在水一汸景区（桂林/nature）无过阈候选
+  [warn] 千岛湖石林景区（杭州/nature）无过阈候选
+  [warn] 成都市宝光桂湖文化旅游区（成都/nature）无过阈候选
+  [warn] 徐达墓（南京/historic）无过阈候选
+  [warn] 李文忠墓（南京/historic）无过阈候选
+  [warn] 常遇春墓（南京/historic）无过阈候选
+  [warn] 吴祯墓（南京/historic）无过阈候选
+  [warn] 桂林喀斯特（桂林/nature）无过阈候选
+  [warn] 南谣逸境·颁金宴（沈阳/food）无过阈候选
+  [warn] 红鼎宴（成都/food）无过阈候选
+  [warn] 观赋宴·唐风沉浸式盛宴（青岛/food）无过阈候选
+  [warn] 吴宫御宴（苏州/food）无过阈候选
+  [warn] 失重餐厅(环球中心店)（成都/food）无过阈候选
+  [warn] 明茂陵（北京/historic）无过阈候选
+  [warn] 黄陂区木兰文化生态旅游区（武汉/attraction）无过阈候选
+  [warn] 滨湖区鼋头渚旅游风景区（无锡/attraction）无过阈候选
+  [warn] 定陵（北京/attraction）无过阈候选
+  [warn] 辽宁省沈阳市和平区沈阳老北市旅游休闲街区（沈阳/historic）无过阈候选
+  [warn] 山东省青岛市市北区台东旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 上海市徐汇区衡复音乐街区（上海/historic）无过阈候选
+  [warn] 四川省成都市成华区望平坊旅游休闲街区（成都/historic）无过阈候选
+  [warn] 下姜村（杭州/attraction）无过阈候选
+  [warn] 环秀山庄（苏州/nature）无过阈候选
+  [warn] 天安门广场（北京/attraction）无过阈候选
+  [warn] 富春江-新安江风景名胜区（杭州/nature）无过阈候选
+  [warn] 安仁古镇景区（成都/attraction）无过阈候选
+  [warn] 桂林漓江风景名胜区（桂林/nature）无过阈候选
+  [warn] 仇成墓（南京/historic）无过阈候选
+  [warn] 外滩观光隧道（上海/nature）无过阈候选
+  [warn] 北京大运河文化旅游景区（北京/attraction）无过阈候选
+  [warn] 龙脊长桌宴（桂林/food）无过阈候选
+  [warn] 六朝沉浸式晚宴（南京/food）无过阈候选
+  [warn] 御宴宫（西安/food）无过阈候选
+  [warn] 宴天下·宴乐（南京/food）无过阈候选
+  [warn] 宫宴·宋韵沉浸式宫廷御宴（杭州/food）无过阈候选
+  [warn] 天安门城楼（北京/historic）无过阈候选
+  [warn] 山东省青岛市大鲍岛文化旅游休闲街区（青岛/historic）无过阈候选
+  [warn] 山东省济南市槐荫区印象济南·泉世界文化旅游休闲街区（济南/historic）无过阈候选
+  [warn] 宝山旅游区（成都/nature）无过阈候选
+  [warn] 凤凰湖旅游景区（成都/nature）无过阈候选
+  [warn] 浣江-五泄风景名胜区（绍兴/nature）无过阈候选
+  [warn] 洛阳古城历史文化街区（洛阳/historic）无过阈候选
+  [warn] 长城脚下的公社（北京/other）无过阈候选
+  [warn] 金州区金石滩景区（大连/attraction）无过阈候选
+  [warn] 裕兴记（西北街总店）（苏州/food）无过阈候选
+  [warn] 融厨湖北菜·非遗武昌鱼藕汤（江汉路总店）（武汉/food）无过阈候选
+  [warn] 海南省三亚市吉阳区鸿洲码头旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 长安大牌档之西游漫记（大悦城店）（西安/food）无过阈候选
+  [warn] 魁盛居百年鲁菜馆（县西巷店）（济南/food）无过阈候选
+  [warn] 南锣鼓巷（北京/attraction）无过阈候选
+  [warn] 八合里牛肉火锅（购物公园店）（深圳/food）无过阈候选
+  [warn] 日丰园·海肠水饺（小平岛总店）（大连/food）无过阈候选
+  [warn] 函谷关（洛阳/historic）无过阈候选
+  [warn] 佳宁娜潮州菜（佳宁娜广场店）（深圳/food）无过阈候选
+  [warn] 老济南四合院（王府池子12号院店）（济南/food）无过阈候选
+  [warn] 武皇盛宴（洛阳/food）无过阈候选
+  [warn] 广州市中国共产党第三次全国代表大会会址纪念馆旅游区（广州/museum）无过阈候选
+  [warn] 奉天小馆（万象城店）（沈阳/food）无过阈候选
+  [warn] 北京凤凰岭景区（北京/nature）无过阈候选
+  [warn] 大明山景区（杭州/nature）无过阈候选
+  [warn] 湖北省武汉市江岸区黎黄陂路历史文化街区（武汉/historic）无过阈候选
+  [warn] 建德航空小镇（杭州/theme_park）无过阈候选
+  [warn] 漓江风景区（桂林/attraction）无过阈候选
+  [warn] 兰齐宴赋·沉浸式宫廷盛宴（青岛/food）无过阈候选
+  [warn] 肥肥虾庄（石牌岭总店）（武汉/food）无过阈候选
+  [warn] 三亚热带海滨风景名胜区（三亚/nature）无过阈候选
+  [warn] 栾川县老君山鸡冠洞旅游区（洛阳/attraction）无过阈候选
+  [warn] 临潼骊山风景名胜区（西安/nature）无过阈候选
+  [warn] 绍兴宴·解放路店（绍兴/food）无过阈候选
+  [warn] 敘宴·长安赋（深圳/food）无过阈候选
+  [warn] 宴华赋·唐风沉浸式宫宴餐秀（武汉/food）无过阈候选
+  [warn] 法租界（上海/attraction）无过阈候选
+  [warn] 辽宁省大连市中山区海昌·东方水城旅游休闲街区（大连/historic）无过阈候选
+  [warn] 海南省三亚市吉阳区大东海国际滨海旅游休闲街区（三亚/historic）无过阈候选
+  [warn] 百花洲历史文化街区（济南/historic）无过阈候选
+  [warn] 上海天际线（上海/attraction）无过阈候选
+  [warn] 广东省深圳市南山区南头古城旅游休闲街区（深圳/historic）无过阈候选
+  [warn] 上海朱家角珠溪里舍（上海/nature）无过阈候选
+  [warn] 北京市石景山区模式口历史文化街区（北京/historic）无过阈候选
+  [warn] 北京市昌平区乐多港假日广场旅游休闲街区（北京/historic）无过阈候选
+  [warn] 青岛崂山风景名胜区（青岛/nature）无过阈候选
+  [warn] 老山界龙潭江景区（桂林/nature）无过阈候选
+  [warn] 天姥山风景名胜区（绍兴/nature）无过阈候选
+  [warn] 北京王府井天主教堂（北京/attraction）无过阈候选
+  [warn] 望丛祠（成都/attraction）无过阈候选
+  [warn] 都江堰景区（成都/nature）无过阈候选
+  [warn] 武汉野生动物王国（武汉/theme_park）无过阈候选
+  [warn] 二里头夏都遗址博物馆（洛阳/museum）无过阈候选
+  [warn] 白鹿音乐小镇（成都/attraction）无过阈候选
+  [warn] 广州市城市规划展览中心（广州/museum）无过阈候选
+  [warn] 北京南锣鼓巷古韵坊四合院漫心府（北京/attraction）无过阈候选
+  [warn] 水墨大埝旅游区（南京/theme_park）无过阈候选
+  [warn] 海棠区蜈支洲岛旅游区（三亚/attraction）无过阈候选
+  [warn] 锦里古戏台（成都/art）无过阈候选
+  [warn] 外滩ART.333（上海/nature）无过阈候选
+  [warn] 崖州区南山文化旅游区（三亚/attraction）无过阈候选
+  [warn] 武钢文化旅游区（武汉/other）无过阈候选
+  [warn] 长陵（北京/attraction）无过阈候选
+  [warn] 吴中区太湖旅游区（苏州/attraction）无过阈候选
+  [warn] 新安县龙潭大峡谷景区（洛阳/attraction）无过阈候选
+  [warn] 淳安县千岛湖风景区（杭州/attraction）无过阈候选
+  [warn] 崖州区南山大小洞天旅游区（三亚/attraction）无过阈候选
+  [warn] 东西巷历史文化街区（桂林/historic）无过阈候选
+  [warn] 仙居谷风景区（北京/nature）无过阈候选
+  [warn] 大连武术文化博物馆（大连/museum）无过阈候选
+  [warn] 侵华日军南京大屠杀遇难同胞纪念馆（南京/attraction）无过阈候选
+  [warn] 天台山风景名胜区（成都/nature）无过阈候选
+  [warn] 八奇洞景区（北京/nature）无过阈候选
+  [warn] 长安十二时辰主题街区（西安/citywalk）无过阈候选
+  [warn] 平江历史街区（苏州/historic）无过阈候选
+  [warn] 天府花溪谷（成都/nature）无过阈候选
+  [warn] 灌县古城（成都/attraction）无过阈候选
+  [warn] 北外滩国客中心沙滩嘉年华（上海/theme_park）无过阈候选
+  [warn] 长城之漫观景台（北京/nature）无过阈候选
+  [warn] 龙华区观澜湖休闲旅游区（深圳/attraction）无过阈候选
+  [warn] 西蜀第一街牌坊（成都/citywalk）无过阈候选
+  [warn] 北京中轴线（北京/historic）无过阈候选
+  [ok] pois:黄浦江游览(十六铺码头)（上海/attraction） ← d1793303（0.95）
+  [ok] pois:黄浦江游览（金陵东路码头）（上海/attraction） ← d1793303（0.95）
+  [ok] pois:珠江夜游(海心沙东区码头)（广州/nature） ← d550693（0.95）
+  [ok] pois:珠江夜游(太古仓码头)（广州/attraction） ← d550693（0.95）
+台账重写: 保留 314 行滚动重试
+
+完成：写库 4，未匹配 314（已入台账，下次跳过）
+exit=0

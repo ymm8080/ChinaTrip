@@ -120,6 +120,39 @@ def test_parse_site_answer_unrelated_text_is_none():
     assert _parse_site_answer("第二天改成下午出发", ["总统府"]) is None
 
 
+def test_parse_site_answer_confirm_means_default_all():
+    # 2026-11-17 用户「ZHUJIAJIAO IS NOT RECOGNIZED」案：site_confirm 卡面
+    # 文案承诺「默认全选」，纯确认/同意句必须落地为候选全选，不得走 LLM
+    # 被判「什么都没提到」整轮丢光。
+    sites = ["朱家角古镇", "外滩"]
+    for answer in (
+        "确认",
+        "确认！",
+        "好的，就这样",
+        "全选",
+        "没问题，都去",
+        "OK",
+        "Confirm",
+        "Yes",
+        "Sure",
+        "对",
+    ):
+        assert _parse_site_answer(answer, sites) == (sites, []), answer
+
+
+def test_parse_site_answer_confirm_keep_all_guards():
+    sites = ["朱家角古镇", "外滩"]
+    # 点了名：照旧走拆分/LLM 通道，不整句吞成全选
+    assert _parse_site_answer("确认，朱家角古镇必去", sites) is None
+    assert _parse_site_answer("朱家角古镇", sites) is None
+    # 带排除语义：不吞成全选（LLM 通道负责减选）
+    assert _parse_site_answer("都要，除了外滩", sites) is None
+    # 明确不要：仍然整轮丢弃
+    assert _parse_site_answer("不要了", sites) == ([], [])
+    assert _parse_site_answer("不用了", sites) == ([], [])
+    assert _parse_site_answer("none of them", sites) == ([], [])
+
+
 # --- agent round trip ----------------------------------------------------
 
 
@@ -150,7 +183,9 @@ def test_two_site_link_asks_then_lands_in_wishlist():
     )
     assert session.state == "ready"
     assert session.must_visits == ["总统府", "夫子庙"]
-    names = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    # 2026-11-15 拍板：规划期不落库，心愿来源记会话；保存时才物化成行
+    assert trip_items.list_groups()["wishlist"] == []
+    names = session.wish_sources
     assert set(names) == {"总统府", "夫子庙"}  # picked 必去 only
     assert names["总统府"]["source"] == "paste"
     assert "必去" in names["总统府"]["note"]
@@ -186,7 +221,7 @@ def test_site_answer_via_llm_fallback():
     session, reply, _ = run(agent.message(session, "总统府一定要去，其他随便"))
     assert session.must_visits == ["总统府"]
     assert "总统府" in reply
-    names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    names = list(session.wish_sources)
     assert names == ["总统府"]  # picked 必去 only; unpicked stay out
 
 
@@ -228,7 +263,7 @@ def test_first_message_link_in_preferences_goes_site_round_then_v0():
         and not is_lunch_placeholder(item)  # 占位件设计上 pinned，不算用户钉选
     ]
     assert [v.name for v in pinned] == ["总统府"]
-    wishlist_names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    wishlist_names = list(session.wish_sources)
     assert wishlist_names == ["总统府"]  # picked only
 
 
@@ -253,7 +288,7 @@ def test_single_site_link_is_auto_must_visit():
     assert session.state == "ready"
     assert "颐和园" in reply and "必去" in reply
     assert session.must_visits == ["颐和园"]
-    names = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    names = session.wish_sources
     assert set(names) == {"颐和园"}
     assert names["颐和园"]["source"] == "paste"
     assert "必去" in names["颐和园"]["note"]
@@ -284,7 +319,7 @@ def test_single_site_link_before_details_pins_into_later_v0():
     )
     assert session.state == "clarify"
     assert session.must_visits == ["颐和园"]
-    assert [i["name"] for i in trip_items.list_groups()["wishlist"]] == ["颐和园"]
+    assert list(session.wish_sources) == ["颐和园"]
 
     session, reply, _ = run(agent.message(session, "北京 2 天"))
     assert session.state == "ready"
@@ -414,7 +449,7 @@ def test_food_link_far_from_sights_asks_then_skips():
     assert session.state == "clarify"
     assert session.must_visits == ["李记锅贴"]
     assert session.site_kinds["李记锅贴"] == "food"
-    notes = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    notes = session.wish_sources
     assert set(notes) == {"李记锅贴"}
     assert "餐饮" in notes["李记锅贴"]["note"]
 
@@ -574,7 +609,7 @@ def test_confirm_sites_records_only_picked():
     session, reply, _ = run(agent.confirm_sites(session, ["总统府"]))
     assert session.state == "ready"
     assert session.must_visits == ["总统府"]
-    names = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    names = list(session.wish_sources)
     assert names == ["总统府"]
     assert "未点选的 2 个地点没有写入心愿单" in reply
     assert llm.calls == 2  # v0 + extraction; no text round-trip burned
@@ -700,7 +735,7 @@ def test_video_city_wins_over_multi_city_session():
     )
     assert session.state == "site_confirm"
     session, _, _ = run(agent.message(session, "必去：十八梯、长江索道、大足石刻"))
-    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    wishlist = session.wish_sources
     assert {n: wishlist[n]["city"] for n in wishlist} == {
         "十八梯": "重庆",
         "长江索道": "重庆",
@@ -737,7 +772,7 @@ def test_title_city_fallback_when_llm_omits_city():
         agent.message(session, "看这个 https://www.douyin.com/video/7389002")
     )
     session, _, _ = run(agent.message(session, "必去：十八梯、长江索道"))
-    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    wishlist = session.wish_sources
     assert wishlist["十八梯"]["city"] == "重庆"
     assert wishlist["长江索道"]["city"] == "重庆"
     item, day = _plan_visit(session, "十八梯")
@@ -773,8 +808,12 @@ def test_amap_city_overrides_wrong_extracted_city():
     item, day = _plan_visit(session, "十八梯")
     assert item is not None and item.city == "重庆"  # …amap truth wins
     assert day.base_city == "重庆"
-    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
-    assert wishlist["十八梯"]["city"] == "重庆"
+    # 2026-11-12 拍板（已安排分区补源）：排上的心愿行翻进已安排分区，
+    # amap 覆写的城市保留在行上。
+    # 2026-11-15 拍板后规划期不落库：城市留档看会话（排上的卡在 plan 里）
+    assert session.wish_sources["十八梯"]["city"] == "重庆"
+    item, _day = _plan_visit(session, "十八梯")
+    assert item is not None and item.city == "重庆"
 
 
 def test_off_trip_amap_truth_not_scheduled():
@@ -803,7 +842,7 @@ def test_off_trip_amap_truth_not_scheduled():
     )
     item, _ = _plan_visit(session, "十八梯")
     assert item is None  # 兰州 POI 不出现在重庆/成都/西安的任何天
-    wishlist = {i["name"]: i for i in trip_items.list_groups()["wishlist"]}
+    wishlist = session.wish_sources
     assert wishlist["十八梯"]["city"] == "兰州"  # 真城留档
 
 
@@ -860,7 +899,7 @@ def test_planned_site_repicked_from_video_not_duplicated():
     assert len(visits) == 1
     assert visits[0].pinned
     # 产品规则 2026-10-20：点选必去照写心愿单（仅计划层去重）
-    wishlist = [i["name"] for i in trip_items.list_groups()["wishlist"]]
+    wishlist = list(session.wish_sources)
     assert wishlist == ["大足石刻景区"]
 
 

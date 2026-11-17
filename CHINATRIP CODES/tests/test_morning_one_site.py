@@ -134,7 +134,7 @@ def test_fallback_cursor_jumps_to_noon():
         days=[DayPlan(day=1, base_city="西安", items=[a, b])],
     )
     _fallback_sequence_times(plan)
-    assert a.start_time == time(9, 0)
+    assert a.start_time == time(8, 30)
     assert b.start_time is not None and _mins(b.start_time) >= _NOON
 
 

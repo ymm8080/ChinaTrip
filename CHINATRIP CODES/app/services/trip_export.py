@@ -97,6 +97,22 @@ def display_rows(plan: ItineraryPlan) -> list[dict]:
                     }
                 )
             else:
+                note = _visit_note(
+                    pinned=it.pinned,
+                    distance_km=it.distance_to_next_km,
+                    walk_min=it.next_walk_minutes,
+                    leg_source=it.leg_source,
+                )
+                # 同街族并卡（2026-11-07 拍板）：子站 chips 并进备注段，
+                # 三种渲染器（PDF/docx/xlsx）共用同一口径。
+                fam = it.stops or []
+                if fam:
+                    fam_txt = L(
+                        "同街联游：" + "、".join(s.name for s in fam),
+                        "Same-street stops: "
+                        + ", ".join(s.name_en or s.name for s in fam),
+                    )
+                    note = f"{note} · {fam_txt}" if note else fam_txt
                 rows.append(
                     {
                         "kind": "visit",
@@ -106,12 +122,7 @@ def display_rows(plan: ItineraryPlan) -> list[dict]:
                         "address": it.address or "",
                         "hours": it.opening_hours or "",
                         "minutes": it.duration_minutes,
-                        "note": _visit_note(
-                            pinned=it.pinned,
-                            distance_km=it.distance_to_next_km,
-                            walk_min=it.next_walk_minutes,
-                            leg_source=it.leg_source,
-                        ),
+                        "note": note,
                     }
                 )
         days.append({"day": d.day, "base_city": d.base_city, "rows": rows})
