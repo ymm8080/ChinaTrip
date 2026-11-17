@@ -572,6 +572,9 @@ async def get_plan_session(
     # 绝不在刷新时往行程里加新卡。
     await agent.fill_leftover_gaps(session, morning_only=True)
     await agent.refresh_legs(session)
+    # 覆盖审计要在 save 之前跑（2026-11-17）：所有端点都是先落库再组响应，
+    # 只在响应层审计会让披露/清脏不落库——GET 是持久化主路径，幂等可重入。
+    _audit_must_coverage(session)
     store.save(session)
     return _plan_turn_body(session, None, None)
 
@@ -777,6 +780,9 @@ async def start_plan(
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
+    # 同款：save 前审计，生成首屏的披露/清脏直接落库（下方响应层的
+    # _audit_must_coverage 保留为兜底，幂等无副作用）。
+    _audit_must_coverage(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
     if session.plan is not None:

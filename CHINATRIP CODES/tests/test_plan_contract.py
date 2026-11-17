@@ -203,3 +203,47 @@ def test_clean_plan_is_silent():
     stored = _stored(store)
     assert not [a for a in stored.plan.assumptions if "覆盖审计自动补记" in a]
     assert stored.plan.unplaced == []
+
+
+def test_get_persists_audit_before_save():
+    """save 顺序契约（2026-11-17 live 实证）：所有端点都是先 store.save 再组
+    响应——审计只在响应层跑会让披露/清脏不落库（响应干净、库里是审计前
+    状态）。GET 的审计必须发生在 save 之前。"""
+    agent = PlanningAgent(_NoLLMAdapter())
+
+    async def _noop_refresh_legs(session):
+        return None
+
+    agent.refresh_legs = _noop_refresh_legs
+    app = FastAPI()
+    store = PlanSessionStore()
+    saved = []
+    _orig_save = store.save
+
+    def _spy(s):
+        if s.plan is not None:
+            saved.append(s.plan.model_copy(deep=True))
+        _orig_save(s)
+
+    store.save = _spy
+    app.dependency_overrides[get_planning_agent] = lambda: agent
+    app.dependency_overrides[get_plan_sessions] = lambda: store
+    app.include_router(router)
+    session = PlanSession(
+        session_id="s-ct", device_id="dev-1", state="ready", must_visits=["外滩"]
+    )
+    session.plan = ItineraryPlan(
+        itinerary_id="it-ct",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[_visit("v1", "豫园")])],
+        assumptions=[],
+        unplaced=[UnplacedCandidate(name="豫园")],
+    )
+    store.save(session)
+    with TestClient(app) as client:
+        r = _get(client)
+    assert r.status_code == 200
+    snap = saved[-1]  # GET 内部那次 save（审计之后）
+    # 必去缺失的披露与双在场清脏都已落库
+    assert any("覆盖审计自动补记" in a for a in snap.assumptions)
+    assert not [u for u in snap.unplaced if u.name == "豫园"]
