@@ -999,10 +999,21 @@ def _fixed_transfer_window(item: TransferItem) -> tuple[int, int] | None:
     return ts, dur
 
 
-def _travel_cost(a: VisitItem, b: VisitItem, matrix: dict[tuple[str, str], int]) -> int:
-    """Matrix lookup by poi_id pair, then item_id pair, else default."""
-    if a.poi_id is not None and b.poi_id is not None:
-        cost = matrix.get((a.poi_id, b.poi_id))
+def _travel_cost(
+    a: VisitItem | TransferItem,
+    b: VisitItem | TransferItem,
+    matrix: dict[tuple[str, str], int],
+) -> int:
+    """Matrix lookup by poi_id pair, then item_id pair, else default.
+
+    2026-11-17：段卡（TransferItem）没有 poi_id——getattr 防御，别让跨城日
+    的交通卡把插入式排程整个崩掉（历史「solver raised」7 次的元凶：
+    AttributeError: 'TransferItem' object has no attribute 'poi_id'）。
+    """
+    a_poi = getattr(a, "poi_id", None)
+    b_poi = getattr(b, "poi_id", None)
+    if a_poi is not None and b_poi is not None:
+        cost = matrix.get((a_poi, b_poi))
         if cost is not None:
             return cost
     cost = matrix.get((a.item_id, b.item_id))
