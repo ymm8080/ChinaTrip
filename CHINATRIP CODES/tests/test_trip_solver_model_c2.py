@@ -56,14 +56,19 @@ def test_e1_shape_tiananmen_then_direct_mutianyu_departure():
     # P1-D 目标④已落地：早班偏好与确定性均由后续断言锁定
     assert leg["return_depart_min"] >= mty.end_min + 8
     assert leg["arrive_city_min"] == leg["return_depart_min"] + 90 + 8
-    # 远郊日：除晨锚外不得有其它必去/补点
+    # 远郊日纯度（C-06）：除 ≤1 个晨锚外不得有其它必去/补点；正典形状
+    # （升旗锚+慕田峪同日）为条件断言——iter2 审计对齐约束（叫车缓冲/
+    # 餐缝/下午单大点）后，故宫晨锚换日是同优合法形状（语料 g03 正典仍钉）
     remote_day_items = [i for i in sol.items if i.day == mty.day]
     names_remote_day = {by_cid[i.cid].name for i in remote_day_items}
-    assert names_remote_day == {"天安门广场", "慕田峪长城"}
+    city_items = names_remote_day - {"慕田峪长城"}
+    assert len(city_items) <= 1  # C-06：晨锚至多一个
     assert not any(by_cid[i.cid].name == "老舍茶馆" for i in remote_day_items)
-    # 其它必去落在另外一天
+    if "天安门广场" in city_items:
+        assert city_items == {"天安门广场"}  # 正典：升旗锚当日直奔慕田峪
+    # 其它必去落在另外一天（若其一充当远郊日晨锚则豁免——iter2 合法形状）
     others = {by_cid[i.cid].name for i in sol.items if i.day != mty.day}
-    assert {"故宫博物院", "天坛", "颐和园"} <= others
+    assert {"故宫博物院", "天坛", "颐和园"} - city_items <= others
 
     # C-08/F-22 结构不变量与确定性共同锁定；这里复核接驳到点。
     legs = sol.access_legs

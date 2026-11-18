@@ -17,9 +17,26 @@ import re
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from ..inputs.travel import lookup
+from ..inputs.travel import haversine_km, lookup
 from .slack import SlackFlags
 from .vars import DAY_END_MINUTES, DAY_START_MINUTES, VarBundle, define_variables
+
+# 铁律 7 对齐（P2-B3 iter2）：审计 travel_gap_needed = taxi_leg_min(km)
+# = min(180, km×1.3绕行/35km/h×60) + 30 叫车；坐标对取
+# max(矩阵, taxi(km))——保实测腿质量、不放过近距对；同址
+# （≤SAME_VENUE_KM=solver 口径）免隔腿
+SAME_VENUE_KM = 0.5
+TAXI_SPEED_KMH = 35.0
+TAXI_DETOUR = 1.3
+TAXI_RIDE_CAP_MIN = 180
+TAXI_CALL_MINUTES = 30
+
+
+def _taxi_gap_minutes(km: float) -> int:
+    """审计走行缝公式（rules.travel_gap_needed / solver._taxi_leg_min）。"""
+    ride = min(TAXI_RIDE_CAP_MIN, round(km * TAXI_DETOUR / TAXI_SPEED_KMH * 60))
+    return ride + TAXI_CALL_MINUTES
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
@@ -109,8 +126,22 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 b_host and b_host in (a.cid, a.poi_id)
             ):
                 continue  # C-09 同址嵌套，不做旅行析取
+            km = (
+                haversine_km(a.lon, a.lat, b.lon, b.lat)
+                if a.lon is not None
+                and a.lat is not None
+                and b.lon is not None
+                and b.lat is not None
+                else None
+            )
+            if km is not None and km <= SAME_VENUE_KM:
+                continue  # 同址：审计免隔腿（嵌套/并块合法）
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
+            if km is not None:
+                need = _taxi_gap_minutes(km)
+                ab = max(ab, need)
+                ba = max(ba, need)
             for day in bundle.days:
                 pa = bundle.presence[(a.cid, day)]
                 pb = bundle.presence[(b.cid, day)]
@@ -191,6 +222,7 @@ def build_model(
         add_c09_meals,
         add_c10_remote_lunch,
         add_c11_shows,
+        add_c12_afternoon_single_big,
         add_c12_family_day,
         add_c13_hotels,
         add_c14_coverage_before_fill,
@@ -202,6 +234,7 @@ def build_model(
     add_c10_remote_lunch(bundle, enriched)
     add_c11_shows(bundle, enriched)
     add_c12_family_day(bundle, enriched)
+    add_c12_afternoon_single_big(bundle, enriched)
     add_c13_hotels(bundle, enriched)
     add_c14_coverage_before_fill(bundle, enriched)
     add_c15_remote_departure(bundle, enriched)

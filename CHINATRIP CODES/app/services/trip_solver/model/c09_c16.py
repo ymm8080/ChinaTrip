@@ -38,6 +38,8 @@ REMOTE_LUNCH_EARLIEST = 11 * 60  # Q4
 REMOTE_LUNCH_LATEST = 13 * 60  # C-10 arrival band ends at 13:00
 REMOTE_DINNER_LATEST = 19 * 60 + 30  # 2026-11-18 用户拍板
 DAY_LOAD_BUDGET_MINUTES = 570  # legacy _MUST_DAY_USABLE_MIN
+MEAL_TRAVEL_FLOOR = 30  # 铁律 7 地板（rules.travel_gap_needed）
+AFTERNOON_START = 13 * 60  # 下午单大点闸（2026-11-04 拍板）
 SIGHT_CAP_PER_DAY = 4
 FILL_CAP_PER_DAY = 6
 HOTEL_MORNING_READY = 9 * 60
@@ -195,8 +197,14 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(en <= c_end).OnlyEnforceIf(host)
 
                 order = model.NewBoolVar("mo_%s_%s_%d" % (slot, cand.cid, day))
-                model.Add(en <= c_start).OnlyEnforceIf([p_cand, host.Not(), order])
-                model.Add(st >= c_end).OnlyEnforceIf([p_cand, host.Not(), order.Not()])
+                # 铁律 7 餐侧（P2-B3 iter2）：餐卡按宿主坐标参与走行
+                # 缝——地板 30；宿主嵌套（host）与远郊 F-22 豁免
+                model.Add(en + MEAL_TRAVEL_FLOOR <= c_start).OnlyEnforceIf(
+                    [p_cand, host.Not(), order]
+                )
+                model.Add(st >= c_end + MEAL_TRAVEL_FLOOR).OnlyEnforceIf(
+                    [p_cand, host.Not(), order.Not()]
+                )
 
             if meal["hosts"]:
                 model.Add(sum(meal["hosts"].values()) <= 1)
@@ -409,6 +417,41 @@ def _is_pinned(snapshot, cand, day: int) -> bool:
         pin.day == day and (pin.rid == cand.rid or (pin.cid and pin.cid == cand.cid))
         for pin in (getattr(snapshot.request, "pins", ()) or ())
     )
+
+
+def add_c12_afternoon_single_big(
+    bundle: VarBundle, enriched: "EnrichedSnapshot"
+) -> None:
+    """审计「下午单大点」（2026-11-04 拍板）：同日 ≥13:00 开场的
+    大点 ≤1。口径同 rules._check_day_mix：>80 分钟非街区/餐/酒店/
+    演出类；钉住件豁免（铁律 19）。"""
+    from ..inputs.hours_caps import is_big_site
+
+    snapshot = enriched.snapshot
+    for day in bundle.days:
+        terms = []
+        for cand in snapshot.candidates:
+            tier = enriched.tiers[cand.cid]
+            if not is_big_site(
+                duration_min=tier[1],
+                category=cand.category,
+                best_visit_time=cand.best_visit_time,
+                tier=cand.tier,
+                pinned_with_time=_is_pinned(snapshot, cand, day),
+            ):
+                continue
+            lit = bundle.presence[(cand.cid, day)]
+            ge = bundle.model.NewBoolVar("pm_big_%s_%d" % (cand.cid, day))
+            bundle.model.Add(ge == 0).OnlyEnforceIf(lit.Not())
+            bundle.model.Add(
+                bundle.start[(cand.cid, day)] >= AFTERNOON_START
+            ).OnlyEnforceIf([lit, ge])
+            bundle.model.Add(
+                bundle.start[(cand.cid, day)] < AFTERNOON_START
+            ).OnlyEnforceIf([lit, ge.Not()])
+            terms.append(ge)
+        if len(terms) > 1:
+            bundle.model.Add(sum(terms) <= 1)
 
 
 def add_c13_hotels(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:

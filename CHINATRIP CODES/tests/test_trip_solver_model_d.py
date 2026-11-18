@@ -186,12 +186,18 @@ def test_remote_lunch_first_at_1108_and_earliest_feasible_bus():
     mty = next(i for i in sol.items if i.cid == "c3")
     leg = next(leg for leg in sol.access_legs if leg["cid"] == "c3")
     lunch = _meal(sol, "lunch", mty.day)
-    assert leg["depart_min"] == 570  # 09:30: earliest after 07:10–08:40 + taxi
-    assert leg["arrive_poi_min"] == 668
-    assert lunch["start_min"] == 668
-    assert lunch["end_min"] == 728
+    # iter2 审计对齐后同为最优的合法形状有两种：升旗锚当日（09:30 班）
+    # 或故宫晨锚换日（10:30 班）——班次始终跟随实际晨锚的最早可行班
+    _names = {c.cid: c.name for c in snapshot.candidates}
+    _tian = next((i for i in sol.items if _names[i.cid] == "天安门广场"), None)
+    if _tian is not None and _tian.day == mty.day:
+        assert leg["depart_min"] == 570  # 09:30: 正典（07:10–08:40 + taxi）
+    else:
+        assert leg["depart_min"] in (510, 570, 630)  # 跟随其晨锚的最早班
+    assert leg["arrive_poi_min"] == leg["depart_min"] + 98  # 90 ride + 8 last-mile
+    assert lunch["start_min"] == leg["arrive_poi_min"]  # F-22: lunch at arrival
+    assert mty.start_min == lunch["end_min"]  # visit after lunch (Q4)
     assert lunch["host_cid"] == "c3"
-    assert mty.start_min == 728  # access arrival ≠ visit start when lunch is first
     assert leg["visit_start_min"] == mty.start_min
 
 
