@@ -5263,6 +5263,44 @@ def _pref_category_hit(
     return any(t in name or t == category or t in tags for t in tokens)
 
 
+# R8b（2026-11-18 用户拍板「裸偏好也触发全量引擎重排」）：点名/心愿/
+# 结构变更标记词——命中即不算纯偏好语句，照旧走原道（单点心愿已被
+# try_fast_wish 上游拦截，这里再兜一层语义分界）。
+_PREFERENCE_INTENT_MARKERS: tuple[str, ...] = (
+    "必去",
+    "要去",
+    "想去",
+    "必须",
+    "务必",
+    "打卡",
+    "加上",
+    "加个",
+    "加一个",
+    "添",
+    "去掉",
+    "删除",
+    "取消",
+    "改成",
+    "换",
+    "重新规划",
+    "重新安排",
+)
+
+
+def _bare_preference_statement(text: str) -> bool:
+    """纯品类偏好语句判定（R8b）：偏好 token 命中且无任何点名/心愿/
+    结构变更标记——整句就是品类/风格倾向（「我喜欢博物馆」「多排几家
+    博物馆」）。点名/心愿/改结构语句各走原道；风格词（慢慢逛/暴走）
+    不在品类名录，天然不触发。"""
+    s = (text or "").strip()
+    if not s:
+        return False
+    if any(m in s for m in _PREFERENCE_INTENT_MARKERS):
+        return False
+    toks, show = _preference_tokens(s)
+    return bool(toks or show)
+
+
 def _same_category_full(
     cand: dict,
     picked: list[dict],
@@ -33062,6 +33100,31 @@ class PlanningAgent:
                         "已按偏好解除同类默认封顶重排：" + text.strip(),
                         "Re-planned with your preference (same-type default "
                         "cap lifted): " + text.strip(),
+                    )
+                ],
+            )
+            reply = (
+                session.history[-1].content
+                if session.history
+                else L("已按偏好重排。", "Re-planned with your preference.")
+            )
+            return session, reply, None
+        if session.plan is not None and _bare_preference_statement(text):
+            # R8b（2026-11-18 用户拍板「裸偏好也触发全量引擎重排」）：纯
+            # 品类偏好语句并入 preferences（留存——此前 diff 道会蒸发）
+            # 并全量重排——_generate_v0 的 R8 钩子自动换模型引擎，用户
+            # 钉卡按 C-04 全保位（日+时刻钉死，NEVER_RELAX）；点名/心愿/
+            # 结构变更语句照旧原道。
+            prev = (session.preferences or "").strip()
+            session.preferences = f"{prev} {text.strip()}".strip()
+            session = await self._generate_v0(
+                session,
+                extra_assumptions=[
+                    L(
+                        "已按你的偏好重排：" + text.strip() + "（同类可多个景点）",
+                        "Re-planned with your preference: "
+                        + text.strip()
+                        + " (several same-type sights possible)",
                     )
                 ],
             )

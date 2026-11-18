@@ -21,6 +21,7 @@ from .types import (
     AccessProfile,
     CandidateItem,
     FactSnapshot,
+    FixedPin,
     RequestedItem,
     TripRequest,
 )
@@ -328,6 +329,33 @@ def snapshot_from_request(
     )
 
 
+def _degenerate_plan(plan) -> bool:
+    """退化计划判定（R8b-2，2026-11-18 成都空天事故）：任何一天的卡片
+    全空、或全程观光卡为零 = 引擎在本请求上不可信（瞬态坏池/求解退化）
+    ——按 F-35 语义回落 legacy + 披露，绝不交付空行程。
+
+    归因背景：bisect 实证非代码回归——并行会话批写库期间池行字段瞬态
+    损坏（同代码同请求 [0,6]/[6,6]/[4,6] 翻覆）；此闸是交付前最后一道
+    兜底，与写入侧修复互不替代。"""
+    if plan is None:
+        return True
+    days = list(getattr(plan, "days", None) or [])
+    if not days:
+        return True
+    if any(not list(getattr(day, "items", None) or []) for day in days):
+        return True
+    from app.services.itinerary.models import VisitItem
+
+    sights = sum(
+        1
+        for day in days
+        for item in day.items
+        if isinstance(item, VisitItem)
+        and (item.category or "") not in ("food", "hotel", "transport", "transfer")
+    )
+    return sights == 0
+
+
 def generate_session_via_trip_solver(
     *,
     device_id: str,
@@ -401,9 +429,14 @@ def generate_session_via_trip_solver(
         return None, None
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
-    if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is None:
-        # F-35 生产语义：cpsat 无可服务计划（INFEASIBLE/UNKNOWN/装配失败）
-        # = 回退形状——legacy 服务且必须披露，绝不静默
+    if (
+        outcome.engine != ENGINE_CPSAT
+        or getattr(outcome, "plan", None) is None
+        # R8b-2 退化闸：空天/零观光绝不交付（瞬态坏池兜底）
+        or _degenerate_plan(getattr(outcome, "plan", None))
+    ):
+        # F-35 生产语义：cpsat 无可服务计划（INFEASIBLE/UNKNOWN/装配失败
+        # /退化空行程）= 回退形状——legacy 服务且必须披露，绝不静默
         from .entry import FALLBACK_DISCLOSURE
 
         outcome.fallback = True
@@ -489,11 +522,52 @@ def replan_session_via_trip_solver(
         city_days=dict(getattr(session, "city_days", None) or {}),
         service_rows=service_rows,
     )
+    # R8b 钉位保全（铁律 19 全保位）：用户钉住的卡按 C-04 FixedPin 钉死
+    # 日+时刻（NEVER_RELAX——钉冲突只会 INFEASIBLE 回落 legacy 原生保钉，
+    # 绝不静默挪位）；绑定链=精确名→包含匹配；钉名同时留在 musts 里保证
+    # 候选行存在（must+pin 双表示自洽：must 保存在，pin 保槽位）。
+    pinned_cards = _pinned_cards(session)
+    if pinned_cards:
+        pins = list(getattr(snapshot.request, "pins", ()) or ())
+        for card in pinned_cards:
+            cand = next(
+                (c for c in snapshot.candidates if c.name == card["name"]),
+                None,
+            )
+            if cand is None:
+                cand = next(
+                    (
+                        c
+                        for c in snapshot.candidates
+                        if _name_hits(card["name"], c.name)
+                    ),
+                    None,
+                )
+            if cand is not None:
+                pins.append(
+                    FixedPin(
+                        rid="",
+                        day=card["day"],
+                        start_min=card["start_min"],
+                        cid=cand.cid,
+                    )
+                )
+        if pins:
+            snapshot = replace(
+                snapshot,
+                request=replace(snapshot.request, pins=tuple(pins)),
+            )
+
     if validate_snapshot(snapshot):
         return None
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
-    if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is None:
+    if (
+        outcome.engine != ENGINE_CPSAT
+        or getattr(outcome, "plan", None) is None
+        # R8b-2 退化闸：重排同样不出空行程（回落 legacy 原生保钉）
+        or _degenerate_plan(getattr(outcome, "plan", None))
+    ):
         outcome.fallback = True
         outcome.disclosures = [dict(FALLBACK_DISCLOSURE)]
         return outcome
@@ -508,7 +582,7 @@ def replan_session_via_trip_solver(
 
 
 def _pinned_names(session) -> list:
-    """用户钉住的卡折进必去（F-51 v1：在场保证；槽位保位是 F-50 升级位）。"""
+    """用户钉住的卡折进必去（在场保证；槽位由 _pinned_cards→C-04 钉死）。"""
     from app.services.itinerary.models import VisitItem
 
     plan = getattr(session, "plan", None)
@@ -521,4 +595,36 @@ def _pinned_names(session) -> list:
                 name = str(item.name or "").strip()
                 if name:
                     out.append(name)
+    return out
+
+
+def _pinned_cards(session) -> list:
+    """带时刻的钉卡 → [{name, day, start_min}]（C-04 全保位素材）。
+
+    无时刻的钉卡不进 pin（只靠 musts 在场保证）——C-04 的钉是时刻级
+    硬钉，无时刻可钉。"""
+    from app.services.itinerary.models import VisitItem
+
+    plan = getattr(session, "plan", None)
+    if plan is None:
+        return []
+    out = []
+    for day in plan.days:
+        for item in day.items:
+            if (
+                isinstance(item, VisitItem)
+                and getattr(item, "pinned", False)
+                and item.start_time is not None
+                and item.day
+            ):
+                name = str(item.name or "").strip()
+                if name:
+                    out.append(
+                        {
+                            "name": name,
+                            "day": int(item.day),
+                            "start_min": item.start_time.hour * 60
+                            + item.start_time.minute,
+                        }
+                    )
     return out
