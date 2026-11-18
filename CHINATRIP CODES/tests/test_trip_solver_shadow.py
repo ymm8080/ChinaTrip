@@ -159,6 +159,124 @@ def test_model_solutions_are_byte_identical_on_g01():
     assert sigs[0] == sigs[1]
 
 
+# --- B-03c card≡leg with the F-22 same-venue meal bridge --------------------
+
+
+def _b03c_ctx():
+    scenario = load_scenario(G01)
+    return AssertContext(snapshot=scenario.snapshot)
+
+
+def _remote_visit(day=1, start="12:08", cid="c1"):
+    return CardView(
+        name="慕田峪长城",
+        day=day,
+        start=start,
+        end="15:08",
+        kind="visit",
+        requested=True,
+        cid=cid,
+        remote=True,
+    )
+
+
+def test_b03c_flags_remote_gap_without_meal_bridge():
+    view = PlanView(
+        engine="cpsat",
+        cards=[_remote_visit()],
+        access_legs=[{"cid": "c1", "day": 1, "arrive_poi_min": 668}],
+    )
+    counts = violation_counts(scan_violations(view, _b03c_ctx()))
+    assert counts["B-03c"] == 1
+
+
+def test_b03c_f22_same_venue_lunch_bridges_arrival():
+    view = PlanView(
+        engine="cpsat",
+        cards=[_remote_visit()],
+        access_legs=[{"cid": "c1", "day": 1, "arrive_poi_min": 668}],
+        meal_anchors=[
+            {
+                "slot": "lunch",
+                "day": 1,
+                "start_min": 668,
+                "end_min": 728,
+                "host_cid": "c1",
+            }
+        ],
+    )
+    counts = violation_counts(scan_violations(view, _b03c_ctx()))
+    assert counts["B-03c"] == 0
+
+
+def test_b03c_city_anchored_meal_does_not_bridge():
+    view = PlanView(
+        engine="cpsat",
+        cards=[_remote_visit()],
+        access_legs=[{"cid": "c1", "day": 1, "arrive_poi_min": 668}],
+        meal_anchors=[
+            {
+                "slot": "lunch",
+                "day": 1,
+                "start_min": 668,
+                "end_min": 728,
+                "host_cid": "c_laohe",
+            }
+        ],
+    )
+    counts = violation_counts(scan_violations(view, _b03c_ctx()))
+    assert counts["B-03c"] == 1
+
+
+def test_b03c_legacy_bridge_ok_but_incident_shape_still_flagged():
+    card = CardView(
+        name="慕田峪长城",
+        day=1,
+        start="12:08",
+        end="15:08",
+        kind="visit",
+        requested=True,
+        remote=True,
+        leg={"board": "09:30", "arrive": "11:08"},
+    )
+    meal = CardView(
+        name="午饭",
+        day=1,
+        start="11:08",
+        end="12:08",
+        kind="meal",
+        anchor="慕田峪长城",
+    )
+    bridged = violation_counts(
+        scan_violations(PlanView(engine="legacy", cards=[card, meal]), _b03c_ctx())
+    )
+    assert bridged["B-03c"] == 0
+    # 24379abd incident: card 12:38 while the leg arrives 14:33 — the city
+    # lunch (11:38-12:38, anchored elsewhere) must not bridge it.
+    bad = CardView(
+        name="慕田峪长城",
+        day=2,
+        start="12:38",
+        end="15:38",
+        kind="visit",
+        requested=True,
+        remote=True,
+        leg={"board": "12:45", "arrive": "14:33"},
+    )
+    city_meal = CardView(
+        name="午饭",
+        day=2,
+        start="11:38",
+        end="12:38",
+        kind="meal",
+        anchor="老舍茶馆",
+    )
+    flagged = violation_counts(
+        scan_violations(PlanView(engine="legacy", cards=[bad, city_meal]), _b03c_ctx())
+    )
+    assert flagged["B-03c"] == 1
+
+
 # --- assertion evaluators (M7) ------------------------------------------------
 
 

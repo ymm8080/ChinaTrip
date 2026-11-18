@@ -4,7 +4,9 @@ Both engines' outputs are normalized into the same shape so the diff
 report compares like with like:
 
 - `view_from_solution`  — the trip-level model (Solution → view). Pre-P1-F
-  there are no meal/hotel cards; assertions that need them report
+  there are no *named* meal/hotel cards — C-09/F-22 meal intervals
+  pass through as `meal_anchors` so card≡leg scans can see same-venue
+  lunches; assertions that need restaurant detail still report
   `pending`, never a fake pass.
 - `view_from_recording` — a recorded legacy run (committed JSON under
   tests/golden/legacy/, hand-encoded from incident dumps; audit M6
@@ -83,6 +85,7 @@ class PlanView:
     unplaced: list[dict] = field(default_factory=list)
     disclosures: list[str] = field(default_factory=list)
     access_legs: list[dict] = field(default_factory=list)  # model: C-08 legs
+    meal_anchors: list[dict] = field(default_factory=list)  # model: C-09/F-22
     wall_ms: Optional[int] = None
 
     def day_cards(self, day: int) -> list[CardView]:
@@ -132,6 +135,7 @@ def view_from_solution(solution: Solution, snapshot: FactSnapshot) -> PlanView:
         unplaced=list(solution.unplaced),
         disclosures=list(solution.disclosures),
         access_legs=list(solution.access_legs),
+        meal_anchors=list(solution.meal_anchors),
         wall_ms=solution.wall_ms,
     )
 
@@ -198,6 +202,16 @@ def signature(view: PlanView) -> str:
             )
         ],
         "unplaced": sorted((u.get("rid"), u.get("name")) for u in view.unplaced),
+        "meal_anchors": sorted(
+            (
+                m.get("slot"),
+                m.get("day"),
+                m.get("start_min"),
+                m.get("end_min"),
+                m.get("host_cid"),
+            )
+            for m in view.meal_anchors
+        ),
         "disclosures": sorted(view.disclosures),
     }
     return json.dumps(
