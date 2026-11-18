@@ -1,4 +1,4 @@
-"""C-01..C-04 constraints + tier-① objective (P1-C1).
+"""C-01..C-04 constraints and full model assembly (P1-C1…P1-D).
 
 C-01 opening windows + closed weekdays — window from the F-12 first-window
 approximation; 周X关闭 parses from the hours text.
@@ -7,8 +7,8 @@ C-03 pairwise travel disjunction: if two candidates share a day, one must
 finish + travel before the other starts (matrix lookup, default 45).
 C-04 pins (iron rule 19: exact day + start) and day1_start horizon shift.
 
-Objective (P1-C1 minimal, tier ① only): minimise sum(unplaced × importance).
-F-23 full lexicographic objectives arrive in P1-D.
+F-23 objectives live in objectives.py and are solved lexicographically by
+solve.py; this module only assembles hard constraints.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(lit == 0)  # 闭馆日不可排（C-01）
                 continue
             lo = DAY_START_MINUTES
-            hi = DAY_END_MINUTES
+            hi = 23 * 60 if cand.best_visit_time == "show" else DAY_END_MINUTES
             if (cand.cid, day) in _pinned_cids(snapshot.request, snapshot):
                 # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）
                 lo = window[0] if window is not None else 0
@@ -102,6 +102,12 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 or keys[b.cid] in enriched.access_by_poi
             ):
                 continue  # C-08 接驳区间替代通用矩阵析取（P1-C2）
+            a_host = getattr(a, "same_venue", None)
+            b_host = getattr(b, "same_venue", None)
+            if (a_host and a_host in (b.cid, b.poi_id)) or (
+                b_host and b_host in (a.cid, a.poi_id)
+            ):
+                continue  # C-09 同址嵌套，不做旅行析取
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
             for day in bundle.days:
@@ -110,6 +116,11 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 if pa is pb:
                     continue
                 order = bundle.model.NewBoolVar("o_%s_%s_%d" % (a.cid, b.cid, day))
+                both = bundle.model.NewBoolVar("both_%s_%s_%d" % (a.cid, b.cid, day))
+                bundle.model.AddBoolAnd([pa, pb]).OnlyEnforceIf(both)
+                bundle.model.AddBoolOr([pa.Not(), pb.Not()]).OnlyEnforceIf(both.Not())
+                bundle.model.Add(order <= pa)
+                bundle.model.Add(order <= pb)
                 sa = bundle.start[(a.cid, day)]
                 sb = bundle.start[(b.cid, day)]
                 bundle.model.Add(sb >= sa + bundle.dur[a.cid] + ab).OnlyEnforceIf(
@@ -118,6 +129,7 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 bundle.model.Add(sa >= sb + bundle.dur[b.cid] + ba).OnlyEnforceIf(
                     [pa, pb, order.Not()]
                 )
+                bundle.travel_terms.append(ba * both + (ab - ba) * order)
 
 
 def add_c04_pins(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -146,15 +158,6 @@ def add_c04_pins(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 )
 
 
-def add_objective(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
-    snapshot = enriched.snapshot
-    weight = {r.rid: max(1, r.importance) for r in snapshot.request.musts}
-    weight.update({r.rid: 1 for r in snapshot.request.wishes})
-    terms = [bundle.unplaced[rid] * weight.get(rid, 1) for rid in bundle.unplaced]
-    if terms:
-        bundle.model.Minimize(sum(terms))
-
-
 def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
     from .c05_c08 import (
         add_c05_endpoints,
@@ -172,5 +175,24 @@ def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
     add_c06_remote_exclusivity(bundle, enriched)
     add_c07_city_coherence(bundle, enriched)
     add_c08_access(bundle, enriched)
-    add_objective(bundle, enriched)
+
+    from .c09_c16 import (
+        add_c09_meals,
+        add_c10_remote_lunch,
+        add_c11_shows,
+        add_c12_family_day,
+        add_c13_hotels,
+        add_c14_coverage_before_fill,
+        add_c15_remote_departure,
+        add_c16_diversity_caps,
+    )
+
+    add_c09_meals(bundle, enriched)
+    add_c10_remote_lunch(bundle, enriched)
+    add_c11_shows(bundle, enriched)
+    add_c12_family_day(bundle, enriched)
+    add_c13_hotels(bundle, enriched)
+    add_c14_coverage_before_fill(bundle, enriched)
+    add_c15_remote_departure(bundle, enriched)
+    add_c16_diversity_caps(bundle, enriched)
     return bundle

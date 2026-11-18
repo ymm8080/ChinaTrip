@@ -84,7 +84,7 @@ P4 (edit re-solve) ──T── needs P1-E; data from P1-F; runs parallel with 
 
 ## 5. Audit-driven additions (2026-11-17)
 
-**A9 + M3 — Fixture sanitization & versioning (P1-A)**: G-01's source payload is anonymized before becoming `tests/golden/g01.json` (strip `device_id`, `account_id`, session ids; keep musts/dates/candidates/plan shape). `FactSnapshot.schema_version = 1`; fixture regeneration + expectation re-bless land in the same commit when the POI library changes.
+**A9 + M3 — Fixture sanitization & versioning (P1-A)**: G-01's source payload is anonymized before becoming `tests/golden/g01.json` (strip `device_id`, `account_id`, session ids; keep musts/dates/candidates/plan shape). `FactSnapshot.schema_version = 2` (2026-11-18 P1-D 字段扩展后升级，G-01 同提交迁移)；fixture regeneration + expectation re-bless land in the same commit when the POI library changes.
 
 **M7 — Golden assertion schema (P1-A)**: per scenario, an ordered list of assertions `{type, args}`: `sequence` (relative card order), `time_range` (start/end window), `same_venue` (meal anchor == site coords), `card_leg_consistent` (visit.start == leg.arrive + last_mile), `no_unrequested_before` (before the remote access leg), `requested_coverage` (every requested item timed **or** unplaced+disclosure — untimed requested cards are a hard failure), `no_entry_cap_breach`, `disclosure_contains` (bilingual key), `deterministic` (two runs byte-identical). Exact times are asserted **only** where a timetable fixes them (e.g. shuttle 09:30 → arrive 11:08); everything else asserts shape invariants.
 

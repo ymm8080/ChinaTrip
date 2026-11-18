@@ -44,7 +44,7 @@ Solution           presence[cid,day], start[cid], dur[cid], day[cid], access int
 
 **Module boundary rules (audit M2)**: `trip_solver/` may import read-only pure helpers from `app/services/itinerary/` (hours/access/fare/geo math) and nothing from `app/services/agent/plan.py`. No DB or network I/O inside solve — everything the solver reads comes from the immutable `FactSnapshot`; I/O happens only in snapshot construction (F-03) and in assembly/edit adapters.
 
-**Snapshot & fixture versioning (audit M3)**: `FactSnapshot.schema_version = 1` (bump on any field change). Golden fixtures are **anonymized** (device/account/session ids stripped) and committed to the repo (`tests/golden/*.json`); when the POI library evolves (hours/durations backfills), fixtures are regenerated and re-blessed in the same commit as the expectation update — never silently.
+**Snapshot & fixture versioning (audit M3)**: `FactSnapshot.schema_version = 2` (2026-11-18 P1-D：新增 meal/family/diversity/pin 等求解读取字段；任何字段变更继续 bump). Golden fixtures are **anonymized** (device/account/session ids stripped) and committed to the repo (`tests/golden/*.json`); when the POI library evolves (hours/durations backfills), fixtures are regenerated and re-blessed in the same commit as the expectation update — never silently.
 
 ## 3. Design functions
 
@@ -109,8 +109,8 @@ Covers D3/D4. Resolves **B-01** (no invisible state exists), B-06 (an item is ei
 | C-06 | Remote-day exclusivity: day with remote cluster item → other items same cluster or none | `_separate_remote_must_days`, `_day_already_remote`, third-cluster eviction (B-08) |
 | C-07 | Same city / same river-side per day; multi-city day ranges | `_enforce_day_zones`, `_city_side_ok` |
 | C-08 | Access legs as intervals: board windows, ride, last mile, return-last | `_access_profiles`, shuttle timetables (B-03c) |
-| C-09 | Meal anchors: lunch/dinner windows; real-restaurant binding immovable; same-venue nesting | `_meal_anchor`, `_bind_real_food_to_cards`, palace rulings |
-| C-10 | Lunch-before-visit on destination days (≥15km, arrival 10:30-13:00) | `_lunch_before_destination_visit` (b909d60) |
+| C-09 | Meal anchors: lunch/dinner windows; real-restaurant binding immovable; same-venue nesting; **晚饭通常优先室内；远郊日默认回城晚饭，回城开席 >19:30 时允许远郊同址晚饭（2026-11-18 用户拍板）** | `_meal_anchor`, `_bind_real_food_to_cards`, palace rulings |
+| C-10 | Lunch-before-visit on destination days (≥15km; Q4 分界：arrival 11:00-13:00 午餐先行，<11:00 先游后餐) | `_lunch_before_destination_visit` (b909d60) + Q4 |
 | C-11 | Show sessions / one show per day / sessionless shows excluded | `effective_show_sessions`, `_enforce_show_per_day` |
 | C-12 | Must family same day; day load budget; weekend/weather day preferences | `_assign_must_family_days` family |
 | C-13 | Hotel anchors / night return | `_reanchor_nights_hook`, `_head_hotel_anchor` |
@@ -123,6 +123,8 @@ Every group carries **assumption literals** so F-26 can name exactly which rule 
 **F-22 `remote_lunch_constraints(model, snapshot)`** *(called out separately because it is the incident's hard gate)*
 On a remote day, lunch is a conditional interval that must either (a) nest in the remote site's same-venue window at arrival (C-10 case) or (b) start after the visit ends; it may **not** be placed between the previous city item and the outbound access interval. Lunch duration/anchor never constrains the outbound departure.
 Resolves **B-03b**; replaces the lunch-first swap + city-anchor patch (b909d60's assembly bug is covered by F-31).
+
+**Remote dinner（2026-11-18 用户拍板）**：远郊晚饭由时间与返程交通共同决定，通常优先室内餐厅。默认回城吃晚饭；若按所选返程班次回城后的最早开席时刻晚于 **19:30**，则允许在远郊同址吃晚饭，返程班次须晚于晚饭结束+缓冲，夜宿锚按实际回城时刻顺延。**19:30 压线仍回城**。用户显式绑定的远郊餐厅不受默认回城偏好限制，真实餐厅绑定不可移动。
 
 **F-23 `objectives(model) -> lexicographic tiers`**
 ① requested coverage, weighted by importance (must ≫ wish) — **strictly dominates everything**;

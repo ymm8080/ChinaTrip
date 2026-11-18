@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
-SNAPSHOT_SCHEMA_VERSION = 1
+SNAPSHOT_SCHEMA_VERSION = 2  # v2: solver-read meal/family/diversity/pin fields
 
 RequestedKind = Literal["must", "wish"]
 CandidateKind = Literal["requested", "fill"]
@@ -49,6 +49,10 @@ class CandidateItem:
     suggested_duration_min: Optional[int] = None
     remote: bool = False
     city: Optional[str] = None  # C-07 city coherence (multi-city requests)
+    diversity_group: Optional[str] = None  # C-16 optional-fill diversity cap
+    family_id: Optional[str] = None  # C-12 explicit must-family binding
+    meal_slot: Optional[str] = None  # C-09 real restaurant → lunch/dinner card
+    same_venue: Optional[str] = None  # C-09 nested host cid or poi_id
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,10 @@ class TripRequest:
     day1_start: Optional[str] = None
     lang: str = "zh"
     pins: tuple["FixedPin", ...] = ()  # C-04 fixed placements
+    hotel_anchors: bool = True  # C-13 morning departure + night return
+    day_load_budget_min: int = 570  # legacy _MUST_DAY_USABLE_MIN
+    sight_cap_per_day: int = 4  # legacy _cap_sights_per_day
+    fill_cap_per_day: int = 6  # Q2 fill-pool cap
 
 
 @dataclass(frozen=True)
@@ -134,7 +142,7 @@ class SolutionItem:
 class Solution:
     """Solver output. INFEASIBLE always carries a certificate, never a fallback."""
 
-    status: str  # OPTIMAL | FEASIBLE | INFEASIBLE
+    status: str  # OPTIMAL | FEASIBLE | UNKNOWN | INFEASIBLE
     items: list[SolutionItem] = field(default_factory=list)
     unplaced: list[dict] = field(default_factory=list)
     disclosures: list[str] = field(default_factory=list)
@@ -142,6 +150,9 @@ class Solution:
     certificate: list[str] = field(default_factory=list)
     wall_ms: Optional[int] = None
     access_legs: list[dict] = field(default_factory=list)  # C-08 intervals
+    meal_anchors: list[dict] = field(default_factory=list)  # C-09/F-22
+    hotel_anchors: list[dict] = field(default_factory=list)  # C-13
+    objective_values: dict[str, int] = field(default_factory=dict)  # F-23
 
 
 def validate_snapshot(snapshot: FactSnapshot) -> list[str]:

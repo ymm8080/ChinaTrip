@@ -36,7 +36,7 @@ def snap(
     pins: tuple = (),
 ) -> FactSnapshot:
     return FactSnapshot(
-        schema_version=1,
+        schema_version=2,
         request=TripRequest(
             days=days,
             cities=("北京",),

@@ -19,13 +19,15 @@ day (single-city snapshots are unconstrained). Multi-city order itself is
 an intent-layer input (Q6).
 
 C-08 access legs as intervals (conservative, same semantics as the legacy
-hotfix): for a remote candidate with an access profile, the visit start is
-pinned to a timetable departure: start == dep + ride + last_mile; a
-morning anchor must finish + taxi before dep; the return leg starts ≥
-visit.end + RETURN_BUFFER and arrives back in the city. Pairs involving a
-profiled remote candidate are excluded from the generic C-03 matrix
-disjunction (the profile replaces it). Post-return non-cluster items are
-already impossible by C-06, so no extra after-return ordering is needed.
+hotfix): for a remote candidate with an access profile, access arrival is
+pinned to a timetable departure: arrival == dep + ride + last_mile; the
+visit either starts there or after same-site lunch (F-22). A morning anchor
+must finish + taxi before dep; the return leg starts ≥ visit.end +
+RETURN_BUFFER and arrives back in the city. Pairs involving a profiled
+remote candidate are excluded from the generic C-03 matrix disjunction (the
+profile replaces it). Post-return non-cluster items are already impossible
+by C-06, so no extra after-return ordering is needed for visits; dinner has
+an explicit after-return constraint in C-10/F-22.
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ from typing import TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from ..inputs.access import hhmm_to_min
-from .vars import VarBundle
+from .vars import MINUTES_PER_DAY, VarBundle
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
@@ -55,6 +57,13 @@ def _hhmm(text: str | None) -> int | None:
 
 def _profile_keys(enriched: "EnrichedSnapshot") -> set[str]:
     return set(enriched.access_by_poi.keys())
+
+
+def _bound_to_remote(candidate, remote) -> bool:
+    """A real restaurant bound to this remote site follows F-22, not the
+    city morning-anchor rules."""
+    target = getattr(candidate, "same_venue", None)
+    return bool(target) and target in (remote.cid, remote.poi_id)
 
 
 def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -81,20 +90,20 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 def add_c06_remote_exclusivity(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     snapshot = enriched.snapshot
     profiled = _profile_keys(enriched)
-    remote_cids = [
-        c.cid for c in snapshot.candidates if (c.poi_id or c.cid) in profiled
-    ]
-    if not remote_cids:
+    remote_cands = [c for c in snapshot.candidates if (c.poi_id or c.cid) in profiled]
+    if not remote_cands:
         return
     for day in bundle.days:
-        for rid_cid in remote_cids:
-            lr = bundle.presence[(rid_cid, day)]
+        for rid_cand in remote_cands:
+            lr = bundle.presence[(rid_cand.cid, day)]
             anchors: list = []
             for other in snapshot.candidates:
-                if other.cid == rid_cid:
+                if other.cid == rid_cand.cid:
                     continue
                 if (other.poi_id or other.cid) in profiled:
                     continue  # same remote cluster: allowed
+                if _bound_to_remote(other, rid_cand):
+                    continue  # same-site remote meal, governed by F-22
                 lit = bundle.presence[(other.cid, day)]
                 if not other.rid:
                     # 远郊日不放非请求补点（C-15 效果）
@@ -144,26 +153,43 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 cp_model.Domain.FromValues(deps), "dep_%s_%d" % (cand.cid, day)
             )
             bundle.dep_vars[(cand.cid, day)] = dep
-            # 卡时刻=班次时刻：start == dep + ride + last_mile
-            bundle.model.Add(
-                bundle.start[(cand.cid, day)] == dep + ride + last_mile
-            ).OnlyEnforceIf(lit)
+            active_dep = bundle.model.NewIntVar(
+                0, MINUTES_PER_DAY, "adep_%s_%d" % (cand.cid, day)
+            )
+            bundle.model.Add(active_dep == dep).OnlyEnforceIf(lit)
+            bundle.model.Add(active_dep == 0).OnlyEnforceIf(lit.Not())
+            bundle.active_dep_vars[(cand.cid, day)] = active_dep
+            arrival = bundle.model.NewIntVar(
+                0, MINUTES_PER_DAY, "arr_%s_%d" % (cand.cid, day)
+            )
+            bundle.arrival_vars[(cand.cid, day)] = arrival
+            # 接驳到点独立于游览开始：F-22 可在同址先午餐再游览。
+            bundle.model.Add(arrival == dep + ride + last_mile).OnlyEnforceIf(lit)
             # 晨锚必须先结束+打车，才允许赶这一班（C-06 的晨锚例外）
             for other in snapshot.candidates:
                 if other.cid == cand.cid or not other.rid:
                     continue
-                if (other.poi_id or other.cid) in profiled:
+                if (other.poi_id or other.cid) in profiled or _bound_to_remote(
+                    other, cand
+                ):
                     continue
                 lo = bundle.presence[(other.cid, day)]
                 bundle.model.Add(
                     dep >= bundle.start[(other.cid, day)] + bundle.dur[other.cid] + taxi
                 ).OnlyEnforceIf([lit, lo])
+            bundle.travel_terms.append(lit * (2 * (ride + last_mile) + taxi))
             if not rets:
                 continue
             ret = bundle.model.NewIntVarFromDomain(
                 cp_model.Domain.FromValues(rets), "ret_%s_%d" % (cand.cid, day)
             )
             bundle.ret_vars[(cand.cid, day)] = ret
+            active_ret = bundle.model.NewIntVar(
+                0, MINUTES_PER_DAY, "aret_%s_%d" % (cand.cid, day)
+            )
+            bundle.model.Add(active_ret == ret).OnlyEnforceIf(lit)
+            bundle.model.Add(active_ret == 0).OnlyEnforceIf(lit.Not())
+            bundle.active_ret_vars[(cand.cid, day)] = active_ret
             # 返程腿：散场+缓冲 → 回城（回城后的非簇件已被 C-06 禁掉）
             bundle.model.Add(
                 ret
@@ -197,13 +223,15 @@ def extract_access_legs(
             ret_min = solver.Value(ret_var) if ret_var is not None else None
             start = solver.Value(bundle.start[(cand.cid, day)])
             dur = solver.Value(bundle.dur[cand.cid])
+            arrival = solver.Value(bundle.arrival_vars[(cand.cid, day)])
             out.append(
                 {
                     "cid": cand.cid,
                     "day": day,
                     "gateway": profile.gateway,
                     "depart_min": dep_min,
-                    "arrive_poi_min": start,
+                    "arrive_poi_min": arrival,
+                    "visit_start_min": start,
                     "visit_end_min": start + dur,
                     "return_depart_min": ret_min,
                     "arrive_city_min": (
