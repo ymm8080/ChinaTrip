@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .views import KIND_VISIT, PlanView
+from .views import KIND_MEAL, KIND_VISIT, CardView, PlanView
 
 if TYPE_CHECKING:  # pragma: no cover
     from .asserts import AssertContext
@@ -110,9 +110,39 @@ def scan_b03a_fill_before_remote(view: PlanView, ctx: "AssertContext") -> list[d
     return out
 
 
+def _cpsat_meal_bridges_arrival(view: PlanView, card: CardView, arrive: int) -> bool:
+    """F-22 same-venue meal: the remote site hosts the meal and the meal
+    spans [leg arrival, visit start] — card = arrival + meal, not a
+    mismatch. Any other gap (or a meal hosted elsewhere) stays flagged."""
+    start = card.start_min or 0
+    for meal in view.meal_anchors:
+        if meal.get("day") != card.day or meal.get("host_cid") != card.cid:
+            continue
+        if meal.get("start_min") == arrive and meal.get("end_min") == start:
+            return True
+    return False
+
+
+def _legacy_meal_bridges_arrival(
+    view: PlanView, card: CardView, arrive_min: int
+) -> bool:
+    start = card.start_min or 0
+    for meal in view.day_cards(card.day):
+        if meal.kind != KIND_MEAL or meal.anchor != card.name:
+            continue
+        if meal.start_min == arrive_min and meal.end_min == start:
+            return True
+    return False
+
+
 def scan_b03c_card_leg_mismatch(view: PlanView, ctx: "AssertContext") -> list[dict]:
     """Remote card start ≠ its access-leg arrival — the two were computed
-    by different passes (legacy) or the invariant regressed (model)."""
+    by different passes (legacy) or the invariant regressed (model).
+    Exception (F-22, 2026-11-18 ruling): a remote arrival in 11:00–13:00
+    may seat the same-venue lunch first; the visit then starts at the
+    meal's end. A meal anchored elsewhere (the 24379abd incident: city
+    lunch while the card claimed the shuttle's arrival) is still a
+    mismatch."""
     out: list[dict] = []
     for card in view.cards:
         if not (card.kind == KIND_VISIT and card.remote and card.timed):
@@ -126,38 +156,45 @@ def scan_b03c_card_leg_mismatch(view: PlanView, ctx: "AssertContext") -> list[di
             if not legs:
                 continue
             arrive = legs[0].get("arrive_poi_min")
-            if arrive is not None and (card.start_min or 0) != arrive:
-                out.append(
-                    {
-                        "bug": "B-03c",
-                        "day": card.day,
-                        "evidence": "%r card %s ≠ leg arrival %d min"
-                        % (
-                            card.name,
-                            card.start,
-                            arrive,
-                        ),
-                    }
-                )
+            if arrive is None or (card.start_min or 0) == arrive:
+                continue
+            if _cpsat_meal_bridges_arrival(view, card, arrive):
+                continue
+            out.append(
+                {
+                    "bug": "B-03c",
+                    "day": card.day,
+                    "evidence": "%r card %s ≠ leg arrival %d min"
+                    % (
+                        card.name,
+                        card.start,
+                        arrive,
+                    ),
+                }
+            )
         else:
             arrive = (card.leg or {}).get("arrive")
             if not arrive:
                 continue
             from .views import hhmm_to_min
 
-            if (card.start_min or 0) != hhmm_to_min(arrive):
-                out.append(
-                    {
-                        "bug": "B-03c",
-                        "day": card.day,
-                        "evidence": "%r card %s ≠ leg arrive %s"
-                        % (
-                            card.name,
-                            card.start,
-                            arrive,
-                        ),
-                    }
-                )
+            arrive_min = hhmm_to_min(arrive)
+            if (card.start_min or 0) == arrive_min:
+                continue
+            if _legacy_meal_bridges_arrival(view, card, arrive_min):
+                continue
+            out.append(
+                {
+                    "bug": "B-03c",
+                    "day": card.day,
+                    "evidence": "%r card %s ≠ leg arrive %s"
+                    % (
+                        card.name,
+                        card.start,
+                        arrive,
+                    ),
+                }
+            )
     return out
 
 
