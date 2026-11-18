@@ -1,0 +1,53 @@
+{
+  "session": "2026-11-18 餐厅表优先级收割（black_pearl/michelin 段，priority=(tags_source IS NULL),id）",
+  "entries": [
+    {
+      "search": "山茶四季(万象城店)",
+      "poiId": "119667716",
+      "title": "重庆山茶四季(万象城店)餐厅介绍",
+      "note": "city 重庆OK, branch exact; /photo/poi 图库页空白, 仅 poi 页头图",
+      "urls": [
+        "https://p1-q.mafengwo.net/s16/M00/E3/9E/CoUBUmGPr3eAUj0dABjsqhrNS8w17.jpeg"
+      ]
+    },
+    {
+      "search": "阿根酒家(襄阳南路店)",
+      "poiId": "29242034",
+      "title": "上海阿根酒家点评,阿根酒家地址_电话_人均消费,上海餐厅",
+      "note": "city 上海OK; /photo/poi 重定向回 poi 页, 仅头图",
+      "urls": [
+        "https://p1-q.mafengwo.net/s11/M00/E4/AF/wKgBEFtAvVeAWutWAASEsNWMn7w74.jpeg"
+      ]
+    },
+    {
+      "search": "廊桥THE BRIDGE",
+      "poiId": "2527697",
+      "title": "成都廊桥THE BRIDGE点评,廊桥THE BRIDGE地址_电话_人均消费,成都餐厅",
+      "note": "city 成都OK; 双卡取高评(16蜂评>6蜂评); 4图",
+      "urls": [
+        "https://p1-q.mafengwo.net/s6/M00/61/AC/wKgB4lIpwuGALYXdAAF-Ol881dg70.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/F4/97/wKgBEFtR2C2AZVdoAAdyYG8bx1k07.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/F4/9F/wKgBEFtR2DuAV8NDAAR3yKOcUDw33.jpeg",
+        "https://p1-q.mafengwo.net/s11/M00/F4/B2/wKgBEFtR2E2Ad8o6AARs4bTYkDQ07.jpeg"
+      ]
+    },
+    {
+      "search": "DA VITTORIO SHANGHAI(外滩店)",
+      "poiId": "78095456",
+      "title": "上海DA VITTORIO SHANGHAI（外滩店）餐厅介绍",
+      "note": "city 上海OK, 分店精确",
+      "urls": [
+        "https://p1-q.mafengwo.net/s14/M00/E9/C6/wKgE2l2Ot6iAEe29AAoPBE3vQtY41.jpeg"
+      ]
+    },
+    {
+      "search": "Maison Lameloise 莱美露滋(上海中心店)",
+      "poiId": "50000496",
+      "title": "上海Maison Lameloise 莱美露滋餐厅介绍",
+      "note": "city 上海OK, 地址=上海中心大厦68楼 与 DB 上海中心店 一致",
+      "urls": [
+        "https://p1-q.mafengwo.net/s13/M00/C2/46/wKgEaVyQ0fOAA9__AAgWYMm05Bo28.jpeg"
+      ]
+    }
+  ]
+}
