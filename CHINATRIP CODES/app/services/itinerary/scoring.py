@@ -434,7 +434,7 @@ def plan_score(
             # 可跨界收尾（营业窗+日终照卡）；大点（>80min，tier8 街区
             # 豁免同 solver._is_big_site）走 15:30 开场带并列上限。
             if (
-                cat not in ("entertainment", "food", "hotel")
+                cat not in ("entertainment", "food", "hotel", "transport", "transfer")
                 and bvt not in ("show", "evening", "sunset")
                 # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以
                 # 作为夜场，也可以白天」）——不吃白天入场闸，同 solver

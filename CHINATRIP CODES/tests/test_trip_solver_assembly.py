@@ -114,9 +114,15 @@ def test_g01_remote_day_card_equals_leg():
         for m in solution.meal_anchors
         if m["day"] == day_no and m["slot"] == "lunch" and m.get("host_cid")
     )
-    # E-1 / B-03c: site card = arrival + same-venue meal bridge
-    assert meal["start_min"] == leg["arrive_poi_min"]
-    assert start_min == meal["end_min"]
+    # E-1 / B-03c + Q4：到点 ≥11:00 → 到站即餐、餐毕开游；到点 <11:00 →
+    # 先游后餐（R1 后最优班次可早于 09:30，两形状都合法，按 Q4 断言）
+    arrive = leg["arrive_poi_min"]
+    if arrive >= 11 * 60:
+        assert meal["start_min"] == arrive
+        assert start_min == meal["end_min"]
+    else:
+        assert start_min == arrive
+        assert meal["start_min"] >= site.end_time.hour * 60 + site.end_time.minute
     assert site.access_mode == "access"
     # independent return card exists and is synthetic
     rets = [

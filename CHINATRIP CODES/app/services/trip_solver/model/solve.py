@@ -141,6 +141,9 @@ def solve(
 
     items: list[SolutionItem] = []
     snapshot = enriched.snapshot
+    from .c01_c04 import _pinned_cids
+
+    pinned_keys = _pinned_cids(snapshot.request, snapshot)
     for cid, day in bundle.cid_day_list:
         lit = bundle.presence[(cid, day)]
         if not solver.Value(lit):
@@ -154,7 +157,7 @@ def solve(
                 start_min=st,
                 end_min=st + du,
                 kind="visit",
-                pinned=False,
+                pinned=(cid, day) in pinned_keys,  # F-20/F-51: 铁律 19 豁免面
                 source="model",
             )
         )

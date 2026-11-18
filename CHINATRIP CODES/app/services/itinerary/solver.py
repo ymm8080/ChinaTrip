@@ -430,6 +430,7 @@ def _is_big_site(item: VisitItem) -> bool:
         "hotel",
         "entertainment",
         "transport",  # iter3：接驳/回城卡=乘车腿（对齐 TransferItem 语义）
+        "transfer",
     ):
         return False
     if (item.best_visit_time or "") in _EVENING_OK_BEST:

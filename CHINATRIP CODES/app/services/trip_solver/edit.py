@@ -28,6 +28,10 @@ from .model.solve import solve
 from .types import FactSnapshot, FixedPin, Solution
 
 EDIT_BUDGET_SECONDS = 0.8  # Q7/M12
+# 编辑路径的确定性步预算：R1 目标项让 4 层全证超信封——hint 下每层
+# 用小步预算取「已证最优前缀」；deterministic_time 跨机可复现，前缀
+# 截断仍满足 F-41 确定性红线（这正是 M12 交互不阻塞的口径）
+EDIT_TIER_DET = 0.12
 
 RETIMING_DISCLOSURE = {
     "zh": "重排中，稍后自动更新（编辑重解超出 800ms 预算）",
@@ -160,7 +164,9 @@ def edit_resolve(
     bundle = build_model(enriched)
     applied = _apply_bundle_ops(bundle, enriched, ops)
 
-    solution = solve_fn(bundle, enriched, budget_s, hint=previous)
+    solution = solve_fn(
+        bundle, enriched, budget_s, hint=previous, tier_det=EDIT_TIER_DET
+    )
     wall_ms = int((time.perf_counter() - started) * 1000)
     within = wall_ms <= int(edit_budget_s * 1000)
 

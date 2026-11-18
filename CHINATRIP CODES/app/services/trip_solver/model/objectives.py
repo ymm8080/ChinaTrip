@@ -19,6 +19,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from .vars import VarBundle
 
 FILL_REWARD = 100
+# R1 设计镜像（打分器软罚一一对应、仅影响放置不涉时刻）：
+# venue_strand 拆簇 −60（近簇跨日无伴）→ 同日共处 +60；
+# no_entertainment −40/程（2026-11-03 拍板）→ 娱乐在场 +40
+NEAR_PAIR_COLOCATE_REWARD = 60
+ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
 QUALITY_SCALE = 100
 # P2-B3 evidence: at 4/min a dense day's typ-shrinkage outbids
@@ -120,6 +125,51 @@ def _preference(
                     [lit, early.Not()]
                 )
                 negative.append(SHOW_EARLY_PENALTY * early)
+
+    # R1 拆簇镜像：近距对（打分器 _near_mate_km 同源口径，取
+    # solver.NEAR_SAMEDAY_KM）同日共处奖励——O(对数) 公式：dayVar
+    # 相等 ⇔ 同日（双方都已排），不按 天×对 展开防爆项
+    from app.services.itinerary.solver import NEAR_SAMEDAY_KM as _near_km
+
+    from ..inputs.travel import haversine_km as _hk
+
+    cands = list(snapshot.candidates)
+    for i, a in enumerate(cands):
+        for b in cands[i + 1 :]:
+            if a.lon is None or a.lat is None or b.lon is None or b.lat is None:
+                continue
+            if a.city and b.city and a.city != b.city:
+                continue  # C-07 已禁跨城同日，不必奖励
+            if _hk(a.lon, a.lat, b.lon, b.lat) > _near_km:
+                continue
+            day_a = sum(day * bundle.presence[(a.cid, day)] for day in bundle.days)
+            day_b = sum(day * bundle.presence[(b.cid, day)] for day in bundle.days)
+            bp = model.NewBoolVar("obj_bp_%s_%s" % (a.cid, b.cid))
+            pa = model.NewBoolVar("obj_pa_%s" % a.cid)
+            pb = model.NewBoolVar("obj_pb_%s" % b.cid)
+            model.AddMaxEquality(pa, [bundle.presence[(a.cid, d)] for d in bundle.days])
+            model.AddMaxEquality(pb, [bundle.presence[(b.cid, d)] for d in bundle.days])
+            model.AddBoolAnd([pa, pb]).OnlyEnforceIf(bp)
+            model.AddBoolOr([pa.Not(), pb.Not()]).OnlyEnforceIf(bp.Not())
+            rb = model.NewBoolVar("obj_near_%s_%s" % (a.cid, b.cid))
+            # 只锁等向+双排守卫：最大化驱动 rb=1（等日且双排）；
+            # 双未排（0==0）拿不到——bp=0 挡住。无 ≠ 分支（会双未排矛盾）
+            model.Add(day_a == day_b).OnlyEnforceIf(rb)
+            model.AddImplication(rb, bp)
+            positive.append(NEAR_PAIR_COLOCATE_REWARD * rb)
+
+    # R1 娱乐镜像：全程 ≥1 娱乐/演出类在场
+    ent_lits = [
+        bundle.presence[(cand.cid, day)]
+        for cand in snapshot.candidates
+        if (cand.category or "") == "entertainment"
+        or (cand.best_visit_time or "").lower() == "show"
+        for day in bundle.days
+    ]
+    if ent_lits:
+        ent_any = model.NewBoolVar("obj_ent_any")
+        model.AddMaxEquality(ent_any, ent_lits)
+        positive.append(ENTERTAINMENT_PRESENT_REWARD * ent_any)
 
     categories = sorted({c.category or "other" for c in snapshot.candidates})
     for category in categories:

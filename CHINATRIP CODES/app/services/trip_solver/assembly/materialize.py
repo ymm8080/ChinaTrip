@@ -53,6 +53,85 @@ def _location(cand) -> Optional[GeoPoint]:
     return GeoPoint(lon=float(cand.lon), lat=float(cand.lat))
 
 
+def compact_days(plan, snapshot):
+    """R2 deterministic day compaction (timing-only, barrier-aware).
+
+    Movable cards pull left inside their windows; FIXED cards -- system
+    meals, shuttle/return cards, user pins -- act as immovable barriers
+    the pass must not overlap; inter-card gaps use the audit formula
+    max(30, taxi(km)). Placement/order/durations never change.
+    """
+    from datetime import time as _time
+
+    from ..inputs.hours_caps import parse_first_window
+    from ..inputs.travel import haversine_km
+
+    def _taxi_gap(a_item, b_item):
+        la, lb = a_item.location, b_item.location
+        if la is None or lb is None:
+            return 30
+        km = haversine_km(la.lon, la.lat, lb.lon, lb.lat)
+        ride = min(180, round(km * 1.3 / 35.0 * 60))
+        return max(30, ride + 30)
+
+    def _m(item):
+        return item.start_time.hour * 60 + item.start_time.minute
+
+    def _set(item, target, dur):
+        end = target + dur
+        item.start_time = _time(target // 60 % 24, target % 60)
+        item.end_time = _time(end // 60 % 24, end % 60)
+
+    cand_by_poi = {c.poi_id: c for c in snapshot.candidates if c.poi_id}
+    for day in plan.days:
+        timed = [i for i in day.items if i.start_time is not None]
+        fixed = [
+            i
+            for i in timed
+            if getattr(i, "synthetic", False)
+            or (i.category or "") in ("transfer", "transport", "food")
+            or getattr(i, "access_mode", None)
+            or getattr(i, "pinned", False)
+        ]
+        movable = [
+            i for i in timed if i not in fixed and not getattr(i, "pinned", False)
+        ]
+        if not movable:
+            continue
+        barriers = sorted(
+            [(_m(f), _m(f) + int(f.duration_minutes or 60), f) for f in fixed]
+        )
+
+        def _earliest(card, after_min, prev_card):
+            cand = cand_by_poi.get(card.poi_id)
+            window = parse_first_window(cand.opening_hours if cand else None)
+            lo = window[0] if window else after_min
+            target = max(lo, after_min)
+            dur = int(card.duration_minutes or 60)
+            # nudge right past any overlapping barrier
+            for _ in range(len(barriers) + 1):
+                clash = next(
+                    (b for b in barriers if target < b[1] and target + dur > b[0]),
+                    None,
+                )
+                if clash is None:
+                    return target
+                target = clash[1] + (30 if (card.category or "") != "food" else 0)
+            return target
+
+        prev = None
+        prev_end = 8 * 60 + 30
+        for card in sorted(timed, key=_m):
+            if card in movable:
+                gap = _taxi_gap(prev, card) if prev is not None else 0
+                target = _earliest(card, prev_end + gap if prev else prev_end, prev)
+                if target < _m(card):
+                    _set(card, target, int(card.duration_minutes or 60))
+            prev = card
+            prev_end = max(prev_end, _m(card) + int(card.duration_minutes or 60))
+    return plan
+
+
 def materialize_plan(
     solution: "Solution",
     snapshot: "FactSnapshot",
@@ -93,6 +172,7 @@ def materialize_plan(
                 start_time=_hhmm(sol_item.start_min),
                 end_time=_hhmm(sol_item.end_min),
                 duration_minutes=sol_item.end_min - sol_item.start_min,
+                pinned=bool(sol_item.pinned),  # F-20/F-51: 铁律 19 豁免面
                 synthetic=False,
             )
             if leg is not None:
@@ -189,6 +269,7 @@ def assemble(
 
     plan = materialize_plan(solution, snapshot, itinerary_id=itinerary_id)
     plan = attach_meal_cards(plan, solution, snapshot)
+    plan = compact_days(plan, snapshot)
     plan = attach_alternatives(plan, snapshot)
     from ...itinerary.legs import annotate_legs
 

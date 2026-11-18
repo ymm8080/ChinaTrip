@@ -840,8 +840,8 @@ def _check_pace(
         for a, b in zip(visits, visits[1:])
         if a.location is not None
         and b.location is not None
-        and (a.category or "") != "transport"
-        and (b.category or "") != "transport"
+        and (a.category or "") not in ("transport", "transfer")
+        and (b.category or "") not in ("transport", "transfer")
     )
     located = [v for v in visits if v.location is not None]
     limit = WALK_KM_PER_DAY_MAX * CROWD_COEFFICIENTS[crowd_profile]
