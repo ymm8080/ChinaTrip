@@ -102,38 +102,64 @@ def seam_plain_shape(
     brief=None,
     images=None,
     city_days=None,
-    intercity_mode=None,
     arrival_date=None,
     departure_date=None,
-    intake=None,
-    days_override=None,
-    arrival_no_override=None,
-    departure_no_override=None,
+    start_date=None,
     days=None,
     cities=None,
 ) -> bool:
-    """F-35 形状闸（二期 2026-11-18）：模型引擎只承接「纯表单开局」。
+    """F-35 形状闸（R8 2026-11-18 收窄）：出计划全量切引擎。
 
-    文字路线（brief）、开局带图、分城天数、指定城际方式、行前日期卡、
-    行前确认卡（intake/days_override/班次 override）任一命中 → legacy
-    管线（读点确认轮、行前卡解析、分城拆窗都在那边；F-03 缝不吞点）。
-    班次号与语言不拦——由缝透传（F-14 档案绑/C-08 班次缓冲已承载）。
-    翻旗后普查实锤：此前缝无形状闸，带图/brief/分城开局被直吞、字段
-    静默丢弃（读点确认轮整轮蒸发）。"""
+    映射类字段不再拦——城际方式（intercity_mode train/flight 由缝
+    透传成 TripRequest.arrival_mode/departure_mode）、确认卡 override
+    （days/班次号=用户已选边，api 缝折算后透传）、行前卡标志（intake
+    纯 opting-in）。仍留 legacy 的是引擎尚无语义的开局形状：
+    - 文字路线 brief / 开局带图：读点确认轮（F-03 缝不吞点）；
+    - 分城天数 city_days：引擎无逐城拆窗（建模挂账）；
+    - 非默认端点行前日期：到达≠首日/离开≠末日=中途转移日。
+    days/cities 齐备才可解（缺=追问轮）。"""
     if (brief or "").strip():
         return False
     if images:
         return False
     if city_days:
         return False
-    if intercity_mode not in (None, "auto"):
-        return False
-    if arrival_date or departure_date:
-        return False
-    if intake or days_override or arrival_no_override or departure_no_override:
+    if not _intake_dates_at_default_endpoints(
+        arrival_date, departure_date, start_date, days
+    ):
         return False
     if not days or not cities:
         return False
+    return True
+
+
+def _intake_dates_at_default_endpoints(arrival_date, departure_date, start_date, days):
+    """行前日期卡 → 端点日语义（legacy _intake_target_day 同口径）。
+
+    到达=首日/离开=末日（或缺省、映射不了）与引擎默认形状等价，直连；
+    中途到达/离开（D2 才到、D3 就走）引擎无对应约束——留 legacy
+    （_apply_intake_times 的撤腿重排在那边）。"""
+    import datetime as _dt
+
+    def _day_no(iso):
+        if not iso or not start_date:
+            return None
+        try:
+            return (
+                _dt.date.fromisoformat(str(iso)[:10])
+                - _dt.date.fromisoformat(str(start_date)[:10])
+            ).days + 1
+        except ValueError:
+            return None
+
+    if arrival_date:
+        arrived = _day_no(arrival_date)
+        if arrived is not None and arrived != 1:
+            return False
+    if departure_date:
+        left = _day_no(departure_date)
+        if left is not None and (days or 0) and left != days:
+            return False
     return True
 
 

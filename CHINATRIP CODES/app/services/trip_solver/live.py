@@ -151,6 +151,13 @@ def _mode_from_no(no: Optional[str]) -> Optional[str]:
     return None
 
 
+def _explicit_mode(intercity_mode):
+    """用户指定城际方式（train/flight）→ 全程模式口径；auto/None=legacy
+    距离闸语义，引擎侧不强制（缺省）。班次号推出的模式更具体，优先于
+    全程口径（同 legacy：特定班次胜过笼统方式）。"""
+    return intercity_mode if intercity_mode in ("train", "flight") else None
+
+
 def snapshot_from_request(
     *,
     cities: list[str],
@@ -162,6 +169,7 @@ def snapshot_from_request(
     departure_time: Optional[str] = None,
     arrival_no: Optional[str] = None,
     departure_no: Optional[str] = None,
+    intercity_mode: Optional[str] = None,
     avoid: Optional[list[str]] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     service_rows: Optional[list[dict]] = None,
@@ -301,8 +309,9 @@ def snapshot_from_request(
             musts=tuple(request_musts),
             arrival_time=arrival_time,
             departure_time=departure_time,
-            arrival_mode=_mode_from_no(arrival_no),
-            departure_mode=_mode_from_no(departure_no),
+            arrival_mode=_mode_from_no(arrival_no) or _explicit_mode(intercity_mode),
+            departure_mode=_mode_from_no(departure_no)
+            or _explicit_mode(intercity_mode),
             preferences=preferences or "",
         ),
         candidates=tuple(candidates),
@@ -323,6 +332,7 @@ def generate_session_via_trip_solver(
     store,
     arrival_no: Optional[str] = None,
     departure_no: Optional[str] = None,
+    intercity_mode: Optional[str] = None,
     preferences: str = "",
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
@@ -372,6 +382,7 @@ def generate_session_via_trip_solver(
         departure_time=departure_time,
         arrival_no=arrival_no,
         departure_no=departure_no,
+        intercity_mode=intercity_mode,
         avoid=[],
         weather_lookup=_weather,
         service_rows=service_rows,

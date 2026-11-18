@@ -3743,7 +3743,8 @@ def test_start_seam_serves_plain_shape_when_cpsat(monkeypatch):
 
 
 def test_start_seam_skips_complex_shapes(monkeypatch):
-    """形状闸：分城天数/指定城际 → 缝不接（legacy 服务，缝零调用）。"""
+    """形状闸 R8：分城天数仍留 legacy（引擎无逐城拆窗，建模挂账）；
+    指定城际/确认卡 override 已折算透传引擎（映射类字段直连）。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     from app.services.trip_solver import live as _live
 
@@ -3764,10 +3765,20 @@ def test_start_seam_skips_complex_shapes(monkeypatch):
     assert calls == []
     r2 = start(
         client,
-        {"cities": ["上海", "杭州"], "days": 3, "intercity_mode": "train"},
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "intercity_mode": "train",
+            "arrival_no": "G7541",
+            "days_override": 2,
+            "intake": True,
+        },
     )
     assert r2.status_code == 200
-    assert calls == []
+    assert len(calls) == 1
+    assert calls[0]["intercity_mode"] == "train"
+    assert calls[0]["days"] == 2
+    assert calls[0]["arrival_no"] == "G7541"
 
 
 def test_message_new_trip_restart_via_engine(monkeypatch):

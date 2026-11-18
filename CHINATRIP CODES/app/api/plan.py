@@ -781,6 +781,23 @@ async def start_plan(
         start_days = request.days or 0
         start_brief = request.brief
         start_city_days = request.city_days
+    # R8（2026-11-18 拍板「全量切引擎」）：确认卡 override=用户已选边，
+    # 折算后透传给引擎——与 legacy agent.start 的 session 落位同口径
+    # （days_override 同时作废分城天数）。
+    ts_days = (
+        max(1, int(request.days_override)) if request.days_override else start_days
+    )
+    ts_city_days = {} if request.days_override else start_city_days
+    ts_arrival_no = (
+        str(request.arrival_no_override).strip().upper()
+        if request.arrival_no_override
+        else request.arrival_no
+    )
+    ts_departure_no = (
+        str(request.departure_no_override).strip().upper()
+        if request.departure_no_override
+        else request.departure_no
+    )
     # P3 seam (F-35/F-42, default legacy = zero behavior change): when
     # TRIP_SOLVER=cpsat and the serving stack is ready, generate through
     # the model engine in a worker thread; any failure falls back to the
@@ -800,22 +817,18 @@ async def start_plan(
         if (
             engine_flag() == ENGINE_CPSAT
             and serving_ready()[0]
-            # 二期形状闸（2026-11-18 普查收口）：模型引擎只承接纯表单
-            # 开局——文字路线/带图/分城天数/指定城际/行前日期卡/行前
-            # 确认卡留给 legacy 管线（读点确认轮与行前卡解析都在那边，
-            # F-03 缝不吞点）。班次号/语言由缝透传（F-14/C-08 已承载）。
+            # R8 形状闸收窄（2026-11-18「全量切引擎」）：映射类字段
+            # （城际方式/班次 override/行前卡标志）透传直连；仍留 legacy
+            # 的唯 brief/带图（读点确认轮）、分城天数（建模挂账）、
+            # 非默认端点行前日期（中途转移日）。
             and seam_plain_shape(
                 brief=start_brief,
                 images=request.images,
-                city_days=start_city_days,
-                intercity_mode=request.intercity_mode,
+                city_days=ts_city_days,
                 arrival_date=request.arrival_date,
                 departure_date=request.departure_date,
-                intake=request.intake,
-                days_override=request.days_override,
-                arrival_no_override=request.arrival_no_override,
-                departure_no_override=request.departure_no_override,
-                days=start_days,
+                start_date=request.start_date,
+                days=ts_days,
                 cities=start_cities,
             )
         ):
@@ -827,15 +840,16 @@ async def start_plan(
                 return generate_session_via_trip_solver(
                     device_id=x_device_id,
                     cities=list(start_cities or []),
-                    days=start_days or 0,
+                    days=ts_days or 0,
                     start_date=request.start_date,
                     musts=[],
                     store=get_poi_detail_store(),
                     preferences=request.preferences or "",
                     arrival_time=request.arrival_time,
                     departure_time=request.departure_time,
-                    arrival_no=request.arrival_no,
-                    departure_no=request.departure_no,
+                    arrival_no=ts_arrival_no,
+                    departure_no=ts_departure_no,
+                    intercity_mode=request.intercity_mode,
                     lang=request.lang,
                 )
 

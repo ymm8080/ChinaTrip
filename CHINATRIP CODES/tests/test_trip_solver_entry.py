@@ -255,30 +255,29 @@ def test_seam_plain_shape_gates_unsupported_start_shapes():
         brief=None,
         images=None,
         city_days=None,
-        intercity_mode=None,
         arrival_date=None,
         departure_date=None,
-        intake=None,
-        days_override=None,
-        arrival_no_override=None,
-        departure_no_override=None,
-        days=2,
+        start_date="2026-11-20",
+        days=3,
         cities=["上海"],
     )
+    # R8（2026-11-18 全量切）：映射类字段（城际方式/override/行前卡
+    # 标志）由 api 缝折算透传，形状闸不再拦——这里只验形状本身。
     assert seam_plain_shape(**base) is True
-    # 文字路线 / 带图 / 分城天数 / 指定城际 / 行前日期卡 / 行前确认卡 → legacy
+    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-20"}) is True
+    assert seam_plain_shape(**{**base, "departure_date": "2026-11-22"}) is True
+    assert seam_plain_shape(**{**base, "start_date": None}) is True
+    assert (
+        seam_plain_shape(**{**base, "start_date": None, "arrival_date": "2026-11-25"})
+        is True
+    )
+    # 引擎尚无语义的形状仍留 legacy：brief/带图/分城天数/中途转移日
     assert seam_plain_shape(**{**base, "brief": "想去杭州三天"}) is False
     assert seam_plain_shape(**{**base, "brief": "  "}) is True
     assert seam_plain_shape(**{**base, "images": ["x"]}) is False
     assert seam_plain_shape(**{**base, "city_days": {"杭州": 1}}) is False
-    assert seam_plain_shape(**{**base, "intercity_mode": "train"}) is False
-    assert seam_plain_shape(**{**base, "intercity_mode": "auto"}) is True
-    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-20"}) is False
-    assert seam_plain_shape(**{**base, "departure_date": "2026-11-22"}) is False
-    assert seam_plain_shape(**{**base, "intake": {"a": 1}}) is False
-    assert seam_plain_shape(**{**base, "days_override": 3}) is False
-    assert seam_plain_shape(**{**base, "arrival_no_override": "G123"}) is False
-    assert seam_plain_shape(**{**base, "departure_no_override": "MU5678"}) is False
+    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-21"}) is False
+    assert seam_plain_shape(**{**base, "departure_date": "2026-11-21"}) is False
     # 缺天数/缺城市（追问轮形态）→ legacy
     assert seam_plain_shape(**{**base, "days": 0}) is False
     assert seam_plain_shape(**{**base, "cities": None}) is False
