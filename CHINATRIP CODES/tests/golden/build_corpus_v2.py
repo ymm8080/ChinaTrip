@@ -989,7 +989,9 @@ def build_g15() -> dict:
             {"type": "deterministic", "args": {"runs": 2}},
         ],
         "provenance": {
-            "incident": "R8-S2b 餐类必去（2026-11-18 拍板「餐类必去需要 CP-SAT 能处理」）",
+            "incident": (
+                "R8-S2b 餐类必去（2026-11-18 拍板「餐类必去需要 CP-SAT 能处理」）"
+            ),
             "built_at": "2026-11-18",
             "builder": "tests/golden/build_corpus_v2.py",
             "note": (
