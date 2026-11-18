@@ -284,3 +284,48 @@ def test_replan_session_via_trip_solver_mutates_in_place(monkeypatch):
     assert session.plan is not None and session.state == "ready"
     assert session.session_id == "sess-r8"
     assert "已按偏好重排" in session.assumptions
+
+
+# ---------- R8-S2b: food must binding ----------
+
+
+def test_food_must_binds_meal_slot_any():
+    from app.services.trip_solver.live import snapshot_from_request
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    store = SnapshotStore(
+        [
+            CandidateItem(
+                cid="c1",
+                name="外滩",
+                poi_id="ct_上海_20",
+                city="上海",
+                category="sight",
+                tier=1,
+                opening_hours="09:00-21:00",
+                suggested_duration_min=90,
+            ),
+            CandidateItem(
+                cid="c2",
+                name="福和慧",
+                poi_id="ct_上海_food_1",
+                city="上海",
+                category="food",
+                tier=2,
+                opening_hours="11:00-20:30",
+                suggested_duration_min=90,
+            ),
+        ]
+    )
+    snapshot = snapshot_from_request(
+        cities=["上海"],
+        days=1,
+        start_date=None,
+        musts=["福和慧"],
+        store=store,
+    )
+    bound = [c for c in snapshot.candidates if c.rid]
+    assert len(bound) == 1
+    assert bound[0].category == "food"
+    assert bound[0].meal_slot == "any"  # R8-S2b 真餐厅 any-槽

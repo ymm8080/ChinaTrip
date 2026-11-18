@@ -151,6 +151,12 @@ def materialize_plan(
         seq += 1
         return "v%d" % seq
 
+    # R8-S2b 餐类必去：真餐厅已顶餐卡（命名卡）——访视渲染去重
+    bound_render = {
+        (m.get("bound_cid"), int(m.get("day") or 0))
+        for m in getattr(solution, "meal_anchors", ()) or ()
+        if m.get("bound_cid")
+    }
     for day_no in range(1, snapshot.request.days + 1):
         items: list[VisitItem] = []
         day_items = [it for it in solution.items if it.day == day_no]
@@ -158,6 +164,8 @@ def materialize_plan(
         for sol_item in day_items:
             cand = cand_by_cid.get(sol_item.cid)
             if cand is None:
+                continue
+            if (sol_item.cid, day_no) in bound_render:
                 continue
             leg = legs_by_cid_day.get((sol_item.cid, day_no))
             card = VisitItem(

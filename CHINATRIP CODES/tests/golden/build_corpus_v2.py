@@ -935,6 +935,71 @@ def build_g14() -> dict:
     }
 
 
+# --- g15 food must meal card (R8-S2b) ----------------------------------------
+
+
+def build_g15() -> dict:
+    """餐类必去：真餐厅 any-槽（模型自选午/晚、顶餐卡不双渲染）。"""
+    return {
+        "schema_version": 2,
+        "source": "golden-fixture",
+        "library_version": "poi-snapshot-2026-11-17",
+        "request": _request(
+            1,
+            ["上海"],
+            [
+                _must("r1", "外滩", 5, "ct_上海_20"),
+                _must("r2", "福和慧", 4, "ct_上海_food_1"),
+            ],
+            "2026-11-25",
+        ),
+        "candidates": [
+            _cand(
+                "c1",
+                "外滩",
+                "上海",
+                kind="requested",
+                rid="r1",
+                tier=1,
+                dur=90,
+                poi_id="ct_上海_20",
+            ),
+            {
+                **_cand(
+                    "c2",
+                    "福和慧",
+                    "上海",
+                    kind="requested",
+                    rid="r2",
+                    tier=2,
+                    dur=60,
+                    hours="11:00-20:30",
+                    poi_id="ct_上海_food_1",
+                    category="food",
+                ),
+                "meal_slot": "any",
+            },
+            _cand("c3", "豫园", "上海", kind="fill", tier=2, dur=75),
+        ],
+        "access_profiles": [],
+        "travel": [],
+        "weather": [],
+        "expect": [
+            {"type": "requested_coverage", "args": {}},
+            {"type": "deterministic", "args": {"runs": 2}},
+        ],
+        "provenance": {
+            "incident": "R8-S2b 餐类必去（2026-11-18 拍板「餐类必去需要 CP-SAT 能处理」）",
+            "built_at": "2026-11-18",
+            "builder": "tests/golden/build_corpus_v2.py",
+            "note": (
+                "真餐厅 any-槽：C-09 自选午/晚、顶系统餐卡（命名卡=餐厅本体），"
+                "装配不双渲染；另一槽照常出占位餐卡。"
+            ),
+        },
+    }
+
+
 def main() -> int:
     with open(G01, "r", encoding="utf-8") as fh:
         base = json.load(fh)
@@ -948,6 +1013,7 @@ def main() -> int:
     _write("g12_closed_weekday.json", build_g12())
     _write("g13_twin_content_dup.json", build_g13())
     _write("g14_city_days_windows.json", build_g14())
+    _write("g15_food_must_meal_card.json", build_g15())
     return 0
 
 

@@ -851,3 +851,68 @@ def test_preference_reward_boosts_preferred_category():
 
     boosted = placed_names(snap("喜欢博物馆人文"))
     assert "museum" in boosted and "park" not in boosted
+
+
+# ---------- R8-S2b: food must, any-slot real restaurant ----------
+
+
+def test_food_must_any_slot_binds_exactly_one_meal():
+    site = _cand("site", rid="r-site", category="historic", duration=90)
+    food = _cand(
+        "resto",
+        rid="r-food",
+        name="福和慧",
+        category="food",
+        hours="11:00-20:30",
+        duration=60,
+        meal_slot="any",
+    )
+    sol = _solve(_snap([site, food], musts=("r-site", "r-food")))
+    _ok(sol)
+    placed = {i.cid: i for i in sol.items}
+    f = placed["resto"]
+    from app.services.trip_solver.model.c09_c16 import MEAL_WINDOWS
+
+    lo_l, hi_l = MEAL_WINDOWS["lunch"]
+    lo_d, hi_d = MEAL_WINDOWS["dinner"]
+    assert lo_l <= f.start_min <= hi_l or lo_d <= f.start_min <= hi_d
+    bound = [m for m in sol.meal_anchors if m.get("bound_cid") == "resto"]
+    assert len(bound) == 1
+    assert bound[0]["start_min"] == f.start_min
+    assert bound[0]["end_min"] == f.end_min
+    # 未绑的另一槽照常出系统餐卡（host/bound 均非本餐厅）
+    other = [m for m in sol.meal_anchors if m.get("bound_cid") != "resto"]
+    assert all(m.get("bound_cid") is None for m in other)
+
+
+def test_food_must_any_slot_assembles_single_named_card():
+    from app.services.trip_solver.assembly import assemble
+
+    site = _cand(
+        "site",
+        rid="r-site",
+        category="historic",
+        duration=90,
+        lon=121.47,
+        lat=31.23,
+    )
+    food = _cand(
+        "resto",
+        rid="r-food",
+        name="福和慧",
+        category="food",
+        hours="11:00-20:30",
+        duration=60,
+        meal_slot="any",
+        lon=121.47,
+        lat=31.23,
+    )
+    snap = _snap([site, food], musts=("r-site", "r-food"))
+    sol = _solve(snap)
+    _ok(sol)
+    plan = assemble(sol, snap)
+    cards = [i for d in plan.days for i in d.items if i.name == "福和慧"]
+    assert len(cards) == 1  # 顶餐卡：真餐厅即餐卡，不双渲染
+    assert cards[0].poi_id == "p-resto"
+    assert cards[0].location is not None
+    assert cards[0].category == "food"

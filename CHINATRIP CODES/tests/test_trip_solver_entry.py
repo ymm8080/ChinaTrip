@@ -304,11 +304,12 @@ def test_replan_seam_shape_guards():
     assert (
         replan_seam_shape(SimpleNamespace(**{**base, "city_days": {"杭州": 1}})) is True
     )
-    # 自造点 / 餐类必去 / 缺城市 / 缺天数 → legacy
+    # 自造点 / 缺城市 / 缺天数 → legacy
     assert (
         replan_seam_shape(SimpleNamespace(**{**base, "created_sites": ["自造点"]}))
         is False
     )
+    # R8-S2b：餐类必去已由 C-09 any-槽承载 → 换道
     assert (
         replan_seam_shape(
             SimpleNamespace(
@@ -319,7 +320,7 @@ def test_replan_seam_shape_guards():
                 }
             )
         )
-        is False
+        is True
     )
     assert replan_seam_shape(SimpleNamespace(**{**base, "cities": []})) is False
     assert replan_seam_shape(SimpleNamespace(**{**base, "days": 0})) is False

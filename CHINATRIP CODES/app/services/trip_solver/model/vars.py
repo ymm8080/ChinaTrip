@@ -48,6 +48,7 @@ class VarBundle:
     fill_gates: dict[str, "cp_model.IntVar"] = field(
         default_factory=dict
     )  # tier-① fill-free assumption gates
+    meal_bound: dict = field(default_factory=dict)  # R8-S2b 真餐厅 any-槽选择
 
 
 def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:

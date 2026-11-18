@@ -209,9 +209,11 @@ def snapshot_from_request(
                 )
             )
             must_rows.append(row)
-            candidates.append(
-                _row_to_candidate("c%d" % i, row, kind="requested", rid=rid)
-            )
+            bound_cand = _row_to_candidate("c%d" % i, row, kind="requested", rid=rid)
+            if bound_cand.category == "food":
+                # R8-S2b 餐类必去：真餐厅 any-槽（模型自选午/晚、顶餐卡）
+                bound_cand = replace(bound_cand, meal_slot="any")
+            candidates.append(bound_cand)
             must_names_bound.add(str(row.get("name") or ""))
         else:
             # unbindable must: skeleton requested candidate — the coverage

@@ -43,6 +43,8 @@ def _meal_card(
 
         host_loc = GeoPoint(lon=float(host.lon), lat=float(host.lat))
     named = host is not None and (host.category == "food" or host.meal_slot == slot)
+    # R8-S2b：命名卡（真餐厅）携带 POI 坐标；占位卡维持无 POI 规则
+    named_loc = host_loc if named else None
     return VisitItem(
         item_id=item_id,
         name=(host.name if named else PLACEHOLDER[slot]["zh"]),
@@ -50,7 +52,7 @@ def _meal_card(
         poi_id=(host.poi_id if named else None),
         category="food",
         city=city,
-        location=None,  # placeholder cards carry no POI (models.py rule)
+        location=named_loc,  # 占位卡无 POI；命名卡（真餐厅）带坐标
         anchor_from_prev=False,
         anchor_location=host_loc,  # F-31: anchor from the host record
         opening_hours=(host.opening_hours if named else None),
@@ -71,6 +73,10 @@ def attach_meal_cards(
         if not day or slot not in PLACEHOLDER:
             continue
         host = cand_by_cid.get(meal.get("host_cid"))
+        bound = cand_by_cid.get(meal.get("bound_cid"))
+        if bound is not None:
+            # R8-S2b 餐类必去顶餐卡：真餐厅即餐卡本体（时刻/时长=解锁定）
+            host = bound
         day_plan = next((d for d in plan.days if d.day == day), None)
         if day_plan is None:
             continue

@@ -154,6 +154,7 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 "end": en,
                 "active_end": _active_end(model, "mae_%s_%d" % (slot, day), lit, en),
                 "hosts": {},
+                "bound": {},
                 "anchor_candidates": [],
             }
             bundle.meal_vars[(slot, day)] = meal
@@ -163,23 +164,40 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 c_start = bundle.start[(cand.cid, day)]
                 c_end = c_start + bundle.dur[cand.cid]
                 profiled = (cand.poi_id or cand.cid) in enriched.access_by_poi
-                bound_food = (
-                    cand.category == "food" and getattr(cand, "meal_slot", None) == slot
-                )
+                slot_val = getattr(cand, "meal_slot", None)
+                bound_lit = None
+                if cand.category == "food" and slot_val == slot:
+                    bound_lit = p_cand
+                elif cand.category == "food" and slot_val == "any":
+                    # R8-S2b 餐类必去（legacy 同口径：不锁槽）：真餐厅
+                    # 自选午/晚槽——每个放置日恰绑一个槽（两槽选择
+                    # 布尔之和 == presence）；未绑的另一槽照常出系统
+                    # 餐卡（不双餐）。
+                    bound_lit = bundle.meal_bound.setdefault(
+                        (cand.cid, day, slot),
+                        model.NewBoolVar("mb_%s_%d_%s" % (cand.cid, day, slot)),
+                    )
+                    mate = "dinner" if slot == "lunch" else "lunch"
+                    mate_lit = bundle.meal_bound.setdefault(
+                        (cand.cid, day, mate),
+                        model.NewBoolVar("mb_%s_%d_%s" % (cand.cid, day, mate)),
+                    )
+                    model.Add(bound_lit + mate_lit == p_cand)
 
-                if bound_food:
+                if bound_lit is not None:
                     # The system card is the slot; the real restaurant fills
                     # its data. Once selected, the binding cannot drift.
-                    model.Add(st == c_start).OnlyEnforceIf(p_cand)
-                    model.Add(du == bundle.dur[cand.cid]).OnlyEnforceIf(p_cand)
+                    model.Add(st == c_start).OnlyEnforceIf(bound_lit)
+                    model.Add(du == bundle.dur[cand.cid]).OnlyEnforceIf(bound_lit)
                     remote_bound = any(
                         getattr(cand, "same_venue", None) in (other.cid, other.poi_id)
                         for other in snapshot.candidates
                         if (other.poi_id or other.cid) in enriched.access_by_poi
                     )
                     if slot != "lunch" or not remote_bound:
-                        model.Add(c_start >= lo).OnlyEnforceIf(p_cand)
-                        model.Add(c_start <= hi).OnlyEnforceIf(p_cand)
+                        model.Add(c_start >= lo).OnlyEnforceIf(bound_lit)
+                        model.Add(c_start <= hi).OnlyEnforceIf(bound_lit)
+                    meal["bound"][cand.cid] = bound_lit
                     continue
 
                 if profiled:
@@ -702,6 +720,10 @@ def extract_meal_anchors(
         )
         if anchor is not None:
             host_cid = anchor
+        bound_cid = next(
+            (cid for cid, lit in meal.get("bound", {}).items() if solver.Value(lit)),
+            None,
+        )
         out.append(
             {
                 "slot": slot,
@@ -709,6 +731,7 @@ def extract_meal_anchors(
                 "start_min": solver.Value(meal["start"]),
                 "end_min": solver.Value(meal["end"]),
                 "host_cid": host_cid,
+                "bound_cid": bound_cid,
             }
         )
     return out

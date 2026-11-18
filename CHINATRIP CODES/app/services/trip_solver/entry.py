@@ -182,13 +182,9 @@ def seam_attempted() -> bool:
 def replan_seam_shape(session) -> bool:
     """R8 重解形状闸：引擎可完整承载的会话形状才换道。
 
-    自造点（池=底库行）/ 餐类必去（S2b 建模挂账）任一命中 → legacy；
-    分城天数已由 C-17 承载（R8-S2 拆窗镜像）；天数/城市齐备才可解。"""
+    自造点（池=底库行）留 legacy；餐类必去已由 C-09 any-槽承载（R8-S2b
+    真餐厅顶餐卡）；分城天数由 C-17 承载（R8-S2）；天数/城市齐备才可解。"""
     if getattr(session, "created_sites", None):
-        return False
-    site_kinds = getattr(session, "site_kinds", None) or {}
-    musts = getattr(session, "must_visits", None) or []
-    if any((site_kinds or {}).get(m) == "food" for m in musts):
         return False
     if not getattr(session, "cities", None):
         return False
