@@ -138,6 +138,10 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 # 同址免隔腿但仍禁重叠（audit rule 1：非餐卡不可
                 # 同刻）——零车程析取而非跳过（iter3 修正）
                 ab, ba = 0, 0
+            if a.city and b.city and a.city != b.city:
+                # R3d: 跨城对同日共现已被 C-07 全禁，逐日析取冗余；
+                # 剪掉 O(n²×days) 的顺序布尔（g11 6070 变量主成本）
+                continue
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
             if km is not None:

@@ -136,6 +136,11 @@ def _preference(
     cands = list(snapshot.candidates)
     for i, a in enumerate(cands):
         for b in cands[i + 1 :]:
+            # requested-involved pruning (R3a): fill×fill colocate is
+            # secondary — keeps the pair count provable at trip scale
+            # (g11 tier② timed out at 0.4 dtime with all-pairs)
+            if not (a.rid or b.rid):
+                continue
             if a.lon is None or a.lat is None or b.lon is None or b.lat is None:
                 continue
             if a.city and b.city and a.city != b.city:

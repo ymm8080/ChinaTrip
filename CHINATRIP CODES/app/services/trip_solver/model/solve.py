@@ -78,7 +78,7 @@ def solve(
     solver = None
     status = "UNKNOWN"
     objective_values: dict[str, int] = {}
-    fully_optimized = False
+    fully_optimized = True  # R3b: stays True only if every tier proves OPTIMAL
 
     for index, tier in enumerate(tiers):
         coverage_assumptions = index == 0 and bool(bundle.fill_gates)
@@ -114,20 +114,24 @@ def solve(
                 objective_values=objective_values,
                 hint_used=hint is not None,
             )
-        if status == "FEASIBLE":
-            # A timeout may stop at an arbitrary feasible point. Accepting it
-            # would make the emitted plan depend on machine load; keep the
-            # last proven-optimal prefix instead (determinism red line).
+        if status == "UNKNOWN":
+            # No feasible point found within the deterministic budget: keep
+            # the last prefix and report honestly.
             break
-        if status != "OPTIMAL":
-            # UNKNOWN / timeout / model-invalid is not infeasibility. Keep the
-            # last proven-feasible lexicographic prefix and report honestly.
+        if status not in ("OPTIMAL", "FEASIBLE"):
             break
+        # R3b: dtime-capped search is machine-independent (that is exactly
+        # why solve() caps max_deterministic_time, not wall time), so a
+        # FEASIBLE tier result is as deterministic as a proven one. Accept
+        # it, bound-lock the found value (never worse in later tiers), and
+        # report optimality honestly via fully_optimized.
         solver = candidate_solver
         best = int(round(candidate_solver.ObjectiveValue()))
         objective_values[tier.name] = best
-        fully_optimized = status == "OPTIMAL" and index == len(tiers) - 1
+        fully_optimized = fully_optimized and status == "OPTIMAL"
         if index < len(tiers) - 1:
+            # FEASIBLE 也等式锁（与 OPTIMAL 同式）：锁死已找到的值，
+            # 后续层在同值空间优化——与既有词典序行为一致，形状不漂移
             bundle.model.Add(tier.expression == best)
 
     wall_ms = int((time.perf_counter() - started) * 1000)
