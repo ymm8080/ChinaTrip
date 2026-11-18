@@ -950,8 +950,15 @@ async def message_plan(
     if brief is not None:
         restart_cities, restart_days = brief
         # 二期（消息轮换引擎，2026-11-18）：换局语句重开的新行程走模型
-        # 引擎——仅限纯路线声明 + auto 城际（会话班次/语言随缝透传）；
-        # 点名地点的长句留给 legacy 确认轮管线（F-03 缝不吞点）。
+        # 引擎——纯路线声明或点名长句 + auto 城际（会话班次/语言随缝透
+        # 传）。点名长句由 _restart_named_musts 离线读「必去」类短语进
+        # musts，绑定走快照绑定链（精确名→文本匹配→骨架兜底，缝不吞
+        # 点、B-01）；短语读不出/引擎失败仍落 legacy（读点确认轮管线）。
+        restart_named_musts: list[str] = []
+        try:
+            restart_named_musts = _restart_named_musts(request.text)
+        except Exception:
+            logger.exception("plan/message restart named-must parse failed")
         trip_session = None
         trip_outcome = None
         try:
@@ -968,7 +975,10 @@ async def message_plan(
             if (
                 engine_flag() == ENGINE_CPSAT
                 and serving_ready()[0]
-                and _restart_route_only(request.text, restart_cities)
+                and (
+                    _restart_route_only(request.text, restart_cities)
+                    or restart_named_musts
+                )
                 and (session.intercity_mode or "auto") == "auto"
             ):
                 # 二期：换局缝已尝试引擎——回落 restart_with_brief 内的
@@ -981,7 +991,7 @@ async def message_plan(
                         cities=list(restart_cities or []),
                         days=restart_days or session.days or 0,
                         start_date=session.start_date,
-                        musts=[],
+                        musts=list(restart_named_musts),
                         store=get_poi_detail_store(),
                         preferences=request.text,
                         arrival_time=session.arrival_time,
@@ -1322,6 +1332,51 @@ def _restart_route_only(text: str, cities: list) -> bool:
         probe,
     )
     return not probe
+
+
+def _restart_named_musts(text: str) -> list[str]:
+    """换局句里的点名地点短语（二期 2026-11-18 拍板「点名长句也换引擎」）。
+
+    只认强意图点名词（必去/要去/必须去/一定要去/务必去/打卡）后到句读
+    为止的短语，按「和/与/跟/及/还有/以及/、」拆开；「想去」是心愿软
+    语义（R8 偏好/心愿链），引擎 musts=硬覆盖，语义不对等——留 legacy。
+    短语不做底库校验：绑定交给快照绑定链（精确名→文本匹配→骨架兜底，
+    缝不吞点、B-01）；底库没有的点（如楼外楼）由骨架候选诚实承载，
+    或文本匹配合并到短语内最近已知点。负向语境（不必去/别必去）不读；
+    琐碎短语（「然后回酒店休息」类）按黑名单丢弃。空返回=没有可承接
+    点名 → 调用方落回 legacy 管线。
+    """
+    import re as _re
+
+    marker_re = _re.compile(r"一定要去|必须去|务必去|必到|必去|要去|打卡")
+    junk_re = _re.compile(
+        r"然后|接着|之后|另外|要少|别太|太多|较少|安排|规划|节奏|时间"
+    )
+    probe = text or ""
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in marker_re.finditer(probe):
+        # 负向语境：「不必去/别必去/无必去」不是点名
+        if probe[max(0, m.start() - 1) : m.start()] in ("不", "别", "无"):
+            continue
+        # 短语 = 标记后到句读为止（：和 、不算句读——「必去：A、B」是名单）
+        seg = probe[m.end() : m.end() + 48]
+        cut = len(seg)
+        for i, ch in enumerate(seg):
+            if ch in "。！？；;，,.!?" or ch.isspace():
+                cut = i
+                break
+        for part in _re.split(r"还有|以及|[和与跟及、]", seg[:cut]):
+            p = part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
+            if not p or p in seen:
+                continue
+            if len(p) > 16 or junk_re.search(p):
+                continue
+            seen.add(p)
+            out.append(p)
+            if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
+                return out
+    return out
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:

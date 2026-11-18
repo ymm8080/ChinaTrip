@@ -3793,8 +3793,57 @@ def test_message_new_trip_restart_via_engine(monkeypatch):
     assert body["lane"]["intent"] == "new_trip"
 
 
-def test_message_new_trip_with_sites_stays_legacy(monkeypatch):
-    """点名地点的换局长句 → legacy 读点确认轮（F-03 缝不吞点）。"""
+def test_message_new_trip_with_sites_via_engine(monkeypatch):
+    """点名长句换局 → 引擎承接（2026-11-18 拍板「点名长句也换 CP-SAT」）：
+    必去短语进 musts、精确名绑定落卡；整句不再落 legacy。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去灵隐寺"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    assert body["session_id"] != sid
+    names = [item["name"] for day in body["plan"]["days"] for item in day["items"]]
+    assert "灵隐寺" in names
+
+
+def test_message_new_trip_named_phrase_binds_best_known(monkeypatch):
+    """库外点名（楼外楼不在底库）→ 短语仍进 musts；绑定链文本匹配合并
+    到短语内最近已知点（西湖）——卡上落真实可游点，不再整句蒸发。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去西湖边上的楼外楼"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    names = [item["name"] for day in body["plan"]["days"] for item in day["items"]]
+    assert "西湖" in names
+
+
+def test_message_new_trip_preferences_stay_legacy(monkeypatch):
+    """无点名标记的偏好残渣（行程别太赶）→ 仍落 legacy 管线：引擎
+    musts=硬覆盖，偏好语义不对等（R8 偏好重排走 _generate_v0 钩子）。
+    换局缝 spy 在 r0（start 缝自己会调引擎）之后安装，只看换局请求。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     from app.services.trip_solver import live as _live
 
@@ -3804,20 +3853,44 @@ def test_message_new_trip_with_sites_stays_legacy(monkeypatch):
         calls.append(kw)
         return None, None
 
-    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
     agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
     app = make_app(agent)
     client = TestClient(app)
     r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
     sid = r0.json()["session_id"]
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
     r1 = client.post(
         "/api/v1/plan/%s/message" % sid,
-        json={"text": "重新规划，去杭州玩1天，必去西湖边上的楼外楼"},
+        json={"text": "重新规划，去杭州玩1天，行程别太赶"},
         headers=DEVICE_HEADERS,
     )
     assert r1.status_code == 200
-    # 换局缝未被调用（残渣=点名地点）→ legacy restart 管线
-    assert calls == [] or all("杭州" not in str(c.get("cities")) for c in calls)
+    body = r1.json()
+    assert body["new_trip"] is True
+    # 换局缝未被调用（残渣=偏好文本，无点名短语）→ legacy restart 管线
+    assert calls == []
+    assert not body["session_id"].startswith("ts-")
+
+
+def test_restart_named_musts_extraction():
+    """点名短语提取（离线纯函数）：强意图标记/连接词拆分/负向语境/
+    琐碎短语黑名单/想去不读。"""
+    from app.api.plan import _restart_named_musts as f
+
+    assert f("重新规划，去杭州玩1天") == []
+    assert f("重新规划，去杭州玩1天，必去灵隐寺") == ["灵隐寺"]
+    assert f("重新规划，必去灵隐寺和宋城") == ["灵隐寺", "宋城"]
+    assert f("重新规划，必去：西湖、灵隐寺") == ["西湖", "灵隐寺"]
+    assert f("重新规划，去杭州玩1天，必去灵隐寺，必去宋城") == [
+        "灵隐寺",
+        "宋城",
+    ]
+    assert f("不必去西湖") == []
+    assert f("别必去西湖") == []
+    assert f("必去西湖边上的楼外楼") == ["西湖边上的楼外楼"]
+    assert f("想去灵隐寺") == []
+    assert f("必去然后回酒店休息") == []
+    assert f("行程别太赶") == []
 
 
 # --- R8：_generate_v0 偏好重排换引擎（钩子） -------------------------------
