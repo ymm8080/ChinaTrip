@@ -833,10 +833,15 @@ def _check_pace(
     out = []
     # walking distance: adjacent same-day visits, straight-line (haversine)
     # approximation; segments touching a location-less item are skipped.
+    # 接驳/回城类卡是乘车腿（iter3：对齐 legacy TransferItem 语义），
+    # 不计入步行近似
     km = sum(
         haversine_km(a.location, b.location)
         for a, b in zip(visits, visits[1:])
-        if a.location is not None and b.location is not None
+        if a.location is not None
+        and b.location is not None
+        and (a.category or "") != "transport"
+        and (b.category or "") != "transport"
     )
     located = [v for v in visits if v.location is not None]
     limit = WALK_KM_PER_DAY_MAX * CROWD_COEFFICIENTS[crowd_profile]

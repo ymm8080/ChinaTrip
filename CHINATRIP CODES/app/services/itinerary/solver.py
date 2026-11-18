@@ -425,7 +425,12 @@ def _is_big_site(item: VisitItem) -> bool:
     用户自钉且有时刻（铁律 19）不计。"""
     if item.pinned and item.start_time is not None:
         return False
-    if (item.category or "") in ("food", "hotel", "entertainment"):
+    if (item.category or "") in (
+        "food",
+        "hotel",
+        "entertainment",
+        "transport",  # iter3：接驳/回城卡=乘车腿（对齐 TransferItem 语义）
+    ):
         return False
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return False

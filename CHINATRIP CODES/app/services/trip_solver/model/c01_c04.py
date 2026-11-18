@@ -135,7 +135,9 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 else None
             )
             if km is not None and km <= SAME_VENUE_KM:
-                continue  # 同址：审计免隔腿（嵌套/并块合法）
+                # 同址免隔腿但仍禁重叠（audit rule 1：非餐卡不可
+                # 同刻）——零车程析取而非跳过（iter3 修正）
+                ab, ba = 0, 0
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
             if km is not None:

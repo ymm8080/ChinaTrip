@@ -161,6 +161,7 @@ def _makespan(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
         model.AddMaxEquality(end, ends or [0])
         bundle.day_end_vars[day] = end
         terms.append(end)
+
     # C-08's chosen outbound/return departures are zero when absent. Including
     # them here implements the early-bus preference without disturbing any
     # higher tier or allowing lunch to choose the outbound departure.
