@@ -4092,25 +4092,25 @@ def test_message_restart_food_must_whole_name(monkeypatch):
     rows = [
         CandidateItem(
             cid="c1",
-            name="外滩",
-            poi_id="ct_上海_20",
-            city="上海",
+            name="西湖",
+            poi_id="ct_杭州_1",
+            city="杭州",
             category="sight",
             tier=1,
-            lon=121.4903,
-            lat=31.2335,
-            opening_hours="09:00-21:00",
+            lon=120.1494,
+            lat=30.2459,
+            opening_hours="全天",
             suggested_duration_min=90,
         ),
         CandidateItem(
             cid="c2",
             name="福和慧",
-            poi_id="ct_上海_food_1",
-            city="上海",
+            poi_id="ct_杭州_food_1",
+            city="杭州",
             category="food",
             tier=2,
-            lon=121.44,
-            lat=31.22,
+            lon=120.12,
+            lat=30.25,
             opening_hours="11:00-20:30",
             suggested_duration_min=90,
         ),
@@ -4123,9 +4123,13 @@ def test_message_restart_food_must_whole_name(monkeypatch):
     client = TestClient(app)
     r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
     sid = r0.json()["session_id"]
+    # R8b 收口修正（原文本同城「去上海玩」不触发 new_trip_brief 换局闸
+    # ——目的地未换，走会话内插位而非换局引擎路径，stub 耗尽红）：改
+    # 跨城形态忠于测试意图（换局 + 餐厅整名不裂词）；fake store 仅上
+    # 海行，跨城后快照绑定链骨架兜底落「福和慧」整名卡（B-01 缝不吞点）。
     r1 = client.post(
         "/api/v1/plan/%s/message" % sid,
-        json={"text": "重新规划，去上海玩1天，必去福和慧"},
+        json={"text": "重新规划，去杭州玩1天，必去福和慧"},
         headers=DEVICE_HEADERS,
     )
     assert r1.status_code == 200
