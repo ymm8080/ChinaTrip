@@ -824,6 +824,18 @@ def _check_transfer_sequence(
 # --- iron rule 6: pace (walk distance + effective tour ratio) -------------
 
 
+def _is_walk_segment(a: VisitItem) -> bool:
+    """步行段口径（2026-11-18 八城普查收口）：腿模式已知时以模式为
+    准——taxi/access 是乘车腿（远郊/跨区段，如 昭陵→市区 41.8km
+    打车、班车站接驳），不计入「步行距离」；腿未标注（LLM 旁路、
+    读侧旧计划）维持直线近似全计的旧口径，保留无标注 sprawl 检测
+    力（test_rule6_walk_over_limit_warns 锁定的行为）。"""
+    mode = getattr(a, "next_leg_mode", None)
+    if mode in ("taxi", "access"):
+        return False
+    return True
+
+
 def _check_pace(
     day_no: int,
     day_items: list[VisitItem | TransferItem],
@@ -842,6 +854,7 @@ def _check_pace(
         and b.location is not None
         and (a.category or "") not in ("transport", "transfer")
         and (b.category or "") not in ("transport", "transfer")
+        and _is_walk_segment(a)
     )
     located = [v for v in visits if v.location is not None]
     limit = WALK_KM_PER_DAY_MAX * CROWD_COEFFICIENTS[crowd_profile]

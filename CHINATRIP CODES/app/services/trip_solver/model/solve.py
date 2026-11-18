@@ -274,13 +274,13 @@ def solve_snapshot(
     bundle = build_model(enriched)
     # Q3 拍板原文：紧张时按层提高预算**并披露**——绝不回退顺序排列。
     # trip 规模（池>20）tier det 0.5 才有 incumbent（g11 类）；墙钟预算
-    # 相应放宽到 3.6s（disclosed raise，F-62 收敛口径=预算内）
+    # 相应放宽（disclosed raise，F-62 收敛口径=预算内）
     extra = []
     solve_kwargs = {"hint": hint}
     if len(enriched.snapshot.candidates) > 20:
         solve_kwargs["tier_det"] = 0.5
-        budget_s = max(budget_s, 4.5)
-        extra = ["行程规模较大，求解时间预算按 Q3 披露放宽至 4.5s（绝不回退顺序排列）"]
+        budget_s = max(budget_s, 5.5)
+        extra = ["行程规模较大，求解时间预算按 Q3 披露放宽至 5.5s（绝不回退顺序排列）"]
     # 预算核算覆盖 build_model（g11 建模 ~1s 不含在 solve 内会翻预算）
     remaining_after_build = (
         max(0.15, budget_s - (_time.perf_counter() - started)) if budget_s > 0 else 0.0
