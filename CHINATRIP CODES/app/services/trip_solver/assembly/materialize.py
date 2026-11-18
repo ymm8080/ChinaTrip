@@ -174,6 +174,10 @@ def materialize_plan(
                 duration_minutes=sol_item.end_min - sol_item.start_min,
                 pinned=bool(sol_item.pinned),  # F-20/F-51: 铁律 19 豁免面
                 synthetic=False,
+                # R6: 打分器/审计的大点豁免与免检口径需要与模型同源——
+                # tier 与 best_visit_time 必须随卡（此前只给了 unplaced 行）
+                tier=getattr(cand, "tier", None),
+                best_visit_time=getattr(cand, "best_visit_time", None),
             )
             if leg is not None:
                 # card == leg: the same F-14 interval the model constrained.

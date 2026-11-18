@@ -391,3 +391,34 @@ def test_coverage_test_is_non_circular():
 
     assert emitted_codes() == set(EMITTED_CODES)
     assert set(EMITTED_CODES) == set(load_templates()["certificate_reasons"])
+
+
+def test_cards_carry_tier_and_best_visit_time():
+    """R6（2026-11-18 翻旗后首批 live 发现）：卡片必须携带 tier 与
+    best_visit_time——打分器/审计的大点豁免（evening/sunset/show、街区
+    tier8）与模型 is_big_site 同源；裸卡会把模型豁免的夜游/街区判成
+    大点，下午大点计数超 C-12b ≤2 硬闸（上海 day1 三大点 warning）。"""
+    import os
+
+    from app.services.trip_solver.shadow.corpus import (
+        default_corpus_dir,
+        load_scenario,
+    )
+
+    scenario = load_scenario(
+        os.path.join(default_corpus_dir(), "g02_tower_late_gate.json")
+    )
+    snapshot = scenario.snapshot
+    solution = solve_snapshot(enrich(snapshot), budget_s=3.0)
+    plan = assemble(solution, snapshot)
+    cand_by_name = {c.name: c for c in snapshot.candidates}
+    checked = 0
+    for day in plan.days:
+        for item in day.items:
+            cand = cand_by_name.get(item.name)
+            if cand is None:
+                continue  # meals/returns are synthetic
+            assert item.tier == cand.tier, item.name
+            assert item.best_visit_time == cand.best_visit_time, item.name
+            checked += 1
+    assert checked >= 1
