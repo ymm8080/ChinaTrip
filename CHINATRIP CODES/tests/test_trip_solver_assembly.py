@@ -21,6 +21,7 @@ from app.services.trip_solver.assembly import (
     wish_row_projection,
 )
 from app.services.trip_solver.inputs.enrich import enrich
+from app.services.trip_solver.model.certificate import load_templates
 from app.services.trip_solver.model.solve import solve_snapshot
 from app.services.trip_solver.snapshot import default_golden_path, load_golden
 from app.services.trip_solver.types import (
@@ -277,8 +278,8 @@ def test_unplaced_want_surface_and_reasons():
 def test_disclosures_bilingual_and_no_fallback_wording():
     snapshot = _chip_snapshot(host_hours="10:00-10:40")
     solution = solve_snapshot(enrich(snapshot))
-    zh = render_disclosures(solution, lang="zh")
-    en = render_disclosures(solution, lang="en")
+    zh = render_disclosures(solution, snapshot, lang="zh")
+    en = render_disclosures(solution, snapshot, lang="en")
     assert zh and en
     assert any("想去" in line for line in zh)
     assert any("want" in line for line in en)
@@ -291,7 +292,7 @@ def test_disclosures_all_placed_line():
     snapshot, solution = _g01_solution()
     if solution.unplaced:
         return  # g01 currently seats everything; synthetic covers the rest
-    zh = render_disclosures(solution, lang="zh")
+    zh = render_disclosures(solution, snapshot, lang="zh")
     assert any("全部排入" in line for line in zh)
 
 
@@ -310,3 +311,77 @@ def test_entry_cpsat_path_materializes_plan():
     assert outcome.engine == "cpsat"
     assert outcome.plan is not None
     assert outcome.plan.days
+
+
+# ----------------------------------------------- completeness closures
+
+
+def test_fares_and_display_legs_materialized():
+    snapshot, solution = _g01_solution()
+    plan = assemble(solution, snapshot)
+    remote = next(c for c in snapshot.candidates if "慕田峪" in c.name)
+    profile = next(
+        (p for p in snapshot.access_profiles if p.to_poi == remote.poi_id), None
+    )
+    site = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.poi_id == remote.poi_id
+    )
+    if profile is not None and profile.fare_text:
+        assert site.access_fare_text == profile.fare_text  # F-30 fare attach
+    if profile is not None and profile.operator:
+        assert site.access_service_name == profile.operator
+    # annotate_legs ran: at least one same-day display leg got a distance
+    legs = [
+        i.distance_to_next_km
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.distance_to_next_km is not None
+    ]
+    assert legs, "annotate_legs must materialise display legs"
+
+
+def test_weather_disclosure_lines():
+    from app.services.trip_solver.types import FactSnapshot, RequestedItem, TripRequest
+
+    snapshot = _chip_snapshot()
+    weathered = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(
+            days=1,
+            cities=("北京",),
+            musts=(RequestedItem(rid="r1", name="主点", poi_id="p1"),),
+            start_date="2026-11-25",
+        ),
+        candidates=tuple(
+            (
+                [
+                    c.model_copy(update={"rain_ok": "no"})
+                    if hasattr(c, "model_copy")
+                    else c
+                    for c in snapshot.candidates
+                ]
+            )
+        ),
+        weather=(("p1", "2026-11-25", "小雨 (light rain)"),),
+        source="synthetic",
+    )
+    solution = solve_snapshot(enrich(weathered))
+    zh = render_disclosures(solution, weathered, lang="zh")
+    en = render_disclosures(solution, weathered, lang="en")
+    assert any("小雨" in line for line in zh)
+    assert any("rain" in line for line in en)
+    plan = assemble(solution, weathered)
+    assert any("小雨" in line for line in plan.assumptions)
+
+
+def test_coverage_test_is_non_circular():
+    from app.services.trip_solver.model.certificate import (
+        EMITTED_CODES,
+        emitted_codes,
+    )
+
+    assert emitted_codes() == set(EMITTED_CODES)
+    assert set(EMITTED_CODES) == set(load_templates()["certificate_reasons"])

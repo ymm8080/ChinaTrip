@@ -50,13 +50,25 @@ def render_reason(
     return text.format(**fields) if fields else text
 
 
+# The classifier literals below are the single source of truth; the
+# M13 coverage test asserts the TEMPLATES cover exactly this set
+# (non-circular: this set never reads the templates).
+EMITTED_CODES = frozenset(
+    {
+        "window_duration_conflict",
+        "entry_cap_conflict",
+        "pin_conflict",
+        "remote_exclusive_conflict",
+        "family_day_conflict",
+        "day_capacity_conflict",
+        "no_seatable_day",
+    }
+)
+
+
 def emitted_codes() -> set[str]:
-    """Every code this module can emit (template coverage is asserted
-    against exactly this set -- audit M13)."""
-    return set(load_templates().get("certificate_reasons", {}))
-
-
-# ---------------------------------------------------------------- classifiers
+    """Every code this module can emit (audit M13)."""
+    return set(EMITTED_CODES)
 
 
 def _dur_range(enriched: "EnrichedSnapshot", cand) -> tuple[int, int]:

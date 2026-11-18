@@ -97,6 +97,17 @@ def materialize_plan(
             )
             if leg is not None:
                 # card == leg: the same F-14 interval the model constrained.
+                profile = next(
+                    (
+                        p
+                        for p in snapshot.access_profiles
+                        if p.to_poi in (cand.poi_id, cand.cid)
+                    ),
+                    None,
+                )
+                if profile is not None:  # F-30 fare/service attach
+                    card.access_fare_text = profile.fare_text
+                    card.access_service_name = profile.operator
                 card.access_mode = "access"
                 card.access_service_minutes = leg.get("arrive_poi_min", 0) - leg.get(
                     "depart_min", 0
@@ -168,8 +179,10 @@ def assemble(
     lang: str = "zh",
     itinerary_id: Optional[str] = None,
 ) -> ItineraryPlan:
-    """F-30 -> F-31 -> F-32 -> F-33 in order; F-34 projections are
-    solution (render_disclosures) so both langs stay derivable."""
+    """F-30 -> F-31 -> F-32 -> F-33 in order (annotate_legs materialises
+    display legs + fares); F-34 projections are derived separately in
+    sync.py; F-33 lines also ride on the solution via
+    render_disclosures so both langs stay derivable."""
     from .chips import attach_alternatives
     from .disclosures import render_disclosures
     from .meals import attach_meal_cards
@@ -177,5 +190,8 @@ def assemble(
     plan = materialize_plan(solution, snapshot, itinerary_id=itinerary_id)
     plan = attach_meal_cards(plan, solution, snapshot)
     plan = attach_alternatives(plan, snapshot)
-    plan.assumptions = render_disclosures(solution, lang=lang)
+    from ...itinerary.legs import annotate_legs
+
+    plan = annotate_legs(plan)  # F-30 display legs + fare materialisation
+    plan.assumptions = render_disclosures(solution, snapshot, lang=lang)
     return plan

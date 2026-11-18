@@ -162,7 +162,7 @@ analysis (no extra solves): 7 reason codes
 (window/entry-cap/pin/remote-exclusive/family/day-capacity/
 no-seatable-day) attach to `unplaced[rid]` (`reason_codes` + zh text)
 and to `Solution.certificate` on terminal INFEASIBLE; bilingual
-templates in `trip_solver/disclosure_templates.json` with a 100%
+templates in `trip_solver/disclosure_templates.json` with a 100% coverage test against the literal EMITTED_CODES set (audit M13, non-circular). The static analysis **replaces** the originally named `sufficient_assumptions_for_infeasibility` mechanism — deterministic, zero extra solves; a minimality proof is not claimed.
 coverage test (audit M13).
 
 ### Performance envelope (audit M4)
@@ -176,7 +176,7 @@ coverage test (audit M13).
 **F-30 `materialize_plan(Solution, FactSnapshot) -> ItineraryPlan`**
 Cards start/end come from solution intervals; access-leg cards come from the **same** F-14 intervals (card ≡ leg by construction); a requested item not present becomes an `unplaced` entry with reason + disclosure — **an untimed requested card is a type error** (assert in tests).
 Resolves B-01, B-03c. Assembly entry points retained and driven by the same solution intervals: `annotate_legs` (leg/fare materialisation) and `attach_return_cards`; reservation-hint helpers attach here.
-**✅ 2026-11-18 (P1-F)**: `assembly/materialize.py` — cards from solution intervals; access fields + independent synthetic return cards from the same F-14 intervals (card≡leg by construction); unplaced rows carry F-26 reasons; `assemble()` runs F-30→31→32→33; entry cpsat path materialises a servable plan (`SolveOutcome.plan`).
+**✅ 2026-11-18 (P1-F)**: `assembly/materialize.py` — cards from solution intervals; access fields + independent synthetic return cards from the same F-14 intervals (card≡leg by construction); unplaced rows carry F-26 reasons; `assemble()` runs F-30→31→32→33; entry cpsat path materialises a servable plan (`SolveOutcome.plan`). Fares/services attach from `AccessProfile.fare_text/operator`; legacy `annotate_legs` runs in `assemble()` for display legs + fare materialisation (pure reuse).
 
 **F-31 `meal_card_assembly(Solution) -> meal cards + anchors`**
 Meal cards anchored at solution locations: remote-day lunch at the remote site (or post-visit), city meals at the neighbouring visit; address from the POI record, never "previous city item".
@@ -186,12 +186,12 @@ Resolves B-03b′ (the 老舍茶馆-anchor defect).
 **F-32 `alternatives_chips(plan, pool) -> response extras`**
 Unchanged: 0.3 km alternative pairing, insert-alt support, reservation hints, bilingual fields.
 Covers D9/D11/D13 assembly.
-**✅ 2026-11-18 (P1-F)**: `assembly/chips.py` — v1 geometry rule on the snapshot pool (same city, ≤0.3 km, not seated, cap 3); 「想去」chips stay on `plan.unplaced` (dedicated want surface).
+**✅ 2026-11-18 (P1-F)**: `assembly/chips.py` — v1 geometry rule on the snapshot pool (same city, ≤0.3 km, not seated, cap 3); 「想去」chips stay on `plan.unplaced` (dedicated want surface). Named deferral to the P3 api seam (data lives in the POI library, not FactSnapshot v2): insert-alt payloads, reservation hints, bilingual chip name fields.
 
 **F-33 `disclosure_renderer(slack log, certificate, weather, coverage) -> bilingual lines`**
 All disclosures from structured reasons (not LLM invention); bilingual by `lang`; 「求解器未收敛，时间已按顺序兜底排列」 is **deleted** — replaced by certificate/relaxation lines.
 Resolves B-04 wording + B-01/E-3 visibility. Reason-code → bilingual text lives in `trip_solver/disclosure_templates.json`; every certificate reason code must have both-lang entries, and a test asserts 100% code coverage (audit M13).
-**✅ 2026-11-18 (P1-F)**: `assembly/disclosures.py` — renders from slack rungs + certificate codes + coverage counts per `lang`; the 「求解器未收敛」 wording is unrepresentable (the model has no fallback).
+**✅ 2026-11-18 (P1-F)**: `assembly/disclosures.py` — renders from slack rungs + certificate codes + coverage counts per `lang`; the 「求解器未收敛」 wording is unrepresentable (the model has no fallback). Weather input closed 2026-11-18 review: seated outdoor requested stops on forecast-rain days render a bilingual weather line.
 
 **F-34 `session_trip_center_sync(plan, session) -> synced stores`**
 Session persistence and trip-center (行程中心) sync: `sync_trip_rows`, `_sync_wish_rows`, `_sync_planned_rows`, `sync_removals_to_trip_items`, `ensure_unique_item_ids`, session-store plumbing (`get_plan_session_store`, `live_itinerary_ids`, `alloc_item_id`). Wish rows mirror scheduled/unplaced state with disclosures; removals propagate; item ids stay unique.
