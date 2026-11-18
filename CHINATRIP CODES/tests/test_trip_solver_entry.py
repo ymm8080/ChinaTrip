@@ -95,19 +95,30 @@ def test_legacy_outcome_never_touches_the_model(monkeypatch):
 # --- cpsat pre-P1-F: not-ready fallback == the M8 rollback shape --------------
 
 
-def test_cpsat_pre_p1f_falls_back_with_disclosure():
+def test_cpsat_not_ready_falls_back_with_disclosure(monkeypatch):
+    # P1-F landed: readiness is real, so simulate the rolled-back shape
+    monkeypatch.setattr(entry, "serving_ready", lambda: (False, "simulated"))
     out = solve_trip(_mini_snapshot(), flag=ENGINE_CPSAT)
     assert out.engine == ENGINE_LEGACY  # cascade serves
     assert out.requested == ENGINE_CPSAT and out.fallback is True
     assert out.disclosures and "现行引擎" in out.disclosures[0]["zh"]
     assert out.telemetry is not None
-    assert "P1-F" in (out.telemetry.get("fallback_reason") or "")
+    assert out.telemetry.get("fallback_reason")
     assert out.telemetry["status"] == "ERROR"
 
 
-def test_cpsat_fail_loud_raises_not_ready():
+def test_cpsat_fail_loud_raises_not_ready(monkeypatch):
+    # P1-F landed the assembly, so readiness is real; simulate the
+    # pre-P1-F / rolled-back shape through the seam hook.
+    monkeypatch.setattr(entry, "serving_ready", lambda: (False, "simulated"))
     with pytest.raises(ServingNotReady):
         solve_trip(_mini_snapshot(), flag=ENGINE_CPSAT, fail_loud=True)
+
+
+def test_cpsat_serves_now_that_p1f_landed():
+    out = solve_trip(_mini_snapshot(), flag=ENGINE_CPSAT)
+    assert out.engine == ENGINE_CPSAT and out.fallback is False
+    assert out.plan is not None and out.plan.days  # F-30 materialised
 
 
 def test_cpsat_serves_when_ready_on_real_fixture():
@@ -178,15 +189,23 @@ def test_rollback_flip_env_back_to_legacy(monkeypatch):
         return real(*a, **kw)
 
     monkeypatch.setattr(entry, "solve_snapshot", _counted)
+    real_ready = entry.serving_ready
     monkeypatch.setenv(ENV_FLAG, ENGINE_CPSAT)
     during = solve_trip(_mini_snapshot())
-    assert during.fallback is True  # not ready → cascade serves
-    assert calls["n"] == 0  # not-ready short-circuits BEFORE any solve
+    # P1-F: assembly landed → cpsat serves for real (one solve, a plan)
+    assert during.fallback is False and during.plan is not None
+    assert calls["n"] == 1
+
+    # M8 rollback contract intact: not-ready short-circuits BEFORE any solve
+    monkeypatch.setattr(entry, "serving_ready", lambda: (False, "simulated"))
+    blocked = solve_trip(_mini_snapshot())
+    assert blocked.fallback is True and calls["n"] == 1
 
     monkeypatch.setenv(ENV_FLAG, ENGINE_LEGACY)
+    monkeypatch.setattr(entry, "serving_ready", real_ready)
     after = solve_trip(_mini_snapshot())
     assert after.engine == ENGINE_LEGACY and after.fallback is False
-    assert calls["n"] == 0
+    assert calls["n"] == 1  # exactly the one cpsat solve from `during`
 
 
 # --- F-36 telemetry shape ------------------------------------------------------

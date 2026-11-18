@@ -176,22 +176,27 @@ coverage test (audit M13).
 **F-30 `materialize_plan(Solution, FactSnapshot) -> ItineraryPlan`**
 Cards start/end come from solution intervals; access-leg cards come from the **same** F-14 intervals (card ≡ leg by construction); a requested item not present becomes an `unplaced` entry with reason + disclosure — **an untimed requested card is a type error** (assert in tests).
 Resolves B-01, B-03c. Assembly entry points retained and driven by the same solution intervals: `annotate_legs` (leg/fare materialisation) and `attach_return_cards`; reservation-hint helpers attach here.
+**✅ 2026-11-18 (P1-F)**: `assembly/materialize.py` — cards from solution intervals; access fields + independent synthetic return cards from the same F-14 intervals (card≡leg by construction); unplaced rows carry F-26 reasons; `assemble()` runs F-30→31→32→33; entry cpsat path materialises a servable plan (`SolveOutcome.plan`).
 
 **F-31 `meal_card_assembly(Solution) -> meal cards + anchors`**
 Meal cards anchored at solution locations: remote-day lunch at the remote site (or post-visit), city meals at the neighbouring visit; address from the POI record, never "previous city item".
 Resolves B-03b′ (the 老舍茶馆-anchor defect).
+**✅ 2026-11-18 (P1-F)**: `assembly/meals.py` — meal cards from `Solution.meal_anchors`; anchors from the host record (remote site or model host), never the previous city item; hostless city meals keep the legacy previous-stop anchor.
 
 **F-32 `alternatives_chips(plan, pool) -> response extras`**
 Unchanged: 0.3 km alternative pairing, insert-alt support, reservation hints, bilingual fields.
 Covers D9/D11/D13 assembly.
+**✅ 2026-11-18 (P1-F)**: `assembly/chips.py` — v1 geometry rule on the snapshot pool (same city, ≤0.3 km, not seated, cap 3); 「想去」chips stay on `plan.unplaced` (dedicated want surface).
 
 **F-33 `disclosure_renderer(slack log, certificate, weather, coverage) -> bilingual lines`**
 All disclosures from structured reasons (not LLM invention); bilingual by `lang`; 「求解器未收敛，时间已按顺序兜底排列」 is **deleted** — replaced by certificate/relaxation lines.
 Resolves B-04 wording + B-01/E-3 visibility. Reason-code → bilingual text lives in `trip_solver/disclosure_templates.json`; every certificate reason code must have both-lang entries, and a test asserts 100% code coverage (audit M13).
+**✅ 2026-11-18 (P1-F)**: `assembly/disclosures.py` — renders from slack rungs + certificate codes + coverage counts per `lang`; the 「求解器未收敛」 wording is unrepresentable (the model has no fallback).
 
 **F-34 `session_trip_center_sync(plan, session) -> synced stores`**
 Session persistence and trip-center (行程中心) sync: `sync_trip_rows`, `_sync_wish_rows`, `_sync_planned_rows`, `sync_removals_to_trip_items`, `ensure_unique_item_ids`, session-store plumbing (`get_plan_session_store`, `live_itinerary_ids`, `alloc_item_id`). Wish rows mirror scheduled/unplaced state with disclosures; removals propagate; item ids stay unique.
 Covers D10/D13. Engine-independent; behavior unchanged, driven by F-30's materialised plan.
+**✅ 2026-11-18 (P1-F)**: `assembly/sync.py` — wish/planned row projections + item-id self-healing (reused verbatim); session writes stay with the legacy agent sync, invoked at the P3 seam.
 
 ### Module E — Acceptance & runtime invariants (stay outside)
 

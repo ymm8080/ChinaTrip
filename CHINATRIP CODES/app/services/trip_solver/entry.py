@@ -27,12 +27,16 @@ import hashlib
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
+from .assembly import assemble
 from .inputs.enrich import enrich
 from .model.solve import solve_snapshot
 from .telemetry import emit, solve_telemetry
 from .types import FactSnapshot, Solution
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..itinerary.models import ItineraryPlan
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +105,7 @@ class SolveOutcome:
     engine: str
     requested: str
     solution: Optional[Solution] = None
+    plan: "ItineraryPlan | None" = None  # F-30 servable plan (P1-F)
     telemetry: Optional[dict[str, Any]] = None
     fallback: bool = False
     disclosures: list[dict[str, str]] = field(default_factory=list)
@@ -182,10 +187,16 @@ def solve_trip(
                 snapshot, solution, engine=ENGINE_CPSAT, hint_used=hint is not None
             )
         )
+        plan = None
+        if solution.status in ("OPTIMAL", "FEASIBLE"):
+            plan = assemble(
+                solution, snapshot, lang=getattr(snapshot.request, "lang", "zh")
+            )
         return SolveOutcome(
             engine=ENGINE_CPSAT,
             requested=requested,
             solution=solution,
+            plan=plan,
             telemetry=record,
         )
     except Exception as exc:
