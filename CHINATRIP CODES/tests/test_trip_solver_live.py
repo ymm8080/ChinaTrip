@@ -329,3 +329,140 @@ def test_food_must_binds_meal_slot_any():
     assert len(bound) == 1
     assert bound[0].category == "food"
     assert bound[0].meal_slot == "any"  # R8-S2b 真餐厅 any-槽
+
+
+def test_replan_preserves_pinned_cards_exact_slot(monkeypatch):
+    """R8b 钉位保全（铁律 19 全保位）：钉卡按 C-04 钉死日+时刻——
+    重排后同日同时刻原地不动。"""
+    from datetime import time as _time
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    card = VisitItem(
+        item_id="v1",
+        name="外滩",
+        city="上海",
+        day=1,
+        start_time=_time(10, 0),
+        end_time=_time(11, 30),
+        duration_minutes=90,
+        pinned=True,
+        category="sight",
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-pin",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[card])],
+    )
+    plan.assumptions = []
+    session = PlanSession(
+        session_id="sess-pin",
+        device_id="dp",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=[],
+        preferences="",
+        plan=plan,
+    )
+    outcome = replan_session_via_trip_solver(session, store=_store())
+    assert outcome is not None and outcome.engine == "cpsat"
+    placed = [
+        it
+        for d in session.plan.days
+        for it in d.items
+        if getattr(it, "name", "") == "外滩"
+    ]
+    assert placed, "pinned card must stay present"
+    assert placed[0].day == 1
+    assert placed[0].start_time.hour == 10
+    assert placed[0].start_time.minute == 0
+
+
+
+def test_degenerate_plan_falls_back_to_legacy(monkeypatch):
+    """R8b-2（成都空天事故）：池瞬态损坏导致空天/零观光 → 缝回落
+    legacy + 披露，绝不交付空行程。"""
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    # 坏池：仅 1 行 food 候选（观光 0）——求解可 FEASIBLE 但零观光
+    bad = SnapshotStore(
+        [
+            CandidateItem(
+                cid="f1",
+                name="某餐厅",
+                poi_id="poi_food1",
+                city="上海",
+                category="food",
+                tier=5,
+                lon=121.47,
+                lat=31.23,
+                opening_hours="09:00-21:00",
+                suggested_duration_min=60,
+            )
+        ]
+    )
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=[],
+        store=bad,
+    )
+    # 缝要么因池形态回落（None+None），要么解出退化计划被闸回落——
+    # 两种合法形态都不得交付 session
+    if outcome is not None:
+        assert session is None
+        assert outcome.fallback is True
+        assert outcome.disclosures
+    else:
+        assert session is None
+
+
+
+def test_degenerate_plan_detector_unit():
+    from datetime import time as _time
+
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+    from app.services.trip_solver.live import _degenerate_plan
+
+    full = ItineraryPlan(
+        itinerary_id="it-x",
+        cities=["上海"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="上海",
+                items=[
+                    VisitItem(
+                        item_id="v1",
+                        name="外滩",
+                        city="上海",
+                        day=1,
+                        start_time=_time(9),
+                        end_time=_time(10),
+                        duration_minutes=60,
+                    )
+                ],
+            )
+        ],
+    )
+    assert _degenerate_plan(full) is False
+    empty_day = ItineraryPlan(
+        itinerary_id="it-y",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[])],
+    )
+    assert _degenerate_plan(empty_day) is True
+    assert _degenerate_plan(None) is True
+
+
+# ---------- R8-S4: pool quota + all-fill regression ----------
+
+

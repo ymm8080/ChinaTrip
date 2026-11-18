@@ -4000,3 +4000,68 @@ def test_generate_v0_falls_back_when_seam_attempted(monkeypatch):
             asyncio.run(agent._generate_v0(session))
     finally:
         reset_seam_attempted(token)
+
+
+def test_bare_preference_statement_detector():
+    from app.services.agent.plan import _bare_preference_statement
+
+    # 纯品类偏好 → 触发
+    assert _bare_preference_statement("我喜欢博物馆") is True
+    assert _bare_preference_statement("多排几家博物馆") is True
+    assert _bare_preference_statement("喜欢博物馆和美食") is True
+    assert _bare_preference_statement("想看演出") is True
+    # 点名/心愿/结构变更 → 各走原道
+    assert _bare_preference_statement("必去灵隐寺") is False
+    assert _bare_preference_statement("想去故宫") is False
+    assert _bare_preference_statement("加个景山") is False
+    assert _bare_preference_statement("把行程改成3天") is False
+    assert _bare_preference_statement("重新规划去杭州") is False
+    # 风格词（非品类）不触发；空句不触发
+    assert _bare_preference_statement("慢慢逛就行") is False
+    assert _bare_preference_statement("") is False
+
+
+
+def test_bare_preference_message_routes_to_full_replan(monkeypatch):
+    """「我喜欢博物馆」在 ready 会话上 → preferences 留存 + 全量重排
+    （_generate_v0 的 R8 钩子自动换引擎）。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    agent = PlanningAgent(StubAdapter([]))
+    plan = ItineraryPlan(
+        itinerary_id="it-r8b",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[])],
+    )
+    plan.assumptions = []
+    session = PlanSession(
+        session_id="sess-r8b",
+        device_id="d9",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+        plan=plan,
+    )
+    seen = {}
+
+    async def _fake_v0(sess, *, extra_assumptions=None):
+        seen["prefs"] = sess.preferences
+        seen["extra"] = list(extra_assumptions or [])
+        return sess
+
+    monkeypatch.setattr(agent, "_generate_v0", _fake_v0)
+    out_sess, reply, _change = asyncio.run(
+        agent._apply_conversation(session, "我喜欢博物馆")
+    )
+    assert "我喜欢博物馆" in (seen.get("prefs") or "")
+    assert any("已按你的偏好重排" in a for a in seen.get("extra", []))
+    assert out_sess.session_id == "sess-r8b"
+
+
+# ---------- R8-S4: restart named-musts whole-name priority ----------
+
+
