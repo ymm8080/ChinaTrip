@@ -4021,7 +4021,6 @@ def test_bare_preference_statement_detector():
     assert _bare_preference_statement("") is False
 
 
-
 def test_bare_preference_message_routes_to_full_replan(monkeypatch):
     """「我喜欢博物馆」在 ready 会话上 → preferences 留存 + 全量重排
     （_generate_v0 的 R8 钩子自动换引擎）。"""
@@ -4063,5 +4062,3 @@ def test_bare_preference_message_routes_to_full_replan(monkeypatch):
 
 
 # ---------- R8-S4: restart named-musts whole-name priority ----------
-
-

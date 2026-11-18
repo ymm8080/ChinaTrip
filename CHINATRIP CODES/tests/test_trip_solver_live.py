@@ -382,7 +382,6 @@ def test_replan_preserves_pinned_cards_exact_slot(monkeypatch):
     assert placed[0].start_time.minute == 0
 
 
-
 def test_degenerate_plan_falls_back_to_legacy(monkeypatch):
     """R8b-2（成都空天事故）：池瞬态损坏导致空天/零观光 → 缝回落
     legacy + 披露，绝不交付空行程。"""
@@ -425,7 +424,6 @@ def test_degenerate_plan_falls_back_to_legacy(monkeypatch):
         assert session is None
 
 
-
 def test_degenerate_plan_detector_unit():
     from datetime import time as _time
 
@@ -464,5 +462,3 @@ def test_degenerate_plan_detector_unit():
 
 
 # ---------- R8-S4: pool quota + all-fill regression ----------
-
-
