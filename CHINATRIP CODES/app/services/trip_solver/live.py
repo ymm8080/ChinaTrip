@@ -295,6 +295,7 @@ def generate_session_via_trip_solver(
     preferences: str = "",
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
+    lang: Optional[str] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     budget_s: float = 3.0,
 ) -> tuple:
@@ -368,6 +369,7 @@ def generate_session_via_trip_solver(
         arrival_time=arrival_time,
         departure_time=departure_time,
         preferences=preferences or "",
+        lang=lang,
     )
     session.plan = outcome.plan
     session.assumptions = list(getattr(outcome.plan, "assumptions", []) or [])

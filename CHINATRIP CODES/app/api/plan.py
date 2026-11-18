@@ -791,11 +791,33 @@ async def start_plan(
         from app.services.trip_solver.entry import (
             ENGINE_CPSAT,
             engine_flag,
+            seam_plain_shape,
             serving_ready,
         )
         from app.services.trip_solver.live import generate_session_via_trip_solver
 
-        if engine_flag() == ENGINE_CPSAT and serving_ready()[0]:
+        if (
+            engine_flag() == ENGINE_CPSAT
+            and serving_ready()[0]
+            # 二期形状闸（2026-11-18 普查收口）：模型引擎只承接纯表单
+            # 开局——文字路线/带图/分城天数/指定城际/行前日期卡/行前
+            # 确认卡留给 legacy 管线（读点确认轮与行前卡解析都在那边，
+            # F-03 缝不吞点）。班次号/语言由缝透传（F-14/C-08 已承载）。
+            and seam_plain_shape(
+                brief=start_brief,
+                images=request.images,
+                city_days=start_city_days,
+                intercity_mode=request.intercity_mode,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                intake=request.intake,
+                days_override=request.days_override,
+                arrival_no_override=request.arrival_no_override,
+                departure_no_override=request.departure_no_override,
+                days=start_days,
+                cities=start_cities,
+            )
+        ):
 
             def _ts_generate():
                 return generate_session_via_trip_solver(
@@ -808,6 +830,9 @@ async def start_plan(
                     preferences=request.preferences or "",
                     arrival_time=request.arrival_time,
                     departure_time=request.departure_time,
+                    arrival_no=request.arrival_no,
+                    departure_no=request.departure_no,
+                    lang=request.lang,
                 )
 
             trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)
@@ -919,6 +944,69 @@ async def message_plan(
     # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
     brief = agent.new_trip_brief(session, request.text)
     if brief is not None:
+        restart_cities, restart_days = brief
+        # 二期（消息轮换引擎，2026-11-18）：换局语句重开的新行程走模型
+        # 引擎——仅限纯路线声明 + auto 城际（会话班次/语言随缝透传）；
+        # 点名地点的长句留给 legacy 确认轮管线（F-03 缝不吞点）。
+        trip_session = None
+        trip_outcome = None
+        try:
+            from app.services.trip_solver.entry import (
+                ENGINE_CPSAT,
+                engine_flag,
+                serving_ready,
+            )
+            from app.services.trip_solver.live import (
+                generate_session_via_trip_solver,
+            )
+
+            if (
+                engine_flag() == ENGINE_CPSAT
+                and serving_ready()[0]
+                and _restart_route_only(request.text, restart_cities)
+                and (session.intercity_mode or "auto") == "auto"
+            ):
+
+                def _ts_restart():
+                    return generate_session_via_trip_solver(
+                        device_id=session.device_id,
+                        cities=list(restart_cities or []),
+                        days=restart_days or session.days or 0,
+                        start_date=session.start_date,
+                        musts=[],
+                        store=get_poi_detail_store(),
+                        preferences=request.text,
+                        arrival_time=session.arrival_time,
+                        departure_time=session.departure_time,
+                        arrival_no=session.arrival_no,
+                        departure_no=session.departure_no,
+                        lang=session.lang,
+                    )
+
+                trip_session, trip_outcome = await asyncio.to_thread(_ts_restart)
+        except Exception:
+            logger.exception("plan/message restart seam failed; legacy serves")
+        if trip_session is not None:
+            session = trip_session
+            session.account_id = account or session.account_id
+            reply = L(
+                "已按你刚说的新行程重开一局："
+                f"{'→'.join(session.cities) or '（城市待定）'}，"
+                f"{session.days or '?'} 天（上一趟行程没有被改动）。",
+                "Started a new trip from your latest message: "
+                f"{' → '.join(session.cities) or '(city TBC)'}, "
+                f"{session.days or '?'} days "
+                "(the previous itinerary was left untouched).",
+            )
+            store.save(session)
+            body = _plan_turn_body(session, reply, None)
+            body["new_trip"] = True
+            body["lane"] = {
+                "lane": "main",
+                "intent": "new_trip",
+                "engine": "cpsat",
+            }
+            return body
         try:
             session, reply = await agent.restart_with_brief(
                 session, request.text, brief
@@ -929,6 +1017,12 @@ async def message_plan(
         except LLMError as exc:
             logger.exception("plan/message llm_error: %s", exc)
             raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
         store.save(session)
         body = _plan_turn_body(session, reply, None)
         body["new_trip"] = True
@@ -1194,6 +1288,32 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 假设块折叠着用户不看，「必去未排上」必须一眼可见（想去 chip 只是
     # 次要面，无宿主卡时连 chip 都没有）。每次过闸重算，编辑后自愈。
     session.plan.unarranged_musts = unarranged_must_visits(session.plan, must_names)
+
+
+def _restart_route_only(text: str, cities: list) -> bool:
+    """换局句是否纯路线声明（二期消息轮换引擎守卫，2026-11-18）。
+
+    剥掉城市名、天数（数字/汉字数词）、常见路线词与标点后无残渣 →
+    引擎可承接；有残渣（可能点名地点，如「必去西湖」）→ legacy 确认
+    轮管线（读点→点选→排期，F-03 缝不吞点）。保守方向：拿不准留给
+    legacy（_brief_is_route_declaration 是短句读点护栏，口径过窄，
+    不适配换局句）。"""
+    import re as _re
+
+    probe = _re.sub(r"\s+", "", text or "")
+    if not probe:
+        return True
+    for city in cities or []:
+        base = _re.sub(r"\s+", "", city or "").removesuffix("市")
+        if base:
+            probe = probe.replace(base + "市", "").replace(base, "")
+    probe = _re.sub(r"[0-9０-９一二两三四五六七八九十半]+", "", probe)
+    probe = _re.sub(
+        r"[天日早晚去玩行程安排规划新重开改成换到出发回从，。！？、,.!?;:：\'\"]+",
+        "",
+        probe,
+    )
+    return not probe
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:

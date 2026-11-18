@@ -3660,3 +3660,161 @@ def test_replace_hotel_candidate_type_mismatch_422():
     )
     assert resp.status_code == 422
     assert resp.json() == {"detail": "type_mismatch"}
+
+
+# --- 二期：消息轮换引擎 + start 缝形状闸（2026-11-18） ----------------------
+
+
+def _seam_fake_store():
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    def cand(cid, name, city, cat, tier, lon, lat, hours, pid):
+        return CandidateItem(
+            cid=cid,
+            name=name,
+            poi_id=pid,
+            city=city,
+            category=cat,
+            tier=tier,
+            lon=lon,
+            lat=lat,
+            opening_hours=hours,
+            suggested_duration_min=90,
+        )
+
+    return SnapshotStore(
+        [
+            cand(
+                "c1",
+                "外滩",
+                "上海",
+                "sight",
+                1,
+                121.4903,
+                31.2335,
+                "09:00-21:00",
+                "ct_上海_20",
+            ),
+            cand(
+                "c2",
+                "豫园",
+                "上海",
+                "sight",
+                2,
+                121.4921,
+                31.2273,
+                "09:00-18:00",
+                "ct_上海_21",
+            ),
+            cand(
+                "c3", "西湖", "杭州", "sight", 1, 120.1494, 30.2459, "全天", "ct_杭州_1"
+            ),
+            cand(
+                "c4",
+                "灵隐寺",
+                "杭州",
+                "sight",
+                2,
+                120.1000,
+                30.2400,
+                "07:00-18:00",
+                "ct_杭州_2",
+            ),
+        ]
+    )
+
+
+def test_start_seam_serves_plain_shape_when_cpsat(monkeypatch):
+    """纯表单开局（cpsat 旗 + 服务就绪）→ ts- 会话真出计划。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    resp = start(
+        client,
+        {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"].startswith("ts-")
+    assert body["plan"]["days"]
+
+
+def test_start_seam_skips_complex_shapes(monkeypatch):
+    """形状闸：分城天数/指定城际 → 缝不接（legacy 服务，缝零调用）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    calls = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        return None, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
+    client = client_for(agent)
+    r1 = start(
+        client,
+        {"cities": ["上海", "杭州"], "days": 3, "city_days": {"杭州": 1}},
+    )
+    assert r1.status_code == 200
+    assert calls == []
+    r2 = start(
+        client,
+        {"cities": ["上海", "杭州"], "days": 3, "intercity_mode": "train"},
+    )
+    assert r2.status_code == 200
+    assert calls == []
+
+
+def test_message_new_trip_restart_via_engine(monkeypatch):
+    """消息轮换引擎：换局纯路线声明 → 新行程走模型引擎（新 ts- 会话）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    assert sid.startswith("ts-")
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    assert body["session_id"] != sid
+    assert body["lane"]["intent"] == "new_trip"
+
+
+def test_message_new_trip_with_sites_stays_legacy(monkeypatch):
+    """点名地点的换局长句 → legacy 读点确认轮（F-03 缝不吞点）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    calls = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        return None, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去西湖边上的楼外楼"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    # 换局缝未被调用（残渣=点名地点）→ legacy restart 管线
+    assert calls == [] or all("杭州" not in str(c.get("cities")) for c in calls)

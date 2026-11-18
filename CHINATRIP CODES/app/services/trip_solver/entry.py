@@ -96,6 +96,46 @@ def should_sample(key: str, rate: float = SHADOW_SAMPLE_RATE) -> bool:
     return bucket < int(rate * 10000)
 
 
+def seam_plain_shape(
+    *,
+    brief=None,
+    images=None,
+    city_days=None,
+    intercity_mode=None,
+    arrival_date=None,
+    departure_date=None,
+    intake=None,
+    days_override=None,
+    arrival_no_override=None,
+    departure_no_override=None,
+    days=None,
+    cities=None,
+) -> bool:
+    """F-35 形状闸（二期 2026-11-18）：模型引擎只承接「纯表单开局」。
+
+    文字路线（brief）、开局带图、分城天数、指定城际方式、行前日期卡、
+    行前确认卡（intake/days_override/班次 override）任一命中 → legacy
+    管线（读点确认轮、行前卡解析、分城拆窗都在那边；F-03 缝不吞点）。
+    班次号与语言不拦——由缝透传（F-14 档案绑/C-08 班次缓冲已承载）。
+    翻旗后普查实锤：此前缝无形状闸，带图/brief/分城开局被直吞、字段
+    静默丢弃（读点确认轮整轮蒸发）。"""
+    if (brief or "").strip():
+        return False
+    if images:
+        return False
+    if city_days:
+        return False
+    if intercity_mode not in (None, "auto"):
+        return False
+    if arrival_date or departure_date:
+        return False
+    if intake or days_override or arrival_no_override or departure_no_override:
+        return False
+    if not days or not cities:
+        return False
+    return True
+
+
 @dataclass
 class SolveOutcome:
     """What the adapter decided. `engine` is who SERVED; `requested` is

@@ -8,8 +8,7 @@ from app.services.trip_solver.live import (
     snapshot_from_request,
 )
 from app.services.trip_solver.shadow.replay import SnapshotStore
-from app.services.trip_solver.types import validate_snapshot
-from app.services.trip_solver.types import CandidateItem
+from app.services.trip_solver.types import CandidateItem, validate_snapshot
 
 
 def _rows():
@@ -184,3 +183,18 @@ def test_generator_serves_when_cpsat(monkeypatch):
     assert session is not None and session.plan is not None
     assert session.state == "ready"
     assert session.plan.days
+
+
+def test_generator_passes_lang_to_session(monkeypatch):
+    """二期：语言随缝透传（EN 用户不再被默认成 zh）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=["外滩"],
+        store=_store(),
+        lang="en",
+    )
+    assert session is not None and session.lang == "en"

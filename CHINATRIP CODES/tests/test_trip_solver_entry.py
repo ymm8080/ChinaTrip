@@ -243,3 +243,43 @@ def test_telemetry_record_shape_p1e_fields():
     assert record["slack_level"] == 0
     assert record["n_vars"] is None and record["n_cons"] is None
     assert isinstance(record["solver_version"], str) and record["solver_version"]
+
+
+# --- 二期形状闸（2026-11-18）：纯表单开局才走模型引擎 ------------------------
+
+
+def test_seam_plain_shape_gates_unsupported_start_shapes():
+    from app.services.trip_solver.entry import seam_plain_shape
+
+    base = dict(
+        brief=None,
+        images=None,
+        city_days=None,
+        intercity_mode=None,
+        arrival_date=None,
+        departure_date=None,
+        intake=None,
+        days_override=None,
+        arrival_no_override=None,
+        departure_no_override=None,
+        days=2,
+        cities=["上海"],
+    )
+    assert seam_plain_shape(**base) is True
+    # 文字路线 / 带图 / 分城天数 / 指定城际 / 行前日期卡 / 行前确认卡 → legacy
+    assert seam_plain_shape(**{**base, "brief": "想去杭州三天"}) is False
+    assert seam_plain_shape(**{**base, "brief": "  "}) is True
+    assert seam_plain_shape(**{**base, "images": ["x"]}) is False
+    assert seam_plain_shape(**{**base, "city_days": {"杭州": 1}}) is False
+    assert seam_plain_shape(**{**base, "intercity_mode": "train"}) is False
+    assert seam_plain_shape(**{**base, "intercity_mode": "auto"}) is True
+    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-20"}) is False
+    assert seam_plain_shape(**{**base, "departure_date": "2026-11-22"}) is False
+    assert seam_plain_shape(**{**base, "intake": {"a": 1}}) is False
+    assert seam_plain_shape(**{**base, "days_override": 3}) is False
+    assert seam_plain_shape(**{**base, "arrival_no_override": "G123"}) is False
+    assert seam_plain_shape(**{**base, "departure_no_override": "MU5678"}) is False
+    # 缺天数/缺城市（追问轮形态）→ legacy
+    assert seam_plain_shape(**{**base, "days": 0}) is False
+    assert seam_plain_shape(**{**base, "cities": None}) is False
+    assert seam_plain_shape(**{**base, "cities": []}) is False
