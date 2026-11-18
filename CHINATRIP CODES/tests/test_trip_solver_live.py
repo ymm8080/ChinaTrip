@@ -462,3 +462,80 @@ def test_degenerate_plan_detector_unit():
 
 
 # ---------- R8-S4: pool quota + all-fill regression ----------
+
+
+def test_pool_quota_scales_with_trip_shape():
+    from app.services.trip_solver.live import snapshot_from_request
+
+    snap_a = snapshot_from_request(
+        cities=["北京", "杭州", "上海"],
+        days=5,
+        start_date=None,
+        musts=[],
+        store=_store(),
+    )
+    cities_a: dict = {}
+    for c in snap_a.candidates:
+        cities_a[c.city or "?"] = cities_a.get(c.city or "?", 0) + 1
+    assert sum(cities_a.values()) <= 42  # 总量 ≈ days×7（35±圆整上浮）
+    snap_b = snapshot_from_request(
+        cities=["北京", "杭州", "上海"],
+        days=5,
+        start_date=None,
+        musts=[],
+        store=_store(),
+        city_days={"杭州": 2, "上海": 3},
+    )
+    cities_b = {c.city for c in snap_b.candidates}
+    assert "北京" not in cities_b  # 有分城：出发城不取数（C-17 灭活对齐）
+
+
+def test_all_fill_multi_city_places_fills(monkeypatch):
+    """R8-S4 回归：多城 all-fill（musts=[]）不得空排——池配额+种子时机修。"""
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver.live import generate_session_via_trip_solver
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    rows = []
+    for i in range(10):
+        rows.append(
+            CandidateItem(
+                cid="h%d" % i,
+                name="杭州点%d" % i,
+                poi_id="p_h%d" % i,
+                city="杭州",
+                category="sight",
+                tier=(i % 5) + 1,
+                lon=120.0 + i * 0.01,
+                lat=30.2 + i * 0.01,
+                opening_hours="08:00-18:00",
+                suggested_duration_min=90,
+            )
+        )
+        rows.append(
+            CandidateItem(
+                cid="s%d" % i,
+                name="上海点%d" % i,
+                poi_id="p_s%d" % i,
+                city="上海",
+                category="sight",
+                tier=(i % 5) + 1,
+                lon=121.4 + i * 0.01,
+                lat=31.2 + i * 0.01,
+                opening_hours="08:00-18:00",
+                suggested_duration_min=90,
+            )
+        )
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t-allfill",
+        cities=["杭州", "上海"],
+        days=2,
+        start_date="2026-11-25",
+        musts=[],
+        store=SnapshotStore(rows),
+    )
+    assert session is not None
+    total = sum(len(d.items) for d in session.plan.days)
+    assert total >= 6  # 空排=回归失败

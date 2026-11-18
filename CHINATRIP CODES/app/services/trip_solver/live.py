@@ -245,10 +245,35 @@ def snapshot_from_request(
             pref_tokens = ()
     pool: list[dict] = []
     seen_names = set(must_names_bound)
-    for city in cities:
+    # R8-S4 池按行程形状配额（修多城 all-fill 空排）：总量 ≈ days×7，
+    # 按城市窗天数（有 city_days：C-17 同口径，出发城/闭合尾城不取
+    # 数——C-17 已灭活，纯模型负重）或城市均分分配；单城下限 6、
+    # 上限 pool_limit。此前 3 城×30=90 候选的模型在 tier② 0.4
+    # dtime 下 UNKNOWN，阶梯保 tier① 空前缀=空计划（live 实锤）。
+    from .model.c17_city_days import _norm as _city_norm
+    from .model.c17_city_days import city_day_windows
+
+    city_list = [c for c in cities if c]
+    total_target = max(12, int(days or 1) * 7)
+    if city_days:
+        windows = city_day_windows(city_list, days, dict(city_days))
+        share = {
+            c: windows[_city_norm(c)][1] - windows[_city_norm(c)][0] + 1
+            for c in city_list
+            if _city_norm(c) in windows
+        }
+    else:
+        n_cities = max(1, len(city_list))
+        share = {c: (int(days or 1) / n_cities) for c in city_list}
+    total_w = sum(share.values()) or 1.0
+    limits = {
+        c: min(int(pool_limit), max(6, int(round(total_target * w / total_w))))
+        for c, w in share.items()
+    }
+    for city, limit_city in limits.items():
         rows = list(
             store.top_pois_in_city(
-                city, limit=pool_limit * 2 if pref_tokens else pool_limit
+                city, limit=limit_city * 2 if pref_tokens else limit_city
             )
         )
         if pref_tokens and rows:
@@ -260,7 +285,7 @@ def snapshot_from_request(
                 rows.sort(key=lambda r: 0 if _phit(r, pref_tokens, pref_show) else 1)
             except Exception:
                 pass
-        for row in rows[:pool_limit]:
+        for row in rows[:limit_city]:
             name = str(row.get("name") or "")
             if not name or name in seen_names:
                 continue

@@ -970,7 +970,11 @@ async def message_plan(
         # 点、B-01）；短语读不出/引擎失败仍落 legacy（读点确认轮管线）。
         restart_named_musts: list[str] = []
         try:
-            restart_named_musts = _restart_named_musts(request.text)
+            restart_named_musts = _restart_named_musts(
+                request.text,
+                store=get_poi_detail_store(),
+                cities=list(restart_cities or []),
+            )
         except Exception:
             logger.exception("plan/message restart named-must parse failed")
         trip_session = None
@@ -1348,7 +1352,7 @@ def _restart_route_only(text: str, cities: list) -> bool:
     return not probe
 
 
-def _restart_named_musts(text: str) -> list[str]:
+def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
     """换局句里的点名地点短语（二期 2026-11-18 拍板「点名长句也换引擎」）。
 
     只认强意图点名词（必去/要去/必须去/一定要去/务必去/打卡）后到句读
@@ -1361,6 +1365,20 @@ def _restart_named_musts(text: str) -> list[str]:
     点名 → 调用方落回 legacy 管线。
     """
     import re as _re
+
+    def _known(name: str) -> bool:
+        # R8-S4：整名精确命中底库（如「福和慧」含「和」）——整名
+        # 直进 musts，绝不按连接词裂开（裂词案：福和慧→福+慧
+        # 两张骨架卡）。库外名称仍走裂词（现状）。
+        if store is None or not name:
+            return False
+        try:
+            for c in cities or []:
+                if store.candidate_by_name(c, name):
+                    return True
+        except Exception:
+            return False
+        return False
 
     marker_re = _re.compile(r"一定要去|必须去|务必去|必到|必去|要去|打卡")
     junk_re = _re.compile(
@@ -1380,9 +1398,20 @@ def _restart_named_musts(text: str) -> list[str]:
             if ch in "。！？；;，,.!?" or ch.isspace():
                 cut = i
                 break
+        whole = seg[:cut].strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
+        if _known(whole):
+            if len(whole) <= 16 and not junk_re.search(whole):
+                if whole not in seen:
+                    seen.add(whole)
+                    out.append(whole)
+                    if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
+                        return out
+            continue
         for part in _re.split(r"还有|以及|[和与跟及、]", seg[:cut]):
             p = part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
-            if not p or p in seen:
+            if len(p) < 2 or p in seen:
+                # R8-S4：单字碎片不是地名（福/慧案）——丢弃，宁空
+                # 返 legacy 读点确认轮，不出垃圾卡
                 continue
             if len(p) > 16 or junk_re.search(p):
                 continue

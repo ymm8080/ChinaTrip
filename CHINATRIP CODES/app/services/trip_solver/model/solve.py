@@ -44,7 +44,12 @@ LADDER_TIER_DETERMINISTIC_BUDGET = 0.1
 def _seed_greedy_fill_hints(bundle, enriched, prev_solver) -> None:
     """Greedy incumbent seed for tier②: keep tier① placements, add
     fills in tier order onto the least-loaded feasible day. Hints
-    only warm-start — determinism unaffected (dtime decides)."""
+    only warm-start — determinism unaffected (dtime decides).
+
+    R8-S4：提示单字典合并——同一变量只提一次（旧版先按 tier① 解全量
+    提示、贪心又对 presence/dur 重复提不同值 → CP-SAT MODEL_INVALID，
+    阶梯静默断在后续层；all-fill 空排根因之四）。同日光标推进避让
+    tier① 已排项（end+45min），溢出日尾从头再排（CP-SAT 小修）。"""
     snapshot = enriched.snapshot
     fills = sorted(
         (c for c in snapshot.candidates if not c.rid),
@@ -53,18 +58,24 @@ def _seed_greedy_fill_hints(bundle, enriched, prev_solver) -> None:
     if not fills or prev_solver is None:
         return
     load = {d: 0 for d in bundle.days}
+    cursor = {d: 0 for d in bundle.days}
     for cid, day in bundle.cid_day_list:
         if prev_solver.Value(bundle.presence[(cid, day)]):
+            end = prev_solver.Value(bundle.start[(cid, day)]) + prev_solver.Value(
+                bundle.dur[cid]
+            )
             load[day] = load.get(day, 0) + prev_solver.Value(bundle.dur[cid])
+            cursor[day] = max(cursor.get(day, 0), end)
     budget = int(getattr(snapshot.request, "day_load_budget_min", 570) or 570)
     # complete hint: every presence explicitly 0/1, requested starts from
-    # the tier-1 solver — complete consistent hints survive CP-SAT repair
+    # the tier-1 solver — collected in ONE dict, applied once (no dup).
+    hint_vals: dict = {}
     for cid, day in bundle.cid_day_list:
         lit = prev_solver.Value(bundle.presence[(cid, day)])
-        bundle.model.AddHint(bundle.presence[(cid, day)], lit)
+        hint_vals[bundle.presence[(cid, day)]] = lit
         if lit:
-            bundle.model.AddHint(
-                bundle.start[(cid, day)], prev_solver.Value(bundle.start[(cid, day)])
+            hint_vals[bundle.start[(cid, day)]] = prev_solver.Value(
+                bundle.start[(cid, day)]
             )
     for cand in fills:
         target = min(
@@ -73,11 +84,17 @@ def _seed_greedy_fill_hints(bundle, enriched, prev_solver) -> None:
         )
         dur = cand.suggested_duration_min or 90
         if load.get(target, 0) + dur <= budget:
-            bundle.model.AddHint(bundle.presence[(cand.cid, target)], 1)
-            start = max(8 * 60 + 30, 13 * 60 if load.get(target, 0) else 8 * 60 + 30)
-            bundle.model.AddHint(bundle.start[(cand.cid, target)], start)
-            bundle.model.AddHint(bundle.dur[cand.cid], dur)
+            day_open, day_close = 8 * 60 + 30, 21 * 60
+            start = max(day_open, cursor.get(target, 0))
+            if start + dur > day_close:
+                start = day_open
+            hint_vals[bundle.presence[(cand.cid, target)]] = 1
+            hint_vals[bundle.start[(cand.cid, target)]] = start
+            hint_vals[bundle.dur[cand.cid]] = dur
+            cursor[target] = start + dur + 45
             load[target] = load.get(target, 0) + dur
+    for var, val in hint_vals.items():
+        bundle.model.AddHint(var, val)
 
 
 def _apply_hint(bundle: "VarBundle", hint: "Solution") -> None:
@@ -109,6 +126,7 @@ def solve(
     hint: Optional["Solution"] = None,
     slack: Optional[SlackFlags] = None,
     tier_det: float = TIER_DETERMINISTIC_BUDGET,
+    tier2_det: Optional[float] = None,
 ) -> Solution:
     started = time.perf_counter()
     if hint is not None:
@@ -146,7 +164,12 @@ def solve(
             else 0.0
         )
         candidate_solver.parameters.max_time_in_seconds = remaining
-        candidate_solver.parameters.max_deterministic_time = tier_det
+        # R8-S4：tier②（fill 最大化）专属 dtime——大池 all-fill 的
+        # 病灶层（36×5 在 0.4/0.5 下 UNKNOWN=空排）；其余层维持
+        # R5 调好的口径（g11 墙钟不被拖爆）。
+        candidate_solver.parameters.max_deterministic_time = (
+            tier2_det if (index == 1 and tier2_det is not None) else tier_det
+        )
         if tier.sense == "min":
             bundle.model.Minimize(tier.expression)
         else:
@@ -155,12 +178,6 @@ def solve(
         status = candidate_solver.StatusName(status_code)
         if coverage_assumptions:
             bundle.model.ClearAssumptions()
-        if index == 1 and not greedy_seeded and status == "OPTIMAL":
-            # R4: trip-scale tier② needs an incumbent seed — greedy
-            # fill placement in tier order on the least-loaded day
-            # (g11 was UNKNOWN at 0.4 dtime without it)
-            _seed_greedy_fill_hints(bundle, enriched, solver)
-            greedy_seeded = True
         if status == "INFEASIBLE":
             return Solution(
                 status="INFEASIBLE",
@@ -183,6 +200,14 @@ def solve(
         best = int(round(candidate_solver.ObjectiveValue()))
         objective_values[tier.name] = best
         fully_optimized = fully_optimized and status == "OPTIMAL"
+        if index == 0 and status == "OPTIMAL" and not greedy_seeded:
+            # R4/R8-S4 贪心 fill incumbent 种子：tier① 证毕即种——
+            # 原挂在 index==1 的 Solve 之后=死代码，tier② 大池在
+            # 0.4 dtime 内无 incumbent 直接 UNKNOWN，阶梯保空前缀
+            # （90 候选 all-fill 空排根因之二，live 实锤）。greedy
+            # 按 tier 序落最空日，hint 仅热启动不影响确定性。
+            _seed_greedy_fill_hints(bundle, enriched, solver)
+            greedy_seeded = True
         if index < len(tiers) - 1:
             # FEASIBLE 也等式锁（与 OPTIMAL 同式）：锁死已找到的值，
             # 后续层在同值空间优化——与既有词典序行为一致，形状不漂移
@@ -279,8 +304,16 @@ def solve_snapshot(
     solve_kwargs = {"hint": hint}
     if len(enriched.snapshot.candidates) > 20:
         solve_kwargs["tier_det"] = 0.5
-        budget_s = max(budget_s, 5.5)
-        extra = ["行程规模较大，求解时间预算按 Q3 披露放宽至 5.5s（绝不回退顺序排列）"]
+        # R8-S4：tier② 按池规模再定标（×n/20、上限 4×；36 候选→0.9）；
+        # 墙钟随 tier② 增量微提（满载下 dtime 的墙钟换算会放大，Q3 披露）
+        solve_kwargs["tier2_det"] = 0.5 * max(
+            1.0, min(4.0, len(enriched.snapshot.candidates) / 20.0)
+        )
+        budget_s = max(budget_s, 5.5 + (solve_kwargs["tier2_det"] - 0.5))
+        extra = [
+            "行程规模较大，求解时间预算按 Q3 披露放宽至 %.1fs（绝不回退顺序排列）"
+            % budget_s
+        ]
     # 预算核算覆盖 build_model（g11 建模 ~1s 不含在 solve 内会翻预算）
     remaining_after_build = (
         max(0.15, budget_s - (_time.perf_counter() - started)) if budget_s > 0 else 0.0

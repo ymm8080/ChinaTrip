@@ -4002,6 +4002,9 @@ def test_generate_v0_falls_back_when_seam_attempted(monkeypatch):
         reset_seam_attempted(token)
 
 
+# --- R8b：裸偏好语句 → 全量引擎重排 ----------------------------------------
+
+
 def test_bare_preference_statement_detector():
     from app.services.agent.plan import _bare_preference_statement
 
@@ -4062,3 +4065,72 @@ def test_bare_preference_message_routes_to_full_replan(monkeypatch):
 
 
 # ---------- R8-S4: restart named-musts whole-name priority ----------
+
+
+def test_restart_named_musts_whole_name_and_junk():
+    from app.api.plan import _restart_named_musts
+
+    class _S:
+        def candidate_by_name(self, city, name):
+            return {"name": name} if name == "福和慧" and city == "上海" else None
+
+    # 整名精确命中：不裂词
+    assert _restart_named_musts("必去福和慧", store=_S(), cities=["上海"]) == ["福和慧"]
+    # 无店（离线路径）：裂词后单字碎片全弃 → 空返（落 legacy 读点确认轮）
+    assert _restart_named_musts("必去福和慧") == []
+    # 库外多名仍按连接词裂开（现状保留）
+    assert _restart_named_musts("必去外滩和豫园") == ["外滩", "豫园"]
+
+
+def test_message_restart_food_must_whole_name(monkeypatch):
+    """R8-S4 live 形状：换局点名餐厅（名含「和」）整名进 musts → 落 any-槽
+    餐卡（S2b）；不再裂成『福』『慧』两张骨架卡。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    rows = [
+        CandidateItem(
+            cid="c1",
+            name="外滩",
+            poi_id="ct_上海_20",
+            city="上海",
+            category="sight",
+            tier=1,
+            lon=121.4903,
+            lat=31.2335,
+            opening_hours="09:00-21:00",
+            suggested_duration_min=90,
+        ),
+        CandidateItem(
+            cid="c2",
+            name="福和慧",
+            poi_id="ct_上海_food_1",
+            city="上海",
+            category="food",
+            tier=2,
+            lon=121.44,
+            lat=31.22,
+            opening_hours="11:00-20:30",
+            suggested_duration_min=90,
+        ),
+    ]
+    monkeypatch.setattr(
+        "app.api.plan.get_poi_detail_store", lambda: SnapshotStore(rows)
+    )
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去上海玩1天，必去福和慧"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["session_id"].startswith("ts-")
+    names = [i["name"] for d in body["plan"]["days"] for i in d["items"]]
+    assert "福和慧" in names
+    assert "福" not in names and "慧" not in names
